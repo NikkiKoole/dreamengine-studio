@@ -87,6 +87,11 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
   const studioC = path.join(RUNTIME_DIR, 'studio.c')
 
   fs.mkdirSync(BUILD_DIR, { recursive: true })
+
+  // remove any stale files from previous sessions
+  const stale = ['ComicMono.ttf', 'ComicMono-Bold.ttf', 'PixelComicSans.ttf', 'Ac437_Acer_VGA_8x8.ttf']
+  stale.forEach(f => { try { fs.unlinkSync(path.join(BUILD_DIR, f)) } catch {} })
+
   fs.writeFileSync(CART_SRC, code)
   if (fs.existsSync(FONT_SRC)) fs.copyFileSync(FONT_SRC, FONT_DEST)
 

@@ -1,0 +1,54 @@
+@font-face {
+  font-family: 'ComicMono';
+  src: url('/ComicMono.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'ComicMono';
+  src: url('/ComicMono-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* make the CodeMirror editor fill its panel */
+.cm-editor {
+  height: 100%;
+  font-size: 14px;
+}
+
+.cm-scroller,
+.cm-content,
+.cm-line {
+  font-family: 'ComicMono', ui-monospace, monospace !important;
+  overflow: auto;
+}
+
+/* autocomplete dropdown */
+.cm-tooltip,
+.cm-tooltip-autocomplete,
+.cm-completionInfo,
+.cm-completionLabel,
+.cm-completionDetail {
+  font-family: 'ComicMono', ui-monospace, monospace !important;
+  font-size: 13px;
+}
+
+/* hover tooltip */
+.studio-tooltip {
+  font-family: 'ComicMono', ui-monospace, monospace;
+  font-size: 13px;
+  padding: 8px 12px;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+.studio-tooltip-sig {
+  color: #e5c07b;
+  margin-bottom: 5px;
+}
+
+.studio-tooltip-doc {
+  color: #abb2bf;
+}

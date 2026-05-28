@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eventually — Sprites</title>
+  </head>
+  <body>
+
+    <div class="whole">
+
+      <div class="topbar">
+        <h>brush</h>
+        <div class="slidecontainer">
+          <input type="range" min="1" max="10" value="1" class="slider" id="brushRange">
+        </div>
+        <input id="brushInput" type="number" min="1" max="64" value="1">
+        <h>sprite</h>
+        <input id="cellwidth"  type="number" min="1">
+        <input id="cellheight" type="number" min="1">
+        <h>zoom</h>
+        <div class="slidecontainer">
+          <input type="range" min="1" max="5" value="4" class="slider" id="zoomRange">
+        </div>
+      </div>
+
+      <div class="swatches-and-canvas">
+        <div class="swatches"></div>
+        <div class="canvascontainer">
+          <canvas id="sprite-canvas"          class="blocked-background"></canvas>
+          <canvas id="sprite-canvas-tmp"></canvas>
+          <canvas id="sprite-canvas-overlay"></canvas>
+        </div>
+        <div class="worldcontainer">
+          <canvas id="world-canvas"          class="blocked-background"></canvas>
+          <canvas id="world-canvas-tmp"></canvas>
+          <canvas id="world-canvas-overlay"></canvas>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="pixel">pixel</button>
+        <button id="fill">fill</button>
+        <button id="selection">select</button>
+        <button id="stamp">stamp</button>
+        <button id="linetool">line</button>
+      </div>
+
+      <div class="tilemap">
+        <canvas id="tilemap-canvas"         class="blocked-background"></canvas>
+        <canvas id="tilemap-canvas-overlay"></canvas>
+      </div>
+
+      <div class="slidecontainer smaller">
+        <input type="range" min="1" max="4" value="2" class="slider" id="zoomRangeTilemap">
+      </div>
+
+    </div>
+
+    <div class="frames-and-plus">
+      <div class="frames-list"></div>
+    </div>
+
+    <div class="help-area">
+      <button id="help-button">?</button>
+      <div id="help-text">
+        <b>keyboard shortcuts</b><br><br>
+        <b>[← ↑ → ↓]</b> shift drawing<br>
+        <b>[1]</b> prev frame<br>
+        <b>[2]</b> next frame<br>
+        <b>[3]</b> add empty frame<br>
+        <b>[4]</b> duplicate frame<br>
+        <b>[d]</b> delete frame<br>
+        <b>[h]</b> flip horizontal<br>
+        <b>[v]</b> flip vertical<br>
+        <b>[r]</b> rotate 90°<br>
+        <b>[p]</b> pencil<br>
+        <b>[f]</b> fill<br>
+        <b>[s]</b> select<br>
+        <b>[l]</b> line/circle/rect<br>
+        <b>[\\]</b> save to localStorage<br>
+      </div>
+    </div>
+
+    <script type="module" src="/src/sprite-editor.js"></script>
+  </body>
+</html>

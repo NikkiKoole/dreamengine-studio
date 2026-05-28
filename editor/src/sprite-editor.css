@@ -1,0 +1,243 @@
+#panel-sprites {
+  user-select: none;
+}
+
+h {
+  height: 28px;
+  line-height: 28px;
+  font-weight: bold;
+  color: var(--fg-dim);
+  padding: 0 6px;
+}
+
+.whole {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* ── topbar ── */
+.topbar {
+  margin-left: 56px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar input[type=number] {
+  width: 48px;
+  height: 28px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: bold;
+  padding: 0 6px;
+}
+.topbar input[type=number]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── palette swatches ── */
+.swatches-and-canvas {
+  display: flex;
+  gap: 12px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  width: 56px;
+  height: calc(28px * 16);
+}
+.swatches div {
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+}
+.swatches div.active {
+  border: 2px solid var(--white);
+  outline: 2px solid var(--bg);
+  z-index: 1;
+}
+
+/* ── sprite canvas ── */
+.canvascontainer {
+  position: relative;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  overflow: auto;
+  resize: both;
+}
+
+canvas {
+  image-rendering: optimizeSpeed;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: pixelated;
+  -ms-interpolation-mode: nearest-neighbor;
+}
+
+#sprite-canvas-overlay,
+#sprite-canvas-tmp,
+#world-canvas,
+#world-canvas-overlay,
+#world-canvas-tmp {
+  pointer-events: none;
+  position: absolute;
+  border: 2px solid transparent;
+}
+
+#sprite-canvas-overlay {
+  animation: blinker .8s ease-in-out infinite;
+}
+@keyframes blinker {
+  from { filter: invert(0) }
+  50%  { filter: invert(1) }
+  to   { filter: invert(0) }
+}
+
+#tilemap-canvas-overlay {
+  position: absolute;
+  border: 2px solid transparent;
+  pointer-events: none;
+}
+
+.blocked-background {
+  background-color: #2a2b30;
+  background-image:
+    repeating-linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%, #333),
+    repeating-linear-gradient(45deg, #333 25%, #2a2b30 25%, #2a2b30 75%, #333 75%, #333);
+  background-position: 0 0, 8px 8px;
+  background-size: 16px 16px;
+}
+
+#sprite-canvas {
+  cursor: crosshair;
+  border: 1px solid var(--border);
+  position: absolute;
+}
+#tilemap-canvas {
+  border: 1px solid var(--border);
+  position: absolute;
+}
+
+/* ── tools ── */
+.actions {
+  margin-left: 56px;
+  display: flex;
+  gap: 4px;
+}
+
+button {
+  height: 28px;
+  padding: 0 10px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+button.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+button:hover:not(.active) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── tilemap ── */
+.tilemap {
+  position: relative;
+  margin-left: 56px;
+}
+
+/* ── frames ── */
+.frames-and-plus {
+  position: fixed;
+  bottom: 8px;
+  left: 0;
+  display: flex;
+  font-size: 11px;
+  line-height: 28px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.frames-list {
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  border-right: 1px solid var(--border);
+}
+.frames-list div {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-right: none;
+  width: 20px;
+  height: 28px;
+  color: var(--fg-dim);
+}
+.frames-list div.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+/* ── sliders ── */
+.slidecontainer { width: 80px; }
+.slidecontainer.smaller { width: 60px; }
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  outline: none;
+}
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 24px;
+  background: var(--accent);
+  cursor: pointer;
+  border: 1px solid var(--bg);
+}
+.slider::-moz-range-thumb {
+  width: 20px;
+  height: 24px;
+  background: var(--accent);
+  cursor: pointer;
+  border: 1px solid var(--bg);
+}
+
+/* ── help ── */
+.help-area {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+}
+
+#help-button { width: 28px; }
+
+#help-text {
+  display: none;
+  position: absolute;
+  bottom: 36px;
+  right: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 12px;
+  line-height: 1.8;
+  white-space: nowrap;
+}

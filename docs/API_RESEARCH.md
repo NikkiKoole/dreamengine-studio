@@ -232,6 +232,33 @@ in real sketches:
 - `text(str, x, y)`, `textSize`, `textAlign` — we have `print` at
   fixed size.
 
+### Strudel — code-as-music idioms
+
+We already pulled in Strudel's `every`, `euclid`, `chance`,
+`degree` — the helpers that made the most sense as plain
+functions. Strudel itself is more ambitious: a JS port of
+TidalCycles where music is built out of **first-class patterns**
+that compose with method chains. We can't have first-class
+patterns in C, but the *idioms* still translate.
+
+Things worth borrowing on a second pass (proposed in §13):
+
+- **Note-name parsing** — Strudel's `note("c4 e4 g4")` accepts
+  letter+octave strings. Beats remembering MIDI 60 = C4.
+- **Probability shorthands** — `sometimes`, `often`, `rarely` are
+  named points on `chance(p)`. They read like English.
+- **Arpeggios** — `arp` plays one note of a chord per step.
+- **Stutter** — `bd*4` in mini-notation, repeat a hit N times in a
+  beat.
+- **Palindrome / reverse** — pattern shape transforms.
+- **Swing** — micro-timing biases that humanise the beat.
+- **Off-beat scheduling** — fractional-beat events for ghost notes.
+
+Things that need engine work (deferred): per-note filters
+(`.lpf().resonance()`), reverb/delay sends, stereo/pan, and the
+mini-notation parser. Real Strudel features, but they touch
+`sound.h`, not `studio.h`.
+
 ---
 
 ## Proposed additions, by category
@@ -242,63 +269,70 @@ step.
 
 ### 1. Math — small, high-leverage
 
-These are universally useful and tiny to implement.
+These are universally useful and tiny to implement. Names chosen to
+read like sentences from the comment beside them.
 
 ```c
-// numeric
-int   abs_i(int v);
-int   min_i(int a, int b);
-int   max_i(int a, int b);
-float lerp(float a, float b, float t);              // p5
-float remap(float v, float a, float b, float c, float d);  // p5 'map' renamed
-float clamp_f(float v, float lo, float hi);          // float twin of mid()
+// numeric — bare math verbs
+int   abs(int v);                                       // "absolute value"
+int   min(int a, int b);                                // "smaller of two"
+int   max(int a, int b);                                // "bigger of two"
+float clamp(float v, float lo, float hi);               // "keep between two limits"
+float lerp(float a, float b, float t);                  // "mix a and b" (t=0 → a, t=1 → b)
+float remap(float v, float a, float b, float c, float d); // "from one range to another"
 
-// geometry
-float dist(int x1, int y1, int x2, int y2);          // p5
-float mag(int x, int y);                             // p5
-float angle_to(int x1, int y1, int x2, int y2);      // GameMaker point_direction; returns degrees
-int   len_dir_x(float len, float deg);               // GameMaker classic
-int   len_dir_y(float len, float deg);
+// geometry — read like sentences
+float distance(int x1, int y1, int x2, int y2);         // "how far apart are these points?"
+float length(int x, int y);                             // "how long is this vector?" (sqrt of x²+y²)
+float angle_to(int x1, int y1, int x2, int y2);         // "what direction (degrees) from A to B?"
+int   dx(float steps, float degrees);                   // "how much x do I move stepping this way?"
+int   dy(float steps, float degrees);                   //  (GameMaker's lengthdir_x/y, renamed)
 
-// trig (degree-based to match angle_to + len_dir_*; matches BlitzMax)
-float sin_d(float deg);
-float cos_d(float deg);
+// trig — degree-based, matches angle_to + dx/dy
+float sin_deg(float degrees);
+float cos_deg(float degrees);
 ```
 
 We expose **degree-based trig** rather than radians or turns. Two
-reasons: angles in degrees are taught in school; and `len_dir_*`
-plus `angle_to` chain cleanly in degrees. Floats throughout because
-the cost of int-only math is more bug than the cost of teaching
-floats.
+reasons: angles in degrees are taught in school; and `dx`/`dy` plus
+`angle_to` chain cleanly in degrees. Floats throughout because the
+cost of int-only math is more bug than the cost of teaching floats.
+
+Naming notes: `abs/min/max` are the universal math words; `clamp`
+beats `mid` for clarity (we'll keep `mid` as an alias — see the
+existing-API review at the end). `distance` over `dist`, `length`
+over `mag` — full words read better than abbreviations when you're
+seven. `dx`/`dy` is the physics shorthand: "delta x given a step at
+an angle." Comments make the verb visible.
 
 ### 2. Collision — the missing layer
 
 ```c
-// AABB rectangle overlap
-bool rect_overlap(int ax, int ay, int aw, int ah,
-                  int bx, int by, int bw, int bh);
+// "are these two boxes touching?"
+bool boxes_touch(int ax, int ay, int aw, int ah,
+                 int bx, int by, int bw, int bh);
 
-// point-in-rect (we sort of have `tap`, but that's touch-only)
-bool point_in_rect(int px, int py, int rx, int ry, int rw, int rh);
+// "is this point inside this box?"
+bool point_in_box(int px, int py, int bx, int by, int bw, int bh);
 
-// circle-circle overlap
-bool circle_overlap(int ax, int ay, int ar, int bx, int by, int br);
+// "are these two circles touching?"
+bool circles_touch(int ax, int ay, int ar, int bx, int by, int br);
 
-// distance check helper (squared-distance internally so we avoid sqrt)
-bool within(int ax, int ay, int bx, int by, int d);
+// "are these two points within d pixels of each other?"
+bool near(int ax, int ay, int bx, int by, int d);
 
-// tile-map collision: is any cell under this AABB non-empty?
-bool map_solid(int x, int y, int w, int h);   // pixel-space AABB
-int  map_at(int px, int py);                  // sample the map at pixel coords
+// "is this box on top of any non-empty map cell?"
+bool touching_map(int x, int y, int w, int h);     // pixel-space AABB
+int  tile_at(int px, int py);                       // sample the map at pixel coords
 
-// Scratch-style: is any pixel under this AABB the given palette color?
+// "is this box covering any pixel of this color?" (Scratch's idea)
 bool touching_color(int x, int y, int w, int h, int color);
 ```
 
-`map_solid` is the cart-friendly version of "I am a 16×16 sprite at
-(x, y) — am I on top of a wall?". Internally it walks the cells
+`touching_map` is the cart-friendly version of "I am a 16×16 sprite
+at (x, y) — am I on top of a wall?". Internally it walks the cells
 that the AABB overlaps and returns true if any is non-zero. For a
-richer notion of "solid" the cart can use `map_at` and decide for
+richer notion of "solid" the cart can use `tile_at` and decide for
 itself.
 
 `touching_color` is the **Scratch idea** ported in. It walks the
@@ -311,8 +345,9 @@ which is already in the runtime. Implementation cost is tiny since
 `pget` already reads from the previous frame's canvas snapshot.
 
 ```c
-// Scratch's `if on edge, bounce` — flip velocity components when the
-// sprite reaches a screen edge. Mutates x/y/vx/vy in place.
+// "if I'm at an edge, bounce!" (Scratch's classic helper)
+// Flips vx if x is at the left/right edge, vy at top/bottom.
+// Mutates x/y/vx/vy in place.
 void bounce_at_edges(int *x, int *y, int *vx, int *vy,
                      int w, int h);
 ```
@@ -329,17 +364,20 @@ GameMaker's `image_index` is implicit; PICO-8 makes you do
 for absolute beginners. One helper goes a long way:
 
 ```c
-// returns the current frame (0..n_frames-1) for an animation
-// running at `fps` FPS, anchored to the global clock.
+// "which frame should I be on right now?" — cycles 0..n_frames-1
 int anim(int n_frames, float fps);
 
-// same, but plays once from a given start time and returns
-// the last frame after it ends.
+// "which frame should I be on, given this animation started at time t?"
+// — plays once; returns the last frame after the animation ends.
 int anim_once(int n_frames, float fps, float start_t);
 ```
 
 Usage: `spr(walk_base + anim(4, 10), x, y);` — walk cycle, 10
 frames per second.
+
+Naming note: `anim` reads well in context (`anim(4, 10)` = "4-frame
+animation at 10 fps"). Shorter than `current_frame_of_animation()`
+and it's already a familiar term to anyone who's used GameMaker.
 
 ### 4. Easing / interpolation
 
@@ -347,19 +385,23 @@ We get most of the way with `lerp`. Add a few common easings for
 when the user wants something other than linear motion:
 
 ```c
-float ease_in(float t);     // t*t
-float ease_out(float t);    // 1 - (1-t)*(1-t)
-float ease_in_out(float t); // smoothstep — 3t² - 2t³
+// take a 0..1 value and curve it to make motion feel less robotic
+float ease_in(float t);      // "start slow, end fast"
+float ease_out(float t);     // "start fast, end slow"
+float ease_in_out(float t);  // "slow, fast, slow" (smoothstep)
 ```
 
-Composes with `lerp` and `now()` for transitions.
+Composes with `lerp` and `now()` for transitions. Plain English
+comments because "ease" is jargon — the comment tells you what
+the curve actually does.
 
 ### 5. Noise — the Shiffman special
 
 ```c
-float noise(float x);                    // 1D Perlin / value noise, returns 0..1
-float noise2(float x, float y);          // 2D
-float noise3(float x, float y, float z); // 3D — useful for animated terrain
+// "smooth-random — nearby inputs give similar outputs" (0..1)
+float noise(float x);                     // 1D
+float noise2(float x, float y);           // 2D  — terrain, fog, flow fields
+float noise3(float x, float y, float z);  // 3D — animated 2D + time
 ```
 
 Value noise is ~30 lines and good enough. Perlin is ~80 and feels
@@ -369,13 +411,19 @@ flow fields, drifting fog) is otherwise hard to get cheaply.
 ### 6. Persistence — high scores and cart state
 
 ```c
-int  dget(int slot);              // read int from persistent slot
-void dset(int slot, int value);   // write
-// total slots: 64 (PICO-8 parity)
+// "remember a number across runs of this cart" (64 slots)
+void save(int slot, int value);   // store an int in a persistent slot
+int  load(int slot);              // read it back — 0 if never saved
 ```
 
-Stored alongside the cart binary or in a per-cart `cart.dat` file
-in `build/`. Trivial in main.cjs land.
+Stored alongside the cart binary as a per-cart `cart.dat` file in
+`build/`. Trivial in main.cjs land.
+
+Naming note: PICO-8 calls these `dset`/`dget` ("data set/get"); we
+go with the verbs you'd actually say out loud — "save the high
+score", "load the high score." We'll need to keep an eye on `save`
+colliding with future cart-saving — but `save_score(s)` is the most
+common use, and the slot version reads cleanly: `save(0, score)`.
 
 ### 7. String formatting — make `print` more useful
 
@@ -384,46 +432,59 @@ correct but ceremonial. A tiny helper returning a static buffer is
 all most carts need:
 
 ```c
-const char *str(const char *fmt, ...);   // sprintf into a 64-byte rolling buffer
+// "build a string with values in it" — printf-style, returns a static buffer
+const char *str(const char *fmt, ...);
 // usage: print(str("score %d", score), 4, 4, CLR_WHITE);
 ```
 
 Rolling buffer means: subsequent calls overwrite. Fine for the
 single-frame case; document the gotcha.
 
+Naming note: `str` is short and reads in context (`print(str("…"),
+…)`). `text(…)` was tempting but overlaps with the visual concept
+of text already drawn by `print`.
+
 ### 8. Camera helpers — quality-of-life
 
 ```c
-// follow target, clamped to a world rect
-void camera_follow(int target_x, int target_y,
-                   int world_w, int world_h);
+// "make the camera follow this point" — clamped to the world rect
+void follow(int target_x, int target_y, int world_w, int world_h);
 ```
 
-Internally calls `camera(mid(0, target_x - SCREEN_W/2, world_w -
-SCREEN_W), mid(0, target_y - SCREEN_H/2, world_h - SCREEN_H))`.
+Internally calls `camera(clamp(target_x - SCREEN_W/2, 0, world_w -
+SCREEN_W), clamp(target_y - SCREEN_H/2, 0, world_h - SCREEN_H))`.
 The default cart's draw() already inlines this; making it a helper
 saves carts five lines.
 
 ### 9. Time helpers
 
 ```c
-int   frame(void);          // monotonic frame counter, increments per update()
-float timer(void);          // seconds since the last timer_reset() (Scratch-style)
-void  timer_reset(void);
+int   frame(void);            // "what frame number are we on?"  (increments each update)
+float timer(void);            // "how many seconds since I last reset the timer?"
+void  timer_reset(void);      // "start the timer over from 0"
 ```
 
 `now()` is unstoppable since startup — great for animation. `timer`
 is the cart-controllable counterpart — perfect for "how long did
-the player survive?", round timers, etc. Pairs nicely with `now()`
-(seconds). `frame()` is for users who want frame-based timing
-instead of seconds-based.
+the player survive?", round timers, etc. `frame()` is for users
+who want frame-based timing instead of seconds-based.
+
+For *musical* sub-beat timing — anything finer than `beat()` — see
+the **PPQ tick clock** introduced in §14. `tick()` advances 96
+times per beat and stays musical across tempo changes, which is
+why the Dilla-timing primitives are built on it.
 
 ### 10. Random — small additions
 
 ```c
-int   rnd_range(int lo, int hi);    // int in [lo, hi)
-float rnd_f(void);                  // float in [0.0, 1.0)
-float rnd_f_range(float lo, float hi);
+// "pick a random number between lo and hi"  (Scratch: "pick random N to M")
+int   rnd_between(int lo, int hi);          // int in [lo, hi)
+
+// "pick a random float between 0.0 and 1.0"
+float rnd_float(void);
+
+// "pick a random float between lo and hi"
+float rnd_float_between(float lo, float hi);
 ```
 
 Currently `rnd(n)` only gives `[0, n)` ints. The float variants
@@ -432,9 +493,9 @@ are needed for noise/lerp/animation patterns.
 ### 11. Events — Scratch's broadcast / receive
 
 ```c
-void broadcast(int msg_id);     // post an event for this frame
-bool received(int msg_id);      // true if msg_id was broadcast since
-                                // last update() — drained each frame
+void broadcast(int msg_id);     // "shout this message to everyone"
+bool received(int msg_id);      // "did anyone shout this message?"
+                                //  (drained each frame)
 ```
 
 A tiny global event bus, mirroring Scratch's
@@ -452,15 +513,21 @@ total.
 ### 12. Pen / turtle graphics
 
 ```c
-// Scratch / Logo turtle. A single "turtle" with position + heading
-// that leaves a trail when the pen is down.
-void turtle_home(void);                  // x = SCREEN_W/2, y = SCREEN_H/2, heading = 0 (right)
-void turtle_pen(bool down);              // raise or lower the pen
-void turtle_color(int palette_color);    // pen color (palette index)
-void turtle_forward(float pixels);       // move forward `pixels` along heading; draws if pen is down
-void turtle_turn(float degrees);         // turn (positive = clockwise)
-void turtle_face(float degrees);         // set absolute heading
-void turtle_goto(int x, int y);          // teleport (no draw)
+// Scratch / Logo turtle. A single implicit turtle with position +
+// heading that leaves a trail when the pen is down.
+
+// motion (turtle position & heading) — Scratch's "Motion" category
+void turtle_home(void);             // "go to the middle, face right"
+void turtle_move(float steps);      // "move forward this many pixels"
+void turtle_turn(float degrees);    // "turn N degrees" (positive = clockwise)
+void turtle_face(float degrees);    // "point in this direction"
+void turtle_at(int x, int y);       // "teleport here without drawing"
+                                    // (note: `goto` is a C reserved word)
+
+// pen (drawing) — Scratch's "Pen" extension
+void pen_down(void);                // "start leaving a trail"
+void pen_up(void);                  // "stop leaving a trail"
+void pen_color(int palette_color);  // "use this color for the trail"
 ```
 
 A separate drawing paradigm — your cursor moves through the world
@@ -476,10 +543,10 @@ Beginner programs that fit on a screen:
 void draw() {
     cls(CLR_BLACK);
     turtle_home();
-    turtle_color(CLR_GREEN);
-    turtle_pen(true);
+    pen_color(CLR_GREEN);
+    pen_down();
     for (int i = 0; i < 360; i++) {
-        turtle_forward(2);
+        turtle_move(2);
         turtle_turn(91);    // 91 instead of 90 makes a spiral, not a square
     }
 }
@@ -487,7 +554,320 @@ void draw() {
 
 Could grow into a tutorial cart all by itself.
 
-### 13. Convenient sprite drawing
+### 13. More from Strudel — code-as-music additions
+
+We already pulled Strudel's `every`, `euclid`, `chance`, `degree`.
+There's more on offer. None of it is essential, but a few of these
+would expand what a beginner can express in three lines of code.
+
+```c
+// "what's the MIDI number for this note name?" — accepts c4, d#5, bb3, etc.
+int pitch(const char *note_name);
+```
+
+Saves remembering that "C4" is MIDI 60. Carts read naturally:
+`note(pitch("c4"), INSTR_TRI, 5)`. Strudel does this through its
+`note("c e g")` parsing.
+
+```c
+// probability shorthands — Strudel's sometimes / often / rarely
+bool sometimes(void);   // chance(50)
+bool often(void);       // chance(80)
+bool rarely(void);      // chance(20)
+```
+
+`if (every(1) && rarely()) note(...);` reads exactly like what
+it does. We already have `chance(p)` — these are just named
+points on the curve.
+
+```c
+// "play the nth note of this chord, cycling forever"
+// — turns a chord into an arpeggio when called once per beat.
+void arp(int root, int chord_type, int instr, int vol, int step);
+```
+
+Usage:
+```c
+if (every(1)) arp(60, CHORD_MIN7, INSTR_TRI, 4, beat());
+// → cycles through C-Eb-G-Bb-C-Eb-G-Bb... one per beat
+```
+
+Strudel's `arp` is a pattern transformer; ours is a function call,
+but the *idea* — chord notes as a sequence indexed by step — is
+the same.
+
+```c
+// "play this note multiple times within one beat" (Strudel's bd*4)
+void stutter(int midi, int instr, int vol, int times);
+```
+
+Schedules `times` notes evenly across the current beat using
+`schedule()` under the hood. Snare rolls, machine-gun blips,
+stuttering bass.
+
+```c
+// "go back and forth across N positions, instead of repeating"
+int palindrome(int beat, int length);   // 0..length-1..0..length-1...
+int rev_step(int beat, int length);     // length-1 down to 0, then repeat
+```
+
+For melodies that bounce instead of loop, or for reversed
+arpeggios:
+```c
+if (every(1)) {
+    int idx = palindrome(beat(), 5);
+    note(degree(SCALE_PENTA, 4, idx), INSTR_TRI, 4);
+}
+// → C D E G A G E D C D E G A G E D C...
+```
+
+```c
+// "play this note exactly at a fraction of the way through a beat"
+// fraction is 0.0..1.0. Useful for hi-hat ghost notes, syncopation.
+void off_beat(float fraction, int midi, int instr, int vol);
+```
+
+Equivalent to `schedule((int)(fraction * beat_ms()), midi, instr,
+vol)` where `beat_ms` is derived from BPM. Just makes the
+ghost-note pattern one call instead of three.
+
+> Global swing (Strudel's `swingBy`) is subsumed by per-group
+> swing — see §14 below. We omit a single global `swing()` here
+> so we don't have two ways to set the same thing.
+
+#### Things we'd need bigger changes for (defer)
+
+These are real Strudel features but they touch the audio engine,
+not just the API:
+
+- **Per-note filter cutoff / resonance** (`.lpf(800).resonance(0.5)`)
+  — requires per-voice SVF filters in `sound.h`. Currently we mix
+  raw oscillators. Roughly 100 lines of DSP per filter type.
+- **Reverb / delay effects** — global FX bus. Bigger restructure
+  of the audio callback.
+- **Stereo / pan** — currently mono. Doubles every voice's
+  per-sample math but is otherwise straightforward.
+- **Mini-notation parser** (`"bd*4 ~ sd"`) — strings of pattern
+  syntax. A small parser + matching pattern-eval runtime. Probably
+  out of scope for a learning console, but undeniably fun.
+
+#### What we already have that lines up with Strudel
+
+| Strudel | dreamengine | notes |
+|---|---|---|
+| `cps(n)` / BPM | `bpm(rate)` | same |
+| `s("bd")` sample trigger | `sfx(n)` | data-driven |
+| `note(...)` | `note(midi, instr, vol)` | direct trigger |
+| `every(4, fn)` | `if (every(4)) …` | gate-based |
+| `euclid(3,8)` mini-notation | `euclid(hits, steps, b)` | function form |
+| `?p` random gate | `chance(p)` | function form |
+| `.scale("c:minor").n(3)` | `degree(SCALE_MINOR, oct, 3)` | function form |
+| `stack(a, b)` | two parallel `if`-blocks | naturally |
+| `.degradeBy(0.5)` | `every(1) && chance(50)` | composable |
+| `.fast(2)` | call `every(1)` twice | manual |
+
+### 14. Dilla timing — per-group groove, swing, jitter
+
+J Dilla's drum patterns are famous for *not* sitting on the grid —
+hi-hats might be straight, the snare slightly behind, the kick
+slightly ahead. Combined with a hint of random wobble, the result
+feels like a person playing, not a metronome.
+
+To do this well we need a sub-beat unit. Milliseconds aren't
+right (a "5ms delay" feels different at 60 vs 180 BPM); we want
+something musical.
+
+#### Sub-beat unit: PPQ (pulses per quarter note)
+
+Stealing the MIDI/MPC standard: **96 ticks per beat**. That
+divides cleanly into 16th notes (24 ticks), triplet 8ths (32
+ticks), 32nd notes (12 ticks), and triplet 16ths (16 ticks).
+navkit's soundsystem uses the same 96 — keeps us future-compatible
+if we ever talk to it.
+
+```c
+#define PPQ 96    // ticks per beat — public constant
+
+int   tick(void);        // "what tick of the song are we on?"
+                         //  monotonically increasing, 96 per beat
+float tick_pos(void);    // 0.0..1.0 fractional position within the current tick
+```
+
+96 ticks per beat at 120 BPM = a tick every ~5.2 ms. At our 1024-
+sample audio buffer (~23 ms) that's finer than the audio thread's
+resolution, but it's still the right *musical* unit — we round to
+the nearest sample when scheduling.
+
+**Why expose ticks at all?** So that swing / jitter / push can be
+expressed in *musical* units that survive tempo changes. "Push
+snare by 8 ticks" is the same musical feel at any BPM; "push snare
+by 40ms" is not.
+
+#### The groove API
+
+```c
+// "play a note that follows this group's timing feel"
+void groove(int group, int midi, int instr, int vol, int dur_ms);
+
+// per-group config — set once, applies to all subsequent groove() calls.
+// units chosen for what feels intuitive at the human end:
+void groove_swing(int group, int percent);    // 0..50  "how laid-back"  (% of half-beat)
+void groove_jitter(int group, int ticks);     // 0..24  "how human"      (± PPQ ticks)
+void groove_push(int group, int ticks);       // -24..24 "early/late"    (PPQ ticks)
+```
+
+Picking units:
+- **swing** stays as a percent because that's how musicians talk
+  about it ("25% swing", "MPC swing") and it's already
+  tempo-independent.
+- **jitter** and **push** are in **ticks**, not ms — so the feel
+  stays musical across BPM changes. We multiply by `(60_000 /
+  bpm) / PPQ` internally to get the sample delay.
+
+Eight groups, generic numbered 0..7. Carts give them meaning:
+
+```c
+#define G_KICK  0
+#define G_HAT   1
+#define G_SNARE 2
+#define G_BASS  3
+#define G_LEAD  4
+
+void update() {
+    bpm(85);
+
+    // setup the feel — once, anywhere (idempotent)
+    groove_swing (G_HAT,   28);     // jazzy hats — 28% swing
+    groove_jitter(G_HAT,    3);     // ±3 ticks of human wobble (~16ms at 85bpm)
+    groove_push  (G_SNARE, +6);     // snare drags by 6 ticks — Dilla classic
+    groove_jitter(G_KICK,   1);     // kick is tight, just a kiss of wobble
+
+    if (every(2))                 groove(G_KICK,  36, INSTR_TRI,   5, 60);
+    if (every(2) && beat()%4==2)  groove(G_SNARE, 60, INSTR_NOISE, 5, 80);
+    if (every(1))                 groove(G_HAT,   72, INSTR_NOISE, 2, 25);
+}
+```
+
+The same loop, played by a person. The tick-based push/jitter
+keeps feeling the same if you change `bpm(85)` to `bpm(140)`.
+
+**How each setting fires:**
+
+- **`groove_jitter(g, ticks)`** — easiest. Every `groove(g, ...)`
+  call rolls a uniform random offset in `[-ticks, +ticks]`,
+  converts to samples (`ticks * sample_rate * 60 / bpm / PPQ`),
+  and feeds it to the schedule queue. Done. No state.
+- **`groove_push(g, ticks)`** — also easy. Fixed offset, same
+  ticks-to-samples conversion. Positive = late, negative = early.
+- **`groove_swing(g, percent)`** — needs a tiny bit of state per
+  group. We track which "subdivision" we're on by reading
+  `tick() % PPQ` at trigger time: ticks in the 0..47 half are
+  "on-beat", ticks in 48..95 are "off-beat". On the off-beat we
+  add `(percent% × PPQ/2)` ticks of delay. This is the same
+  formula MPCs use, applied per call. No assumption about call
+  rate.
+
+**Why grouped, not per-call:** the *feel* of a song lives in the
+relationship between elements — hat swings 25%, snare pushes 6ms
+late, kick is dead straight. Carts set this once at the top and
+the rest of the music just calls `groove(g, …)`. PICO-8 doesn't
+have anything like this. Strudel does it through pattern
+transforms; we do it through groups.
+
+**Naming notes:**
+
+- `groove(g, …)` reads like English: "play this with the kick
+  group's feel".
+- `groove_swing`, `groove_jitter`, `groove_push` form a triad and
+  every name says what it does (no "humanize", no "feel").
+- We chose `groove` over `hit_in_group(g, …)` or `play(g, …)` —
+  it conveys *micro-timing* specifically.
+- Numbered groups (not enum) so carts pick their own taxonomy.
+
+### 15. Gamepad — controller support, almost free
+
+raylib already polls game controllers — we just don't expose it.
+Adding controller support means **augmenting `btn()` internally** so
+that `btn(0, BTN_A)` returns true if either the Z key *or* the
+gamepad-0 A button is held. Same for player 1 mapping to
+gamepad-1. No cart-facing change.
+
+What we *do* need a new surface for is analog input:
+
+```c
+// "how far in this direction is the stick pushed?" (-1.0..1.0)
+float gp_axis(int slot, int axis);
+
+#define AXIS_LX 0   // left stick X (left-right)
+#define AXIS_LY 1   // left stick Y (up = negative, down = positive)
+#define AXIS_RX 2   // right stick X
+#define AXIS_RY 3   // right stick Y
+#define AXIS_LT 4   // left trigger  (0..1)
+#define AXIS_RT 5   // right trigger (0..1)
+
+bool gp_present(int slot);   // is a gamepad plugged in at this slot?
+```
+
+The trigger axes (`LT`/`RT`) sit between 0 and 1, not -1..1.
+
+This pairs nicely with `stick_x()` / `stick_y()` (the touch
+stick) — if we ever generalise, we could have a single
+`stick_x(slot)` that reads from "whatever's connected first":
+touch on iPad, gamepad on desktop, WASD fallback otherwise. For
+now, keep them distinct.
+
+### 16. Pause + debug helpers
+
+```c
+// "freeze the world" — update() stops being called, draw() keeps running
+// so the cart can show a pause menu / state overlay.
+void pause(bool paused);
+bool paused(void);
+
+// debug introspection
+int fps(void);             // current frame rate (averaged)
+int voices_active(void);   // how many sound voices are currently playing
+```
+
+`pause(true)` stops `update()` from firing; `draw()` keeps running
+each frame so the screen doesn't freeze. Carts can use this for
+pause menus, game-over overlays, level-transition screens. The
+runtime drains the audio queue normally so sounds finish their
+release tails rather than cutting out.
+
+`fps()` and `voices_active()` are debug breadcrumbs — useful while
+making the game, less useful in the finished cart. A typical use:
+
+```c
+void draw() {
+    cls(CLR_BLACK);
+    // ... game ...
+    if (btn(0, BTN_A) && btn(0, BTN_B)) {   // both held = show debug
+        print(str("%d fps", fps()), 4, 4, CLR_LIGHT_YELLOW);
+        print(str("%d/8 voices", voices_active()), 4, 14, CLR_LIGHT_YELLOW);
+    }
+}
+```
+
+### 17. Print alignment helpers
+
+`print(text, x, y, color)` is fixed-size top-left anchored. Two
+tiny helpers cover the most common asks:
+
+```c
+// "print this text centered on the screen at height y"
+void print_centered(const char *text, int y, int color);
+
+// "print this text so it ends at right_x at height y"
+void print_right(const char *text, int right_x, int y, int color);
+```
+
+Internally each computes the text width (chars × 8 px) and
+calls `print` with the right offset. Useful for titles, scores,
+floating damage numbers, anything where you don't want to measure
+strings yourself.
+
+### 18. Convenient sprite drawing
 
 If we ever want rotation: `spr_ext(idx, x, y, xscale, yscale,
 angle_deg, flip_x, flip_y)`. Pure raylib `DrawTexturePro` under
@@ -518,10 +898,11 @@ Probably defer until someone actually asks.
 If we were to ship the next API expansion in one focused pass, I'd
 pick:
 
-1. **Math + collision basics**: `abs_i`, `min_i`, `max_i`, `lerp`,
-   `remap`, `dist`, `angle_to`, `len_dir_x/y`, `sin_d`, `cos_d`,
-   `rect_overlap`, `circle_overlap`, `within`, `map_solid`,
-   `map_at`, `touching_color`, `bounce_at_edges`.
+1. **Math + collision basics**: `abs`, `min`, `max`, `clamp`,
+   `lerp`, `remap`, `distance`, `length`, `angle_to`, `dx`, `dy`,
+   `sin_deg`, `cos_deg`, `boxes_touch`, `circles_touch`, `near`,
+   `point_in_box`, `touching_map`, `tile_at`, `touching_color`,
+   `bounce_at_edges`.
 2. **`str()`** for formatted printing.
 3. **`anim()`** for animation cycles.
 4. **`timer()` / `timer_reset()`** for round timers.
@@ -534,15 +915,189 @@ sprites, bouncing balls, timed rounds.
 
 ### Second pass
 - **`noise()`** (Perlin) for organic motion.
-- **Persistence**: `dget` / `dset` for high scores.
+- **Persistence**: `save(slot, val)` / `load(slot)` for high scores.
 - **Easings**: `ease_in`, `ease_out`, `ease_in_out`.
-- **Camera follow** helper.
+- **`follow()`** — camera follow helper.
 - **Events**: `broadcast` / `received` — small but worth a real
   pass since it touches the main-loop drain semantics.
+- **`rnd_between` / `rnd_float` / `rnd_float_between`** — round
+  out the random surface.
+- **More Strudel**: `pitch("c4")` for note-name parsing,
+  `sometimes`/`often`/`rarely`, `arp` for chord arpeggios,
+  `stutter`, `palindrome`, `off_beat`. Pure functions throughout.
+- **Dilla timing**: `groove(g, midi, instr, vol, dur_ms)` +
+  `groove_swing` / `groove_jitter` / `groove_push` for per-group
+  micro-timing. The thing that turns a quantized beat into a
+  *song*.
 
 ### Third pass (own projects)
 - **Turtle graphics** — its own paradigm, big payoff but earns a
-  separate ship with example carts.
+  separate ship with example carts (`turtle_move`/`turn`/`face`/
+  `home`/`at` + `pen_down`/`up`/`color`).
+- **Gamepad support** — `gp_axis(slot, axis)`, `gp_present(slot)`,
+  internal augment of `btn()`/`btnp()` to also read controllers.
+- **Pause + debug**: `pause(bool)`, `paused()`, `fps()`,
+  `voices_active()`.
+- **Print alignment**: `print_centered`, `print_right`.
 - **`spr_ext`** with rotation + scale — opens up effects.
 - **Sound tracker UI** — if the code-first sound path turns out
   not to be enough.
+
+---
+
+## Existing API — naming review
+
+A pass over what we already ship, looking for names that would
+read better to a beginner.
+
+### Worth adding as aliases (keep the old name too)
+
+| Existing | Proposed alias | Reason |
+|---|---|---|
+| `mid(lo, val, hi)` | `clamp(val, lo, hi)` | `mid` is a PICO-8 idiom; `clamp` is what everyone else calls it, and the argument order is more natural ("clamp this value between these limits") |
+| `sgn(n)` | `sign(n)` | Same value, less abbreviation |
+
+These would coexist — alias the new name to the old impl so no
+existing code breaks. The friendlier names are what we teach;
+the old names stay for compatibility and for users coming from
+PICO-8.
+
+### Keep as-is — PICO-8 vocabulary, beginners learn it fast
+
+| Name | Why we keep it |
+|---|---|
+| `cls(c)` | "clear screen" — universal in fantasy consoles |
+| `spr(idx, x, y)` | PICO-8 standard; carts will need to look at PICO-8 tutorials |
+| `sprf` / `sspr` | Suffixes are PICO-8 conventions (`spr` + flip / sub) |
+| `pset` / `pget` | PICO-8 vocab — "pixel set/get" |
+| `circ` / `circfill` | Renaming to `circle` clashes with raylib's `Circle` type. We learned this the hard way once already |
+| `rect` / `rectfill` | Short, universal |
+| `rnd(n)` | Short, beginner-recognisable |
+| `now()` | Excellent name as-is |
+| `mget` / `mset` / `map(...)` | PICO-8 standard |
+
+### Already excellent Scratch-style names
+
+`tap`, `touch_count`, `touch_x`, `touch_y`, `stick_x`, `stick_y`,
+`btn`, `btnp`, `every`, `chance` — these all read like sentences
+already.
+
+### Worth thinking about later
+
+| Name | Concern | Possible rename |
+|---|---|---|
+| `every(n)` | Reads great in `if (every(4))` — possibly the best name in the whole API | (keep) |
+| `bpm`, `beat`, `beat_pos` | Music vocabulary, fine for users making music | (keep) |
+| `degree(scale, oct, n)` | "Degree" is music theory jargon — but the alternatives ("scale_note", "note_in_scale") aren't clearly better | (keep, but watch) |
+| `euclid(hits, steps, b)` | Borrows the mathematician's name. Beautiful for those who know it; opaque to those who don't. Comment in studioDocs covers it | (keep) |
+| `chord` / `strum` | Both excellent — read like sentences | (keep) |
+
+### Naming principles we've drifted toward
+
+Looking at what feels right vs. wrong in our current API:
+
+1. **Verbs in plain English beat abbreviations** — `touching_color`
+   beats `color_overlap`; `bounce_at_edges` beats `edge_reflect`.
+2. **Read like a sentence in context** — `if (boxes_touch(...))`,
+   `pen_down(); turtle_move(20);`.
+3. **Question form for boolean queries** — `touching_map`,
+   `boxes_touch`, `near`.
+4. **Function-name = command for actions** — `move`, `turn`,
+   `face`, `clear`, `bounce`.
+5. **Comment as a Scratch block** — every API entry's docstring
+   should be the sentence a Scratch block would be. We're already
+   doing this in `studioDocs.js`.
+6. **Stay consistent with PICO-8 vocabulary for the basics** —
+   beginners do look at PICO-8 tutorials.
+7. **When PICO-8 and Scratch disagree, lean Scratch** — except
+   where PICO-8 is genuinely shorter/clearer (`cls`, `spr`).
+
+---
+
+## Index — every proposed name
+
+Flat alphabetical list of all the new symbols proposed in this
+doc, so you can ctrl-F. Constants are grouped at the bottom.
+
+| Name | Kind | Category | § |
+|---|---|---|---|
+| `abs(v)` | function | math | 1 |
+| `angle_to(x1, y1, x2, y2)` | function | math | 1 |
+| `anim(n_frames, fps)` | function | animation | 3 |
+| `anim_once(n_frames, fps, start_t)` | function | animation | 3 |
+| `arp(root, type, instr, vol, step)` | function | sound (Strudel) | 13 |
+| `bounce_at_edges(&x, &y, &vx, &vy, w, h)` | function | collision | 2 |
+| `boxes_touch(ax, ay, aw, ah, bx, by, bw, bh)` | function | collision | 2 |
+| `broadcast(msg_id)` | function | events | 11 |
+| `circles_touch(ax, ay, ar, bx, by, br)` | function | collision | 2 |
+| `clamp(v, lo, hi)` | function | math (also alias for `mid`) | 1 |
+| `cos_deg(degrees)` | function | math | 1 |
+| `distance(x1, y1, x2, y2)` | function | math | 1 |
+| `dx(steps, degrees)` | function | math | 1 |
+| `dy(steps, degrees)` | function | math | 1 |
+| `ease_in(t)` | function | easing | 4 |
+| `ease_in_out(t)` | function | easing | 4 |
+| `ease_out(t)` | function | easing | 4 |
+| `follow(target_x, target_y, world_w, world_h)` | function | camera | 8 |
+| `fps()` | function | debug | 16 |
+| `frame()` | function | time | 9 |
+| `gp_axis(slot, axis)` | function | input | 15 |
+| `gp_present(slot)` | function | input | 15 |
+| `groove(group, midi, instr, vol, dur_ms)` | function | sound (Dilla) | 14 |
+| `groove_jitter(group, ticks)` | function | sound (Dilla) | 14 |
+| `groove_push(group, ticks)` | function | sound (Dilla) | 14 |
+| `groove_swing(group, percent)` | function | sound (Dilla) | 14 |
+| `length(x, y)` | function | math | 1 |
+| `lerp(a, b, t)` | function | math | 1 |
+| `load(slot)` | function | persistence | 6 |
+| `max(a, b)` | function | math | 1 |
+| `min(a, b)` | function | math | 1 |
+| `near(ax, ay, bx, by, d)` | function | collision | 2 |
+| `noise(x)` | function | noise | 5 |
+| `noise2(x, y)` | function | noise | 5 |
+| `noise3(x, y, z)` | function | noise | 5 |
+| `off_beat(fraction, midi, instr, vol)` | function | sound (Strudel) | 13 |
+| `often()` | function | sound (Strudel) | 13 |
+| `palindrome(beat, length)` | function | sound (Strudel) | 13 |
+| `pause(paused)` | function | runtime | 16 |
+| `paused()` | function | runtime | 16 |
+| `pen_color(c)` | function | turtle | 12 |
+| `pen_down()` | function | turtle | 12 |
+| `pen_up()` | function | turtle | 12 |
+| `pitch(note_name)` | function | sound (Strudel) | 13 |
+| `point_in_box(px, py, bx, by, bw, bh)` | function | collision | 2 |
+| `print_centered(text, y, color)` | function | graphics | 17 |
+| `print_right(text, right_x, y, color)` | function | graphics | 17 |
+| `rarely()` | function | sound (Strudel) | 13 |
+| `received(msg_id)` | function | events | 11 |
+| `remap(v, a, b, c, d)` | function | math | 1 |
+| `rev_step(beat, length)` | function | sound (Strudel) | 13 |
+| `rnd_between(lo, hi)` | function | random | 10 |
+| `rnd_float()` | function | random | 10 |
+| `rnd_float_between(lo, hi)` | function | random | 10 |
+| `save(slot, value)` | function | persistence | 6 |
+| `sign(n)` | function | math (alias for `sgn`) | review |
+| `sin_deg(degrees)` | function | math | 1 |
+| `sometimes()` | function | sound (Strudel) | 13 |
+| `spr_ext(idx, x, y, xs, ys, deg, fx, fy)` | function | graphics | 18 |
+| `str(fmt, ...)` | function | strings | 7 |
+| `stutter(midi, instr, vol, times)` | function | sound (Strudel) | 13 |
+| `tick()` | function | time | 14 |
+| `tick_pos()` | function | time | 14 |
+| `tile_at(px, py)` | function | collision | 2 |
+| `timer()` | function | time | 9 |
+| `timer_reset()` | function | time | 9 |
+| `touching_color(x, y, w, h, color)` | function | collision (Scratch) | 2 |
+| `touching_map(x, y, w, h)` | function | collision | 2 |
+| `turtle_at(x, y)` | function | turtle | 12 |
+| `turtle_face(degrees)` | function | turtle | 12 |
+| `turtle_home()` | function | turtle | 12 |
+| `turtle_move(steps)` | function | turtle | 12 |
+| `turtle_turn(degrees)` | function | turtle | 12 |
+| `voices_active()` | function | debug | 16 |
+| `AXIS_LX` / `AXIS_LY` / `AXIS_RX` / `AXIS_RY` / `AXIS_LT` / `AXIS_RT` | constants | input | 15 |
+| `PPQ` | constant (96) | time | 14 |
+
+**Totals:** ~60 new functions + ~7 constants. Roughly doubling the
+current API surface — which is why this lands in three passes, not
+one.

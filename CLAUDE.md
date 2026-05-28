@@ -1,4 +1,4 @@
-# eventually
+# dreamengine
 
 A fantasy console / learning programming environment. Write C, hit run, get a native game window. Inspired by PICO-8, DIV Game Studio, and BlitzMax.
 

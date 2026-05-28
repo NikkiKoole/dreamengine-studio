@@ -43,7 +43,7 @@ __attribute__((weak)) void update(void) {}
 // ------------------------------------------------------------
 
 int main(void) {
-    InitWindow(SCREEN_W * SCALE, SCREEN_H * SCALE, "eventually");
+    InitWindow(SCREEN_W * SCALE, SCREEN_H * SCALE, "dreamengine");
     InitAudioDevice();
     SetTargetFPS(60);
 

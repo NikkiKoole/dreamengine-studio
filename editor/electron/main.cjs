@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, session } = require('electron')
-const { exec, spawn }                  = require('child_process')
+const { exec, execSync, spawn }        = require('child_process')
 const path                             = require('path')
 const fs                               = require('fs')
 
@@ -74,17 +74,10 @@ app.on('window-all-closed', () => {
 
 
 // ── sprites handler ───────────────────────────────────────────
-ipcMain.handle('studio:save-sprites', (_event, b64, w, h) => {
+ipcMain.handle('studio:save-sprites', (_event, dataUrl) => {
   fs.mkdirSync(BUILD_DIR, { recursive: true })
-  const bytes = Buffer.from(b64, 'base64')
-  // write raw RGBA header — no PNG codec needed on any platform
-  const header = [
-    `#define SPRITES_WIDTH  ${w}`,
-    `#define SPRITES_HEIGHT ${h}`,
-    `static const unsigned char SPRITES_DATA[] = {${[...bytes].join(',')}}`,
-    `static const unsigned int  SPRITES_DATA_LEN = ${bytes.length}`,
-  ].join(';\n') + ';\n'
-  fs.writeFileSync(path.join(BUILD_DIR, 'sprites_data.h'), header)
+  const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+  fs.writeFileSync(path.join(BUILD_DIR, 'sprites.png'), base64, 'base64')
 })
 
 // ── run handler ───────────────────────────────────────────────
@@ -102,11 +95,20 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
 
   fs.writeFileSync(CART_SRC, code)
 
-  // sprites_data.h is written by saveSprites before run is called
-  // write a fallback if it doesn't exist yet
+  // generate sprites_data.h from sprites.png via xxd (PNG is compressed — stays small)
   const spritesHeader = path.join(BUILD_DIR, 'sprites_data.h')
-  if (!fs.existsSync(spritesHeader)) {
-    fs.writeFileSync(spritesHeader, '#define SPRITES_WIDTH 0\n#define SPRITES_HEIGHT 0\nstatic const unsigned char SPRITES_DATA[]={0};\nstatic const unsigned int SPRITES_DATA_LEN=0;\n')
+  const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
+  if (fs.existsSync(spritesPng)) {
+    try {
+      const xxd = execSync('xxd -i sprites.png', { cwd: BUILD_DIR }).toString()
+      fs.writeFileSync(spritesHeader,
+        xxd.replace(/unsigned char sprites_png\[\]/,  'static const unsigned char SPRITES_DATA[]')
+           .replace(/unsigned int sprites_png_len/,   'static const unsigned int  SPRITES_DATA_LEN'))
+    } catch {
+      fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
+    }
+  } else {
+    fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
   }
 
   const args = [

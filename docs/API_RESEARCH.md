@@ -167,10 +167,41 @@ are genuinely clever:
 - **Sound: `play sound until done` / `change tempo`** — same
   shape as our `bpm()`.
 
+Beyond `touching color`, the Scratch blocks worth pulling in:
+
+- **`if on edge, bounce`** — Scratch's iconic DVD-logo helper.
+  Flips velocity components when the sprite hits a screen edge.
+  Four lines of C, big "first game" payoff. Proposed below.
+- **`point towards [target]`** — same idea as our `angle_to`, but
+  the *naming* makes it click for beginners. We'll keep `angle_to`
+  for the angle math and add a notion of "face the target"
+  conceptually when we have a sprite/actor concept.
+- **`timer` + `reset timer`** — global cart-resettable stopwatch.
+  We have `now()` (seconds since startup, unstoppable) but no way
+  to reset. Tiny addition: `timer()` returns seconds since last
+  reset, `timer_reset()` zeroes it.
+- **`broadcast [msg]` + `when I receive [msg]`** — Scratch's
+  lightweight global event bus. Pedagogically lovely: decouple
+  "the ball was eaten" from "play the eat sound" from "increment
+  score". Proposed below as `broadcast()` + `received()`.
+- **`wait N seconds`** — points straight at the process /
+  coroutine model. You can't pause inside a function without
+  yielding control. Lives in the Level-2 learning gap from VISION.
+- **`create clone of [sprite]`** — same; the process model gives
+  you cloned actors with their own state.
+- **Looks effects: `ghost`, `pixelate`, `brightness`** —
+  post-render filters. The `ghost` (alpha) one is genuinely
+  beautiful for fade-in/out, cheap to add via a global tint. The
+  others are GLSL territory.
+- **Pen / turtle graphics** — `pen_down`, `pen_up`, `change pen
+  color`. Different drawing paradigm — your "cursor" leaves a
+  trail as it moves. Wonderful for procedural-art lessons
+  (L-systems, recursive trees). Worth its own future write-up.
+
 Scratch's biggest lesson isn't a function — it's the *naming*: it
 calls things what they actually do, in plain English. "touching
-color" is a much better name than "color collision check". Worth
-keeping in mind as we name new API.
+color" is a much better name than "color collision check"; "wait 2
+seconds" beats `usleep`. Worth keeping in mind as we name new API.
 
 ### p5.js / Processing (Dan Shiffman)
 
@@ -279,6 +310,18 @@ the sprite editor (kids already think in colors) and with `pget`
 which is already in the runtime. Implementation cost is tiny since
 `pget` already reads from the previous frame's canvas snapshot.
 
+```c
+// Scratch's `if on edge, bounce` — flip velocity components when the
+// sprite reaches a screen edge. Mutates x/y/vx/vy in place.
+void bounce_at_edges(int *x, int *y, int *vx, int *vy,
+                     int w, int h);
+```
+
+The classic first-game helper. With one call your DVD-logo bounces.
+Internally: if x < 0 or x + w >= SCREEN_W, flip vx; same for y/vy.
+Operates in screen-space, not world-space, since "edges" only makes
+sense relative to the visible screen.
+
 ### 3. Animation — one helper, no objects
 
 GameMaker's `image_index` is implicit; PICO-8 makes you do
@@ -364,11 +407,16 @@ saves carts five lines.
 ### 9. Time helpers
 
 ```c
-int frame(void);   // monotonic frame counter, increments per update()
+int   frame(void);          // monotonic frame counter, increments per update()
+float timer(void);          // seconds since the last timer_reset() (Scratch-style)
+void  timer_reset(void);
 ```
 
-Pairs nicely with `now()` (seconds). Some users want frame-based
-timing instead of seconds-based.
+`now()` is unstoppable since startup — great for animation. `timer`
+is the cart-controllable counterpart — perfect for "how long did
+the player survive?", round timers, etc. Pairs nicely with `now()`
+(seconds). `frame()` is for users who want frame-based timing
+instead of seconds-based.
 
 ### 10. Random — small additions
 
@@ -381,7 +429,65 @@ float rnd_f_range(float lo, float hi);
 Currently `rnd(n)` only gives `[0, n)` ints. The float variants
 are needed for noise/lerp/animation patterns.
 
-### 11. Convenient sprite drawing
+### 11. Events — Scratch's broadcast / receive
+
+```c
+void broadcast(int msg_id);     // post an event for this frame
+bool received(int msg_id);      // true if msg_id was broadcast since
+                                // last update() — drained each frame
+```
+
+A tiny global event bus, mirroring Scratch's
+`broadcast` / `when I receive` pair. Decouples "the player died"
+(`broadcast(EVT_DEATH)`) from "play the death sound"
+(`if (received(EVT_DEATH)) sfx(3);`) from "increment death count".
+Implementation: a small bitset of pending events; `update()` runs,
+then the runtime drains the bitset at frame-end (so events posted
+in this frame are visible until end-of-frame, then gone).
+
+Carts use whatever integer IDs they like; conventionally
+`#define EVT_DEATH 0` etc. at the top of the cart. ~30 lines of C
+total.
+
+### 12. Pen / turtle graphics
+
+```c
+// Scratch / Logo turtle. A single "turtle" with position + heading
+// that leaves a trail when the pen is down.
+void turtle_home(void);                  // x = SCREEN_W/2, y = SCREEN_H/2, heading = 0 (right)
+void turtle_pen(bool down);              // raise or lower the pen
+void turtle_color(int palette_color);    // pen color (palette index)
+void turtle_forward(float pixels);       // move forward `pixels` along heading; draws if pen is down
+void turtle_turn(float degrees);         // turn (positive = clockwise)
+void turtle_face(float degrees);         // set absolute heading
+void turtle_goto(int x, int y);          // teleport (no draw)
+```
+
+A separate drawing paradigm — your cursor moves through the world
+and leaves a trail. Magical for procedural art lessons (L-systems,
+recursive trees, Hilbert curves). Tiny in code: one `Turtle` struct
+internally (x, y, heading, pen, color), `turtle_forward` calls
+`line()` from old position to new. Composes with `cls`/`spr`/etc.
+freely — turtle drawing just adds to the canvas.
+
+Beginner programs that fit on a screen:
+
+```c
+void draw() {
+    cls(CLR_BLACK);
+    turtle_home();
+    turtle_color(CLR_GREEN);
+    turtle_pen(true);
+    for (int i = 0; i < 360; i++) {
+        turtle_forward(2);
+        turtle_turn(91);    // 91 instead of 90 makes a spiral, not a square
+    }
+}
+```
+
+Could grow into a tutorial cart all by itself.
+
+### 13. Convenient sprite drawing
 
 If we ever want rotation: `spr_ext(idx, x, y, xscale, yscale,
 angle_deg, flip_x, flip_y)`. Pure raylib `DrawTexturePro` under
@@ -415,15 +521,28 @@ pick:
 1. **Math + collision basics**: `abs_i`, `min_i`, `max_i`, `lerp`,
    `remap`, `dist`, `angle_to`, `len_dir_x/y`, `sin_d`, `cos_d`,
    `rect_overlap`, `circle_overlap`, `within`, `map_solid`,
-   `map_at`, `touching_color`.
+   `map_at`, `touching_color`, `bounce_at_edges`.
 2. **`str()`** for formatted printing.
 3. **`anim()`** for animation cycles.
+4. **`timer()` / `timer_reset()`** for round timers.
 
-That's ~20 small functions, all of which are pure (no global state,
-no allocations), all of which compose with what's already there,
-and together they unlock writing real games — collision, motion at
-angle, score display, walking sprites.
+That's ~25 small functions, all of which are pure (no global state
+beyond a single timer reference, no allocations), all of which
+compose with what's already there, and together they unlock writing
+real games — collision, motion at angle, score display, walking
+sprites, bouncing balls, timed rounds.
 
-`noise()`, persistence (`dget/dset`), easings, camera helpers, and
-the rotated sprite (`spr_ext`) can come as a second pass once the
-first lands.
+### Second pass
+- **`noise()`** (Perlin) for organic motion.
+- **Persistence**: `dget` / `dset` for high scores.
+- **Easings**: `ease_in`, `ease_out`, `ease_in_out`.
+- **Camera follow** helper.
+- **Events**: `broadcast` / `received` — small but worth a real
+  pass since it touches the main-loop drain semantics.
+
+### Third pass (own projects)
+- **Turtle graphics** — its own paradigm, big payoff but earns a
+  separate ship with example carts.
+- **`spr_ext`** with rotation + scale — opens up effects.
+- **Sound tracker UI** — if the code-first sound path turns out
+  not to be enough.

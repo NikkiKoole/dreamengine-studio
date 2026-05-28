@@ -1,6 +1,8 @@
 #include "studio.h"
 #include "raylib.h"
 #include <stddef.h>
+#include <stdio.h>
+#include "dos_8x8_font.h"
 
 // ------------------------------------------------------------
 // internal state
@@ -53,19 +55,22 @@ int main(void) {
     canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
 
-    if (FileExists("dos_8x8.png")) {
-        Image fontImage = LoadImage("dos_8x8.png");
-        // yellow separator lines between glyphs
-        game_font   = LoadFontFromImage(fontImage, (Color){ 255, 255, 0, 255 }, 0);
+    {
+        Image fontImage = LoadImageFromMemory(".png", DOS_8X8_FONT, DOS_8X8_FONT_LEN);
+        game_font = LoadFontFromImage(fontImage, (Color){ 255, 255, 0, 255 }, 0);
         SetTextureFilter(game_font.texture, TEXTURE_FILTER_POINT);
         UnloadImage(fontImage);
         custom_font = true;
     }
-    if (!custom_font) game_font = GetFontDefault();
 
-    if (FileExists("sprites.png")) {
-        spritesheet = LoadTexture("sprites.png");
-        SetTextureFilter(spritesheet, TEXTURE_FILTER_POINT);
+    {
+        // look for sprites.png next to the binary, not relative to cwd
+        char spritePath[512];
+        snprintf(spritePath, sizeof(spritePath), "%ssprites.png", GetApplicationDirectory());
+        if (FileExists(spritePath)) {
+            spritesheet = LoadTexture(spritePath);
+            SetTextureFilter(spritesheet, TEXTURE_FILTER_POINT);
+        }
     }
 
     while (!WindowShouldClose()) {

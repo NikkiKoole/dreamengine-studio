@@ -69,8 +69,6 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-const FONT_SRC  = path.join(__dirname, '../public/dos_8x8.png')
-const FONT_DEST = path.join(BUILD_DIR, 'dos_8x8.png')
 
 // ── sprites handler ───────────────────────────────────────────
 ipcMain.handle('studio:save-sprites', (_event, dataUrl) => {
@@ -93,7 +91,6 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
   stale.forEach(f => { try { fs.unlinkSync(path.join(BUILD_DIR, f)) } catch {} })
 
   fs.writeFileSync(CART_SRC, code)
-  if (fs.existsSync(FONT_SRC)) fs.copyFileSync(FONT_SRC, FONT_DEST)
 
   const args = [
     `"${CART_SRC}"`,

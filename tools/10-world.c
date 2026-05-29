@@ -16,12 +16,7 @@ void update() {
     if (!touching_map((int)nx, (int)py, 16, 16)) px = nx;
     if (!touching_map((int)px, (int)ny, 16, 16)) py = ny;
 
-    // camera follows player, clamped to world bounds
-    int world_w = MAP_W * CELL_W;
-    int world_h = MAP_H * CELL_H;
-    int cx = clamp((int)px + 8 - SCREEN_W / 2, 0, world_w - SCREEN_W);
-    int cy = clamp((int)py + 8 - SCREEN_H / 2, 0, world_h - SCREEN_H);
-    camera(cx, cy);
+    follow((int)px + 8, (int)py + 8, MAP_W * CELL_W, MAP_H * CELL_H);
 }
 
 void draw() {

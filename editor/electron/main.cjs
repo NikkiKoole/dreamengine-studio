@@ -1,7 +1,76 @@
-const { app, BrowserWindow, ipcMain, Menu, session } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, session, dialog } = require('electron')
 const { exec, execSync, spawn }        = require('child_process')
 const path                             = require('path')
 const fs                               = require('fs')
+const zlib                             = require('zlib')
+
+// ── PNG cart helpers ──────────────────────────────────────────
+function crc32(buf) {
+  let crc = 0xFFFFFFFF
+  for (let i = 0; i < buf.length; i++) {
+    crc ^= buf[i]
+    for (let j = 0; j < 8; j++) crc = (crc & 1) ? (0xEDB88320 ^ (crc >>> 1)) : (crc >>> 1)
+  }
+  return (crc ^ 0xFFFFFFFF) >>> 0
+}
+
+function makeChunk(type, data) {
+  const typeBuf = Buffer.from(type, 'ascii')
+  const lenBuf  = Buffer.allocUnsafe(4)
+  lenBuf.writeUInt32BE(data.length)
+  const crcBuf  = Buffer.allocUnsafe(4)
+  crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])))
+  return Buffer.concat([lenBuf, typeBuf, data, crcBuf])
+}
+
+function makeZtxtChunk(keyword, text) {
+  const compressed = zlib.deflateSync(Buffer.from(text, 'utf8'))
+  return makeChunk('zTXt', Buffer.concat([
+    Buffer.from(keyword, 'latin1'),
+    Buffer.from([0, 0]),   // null terminator + compression method 0
+    compressed,
+  ]))
+}
+
+function embedCartChunks(pngBuf, data) {
+  const PNG_SIG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  const parts = [PNG_SIG]
+  let offset = 8
+  let iend = null
+  while (offset + 12 <= pngBuf.length) {
+    const len  = pngBuf.readUInt32BE(offset)
+    const type = pngBuf.slice(offset + 4, offset + 8).toString('ascii')
+    const chunk = pngBuf.slice(offset, offset + 12 + len)
+    if (type === 'IEND') { iend = chunk; break }
+    parts.push(chunk)
+    offset += 12 + len
+  }
+  for (const [key, val] of Object.entries(data)) parts.push(makeZtxtChunk(`de:${key}`, val))
+  if (iend) parts.push(iend)
+  return Buffer.concat(parts)
+}
+
+function extractCartChunks(pngBuf) {
+  const result = {}
+  let offset = 8
+  while (offset + 12 <= pngBuf.length) {
+    const len  = pngBuf.readUInt32BE(offset)
+    const type = pngBuf.slice(offset + 4, offset + 8).toString('ascii')
+    const data = pngBuf.slice(offset + 8, offset + 8 + len)
+    if (type === 'zTXt') {
+      const nullIdx = data.indexOf(0)
+      if (nullIdx !== -1) {
+        const key = data.slice(0, nullIdx).toString('latin1')
+        if (key.startsWith('de:')) {
+          try { result[key.slice(3)] = zlib.inflateSync(data.slice(nullIdx + 2)).toString('utf8') } catch {}
+        }
+      }
+    }
+    offset += 12 + len
+    if (type === 'IEND') break
+  }
+  return result
+}
 
 const RUNTIME_DIR = path.join(__dirname, '../../runtime')
 const BUILD_DIR   = path.join(__dirname, '../../build')
@@ -86,6 +155,54 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
+
+// ── cart save ─────────────────────────────────────────────────
+ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64 }) => {
+  const { filePath } = await dialog.showSaveDialog({
+    title: 'Save Cart',
+    defaultPath: 'mycart.cart.png',
+    filters: [{ name: 'Dreamengine Cart', extensions: ['png'] }],
+  })
+  if (!filePath) return { ok: false }
+
+  const screenshotPng = path.join(BUILD_DIR, 'screenshot.png')
+  const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
+  const basePng = fs.existsSync(screenshotPng)
+    ? fs.readFileSync(screenshotPng)
+    : fs.existsSync(spritesPng)
+      ? fs.readFileSync(spritesPng)
+      : Buffer.from(spritesDataUrl.replace(/^data:image\/png;base64,/, ''), 'base64')
+
+  const cartPng = embedCartChunks(basePng, { source, sprites: spritesDataUrl, map: mapBase64 })
+  fs.writeFileSync(filePath, cartPng)
+  return { ok: true, filePath }
+})
+
+// ── cart load ─────────────────────────────────────────────────
+ipcMain.handle('cart:load', async () => {
+  const { filePaths } = await dialog.showOpenDialog({
+    title: 'Load Cart',
+    filters: [{ name: 'Dreamengine Cart', extensions: ['png'] }],
+    properties: ['openFile'],
+  })
+  if (!filePaths || filePaths.length === 0) return null
+
+  const chunks = extractCartChunks(fs.readFileSync(filePaths[0]))
+  if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
+  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null }
+})
+
+ipcMain.handle('cart:load-buffer', async (_event, bytes) => {
+  const chunks = extractCartChunks(Buffer.from(bytes))
+  if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
+  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null }
+})
+
+ipcMain.handle('cart:load-file', async (_event, filePath) => {
+  const chunks = extractCartChunks(fs.readFileSync(filePath))
+  if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
+  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null }
+})
 
 // ── sprites handler ───────────────────────────────────────────
 ipcMain.handle('studio:save-sprites', (_event, dataUrl) => {

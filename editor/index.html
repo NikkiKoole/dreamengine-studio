@@ -14,12 +14,16 @@
         <button class="tab"        data-tab="sprites" tabindex="-1">sprites</button>
         <button class="tab"        data-tab="sound"   tabindex="-1" disabled>sound</button>
         <button class="tab"        data-tab="map"     tabindex="-1">map</button>
-        <button class="tab"        data-tab="help"     tabindex="-1">help</button>
-        <button class="tab"        data-tab="settings" tabindex="-1">settings</button>
+        <button class="tab"        data-tab="help"      tabindex="-1">help</button>
+        <button class="tab"        data-tab="tutorials" tabindex="-1">tutorials</button>
+        <button class="tab"        data-tab="settings"  tabindex="-1">settings</button>
+        <button class="tab"        data-tab="cart"      tabindex="-1">cart</button>
       </div>
       <button id="theme-btn" tabindex="-1" title="toggle day/night">☾</button>
       <button id="run-btn" tabindex="-1">▶ run</button>
     </div>
+
+    <div id="toast"></div>
 
     <div id="build-log"></div>
 
@@ -51,10 +55,7 @@
             <button id="linetool">line</button>
             <button id="undo-button" title="Undo (Cmd/Ctrl+Z)">↶ undo</button>
             <button id="redo-button" title="Redo (Cmd/Ctrl+Y)">↷ redo</button>
-          </div>
-          <div class="toolbar-hints">
             <span class="sprite-status">pixel —</span>
-            <span><b>shift+click</b> eyedrop &nbsp;·&nbsp; <b>right-click</b> erase &nbsp;·&nbsp; <b>1/2</b> prev/next frame &nbsp;·&nbsp; <b>3</b> add &nbsp;·&nbsp; <b>4</b> duplicate &nbsp;·&nbsp; <b>d</b> delete &nbsp;·&nbsp; <b>h/v</b> flip &nbsp;·&nbsp; <b>r</b> rotate</span>
           </div>
           <div class="swatches-and-canvas">
             <div class="swatches"></div>
@@ -76,6 +77,8 @@
           <button id="help-button">?</button>
           <div id="help-text">
             <b>keyboard shortcuts</b><br><br>
+            <b>[shift+click]</b> eyedropper<br>
+            <b>[right-click]</b> erase<br><br>
             <b>[← ↑ → ↓]</b> shift drawing<br>
             <b>[1]</b> prev frame &nbsp; <b>[2]</b> next<br>
             <b>[3]</b> add empty &nbsp; <b>[4]</b> duplicate<br>
@@ -116,10 +119,19 @@
             <button id="map-tool-stamp">stamp</button>
             <button id="map-undo-button" title="Undo (Cmd/Ctrl+Z)">↶ undo</button>
             <button id="map-redo-button" title="Redo (Cmd/Ctrl+Y)">↷ redo</button>
+            <span class="map-status">cell —   tile #1   zoom 1×   pixel</span>
           </div>
-          <div class="toolbar-hints">
-            <span class="map-status">cell —   sprite #1   zoom 1×   pixel</span>
-            <span><b>shift+click</b> eyedrop &nbsp;·&nbsp; <b>alt/right-click</b> erase &nbsp;·&nbsp; <b>←↑→↓</b> shift &nbsp;·&nbsp; <b>h/v</b> flip &nbsp;·&nbsp; <b>r</b> rotate</span>
+        </div>
+        <div class="help-area" id="map-help-area">
+          <button id="map-help-button">?</button>
+          <div id="map-help-text">
+            <b>keyboard shortcuts</b><br><br>
+            <b>[shift+click]</b> eyedropper<br>
+            <b>[alt / right-click]</b> erase<br><br>
+            <b>[← ↑ → ↓]</b> shift selection<br>
+            <b>[h]</b> flip horizontal<br>
+            <b>[v]</b> flip vertical<br>
+            <b>[r]</b> rotate 90°<br>
           </div>
         </div>
         <div id="map-content">
@@ -136,7 +148,21 @@
       </div>
 
       <div id="panel-help" class="panel"></div>
+      <div id="panel-tutorials" class="panel"></div>
       <div id="panel-settings" class="panel"></div>
+
+      <div id="panel-cart" class="panel">
+        <div id="cart-panel-content">
+          <div class="cart-row">
+            <button id="save-cart-btn">save cart</button>
+            <span>save current code, sprites &amp; map as a <code>.cart.png</code></span>
+          </div>
+          <div class="cart-row">
+            <button id="load-cart-btn">load cart</button>
+            <span>open a <code>.cart.png</code> — or just drop one onto the window</span>
+          </div>
+        </div>
+      </div>
 
     </div>
 

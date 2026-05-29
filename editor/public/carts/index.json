@@ -1,0 +1,52 @@
+[
+  {
+    "title": "1. hello screen",
+    "description": "Your very first cart. Clear the screen and print some text.",
+    "file": "01-hello.cart.png"
+  },
+  {
+    "title": "2. shapes and colors",
+    "description": "Draw rectangles, circles, lines, and pixels in all 32 palette colors.",
+    "file": "02-shapes.cart.png"
+  },
+  {
+    "title": "3. things that move",
+    "description": "Variables and the game loop — a ball bounces around using update() and velocity.",
+    "file": "03-move.cart.png"
+  },
+  {
+    "title": "4. press a button",
+    "description": "Read the keyboard with btn() and move a character around the screen.",
+    "file": "04-buttons.cart.png"
+  },
+  {
+    "title": "5. draw your character",
+    "description": "Open the sprites tab, draw a 16×16 character in slot 1, then see it move.",
+    "file": "05-sprite.cart.png"
+  },
+  {
+    "title": "6. sounds and music",
+    "description": "Make noise with note(), bpm(), and every(). A simple beat and melody.",
+    "file": "06-sound.cart.png"
+  },
+  {
+    "title": "7. keeping score",
+    "description": "Track a number and show it on screen. Press buttons to score and reset.",
+    "file": "07-score.cart.png"
+  },
+  {
+    "title": "8. catch the star",
+    "description": "A complete game — move your player, catch the star, hear the sound, beat your score.",
+    "file": "08-catchstar.cart.png"
+  },
+  {
+    "title": "9. enemies!",
+    "description": "Add an enemy that chases you. Collision, game over, and restart.",
+    "file": "09-enemies.cart.png"
+  },
+  {
+    "title": "10. build a world",
+    "description": "Paint tiles in the map editor. Your player walks through the world and the camera follows.",
+    "file": "10-world.cart.png"
+  }
+]

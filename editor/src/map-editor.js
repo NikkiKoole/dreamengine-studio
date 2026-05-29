@@ -577,6 +577,12 @@ function init() {
   // undo / redo
   document.getElementById('map-undo-button')?.addEventListener('click', undo)
   document.getElementById('map-redo-button')?.addEventListener('click', redo)
+
+  // help panel
+  document.getElementById('map-help-button')?.addEventListener('click', () => {
+    const helpText = document.getElementById('map-help-text')
+    helpText.style.display = helpText.style.display === 'block' ? 'none' : 'block'
+  })
   window.addEventListener('keydown', e => {
     if (!panel.classList.contains('active')) return     // only when map tab is open
 
@@ -678,4 +684,10 @@ if (document.readyState === 'loading') {
 
 export function getMapBytes() {
   return mapData
+}
+
+export function loadMapBytes(bytes) {
+  mapData.set(bytes.slice(0, mapData.length))
+  saveToStorage()
+  renderAll()
 }

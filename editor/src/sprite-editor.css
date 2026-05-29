@@ -249,9 +249,9 @@ canvas {
   right: 8px;
 }
 
-#help-button { width: 28px; }
+#help-button, #map-help-button { width: 28px; }
 
-#help-text {
+#help-text, #map-help-text {
   display: none;
   position: absolute;
   bottom: 36px;

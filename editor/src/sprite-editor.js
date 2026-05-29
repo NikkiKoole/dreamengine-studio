@@ -761,4 +761,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const panel = document.querySelector('#help-text')
     panel.style.display = panel.style.display === 'block' ? 'none' : 'block'
   })
+
+  window.addEventListener('de:load-sprites', e => {
+    const img = new Image()
+    img.onload = function () {
+      const ctx = tilemap.getContext('2d')
+      ctx.clearRect(0, 0, tilemap.width, tilemap.height)
+      ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight)
+      frames[0].data = tilemap.toDataURL()
+      frames[0].undoStack = [frames[0].data]
+      frames[0].undoPointer = 0
+      frames.length = 1
+      framePointer = 0
+      makeFramesUI()
+      copyTilemapToSprite()
+      updateHistoryButtons()
+    }
+    img.src = e.detail
+  })
 })

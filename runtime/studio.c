@@ -326,12 +326,19 @@ __attribute__((weak)) void update(void) {}
 // main + runtime loop
 // ------------------------------------------------------------
 
-int main(void) {
+int main(int argc, char **argv) {
+    int screenshot_mode   = 0;
+    int screenshot_frames = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--screenshot") == 0) screenshot_mode = 1;
+    }
+
     signal(SIGSEGV, crash_handler);   // bad/null pointer
     signal(SIGFPE,  crash_handler);   // divide by zero, etc.
     signal(SIGABRT, crash_handler);   // abort()/assert
     signal(SIGBUS,  crash_handler);   // misaligned / bad memory access
     SetTraceLogLevel(LOG_WARNING);   // keep raylib's INFO chatter out of the runtime log panel
+    if (screenshot_mode) SetWindowState(FLAG_WINDOW_HIDDEN);
     InitWindow(SCREEN_W * SCALE, SCREEN_H * SCALE, "dreamengine");
     InitAudioDevice();
     sound_init();
@@ -406,7 +413,15 @@ int main(void) {
         EndDrawing();
 
         age_watches();   // frame-end: expire watches whose branch stopped firing
+
+        if (screenshot_mode && ++screenshot_frames >= 3) break;
     }
+
+    // save last frame as screenshot.png so the cart PNG thumbnail shows the game
+    Image screenshot = LoadImageFromTexture(canvas.texture);
+    ImageFlipVertical(&screenshot);
+    ExportImage(screenshot, "screenshot.png");
+    UnloadImage(screenshot);
 
     if (custom_font) UnloadFont(game_font);
     if (spritesheet.width > 0) UnloadTexture(spritesheet);

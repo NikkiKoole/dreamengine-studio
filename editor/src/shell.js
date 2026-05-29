@@ -1,19 +1,30 @@
 import './shell.css'
 import { view, setEditorTheme } from './main.js'
 import './sprite-editor.js'
-import { getMapBytes } from './map-editor.js'
+import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
 import { settings, buildSettingsPanel } from './settings.js'
 
 // ── tab switching ─────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'))
+  const tab = document.querySelector(`.tab[data-tab="${name}"]`)
+  if (tab) tab.classList.add('active')
+  const panel = document.getElementById('panel-' + name)
+  if (panel) panel.classList.add('active')
+}
+
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.disabled) return
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'))
-    btn.classList.add('active')
-    document.getElementById('panel-' + btn.dataset.tab).classList.add('active')
+    switchTab(btn.dataset.tab)
   })
+})
+
+document.addEventListener('click', e => {
+  const link = e.target.closest('[data-tab]')
+  if (link && !link.classList.contains('tab')) switchTab(link.dataset.tab)
 })
 
 // ── help panel ───────────────────────────────────────────────
@@ -62,6 +73,7 @@ const introHTML = {
     explanation — the <b>c basics</b> section below has a short tour of the
     bits you'll meet first.
   </p>
+  <p><a class="tutorials-link" data-tab="tutorials">→ browse example carts</a></p>
 `,
   nl: `
   <h1>dreamengine</h1>
@@ -162,6 +174,68 @@ window.addEventListener('help-jump', (e) => {
   })
 })
 
+// ── tutorials panel ──────────────────────────────────────────
+const tutorialsPanel = document.getElementById('panel-tutorials')
+
+async function loadCartFromUrl(url) {
+  const res = await fetch(url)
+  const buf = await res.arrayBuffer()
+  const cart = await window.studio.loadCartBuffer(new Uint8Array(buf))
+  if (cart && cart.ok) {
+    applyCart(cart)
+    switchTab('code')
+  }
+}
+
+async function buildTutorialsPanel() {
+  tutorialsPanel.innerHTML = ''
+
+  let index
+  try {
+    const res = await fetch('/carts/index.json')
+    index = await res.json()
+  } catch {
+    tutorialsPanel.innerHTML = '<p class="tutorials-empty">No tutorials found.</p>'
+    return
+  }
+
+  const grid = document.createElement('div')
+  grid.className = 'tutorials-grid'
+
+  index.forEach(({ title, description, file }) => {
+    const card = document.createElement('div')
+    card.className = 'tutorial-card'
+
+    const url = `/carts/${file}`
+
+    const img = document.createElement('img')
+    img.className = 'tutorial-thumb'
+    img.src = url
+    img.alt = title
+    img.onerror = () => { img.style.display = 'none'; card.classList.add('no-thumb') }
+
+    const info = document.createElement('div')
+    info.className = 'tutorial-info'
+    info.innerHTML = `<div class="tutorial-title">${title}</div><div class="tutorial-desc">${description}</div>`
+
+    card.appendChild(img)
+    card.appendChild(info)
+
+    if (window.studio) {
+      card.addEventListener('click', () => loadCartFromUrl(url))
+    } else {
+      card.classList.add('tutorial-card-disabled')
+      card.title = 'run requires the desktop app'
+    }
+
+    grid.appendChild(card)
+  })
+
+  tutorialsPanel.appendChild(grid)
+}
+
+buildTutorialsPanel()
+
 // ── settings panel ───────────────────────────────────────────
 buildSettingsPanel(document.getElementById('panel-settings'))
 
@@ -211,6 +285,66 @@ runBtn.addEventListener('click', async () => {
   runBtn.disabled = false
 
   showLog(result)
+})
+
+// ── cart save / load ──────────────────────────────────────────
+const saveCartBtn = document.getElementById('save-cart-btn')
+const loadCartBtn = document.getElementById('load-cart-btn')
+
+saveCartBtn.addEventListener('click', async () => {
+  if (!window.studio) return
+  const tilemapCanvas = document.querySelector('#tilemap-canvas')
+  const spritesDataUrl = tilemapCanvas ? tilemapCanvas.toDataURL('image/png') : null
+  const mapBytes = getMapBytes()
+  let mapBase64 = ''
+  if (mapBytes) {
+    let bin = ''
+    for (let i = 0; i < mapBytes.length; i++) bin += String.fromCharCode(mapBytes[i])
+    mapBase64 = btoa(bin)
+  }
+  await window.studio.saveCart({ source: view.state.doc.toString(), spritesDataUrl, mapBase64 })
+})
+
+const toast = document.getElementById('toast')
+let toastTimer = null
+function showToast(msg) {
+  toast.textContent = msg
+  toast.classList.add('visible')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => toast.classList.remove('visible'), 2000)
+}
+
+function applyCart(cart) {
+  view.dispatch(view.state.update({
+    changes: { from: 0, to: view.state.doc.length, insert: cart.source },
+  }))
+  if (cart.spritesDataUrl) {
+    window.dispatchEvent(new CustomEvent('de:load-sprites', { detail: cart.spritesDataUrl }))
+  }
+  if (cart.mapBase64) {
+    const bin = atob(cart.mapBase64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    loadMapBytes(bytes)
+  }
+  showToast('cart loaded')
+}
+
+loadCartBtn.addEventListener('click', async () => {
+  if (!window.studio) return
+  const cart = await window.studio.loadCart()
+  if (cart && cart.ok) applyCart(cart)
+})
+
+// ── drag-and-drop cart loading ────────────────────────────────
+document.addEventListener('dragover', e => e.preventDefault())
+document.addEventListener('drop', async e => {
+  e.preventDefault()
+  const file = e.dataTransfer.files[0]
+  if (!file || !file.name.endsWith('.png')) return
+  const filePath = window.studio.getFilePath(file)
+  const cart = await window.studio.loadCartFile(filePath)
+  if (cart && cart.ok) applyCart(cart)
 })
 
 let hideTimer = null

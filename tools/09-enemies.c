@@ -1,7 +1,8 @@
 #include "studio.h"
 
-int px, py, sx, sy, ex, ey, score;
-int dead = 0;
+int px, py, sx, sy, score;
+float ex, ey;
+int dead = 0, ready = 0;
 
 void reset() {
     px = 152; py = 92;
@@ -11,6 +12,7 @@ void reset() {
 }
 
 void update() {
+    if (!ready) { reset(); ready = 1; }
     if (dead) {
         if (btnp(0, BTN_A) || btnp(0, BTN_B)) reset();
         return;
@@ -24,9 +26,9 @@ void update() {
     py = clamp(py, 16, SCREEN_H - 8);
 
     // enemy chases player
-    float a = angle_to(ex, ey, px, py);
-    ex += (int)dx(1, a);
-    ey += (int)dy(1, a);
+    float a = angle_to((int)ex, (int)ey, px + 4, py + 4);
+    ex += dx(1.5f, a);
+    ey += dy(1.5f, a);
 
     // catch star
     if (near(px + 4, py + 4, sx, sy, 12)) {
@@ -36,7 +38,7 @@ void update() {
     }
 
     // enemy catches player
-    if (near(px + 4, py + 4, ex, ey, 10)) {
+    if (near(px + 4, py + 4, (int)ex, (int)ey, 10)) {
         dead = 1;
         note(36, INSTR_NOISE, 5);
     }
@@ -54,7 +56,7 @@ void draw() {
 
     circfill(sx, sy, 5, CLR_YELLOW);
     rectfill(px, py, 8, 8, CLR_GREEN);
-    circfill(ex, ey, 6, CLR_RED);
+    circfill((int)ex, (int)ey, 6, CLR_RED);
 
     rectfill(0, 0, SCREEN_W, 14, CLR_DARKER_BLUE);
     print("catch stars, dodge the enemy!", 4, 3, CLR_WHITE);

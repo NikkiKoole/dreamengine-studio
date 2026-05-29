@@ -17,6 +17,7 @@ static int   p1y, p2y;
 static float bx, by, vx, vy;
 static int   s1, s2;
 static bool  over;
+static bool  ready;
 
 static void serve(int dir) {
     bx = SCREEN_W / 2 - BALL_SIZE / 2;
@@ -35,6 +36,7 @@ static void reset() {
 }
 
 void update() {
+    if (!ready) { reset(); ready = true; }
     if (over) {
         if (btnp(0, BTN_A) || btnp(1, BTN_A)) reset();
         return;

@@ -1,4 +1,3 @@
-import './sprite-editor.css'
 
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -185,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function () {
     selectedTilemapIndices = [x, y]
     copyTilemapToSprite()
     mousemoveTilemap(e, ctx)
+    updateSpriteStatus()
   }
 
   function copySpriteToTilemap() {
@@ -413,13 +413,31 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
+  function getSpriteIndex() {
+    const { cellwidth, mapwidth } = settings
+    const cols = Math.floor(mapwidth / cellwidth)
+    const [tx, ty] = selectedTilemapIndices
+    return ty * cols + tx
+  }
+
+  function updateSpriteStatus(pixelX, pixelY) {
+    const statusEl = document.querySelector('.sprite-status')
+    if (!statusEl) return
+    const idx = getSpriteIndex()
+    const tool = tooldata.action === 'linetool' ? lineToolFunctions[lineToolIndex] : tooldata.action
+    if (pixelX !== undefined) {
+      statusEl.textContent = `(${pixelX}, ${pixelY})   sprite #${idx}   ${tool}`
+    } else {
+      statusEl.textContent = `sprite #${idx}   ${tool}`
+    }
+  }
+
   function mouseoutCanvas() {
     if (!selection) {
       const { cellwidth, cellheight, scale } = settings
       canvasOverlay.getContext('2d').clearRect(0, 0, cellwidth * scale, cellheight * scale)
     }
-    const statusEl = document.querySelector('.sprite-status')
-    if (statusEl) statusEl.textContent = 'pixel —'
+    updateSpriteStatus()
   }
 
   function mouseup() {
@@ -429,13 +447,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function mousemoveCanvas(e) {
     mousePressedEvent = { which: e.which, offsetX: e.offsetX, offsetY: e.offsetY }
-    // update the hover-status line
-    const statusEl = document.querySelector('.sprite-status')
-    if (statusEl) {
-      const { x, y } = getPixelPos(e)
-      const { cellwidth, cellheight } = settings
-      if (x >= 0 && y >= 0 && x < cellwidth && y < cellheight) statusEl.textContent = `pixel (${x}, ${y})`
-    }
+    const { x, y } = getPixelPos(e)
+    const { cellwidth, cellheight } = settings
+    if (x >= 0 && y >= 0 && x < cellwidth && y < cellheight) updateSpriteStatus(x, y)
     if (!frameIsReady) return
     const { action } = tooldata
     if (mousePressed && action === 'pixel') {
@@ -716,9 +730,11 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── tools ui ───────────────────────────────────────────────
   function setToolActive(id) {
     Array.from(togglegroup.children).forEach(el => {
+      if (el.tagName !== 'BUTTON') return
       el.className = el.id === id ? 'active' : ''
       if (el.id === id) tooldata.action = id
     })
+    updateSpriteStatus()
   }
 
   function makeLineToolUI() {
@@ -756,6 +772,7 @@ document.addEventListener('DOMContentLoaded', function () {
   undoButton.addEventListener('click', () => { undo(ctx) })
   redoButton.addEventListener('click', () => { redo(ctx) })
   updateHistoryButtons()
+  updateSpriteStatus()
 
   document.querySelector('#help-button').addEventListener('click', () => {
     const panel = document.querySelector('#help-text')

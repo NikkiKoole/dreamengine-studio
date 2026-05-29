@@ -1,4 +1,3 @@
-import './style.css'
 import { EditorState, Compartment, StateField, StateEffect, RangeSetBuilder } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers, highlightActiveLine, hoverTooltip, Decoration, GutterMarker, gutter } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'

@@ -1,4 +1,3 @@
-import './shell.css'
 import { view, setEditorTheme, setErrorLines } from './main.js'
 import './sprite-editor.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
@@ -500,3 +499,4 @@ if (window.studio?.onLog) {
   window.studio.onLog(rlogAppend)
   window.studio.onExit(rlogExit)
 }
+

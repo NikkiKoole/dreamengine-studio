@@ -31,7 +31,7 @@ document.addEventListener('click', e => {
 const sections = [
   { title: 'c basics',   titleNL: 'c basics',     keys: ['include', 'define', 'int', 'float', 'bool', 'void', 'static', 'if', 'for', 'return', 'logical', 'equality', 'comment', 'braces', 'semicolon', 'array'] },
   { title: 'callbacks',  titleNL: 'callbacks',    keys: ['update', 'draw'] },
-  { title: 'graphics',   titleNL: 'tekenen',      keys: ['cls', 'spr', 'sprf', 'sspr', 'pget', 'pset', 'print', 'print_centered', 'print_right', 'rect', 'rectfill', 'circ', 'circfill', 'line', 'camera', 'follow', 'clip'] },
+  { title: 'graphics',   titleNL: 'tekenen',      keys: ['cls', 'colorkey', 'spr', 'sprf', 'sspr', 'pget', 'pset', 'print', 'print_centered', 'print_right', 'rect', 'rectfill', 'circ', 'circfill', 'line', 'camera', 'follow', 'clip'] },
   { title: 'input',      titleNL: 'input',        keys: ['btn', 'btnp', 'BTN_UP', 'BTN_DOWN', 'BTN_LEFT', 'BTN_RIGHT', 'BTN_A', 'BTN_B'] },
   { title: 'touch',      titleNL: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'tap', 'touch_controls'] },
   { title: 'map',        titleNL: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },

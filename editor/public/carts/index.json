@@ -25,6 +25,11 @@
     "file": "05-sprite.cart.png"
   },
   {
+    "title": "5b. colorkey",
+    "description": "Make sprite backgrounds transparent with colorkey(). Step-by-step: see the pink box, make it vanish, float over any background.",
+    "file": "05b-colorkey.cart.png"
+  },
+  {
     "title": "6. sounds and music",
     "description": "Make noise with note(), bpm(), and every(). A simple beat and melody.",
     "file": "06-sound.cart.png"

@@ -26,6 +26,7 @@
 #endif
 
 static Texture2D       spritesheet;
+static Image           spritesheet_img = {0};
 static RenderTexture2D canvas;
 static Font            game_font;
 static bool            custom_font = false;
@@ -370,9 +371,9 @@ int main(int argc, char **argv) {
     if (SPRITES_DATA_LEN > 0) {
         Image img = LoadImageFromMemory(".png", SPRITES_DATA, SPRITES_DATA_LEN);
         if (img.width > 0) {
+            spritesheet_img = img;
             spritesheet = LoadTextureFromImage(img);
             SetTextureFilter(spritesheet, TEXTURE_FILTER_POINT);
-            UnloadImage(img);
         }
     }
 
@@ -428,6 +429,7 @@ int main(int argc, char **argv) {
 
     if (custom_font) UnloadFont(game_font);
     if (spritesheet.width > 0) UnloadTexture(spritesheet);
+    if (spritesheet_img.data) UnloadImage(spritesheet_img);
     if (pget_snapshot.data) UnloadImage(pget_snapshot);
     UnloadRenderTexture(canvas);
     sound_shutdown();
@@ -516,6 +518,20 @@ float stick_y(void) {
 
 void cls(int color) {
     ClearBackground(palette[color % PALETTE_SIZE]);
+}
+
+void colorkey(int color) {
+    if (!spritesheet_img.data) return;
+    Image tmp = ImageCopy(spritesheet_img);
+    if (color >= 0 && color < PALETTE_SIZE) {
+        ImageFormat(&tmp, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+        Color key = palette[color];
+        ImageColorReplace(&tmp, key, (Color){ key.r, key.g, key.b, 0 });
+    }
+    if (spritesheet.width > 0) UnloadTexture(spritesheet);
+    spritesheet = LoadTextureFromImage(tmp);
+    SetTextureFilter(spritesheet, TEXTURE_FILTER_POINT);
+    UnloadImage(tmp);
 }
 
 void spr(int index, int x, int y) {

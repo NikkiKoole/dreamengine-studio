@@ -94,6 +94,7 @@ float stick_y(void);   // -1.0 .. 1.0  (negative = up)
 
 // graphics
 void cls(int color);
+void colorkey(int color);                           // set transparent color for sprites (palette index). -1 = no transparency. call when color changes, not every frame.
 void spr(int index, int x, int y);
 void sprf(int index, int x, int y, bool flip_x, bool flip_y);                  // sprite with flips
 void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh);     // sub-rect → dest rect (stretched)

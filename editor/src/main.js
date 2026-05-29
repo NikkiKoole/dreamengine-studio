@@ -1,6 +1,6 @@
 import './style.css'
-import { EditorState, Compartment, StateField, StateEffect } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers, highlightActiveLine, hoverTooltip, Decoration } from '@codemirror/view'
+import { EditorState, Compartment, StateField, StateEffect, RangeSetBuilder } from '@codemirror/state'
+import { EditorView, keymap, lineNumbers, highlightActiveLine, hoverTooltip, Decoration, GutterMarker, gutter } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { cpp } from '@codemirror/lang-cpp'
 import { foldGutter, foldKeymap } from '@codemirror/language'
@@ -43,6 +43,56 @@ const flashField = StateField.define({
     return value
   },
   provide: f => EditorView.decorations.from(f),
+})
+
+// ── error line markers ────────────────────────────────────────
+const errorLinesEffect = StateEffect.define()
+
+const errorLinesField = StateField.define({
+  create: () => [],
+  update(lines, tr) {
+    for (const e of tr.effects) if (e.is(errorLinesEffect)) return e.value
+    return lines
+  },
+})
+
+const errorLineDecoration = EditorView.decorations.compute([errorLinesField], state => {
+  const lines = state.field(errorLinesField)
+  if (!lines.length) return Decoration.none
+  const decs = []
+  for (const n of lines) {
+    try {
+      const line = state.doc.line(n)
+      decs.push(Decoration.line({ class: 'cm-error-line' }).range(line.from))
+    } catch {}
+  }
+  return Decoration.set(decs)
+})
+
+class ErrorGutterMarker extends GutterMarker {
+  toDOM() {
+    const el = document.createElement('span')
+    el.textContent = '●'
+    el.className = 'cm-error-gutter-dot'
+    return el
+  }
+}
+const errorGutterMarker = new ErrorGutterMarker()
+
+const errorGutter = gutter({
+  class: 'cm-error-gutter',
+  markers(view) {
+    const lines = view.state.field(errorLinesField)
+    const builder = new RangeSetBuilder()
+    for (const n of [...lines].sort((a, b) => a - b)) {
+      try {
+        const line = view.state.doc.line(n)
+        builder.add(line.from, line.from, errorGutterMarker)
+      } catch {}
+    }
+    return builder.finish()
+  },
+  initialSpacer: () => errorGutterMarker,
 })
 
 function flashRange(view, from, to) {
@@ -235,6 +285,9 @@ const state = EditorState.create({
     studioHover,
     studioClickToHelp,
     flashField,
+    errorLinesField,
+    errorLineDecoration,
+    errorGutter,
     cpp(),
     themeCompartment.of(initialThemeIsDay ? dayTheme : oneDark),
   ],
@@ -244,6 +297,10 @@ export const view = new EditorView({
   state,
   parent: document.getElementById('editor'),
 })
+
+export function setErrorLines(lineNums) {
+  view.dispatch({ effects: errorLinesEffect.of(lineNums) })
+}
 
 export function setEditorTheme(mode) {
   view.dispatch({

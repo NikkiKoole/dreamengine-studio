@@ -790,3 +790,89 @@ const char *str(const char *fmt, ...) {
     va_end(ap);
     return b;
 }
+
+// ------------------------------------------------------------
+// camera helpers
+// ------------------------------------------------------------
+
+void follow(int tx, int ty, int world_w, int world_h) {
+    int cx = (int)fmaxf(0.0f, fminf((float)(tx - SCREEN_W / 2), (float)(world_w - SCREEN_W)));
+    int cy = (int)fmaxf(0.0f, fminf((float)(ty - SCREEN_H / 2), (float)(world_h - SCREEN_H)));
+    camera(cx, cy);
+}
+
+// ------------------------------------------------------------
+// persistence
+// ------------------------------------------------------------
+
+static int  sav_data[64]  = {0};
+static bool sav_loaded    = false;
+
+static void sav_ensure(void) {
+    if (sav_loaded) return;
+    FILE *f = fopen("cart.sav", "rb");
+    if (f) { fread(sav_data, sizeof(int), 64, f); fclose(f); }
+    sav_loaded = true;
+}
+
+void save(int slot, int value) {
+    if (slot < 0 || slot >= 64) return;
+    sav_ensure();
+    sav_data[slot] = value;
+    FILE *f = fopen("cart.sav", "wb");
+    if (f) { fwrite(sav_data, sizeof(int), 64, f); fclose(f); }
+}
+
+int load(int slot) {
+    if (slot < 0 || slot >= 64) return 0;
+    sav_ensure();
+    return sav_data[slot];
+}
+
+// ------------------------------------------------------------
+// noise — smooth value noise, range 0..1
+// ------------------------------------------------------------
+
+static unsigned int noise_hash(int x) {
+    unsigned int u = (unsigned int)x;
+    u = ((u >> 16) ^ u) * 0x45d9f3b;
+    u = ((u >> 16) ^ u) * 0x45d9f3b;
+    u = (u >> 16) ^ u;
+    return u;
+}
+
+static float noise_val(int ix, int iy, int iz) {
+    return (float)(noise_hash(ix + noise_hash(iy + noise_hash(iz))) & 0xFFFF) / 65535.0f;
+}
+
+static float smooth(float t) { return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f); }
+
+static float lerpf(float a, float b, float t) { return a + (b - a) * t; }
+
+float noise(float x) {
+    int   ix = (int)floorf(x);
+    float fx = smooth(x - (float)ix);
+    return lerpf(noise_val(ix, 0, 0), noise_val(ix + 1, 0, 0), fx);
+}
+
+float noise2(float x, float y) {
+    int   ix = (int)floorf(x), iy = (int)floorf(y);
+    float fx = smooth(x - (float)ix), fy = smooth(y - (float)iy);
+    return lerpf(
+        lerpf(noise_val(ix, iy, 0), noise_val(ix+1, iy,   0), fx),
+        lerpf(noise_val(ix, iy+1, 0), noise_val(ix+1, iy+1, 0), fx),
+        fy);
+}
+
+float noise3(float x, float y, float z) {
+    int   ix = (int)floorf(x), iy = (int)floorf(y), iz = (int)floorf(z);
+    float fx = smooth(x - (float)ix), fy = smooth(y - (float)iy), fz = smooth(z - (float)iz);
+    float v000 = noise_val(ix,   iy,   iz),   v100 = noise_val(ix+1, iy,   iz);
+    float v010 = noise_val(ix,   iy+1, iz),   v110 = noise_val(ix+1, iy+1, iz);
+    float v001 = noise_val(ix,   iy,   iz+1), v101 = noise_val(ix+1, iy,   iz+1);
+    float v011 = noise_val(ix,   iy+1, iz+1), v111 = noise_val(ix+1, iy+1, iz+1);
+    return lerpf(
+        lerpf(lerpf(v000, v100, fx), lerpf(v010, v110, fx), fy),
+        lerpf(lerpf(v001, v101, fx), lerpf(v011, v111, fx), fy),
+        fz);
+}

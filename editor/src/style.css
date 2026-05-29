@@ -98,3 +98,20 @@
   opacity: 1;
   color: #c9a96e;
 }
+
+/* ── error line markers ────────────────────────────────────── */
+.cm-error-line {
+  background: rgba(255, 80, 80, 0.1) !important;
+}
+
+.cm-error-gutter {
+  width: 8px;
+  padding-right: 2px;
+}
+
+.cm-error-gutter-dot {
+  color: #ff5050;
+  font-size: 7px;
+  line-height: 1.6;
+  display: block;
+}

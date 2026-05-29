@@ -106,6 +106,7 @@ void circ(int x, int y, int radius, int color);         // circle border
 void circfill(int x, int y, int radius, int color);     // filled circle
 int  pget(int x, int y);                                // palette index at (x,y), or 0 if no match
 void camera(int x, int y);                              // shifts all subsequent drawing by (-x,-y). camera(0,0) resets
+void follow(int tx, int ty, int world_w, int world_h); // center camera on (tx,ty), clamped so world edges don't show
 void clip(int x, int y, int w, int h);                  // scissor rect. clip(0,0,0,0) disables
 
 // ------------------------------------------------------------
@@ -237,6 +238,21 @@ int anim_once(int n_frames, float fps, float start_t); // frame of an animation 
 // ------------------------------------------------------------
 
 const char *str(const char *fmt, ...);  // printf into a reusable buffer: print(str("score %d", n), x, y, c)
+
+// ------------------------------------------------------------
+// persistence — 64 integer slots saved per cart
+// ------------------------------------------------------------
+
+void save(int slot, int value);  // store an int that survives between runs (slots 0–63)
+int  load(int slot);             // read it back — returns 0 if never saved
+
+// ------------------------------------------------------------
+// noise — smooth random values (0..1). nearby inputs → similar outputs.
+// ------------------------------------------------------------
+
+float noise(float x);                    // 1D: organic motion, wobble, pulses
+float noise2(float x, float y);          // 2D: terrain, fog, flow fields
+float noise3(float x, float y, float z); // 3D: animated 2D noise (pass now() as z)
 
 // ------------------------------------------------------------
 // debug

@@ -80,6 +80,11 @@
     "file": "15-anim.cart.png"
   },
   {
+    "title": "16. spirograph",
+    "description": "Turtle graphics: a loop + a fixed turn angle = a pattern. Change ANGLE at the top to see 91°, 144°, and 97.2° shapes.",
+    "file": "16-spirograph.cart.png"
+  },
+  {
     "title": "pong",
     "description": "2-player pong. First to 7 wins. Player 1: W/S — Player 2: up/down arrows.",
     "file": "pong.cart.png"

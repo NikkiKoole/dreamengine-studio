@@ -355,3 +355,97 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
     })
   })
 })
+
+// ── build for web (emscripten) ────────────────────────────────
+ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
+  const screenW      = cfg?.screenW || 320
+  const screenH      = cfg?.screenH || 200
+  const scale        = cfg?.scale   || 4
+  const mapW         = cfg?.mapW    || 128
+  const mapH         = cfg?.mapH    || 64
+  const cellW        = cfg?.cellW   || 16
+  const cellH        = cfg?.cellH   || 16
+  const touchDefault = cfg?.touchControls ? 1 : 0
+  const studioC      = path.join(RUNTIME_DIR, 'studio.c')
+  const shellHtml    = path.join(RUNTIME_DIR, 'web_shell.html')
+  const RAYLIB_WEB   = path.join(RUNTIME_DIR, 'raylib-web')
+  const CART_HTML    = path.join(BUILD_DIR, 'cart.html')
+
+  if (!fs.existsSync(path.join(RAYLIB_WEB, 'include', 'raylib.h'))) {
+    return {
+      ok: false,
+      output: [
+        'Raylib web library not found at runtime/raylib-web/.',
+        'Download raylib-5.5_webassembly.zip from github.com/raysan5/raylib/releases',
+        'and extract it there so runtime/raylib-web/include/raylib.h exists.',
+        'Also install emscripten: brew install emscripten',
+      ].join('\n'),
+    }
+  }
+
+  fs.mkdirSync(BUILD_DIR, { recursive: true })
+  fs.writeFileSync(CART_SRC, code)
+
+  const spritesHeader = path.join(BUILD_DIR, 'sprites_data.h')
+  const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
+  if (fs.existsSync(spritesPng)) {
+    try {
+      const xxd = execSync('xxd -i sprites.png', { cwd: BUILD_DIR }).toString()
+      fs.writeFileSync(spritesHeader,
+        xxd.replace(/unsigned char sprites_png\[\]/, 'static const unsigned char SPRITES_DATA[]')
+           .replace(/unsigned int sprites_png_len/,  'static const unsigned int  SPRITES_DATA_LEN'))
+    } catch {
+      fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
+    }
+  } else {
+    fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
+  }
+
+  const mapHeader = path.join(BUILD_DIR, 'map_data.h')
+  const mapDat    = path.join(BUILD_DIR, 'map.dat')
+  if (fs.existsSync(mapDat)) {
+    try {
+      const xxd = execSync('xxd -i map.dat', { cwd: BUILD_DIR }).toString()
+      fs.writeFileSync(mapHeader,
+        xxd.replace(/unsigned char map_dat\[\]/,  'static const unsigned char MAP_DATA[]')
+           .replace(/unsigned int map_dat_len/,   'static const unsigned int  MAP_DATA_LEN'))
+    } catch {
+      fs.writeFileSync(mapHeader, 'static const unsigned char MAP_DATA[]={0};static const unsigned int MAP_DATA_LEN=0;\n')
+    }
+  } else {
+    fs.writeFileSync(mapHeader, 'static const unsigned char MAP_DATA[]={0};static const unsigned int MAP_DATA_LEN=0;\n')
+  }
+
+  const args = [
+    `"${CART_SRC}"`,
+    `"${studioC}"`,
+    `-I"${RUNTIME_DIR}"`,
+    `-I"${BUILD_DIR}"`,
+    `-I"${RAYLIB_WEB}/include"`,
+    '-DPLATFORM_WEB',
+    `-DSCREEN_W=${screenW}`,
+    `-DSCREEN_H=${screenH}`,
+    `-DSCALE=${scale}`,
+    `-DMAP_W=${mapW}`,
+    `-DMAP_H=${mapH}`,
+    `-DCELL_W=${cellW}`,
+    `-DCELL_H=${cellH}`,
+    `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
+    '-Os',
+    '-fno-delete-null-pointer-checks',
+    `"${RAYLIB_WEB}/lib/libraylib.a"`,
+    '-s USE_GLFW=3',
+    '-s ALLOW_MEMORY_GROWTH=1',
+    `--shell-file "${shellHtml}"`,
+    `-o "${CART_HTML}"`,
+  ]
+
+  const cmd = `emcc ${args.join(' ')}`
+
+  return new Promise(resolve => {
+    exec(cmd, { timeout: 120000 }, (err, _stdout, stderr) => {
+      if (err) return resolve({ ok: false, cmd, output: stderr.trim() || err.message })
+      resolve({ ok: true, cmd, html: CART_HTML, output: stderr.trim() || null })
+    })
+  })
+})

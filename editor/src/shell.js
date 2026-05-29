@@ -35,6 +35,7 @@ const sections = [
   { title: 'touch',      titleNL: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'tap', 'touch_controls'] },
   { title: 'map',        titleNL: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },
   { title: 'noise',     titleNL: 'ruis',       keys: ['noise', 'noise2', 'noise3'] },
+  { title: 'turtle',   titleNL: 'schildpad',  keys: ['turtle_home', 'turtle_move', 'turtle_turn', 'turtle_face', 'turtle_at', 'pen_down', 'pen_up', 'pen_color', 'pen_size'] },
   { title: 'easing',     titleNL: 'verloop',      keys: ['ease_in', 'ease_out', 'ease_in_out'] },
   { title: 'math',       titleNL: 'wiskunde',     keys: ['abs', 'min', 'max', 'clamp', 'lerp', 'remap', 'distance', 'length', 'angle_to', 'dx', 'dy', 'sin_deg', 'cos_deg'] },
   { title: 'collision',  titleNL: 'botsingen',    keys: ['boxes_touch', 'point_in_box', 'circles_touch', 'near', 'touching_map', 'tile_at', 'touching_color', 'bounce_at_edges'] },

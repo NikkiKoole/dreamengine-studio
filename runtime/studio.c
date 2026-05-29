@@ -14,6 +14,10 @@
 #include "map_data.h"
 #include "sound.h"
 
+#ifdef PLATFORM_WEB
+#include <emscripten/emscripten.h>
+#endif
+
 // ------------------------------------------------------------
 // internal state
 // ------------------------------------------------------------
@@ -294,6 +298,7 @@ static void draw_watch_overlay(void) {
 // stderr (so they land in the editor's runtime log), then re-raise so the OS
 // still kills the process and the editor sees the real signal. Uses raw write()
 // because printf-family calls aren't safe inside a signal handler.
+#ifndef PLATFORM_WEB
 static void write_str(const char *s) { write(STDERR_FILENO, s, strlen(s)); }
 
 static void crash_handler(int sig) {
@@ -318,6 +323,7 @@ static void crash_handler(int sig) {
     signal(sig, SIG_DFL);   // restore default and re-raise so the process dies for real
     raise(sig);
 }
+#endif
 
 // ------------------------------------------------------------
 // weak stubs — user can omit init() and/or update() and it still compiles
@@ -330,22 +336,78 @@ __attribute__((weak)) void update(void) {}
 // main + runtime loop
 // ------------------------------------------------------------
 
+static void loop_step(void) {
+    poll_virtual_touches();
+    update_stick();
+    if (IsKeyPressed(KEY_F1)) watch_show = !watch_show;
+#ifndef PLATFORM_WEB
+    sound_tick(GetFrameTime());
+#endif
+
+    // snapshot last frame's canvas so pget() has stable pixels to read
+    // (skipped on web — GPU readback is expensive and triggers GL errors on WebGL1)
+#ifndef PLATFORM_WEB
+    if (pget_snapshot.data) UnloadImage(pget_snapshot);
+    pget_snapshot       = LoadImageFromTexture(canvas.texture);
+    pget_snapshot_valid = pget_snapshot.data != NULL;
+#endif
+    // snapshot input edges before update so btnp() works
+    for (int p = 0; p < 2; p++)
+        for (int b = 0; b < BTN_COUNT; b++) {
+            btn_prev[p][b] = btn_curr[p][b];
+            btn_curr[p][b] = btn(p, b);
+        }
+    update();
+    frame_count++;
+
+    // draw into the low-res canvas
+    BeginTextureMode(canvas);
+        draw();
+    EndTextureMode();
+    if (clip_active) { EndScissorMode(); clip_active = false; }
+
+    // scale up to the window — RenderTexture is flipped in Y
+    BeginDrawing();
+        DrawTexturePro(
+            canvas.texture,
+            (Rectangle){ 0, 0,  SCREEN_W, -SCREEN_H },
+            (Rectangle){ 0, 0,  SCREEN_W * SCALE, SCREEN_H * SCALE },
+            (Vector2){ 0, 0 },
+            0.0f,
+            WHITE
+        );
+        draw_touch_overlay();
+        draw_watch_overlay();
+    EndDrawing();
+
+    age_watches();   // frame-end: expire watches whose branch stopped firing
+}
+
 int main(int argc, char **argv) {
-    int screenshot_mode   = 0;
-    int screenshot_frames = 0;
+#ifndef PLATFORM_WEB
+    int screenshot_mode        = 0;
+    int screenshot_frames_done = 0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--screenshot") == 0) screenshot_mode = 1;
     }
-
     signal(SIGSEGV, crash_handler);   // bad/null pointer
     signal(SIGFPE,  crash_handler);   // divide by zero, etc.
     signal(SIGABRT, crash_handler);   // abort()/assert
     signal(SIGBUS,  crash_handler);   // misaligned / bad memory access
+#endif
+#ifdef PLATFORM_WEB
+    SetTraceLogLevel(LOG_ERROR);     // suppress NPOT/extension warnings — harmless on web
+#else
     SetTraceLogLevel(LOG_WARNING);   // keep raylib's INFO chatter out of the runtime log panel
+#endif
+#ifndef PLATFORM_WEB
     if (screenshot_mode) SetWindowState(FLAG_WINDOW_HIDDEN);
+#endif
     InitWindow(SCREEN_W * SCALE, SCREEN_H * SCALE, "dreamengine");
+#ifndef PLATFORM_WEB
     InitAudioDevice();
     sound_init();
+#endif
     SetTargetFPS(60);
 
     load_palette();
@@ -380,48 +442,12 @@ int main(int argc, char **argv) {
 
     init();
 
+#ifdef PLATFORM_WEB
+    emscripten_set_main_loop(loop_step, 0, 1);
+#else
     while (!WindowShouldClose()) {
-        poll_virtual_touches();
-        update_stick();
-        if (IsKeyPressed(KEY_F1)) watch_show = !watch_show;
-        sound_tick(GetFrameTime());
-
-        // snapshot last frame's canvas so pget() has stable pixels to read
-        if (pget_snapshot.data) UnloadImage(pget_snapshot);
-        pget_snapshot       = LoadImageFromTexture(canvas.texture);
-        pget_snapshot_valid = pget_snapshot.data != NULL;
-        // snapshot input edges before update so btnp() works
-        for (int p = 0; p < 2; p++)
-            for (int b = 0; b < BTN_COUNT; b++) {
-                btn_prev[p][b] = btn_curr[p][b];
-                btn_curr[p][b] = btn(p, b);
-            }
-        update();
-        frame_count++;
-
-        // draw into the low-res canvas
-        BeginTextureMode(canvas);
-            draw();
-        EndTextureMode();
-        if (clip_active) { EndScissorMode(); clip_active = false; }
-
-        // scale up to the window — RenderTexture is flipped in Y
-        BeginDrawing();
-            DrawTexturePro(
-                canvas.texture,
-                (Rectangle){ 0, 0,  SCREEN_W, -SCREEN_H },
-                (Rectangle){ 0, 0,  SCREEN_W * SCALE, SCREEN_H * SCALE },
-                (Vector2){ 0, 0 },
-                0.0f,
-                WHITE
-            );
-            draw_touch_overlay();
-            draw_watch_overlay();
-        EndDrawing();
-
-        age_watches();   // frame-end: expire watches whose branch stopped firing
-
-        if (screenshot_mode && ++screenshot_frames >= 3) break;
+        loop_step();
+        if (screenshot_mode && ++screenshot_frames_done >= 3) break;
     }
 
     // save last frame as screenshot.png so the cart PNG thumbnail shows the game
@@ -438,6 +464,7 @@ int main(int argc, char **argv) {
     sound_shutdown();
     CloseAudioDevice();
     CloseWindow();
+#endif
     return 0;
 }
 
@@ -959,3 +986,78 @@ void print_right(const char *text, int right_x, int y, int color) {
     int w = (int)(strlen(text) * 8);
     print(text, right_x - w, y, color);
 }
+
+// ------------------------------------------------------------
+// turtle graphics
+// ------------------------------------------------------------
+
+static struct {
+    float x, y;
+    float heading;   // degrees: 0 = right, 90 = down
+    bool  pen;
+    int   color;
+    int   size;
+} turtle = { 0 };
+
+static bool turtle_inited = false;
+
+static void turtle_ensure_init(void) {
+    if (!turtle_inited) {
+        turtle.x       = SCREEN_W / 2.0f;
+        turtle.y       = SCREEN_H / 2.0f;
+        turtle.heading = 0.0f;
+        turtle.pen     = false;
+        turtle.color   = CLR_WHITE;
+        turtle.size    = 1;
+        turtle_inited  = true;
+    }
+}
+
+void turtle_home(void) {
+    turtle_ensure_init();
+    turtle.x       = SCREEN_W / 2.0f;
+    turtle.y       = SCREEN_H / 2.0f;
+    turtle.heading = 0.0f;
+    turtle.pen     = false;
+}
+
+void turtle_move(float steps) {
+    turtle_ensure_init();
+    float nx = turtle.x + steps * cosf(turtle.heading * DEG2RAD);
+    float ny = turtle.y + steps * sinf(turtle.heading * DEG2RAD);
+    if (turtle.pen) {
+        Color c = palette[turtle.color % PALETTE_SIZE];
+        if (turtle.size <= 1) {
+            DrawLine((int)turtle.x - cam_x, (int)turtle.y - cam_y,
+                     (int)nx        - cam_x, (int)ny        - cam_y, c);
+        } else {
+            DrawLineEx(
+                (Vector2){ turtle.x - cam_x, turtle.y - cam_y },
+                (Vector2){ nx        - cam_x, ny        - cam_y },
+                (float)turtle.size, c);
+        }
+    }
+    turtle.x = nx;
+    turtle.y = ny;
+}
+
+void turtle_turn(float degrees) {
+    turtle_ensure_init();
+    turtle.heading += degrees;
+}
+
+void turtle_face(float degrees) {
+    turtle_ensure_init();
+    turtle.heading = degrees;
+}
+
+void turtle_at(int x, int y) {
+    turtle_ensure_init();
+    turtle.x = (float)x;
+    turtle.y = (float)y;
+}
+
+void pen_down(void)          { turtle_ensure_init(); turtle.pen   = true; }
+void pen_up(void)            { turtle_ensure_init(); turtle.pen   = false; }
+void pen_color(int color)    { turtle_ensure_init(); turtle.color = color; }
+void pen_size(int size)      { turtle_ensure_init(); turtle.size  = size > 0 ? size : 1; }

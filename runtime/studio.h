@@ -273,6 +273,21 @@ float noise2(float x, float y);          // 2D: terrain, fog, flow fields
 float noise3(float x, float y, float z); // 3D: animated 2D noise (pass now() as z)
 
 // ------------------------------------------------------------
+// turtle graphics — Logo-style drawing
+// ------------------------------------------------------------
+
+void turtle_home(void);             // go to the center of the screen, face right, pen up
+void turtle_move(float steps);      // move forward; draws a line if pen is down
+void turtle_turn(float degrees);    // turn clockwise by degrees
+void turtle_face(float degrees);    // set heading directly (0 = right, 90 = down)
+void turtle_at(int x, int y);       // teleport without drawing
+
+void pen_down(void);                // start leaving a trail
+void pen_up(void);                  // stop leaving a trail
+void pen_color(int color);          // set trail color (palette index)
+void pen_size(int size);            // set trail thickness in pixels (default 1)
+
+// ------------------------------------------------------------
 // debug
 // ------------------------------------------------------------
 

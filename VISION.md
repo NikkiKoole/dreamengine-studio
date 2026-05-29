@@ -174,10 +174,10 @@ Whether to *also* build a tracker UI later is still genuinely open. The code-fir
 The first arc — getting a usable PICO-8-style fantasy console with a code editor, sprite editor, map editor, and code-driven sound — is done. A teen can write a cart with movement, sprites, a tile map, and a music loop in one sitting.
 
 ### Biggest open items, ordered by impact
-1. **Cartridge save/load format** — bundle code + sprites + map (+ sound data when applicable) into one shareable `.cart` file. Unlocks the "show your friend" loop. Days, not weeks.
+1. **Cartridge save/load format** ✓ — code + sprites + map bundled into a `.cart.png` (valid PNG with embedded zTXt chunks: `de:source`, `de:sprites`, `de:map`). Save via the cart tab; load via button or drag-drop anywhere. Unlocks the "show your friend" loop.
 2. **Process / coroutine model (Level 2 learning)** — the most ambitious vision item; what differentiates dreamengine from PICO-8 and from generic raylib templates. Weeks.
-3. **Tutorial carts** — a directory of progressively-bigger example carts loaded via a tab or dropdown. Already sketched; deferred.
-4. **Inline error markers** — clang errors mapped back to editor lines.
+3. **Tutorial carts** ✓ — 17 progressive example carts (01-hello → 15-anim + pong) in `editor/public/carts/`, browsable via a "tutorials" tab with thumbnail grid; one-click loads code + sprites + map into the editor.
+4. **Inline error markers** ✓ — clang output parsed for `cart.c:LINE:` patterns; error gutter dots + line decorations rendered in the editor.
 5. **Browser sharing target** — emscripten or a pure-JS runtime, so finished carts can be sent as a URL.
 6. **iPad runtime** — touch is already wired in the runtime; needs a build path.
 

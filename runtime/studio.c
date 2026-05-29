@@ -43,6 +43,9 @@ static bool            btn_prev[2][BTN_COUNT];
 static uint8_t         map_data[MAP_W * MAP_H];
 static int             map_scale_factor = 1;   // map_scale() — integer zoom for map drawing
 static int             frame_count      = 0;
+#ifdef PLATFORM_WEB
+static bool            web_started      = false;  // true after the user clicks to start
+#endif
 
 // ------------------------------------------------------------
 // touch state (all coordinates in window pixels unless noted)
@@ -337,12 +340,40 @@ __attribute__((weak)) void update(void) {}
 // ------------------------------------------------------------
 
 static void loop_step(void) {
+#ifdef PLATFORM_WEB
+    if (!web_started) {
+        bool clicked = IsMouseButtonPressed(MOUSE_LEFT_BUTTON)
+                    || IsKeyPressed(KEY_ENTER)
+                    || IsKeyPressed(KEY_SPACE);
+        if (clicked) {
+            InitAudioDevice();
+            sound_init();
+            init();
+            web_started = true;
+        }
+        BeginTextureMode(canvas);
+        ClearBackground(palette[0]);
+        const char *msg = "click to start";
+        int tw = (int)(strlen(msg) * 8);
+        DrawTextEx(game_font, msg,
+            (Vector2){ (SCREEN_W - tw) / 2.0f, SCREEN_H / 2.0f - 4 },
+            8, 0, palette[7]);
+        EndTextureMode();
+        BeginDrawing();
+        DrawTexturePro(canvas.texture,
+            (Rectangle){ 0, 0, SCREEN_W, -SCREEN_H },
+            (Rectangle){ 0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE },
+            (Vector2){ 0, 0 }, 0.0f, WHITE);
+        EndDrawing();
+        return;
+    }
+    sound_tick(GetFrameTime());
+#else
+    sound_tick(GetFrameTime());
+#endif
     poll_virtual_touches();
     update_stick();
     if (IsKeyPressed(KEY_F1)) watch_show = !watch_show;
-#ifndef PLATFORM_WEB
-    sound_tick(GetFrameTime());
-#endif
 
     // snapshot last frame's canvas so pget() has stable pixels to read
     // (skipped on web — GPU readback is expensive and triggers GL errors on WebGL1)
@@ -440,7 +471,9 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifndef PLATFORM_WEB
     init();
+#endif
 
 #ifdef PLATFORM_WEB
     emscripten_set_main_loop(loop_step, 0, 1);

@@ -464,13 +464,13 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
     '-fno-delete-null-pointer-checks',
     `"${RAYLIB_WEB}/lib/libraylib.a"`,
     '-s USE_GLFW=3',
-    '-s ALLOW_MEMORY_GROWTH=1',
+    '-s TOTAL_MEMORY=67108864',
+    '-s EXPORTED_RUNTIME_METHODS=ccall,HEAPF32',
     `--shell-file "${shellHtml}"`,
     `-o "${CART_HTML}"`,
   ]
 
   const cmd = `emcc ${args.join(' ')}`
-  log('note: sound is disabled in web builds (browser AudioContext restrictions)\n')
   log('running emcc… (this takes ~10s)\n')
 
   return new Promise(resolve => {

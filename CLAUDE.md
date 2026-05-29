@@ -103,25 +103,38 @@ CLR_BLACK, CLR_DARK_BLUE, ... CLR_PEACH  // all 32 PICO-8 palette colors (0-31),
 
 ## Tutorial carts
 
-Tutorial carts live in `editor/public/carts/` as `.cart.png` files — valid PNGs with source/sprites/map embedded as zTXt chunks (`de:source`, `de:sprites`, `de:map`). The visible PNG image is used as the thumbnail in the tutorials panel.
+Carts (tutorials + example games) show up in the tutorials panel, driven by `editor/public/carts/index.json`. Each `.cart.png` in `editor/public/carts/` is a valid PNG with source/sprites/map embedded as zTXt chunks (`de:source`, `de:sprites`, `de:map`). The visible PNG image is the thumbnail.
 
-**Adding a new tutorial cart:**
+Source-of-truth files live in `tools/`:
+- `tools/<name>.c` — the cart's C source
+- `tools/<name>.cart.js` — *optional* config (sprites and/or tile map); only needed if the cart uses them
+- `tools/make-cart.js` — the build tool (CommonJS; uses `require`)
 
-1. Write the C source (no sprites or map needed for code-only carts)
-2. Generate the `.cart.png` with a Node script (see existing `gen-*.cjs` pattern, or write inline) — run from the `editor/public/carts/` directory with `node gen-foo.cjs`
-3. Embed a real screenshot as the thumbnail:
+**Adding a new cart:**
+
+1. Write the C source → `tools/<name>.c`
+2. *(Optional)* Add sprites/map → `tools/<name>.cart.js`. Exports `{ sprites, map, charMap, mapW, mapH }`:
+   - `sprites`: `{ slotIndex: asciiArt }` — 16×16 strings, chars map to palette indices via the `DEFAULT_CHAR_MAP` in `make-cart.js` (`R`=red, `W`=white, `b`=bright blue, `.`=transparent/black, etc.)
+   - `map`: `{ layout: ["####", "#..#"], tiles: { '#': 1 } }`
+3. Build the cart (placeholder thumbnail):
    ```bash
-   node tools/make-cart.js --run editor/public/carts/foo.cart.png
+   node tools/make-cart.js tools/<name>.c editor/public/carts/<name>.cart.png
    ```
-   This compiles the cart, runs it for 3 frames with a hidden window (`--screenshot` mode in `studio.c`), and re-embeds the resulting `build/screenshot.png` into the cart file.
-4. Add an entry to `editor/public/carts/index.json`
+4. Bake a real screenshot as the thumbnail — compiles, runs 3 frames in a hidden window (`--screenshot` mode in `studio.c`), re-embeds `build/screenshot.png`:
+   ```bash
+   node tools/make-cart.js --run editor/public/carts/<name>.cart.png
+   ```
+5. Register it — add an entry to `editor/public/carts/index.json`:
+   ```json
+   { "title": "...", "description": "... + controls", "file": "<name>.cart.png" }
+   ```
 
 **Other `make-cart.js` commands:**
 ```bash
-node tools/make-cart.js --update <cart.png> <any-screenshot.png>  # replace thumbnail manually
+node tools/make-cart.js --update <cart.png> <screenshot.png>  # swap in a thumbnail manually
 ```
 
-Note: generation scripts use `.cjs` extension (not `.js`) because `editor/package.json` has `"type": "module"`.
+Note: `make-cart.js` is run with plain `node` (it's CommonJS via `require`, not affected by `editor/package.json`'s `"type": "module"` since it lives in the repo root `tools/`, which has no `package.json`).
 
 ## Key things to know
 
@@ -131,3 +144,4 @@ Note: generation scripts use `.cjs` extension (not `.js`) because `editor/packag
 - The build log auto-hides after 3 seconds on success, stays open on compile errors
 - `SCREEN_W`, `SCREEN_H`, and `SCALE` are passed as `-D` flags at compile time from the settings tab
 - The palette in `studio.c` is the full 32-color PICO-8 palette (indices 0–31), matching the sprite editor's `pico32.json`. All 32 are named `CLR_*` in `studio.h`
+- Cart code shares one namespace with the whole `studio.h` API, so **don't name a variable after a built-in function**. `map` is the common trap — a tilemap/grid array called `map` clashes with the `map()` draw function (`error: redefinition of 'map' as different kind of symbol`); use `grid`/`dmap` instead. Same goes for `line`, `rect`, `circ`, `print`, `spr`, `timer`, `now`, etc.

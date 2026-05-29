@@ -90,6 +90,26 @@
     "file": "17-hypotrochoid.cart.png"
   },
   {
+    "title": "18. particles",
+    "description": "The gamedev workhorse: a pool of tiny structs, each with a position, velocity, and a life that ticks down. Move them, age them, recycle the dead ones — and the SAME system becomes a fountain, an explosion, or a puff of smoke just by changing the spawn numbers. Z = explosion, hold X = smoke.",
+    "file": "particles.cart.png"
+  },
+  {
+    "title": "19. juice",
+    "description": "The cheap tricks that make a game FEEL good. The same bouncing ball, but every impact fires five classic effects: screen-shake, squash & stretch, a white flash, hit-stop (freeze a few frames for weight), and a puff of dust particles. Press Z to toggle ALL of it off and on so you feel exactly what the juice adds. X to bonk it yourself.",
+    "file": "juice.cart.png"
+  },
+  {
+    "title": "raycaster",
+    "description": "A Wolfenstein-style first-person maze with no 3D and no sprites — one DDA ray per screen column, drawn as a vertical wall strip with fisheye correction. Walk through a colored grid world with a live minimap. WASD to move and turn, B toggles the map.",
+    "file": "raycaster.cart.png"
+  },
+  {
+    "title": "drum machine",
+    "description": "A 16-step sequencer that shows off the sound synth. Six drum voices (kick, snare, hats, clap, bass), a playhead that sweeps the grid off the beat() clock, and a starter groove built in. WASD move the cursor, Z toggles a cell, X clears, arrow keys change tempo.",
+    "file": "drummachine.cart.png"
+  },
+  {
     "title": "space invaders",
     "description": "Classic arcade shooter. 8×3 alien grid that speeds up as you clear it, 3 enemy bullets, lives. Left/right to move, A to shoot.",
     "file": "18-invaders.cart.png"
@@ -148,5 +168,185 @@
     "title": "gorillas",
     "description": "Classic QBasic Gorillas. Two gorillas on a city skyline take turns hurling exploding bananas. Adjust angle and power, account for wind. First to 3 hits wins. Left/right: angle — Up/down: power — Z: fire.",
     "file": "gorillas.cart.png"
+  },
+  {
+    "title": "racer",
+    "description": "Pseudo-3D arcade racer. A curving road rushes toward you over hills, faked entirely with projected triangles. Dodge traffic, hold the road through the bends, beat your best lap (saved between runs). Up: gas — Down: brake — Left/Right: steer.",
+    "file": "racer.cart.png"
+  },
+  {
+    "title": "rocket league",
+    "description": "2D car soccer demake. Drive, jump, and BOOST to fly — boost thrusts along the way you point, so you pull off aerials in the air. Punchy ball physics, cars bump each other. First to 5 wins. P1 blue: A/D drive, W jump, Z boost — P2 orange: </> drive, ^ jump, , boost.",
+    "file": "rocketleague.cart.png"
+  },
+  {
+    "title": "music garden",
+    "description": "A screensaver that plays itself. A gentle chord progression strums under a pentatonic melody that improvises with chance() and a random walk — every note opens a flower that blooms and closes on a sine envelope. Fireflies drift, grass sways, the mood drifts to new keys and colors. Z shifts the mood by hand.",
+    "file": "garden.cart.png"
+  },
+  {
+    "title": "splatoon",
+    "description": "2-player ink battle showing off pset/pget. Every shot paints pixels onto the canvas (which the engine never clears), and you read the ink ahead with pget to swim fast through your own color and slog through the enemy's. Most floor covered in 40s wins. P1 blue: WASD move, Z shoot — P2 orange: arrows move, , shoot.",
+    "file": "splatoon.cart.png"
+  },
+  {
+    "title": "alley cat",
+    "description": "Homage to the 1984 classic. Climb the apartment wall on the window ledges, dodge the birds and the sidewalk dog, and leap into a LIT window. Inside: gobble every mouse before the sweeping broom tosses you out. Nine lives, escalating levels, best score saved. Left/Right: move — Z or Up: jump — (in a room: arrows/WASD to prowl).",
+    "file": "alleycat.cart.png"
+  },
+  {
+    "title": "sopwith camel",
+    "description": "A WWI biplane bomber with a real flight model — the engine pushes you forward along the nose, gravity always pulls down, drag bleeds speed, so you stall if you climb too steeply and loop if you hold up. Bomb every enemy hangar and dogfight the red planes. W/S pitch the nose, Z machine gun, X drop a bomb.",
+    "file": "sopwith.cart.png"
+  },
+  {
+    "title": "paper.io",
+    "description": "Territory capture on a grid. Leave your zone and a trail follows you — loop back to your own color and a flood fill claims everything you enclosed. Cross your OWN trail and you die; cut a rival's trail and THEY die. Three AI rivals expand and cut each other too. First to 60% wins, best run saved. Arrows / WASD to steer (you move on your own).",
+    "file": "paperio.cart.png"
+  },
+  {
+    "title": "geometry dash",
+    "description": "One-button rhythm runner. You auto-run to the right over a driving beat; tap (or hold) to jump, and the cube flips as it flies. Touch a spike or crash into a block and you explode — instant respawn at the start, with an attempt counter and live progress %. Z / X / Up / arrows / , / . to jump, or tap the screen.",
+    "file": "geometrydash.cart.png"
+  },
+  {
+    "title": "one-hand binary",
+    "description": "Count 0 to 31 on a single hand — each finger is a bit worth 16, 8, 4, 2, 1, so any combination is a number and 2^5 = 32 patterns. Exactly how computers count: just on/off. (Yes, 4 is the middle finger all by itself.) Z adds one, X takes one away.",
+    "file": "binaryhand.cart.png"
+  },
+  {
+    "title": "burger time",
+    "description": "Faithful demake of the 1982 arcade classic. You're the chef on a lattice of platforms and ladders. Walk across every segment of a burger ingredient to stomp it down a floor — when all four are stomped it drops, landing on the piece below and knocking THAT one loose too (the cascade), all the way to the plate. Build all four burgers to clear the stage while Mr. Hot Dog, Pickle and Egg chase you. Freeze them with a limited shake of pepper, or drop an ingredient on them for big points. Arrows / WASD: walk + climb — Z or X: pepper.",
+    "file": "burgertime.cart.png"
+  },
+  {
+    "title": "le petomane",
+    "description": "A fart synthesizer that is secretly a sound-design lesson. Every rich sound is many simple notes over time: hold the trigger and the cart fires a fast stream of short notes whose pitch slides (BEND) and wobbles (WOBBLE) through a chosen WAVEFORM, fading out at the end — exactly how chip music fakes a glissando. Six knobs and six presets. W/S pick a knob, A/D turn it, Z lets it rip, X cycles presets.",
+    "file": "fartsynth.cart.png"
+  },
+  {
+    "title": "tiny city",
+    "description": "A little SimCity, mouse-driven. Pick a tool from the bottom bar, then click & drag on the map to build. Zone land Residential, Commercial or Industrial and connect it with Roads — zoned land only develops next to a road. Watch the R/C/I demand bars up top: build what is in demand and the city grows; taxes from buildings fund more building. Left-drag = build, right-drag = bulldoze, A cycles tools.",
+    "file": "city.cart.png"
+  },
+  {
+    "title": "katamari",
+    "description": "Roll a sticky ball around a field of junk and swallow everything smaller than you — each thing you eat grows you (by area) and sticks to the ball, until the stuff that used to block you becomes snack too. Soak up as much as you can in 60 seconds. WASD / arrows to roll, Z to replay.",
+    "file": "katamari.cart.png"
+  },
+  {
+    "title": "pac-man",
+    "description": "The maze classic, ghost AI and all. Eat every dot to clear the board; power pellets turn the ghosts blue so you can gobble them for escalating points. The four ghosts each hunt differently — Blinky chases head-on, Pinky aims four tiles ahead to ambush, Inky flanks using Blinky's position, and Clyde charges until he gets close then loses his nerve. Scatter/chase mode cycling, frightened mode, and eyes that scurry home to respawn. 3 lives, best score saved. Arrows / WASD to steer.",
+    "file": "pacman.cart.png"
+  },
+  {
+    "title": "vampire survivors",
+    "description": "Stay alive in a thickening swarm. You only steer — your weapon auto-fires at the nearest enemy. Kills drop XP gems; scoop them up to level, and every level you pick one of three upgrades (damage, fire rate, multishot, magnet, pierce...). Enemies spawn faster and tougher the longer you last. WASD / arrows to move; at LEVEL UP Left/Right pick and Z confirm.",
+    "file": "vampire.cart.png"
+  },
+  {
+    "title": "street brawler",
+    "description": "A 2-player 1v1 fighting game. Each fighter is a state machine — walk, jump, crouch, block (hold away), punch, kick — and attacks have startup/active/recovery frames so spacing and timing decide the match. The fireball is a real quarter-circle motion (down, down-forward, forward + punch) read from an input buffer, the trick behind every fighting-game special. Best of 3. P1: WASD + Z/X. P2: arrows + comma/period.",
+    "file": "fighter.cart.png"
+  },
+  {
+    "title": "fire!",
+    "description": "Demake of the 1980 Nintendo Game & Watch. People leap from a burning building — run left/right with the firefighters' rescue net to bounce them across the screen and into the ambulance. Each bounce flings them further right, so you juggle new jumpers off the building while shepherding others along. Miss one and they hit the ground; three misses ends it. Speeds up as you rack up rescues, best score saved. Left/Right or A/D to move the net.",
+    "file": "fire.cart.png"
+  },
+  {
+    "title": "video poker",
+    "description": "Jacks-or-Better video poker, the arcade classic. You are dealt five cards; click the ones to KEEP (or use Left/Right + A), then DRAW to replace the rest. A pair of Jacks or better pays out, with bigger hands paying more — see the schedule up top. The BET button cycles 1-5; max bet earns a Royal Flush bonus. Mouse-driven, B also deals/draws.",
+    "file": "poker.cart.png"
+  },
+  {
+    "title": "mode 7",
+    "description": "The real SNES floor trick: one flat terrain texture sampled once per scanline with a perspective divide, so it stretches to a horizon and rotates under you (not faked road segments). Pilot a craft over a procedurally generated world — sea, beaches, forest, snowy peaks — and fly through the glowing rings (projected with the same math, inverted) before the clock runs out; each ring buys +5s. Left/Right turn, Up/Down throttle, Z climb, X dive.",
+    "file": "mode7.cart.png"
+  },
+  {
+    "title": "tetris",
+    "description": "The falling-block classic. All 7 tetrominoes with rotation (and wall kicks so they pivot off walls), a ghost piece showing where they'll land, a next-piece preview, soft drop and instant hard drop. Complete a horizontal line to clear it — four at once is a Tetris. Gravity speeds up every 10 lines, scoring rewards multi-line clears, best score saved. Left/Right move, Down soft-drop, Up hard-drop, Z/X rotate.",
+    "file": "tetris.cart.png"
+  },
+  {
+    "title": "l-system plants",
+    "description": "Watch a recursive rule grow into a tree. Start with a tiny string, rewrite every letter over and over (F becomes FF, and so on), then read the result as turtle commands: F draws, +/- turn, and [ ] push/pop a stack to remember and return to each branch fork. That stack IS the recursion. Up/down apply the rule more or fewer times to see detail emerge, left/right bend the angle, Z cycles plants (fern/bush/tree/weed), X toggles the wind.",
+    "file": "lsystem.cart.png"
+  },
+  {
+    "title": "escape the cave",
+    "description": "A tiny Sierra-style adventure. Walk with the ARROW KEYS or CLICK where you want to go; stand next to something and press A to look, take or use it. Read the sign, take the rusty key, and open the iron door to escape — three points in all. Watch your step around the pit: this is a Sierra game, after all. Features pop-up narration boxes, an inventory, a score, and a classic death-and-respawn.",
+    "file": "adventure.cart.png"
+  },
+  {
+    "title": "rogue",
+    "description": "The original dungeon crawl. Every floor is procedurally generated — rooms joined by corridors — and revealed by line-of-sight fog of war as you explore. Turn-based: walk into a monster (rats, kobolds, orcs, trolls) to attack it, and it hunts you back. Grab gold and potions, gain XP and level up, and take the stairs deeper. Find the Amulet of Yendor on floor 8 to win. Death is permanent. Arrows / WASD move + attack, A quaffs a potion, B descends stairs.",
+    "file": "rogue.cart.png"
+  },
+  {
+    "title": "lil blob (pet)",
+    "description": "A real-time virtual pet, the slow ambient opposite of everything else here. Your blob gets hungry, bored, tired and dirty on its own, poops, can fall sick if neglected, and grows from egg to elder as it ages. Feed/play/wash/sleep/medicine to keep it happy. Saved with save()/load(), so it is still here — same age, same stats — next time you open the cart. Left/Right pick an action, Z to do it.",
+    "file": "pet.cart.png"
+  },
+  {
+    "title": "sokoban",
+    "description": "The warehouse puzzle classic. Push every crate onto a red goal dot. You can only PUSH (never pull) and only one crate at a time, so a crate shoved into a corner is stuck for good — plan ahead. Arrow keys walk and push, A undoes your last move, B restarts the level. Three built-in levels; solve one to advance. Levels are stored as plain text, so adding your own is easy.",
+    "file": "sokoban.cart.png"
+  },
+  {
+    "title": "pathfinding",
+    "description": "Watch a search find its way around walls — the SAME loop runs three classic algorithms so you can see the difference. BFS floods evenly in every direction (ignores the goal); GREEDY rushes straight at the goal and gets fooled by walls; A* combines distance-so-far plus an estimate, so it's informed and optimal. Frontier cells glow bright, visited cells fade, the final path lights up yellow, and it re-animates on a loop. Move the cursor and press A to draw/erase walls, B to switch algorithm — and watch it re-solve live.",
+    "file": "pathfinding.cart.png"
+  },
+  {
+    "title": "jungle run",
+    "description": "A tribute to Pitfall! (1982). Run through a procedurally generated jungle, jumping rolling logs and open holes, swinging across tar pits on a vine, and grabbing gold before the 2-minute clock runs out — with three lives. LEFT/RIGHT run (walk off a screen edge to reach the next screen), A jumps; in mid-air over a tar pit, A grabs the vine and A again lets go, so time your swing. Each screen is built from its number, so the jungle is the same every visit, just like the original.",
+    "file": "pitfall.cart.png"
+  },
+  {
+    "title": "tower defense",
+    "description": "Creeps march along the path from left to right — build towers on the grass to stop them before they leak out the far side. Three tower types: GUN (cheap, fast), FROST (slows what it hits), and CANNON (slow but heavy splash). Kills earn gold to build more or upgrade existing towers (3 levels each). Twelve escalating waves with normal, fast, and tank creeps; survive them all to win. Move the cursor with arrows/WASD, A builds or upgrades, B switches tower type.",
+    "file": "towerdefense.cart.png"
+  },
+  {
+    "title": "sorting visualizer",
+    "description": "Watch and hear sorting algorithms run. A sort only ever compares and swaps; this records that stream of operations and replays it slowly, lighting the bars it touches and playing a note pitched to each bar height. Bubble, selection, insertion and quicksort each make a very different sound. Z cycles algorithm, X shuffles, up/down change speed.",
+    "file": "sort.cart.png"
+  },
+  {
+    "title": "doom fire",
+    "description": "The famous 1993 fire effect from one tiny rule. A grid of heat values: the bottom row is always hottest, and each cell copies the heat below it minus a little random cooling, nudged by the wind. No flame is ever drawn — it emerges from the cooling. Hotter values map to hotter colours. Left/right steer the wind, up/down change flame height.",
+    "file": "doomfire.cart.png"
+  },
+  {
+    "title": "double pendulum",
+    "description": "Two rods swinging from each other — and pure chaos. Solving the real equations of motion in tiny steps, the tip traces a glowing trail. The smallest change in the start sends it on a completely different path, which is what chaos means. Z gives a new random start to watch it diverge, X toggles the trail.",
+    "file": "pendulum.cart.png"
+  },
+  {
+    "title": "3D wireframe",
+    "description": "Real 3D this time (the raycaster only faked it). A solid is a list of 3D corner points and the edges joining them; each frame rotates every point with sin/cos, projects it to 2D with perspective (far points shrink toward the centre), and connects the dots — the whole 3D pipeline in miniature. Z cycles cube/tetrahedron/octahedron, up/down zoom, left/right spin speed.",
+    "file": "cube3d.cart.png"
+  },
+  {
+    "title": "shakespearean insults",
+    "description": "Procedural text from three word lists. Pick one word from each column and glue them into Thou [A] [B] [C]! With ~50 words per column thats over a hundred thousand insults from one tiny program — that multiplication is combinatorics, and the picking is just rnd() indexing into arrays, the same trick behind procedural names and loot. Z hurls a fresh one.",
+    "file": "insult.cart.png"
+  },
+  {
+    "title": "one-armed bandit",
+    "description": "A slot machine, and a lesson in why you never win. Three reels land on random symbols; match three to get paid. It feels fair, but the RTP (return-to-player) readout drifts below 100% over many spins — that gap is the house edge, and the maths guarantees the machine wins long-term. Credits persist between runs via save/load. Z spins, X takes a loan when broke.",
+    "file": "slots.cart.png"
+  },
+  {
+    "title": "lil life (the sims)",
+    "description": "A tiny Sims. Build a house and furnish it, then watch your sim look after itself: five needs (food, energy, bladder, hygiene, fun) decay in real time, and it picks the most urgent one, pathfinds (BFS, around your walls) to the object that fixes it, and uses it. WASD/arrows move the build cursor, Z place, X erase, comma toggles BUILD/LIVE, period cycles furniture.",
+    "file": "sims.cart.png"
+  },
+  {
+    "title": "pang",
+    "description": "Demake of the 1989 Capcom classic (Buster Bros). Big balls bounce around the arena under gravity. Fire your harpoon-wire straight up and a hit SPLITS a ball into two smaller, faster ones — medium into small, small into tiny, and the tiniest just pop. Clear them all to advance; a ball touching you costs a life. Each size bounces to its own height, so the screen fills with chaos as you break the big ones down. Left/Right move, A or Up fires (up to two wires at once).",
+    "file": "pang.cart.png"
   }
 ]

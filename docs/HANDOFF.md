@@ -4,7 +4,7 @@
 > session. This is the stuff that isn't obvious from the code or git log. Keep it
 > short; prune what goes stale.
 
-_Last updated: 2026-05-29 (session 3)_
+_Last updated: 2026-05-29 (session 4)_
 
 ---
 
@@ -24,6 +24,8 @@ _Last updated: 2026-05-29 (session 3)_
   inline error markers in the CodeMirror editor.
 - **API pass 3 shipped** — `ease_in/out/in_out`, `rnd_between`/`rnd_float`/`rnd_float_between`,
   `print_centered`/`print_right`, `frame()`. 14 tutorial carts total.
+- **`tri()` / `trifill()` added** — triangle border and filled triangle.
+- **`rect()` corner overshoot fixed** — was using `DrawRectangleLines` then `DrawLine` (both add line caps); now uses four 1px `DrawRectangle` slices. Pixel-perfect corners.
 
 ---
 
@@ -127,6 +129,11 @@ Cart sources live in `tools/XX-name.c`. Config files (sprites + map) live in
   All carts share the same `rand()` seed — not seeded per-cart; same sequence every run.
 - **CLAUDE_CODE_TMPDIR** fills up occasionally. Workaround: redirect compile output
   to `build/compile-test.log` and read it back with the Read tool.
+- **`trifill()` winding order** — Raylib's `DrawTriangle` needs counter-clockwise winding
+  in Y-down screen coords. In Y-down space, cross product > 0 means clockwise visually
+  (opposite of math convention), so swap when `cross > 0`.
+- **`colorkey`** was added to studio.h by the user (visible in the system reminder) —
+  check studio.h for current state before adding more graphics functions.
 - **Raylib auto-detected:** `/opt/homebrew/opt/raylib` (Apple Silicon) or
   `/usr/local/opt/raylib` (Intel). Both `main.cjs` and `tools/make-cart.js` do this.
 

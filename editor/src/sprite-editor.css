@@ -133,7 +133,6 @@ canvas {
 
 /* ── tools ── */
 .actions {
-  margin-left: 56px;
   display: flex;
   gap: 4px;
 }

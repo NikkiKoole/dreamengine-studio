@@ -470,6 +470,7 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
   ]
 
   const cmd = `emcc ${args.join(' ')}`
+  log('note: sound is disabled in web builds (browser AudioContext restrictions)\n')
   log('running emcc… (this takes ~10s)\n')
 
   return new Promise(resolve => {

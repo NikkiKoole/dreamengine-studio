@@ -95,6 +95,11 @@
     "file": "18-invaders.cart.png"
   },
   {
+    "title": "breakout",
+    "description": "Classic brick-breaker. Rainbow rows of bricks, paddle angle controls the bounce direction. 3 lives. Left/right to move, A to launch.",
+    "file": "19-breakout.cart.png"
+  },
+  {
     "title": "pong",
     "description": "2-player pong. First to 7 wins. Player 1: W/S — Player 2: up/down arrows.",
     "file": "pong.cart.png"
@@ -108,5 +113,10 @@
     "title": "snake",
     "description": "Classic snake. Eat the flashing food to grow, avoid walls and your own tail. Speeds up as you get longer. Arrow keys to steer.",
     "file": "snake.cart.png"
+  },
+  {
+    "title": "lunar lander",
+    "description": "Physics-based lander. Rotate and thrust your way onto the lit green pad slowly enough to survive. Levels get harder — pads get narrower. Left/right to rotate, up or Z to thrust.",
+    "file": "lander.cart.png"
   }
 ]

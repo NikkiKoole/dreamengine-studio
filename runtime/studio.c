@@ -596,9 +596,10 @@ void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
     Vector2 v1 = {(float)(x1-cam_x), (float)(y1-cam_y)};
     Vector2 v2 = {(float)(x2-cam_x), (float)(y2-cam_y)};
     Vector2 v3 = {(float)(x3-cam_x), (float)(y3-cam_y)};
-    // Raylib needs counter-clockwise winding; auto-correct so callers don't have to care
+    // Raylib needs counter-clockwise winding in Y-down screen coords.
+    // In Y-down space, cross > 0 means clockwise visually → swap to fix.
     float cross = (v2.x-v1.x)*(v3.y-v1.y) - (v2.y-v1.y)*(v3.x-v1.x);
-    if (cross < 0) DrawTriangle(v1, v3, v2, c);
+    if (cross > 0) DrawTriangle(v1, v3, v2, c);
     else           DrawTriangle(v1, v2, v3, c);
 }
 

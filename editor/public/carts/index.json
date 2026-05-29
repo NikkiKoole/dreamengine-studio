@@ -403,5 +403,35 @@
     "title": "joust",
     "description": "A tribute to the Williams arcade classic. Ride your flying mount over a lava pit: tap A to FLAP against constant gravity, steer with LEFT/RIGHT (you carry momentum), and the screen wraps left to right. Charge enemy riders — whoever is higher at the moment of contact wins; equal height bounces you both apart. A beaten rider drops an egg: grab it for points before it hatches into a fresh enemy. Clear the wave to advance. Three lives; the lava is always fatal.",
     "file": "joust.cart.png"
+  },
+  {
+    "title": "solvalou (xevious)",
+    "description": "A Xevious — the vertical shooter with TWO weapons for two layers: Z zaps flying enemies (toroids, zoshis), X drops a blaster bomb on the reticle ahead of you to hit GROUND targets (tanks, bases). Terrain scrolls past, ground bases shoot back, and the Andor Genesis mothership shows up for big points. WASD/arrows fly, Z zap, X bomb.",
+    "file": "xevious.cart.png"
+  },
+  {
+    "title": "elite",
+    "description": "Cockpit wireframe dogfight after the 1984 space classic. Pirate ships approach as real 3D wireframes out of the starfield — the world rotates around you as you pitch and yaw, projected to the screen with perspective. Line a ship up in the crosshair and fire your converging lasers. The famous elliptical scanner plots every ship around you, with a stalk showing whether it's above or below. Shields recharge between hits; lose them and you're space dust. Endless waves get tougher as your kill count climbs. Arrows / WASD pitch + yaw, Z fires.",
+    "file": "elite.cart.png"
+  },
+  {
+    "title": "M.U.L.E.",
+    "file": "mule.cart.png",
+    "description": "One full round of the 1983 economic classic on planet Irata. The whole loop: buy a MULE at the store, outfit it for food / energy / smithore, then race it out to a land plot before it bolts (a runaway timer). Installed MULEs harvest goods based on their terrain, and then you sell your ore in an auction where every sale floods the market and drops the price — so sell while it is high. Supply and demand, made playable. Left/right choose, Z acts, X skips; net worth is scored and your best is saved."
+  },
+  {
+    "title": "galaga",
+    "description": "The formation shooter. Bees, butterflies and bosses fly in and lock into a swaying grid, then peel off to dive and shoot at you. The green Boss can drop a tractor beam — if it catches your ship you lose it, but shoot that boss while it tows your ship and you get it back as a DUAL FIGHTER with double fire. Clear a wave to advance. A/D or arrows move, Z fire.",
+    "file": "galaga.cart.png"
+  },
+  {
+    "title": "master of orion",
+    "description": "A tiny 4X space strategy. A galaxy of star systems: your stars (green) build ships each turn based on their planet's production, and you send fleets to colonise neutral stars (grey) or invade the rival's (red) — send enough to overcome the defenders, who get a defensive edge. An AI empire expands against you at the same time. Turn-based: queue your moves, then end the turn and watch the fleets fly. Conquer every enemy star to win the galaxy; lose all of yours and your empire falls. Arrows pick a star, A selects a source then a target to send all its ships, B ends the turn.",
+    "file": "orion.cart.png"
+  },
+  {
+    "title": "micro 4x",
+    "description": "A tiny turn-based 4X strategy game (eXplore, eXpand, eXploit, eXterminate), you (blue) versus an AI rival (red) on a fogged tile map. Mouse-driven: click your unit then an adjacent tile to move, or onto an enemy to attack. A Settler founds a city on grass or forest; click a city to spend the gold it earns on Warriors or Settlers. END TURN lets the rival act and collects income. Reveal the map, expand your cities, and wipe out the enemy to win. Each map is freshly generated.",
+    "file": "fourx.cart.png"
   }
 ]

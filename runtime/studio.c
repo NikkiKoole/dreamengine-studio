@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
+#include <time.h>
 #include "dos_8x8_font.h"
 #include "sprites_data.h"
 #include "map_data.h"
@@ -415,10 +416,10 @@ static void loop_step(void) {
 }
 
 int main(int argc, char **argv) {
+    const char *window_title           = "dreamengine";
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
     int         screenshot_frames_done = 0;
-    const char *window_title           = "dreamengine";
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--screenshot") == 0) screenshot_mode = 1;
         else if (strcmp(argv[i], "--title") == 0 && i + 1 < argc) window_title = argv[++i];
@@ -581,6 +582,29 @@ float stick_y(void) {
     return (stick_knob_y - stick_base_y) / STICK_RADIUS;
 }
 
+// ------------------------------------------------------------
+// mouse api — canvas-space pointer, always available on desktop
+// ------------------------------------------------------------
+static int raylib_mouse_button(int button) {
+    switch (button) {
+        case MOUSE_RIGHT:  return MOUSE_BUTTON_RIGHT;
+        case MOUSE_MIDDLE: return MOUSE_BUTTON_MIDDLE;
+        default:           return MOUSE_BUTTON_LEFT;
+    }
+}
+int mouse_x(void) {
+    int x = (int)(GetMousePosition().x / SCALE);
+    return mid(0, x, SCREEN_W - 1);
+}
+int mouse_y(void) {
+    int y = (int)(GetMousePosition().y / SCALE);
+    return mid(0, y, SCREEN_H - 1);
+}
+bool mouse_down(int button)     { return IsMouseButtonDown(raylib_mouse_button(button)); }
+bool mouse_pressed(int button)  { return IsMouseButtonPressed(raylib_mouse_button(button)); }
+bool mouse_released(int button) { return IsMouseButtonReleased(raylib_mouse_button(button)); }
+float mouse_wheel(void)         { return GetMouseWheelMove(); }
+
 void cls(int color) {
     ClearBackground(palette[color % PALETTE_SIZE]);
 }
@@ -741,6 +765,10 @@ int rnd(int n) {
 
 float now(void) {
     return (float)GetTime();
+}
+
+int epoch(void) {
+    return (int)time(NULL);     // real-world Unix seconds — persists across runs
 }
 
 int sgn(int n) {

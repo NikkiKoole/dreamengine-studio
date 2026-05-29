@@ -93,6 +93,17 @@ void touch_controls(bool on);            // show/hide on-screen stick + A/B (ove
 float stick_x(void);   // -1.0 .. 1.0
 float stick_y(void);   // -1.0 .. 1.0  (negative = up)
 
+// mouse (desktop) — unlike touch, position is always known, even with no button down
+#define MOUSE_LEFT    0
+#define MOUSE_RIGHT   1
+#define MOUSE_MIDDLE  2
+int   mouse_x(void);                 // canvas-space x of the pointer (clamped to screen)
+int   mouse_y(void);                 // canvas-space y of the pointer (clamped to screen)
+bool  mouse_down(int button);        // true while the button is held
+bool  mouse_pressed(int button);     // true only on the frame the button was pressed
+bool  mouse_released(int button);    // true only on the frame the button was released
+float mouse_wheel(void);             // scroll this frame: + up / - down, 0 if no scroll
+
 // graphics
 void cls(int color);
 void colorkey(int color);                           // set transparent color for sprites (palette index). -1 = no transparency. call when color changes, not every frame.
@@ -198,6 +209,7 @@ int   rnd_between(int lo, int hi);             // random int in [lo, hi); rnd_be
 float rnd_float(void);                         // random float 0..1
 float rnd_float_between(float lo, float hi);   // random float in [lo, hi)
 float now(void);           // seconds since startup
+int   epoch(void);         // real-world clock: Unix time in whole seconds. unlike now() it keeps counting between runs — store it with save() to tell how long the player was away
 int   frame(void);         // frame count since startup (increments once per update)
 int   sgn(int n);          // -1 if n<0, 0 if n==0, 1 if n>0
 int   mid(int a, int b, int c);  // middle value of three. use for clamp: mid(lo, val, hi)

@@ -351,6 +351,7 @@ buildWebBtn.addEventListener('click', async () => {
 
   buildWebBtn.textContent = 'building…'
   buildWebBtn.disabled = true
+  rlogClear()   // open the runtime log panel for step-by-step output
 
   const code = view.state.doc.toString()
   const result = await window.studio.buildWeb(code, settings)

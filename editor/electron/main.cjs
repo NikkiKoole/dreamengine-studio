@@ -363,20 +363,19 @@ const WEB_MIME = { '.html': 'text/html', '.js': 'application/javascript', '.wasm
 let webServer = null
 
 function startWebServer() {
+  const url = `http://localhost:${WEB_PORT}/cart.html`
   return new Promise((resolve, reject) => {
-    const launch = () => {
-      webServer = http.createServer((req, res) => {
-        const filePath = path.join(BUILD_DIR, req.url === '/' ? 'cart.html' : req.url)
-        fs.readFile(filePath, (err, data) => {
-          if (err) { res.writeHead(404); res.end('not found'); return }
-          res.writeHead(200, { 'Content-Type': WEB_MIME[path.extname(filePath)] || 'application/octet-stream' })
-          res.end(data)
-        })
+    if (webServer?.listening) return resolve(url)  // already up — new files on disk, just reuse it
+    webServer = http.createServer((req, res) => {
+      const filePath = path.join(BUILD_DIR, req.url === '/' ? 'cart.html' : req.url)
+      fs.readFile(filePath, (err, data) => {
+        if (err) { res.writeHead(404); res.end('not found'); return }
+        res.writeHead(200, { 'Content-Type': WEB_MIME[path.extname(filePath)] || 'application/octet-stream' })
+        res.end(data)
       })
-      webServer.listen(WEB_PORT, '127.0.0.1', () => resolve(`http://localhost:${WEB_PORT}/cart.html`))
-      webServer.on('error', reject)
-    }
-    if (webServer) { webServer.close(launch) } else { launch() }
+    })
+    webServer.listen(WEB_PORT, '127.0.0.1', () => resolve(url))
+    webServer.on('error', reject)
   })
 }
 
@@ -407,8 +406,14 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
     }
   }
 
+  const wc  = _event.sender
+  const log = (msg) => { if (!wc.isDestroyed()) wc.send('cart:log', msg) }
+
   fs.mkdirSync(BUILD_DIR, { recursive: true })
   fs.writeFileSync(CART_SRC, code)
+
+  log('── build for web ──\n')
+  log('generating asset headers…\n')
 
   const spritesHeader = path.join(BUILD_DIR, 'sprites_data.h')
   const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
@@ -465,13 +470,18 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
   ]
 
   const cmd = `emcc ${args.join(' ')}`
+  log('running emcc… (this takes ~10s)\n')
 
   return new Promise(resolve => {
     exec(cmd, { timeout: 120000 }, async (err, _stdout, stderr) => {
-      if (err) return resolve({ ok: false, cmd, output: stderr.trim() || err.message })
+      if (err) {
+        log(stderr.trim() || err.message)
+        return resolve({ ok: false, cmd, output: stderr.trim() || err.message })
+      }
       const url = await startWebServer()
       shell.openExternal(url)
-      resolve({ ok: true, cmd, url, output: stderr.trim() || null })
+      log(`✓ done — opening ${url}\n`)
+      resolve({ ok: true, cmd, url, output: null })
     })
   })
 })

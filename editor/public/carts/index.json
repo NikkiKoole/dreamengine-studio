@@ -73,5 +73,10 @@
     "title": "14. hud layout",
     "description": "print_centered and print_right for clean UI. Also uses rnd_between, near, and frame().",
     "file": "14-hud.cart.png"
+  },
+  {
+    "title": "pong",
+    "description": "2-player pong. First to 7 wins. Player 1: W/S — Player 2: up/down arrows.",
+    "file": "pong.cart.png"
   }
 ]

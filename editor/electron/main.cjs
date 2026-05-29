@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, Menu, session, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } = require('electron')
 const { exec, execSync, spawn }        = require('child_process')
 const path                             = require('path')
 const fs                               = require('fs')
 const zlib                             = require('zlib')
+const http                             = require('http')
 
 // ── PNG cart helpers ──────────────────────────────────────────
 function crc32(buf) {
@@ -356,6 +357,29 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
   })
 })
 
+// ── web preview server ────────────────────────────────────────
+const WEB_PORT = 8765
+const WEB_MIME = { '.html': 'text/html', '.js': 'application/javascript', '.wasm': 'application/wasm', '.png': 'image/png' }
+let webServer = null
+
+function startWebServer() {
+  return new Promise((resolve, reject) => {
+    const launch = () => {
+      webServer = http.createServer((req, res) => {
+        const filePath = path.join(BUILD_DIR, req.url === '/' ? 'cart.html' : req.url)
+        fs.readFile(filePath, (err, data) => {
+          if (err) { res.writeHead(404); res.end('not found'); return }
+          res.writeHead(200, { 'Content-Type': WEB_MIME[path.extname(filePath)] || 'application/octet-stream' })
+          res.end(data)
+        })
+      })
+      webServer.listen(WEB_PORT, '127.0.0.1', () => resolve(`http://localhost:${WEB_PORT}/cart.html`))
+      webServer.on('error', reject)
+    }
+    if (webServer) { webServer.close(launch) } else { launch() }
+  })
+}
+
 // ── build for web (emscripten) ────────────────────────────────
 ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
   const screenW      = cfg?.screenW || 320
@@ -443,9 +467,11 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
   const cmd = `emcc ${args.join(' ')}`
 
   return new Promise(resolve => {
-    exec(cmd, { timeout: 120000 }, (err, _stdout, stderr) => {
+    exec(cmd, { timeout: 120000 }, async (err, _stdout, stderr) => {
       if (err) return resolve({ ok: false, cmd, output: stderr.trim() || err.message })
-      resolve({ ok: true, cmd, html: CART_HTML, output: stderr.trim() || null })
+      const url = await startWebServer()
+      shell.openExternal(url)
+      resolve({ ok: true, cmd, url, output: stderr.trim() || null })
     })
   })
 })

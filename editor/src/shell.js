@@ -340,6 +340,31 @@ loadCartBtn.addEventListener('click', async () => {
   if (cart && cart.ok) applyCart(cart)
 })
 
+// ── build for web ─────────────────────────────────────────────
+const buildWebBtn = document.getElementById('build-web-btn')
+
+buildWebBtn.addEventListener('click', async () => {
+  if (!window.studio) return
+  const tilemapCanvas = document.querySelector('#tilemap-canvas')
+  if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+  await window.studio.saveMap(getMapBytes())
+
+  buildWebBtn.textContent = 'building…'
+  buildWebBtn.disabled = true
+
+  const code = view.state.doc.toString()
+  const result = await window.studio.buildWeb(code, settings)
+
+  buildWebBtn.textContent = 'build for web'
+  buildWebBtn.disabled = false
+
+  if (result.ok) {
+    showToast(`opening ${result.url}`)
+  } else {
+    showLog(result)
+  }
+})
+
 // ── drag-and-drop cart loading ────────────────────────────────
 document.addEventListener('dragover', e => e.preventDefault())
 document.addEventListener('drop', async e => {

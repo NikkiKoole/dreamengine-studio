@@ -143,5 +143,10 @@
     "title": "paratrooper",
     "description": "Rotate your AA gun and shoot down paratroopers before they capture it. Helicopters drop soldiers — shoot them in the air or on the ground. Game over when 2 reach each side of your gun. Left/right to aim, Z to fire.",
     "file": "paratrooper.cart.png"
+  },
+  {
+    "title": "gorillas",
+    "description": "Classic QBasic Gorillas. Two gorillas on a city skyline take turns hurling exploding bananas. Adjust angle and power, account for wind. First to 3 hits wins. Left/right: angle — Up/down: power — Z: fire.",
+    "file": "gorillas.cart.png"
   }
 ]

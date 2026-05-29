@@ -132,8 +132,9 @@ Cart sources live in `tools/XX-name.c`. Config files (sprites + map) live in
 - **`trifill()` winding order** — Raylib's `DrawTriangle` needs counter-clockwise winding
   in Y-down screen coords. In Y-down space, cross product > 0 means clockwise visually
   (opposite of math convention), so swap when `cross > 0`.
-- **`colorkey`** was added to studio.h by the user (visible in the system reminder) —
-  check studio.h for current state before adding more graphics functions.
+- **`colorkey(color)`** is fully shipped — studio.c keeps a clean copy of the original
+  spritesheet as `spritesheet_img` so `colorkey(-1)` correctly restores full opacity.
+  Has a tutorial cart at `05b-colorkey.cart.png`.
 - **Raylib auto-detected:** `/opt/homebrew/opt/raylib` (Apple Silicon) or
   `/usr/local/opt/raylib` (Intel). Both `main.cjs` and `tools/make-cart.js` do this.
 

@@ -32,6 +32,8 @@ export const studioDocs = {
   rectfill:   { sig: 'void rectfill(int x, int y, int w, int h, int color)',          doc: 'Draw a filled rectangle.', docNL: 'Teken een gevulde rechthoek.' },
   circ:       { sig: 'void circ(int x, int y, int radius, int color)',                doc: 'Draw a circle border.', docNL: 'Teken de rand van een cirkel.' },
   circfill:   { sig: 'void circfill(int x, int y, int radius, int color)',            doc: 'Draw a filled circle.', docNL: 'Teken een gevulde cirkel.' },
+  tri:        { sig: 'void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color)',     doc: 'Draw a triangle border through three points.', docNL: 'Teken de rand van een driehoek door drie punten.' },
+  trifill:    { sig: 'void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color)', doc: 'Draw a filled triangle. Vertex order does not matter.', docNL: 'Teken een gevulde driehoek. Volgorde van hoekpunten maakt niet uit.' },
   line:       { sig: 'void line(int x1, int y1, int x2, int y2, int color)',          doc: 'Draw a line from (x1, y1) to (x2, y2).', docNL: 'Teken een lijn van (x1, y1) naar (x2, y2).' },
   pset:       { sig: 'void pset(int x, int y, int color)',                            doc: 'Set a single pixel at (x, y). Pairs with pget().', docNL: 'Zet één pixel op (x, y). Hoort bij pget().' },
   BTN_UP:     { sig: '#define BTN_UP 0',                                              doc: 'Up button.', docNL: 'Knop omhoog.' },

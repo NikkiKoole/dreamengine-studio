@@ -107,6 +107,8 @@ void rect(int x, int y, int w, int h, int color);       // rectangle border
 void rectfill(int x, int y, int w, int h, int color);   // filled rectangle
 void circ(int x, int y, int radius, int color);         // circle border
 void circfill(int x, int y, int radius, int color);     // filled circle
+void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color);     // triangle border
+void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color); // filled triangle (any winding)
 int  pget(int x, int y);                                // palette index at (x,y), or 0 if no match
 void camera(int x, int y);                              // shifts all subsequent drawing by (-x,-y). camera(0,0) resets
 void follow(int tx, int ty, int world_w, int world_h); // center camera on (tx,ty), clamped so world edges don't show

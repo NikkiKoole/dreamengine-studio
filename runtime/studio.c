@@ -563,7 +563,13 @@ void print(const char *text, int x, int y, int color) {
 }
 
 void rect(int x, int y, int w, int h, int color) {
-    DrawRectangleLines(x - cam_x, y - cam_y, w, h, palette[color % PALETTE_SIZE]);
+    Color c = palette[color % PALETTE_SIZE];
+    int rx = x - cam_x, ry = y - cam_y;
+    // draw four sides explicitly — DrawRectangleLines overshoots corners by 1px
+    DrawLine(rx,     ry,     rx+w-1, ry,     c);  // top
+    DrawLine(rx,     ry+h-1, rx+w-1, ry+h-1, c);  // bottom
+    DrawLine(rx,     ry+1,   rx,     ry+h-2, c);  // left  (corners owned by top/bottom)
+    DrawLine(rx+w-1, ry+1,   rx+w-1, ry+h-2, c);  // right
 }
 
 void rectfill(int x, int y, int w, int h, int color) {
@@ -576,6 +582,24 @@ void circ(int x, int y, int radius, int color) {
 
 void circfill(int x, int y, int radius, int color) {
     DrawCircle(x - cam_x, y - cam_y, radius, palette[color % PALETTE_SIZE]);
+}
+
+void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
+    Color c = palette[color % PALETTE_SIZE];
+    DrawLine(x1-cam_x, y1-cam_y, x2-cam_x, y2-cam_y, c);
+    DrawLine(x2-cam_x, y2-cam_y, x3-cam_x, y3-cam_y, c);
+    DrawLine(x3-cam_x, y3-cam_y, x1-cam_x, y1-cam_y, c);
+}
+
+void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
+    Color c = palette[color % PALETTE_SIZE];
+    Vector2 v1 = {(float)(x1-cam_x), (float)(y1-cam_y)};
+    Vector2 v2 = {(float)(x2-cam_x), (float)(y2-cam_y)};
+    Vector2 v3 = {(float)(x3-cam_x), (float)(y3-cam_y)};
+    // Raylib needs counter-clockwise winding; auto-correct so callers don't have to care
+    float cross = (v2.x-v1.x)*(v3.y-v1.y) - (v2.y-v1.y)*(v3.x-v1.x);
+    if (cross < 0) DrawTriangle(v1, v3, v2, c);
+    else           DrawTriangle(v1, v2, v3, c);
 }
 
 void line(int x1, int y1, int x2, int y2, int color) {

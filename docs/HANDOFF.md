@@ -4,7 +4,7 @@
 > session. This is the stuff that isn't obvious from the code or git log. Keep it
 > short; prune what goes stale.
 
-_Last updated: 2026-05-29 (session 5)_
+_Last updated: 2026-05-29 (session 6)_
 
 ---
 
@@ -17,7 +17,7 @@ _Last updated: 2026-05-29 (session 5)_
 - **Cart format shipped** — `.cart.png` files embed source + sprites + map as `zTXt`
   PNG chunks. The visible image is a screenshot of the game (saved automatically on
   exit). See below for full details.
-- **Tutorials page shipped** — 12 tutorial carts in `editor/public/carts/`, a gallery
+- **Tutorials page shipped** — 15 tutorial carts in `editor/public/carts/`, a gallery
   panel in the editor, and a cart authoring toolchain in `tools/`. See
   [`docs/TOOLS.md`](./TOOLS.md) for the full workflow.
 - **API pass 2 shipped** — `follow()`, `save()`/`load()`, `noise()`/`noise2()`/`noise3()`,
@@ -29,6 +29,8 @@ _Last updated: 2026-05-29 (session 5)_
 - **`init()` callback added** — called once after the window opens, before the first `update()`. Weak stub like `update()`. Replaces the `static bool` workaround for one-time setup (`colorkey`, map building, etc.).
 - **`anim()` phase offset added** — signature is now `anim(n_frames, fps, phase)` where `phase` 0..1 shifts the cycle start. Use `(float)i/count` to stagger multiple entities.
 - **Tutorial cart 15** — walk cycle with sprites, phase 0 vs staggered, uses `init()` + `colorkey()` + `anim()`.
+- **Turtle graphics API + cart 16** — `turtle_home/move/turn/face/at`, `pen_down/up/color/size`. Spirograph tutorial cart.
+- **Web build shipped** ✓ — "Build for web" button in the cart tab. Compiles with emscripten to `build/cart.html + cart.js + cart.wasm`, starts a local Node server on port 8765, opens in the default browser automatically. Sound works. See below for full details.
 
 ---
 
@@ -40,11 +42,83 @@ _Last updated: 2026-05-29 (session 5)_
    `off_beat`. Dilla timing: `groove` + `groove_swing/jitter/push`.
 2. **Process/coroutine model** — the Level-2 differentiator from VISION.md. Weeks of
    architectural work. `wait N seconds` / `loop … frame;` inside a process.
-3. **Browser sharing** — emscripten build so carts run in a browser tab.
+3. **Browser sharing / hosting** — web build exists; next step is a URL you can send
+   someone (itch.io upload, or a hosted service that stores the wasm).
 4. **Sound tracker UI** — the sound tab is disabled; code-first sound works but a
    tracker would let you design sfx/music in the editor.
 5. **Pixel-perfect sprite collision** — walk the sprite alpha; AABB covers 95% of cases
    but this would be the next collision improvement.
+
+---
+
+## Web build
+
+### Setup on a new machine
+
+Only one thing to install — everything else is in the repo:
+
+```bash
+brew install emscripten   # macOS/Linux via Homebrew
+```
+
+Then the "Build for web" button in the editor cart tab just works.
+`runtime/raylib-web/` is committed (Raylib 5.5 built from source with
+emscripten 5.0.7) so no separate download or rebuild is needed.
+
+### How it works
+
+1. Click **"Build for web"** in the cart tab
+2. Editor saves sprites + map, opens the runtime log showing progress
+3. `emcc` compiles `cart.c + studio.c` → `build/cart.html + cart.js + cart.wasm` (~10s)
+4. A Node HTTP server starts on port 8765 (or reuses the existing one)
+5. The cart opens in the default browser automatically
+
+The built files are in `build/` — zip `cart.html + cart.js + cart.wasm` and upload
+to itch.io to share publicly.
+
+### Web-specific behaviour
+
+- **"click to start" screen** — shown before the game loop starts. The click
+  satisfies Chrome's autoplay restriction; `InitAudioDevice()`, `sound_init()`,
+  and `init()` all run inside the click handler so the AudioContext is created
+  after a real user gesture. Sound works fully after clicking.
+- **`pget()` returns 0** — GPU readback (`LoadImageFromTexture`) triggers
+  WebGL1 framebuffer errors every frame; disabled on web. `touching_color()` also
+  always returns false on web as a result.
+- **`save()`/`load()` don't persist** — emscripten's virtual filesystem is
+  in-memory only; data is lost on page reload. Fix later with localStorage.
+- **ScriptProcessorNode deprecation warning** — cosmetic, harmless. Raylib uses
+  miniaudio which hasn't switched to AudioWorklet yet. Sound still works.
+
+### emcc flags and why
+
+```
+-s USE_GLFW=3              # GLFW canvas input (required for Raylib)
+-s TOTAL_MEMORY=67108864   # fixed 64MB heap — ALLOW_MEMORY_GROWTH invalidates
+                           # the HEAPF32 TypedArray view used by the audio callback
+-s EXPORTED_RUNTIME_METHODS=ccall,HEAPF32
+                           # emscripten 5.x no longer exports these on Module by
+                           # default; miniaudio's JS onaudioprocess uses both
+```
+
+### How the Raylib web library was built
+
+The pre-compiled `raylib-5.5_webassembly.zip` from GitHub was built with an old
+emscripten and ships miniaudio 0.11.21 (broken ScriptProcessorNode). We built from
+source instead:
+
+```bash
+git clone https://github.com/raysan5/raylib.git --branch 5.5 --depth 1 /tmp/raylib-src
+cd /tmp/raylib-src
+emcmake cmake -S . -B build-web -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release
+cmake --build build-web -j4
+# outputs: build-web/raylib/libraylib.a
+```
+
+Result is committed at `runtime/raylib-web/lib/libraylib.a`. WASM bitcode is
+architecture-independent so the same file works on any machine with emscripten.
+If you ever need to rebuild it (e.g. for a new emscripten major version), run the
+above and replace the file.
 
 ---
 
@@ -145,6 +219,15 @@ Cart sources live in `tools/XX-name.c`. Config files (sprites + map) live in
   Has a tutorial cart at `05b-colorkey.cart.png`.
 - **Raylib auto-detected:** `/opt/homebrew/opt/raylib` (Apple Silicon) or
   `/usr/local/opt/raylib` (Intel). Both `main.cjs` and `tools/make-cart.js` do this.
+- **Web build server stays alive** — `startWebServer()` in `main.cjs` keeps one
+  Node HTTP server on port 8765 alive for the editor session. It reuses the same
+  instance on subsequent builds (doesn't restart). If something is already on 8765
+  externally, kill it: `kill $(lsof -ti:8765)`.
+- **CLAUDE_CODE_TMPDIR full** — emcc output gets lost when the tmp partition fills.
+  Workaround: redirect to `/tmp/emcc.log` directly: `emcc ... >/tmp/emcc.log 2>&1`.
+- **Web build emcc output goes to runtime log** — progress messages (`generating
+  headers…`, `running emcc…`, `✓ done`) appear in the runtime log panel (same one
+  used for `printh()` output). Errors show in the build log panel.
 
 ## Working preferences observed
 

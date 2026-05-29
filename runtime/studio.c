@@ -565,11 +565,11 @@ void print(const char *text, int x, int y, int color) {
 void rect(int x, int y, int w, int h, int color) {
     Color c = palette[color % PALETTE_SIZE];
     int rx = x - cam_x, ry = y - cam_y;
-    // draw four sides explicitly — DrawRectangleLines overshoots corners by 1px
-    DrawLine(rx,     ry,     rx+w-1, ry,     c);  // top
-    DrawLine(rx,     ry+h-1, rx+w-1, ry+h-1, c);  // bottom
-    DrawLine(rx,     ry+1,   rx,     ry+h-2, c);  // left  (corners owned by top/bottom)
-    DrawLine(rx+w-1, ry+1,   rx+w-1, ry+h-2, c);  // right
+    // 1px DrawRectangle slices — no line caps, exact pixel coverage
+    DrawRectangle(rx,     ry,     w,   1,   c);  // top
+    DrawRectangle(rx,     ry+h-1, w,   1,   c);  // bottom
+    DrawRectangle(rx,     ry+1,   1,   h-2, c);  // left
+    DrawRectangle(rx+w-1, ry+1,   1,   h-2, c);  // right
 }
 
 void rectfill(int x, int y, int w, int h, int color) {

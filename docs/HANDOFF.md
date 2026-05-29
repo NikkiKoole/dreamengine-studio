@@ -4,7 +4,7 @@
 > session. This is the stuff that isn't obvious from the code or git log. Keep it
 > short; prune what goes stale.
 
-_Last updated: 2026-05-29 (session 2)_
+_Last updated: 2026-05-29 (session 3)_
 
 ---
 
@@ -22,14 +22,17 @@ _Last updated: 2026-05-29 (session 2)_
   [`docs/TOOLS.md`](./TOOLS.md) for the full workflow.
 - **API pass 2 shipped** — `follow()`, `save()`/`load()`, `noise()`/`noise2()`/`noise3()`,
   inline error markers in the CodeMirror editor.
+- **API pass 3 shipped** — `ease_in/out/in_out`, `rnd_between`/`rnd_float`/`rnd_float_between`,
+  `print_centered`/`print_right`, `frame()`. 14 tutorial carts total.
 
 ---
 
 ## Next on the todo list (by impact)
 
-1. **API pass 3** — easings (`ease_in/out/in_out`), `rnd_float()` / `rnd_between()`,
-   `print_centered()` / `print_right()`, `broadcast()` / `received()` events,
-   `frame()` counter. All proposed in API_RESEARCH passes 2–3.
+1. **Remaining pass 2 API** — `broadcast(msg_id)` / `received(msg_id)` event bus
+   (touches main-loop drain semantics — small but architectural). Strudel extras:
+   `pitch("c4")`, `sometimes`/`often`/`rarely`, `arp`, `stutter`, `palindrome`,
+   `off_beat`. Dilla timing: `groove` + `groove_swing/jitter/push`.
 2. **Process/coroutine model** — the Level-2 differentiator from VISION.md. Weeks of
    architectural work. `wait N seconds` / `loop … frame;` inside a process.
 3. **Browser sharing** — emscripten build so carts run in a browser tab.
@@ -95,6 +98,8 @@ Cart sources live in `tools/XX-name.c`. Config files (sprites + map) live in
 12 tutorial carts are shipped (01-hello through 12-hiscore).
 - 11-noise: two-layer scrolling terrain + twinkling stars via `noise2()`
 - 12-hiscore: button-mashing game with `save()`/`load()` high score persistence
+- 13-easing: four dots on tracks showing all three easing curves vs linear
+- 14-hud: catch-the-shrinking-star game using `print_centered`, `print_right`, `rnd_between`
 
 ---
 
@@ -114,6 +119,14 @@ Cart sources live in `tools/XX-name.c`. Config files (sprites + map) live in
   share this file for now — per-cart persistence comes with named cart files later.
 - **Inline error markers** — red gutter dot + red line background on clang error lines.
   Cleared on next compile. Pattern matched: `cart.c:LINE:` in stderr output.
+- **`frame()`** increments in the main loop after `update()`, declared static at the
+  top of `studio.c` alongside the other static state.
+- **`print_centered`/`print_right`** use `strlen(text) * 8` for width — the dos_8x8
+  font is exactly 8px per character with 0 spacing (`DrawTextEx` size=8, spacing=0).
+- **`rnd_float()`** uses `rand()` from `<stdlib.h>` (added to studio.c includes).
+  All carts share the same `rand()` seed — not seeded per-cart; same sequence every run.
+- **CLAUDE_CODE_TMPDIR** fills up occasionally. Workaround: redirect compile output
+  to `build/compile-test.log` and read it back with the Read tool.
 - **Raylib auto-detected:** `/opt/homebrew/opt/raylib` (Apple Silicon) or
   `/usr/local/opt/raylib` (Intel). Both `main.cjs` and `tools/make-cart.js` do this.
 

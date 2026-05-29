@@ -101,6 +101,28 @@ CLR_BLACK, CLR_DARK_BLUE, ... CLR_PEACH  // all 32 PICO-8 palette colors (0-31),
 - **Editor**: Comic Mono (TTF, loaded via `@font-face`)
 - **In-game**: `dos_8x8.png` — a 145×145 bitmap sheet, 16×16 grid of 8×8 glyphs, yellow separator lines, loaded with Raylib's `LoadFontFromImage(image, YELLOW, 0)` — no TrueType rasterization, raw pixels
 
+## Tutorial carts
+
+Tutorial carts live in `editor/public/carts/` as `.cart.png` files — valid PNGs with source/sprites/map embedded as zTXt chunks (`de:source`, `de:sprites`, `de:map`). The visible PNG image is used as the thumbnail in the tutorials panel.
+
+**Adding a new tutorial cart:**
+
+1. Write the C source (no sprites or map needed for code-only carts)
+2. Generate the `.cart.png` with a Node script (see existing `gen-*.cjs` pattern, or write inline) — run from the `editor/public/carts/` directory with `node gen-foo.cjs`
+3. Embed a real screenshot as the thumbnail:
+   ```bash
+   node tools/make-cart.js --run editor/public/carts/foo.cart.png
+   ```
+   This compiles the cart, runs it for 3 frames with a hidden window (`--screenshot` mode in `studio.c`), and re-embeds the resulting `build/screenshot.png` into the cart file.
+4. Add an entry to `editor/public/carts/index.json`
+
+**Other `make-cart.js` commands:**
+```bash
+node tools/make-cart.js --update <cart.png> <any-screenshot.png>  # replace thumbnail manually
+```
+
+Note: generation scripts use `.cjs` extension (not `.js`) because `editor/package.json` has `"type": "module"`.
+
 ## Key things to know
 
 - `node_modules` requires Node 22 — use `nvm use 22` before any npm commands

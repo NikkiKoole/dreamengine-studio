@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
 #include "dos_8x8_font.h"
@@ -36,6 +37,7 @@ static bool            btn_prev[2][BTN_COUNT];
 
 static uint8_t         map_data[MAP_W * MAP_H];
 static int             map_scale_factor = 1;   // map_scale() — integer zoom for map drawing
+static int             frame_count      = 0;
 
 // ------------------------------------------------------------
 // touch state (all coordinates in window pixels unless noted)
@@ -391,6 +393,7 @@ int main(int argc, char **argv) {
                 btn_curr[p][b] = btn(p, b);
             }
         update();
+        frame_count++;
 
         // draw into the low-res canvas
         BeginTextureMode(canvas);
@@ -875,4 +878,40 @@ float noise3(float x, float y, float z) {
         lerpf(lerpf(v000, v100, fx), lerpf(v010, v110, fx), fy),
         lerpf(lerpf(v001, v101, fx), lerpf(v011, v111, fx), fy),
         fz);
+}
+
+// ------------------------------------------------------------
+// easing
+// ------------------------------------------------------------
+
+float ease_in(float t)     { return t * t; }
+float ease_out(float t)    { float u = 1.0f - t; return 1.0f - u * u; }
+float ease_in_out(float t) { return t * t * (3.0f - 2.0f * t); }
+
+// ------------------------------------------------------------
+// random helpers
+// ------------------------------------------------------------
+
+int   rnd_between(int lo, int hi)            { return lo + rnd(hi - lo); }
+float rnd_float(void)                        { return (float)rand() / ((float)RAND_MAX + 1.0f); }
+float rnd_float_between(float lo, float hi)  { return lo + rnd_float() * (hi - lo); }
+
+// ------------------------------------------------------------
+// frame counter
+// ------------------------------------------------------------
+
+int frame(void) { return frame_count; }
+
+// ------------------------------------------------------------
+// print alignment
+// ------------------------------------------------------------
+
+void print_centered(const char *text, int y, int color) {
+    int w = (int)(strlen(text) * 8);
+    print(text, (SCREEN_W - w) / 2, y, color);
+}
+
+void print_right(const char *text, int right_x, int y, int color) {
+    int w = (int)(strlen(text) * 8);
+    print(text, right_x - w, y, color);
 }

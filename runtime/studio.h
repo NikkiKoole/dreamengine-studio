@@ -98,6 +98,8 @@ void spr(int index, int x, int y);
 void sprf(int index, int x, int y, bool flip_x, bool flip_y);                  // sprite with flips
 void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh);     // sub-rect → dest rect (stretched)
 void print(const char *text, int x, int y, int color);
+void print_centered(const char *text, int y, int color);         // center text horizontally on screen
+void print_right(const char *text, int right_x, int y, int color); // right-align text at right_x
 void line(int x1, int y1, int x2, int y2, int color);
 void pset(int x, int y, int color);                     // set a single pixel (pairs with pget)
 void rect(int x, int y, int w, int h, int color);       // rectangle border
@@ -187,8 +189,12 @@ int   degree(int scale, int octave, int n);                  // MIDI note for th
 // utility
 // ------------------------------------------------------------
 
-int   rnd(int n);          // random int in [0, n); rnd(6) → 0..5
+int   rnd(int n);                              // random int in [0, n); rnd(6) → 0..5
+int   rnd_between(int lo, int hi);             // random int in [lo, hi); rnd_between(3, 8) → 3..7
+float rnd_float(void);                         // random float 0..1
+float rnd_float_between(float lo, float hi);   // random float in [lo, hi)
 float now(void);           // seconds since startup
+int   frame(void);         // frame count since startup (increments once per update)
 int   sgn(int n);          // -1 if n<0, 0 if n==0, 1 if n>0
 int   mid(int a, int b, int c);  // middle value of three. use for clamp: mid(lo, val, hi)
 float timer(void);         // seconds since the last timer_reset() (or startup) — a resettable stopwatch
@@ -212,6 +218,14 @@ float dx(float steps, float degrees);                      // x movement of `ste
 float dy(float steps, float degrees);                      // y movement of `steps` pixels in `degrees` direction (keep position in a float)
 float sin_deg(float degrees);                              // sine of an angle in degrees
 float cos_deg(float degrees);                              // cosine of an angle in degrees
+
+// ------------------------------------------------------------
+// easing — shape a 0..1 value into a curve
+// ------------------------------------------------------------
+
+float ease_in(float t);      // start slow, end fast  (t²)
+float ease_out(float t);     // start fast, end slow
+float ease_in_out(float t);  // slow → fast → slow  (smoothstep)
 
 // ------------------------------------------------------------
 // collision

@@ -19,6 +19,17 @@ function save(key, val) {
 
 export const settings = load()
 
+// Apply a cart's embedded settings — or reset to safe defaults when the cart
+// has none (older carts). Loading a cart should run it at the config it was
+// authored for, not whatever globals the user last tinkered with.
+export function applyCartSettings(obj) {
+  for (const k of ['screenW', 'screenH', 'scale', 'cellW', 'cellH', 'mapW', 'mapH']) {
+    const v = obj && obj[k] != null ? obj[k] : DEFAULTS[k]
+    settings[k] = v
+    save(k, v)
+  }
+}
+
 export function buildSettingsPanel(el) {
   el.innerHTML = ''
 

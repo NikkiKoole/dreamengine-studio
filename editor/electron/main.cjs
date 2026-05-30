@@ -73,6 +73,12 @@ function extractCartChunks(pngBuf) {
   return result
 }
 
+// parse the de:settings JSON chunk into an object, or null if absent/invalid
+function parseCartSettings(raw) {
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+
 const RUNTIME_DIR = path.join(__dirname, '../../runtime')
 const BUILD_DIR   = path.join(__dirname, '../../build')
 const RAYLIB      = fs.existsSync('/opt/homebrew/opt/raylib') ? '/opt/homebrew/opt/raylib' : '/usr/local/opt/raylib'
@@ -158,7 +164,7 @@ app.on('window-all-closed', () => {
 
 
 // ── cart save ─────────────────────────────────────────────────
-ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64 }) => {
+ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64, settings }) => {
   const { filePath } = await dialog.showSaveDialog({
     title: 'Save Cart',
     defaultPath: 'mycart.cart.png',
@@ -174,7 +180,9 @@ ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64 }
       ? fs.readFileSync(spritesPng)
       : Buffer.from(spritesDataUrl.replace(/^data:image\/png;base64,/, ''), 'base64')
 
-  const cartPng = embedCartChunks(basePng, { source, sprites: spritesDataUrl, map: mapBase64 })
+  const chunkData = { source, sprites: spritesDataUrl, map: mapBase64 }
+  if (settings) chunkData.settings = JSON.stringify(settings)
+  const cartPng = embedCartChunks(basePng, chunkData)
   fs.writeFileSync(filePath, cartPng)
   return { ok: true, filePath }
 })
@@ -191,20 +199,20 @@ ipcMain.handle('cart:load', async () => {
   const chunks = extractCartChunks(fs.readFileSync(filePaths[0]))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
   const name = path.basename(filePaths[0]).replace(/\.cart\.png$/i, '')
-  return { ok: true, name, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null }
+  return { ok: true, name, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
 })
 
 ipcMain.handle('cart:load-buffer', async (_event, bytes) => {
   const chunks = extractCartChunks(Buffer.from(bytes))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
-  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null }
+  return { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
 })
 
 ipcMain.handle('cart:load-file', async (_event, filePath) => {
   const chunks = extractCartChunks(fs.readFileSync(filePath))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
   const name = path.basename(filePath).replace(/\.cart\.png$/i, '')
-  return { ok: true, name, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null }
+  return { ok: true, name, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
 })
 
 // ── sprites handler ───────────────────────────────────────────

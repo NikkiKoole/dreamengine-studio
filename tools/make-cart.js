@@ -261,14 +261,23 @@ if (args[0] === '--update') {
       .replace(/unsigned char map_dat\[\]/, 'static const unsigned char MAP_DATA[]')
       .replace(/unsigned int map_dat_len/,  'static const unsigned int  MAP_DATA_LEN'))
 
+  // bake the thumbnail at the cart's intended config so the screenshot matches
+  // how it'll actually run. (SCALE only affects window size, not the captured
+  // native-res canvas, so it stays 1 — the screenshot is identical either way.)
+  let st = {}
+  try { st = JSON.parse(chunks.settings || '{}') } catch {}
+  const SW = st.screenW ?? 320, SH = st.screenH ?? 200
+  const CW = st.cellW   ?? 16,  CH = st.cellH   ?? 16
+  const MW = st.mapW    ?? 128, MH = st.mapH    ?? 64
+
   // compile
   const studioC = path.join(RUNTIME_DIR, 'studio.c')
   const cartSrc = path.join(BUILD_DIR, 'cart.c')
   const clangArgs = [
     `"${cartSrc}"`, `"${studioC}"`,
     `-I"${RUNTIME_DIR}"`, `-I"${BUILD_DIR}"`, `-I"${RAYLIB}/include"`,
-    '-DSCREEN_W=320', '-DSCREEN_H=200', '-DSCALE=1',
-    '-DMAP_W=128', '-DMAP_H=64', '-DCELL_W=16', '-DCELL_H=16',
+    `-DSCREEN_W=${SW}`, `-DSCREEN_H=${SH}`, '-DSCALE=1',
+    `-DMAP_W=${MW}`, `-DMAP_H=${MH}`, `-DCELL_W=${CW}`, `-DCELL_H=${CH}`,
     '-DTOUCH_CONTROLS_DEFAULT=0', '-Os', '-fno-delete-null-pointer-checks',
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
@@ -313,7 +322,15 @@ if (args[0] === '--update') {
   const mapBytes   = cfg.map ? buildMap(cfg.map.layout || cfg.map, cfg.map.tiles, cfg.mapW, cfg.mapH) : new Uint8Array(8192)
   const spritesUrl = 'data:image/png;base64,' + spritesBuf.toString('base64')
   const mapB64     = Buffer.from(mapBytes).toString('base64')
-  const cartPng    = embedCartChunks(makePlaceholderPng(), { source, sprites: spritesUrl, map: mapB64 })
+  // the config a cart is meant to run at — travels with the cart so loading it
+  // restores the right screen/scale/cell/map dims regardless of editor globals.
+  // mapW/mapH default to 128/64 to match buildMap()'s own defaults.
+  const cartSettings = {
+    screenW: cfg.screenW ?? 320, screenH: cfg.screenH ?? 200, scale: cfg.scale ?? 4,
+    cellW:   cfg.cellW   ?? 16,  cellH:   cfg.cellH   ?? 16,
+    mapW:    cfg.mapW    ?? 128,  mapH:    cfg.mapH    ?? 64,
+  }
+  const cartPng    = embedCartChunks(makePlaceholderPng(), { source, sprites: spritesUrl, map: mapB64, settings: JSON.stringify(cartSettings) })
   fs.writeFileSync(outFile, cartPng)
   console.log('wrote', outFile)
 }

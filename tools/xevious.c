@@ -29,7 +29,7 @@ static Shot pb[NB];                // player zapper
 static Shot eb[NE];                // enemy bullets
 static struct { int active, state; float x, y, tx, ty, t; } bomb;
 
-static float px, py, scrollf, prevT, zcool, spawnA, spawnG;
+static float px, py, scrollf, zcool, spawnA, spawnG;
 static int   score, lives, state, invuln, nextAndor;
 // expanding blasts (visual + ground damage)
 static struct { float x, y, t; int alive; } blast[8];
@@ -57,7 +57,7 @@ static void spawn_gnd(int type){
 
 void init(void){
     px=SCREEN_W/2; py=SCREEN_H-30; scrollf=0; score=0; lives=3; state=0; invuln=0;
-    zcool=0; spawnA=0.6f; spawnG=1.2f; nextAndor=2500; prevT=now();
+    zcool=0; spawnA=0.6f; spawnG=1.2f; nextAndor=2500;
     for(int i=0;i<NA;i++) ar[i].alive=0;
     for(int i=0;i<NG;i++) gr[i].alive=0;
     for(int i=0;i<NB;i++) pb[i].alive=0;
@@ -79,19 +79,19 @@ static void hurt(void){
 }
 
 void update(void){
-    float t=now(), dt=t-prevT; prevT=t; if(dt>0.1f)dt=0.1f; if(dt<0)dt=0;
+    float d=dt();
     if(state!=0){ if(btnp(0,BTN_A)||btnp(1,BTN_A)) init(); return; }
 
-    scrollf += SCRL*dt;
+    scrollf += SCRL*d;
     if(invuln>0) invuln--;
-    if(zcool>0) zcool-=dt;
+    if(zcool>0) zcool-=d;
 
     // ---- move ----
     float spd=120;
     int ix=(btn(0,BTN_RIGHT)||btn(1,BTN_RIGHT))-(btn(0,BTN_LEFT)||btn(1,BTN_LEFT));
     int iy=(btn(0,BTN_DOWN)||btn(1,BTN_DOWN))-(btn(0,BTN_UP)||btn(1,BTN_UP));
-    px=clamp(px+ix*spd*dt, 8, SCREEN_W-8);
-    py=clamp(py+iy*spd*dt, HUD+12, SCREEN_H-12);
+    px=clamp(px+ix*spd*d, 8, SCREEN_W-8);
+    py=clamp(py+iy*spd*d, HUD+12, SCREEN_H-12);
 
     float retx=px, rety=py-RET; if(rety<HUD+6) rety=HUD+6;
 
@@ -103,7 +103,7 @@ void update(void){
     // ---- bomb ----
     if(bomb.active){
         if(bomb.state==0){
-            bomb.t+=dt/0.24f;
+            bomb.t+=d/0.24f;
             bomb.x=lerp(px,bomb.tx,bomb.t); // follows ship x a touch then to target
             bomb.y=lerp(py,bomb.ty,bomb.t);
             if(bomb.t>=1){ bomb.state=1; add_blast(bomb.tx,bomb.ty); hit(44,INSTR_NOISE,4,120);
@@ -116,16 +116,16 @@ void update(void){
     }
 
     // ---- player bullets (air only) ----
-    for(int i=0;i<NB;i++){ if(!pb[i].alive)continue; pb[i].y+=pb[i].vy*dt; if(pb[i].y<HUD){pb[i].alive=0;continue;}
+    for(int i=0;i<NB;i++){ if(!pb[i].alive)continue; pb[i].y+=pb[i].vy*d; if(pb[i].y<HUD){pb[i].alive=0;continue;}
         for(int j=0;j<NA;j++) if(ar[j].alive && distance((int)pb[i].x,(int)pb[i].y,(int)ar[j].x,(int)ar[j].y)<8){
             ar[j].hp--; pb[i].alive=0; if(ar[j].hp<=0){ ar[j].alive=0; score+=ar[j].type==ZOSHI?50:30; add_blast(ar[j].x,ar[j].y);} break; }
     }
 
     // ---- air enemies ----
     for(int i=0;i<NA;i++){ Air*e=&ar[i]; if(!e->alive)continue;
-        e->t+=dt;
-        e->x += (e->vx + sin_deg(e->t*180)*30)*dt;
-        e->y += e->vy*dt;
+        e->t+=d;
+        e->x += (e->vx + sin_deg(e->t*180)*30)*d;
+        e->y += e->vy*d;
         if(e->y>SCREEN_H+12){ e->alive=0; continue; }
         if(e->type==ZOSHI){ e->shootT--; if(e->shootT<=0 && e->y>HUD+8 && e->y<py){ e->shootT=rnd_between(70,140); add_eb(e->x,e->y,px,py);} }
         if(invuln<=0 && distance((int)e->x,(int)e->y,(int)px,(int)py)<10){ e->alive=0; add_blast(e->x,e->y); hurt(); }
@@ -133,22 +133,22 @@ void update(void){
 
     // ---- ground targets (scroll down with terrain) ----
     for(int i=0;i<NG;i++){ Gnd*g=&gr[i]; if(!g->alive)continue;
-        g->y += SCRL*dt; if(g->y>SCREEN_H+16){ g->alive=0; continue; }
-        g->shootT-=dt; if(g->shootT<=0 && g->y>HUD+10){ g->shootT=g->type==ANDOR?0.6f:rnd_float_between(1.4f,3.0f); add_eb(g->x,g->y,px,py); }
+        g->y += SCRL*d; if(g->y>SCREEN_H+16){ g->alive=0; continue; }
+        g->shootT-=d; if(g->shootT<=0 && g->y>HUD+10){ g->shootT=g->type==ANDOR?0.6f:rnd_float_between(1.4f,3.0f); add_eb(g->x,g->y,px,py); }
     }
 
     // ---- enemy bullets ----
-    for(int i=0;i<NE;i++){ if(!eb[i].alive)continue; eb[i].x+=eb[i].vx*dt; eb[i].y+=eb[i].vy*dt;
+    for(int i=0;i<NE;i++){ if(!eb[i].alive)continue; eb[i].x+=eb[i].vx*d; eb[i].y+=eb[i].vy*d;
         if(eb[i].x<0||eb[i].x>SCREEN_W||eb[i].y<0||eb[i].y>SCREEN_H){ eb[i].alive=0; continue; }
         if(invuln<=0 && distance((int)eb[i].x,(int)eb[i].y,(int)px,(int)py)<8){ eb[i].alive=0; hurt(); }
     }
 
     // ---- blasts ----
-    for(int i=0;i<8;i++) if(blast[i].alive){ blast[i].t+=dt*3; if(blast[i].t>=1) blast[i].alive=0; }
+    for(int i=0;i<8;i++) if(blast[i].alive){ blast[i].t+=d*3; if(blast[i].t>=1) blast[i].alive=0; }
 
     // ---- spawning ----
-    spawnA-=dt; if(spawnA<=0){ spawnA=rnd_float_between(0.5f,1.3f); spawn_air(); }
-    spawnG-=dt; if(spawnG<=0){ spawnG=rnd_float_between(1.4f,3.0f); spawn_gnd(rnd(2)); }
+    spawnA-=d; if(spawnA<=0){ spawnA=rnd_float_between(0.5f,1.3f); spawn_air(); }
+    spawnG-=d; if(spawnG<=0){ spawnG=rnd_float_between(1.4f,3.0f); spawn_gnd(rnd(2)); }
     if(score>=nextAndor){ nextAndor+=3000; spawn_gnd(ANDOR); }
 }
 

@@ -1,3 +1,4 @@
+#define STUDIO_INTERNAL          // suppress studio.h's KEY_* macros — raylib.h provides those names
 #include "studio.h"
 #include "raylib.h"
 #include <stddef.h>
@@ -36,6 +37,12 @@ static RenderTexture2D canvas;
 static Font            game_font;
 static bool            custom_font = false;
 static Color           palette[PALETTE_SIZE];
+static Color           base_palette[PALETTE_SIZE];   // pristine copy, for pal_reset()
+static float           fade_amt   = 0.0f;            // fade()  — 0 normal .. 1 black
+static float           shake_amt  = 0.0f;            // shake() — pixels, self-decaying
+static float           frame_dt   = 0.0f;            // dt()    — seconds since last frame
+static double          last_time  = 0.0;
+static char            text_buf[32] = {0};           // text_input() — chars typed this frame
 
 #define BTN_COUNT 6
 static bool            btn_curr[2][BTN_COUNT];
@@ -225,6 +232,8 @@ static void load_palette() {
     palette[29] = (Color){ 117, 70,  101, 255 }; // CLR_MAUVE          #754665
     palette[30] = (Color){ 255, 110, 89,  255 }; // CLR_DARK_PEACH     #ff6e59
     palette[31] = (Color){ 255, 157, 129, 255 }; // CLR_PEACH          #ff9d81
+
+    for (int i = 0; i < PALETTE_SIZE; i++) base_palette[i] = palette[i];   // keep an unmodified copy for pal_reset()
 }
 
 // ------------------------------------------------------------
@@ -389,6 +398,11 @@ static void loop_step(void) {
             btn_prev[p][b] = btn_curr[p][b];
             btn_curr[p][b] = btn(p, b);
         }
+    // delta time for dt() — clamped so a stalled frame can't teleport things
+    { double tn = GetTime(); frame_dt = (float)(tn - last_time); last_time = tn;
+      if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0; }
+    // characters typed this frame for text_input()
+    { int n = 0, ch; while ((ch = GetCharPressed()) != 0 && n < 31) text_buf[n++] = (char)ch; text_buf[n] = 0; }
     update();
     frame_count++;
 
@@ -399,18 +413,27 @@ static void loop_step(void) {
     if (clip_active) { EndScissorMode(); clip_active = false; }
 
     // scale up to the window — RenderTexture is flipped in Y
+    float sox = 0, soy = 0;
+    if (shake_amt > 0.2f) {
+        sox = ((rand() % 201) - 100) / 100.0f * shake_amt * SCALE;
+        soy = ((rand() % 201) - 100) / 100.0f * shake_amt * SCALE;
+    }
     BeginDrawing();
         DrawTexturePro(
             canvas.texture,
             (Rectangle){ 0, 0,  SCREEN_W, -SCREEN_H },
-            (Rectangle){ 0, 0,  SCREEN_W * SCALE, SCREEN_H * SCALE },
+            (Rectangle){ sox, soy,  SCREEN_W * SCALE, SCREEN_H * SCALE },
             (Vector2){ 0, 0 },
             0.0f,
             WHITE
         );
+        if (fade_amt > 0.0f)
+            DrawRectangle(0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE,
+                          (Color){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
         draw_touch_overlay();
         draw_watch_overlay();
     EndDrawing();
+    if (shake_amt > 0) { shake_amt *= 0.85f; if (shake_amt < 0.2f) shake_amt = 0; }
 
     age_watches();   // frame-end: expire watches whose branch stopped firing
 }
@@ -477,6 +500,8 @@ int main(int argc, char **argv) {
 #ifndef PLATFORM_WEB
     init();
 #endif
+
+    last_time = GetTime();   // seed dt()
 
 #ifdef PLATFORM_WEB
     emscripten_set_main_loop(loop_step, 0, 1);
@@ -645,6 +670,22 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx - cam_x, dy - cam_y, dw, dh };
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
+}
+
+void spr_rot(int index, int x, int y, float deg) {
+    if (spritesheet.width == 0) return;
+    int cols = spritesheet.width / SPRITE_SIZE;
+    Rectangle src = { (index % cols) * SPRITE_SIZE, (index / cols) * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE };
+    float h = SPRITE_SIZE / 2.0f;
+    Rectangle dst = { x - cam_x + h, y - cam_y + h, SPRITE_SIZE, SPRITE_SIZE };  // origin maps here, so top-left stays (x,y)
+    DrawTexturePro(spritesheet, src, dst, (Vector2){ h, h }, deg, WHITE);
+}
+
+void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, float deg, int ox, int oy) {
+    if (spritesheet.width == 0) return;
+    Rectangle src = { sx, sy, sw, sh };
+    Rectangle dst = { dx - cam_x + ox, dy - cam_y + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
+    DrawTexturePro(spritesheet, src, dst, (Vector2){ (float)ox, (float)oy }, deg, WHITE);
 }
 
 void print(const char *text, int x, int y, int color) {
@@ -981,6 +1022,66 @@ int load(int slot) {
     if (slot < 0 || slot >= 64) return 0;
     sav_ensure();
     return sav_data[slot];
+}
+
+void save_bytes(const void *data, int len) {
+    if (len <= 0) return;
+    FILE *f = fopen("cart.blob", "wb");
+    if (f) { fwrite(data, 1, len, f); fclose(f); }
+}
+int load_bytes(void *out, int max) {
+    FILE *f = fopen("cart.blob", "rb");
+    if (!f) return 0;
+    int n = (int)fread(out, 1, max, f);
+    fclose(f);
+    return n;
+}
+
+// ------------------------------------------------------------
+// frame timing, input, palette, fade/shake, extra drawing
+// ------------------------------------------------------------
+
+float dt(void) { return frame_dt; }
+
+const char *text_input(void) { return text_buf; }
+bool key(int k)  { return IsKeyDown(k); }
+bool keyp(int k) { return IsKeyPressed(k); }
+
+void pal(int c0, int c1)  { if (c0 >= 0 && c0 < PALETTE_SIZE && c1 >= 0 && c1 < PALETTE_SIZE) palette[c0] = base_palette[c1]; }
+void pal_reset(void)      { for (int i = 0; i < PALETTE_SIZE; i++) palette[i] = base_palette[i]; }
+void fade(float a)        { fade_amt  = a < 0 ? 0 : (a > 1 ? 1 : a); }
+void shake(float a)       { if (a > shake_amt) shake_amt = a; }
+
+int  text_width(const char *t) { return (int)strlen(t) * 8; }
+
+void print_scaled(const char *t, int x, int y, int color, int scale) {
+    if (scale < 1) scale = 1;
+    DrawTextEx(game_font, t, (Vector2){ (float)(x - cam_x), (float)(y - cam_y) },
+               8.0f * scale, 0, palette[color % PALETTE_SIZE]);
+}
+
+void ovalfill(int cx, int cy, int rx, int ry, int color) {
+    if (rx < 0) rx = -rx; if (ry < 0) ry = -ry; if (ry == 0) ry = 1;
+    Color c = palette[color % PALETTE_SIZE];
+    for (int yy = -ry; yy <= ry; yy++) {
+        float f = 1.0f - (float)(yy * yy) / (float)(ry * ry);
+        if (f < 0) f = 0;
+        int hw = (int)(rx * sqrtf(f) + 0.5f);
+        DrawRectangle(cx - hw - cam_x, cy + yy - cam_y, hw * 2 + 1, 1, c);
+    }
+}
+void oval(int cx, int cy, int rx, int ry, int color) {
+    if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
+    Color c = palette[color % PALETTE_SIZE];
+    int steps = (rx > ry ? rx : ry) * 4; if (steps < 16) steps = 16;
+    int px = cx + rx, py = cy;
+    for (int i = 1; i <= steps; i++) {
+        float a = (float)i / steps * 6.2831853f;
+        int nx = cx + (int)(rx * cosf(a) + 0.5f);
+        int ny = cy + (int)(ry * sinf(a) + 0.5f);
+        DrawLine(px - cam_x, py - cam_y, nx - cam_x, ny - cam_y, c);
+        px = nx; py = ny;
+    }
 }
 
 // ------------------------------------------------------------

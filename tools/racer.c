@@ -42,7 +42,7 @@ static float prev_pos;
 static float sky_x;        // distant-mountain parallax offset
 static int   lap;
 static float best_lap, last_lap;
-static int   shake;
+static int   shk;
 
 // ---- projection scratch (per boundary, near→far) ----
 static int   bx[DRAW_DIST + 1], by[DRAW_DIST + 1], bw[DRAW_DIST + 1];
@@ -91,7 +91,7 @@ static void new_game() {
     OFF_LIMIT =  MAX_SPD / 4.0f;
 
     position = 0; playerX = 0; speed = 0; prev_pos = 0;
-    sky_x = 0; lap = 0; last_lap = 0; shake = 0;
+    sky_x = 0; lap = 0; last_lap = 0; shk = 0;
     best_lap = load(0) / 1000.0f;   // stored as milliseconds
 
     static const int palette[6] = {
@@ -156,7 +156,7 @@ void update() {
                 // rear-end: slow hard, get knocked aside
                 speed = cars[i].spd * 0.4f;
                 playerX += (playerX > cars[i].off ? 0.18f : -0.18f);
-                shake = 8;
+                shk = 8;
                 note(30, INSTR_NOISE, 6);
             }
         }
@@ -185,7 +185,7 @@ void update() {
     }
     prev_pos = position;
 
-    if (shake > 0) shake--;
+    if (shk > 0) shk--;
 }
 
 // ---- filled quad from four corners (bl, tl, tr, br) ----
@@ -208,8 +208,8 @@ static void draw_background() {
 }
 
 static void draw_player_car() {
-    int cx = SCREEN_W / 2 + (shake > 0 ? rnd(3) - 1 : 0);
-    int cy = SCREEN_H - 26 + (shake > 0 ? rnd(3) - 1 : 0);
+    int cx = SCREEN_W / 2 + (shk > 0 ? rnd(3) - 1 : 0);
+    int cy = SCREEN_H - 26 + (shk > 0 ? rnd(3) - 1 : 0);
     // small lean with steering
     int lean = (btn(0, BTN_LEFT) ? -2 : 0) + (btn(0, BTN_RIGHT) ? 2 : 0);
     cx += lean;

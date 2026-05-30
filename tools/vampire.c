@@ -35,8 +35,7 @@ static const char *UP_NAME[8] = { "DAMAGE","FIRE RATE","MULTISHOT","MOVE SPD","M
 static const char *UP_DESC[8] = { "+2 dmg","faster","+1 shot","+move","+range","+25 hp","+1 pierce","+speed" };
 
 static float survived(void) { return now() - t0; }
-static int   slen(const char *s) { int n = 0; while (s[n]) n++; return n; }
-static void  print_box(const char *s, int bx, int bw, int y, int col) { print(s, bx + (bw - slen(s) * 8) / 2, y, col); }
+static void  print_box(const char *s, int bx, int bw, int y, int col) { print(s, bx + (bw - text_width(s)) / 2, y, col); }
 
 void init(void) {
     px = SCREEN_W / 2; py = SCREEN_H / 2; face = 0;

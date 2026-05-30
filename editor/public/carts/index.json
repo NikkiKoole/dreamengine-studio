@@ -100,6 +100,16 @@
     "file": "juice.cart.png"
   },
   {
+    "title": "20. effects",
+    "description": "A gallery of the visual + game-feel calls: print_scaled (big text), spr_rot (spin a sprite), sspr_ex (scale+rotate+pivot), oval/ovalfill, pal() recolor, shake(), fade(), bar() meters, blink(), and dt() for framerate-independent timing. Z: shake, hold X: fade, hold UP: drain the boost bar.",
+    "file": "effects.cart.png"
+  },
+  {
+    "title": "21. type & save",
+    "description": "Keyboard + persistence: text_input() reads typed characters, keyp(KEY_BACKSPACE/KEY_ENTER) handles special keys, and save_bytes()/load_bytes() remember a whole struct between runs — type your name, press ENTER, reopen the cart and it greets you. Also shows text_width() for centering and blink() for the cursor.",
+    "file": "typesave.cart.png"
+  },
+  {
     "title": "raycaster",
     "description": "A Wolfenstein-style first-person maze with no 3D and no sprites — one DDA ray per screen column, drawn as a vertical wall strip with fisheye correction. Walk through a colored grid world with a live minimap. WASD to move and turn, B toggles the map.",
     "file": "raycaster.cart.png"

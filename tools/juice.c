@@ -24,23 +24,12 @@
 #define H_AXIS  1                // horizontal impact
 
 static float bx, by, vx, vy;
-static float shake;              // current shake magnitude
+static float shk;                // current shake magnitude (the API now has shake(); this is our own demo value)
 static int   flashT, squashT, sqAxis, hitstop;
 static bool  juice_on = true;
 
 typedef struct { float x, y, vx, vy, life; int col; } Dust;
 static Dust dust[60];
-
-
-static void ellipsefill(int cx, int cy, float rx, float ry, int col) {
-    if (rx < 1) rx = 1; if (ry < 1) ry = 1;
-    int iry = (int)ry;
-    for (int dy = -iry; dy <= iry; dy++) {
-        float f = 1.0f - (float)(dy * dy) / (ry * ry);
-        int hw = (int)(rx * fsqrt(f < 0 ? 0 : f));
-        line(cx - hw, cy + dy, cx + hw, cy + dy, col);
-    }
-}
 
 static void spawn_dust(float x, float y) {
     for (int n = 0; n < 10; n++)
@@ -57,7 +46,7 @@ static void spawn_dust(float x, float y) {
 static void impact(int axis, float strength, float ix, float iy) {
     hit(42, INSTR_NOISE, juice_on ? 5 : 3, juice_on ? 110 : 50);
     if (!juice_on) return;
-    shake = clamp(shake + 4.5f * strength, 0, 9);
+    shk = clamp(shk + 4.5f * strength, 0, 9);
     flashT  = 4;
     squashT = SQF; sqAxis = axis;
     hitstop = mid(2, (int)(4 * strength), 6);
@@ -78,7 +67,7 @@ void update(void) {
     // HIT-STOP: freeze the whole simulation for a few frames
     if (juice_on && hitstop > 0) { hitstop--; return; }
 
-    shake *= 0.86f;
+    shk *= 0.86f;
     if (flashT  > 0) flashT--;
     if (squashT > 0) squashT--;
 
@@ -102,8 +91,8 @@ void draw(void) {
     cls(CLR_DARK_BLUE);
 
     // SHAKE: nudge the whole scene; HUD is drawn later with no shake
-    if (juice_on && shake > 0.4f)
-        camera((int)rnd_float_between(-shake, shake), (int)rnd_float_between(-shake, shake));
+    if (juice_on && shk > 0.4f)
+        camera((int)rnd_float_between(-shk, shk), (int)rnd_float_between(-shk, shk));
 
     // arena
     rect(BOX_L, BOX_T, BOX_R - BOX_L, BOX_B - BOX_T, CLR_DARK_GREY);
@@ -121,7 +110,7 @@ void draw(void) {
     }
     int cy = (int)by + (sqAxis == V_AXIS ? (int)(R - ry) : 0);   // keep it sitting on the floor
     int col = (juice_on && flashT > 0) ? CLR_WHITE : CLR_RED;     // FLASH
-    ellipsefill((int)bx, cy, rx, ry, col);
+    ovalfill((int)bx, cy, (int)rx, (int)ry, col);
 
     camera(0, 0);
 
@@ -131,7 +120,7 @@ void draw(void) {
     print("Z toggle   X bonk", 120, 8, CLR_LIGHT_GREY);
 
     int alive = 0; for (int i = 0; i < 60; i++) if (dust[i].life > 0) alive++;
-    tag("SHAKE",     8,   shake > 0.4f);
+    tag("SHAKE",     8,   shk > 0.4f);
     tag("SQUASH",    58,  squashT > 0);
     tag("FLASH",     118, flashT > 0);
     tag("HIT-STOP",  166, hitstop > 0);

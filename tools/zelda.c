@@ -44,7 +44,6 @@ static Shot  sh[NS];
 static Pick  pk[NP];
 
 static int   rupees, state;
-static float prevT;
 
 // transition
 static int   transOn, transDir;     // dir 0 L 1 R 2 U 3 D
@@ -115,7 +114,6 @@ void init(void) {
     rupees = 0; state = S_PLAY; transOn = 0; transT = 0;
     for (int i = 0; i < NS; i++) sh[i].alive = 0;
     for (int i = 0; i < NP; i++) pk[i].alive = 0;
-    prevT = now();
     spawn_enemies();
 }
 
@@ -151,33 +149,32 @@ static void start_trans(int dir) {
 }
 
 void update(void) {
-    float t = now(), dt = t - prevT; prevT = t;
-    if (dt > 0.1f) dt = 0.1f; if (dt < 0) dt = 0;
+    float d = dt();
 
     if (state != S_PLAY) { if (btnp(0, BTN_A) || btnp(1, BTN_A)) init(); return; }
 
     if (transOn) {                                   // slide between rooms
-        transT += dt * 3.2f;
+        transT += d * 3.2f;
         if (transT >= 1) { transOn = 0; transT = 0; spawn_enemies(); }
         return;
     }
 
-    if (iframe > 0) iframe -= dt;
-    if (atkT   > 0) atkT   -= dt;
+    if (iframe > 0) iframe -= d;
+    if (atkT   > 0) atkT   -= d;
 
     // ---- move ----
     float spd = 78;
     int ix = (btn(0, BTN_RIGHT) || btn(1, BTN_RIGHT)) - (btn(0, BTN_LEFT) || btn(1, BTN_LEFT));
     int iy = (btn(0, BTN_DOWN)  || btn(1, BTN_DOWN))  - (btn(0, BTN_UP)   || btn(1, BTN_UP));
-    if (kbT > 0) { lvx = kbx; lvy = kby; kbT -= dt; }
+    if (kbT > 0) { lvx = kbx; lvy = kby; kbT -= d; }
     else {
         lvx = ix * spd; lvy = iy * spd;
         if (ix || iy) { lfx = ix; lfy = (ix ? 0 : iy); if (ix == 0) { lfx = 0; lfy = iy; } else { lfx = ix; lfy = 0; } }
     }
 
-    float nx = lx + lvx * dt;
+    float nx = lx + lvx * d;
     if (!box_link(nx, ly)) lx = nx; else if (kbT <= 0) lvx = 0;
-    float ny = ly + lvy * dt;
+    float ny = ly + lvy * d;
     if (!box_link(lx, ny)) ly = ny; else if (kbT <= 0) lvy = 0;
 
     // ---- attack ----
@@ -214,10 +211,10 @@ void update(void) {
     for (int i = 0; i < NE; i++) {
         Enemy *e = &en[i]; if (!e->alive) continue; aliveCount++;
         if (e->type == OCTO) {
-            e->moveT -= dt;
+            e->moveT -= d;
             if (e->moveT <= 0) { int d = rnd(4); int dxs[4] = {1,-1,0,0}, dys[4] = {0,0,1,-1};
                                  e->vx = dxs[d] * 48; e->vy = dys[d] * 48; e->moveT = rnd_float_between(0.5f, 1.4f); }
-            e->shootT -= dt;
+            e->shootT -= d;
             if (e->shootT <= 0) { e->shootT = rnd_float_between(1.4f, 2.8f);
                                   float vx = e->vx ? sgn((int)e->vx) : 0, vy = e->vy ? sgn((int)e->vy) : 0;
                                   if (!vx && !vy) vy = 1;
@@ -226,8 +223,8 @@ void update(void) {
             float a = angle_to((int)e->x, (int)e->y, (int)lx, (int)ly);
             e->vx = cos_deg(a) * 60; e->vy = sin_deg(a) * 60;
         }
-        float ex = e->x + e->vx * dt; if (!box_solid(ex, e->y, 10)) e->x = ex; else e->moveT = 0;
-        float ey = e->y + e->vy * dt; if (!box_solid(e->x, ey, 10)) e->y = ey; else e->moveT = 0;
+        float ex = e->x + e->vx * d; if (!box_solid(ex, e->y, 10)) e->x = ex; else e->moveT = 0;
+        float ey = e->y + e->vy * d; if (!box_solid(e->x, ey, 10)) e->y = ey; else e->moveT = 0;
         e->x = clamp(e->x, TS, GW * TS - TS - 10); e->y = clamp(e->y, OY + TS, OY + GH * TS - TS - 10);
 
         // sword hit?
@@ -246,7 +243,7 @@ void update(void) {
     // ---- shots ----
     for (int i = 0; i < NS; i++) {
         Shot *p = &sh[i]; if (!p->alive) continue;
-        p->x += p->vx * dt; p->y += p->vy * dt; p->life -= dt;
+        p->x += p->vx * d; p->y += p->vy * d; p->life -= d;
         if (p->life <= 0 || wall_solid(p->x, p->y)) { p->alive = 0; continue; }
         if (p->owner == 0) { if (boxes_touch((int)p->x - 2, (int)p->y - 2, 4, 4, (int)lx, (int)ly, LW, LH)) { hurt_link(2, p->x, p->y); p->alive = 0; } }
         else { for (int j = 0; j < NE; j++) if (en[j].alive && boxes_touch((int)p->x - 2, (int)p->y - 2, 4, 4, (int)en[j].x, (int)en[j].y, 10, 10)) {
@@ -262,7 +259,7 @@ void update(void) {
     // ---- pickups ----
     for (int i = 0; i < NP; i++) {
         Pick *q = &pk[i]; if (!q->alive) continue;
-        if (q->type != 2) { q->life -= dt; if (q->life <= 0) { q->alive = 0; continue; } }
+        if (q->type != 2) { q->life -= d; if (q->life <= 0) { q->alive = 0; continue; } }
         if (boxes_touch((int)lx, (int)ly, LW, LH, (int)q->x, (int)q->y, 10, 10)) {
             if (q->type == 0)      { hp = min(maxhp, hp + 2); note(76, INSTR_SINE, 3); }
             else if (q->type == 1) { rupees++; note(80, INSTR_SQUARE, 2); }

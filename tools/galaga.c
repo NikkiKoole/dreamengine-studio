@@ -33,7 +33,7 @@ static EB  eb[NEB];
 
 static float plx;                 // player x
 static int   palive, dual, lives, score, stage, state;
-static float invuln, respawnT, diveT, prevT;
+static float invuln, respawnT, diveT;
 // challenging stage + extras
 static int   challenge, chHits, chSpawned, chTotal, nextExtend, rHits, rBonus;
 static float chSpawnT, banner, resultT, extraT;
@@ -87,7 +87,7 @@ static void spawn_flier(void){
 
 void init(void){
     plx = SCREEN_W / 2; palive = 1; dual = 0; lives = 3; score = 0; stage = 1; state = 0;
-    invuln = 1.0f; respawnT = 0; prevT = now();
+    invuln = 1.0f; respawnT = 0;
     nextExtend = 10000; resultT = 0; extraT = 0;
     for (int i = 0; i < NPB; i++) pb[i].alive = 0;
     for (int i = 0; i < NEB; i++) eb[i].alive = 0;
@@ -106,27 +106,27 @@ static void player_hit(void){
 }
 
 void update(void){
-    float t = now(), dt = t - prevT; prevT = t; if (dt > 0.1f) dt = 0.1f; if (dt < 0) dt = 0;
+    float d = dt();
     if (state != 0){ if (btnp(0,BTN_A)||btnp(1,BTN_A)) init(); return; }
 
-    if (invuln > 0) invuln -= dt;
-    if (banner > 0) banner -= dt;
-    if (resultT > 0) resultT -= dt;
-    if (extraT > 0) extraT -= dt;
-    if (!palive){ respawnT -= dt; if (respawnT <= 0 && lives >= 0){ palive = 1; plx = SCREEN_W/2; invuln = 1.2f; } }
+    if (invuln > 0) invuln -= d;
+    if (banner > 0) banner -= d;
+    if (resultT > 0) resultT -= d;
+    if (extraT > 0) extraT -= d;
+    if (!palive){ respawnT -= d; if (respawnT <= 0 && lives >= 0){ palive = 1; plx = SCREEN_W/2; invuln = 1.2f; } }
 
     // extra ship at score milestones
     while (score >= nextExtend){ lives++; extraT = 1.8f; note(84, INSTR_SINE, 4); schedule(120, 88, INSTR_SINE, 4);
                                  nextExtend += nextExtend < 20000 ? 10000 : 20000; }
 
     // challenging stage: stream fliers in
-    if (challenge && chSpawned < chTotal){ chSpawnT -= dt; if (chSpawnT <= 0){ chSpawnT = rnd_float_between(0.12f, 0.30f); spawn_flier(); chSpawned++; } }
+    if (challenge && chSpawned < chTotal){ chSpawnT -= d; if (chSpawnT <= 0){ chSpawnT = rnd_float_between(0.12f, 0.30f); spawn_flier(); chSpawned++; } }
 
     // ---- player ----
     if (palive){
         float spd = 130;
         int ix = (btn(0,BTN_RIGHT)||btn(1,BTN_RIGHT)) - (btn(0,BTN_LEFT)||btn(1,BTN_LEFT));
-        plx = clamp(plx + ix * spd * dt, 10, SCREEN_W - 10);
+        plx = clamp(plx + ix * spd * d, 10, SCREEN_W - 10);
         int cnt = 0; for (int i = 0; i < NPB; i++) if (pb[i].alive) cnt++;
         if ((btnp(0,BTN_A)||btnp(1,BTN_A)) && cnt < (dual ? 4 : 2)){
             for (int i = 0; i < NPB; i++) if (!pb[i].alive){ pb[i] = (PB){ plx - (dual?9:0), SCREEN_H-18, -300, 1 };
@@ -137,7 +137,7 @@ void update(void){
     }
 
     // ---- player bullets ----
-    for (int i = 0; i < NPB; i++){ if (!pb[i].alive) continue; pb[i].y += pb[i].vy * dt; if (pb[i].y < HUD){ pb[i].alive = 0; continue; }
+    for (int i = 0; i < NPB; i++){ if (!pb[i].alive) continue; pb[i].y += pb[i].vy * d; if (pb[i].y < HUD){ pb[i].alive = 0; continue; }
         for (int j = 0; j < NE; j++){ En *e = &en[j]; if (!e->alive) continue;
             if (distance((int)pb[i].x,(int)pb[i].y,(int)e->x,(int)e->y) < 8){
                 pb[i].alive = 0; e->hp--;
@@ -153,19 +153,19 @@ void update(void){
     // ---- enemies ----
     for (int i = 0; i < NE; i++){ En *e = &en[i]; if (!e->alive) continue;
         if (e->state == ENTER){
-            e->et += dt * 0.7f; float p = e->et < 0 ? 0 : e->et > 1 ? 1 : ease_out(e->et);
+            e->et += d * 0.7f; float p = e->et < 0 ? 0 : e->et > 1 ? 1 : ease_out(e->et);
             e->x = lerp(e->sx, slotx(e->col), p); e->y = lerp(e->sy, sloty(e->row), p);
             if (e->et >= 1) e->state = FORM;
         } else if (e->state == FORM){
             e->x = slotx(e->col); e->y = sloty(e->row);
         } else if (e->state == DIVE){
-            e->vy += 60 * dt; e->y += e->vy * dt;
-            e->x += (e->vx + sin_deg(e->y * 3) * 40) * dt;
-            if (!challenge){ e->fireT -= dt; if (e->fireT <= 0 && e->y < SCREEN_H - 30){ e->fireT = rnd_float_between(0.5f,1.2f); add_eb(e->x, e->y); } }
+            e->vy += 60 * d; e->y += e->vy * d;
+            e->x += (e->vx + sin_deg(e->y * 3) * 40) * d;
+            if (!challenge){ e->fireT -= d; if (e->fireT <= 0 && e->y < SCREEN_H - 30){ e->fireT = rnd_float_between(0.5f,1.2f); add_eb(e->x, e->y); } }
             if (e->y > SCREEN_H + 16){ if (challenge) e->alive = 0; else { e->state = ENTER; e->et = 0; e->sx = e->x = rnd_between(20,SCREEN_W-20); e->sy = e->y = -16; } }
         } else if (e->state == CAPTURE){
-            e->beamT -= dt;
-            if (e->beamT > 1.4f){ e->y += 70 * dt; }                          // descend
+            e->beamT -= d;
+            if (e->beamT > 1.4f){ e->y += 70 * d; }                          // descend
             else if (e->beamT > 0){                                            // beaming
                 if (palive && invuln <= 0 && plx > e->x - 16 && plx < e->x + 16 && SCREEN_H-16 > e->y){
                     palive = 0; lives--; e->towing = 1; invuln = 0;
@@ -181,14 +181,14 @@ void update(void){
     }
 
     // ---- enemy bullets ----
-    for (int i = 0; i < NEB; i++){ if (!eb[i].alive) continue; eb[i].x += eb[i].vx*dt; eb[i].y += eb[i].vy*dt;
+    for (int i = 0; i < NEB; i++){ if (!eb[i].alive) continue; eb[i].x += eb[i].vx*d; eb[i].y += eb[i].vy*d;
         if (eb[i].y > SCREEN_H || eb[i].x < 0 || eb[i].x > SCREEN_W){ eb[i].alive = 0; continue; }
         if (palive && invuln <= 0 && distance((int)eb[i].x,(int)eb[i].y,(int)plx, SCREEN_H-14) < 7){ eb[i].alive = 0; player_hit(); }
     }
 
     // ---- pick a diver (not during a challenging stage) ----
     if (!challenge){
-        diveT -= dt;
+        diveT -= d;
         if (diveT <= 0){
             diveT = clamp(1.8f - stage * 0.15f, 0.5f, 1.8f);
             int forms[NE], n = 0; for (int i = 0; i < NE; i++) if (en[i].alive && en[i].state == FORM) forms[n++] = i;

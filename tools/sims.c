@@ -32,7 +32,7 @@ static const char *toolName[6]  = { "WALL", "BED", "FRIDGE", "TOILET", "SHOWER",
 
 static float simx, simy;        // pixel center
 static int   state, useNeed, dir;
-static float useT, prevT, decideT;
+static float useT, decideT;
 static int   mode, tool, curx, cury;   // mode 0=LIVE 1=BUILD
 
 // path
@@ -115,12 +115,11 @@ void init(void) {
     for (int i = 0; i < NEEDS; i++) need[i] = rnd_between(55, 85);
     simx = 12 * TS + TS / 2; simy = OY + 6 * TS + TS / 2;
     state = IDLE; useNeed = -1; dir = 1; useT = 0; decideT = 0;
-    mode = 0; tool = 1; curx = 12; cury = 6; prevT = now();
+    mode = 0; tool = 1; curx = 12; cury = 6;
 }
 
 void update(void) {
-    float t = now(), dt = t - prevT; prevT = t;
-    if (dt > 0.2f) dt = 0.2f; if (dt < 0) dt = 0;
+    float d = dt();
 
     if (btnp(1, BTN_A)) mode = !mode;                  // , toggles mode
 
@@ -136,10 +135,10 @@ void update(void) {
     }
 
     // ---- LIVE ----
-    for (int i = 0; i < NEEDS; i++) need[i] = clamp(need[i] - decay[i] * dt, 0, 100);
+    for (int i = 0; i < NEEDS; i++) need[i] = clamp(need[i] - decay[i] * d, 0, 100);
 
     if (state == IDLE) {
-        decideT -= dt;
+        decideT -= d;
         if (decideT <= 0) {
             decideT = 0.5f;
             int low = 0; for (int i = 1; i < NEEDS; i++) if (need[i] < need[low]) low = i;
@@ -152,14 +151,14 @@ void update(void) {
             else state = IDLE;
         } else {
             float tx = pathx[pi] * TS + TS / 2.0f, ty = OY + pathy[pi] * TS + TS / 2.0f;
-            float ddx = tx - simx, ddy = ty - simy, d = fsqrt(ddx * ddx + ddy * ddy), step = 42 * dt;
+            float ddx = tx - simx, ddy = ty - simy, d = fsqrt(ddx * ddx + ddy * ddy), step = 42 * d;
             if (d <= step) { simx = tx; simy = ty; pi++; }
             else { simx += ddx / d * step; simy += ddy / d * step;
                    dir = (ddx < 0) ? -1 : (ddx > 0) ? 1 : dir; }
         }
     } else { // USE
-        need[useNeed] = min(100, need[useNeed] + 22 * dt);
-        useT -= dt;
+        need[useNeed] = min(100, need[useNeed] + 22 * d);
+        useT -= d;
         if (useT <= 0 || need[useNeed] >= 97) { state = IDLE; useNeed = -1; }
     }
 }

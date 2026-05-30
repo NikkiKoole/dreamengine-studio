@@ -104,15 +104,35 @@ bool  mouse_pressed(int button);     // true only on the frame the button was pr
 bool  mouse_released(int button);    // true only on the frame the button was released
 float mouse_wheel(void);             // scroll this frame: + up / - down, 0 if no scroll
 
+// keyboard (desktop) — for letters/digits just pass the character: key('A'), key('0')
+#ifndef STUDIO_INTERNAL              // these match raylib's KeyboardKey values; hidden from studio.c to avoid clashing with them
+#define KEY_SPACE      32
+#define KEY_ESCAPE     256
+#define KEY_ENTER      257
+#define KEY_TAB        258
+#define KEY_BACKSPACE  259
+#define KEY_RIGHT      262
+#define KEY_LEFT       263
+#define KEY_DOWN       264
+#define KEY_UP         265
+#endif
+bool key(int k);                     // true while key k is held. letters/digits: key('A'), key('5'); specials: KEY_SPACE, KEY_LEFT...
+bool keyp(int k);                    // true only on the frame key k was pressed
+const char *text_input(void);        // characters typed this frame (for name entry / word games); "" if none
+
 // graphics
 void cls(int color);
 void colorkey(int color);                           // set transparent color for sprites (palette index). -1 = no transparency. call when color changes, not every frame.
 void spr(int index, int x, int y);
 void sprf(int index, int x, int y, bool flip_x, bool flip_y);                  // sprite with flips
 void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh);     // sub-rect → dest rect (stretched)
+void spr_rot(int index, int x, int y, float deg);                             // spin a whole sprite `deg` degrees around its center. (x,y) = top-left like spr(). the everyday rotate
+void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, float deg, int ox, int oy); // the works: source sub-rect → dest rect (scale), rotated `deg` around pivot (ox,oy) in the dest. flip with negative sw/sh
 void print(const char *text, int x, int y, int color);
 void print_centered(const char *text, int y, int color);         // center text horizontally on screen
 void print_right(const char *text, int right_x, int y, int color); // right-align text at right_x
+void print_scaled(const char *text, int x, int y, int color, int scale); // bigger text for titles/menus (scale 2 = double size)
+int  text_width(const char *text);                                 // pixel width of text at normal size (chars × 8) — for centering in your own boxes
 void line(int x1, int y1, int x2, int y2, int color);
 void pset(int x, int y, int color);                     // set a single pixel (pairs with pget)
 void rect(int x, int y, int w, int h, int color);       // rectangle border
@@ -120,12 +140,18 @@ void rectfill(int x, int y, int w, int h, int color);   // filled rectangle
 void bar(int x, int y, int w, int h, float pct, int fill, int bg); // progress/health bar: bg box + left-to-right fill, pct 0..1 (clamped)
 void circ(int x, int y, int radius, int color);         // circle border
 void circfill(int x, int y, int radius, int color);     // filled circle
+void oval(int x, int y, int rx, int ry, int color);     // ellipse border (rx,ry = half-width/height)
+void ovalfill(int x, int y, int rx, int ry, int color); // filled ellipse — squashed circles, eyes, shadows
 void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color);     // triangle border
 void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color); // filled triangle (any winding)
 int  pget(int x, int y);                                // palette index at (x,y), or 0 if no match
 void camera(int x, int y);                              // shifts all subsequent drawing by (-x,-y). camera(0,0) resets
 void follow(int tx, int ty, int world_w, int world_h); // center camera on (tx,ty), clamped so world edges don't show
 void clip(int x, int y, int w, int h);                  // scissor rect. clip(0,0,0,0) disables
+void pal(int c0, int c1);                               // remap: draw color c0 as c1 (hit-flash, recolor, fades). persists until pal_reset()
+void pal_reset(void);                                   // undo all pal() swaps — back to the normal palette
+void fade(float amount);                                // darken the whole screen toward black: 0 = normal, 1 = black. for transitions
+void shake(float amount);                               // kick the screen by `amount` pixels; decays on its own. call on impacts
 
 // ------------------------------------------------------------
 // map — 128 × 64 grid of sprite indices. cell value 0 = empty.
@@ -210,6 +236,7 @@ int   rnd_between(int lo, int hi);             // random int in [lo, hi); rnd_be
 float rnd_float(void);                         // random float 0..1
 float rnd_float_between(float lo, float hi);   // random float in [lo, hi)
 float now(void);           // seconds since startup
+float dt(void);            // seconds since the last frame (already clamped for hitches). multiply movement/decay by this for framerate-independent speed
 int   epoch(void);         // real-world clock: Unix time in whole seconds. unlike now() it keeps counting between runs — store it with save() to tell how long the player was away
 int   frame(void);         // frame count since startup (increments once per update)
 int   sgn(int n);          // -1 if n<0, 0 if n==0, 1 if n>0
@@ -278,6 +305,8 @@ const char *str(const char *fmt, ...);  // printf into a reusable buffer: print(
 
 void save(int slot, int value);  // store an int that survives between runs (slots 0–63)
 int  load(int slot);             // read it back — returns 0 if never saved
+void save_bytes(const void *data, int len);  // save a whole block of bytes (a struct/array) — for big state the 64 int slots can't hold
+int  load_bytes(void *out, int max);          // read it back into `out` (up to max bytes); returns bytes read, 0 if never saved
 
 // ------------------------------------------------------------
 // noise — smooth random values (0..1). nearby inputs → similar outputs.

@@ -26,7 +26,7 @@ enum { E_HAPPY, E_NEUTRAL, E_SAD, E_SICK, E_SLEEP, E_DEAD };
 static float hunger, happy, energy, clean, health, lived;
 static int   alive, poop, sick;
 static int   sleeping;
-static float sickT, poopT, saveT, prevT, msgT, awayT;
+static float sickT, poopT, saveT, msgT, awayT;
 static int   sel, prevStage, awaySecs;
 static const char *msg = "";
 
@@ -36,8 +36,7 @@ static const char *STAGE[6] = { "EGG", "BABY", "CHILD", "TEEN", "ADULT", "ELDER"
 typedef struct { float x, y, vx, vy, life; int col; } Fx;
 static Fx fx[28];
 
-static int   slen(const char *s) { int n = 0; while (s[n]) n++; return n; }
-static void  pbox(const char *s, int bx, int bw, int y, int c) { print(s, bx + (bw - slen(s) * 8) / 2, y, c); }
+static void  pbox(const char *s, int bx, int bw, int y, int c) { print(s, bx + (bw - text_width(s)) / 2, y, c); }
 static void  say(const char *s) { msg = s; msgT = 2.2f; }
 
 static int stage_of(float a) {
@@ -59,11 +58,11 @@ static void save_all(void) {
 
 // one chunk of life — used both for the live frame and to fast-forward the
 // time the player was away. `asleep` only happens during a live session.
-static void simulate(float dt, int asleep) {
+static void simulate(float d, int asleep) {
     if (stage_of(lived) == 0) return;             // egg only ages, no care yet
-    if (asleep) { energy = min(100, energy + 8 * dt); hunger = max(0, hunger - 0.3f * dt); }
-    else        { hunger = max(0, hunger - 0.7f * dt); energy = max(0, energy - 0.4f * dt); }
-    clean = max(0, clean - (poop ? 0.9f : 0.3f) * dt);
+    if (asleep) { energy = min(100, energy + 8 * d); hunger = max(0, hunger - 0.3f * d); }
+    else        { hunger = max(0, hunger - 0.7f * d); energy = max(0, energy - 0.4f * d); }
+    clean = max(0, clean - (poop ? 0.9f : 0.3f) * d);
 
     float drain = 0.5f;
     if (hunger < 25) drain += 0.6f;
@@ -71,13 +70,13 @@ static void simulate(float dt, int asleep) {
     if (poop)        drain += 0.3f;
     if (sick)        drain += 0.8f;
     if (energy < 10 && !asleep) drain += 0.5f;
-    happy = max(0, happy - drain * dt);
+    happy = max(0, happy - drain * d);
 
-    if (!asleep) { poopT -= dt; if (poopT <= 0 && !poop) poop = 1; }
-    if (hunger <= 0 || clean <= 4) sickT += dt; else sickT = max(0, sickT - dt * 0.5f);
+    if (!asleep) { poopT -= d; if (poopT <= 0 && !poop) poop = 1; }
+    if (hunger <= 0 || clean <= 4) sickT += d; else sickT = max(0, sickT - d * 0.5f);
     if (sickT > 8) sick = 1;
-    if (sick) health = max(0, health - 1.6f * dt);
-    else      health = min(100, health + 0.6f * dt);
+    if (sick) health = max(0, health - 1.6f * d);
+    else      health = min(100, health + 0.6f * d);
     if (health <= 0) alive = 0;
 }
 
@@ -90,7 +89,7 @@ static void new_pet(void) {
 }
 
 void init(void) {
-    prevT = now(); saveT = 0; msgT = 0; awayT = 0; awaySecs = 0; sel = 0;
+    saveT = 0; msgT = 0; awayT = 0; awaySecs = 0; sel = 0;
     for (int i = 0; i < 28; i++) fx[i].life = 0;
 
     if (load(S_FLAG) == 1) {
@@ -139,14 +138,13 @@ static void do_action(void) {
 }
 
 void update(void) {
-    float t = now(); float dt = t - prevT; prevT = t;
-    if (dt > 0.2f) dt = 0.2f; if (dt < 0) dt = 0;     // clamp hitches
+    float d = dt();
 
     // particles always drift
     for (int i = 0; i < 28; i++)
         if (fx[i].life > 0) { fx[i].x += fx[i].vx; fx[i].y += fx[i].vy; fx[i].vy += 0.04f; fx[i].life--; }
-    if (msgT > 0)  msgT  -= dt;
-    if (awayT > 0) awayT -= dt;
+    if (msgT > 0)  msgT  -= d;
+    if (awayT > 0) awayT -= d;
 
     if (!alive) { if (btnp(0, BTN_A) || btnp(1, BTN_A)) new_pet(); return; }
 
@@ -156,8 +154,8 @@ void update(void) {
     if (btnp(0, BTN_A)     || btnp(1, BTN_A))     do_action();
 
     int wasAlive = alive;
-    lived += dt;
-    simulate(dt, sleeping);
+    lived += d;
+    simulate(d, sleeping);
     if (sleeping && energy >= 100) { sleeping = 0; say("Morning!"); }
     if (wasAlive && !alive) { sleeping = 0; say("..."); save_all(); }
 
@@ -169,7 +167,7 @@ void update(void) {
         prevStage = st; save_all();
     }
 
-    saveT += dt; if (saveT > 2) { save_all(); saveT = 0; }
+    saveT += d; if (saveT > 2) { save_all(); saveT = 0; }
 }
 
 // a smile (up>0) / frown (up<0) / flat mouth

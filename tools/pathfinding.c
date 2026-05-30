@@ -19,7 +19,7 @@ enum { UNSEEN, OPEN, CLOSED };
 enum { BFS, GREEDY, ASTAR };
 
 static bool wall[N];
-static int  status[N], g[N], parent[N], key[N];
+static int  status[N], g[N], parent[N], ord[N];
 static bool inpath[N];
 static int  start, goal, cursor, mode;
 static int  seq, visited, path_len;
@@ -37,7 +37,7 @@ static int idx(int x, int y) { return y * GW + x; }
 static int heur(int i) { return abs(cx_(i) - cx_(goal)) + abs(cy_(i) - cy_(goal)); }
 
 static int prio(int i) {
-    if (mode == BFS)    return key[i];          // insertion order → FIFO
+    if (mode == BFS)    return ord[i];          // insertion order → FIFO
     if (mode == GREEDY) return heur(i);
     return g[i] + heur(i);                       // A*
 }
@@ -45,7 +45,7 @@ static int prio(int i) {
 static void restart_search() {
     for (int i = 0; i < N; i++) { status[i] = UNSEEN; g[i] = 99999; parent[i] = -1; inpath[i] = false; }
     seq = 0; visited = 0; path_len = 0; done = false; found = false;
-    g[start] = 0; status[start] = OPEN; key[start] = seq++;
+    g[start] = 0; status[start] = OPEN; ord[start] = seq++;
 }
 
 static void reconstruct() {
@@ -72,7 +72,7 @@ static void step() {
         if (wall[nb]) continue;
         int ng = g[best] + 1;
         if (status[nb] == UNSEEN || ng < g[nb]) {
-            g[nb] = ng; parent[nb] = best; key[nb] = seq++;
+            g[nb] = ng; parent[nb] = best; ord[nb] = seq++;
             if (status[nb] != CLOSED) status[nb] = OPEN;
         }
     }

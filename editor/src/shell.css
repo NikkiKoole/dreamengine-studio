@@ -556,6 +556,30 @@ html, body {
   overflow-y: auto;
 }
 
+.tutorials-search {
+  position: sticky;
+  top: -32px;                 /* cancels #panel-tutorials padding-top so it pins to the very top */
+  z-index: 2;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  outline: none;
+}
+
+.tutorials-search:focus {
+  border-color: var(--accent);
+}
+
+.tutorials-search::placeholder {
+  color: var(--fg-dim);
+}
+
 .tutorials-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -603,6 +627,14 @@ html, body {
   font-weight: bold;
   color: var(--fg);
   margin-bottom: 4px;
+}
+
+.tutorial-title mark,
+.tutorial-desc mark {
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 .tutorial-desc {

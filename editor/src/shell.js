@@ -14,6 +14,10 @@ function switchTab(name) {
   if (tab) tab.classList.add('active')
   const panel = document.getElementById('panel-' + name)
   if (panel) panel.classList.add('active')
+  if (name === 'tutorials') {
+    const s = document.getElementById('tutorials-search')
+    if (s) setTimeout(() => s.focus(), 0)   // panel must be visible before focus takes
+  }
 }
 
 document.querySelectorAll('.tab').forEach(btn => {
@@ -195,6 +199,82 @@ async function loadCartFromUrl(url) {
   }
 }
 
+// fuzzy subsequence match: 0 = no match, higher = better. rewards contiguous
+// runs and matches at word boundaries, so "snk" → "snake", "brk" → "breakout".
+function fuzzyScore(needle, haystack) {
+  needle = needle.toLowerCase()
+  haystack = haystack.toLowerCase()
+  let score = 0, from = 0, prev = -2, run = 0
+  for (const ch of needle) {
+    let found = -1
+    for (let i = from; i < haystack.length; i++) { if (haystack[i] === ch) { found = i; break } }
+    if (found === -1) return 0
+    if (found === prev + 1) { run++; score += 6 + run } else { run = 0; score += 1 }
+    if (found === 0 || /[\s\-_.0-9]/.test(haystack[found - 1])) score += 8   // word start
+    prev = found; from = found + 1
+  }
+  return score
+}
+
+// positions in `haystack` that the subsequence `needle` matched, or null. same
+// greedy walk as fuzzyScore, so the highlight lines up with what was scored.
+function fuzzyMatchIndices(needle, haystack) {
+  const n = needle.toLowerCase(), h = haystack.toLowerCase(), idx = []
+  let from = 0
+  for (const ch of n) {
+    let found = -1
+    for (let i = from; i < h.length; i++) { if (h[i] === ch) { found = i; break } }
+    if (found === -1) return null
+    idx.push(found); from = found + 1
+  }
+  return idx
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+}
+
+// contiguous substring match for long prose (descriptions) — fuzzy subsequence
+// looks like confetti across a paragraph, so descriptions match literally only.
+// returns all non-overlapping occurrence positions, or null. ignores 1-char queries.
+function substringIndices(needle, haystack) {
+  const n = needle.toLowerCase(), h = haystack.toLowerCase()
+  if (n.length < 2) return null
+  const idx = []
+  let from = 0, pos
+  while ((pos = h.indexOf(n, from)) !== -1) {
+    for (let i = 0; i < n.length; i++) idx.push(pos + i)
+    from = pos + n.length
+  }
+  return idx.length ? idx : null
+}
+
+function substringScore(needle, haystack) {
+  const idx = substringIndices(needle, haystack)
+  if (!idx) return 0
+  const pos = idx[0]
+  let s = 10
+  if (pos === 0 || /[\s\-_.]/.test(haystack[pos - 1])) s += 8   // match starts a word
+  s += Math.max(0, 12 - pos) * 0.2                              // earlier in the blurb = better
+  return s
+}
+
+// wrap the matched positions in <mark>, escaping everything else. contiguous
+// matched runs collapse into one <mark>.
+function markRanges(text, indices) {
+  const set = new Set(indices)
+  let out = '', i = 0
+  while (i < text.length) {
+    const on = set.has(i)
+    let j = i
+    while (j < text.length && set.has(j) === on) j++
+    const chunk = escapeHtml(text.slice(i, j))
+    out += on ? `<mark>${chunk}</mark>` : chunk
+    i = j
+  }
+  return out
+}
+
 async function buildTutorialsPanel() {
   tutorialsPanel.innerHTML = ''
 
@@ -207,10 +287,25 @@ async function buildTutorialsPanel() {
     return
   }
 
+  const search = document.createElement('input')
+  search.id = 'tutorials-search'
+  search.className = 'tutorials-search'
+  search.type = 'search'
+  search.placeholder = 'search carts…'
+  search.autocomplete = 'off'
+  tutorialsPanel.appendChild(search)
+
   const grid = document.createElement('div')
   grid.className = 'tutorials-grid'
+  tutorialsPanel.appendChild(grid)
 
-  index.forEach(({ title, description, file }) => {
+  const noMatch = document.createElement('p')
+  noMatch.className = 'tutorials-empty'
+  noMatch.textContent = 'no carts match'
+  noMatch.style.display = 'none'
+  tutorialsPanel.appendChild(noMatch)
+
+  const items = index.map(({ title, description, file }, idx) => {
     const card = document.createElement('div')
     card.className = 'tutorial-card'
 
@@ -224,7 +319,14 @@ async function buildTutorialsPanel() {
 
     const info = document.createElement('div')
     info.className = 'tutorial-info'
-    info.innerHTML = `<div class="tutorial-title">${title}</div><div class="tutorial-desc">${description}</div>`
+    const titleEl = document.createElement('div')
+    titleEl.className = 'tutorial-title'
+    titleEl.textContent = title
+    const descEl = document.createElement('div')
+    descEl.className = 'tutorial-desc'
+    descEl.textContent = description
+    info.appendChild(titleEl)
+    info.appendChild(descEl)
 
     card.appendChild(img)
     card.appendChild(info)
@@ -237,9 +339,41 @@ async function buildTutorialsPanel() {
     }
 
     grid.appendChild(card)
+    return { card, titleEl, descEl, idx, title: title || '', desc: description || '', name: String(file).replace(/\.cart\.png$/i, '') }
   })
 
-  tutorialsPanel.appendChild(grid)
+  function applyFilter() {
+    const q = search.value.trim()
+    if (!q) {                                    // empty → show all in original order, plain text
+      items.forEach(it => {
+        it.card.style.display = ''
+        it.titleEl.textContent = it.title
+        it.descEl.textContent = it.desc
+        grid.appendChild(it.card)
+      })
+      noMatch.style.display = 'none'
+      return
+    }
+    // title matches outrank filename, which outrank description blurb
+    const scored = items.map(it => ({
+      it, s: Math.max(fuzzyScore(q, it.title) * 3, fuzzyScore(q, it.name) * 2, substringScore(q, it.desc)),
+    }))
+    scored.forEach(({ it, s }) => {
+      it.card.style.display = s > 0 ? '' : 'none'
+      if (s > 0) {                               // title: fuzzy (short id); description: literal substring only
+        const ti = fuzzyMatchIndices(q, it.title)
+        it.titleEl.innerHTML = ti ? markRanges(it.title, ti) : escapeHtml(it.title)
+        const di = substringIndices(q, it.desc)
+        it.descEl.innerHTML = di ? markRanges(it.desc, di) : escapeHtml(it.desc)
+      }
+    })
+    const hits = scored.filter(x => x.s > 0).sort((a, b) => b.s - a.s)
+    hits.forEach(x => grid.appendChild(x.it.card))   // re-order visible cards best-first
+    noMatch.style.display = hits.length ? 'none' : ''
+  }
+
+  search.addEventListener('input', applyFilter)
+  search.addEventListener('keydown', e => { if (e.key === 'Escape') { search.value = ''; applyFilter() } })
 }
 
 buildTutorialsPanel()

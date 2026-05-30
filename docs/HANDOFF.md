@@ -7,11 +7,17 @@
 > **For "what's shipped vs. open vs. cut" see [`STATUS.md`](STATUS.md)** — the single
 > status ledger. This file is the running narrative + environment gotchas.
 
-_Last updated: 2026-05-30 (session 7 — docs cleanup)_
+_Last updated: 2026-05-30 (session 9 — navbar + in-app docs wiki)_
 
 ---
 
 ## Where we are right now
+
+> Recent sessions (8–9): the four-axis **instrument synth** shipped
+> (`instrument`/`instrument_duty`/`instrument_lfo`/`instrument_filter`) plus `tritex`;
+> the editor navbar was consolidated to **5 tabs** (code · pixels · carts · docs ·
+> settings); and the **Docs tab now renders this `docs/` set in-app** (a Vite middleware
+> serves `docs/` + a markdown viewer). Full shipped/open ledger: [`STATUS.md`](STATUS.md).
 
 - **Debug tools shipped** (`printh` / `watch` / `watch_visible` / crash capture).
   Design notes archived at [`docs/archive/debug-printh-watch.md`](./archive/debug-printh-watch.md).
@@ -179,7 +185,7 @@ Cart sources live in `tools/carts/XX-name.c`. Config files (sprites + map) live 
 `editor/public/carts/index.json` is the metadata list the tutorials panel reads.
 
 20 numbered tutorial carts are shipped (01-hello through 19-breakout, plus
-05b-colorkey), alongside dozens of example game carts (~90 carts total).
+05b-colorkey), alongside dozens of example game carts (~100 carts total).
 - 11-noise: two-layer scrolling terrain + twinkling stars via `noise2()`
 - 12-hiscore: button-mashing game with `save()`/`load()` high score persistence
 - 13-easing: four dots on tracks showing all three easing curves vs linear

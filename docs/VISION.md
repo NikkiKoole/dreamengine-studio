@@ -56,7 +56,7 @@ void draw() {
 ```
 No visible loop. Just fill in the blanks. Game objects are plain C — a typed
 static array with an `on` flag (`Enemy enemies[64]; bool on;`) and a `for` loop
-that skips inactive slots. Across ~90 carts this immediate-mode-over-static-pools
+that skips inactive slots. Across the whole cart corpus this immediate-mode-over-static-pools
 style has proven to be enough; the algorithm and the data layout *are* the lesson.
 
 **Level 2 — Advanced (raw loop)** — Not done. Currently `studio.c` owns `main()` and the user fills in `update()` / `draw()`. To unlock this we'd need to make `main()` opt-out (e.g., a `#define STUDIO_NO_MAIN` or a separate header that exposes `studio_init/frame/running`).
@@ -73,7 +73,7 @@ The curtain drops. Full control.
 > **Dropped: the DIV-style process/coroutine model.** Earlier drafts had a middle
 > "process" level — each game object as a coroutine with its own `loop … frame;`
 > body, needing C-side coroutines (longjmp/ucontext/protothreads) plus a syntax
-> transformer. It was once billed as the headline differentiator, but the ~90
+> transformer. It was once billed as the headline differentiator, but the
 > shipped carts are the counter-evidence: they all work cleanly with plain typed
 > pools, and `broadcast`/`received`-style events cover the "objects talking to each
 > other" need with none of the machinery. Weeks of architectural work for a model
@@ -169,7 +169,7 @@ The full sound design — current engine, where it sits vs. the SID/NES chips, a
 
 ## What We're Building First
 
-The first arc — getting a usable PICO-8-style fantasy console with a code editor, sprite editor, map editor, and code-driven sound — is done. A teen can write a cart with movement, sprites, a tile map, and a music loop in one sitting. Cartridge save/load (`.cart.png`), the tutorial gallery (~90 carts), inline error markers, and the emscripten web build all ship.
+The first arc — getting a usable PICO-8-style fantasy console with a code editor, sprite editor, map editor, and code-driven sound — is done. A teen can write a cart with movement, sprites, a tile map, and a music loop in one sitting. Cartridge save/load (`.cart.png`), the tutorial gallery (~100 carts), inline error markers, and the emscripten web build all ship.
 
 **Roadmap lives in [`STATUS.md`](STATUS.md)** — the single ledger of what's shipped, open, and cut. This file stays about the *why*, not the *what's-next*. The vision-level questions still genuinely open are below; everything else is tracked there.
 

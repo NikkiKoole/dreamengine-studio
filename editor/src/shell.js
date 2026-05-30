@@ -97,8 +97,7 @@ const introHTML = {
   <p>
     The goal is the smallest possible distance between an idea and a thing that
     moves on screen. Inspired by PICO-8, DIV Game Studio, and BlitzMax.
-    Coming eventually: a DIV-style process model so each game object can be its
-    own coroutine, an iPad runtime, and a sound tracker to match the sprite editor.
+    Coming eventually: an iPad runtime and a sound tracker to match the sprite editor.
   </p>
   <p>
     <b>New to C?</b> A program is a list of instructions. The runtime calls your
@@ -125,8 +124,7 @@ const introHTML = {
   <p>
     Het doel is de kleinst mogelijke afstand tussen een idee en iets dat over het
     scherm beweegt. Geïnspireerd door PICO-8, DIV Game Studio en BlitzMax.
-    Komt later nog: een DIV-achtig procesmodel zodat elk spelobject zijn eigen
-    coroutine kan zijn, een iPad-runtime, en een sound-tracker die past bij de sprite-editor.
+    Komt later nog: een iPad-runtime en een sound-tracker die past bij de sprite-editor.
   </p>
   <p>
     <b>Nog niet bekend met C?</b> Een programma is een lijst met instructies.

@@ -23,9 +23,9 @@ For reference, the current API (all of `studio.h`) groups into:
 | **Input — buttons** | `btn`, `btnp`, `BTN_*` |
 | **Input — touch** | `touch_count`, `touch_x`, `touch_y`, `tap`, `stick_x/y`, `touch_controls` |
 | **Input — mouse + keyboard** | `mouse_x`, `mouse_y`, `mouse_down`, `mouse_pressed`, `mouse_released`, `mouse_wheel`, `key`, `keyp`, `text_input`, `KEY_*` |
-| **Graphics** | `cls`, `spr`, `sprf`, `sspr`, `sspr_ex`, `spr_rot`, `pset`, `pget`, `print`, `print_centered`, `print_right`, `print_scaled`, `text_width`, `line`, `rect`, `rectfill`, `circ`, `circfill`, `oval`, `ovalfill`, `tri`, `trifill`, `bar`, `camera`, `clip`, `colorkey`, `map_scale`, `fillp`, `fillp_reset`, `pal`, `pal_reset`, `fade`, `shake`, `FILL_*` |
+| **Graphics** | `cls`, `spr`, `sprf`, `sspr`, `sspr_ex`, `spr_rot`, `pset`, `pget`, `print`, `print_centered`, `print_right`, `print_scaled`, `text_width`, `line`, `rect`, `rectfill`, `circ`, `circfill`, `oval`, `ovalfill`, `tri`, `trifill`, `tritex`, `bar`, `camera`, `clip`, `colorkey`, `map_scale`, `fillp`, `fillp_reset`, `pal`, `pal_reset`, `fade`, `shake`, `FILL_*` |
 | **Map** | `mget`, `mset`, `map`, `MAP_W`, `MAP_H` |
-| **Sound** | `sfx`, `music`, `note`, `hit`, `tone`, `chord`, `strum`, `schedule`, `bpm`, `beat`, `beat_pos`, `every`, `euclid`, `chance`, `degree` |
+| **Sound** | `sfx`, `music`, `note`, `hit`, `tone`, `chord`, `strum`, `schedule`, `bpm`, `beat`, `beat_pos`, `every`, `euclid`, `chance`, `degree`, `instrument`, `instrument_duty`, `instrument_lfo`, `instrument_filter`, `INSTR_*`, `LFO_*`, `FILTER_*`, `SCALE_*`, `CHORD_*` |
 | **Math** | `abs`, `min`, `max`, `clamp`, `mid`, `sgn`, `lerp`, `remap`, `distance`, `length`, `angle_to`, `dx`, `dy`, `sin_deg`, `cos_deg`, `fsqrt` |
 | **Collision** | `boxes_touch`, `circles_touch`, `near`, `point_in_box`, `touching_map`, `tile_at`, `touching_color`, `bounce_at_edges` |
 | **Animation** | `anim`, `anim_once`, `blink` |
@@ -40,7 +40,7 @@ For reference, the current API (all of `studio.h`) groups into:
 | **Debug** | `watch`, `watch_visible`, `printh` |
 | **Palette** | 32 `CLR_*` constants |
 
-Roughly **~120 functions + ~80 constants** in `studio.h` today. Strong across the board. **Still missing: events, Strudel extras, Dilla groove timing, gamepad, and pause/fps debug.** (Sprite rotation/scale landed as `spr_rot`/`sspr_ex` — see §18; the juice batch `pal`/`fade`/`shake`/`print_scaled` and `fillp` patterns also landed since this table was first written — see §19.)
+Roughly **~125 functions + ~90 constants** in `studio.h` today. Strong across the board. **Still missing: events, Strudel extras, Dilla groove timing, gamepad, and pause/fps debug.** (Since this table was first written: sprite rotation/scale `spr_rot`/`sspr_ex` (§18); the juice batch `pal`/`fade`/`shake`/`print_scaled` and `fillp` patterns (§19); the four-axis **instrument synth** `instrument`/`instrument_duty`/`instrument_lfo`/`instrument_filter` (see audio-notes §10); and `tritex` textured triangles.)
 
 ---
 
@@ -128,7 +128,7 @@ vibe. Notable API choices:
 DIV's most distinctive feature is its **process** primitive — each game
 object as a coroutine with its own `loop … frame;` body. We considered
 adopting it as a "Level-2" learning model and **decided against it**: the
-~90 shipped carts all work cleanly with plain typed static pools, so it's
+shipped carts all work cleanly with plain typed static pools, so it's
 weeks of coroutine/transformer machinery for a model the cart corpus shows
 we don't need. (Decision recorded in [`../decisions/0001-cut-coroutine-process-model.md`](../decisions/0001-cut-coroutine-process-model.md); see the 2026-05-30 review below and [`../VISION.md`](../VISION.md).) That leaves
 DIV's flatter *API* ideas, most of which only make sense once you *have*
@@ -1166,7 +1166,7 @@ core or hiding the lesson. Seeds already exist:
 - **Tools-as-carts / VFS / fantasy-OS / peek-poke** — a different product.
   The editor is JS/Electron and carts are compiled binaries; there's no
   shared-RAM model to build on.
-- **Process / coroutine model** — cut entirely. The ~90 shipped carts work
+- **Process / coroutine model** — cut entirely. Every shipped cart works
   cleanly with plain typed static pools, so the DIV-style coroutine model
   isn't worth its weeks of machinery. See [`../decisions/0001-cut-coroutine-process-model.md`](../decisions/0001-cut-coroutine-process-model.md).
 - **Pixel-perfect sprite collision** — needs to walk the sprite's

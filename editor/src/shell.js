@@ -3,6 +3,7 @@ import './sprite-editor.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
 import { settings, buildSettingsPanel, applyCartSettings } from './settings.js'
+import { marked } from 'marked'
 
 let currentCartName = ''  // set when a cart is loaded; used as the game window title
 
@@ -140,13 +141,27 @@ const introHTML = {
 `,
 }
 
+// The Docs tab is a two-pane wiki: a sidebar (API reference + the docs/ tree) and a
+// content pane that renders either the API reference or a markdown doc from docs/.
 const helpPanel = document.getElementById('panel-help')
 let helpLang = localStorage.getItem('helpLang') === 'nl' ? 'nl' : 'en'
+let docsSidebar          // left-hand nav
+let docsContent          // right-hand content pane
+let currentDocPath = ''  // relative path of the markdown doc shown ('' = API reference)
+let docsSidebarCollapsed = localStorage.getItem('docsSidebar') === 'closed'
 
-function renderHelp() {
-  helpPanel.innerHTML = ''
+function setActiveNav(key) {
+  if (!docsSidebar) return
+  docsSidebar.querySelectorAll('[data-docnav]').forEach(el =>
+    el.classList.toggle('active', el.dataset.docnav === key))
+}
 
-  // language toggle
+// — the studioDocs-driven API reference (the function/constant list) —
+function renderApiReference() {
+  currentDocPath = ''
+  setActiveNav('api')
+  docsContent.innerHTML = ''
+
   const toggle = document.createElement('div')
   toggle.className = 'help-lang-toggle'
   ;[['en', 'EN'], ['nl', 'NL']].forEach(([lang, label]) => {
@@ -156,16 +171,16 @@ function renderHelp() {
     btn.addEventListener('click', () => {
       helpLang = lang
       localStorage.setItem('helpLang', lang)
-      renderHelp()
+      renderApiReference()
     })
     toggle.appendChild(btn)
   })
-  helpPanel.appendChild(toggle)
+  docsContent.appendChild(toggle)
 
   const intro = document.createElement('div')
   intro.className = 'help-intro'
   intro.innerHTML = introHTML[helpLang]
-  helpPanel.appendChild(intro)
+  docsContent.appendChild(intro)
 
   sections.forEach(({ title, titleNL, keys }) => {
     const section = document.createElement('div')
@@ -189,17 +204,124 @@ function renderHelp() {
       `
       section.appendChild(row)
     })
-    helpPanel.appendChild(section)
+    docsContent.appendChild(section)
   })
 }
 
-renderHelp()
+// — render a markdown doc from docs/ into the content pane —
+async function showDoc(relPath) {
+  currentDocPath = relPath
+  setActiveNav(relPath)
+  let md
+  try {
+    md = await (await fetch('/docs/' + relPath)).text()
+  } catch {
+    docsContent.innerHTML = `<p class="docs-empty">couldn’t load ${relPath}</p>`
+    return
+  }
+  docsContent.innerHTML = `<div class="docs-md">${marked.parse(md)}</div>`
+  docsContent.scrollTop = 0
+}
+
+// resolve a relative markdown link against the doc it appears in (doc-root-relative)
+function resolveDocPath(from, href) {
+  const hrefPath = href.split('#')[0]
+  if (!hrefPath) return null
+  const baseDir = from.includes('/') ? from.slice(0, from.lastIndexOf('/')) : ''
+  const parts = baseDir ? baseDir.split('/') : []
+  for (const seg of hrefPath.split('/')) {
+    if (seg === '..') parts.pop()
+    else if (seg !== '.' && seg !== '') parts.push(seg)
+  }
+  return parts.join('/')
+}
+
+const prettyDocLabel = p => p.split('/').pop().replace(/\.md$/i, '').replace(/[-_]/g, ' ')
+
+function docNavItem(label, key, onClick) {
+  const el = document.createElement('button')
+  el.className = 'docs-nav-item'
+  el.textContent = label
+  el.dataset.docnav = key
+  el.addEventListener('click', onClick)
+  return el
+}
+
+async function buildDocsSidebar() {
+  docsSidebar.innerHTML = ''
+  docsSidebar.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
+
+  let files = []
+  try { files = await (await fetch('/docs-list.json')).json() } catch {}
+
+  // top-level docs first (curated order), then one group per folder
+  const ORDER = ['README.md', 'VISION.md', 'STATUS.md', 'POLISH_TODO.md', 'HANDOFF.md']
+  const rank = f => (ORDER.indexOf(f) + 1) || 99
+  const top = files.filter(f => !f.includes('/')).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+  const folders = {}
+  files.filter(f => f.includes('/')).forEach(f => {
+    const dir = f.slice(0, f.indexOf('/'))
+    ;(folders[dir] ||= []).push(f)
+  })
+
+  const addGroup = (head, list) => {
+    const grp = document.createElement('div')
+    grp.className = 'docs-nav-group'
+    grp.innerHTML = `<div class="docs-nav-head">${head}</div>`
+    list.forEach(f => grp.appendChild(docNavItem(prettyDocLabel(f), f, () => showDoc(f))))
+    docsSidebar.appendChild(grp)
+  }
+  if (top.length) addGroup('guide', top)
+  Object.keys(folders).sort().forEach(dir => addGroup(dir, folders[dir].sort()))
+}
+
+async function buildDocsTab() {
+  helpPanel.classList.add('docs-tab')
+  helpPanel.innerHTML = ''
+  docsSidebar = document.createElement('div'); docsSidebar.id = 'docs-sidebar'
+  docsContent = document.createElement('div'); docsContent.id = 'docs-content'
+  helpPanel.appendChild(docsSidebar)
+  helpPanel.appendChild(docsContent)
+
+  // collapse / expand the sidebar (button stays visible in both states; state persists)
+  const toggleBtn = document.createElement('button')
+  toggleBtn.id = 'docs-toggle'
+  toggleBtn.title = 'show / hide sidebar'
+  const syncToggle = () => {
+    helpPanel.classList.toggle('sidebar-collapsed', docsSidebarCollapsed)
+    toggleBtn.textContent = docsSidebarCollapsed ? '☰' : '⟨'
+  }
+  toggleBtn.addEventListener('click', () => {
+    docsSidebarCollapsed = !docsSidebarCollapsed
+    localStorage.setItem('docsSidebar', docsSidebarCollapsed ? 'closed' : 'open')
+    syncToggle()
+  })
+  helpPanel.appendChild(toggleBtn)
+  syncToggle()
+
+  // relative .md links inside a rendered doc navigate within the pane; external/anchor links pass through
+  docsContent.addEventListener('click', e => {
+    const a = e.target.closest('a')
+    if (!a) return
+    const href = a.getAttribute('href') || ''
+    if (!href || href.startsWith('#') || /^[a-z]+:/i.test(href)) return
+    e.preventDefault()
+    const resolved = resolveDocPath(currentDocPath, href)
+    if (resolved) showDoc(resolved)
+  })
+
+  await buildDocsSidebar()
+  renderApiReference()   // default view
+}
+
+buildDocsTab()
 
 // jump-to-help from the code editor (cmd/ctrl-click on a documented word)
 window.addEventListener('help-jump', (e) => {
   const key = e.detail.key
   const helpTab = document.querySelector('.tab[data-tab="help"]')
   if (helpTab) helpTab.click()
+  renderApiReference()   // ensure the API list (not a doc) is the visible pane content
   // wait one frame for the panel to become visible before scrolling
   requestAnimationFrame(() => {
     const el = document.getElementById('help-entry-' + key)

@@ -302,6 +302,107 @@ html, body {
   display: flex;
 }
 
+/* ── Docs tab: two-pane wiki (sidebar + content) ─────────────── */
+#panel-help.docs-tab { padding: 0; flex-direction: row; gap: 0; }
+
+#docs-sidebar {
+  flex: none;
+  width: 200px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg2);
+  padding: 44px 0 20px;   /* top clears the collapse toggle */
+}
+
+#docs-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+#docs-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+#panel-help.docs-tab.sidebar-collapsed #docs-sidebar { display: none; }
+.docs-nav-group { margin-bottom: 16px; }
+.docs-nav-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+  padding: 4px 20px;
+}
+.docs-nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 5px 20px;
+  cursor: pointer;
+}
+.docs-nav-item:hover { color: var(--accent); }
+.docs-nav-item.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+
+#docs-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 48px;
+}
+/* keep the API-reference spacing now that it lives inside the content pane */
+#docs-content > .help-lang-toggle { margin-bottom: 24px; }
+#docs-content > .help-intro,
+#docs-content > .help-section { margin-bottom: 32px; }
+
+/* rendered markdown */
+.docs-md { max-width: 760px; line-height: 1.6; color: var(--fg); }
+.docs-md h1 { font-size: 24px; margin: 0 0 16px; }
+.docs-md h2 { font-size: 19px; margin: 28px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.docs-md h3 { font-size: 15px; margin: 20px 0 8px; }
+.docs-md p, .docs-md li { font-size: 14px; }
+.docs-md a { color: var(--accent); }
+.docs-md code {
+  font-family: var(--font);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 13px;
+}
+.docs-md pre {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+.docs-md pre code { background: none; border: none; padding: 0; }
+.docs-md table { border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+.docs-md th, .docs-md td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+.docs-md th { background: var(--bg2); }
+.docs-md blockquote {
+  border-left: 3px solid var(--border);
+  margin: 12px 0;
+  padding: 2px 14px;
+  color: var(--fg-dim);
+}
+.docs-md hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+.docs-empty { color: var(--fg-dim); padding: 20px; }
+
 .help-lang-toggle {
   display: flex;
   gap: 4px;

@@ -2,6 +2,11 @@
 
 A working list for raising the quality bar across the ~90 carts in `tools/carts/`.
 
+> **Status (2026-05-30): not an active backlog.** Decided against retrofitting a
+> juice pass onto the existing carts — better to keep them as-is and apply these
+> learnings to *new* games, or build focused v2s of the few that are worth it.
+> Treat what follows as a reference idea bank, not a to-do list.
+
 > **Scope note.** This doc is **Part B — per-game polish** only. What's shipped vs.
 > open across the engine/API now lives in one ledger, [`STATUS.md`](STATUS.md); the
 > design rationale (classics survey, proposed signatures, and the cart-frequency

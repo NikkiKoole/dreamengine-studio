@@ -37,7 +37,11 @@ eventually2/
 │   │   └── palettes/pico32.json    # 32-color palette used by sprite editor
 │   └── index.html      # shell HTML — all panels live here
 ├── build/              # compile output (cart.c, cart binary, sprites.png, fonts)
-└── VISION.md           # design notes — goals, open questions, history
+└── docs/               # all project docs — start at docs/README.md (the map)
+    ├── VISION.md       #   why & what; STATUS.md = shipped/open/cut ledger
+    ├── decisions/      #   ADR-lite: frozen rationale ("why we (didn't) do X")
+    ├── design/         #   api-notes.md, audio-notes.md (design exploration)
+    └── guides/         #   cart-authoring.md, sharing.md (how-to)
 ```
 
 ## How ▶ run works
@@ -138,22 +142,22 @@ demonstrating it tends to go unnoticed and undertested.
 
 ## Tutorial carts
 
-Carts (tutorials + example games) show up in the tutorials panel, driven by `editor/public/carts/index.json`. Each `.cart.png` in `editor/public/carts/` is a valid PNG with source/sprites/map embedded as zTXt chunks (`de:source`, `de:sprites`, `de:map`). The visible PNG image is the thumbnail.
+Carts (tutorials + example games) show up in the tutorials panel, driven by `editor/public/carts/index.json`. Each `.cart.png` in `editor/public/carts/` is a valid PNG with source/sprites/map embedded as zTXt chunks (`de:source`, `de:sprites`, `de:map`, `de:settings`). The visible PNG image is the thumbnail. The `de:settings` chunk carries the cart's intended screen/scale/cell/map dims (`{screenW,screenH,scale,cellW,cellH,mapW,mapH}`) so loading it restores that config instead of inheriting the editor's current globals — without it a cart can render wrong (e.g. its map tiles drawn at the wrong `CELL_W`).
 
-Source-of-truth files live in `tools/`:
-- `tools/<name>.c` — the cart's C source
-- `tools/<name>.cart.js` — *optional* config (sprites and/or tile map); only needed if the cart uses them
+Source-of-truth files live in `tools/carts/`; the build tool sits beside that folder:
+- `tools/carts/<name>.c` — the cart's C source
+- `tools/carts/<name>.cart.js` — *optional* config (sprites and/or tile map); only needed if the cart uses them
 - `tools/make-cart.js` — the build tool (CommonJS; uses `require`)
 
 **Adding a new cart:**
 
-1. Write the C source → `tools/<name>.c`
+1. Write the C source → `tools/carts/<name>.c`
 2. *(Optional)* Add sprites/map → `tools/<name>.cart.js`. Exports `{ sprites, map, charMap, mapW, mapH }`:
    - `sprites`: `{ slotIndex: asciiArt }` — 16×16 strings, chars map to palette indices via the `DEFAULT_CHAR_MAP` in `make-cart.js` (`R`=red, `W`=white, `b`=bright blue, `.`=transparent/black, etc.)
    - `map`: `{ layout: ["####", "#..#"], tiles: { '#': 1 } }`
 3. Build the cart (placeholder thumbnail):
    ```bash
-   node tools/make-cart.js tools/<name>.c editor/public/carts/<name>.cart.png
+   node tools/make-cart.js tools/carts/<name>.c editor/public/carts/<name>.cart.png
    ```
 4. Bake a real screenshot as the thumbnail — compiles, runs 3 frames in a hidden window (`--screenshot` mode in `studio.c`), re-embeds `build/screenshot.png`:
    ```bash

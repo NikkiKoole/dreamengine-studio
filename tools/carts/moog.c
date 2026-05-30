@@ -1,0 +1,216 @@
+#include "studio.h"
+
+// A little Moog-style synth playground. Build a sound with the mouse — waveform,
+// the famous ADSR envelope, three LFOs, and a resonant filter — then play it on
+// the on-screen keyboard with the mouse or your computer keys (A row = white,
+// W E T Y U O P = black). Z/X shift octave, C/V change velocity.
+//
+// Every knob feeds the one instrument in SLOT; the settings are (re)applied the
+// instant you hit a note, so tweak and play freely.
+
+#define SLOT 5
+#define NONE -999
+#define CLI(v,a,b) ((int)clamp((float)(v),(float)(a),(float)(b)))
+
+// ---- synth state (what the UI edits) ----
+int   wave    = 1;                 // INSTR_SAW
+float attack  = 6,  decay = 140, sustain = 5, release = 320;   // ms, sustain 0..7
+float duty    = 0.5f;
+int   fmode   = 1;                 // FILTER_LOW
+float cutoff  = 1700, res = 7;
+typedef struct { int target; float rate; float depth; } Lfo;   // target 0=OFF,1=PIT,2=DUT,3=VOL,4=CUT
+Lfo   lfos[3] = { {1, 5.0f, 0.25f}, {0, 3.0f, 0.3f}, {0, 0.4f, 0.6f} };
+
+int   base = 48;                   // MIDI of the leftmost white key (C3)
+int   vel  = 98;                   // 0..127, like a real synth
+
+// ---- mouse / immediate-mode UI state ----
+int mx, my, ui_held = 0, mouse_semi = NONE;
+
+// ---- keyboard layout ----
+const char wkey[]  = "ASDFGHJKL;'";
+int   wsemi[11] = { 0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17 };
+char  bkey[7]   = { 'W','E','T','Y','U','O','P' };
+int   bsemi[7]  = { 1, 3, 6, 8, 10, 13, 15 };
+int   bafter[7] = { 0, 1, 3, 4, 5, 7, 8 };
+
+int white_x(int i) { return 10 + i * 40; }
+int black_x(int j) { return white_x(bafter[j]) + 28; }
+
+int in_box(int x, int y, int w, int h) { return mx >= x && mx < x + w && my >= y && my < y + h; }
+
+// push the current patch into the instrument bank (read at the next note-on)
+void apply_synth(void) {
+    instrument(SLOT, wave, (int)attack, (int)decay, CLI(sustain + 0.5f, 0, 7), (int)release);
+    instrument_duty(SLOT, duty);
+    for (int L = 0; L < 3; L++) {
+        if (lfos[L].target == 0) { instrument_lfo(SLOT, L, LFO_PITCH, 0, 0); continue; }
+        int dest = lfos[L].target - 1;                 // 1..4 -> LFO_PITCH..LFO_CUTOFF
+        float d  = lfos[L].depth;
+        float scaled = dest == LFO_PITCH  ? d * 5.0f
+                     : dest == LFO_DUTY   ? d * 0.45f
+                     : dest == LFO_VOLUME ? d
+                                          : d * 1800.0f;   // LFO_CUTOFF (Hz)
+        instrument_lfo(SLOT, L, dest, lfos[L].rate, scaled);
+    }
+    instrument_filter(SLOT, fmode, (int)cutoff, CLI(res + 0.5f, 0, 15));
+}
+
+void trigger(int semi) {
+    apply_synth();
+    hit(base + semi, SLOT, CLI(vel * 7 / 127, 1, 7), 600);
+}
+
+int key_at_mouse(void) {
+    if (my < 200) return NONE;
+    for (int j = 0; j < 7;  j++) if (in_box(black_x(j), 200, 24, 62))  return bsemi[j];
+    for (int i = 0; i < 11; i++) if (in_box(white_x(i), 200, 39, 100)) return wsemi[i];
+    return NONE;
+}
+
+// ---- widgets ----
+int ui_btn(int x, int y, int w, int h, const char *label, int on, int col) {
+    int hot = in_box(x, y, w, h);
+    rectfill(x, y, w, h, on ? col : CLR_BLACK);
+    rect(x, y, w, h, hot ? CLR_WHITE : CLR_DARK_GREY);
+    print(label, x + 3, y + (h - 5) / 2, on ? CLR_BLACK : CLR_MEDIUM_GREY);
+    return hot && mouse_pressed(MOUSE_LEFT);
+}
+
+float ui_slider(int id, int x, int y, int w, float val, float lo, float hi, int col) {
+    if (mouse_pressed(MOUSE_LEFT) && in_box(x - 2, y - 3, w + 4, 11)) ui_held = id;
+    if (ui_held == id) val = lo + clamp((float)(mx - x) / w, 0, 1) * (hi - lo);
+    rectfill(x, y + 1, w, 2, CLR_DARK_GREY);
+    int kx = x + (int)((val - lo) / (hi - lo) * w);
+    rectfill(kx - 2, y - 2, 4, 8, col);
+    return val;
+}
+
+void panel(int x, int y, int w, int h, const char *title, int col) {
+    rect(x, y, w, h, CLR_DARK_GREY);
+    print(title, x + 4, y + 3, col);
+}
+
+void update() {
+    for (int i = 0; i < 11; i++) if (keyp(wkey[i])) trigger(wsemi[i]);
+    for (int j = 0; j < 7;  j++) if (keyp(bkey[j])) trigger(bsemi[j]);
+
+    if (keyp('Z')) base = CLI(base - 12, 12, 96);
+    if (keyp('X')) base = CLI(base + 12, 12, 96);
+    if (keyp('C')) vel  = CLI(vel - 10, 1, 127);
+    if (keyp('V')) vel  = CLI(vel + 10, 1, 127);
+
+    if (mouse_pressed(MOUSE_LEFT)) {
+        int s = key_at_mouse();
+        if (s != NONE) { mouse_semi = s; trigger(s); }
+    }
+}
+
+// the famous ADSR envelope editor, with three drag handles
+void draw_adsr(int gx, int gy, int gw, int gh) {
+    float aMax = gw * 0.28f, dMax = gw * 0.28f, hold = gw * 0.16f, rMax = gw * 0.28f;
+    int ax  = gx + (int)(attack  / 1200.0f * aMax);
+    int dsx = ax + (int)(decay   / 1200.0f * dMax);
+    int sy  = gy + (int)((1 - sustain / 7.0f) * gh);
+    int hx  = dsx + (int)hold;
+    int rx  = hx + (int)(release / 1800.0f * rMax);
+    int by  = gy + gh;
+
+    // grab handles
+    if (mouse_pressed(MOUSE_LEFT)) {
+        if      (in_box(ax - 5, gy - 5, 10, 10))  ui_held = 11;
+        else if (in_box(dsx - 5, sy - 5, 10, 10)) ui_held = 12;
+        else if (in_box(rx - 5, by - 5, 10, 10))  ui_held = 13;
+    }
+    if (ui_held == 11) attack  = clamp((float)(mx - gx) / aMax * 1200, 0, 1200);
+    if (ui_held == 12) { decay = clamp((float)(mx - ax) / dMax * 1200, 0, 1200);
+                         sustain = clamp((1 - (float)(my - gy) / gh) * 7, 0, 7); }
+    if (ui_held == 13) release = clamp((float)(mx - hx) / rMax * 1800, 0, 1800);
+
+    // recompute after drag so the picture tracks the mouse the same frame
+    ax  = gx + (int)(attack / 1200.0f * aMax);
+    dsx = ax + (int)(decay / 1200.0f * dMax);
+    sy  = gy + (int)((1 - sustain / 7.0f) * gh);
+    hx  = dsx + (int)hold;
+    rx  = hx + (int)(release / 1800.0f * rMax);
+
+    rectfill(gx, gy, gw, gh, CLR_BLACK);
+    line(gx, by, ax, gy, CLR_GREEN);     // attack
+    line(ax, gy, dsx, sy, CLR_GREEN);    // decay
+    line(dsx, sy, hx, sy, CLR_GREEN);    // sustain
+    line(hx, sy, rx, by, CLR_GREEN);     // release
+    rectfill(ax - 2, gy - 2, 5, 5, CLR_WHITE);
+    rectfill(dsx - 2, sy - 2, 5, 5, CLR_WHITE);
+    rectfill(rx - 2, by - 2, 5, 5, CLR_WHITE);
+    print(str("A%d D%d S%d R%d", (int)attack, (int)decay, (int)(sustain + 0.5f), (int)release),
+          gx, by + 4, CLR_MEDIUM_GREY);
+}
+
+void draw() {
+    mx = mouse_x(); my = mouse_y();
+    if (!mouse_down(MOUSE_LEFT)) ui_held = 0;
+
+    cls(CLR_DARKER_GREY);
+    print("DREAM SYNTH", 8, 4, CLR_WHITE);
+
+    // ---- TIMBRE ----
+    const char *wn[5] = { "SQUARE", "SAW", "TRIANGLE", "NOISE", "SINE" };
+    panel(6, 16, 92, 100, "WAVE", CLR_BLUE);
+    for (int i = 0; i < 5; i++)
+        if (ui_btn(12, 30 + i * 15, 80, 13, wn[i], wave == i, CLR_BLUE)) wave = i;
+    print("PW", 12, 107, CLR_MEDIUM_GREY);
+    duty = ui_slider(1, 34, 107, 58, duty, 0.05f, 0.95f, CLR_BLUE);
+
+    // ---- ENVELOPE ----
+    panel(104, 16, 198, 100, "ENVELOPE  (drag the dots)", CLR_GREEN);
+    draw_adsr(112, 32, 182, 64);
+
+    // ---- FILTER ----
+    const char *fn[5] = { "OFF", "LP", "HP", "BP", "NF" };
+    panel(308, 16, 146, 100, "FILTER", CLR_ORANGE);
+    for (int i = 0; i < 5; i++)
+        if (ui_btn(312 + i * 28, 30, 26, 13, fn[i], fmode == i, CLR_ORANGE)) fmode = i;
+    print("CUT", 312, 52, CLR_MEDIUM_GREY);
+    cutoff = ui_slider(2, 336, 52, 112, cutoff, 80, 4000, CLR_ORANGE);
+    print("RES", 312, 66, CLR_MEDIUM_GREY);
+    res = ui_slider(3, 336, 66, 112, res, 0, 15, CLR_ORANGE);
+    print(str("%dhz  q%d", (int)cutoff, (int)(res + 0.5f)), 312, 82, CLR_MEDIUM_GREY);
+
+    // ---- 3 LFOs ----
+    const char *tn[5] = { "OFF", "PITCH", "DUTY", "VOL", "CUT" };
+    int lcol[3] = { CLR_PINK, CLR_YELLOW, CLR_INDIGO };
+    for (int L = 0; L < 3; L++) {
+        int x = 6 + L * 151, y = 122, w = 146;
+        panel(x, y, w, 62, str("LFO %d", L + 1), lcol[L]);
+        if (ui_btn(x + 6, y + 14, 64, 12, tn[lfos[L].target], lfos[L].target != 0, lcol[L]))
+            lfos[L].target = (lfos[L].target + 1) % 5;
+        // live dot so you can see it tick
+        if (lfos[L].target != 0) {
+            int dotx = x + w - 16 + (int)(sin_deg(now() * lfos[L].rate * 360.0f) * 7);
+            circfill(dotx, y + 20, 3, lcol[L]);
+        }
+        print("RATE", x + 6, y + 32, CLR_MEDIUM_GREY);
+        lfos[L].rate = ui_slider(20 + L, x + 38, y + 32, w - 46, lfos[L].rate, 0.1f, 12, lcol[L]);
+        print("DEPTH", x + 6, y + 50, CLR_MEDIUM_GREY);
+        lfos[L].depth = ui_slider(30 + L, x + 44, y + 50, w - 52, lfos[L].depth, 0, 1, lcol[L]);
+    }
+
+    // ---- info line ----
+    print(str("OCT C%d   [Z -] [X +]", base / 12 - 1), 8, 190, CLR_LIGHT_GREY);
+    print(str("VELOCITY %d   [C -] [V +]", vel), 250, 190, CLR_LIGHT_GREY);
+
+    // ---- keyboard ----
+    for (int i = 0; i < 11; i++) {
+        int x = white_x(i);
+        int lit = key(wkey[i]) || (mouse_down(MOUSE_LEFT) && mouse_semi == wsemi[i]);
+        rectfill(x, 200, 39, 100, lit ? CLR_YELLOW : CLR_WHITE);
+        rect(x, 200, 39, 100, CLR_DARK_GREY);
+        print(str("%c", wkey[i]), x + 16, 288, CLR_DARK_GREY);
+    }
+    for (int j = 0; j < 7; j++) {
+        int x = black_x(j);
+        int lit = key(bkey[j]) || (mouse_down(MOUSE_LEFT) && mouse_semi == bsemi[j]);
+        rectfill(x, 200, 24, 62, lit ? CLR_ORANGE : CLR_BROWNISH_BLACK);
+        print(str("%c", bkey[j]), x + 8, 248, CLR_WHITE);
+    }
+}

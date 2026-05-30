@@ -155,6 +155,11 @@
     "file": "22-filter.cart.png"
   },
   {
+    "title": "dream synth",
+    "description": "A playable Moog-style synth that ties the whole sound engine together. Build a patch with the mouse — pick a WAVE, drag the famous ADSR ENVELOPE dots, route THREE LFOs (pitch/duty/volume/cutoff) and dial a resonant FILTER — then play it on the on-screen keyboard with the mouse or your computer keys: the A row is the white keys, W E T Y U O P are the black keys, Z/X shift octave, C/V change velocity. Every knob feeds one instrument that's re-applied the instant you hit a note, so you can tweak and play at the same time.",
+    "file": "moog.cart.png"
+  },
+  {
     "title": "pong",
     "description": "2-player pong. First to 7 wins. Player 1: W/S — Player 2: up/down arrows.",
     "file": "pong.cart.png"

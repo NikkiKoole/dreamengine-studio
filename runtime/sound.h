@@ -47,13 +47,15 @@ typedef struct {
     int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
     float sustain;                  // 0..1
     float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
-    int   lfo_dest;                 // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF
-    float lfo_rate;                 // Hz
-    float lfo_depth;                // 0 = off; units depend on dest
+    int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
+    float lfo_rate[3];              // Hz
+    float lfo_depth[3];             // 0 = off; units depend on dest
     int   flt_mode;                 // FILTER_OFF / LOW / HIGH / BAND / NOTCH
     float flt_cutoff;               // Hz
     float flt_q;                    // damping coefficient (1/Q); small = resonant
 } Instrument;
+
+#define SOUND_LFOS 3
 
 typedef struct {
     bool   active;
@@ -72,8 +74,8 @@ typedef struct {
     float  sustain;
     float  duty;
     float  rel_start;          // envelope level at the moment the gate ends (release fades from here)
-    int    lfo_dest;
-    float  lfo_rate, lfo_depth, lfo_phase;
+    int    lfo_dest[3];
+    float  lfo_rate[3], lfo_depth[3], lfo_phase[3];
     int    flt_mode;
     float  flt_cutoff, flt_q;
     float  flt_low, flt_band;   // SVF running state
@@ -208,7 +210,7 @@ static void sound_set_step(Voice *v, SfxStep step, int step_dur_units) {
     v->step_len_samples = (step_dur_units * SOUND_SAMPLE_RATE) / 100;
     if (v->step_len_samples < 1) v->step_len_samples = 1;
     v->duty = 0.5f;           // SFX steps use the declick envelope, not ADSR; plain square
-    v->lfo_depth = 0.0f;      // and no LFO
+    for (int L = 0; L < SOUND_LFOS; L++) v->lfo_depth[L] = 0.0f;   // and no LFOs
     v->flt_mode = FILTER_OFF; // and no filter
     if (step.pitch == 0 || step.vol == 0) {
         v->vol  = 0.0f;       // silent step — still advances time
@@ -273,10 +275,12 @@ static void sound_fire_req(SoundReq r) {
         v->d_samp           = ins->d_samp;
         v->r_samp           = ins->r_samp;
         v->sustain          = ins->sustain;
-        v->lfo_dest         = ins->lfo_dest;
-        v->lfo_rate         = ins->lfo_rate;
-        v->lfo_depth        = ins->lfo_depth;
-        v->lfo_phase        = 0.0f;
+        for (int L = 0; L < SOUND_LFOS; L++) {
+            v->lfo_dest[L]  = ins->lfo_dest[L];
+            v->lfo_rate[L]  = ins->lfo_rate[L];
+            v->lfo_depth[L] = ins->lfo_depth[L];
+            v->lfo_phase[L] = 0.0f;
+        }
         v->flt_mode         = ins->flt_mode;
         v->flt_cutoff       = ins->flt_cutoff;
         v->flt_q            = ins->flt_q;
@@ -302,12 +306,14 @@ static void sound_fire_req(SoundReq r) {
         if (duty < 0.01f) duty = 0.01f;
         if (duty > 0.99f) duty = 0.99f;
         instr_bank[slot].duty = duty;
-    } else if (r.kind == 5) {       // set instrument LFO
+    } else if (r.kind == 5) {       // set one of an instrument's LFOs
         int slot = r.a;
+        int L = r.e1;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-        instr_bank[slot].lfo_dest  = r.b;
-        instr_bank[slot].lfo_rate  = r.c  / 1000.0f;
-        instr_bank[slot].lfo_depth = r.e0 / 1000.0f;
+        if (L < 0 || L >= SOUND_LFOS) return;
+        instr_bank[slot].lfo_dest[L]  = r.b;
+        instr_bank[slot].lfo_rate[L]  = r.c  / 1000.0f;
+        instr_bank[slot].lfo_depth[L] = r.e0 / 1000.0f;
     } else if (r.kind == 6) {       // set instrument filter
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -384,18 +390,21 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 env = v->rel_start * (1.0f - (float)rs / (float)v->r_samp);
             }
 
-            // LFO (one-shot notes only): one routable sine → pitch / duty / volume / cutoff
+            // LFOs (one-shot notes only): up to 3 routable sines → pitch / duty / volume / cutoff
             float duty = v->duty, trem = 1.0f, pitch_mul = 1.0f, cutoff = v->flt_cutoff;
-            if (v->sfx_idx < 0 && v->lfo_depth > 0.0f) {
-                float lfo = sinf(v->lfo_phase * 6.2831853f);            // -1..1
-                v->lfo_phase += v->lfo_rate / (float)SOUND_SAMPLE_RATE;
-                if (v->lfo_phase >= 1.0f) v->lfo_phase -= 1.0f;
-                if      (v->lfo_dest == LFO_PITCH)  pitch_mul = powf(2.0f, (lfo * v->lfo_depth) / 12.0f);
-                else if (v->lfo_dest == LFO_DUTY)   { duty += lfo * v->lfo_depth;
-                                                      if (duty < 0.05f) duty = 0.05f;
-                                                      if (duty > 0.95f) duty = 0.95f; }
-                else if (v->lfo_dest == LFO_VOLUME) trem = 1.0f - 0.5f * v->lfo_depth * (1.0f - lfo);
-                else if (v->lfo_dest == LFO_CUTOFF) cutoff += lfo * v->lfo_depth;
+            if (v->sfx_idx < 0) {
+                for (int L = 0; L < SOUND_LFOS; L++) {
+                    if (v->lfo_depth[L] <= 0.0f) continue;
+                    float lfo = sinf(v->lfo_phase[L] * 6.2831853f);     // -1..1
+                    v->lfo_phase[L] += v->lfo_rate[L] / (float)SOUND_SAMPLE_RATE;
+                    if (v->lfo_phase[L] >= 1.0f) v->lfo_phase[L] -= 1.0f;
+                    if      (v->lfo_dest[L] == LFO_PITCH)  pitch_mul *= powf(2.0f, (lfo * v->lfo_depth[L]) / 12.0f);
+                    else if (v->lfo_dest[L] == LFO_DUTY)   duty += lfo * v->lfo_depth[L];
+                    else if (v->lfo_dest[L] == LFO_VOLUME) trem *= 1.0f - 0.5f * v->lfo_depth[L] * (1.0f - lfo);
+                    else if (v->lfo_dest[L] == LFO_CUTOFF) cutoff += lfo * v->lfo_depth[L];
+                }
+                if (duty < 0.05f) duty = 0.05f;
+                if (duty > 0.95f) duty = 0.95f;
             }
 
             float s = sound_osc(v->wave, v->phase, duty, &v->noise_state);
@@ -594,11 +603,12 @@ void instrument_duty(int slot, float duty) {
     sound_push_ctrl(4, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
 }
 
-void instrument_lfo(int slot, int dest, float rate_hz, float depth) {
+void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (which < 0 || which >= SOUND_LFOS) return;
     if (rate_hz < 0) rate_hz = 0;
     if (depth   < 0) depth   = 0;
-    sound_push_ctrl(5, slot, dest, (int)(rate_hz * 1000.0f), (int)(depth * 1000.0f), 0, 0);
+    sound_push_ctrl(5, slot, dest, (int)(rate_hz * 1000.0f), (int)(depth * 1000.0f), which, 0);
 }
 
 void instrument_filter(int slot, int mode, int cutoff_hz, int resonance) {
@@ -648,9 +658,11 @@ static void sound_init(void) {
         instr_bank[i].r_samp  = SOUND_SAMPLE_RATE / 50;    // ~20ms release
         instr_bank[i].sustain = 1.0f;
         instr_bank[i].duty    = 0.5f;
-        instr_bank[i].lfo_dest  = LFO_PITCH;
-        instr_bank[i].lfo_rate  = 0.0f;
-        instr_bank[i].lfo_depth = 0.0f;   // off until instrument_lfo() is called
+        for (int L = 0; L < SOUND_LFOS; L++) {
+            instr_bank[i].lfo_dest[L]  = LFO_PITCH;
+            instr_bank[i].lfo_rate[L]  = 0.0f;
+            instr_bank[i].lfo_depth[L] = 0.0f;   // off until instrument_lfo() is called
+        }
         instr_bank[i].flt_mode   = FILTER_OFF;
         instr_bank[i].flt_cutoff = 1000.0f;
         instr_bank[i].flt_q      = 1.0f;

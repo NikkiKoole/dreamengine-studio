@@ -23,10 +23,10 @@ void init() {
     instrument_filter(NF, FILTER_NOTCH, 900,  8);
 
     // sweep each cutoff up and down so you HEAR the filter move (wah)
-    instrument_lfo(LP, LFO_CUTOFF, 0.5f, 750);
-    instrument_lfo(HP, LFO_CUTOFF, 0.5f, 800);
-    instrument_lfo(BP, LFO_CUTOFF, 0.4f, 800);
-    instrument_lfo(NF, LFO_CUTOFF, 0.4f, 700);
+    instrument_lfo(LP, 0, LFO_CUTOFF, 0.5f, 750);
+    instrument_lfo(HP, 0, LFO_CUTOFF, 0.5f, 800);
+    instrument_lfo(BP, 0, LFO_CUTOFF, 0.4f, 800);
+    instrument_lfo(NF, 0, LFO_CUTOFF, 0.4f, 700);
 
     flts[0] = (Flt){ "LOWPASS",  LP, FILTER_LOW,   0.5f, 750, 900,  CLR_YELLOW };
     flts[1] = (Flt){ "HIGHPASS", HP, FILTER_HIGH,  0.5f, 800, 1100, CLR_GREEN  };

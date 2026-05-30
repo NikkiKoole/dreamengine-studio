@@ -218,7 +218,7 @@ void instrument_duty(int slot, float duty);               // pulse width 0.0..1.
 #define LFO_DUTY    1   // PWM / duty sweep — depth 0.0..0.5 (square-wave slots only)
 #define LFO_VOLUME  2   // tremolo — depth 0.0..1.0
 #define LFO_CUTOFF  3   // filter sweep / wah — depth in Hz (needs a filter on the slot)
-void instrument_lfo(int slot, int dest, float rate_hz, float depth);  // attach a sine LFO to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF. rate 4–8 Hz is typical. depth 0 = off
+void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth);  // attach sine LFO `which` (0..2 — a slot has 3) to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF. rate 4–8 Hz typical. depth 0 = off
 
 // resonant filter per instrument — sculpts the tone (the SID-style knob)
 #define FILTER_OFF   0

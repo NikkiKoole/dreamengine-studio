@@ -18,9 +18,9 @@ void init() {
     instrument(TRM, INSTR_SAW,    20, 0, 7, 200);
     instrument(PWM, INSTR_SQUARE, 20, 0, 7, 200);
 
-    instrument_lfo(VIB, LFO_PITCH,  6.0f, 0.5f);   // bob the pitch +/- half a semitone
-    instrument_lfo(TRM, LFO_VOLUME, 9.0f, 0.9f);   // pump the volume up and down
-    instrument_lfo(PWM, LFO_DUTY,   2.5f, 0.35f);  // sweep the pulse width
+    instrument_lfo(VIB, 0, LFO_PITCH,  6.0f, 0.5f);   // bob the pitch +/- half a semitone
+    instrument_lfo(TRM, 0, LFO_VOLUME, 9.0f, 0.9f);   // pump the volume up and down
+    instrument_lfo(PWM, 0, LFO_DUTY,   2.5f, 0.35f);  // sweep the pulse width
 
     mods[0] = (Mod){ "VIBRATO", VIB, LFO_PITCH,  6.0f, 0.5f,  CLR_YELLOW };
     mods[1] = (Mod){ "TREMOLO", TRM, LFO_VOLUME, 9.0f, 0.9f,  CLR_GREEN  };

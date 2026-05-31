@@ -1155,8 +1155,9 @@ static void trifill_pat(int x1, int y1, int x2, int y2, int x3, int y3, int patt
         float xb = (y < y2 && y2 != y1) ? x1 + (float)(x2 - x1) * (y - y1) / (float)(y2 - y1)
                  : (y2 != y3)           ? x2 + (float)(x3 - x2) * (y - y2) / (float)(y3 - y2)
                                         : (float)x2;
-        int xl = (int)(xa < xb ? xa : xb), xr = (int)(xa < xb ? xb : xa);
-        rectfill_pat(xl, y, xr - xl + 1, 1, pattern, c1, c0);
+        float lf = xa < xb ? xa : xb, rf = xa < xb ? xb : xa;     // conservative span: floor the
+        int xl = (int)floorf(lf), xr = (int)ceilf(rf);            // left, ceil the right, so adjacent
+        rectfill_pat(xl, y, xr - xl + 1, 1, pattern, c1, c0);     // faces meet (no black seam crack)
     }
 }
 

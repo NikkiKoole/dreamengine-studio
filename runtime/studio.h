@@ -103,6 +103,8 @@ bool  mouse_down(int button);        // true while the button is held
 bool  mouse_pressed(int button);     // true only on the frame the button was pressed
 bool  mouse_released(int button);    // true only on the frame the button was released
 float mouse_wheel(void);             // scroll this frame: + up / - down, 0 if no scroll
+int   mouse_world_x(void);           // mouse x in world space — undoes the active camera() shift (handy for click-on-world)
+int   mouse_world_y(void);           // mouse y in world space — undoes the active camera() shift
 
 // keyboard (desktop) — for letters/digits just pass the character: key('A'), key('0')
 #ifndef STUDIO_INTERNAL              // these match raylib's KeyboardKey values; hidden from studio.c to avoid clashing with them
@@ -161,7 +163,8 @@ void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color);     // tria
 void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color); // filled triangle (any winding)
 void tritex(int x1, int y1, float u1, float v1, int x2, int y2, float u2, float v2, int x3, int y3, float u3, float v3); // texture-mapped triangle: each corner maps a screen point to a sprite-sheet pixel (u,v). affine (PS1-style). the textured-3D primitive
 int  pget(int x, int y);                                // palette index at (x,y), or 0 if no match
-void camera(int x, int y);                              // shifts all subsequent drawing by (-x,-y). camera(0,0) resets
+void camera(int x, int y);                              // plain camera: shifts all drawing by (-x,-y), no zoom/rotation. camera(0,0) resets
+void camera_ex(int x, int y, float zoom, float angle);  // camera with zoom (1=normal, 2=2x in) and angle (degrees), pivoting on screen center. for a screen-space HUD after zooming, call camera(0,0)
 void follow(int tx, int ty, int world_w, int world_h); // center camera on (tx,ty), clamped so world edges don't show
 void clip(int x, int y, int w, int h);                  // scissor rect. clip(0,0,0,0) disables
 void pal(int c0, int c1);                               // remap: everything drawn as c0 now draws as c1 — primitives AND sprites (hit-flash, team/clothes recolor, fades). persists until pal_reset()
@@ -340,6 +343,8 @@ const char *str(const char *fmt, ...);  // printf into a reusable buffer: print(
 
 void save(int slot, int value);  // store an int that survives between runs (slots 0–63)
 int  load(int slot);             // read it back — returns 0 if never saved
+void save_int(const char *key, int value);   // like save() but keyed by name — save_int("hiscore", 500). no slot-numbering to remember
+int  load_int(const char *key, int def);     // read a named value back — returns `def` if that key was never saved
 void save_bytes(const void *data, int len);  // save a whole block of bytes (a struct/array) — for big state the 64 int slots can't hold
 int  load_bytes(void *out, int max);          // read it back into `out` (up to max bytes); returns bytes read, 0 if never saved
 

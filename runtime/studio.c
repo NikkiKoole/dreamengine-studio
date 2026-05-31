@@ -109,7 +109,17 @@ static Vector2 vt_pos[VT_MAX];
 static int     vt_id[VT_MAX];
 
 // camera + clip state
-static int   cam_x = 0, cam_y = 0;
+// the camera is a raylib Camera2D applied via BeginMode2D, so zoom/rotation are GPU
+// matrix work (not per-primitive math). offset is pinned to the screen centre, so
+// zoom/angle pivot there; target is back-computed from camera(x,y) to stay identical
+// to the old "world (x,y) at top-left" translate at zoom 1 / angle 0.
+static Camera2D cam = {
+    .offset   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },
+    .target   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },
+    .rotation = 0.0f,
+    .zoom     = 1.0f,
+};
+static bool  cam_active = false;   // true while inside BeginMode2D during draw()
 static bool  clip_active = false;
 
 // pget snapshot — refreshed at the start of every frame, so pget reads
@@ -430,9 +440,15 @@ static void loop_step(void) {
     update();
     frame_count++;
 
-    // draw into the low-res canvas
+    // draw into the low-res canvas, under the camera matrix (handles scroll + zoom +
+    // rotation on the GPU). camera()/camera_ex() called inside draw() re-apply via
+    // cam_reapply() while cam_active is true.
     BeginTextureMode(canvas);
+        BeginMode2D(cam);
+        cam_active = true;
         draw();
+        cam_active = false;
+        EndMode2D();
     EndTextureMode();
     if (clip_active) { EndScissorMode(); clip_active = false; }
 
@@ -655,6 +671,8 @@ bool mouse_down(int button)     { return IsMouseButtonDown(raylib_mouse_button(b
 bool mouse_pressed(int button)  { return IsMouseButtonPressed(raylib_mouse_button(button)); }
 bool mouse_released(int button) { return IsMouseButtonReleased(raylib_mouse_button(button)); }
 float mouse_wheel(void)         { return GetMouseWheelMove(); }
+int mouse_world_x(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).x; }
+int mouse_world_y(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).y; }
 
 void cls(int color) {
     ClearBackground(palette[color % PALETTE_SIZE]);
@@ -783,7 +801,7 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
         .width  = flip_x ? -SPRITE_SIZE : SPRITE_SIZE,
         .height = flip_y ? -SPRITE_SIZE : SPRITE_SIZE,
     };
-    Rectangle dst = { x - cam_x, y - cam_y, SPRITE_SIZE, SPRITE_SIZE };
+    Rectangle dst = { x, y, SPRITE_SIZE, SPRITE_SIZE };
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
@@ -792,7 +810,7 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
 void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     if (spritesheet.width == 0) return;
     Rectangle src = { sx, sy, sw, sh };
-    Rectangle dst = { dx - cam_x, dy - cam_y, dw, dh };
+    Rectangle dst = { dx, dy, dw, dh };
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
@@ -803,7 +821,7 @@ void spr_rot(int index, int x, int y, float deg) {
     int cols = spritesheet.width / SPRITE_SIZE;
     Rectangle src = { (index % cols) * SPRITE_SIZE, (index / cols) * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE };
     float h = SPRITE_SIZE / 2.0f;
-    Rectangle dst = { x - cam_x + h, y - cam_y + h, SPRITE_SIZE, SPRITE_SIZE };  // origin maps here, so top-left stays (x,y)
+    Rectangle dst = { x + h, y + h, SPRITE_SIZE, SPRITE_SIZE };  // origin maps here, so top-left stays (x,y)
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ h, h }, deg, WHITE);
     pal_end();
@@ -812,19 +830,19 @@ void spr_rot(int index, int x, int y, float deg) {
 void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, float deg, int ox, int oy) {
     if (spritesheet.width == 0) return;
     Rectangle src = { sx, sy, sw, sh };
-    Rectangle dst = { dx - cam_x + ox, dy - cam_y + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
+    Rectangle dst = { dx + ox, dy + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ (float)ox, (float)oy }, deg, WHITE);
     pal_end();
 }
 
 void print(const char *text, int x, int y, int color) {
-    DrawTextEx(game_font, text, (Vector2){ x - cam_x, y - cam_y }, 8, 0, palette[color % PALETTE_SIZE]);
+    DrawTextEx(game_font, text, (Vector2){ x, y }, 8, 0, palette[color % PALETTE_SIZE]);
 }
 
 void rect(int x, int y, int w, int h, int color) {
     Color c = palette[color % PALETTE_SIZE];
-    int rx = x - cam_x, ry = y - cam_y;
+    int rx = x, ry = y;
     // 1px DrawRectangle slices — no line caps, exact pixel coverage
     DrawRectangle(rx,     ry,     w,   1,   c);  // top
     DrawRectangle(rx,     ry+h-1, w,   1,   c);  // bottom
@@ -834,7 +852,7 @@ void rect(int x, int y, int w, int h, int color) {
 
 void rectfill(int x, int y, int w, int h, int color) {
     if (fp_on) { rectfill_pat(x, y, w, h, fp_global, fp_hole, color); return; }   // 1-bits = holes, 0-bits = color
-    DrawRectangle(x - cam_x, y - cam_y, w, h, palette[color % PALETTE_SIZE]);
+    DrawRectangle(x, y, w, h, palette[color % PALETTE_SIZE]);
 }
 
 void bar(int x, int y, int w, int h, float pct, int fill, int bg) {
@@ -875,10 +893,11 @@ static Texture2D fp_texture(int pat, int c1, int c0) {
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0) {
     if (w <= 0 || h <= 0) return;
     Texture2D t = fp_texture(pattern, c1, c0);
-    // src origin = screen pos, so the 4×4 lattice is screen-aligned and seamless
-    // with the circ/tri pattern fills below (which tile from the screen origin too)
-    Rectangle src = { (float)(x - cam_x), (float)(y - cam_y), (float)w, (float)h };
-    Rectangle dst = { (float)(x - cam_x), (float)(y - cam_y), (float)w, (float)h };
+    // src origin = world pos, so the 4×4 lattice tiles in world space (sticks to what
+    // you draw) and stays seamless with the circ/tri pattern fills (same world origin).
+    // The camera matrix then scales/rotates the whole quad.
+    Rectangle src = { (float)x, (float)y, (float)w, (float)h };
+    Rectangle dst = { (float)x, (float)y, (float)w, (float)h };
     DrawTexturePro(t, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
 }
 
@@ -921,27 +940,27 @@ void fillp(int pattern, int hole_color) { fp_on = true; fp_global = pattern; fp_
 void fillp_reset(void)  { fp_on = false; }
 
 void circ(int x, int y, int radius, int color) {
-    DrawCircleLines(x - cam_x, y - cam_y, (float)radius, palette[color % PALETTE_SIZE]);
+    DrawCircleLines(x, y, (float)radius, palette[color % PALETTE_SIZE]);
 }
 
 void circfill(int x, int y, int radius, int color) {
     if (fp_on) { circfill_pat(x, y, radius, fp_global, fp_hole, color); return; }
-    DrawCircle(x - cam_x, y - cam_y, radius, palette[color % PALETTE_SIZE]);
+    DrawCircle(x, y, radius, palette[color % PALETTE_SIZE]);
 }
 
 void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
     Color c = palette[color % PALETTE_SIZE];
-    DrawLine(x1-cam_x, y1-cam_y, x2-cam_x, y2-cam_y, c);
-    DrawLine(x2-cam_x, y2-cam_y, x3-cam_x, y3-cam_y, c);
-    DrawLine(x3-cam_x, y3-cam_y, x1-cam_x, y1-cam_y, c);
+    DrawLine(x1, y1, x2, y2, c);
+    DrawLine(x2, y2, x3, y3, c);
+    DrawLine(x3, y3, x1, y1, c);
 }
 
 void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
     if (fp_on) { trifill_pat(x1, y1, x2, y2, x3, y3, fp_global, fp_hole, color); return; }
     Color c = palette[color % PALETTE_SIZE];
-    Vector2 v1 = {(float)(x1-cam_x), (float)(y1-cam_y)};
-    Vector2 v2 = {(float)(x2-cam_x), (float)(y2-cam_y)};
-    Vector2 v3 = {(float)(x3-cam_x), (float)(y3-cam_y)};
+    Vector2 v1 = {(float)x1, (float)y1};
+    Vector2 v2 = {(float)x2, (float)y2};
+    Vector2 v3 = {(float)x3, (float)y3};
     // Raylib needs counter-clockwise winding in Y-down screen coords.
     // In Y-down space, cross > 0 means clockwise visually → swap to fix.
     float cross = (v2.x-v1.x)*(v3.y-v1.y) - (v2.y-v1.y)*(v3.x-v1.x);
@@ -961,9 +980,9 @@ void tritex(int x1, int y1, float u1, float v1,
     if (spritesheet.width == 0) return;
     float tw = (float)spritesheet.width, th = (float)spritesheet.height;
     typedef struct { float x, y, u, v; } TV;
-    TV a = { x1 - cam_x, y1 - cam_y, u1, v1 };
-    TV b = { x2 - cam_x, y2 - cam_y, u2, v2 };
-    TV c = { x3 - cam_x, y3 - cam_y, u3, v3 };
+    TV a = { x1, y1, u1, v1 };
+    TV b = { x2, y2, u2, v2 };
+    TV c = { x3, y3, u3, v3 };
     // raylib batches want CCW winding in Y-down screen space; swap if clockwise
     float cross = (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
     if (cross > 0) { TV t = b; b = c; c = t; }
@@ -982,18 +1001,21 @@ void tritex(int x1, int y1, float u1, float v1,
 }
 
 void line(int x1, int y1, int x2, int y2, int color) {
-    DrawLine(x1 - cam_x, y1 - cam_y, x2 - cam_x, y2 - cam_y, palette[color % PALETTE_SIZE]);
+    DrawLine(x1, y1, x2, y2, palette[color % PALETTE_SIZE]);
 }
 
 void pset(int x, int y, int color) {
-    DrawPixel(x - cam_x, y - cam_y, palette[color % PALETTE_SIZE]);
+    DrawPixel(x, y, palette[color % PALETTE_SIZE]);
 }
 
 int pget(int x, int y) {
     if (!pget_snapshot_valid) return 0;
-    // pget(x,y) reads the world-space coord the cart drew at, so apply camera
-    int rx = x - cam_x;
-    int ry = y - cam_y;
+    // pget(x,y) takes a WORLD coord and reads the screen pixel it landed on, so run it
+    // through the camera matrix. exact under translate; approximate under zoom/rotation
+    // (it samples the rendered canvas, which is the documented limitation).
+    Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
+    int rx = (int)s.x;
+    int ry = (int)s.y;
     if (rx < 0 || rx >= SCREEN_W || ry < 0 || ry >= SCREEN_H) return 0;
     // RT data is bottom-up in raylib; flip Y to match draw coords
     Color c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);
@@ -1003,9 +1025,27 @@ int pget(int x, int y) {
     return 0;
 }
 
+// push the current cam to the GPU. if we're mid-draw (inside BeginMode2D), restart
+// the 2D mode so a camera()/camera_ex() call takes effect for the rest of the frame.
+static void cam_reapply(void) {
+    if (cam_active) { EndMode2D(); BeginMode2D(cam); }
+}
+
 void camera(int x, int y) {
-    cam_x = x;
-    cam_y = y;
+    cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
+    cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
+    cam.zoom     = 1.0f;   // plain camera: camera() always means no zoom / no rotation
+    cam.rotation = 0.0f;
+    cam_reapply();
+}
+
+void camera_ex(int x, int y, float zoom, float angle) {
+    if (zoom < 0.01f) zoom = 0.01f;   // guard a degenerate / inverted matrix
+    cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
+    cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
+    cam.zoom     = zoom;
+    cam.rotation = angle;
+    cam_reapply();
 }
 
 void clip(int x, int y, int w, int h) {
@@ -1041,7 +1081,7 @@ void map(int cx, int cy, int sx, int sy, int cw, int ch) {
             if (v == 0) continue;  // cell 0 = empty (skipped)
             // pull a CELL_W×CELL_H rect from the sheet, blit it scaled to dw×dh (no smoothing)
             Rectangle src = { (float)((v % cols) * CELL_W), (float)((v / cols) * CELL_H), (float)CELL_W, (float)CELL_H };
-            Rectangle dst = { (float)(sx + xi * dw - cam_x), (float)(sy + yi * dh - cam_y), (float)dw, (float)dh };
+            Rectangle dst = { (float)(sx + xi * dw), (float)(sy + yi * dh), (float)dw, (float)dh };
             DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
         }
     }
@@ -1277,6 +1317,57 @@ int load_bytes(void *out, int max) {
     return n;
 }
 
+// named persistence — a small key→int table in cart.kv, parallel to the numbered slots above
+#define KV_MAX     64
+#define KV_KEYLEN  24
+static struct { char key[KV_KEYLEN]; int value; } kv_data[KV_MAX];
+static int  kv_count  = 0;
+static bool kv_loaded = false;
+
+static void kv_ensure(void) {
+    if (kv_loaded) return;
+    kv_loaded = true;
+    FILE *f = fopen("cart.kv", "rb");
+    if (!f) return;
+    int n = 0;
+    if (fread(&n, sizeof(int), 1, f) == 1 && n >= 0 && n <= KV_MAX) {
+        kv_count = (int)fread(kv_data, sizeof(kv_data[0]), n, f);
+    }
+    fclose(f);
+}
+
+static int kv_find(const char *key) {
+    for (int i = 0; i < kv_count; i++)
+        if (strncmp(kv_data[i].key, key, KV_KEYLEN) == 0) return i;
+    return -1;
+}
+
+void save_int(const char *key, int value) {
+    if (!key || !key[0]) return;
+    kv_ensure();
+    int i = kv_find(key);
+    if (i < 0) {
+        if (kv_count >= KV_MAX) return;   // table full — silently drop, like an out-of-range slot
+        i = kv_count++;
+        strncpy(kv_data[i].key, key, KV_KEYLEN - 1);
+        kv_data[i].key[KV_KEYLEN - 1] = '\0';
+    }
+    kv_data[i].value = value;
+    FILE *f = fopen("cart.kv", "wb");
+    if (f) {
+        fwrite(&kv_count, sizeof(int), 1, f);
+        fwrite(kv_data, sizeof(kv_data[0]), kv_count, f);
+        fclose(f);
+    }
+}
+
+int load_int(const char *key, int def) {
+    if (!key || !key[0]) return def;
+    kv_ensure();
+    int i = kv_find(key);
+    return i < 0 ? def : kv_data[i].value;
+}
+
 // ------------------------------------------------------------
 // frame timing, input, palette, fade/shake, extra drawing
 // ------------------------------------------------------------
@@ -1296,7 +1387,7 @@ int  text_width(const char *t) { return (int)strlen(t) * 8; }
 
 void print_scaled(const char *t, int x, int y, int color, int scale) {
     if (scale < 1) scale = 1;
-    DrawTextEx(game_font, t, (Vector2){ (float)(x - cam_x), (float)(y - cam_y) },
+    DrawTextEx(game_font, t, (Vector2){ (float)x, (float)y },
                8.0f * scale, 0, palette[color % PALETTE_SIZE]);
 }
 
@@ -1308,7 +1399,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
         float f = 1.0f - (float)(yy * yy) / (float)(ry * ry);
         if (f < 0) f = 0;
         int hw = (int)(rx * sqrtf(f) + 0.5f);
-        DrawRectangle(cx - hw - cam_x, cy + yy - cam_y, hw * 2 + 1, 1, c);
+        DrawRectangle(cx - hw, cy + yy, hw * 2 + 1, 1, c);
     }
 }
 void oval(int cx, int cy, int rx, int ry, int color) {
@@ -1320,7 +1411,7 @@ void oval(int cx, int cy, int rx, int ry, int color) {
         float a = (float)i / steps * 6.2831853f;
         int nx = cx + (int)(rx * cosf(a) + 0.5f);
         int ny = cy + (int)(ry * sinf(a) + 0.5f);
-        DrawLine(px - cam_x, py - cam_y, nx - cam_x, ny - cam_y, c);
+        DrawLine(px, py, nx, ny, c);
         px = nx; py = ny;
     }
 }
@@ -1450,12 +1541,12 @@ void turtle_move(float steps) {
     if (turtle.pen) {
         Color c = palette[turtle.color % PALETTE_SIZE];
         if (turtle.size <= 1) {
-            DrawLine((int)turtle.x - cam_x, (int)turtle.y - cam_y,
-                     (int)nx        - cam_x, (int)ny        - cam_y, c);
+            DrawLine((int)turtle.x, (int)turtle.y,
+                     (int)nx,        (int)ny,        c);
         } else {
             DrawLineEx(
-                (Vector2){ turtle.x - cam_x, turtle.y - cam_y },
-                (Vector2){ nx        - cam_x, ny        - cam_y },
+                (Vector2){ turtle.x, turtle.y },
+                (Vector2){ nx,       ny       },
                 (float)turtle.size, c);
         }
     }

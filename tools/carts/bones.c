@@ -12,15 +12,16 @@
 //
 //  TWO VIEWS share the preview (TAB to switch):
 //    ANIM — the sequencer grid (above).
-//    RIG  — set the LENGTH and WIDTH (1-4px) of each body part (left & right
-//           share one value), watching the figure re-proportion live.
+//    RIG  — set the LENGTH and WIDTH (odd 1-9px, so thickness stays centered
+//           on the bone) of each body part (left & right share one value),
+//           watching the figure re-proportion live.
 //
 //  The skeleton is forward-kinematic: a bone's stored angle is RELATIVE to
 //  its parent, so turning the torso swings everything attached.
 //
 //    TAB     switch ANIM <-> RIG          SPACE  play / stop
 //    arrows  ANIM: move cell · RIG: pick part + set length
-//    Z / X   ANIM: turn bone CCW/CW · RIG: part width 1-4 (also , / .)
+//    Z / X   ANIM: turn bone CCW/CW · RIG: part width 1-9 odd (also , / .)
 //    C       copy the previous frame      [ ] fps     - = loop length
 //    S / L   save / load (animation + proportions persist via save_bytes)
 //    mouse   click · wheel turns/resizes · DRAG a limb in the preview to pose
@@ -64,7 +65,7 @@ static const char *PNAME[NPARTS] = { "head","neck","upper torso","lower torso",
     "hip width","shoulder wid","upper arm","lower arm","hand","upper leg",
     "lower leg","foot" };
 static const int   PLEN0[NPARTS] = { 10,9,22,20,12,14,18,16,7,22,20,9 };   // length defaults
-static const int   PWID0[NPARTS] = { 2,1,3,3,2,2,2,2,1,2,2,1 };            // width defaults (1-4 px)
+static const int   PWID0[NPARTS] = { 3,1,5,5,3,3,3,3,1,3,3,1 };            // width defaults (odd 1-9 px)
 static const int   REGCOL[5]     = { CLR_LIGHT_GREY, CLR_BLUE, CLR_GREEN, CLR_ORANGE, CLR_PINK };
 static const char *HEX = "0123456789abcdef";
 
@@ -142,7 +143,7 @@ static void copy_prev(void) {
 
 // ── save / load (animation + proportions in one blob) ──
 typedef struct { int magic, fps, loopLen; unsigned char rot[NB][NF]; int partLen[NPARTS], partWid[NPARTS]; } Anim;
-#define MAGIC 0x424F4E33  // "BON3"
+#define MAGIC 0x424F4E34  // "BON4"
 static void save_anim(void) {
     Anim a = { MAGIC, fps, loopLen };
     for (int b = 0; b < NB; b++) for (int f = 0; f < NF; f++) a.rot[b][f] = rot[b][f];
@@ -157,7 +158,7 @@ static bool load_anim(void) {
     fps = mid(1, a.fps, 30);
     loopLen = mid(2, a.loopLen, NF);
     for (int b = 0; b < NB; b++) for (int f = 0; f < NF; f++) rot[b][f] = a.rot[b][f] & 15;
-    for (int p = 0; p < NPARTS; p++) { partLen[p] = mid(2, a.partLen[p], 40); partWid[p] = mid(1, a.partWid[p], 4); }
+    for (int p = 0; p < NPARTS; p++) { partLen[p] = mid(2, a.partLen[p], 40); partWid[p] = mid(1, a.partWid[p], 9) | 1; }  // |1 keeps width odd (centered)
     return true;
 }
 
@@ -222,8 +223,8 @@ void update(void) {
         if (keyp(KEY_DOWN))  selPart = (selPart + 1) % NPARTS;
         if (keyp(KEY_LEFT))  partLen[selPart] = max(2,  partLen[selPart] - 1);
         if (keyp(KEY_RIGHT)) partLen[selPart] = min(40, partLen[selPart] + 1);
-        if (keyp('Z') || keyp(',')) partWid[selPart] = max(1, partWid[selPart] - 1);
-        if (keyp('X') || keyp('.')) partWid[selPart] = min(4, partWid[selPart] + 1);
+        if (keyp('Z') || keyp(',')) partWid[selPart] = max(1, partWid[selPart] - 2);  // odd steps
+        if (keyp('X') || keyp('.')) partWid[selPart] = min(9, partWid[selPart] + 2);
 
         if (mouse_pressed(MOUSE_LEFT) && mx < 210 && my >= RY0 && my < RY0 + NPARTS * RRS)
             selPart = (my - RY0) / RRS;
@@ -249,15 +250,18 @@ void update(void) {
     if (saveMsg > 0) saveMsg -= dt();
 }
 
-// a thick line = parallel 1px strokes offset along the bone's perpendicular.
+// a thick line = a filled quad along the segment + rounded caps. Solid with no
+// gaps even on diagonals (parallel 1px strokes leave a checkerboard there), and
+// the round caps also close the notch where two bones bend at a joint.
 static void thickline(int x1, int y1, int x2, int y2, int wdt, int col) {
     if (wdt <= 1) { line(x1, y1, x2, y2, col); return; }
     float perp = angle_to(x1, y1, x2, y2) + 90.0f;
-    for (int i = 0; i < wdt; i++) {
-        int off = i - wdt / 2;
-        int ox = iround(dx((float)off, perp)), oy = iround(dy((float)off, perp));
-        line(x1 + ox, y1 + oy, x2 + ox, y2 + oy, col);
-    }
+    int half = wdt / 2;
+    int ox = iround(dx((float)half, perp)), oy = iround(dy((float)half, perp));
+    trifill(x1 - ox, y1 - oy, x1 + ox, y1 + oy, x2 - ox, y2 - oy, col);   // two tris = the band
+    trifill(x1 + ox, y1 + oy, x2 - ox, y2 - oy, x2 + ox, y2 + oy, col);
+    circfill(x1, y1, half, col);                                          // rounded caps / joints
+    circfill(x2, y2, half, col);
 }
 
 // ── shared figure preview ──
@@ -272,7 +276,7 @@ static void draw_preview(void) {
             thickline((int)xL[b], (int)yL[b], (int)xR[b], (int)yR[b], wdt, col);
         } else if (b == 0) {                                   // head: neck-stub + skull + eye
             thickline((int)stx[b], (int)sty[b], (int)jx[b], (int)jy[b], wdt, col);
-            circfill((int)jx[b], (int)jy[b], 3 + wdt, col);
+            circfill((int)jx[b], (int)jy[b], 3 + wdt / 2, col);
             pset((int)jx[b] - 2, (int)jy[b] - 1, CLR_BLACK);
         } else {
             thickline((int)stx[b], (int)sty[b], (int)jx[b], (int)jy[b], wdt, col);
@@ -332,7 +336,7 @@ static void draw_rig(void) {
     int hy = 184, hc = CLR_DARK_GREY;
     print("up/down  pick part", 216, hy,      hc);
     print("left/right  length", 216, hy + 8,  hc);
-    print("Z / X  width 1-4",   216, hy + 16, hc);
+    print("Z / X  width 1-9",   216, hy + 16, hc);
     print("wheel  length",      216, hy + 24, hc);
     print("SPACE  play / stop", 216, hy + 32, hc);
     print("S / L  save / load", 216, hy + 40, hc);

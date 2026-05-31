@@ -92,6 +92,9 @@ Consequences, all good:
 - **Flip.** For asymmetric shapes (trapezoid, triangle, half-circle) the "begin = thick/root
   end" convention is right for an arm (fat at shoulder → thin at elbow) but backwards for a
   tail/horn, so a per-stamp **`flip`** flag swaps which end is the root.
+- **Odd widths.** Because the silhouette is symmetric around a 1px centerline, thickness comes
+  in **odd** steps (1, 3, 5, 7, 9) — `r` pixels each side plus the center pixel — so there's no
+  half-pixel bias. (The realtime `bones` renderer already uses this odd-width convention.)
 
 ## The foundation: an offscreen-canvas primitive (the one real engine change)
 

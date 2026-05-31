@@ -648,5 +648,10 @@
     "title": "arcs",
     "description": "A tour of the arc primitives — arc (part of a circle's rim), arcfill (a filled pie wedge / sector), and ring (a thick radial band). Angles are degrees, 0=right and 90=down like dx/dy. Shows a pie chart, an animated radial cooldown that sweeps and counts %, a chomping pacman, a needle gauge, a fillp-dithered half-dome (fills honor the dither pattern), and a little rainbow of concentric rim arcs. No controls — it just animates.",
     "file": "arcs.cart.png"
+  },
+  {
+    "title": "flyover",
+    "description": "A third-person flight sim over a procedurally generated earth — three engine tricks fused into one sky. The ground is a mode-7 perlin-noise world sampled once per scanline (sea, beach, grass, forest, snowy peaks). Forests, mountains and whole cities of windowed buildings are billboards scattered across that world, projected with the same math and drawn far-to-near so they rise out of the terrain; clouds are billboards lifted into the sky. Your low-poly plane is a flat-shaded solid-3D model pinned to the foreground — it banks when you turn, pitches when you climb, and casts a dithered shadow on the ground. Free-flight sandbox: Left/Right turn (the plane banks into it), Up/Down steer the nose up/down to climb & dive, Z/X throttle.",
+    "file": "flyover.cart.png"
   }
 ]

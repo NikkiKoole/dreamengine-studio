@@ -92,6 +92,12 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     crowds, rich shapes, low-end). Centerline/pivot model, `pal()` recolor for free color
     variety, parts capped at 16px (native slot size). The path to scaling the `bones`
     animator past realtime drawing. [`design/baked-rotation-atlas.md`](design/baked-rotation-atlas.md).
+13. **Rasterization consistency** *(exploratory — point-fixes shipped, unified rule OPEN)* —
+    the engine rasterizes a shape three different ways (raylib GPU, CPU `*_pat` scanline,
+    per-pixel `sector_fill`) and they disagree at edges → seams, off-by-one, outline-vs-fill
+    mismatch (hit in arcs, solid3d, katamari). Each got a local fix; the real goal — *one*
+    coverage definition shared by fill/outline/dither/solid — isn't done.
+    [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

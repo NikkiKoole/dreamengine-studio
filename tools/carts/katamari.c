@@ -33,9 +33,22 @@ static int item_pattern(void) {
     int p[] = { FILL_SOLID, FILL_CHECKER, FILL_DOTS, FILL_HLINES, FILL_VLINES, FILL_DIAG, FILL_GRID };
     return rnd(10) < 7 ? p[rnd(7)] : rnd(0x10000);
 }
-// the pattern's 1-bit color — usually a 2nd item color, sometimes see-through
-static int item_hole(void) {
-    return rnd(8) == 0 ? -1 : item_color();
+// a darker companion shade per base color, so the dither reads as shading
+// (a lit sphere/box) instead of two clashing random colors.
+static int shade_of(int col) {
+    switch (col) {
+        case CLR_RED:         return CLR_DARK_RED;
+        case CLR_ORANGE:      return CLR_DARK_ORANGE;
+        case CLR_YELLOW:      return CLR_ORANGE;
+        case CLR_GREEN:       return CLR_MEDIUM_GREEN;
+        case CLR_BLUE:        return CLR_TRUE_BLUE;
+        case CLR_PINK:        return CLR_MAUVE;
+        case CLR_LIGHT_PEACH: return CLR_DARK_PEACH;
+        case CLR_LIME_GREEN:  return CLR_MEDIUM_GREEN;
+        case CLR_MAUVE:       return CLR_DARKER_PURPLE;
+        case CLR_DARK_PURPLE: return CLR_DARKER_PURPLE;
+        default:              return CLR_DARK_GREY;
+    }
 }
 
 static void scatter(void) {
@@ -44,8 +57,9 @@ static void scatter(void) {
         int sz = tier < 6 ? rnd_between(2, 6)       // mostly tiny
                : tier < 9 ? rnd_between(8, 16)      // some medium
                           : rnd_between(20, 40);    // a few big
+        int col = item_color();
         items[i] = (Item){ rnd_between(16, KW - 16), rnd_between(16, KH - 16),
-                           sz, item_color(), rnd(2), item_pattern(), item_hole(), true };
+                           sz, col, rnd(2), item_pattern(), shade_of(col), true };
     }
 }
 
@@ -91,18 +105,23 @@ void update(void) {
     }
 }
 
-static void shape_at(int x, int y, int s, int shape, int col, int pat, int hole) {
-    if (pat != FILL_SOLID) fillp(pat, hole);
+static void shape_at(int x, int y, int s, int shape, int col, int pat, int shade) {
+    // ONE dithered shape — base color on the pattern's 0-bits, a darker shade of
+    // itself on the 1-bits. Both are the item's own colors and it's a single fill,
+    // so the silhouette stays clean (no second shape behind, nothing pokes out).
+    bool dith = (pat != FILL_SOLID && shade != col);
+    if (dith) fillp(pat, shade);
     if (shape == 0) circfill(x, y, s, col);
     else            rectfill(x - s, y - s, s * 2, s * 2, col);
-    if (pat != FILL_SOLID) fillp_reset();
+    if (dith) fillp_reset();
 }
 
-// a 1px outline that matches the item's shape (circle ring / square border),
-// hugging the fill — for marking items too big to roll up.
-static void outline_at(int x, int y, int s, int shape, int col) {
-    if (shape == 0) circ(x, y, s, col);
-    else            rect(x - s, y - s, s * 2, s * 2, col);
+// the "too big to eat" marker: a slightly larger SOLID shape drawn BEHIND the
+// fill, so the fill (even dithered) sits on top and leaves a clean 1px ring.
+// matches the fill's own shape exactly — no stroke-vs-fill rasterizer mismatch.
+static void backing(int x, int y, int s, int shape, int col) {
+    if (shape == 0) circfill(x, y, s + 1, col);
+    else            rectfill(x - s - 1, y - s - 1, (s + 1) * 2, (s + 1) * 2, col);
 }
 
 void draw(void) {
@@ -117,9 +136,11 @@ void draw(void) {
     // items
     for (int i = 0; i < NITEMS; i++) {
         if (!items[i].alive) continue;
+        // every item gets a crisp 1px outline (a darker shade of itself); the ones
+        // too big to roll up get a dark-grey ring instead, as the marker.
+        int ring = items[i].size > r * 0.9f ? CLR_DARK_GREY : items[i].hole;
+        backing((int)items[i].x, (int)items[i].y, items[i].size, items[i].shape, ring);
         shape_at((int)items[i].x, (int)items[i].y, items[i].size, items[i].shape, items[i].col, items[i].pat, items[i].hole);
-        if (items[i].size > r * 0.9f)                          // mark the ones too big to eat
-            outline_at((int)items[i].x, (int)items[i].y, items[i].size, items[i].shape, CLR_DARK_GREY);
     }
 
     // the katamari: dirt ball + everything stuck to it

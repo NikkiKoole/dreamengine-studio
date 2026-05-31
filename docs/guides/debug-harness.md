@@ -93,6 +93,22 @@ beat 4  tap A     # at beat 4 tap A briefly (default 0.12 beat)
 frame 900 down L  # raw frame events still work and pass through
 ```
 
+### Mouse (point-and-click carts)
+
+Record/replay capture the **mouse** too (canvas-space pointer + L/R/M buttons), and
+a raw frame-script (`<name> script file.script`) can drive it:
+
+```
+move  100 160 120      # move the pointer to canvas (160,120) at frame 100
+click 120 204 135      # at frame 120: move there + left-click (a 4th arg: 1=right 2=middle)
+down  130 N            # keys still work alongside (open the notebook)
+up    132 N
+click 165 160 100      # click to close it
+```
+
+That makes mouse-driven carts (neon rain, the economy game, …) fully scriptable and
+replayable — `mouse_x/y/mouse_pressed` all read the injected pointer under replay.
+
 ---
 
 ## The three ways to "play together"

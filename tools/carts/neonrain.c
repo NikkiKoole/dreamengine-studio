@@ -254,24 +254,24 @@ static int build_hotspots(Hot *a) {
                                           "a desk drawer",             A_DRAWER);
         if (!has(F_MATCH))
             add_hot(a, &n, 176, 156, 16, 12, V_TAKE, "a matchbook",    A_MATCH);
-        add_hot(a, &n, 2,   168, 30, 30, V_GO,   "back to the street", A_GO_STREET);
+        add_hot(a, &n, 2,   150, 30, 30, V_GO,   "back to the street", A_GO_STREET);
         break;
     case SC_BAR:
         add_hot(a, &n, 132, 70,  52, 56, V_TALK, "Silas, the barman",  A_SILAS);
         add_hot(a, &n, 30,  44,  130,28, V_LOOK, "the back bar",       A_BOTTLES);
-        add_hot(a, &n, 2,   168, 30, 30, V_GO,   "back to the street", A_GO_STREET);
+        add_hot(a, &n, 2,   150, 30, 30, V_GO,   "back to the street", A_GO_STREET);
         break;
     case SC_ALLEY:
         add_hot(a, &n, 214, 78,  48, 70, V_TALK, "a figure in shadow", A_INFORMANT);
         if (!has(F_KEY))
             add_hot(a, &n, 96, 158, 30, 16, V_TAKE, "a glint in the puddle", A_KEY);
-        add_hot(a, &n, 2,   168, 30, 30, V_GO,   "back to the street", A_GO_STREET);
+        add_hot(a, &n, 2,   150, 30, 30, V_GO,   "back to the street", A_GO_STREET);
         break;
     case SC_OFFICE:
         add_hot(a, &n, 188, 36,  118,76, V_USE,  "the evidence board", A_ACCUSE);
         add_hot(a, &n, 40,  140, 44, 24, V_LOOK, "my case notebook",   A_NOTEBOOK);
         add_hot(a, &n, 110, 136, 16, 26, V_LOOK, "a bottle of rye",    A_WHISKEY);
-        add_hot(a, &n, 2,   168, 30, 30, V_GO,   "out into the rain",  A_GO_STREET);
+        add_hot(a, &n, 2,   150, 30, 30, V_GO,   "out into the rain",  A_GO_STREET);
         break;
     }
     return n;
@@ -390,6 +390,12 @@ void update(void) {
     update_rain();
     music_bed();
     if (trans > 0) trans -= dt() * 2.2f;
+#ifdef DE_TRACE
+    watch("scene", "%d", g_scene);   // 0 street 1 apt 2 bar 3 alley 4 office
+    watch("state", "%d", g_state);   // 0 title 1 play 2 msg 3 dlg 4 note 5 accuse 6 end
+    watch("held",  "%d", held);
+    watch("mouse", "%d,%d", mouse_x(), mouse_y());
+#endif
 
     bool click = mouse_pressed(MOUSE_LEFT);
     bool ok    = btnp(0, BTN_A) || keyp(KEY_SPACE) || keyp(KEY_ENTER);
@@ -477,6 +483,8 @@ void update(void) {
             return;
         }
         if (hov_act) {
+            // leaving a scene always works and drops any held item — never get trapped
+            if (hov_verb == V_GO) { do_action(hov_act); return; }
             // using the key on the drawer is the one real combine
             if (held == HELD_KEY && hov_act != A_DRAWER) { show_msg("The key doesn't fit there.", 0, CLR_LIGHT_GREY); return; }
             if (held == HELD_MATCH) { show_msg("Striking a match here proves nothing.", 0, CLR_LIGHT_GREY); held = HELD_NONE; return; }
@@ -673,8 +681,8 @@ static void draw_apt(void) {
     }
 
     // exit arrow
-    rectfill(2, 168, 30, 30, CLR_BLACK); rect(2, 168, 30, 30, CLR_DARK_GREY);
-    print("<<", 8, 178, CLR_LIGHT_GREY);
+    rectfill(2, 150, 30, 30, CLR_BLACK); rect(2, 150, 30, 30, CLR_DARK_GREY);
+    print("<<", 8, 160, CLR_LIGHT_GREY);
 }
 
 static void draw_bar(void) {
@@ -700,8 +708,8 @@ static void draw_bar(void) {
     rectfill(0, 138, SCREEN_W, SCREEN_H - 138, CLR_BROWNISH_BLACK);
     fillp(FILL_VLINES, -1); rectfill(0, 138, SCREEN_W, 30, ACCENT[SC_BAR]); fillp_reset();
 
-    rectfill(2, 168, 30, 30, CLR_BLACK); rect(2, 168, 30, 30, CLR_DARK_GREY);
-    print("<<", 8, 178, CLR_LIGHT_GREY);
+    rectfill(2, 150, 30, 30, CLR_BLACK); rect(2, 150, 30, 30, CLR_DARK_GREY);
+    print("<<", 8, 160, CLR_LIGHT_GREY);
 }
 
 static void draw_alley(void) {
@@ -736,8 +744,8 @@ static void draw_alley(void) {
     draw_bust(238, 96, CLR_BROWNISH_BLACK, CLR_DARKER_GREY, ACCENT[SC_ALLEY], true);
     if (blink(40)) circfill(228, 104, 1, CLR_ORANGE);      // cigarette glow
 
-    rectfill(2, 168, 30, 30, CLR_BLACK); rect(2, 168, 30, 30, CLR_DARK_GREY);
-    print("<<", 8, 178, CLR_LIGHT_GREY);
+    rectfill(2, 150, 30, 30, CLR_BLACK); rect(2, 150, 30, 30, CLR_DARK_GREY);
+    print("<<", 8, 160, CLR_LIGHT_GREY);
 }
 
 static void draw_office(void) {
@@ -779,8 +787,8 @@ static void draw_office(void) {
     rectfill(112, 136, 8, 26, CLR_DARK_ORANGE); rect(112, 136, 8, 26, CLR_BROWNISH_BLACK);
     rectfill(114, 132, 4, 6, CLR_DARK_GREY);
 
-    rectfill(2, 168, 30, 30, CLR_BLACK); rect(2, 168, 30, 30, CLR_DARK_GREY);
-    print("<<", 8, 178, CLR_LIGHT_GREY);
+    rectfill(2, 150, 30, 30, CLR_BLACK); rect(2, 150, 30, 30, CLR_DARK_GREY);
+    print("<<", 8, 160, CLR_LIGHT_GREY);
 }
 
 // ── overlays / HUD ───────────────────────────────────────────────────────────
@@ -870,7 +878,6 @@ static void draw_dialogue(void) {
 }
 
 static void draw_notebook(void) {
-    fade(0.5f);
     int w = 240, h = 150, bx = (SCREEN_W - w) / 2, by = 24;
     dither_panel(bx, by, w, h, CLR_LIGHT_YELLOW);
     print_centered("CASE NOTES - MARA VANCE", by + 8, CLR_LIGHT_YELLOW);
@@ -884,7 +891,6 @@ static void draw_notebook(void) {
 }
 
 static void draw_accuse(void) {
-    fade(0.55f);
     int w = 250, h = 130, bx = (SCREEN_W - w) / 2, by = 40;
     dither_panel(bx, by, w, h, CLR_RED);
     print_centered("NAME THE KILLER", by + 6, CLR_RED);
@@ -949,7 +955,12 @@ void draw(void) {
     fog_band(150, 40, ACCENT2[g_scene]);
     draw_rain(ACCENT[g_scene]);
     vignette();
-    if (trans > 0) fade(clamp(trans, 0, 1));    // fade-in on travel
+    // overlay dim — set EVERY frame so a modal panel's dim can't stick after it
+    // closes (fade is author-owned sticky state; the engine never clears it).
+    float dim = (trans > 0) ? clamp(trans, 0, 1) : 0.0f;   // fade-in on travel
+    if (g_state == ST_NOTE)   dim = 0.5f;                   // notebook dims the scene
+    if (g_state == ST_ACCUSE) dim = 0.55f;                  // accuse panel dims harder
+    fade(dim);
 
     // hovered hotspot glint
     if (g_state == ST_PLAY && hov_act && blink(14)) {

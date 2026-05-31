@@ -85,6 +85,8 @@ static bool            web_started      = false;  // true after the user clicks 
 // Enabled by CLI flags parsed in main(): --det, --record, --replay,
 // --script, --trace, --frames, --dump/--dump-every. See loop_step().
 // ------------------------------------------------------------
+static int raylib_mouse_button(int button);   // defined in the mouse api section
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 #ifndef PLATFORM_WEB
 #define DET_DT      (1.0 / 60.0)         // fixed timestep when det_mode is on
 #define KEYSTATE_N  512                  // raylib MAX_KEYBOARD_KEYS
@@ -92,15 +94,21 @@ static bool            web_started      = false;  // true after the user clicks 
 static bool    det_mode      = false;    // fixed dt + seeded RNG -> reproducible runs
 static double  det_clock     = 0.0;      // synthetic now() seconds, advances DET_DT/frame
 
-static bool    inject_input  = false;    // drive input from replay_ev instead of the keyboard
+static bool    inject_input  = false;    // drive input from replay_ev instead of the hardware
 static unsigned char key_inject[KEYSTATE_N];       // 1 = key down this frame
 static unsigned char key_inject_prev[KEYSTATE_N];  // previous frame (for press edges)
+static int           mouse_inj_x = 0, mouse_inj_y = 0;   // injected canvas-space pointer
+static unsigned char mbtn_inj[3], mbtn_inj_prev[3];      // injected mouse buttons (L/R/M)
 
-static FILE   *rec_file       = NULL;    // --record: "<frame> <key> <down>" per change
+static FILE   *rec_file       = NULL;    // --record: tagged "<frame> k|m|b ..." per change
 static unsigned char key_rec_prev[KEYSTATE_N];     // last recorded down-state per key
+static int           mouse_rec_px = -1, mouse_rec_py = -1;  // last recorded pointer
+static unsigned char mbtn_rec_prev[3];             // last recorded button states
 
-typedef struct { int frame; int key; int down; } InputEvent;
-static InputEvent *replay_ev  = NULL;    // sorted by frame
+// kind: 0 = key (a=keycode, b=down), 1 = mouse-move (a=x, b=y),
+//       2 = mouse-button (a=button index 0/1/2, b=down)
+typedef struct { int frame; int kind; int a; int b; } InputEvent;
+static InputEvent *replay_ev  = NULL;    // sorted by (frame, kind)
 static int         replay_n   = 0;
 static int         replay_i   = 0;       // next event to apply
 
@@ -112,8 +120,13 @@ static int     max_frames     = 0;       // --frames: stop after N frames (0 = r
 // synthetic clock: deterministic runs read frame-derived time, not the wall clock
 static double clk(void) { return det_mode ? det_clock : GetTime(); }
 
-// input indirection — every key()/keyp()/btn() read funnels through these so a
-// replay/script can inject state and a recorder can observe it.
+// normalize a public MOUSE_* button to a 0/1/2 index (matches raylib_mouse_button)
+static int mbtn_index(int button) {
+    return button == MOUSE_RIGHT ? 1 : button == MOUSE_MIDDLE ? 2 : 0;
+}
+
+// input indirection — every key()/keyp()/btn()/mouse_*() read funnels through these
+// so a replay/script can inject state and a recorder can observe it.
 static bool inp_down(int k) {
     if (inject_input) return (k >= 0 && k < KEYSTATE_N) ? key_inject[k] != 0 : false;
     return IsKeyDown(k);
@@ -123,11 +136,39 @@ static bool inp_pressed(int k) {
         return (k >= 0 && k < KEYSTATE_N) ? (key_inject[k] && !key_inject_prev[k]) : false;
     return IsKeyPressed(k);
 }
+static int inp_mouse_x(void) {
+    if (inject_input) return clampi(mouse_inj_x, 0, SCREEN_W - 1);
+    return clampi((int)(GetMousePosition().x / SCALE), 0, SCREEN_W - 1);
+}
+static int inp_mouse_y(void) {
+    if (inject_input) return clampi(mouse_inj_y, 0, SCREEN_H - 1);
+    return clampi((int)(GetMousePosition().y / SCALE), 0, SCREEN_H - 1);
+}
+static bool inp_mouse_down(int button) {
+    int b = mbtn_index(button);
+    if (inject_input) return mbtn_inj[b] != 0;
+    return IsMouseButtonDown(raylib_mouse_button(button));
+}
+static bool inp_mouse_pressed(int button) {
+    int b = mbtn_index(button);
+    if (inject_input) return mbtn_inj[b] && !mbtn_inj_prev[b];
+    return IsMouseButtonPressed(raylib_mouse_button(button));
+}
+static bool inp_mouse_released(int button) {
+    int b = mbtn_index(button);
+    if (inject_input) return !mbtn_inj[b] && mbtn_inj_prev[b];
+    return IsMouseButtonReleased(raylib_mouse_button(button));
+}
 #else
 // web build: harness is a no-op, input goes straight to raylib
 static double clk(void) { return GetTime(); }
 static bool inp_down(int k)    { return IsKeyDown(k); }
 static bool inp_pressed(int k) { return IsKeyPressed(k); }
+static int  inp_mouse_x(void)  { return clampi((int)(GetMousePosition().x / SCALE), 0, SCREEN_W - 1); }
+static int  inp_mouse_y(void)  { return clampi((int)(GetMousePosition().y / SCALE), 0, SCREEN_H - 1); }
+static bool inp_mouse_down(int b)     { return IsMouseButtonDown(raylib_mouse_button(b)); }
+static bool inp_mouse_pressed(int b)  { return IsMouseButtonPressed(raylib_mouse_button(b)); }
+static bool inp_mouse_released(int b) { return IsMouseButtonReleased(raylib_mouse_button(b)); }
 #endif
 
 // ------------------------------------------------------------
@@ -439,20 +480,29 @@ __attribute__((weak)) void update(void) {}
 // (== frame_count before its end-of-frame increment), so it lines up between a
 // --record run and the --replay that feeds the events back.
 static void harness_input(int fno) {
-    if (inject_input) {                                  // replay/script drives the keys
+    if (inject_input) {                                  // replay/script drives keys + mouse
         memcpy(key_inject_prev, key_inject, sizeof key_inject);
+        memcpy(mbtn_inj_prev,   mbtn_inj,   sizeof mbtn_inj);
         while (replay_i < replay_n && replay_ev[replay_i].frame <= fno) {
             InputEvent e = replay_ev[replay_i++];
-            if (e.key >= 0 && e.key < KEYSTATE_N) key_inject[e.key] = (unsigned char)(e.down ? 1 : 0);
+            if      (e.kind == 0) { if (e.a >= 0 && e.a < KEYSTATE_N) key_inject[e.a] = (unsigned char)(e.b ? 1 : 0); }
+            else if (e.kind == 1) { mouse_inj_x = e.a; mouse_inj_y = e.b; }
+            else if (e.kind == 2) { if (e.a >= 0 && e.a < 3) mbtn_inj[e.a] = (unsigned char)(e.b ? 1 : 0); }
         }
     }
-    if (rec_file) {                                      // log live key changes for later replay
+    if (rec_file) {                                      // log live key + mouse changes for replay
         for (int k = 0; k < KEYSTATE_N; k++) {
             unsigned char d = IsKeyDown(k) ? 1 : 0;
-            if (d != key_rec_prev[k]) {
-                fprintf(rec_file, "%d %d %d\n", fno, k, d);
-                key_rec_prev[k] = d;
-            }
+            if (d != key_rec_prev[k]) { fprintf(rec_file, "%d k %d %d\n", fno, k, d); key_rec_prev[k] = d; }
+        }
+        int mx = inp_mouse_x(), my = inp_mouse_y();
+        if (mx != mouse_rec_px || my != mouse_rec_py) {
+            fprintf(rec_file, "%d m %d %d\n", fno, mx, my); mouse_rec_px = mx; mouse_rec_py = my;
+        }
+        static const int BTNS[3] = { MOUSE_LEFT, MOUSE_RIGHT, MOUSE_MIDDLE };
+        for (int b = 0; b < 3; b++) {
+            unsigned char d = IsMouseButtonDown(raylib_mouse_button(BTNS[b])) ? 1 : 0;
+            if (d != mbtn_rec_prev[b]) { fprintf(rec_file, "%d b %d %d\n", fno, b, d); mbtn_rec_prev[b] = d; }
         }
         fflush(rec_file);                                // per-frame flush so a live tail sees it
     }
@@ -629,49 +679,72 @@ static int key_code(const char *tok) {
     return -1;
 }
 
-static void ev_push(int frame, int key, int down) {
-    if (key < 0) return;
+static void ev_push(int frame, int kind, int a, int b) {
     static int cap = 0;
     if (replay_n >= cap) {
         cap = cap ? cap * 2 : 256;
         replay_ev = realloc(replay_ev, (size_t)cap * sizeof(InputEvent));
     }
-    replay_ev[replay_n++] = (InputEvent){ frame, key, down };
+    replay_ev[replay_n++] = (InputEvent){ frame, kind, a, b };
 }
+static void ev_key(int frame, int kc, int down) { if (kc >= 0) ev_push(frame, 0, kc, down); }
 
+// sort by frame, then by kind so a mouse-move (1) applies before a button (2) in
+// the same frame — the cursor is in place when the click registers.
 static int ev_cmp(const void *a, const void *b) {
-    return ((const InputEvent *)a)->frame - ((const InputEvent *)b)->frame;
+    const InputEvent *x = a, *y = b;
+    return x->frame != y->frame ? x->frame - y->frame : x->kind - y->kind;
 }
 
-// --replay: the raw recorder format, "<frame> <keycode> <down>" per line.
+// --replay: the recorder's tagged format, one event per line:
+//   <frame> k <keycode> <down>     key
+//   <frame> m <x> <y>              mouse move (canvas space)
+//   <frame> b <button 0|1|2> <down>   mouse button (L/R/M)
 static void load_replay(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) { fprintf(stderr, "harness: cannot open replay %s\n", path); return; }
-    int frame, key, down;
-    while (fscanf(f, "%d %d %d", &frame, &key, &down) == 3) ev_push(frame, key, down);
+    char line[128];
+    while (fgets(line, sizeof line, f)) {
+        int frame, x, y; char tag;
+        if (sscanf(line, "%d %c %d %d", &frame, &tag, &x, &y) != 4) continue;
+        if      (tag == 'k') ev_push(frame, 0, x, y);
+        else if (tag == 'm') ev_push(frame, 1, x, y);
+        else if (tag == 'b') ev_push(frame, 2, x, y);
+    }
     fclose(f);
     qsort(replay_ev, replay_n, sizeof(InputEvent), ev_cmp);
 }
 
-// --script: a human-authored input plan. One directive per line:
-//   down <frame> <key>          press
-//   up   <frame> <key>          release
-//   tap  <frame> <key> [dur]    press then release dur frames later (default 6)
-//   # ... and blank lines are ignored
-// <key> is a single char (a,s,k,l,space-as-' ') or a name (SPACE, LEFT, ...).
+// --script: a human-authored input plan. One directive per line (# = comment):
+//   down/up <frame> <key>          key press / release
+//   tap     <frame> <key> [dur]    press then release dur frames later (default 6)
+//   move    <frame> <x> <y>        move the pointer to canvas (x,y)
+//   click   <frame> <x> <y> [btn]  move there, then a left-click (btn 1=right,2=mid)
+// <key> is a single char (a,s,k,l) or a name (SPACE, LEFT, ...).
 static void load_script(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) { fprintf(stderr, "harness: cannot open script %s\n", path); return; }
     char line[256];
     while (fgets(line, sizeof line, f)) {
-        char cmd[32], key[32]; int frame, dur = 6;
+        char cmd[32], key[32]; int frame, p = 6, q = 0;
         if (line[0] == '#' || line[0] == '\n') continue;
-        int got = sscanf(line, "%31s %d %31s %d", cmd, &frame, key, &dur);
-        if (got < 3) continue;
-        int kc = key_code(key);
-        if      (!strcmp(cmd, "down")) ev_push(frame, kc, 1);
-        else if (!strcmp(cmd, "up"))   ev_push(frame, kc, 0);
-        else if (!strcmp(cmd, "tap"))  { ev_push(frame, kc, 1); ev_push(frame + dur, kc, 0); }
+        if (sscanf(line, "%31s %d %31s %d", cmd, &frame, key, &p) >= 3 &&
+            (!strcmp(cmd,"down")||!strcmp(cmd,"up")||!strcmp(cmd,"tap"))) {
+            int kc = key_code(key);
+            if      (!strcmp(cmd, "down")) ev_key(frame, kc, 1);
+            else if (!strcmp(cmd, "up"))   ev_key(frame, kc, 0);
+            else                           { ev_key(frame, kc, 1); ev_key(frame + p, kc, 0); }
+            continue;
+        }
+        if (sscanf(line, "%31s %d %d %d", cmd, &frame, &p, &q) >= 4) {
+            int btn = 0; sscanf(line, "%*s %*d %*d %*d %d", &btn);   // optional 4th arg for click
+            if      (!strcmp(cmd, "move"))  ev_push(frame, 1, p, q);
+            else if (!strcmp(cmd, "click")) {
+                ev_push(frame, 1, p, q);              // pointer to (x,y)
+                ev_push(frame, 2, btn & 3, 1);        // button down
+                ev_push(frame + 3, 2, btn & 3, 0);    // button up 3 frames later
+            }
+        }
     }
     fclose(f);
     qsort(replay_ev, replay_n, sizeof(InputEvent), ev_cmp);
@@ -886,17 +959,11 @@ static int raylib_mouse_button(int button) {
         default:           return MOUSE_BUTTON_LEFT;
     }
 }
-int mouse_x(void) {
-    int x = (int)(GetMousePosition().x / SCALE);
-    return mid(0, x, SCREEN_W - 1);
-}
-int mouse_y(void) {
-    int y = (int)(GetMousePosition().y / SCALE);
-    return mid(0, y, SCREEN_H - 1);
-}
-bool mouse_down(int button)     { return IsMouseButtonDown(raylib_mouse_button(button)); }
-bool mouse_pressed(int button)  { return IsMouseButtonPressed(raylib_mouse_button(button)); }
-bool mouse_released(int button) { return IsMouseButtonReleased(raylib_mouse_button(button)); }
+int mouse_x(void) { return inp_mouse_x(); }
+int mouse_y(void) { return inp_mouse_y(); }
+bool mouse_down(int button)     { return inp_mouse_down(button); }
+bool mouse_pressed(int button)  { return inp_mouse_pressed(button); }
+bool mouse_released(int button) { return inp_mouse_released(button); }
 float mouse_wheel(void)         { return GetMouseWheelMove(); }
 int mouse_world_x(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).x; }
 int mouse_world_y(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).y; }

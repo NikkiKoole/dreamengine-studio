@@ -33,6 +33,9 @@
 #define MH 18
 #define WORLD_W (MW * 16)
 #define WORLD_H (MH * 16)
+#define CAM_ZOOM 1.14f   // slight zoom in — the HM look, and overscan that hides the tilt's corner gaps
+#define CAM_TILT 2.5f    // subtle constant world rotation (degrees), à la Hotline Miami
+#define CAM_BORDER 40    // let the camera overscan the map by this much, so the neon field shows around the room
 
 // ---- sprite + magic recolor ----
 #define SPR_GUY    0
@@ -96,6 +99,7 @@ static float combo_t, flash_t, time_scale;
 static int   freeze;
 static bool  cleared;
 static int   cam_x, cam_y;
+static bool  cheat = false;   // C toggles: unlimited ammo (+ auto-arm) for testing
 static int   last_step = -1;
 static float clear_t;
 
@@ -114,6 +118,13 @@ static int enemies_left(void) {
     int n = 0;
     for (int i = 0; i < MAXENE; i++) if (enes[i].on) n++;
     return n;
+}
+
+// any living enemy actively chasing = "spotted" → the music goes hectic
+static bool any_chasing(void) {
+    for (int i = 0; i < MAXENE; i++)
+        if (enes[i].on && enes[i].down_t <= 0 && enes[i].state == S_CHASE) return true;
+    return false;
 }
 
 static bool passable_px(float x, float y) {
@@ -467,15 +478,20 @@ static void update_play(void) {
     if (combo_t > 0) { combo_t -= dt(); if (combo_t <= 0) combo = 0; }
     if (cleared) clear_t += dt();
 
-    int wmx = mouse_x() + cam_x, wmy = mouse_y() + cam_y;
+    // cheat: press C for unlimited ammo (auto-arms an uzi if you're on the bat)
+    if (keyp('C')) cheat = !cheat;
+    if (cheat && pl.alive) {
+        if (pl.weapon == W_BAT) pl.weapon = W_UZI;
+        pl.ammo = 999;
+    }
 
     // ---- player ----
     if (pl.alive) {
-        pl.aim = angle_to((int)pl.x, (int)pl.y, wmx, wmy);
         if (pl.swing > 0)   pl.swing  -= d;
         if (pl.fire_cd > 0) pl.fire_cd -= d;
         if (pl.muzzle > 0)  pl.muzzle -= d;
 
+        // move FIRST, so the camera + aim below reflect where the player actually is
         int mvx = (key('D') ? 1 : 0) - (key('A') ? 1 : 0);
         int mvy = (key('S') ? 1 : 0) - (key('W') ? 1 : 0);
         if (mvx || mvy) {
@@ -483,6 +499,15 @@ static void update_play(void) {
             float step = 80.0f * d;
             move_axis(&pl.x, &pl.y, pl.x + dx(step, a), pl.y + dy(step, a));
         }
+
+        // Set the camera HERE in update(), from the just-moved position, BEFORE reading
+        // the world-mouse. draw() ends with camera(0,0) for the HUD, so without this the
+        // mouse_world_*() below would invert the IDENTITY camera (= raw screen coords)
+        // and the aim drifts off as the world scrolls. (Same trap as the worldpointer cart.)
+        cam_x = (int)clamp(pl.x - SCREEN_W / 2, -CAM_BORDER, WORLD_W - SCREEN_W + CAM_BORDER);
+        cam_y = (int)clamp(pl.y - SCREEN_H / 2, -CAM_BORDER, WORLD_H - SCREEN_H + CAM_BORDER);
+        camera_ex(cam_x, cam_y, CAM_ZOOM, CAM_TILT);
+        pl.aim = angle_to((int)pl.x, (int)pl.y, mouse_world_x(), mouse_world_y());
 
         // attack
         if (pl.weapon == W_BAT) {
@@ -648,8 +673,9 @@ static void update_play(void) {
         }
     }
 
-    // ---- the music bed ----
-    music_tick(true);
+    // ---- the music bed ---- calm (bass + soft arp) until you're spotted, then the
+    // full hectic kit (kick/snare/hats + brighter arp) kicks in
+    music_tick(any_chasing());
 }
 
 // =====================================================================
@@ -692,12 +718,16 @@ void update(void) {
 // =====================================================================
 
 static void floor_tint(int n) {
-    if (n == 1) {                                   // cyan
+    // the floor base is the very-dark idx 18 (DARKER_PURPLE) — lift it on every floor so
+    // the room reads bright/neon instead of murky. (tune these CLR_* to taste)
+    if (n == 0) {                                   // neon indigo/magenta
+        pal(CLR_DARKER_PURPLE, CLR_INDIGO);  pal(CLR_DARK_PURPLE, CLR_MAUVE);
+    } else if (n == 1) {                            // cyan
         pal(CLR_PINK, CLR_BLUE); pal(CLR_DARK_PURPLE, CLR_BLUE_GREEN);
-        pal(CLR_DARKER_PURPLE, CLR_DARKER_BLUE);
+        pal(CLR_DARKER_PURPLE, CLR_TRUE_BLUE);
     } else if (n == 2) {                            // hot red
         pal(CLR_PINK, CLR_ORANGE); pal(CLR_DARK_PURPLE, CLR_DARK_RED);
-        pal(CLR_DARKER_PURPLE, CLR_BROWNISH_BLACK);
+        pal(CLR_DARKER_PURPLE, CLR_DARK_RED);
     }
 }
 
@@ -729,9 +759,9 @@ static void draw_guy(float fx, float fy, float aim, int shirt, bool down, int we
 }
 
 static void draw_world(void) {
-    cam_x = (int)clamp(pl.x - SCREEN_W / 2, 0, WORLD_W - SCREEN_W);
-    cam_y = (int)clamp(pl.y - SCREEN_H / 2, 0, WORLD_H - SCREEN_H);
-    camera(cam_x, cam_y);
+    cam_x = (int)clamp(pl.x - SCREEN_W / 2, -CAM_BORDER, WORLD_W - SCREEN_W + CAM_BORDER);
+    cam_y = (int)clamp(pl.y - SCREEN_H / 2, -CAM_BORDER, WORLD_H - SCREEN_H + CAM_BORDER);
+    camera_ex(cam_x, cam_y, CAM_ZOOM, CAM_TILT);
 
     floor_tint(cur_floor);
     map(0, 0, 0, 0, MW, MH);
@@ -826,9 +856,10 @@ static void draw_hud(void) {
     const char *wn = WNAME[pl.weapon];
     if (pl.weapon == W_BAT) print(wn, SCREEN_W / 2 - text_width(wn) / 2, SCREEN_H - 10, CLR_LIGHT_GREY);
     else {
-        const char *t = str("%s  %d", wn, pl.ammo);
+        const char *t = cheat ? str("%s  INF", wn) : str("%s  %d", wn, pl.ammo);
         print(t, SCREEN_W / 2 - text_width(t) / 2, SCREEN_H - 10, pl.ammo > 0 ? CLR_YELLOW : CLR_RED);
     }
+    if (cheat) print_centered("CHEAT: UNLIMITED AMMO", 30, CLR_GREEN);
 
     // combo multiplier pop
     if (combo > 1) {
@@ -861,8 +892,25 @@ static void panel(const char *title, int tcol, const char *l1, const char *l2, c
     if (l3) print_centered(l3, y + 76, blink(24) ? CLR_YELLOW : CLR_LIGHT_GREY);
 }
 
+// the abstract neon space the room floats in — a slow two-colour dither field that
+// drifts from one colour to the next over time (the Hotline-Miami void). screen-space.
+static void draw_bg(void) {
+    static const int field[] = { CLR_DARKER_BLUE, CLR_INDIGO, CLR_DARK_PURPLE,
+                                 CLR_MAUVE, CLR_TRUE_BLUE, CLR_DARK_RED };
+    int n = 6;
+    int i = ((int)(now() * 0.4f)) % n;           // step to the next colour every ~2.5s
+    int j = (i + 1) % n;
+    rectfill(0, 0, SCREEN_W, SCREEN_H, field[i]);
+    fillp(FILL_CHECKER, -1);                     // 50/50 dither toward the next colour = a slow lerp
+    rectfill(0, 0, SCREEN_W, SCREEN_H, field[j]);
+    fillp_reset();
+}
+
 void draw(void) {
-    cls(CLR_BLACK);
+    fade(0);             // clear last frame's fade — panel() re-applies it on title/dead/win,
+                         // so gameplay isn't left permanently dimmed by the title's fade(0.5)
+    camera(0, 0);        // identity for the screen-space background field
+    draw_bg();           // neon space around the room (replaces the plain black void)
     draw_world();
     draw_hud();
 

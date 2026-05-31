@@ -1,54 +1,56 @@
 // Sprites for outrun.c — billboard cars (with little passengers) + roadside props.
 //
 // Slot layout (8-col sheet):
-//   1 player car (rear view, fixed red)
-//   2 traffic car (rear view) — body painted in MAGIC index 28, recoloured per car
-//   3 palm    4 cactus    5 pine    6 city tower    7 rock
+//   1  player — red Ferrari Testarossa (rear view, fixed red)
+//   2  traffic sports car (rear view) — body in MAGIC index 28, recoloured per car
+//   3  palm   4 cactus   5 pine   6 city tower   7 rock
+//   8  Porsche 911   9 VW Beetle   10 pickup truck   11 box truck   12 station wagon
 //
-// Magic colour: the traffic body is index 28 ('m'); the cart calls pal(28, col)
-// before drawing each car so one sprite yields a whole rainbow of traffic.
-// Two passenger heads (peach 'p' + brown hair 'N') show through the rear window.
-// Outlines use index 16 ('x') — reads near-black but is never the transparent 0.
+// Magic colour: every traffic body is painted in index 28 ('m'); the cart calls
+// pal(28, col) before drawing each car so one silhouette yields a whole rainbow of
+// traffic. Passenger heads (peach 'p', brown hair 'N', blonde 'Y') peek through the
+// rear glass. Outlines use index 16 ('x') — reads near-black but is never the
+// transparent 0. Taillights are 'R' (red), plate/chrome 'L' (light grey), tyres 'S'.
 
 module.exports = {
   charMap: { 'm': 28, 'x': 16 },
 
   sprites: {
-    // ---- player car (red, rear view) ----
+    // ---- player: Ferrari Testarossa (red, rear — wide & low, full-width grille) ----
     1: `
 ................
-......xxxxxx....
-....xRRRRRRRRx..
+................
+....xxxxxxxx....
 ...xRRRRRRRRRRx.
 ...xRBBBBBBBBRx.
-...xRBNBBBBNBRx.
-...xRBpBBBBpBRx.
+...xRBNBBBBYBRx.
 ...xRRRRRRRRRRx.
 ..xRRRRRRRRRRRRx
 ..xRRRRRRRRRRRRx
-..xYRRRRRRRRRRYx
-..xRRRRRRRRRRRRx
+..xxxxxxxxxxxxxx
+..xRRRRLLLLRRRRx
+..xxxxxxxxxxxxxx
 ..xxSSxxxxxxSSxx
 ..xSSSxxxxxxSSSx
 ....xx......xx..
 ................
 `,
-    // ---- traffic car (magic body 'm') ----
+    // ---- traffic sports car (Ferrari-ish, magic body 'm') ----
     2: `
 ................
-......xxxxxx....
-....xmmmmmmmmx..
+................
+....xxxxxxxx....
 ...xmmmmmmmmmmx.
 ...xmBBBBBBBBmx.
-...xmBNBBBBNBmx.
 ...xmBpBBBBpBmx.
 ...xmmmmmmmmmmx.
 ..xmmmmmmmmmmmmx
 ..xmmmmmmmmmmmmx
-..xYmmmmmmmmmmYx
-..xmmmmmmmmmmmmx
 ..xxxxxxxxxxxxxx
+..xRRRRLLLLRRRRx
 ..xxxxxxxxxxxxxx
+..xxSSxxxxxxSSxx
+..xSSSxxxxxxSSSx
 ....xx......xx..
 ................
 `,
@@ -145,6 +147,101 @@ module.exports = {
 ................
 ................
 ................
+................
+`,
+    // ---- Porsche 911 (rear — rounded, sloping, full-width reflector strip) ----
+    8: `
+................
+................
+....xmmmmmmx....
+...xmmmmmmmmx...
+...xmBBBBBBmx...
+...xmBpBBpBmx...
+..xmmmmmmmmmmx..
+..xmmmmmmmmmmx..
+.xmmmmmmmmmmmmx.
+.xmmmmmmmmmmmmx.
+.xmmmmmmmmmmmmx.
+.xRRRRRRRRRRRRx.
+.xmmmmmmmmmmmmx.
+.xxSSxxxxxxSSxx.
+..xSx......xSx..
+................
+`,
+    // ---- VW Beetle (rear — round, small, round taillights) ----
+    9: `
+................
+................
+.....xmmmmx.....
+....xmmmmmmx....
+....xmBBBBmx....
+....xmBppBmx....
+...xmmmmmmmmx...
+..xmmmmmmmmmmx..
+..xmmmmmmmmmmx..
+..xmmmmmmmmmmx..
+..xmmmmmmmmmmx..
+..xmRmmmmmmRmx..
+..xxSSxxxxSSxx..
+...xSx....xSx...
+................
+................
+`,
+    // ---- pickup truck (rear — cab over a flat tailgate) ----
+    10: `
+................
+....xxxxxxxx....
+...xmBBBBBBmx...
+...xmBpBBpBmx...
+...xmmmmmmmmx...
+..xmmmmmmmmmmx..
+..xmmmmmmmmmmx..
+..xmLLLLLLLLmx..
+..xmmmmmmmmmmx..
+..xmmmmmmmmmmx..
+..xRRmmmmmmRRx..
+..xxxxxxxxxxxxx.
+..xSSxxxxxxSSxx.
+...xx......xx...
+................
+................
+`,
+    // ---- box / delivery truck (tall — roller-door rear) ----
+    11: `
+.xmmmmmmmmmmmmx.
+.xmmmmmmmmmmmmx.
+.xmmmmmmmmmmmmx.
+.xmLLLLLLLLLLmx.
+.xmLmmmmmmmmLmx.
+.xmLmmmmmmmmLmx.
+.xmLmmmmmmmmLmx.
+.xmLmmmmmmmmLmx.
+.xmLLLLLLLLLLmx.
+.xmmmmmmmmmmmmx.
+.xmmmmmmmmmmmmx.
+.xRRmmmmmmmmRRx.
+.xxxxxxxxxxxxxx.
+.xSSxxxxxxxxSSx.
+..xx........xx..
+................
+`,
+    // ---- station wagon (rear — long roof, upright hatch, tall taillights) ----
+    12: `
+................
+..xxxxxxxxxxxx..
+..xmmmmmmmmmmx..
+..xmBBBBBBBBmx..
+..xmBNBBBBYBmx..
+..xmBBBBBBBBmx..
+..xmmmmmmmmmmx..
+.xmmmmmmmmmmmmx.
+.xmmmmmmmmmmmmx.
+.xmLLLLLLLLLLmx.
+.xRRmmmmmmmmRRx.
+.xRRmmmmmmmmRRx.
+.xxxxxxxxxxxxxx.
+.xSSxxxxxxxxSSx.
+..xx........xx..
 ................
 `,
   },

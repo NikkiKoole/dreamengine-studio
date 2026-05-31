@@ -46,12 +46,30 @@ static const char *BIOME_NAME[N_BIOME] = { "COAST", "DESERT", "CITY", "FOREST", 
 #define SPR_PINE    5
 #define SPR_TOWER   6
 #define SPR_ROCK    7
+#define SPR_PORSCHE 8        // traffic silhouettes (all recoloured via MAGIC_BODY)
+#define SPR_BEETLE  9
+#define SPR_PICKUP  10
+#define SPR_TRUCK   11
+#define SPR_WAGON   12
 #define MAGIC_BODY  28       // traffic body painted in this index, recoloured per car
 
 // ---- traffic ----
 #define MAX_CARS    14
-typedef struct { float z, off, spd; int col; } Car;
+typedef struct { float z, off, spd; int col, kind; } Car;
 static Car cars[MAX_CARS];
+
+// vehicle silhouettes — display width (world units), height aspect, collision
+// half-width (in road-half-widths). Trucks ride taller and clip wider.
+typedef struct { int slot; float wworld, aspect, chw; } VKind;
+static const VKind VKINDS[] = {
+    { SPR_TRAFFIC, 760.0f, 1.00f, 0.55f },   // sports car / Ferrari
+    { SPR_PORSCHE, 720.0f, 1.00f, 0.55f },   // Porsche 911
+    { SPR_BEETLE,  640.0f, 1.00f, 0.50f },   // VW Beetle
+    { SPR_PICKUP,  830.0f, 1.05f, 0.62f },   // pickup truck
+    { SPR_TRUCK,   900.0f, 1.55f, 0.72f },   // box truck
+    { SPR_WAGON,   800.0f, 1.10f, 0.60f },   // station wagon
+};
+#define N_VKIND 6
 
 // ---- dust / smoke particles ----
 #define MAX_PARTS   80
@@ -178,7 +196,8 @@ static void spawn_car(int i, float min_ahead) {
     cars[i].spd = MAX_SPD * rnd_float_between(0.20f, 0.5f);
     static const int pal[7] = { CLR_RED, CLR_BLUE, CLR_YELLOW, CLR_GREEN,
                                 CLR_ORANGE, CLR_PINK, CLR_WHITE };
-    cars[i].col = pal[rnd(7)];
+    cars[i].col  = pal[rnd(7)];
+    cars[i].kind = rnd(N_VKIND);
 }
 
 static void new_game() {
@@ -291,7 +310,7 @@ void update() {
 
         float ahead = cars[i].z - (position + PLAYER_Z);
         if (spin <= 0 && ahead > -SEGL && ahead < SEGL * 1.4f
-            && fabsf2(pworld - cars[i].off) < 0.6f) {
+            && fabsf2(pworld - cars[i].off) < VKINDS[cars[i].kind].chw + 0.05f) {
             // clipped a car — spin out
             spin   = 1.1f;
             speed *= 0.35f;
@@ -512,12 +531,13 @@ void draw() {
             int n = (int)(ahead / SEGL);
             if (n != pass || n < 1 || n >= DRAW_DIST || !seg_drawn[n]) continue;
             float sc = bscale[n];
+            const VKind *vk = &VKINDS[cars[c].kind];
             int cx = bx[n] + (int)(sc * cars[c].off * ROAD_W * (SCREEN_W / 2));
-            int cw = (int)(sc * 760.0f * (SCREEN_W / 2));
-            int ch = cw;                              // 16×16 sprite, keep square
+            int cw = (int)(sc * vk->wworld * (SCREEN_W / 2));
+            int ch = (int)(cw * vk->aspect);          // trucks ride taller than wide
             if (cw < 3) continue;
             pal(MAGIC_BODY, cars[c].col);             // recolour the body per car
-            sspr((SPR_TRAFFIC % 8) * 16, (SPR_TRAFFIC / 8) * 16, 16, 16,
+            sspr((vk->slot % 8) * 16, (vk->slot / 8) * 16, 16, 16,
                  cx - cw / 2, by[n] - ch, cw, ch);
             pal_reset();
         }

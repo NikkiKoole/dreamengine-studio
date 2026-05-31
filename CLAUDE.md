@@ -36,12 +36,16 @@ eventually2/
 │   │   ├── Ac437_Acer_VGA_8x8.ttf  # DOS OEM font (TTF backup)
 │   │   └── palettes/pico32.json    # 32-color palette used by sprite editor
 │   └── index.html      # shell HTML — all panels live here
-├── build/              # compile output (cart.c, cart binary, sprites.png, fonts)
+├── tools/              # repo-root CLI tools (plain `node`, CommonJS)
+│   ├── make-cart.js    #   build/bake .cart.png from tools/carts/<name>.c
+│   ├── play.js         #   debug harness driver (record/replay/script + trace)
+│   └── carts/          #   <name>.c (+ optional <name>.cart.js) — cart source of truth
+├── build/              # compile output (cart.c, cart binary, sprites.png, fonts, traces)
 └── docs/               # all project docs — start at docs/README.md (the map)
     ├── VISION.md       #   why & what; STATUS.md = shipped/open/cut ledger
     ├── decisions/      #   ADR-lite: frozen rationale ("why we (didn't) do X")
     ├── design/         #   api-notes.md, audio-notes.md (design exploration)
-    └── guides/         #   cart-authoring.md, sharing.md (how-to)
+    └── guides/         #   cart-authoring.md, sharing.md, debug-harness.md (how-to)
 ```
 
 ## How ▶ run works
@@ -174,6 +178,35 @@ node tools/make-cart.js --update <cart.png> <screenshot.png>  # swap in a thumbn
 ```
 
 Note: `make-cart.js` is run with plain `node` (it's CommonJS via `require`, not affected by `editor/package.json`'s `"type": "module"` since it lives in the repo root `tools/`, which has no `package.json`).
+
+## Debugging carts — the "play together" harness
+
+When a cart's bug is about **timing, input, or "why did nothing happen when I
+pressed the key"** — the kind you can't see by reading source — use the debug
+harness instead of guessing. It makes a run **deterministic and inspectable**:
+record/replay a play session, or script exact inputs, while a per-frame trace
+shows what the engine did. Full how-to: **`docs/guides/debug-harness.md`** (read it
+before using). The short version:
+
+```bash
+node tools/play.js <name> run                 # windowed live play
+node tools/play.js <name> record <out.rec>    # play live, capture inputs
+node tools/play.js <name> replay <in.rec>     # replay a recording deterministically
+node tools/play.js <name> beats  <in.beats>   # author inputs in musical beats, run them
+node tools/play.js <name> script <in.script>  # run a raw frame-script
+# options: --trace <f> --frames <n> --dump <dir> --dump-every <n> --headless --seed <n> --bpm <n>
+```
+
+`play.js` compiles `tools/carts/<name>.c` **with `-DDE_TRACE`** and runs the native
+runtime (`runtime/studio.c`) under harness flags (`--det --record --replay --script
+--trace --frames --dump`, all off in a normal build). A `--trace` file is JSONL,
+one line per frame: auto fields (`f`, `t`, `beat`, `bpos`) plus every `watch()`
+value the cart set that frame.
+
+To make a cart legible to the trace, wrap `watch()` calls in `#ifdef DE_TRACE`
+(they cost nothing in a normal build; `tools/carts/smooch.c` is the worked
+example). A typical loop: author a `.beats` script for the exact moment, run it
+`--headless` with `--trace`, then `grep` the trace to see the engine's decision.
 
 ## Key things to know
 

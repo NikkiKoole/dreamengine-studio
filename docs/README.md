@@ -23,11 +23,13 @@ docs/
 │   ├── api-notes.md     engine API: classics survey, signatures, naming, cart-patterns
 │   ├── audio-notes.md   sound: current engine, chip comparison, expansion roadmap
 │   ├── cart-survey-api-priorities.md   cart-evidence-first memo: what real carts prove, filtered through existing decisions
-│   └── baked-rotation-atlas.md   pre-rotated sprite/shape atlas: fast blitted bodies, the centerline model, offscreen canvases
+│   ├── baked-rotation-atlas.md   pre-rotated sprite/shape atlas: fast blitted bodies, the centerline model, offscreen canvases
+│   └── font-rendering.md         playful text beyond print: shadow/outline/wave/typewriter, inline codes, PICO-8 comparison
 ├── guides/            how-to
 │   ├── cart-authoring.md         the make-cart.js / tools/carts toolchain
 │   ├── cart-authoring-prompt.md  reusable AI prompt for designing a new cart
-│   └── sharing.md                ways to publish finished carts
+│   ├── sharing.md                ways to publish finished carts
+│   └── debug-harness.md          deterministic record/replay/script + trace (tools/play.js)
 └── archive/           superseded / done notes, kept for history
 ```
 

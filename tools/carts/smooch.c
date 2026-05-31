@@ -204,6 +204,9 @@ static void judge_press(int L) {
         jtext = WHIFF_LINES[rnd(3)]; jcol = CLR_LIGHT_GREY; jt = 0.7f;
         note(48, 9, 3); schedule(110, 45, 9, 2);        // sad muted trumpet
         shake(1.5f);
+#ifdef DE_TRACE
+        watch("press", "L%d WHIFF nearest_err=%.3f (win=%.2f)", L, berr, W_CLUMSY);
+#endif
         return;
     }
 
@@ -243,6 +246,13 @@ static void judge_press(int L) {
 
     if (n->hold > 0) holding[L] = best;                  // begin the hold
     if (!bigfinish && tease >= 1.0f) start_bigfinish();
+#ifdef DE_TRACE
+    // the press that landed: error vs the note, the rating it earned, and whether
+    // a hold armed. "arm=1 hold=3.0" means the head hit and the 3-beat ribbon began.
+    watch("press", "L%d e=%.3f r=%s arm=%d hold=%.1f", L, berr,
+          rating == R_SMOOCH ? "SMOOCH" : rating == R_SMOOTH ? "SMOOTH" : "CLUMSY",
+          n->hold > 0 ? 1 : 0, n->hold);
+#endif
 }
 
 // ---- update -----------------------------------------------------------------
@@ -267,6 +277,9 @@ static bool start_pressed(void) {
 void update(void) {
     float k = dt() * 60.0f;
     play_audio();
+#ifdef DE_TRACE
+    watch("state", "%d", state);   // 0 title 1 play 2 end — always, every state
+#endif
 
     // particles always tick (ambient even on title/end)
     for (int i = 0; i < 150; i++)
@@ -320,6 +333,9 @@ void update(void) {
             score += (long)150 * (bigfinish ? 2 : 1);
             if (!bigfinish) tease = clamp(tease + 0.06f, 0, 1);
             jtext = "MWAH~"; jcol = CLR_PINK; jt = 0.8f; poseT = 1; dancer_pose = 2;
+#ifdef DE_TRACE
+            watch("holddone", "L%d tail=%.2f sp=%.3f +bonus", L, tail, songpos);
+#endif
             for (int i = 0; i < 12; i++)
                 psp(LCX(L), HITY, rnd_float_between(-2, 2), rnd_float_between(-3, -0.5f),
                     rnd_float_between(0.6f, 1.1f), 0.06f, CLR_PINK, 1);
@@ -344,9 +360,22 @@ void update(void) {
                 if (!bigfinish) tease = clamp(tease - 0.06f, 0, 1);
                 jtext = "*fans self*"; jcol = CLR_LIGHT_GREY; jt = 0.6f;
                 note(47, 9, 3); schedule(120, 44, 9, 2);
+#ifdef DE_TRACE
+                watch("miss", "b%.1f L%d sp=%.3f", n->b, n->lane, songpos);
+#endif
             }
         }
     }
+
+#ifdef DE_TRACE
+    // per-frame play state — fed to the --trace JSONL, read back to see exactly
+    // what the engine did at any moment (combo, meter, which lane is mid-hold).
+    watch("songpos", "%.3f", songpos);
+    watch("combo",   "%d", combo);
+    watch("tease",   "%.2f", tease);
+    watch("bigfin",  "%d", bigfinish ? 1 : 0);
+    watch("hold",    "%d %d %d %d", holding[0], holding[1], holding[2], holding[3]);
+#endif
 }
 
 // ---- drawing ----------------------------------------------------------------

@@ -212,7 +212,17 @@ function extractCartChunks(pngBuf) {
   return result
 }
 
+// ── exports (so tools/play.js can reuse the build machinery) ──
+module.exports = {
+  ROOT_DIR, BUILD_DIR, RUNTIME_DIR, RAYLIB, CART_BIN,
+  buildSpriteSheet, buildMap, makeBlankSpritePng, makePlaceholderPng,
+  loadConfig, extractCartChunks, embedCartChunks,
+}
+
 // ── main ──────────────────────────────────────────────────────
+if (require.main === module) runCli()
+
+function runCli() {
 const args = process.argv.slice(2)
 
 if (args[0] === '--update') {
@@ -333,4 +343,5 @@ if (args[0] === '--update') {
   const cartPng    = embedCartChunks(makePlaceholderPng(), { source, sprites: spritesUrl, map: mapB64, settings: JSON.stringify(cartSettings) })
   fs.writeFileSync(outFile, cartPng)
   console.log('wrote', outFile)
+}
 }

@@ -40,7 +40,7 @@ static const char *MAZE[MH] = {
     "#.###.####       ####.###.#",
     " ........#       #........ ",
     "#.###.####       ####.###.#",
-    "#.###.####" "########" "###.###.#",
+    "#.###.###############.###.#",
     "#.....##.....#.....##.....#",
     "#.####.##.#######.##.####.#",
     "#.........................#",
@@ -308,7 +308,7 @@ void draw() {
             int sx = X0 + x * TILE, sy = Y0 + y * TILE;
             char c = grid[y][x];
             if (c == '#') {
-                rectfill(sx + 1, sy + 1, TILE - 1, TILE - 1, CLR_TRUE_BLUE);
+                rectfill(sx, sy, TILE, TILE, CLR_TRUE_BLUE);
             } else if (c == '.') {
                 rectfill(sx + TILE / 2 - 1, sy + TILE / 2 - 1, 2, 2, CLR_PEACH);
             } else if (c == 'o') {

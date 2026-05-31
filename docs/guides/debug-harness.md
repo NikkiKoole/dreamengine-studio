@@ -126,3 +126,84 @@ Press the head one window late instead (`beat 20.35 …`) and the trace shows
 `press: L1 WHIFF` with **no `arm`, no `holddone`** — proving the hold never starts
 unless the *head* lands as a hit, no matter how long you hold the key. That's a
 discoverability finding you can't get by reading the source.
+
+---
+
+## Recipes — using this *today* to find & fix issues (for the next agent)
+
+The harness is open-loop (you pre-bake inputs, then run), but with determinism that
+is already enough to find and fix real bugs. The core loop is always the same:
+
+> **reproduce → inspect the trace → locate in source → fix → re-run the *same*
+> script and diff the trace.** Because runs are byte-for-byte deterministic, a trace
+> diff is your regression test.
+
+A few things to internalize before you start:
+
+- **`--headless` is realtime-capped today** (hidden window, `SetTargetFPS(60)`). A
+  900-frame run takes ~15 s; a full song (~5000 frames) ~80 s. Always set `--frames`
+  to the smallest window that covers the moment you care about. (Speeding this up is
+  Stage 1 in [`../design/headless-autoplay.md`](../design/headless-autoplay.md).)
+- **beat ↔ frame:** `frame = start_frame + round(beat * 3600/bpm)`. With the default
+  `start 2` and bpm 96, that's `2 + beat*37.5`. Let `play.js` do it — author in beats.
+- **Each trace line shows only the watches set *that* frame.** `grep` by watch key
+  (`'"press"'`, `'"miss"'`); absence of a key means that branch didn't run.
+- A cart must opt into the trace with `#ifdef DE_TRACE watch(...)` (see smooch). If a
+  cart you're debugging has none, **add them first** at the suspect code path.
+
+### Recipe 1 — "X feels wrong at moment Y"
+Script the moment, run headless, grep the relevant watch:
+```bash
+printf 'bpm 96\nstart 2\nbeat 20 tap S 3\n' > /tmp/r.beats
+node tools/play.js <name> beats /tmp/r.beats --headless --frames 900
+grep '"press"\|"holddone"\|"miss"' build/<name>.trace.jsonl
+```
+The trace tells you the engine's decision (error, verdict, whether a branch fired) —
+not your guess about it.
+
+### Recipe 2 — reproduce a human's exact session
+```bash
+node tools/play.js <name> record build/u.rec      # they play, then close the window
+node tools/play.js <name> replay build/u.rec --headless --frames 5000 --dump build/u
+```
+Now you have their inputs *and* a frame-by-frame trace + filmstrip to autopsy.
+
+### Recipe 3 — find the exact edge of a timing window (sweep)
+Iterate-on-replay: vary one number, diff the verdict. Finds off-by-one window bugs.
+```bash
+for off in 19.90 20.00 20.10 20.28 20.30 20.35; do
+  printf "bpm 96\nstart 2\nbeat %s tap S\n" "$off" > /tmp/s.beats
+  node tools/play.js <name> beats /tmp/s.beats --headless --frames 800 >/dev/null 2>&1
+  echo -n "offset $off -> "; grep -o '"press":"[^"]*"' build/<name>.trace.jsonl | head -1
+done
+```
+
+### Recipe 4 — catch a crash
+The runtime's `crash_handler` dumps the last `watch()` values to **stderr** on
+SIGSEGV/SIGFPE/etc. Run *without* redirecting stderr and read the dump — the watches
+are your "last known state" before the fault. Pair with `--seed N` so it's repeatable.
+
+### Recipe 5 — detect a soft-lock / stall (the navkit move)
+A stall = the clock advances but nothing the player cares about changes. Grep for a
+flat-line: e.g. in `ST_PLAY`, `songpos` climbing while `score`/`combo` never move and
+no `miss`/`press` fires for a long stretch. navkit does this exact before/after
+snapshot in `RunHeadless` (`src/main.c`, the `=== HEADLESS RESULTS ===` block) — copy
+the idea: run N frames, then assert "state changed in the way it should have."
+
+### Recipe 6 — verify a fix without regressing
+```bash
+node tools/play.js <name> beats fix.beats --headless --frames N --trace /tmp/before.jsonl
+# ...apply the fix...
+node tools/play.js <name> beats fix.beats --headless --frames N --trace /tmp/after.jsonl
+diff /tmp/before.jsonl /tmp/after.jsonl     # exactly what your change moved, nothing else
+```
+
+### Recipe 7 — a poor-man's autoplayer
+You can play a chart *perfectly* by emitting a `beat <b> tap <key>` for each note in
+the cart's chart (read it from the source). A flawless run that *doesn't* earn the
+grade/award the code promises is a real bug. (Demonstrated on smooch's verse: 16
+notes + 1 hold → combo 17, all SMOOCH — the engine delivered exactly what the chart
+implied.) This is the seed of the fuzz/autoplay driver in the growth doc.
+
+> If `jq` is available, it makes traces far nicer to slice, e.g.
+> `jq -c 'select(.w.press) | {f, p:.w.press}' build/<name>.trace.jsonl`.

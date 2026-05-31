@@ -879,6 +879,11 @@ calls `print` with the right offset. Useful for titles, scores,
 floating damage numbers, anything where you don't want to measure
 strings yourself.
 
+> **Going further with text.** Shadow/outline, wavy text, typewriter reveal, and the
+> PICO-8-style inline control-code idea are explored in
+> [`font-rendering.md`](font-rendering.md) — including a survey of how the carts
+> actually use `print` vs `print_scaled` today.
+
 ### 18. Convenient sprite drawing — ✓ shipped
 
 > **✓ Shipped (in working tree, pending commit).** Landed as two functions — a simple

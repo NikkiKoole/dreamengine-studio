@@ -35,8 +35,11 @@ function switchTab(name) {
     if (panel) panel.classList.add('active')
   }
   if (name === 'tutorials') {
-    const s = document.getElementById('tutorials-search')
-    if (s) setTimeout(() => s.focus(), 0)   // panel must be visible before focus takes
+    // rebuild on every open so a freshly-added cart shows up without a reload
+    buildTutorialsPanel().then(() => {
+      const s = document.getElementById('tutorials-search')
+      if (s) s.focus()   // panel is visible by now, so focus takes
+    })
   }
 }
 
@@ -422,6 +425,9 @@ function markRanges(text, indices) {
 async function buildTutorialsPanel() {
   const body = tutorialsPanel.querySelector('#tutorials-body')
   if (!body) return
+  // preserve scroll + search term across reopen/rebuild
+  const prevScroll = tutorialsPanel.scrollTop
+  const prevSearch = body.querySelector('#tutorials-search')?.value || ''
   body.innerHTML = ''
 
   let index
@@ -520,9 +526,12 @@ async function buildTutorialsPanel() {
 
   search.addEventListener('input', applyFilter)
   search.addEventListener('keydown', e => { if (e.key === 'Escape') { search.value = ''; applyFilter() } })
-}
 
-buildTutorialsPanel()
+  // restore prior search term + scroll position so reopening feels seamless
+  if (prevSearch) { search.value = prevSearch; applyFilter() }
+  tutorialsPanel.scrollTop = prevScroll
+}
+// (no eager build — switchTab('tutorials') rebuilds the panel each time it's opened)
 
 // ── day/night theme (toggle lives in the Settings panel) ──────
 let themeMode = localStorage.getItem('theme') || 'night'

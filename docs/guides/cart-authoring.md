@@ -3,6 +3,18 @@
 Scripts in `tools/` for creating and updating `.cart.png` files without the editor UI.
 Designed to be used by Claude in-session via the Bash tool.
 
+> **#1 cart gotcha — sticky render state.** Global render state comes in two kinds:
+> - **The engine clears these for you each frame** — `clip` (scissor off at frame end) and
+>   `shake` (decays on its own). Set them and forget them.
+> - **You own these — they persist across frames *and game states* until you change them** —
+>   `camera`/`camera_ex`, `fade`, `pal`, `fillp`. A value left by one scope leaks into the
+>   next (a title-screen `fade(0.5)` dimming the *whole game*; `mouse_world_*` reading a
+>   camera the HUD reset to 0).
+>
+> Habit: reset the ones you own at the top of `draw()` — `fade(0); camera(0,0); pal_reset();
+> fillp_reset();` — and set the camera in `update()` before reading `mouse_world_*`. See the
+> postscript in [`../design/cart-survey-api-priorities.md`](../design/cart-survey-api-priorities.md).
+
 ---
 
 ## `tools/make-cart.js`

@@ -362,12 +362,14 @@ static void draw_zak(void) {
 }
 
 static void draw_label(const char *s, int col) {
-    int w = text_width(s) + 8, x = mid(2, mouse_x() - w / 2, SCREEN_W - w - 2);
-    int y = mouse_y() - 12; if (y < 2) y = mouse_y() + 8;
+    font(FONT_SMALL);
+    int w = text_width(s) + 6, x = mid(2, mouse_x() - w / 2, SCREEN_W - w - 2);
+    int y = mouse_y() - 11; if (y < 2) y = mouse_y() + 8;
     fillp(FILL_CHECKER, -1);
-    rectfill(x, y, w, 11, CLR_BLACK);
+    rectfill(x, y, w, 9, CLR_BLACK);
     fillp_reset();
-    print(s, x + 4, y + 2, col);
+    print(s, x + 3, y + 2, col);
+    font(FONT_NORMAL);
 }
 
 static void scene_flat(void) {
@@ -511,10 +513,13 @@ void draw(void) {
             else if (it == IT_TICKET) { rectfill(sx + 4, sy + 7, 12, 6, CLR_LIGHT_YELLOW); line(sx + 6, sy + 9, sx + 13, sy + 9, CLR_DARK_RED); }
         }
     }
-    // message line
-    if (msg_t > 0) print(msg, 184, BAR_Y + 14, CLR_LIGHT_YELLOW);
-    else print(str("ZAK McKRACKEN  -  %s", scene == SC_FLAT ? "apartment" : scene == SC_HALL ? "hallway" : "taxi"),
-               184, BAR_Y + 14, CLR_DARK_GREY);
+    // message line — small font on its own strip below the bar so long
+    // sentences fit the 320px width instead of running off the right edge
+    font(FONT_SMALL);
+    if (msg_t > 0) print_centered(msg, BAR_Y + 33, CLR_LIGHT_YELLOW);
+    else print_centered(str("ZAK McKRACKEN  -  %s", scene == SC_FLAT ? "apartment" : scene == SC_HALL ? "hallway" : "taxi"),
+                         BAR_Y + 33, CLR_DARK_GREY);
+    font(FONT_NORMAL);
 
     // ── win card ──
     if (won) {

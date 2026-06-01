@@ -13,6 +13,14 @@
 #define HOP_UP     4.5f // upward velocity per hop (pixels/frame)
 #define HOP_FWD    1.8f // forward velocity per hop
 
+// cute one-shot instrument slots (5..15 are user-definable) — patched in init()
+#define SND_BLIP   5   // round sine pluck (lowpassed) — grabs, body bumps
+#define SND_POP    6   // bubbly thin-square — ball spawn / let-go
+#define SND_BELL   7   // shimmery sine + tiny vibrato — sparkle-in, throw "whee"
+#define SND_THUMP  8   // soft low sine + boing wobble (lowpass) — floor bounce + landings
+#define SND_TICK   9   // band-passed noise tap — ball whacks a body
+#define SND_DRAG  10   // soft pad re-triggered while dragging — lowpass opens as you lift
+
 typedef struct { float x, y, px, py; } Pt;
 typedef struct { int a, b; float r;   } Sk;
 typedef struct { Pt p[N_PTS]; int col; } Rag;
@@ -38,12 +46,13 @@ static float pmx, pmy;
 static int   rtimer[MAX_CH];
 static float wdest[MAX_CH];
 static bool  whop[MAX_CH];
+static int   cool_bonk, cool_whack, cool_bump;  // sfx cooldowns (frames) — stop collisions machine-gunning
 
 static float vl(float x, float y) { return fsqrt(x*x + y*y); }
 
-static void sprag(int i, float cx) {
+static void sprag(int i, float cx, float cy) {
     Rag *r = &rags[i];
-    float y = GY;
+    float y = cy;   // foot baseline — pass GY to stand on the ground, or my to drop from the sky
 #define PT(n,ox,oy) r->p[n]=(Pt){cx+(ox),y-(oy),cx+(ox),y-(oy)}
     PT(10,-3, 0); PT(11, 3, 0);   // feet
     PT( 8,-3, 8); PT( 9, 3, 8);   // knees
@@ -67,10 +76,10 @@ static void spbl(float x, float y, float vx, float vy, float r) {
     b->px = x - vx; b->py = y - vy;  // encode initial velocity (px/frame)
 }
 
-static void add_char(float cx) {
+static void add_char(float cx, float cy) {
     if (n_chars >= MAX_CH) return;
     int i = n_chars;
-    sprag(i, cx);
+    sprag(i, cx, cy);
     rtimer[i] = 0;
     wdest[i]  = cx + (rnd(2) ? 80.0f : -80.0f);
     wdest[i]  = clamp(wdest[i], 20, SCREEN_W - 20);
@@ -80,7 +89,7 @@ static void add_char(float cx) {
 
 static void reset_scene(void) {
     n_chars = 0; nbl = 0; gtype = 0;
-    add_char(60); add_char(160); add_char(260);
+    add_char(60, GY); add_char(160, GY); add_char(260, GY);
     // stagger timers so they don't all hop at once
     for (int i = 0; i < n_chars; i++)
         rtimer[i] = STAND_MAX - i * 25;
@@ -112,7 +121,31 @@ static void hop_tick(int ci) {
     rtimer[ci]  = 0;    // immediately switch to ragdoll — prevents foot-pin from erasing the hop impulse
 }
 
-void init(void) { reset_scene(); }
+void init(void) {
+    // patch the cute SFX instruments — ADSR + filter + a touch of LFO (see 20/21/22 tutorial carts)
+    instrument(SND_BLIP, INSTR_SINE, 1, 80, 0, 90);        // fast attack, quick decay to silence = round pluck
+    instrument_filter(SND_BLIP, FILTER_LOW, 1600, 3);      // shave the highs so it's soft, not clicky
+
+    instrument(SND_POP, INSTR_SQUARE, 1, 60, 0, 70);       // bubbly little pop
+    instrument_duty(SND_POP, 0.30f);                       // thin pulse = nasal/"boopy"
+    instrument_filter(SND_POP, FILTER_LOW, 1300, 4);
+
+    instrument(SND_BELL, INSTR_SINE, 2, 150, 0, 320);      // longer release = a ringing bell
+    instrument_lfo(SND_BELL, 0, LFO_PITCH, 7.0f, 0.25f);   // subtle vibrato shimmer
+
+    instrument(SND_THUMP, INSTR_SINE, 1, 110, 0, 130);     // soft low body
+    instrument_filter(SND_THUMP, FILTER_LOW, 600, 5);      // deep + round
+    instrument_lfo(SND_THUMP, 0, LFO_PITCH, 11.0f, 0.8f);  // fast pitch wobble = "boing"
+
+    instrument(SND_TICK, INSTR_NOISE, 0, 35, 0, 45);       // very short noise burst
+    instrument_filter(SND_TICK, FILTER_BAND, 1400, 7);     // bandpass = a "tok", not white hiss
+
+    instrument(SND_DRAG, INSTR_TRI, 40, 0, 7, 350);        // soft sustaining pad (full sustain, long tail)
+    instrument_filter(SND_DRAG, FILTER_LOW, 600, 7);       // its cutoff is swept live from the drag (see update)
+    instrument_lfo(SND_DRAG, 0, LFO_PITCH, 5.0f, 0.2f);    // faint vibrato so the hum feels alive
+
+    reset_scene();
+}
 
 static void steppt(Pt *p) {
     float vx = (p->x - p->px) * 0.99f;
@@ -152,43 +185,57 @@ static void clpt(Pt *p) {
     if (p->x > SCREEN_W-1) { p->x = SCREEN_W-1; p->px = p->x + (p->px - p->x) * 0.5f;  }
 }
 
-static void clbl(Bl *b) {
-    if (b->y+b->r > GY)        { b->y = GY-b->r;        float v=b->y-b->py; b->py=b->y+v*0.45f; }
+// returns downward impact speed when the ball hits the floor (0 otherwise) — for the bonk sfx
+static float clbl(Bl *b) {
+    float floorhit = 0;
+    if (b->y+b->r > GY)        { float v=b->y-b->py; if (v>0) floorhit=v; b->y = GY-b->r; b->py=b->y+v*0.45f; }
     if (b->x-b->r < 0)         { b->x = b->r;            float v=b->x-b->px; b->px=b->x+v*0.55f; }
     if (b->x+b->r > SCREEN_W)  { b->x = SCREEN_W-b->r;   float v=b->x-b->px; b->px=b->x+v*0.55f; }
     if (b->y-b->r < 0)         { b->y = b->r;            float v=b->y-b->py; b->py=b->y+v*0.4f;  }
+    return floorhit;
 }
 
-static void blvrag(Bl *b, Rag *r) {
+// returns the strongest ball↔point closing speed this frame (0 = resting contact) — for the whack sfx
+static float blvrag(Bl *b, Rag *r) {
+    float impact = 0;
     for (int i = 0; i < N_PTS; i++) {
         Pt *p = &r->p[i];
         float dx = p->x - b->x, dy = p->y - b->y;
         float d = vl(dx, dy), md = b->r + 2.5f;
         if (d < md && d > 0.001f) {
+            float rel = vl((p->x-p->px)-(b->x-b->px), (p->y-p->py)-(b->y-b->py));
+            if (rel > impact) impact = rel;   // relative speed BEFORE we move them
             float f = (md - d) / d;
             p->x += dx*f*0.6f; p->y += dy*f*0.6f;
             b->x -= dx*f*0.4f; b->y -= dy*f*0.4f;
         }
     }
+    return impact;
 }
 
 // Point-to-point collision. Broad-phase: skip pairs where hips are > 40px apart.
-static void ragvrag(int a, int b) {
+// Returns the strongest point↔point closing speed (0 = just leaning) — for the bump sfx.
+static float ragvrag(int a, int b) {
     float hdx = rags[b].p[3].x - rags[a].p[3].x;
     float hdy = rags[b].p[3].y - rags[a].p[3].y;
-    if (hdx*hdx + hdy*hdy > 40.0f*40.0f) return;
+    if (hdx*hdx + hdy*hdy > 40.0f*40.0f) return 0;
+    float impact = 0;
     for (int i = 0; i < N_PTS; i++)
         for (int j = 0; j < N_PTS; j++) {
-            float dx = rags[b].p[j].x - rags[a].p[i].x;
-            float dy = rags[b].p[j].y - rags[a].p[i].y;
+            Pt *pa = &rags[a].p[i], *pb = &rags[b].p[j];
+            float dx = pb->x - pa->x;
+            float dy = pb->y - pa->y;
             float d = vl(dx, dy);
             if (d > 3.5f || d < 0.001f) continue;
+            float rel = vl((pa->x-pa->px)-(pb->x-pb->px), (pa->y-pa->py)-(pb->y-pb->py));
+            if (rel > impact) impact = rel;
             float f = (3.5f - d) / (d * 2.0f);
-            rags[a].p[i].x -= dx*f;    rags[a].p[i].y -= dy*f*0.4f;
-            rags[b].p[j].x += dx*f;    rags[b].p[j].y += dy*f*0.4f;
-            rags[a].p[i].px -= dx*f*0.5f;   // velocity impulse = bounce
-            rags[b].p[j].px += dx*f*0.5f;
+            pa->x -= dx*f;    pa->y -= dy*f*0.4f;
+            pb->x += dx*f;    pb->y += dy*f*0.4f;
+            pa->px -= dx*f*0.5f;   // velocity impulse = bounce
+            pb->px += dx*f*0.5f;
         }
+    return impact;
 }
 
 static void blvbl(Bl *a, Bl *b) {
@@ -225,6 +272,9 @@ static void draw_rag(Rag *r) {
 
 void update(void) {
     float mx = (float)mouse_x(), my = (float)mouse_y();
+    if (cool_bonk  > 0) cool_bonk--;
+    if (cool_whack > 0) cool_whack--;
+    if (cool_bump  > 0) cool_bump--;
 
     // start a grab
     if (mouse_pressed(MOUSE_LEFT)) {
@@ -239,20 +289,47 @@ void update(void) {
                 float d = vl(mx-rags[ci].p[pi].x, my-rags[ci].p[pi].y);
                 if (d < best) { best = d; gtype = 1; gci = ci; gpi = pi; }
             }
+        if      (gtype == 2) note(degree(SCALE_PENTA, 3, 1), SND_BLIP, 4);   // grabbed a ball — low pluck
+        else if (gtype == 1) note(degree(SCALE_PENTA, 4, 2), SND_BLIP, 4);   // grabbed a character — higher pluck
     }
-    if (mouse_released(MOUSE_LEFT)) gtype = 0;
+    if (mouse_released(MOUSE_LEFT)) {
+        if (gtype == 1) {   // let go of a character — a rising "whee" that climbs higher the harder it's flung
+            Pt *g = &rags[gci].p[gpi];
+            float spd = vl(g->x - g->px, g->y - g->py);
+            int top = 2 + (int)clamp(spd * 0.5f, 0, 6);
+            note(degree(SCALE_PENTA, 4, 0), SND_BELL, 4);
+            schedule(45, degree(SCALE_PENTA, 4, top), SND_BELL, 4);
+        } else if (gtype == 2) {
+            note(degree(SCALE_PENTA, 3, 0), SND_POP, 3);
+        }
+        gtype = 0;
+    }
 
-    if (mouse_pressed(MOUSE_RIGHT)) spbl(mx, my, 0, 0, 7.0f + rnd(8));
-    if (keyp('C')) add_char(mx);  // spawn a new character at mouse X
+    if (mouse_pressed(MOUSE_RIGHT) || keyp('Z')) { spbl(mx, my, 0, 0, 7.0f + rnd(8)); note(degree(SCALE_PENTA, 3, 2), SND_POP, 5); }  // ball at mouse — pop
+    if (keyp('X')) {   // drop a character from the cursor — falls/lands/stands; a 3-note sparkle as it appears
+        add_char(mx, my);
+        note(degree(SCALE_PENTA, 4, 0), SND_BELL, 4);
+        schedule(60,  degree(SCALE_PENTA, 4, 2), SND_BELL, 4);
+        schedule(120, degree(SCALE_PENTA, 5, 0), SND_BELL, 4);
+    }
     if (keyp('R')) reset_scene();
 
-    // drag whole body by mouse delta — preserves physics velocity so it stays lively
+    // drag = dangle from the grabbed point. The point itself is pinned to the cursor
+    // in the solve loop below; the rest of the body hangs off it via the constraints.
+    // Freeze the grabbed point's previous position each frame so that on release its
+    // verlet velocity is exactly this frame's mouse delta → a natural throw.
     if (gtype == 1 && mouse_down(MOUSE_LEFT)) {
-        float dmx = mx - pmx, dmy = my - pmy;
-        for (int pi = 0; pi < N_PTS; pi++) {
-            rags[gci].p[pi].x += dmx;
-            rags[gci].p[pi].y += dmy;
-            // px/py untouched — physics velocity is preserved, mouse delta adds on top
+        rags[gci].p[gpi].px = rags[gci].p[gpi].x;  // last frame this was pinned to the old mouse pos
+        rags[gci].p[gpi].py = rags[gci].p[gpi].y;
+        // a soft pad hums while you hold a character. The higher you lift, the more the
+        // lowpass opens (brighter) and the pitch climbs; a slow sine drifts the cutoff on
+        // top, so it keeps "breathing" even if you hold still. Re-triggered every 9 frames —
+        // each new voice snapshots the freshly-set cutoff, which is how the sweep stays live.
+        float lift = clamp((GY - my) / (float)GY, 0.0f, 1.0f);
+        if (frame() % 9 == 0) {
+            float cutoff = 300.0f + lift * 2400.0f + sin_deg(now() * 40.0f) * 400.0f;
+            instrument_filter(SND_DRAG, FILTER_LOW, (int)clamp(cutoff, 200, 3400), 7);
+            note(degree(SCALE_PENTA, 4, (int)(lift * 6.0f)), SND_DRAG, 3);
         }
     }
     if (gtype == 2 && mouse_down(MOUSE_LEFT)) {
@@ -263,7 +340,7 @@ void update(void) {
     // advance standing timers — only recover when feet are on the ground
     for (int ci = 0; ci < n_chars; ci++) {
         if (gtype == 1 && gci == ci && mouse_down(MOUSE_LEFT)) {
-            rtimer[ci] = max(0, rtimer[ci] - 4);  // fade to ragdoll over ~22 frames, not instantly
+            rtimer[ci] = 0;  // grabbed = instant full ragdoll: feet unpinned, standing springs off
         } else {
             float avg_foot_y = (rags[ci].p[10].y + rags[ci].p[11].y) * 0.5f;
             if (avg_foot_y >= GY - 3.0f) {
@@ -274,10 +351,19 @@ void update(void) {
         }
     }
 
+    // landing thud — only on hard touchdowns (sky-drops / big throws), not gentle hops
+    for (int ci = 0; ci < n_chars; ci++) {
+        float avg_foot_y = (rags[ci].p[10].y + rags[ci].p[11].y) * 0.5f;
+        float fv = (rags[ci].p[10].y - rags[ci].p[10].py);   // foot downward speed
+        if (rtimer[ci] == 1 && avg_foot_y >= GY - 3.0f && fv > 4.0f && cool_bonk == 0) {
+            hit(degree(SCALE_PENTA, 2, 0), SND_THUMP, 3, 130); cool_bonk = 3;   // soft landing boing
+        }
+    }
+
     // character vs character bouncing
     for (int a = 0; a < n_chars; a++)
         for (int b = a + 1; b < n_chars; b++)
-            ragvrag(a, b);
+            if (ragvrag(a, b) > 1.2f && cool_bump == 0) { note(degree(SCALE_PENTA, 4, 1), SND_BLIP, 2); cool_bump = 5; }  // soft bump
 
     // simulate characters
     for (int ci = 0; ci < n_chars; ci++) {
@@ -368,9 +454,12 @@ void update(void) {
             b->px = b->x; b->py = b->y;
             b->x += vx; b->y += vy + 0.38f;
         }
-        for (int ci = 0; ci < n_chars; ci++) blvrag(b, &rags[ci]);
+        for (int ci = 0; ci < n_chars; ci++)
+            if (blvrag(b, &rags[ci]) > 1.8f && cool_whack == 0) { hit(60, SND_TICK, 3, 45); cool_whack = 4; }  // thwap
         for (int j = i + 1; j < nbl; j++) blvbl(b, &bls[j]);
-        clbl(b);
+        float fh = clbl(b);
+        // only boing on a real impact — a settling/jostled ball micro-bounces well under this
+        if (fh > 4.0f && cool_bonk == 0) { hit(degree(SCALE_PENTA, 2, 2), SND_THUMP, (int)clamp(fh*0.5f, 2, 5), 130); cool_bonk = 6; }  // boing
         if (grabbed_ball) { b->x = mx; b->y = my; }  // mouse wins after collision response
     }
 
@@ -389,5 +478,5 @@ void draw(void) {
         circ((int)bls[i].x, (int)bls[i].y, (int)bls[i].r, CLR_YELLOW);
     }
 
-    print(str("drag: grab  rclick: ball  C: add char (%d/%d)  R: reset", n_chars, MAX_CH), 4, 4, CLR_DARK_GREY);
+    print(str("drag  Z:ball  X:char %d/%d  R:reset", n_chars, MAX_CH), 4, 4, CLR_DARK_GREY);
 }

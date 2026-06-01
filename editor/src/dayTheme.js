@@ -8,7 +8,7 @@ const bgActive  = '#ebe6d4'
 const bgSelect  = '#d9d1b8'
 const fg        = '#3a3a3a'
 const gutter    = '#9a9486'
-const cursor    = '#8a6b3a'
+const cursor    = '#c0497f'
 
 const dayUI = EditorView.theme({
   '&':              { color: fg, backgroundColor: bg },
@@ -21,7 +21,7 @@ const dayUI = EditorView.theme({
   '.cm-tooltip':    { backgroundColor: '#fbf8ef', border: '1px solid #c9bfa8', color: fg },
   '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: bgActive, color: fg },
   '.cm-foldPlaceholder': { backgroundColor: bgActive, color: gutter, border: 'none' },
-  '.cm-matchingBracket': { backgroundColor: 'transparent', outline: '1px solid #c9a96e' },
+  '.cm-matchingBracket': { backgroundColor: 'transparent', outline: '1px solid #c0497f' },
 }, { dark: false })
 
 const dayHighlight = HighlightStyle.define([

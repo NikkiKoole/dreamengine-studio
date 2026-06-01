@@ -134,7 +134,7 @@ function renderPicker() {
   // highlight the selected tile
   const sx = (selectedSprite % SHEET_COLS) * tw
   const sy = Math.floor(selectedSprite / SHEET_COLS) * th
-  pickerCtx.strokeStyle = '#c9a96e'
+  pickerCtx.strokeStyle = '#ff6fb5'
   pickerCtx.lineWidth   = 2
   pickerCtx.strokeRect(sx + 1, sy + 1, tw - 2, th - 2)
 }
@@ -281,7 +281,7 @@ function onMouseMove(e) {
     clearOverlay()
     strokeCells(
       { x0: cx, y0: cy, x1: cx + stampBuffer.w - 1, y1: cy + stampBuffer.h - 1 },
-      '#c9a96e',
+      '#ff6fb5',
     )
     return
   }
@@ -300,7 +300,7 @@ function onMouseMove(e) {
   } else if (currentTool === 'select' && dragStart) {
     clearOverlay()
     const r = normalizeRect(dragStart.cx, dragStart.cy, cx, cy)
-    strokeCells(r, '#c9a96e')
+    strokeCells(r, '#ff6fb5')
   }
 }
 
@@ -317,7 +317,7 @@ function onMouseUp(e) {
     selectionRect = normalizeRect(dragStart.cx, dragStart.cy, cx, cy)
     captureStampFromSelection()             // stamp tool is ready when you switch to it
     clearOverlay()
-    strokeCells(selectionRect, '#c9a96e')   // stay in select; keyboard ops act on this rect
+    strokeCells(selectionRect, '#ff6fb5')   // stay in select; keyboard ops act on this rect
   }
 
   isMouseDown = false
@@ -373,7 +373,7 @@ function flipSelectionH() {
   selectionForEach((xx, yy, w, h, src) => src[yy * w + (w - 1 - xx)])
   saveToStorage()
   clearOverlay()
-  strokeCells(selectionRect, '#c9a96e')
+  strokeCells(selectionRect, '#ff6fb5')
 }
 
 function flipSelectionV() {
@@ -382,7 +382,7 @@ function flipSelectionV() {
   selectionForEach((xx, yy, w, h, src) => src[(h - 1 - yy) * w + xx])
   saveToStorage()
   clearOverlay()
-  strokeCells(selectionRect, '#c9a96e')
+  strokeCells(selectionRect, '#ff6fb5')
 }
 
 function rotateSelection() {
@@ -393,7 +393,7 @@ function rotateSelection() {
   selectionForEach((xx, yy, w, h, src) => src[(w - 1 - xx) * w + yy])
   saveToStorage()
   clearOverlay()
-  strokeCells(selectionRect, '#c9a96e')
+  strokeCells(selectionRect, '#ff6fb5')
 }
 
 // arrow keys shift the selection by one cell, wrapping the contents at the edges
@@ -409,7 +409,7 @@ function shiftSelection(dx, dy) {
   })
   saveToStorage()
   clearOverlay()
-  strokeCells(selectionRect, '#c9a96e')
+  strokeCells(selectionRect, '#ff6fb5')
 }
 
 function pasteStamp(cx, cy) {

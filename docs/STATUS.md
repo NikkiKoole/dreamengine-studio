@@ -60,12 +60,11 @@ demo data only — see "Open" below.)
 
 Ordered by leverage. Section refs point at the design doc that specs each item.
 
-1. **Cart-pattern helpers** — `explode()` (particle burst on impact). `hud()` and
-   `game_over_screen()` removed from build list: they are high-level compositions that
-   would make all carts look identical — antithetical to the learn-C / make-your-own-game
-   philosophy. `explode()` is different: it is a *primitive effect* (no opinion on game
-   identity), same category as `shake()`. Best designed alongside a lightweight particle
-   system — see particle survey in [`design/api-notes.md`](design/api-notes.md).
+1. **Cart-pattern helpers** — `hud()` and `game_over_screen()` cut (see Decided-against).
+   `explode()` / particle system is a **research topic** before any build: a no-param
+   `explode()` risks making all carts look identical (same concern that killed `hud()`).
+   Needs design work on color, shape, lifetime, and movement params first.
+   See particle survey + open questions in [`design/api-notes.md`](design/api-notes.md) §C.
 2. **2D geometry helpers** — `ngon`/`star`, `poly`/`polyfill`, gradient (dithered),
    rounded-rect, thick-line. Same flavor as the shipped `quadfill`, and evidence-strong like
    #1: 80 carts hand-roll `cos_deg`/`sin_deg` + fill loops; 66 draw with triangles vs 31 with

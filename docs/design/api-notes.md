@@ -1071,7 +1071,16 @@ Pool sizes range 16–600. Carts: `particles.c`, `fire.c`, `hotline.c`, `skystri
   pattern *is* a good C lesson — worth considering whether to abstract it at all.
 - `print_wave` / slow-mo / hit-stop interact with particles; design those together.
 
-**Decision pending.** `explode()` stateless burst is the clear first step.
+**Decision pending — research first (2026-06-01).** A no-param `explode(x, y, age, color)`
+risks the same problem as `hud()`: every explosion looks identical, every cart feels
+the same. Before building anything, the design needs to answer:
+- Which params matter most? (color, shape/glyph, count, spread angle, lifetime, gravity, drag)
+- What is the right granularity — one flexible call, or composable primitives?
+- Should the engine own the pool at all, or just provide math helpers (angle/velocity)
+  and let the cart drive its own struct array?
+- How do PICO-8, TIC-80, and other fantasy consoles solve this?
+
+Park here until the research is done. Do not build yet.
 
 ### D. Entity pool with `.on` flag — 6+ files
 

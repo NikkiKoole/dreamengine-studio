@@ -36,7 +36,13 @@ static void reset() {
 }
 
 void update() {
-    if (!ready) { reset(); ready = true; }
+    if (!ready) {
+        // slot 5: a soft, warm blip — triangle wave, quick pluck, lowpass for roundness
+        instrument(5, INSTR_TRI, 2, 55, 0, 45);
+        instrument_filter(5, FILTER_LOW, 1400, 2);
+        reset();
+        ready = true;
+    }
     if (over) {
         if (btnp(0, BTN_A) || btnp(1, BTN_A)) reset();
         return;
@@ -52,31 +58,44 @@ void update() {
     bx += vx;
     by += vy;
 
-    // top / bottom walls
-    if (by <= 1)                      { by = 1;                     vy = -vy; }
-    if (by + BALL_SIZE >= SCREEN_H-1) { by = SCREEN_H-1-BALL_SIZE; vy = -vy; }
+    // top / bottom walls — soft tick + a little kick
+    if (by <= 1)                      { by = 1;                     vy = -vy; hit(64, 5, 2, 45); shake(1.0f); }
+    if (by + BALL_SIZE >= SCREEN_H-1) { by = SCREEN_H-1-BALL_SIZE; vy = -vy; hit(59, 5, 2, 45); shake(1.0f); }
 
     // left paddle
     if (vx < 0 && boxes_touch((int)bx, (int)by, BALL_SIZE, BALL_SIZE, P1_X, p1y, PADDLE_W, PADDLE_H)) {
         bx = P1_X + PADDLE_W;
         vx = -vx;
-        float hit = (by + BALL_SIZE / 2.0f - p1y) / PADDLE_H - 0.5f;
-        vy = hit * 7.0f;
-        sfx(2);
+        float off = (by + BALL_SIZE / 2.0f - p1y) / PADDLE_H - 0.5f;
+        vy = off * 7.0f;
+        // pitch rises toward the paddle edges — a little pentatonic blip
+        hit(degree(SCALE_PENTA, 4, (int)((off + 0.5f) * 5)), 5, 4, 70);
+        shake(2.5f);
     }
 
     // right paddle
     if (vx > 0 && boxes_touch((int)bx, (int)by, BALL_SIZE, BALL_SIZE, P2_X, p2y, PADDLE_W, PADDLE_H)) {
         bx = P2_X - BALL_SIZE;
         vx = -vx;
-        float hit = (by + BALL_SIZE / 2.0f - p2y) / PADDLE_H - 0.5f;
-        vy = hit * 7.0f;
-        sfx(2);
+        float off = (by + BALL_SIZE / 2.0f - p2y) / PADDLE_H - 0.5f;
+        vy = off * 7.0f;
+        hit(degree(SCALE_PENTA, 4, (int)((off + 0.5f) * 5)), 5, 4, 70);
+        shake(2.5f);
     }
 
-    // score
-    if (bx + BALL_SIZE < 0)  { s2++; sfx(3); over = s2 >= WIN; if (!over) serve(-1); }
-    if (bx > SCREEN_W)       { s1++; sfx(3); over = s1 >= WIN; if (!over) serve(1);  }
+    // score — scorer gets a soft arpeggio; the winning point gets a fuller chord
+    if (bx + BALL_SIZE < 0) {
+        s2++; over = s2 >= WIN;
+        shake(over ? 6.0f : 4.0f);
+        if (over) strum(60, CHORD_MAJ7, 5, 5, 70);
+        else { strum(57, CHORD_MAJ, 5, 4, 45); serve(1); }
+    }
+    if (bx > SCREEN_W) {
+        s1++; over = s1 >= WIN;
+        shake(over ? 6.0f : 4.0f);
+        if (over) strum(60, CHORD_MAJ7, 5, 5, 70);
+        else { strum(64, CHORD_MAJ, 5, 4, 45); serve(-1); }
+    }
 }
 
 void draw() {

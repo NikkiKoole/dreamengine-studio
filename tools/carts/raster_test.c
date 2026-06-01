@@ -15,14 +15,18 @@
 //        --headless --trace build/raster_trace.jsonl --frames 8
 //   cat build/raster_trace.jsonl | grep mismatches
 
-#define BG       CLR_BLACK
-#define FILL_C   CLR_WHITE
-#define OUT_C    CLR_RED
-#define M_FILL   CLR_YELLOW   // fill edge, no outline
-#define M_OUT    CLR_PINK     // outline, no fill neighbour
+#define BG        CLR_DARK_BLUE   // distinct background — not black, easy to spot leaks
+#define FILL_A    CLR_WHITE        // dither color 0 (also solid fill color)
+#define FILL_B    CLR_MEDIUM_GREY  // dither color 1 (two-color checker, not BG)
+#define OUT_C     CLR_RED
+#define M_FILL    CLR_YELLOW   // fill edge, no outline
+#define M_OUT     CLR_PINK     // outline, no fill neighbour
 
 static bool show_outline = true;
 static bool show_dither  = false;
+
+// a pixel counts as "fill" if it is either dither color
+static bool is_fill(int c) { return c == FILL_A || c == FILL_B; }
 
 static int count_mismatches(int x0, int y0, int x1, int y1) {
     int n = 0;
@@ -30,12 +34,12 @@ static int count_mismatches(int x0, int y0, int x1, int y1) {
         for (int x = x0; x <= x1; x++) {
             int c = pget(x, y);
             if (c == OUT_C) {
-                bool has_fill = pget(x-1,y)==FILL_C || pget(x+1,y)==FILL_C ||
-                                pget(x,y-1)==FILL_C || pget(x,y+1)==FILL_C;
+                bool has_fill = is_fill(pget(x-1,y)) || is_fill(pget(x+1,y)) ||
+                                is_fill(pget(x,y-1)) || is_fill(pget(x,y+1));
                 if (!has_fill) { pset(x, y, M_OUT); n++; }
-            } else if (c == FILL_C) {
-                bool on_edge = pget(x-1,y)!=FILL_C || pget(x+1,y)!=FILL_C ||
-                               pget(x,y-1)!=FILL_C || pget(x,y+1)!=FILL_C;
+            } else if (is_fill(c)) {
+                bool on_edge = !is_fill(pget(x-1,y)) || !is_fill(pget(x+1,y)) ||
+                               !is_fill(pget(x,y-1)) || !is_fill(pget(x,y+1));
                 if (on_edge) {
                     bool has_out = show_outline &&
                                    (pget(x-1,y)==OUT_C || pget(x+1,y)==OUT_C ||
@@ -50,11 +54,11 @@ static int count_mismatches(int x0, int y0, int x1, int y1) {
 
 static void draw_shape(int cx, int cy, int r) {
     if (show_dither) {
-        fillp(FILL_CHECKER, BG);
-        circfill(cx, cy, r, FILL_C);
+        fillp(FILL_CHECKER, FILL_B);  // two-color: FILL_A on 0-bits, FILL_B on 1-bits
+        circfill(cx, cy, r, FILL_A);
         fillp_reset();
     } else {
-        circfill(cx, cy, r, FILL_C);
+        circfill(cx, cy, r, FILL_A);
     }
     if (show_outline) circ(cx, cy, r, OUT_C);
 }
@@ -75,13 +79,13 @@ void draw(void) {
 
     // ovals
     if (show_dither) {
-        fillp(FILL_CHECKER, BG);
-        ovalfill(20,  110, 14, 8, FILL_C);
-        ovalfill(70,  110, 20, 10, FILL_C);
+        fillp(FILL_CHECKER, FILL_B);
+        ovalfill(20,  110, 14, 8,  FILL_A);
+        ovalfill(70,  110, 20, 10, FILL_A);
         fillp_reset();
     } else {
-        ovalfill(20,  110, 14, 8, FILL_C);
-        ovalfill(70,  110, 20, 10, FILL_C);
+        ovalfill(20,  110, 14, 8,  FILL_A);
+        ovalfill(70,  110, 20, 10, FILL_A);
     }
     if (show_outline) {
         oval(20,  110, 14, 8, OUT_C);
@@ -100,7 +104,7 @@ void draw(void) {
               show_outline ? "ON " : "OFF",
               show_dither  ? "ON " : "OFF"),
           2, 170, CLR_LIGHT_GREY);
-    print(str("mismatches: %d", mismatches), 2, 178, mismatches > 0 ? M_FILL : CLR_GREEN);
+    print(str("mismatches: %d", mismatches), 2, 178, mismatches > 0 ? M_FILL : CLR_LIME_GREEN);
     if (frame() % 2 == 1) {
         pset(158, 158, CLR_YELLOW);  // blink: detection active this frame
     }

@@ -4,6 +4,9 @@ This is a **reusable preamble** for asking an AI to design a dreamengine cartrid
 it at the top of a fresh context, then append a single per-game spec under "The game
 you're building". It's the standing brief; the per-game part is what changes.
 
+> Ready-made per-game specs (and the assembly recipe + parallel-build add-on) live in
+> [`cart-specs/`](cart-specs/README.md).
+
 > Keep this in sync with reality: the API truth is `runtime/studio.h`, not this file.
 > If a signature here ever drifts from `studio.h`, `studio.h` wins.
 

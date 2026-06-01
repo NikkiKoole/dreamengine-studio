@@ -4,14 +4,14 @@ Each file here is the **per-game half** of a cartridge-authoring prompt. To buil
 cart, paste into a fresh context:
 
 1. the reusable brief — the fenced block in
-   [`docs/guides/cart-authoring-prompt.md`](../../../docs/guides/cart-authoring-prompt.md)
+   [`cart-authoring-prompt.md`](../cart-authoring-prompt.md)
    (it ends with a `# The game you're building` placeholder), then
 2. the contents of the spec file below it.
 
 ```bash
-# assemble brief + a spec into one prompt
+# assemble brief + a spec into one prompt (run from the repo root)
 { sed -n '/^```markdown$/,/^```$/p' docs/guides/cart-authoring-prompt.md | sed '1d;$d'; \
-  echo; cat tools/carts/_specs/druglord.md; } > /tmp/prompt.md
+  echo; cat docs/guides/cart-specs/druglord.md; } > /tmp/prompt.md
 ```
 
 These are design specs, not code — the downstream context reads the engine source and

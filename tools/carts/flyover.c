@@ -5,13 +5,15 @@
 // FLYOVER — a third-person flight sim over a procedurally generated earth.
 //
 // Three engine idioms fused into one sky:
-//   1. MODE 7 GROUND  — one perlin-noise world sampled once per scanline with a
-//      perspective divide (the SNES floor trick from mode7.c): sea, beach, grass,
-//      forest, rock, snow. This is the "earth made with noise + textures".
-//   2. BILLBOARDS      — forests, mountains and whole cities of 3D-ish buildings
-//      scattered across the world, each projected with the SAME mode-7 math and
-//      drawn far-to-near (painter's order), so they rise out of the terrain and
-//      shrink with distance. Clouds are billboards too, just lifted into the sky.
+//   1. VOXEL TERRAIN   — real 3-D ground. A noise heightmap is ray-marched per screen
+//      column, front-to-back, drawing vertical strips behind a y-buffer (the Comanche /
+//      "voxel space" trick). You fly over, around and into actual hills, ridges and
+//      snow-capped peaks — not a flat mode-7 plane. (A ground point at distance z and
+//      elevation e lands on row hz + (H-e)*F/z — the mode-7 formula, generalised to e.)
+//   2. BILLBOARDS      — forests and whole cities of 3-D-ish buildings scattered across
+//      the world, projected with the SAME math and drawn far-to-near (painter's order),
+//      so they stand on the terrain and shrink with distance. Clouds are billboards too,
+//      just lifted into the sky. (Mountains used to be billboards — now they're terrain.)
 //   3. POLYGON PLANE   — a flat-shaded low-poly aircraft (solid3d.c technique:
 //      rotate every corner, sort faces, fillp-dither the in-between shades) pinned
 //      to the foreground. It banks when you turn and pitches when you climb/dive.
@@ -49,6 +51,20 @@ static int sample_world(float wx, float wy) {
     int tx = (int)(wx * T2W), ty = (int)(wy * T2W);
     if (tx < 0 || tx >= TEX || ty < 0 || ty >= TEX) return CLR_DARK_BLUE;
     return world[ty * TEX + tx];
+}
+
+// ── elevation: the voxel-terrain renderer extrudes the ground to real height ────
+#define PEAK 110.0f                      // height at t==1; ridge crests (t up to 1.4) tower above this
+static float hmap[TEX * TEX];            // baked elevation per texel (above sea level)
+static float elev_of(float t) {          // terrain value → elevation; sea is flat at 0
+    if (t <= 0.46f) return 0.0f;
+    float u = (t - 0.46f) / 0.54f;       // 0 at the coast … 1 at t=1 … ~1.7 at a ridge crest
+    return powf(u, 0.9f) * PEAK;         // near-linear → strong relief even in the lowlands
+}
+static float elev_at(float wx, float wy) {
+    int tx = (int)(wx * T2W), ty = (int)(wy * T2W);
+    if (tx < 0 || tx >= TEX || ty < 0 || ty >= TEX) return 0.0f;   // open sea
+    return hmap[ty * TEX + tx];
 }
 
 // ── towns (named places, marked on the minimap) ───────────────────────────────
@@ -100,9 +116,8 @@ static float bank, pitch;               // visual roll & pitch of the plane mode
 static int   fly_state = ST_FLYING;
 static float crash_t   = 0;             // now() at the moment of the crash (drives the explosion)
 #define PITCH_INVERT 1                  // 1: UP dives, DOWN climbs (flight-stick feel). 0: UP climbs.
-#define ALT_MAX     70.0f
-#define ALT_GROUND   5.0f               // altitude while sitting on the ground
-#define ALT_LOW      8.0f               // below this, the descend key commits to a touchdown
+#define ALT_MAX     200.0f              // ceiling — above the tallest ridge crest plus clearance
+#define GROUND_CLR   3.0f               // altitude held above the local terrain when wheels are down
 #define LAND_SPD     3.5f               // touchdown must be at or under this speed
 #define TAKEOFF_SPD  2.6f               // ground speed needed to rotate & lift off
 
@@ -111,14 +126,19 @@ static float crash_t   = 0;             // now() at the moment of the crash (dri
 // instead of fragmenting into lakes-everywhere. A radial falloff sinks the rim
 // into deep ocean, so the land reads as one explorable place with edges.
 static float terrain(float x, float y) {
-    float h = 0.58f * noise2(x * 0.00034f, y * 0.00034f)   // continents      (period ~2900)
-            + 0.30f * noise2(x * 0.0010f,  y * 0.0010f)    // hills & regions (period ~1000)
+    float h = 0.55f * noise2(x * 0.00034f, y * 0.00034f)   // continents      (period ~2900)
+            + 0.28f * noise2(x * 0.0010f,  y * 0.0010f)    // hills & regions (period ~1000)
             + 0.12f * noise2(x * 0.0028f,  y * 0.0028f);   // coastline detail (period ~360)
+    // ridged noise → sharp mountain SPINES, so real ranges rise out of the land
+    float rg = noise2(x * 0.0006f + 19.0f, y * 0.0006f + 7.0f);
+    float ridge = 1.0f - fabsf(2.0f * rg - 1.0f);          // 0..1, ridge-lines where rg≈0.5
+    h += powf(ridge, 3.0f) * 0.55f;                        // cubed = narrow, tall crests (not mesas)
     float dx = (x - WORLD * 0.5f) / (WORLD * 0.5f);
     float dy = (y - WORLD * 0.5f) / (WORLD * 0.5f);
     float r  = sqrtf(dx * dx + dy * dy);                   // 0 centre … 1 edge … 1.41 corner
     float coast = clamp(1.22f - r * 1.12f, 0.0f, 1.0f);    // 1 inland → 0 at the rim
-    return h * (0.34f + 0.66f * coast);                    // rim → deep sea, interior → full height
+    float t = h * (0.34f + 0.66f * coast);                 // rim → deep sea, interior → full height
+    return t > 1.4f ? 1.4f : t;                            // soft cap — peaks tower well above PEAK
 }
 
 static void add_prop(float x, float y, int type, float h, int variant) {
@@ -169,7 +189,8 @@ static void build_grid(int n) {          // counting-sort props [0,n) into bucke
 typedef struct { float d; int sx, gy; float sc; int idx; } Vis;
 #define VISMAX 4096
 static Vis  vis[VISMAX]; static int nvis;
-static float g_ca, g_sa, g_cxs; static int g_hz;   // mode-7 frame constants for project()
+static float g_ca, g_sa, g_cxs; static int g_hz;   // projection frame constants for project()
+static int  ybuf[SCREEN_W];                        // voxel terrain silhouette (top y per column)
 
 // project one prop into vis[] (or drop it if behind, too far, or off-screen)
 static void project(int i) {
@@ -184,8 +205,10 @@ static void project(int i) {
     float sc = F / fwd;
     int sx = (int)(g_cxs + (dxx * (-g_sa) + dyy * g_ca) * sc);
     if (sx < -90 || sx > SCREEN_W + 90) return;
+    float e = elev_at(px_[i], py_[i]);                  // the prop stands on the terrain surface
+    int gy = (int)(g_hz + (H - e) * sc);
     vis[nvis].d = fwd; vis[nvis].sx = sx; vis[nvis].sc = sc;
-    vis[nvis].gy = (int)(g_hz + H * sc); vis[nvis].idx = i; nvis++;
+    vis[nvis].gy = gy; vis[nvis].idx = i; nvis++;
 }
 
 // is a building or mountain tall enough to hit us within arm's reach? (uses the grid)
@@ -198,10 +221,10 @@ static int collide_check(void) {
             int b = gy * GRID + gx;
             for (int k = bstart[b]; k < bstart[b + 1]; k++) {
                 int i = porder[k], t = ptype[i];
-                if (t != BUILDING && t != MOUNTAIN) continue;
+                if (t != BUILDING) continue;                  // mountains are terrain now, not props
                 float dx = px_[i] - cx, dy = py_[i] - cy;
-                float rad = (t == MOUNTAIN) ? 9.0f : 5.5f;
-                if (dx * dx + dy * dy < rad * rad && H < ph[i]) return 1;
+                float top = elev_at(px_[i], py_[i]) + ph[i];  // building sits on the terrain
+                if (dx * dx + dy * dy < 5.5f * 5.5f && H < top) return 1;
             }
         }
     }
@@ -214,10 +237,11 @@ static void do_crash(void) {
     shake(9); hit(30, 2, 6, 700);                 // a low boom + a screen kick
 }
 
-static void reset_flight(void) {                  // (re)start a flight near the first town
-    fly_state = ST_FLYING; ang = 0; spd = 1.6f; H = 30; bank = 0; pitch = 0;
-    if (ncity > 0) { cx = cityx[0] - 150; cy = cityy[0]; }
-    else           { cx = WORLD * 0.5f;   cy = WORLD * 0.5f; }
+static float spawn_cx, spawn_cy, spawn_H;         // scenic start: approaching the tallest peak
+
+static void reset_flight(void) {                  // (re)start the flight at the scenic spawn
+    fly_state = ST_FLYING; ang = 0; spd = 1.6f; bank = 0; pitch = 0;   // ang 0 heads +x toward the peak
+    cx = spawn_cx; cy = spawn_cy; H = spawn_H;
 }
 
 void init(void) {
@@ -230,7 +254,8 @@ void init(void) {
             unsigned int hh = (unsigned int)(tx * 374761393u + ty * 668265263u);
             hh = (hh ^ (hh >> 13)) * 1274126177u;
             float jitter = ((hh & 1023) / 1023.0f - 0.5f) * 0.05f;
-            float h = terrain(wx, wy) + jitter;
+            float t = terrain(wx, wy);
+            float h = t + jitter;
             int c;
             if      (h < 0.30f) c = CLR_DARK_BLUE;     // deep sea
             else if (h < 0.42f) c = CLR_TRUE_BLUE;     // sea
@@ -242,6 +267,13 @@ void init(void) {
             else if (h < 0.90f) c = CLR_DARK_GREY;     // crag
             else                c = CLR_WHITE;         // snow
             world[ty * TEX + tx] = c;
+            // real height for the voxel renderer: base relief + closer-spaced hills &
+            // bumps so the ground visibly rolls as you fly (ramped in from the shoreline)
+            float e = elev_of(t);
+            float land = clamp((t - 0.50f) / 0.15f, 0.0f, 1.0f);   // 0 at the coast → 1 inland
+            e += noise2(wx * 0.004f, wy * 0.004f) * 24.0f * land;  // hills      (period ~250)
+            e += noise2(wx * 0.011f, wy * 0.011f) * 9.0f  * land;  // fine bumps (period ~90)
+            hmap[ty * TEX + tx] = e;
         }
 
     // 1b. farmland — patchwork fields stamped over lowland grass, clustered into
@@ -266,13 +298,7 @@ void init(void) {
             add_prop(x, y, TREE, rnd_float_between(1.4f, 2.6f), rnd(2));   // round or pine
     }
 
-    // 3. mountains — big peaks where the terrain is rock/snow
-    for (int i = 0; i < 250000; i++) {
-        float x = rnd_float_between(0, WORLD), y = rnd_float_between(0, WORLD);
-        float h = terrain(x, y);
-        if (h > 0.80f && chance(55))
-            add_prop(x, y, MOUNTAIN, remap(h, 0.80f, 1.0f, 16, 42), h > 0.90f ? 1 : 0); // snowcap if high
-    }
+    // (mountains are no longer billboards — the voxel terrain renders real peaks)
 
     // 4. towns — building clusters on habitable coast, each given a unique name
     int s0 = rnd(NPREF * NSUF);                                  // rotate the name grid each flight
@@ -342,8 +368,20 @@ void init(void) {
                  rnd_float_between(24, 64),                       // altitude
                  (int)rnd_float_between(5, 10));                  // puff size
 
-    // flight start — approach the first town from the west so you open on a city,
-    // then fly out across the suburbs and farmland to explore (ang 0 heads +x/east)
+    // scenic spawn — find the spot of strongest LOCAL relief at moderate elevation
+    // (hill-and-valley country, not the flat snow massif), so you open on terrain whose
+    // shape and shading actually read. Spawn just above it, looking across the relief.
+    float bestR = -1; int bx = TEX / 2, by = TEX / 2;
+    for (int ty = 24; ty < TEX - 24; ty += 4)
+        for (int tx = 24; tx < TEX - 24; tx += 4) {
+            float e = hmap[ty * TEX + tx];
+            if (e < 14.0f || e > 95.0f) continue;             // skip coast/sea and extreme peaks
+            float rel = fabsf(e - hmap[(ty + 14) * TEX + (tx + 14)]);  // slope over ~110 units
+            if (rel > bestR) { bestR = rel; bx = tx; by = ty; }
+        }
+    spawn_cx = bx / T2W; spawn_cy = by / T2W;
+    spawn_H = hmap[by * TEX + bx] + 30.0f;                     // ride low over the slope for big parallax
+    if (spawn_H > ALT_MAX - 30.0f) spawn_H = ALT_MAX - 30.0f;
     reset_flight();
 
     // a soft engine drone
@@ -387,26 +425,32 @@ void update(void) {
     int kDescend = PITCH_INVERT ? upk : dnk;                      // lose altitude / land
     float climbDir = 0;
 
+    float groundE = elev_at(cx, cy);                              // terrain height right under us
+    float floorH  = groundE + GROUND_CLR;                         // altitude with the wheels on the deck
+
     if (fly_state == ST_LANDED) {
-        // taxi on the ground; rotate & lift off once you have takeoff speed
+        H = floorH;                                               // ride the terrain while taxiing
+        if (terrain(cx, cy) < 0.46f) do_crash();                  // taxied off into the sea
         if (kClimb && spd >= TAKEOFF_SPD) { fly_state = ST_FLYING; climbDir = -1; }
     } else {                                                      // ST_FLYING
-        if (kClimb)   { H = clamp(H + 0.7f, ALT_GROUND, ALT_MAX); climbDir = -1; }
+        if (kClimb)   { H = clamp(H + 0.7f, floorH, ALT_MAX); climbDir = -1; }
         if (kDescend) {
-            if (H > ALT_LOW) { H -= 0.7f; climbDir = 1; }         // ordinary descent
-            else {                                                // low + holding descend → commit to land
-                float t = terrain(cx, cy);
-                int landable = (t >= 0.46f && t <= 0.64f);        // flat lowland / beach only
+            if (H > floorH + 6) { H -= 0.7f; climbDir = 1; }      // ordinary descent toward the deck
+            else {                                                // near the ground → commit to a touchdown
+                float ahead = elev_at(cx + cos_deg(ang) * 8, cy + sin_deg(ang) * 8);
+                float tg = terrain(cx, cy);                       // beach/grass only (not sea, forest or rock)
+                int landable = (tg >= 0.47f && tg <= 0.62f && fabsf(ahead - groundE) < 3.0f);
                 if (landable && spd <= LAND_SPD && !collide_check()) {
                     H -= 0.5f; climbDir = 1;
-                    if (H <= ALT_GROUND) { H = ALT_GROUND; fly_state = ST_LANDED; }
+                    if (H <= floorH) { H = floorH; fly_state = ST_LANDED; }
                 } else {
-                    do_crash();                                   // too fast, or over water/forest/rock
+                    do_crash();                                   // too fast, or over water / slopes / town
                 }
             }
         }
-        if (H <= ALT_LOW) { float d = spd * 0.985f; spd = d < 0.5f ? 0.5f : d; }  // approach drag near the deck
-        if (fly_state == ST_FLYING && collide_check()) do_crash(); // flew into a tower or a peak
+        if (H - groundE < 8) { float d = spd * 0.985f; spd = d < 0.5f ? 0.5f : d; }  // approach drag
+        if (fly_state == ST_FLYING && collide_check())   do_crash();  // flew into a tower
+        if (fly_state == ST_FLYING && H < groundE + 1.5f) do_crash();  // flew into a hillside / peak
     }
 
     // visual bank / pitch ease toward the input — a plane banks INTO the turn
@@ -719,39 +763,59 @@ static void draw_minimap(void) {
 }
 
 void draw(void) {
-    // horizon drops as you climb — at altitude you look down, so the far (shimmery)
-    // terrain band shrinks toward a lower horizon line.
-    int hz = (int)clamp(HZ + (H - 12) * 0.75f, HZ, 132);
+    // a fixed eye-level horizon; the climb/dive pitch nudges it for feel. Altitude is
+    // handled by the voxel projection itself, not by sliding the horizon up and down.
+    int hz = (int)clamp(HZ - pitch * 0.6f, 50, 150);
 
-    // --- sky ---
-    rectfill(0, 0,  SCREEN_W, 28,      CLR_DARKER_BLUE);
-    rectfill(0, 28, SCREEN_W, 24,      CLR_DARK_BLUE);
-    rectfill(0, 52, SCREEN_W, 14,      CLR_TRUE_BLUE);
-    rectfill(0, 66, SCREEN_W, hz - 66, CLR_BLUE);
+    float ca = cos_deg(ang), sa = sin_deg(ang);
+    float cxs = SCREEN_W / 2.0f;
+
+    // --- sky (full height; the terrain overdraws everything below its silhouette) ---
+    rectfill(0, 0,  SCREEN_W, 28,            CLR_DARKER_BLUE);
+    rectfill(0, 28, SCREEN_W, 24,            CLR_DARK_BLUE);
+    rectfill(0, 52, SCREEN_W, 14,            CLR_TRUE_BLUE);
+    rectfill(0, 66, SCREEN_W, SCREEN_H - 66, CLR_BLUE);
     circfill(SCREEN_W - 54, 26, 12, CLR_LIGHT_YELLOW);
     circfill(SCREEN_W - 54, 26, 16, CLR_LIGHT_YELLOW);   // soft glow (overdraw)
 
-    // --- MODE 7 GROUND: one perspective-correct texture sample per scanline ---
-    float ca = cos_deg(ang), sa = sin_deg(ang);
-    float cxs = SCREEN_W / 2.0f;
-    for (int sy = hz; sy < SCREEN_H; sy += BS) {
-        int   dy = sy - hz + 1;
-        float z  = (H * F) / dy;
-        if (z > 3000) z = 3000;
-        float stepx = -sa * (z / F) * BS;
-        float stepy =  ca * (z / F) * BS;
+    // --- VOXEL TERRAIN: ray-march each column over the heightmap, front-to-back,
+    //     painting vertical strips behind a y-buffer so near ground hides far ground.
+    //     A ground point at distance z, elevation e lands on screen row
+    //         sy = hz + (H - e) * F / z      (the old mode-7 formula, generalised to e). ---
+    for (int x = 0; x < SCREEN_W; x++) ybuf[x] = SCREEN_H;
+    float z = 4.0f, dz = 1.0f;
+    while (z < 2000.0f) {
         float lat0  = (0 - cxs) / F * z;
         float wx = cx + ca * z + (-sa) * lat0;
         float wy = cy + sa * z + ( ca) * lat0;
+        float stepx = -sa * (z / F) * BS;
+        float stepy =  ca * (z / F) * BS;
+        float inv = F / z;
         for (int sx = 0; sx < SCREEN_W; sx += BS) {
-            rectfill(sx, sy, BS, BS, sample_world(wx, wy));
+            int tx = (int)(wx * T2W), ty = (int)(wy * T2W);
+            float e; int col;
+            if (tx < 0 || tx >= TEX || ty < 0 || ty >= TEX) { e = 0; col = CLR_DARK_BLUE; }
+            else { int idx = ty * TEX + tx; e = hmap[idx]; col = world[idx]; }
+            int sy = hz + (int)((H - e) * inv);
+            if (sy < ybuf[sx]) {
+                // hillshade: a slope dropping away from the NW light reads as shadow
+                float eL = elev_at(wx - 9.0f, wy - 9.0f);
+                if (col != CLR_DARK_BLUE && e < eL - 1.5f) {     // shadowed face (skip flat sea)
+                    fillp(FILL_CHECKER, CLR_BLACK);              // dither it darker
+                    rectfill(sx, sy, BS, ybuf[sx] - sy, col);
+                    fillp_reset();
+                } else {
+                    rectfill(sx, sy, BS, ybuf[sx] - sy, col);
+                }
+                for (int k = 0; k < BS && sx + k < SCREEN_W; k++) ybuf[sx + k] = sy;
+            }
             wx += stepx; wy += stepy;
         }
+        z += dz; dz += 0.06f;                            // LOD: coarser sampling with distance
     }
-    // atmospheric haze over the farthest, shimmery rows just below the horizon
+    // a thin atmospheric haze where the land meets the sky
     fillp(FILL_CHECKER, -1);
-    rectfill(0, hz,     SCREEN_W, 4, CLR_BLUE);
-    rectfill(0, hz + 4, SCREEN_W, 4, CLR_TRUE_BLUE);
+    rectfill(0, hz - 2, SCREEN_W, 3, CLR_TRUE_BLUE);
     fillp_reset();
 
     // --- BILLBOARDS: project only the props near you (spatial grid + clouds), sort, draw ---
@@ -820,7 +884,7 @@ void draw(void) {
         print_centered("press Z to restart", SCREEN_H / 2 - 4, CLR_WHITE);
     } else if (fly_state == ST_LANDED) {
         print_centered(str("Z power up   %s take off   L/R taxi", climbKey), SCREEN_H - 9, CLR_DARK_GREY);
-    } else if (H <= ALT_LOW) {
+    } else if (H - elev_at(cx, cy) < 8) {
         print_centered(str("hold %s to land  (slow, over open ground)", landKey), SCREEN_H - 9, CLR_LIGHT_YELLOW);
     } else {
         print_centered(str("L/R turn   %s climb / %s dive   Z/X throttle", climbKey, landKey),

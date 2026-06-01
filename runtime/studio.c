@@ -68,6 +68,7 @@ static int             fp_hole    = -1;               // fillp() 1-bit color (-1
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
 static void circfill_pat(int x, int y, int radius, int pattern, int c1, int c0);
 static void ovalfill_pat(int cx, int cy, int rx, int ry, int pattern, int c1, int c0);
+static void plot_pat(int x, int y, int color);
 static void trifill_pat(int x1, int y1, int x2, int y2, int x3, int y3, int pattern, int c1, int c0);
 // pal()-on-sprites helpers (defined in the graphics section, used earlier in main/pal)
 static void pal_shader_init(void);
@@ -1294,13 +1295,34 @@ static void trifill_pat(int x1, int y1, int x2, int y2, int x3, int y3, int patt
 void fillp(int pattern, int hole_color) { fp_on = true; fp_global = pattern; fp_hole = hole_color; }
 void fillp_reset(void)  { fp_on = false; }
 
-void circ(int x, int y, int radius, int color) {
-    DrawCircleLines(x, y, (float)radius, palette[color % PALETTE_SIZE]);
+// Pixel-center coverage tests — one definition shared by fill, outline, and dither.
+// Using x+0.5 / y+0.5 so the disc boundary is between pixels, not on them.
+// circ and circfill both call disc_inside → outline is always the outermost
+// ring of the fill, never a pixel outside it.
+static bool disc_inside(int x, int y, int cx, int cy, int r) {
+    float dx = x + 0.5f - cx, dy = y + 0.5f - cy;
+    return dx*dx + dy*dy <= (float)r * r;
+}
+static bool ellipse_inside(int x, int y, int cx, int cy, int rx, int ry) {
+    float dx = (x + 0.5f - cx) / (float)rx, dy = (y + 0.5f - cy) / (float)ry;
+    return dx*dx + dy*dy <= 1.0f;
 }
 
-void circfill(int x, int y, int radius, int color) {
-    if (fp_on) { circfill_pat(x, y, radius, fp_global, fp_hole, color); return; }
-    DrawCircle(x, y, radius, palette[color % PALETTE_SIZE]);
+void circ(int cx, int cy, int r, int color) {
+    // outline = pixels inside the disc that have at least one outside 4-neighbour
+    for (int y = cy - r; y <= cy + r; y++)
+        for (int x = cx - r; x <= cx + r; x++)
+            if (disc_inside(x,y,cx,cy,r) &&
+                (!disc_inside(x-1,y,cx,cy,r) || !disc_inside(x+1,y,cx,cy,r) ||
+                 !disc_inside(x,y-1,cx,cy,r) || !disc_inside(x,y+1,cx,cy,r)))
+                pset(x, y, color);
+}
+
+void circfill(int cx, int cy, int r, int color) {
+    // fill = all pixels inside the disc; plot_pat handles both solid and fillp dither
+    for (int y = cy - r; y <= cy + r; y++)
+        for (int x = cx - r; x <= cx + r; x++)
+            if (disc_inside(x, y, cx, cy, r)) plot_pat(x, y, color);
 }
 
 void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
@@ -1981,28 +2003,22 @@ int print_scaled(const char *t, int x, int y, int color, int scale) {
 }
 
 void ovalfill(int cx, int cy, int rx, int ry, int color) {
-    if (rx < 0) rx = -rx; if (ry < 0) ry = -ry; if (ry == 0) ry = 1;
-    if (fp_on) { ovalfill_pat(cx, cy, rx, ry, fp_global, fp_hole, color); return; }
-    Color c = palette[color % PALETTE_SIZE];
-    for (int yy = -ry; yy <= ry; yy++) {
-        float f = 1.0f - (float)(yy * yy) / (float)(ry * ry);
-        if (f < 0) f = 0;
-        int hw = (int)(rx * sqrtf(f) + 0.5f);
-        DrawRectangle(cx - hw, cy + yy, hw * 2 + 1, 1, c);
-    }
+    if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
+    if (rx == 0 || ry == 0) return;
+    for (int y = cy - ry; y <= cy + ry; y++)
+        for (int x = cx - rx; x <= cx + rx; x++)
+            if (ellipse_inside(x, y, cx, cy, rx, ry)) plot_pat(x, y, color);
 }
+
 void oval(int cx, int cy, int rx, int ry, int color) {
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
-    Color c = palette[color % PALETTE_SIZE];
-    int steps = (rx > ry ? rx : ry) * 4; if (steps < 16) steps = 16;
-    int px = cx + rx, py = cy;
-    for (int i = 1; i <= steps; i++) {
-        float a = (float)i / steps * 6.2831853f;
-        int nx = cx + (int)(rx * cosf(a) + 0.5f);
-        int ny = cy + (int)(ry * sinf(a) + 0.5f);
-        DrawLine(px, py, nx, ny, c);
-        px = nx; py = ny;
-    }
+    if (rx == 0 || ry == 0) return;
+    for (int y = cy - ry; y <= cy + ry; y++)
+        for (int x = cx - rx; x <= cx + rx; x++)
+            if (ellipse_inside(x,y,cx,cy,rx,ry) &&
+                (!ellipse_inside(x-1,y,cx,cy,rx,ry) || !ellipse_inside(x+1,y,cx,cy,rx,ry) ||
+                 !ellipse_inside(x,y-1,cx,cy,rx,ry) || !ellipse_inside(x,y+1,cx,cy,rx,ry)))
+                pset(x, y, color);
 }
 
 // ------------------------------------------------------------

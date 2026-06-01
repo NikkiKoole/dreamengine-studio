@@ -1,0 +1,22 @@
+# Raster accuracy harness script
+# Tests 4 states: solid/outline, solid/no-outline, dithered/outline, dithered/no-outline
+# Detection runs on odd frames; even frames are clean draws (no feedback loop).
+# Read mismatches from the trace: cat build/raster_trace.jsonl | grep mismatches
+#
+# Run with:
+#   node tools/play.js raster_test script tools/raster_test.script \
+#        --headless --trace build/raster_trace.jsonl --frames 16
+
+# frame 1: solid fill + outline (default state) — detect on frame 1 (odd)
+# frame 3: detect again
+# frame 4: press Z → toggle outline OFF
+# frame 5: solid fill, no outline — detect
+# frame 8: press X → toggle dither ON  (now dithered, no outline)
+# frame 9: detect
+# frame 10: press Z → toggle outline ON (now dithered + outline)
+# frame 11: detect
+# frame 14: final detect pass
+
+tap  4  Z
+tap  8  X
+tap 10  Z

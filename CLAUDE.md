@@ -177,6 +177,16 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
 node tools/make-cart.js --update <cart.png> <screenshot.png>  # swap in a thumbnail manually
 ```
 
+> **`--run` only updates the thumbnail, NOT the embedded source.** When iterating on cart
+> logic, always re-run the full build first to re-embed the updated C source, then `--run`
+> to bake the screenshot:
+> ```bash
+> node tools/make-cart.js tools/carts/<name>.c editor/public/carts/<name>.cart.png
+> node tools/make-cart.js --run editor/public/carts/<name>.cart.png
+> ```
+> If you skip the first step, the editor loads the old code from the `de:source` chunk — the
+> cart appears to ignore every code change you make.
+
 Note: `make-cart.js` is run with plain `node` (it's CommonJS via `require`, not affected by `editor/package.json`'s `"type": "module"` since it lives in the repo root `tools/`, which has no `package.json`).
 
 ## Debugging carts — the "play together" harness

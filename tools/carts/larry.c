@@ -148,7 +148,7 @@ static bool larry_near(int id) {
 }
 
 // ── verb resolution ────────────────────────────────────────────────────
-static void try_exit(int s) { fade(0); respawn(s); msg_t = 0; }
+static void try_exit(int s) { respawn(s); msg_t = 0; }
 
 static void act_bar(int id) {
     if (held) {  // using a held inventory item on a hotspot

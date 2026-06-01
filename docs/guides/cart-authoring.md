@@ -4,16 +4,20 @@ Scripts in `tools/` for creating and updating `.cart.png` files without the edit
 Designed to be used by Claude in-session via the Bash tool.
 
 > **#1 cart gotcha — sticky render state.** Global render state comes in two kinds:
-> - **The engine clears these for you each frame** — `clip` (scissor off at frame end) and
->   `shake` (decays on its own). Set them and forget them.
+> - **The engine clears these for you each frame** — `clip` (scissor off at frame end),
+>   `shake` (decays on its own), and `fade` (zeroed each frame — immediate-mode, see
+>   [decision 0010](../decisions/0010-fade-is-immediate-mode.md)). Set them and forget them;
+>   re-assert `fade()` on whatever frames you want the screen dimmed (e.g. inside a game-over
+>   overlay) and it clears itself the moment that state ends.
 > - **You own these — they persist across frames *and game states* until you change them** —
->   `camera`/`camera_ex`, `fade`, `pal`, `fillp`. A value left by one scope leaks into the
->   next (a title-screen `fade(0.5)` dimming the *whole game*; `mouse_world_*` reading a
->   camera the HUD reset to 0).
+>   `camera`/`camera_ex`, `pal`, `fillp`. A value left by one scope leaks into the next
+>   (`mouse_world_*` reading a camera the HUD reset to 0; a leftover `pal()` recoloring the
+>   next scene).
 >
-> Habit: reset the ones you own at the top of `draw()` — `fade(0); camera(0,0); pal_reset();
-> fillp_reset();` — and set the camera in `update()` before reading `mouse_world_*`. See the
-> postscript in [`../design/cart-survey-api-priorities.md`](../design/cart-survey-api-priorities.md).
+> Habit: reset the ones you own at the top of `draw()` — `camera(0,0); pal_reset();
+> fillp_reset();` — and set the camera in `update()` before reading `mouse_world_*`. (`fade`
+> used to be on this list; it no longer needs a manual `fade(0)` — the engine clears it.) See
+> the postscript in [`../design/cart-survey-api-priorities.md`](../design/cart-survey-api-priorities.md).
 
 ---
 

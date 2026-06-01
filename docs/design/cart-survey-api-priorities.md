@@ -362,24 +362,29 @@ a win. Helpers that only *write* state or compute from their arguments (`save_in
 `clicked(x,y,w,h)`) are safe. Helpers that *read* hidden global state to hand back a value
 need a documented convention or they trade visible boilerplate for invisible bugs.
 
-**Wider corollary — *all* sticky global render state leaks, in both directions.** The same
+**Wider corollary — sticky global render state leaks, in both directions.** The same
 root cause surfaced a second time while juicing the `hotline` cart with `camera_ex`. The
-engine's render state is a set of **sticky setters** — `camera`, `fade`, `pal`, `fillp`,
-`clip` — whose values persist across frames *and across game states* until something changes
-them. Two symmetric failure modes:
+engine's drawing-scope state is a set of **sticky setters** — `camera`, `pal`, `fillp` —
+whose values persist across frames *and across game states* until something changes them.
+Two symmetric failure modes:
 - **Read-side (stale):** you read the leftover value and get something from another scope —
   `mouse_world_*` in `update()` inverting the camera that `draw()`'s HUD reset left at the
   origin, so aim drifts as the world scrolls. Fix: set the camera in `update()` before
   reading it.
 - **Write-side (leak):** you set it and never reset, so it bleeds into a scope you didn't
   mean — `panel()` calls `fade(0.5)` on the title screen, and with nothing clearing it the
-  50% dim stayed overlaid on the *entire* game session. Fix: `fade(0)` at the top of
-  `draw()`, and let `panel()` re-apply it only on the screens that want it.
+  50% dim stayed overlaid on the *entire* game session.
+
+> **Update — `fade` is no longer in this set.** The write-side example above was `fade`'s
+> bug, and it recurred in **27 carts** — so `fade` was made **immediate-mode**: the runtime
+> zeroes it every frame, a cart re-asserts `fade()` only on the frames it wants the dim, and
+> it clears itself on state exit. No `fade(0)` reset needed. The "reset what you own" habit
+> below now covers `camera`/`pal`/`fillp` only. See [decision 0010](../decisions/0010-fade-is-immediate-mode.md).
 
 Defensive habit for cart authors: **reset the sticky globals you touch at the top of each
-`draw()`** (`fade(0); camera(0,0); pal_reset(); fillp_reset();`) and re-apply them per scope,
-rather than trusting whatever the previous frame or game state left behind. This is the
-single most common class of "works at first, breaks after some play" bug in the corpus.
+`draw()`** (`camera(0,0); pal_reset(); fillp_reset();`) and re-apply them per scope, rather
+than trusting whatever the previous frame or game state left behind. This is the single most
+common class of "works at first, breaks after some play" bug in the corpus.
 
 **This also reframes `mouse_world_*`'s value — and that reframing has now shipped.** While
 `camera()` was translate-only, the helper barely beat one addition. Adding **rotation and

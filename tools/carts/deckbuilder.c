@@ -187,7 +187,6 @@ static void play_card(int slot) {
     hand_n--;
     if (ehp <= 0) {
         // victory
-        fade(0);
         node_done[node] = true;
         if (node == 2) { state = ST_WIN; save_int("runsWon", load_int("runsWon", 0) + 1); }
         else { prep_reward(); state = ST_REWARD; }

@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-01 (session 12 — ragdoll physics demo cart). Prior: session 11 — geometry helpers, fonts._
+_Last updated: 2026-06-01 (session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug). Prior: session 12 — ragdoll physics demo cart._
 
 ---
 
@@ -38,6 +38,10 @@ Recently landed and worth calling out:
 - 3D leaf-helpers: `V3` + `rot3`/`project3`/`zsort`/`quadfill` — the rotate→project→sort→fill
   pipeline the solid-3D carts re-derived by hand. `cube3d`/`solid3d`/`textured3d`/`flyover`
   refactored onto them. [decision 0009](decisions/0009-small-3d-leaf-helpers.md).
+- **`fade()` is now immediate-mode** — the runtime zeroes it each frame, so a cart re-asserts
+  `fade()` only on the frames it wants the screen dimmed and never calls `fade(0)` by hand. Fixed
+  the same stuck-dim bug in **27 carts** at once (conditional overlay fade that never cleared on
+  exit). `camera`/`pal`/`fillp` remain sticky setters. [decision 0010](decisions/0010-fade-is-immediate-mode.md).
 - **Removed:** turtle graphics (`turtle_*`/`pen_*`) — one user, trivially a cart; see Cut
   below + [decision 0008](decisions/0008-cut-turtle-graphics-api.md).
 - Input: full mouse (`mouse_x/y/down/pressed/released/wheel`), keyboard

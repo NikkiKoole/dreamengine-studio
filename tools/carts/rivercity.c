@@ -233,7 +233,7 @@ static void hurt_hero(int dmg, int kdir) {
     spark_at(hero.x, hero.y - 16, CLR_RED);
     shake(2.0f); sfx_hit(1);
     hitcombo = 0;
-    if (hero.hp <= 0) { hero.hp = 0; shake(6.0f); fade(0); phase = G_OVER;
+    if (hero.hp <= 0) { hero.hp = 0; shake(6.0f); phase = G_OVER;
         if (cash > best.best_cash) { best.best_cash = cash; save_bytes(&best, sizeof best); } }
 }
 

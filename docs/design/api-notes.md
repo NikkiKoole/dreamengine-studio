@@ -973,7 +973,7 @@ void printh(const char *fmt, ...);                   // printf to the editor's r
 ```c
 void  pal(int c0, int c1);    // remap: draw color c0 as c1 (hit-flash, recolor, fades). persists until pal_reset()
 void  pal_reset(void);        // undo all pal() swaps
-void  fade(float amount);     // darken the whole screen toward black: 0 = normal, 1 = black. for transitions
+void  fade(float amount);     // darken the whole screen toward black for ONE frame: 0 = normal, 1 = black. immediate-mode — call it every frame you want it (e.g. in a game-over overlay); clears itself. for transitions
 void  shake(float amount);    // kick the screen by `amount` pixels; decays on its own. call on impacts
 void  print_scaled(const char *text, int x, int y, int color, int scale); // bigger text for titles/menus
 int   text_width(const char *text);  // pixel width of text at normal size (chars × 8) — for centering in your own boxes

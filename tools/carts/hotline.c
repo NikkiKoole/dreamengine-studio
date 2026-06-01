@@ -907,8 +907,6 @@ static void draw_bg(void) {
 }
 
 void draw(void) {
-    fade(0);             // clear last frame's fade — panel() re-applies it on title/dead/win,
-                         // so gameplay isn't left permanently dimmed by the title's fade(0.5)
     camera(0, 0);        // identity for the screen-space background field
     draw_bg();           // neon space around the room (replaces the plain black void)
     draw_world();

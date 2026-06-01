@@ -276,7 +276,7 @@ static void rock_update(Rock *r) {
         }
         if (state == 0 && pl.tx == r->tx && pl.ty == ny) {
             r->state = 3; r->t = now() + 1.0f;
-            lives--; snd_die(); fade(0.0f);
+            lives--; snd_die();
             state = (lives <= 0) ? 3 : 1; state_until = now() + 1.4f;
             if (lives <= 0 && score > hiscore) { hiscore = score; save(0, hiscore); }
             return;

@@ -376,7 +376,6 @@ void update() {
         int cx = colof(px), cy = rowof(py);
         if (cell_at(cx, cy) == T_EXIT && cy <= 0) {
             state = 2; state_t = 0;
-            fade(0); // (reset)
             note(76, INSTR_TRI, 5); schedule(120, 83, INSTR_TRI, 5);
             schedule(240, 88, INSTR_TRI, 6);
         }

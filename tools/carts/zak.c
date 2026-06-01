@@ -141,7 +141,7 @@ static bool zak_near(int id) {
 }
 
 // ── verb resolution ───────────────────────────────────────────────────
-static void try_exit(int s) { fade(0); say("..."); respawn(s); msg_t = 0; }
+static void try_exit(int s) { say("..."); respawn(s); msg_t = 0; }
 
 static void act_flat(int id) {
     // using a held inventory item on a hotspot

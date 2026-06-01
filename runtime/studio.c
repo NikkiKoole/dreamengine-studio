@@ -617,6 +617,11 @@ static void loop_step(void) {
         }
     // characters typed this frame for text_input()
     { int n = 0, ch; while ((ch = GetCharPressed()) != 0 && n < 31) text_buf[n++] = (char)ch; text_buf[n] = 0; }
+    // fade is immediate-mode like every other draw call: it clears each frame, so a
+    // cart must re-assert fade() every frame it wants the screen dimmed. This is why
+    // a conditional `if (gameover) fade(0.5f);` clears itself once the state ends —
+    // carts never need to call fade(0) by hand.
+    fade_amt = 0.0f;
     update();
     frame_count++;
 

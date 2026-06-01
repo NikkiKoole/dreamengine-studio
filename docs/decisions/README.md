@@ -44,6 +44,9 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0005](0005-defer-tile-collision-helper.md) | Defer `move_and_collide` tile-collision helper | accepted |
 | [0006](0006-library-carts-not-engine.md) | Pathfinding/particles ship as library carts, not engine API | accepted |
 | [0007](0007-pal-recolors-sprites.md) | `pal()` recolors sprites too, via a palette-swap shader | accepted |
+| [0008](0008-cut-turtle-graphics-api.md) | Cut the turtle-graphics API | accepted |
+| [0009](0009-small-3d-leaf-helpers.md) | A small set of 3D leaf-helpers (`rot3`/`project3`/`zsort`/`quadfill` + `V3`) | accepted |
+| [0010](0010-fade-is-immediate-mode.md) | `fade()` is immediate-mode, not a sticky setter | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

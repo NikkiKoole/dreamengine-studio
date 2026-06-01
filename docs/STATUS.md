@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-01 (session 11 — geometry helpers: ngon/star/poly/thickline/rrect/gradients; font() + FONT_SMALL/TINY; print_shadow/outline; print returns x). Prior: 2026-06-01 (session 10 — 3D leaf-helpers, turtle removed)._
+_Last updated: 2026-06-01 (session 12 — ragdoll physics demo cart). Prior: session 11 — geometry helpers, fonts._
 
 ---
 
@@ -20,6 +20,7 @@ _Last updated: 2026-06-01 (session 11 — geometry helpers: ngon/star/poly/thick
 - Cart format — `.cart.png` with source/sprites/map in zTXt chunks; save, load,
   drag-drop. Carts carry their own settings (screen/scale/cell/map).
 - Tutorials gallery — 20 numbered tutorial carts + ~80 example game carts (~100 total).
+- **`ragdoll.cart.png`** — Verlet physics sandbox. Up to 50 stick-figure ragdolls hop autonomously across the screen, bounce off each other and off rolling balls. Grab + throw with mouse (whole-body drag), right-click to spawn balls, C to spawn characters, R to reset. Key techniques: Störmer-Verlet integration, distance constraints (12 sticks/character, 8 iterations), position springs chained bottom-up (feet → knees → hip → chest → head), angular springs per bone with 90° guard (cross-product direction inverts past 90°), per-character standing/ragdoll timer that only recovers when feet are on the floor, hop impulse that immediately releases the foot pin so it isn't erased, broad-phase character collision (hip-to-hip > 40px early-out then 12×12 point pairs with velocity impulse). Debug session used the play.js harness + DE_TRACE watches to trace `rtimer`, `whop`, `hip_y`, `knee_y` and diagnose: rest lengths mismatched standing pose (hip-knee was 9, actual √73 ≈ 8.54 → knee pushed to floor); hop velocity erased by foot pre-pin each frame (fixed by setting `rtimer=0` inside `hop_tick` and re-reading `sk`). See `tools/carts/ragdoll.c`.
 - Web build — "Build for web" (emscripten → `cart.html/js/wasm`, local server on 8765).
 - 5-tab navbar (code · pixels · carts · docs · settings); in-app docs viewer renders
   this `docs/` set (with cross-links) in the Docs tab.

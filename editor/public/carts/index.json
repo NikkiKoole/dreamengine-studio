@@ -733,5 +733,140 @@
     "title": "Worms",
     "description": "A 2-player turn-based artillery duel on fully destructible pixel terrain — the genre Gorillas only half-shipped. Two worms perch on a rolling noise-generated landscape; on your turn you walk along the ground, sweep your bazooka's aim, then hold to charge a swinging power meter and release to fire. The rocket arcs under gravity and a live wind that actually bends the shot, then blows a real crater into the ground (carved pixel by pixel) and damages anyone in the blast — worms even tumble when the dirt under them is gone. First to knock the other's HP to zero wins. P1 LEFT/RIGHT walk, UP/DOWN aim, hold SPACE to charge power and release to fire; SPACE to restart after a win.",
     "file": "worms.cart.png"
+  },
+  {
+    "title": "Chess",
+    "description": "A complete, legal game of chess on one crisp 8x8 board — every piece move, captures, castling, en passant, pawn promotion, and full check / checkmate / stalemate detection, with the pieces and board drawn entirely from clean primitives. Play two-player hotseat or face a depth-3 negamax CPU that weighs material and central control, picking either color. Pick up a piece and its legal squares light up (dots for moves, rings for captures), the last move leaves a trail, a checked king flashes red, and checkmate lands with a fanfare and a screen shake; a tiny win tally persists between sessions. Controls: click your piece to select (legal targets highlight), click a target square to move, click the piece again to deselect; on the title screen click HOTSEAT or VS CPU (white/black); in game R starts a new game and M or ESC returns to the menu.",
+    "file": "chess.cart.png"
+  },
+  {
+    "title": "Othello",
+    "description": "Reversi on a felt 8x8 board: you are black, the CPU is white. Drop a disc only where it flanks a straight line of the opponent and every captured line turns over, the flip travelling outward from your new disc as a squashed-oval roll that glints green through the seam. Legal squares pulse, the score rolls live in the HUD, corners trigger a chord and a screen kick, and a side passes when it has no move; the game ends when the board fills or both pass. The CPU plays a greedy, corner-weighted heuristic that hoards corners and shuns the squares beside them. Drawn entirely from primitives, no sprite sheet. Mouse: click a glowing square to place. Keyboard: arrows/WASD move a cursor, Z/ENTER places; click or Z on the banner for a new game.",
+    "file": "othello.cart.png"
+  },
+  {
+    "title": "Connect Four",
+    "description": "The kitchen-table classic against a real opponent. Discs clatter down a blue 7x6 grid — you drop red, a depth-5 alpha-beta minimax AI answers in yellow, each disc accelerating under gravity into the lowest open slot with a rising blip and a tiny screen kick on landing. Line up four in any direction — horizontal, vertical, or diagonal — and the winning run flashes white while a major chord rings out; lose and the board sinks under a low saw growl; fill it with nobody connecting for a draw. Your running win/loss/draw tally is saved between runs. Hover a column and left-click to drop, or use A/D or Left/Right to aim and Space/Z to drop; click or Space/Z to play again.",
+    "file": "connect4.cart.png"
+  },
+  {
+    "title": "Battleship",
+    "description": "Classic two-grid naval Battleship against a scheming CPU. Set up your fleet of five ships on the left ocean — a ghost ship snaps to the cursor and turns red when it won't fit — then trade salvos with the hidden enemy grid on the right. Hits flash and shake the screen with a low boom, misses splash, and a major-chord sting rings out when you sink the Carrier, Battleship, Cruiser, Submarine, or Destroyer. The enemy fires back with a hunt-then-target AI: random checkerboard shots until it draws blood, then it probes the neighbours of its last hit until your ship is dead. First fleet sunk loses; wins and losses are tallied across runs. SETUP: move the mouse to aim, click to place, R to rotate, click RANDOM to auto-fill, click READY to fight. BATTLE: click an enemy cell to fire. GAME OVER: click or press Z to play again.",
+    "file": "battleship.cart.png"
+  },
+  {
+    "title": "Bejeweled",
+    "description": "An 8x8 well of faceted jewels begging to be matched. Click a gem, then a neighbor, to swap them — but the swap only sticks if it lines up three or more of a color; an illegal try wiggles back for free. Matches flash white and shrink into a spray of colored sparks, the gems above ease down into the gaps, fresh ones stream in from the top, and every new line the fall creates cascades for a climbing score and a chord that pitches up with the chain. Run the board dry of legal moves and it reshuffles itself; spend your 30 swaps for the high score, which is saved between runs. Mouse only: click a gem then an adjacent gem (or drag from one to a neighbor) to swap; click to play again on game over.",
+    "file": "bejeweled.cart.png"
+  },
+  {
+    "title": "Dr. Mario",
+    "description": "A virus-busting pill puzzler. The doctor drops two-color capsules into a bottle crawling with red, blue, and yellow viruses — steer them down, twist them around, and line up four or more of one color across or down to wipe them out. Every clear flashes white and kicks the screen; loose capsule-halves rain down afterward and can chain into bigger combos with a rising arpeggio. Empty the bottle of every virus to beat the level and seed a tougher one; choke the neck and you top out. Best score is saved. Left/Right move, Up rotates, Down soft-drops, Z/X start the next level or restart.",
+    "file": "drmario.cart.png"
+  },
+  {
+    "title": "Puyo",
+    "description": "Drop pairs of colorful blobs into a narrow well, sliding and rotating them as they fall. Connect four or more of the same color and they pop in a flash of sparks — and when the collapsing stack lands into another match, it pops too, igniting a CHAIN that climbs in pitch and score the longer it runs. Chains are the whole game: a clean 5-chain rings out like a fanfare and sends the screen shaking. Stack to the top and it's over; your best score and longest chain are saved. Left/Right move, Up or Z rotate, Down soft-drop, Z to restart.",
+    "file": "puyo.cart.png"
+  },
+  {
+    "title": "Columns",
+    "description": "The SEGA arcade gem-dropper, distilled. A vertical column of three jewels falls into a narrow well — you can't reshape it, only slide it left and right and cycle its three colors mid-fall. Land 3 or more of a color in a line (horizontal, vertical, OR diagonal) and they flash, clear, and the stack collapses — fresh matches cascade into escalating chains that ring out as a climbing arpeggio while the screen kicks. Speed ramps as you clear, best score is saved, and stacking to the top ends the run. Left/Right slide, Up or Z cycle the colors, Down soft-drops, Z/X restart.",
+    "file": "columns.cart.png"
+  },
+  {
+    "title": "Klondike Solitaire",
+    "description": "The patience classic on green felt. Seven tableau piles cascade in alternating-color descending runs, a face-down stock deals one card at a time to the waste, and four suit foundations build home from Ace to King. Grab a single card or a whole valid run and it lifts under your cursor with a soft drop shadow; drop it on a legal pile or a foundation and it snaps in with a chime, while the newly exposed tableau card flips itself. Clear all four suits to win — the felt darkens, a banner drops, and your running tally of games won is saved. Cards are hand-drawn from primitives (no sprite sheet) with pip suits and crisp white faces. Controls: click the stock to deal one card to the waste (click the empty stock to recycle the waste); drag a card or run between tableau piles or onto a foundation, invalid drops snap back; press R or click the win banner to deal a fresh shuffle.",
+    "file": "solitaire.cart.png"
+  },
+  {
+    "title": "Blackjack",
+    "description": "Sit down at the felt and play the casino classic against a by-the-book dealer: push out a bet from your bankroll, take two cards against the dealer's one-up-one-down, then hit, stand, or double down. Aces ride soft (1 or 11), a two-card 21 pays 3:2, the dealer hits 16 and stands on 17, and the whole table is drawn from crisp card primitives with cards that ease in off the deck, a hole card that flips on the reveal, a rising chord on a win and a red-flashing screen shake on a bust. Your bankroll persists between runs via save(), so the slow grind of the house edge follows you home. Controls: BETTING — Left/Right or A/D to lower/raise the bet, Z or Enter to Deal; YOUR TURN — Z Hit, X Stand, C or Down Double; RESULT — Z or Enter for the next hand (Z rebuys when broke); or click the on-screen buttons.",
+    "file": "blackjack.cart.png"
+  },
+  {
+    "title": "Wordle",
+    "description": "The daily word puzzle, distilled to its purest loop. A hidden five-letter word waits behind six empty rows; type a guess and watch the five tiles flip one-by-one — green for a letter in the right spot, orange for one that's in the word but misplaced, gray for absent — with the proper duplicate-letter rule so repeated letters score honestly. A live on-screen QWERTY keyboard repaints each key to the best news it has earned, an invalid or short guess buzzes and shakes the board, and a solve sets the winning row bouncing over a rising arpeggio while a loss reveals the answer. Your win streak persists between runs. Type A-Z to fill the row, BACKSPACE to delete, ENTER to submit (or click the on-screen keyboard, including its ENT and DEL pads); ENTER on the result screen plays a fresh word.",
+    "file": "wordle.cart.png"
+  },
+  {
+    "title": "Hangman",
+    "description": "The classic word-guessing game, drawn entirely from primitives — no sprite sheet. A hidden word waits as a row of underscored blanks; guess a letter and right answers pop into place with a green flash and a rising chime, while every wrong letter burns a guess and adds the next body part to the gallows: head, torso, two arms, two legs, then a red-X-eyed hanging. Win by completing the word before six misses; the figure drops in with a little ease and the screen shakes on a bad guess. Tracks your session win count and current streak across runs. Type a letter (A-Z) to guess, or click a key on the on-screen alphabet; press ENTER or click to deal a fresh word after a win or loss.",
+    "file": "hangman.cart.png"
+  },
+  {
+    "title": "Boggle",
+    "description": "A pocket word-hunt: sixteen weighted-random letters in a 4x4 grid, a 90-second clock draining across the top, and a single mission — trace as many real words as you can. Press a tile and drag the mouse across orthogonally or diagonally adjacent letters; a glowing yellow chain follows your path and the word builds live beneath the board. Release to submit: 3+ letters that hit the embedded ~2500-word dictionary score by length with an ascending chime and a green pulse, while junk or duplicates buzz and shake the screen red. When the timer empties the board freezes and tallies your words and points against your saved best. Drag the mouse across adjacent letters to trace a word and release to submit; R reshuffles or restarts after the round ends.",
+    "file": "boggle.cart.png"
+  },
+  {
+    "title": "Minesweeper",
+    "description": "The desktop classic, rebuilt from scratch on the fantasy console. A 16x14 field of beveled tiles hides 30 mines; left-click reveals, and uncovering an empty cell triggers a satisfying flood-fill cascade that opens its whole region in one click. Numbers 1-8 glow in the canonical colors to count adjacent mines; right-click plants a flag. The first click is always safe — mines are seeded only after you commit. A live mine counter and a running timer flank a smiley face that grins, dies, or beams depending on your fate; clearing the board logs your best time. Tap a mine and the whole field detonates with a screen-shaking boom. Left-click reveals, right-click flags, click the face or press R for a new game.",
+    "file": "minesweeper.cart.png"
+  },
+  {
+    "title": "Missile Command",
+    "description": "ICBMs streak down a night sky in long glowing diagonals, each one falling toward one of your six cities. You command three batteries with limited ammo per wave; aim the crosshair and click, and a counter-missile launches from the nearest battery with shells to spare, races to the cursor, and blooms into an expanding ring that vaporizes any warhead it touches — chain-detonating into more rings as it goes. Survive the wave to refill ammo and bank a bonus for every city and shell left standing; each wave throws more missiles, faster. When the last city falls it's the end. Mouse to aim, left-click to fire from the nearest battery, click or SPACE to defend again.",
+    "file": "missilecmd.cart.png"
+  },
+  {
+    "title": "Centipede",
+    "description": "The arcade classic, drawn entirely from chunky primitives. A segmented bug winds down through a field of mushrooms toward your blaster, which is pinned to the bottom band of the screen. Every shot counts: blast a mid-body segment and the centipede splits in two while a fresh mushroom sprouts where it died; pick off the head and the swarm just shortens. A glittering spider darts through the lower third, eating mushrooms and hunting you for a fat 300-point bounty. Clear every segment to march into a faster wave; lose all three lives and your run is over. Lives, score, and a saved high score. Arrows/WASD move (bottom band only), Z/Space fire upward, Z to restart on game over.",
+    "file": "centipede.cart.png"
+  },
+  {
+    "title": "Defender",
+    "description": "Skim a fast little ship over a wrapping mountain world far wider than the screen, while alien Landers drift down to snatch the humanoids walking the ground and haul them skyward — let one reach the top and it MUTATES into a fast, swarming red killer. Blast a carrying lander and its human plummets: dive, catch it midair, and lower it home for big points. A scanner strip across the top maps the whole ring-shaped level — ship, aliens and humans as blips — so you always know where the danger is. Clear every alien to advance the wave; lose all your humanoids and the planet is lost. Arrows fly and thrust (left/right faces + scrolls the world), Z fires forward; press Z to start and to play again.",
+    "file": "defender.cart.png"
+  },
+  {
+    "title": "Dig Dug",
+    "description": "A little digger dropped into a field of solid earth — walk and you carve tunnels through the dirt, the passages staying behind you in earthy depth-banded layers. Two monsters lurk in the soil: round red Pooka and green fire-breathing Fygar. Pop them two ways — face one down a tunnel and hold the harpoon to pump it full of air until it bursts, or dig out the dirt beneath a teetering rock so it crashes down on its head. Corner a monster too long and it flattens into floating eyes that ghost straight through the dirt to hunt you. Clear every monster to dig a deeper, busier layer. Arrows move/dig and aim, hold Z to pump; Z again to continue after a clear or game over.",
+    "file": "digdug.cart.png"
+  },
+  {
+    "title": "Boulder Dash",
+    "description": "Tunnel through a dirt-packed cave for diamonds while boulders and gems obey gravity — dig out what holds a rock up and it falls, rolling off the rounded tops of other rocks into open gaps, and a falling rock crushes you (or a wandering enemy) flat. Grab the diamond quota to flash the exit open, then scramble to it before the timer runs out. The cave settles on a steady tick so falling stacks cascade one cell at a time, and the camera follows your miner across a cave bigger than the screen. Arrows step and dig in a direction; walk into a boulder sideways to push it into an empty cell beyond; R or B restarts the cave.",
+    "file": "boulderdash.cart.png"
+  },
+  {
+    "title": "Lode Runner",
+    "description": "A pocket-sized Lode Runner: sprint a chunky runner across a brick-and-ladder maze, scoop up every glinting chunk of gold, then climb the exit ladder that lights up only once the level is clean. A red guard hunts you on the same rules you obey — run, climb, hang hand-over-hand from ropes, and fall. Caught on open ground and you're done, so dig: Z chews a hole in the floor down-and-left, X down-and-right, dropping the guard into a pit that refills a moment later and crushes anything still stuck. Two single-screen levels, drawn entirely from primitives, with a clean clear/death/restart loop and a saved best. Arrows run/climb/rope, Z dig-left, X dig-right, R restart.",
+    "file": "loderunner.cart.png"
+  },
+  {
+    "title": "Donkey Kong",
+    "description": "The arcade 25m girder stage, rebuilt from pure primitives: a tower of slanted red girders strung together with peach ladders, Kong thumping barrels off the top, and the princess blinking HELP at the summit. Run up the slopes, climb the ladders, and time your jumps as barrels tumble down and randomly peel off onto a ladder — clear one for +100, or grab the blinking hammer for six seconds of barrel-smashing frenzy. Touch a barrel without the hammer (or fall too far) and the screen flashes red and shakes as you lose one of three lives; reach the top and she's saved. Hi-score persists between runs. Left/Right run along the girder, Up/Down climb ladders, Z to jump (and to restart).",
+    "file": "donkeykong.cart.png"
+  },
+  {
+    "title": "Q*bert",
+    "description": "Hop the pyramid. A 28-cube isometric pyramid floats in a starry void, every cube drawn from pure primitives as a shaded diamond with two side faces. You're a fuzzy orange critter who hops diagonally cube to cube, each landing flipping the top from blue to gold with a square-wave boop — paint all 28 to clear the board and climb to the next pyramid. Miss the edge and you plummet off into black; a purple snake named Coily hatches and bounces down after you, and one touch costs a life. Smooth eased hop arcs, screen shake on death, a victory chord on clear, three lives, and a saved hi-score. Controls: Q/E hop Up-Left/Up-Right, A/D hop Down-Left/Down-Right (arrows mapped diagonally as a fallback), Z or ENTER to restart after game over.",
+    "file": "qbert.cart.png"
+  },
+  {
+    "title": "Marble Madness",
+    "description": "Roll a chrome marble through a hand-laid isometric obstacle course and reach the blinking GOAL before the 60-second clock runs out. Real momentum physics carry you: arrows only nudge, gravity does the rest — ramps accelerate you downhill, walls bank you off, and one slip past an unguarded ledge or into a shimmering acid pool sends the marble tumbling out of view for a respawn. Checkpoints bank your progress, a filtered rolling rumble rises in pitch with your speed, and your best clear time is saved between runs. Three lives, one focused course, all drawn from shaded iso primitives. Arrows roll the marble (relative to the iso view); Z or Enter to play again after a win or game over.",
+    "file": "marble.cart.png"
+  },
+  {
+    "title": "Pool",
+    "description": "Rack 'em up: 8-ball-style billiards on one green table, two players hotseat. Fifteen colored balls and a cue ball obey honest 2D physics — equal-mass elastic collisions clack balls off each other, rails bounce with restitution, and rolling friction lets the whole table coast to a stop on its own. Aim the cue with the mouse along a dotted guide that stops at the first rail, sink object balls into the six pockets to score (pot one and you shoot again), and watch out for the scratch when the cue ball drops. Soft synth clicks, rail thunks, pocket drops and a break crack sell every contact. Clear the felt to win. MOUSE to aim, HOLD the left button to charge power then RELEASE to strike, RIGHT-CLICK or SPACE to cancel a charge, R to rack a fresh game.",
+    "file": "pool.cart.png"
+  },
+  {
+    "title": "Street Fighter",
+    "description": "A 1-on-1 versus fighter on a dusk rooftop stage — you against a pushy, reactive CPU, with health bars up top, a round clock ticking between you, and a best-of-three. Each stick-fighter is a little state machine: walk in and out, jump, crouch, hold back to BLOCK, and throw a fast LIGHT, a heavy KNOCKBACK swing, or a quarter-circle-forward FIREBALL. Attacks have real startup/active/recovery, so spacing and timing decide everything; hits land with screen shake, a white hit-flash, a couple of frozen impact frames, and chip damage on block. The CPU reads the gap and blocks your swings, whiff-punishes your recovery, jumps in, and zones with fireballs — and gets tougher each round you take. Win the match to grow your saved win streak. Controls: A/D walk, W jump, S crouch, hold back to block, Z light, X heavy, down then forward + Z for a fireball, Z to rematch.",
+    "file": "streetfighter.cart.png"
+  },
+  {
+    "title": "Deckbuilder",
+    "description": "A Slay-the-Spire-grain dungeon run boiled to its core: three nodes, three fights, one boss. Spend 3 energy a turn on a hand of cards — STRIKE and BASH chip the foe's HP, DEFEND and BULWARK raise BLOCK that soaks the next hit — while the enemy telegraphs its INTENT (a sword + number) so you can plan the trade. End your turn, watch the grunt resolve, drop it to zero, then pick one of three reward cards to fatten your deck before walking to the next node. Beat the horned Dread Knight to clear the run; your win count is saved between sessions. All hand-drawn from primitives with floating damage numbers, hit-flash, screen shake, and a punchy little synth. Click a card to play it on the enemy, click END TURN to let it act, click a reward to keep it (or SKIP), and click the next map node to advance; keys 1-5 play hand slots, ENTER ends the turn, SPACE continues.",
+    "file": "deckbuilder.cart.png"
+  },
+  {
+    "title": "Lil Farm",
+    "description": "A pocket Harvest-Moon day loop on one screen: walk your little plot, swap between hoe, seed pouch and watering can, and work the soil — till grass into furrows, plant a seed, splash it wet. Watered crops climb a growth stage every morning you sleep, ripening into bobbing red harvests you scoop into your bag, haul to the sell bin for gold, and spend on fresh seeds at the shop. An energy bar drains with every swing and a sun arcs across a sky that warms from peach dawn to dusk purple; sleep in the bed to bank your growth and roll to the next day, or run the clock out and pass out cold. WASD/arrows walk, 1/2/3 pick hoe/seed/can, Z use tool or interact (bed sleep, bin sell, shop buy), X sleep-or-sell, C buy a seed.",
+    "file": "farm.cart.png"
   }
 ]

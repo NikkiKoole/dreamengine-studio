@@ -86,10 +86,57 @@ with `print` at a computed offset/color).
 ### Aesthetic forks (real asset work — only if a cart needs it)
 - **A second font** — a thin **3×5 micro font** lets stats-heavy games (druglord, sims)
   pack far more text into 320px; or a **chunky bold** font for impact titles. New bitmap
-  sheet + second `Font` handle.
+  sheet + second `Font` handle. → **Decided 2026-06-01, see below** (two tiny fonts baked).
 - **Keep integer-scale only** — resist fractional `print_scaled`; at native res with a
   point filter it shimmers. The right way to get an "in-between" size is a *different
   baked font*, not a fractional scale.
+
+## Decision (2026-06-01): bake two full-ASCII "second fonts"
+
+We're committing to the **second-font** fork above — and going *smaller*, not bolder
+first. Two tiny fonts get baked as PNG atlases alongside `dos_8x8`, so stats-heavy carts
+(sims, RPG menus, debug overlays) can pack far more text into 320px:
+
+| sheet | source | license | glyph box (cell) |
+|---|---|---|---|
+| `editor/public/font3x5.png` | `my 3x5 tiny mono pixel font.ttf` (looks like alasseearfalas' "another tiny pixel font mono 3x5") | **confirm** — assume itch.io free/CC0 until checked | 3 inked + 1 advance × 6 (cell 4×6) |
+| `editor/public/font4x6.png` | [filmote/Font4x6](https://github.com/filmote/Font4x6) (BSD-3) + ~31 hand-drawn punctuation glyphs in its style | **BSD-3** (keep notice) | 4 inked + 1 advance × 7 (cell 5×7) |
+
+**On the 3×5 source vs filmote's 3×5:** filmote's [Font3x5](https://github.com/filmote/Font3x5)
+(BSD-3) only covers `A–Z a–z 0–9 ! .` — every other ASCII slot is a gap. Because
+`LoadFontFromImage` assigns codepoints **sequentially**, gaps scramble the mapping, so a
+gappy font needs every slot filled anyway. The TTF already covers **all 95 printable
+ASCII**, so the 3×5 needed no hand-drawing.
+
+**On the 4×6 (chosen 2026-06-01, take 2):** went with filmote's chunky, genuinely-4-wide
+4×6 (proper `#..#` letterforms, real descenders) over the earlier
+[luizbills/font4x6](https://github.com/luizbills/font4x6) candidate — luizbills' is only
+*3px-inked* wide, so it read almost identically to the 3×5 (not a distinct second font).
+filmote's gaps were filled by **hand-drawing the ~31 missing punctuation glyphs**
+(`" # $ % & ' ( ) * + , - / : ; < = > ? @ [ \ ] ^ _ \` { | } ~`) at 4×6 in its weight, so
+the sheet is now full printable ASCII. Known-weak hand-drawn glyphs to revisit: **`&`**
+(reads blobby), `$`/`@` (busy at this size).
+
+**Bake format** (matches `dos_8x8` exactly — same loader, no new code):
+- 16-column grid, codepoints **32–127** in order → 6 rows. `firstChar=32`.
+- 1px **opaque-yellow** `(255,255,0,255)` separator lines + border = the key color.
+- Glyph pixels **opaque white**; cell interior (incl. blanks like space) **transparent**.
+  Transparent ≠ key, so even space is detected as a glyph and the codepoint run stays
+  intact — that's the trick that lets a clean `firstChar=32` layout work.
+- The bake script is Python+PIL (rasterises the TTF at size 6 / decodes luizbills' 3-byte
+  nibble packing). One-shot; not yet a repo tool. **Verified** with a raylib probe:
+  `LoadFontFromImage(img, YELLOW, 32)` → `glyphCount=96`, `baseSize=6`, `'A' '0' '!' '~'`
+  all map to the correct codepoint.
+
+**Still open (NOT done by the bake):**
+- **Wiring.** `print()` hardcodes `DrawTextEx(..., 8, ...)` and `text_width = strlen*8`.
+  A baseSize-6 font dropped into that path gets scaled to 8px and goes blurry. The small
+  fonts need their **own `Font` handle + their own draw calls** (`print_small` /
+  `print_tiny`, advance 4) at native size — the four-place wiring per CLAUDE.md, plus a
+  tutorial cart. Until then the sheets are just assets.
+- **Punctuation polish.** The 31 hand-drawn 4×6 glyphs are first-pass; `&`, `$`, `@`
+  want another look. The 3×5 punctuation came from the TTF and needs no work.
+- **3×5 license** must be confirmed before it ships baked into the engine.
 
 ## Recommended first batch
 

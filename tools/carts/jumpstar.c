@@ -14,6 +14,8 @@
 #define GRAV       900.0f     // px/s^2 (world units)
 #define JUMP_VY   -360.0f     // upward impulse on landing
 #define MOVE_SPD   135.0f     // horizontal steer speed
+#define REACH_X    64.0f      // max horizontal offset between stacked platforms
+                              // (one bounce covers ~90px sideways; keep gaps makeable)
 #define PLAT_H     5
 #define PW         (R*2)
 
@@ -39,6 +41,7 @@ static int   facing;              // -1 / +1
 static float squash;              // 0..SQ_TIME timer
 static float cam_y;               // world-space top of view
 static float highest_spawn_y;     // smallest (highest) platform y so far
+static float last_spawn_cx;       // center-x of the most recently spawned platform
 static int   score, best, star_bonus;
 static bool  dead;
 static float death_t;
@@ -79,7 +82,14 @@ static void respawn_plat(int i) {
     Plat *p = &plats[i];
     p->y = highest_spawn_y;
     p->w = rnd_float_between(36, 62);
-    p->x = rnd_float_between(0, SCREEN_W - p->w);
+    // place within a single jump's horizontal reach of the platform below,
+    // then keep it fully on screen (clamping only shortens the gap)
+    float half = p->w * 0.5f;
+    float cx = rnd_float_between(last_spawn_cx - REACH_X, last_spawn_cx + REACH_X);
+    if (cx < half)             cx = half;
+    if (cx > SCREEN_W - half)  cx = SCREEN_W - half;
+    p->x = cx - half;
+    last_spawn_cx = cx;
     p->type = pick_type();
     p->broken = false;
     p->fall_vy = 0;

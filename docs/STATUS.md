@@ -98,6 +98,14 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     mismatch (hit in arcs, solid3d, katamari). Each got a local fix; the real goal — *one*
     coverage definition shared by fill/outline/dither/solid — isn't done.
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
+14. **Tiny fonts — `print_small` / `print_tiny`** *(assets baked, wiring OPEN)* — two extra
+    bitmap-font atlases are baked and verified (`editor/public/font3x5.png` baseSize 6,
+    `font4x6.png` baseSize 7, both full printable ASCII, `firstChar=32`), so stats-heavy
+    carts can pack far more text into 320px. **Not usable yet:** `print()` hardcodes size 8,
+    so each needs its own `Font` handle + draw call at native size (advance 4 / 5) — the
+    four-place wiring per CLAUDE.md plus a tutorial cart. Decision + bake format + open
+    polish (`&`/`$`/`@` glyphs, 3×5 license) in
+    [`design/font-rendering.md`](design/font-rendering.md) → "Decision (2026-06-01)".
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

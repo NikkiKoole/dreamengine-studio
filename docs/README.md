@@ -24,13 +24,13 @@ docs/
 │   ├── audio-notes.md   sound: current engine, chip comparison, expansion roadmap
 │   ├── cart-survey-api-priorities.md   cart-evidence-first memo: what real carts prove, filtered through existing decisions
 │   ├── baked-rotation-atlas.md   pre-rotated sprite/shape atlas: fast blitted bodies, the centerline model, offscreen canvases
-│   ├── font-rendering.md         playful text beyond print: shadow/outline/wave/typewriter, inline codes, PICO-8 comparison
+│   ├── font-rendering.md         playful text beyond print: shadow/outline/wave/typewriter, inline codes, PICO-8 comparison; + 2 baked tiny fonts (3×5/4×6) awaiting print_small/print_tiny wiring
 │   ├── rasterization-consistency.md  OPEN: one consistent fill/outline/dither rule so shape edges always agree (seams, off-by-1, outline mismatch)
 │   └── headless-autoplay.md  growing the debug harness toward windowless fast runs + agents that play to find bugs (navkit-informed)
 ├── guides/            how-to
 │   ├── cart-authoring.md         the make-cart.js / tools/carts toolchain
 │   ├── cart-authoring-prompt.md  reusable AI prompt for designing a new cart
-│   ├── cart-specs/               per-game cart specs (paste under the prompt above); README = batch-1 index + assembly recipe, BATCH-2.md = batch-2 index, AGENT-MESSAGE.md = parallel-build add-on
+│   ├── cart-specs/               per-game cart specs (paste under the prompt above); README = batch-1 index + assembly recipe, BATCH-2.md / BATCH-3.md = later-batch indexes, AGENT-MESSAGE.md = parallel-build add-on
 │   ├── sharing.md                ways to publish finished carts
 │   └── debug-harness.md          deterministic record/replay/script + trace (tools/play.js)
 └── archive/           superseded / done notes, kept for history

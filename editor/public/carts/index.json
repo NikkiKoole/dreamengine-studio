@@ -868,5 +868,40 @@
     "title": "Lil Farm",
     "description": "A pocket Harvest-Moon day loop on one screen: walk your little plot, swap between hoe, seed pouch and watering can, and work the soil — till grass into furrows, plant a seed, splash it wet. Watered crops climb a growth stage every morning you sleep, ripening into bobbing red harvests you scoop into your bag, haul to the sell bin for gold, and spend on fresh seeds at the shop. An energy bar drains with every swing and a sun arcs across a sky that warms from peach dawn to dusk purple; sleep in the bed to bank your growth and roll to the next day, or run the clock out and pass out cold. WASD/arrows walk, 1/2/3 pick hoe/seed/can, Z use tool or interact (bed sleep, bin sell, shop buy), X sleep-or-sell, C buy a seed.",
     "file": "farm.cart.png"
+  },
+  {
+    "title": "Beatcrypt",
+    "description": "A beat-locked roguelike: a looping 2-bar synth bed (kick/snare/euclidean hats + a minor bassline) drives turn-based dungeon crawling — move/attack ONLY on the beat to build a combo, miss the window and you stumble; enemies step on their own rhythms (skeleton every 2nd beat, bat on a euclid(3,8) syncopation, slime every 4th). Bump enemies on-beat to kill, clear the floor, reach the > stairs. Controls: WASD / Arrows to move + attack (press ON the beat), R to restart.",
+    "file": "beatcrypt.cart.png"
+  },
+  {
+    "title": "Rollswarm",
+    "description": "Katamari x boids: roll a growing ball through a panicking flock that bolts harder the closer you get, swallowing any critter smaller than you to snowball toward the size goal before time runs out. WASD/arrows to roll, Z to replay.",
+    "file": "rollswarm.cart.png"
+  },
+  {
+    "title": "Sand Burrow",
+    "description": "A whole cave of live falling-sand: dig tunnels and the sand above pours down to refill them — grab every gem and reach the exit before a collapsing column buries you. A/D or arrows walk + dig sideways, W/up climb + dig up, S/down dig straight down, Z/X/R restart.",
+    "file": "sandburrow.cart.png"
+  },
+  {
+    "title": "Swarmturf",
+    "description": "Splatoon x boids: you steer a flock that PAINTS the ground it flies over, carving turf out of a rival swarm's color. Hold LEFT-CLICK (or WASD) to pull your swarm toward the cursor; most painted ground when the timer runs out wins. Click / Z to replay.",
+    "file": "swarmturf.cart.png"
+  },
+  {
+    "title": "Merchant",
+    "description": "Age-of-sail buy-low/sell-high trading sim: 4 ports, 6 goods, daily price drift, shortages/gluts, storms & pirates, a ticking debt and a 40-day clock. MOUSE: click a good to BUY 1, right-click SELL 1; bottom bar BUY/SELL/QTY/DEBT/SET SAIL; click a port on the chart to sail. KEYS: up/down pick a good, Z buy / X sell, Q cycle qty, D moneylender, M or ENTER open the chart (left/right pick port, ENTER sails).",
+    "file": "merchant.cart.png"
+  },
+  {
+    "title": "Wildfire",
+    "description": "The doom-fire propagation rule turned into a chasing hazard — outrun a top-down floor fire that spreads cell-to-cell and burns through walls to reach the green exit. WASD/arrows move, Z/A dashes (short cooldown), R/X instant-retry.",
+    "file": "wildfire.cart.png"
+  },
+  {
+    "title": "Bloom",
+    "description": "A calm L-system turtle garden at twilight: click the soil to plant a seed (cycles fern/bush/tree), then press space or X to advance a day and watch every plant rewrite its L-system one iteration further — sprouts branch into ferns, bushes, and trees that sway in the wind. Controls: click or Z to plant, space or X to advance the day.",
+    "file": "bloom.cart.png"
   }
 ]

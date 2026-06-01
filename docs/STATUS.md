@@ -114,8 +114,15 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 
-**Smaller open items (no design doc yet):** gradient/dither fill; looping ambience
-(`drone`)/`volume`/mute. Noted in [`POLISH_TODO.md`](POLISH_TODO.md).
+**2D geometry helpers** (proposed, none merged) — drawing primitives for the geometry-first
+style: `ngon`/`star`, `poly`/`polyfill`, gradient fill, rounded-rect, thick-line. Ranked by
+the cart boilerplate each removes (64/176 carts draw with triangles vs 31 with sprites; 80
+hand-roll trig+fill loops). Full reasoning + signatures + the gradient stepped-vs-dithered
+question in [`design/geometry-helpers.md`](design/geometry-helpers.md). *(This subsumes the
+old "gradient/dither fill" smaller-item — it now has a design doc.)*
+
+**Smaller open items (no design doc yet):** looping ambience (`drone`)/`volume`/mute. Noted
+in [`POLISH_TODO.md`](POLISH_TODO.md).
 
 ---
 

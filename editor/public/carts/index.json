@@ -653,5 +653,85 @@
     "title": "flyover",
     "description": "A third-person flight sim over a procedurally generated earth — three engine tricks fused into one sky. The ground is a mode-7 perlin-noise world sampled once per scanline (sea, beach, grass, forest, snowy peaks). Forests, mountains and whole cities of windowed buildings are billboards scattered across that world, projected with the same math and drawn far-to-near so they rise out of the terrain; clouds are billboards lifted into the sky. Your low-poly plane is a flat-shaded solid-3D model pinned to the foreground — it banks when you turn, pitches when you climb, and casts a dithered shadow on the ground. Free-flight sandbox: Left/Right turn (the plane banks into it), Up/Down steer the nose up/down to climb & dive, Z/X throttle.",
     "file": "flyover.cart.png"
+  },
+  {
+    "title": "Football Manager",
+    "description": "An FC-Mobile-style manager mode: run a club's starting XI on a drag-to-arrange formation pitch, with a bench of spares, switchable 4-4-2 / 4-3-3 shapes, and an out-of-position penalty that makes your shape matter. Wheel and deal in a transfer market against a cash budget — sign a face, sell the deadwood — then hit PLAY MATCH and the engine auto-sims a scoreline from your XI's strength versus the opponent's, ticking the goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT. Other clubs play their own fixtures and the 6-team league table re-sorts live on points and goal difference across a 10-round season; finish top to be champions. Drag players between the pitch and the bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL in the market, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays).",
+    "file": "soccermgr.cart.png"
+  },
+  {
+    "title": "Infiniminer",
+    "description": "A pocket-sized proto-Minecraft: a 16x16x6 voxel world you stroll through in first person, mouse-look swinging a white crosshair across tritex-textured cubes of grass, dirt, stone and wood. Painter-sorted, back-face- and hidden-face-culled cubes with per-face dither shading give it that picoCAD/PS1 glow; a DDA raycast from screen-center finds the block you face and outlines it in blinking yellow. Left-click mines it out, right-click stacks your held block against the face you aim at, each with a filtered pluck pitched to the material. A tiny hill and a couple of trees give you somewhere to start digging. Calm, tactile, goalless. Controls: WASD move, mouse look, left-click mine, right-click place, 1-4 pick grass/dirt/stone/wood, R regenerate the world.",
+    "file": "infiniminer.cart.png"
+  },
+  {
+    "title": "Jumpstar",
+    "description": "An endless vertical jumper in the Doodle-Jump grain: a little astronaut auto-bounces forever off procedurally spawned platforms while you steer to keep landing on the next ledge up. Green platforms are solid, blue ones slide and bounce at the edges, and cracked brown ones crumble away after a single bounce, so dawdling drops you. Grab bobbing stars for a sparkly bonus, ride the climbing camera through a parallax starfield, and don't fall off the bottom — every landing squashes the astronaut, shatters fling debris, and the screen kicks on a break. Height is your score and your best run is saved between sessions. Steer with A/D or Left/Right (wraps at the screen edges); jumping is automatic; press Z to jump again after a fall.",
+    "file": "jumpstar.cart.png"
+  },
+  {
+    "title": "Dwarffort",
+    "description": "A pocket-sized Dwarf Fortress: a top-down colony base-builder on one screen where you never steer a dwarf — you designate the work. Drag over solid rock to mark it for digging (mining hews stone) or over open floor to queue a wall (a dwarf hauls a block and raises it), and a handful of stubby, helmeted dwarves A*-path to the nearest reachable job, swing their picks through puffs of dust, and build out the corridors you carve while a day clock ticks toward day 12. Pickaxe taps ride a euclidean rhythm over a slow cavern bed, the stone counter rolls, and a new-day bell eases a banner across the cave. Left-drag to designate with the current tool, right-drag to erase; 1 = DIG, 2 = WALL; SPACE pauses; reach day 12 and the fortress endures — click to found a new fort.",
+    "file": "dwarffort.cart.png"
+  },
+  {
+    "title": "Civ (tiny)",
+    "description": "A pocket-sized 4X on a fogged continent: start with one settler and one warrior in a sea of black, walk out, found cities, and watch the unknown peel back tile by tile. Cities grow a population bar and pump out a fresh unit every few turns while a single research bar slowly fills and unlocks Irrigation — the one improvement, which makes every city grow faster. No rivals, no war, no diplomacy; the map and the clock are the opponent. Found 3 cities before turn 30 to win, with your fastest run saved as a best. Controls: click a unit then click an adjacent revealed tile to move (1 tile/turn), B to found a city with a settler, E (or END TURN) to advance the turn, click for a new continent after the game ends.",
+    "file": "civ.cart.png"
+  },
+  {
+    "title": "Strip Poker",
+    "description": "A velvet after-hours lounge where you play heads-up five-card draw against Sable, your silhouette sweetheart. Ante up, click cards to HOLD, then DRAW and choose to BET, CALL, or FOLD; at showdown the best hand takes the pot. Win and the cheeky REVEAL meter lights a notch — fill it and Sable strikes a coy new pose, blows a kiss, and the flirtation escalates a tier (TEASE to SCANDALOUS); lose and the meter slips. Strictly PG-13: soft spotlit silhouettes, a fluttering feather boa, a wink, and double-entendre banter over a slow sultry lounge bass. Mouse: click your cards to HOLD, click BET / CALL / FOLD, click DEAL to start a hand and advance the title / game over. Keys: arrows pick a card, Z hold, B bet, C call, F fold, SPACE or ENTER deal & advance.",
+    "file": "strippoker.cart.png"
+  },
+  {
+    "title": "Zak McKracken",
+    "description": "A SCUMM-style point-and-click caper: you're tabloid reporter Zak, woken by a phone tip that your plane ticket is locked in your desk. Three hand-drawn rooms — a moody SF apartment with a ringing phone and a fishbowl, a hallway with a stuck vending machine and a fire-axe, and a night cab to the airport — wired into a real scene engine with a four-verb bar, a hover-labeled hotspot grammar, an inventory strip, and walk-to-floor navigation. Solve the one combination puzzle (take the paperclip, USE it to bend a lockpick, pick the drawer, grab the ticket) to unlock the cab and win. Mouse: click a verb (Look/Use/Take/Talk) then a hotspot; click the floor to walk; click an inventory item to hold it, then a hotspot to use it; SPACE/ESC clears a message.",
+    "file": "zak.cart.png"
+  },
+  {
+    "title": "Winter Games",
+    "description": "An Epyx-style winter meet built on a clean, reusable event shell — pick your nation, then work down a scoreboard of skill events one at a time, with bests saved between runs. SKI JUMP is two-phase: ride the in-run and stab Z to fire the takeoff on a sweeping power meter, then balance your lean in the air (Up=back, Down=forward) — keep the form gauge centered for distance, over-rotate and you tumble down the slope. SPEED SKATING is an alternating-key rhythm: tap Z, X, Z, X in a steady cadence to push each skate while holding your lane around the ice oval — mash one key and you stumble, hit the rail and you bleed speed. Snow drifts on a noise wind, a synth whoosh rides the launch, skate strides click on the beat, and a medal ceremony crowns your total. Controls: Title — Left/Right pick nation, Z start; Scoreboard — Up/Down choose, Z enter, X title; Ski Jump — Z run then Z takeoff, Up/Down lean; Speed Skating — alternate Z/X, Up/Down hold lane; Z returns to the scoreboard after each event.",
+    "file": "wintergames.cart.png"
+  },
+  {
+    "title": "Summer Games",
+    "description": "Button-mash track and field in the Track & Field arcade lineage: pick an event off a sunlit stadium menu, then hammer two keys to build raw speed and nail one clutch press. TWO events on a shared event-shell — 100M SPRINT (mash Z/X to sprint, then dip at the tape with a timed LEAN) and LONG JUMP (mash the runway, then stab JUMP at the best takeoff angle on a sweeping needle — overrun the foul board and it's a SCRATCH). A scoreboard panel tracks your personal best per event, saved between runs, with crowd-roar swells, footfall ticks pitched to your speed, dust off the feet, screen shake and a fanfare on a new record. Menu: Up/Down choose, Z start. In an event: alternate Z and X to run, press UP to lean/jump, X or ESC backs out.",
+    "file": "summergames.cart.png"
+  },
+  {
+    "title": "California Games: Half-Pipe",
+    "description": "Carve a neon half-pipe under a banded synthwave sunset in this Epyx-style vert event. Your skater swings wall to wall as a pendulum: tap PUMP at the bottom of the ramp (on the beat for extra pop) to build speed, fire off the lip into the air, then throw kickflips, 360s, methods, indys and ollies for points that only bank if you stick the landing upright over the wall — over-rotate and you BAIL with a screen-shaking slam. A filtered synth bass, euclidean hats and a pentatonic arp react to your airtime over a 60-second high-score chase with a saved best. Controls: Down/Z = pump at the bottom; in the air Z = kickflip, X = 360, Left/Right = method/indy grab, Up = ollie/straighten; Z or X to start and restart.",
+    "file": "calgames.cart.png"
+  },
+  {
+    "title": "Transport Tycoon",
+    "description": "A pocket-sized Transport Tycoon. Two towns sit on a green tile world split by a wandering river; you lay a rail line by hand, one tile at a time, growing track out from town A until it reaches town B. The moment the line connects, town A starts stockpiling cargo and a chuffing little locomotive is yours to dispatch — it rolls A to B hauling goods, pays cash on delivery (the balance rolls up with a cha-ching and a coin pop), then runs back empty to wait for the next run. Build it, then watch it earn until you hit the tycoon goal. Left-click a grass tile next to your rail's end (or town A) to lay rail, left-click a town to dispatch the idle train, R for a new map.",
+    "file": "transport.cart.png"
+  },
+  {
+    "title": "The Incredible Machine",
+    "description": "A gravity-physics puzzle sandbox in the spirit of The Incredible Machine: a red ball must fall into the GOAL bucket, and it's on you to build the contraption. Drag ramps, see-saws, fans, walls and spare bumper-balls out of the parts tray onto the board, then hit RUN and watch gravity take over — the ball reflects off your bars pinball-style, fans blow it upward in animated wind arcs, see-saws tip toward the weight, and hard bounces spark particles and ding the synth. Two hand-built levels with fixed pegs and ledges; solve both for the victory screen. Left-drag parts from the tray onto the board (right-click a placed part to lift it), R to run / reset the ball, C to clear the board.",
+    "file": "incmachine.cart.png"
+  },
+  {
+    "title": "Lemmings",
+    "description": "A one-screen tribute to DMA Design's 1991 classic. A trapdoor drops a stream of brainless green-haired lemmings that trudge right, fall off ledges, splat in the lava pit, and turn at walls with zero self-preservation. The terrain IS the physics: a destructible pixel buffer where diggers and bashers erase dirt and collision just reads it back. Arm a job from the bottom toolbar then click a lemming to assign it — DIG straight down, BUILD a diagonal bridge, BLOCK as a living wall that turns the herd around, or BASH sideways through dirt — and steer enough of them into the glowing HOME exit before you run out. Save 10 of 20 to win. Controls: click a job tile in the bottom bar to arm it, click on a lemming to assign the armed job, right-click or click the armed tile again to disarm, R to restart.",
+    "file": "lemmings.cart.png"
+  },
+  {
+    "title": "Leisure Suit Larry",
+    "description": "A sleazy-lounge point-and-click in the Sierra tradition, played for groans. You're Larry Laffer — polyester suit, gold medallion, hopeful mustache — at the neon-lit Lucky Lips Lounge, out to charm Roxy the cocktail waitress into a date. She's heard every line, so you'll need to swipe the right props and pick the right words: TAKE the rose off the bar, USE the MUSK MAGNET cologne dispenser, feed the jukebox a borrowed quarter, then sashay to the back booth and TALK your way through a menu of pickup lines. Most earn a withering eye-roll (or a full-on SLAP that shakes the screen); arrive holding both props and pick the genuinely smooth line and the candlelit night is yours. Built on the SCUMM verb/inventory scene engine across two velvet rooms, with cheeky PG-13 innuendo only. Mouse only: click a verb (Look/Use/Take/Talk), then a hotspot to act or the floor to walk; click an inventory slot to hold an item then a hotspot to use it; click a dialogue line in the booth; click to play again.",
+    "file": "larry.cart.png"
+  },
+  {
+    "title": "Monkey Island",
+    "description": "A bite-size SCUMM point-and-click on the docks of Mêlée Island, in the spirit of The Secret of Monkey Island. Pick a verb (Look / Talk / Use / Take), click a hotspot, walk over and act: grab the rusty cutlass off a crate, read the notice board, eye the moored ship. Talk to the Sword Master through a branching dialogue tree until she challenges you to the signature insult sword-fight — a turn-based war of WORDS where she hurls an insult and you must click the one comeback that actually answers it (then press your own attack while she sometimes flubs hers). Land three exchanges to win and earn the title of pirate; clang a wrong line and the screen shakes red. Controls: mouse picks a verb then a hotspot; click the floor to walk, click an inventory item to hold then a hotspot to use it; in conversation and in the duel click a line or press its number (1-4); SPACE/ESC clears a message, click to duel again on the end card.",
+    "file": "monkey.cart.png"
+  },
+  {
+    "title": "Worms",
+    "description": "A 2-player turn-based artillery duel on fully destructible pixel terrain — the genre Gorillas only half-shipped. Two worms perch on a rolling noise-generated landscape; on your turn you walk along the ground, sweep your bazooka's aim, then hold to charge a swinging power meter and release to fire. The rocket arcs under gravity and a live wind that actually bends the shot, then blows a real crater into the ground (carved pixel by pixel) and damages anyone in the blast — worms even tumble when the dirt under them is gone. First to knock the other's HP to zero wins. P1 LEFT/RIGHT walk, UP/DOWN aim, hold SPACE to charge power and release to fire; SPACE to restart after a win.",
+    "file": "worms.cart.png"
   }
 ]

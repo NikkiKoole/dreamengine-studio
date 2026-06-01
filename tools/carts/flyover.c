@@ -243,7 +243,8 @@ static void draw_cloud(int sx, int cloudy, float sc, float size) {
 }
 
 // ── the plane: a low-poly model, flat-shaded (solid3d technique) ────────────────
-typedef struct { float x, y, z; } V3;
+// (V3 and zsort are engine helpers now; the plane keeps its own roll-order
+//  rotation + custom projection — see studio.h.)
 static V3 PV[] = {
     /*0 N */{0,0,3.4f},   /*1 T */{0,0.15f,-2.4f}, /*2 U */{0,0.5f,0.3f}, /*3 D */{0,-0.4f,0.3f},
     /*4 L */{-0.5f,0.05f,0.3f}, /*5 R */{0.5f,0.05f,0.3f},
@@ -294,21 +295,16 @@ static void draw_plane(void) {
     }
 
     // sort faces far → near (no z-buffer)
-    typedef struct { int f; float z; } FaceZ;
-    FaceZ fz[NPF];
+    float fkey[NPF]; int forder[NPF];
     for (int i = 0; i < NPF; i++) {
         int *F_ = PF[i];
-        fz[i].f = i;
-        fz[i].z = (rv[F_[0]].z + rv[F_[1]].z + rv[F_[2]].z) / 3;
+        fkey[i] = (rv[F_[0]].z + rv[F_[1]].z + rv[F_[2]].z) / 3;
     }
-    for (int i = 1; i < NPF; i++)
-        for (int j = i; j > 0 && fz[j].z > fz[j - 1].z; j--) {
-            FaceZ t = fz[j]; fz[j] = fz[j - 1]; fz[j - 1] = t;
-        }
+    zsort(fkey, forder, NPF);
 
     float lx = -0.5f, ly = 0.7f, lz = -0.5f;     // light from upper-left-front
     for (int i = 0; i < NPF; i++) {
-        int *F_ = PF[fz[i].f];
+        int *F_ = PF[forder[i]];
         int a = F_[0], b = F_[1], c = F_[2];
         V3 ra = rv[a], rb = rv[b], rc = rv[c];
         float ux = rb.x-ra.x, uy = rb.y-ra.y, uz = rb.z-ra.z;
@@ -382,19 +378,19 @@ void draw(void) {
         vis[nv].gy = (int)(hz + H * sc); vis[nv].idx = i; nv++;
     }
     // painter's sort: far first
-    for (int i = 1; i < nv; i++)
-        for (int j = i; j > 0 && vis[j].d > vis[j - 1].d; j--) {
-            Vis t = vis[j]; vis[j] = vis[j - 1]; vis[j - 1] = t;
-        }
+    static float vkey[MAXP]; static int vorder[MAXP];
+    for (int i = 0; i < nv; i++) vkey[i] = vis[i].d;
+    zsort(vkey, vorder, nv);
     for (int k = 0; k < nv; k++) {
-        int i = vis[k].idx;
+        Vis vv = vis[vorder[k]];
+        int i = vv.idx;
         switch (ptype[i]) {
-            case TREE:     draw_tree(vis[k].sx, vis[k].gy, vis[k].sc, ph[i], pv[i]); break;
-            case MOUNTAIN: draw_mountain(vis[k].sx, vis[k].gy, vis[k].sc, ph[i], pv[i]); break;
-            case BUILDING: draw_building(vis[k].sx, vis[k].gy, vis[k].sc, ph[i], pv[i]); break;
+            case TREE:     draw_tree(vv.sx, vv.gy, vv.sc, ph[i], pv[i]); break;
+            case MOUNTAIN: draw_mountain(vv.sx, vv.gy, vv.sc, ph[i], pv[i]); break;
+            case BUILDING: draw_building(vv.sx, vv.gy, vv.sc, ph[i], pv[i]); break;
             case CLOUD: {
-                int cloudy = vis[k].gy - (int)(ph[i] * vis[k].sc);
-                draw_cloud(vis[k].sx, cloudy, vis[k].sc, pv[i]);
+                int cloudy = vv.gy - (int)(ph[i] * vv.sc);
+                draw_cloud(vv.sx, cloudy, vv.sc, pv[i]);
                 break;
             }
         }

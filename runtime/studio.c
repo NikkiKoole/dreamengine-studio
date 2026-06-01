@@ -1514,6 +1514,44 @@ float sin_deg(float degrees) { return sinf(degrees * DEG2RAD); }
 float cos_deg(float degrees) { return cosf(degrees * DEG2RAD); }
 
 // ------------------------------------------------------------
+// 3D helpers
+// ------------------------------------------------------------
+
+V3 rot3(V3 p, float yaw, float pitch) {
+    // yaw around Y, then pitch around X — the order every solid-3D cart used
+    float x  =  p.x * cos_deg(yaw) + p.z * sin_deg(yaw);
+    float z  = -p.x * sin_deg(yaw) + p.z * cos_deg(yaw);
+    float y  =  p.y * cos_deg(pitch) - z * sin_deg(pitch);
+    float z2 =  p.y * sin_deg(pitch) + z * cos_deg(pitch);
+    return (V3){ x, y, z2 };
+}
+
+bool project3(V3 p, float focal, float zoom, int *sx, int *sy) {
+    if (focal + p.z <= 0.0f) return false;            // behind the camera — skip it
+    float f = focal / (focal + p.z);
+    if (sx) *sx = SCREEN_W / 2 + (int)(p.x * f * zoom);
+    if (sy) *sy = SCREEN_H / 2 + (int)(p.y * f * zoom);
+    return true;
+}
+
+void zsort(float *key, int *order, int n) {
+    for (int i = 0; i < n; i++) order[i] = i;
+    // insertion sort, descending by key — far (big key) drawn first
+    for (int i = 1; i < n; i++) {
+        int oi = order[i];
+        float k = key[oi];
+        int j = i - 1;
+        while (j >= 0 && key[order[j]] < k) { order[j + 1] = order[j]; j--; }
+        order[j + 1] = oi;
+    }
+}
+
+void quadfill(int x0, int y0, int x1, int y1, int x2, int y2, int x3, int y3, int color) {
+    trifill(x0, y0, x1, y1, x2, y2, color);
+    trifill(x0, y0, x2, y2, x3, y3, color);
+}
+
+// ------------------------------------------------------------
 // collision
 // ------------------------------------------------------------
 
@@ -1844,77 +1882,3 @@ void print_right(const char *text, int right_x, int y, int color) {
     print(text, right_x - w, y, color);
 }
 
-// ------------------------------------------------------------
-// turtle graphics
-// ------------------------------------------------------------
-
-static struct {
-    float x, y;
-    float heading;   // degrees: 0 = right, 90 = down
-    bool  pen;
-    int   color;
-    int   size;
-} turtle = { 0 };
-
-static bool turtle_inited = false;
-
-static void turtle_ensure_init(void) {
-    if (!turtle_inited) {
-        turtle.x       = SCREEN_W / 2.0f;
-        turtle.y       = SCREEN_H / 2.0f;
-        turtle.heading = 0.0f;
-        turtle.pen     = false;
-        turtle.color   = CLR_WHITE;
-        turtle.size    = 1;
-        turtle_inited  = true;
-    }
-}
-
-void turtle_home(void) {
-    turtle_ensure_init();
-    turtle.x       = SCREEN_W / 2.0f;
-    turtle.y       = SCREEN_H / 2.0f;
-    turtle.heading = 0.0f;
-    turtle.pen     = false;
-}
-
-void turtle_move(float steps) {
-    turtle_ensure_init();
-    float nx = turtle.x + steps * cosf(turtle.heading * DEG2RAD);
-    float ny = turtle.y + steps * sinf(turtle.heading * DEG2RAD);
-    if (turtle.pen) {
-        Color c = palette[turtle.color % PALETTE_SIZE];
-        if (turtle.size <= 1) {
-            DrawLine((int)turtle.x, (int)turtle.y,
-                     (int)nx,        (int)ny,        c);
-        } else {
-            DrawLineEx(
-                (Vector2){ turtle.x, turtle.y },
-                (Vector2){ nx,       ny       },
-                (float)turtle.size, c);
-        }
-    }
-    turtle.x = nx;
-    turtle.y = ny;
-}
-
-void turtle_turn(float degrees) {
-    turtle_ensure_init();
-    turtle.heading += degrees;
-}
-
-void turtle_face(float degrees) {
-    turtle_ensure_init();
-    turtle.heading = degrees;
-}
-
-void turtle_at(int x, int y) {
-    turtle_ensure_init();
-    turtle.x = (float)x;
-    turtle.y = (float)y;
-}
-
-void pen_down(void)          { turtle_ensure_init(); turtle.pen   = true; }
-void pen_up(void)            { turtle_ensure_init(); turtle.pen   = false; }
-void pen_color(int color)    { turtle_ensure_init(); turtle.color = color; }
-void pen_size(int size)      { turtle_ensure_init(); turtle.size  = size > 0 ? size : 1; }

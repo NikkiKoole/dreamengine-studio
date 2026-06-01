@@ -36,7 +36,7 @@ For reference, the current API (all of `studio.h`) groups into:
 | **Strings** | `str` |
 | **Random** | `rnd`, `rnd_between`, `rnd_float`, `rnd_float_between` |
 | **Camera** | `camera`, `follow` |
-| **Turtle / pen** | `turtle_home`, `turtle_move`, `turtle_turn`, `turtle_face`, `turtle_at`, `pen_down`, `pen_up`, `pen_color`, `pen_size` |
+| **3D helpers** | `V3`, `rot3`, `project3`, `zsort`, `quadfill` (turtle/pen API removed 2026-06-01 → cart-side; see [decision 0008](../decisions/0008-cut-turtle-graphics-api.md)) |
 | **Debug** | `watch`, `watch_visible`, `printh` |
 | **Palette** | 32 `CLR_*` constants |
 
@@ -270,6 +270,33 @@ Things that need engine work (deferred): per-note filters
 (`.lpf().resonance()`), reverb/delay sends, stereo/pan, and the
 mini-notation parser. Real Strudel features, but they touch
 `sound.h`, not `studio.h`.
+
+### `euclid` and `chance` are general-purpose, not just music
+
+They shipped under "musical timing", but the carts use them as plain
+**control-flow primitives** — and that's the more important framing for
+docs and for anyone learning from the corpus.
+
+- **`chance(percent)` is a weighted coin flip.** 36 of 176 carts call it,
+  and almost none for music: random item drops, enemy variety, branching
+  events, occasional glitches, "did the attack land?" rolls. It's the
+  single most-used randomness verb after `rnd`. (centipede, civ, dune,
+  heroes, papers, sims, tradewinds, zelda, …)
+- **`euclid(hits, steps, b)` is an even-spacing scheduler.** Of the 10
+  carts that use it, the strategy/sim ones (cannonfodder, dungeonkeeper,
+  dwarffort, masseffect, garden, turfwar) feed it a non-musical counter —
+  `frame()`, a wave index — to distribute spawns/resources *evenly but not
+  monotonously* across a window. It's "every Nth, but spread like a drum
+  pattern instead of clumped." A music function quietly became the
+  sim-tick distributor; nothing in the API anticipated that, and it's a
+  pattern worth teaching.
+
+Takeaway: `b` is **any** counter (`beat()`, `frame()/10`, a step index),
+and `chance` belongs in the same mental bucket as `btn`/`every` — verbs
+that read like sentences and gate an `if`. The studioDocs one-liners for
+both now say this; the header comments echo it. No new API needed — this
+is a documentation/teaching fix, consistent with [decision 0006]
+(richness comes from how the small core composes, not from more surface).
 
 ---
 
@@ -1189,9 +1216,19 @@ core or hiding the lesson. Seeds already exist:
   isn't worth its weeks of machinery. See [`../decisions/0001-cut-coroutine-process-model.md`](../decisions/0001-cut-coroutine-process-model.md).
 - **Pixel-perfect sprite collision** — needs to walk the sprite's
   alpha. Worth doing eventually; AABB covers 95% of cases first.
-- **3D anything** — fantasy console, not a 3D engine. (`trifill_tex` was
-  considered as the one exception, then parked in favour of pattern fill —
-  see keeper 3 in the 2026-05-30 review.)
+- **A 3D *engine*** — scene graph, mat4 stack, z-buffer, per-pixel depth:
+  still out. Fantasy console, not a 3D engine.
+
+  > **Update (2026-06-01) — small leaf-helpers shipped.** "3D anything" was
+  > too broad: four carts (`cube3d`, `solid3d`, `textured3d`, `flyover`) were
+  > re-deriving the *same* rotate→project→sort→fill pipeline by hand. We shipped
+  > **`V3` + `rot3` + `project3` + `zsort` + `quadfill`** — leaf primitives on
+  > top of `trifill`/`tritex`, the same shelf as `dx`/`distance`. NOT an engine:
+  > no z-buffer, no matrix stack, the cart still owns its vertex/face lists. The
+  > pseudo-3D scanline renderers (road in `outrun`/`racer`/`podracer`, mode-7,
+  > raycaster) stay cart-side — they're welded to per-cart texture/curve state.
+  > Rationale + the `project`→`project3` naming-collision story:
+  > [`../decisions/0009-small-3d-leaf-helpers.md`](../decisions/0009-small-3d-leaf-helpers.md).
 
 ---
 
@@ -1241,7 +1278,8 @@ sprites, bouncing balls, timed rounds.
 > **Mostly shipped.** Turtle, print helpers, and sprite rotation/scale are done.
 > Gamepad and pause/debug remain open.
 
-- ✓ **Turtle graphics** — `turtle_home/move/turn/face/at`, `pen_down/up/color`, `pen_size`.
+- ~~**Turtle graphics**~~ — shipped, then **removed 2026-06-01** (one cart used it; it's a
+  cart-side pocket turtle now). See [decision 0008](../decisions/0008-cut-turtle-graphics-api.md).
 - ✓ **Print alignment**: `print_centered`, `print_right`. Plus ✓ `print_scaled` (bigger text for titles/menus).
 - ✓ **Sprite rotation + scale** — shipped as `spr_rot` / `sspr_ex` (see §18).
 - **Gamepad support** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal augment of `btn()`/`btnp()`.

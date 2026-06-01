@@ -264,8 +264,8 @@ void  bpm(int rate);                                          // set tempo (defa
 int   beat(void);                                             // current beat counter (advances based on bpm)
 float beat_pos(void);                                         // fractional position within current beat: 0.0 → 1.0
 bool  every(int n);                                           // true once per n beats — fire it on the beat
-bool  euclid(int hits, int steps, int b);                    // Bjorklund: true if beat b is one of `hits` evenly across `steps`
-bool  chance(int percent);                                    // true with the given probability (0–100)
+bool  euclid(int hits, int steps, int b);                    // Bjorklund: true if step b is one of `hits` spread evenly across `steps`. b can be ANY counter (beat(), frame()/10, a wave index) — evenly distributes spawns/pickups/blinks, not just beats
+bool  chance(int percent);                                    // true with the given probability (0–100) — a weighted coin flip for drops, variety, branching, glitches, not just music
 int   degree(int scale, int octave, int n);                  // MIDI note for the nth degree of a scale (n can wrap octaves)
 
 // ------------------------------------------------------------
@@ -304,6 +304,19 @@ float dx(float steps, float degrees);                      // x movement of `ste
 float dy(float steps, float degrees);                      // y movement of `steps` pixels in `degrees` direction (keep position in a float)
 float sin_deg(float degrees);                              // sine of an angle in degrees
 float cos_deg(float degrees);                              // cosine of an angle in degrees
+
+// ------------------------------------------------------------
+// 3D helpers — leaf primitives for the rotate→project→sort→fill pipeline.
+// the cart owns its vertex/face lists; these just remove the math every
+// solid-3D cart re-derives. build your scene on these + trifill/tritex.
+// ------------------------------------------------------------
+
+typedef struct { float x, y, z; } V3;   // a 3D point/vector — pass to rot3/project, or read the fields directly
+
+V3   rot3(V3 p, float yaw, float pitch);                         // rotate a point: yaw (around Y) then pitch (around X), both degrees. the spin-a-model workhorse
+bool project3(V3 p, float focal, float zoom, int *sx, int *sy);  // perspective-divide a point to screen pixels (origin = screen centre). returns false (and leaves *sx/*sy untouched) if p is behind the camera
+void zsort(float *key, int *order, int n);                       // painter's sort: fills order[0..n-1] with indices ordered far→near by key[]. reuse for faces, sprites, billboards — draw via order[i]
+void quadfill(int x0, int y0, int x1, int y1, int x2, int y2, int x3, int y3, int color); // filled quad from 4 corners (two trifills sharing the 0–2 diagonal). corners in order around the face
 
 // ------------------------------------------------------------
 // easing — shape a 0..1 value into a curve
@@ -358,21 +371,6 @@ int  load_bytes(void *out, int max);          // read it back into `out` (up to 
 float noise(float x);                    // 1D: organic motion, wobble, pulses
 float noise2(float x, float y);          // 2D: terrain, fog, flow fields
 float noise3(float x, float y, float z); // 3D: animated 2D noise (pass now() as z)
-
-// ------------------------------------------------------------
-// turtle graphics — Logo-style drawing
-// ------------------------------------------------------------
-
-void turtle_home(void);             // go to the center of the screen, face right, pen up
-void turtle_move(float steps);      // move forward; draws a line if pen is down
-void turtle_turn(float degrees);    // turn clockwise by degrees
-void turtle_face(float degrees);    // set heading directly (0 = right, 90 = down)
-void turtle_at(int x, int y);       // teleport without drawing
-
-void pen_down(void);                // start leaving a trail
-void pen_up(void);                  // stop leaving a trail
-void pen_color(int color);          // set trail color (palette index)
-void pen_size(int size);            // set trail thickness in pixels (default 1)
 
 // ------------------------------------------------------------
 // debug

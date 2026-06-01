@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-05-30 (session 9 — navbar + in-app docs wiki). HEAD: `e372d25`._
+_Last updated: 2026-06-01 (session 10 — 3D leaf-helpers added, turtle API removed, euclid/chance documented as general-purpose). Prior: 2026-05-30 (session 9 — navbar + in-app docs wiki)._
 
 ---
 
@@ -33,6 +33,11 @@ Recently landed and worth calling out:
 - Fill patterns: `fillp`/`fillp_reset` + `FILL_*` (PICO-8-style fillp).
 - Shapes/helpers: `oval`/`ovalfill`, `bar`, `blink`, `fsqrt`.
 - Pseudo-3D: `tritex` (affine texture-mapped triangle; used by `mode7`/`raycaster`/`cube3d`).
+- 3D leaf-helpers: `V3` + `rot3`/`project3`/`zsort`/`quadfill` — the rotate→project→sort→fill
+  pipeline the solid-3D carts re-derived by hand. `cube3d`/`solid3d`/`textured3d`/`flyover`
+  refactored onto them. [decision 0009](decisions/0009-small-3d-leaf-helpers.md).
+- **Removed:** turtle graphics (`turtle_*`/`pen_*`) — one user, trivially a cart; see Cut
+  below + [decision 0008](decisions/0008-cut-turtle-graphics-api.md).
 - Input: full mouse (`mouse_x/y/down/pressed/released/wheel`), keyboard
   (`key`/`keyp`/`text_input`).
 - Time/persistence: `dt`, `epoch`, `save_bytes`/`load_bytes`.
@@ -128,7 +133,12 @@ Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer
 - **`move_and_collide`** (resolved tile push-out) — low demand; only `platform.c` does
   the full pattern, and `zelda`/`gta` test against their own data, not `mget`.
 - **DS structures** (lists/maps/grids), **memory arenas**, **PS1 z-sort/ordering table**,
-  **tools-as-carts / VFS / fantasy-OS / peek-poke**, **general 3D** — out of scope.
+  **tools-as-carts / VFS / fantasy-OS / peek-poke**, a **3D *engine*** (scene graph / mat4
+  stack / z-buffer / per-pixel depth) — out of scope. *(The small 3D leaf-helpers
+  `rot3`/`project3`/`zsort`/`quadfill` + `V3` ARE shipped — see below and [decision 0009].)*
 - **Particle systems** and **pathfinding** — ship as *library carts* (seeds: `astar.c`,
   `boids.c`), not engine surface.
 - **Pixel-perfect sprite collision** — eventually maybe; AABB covers 95% first.
+- **Turtle graphics API** (`turtle_*`/`pen_*`) — shipped, then **removed 2026-06-01**: only
+  `16-spirograph.c` used it, and a turtle is just `dx`/`dy` + `line()`, so it lives in the
+  cart now. [decision 0008](decisions/0008-cut-turtle-graphics-api.md).

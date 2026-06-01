@@ -72,7 +72,7 @@ const sections = [
   { title: 'patterns',   titleNL: 'patronen',     keys: ['fillp', 'fillp_reset', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
   { title: 'map',        titleNL: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },
   { title: 'noise',     titleNL: 'ruis',       keys: ['noise', 'noise2', 'noise3'] },
-  { title: 'turtle',   titleNL: 'schildpad',  keys: ['turtle_home', 'turtle_move', 'turtle_turn', 'turtle_face', 'turtle_at', 'pen_down', 'pen_up', 'pen_color', 'pen_size'] },
+  { title: '3d',         titleNL: '3d',           keys: ['V3', 'rot3', 'project3', 'zsort', 'quadfill'] },
   { title: 'easing',     titleNL: 'verloop',      keys: ['ease_in', 'ease_out', 'ease_in_out'] },
   { title: 'math',       titleNL: 'wiskunde',     keys: ['abs', 'min', 'max', 'clamp', 'lerp', 'remap', 'distance', 'length', 'fsqrt', 'angle_to', 'dx', 'dy', 'sin_deg', 'cos_deg'] },
   { title: 'collision',  titleNL: 'botsingen',    keys: ['boxes_touch', 'point_in_box', 'circles_touch', 'near', 'touching_map', 'tile_at', 'touching_color', 'bounce_at_edges'] },

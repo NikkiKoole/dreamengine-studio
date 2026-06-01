@@ -37,8 +37,7 @@ static int   pgx, pgy, pgz;        // empty cell on the near side (place here)
 
 #define FOCAL 1.6f
 #define TEX 16
-
-typedef struct { float x, y, z; } V3;
+// V3 is an engine type now (studio.h)
 
 static int block_at(int x, int y, int z) {
     if (x < 0 || y < 0 || z < 0 || x >= WX || y >= WY || z >= WZ) return AIR;

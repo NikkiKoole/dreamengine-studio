@@ -17,8 +17,7 @@
 #define ROT     1.7f        // degrees turned per frame
 #define RANGE   620.0f      // scanner range
 
-typedef struct { float x, y, z; } V3;
-typedef struct { V3 p; int shields; bool alive; float fire_cd, roll; } Ship;
+typedef struct { V3 p; int shields; bool alive; float fire_cd, roll; } Ship;   // V3 is an engine type now (studio.h)
 
 // a little dart-shaped ship: nose points toward the camera (-z)
 static const V3 MODEL[5] = {

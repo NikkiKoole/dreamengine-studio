@@ -8,9 +8,9 @@
 // away move toward the centre and shrink — and connect the dots. That's the
 // whole pipeline behind every 3D game.
 //
+// (V3, rot3 and project are engine helpers now — see studio.h.)
+//
 //   Z  next solid     up/down  zoom     left/right  spin speed
-
-typedef struct { float x, y, z; } V3;
 
 static V3  cubeV[8] = {{-1,-1,-1},{1,-1,-1},{1,1,-1},{-1,1,-1},{-1,-1,1},{1,-1,1},{1,1,1},{-1,1,1}};
 static int cubeE[12][2] = {{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}};
@@ -30,14 +30,6 @@ static float ax = 25, ay = 35, spin = 1.0f, zoom = 42;
 
 #define FOCAL 3.0f
 
-static V3 rotate(V3 p) {
-    float x = p.x * cos_deg(ay) + p.z * sin_deg(ay);
-    float z = -p.x * sin_deg(ay) + p.z * cos_deg(ay);
-    float y = p.y * cos_deg(ax) - z * sin_deg(ax);
-    float z2 = p.y * sin_deg(ax) + z * cos_deg(ax);
-    return (V3){ x, y, z2 };
-}
-
 void update(void) {
     if (btnp(0, BTN_A)) shape = (shape + 1) % 3;
     if (btn(0, BTN_UP))    zoom = min(90, zoom + 1.5f);
@@ -55,10 +47,8 @@ void draw(void) {
     // project all vertices once
     static int sx[8], sy[8]; static float sz[8];
     for (int i = 0; i < NV[shape]; i++) {
-        V3 r = rotate(V[i]);
-        float f = FOCAL / (FOCAL + r.z);
-        sx[i] = (int)(160 + r.x * f * zoom);
-        sy[i] = (int)(100 + r.y * f * zoom);
+        V3 r = rot3(V[i], ay, ax);
+        project3(r, FOCAL, zoom, &sx[i], &sy[i]);
         sz[i] = r.z;
     }
     // edges, shaded by depth (nearer = brighter)

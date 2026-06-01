@@ -20,8 +20,8 @@
 // triangles buy you.
 //
 //   Z  dither on/off     X  next model     up/down  zoom     L/R  spin
-
-typedef struct { float x, y, z; } V3;
+//
+// (V3, rot3, project and zsort are engine helpers now — see studio.h.)
 
 // ── models: a list of vertices + a list of triangles (vertex indices) ────────
 static V3 icoV[12] = {
@@ -60,14 +60,6 @@ static bool  dither = true;
 
 #define FOCAL 4.0f
 
-static V3 rotate(V3 p) {
-    float x  =  p.x * cos_deg(ay) + p.z * sin_deg(ay);
-    float z  = -p.x * sin_deg(ay) + p.z * cos_deg(ay);
-    float y  =  p.y * cos_deg(ax) - z * sin_deg(ax);
-    float z2 =  p.y * sin_deg(ax) + z * cos_deg(ax);
-    return (V3){ x, y, z2 };
-}
-
 void init(void) {
     for (int i = 0; i < ANCHORS; i++) {
         ramp[nramp++] = (Shade){ FILL_SOLID, anchor[i], 0 };
@@ -100,11 +92,10 @@ void draw(void) {
     static int   sx[12], sy[12];
     static V3    rv[12];
     for (int i = 0; i < NV[model]; i++) {
-        V3 r = rotate(V[i]);
+        V3 r = rot3(V[i], ay, ax);
         rv[i] = r;
-        float f = FOCAL / (FOCAL + r.z);
-        sx[i] = (int)(SCREEN_W / 2 + r.x * f * zoom);
-        sy[i] = (int)(SCREEN_H / 2 - 4 + r.y * f * zoom);
+        project3(r, FOCAL, zoom, &sx[i], &sy[i]);
+        sy[i] -= 4;                         // nudge the model up a touch
     }
 
     // light direction (points FROM the surface TO the light): upper-left-front
@@ -139,17 +130,15 @@ void draw(void) {
         face[nf].t = i; face[nf].z = (ra.z+rb.z+rc.z)/3; face[nf].lv = lv; nf++;
     }
 
-    // 5. painter's sort: far (big z) first. insertion sort, plenty for <=20 faces
-    for (int i = 1; i < nf; i++) {
-        for (int j = i; j > 0 && face[j].z > face[j-1].z; j--) {
-            Face tmp = face[j]; face[j] = face[j-1]; face[j-1] = tmp;
-        }
-    }
+    // 5. painter's sort: far (big z) first — zsort orders the faces for us
+    static float fz[20]; static int order[20];
+    for (int i = 0; i < nf; i++) fz[i] = face[i].z;
+    zsort(fz, order, nf);
 
     // 6. fill each face with its shade
     for (int i = 0; i < nf; i++) {
-        int *idx = T[face[i].t];
-        Shade s = ramp[face[i].lv];
+        int *idx = T[face[order[i]].t];
+        Shade s = ramp[face[order[i]].lv];
         if (s.pat == FILL_SOLID) {
             trifill(sx[idx[0]],sy[idx[0]], sx[idx[1]],sy[idx[1]], sx[idx[2]],sy[idx[2]], s.draw);
         } else {

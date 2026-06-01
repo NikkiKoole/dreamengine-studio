@@ -16,8 +16,8 @@
 // Press X to crank the subdivision level (1→8) and watch it happen.
 //
 //   Z  shading on/off     X  subdivision     up/down  zoom     L/R  spin
-
-typedef struct { float x, y, z; } V3;
+//
+// (V3, rot3, project, zsort and quadfill are engine helpers now — see studio.h.)
 
 static V3 cubeV[8] = {{-1,-1,-1},{1,-1,-1},{1,1,-1},{-1,1,-1},{-1,-1,1},{1,-1,1},{1,1,1},{-1,1,1}};
 // 6 quads (corners go around the face: TL,TR,BR,BL) + which sprite slot textures it
@@ -39,16 +39,10 @@ static int   sub = 4;            // subdivision level (1 = raw two-triangle warp
 #define TEX 16                   // each texture is 16×16 on the sheet
 #define QUARTER 0x7BDE           // ~25% black dither (1-bits transparent)
 
-static V3 rotate(V3 p) {
-    float x  =  p.x * cos_deg(ay) + p.z * sin_deg(ay);
-    float z  = -p.x * sin_deg(ay) + p.z * cos_deg(ay);
-    float y  =  p.y * cos_deg(ax) - z * sin_deg(ax);
-    float z2 =  p.y * sin_deg(ax) + z * cos_deg(ax);
-    return (V3){ x, y, z2 };
-}
-// project a rotated (camera-space) point to the screen — perspective divide
-static int PX(V3 r) { float f = FOCAL / (FOCAL + r.z); return (int)(SCREEN_W/2 + r.x*f*zoom); }
-static int PY(V3 r) { float f = FOCAL / (FOCAL + r.z); return (int)(SCREEN_H/2 - 4 + r.y*f*zoom); }
+// project a rotated (camera-space) point to the screen — wraps the engine's
+// project(), with this cart's small -4 vertical framing nudge.
+static int PX(V3 r) { int x = 0; project3(r, FOCAL, zoom, &x, 0); return x; }
+static int PY(V3 r) { int y = 0; project3(r, FOCAL, zoom, 0, &y); return y - 4; }
 // bilinear point inside a quad: top edge A→B, bottom edge D→C, then lerp by t
 static V3 quadpt(V3 A, V3 B, V3 C, V3 D, float s, float t) {
     V3 top = { A.x+(B.x-A.x)*s, A.y+(B.y-A.y)*s, A.z+(B.z-A.z)*s };
@@ -75,7 +69,7 @@ void draw(void) {
     // rotate + project all 8 corners (the face-level positions, for cull/sort/shadow)
     static int sx[8], sy[8]; static V3 rv[8];
     for (int i = 0; i < 8; i++) {
-        rv[i] = rotate(cubeV[i]);
+        rv[i] = rot3(cubeV[i], ay, ax);
         sx[i] = PX(rv[i]); sy[i] = PY(rv[i]);
     }
 
@@ -97,16 +91,16 @@ void draw(void) {
         float lam = (nx*lx+ny*ly+nz*lz)/len; if (lam < 0) lam = 0;
         face[nf].q = i; face[nf].z = cz; face[nf].lam = lam; nf++;
     }
-    // painter's sort: far first
-    for (int i = 1; i < nf; i++)
-        for (int j = i; j > 0 && face[j].z > face[j-1].z; j--) {
-            Face t = face[j]; face[j] = face[j-1]; face[j-1] = t;
-        }
+    // painter's sort: far first — zsort orders the faces for us
+    float fz[6]; int order[6];
+    for (int i = 0; i < nf; i++) fz[i] = face[i].z;
+    zsort(fz, order, nf);
 
     // draw each face as an N×N grid of textured patches, then a dither shadow
     for (int i = 0; i < nf; i++) {
-        int *Q = quad[face[i].q];
-        int uo = quadTex[face[i].q] * TEX;
+        Face fc = face[order[i]];
+        int *Q = quad[fc.q];
+        int uo = quadTex[fc.q] * TEX;
         V3 A=rv[Q[0]], B=rv[Q[1]], C=rv[Q[2]], D=rv[Q[3]];      // TL TR BR BL
         for (int gy = 0; gy < sub; gy++) {
             for (int gx = 0; gx < sub; gx++) {
@@ -124,11 +118,10 @@ void draw(void) {
         if (shade) {
             int x0=sx[Q[0]],y0=sy[Q[0]], x1=sx[Q[1]],y1=sy[Q[1]];
             int x2=sx[Q[2]],y2=sy[Q[2]], x3=sx[Q[3]],y3=sy[Q[3]];
-            int pat = face[i].lam > 0.66f ? 0 : face[i].lam > 0.33f ? QUARTER : FILL_CHECKER;
+            int pat = fc.lam > 0.66f ? 0 : fc.lam > 0.33f ? QUARTER : FILL_CHECKER;
             if (pat) {
                 fillp(pat, -1);                       // black on 0-bits, holes transparent
-                trifill(x0,y0, x1,y1, x2,y2, CLR_BLACK);
-                trifill(x0,y0, x2,y2, x3,y3, CLR_BLACK);
+                quadfill(x0,y0, x1,y1, x2,y2, x3,y3, CLR_BLACK);
                 fillp_reset();
             }
         }

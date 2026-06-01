@@ -17,10 +17,37 @@ cart, paste into a fresh context:
 These are design specs, not code — the downstream context reads the engine source and
 writes the actual `tools/carts/<name>.c` (+ `.cart.js`).
 
-**Building many in parallel?** Also paste [`AGENT-MESSAGE.md`](AGENT-MESSAGE.md) into each
-session — it tells them to build fully but skip the shared-file steps (`--run` bake +
-`index.json` edit) and end with just their JSON blob, which a coordinator bakes + merges
-serially to avoid races on the shared `build/` dir and `index.json`.
+### Building many in parallel
+
+The whole point of the spec/brief split is to fan a batch out across many agents at once.
+Two ways, same shape — every agent **builds its cart fully but skips the two shared-file
+steps that race the others** (the `--run` thumbnail bake + the `index.json` edit), and a
+**coordinator does those serially** at the end to avoid clobbering the shared `build/`
+dir and `index.json`.
+
+- **By hand (copy-paste):** paste [`AGENT-MESSAGE.md`](AGENT-MESSAGE.md) into each session
+  alongside its `brief + spec`. It instructs the session to build, run only the
+  parallel-safe CREATE step, and end with just its `index.json` JSON blob. You play
+  coordinator: bake each thumbnail (`make-cart.js --run`) and merge the blobs.
+
+- **Orchestrated (recommended — what built batch 2):** drive it from a single
+  **Workflow** instead. One agent per game, fanned out with `parallel()`, each doing the
+  exact `AGENT-MESSAGE.md` job — except the "end with a JSON blob" convention becomes a
+  **structured-output schema** (`{name, title, description, file, ...}`) the workflow
+  validates, so there's no parsing. The script body holds the game list (name + scope +
+  locked slice + which exemplar carts to read) and assembles each agent's prompt from the
+  brief. When the fan-out returns, the **main loop becomes the coordinator**: bake each
+  `--run` thumbnail serially (fixing any compile error — this is where they surface, since
+  CREATE doesn't compile) and merge the validated entries into `index.json`.
+
+  Why the bake stays serial in the main loop, not in the workflow: `--run` fights over the
+  shared `build/` dir, and compile-error fixing wants real read/edit/retry reasoning. (If
+  you ever want it *fully* hands-off, give each build agent `isolation: 'worktree'` so it
+  can `--run` in its own checkout — more setup per agent, only worth it at large scale.)
+
+  Batch 2 (the 16 in [`BATCH-2.md`](BATCH-2.md)) was built this way: 16 agents in one
+  workflow wrote spec + cart + CREATE, then the bake + merge ran serially. All 16 compiled
+  on the first bake.
 
 ## Specs
 

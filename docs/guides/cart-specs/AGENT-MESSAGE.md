@@ -5,7 +5,11 @@ It lets the session build the cart fully but stops it at the two shared-file ste
 race the other parallel sessions — it ends by emitting just the `index.json` JSON blob,
 which the coordinator bakes + merges centrally.
 
-See `README.md` here for the spec list and the `brief + spec` assembly command.
+See `README.md` here for the spec list and the `brief + spec` assembly command. This
+copy-paste flow is the manual path; the **orchestrated** alternative (a single Workflow
+fanning out one agent per game, with the JSON blob below replaced by a validated
+structured-output schema) is described under "Building many in parallel" in `README.md`
+and is how batch 2 was built.
 
 ---
 

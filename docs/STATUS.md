@@ -114,15 +114,17 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 
-**2D geometry helpers + real color-lerp** (proposed, none merged) — drawing primitives for
-the geometry-first style: `ngon`/`star`, `poly`/`polyfill`, gradient fill, rounded-rect,
-thick-line, ranked by the cart boilerplate each removes (66/183 carts draw with triangles vs
-31 with sprites; 80 hand-roll trig+fill loops; 136 use circles). Plus a graphics taxonomy
-(which carts use which technique) and an **ADR-worthy** proposal for true smooth color
-interpolation — `lerp_color`/`rgb` via a packed true-color token — that would make gradients
-*real* instead of dithered. Full reasoning + signatures in
+**2D geometry helpers** (proposed, none merged) — drawing primitives for the geometry-first
+style: `ngon`/`star`, `poly`/`polyfill`, gradient fill, rounded-rect, thick-line, ranked by
+the cart boilerplate each removes (66/183 carts draw with triangles vs 31 with sprites; 80
+hand-roll trig+fill loops; 136 use circles), plus a graphics taxonomy (which carts use which
+technique). Full reasoning + signatures in
 [`design/geometry-helpers.md`](design/geometry-helpers.md). *(Subsumes the old
 "gradient/dither fill" smaller-item.)*
+  - **Parked thought — not a build item:** true smooth color interpolation
+    (`lerp_color`/`rgb` via a packed true-color token). Interesting, but it splits the color
+    model and erodes the fixed-palette identity — second thoughts noted in the design doc.
+    Would need its own ADR before any code; default path stays dithered gradients.
 
 **Smaller open items (no design doc yet):** looping ambience (`drone`)/`volume`/mute. Noted
 in [`POLISH_TODO.md`](POLISH_TODO.md).

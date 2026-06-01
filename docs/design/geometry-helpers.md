@@ -123,8 +123,8 @@ approaches, in increasing power:
   becomes a genuinely smooth blend — per row, draw in `lerp_color(c_top, c_bot, t)`. This is
   what "smooth gradient" normally means, and it makes `vgradient` a thin wrapper.
 
-**Recommendation:** decide `lerp_color` first (next section). If we take it, the gradient
-helpers ride on it and are trivially "real"; if we don't, ship the **dithered** form.
+**Recommendation:** ship the **dithered** form. (The real-RGB path depends on the
+true-color idea in the next section, which is **parked** — don't block gradients on it.)
 
 ### 4. Rounded rectangle — UI panels & speech bubbles
 **Evidence:** dialog/HUD boxes are assembled from `rect` + corner `circfill` across many
@@ -162,6 +162,13 @@ asks for it.
 ---
 
 ## Smooth color interpolation — `lerp_color` / `rgb` (real lerping)
+
+> **⚠ Status: a THOUGHT, parked — do NOT start building.** Captured here because it's an
+> interesting idea, not because it's blessed. There are real second thoughts (below): it
+> introduces a two-class color model and chips at the fixed-palette identity that gives carts
+> their coherence — the exact thing the rest of this doc says to lean *into*. The shape
+> helpers (#1–#6) are independent of this and can proceed without it. **This needs a
+> deliberate decision (an ADR) before anyone writes code; until then it stays a note.**
 
 Separate from the shape helpers, but the thing that makes gradients (and a lot more) *real*
 instead of faked. Today every draw call takes a palette **index** 0–31, so there is no value
@@ -230,12 +237,25 @@ have for floats) gains a color sibling that reads the same way.
   `rgb`/`lerp_color` are for the few effects that genuinely need a blend. The studio.h
   palette comment gets a footnote, not a rewrite.
 
-### Decision needed
-Trade a sliver of palette purity for real blends? **Recommended: yes**, gated behind explicit
-`rgb()`/`lerp_color()` calls so the default indexed model is completely untouched. If the team
-prefers strict purity, fall back to **dithered** gradients (#3) and ship `lerp_color` as
-nearest-index (option A) only. Either way this is **ADR-worthy** when decided (it touches the
-palette model — same weight class as decision 0007 "pal recolors sprites").
+### Status: parked — second thoughts
+This is the part to be wary of, and the reason it's a thought rather than a plan:
+
+- **It splits the color model in two** (indexed *and* true-color). Every future feature then
+  has to answer "does this work on true-color?" — `pal`, `pget`, `colorkey` already don't.
+  That's permanent cognitive overhead for a learn-C console whose whole pitch is *small and
+  legible*.
+- **It erodes the identity this very doc argues for.** The fixed 32-color palette is the
+  look *and* the lesson; an `rgb()` escape hatch is exactly what makes carts stop looking
+  coherent once learners reach for it (and they will).
+- **The main use case is already covered, in-aesthetic.** Dithered gradients (#3) give the
+  sky/backdrop blend without leaving the palette — and they look *more* like the rest of the
+  engine, not less.
+
+So: **not recommended to start.** If it's ever revisited, it's gated behind explicit
+`rgb()`/`lerp_color()` calls (default model untouched) and needs its own **ADR** weighing the
+above — same weight class as decision 0007 ("pal recolors sprites"). The lighter, no-regret
+fallback that needs no decision: ship `lerp_color` as **nearest-index** (option A) — honest
+about the 32 colors, zero renderer change — and do gradients **dithered**.
 
 ---
 
@@ -246,10 +266,10 @@ most code, and compose cleanly on `trifill` exactly like `quadfill`. Ship them a
 with a demo/tutorial cart (a "shapes from code" gallery: rotating gears, a hex grid, a
 sparkle burst, a polygon blob) and a baked thumbnail, per the cart-authoring workflow.
 
-**Color: decide `lerp_color`/`rgb` (option B) around the same time** — it's a separate
-(ADR-worthy) call, but it changes #3: if it lands, `vgradient` is a thin real-color wrapper
-and we skip the dither workaround; if it doesn't, ship #3 dithered. So sequence it as:
-settle `lerp_color` → then gradient. #1/#2 don't depend on it and can go first regardless.
+**Color (`lerp_color`/`rgb`) is NOT in any batch — it's parked** (see its section). If
+gradients (#3) are wanted, do them **dithered**; that needs no color-model decision. The
+true-color idea only comes back if someone deliberately reopens it with an ADR. #1/#2 don't
+touch color at all.
 
 ## What to leave out (for now)
 - **Concave/arbitrary polygon fill** — needs ear-clipping/scanline; a library cart, not a

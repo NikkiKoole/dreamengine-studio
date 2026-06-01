@@ -30,7 +30,7 @@
 #define NCPU        4
 #define FPS         60.0f
 #define HORIZON     (SCREEN_H / 2)
-#define CENTRIFUGAL 0.34f
+#define CENTRIFUGAL 0.22f
 
 static const float TRACK_LEN = N_SEG * SEGL;
 static const float DT        = 1.0f / FPS;

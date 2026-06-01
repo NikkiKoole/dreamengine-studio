@@ -4,9 +4,9 @@
 #
 # Run with:
 #   node tools/play.js raster_test script tools/raster_test.script \
-#        --headless --trace build/raster_trace.jsonl --frames 33
-#   grep '"fs=2"' build/raster_trace.jsonl   # or just: grep mismatches ...
-#   # every fs=2 line should show mismatches:"0"
+#        --headless --trace build/raster_trace.jsonl --frames 45
+#   grep mismatches build/raster_trace.jsonl
+#   # every fs=2 (analysed) line should show mismatches:"0"
 #
 # page 1 (curved: circ/oval/rrect)
 tap  2  SPACE   # f3  analyse: solid + outline
@@ -18,3 +18,10 @@ tap 18  C       # f19 dither + outline
 tap 22  X       # f23 solid + outline
 tap 26  Z       # f27 solid, no outline
 tap 30  X       # f31 dither, no outline
+# page 3 (arcs: full-circle arcfill vs circ; arc/ring/thickline are visual-only)
+tap 34  C       # f35 dither, no outline
+tap 38  Z       # f39 dither + outline
+tap 42  X       # f43 solid + outline
+# page 4 (equivalence self-test: ring==annulus, sector-tiling==disc, thickline solid)
+tap 46  C       # cycle to the equivalence page
+tap 50  SPACE   # run the 3 cross-rasterizer checks → watch "eq" total must be 0

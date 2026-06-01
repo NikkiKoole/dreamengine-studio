@@ -1,26 +1,35 @@
 # Rasterization consistency — one clean way to fill/outline a shape
 
-> **Genre: design exploration (scratchpad) — OPEN, not solved.** This captures a
-> recurring class of pixel bug, the point-fixes we've shipped so far, and the real goal
-> we have **not** reached yet: *one* consistent way to rasterize a shape so its fill,
-> outline, dither, solid and adjacent neighbours all agree pixel-for-pixel.
+> **Genre: design exploration → mostly SHIPPED.** This captured a recurring class of
+> pixel bug and the goal: *one* consistent way to rasterize a shape so its fill, outline,
+> dither, solid and adjacent neighbours all agree pixel-for-pixel. **That goal is now
+> reached** for every filled+outlined primitive — we chose and applied **direction 1**
+> (per-pixel CPU coverage). What remains is verification, not design: `thickline` full
+> automation, a perf measurement, a web-GL-ES confirmation, and folding the GPU→CPU
+> `tri`/`trifill` change into a `decisions/` ADR. See "What's left" at the bottom.
 > - State of individual fixes → [`../STATUS.md`](../STATUS.md).
 > - Per-pixel precedent for baked shapes → [`baked-rotation-atlas.md`](baked-rotation-atlas.md).
 > - `pal()` sprite recolor (a related "one definition" win) → [`../decisions/0007-pal-recolors-sprites.md`](../decisions/0007-pal-recolors-sprites.md).
 
-## The symptom (it kept coming back)
+## The symptom (it kept coming back) — all three now resolved
 
 Across several carts the same kind of artifact showed up at shape **edges**:
 
 - **arcs cart** — `arcfill`/`ring` (old triangle-fan) left 1px **seam cracks** between
   fan triangles, and the rim **overshot** so a stroked `arc`/`circ` outline didn't line up.
+  ✅ *Resolved* (session 9, per-pixel `sector_fill`; still consistent — its outer test
+  `d²≤r_out²` from the pixel centre *is* `disc_inside`. Now guarded in `raster_test` page 3.)
 - **solid3d** — dithered faces showed **black hairlines** between adjacent triangles.
+  ✅ *Resolved* (session 14 — `trifill` on `poly_inside`: each pixel centre falls on exactly
+  one side of a shared edge, so neighbouring faces are watertight — no crack, no overlap.
+  Confirmed in-cart: the open lines are gone.)
 - **katamari** — a dithered circle's **outline didn't hug the fill** (the `circ` ring
   traced a different circle than the dithered `circfill`), and a "draw a smaller dither
   circle on top of a solid one" attempt left **rim artifacts** because the two circles
   had different edges.
+  ✅ *Resolved* (session 11 — `circ`/`circfill` share `disc_inside`; outline = boundary ring.)
 
-Different carts, different primitives — **same root cause.**
+Different carts, different primitives — **same root cause**, now fixed once at the root.
 
 ## The root cause: the engine has *several* definitions of the same shape
 
@@ -61,48 +70,38 @@ These all work, but each is a *local* patch, not the single rule:
 Pattern across all three: **make the edge come from a single definition** — per-pixel,
 or conservative-overlap, or "one shape, not two."
 
-## The goal we haven't reached
+## The goal — reached (via direction 1)
 
 > **One rasterization path that fill, outline, dither and solid all share**, so that:
-> - an outline always exactly traces its fill (`circ` hugs `circfill`, for any radius),
-> - adjacent shapes never crack and never overlap-bleed,
-> - a dithered fill never specks past where the solid fill would be,
-> - it behaves identically on desktop GL and web GL ES.
+> - an outline always exactly traces its fill (`circ` hugs `circfill`, for any radius) — ✅
+> - adjacent shapes never crack and never overlap-bleed — ✅ (watertight; solid3d confirms)
+> - a dithered fill never specks past where the solid fill would be — ✅ (same `plot_pat` path)
+> - it behaves identically on desktop GL and web GL ES — **likely ✅ but unverified** (see below)
 
-Today the per-pixel `sector_fill` (arcs) is the closest thing to a "true" definition, but
-`circ`/`circfill`/`oval*`/`tri*` still go through raylib GPU (fast, but its own rule) and
-`fillp` fills go through the CPU `*_pat` scanlines (a third rule).
+We picked **direction 1 (per-pixel CPU coverage)** and applied it everywhere: one
+`*_inside(x,y,…)` predicate per shape (`disc_inside`, `ellipse_inside`, `rrect_inside`,
+even-odd `poly_inside`, and `sector_fill`'s distance test), measured from the pixel centre;
+**solid fill, dithered fill, and outline (the boundary ring) all read from it.** No primitive
+goes through raylib GPU coverage anymore (`DrawTriangle`/`DrawCircle`/`DrawLine` outlines all
+gone). The whole `fillp` `*_pat` scanline family is collapsed into one `plot_pat` per pixel.
 
-## Candidate directions (to evaluate, not yet chosen)
+### Why not the other directions
+- **Direction 2 (keep GPU as truth, match the CPU paths to it):** rejected — "match raylib's
+  exact coverage" is brittle and differs desktop GL vs web GL ES, the very thing we wanted to
+  kill. Direction 1 sidesteps it: CPU per-pixel is identical on both backends.
+- **Direction 3 (document a two-layer convention, push discipline onto cart authors):**
+  rejected — direction 1 made it unnecessary; authors can now freely dither-then-outline.
 
-1. **Unify on per-pixel CPU coverage** (extend the `sector_fill` idea to circle/oval/tri):
-   one function decides "is pixel (x,y) inside this shape?", and **solid fill, dithered
-   fill, and outline (the boundary ring) all read from it.** Outlines become "inside AND a
-   4-neighbour is outside." Guarantees total agreement.
-   - *Cost:* CPU per-pixel for every shape (today solids are GPU-cheap). Need to measure —
-     fantasy-console shapes are small, but a cart spamming big fills could feel it.
-2. **Keep raylib GPU as the truth; make the CPU/dither paths match it.** Tune `*_pat`
-   rounding (and `pset`/pixel-center offsets) so a scanline fill covers exactly the GPU
-   pixel set, and derive outlines from the GPU fill. *Cheaper, but "match raylib's exact
-   coverage" is brittle and differs GL vs GL ES.*
-3. **Two-layer convention, documented:** keep GPU solids + GPU outlines as a matched pair
-   (they already mostly agree), and decree that **dithered fills must be drawn as a single
-   shape with two palette colours** (never dither-then-outline, never stack two shapes).
-   Least code; pushes the discipline onto cart authors (and this doc).
-
-## Sub-problems any solution must nail
-
-- **Pixel-centre vs corner.** The off-by-one on the half-dome was measuring distance from
-  the pixel *corner* (`x-cx`) instead of its *centre* (`x+0.5-cx`). Whatever path wins must
-  fix the centre convention once, everywhere.
-- **Outline = boundary of the fill**, derived from the same coverage — not a separately
-  rasterized stroke. (This is why `arc` became a ring of `sector_fill`.)
-- **Adjacency / shared edges.** Either watertight (shared-vertex GPU) or conservative
-  overlap (the `trifill_pat` floor/ceil) — never the truncate-both that gaps.
-- **Thin shapes / silhouettes.** Conservative overlap adds ≤1px on outer silhouettes;
-  decide whether that halo is acceptable (it is for solid3d) or needs trimming.
-- **`fillp` lattice alignment** under `camera()` (screen- vs world-aligned) — keep it
-  consistent so dither doesn't shimmer when scrolling.
+### Sub-problems — how each was nailed
+- **Pixel-centre vs corner** → one convention everywhere: `x+0.5`, `y+0.5`.
+- **Outline = boundary of the fill** → every outline is "inside AND a 4-neighbour outside"
+  (or `sector_fill`'s rim), derived from the same predicate — never a separate stroke.
+- **Adjacency / shared edges** → watertight by pixel-centre ownership: a centre is on exactly
+  one side of a shared edge, so neighbours never both-claim (overlap) nor both-drop (crack).
+  Replaces the old `trifill_pat` conservative-overlap hack (deleted).
+- **Thin shapes / silhouettes** → no conservative-overlap halo anymore; coverage is exact.
+- **`fillp` lattice under `camera()`** → `plot_pat` keys the pattern off screen `x&3,y&3`;
+  still worth an explicit scroll-shimmer check (listed in "What's left").
 
 ## Shipped (2026-06-01, session 11)
 
@@ -178,15 +177,82 @@ correct tip (a tip pixel is on the boundary). Verified it now catches what it us
 > outline *is* boundary(F) by construction and the bug class can't arise. The two-pass test
 > is the upgrade if a future GPU/stroke primitive is reintroduced.
 
-**Still open:** `thickline` (a filled stroke with no outline pair — different shape of
-problem: verify its silhouette has no stray pixels and self-overlaps cleanly, rather than
-outline=fill).
+## Regression test coverage (`raster_test`, 4 pages, C cycles)
 
-## When this advances
+| Page | Primitives | Check |
+|---|---|---|
+| 1 | `rect`/`rectfill`, `circ`/`circfill`, `oval`/`ovalfill`, `rrect`/`rrectfill` | outline == fill boundary |
+| 2 | `tri`/`trifill`, `quadfill`, `ngon`, `star`, `poly` | outline (or `poly` of corners) == fill boundary |
+| 3 | `arcfill`/`arcoutline`, `ring`/`ringoutline`, `thickline`/`thicklineoutline`; `arcfill` vs `circ` | outline == fill boundary |
+| 4 | `ring`, `arcfill` sectors, `thickline` — **equivalence self-test** | pixel-set vs independent reference |
 
-- Pick a direction above → prototype on `circ`/`circfill` first (the most-used pair), then
-  `oval`/`tri`, measuring CPU cost. Write the result up here, and if it changes a public
-  primitive's behaviour, add a **`decisions/` ADR**.
-- Until then, the **cart-author rule of thumb** (direction 3): draw a dithered shape as
-  **one fill with two palette colours**; if you need an outline, draw a **solid backing
-  one pixel larger behind it**, never a stroked outline over a dithered fill.
+Pages 1–3 (marker detector): each × {solid, dithered} × {outline on/off} → 11 analysed states,
+all **0 mismatches**. The detector checks one global invariant: outline == boundary of the
+fill region (`fill ∪ outline`); a fill pixel touching background = uncovered edge (yellow), an
+outline pixel with no background neighbour = buried (pink). Catches a 1px offset at any angle,
+never false-flags a sharp tip. Verified to have teeth (GPU triangles → 282 before conversion).
+
+Page 4 (equivalence) covers the **open strokes** the marker detector can't score, by comparing
+their pixel set to an independently-rasterized reference across consecutive frames (`pget`
+reads the prior frame's snapshot):
+- `ring(…,0,360)` == `circfill(ro)` minus `circfill(ri)` — `sector_fill` radial bound vs `disc_inside`.
+- `arcfill(0,180)` ∪ `arcfill(180,360)` == `circfill` — the angular seam tiles with no crack/overlap.
+- `thickline` has no enclosed background — the cap/body merge is solid.
+All three report 0.
+
+## Shipped (2026-06-01, session 15) — `thickline` + full coverage
+
+`thickline` rewritten as a **single capsule coverage** (pixel centre within `w/2` of the
+segment, clamped projection gives the round caps) instead of `quadfill` + two `circfill` caps.
+The equivalence test **found a real bug** in the old version: a 1px enclosed-background pixel at
+the quad/cap seam (at one endpoint), because the body half-width was `w*0.5` (5.5 for w=11) but
+the caps used `circfill(…, w/2)` (integer 5) — different widths, so they didn't merge. One
+coverage definition makes a seam impossible. With this, **every filled primitive is unified on
+per-pixel coverage** and exercised in `raster_test` (4 pages).
+
+## Shipped (2026-06-01, session 16) — outline primitives for the open strokes
+
+The filled sector/ring/capsule had no matching *outline* primitive, so in the test they were
+static visual-only shapes (a different colour the detector ignored) — inconsistent with every
+other shape, which has a fill + an outline that hugs it. Added **`arcoutline`** (pie wedge:
+rim + the two radial edges), **`ringoutline`** (annulus sector), and **`thicklineoutline`**
+(capsule border) — each the boundary ring of the *same* coverage as its fill (`sector_inside`
+/ `capsule_inside` refactored out and shared by fill + stroke). Now `arcfill`/`ring`/`thickline`
+on page 3 draw fill + boundary-ring outline + dither and are graded by the marker detector like
+everything else (0 mismatches, partial sectors included). `arc` stays the curved-rim-only stroke
+(distinct from `arcoutline`'s closed pie). Fully wired (studio.h/.c, studioDocs, shell help tab).
+
+## What's left
+
+- **Perf — measured, the cost is real (2026-06-01, `podracer`).** Direction 1 is
+  CPU-per-pixel: `trifill` → `poly_fill_cov` scans the triangle's bounding box and does a
+  point-in-polygon test + `pset`/`DrawPixel` for *every* interior pixel. Fine for a handful
+  of shapes; **pathological when a cart spams large trifills**. `podracer` (the pseudo-3D
+  textured canyon racer) **froze to a crawl** because its distance haze dithered the far
+  third with **6 big trifills per far segment** — ~190 large software-filled triangles a
+  frame, covering the full-height canyon walls, heavy overdraw. The textured geometry was
+  never the problem: `tritex` is one GPU quad each, and `rectfill`/`line` are GPU too. Only
+  the software `trifill` overdraw stalled it.
+  - **The cart-level fix** (no engine change — `trifill` stays exactly as consistent as this
+    doc requires): move bulk fills *off* `trifill` onto GPU primitives. The per-segment haze
+    became **two dithered `rectfill` bands** near the horizon (`fillp` + `rectfill` = one
+    textured quad each, holes transparent so the canyon shows through the dither), and the
+    per-segment lane-guide edge strips became `line()`s. Same look, ~330 software triangles
+    a frame → ~3 GPU draws + ~140 GPU lines. Rendering verified still correct via the
+    headless dump harness.
+  - **Rule of thumb for cart authors:** `trifill`/`quadfill`/`ngon`/`poly` are *software*
+    per-pixel — great for correctness, cheap only at low count/area. For large areas or
+    high counts (per-segment, per-scanline, full-screen overlays) reach for the GPU paths:
+    `rectfill` (incl. dithered via `fillp`), `line`, `tritex`.
+  - **Engine mitigation still open:** clamp `poly_fill_cov`'s bbox to the screen — huge
+    off-screen tris currently iterate their full (off-screen) bbox doing point-in-poly tests
+    that plot nothing. Cheap win, helps any cart, doesn't change output.
+- **Web GL ES.** All-CPU coverage *should* render bit-identically on desktop GL and web GL ES
+  (only the final scale-up is GPU). Confirm by running `raster_test` in the emscripten build —
+  but note `pget` is disabled on web, so the in-cart detector won't run there; confirmation is
+  visual (or move the detector behind a native-only build).
+- **ADR.** `tri`/`trifill` changed observable behaviour (GPU→CPU, now winding-independent and
+  pixel-exact), and `thickline` changed shape (capsule vs quad+caps). Per this doc's own rule,
+  that earns a `decisions/` entry.
+
+Once those are closed, this stops being a design doc and becomes a settled decision.

@@ -168,7 +168,9 @@ void oval(int x, int y, int rx, int ry, int color);     // ellipse border (rx,ry
 void ovalfill(int x, int y, int rx, int ry, int color); // filled ellipse — squashed circles, eyes, shadows
 void arc(int x, int y, int radius, float start_deg, float end_deg, int color);           // arc outline — part of a circle's rim (degrees, 0=right 90=down, like dx/dy)
 void arcfill(int x, int y, int radius, float start_deg, float end_deg, int color);       // filled pie wedge (sector) — cooldown sweeps, pie slices, half-circles
+void arcoutline(int x, int y, int radius, float start_deg, float end_deg, int color);    // outline of a filled pie wedge — rim + the two straight radial edges (hugs arcfill)
 void ring(int x, int y, int r_in, int r_out, float start_deg, float end_deg, int color); // filled thick arc (ring sector) — gauges, radial bars, dials
+void ringoutline(int x, int y, int r_in, int r_out, float start_deg, float end_deg, int color); // outline of a ring/annulus sector — hugs ring()
 void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color);     // triangle border
 void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color); // filled triangle (any winding)
 void ngon(int x, int y, int r, int sides, float rot, int color);          // regular n-sided polygon outline. rot=0 → first point right, degrees
@@ -176,8 +178,9 @@ void ngonfill(int x, int y, int r, int sides, float rot, int color);      // fil
 void star(int x, int y, int r_out, int r_in, int points, float rot, int color);     // star outline. r_out=tip radius, r_in=inner radius
 void starfill(int x, int y, int r_out, int r_in, int points, float rot, int color); // filled star — respects fillp()
 void poly(int *xy, int n, int color);      // polygon outline through n points; xy = {x0,y0, x1,y1, ...}, auto-closed
-void polyfill(int *xy, int n, int color);  // filled convex polygon (triangle fan) — convex only; respects fillp()
+void polyfill(int *xy, int n, int color);  // filled polygon (even-odd coverage) — handles concave; respects fillp()
 void thickline(int x1, int y1, int x2, int y2, int w, int color); // line with pixel width w — wider strokes, drawings, cables
+void thicklineoutline(int x1, int y1, int x2, int y2, int w, int color); // outline of a thick line (capsule boundary) — hugs thickline
 void rrect(int x, int y, int w, int h, int r, int color);         // rounded rectangle outline. r = corner radius
 void rrectfill(int x, int y, int w, int h, int r, int color);     // filled rounded rectangle — panels, buttons, speech bubbles
 void vgradient(int x, int y, int w, int h, int c_top, int c_bot);    // vertical dithered gradient from c_top to c_bot — skies, backdrops

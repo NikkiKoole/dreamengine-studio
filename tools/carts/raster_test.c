@@ -4,8 +4,10 @@
 //
 // Z     = toggle outline on/off
 // X     = toggle dithered fill on/off
-// C     = cycle page (1 = curved: circ/oval/rrect, 2 = poly: tri/ngon/star/poly)
-// SPACE = analyse (one-shot snapshot — press again to return to live)
+// C     = cycle page (1 = curved: rect/circ/oval/rrect, 2 = poly: tri/quad/ngon/star/poly,
+//                     3 = arcs: arcfill vs circ + arc/ring/thickline demo,
+//                     4 = equivalence self-test: ring/sector/thickline vs reference)
+// SPACE = analyse (pages 1-3) / run equivalence checks (page 4)
 //
 // Live mode: clean shapes, no flicker
 // After SPACE:
@@ -23,8 +25,9 @@
 #define OUT_C   CLR_RED
 #define M_FILL  CLR_YELLOW
 #define M_OUT   CLR_PINK
+#define DEMO_C  CLR_ORANGE   // open strokes: drawn for the eye, ignored by analyse()
 #define HUD_H   16
-#define NPAGES  2
+#define NPAGES  4
 
 static bool show_outline = true;
 static bool show_dither  = false;
@@ -70,6 +73,62 @@ static int analyse(void) {
     return n;
 }
 
+// ===== equivalence self-tests (page 4) ==========================================
+// Open strokes (ring / arcfill sector / thickline) have no engine outline, so the
+// outline==fill detector can't score them. Instead verify each by comparing its
+// pixel set to an INDEPENDENTLY rasterized reference, or to a solidity property:
+//   T0 ring(…,0,360)            == circfill(ro) minus circfill(ri)   [sector_fill vs disc_inside]
+//   T1 arcfill(0,180)+(180,360) == circfill                          [angular seam — no crack/overlap]
+//   T2 thickline                 has no enclosed background           [cap/body merge is solid]
+// pget reads the PRIOR frame's snapshot, so reference and test live on consecutive
+// frames: START draws ref; CAPTURE (snapshot=ref) stores it + draws test; COMPARE (snapshot=test) scores.
+#define EQ_N      3
+#define EQ_IDLE   0
+#define EQ_START  1
+#define EQ_CAP    2
+#define EQ_CMP    3
+static unsigned char refbuf[SCREEN_W * SCREEN_H];
+static int  eq_step = EQ_IDLE, eq_idx = 0, eq_diff[EQ_N];
+static bool eq_ran  = false;
+
+static void eq_ref(int t) {     // independent reference, drawn in FILL_A
+    cls(BG);
+    if      (t == 0) { circfill(60, 78, 34, FILL_A); circfill(60, 78, 16, BG); }  // annulus
+    else if (t == 1) { circfill(60, 78, 30, FILL_A); }                            // full disc
+    // t == 2: no reference (property test)
+}
+static void eq_test_shape(int t) {
+    cls(BG);
+    if      (t == 0) ring(60, 78, 16, 34, 0, 360, FILL_A);
+    else if (t == 1) { arcfill(60,78,30, 0,180, FILL_A); arcfill(60,78,30, 180,360, FILL_A); }
+    else             thickline(30, 40, 290, 150, 11, FILL_A);
+}
+static int eq_compare(int t) {  // pget now reads the test shape's snapshot
+    int n = 0;
+    if (t < 2) {                                       // pixel-set equality vs refbuf
+        for (int y = 0; y < SCREEN_H - HUD_H; y++)
+            for (int x = 0; x < SCREEN_W; x++)
+                if ((refbuf[y*SCREEN_W + x] != 0) != (pget(x,y) == FILL_A)) n++;
+    } else {                                           // thickline: enclosed bg = crack/hole
+        for (int y = 1; y < SCREEN_H - HUD_H - 1; y++)
+            for (int x = 1; x < SCREEN_W - 1; x++)
+                if (pget(x,y) != FILL_A &&
+                    ((pget(x-1,y)==FILL_A && pget(x+1,y)==FILL_A) ||
+                     (pget(x,y-1)==FILL_A && pget(x,y+1)==FILL_A))) {
+                    n++;
+#ifdef DE_TRACE
+                    if (n <= 4) watch(str("crack%d", n), "x=%d y=%d", x, y);
+#endif
+                }
+    }
+    return n;
+}
+static void eq_capture_ref(void) {
+    for (int y = 0; y < SCREEN_H - HUD_H; y++)
+        for (int x = 0; x < SCREEN_W; x++)
+            refbuf[y*SCREEN_W + x] = (pget(x,y) == FILL_A);
+}
+
 // page 1 — curved primitives (unified on pixel-center coverage)
 static void draw_page1(void) {
     int cxs[] = {16, 40, 74, 118};
@@ -87,6 +146,17 @@ static void draw_page1(void) {
     if (show_outline) {
         oval(20, 115, 14, 8,  OUT_C);
         oval(70, 115, 20, 10, OUT_C);
+    }
+    // plain rects — axis-aligned; rect border must equal the rectfill boundary
+    int qx[] = {98, 98};
+    int qy[] = {86, 116};
+    int qw[] = {54, 46};
+    int qh[] = {24, 20};
+    for (int i = 0; i < 2; i++) {
+        if (show_dither) fillp(FILL_CHECKER, FILL_B);
+        rectfill(qx[i], qy[i], qw[i], qh[i], FILL_A);
+        if (show_dither) fillp_reset();
+        if (show_outline) rect(qx[i], qy[i], qw[i], qh[i], OUT_C);
     }
     // rounded rects — varied corner radii (small, big, near-stadium)
     int rx[] = {170, 235, 170, 250, 20, 115};
@@ -143,12 +213,57 @@ static void draw_page2(void) {
     polyfill(quad, 4, FILL_A);
     if (show_dither) fillp_reset();
     if (show_outline) poly(quad, 4, OUT_C);
+    // quadfill — two trifills sharing a diagonal; poly() of the same 4 corners is
+    // the boundary, so 0 mismatches proves the shared diagonal is watertight.
+    int qd[] = {282,30, 316,42, 309,74, 285,64};
+    if (show_dither) fillp(FILL_CHECKER, FILL_B);
+    quadfill(qd[0],qd[1], qd[2],qd[3], qd[4],qd[5], qd[6],qd[7], FILL_A);
+    if (show_dither) fillp_reset();
+    if (show_outline) poly(qd, 4, OUT_C);
+}
+
+// page 3 — arc family + thick strokes
+static void draw_page3(void) {
+    // AUTO-VERIFIED: a full-circle arcfill must paint the same disc as circfill,
+    // so circ (the circle's boundary ring) is exactly the boundary of the arcfill
+    // disc → 0 mismatches iff arcfill agrees with the unified circle definition.
+    int ax[] = {28, 74, 132, 196};
+    int ar[] = {12, 18,  24,  16};
+    for (int i = 0; i < 4; i++) {
+        if (show_dither) fillp(FILL_CHECKER, FILL_B);
+        arcfill(ax[i], 52, ar[i], 0, 360, FILL_A);
+        if (show_dither) fillp_reset();
+        if (show_outline) circ(ax[i], 52, ar[i], OUT_C);
+    }
+    // open strokes — now fill + boundary-ring outline (arcoutline/ringoutline/
+    // thicklineoutline), so they take a pattern and the detector grades them too.
+    // pie sector
+    if (show_dither) fillp(FILL_CHECKER, FILL_B);
+    arcfill(36, 128, 28, 205, 340, FILL_A);
+    if (show_dither) fillp_reset();
+    if (show_outline) arcoutline(36, 128, 28, 205, 340, OUT_C);
+    // full ring / annulus
+    if (show_dither) fillp(FILL_CHECKER, FILL_B);
+    ring(108, 128, 12, 24, 0, 360, FILL_A);
+    if (show_dither) fillp_reset();
+    if (show_outline) ringoutline(108, 128, 12, 24, 0, 360, OUT_C);
+    // thick line
+    if (show_dither) fillp(FILL_CHECKER, FILL_B);
+    thickline(166, 108, 214, 152, 11, FILL_A);
+    if (show_dither) fillp_reset();
+    if (show_outline) thicklineoutline(166, 108, 214, 152, 11, OUT_C);
+    // partial ring (gauge)
+    if (show_dither) fillp(FILL_CHECKER, FILL_B);
+    ring(272, 130, 14, 26, 200, 345, FILL_A);
+    if (show_dither) fillp_reset();
+    if (show_outline) ringoutline(272, 130, 14, 26, 200, 345, OUT_C);
 }
 
 static void draw_shapes(void) {
     cls(BG);
-    if (page == 0) draw_page1();
-    else           draw_page2();
+    if      (page == 0) draw_page1();
+    else if (page == 1) draw_page2();
+    else                draw_page3();
 }
 
 static void draw_hud(void) {
@@ -174,14 +289,64 @@ static void draw_hud(void) {
 #endif
 }
 
+#define EQ_PAGE 3   // page index 3 = equivalence self-test
+
+static void draw_equiv_hud(void) {
+    rectfill(0, SCREEN_H - HUD_H, SCREEN_W, HUD_H, CLR_BLACK);
+    font(FONT_TINY);
+    print(str("EQUIV self-test  C page %d/%d  SPACE:run", page + 1, NPAGES),
+          2, SCREEN_H - 14, CLR_LIGHT_GREY);
+    if (eq_ran) {
+        int tot = eq_diff[0] + eq_diff[1] + eq_diff[2];
+        print(str("ring:%d  sector:%d  thickline:%d", eq_diff[0], eq_diff[1], eq_diff[2]),
+              2, SCREEN_H - 6, tot == 0 ? CLR_LIME_GREEN : M_FILL);
+    } else if (eq_step != EQ_IDLE) {
+        print(str("running test %d/%d...", eq_idx + 1, EQ_N), 2, SCREEN_H - 6, CLR_INDIGO);
+    } else {
+        print("SPACE to run", 2, SCREEN_H - 6, CLR_INDIGO);
+    }
+    font(FONT_NORMAL);
+#ifdef DE_TRACE
+    watch("state", "pg=%d eq_step=%d eq_idx=%d ran=%d", page + 1, eq_step, eq_idx, eq_ran);
+    watch("eq", "ring=%d sector=%d thick=%d total=%d", eq_diff[0], eq_diff[1], eq_diff[2],
+          eq_diff[0] + eq_diff[1] + eq_diff[2]);
+#endif
+}
+
+// drives the 3-frame-per-test sequence; pget reads the prior frame's snapshot
+static void draw_equiv(void) {
+    if (eq_step == EQ_START) {              // draw reference for current test
+        eq_ref(eq_idx);
+        eq_step = EQ_CAP;
+    } else if (eq_step == EQ_CAP) {         // snapshot = reference: store it, draw test
+        if (eq_idx < 2) eq_capture_ref();
+        eq_test_shape(eq_idx);
+        eq_step = EQ_CMP;
+    } else if (eq_step == EQ_CMP) {         // snapshot = test: score, advance
+        eq_diff[eq_idx] = eq_compare(eq_idx);
+        if (++eq_idx < EQ_N) { eq_ref(eq_idx); eq_step = EQ_CAP; }
+        else { eq_step = EQ_IDLE; eq_ran = true; }
+    } else {                                // EQ_IDLE: show the test shapes for the eye
+        cls(BG);
+        ring(56, 70, 16, 30, 0, 360, DEMO_C);
+        arcfill(150, 70, 28, 0, 180, DEMO_C); arcfill(150, 70, 28, 180, 360, DEMO_C);
+        thickline(210, 40, 300, 120, 11, DEMO_C);
+    }
+    draw_equiv_hud();
+}
+
 void update(void) {
     if (btnp(0, BTN_A)) { show_outline = !show_outline; if (fs != FS_LIVE) fs = FS_SETUP; }
     if (btnp(0, BTN_B)) { show_dither  = !show_dither;  if (fs != FS_LIVE) fs = FS_SETUP; }
     if (keyp('C'))      { page = (page + 1) % NPAGES;   if (fs != FS_LIVE) fs = FS_SETUP; }
-    if (keyp(KEY_SPACE)) fs = (fs == FS_LIVE) ? FS_SETUP : FS_LIVE;
+    if (keyp(KEY_SPACE)) {
+        if (page == EQ_PAGE) { eq_idx = 0; eq_step = EQ_START; eq_ran = false; }
+        else fs = (fs == FS_LIVE) ? FS_SETUP : FS_LIVE;
+    }
 }
 
 void draw(void) {
+    if (page == EQ_PAGE) { draw_equiv(); return; }
     if (fs == FS_LIVE) {
         draw_shapes();
         draw_hud();

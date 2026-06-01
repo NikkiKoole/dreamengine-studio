@@ -70,7 +70,7 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
    `explode()` risks making all carts look identical (same concern that killed `hud()`).
    Needs design work on color, shape, lifetime, and movement params first.
    See particle survey + open questions in [`design/api-notes.md`](design/api-notes.md) §C.
-2. ~~**2D geometry helpers**~~ — **SHIPPED** as `ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, `thickline`, `rrect`/`rrectfill`, `vgradient`/`hgradient`. Demo: `shapes.cart.png`. See [`design/geometry-helpers.md`](design/geometry-helpers.md).
+2. ~~**2D geometry helpers**~~ — **SHIPPED** as `ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, `thickline`, `rrect`/`rrectfill`, `vgradient`/`hgradient` (+ outline siblings `arcoutline`/`ringoutline`/`thicklineoutline` so every filled shape has a matching boundary-ring outline). Demo: `shapes.cart.png`. See [`design/geometry-helpers.md`](design/geometry-helpers.md).
    - *Parked thought (not a build item):* true smooth color interpolation (`lerp_color`/`rgb`) — splits the color model; needs its own ADR. Gradients are dithered.
 3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
    surfaced by the brainstorm review). Touches main-loop drain semantics.
@@ -107,24 +107,28 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     crowds, rich shapes, low-end). Centerline/pivot model, `pal()` recolor for free color
     variety, parts capped at 16px (native slot size). The path to scaling the `bones`
     animator past realtime drawing. [`design/baked-rotation-atlas.md`](design/baked-rotation-atlas.md).
-14. **Rasterization consistency** *(near-complete — all filled shapes done; `thickline` open)* —
-    every filled+outlined primitive now shares one pixel-center coverage definition, so the
-    outline is exactly the boundary of the fill (no rasterizer drift, dither = solid path):
-    `circ`/`oval`/`rrect` via `disc_inside`/`ellipse_inside`/`rrect_inside`; `ngon`/`star`/
-    `poly` **and `tri`/`trifill`** via even-odd `poly_inside` (concave-safe, winding-independent;
-    `trifill_pat` deleted). `trifill` is now CPU per-pixel — 3D carts (`solid3d`/`cube3d`/
-    `flyover`) smoke-tested OK; **GPU-vs-CPU perf not yet measured** (deferred on purpose).
-    Detector rewritten to a global invariant (outline == boundary of `fill ∪ outline`):
-    catches a 1px offset at any angle, never false-flags sharp tips. Residual blind spot: a
-    uniformly-1px-proud outline (would need a two-pass set-equality test — moot while
-    everything is coverage-based). Verified: all 8 states (2 pages × 4) = 0 mismatches.
-    Still open: `thickline` (filled stroke, no outline pair — needs a stray-pixel check, not
-    outline=fill).
+14. **Rasterization consistency** *(SHIPPED — every filled primitive on one coverage path)* —
+    every filled primitive now shares one pixel-center coverage definition, so the outline is
+    exactly the boundary of the fill (no rasterizer drift, dither = solid path):
+    `rect`, `circ`/`oval`/`rrect` via `disc_inside`/`ellipse_inside`/`rrect_inside`;
+    `tri`/`trifill`, `quadfill`, `ngon`/`star`/`poly` via even-odd `poly_inside` (concave-safe,
+    winding-independent; `trifill_pat` deleted); `arc`/`arcfill`/`ring` via `sector_fill` (same
+    pixel-centre disc); `thickline` via a capsule coverage (was `quadfill`+caps — the test found
+    a 1px seam crack from a `w*0.5` body vs `w/2` cap mismatch). `trifill` is now CPU per-pixel —
+    3D carts (`solid3d`/`cube3d`) smoke-tested OK; solid3d's face hairlines gone.
+    Detector rewritten to a global invariant (outline == boundary of `fill ∪ outline`): catches
+    a 1px offset at any angle, never false-flags sharp tips; verified to have teeth (GPU tris →
+    282). Open strokes verified by a 4th-page equivalence self-test (ring==annulus, sector-tiling
+    ==disc, thickline solid). Verified: all 11 marker states (3 pages × 4) + 3 equivalence checks
+    = 0.
+    **Still open (verification, not design):** perf of CPU `trifill` vs old GPU (unmeasured);
+    web GL ES confirmation (`pget` disabled on web); an ADR for the GPU→CPU `tri`/`trifill` +
+    `thickline` behaviour change.
     **Regression test:** `tools/carts/raster_test.c` + `tools/raster_test.script` —
     drag `editor/public/carts/raster_test.cart.png` into the editor (Z outline, X dither,
-    C cycle page 1↔2, SPACE freeze+analyse), or run headless:
-    `node tools/play.js raster_test script tools/raster_test.script --headless --trace build/raster_trace.jsonl --frames 33 && grep mismatches build/raster_trace.jsonl`
-    (cart `watch()`es count + state under `DE_TRACE`; every `fs=2` frame must report 0).
+    C cycle 4 pages, SPACE analyse / run equiv), or run headless:
+    `node tools/play.js raster_test script tools/raster_test.script --headless --trace build/raster_trace.jsonl --frames 60`
+    then check every `fs=2` frame reports `mismatches:"0"` and the `eq` line shows `total=0`.
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
 15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
 

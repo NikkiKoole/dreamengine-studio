@@ -1356,35 +1356,55 @@ static void plot_pat(int x, int y, int color) {
     else     pset(x, y, color);
 }
 
-// exact per-pixel sector/ring fill: a pixel is in iff its distance is within
-// [r_in, r_out] AND its angle is in the swept range. No triangle seams, never
-// overshoots the radius, and renders the same every frame as the angle moves.
-static void sector_fill(int cx, int cy, int r_in, int r_out, float s, float e, int color) {
+// exact per-pixel sector coverage: a pixel is in iff its distance is within
+// [r_in, r_out] AND its angle is in the swept range. One definition shared by
+// the fill and the outline (boundary ring), so the outline always hugs the fill.
+static bool sector_inside(int xx, int yy, int cx, int cy, float ri2, float ro2,
+                          float lo, float hi, int full) {
+    float dxp = xx + 0.5f - cx, dyp = yy + 0.5f - cy, d2 = dxp*dxp + dyp*dyp;
+    if (d2 > ro2 || d2 < ri2) return false;
+    if (full) return true;
+    float pa = atan2f(dyp, dxp) * RAD2DEG;                              // 0=right, 90=down
+    while (pa < lo)           pa += 360.0f;
+    while (pa >= lo + 360.0f) pa -= 360.0f;
+    return pa <= hi;
+}
+// fill (stroke_only=false) or boundary ring (stroke_only=true) of a sector.
+static void sector_draw(int cx, int cy, int r_in, int r_out, float s, float e,
+                        int color, bool stroke_only) {
     float lo = s < e ? s : e, hi = s < e ? e : s;
     int full = (hi - lo) >= 360.0f;
     float ri2 = (float)r_in * r_in, ro2 = (float)r_out * r_out;
-    for (int yy = cy - r_out; yy <= cy + r_out; yy++) {
-        float dyp = yy + 0.5f - cy;                                    // pixel-center distance,
-        for (int xx = cx - r_out; xx <= cx + r_out; xx++) {            // matching circ()/circfill()
-            float dxp = xx + 0.5f - cx, d2 = dxp * dxp + dyp * dyp;
-            if (d2 > ro2 || d2 < ri2) continue;
-            if (!full) {
-                float pa = atan2f(dyp, dxp) * RAD2DEG;                  // 0=right, 90=down
-                while (pa < lo)           pa += 360.0f;
-                while (pa >= lo + 360.0f) pa -= 360.0f;
-                if (pa > hi) continue;
-            }
-            plot_pat(xx, yy, color);
+    for (int yy = cy - r_out; yy <= cy + r_out; yy++)
+        for (int xx = cx - r_out; xx <= cx + r_out; xx++) {
+            if (!sector_inside(xx,yy,cx,cy,ri2,ro2,lo,hi,full)) continue;
+            if (stroke_only &&                                         // skip interior pixels
+                sector_inside(xx-1,yy,cx,cy,ri2,ro2,lo,hi,full) &&
+                sector_inside(xx+1,yy,cx,cy,ri2,ro2,lo,hi,full) &&
+                sector_inside(xx,yy-1,cx,cy,ri2,ro2,lo,hi,full) &&
+                sector_inside(xx,yy+1,cx,cy,ri2,ro2,lo,hi,full)) continue;
+            if (stroke_only) pset(xx, yy, color); else plot_pat(xx, yy, color);
         }
-    }
+}
+static void sector_fill(int cx, int cy, int r_in, int r_out, float s, float e, int color) {
+    sector_draw(cx, cy, r_in, r_out, s, e, color, false);
 }
 
 void arcfill(int x, int y, int radius, float start_deg, float end_deg, int color) {
-    sector_fill(x, y, 0, radius, start_deg, end_deg, color);
+    sector_draw(x, y, 0, radius, start_deg, end_deg, color, false);
+}
+// outline of a filled pie wedge — outer arc + the two radial edges (boundary ring
+// of arcfill). Distinct from arc(), which strokes only the curved rim.
+void arcoutline(int x, int y, int radius, float start_deg, float end_deg, int color) {
+    sector_draw(x, y, 0, radius, start_deg, end_deg, color, true);
 }
 
 void ring(int x, int y, int r_in, int r_out, float start_deg, float end_deg, int color) {
-    sector_fill(x, y, r_in, r_out, start_deg, end_deg, color);
+    sector_draw(x, y, r_in, r_out, start_deg, end_deg, color, false);
+}
+// outline of a filled ring/annulus sector — boundary ring of ring().
+void ringoutline(int x, int y, int r_in, int r_out, float start_deg, float end_deg, int color) {
+    sector_draw(x, y, r_in, r_out, start_deg, end_deg, color, true);
 }
 
 // affine texture-mapped triangle — the PS1 workhorse. Each corner carries a
@@ -1730,19 +1750,41 @@ void polyfill(int *xy, int n, int color) {
     poly_fill_cov(xy, n, color);
 }
 
-void thickline(int x1, int y1, int x2, int y2, int w, int color) {
+// capsule coverage: a pixel is in iff its centre is within w/2 of the segment.
+// One definition (clamped projection gives the round caps for free) — no quad+caps
+// seam, so the body and caps can't leave a 1px crack. Shared by fill + outline.
+static bool capsule_inside(int px, int py, int x1, int y1, float dx, float dy,
+                           float len2, float hw2) {
+    float fx = px + 0.5f - x1, fy = py + 0.5f - y1;
+    float t = len2 > 0.0f ? (fx*dx + fy*dy) / len2 : 0.0f;
+    if (t < 0.0f) t = 0.0f; else if (t > 1.0f) t = 1.0f;       // clamp → capsule, not infinite line
+    float qx = fx - t*dx, qy = fy - t*dy;
+    return qx*qx + qy*qy <= hw2;
+}
+static void thick_draw(int x1, int y1, int x2, int y2, int w, int color, bool stroke_only) {
     if (w <= 1) { line(x1, y1, x2, y2, color); return; }
-    float dx = (float)(x2 - x1), dy = (float)(y2 - y1);
-    float len = sqrtf(dx*dx + dy*dy);
-    if (len < 0.001f) { circfill(x1, y1, w/2, color); return; }
-    float nx = -dy / len * (w * 0.5f), ny = dx / len * (w * 0.5f);
-    int ax = (int)(x1 + nx), ay = (int)(y1 + ny);
-    int bx = (int)(x1 - nx), by = (int)(y1 - ny);
-    int cx = (int)(x2 + nx), cy = (int)(y2 + ny);
-    int ddx = (int)(x2 - nx), ddy = (int)(y2 - ny);
-    quadfill(ax, ay, bx, by, ddx, ddy, cx, cy, color);
-    circfill(x1, y1, w/2, color);
-    circfill(x2, y2, w/2, color);
+    float hw = w * 0.5f, dx = (float)(x2 - x1), dy = (float)(y2 - y1);
+    float len2 = dx*dx + dy*dy, hw2 = hw*hw;
+    int r = (int)hw + 1;
+    int x0 = (x1 < x2 ? x1 : x2) - r, x9 = (x1 > x2 ? x1 : x2) + r;
+    int y0 = (y1 < y2 ? y1 : y2) - r, y9 = (y1 > y2 ? y1 : y2) + r;
+    for (int py = y0; py <= y9; py++)
+        for (int px = x0; px <= x9; px++) {
+            if (!capsule_inside(px,py,x1,y1,dx,dy,len2,hw2)) continue;
+            if (stroke_only &&                                  // skip interior pixels
+                capsule_inside(px-1,py,x1,y1,dx,dy,len2,hw2) &&
+                capsule_inside(px+1,py,x1,y1,dx,dy,len2,hw2) &&
+                capsule_inside(px,py-1,x1,y1,dx,dy,len2,hw2) &&
+                capsule_inside(px,py+1,x1,y1,dx,dy,len2,hw2)) continue;
+            if (stroke_only) pset(px, py, color); else plot_pat(px, py, color);
+        }
+}
+void thickline(int x1, int y1, int x2, int y2, int w, int color) {
+    thick_draw(x1, y1, x2, y2, w, color, false);
+}
+// outline of a thick line — boundary ring of the capsule (hugs the fill exactly).
+void thicklineoutline(int x1, int y1, int x2, int y2, int w, int color) {
+    thick_draw(x1, y1, x2, y2, w, color, true);
 }
 
 void rrect(int x, int y, int w, int h, int r, int color) {

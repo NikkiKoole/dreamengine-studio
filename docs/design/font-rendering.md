@@ -50,7 +50,7 @@ chunkier "terminal" feel — a deliberate aesthetic, not a bug.
    cursor moves. One string carries color + scale + effects. **We have none of this** —
    color and scale are fixed per call.
 3. **Two built-in fonts** — standard + a wide font (plus POKE-able custom glyph data).
-4. **`print` returns the cursor x** — lets you chain segments. Ours returns `void`.
+4. **`print` returns the cursor x** — lets you chain segments. ✓ **Shipped 2026-06-01** — all `print*` functions now return `int` (x after the last char).
 
 ## Options, roughly by value / effort
 
@@ -58,10 +58,7 @@ chunkier "terminal" feel — a deliberate aesthetic, not a bug.
 All three build on one shared *per-character draw* helper (loop the glyphs, draw each
 with `print` at a computed offset/color).
 
-- **`print_shadow` / `print_outline`** — drop-shadow is one extra dark draw at +1,+1;
-  full outline is 8 neighbour draws in a dark color then the real glyph on top.
-  Biggest **legibility** win over busy backgrounds (racers/shooters need this more than
-  bigger text). Probably the single highest-value addition.
+- **`print_shadow` / `print_outline`** — ✓ **Shipped 2026-06-01.** Drop-shadow at +1,+1; outline is 8-neighbour draws then the glyph on top. Both work with all three fonts via the `font()` state.
 - **`print_wave`** — per-character vertical sine from `frame() + index`. Instantly juicy
   for titles and dialogue.
 - **`print_type`** — typewriter reveal: draw the first N chars where N grows on a timer
@@ -128,24 +125,14 @@ the sheet is now full printable ASCII. Known-weak hand-drawn glyphs to revisit: 
   `LoadFontFromImage(img, YELLOW, 32)` → `glyphCount=96`, `baseSize=6`, `'A' '0' '!' '~'`
   all map to the correct codepoint.
 
-**Still open (NOT done by the bake):**
-- **Wiring.** `print()` hardcodes `DrawTextEx(..., 8, ...)` and `text_width = strlen*8`.
-  A baseSize-6 font dropped into that path gets scaled to 8px and goes blurry. The small
-  fonts need their **own `Font` handle + their own draw calls** (`print_small` /
-  `print_tiny`, advance 4) at native size — the four-place wiring per CLAUDE.md, plus a
-  tutorial cart. Until then the sheets are just assets.
-- **Punctuation polish.** The 31 hand-drawn 4×6 glyphs are first-pass; `&`, `$`, `@`
-  want another look. The 3×5 punctuation came from the TTF and needs no work.
-- **3×5 license** must be confirmed before it ships baked into the engine.
+**Shipped 2026-06-01 (session 11):** All three items below are done.
+- ✓ **Wiring** — `font(FONT_SMALL/FONT_TINY)` state setter; each font has its own `Font` handle loaded at startup; all `print*` + `text_width` route through `cur_font()` / `cur_font_size()` / `MeasureTextEx`. `font(FONT_NORMAL)` resets. Demo cart: `fonts.cart.png`.
+- **Punctuation polish** — still first-pass; `&`, `$`, `@` in the 4×6 font want another look. Not blocking.
+- **3×5 license** — still unconfirmed; assume CC0/free until checked.
 
-## Recommended first batch
+## Shipped first batch (2026-06-01)
 
-`print_outline` / `print_shadow` + `print_wave` + `print_type`, all on one shared
-per-character draw helper. Cheap, no rendering-architecture change, and they cover the
-three things carts visibly lack: **legibility**, **title juice**, and **dialogue**. Each
-makes a clean little tutorial cart. The inline-control-code system is the "real PICO-8"
-answer and is genuinely cool, but it's a bigger commitment — better as a deliberate
-follow-up once we've seen which effects carts reach for most.
+`print_outline` / `print_shadow` ✓ shipped. `print_wave` + `print_type` remain open — still the recommended next step (title juice + dialogue). The inline-control-code system is the "real PICO-8" answer and is genuinely cool, but it's a bigger commitment — better as a deliberate follow-up once we've seen which effects carts reach for most.
 
 ## When this settles
 

@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-01 (session 10 — 3D leaf-helpers added, turtle API removed, euclid/chance documented as general-purpose). Prior: 2026-05-30 (session 9 — navbar + in-app docs wiki)._
+_Last updated: 2026-06-01 (session 11 — font() state setter + FONT_SMALL/TINY, print_shadow/outline, print returns x). Prior: 2026-06-01 (session 10 — 3D leaf-helpers added, turtle API removed, euclid/chance documented as general-purpose)._
 
 ---
 
@@ -29,6 +29,7 @@ _Last updated: 2026-06-01 (session 10 — 3D leaf-helpers added, turtle API remo
 For the full grouped inventory see [`design/api-notes.md` → "What dreamengine has today"](design/api-notes.md).
 Recently landed and worth calling out:
 - Juice batch: `pal`/`pal_reset`, `fade`, `shake`, `print_scaled`, `text_width`.
+- **Font system:** `font(FONT_NORMAL/FONT_SMALL/FONT_TINY)` state setter; two extra fonts baked (`font4x6.png` ~64 chars/320px, `font3x5.png` ~80 chars/320px); `print_shadow`, `print_outline`; all `print*` functions now return x-after-last-char for chaining and overflow detection. Demo: `fonts.cart.png`. See [`design/font-rendering.md`](design/font-rendering.md).
 - Sprite transforms: `spr_rot`, `sspr_ex` (rotation/scale/flip around a pivot).
 - Fill patterns: `fillp`/`fillp_reset` + `FILL_*` (PICO-8-style fillp).
 - Shapes/helpers: `oval`/`ovalfill`, `bar`, `blink`, `fsqrt`.
@@ -112,14 +113,7 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     mismatch (hit in arcs, solid3d, katamari). Each got a local fix; the real goal — *one*
     coverage definition shared by fill/outline/dither/solid — isn't done.
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
-15. **Tiny fonts — `print_small` / `print_tiny`** *(assets baked, wiring OPEN)* — two extra
-    bitmap-font atlases are baked and verified (`editor/public/font3x5.png` baseSize 6,
-    `font4x6.png` baseSize 7, both full printable ASCII, `firstChar=32`), so stats-heavy
-    carts can pack far more text into 320px. **Not usable yet:** `print()` hardcodes size 8,
-    so each needs its own `Font` handle + draw call at native size (advance 4 / 5) — the
-    four-place wiring per CLAUDE.md plus a tutorial cart. Decision + bake format + open
-    polish (`&`/`$`/`@` glyphs, 3×5 license) in
-    [`design/font-rendering.md`](design/font-rendering.md) → "Decision (2026-06-01)".
+15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

@@ -212,7 +212,12 @@ void update(void) {
     float steer = DT * 2.5f * clamp(spd_pct, 0.15f, 1.2f);
     if (btn(0, BTN_LEFT)  || btn(1, BTN_LEFT))  playerX -= steer;
     if (btn(0, BTN_RIGHT) || btn(1, BTN_RIGHT)) playerX += steer;
-    playerX -= steer * spd_pct * curve * CENTRIFUGAL;       // curves sling you out
+    // curves sling you toward the outside wall — but it's ALWAYS beatable: this pull
+    // peaks well under your steer authority (~0.014 vs ~0.05 per frame at top speed),
+    // so leaning into a curve holds the line; let go and you drift wide (recoverable),
+    // never pinned. (Was tied to `steer` * spd_pct * raw curve * 0.34 — ~2× steering,
+    // which slammed you into the rock with no way out.)
+    playerX -= DT * spd_pct * clamp(curve, -2.5f, 2.5f) * CENTRIFUGAL;
 
     speed   = clamp(speed, 0, top);
     playerX = clamp(playerX, -1.18f, 1.18f);

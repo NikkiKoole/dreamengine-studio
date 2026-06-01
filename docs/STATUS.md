@@ -102,11 +102,15 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     crowds, rich shapes, low-end). Centerline/pivot model, `pal()` recolor for free color
     variety, parts capped at 16px (native slot size). The path to scaling the `bones`
     animator past realtime drawing. [`design/baked-rotation-atlas.md`](design/baked-rotation-atlas.md).
-14. **Rasterization consistency** *(exploratory — point-fixes shipped, unified rule OPEN)* —
-    the engine rasterizes a shape three different ways (raylib GPU, CPU `*_pat` scanline,
-    per-pixel `sector_fill`) and they disagree at edges → seams, off-by-one, outline-vs-fill
-    mismatch (hit in arcs, solid3d, katamari). Each got a local fix; the real goal — *one*
-    coverage definition shared by fill/outline/dither/solid — isn't done.
+14. **Rasterization consistency** *(partially shipped — circ/oval done, others open)* —
+    `circ`/`circfill` and `oval`/`ovalfill` now share a single pixel-center coverage function
+    (`disc_inside` / `ellipse_inside`); outline is the boundary ring of the fill, never a
+    pixel outside it. Verified by harness: solid+outline = 0 mismatches.
+    Still open: `trifill` (stays GPU for now), `rrect`/`rrectfill`, new geometry helpers
+    (`ngon`, `star`, `poly`, `thickline`) — all need the same treatment.
+    **Regression test:** `tools/carts/raster_test.c` + `tools/raster_test.script` —
+    drag `editor/public/carts/raster_test.cart.png` into the editor, or run headless:
+    `node tools/play.js raster_test script tools/raster_test.script --headless --trace build/raster_trace.jsonl --frames 16`
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
 15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
 

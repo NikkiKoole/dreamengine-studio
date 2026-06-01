@@ -104,6 +104,23 @@ Today the per-pixel `sector_fill` (arcs) is the closest thing to a "true" defini
 - **`fillp` lattice alignment** under `camera()` (screen- vs world-aligned) — keep it
   consistent so dither doesn't shimmer when scrolling.
 
+## Shipped (2026-06-01, session 11)
+
+`circ`/`circfill` and `oval`/`ovalfill` unified on a single pixel-center coverage test:
+`disc_inside(x,y,cx,cy,r)` = `(x+0.5-cx)²+(y+0.5-cy)² ≤ r²` and the ellipse equivalent.
+Outline = boundary ring of the fill (pixels inside with ≥1 outside 4-neighbour) — never
+a pixel outside the fill. `plot_pat` handles both solid and dithered fills in one loop,
+so dither and solid are the same path.
+
+**Regression test:** `tools/carts/raster_test.c` — SPACE to freeze + analyse, Z/X to
+toggle outline/dither. Harness: `tools/raster_test.script`. All meaningful states
+(solid+outline, dithered+outline) report 0 mismatches.
+
+**Still open:** `trifill` (GPU, conservative-span fix handles dither cracks),
+`rrectfill`/`rrect`, and the new geometry helpers (`ngon`/`ngonfill`, `star`/`starfill`,
+`poly`/`polyfill`, `thickline`) — all need the same outline=boundary-ring treatment before
+they can be considered pixel-perfect.
+
 ## When this advances
 
 - Pick a direction above → prototype on `circ`/`circfill` first (the most-used pair), then

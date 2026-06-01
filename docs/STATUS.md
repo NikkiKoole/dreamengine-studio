@@ -121,7 +121,13 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     282). Open strokes verified by a 4th-page equivalence self-test (ring==annulus, sector-tiling
     ==disc, thickline solid). Verified: all 11 marker states (3 pages × 4) + 3 equivalence checks
     = 0.
-    **Still open (verification, not design):** perf of CPU `trifill` vs old GPU (unmeasured);
+    **Still open (verification, not design):** ~~perf of CPU `trifill` vs old GPU~~ **measured
+    (2026-06-01, `podracer`): the cost is real.** CPU `trifill` froze podracer when its haze
+    spammed ~190 large software-filled tris/frame; fixed cart-side by moving bulk fills to GPU
+    (`rectfill`/`line`). **Untested engine idea worth trying:** clamp `poly_fill_cov`'s scan
+    bbox to the screen — huge off-screen tris currently iterate their full bbox plotting
+    nothing; should be a free speedup for any triangle-heavy cart with no output change (verify
+    via `raster_test` 0-mismatch + a headless podracer frame-time check). Also still open:
     web GL ES confirmation (`pget` disabled on web); an ADR for the GPU→CPU `tri`/`trifill` +
     `thickline` behaviour change.
     **Regression test:** `tools/carts/raster_test.c` + `tools/raster_test.script` —

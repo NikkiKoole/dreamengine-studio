@@ -80,6 +80,18 @@ static void draw_shapes(void) {
         oval(20, 115, 14, 8,  OUT_C);
         oval(70, 115, 20, 10, OUT_C);
     }
+    // rounded rects — varied corner radii (small, big, near-stadium)
+    int rx[] = {170, 235, 170, 250, 20, 115};
+    int ry[] = { 28,  28,  90,  90, 140, 140};
+    int rw[] = { 50,  70,  60,  55,  80,  90};
+    int rh[] = { 40,  50,  34,  55,  36,  38};
+    int rr[] = { 10,  18,   6,  24,  12,   4};
+    for (int i = 0; i < 6; i++) {
+        if (show_dither) fillp(FILL_CHECKER, FILL_B);
+        rrectfill(rx[i], ry[i], rw[i], rh[i], rr[i], FILL_A);
+        if (show_dither) fillp_reset();
+        if (show_outline) rrect(rx[i], ry[i], rw[i], rh[i], rr[i], OUT_C);
+    }
 }
 
 static void draw_hud(void) {
@@ -96,6 +108,11 @@ static void draw_hud(void) {
             print("frozen - SPACE to resume", SCREEN_W - 110, SCREEN_H - 6, CLR_INDIGO);
     }
     font(FONT_NORMAL);
+#ifdef DE_TRACE
+    // make the harness legible: state + last analysis result, every frame
+    watch("state", "out=%d dith=%d fs=%d", show_outline, show_dither, fs);
+    watch("mismatches", "%d", last_count);
+#endif
 }
 
 void update(void) {

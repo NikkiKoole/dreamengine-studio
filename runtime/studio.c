@@ -1307,6 +1307,16 @@ static bool ellipse_inside(int x, int y, int cx, int cy, int rx, int ry) {
     float dx = (x + 0.5f - cx) / (float)rx, dy = (y + 0.5f - cy) / (float)ry;
     return dx*dx + dy*dy <= 1.0f;
 }
+// rounded rect = all pixels within r of the inner rect of corner centres.
+// Straight edges → distance 0 → inside; corners reduce to disc_inside against
+// the nearest corner centre (circfill convention), so fill/outline/dither agree.
+static bool rrect_inside(int px, int py, int x, int y, int w, int h, int r) {
+    float cx = px + 0.5f, cy = py + 0.5f;
+    float l = x + r, t = y + r, rt = x + w - 1 - r, b = y + h - 1 - r;
+    float dx = cx < l ? l - cx : (cx > rt ? cx - rt : 0.0f);
+    float dy = cy < t ? t - cy : (cy > b ? cy - b : 0.0f);
+    return dx*dx + dy*dy <= (float)r * r;
+}
 
 void circ(int cx, int cy, int r, int color) {
     // outline = pixels inside the disc that have at least one outside 4-neighbour
@@ -1727,27 +1737,23 @@ void rrect(int x, int y, int w, int h, int r, int color) {
     if (r <= 0) { rect(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
-    line(x+r,   y,       x+w-r-1, y,       color);  // top
-    line(x+r,   y+h-1,   x+w-r-1, y+h-1,   color);  // bottom
-    line(x,     y+r,     x,       y+h-r-1, color);  // left
-    line(x+w-1, y+r,     x+w-1,   y+h-r-1, color);  // right
-    arc(x+r,     y+r,     r, 180, 270, color);
-    arc(x+w-1-r, y+r,     r, 270, 360, color);
-    arc(x+w-1-r, y+h-1-r, r,   0,  90, color);
-    arc(x+r,     y+h-1-r, r,  90, 180, color);
+    // outline = pixels inside that have at least one outside 4-neighbour
+    for (int py = y; py < y + h; py++)
+        for (int px = x; px < x + w; px++)
+            if (rrect_inside(px,py,x,y,w,h,r) &&
+                (!rrect_inside(px-1,py,x,y,w,h,r) || !rrect_inside(px+1,py,x,y,w,h,r) ||
+                 !rrect_inside(px,py-1,x,y,w,h,r) || !rrect_inside(px,py+1,x,y,w,h,r)))
+                pset(px, py, color);
 }
 
 void rrectfill(int x, int y, int w, int h, int r, int color) {
     if (r <= 0) { rectfill(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
-    rectfill(x+r,   y,     w-r*2, h,     color);
-    rectfill(x,     y+r,   r,     h-r*2, color);
-    rectfill(x+w-r, y+r,   r,     h-r*2, color);
-    circfill(x+r,     y+r,     r, color);
-    circfill(x+w-1-r, y+r,     r, color);
-    circfill(x+w-1-r, y+h-1-r, r, color);
-    circfill(x+r,     y+h-1-r, r, color);
+    // fill = all pixels inside; plot_pat handles both solid and fillp dither
+    for (int py = y; py < y + h; py++)
+        for (int px = x; px < x + w; px++)
+            if (rrect_inside(px, py, x, y, w, h, r)) plot_pat(px, py, color);
 }
 
 // dithered gradient: blend c_top→c_bot (or c_left→c_right) using fillp() checker.

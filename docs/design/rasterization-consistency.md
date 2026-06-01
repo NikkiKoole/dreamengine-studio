@@ -116,10 +116,34 @@ so dither and solid are the same path.
 toggle outline/dither. Harness: `tools/raster_test.script`. All meaningful states
 (solid+outline, dithered+outline) report 0 mismatches.
 
-**Still open:** `trifill` (GPU, conservative-span fix handles dither cracks),
-`rrectfill`/`rrect`, and the new geometry helpers (`ngon`/`ngonfill`, `star`/`starfill`,
-`poly`/`polyfill`, `thickline`) — all need the same outline=boundary-ring treatment before
-they can be considered pixel-perfect.
+## Shipped (2026-06-01, session 12)
+
+`rrect`/`rrectfill` unified on a single pixel-center coverage test, `rrect_inside(px,py,
+x,y,w,h,r)` = within `r` of the inner rect of corner centres (straight edges → distance 0
+→ inside; corners reduce to `disc_inside` against the nearest corner centre). `rrectfill`
+plots every inside pixel via `plot_pat` (solid + dither one path); `rrect` is the boundary
+ring (inside with ≥1 outside 4-neighbour). This **removes the stacked-shape anti-pattern**
+the old `rrectfill` used (3 rectfills + 4 circfills) and the old `rrect`'s lines-meet-arcs
+seam — fill, outline and dither now come from one definition. Extended `raster_test.c` to
+cover 6 rrects (varied radii); all four states report 0 mismatches.
+
+**Harness fix (same session):** the freeze/analyse rework (carts d8c2d18/777a784) had left
+`tools/raster_test.script` stale — it never pressed SPACE, so analysis never ran and the
+trace was empty despite the script comment saying "read mismatches from the trace." The
+cart now `watch()`es `mismatches` + `state` under `#ifdef DE_TRACE`, and the script drives
+SPACE → Z → X → Z through all four states; counts land on frames 3/7/11/15.
+
+> **Detector sensitivity (measured):** the marker test flags a fill-edge with *no adjacent
+> outline* (yellow) or an outline with *no adjacent fill* (pink). A **1px** outline/fill
+> misalignment keeps everything 4-adjacent and so reads as 0 mismatches; a **≥2px** gap is
+> caught (verified: a +2px outline offset → 657 mismatches). So "0 mismatches" means
+> "agree to within 1px," not "bit-identical." Good enough for the seam-crack class of bug;
+> note it if a sub-pixel guarantee is ever needed.
+
+**Still open:** `trifill` (GPU, conservative-span fix handles dither cracks), and the new
+geometry helpers (`ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, `thickline`) —
+all need the same outline=boundary-ring treatment before they can be considered
+pixel-perfect.
 
 ## When this advances
 

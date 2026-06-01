@@ -62,48 +62,57 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
 1. **Cart-pattern helpers** — `explode()`, then `hud()`, then `game_over_screen()`.
    Highest priority because they came from real cart-frequency analysis (each recurs
    in 11–12+ carts). [`design/api-notes.md`](design/api-notes.md) → "Cart-pattern analysis" §A–C.
-2. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
+2. **2D geometry helpers** — `ngon`/`star`, `poly`/`polyfill`, gradient (dithered),
+   rounded-rect, thick-line. Same flavor as the shipped `quadfill`, and evidence-strong like
+   #1: 80 carts hand-roll `cos_deg`/`sin_deg` + fill loops; 66 draw with triangles vs 31 with
+   sprites — the geometry-first style the engine actually runs on. Full reasoning + a graphics
+   taxonomy (which carts use which technique) in
+   [`design/geometry-helpers.md`](design/geometry-helpers.md).
+   - *Parked thought (not a build item):* true smooth color interpolation (`lerp_color`/`rgb`
+     true-color token) — splits the color model / erodes the palette identity; needs its own
+     ADR before any code. Default stays dithered gradients.
+3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
    surfaced by the brainstorm review). Touches main-loop drain semantics.
    [`design/api-notes.md`](design/api-notes.md) §11.
-3. **Pause + debug** — `pause()`/`paused()`, `fps()`, `voices_active()`.
+4. **Pause + debug** — `pause()`/`paused()`, `fps()`, `voices_active()`.
    [`design/api-notes.md`](design/api-notes.md) §16.
-4. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) now SHIPPED, see above._
+5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) now SHIPPED, see above._
    Still open: `slide()` (portamento); zero-setup **preset instruments** (`INSTR_PLUCK`/
    `PAD`/…); **held channels + per-param slew** (sustained, game-driven voices — the only
    way to get hold-to-sustain, which the synth cart currently fakes with a fixed gate);
    the **navkit rich-instrument port** (organ/Rhodes/piano as `INSTR_*` presets — drops
    into the timbre slot with no API change); and cart-side **SFX/pattern authoring**
    (banks are hardcoded today). [`design/audio-notes.md`](design/audio-notes.md) §5–8.
-5. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
+6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
-6. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.
+7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.
    [`design/api-notes.md`](design/api-notes.md) §15.
-7. **Strudel extras / Dilla groove timing** — `pitch`, `sometimes`/`often`/`rarely`,
+8. **Strudel extras / Dilla groove timing** — `pitch`, `sometimes`/`often`/`rarely`,
    `arp`, `stutter`, `palindrome`, `off_beat`; `groove` + `groove_swing/jitter/push`,
    `tick`/`PPQ`. [`design/api-notes.md`](design/api-notes.md) §13–14.
-8. **Per-game polish pass** — title/game-over screens, hi-scores, sound on every event,
+9. **Per-game polish pass** — title/game-over screens, hi-scores, sound on every event,
    juice, difficulty curves, readable HUDs. (Reframed as a reference idea bank, not an
    active backlog — see [`POLISH_TODO.md`](POLISH_TODO.md).)
-9. **Browser URL-sharing** — the web *build* ships; a one-click hosted **link** does not.
+10. **Browser URL-sharing** — the web *build* ships; a one-click hosted **link** does not.
    [`guides/sharing.md`](guides/sharing.md).
-10. **iPad runtime** — touch is wired in the runtime; needs a build path. [`VISION.md`](VISION.md).
-11. **Sound tracker UI** — open question; depends on whether code-first sound proves
+11. **iPad runtime** — touch is wired in the runtime; needs a build path. [`VISION.md`](VISION.md).
+12. **Sound tracker UI** — open question; depends on whether code-first sound proves
     sufficient. Prereq is cart-side SFX authoring (the instrument bank itself shipped).
     [`VISION.md`](VISION.md), [`design/audio-notes.md`](design/audio-notes.md) §5.6.
 
-12. **Baked rotation atlas** *(exploratory — full design note, not yet started)* — an
+13. **Baked rotation atlas** *(exploratory — full design note, not yet started)* — an
     offscreen-canvas primitive (`make_canvas`/`target`/`blit`) plus pre-rotated sprite/shape
     "stamps" so bodies are fast translate-blits instead of per-frame rasterization (for
     crowds, rich shapes, low-end). Centerline/pivot model, `pal()` recolor for free color
     variety, parts capped at 16px (native slot size). The path to scaling the `bones`
     animator past realtime drawing. [`design/baked-rotation-atlas.md`](design/baked-rotation-atlas.md).
-13. **Rasterization consistency** *(exploratory — point-fixes shipped, unified rule OPEN)* —
+14. **Rasterization consistency** *(exploratory — point-fixes shipped, unified rule OPEN)* —
     the engine rasterizes a shape three different ways (raylib GPU, CPU `*_pat` scanline,
     per-pixel `sector_fill`) and they disagree at edges → seams, off-by-one, outline-vs-fill
     mismatch (hit in arcs, solid3d, katamari). Each got a local fix; the real goal — *one*
     coverage definition shared by fill/outline/dither/solid — isn't done.
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
-14. **Tiny fonts — `print_small` / `print_tiny`** *(assets baked, wiring OPEN)* — two extra
+15. **Tiny fonts — `print_small` / `print_tiny`** *(assets baked, wiring OPEN)* — two extra
     bitmap-font atlases are baked and verified (`editor/public/font3x5.png` baseSize 6,
     `font4x6.png` baseSize 7, both full printable ASCII, `firstChar=32`), so stats-heavy
     carts can pack far more text into 320px. **Not usable yet:** `print()` hardcodes size 8,
@@ -113,18 +122,6 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     [`design/font-rendering.md`](design/font-rendering.md) → "Decision (2026-06-01)".
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
-
-**2D geometry helpers** (proposed, none merged) — drawing primitives for the geometry-first
-style: `ngon`/`star`, `poly`/`polyfill`, gradient fill, rounded-rect, thick-line, ranked by
-the cart boilerplate each removes (66/183 carts draw with triangles vs 31 with sprites; 80
-hand-roll trig+fill loops; 136 use circles), plus a graphics taxonomy (which carts use which
-technique). Full reasoning + signatures in
-[`design/geometry-helpers.md`](design/geometry-helpers.md). *(Subsumes the old
-"gradient/dither fill" smaller-item.)*
-  - **Parked thought — not a build item:** true smooth color interpolation
-    (`lerp_color`/`rgb` via a packed true-color token). Interesting, but it splits the color
-    model and erodes the fixed-palette identity — second thoughts noted in the design doc.
-    Would need its own ADR before any code; default path stays dithered gradients.
 
 **Smaller open items (no design doc yet):** looping ambience (`drone`)/`volume`/mute. Noted
 in [`POLISH_TODO.md`](POLISH_TODO.md).

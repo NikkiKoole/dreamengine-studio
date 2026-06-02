@@ -18,7 +18,7 @@
 static unsigned char world[TEX * TEX];   // baked terrain: palette index per cell
 
 static float cx, cy, ang, spd, H;        // camera world pos, heading, speed, height
-static struct { float x, y; } ring[NRINGS];
+static struct { float x, y; } rings[NRINGS];
 static int   score;
 static float t_end;
 static bool  over;
@@ -44,7 +44,7 @@ void init(void) {
         }
 
     cx = 128; cy = 128; ang = 0; spd = 1.4f; H = 26;
-    for (int i = 0; i < NRINGS; i++) { ring[i].x = rnd(TEX); ring[i].y = rnd(TEX); }
+    for (int i = 0; i < NRINGS; i++) { rings[i].x = rnd(TEX); rings[i].y = rnd(TEX); }
     score = 0; over = false; t_end = now() + 45;
 }
 
@@ -67,10 +67,10 @@ void update(void) {
 
     // fly through rings
     for (int i = 0; i < NRINGS; i++) {
-        float d = length((int)wrapd(ring[i].x - cx), (int)wrapd(ring[i].y - cy));
+        float d = length((int)wrapd(rings[i].x - cx), (int)wrapd(rings[i].y - cy));
         if (d < 9) {
             score++; t_end += 5;                 // +5 seconds per ring
-            ring[i].x = rnd(TEX); ring[i].y = rnd(TEX);
+            rings[i].x = rnd(TEX); rings[i].y = rnd(TEX);
             chord(67, CHORD_MAJ, INSTR_SQUARE, 4);
         }
     }
@@ -114,7 +114,7 @@ void draw(void) {
     // --- rings: project each onto the screen with the same math, far ones first ---
     int order[NRINGS]; float fwd[NRINGS];
     for (int i = 0; i < NRINGS; i++) {
-        float rx = wrapd(ring[i].x - cx), ry = wrapd(ring[i].y - cy);
+        float rx = wrapd(rings[i].x - cx), ry = wrapd(rings[i].y - cy);
         fwd[i] = rx * ca + ry * sa;
         order[i] = i;
     }
@@ -125,7 +125,7 @@ void draw(void) {
     for (int k = 0; k < NRINGS; k++) {
         int i = order[k];
         if (fwd[i] < 8) continue;               // behind us / too close
-        float rx = wrapd(ring[i].x - cx), ry = wrapd(ring[i].y - cy);
+        float rx = wrapd(rings[i].x - cx), ry = wrapd(rings[i].y - cy);
         float rightd = rx * (-sa) + ry * ca;
         int   sy = HZ + (int)((H * F) / fwd[i]);
         int   sx = (int)(cxs + rightd * F / fwd[i]);

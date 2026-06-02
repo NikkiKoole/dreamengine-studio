@@ -30,7 +30,7 @@ static const V3 MODEL[5] = {
 static const int EDGE[9][2] = { {0,1},{0,2},{1,2},{0,3},{1,3},{2,3},{0,4},{1,4},{2,4} };
 
 static Ship  enemy[NENEMY];
-static V3    star[NSTAR];
+static V3    stars[NSTAR];
 static int   shields, score, kills, hiscore, state;
 static int   laser_t, hit_flash;
 // expanding-ring explosion
@@ -61,7 +61,7 @@ static void spawn_enemy(int i) {
 static void new_game() {
     shields = 100; score = 0; kills = 0; state = 0; laser_t = 0; hit_flash = 0; boom_t = 0;
     for (int i = 0; i < NENEMY; i++) spawn_enemy(i);
-    for (int i = 0; i < NSTAR; i++) star[i] = (V3){ rnd_between(-400, 400), rnd_between(-300, 300), rnd_between(NEAR + 5, (int)FAR) };
+    for (int i = 0; i < NSTAR; i++) stars[i] = (V3){ rnd_between(-400, 400), rnd_between(-300, 300), rnd_between(NEAR + 5, (int)FAR) };
 }
 
 void init() { hiscore = load(0); new_game(); }
@@ -71,7 +71,7 @@ void init() { hiscore = load(0); new_game(); }
 static void rotate_world(float yaw, float pitch) {
     float ys = sin_deg(yaw), yc = cos_deg(yaw), ps = sin_deg(pitch), pc = cos_deg(pitch);
     for (int i = 0; i < NENEMY; i++) if (enemy[i].alive) { rotY(&enemy[i].p, ys, yc); rotX(&enemy[i].p, ps, pc); }
-    for (int i = 0; i < NSTAR; i++) { rotY(&star[i], ys, yc); rotX(&star[i], ps, pc); }
+    for (int i = 0; i < NSTAR; i++) { rotY(&stars[i], ys, yc); rotX(&stars[i], ps, pc); }
 }
 
 void update() {
@@ -90,8 +90,8 @@ void update() {
 
     // stars drift past (gives a sense of forward cruise)
     for (int i = 0; i < NSTAR; i++) {
-        star[i].z -= 3.0f;
-        if (star[i].z <= NEAR) star[i] = (V3){ rnd_between(-400, 400), rnd_between(-300, 300), FAR };
+        stars[i].z -= 3.0f;
+        if (stars[i].z <= NEAR) stars[i] = (V3){ rnd_between(-400, 400), rnd_between(-300, 300), FAR };
     }
 
     // enemies approach + occasionally shoot
@@ -170,7 +170,7 @@ void draw() {
 
     for (int i = 0; i < NSTAR; i++) {
         int sx, sy;
-        if (project(star[i], &sx, &sy)) pset(sx, sy, star[i].z < 300 ? CLR_WHITE : CLR_LIGHT_GREY);
+        if (project(stars[i], &sx, &sy)) pset(sx, sy, stars[i].z < 300 ? CLR_WHITE : CLR_LIGHT_GREY);
     }
     for (int i = 0; i < NENEMY; i++) if (enemy[i].alive) draw_enemy(&enemy[i]);
 

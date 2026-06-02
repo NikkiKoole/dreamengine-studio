@@ -70,6 +70,21 @@ ModType TYPES[NTYPE] = {
 int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
 int th(int type) { return TYPES[type].ch * CELL; }
 
+// one-screen help per module kind (click the module's ? to show it)
+const char *HELP[NTYPE][3] = {
+    [MOD_CLOCK]  = { "Master clock. bpm knob sets the tempo.", "Gate outs: /1 every step, /2 half,", "/4 quarter. Patch into trigger inputs." },
+    [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate sets speed. Patch the cv out into", "any cv input to modulate it." },
+    [MOD_SH]     = { "Sample & Hold. On each clk pulse it", "grabs the cv at 'in' and holds it until", "the next clk -> a stepped, random-ish cv." },
+    [MOD_QUANT]  = { "Quantizer. Snaps any cv to the nearest", "note of a scale (scl/root) so it's always", "in key. cv in -> pitch out." },
+    [MOD_VOICE]  = { "The synth voice. 'g' gate triggers a", "note at pitch 'p'; 'f' sweeps the filter;", "cut sets its base cutoff." },
+    [MOD_EUCLID] = { "Euclidean rhythm: h hits spread evenly", "over s steps. Advances on clk, fires a", "gate on each hit. Patch 'o' into DRUM." },
+    [MOD_ENV]    = { "AD envelope. A gate makes a 0->1->0 cv", "ramp (atk up, dec down). Patch cv into a", "filter for a pluck on every note." },
+    [MOD_DRUM]   = { "Three drum voices. A gate at k/s/h", "fires kick / snare / hat. Patch gates", "(from EUCLID or CLOCK) into them." },
+    [MOD_SLEW]   = { "Smooths a cv toward its input over 'ms'.", "Feed it stepped pitch -> glide / lag.", "" },
+    [MOD_ATTN]   = { "Attenuator: scales a cv by amt (0..1).", "Sets how much a modulator affects its", "target -- i.e. the depth." },
+    [MOD_LOGIC]  = { "Combines two gates: AND / OR / XOR (mod).", "AND two EUCLIDs for a pattern neither", "has alone -- emergent rhythm." },
+};
+
 // ── module instances + cables ──
 typedef struct { int type, x, y; float param[2], state[6], jackval[4]; } Module;
 #define MAX_MOD 24
@@ -90,7 +105,7 @@ const char *msg = "";
 #define SIDEBAR_W 38
 float cam_x = -28, cam_y = -2, zoom = 0.82f;     // pannable/zoomable view of the stage
 int   wmx = 0, wmy = 0;                           // mouse in world space (valid while the stage camera is active)
-int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1;
+int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1, help_type = -1;
 
 int  spawn(int type, int x, int y) {
     Module *m = &mod[nmod];
@@ -246,6 +261,7 @@ void update(void) {
     watch("midi", "%d", dbg_midi);
     watch("zoom", "%d", (int)(zoom * 100));
     watch("lastx", "%d", nmod > 0 ? mod[nmod - 1].x : -1);
+    watch("help", "%d", help_type);
 #endif
 }
 
@@ -284,6 +300,11 @@ int delx_at(int mx, int my) {   // the ✕ delete corner of a module
         if (distance(mx, my, mod[mi].x + tw(mod[mi].type) - 6, mod[mi].y + 4) < 5) return mi;
     return -1;
 }
+int qmark_at(int mx, int my) {  // the ? help corner of a module
+    for (int mi = 0; mi < nmod; mi++)
+        if (distance(mx, my, mod[mi].x + tw(mod[mi].type) - 15, mod[mi].y + 4) < 5) return mi;
+    return -1;
+}
 void delete_mod(int mi) {
     for (int c = ncable - 1; c >= 0; c--) if (cable[c].sm == mi || cable[c].dm == mi) remove_cable(c);
     for (int k = mi; k < nmod - 1; k++) mod[k] = mod[k + 1];
@@ -298,7 +319,7 @@ void meter(int x, int y, int w, int h, float v, int col) {
 }
 
 float knob_dial(int id, int cx, int cy, float v, float lo, float hi, const char *name, const char *val) {
-    if (palette_drag < 0 && !panning && mouse_pressed(MOUSE_LEFT) && distance(wmx, wmy, cx, cy) < 7) { held_knob = id; drag_y = wmy; }
+    if (palette_drag < 0 && !panning && help_type < 0 && mouse_pressed(MOUSE_LEFT) && distance(wmx, wmy, cx, cy) < 7) { held_knob = id; drag_y = wmy; }
     if (held_knob == id && mouse_down(MOUSE_LEFT)) { v = clamp(v + (drag_y - wmy) * (hi - lo) / 120.0f, lo, hi); drag_y = wmy; }
     bool hot = held_knob == id || distance(wmx, wmy, cx, cy) < 7;
     circfill(cx, cy, 5, CLR_DARKER_GREY);
@@ -346,6 +367,7 @@ void draw_module(int mi) {
     rectfill(x, y, W, H, CLR_DARKER_PURPLE);
     rect(x, y, W, H, t->col);
     print(t->name, x + 3, y + 2, t->col);
+    print("?", x + W - 16, y + 2, distance(wmx, wmy, x + W - 15, y + 4) < 5 ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
     print("x", x + W - 8, y + 2, distance(wmx, wmy, x + W - 6, y + 4) < 5 ? CLR_RED : CLR_DARK_GREY);
 
     draw_extras(mi);
@@ -415,12 +437,17 @@ void draw(void) {
     camera_ex((int)cam_x, (int)cam_y, zoom, 0);
     wmx = mouse_world_x(); wmy = mouse_world_y();
 
-    if (!over_side && palette_drag < 0 && !panning && mouse_pressed(MOUSE_LEFT)) {
-        int dm = delx_at(wmx, wmy);
-        if (dm >= 0) delete_mod(dm);
+    if (help_type >= 0) {
+        if (mouse_pressed(MOUSE_LEFT)) help_type = -1;          // any click dismisses the help panel
+    } else if (!over_side && palette_drag < 0 && !panning && mouse_pressed(MOUSE_LEFT)) {
+        int q = qmark_at(wmx, wmy), dm = delx_at(wmx, wmy);
+        if (q >= 0) help_type = mod[q].type;
+        else if (dm >= 0) delete_mod(dm);
         else if (jack_at(wmx, wmy) < 0 && knob_at(wmx, wmy) < 0) { panning = 1; pan_px = mouse_x(); pan_py = mouse_y(); }
     }
-    if (!over_side && palette_drag < 0 && !panning) edit_cables(wmx, wmy);
+    if (help_type < 0 && !over_side && palette_drag < 0 && !panning) edit_cables(wmx, wmy);
+
+    font(FONT_SMALL);   // module labels (titles, ? / x, jacks, knobs) use the small font
 
     if (palette_drag >= 0) {   // faint 12px cell grid, shown only while placing a module
         int wl = (int)((0 - 160) / zoom + cam_x + 160), wr = (int)((SCREEN_W - 160) / zoom + cam_x + 160);
@@ -462,7 +489,7 @@ void draw(void) {
         rectfill(3, by, SIDEBAR_W - 6, 14, CLR_DARKER_PURPLE);
         rect(3, by, SIDEBAR_W - 6, 14, hot ? CLR_WHITE : TYPES[t].col);
         print(TYPES[t].name, 6, by + 4, TYPES[t].col);
-        if (hot && mouse_pressed(MOUSE_LEFT) && palette_drag < 0 && nmod < MAX_MOD) palette_drag = t;
+        if (hot && mouse_pressed(MOUSE_LEFT) && palette_drag < 0 && nmod < MAX_MOD && help_type < 0) palette_drag = t;
     }
     if (mouse_released(MOUSE_LEFT) && palette_drag >= 0) {
         if (mouse_x() >= SIDEBAR_W && nmod < MAX_MOD) spawn(palette_drag, wmx - tw(palette_drag) / 2, wmy - th(palette_drag) / 2);
@@ -479,7 +506,17 @@ void draw(void) {
     rectfill(zbx, 2, 28, 11, zbh ? CLR_BLUE : CLR_DARKER_PURPLE);
     rect(zbx, 2, 28, 11, CLR_LIGHT_GREY);
     print("1:1", zbx + 7, 4, CLR_WHITE);
-    if (zbh && mouse_pressed(MOUSE_LEFT)) { zoom = 1.0f; cam_x = -32; cam_y = -2; }
-    print("patch: out->in   rclick clears   x deletes   S/L/R", SIDEBAR_W + 4, 192, CLR_DARKER_GREY);
+    if (zbh && mouse_pressed(MOUSE_LEFT) && help_type < 0) { zoom = 1.0f; cam_x = -32; cam_y = -2; }
+    print("patch: out->in   rclick clears   ? help   x del   S/L/R", SIDEBAR_W + 4, 192, CLR_DARKER_GREY);
+
+    if (help_type >= 0) {   // module help panel (modal; click to close)
+        int px = 56, py = 60, pw = 212, ph = 66;
+        rectfill(px, py, pw, ph, CLR_BLACK);
+        rect(px, py, pw, ph, TYPES[help_type].col);
+        font(FONT_NORMAL); print(TYPES[help_type].name, px + 8, py + 6, TYPES[help_type].col); font(FONT_SMALL);
+        for (int l = 0; l < 3; l++) if (HELP[help_type][l] && HELP[help_type][l][0]) print(HELP[help_type][l], px + 8, py + 22 + l * 10, CLR_LIGHT_GREY);
+        print("click to close", px + pw - 58, py + ph - 9, CLR_MEDIUM_GREY);
+    }
+
     font(FONT_NORMAL);
 }

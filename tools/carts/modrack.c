@@ -144,7 +144,8 @@ void update(void) {
     if (euclk > 0.5f && prev_euclk <= 0.5f) {
         eu_counter++;
         if (euclid((int)p_hits, (int)p_steps, eu_counter)) {
-            hit(33, INSTR_TRI, 7, 80);        // kick
+            hit(72, INSTR_NOISE, 3, 18);      // click — a transient that cuts through small speakers
+            hit(43, INSTR_TRI, 7, 90);        // body — the low thump
             jk[J_EU].val = 1;
             eu_flash = 0;
         }
@@ -158,7 +159,7 @@ void update(void) {
 }
 
 // ── drawing helpers ──
-int sig_col(int t) { return t == 0 ? CLR_GREEN : t == 1 ? CLR_YELLOW : CLR_BLUE_GREEN; }
+int sig_col(int t) { return t == 0 ? CLR_GREEN : t == 1 ? CLR_YELLOW : CLR_BLUE; }  // gate / pitch / cv
 
 int near_col(int x, int y) {
     float d = distance(mouse_x(), mouse_y(), x, y);

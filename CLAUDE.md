@@ -58,6 +58,15 @@ eventually2/
 
 Raylib is installed via Homebrew. `main.cjs` auto-detects the path: `/opt/homebrew/opt/raylib` on Apple Silicon, `/usr/local/opt/raylib` on Intel.
 
+### Run backends (settings → "run mode")
+
+▶ run has two backends, picked in the settings tab:
+
+- **native (clang)** — the flow above. Default; optimized, full diagnostics, + a background Windows cross-build.
+- **live (libtcc)** — a persistent host (`studio.c` built with `-DDE_TCC`, linked against vendored `runtime/libtcc/`) JIT-compiles the cart in-process. The first run opens the window; after that, editing the code auto-rewrites `cart.c` (debounced) and the host's file-watch **hot-reloads** it without restarting — state in `de_state()` survives the swap. arm64-macOS only. Full design + rationale: [`docs/design/cart-as-script.md`](docs/design/cart-as-script.md).
+
+The web build (emcc → `cart.html/js/wasm`) is its own "Build for web" button, unchanged.
+
 ## The runtime model
 
 - `studio.c` owns `main()` — opens the Raylib window, runs the game loop
@@ -420,3 +429,4 @@ example). A typical loop: author a `.beats` script for the exact moment, run it
 - `SCREEN_W`, `SCREEN_H`, and `SCALE` are passed as `-D` flags at compile time from the settings tab
 - The palette in `studio.c` is the full 32-color PICO-8 palette (indices 0–31), matching the sprite editor's `pico32.json`. All 32 are named `CLR_*` in `studio.h`
 - Cart code shares one namespace with the whole `studio.h` API, so **don't name a variable after a built-in function**. `map` is the common trap — a tilemap/grid array called `map` clashes with the `map()` draw function (`error: redefinition of 'map' as different kind of symbol`); use `grid`/`dmap` instead. Same goes for `line`, `rect`, `circ`, `print`, `spr`, `timer`, `now`, etc.
+- The starter cart also `#define`s `STATE` / `S` / `GameState` for the persistent-state sugar (`STATE { ... };` + `S->field`, over `de_state()` — see [`docs/design/cart-as-script.md`](docs/design/cart-as-script.md)). These are **cart-local** macros (deliberately *not* in `studio.h`, because ~45 existing carts use `S` as a variable). A cart that wants `S` for something else just removes those `#define`s.

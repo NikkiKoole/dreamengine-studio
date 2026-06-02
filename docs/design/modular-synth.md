@@ -88,10 +88,13 @@ When the catalog outgrows the screen the escape hatch is *swap-per-slot* (pick w
 lives in each slot) first, *horizontal scroll* (pan a wider rack) later — both additive, no
 rework. For a teaching toy, fewer-but-understood beats a wall of cramped strips.
 
-**Shipped catalog (11 types, drag from the palette):** CLOCK · LFO · S&H · QUANT · VOICE ·
-EUCLID · **ENV** · **DRUM** (the big 6×7 modules) + three **tiny utilities** showing off
-variable cell sizes — **SLEW** (3×5, smooth a CV → glide), **ATTN** (3×5, scale a CV →
-depth), **LOGIC** (4×5, AND/OR/XOR two gates → emergent rhythm). Each `ModType` carries its
+**Shipped catalog (13 types, drag from the palette):** CLOCK · LFO · S&H · QUANT · VOICE ·
+EUCLID · **ENV** · **DRUM** (big 6×7) + tiny utilities **SLEW** (3×5, smooth a CV → glide),
+**ATTN** (3×5, scale a CV → depth), **LOGIC** (4×5, AND/OR/XOR two gates → emergent rhythm)
++ **SCOPE** (6×4, draws a cv as a moving trace) and **KEYS** (6×5, playable gate+pitch via
+on-screen or computer keys). Each **VOICE** instance now uses its own timbre slot (saw /
+square / tri-pad / sine-pad, by order) so several voices layer as lead + pads. The palette
+scrolls (wheel over the sidebar); the wheel zooms only over the canvas, toward the cursor. Each `ModType` carries its
 size in 12px cells (`cw×ch`); the smallest are 3×5, and a 1×1 (12×12) is possible for a
 bare jack/button. The generative-melody chain (CLOCK→S&H←LFO→QUANT→VOICE) plus a beat:
 EUCLID is now a *pure gate source* (no built-in sound) that drives the **DRUM** module (kick/snare/hat trigger

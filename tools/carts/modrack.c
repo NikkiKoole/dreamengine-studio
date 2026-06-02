@@ -11,7 +11,6 @@
 // Patch: drag an output jack to an input (type-checked green=gate/blue=cv/yellow=pitch),
 // click an occupied input to rewire, right-click a jack to clear. Knobs drag. S/L/R = save/load/reset.
 
-#define SLOT 5
 #define ROOT_OCT 4
 
 // everything is on a 12px cell grid. modules are a whole number of cells; the current
@@ -32,7 +31,7 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 
 // ── module type registry ──
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
-       MOD_SLEW, MOD_ATTN, MOD_LOGIC, NTYPE };
+       MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, NTYPE };
 enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
@@ -66,6 +65,8 @@ ModType TYPES[NTYPE] = {
                    1, {{"amt",0,1,1,18,32,FMT_F1}} },
     [MOD_LOGIC] = { "LOGIC", CLR_LIGHT_YELLOW, 4, 5, 3, {{0,false,14,14,"a"},{0,false,34,14,"b"},{0,true,24,52,"o"}},
                    1, {{"mod",0,2.99f,0,24,34,FMT_LOGIC}} },
+    [MOD_SCOPE] = { "SCOPE", CLR_LIGHT_GREY, 6, 4, 1, {{2,false,8,13,"in"}}, 0, {} },
+    [MOD_KEYS]  = { "KEYS", CLR_LIGHT_PEACH, 6, 5, 2, {{0,true,24,52,"g"},{1,true,48,52,"p"}}, 0, {} },
 };
 int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
 int th(int type) { return TYPES[type].ch * CELL; }
@@ -83,10 +84,12 @@ const char *HELP[NTYPE][3] = {
     [MOD_SLEW]   = { "Smooths a cv toward its input over 'ms'.", "Feed it stepped pitch -> glide / lag.", "" },
     [MOD_ATTN]   = { "Attenuator: scales a cv by amt (0..1).", "Sets how much a modulator affects its", "target -- i.e. the depth." },
     [MOD_LOGIC]  = { "Combines two gates: AND / OR / XOR (mod).", "AND two EUCLIDs for a pattern neither", "has alone -- emergent rhythm." },
+    [MOD_SCOPE]  = { "Oscilloscope. Patch a cv into 'in' to see", "it drawn as a moving trace -- a probe for", "watching what a signal is actually doing." },
+    [MOD_KEYS]   = { "Play it! Click the keys or use computer", "keys A S D F G H J. Outputs gate (g) +", "pitch (p) -- patch them into a VOICE." },
 };
 
 // ── module instances + cables ──
-typedef struct { int type, x, y; float param[2], state[6], jackval[4]; } Module;
+typedef struct { int type, x, y; float param[2], state[24], jackval[4]; } Module;   // state[] big enough for SCOPE history
 #define MAX_MOD 24
 Module mod[MAX_MOD];
 int    nmod = 0;
@@ -107,6 +110,7 @@ float cam_x = -28, cam_y = -2, zoom = 0.82f;     // pannable/zoomable view of th
 int   wmx = 0, wmy = 0;                           // mouse in world space (valid while the stage camera is active)
 int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1, help_type = -1;
 int   drag_mod = -1, grab_dx = 0, grab_dy = 0;    // module being dragged around the canvas
+int   palette_scroll = 0;                          // sidebar scroll offset (px)
 
 int  spawn(int type, int x, int y) {
     Module *m = &mod[nmod];
@@ -157,8 +161,11 @@ void load_patch(void) {
 }
 
 void init(void) {
-    instrument(SLOT, INSTR_SAW, 4, 90, 3, 260);
-    instrument_filter(SLOT, FILTER_LOW, 600, 10);
+    // four distinct voice timbres (slots 5-8) so multiple VOICEs differ (lead vs pad)
+    instrument(5, INSTR_SAW, 4, 90, 3, 260);     instrument_filter(5, FILTER_LOW, 600, 10);
+    instrument(6, INSTR_SQUARE, 4, 90, 3, 240);  instrument_filter(6, FILTER_LOW, 800, 9);  instrument_duty(6, 0.3f);
+    instrument(7, INSTR_TRI, 8, 150, 4, 320);    instrument_filter(7, FILTER_LOW, 1200, 6);
+    instrument(8, INSTR_SINE, 40, 200, 5, 420);  instrument_filter(8, FILTER_LOW, 1500, 4);
     for (int i = 0; i < 8; i++) spawn(i, bayx(i), bayy(i));   // types 0..7 in grid order
     wire_default();
 }
@@ -192,11 +199,13 @@ void eval_mod(int mi) {
             if (cable_into(mi, 0) < 0) {   // gate input unpatched → release (no dangling drone)
                 int h = (int)m->state[1]; if (h > 0) { note_off(h); m->state[1] = 0; }
             }
+            int vo = 0; for (int k = 0; k < mi; k++) if (mod[k].type == MOD_VOICE) vo++;
+            int slot = 5 + vo % 4;         // each VOICE gets one of the 4 timbres (slots 5-8)
             float gate = read_in(mi, 0), pitch = read_in(mi, 1), fcv = read_in(mi, 2);
             if (gate > 0.5f && m->state[0] <= 0.5f) {
                 int mm = (int)pitch; if (mm < 1) mm = 48;
                 int h = (int)m->state[1]; if (h > 0) note_off(h);
-                m->state[1] = note_on(mm, SLOT, 5);
+                m->state[1] = note_on(mm, slot, 5);
                 m->state[3] = 0;   // trigger flash
             }
             m->state[0] = gate; m->state[3] += 1;
@@ -242,6 +251,21 @@ void eval_mod(int mi) {
         case MOD_LOGIC: {  // combine two gates
             bool a = read_in(mi, 0) > 0.5f, b = read_in(mi, 1) > 0.5f; int md = (int)m->param[0];
             m->jackval[2] = (md == 0 ? (a && b) : md == 1 ? (a || b) : (a != b)) ? 1 : 0;
+            break; }
+        case MOD_SCOPE: {  // record a 20-sample history of the cv input (drawn in draw_extras)
+            int head = ((int)m->state[0] + 1) % 20; m->state[0] = head;
+            m->state[2 + head] = clamp(read_in(mi, 0), 0, 1);
+            break; }
+        case MOD_KEYS: {   // playable: computer keys A S D F G H J or clicking the on-screen keys
+            const char KK[7] = { 'A','S','D','F','G','H','J' }; const int OFF[7] = { 0,2,4,5,7,9,11 };
+            int base = 48, pitch = -1;
+            for (int i = 0; i < 7; i++) if (key(KK[i])) pitch = base + OFF[i];
+            if (mouse_down(MOUSE_LEFT) && drag_mod < 0 && palette_drag < 0 && help_type < 0)
+                for (int i = 0; i < 7; i++) { int kx = m->x + 3 + i * 10; if (wmx >= kx && wmx < kx + 9 && wmy >= m->y + 14 && wmy < m->y + 42) pitch = base + OFF[i]; }
+            m->state[0] = pitch >= 0 ? 1 : 0;            // gate
+            if (pitch >= 0) m->state[1] = pitch;          // pitch (holds last)
+            m->jackval[0] = m->state[0];
+            m->jackval[1] = m->state[1];
             break; }
     }
 }
@@ -374,6 +398,24 @@ void draw_extras(int mi) {
             circfill(x + 54, y + 48, 3, m->state[5] < 5 ? CLR_WHITE : CLR_DARK_GREY);
             print("kik sn hat", x + 8, y + 64, CLR_DARK_GREY);
             break;
+        case MOD_SCOPE: {   // moving trace of the recorded cv history
+            int head = (int)m->state[0];
+            rectfill(x + 3, y + 16, GW - 6, 28, CLR_BLACK);
+            for (int i = 0; i < 20; i++) {
+                int idx = (head - i + 20) % 20;
+                pset(x + GW - 5 - i * 3, y + 42 - (int)(m->state[2 + idx] * 24), CLR_LIME_GREEN);
+            }
+            break; }
+        case MOD_KEYS: {    // 7 white keys; lit while held
+            const char KK[7] = { 'A','S','D','F','G','H','J' }; const int OFF[7] = { 0,2,4,5,7,9,11 };
+            for (int i = 0; i < 7; i++) {
+                int kx = x + 3 + i * 10;
+                bool dn = key(KK[i]) || (m->state[0] > 0.5f && (int)m->state[1] == 48 + OFF[i]);
+                rectfill(kx, y + 14, 9, 26, dn ? CLR_YELLOW : CLR_WHITE);
+                rect(kx, y + 14, 9, 26, CLR_DARK_GREY);
+                print(str("%c", KK[i]), kx + 2, y + 42, CLR_DARK_GREY);
+            }
+            break; }
     }
 }
 
@@ -447,14 +489,19 @@ void draw(void) {
     if (panning && mouse_down(MOUSE_LEFT)) { cam_x -= (mouse_x() - pan_px) / zoom; cam_y -= (mouse_y() - pan_py) / zoom; }
     pan_px = mouse_x(); pan_py = mouse_y();
     if (!mouse_down(MOUSE_LEFT)) { panning = 0; held_knob = 0; }
-    float wh = mouse_wheel();
-    if (wh != 0) {   // zoom toward the cursor: keep the world point under the mouse fixed
-        float z0 = zoom, z1 = clamp(zoom * (1 + wh * 0.12f), 0.4f, 3.0f);
-        cam_x += (mouse_x() - SCREEN_W / 2.0f) * (1.0f / z0 - 1.0f / z1);
-        cam_y += (mouse_y() - SCREEN_H / 2.0f) * (1.0f / z0 - 1.0f / z1);
-        zoom = z1;
-    }
     bool over_side = mouse_x() < SIDEBAR_W;
+    float wh = mouse_wheel();
+    if (wh != 0) {
+        if (over_side) {   // wheel over the palette → scroll the module list
+            int maxsc = 14 + NTYPE * 16 - SCREEN_H + 6; if (maxsc < 0) maxsc = 0;
+            palette_scroll = (int)clamp(palette_scroll - wh * 16, 0, maxsc);
+        } else {           // wheel over the canvas → zoom toward the cursor (world point under mouse stays fixed)
+            float z0 = zoom, z1 = clamp(zoom * (1 + wh * 0.12f), 0.4f, 3.0f);
+            cam_x += (mouse_x() - SCREEN_W / 2.0f) * (1.0f / z0 - 1.0f / z1);
+            cam_y += (mouse_y() - SCREEN_H / 2.0f) * (1.0f / z0 - 1.0f / z1);
+            zoom = z1;
+        }
+    }
 
     cls(CLR_DARKER_BLUE);
 
@@ -517,7 +564,8 @@ void draw(void) {
     font(FONT_SMALL);
     print("ADD", 8, 4, CLR_MEDIUM_GREY);
     for (int t = 0; t < NTYPE; t++) {
-        int by = 14 + t * 16;
+        int by = 14 + t * 16 - palette_scroll;
+        if (by < 12 || by > SCREEN_H - 4) continue;   // scrolled out of view
         bool hot = mouse_x() < SIDEBAR_W && mouse_y() >= by && mouse_y() < by + 15;
         rectfill(3, by, SIDEBAR_W - 6, 14, CLR_DARKER_PURPLE);
         rect(3, by, SIDEBAR_W - 6, 14, hot ? CLR_WHITE : TYPES[t].col);

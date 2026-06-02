@@ -1146,9 +1146,23 @@ const EMPTY_TEMPLATE =
 
 #include "studio.h"
 
+// S holds your game's state — and it survives a live reload, so you can
+// edit the code while it runs and S keeps its values. Add fields here,
+// then use them as S->name.
+#define STATE struct GameState
+#define S     ((STATE *)de_state(sizeof(STATE)))
+STATE {
+    int x;
+};
+
+void update() {
+    S->x = (S->x + 1) % SCREEN_W;   // slide across, wrap around
+}
+
 void draw() {
     cls(CLR_DARK_BLUE);
     print("hello!", 10, 10, CLR_PEACH);
+    rectfill(S->x, 40, 8, 8, CLR_PEACH);
 }
 `
 

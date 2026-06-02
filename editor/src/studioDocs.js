@@ -221,7 +221,7 @@ export const studioDocs = {
   load:       { sig: 'int load(int slot)',              doc: 'Read back a saved value. Returns 0 if the slot was never written.\nTypical use: int hi = load(0);' },
   save_int:   { sig: 'void save_int(const char *key, int value)', doc: 'Store an integer by name instead of a slot number — no numbering to remember. Up to 64 keys per cart.\nsave_int("hiscore", score);' },
   load_int:   { sig: 'int load_int(const char *key, int def)', doc: 'Read a named value back. Returns `def` if that key was never saved.\nint hi = load_int("hiscore", 0);' },
-  de_state:   { sig: 'void *de_state(int bytes)', doc: 'A zero-filled block of `bytes` bytes that the engine owns — put your whole cart state in it. Unlike a normal global it survives a live code-reload, so the game keeps running across an edit. Grab it once at the top:\ntypedef struct { int x, y, score; } State;\n#define ST ((State*)de_state(sizeof(State)))\n// then use ST->x, ST->score, ...' },
+  de_state:   { sig: 'void *de_state(int bytes)', doc: 'A zero-filled block of `bytes` bytes that the engine owns — put your whole cart state in it. Unlike a normal global it survives a live code-reload, so the game keeps running across an edit. The starter cart wraps it so you just write:\nSTATE { int x, y, score; };\n// then S->x, S->score — and they survive a reload' },
 
   // ── math ── (angles in degrees: 0 = right, 90 = down)
   abs:        { sig: 'int abs(int v)',                                                 doc: 'Absolute value — drops the minus sign. abs(-5) is 5.' },

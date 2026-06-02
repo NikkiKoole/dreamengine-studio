@@ -369,7 +369,27 @@ Known v1 limitations (documented for the next pass):
 - **Hot-reload state model:** host-owned `de_state` block (PICO-8-like continuity) —
   proven in Step 3.
 
-## de_state ergonomics — make it friendlier (OPEN, to design)
+## de_state ergonomics — DECIDED: `STATE { … }; / S->field`, baked into the starter
+
+Chosen: option 4 (the keyword pair) with `S` as the accessor, **defined in the starter
+cart, not in `studio.h`**:
+
+```c
+#define STATE struct GameState
+#define S     ((STATE *)de_state(sizeof(STATE)))
+STATE { int x; };          // declare once
+void update(){ S->x++; }   // use everywhere — survives a live reload
+```
+
+**Why cart-local, not a `studio.h` built-in:** `S` is used as an identifier in ~45
+existing carts (`static float S[4][4]`, …), so a global `#define S` would break them.
+Putting the macros at the top of the starter (`EMPTY_TEMPLATE` in `shell.js`) gives every
+new cart `S` for free while leaving `studio.h` and all existing carts untouched.
+`de_state()` remains the real, documented API; `STATE`/`S` are friendly sugar over it.
+Works identically under native clang (pure macros over the existing fn). Struct-reshape
+gotcha unchanged: change fields → relaunch for a fresh zeroed block.
+
+### Options considered (the chosen design combines #1 + #4)
 
 `de_state` works, but the cart-author surface is a bit cryptic for beginners:
 

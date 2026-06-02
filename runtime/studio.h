@@ -406,7 +406,7 @@ void save_int(const char *key, int value);   // like save() but keyed by name �
 int  load_int(const char *key, int def);     // read a named value back — returns `def` if that key was never saved
 void save_bytes(const void *data, int len);  // save a whole block of bytes (a struct/array) — for big state the 64 int slots can't hold
 int  load_bytes(void *out, int max);          // read it back into `out` (up to max bytes); returns bytes read, 0 if never saved
-void *de_state(int bytes);                    // a zero-filled, engine-owned block of `bytes` bytes — keep your whole cart's state in it. Unlike a plain global it survives a live code-reload. Grab it once: typedef struct { ... } State; then #define ST ((State*)de_state(sizeof(State)))
+void *de_state(int bytes);                    // a zero-filled, engine-owned block of `bytes` bytes — keep your whole cart's state in it. Unlike a plain global it survives a live code-reload. The starter cart wraps this as STATE { ... }; (declare once) + S->field (use), so you rarely call it directly.
 
 // ------------------------------------------------------------
 // noise — smooth random values (0..1). nearby inputs → similar outputs.

@@ -44,6 +44,12 @@ static int   state;                // 0 play, 1 dead, 2 level-clear, 3 win
 static float state_t;
 static int   best_gold;
 
+// ---- debug overlay (toggle with D) ----------------------------------------
+static bool  dbg_on;
+static int   dbg_cx, dbg_cy, dbg_ax_mod, dbg_ay_mod;
+static bool  dbg_aligned_x, dbg_aligned_y, dbg_on_ladder, dbg_support;
+static int   dbg_wantx, dbg_wanty, dbg_mode; // mode: 0=fall 1=up 2=down 3=run 4=idle
+
 // ---- levels (string layouts) ----------------------------------------------
 // chars: ' '=empty  #=brick  =stone(=)  H=ladder  -=rope  $=gold
 //        P=player start  G=guard start  X=exit-ladder cell
@@ -156,9 +162,8 @@ void init() {
     load_level(level);
 }
 
-// snap helper: nearest cell index from a pixel coord
-static int colof(float x) { return (int)((x + CELL/2) / CELL); }
-static int rowof(float y) { return (int)((y + CELL/2) / CELL); }
+static int colof(float x) { return (int)(x / CELL); }
+static int rowof(float y) { return (int)(y / CELL); }
 
 // ---- movement for an actor (shared by player & guard) ----------------------
 // returns via pointers. mode-of-movement is driven by intent flags.
@@ -166,22 +171,46 @@ static int rowof(float y) { return (int)((y + CELL/2) / CELL); }
 static void step_actor(float *ax, float *ay, int *adir,
                        int wantx, int wanty, float spd) {
     int cx = colof(*ax), cy = rowof(*ay);
-    bool aligned_x = ((int)(*ax) % CELL) == 0 || abs((int)(*ax) - cx*CELL) < 2;
-    bool aligned_y = ((int)(*ay) % CELL) == 0 || abs((int)(*ay) - cy*CELL) < 2;
+    int cxr = colof(*ax + CELL - 1); // right-edge column
+    int cxs = colof(*ax + CELL/2);   // center column for ladder/rope detection
+    int ax_mod = (int)(*ax) % CELL;
+    int ay_mod = (int)(*ay) % CELL;
+    bool aligned_x = ax_mod < 4 || ax_mod > CELL-4;
+    bool aligned_y = ay_mod < 2 || ay_mod > CELL-2;
 
     float d = spd * dt();
 
-    bool on_ladder = is_ladder(cx, cy);
-    bool on_rope   = is_rope(cx, cy);
-    bool support   = solid_cell(cx, cy+1) || on_ladder ||
-                     is_ladder(cx, cy+1) || on_rope;
+    bool on_ladder = is_ladder(cxs, cy);
+    bool on_rope   = is_rope(cxs, cy);
+    // support: keep walking while any part of the body is over solid ground
+    bool support   = solid_cell(cx, cy+1) || solid_cell(cxr, cy+1) ||
+                     on_ladder || is_ladder(cxs, cy+1) || on_rope;
 
     // FALL when nothing supports us and we aren't climbing
     bool climbing_now = (wanty != 0) && (on_ladder ||
                         (wanty > 0 && is_ladder(cx, cy+1)));
+
+    if (dbg_on && spd == SPD) {
+        dbg_cx = cx; dbg_cy = cy;
+        dbg_ax_mod = (int)(*ax) % CELL; dbg_ay_mod = (int)(*ay) % CELL;
+        dbg_aligned_x = aligned_x; dbg_aligned_y = aligned_y;
+        dbg_on_ladder = on_ladder; dbg_support = support;
+        dbg_wantx = wantx; dbg_wanty = wanty;
+        dbg_mode = 4;
+    }
+
+#ifdef DE_TRACE
+    if (spd == SPD) {
+        watch("px", *ax); watch("py", *ay);
+        watch("cx", cx);  watch("cy", cy);
+        watch("ax_mod", (int)(*ax) % CELL); watch("ay_mod", (int)(*ay) % CELL);
+        watch("aligned_x", aligned_x); watch("aligned_y", aligned_y);
+        watch("on_ladder", on_ladder);  watch("support", support);
+        watch("wantx", wantx); watch("wanty", wanty);
+    }
+#endif
+
     if (!support && !climbing_now) {
-        // snap to column, fall straight down
-        *ax = (float)(cx * CELL);
         float ny = *ay + d;
         int below = rowof(ny);
         if (solid_cell(cx, below) && below*CELL <= ny) {
@@ -191,27 +220,49 @@ static void step_actor(float *ax, float *ay, int *adir,
         // also stop on a brick top one row down if we cross it
         if (solid_cell(cx, cy+1) && ny > cy*CELL) ny = (float)(cy*CELL);
         *ay = ny;
+        if (dbg_on && spd == SPD) dbg_mode = 0;
+#ifdef DE_TRACE
+        if (spd == SPD) watch("mode", 0);
+#endif
         return;
     }
 
     // VERTICAL intent (ladder climb)
     if (wanty < 0 && aligned_x) {                  // up
-        if (is_ladder(cx, cy) || is_ladder(cx, cy-1)) {
+        // also enter when we're one row above a ladder and haven't reached exit yet
+        bool above_ladder = is_ladder(cx, cy+1) && *ay > (float)(cy * CELL);
+        if (is_ladder(cx, cy) || is_ladder(cx, cy-1) || above_ladder) {
             *ax = (float)(cx*CELL);
             float ny = *ay - d;
-            if (!is_ladder(cx, rowof(ny)) && !is_ladder(cx, cy) ) ny = *ay;
+            // block climbing into a solid cell above
+            if (rowof(ny) < cy && !passable(cx, rowof(ny)))
+                ny = (float)(cy * CELL);
+            // in exit row: clamp so player stops at top of this cell, no snap
+            if (!is_ladder(cx, cy) && !is_ladder(cx, rowof(ny)) && ny < (float)(cy * CELL))
+                ny = (float)(cy * CELL);
             if (rowof(ny) < 0) ny = 0;
-            *ay = ny; return;
+            *ay = ny;
+            if (dbg_on && spd == SPD) dbg_mode = 1;
+#ifdef DE_TRACE
+            if (spd == SPD) watch("mode", 1);
+#endif
+            return;
         }
     }
     if (wanty > 0 && aligned_x) {                  // down
-        if (is_ladder(cx, cy+1) || is_ladder(cx, cy) ||
+        if (is_ladder(cx, cy+1) ||
+            (is_ladder(cx, cy) && !solid_cell(cx, cy+1)) ||
             (!solid_cell(cx, cy+1) && passable(cx, cy+1))) {
             *ax = (float)(cx*CELL);
             float ny = *ay + d;
             int below = rowof(ny);
             if (solid_cell(cx, below)) ny = (float)((below-1)*CELL);
-            *ay = ny; return;
+            *ay = ny;
+            if (dbg_on && spd == SPD) dbg_mode = 2;
+#ifdef DE_TRACE
+            if (spd == SPD) watch("mode", 2);
+#endif
+            return;
         }
     }
 
@@ -229,11 +280,19 @@ static void step_actor(float *ax, float *ay, int *adir,
             }
             if (nx < 0) nx = 0;
             if (nx > (COLS-1)*CELL) nx = (float)((COLS-1)*CELL);
-            *ax = nx; return;
+            *ax = nx;
+            if (dbg_on && spd == SPD) dbg_mode = 3;
+#ifdef DE_TRACE
+            if (spd == SPD) watch("mode", 3);
+#endif
+            return;
         } else {
             *ax = (float)(cx*CELL); // pressed into a wall: just snap & face
         }
     }
+#ifdef DE_TRACE
+    if (spd == SPD) watch("mode", 4);
+#endif
 }
 
 // ---- digging ---------------------------------------------------------------
@@ -343,6 +402,7 @@ void update() {
 
     if (btnp(0,BTN_A) || keyp('Z')) try_dig(-1);
     if (btnp(0,BTN_B) || keyp('X')) try_dig( 1);
+    if (keyp('D')) dbg_on = !dbg_on;
 
     step_actor(&px, &py, &pdir, wx, wy, SPD);
     check_gold();
@@ -355,6 +415,7 @@ void update() {
                 if (regrow[y][x] < 0) regrow[y][x] = 0;
             }
 
+#ifndef NO_GUARD
     guard_think();
 
     // death: guard touches player on open ground (not while pitted)
@@ -370,6 +431,7 @@ void update() {
             return;
         }
     }
+#endif // NO_GUARD
 
     // win: gold gone & player reached top exit cell
     if (gold_left == 0) {
@@ -443,7 +505,7 @@ void draw() {
     // HUD bar
     rectfill(0, 0, SCREEN_W, ORG_Y, CLR_DARKER_BLUE);
     print(str("LEVEL %d", level+1), 4, 4, CLR_LIGHT_PEACH);
-    print_centered(str("GOLD %d/%d", gold_total-gold_left, gold_total), 4, CLR_YELLOW);
+    print_centered(str("GOLD %d/%d", gold_total-gold_left, gold_total), SCREEN_W/2, 4, CLR_YELLOW);
     print_right(str("BEST %d", best_gold), SCREEN_W-4, 4, CLR_LIME_GREEN);
 
     camera(0, -ORG_Y);
@@ -479,6 +541,7 @@ void draw() {
             }
         }
 
+#ifndef NO_GUARD
     // guard
     if (grespawn <= 0) {
         draw_actor((int)gx, (int)gy, gdir, CLR_RED, CLR_DARK_ORANGE);
@@ -486,6 +549,7 @@ void draw() {
         // crushed flash at spawn point
         draw_actor((int)gstart_x, (int)gstart_y, -1, CLR_DARK_RED, CLR_RED);
     }
+#endif
 
     // player
     if (state != 1 || blink(3))
@@ -495,17 +559,33 @@ void draw() {
 
     // overlays
     if (state == 1) {
-        print_centered("CAUGHT!", SCREEN_H/2-6, CLR_RED);
-        print_centered("Z / R to retry", SCREEN_H/2+6, CLR_LIGHT_GREY);
+        print_centered("CAUGHT!", SCREEN_W/2, SCREEN_H/2-6, CLR_RED);
+        print_centered("Z / R to retry", SCREEN_W/2, SCREEN_H/2+6, CLR_LIGHT_GREY);
     } else if (state == 2) {
-        print_centered("LEVEL CLEAR", SCREEN_H/2-6, CLR_GREEN);
+        print_centered("LEVEL CLEAR", SCREEN_W/2, SCREEN_H/2-6, CLR_GREEN);
     } else if (state == 3) {
         rectfill(SCREEN_W/2-70, SCREEN_H/2-22, 140, 44, CLR_BLACK);
         rect    (SCREEN_W/2-70, SCREEN_H/2-22, 140, 44, CLR_YELLOW);
-        print_centered("YOU ESCAPED!", SCREEN_H/2-12, CLR_YELLOW);
-        print_centered(str("GOLD %d", gold_total), SCREEN_H/2, CLR_LIME_GREEN);
-        print_centered("Z to play again", SCREEN_H/2+12, CLR_LIGHT_GREY);
+        print_centered("YOU ESCAPED!", SCREEN_W/2, SCREEN_H/2-12, CLR_YELLOW);
+        print_centered(str("GOLD %d", gold_total), SCREEN_W/2, SCREEN_H/2, CLR_LIME_GREEN);
+        print_centered("Z to play again", SCREEN_W/2, SCREEN_H/2+12, CLR_LIGHT_GREY);
     } else if (gold_left == 0) {
-        if (blink(15)) print_centered("ESCAPE UP THE LADDER!", SCREEN_H-12, CLR_YELLOW);
+        if (blink(15)) print_centered("ESCAPE UP THE LADDER!", SCREEN_W/2, SCREEN_H-12, CLR_YELLOW);
+    }
+
+    if (dbg_on) {
+        static const char *mode_name[] = {"FALL","UP","DOWN","RUN","IDLE"};
+        int bx = 2, by = SCREEN_H - 52;
+        rectfill(bx-1, by-1, 120, 50, CLR_BLACK);
+        print(str("px=%d py=%d", (int)px, (int)py),       bx, by,    CLR_WHITE);
+        print(str("cx=%d cy=%d", dbg_cx, dbg_cy),         bx, by+8,  CLR_WHITE);
+        print(str("mod x=%d y=%d", dbg_ax_mod, dbg_ay_mod), bx, by+16, CLR_LIGHT_GREY);
+        print(str("alx=%d aly=%d ldr=%d sup=%d", dbg_aligned_x, dbg_aligned_y,
+                  dbg_on_ladder, dbg_support),             bx, by+24, CLR_LIGHT_GREY);
+        print(str("mode=%s wx=%d wy=%d", mode_name[dbg_mode], dbg_wantx, dbg_wanty),
+                                                           bx, by+34, CLR_LIME_GREEN);
+        print("[D]=dbg", bx, by+43, CLR_DARK_GREY);
+    } else {
+        print("[D]", SCREEN_W-20, SCREEN_H-8, CLR_DARK_GREY);
     }
 }

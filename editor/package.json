@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "electron": "electron .",
-    "start": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "postinstall": "node scripts/dev-branding.cjs",
+    "brand": "node scripts/dev-branding.cjs",
+    "start": "node scripts/dev-branding.cjs && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
     "preview": "vite preview"
   },

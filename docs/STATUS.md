@@ -168,6 +168,14 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     the ⏱ profiler for the budget (was ~46.7ms unclamped, ~2.7ms clamped at the defaults).
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
 15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
+16. **Packaging & public distribution** *(not started)* — dreamengine only runs as a dev
+    build today. A dev-only icon + app name stopgap landed this session (the running app was
+    a generic "Electron"); real packaging (bundler, `.icns`, code-signing/notarization, load
+    the built renderer instead of `localhost:5173`) is unaddressed. The actual blocker isn't
+    Electron — it's that the ▶ run model shells out to a developer's `clang` + Homebrew raylib,
+    which a consumer machine doesn't have; web/wasm is the likely public path. Full breakdown:
+    [`design/packaging-distribution.md`](design/packaging-distribution.md). Related: browser
+    URL-sharing (item 10), iPad runtime (item 11).
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

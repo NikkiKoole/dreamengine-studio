@@ -1,9 +1,13 @@
-const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell, nativeImage } = require('electron')
 const { exec, execSync, spawn }        = require('child_process')
 const path                             = require('path')
 const fs                               = require('fs')
 const zlib                             = require('zlib')
 const http                             = require('http')
+
+// Internal app name (menu bar, userData path). The Cmd-Tab / Dock *label* in dev
+// comes from the Electron bundle's Info.plist, not this — see scripts/dev-branding.cjs.
+app.setName('dreamengine')
 
 // ── PNG cart helpers ──────────────────────────────────────────
 function crc32(buf) {
@@ -344,6 +348,12 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Dock/taskbar icon — the magic-pink run-button square (#ff6fb5).
+  // In dev (`electron .`) macOS otherwise shows the default Electron icon.
+  if (app.dock) {
+    const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'))
+    if (!icon.isEmpty()) app.dock.setIcon(icon)
+  }
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
     callback(permission === 'clipboard-read' || permission === 'clipboard-write' || permission === 'clipboard-sanitized-write')
   })

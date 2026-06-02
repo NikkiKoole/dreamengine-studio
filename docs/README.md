@@ -28,7 +28,8 @@ docs/
 │   ├── rasterization-consistency.md  OPEN: one consistent fill/outline/dither rule so shape edges always agree (seams, off-by-1, outline mismatch)
 │   ├── geometry-helpers.md  PROPOSAL: graphics taxonomy (which carts draw with circles/tris/dither/sprites/gradients) + 2D drawing primitives for the geometry-first style (ngon/star, poly/polyfill, gradient, rounded-rect, thick-line) ranked by cart boilerplate; also parks a thought on real palette color-lerp (lerp_color/rgb true-color) with the second-thoughts against it
 │   ├── headless-autoplay.md  growing the debug harness toward windowless fast runs + agents that play to find bugs (navkit-informed)
-│   └── profiler-extensions.md  PARKED: first-frame/init timing + region "zone" timers (extend the in-engine profiler; reuse perf.json)
+│   ├── profiler-extensions.md  PARKED: first-frame/init timing + region "zone" timers (extend the in-engine profiler; reuse perf.json)
+│   └── packaging-distribution.md  NOT STARTED: shipping to non-dev machines — the dev icon/name stopgap, what real packaging needs (bundler/signing/notarization), and the real blocker (the ▶ run model needs a compiler; web/wasm is the likely public path)
 ├── guides/            how-to
 │   ├── cart-authoring.md         the make-cart.js / tools/carts toolchain
 │   ├── cart-authoring-prompt.md  reusable AI prompt for designing a new cart

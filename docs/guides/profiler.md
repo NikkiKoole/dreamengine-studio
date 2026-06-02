@@ -99,6 +99,39 @@ because it's called a zillion times (`rectfill`) — the fix is different for ea
 
 ---
 
+## A worked example — catching an off-screen cost
+
+The `trifill stress` cart (in the carts gallery) is a pinwheel of a dozen thin
+software-filled triangles whose far vertices sit ~1100px *outside* the 320×200
+screen. Profile it and §1 is damning:
+
+```
+  CPU 46.7ms/frame typical · 48.6ms p95 · 281% of the 16.6ms budget · 21fps
+```
+
+§3 says `trifill ×12` — only twelve calls, yet 46ms. So each call is the problem
+(the §2 lens), not the count. §2 confirms it: nearly all the time is in
+`draw › trifill › poly_fill_cov › poly_inside` — the software rasterizer testing
+point-in-polygon over each triangle's bounding box. Twelve thin spokes shouldn't
+cost much *visible* area… but their boxes ran far off-screen, so `poly_fill_cov`
+was scanning millions of cells that plot nothing.
+
+The fix lived in the engine, not the cart: `poly_fill_cov` now clamps its scan to
+the on-screen region first ([rasterization-consistency.md](../design/rasterization-consistency.md)).
+Re-profile the same cart:
+
+```
+  CPU 2.7ms/frame typical · 3.8ms p95 · 16% of the 16.6ms budget · smooth 60fps
+```
+
+Same image, ~17× less CPU — and the profiler is how you both *found* the cost (§2
+pointing at `poly_inside`, not the count) and *proved* the win (§1 before/after).
+The cart now doubles as a regression guard: if the clamp ever breaks, its fps
+tanks again. (This is a worst case; most carts whose polys fit on screen see
+little — see the design note for the real-cart numbers.)
+
+---
+
 ## How it works
 
 The profile build differs from ▶ run in three ways:

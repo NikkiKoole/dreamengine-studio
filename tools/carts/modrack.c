@@ -169,9 +169,19 @@ void preset_keys(void) {         // play KEYS into a voice with an envelope-pluc
     add_cable(kb, 0, vo, 0); add_cable(kb, 1, vo, 1); add_cable(kb, 0, en, 0); add_cable(en, 1, vo, 2);
     add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
 }
-const char *PRESET_NAMES[] = { "Generative", "Acid bass", "Beats", "Keys synth" };
-void (*PRESET_FN[])(void) = { preset_generative, preset_acid, preset_beats, preset_keys };
-#define NPRESET 4
+void preset_pwmpad(void) {       // square voice with a slow LFO sweeping its pulse width (PWM)
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK, bayx(0), bayy(0)), lf = spawn(MOD_LFO, bayx(1), bayy(1));
+    int sh = spawn(MOD_SH, bayx(2), bayy(2)), qt = spawn(MOD_QUANT, bayx(3), bayy(3)), vo = spawn(MOD_VOICE, bayx(4), bayy(4));
+    mod[ck].param[0] = 90; mod[lf].param[0] = 0.25f; mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[vo].param[0] = 1100; mod[vo].param[1] = 3; mod[vo].param[2] = 0.5f; mod[vo].param[3] = 1;   // cut/res/pw + wav=square
+    add_cable(ck, 0, sh, 1); add_cable(ck, 0, vo, 0);
+    add_cable(lf, 0, sh, 0); add_cable(sh, 2, qt, 0); add_cable(qt, 1, vo, 1);
+    add_cable(lf, 0, vo, 4);     // LFO → 'w' = the PWM shimmer
+}
+const char *PRESET_NAMES[] = { "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad" };
+void (*PRESET_FN[])(void) = { preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad };
+#define NPRESET 5
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[4]; } SaveMod;

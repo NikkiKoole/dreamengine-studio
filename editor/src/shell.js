@@ -431,14 +431,58 @@ window.addEventListener('help-jump', (e) => {
 // ── tutorials panel ──────────────────────────────────────────
 const tutorialsPanel = document.getElementById('panel-tutorials')
 
+// Parse a cart PNG's zTXt chunks in the browser (no Electron needed).
+// PNG zTXt uses zlib (RFC 1950) compression — DecompressionStream('deflate') handles it.
+async function extractCartChunksBrowser(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const latin1 = new TextDecoder('latin1')
+  const utf8   = new TextDecoder('utf-8')
+  const result = {}
+  let offset = 8
+  while (offset + 12 <= bytes.length) {
+    const len  = view.getUint32(offset, false)
+    const type = latin1.decode(bytes.subarray(offset + 4, offset + 8))
+    const data = bytes.subarray(offset + 8, offset + 8 + len)
+    if (type === 'zTXt') {
+      const nullIdx = data.indexOf(0)
+      if (nullIdx !== -1) {
+        const key = latin1.decode(data.subarray(0, nullIdx))
+        if (key.startsWith('de:')) {
+          try {
+            const compressed = data.subarray(nullIdx + 2)
+            const ds = new DecompressionStream('deflate')
+            const writer = ds.writable.getWriter()
+            const reader = ds.readable.getReader()
+            writer.write(compressed); writer.close()
+            const chunks = []
+            for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value) }
+            const out = new Uint8Array(chunks.reduce((s, c) => s + c.length, 0))
+            let pos = 0; for (const c of chunks) { out.set(c, pos); pos += c.length }
+            result[key.slice(3)] = utf8.decode(out)
+          } catch {}
+        }
+      }
+    }
+    offset += 12 + len
+    if (type === 'IEND') break
+  }
+  return result
+}
+
 async function loadCartFromUrl(url) {
   const res = await fetch(url)
-  const buf = await res.arrayBuffer()
-  const cart = await window.studio.loadCartBuffer(new Uint8Array(buf))
-  if (cart && cart.ok) {
-    applyCart(cart)
-    switchTab('code')
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  let cart
+  if (window.studio) {
+    cart = await window.studio.loadCartBuffer(bytes)
+  } else {
+    const chunks = await extractCartChunksBrowser(bytes)
+    if (!chunks.source) return
+    let settings = null
+    try { settings = chunks.settings ? JSON.parse(chunks.settings) : null } catch {}
+    cart = { ok: true, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings }
   }
+  if (cart && cart.ok) { applyCart(cart); switchTab('code') }
 }
 
 // fuzzy subsequence match: 0 = no match, higher = better. rewards contiguous
@@ -578,12 +622,7 @@ async function buildTutorialsPanel() {
     card.appendChild(img)
     card.appendChild(info)
 
-    if (window.studio) {
-      card.addEventListener('click', () => { currentCartName = title; loadCartFromUrl(url) })
-    } else {
-      card.classList.add('tutorial-card-disabled')
-      card.title = 'run requires the desktop app'
-    }
+    card.addEventListener('click', () => { currentCartName = title; loadCartFromUrl(url) })
 
     grid.appendChild(card)
     return { card, titleEl, descEl, idx, title: title || '', desc: description || '', name: String(file).replace(/\.cart\.png$/i, '') }

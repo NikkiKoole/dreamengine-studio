@@ -985,6 +985,10 @@ mark.docs-find-hit.current {
   font-size: 11px;
   color: var(--fg-dim);
   line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .tutorials-empty {

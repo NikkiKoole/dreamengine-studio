@@ -94,7 +94,9 @@ EUCLID · **ENV** · **DRUM** (big 6×7) + tiny utilities **SLEW** (3×5, smooth
 + **SCOPE** (6×4, draws a cv as a moving trace) and **KEYS** (6×5, playable gate+pitch via
 on-screen or computer keys). Each **VOICE** instance now uses its own timbre slot (saw /
 square / tri-pad / sine-pad, by order) so several voices layer as lead + pads. The palette
-scrolls (wheel over the sidebar); the wheel zooms only over the canvas, toward the cursor. Each `ModType` carries its
+scrolls (wheel over the sidebar); the wheel zooms only over the canvas, toward the cursor.
+A **PRESETS dropdown** (top bar) loads ready-made patches — Generative, Acid bass, Beats,
+Keys synth — each a small builder function that spawns its modules and wires their cables. Each `ModType` carries its
 size in 12px cells (`cw×ch`); the smallest are 3×5, and a 1×1 (12×12) is possible for a
 bare jack/button. The generative-melody chain (CLOCK→S&H←LFO→QUANT→VOICE) plus a beat:
 EUCLID is now a *pure gate source* (no built-in sound) that drives the **DRUM** module (kick/snare/hat trigger

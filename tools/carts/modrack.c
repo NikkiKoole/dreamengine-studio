@@ -110,7 +110,7 @@ float cam_x = -28, cam_y = -2, zoom = 0.82f;     // pannable/zoomable view of th
 int   wmx = 0, wmy = 0;                           // mouse in world space (valid while the stage camera is active)
 int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1, help_type = -1;
 int   drag_mod = -1, grab_dx = 0, grab_dy = 0;    // module being dragged around the canvas
-int   palette_scroll = 0;                          // sidebar scroll offset (px)
+int   palette_scroll = 0, preset_open = 0;         // sidebar scroll offset (px); presets dropdown open?
 
 int  spawn(int type, int x, int y) {
     Module *m = &mod[nmod];
@@ -136,6 +136,42 @@ void wire_default(void) {
     add_cable(5, 1, 7, 0); add_cable(0, 0, 7, 2); add_cable(0, 2, 7, 1);   // EUCLID → DRUM k, CLOCK/1 → hat, CLOCK/4 → snare
     add_cable(0, 0, 6, 0);                                                  // CLOCK/1 → ENV g
 }
+
+// ── preset patches (the top "PRESETS" dropdown) ──
+void preset_generative(void) {   // the default: in-key melody over a euclidean beat
+    note_off_all(); nmod = 0; palette_scroll = 0;
+    for (int i = 0; i < 8; i++) spawn(i, bayx(i), bayy(i));
+    wire_default();
+}
+void preset_acid(void) {         // euclid-gated squelch bass, slewed pitch + LFO wah
+    note_off_all(); nmod = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK, bayx(0), bayy(0)), eu = spawn(MOD_EUCLID, bayx(1), bayy(1));
+    int lf = spawn(MOD_LFO, bayx(2), bayy(2)), sh = spawn(MOD_SH, bayx(3), bayy(3));
+    int sl = spawn(MOD_SLEW, bayx(4), bayy(4)), qt = spawn(MOD_QUANT, bayx(5), bayy(5)), vo = spawn(MOD_VOICE, bayx(6), bayy(6));
+    mod[vo].param[0] = 420; mod[qt].param[0] = SCALE_PENTA_MIN;
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, vo, 0);
+    add_cable(ck, 0, sh, 1); add_cable(lf, 0, sh, 0);
+    add_cable(sh, 2, sl, 0); add_cable(sl, 1, qt, 0); add_cable(qt, 1, vo, 1);
+    add_cable(lf, 0, vo, 2);
+}
+void preset_beats(void) {        // two euclidean rhythms → a drum kit
+    note_off_all(); nmod = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK, bayx(0), bayy(0)), e1 = spawn(MOD_EUCLID, bayx(1), bayy(1));
+    int e2 = spawn(MOD_EUCLID, bayx(2), bayy(2)), dr = spawn(MOD_DRUM, bayx(3), bayy(3));
+    mod[e1].param[0] = 4; mod[e1].param[1] = 8; mod[e2].param[0] = 3; mod[e2].param[1] = 8;
+    add_cable(ck, 0, e1, 0); add_cable(ck, 0, e2, 0);
+    add_cable(e1, 1, dr, 0); add_cable(e2, 1, dr, 1); add_cable(ck, 0, dr, 2);
+}
+void preset_keys(void) {         // play KEYS into a voice with an envelope-plucked filter, over a beat
+    note_off_all(); nmod = 0; palette_scroll = 0;
+    int kb = spawn(MOD_KEYS, bayx(0), bayy(0)), en = spawn(MOD_ENV, bayx(1), bayy(1)), vo = spawn(MOD_VOICE, bayx(2), bayy(2));
+    int ck = spawn(MOD_CLOCK, bayx(4), bayy(4)), eu = spawn(MOD_EUCLID, bayx(5), bayy(5)), dr = spawn(MOD_DRUM, bayx(6), bayy(6));
+    add_cable(kb, 0, vo, 0); add_cable(kb, 1, vo, 1); add_cable(kb, 0, en, 0); add_cable(en, 1, vo, 2);
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
+}
+const char *PRESET_NAMES[] = { "Generative", "Acid bass", "Beats", "Keys synth" };
+void (*PRESET_FN[])(void) = { preset_generative, preset_acid, preset_beats, preset_keys };
+#define NPRESET 4
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[2]; } SaveMod;
@@ -166,8 +202,7 @@ void init(void) {
     instrument(6, INSTR_SQUARE, 4, 90, 3, 240);  instrument_filter(6, FILTER_LOW, 800, 9);  instrument_duty(6, 0.3f);
     instrument(7, INSTR_TRI, 8, 150, 4, 320);    instrument_filter(7, FILTER_LOW, 1200, 6);
     instrument(8, INSTR_SINE, 40, 200, 5, 420);  instrument_filter(8, FILTER_LOW, 1500, 4);
-    for (int i = 0; i < 8; i++) spawn(i, bayx(i), bayy(i));   // types 0..7 in grid order
-    wire_default();
+    preset_generative();
 }
 
 void eval_mod(int mi) {
@@ -273,7 +308,7 @@ void eval_mod(int mi) {
 void update(void) {
     if (keyp('S')) save_patch();
     if (keyp('L')) load_patch();
-    if (keyp('R')) { note_off_all(); nmod = 0; for (int i = 0; i < 8; i++) spawn(i, bayx(i), bayy(i)); wire_default(); }
+    if (keyp('R')) preset_generative();
     if (msg_flash > 0) msg_flash--;
 
     int step8 = beat() * 2 + (int)(beat_pos() * 2.0f);
@@ -360,7 +395,7 @@ void meter(int x, int y, int w, int h, float v, int col) {
 }
 
 float knob_dial(int id, int cx, int cy, float v, float lo, float hi, const char *name, const char *val) {
-    if (palette_drag < 0 && !panning && help_type < 0 && drag_mod < 0 && mouse_pressed(MOUSE_LEFT) && distance(wmx, wmy, cx, cy) < 7) { held_knob = id; drag_y = wmy; }
+    if (palette_drag < 0 && !panning && help_type < 0 && drag_mod < 0 && !preset_open && mouse_pressed(MOUSE_LEFT) && distance(wmx, wmy, cx, cy) < 7) { held_knob = id; drag_y = wmy; }
     if (held_knob == id && mouse_down(MOUSE_LEFT)) { v = clamp(v + (drag_y - wmy) * (hi - lo) / 120.0f, lo, hi); drag_y = wmy; }
     bool hot = held_knob == id || distance(wmx, wmy, cx, cy) < 7;
     circfill(cx, cy, 5, CLR_DARKER_GREY);
@@ -511,7 +546,7 @@ void draw(void) {
 
     if (help_type >= 0) {
         if (mouse_pressed(MOUSE_LEFT)) help_type = -1;          // any click dismisses the help panel
-    } else if (!over_side && palette_drag < 0 && !panning && drag_mod < 0 && mouse_pressed(MOUSE_LEFT)) {
+    } else if (!over_side && !preset_open && mouse_y() >= 14 && palette_drag < 0 && !panning && drag_mod < 0 && mouse_pressed(MOUSE_LEFT)) {
         int q = qmark_at(wmx, wmy), dm = delx_at(wmx, wmy);
         if (q >= 0) help_type = mod[q].type;
         else if (dm >= 0) delete_mod(dm);
@@ -525,7 +560,7 @@ void draw(void) {
         if (mouse_down(MOUSE_LEFT)) { mod[drag_mod].x = snap12(wmx - grab_dx); mod[drag_mod].y = snap12(wmy - grab_dy); }
         else drag_mod = -1;
     }
-    if (help_type < 0 && !over_side && palette_drag < 0 && !panning && drag_mod < 0) edit_cables(wmx, wmy);
+    if (help_type < 0 && !preset_open && !over_side && palette_drag < 0 && !panning && drag_mod < 0) edit_cables(wmx, wmy);
 
     font(FONT_SMALL);   // module labels (titles, ? / x, jacks, knobs) use the small font
 
@@ -570,7 +605,7 @@ void draw(void) {
         rectfill(3, by, SIDEBAR_W - 6, 14, CLR_DARKER_PURPLE);
         rect(3, by, SIDEBAR_W - 6, 14, hot ? CLR_WHITE : TYPES[t].col);
         print(TYPES[t].name, 6, by + 4, TYPES[t].col);
-        if (hot && mouse_pressed(MOUSE_LEFT) && palette_drag < 0 && nmod < MAX_MOD && help_type < 0) palette_drag = t;
+        if (hot && mouse_pressed(MOUSE_LEFT) && palette_drag < 0 && nmod < MAX_MOD && help_type < 0 && !preset_open) palette_drag = t;
     }
     if (mouse_released(MOUSE_LEFT) && palette_drag >= 0) {
         if (mouse_x() >= SIDEBAR_W && nmod < MAX_MOD) spawn(palette_drag, wmx - tw(palette_drag) / 2, wmy - th(palette_drag) / 2);
@@ -580,14 +615,34 @@ void draw(void) {
     font(FONT_NORMAL);
     print("MODRACK", SIDEBAR_W + 4, 3, CLR_WHITE);
     font(FONT_SMALL);
-    print(msg_flash > 0 ? msg : "drag from ADD to patch   wheel zoom   drag pan", SIDEBAR_W + 64, 5, msg_flash > 0 ? CLR_LIGHT_PEACH : CLR_INDIGO);
+
+    // PRESETS dropdown — pick a ready-made patch
+    int pbx = SIDEBAR_W + 64, pbw = 56;
+    bool pbh = mouse_x() >= pbx && mouse_x() < pbx + pbw && mouse_y() < 13;
+    rectfill(pbx, 2, pbw, 11, pbh || preset_open ? CLR_BLUE : CLR_DARKER_PURPLE);
+    rect(pbx, 2, pbw, 11, CLR_LIGHT_GREY);
+    print("PRESETS", pbx + 5, 4, CLR_WHITE);
+    if (pbh && mouse_pressed(MOUSE_LEFT)) preset_open = !preset_open;
+    if (preset_open) {
+        for (int i = 0; i < NPRESET; i++) {
+            int iy = 14 + i * 12;
+            bool ih = mouse_x() >= pbx && mouse_x() < pbx + pbw && mouse_y() >= iy && mouse_y() < iy + 12;
+            rectfill(pbx, iy, pbw, 12, ih ? CLR_DARK_GREY : CLR_BLACK);
+            rect(pbx, iy, pbw, 12, CLR_DARKER_GREY);
+            print(PRESET_NAMES[i], pbx + 4, iy + 4, CLR_LIGHT_GREY);
+            if (ih && mouse_pressed(MOUSE_LEFT)) { PRESET_FN[i](); preset_open = 0; }
+        }
+        bool inside = mouse_x() >= pbx && mouse_x() < pbx + pbw && mouse_y() < 14 + NPRESET * 12;
+        if (mouse_pressed(MOUSE_LEFT) && !inside) preset_open = 0;   // click away to close
+    }
+    if (msg_flash > 0) print(msg, pbx + pbw + 8, 5, CLR_LIGHT_PEACH);
 
     // 1:1 zoom-reset button (top-right)
     int zbx = SCREEN_W - 30; bool zbh = mouse_x() >= zbx && mouse_y() < 14;
     rectfill(zbx, 2, 28, 11, zbh ? CLR_BLUE : CLR_DARKER_PURPLE);
     rect(zbx, 2, 28, 11, CLR_LIGHT_GREY);
     print("1:1", zbx + 7, 4, CLR_WHITE);
-    if (zbh && mouse_pressed(MOUSE_LEFT) && help_type < 0) { zoom = 1.0f; cam_x = -32; cam_y = -2; }
+    if (zbh && mouse_pressed(MOUSE_LEFT) && help_type < 0 && !preset_open) { zoom = 1.0f; cam_x = -32; cam_y = -2; }
     print("patch: out->in   rclick clears   ? help   x del   S/L/R", SIDEBAR_W + 4, 192, CLR_DARKER_GREY);
 
     if (help_type >= 0) {   // module help panel (modal; click to close)

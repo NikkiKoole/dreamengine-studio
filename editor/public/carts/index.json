@@ -938,5 +938,10 @@
     "title": "Physics playground",
     "description": "A tiny verlet physics world you can read end to end — the whole engine is three ideas: a point remembers where it was last frame (so velocity is just now-minus-last), a stick keeps two points a fixed distance apart, and each frame you move every point then relax the sticks a few times. From those two primitives the cart builds a whole showcase: a dangling chain, a draping cloth sheet, a wobbly soft-body blob (a ring of points around a hub), pseudo-solid boxes and a triangle that stack and tumble, and bouncy balls — all colliding as circles and against each other's edges. Left/Right change the substep count live (more substeps = fast/heavy things stop tunnelling through thin surfaces). Drag any point to grab and throw it; Z drops a ball, X drops a box, R resets.",
     "file": "physics.cart.png"
+  },
+  {
+    "title": "dino run",
+    "description": "Chrome-offline-dino homage. You auto-run to the right — jump over cacti and duck under pterodactyls before they clip you. Speed climbs the longer you last, gaps between obstacles shrink, and birds only start appearing once you hit 300. Z / Up to jump; Down to duck. Score and best run saved.",
+    "file": "dinorun.cart.png"
   }
 ]

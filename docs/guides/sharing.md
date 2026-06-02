@@ -64,6 +64,21 @@ Open questions:
 More setup, better for permanent hosting of a known collection of carts.
 Not a great fit for one-click sharing of individual user carts.
 
+### Your own domain (still no backend)
+Wanting `yourgame.com` does **not** mean running a server — a domain is just a *name*
+pointing at static files. Buy a domain (~$12/yr from any registrar) and attach it to a
+free static host that supports custom domains (Cloudflare Pages / GitHub Pages / Netlify):
+- `yourname.com/zoo` plays a cart; `yourname.com` can be a little gallery / landing page.
+- One-time DNS setup, then forget it. A future "Publish" button just pushes the built
+  files to *your* host instead of a random `*.surge.sh` — same mechanism, different
+  destination.
+- Shape/cost: **`$12/yr domain + free static host + no server`**. Branding/identity, not
+  infrastructure.
+
+The only thing that would need a real backend is letting *other people* upload and browse
+each other's carts (the *splore* / community gallery) — a separate project; see
+"Self-hosted dreamengine server" below. Your own games at your own URL stay no-backend.
+
 ### Self-hosted dreamengine server
 Full control — users upload to dreamengine.io (or similar), get a short URL,
 can browse others' carts. The "PICO-8 splore" equivalent.

@@ -31,33 +31,44 @@ const char *NOTES[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" }
 const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 
 // ── module type registry ──
-enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM, NTYPE };
-enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS };
+enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
+       MOD_SLEW, MOD_ATTN, MOD_LOGIC, NTYPE };
+enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
 typedef struct {
-    const char *name; int col;
+    const char *name; int col, cw, ch;   // size in 12px cells
     int njack; JackDef jack[4];
     int nknob; KnobDef knob[2];
 } ModType;
 
 ModType TYPES[NTYPE] = {
-    [MOD_CLOCK] = { "CLOCK", CLR_ORANGE, 3, {{0,true,16,72,"1"},{0,true,36,72,"2"},{0,true,56,72,"4"}},
+    // ── big modules (6x7 cells = 72x84) ──
+    [MOD_CLOCK] = { "CLOCK", CLR_ORANGE, 6, 7, 3, {{0,true,16,72,"1"},{0,true,36,72,"2"},{0,true,56,72,"4"}},
                    1, {{"bpm",60,240,112,40,34,FMT_INT}} },
-    [MOD_LFO]   = { "LFO", CLR_PINK, 1, {{2,true,36,72,"cv"}},
+    [MOD_LFO]   = { "LFO", CLR_PINK, 6, 7, 1, {{2,true,36,72,"cv"}},
                    1, {{"rate",0.1f,8,0.37f,24,36,FMT_F1}} },
-    [MOD_SH]    = { "S&H", CLR_YELLOW, 3, {{2,false,24,16,"in"},{0,false,48,16,"clk"},{2,true,36,72,"cv"}}, 0, {} },
-    [MOD_QUANT] = { "QUANT", CLR_GREEN, 2, {{2,false,36,16,"in"},{1,true,36,72,"pit"}},
+    [MOD_SH]    = { "S&H", CLR_YELLOW, 6, 7, 3, {{2,false,24,16,"in"},{0,false,48,16,"clk"},{2,true,36,72,"cv"}}, 0, {} },
+    [MOD_QUANT] = { "QUANT", CLR_GREEN, 6, 7, 2, {{2,false,36,16,"in"},{1,true,36,72,"pit"}},
                    2, {{"scl",0,5.99f,SCALE_PENTA,22,40,FMT_SCALE},{"root",0,11.99f,0,50,40,FMT_NOTE}} },
-    [MOD_VOICE] = { "VOICE", CLR_BLUE, 3, {{0,false,18,16,"g"},{1,false,36,16,"p"},{2,false,54,16,"f"}},
+    [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 7, 3, {{0,false,18,16,"g"},{1,false,36,16,"p"},{2,false,54,16,"f"}},
                    1, {{"cut",200,2200,700,24,44,FMT_INT}} },
-    [MOD_EUCLID]= { "EUCLID", CLR_RED, 2, {{0,false,36,16,"clk"},{0,true,36,72,"g"}},
+    [MOD_EUCLID]= { "EUCLID", CLR_RED, 6, 7, 2, {{0,false,36,16,"clk"},{0,true,36,72,"g"}},
                    2, {{"h",1,8.99f,4,22,40,FMT_INT},{"s",2,16.99f,8,50,40,FMT_INT}} },
-    [MOD_ENV]   = { "ENV", CLR_MEDIUM_GREEN, 2, {{0,false,36,16,"g"},{2,true,36,72,"cv"}},
+    [MOD_ENV]   = { "ENV", CLR_MEDIUM_GREEN, 6, 7, 2, {{0,false,36,16,"g"},{2,true,36,72,"cv"}},
                    2, {{"atk",0.005f,0.5f,0.01f,26,40,FMT_MS},{"dec",0.02f,1,0.25f,52,40,FMT_MS}} },
-    [MOD_DRUM]  = { "DRUM", CLR_DARK_ORANGE, 3, {{0,false,18,16,"k"},{0,false,36,16,"s"},{0,false,54,16,"h"}}, 0, {} },
+    [MOD_DRUM]  = { "DRUM", CLR_DARK_ORANGE, 6, 7, 3, {{0,false,18,16,"k"},{0,false,36,16,"s"},{0,false,54,16,"h"}}, 0, {} },
+    // ── tiny utilities (3x5 = 36x60, LOGIC 4x5 = 48x60) ──
+    [MOD_SLEW]  = { "SLEW", CLR_INDIGO, 3, 5, 2, {{2,false,18,12,"in"},{2,true,18,52,"out"}},
+                   1, {{"ms",1,500,80,18,32,FMT_INT}} },
+    [MOD_ATTN]  = { "ATTN", CLR_MAUVE, 3, 5, 2, {{2,false,18,12,"in"},{2,true,18,52,"out"}},
+                   1, {{"amt",0,1,1,18,32,FMT_F1}} },
+    [MOD_LOGIC] = { "LOGIC", CLR_LIGHT_YELLOW, 4, 5, 3, {{0,false,14,14,"a"},{0,false,34,14,"b"},{0,true,24,52,"o"}},
+                   1, {{"mod",0,2.99f,0,24,34,FMT_LOGIC}} },
 };
+int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
+int th(int type) { return TYPES[type].ch * CELL; }
 
 // ── module instances + cables ──
 typedef struct { int type, x, y; float param[2], state[6], jackval[4]; } Module;
@@ -201,6 +212,18 @@ void eval_mod(int mi) {
             if (s > 0.5f && m->state[1] <= 0.5f) { hit(58, INSTR_NOISE, 5, 90); m->state[4] = 0; } m->state[1] = s; m->state[4] += 1;
             if (h > 0.5f && m->state[2] <= 0.5f) { hit(92, INSTR_NOISE, 3, 22); m->state[5] = 0; } m->state[2] = h; m->state[5] += 1;
             break; }
+        case MOD_SLEW: {   // smooth a CV toward its input → glide / lag
+            float k = clamp(16.67f / m->param[0], 0.02f, 1.0f);
+            m->state[0] += (read_in(mi, 0) - m->state[0]) * k;
+            m->jackval[1] = m->state[0];
+            break; }
+        case MOD_ATTN:     // scale a CV (depth)
+            m->jackval[1] = clamp(read_in(mi, 0) * m->param[0], 0, 1);
+            break;
+        case MOD_LOGIC: {  // combine two gates
+            bool a = read_in(mi, 0) > 0.5f, b = read_in(mi, 1) > 0.5f; int md = (int)m->param[0];
+            m->jackval[2] = (md == 0 ? (a && b) : md == 1 ? (a || b) : (a != b)) ? 1 : 0;
+            break; }
     }
 }
 
@@ -235,6 +258,7 @@ int near_col(int x, int y) {
 }
 
 const char *knob_str(int fmt, float v) {
+    if (fmt == FMT_LOGIC) { const char *L[3] = { "AND", "OR", "XOR" }; return L[(int)v]; }
     if (fmt == FMT_SCALE) return SCALES[(int)v];
     if (fmt == FMT_NOTE)  return NOTES[(int)v];
     if (fmt == FMT_F1)    return str("%.1f", v);
@@ -257,7 +281,7 @@ int knob_at(int mx, int my) {   // any knob under (mx,my)? (used to keep panning
 }
 int delx_at(int mx, int my) {   // the ✕ delete corner of a module
     for (int mi = 0; mi < nmod; mi++)
-        if (distance(mx, my, mod[mi].x + GW - 6, mod[mi].y + 4) < 5) return mi;
+        if (distance(mx, my, mod[mi].x + tw(mod[mi].type) - 6, mod[mi].y + 4) < 5) return mi;
     return -1;
 }
 void delete_mod(int mi) {
@@ -318,11 +342,11 @@ void draw_extras(int mi) {
 void draw_module(int mi) {
     Module *m = &mod[mi];
     ModType *t = &TYPES[m->type];
-    int x = m->x, y = m->y;
-    rectfill(x, y, GW, GH, CLR_DARKER_PURPLE);
-    rect(x, y, GW, GH, t->col);
+    int x = m->x, y = m->y, W = t->cw * CELL, H = t->ch * CELL;
+    rectfill(x, y, W, H, CLR_DARKER_PURPLE);
+    rect(x, y, W, H, t->col);
     print(t->name, x + 3, y + 2, t->col);
-    print("x", x + GW - 8, y + 2, distance(wmx, wmy, x + GW - 6, y + 4) < 5 ? CLR_RED : CLR_DARK_GREY);
+    print("x", x + W - 8, y + 2, distance(wmx, wmy, x + W - 6, y + 4) < 5 ? CLR_RED : CLR_DARK_GREY);
 
     draw_extras(mi);
 
@@ -421,8 +445,9 @@ void draw(void) {
                     circ(jackpos_x(mi, j), jackpos_y(mi, j), 5, CLR_WHITE);
     }
     if (palette_drag >= 0) {   // ghost snaps to the cell grid where it'll land
-        int gx = snap12(wmx - GW / 2), gy = snap12(wmy - GH / 2);
-        rect(gx, gy, GW, GH, TYPES[palette_drag].col);
+        int W = tw(palette_drag), H = th(palette_drag);
+        int gx = snap12(wmx - W / 2), gy = snap12(wmy - H / 2);
+        rect(gx, gy, W, H, TYPES[palette_drag].col);
         print(TYPES[palette_drag].name, gx + 3, gy + 2, TYPES[palette_drag].col);
     }
 
@@ -432,15 +457,15 @@ void draw(void) {
     font(FONT_SMALL);
     print("ADD", 8, 4, CLR_MEDIUM_GREY);
     for (int t = 0; t < NTYPE; t++) {
-        int by = 14 + t * 22;
-        bool hot = mouse_x() < SIDEBAR_W && mouse_y() >= by && mouse_y() < by + 20;
-        rectfill(3, by, SIDEBAR_W - 6, 20, CLR_DARKER_PURPLE);
-        rect(3, by, SIDEBAR_W - 6, 20, hot ? CLR_WHITE : TYPES[t].col);
-        print(TYPES[t].name, 6, by + 7, TYPES[t].col);
+        int by = 14 + t * 16;
+        bool hot = mouse_x() < SIDEBAR_W && mouse_y() >= by && mouse_y() < by + 15;
+        rectfill(3, by, SIDEBAR_W - 6, 14, CLR_DARKER_PURPLE);
+        rect(3, by, SIDEBAR_W - 6, 14, hot ? CLR_WHITE : TYPES[t].col);
+        print(TYPES[t].name, 6, by + 4, TYPES[t].col);
         if (hot && mouse_pressed(MOUSE_LEFT) && palette_drag < 0 && nmod < MAX_MOD) palette_drag = t;
     }
     if (mouse_released(MOUSE_LEFT) && palette_drag >= 0) {
-        if (mouse_x() >= SIDEBAR_W && nmod < MAX_MOD) spawn(palette_drag, wmx - GW / 2, wmy - GH / 2);
+        if (mouse_x() >= SIDEBAR_W && nmod < MAX_MOD) spawn(palette_drag, wmx - tw(palette_drag) / 2, wmy - th(palette_drag) / 2);
         palette_drag = -1;
     }
 

@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
 contextBridge.exposeInMainWorld('studio', {
   run:          (code, cfg) => ipcRenderer.invoke('studio:run', code, cfg),
+  liveWrite:    (code)      => ipcRenderer.invoke('studio:live-write', code),
   profile:      (code, cfg) => ipcRenderer.invoke('studio:profile', code, cfg),
   saveSprites:  (dataUrl) => ipcRenderer.invoke('studio:save-sprites', dataUrl),
   saveMap:      (bytes)   => ipcRenderer.invoke('studio:save-map', bytes),

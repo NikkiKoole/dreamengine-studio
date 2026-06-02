@@ -650,6 +650,16 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
   })
 })
 
+// LIVE auto-reload: while a live host is up, the editor calls this on a debounce as you
+// type. It just rewrites cart.c — the host's file-watch recompiles + hot-reloads it (a
+// bad edit keeps the last good cart running). No sprite re-export, no host rebuild.
+// No-op if no live host is running, so typing never launches anything on its own.
+ipcMain.handle('studio:live-write', (_event, code) => {
+  if (!liveProc || liveProc.killed) return { ok: false, idle: true }
+  try { fs.writeFileSync(CART_SRC, code); return { ok: true } }
+  catch (e) { return { ok: false, error: String(e) } }
+})
+
 // ── profile a cart ────────────────────────────────────────────
 // Compile a profiling build (-O1 -fno-inline, named symbols), launch it,
 // give it a moment to settle, then attach macOS `sample` for a few seconds —

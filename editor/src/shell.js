@@ -1,4 +1,4 @@
-import { view, setEditorTheme, setErrorLines } from './main.js'
+import { view, setEditorTheme, setErrorLines, onDocChange } from './main.js'
 import './sprite-editor.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
@@ -737,11 +737,25 @@ runBtn.addEventListener('click', async () => {
   await window.studio.saveMap(getMapBytes())
 
   const result = await window.studio.run(code, { ...settings, cartName: currentCartName })
+  liveHostRunning = !!(result && result.live)   // a live window is now open → enable auto-reload
 
   runBtn.textContent = '▶ run'
   runBtn.disabled = false
 
   showLog(result)
+})
+
+// ── live auto-reload ──────────────────────────────────────────
+// While a live (libtcc) window is open, rewrite cart.c on a debounce as the user types;
+// the host's file-watch hot-reloads it. No-op otherwise, so it costs nothing in native
+// mode or before the first ▶ run.
+let liveHostRunning = false
+let liveWriteTimer = null
+onDocChange(() => {
+  if (settings.backend !== 'live' || !liveHostRunning) return
+  if (typeof window.studio?.liveWrite !== 'function') return   // stale preload → needs npm start
+  clearTimeout(liveWriteTimer)
+  liveWriteTimer = setTimeout(() => window.studio.liveWrite(view.state.doc.toString()), 350)
 })
 
 // ── profile button (hidden unless enabled in settings) ─────────
@@ -1108,6 +1122,7 @@ function rlogExit(info) {
 if (window.studio?.onLog) {
   window.studio.onLog(rlogAppend)
   window.studio.onExit(rlogExit)
+  window.studio.onExit(() => { liveHostRunning = false })   // live window closed → stop auto-reload
 }
 
 // ── welcome cart ──────────────────────────────────────────────

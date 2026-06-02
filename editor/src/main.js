@@ -192,10 +192,16 @@ const startDoc = ``
 const themeCompartment = new Compartment()
 const initialThemeIsDay = localStorage.getItem('theme') === 'day'
 
+// live auto-reload hook: shell.js registers a (debounced) callback that fires on every
+// doc edit, so the live (libtcc) backend can rewrite cart.c and hot-reload as you type.
+let docChangeHook = null
+export function onDocChange(cb) { docChangeHook = cb }
+
 const state = EditorState.create({
   doc: startDoc,
   extensions: [
     history(),
+    EditorView.updateListener.of(u => { if (u.docChanged && docChangeHook) docChangeHook() }),
     keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...foldKeymap, ...completionKeymap, ...closeBracketsKeymap, ...searchKeymap]),
     lineNumbers(),
     foldGutter(),

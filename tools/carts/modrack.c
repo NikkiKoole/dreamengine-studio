@@ -312,6 +312,11 @@ int module_at(int mx, int my) {  // topmost module whose body contains (mx,my)
         if (mx >= mod[mi].x && mx < mod[mi].x + tw(mod[mi].type) && my >= mod[mi].y && my < mod[mi].y + th(mod[mi].type)) r = mi;
     return r;
 }
+int handle_at(int mx, int my) {  // the title-bar drag handle (top strip, minus the ?/x corner)
+    for (int mi = 0; mi < nmod; mi++)
+        if (mx >= mod[mi].x && mx < mod[mi].x + tw(mod[mi].type) - 18 && my >= mod[mi].y && my < mod[mi].y + 9) return mi;
+    return -1;
+}
 void delete_mod(int mi) {
     for (int c = ncable - 1; c >= 0; c--) if (cable[c].sm == mi || cable[c].dm == mi) remove_cable(c);
     for (int k = mi; k < nmod - 1; k++) mod[k] = mod[k + 1];
@@ -372,6 +377,8 @@ void draw_module(int mi) {
     ModType *t = &TYPES[m->type];
     int x = m->x, y = m->y, W = t->cw * CELL, H = t->ch * CELL;
     rectfill(x, y, W, H, CLR_DARKER_PURPLE);
+    bool hhot = drag_mod == mi || (wmx >= x && wmx < x + W - 18 && wmy >= y && wmy < y + 9);
+    rectfill(x, y, W, 9, hhot ? CLR_DARK_GREY : CLR_DARKER_GREY);   // title bar = drag handle (lights up on hover)
     rect(x, y, W, H, t->col);
     print(t->name, x + 3, y + 2, t->col);
     print("?", x + W - 16, y + 2, distance(wmx, wmy, x + W - 15, y + 4) < 5 ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
@@ -435,7 +442,13 @@ void draw(void) {
     if (panning && mouse_down(MOUSE_LEFT)) { cam_x -= (mouse_x() - pan_px) / zoom; cam_y -= (mouse_y() - pan_py) / zoom; }
     pan_px = mouse_x(); pan_py = mouse_y();
     if (!mouse_down(MOUSE_LEFT)) { panning = 0; held_knob = 0; }
-    float wh = mouse_wheel(); if (wh != 0) zoom = clamp(zoom * (1 + wh * 0.12f), 0.4f, 3.0f);
+    float wh = mouse_wheel();
+    if (wh != 0) {   // zoom toward the cursor: keep the world point under the mouse fixed
+        float z0 = zoom, z1 = clamp(zoom * (1 + wh * 0.12f), 0.4f, 3.0f);
+        cam_x += (mouse_x() - SCREEN_W / 2.0f) * (1.0f / z0 - 1.0f / z1);
+        cam_y += (mouse_y() - SCREEN_H / 2.0f) * (1.0f / z0 - 1.0f / z1);
+        zoom = z1;
+    }
     bool over_side = mouse_x() < SIDEBAR_W;
 
     cls(CLR_DARKER_BLUE);
@@ -451,9 +464,9 @@ void draw(void) {
         if (q >= 0) help_type = mod[q].type;
         else if (dm >= 0) delete_mod(dm);
         else if (jack_at(wmx, wmy) < 0 && knob_at(wmx, wmy) < 0) {
-            int bm = module_at(wmx, wmy);                       // grab a module body to move it
-            if (bm >= 0) { drag_mod = bm; grab_dx = wmx - mod[bm].x; grab_dy = wmy - mod[bm].y; }
-            else { panning = 1; pan_px = mouse_x(); pan_py = mouse_y(); }   // else pan the canvas
+            int hm = handle_at(wmx, wmy);                       // grab the title-bar handle to move
+            if (hm >= 0) { drag_mod = hm; grab_dx = wmx - mod[hm].x; grab_dy = wmy - mod[hm].y; }
+            else if (module_at(wmx, wmy) < 0) { panning = 1; pan_px = mouse_x(); pan_py = mouse_y(); }  // empty canvas → pan
         }
     }
     if (drag_mod >= 0) {   // move the grabbed module (snaps to the cell grid; its cables follow)

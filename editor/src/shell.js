@@ -816,7 +816,10 @@ function showLog(result) {
   }
 }
 
-// render profiler results (cart-code CPU hotspots) into the build log
+// render profiler results into the build log:
+//   C — frame budget (ms/frame vs the 60fps budget)
+//   A — hottest functions + the call paths that reach them (from sampling)
+//   D — draw calls per frame (exact, in-engine counts)
 function renderProfile(result) {
   if (!result.ok) {
     const err = document.createElement('div')
@@ -826,40 +829,53 @@ function renderProfile(result) {
     return
   }
 
-  const { hotspots, seconds } = result
-  const { total, cartSamples, leaves } = hotspots
+  const addLine = (text, cls = 'build-meta') => {
+    const el = document.createElement('div')
+    el.className = cls
+    el.textContent = text
+    buildLog.appendChild(el)
+  }
+
+  const { hotspots, perf, seconds } = result
 
   const head = document.createElement('div')
   head.className = 'build-ok'
-  head.textContent = `⏱ profiled ${seconds}s — hottest functions, and the calls that reach them`
+  head.textContent = `⏱ profiled ${seconds}s`
   buildLog.appendChild(head)
 
-  const wallPct = total ? Math.round((cartSamples / total) * 100) : 0
-  const meta = document.createElement('div')
-  meta.className = 'build-meta'
-  meta.textContent = `  ${cartSamples}/${total} samples in cart code (~${wallPct}% of wall time; rest = vsync / system)`
-  buildLog.appendChild(meta)
-
-  if (!leaves || !leaves.length) {
-    const none = document.createElement('div')
-    none.className = 'build-meta'
-    none.textContent = '  (no cart-code hotspots — the cart was mostly idle / waiting on vsync)'
-    buildLog.appendChild(none)
-    return
+  // ── C — frame budget ───────────────────────────────────────────
+  if (perf) {
+    const fps = Math.round(perf.fps)
+    const verdict = fps >= 58 ? 'smooth 60fps' : fps >= 50 ? `~${fps}fps` : `dropping to ~${fps}fps`
+    addLine(`  CPU ${perf.workMsAvg.toFixed(1)}ms/frame avg · ${perf.workMsMax.toFixed(1)}ms peak`
+          + ` · ${Math.round(perf.budgetPct)}% of the 16.6ms budget · ${verdict}`,
+            fps >= 58 ? 'build-ok' : 'build-warn')
   }
 
-  leaves.slice(0, 8).forEach(leaf => {
-    const line = document.createElement('div')
-    line.className = 'build-meta'
-    line.textContent = `  ${leaf.pct.toFixed(1).padStart(5)}%  ${String(leaf.samples).padStart(4)}  ${leaf.symbol}`
-    buildLog.appendChild(line)
-    leaf.paths.forEach(p => {
-      const sub = document.createElement('div')
-      sub.className = 'build-meta build-profile-path'
-      sub.textContent = `            ${String(p.samples).padStart(4)}  ← ${p.via}`
-      buildLog.appendChild(sub)
+  // ── A — hottest functions + call paths ─────────────────────────
+  const { total, cartSamples, leaves } = hotspots
+  const wallPct = total ? Math.round((cartSamples / total) * 100) : 0
+  addLine('')
+  addLine(`hottest functions  (${cartSamples}/${total} samples in cart code, ~${wallPct}% of wall; rest = vsync/system)`)
+  if (!leaves || !leaves.length) {
+    addLine('  (no cart-code hotspots — the cart was mostly idle / waiting on vsync)')
+  } else {
+    leaves.slice(0, 8).forEach(leaf => {
+      addLine(`  ${leaf.pct.toFixed(1).padStart(5)}%  ${String(leaf.samples).padStart(4)}  ${leaf.symbol}`)
+      leaf.paths.forEach(p =>
+        addLine(`            ${String(p.samples).padStart(4)}  ← ${p.via}`, 'build-meta build-profile-path'))
     })
-  })
+  }
+
+  // ── D — draw calls per frame ───────────────────────────────────
+  if (perf && perf.calls && perf.calls.length) {
+    addLine('')
+    addLine('draw calls per frame  (your direct calls; nested ones counted once)')
+    perf.calls.slice(0, 12).forEach(c => {
+      const n = c.perFrame >= 10 ? String(Math.round(c.perFrame)) : c.perFrame.toFixed(1)
+      addLine(`  ${n.padStart(7)}  ${c.name}`)
+    })
+  }
 }
 
 // ── runtime log panel (printh() output + exit/crash banner) ───

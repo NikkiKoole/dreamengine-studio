@@ -62,6 +62,7 @@ html, body {
 
 #tabs .tab,
 #run-btn,
+#profile-btn,
 #theme-btn,
 #logo {
   -webkit-app-region: no-drag;
@@ -167,6 +168,27 @@ html, body {
   color: #fff;
 }
 
+#profile-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+
+#profile-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#profile-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ── pixels sub-toggle (sprites | map) ─────────────────────── */
 .pix-toggle {
   display: flex;
@@ -201,6 +223,8 @@ html, body {
   padding: 6px 28px 6px 14px;
   white-space: pre;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--topbar-h) - 24px);   /* long reports (profiler) scroll instead of running off-screen */
   border-bottom: 1px solid var(--border);
   z-index: 90;
 }
@@ -208,6 +232,7 @@ html, body {
 .build-cmd   { color: var(--fg-dim); }
 .build-ok    { color: #7ec87e; }
 .build-meta  { color: var(--fg-dim); }
+.build-profile-path { opacity: 0.7; }
 .build-warn  { color: #ff6fb5; }
 .build-error { color: #ff6e6e; }
 

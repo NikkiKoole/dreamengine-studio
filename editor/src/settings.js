@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, showProfiler: false }
 
 function load() {
   return {
@@ -10,6 +10,7 @@ function load() {
     cellW:         parseInt(localStorage.getItem('cellW')   || DEFAULTS.cellW),
     cellH:         parseInt(localStorage.getItem('cellH')   || DEFAULTS.cellH),
     touchControls: localStorage.getItem('touchControls') === '1',
+    showProfiler:  localStorage.getItem('showProfiler') === '1',
   }
 }
 
@@ -86,6 +87,21 @@ export function buildSettingsPanel(el) {
   ))
   touchSection.appendChild(note('floating stick on the left, A/B on the right. carts can override with touch_controls(true/false).'))
   el.appendChild(touchSection)
+
+  // ── profiler (advanced) ───────────────────────────────────────
+  const profSection = section('profiler')
+  profSection.appendChild(checkbox(
+    'show ⏱ profile button in the toolbar',
+    settings.showProfiler,
+    v => {
+      settings.showProfiler = v
+      save('showProfiler', v ? '1' : '0')
+      const btn = document.getElementById('profile-btn')
+      if (btn) btn.style.display = v ? '' : 'none'
+    },
+  ))
+  profSection.appendChild(note('runs the cart for a few seconds, samples it with macOS `sample`, and lists which functions burned the most CPU — straight into the build log. desktop app only.'))
+  el.appendChild(profSection)
 }
 
 function section(title) {

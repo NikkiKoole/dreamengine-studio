@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; dedicated profiling setup in progress separately). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
+_Last updated: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; **one-click profiler shipped** (⏱ profile button) — see [`guides/profiler.md`](guides/profiler.md)). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
 
 ---
 
@@ -25,6 +25,7 @@ _Last updated: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; 
 - 5-tab navbar (code · pixels · carts · docs · settings); in-app docs viewer renders
   this `docs/` set (with cross-links) in the Docs tab.
 - Day/night theming, debug overlay (`watch`/`printh`/crash capture).
+- **Profiler** — one-click `⏱ profile` button (hidden behind a settings toggle). Compiles a profiling build (`-O1 -fno-inline -DDE_PROFILE`), runs the cart ~4s, and reports into the build log: frame CPU budget (ms vs the 16.6ms 60fps target), hottest functions **with the call paths that reach them** (macOS `sample` call-graph attribution, rolled up to `studio.h` primitives), and exact per-frame draw-call counts (in-engine `PROF` counters, re-entrancy-guarded). Behind the scenes — no Instruments GUI. Normal builds byte-identical (`PROF` → no-op). macOS-only (uses the `sample` CLI). See [`guides/profiler.md`](guides/profiler.md).
 
 **API surface** — ~125 functions + ~90 constants in `runtime/studio.h`.
 For the full grouped inventory see [`design/api-notes.md` → "What dreamengine has today"](design/api-notes.md).

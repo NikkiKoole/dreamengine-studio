@@ -90,6 +90,213 @@ const CART_SRC    = path.join(BUILD_DIR, 'cart.c')
 const CART_BIN    = path.join(BUILD_DIR, 'cart')
 const CART_EXE    = path.join(BUILD_DIR, 'cart.exe')
 
+// ── cart build prep (shared by run + profile) ─────────────────
+// Resolve config → dims, regenerate the embedded data headers, write cart.c.
+function prepareCart(code, cfg) {
+  const dims = {
+    screenW: cfg?.screenW || 320,
+    screenH: cfg?.screenH || 200,
+    scale:   cfg?.scale   || 4,
+    mapW:    cfg?.mapW    || 128,
+    mapH:    cfg?.mapH    || 64,
+    cellW:   cfg?.cellW   || 16,
+    cellH:   cfg?.cellH   || 16,
+    touchDefault: cfg?.touchControls ? 1 : 0,
+    studioC: path.join(RUNTIME_DIR, 'studio.c'),
+  }
+
+  fs.mkdirSync(BUILD_DIR, { recursive: true })
+
+  // remove any stale files from previous sessions
+  const stale = ['ComicMono.ttf', 'ComicMono-Bold.ttf', 'PixelComicSans.ttf', 'Ac437_Acer_VGA_8x8.ttf']
+  stale.forEach(f => { try { fs.unlinkSync(path.join(BUILD_DIR, f)) } catch {} })
+
+  fs.writeFileSync(CART_SRC, code)
+
+  // generate sprites_data.h from sprites.png via xxd (PNG is compressed — stays small)
+  const spritesHeader = path.join(BUILD_DIR, 'sprites_data.h')
+  const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
+  if (fs.existsSync(spritesPng)) {
+    try {
+      const xxd = execSync('xxd -i sprites.png', { cwd: BUILD_DIR }).toString()
+      fs.writeFileSync(spritesHeader,
+        xxd.replace(/unsigned char sprites_png\[\]/,  'static const unsigned char SPRITES_DATA[]')
+           .replace(/unsigned int sprites_png_len/,   'static const unsigned int  SPRITES_DATA_LEN'))
+    } catch {
+      fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
+    }
+  } else {
+    fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
+  }
+
+  // generate map_data.h from map.dat (raw bytes = MAP_W × MAP_H cell indices)
+  const mapHeader = path.join(BUILD_DIR, 'map_data.h')
+  const mapDat    = path.join(BUILD_DIR, 'map.dat')
+  if (fs.existsSync(mapDat)) {
+    try {
+      const xxd = execSync('xxd -i map.dat', { cwd: BUILD_DIR }).toString()
+      fs.writeFileSync(mapHeader,
+        xxd.replace(/unsigned char map_dat\[\]/,  'static const unsigned char MAP_DATA[]')
+           .replace(/unsigned int map_dat_len/,   'static const unsigned int  MAP_DATA_LEN'))
+    } catch {
+      fs.writeFileSync(mapHeader, 'static const unsigned char MAP_DATA[]={0};static const unsigned int MAP_DATA_LEN=0;\n')
+    }
+  } else {
+    fs.writeFileSync(mapHeader, 'static const unsigned char MAP_DATA[]={0};static const unsigned int MAP_DATA_LEN=0;\n')
+  }
+
+  return dims
+}
+
+// macOS clang command for a native cart build. optFlags swaps between the
+// shipping build (-Os) and the profiling build (-O1 -fno-inline, which keeps
+// studio.c primitives as distinct, named symbols so `sample` can attribute
+// time to them instead of folding them into draw()).
+function macCompileArgs(dims, optFlags) {
+  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, studioC } = dims
+  return [
+    `"${CART_SRC}"`,
+    `"${studioC}"`,
+    `-I"${RUNTIME_DIR}"`,
+    `-I"${BUILD_DIR}"`,
+    `-I"${RAYLIB}/include"`,
+    `-DSCREEN_W=${screenW}`,
+    `-DSCREEN_H=${screenH}`,
+    `-DSCALE=${scale}`,
+    `-DMAP_W=${mapW}`,
+    `-DMAP_H=${mapH}`,
+    `-DCELL_W=${cellW}`,
+    `-DCELL_H=${cellH}`,
+    `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
+    ...optFlags,
+    // keep beginners' null-pointer mistakes as real crashes (caught by the
+    // crash handler in studio.c) instead of letting the optimizer delete them
+    '-fno-delete-null-pointer-checks',
+    `"${RAYLIB}/lib/libraylib.a"`,
+    '-framework OpenGL',
+    '-framework Cocoa',
+    '-framework IOKit',
+    '-framework CoreVideo',
+    '-framework CoreFoundation',
+    '-Wl,-dead_strip',
+    `-o "${CART_BIN}"`,
+  ]
+}
+
+// Public studio.h function names — the cart author's vocabulary. These are the
+// roll-up targets for call-path attribution. Read from the header (so new
+// primitives are picked up automatically) and cached.
+let _prims = null
+function studioPrimitives() {
+  if (_prims) return _prims
+  _prims = new Set(['draw', 'update', 'init'])
+  try {
+    const h = fs.readFileSync(path.join(RUNTIME_DIR, 'studio.h'), 'utf8')
+    for (const m of h.matchAll(/^\s*(?:void|int|bool|float)\s+([a-z_][a-z0-9_]*)\s*\(/gm)) _prims.add(m[1])
+  } catch {}
+  return _prims
+}
+
+// Parse a `sample` report → cart-code CPU hotspots WITH the call paths that
+// reach them. We walk the call graph: a node's `count` is inclusive (node +
+// descendants), so exclusive = count − Σ children. Exclusive time is credited
+// to its leaf symbol (the hot end function, e.g. rlVertex3f) AND tagged with
+// the path up to the owning studio.h primitive — so the author sees both what's
+// expensive and which of their calls (trifill/circfill/…) drives it.
+// Only cart-binary symbols count; dynamic frameworks (OpenGL/libsystem) are the
+// vsync/idle wait we ignore. Percentages are relative to cart-active samples.
+function parseSample(report) {
+  if (!report) return { total: 0, cartSamples: 0, leaves: [] }
+
+  // denominator = main-thread samples (raylib's ~10 idle worker/audio threads
+  // would otherwise bury cart code). Fall back to the busiest thread root.
+  let total = 0
+  const mainM = report.match(/^\s+(\d+)\s+Thread_\S+:\s*Main Thread/m)
+  if (mainM) total = parseInt(mainM[1])
+  else for (const m of report.matchAll(/^\s+(\d+)\s+Thread_/gm)) total = Math.max(total, parseInt(m[1]))
+
+  const procName = (report.match(/^Process:\s+(\S+)/m) || [])[1] || 'cart'
+  const PRIM = studioPrimitives()
+
+  // build the call-graph tree — indent width is proportional to depth
+  const section = report.slice(report.indexOf('Call graph:'))
+  const endIdx  = section.indexOf('Total number in stack')
+  const lines   = (endIdx > 0 ? section.slice(0, endIdx) : section).split('\n')
+  const nodeRe  = /^([+!:|\s]*?)(\d+)\s+(.+?)\s+\(in ([^)]+)\)/
+  const stack = []
+  const nodes = []
+  for (const line of lines) {
+    const m = line.match(nodeRe)
+    if (!m) continue
+    const node = { indent: m[1].length, count: parseInt(m[2]), symbol: m[3].trim(), binary: m[4], children: [], parent: null }
+    while (stack.length && stack[stack.length - 1].indent >= node.indent) stack.pop()
+    if (stack.length) { node.parent = stack[stack.length - 1]; node.parent.children.push(node) }
+    stack.push(node)
+    nodes.push(node)
+  }
+
+  // exclusive samples per node → tally by leaf symbol, and by leaf + call path
+  const leafSamples = {}        // symbol -> total exclusive
+  const pathSamples = {}        // symbol -> { pathStr -> exclusive }
+  for (const n of nodes) {
+    if (n.binary !== procName) continue
+    const childSum = n.children.reduce((s, c) => s + c.count, 0)
+    const excl = Math.max(0, n.count - childSum)
+    if (!excl) continue
+    leafSamples[n.symbol] = (leafSamples[n.symbol] || 0) + excl
+    // path from the owning primitive down to this leaf
+    const chain = []
+    for (let a = n; a; a = a.parent) {
+      chain.unshift(a.symbol)
+      if (PRIM.has(a.symbol)) break
+    }
+    const via = chain.length > 5 ? '…› ' + chain.slice(-5).join(' › ') : chain.join(' › ')
+    const byPath = pathSamples[n.symbol] || (pathSamples[n.symbol] = {})
+    byPath[via] = (byPath[via] || 0) + excl
+  }
+
+  const cartSamples = Object.values(leafSamples).reduce((s, v) => s + v, 0)
+  const leaves = Object.entries(leafSamples)
+    .sort((a, b) => b[1] - a[1])
+    .map(([symbol, samples]) => ({
+      symbol,
+      samples,
+      pct: cartSamples ? (samples / cartSamples) * 100 : 0,
+      paths: Object.entries(pathSamples[symbol] || {})
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([via, s]) => ({ via, samples: s }))
+        .filter(p => p.via !== symbol),   // drop the redundant self-path
+    }))
+
+  return { total, cartSamples, leaves }
+}
+
+// Read the in-engine perf.json the profiling build (-DDE_PROFILE) writes: frame
+// CPU timing (C) + per-primitive draw-call counts (D). Returns null if absent.
+function readPerf() {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'perf.json'), 'utf8'))
+    const frames = j.frames || 1
+    // merge by name (safety net in case identical string literals weren't pooled)
+    const byName = {}
+    for (const c of j.calls || []) byName[c.name] = (byName[c.name] || 0) + c.total
+    const calls = Object.entries(byName)
+      .map(([name, total]) => ({ name, perFrame: total / frames, total }))
+      .sort((a, b) => b.perFrame - a.perFrame)
+    const frameMsAvg = j.frameMsAvg || 0
+    return {
+      frames,
+      workMsAvg: j.workMsAvg || 0,
+      workMsMax: j.workMsMax || 0,
+      frameMsAvg,
+      fps:       frameMsAvg > 0 ? 1000 / frameMsAvg : 0,
+      budgetPct: (j.workMsAvg || 0) / (1000 / 60) * 100,   // share of the 16.6ms 60fps budget
+      calls,
+    }
+  } catch { return null }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -231,85 +438,11 @@ ipcMain.handle('studio:save-map', (_event, bytes) => {
 
 // ── run handler ───────────────────────────────────────────────
 ipcMain.handle('studio:run', async (_event, code, cfg) => {
-  const screenW       = cfg?.screenW || 320
-  const screenH       = cfg?.screenH || 200
-  const scale         = cfg?.scale   || 4
-  const mapW          = cfg?.mapW    || 128
-  const mapH          = cfg?.mapH    || 64
-  const cellW         = cfg?.cellW   || 16
-  const cellH         = cfg?.cellH   || 16
-  const touchDefault  = cfg?.touchControls ? 1 : 0
-  const studioC       = path.join(RUNTIME_DIR, 'studio.c')
+  const dims = prepareCart(code, cfg)
+  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, studioC } = dims
 
-  fs.mkdirSync(BUILD_DIR, { recursive: true })
-
-  // remove any stale files from previous sessions
-  const stale = ['ComicMono.ttf', 'ComicMono-Bold.ttf', 'PixelComicSans.ttf', 'Ac437_Acer_VGA_8x8.ttf']
-  stale.forEach(f => { try { fs.unlinkSync(path.join(BUILD_DIR, f)) } catch {} })
-
-  fs.writeFileSync(CART_SRC, code)
-
-  // generate sprites_data.h from sprites.png via xxd (PNG is compressed — stays small)
-  const spritesHeader = path.join(BUILD_DIR, 'sprites_data.h')
-  const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
-  if (fs.existsSync(spritesPng)) {
-    try {
-      const xxd = execSync('xxd -i sprites.png', { cwd: BUILD_DIR }).toString()
-      fs.writeFileSync(spritesHeader,
-        xxd.replace(/unsigned char sprites_png\[\]/,  'static const unsigned char SPRITES_DATA[]')
-           .replace(/unsigned int sprites_png_len/,   'static const unsigned int  SPRITES_DATA_LEN'))
-    } catch {
-      fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
-    }
-  } else {
-    fs.writeFileSync(spritesHeader, 'static const unsigned char SPRITES_DATA[]={0};static const unsigned int SPRITES_DATA_LEN=0;\n')
-  }
-
-  // generate map_data.h from map.dat (raw 8192 bytes = MAP_W × MAP_H cell indices)
-  const mapHeader = path.join(BUILD_DIR, 'map_data.h')
-  const mapDat    = path.join(BUILD_DIR, 'map.dat')
-  if (fs.existsSync(mapDat)) {
-    try {
-      const xxd = execSync('xxd -i map.dat', { cwd: BUILD_DIR }).toString()
-      fs.writeFileSync(mapHeader,
-        xxd.replace(/unsigned char map_dat\[\]/,  'static const unsigned char MAP_DATA[]')
-           .replace(/unsigned int map_dat_len/,   'static const unsigned int  MAP_DATA_LEN'))
-    } catch {
-      fs.writeFileSync(mapHeader, 'static const unsigned char MAP_DATA[]={0};static const unsigned int MAP_DATA_LEN=0;\n')
-    }
-  } else {
-    fs.writeFileSync(mapHeader, 'static const unsigned char MAP_DATA[]={0};static const unsigned int MAP_DATA_LEN=0;\n')
-  }
-
-  const args = [
-    `"${CART_SRC}"`,
-    `"${studioC}"`,
-    `-I"${RUNTIME_DIR}"`,
-    `-I"${BUILD_DIR}"`,
-    `-I"${RAYLIB}/include"`,
-    `-DSCREEN_W=${screenW}`,
-    `-DSCREEN_H=${screenH}`,
-    `-DSCALE=${scale}`,
-    `-DMAP_W=${mapW}`,
-    `-DMAP_H=${mapH}`,
-    `-DCELL_W=${cellW}`,
-    `-DCELL_H=${cellH}`,
-    `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
-    '-Os',
-    // keep beginners' null-pointer mistakes as real crashes (caught by the
-    // crash handler in studio.c) instead of letting the optimizer delete them
-    '-fno-delete-null-pointer-checks',
-    `"${RAYLIB}/lib/libraylib.a"`,
-    '-framework OpenGL',
-    '-framework Cocoa',
-    '-framework IOKit',
-    '-framework CoreVideo',
-    '-framework CoreFoundation',
-    '-Wl,-dead_strip',
-    `-o "${CART_BIN}"`,
-  ]
-
-  const cmd = `clang ${args.join(' ')}`
+  const args = macCompileArgs(dims, ['-Os'])
+  const cmd  = `clang ${args.join(' ')}`
 
   return new Promise(resolve => {
     exec(cmd, (err, _stdout, stderr) => {
@@ -364,6 +497,63 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
         bin:    CART_BIN,
         exe:    CART_EXE,
       })
+    })
+  })
+})
+
+// ── profile a cart ────────────────────────────────────────────
+// Compile a profiling build (-O1 -fno-inline, named symbols), launch it,
+// give it a moment to settle, then attach macOS `sample` for a few seconds —
+// no Instruments GUI. The cart's own window shows briefly and is killed when
+// sampling ends. Returns ranked cart-code CPU hotspots for the build log.
+ipcMain.handle('studio:profile', async (_event, code, cfg) => {
+  const dims = prepareCart(code, cfg)
+  const seconds = cfg?.profileSeconds || 4
+
+  const args = macCompileArgs(dims, ['-O1', '-fno-inline', '-fno-omit-frame-pointer', '-DDE_PROFILE'])
+  const cmd  = `clang ${args.join(' ')}`
+
+  return new Promise(resolve => {
+    exec(cmd, (err, _stdout, stderr) => {
+      const warnings = stderr
+        .split('\n')
+        .filter(l => !l.includes('was built for newer macOS version'))
+        .join('\n')
+        .trim()
+
+      if (err) return resolve({ ok: false, profile: true, cmd, output: warnings })
+
+      const wc = _event.sender
+      const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+      const cartTitle = cfg?.cartName ? `dreamengine: ${cfg.cartName} (profiling)` : 'dreamengine (profiling)'
+
+      // clear any stale perf.json so a crash-before-first-flush can't show old data
+      try { fs.unlinkSync(path.join(BUILD_DIR, 'perf.json')) } catch {}
+
+      const proc = spawn(CART_BIN, ['--title', cartTitle], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
+      let exited = false
+      proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))
+      proc.stderr.on('data', chunk => send('cart:log', chunk.toString()))
+      proc.on('exit', (codeN, signal) => { exited = true; send('cart:exit', { code: codeN, signal }) })
+      proc.on('error', () => { exited = true })
+
+      const sampleFile = path.join(BUILD_DIR, 'profile.txt')
+
+      // let the window open and start drawing before we start sampling
+      setTimeout(() => {
+        if (exited || !proc.pid) {
+          return resolve({ ok: false, profile: true, cmd, output: 'cart exited before profiling could start' })
+        }
+        exec(`/usr/bin/sample ${proc.pid} ${seconds} -file "${sampleFile}"`, sErr => {
+          try { proc.kill() } catch {}
+          if (sErr) {
+            return resolve({ ok: false, profile: true, cmd, output: `sample failed: ${sErr.message}` })
+          }
+          let report = ''
+          try { report = fs.readFileSync(sampleFile, 'utf8') } catch {}
+          resolve({ ok: true, profile: true, cmd, seconds, hotspots: parseSample(report), perf: readPerf() })
+        })
+      }, 1000)
     })
   })
 })

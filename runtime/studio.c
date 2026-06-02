@@ -555,6 +555,60 @@ static void harness_dump(int fno) {
 }
 #endif
 
+// ── profiler instrumentation (compiled in only with -DDE_PROFILE) ─────────
+// Counts draw-primitive calls and times the CPU work per frame (update+draw,
+// excluding the vsync wait). A re-entrancy guard means only the OUTERMOST
+// public call is counted, so circfill()→trifill() reads as one circfill, not
+// also a trifill. Flushed to build/perf.json every 30 frames so the data
+// survives the editor killing the process after sampling. The editor reads it
+// back. A normal build defines PROF() as a no-op — zero cost, nothing emitted.
+#ifdef DE_PROFILE
+typedef struct { const char *name; long calls; } ProfCounter;
+static ProfCounter prof_counters[64];
+static int    prof_counter_n   = 0;
+static int    prof_depth       = 0;
+static double prof_work_total  = 0.0;   // ms, summed update+draw (CPU work)
+static double prof_work_max    = 0.0;
+static double prof_frame_total = 0.0;   // ms, summed full frame (incl. vsync)
+static long   prof_frames      = 0;
+
+static void prof_bump(const char *name) {
+    // identical string literals share storage within this TU, so pointer
+    // identity dedupes; the editor also merges by name, in case it doesn't.
+    for (int i = 0; i < prof_counter_n; i++)
+        if (prof_counters[i].name == name) { prof_counters[i].calls++; return; }
+    if (prof_counter_n < 64) {
+        prof_counters[prof_counter_n].name  = name;
+        prof_counters[prof_counter_n].calls = 1;
+        prof_counter_n++;
+    }
+}
+
+typedef struct { int unused; } ProfGuard;
+static ProfGuard prof_push(const char *name) {
+    if (prof_depth == 0) prof_bump(name);   // only the outermost public call
+    prof_depth++;
+    return (ProfGuard){ 0 };
+}
+static void prof_pop(ProfGuard *g) { (void)g; prof_depth--; }
+
+static void prof_write(void) {
+    FILE *f = fopen("perf.json", "w");
+    if (!f) return;
+    long frames = prof_frames > 0 ? prof_frames : 1;
+    fprintf(f, "{\"frames\":%ld,\"workMsAvg\":%.4f,\"workMsMax\":%.4f,\"frameMsAvg\":%.4f,\"calls\":[",
+            prof_frames, prof_work_total / frames, prof_work_max, prof_frame_total / frames);
+    for (int i = 0; i < prof_counter_n; i++)
+        fprintf(f, "%s{\"name\":\"%s\",\"total\":%ld}",
+                i ? "," : "", prof_counters[i].name, prof_counters[i].calls);
+    fprintf(f, "]}\n");
+    fclose(f);
+}
+#define PROF(n) ProfGuard _prof_g __attribute__((cleanup(prof_pop))) = prof_push(n)
+#else
+#define PROF(n) ((void)0)
+#endif
+
 static void loop_step(void) {
 #ifdef PLATFORM_WEB
     if (!web_started) {
@@ -623,6 +677,9 @@ static void loop_step(void) {
     // a conditional `if (gameover) fade(0.5f);` clears itself once the state ends —
     // carts never need to call fade(0) by hand.
     fade_amt = 0.0f;
+#ifdef DE_PROFILE
+    double prof_t0 = GetTime();
+#endif
     update();
     frame_count++;
 
@@ -636,6 +693,20 @@ static void loop_step(void) {
         cam_active = false;
         EndMode2D();
     EndTextureMode();
+#ifdef DE_PROFILE
+    {
+        // skip the first few frames: they carry one-time costs (texture/font
+        // loads, first GL submit) that would dominate the peak misleadingly.
+        if (frame_count > 3) {
+            double w = (GetTime() - prof_t0) * 1000.0;   // update+draw CPU, ms
+            prof_work_total += w;
+            if (w > prof_work_max) prof_work_max = w;
+            prof_frame_total += frame_dt * 1000.0;        // full frame incl. vsync
+            prof_frames++;
+        }
+        if (frame_count % 30 == 0) prof_write();          // periodic flush (survives kill)
+    }
+#endif
     if (clip_active) { EndScissorMode(); clip_active = false; }
 
     // scale up to the window — RenderTexture is flipped in Y
@@ -995,6 +1066,7 @@ int mouse_world_x(void)         { return (int)GetScreenToWorld2D((Vector2){ (flo
 int mouse_world_y(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).y; }
 
 void cls(int color) {
+    PROF("cls");
     ClearBackground(palette[color % PALETTE_SIZE]);
 }
 
@@ -1109,10 +1181,12 @@ void colorkey(int color) {
 }
 
 void spr(int index, int x, int y) {
+    PROF("spr");
     sprf(index, x, y, false, false);
 }
 
 void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
+    PROF("sprf");
     if (spritesheet.width == 0) return;
     int cols = spritesheet.width / SPRITE_SIZE;
     Rectangle src = {
@@ -1128,6 +1202,7 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
 }
 
 void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
+    PROF("sspr");
     if (spritesheet.width == 0) return;
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx, dy, dw, dh };
@@ -1137,6 +1212,7 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
 }
 
 void spr_rot(int index, int x, int y, float deg) {
+    PROF("spr_rot");
     if (spritesheet.width == 0) return;
     int cols = spritesheet.width / SPRITE_SIZE;
     Rectangle src = { (index % cols) * SPRITE_SIZE, (index / cols) * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE };
@@ -1148,6 +1224,7 @@ void spr_rot(int index, int x, int y, float deg) {
 }
 
 void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, float deg, int ox, int oy) {
+    PROF("sspr_ex");
     if (spritesheet.width == 0) return;
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx + ox, dy + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
@@ -1178,18 +1255,21 @@ int text_width(const char *t) {
 }
 
 int print(const char *text, int x, int y, int color) {
+    PROF("print");
     DrawTextEx(cur_font(), text, (Vector2){ (float)x, (float)y },
                cur_font_size(), 0, palette[color % PALETTE_SIZE]);
     return x + text_width(text);
 }
 
 int print_shadow(const char *text, int x, int y, int color, int shadow_color) {
+    PROF("print_shadow");
     DrawTextEx(cur_font(), text, (Vector2){ (float)(x+1), (float)(y+1) },
                cur_font_size(), 0, palette[shadow_color % PALETTE_SIZE]);
     return print(text, x, y, color);
 }
 
 int print_outline(const char *text, int x, int y, int color, int outline_color) {
+    PROF("print_outline");
     Color oc = palette[outline_color % PALETTE_SIZE];
     float sz = cur_font_size();
     Font  f  = cur_font();
@@ -1202,6 +1282,7 @@ int print_outline(const char *text, int x, int y, int color, int outline_color) 
 }
 
 void rect(int x, int y, int w, int h, int color) {
+    PROF("rect");
     Color c = palette[color % PALETTE_SIZE];
     int rx = x, ry = y;
     // 1px DrawRectangle slices — no line caps, exact pixel coverage
@@ -1212,11 +1293,13 @@ void rect(int x, int y, int w, int h, int color) {
 }
 
 void rectfill(int x, int y, int w, int h, int color) {
+    PROF("rectfill");
     if (fp_on) { rectfill_pat(x, y, w, h, fp_global, fp_hole, color); return; }   // 1-bits = holes, 0-bits = color
     DrawRectangle(x, y, w, h, palette[color % PALETTE_SIZE]);
 }
 
 void bar(int x, int y, int w, int h, float pct, int fill, int bg) {
+    PROF("bar");
     if (pct < 0.0f) pct = 0.0f;
     if (pct > 1.0f) pct = 1.0f;
     rectfill(x, y, w, h, bg);
@@ -1308,6 +1391,7 @@ static bool rrect_inside(int px, int py, int x, int y, int w, int h, int r) {
 }
 
 void circ(int cx, int cy, int r, int color) {
+    PROF("circ");
     // outline = pixels inside the disc that have at least one outside 4-neighbour
     for (int y = cy - r; y <= cy + r; y++)
         for (int x = cx - r; x <= cx + r; x++)
@@ -1318,6 +1402,7 @@ void circ(int cx, int cy, int r, int color) {
 }
 
 void circfill(int cx, int cy, int r, int color) {
+    PROF("circfill");
     // fill = all pixels inside the disc; plot_pat handles both solid and fillp dither
     for (int y = cy - r; y <= cy + r; y++)
         for (int x = cx - r; x <= cx + r; x++)
@@ -1329,11 +1414,13 @@ void circfill(int cx, int cy, int r, int color) {
 // and the outline is exactly the boundary of the fill (no GPU line-vs-fill drift).
 // Winding-independent: poly_inside is even-odd, so either vertex order fills.
 void tri(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
+    PROF("tri");
     int pts[6] = {x1,y1, x2,y2, x3,y3};
     poly_stroke_cov(pts, 3, color);
 }
 
 void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
+    PROF("trifill");
     int pts[6] = {x1,y1, x2,y2, x3,y3};
     poly_fill_cov(pts, 3, color);
 }
@@ -1344,6 +1431,7 @@ void trifill(int x1, int y1, int x2, int y2, int x3, int y3, int color) {
 static void sector_fill(int cx, int cy, int r_in, int r_out, float s, float e, int color);  // fwd
 
 void arc(int x, int y, int radius, float start_deg, float end_deg, int color) {
+    PROF("arc");
     sector_fill(x, y, radius > 1 ? radius - 1 : 0, radius, start_deg, end_deg, color);  // 1px-thick rim
 }
 
@@ -1391,19 +1479,23 @@ static void sector_fill(int cx, int cy, int r_in, int r_out, float s, float e, i
 }
 
 void arcfill(int x, int y, int radius, float start_deg, float end_deg, int color) {
+    PROF("arcfill");
     sector_draw(x, y, 0, radius, start_deg, end_deg, color, false);
 }
 // outline of a filled pie wedge — outer arc + the two radial edges (boundary ring
 // of arcfill). Distinct from arc(), which strokes only the curved rim.
 void arcoutline(int x, int y, int radius, float start_deg, float end_deg, int color) {
+    PROF("arcoutline");
     sector_draw(x, y, 0, radius, start_deg, end_deg, color, true);
 }
 
 void ring(int x, int y, int r_in, int r_out, float start_deg, float end_deg, int color) {
+    PROF("ring");
     sector_draw(x, y, r_in, r_out, start_deg, end_deg, color, false);
 }
 // outline of a filled ring/annulus sector — boundary ring of ring().
 void ringoutline(int x, int y, int r_in, int r_out, float start_deg, float end_deg, int color) {
+    PROF("ringoutline");
     sector_draw(x, y, r_in, r_out, start_deg, end_deg, color, true);
 }
 
@@ -1416,6 +1508,7 @@ void ringoutline(int x, int y, int r_in, int r_out, float start_deg, float end_d
 void tritex(int x1, int y1, float u1, float v1,
             int x2, int y2, float u2, float v2,
             int x3, int y3, float u3, float v3) {
+    PROF("tritex");
     if (spritesheet.width == 0) return;
     float tw = (float)spritesheet.width, th = (float)spritesheet.height;
     typedef struct { float x, y, u, v; } TV;
@@ -1440,10 +1533,12 @@ void tritex(int x1, int y1, float u1, float v1,
 }
 
 void line(int x1, int y1, int x2, int y2, int color) {
+    PROF("line");
     DrawLine(x1, y1, x2, y2, palette[color % PALETTE_SIZE]);
 }
 
 void pset(int x, int y, int color) {
+    PROF("pset");
     DrawPixel(x, y, palette[color % PALETTE_SIZE]);
 }
 
@@ -1509,6 +1604,7 @@ void map_scale(int n) {
 }
 
 void map(int cx, int cy, int sx, int sy, int cw, int ch) {
+    PROF("map");
     if (spritesheet.width == 0) return;
     int cols = spritesheet.width / CELL_W;
     if (cols < 1) cols = 1;
@@ -1716,36 +1812,42 @@ static int star_verts(int x, int y, int r_out, int r_in, int points, float rot, 
 }
 
 void ngon(int x, int y, int r, int sides, float rot, int color) {
+    PROF("ngon");
     if (sides < 3) return;
     int pts[128]; int n = ngon_verts(x, y, r, sides, rot, pts);
     poly_stroke_cov(pts, n, color);
 }
 
 void ngonfill(int x, int y, int r, int sides, float rot, int color) {
+    PROF("ngonfill");
     if (sides < 3) return;
     int pts[128]; int n = ngon_verts(x, y, r, sides, rot, pts);
     poly_fill_cov(pts, n, color);
 }
 
 void star(int x, int y, int r_out, int r_in, int points, float rot, int color) {
+    PROF("star");
     if (points < 2) return;
     int pts[256]; int n = star_verts(x, y, r_out, r_in, points, rot, pts);
     poly_stroke_cov(pts, n, color);
 }
 
 void starfill(int x, int y, int r_out, int r_in, int points, float rot, int color) {
+    PROF("starfill");
     if (points < 2) return;
     int pts[256]; int n = star_verts(x, y, r_out, r_in, points, rot, pts);
     poly_fill_cov(pts, n, color);
 }
 
 void poly(int *xy, int n, int color) {
+    PROF("poly");
     if (!xy || n < 2) return;
     if (n == 2) { line(xy[0], xy[1], xy[2], xy[3], color); return; }
     poly_stroke_cov(xy, n, color);
 }
 
 void polyfill(int *xy, int n, int color) {
+    PROF("polyfill");
     if (!xy || n < 3) return;
     poly_fill_cov(xy, n, color);
 }
@@ -1780,14 +1882,17 @@ static void thick_draw(int x1, int y1, int x2, int y2, int w, int color, bool st
         }
 }
 void thickline(int x1, int y1, int x2, int y2, int w, int color) {
+    PROF("thickline");
     thick_draw(x1, y1, x2, y2, w, color, false);
 }
 // outline of a thick line — boundary ring of the capsule (hugs the fill exactly).
 void thicklineoutline(int x1, int y1, int x2, int y2, int w, int color) {
+    PROF("thicklineoutline");
     thick_draw(x1, y1, x2, y2, w, color, true);
 }
 
 void rrect(int x, int y, int w, int h, int r, int color) {
+    PROF("rrect");
     if (r <= 0) { rect(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
@@ -1801,6 +1906,7 @@ void rrect(int x, int y, int w, int h, int r, int color) {
 }
 
 void rrectfill(int x, int y, int w, int h, int r, int color) {
+    PROF("rrectfill");
     if (r <= 0) { rectfill(x, y, w, h, color); return; }
     if (r > w/2) r = w/2;
     if (r > h/2) r = h/2;
@@ -1829,12 +1935,14 @@ static void gradient_band(int bx, int by, int bw, int bh, int ca, int cb, float 
 }
 
 void vgradient(int x, int y, int w, int h, int c_top, int c_bot) {
+    PROF("vgradient");
     if (h <= 0 || w <= 0) return;
     for (int row = 0; row < h; row++)
         gradient_band(x, y+row, w, 1, c_top, c_bot, (float)row / (h - 1 > 0 ? h-1 : 1));
 }
 
 void hgradient(int x, int y, int w, int h, int c_left, int c_right) {
+    PROF("hgradient");
     if (h <= 0 || w <= 0) return;
     for (int col = 0; col < w; col++)
         gradient_band(x+col, y, 1, h, c_left, c_right, (float)col / (w - 1 > 0 ? w-1 : 1));
@@ -2056,6 +2164,7 @@ void fade(float a)        { fade_amt  = a < 0 ? 0 : (a > 1 ? 1 : a); }
 void shake(float a)       { if (a > shake_amt) shake_amt = a; }
 
 int print_scaled(const char *t, int x, int y, int color, int scale) {
+    PROF("print_scaled");
     if (scale < 1) scale = 1;
     float sz = cur_font_size() * scale;
     DrawTextEx(cur_font(), t, (Vector2){ (float)x, (float)y },
@@ -2064,6 +2173,7 @@ int print_scaled(const char *t, int x, int y, int color, int scale) {
 }
 
 void ovalfill(int cx, int cy, int rx, int ry, int color) {
+    PROF("ovalfill");
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
     for (int y = cy - ry; y <= cy + ry; y++)
@@ -2072,6 +2182,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
 }
 
 void oval(int cx, int cy, int rx, int ry, int color) {
+    PROF("oval");
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
     for (int y = cy - ry; y <= cy + ry; y++)
@@ -2157,11 +2268,13 @@ int frame(void) { return frame_count; }
 // ------------------------------------------------------------
 
 int print_centered(const char *text, int y, int color) {
+    PROF("print_centered");
     int w = text_width(text);
     return print(text, (SCREEN_W - w) / 2, y, color);
 }
 
 int print_right(const char *text, int right_x, int y, int color) {
+    PROF("print_right");
     return print(text, right_x - text_width(text), y, color);
 }
 

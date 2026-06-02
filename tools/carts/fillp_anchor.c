@@ -2,15 +2,26 @@
 
 // FILLP_ANCHOR — patterned shapes that carry their dither with them.
 //
-// Every shape drifts, bounces off the walls, and spins. Its 4×4 fill pattern is
-// anchored to the shape's OWN center via fillp_anchor(), so the dither travels
-// with the shape. Without that, the pattern is pinned to the world grid and the
-// shape just slides across it — the dither appears to "crawl". Press Z to toggle
-// anchoring off and watch the crawl come back.
+// A 4x4 fill pattern is normally pinned to the world grid, so a MOVING shape
+// just slides across it and the dither seems to "crawl". fillp_anchor() pins the
+// pattern to the shape's OWN center instead, so it travels with the shape.
+//
+// Three groups, so you can read the effect cleanly:
+//   • SPINNING polygons/stars  — flavour (the silhouette turns; the lattice stays
+//                                 axis-aligned, so spin alone hides the anchoring).
+//   • drifting SQUARES         — translate only, axis-aligned: the clearest tell.
+//   • TILTED polygons/stars    — a fixed angle, translate only: shows the dither
+//                                 glues at any orientation (anchoring is about
+//                                 movement, not rotation).
+// With anchoring ON the dither sits still inside every translate-only shape;
+// press Z and it crawls.
 //
 //   Z — toggle pattern anchoring on / off
 
-#define N 9
+#define NROT  9                      // spinning polygons + stars (flavour)
+#define NSQ   4                      // translate-only squares (clear, axis-aligned)
+#define NTILT 4                      // fixed-angle, translate-only polys/stars
+#define N     (NROT + NSQ + NTILT)
 
 static float sx[N], sy[N], vx[N], vy[N], ang[N], spin[N];
 static int   kind[N], sides[N], rad[N], fg[N], bg[N], pat[N];
@@ -20,25 +31,30 @@ static bool  ready    = false;
 
 static void setup(void) {
     // a distinct foreground (0-bits) + background (1-bits) colour per shape
-    int fgs[N]  = { CLR_YELLOW, CLR_RED,    CLR_BLUE,       CLR_GREEN,     CLR_PINK,
-                    CLR_ORANGE, CLR_PEACH,  CLR_LIME_GREEN, CLR_WHITE };
-    int bgs[N]  = { CLR_DARK_PURPLE, CLR_DARK_RED, CLR_DARKER_BLUE, CLR_DARK_GREEN, CLR_MAUVE,
-                    CLR_BROWN,       CLR_DARK_PEACH, CLR_BLUE_GREEN, CLR_DARK_GREY };
-    int pats[N] = { FILL_CHECKER, FILL_DOTS, FILL_HLINES, FILL_VLINES, FILL_DIAG,
-                    FILL_GRID,    FILL_CHECKER, FILL_DIAG, FILL_DOTS };
+    int fgs[N]  = { CLR_YELLOW, CLR_RED, CLR_BLUE, CLR_GREEN, CLR_PINK, CLR_ORANGE, CLR_PEACH, CLR_LIME_GREEN, CLR_WHITE,
+                    CLR_LIGHT_PEACH, CLR_LIGHT_YELLOW, CLR_MEDIUM_GREEN, CLR_TRUE_BLUE,
+                    CLR_ORANGE, CLR_BLUE, CLR_PINK, CLR_LIGHT_YELLOW };
+    int bgs[N]  = { CLR_DARK_PURPLE, CLR_DARK_RED, CLR_DARKER_BLUE, CLR_DARK_GREEN, CLR_MAUVE, CLR_BROWN, CLR_DARK_PEACH, CLR_BLUE_GREEN, CLR_DARK_GREY,
+                    CLR_DARK_BROWN, CLR_DARKER_PURPLE, CLR_DARK_BLUE, CLR_DARKER_GREY,
+                    CLR_DARK_RED, CLR_DARKER_BLUE, CLR_MAUVE, CLR_DARK_GREEN };
+    int pats[N] = { FILL_CHECKER, FILL_DOTS, FILL_HLINES, FILL_VLINES, FILL_DIAG, FILL_GRID, FILL_CHECKER, FILL_DIAG, FILL_DOTS,
+                    FILL_CHECKER, FILL_GRID, FILL_DIAG, FILL_HLINES,
+                    FILL_GRID, FILL_CHECKER, FILL_VLINES, FILL_DIAG };
 
     for (int i = 0; i < N; i++) {
-        sx[i]   = rnd_float_between(40, SCREEN_W - 40);
-        sy[i]   = rnd_float_between(40, SCREEN_H - 40);
+        bool sq   = (i >= NROT && i < NROT + NSQ);
+        bool tilt = (i >= NROT + NSQ);
+        sx[i]   = rnd_float_between(50, SCREEN_W - 50);
+        sy[i]   = rnd_float_between(50, SCREEN_H - 50);
         float a = rnd_float_between(0, 360);
-        float sp= rnd_float_between(20, 45);
+        float sp= rnd_float_between(18, 40);
         vx[i]   = cos_deg(a) * sp;
         vy[i]   = sin_deg(a) * sp;
-        ang[i]  = rnd_float_between(0, 360);
-        spin[i] = rnd_float_between(-100, 100);
-        kind[i] = i % 2;                 // 0 = polygon, 1 = star
-        sides[i]= 3 + (i % 4);           // 3..6
-        rad[i]  = 15 + (i % 3) * 6;      // 15, 21, 27
+        ang[i]  = sq ? 0 : rnd_float_between(0, 360);        // squares stay axis-aligned
+        spin[i] = (sq || tilt) ? 0 : rnd_float_between(-100, 100);  // only the first group spins
+        kind[i] = sq ? 2 : (i % 2);          // 0 = polygon, 1 = star, 2 = square
+        sides[i]= 3 + (i % 4);               // 3..6
+        rad[i]  = sq ? 22 : 15 + (i % 3) * 6;
         fg[i]   = fgs[i];
         bg[i]   = bgs[i];
         pat[i]  = pats[i];
@@ -57,7 +73,7 @@ void update(void) {
     for (int i = 0; i < N; i++) {
         sx[i]  += vx[i] * d;
         sy[i]  += vy[i] * d;
-        ang[i] += spin[i] * d;
+        ang[i] += spin[i] * d;           // no-op for squares and tilted shapes (spin == 0)
         int m = rad[i] + 2;
         if (sx[i] < m)            { sx[i] = m;            vx[i] = -vx[i]; }
         if (sx[i] > SCREEN_W - m) { sx[i] = SCREEN_W - m; vx[i] = -vx[i]; }
@@ -73,14 +89,15 @@ void draw(void) {
         int x = (int)sx[i], y = (int)sy[i];
         fillp(pat[i], bg[i]);                       // fg = 0-bits, bg = 1-bits
         fillp_anchor(anchored ? x : 0, anchored ? y : 0);   // glue pattern to this shape
-        if (kind[i]) starfill(x, y, rad[i], rad[i] / 2, sides[i] + 2, ang[i], fg[i]);
-        else         ngonfill(x, y, rad[i], sides[i], ang[i], fg[i]);
+        if (kind[i] == 2)      rectfill(x - rad[i], y - rad[i], rad[i] * 2, rad[i] * 2, fg[i]);
+        else if (kind[i] == 1) starfill(x, y, rad[i], rad[i] / 2, sides[i] + 2, ang[i], fg[i]);
+        else                   ngonfill(x, y, rad[i], sides[i], ang[i], fg[i]);
         fillp_anchor(0, 0);
         fillp_reset();
     }
 
     print("fillp_anchor", 8, 8, CLR_WHITE);
-    if (anchored) print("ON  - dither rides with each shape", 8, 20, CLR_LIME_GREEN);
+    if (anchored) print("ON  - dither glued to each shape", 8, 20, CLR_LIME_GREEN);
     else          print("OFF - dither crawls (world-pinned)", 8, 20, CLR_RED);
-    print("Z: toggle anchoring", 8, SCREEN_H - 12, CLR_LIGHT_GREY);
+    print("Z: toggle  -  squares & tilts show it", 8, SCREEN_H - 12, CLR_LIGHT_GREY);
 }

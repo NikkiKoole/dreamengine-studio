@@ -326,6 +326,15 @@ rich, respectively, hangs off them.
 
 ## 8. Borrowing rich instruments from navkit
 
+> **Status: QUEUED — next sound feature, not started (as of 2026-06-03).** The plan below is
+> agreed; the trigger just hasn't been pulled. **First bite when we do:** port the **Hammond
+> organ** as `INSTR_ORGAN` — it's buffer-free (~160 B/voice, no `Voice` struct change), so it
+> drops in with zero architecture risk, and it immediately makes modrack's VOICE `wav` selector
+> (and any cart) sound like a real instrument. Then EP / mallet / additive (still buffer-free),
+> and only later take the buffered (Karplus piano/guitar) decision. **Coordinate:** this touches
+> `runtime/sound.h`/`studio.c`, which the live/libtcc runtime work also lives in — sync before
+> starting. modrack would expose these as a PLAITS-style MACRO voice (or just more `wav` options).
+
 There's a sibling project, **navkit** (`~/Projects/navkit/soundsystem`), with a large,
 mature software synth (~53k LOC of header-only engines). It contains fully-built,
 *self-contained* (no malloc, no heap in the hot path) oscillator engines for rich,

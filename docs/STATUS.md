@@ -100,10 +100,11 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
    Shipped above.) [`design/api-notes.md`](design/api-notes.md) §16.
 5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) and **held notes**
    (`note_on`/`note_off` + live setters + slew) now SHIPPED, see above._
-   Still open: zero-setup **preset instruments** (`INSTR_PLUCK`/`PAD`/…); the **navkit
-   rich-instrument port** (organ/Rhodes/piano as `INSTR_*` presets — drops into the timbre
-   slot with no API change); cart-side **SFX/pattern authoring** (banks are hardcoded
-   today). [`design/audio-notes.md`](design/audio-notes.md) §5–8, [`design/held-notes.md`](design/held-notes.md).
+   Still open: the **navkit rich-instrument port** (organ/Rhodes/piano as `INSTR_*` presets —
+   drops into the timbre slot with no API change) — **queued as the next sound feature, first
+   bite = `INSTR_ORGAN` (buffer-free); see audio-notes §8 status note**; zero-setup **preset
+   instruments** (`INSTR_PLUCK`/`PAD`/…); cart-side **SFX/pattern authoring** (banks are
+   hardcoded today). [`design/audio-notes.md`](design/audio-notes.md) §5–8, [`design/held-notes.md`](design/held-notes.md).
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
 7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.

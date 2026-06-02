@@ -14,15 +14,18 @@
 #define SLOT 5
 #define ROOT_OCT 4
 
-// grid placement of the default modules (parametrized)
-#define GX 4
-#define GW 72
-#define GSP 78
-#define GY 16
-#define GH 84
-#define GRP 88
+// everything is on a 12px cell grid. modules are a whole number of cells; the current
+// kinds are all 6x7 cells (72x84). drag-placement snaps to this grid.
+#define CELL 12
+#define GW  72   // 6 cells wide
+#define GH  84   // 7 cells tall
+#define GX  12
+#define GSP 84   // 7 cells (module + 1 gap)
+#define GY  12
+#define GRP 96   // 8 cells
 #define bayx(i) (GX + ((i) % 4) * GSP)
 #define bayy(i) (GY + ((i) / 4) * GRP)
+int snap12(int v) { return ((v < 0 ? v - CELL / 2 : v + CELL / 2) / CELL) * CELL; }
 
 const char *NOTES[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
@@ -80,7 +83,7 @@ int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1;
 
 int  spawn(int type, int x, int y) {
     Module *m = &mod[nmod];
-    *m = (Module){ type, x, y, {0}, {0}, {0} };
+    *m = (Module){ type, snap12(x), snap12(y), {0}, {0}, {0} };   // snap to the cell grid
     for (int k = 0; k < TYPES[type].nknob; k++) m->param[k] = TYPES[type].knob[k].def;
     return nmod++;
 }
@@ -218,6 +221,8 @@ void update(void) {
     watch("nmod", "%d", nmod);
     watch("cables", "%d", ncable);
     watch("midi", "%d", dbg_midi);
+    watch("zoom", "%d", (int)(zoom * 100));
+    watch("lastx", "%d", nmod > 0 ? mod[nmod - 1].x : -1);
 #endif
 }
 
@@ -393,6 +398,13 @@ void draw(void) {
     }
     if (!over_side && palette_drag < 0 && !panning) edit_cables(wmx, wmy);
 
+    if (palette_drag >= 0) {   // faint 12px cell grid, shown only while placing a module
+        int wl = (int)((0 - 160) / zoom + cam_x + 160), wr = (int)((SCREEN_W - 160) / zoom + cam_x + 160);
+        int wt = (int)((0 - 100) / zoom + cam_y + 100), wb = (int)((SCREEN_H - 100) / zoom + cam_y + 100);
+        for (int gx = snap12(wl); gx <= wr; gx += CELL) line(gx, wt, gx, wb, CLR_DARKER_GREY);
+        for (int gy = snap12(wt); gy <= wb; gy += CELL) line(wl, gy, wr, gy, CLR_DARKER_GREY);
+    }
+
     for (int i = 0; i < nmod; i++) draw_module(i);
 
     for (int c = 0; c < ncable; c++)
@@ -408,9 +420,10 @@ void draw(void) {
                 if (!TYPES[mod[mi].type].jack[j].out && TYPES[mod[mi].type].jack[j].type == TYPES[mod[sm].type].jack[sj].type)
                     circ(jackpos_x(mi, j), jackpos_y(mi, j), 5, CLR_WHITE);
     }
-    if (palette_drag >= 0) {   // ghost of the module being dragged from the palette
-        rect(wmx - GW / 2, wmy - GH / 2, GW, GH, TYPES[palette_drag].col);
-        print(TYPES[palette_drag].name, wmx - GW / 2 + 3, wmy - GH / 2 + 2, TYPES[palette_drag].col);
+    if (palette_drag >= 0) {   // ghost snaps to the cell grid where it'll land
+        int gx = snap12(wmx - GW / 2), gy = snap12(wmy - GH / 2);
+        rect(gx, gy, GW, GH, TYPES[palette_drag].col);
+        print(TYPES[palette_drag].name, gx + 3, gy + 2, TYPES[palette_drag].col);
     }
 
     // ===== SCREEN SPACE — palette sidebar + HUD =====
@@ -435,6 +448,13 @@ void draw(void) {
     print("MODRACK", SIDEBAR_W + 4, 3, CLR_WHITE);
     font(FONT_SMALL);
     print(msg_flash > 0 ? msg : "drag from ADD to patch   wheel zoom   drag pan", SIDEBAR_W + 64, 5, msg_flash > 0 ? CLR_LIGHT_PEACH : CLR_INDIGO);
+
+    // 1:1 zoom-reset button (top-right)
+    int zbx = SCREEN_W - 30; bool zbh = mouse_x() >= zbx && mouse_y() < 14;
+    rectfill(zbx, 2, 28, 11, zbh ? CLR_BLUE : CLR_DARKER_PURPLE);
+    rect(zbx, 2, 28, 11, CLR_LIGHT_GREY);
+    print("1:1", zbx + 7, 4, CLR_WHITE);
+    if (zbh && mouse_pressed(MOUSE_LEFT)) { zoom = 1.0f; cam_x = -32; cam_y = -2; }
     print("patch: out->in   rclick clears   x deletes   S/L/R", SIDEBAR_W + 4, 192, CLR_DARKER_GREY);
     font(FONT_NORMAL);
 }

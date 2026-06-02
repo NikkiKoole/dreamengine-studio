@@ -561,6 +561,13 @@ function markRanges(text, indices) {
   return out
 }
 
+// faceted cart filters (see editor/public/carts/index.json). order is curated,
+// not alphabetical. state is module-level so it survives the panel rebuild-on-open.
+const CART_KIND_ORDER  = ['tutorial', 'game', 'tech-demo', 'instrument', 'toy', 'tool']
+const CART_GENRE_ORDER = ['arcade', 'shooter', 'platformer', 'fighting', 'puzzle', 'racing',
+                          'sports', 'strategy', 'rpg', 'adventure', 'simulation', 'sandbox', 'tabletop']
+let cartFilter = null   // null = all; else { axis: 'kind'|'genre', value } — flat single-select
+
 async function buildTutorialsPanel() {
   const body = tutorialsPanel.querySelector('#tutorials-body')
   if (!body) return
@@ -586,6 +593,52 @@ async function buildTutorialsPanel() {
   search.autocomplete = 'off'
   body.appendChild(search)
 
+  // ── filter chips: one flat list (kinds + genres), single-select ──
+  const kindCounts = {}, genreCounts = {}
+  index.forEach(e => {
+    (e.kind || []).forEach(k => { kindCounts[k] = (kindCounts[k] || 0) + 1 })
+    if (e.genre) genreCounts[e.genre] = (genreCounts[e.genre] || 0) + 1
+  })
+
+  const filters = document.createElement('div')
+  filters.className = 'tutorials-filters'
+  const chipRow = document.createElement('div')
+  chipRow.className = 'cart-chip-row'
+  filters.appendChild(chipRow)
+  body.appendChild(filters)
+
+  const chipOn = (axis, value) => cartFilter && cartFilter.axis === axis && cartFilter.value === value
+  function makeChip(label, value, count, axis) {
+    const b = document.createElement('button')
+    b.className = 'cart-chip'
+    b.dataset.axis = axis || ''
+    b.dataset.value = value == null ? '' : value
+    b.innerHTML = `${escapeHtml(label)}${count != null ? ` <span class="cart-chip-n">${count}</span>` : ''}`
+    b.addEventListener('click', () => {
+      cartFilter = (value == null || chipOn(axis, value)) ? null : { axis, value }   // toggle / clear
+      syncChips(); applyFilter()
+    })
+    chipRow.appendChild(b)
+  }
+
+  // kinds first, then genres — same flat row, no visual divide
+  makeChip('all', null, index.length, null)
+  CART_KIND_ORDER.forEach(k => { if (kindCounts[k]) makeChip(k, k, kindCounts[k], 'kind') })
+  CART_GENRE_ORDER.forEach(g => { if (genreCounts[g]) makeChip(g, g, genreCounts[g], 'genre') })
+
+  function syncChips() {
+    chipRow.querySelectorAll('.cart-chip').forEach(b => {
+      const axis = b.dataset.axis || null, value = b.dataset.value || null
+      b.classList.toggle('active', value == null ? cartFilter == null : chipOn(axis, value))
+    })
+  }
+
+  function passesChips(it) {
+    if (!cartFilter) return true
+    return cartFilter.axis === 'kind' ? it.kind.includes(cartFilter.value)
+                                      : it.genre === cartFilter.value
+  }
+
   const grid = document.createElement('div')
   grid.className = 'tutorials-grid'
   body.appendChild(grid)
@@ -596,7 +649,7 @@ async function buildTutorialsPanel() {
   noMatch.style.display = 'none'
   body.appendChild(noMatch)
 
-  const items = index.map(({ title, description, file }, idx) => {
+  const items = index.map(({ title, description, file, kind, genre }, idx) => {
     const card = document.createElement('div')
     card.className = 'tutorial-card'
 
@@ -625,23 +678,26 @@ async function buildTutorialsPanel() {
     card.addEventListener('click', () => { currentCartName = title; loadCartFromUrl(url) })
 
     grid.appendChild(card)
-    return { card, titleEl, descEl, idx, title: title || '', desc: description || '', name: String(file).replace(/\.cart\.png$/i, '') }
+    return { card, titleEl, descEl, idx, title: title || '', desc: description || '',
+             name: String(file).replace(/\.cart\.png$/i, ''), kind: kind || [], genre: genre || null }
   })
 
   function applyFilter() {
     const q = search.value.trim()
-    if (!q) {                                    // empty → show all in original order, plain text
-      items.forEach(it => {
+    const pool = items.filter(passesChips)
+    items.forEach(it => { it.card.style.display = 'none' })   // hide all; the branches re-show the pool
+    if (!q) {                                    // no text → show chip-passing in original order, plain text
+      pool.forEach(it => {
         it.card.style.display = ''
         it.titleEl.textContent = it.title
         it.descEl.textContent = it.desc
         grid.appendChild(it.card)
       })
-      noMatch.style.display = 'none'
+      noMatch.style.display = pool.length ? 'none' : ''
       return
     }
     // title matches outrank filename, which outrank description blurb
-    const scored = items.map(it => ({
+    const scored = pool.map(it => ({
       it, s: Math.max(fuzzyScore(q, it.title) * 3, fuzzyScore(q, it.name) * 2, substringScore(q, it.desc)),
     }))
     scored.forEach(({ it, s }) => {
@@ -661,8 +717,10 @@ async function buildTutorialsPanel() {
   search.addEventListener('input', applyFilter)
   search.addEventListener('keydown', e => { if (e.key === 'Escape') { search.value = ''; applyFilter() } })
 
-  // restore prior search term + scroll position so reopening feels seamless
-  if (prevSearch) { search.value = prevSearch; applyFilter() }
+  // restore prior search term + chip state + scroll position so reopening feels seamless
+  if (prevSearch) search.value = prevSearch
+  syncChips()
+  applyFilter()
   tutorialsPanel.scrollTop = prevScroll
 }
 // (no eager build — switchTab('tutorials') rebuilds the panel each time it's opened)

@@ -925,6 +925,43 @@ mark.docs-find-hit.current {
   color: var(--fg-dim);
 }
 
+/* filter chips: one flat list of kinds + genres */
+.tutorials-filters {
+  margin-bottom: 22px;
+}
+.cart-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cart-chip {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.cart-chip:hover {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+.cart-chip.active {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.cart-chip-n {
+  opacity: 0.6;
+  font-size: 10px;
+  margin-left: 2px;
+}
+.cart-chip.active .cart-chip-n {
+  opacity: 0.85;
+}
+
 .tutorials-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

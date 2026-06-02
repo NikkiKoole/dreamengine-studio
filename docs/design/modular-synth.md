@@ -32,9 +32,15 @@ when everything else already works.
 ## Screen
 
 **320×200 at 4× scale** (1280×800 window — the engine default, so no `de:settings`
-needed). Modules are **tall, narrow vertical strips** (authentic Eurorack), ~46px wide ×
-~150px tall, ~6 across. The cramped width is intentional and pairs with the
-proximity-reveal UI (below): permanent labels don't fit, so detail blooms under the cursor.
+needed). Modules are laid out as a **4×2 grid of bays** (each ~72px wide × 84px tall), using
+the **`FONT_SMALL` 4×6 font** for labels so the panels stay compact. The grid is fully
+parametrized (`bayx`/`bayy`/`baycx` from `NCOL`/`GW`/`GSP`/`GH`/`GRP`), so reshaping the rack
+is a few constant edits. It pairs with the proximity-reveal UI (below): small labels brighten
+as the cursor nears them.
+
+> _History: started as a single row of 6 tall vertical strips (the "authentic Eurorack"
+> look), then went FONT_SMALL + narrower, then to the 4×2 grid — which fits more bays and
+> gives each module a roomier landscape panel for side-by-side knobs._
 
 ### Legibility: proximity reveal
 
@@ -53,7 +59,10 @@ int near_col(int kx, int ky) {       // label brightness by cursor distance
 
 ## The rack — modules
 
-**Rack capacity — 6 visible, ~15–20 in the catalog.** At 320px, ~6 vertical strips fit
+**Rack capacity — 8 bays (4×2), ~15–20 in the catalog.** The 4×2 grid holds 8 modules (v1
+fills 6, leaving 2 empty "+ add" bays). More rows or columns are a constant edit away; beyond
+what fits, the escape hatch is swap-per-slot then scroll. The original single-row sizing note,
+kept below for reference: at 320px ~6 vertical strips fit
 comfortably (`6 × 48px + gutter ≈ 292`), 7 is tight, 8 is the ugly max. So the rack is a
 **fixed ~6 slots on screen**, filled from a **growing catalog of ~15–20 module types**.
 When the catalog outgrows the screen the escape hatch is *swap-per-slot* (pick which module

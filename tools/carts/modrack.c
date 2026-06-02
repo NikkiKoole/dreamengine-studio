@@ -2,23 +2,26 @@
 
 // MODRACK — a tiny modular synth, built in steps (see docs/design/modular-synth.md).
 //
-// Generative Berlin-school patch, fully editable. Drag an output jack to an input
-// (type-checked: green=gate, blue=cv, yellow=pitch), click an occupied input to rewire,
-// right-click a jack to clear. Knobs drag. S saves the patch, L loads, R resets.
-// Strips use the small font so they stay narrow — 7 bays fit, the last one's empty.
+// A generative Berlin-school patch, fully editable, laid out as a 4x2 grid of bays.
+// Drag an output jack to an input (type-checked: green=gate, blue=cv, yellow=pitch),
+// click an occupied input to rewire, right-click a jack to clear. Knobs drag.
+// S saves the patch, L loads, R resets. Two empty bays are waiting for new modules.
 
 #define SLOT 5
 #define ROOT_OCT 4
 
-// ── layout (parametrized so the rack is easy to resize) ──
-#define NSLOT 7          // visible bays (6 modules + 1 empty)
-#define SX0   5          // x of the first strip
-#define SP    44         // strip pitch (x spacing)
-#define SW    40         // strip width
-#define SY    18
-#define SH    156
-#define stripx(i) (SX0 + (i) * SP)
-#define stripcx(i) (stripx(i) + SW / 2)
+// ── grid layout (parametrized: change these to reshape the rack) ──
+#define NCOL 4
+#define NBAY 8           // 4 cols x 2 rows
+#define GX   4           // left margin
+#define GW   72          // bay width
+#define GSP  78          // column pitch
+#define GY   16          // top of row 0
+#define GH   84          // bay height
+#define GRP  88          // row pitch
+#define bayx(i) (GX + ((i) % NCOL) * GSP)
+#define bayy(i) (GY + ((i) / NCOL) * GRP)
+#define baycx(i) (bayx(i) + GW / 2)
 
 const char *NOTES[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
 const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
@@ -86,13 +89,16 @@ void init(void) {
     instrument(SLOT, INSTR_SAW, 4, 90, 3, 260);
     instrument_filter(SLOT, FILTER_LOW, 600, 10);
 
-    int top = SY + 24, bot = SY + 132;
-    setjack(J_CLK1, stripx(0) + 7, bot, 0, true); setjack(J_CLK2, stripx(0) + 20, bot, 0, true); setjack(J_CLK4, stripx(0) + 33, bot, 0, true);
-    setjack(J_LFO, stripcx(1), bot, 2, true);
-    setjack(J_SH_IN, stripx(2) + 12, top + 4, 2, false); setjack(J_SH_CLK, stripx(2) + 28, top + 4, 0, false); setjack(J_SH_OUT, stripcx(2), bot, 2, true);
-    setjack(J_QT_IN, stripcx(3), top, 2, false); setjack(J_QT_OUT, stripcx(3), bot, 1, true);
-    setjack(J_VO_G, stripx(4) + 8, top, 0, false); setjack(J_VO_P, stripcx(4), top, 1, false); setjack(J_VO_F, stripx(4) + 32, top, 2, false);
-    setjack(J_EU_CLK, stripcx(5), top, 0, false); setjack(J_EU, stripcx(5), bot, 0, true);
+    // jacks live at each module's grid origin (inputs near top +16, outputs near bottom +72)
+    int o0 = bayx(0), y0 = bayy(0);                       // CLOCK
+    setjack(J_CLK1, o0 + 16, y0 + 72, 0, true); setjack(J_CLK2, o0 + 36, y0 + 72, 0, true); setjack(J_CLK4, o0 + 56, y0 + 72, 0, true);
+    setjack(J_LFO, baycx(1), bayy(1) + 72, 2, true);      // LFO
+    int o2 = bayx(2), y2 = bayy(2);                       // S&H
+    setjack(J_SH_IN, o2 + 24, y2 + 16, 2, false); setjack(J_SH_CLK, o2 + 48, y2 + 16, 0, false); setjack(J_SH_OUT, baycx(2), y2 + 72, 2, true);
+    setjack(J_QT_IN, baycx(3), bayy(3) + 16, 2, false); setjack(J_QT_OUT, baycx(3), bayy(3) + 72, 1, true);
+    int o4 = bayx(4), y4 = bayy(4);                       // VOICE
+    setjack(J_VO_G, o4 + 18, y4 + 16, 0, false); setjack(J_VO_P, o4 + 36, y4 + 16, 1, false); setjack(J_VO_F, o4 + 54, y4 + 16, 2, false);
+    setjack(J_EU_CLK, baycx(5), bayy(5) + 16, 0, false); setjack(J_EU, baycx(5), bayy(5) + 72, 0, true);  // EUCLID
     wire_default();
 }
 
@@ -176,7 +182,7 @@ void jack_l(int id, bool lit, const char *name) {
 }
 
 void draw_cable(int sx, int sy, int dx, int dy, int c, bool pulse) {
-    int mx = (sx + dx) / 2, my = max(sy, dy) + 16;
+    int mx = (sx + dx) / 2, my = max(sy, dy) + 14;
     bezier(sx, sy, mx, my, dx, dy, c);
     if (pulse && tick_flash < 10) {
         float t = tick_flash / 10.0f, u = 1.0f - t;
@@ -233,70 +239,69 @@ void draw(void) {
 
     cls(CLR_DARKER_BLUE);
     font(FONT_NORMAL);
-    print("MODRACK", 6, 4, CLR_WHITE);
+    print("MODRACK", 4, 3, CLR_WHITE);
     font(FONT_SMALL);
-    if (msg_flash > 0) print(msg, 84, 6, CLR_LIGHT_PEACH);
-    else               print("drag out->in to patch", 84, 6, CLR_INDIGO);
+    if (msg_flash > 0) print(msg, 80, 5, CLR_LIGHT_PEACH);
+    else               print("drag out->in to patch", 80, 5, CLR_INDIGO);
 
     const char *nm[6] = { "CLOCK", "LFO", "S&H", "QUANT", "VOICE", "EUCLID" };
     int col[6]        = { CLR_ORANGE, CLR_PINK, CLR_YELLOW, CLR_GREEN, CLR_BLUE, CLR_RED };
     bool gate_lit = tick_flash < 5;
 
-    for (int i = 0; i < NSLOT; i++) {
-        int x = stripx(i), cx = stripcx(i);
+    for (int i = 0; i < NBAY; i++) {
+        int x = bayx(i), y = bayy(i), cx = baycx(i);
 
-        if (i >= 6) {   // empty bay — room for the next module
-            rect(x, SY, SW, SH, CLR_DARKER_GREY);
-            print("+", cx - 2, SY + SH / 2 - 6, CLR_DARK_GREY);
-            print("add", cx - 6, SY + SH / 2 + 2, CLR_DARKER_GREY);
+        if (i >= 6) {   // empty bay — room for a new module
+            rect(x, y, GW, GH, CLR_DARKER_GREY);
+            print("+ add", cx - 10, y + GH / 2 - 3, CLR_DARK_GREY);
             continue;
         }
 
-        rectfill(x, SY, SW, SH, CLR_DARKER_PURPLE);
-        rect(x, SY, SW, SH, col[i]);
-        print(nm[i], x + 3, SY + 3, col[i]);
+        rectfill(x, y, GW, GH, CLR_DARKER_PURPLE);
+        rect(x, y, GW, GH, col[i]);
+        print(nm[i], x + 3, y + 2, col[i]);
 
         switch (i) {
-            case 0:
-                circfill(cx, SY + 16, 4, gate_lit ? CLR_WHITE : CLR_DARK_ORANGE);
-                p_bpm = knob_dial(1, cx, SY + 40, p_bpm, 60, 240, "bpm", str("%d", (int)p_bpm));
+            case 0:  // CLOCK
+                circfill(x + 12, y + 14, 3, gate_lit ? CLR_WHITE : CLR_DARK_ORANGE);
+                p_bpm = knob_dial(1, x + 40, y + 34, p_bpm, 60, 240, "bpm", str("%d", (int)p_bpm));
                 jack_l(J_CLK1, gate_lit, "1"); jack_l(J_CLK2, jk[J_CLK2].val > 0.5f, "2"); jack_l(J_CLK4, jk[J_CLK4].val > 0.5f, "4");
                 break;
-            case 1:
-                p_rate = knob_dial(2, cx, SY + 34, p_rate, 0.1f, 8.0f, "rate", str("%.1f", p_rate));
-                meter(x + 6, SY + 54, 5, 50, lfo_out, CLR_PINK);
+            case 1:  // LFO
+                p_rate = knob_dial(2, x + 24, y + 36, p_rate, 0.1f, 8.0f, "rate", str("%.1f", p_rate));
+                meter(x + 48, y + 18, 6, 46, lfo_out, CLR_PINK);
                 jack_l(J_LFO, false, "cv");
                 break;
-            case 2:
+            case 2:  // S&H
                 jack_l(J_SH_IN, false, "in"); jack_l(J_SH_CLK, gate_lit, "clk");
-                meter(x + 6, SY + 58, 5, 48, sh, CLR_YELLOW);
+                meter(x + 10, y + 30, 6, 36, sh, CLR_YELLOW);
+                print(str("%d%%", (int)(sh * 99)), x + 26, y + 40, CLR_DARK_GREY);
                 jack_l(J_SH_OUT, false, "cv");
                 break;
-            case 3:
+            case 3:  // QUANT — scale + root
                 jack_l(J_QT_IN, false, "in");
-                p_scale = knob_dial(3, cx, SY + 46, p_scale, 0, 5.99f, "scl", SCALES[(int)p_scale]);
-                p_root  = knob_dial(4, cx, SY + 70, p_root, 0, 11.99f, "root", NOTES[(int)p_root]);
-                print(NOTES[cur_midi % 12], cx - text_width(NOTES[cur_midi % 12]) / 2, SY + 90, CLR_WHITE);
+                p_scale = knob_dial(3, x + 22, y + 40, p_scale, 0, 5.99f, "scl", SCALES[(int)p_scale]);
+                p_root  = knob_dial(4, x + 50, y + 40, p_root, 0, 11.99f, "root", NOTES[(int)p_root]);
+                print(NOTES[cur_midi % 12], cx - text_width(NOTES[cur_midi % 12]) / 2, y + 54, CLR_WHITE);
                 jack_l(J_QT_OUT, gate_lit, "pit");
                 break;
-            case 4:
+            case 4:  // VOICE
                 jack_l(J_VO_G, gate_lit, "g"); jack_l(J_VO_P, gate_lit, "p"); jack_l(J_VO_F, false, "f");
-                p_cut = knob_dial(5, cx, SY + 52, p_cut, 200, 2200, "cut", str("%d", (int)p_cut));
-                meter(x + 6, SY + 70, 5, 40, (cutoff - 300) / 2600.0f, CLR_BLUE);
-                if (tick_flash < 8) circ(cx, SY + 52, 9 - tick_flash, CLR_LIGHT_PEACH);
+                p_cut = knob_dial(5, x + 24, y + 44, p_cut, 200, 2200, "cut", str("%d", (int)p_cut));
+                meter(x + 48, y + 28, 6, 40, (cutoff - 300) / 2600.0f, CLR_BLUE);
+                if (tick_flash < 8) circ(x + 24, y + 44, 9 - tick_flash, CLR_LIGHT_PEACH);
                 break;
-            case 5: {
+            case 5: {  // EUCLID
                 jack_l(J_EU_CLK, gate_lit, "clk");
                 int hits = (int)p_hits, steps = (int)p_steps;
-                p_hits  = knob_dial(6, x + 11, SY + 40, p_hits, 1, 8.99f, "h", str("%d", hits));
-                p_steps = knob_dial(7, x + 29, SY + 40, p_steps, 2, 16.99f, "s", str("%d", steps));
+                p_hits  = knob_dial(6, x + 22, y + 40, p_hits, 1, 8.99f, "h", str("%d", hits));
+                p_steps = knob_dial(7, x + 50, y + 40, p_steps, 2, 16.99f, "s", str("%d", steps));
                 for (int s = 0; s < steps; s++) {
-                    int dx = x + 4 + (int)(s * (32.0f / steps));
+                    int dx = x + 8 + (int)(s * (56.0f / steps));
                     bool on = euclid(hits, steps, s);
-                    circfill(dx, SY + 64, on ? 2 : 1, on ? CLR_RED : CLR_DARK_GREY);
-                    if (s == ((eu_counter % steps) + steps) % steps && eu_flash < 6) circ(dx, SY + 64, 3, CLR_WHITE);
+                    circfill(dx, y + 56, on ? 2 : 1, on ? CLR_RED : CLR_DARK_GREY);
+                    if (s == ((eu_counter % steps) + steps) % steps && eu_flash < 6) circ(dx, y + 56, 3, CLR_WHITE);
                 }
-                if (eu_flash < 6) circfill(cx, SY + 84, 4, CLR_LIGHT_PEACH);
                 jack_l(J_EU, jk[J_EU].val > 0.5f, "g");
                 break;
             }
@@ -312,6 +317,6 @@ void draw(void) {
         for (int i = 0; i < JACK_N; i++) if (!jk[i].out && jk[i].type == jk[drag_from].type) circ(jk[i].x, jk[i].y, 5, CLR_WHITE);
     }
 
-    print("drag patch   rclick clear   S/L save   R reset", 6, 192, CLR_DARKER_GREY);
+    print("drag patch   rclick clear   S/L save   R reset", 4, 192, CLR_DARKER_GREY);
     font(FONT_NORMAL);
 }

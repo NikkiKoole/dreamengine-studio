@@ -93,6 +93,10 @@ const MINGW       = 'x86_64-w64-mingw32-gcc'
 const CART_SRC    = path.join(BUILD_DIR, 'cart.c')
 const CART_BIN    = path.join(BUILD_DIR, 'cart')
 const CART_EXE    = path.join(BUILD_DIR, 'cart.exe')
+// live (libtcc) backend: a persistent -DDE_TCC host that JIT-compiles cart.c and
+// hot-reloads it on save. See docs/design/cart-as-script.md.
+const LIBTCC_DIR  = path.join(RUNTIME_DIR, 'libtcc')
+const TCC_HOST_BIN = path.join(BUILD_DIR, 'cart_live_host')
 
 // ── cart build prep (shared by run + profile) ─────────────────
 // Resolve config → dims, regenerate the embedded data headers, write cart.c.
@@ -185,6 +189,106 @@ function macCompileArgs(dims, optFlags) {
     '-Wl,-dead_strip',
     `-o "${CART_BIN}"`,
   ]
+}
+
+// clang command for the LIVE (libtcc) host: studio.c compiled with -DDE_TCC and linked
+// against the vendored libtcc.dylib. The cart is NOT linked in — the host JIT-loads
+// cart.c at runtime and hot-reloads it on save. Screen/map dims are baked into the host
+// (it forwards them to the cart), so a dims change means a host rebuild.
+function macTccHostArgs(dims) {
+  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault } = dims
+  return [
+    `"${path.join(RUNTIME_DIR, 'studio.c')}"`,
+    '-DDE_TCC',
+    `-DDE_TCC_INCDIR='"${RUNTIME_DIR}"'`,
+    `-DDE_TCC_LIBDIR='"${path.join(LIBTCC_DIR, 'tcclib')}"'`,
+    `-I"${RUNTIME_DIR}"`,
+    `-I"${LIBTCC_DIR}"`,
+    `-I"${BUILD_DIR}"`,
+    `-I"${RAYLIB}/include"`,
+    `-DSCREEN_W=${screenW}`,
+    `-DSCREEN_H=${screenH}`,
+    `-DSCALE=${scale}`,
+    `-DMAP_W=${mapW}`,
+    `-DMAP_H=${mapH}`,
+    `-DCELL_W=${cellW}`,
+    `-DCELL_H=${cellH}`,
+    `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
+    '-fno-delete-null-pointer-checks',
+    `"${path.join(LIBTCC_DIR, 'libtcc.dylib')}"`,
+    `-Wl,-rpath,"${LIBTCC_DIR}"`,
+    `"${RAYLIB}/lib/libraylib.a"`,
+    '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
+    '-framework CoreVideo', '-framework CoreFoundation',
+    '-lm', '-ldl', '-lpthread',
+    `-o "${TCC_HOST_BIN}"`,
+  ]
+}
+
+// Live-host process + the signature of the build it was launched for. While the host
+// runs, a code-only edit just rewrites cart.c (its file-watch hot-reloads in place);
+// a change to studio.c/.h, the symbol table, screen dims, sprites or map invalidates
+// the baked-in host and forces a rebuild + relaunch.
+let liveProc = null
+let liveSig  = null
+function fileMtime(p) { try { return fs.statSync(p).mtimeMs } catch { return 0 } }
+function liveSignature(dims) {
+  return JSON.stringify({
+    dims,
+    studio:  fileMtime(path.join(RUNTIME_DIR, 'studio.c')),
+    studioH: fileMtime(path.join(RUNTIME_DIR, 'studio.h')),
+    syms:    fileMtime(path.join(RUNTIME_DIR, 'studio_tcc_symbols.h')),
+    sprites: fileMtime(path.join(BUILD_DIR, 'sprites.png')),
+    map:     fileMtime(path.join(BUILD_DIR, 'map.dat')),
+  })
+}
+function killLiveHost() {
+  if (liveProc && !liveProc.killed) { try { liveProc.kill() } catch {} }
+  liveProc = null
+}
+function buildTccHost(dims) {
+  return new Promise(resolve => {
+    if (!fs.existsSync(path.join(LIBTCC_DIR, 'libtcc.dylib'))) {
+      return resolve({ ok: false, cmd: '', output: `live backend needs runtime/libtcc/ — not found.\nSee runtime/libtcc/README.md.` })
+    }
+    const cmd = `clang ${macTccHostArgs(dims).join(' ')}`
+    exec(cmd, (err, _o, stderr) => {
+      const output = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
+      resolve({ ok: !err, cmd, output })
+    })
+  })
+}
+
+// LIVE backend: spawn the persistent libtcc host once; thereafter a Run just rewrites
+// cart.c and the host hot-reloads it (state in de_state() survives). prepareCart() has
+// already written cart.c + the data headers before we get here.
+async function runLive(dims, cfg, wc) {
+  const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
+  const sig  = liveSignature(dims)
+
+  // host already up for this exact build → cart.c was just rewritten; file-watch reloads.
+  if (liveProc && !liveProc.killed && sig === liveSig) {
+    send('cart:log', '↻ live reload\n')
+    return { ok: true, live: true, reloaded: true, src: CART_SRC }
+  }
+
+  killLiveHost()
+  if (!fs.existsSync(TCC_HOST_BIN) || sig !== liveSig) {
+    send('cart:log', '── building live host ──\n')
+    const b = await buildTccHost(dims)
+    if (!b.ok) return { ok: false, cmd: b.cmd, output: b.output || 'live host build failed' }
+  }
+  liveSig = sig
+
+  const cartTitle = cfg?.cartName ? `dreamengine (live): ${cfg.cartName}` : 'dreamengine (live)'
+  const proc = spawn(TCC_HOST_BIN, ['--cart', CART_SRC, '--title', cartTitle],
+    { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
+  proc.stdout.on('data', c => send('cart:log', c.toString()))
+  proc.stderr.on('data', c => send('cart:log', c.toString()))   // [tcc] compiled / hot-reloaded / errors
+  proc.on('exit', (code, signal) => { if (proc === liveProc) liveProc = null; send('cart:exit', { code, signal }) })
+  proc.on('error', () => {})
+  liveProc = proc
+  return { ok: true, live: true, src: CART_SRC, bin: TCC_HOST_BIN }
 }
 
 // Public studio.h function names — the cart author's vocabulary. These are the
@@ -466,6 +570,11 @@ ipcMain.handle('studio:save-map', (_event, bytes) => {
 // ── run handler ───────────────────────────────────────────────
 ipcMain.handle('studio:run', async (_event, code, cfg) => {
   const dims = prepareCart(code, cfg)
+
+  // live (libtcc) backend — JIT + hot reload, no static link / no Windows build
+  if (cfg?.backend === 'live') return runLive(dims, cfg, _event.sender)
+  killLiveHost()   // a native run supersedes any running live host
+
   const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, studioC } = dims
 
   const args = macCompileArgs(dims, ['-Os'])

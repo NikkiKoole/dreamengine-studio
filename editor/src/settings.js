@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, showProfiler: false, welcomeCart: 'zoo' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, showProfiler: false, welcomeCart: 'zoo', backend: 'native' }
 
 function load() {
   return {
@@ -12,6 +12,7 @@ function load() {
     touchControls: localStorage.getItem('touchControls') === '1',
     showProfiler:  localStorage.getItem('showProfiler') === '1',
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
+    backend:       localStorage.getItem('backend') || DEFAULTS.backend,
   }
 }
 
@@ -101,6 +102,20 @@ export function buildSettingsPanel(el) {
     v => { settings.welcomeCart = v; save('welcomeCart', v) },
   ))
   el.appendChild(startupSection)
+
+  // ── run mode (▶ backend) ──────────────────────────────────────
+  const backendSection = section('run mode')
+  backendSection.appendChild(select(
+    'how ▶ run compiles the cart',
+    [
+      { value: 'native', label: 'native (clang) — optimised, default' },
+      { value: 'live',   label: 'live (libtcc) — instant hot-reload' },
+    ],
+    settings.backend,
+    v => { settings.backend = v; save('backend', v) },
+  ))
+  backendSection.appendChild(note('native: a fresh optimised build each run. live: a persistent libtcc host JIT-compiles the cart and hot-reloads it on every run/save — game state in de_state() survives the swap. desktop app only; sprite/screen changes relaunch the live window. "Build for web" is unaffected.'))
+  el.appendChild(backendSection)
 
   // ── profiler (advanced) ───────────────────────────────────────
   const profSection = section('profiler')

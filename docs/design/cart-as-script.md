@@ -314,44 +314,55 @@ number-print helper) so beginners don't hit this.
   recovers. (Recovering from SIGSEGV mid-GL-call is genuinely unsafe in general, so
   treat as a design idea to validate, not a free win.)
 
-## Productizing — a backend toggle in settings
+## Productizing — backend toggle in settings — DONE (v1)
 
-The intended shape (decided in discussion): **don't replace ▶ run — add a backend
-selector.** The run path becomes a choice the user makes in the settings tab, persisted
-to localStorage next to screen/scale:
+Shipped a **run-mode toggle** rather than replacing ▶ run. `▶ run` now obeys a setting:
 
-- **Native (clang)** — today's behaviour: AOT, optimised, full diagnostics. The default
-  / "ship" build.
-- **Live (libtcc)** — the cart-as-script loop: spawn the persistent `-DDE_TCC` host once,
-  file-watch the cart, hot-reload on save/keystroke with `de_state` continuity. The
-  "liveloopy" dev mode.
-- **Web (emcc)** — unchanged; the existing "Build for web" path.
+- **Native (clang)** — default; today's AOT optimised build, full diagnostics, + the
+  background Windows cross-build.
+- **Live (libtcc)** — spawn the persistent `-DDE_TCC` host once; thereafter a Run/save
+  rewrites `cart.c` and the host's file-watch hot-reloads it in place, with `de_state`
+  continuity. The "liveloopy" dev mode.
 
-Wiring (all editor-side, the spike already proved the runtime):
-- `editor/src/settings.js` — add a `backend` setting (`native` | `live` | `web`),
-  persisted; surface it as a toggle in the settings tab (`shell.js`).
-- `editor/electron/main.cjs` — branch on `backend`: `native`/`web` keep their current
-  clang/emcc spawns; `live` builds the `DE_TCC` host (once) and runs it with `--cart`,
-  rewriting the cart file on edit so the host's file-watch picks it up (or swap to a
-  reload signal). Restart-on-`main.cjs`-change still applies.
-- This composes cleanly with the **one-cart-many-backends** model above: the cart source
-  is identical across all three; only the toggle changes who compiles it.
+(**Web (emcc)** stays its own "Build for web" button — it builds+serves rather than
+runs locally, so folding it into the run toggle would be a category error. Native vs.
+live is the run-button choice.)
 
-Open sub-questions for that work:
-- **Vendor `libtcc` as a dylib** (the symbol-clash fix) — committed to the repo, or
-  built on first `live` run? Packaging implication: the stable Homebrew TCC is x86-only,
-  so this must be a source-built mainline dylib either way.
-- `de_state` should become a **first-class `studio.h` API** (the four-places: declare,
-  implement, doc, shell-list) rather than a `DE_TCC`-only host symbol — so carts written
-  for `live` also compile under `native`/`web` (it's just a normal allocation there).
-- Live-mode crash resilience: ship the `sigsetjmp`/`siglongjmp` survive-and-wait recovery
-  (Step 4), or accept host-dies-on-crash for v1?
-- Keystroke vs. save-triggered reload (latency says keystroke is feasible) — and should
-  `live` carry the same screen/scale `-D`s as `native` so a cart looks identical in both?
+What landed:
+- **`de_state` is now a first-class `studio.h` API** (the four-places: declared in
+  `studio.h`, implemented unconditionally in `studio.c`, documented in `studioDocs.js`,
+  listed in `shell.js`). So a cart written for `live` compiles unchanged under `native`
+  too (it's just a process-lifetime allocation there). The generator picks it up
+  automatically (173 symbols now); the `DE_TCC` host no longer registers it by hand.
+- **Vendored libtcc** at `runtime/libtcc/` (`libtcc.dylib` + `libtcc.h` + `tcclib/`
+  = `libtcc1.a` + freestanding headers; ~0.5 MB, arm64-macOS, built from mainline). See
+  its README. The packaged Homebrew TCC is x86-only, so vendoring the source-built dylib
+  is the only option.
+- **`editor/src/settings.js`** — `backend` setting (`native` | `live`), persisted, with
+  a "run mode" select in the settings tab. The run button already passes `{...settings}`,
+  so `backend` flows through with no `shell.js` change.
+- **`editor/electron/main.cjs`** — `macTccHostArgs()` builds the host; `runLive()` (re)builds
+  it when its signature changes (studio sources / symbol table / dims / sprites / map)
+  and otherwise just reuses the running host so a code edit hot-reloads. `studio:run`
+  branches on `cfg.backend`; a native run kills any live host first.
+
+Verified at the runtime/build layer: the vendored host builds via the exact
+shell-escaped command `main.cjs` emits, loads a `de_state` cart, and renders. The
+Electron UI wiring itself is unrun here (no Electron in this environment) — syntax-checked
+only; first manual `npm start` should exercise the toggle.
+
+Known v1 limitations (documented for the next pass):
+- **Sprites / screen dims are baked into the host**, so changing them triggers a host
+  rebuild + relaunch (the live window restarts); only *code* edits hot-reload in place.
+- Reload is **on Run/save**, not per-keystroke (latency says keystroke is feasible —
+  a later refinement).
+- **No crash sandbox** — a cart segfault still takes the host down (Step 4); the
+  `sigsetjmp`/`siglongjmp` survive-and-wait recovery is not yet wired.
+- libtcc is **arm64-macOS only**; other platforms need their own vendored build.
 
 ## Resolved by the spike (were open questions)
 
-- **Symbol table:** generated from `studio.h` (`tools/gen-tcc-symbols.js`) — 172 entries
+- **Symbol table:** generated from `studio.h` (`tools/gen-tcc-symbols.js`) — 173 entries
   is far too many to hand-keep. Re-run it when declarations change.
 - **clang vs. libtcc:** not either/or — libtcc for the live loop, clang/emcc/Xcode for
   ship/web/iPad. See "One cart, many backends".

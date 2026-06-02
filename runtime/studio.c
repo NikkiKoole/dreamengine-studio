@@ -46,21 +46,9 @@ static void (*cart_update)(void) = NULL;
 static void (*cart_draw)(void)   = NULL;
 static char cart_path_buf[1024] = "";   // path of the loaded cart (for file-watch)
 static long cart_mtime = 0;             // its mtime at load time
-
-// Host-owned persistent cart state. Carts grab a zero-initialised block here
-// (`extern void *de_state(int);  #define ST ((MyState*)de_state(sizeof(MyState)))`)
-// and the host owns the memory, so it SURVIVES a hot reload — unlike a cart global,
-// which lives in the libtcc module and is wiped when the module is replaced.
-static unsigned char *de_state_mem = NULL;
-static int            de_state_cap = 0;
-static void *de_state(int bytes) {
-    if (bytes > de_state_cap) {
-        de_state_mem = realloc(de_state_mem, (size_t)bytes);
-        memset(de_state_mem + de_state_cap, 0, (size_t)(bytes - de_state_cap));
-        de_state_cap = bytes;
-    }
-    return de_state_mem;
-}
+// de_state() (the persistent cart-state block) is now a first-class studio.h API,
+// implemented unconditionally below and exposed to carts via the generated symbol
+// table — so it works under every backend, not just DE_TCC.
 
 static long file_mtime(const char *p) { struct stat st; return stat(p, &st) == 0 ? (long)st.st_mtime : 0; }
 
@@ -84,9 +72,8 @@ static int cart_load(const char *path) {
       snprintf(b, sizeof b, "%d", SCALE);    tcc_define_symbol(s, "SCALE",    b); }
     // expose the entire studio API to the cart
     #define X(n) tcc_add_symbol(s, #n, (const void *)n);
-    DE_TCC_API_SYMBOLS(X)
+    DE_TCC_API_SYMBOLS(X)   // includes de_state (a studio.h API) — no manual add needed
     #undef X
-    tcc_add_symbol(s, "de_state", (const void *)de_state);   // persistent-state hook
     if (tcc_add_file(s, path) < 0) { tcc_delete(s); return -1; }
     if (tcc_relocate(s)       < 0) { tcc_delete(s); return -1; }
     void (*ci)(void) = (void (*)(void))tcc_get_symbol(s, "init");
@@ -2298,6 +2285,21 @@ int load(int slot) {
     if (slot < 0 || slot >= 64) return 0;
     sav_ensure();
     return sav_data[slot];
+}
+
+// Engine-owned scratch state for the cart: one zero-initialised block that lives for
+// the whole process. Under the live (libtcc) backend the host owns this memory, so it
+// SURVIVES a hot reload — unlike a cart global, which is wiped when the module reloads.
+// Grows on demand; never shrinks. Bytes added by a grow are zeroed.
+static unsigned char *de_state_mem = NULL;
+static int            de_state_cap = 0;
+void *de_state(int bytes) {
+    if (bytes > de_state_cap) {
+        de_state_mem = realloc(de_state_mem, (size_t)bytes);
+        memset(de_state_mem + de_state_cap, 0, (size_t)(bytes - de_state_cap));
+        de_state_cap = bytes;
+    }
+    return de_state_mem;
 }
 
 void save_bytes(const void *data, int len) {

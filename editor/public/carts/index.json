@@ -17,6 +17,14 @@
     ]
   },
   {
+    "title": "traffic jam",
+    "description": "A generative cars toy in the rectangular style of Donkey Kong and Boulder Dash — every vehicle is built from rectfill/polyfill/circfill (no sprite art) from a random bag of GENE-DIMENSIONS rolled within its TYPE, so the same sedan is never the same sedan twice. Ten knobs vary one car: length, body height, roof height, cabin length, cabin position, windscreen rake, backlight rake, wheel radius, ground clearance, wheelbase — plus colours, two-tone, passengers, spoiler, roof-rack, antenna. 17 types: micro, hatchback, sedan, wagon, SUV, MPV, coupe, sports, supercar, muscle, luxury, convertible, antique, pickup, van, bus, and a long-ass semi truck — each with a driver and passengers visible through the glass. They roll past in a four-lane procession governed by a TRAFFIC LIGHT: go red and a stop-and-go jam piles up behind the line and ripples backward (real car-following), go green and it flows. Click a car to HONK, click the light (or L) to flip it, SPACE re-rolls the fleet.",
+    "file": "trafficjam.cart.png",
+    "kind": [
+      "toy"
+    ]
+  },
+  {
     "title": "the love parade",
     "description": "A generative toy in the rectangular style of Donkey Kong and Boulder Dash — every little person and animal is built from rectfill/circfill (no sprite art), from a random bag of GENES: proportions, colours, haircut, clothing pattern (sometimes), head shape, ears, tail, neck, horns, wings, antennae, eyes. Roll endlessly and a parade strolls past across depth lanes, never the same one twice. The hook: PICK ONE UP and drop it on another and they BREED — an offspring pops out (a tiny baby that grows up over ~10s), its genes a 50/50 mix of the two parents plus the odd mutation. Breeding only ever happens when YOU trigger it. Crazy outcomes: person × beast can make a CENTAUR, two humans can make a HUMAN-ON-ALL-FOURS, and giants/cyclops/winged hybrids turn up. Drag a critter onto another to breed; SPACE re-rolls the crowd; right-click adds a newcomer.",
     "file": "loveparade.cart.png",

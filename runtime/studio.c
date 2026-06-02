@@ -145,6 +145,11 @@ static bool inp_pressed(int k) {
         return (k >= 0 && k < KEYSTATE_N) ? (key_inject[k] && !key_inject_prev[k]) : false;
     return IsKeyPressed(k);
 }
+static bool inp_released(int k) {
+    if (inject_input)
+        return (k >= 0 && k < KEYSTATE_N) ? (!key_inject[k] && key_inject_prev[k]) : false;
+    return IsKeyReleased(k);
+}
 static int inp_mouse_x(void) {
     if (inject_input) return clampi(mouse_inj_x, 0, SCREEN_W - 1);
     return clampi((int)(GetMousePosition().x / SCALE), 0, SCREEN_W - 1);
@@ -173,6 +178,7 @@ static bool inp_mouse_released(int button) {
 static double clk(void) { return GetTime(); }
 static bool inp_down(int k)    { return IsKeyDown(k); }
 static bool inp_pressed(int k) { return IsKeyPressed(k); }
+static bool inp_released(int k){ return IsKeyReleased(k); }
 static int  inp_mouse_x(void)  { return clampi((int)(GetMousePosition().x / SCALE), 0, SCREEN_W - 1); }
 static int  inp_mouse_y(void)  { return clampi((int)(GetMousePosition().y / SCALE), 0, SCREEN_H - 1); }
 static bool inp_mouse_down(int b)     { return IsMouseButtonDown(raylib_mouse_button(b)); }
@@ -1020,6 +1026,12 @@ bool btnp(int player, int button) {
     if (player < 0 || player > 1) return false;
     if (button < 0 || button >= BTN_COUNT) return false;
     return btn_curr[player][button] && !btn_prev[player][button];
+}
+
+bool btnr(int player, int button) {
+    if (player < 0 || player > 1) return false;
+    if (button < 0 || button >= BTN_COUNT) return false;
+    return !btn_curr[player][button] && btn_prev[player][button];
 }
 
 // ------------------------------------------------------------
@@ -2246,6 +2258,7 @@ int   fps(void) { return GetFPS(); }
 const char *text_input(void) { return text_buf; }
 bool key(int k)  { return inp_down(k); }
 bool keyp(int k) { return inp_pressed(k); }
+bool keyr(int k) { return inp_released(k); }
 
 void pal(int c0, int c1)  { if (c0 >= 0 && c0 < PALETTE_SIZE && c1 >= 0 && c1 < PALETTE_SIZE) { palette[c0] = base_palette[c1]; pal_recompute(); } }
 void pal_reset(void)      { for (int i = 0; i < PALETTE_SIZE; i++) palette[i] = base_palette[i]; pal_recompute(); }

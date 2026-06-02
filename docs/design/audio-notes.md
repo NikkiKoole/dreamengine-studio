@@ -228,6 +228,14 @@ sound + a future tracker UI to match the sprite editor — already a stated VISI
 
 ## 6. Real-time / continuously-adjustable sound
 
+> **Status: SHIPPED — but as handles, not channels.** This section sketched fixed *held
+> channels* (`ch_play`/`ch_pitch`/…). We instead shipped a **handle** model —
+> `note_on()→handle` / `note_off()` + `note_pitch`/`note_vol`/`note_cutoff`/`note_duty` —
+> because handles give polyphony for free and match the MIDI mental model. The §6.2 slew
+> insight below is exactly what we built. Full rationale + the shipped API:
+> [`held-notes.md`](held-notes.md). The channel sketch below is kept as the original
+> exploration.
+
 Goal: sounds the *game* drives frame-by-frame — an engine that revs with speed, a UI
 slider that pitches up, a charging laser, wind that swells, a siren, a theremin.
 

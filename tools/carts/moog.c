@@ -5,8 +5,12 @@
 // the on-screen keyboard with the mouse or your computer keys (A row = white,
 // W E T Y U O P = black). Z/X shift octave, C/V change velocity.
 //
-// Every knob feeds the one instrument in SLOT; the settings are (re)applied the
-// instant you hit a note, so tweak and play freely.
+// Real hold-to-sustain: each key starts a HELD note (note_on) that rings as long as
+// you hold it and releases on key-up (note_off) — the ADSR sustain stage finally does
+// something. While a chord rings the FILTER (mode + cutoff + resonance), PW, and all
+// three LFOs follow their sliders LIVE under your fingers — the classic Moog filter
+// sweep and more, the thing a fire-and-forget note() can't do. Only WAVE and the ADSR
+// shape wait for the next note (you can't re-attack a ringing voice).
 
 #define SLOT 5
 #define NONE -999
@@ -27,6 +31,9 @@ int   vel  = 98;                   // 0..127, like a real synth
 // ---- mouse / immediate-mode UI state ----
 int mx, my, ui_held = 0, mouse_semi = NONE;
 
+// ---- held-note handles, one per playable key (-1 = key is up) ----
+int wh[11], bh[7], mouse_h = -1;
+
 // ---- keyboard layout ----
 const char wkey[]  = "ASDFGHJKL;'";
 int   wsemi[11] = { 0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17 };
@@ -39,27 +46,48 @@ int black_x(int j) { return white_x(bafter[j]) + 28; }
 
 int in_box(int x, int y, int w, int h) { return mx >= x && mx < x + w && my >= y && my < y + h; }
 
-// push the current patch into the instrument bank (read at the next note-on)
+// UI depth (0..1) → engine units, per LFO destination
+float lfo_scaled(int dest, float d) {
+    return dest == LFO_PITCH  ? d * 5.0f
+         : dest == LFO_DUTY   ? d * 0.45f
+         : dest == LFO_VOLUME ? d
+                              : d * 1800.0f;   // LFO_CUTOFF (Hz)
+}
+
+// push the current patch into the instrument bank (read at the next note-on:
+// this is where the snapshot-only knobs — wave + ADSR — take hold)
 void apply_synth(void) {
     instrument(SLOT, wave, (int)attack, (int)decay, CLI(sustain + 0.5f, 0, 7), (int)release);
     instrument_duty(SLOT, duty);
     for (int L = 0; L < 3; L++) {
         if (lfos[L].target == 0) { instrument_lfo(SLOT, L, LFO_PITCH, 0, 0); continue; }
         int dest = lfos[L].target - 1;                 // 1..4 -> LFO_PITCH..LFO_CUTOFF
-        float d  = lfos[L].depth;
-        float scaled = dest == LFO_PITCH  ? d * 5.0f
-                     : dest == LFO_DUTY   ? d * 0.45f
-                     : dest == LFO_VOLUME ? d
-                                          : d * 1800.0f;   // LFO_CUTOFF (Hz)
-        instrument_lfo(SLOT, L, dest, lfos[L].rate, scaled);
+        instrument_lfo(SLOT, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
     }
     instrument_filter(SLOT, fmode, (int)cutoff, CLI(res + 0.5f, 0, 15));
 }
 
-void trigger(int semi) {
-    apply_synth();
-    hit(base + semi, SLOT, CLI(vel * 7 / 127, 1, 7), 600);
+// push every LIVE-controllable knob to one ringing note this frame: filter (mode +
+// cutoff + resonance), pulse width, and all three LFOs. So dragging any of these while
+// a chord rings sweeps it under your fingers — only wave + ADSR wait for the next note.
+void drive_live(int h) {
+    if (h < 0) return;
+    note_filter(h, fmode);
+    note_cutoff(h, (int)cutoff);
+    note_res(h, CLI(res + 0.5f, 0, 15));
+    note_duty(h, duty);
+    for (int L = 0; L < 3; L++) {
+        if (lfos[L].target == 0) { note_lfo(h, L, LFO_PITCH, 0, 0); continue; }
+        int dest = lfos[L].target - 1;
+        note_lfo(h, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
+    }
 }
+
+int  vel07(void) { return CLI(vel * 7 / 127, 1, 7); }
+
+// key down → start a sustained note (apply the live patch first); key up → release it
+void voice_on(int *h, int semi) { apply_synth(); *h = note_on(base + semi, SLOT, vel07()); }
+void voice_off(int *h)          { if (*h >= 0) note_off(*h); *h = -1; }
 
 int key_at_mouse(void) {
     if (my < 200) return NONE;
@@ -86,24 +114,56 @@ float ui_slider(int id, int x, int y, int w, float val, float lo, float hi, int 
     return val;
 }
 
+// XY pad: drag to set two params at once — *vx on the horizontal (left→right = xlo→xhi),
+// *vy on the vertical (bottom→top = ylo→yhi). One control for cutoff × resonance.
+void ui_xy(int id, int x, int y, int w, int h, float *vx, float xlo, float xhi,
+           float *vy, float ylo, float yhi, int col) {
+    if (mouse_pressed(MOUSE_LEFT) && in_box(x, y, w, h)) ui_held = id;
+    if (ui_held == id) {
+        *vx = xlo + clamp((float)(mx - x) / w, 0, 1) * (xhi - xlo);
+        *vy = yhi - clamp((float)(my - y) / h, 0, 1) * (yhi - ylo);   // top = more
+    }
+    rectfill(x, y, w, h, CLR_BLACK);
+    for (int g = 1; g < 4; g++) line(x + g * w / 4, y, x + g * w / 4, y + h, CLR_DARKER_GREY);
+    for (int g = 1; g < 3; g++) line(x, y + g * h / 3, x + w, y + g * h / 3, CLR_DARKER_GREY);
+    rect(x, y, w, h, CLR_DARK_GREY);
+    int kx = clamp(x + (int)((*vx - xlo) / (xhi - xlo) * w), x, x + w);
+    int ky = clamp(y + (int)((yhi - *vy) / (yhi - ylo) * h), y, y + h);
+    line(kx, y, kx, y + h, col);
+    line(x, ky, x + w, ky, col);
+    circfill(kx, ky, 3, CLR_WHITE);
+}
+
 void panel(int x, int y, int w, int h, const char *title, int col) {
     rect(x, y, w, h, CLR_DARK_GREY);
     print(title, x + 4, y + 3, col);
 }
 
+void init() {
+    for (int i = 0; i < 11; i++) wh[i] = -1;
+    for (int j = 0; j < 7;  j++) bh[j] = -1;
+}
+
 void update() {
-    for (int i = 0; i < 11; i++) if (keyp(wkey[i])) trigger(wsemi[i]);
-    for (int j = 0; j < 7;  j++) if (keyp(bkey[j])) trigger(bsemi[j]);
+    for (int i = 0; i < 11; i++) {                       // computer-key white notes
+        if (keyp(wkey[i])) voice_on(&wh[i], wsemi[i]);
+        if (keyr(wkey[i])) voice_off(&wh[i]);
+    }
+    for (int j = 0; j < 7; j++) {                        // black notes
+        if (keyp(bkey[j])) voice_on(&bh[j], bsemi[j]);
+        if (keyr(bkey[j])) voice_off(&bh[j]);
+    }
 
     if (keyp('Z')) base = CLI(base - 12, 12, 96);
     if (keyp('X')) base = CLI(base + 12, 12, 96);
     if (keyp('C')) vel  = CLI(vel - 10, 1, 127);
     if (keyp('V')) vel  = CLI(vel + 10, 1, 127);
 
-    if (mouse_pressed(MOUSE_LEFT)) {
+    if (mouse_pressed(MOUSE_LEFT)) {                     // mouse on the on-screen keys
         int s = key_at_mouse();
-        if (s != NONE) { mouse_semi = s; trigger(s); }
+        if (s != NONE) { mouse_semi = s; apply_synth(); mouse_h = note_on(base + s, SLOT, vel07()); }
     }
+    if (mouse_released(MOUSE_LEFT)) { voice_off(&mouse_h); mouse_semi = NONE; }
 }
 
 // the famous ADSR envelope editor, with three drag handles
@@ -170,11 +230,10 @@ void draw() {
     panel(308, 16, 146, 100, "FILTER", CLR_ORANGE);
     for (int i = 0; i < 5; i++)
         if (ui_btn(312 + i * 28, 30, 26, 13, fn[i], fmode == i, CLR_ORANGE)) fmode = i;
-    print("CUT", 312, 52, CLR_MEDIUM_GREY);
-    cutoff = ui_slider(2, 336, 52, 112, cutoff, 80, 4000, CLR_ORANGE);
-    print("RES", 312, 66, CLR_MEDIUM_GREY);
-    res = ui_slider(3, 336, 66, 112, res, 0, 15, CLR_ORANGE);
-    print(str("%dhz  q%d", (int)cutoff, (int)(res + 0.5f)), 312, 82, CLR_MEDIUM_GREY);
+    ui_xy(2, 314, 48, 134, 44, &cutoff, 80, 4000, &res, 0, 15, CLR_ORANGE);
+    print("RES", 316, 50, CLR_DARK_GREY);                       // up  = more resonance
+    print("CUT", 426, 84, CLR_DARK_GREY);                       // right = more cutoff
+    print(str("cut %dhz  res %d", (int)cutoff, (int)(res + 0.5f)), 314, 96, CLR_MEDIUM_GREY);
 
     // ---- 3 LFOs ----
     const char *tn[5] = { "OFF", "PITCH", "DUTY", "VOL", "CUT" };
@@ -213,4 +272,10 @@ void draw() {
         rectfill(x, 200, 24, 62, lit ? CLR_ORANGE : CLR_BROWNISH_BLACK);
         print(str("%c", bkey[j]), x + 8, 248, CLR_WHITE);
     }
+
+    // LIVE: every held note follows the filter (mode+cutoff+res), PW, and LFO knobs this
+    // frame — tweak them while a chord rings and you hear it change under your fingers.
+    for (int i = 0; i < 11; i++) drive_live(wh[i]);
+    for (int j = 0; j < 7;  j++) drive_live(bh[j]);
+    drive_live(mouse_h);
 }

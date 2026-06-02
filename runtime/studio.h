@@ -81,6 +81,7 @@ void update(void);
 // input
 bool btn(int player, int button);   // true while button is held
 bool btnp(int player, int button);  // true only on the frame the button was pressed
+bool btnr(int player, int button);  // true only on the frame the button was released
 
 // touch
 int  touch_count(void);                  // active touches (0..10)
@@ -120,6 +121,7 @@ int   mouse_world_y(void);           // mouse y in world space — undoes the ac
 #endif
 bool key(int k);                     // true while key k is held. letters/digits: key('A'), key('5'); specials: KEY_SPACE, KEY_LEFT...
 bool keyp(int k);                    // true only on the frame key k was pressed
+bool keyr(int k);                    // true only on the frame key k was released
 const char *text_input(void);        // characters typed this frame (for name entry / word games); "" if none
 
 // graphics
@@ -241,6 +243,18 @@ void sfx(int n);                              // play sfx slot n; -1 stops all s
 void music(int n);                            // play music pattern n; -1 stops music
 void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..15 yourself)
 void hit(int midi, int instr, int vol, int dur_ms);       // note with custom duration — closed hihat ~30ms, open ~200ms
+
+// held notes — start a sustained voice and drive it live; the opposite of fire-and-forget note()
+int  note_on(int midi, int instr, int vol);               // start a sustained note → returns a handle. vol 0 = start silent. note_off it later
+void note_off(int handle);                                // release a held note (lets its envelope fade out)
+void note_pitch(int handle, float midi);                  // slide a held note to a new pitch (float → between notes); no retrigger
+void note_vol(int handle, int vol);                       // change a held note's volume 0..7 live; 0 = silent but still alive
+void note_cutoff(int handle, int hz);                     // sweep a held note's filter cutoff live (needs a filter on its instrument slot)
+void note_res(int handle, int resonance);                 // sweep a held note's filter resonance 0..15 live (pairs with note_cutoff for the acid squelch)
+void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // retune a held note's LFO `which` (0..2) live — dest LFO_PITCH/DUTY/VOLUME/CUTOFF; depth 0 = off
+void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
+void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
+void note_off_all(void);                                  // release every held note at once (panic / cleanup)
 
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..15: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release

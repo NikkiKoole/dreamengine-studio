@@ -166,8 +166,13 @@
   },
   {
     "title": "dream synth",
-    "description": "A playable Moog-style synth that ties the whole sound engine together. Build a patch with the mouse — pick a WAVE, drag the famous ADSR ENVELOPE dots, route THREE LFOs (pitch/duty/volume/cutoff) and dial a resonant FILTER — then play it on the on-screen keyboard with the mouse or your computer keys: the A row is the white keys, W E T Y U O P are the black keys, Z/X shift octave, C/V change velocity. Every knob feeds one instrument that's re-applied the instant you hit a note, so you can tweak and play at the same time.",
+    "description": "A playable Moog-style synth that ties the whole sound engine together. Build a patch with the mouse — pick a WAVE, drag the famous ADSR ENVELOPE dots, route THREE LFOs (pitch/duty/volume/cutoff) and dial a resonant FILTER — then play it on the on-screen keyboard with the mouse or your computer keys: the A row is the white keys, W E T Y U O P are the black keys, Z/X shift octave, C/V change velocity. Real hold-to-sustain: a key rings as long as you hold it, and the held chord follows the FILTER and PW sliders LIVE — drag the cutoff while a chord rings and it sweeps under your fingers.",
     "file": "moog.cart.png"
+  },
+  {
+    "title": "held notes",
+    "description": "A theremin built on the new HELD NOTE api. Press and HOLD anywhere on the pad — one sustained voice starts (note_on) and rings until you release (note_off). While you hold, the mouse drives it live: X slides the pitch (note_pitch), Y sweeps the filter cutoff (note_cutoff). This is the opposite of fire-and-forget note(): a voice you keep talking to. The building block behind engine revs, sirens, charging lasers, and real hold-to-sustain keyboards.",
+    "file": "heldnotes.cart.png"
   },
   {
     "title": "pong",

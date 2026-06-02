@@ -66,6 +66,18 @@ demo data only — see "Open" below.)
   (resonant SVF: low/high/band/notch). Demo carts: `instruments`, `lfo`, `filter`, and
   `dream synth` (a playable Moog-style patch panel + keyboard). See
   [`design/audio-notes.md`](design/audio-notes.md) §10.
+- **Held notes** — `note_on()→handle`/`note_off()` plus live setters
+  `note_pitch`/`note_vol`/`note_cutoff`/`note_res`/`note_duty`/`note_lfo`/`note_filter`
+  (+ `note_off_all`). A sustained voice
+  you drive frame-by-frame, the opposite of fire-and-forget `note()`: hold-to-sustain,
+  engine revs, sirens, theremins. Handles are `index + generation` so a stale handle
+  safely no-ops; per-param slew smooths live writes (no zipper). `note()`/`hit()` keep
+  their fixed-duration behavior. Demo cart: `held notes` (a theremin); `dream synth`
+  retrofitted onto them (real hold-to-sustain + live filter sweep). See
+  [`design/held-notes.md`](design/held-notes.md).
+- **Input release edges** — `keyr(k)` / `btnr(player, button)`, the falling-edge partners
+  to `keyp`/`btnp` (true on the frame a key/button is released). Needed for hold gestures
+  (note_on on press, note_off on release).
 
 ---
 
@@ -85,13 +97,12 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
    [`design/api-notes.md`](design/api-notes.md) §11.
 4. **Pause + debug** — `pause()`/`paused()`, `voices_active()`. (`fps()` SHIPPED — see
    Shipped above.) [`design/api-notes.md`](design/api-notes.md) §16.
-5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) now SHIPPED, see above._
-   Still open: `slide()` (portamento); zero-setup **preset instruments** (`INSTR_PLUCK`/
-   `PAD`/…); **held channels + per-param slew** (sustained, game-driven voices — the only
-   way to get hold-to-sustain, which the synth cart currently fakes with a fixed gate);
-   the **navkit rich-instrument port** (organ/Rhodes/piano as `INSTR_*` presets — drops
-   into the timbre slot with no API change); and cart-side **SFX/pattern authoring**
-   (banks are hardcoded today). [`design/audio-notes.md`](design/audio-notes.md) §5–8.
+5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) and **held notes**
+   (`note_on`/`note_off` + live setters + slew) now SHIPPED, see above._
+   Still open: zero-setup **preset instruments** (`INSTR_PLUCK`/`PAD`/…); the **navkit
+   rich-instrument port** (organ/Rhodes/piano as `INSTR_*` presets — drops into the timbre
+   slot with no API change); cart-side **SFX/pattern authoring** (banks are hardcoded
+   today). [`design/audio-notes.md`](design/audio-notes.md) §5–8, [`design/held-notes.md`](design/held-notes.md).
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
 7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.

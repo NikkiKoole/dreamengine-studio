@@ -79,9 +79,24 @@ typedef struct {
     int    flt_mode;
     float  flt_cutoff, flt_q;
     float  flt_low, flt_band;   // SVF running state
+    // held-note (note_on) state + per-param slew (the live voice glides toward these targets)
+    bool   held;                   // sustained note_on voice — infinite gate until note_off
+    int    owner_slot, owner_gen;  // which handle owns this voice (for stale-handle rejection)
+    float  freq_target, vol_target, cutoff_target, duty_target, flt_q_target;
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
+
+// held-note handles. A handle packs slot (low 3 bits) + generation (rest). The main
+// thread owns hn_gen/hn_used (hands out handles); the audio thread owns held_voice
+// (maps a handle slot → the voice currently serving it, or -1). A setter is honored
+// only if the live voice still carries the handle's generation — so a stale handle
+// (its voice was stolen or the slot reused) silently no-ops instead of hitting the
+// wrong note. See docs/design/held-notes.md.
+static int           hn_gen[SOUND_VOICES];      // main thread: generation per handle slot
+static bool          hn_used[SOUND_VOICES];     // main thread: slot handed out (between note_on/note_off)
+static int           held_voice[SOUND_VOICES];  // audio thread: handle slot → voice index, or -1
+#define SOUND_HELD_GATE 0x7FFFFFFF               // "infinite" gate length for a sustained note
 static AudioStream   sound_stream;
 static Sfx           sfx_bank[SOUND_SFX_SLOTS];
 static Pattern       music_bank[SOUND_MUSIC_SLOTS];
@@ -89,11 +104,13 @@ static Instrument    instr_bank[SOUND_INSTR_SLOTS];
 static int           music_current = -1;
 
 // request ring buffer (main thread pushes → audio thread drains)
-// kind: 0=sfx, 1=music, 2=note, 3=define instrument, 4=set duty. -1 in a/b/c slots = "stop" for sfx/music.
+// kind: 0=sfx, 1=music, 2=note, 3=define instrument, 4=set duty, 5=set lfo, 6=set filter,
+//       7=note_on, 8=note_off, 9=note_pitch, 10=note_vol, 11=note_cutoff, 12=note_duty,
+//       13=note_off_all, 14=note_res, 15=note_lfo, 16=note_filter. -1 in a/b/c slots = "stop" for sfx/music.
 // delay_samples: 0 = fire immediately; >0 = audio thread holds it in `delayed[]` and fires when countdown expires.
 // e0/e1/e2: extra payload (instrument attack/decay/release samples).
 typedef struct { int kind, a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
-#define SOUND_REQ_QUEUE   32
+#define SOUND_REQ_QUEUE   256   // generous: live held-voice control pushes many setters/frame (cutoff/res/duty/3×lfo per voice)
 #define SOUND_DELAYED_MAX 16
 
 static SoundReq      req_queue[SOUND_REQ_QUEUE];
@@ -150,6 +167,10 @@ static inline float sound_midi_to_freq(int midi) {
     return 440.0f * powf(2.0f, (midi - 69) / 12.0f);
 }
 
+static inline float sound_midi_to_freq_f(float midi) {
+    return 440.0f * powf(2.0f, (midi - 69.0f) / 12.0f);
+}
+
 static inline float sound_osc(int wave, float phase, float duty, int *noise_state) {
     switch (wave) {
     case INSTR_SQUARE: return phase < duty ? 0.5f : -0.5f;
@@ -194,13 +215,79 @@ static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
     return in;
 }
 
+// Drop any held-note ownership a voice carries (it's about to be reused or has finished),
+// so the handle that owned it goes stale and its setters start no-op'ing.
+static void sound_unclaim_held(int vi) {
+    if (voices[vi].held && voices[vi].owner_slot >= 0 && voices[vi].owner_slot < SOUND_VOICES)
+        held_voice[voices[vi].owner_slot] = -1;
+    voices[vi].held = false;
+    voices[vi].owner_slot = -1;
+}
+
 static int sound_find_voice(void) {
-    // prefer fully free; else steal a non-music voice; else steal voice 0
-    for (int i = 0; i < SOUND_VOICES; i++)
-        if (!voices[i].active) return i;
-    for (int i = 0; i < SOUND_VOICES; i++)
-        if (!voices[i].from_music) return i;
-    return 0;
+    int vi = 0;
+    // prefer fully free; else a non-music non-held voice; else any non-music; else voice 0.
+    // (held notes are stolen only after plain event voices — they're meant to last.)
+    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].active)                          { vi = i; goto done; }
+    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].from_music && !voices[i].held)    { vi = i; goto done; }
+    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].from_music)                       { vi = i; goto done; }
+done:
+    sound_unclaim_held(vi);
+    return vi;
+}
+
+// Resolve a live held voice from a handle's (slot, generation), or NULL if the handle is
+// stale — the one safety check every note_* setter leans on.
+static Voice *sound_held_voice(int slot, int gen) {
+    if (slot < 0 || slot >= SOUND_VOICES) return NULL;
+    int vi = held_voice[slot];
+    if (vi < 0 || vi >= SOUND_VOICES) return NULL;
+    Voice *v = &voices[vi];
+    if (v->active && v->held && v->owner_slot == slot && v->owner_gen == gen) return v;
+    return NULL;
+}
+
+// Flip a held voice into its release phase, fading from wherever the envelope is now.
+static void sound_begin_release(Voice *v) {
+    v->rel_start        = sound_adsr_gated(v->step_samples, v->a_samp, v->d_samp, v->sustain);
+    v->step_len_samples = v->step_samples;   // step_samples >= step_len → release branch in the mix loop
+    v->held             = false;             // no longer modulatable
+}
+
+// Shared note setup for both one-shot note() (kind 2) and held note_on() — copies the
+// instrument's timbre/ADSR/LFO/filter into the voice. gate_samples = the gated length
+// (SOUND_HELD_GATE for a sustained note_on; a finite count for a one-shot).
+static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_samples) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) slot = 0;
+    Instrument *ins = &instr_bank[slot];
+    v->active     = true;
+    v->from_music = false;
+    v->held       = false;
+    v->owner_slot = -1;
+    v->sfx_idx    = -1;
+    v->phase      = 0.0f;
+    v->freq       = v->freq_target   = sound_midi_to_freq(midi);
+    v->vol        = v->vol_target    = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f;
+    v->wave       = ins->wave;
+    v->duty       = v->duty_target   = ins->duty;
+    v->a_samp     = ins->a_samp;
+    v->d_samp     = ins->d_samp;
+    v->r_samp     = ins->r_samp;
+    v->sustain    = ins->sustain;
+    for (int L = 0; L < SOUND_LFOS; L++) {
+        v->lfo_dest[L]  = ins->lfo_dest[L];
+        v->lfo_rate[L]  = ins->lfo_rate[L];
+        v->lfo_depth[L] = ins->lfo_depth[L];
+        v->lfo_phase[L] = 0.0f;
+    }
+    v->flt_mode       = ins->flt_mode;
+    v->flt_cutoff     = v->cutoff_target = ins->flt_cutoff;
+    v->flt_q          = v->flt_q_target  = ins->flt_q;
+    v->flt_low        = 0.0f;
+    v->flt_band       = 0.0f;
+    v->step_samples     = 0;
+    v->step_len_samples = gate_samples;
+    v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
 }
 
 // Configure a voice to play one SFX step. Does not touch active / sfx_idx / step / from_music.
@@ -227,7 +314,7 @@ static void sound_fire_req(SoundReq r) {
         int n = r.a;
         if (n == -1) {
             for (int i = 0; i < SOUND_VOICES; i++)
-                if (!voices[i].from_music) voices[i].active = false;
+                if (!voices[i].from_music && !voices[i].held) voices[i].active = false;  // held notes survive sfx(-1)
         } else if (n >= 0 && n < SOUND_SFX_SLOTS) {
             int vi = sound_find_voice();
             Voice *v = &voices[vi];
@@ -249,6 +336,7 @@ static void sound_fire_req(SoundReq r) {
             for (int ch = 0; ch < 4; ch++) {
                 int s = m->channels[ch];
                 if (s < 0 || s >= SOUND_SFX_SLOTS) continue;
+                sound_unclaim_held(ch);   // music claims voices 0..3 — drop any held note there
                 Voice *v = &voices[ch];
                 v->active     = true;
                 v->from_music = true;
@@ -258,37 +346,52 @@ static void sound_fire_req(SoundReq r) {
             }
         }
     } else if (r.kind == 2) {       // note (one-shot)
-        int midi = r.a, slot = r.b, vol = r.c;
-        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) slot = 0;
-        Instrument *ins = &instr_bank[slot];
-        int vi = sound_find_voice();
-        Voice *v = &voices[vi];
-        v->active           = true;
-        v->from_music       = false;
-        v->sfx_idx          = -1;
-        v->phase            = 0.0f;
-        v->freq             = sound_midi_to_freq(midi);
-        v->vol              = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f;
-        v->wave             = ins->wave;
-        v->duty             = ins->duty;
-        v->a_samp           = ins->a_samp;
-        v->d_samp           = ins->d_samp;
-        v->r_samp           = ins->r_samp;
-        v->sustain          = ins->sustain;
-        for (int L = 0; L < SOUND_LFOS; L++) {
-            v->lfo_dest[L]  = ins->lfo_dest[L];
-            v->lfo_rate[L]  = ins->lfo_rate[L];
-            v->lfo_depth[L] = ins->lfo_depth[L];
-            v->lfo_phase[L] = 0.0f;
+        int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
+        sound_setup_note(&voices[sound_find_voice()], r.a, r.b, r.c, gate);
+    } else if (r.kind == 7) {       // note_on (held / sustained) — e0 = handle slot, e1 = generation
+        int slot = r.e0, gen = r.e1;
+        if (slot >= 0 && slot < SOUND_VOICES) {
+            if (held_voice[slot] >= 0) sound_begin_release(&voices[held_voice[slot]]);  // slot reused → fade the old one
+            int vi = sound_find_voice();
+            sound_setup_note(&voices[vi], r.a, r.b, r.c, SOUND_HELD_GATE);
+            voices[vi].held = true;
+            voices[vi].owner_slot = slot;
+            voices[vi].owner_gen  = gen;
+            held_voice[slot] = vi;
         }
-        v->flt_mode         = ins->flt_mode;
-        v->flt_cutoff       = ins->flt_cutoff;
-        v->flt_q            = ins->flt_q;
-        v->flt_low          = 0.0f;
-        v->flt_band         = 0.0f;
-        v->step_samples     = 0;
-        v->step_len_samples = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
-        v->rel_start        = sound_adsr_gated(v->step_len_samples, v->a_samp, v->d_samp, v->sustain);
+    } else if (r.kind == 8) {       // note_off — collapse the gate into release
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) { sound_begin_release(v); held_voice[r.e0] = -1; }
+    } else if (r.kind == 9) {       // note_pitch — a = midi * 256 (fixed-point float)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) v->freq_target = sound_midi_to_freq_f(r.a / 256.0f);
+    } else if (r.kind == 10) {      // note_vol — a = 0..7
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) v->vol_target = (r.a < 0 ? 0 : r.a > 7 ? 7 : r.a) / 7.0f;
+    } else if (r.kind == 11) {      // note_cutoff — a = Hz (drives the slot's filter base; LFO adds on top)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) v->cutoff_target = (float)r.a;
+    } else if (r.kind == 12) {      // note_duty — a = duty * 1000
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) { float d = r.a / 1000.0f; v->duty_target = d < 0.01f ? 0.01f : d > 0.99f ? 0.99f : d; }
+    } else if (r.kind == 14) {      // note_res — a = resonance 0..15 (same mapping as instrument_filter)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) { int res = r.a < 0 ? 0 : r.a > 15 ? 15 : r.a; v->flt_q_target = 2.0f - res * 0.13f; }
+    } else if (r.kind == 15) {      // note_lfo — a=which, b=dest, c=rate*1000, e2=depth*1000 (phase kept → no click)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        int L = r.a;
+        if (v && L >= 0 && L < SOUND_LFOS) {
+            v->lfo_dest[L]  = r.b;
+            v->lfo_rate[L]  = r.c  / 1000.0f;
+            v->lfo_depth[L] = r.e2 / 1000.0f;
+        }
+    } else if (r.kind == 16) {      // note_filter — a = filter mode (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) v->flt_mode = r.a;
+    } else if (r.kind == 13) {      // note_off_all — panic: release every held voice
+        for (int i = 0; i < SOUND_VOICES; i++)
+            if (voices[i].active && voices[i].held) { sound_begin_release(&voices[i]); }
+        for (int i = 0; i < SOUND_VOICES; i++) held_voice[i] = -1;
     } else if (r.kind == 3) {       // define instrument (wave + ADSR)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -359,6 +462,18 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             Voice *v = &voices[vi];
             if (!v->active) continue;
 
+            // per-param slew: note voices glide toward their targets so live writes
+            // (note_pitch/vol/cutoff/duty) don't stairstep or zipper. One-shots keep
+            // target == current, so this is a no-op for them; SFX/music set freq/vol
+            // directly and are skipped.
+            if (v->sfx_idx < 0) {
+                v->freq       += (v->freq_target   - v->freq)       * 0.006f;   // ~snappy (sequencer-friendly)
+                v->vol        += (v->vol_target    - v->vol)        * 0.003f;   // anti-zipper on gating
+                v->flt_cutoff += (v->cutoff_target - v->flt_cutoff) * 0.0015f;  // smooth filter sweep
+                v->flt_q      += (v->flt_q_target  - v->flt_q)      * 0.0015f;  // smooth resonance sweep
+                v->duty       += (v->duty_target   - v->duty)       * 0.003f;
+            }
+
             // step advance? (SFX/music walk their step list; one-shots fall through to ADSR release)
             if (v->step_samples >= v->step_len_samples && v->sfx_idx >= 0) {
                 Sfx *s = &sfx_bank[v->sfx_idx];
@@ -386,7 +501,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 env = sound_adsr_gated(v->step_samples, v->a_samp, v->d_samp, v->sustain);  // gated A/D/S
             } else {
                 int rs = v->step_samples - v->step_len_samples;                              // release
-                if (v->r_samp <= 0 || rs >= v->r_samp) { v->active = false; continue; }
+                if (v->r_samp <= 0 || rs >= v->r_samp) { v->active = false; sound_unclaim_held(vi); continue; }
                 env = v->rel_start * (1.0f - (float)rs / (float)v->r_samp);
             }
 
@@ -587,6 +702,70 @@ void hit(int midi, int instr, int vol, int dur_ms) {
     sound_push_req(2, midi, instr, vol, 0, dur);
 }
 
+// ── held notes: start a sustained voice, drive it live, release it (see docs/design/held-notes.md) ──
+
+int note_on(int midi, int instr, int vol) {
+    int slot = -1;
+    for (int i = 0; i < SOUND_VOICES; i++) if (!hn_used[i]) { slot = i; break; }
+    if (slot < 0) slot = 0;                      // all slots live → reuse slot 0 (oldest is stolen)
+    hn_used[slot] = true;
+    if (++hn_gen[slot] <= 0) hn_gen[slot] = 1;   // generations start at 1, stay positive
+    int gen = hn_gen[slot];
+    sound_push_ctrl(7, midi, instr, vol, slot, gen, 0);
+    return slot | (gen << 3);                    // handle: slot in low 3 bits, generation above
+}
+
+void note_off(int handle) {
+    if (handle <= 0) return;
+    int slot = handle & 7;
+    hn_used[slot] = false;
+    sound_push_ctrl(8, 0, 0, 0, slot, handle >> 3, 0);
+}
+
+void note_pitch(int handle, float midi) {
+    if (handle <= 0) return;
+    sound_push_ctrl(9, (int)(midi * 256.0f), 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_vol(int handle, int vol) {
+    if (handle <= 0) return;
+    sound_push_ctrl(10, vol, 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_cutoff(int handle, int hz) {
+    if (handle <= 0) return;
+    if (hz < 20) hz = 20;
+    sound_push_ctrl(11, hz, 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_res(int handle, int resonance) {
+    if (handle <= 0) return;
+    sound_push_ctrl(14, resonance, 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_lfo(int handle, int which, int dest, float rate_hz, float depth) {
+    if (handle <= 0) return;
+    if (which < 0 || which >= SOUND_LFOS) return;
+    if (rate_hz < 0) rate_hz = 0;
+    if (depth   < 0) depth   = 0;
+    sound_push_ctrl(15, which, dest, (int)(rate_hz * 1000.0f), handle & 7, handle >> 3, (int)(depth * 1000.0f));
+}
+
+void note_filter(int handle, int mode) {
+    if (handle <= 0) return;
+    sound_push_ctrl(16, mode, 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_duty(int handle, float duty) {
+    if (handle <= 0) return;
+    sound_push_ctrl(12, (int)(duty * 1000.0f), 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_off_all(void) {
+    for (int i = 0; i < SOUND_VOICES; i++) hn_used[i] = false;
+    sound_push_ctrl(13, 0, 0, 0, 0, 0, 0);
+}
+
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     int a = (attack_ms  * SOUND_SAMPLE_RATE) / 1000;
@@ -644,7 +823,8 @@ static void sound_init(void) {
     memset(voices,     0, sizeof(voices));
     memset(sfx_bank,   0, sizeof(sfx_bank));
     memset(music_bank, 0, sizeof(music_bank));
-    for (int i = 0; i < SOUND_VOICES;     i++) voices[i].noise_state = 12345 + i;
+    for (int i = 0; i < SOUND_VOICES;     i++) { voices[i].noise_state = 12345 + i; voices[i].owner_slot = -1; }
+    for (int i = 0; i < SOUND_VOICES;     i++) held_voice[i] = -1;
     for (int i = 0; i < SOUND_MUSIC_SLOTS; i++)
         for (int c = 0; c < 4; c++) music_bank[i].channels[c] = -1;
 

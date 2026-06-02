@@ -22,7 +22,7 @@ already work. Each step compiles, runs, and bakes a screenshot — a real checkp
 | **3** | Make knobs click-drag (BPM, rate, scale, root, cutoff) + hover-to-read | a playable generative instrument (fixed patch) | ✅ done — `modrack.c` |
 | **4** | Draw the fixed default patch as bezier cables with a dot pulsing on each gate | picture matches the sound | ✅ done — `modrack.c` |
 | **5** | Cables **editable**: drag out→in (type-checked), grab/rewire, right-click clear; engine is now cable-driven (modules read their input jacks) | a real modular you patch yourself | ✅ done — `modrack.c` |
-| **6** | SAVE/LOAD (`save_bytes`), wire EUCLID→DRUMS, polish LED/cable juice | a complete, shareable cart | — |
+| **6** | SAVE/LOAD (`save_bytes`) + R-reset, EUCLID as a euclidean-drum module (clock in → kick + gate out, live pattern dots), LED/cable juice | a complete, shareable cart — **v1 done** | ✅ done — `modrack.c` |
 | **7+** | Add modules (SLEW=`note_glide`, ENV, MULT, ATTENUVERTER, SCOPE…) — each a ~20-line pure function over the jack graph | the "more and more" growth | — |
 
 Steps 1–4 run on a **hardcoded** eval order; step 5 swaps the hardcoded wiring for the

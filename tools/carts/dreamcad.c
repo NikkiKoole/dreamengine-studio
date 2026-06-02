@@ -1,5 +1,60 @@
+// ════════════════════════════════════════════════════════════════════════════
 // dreamcad — picoCAD-style 3D model editor
-// v2: save/load, face select + color, extrude, delete, snap, undo
+// ════════════════════════════════════════════════════════════════════════════
+//
+// WHAT'S IN HERE
+//   Perspective + 3 ortho views + quad split (Tab), ortho toggle (O)
+//   Orbit camera — turntable, unlimited pitch, live FOV ([/])
+//   Vertex select/drag (LMB), face select + color picker
+//   Extrude (E), flip normal (F), delete face/vert (DEL), snap grid (G)
+//   Single-level undo (Z), auto-save on every edit (save_bytes)
+//   Add mesh: cube / plane / pyramid / diamond (+ add in sidebar)
+//   Rename objects (re-click name), RMB drag to move whole object
+//   UV editor (U) — sprite-sheet backed, drag 4 UV corners per face
+//   tritex() for textured faces, trifill() for flat-color faces
+//   Face normal debug overlay (N), reset to cube (R), help panel (H)
+//
+// IF YOU REVISIT — things worth adding
+//
+//   OBJECT OPS
+//     - Delete whole object (currently you can only delete face/vert)
+//     - Duplicate object (copy + offset)
+//     - Toggle object visibility (sidebar "o" shows state, doesn't click)
+//     - Object-level rename via double-click already works; add confirm on click-away
+//
+//   EDITING
+//     - Multi-vertex select: shift-click or box-drag to move several verts at once
+//     - Double-sided face flag UI: FACE_DOUBLE is in the data model but has no toggle
+//     - Extrude along axis (X/Y/Z constrained), not just face normal
+//     - Scale object (uniform S key, stretch individual axes)
+//     - Merge vertices that are close together (weld)
+//     - Loop cuts / edge loop inserts
+//
+//   UV EDITOR
+//     - Move whole UV quad at once (not just individual corners)
+//     - Snap UV corners to sprite-sheet grid (8px boundaries)
+//     - Scale / rotate the UV quad (R/S in UV mode)
+//     - Copy UV from one face to another
+//     - Show 3D preview thumbnail alongside the UV sheet
+//
+//   RENDERING / DISPLAY
+//     - Flat shading: darken back-facing faces using fillp() dither
+//       (dot face-normal with a light direction, map to FILL_CHECKER etc.)
+//     - Smooth shading: average normals at shared vertices
+//     - Wireframe-only mode (no face fill) for cleaner ortho editing
+//     - Backface indicator in 3D view (dim tint instead of fully visible)
+//
+//   CAMERA
+//     - Pan (middle-mouse or Alt+drag) so you can work on off-center models
+//     - Focus on selected object (F key: recentre cam on sel_obj bbox)
+//     - Camera presets: front / right / top / isometric (numpad-style shortcuts)
+//
+//   PERSISTENCE / EXPORT
+//     - Multiple save slots (currently one slot per cart)
+//     - Export model as C struct so you can paste it into another cart
+//     - Load another cart's embedded model into the scene
+//
+// ════════════════════════════════════════════════════════════════════════════
 #include "studio.h"
 #include <math.h>
 #include <string.h>

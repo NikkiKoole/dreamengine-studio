@@ -40,7 +40,7 @@ For reference, the current API (all of `studio.h`) groups into:
 | **Debug** | `watch`, `watch_visible`, `printh` |
 | **Palette** | 32 `CLR_*` constants |
 
-Roughly **~125 functions + ~90 constants** in `studio.h` today. Strong across the board. **Still missing: events, Strudel extras, Dilla groove timing, gamepad, and pause/fps debug.** (Since this table was first written: sprite rotation/scale `spr_rot`/`sspr_ex` (§18); the juice batch `pal`/`fade`/`shake`/`print_scaled` and `fillp` patterns (§19); the four-axis **instrument synth** `instrument`/`instrument_duty`/`instrument_lfo`/`instrument_filter` (see audio-notes §10); and `tritex` textured triangles.)
+Roughly **~125 functions + ~90 constants** in `studio.h` today. Strong across the board. **Still missing: events, Strudel extras, Dilla groove timing, gamepad, and pause debug (`fps()` now shipped).** (Since this table was first written: sprite rotation/scale `spr_rot`/`sspr_ex` (§18); the juice batch `pal`/`fade`/`shake`/`print_scaled` and `fillp` patterns (§19); the four-axis **instrument synth** `instrument`/`instrument_duty`/`instrument_lfo`/`instrument_filter` (see audio-notes §10); and `tritex` textured triangles.)
 
 ---
 
@@ -864,9 +864,12 @@ void pause(bool paused);
 bool paused(void);
 
 // debug introspection
-int fps(void);             // current frame rate (averaged)
+int fps(void);             // SHIPPED — measured frame rate now, averaged over the last second (wraps GetFPS). independent of dt()/det_mode, so it reports real render throughput even in deterministic replay
 int voices_active(void);   // how many sound voices are currently playing
 ```
+
+> **`fps()` shipped (2026-06-02)** — the rest of this section (`pause()`/`paused()`,
+> `voices_active()`) is still open. See STATUS open item 4.
 
 `pause(true)` stops `update()` from firing; `draw()` keeps running
 each frame so the screen doesn't freeze. Carts can use this for

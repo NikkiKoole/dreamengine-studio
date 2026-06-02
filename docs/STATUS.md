@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-01 (session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug). Prior: session 12 — ragdoll physics demo cart._
+_Last updated: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; dedicated profiling setup in progress separately). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
 
 ---
 
@@ -47,6 +47,13 @@ Recently landed and worth calling out:
 - Input: full mouse (`mouse_x/y/down/pressed/released/wheel`), keyboard
   (`key`/`keyp`/`text_input`).
 - Time/persistence: `dt`, `epoch`, `save_bytes`/`load_bytes`.
+- **`fps()`** — measured frames-per-second right now, `int`, smoothed over the last second
+  (wraps Raylib `GetFPS()`). 60 = smooth; lower = the cart is too slow this frame. Independent
+  of `dt()`/`det_mode`: even when the sim's `frame_dt` is pinned for deterministic replay,
+  `fps()` still reports *real* render throughput, so scripted/headless runs stay reproducible
+  while showing true speed. Intended as the read-out for the triangle-perf work (open item 14):
+  `watch("fps", "%d", fps())` on a haze-heavy `podracer` frame, before/after a change. *(A
+  dedicated profiling setup is in progress separately.)*
 
 **Code-first sound** — 8-voice synth; `note`/`hit`/`chord`/`strum`/`tone`/`degree`,
 `bpm`/`beat`, `every`/`euclid`/`chance`, `schedule`. (Banks `sfx`/`music` play built-in
@@ -75,8 +82,8 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
 3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
    surfaced by the brainstorm review). Touches main-loop drain semantics.
    [`design/api-notes.md`](design/api-notes.md) §11.
-4. **Pause + debug** — `pause()`/`paused()`, `fps()`, `voices_active()`.
-   [`design/api-notes.md`](design/api-notes.md) §16.
+4. **Pause + debug** — `pause()`/`paused()`, `voices_active()`. (`fps()` SHIPPED — see
+   Shipped above.) [`design/api-notes.md`](design/api-notes.md) §16.
 5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) now SHIPPED, see above._
    Still open: `slide()` (portamento); zero-setup **preset instruments** (`INSTR_PLUCK`/
    `PAD`/…); **held channels + per-param slew** (sustained, game-driven voices — the only

@@ -301,6 +301,7 @@ float now(void);           // seconds since startup
 float dt(void);            // seconds since the last frame (already clamped for hitches). multiply movement/decay by this for framerate-independent speed
 int   epoch(void);         // real-world clock: Unix time in whole seconds. unlike now() it keeps counting between runs — store it with save() to tell how long the player was away
 int   frame(void);         // frame count since startup (increments once per update)
+int   fps(void);           // measured frames per second right now (smoothed over the last second). 60 = running smooth; a lower number means the cart is too slow this frame. show it with watch() while tuning performance
 int   sgn(int n);          // -1 if n<0, 0 if n==0, 1 if n>0
 int   mid(int a, int b, int c);  // middle value of three. use for clamp: mid(lo, val, hi)
 float timer(void);         // seconds since the last timer_reset() (or startup) — a resettable stopwatch

@@ -549,4 +549,8 @@ void draw(void) {
         print_centered(str("best lap %.1fs", best_lap), 106, CLR_LIME_GREEN);
         print_centered("A to race again", 118, CLR_LIGHT_GREY);
     }
+
+    // perf read-out while tuning the software-trifill haze cost (F1 toggles the
+    // debug overlay; also captured by the play.js trace). 60 = smooth.
+    watch("fps", "%d", fps());
 }

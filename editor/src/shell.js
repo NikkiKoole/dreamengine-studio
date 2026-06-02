@@ -80,7 +80,7 @@ const sections = [
   { title: 'animation',  titleNL: 'animatie',     keys: ['anim', 'anim_once', 'blink'] },
   { title: 'strings',    titleNL: 'tekst',        keys: ['str'] },
   { title: 'sound',      titleNL: 'geluid',       keys: ['sfx', 'music', 'note', 'hit', 'instrument', 'instrument_duty', 'instrument_lfo', 'instrument_filter', 'tone', 'chord', 'strum', 'schedule', 'bpm', 'beat', 'beat_pos', 'every', 'euclid', 'chance', 'degree', 'INSTR_SQUARE', 'INSTR_SAW', 'INSTR_TRI', 'INSTR_NOISE', 'INSTR_SINE', 'LFO_PITCH', 'LFO_DUTY', 'LFO_VOLUME', 'LFO_CUTOFF', 'FILTER_OFF', 'FILTER_LOW', 'FILTER_HIGH', 'FILTER_BAND', 'FILTER_NOTCH', 'SCALE_MAJOR', 'SCALE_MINOR', 'SCALE_PENTA', 'SCALE_PENTA_MIN', 'SCALE_BLUES', 'SCALE_CHROMATIC', 'CHORD_MAJ', 'CHORD_MIN', 'CHORD_DIM', 'CHORD_AUG', 'CHORD_MAJ7', 'CHORD_MIN7', 'CHORD_DOM7', 'CHORD_SUS4', 'CHORD_POWER'] },
-  { title: 'utility',    titleNL: 'hulpmiddelen', keys: ['rnd', 'rnd_between', 'rnd_float', 'rnd_float_between', 'now', 'dt', 'epoch', 'frame', 'sgn', 'mid', 'timer', 'timer_reset'] },
+  { title: 'utility',    titleNL: 'hulpmiddelen', keys: ['rnd', 'rnd_between', 'rnd_float', 'rnd_float_between', 'now', 'dt', 'epoch', 'frame', 'fps', 'sgn', 'mid', 'timer', 'timer_reset'] },
   { title: 'persistence', titleNL: 'opslaan', keys: ['save', 'load', 'save_int', 'load_int', 'save_bytes', 'load_bytes'] },
   { title: 'debug',      titleNL: 'debuggen',     keys: ['printh', 'watch', 'watch_visible'] },
   { title: 'screen',     titleNL: 'scherm',       keys: ['SCREEN_W', 'SCREEN_H'] },
@@ -611,6 +611,49 @@ runBtn.addEventListener('click', async () => {
   showLog(result)
 })
 
+// ── profile button (hidden unless enabled in settings) ─────────
+const profileBtn = document.getElementById('profile-btn')
+if (profileBtn) {
+  if (settings.showProfiler) profileBtn.style.display = ''
+
+  profileBtn.addEventListener('click', async () => {
+    if (!window.studio) {
+      showLog({ ok: false, profile: true, output: 'profiling requires the desktop app  (npm start)' })
+      return
+    }
+    // profile() is added in preload.cjs — which only loads on a full Electron
+    // restart, not a Vite hot-reload. A stale preload would throw and wedge the
+    // button, so fail loud instead.
+    if (typeof window.studio.profile !== 'function') {
+      showLog({ ok: false, profile: true, output: 'restart the app (Ctrl-C, then `npm start`) to enable profiling' })
+      return
+    }
+
+    const code = view.state.doc.toString()
+    setErrorLines([])
+    profileBtn.textContent = '⏱ profiling…'
+    profileBtn.disabled = true
+    runBtn.disabled = true
+    buildLog.style.display = 'none'
+    rlogClear()
+
+    try {
+      const tilemapCanvas = document.querySelector('#tilemap-canvas')
+      if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+      await window.studio.saveMap(getMapBytes())
+
+      const result = await window.studio.profile(code, { ...settings, cartName: currentCartName })
+      showLog(result)
+    } catch (e) {
+      showLog({ ok: false, profile: true, output: 'profiling failed: ' + (e?.message || e) })
+    } finally {
+      profileBtn.textContent = '⏱ profile'
+      profileBtn.disabled = false
+      runBtn.disabled = false
+    }
+  })
+}
+
 // ── cart save / load ──────────────────────────────────────────
 const saveCartBtn = document.getElementById('save-cart-btn')
 const loadCartBtn = document.getElementById('load-cart-btn')
@@ -731,6 +774,8 @@ function showLog(result) {
   })
   buildLog.appendChild(close)
 
+  if (result.profile) { renderProfile(result); return }
+
   if (result.cmd) {
     const cmdLine = document.createElement('div')
     cmdLine.className = 'build-cmd'
@@ -769,6 +814,52 @@ function showLog(result) {
       if (lines.length) setErrorLines(lines)
     }
   }
+}
+
+// render profiler results (cart-code CPU hotspots) into the build log
+function renderProfile(result) {
+  if (!result.ok) {
+    const err = document.createElement('div')
+    err.className = 'build-error'
+    err.textContent = result.output || 'profiling failed'
+    buildLog.appendChild(err)
+    return
+  }
+
+  const { hotspots, seconds } = result
+  const { total, cartSamples, leaves } = hotspots
+
+  const head = document.createElement('div')
+  head.className = 'build-ok'
+  head.textContent = `⏱ profiled ${seconds}s — hottest functions, and the calls that reach them`
+  buildLog.appendChild(head)
+
+  const wallPct = total ? Math.round((cartSamples / total) * 100) : 0
+  const meta = document.createElement('div')
+  meta.className = 'build-meta'
+  meta.textContent = `  ${cartSamples}/${total} samples in cart code (~${wallPct}% of wall time; rest = vsync / system)`
+  buildLog.appendChild(meta)
+
+  if (!leaves || !leaves.length) {
+    const none = document.createElement('div')
+    none.className = 'build-meta'
+    none.textContent = '  (no cart-code hotspots — the cart was mostly idle / waiting on vsync)'
+    buildLog.appendChild(none)
+    return
+  }
+
+  leaves.slice(0, 8).forEach(leaf => {
+    const line = document.createElement('div')
+    line.className = 'build-meta'
+    line.textContent = `  ${leaf.pct.toFixed(1).padStart(5)}%  ${String(leaf.samples).padStart(4)}  ${leaf.symbol}`
+    buildLog.appendChild(line)
+    leaf.paths.forEach(p => {
+      const sub = document.createElement('div')
+      sub.className = 'build-meta build-profile-path'
+      sub.textContent = `            ${String(p.samples).padStart(4)}  ← ${p.via}`
+      buildLog.appendChild(sub)
+    })
+  })
 }
 
 // ── runtime log panel (printh() output + exit/crash banner) ───

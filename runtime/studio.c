@@ -2044,6 +2044,7 @@ int load_int(const char *key, int def) {
 // ------------------------------------------------------------
 
 float dt(void) { return frame_dt; }
+int   fps(void) { return GetFPS(); }
 
 const char *text_input(void) { return text_buf; }
 bool key(int k)  { return inp_down(k); }

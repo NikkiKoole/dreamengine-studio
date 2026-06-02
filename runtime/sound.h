@@ -83,6 +83,7 @@ typedef struct {
     bool   held;                   // sustained note_on voice — infinite gate until note_off
     int    owner_slot, owner_gen;  // which handle owns this voice (for stale-handle rejection)
     float  freq_target, vol_target, cutoff_target, duty_target, flt_q_target;
+    float  freq_slew;              // pitch slew coefficient/sample — note_glide() sets it (default = snappy)
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -106,7 +107,8 @@ static int           music_current = -1;
 // request ring buffer (main thread pushes → audio thread drains)
 // kind: 0=sfx, 1=music, 2=note, 3=define instrument, 4=set duty, 5=set lfo, 6=set filter,
 //       7=note_on, 8=note_off, 9=note_pitch, 10=note_vol, 11=note_cutoff, 12=note_duty,
-//       13=note_off_all, 14=note_res, 15=note_lfo, 16=note_filter. -1 in a/b/c slots = "stop" for sfx/music.
+//       13=note_off_all, 14=note_res, 15=note_lfo, 16=note_filter, 17=note_glide.
+//       -1 in a/b/c slots = "stop" for sfx/music.
 // delay_samples: 0 = fire immediately; >0 = audio thread holds it in `delayed[]` and fires when countdown expires.
 // e0/e1/e2: extra payload (instrument attack/decay/release samples).
 typedef struct { int kind, a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
@@ -285,6 +287,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->flt_q          = v->flt_q_target  = ins->flt_q;
     v->flt_low        = 0.0f;
     v->flt_band       = 0.0f;
+    v->freq_slew        = 0.006f;   // ~snappy by default; note_glide() slows it for portamento
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
@@ -388,6 +391,12 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == 16) {      // note_filter — a = filter mode (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->flt_mode = r.a;
+    } else if (r.kind == 17) {      // note_glide — a = portamento time in ms (0 = snap to pitch)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) {
+            float k = r.a <= 0 ? 1.0f : 1000.0f / ((float)r.a * (float)SOUND_SAMPLE_RATE);
+            v->freq_slew = k > 1.0f ? 1.0f : k < 0.00001f ? 0.00001f : k;
+        }
     } else if (r.kind == 13) {      // note_off_all — panic: release every held voice
         for (int i = 0; i < SOUND_VOICES; i++)
             if (voices[i].active && voices[i].held) { sound_begin_release(&voices[i]); }
@@ -467,7 +476,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // target == current, so this is a no-op for them; SFX/music set freq/vol
             // directly and are skipped.
             if (v->sfx_idx < 0) {
-                v->freq       += (v->freq_target   - v->freq)       * 0.006f;   // ~snappy (sequencer-friendly)
+                v->freq       += (v->freq_target   - v->freq)       * v->freq_slew;  // glide rate (note_glide)
                 v->vol        += (v->vol_target    - v->vol)        * 0.003f;   // anti-zipper on gating
                 v->flt_cutoff += (v->cutoff_target - v->flt_cutoff) * 0.0015f;  // smooth filter sweep
                 v->flt_q      += (v->flt_q_target  - v->flt_q)      * 0.0015f;  // smooth resonance sweep
@@ -754,6 +763,11 @@ void note_lfo(int handle, int which, int dest, float rate_hz, float depth) {
 void note_filter(int handle, int mode) {
     if (handle <= 0) return;
     sound_push_ctrl(16, mode, 0, 0, handle & 7, handle >> 3, 0);
+}
+
+void note_glide(int handle, int ms) {
+    if (handle <= 0) return;
+    sound_push_ctrl(17, ms, 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_duty(int handle, float duty) {

@@ -67,7 +67,7 @@ demo data only — see "Open" below.)
   `dream synth` (a playable Moog-style patch panel + keyboard). See
   [`design/audio-notes.md`](design/audio-notes.md) §10.
 - **Held notes** — `note_on()→handle`/`note_off()` plus live setters
-  `note_pitch`/`note_vol`/`note_cutoff`/`note_res`/`note_duty`/`note_lfo`/`note_filter`
+  `note_pitch`/`note_vol`/`note_cutoff`/`note_res`/`note_duty`/`note_lfo`/`note_filter`/`note_glide`
   (+ `note_off_all`). A sustained voice
   you drive frame-by-frame, the opposite of fire-and-forget `note()`: hold-to-sustain,
   engine revs, sirens, theremins. Handles are `index + generation` so a stale handle

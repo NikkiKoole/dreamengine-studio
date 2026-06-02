@@ -6,8 +6,10 @@
 > below. `note()`/`hit()` keep their fixed-duration behavior. Demo cart: `held notes` (a
 > theremin — `tools/carts/heldnotes.c`). The §7 `keyr`/`btnr` release edges shipped too,
 > and `moog.c` is retrofitted: keys hold-to-sustain and the held chord follows the filter
-> slider live. Still open from §9: only the `note_glide` portamento opt-in (B). The spec
-> text below is kept as the rationale.
+> slider live. `note_glide(handle, ms)` (the §9 B portamento opt-in) also shipped — it's
+> just the per-voice pitch-slew coefficient turned down, so the default snappy slew and a
+> musical glide are the *same knob*. Every §9 item is now settled. The spec text below is
+> kept as the rationale.
 
 The missing real-time half of the sound system: a voice you **hold** and **write to
 every frame**, instead of firing and forgetting. This is the primitive behind
@@ -117,6 +119,7 @@ void note_res   (int handle, int resonance);       // drive the slot's filter re
 void note_duty  (int handle, float duty);          // drive pulse width live (no-op on non-pulse waves)
 void note_lfo   (int handle, int which, int dest, float rate_hz, float depth);  // retune LFO `which` (0..2) live — phase kept, no click
 void note_filter(int handle, int mode);            // switch filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
+void note_glide (int handle, int ms);              // portamento: note_pitch slides over `ms` instead of snapping (0 = snap)
 void note_off_all(void);                            // panic: release every held note (recover from a leaked handle)
 ```
 
@@ -279,24 +282,16 @@ this primitive.
   is defused, so held voices stay stealable (no reserved pool). (§2, §6)
 - **`note_off_all()` is the panic; no auto-release.** A leaked handle is an audible,
   debuggable bug, not a crash. Drones are intentional. (§4.1)
+- **B — pitch slew / portamento: SHIPPED snappy-by-default + `note_glide(handle, ms)`
+  opt-in.** The key realization: glide *is* the pitch-slew coefficient (default ~4 ms =
+  the anti-zipper smoothing, imperceptible as a slide), and `note_glide` just turns that
+  same knob down to tens/hundreds of ms so it becomes an audible musical portamento. One
+  field (`freq_slew`), two behaviours. Subsumes the proposed `slide()` primitive.
+- **C — live setters compose with slot LFOs** (game drives the base, LFO shimmers on top).
+- **D — `note_vol` stays integer 0..7** (slew already glides the steps smoothly).
+- **E — voice-steal is LRU** (a dead handle silently no-ops, per the contract).
 
-**Still open — decide before coding:**
-
-**B. Default pitch slew / portamento.** Snappy default (sequencer-friendly, no free glide)
-vs light default (free portamento, mushy steps). *Lean: snappy by default,
-`note_glide(handle, ms)` opt-in — this absorbs the proposed `slide()` primitive into held
-notes.*
-
-**C. `note_cutoff`/`note_duty` vs slot LFO.** Override the base and let the LFO shimmer
-around it (compose), or have the live setter win outright? *Lean: compose (§4.1).*
-
-**D. `note_vol` units.** Keep `note_vol` integer 0..7 (matches `note()`), or float for
-smooth swells now that slew exists? *Lean: keep 0..7 for consistency; slew already makes
-integer steps glide smoothly, so a float buys little.*
-
-**E. Voice-steal policy when all 8 are held.** Oldest-held first (LRU, simple) vs quietest
-vs never-steal-held (then `note_on` fails / returns an invalid handle). *Lean: LRU steal;
-returning a dead handle silently is consistent with the no-op contract.*
+Every §9 item is now settled and shipped.
 
 ---
 

@@ -253,6 +253,7 @@ void note_cutoff(int handle, int hz);                     // sweep a held note's
 void note_res(int handle, int resonance);                 // sweep a held note's filter resonance 0..15 live (pairs with note_cutoff for the acid squelch)
 void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // retune a held note's LFO `which` (0..2) live — dest LFO_PITCH/DUTY/VOLUME/CUTOFF; depth 0 = off
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
+void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap)
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
 void note_off_all(void);                                  // release every held note at once (panic / cleanup)
 

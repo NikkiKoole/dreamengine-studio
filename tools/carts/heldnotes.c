@@ -4,10 +4,13 @@
 // starts (note_on) and rings until you let go (note_off). While you hold, the mouse
 // drives it LIVE — X slides the pitch, Y sweeps the filter cutoff. None of this is
 // possible with fire-and-forget note(): that plays a fixed blip and forgets it.
+// Flip the GLIDE button (top-right) and the pitch SLIDES to chase the cursor
+// (portamento) instead of tracking it instantly.
 //
 //   note_on(midi, slot, vol) -> handle   start a sustained voice
 //   note_pitch (handle, midi)             slide its pitch (smoothed, no click)
 //   note_cutoff(handle, hz)               sweep its filter cutoff
+//   note_glide (handle, ms)               portamento: slide over `ms` instead of snapping
 //   note_off   (handle)                   release it (envelope fades out)
 
 #define SLOT 5
@@ -15,9 +18,11 @@
 #define PAD_Y 26
 #define PAD_W (SCREEN_W - 16)
 #define PAD_H (SCREEN_H - 52)
+#define GLIDE_MS 160
 
 int   voice = -1;          // handle of the held note, or -1 when silent
 float lo = 45, hi = 81;    // pitch range across the pad (X)
+bool  glide = false;       // portamento toggle (the GLIDE button)
 
 void init(void) {
     // a warm sawtooth pad with a resonant lowpass + a touch of vibrato, so the
@@ -32,10 +37,19 @@ int   pad_cutoff(int my){ return 200 + (int)((1.0f - clamp((float)(my - PAD_Y) /
 
 void update(void) {
     int mx = mouse_x(), my = mouse_y();
+
+    // GLIDE toggle — top-right button, above the pad so a click here won't start a note
+    if (mouse_pressed(MOUSE_LEFT) && mx >= SCREEN_W - 54 && my >= 3 && my < 15) {
+        glide = !glide;
+        if (voice >= 0) note_glide(voice, glide ? GLIDE_MS : 0);   // affect the ringing note too
+    }
+
     bool on_pad = mx >= PAD_X && mx < PAD_X + PAD_W && my >= PAD_Y && my < PAD_Y + PAD_H;
 
-    if (mouse_pressed(MOUSE_LEFT) && on_pad && voice < 0)
+    if (mouse_pressed(MOUSE_LEFT) && on_pad && voice < 0) {
         voice = note_on((int)pad_midi(mx), SLOT, 5);     // start sustaining
+        if (glide) note_glide(voice, GLIDE_MS);          // ...with portamento if enabled
+    }
 
     if (voice >= 0 && mouse_down(MOUSE_LEFT)) {
         note_pitch (voice, pad_midi(mx));                // X → pitch, live
@@ -53,7 +67,13 @@ void draw(void) {
 
     cls(CLR_DARKER_BLUE);
     print("HELD NOTES - theremin", 8, 6, CLR_WHITE);
-    print("hold the pad: X = pitch, Y = filter", 8, 15, CLR_INDIGO);
+    print("hold pad: X=pitch  Y=filter", 8, 15, CLR_INDIGO);
+
+    // GLIDE toggle button — green = portamento on
+    int bx = SCREEN_W - 54;
+    rectfill(bx, 3, 48, 12, glide ? CLR_GREEN : CLR_DARKER_GREY);
+    rect(bx, 3, 48, 12, CLR_DARK_GREY);
+    print("GLIDE", bx + 7, 5, glide ? CLR_BLACK : CLR_LIGHT_GREY);
 
     // pad
     rectfill(PAD_X, PAD_Y, PAD_W, PAD_H, held ? CLR_DARK_PURPLE : CLR_DARKER_PURPLE);

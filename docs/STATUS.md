@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; **one-click profiler shipped** (⏱ profile button) — see [`guides/profiler.md`](guides/profiler.md)). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
+_Last updated: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; **one-click profiler shipped** (⏱ profile button, see [`guides/profiler.md`](guides/profiler.md)); **off-screen poly bbox clamp shipped** (item 14) — a cliff guard, ~17× on the synthetic stress cart, modest on real carts; `trifill_stress` regression cart added). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
 
 ---
 
@@ -137,16 +137,35 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     mapped through the camera (`GetScreenToWorld2D` on the four screen corners → conservative
     AABB, so translate/zoom/rotation are all correct and the image is byte-identical). Huge
     off-screen tris no longer iterate their full bbox doing point-in-poly tests on cells that
-    plot nothing. Measured on the new `trifill_stress` cart (12 thin spokes reaching ~1100px
-    off-screen): **46.7ms → 2.7ms/frame avg (~17×), ~21fps → smooth 60fps.** Verified
-    output-identical: `raster_test` reports `mismatches:"0"` on all 46 analyse frames + `eq
-    total=0`. Still open: web GL ES confirmation (`pget` disabled on web); an ADR for the
-    GPU→CPU `tri`/`trifill` + `thickline` behaviour change.
+    plot nothing. Verified output-identical: `raster_test` reports `mismatches:"0"` on all 46
+    analyse frames + `eq total=0`.
+    **It's a performance-cliff guard, not a general speedup** — the cost of a software polygon
+    now scales with its *visible* area, not its *total* area. The effect tracks how far a
+    poly spills off-screen, so it ranges from huge to nil (all measured with the profiler):
+    - `trifill_stress` (synthetic: 12 thin spokes reaching ~1100px off-screen) — **46.7 →
+      2.7ms/frame (~17×), ~21fps → 60fps.** This is the worst-case win, not a typical one.
+    - `solid3d` (real 3D, model fits the screen so faces only spill a little) — 3.18 → 3.02ms
+      avg (~5%), 4.6 → 3.9ms **peak (~15%)**. Modest; the gain is on the frames a face is
+      largest.
+    - `podracer` — **no effect** (0.81 → 0.75ms, noise): it draws zero software polys (haze
+      already on GPU `tritex`/`line`/`rectfill`), so there's nothing on this path to clamp.
+    Takeaway: existing well-behaved carts don't get visibly faster; the value is that a future
+    cart flying the camera into a `quadfill`/`trifill` surface degrades gracefully instead of
+    freezing (the cliff `podracer`'s author had to hand-work-around). *Per-call overhead* is 4
+    `GetScreenToWorld2D` (a matrix inverse) — negligible at observed call counts (solid3d got
+    faster, not slower); if a cart ever draws thousands of tiny on-screen polys/frame, cache
+    the clamp box once per frame (invalidate in `camera()`/`camera_ex()`) instead of per-call.
+    Still open: web GL ES confirmation (`pget` disabled on web); an ADR for the GPU→CPU
+    `tri`/`trifill` + `thickline` behaviour change.
     **Regression test:** `tools/carts/raster_test.c` + `tools/raster_test.script` —
     drag `editor/public/carts/raster_test.cart.png` into the editor (Z outline, X dither,
     C cycle 4 pages, SPACE analyse / run equiv), or run headless:
     `node tools/play.js raster_test script tools/raster_test.script --headless --trace build/raster_trace.jsonl --frames 60`
     then check every `fs=2` frame reports `mismatches:"0"` and the `eq` line shows `total=0`.
+    **Perf-regression test** (the bbox clamp): `tools/carts/trifill_stress.c` — a pinwheel of
+    thin off-screen tris. In the editor it should hold 60fps even with reach cranked to max; if
+    the clamp regresses, pushing reach tanks the fps. It runs `raster_test` for correctness and
+    the ⏱ profiler for the budget (was ~46.7ms unclamped, ~2.7ms clamped at the defaults).
     [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
 15. ~~**Tiny fonts**~~ — **SHIPPED** as `font(FONT_SMALL/FONT_TINY)`. See Shipped above.
 

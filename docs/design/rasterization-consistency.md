@@ -251,11 +251,22 @@ everything else (0 mismatches, partial sectors included). `arc` stays the curved
     own coordinate space, which the camera shifts, so it maps the four screen corners back
     through the `Camera2D` (`GetScreenToWorld2D`) and takes their AABB — a conservative
     superset under rotation, so translate/zoom/rotation are all handled and no visible cell
-    is ever dropped. Huge off-screen tris no longer iterate their off-screen bbox. Measured
-    on the `trifill_stress` cart (12 thin spokes, ~1100px off-screen reach): **46.7ms →
-    2.7ms/frame (~17×), ~21fps → 60fps**, with `raster_test` still `mismatches:"0"` on all
-    analyse frames (byte-identical output). This is the win the "clamp the fill bbox" note
-    earlier in the doc anticipated.
+    is ever dropped. Huge off-screen tris no longer iterate their off-screen bbox; the cost of
+    a software poly now scales with its *visible* area, not its *total* area. `raster_test`
+    still `mismatches:"0"` on all analyse frames (byte-identical output). This is the win the
+    "clamp the fill bbox" note earlier in the doc anticipated — but it's a **cliff guard, not a
+    general speedup**, and the effect tracks how far a poly spills off-screen:
+    - `trifill_stress` (synthetic worst case, 12 thin spokes ~1100px off-screen): **46.7 →
+      2.7ms/frame (~17×), ~21fps → 60fps.**
+    - `solid3d` (real 3D, fits the screen): 3.18 → 3.02ms avg (~5%), 4.6 → 3.9ms peak (~15%).
+    - `podracer`: no effect — draws no software polys (haze is GPU `tritex`/`line`).
+
+    So existing well-behaved carts don't get visibly faster; what's gone is the freeze a cart
+    would hit flying the camera *into* a `quadfill`/`trifill` surface — exactly the cliff
+    `podracer`'s haze hit before it was moved to the GPU. Per-call overhead is 4
+    `GetScreenToWorld2D` (a matrix inverse), negligible at observed counts; if a cart ever
+    spams thousands of tiny on-screen polys/frame, cache the clamp box once per frame
+    (invalidate in `camera()`/`camera_ex()`) rather than recomputing per-call.
 - **Web GL ES.** All-CPU coverage *should* render bit-identically on desktop GL and web GL ES
   (only the final scale-up is GPU). Confirm by running `raster_test` in the emscripten build —
   but note `pget` is disabled on web, so the in-cart detector won't run there; confirmation is

@@ -427,7 +427,8 @@ function pasteStamp(cx, cy) {
 // ── picker ──────────────────────────────────────────────────────
 function onPickerClick(e) {
   const rect = pickerCanvas.getBoundingClientRect()
-  const tw = CELL_W * PICKER_SCALE, th = CELL_H * PICKER_SCALE
+  const cssScale = pickerCanvas.width > 0 ? rect.width / pickerCanvas.width : 1
+  const tw = CELL_W * PICKER_SCALE * cssScale, th = CELL_H * PICKER_SCALE * cssScale
   const sx = Math.floor((e.clientX - rect.left) / tw)
   const sy = Math.floor((e.clientY - rect.top)  / th)
   if (sx < 0 || sx >= SHEET_COLS || sy < 0 || sy >= SHEET_ROWS) return
@@ -670,6 +671,39 @@ function init() {
       renderAll()
       renderPicker()
     }, 0)
+  })
+
+  // ── picker splitter ───────────────────────────────────────────
+  const pickerPanel  = document.getElementById('map-picker')
+  const splitter     = document.getElementById('map-splitter')
+  const PICKER_MIN   = 52
+  const PICKER_MAX   = 600
+  const PICKER_DEFAULT = pickerCanvas.width + 26  // canvas + padding(12×2) + border(1×2)
+
+  function applyPickerWidth(w) {
+    pickerPanel.style.width = w + 'px'
+  }
+
+  const stored = parseInt(localStorage.getItem('mapPickerWidth'), 10)
+  applyPickerWidth(stored > 0 ? Math.max(PICKER_MIN, Math.min(PICKER_MAX, stored)) : PICKER_DEFAULT)
+
+  let dragOriginX = null, dragOriginW = null
+  splitter.addEventListener('mousedown', e => {
+    dragOriginX = e.clientX
+    dragOriginW = pickerPanel.getBoundingClientRect().width
+    splitter.classList.add('dragging')
+    e.preventDefault()
+  })
+  window.addEventListener('mousemove', e => {
+    if (dragOriginX === null) return
+    const w = Math.max(PICKER_MIN, Math.min(PICKER_MAX, dragOriginW + (dragOriginX - e.clientX)))
+    applyPickerWidth(w)
+  })
+  window.addEventListener('mouseup', () => {
+    if (dragOriginX === null) return
+    localStorage.setItem('mapPickerWidth', pickerPanel.getBoundingClientRect().width)
+    splitter.classList.remove('dragging')
+    dragOriginX = null
   })
 
   renderAll()

@@ -540,7 +540,6 @@ mark.docs-find-hit.current {
   padding: 32px 48px;
 }
 /* keep the API-reference spacing now that it lives inside the content pane */
-#docs-content > .help-lang-toggle { margin-bottom: 24px; }
 #docs-content > .help-intro,
 #docs-content > .help-section { margin-bottom: 32px; }
 
@@ -579,31 +578,6 @@ mark.docs-find-hit.current {
 .docs-md hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
 .docs-empty { color: var(--fg-dim); padding: 20px; }
 
-.help-lang-toggle {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-.help-lang-toggle button {
-  height: 26px;
-  padding: 0 12px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.help-lang-toggle button:hover:not(.active) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.help-lang-toggle button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
-}
 
 .help-intro {
   max-width: 720px;
@@ -825,13 +799,21 @@ mark.docs-find-hit.current {
 }
 
 #map-viewport {
-  /* Sizes to the canvas while it fits, but shrinks (and scrolls internally)
-     once canvas + palette would exceed the available width. min-width:0 is
-     what lets a flex item shrink below its content size so overflow kicks in. */
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   overflow: auto;
-  background: var(--bg);   /* matches the rest of the editor when the map is smaller */
+  background: var(--bg);
+}
+
+#map-splitter {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: var(--border);
+  align-self: stretch;
+  transition: background 0.15s;
+}
+#map-splitter:hover, #map-splitter.dragging {
+  background: var(--accent, #ff6fb5);
 }
 
 #map-canvas-wrap {
@@ -872,22 +854,23 @@ mark.docs-find-hit.current {
 }
 
 #map-picker {
-  flex: 0 0 auto;          /* fixed width — never shrinks, stays pinned beside the canvas */
-  align-self: flex-start;  /* hug the top instead of stretching full height */
-  margin: 24px 24px 24px 0;/* aligns its top with the canvas, hugs its right edge */
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin: 24px 24px 24px 0;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg2);
   padding: 12px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
+  box-sizing: border-box;
+  min-width: 52px;          /* never collapses to nothing */
 }
 #map-picker-canvas {
   display: block;
   image-rendering: pixelated;
   cursor: pointer;
   border: 1px solid var(--border);
+  width: 100%;
+  aspect-ratio: 1;
 }
 
 /* ── tutorials panel ────────────────────────────────────────── */

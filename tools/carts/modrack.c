@@ -72,6 +72,12 @@ int   g_step = 0, g_newstep = 0, last_step = -1, tick_flash = 99;
 int   held_knob = 0, drag_y = 0, drag_jack = -1, msg_flash = 0, dbg_midi = 60;
 const char *msg = "";
 
+// ── canvas (pan/zoom) + palette state ──
+#define SIDEBAR_W 38
+float cam_x = -28, cam_y = -2, zoom = 0.82f;     // pannable/zoomable view of the stage
+int   wmx = 0, wmy = 0;                           // mouse in world space (valid while the stage camera is active)
+int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1;
+
 int  spawn(int type, int x, int y) {
     Module *m = &mod[nmod];
     *m = (Module){ type, x, y, {0}, {0}, {0} };
@@ -219,7 +225,7 @@ void update(void) {
 int sig_col(int t) { return t == 0 ? CLR_GREEN : t == 1 ? CLR_YELLOW : CLR_BLUE; }
 
 int near_col(int x, int y) {
-    float d = distance(mouse_x(), mouse_y(), x, y);
+    float d = distance(wmx, wmy, x, y);
     return d < 12 ? CLR_WHITE : d < 26 ? CLR_LIGHT_GREY : d < 48 ? CLR_MEDIUM_GREY : CLR_DARKER_GREY;
 }
 
@@ -238,6 +244,23 @@ int jack_at(int mx, int my) {
             if (distance(mx, my, jackpos_x(mi, j), jackpos_y(mi, j)) < 6) return mi * 4 + j;
     return -1;
 }
+int knob_at(int mx, int my) {   // any knob under (mx,my)? (used to keep panning off knobs)
+    for (int mi = 0; mi < nmod; mi++)
+        for (int k = 0; k < TYPES[mod[mi].type].nknob; k++)
+            if (distance(mx, my, mod[mi].x + TYPES[mod[mi].type].knob[k].dx, mod[mi].y + TYPES[mod[mi].type].knob[k].dy) < 7) return mi;
+    return -1;
+}
+int delx_at(int mx, int my) {   // the ✕ delete corner of a module
+    for (int mi = 0; mi < nmod; mi++)
+        if (distance(mx, my, mod[mi].x + GW - 6, mod[mi].y + 4) < 5) return mi;
+    return -1;
+}
+void delete_mod(int mi) {
+    for (int c = ncable - 1; c >= 0; c--) if (cable[c].sm == mi || cable[c].dm == mi) remove_cable(c);
+    for (int k = mi; k < nmod - 1; k++) mod[k] = mod[k + 1];
+    nmod--;
+    for (int c = 0; c < ncable; c++) { if (cable[c].sm > mi) cable[c].sm--; if (cable[c].dm > mi) cable[c].dm--; }
+}
 
 void meter(int x, int y, int w, int h, float v, int col) {
     rectfill(x, y, w, h, CLR_BLACK);
@@ -246,9 +269,9 @@ void meter(int x, int y, int w, int h, float v, int col) {
 }
 
 float knob_dial(int id, int cx, int cy, float v, float lo, float hi, const char *name, const char *val) {
-    if (mouse_pressed(MOUSE_LEFT) && distance(mouse_x(), mouse_y(), cx, cy) < 7) { held_knob = id; drag_y = mouse_y(); }
-    if (held_knob == id && mouse_down(MOUSE_LEFT)) { v = clamp(v + (drag_y - mouse_y()) * (hi - lo) / 120.0f, lo, hi); drag_y = mouse_y(); }
-    bool hot = held_knob == id || distance(mouse_x(), mouse_y(), cx, cy) < 7;
+    if (palette_drag < 0 && !panning && mouse_pressed(MOUSE_LEFT) && distance(wmx, wmy, cx, cy) < 7) { held_knob = id; drag_y = wmy; }
+    if (held_knob == id && mouse_down(MOUSE_LEFT)) { v = clamp(v + (drag_y - wmy) * (hi - lo) / 120.0f, lo, hi); drag_y = wmy; }
+    bool hot = held_knob == id || distance(wmx, wmy, cx, cy) < 7;
     circfill(cx, cy, 5, CLR_DARKER_GREY);
     circ(cx, cy, 5, hot ? CLR_WHITE : CLR_MEDIUM_GREY);
     float a = 135.0f + clamp((v - lo) / (hi - lo), 0, 1) * 270.0f;
@@ -294,6 +317,7 @@ void draw_module(int mi) {
     rectfill(x, y, GW, GH, CLR_DARKER_PURPLE);
     rect(x, y, GW, GH, t->col);
     print(t->name, x + 3, y + 2, t->col);
+    print("x", x + GW - 8, y + 2, distance(wmx, wmy, x + GW - 6, y + 4) < 5 ? CLR_RED : CLR_DARK_GREY);
 
     draw_extras(mi);
 
@@ -349,15 +373,25 @@ void draw_cable_between(int sx, int sy, int dx, int dy, int c, bool pulse) {
 }
 
 void draw(void) {
-    int mx = mouse_x(), my = mouse_y();
-    if (!mouse_down(MOUSE_LEFT)) held_knob = 0;
-    edit_cables(mx, my);
+    // ---- pan (left-drag empty space) + zoom (wheel), in screen-delta terms ----
+    if (panning && mouse_down(MOUSE_LEFT)) { cam_x -= (mouse_x() - pan_px) / zoom; cam_y -= (mouse_y() - pan_py) / zoom; }
+    pan_px = mouse_x(); pan_py = mouse_y();
+    if (!mouse_down(MOUSE_LEFT)) { panning = 0; held_knob = 0; }
+    float wh = mouse_wheel(); if (wh != 0) zoom = clamp(zoom * (1 + wh * 0.12f), 0.4f, 3.0f);
+    bool over_side = mouse_x() < SIDEBAR_W;
 
     cls(CLR_DARKER_BLUE);
-    font(FONT_NORMAL);
-    print("MODRACK", 4, 3, CLR_WHITE);
-    font(FONT_SMALL);
-    print(msg_flash > 0 ? msg : "drag out->in to patch", 80, 5, msg_flash > 0 ? CLR_LIGHT_PEACH : CLR_INDIGO);
+
+    // ===== STAGE — world space (pan/zoom) =====
+    camera_ex((int)cam_x, (int)cam_y, zoom, 0);
+    wmx = mouse_world_x(); wmy = mouse_world_y();
+
+    if (!over_side && palette_drag < 0 && !panning && mouse_pressed(MOUSE_LEFT)) {
+        int dm = delx_at(wmx, wmy);
+        if (dm >= 0) delete_mod(dm);
+        else if (jack_at(wmx, wmy) < 0 && knob_at(wmx, wmy) < 0) { panning = 1; pan_px = mouse_x(); pan_py = mouse_y(); }
+    }
+    if (!over_side && palette_drag < 0 && !panning) edit_cables(wmx, wmy);
 
     for (int i = 0; i < nmod; i++) draw_module(i);
 
@@ -368,13 +402,39 @@ void draw(void) {
 
     if (drag_jack >= 0) {
         int sm = drag_jack / 4, sj = drag_jack % 4, c = sig_col(TYPES[mod[sm].type].jack[sj].type);
-        draw_cable_between(jackpos_x(sm, sj), jackpos_y(sm, sj), mx, my, c, false);
+        draw_cable_between(jackpos_x(sm, sj), jackpos_y(sm, sj), wmx, wmy, c, false);
         for (int mi = 0; mi < nmod; mi++)
             for (int j = 0; j < TYPES[mod[mi].type].njack; j++)
                 if (!TYPES[mod[mi].type].jack[j].out && TYPES[mod[mi].type].jack[j].type == TYPES[mod[sm].type].jack[sj].type)
                     circ(jackpos_x(mi, j), jackpos_y(mi, j), 5, CLR_WHITE);
     }
+    if (palette_drag >= 0) {   // ghost of the module being dragged from the palette
+        rect(wmx - GW / 2, wmy - GH / 2, GW, GH, TYPES[palette_drag].col);
+        print(TYPES[palette_drag].name, wmx - GW / 2 + 3, wmy - GH / 2 + 2, TYPES[palette_drag].col);
+    }
 
-    print("drag patch   rclick clear   S/L save   R reset", 4, 192, CLR_DARKER_GREY);
+    // ===== SCREEN SPACE — palette sidebar + HUD =====
+    camera(0, 0);
+    rectfill(0, 0, SIDEBAR_W, SCREEN_H, CLR_BROWNISH_BLACK);
+    font(FONT_SMALL);
+    print("ADD", 8, 4, CLR_MEDIUM_GREY);
+    for (int t = 0; t < NTYPE; t++) {
+        int by = 14 + t * 22;
+        bool hot = mouse_x() < SIDEBAR_W && mouse_y() >= by && mouse_y() < by + 20;
+        rectfill(3, by, SIDEBAR_W - 6, 20, CLR_DARKER_PURPLE);
+        rect(3, by, SIDEBAR_W - 6, 20, hot ? CLR_WHITE : TYPES[t].col);
+        print(TYPES[t].name, 6, by + 7, TYPES[t].col);
+        if (hot && mouse_pressed(MOUSE_LEFT) && palette_drag < 0 && nmod < MAX_MOD) palette_drag = t;
+    }
+    if (mouse_released(MOUSE_LEFT) && palette_drag >= 0) {
+        if (mouse_x() >= SIDEBAR_W && nmod < MAX_MOD) spawn(palette_drag, wmx - GW / 2, wmy - GH / 2);
+        palette_drag = -1;
+    }
+
+    font(FONT_NORMAL);
+    print("MODRACK", SIDEBAR_W + 4, 3, CLR_WHITE);
+    font(FONT_SMALL);
+    print(msg_flash > 0 ? msg : "drag from ADD to patch   wheel zoom   drag pan", SIDEBAR_W + 64, 5, msg_flash > 0 ? CLR_LIGHT_PEACH : CLR_INDIGO);
+    print("patch: out->in   rclick clears   x deletes   S/L/R", SIDEBAR_W + 4, 192, CLR_DARKER_GREY);
     font(FONT_NORMAL);
 }

@@ -62,33 +62,32 @@ document.addEventListener('click', e => {
 
 // ── help panel ───────────────────────────────────────────────
 const sections = [
-  { title: 'c basics',   titleNL: 'c basics',     keys: ['include', 'define', 'int', 'float', 'bool', 'void', 'static', 'if', 'for', 'return', 'logical', 'equality', 'comment', 'braces', 'semicolon', 'array'] },
-  { title: 'callbacks',  titleNL: 'callbacks',    keys: ['init', 'update', 'draw'] },
-  { title: 'graphics',   titleNL: 'tekenen',      keys: ['cls', 'colorkey', 'spr', 'sprf', 'sspr', 'spr_rot', 'sspr_ex', 'pget', 'pset', 'font', 'FONT_NORMAL', 'FONT_SMALL', 'FONT_TINY', 'print', 'print_centered', 'print_right', 'print_scaled', 'print_outline', 'text_width', 'rect', 'rectfill', 'bar', 'circ', 'circfill', 'oval', 'ovalfill', 'arc', 'arcfill', 'arcoutline', 'ring', 'ringoutline', 'tri', 'trifill', 'tritex', 'line', 'bezier', 'bezier_cubic', 'camera', 'camera_ex', 'follow', 'clip', 'pal', 'pal_reset', 'fade', 'shake'] },
-  { title: 'shapes',     titleNL: 'vormen',       keys: ['ngon', 'ngonfill', 'star', 'starfill', 'poly', 'polyfill', 'thickline', 'thicklineoutline', 'rrect', 'rrectfill', 'gradient', 'vgradient', 'hgradient'] },
-  { title: 'input',      titleNL: 'input',        keys: ['btn', 'btnp', 'BTN_UP', 'BTN_DOWN', 'BTN_LEFT', 'BTN_RIGHT', 'BTN_A', 'BTN_B'] },
-  { title: 'touch',      titleNL: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'tap', 'touch_controls'] },
-  { title: 'mouse',      titleNL: 'muis',         keys: ['mouse_x', 'mouse_y', 'mouse_world_x', 'mouse_world_y', 'mouse_down', 'mouse_pressed', 'mouse_released', 'mouse_wheel', 'MOUSE_LEFT', 'MOUSE_RIGHT', 'MOUSE_MIDDLE'] },
-  { title: 'keyboard',   titleNL: 'toetsenbord',  keys: ['key', 'keyp', 'text_input', 'KEY_SPACE', 'KEY_ENTER', 'KEY_BACKSPACE', 'KEY_ESCAPE', 'KEY_TAB', 'KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN'] },
-  { title: 'patterns',   titleNL: 'patronen',     keys: ['fillp', 'fillp_reset', 'fillp_anchor', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
-  { title: 'map',        titleNL: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },
-  { title: 'noise',     titleNL: 'ruis',       keys: ['noise', 'noise2', 'noise3'] },
-  { title: '3d',         titleNL: '3d',           keys: ['V3', 'rot3', 'project3', 'zsort', 'quadfill'] },
-  { title: 'easing',     titleNL: 'verloop',      keys: ['ease_in', 'ease_out', 'ease_in_out'] },
-  { title: 'math',       titleNL: 'wiskunde',     keys: ['abs', 'min', 'max', 'clamp', 'lerp', 'remap', 'distance', 'length', 'fsqrt', 'angle_to', 'dx', 'dy', 'sin_deg', 'cos_deg'] },
-  { title: 'collision',  titleNL: 'botsingen',    keys: ['boxes_touch', 'point_in_box', 'circles_touch', 'near', 'touching_map', 'tile_at', 'touching_color', 'bounce_at_edges'] },
-  { title: 'animation',  titleNL: 'animatie',     keys: ['anim', 'anim_once', 'blink'] },
-  { title: 'strings',    titleNL: 'tekst',        keys: ['str'] },
-  { title: 'sound',      titleNL: 'geluid',       keys: ['sfx', 'music', 'note', 'hit', 'instrument', 'instrument_duty', 'instrument_lfo', 'instrument_filter', 'tone', 'chord', 'strum', 'schedule', 'bpm', 'beat', 'beat_pos', 'every', 'euclid', 'chance', 'degree', 'INSTR_SQUARE', 'INSTR_SAW', 'INSTR_TRI', 'INSTR_NOISE', 'INSTR_SINE', 'LFO_PITCH', 'LFO_DUTY', 'LFO_VOLUME', 'LFO_CUTOFF', 'FILTER_OFF', 'FILTER_LOW', 'FILTER_HIGH', 'FILTER_BAND', 'FILTER_NOTCH', 'SCALE_MAJOR', 'SCALE_MINOR', 'SCALE_PENTA', 'SCALE_PENTA_MIN', 'SCALE_BLUES', 'SCALE_CHROMATIC', 'CHORD_MAJ', 'CHORD_MIN', 'CHORD_DIM', 'CHORD_AUG', 'CHORD_MAJ7', 'CHORD_MIN7', 'CHORD_DOM7', 'CHORD_SUS4', 'CHORD_POWER'] },
-  { title: 'utility',    titleNL: 'hulpmiddelen', keys: ['rnd', 'rnd_between', 'rnd_float', 'rnd_float_between', 'now', 'dt', 'epoch', 'frame', 'fps', 'sgn', 'mid', 'timer', 'timer_reset'] },
-  { title: 'persistence', titleNL: 'opslaan', keys: ['save', 'load', 'save_int', 'load_int', 'save_bytes', 'load_bytes'] },
-  { title: 'debug',      titleNL: 'debuggen',     keys: ['printh', 'watch', 'watch_visible'] },
-  { title: 'screen',     titleNL: 'scherm',       keys: ['SCREEN_W', 'SCREEN_H'] },
-  { title: 'palette',    titleNL: 'palet',        keys: ['CLR_BLACK', 'CLR_DARK_BLUE', 'CLR_DARK_PURPLE', 'CLR_DARK_GREEN', 'CLR_BROWN', 'CLR_DARK_GREY', 'CLR_LIGHT_GREY', 'CLR_WHITE', 'CLR_RED', 'CLR_ORANGE', 'CLR_YELLOW', 'CLR_GREEN', 'CLR_BLUE', 'CLR_INDIGO', 'CLR_PINK', 'CLR_LIGHT_PEACH', 'CLR_BROWNISH_BLACK', 'CLR_DARKER_BLUE', 'CLR_DARKER_PURPLE', 'CLR_BLUE_GREEN', 'CLR_DARK_BROWN', 'CLR_DARKER_GREY', 'CLR_MEDIUM_GREY', 'CLR_LIGHT_YELLOW', 'CLR_DARK_RED', 'CLR_DARK_ORANGE', 'CLR_LIME_GREEN', 'CLR_MEDIUM_GREEN', 'CLR_TRUE_BLUE', 'CLR_MAUVE', 'CLR_DARK_PEACH', 'CLR_PEACH'] },
+  { title: 'c basics',     keys: ['include', 'define', 'int', 'float', 'bool', 'void', 'static', 'if', 'for', 'return', 'logical', 'equality', 'comment', 'braces', 'semicolon', 'array'] },
+  { title: 'callbacks',    keys: ['init', 'update', 'draw'] },
+  { title: 'graphics',      keys: ['cls', 'colorkey', 'spr', 'sprf', 'sspr', 'spr_rot', 'sspr_ex', 'pget', 'pset', 'font', 'FONT_NORMAL', 'FONT_SMALL', 'FONT_TINY', 'print', 'print_centered', 'print_right', 'print_scaled', 'print_outline', 'text_width', 'rect', 'rectfill', 'bar', 'circ', 'circfill', 'oval', 'ovalfill', 'arc', 'arcfill', 'arcoutline', 'ring', 'ringoutline', 'tri', 'trifill', 'tritex', 'line', 'bezier', 'bezier_cubic', 'camera', 'camera_ex', 'follow', 'clip', 'pal', 'pal_reset', 'fade', 'shake'] },
+  { title: 'shapes',       keys: ['ngon', 'ngonfill', 'star', 'starfill', 'poly', 'polyfill', 'thickline', 'thicklineoutline', 'rrect', 'rrectfill', 'gradient', 'vgradient', 'hgradient'] },
+  { title: 'input',        keys: ['btn', 'btnp', 'BTN_UP', 'BTN_DOWN', 'BTN_LEFT', 'BTN_RIGHT', 'BTN_A', 'BTN_B'] },
+  { title: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'tap', 'touch_controls'] },
+  { title: 'mouse',         keys: ['mouse_x', 'mouse_y', 'mouse_world_x', 'mouse_world_y', 'mouse_down', 'mouse_pressed', 'mouse_released', 'mouse_wheel', 'MOUSE_LEFT', 'MOUSE_RIGHT', 'MOUSE_MIDDLE'] },
+  { title: 'keyboard',  keys: ['key', 'keyp', 'text_input', 'KEY_SPACE', 'KEY_ENTER', 'KEY_BACKSPACE', 'KEY_ESCAPE', 'KEY_TAB', 'KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN'] },
+  { title: 'patterns',     keys: ['fillp', 'fillp_reset', 'fillp_anchor', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
+  { title: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },
+  { title: 'noise',       keys: ['noise', 'noise2', 'noise3'] },
+  { title: '3d',           keys: ['V3', 'rot3', 'project3', 'zsort', 'quadfill'] },
+  { title: 'easing',      keys: ['ease_in', 'ease_out', 'ease_in_out'] },
+  { title: 'math',     keys: ['abs', 'min', 'max', 'clamp', 'lerp', 'remap', 'distance', 'length', 'fsqrt', 'angle_to', 'dx', 'dy', 'sin_deg', 'cos_deg'] },
+  { title: 'collision',    keys: ['boxes_touch', 'point_in_box', 'circles_touch', 'near', 'touching_map', 'tile_at', 'touching_color', 'bounce_at_edges'] },
+  { title: 'animation',     keys: ['anim', 'anim_once', 'blink'] },
+  { title: 'strings',        keys: ['str'] },
+  { title: 'sound',       keys: ['sfx', 'music', 'note', 'hit', 'instrument', 'instrument_duty', 'instrument_lfo', 'instrument_filter', 'tone', 'chord', 'strum', 'schedule', 'bpm', 'beat', 'beat_pos', 'every', 'euclid', 'chance', 'degree', 'INSTR_SQUARE', 'INSTR_SAW', 'INSTR_TRI', 'INSTR_NOISE', 'INSTR_SINE', 'LFO_PITCH', 'LFO_DUTY', 'LFO_VOLUME', 'LFO_CUTOFF', 'FILTER_OFF', 'FILTER_LOW', 'FILTER_HIGH', 'FILTER_BAND', 'FILTER_NOTCH', 'SCALE_MAJOR', 'SCALE_MINOR', 'SCALE_PENTA', 'SCALE_PENTA_MIN', 'SCALE_BLUES', 'SCALE_CHROMATIC', 'CHORD_MAJ', 'CHORD_MIN', 'CHORD_DIM', 'CHORD_AUG', 'CHORD_MAJ7', 'CHORD_MIN7', 'CHORD_DOM7', 'CHORD_SUS4', 'CHORD_POWER'] },
+  { title: 'utility', keys: ['rnd', 'rnd_between', 'rnd_float', 'rnd_float_between', 'now', 'dt', 'epoch', 'frame', 'fps', 'sgn', 'mid', 'timer', 'timer_reset'] },
+  { title: 'persistence', keys: ['save', 'load', 'save_int', 'load_int', 'save_bytes', 'load_bytes'] },
+  { title: 'debug',     keys: ['printh', 'watch', 'watch_visible'] },
+  { title: 'screen',       keys: ['SCREEN_W', 'SCREEN_H'] },
+  { title: 'palette',        keys: ['CLR_BLACK', 'CLR_DARK_BLUE', 'CLR_DARK_PURPLE', 'CLR_DARK_GREEN', 'CLR_BROWN', 'CLR_DARK_GREY', 'CLR_LIGHT_GREY', 'CLR_WHITE', 'CLR_RED', 'CLR_ORANGE', 'CLR_YELLOW', 'CLR_GREEN', 'CLR_BLUE', 'CLR_INDIGO', 'CLR_PINK', 'CLR_LIGHT_PEACH', 'CLR_BROWNISH_BLACK', 'CLR_DARKER_BLUE', 'CLR_DARKER_PURPLE', 'CLR_BLUE_GREEN', 'CLR_DARK_BROWN', 'CLR_DARKER_GREY', 'CLR_MEDIUM_GREY', 'CLR_LIGHT_YELLOW', 'CLR_DARK_RED', 'CLR_DARK_ORANGE', 'CLR_LIME_GREEN', 'CLR_MEDIUM_GREEN', 'CLR_TRUE_BLUE', 'CLR_MAUVE', 'CLR_DARK_PEACH', 'CLR_PEACH'] },
 ]
 
-const introHTML = {
-  en: `
+const introHTML = `
   <h1>dreamengine</h1>
   <p>
     A fantasy console you program in C. Write code on the left, hit
@@ -114,39 +113,11 @@ const introHTML = {
     bits you'll meet first.
   </p>
   <p><a class="tutorials-link" data-tab="tutorials">→ browse example carts</a></p>
-`,
-  nl: `
-  <h1>dreamengine</h1>
-  <p>
-    Een fantasieconsole die je in C programmeert. Schrijf code aan de linkerkant, klik op
-    <span class="kbd">▶ run</span>, en er verschijnt een echt spelvenster.
-    De runtime geeft je een 320×200 canvas, een palet van 32 kleuren, een sprite-editor
-    (volgende tab), een kleine synth, en de input- en teken-API hieronder.
-    Bedoeld voor tieners en hobbyisten die echt willen leren programmeren door
-    spellen te maken — geen malloc, geen build-systeem, geen boilerplate.
-  </p>
-  <p>
-    Het doel is de kleinst mogelijke afstand tussen een idee en iets dat over het
-    scherm beweegt. Geïnspireerd door PICO-8, DIV Game Studio en BlitzMax.
-    Komt later nog: een iPad-runtime en een sound-tracker die past bij de sprite-editor.
-  </p>
-  <p>
-    <b>Nog niet bekend met C?</b> Een programma is een lijst met instructies.
-    De runtime roept jouw <span class="kbd">update()</span> 60 keer per seconde aan,
-    daarna jouw <span class="kbd">draw()</span>, en herhaalt dat. Je onthoudt dingen
-    tussen frames met variabelen (<span class="kbd">int x = 5;</span>), en je laat
-    dingen gebeuren met <span class="kbd">if</span>, <span class="kbd">for</span> en
-    functie-aanroepen. Hover over willekeurig welk sleutelwoord in de editor voor
-    een korte uitleg — het hoofdstuk <b>c basics</b> hieronder geeft een rondleiding
-    langs de bouwstenen die je het eerst tegenkomt.
-  </p>
-`,
-}
+`
 
 // The Docs tab is a two-pane wiki: a sidebar (API reference + the docs/ tree) and a
 // content pane that renders either the API reference or a markdown doc from docs/.
 const helpPanel = document.getElementById('panel-help')
-let helpLang = localStorage.getItem('helpLang') === 'nl' ? 'nl' : 'en'
 let docsSidebar          // left-hand nav
 let docsContent          // right-hand content pane
 let currentDocPath = ''  // relative path of the markdown doc shown ('' = API reference)
@@ -253,24 +224,9 @@ function renderApiReference() {
   setActiveNav('api')
   docsContent.innerHTML = ''
 
-  const toggle = document.createElement('div')
-  toggle.className = 'help-lang-toggle'
-  ;[['en', 'EN'], ['nl', 'NL']].forEach(([lang, label]) => {
-    const btn = document.createElement('button')
-    btn.textContent = label
-    if (helpLang === lang) btn.classList.add('active')
-    btn.addEventListener('click', () => {
-      helpLang = lang
-      localStorage.setItem('helpLang', lang)
-      renderApiReference()
-    })
-    toggle.appendChild(btn)
-  })
-  docsContent.appendChild(toggle)
-
   const intro = document.createElement('div')
   intro.className = 'help-intro'
-  intro.innerHTML = introHTML[helpLang]
+  intro.innerHTML = introHTML
   docsContent.appendChild(intro)
 
   // section-title → DOM id, so the table of contents can scroll to each section
@@ -279,14 +235,14 @@ function renderApiReference() {
   // table of contents — a clickable list of every section, sits above c basics
   const toc = document.createElement('nav')
   toc.className = 'help-toc'
-  toc.innerHTML = `<div class="help-toc-title">${helpLang === 'nl' ? 'inhoud' : 'contents'}</div>`
+  toc.innerHTML = `<div class="help-toc-title">contents</div>`
   const tocList = document.createElement('div')
   tocList.className = 'help-toc-list'
-  sections.forEach(({ title, titleNL }) => {
+  sections.forEach(({ title }) => {
     const link = document.createElement('a')
     link.className = 'help-toc-link'
     link.href = '#'
-    link.textContent = helpLang === 'nl' ? titleNL : title
+    link.textContent = title
     link.addEventListener('click', e => {
       e.preventDefault()
       document.getElementById(sectionId(title))?.scrollIntoView({ behavior: 'instant', block: 'start' })
@@ -296,15 +252,15 @@ function renderApiReference() {
   toc.appendChild(tocList)
   docsContent.appendChild(toc)
 
-  sections.forEach(({ title, titleNL, keys }) => {
+  sections.forEach(({ title, keys }) => {
     const section = document.createElement('div')
     section.className = 'help-section'
     section.id = sectionId(title)
-    section.innerHTML = `<div class="help-section-title">${helpLang === 'nl' ? titleNL : title}</div>`
+    section.innerHTML = `<div class="help-section-title">${title}</div>`
     keys.forEach(key => {
       const entry = studioDocs[key]
       if (!entry) return
-      const text = (helpLang === 'nl' && entry.docNL) ? entry.docNL : entry.doc
+      const text = entry.doc
       const row = document.createElement('div')
       row.className = 'help-entry'
       row.id        = 'help-entry-' + key

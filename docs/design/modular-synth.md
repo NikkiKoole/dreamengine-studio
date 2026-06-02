@@ -23,11 +23,26 @@ already work. Each step compiles, runs, and bakes a screenshot — a real checkp
 | **4** | Draw the fixed default patch as bezier cables with a dot pulsing on each gate | picture matches the sound | ✅ done — `modrack.c` |
 | **5** | Cables **editable**: drag out→in (type-checked), grab/rewire, right-click clear; engine is now cable-driven (modules read their input jacks) | a real modular you patch yourself | ✅ done — `modrack.c` |
 | **6** | SAVE/LOAD (`save_bytes`) + R-reset, EUCLID as a euclidean-drum module (clock in → kick + gate out, live pattern dots), LED/cable juice | a complete, shareable cart — **v1 done** | ✅ done — `modrack.c` |
-| **7+** | Add modules (SLEW=`note_glide`, ENV, MULT, ATTENUVERTER, SCOPE…) — each a ~20-line pure function over the jack graph | the "more and more" growth | — |
+| **7** | ENV + DRUM modules added; rack went 4×2 (8 bays) | per-note plucks + a real kit | ✅ done |
 
 Steps 1–4 run on a **hardcoded** eval order; step 5 swaps the hardcoded wiring for the
 cable-driven `propagate` (`dst.val = src.val`) — that's the conceptual heart, saved for
 when everything else already works.
+
+## Patcher rebuild (steps P1–P4) — toward a real node editor
+
+Once the fixed rack felt complete, the next arc turns it into an open patcher you grow.
+
+| Step | Build | Status |
+|---|---|---|
+| **P1** | **Data-driven modules** — a `ModType` registry (jacks + knobs as data) and `Module` instances (type + position + `param[]`/`state[]`); generic eval/draw via a `switch` per kind. Cables address `(module, jack)`. Same default patch, same look & sound. | ✅ done — `modrack.c` |
+| **P2** | Palette sidebar + drag-to-add (spawn an instance) + delete a module | — |
+| **P3** | Zoom/pan endless canvas (`camera_ex` + `mouse_world_*` for all hit-tests) | — |
+| **P4** | Drag-to-move modules around the stage | — |
+
+P1 is the gate: modules became data, so adding one is a registry entry and you can have
+several of the same kind. The catalog to draw from (SLEW, ATTENUVERTER, LOGIC, SEQ, SCOPE,
+KEYBOARD, MIXER, CHORD, …) is in the §"add more and more" notes.
 
 ## Screen
 

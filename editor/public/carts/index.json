@@ -580,6 +580,11 @@
     "file": "podracer.cart.png"
   },
   {
+    "title": "trifill stress",
+    "description": "A spinning pinwheel of long, thin software-filled triangles — and a tiny lesson in why off-screen drawing still costs you. Each spoke's far vertices sit way outside the 320x200 screen, so its bounding box is enormous while only a sliver is ever visible. The engine's CPU triangle filler scans that whole box looking for pixels to light, almost all of them off-screen and empty, which is why a dozen spokes can drag the frame rate down to ~20fps. The live fps counter turns yellow then red as it falls. A deliberate stress test / before-and-after harness for the renderer, not a game: push the spoke count up and watch it grind, then back down and watch it recover. Up/Down add or remove spokes, Left/Right grow or shrink how far the triangles reach off-screen, A freezes the spin to hold a steady frame.",
+    "file": "trifill_stress.cart.png"
+  },
+  {
     "title": "excitebike",
     "description": "Side-view NES motocross with the famous landing-angle skill, an overheat meter, and a track editor. Hit a ramp and you launch into the air with the nose drifting down on its own — hold Up/Down to control the tilt and touch down within a hair of LEVEL to keep your speed; nose-down or tail-down and you wipe out. Hold turbo for more top speed but the temp gauge climbs to a flashing-red redline and a stall, so mud (slow but cooling) becomes a real choice. Race one track against three pal()-recolored CPU rivals you bump past, chasing your best lap (saved). Then switch to BUILD: a mouse editor paints ramps, jumps, whoops and mud onto the lane grid, persisted with save_bytes — save it and test-ride instantly. RACE: Right/Z throttle, X turbo, Up/Down tilt in the air, Left brake. BUILD: 1-5 or click the palette, left-click paint / right-click erase, arrows scroll, S save, Z ride, B title.",
     "file": "excitebike.cart.png"

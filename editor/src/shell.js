@@ -70,7 +70,7 @@ const sections = [
   { title: 'touch',      titleNL: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'tap', 'touch_controls'] },
   { title: 'mouse',      titleNL: 'muis',         keys: ['mouse_x', 'mouse_y', 'mouse_world_x', 'mouse_world_y', 'mouse_down', 'mouse_pressed', 'mouse_released', 'mouse_wheel', 'MOUSE_LEFT', 'MOUSE_RIGHT', 'MOUSE_MIDDLE'] },
   { title: 'keyboard',   titleNL: 'toetsenbord',  keys: ['key', 'keyp', 'text_input', 'KEY_SPACE', 'KEY_ENTER', 'KEY_BACKSPACE', 'KEY_ESCAPE', 'KEY_TAB', 'KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN'] },
-  { title: 'patterns',   titleNL: 'patronen',     keys: ['fillp', 'fillp_reset', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
+  { title: 'patterns',   titleNL: 'patronen',     keys: ['fillp', 'fillp_reset', 'fillp_anchor', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },
   { title: 'map',        titleNL: 'map',          keys: ['map', 'map_scale', 'mget', 'mset', 'MAP_W', 'MAP_H'] },
   { title: 'noise',     titleNL: 'ruis',       keys: ['noise', 'noise2', 'noise3'] },
   { title: '3d',         titleNL: '3d',           keys: ['V3', 'rot3', 'project3', 'zsort', 'quadfill'] },

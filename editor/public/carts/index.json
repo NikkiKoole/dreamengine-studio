@@ -125,6 +125,11 @@
     "file": "holes.cart.png"
   },
   {
+    "title": "24. moving patterns",
+    "description": "fillp_anchor(): why a fill pattern 'crawls' under a MOVING shape and how to stop it. By default the 4x4 lattice is pinned to the world, so a shape that drifts just slides across it. Anchor the pattern to each shape's own center and the dither travels WITH it. Nine spinning, bouncing two-tone shapes (polygons + stars), each its own fg/bg color and pattern. Z toggles anchoring off so you can watch the crawl come back.",
+    "file": "fillp_anchor.cart.png"
+  },
+  {
     "title": "raycaster",
     "description": "A Wolfenstein-style first-person maze with no 3D and no sprites — one DDA ray per screen column, drawn as a vertical wall strip with fisheye correction. Walk through a colored grid world with a live minimap. WASD to move and turn, B toggles the map.",
     "file": "raycaster.cart.png"

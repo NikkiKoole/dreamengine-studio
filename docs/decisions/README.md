@@ -47,6 +47,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0008](0008-cut-turtle-graphics-api.md) | Cut the turtle-graphics API | accepted |
 | [0009](0009-small-3d-leaf-helpers.md) | A small set of 3D leaf-helpers (`rot3`/`project3`/`zsort`/`quadfill` + `V3`) | accepted |
 | [0010](0010-fade-is-immediate-mode.md) | `fade()` is immediate-mode, not a sticky setter | accepted |
+| [0011](0011-two-fill-pattern-paths-must-stay-in-sync.md) | Two fill-pattern paths (texture vs `plot_pat`) must stay in sync | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

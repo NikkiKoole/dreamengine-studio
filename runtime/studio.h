@@ -162,6 +162,10 @@ void bar(int x, int y, int w, int h, float pct, int fill, int bg); // progress/h
 // pass any 16-bit pattern (FILL_CHECKER etc, or your own). fillp_reset() goes back to solid.
 void fillp(int pattern, int hole_color);
 void fillp_reset(void);
+// shift the fill-pattern lattice origin to (ox,oy). by default the 4×4 pattern is pinned to
+// world (0,0), so a MOVING shape slides over a fixed lattice and the dither appears to crawl.
+// anchor to a shape's own center before filling it and the pattern travels with the shape.
+void fillp_anchor(int ox, int oy);
 void circ(int x, int y, int radius, int color);         // circle border
 void circfill(int x, int y, int radius, int color);     // filled circle
 void oval(int x, int y, int rx, int ry, int color);     // ellipse border (rx,ry = half-width/height)

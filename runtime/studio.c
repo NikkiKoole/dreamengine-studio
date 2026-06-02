@@ -64,6 +64,8 @@ static char            text_buf[32] = {0};           // text_input() — chars t
 static bool            fp_on      = false;            // fillp() global pattern active?
 static int             fp_global  = 0;                // current fillp() pattern
 static int             fp_hole    = -1;               // fillp() 1-bit color (-1 = transparent)
+static int             fp_anc_x   = 0;                // fillp() lattice origin (world coords)
+static int             fp_anc_y   = 0;                // — shifts the pattern phase; anchor to a
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
 static void circfill_pat(int x, int y, int radius, int pattern, int c1, int c0);
@@ -1345,10 +1347,11 @@ static Texture2D fp_texture(int pat, int c1, int c0) {
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0) {
     if (w <= 0 || h <= 0) return;
     Texture2D t = fp_texture(pattern, c1, c0);
-    // src origin = world pos, so the 4×4 lattice tiles in world space (sticks to what
-    // you draw) and stays seamless with the circ/tri pattern fills (same world origin).
-    // The camera matrix then scales/rotates the whole quad.
-    Rectangle src = { (float)x, (float)y, (float)w, (float)h };
+    // src origin = world pos minus the fillp anchor, so the 4×4 lattice tiles in world space
+    // (sticks to what you draw) and stays seamless with the circ/tri pattern fills (same
+    // origin). Anchor to a moving shape's center to make the pattern travel with it instead
+    // of the shape sliding over a fixed lattice. The camera matrix then scales/rotates the quad.
+    Rectangle src = { (float)(x - fp_anc_x), (float)(y - fp_anc_y), (float)w, (float)h };
     Rectangle dst = { (float)x, (float)y, (float)w, (float)h };
     DrawTexturePro(t, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
 }
@@ -1374,6 +1377,7 @@ static void circfill_pat(int cx, int cy, int r, int pattern, int c1, int c0) {
 // the 1-bits are transparent (holes) — exactly like PICO-8 fillp.
 void fillp(int pattern, int hole_color) { fp_on = true; fp_global = pattern; fp_hole = hole_color; }
 void fillp_reset(void)  { fp_on = false; }
+void fillp_anchor(int ox, int oy) { fp_anc_x = ox; fp_anc_y = oy; }
 
 // Pixel-center coverage tests — one definition shared by fill, outline, and dither.
 // Using x+0.5 / y+0.5 so the disc boundary is between pixels, not on them.
@@ -1447,7 +1451,10 @@ void arc(int x, int y, int radius, float start_deg, float end_deg, int color) {
 // from pset). 0-bits take the draw color, 1-bits the hole color (skip if < 0).
 static void plot_pat(int x, int y, int color) {
     if (!fp_on) { pset(x, y, color); return; }
-    int bit = (fp_global >> (15 - (((y & 3) * 4) + (x & 3)))) & 1;
+    // anchor the 4×4 lattice to (fp_anc_x,fp_anc_y) so a moving shape can carry its
+    // pattern instead of sliding over a world-pinned grid. (& 3 == mod 4, also for negatives.)
+    int ax = (x - fp_anc_x) & 3, ay = (y - fp_anc_y) & 3;
+    int bit = (fp_global >> (15 - ((ay * 4) + ax))) & 1;
     if (bit) { if (fp_hole >= 0) pset(x, y, fp_hole); }
     else     pset(x, y, color);
 }

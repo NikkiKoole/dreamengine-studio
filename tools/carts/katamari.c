@@ -110,10 +110,11 @@ static void shape_at(int x, int y, int s, int shape, int col, int pat, int shade
     // itself on the 1-bits. Both are the item's own colors and it's a single fill,
     // so the silhouette stays clean (no second shape behind, nothing pokes out).
     bool dith = (pat != FILL_SOLID && shade != col);
-    if (dith) fillp(pat, shade);
+    if (dith) { fillp(pat, shade); fillp_anchor(x, y); }  // anchor to this shape's center so the
+                                                          // dither travels with it (no crawl)
     if (shape == 0) circfill(x, y, s, col);
     else            rectfill(x - s, y - s, s * 2, s * 2, col);
-    if (dith) fillp_reset();
+    if (dith) { fillp_reset(); fillp_anchor(0, 0); }
 }
 
 // the "too big to eat" marker: a slightly larger SOLID shape drawn BEHIND the

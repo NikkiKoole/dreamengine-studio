@@ -38,8 +38,8 @@ typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;  
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
 typedef struct {
     const char *name; int col, cw, ch;   // size in 12px cells
-    int njack; JackDef jack[4];
-    int nknob; KnobDef knob[2];
+    int njack; JackDef jack[6];
+    int nknob; KnobDef knob[4];
 } ModType;
 
 ModType TYPES[NTYPE] = {
@@ -51,8 +51,8 @@ ModType TYPES[NTYPE] = {
     [MOD_SH]    = { "S&H", CLR_YELLOW, 6, 7, 3, {{2,false,24,16,"in"},{0,false,48,16,"clk"},{2,true,36,72,"cv"}}, 0, {} },
     [MOD_QUANT] = { "QUANT", CLR_GREEN, 6, 7, 2, {{2,false,36,16,"in"},{1,true,36,72,"pit"}},
                    2, {{"scl",0,5.99f,SCALE_PENTA,22,40,FMT_SCALE},{"root",0,11.99f,0,50,40,FMT_NOTE}} },
-    [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 7, 3, {{0,false,18,16,"g"},{1,false,36,16,"p"},{2,false,54,16,"f"}},
-                   1, {{"cut",200,2200,700,24,44,FMT_INT}} },
+    [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 7, 5, {{0,false,7,16,"g"},{1,false,21,16,"p"},{2,false,35,16,"f"},{2,false,49,16,"r"},{2,false,63,16,"w"}},
+                   3, {{"cut",200,2200,700,18,48,FMT_INT},{"res",0,15,6,40,48,FMT_INT},{"pw",0.05f,0.95f,0.5f,62,48,FMT_F1}} },
     [MOD_EUCLID]= { "EUCLID", CLR_RED, 6, 7, 2, {{0,false,36,16,"clk"},{0,true,36,72,"g"}},
                    2, {{"h",1,8.99f,4,22,40,FMT_INT},{"s",2,16.99f,8,50,40,FMT_INT}} },
     [MOD_ENV]   = { "ENV", CLR_MEDIUM_GREEN, 6, 7, 2, {{0,false,36,16,"g"},{2,true,36,72,"cv"}},
@@ -77,7 +77,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate sets speed. Patch the cv out into", "any cv input to modulate it." },
     [MOD_SH]     = { "Sample & Hold. On each clk pulse it", "grabs the cv at 'in' and holds it until", "the next clk -> a stepped, random-ish cv." },
     [MOD_QUANT]  = { "Quantizer. Snaps any cv to the nearest", "note of a scale (scl/root) so it's always", "in key. cv in -> pitch out." },
-    [MOD_VOICE]  = { "The synth voice. 'g' gate triggers a", "note at pitch 'p'; 'f' sweeps the filter;", "cut sets its base cutoff." },
+    [MOD_VOICE]  = { "The voice. g=gate, p=pitch. CV inputs", "f/r/w sweep cutoff / resonance / pulse-", "width live; cut/res/pw set their base." },
     [MOD_EUCLID] = { "Euclidean rhythm: h hits spread evenly", "over s steps. Advances on clk, fires a", "gate on each hit. Patch 'o' into DRUM." },
     [MOD_ENV]    = { "AD envelope. A gate makes a 0->1->0 cv", "ramp (atk up, dec down). Patch cv into a", "filter for a pluck on every note." },
     [MOD_DRUM]   = { "Three drum voices. A gate at k/s/h", "fires kick / snare / hat. Patch gates", "(from EUCLID or CLOCK) into them." },
@@ -89,7 +89,7 @@ const char *HELP[NTYPE][3] = {
 };
 
 // ── module instances + cables ──
-typedef struct { int type, x, y; float param[2], state[24], jackval[4]; } Module;   // state[] big enough for SCOPE history
+typedef struct { int type, x, y; float param[4], state[24], jackval[4]; } Module;   // param[] up to 4 knobs; state[] holds SCOPE history
 #define MAX_MOD 24
 Module mod[MAX_MOD];
 int    nmod = 0;
@@ -174,12 +174,12 @@ void (*PRESET_FN[])(void) = { preset_generative, preset_acid, preset_beats, pres
 #define NPRESET 4
 
 // ── persistence ──
-typedef struct { int type, x, y; float param[2]; } SaveMod;
+typedef struct { int type, x, y; float param[4]; } SaveMod;
 typedef struct { int nmod; SaveMod m[MAX_MOD]; int ncable; Cable cable[MAXCABLE]; } Patch;
 
 void save_patch(void) {
     Patch p; p.nmod = nmod; p.ncable = ncable;
-    for (int i = 0; i < nmod; i++) { p.m[i].type = mod[i].type; p.m[i].x = mod[i].x; p.m[i].y = mod[i].y; p.m[i].param[0] = mod[i].param[0]; p.m[i].param[1] = mod[i].param[1]; }
+    for (int i = 0; i < nmod; i++) { p.m[i].type = mod[i].type; p.m[i].x = mod[i].x; p.m[i].y = mod[i].y; for (int k = 0; k < 4; k++) p.m[i].param[k] = mod[i].param[k]; }
     for (int c = 0; c < ncable; c++) p.cable[c] = cable[c];
     save_bytes(&p, sizeof p);
     msg = "SAVED"; msg_flash = 40;
@@ -188,7 +188,7 @@ void load_patch(void) {
     Patch p;
     if (load_bytes(&p, sizeof p) == (int)sizeof p) {
         nmod = p.nmod < 0 ? 0 : p.nmod > MAX_MOD ? MAX_MOD : p.nmod;
-        for (int i = 0; i < nmod; i++) { mod[i] = (Module){ p.m[i].type, p.m[i].x, p.m[i].y, {p.m[i].param[0], p.m[i].param[1]}, {0}, {0} }; }
+        for (int i = 0; i < nmod; i++) { mod[i] = (Module){ p.m[i].type, p.m[i].x, p.m[i].y, {0}, {0}, {0} }; for (int k = 0; k < 4; k++) mod[i].param[k] = p.m[i].param[k]; }
         ncable = p.ncable < 0 ? 0 : p.ncable > MAXCABLE ? MAXCABLE : p.ncable;
         for (int c = 0; c < ncable; c++) cable[c] = p.cable[c];
         msg = "LOADED";
@@ -244,8 +244,13 @@ void eval_mod(int mi) {
                 m->state[3] = 0;   // trigger flash
             }
             m->state[0] = gate; m->state[3] += 1;
-            m->state[2] = m->param[0] + clamp(fcv, 0, 1) * 1800.0f;   // cutoff (for display)
-            int h = (int)m->state[1]; if (h > 0) note_cutoff(h, (int)m->state[2]);
+            m->state[2] = m->param[0] + clamp(fcv, 0, 1) * 1800.0f;   // cutoff = base knob + 'f' CV
+            int h = (int)m->state[1];
+            if (h > 0) {
+                note_cutoff(h, (int)m->state[2]);
+                note_res(h, (int)clamp(m->param[1] + read_in(mi, 3) * 15.0f, 0, 15));        // resonance = res knob + 'r' CV
+                note_duty(h, clamp(m->param[2] + read_in(mi, 4) * 0.5f, 0.05f, 0.95f));      // pulse width = pw knob + 'w' CV
+            }
             break; }
         case MOD_EUCLID: {
             float clk = read_in(mi, 0);
@@ -416,7 +421,7 @@ void draw_extras(int mi) {
         case MOD_LFO:   meter(x + 48, y + 18, 6, 46, m->jackval[0], CLR_PINK); break;
         case MOD_SH:    meter(x + 10, y + 30, 6, 36, m->state[1], CLR_YELLOW); print(str("%d%%", (int)(m->state[1] * 99)), x + 26, y + 40, CLR_DARK_GREY); break;
         case MOD_QUANT: print(NOTES[((int)m->jackval[1]) % 12], cx - text_width(NOTES[((int)m->jackval[1]) % 12]) / 2, y + 54, CLR_WHITE); break;
-        case MOD_VOICE: meter(x + 48, y + 28, 6, 40, (m->state[2] - 300) / 2600.0f, CLR_BLUE); if (m->state[3] < 8) circ(x + 24, y + 44, 9 - (int)m->state[3], CLR_LIGHT_PEACH); break;
+        case MOD_VOICE: if (m->state[3] < 8) circfill(x + GW / 2, y + 30, 5 - (int)m->state[3] / 2, CLR_LIGHT_PEACH); break;   // trigger pulse
         case MOD_EUCLID: {
             int hits = (int)m->param[0], steps = (int)m->param[1];
             for (int s = 0; s < steps; s++) {

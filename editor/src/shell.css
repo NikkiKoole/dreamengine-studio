@@ -255,8 +255,9 @@ html, body {
   display: none;
   position: fixed;
   left: 0; right: 0; bottom: 0;
-  height: 30%;
-  max-height: 320px;
+  /* hug content (a couple of [tcc] lines stay tiny) and only grow to a cap
+     when there's real output to scroll — instead of a fixed 30% slab */
+  max-height: 33vh;
   background: var(--bg);
   border-top: 1px solid var(--border);
   z-index: 95;

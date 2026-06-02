@@ -32,7 +32,7 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 // ── module type registry ──
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, NTYPE };
-enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC };
+enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
@@ -52,7 +52,7 @@ ModType TYPES[NTYPE] = {
     [MOD_QUANT] = { "QUANT", CLR_GREEN, 6, 7, 2, {{2,false,36,16,"in"},{1,true,36,72,"pit"}},
                    2, {{"scl",0,5.99f,SCALE_PENTA,22,40,FMT_SCALE},{"root",0,11.99f,0,50,40,FMT_NOTE}} },
     [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 7, 5, {{0,false,7,16,"g"},{1,false,21,16,"p"},{2,false,35,16,"f"},{2,false,49,16,"r"},{2,false,63,16,"w"}},
-                   3, {{"cut",200,2200,700,18,48,FMT_INT},{"res",0,15,6,40,48,FMT_INT},{"pw",0.05f,0.95f,0.5f,62,48,FMT_F1}} },
+                   4, {{"cut",200,2200,700,20,40,FMT_INT},{"res",0,15,6,52,40,FMT_INT},{"pw",0.05f,0.95f,0.5f,20,62,FMT_F1},{"wav",0,4.99f,0,52,62,FMT_WAVE}} },
     [MOD_EUCLID]= { "EUCLID", CLR_RED, 6, 7, 2, {{0,false,36,16,"clk"},{0,true,36,72,"g"}},
                    2, {{"h",1,8.99f,4,22,40,FMT_INT},{"s",2,16.99f,8,50,40,FMT_INT}} },
     [MOD_ENV]   = { "ENV", CLR_MEDIUM_GREEN, 6, 7, 2, {{0,false,36,16,"g"},{2,true,36,72,"cv"}},
@@ -77,7 +77,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate sets speed. Patch the cv out into", "any cv input to modulate it." },
     [MOD_SH]     = { "Sample & Hold. On each clk pulse it", "grabs the cv at 'in' and holds it until", "the next clk -> a stepped, random-ish cv." },
     [MOD_QUANT]  = { "Quantizer. Snaps any cv to the nearest", "note of a scale (scl/root) so it's always", "in key. cv in -> pitch out." },
-    [MOD_VOICE]  = { "The voice. g=gate, p=pitch. CV inputs", "f/r/w sweep cutoff / resonance / pulse-", "width live; cut/res/pw set their base." },
+    [MOD_VOICE]  = { "The voice. g=gate p=pitch; f/r/w CV sweep", "cutoff/res/pulse-width. Knobs set the base", "+ wav picks the waveform (saw/sqr/tri/sin/noi)." },
     [MOD_EUCLID] = { "Euclidean rhythm: h hits spread evenly", "over s steps. Advances on clk, fires a", "gate on each hit. Patch 'o' into DRUM." },
     [MOD_ENV]    = { "AD envelope. A gate makes a 0->1->0 cv", "ramp (atk up, dec down). Patch cv into a", "filter for a pluck on every note." },
     [MOD_DRUM]   = { "Three drum voices. A gate at k/s/h", "fires kick / snare / hat. Patch gates", "(from EUCLID or CLOCK) into them." },
@@ -197,11 +197,11 @@ void load_patch(void) {
 }
 
 void init(void) {
-    // four distinct voice timbres (slots 5-8) so multiple VOICEs differ (lead vs pad)
-    instrument(5, INSTR_SAW, 4, 90, 3, 260);     instrument_filter(5, FILTER_LOW, 600, 10);
-    instrument(6, INSTR_SQUARE, 4, 90, 3, 240);  instrument_filter(6, FILTER_LOW, 800, 9);  instrument_duty(6, 0.3f);
-    instrument(7, INSTR_TRI, 8, 150, 4, 320);    instrument_filter(7, FILTER_LOW, 1200, 6);
-    instrument(8, INSTR_SINE, 40, 200, 5, 420);  instrument_filter(8, FILTER_LOW, 1500, 4);
+    // five voice slots (5-9) that differ ONLY in waveform, so VOICE's wav knob is a pure
+    // waveshape selector (same ADSR + filter; cutoff/res/pw are driven live per note)
+    int waves[5] = { INSTR_SAW, INSTR_SQUARE, INSTR_TRI, INSTR_SINE, INSTR_NOISE };
+    for (int i = 0; i < 5; i++) { instrument(5 + i, waves[i], 6, 120, 4, 300); instrument_filter(5 + i, FILTER_LOW, 800, 8); }
+    instrument_duty(6, 0.5f);   // square's pw knob overrides this live
     preset_generative();
 }
 
@@ -234,8 +234,7 @@ void eval_mod(int mi) {
             if (cable_into(mi, 0) < 0) {   // gate input unpatched → release (no dangling drone)
                 int h = (int)m->state[1]; if (h > 0) { note_off(h); m->state[1] = 0; }
             }
-            int vo = 0; for (int k = 0; k < mi; k++) if (mod[k].type == MOD_VOICE) vo++;
-            int slot = 5 + vo % 4;         // each VOICE gets one of the 4 timbres (slots 5-8)
+            int slot = 5 + (int)m->param[3];   // wav knob picks the waveform (slots 5-9)
             float gate = read_in(mi, 0), pitch = read_in(mi, 1), fcv = read_in(mi, 2);
             if (gate > 0.5f && m->state[0] <= 0.5f) {
                 int mm = (int)pitch; if (mm < 1) mm = 48;
@@ -344,6 +343,7 @@ int near_col(int x, int y) {
 
 const char *knob_str(int fmt, float v) {
     if (fmt == FMT_LOGIC) { const char *L[3] = { "AND", "OR", "XOR" }; return L[(int)v]; }
+    if (fmt == FMT_WAVE)  { const char *W[5] = { "saw", "sqr", "tri", "sin", "noi" }; return W[(int)v]; }
     if (fmt == FMT_SCALE) return SCALES[(int)v];
     if (fmt == FMT_NOTE)  return NOTES[(int)v];
     if (fmt == FMT_F1)    return str("%.1f", v);

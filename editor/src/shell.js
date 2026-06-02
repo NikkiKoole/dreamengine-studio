@@ -152,6 +152,95 @@ let docsContent          // right-hand content pane
 let currentDocPath = ''  // relative path of the markdown doc shown ('' = API reference)
 let docsSidebarCollapsed = localStorage.getItem('docsSidebar') === 'closed'
 
+// — find-in-docs (Ctrl/Cmd+F) — highlights matches in whatever the content pane shows —
+let findBar, findInput, findCount   // the find UI (built in buildDocsTab)
+let findMatches = []                // the <mark> elements for the current query
+let findIndex = -1                  // which match is the "current" one
+let findQuery = ''
+
+function clearFind() {
+  if (!docsContent) return
+  docsContent.querySelectorAll('mark.docs-find-hit').forEach(m => {
+    m.replaceWith(document.createTextNode(m.textContent))
+  })
+  docsContent.normalize()
+  findMatches = []
+  findIndex = -1
+}
+
+function updateFindCount() {
+  if (!findCount) return
+  if (!findQuery) { findCount.textContent = '' }
+  else findCount.textContent = findMatches.length ? `${findIndex + 1}/${findMatches.length}` : 'no results'
+}
+
+function highlightCurrent(scroll) {
+  findMatches.forEach((m, i) => m.classList.toggle('current', i === findIndex))
+  if (scroll && findIndex >= 0) findMatches[findIndex].scrollIntoView({ behavior: 'instant', block: 'center' })
+  updateFindCount()
+}
+
+function runFind(query) {
+  clearFind()
+  findQuery = query
+  if (!query) { updateFindCount(); return }
+  const q = query.toLowerCase()
+  const walker = document.createTreeWalker(docsContent, NodeFilter.SHOW_TEXT, {
+    acceptNode: node => node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+  })
+  const nodes = []
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n)
+
+  nodes.forEach(node => {
+    const text = node.nodeValue
+    const lower = text.toLowerCase()
+    if (lower.indexOf(q) === -1) return
+    const frag = document.createDocumentFragment()
+    let last = 0, idx = lower.indexOf(q)
+    while (idx !== -1) {
+      if (idx > last) frag.appendChild(document.createTextNode(text.slice(last, idx)))
+      const mark = document.createElement('mark')
+      mark.className = 'docs-find-hit'
+      mark.textContent = text.slice(idx, idx + q.length)
+      frag.appendChild(mark)
+      last = idx + q.length
+      idx = lower.indexOf(q, last)
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)))
+    node.parentNode.replaceChild(frag, node)
+  })
+
+  findMatches = Array.from(docsContent.querySelectorAll('mark.docs-find-hit'))
+  findIndex = findMatches.length ? 0 : -1
+  highlightCurrent(true)
+}
+
+function gotoFind(delta) {
+  if (!findMatches.length) return
+  findIndex = (findIndex + delta + findMatches.length) % findMatches.length
+  highlightCurrent(true)
+}
+
+function openFind() {
+  if (!findBar) return
+  findBar.classList.add('open')
+  findInput.focus()
+  findInput.select()
+  if (findInput.value) runFind(findInput.value)
+}
+
+function closeFind() {
+  if (!findBar) return
+  findBar.classList.remove('open')
+  clearFind()
+  findQuery = ''
+}
+
+// re-run the active query after the content pane is re-rendered (navigation, lang switch)
+function reapplyFind() {
+  if (findBar?.classList.contains('open') && findQuery) runFind(findQuery)
+}
+
 function setActiveNav(key) {
   if (!docsSidebar) return
   docsSidebar.querySelectorAll('[data-docnav]').forEach(el =>
@@ -184,9 +273,33 @@ function renderApiReference() {
   intro.innerHTML = introHTML[helpLang]
   docsContent.appendChild(intro)
 
+  // section-title → DOM id, so the table of contents can scroll to each section
+  const sectionId = title => 'help-section-' + title.replace(/[^a-z0-9]+/gi, '-')
+
+  // table of contents — a clickable list of every section, sits above c basics
+  const toc = document.createElement('nav')
+  toc.className = 'help-toc'
+  toc.innerHTML = `<div class="help-toc-title">${helpLang === 'nl' ? 'inhoud' : 'contents'}</div>`
+  const tocList = document.createElement('div')
+  tocList.className = 'help-toc-list'
+  sections.forEach(({ title, titleNL }) => {
+    const link = document.createElement('a')
+    link.className = 'help-toc-link'
+    link.href = '#'
+    link.textContent = helpLang === 'nl' ? titleNL : title
+    link.addEventListener('click', e => {
+      e.preventDefault()
+      document.getElementById(sectionId(title))?.scrollIntoView({ behavior: 'instant', block: 'start' })
+    })
+    tocList.appendChild(link)
+  })
+  toc.appendChild(tocList)
+  docsContent.appendChild(toc)
+
   sections.forEach(({ title, titleNL, keys }) => {
     const section = document.createElement('div')
     section.className = 'help-section'
+    section.id = sectionId(title)
     section.innerHTML = `<div class="help-section-title">${helpLang === 'nl' ? titleNL : title}</div>`
     keys.forEach(key => {
       const entry = studioDocs[key]
@@ -208,6 +321,8 @@ function renderApiReference() {
     })
     docsContent.appendChild(section)
   })
+
+  reapplyFind()
 }
 
 // — render a markdown doc from docs/ into the content pane —
@@ -223,6 +338,7 @@ async function showDoc(relPath) {
   }
   docsContent.innerHTML = `<div class="docs-md">${marked.parse(md)}</div>`
   docsContent.scrollTop = 0
+  reapplyFind()
 }
 
 // resolve a relative markdown link against the doc it appears in (doc-root-relative)
@@ -300,6 +416,28 @@ async function buildDocsTab() {
   })
   helpPanel.appendChild(toggleBtn)
   syncToggle()
+
+  // find-in-docs bar (Ctrl/Cmd+F) — floats over the content pane, searches whatever it shows
+  findBar = document.createElement('div')
+  findBar.id = 'docs-find'
+  findBar.innerHTML = `
+    <input type="text" id="docs-find-input" placeholder="find in docs…" spellcheck="false" />
+    <span id="docs-find-count"></span>
+    <button id="docs-find-prev" title="previous (Shift+Enter)">↑</button>
+    <button id="docs-find-next" title="next (Enter)">↓</button>
+    <button id="docs-find-close" title="close (Esc)">✕</button>
+  `
+  helpPanel.appendChild(findBar)
+  findInput = findBar.querySelector('#docs-find-input')
+  findCount = findBar.querySelector('#docs-find-count')
+  findInput.addEventListener('input', () => runFind(findInput.value))
+  findInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); gotoFind(e.shiftKey ? -1 : 1) }
+    else if (e.key === 'Escape') { e.preventDefault(); closeFind() }
+  })
+  findBar.querySelector('#docs-find-prev').addEventListener('click', () => gotoFind(-1))
+  findBar.querySelector('#docs-find-next').addEventListener('click', () => gotoFind(1))
+  findBar.querySelector('#docs-find-close').addEventListener('click', () => closeFind())
 
   // relative .md links inside a rendered doc navigate within the pane; external/anchor links pass through
   docsContent.addEventListener('click', e => {
@@ -681,6 +819,11 @@ window.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
     e.preventDefault()
     saveCartBtn.click()
+  }
+  // Cmd/Ctrl+F → find-in-docs, but only while the Docs tab is showing
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F') && helpPanel.classList.contains('active')) {
+    e.preventDefault()
+    openFind()
   }
 }, true)
 

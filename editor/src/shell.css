@@ -359,6 +359,153 @@ html, body {
 }
 #docs-toggle:hover { color: var(--accent); border-color: var(--accent); }
 
+/* find-in-docs bar — floats top-right of the docs pane, shown only when .open */
+#docs-find {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+#docs-find.open { display: flex; }
+#docs-find-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 4px 7px;
+  width: 180px;
+  outline: none;
+}
+#docs-find-input:focus { border-color: var(--accent); }
+#docs-find-count {
+  font-size: 12px;
+  color: var(--fg-dim);
+  min-width: 48px;
+  text-align: center;
+}
+#docs-find button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+#docs-find button:hover { color: var(--accent); border-color: var(--accent); }
+
+mark.docs-find-hit {
+  background: rgba(201, 169, 110, 0.35);
+  color: inherit;
+  border-radius: 2px;
+}
+mark.docs-find-hit.current {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* code editor find & replace — restyled to match the docs finder, with a
+   stacked layout instead of the library's single wrapping row:
+     [find]      [prev] [next]
+     match case  regexp  by word
+     [replace]   [replace] [all]                                      */
+/* the strip the panel sits in: drop oneDark's full-width bar so only our card shows */
+.cm-panels.cm-panels-top { background: transparent; border-bottom: none; }
+
+.cm-panel.cm-search {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  gap: 7px;
+  align-items: center;
+  width: fit-content;
+  margin: 6px 8px 6px auto;        /* compact + right-aligned, like the docs finder */
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 30px 10px 10px;    /* right padding clears the × close button */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+/* the library puts margins on every control + a <br> before replace; grid owns spacing now */
+.cm-panel.cm-search input,
+.cm-panel.cm-search button,
+.cm-panel.cm-search label { margin: 0; }
+.cm-panel.cm-search br { display: none; }
+.cm-panel.cm-search button[name=select] { display: none; }  /* "select all" — unused in this layout */
+
+/* row 1 — find input, prev, next */
+.cm-panel.cm-search input[name=search]   { grid-area: 1 / 1; }
+.cm-panel.cm-search button[name=prev]    { grid-area: 1 / 2; }
+.cm-panel.cm-search button[name=next]    { grid-area: 1 / 3; }
+/* row 2 — the option checkboxes, aligned under row 1 */
+.cm-panel.cm-search label:nth-of-type(1) { grid-area: 2 / 1; }
+.cm-panel.cm-search label:nth-of-type(2) { grid-area: 2 / 2; }
+.cm-panel.cm-search label:nth-of-type(3) { grid-area: 2 / 3; }
+/* row 3 — replace input, replace, replace all */
+.cm-panel.cm-search input[name=replace]     { grid-area: 3 / 1; }
+.cm-panel.cm-search button[name=replace]    { grid-area: 3 / 2; }
+.cm-panel.cm-search button[name=replaceAll] { grid-area: 3 / 3; }
+
+/* inputs — mirror #docs-find-input */
+.cm-panel.cm-search .cm-textfield {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 13px;
+  padding: 4px 7px;
+  width: 200px;
+  outline: none;
+}
+.cm-panel.cm-search .cm-textfield:focus { border-color: var(--accent); }
+
+/* buttons — mirror #docs-find button (kill the library's gradient) */
+.cm-panel.cm-search .cm-button {
+  background: none;
+  background-image: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cm-panel.cm-search .cm-button:hover { color: var(--accent); border-color: var(--accent); }
+
+/* option labels — small + dim, like the find match counter */
+.cm-panel.cm-search label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* × close, tucked into the top-right corner (positioned by the library) */
+.cm-panel.cm-search button[name=close] {
+  color: var(--fg-dim);
+  font-size: 16px;
+  cursor: pointer;
+}
+.cm-panel.cm-search button[name=close]:hover { color: var(--accent); }
+
 #panel-help.docs-tab.sidebar-collapsed #docs-sidebar { display: none; }
 .docs-nav-group { margin-bottom: 16px; }
 .docs-nav-head {
@@ -478,6 +625,41 @@ html, body {
 .help-intro .kbd {
   color: var(--accent);
   white-space: nowrap;
+}
+
+/* table of contents — clickable section jump-list above the API list */
+.help-toc {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.help-toc-title {
+  font-size: 20px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+  margin-bottom: 12px;
+}
+.help-toc-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.help-toc-link {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.help-toc-link:hover {
+  background: rgba(201, 169, 110, 0.15);
+  border-color: var(--accent);
 }
 
 .help-section {

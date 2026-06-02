@@ -155,9 +155,11 @@ Rewritten onto it: `ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, **an
 
 `trifill` is now CPU per-pixel (the 3D carts — `solid3d`/`cube3d`/`flyover` via `quadfill`
 — go through it). Smoke-tested: `solid3d` renders filled+dithered with no face cracks,
-no hang. **Perf vs the old GPU `DrawTriangle` is not yet measured** — deferred by choice
-("get it correct first"); revisit if a triangle-spamming cart feels slow, and clamp the
-fill bbox to the screen if huge off-screen tris ever bite.
+no hang. **Perf:** the CPU cost is real (podracer froze when its haze spammed ~190 large
+software tris/frame; fixed cart-side by moving bulk fills to GPU). The off-screen-bbox
+worry below is now **fixed in the engine** — `poly_fill_cov`/`poly_stroke_cov` clamp their
+scan to the on-screen region (mapped through the camera), so huge off-screen tris cost
+nothing extra. See the "off-screen bbox clamp" entry near the end.
 
 **Detector rewritten (same session).** The old marker test was a local adjacency guess and
 had two failure modes: it tolerated ≤1px drift, and once the pink rule was relaxed to stop
@@ -244,9 +246,16 @@ everything else (0 mismatches, partial sectors included). `arc` stays the curved
     per-pixel — great for correctness, cheap only at low count/area. For large areas or
     high counts (per-segment, per-scanline, full-screen overlays) reach for the GPU paths:
     `rectfill` (incl. dithered via `fillp`), `line`, `tritex`.
-  - **Engine mitigation still open:** clamp `poly_fill_cov`'s bbox to the screen — huge
-    off-screen tris currently iterate their full (off-screen) bbox doing point-in-poly tests
-    that plot nothing. Cheap win, helps any cart, doesn't change output.
+  - **Engine mitigation — SHIPPED (2026-06-02).** `poly_fill_cov`/`poly_stroke_cov` clamp
+    their scan box to the on-screen region before scanning. The clamp is in the primitive's
+    own coordinate space, which the camera shifts, so it maps the four screen corners back
+    through the `Camera2D` (`GetScreenToWorld2D`) and takes their AABB — a conservative
+    superset under rotation, so translate/zoom/rotation are all handled and no visible cell
+    is ever dropped. Huge off-screen tris no longer iterate their off-screen bbox. Measured
+    on the `trifill_stress` cart (12 thin spokes, ~1100px off-screen reach): **46.7ms →
+    2.7ms/frame (~17×), ~21fps → 60fps**, with `raster_test` still `mismatches:"0"` on all
+    analyse frames (byte-identical output). This is the win the "clamp the fill bbox" note
+    earlier in the doc anticipated.
 - **Web GL ES.** All-CPU coverage *should* render bit-identically on desktop GL and web GL ES
   (only the final scale-up is GPU). Confirm by running `raster_test` in the emscripten build —
   but note `pget` is disabled on web, so the in-cart detector won't run there; confirmation is

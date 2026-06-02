@@ -1771,9 +1771,30 @@ static void poly_bbox(const int *xy, int n, int *minx, int *miny, int *maxx, int
         if (y < *miny) *miny = y; if (y > *maxy) *maxy = y;
     }
 }
+// The software scan only needs to visit pixels that can actually land on screen.
+// A primitive whose bbox runs far off-screen (e.g. huge thin triangles) would
+// otherwise iterate millions of cells that plot nothing. Intersect the scan box
+// with the on-screen region, expressed in the primitive's OWN coordinate space —
+// which the camera (translation/zoom/rotation, a GPU Camera2D) shifts. We map the
+// four screen corners back through the camera and take their AABB: a conservative
+// superset under rotation, so no visible cell is ever dropped and the image stays
+// byte-identical; only never-plotted off-screen cells are skipped.
+static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1) {
+    Vector2 c0 = GetScreenToWorld2D((Vector2){ 0,        0        }, cam);
+    Vector2 c1 = GetScreenToWorld2D((Vector2){ SCREEN_W, 0        }, cam);
+    Vector2 c2 = GetScreenToWorld2D((Vector2){ 0,        SCREEN_H }, cam);
+    Vector2 c3 = GetScreenToWorld2D((Vector2){ SCREEN_W, SCREEN_H }, cam);
+    int lo_x = (int)floorf(fminf(fminf(c0.x, c1.x), fminf(c2.x, c3.x)));
+    int lo_y = (int)floorf(fminf(fminf(c0.y, c1.y), fminf(c2.y, c3.y)));
+    int hi_x = (int)ceilf (fmaxf(fmaxf(c0.x, c1.x), fmaxf(c2.x, c3.x)));
+    int hi_y = (int)ceilf (fmaxf(fmaxf(c0.y, c1.y), fmaxf(c2.y, c3.y)));
+    if (*x0 < lo_x) *x0 = lo_x;  if (*y0 < lo_y) *y0 = lo_y;
+    if (*x1 > hi_x) *x1 = hi_x;  if (*y1 > hi_y) *y1 = hi_y;
+}
 static void poly_fill_cov(const int *xy, int n, int color) {
     if (n < 3) return;
     int x0, y0, x1, y1; poly_bbox(xy, n, &x0, &y0, &x1, &y1);
+    poly_clamp_scan(&x0, &y0, &x1, &y1);
     for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
             if (poly_inside(x + 0.5f, y + 0.5f, xy, n)) plot_pat(x, y, color);
@@ -1781,6 +1802,7 @@ static void poly_fill_cov(const int *xy, int n, int color) {
 static void poly_stroke_cov(const int *xy, int n, int color) {
     if (n < 3) return;
     int x0, y0, x1, y1; poly_bbox(xy, n, &x0, &y0, &x1, &y1);
+    poly_clamp_scan(&x0, &y0, &x1, &y1);
     for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
             if (poly_inside(x+0.5f,y+0.5f,xy,n) &&

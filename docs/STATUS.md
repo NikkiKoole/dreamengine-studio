@@ -132,12 +132,16 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     **Still open (verification, not design):** ~~perf of CPU `trifill` vs old GPU~~ **measured
     (2026-06-01, `podracer`): the cost is real.** CPU `trifill` froze podracer when its haze
     spammed ~190 large software-filled tris/frame; fixed cart-side by moving bulk fills to GPU
-    (`rectfill`/`line`). **Untested engine idea worth trying:** clamp `poly_fill_cov`'s scan
-    bbox to the screen — huge off-screen tris currently iterate their full bbox plotting
-    nothing; should be a free speedup for any triangle-heavy cart with no output change (verify
-    via `raster_test` 0-mismatch + a headless podracer frame-time check). Also still open:
-    web GL ES confirmation (`pget` disabled on web); an ADR for the GPU→CPU `tri`/`trifill` +
-    `thickline` behaviour change.
+    (`rectfill`/`line`). **Off-screen bbox clamp — SHIPPED (2026-06-02).** `poly_fill_cov`/
+    `poly_stroke_cov` now intersect their scan box with the on-screen region before scanning,
+    mapped through the camera (`GetScreenToWorld2D` on the four screen corners → conservative
+    AABB, so translate/zoom/rotation are all correct and the image is byte-identical). Huge
+    off-screen tris no longer iterate their full bbox doing point-in-poly tests on cells that
+    plot nothing. Measured on the new `trifill_stress` cart (12 thin spokes reaching ~1100px
+    off-screen): **46.7ms → 2.7ms/frame avg (~17×), ~21fps → smooth 60fps.** Verified
+    output-identical: `raster_test` reports `mismatches:"0"` on all 46 analyse frames + `eq
+    total=0`. Still open: web GL ES confirmation (`pget` disabled on web); an ADR for the
+    GPU→CPU `tri`/`trifill` + `thickline` behaviour change.
     **Regression test:** `tools/carts/raster_test.c` + `tools/raster_test.script` —
     drag `editor/public/carts/raster_test.cart.png` into the editor (Z outline, X dither,
     C cycle 4 pages, SPACE analyse / run equiv), or run headless:

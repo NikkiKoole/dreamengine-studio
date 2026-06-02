@@ -1,24 +1,27 @@
 #include "studio.h"
 
-// ── trifill stress test — measures the "clamp poly_fill_cov bbox to screen" win ──
+// ── trifill stress test — regression cart for the poly_fill_cov bbox clamp ──
 //
 // A pinwheel of long, THIN software-filled triangles. Each spoke's far vertices
 // sit far outside the 320x200 screen, so its bounding box is enormous while only
-// a sliver is ever visible. studio.c's software rasterizer (poly_fill_cov) today
-// iterates the FULL bbox, calling poly_inside() on every cell — the overwhelming
-// majority off-screen, plotting nothing. That wasted scan is what STATUS open
-// item 14 ("clamp poly_fill_cov's scan bbox to the screen") removes.
+// a sliver is ever visible.
 //
-// This cart exists to make that waste measurable and the fix verifiable:
-//   • before/after the engine clamp, the on-screen image must stay pixel-identical
-//     (the off-screen cells never plotted anything anyway), while the profiler's
-//     CPU frame-budget line drops sharply.
-//   • trifill() is the only heavy call, so the profiler's draw-call count reads
-//     cleanly as "trifill ×N".
+// Before the off-screen bbox clamp (shipped 2026-06-02), studio.c's software
+// rasterizer (poly_fill_cov) scanned the FULL bbox, calling poly_inside() on
+// every cell — almost all off-screen, plotting nothing — which pinned this cart
+// at ~21fps (46.7ms/frame). Now poly_fill_cov clamps its scan to the on-screen
+// region (mapped through the camera), so the off-screen reach is FREE: it runs
+// at a smooth 60fps (~2.7ms), and cranking RIGHT (reach) all the way to 8000 no
+// longer costs anything. Cost now scales with on-screen coverage (spoke count),
+// not off-screen reach.
 //
-// It is intentionally over budget at the defaults so the win is obvious. Tune live:
-//   UP / DOWN     more / fewer spokes   (raises/lowers the bbox count)
-//   RIGHT / LEFT  longer / shorter reach (how far off-screen the bbox extends)
+// It survives as a regression cart: if the clamp ever breaks, pushing reach up
+// will tank the fps again. The on-screen image is identical with or without the
+// clamp (off-screen cells never plotted), so trifill() is the only heavy call —
+// the profiler's draw-call count reads cleanly as "trifill ×N".
+//
+//   UP / DOWN     more / fewer spokes   (on-screen coverage — still costs)
+//   RIGHT / LEFT  longer / shorter reach (off-screen — free since the clamp)
 //   A             freeze rotation (hold one steady frame for the profiler)
 
 #define CX 160

@@ -1119,8 +1119,20 @@ function rlogExit(info) {
   }
 }
 
+// Live (libtcc) diagnostics stream through the log (not a run-result), as
+// `[tcc] …/cart.c:LINE: error: …`. Mirror the native path: mark the offending line(s)
+// in the editor, and clear them when a recompile succeeds. cart.c is the editor code
+// verbatim, so its line numbers match the editor's.
+function scanLiveDiagnostics(text) {
+  const errs = []
+  for (const m of text.matchAll(/\[tcc\][^\n]*cart\.c:(\d+):[^\n]*error/g)) errs.push(parseInt(m[1]))
+  if (errs.length) setErrorLines([...new Set(errs)])
+  else if (/\[tcc\] (compiled|hot-reloaded)/.test(text)) setErrorLines([])   // clean recompile → clear
+}
+
 if (window.studio?.onLog) {
   window.studio.onLog(rlogAppend)
+  window.studio.onLog(scanLiveDiagnostics)
   window.studio.onExit(rlogExit)
   window.studio.onExit(() => { liveHostRunning = false })   // live window closed → stop auto-reload
 }

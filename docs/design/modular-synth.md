@@ -19,7 +19,7 @@ already work. Each step compiles, runs, and bakes a screenshot — a real checkp
 | **0** | Cart skeleton at 320×200; one `note_on`/`note_off` on the beat | a repeating bleep | ✅ done |
 | **1** | The generative chain **hardcoded** (CLOCK→LFO→S&H→QUANT→VOICE), no UI/cables | endless in-key melody + a "scope" readout of each stage | ✅ done — `tools/carts/modrack.c` |
 | **2** | Draw the 6 module strips (names, knobs, jacks, LEDs) + proximity-brightness labels | the running engine made visible | ✅ done — `modrack.c` |
-| **3** | Make knobs click-drag (BPM, rate, scale, root, cutoff) + focus readout | a playable generative instrument (fixed patch) | — |
+| **3** | Make knobs click-drag (BPM, rate, scale, root, cutoff) + hover-to-read | a playable generative instrument (fixed patch) | ✅ done — `modrack.c` |
 | **4** | Draw the fixed default patch as bezier cables with a dot pulsing on each gate | picture matches the sound | — |
 | **5** | Cables **editable**: drag out→in (type-checked), right-click delete; swap to the cable-driven propagate step | a real modular you patch yourself | — |
 | **6** | SAVE/LOAD (`save_bytes`), wire EUCLID→DRUMS, polish LED/cable juice | a complete, shareable cart | — |

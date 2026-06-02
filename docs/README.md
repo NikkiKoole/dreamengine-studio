@@ -21,6 +21,7 @@ docs/
 ├── decisions/         frozen, dated decisions (ADR-lite) — the "why we (didn't) do X"
 ├── design/            exploratory design notes (scratchpads) — rationale + proposals
 │   ├── api-notes.md     engine API: classics survey, signatures, naming, cart-patterns
+│   ├── cart-as-script.md  EXPLORATION: run cart C without an external compiler via libtcc (in-memory compile + hot-reload); the 3-symbol host↔cart boundary, why Wasmer clang/WASIX won't do graphics, native goal vs. browser goal
 │   ├── audio-notes.md   sound: current engine, chip comparison, expansion roadmap
 │   ├── cart-survey-api-priorities.md   cart-evidence-first memo: what real carts prove, filtered through existing decisions
 │   ├── baked-rotation-atlas.md   pre-rotated sprite/shape atlas: fast blitted bodies, the centerline model, offscreen canvases

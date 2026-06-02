@@ -24,6 +24,97 @@
 #endif
 
 // ------------------------------------------------------------
+// DE_TCC: load the cart as a libtcc-JIT'd module instead of static-linking it.
+// studio.c becomes a persistent host; the cart's init/update/draw are resolved at
+// runtime and the whole studio API is handed to the cart via tcc_add_symbol. This
+// is the "cart-as-script" / hot-reload path. A normal build never sees any of it.
+// ------------------------------------------------------------
+#ifdef DE_TCC
+#include "libtcc.h"
+#include "studio_tcc_symbols.h"   // generated: DE_TCC_API_SYMBOLS(X) over studio.h
+#include <sys/stat.h>
+#ifndef DE_TCC_INCDIR
+#define DE_TCC_INCDIR "."          // where studio.h lives (override via -D)
+#endif
+#ifndef DE_TCC_LIBDIR
+#define DE_TCC_LIBDIR ""           // tcc runtime/config dir (libtcc1.a)
+#endif
+
+static TCCState *cart_state = NULL;
+static void (*cart_init)(void)   = NULL;
+static void (*cart_update)(void) = NULL;
+static void (*cart_draw)(void)   = NULL;
+static char cart_path_buf[1024] = "";   // path of the loaded cart (for file-watch)
+static long cart_mtime = 0;             // its mtime at load time
+
+// Host-owned persistent cart state. Carts grab a zero-initialised block here
+// (`extern void *de_state(int);  #define ST ((MyState*)de_state(sizeof(MyState)))`)
+// and the host owns the memory, so it SURVIVES a hot reload — unlike a cart global,
+// which lives in the libtcc module and is wiped when the module is replaced.
+static unsigned char *de_state_mem = NULL;
+static int            de_state_cap = 0;
+static void *de_state(int bytes) {
+    if (bytes > de_state_cap) {
+        de_state_mem = realloc(de_state_mem, (size_t)bytes);
+        memset(de_state_mem + de_state_cap, 0, (size_t)(bytes - de_state_cap));
+        de_state_cap = bytes;
+    }
+    return de_state_mem;
+}
+
+static long file_mtime(const char *p) { struct stat st; return stat(p, &st) == 0 ? (long)st.st_mtime : 0; }
+
+static void cart_tcc_error(void *u, const char *msg) { (void)u; fprintf(stderr, "[tcc] %s\n", msg); }
+
+// (Re)compile the cart at `path` into memory and rebind the entry points. Returns
+// 0 on success; on failure the previously loaded cart (if any) stays live, so a
+// hot-reload with a syntax error doesn't kill the running game.
+static int cart_load(const char *path) {
+    double _t0 = GetTime();
+    TCCState *s = tcc_new();
+    if (!s) return -1;
+    tcc_set_error_func(s, NULL, cart_tcc_error);
+    if (DE_TCC_LIBDIR[0]) tcc_set_lib_path(s, DE_TCC_LIBDIR);
+    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
+    tcc_add_include_path(s, DE_TCC_INCDIR);
+    // screen geometry normally arrives as -D flags at cart compile time
+    { char b[32];
+      snprintf(b, sizeof b, "%d", SCREEN_W); tcc_define_symbol(s, "SCREEN_W", b);
+      snprintf(b, sizeof b, "%d", SCREEN_H); tcc_define_symbol(s, "SCREEN_H", b);
+      snprintf(b, sizeof b, "%d", SCALE);    tcc_define_symbol(s, "SCALE",    b); }
+    // expose the entire studio API to the cart
+    #define X(n) tcc_add_symbol(s, #n, (const void *)n);
+    DE_TCC_API_SYMBOLS(X)
+    #undef X
+    tcc_add_symbol(s, "de_state", (const void *)de_state);   // persistent-state hook
+    if (tcc_add_file(s, path) < 0) { tcc_delete(s); return -1; }
+    if (tcc_relocate(s)       < 0) { tcc_delete(s); return -1; }
+    void (*ci)(void) = (void (*)(void))tcc_get_symbol(s, "init");
+    void (*cu)(void) = (void (*)(void))tcc_get_symbol(s, "update");
+    void (*cd)(void) = (void (*)(void))tcc_get_symbol(s, "draw");
+    if (!cd) { fprintf(stderr, "[tcc] cart '%s' defines no draw()\n", path); tcc_delete(s); return -1; }
+    if (cart_state) tcc_delete(cart_state);   // free the old module (hot reload)
+    cart_state = s; cart_init = ci; cart_update = cu; cart_draw = cd;
+    snprintf(cart_path_buf, sizeof cart_path_buf, "%s", path);
+    cart_mtime = file_mtime(path);
+    fprintf(stderr, "[tcc] compiled %s in %.2f ms\n", path, (GetTime() - _t0) * 1000.0);
+    return 0;
+}
+
+// Called once per frame: if the cart file changed on disk, recompile and hot-swap
+// the entry points — WITHOUT re-running init(), so de_state (and thus game state)
+// carries across the reload. A compile error leaves the running cart untouched.
+static void cart_reload_if_changed(void) {
+    if (!cart_path_buf[0]) return;
+    long m = file_mtime(cart_path_buf);
+    if (!m || m == cart_mtime) return;
+    char path[1024]; snprintf(path, sizeof path, "%s", cart_path_buf);
+    if (cart_load(path) == 0) fprintf(stderr, "[tcc] hot-reloaded %s\n", path);
+    else                      cart_mtime = m;   // don't re-attempt the broken file every frame
+}
+#endif // DE_TCC
+
+// ------------------------------------------------------------
 // internal state
 // ------------------------------------------------------------
 
@@ -668,6 +759,9 @@ static void loop_step(void) {
     int fno = frame_count;                 // 0-based index of the frame we're about to run
     harness_input(fno);                    // apply replay/script keys + record live keys
 #endif
+#ifdef DE_TCC
+    cart_reload_if_changed();   // file-watch hot reload (cart re-JITs, state persists)
+#endif
     poll_virtual_touches();
     update_stick();
     if (IsKeyPressed(KEY_F1)) watch_show = !watch_show;
@@ -695,7 +789,11 @@ static void loop_step(void) {
 #ifdef DE_PROFILE
     double prof_t0 = GetTime();
 #endif
+#ifdef DE_TCC
+    if (cart_update) cart_update();
+#else
     update();
+#endif
     frame_count++;
 
     // draw into the low-res canvas, under the camera matrix (handles scroll + zoom +
@@ -704,7 +802,11 @@ static void loop_step(void) {
     BeginTextureMode(canvas);
         BeginMode2D(cam);
         cam_active = true;
+#ifdef DE_TCC
+        if (cart_draw) cart_draw();
+#else
         draw();
+#endif
         cam_active = false;
         EndMode2D();
     EndTextureMode();
@@ -858,6 +960,9 @@ int main(int argc, char **argv) {
     int         hide_window            = 0;
     unsigned    seed                   = 1;
     const char *rec_path = NULL, *replay_path = NULL, *script_path = NULL, *trace_path = NULL;
+#ifdef DE_TCC
+    const char *cart_path = "cart.c";   // libtcc-loaded cart source (--cart <path>)
+#endif
     for (int i = 1; i < argc; i++) {
         if      (strcmp(argv[i], "--screenshot") == 0) screenshot_mode = 1;
         else if (strcmp(argv[i], "--title")  == 0 && i + 1 < argc) window_title = argv[++i];
@@ -871,6 +976,9 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) max_frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--dump")   == 0 && i + 1 < argc) { snprintf(dump_dir, sizeof dump_dir, "%s", argv[++i]); if (dump_every <= 0) dump_every = 1; }
         else if (strcmp(argv[i], "--dump-every") == 0 && i + 1 < argc) dump_every = atoi(argv[++i]);
+#ifdef DE_TCC
+        else if (strcmp(argv[i], "--cart") == 0 && i + 1 < argc) cart_path = argv[++i];
+#endif
     }
     // replay/script drive input deterministically; both imply --det
     if (replay_path) { load_replay(replay_path); inject_input = true; det_mode = true; }
@@ -945,7 +1053,15 @@ int main(int argc, char **argv) {
     }
 
 #ifndef PLATFORM_WEB
+#ifdef DE_TCC
+    if (cart_load(cart_path) != 0) {
+        fprintf(stderr, "[tcc] could not load cart '%s' — aborting\n", cart_path);
+        return 1;
+    }
+    if (cart_init) cart_init();
+#else
     init();
+#endif
 #endif
 
     last_time = GetTime();   // seed dt()

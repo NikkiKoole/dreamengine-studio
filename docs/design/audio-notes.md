@@ -668,6 +668,16 @@ the table's only job is to say what those three mean for each. Grow it freely.
 > `instrument_filter(slot, FILTER_LOW, 3500, 0)`. → Belongs as a **shipped preset / demo cart**
 > (zero-setup `INSTR_*` presets, §5.4 / §10.1), not in this engine catalog.
 
+> **Sine = Additive at `harmonics = 0`.** `INSTR_SINE` and the Additive engine aren't two things —
+> additive *is* a sum of N sine partials, so one partial is a sine. That means the MT70/sine family
+> are the harmonics-≈0 corner of the Additive row above, and the whole bank is a path through its
+> three macros: **harmonics** (0 = pure sine → up = organ/string body), **timbre** (spectral tilt /
+> brightness — the lowpass), **morph** (inharmonicity: integer-ratio = organ/flute ↔ stretched =
+> bell/metallic, optionally + per-partial decay). So: Flute ≈ (harm 0, mellow, harmonic);
+> Organ ≈ (harm up, harmonic); Bells ≈ (mid, bright, **inharmonic**); Vibes ≈ (inharmonic + fast
+> decay). Ship the bare sine as `INSTR_SINE` now (no port); when the Additive engine lands it
+> subsumes the family with live macros — same engine, just `harmonics` turned up off zero.
+
 *Format for adding more:* just name the sound + a reference patch/track if you have one; the
 buffer flag, navkit source, and macro mapping get filled in here.
 

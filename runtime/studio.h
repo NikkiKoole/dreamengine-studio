@@ -253,6 +253,7 @@ void note_vol(int handle, int vol);                       // change a held note'
 void note_cutoff(int handle, int hz);                     // sweep a held note's filter cutoff live (needs a filter on its instrument slot)
 void note_res(int handle, int resonance);                 // sweep a held note's filter resonance 0..15 live (pairs with note_cutoff for the acid squelch)
 void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // retune a held note's LFO `which` (0..2) live — dest LFO_PITCH/DUTY/VOLUME/CUTOFF; depth 0 = off
+void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount);  // set a held note's mod-envelope `which` (0..1) live — same shape as instrument_env(); amount 0 = off
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap)
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
@@ -276,6 +277,15 @@ void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth); 
 #define FILTER_BAND  3   // bandpass — keep only a band around cutoff (vowel/wah)
 #define FILTER_NOTCH 4   // notch — scoop OUT a band around cutoff (phasey)
 void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mode FILTER_*, cutoff in Hz (e.g. 800), resonance 0..15 (high = whistly peak). sweep cutoff with LFO_CUTOFF
+
+// modulation envelopes per instrument — a one-shot AD contour (the envelope twin of the LFO).
+// fires once per note: ramps up over attack_ms, then decays back over decay_ms. amount is
+// bipolar and its units depend on dest. 2 per slot (which 0..1), so a filter sweep + a pitch
+// blip can run together. there is NO ENV_VOLUME — that's the amp envelope (instrument()).
+#define ENV_CUTOFF  0   // sweep filter cutoff — the pluck "pew"/"dwow". amount in Hz (+ opens then closes). needs a filter on the slot
+#define ENV_PITCH   1   // pitch blip — drum punch / attack snap / zap. amount in semitones (+ starts sharp, settles to the note)
+#define ENV_DUTY    2   // pulse-width sweep (square/pulse slots only). amount 0.0..1.0
+void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);  // attach mod-envelope `which` (0..1) to a slot. dest ENV_*. pluck: ENV_CUTOFF amount 1500, attack 0, decay 120. amount 0 = off
 
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti

@@ -53,9 +53,14 @@ typedef struct {
     int   flt_mode;                 // FILTER_OFF / LOW / HIGH / BAND / NOTCH
     float flt_cutoff;               // Hz
     float flt_q;                    // damping coefficient (1/Q); small = resonant
+    int   env_dest[2];              // ENV_CUTOFF / ENV_PITCH / ENV_DUTY, per mod-envelope
+    int   env_a_samp[2];            // attack, in samples
+    int   env_d_samp[2];            // decay, in samples
+    float env_amount[2];            // 0 = off; bipolar; units depend on dest (Hz / semitones / 0..1)
 } Instrument;
 
 #define SOUND_LFOS 3
+#define SOUND_ENVS 2   // routable mod-envelopes per instrument (the one-shot twin of the LFOs)
 
 typedef struct {
     bool   active;
@@ -76,6 +81,9 @@ typedef struct {
     float  rel_start;          // envelope level at the moment the gate ends (release fades from here)
     int    lfo_dest[3];
     float  lfo_rate[3], lfo_depth[3], lfo_phase[3];
+    int    env_dest[2];              // mod-envelopes (AD; timer = step_samples, retriggered at note-on)
+    int    env_a_samp[2], env_d_samp[2];
+    float  env_amount[2];
     int    flt_mode;
     float  flt_cutoff, flt_q;
     float  flt_low, flt_band;   // SVF running state
@@ -196,6 +204,16 @@ static inline float sound_adsr_gated(int s, int a, int d, float sustain) {
     return sustain;
 }
 
+// A one-shot AD modulation envelope (filter/pitch env): linear attack 0→1 over `a`, then
+// EXPONENTIAL decay 1→~0 over `d`, then flat 0. `s` = samples since note-on. Exp decay
+// (vs the amp ADSR's linear) is what makes the pluck "pew" and the drum punch feel snappy.
+static inline float sound_ad_env(int s, int a, int d) {
+    if (a > 0 && s < a) return (float)s / (float)a;   // attack ramp
+    s -= a;
+    if (d <= 0 || s >= d) return 0.0f;                // no decay set, or finished → no contribution
+    return expf(-4.0f * (float)s / (float)d);         // e^-4 ≈ 0.018 by the end — punchy, near-zero
+}
+
 // Chamberlin state-variable filter — one sample. Updates the voice's running state and
 // returns the lowpass/highpass/bandpass/notch tap. `q` is damping (1/Q); smaller = more resonant.
 static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
@@ -281,6 +299,12 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
         v->lfo_rate[L]  = ins->lfo_rate[L];
         v->lfo_depth[L] = ins->lfo_depth[L];
         v->lfo_phase[L] = 0.0f;
+    }
+    for (int e = 0; e < SOUND_ENVS; e++) {        // mod-envelopes (timer is step_samples → retriggers here)
+        v->env_dest[e]   = ins->env_dest[e];
+        v->env_a_samp[e] = ins->env_a_samp[e];
+        v->env_d_samp[e] = ins->env_d_samp[e];
+        v->env_amount[e] = ins->env_amount[e];
     }
     v->flt_mode       = ins->flt_mode;
     v->flt_cutoff     = v->cutoff_target = ins->flt_cutoff;
@@ -433,6 +457,23 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].flt_mode   = r.b;
         instr_bank[slot].flt_cutoff = (float)r.c;
         instr_bank[slot].flt_q      = 2.0f - res * 0.13f;   // res 0 → damped, 15 → resonant peak
+    } else if (r.kind == 18) {      // set an instrument's mod-envelope: a=slot, b=which, c=dest, e0=attack, e1=decay, e2=amount*1000
+        int slot = r.a, e = r.b;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        if (e < 0 || e >= SOUND_ENVS) return;
+        instr_bank[slot].env_dest[e]   = r.c;
+        instr_bank[slot].env_a_samp[e] = r.e0;
+        instr_bank[slot].env_d_samp[e] = r.e1;
+        instr_bank[slot].env_amount[e] = r.e2 / 1000.0f;
+    } else if (r.kind == 19) {      // set a held note's mod-envelope: a=(which<<4)|dest, b=attack, c=decay, e2=amount*1000
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        int e = (r.a >> 4) & 0xf, dest = r.a & 0xf;
+        if (v && e >= 0 && e < SOUND_ENVS) {
+            v->env_dest[e]   = dest;
+            v->env_a_samp[e] = r.b;
+            v->env_d_samp[e] = r.c;
+            v->env_amount[e] = r.e2 / 1000.0f;
+        }
     }
 }
 
@@ -526,6 +567,18 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     else if (v->lfo_dest[L] == LFO_DUTY)   duty += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_VOLUME) trem *= 1.0f - 0.5f * v->lfo_depth[L] * (1.0f - lfo);
                     else if (v->lfo_dest[L] == LFO_CUTOFF) cutoff += lfo * v->lfo_depth[L];
+                }
+                // mod-envelopes (one-shot AD, timer = step_samples): same destinations as the
+                // LFOs but a per-note contour instead of a cycle. The pitch env multiplies freq;
+                // the cutoff/duty envs add to the same cutoff/duty the LFOs and filter already use.
+                for (int e = 0; e < SOUND_ENVS; e++) {
+                    if (v->env_amount[e] == 0.0f) continue;
+                    float lvl = sound_ad_env(v->step_samples, v->env_a_samp[e], v->env_d_samp[e]);
+                    if (lvl <= 0.0f) continue;
+                    float m = lvl * v->env_amount[e];
+                    if      (v->env_dest[e] == ENV_PITCH)  pitch_mul *= powf(2.0f, m / 12.0f);
+                    else if (v->env_dest[e] == ENV_CUTOFF) cutoff    += m;
+                    else if (v->env_dest[e] == ENV_DUTY)   duty      += m;
                 }
                 if (duty < 0.05f) duty = 0.05f;
                 if (duty > 0.95f) duty = 0.95f;
@@ -810,6 +863,26 @@ void instrument_filter(int slot, int mode, int cutoff_hz, int resonance) {
     sound_push_ctrl(6, slot, mode, cutoff_hz, resonance, 0, 0);
 }
 
+void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    if (which < 0 || which >= SOUND_ENVS) return;
+    int a = (attack_ms * SOUND_SAMPLE_RATE) / 1000;
+    int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
+    if (a < 0) a = 0;
+    if (d < 0) d = 0;
+    sound_push_ctrl(18, slot, which, dest, a, d, (int)(amount * 1000.0f));
+}
+
+void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
+    if (handle <= 0) return;
+    if (which < 0 || which >= SOUND_ENVS) return;
+    int a = (attack_ms * SOUND_SAMPLE_RATE) / 1000;
+    int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
+    if (a < 0) a = 0;
+    if (d < 0) d = 0;
+    sound_push_ctrl(19, ((which & 0xf) << 4) | (dest & 0xf), a, d, handle & 7, handle >> 3, (int)(amount * 1000.0f));
+}
+
 void schedule(int delay_ms, int midi, int instr, int vol) {
     int ds = (delay_ms * SOUND_SAMPLE_RATE) / 1000;
     if (ds < 0) ds = 0;
@@ -856,6 +929,12 @@ static void sound_init(void) {
             instr_bank[i].lfo_dest[L]  = LFO_PITCH;
             instr_bank[i].lfo_rate[L]  = 0.0f;
             instr_bank[i].lfo_depth[L] = 0.0f;   // off until instrument_lfo() is called
+        }
+        for (int e = 0; e < SOUND_ENVS; e++) {
+            instr_bank[i].env_dest[e]   = ENV_CUTOFF;
+            instr_bank[i].env_a_samp[e] = 0;
+            instr_bank[i].env_d_samp[e] = 0;
+            instr_bank[i].env_amount[e] = 0.0f;  // off until instrument_env() is called
         }
         instr_bank[i].flt_mode   = FILTER_OFF;
         instr_bank[i].flt_cutoff = 1000.0f;

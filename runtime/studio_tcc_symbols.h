@@ -98,6 +98,7 @@
     X(note_cutoff) \
     X(note_res) \
     X(note_lfo) \
+    X(note_env) \
     X(note_filter) \
     X(note_glide) \
     X(note_duty) \
@@ -106,6 +107,7 @@
     X(instrument_duty) \
     X(instrument_lfo) \
     X(instrument_filter) \
+    X(instrument_env) \
     X(tone) \
     X(chord) \
     X(strum) \

@@ -14,7 +14,7 @@ enum { K_ATK, K_DECAY, K_AMOUNT, K_CUTOFF, K_RESO, NK };
 static Knob K[NK] = {
     { "ATK",     0.f,  120.f,    0.f },   // filter-env attack (ms) — plucks want ~0
     { "DECAY",  10.f,  600.f,  140.f },   // filter-env decay (ms) — how fast it closes
-    { "AMOUNT",  0.f, 3500.f, 1800.f },   // how far the env opens the cutoff (Hz)
+    { "AMOUNT",-3500.f, 3500.f, 1800.f }, // env depth on cutoff (Hz). bipolar: + opens, - closes first
     { "CUTOFF", 80.f, 2000.f,  320.f },   // base cutoff the env rides on top of (Hz)
     { "RESO",    0.f,   15.f,    9.f },   // filter resonance — the squelch
 };
@@ -102,19 +102,25 @@ void draw(void) {
     float span = (K[K_ATK].val + K[K_DECAY].val) / 1000.f;
     if (span < 0.05f) span = 0.05f;
     span *= 1.15f;
-    float cmax = K[K_CUTOFF].val + K[K_AMOUNT].val;
-    if (cmax < 200.f) cmax = 200.f;
 
-    // faint base-cutoff line
-    int by = gy + gh - 1 - (int)((K[K_CUTOFF].val / cmax) * (gh - 2));
+    // vertical range spans the whole sweep — with a negative amount the cutoff dips
+    // BELOW the base, so the range runs base+amount .. base (the engine floors it at 20 Hz)
+    float base = K[K_CUTOFF].val, amt = K[K_AMOUNT].val;
+    float lo_c = base + (amt < 0.f ? amt : 0.f);
+    float hi_c = base + (amt > 0.f ? amt : 0.f);
+    if (lo_c < 20.f) lo_c = 20.f;
+    if (hi_c - lo_c < 50.f) hi_c = lo_c + 50.f;
+    #define CY(c) (gy + gh - 1 - (int)((clamp((c), lo_c, hi_c) - lo_c) / (hi_c - lo_c) * (gh - 2)))
+
+    // faint base-cutoff line (where the cutoff rests between notes)
+    int by = CY(base);
     for (int x = gx + 2; x < gx + gw - 2; x += 6) pset(x, by, CLR_DARK_GREY);
 
     // the sweep curve
     int px = -1, py = -1;
     for (int x = 0; x < gw; x++) {
-        float c = env_cutoff_at((x / (float)gw) * span);
-        int yy = gy + gh - 1 - (int)((c / cmax) * (gh - 2));
-        if (px >= 0) line(px, py, gx + x, yy, CLR_BLUE);
+        int yy = CY(env_cutoff_at((x / (float)gw) * span));
+        if (px >= 0) line(px, py, gx + x, yy, amt < 0.f ? CLR_ORANGE : CLR_BLUE);
         px = gx + x; py = yy;
     }
 
@@ -122,19 +128,28 @@ void draw(void) {
     float since = now() - last_note_t;
     if (since >= 0.f && since < span) {
         int hx = gx + (int)((since / span) * gw);
-        int hy = gy + gh - 1 - (int)((env_cutoff_at(since) / cmax) * (gh - 2));
-        circfill(hx, hy, 2, CLR_YELLOW);
+        circfill(hx, CY(env_cutoff_at(since)), 2, CLR_YELLOW);
     }
+    #undef CY
     print("cutoff", gx + 3, gy + 2, CLR_DARK_GREY);
-    print(str("peak %d Hz", (int)cmax), gx + 3, gy + 10, CLR_DARK_GREY);
+    print(str("%d -> %d Hz", (int)base, (int)(base + amt < 20.f ? 20.f : base + amt)), gx + 3, gy + 10, CLR_DARK_GREY);
 
     // sliders
     for (int i = 0; i < NK; i++) {
-        int cx = SX + i * SPITCH;
+        int cx = SX + i * SPITCH, col = active == i ? CLR_YELLOW : CLR_TRUE_BLUE;
         rect(cx, SY, SW, SH, CLR_DARKER_GREY);
         float t = (K[i].val - K[i].lo) / (K[i].hi - K[i].lo);
-        int fh = (int)(t * (SH - 2));
-        rectfill(cx + 1, SY + SH - 1 - fh, SW - 2, fh, active == i ? CLR_YELLOW : CLR_TRUE_BLUE);
+        int vy = SY + SH - 1 - (int)(t * (SH - 2));
+        if (K[i].lo < 0.f) {                                 // bipolar knob: fill from the zero line
+            float t0 = (0.f - K[i].lo) / (K[i].hi - K[i].lo);
+            int zy = SY + SH - 1 - (int)(t0 * (SH - 2));
+            int top = vy < zy ? vy : zy, h = (vy < zy ? zy - vy : vy - zy) + 1;
+            rectfill(cx + 1, top, SW - 2, h, col);
+            line(cx + 1, zy, cx + SW - 2, zy, CLR_LIGHT_GREY);
+        } else {
+            int fh = (int)(t * (SH - 2));
+            rectfill(cx + 1, SY + SH - 1 - fh, SW - 2, fh, col);
+        }
         print(K[i].name, cx + 2, SY + SH + 3, CLR_LIGHT_GREY);
         print(str("%d", (int)K[i].val), cx + 2, SY + SH + 11, CLR_WHITE);
     }

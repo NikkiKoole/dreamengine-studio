@@ -1862,5 +1862,21 @@
     "kind": [
       "tech-demo"
     ]
+  },
+  {
+    "title": "filter env",
+    "description": "The pluck \"pew\" — a saw run through a resonant lowpass with a one-shot FILTER envelope (instrument_env + ENV_CUTOFF) that snaps the cutoff open on each note's attack and lets it fall back over the decay. The graph shows the cutoff sweep; drag the five sliders (attack, decay, amount, base cutoff, resonance) and listen. A tuning rig for the new modulation envelopes. A-K play notes, SPACE toggles the auto-arp.",
+    "file": "filterenv.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
+  },
+  {
+    "title": "pitch env",
+    "description": "Punch & zap — a one-shot envelope (instrument_env + ENV_PITCH) that starts a note some semitones off its real pitch and lets it settle back over the decay. Big amount + fast decay on a low note is the \"donk\" of a kick drum; medium settings are lasers and zaps; a tiny amount adds an attack chiff. The graph shows the pitch blip; drag the five sliders (attack, decay, amount, note, length), W cycles the waveform. Same mod-envelope as filter env, pointed at pitch — still no instrument engine. A-K play, SPACE toggles the auto-pulse.",
+    "file": "pitchenv.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
   }
 ]

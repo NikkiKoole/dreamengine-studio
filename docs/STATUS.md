@@ -87,10 +87,17 @@ demo data only — see "Open" below.)
 Ordered by leverage. Section refs point at the design doc that specs each item.
 
 1. **Cart-pattern helpers** — `hud()` and `game_over_screen()` cut (see Decided-against).
-   `explode()` / particle system is a **research topic** before any build: a no-param
-   `explode()` risks making all carts look identical (same concern that killed `hud()`).
-   Needs design work on color, shape, lifetime, and movement params first.
-   See particle survey + open questions in [`design/api-notes.md`](design/api-notes.md) §C.
+   - **AABB collision already SHIPPED as `boxes_touch()`** (+ `point_in_box`, `circles_touch`,
+     `near`, `touching_map`, `tile_at`, `touching_color`, `bounce_at_edges` — the full collision
+     section). *Not* a missing primitive. Open question is **discoverability, not API**: a rough
+     grep finds ~30 carts still hand-rolling inline rectangle overlap even though `boxes_touch`
+     exists and 15 carts use it — so the lever is teaching (a collision tutorial / converting
+     example carts), and *maybe* a more-guessable alias name, not a new function. Adding a bare
+     `overlap()` synonym would just grow the already-large surface (see VISION's prune note).
+   - `explode()` / particle system is a **research topic** before any build: a no-param
+     `explode()` risks making all carts look identical (same concern that killed `hud()`).
+     Needs design work on color, shape, lifetime, and movement params first.
+     See particle survey + open questions in [`design/api-notes.md`](design/api-notes.md) §C.
 2. ~~**2D geometry helpers**~~ — **SHIPPED** as `ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, `thickline`, `rrect`/`rrectfill`, `vgradient`/`hgradient` (+ outline siblings `arcoutline`/`ringoutline`/`thicklineoutline` so every filled shape has a matching boundary-ring outline). Demo: `shapes.cart.png`. See [`design/geometry-helpers.md`](design/geometry-helpers.md).
    - *Parked thought (not a build item):* true smooth color interpolation (`lerp_color`/`rgb`) — splits the color model; needs its own ADR. Gradients are dithered.
 3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
@@ -100,9 +107,11 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
    Shipped above.) [`design/api-notes.md`](design/api-notes.md) §16.
 5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) and **held notes**
    (`note_on`/`note_off` + live setters + slew) now SHIPPED, see above._
-   Still open: the **navkit rich-instrument port** (organ/Rhodes/piano as `INSTR_*` presets —
-   drops into the timbre slot with no API change) — **queued as the next sound feature, first
-   bite = `INSTR_ORGAN` (buffer-free); see audio-notes §8 status note**; zero-setup **preset
+   Still open: the **navkit rich-instrument port** (organ/Rhodes/piano as `INSTR_*` engines —
+   played behind a tiny fixed 3-macro API: harmonics/timbre/morph, §8.1.1) — **queued as the
+   next sound feature, first bite = `INSTR_PLUCK` (Karplus-Strong — smallest engine, proves the
+   per-voice buffer; organ follows as the Leslie package); see audio-notes §8 status note + §8.8
+   port sketch**; zero-setup **preset
    instruments** (`INSTR_PLUCK`/`PAD`/…); cart-side **SFX/pattern authoring** (banks are
    hardcoded today). [`design/audio-notes.md`](design/audio-notes.md) §5–8, [`design/held-notes.md`](design/held-notes.md).
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an

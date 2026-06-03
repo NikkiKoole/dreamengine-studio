@@ -192,6 +192,12 @@ node tools/make-cart.js --update <cart.png> <screenshot.png>  # swap in a thumbn
 > ```
 > If you skip the first step, the editor loads the old code from the `de:source` chunk — the
 > cart appears to ignore every code change you make.
+>
+> **To verify a bake, read the embedded thumbnail (or `build/.bake/<name>/screenshot.png`) —
+> NEVER `build/screenshot.png`.** That file belongs to the running editor and shows whatever
+> *it* last rendered, so it drifts under you and will show an unrelated cart. (`--run` bakes
+> into the isolated `build/.bake/<name>/`, not the shared `build/`.) See
+> [`docs/guides/cart-authoring.md`](docs/guides/cart-authoring.md).
 
 Note: `make-cart.js` is run with plain `node` (it's CommonJS via `require`, not affected by `editor/package.json`'s `"type": "module"` since it lives in the repo root `tools/`, which has no `package.json`).
 

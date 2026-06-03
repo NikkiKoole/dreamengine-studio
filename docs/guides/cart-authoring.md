@@ -52,6 +52,13 @@ don't collide) and can't disturb a live (libtcc) editor session, whose host watc
 
 **This is the normal finishing step after creating a cart.**
 
+> **Verifying a bake — read the right file.** A `--run` bake's actual output is the
+> thumbnail **embedded in the `<cart>.cart.png`** (and its source is `build/.bake/<name>/screenshot.png`).
+> Do **not** read `build/screenshot.png` to check a bake — that file belongs to the
+> running Electron editor and shows whatever *it* last rendered, so it changes under you
+> as the user works and will silently show an unrelated cart. To confirm a bake, view the
+> embedded thumbnail (extract the PNG's image, or read `build/.bake/<name>/screenshot.png`).
+
 ### Update just the screenshot (manual)
 
 ```bash

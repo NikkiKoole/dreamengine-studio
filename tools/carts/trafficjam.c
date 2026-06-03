@@ -136,13 +136,20 @@ static void draw_wheel(Car *c, float cx, float r) {
         pset(wx - (int)(rr * 0.3f), wy - (int)(rr * 0.3f), CLR_WHITE);
     }
 }
-static void draw_people(Car *c, float xa, float xb, float yhead) {
+// fit occupants into the cabin band [yseat .. yceil] (world-y, up = +): the head
+// top sits flush under the ceiling and the torso fills down to the seat, so a
+// passenger can never poke out through the roof. heads scale with the headroom.
+// (pass a yceil above the body — e.g. for a convertible — to let heads rise.)
+static void draw_people(Car *c, float xa, float xb, float yseat, float yceil) {
+    int sceil = SY(yceil), sseat = SY(yseat);
+    int hr = max(1, (int)(0.275f * (yceil - yseat) * gS + 0.5f));
+    int headcy = sceil + hr;                              // head top flush with the ceiling
     for (int i = 0; i < c->nPass; i++) {
         float t  = (c->nPass == 1) ? 0.5f : (0.18f + 0.64f * i / (c->nPass - 1));
-        float px = lerp(xa, xb, t);
-        int hx = SXf(px), hy = SY(yhead), hr = max(1, SL(c->wr * 0.42f));
-        rectfill(hx - hr, hy, 2 * hr, hr * 2, c->cTorso[i]);   // shoulders
-        circfill(hx, hy - hr, hr, c->cHead[i]);                // head
+        int hx = SXf(lerp(xa, xb, t));
+        int th = sseat - headcy; if (th < 2) th = 2;      // torso fills down to the seat
+        rectfill(hx - hr, headcy, 2 * hr, th, c->cTorso[i]);  // shoulders/torso
+        circfill(hx, headcy, hr, c->cHead[i]);                // head (sits on the torso)
     }
 }
 static void draw_lights(Car *c, float lo) {
@@ -175,7 +182,7 @@ static void draw_car(Car *c) {
         float px = lerp(c->cab[1] * L, c->cab[2] * L, (float)k / c->nWin);
         boxL(px - 0.6f, px + 0.6f, c->deck + gb, c->roof - gv, c->cBody);
     }
-    draw_people(c, c->cab[0] * L + L * 0.07f, c->cab[3] * L - L * 0.07f, c->deck + (c->roof - c->deck) * 0.5f);
+    draw_people(c, c->cab[0] * L + L * 0.07f, c->cab[3] * L - L * 0.07f, c->deck, c->roof);
     if (c->spoiler) {
         boxL(2, c->L * 0.14f, c->deck + 1, c->deck + 3.5f, CLR_DARK_GREY);   // rear wing
         boxL(2, 4, c->deck, c->deck + 3.5f, CLR_DARK_GREY);
@@ -193,7 +200,7 @@ static void draw_convert(Car *c) {
     rboxL(2, L - 2, c->bot, c->deck, 3, c->cBody);
     boxL(c->cab[0] * L, c->cab[3] * L, c->deck - 1, c->deck, CLR_BROWNISH_BLACK);  // cockpit cut
     boxL(c->cab[0] * L + 1, c->cab[3] * L - 1, c->deck - 0.5f, c->deck + 1.5f, c->cBody2); // seats
-    draw_people(c, c->cab[0] * L + L * 0.08f, c->cab[3] * L - L * 0.08f, c->deck + 2.5f);
+    draw_people(c, c->cab[0] * L + L * 0.08f, c->cab[3] * L - L * 0.08f, c->deck, c->deck + 4.0f);
     // raked windscreen frame at the front of the cockpit
     float wf = c->cab[3] * L;
     int x0 = SXf(wf - 1.5f), y0 = SY(c->deck), x1 = SXf(wf - 4), y1 = SY(c->deck + 4.5f);
@@ -221,7 +228,7 @@ static void draw_pickup(Car *c) {
     quadL(c->cab[0] * L, c->deck, c->cab[1] * L, c->roof, c->cab[2] * L, c->roof, c->cab[3] * L, c->deck, c->cBody);
     quadL(c->cab[0] * L + 1.5f, c->deck + 2, c->cab[1] * L + 1, c->roof - 1.5f,
           c->cab[2] * L - 1, c->roof - 1.5f, c->cab[3] * L - 1.5f, c->deck + 2, c->cWin);
-    draw_people(c, c->cab[0] * L + 2, c->cab[3] * L - 2, c->deck + (c->roof - c->deck) * 0.5f);
+    draw_people(c, c->cab[0] * L + 2, c->cab[3] * L - 2, c->deck, c->roof);
     draw_wheel(c, c->wx[0], c->wr);
     draw_wheel(c, c->wx[1], c->wr);
     draw_lights(c, 2.0f);
@@ -251,7 +258,7 @@ static void draw_box(Car *c) {
         boxL(a, b, wy1, wy0, c->cWin);
     }
     boxL(L * 0.04f, L * 0.09f, c->bot + 1, c->roof - 1, c->cBody2);  // door
-    draw_people(c, span0 + 2, span1 - 2, (wy0 + wy1) * 0.5f);
+    draw_people(c, span0 + 2, span1 - 2, wy1, wy0);
     for (int i = 0; i < c->nWheel; i++) draw_wheel(c, c->wx[i], c->wr);
     draw_lights(c, 2.0f);
 }
@@ -579,10 +586,16 @@ void draw(void) {
 
     draw_light();
 
-    // far → near so nearer lanes overlap correctly
-    for (int l = 0; l < NLANE; l++)
-        for (int i = 0; i < ncars; i++)
-            if (cars[i].lane == l) render_car(&cars[i]);
+    // far → near so nearer lanes overlap correctly; within a lane, painter-sort
+    // by x (rear → front) so packed cars never paint a body over the previous
+    // car's wheels or passengers — same sort the car-following loop uses
+    for (int l = 0; l < NLANE; l++) {
+        int idx[MAXC], n = 0;
+        for (int i = 0; i < ncars; i++) if (cars[i].lane == l) idx[n++] = i;
+        for (int a = 1; a < n; a++) { int k = idx[a], b = a - 1;
+            while (b >= 0 && cars[idx[b]].x > cars[k].x) { idx[b+1] = idx[b]; b--; } idx[b+1] = k; }
+        for (int a = 0; a < n; a++) render_car(&cars[idx[a]]);
+    }
 
     for (int i = 0; i < NPUFF; i++) if (puffs[i].life > 0)
         circfill((int)puffs[i].x, (int)puffs[i].y, puffs[i].life > 14 ? 2 : 1, puffs[i].col);

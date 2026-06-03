@@ -7,7 +7,7 @@
 > **here**, then fix the prose in the relevant design doc. If a design doc and this file
 > disagree, this file wins.
 
-_Last updated: 2026-06-03 (Picotron API comparison — added four ideas: `menuitem` folded into the Pause item (#4 — same feature, two ends), frame-spanning **sequence scripts** (#17, kept distinct from the cut DIV process model), **blend tables** (#18 — index-only translucency/fog/additive, the real capability gap), and a **userdata/offscreen-buffer reframe** folded into the rotation-atlas item (#13 — `sset`/canvas/rotation-cache are one general primitive). Sound comparison corrected: Picotron's audio is a deep node-graph synth + tracker, so the real distinction is code-first vs GUI, not depth). Prior: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; **one-click profiler shipped** (⏱ profile button, see [`guides/profiler.md`](guides/profiler.md)); **off-screen poly bbox clamp shipped** (item 14) — a cliff guard, ~17× on the synthetic stress cart, modest on real carts; `trifill_stress` regression cart added). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
+_Last updated: 2026-06-03 (**sound: modulation envelopes decided as the next feature**, built before the navkit instrument engines — a routable second EG (`instrument_env`, dests `ENV_CUTOFF`/`ENV_PITCH`), the one-shot twin of the LFO; surfaced ear-testing navkit's pluck (filter-env + pitch-env are one primitive). New audio-notes §11; item #5 reordered. Prior same day: Picotron API comparison — added four ideas: `menuitem` folded into the Pause item (#4 — same feature, two ends), frame-spanning **sequence scripts** (#17, kept distinct from the cut DIV process model), **blend tables** (#18 — index-only translucency/fog/additive, the real capability gap), and a **userdata/offscreen-buffer reframe** folded into the rotation-atlas item (#13 — `sset`/canvas/rotation-cache are one general primitive). Sound comparison corrected: Picotron's audio is a deep node-graph synth + tracker, so the real distinction is code-first vs GUI, not depth). Prior: 2026-06-02 (session 14 — `fps()` shipped as the perf read-out; **one-click profiler shipped** (⏱ profile button, see [`guides/profiler.md`](guides/profiler.md)); **off-screen poly bbox clamp shipped** (item 14) — a cliff guard, ~17× on the synthetic stress cart, modest on real carts; `trifill_stress` regression cart added). Prior: session 13 — `fade()` made immediate-mode, fixing a 27-cart stuck-dim bug._
 
 ---
 
@@ -114,9 +114,17 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
      options menus, which is the gap this closes.
 5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) and **held notes**
    (`note_on`/`note_off` + live setters + slew) now SHIPPED, see above._
-   Still open: the **navkit rich-instrument port** (rich non-chiptune voices as `INSTR_*`
+   **NEXT (decided 2026-06-03, built BEFORE the engines): modulation envelopes** — a second/third
+   envelope generator routed to a destination, the one-shot twin of the routable LFO. One call
+   `instrument_env(slot, which, dest, attack_ms, decay_ms, amount)` (+ live `note_env`), **2 dests
+   to ship** — `ENV_CUTOFF` (the pluck "pew/dwow") and `ENV_PITCH` (drum punch / attack snap / zap;
+   `ENV_DUTY` optional) — **2 env slots** so both run at once, **AD shape, exp decay**. Deliberately
+   no `ENV_VOLUME` (= the amp ADSR). This was the missing second EG; doing it first makes every
+   engine + raw wave better and frees the pluck `morph` knob to be *inharmonicity* instead of
+   filter-decay. Demo carts: `pitchenv`, `filterenv`. Spec: [`design/audio-notes.md`](design/audio-notes.md) **§11**.
+   Then, behind it: the **navkit rich-instrument port** (rich non-chiptune voices as `INSTR_*`
    engines, each played behind a tiny fixed 3-macro API: harmonics/timbre/morph, §8.1.1) —
-   **queued as the next sound feature, not started.** The agreed bite order (audio-notes §8
+   **agreed, on hold until mod-envelopes land.** The bite order (audio-notes §8
    status note + §8.8 port sketch):
      1. **`INSTR_PLUCK`** (Karplus-Strong) — first bite: smallest engine, sounds real instantly,
         proves the per-voice delay buffer (§8.2) the whole buffered family then rides.

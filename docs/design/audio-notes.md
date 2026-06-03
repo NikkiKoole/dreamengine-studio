@@ -886,3 +886,88 @@ global master bus?** Per-instrument composes cleanly and gives formant vowels fo
 desktop 8 SVFs is negligible, so this sketch leans per-instrument — but it's the live question
 from §9 ("filter scope", "one filter primitive, two uses") and wants a deliberate call before
 building.
+
+## 11. Modulation envelopes — the second EG the synth is missing
+
+> **Status: AGREED, next sound feature — built BEFORE the §8 instrument engines.** Surfaced while
+> ear-testing navkit's pluck (2026-06-03): the **filter envelope** and **pitch envelope** are
+> sonically huge, and they are not two features — they are **one primitive** we don't have yet.
+> Decided to ship this first; it then makes every §8 engine (and every raw wave) better for free,
+> and keeps the engine macros (§8.1.1) clean.
+
+### 11.1 The realization
+
+We ship exactly one envelope today — the **amplitude ADSR** (`instrument()`, driving volume via
+`sound_adsr_gated`). navkit's "filter env" and "pitch env" are nothing exotic: they are **second
+and third envelope generators routed to a destination other than volume.** That's the textbook
+subtractive layout — every Minimoog/MS-20 has a VCA envelope *and* a VCF envelope.
+
+And we **already have the routing pattern**: `instrument_lfo(slot, which, dest, rate, depth)` is a
+*cyclic* modulator pointed at a destination (`LFO_PITCH/DUTY/VOLUME/CUTOFF`). An envelope is its
+**one-shot twin** — same routing idea, fires once per note instead of looping. So we don't invent a
+concept; we add the missing half of one we have.
+
+| Envelope | Routed to | navkit shape | amount units | what it buys |
+|---|---|---|---|---|
+| **amp** *(shipped)* | volume | ADSR | 0..1 | loudness contour |
+| **filter** *(missing)* | cutoff | **AD** | Hz, **bipolar** | the pluck "pew / dwow" sweep |
+| **pitch** *(missing)* | pitch | **D** (+curve) | semitones, **bipolar** | drum punch, attack snap, zaps |
+
+navkit grounding: filter env is `cutoff = base + amount·level`, `level` a bare AD (attack→1, linear
+decay→0; `synth.h:3516–3542,3603`). Pitch env is decay-only — pitch starts `amount` semitones off
+and settles back over `decay`, with a linear/exponential `curve` (`synth.h:3023–3051`); the
+exponential curve is what makes a kick *punch*.
+
+### 11.2 The API — one routable call, mirroring `instrument_lfo`
+
+```c
+// the one-shot twin of instrument_lfo(). 2 env slots per instrument (which 0..1) so a
+// filter env and a pitch env can run at once. amount units depend on dest (like LFO depth).
+void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);
+//   ENV_CUTOFF   amount = Hz         (bipolar; + opens then closes — the pluck sweep)
+//   ENV_PITCH    amount = semitones  (bipolar; + starts sharp and settles — punch/snap/zap)
+//   ENV_DUTY     amount = 0..1       (PWM sweep — near-free; ship or defer)
+// NB: there is deliberately NO ENV_VOLUME — that is the amp ADSR (instrument()). Don't duplicate it.
+```
+
+- **Count:** 1 function · 2 destinations to ship (`ENV_CUTOFF`, `ENV_PITCH`; `ENV_DUTY` optional) ·
+  2 slots per instrument. ("2 envelopes — filter and pitch" = the two destinations; the slots are
+  what let them coexist.)
+- **Shape: AD now** (attack + decay, no sustain/release). AD covers every killer use (pluck filter,
+  pitch blip, drum punch). Full ADSR only matters for routing a *held pad's* filter to stay open
+  while the key is down — a later widening, not now.
+- **Decay curve: exponential by default** — it punches harder than linear and is what sells the
+  kick / the pluck attack. (navkit's pitch env exposes a curve knob; we hardcode exp to start.)
+- **Held-note twin:** `note_env(handle, which, dest, attack_ms, decay_ms, amount)` mirrors
+  `note_lfo` — gives modrack a per-voice env modulator and live control for free.
+
+### 11.3 Why this is the right order (engines wait)
+
+It **decouples two layers** that were getting tangled in the pluck-macro discussion:
+
+- **Engine macros** (`harmonics`/`timbre`/`morph`, §8.1.1) → the *oscillator's own character*.
+- **Modulation layer** (amp env + these mod-envelopes + LFOs + filter) → the standard subtractive
+  wrapper that works on *any* engine or raw wave.
+
+Concretely it **resolves the pluck `morph` fight**: with the filter sweep living in its own envelope
+layer, `morph` no longer has to be "filter-env decay" — it can be **inharmonicity** (harp↔metallic),
+the engine-character knob that also pre-builds the acoustic-piano engine. You get the pluck-bass
+"pew" *and* the character knob, in different layers. Hence: build mod-envelopes first, then the
+pluck engine sits cleanly on top.
+
+### 11.4 Implementation shape (grounds in today's `sound.h`)
+
+Reuses machinery that already exists — no new subsystem:
+- `Instrument`/`Voice` gain a small `env[2]` (dest, a_samp, d_samp, amount, + per-voice
+  stage/timer/level) — mirrors the existing `lfo_*[3]` arrays.
+- New ctrl kinds for `instrument_env` (define) + `note_env` (live), next free after the held-note
+  set (kinds ≥18). The §8.8 macro ctrl-kinds renumber to sit after these.
+- The cutoff destination feeds the **same per-sample cutoff** the SVF + `LFO_CUTOFF` already drive
+  (`sound.h:518,528,535`): `cutoff += env_level·amount`, summed alongside the LFO term — one extra
+  addend, not a new code path. The pitch destination multiplies `freq` next to `pitch_mul`
+  (`sound.h:525,542`).
+- Per-note retrigger: stamp env stage/timer at note-on in `sound_setup_note` (`sound.h:262`).
+
+**Demo carts (one each, the "tweak rig" pattern):** a `pitchenv` cart (drum punch + zap) and a
+`filterenv` cart (pluck-bass "pew" + sweep), each with attack/decay/amount sliders and a keyboard —
+mirroring `heldnotes`/`instruments` cart style. These double as the by-ear tuning rig.

@@ -2,6 +2,12 @@
 
 A fantasy console / learning programming environment. Write C, hit run, get a native game window. Inspired by PICO-8, DIV Game Studio, and BlitzMax.
 
+## Git — NEVER branch; commit on the current branch
+
+**Do not create or switch git branches. Ever — even when committing would normally warrant a branch.** Commit directly to the current branch (normally `master`): just `git add` + `git commit`. No `git checkout -b`, no `git switch -c`, no feature/PR branches.
+
+Why: **multiple agents work in parallel on the same branch.** If any agent creates or switches branches, the others get confused and lose their place. Merge conflicts are rare in practice because work is naturally isolated per cart (each task touches separate files). This rule **overrides** the usual "branch before committing on the default branch" default.
+
 ## Running the editor
 
 ```bash

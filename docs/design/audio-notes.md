@@ -655,15 +655,18 @@ the table's only job is to say what those three mean for each. Grow it freely.
 
 | Engine | navkit src (§8.7) | buffer | harmonics | timbre | morph | character |
 |---|---|---|---|---|---|---|
-| **Additive / sine** (bell, choir, brass, MT/LA-style) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | the pure-sine family; glassy → rich. Organ/mallet are specialized cases |
+| **Additive / sine** (bell, choir, brass, strings) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | rich multi-partial pads. (A *bare* sine is already `INSTR_SINE` — see the MT70 note below) |
 | **FM** (2–3 op, DX) | `processFm…` | free | carrier:modulator ratio | mod index (FM amount) | feedback / 2nd-op depth | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial" |
 | **AM / ring mod** | trivial (≈10 lines native) | free | modulator ratio | AM ↔ ring depth | modulator detune / wave | metallic, robotic, clangorous bells |
 | **Voice / formant** | formant SVF + buzz (§8.3) | free (reuses SVF) | vowel (a→e→i→o→u) | breathiness / brightness | formant shift (size/gender) | choir "aah", vocal-organ, talkbox. Comes near-free with the §8.3 filter |
 
-> **MT-770 — to confirm.** If this is the Roland **LA / MT-32 family**, it's *not* pure sine:
-> PCM-sampled attacks + sine-partial sustains. The sine character lives in the **Additive** row;
-> the sampled-attack flavor (if wanted) is the **SCW** lever (§8.4). If it's a different unit,
-> name it and we'll map it. *(Source/effort/priority TBD — this is a wishlist, not a commitment.)*
+> **MT70 — resolved (verified in navkit `demo/songs/*.song`, 2026-06-03).** The "MT70" presets
+> (Flute, Bells, Organ, Vibes, JzOrg2, …) are **all `waveType = sine`** — *not* a synthesis engine.
+> Each is one pure sine wave shaped by ADSR + lowpass filter + (optional) vibrato; the names differ
+> only in those settings. **So this needs no engine port — dreamengine already makes it** with
+> shipped API. e.g. MT70 Flute ≈ `instrument(slot, INSTR_SINE, 50,100,5,120)` +
+> `instrument_filter(slot, FILTER_LOW, 3500, 0)`. → Belongs as a **shipped preset / demo cart**
+> (zero-setup `INSTR_*` presets, §5.4 / §10.1), not in this engine catalog.
 
 *Format for adding more:* just name the sound + a reference patch/track if you have one; the
 buffer flag, navkit source, and macro mapping get filled in here.

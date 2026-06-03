@@ -1,4 +1,5 @@
 import { view, setEditorTheme, setErrorLines, onDocChange } from './main.js'
+import { initOutline, refreshOutline } from './outline.js'
 import './sprite-editor.js'
 import { getMapBytes, loadMapBytes } from './map-editor.js'
 import { studioDocs } from './studioDocs.js'
@@ -34,6 +35,9 @@ function switchTab(name) {
     const panel = document.getElementById('panel-' + name)
     if (panel) panel.classList.add('active')
   }
+  // keep the outline fresh when returning to the code tab (edits made while on
+  // another tab still fire onDocChange, but this also covers the first show)
+  if (name === 'code') refreshOutline()
   if (name === 'tutorials') {
     // rebuild on every open so a freshly-added cart shows up without a reload
     buildTutorialsPanel().then(() => {
@@ -54,6 +58,10 @@ document.querySelectorAll('.tab').forEach(btn => {
     switchTab(btn.dataset.tab)
   })
 })
+
+// mount the outline sidebar (lists the cart's functions; click to jump). It
+// subscribes to onDocChange itself, so it stays live as you type.
+initOutline()
 
 document.addEventListener('click', e => {
   const link = e.target.closest('[data-tab]')
@@ -920,6 +928,7 @@ function applyCart(cart) {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
     loadMapBytes(bytes)
   }
+  refreshOutline()   // doc was replaced wholesale — re-list immediately, no debounce wait
   showToast('cart loaded')
 }
 

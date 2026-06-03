@@ -94,7 +94,7 @@ const errorGutter = gutter({
   initialSpacer: () => errorGutterMarker,
 })
 
-function flashRange(view, from, to) {
+export function flashRange(view, from, to) {
   view.dispatch({ effects: addFlash.of({ from, to }) })
   setTimeout(() => view.dispatch({ effects: clearFlash.of(null) }), 1200)
 }
@@ -192,16 +192,17 @@ const startDoc = ``
 const themeCompartment = new Compartment()
 const initialThemeIsDay = localStorage.getItem('theme') === 'day'
 
-// live auto-reload hook: shell.js registers a (debounced) callback that fires on every
-// doc edit, so the live (libtcc) backend can rewrite cart.c and hot-reload as you type.
-let docChangeHook = null
-export function onDocChange(cb) { docChangeHook = cb }
+// live auto-reload hook: subscribers (the live libtcc backend, the outline panel)
+// register a callback that fires on every doc edit. Multiple subscribers are
+// supported — each gets called on every change.
+const docChangeHooks = []
+export function onDocChange(cb) { docChangeHooks.push(cb) }
 
 const state = EditorState.create({
   doc: startDoc,
   extensions: [
     history(),
-    EditorView.updateListener.of(u => { if (u.docChanged && docChangeHook) docChangeHook() }),
+    EditorView.updateListener.of(u => { if (u.docChanged) docChangeHooks.forEach(h => h()) }),
     keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...foldKeymap, ...completionKeymap, ...closeBracketsKeymap, ...searchKeymap]),
     lineNumbers(),
     foldGutter(),

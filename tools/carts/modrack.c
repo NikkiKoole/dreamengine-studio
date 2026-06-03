@@ -120,7 +120,11 @@ const char *msg = "";
 
 // ── canvas (pan/zoom) + palette state ──
 #define SIDEBAR_W 38
-float cam_x = -28, cam_y = -2, zoom = 0.82f;     // pannable/zoomable view of the stage
+float cam_x = -32, cam_y = -2, zoom = 1.0f;      // pannable/zoomable view of the stage
+// zoom snaps to these crisp stops — pixel art only looks clean at integer scales (and a
+// uniform 0.5), so the wheel steps between them instead of landing on a muddy fraction.
+const float ZOOMS[] = { 0.5f, 1.0f, 2.0f, 3.0f };
+#define NZOOM 4
 int   wmx = 0, wmy = 0;                           // mouse in world space (valid while the stage camera is active)
 int   panning = 0, pan_px = 0, pan_py = 0, palette_drag = -1, help_type = -1;
 int   drag_mod = -1, grab_dx = 0, grab_dy = 0;    // module being dragged around the canvas
@@ -292,12 +296,19 @@ void init(void) {
 void eval_mod(int mi) {
     Module *m = &mod[mi];
     switch (m->type) {
-        case MOD_CLOCK:
-            bpm((int)m->param[0]);
-            m->jackval[0] = g_newstep ? 1 : 0;
-            m->jackval[1] = (g_newstep && g_step % 2 == 0) ? 1 : 0;
-            m->jackval[2] = (g_newstep && g_step % 4 == 0) ? 1 : 0;
-            break;
+        case MOD_CLOCK: {
+            // each CLOCK runs its OWN tempo off dt() — NOT the global bpm() — so multiple
+            // clocks are independent and only drive what they're patched to. 8th-note steps
+            // (2 per beat); state[0]=phase, state[1]=last step, state[2]=LED flash timer.
+            m->state[0] += dt() * (m->param[0] / 60.0f) * 2.0f;
+            int s = (int)m->state[0];
+            bool ns = s != (int)m->state[1];
+            m->state[1] = s;
+            m->state[2] = ns ? 0 : m->state[2] + 1;
+            m->jackval[0] = ns ? 1 : 0;                       // /1 — every step
+            m->jackval[1] = (ns && s % 2 == 0) ? 1 : 0;       // /2
+            m->jackval[2] = (ns && s % 4 == 0) ? 1 : 0;       // /4
+            break; }
         case MOD_LFO:
             m->state[0] += m->param[0] * dt();
             if (m->state[0] >= 1.0f) m->state[0] -= 1.0f;
@@ -558,9 +569,8 @@ float knob_dial(int id, int cx, int cy, float v, float lo, float hi, const char 
 // per-type extra visuals (meters, LEDs, dots) drawn after the generic frame
 void draw_extras(int mi) {
     Module *m = &mod[mi]; int x = m->x, y = m->y, cx = x + GW / 2;
-    bool gate_lit = tick_flash < 5;
     switch (m->type) {
-        case MOD_CLOCK: circfill(x + 12, y + 14, 3, gate_lit ? CLR_WHITE : CLR_DARK_ORANGE); break;
+        case MOD_CLOCK: circfill(x + 12, y + 14, 3, m->state[2] < 5 ? CLR_WHITE : CLR_DARK_ORANGE); break;   // per-clock step flash
         case MOD_LFO:   meter(x + 48, y + 18, 6, 46, m->jackval[0], CLR_PINK); break;
         case MOD_SH:    meter(x + 10, y + 30, 6, 36, m->state[1], CLR_YELLOW); print(str("%d%%", (int)(m->state[1] * 99)), x + 26, y + 40, CLR_DARK_GREY); break;
         case MOD_QUANT: print(NOTES[((int)m->jackval[1]) % 12], cx - text_width(NOTES[((int)m->jackval[1]) % 12]) / 2, y + 54, CLR_WHITE); break;
@@ -682,10 +692,25 @@ void edit_cables(int mx, int my) {
 
 void draw_cable_between(int sx, int sy, int dx, int dy, int c, bool pulse) {
     int mx = (sx + dx) / 2, my = max(sy, dy) + 14;
-    bezier(sx, sy, mx, my, dx, dy, c);
+    // Draw the curve as a chain of tiny filled rects, NOT bezier()'s 1px GL line: only
+    // rectfill (DrawRectangle) scales solidly under the camera, so the cable thickens with
+    // zoom (1px @1x -> a solid stroke @2x/3x) instead of staying a hairline. (line/circfill
+    // would stay 1px or break into dots when zoomed in.)
+    int n = (int)(distance(sx, sy, mx, my) + distance(mx, my, dx, dy));
+    if (n < 8) n = 8; else if (n > 160) n = 160;
+    int px = sx, py = sy;
+    for (int i = 1; i <= n; i++) {
+        float t = i / (float)n, u = 1.0f - t;
+        int nx = (int)(u * u * sx + 2 * u * t * mx + t * t * dx);
+        int ny = (int)(u * u * sy + 2 * u * t * my + t * t * dy);
+        int rx = px < nx ? px : nx, ry = py < ny ? py : ny;
+        rectfill(rx, ry, (px < nx ? nx - px : px - nx) + 1, (py < ny ? ny - py : py - ny) + 1, c);
+        px = nx; py = ny;
+    }
     if (pulse && tick_flash < 10) {
         float t = tick_flash / 10.0f, u = 1.0f - t;
-        circfill((int)(u * u * sx + 2 * u * t * mx + t * t * dx), (int)(u * u * sy + 2 * u * t * my + t * t * dy), 2, CLR_WHITE);
+        int hx = (int)(u * u * sx + 2 * u * t * mx + t * t * dx), hy = (int)(u * u * sy + 2 * u * t * my + t * t * dy);
+        rectfill(hx - 1, hy - 1, 3, 3, CLR_WHITE);   // rectfill (scales) instead of circfill (dots when zoomed)
     }
 }
 
@@ -700,11 +725,15 @@ void draw(void) {
         if (over_side) {   // wheel over the palette → scroll the module list
             int maxsc = 14 + NTYPE * 16 - SCREEN_H + 6; if (maxsc < 0) maxsc = 0;
             palette_scroll = (int)clamp(palette_scroll - wh * 16, 0, maxsc);
-        } else {           // wheel over the canvas → zoom toward the cursor (world point under mouse stays fixed)
-            float z0 = zoom, z1 = clamp(zoom * (1 + wh * 0.12f), 0.4f, 3.0f);
-            cam_x += (mouse_x() - SCREEN_W / 2.0f) * (1.0f / z0 - 1.0f / z1);
-            cam_y += (mouse_y() - SCREEN_H / 2.0f) * (1.0f / z0 - 1.0f / z1);
-            zoom = z1;
+        } else {           // wheel over the canvas → step to the next crisp zoom stop (point under cursor stays fixed)
+            int zi = 0; for (int i = 0; i < NZOOM; i++) if (zoom >= ZOOMS[i] - 0.01f) zi = i;
+            zi = (int)clamp(zi + (wh > 0 ? 1 : -1), 0, NZOOM - 1);
+            float z0 = zoom, z1 = ZOOMS[zi];
+            if (z1 != z0) {
+                cam_x += (mouse_x() - SCREEN_W / 2.0f) * (1.0f / z0 - 1.0f / z1);
+                cam_y += (mouse_y() - SCREEN_H / 2.0f) * (1.0f / z0 - 1.0f / z1);
+                zoom = z1;
+            }
         }
     }
 

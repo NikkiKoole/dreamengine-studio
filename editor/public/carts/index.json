@@ -433,6 +433,33 @@
     "genre": "platformer"
   },
   {
+    "title": "tilemap platformer",
+    "description": "A great-feeling scrolling platformer where the world is a tile map (drawn as colored rects by tile type). The same polished mover as 'platform engine (rects)' — per-axis resolution with flush tile snapping, sub-pixel motion, coyote time, jump buffering, variable jump height, floaty apex, squash/stretch and landing dust — but on tile collision with a camera that scrolls a world bigger than the screen. Collect coins, stomp the purple critters from above, dodge the red spikes, reach the green flag. Arrows/WASD move, Z or up to jump.",
+    "file": "platform-tiles.cart.png",
+    "kind": [
+      "tutorial"
+    ],
+    "genre": "platformer"
+  },
+  {
+    "title": "platform rails (slopes)",
+    "description": "The OTHER kind of platformer. The rects/paint/tiles carts use solid-space collision (free position, gravity always on, collision discovers the ground) which can only make flat ground. This is the rail model behind Donkey Kong, Lode Runner and BurgerTime: the player is bound to a girder, so position is 'which girder + how far along it' and height is just a formula (py = surface(pg, x)) — which means SLOPES come for free. Ladders connect the girders; the player is a run/climb/jump state machine. Run up the slanted girders, climb the ladders, reach the flag. Arrows/WASD move, up/down climb a ladder, Z to jump.",
+    "file": "platform-rails.cart.png",
+    "kind": [
+      "tutorial"
+    ],
+    "genre": "platformer"
+  },
+  {
+    "title": "rail loop (sonic-style)",
+    "description": "Curved rails and edge attributes — the follow-up to 'platform rails'. The rail no longer has to be a straight girder: sample any curve into a list of points and the player's position becomes a float INDEX into that list, so a Bézier hill and a full LOOP are the same code. A Sonic loop 'just works' because the player is glued to the track (no free-fall on a rail) — running it is only advancing the index around the circle, upside-down at the top and all. The orange stretch is a CONVEYOR: an edge attribute that carries you forward on its own (same idea as a one-way ladder — behaviour attached to part of the graph). Roll over the hill, through the loop, across the conveyor, to the flag. Arrows/WASD move, Z to restart.",
+    "file": "platform-loop.cart.png",
+    "kind": [
+      "tutorial"
+    ],
+    "genre": "platformer"
+  },
+  {
     "title": "lunar lander",
     "description": "Physics-based lander. Rotate and thrust your way onto the lit green pad slowly enough to survive. Levels get harder — pads get narrower. Left/right to rotate, up or Z to thrust.",
     "file": "lander.cart.png",

@@ -124,7 +124,7 @@ static void quadL(float ax, float ay, float bx, float by, float cx, float cy, fl
 
 // ── shared parts ───────────────────────────────────────────────────────────────────
 static void draw_wheel(Car *c, float cx, float r) {
-    int wx = SXf(cx), rr = max(2, SL(r)), wy = gYb - rr;
+    int wx = SXf(cx * gLf), rr = max(2, SL(r)), wy = gYb - rr;
     circfill(wx, wy, rr, c->cTire);
     if (c->antique) {
         for (int a = 0; a < 8; a++)
@@ -182,7 +182,7 @@ static void draw_car(Car *c) {
         float px = lerp(c->cab[1] * L, c->cab[2] * L, (float)k / c->nWin);
         boxL(px - 0.6f, px + 0.6f, c->deck + gb, c->roof - gv, c->cBody);
     }
-    draw_people(c, c->cab[0] * L + L * 0.07f, c->cab[3] * L - L * 0.07f, c->deck, c->roof);
+    draw_people(c, c->cab[1] * L + L * 0.02f, c->cab[2] * L - L * 0.02f, c->deck, c->roof);
     if (c->spoiler) {
         boxL(2, c->L * 0.14f, c->deck + 1, c->deck + 3.5f, CLR_DARK_GREY);   // rear wing
         boxL(2, 4, c->deck, c->deck + 3.5f, CLR_DARK_GREY);
@@ -228,7 +228,7 @@ static void draw_pickup(Car *c) {
     quadL(c->cab[0] * L, c->deck, c->cab[1] * L, c->roof, c->cab[2] * L, c->roof, c->cab[3] * L, c->deck, c->cBody);
     quadL(c->cab[0] * L + 1.5f, c->deck + 2, c->cab[1] * L + 1, c->roof - 1.5f,
           c->cab[2] * L - 1, c->roof - 1.5f, c->cab[3] * L - 1.5f, c->deck + 2, c->cWin);
-    draw_people(c, c->cab[0] * L + 2, c->cab[3] * L - 2, c->deck, c->roof);
+    draw_people(c, c->cab[1] * L + 2, c->cab[2] * L - 2, c->deck, c->roof);
     draw_wheel(c, c->wx[0], c->wr);
     draw_wheel(c, c->wx[1], c->wr);
     draw_lights(c, 2.0f);

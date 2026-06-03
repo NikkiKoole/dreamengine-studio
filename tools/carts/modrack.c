@@ -39,7 +39,7 @@ typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDe
 typedef struct {
     const char *name; int col, cw, ch;   // size in 12px cells
     int njack; JackDef jack[6];
-    int nknob; KnobDef knob[4];
+    int nknob; KnobDef knob[6];
 } ModType;
 
 ModType TYPES[NTYPE] = {
@@ -51,8 +51,9 @@ ModType TYPES[NTYPE] = {
     [MOD_SH]    = { "S&H", CLR_YELLOW, 6, 7, 3, {{2,false,24,16,"in"},{0,false,48,16,"clk"},{2,true,36,72,"cv"}}, 0, {} },
     [MOD_QUANT] = { "QUANT", CLR_GREEN, 6, 7, 2, {{2,false,36,16,"in"},{1,true,36,72,"pit"}},
                    2, {{"scl",0,5.99f,SCALE_PENTA,22,40,FMT_SCALE},{"root",0,11.99f,0,50,40,FMT_NOTE}} },
-    [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 7, 5, {{0,false,7,16,"g"},{1,false,21,16,"p"},{2,false,35,16,"f"},{2,false,49,16,"r"},{2,false,63,16,"w"}},
-                   4, {{"cut",200,2200,700,20,40,FMT_INT},{"res",0,15,6,52,40,FMT_INT},{"pw",0.05f,0.95f,0.5f,20,62,FMT_F1},{"wav",0,4.99f,0,52,62,FMT_WAVE}} },
+    [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 8, 5, {{0,false,7,16,"g"},{1,false,21,16,"p"},{2,false,35,16,"f"},{2,false,49,16,"r"},{2,false,63,16,"w"}},
+                   6, {{"cut",200,2200,700,20,40,FMT_INT},{"res",0,15,6,52,40,FMT_INT},{"pw",0.05f,0.95f,0.5f,20,60,FMT_F1},{"wav",0,4.99f,0,52,60,FMT_WAVE},
+                       {"fenv",0,3000,0,20,80,FMT_INT},{"penv",-24,24,0,52,80,FMT_INT}} },   // fenv = filter-env depth (Hz), penv = pitch-env depth (semis)
     [MOD_EUCLID]= { "EUCLID", CLR_RED, 6, 7, 2, {{0,false,36,16,"clk"},{0,true,36,72,"g"}},
                    2, {{"h",1,8.99f,4,22,40,FMT_INT},{"s",2,16.99f,8,50,40,FMT_INT}} },
     [MOD_ENV]   = { "ENV", CLR_MEDIUM_GREEN, 6, 7, 2, {{0,false,36,16,"g"},{2,true,36,72,"cv"}},
@@ -86,7 +87,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate sets speed. Patch the cv out into", "any cv input to modulate it." },
     [MOD_SH]     = { "Sample & Hold. On each clk pulse it", "grabs the cv at 'in' and holds it until", "the next clk -> a stepped, random-ish cv." },
     [MOD_QUANT]  = { "Quantizer. Snaps any cv to the nearest", "note of a scale (scl/root) so it's always", "in key. cv in -> pitch out." },
-    [MOD_VOICE]  = { "The voice. g=gate p=pitch; f/r/w CV sweep", "cutoff/res/pulse-width. Knobs set the base", "+ wav picks the waveform (saw/sqr/tri/sin/noi)." },
+    [MOD_VOICE]  = { "The voice. g=gate p=pitch; f/r/w CV sweep", "cut/res/pw; wav picks the wave. fenv/penv =", "per-note filter & pitch punch (mod-envelopes)." },
     [MOD_EUCLID] = { "Euclidean rhythm: h hits spread evenly", "over s steps. Advances on clk, fires a", "gate on each hit. Patch 'o' into DRUM." },
     [MOD_ENV]    = { "AD envelope. A gate makes a 0->1->0 cv", "ramp (atk up, dec down). Patch cv into a", "filter for a pluck on every note." },
     [MOD_DRUM]   = { "Three drum voices. A gate at k/s/h", "fires kick / snare / hat. Patch gates", "(from EUCLID or CLOCK) into them." },
@@ -102,7 +103,7 @@ const char *HELP[NTYPE][3] = {
 };
 
 // ── module instances + cables ──
-typedef struct { int type, x, y; float param[4], state[24], jackval[4]; } Module;   // param[] up to 4 knobs; state[] holds SCOPE history
+typedef struct { int type, x, y; float param[6], state[24], jackval[4]; } Module;   // param[] up to 6 knobs; state[] holds SCOPE history
 #define MAX_MOD 24
 Module mod[MAX_MOD];
 int    nmod = 0;
@@ -226,17 +227,43 @@ void preset_maths(void) {        // MATHS cycling as a slow asymmetric filter sw
     add_cable(ma, 1, vo, 2);   // MATHS cv → VOICE filter = the slow sweep
     add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
 }
-const char *PRESET_NAMES[] = { "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep" };
-void (*PRESET_FN[])(void) = { preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths };
-#define NPRESET 9
+void preset_envpluck(void) {     // VOICE's onboard FILTER env = a punchy pluck bass — no separate ENV module needed
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK, bayx(0), bayy(0)), eu = spawn(MOD_EUCLID, bayx(1), bayy(1));
+    int tm = spawn(MOD_TURING, bayx(2), bayy(2)), qt = spawn(MOD_QUANT, bayx(3), bayy(3));
+    int vo = spawn(MOD_VOICE, bayx(4), bayy(4)), e2 = spawn(MOD_EUCLID, bayx(5), bayy(5)), dr = spawn(MOD_DRUM, bayx(6), bayy(6));
+    mod[vo].param[0] = 280; mod[vo].param[1] = 10; mod[vo].param[3] = 0;   // low cut, squelchy res, saw
+    mod[vo].param[4] = 2400;                                              // FILTER ENV: snaps wide open on each note
+    mod[qt].param[0] = SCALE_PENTA_MIN; mod[tm].param[0] = 0.35f;
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, vo, 0);                     // euclid gates the bass
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, vo, 1);  // turing melody → quant → pitch
+    mod[e2].param[0] = 4; mod[e2].param[1] = 8;
+    add_cable(ck, 0, e2, 0); add_cable(e2, 1, dr, 0); add_cable(ck, 0, dr, 2);  // a beat under it
+}
+void preset_zaplead(void) {      // VOICE's onboard PITCH env = a zappy lead (each note swoops up into pitch)
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK, bayx(0), bayy(0)), tm = spawn(MOD_TURING, bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT, bayx(2), bayy(2)), vo = spawn(MOD_VOICE, bayx(3), bayy(3));
+    int eu = spawn(MOD_EUCLID, bayx(4), bayy(4)), dr = spawn(MOD_DRUM, bayx(5), bayy(5));
+    mod[vo].param[0] = 1500; mod[vo].param[3] = 1;   // bright, square
+    mod[vo].param[4] = 700;                          // a touch of filter pluck
+    mod[vo].param[5] = 12;                           // PITCH ENV: +12 st — each note zaps up an octave into the note
+    mod[tm].param[0] = 0.4f;
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, vo, 1); add_cable(ck, 0, vo, 0);
+    mod[eu].param[0] = 4; mod[eu].param[1] = 8;
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
+}
+const char *PRESET_NAMES[] = { "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead" };
+void (*PRESET_FN[])(void) = { preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead };
+#define NPRESET 11
 
 // ── persistence ──
-typedef struct { int type, x, y; float param[4]; } SaveMod;
+typedef struct { int type, x, y; float param[6]; } SaveMod;
 typedef struct { int nmod; SaveMod m[MAX_MOD]; int ncable; Cable cable[MAXCABLE]; } Patch;
 
 void save_patch(void) {
     Patch p; p.nmod = nmod; p.ncable = ncable;
-    for (int i = 0; i < nmod; i++) { p.m[i].type = mod[i].type; p.m[i].x = mod[i].x; p.m[i].y = mod[i].y; for (int k = 0; k < 4; k++) p.m[i].param[k] = mod[i].param[k]; }
+    for (int i = 0; i < nmod; i++) { p.m[i].type = mod[i].type; p.m[i].x = mod[i].x; p.m[i].y = mod[i].y; for (int k = 0; k < 6; k++) p.m[i].param[k] = mod[i].param[k]; }
     for (int c = 0; c < ncable; c++) p.cable[c] = cable[c];
     save_bytes(&p, sizeof p);
     msg = "SAVED"; msg_flash = 40;
@@ -245,7 +272,7 @@ void load_patch(void) {
     Patch p;
     if (load_bytes(&p, sizeof p) == (int)sizeof p) {
         nmod = p.nmod < 0 ? 0 : p.nmod > MAX_MOD ? MAX_MOD : p.nmod;
-        for (int i = 0; i < nmod; i++) { mod[i] = (Module){ p.m[i].type, p.m[i].x, p.m[i].y, {0}, {0}, {0} }; for (int k = 0; k < 4; k++) mod[i].param[k] = p.m[i].param[k]; }
+        for (int i = 0; i < nmod; i++) { mod[i] = (Module){ p.m[i].type, p.m[i].x, p.m[i].y, {0}, {0}, {0} }; for (int k = 0; k < 6; k++) mod[i].param[k] = p.m[i].param[k]; }
         ncable = p.ncable < 0 ? 0 : p.ncable > MAXCABLE ? MAXCABLE : p.ncable;
         for (int c = 0; c < ncable; c++) cable[c] = p.cable[c];
         msg = "LOADED";
@@ -296,7 +323,13 @@ void eval_mod(int mi) {
             if (gate > 0.5f && m->state[0] <= 0.5f) {
                 int mm = (int)pitch; if (mm < 1) mm = 48;
                 int h = (int)m->state[1]; if (h > 0) note_off(h);
-                m->state[1] = note_on(mm, slot, 5);
+                h = note_on(mm, slot, 5);
+                m->state[1] = h;
+                // onboard mod-envelopes — fire per note: filter "pew" + pitch punch (fixed
+                // snappy decays; the knobs set the depth, 0 = off). This is the audio-rate
+                // upgrade over patching the control-rate ENV module into 'f'.
+                note_env(h, 0, ENV_CUTOFF, 0, 130, m->param[4]);   // fenv → filter sweep
+                note_env(h, 1, ENV_PITCH,  0,  45, m->param[5]);   // penv → pitch blip
                 m->state[3] = 0;   // trigger flash
             }
             m->state[0] = gate; m->state[3] += 1;
@@ -607,7 +640,7 @@ void draw_module(int mi) {
 
     for (int k = 0; k < t->nknob; k++) {
         KnobDef kd = t->knob[k];
-        m->param[k] = knob_dial(mi * 4 + k + 1, x + kd.dx, y + kd.dy, m->param[k], kd.lo, kd.hi, kd.label, knob_str(kd.fmt, m->param[k]));
+        m->param[k] = knob_dial(mi * 16 + k + 1, x + kd.dx, y + kd.dy, m->param[k], kd.lo, kd.hi, kd.label, knob_str(kd.fmt, m->param[k]));
     }
     for (int j = 0; j < t->njack; j++) {
         JackDef jd = t->jack[j];

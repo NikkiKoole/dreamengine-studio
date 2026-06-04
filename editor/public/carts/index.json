@@ -2181,5 +2181,15 @@
       "instrument"
     ],
     "homage": "A Tribe Called Quest - The Low End Theory"
+  },
+  {
+    "title": "city pop radio",
+    "description": "Endless Japanese pop-funk - the city pop homage (Tatsuro Yamashita / Mariya Takeuchi / Plastic Love), sixth of the radio family. The canon as data: the ROYAL ROAD progression (IVmaj7-V7-iiim7-vim9, THE J-pop changes), Just-the-Two-of-Us loops (IVmaj7-III7alt-vim9-I9), the bittersweet descent (Imaj9-I9-IVmaj7-ivm6); octave-popping disco bass with double-chromatic 16th runs; two-voice guitar chucks that lay out for the bar turn; saw-brass anticipation hits; session-tight timing (the opposite of low end radio - no groove lag, +-2ms only); and the truck driver's gear change: the last chorus modulates up a whole step. Density = arrangement curve x feel knob; T cycles tone. Seed on display (CITYPOP_SEED / R / [ ] history), H help. Worked example #6 for docs/guides/game-music.md.",
+    "file": "citypop.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "Tatsuro Yamashita / Mariya Takeuchi (city pop)"
   }
 ]

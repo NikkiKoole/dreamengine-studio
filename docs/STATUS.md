@@ -120,15 +120,30 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
 3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
    surfaced by the brainstorm review). Touches main-loop drain semantics.
    [`design/api-notes.md`](design/api-notes.md) §11.
-4. **Pause + debug** — `pause()`/`paused()`, `voices_active()`. (`fps()` SHIPPED — see
-   Shipped above.) [`design/api-notes.md`](design/api-notes.md) §16.
-   - **`menuitem(index, label, callback)`** *(idea — from the Picotron API comparison)* — let a
-     cart hang custom rows ("restart", "toggle music", "easy mode") off a **built-in pause menu**:
-     one line, no layout/input/focus to hand-roll. **Pairs with the pause work above** — it's the
-     same feature from two ends: the runtime grows a pause overlay (own the pause state + render
-     it), and `menuitem` is the cart's hook into it. High "feels like a real console" payoff for
-     the size; the cost is `studio.c` owning the overlay. Today ~30 carts hand-draw their own
-     options menus, which is the gap this closes.
+4. **Pause** — runtime-owned pause overlay. (`fps()` SHIPPED — see Shipped above.)
+   [`design/api-notes.md`](design/api-notes.md) §16.
+
+   **First pass (ready to build):**
+   - **P / ENTER** opens the overlay; **ESC** while paused resumes; **ESC** while
+     not paused closes the window (already works — unchanged).
+   - Overlay dims the scene behind it, freezes `update()`, mutes sound.
+   - Two items only: **Continue** / **Restart** (restart = `execv` re-exec, NES-style
+     full reset — no checkpoints).
+   - `paused()` API so carts can check state (e.g. stop a timer).
+
+   **Deferred — Options submenu (document now, build later):**
+   Matches PICO-8's pause → Options screen:
+   - Sound: ON/OFF
+   - Volume: slider/bar
+   - Fullscreen: OFF/ON (one `ToggleFullscreen()` call)
+   - Controls: read-only display of current P1/P2 key bindings (rebinding stays in
+     the editor settings tab)
+   - Back
+
+   **Further deferred:**
+   - **`menuitem(index, label, callback)`** — let carts add custom rows ("restart
+     level", "toggle music", "easy mode") to the pause menu. Zero layout work for
+     the cart; ~30 carts currently hand-roll their own options screens.
 5. **Sound expansion** — _instrument bank (ADSR/duty/LFO/filter) and **held notes**
    (`note_on`/`note_off` + live setters + slew) now SHIPPED, see above._
    **NEXT (decided 2026-06-03, built BEFORE the engines): modulation envelopes** — a second/third

@@ -442,5 +442,6 @@ float noise3(float x, float y, float z); // 3D: animated 2D noise (pass now() as
 void printh(const char *fmt, ...);                   // printf to the editor's runtime log panel (not the game window)
 void watch(const char *name, const char *fmt, ...);  // show a named live value in the corner of the game window
 void watch_visible(bool on);                         // hide/show the watch overlay (default: on; F1 toggles it)
+bool paused(void);                                   // true while the runtime pause overlay is open (P/ENTER to toggle)
 
 #endif // STUDIO_H

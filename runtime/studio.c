@@ -167,6 +167,11 @@ static int             frame_count      = 0;
 static bool            web_started      = false;  // true after the user clicks to start
 #endif
 
+// pause overlay — P/ENTER opens it; ESC or selecting Continue closes it
+static bool  pause_active = false;
+static int   pause_sel    = 0;    // 0 = Continue, 1 = Restart
+static char **restart_argv = NULL;
+
 // ------------------------------------------------------------
 // debug harness — deterministic clock + input record/replay + trace.
 // Off by default and entirely native: a normal run touches none of this.
@@ -527,6 +532,48 @@ static void draw_watch_overlay(void) {
     }
 }
 
+bool paused(void) { return pause_active; }
+
+static void draw_pause_overlay(void) {
+    if (!pause_active) return;
+    int ww = SCREEN_W * SCALE, wh = SCREEN_H * SCALE;
+
+    // dim the whole scene
+    DrawRectangle(0, 0, ww, wh, (Color){ 0, 0, 0, 160 });
+
+    // centered box
+    int bw = 160 * SCALE / 2, bh = 80 * SCALE / 2;
+    int bx = (ww - bw) / 2,   by = (wh - bh) / 2;
+    DrawRectangle(bx, by, bw, bh, (Color){ 10, 10, 30, 230 });
+    DrawRectangleLines(bx, by, bw, bh, (Color){ 200, 200, 220, 200 });
+
+    float fs = 8.0f * SCALE / 2;   // font size: native 8px scaled to window
+    float lh = fs + fs * 0.5f;
+    const char *items[] = { "CONTINUE", "RESTART" };
+    int n = 2;
+    float total_h = fs * 1.5f + n * lh;   // title + items
+    float ty = by + (bh - total_h) / 2.0f;
+
+    // title
+    const char *title = "PAUSED";
+    float tw = MeasureTextEx(game_font, title, fs, 1).x;
+    DrawTextEx(game_font, title, (Vector2){ bx + (bw - tw) / 2.0f, ty }, fs, 1,
+               (Color){ 180, 180, 255, 255 });
+    ty += fs * 1.5f;
+
+    for (int i = 0; i < n; i++) {
+        bool sel = (pause_sel == i);
+        Color col = sel ? WHITE : (Color){ 160, 160, 160, 255 };
+        float iw = MeasureTextEx(game_font, items[i], fs, 1).x;
+        float ix  = bx + (bw - iw) / 2.0f;
+        if (sel) {
+            DrawTextEx(game_font, "\x10", (Vector2){ ix - fs * 1.2f, ty }, fs, 1, WHITE);
+        }
+        DrawTextEx(game_font, items[i], (Vector2){ ix, ty }, fs, 1, col);
+        ty += lh;
+    }
+}
+
 // crash capture — on a fatal signal, dump the cart's last watch() values to
 // stderr (so they land in the editor's runtime log), then re-raise so the OS
 // still kills the process and the editor sees the real signal. Uses raw write()
@@ -799,6 +846,30 @@ static void loop_step(void) {
     update_stick();
     if (IsKeyPressed(KEY_F1)) watch_show = !watch_show;
 
+    // pause overlay — P or ENTER toggles; when open ESC resumes instead of closing the window
+    SetExitKey(pause_active ? KEY_NULL : KEY_ESCAPE);
+    if (IsKeyPressed(KEY_P) || (!pause_active && IsKeyPressed(KEY_ENTER))) {
+        pause_active = !pause_active;
+        pause_sel = 0;
+        SetMasterVolume(pause_active ? 0.0f : 1.0f);
+    }
+    if (pause_active) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            pause_active = false;
+            SetMasterVolume(1.0f);
+        } else if (IsKeyPressed(KEY_UP))   { pause_sel = (pause_sel + 1) % 2; }
+        else if (IsKeyPressed(KEY_DOWN))   { pause_sel = (pause_sel + 1) % 2; }
+        else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_Z)) {
+            if (pause_sel == 0) {           // Continue
+                pause_active = false;
+                SetMasterVolume(1.0f);
+            } else {                        // Restart
+                if (restart_argv) execv(restart_argv[0], restart_argv);
+            }
+        }
+    }
+    if (pause_active) goto draw_window;   // skip update() + draw() — last frame stays frozen
+
     // snapshot last frame's canvas so pget() has stable pixels to read
     // (skipped on web — GPU readback is expensive and triggers GL errors on WebGL1)
 #ifndef PLATFORM_WEB
@@ -860,6 +931,7 @@ static void loop_step(void) {
 #endif
     if (clip_active) { EndScissorMode(); clip_active = false; }
 
+    draw_window:;   // pause skips update+draw above; canvas shows last frozen frame
     // scale up to the window — RenderTexture is flipped in Y
     float sox = 0, soy = 0;
     if (shake_amt > 0.2f) {
@@ -880,6 +952,7 @@ static void loop_step(void) {
                           (Color){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
         draw_touch_overlay();
         draw_watch_overlay();
+        draw_pause_overlay();
     EndDrawing();
     if (shake_amt > 0) { shake_amt *= 0.85f; if (shake_amt < 0.2f) shake_amt = 0; }
 
@@ -1024,6 +1097,7 @@ int main(int argc, char **argv) {
     signal(SIGFPE,  crash_handler);   // divide by zero, etc.
     signal(SIGABRT, crash_handler);   // abort()/assert
     signal(SIGBUS,  crash_handler);   // misaligned / bad memory access
+    restart_argv = argv;
     mkdir(".bake", 0755);             // ensure inspect request dir exists (silent if already there)
 #endif
 #ifdef PLATFORM_WEB

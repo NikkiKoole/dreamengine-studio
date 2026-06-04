@@ -273,9 +273,14 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
     blends with what's already on screen. Deliberately framed as a lookup table so it does **not**
     trip the "splits the color model" concern flagged on the `lerp_color`/`rgb` parked thought
     (item 2) — the output is always a palette index. Picotron pairs this with stencil clipping;
-    that's a separate, lower-value follow-on. Needs a design note (how tables are authored —
-    preset modes like `BLEND_ADD`/`BLEND_MUL`/`BLEND_AVG`, or cart-defined? where the active table
-    lives; interaction with `pal()`/`fillp`).
+    that's a separate, lower-value follow-on. **Design note now exists →
+    [`design/blend-tables.md`](design/blend-tables.md)**, and the concept is **validated in
+    cart-space**: the `blend lab` tech-demo (`tools/carts/blendlab.c`, 2026-06-04) builds
+    AVG/ADD/MUL tables and blends per-pixel against a cart-owned scene fn, zero engine API.
+    Verdict: the look works (additive glow / glass / fog all read correctly, in-palette), and
+    the engine crux is identified — dst must be read from the *in-progress* frame (a `pget`
+    last-frame read feeds back and blooms; demonstrated by the cart's `P` mode). Candidate
+    implementation: shader + per-scope canvas snapshot, the decision-0007 lane. Next step: ADR.
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

@@ -592,6 +592,44 @@ not just by genre appeal — that's what kept the first seven carts each earning
 their place (held voices, groove template, playbook encoding, loop rotation,
 scheduled echo, the desk…).
 
+### Why citypop lands — the four conditions (the second build-order axis)
+
+Owner observation (2026-06-05): citypop is the station that works best. The
+diagnosis generalizes — it scores 4/4 on conditions the others meet only
+partly, and candidate genres can be scored against them:
+
+1. **A named formula to steal.** The royal road (王道進行) and JTTOU changes
+   are published, named progressions — encoding two templates captures the
+   genre's identity. (Genres that are "a vibe" — ambient, jangle — can't be
+   captured this way; they work differently, by texture.)
+2. **Directional gestures per layer, not static masks.** The bass runs INTO
+   each change, the brass anticipates the and-of-4 BEFORE the bar, the chucks
+   lay out AT bar turns, the gear change lifts the LAST chorus — every layer
+   points at what's coming. Forward pull beats pattern density.
+3. **A time-feel that wants the engine's native precision.** Session-tight or
+   machine-tight genres (citypop, ymo, house) get authenticity for free;
+   loose genres need artificial sloppiness that's hard to dose (lowend
+   shipped at half groove strength).
+4. **Gloss-native timbres.** Our oscillators do neon (saws, bright squares,
+   clean tris) natively; they can't do smoky (breath, real horns).
+
+Genres scoring 4/4, in taste order:
+
+- **Yacht rock / Steely Dan & AOR** — the literal source citypop imported
+  ("Plastic Love" is Tokyo's answer to Aja). Even MORE codified: the mu
+  chord (μ — add9 voiced 1-2-3-5) is a *named Steely Dan invention*, the
+  ii–V-over-groove language exhaustively analyzed, and they were the most
+  session-perfectionist act ever recorded. Rhodes + clean gtr + tight kit,
+  all doable. The deep pick.
+- **Italo disco** — citypop's machine cousin: sequenced octave-arpeggio
+  bass, dramatic minor formulas (i–bVI–bVII–V), bright stabs, drum-machine
+  time, and the truck driver's gear change lives here too. Reuses house.c's
+  808 + pump. The easy-win pick. (Its descendant **eurobeat** is the same
+  recipe at 155 bpm if maximum formula is ever wanted.)
+- **J-fusion (Casiopea / T-Square)** — citypop's instrumental twin, same
+  Tokyo session scene — but it needs real solos, so it should wait for the
+  Doors station's improviser (melody brain #2).
+
 ### Batch two: the IDM / electronic wing
 
 The first nine stations were about **harmony brains**; this batch is about

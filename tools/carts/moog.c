@@ -21,9 +21,15 @@ int   wave    = 1;                 // INSTR_SAW
 float attack  = 6,  decay = 140, sustain = 5, release = 320;   // ms, sustain 0..7
 float duty    = 0.5f;
 int   fmode   = 1;                 // FILTER_LOW
-float cutoff  = 1700, res = 7;
+float cutoff  = 700, res = 7;      // lower base so the FILTER CONTOUR has room to open it (the Moog "wow")
 typedef struct { int target; float rate; float depth; } Lfo;   // target 0=OFF,1=PIT,2=DUT,3=VOL,4=CUT
 Lfo   lfos[3] = { {1, 5.0f, 0.25f}, {0, 3.0f, 0.3f}, {0, 0.4f, 0.6f} };
+
+// mod-envelopes — a filter contour (ENV_CUTOFF) and a pitch envelope (ENV_PITCH), each a
+// one-shot AD spike with a bipolar amount. The ENVELOPE panel toggles which one you edit.
+int   env_view = 0;                // 0 = AMP ADSR, 1 = FILTER contour, 2 = PITCH env
+float fenv_amt = 1500, fenv_atk = 4, fenv_dec = 220;   // filter contour: Hz (bipolar), ms, ms
+float penv_amt = 0,    penv_atk = 0, penv_dec = 120;   // pitch env: semitones (bipolar), ms, ms
 
 int   base = 48;                   // MIDI of the leftmost white key (C3)
 int   vel  = 98;                   // 0..127, like a real synth
@@ -65,6 +71,8 @@ void apply_synth(void) {
         instrument_lfo(SLOT, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
     }
     instrument_filter(SLOT, fmode, (int)cutoff, CLI(res + 0.5f, 0, 15));
+    instrument_env(SLOT, 0, ENV_CUTOFF, (int)fenv_atk, (int)fenv_dec, fenv_amt);   // filter contour
+    instrument_env(SLOT, 1, ENV_PITCH,  (int)penv_atk, (int)penv_dec, penv_amt);   // pitch envelope
 }
 
 // push every LIVE-controllable knob to one ringing note this frame: filter (mode +
@@ -206,6 +214,39 @@ void draw_adsr(int gx, int gy, int gw, int gh) {
           gx, by + 4, CLR_MEDIUM_GREY);
 }
 
+// AD-with-amount editor for the mod-envelopes: a spike from a center zero-line up (or DOWN,
+// for a negative amount) to `amount` over attack, back to zero over decay. Two drag dots:
+// the peak (X = attack, Y = amount ± about the center) and the decay end (X = decay).
+void draw_adenv(int gx, int gy, int gw, int gh, float *atk, float atkmax,
+                float *dec, float decmax, float *amt, float amtmax, int col) {
+    int zy = gy + gh / 2;
+    float aMax = gw * 0.40f, dMax = gw * 0.45f, half = gh / 2.0f;
+    int px = gx + (int)(*atk / atkmax * aMax);
+    int py = (int)clamp(zy - *amt / amtmax * half, gy, gy + gh);
+    int ex = px + (int)(*dec / decmax * dMax);
+
+    if (mouse_pressed(MOUSE_LEFT)) {
+        if      (in_box(px - 5, py - 5, 10, 10)) ui_held = 14;
+        else if (in_box(ex - 5, zy - 5, 10, 10)) ui_held = 15;
+    }
+    if (ui_held == 14) { *atk = clamp((float)(mx - gx) / aMax * atkmax, 0, atkmax);
+                         *amt = clamp((zy - my) / half * amtmax, -amtmax, amtmax); }
+    if (ui_held == 15)   *dec = clamp((float)(mx - px) / dMax * decmax, 1, decmax);
+
+    px = gx + (int)(*atk / atkmax * aMax);
+    py = (int)clamp(zy - *amt / amtmax * half, gy, gy + gh);
+    ex = px + (int)(*dec / decmax * dMax);
+
+    rectfill(gx, gy, gw, gh, CLR_BLACK);
+    for (int x = gx + 2; x < gx + gw - 2; x += 6) pset(x, zy, CLR_DARKER_GREY);   // zero line
+    line(gx, zy, px, py, col);
+    line(px, py, ex, zy, col);
+    line(ex, zy, gx + gw, zy, col);
+    rectfill(px - 2, py - 2, 5, 5, CLR_WHITE);
+    rectfill(ex - 2, zy - 2, 5, 5, CLR_WHITE);
+    print(str("amt %+d  a%d d%d", (int)*amt, (int)*atk, (int)*dec), gx, gy + gh + 4, CLR_MEDIUM_GREY);
+}
+
 void draw() {
     mx = mouse_x(); my = mouse_y();
     if (!mouse_down(MOUSE_LEFT)) ui_held = 0;
@@ -221,9 +262,15 @@ void draw() {
     print("PW", 12, 107, CLR_MEDIUM_GREY);
     duty = ui_slider(1, 34, 107, 58, duty, 0.05f, 0.95f, CLR_BLUE);
 
-    // ---- ENVELOPE ----
-    panel(104, 16, 198, 100, "ENVELOPE  (drag the dots)", CLR_GREEN);
-    draw_adsr(112, 32, 182, 64);
+    // ---- ENVELOPE (toggle: AMP ADSR / FILTER contour / PITCH env — drag the dots) ----
+    const char *evn[3]  = { "AMP", "FILTER", "PITCH" };
+    int         evcol[3] = { CLR_GREEN, CLR_DARK_PEACH, CLR_MAUVE };
+    panel(104, 16, 198, 100, "", evcol[env_view]);
+    for (int i = 0; i < 3; i++)
+        if (ui_btn(108 + i * 50, 19, 46, 12, evn[i], env_view == i, evcol[i])) env_view = i;
+    if      (env_view == 0) draw_adsr(112, 42, 182, 56);
+    else if (env_view == 1) draw_adenv(112, 42, 182, 56, &fenv_atk, 600, &fenv_dec, 800, &fenv_amt, 3000, evcol[1]);
+    else                    draw_adenv(112, 42, 182, 56, &penv_atk, 400, &penv_dec, 600, &penv_amt, 36,   evcol[2]);
 
     // ---- FILTER ----
     const char *fn[5] = { "OFF", "LP", "HP", "BP", "NF" };

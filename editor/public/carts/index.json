@@ -2191,5 +2191,15 @@
       "instrument"
     ],
     "homage": "Tatsuro Yamashita / Mariya Takeuchi (city pop)"
+  },
+  {
+    "title": "dub radio",
+    "description": "Endless roots dub - the King Tubby / Augustus Pablo homage, seventh of the radio family, and the one where the engine IS the genre. ECHO AS SCHEDULED NOTES: every skank chop, rim shot and melodica phrase schedules its own decaying repeats (dotted-8th apart) - no FX engine, the delay line is just more notes in the future. THE DESK IS THE INSTRUMENT: every 4-bar phrase a performance-level mixing brain re-rolls which layers are in (bass ~92%, drums ~90%, skank, organ bubble, melodica); when the skank leaves, its ghost gets thrown into a long echo tail. The desk is engine-rnd, so the same seed MIXES ITSELF DIFFERENTLY every listen - exactly how dubplates worked. Seeded 2-bar minor-pentatonic riddim bassline, one-drop/rockers/steppers kits, dub siren at meltdown feel. Seed on display (DUB_SEED / R / [ ] history), T tone, H help. Worked example #7 for docs/guides/game-music.md.",
+    "file": "dub.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "King Tubby / Augustus Pablo (dub)"
   }
 ]

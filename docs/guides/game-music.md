@@ -382,6 +382,39 @@ lowpass ~1500 + tiny `ENV_CUTOFF` bark; **vinyl crackle** = `chance(8)` per fram
 (amount ~14, decay 60); **chip lead** = SQUARE + `instrument_duty(slot, 0.25f)` +
 `LFO_DUTY`.
 
+### Echo is just more notes (dub.c)
+
+Dub's defining effect needs no FX engine — `schedule_hit` already schedules the
+future, so a delay line is a loop:
+
+```c
+static void echo_hit(int dly, int midi, int instr, int vol, int dur, int taps) {
+    int t = (int)(stepMs * 3);                 // dotted-8th = the dub delay time
+    schedule_hit(dly, midi, instr, vol, dur);
+    for (int k = 1; k <= taps; k++) {
+        int v = vol - 1 - k;                   // each repeat quieter
+        if (v <= 0) break;
+        schedule_hit(dly + k * t, midi, instr, v, dur);
+    }
+}
+```
+
+Two cautions: each tap occupies a slot in the engine's 64-deep delayed pen, so
+keep taps modest (throws of 5–6 are the ceiling); and each sounding tap is a
+voice, so echo short notes (60–80ms chops echo beautifully; pads don't).
+
+### The desk is an instrument (dub.c)
+
+A dub track is one riddim plus an engineer riding the faders — i.e. an
+**arrangement-level performance layer**. Every 4-bar phrase, re-roll which layers
+play (bass ~92%, drums ~90%, skank/organ/melodica lower), keep at least one of
+bass/drums holding the floor, and when a layer *leaves*, throw its last hit into a
+long echo tail. Crucially the desk is **engine `rnd()`, not the seed**: the same
+plate mixes itself differently every listen, which is historically exactly what a
+dubplate was. This composes with the density curve — the desk drops layers
+*within* what `level_of()` allows — giving three orthogonal dimensions: what the
+song is (seed), how full it runs (feel), how it's mixed right now (the desk).
+
 ## Style cheat-sheet (the parking lot)
 
 What changes between styles is mostly **data** — the engine above carries over:
@@ -394,6 +427,7 @@ What changes between styles is mostly **data** — the engine above carries over
 | **dusk ballad (DeMarco theory)** | 72–92 | fingerpicked 8ths w/ gaps, soft loose kit, gentle 4.6Hz warble | stolen playbook: song templates + bVII (maj/7/9) + bIII (maj7/m6) rolls, chromatic bass descents, verse/chorus, melodic accommodation | picked add9 tri gtr, voice-led sine bass, rim/hat kit, soft sine lead | ✅ `jingle.c` |
 | **boom-bap (ATCQ)** | 88–97 | full groove template (hats −8ms, snare +22ms, bass +12ms, swing 57%), NO tempo drift | sampled loop: modal-mixture maj9 pool, 9sus dominant, 2/3/4-bar cut, rotated | voice-led upright bass (the star), layered snare, dusty kick, tremolo rhodes, vinyl dust | ✅ `lowend.c` |
 | **city pop (Yamashita)** | 104–118 | session-TIGHT (±2ms only); the anti-lowend | stolen playbook: royal road (IV–V–iii–vi), JTTOU loops, borrowed iv; final chorus +2 gear change | octave-pop disco bass w/ chromatic runs, 16th gtr chucks (lay out at bar turns!), saw brass anticipations, bright kit w/ open hat | ✅ `citypop.c` |
+| **dub (King Tubby)** | 66–80 | one-drop/rockers/steppers; echo as scheduled notes (dotted-8th taps) | 1-2 minor chords (i, iv, bVII); the seeded pentatonic RIDDIM bassline is the song | deep sine bass, skank chops, organ bubble, echoed melodica, rim throws, siren; THE DESK rides layers per phrase (performance, not seed) | ✅ `dub.c` |
 | **ambient** | 60 fixed, pace knob | beatless; chords hold 8–16 beats, held `note_on` voices morph via `note_glide` | one mode per song, degree walk, no cadences | 4 detuned saw pads, sine sub, band-noise wind, bell arps | ✅ `ambient.c` |
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 

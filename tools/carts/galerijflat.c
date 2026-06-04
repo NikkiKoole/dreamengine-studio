@@ -66,28 +66,41 @@ static const int CURT[][2] = {
 
 // fillp pattern sets per treatment type
 static const int VITRAGE_PATS[] = {
-    0xA5A5,      // dense checker (thick net)
-    0x8020,      // sparse dots (delicate lace)
-    FILL_DIAG,   // 0x8421 — diagonal weave
-    FILL_GRID,   // 0xF888 — open grid weave
-    FILL_VLINES, // 0xAAAA — vertical net
+    0xA5A5,      // dense checker
+    0x8020,      // sparse dots
+    FILL_DIAG,   // 0x8421 diagonal weave
+    FILL_GRID,   // 0xF888 open grid
+    FILL_VLINES, // 0xAAAA vertical net
     0x5A5A,      // diagonal variant
-    0xCCCC,      // wide vertical open weave
+    0xCCCC,      // wide vertical
     0x3333,      // offset wide vertical
+    0x2222,      // very sparse vertical (ultra-fine lace)
+    0x4444,      // very sparse vertical offset
+    0x9669,      // diamond lattice
+    0x6996,      // inverse diamond
+    0xC3C3,      // thick diagonal
+    0x6666,      // 2px vertical spaced 4px
+    0x5555,      // offset 50% vertical
+    0x0F0F,      // inverted hlines
 };
-#define N_VITRAGE_PATS 8
+#define N_VITRAGE_PATS 16
 
 static const int CURTAIN_PATS[] = {
     0xFFFF,      // plain solid
-    FILL_VLINES, // 0xAAAA — fine vertical weave
-    FILL_DIAG,   // 0x8421 — diagonal texture
-    0xCCCC,      // ribbed (2px stripes)
-    FILL_GRID,   // 0xF888 — grid weave
+    FILL_VLINES, // 0xAAAA vertical weave
+    FILL_DIAG,   // 0x8421 diagonal
+    0xCCCC,      // ribbed 2px
+    FILL_GRID,   // 0xF888 grid weave
+    0x3333,      // offset ribbed
+    0x5555,      // offset vertical
+    FILL_HLINES, // 0xF0F0 horizontal stripe
+    0xA5A5,      // checker texture
+    0xFF00,      // thick horizontal bands
 };
-#define N_CURTAIN_PATS 5
+#define N_CURTAIN_PATS 10
 
 static const int VENETIAN_PATS[] = {
-    FILL_HLINES, // 0xF0F0 — fine 1px slats
+    FILL_HLINES, // 0xF0F0 fine 1px slats
     0xFF00,      // coarser 2px slats
 };
 #define N_VENETIAN_PATS 2

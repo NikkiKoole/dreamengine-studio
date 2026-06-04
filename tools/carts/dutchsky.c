@@ -82,9 +82,12 @@ static void draw_atm(int y0, int h, float t) {
     int ym = y0 + (int)(mid_y * h);
     int yb = y0 + (int)(bot_y * h);
 
+    // anchor dither to atmosphere top so the pattern doesn't shift as atm_y moves
+    fillp_anchor(0, y0);
     if (ym > y0)    vgradient(0, y0, SCREEN_W, ym-y0,   k->top, k->mid);
     if (yb > ym)    vgradient(0, ym, SCREEN_W, yb-ym,   k->mid, k->bot);
     if (y0+h > yb)  rectfill(0,  yb, SCREEN_W, y0+h-yb, k->bot);
+    fillp_anchor(0, 0);
 }
 
 // ── stars ─────────────────────────────────────────────────────────────────────

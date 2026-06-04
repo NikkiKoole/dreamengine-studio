@@ -1,41 +1,43 @@
 #include "studio.h"
 
-// PALETTE LAB — try on a new default palette without touching anything else.
-// The Layer-1/1b probe from docs/design/palette-and-color.md: our 32 colors are
-// lifted verbatim from PICO-8, and before blend tables (STATUS #18) bake that
-// in deeper, candidates need to be SEEN against the corpus's worst cases.
+// PALETTE LAB — try on a new default palette without touching anything else,
+// and judge it where it matters most: BLENDING. This is blendlab x palettes —
+// the Layer-1/1b probe from docs/design/palette-and-color.md, with blendlab's
+// scene-function architecture ported in so every blend runs against the LIVE
+// candidate. Two probes, one verdict machine: a palette is only as good as
+// what `nearest(mix(a,b))` can land on.
 //
 // Built on the EXPERIMENTAL palette_hex(i, 0xRRGGBB) and the 64-slot palette
-// (slots 32-63 mirror 0-31 by default, so nothing else changed): every scene is
-// drawn with normal CLR_* indices and re-skins instantly when the palette
-// changes. Sprite editor, cart format, docs: all untouched.
+// (slots 32-63 mirror 0-31 by default, so nothing else changed). Scenes draw
+// with normal CLR_* indices and re-skin instantly on palette switch; the blend
+// tables (AVG/ADD/MUL, blendlab's trio) are rebuilt from the candidate's RGB
+// on every switch — candidates with more/denser colors visibly band less.
 //
 // Four candidates (keys 1-4):
-//   1  PICO-8 (shipped)        — the baseline we're trying to replace
-//   2  ENDESGA 32              — 32 role-mapped, upper half mirrors
-//   3  RESURRECT 64 (full)     — 32 role-mapped + the other 32 in slots 32-63
-//   4  E32 + 32 DERIVED        — the "blended in-betweens" idea: slots 32-63
-//      are sRGB midpoints of ramp neighbours + hue bridges, computed here
-//      (OKLab mixing would be better — judging that muddiness is the point)
+//   1  PICO-8 (shipped)     — the baseline we're trying to replace
+//   2  ENDESGA 32           — 32 role-mapped, upper half mirrors
+//   3  RESURRECT 64 (full)  — 32 role-mapped + the other 32 in slots 32-63
+//   4  E32 + 32 DERIVED     — the "blended in-betweens" idea: slots 32-63 are
+//      sRGB midpoints of ramp neighbours + hue bridges, computed here
+//      (OKLab mixing would be kinder — judging that muddiness is the point)
 //
-// The BLEND scene is the 32-vs-64 verdict machine: a glass pane (AVG) and a
-// glow (ADD) are blended per-pixel against a backdrop, blendlab-style — the
-// mix is done in RGB then snapped to the NEAREST color of the active palette,
-// so candidates with more/denser colors visibly band less. Same indices in,
-// different fidelity out.
+// NOTE the derived/upper colors only show where something SAMPLES them — the
+// dither scenes (sunset/portrait) reference indices 0-31 and are identical for
+// candidates 2 and 4 by construction. The blend scenes are where 32 vs 64
+// separates; the D toggle puts today's fillp fake next to the real thing.
 //
 // Role-mapping notes: slot 8 must stay "the red", ramps must still ramp, or
-// every existing cart scrambles. Weak fits are flagged below (E32 has no lime,
-// no second dark plum, no near-black navy pair — three dup slots); the
-// Resurrect cut filled every role. That asymmetry is already a finding.
+// every existing cart scrambles. Weak fits are flagged in the tables (E32 has
+// no lime, no second dark plum, no near-black navy pair — three dup slots);
+// the Resurrect cut filled every role. That asymmetry is already a finding.
 //
 // CAVEAT while a custom palette is active: pal(c0,c1) would inject the SHIPPED
 // c1 color (base_palette stays the texel-matching key) — scenes avoid pal().
 //
-// CONTROLS: 1-4 palette · LEFT/RIGHT scene (swatches+ramps / sunset /
-// night glow / portrait / blend test).
+// CONTROLS: 1-4 palette · LEFT/RIGHT scene · D dither-fake vs real blend ·
+// C glass color · T cycle AVG/ADD/MUL in the table view · mouse = glow/pane.
 
-// ---- the shipped palette, for the blend table + completeness ------------
+// ---- the shipped palette, for the blend tables + completeness -----------
 static const int PAL_PICO[32] = {
     0x000000, 0x1d2b53, 0x7e2553, 0x008751, 0xab5236, 0x5f574f, 0xc2c3c7, 0xfff1e8,
     0xff004d, 0xffa300, 0xffec27, 0x00e436, 0x29adff, 0x83769c, 0xff77a8, 0xffccaa,
@@ -85,12 +87,44 @@ static int cur_pal;        // 0 pico, 1 e32, 2 r64 full, 3 e32+derived
 static int pal_n;          // how many DISTINCT colors the candidate brings (32 or 64)
 static int cur_hex[64];    // active palette as hexes — feeds the blend tables
 static int scene;
-#define NSCENES 5
+#define NSCENES 6
+static int dither_fake;    // D — draw the blend shapes the way carts fake them today
+static int glass_i;        // C — which glass color
+static int table_i;        // T — which table the grid shows
+
+static const int  GLASS_CLR[6] = { CLR_RED, CLR_TRUE_BLUE, CLR_YELLOW, CLR_MEDIUM_GREEN, CLR_WHITE, CLR_BLACK };
+static const char *GLASS_NM[6] = { "red", "blue", "yellow", "green", "white", "black" };
+
+// ---- blend tables, built from the LIVE candidate (blendlab's trio) ------
+static unsigned char t_avg[64][64];   // (s+d)/2       — translucency / glass / shadow
+static unsigned char t_add[64][64];   // min(s+d,255)  — additive glow / light
+static unsigned char t_mul[64][64];   // s*d/255       — darken / fog / tint
 
 static int mix_hex(int a, int b) {   // plain sRGB midpoint (OKLab would be kinder)
     return ((((a >> 16 & 255) + (b >> 16 & 255)) / 2) << 16) |
            ((((a >> 8  & 255) + (b >> 8  & 255)) / 2) << 8)  |
             (((a       & 255) + (b       & 255)) / 2);
+}
+
+static int nearest_idx(int r, int g, int b) {
+    int best = 0; long bd = 0x7fffffff;
+    for (int i = 0; i < pal_n; i++) {
+        int dr = r - (cur_hex[i] >> 16 & 255), dg = g - (cur_hex[i] >> 8 & 255), db = b - (cur_hex[i] & 255);
+        long d = 2L*dr*dr + 4L*dg*dg + 3L*db*db;   // rough luma weighting
+        if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+}
+
+static void build_tables(void) {
+    for (int s = 0; s < pal_n; s++)
+        for (int d = 0; d < pal_n; d++) {
+            int sr = cur_hex[s] >> 16 & 255, sg = cur_hex[s] >> 8 & 255, sb = cur_hex[s] & 255;
+            int dr = cur_hex[d] >> 16 & 255, dg = cur_hex[d] >> 8 & 255, db = cur_hex[d] & 255;
+            t_avg[s][d] = (unsigned char)nearest_idx((sr+dr)/2, (sg+dg)/2, (sb+db)/2);
+            t_add[s][d] = (unsigned char)nearest_idx(min(sr+dr,255), min(sg+dg,255), min(sb+db,255));
+            t_mul[s][d] = (unsigned char)nearest_idx(sr*dr/255, sg*dg/255, sb*db/255);
+        }
 }
 
 static void apply_palette(int which) {
@@ -101,20 +135,90 @@ static void apply_palette(int which) {
     else if (which == 3) { for (int i = 0; i < 32; i++) cur_hex[32 + i] = mix_hex(PAL_E32[MIX_PAIRS[i][0]], PAL_E32[MIX_PAIRS[i][1]]); pal_n = 64; }
     else                 { for (int i = 0; i < 32; i++) cur_hex[32 + i] = lo[i]; pal_n = 32; }
     for (int i = 0; i < 64; i++) palette_hex(i, cur_hex[i]);
+    build_tables();
 }
 
-void init(void) {
-    apply_palette(2);    // boot on full Resurrect so the 64-slot experiment shows
-    scene = 4;           // ...on the blend scene, the verdict machine
+// ---- scenes as pure (x,y) -> index functions (blendlab's architecture):
+// one definition paints the screen AND answers "what's under this pixel?",
+// so the blend reads dst with no pget feedback.
+static int night_at(int x, int y) {
+    if (x >= 36 && x < 148 && y >= 64 && y < 172) {            // gallery flat
+        int wx = (x-36)/14, wy = (y-64)/18, ix = (x-36)%14, iy = (y-64)%18;
+        if (ix >= 4 && ix < 11 && iy >= 5 && iy < 13) {
+            int m = (wx*7 + wy*13) % 7;
+            return (m < 2) ? CLR_LIGHT_YELLOW : (m == 2) ? CLR_ORANGE : CLR_DARKER_PURPLE;
+        }
+        return CLR_DARKER_GREY;
+    }
+    if (x >= 176 && x < 292 && y >= 88 && y < 172) {           // far tower, dimmer
+        int wx = (x-176)/16, wy = (y-88)/16, ix = (x-176)%16, iy = (y-88)%16;
+        if (ix >= 5 && ix < 12 && iy >= 4 && iy < 11)
+            return ((wx*3 + wy*11) % 4 == 0) ? CLR_LIGHT_YELLOW : CLR_DARKER_BLUE;
+        return CLR_BROWNISH_BLACK;
+    }
+    if (y >= 172) return CLR_BROWNISH_BLACK;                   // street
+    if (y < 56 && ((x*31 + y*17) % 331) == 0) return CLR_LIGHT_GREY;  // stars
+    if (y < 40) return CLR_BLACK;
+    if (y < 90) return CLR_DARKER_BLUE;
+    return CLR_DARK_BLUE;
 }
 
-void update(void) {
-    for (int i = 0; i < NPAL; i++) if (keyp('1' + i)) apply_palette(i);
-    if (keyp(KEY_RIGHT)) scene = (scene + 1) % NSCENES;
-    if (keyp(KEY_LEFT))  scene = (scene + NSCENES - 1) % NSCENES;
+static int day_at(int x, int y) {
+    if (y >= 60 && y < 92) return (x/10) % 32;                 // all-32 swatch band
+    { int ddx = x-70,  ddy = y-142; if (ddx*ddx + ddy*ddy <= 24*24) return CLR_MEDIUM_GREEN; }
+    { int ddx = x-160, ddy = y-152; if (ddx*ddx + ddy*ddy <= 18*18) return CLR_ORANGE; }
+    { int ddx = x-252, ddy = y-138; if (ddx*ddx + ddy*ddy <= 27*27) return CLR_TRUE_BLUE; }
+    return (((x/16) + (y/16)) & 1) ? CLR_LIGHT_GREY : CLR_WHITE;   // tiled wall
 }
 
-// ---- scene 0: swatches + dithered ramps --------------------------------
+static void draw_scene(int (*at)(int, int)) {
+    for (int y = 0; y < SCREEN_H; y++) {
+        int x = 0;
+        while (x < SCREEN_W) {
+            int c = at(x, y), x2 = x + 1;
+            while (x2 < SCREEN_W && at(x2, y) == c) x2++;
+            rectfill(x, y, x2 - x, 1, c);
+            x = x2;
+        }
+    }
+}
+
+// ---- blended primitives (ported from blendlab, 64-wide tables) ----------
+static void brect(int x, int y, int w, int h, int c, unsigned char tbl[64][64], int (*at)(int, int)) {
+    for (int py = y; py < y + h; py++)
+        for (int px = x; px < x + w; px++) {
+            if (px < 0 || px >= SCREEN_W || py < 0 || py >= SCREEN_H) continue;
+            pset(px, py, tbl[c][at(px, py)]);
+        }
+}
+static void bcirc(int cx, int cy, int r, int c, unsigned char tbl[64][64], int (*at)(int, int)) {
+    for (int yy = -r; yy <= r; yy++)
+        for (int xx = -r; xx <= r; xx++) {
+            if (xx*xx + yy*yy > r*r) continue;
+            int px = cx + xx, py = cy + yy;
+            if (px < 0 || px >= SCREEN_W || py < 0 || py >= SCREEN_H) continue;
+            pset(px, py, tbl[c][at(px, py)]);
+        }
+}
+static void glow(int cx, int cy, int r, int c_core, int c_mid, int c_rim, int (*at)(int, int)) {
+    int r2 = r * r;
+    for (int yy = -r; yy <= r; yy++)
+        for (int xx = -r; xx <= r; xx++) {
+            int d2 = xx*xx + yy*yy;
+            if (d2 > r2) continue;
+            int px = cx + xx, py = cy + yy;
+            if (px < 0 || px >= SCREEN_W || py < 0 || py >= SCREEN_H) continue;
+            int c = (d2 * 9 < r2) ? c_core : (d2 * 9 < r2 * 4) ? c_mid : c_rim;
+            pset(px, py, t_add[c][at(px, py)]);
+        }
+}
+static void glow_fake(int cx, int cy, int r, int c_core, int c_mid, int c_rim) {
+    fillp(FILL_DOTS, -1);    circfill(cx, cy, r,     c_rim);
+    fillp(FILL_CHECKER, -1); circfill(cx, cy, r*2/3, c_mid);
+    fillp_reset();           circfill(cx, cy, r/3,   c_core);
+}
+
+// ---- scene 0: swatches + dithered ramps ---------------------------------
 static void scene_swatches(void) {
     cls(CLR_BLACK);
     for (int i = 0; i < 64; i++) {
@@ -135,7 +239,7 @@ static void scene_swatches(void) {
     }
 }
 
-// ---- scene 1: sunset — gradients + dither glow + fog -------------------
+// ---- scene 1: sunset — the dither-school corpus stress ------------------
 static void scene_sunset(void) {
     vgradient(0, 0, SCREEN_W, 60, CLR_DARK_BLUE, CLR_DARK_PURPLE);
     vgradient(0, 60, SCREEN_W, 50, CLR_DARK_PURPLE, CLR_ORANGE);
@@ -153,29 +257,7 @@ static void scene_sunset(void) {
     vgradient(0, 180, SCREEN_W, 20, CLR_PEACH, CLR_BROWN);
 }
 
-// ---- scene 2: night glow — the galerijflat "lights gap" ----------------
-static void scene_night(void) {
-    vgradient(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK, CLR_DARKER_BLUE);
-    rectfill(20, 60, 120, 130, CLR_DARKER_GREY);
-    for (int wy = 0; wy < 4; wy++)
-        for (int wx = 0; wx < 5; wx++) {
-            int lit = (wx * 7 + wy * 3) % 3 != 0;
-            rectfill(30 + wx * 22, 70 + wy * 30, 12, 16, lit ? CLR_LIGHT_YELLOW : CLR_DARKER_BLUE);
-            if (lit) { fillp(FILL_CHECKER, -1); rect(29 + wx * 22, 69 + wy * 30, 14, 18, CLR_YELLOW); fillp_reset(); }
-        }
-    for (int i = 0; i < 3; i++) {
-        int lx = 180 + i * 55;
-        line(lx, 130, lx, 188, CLR_DARK_GREY);
-        fillp(FILL_DOTS, -1);    circfill(lx, 128, 22, CLR_ORANGE);       fillp_reset();
-        fillp(FILL_CHECKER, -1); circfill(lx, 128, 13, CLR_LIGHT_YELLOW); fillp_reset();
-        circfill(lx, 128, 4, CLR_WHITE);
-    }
-    rectfill(0, 188, SCREEN_W, 12, CLR_DARKER_GREY);
-    print_outline("NEON", 226, 60, CLR_PINK, CLR_DARK_PURPLE);
-    print_outline("BAR",  238, 72, CLR_GREEN, CLR_BLUE_GREEN);
-}
-
-// ---- scene 3: portrait — skin tones are where palettes get cruel -------
+// ---- scene 2: portrait — skin tones are where palettes get cruel --------
 static void scene_portrait(void) {
     vgradient(0, 0, SCREEN_W, SCREEN_H, CLR_INDIGO, CLR_DARKER_PURPLE);
     int cx = 160, cy = 96;
@@ -196,63 +278,95 @@ static void scene_portrait(void) {
     font(FONT_SMALL); print("SKIN FAMILY 16 20 4 30 15 31", 8, 184, CLR_LIGHT_GREY); font(FONT_NORMAL);
 }
 
-// ---- scene 4: blend test — the 32-vs-64 verdict machine ----------------
-// blendlab's trick against the live candidate: mix in RGB, snap to NEAREST
-// active color. More/denser colors -> the snap lands closer -> less banding.
-static int nearest(int hex) {
-    int br = hex >> 16 & 255, bg = hex >> 8 & 255, bb = hex & 255, best = 0, bd = 1 << 30;
-    for (int i = 0; i < pal_n; i++) {
-        int dr = (cur_hex[i] >> 16 & 255) - br, dg = (cur_hex[i] >> 8 & 255) - bg, db = (cur_hex[i] & 255) - bb;
-        int d = dr * dr + dg * dg + db * db;
-        if (d < bd) { bd = d; best = i; }
+// ---- scene 3: night glow (blendlab) — D toggles fake vs real ------------
+static void scene_night(void) {
+    draw_scene(night_at);
+    static const int lamp_x[3] = { 52, 162, 268 };
+    for (int i = 0; i < 3; i++) {
+        if (dither_fake) glow_fake(lamp_x[i], 146, 26, CLR_LIGHT_YELLOW, CLR_ORANGE, CLR_DARK_BROWN);
+        else             glow(lamp_x[i], 146, 26, CLR_LIGHT_YELLOW, CLR_ORANGE, CLR_DARK_BROWN, night_at);
+        rectfill(lamp_x[i] - 1, 148, 2, 24, CLR_DARK_GREY);
+        circfill(lamp_x[i], 146, 2, CLR_WHITE);
     }
-    return best;
+    int mx = mouse_x(), my = mouse_y();                       // a glow you carry
+    if (mx > 2 && my > 20 && mx < SCREEN_W - 2 && my < SCREEN_H - 26) {
+        if (dither_fake) glow_fake(mx, my, 30, CLR_YELLOW, CLR_DARK_ORANGE, CLR_DARK_BROWN);
+        else             glow(mx, my, 30, CLR_YELLOW, CLR_DARK_ORANGE, CLR_DARK_BROWN, night_at);
+    }
 }
-static int add_hex(int a, int b) {
-    int r = (a >> 16 & 255) + (b >> 16 & 255), g = (a >> 8 & 255) + (b >> 8 & 255), bl = (a & 255) + (b & 255);
-    return (min(r, 255) << 16) | (min(g, 255) << 8) | min(bl, 255);
+
+// ---- scene 4: glass + fog (blendlab) — D toggle, C glass color ----------
+static void scene_glass(void) {
+    draw_scene(day_at);
+    int cx = (int)(now() * 14) % (SCREEN_W + 140) - 70;       // drifting cloud shadows (MUL)
+    if (dither_fake) {
+        fillp(FILL_CHECKER, -1);
+        circfill(cx, 36, 24, CLR_DARK_GREY); circfill(cx + 30, 44, 18, CLR_DARK_GREY);
+        fillp_reset();
+    } else {
+        bcirc(cx, 36, 24, CLR_MEDIUM_GREY, t_mul, day_at);
+        bcirc(cx + 30, 44, 18, CLR_MEDIUM_GREY, t_mul, day_at);
+    }
+    if (dither_fake) { fillp(FILL_CHECKER, -1); rectfill(0, 150, SCREEN_W, 36, CLR_LIGHT_GREY); fillp_reset(); }
+    else             brect(0, 150, SCREEN_W, 36, CLR_LIGHT_GREY, t_avg, day_at);   // fog band
+    int mx = clamp(mouse_x(), 40, SCREEN_W - 40), my = clamp(mouse_y(), 50, SCREEN_H - 50);
+    int gc = GLASS_CLR[glass_i];                              // the pane on your mouse
+    if (dither_fake) { fillp(FILL_CHECKER, -1); rectfill(mx - 38, my - 28, 76, 56, gc); fillp_reset(); }
+    else             brect(mx - 38, my - 28, 76, 56, gc, t_avg, day_at);
+    rect(mx - 38, my - 28, 76, 56, gc);
+    print(GLASS_NM[glass_i], mx - 34, my - 24, gc == CLR_BLACK ? CLR_WHITE : gc);
 }
-static void scene_blend(void) {
-    // backdrop: wide bands of a sky->warm run (each pixel's dst is knowable)
-    static const int bands[8] = { 1, 12, 6, 7, 10, 9, 8, 2 };
-    for (int b = 0; b < 8; b++) rectfill(b * 40, 12, 40, 180, bands[b]);
-    // glass pane (AVG with white) and shadow pane (AVG with black), per-pixel
-    for (int py = 30; py < 80; py++)
-        for (int px = 24; px < 296; px++)
-            pset(px, py, nearest(mix_hex(cur_hex[bands[px / 40]], 0xffffff)));
-    for (int py = 132; py < 172; py++)
-        for (int px = 24; px < 296; px++)
-            pset(px, py, nearest(mix_hex(cur_hex[bands[px / 40]], 0x000000)));
-    // additive glow disc (ADD orange), per-pixel, radius falloff in two steps
-    for (int py = 76; py < 136; py++)
-        for (int px = 130; px < 190; px++) {
-            int dx2 = px - 160, dy2 = py - 106, d2 = dx2 * dx2 + dy2 * dy2;
-            if (d2 > 30 * 30) continue;
-            int glow = d2 < 15 * 15 ? 0xff8800 : 0x7f4400;
-            pset(px, py, nearest(add_hex(cur_hex[bands[px / 40]], glow)));
-        }
+
+// ---- scene 5: the raw table — eyeball where the snap bands --------------
+static void scene_table(void) {
+    cls(CLR_BROWNISH_BLACK);
+    unsigned char (*tbl)[64] = (table_i == 0) ? t_avg : (table_i == 1) ? t_add : t_mul;
+    const char *nm = (table_i == 0) ? "AVG  (s+d)/2" : (table_i == 1) ? "ADD  min(s+d,255)" : "MUL  s*d/255";
+    int cell = pal_n == 64 ? 2 : 4, ox = 96, oy = 40;
+    print_centered(str("%s   %dx%d", nm, pal_n, pal_n), SCREEN_W / 2, 16, CLR_LIGHT_YELLOW);
+    print("src", ox - 36, oy + 58, CLR_LIGHT_GREY);
+    print("dst", ox + 140, oy - 16, CLR_LIGHT_GREY);
+    for (int s = 0; s < pal_n; s++) rectfill(ox - 2 - cell, oy + s*cell, cell, cell, s);
+    for (int d = 0; d < pal_n; d++) rectfill(ox + d*cell, oy - 2 - cell, cell, cell, d);
+    for (int s = 0; s < pal_n; s++)
+        for (int d = 0; d < pal_n; d++)
+            rectfill(ox + d*cell, oy + s*cell, cell, cell, tbl[s][d]);
     font(FONT_SMALL);
-    print("GLASS (avg white)", 26, 24, CLR_WHITE);
-    print("SHADOW (avg black)", 26, 126, CLR_WHITE);
-    print(str("ADD glow   snapped to %d colors", pal_n), 116, 174, CLR_WHITE);
+    print_centered("cell = table[src][dst]   T cycles AVG/ADD/MUL", SCREEN_W / 2, oy + pal_n*cell + 6, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
+}
+
+void init(void) {
+    apply_palette(2);    // boot on full Resurrect 64...
+    scene = 3;           // ...over the blended night — the verdict view
+}
+
+void update(void) {
+    for (int i = 0; i < NPAL; i++) if (keyp('1' + i)) apply_palette(i);
+    if (keyp(KEY_RIGHT)) scene = (scene + 1) % NSCENES;
+    if (keyp(KEY_LEFT))  scene = (scene + NSCENES - 1) % NSCENES;
+    if (keyp('D')) dither_fake = !dither_fake;
+    if (keyp('C')) glass_i = (glass_i + 1) % 6;
+    if (keyp('T')) table_i = (table_i + 1) % 3;
 }
 
 void draw(void) {
     switch (scene) {
         case 0: scene_swatches(); break;
         case 1: scene_sunset();   break;
-        case 2: scene_night();    break;
-        case 3: scene_portrait(); break;
-        case 4: scene_blend();    break;
+        case 2: scene_portrait(); break;
+        case 3: scene_night();    break;
+        case 4: scene_glass();    break;
+        case 5: scene_table();    break;
     }
     static const char *pnames[NPAL] = { "1 PICO-8 (shipped)", "2 ENDESGA 32", "3 RESURRECT 64", "4 E32+32 DERIVED" };
-    static const char *snames[NSCENES] = { "SWATCHES+RAMPS", "SUNSET", "NIGHT GLOW", "PORTRAIT", "BLEND TEST" };
+    static const char *snames[NSCENES] = { "SWATCHES+RAMPS", "SUNSET", "PORTRAIT", "NIGHT GLOW", "GLASS+FOG", "BLEND TABLE" };
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print(pnames[cur_pal], 4, 2, CLR_WHITE);
-    print_right(str("%s  %d/%d", snames[scene], scene + 1, NSCENES), 316, 2, CLR_LIGHT_GREY);
+    print_right(str("%s%s  %d/%d", scene >= 3 && scene <= 4 ? (dither_fake ? "FAKE " : "REAL ") : "",
+                    snames[scene], scene + 1, NSCENES), 316, 2, CLR_LIGHT_GREY);
     font(FONT_SMALL);
     rectfill(0, 193, SCREEN_W, 7, CLR_BLACK);
-    print("1-4 palette   LEFT/RIGHT scene   same indices, new clothes", 4, 194, CLR_MEDIUM_GREY);
+    print("1-4 palette  LEFT/RIGHT scene  D fake/real  C glass  T table", 4, 194, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }

@@ -190,6 +190,16 @@ What this doc adds to the ADR's inputs:
      pink and the additive glow vanishes over white** (nowhere to land);
      E32+derived tints coherently; full Resurrect 64 is smoothest. Palette
      density *is* blend fidelity — measured, not argued.
+   - **v3 absorbed blendlab's scene-function architecture** (night glow with
+     real additive streetlights vs the `D`-toggled fillp fake, glass + MUL
+     cloud shadows + AVG fog, the raw AVG/ADD/MUL table grid) with all three
+     tables rebuilt from the live candidate on every switch. This answered a
+     confusion worth recording: **candidates 2 and 4 are identical in the
+     dither scenes by construction** — sunset/portrait only reference indices
+     0–31; derived/upper colors only appear where something *samples* them,
+     i.e. in the blend paths. With the blendlab scenes in, E32 vs E32+derived
+     finally separates on screen: the derived slots add intermediate glow-rim
+     steps plain E32 doesn't have.
 2. Decide + ship the new default (Layer 1). Re-bake thumbnails.
 3. `palette_set` + `de:palette` chunk (Layer 2) — independently useful even if
    blending waited forever.

@@ -1921,5 +1921,13 @@
     "kind": [
       "tech-demo"
     ]
+  },
+  {
+    "title": "wave editor",
+    "description": "Draw the actual waveform. The engine has four custom wave slots (INSTR_USER0-3), each a 64-sample single cycle — paint that cycle with the mouse and hear it instantly. The killer trick: SPACE starts a drone, then redraw the shape while it rings — wave_set() is live, so the timbre morphs under your pen. Seed shapes (sine, square, saw, organ, vocal, wobble) plus SMOOTH and NORM, A-K play notes, P toggles an arp. Press E to export wave_set() code; your drawn wave then works everywhere a wave id does: note(), instruments, the other sound carts.",
+    "file": "waveed.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
   }
 ]

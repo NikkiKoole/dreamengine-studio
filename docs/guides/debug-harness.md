@@ -136,10 +136,14 @@ echo "/abs/path/to/frame.png"  > build/.bake/screenshot_request
 
 # state snapshot (frame + time + all active watch() values as JSON)
 echo "/abs/path/to/state.json" > build/.bake/state_request
+
+# profiler snapshot (same schema as build/perf.json — frame budget + draw-call counts)
+echo "/abs/path/to/perf.json"  > build/.bake/profiler_request
 ```
 
-Both work simultaneously. The game creates `build/.bake/` on startup, so the
-directory always exists.
+All three work simultaneously. The game creates `build/.bake/` on startup, so the
+directory always exists. `profiler_request` works in any native build — you do not
+need `-DDE_PROFILE` or the `⏱ profile` button; the counters run in every normal run.
 
 ### Before/after diff
 

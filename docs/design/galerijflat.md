@@ -406,10 +406,46 @@ any tint. `TINT_FILTERS[]` lists the active filters — keep it in sync with the
 
 Latest commits: `af3c6f1` (tint) → `57b0dae` (tint_clash guard).
 
+### Step 4 — facade detail pass (2026-06-04, session 4 continued)
+
+Everything on top of the tint/clock foundation:
+
+**Colour guards.** `tint_clash` extended to the constraint chain: `wallC` →
+`panelC` (railing) → `doorBase`. Each colour is re-rolled until distinct from
+all previously-established colours under all tint filters.
+
+**Door palette.** `DOOR_COLORS[12]` replaces the 6-option CURT subset — dark
+reds/browns/greens/blues/mauve/indigo/teal now all possible door colours.
+Per-unit door variation (15% random) removed; all doors use building-wide
+`doorBase` as in real galerijflat practice.
+
+**Curtain colours.** `NCURT` 6 → 14 pairs: added yellow, lime green, peach,
+cream (light-yellow/brown), white, indigo, teal, navy. Blue dominated before
+because it was tint-exempt and only 1-in-6 options; with 14 options the
+per-colour rate drops and the full range is visible.
+
+**fillp patterns.** Per-household `fillPat` field, rolled from:
+- Vitrage: 16 patterns (nets, laces, diagonals, diamonds, grids)
+- Curtain: 10 patterns (solid, weaves, ribs, stripes, checker)
+- Venetian: 2 patterns (fine 1px / coarse 2px slats)
+Pattern holes show the glass colour through the fabric.
+
+**Railing.** RAIL_PANEL removed — bars only. `panelC` (clash-guarded) used for
+bar colour; `slabC` for the 1px handrail cap (always contrasts with dark wall).
+Railing 2px taller (handrail at `yb-9`, bars 6px). Letterslot moved to `yb-12`.
+
+**Gallery floor depth.** `GALLERY_FLOOR=2` — a 2px `slabC` strip between door
+bottom and railing, visible through bar gaps. Door height shortened by 2px.
+
+**Windowsill.** 1px `slabC` structural ledge at `wy+WH-1` (bottom of glass),
+drawn before vensterbank items so plants/vases sit on top.
+
+**Bikes removed.** Read as noise at this scale.
+
 ## Handoff — next agent starts here (2026-06-04, session 4 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Latest commit: `57b0dae`.
+Latest commit: `e54d940`.
 
 **The bake loop** (~10s per iteration):
 ```bash
@@ -419,7 +455,8 @@ node tools/make-cart.js --run editor/public/carts/galerijflat.cart.png
 magick build/.bake/galerijflat/screenshot.png -scale 960x600 /tmp/gf.png
 ```
 
-**What's done:** static facade + clock + light schedules + global facade tint.
+**What's done:** static facade + clock/light schedules + global tint + full
+detail pass (railing, doors, curtains, floor depth, sill, fillp variety).
 
 **Next build steps:** gallery walkers (figures walking the band — the building's
 main "alive" signal) → sys 7 (elevator state machine) → sys 4 (the flip).

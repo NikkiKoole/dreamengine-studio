@@ -13,19 +13,13 @@
 // dark by day and neon-lit at night. Sprites are generated programmatically so we
 // can reach extended palette indices (16–31) directly.
 
+const { blank, pixel, rectfill, flat } = require('../sprite-draw.js')
+
 const T = 0;
-const blank = () => Array.from({ length: 16 }, () => new Array(16).fill(T));
-function box(g, x0, y0, x1, y1, c) {
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++)
-      if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c;
-}
-function dot(g, x, y, c) { if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c; }
-const flat = g => g.flat();
 
 // ── ground / nature ──────────────────────────────────────────────
 function street() {
-  const g = blank(); box(g, 0, 0, 15, 15, 5);
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 5);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
     const n = (x * 7 + y * 13) % 19;
     if (n === 0) g[y][x] = 6; else if (n === 4) g[y][x] = 22;
@@ -33,7 +27,7 @@ function street() {
   return flat(g);
 }
 function grass() {
-  const g = blank(); box(g, 0, 0, 15, 15, 3);
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 3);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
     const n = (x * 5 + y * 11) % 13;
     if (n === 0) g[y][x] = 11; else if (n === 6) g[y][x] = 27;
@@ -41,7 +35,7 @@ function grass() {
   return flat(g);
 }
 function water() {
-  const g = blank(); box(g, 0, 0, 15, 15, 28);
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 28);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
     const n = (x * 5 + y * 3) % 11;
     if (n === 0) g[y][x] = 12; else if (n === 6) g[y][x] = 1;
@@ -51,84 +45,84 @@ function water() {
 
 // ── buildings (transparent above the silhouette so sky shows through) ──
 function bldg(roof) {
-  const g = blank(); box(g, 0, 0, 15, 15, 22);
-  box(g, 0, 0, 0, 15, 5); box(g, 15, 0, 15, 15, 5);
-  for (let y = 2; y < 15; y += 3) for (let x = 2; x < 14; x += 3) box(g, x, y, x + 1, y + 1, 10);
-  if (roof) box(g, 0, 0, 15, 1, 16);
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 22);
+  rectfill(g, 0, 0, 0, 15, 5); rectfill(g, 15, 0, 15, 15, 5);
+  for (let y = 2; y < 15; y += 3) for (let x = 2; x < 14; x += 3) rectfill(g, x, y, x + 1, y + 1, 10);
+  if (roof) rectfill(g, 0, 0, 15, 1, 16);
   return flat(g);
 }
 function tower() {
-  const g = blank(); box(g, 1, 0, 14, 15, 28);
-  box(g, 1, 0, 1, 15, 12);                                   // edge highlight
-  for (let y = 1; y < 16; y += 3) for (let x = 3; x < 14; x += 3) box(g, x, y, x + 1, y + 1, 10);
+  const g = blank(); rectfill(g, 1, 0, 14, 15, 28);
+  rectfill(g, 1, 0, 1, 15, 12);                                   // edge highlight
+  for (let y = 1; y < 16; y += 3) for (let x = 3; x < 14; x += 3) rectfill(g, x, y, x + 1, y + 1, 10);
   return flat(g);
 }
 function warehouse() {
-  const g = blank(); box(g, 0, 3, 15, 15, 6); box(g, 0, 0, 15, 2, 5);
-  for (let x = 0; x < 16; x += 2) box(g, x, 4, x, 15, 22);   // corrugation
-  box(g, 5, 8, 10, 15, 16);                                  // big door
-  box(g, 2, 5, 4, 7, 10); box(g, 11, 5, 13, 7, 10);          // windows
+  const g = blank(); rectfill(g, 0, 3, 15, 15, 6); rectfill(g, 0, 0, 15, 2, 5);
+  for (let x = 0; x < 16; x += 2) rectfill(g, x, 4, x, 15, 22);   // corrugation
+  rectfill(g, 5, 8, 10, 15, 16);                                  // big door
+  rectfill(g, 2, 5, 4, 7, 10); rectfill(g, 11, 5, 13, 7, 10);          // windows
   return flat(g);
 }
 function house() {
   const g = blank();
-  for (let y = 0; y < 5; y++) box(g, 6 - y, y, 9 + y, y, 24); // pitched roof
-  box(g, 3, 5, 12, 15, 15);                                   // walls
-  box(g, 7, 9, 9, 15, 4);                                     // door
-  box(g, 4, 7, 5, 9, 10); box(g, 10, 7, 11, 9, 10);           // windows
+  for (let y = 0; y < 5; y++) rectfill(g, 6 - y, y, 9 + y, y, 24); // pitched roof
+  rectfill(g, 3, 5, 12, 15, 15);                                   // walls
+  rectfill(g, 7, 9, 9, 15, 4);                                     // door
+  rectfill(g, 4, 7, 5, 9, 10); rectfill(g, 10, 7, 11, 9, 10);           // windows
   return flat(g);
 }
 function block() {
-  const g = blank(); box(g, 0, 0, 15, 15, 5); box(g, 0, 0, 0, 15, 22);
-  for (let y = 1; y < 15; y += 3) for (let x = 2; x < 15; x += 3) box(g, x, y, x + 1, y + 1, 10);
-  for (let x = 0; x < 16; x++) if ((x * 3) % 7 === 0) dot(g, x, 15, 16); // grime
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 5); rectfill(g, 0, 0, 0, 15, 22);
+  for (let y = 1; y < 15; y += 3) for (let x = 2; x < 15; x += 3) rectfill(g, x, y, x + 1, y + 1, 10);
+  for (let x = 0; x < 16; x++) if ((x * 3) % 7 === 0) pixel(g, x, 15, 16); // grime
   return flat(g);
 }
 function stall() {
-  const g = blank(); box(g, 0, 3, 15, 15, 4);
-  for (let x = 0; x < 16; x++) box(g, x, 0, x, 2, x % 2 ? 8 : 7); // striped awning
-  box(g, 1, 4, 14, 5, 9);                                          // goods
-  box(g, 2, 6, 13, 9, 2);                                          // dark interior
-  box(g, 1, 10, 2, 15, 20); box(g, 13, 10, 14, 15, 20);            // posts
+  const g = blank(); rectfill(g, 0, 3, 15, 15, 4);
+  for (let x = 0; x < 16; x++) rectfill(g, x, 0, x, 2, x % 2 ? 8 : 7); // striped awning
+  rectfill(g, 1, 4, 14, 5, 9);                                          // goods
+  rectfill(g, 2, 6, 13, 9, 2);                                          // dark interior
+  rectfill(g, 1, 10, 2, 15, 20); rectfill(g, 13, 10, 14, 15, 20);            // posts
   return flat(g);
 }
 function tree() {
-  const g = blank(); box(g, 7, 10, 8, 15, 4);                      // trunk
-  box(g, 3, 2, 12, 9, 3); box(g, 4, 1, 11, 1, 3);
-  box(g, 2, 4, 2, 7, 3); box(g, 13, 4, 13, 7, 3);
+  const g = blank(); rectfill(g, 7, 10, 8, 15, 4);                      // trunk
+  rectfill(g, 3, 2, 12, 9, 3); rectfill(g, 4, 1, 11, 1, 3);
+  rectfill(g, 2, 4, 2, 7, 3); rectfill(g, 13, 4, 13, 7, 3);
   for (let y = 2; y < 9; y++) for (let x = 3; x < 13; x++) {
     if ((x * 5 + y * 3) % 6 === 0) g[y][x] = 11; else if ((x + y) % 5 === 0) g[y][x] = 27;
   }
   return flat(g);
 }
 function crate() {
-  const g = blank(); box(g, 2, 4, 13, 15, 4);
-  box(g, 2, 4, 13, 4, 20); box(g, 2, 15, 13, 15, 20);
-  box(g, 2, 4, 2, 15, 20); box(g, 13, 4, 13, 15, 20);
-  for (let i = 0; i < 11; i++) { dot(g, 3 + i, 5 + i, 9); dot(g, 13 - i, 5 + i, 9); } // X straps
+  const g = blank(); rectfill(g, 2, 4, 13, 15, 4);
+  rectfill(g, 2, 4, 13, 4, 20); rectfill(g, 2, 15, 13, 15, 20);
+  rectfill(g, 2, 4, 2, 15, 20); rectfill(g, 13, 4, 13, 15, 20);
+  for (let i = 0; i < 11; i++) { pixel(g, 3 + i, 5 + i, 9); pixel(g, 13 - i, 5 + i, 9); } // X straps
   return flat(g);
 }
 function fence() {
-  const g = blank(); box(g, 0, 9, 15, 10, 6);
-  for (let x = 1; x < 16; x += 3) { box(g, x, 6, x + 1, 15, 6); dot(g, x, 5, 6); }
+  const g = blank(); rectfill(g, 0, 9, 15, 10, 6);
+  for (let x = 1; x < 16; x += 3) { rectfill(g, x, 6, x + 1, 15, 6); pixel(g, x, 5, 6); }
   return flat(g);
 }
 function lamp() {
-  const g = blank(); box(g, 0, 0, 15, 15, 3);                      // grass base
-  box(g, 7, 4, 8, 15, 5);                                          // pole
-  box(g, 6, 2, 9, 4, 10);                                          // globe (glows at night)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 3);                      // grass base
+  rectfill(g, 7, 4, 8, 15, 5);                                          // pole
+  rectfill(g, 6, 2, 9, 4, 10);                                          // globe (glows at night)
   return flat(g);
 }
 
 // ── pedestrian (16×16, shirt in magic index 28) ──────────────────
 function ped(skin, hair, raise) {
   const g = blank();
-  box(g, 5, 1, 10, 2, hair); box(g, 5, 3, 10, 6, skin);            // head
-  dot(g, 6, 5, 16); dot(g, 9, 5, 16);                              // eyes
-  box(g, 5, 7, 10, 11, 28); box(g, 4, 7, 4, 10, 28); box(g, 11, 7, 11, 10, 28); // shirt + arms
-  if (raise) { box(g, 5, 12, 6, 14, 1); box(g, 9, 12, 10, 15, 1); }
-  else       { box(g, 5, 12, 6, 15, 1); box(g, 9, 12, 10, 14, 1); }
-  box(g, 5, 15, 6, 15, 16); box(g, 9, 15, 10, 15, 16);             // shoes
+  rectfill(g, 5, 1, 10, 2, hair); rectfill(g, 5, 3, 10, 6, skin);            // head
+  pixel(g, 6, 5, 16); pixel(g, 9, 5, 16);                              // eyes
+  rectfill(g, 5, 7, 10, 11, 28); rectfill(g, 4, 7, 4, 10, 28); rectfill(g, 11, 7, 11, 10, 28); // shirt + arms
+  if (raise) { rectfill(g, 5, 12, 6, 14, 1); rectfill(g, 9, 12, 10, 15, 1); }
+  else       { rectfill(g, 5, 12, 6, 15, 1); rectfill(g, 9, 12, 10, 14, 1); }
+  rectfill(g, 5, 15, 6, 15, 16); rectfill(g, 9, 15, 10, 15, 16);             // shoes
   return flat(g);
 }
 

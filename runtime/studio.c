@@ -681,6 +681,11 @@ static void harness_dump(int fno) {
     UnloadImage(shot);
 }
 
+// forward declaration — prof_write is defined in the profiler block below
+#ifndef PLATFORM_WEB
+static void prof_write(const char *path);
+#endif
+
 // on-demand inspection: poll .bake/screenshot_request and .bake/state_request each
 // frame. each file contains the desired output path; we capture, write, then delete
 // the request file as the handshake — gone means fresh and ready to read.
@@ -724,7 +729,6 @@ static void harness_inspect(int fno) {
             }
         }
     }
-#ifdef DE_PROFILE
     // profiler snapshot
     f = fopen(".bake/profiler_request", "r");
     if (f) {
@@ -734,18 +738,18 @@ static void harness_inspect(int fno) {
         remove(".bake/profiler_request");
         if (out[0]) prof_write(out);
     }
-#endif
 }
 #endif
 
-// ── profiler instrumentation (compiled in only with -DDE_PROFILE) ─────────
+// ── profiler instrumentation (always compiled in for native builds) ──────
 // Counts draw-primitive calls and times the CPU work per frame (update+draw,
 // excluding the vsync wait). A re-entrancy guard means only the OUTERMOST
 // public call is counted, so circfill()→trifill() reads as one circfill, not
-// also a trifill. Flushed to build/perf.json every 30 frames so the data
-// survives the editor killing the process after sampling. The editor reads it
-// back. A normal build defines PROF() as a no-op — zero cost, nothing emitted.
-#ifdef DE_PROFILE
+// also a trifill. Flushed to build/perf.json every 30 frames; also written
+// on demand via .bake/profiler_request (same trigger-file pattern as
+// screenshot_request / state_request). -DDE_PROFILE adds the macOS `sample`
+// hotspot pass the editor's Profile button uses; counters work without it.
+#ifndef PLATFORM_WEB
 typedef struct { const char *name; long calls; } ProfCounter;
 static ProfCounter prof_counters[64];
 static int    prof_counter_n   = 0;
@@ -796,6 +800,11 @@ static void prof_write(const char *path) {
 }
 #define PROF(n) ProfGuard _prof_g __attribute__((cleanup(prof_pop))) = prof_push(n)
 #else
+#define PROF(n) ((void)0)
+#endif
+// release build strips all profiler + inspection overhead
+#ifdef DE_RELEASE
+#undef PROF
 #define PROF(n) ((void)0)
 #endif
 
@@ -895,7 +904,7 @@ static void loop_step(void) {
     // a conditional `if (gameover) fade(0.5f);` clears itself once the state ends —
     // carts never need to call fade(0) by hand.
     fade_amt = 0.0f;
-#ifdef DE_PROFILE
+#if !defined(PLATFORM_WEB) && !defined(DE_RELEASE)
     double prof_t0 = GetTime();
 #endif
 #ifdef DE_TCC
@@ -918,7 +927,7 @@ static void loop_step(void) {
         cam_active = false;
         EndMode2D();
     EndTextureMode();
-#ifdef DE_PROFILE
+#if !defined(PLATFORM_WEB) && !defined(DE_RELEASE)
     {
         // skip the first few frames: they carry one-time costs (texture/font
         // loads, first GL submit) that would dominate the peak misleadingly.
@@ -967,7 +976,9 @@ static void loop_step(void) {
 #ifndef PLATFORM_WEB
     harness_trace(fno);                    // structured state for this frame (before aging)
     harness_dump(fno);                     // filmstrip PNG every Nth frame
+#ifndef DE_RELEASE
     harness_inspect(fno);                  // on-demand screenshot + state (trigger-file)
+#endif
     if (det_mode) det_clock += DET_DT;     // advance the synthetic clock for now()/timer()
 #endif
     age_watches();   // frame-end: expire watches whose branch stopped firing

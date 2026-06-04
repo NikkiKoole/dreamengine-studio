@@ -25,187 +25,165 @@ const HAIR = 26      // MAGIC: pal(26, hairColor)
 const SHOE = 5       // fixed dark grey
 const WHT  = 7
 
-// ── tiny pixel-canvas helpers ─────────────────────────────────
-const blank = () => Array.from({ length: 16 }, () => new Array(16).fill(T))
-function box(g, x0, y0, x1, y1, c) {
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++)
-      if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c
-}
-function dot(g, x, y, c) { if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c }
+const { blank, pixel, rectfill, flat: flatLib, outlined } = require('../sprite-draw.js')
 
 // add a 1px OUT outline into transparent pixels touching the silhouette.
 // run per-slot — torso is flush to the slot edge so the waist seam stays clean.
-function outlined(g) {
-  const o = g.map(r => r.slice())
-  for (let y = 0; y < 16; y++)
-    for (let x = 0; x < 16; x++) {
-      if (g[y][x] !== T) continue
-      let touch = false
-      for (let dy = -1; dy <= 1 && !touch; dy++)
-        for (let dx = -1; dx <= 1; dx++) {
-          const ny = y + dy, nx = x + dx
-          if (ny >= 0 && ny < 16 && nx >= 0 && nx < 16 &&
-              g[ny][nx] !== T && g[ny][nx] !== OUT) { touch = true; break }
-        }
-      if (touch) o[y][x] = OUT
-    }
-  return o
-}
-const flat = g => outlined(g).flat()
-const flatRaw = g => g.flat()
+// local flat auto-outlines character sprites
+const flat = g => flatLib(outlined(g))
+// flatRaw → use flatLib directly for tiles (no outline)
 
 // ── character TOPS (head + torso + arms), facing RIGHT ───────────────
 function headTorso(g) {
-  box(g, 5, 1, 11, 2, HAIR)     // hair cap
-  box(g, 5, 2, 6, 6, HAIR)      // back of head
-  box(g, 7, 2, 11, 6, SKIN)     // face (front = right)
-  dot(g, 10, 3, WHT); dot(g, 11, 4, OUT)   // eye + brow
-  dot(g, 11, 5, OUT)            // mouth/jaw hint
-  box(g, 5, 7, 11, 8, SHIRT)    // shoulders
-  box(g, 6, 9, 11, 15, SHIRT)   // chest → waist (flush bottom row 15 = clean seam)
+  rectfill(g, 5, 1, 11, 2, HAIR)     // hair cap
+  rectfill(g, 5, 2, 6, 6, HAIR)      // back of head
+  rectfill(g, 7, 2, 11, 6, SKIN)     // face (front = right)
+  pixel(g, 10, 3, WHT); pixel(g, 11, 4, OUT)   // eye + brow
+  pixel(g, 11, 5, OUT)            // mouth/jaw hint
+  rectfill(g, 5, 7, 11, 8, SHIRT)    // shoulders
+  rectfill(g, 6, 9, 11, 15, SHIRT)   // chest → waist (flush bottom row 15 = clean seam)
 }
 function topIdle() {
   const g = blank(); headTorso(g)
-  box(g, 4, 8, 5, 12, SHIRT); dot(g, 4, 12, SKIN); dot(g, 4, 13, SKIN) // back arm
-  box(g, 11, 9, 12, 13, SHIRT); box(g, 11, 13, 12, 14, SKIN)           // front arm
+  rectfill(g, 4, 8, 5, 12, SHIRT); pixel(g, 4, 12, SKIN); pixel(g, 4, 13, SKIN) // back arm
+  rectfill(g, 11, 9, 12, 13, SHIRT); rectfill(g, 11, 13, 12, 14, SKIN)           // front arm
   return flat(g)
 }
 function topPunch() {
   const g = blank(); headTorso(g)
-  box(g, 5, 9, 6, 11, SHIRT)                         // back arm cocked
-  box(g, 11, 9, 14, 10, SHIRT); box(g, 13, 9, 15, 11, SKIN) // straight punch + big fist
+  rectfill(g, 5, 9, 6, 11, SHIRT)                         // back arm cocked
+  rectfill(g, 11, 9, 14, 10, SHIRT); rectfill(g, 13, 9, 15, 11, SKIN) // straight punch + big fist
   return flat(g)
 }
 function topHurt() {
   const g = blank()
   // head snapped back (shifted left/up)
-  box(g, 5, 0, 10, 1, HAIR); box(g, 5, 1, 6, 5, HAIR)
-  box(g, 6, 1, 10, 5, SKIN); dot(g, 9, 2, OUT)
-  box(g, 5, 6, 11, 8, SHIRT); box(g, 6, 9, 11, 15, SHIRT)
-  box(g, 3, 5, 5, 7, SHIRT); dot(g, 3, 7, SKIN)      // arms flung up
-  box(g, 11, 5, 13, 7, SHIRT); dot(g, 13, 7, SKIN)
+  rectfill(g, 5, 0, 10, 1, HAIR); rectfill(g, 5, 1, 6, 5, HAIR)
+  rectfill(g, 6, 1, 10, 5, SKIN); pixel(g, 9, 2, OUT)
+  rectfill(g, 5, 6, 11, 8, SHIRT); rectfill(g, 6, 9, 11, 15, SHIRT)
+  rectfill(g, 3, 5, 5, 7, SHIRT); pixel(g, 3, 7, SKIN)      // arms flung up
+  rectfill(g, 11, 5, 13, 7, SHIRT); pixel(g, 13, 7, SKIN)
   return flat(g)
 }
 function topGrab() {
   const g = blank(); headTorso(g)
-  box(g, 11, 8, 15, 9, SHIRT); box(g, 14, 8, 15, 9, SKIN)   // both arms forward
-  box(g, 11, 11, 15, 12, SHIRT); box(g, 14, 11, 15, 12, SKIN)
+  rectfill(g, 11, 8, 15, 9, SHIRT); rectfill(g, 14, 8, 15, 9, SKIN)   // both arms forward
+  rectfill(g, 11, 11, 15, 12, SHIRT); rectfill(g, 14, 11, 15, 12, SKIN)
   return flat(g)
 }
 function topKick() {
   const g = blank(); headTorso(g)
-  box(g, 3, 7, 5, 9, SHIRT); dot(g, 3, 9, SKIN)      // back arm out for balance
-  box(g, 10, 11, 11, 13, SHIRT); dot(g, 10, 13, SKIN)
+  rectfill(g, 3, 7, 5, 9, SHIRT); pixel(g, 3, 9, SKIN)      // back arm out for balance
+  rectfill(g, 10, 11, 11, 13, SHIRT); pixel(g, 10, 13, SKIN)
   return flat(g)
 }
 
 // ── character BOTTOMS (hips + legs), local y 0..15 ───────────────────
 function botStand() {
   const g = blank()
-  box(g, 6, 0, 11, 3, PANTS)                 // pelvis (flush top)
-  box(g, 6, 3, 8, 12, PANTS); box(g, 6, 13, 9, 15, SHOE)   // back leg + shoe
-  box(g, 9, 3, 11, 12, PANTS); box(g, 9, 13, 12, 15, SHOE) // front leg + shoe
+  rectfill(g, 6, 0, 11, 3, PANTS)                 // pelvis (flush top)
+  rectfill(g, 6, 3, 8, 12, PANTS); rectfill(g, 6, 13, 9, 15, SHOE)   // back leg + shoe
+  rectfill(g, 9, 3, 11, 12, PANTS); rectfill(g, 9, 13, 12, 15, SHOE) // front leg + shoe
   return flat(g)
 }
 function botWalkA() {
   const g = blank()
-  box(g, 6, 0, 11, 3, PANTS)
-  box(g, 4, 4, 6, 12, PANTS); box(g, 3, 13, 6, 15, SHOE)   // back leg trailing
-  box(g, 10, 4, 12, 11, PANTS); box(g, 11, 12, 14, 14, SHOE) // front leg leading
+  rectfill(g, 6, 0, 11, 3, PANTS)
+  rectfill(g, 4, 4, 6, 12, PANTS); rectfill(g, 3, 13, 6, 15, SHOE)   // back leg trailing
+  rectfill(g, 10, 4, 12, 11, PANTS); rectfill(g, 11, 12, 14, 14, SHOE) // front leg leading
   return flat(g)
 }
 function botWalkB() {
   const g = blank()
-  box(g, 6, 0, 11, 3, PANTS)
-  box(g, 7, 3, 9, 13, PANTS); box(g, 6, 14, 9, 15, SHOE)   // legs passing center
-  box(g, 9, 3, 11, 13, PANTS); box(g, 9, 14, 12, 15, SHOE)
+  rectfill(g, 6, 0, 11, 3, PANTS)
+  rectfill(g, 7, 3, 9, 13, PANTS); rectfill(g, 6, 14, 9, 15, SHOE)   // legs passing center
+  rectfill(g, 9, 3, 11, 13, PANTS); rectfill(g, 9, 14, 12, 15, SHOE)
   return flat(g)
 }
 function botLunge() {
   const g = blank()
-  box(g, 5, 0, 10, 3, PANTS)
-  box(g, 3, 4, 5, 12, PANTS); box(g, 2, 13, 5, 15, SHOE)   // back foot planted wide
-  box(g, 10, 4, 13, 11, PANTS); box(g, 11, 12, 15, 14, SHOE) // front foot lunged
+  rectfill(g, 5, 0, 10, 3, PANTS)
+  rectfill(g, 3, 4, 5, 12, PANTS); rectfill(g, 2, 13, 5, 15, SHOE)   // back foot planted wide
+  rectfill(g, 10, 4, 13, 11, PANTS); rectfill(g, 11, 12, 15, 14, SHOE) // front foot lunged
   return flat(g)
 }
 function botKick() {
   const g = blank()
-  box(g, 4, 0, 9, 4, PANTS)
-  box(g, 5, 4, 7, 13, PANTS); box(g, 4, 14, 7, 15, SHOE)   // support leg
-  box(g, 8, 3, 14, 6, PANTS); box(g, 13, 3, 15, 6, SHOE)   // kicking leg out to the right
+  rectfill(g, 4, 0, 9, 4, PANTS)
+  rectfill(g, 5, 4, 7, 13, PANTS); rectfill(g, 4, 14, 7, 15, SHOE)   // support leg
+  rectfill(g, 8, 3, 14, 6, PANTS); rectfill(g, 13, 3, 15, 6, SHOE)   // kicking leg out to the right
   return flat(g)
 }
 
 // ── tiles (16×16, opaque — avoid index 0 so nothing turns transparent) ──
 function brick() {
-  const g = blank(); box(g, 0, 0, 15, 15, 4)              // brown base
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 4)              // brown base
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
       if (y % 5 === 0) g[y][x] = 20                        // mortar line (darker)
       else if (((Math.floor(y / 5) % 2) ? x + 4 : x) % 8 === 0) g[y][x] = 20
       else if ((x * 3 + y * 7) % 11 === 0) g[y][x] = 24    // fleck
     }
-  return flatRaw(g)
+  return flatLib(g)
 }
 function winLit() {
-  const g = blank(); box(g, 0, 0, 15, 15, 4)
-  box(g, 2, 2, 13, 13, 9); box(g, 3, 3, 12, 12, 10)        // glowing window
-  box(g, 7, 2, 8, 13, 4); box(g, 2, 7, 13, 8, 4)           // frame cross
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 4)
+  rectfill(g, 2, 2, 13, 13, 9); rectfill(g, 3, 3, 12, 12, 10)        // glowing window
+  rectfill(g, 7, 2, 8, 13, 4); rectfill(g, 2, 7, 13, 8, 4)           // frame cross
+  return flatLib(g)
 }
 function winDark() {
-  const g = blank(); box(g, 0, 0, 15, 15, 4)
-  box(g, 2, 2, 13, 13, 1); box(g, 3, 3, 12, 12, 17)
-  box(g, 7, 2, 8, 13, 4); box(g, 2, 7, 13, 8, 4)
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 4)
+  rectfill(g, 2, 2, 13, 13, 1); rectfill(g, 3, 3, 12, 12, 17)
+  rectfill(g, 7, 2, 8, 13, 4); rectfill(g, 2, 7, 13, 8, 4)
+  return flatLib(g)
 }
 function door() {
-  const g = blank(); box(g, 0, 0, 15, 15, 4)
-  box(g, 3, 1, 12, 15, 16); box(g, 4, 2, 11, 15, 1)        // dark doorway
-  dot(g, 10, 8, 10)                                        // knob
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 4)
+  rectfill(g, 3, 1, 12, 15, 16); rectfill(g, 4, 2, 11, 15, 1)        // dark doorway
+  pixel(g, 10, 8, 10)                                        // knob
+  return flatLib(g)
 }
 function road() {
-  const g = blank(); box(g, 0, 0, 15, 15, 5)               // asphalt grey
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 5)               // asphalt grey
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
       const n = (x * 7 + y * 13) % 17
       if (n === 0) g[y][x] = 21
       else if (n === 5) g[y][x] = 16
     }
-  return flatRaw(g)
+  return flatLib(g)
 }
 function sidewalk() {
-  const g = blank(); box(g, 0, 0, 15, 15, 6)               // light grey kerb
-  box(g, 0, 0, 15, 1, 22)                                  // top edge highlight
-  for (let x = 0; x < 16; x += 8) box(g, x, 2, x, 15, 5)   // expansion joints
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 6)               // light grey kerb
+  rectfill(g, 0, 0, 15, 1, 22)                                  // top edge highlight
+  for (let x = 0; x < 16; x += 8) rectfill(g, x, 2, x, 15, 5)   // expansion joints
+  return flatLib(g)
 }
 function metalWall() {
-  const g = blank(); box(g, 0, 0, 15, 15, 13)              // indigo steel
-  for (let x = 0; x < 16; x += 3) box(g, x, 0, x, 15, 29)  // corrugation ribs
-  box(g, 0, 0, 15, 0, 22)
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 13)              // indigo steel
+  for (let x = 0; x < 16; x += 3) rectfill(g, x, 0, x, 15, 29)  // corrugation ribs
+  rectfill(g, 0, 0, 15, 0, 22)
+  return flatLib(g)
 }
 function vent() {
-  const g = blank(); box(g, 0, 0, 15, 15, 13)
-  box(g, 2, 3, 13, 12, 16); for (let y = 4; y < 12; y += 2) box(g, 3, y, 12, y, 5) // louvres
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 13)
+  rectfill(g, 2, 3, 13, 12, 16); for (let y = 4; y < 12; y += 2) rectfill(g, 3, y, 12, y, 5) // louvres
+  return flatLib(g)
 }
 function concrete() {
-  const g = blank(); box(g, 0, 0, 15, 15, 21)              // dark warm grey
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 21)              // dark warm grey
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++)
       if ((x * 5 + y * 11) % 13 === 0) g[y][x] = 16
-  box(g, 0, 0, 15, 0, 5)
-  return flatRaw(g)
+  rectfill(g, 0, 0, 15, 0, 5)
+  return flatLib(g)
 }
 function girder() {
-  const g = blank(); box(g, 0, 0, 15, 15, 16)
-  box(g, 0, 5, 15, 10, 9); box(g, 0, 6, 15, 9, 25)         // orange I-beam
-  for (let x = 2; x < 16; x += 5) { dot(g, x, 7, 16); dot(g, x, 8, 16) } // rivets
-  return flatRaw(g)
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 16)
+  rectfill(g, 0, 5, 15, 10, 9); rectfill(g, 0, 6, 15, 9, 25)         // orange I-beam
+  for (let x = 2; x < 16; x += 5) { pixel(g, x, 7, 16); pixel(g, x, 8, 16) } // rivets
+  return flatLib(g)
 }
 
 // ── build the long scrolling world (80 × 13 cells = 1280 px wide) ─────

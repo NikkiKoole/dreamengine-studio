@@ -11,6 +11,8 @@ Why: **multiple agents work in parallel on the same branch.** If any agent creat
 ## Running the editor
 
 ```bash
+make               # easiest — kills any stale Electron/Vite, then starts fresh
+# or manually:
 cd editor
 nvm use 22
 npm start          # starts Vite + Electron together
@@ -41,11 +43,39 @@ eventually2/
 │   │   ├── dos_8x8.png         # in-game bitmap font (loaded via LoadFontFromImage)
 │   │   ├── Ac437_Acer_VGA_8x8.ttf  # DOS OEM font (TTF backup)
 │   │   └── palettes/pico32.json    # 32-color palette used by sprite editor
+│   ├── vite.config.js  # Vite config + serveDocs() plugin: serves /docs-list.json
+│   │                   # and /docs/<rel>.md live from docs/ — powers the Docs tab
 │   └── index.html      # shell HTML — all panels live here
+├── Makefile            # repo-root convenience: `make` kills stale processes + starts editor
+│                       # targets: make / make start / make install / make help
 ├── tools/              # repo-root CLI tools (plain `node`, CommonJS)
 │   ├── make-cart.js    #   build/bake .cart.png from tools/carts/<name>.c
+│   │                   #   also a library module: play.js requires it for buildSpriteSheet/buildMap/etc.
 │   ├── play.js         #   debug harness driver (record/replay/script + trace)
+│   ├── sprite-draw.js  #   reusable 2D pixel-canvas API for programmatic .cart.js sprites
+│   │                   #   exports: blank, pixel, rectfill, line, circlefill, trifill,
+│   │                   #            outlined, mirror, stamp, flat, split, OUT
+│   │                   #   require('../sprite-draw.js') from any .cart.js in tools/carts/
+│   ├── tag-carts.js    #   one-shot: merge kind[]/genre/homage tags into index.json
+│   │                   #   validates against a controlled vocabulary; run after adding carts
+│   ├── gen-tcc-symbols.js  # auto-generate runtime/studio_tcc_symbols.h from studio.h
+│   │                   #   re-run whenever studio.h declarations change (libtcc live backend)
 │   └── carts/          #   <name>.c (+ optional <name>.cart.js) — cart source of truth
+│                       #   .cart.js exports { sprites, map, charMap, mapW, mapH }
+│                       #   Three use patterns:
+│                       #   1. Settings-only — just { screenW, screenH, scale } when the cart
+│                       #      draws everything with primitives (bones, dpaint, pinball, wordle…)
+│                       #   2. ASCII art sprites: { slotIndex: "16×16 string" } with charMap
+│                       #      DEFAULT_CHAR_MAP covers palette 0–15: R=red W=white b=blue .=black
+│                       #      custom charMap extends the defaults; only declare extra chars
+│                       #      USE WHEN: sprite fits in palette indices 0–15
+│                       #   3. Programmatic sprites: { slotIndex: flat_int_array } built with
+│                       #      helper fns defined in the .cart.js itself — blank()/box()/dot() etc.
+│                       #      USE WHEN: you need palette indices 16–31 (magic pal() recolor
+│                       #      colors like body=28/dark=29 that ASCII charmap can't reach), or
+│                       #      need geometric precision / auto-outlines.
+│                       #      See advancewars.cart.js (box/dot/outlined), zoo.cart.js (tri/disc),
+│                       #      skystrike.cart.js (mirror), doom.cart.js (32-wide dual-slot weapon)
 ├── build/              # compile output (cart.c, cart binary, sprites.png, fonts, traces)
 └── docs/               # all project docs — start at docs/README.md (the map)
     ├── VISION.md       #   why & what; STATUS.md = shipped/open/cut ledger
@@ -440,6 +470,7 @@ the Bash tool — don't ask the user to run these commands:
 # 1. write trigger files with absolute paths
 echo "/abs/path/build/.bake/screen.png"  > /abs/path/build/.bake/screenshot_request
 echo "/abs/path/build/.bake/state.json"  > /abs/path/build/.bake/state_request
+echo "/abs/path/build/.bake/perf.json"   > /abs/path/build/.bake/profiler_request
 
 # 2. wait one frame for the game to pick them up
 sleep 0.5
@@ -449,8 +480,11 @@ ls /abs/path/build/.bake/screenshot_request 2>&1   # should say "No such file"
 ```
 
 Then use the **Read tool** on the PNG — Claude can see images directly. The state JSON
-has `f` (frame), `t` (seconds), and `w` (all active `watch()` values). The game creates
-`build/.bake/` on startup so the directory always exists once a cart has been launched.
+has `f` (frame), `t` (seconds), and `w` (all active `watch()` values). The profiler JSON
+has `frames`, `workMsAvg`, `workMsMax`, `frameMsAvg`, `calls[]` (draw-call counts),
+`work[]` (per-frame ms). Both profiler and state work in any native build — no special
+flags needed. The game creates `build/.bake/` on startup so the directory always exists
+once a cart has been launched.
 
 Real example — asking the user which cart they're running, then capturing live:
 ```bash

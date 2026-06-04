@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, showProfiler: false, welcomeCart: 'zoo', backend: 'native' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, showProfiler: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal' }
 
 // ── key bindings ──────────────────────────────────────────────
 // Values are raylib (GLFW) keycodes — letters/digits are ASCII, specials match
@@ -83,7 +83,8 @@ function load() {
     touchControls: localStorage.getItem('touchControls') === '1',
     showProfiler:  localStorage.getItem('showProfiler') === '1',
     welcomeCart:   localStorage.getItem('welcomeCart') || 'zoo',
-    backend:       localStorage.getItem('backend') || DEFAULTS.backend,
+    backend:       localStorage.getItem('backend')   || DEFAULTS.backend,
+    buildMode:     localStorage.getItem('buildMode') || DEFAULTS.buildMode,
     keymap:        loadKeymap(),
   }
 }
@@ -269,6 +270,15 @@ export function buildSettingsPanel(el) {
     ],
     settings.backend,
     v => { settings.backend = v; save('backend', v) },
+  ))
+  backendSection.appendChild(select(
+    'build mode (native only)',
+    [
+      { value: 'normal',  label: 'normal — profiler + inspection hooks on' },
+      { value: 'release', label: 'release — stripped, -O2, no overhead' },
+    ],
+    settings.buildMode,
+    v => { settings.buildMode = v; save('buildMode', v) },
   ))
   backendSection.appendChild(note('native: a fresh optimised build each run. live: a persistent libtcc host JIT-compiles the cart and hot-reloads it on every run/save — game state in de_state() survives the swap. desktop app only; sprite/screen changes relaunch the live window. "Build for web" is unaffected.'))
   el.appendChild(backendSection)

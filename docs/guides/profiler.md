@@ -143,15 +143,32 @@ The profile build differs from ▶ run in three ways:
 - After launch, the editor attaches macOS **`sample`** to the running process for a
   few seconds (this is what produces §2's call graph) and reads it back.
 
-The in-engine part (`runtime/studio.c`, all under `#ifdef DE_PROFILE`):
+The in-engine part (`runtime/studio.c`):
 
 - A `PROF("name")` line at the top of every public draw primitive, with a
   re-entrancy guard so only the **outermost** call is counted (§3).
 - A timer around `update()`+`draw()` each frame (§1).
-- Both are written to `build/perf.json` every 30 frames, so the data survives the
-  editor killing the process when sampling ends.
+- Both are written to `build/perf.json` every 30 frames.
 
-A normal build `#define`s `PROF()` to nothing — zero cost, nothing emitted.
+**These counters and the timer now compile into every native build** — not just
+`-DDE_PROFILE`. That means `perf.json` is written during any normal ▶ run, and
+you can snapshot it on demand without the profile button:
+
+```bash
+echo "$(pwd)/build/.bake/snap-perf.json" > build/.bake/profiler_request
+sleep 0.5   # one frame — gone = captured
+```
+
+Same schema as `perf.json`: `frames`, `workMsAvg`, `workMsMax`, `frameMsAvg`,
+`calls[]`, `work[]`. See [debug-harness.md → Live inspection](debug-harness.md).
+
+`-DDE_PROFILE` (the profile button's build) keeps its meaning — it also adds
+`-O1 -fno-inline` so the `sample` call graph can name the primitives. The counters
+alone don't need it.
+
+**To strip all overhead for benchmarking or shipping:** settings → run mode →
+build mode → **release**. Compiles with `-O2 -DDE_RELEASE`, which redefines
+`PROF()` to nothing and disables the timer and all trigger-file polling.
 
 ---
 

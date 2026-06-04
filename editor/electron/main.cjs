@@ -632,7 +632,10 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
 
   const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, keymap, studioC } = dims
 
-  const args = macCompileArgs(dims, ['-Os'])
+  const optFlags = cfg?.buildMode === 'release'
+    ? ['-O2', '-DDE_RELEASE']
+    : ['-Os']
+  const args = macCompileArgs(dims, optFlags)
   const cmd  = `clang ${args.join(' ')}`
 
   return new Promise(resolve => {

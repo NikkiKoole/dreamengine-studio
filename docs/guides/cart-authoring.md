@@ -201,6 +201,29 @@ you can also remap a default letter.
 > 0–31) or add the colors to `charMap` yourself. ASCII art alone can't reach
 > them. See `tools/carts/textured3d.cart.js` for generated textures via arrays.
 
+### sprite-draw.js — the programmatic sprite library
+
+Don't hand-roll flat arrays: `require('../sprite-draw.js')` from any `.cart.js`
+gives a 2D pixel-canvas API whose names match the C drawing API.
+
+- **Canvas + primitives**: `blank(w,h)`, `pixel`, `line`, `rectfill`, `rrectfill`,
+  `circlefill`, `ovalfill`, `trifill`, `polyfill`, `ngonfill`, `noise(x,y,mod)`
+  (stable speckle textures).
+- **Post-processing**: `shade(g, lightDeg)` (auto light/shadow via the curated
+  `RAMP_DARKER`/`RAMP_LIGHTER` palette LUTs — one call turns flat fills into lit
+  volumes; call *before* `outlined()`), `rotate(g, deg)` / `rotations(g, n)`
+  (baked headings you can still outline/shade afterwards, unlike runtime
+  `spr_rot()`), `scale2x(g)` (EPX upscale: sketch a boss at 16×16, bake it big),
+  `replace(g, from, to)` (bake-time recolor for variants), `clone(g)`,
+  `outlined(g)`, `mirror(g)`, `stamp(dst, src, x, y)`.
+- **Export**: `flat(g)` → one slot; `split(g)` → 16×16 tiles row-major (a 32×32
+  canvas yields `[TL, TR, BL, BR]` — place them at slots `s, s+1, s+8, s+9` so one
+  `sspr()` reads the region back).
+
+Worked showcases: **`foundry.cart.js`** (the step-by-step "watch the code draw"
+cart — every function gets a frame on stage) and **`monstermix.cart.js`**
+(`stamp()` part composition + magic `pal()` indices).
+
 ---
 
 ## Map format

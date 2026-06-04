@@ -67,8 +67,11 @@ eventually2/
 │   ├── sprite-draw.js  #   reusable 2D pixel-canvas API for programmatic .cart.js sprites
 │   │                   #   exports: blank, pixel, rectfill, rrectfill, line,
 │   │                   #            circlefill, ovalfill, trifill, polyfill, ngonfill,
-│   │                   #            noise, outlined, mirror, stamp, flat, split, OUT
+│   │                   #            noise, shade, rotate, rotations, scale2x, replace,
+│   │                   #            clone, outlined, mirror, stamp, flat, split,
+│   │                   #            OUT, RAMP_DARKER, RAMP_LIGHTER
 │   │                   #   require('../sprite-draw.js') from any .cart.js in tools/carts/
+│   │                   #   showcases: foundry (watch each op draw), monstermix (stamp composition)
 │   ├── tag-carts.js    #   one-shot: merge kind[]/genre/homage tags into index.json
 │   │                   #   validates against a controlled vocabulary; run after adding carts
 │   ├── gen-tcc-symbols.js  # auto-generate runtime/studio_tcc_symbols.h from studio.h

@@ -1,8 +1,9 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: exploration, session 1. No cart exists yet.** This doc is the shared
-understanding for a cart being designed across multiple sessions. Decisions so
-far are marked ✓; everything else is open.
+**Status: building — step 1 (static facade) is WIP.** Cart:
+`tools/carts/galerijflat.c` (unregistered, debug guards in). This doc is the
+shared understanding for a cart designed/built across multiple sessions.
+Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
 
 ## The idea
 
@@ -349,6 +350,64 @@ per sys 5) is in and produces legible variety.
 own commit with cart audit; (d) then the sky cart session builds on the fixed
 primitive; (e) register the cart in `index.json` only when the dusk facade is
 worth a thumbnail.
+
+## Handoff — next agent starts here (written 2026-06-04)
+
+Read this doc top to bottom first (it's short); the Build log above has the
+findings in full. Then:
+
+**Repo state.** Cart at `tools/carts/galerijflat.c` (landed in `7cb9dd9`),
+renders but is mid-bug-hunt. Two debug guards are live in `draw()`:
+the `print(str("NF%d ...` debug line, and `if (1) { font(FONT_NORMAL);
+return; }` right after it (bands-only mode — tower/plinth/ground/title are
+currently skipped). The cart is intentionally **not** in
+`editor/public/carts/index.json` yet.
+
+**The bake loop** (your iteration cycle, ~10s):
+```bash
+node tools/make-cart.js tools/carts/galerijflat.c editor/public/carts/galerijflat.cart.png
+node tools/make-cart.js --run editor/public/carts/galerijflat.cart.png
+# inspect build/.bake/galerijflat/screenshot.png — NEVER build/screenshot.png
+magick build/.bake/galerijflat/screenshot.png -crop 320x32+0+0 +repage -scale 1280x128 /tmp/top.png  # zoom a region
+```
+Both steps every time — step 1 re-embeds source, step 2 bakes the shot.
+`magick` is installed. Plain `node` works (no nvm needed for tools/).
+
+**Task 1 — find the phantom band** (Build log finding 2). Full-width band at
+y≈3–24 (peach dither / 3px-spaced dark bars on white / grey checker) in the
+full bake only. Eliminated so far: the sky (sky-only bake clean), the floor
+bands (bands-only bake clean). Procedure: remove the bands-only `return`,
+bake (band should reappear — debug print will confirm the roll), then
+re-disable `draw_tower` / `draw_plinth` / ground+lamps / title one at a time.
+It looks exactly like a floor band drawn at yb≈16–22, but that's a
+non-integer floor index — which is the puzzle. Worth double-checking
+`rnd_between`'s actual bounds in `runtime/studio.c` against its doc comment,
+and remember the trafficjam lesson: the bug lives where "it can't happen on
+paper". When found: delete both debug guards.
+
+**Task 2 — small fixes** (after task 1, same session is fine):
+moon crescent self-eclipses (`draw()`, two `circfill`s — cover circle needs
+to be smaller/farther); house numbers print at `baseY-4` (on the floor-0
+band) — move onto the plinth; then the **muting pass** per Build log
+finding 4 (dark doors, scarce lit windows, dark curtain variants at dusk).
+
+**Task 3 — the vgradient engine fix** (separate commit, engine discipline):
+`gradient_band()` in `runtime/studio.c` applies its threshold table backwards
+— either `bits = (int)((1.0f - t) * 16 + 0.5f)` or swap the color roles
+(`fillp(pat, cb); rectfill(..., ca)`). Verify with trafficjam's sky (blue
+must end up on TOP after the fix), check `hgradient` shares the bug, then
+`grep -rn "vgradient\|hgradient" tools/carts/` and re-bake affected carts'
+thumbnails in the same change. Full ledger entry: `docs/STATUS.md`, under
+the geometry-helpers item.
+
+**Then:** the sky cart (own session — see the sys 1 build plan above; only
+after task 3). After the facade looks right at dusk: register in
+`index.json`, bake the real thumbnail, update this doc's status line and
+Build log.
+
+House rules that bit this session: commit directly on `master`, per-file
+`git add` (parallel agents share the branch — don't sweep up others' files);
+two-step bake or the editor loads stale embedded source.
 
 ## References in-repo
 

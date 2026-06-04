@@ -90,11 +90,19 @@ Three corollaries:
   [`input-recording-looper.md`](input-recording-looper.md).
 
 **Thread-safe control (the important architectural fact)**
-- Main thread → audio thread via a 256-entry **request ring buffer**; kinds 0–19 cover
-  play (0–2), define (3–6, 18), and held-note live control (7–17, 19). Delayed requests
-  (`strum`/`schedule`) sit in a 16-entry holding pen on the audio thread.
+- Main thread → audio thread via a 512-entry **request ring buffer**; kinds 0–20 cover
+  play (0–2), define (3–6, 18, 20 = `wave_set`, packed 4 samples/request), and held-note
+  live control (7–17, 19). Delayed requests (`strum`/`schedule`/`schedule_hit`) sit in a
+  64-entry holding pen on the audio thread.
 - **The ring buffer is the one correct place to mutate sound state.** Every new control
   surface rides it rather than poking shared structs (the §11 mod-envelopes are kinds 18/19).
+- **Overflow is a tripwire, not silence**: dropped requests are counted and `sound_tick`
+  printh-screams `[sound] WARNING … DROPPED` (editor log / bake / play.js output). The
+  `soundcheck` cart is the worst-case self-test — run it after touching `sound.h`.
+- ⚠ **Ordering subtlety**: define kinds apply when *drained* (next callback), but a
+  *delayed* note snapshots its instrument slot **at fire time** — per-step instrument
+  changes for scheduled notes therefore need a **rotating slot per pending step** (see the
+  sfx editor's CUT lane), or the last define wins for every queued note.
 
 **Rules that shape everything**
 1. **Wave + amp-ADSR snapshot at note-on** — you can't re-attack or re-timbre a ringing

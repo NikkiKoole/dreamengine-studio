@@ -8,6 +8,18 @@ A fantasy console / learning programming environment. Write C, hit run, get a na
 
 Why: **multiple agents work in parallel on the same branch.** If any agent creates or switches branches, the others get confused and lose their place. Merge conflicts are rare in practice because work is naturally isolated per cart (each task touches separate files). This rule **overrides** the usual "branch before committing on the default branch" default.
 
+Two parallel-agent commit hazards (both have bitten):
+
+1. **The git index is shared.** Another agent may have files *staged* while you work; a bare
+   `git commit` after your `git add` sweeps their staged WIP into your commit. Before every
+   commit: `git diff --cached --name-only` and confirm the list is exactly your files
+   (unstage strays with `git restore --staged <file>`).
+2. **Shared registry files** (`editor/public/carts/index.json` is the big one) often carry
+   another agent's uncommitted entries. Don't commit the whole file blindly — their entries
+   may reference cart files that aren't committed yet (broken refs). If the file is dirty
+   with foreign edits: stash your working copy, `git checkout HEAD -- <file>`, splice in
+   ONLY your entry, commit, then restore the working copy.
+
 ## Running the editor
 
 ```bash
@@ -511,3 +523,5 @@ files. Full recipe: `docs/guides/debug-harness.md` → "Live inspection".
 - **Saves are per cart**: `save()`/`save_int()`/`save_bytes()` write `cart.sav`/`cart.kv`/`cart.blob` into `build/saves/<cart>/` — the editor and `play.js` pass `--save-dir saves/<cart>` at launch (no flag = files land in the cwd, the old shared behavior). So a fresh cart reading a non-zero `load_int()` value means a stale folder, not another cart's data
 - Cart code shares one namespace with the whole `studio.h` API, so **don't name a variable after a built-in function**. `map` is the common trap — a tilemap/grid array called `map` clashes with the `map()` draw function (`error: redefinition of 'map' as different kind of symbol`); use `grid`/`dmap` instead. Same goes for `line`, `rect`, `circ`, `print`, `spr`, `timer`, `now`, etc.
 - The starter cart also `#define`s `STATE` / `S` / `GameState` for the persistent-state sugar (`STATE { ... };` + `S->field`, over `de_state()` — see [`docs/design/cart-as-script.md`](docs/design/cart-as-script.md)). These are **cart-local** macros (deliberately *not* in `studio.h`, because ~45 existing carts use `S` as a variable). A cart that wants `S` for something else just removes those `#define`s.
+- **Data-driven carts: name your indices.** A cart that stores knob/param values in arrays (modrack's `param[]` is the archetype) must address them via an enum (`m->param[VK_FENV]`), never raw numbers — inserting a knob mid-list once silently cross-wired three knobs *and* six presets. The enum makes a reorder fail at the compiler.
+- **After touching `runtime/sound.h`** (queue sizes, request kinds, bulk APIs): run the self-test — `node tools/play.js soundcheck script /dev/null --headless --frames 900 | grep "\[sound\]"` — silence = PASS; any `[sound] WARNING` means requests were silently dropped (see [`docs/guides/debug-harness.md`](docs/guides/debug-harness.md) → "Sound tripwire"). Also note `sound.h` is only compiled inside `studio.c` — analyzers parsing it standalone show false "undeclared identifier" errors; ignore those, trust the cart build.

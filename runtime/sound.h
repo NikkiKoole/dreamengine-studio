@@ -1,5 +1,12 @@
 // sound.h — tiny PICO-8-style synth for dreamengine
 // Header-only. Include from studio.c only (defines non-static API symbols).
+//
+// NB for tooling/agents: because this file is only ever compiled INSIDE studio.c (after
+// studio.h), an IDE/analyzer parsing it standalone reports false errors ("raylib.h not
+// found", "INSTR_SQUARE undeclared", …). Ignore those; trust the real cart build.
+// After changing queue sizes, request kinds, or adding bulk APIs here, run the self-test:
+//   node tools/play.js soundcheck script /dev/null --headless --frames 900 | grep "\[sound\]"
+// (silence = PASS; any [sound] WARNING = requests were dropped — see sound_dropped below).
 
 #ifndef SOUND_H
 #define SOUND_H
@@ -118,10 +125,15 @@ static int           music_current = -1;
 // request ring buffer (main thread pushes → audio thread drains)
 // kind: 0=sfx, 1=music, 2=note, 3=define instrument, 4=set duty, 5=set lfo, 6=set filter,
 //       7=note_on, 8=note_off, 9=note_pitch, 10=note_vol, 11=note_cutoff, 12=note_duty,
-//       13=note_off_all, 14=note_res, 15=note_lfo, 16=note_filter, 17=note_glide.
+//       13=note_off_all, 14=note_res, 15=note_lfo, 16=note_filter, 17=note_glide,
+//       18=instrument_env, 19=note_env, 20=wave_set (4 samples/request).
 //       -1 in a/b/c slots = "stop" for sfx/music.
 // delay_samples: 0 = fire immediately; >0 = audio thread holds it in `delayed[]` and fires when countdown expires.
 // e0/e1/e2: extra payload (instrument attack/decay/release samples).
+// ⚠ ORDERING SUBTLETY: define kinds (3-6, 18, 20) apply when DRAINED (next callback), but a
+// delayed note (delay_samples > 0) snapshots its instrument slot AT FIRE TIME — so per-step
+// instrument changes for scheduled notes need a ROTATING slot per pending step (see the
+// sfx editor cart's CUT lane), or the last define wins for every queued note.
 typedef struct { int kind, a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
                                 // init() can define dozens of slots + several wave_set tables in one burst
@@ -529,20 +541,23 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         }
     }
 
-    // 2) tick delayed requests; fire any whose countdown has run out
-    for (int i = 0; i < delayed_count; ) {
-        delayed[i].delay_samples -= (int)frames;
-        if (delayed[i].delay_samples <= 0) {
-            sound_fire_req(delayed[i]);
-            delayed[i] = delayed[--delayed_count];   // swap-remove
-        } else {
-            i++;
-        }
-    }
-
-    // 2) mix
+    // 2) mix — delayed requests fire SAMPLE-ACCURATELY inside the loop, not at
+    // block boundaries. With a 1024-sample buffer (~23ms) block-edge firing
+    // quantized away exactly the micro-timing that makes grooves feel played:
+    // strum staggers (8ms), swing pushes, laid-back snares (10-35ms). Walking
+    // the pen per sample keeps every schedule_hit offset intact; the pen is
+    // tiny (<64) so the cost is noise.
     for (unsigned int i = 0; i < frames; i++) {
         float mix = 0.0f;
+
+        for (int di = 0; di < delayed_count; ) {
+            if (--delayed[di].delay_samples <= 0) {
+                sound_fire_req(delayed[di]);
+                delayed[di] = delayed[--delayed_count];   // swap-remove
+            } else {
+                di++;
+            }
+        }
 
         for (int vi = 0; vi < SOUND_VOICES; vi++) {
             Voice *v = &voices[vi];

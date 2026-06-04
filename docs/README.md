@@ -30,6 +30,7 @@ docs/
 │   ├── font-rendering.md         playful text beyond print: shadow/outline/wave/typewriter, inline codes, PICO-8 comparison; + 2 baked tiny fonts (3×5/4×6) awaiting print_small/print_tiny wiring
 │   ├── rasterization-consistency.md  OPEN: one consistent fill/outline/dither rule so shape edges always agree (seams, off-by-1, outline mismatch)
 │   ├── geometry-helpers.md  PROPOSAL: graphics taxonomy (which carts draw with circles/tris/dither/sprites/gradients) + 2D drawing primitives for the geometry-first style (ngon/star, poly/polyfill, gradient, rounded-rect, thick-line) ranked by cart boilerplate; also parks a thought on real palette color-lerp (lerp_color/rgb true-color) with the second-thoughts against it
+│   ├── galerijflat.md   IN PROGRESS (multi-session): design seed for an experimental/arty cart — the Dutch gallery-access apartment slab as a generative tableau of ordinary life (gallery facade straight-on, the archetype; the facade as a pixel grid of households)
 │   ├── headless-autoplay.md  growing the debug harness toward windowless fast runs + agents that play to find bugs (navkit-informed)
 │   ├── profiler-extensions.md  PARKED: first-frame/init timing + region "zone" timers (extend the in-engine profiler; reuse perf.json)
 │   └── packaging-distribution.md  NOT STARTED: shipping to non-dev machines — the dev icon/name stopgap, what real packaging needs (bundler/signing/notarization), and the real blocker (the ▶ run model needs a compiler; web/wasm is the likely public path)

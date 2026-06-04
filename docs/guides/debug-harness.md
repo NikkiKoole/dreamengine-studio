@@ -37,8 +37,12 @@ The compiled cart binary accepts:
 | `--dump DIR` | export a screenshot filmstrip |
 | `--dump-every N` | … every Nth frame (default 1 with `--dump`) |
 | `--headless` | hidden window (for batch replay/script) |
+| `--save-dir DIR` | where `cart.sav`/`cart.kv`/`cart.blob` live (default: cwd). The editor and `play.js` pass `saves/<cart>` automatically, so every cart gets its own save folder under `build/saves/` — harness runs can't clobber (or inherit) another cart's hiscores |
 
 `--record` and `--trace` flush every frame, so a live session can be tailed.
+
+Note this flag is **not** harness-only — it works in any native build, like the
+`.bake/` trigger files. A normal editor ▶ run uses it too.
 
 A recording (`--record`) replays under `--replay`; both feed the same injection
 engine as `--script`, so they behave identically.

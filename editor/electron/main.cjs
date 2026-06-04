@@ -176,6 +176,16 @@ function keymapDefs(keymap) {
   return out
 }
 
+// Per-cart save folder: --save-dir saves/<slug> (relative to cwd=build/), so
+// cart.sav / cart.kv / cart.blob aren't shared by every cart that runs from
+// build/. Unsaved scratch code shares the 'scratch' folder. Shared by all
+// three spawn paths (run / profile / live host).
+function saveDirArgs(cfg) {
+  const slug = (cfg?.cartName || 'scratch').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'scratch'
+  return ['--save-dir', `saves/${slug}`]
+}
+
 // macOS clang command for a native cart build. optFlags swaps between the
 // shipping build (-Os) and the profiling build (-O1 -fno-inline, which keeps
 // studio.c primitives as distinct, named symbols so `sample` can attribute
@@ -312,7 +322,7 @@ async function runLive(dims, cfg, wc) {
   liveSig = sig
 
   const cartTitle = cfg?.cartName ? `dreamengine (live): ${cfg.cartName}` : 'dreamengine (live)'
-  const proc = spawn(TCC_HOST_BIN, ['--cart', CART_SRC, '--title', cartTitle],
+  const proc = spawn(TCC_HOST_BIN, ['--cart', CART_SRC, '--title', cartTitle, ...saveDirArgs(cfg)],
     { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
   proc.stdout.on('data', c => send('cart:log', c.toString()))
   proc.stderr.on('data', c => send('cart:log', c.toString()))   // [tcc] compiled / hot-reloaded / errors
@@ -654,7 +664,7 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
       const cartTitle = cfg?.cartName ? `dreamengine: ${cfg.cartName}` : 'dreamengine'
-      const proc = spawn(CART_BIN, ['--title', cartTitle], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
+      const proc = spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg)], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
       proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))   // raylib trace (warnings only) + stray printf
       proc.stderr.on('data', chunk => send('cart:log', chunk.toString()))   // printh() output
       proc.on('exit', (code, signal) => send('cart:exit', { code, signal }))
@@ -735,7 +745,7 @@ ipcMain.handle('studio:profile', async (_event, code, cfg) => {
       // clear any stale perf.json so a crash-before-first-flush can't show old data
       try { fs.unlinkSync(path.join(BUILD_DIR, 'perf.json')) } catch {}
 
-      const proc = spawn(CART_BIN, ['--title', cartTitle], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
+      const proc = spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg)], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR })
       let exited = false
       proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))
       proc.stderr.on('data', chunk => send('cart:log', chunk.toString()))

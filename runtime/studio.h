@@ -416,7 +416,10 @@ bool blink(int period);                                // true for `period` fram
 const char *str(const char *fmt, ...);  // printf into a reusable buffer: print(str("score %d", n), x, y, c)
 
 // ------------------------------------------------------------
-// persistence — 64 integer slots saved per cart
+// persistence — 64 integer slots saved per cart.
+// Files (cart.sav / cart.kv / cart.blob) live in a per-cart folder:
+// the editor and play.js pass --save-dir saves/<cart> at launch, so
+// every cart keeps its own saves under build/saves/ (no flag = cwd).
 // ------------------------------------------------------------
 
 void save(int slot, int value);  // store an int that survives between runs (slots 0–63)

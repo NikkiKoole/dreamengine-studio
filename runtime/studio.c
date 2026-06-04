@@ -1078,6 +1078,35 @@ static void load_script(const char *path) {
 }
 #endif
 
+// ------------------------------------------------------------
+// per-cart save directory — where cart.sav / cart.kv / cart.blob live.
+// Defaults to "." (the cwd) so a bare binary behaves like before; spawners
+// (editor, play.js) pass --save-dir saves/<cart> so every cart gets its own
+// folder instead of all sharing build/cart.sav — the same isolation idea as
+// build/.bake/<name>, but for persistence.
+// ------------------------------------------------------------
+
+static char save_dir[512] = ".";
+
+// join save_dir + file into a static buffer ("cart.kv" → "saves/foo/cart.kv")
+static const char *save_path(const char *file) {
+    static char buf[600];
+    snprintf(buf, sizeof buf, "%s/%s", save_dir, file);
+    return buf;
+}
+
+#ifndef PLATFORM_WEB
+static void save_dir_set(const char *dir) {
+    snprintf(save_dir, sizeof save_dir, "%s", dir);
+    // mkdir -p: create each path level (mkdir is silent if it already exists)
+    char tmp[512];
+    snprintf(tmp, sizeof tmp, "%s", save_dir);
+    for (char *p = tmp + 1; *p; p++)
+        if (*p == '/') { *p = '\0'; mkdir(tmp, 0755); *p = '/'; }
+    mkdir(tmp, 0755);
+}
+#endif
+
 int main(int argc, char **argv) {
     const char *window_title           = "dreamengine";
 #ifndef PLATFORM_WEB
@@ -1102,6 +1131,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) max_frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--dump")   == 0 && i + 1 < argc) { snprintf(dump_dir, sizeof dump_dir, "%s", argv[++i]); if (dump_every <= 0) dump_every = 1; }
         else if (strcmp(argv[i], "--dump-every") == 0 && i + 1 < argc) dump_every = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--save-dir") == 0 && i + 1 < argc) save_dir_set(argv[++i]);
 #ifdef DE_TCC
         else if (strcmp(argv[i], "--cart") == 0 && i + 1 < argc) cart_path = argv[++i];
 #endif
@@ -2470,7 +2500,7 @@ static bool sav_loaded    = false;
 
 static void sav_ensure(void) {
     if (sav_loaded) return;
-    FILE *f = fopen("cart.sav", "rb");
+    FILE *f = fopen(save_path("cart.sav"), "rb");
     if (f) { fread(sav_data, sizeof(int), 64, f); fclose(f); }
     sav_loaded = true;
 }
@@ -2479,7 +2509,7 @@ void save(int slot, int value) {
     if (slot < 0 || slot >= 64) return;
     sav_ensure();
     sav_data[slot] = value;
-    FILE *f = fopen("cart.sav", "wb");
+    FILE *f = fopen(save_path("cart.sav"), "wb");
     if (f) { fwrite(sav_data, sizeof(int), 64, f); fclose(f); }
 }
 
@@ -2506,11 +2536,11 @@ void *de_state(int bytes) {
 
 void save_bytes(const void *data, int len) {
     if (len <= 0) return;
-    FILE *f = fopen("cart.blob", "wb");
+    FILE *f = fopen(save_path("cart.blob"), "wb");
     if (f) { fwrite(data, 1, len, f); fclose(f); }
 }
 int load_bytes(void *out, int max) {
-    FILE *f = fopen("cart.blob", "rb");
+    FILE *f = fopen(save_path("cart.blob"), "rb");
     if (!f) return 0;
     int n = (int)fread(out, 1, max, f);
     fclose(f);
@@ -2527,7 +2557,7 @@ static bool kv_loaded = false;
 static void kv_ensure(void) {
     if (kv_loaded) return;
     kv_loaded = true;
-    FILE *f = fopen("cart.kv", "rb");
+    FILE *f = fopen(save_path("cart.kv"), "rb");
     if (!f) return;
     int n = 0;
     if (fread(&n, sizeof(int), 1, f) == 1 && n >= 0 && n <= KV_MAX) {
@@ -2553,7 +2583,7 @@ void save_int(const char *key, int value) {
         kv_data[i].key[KV_KEYLEN - 1] = '\0';
     }
     kv_data[i].value = value;
-    FILE *f = fopen("cart.kv", "wb");
+    FILE *f = fopen(save_path("cart.kv"), "wb");
     if (f) {
         fwrite(&kv_count, sizeof(int), 1, f);
         fwrite(kv_data, sizeof(kv_data[0]), kv_count, f);

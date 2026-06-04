@@ -149,6 +149,7 @@ if (mode === 'record') {
 }
 
 runArgs.push('--trace', tracePath)
+runArgs.push('--save-dir', `saves/${name}`)   // per-cart saves, like the editor (relative to cwd=build/)
 if (hasFlag('--headless'))     runArgs.push('--headless')
 if (opt('--frames', null))     runArgs.push('--frames', opt('--frames'))
 if (opt('--seed', null))       runArgs.push('--seed', opt('--seed'))

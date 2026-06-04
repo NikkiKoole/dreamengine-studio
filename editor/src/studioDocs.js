@@ -229,7 +229,7 @@ export const studioDocs = {
 
   timer:          { sig: 'float timer()',                                              doc: 'Seconds since the last timer_reset() (or startup). A resettable stopwatch.\nUse for round timers, "how long did you survive?", cooldowns.' },
   timer_reset:    { sig: 'void timer_reset()',                                          doc: 'Reset timer() back to 0.' },
-  save:       { sig: 'void save(int slot, int value)', doc: 'Store an integer that survives between runs. 64 slots (0–63) per cart, written to cart.sav.\nTypical use: save(0, high_score);' },
+  save:       { sig: 'void save(int slot, int value)', doc: 'Store an integer that survives between runs. 64 slots (0–63) per cart — each cart keeps its own save files (build/saves/<cart>/).\nTypical use: save(0, high_score);' },
   load:       { sig: 'int load(int slot)',              doc: 'Read back a saved value. Returns 0 if the slot was never written.\nTypical use: int hi = load(0);' },
   save_int:   { sig: 'void save_int(const char *key, int value)', doc: 'Store an integer by name instead of a slot number — no numbering to remember. Up to 64 keys per cart.\nsave_int("hiscore", score);' },
   load_int:   { sig: 'int load_int(const char *key, int def)', doc: 'Read a named value back. Returns `def` if that key was never saved.\nint hi = load_int("hiscore", 0);' },

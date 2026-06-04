@@ -207,8 +207,9 @@ Cart sources live in `tools/carts/XX-name.c`. Config files (sprites + map) live 
 - **arm64 integer divide-by-zero does NOT trap** (returns 0) — SIGFPE won't fire on
   Apple Silicon. Use a `volatile` null read for reliable test crashes.
 - **`follow()`** is now implemented. Cart 10 uses it correctly.
-- **`save()`/`load()`** write to `build/cart.sav` (cwd of the running cart). All carts
-  share this file for now — per-cart persistence comes with named cart files later.
+- **`save()`/`load()`** write `cart.sav`/`cart.kv`/`cart.blob` into a per-cart folder:
+  the editor and `play.js` pass `--save-dir saves/<cart>`, so saves live under
+  `build/saves/<cart>/` (2026-06-04; previously all carts shared `build/cart.sav`).
 - **Inline error markers** — red gutter dot + red line background on clang error lines.
   Cleared on next compile. Pattern matched: `cart.c:LINE:` in stderr output.
 - **`frame()`** increments in the main loop after `update()`, declared static at the

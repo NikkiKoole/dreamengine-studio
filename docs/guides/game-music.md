@@ -432,8 +432,59 @@ What changes between styles is mostly **data** — the engine above carries over
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 
 Each future style should land as its own cart (lofi radio, ambient radio…) reusing
-this guide's blocks; if by the second one the copied core (clock + chord brain +
-voice leading, ~150 lines) has stayed identical, extract it then.
+this guide's blocks; the copied core (clock + chord brain + voice leading + seed
+contract + help panel, ~150 lines) has now survived seven carts verbatim —
+extraction into a shared header is overdue whenever someone wants that refactor.
+
+## Future stations — the parking lot
+
+Candidates ranked by **engine fit** (= the genre's essence maps onto machinery we
+have, rather than needing approximation). Context for whoever builds next: the
+station owner's taste profile, demonstrated across seven picks, is *warm,
+harmonically lush, groove-forward, analog-nostalgic, jazz-adjacent — background
+music that rewards attention; crate-digger sensibility*. They name-checked Hosono
+and Sakamoto unprompted.
+
+**The strongest candidates:**
+
+1. ~~**Dub reggae**~~ — ✅ shipped as `dub.c`, and the engine-fit prediction held:
+   echo via `schedule_hit` and the desk-as-instrument both worked first try.
+   Kept here as the reference case for what "best engine fit" means.
+2. **YMO / techno-kayō synthpop** — the Hosono/Sakamoto thread. The only genre
+   where our synth isn't *imitating* the source instruments — square waves and
+   white noise ARE the original instruments. Sakamoto harmony is codifiable
+   (chromatic mediant moves, maj7 planing, the "Tong Poo" pull), Hosono basslines
+   are melodic counterpoint (a real bassline *generator*, not patterns), drums
+   are a literal drum machine — tight, dry, iconic. Pairs with the CR-78 cart.
+3. **Ethio-jazz (Mulatu Astatke)** — the deepest crate. The whole genre is
+   **scales as data**: tizita, bati, anchihoye — pentatonic modes that sound like
+   nothing else on the dial, over hypnotic minor vamps with horns and
+   vibraphone-ish keys. A new chord-brain variant (modal vamp in a non-Western
+   scale) and the accommodation rule doing something genuinely new.
+4. **Swing / cocktail jazz trio** — walking bass as an algorithm (chord tone on
+   1, approach pattern through the bar — a beautiful ~20-line generator),
+   ride-cymbal swing pattern, sparse comping reusing bossa's ii–V tables at 4×
+   the harmonic rate. The guide's swing math finally gets its full workout.
+
+**Also very doable:**
+
+- **Motorik / Stereolab** — one-chord pulse, strict-8ths motorik kit, Farfisa-ish
+  drones on held voices, maj7 planing on top. The experimental axis.
+- **Chicha / Peruvian cumbia** — wobbly surf guitar (jangle's warble at higher
+  depth), minor vamps, güiro 16ths. Crate-digger royalty.
+- **Afrobeat** — 2–3 interlocking single-note guitar ostinatos (`euclid()` was
+  made for this), one chord for eleven minutes, horn riffs as call-and-response.
+- **French house / disco edits** — a 2-bar loop ridden with `note_cutoff` filter
+  sweeps over 16 bars. The filter ride IS the song.
+- **Steve Reich minimalism** — two voices, same pattern, slightly different step
+  lengths → phasing. The most experimental station possible, nearly free to build.
+- **Lofi hip-hop jazz** — still in the cheat-sheet above; most of its parts
+  (swing, rhodes, crackle, groove template) now exist across other carts.
+
+Build order advice: pick by which *new engine trick* the station would prove,
+not just by genre appeal — that's what kept the first seven carts each earning
+their place (held voices, groove template, playbook encoding, loop rotation,
+scheduled echo, the desk…).
 
 ## Verifying without ears
 

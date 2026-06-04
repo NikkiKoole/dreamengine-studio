@@ -431,9 +431,6 @@ static void draw_band(int f) {
             rectfill(x, yb - 8, 1, 6, panelC);
     } else {
         rectfill(baysX, yb - 8, NB * BW, 6, panelC);
-        fillp(0xAAAA, -1);
-        rectfill(baysX, yb - 8, NB * BW, 6, CLR_DARKER_GREY);
-        fillp_reset();
     }
 
 }

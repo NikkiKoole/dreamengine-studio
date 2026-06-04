@@ -33,8 +33,11 @@
 //   MOUSE   piano roll: click/drag to draw the line, click a note to
 //           erase it. Rows below the roll: OCT (+1 octave), ACC (accent),
 //           SLD (slide into next step). Knobs: drag vertically or hover +
-//           mouse wheel. Click the SAW/SQR switch to change wave.
+//           mouse wheel. Click the SAW/SQR switch to change wave. The
+//           SQUELCH slider (bottom) multiplies the filter-env sweep up to
+//           3x — ENV knob full + slider full = the 9kHz scream.
 //   N       roll a fresh random acid line (the honest way to write acid)
+//   H       help panel with all of this on screen
 //   LEFT / RIGHT  pattern    UP / DOWN  tempo    SPACE  run / stop
 
 #define STEPS 16
@@ -78,6 +81,9 @@ static int   h = -1;          // the one voice
 static bool  prev_slide;      // did the step we just played carry a slide?
 static int   wave = INSTR_SAW;
 static int   drag_knob = -1, drag_my;
+static int   squelch = 33;    // 0..100 → 1x..3x filter-env depth
+static bool  drag_slider;
+static bool  show_help;
 
 // ── knob value mappings ──────────────────────────────────────────────────
 static int cut_hz(void)  { return (int)(60.0f * powf(2.0f, knob[K_CUT] * 0.06f)); } // 60..3840
@@ -85,6 +91,7 @@ static int res_q(void)   { return knob[K_RES] * 15 / 100; }
 static int env_hz(void)  { return knob[K_ENV] * 30; }                // 0..3000
 static int dec_ms(void)  { return 30 + knob[K_DEC] * 5; }            // 30..530
 static float acc_mul(void) { return 1.0f + knob[K_ACC] * 0.015f; }   // 1..2.5
+static float sq_mul(void)  { return 1.0f + squelch * 0.02f; }        // 1..3
 
 static void define_voice(void) {
     instrument(SLOT, wave, 2, 60, 6, 25);
@@ -159,11 +166,27 @@ void update(void) {
     if (keyp(KEY_UP))   { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); }
     if (keyp(KEY_DOWN)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); }
     if (keyp('N')) { gen_random(); }
+    if (keyp('H')) show_help = !show_help;
 
     int mx = mouse_x(), my = mouse_y();
 
+    if (show_help) {                       // help swallows the mouse; music keeps playing
+        if (mouse_pressed(MOUSE_LEFT)) show_help = false;
+        goto clock;
+    }
+
+    // ── squelch slider (bottom): drag horizontally ──────────────────────
+    if (mouse_pressed(MOUSE_LEFT) && mx >= 76 && mx < 252 && my >= 180 && my < 194)
+        drag_slider = true;
+    if (!mouse_down(MOUSE_LEFT)) drag_slider = false;
+    if (drag_slider) {
+        squelch = (mx - 80) * 100 / 168;
+        if (squelch < 0)   squelch = 0;
+        if (squelch > 100) squelch = 100;
+    }
+
     // ── knobs: drag vertically, or hover + wheel ─────────────────────────
-    if (mouse_pressed(MOUSE_LEFT)) {
+    if (mouse_pressed(MOUSE_LEFT) && !drag_slider) {
         for (int k = 0; k < NK; k++) {
             int dx = mx - KX[k], dy = my - KY;
             if (dx * dx + dy * dy <= (KR + 3) * (KR + 3)) { drag_knob = k; drag_my = my; }
@@ -197,7 +220,8 @@ void update(void) {
     // ── piano roll + flag rows ───────────────────────────────────────────
     int col = (mx - RX) / RSX;
     bool in_cols = mx >= RX && col >= 0 && col < STEPS;
-    if (in_cols && (mouse_pressed(MOUSE_LEFT) || (mouse_down(MOUSE_LEFT) && drag_knob < 0))) {
+    if (in_cols && (mouse_pressed(MOUSE_LEFT) ||
+                    (mouse_down(MOUSE_LEFT) && drag_knob < 0 && !drag_slider))) {
         if (my >= RY && my < RY + 13 * RSY) {
             int row = 12 - (my - RY) / RSY;
             if (mouse_pressed(MOUSE_LEFT) && on[col] && pitches[col] == row)
@@ -210,6 +234,7 @@ void update(void) {
         }
     }
 
+clock:
     if (!running) return;
 
     // sixteenth clock; the held voice can't be scheduled ahead, so steps
@@ -228,7 +253,7 @@ void update(void) {
                 note_vol(h, vol);                      // env does NOT refire — authentic
             } else {
                 if (h >= 0) note_off(h);
-                float e = env_hz() * (acc[s] ? acc_mul() : 1.0f);
+                float e = env_hz() * sq_mul() * (acc[s] ? acc_mul() : 1.0f);
                 instrument_env(SLOT, 0, ENV_CUTOFF, 0, dec_ms(), e);
                 h = note_on(midi, SLOT, vol);
                 note_glide(h, 0);
@@ -309,5 +334,31 @@ void draw(void) {
         }
     }
 
-    print("DRAW NOTES  DRAG KNOBS  N NEW LINE  <> PAT", 14, 192, CLR_DARK_GREY);
+    // squelch slider — depth multiplier on the filter-env sweep
+    print("SQUELCH", 14, 184, CLR_BLACK);
+    rectfill(80, 186, 168, 3, CLR_DARK_GREY);
+    rectfill(80, 186, squelch * 168 / 100, 3, CLR_DARK_RED);
+    rectfill(78 + squelch * 168 / 100, 182, 5, 11, CLR_BLACK);
+    print("H HELP", 262, 184, CLR_DARK_GREY);
+
+    if (show_help) {
+        rectfill(40, 28, 240, 152, CLR_BLACK);
+        rect(40, 28, 240, 152, CLR_LIGHT_GREY);
+        print("TB-303 CONTROLS", 100, 36, CLR_YELLOW);
+        static const char *HL[] = {
+            "ROLL      DRAW/DRAG NOTES",
+            "          CLICK NOTE = ERASE",
+            "OCT       STEP UP ONE OCTAVE",
+            "ACC       ACCENT: LOUD+SHARP",
+            "SLD       SLIDE TO NEXT NOTE",
+            "KNOBS     DRAG OR WHEEL",
+            "SQUELCH   FILTER-ENV DEPTH",
+            "WAVE BOX  SAW / SQR",
+            "N         NEW RANDOM LINE",
+            "< >       PATTERN   ^v TEMPO",
+            "SPACE     RUN/STOP  H CLOSE",
+        };
+        for (int i = 0; i < 11; i++)
+            print(HL[i], 52, 50 + i * 11, i < 8 ? CLR_WHITE : CLR_LIGHT_PEACH);
+    }
 }

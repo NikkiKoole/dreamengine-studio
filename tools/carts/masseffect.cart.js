@@ -9,7 +9,7 @@
 //   16 — bridge floor   17 — bridge wall   18 — console   19 — galaxy table
 //   20 — mission floor  21 — mission wall  22 — cover crate
 
-const { blank, pixel, rectfill, circlefill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, circlefill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 const TRANS = 0
 const ARMOR = 28   // MAGIC: recolored by pal(28, ...)
@@ -75,7 +75,7 @@ function missionFloor(base, s1, s2) {
   const g = blank(); rectfill(g, 0, 0, 15, 15, base)
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
-      const n = (x * 7 + y * 13) % 11
+      const n = noise(x, y, 11)
       if (n === 0) g[y][x] = s1
       else if (n === 4) g[y][x] = s2
     }

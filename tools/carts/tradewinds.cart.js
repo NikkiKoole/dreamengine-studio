@@ -11,28 +11,22 @@
 // pal(10, accent) them to glow in each port's colour. Sprites are generated
 // programmatically so we can reach the extended palette indices (16–31).
 
+const { blank, pixel, rectfill, flat, noise } = require('../sprite-draw.js')
+
 const T = 0;
-const blank = () => Array.from({ length: 16 }, () => new Array(16).fill(T));
-function box(g, x0, y0, x1, y1, c) {
-  for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++)
-      if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c;
-}
-function dot(g, x, y, c) { if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c; }
-const flat = g => g.flat();
 
 // ── the sloop ────────────────────────────────────────────────────
 function ship(billow) {
   const g = blank();
   // hull
-  box(g, 3, 12, 12, 13, 4);
-  dot(g, 2, 12, 4); dot(g, 13, 12, 4);
-  box(g, 4, 14, 11, 14, 20);     // waterline shade
-  box(g, 4, 11, 11, 11, 31);     // deck (peach)
+  rectfill(g, 3, 12, 12, 13, 4);
+  pixel(g, 2, 12, 4); pixel(g, 13, 12, 4);
+  rectfill(g, 4, 14, 11, 14, 20);     // waterline shade
+  rectfill(g, 4, 11, 11, 11, 31);     // deck (peach)
   // mast
-  box(g, 8, 2, 8, 11, 20);
+  rectfill(g, 8, 2, 8, 11, 20);
   // pennant flag (magic colour)
-  box(g, 9, 2, 10, 2, 14);
+  rectfill(g, 9, 2, 10, 2, 14);
   // mainsail to the right of the mast, widening downward (billow toggles size)
   const ext = billow ? 6 : 5;
   for (let y = 3; y <= 10; y++) {
@@ -49,42 +43,42 @@ function ship(billow) {
 
 // ── sea chart tiles ──────────────────────────────────────────────
 function sea() {
-  const g = blank(); box(g, 0, 0, 15, 15, 17);              // darker blue base
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 17);              // darker blue base
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 5 + y * 7) % 13;
+    const n = noise(x, y, 13);
     if (n === 0) g[y][x] = 1; else if (n === 6) g[y][x] = 28;
   }
   return flat(g);
 }
 function sand() {
-  const g = blank(); box(g, 0, 0, 15, 15, 15);              // light peach
+  const g = blank(); rectfill(g, 0, 0, 15, 15, 15);              // light peach
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 7 + y * 5) % 11;
+    const n = noise(x, y, 11);
     if (n === 0) g[y][x] = 31; else if (n === 5) g[y][x] = 4;
   }
   // a touch of foam on the edges
-  for (let x = 0; x < 16; x++) { if ((x * 3) % 5 === 0) { dot(g, x, 0, 7); dot(g, x, 15, 7); } }
+  for (let x = 0; x < 16; x++) { if ((x * 3) % 5 === 0) { pixel(g, x, 0, 7); pixel(g, x, 15, 7); } }
   return flat(g);
 }
 function palm() {
-  const g = blank(); box(g, 0, 12, 15, 15, 15);             // sandy base
-  box(g, 7, 5, 8, 12, 20);                                  // trunk
-  box(g, 4, 3, 11, 5, 3);                                   // fronds
-  box(g, 3, 4, 3, 5, 3); box(g, 12, 4, 12, 5, 3);
-  dot(g, 7, 2, 11); dot(g, 8, 2, 11);
-  for (let x = 4; x < 12; x++) if ((x * 5) % 3 === 0) dot(g, x, 4, 11);
+  const g = blank(); rectfill(g, 0, 12, 15, 15, 15);             // sandy base
+  rectfill(g, 7, 5, 8, 12, 20);                                  // trunk
+  rectfill(g, 4, 3, 11, 5, 3);                                   // fronds
+  rectfill(g, 3, 4, 3, 5, 3); rectfill(g, 12, 4, 12, 5, 3);
+  pixel(g, 7, 2, 11); pixel(g, 8, 2, 11);
+  for (let x = 4; x < 12; x++) if ((x * 5) % 3 === 0) pixel(g, x, 4, 11);
   return flat(g);
 }
 function town() {
-  const g = blank(); box(g, 0, 12, 15, 15, 15);             // sand
+  const g = blank(); rectfill(g, 0, 12, 15, 15, 15);             // sand
   // house A (grey wall, red roof)
-  box(g, 2, 6, 6, 12, 6); box(g, 2, 5, 6, 5, 8);
-  box(g, 3, 8, 4, 9, 10);                                   // window (magic glow index 10)
+  rectfill(g, 2, 6, 6, 12, 6); rectfill(g, 2, 5, 6, 5, 8);
+  rectfill(g, 3, 8, 4, 9, 10);                                   // window (magic glow index 10)
   // house B (taller)
-  box(g, 8, 4, 13, 12, 22); box(g, 8, 3, 13, 3, 8);
-  box(g, 9, 6, 10, 7, 10); box(g, 11, 9, 12, 10, 10);
+  rectfill(g, 8, 4, 13, 12, 22); rectfill(g, 8, 3, 13, 3, 8);
+  rectfill(g, 9, 6, 10, 7, 10); rectfill(g, 11, 9, 12, 10, 10);
   // little dock
-  box(g, 0, 13, 2, 13, 20);
+  rectfill(g, 0, 13, 2, 13, 20);
   return flat(g);
 }
 

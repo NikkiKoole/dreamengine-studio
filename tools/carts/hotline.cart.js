@@ -8,7 +8,7 @@
 // (16-31) for the moody neon look. The cart pal()-tints the whole tileset per
 // floor (magenta → cyan → red).
 
-const { blank, pixel, rectfill, circlefill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, circlefill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 // palette indices
 const TRANS  = 0
@@ -32,7 +32,7 @@ function floorTile() {
   rectfill(g, 0, 0, 15, 15, 18)       // darker purple base
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
-      const n = (x * 7 + y * 13) % 19
+      const n = noise(x, y, 19)
       if (n === 0) g[y][x] = 2    // dark purple speck
       else if (n === 6) g[y][x] = 17 // darker blue speck
     }

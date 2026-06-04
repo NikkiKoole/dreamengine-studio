@@ -11,7 +11,7 @@
 //  12 battle field (opaque)  13 battle rock (obstacle)
 //  16 pikeman  17 archer  18 griffin  19 ogre                 (creatures, magic 28/29)
 
-const { blank, pixel, rectfill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 const S = 16;
 
@@ -19,7 +19,7 @@ const S = 16;
 function grass() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 27);          // medium green
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const n = (x * 7 + y * 13) % 17;
+    const n = noise(x, y, 17);
     if (n === 0) g[y][x] = 11; else if (n === 5) g[y][x] = 3;
   }
   return flat(g);
@@ -45,7 +45,7 @@ function water() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 28);          // (magic) deep — but we want fixed blue
   rectfill(g, 0, 0, 15, 15, 12);
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const n = (x * 5 + y * 9) % 11;
+    const n = noise(x, y, 11);
     if (n === 0) g[y][x] = 28; else if (n === 4) g[y][x] = 1;
   }
   rectfill(g, 2, 4, 5, 4, 7); rectfill(g, 9, 10, 12, 10, 7);      // foam
@@ -61,7 +61,7 @@ function road() {
 function battlefield() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 20);          // packed dirt
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const n = (x * 3 + y * 7) % 13;
+    const n = noise(x, y, 13);
     if (n === 0) g[y][x] = 4; else if (n === 6) g[y][x] = 16;
   }
   return flat(g);

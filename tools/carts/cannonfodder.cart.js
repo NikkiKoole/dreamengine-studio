@@ -11,7 +11,7 @@
 // Terrain greens (3/11/27) are recolored per biome in the cart (jungle→desert→snow),
 // so trees/grass/canopies shift together; trunks, water and roofs stay put.
 
-const { blank, pixel, rectfill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 const TRANS = 0
 const UNI   = 28      // MAGIC uniform  → pal(28, teamColor)
@@ -21,9 +21,6 @@ const BOOT  = 4       // brown
 
 // grass palette (recolored per biome)
 const G_DK = 3, G_MD = 27, G_LT = 11
-
-// deterministic per-pixel "hash" for texturing tiles
-const hash = (x, y, a, b, m) => (x * a + y * b) % m
 
 // ── soldier (top-down) ───────────────────────────────────────
 function makeSoldier(step) {
@@ -53,7 +50,7 @@ function grass(g) {
   rectfill(g, 0, 0, 15, 15, G_DK)
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
-      const n = hash(x, y, 7, 13, 17)
+      const n = noise(x, y, 17)
       if (n === 0) g[y][x] = G_LT
       else if (n === 5) g[y][x] = G_MD
     }
@@ -65,7 +62,7 @@ function waterTile() {
   rectfill(g, 0, 0, 15, 15, 1)            // dark blue
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
-      const n = hash(x, y, 5, 9, 11)
+      const n = noise(x, y, 11)
       if (n === 0) g[y][x] = 12       // bright blue ripple
       else if (n === 4) g[y][x] = 17  // darker deep
     }
@@ -81,7 +78,7 @@ function treeTile() {
   rectfill(g, 3, 4, 3, 6, G_DK); rectfill(g, 12, 4, 12, 6, G_DK)
   for (let y = 1; y < 8; y++)
     for (let x = 3; x < 13; x++)
-      if (g[y][x] === G_DK && hash(x, y, 7, 5, 6) === 0) g[y][x] = G_LT
+      if (g[y][x] === G_DK && noise(x, y, 6) === 0) g[y][x] = G_LT
   return flat(g)
 }
 
@@ -103,7 +100,7 @@ function nestTile() {
   rectfill(g, 4, 6, 11, 11, 6)
   for (let y = 4; y <= 13; y++)
     for (let x = 2; x <= 13; x++)
-      if (g[y][x] === 22 && hash(x, y, 3, 7, 4) === 0) g[y][x] = 20
+      if (g[y][x] === 22 && noise(x, y, 4) === 0) g[y][x] = 20
   rectfill(g, 6, 7, 9, 10, 5)            // dark emplacement
   rectfill(g, 9, 8, 13, 9, 5)            // the gun barrel poking out
   return flat(g)

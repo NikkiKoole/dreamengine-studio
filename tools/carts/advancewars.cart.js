@@ -7,13 +7,13 @@
 //   7 city    8 factory 9 hq                                   (buildings, magic 28/29)
 //  16 infantry 17 mech 18 recon 19 tank 20 artillery           (units, magic 28/29)
 
-const { blank, pixel, rectfill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 // ── terrain (fully opaque — no index 0, so nothing turns transparent) ──────────
 function plains() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 27);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 7 + y * 13) % 19;
+    const n = noise(x, y, 19);
     if (n === 0) g[y][x] = 11; else if (n === 6) g[y][x] = 3;
   }
   return flat(g);
@@ -45,7 +45,7 @@ function road() {
 function sea() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 12);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 5 + y * 9) % 11;
+    const n = noise(x, y, 11);
     if (n === 0) g[y][x] = 28; else if (n === 4) g[y][x] = 1;
   }
   rectfill(g, 2, 3, 5, 3, 7); rectfill(g, 9, 9, 12, 9, 7);
@@ -54,7 +54,7 @@ function sea() {
 function shoal() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 15);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++)
-    if ((x * 3 + y * 7) % 13 === 0) g[y][x] = 9;
+    if (noise(x, y, 13) === 0) g[y][x] = 9;
   rectfill(g, 0, 13, 15, 15, 12);
   return flat(g);
 }

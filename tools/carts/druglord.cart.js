@@ -13,7 +13,7 @@
 // dark by day and neon-lit at night. Sprites are generated programmatically so we
 // can reach extended palette indices (16–31) directly.
 
-const { blank, pixel, rectfill, flat } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, flat, noise } = require('../sprite-draw.js')
 
 const T = 0;
 
@@ -21,7 +21,7 @@ const T = 0;
 function street() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 5);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 7 + y * 13) % 19;
+    const n = noise(x, y, 19);
     if (n === 0) g[y][x] = 6; else if (n === 4) g[y][x] = 22;
   }
   return flat(g);
@@ -29,7 +29,7 @@ function street() {
 function grass() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 3);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 5 + y * 11) % 13;
+    const n = noise(x, y, 13);
     if (n === 0) g[y][x] = 11; else if (n === 6) g[y][x] = 27;
   }
   return flat(g);
@@ -37,7 +37,7 @@ function grass() {
 function water() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 28);
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 5 + y * 3) % 11;
+    const n = noise(x, y, 11);
     if (n === 0) g[y][x] = 12; else if (n === 6) g[y][x] = 1;
   }
   return flat(g);
@@ -91,7 +91,7 @@ function tree() {
   rectfill(g, 3, 2, 12, 9, 3); rectfill(g, 4, 1, 11, 1, 3);
   rectfill(g, 2, 4, 2, 7, 3); rectfill(g, 13, 4, 13, 7, 3);
   for (let y = 2; y < 9; y++) for (let x = 3; x < 13; x++) {
-    if ((x * 5 + y * 3) % 6 === 0) g[y][x] = 11; else if ((x + y) % 5 === 0) g[y][x] = 27;
+    if (noise(x, y, 6) === 0) g[y][x] = 11; else if ((x + y) % 5 === 0) g[y][x] = 27;
   }
   return flat(g);
 }

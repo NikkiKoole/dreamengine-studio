@@ -9,7 +9,7 @@
 //   0,1,2,3  — top-down player, a 4-step run cycle [neutral, L-stride, neutral, R-stride]
 //   8,9      — pitch tiles: dark mow stripe, light mow stripe
 
-const { blank, pixel, rectfill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 // palette indices
 const TRANS = 0    // transparent (cart calls colorkey(0))
@@ -46,7 +46,7 @@ function darkStripe() {
   rectfill(g, 0, 0, 15, 15, 3)                    // dark green base
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++)
-      if ((x * 7 + y * 13) % 23 === 0) g[y][x] = 27  // sparse blade fleck
+      if (noise(x, y, 23) === 0) g[y][x] = 27  // sparse blade fleck
   return flat(g)
 }
 function lightStripe() {

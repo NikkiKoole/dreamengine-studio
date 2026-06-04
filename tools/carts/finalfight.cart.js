@@ -25,7 +25,7 @@ const HAIR = 26      // MAGIC: pal(26, hairColor)
 const SHOE = 5       // fixed dark grey
 const WHT  = 7
 
-const { blank, pixel, rectfill, flat: flatLib, outlined } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, flat: flatLib, outlined, noise } = require('../sprite-draw.js')
 
 // add a 1px OUT outline into transparent pixels touching the silhouette.
 // run per-slot — torso is flush to the slot edge so the waist seam stays clean.
@@ -122,7 +122,7 @@ function brick() {
     for (let x = 0; x < 16; x++) {
       if (y % 5 === 0) g[y][x] = 20                        // mortar line (darker)
       else if (((Math.floor(y / 5) % 2) ? x + 4 : x) % 8 === 0) g[y][x] = 20
-      else if ((x * 3 + y * 7) % 11 === 0) g[y][x] = 24    // fleck
+      else if (noise(x, y, 11) === 0) g[y][x] = 24    // fleck
     }
   return flatLib(g)
 }
@@ -148,7 +148,7 @@ function road() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 5)               // asphalt grey
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
-      const n = (x * 7 + y * 13) % 17
+      const n = noise(x, y, 17)
       if (n === 0) g[y][x] = 21
       else if (n === 5) g[y][x] = 16
     }
@@ -175,7 +175,7 @@ function concrete() {
   const g = blank(); rectfill(g, 0, 0, 15, 15, 21)              // dark warm grey
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++)
-      if ((x * 5 + y * 11) % 13 === 0) g[y][x] = 16
+      if (noise(x, y, 13) === 0) g[y][x] = 16
   rectfill(g, 0, 0, 15, 0, 5)
   return flatLib(g)
 }

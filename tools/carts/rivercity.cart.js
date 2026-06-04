@@ -12,7 +12,7 @@
 //               a 4-step march cycle [neutral, left-up, neutral, right-up]
 //   16..23  — floor tiles, two per zone (downtown / park / mall / docks)
 
-const { blank, pixel, rectfill, outlined, flat, OUT } = require('../sprite-draw.js')
+const { blank, pixel, rectfill, outlined, flat, noise, OUT } = require('../sprite-draw.js')
 
 const TRANS = 0, SKIN = 15, SHOE = 5
 const SHIRT = 28, PANTS = 29, HAIR = 26   // MAGIC — recolored per fighter
@@ -53,7 +53,7 @@ function tile(base, fleckA, fleckB) {
   const g = blank()
   rectfill(g, 0, 0, 15, 15, base)
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const n = (x * 7 + y * 13) % 17
+    const n = noise(x, y, 17)
     if (n === 0 && fleckA != null) g[y][x] = fleckA
     else if (n === 5 && fleckB != null) g[y][x] = fleckB
   }

@@ -21,9 +21,10 @@ static const char *PNAME[NP] = {
 };
 static float P[NP];
 // step speeds in ms. Game sfx are FAST — sfxp's default is ~8ms/step (a 32-step sound is a
-// quarter-second zap). 16ms is our floor: steps fire from the 60fps frame loop, so anything
-// under one frame would collide. 16-30 = sfx land, 45+ = jingle land.
-static const int SPDS[6] = { 16, 22, 30, 45, 70, 100 };
+// quarter-second zap). Steps are queued ahead with schedule_hit(), so the audio thread fires
+// them sample-accurately — sub-frame speeds stay crisp. 8-22 = sfx land, 45+ = jingle land.
+static const int SPDS[8] = { 8, 12, 16, 22, 30, 45, 70, 100 };
+#define NSPD 8
 static int spd_i = 1;
 #define SPD_MS (SPDS[spd_i])
 
@@ -34,7 +35,8 @@ static float CG[NSTEP], CK[NSTEP], CB[NSTEP];
 static const int WMAP[5] = { INSTR_SINE, INSTR_TRI, INSTR_SQUARE, INSTR_SAW, INSTR_NOISE };
 
 static int   play_i = -1, head = -1;
-static float play_t = 0;
+static float play_t = 0;          // time until the next UNSCHEDULED step (the queue-ahead clock)
+static float vis_t = -1;          // visual clock for the playhead; <0 = stopped
 static int   ui_row = -1;          // slider row being dragged
 static const char *msg = ""; static int msg_t = 0;
 
@@ -45,7 +47,7 @@ static float hist[24][NP]; static int hist_n = 0, hist_i = 0;
 #define RX 8
 #define RW 240
 #define RY 16
-#define RH 10
+#define RH 9
 
 static float lfo_at(int d, float rate, float depth) {
     return sin_deg(d * rate * rate * rate * 120.0f) * powf(depth, 1.5f);
@@ -72,7 +74,7 @@ static void gen(void) {
     }
 }
 
-static void replay(void) { gen(); play_i = 0; play_t = 0; }
+static void replay(void) { gen(); play_i = 0; play_t = 0; vis_t = 0; }
 
 static void remember(void) {                                  // push current params for undo
     if (hist_i < 24) { for (int i = 0; i < NP; i++) hist[hist_i][i] = P[i]; hist_i++; if (hist_i > hist_n) hist_n = hist_i; }
@@ -86,9 +88,62 @@ static void randomize(bool mutate) {
         P[i] = mutate ? 0.9f * P[i] + 0.1f * r : r;
     }
     if (!mutate) { P[A_ATK] *= P[A_ATK] * P[A_ATK]; P[A_HOLD] *= P[A_HOLD]; P[P_DEC] *= P[P_DEC]; P[W_HOLD] *= P[W_HOLD];  // bias short/snappy
-                   spd_i = rnd(3); }                                                                                        // 16/22/30ms — sfx land (sfxp rolls spd too)
+                   spd_i = rnd(4); }                                                                                        // 8/12/16/22ms — sfx land (sfxp rolls spd too)
     replay();
     msg = mutate ? "mutated" : "random!"; msg_t = 60;
+}
+
+// ---- sfxr-style category presets — each click rolls a FRESH random variant in-category ----
+static const char *CATN[7] = { "COIN", "SHOT", "BOOM", "PWUP", "HURT", "JUMP", "BLIP" };
+static float rr(float a, float b) { return rnd_float_between(a, b); }
+static void category(int c) {
+    remember();
+    for (int i = 0; i < NP; i++) P[i] = 0;
+    spd_i = rnd(2);                                            // 8/12ms — sfx speed
+    switch (c) {
+        case 0:  // COIN — a blip that jumps UP and rings
+            P[A_HOLD] = rr(.3f, .45f); P[A_DEC] = rr(.18f, .3f);
+            P[P_ST] = rr(.45f, .6f); P[P_EN] = P[P_ST] + rr(.15f, .3f);
+            P[P_HOLD] = rr(.12f, .22f); P[P_DEC] = rr(.7f, .9f);
+            P[W_ST] = P[W_EN] = rr(.42f, .58f);
+            break;
+        case 1:  // SHOT — descending laser
+            P[A_HOLD] = rr(.2f, .35f); P[A_DEC] = rr(.3f, .5f);
+            P[P_ST] = rr(.7f, .95f); P[P_EN] = rr(.15f, .35f); P[P_HOLD] = rr(0, .08f); P[P_DEC] = rr(.3f, .5f);
+            P[W_ST] = P[W_EN] = rr(.45f, .75f);
+            break;
+        case 2:  // BOOM — noise rumble, longer
+            P[A_ATK] = rr(0, .06f); P[A_HOLD] = rr(.3f, .5f); P[A_DEC] = rr(.1f, .25f);
+            P[A_LR] = rr(.3f, .6f); P[A_LD] = rr(.2f, .5f);
+            P[P_ST] = rr(.2f, .45f); P[P_EN] = rr(.05f, .2f); P[P_DEC] = rr(.2f, .4f);
+            P[W_ST] = rr(.85f, .99f); P[W_EN] = rr(.85f, .99f);
+            spd_i = rnd(2) + 2;                                // 16/22ms
+            break;
+        case 3:  // PWUP — rising warble
+            P[A_HOLD] = rr(.5f, .7f); P[A_DEC] = rr(.2f, .35f);
+            P[P_ST] = rr(.25f, .4f); P[P_EN] = rr(.65f, .85f); P[P_DEC] = rr(.18f, .32f);
+            P[P_LR] = rr(.35f, .55f); P[P_LD] = rr(.1f, .25f);
+            P[W_ST] = P[W_EN] = rr(.3f, .55f);
+            spd_i = rnd(2) + 1;                                // 12/16ms
+            break;
+        case 4:  // HURT — short harsh drop
+            P[A_HOLD] = rr(.08f, .2f); P[A_DEC] = rr(.45f, .65f);
+            P[P_ST] = rr(.4f, .6f); P[P_EN] = rr(.12f, .3f); P[P_DEC] = rr(.5f, .8f);
+            P[W_ST] = P[W_EN] = rr(.6f, .92f);
+            break;
+        case 5:  // JUMP — clean rise
+            P[A_HOLD] = rr(.3f, .45f); P[A_DEC] = rr(.3f, .45f);
+            P[P_ST] = rr(.32f, .48f); P[P_EN] = rr(.58f, .75f); P[P_DEC] = rr(.25f, .4f);
+            P[W_ST] = P[W_EN] = rr(.28f, .5f);
+            break;
+        case 6:  // BLIP — UI tick
+            P[A_HOLD] = rr(.06f, .14f); P[A_DEC] = rr(.75f, .95f);
+            P[P_ST] = rr(.5f, .72f); P[P_EN] = P[P_ST];
+            P[W_ST] = P[W_EN] = rr(.25f, .55f);
+            break;
+    }
+    replay();
+    msg = CATN[c]; msg_t = 50;
 }
 
 // ---- save / export (same code format as the sfx editor cart) ----
@@ -118,8 +173,9 @@ static void export_code(void) {
     printh("void sfx_tick(void) {                            // call every frame in update()");
     printh("    if (sfx_i < 0) return;");
     printh("    sfx_t -= dt();");
-    printh("    while (sfx_i >= 0 && sfx_t <= 0) {");
-    printh("        if (SFX_V[sfx_i]) hit(SFX_P[sfx_i], SFX_W[sfx_i], SFX_V[sfx_i], SFX_SPD + 5);");
+    printh("    while (sfx_i >= 0 && sfx_t < 0.034f) {       // queue ~2 frames ahead, sample-accurate");
+    printh("        if (SFX_V[sfx_i]) schedule_hit(sfx_t > 0 ? (int)(sfx_t * 1000.0f) : 0,");
+    printh("                                       SFX_P[sfx_i], SFX_W[sfx_i], SFX_V[sfx_i], SFX_SPD + 5);");
     printh("        sfx_t += SFX_SPD / 1000.0f;");
     printh("        if (++sfx_i >= %d) sfx_i = -1;", NSTEP);
     printh("    }");
@@ -139,6 +195,7 @@ void update(void) {
     if (keyp('Z') || keyp('X')) replay();
     if (keyp('R')) randomize(false);
     if (keyp('M')) randomize(true);
+    for (int c = 0; c < 7; c++) if (keyp('1' + c)) category(c);
     if (keyp('E')) export_code();
     if (keyp('S')) save_it();
     if (keyp('L')) load_it();
@@ -159,15 +216,23 @@ void update(void) {
     if (!mouse_down(MOUSE_LEFT)) { if (ui_row >= 0) replay(); ui_row = -1; }
     if (ui_row >= 0) { P[ui_row] = clamp((mouse_x() - RX) / (float)RW, 0, 1); gen(); }
 
-    // playback — hit() per baked step, exactly what the exported player does
-    play_t -= dt();
-    while (play_i >= 0 && play_t <= 0) {
-        if (SV[play_i]) hit(SP[play_i], SWV[play_i], SV[play_i], SPD_MS + 5);   // +5: gate just past the next step; the 20ms release declicks
-        head = play_i;
-        play_t += SPD_MS / 1000.0f;
-        play_i = play_i + 1 >= NSTEP ? -1 : play_i + 1;
+    // playback — queue steps ~2 frames ahead with schedule_hit(), so the AUDIO thread fires
+    // them sample-accurately: 8ms steps stay crisp instead of colliding in the 60fps frame
+    // loop. Exactly what the exported player does.
+    if (play_i >= 0) {
+        play_t -= dt();
+        while (play_i >= 0 && play_t < 0.034f) {
+            if (SV[play_i]) schedule_hit(play_t > 0 ? (int)(play_t * 1000.0f) : 0,
+                                         SP[play_i], SWV[play_i], SV[play_i], SPD_MS + 5);
+            play_t += SPD_MS / 1000.0f;
+            play_i = play_i + 1 >= NSTEP ? -1 : play_i + 1;
+        }
     }
-    if (play_i < 0 && play_t < -0.3f) head = -1;
+    if (vis_t >= 0) {                                       // playhead runs on its own clock
+        vis_t += dt();
+        head = (int)(vis_t * 1000.0f / SPD_MS);
+        if (head >= NSTEP) { head = -1; vis_t = -1; }
+    }
 }
 
 void draw(void) {
@@ -175,7 +240,7 @@ void draw(void) {
     print("SFX GENERATOR", 8, 3, CLR_WHITE);
     font(FONT_SMALL);
     if (msg_t > 0) print(msg, 120, 5, CLR_LIGHT_PEACH);
-    else           print_right("sliders make the sound", 312, 5, CLR_MAUVE);
+    else           print_right("arrows undo  E export  S/L save", 312, 5, CLR_MAUVE);
 
     // 17 slider rows (the row IS the slider, sfxp style)
     for (int i = 0; i < NP; i++) {
@@ -201,8 +266,19 @@ void draw(void) {
     print("pitch", cx0 + 3, cy0 + 9, CLR_ORANGE);
     print("wave", cx0 + 3, cy0 + 16, CLR_GREEN);
 
-    // bottom bar: buttons + speed
-    int by = RY + NP * RH + 3;
+    // sfxr-style category row — tiny buttons, each click = a fresh variant (keys 1-7)
+    int py2 = RY + NP * RH + 2;
+    for (int c = 0; c < 7; c++) {
+        int x = 8 + c * 43;
+        bool hot = mouse_x() >= x && mouse_x() < x + 41 && mouse_y() >= py2 && mouse_y() < py2 + 10;
+        rectfill(x, py2, 41, 10, CLR_DARKER_PURPLE);
+        rect(x, py2, 41, 10, hot ? CLR_WHITE : CLR_DARK_GREY);
+        print(CATN[c], x + 10, py2 + 2, hot ? CLR_WHITE : CLR_LIGHT_PEACH);
+        if (hot && mouse_pressed(MOUSE_LEFT)) category(c);
+    }
+
+    // main bar: play / random / mutate / speed
+    int by = py2 + 12;
     const char *bn[4] = { "PLAY (Z)", "RANDOM (R)", "MUTATE (M)", str("SPD %dms", SPD_MS) };
     for (int b = 0; b < 4; b++) {
         int x = 8 + b * 78;
@@ -214,10 +290,9 @@ void draw(void) {
             if (b == 0) replay();
             if (b == 1) randomize(false);
             if (b == 2) randomize(true);
-            if (b == 3) { spd_i = (spd_i + 1) % 6; replay(); }
+            if (b == 3) { spd_i = (spd_i + 1) % NSPD; replay(); }
         }
         if (b == 1 && hot && mouse_pressed(MOUSE_RIGHT)) randomize(true);   // sfxp tradition: rclick random = mutate
     }
-    print("arrows undo/redo   E export code   S/L save/load", 8, by + 14, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }

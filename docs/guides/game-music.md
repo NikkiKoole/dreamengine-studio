@@ -439,6 +439,46 @@ this guide's blocks; the copied core (clock + chord brain + voice leading + seed
 contract + help panel, ~150 lines) has now survived seven carts verbatim —
 extraction into a shared header is overdue whenever someone wants that refactor.
 
+## The same band every night — per-song timbre rolls (family-wide refit)
+
+Station-owner feedback (2026-06-05, while listening to house radio): *"it's the
+same identical instrument for every song — a bit more variation is in place."*
+Correct, and it's structural: every cart calls `setup_instruments()` once with
+hardcoded constants, so the seed re-rolls the **composition** (key, changes,
+patterns) but the **band** never changes — same cutoffs, same waves, same
+envelopes, song after song. A real station plays different *records*; ours
+replays one session band forever.
+
+The fix is cheap because instrument parameters are already just numbers: in
+`new_song()`, after the chord/pattern rolls, **roll the timbre from the same
+composition seed**, within style bounds:
+
+- **register** — bass octave choice, comp/stab voicing window shifted ±3–5 st
+- **filter character** — per-instrument base cutoff ×0.7..1.4, resonance ±2
+- **envelope feel** — attack/decay/release ×0.6..1.6 (a plucky take vs a soft
+  night take of the same instrument)
+- **wave swaps from small pools** — lead: square(0.25) / square(0.38) / saw;
+  bass: sine / tri; stab: saw / tri. Two or three options, not a synth menu.
+- **LFO personality** — vibrato rate/depth ranges, tremolo present or absent
+- **kit dressing** — hat brightness, clap vs snare vs rim, shaker on/off
+
+Implementation gotchas, learned from the existing carts:
+
+1. **Store the rolled bases, scale at apply time.** Carts with a tone knob
+   (`apply_voicing()` in dub/ymo/house) re-issue `instrument_filter` with
+   *constants* — a timbre roll must instead write per-song base values that
+   the tone knob multiplies, or pressing T erases the song's personality.
+2. **Roll from the composition PRNG (`srnd`), not engine `rnd()`** — a pinned
+   seed should always bring its own band; that's part of what the number IS.
+3. **Stay inside the style.** Bossa's nylon guitar must never become a square
+   wave; 2–3 audibly-rolled knobs per instrument is plenty. The acceptance
+   test: two SPACE presses should sound like **two different records**, not
+   two takes of one.
+
+New stations should build this in from day one; existing carts retrofit
+opportunistically (house and ymo first — newest, and the synth genres wear
+timbre variation most naturally).
+
 ## Future stations — the parking lot
 
 Candidates ranked by **engine fit** (= the genre's essence maps onto machinery we
@@ -466,6 +506,28 @@ and Sakamoto unprompted.
    1, approach pattern through the bar — a beautiful ~20-line generator),
    ride-cymbal swing pattern, sparse comping reusing bossa's ii–V tables at 4×
    the harmonic rate. The guide's swing math finally gets its full workout.
+5. **Gamelan (Java/Bali)** — planned 2026-06-05; the first station to leave
+   12-TET entirely. Four new tricks in one cart:
+   - **the tuning system as data** — sléndro/pélog as cent tables fed through
+     `note_pitch` floats; and since *no two real gamelans are tuned alike*
+     (every village ensemble is its own instrument), **the seed rolls the
+     tuning** — each song is played on slightly different bronze. Also the
+     natural home of the per-song timbre-roll idea (section above).
+   - **colotomic time — a new TIME brain** — form as *nested gong cycles*
+     (gong ageng marks the full gongan, kempul halves, kenong quarters,
+     kethuk between), not bar→phrase→section. The arrangement curve becomes
+     concentric circles.
+   - **kotekan — melody as interlock** — two voices (polos/sangsih) on
+     *complementary* onset masks summing to an unbroken 16th stream.
+     Trace-verifiable by definition: assert the union fills the grid.
+   - **ombak** — paired voices a few cents apart so they BEAT; ambient's
+     detune promoted to the genre's whole timbral identity. Plus **irama**
+     as the feel knob: density doubles as tempo halves.
+   Open questions: tuning per song vs per session; Bali (fast, bright,
+   kotekan-forward) vs Java (slow, deep) — possibly the two ends of the feel
+   knob; face = gong rack vs a wayang shadow puppet dancing the cycle.
+   Taste-fit: the Hosono thread again (*Cochin Moon*), Nonesuch Explorer
+   crate-digging.
 
 **Also very doable:**
 
@@ -480,6 +542,19 @@ and Sakamoto unprompted.
   `note_res` on held strings from an arrangement-level curve). Bonus finds: the
   sidechain pump as a *filter* gesture (cutoff ducks at each kick), and THE
   VOID — one `return` statement of silence before every drop.
+- **Exotica (Martin Denny / Les Baxter)** — Hosono's actual origin story (the
+  Tropical Trilogy is exotica homage). Lush vibraphone maj9/m9, lazy rubato
+  lounge time, and the fun new layer: **bird calls and frog croaks as an
+  aleatoric performance channel** — `chance()` per bar firing pitch-swooped
+  squeals that never repeat (pure engine-`rnd`, never seeded, exactly like
+  Denny's band improvising the jungle). Fewer new engine tricks than gamelan —
+  mostly timbre — but maximum taste-fit.
+- **Wendy Carlos / baroque counterpoint** — chord brain #7 that isn't chords
+  at all: **rule-based two-voice species counterpoint** over a ground bass
+  (a chaconne loop = the vamp brain's classical ancestor). Contrary motion
+  preferred, no parallel fifths, dissonance only passing on weak beats —
+  ~40 lines of rules generating real polyphony, played on bright Moog timbres
+  (square + saw, generous portamento). *Switched-On Bach* as a station.
 - **Steve Reich minimalism** — two voices, same pattern, slightly different step
   lengths → phasing. The most experimental station possible, nearly free to build.
 - **Lofi hip-hop jazz** — still in the cheat-sheet above; most of its parts

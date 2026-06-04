@@ -327,10 +327,40 @@ no debug guards. Layout redesigned this session:
 handled by a separate agent. The static facade is the foundation; the living
 systems build on top of it.
 
-## Handoff — next agent starts here (2026-06-04, session 2 complete)
+### Step 2 — sys 6 starter: clock + light schedules (2026-06-04, session 3)
+
+`tod` global (hours 0–24) advances at `TOD_RATE` (full day ≈ 5 real minutes; tune
+`DAY_REAL_SECS`). Static `lit`/`tv` snapshot removed; replaced by three helpers:
+
+- `home_lit(h, tod)` — returns 1 when `is_dark(tod)` AND the household is within
+  their wake–sleep window. `sleep_h` may exceed 24 (student wraps past midnight).
+- `home_tv(h, tod)` — archetype-dependent evening window while lit.
+- `home_curt_open(h, tod)` — daytime preference, overridden to closed past 22:00.
+
+Wake/sleep schedule rolled per archetype in `roll_home()`:
+- Elder: 5:30–7:00 → 21:00–22:30
+- Couple: 6:30–8:00 → 22:30–24:00
+- Family: 6:00–7:30 → 21:30–23:00
+- Student: 9:00–12:00 → 24:00–27:00 (past midnight)
+
+Minimal sky keyframes: night / dawn / day / dusk / evening (no smooth lerp — sys 1
+does that). Clock HUD bottom-left. **T key jumps +1 hour** for testing.
+
+Starts at `TOD_START = 20.0` (8pm) — building lit up at launch.
+Latest commit: `7a7cabd`.
+
+**Building reads very differently per time slot:**
+- 20:00 — warm scattered lights, TV flickers; most households awake
+- 22:00+ — elders darken first
+- 23:00–24:00 — couples and families go dark
+- 01:00–07:30 — building nearly black; only students still lit
+- 08:00–17:30 — dead (everyone at work); facade colour dominates
+- 17:30 — lights start coming back on floor by floor
+
+## Handoff — next agent starts here (2026-06-04, session 3 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Latest commit: `d9b1129`.
+Latest commit: `7a7cabd`.
 
 **The bake loop** (~10s per iteration):
 ```bash
@@ -340,10 +370,10 @@ node tools/make-cart.js --run editor/public/carts/galerijflat.cart.png
 magick build/.bake/galerijflat/screenshot.png -scale 960x600 /tmp/gf.png
 ```
 
-**Next build steps are systems 2–7** — see the systems section above for full
-specs. Suggested order: sys 5 (inhabitants, already partially in) → sys 2
-(window treatments driven by archetype) → sys 3 (windowsills) → sys 6 (daily
-round / clock-driven state) → sys 7 (elevator) → sys 4 (the flip).
+**What's done:** static facade (step 1) + clock + light schedules (sys 6 starter).
+
+**Next build steps:** gallery walkers (figures walking the band — the building's
+main "alive" signal) → sys 7 (elevator state machine) → sys 4 (the flip).
 
 House rules: commit on `master`; `git add` per-file; two-step bake every time.
 

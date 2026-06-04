@@ -48,7 +48,7 @@ static int  NF, NB, BW;                       // floors, bays, bay width
 static int  baysX, towerX, towerLeft;         // layout
 static int  baseY, wallTop;                   // plinth top, wall top
 static int  wallC, slabC, towerC, railStyle, panelC, doorBase;
-static int  liftFloor, moonX, lampX[3], nLamp;
+static int  liftFloor, lampX[3], nLamp;
 static Home homes[MAXF][MAXB];
 
 // curtain fabric: {lit-behind, unlit-behind} palette pairs
@@ -168,7 +168,6 @@ static void roll_building(void) {
     }
     do { doorBase = CURT[rnd(NCURT)][1]; } while (doorBase == wallC);
     liftFloor = rnd(NF);
-    moonX = chance(70) ? rnd_between(16, SCREEN_W - 60) : -1;
     nLamp = rnd_between(2, 4);
     for (int i = 0; i < nLamp; i++)
         lampX[i] = 20 + (SCREEN_W - 40) * (i * 2 + 1) / (nLamp * 2);
@@ -312,9 +311,6 @@ static void draw_plinth(void) {
     rectfill(ex, baseY + 3, 12, 11, CLR_LIGHT_YELLOW);           // glass doors
     rectfill(ex + 5, baseY + 3, 1, 11, CLR_DARK_GREY);           // door split
     rect    (ex, baseY + 3, 12, 11, CLR_DARK_GREY);
-    font(FONT_TINY);
-    print(str("%d-%d", 2, NF * NB * 2), ex + 1, baseY - 4, slabC); // house numbers
-    font(FONT_NORMAL);
 }
 
 void draw(void) {
@@ -323,10 +319,6 @@ void draw(void) {
     gradient(0, 0, SCREEN_W, horizon, CLR_DARKER_BLUE, CLR_DARK_PEACH, 90);
     for (int i = 0; i < 26; i++)                                  // first stars
         pset((i * 73 + 19) % SCREEN_W, (i * 41 + 7) % wallTop, i % 4 ? CLR_INDIGO : CLR_LIGHT_GREY);
-    if (moonX >= 0) {                                             // thin crescent
-        circfill(moonX, wallTop / 2, 5, CLR_LIGHT_GREY);
-        circfill(moonX - 3, wallTop / 2 - 1, 5, CLR_DARKER_BLUE);
-    }
 
     // the slab: wall, then the bands of dwellings
     rectfill(baysX, wallTop, NB * BW, baseY - wallTop, wallC);

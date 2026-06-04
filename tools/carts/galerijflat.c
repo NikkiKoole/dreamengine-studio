@@ -21,6 +21,8 @@
 #define DW        6          // door width
 #define SLAB_H    2          // gallery slab thickness
 #define SPANDREL  4          // wall gap above door/window before next slab
+#define BAY_PAD   3          // left margin inside each bay before the door
+#define WIN_GAP   3          // gap between door right edge and window left edge
 #define MAXF     12
 #define MAXB     12
 
@@ -235,11 +237,11 @@ static void draw_band(int f) {
         Home *h = &homes[f][b];
         int x = baysX + b * BW;
         // front door: SPANDREL gap at top, door height = FH - SLAB_H - SPANDREL
-        rectfill(x + 3, yb - FH + SPANDREL, DW, FH - SLAB_H - SPANDREL, h->doorCol);
-        pset(x + 3 + DW - 2, yb - 9, CLR_BROWNISH_BLACK);       // letter slot
-        rectfill(x + 4, yb - FH + SPANDREL, DW - 2, 4, h->arch == A_VACANT ? h->doorCol : CLR_DARKER_BLUE); // door glass
+        rectfill(x + BAY_PAD, yb - FH + SPANDREL, DW, FH - SLAB_H - SPANDREL, h->doorCol);
+        pset(x + BAY_PAD + DW - 2, yb - 9, CLR_BROWNISH_BLACK); // letter slot
+        rectfill(x + BAY_PAD + 1, yb - FH + SPANDREL, DW - 2, 4, h->arch == A_VACANT ? h->doorCol : CLR_DARKER_BLUE); // door glass
         // kitchen window
-        draw_window(h, f, b, x + 3 + DW + 3, yb - FH + SPANDREL);
+        draw_window(h, f, b, x + BAY_PAD + DW + WIN_GAP, yb - FH + SPANDREL);
     }
 
     // railing in front of everything

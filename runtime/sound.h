@@ -135,6 +135,12 @@ static volatile int  req_tail = 0;   // written by audio thread
 static SoundReq      delayed[SOUND_DELAYED_MAX];
 static int           delayed_count = 0;
 
+// tripwire: how many requests were silently dropped because a buffer was full. A nonzero
+// count means sound calls were LOST (a wave_set flood, an init() define burst, …) — exactly
+// the silent class of bug that once made every wav-knob position play the default square.
+// sound_tick() screams about it via printh so it shows in the editor log / bake output.
+static volatile int sound_dropped = 0;
+
 // musical clock (main-thread state, ticked once per frame from studio.c)
 static int   sound_bpm     = 120;
 static float beat_accum    = 0.0f;
@@ -147,13 +153,22 @@ static void sound_tick(float dt) {
     int new_beat = (int)beat_accum;
     beat_just_advanced = (new_beat > beat_now);
     beat_now = new_beat;
+
+    // scream when the tripwire fires: dropped requests mean sound calls were LOST
+    // (notes that never play, instrument defines that never land). Shows in the
+    // editor's log panel and in bake/play.js output — fail loud, not silent.
+    static int dropped_reported = 0;
+    if (sound_dropped > dropped_reported) {
+        printh("[sound] WARNING: request queue overflow — %d sound call(s) DROPPED (notes/defines lost). Spread big bursts across frames or report this.", sound_dropped);
+        dropped_reported = sound_dropped;
+    }
 }
 
 // dur_samples: 0 = use default 250ms (for note/schedule); >0 = custom note length (for hit).
 static void sound_push_req(int kind, int a, int b, int c, int delay_samples, int dur_samples) {
     int h = req_head;
     int next = (h + 1) % SOUND_REQ_QUEUE;
-    if (next == req_tail) return;   // full — drop request
+    if (next == req_tail) { sound_dropped++; return; }   // full — drop request (and trip the wire)
     req_queue[h].kind          = kind;
     req_queue[h].a             = a;
     req_queue[h].b             = b;
@@ -168,7 +183,7 @@ static void sound_push_req(int kind, int a, int b, int c, int delay_samples, int
 static void sound_push_ctrl(int kind, int a, int b, int c, int e0, int e1, int e2) {
     int h = req_head;
     int next = (h + 1) % SOUND_REQ_QUEUE;
-    if (next == req_tail) return;   // full — drop
+    if (next == req_tail) { sound_dropped++; return; }   // full — drop (and trip the wire)
     req_queue[h] = (SoundReq){ .kind = kind, .a = a, .b = b, .c = c,
                                .delay_samples = 0, .dur_samples = 0,
                                .e0 = e0, .e1 = e1, .e2 = e2 };
@@ -509,6 +524,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             sound_fire_req(r);
         } else if (delayed_count < SOUND_DELAYED_MAX) {
             delayed[delayed_count++] = r;
+        } else {
+            sound_dropped++;   // delayed pen full — a scheduled note was lost (tripwire)
         }
     }
 

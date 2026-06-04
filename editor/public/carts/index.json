@@ -2035,5 +2035,22 @@
       "tech-demo"
     ],
     "genre": "arcade"
+  },
+  {
+    "title": "sound check",
+    "description": "The sound engine self-test. init() slams the request queue with the worst-case burst (all 27 instrument slots defined with envs/LFOs/filters + all 4 user wavetables in one frame), then walks the whole API: every wave id audibly in sequence, chords, a 40-shot schedule_hit machine-gun, and a held note driven by every live setter. PASS = no [sound] WARNING in the log and all 9 waves sound different; the engine now counts dropped requests and screams if any sound call was lost. Headless: node tools/play.js soundcheck run.",
+    "file": "soundcheck.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
+  },
+  {
+    "title": "bossa radio",
+    "description": "An endless radio station that composes bossa nova. Every song is generated from a 32-bit seed shown on the display: key, AABA chord progression (Markov walk over jazz harmony - ii-V-I, tritone subs, backdoor dominants), voice-led guitar comping on the bossa clave, surdo bass, shaker, a One Note Samba-style melody cell, tempo, even the title. SPACE next song, R play the same chart again, [ ] song history, LEFT/RIGHT feel (layers), UP/DOWN tempo, M power. Pin a favourite: put its #seed in BOSSA_SEED at the top of the source. The worked example for docs/guides/game-music.md.",
+    "file": "bossa.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ]
   }
 ]

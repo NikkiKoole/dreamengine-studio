@@ -302,3 +302,24 @@ No `--dump` needed. One PNG, the exact frame you asked for, nothing wasted.
 
 > If `jq` is available, it makes traces far nicer to slice, e.g.
 > `jq -c 'select(.w.press) | {f, p:.w.press}' build/<name>.trace.jsonl`.
+
+## Sound tripwire + the `soundcheck` cart
+
+The sound engine counts every request it has to **drop** (ring buffer or delayed-pen full)
+and printh-screams `[sound] WARNING: request queue overflow — N sound call(s) DROPPED` —
+in the editor log, bake output, and play.js output. Dropped requests are the *silent* bug
+class: notes that never play, `instrument()` defines that never land (the "every wav-knob
+position sounds like square" incident, 2026-06-04).
+
+`tools/carts/soundcheck.c` is the matching self-test: its `init()` issues the worst-case
+define burst (27 slots × 8 calls + 4 `wave_set` tables in one frame) and `update()` walks
+the whole sound API, including a 40-shot `schedule_hit` burst that stresses the delayed pen.
+
+```bash
+node tools/play.js soundcheck script /dev/null --headless --frames 900 2>&1 | grep "\[sound\]"
+# no output = PASS. Any WARNING line = sound calls were lost — fix the engine, not the cart.
+```
+
+Run it after touching `runtime/sound.h` (queue sizes, request kinds, new `instrument_*`/
+`wave_set`-style bulk APIs). Ears version: run the cart normally — the 9 waves it plays in
+sequence must all sound *different*.

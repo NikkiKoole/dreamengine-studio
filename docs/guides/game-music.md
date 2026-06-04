@@ -487,6 +487,49 @@ not just by genre appeal — that's what kept the first seven carts each earning
 their place (held voices, groove template, playbook encoding, loop rotation,
 scheduled echo, the desk…).
 
+### Batch two: the IDM / electronic wing
+
+The first nine stations were about **harmony brains**; this batch is about
+**rhythm brains and timbre brains** — volatility, ratchets, mutation,
+mistuning. The other half of the engine's expressiveness, mostly unexplored.
+
+**Aphex Twin, decomposed** (the anchor of the batch):
+
+1. **No repeating patterns = drums as composition.** The kit is a GRAMMAR, not
+   a pattern: anchors persist (kick near 1, snare backbeat-ish), everything
+   else re-rolls per bar — fills are the norm. One knob: *volatility*
+   (0 = loop, 1 = never the same bar twice). The first brain for rhythm
+   rather than harmony.
+2. **Ratchets** — replace a hit with 3–8 sub-hits at 1/32–1/64 with vol/pitch
+   ramps. Only viable since the sample-exact fix (cf68813): ~23ms spacing is
+   exactly what block-quantization used to destroy. ~10 lines, like echo_hit.
+3. **Soft vs hard = TWO independent density curves**, deliberately crossed
+   ("Flim": angelic music-box at volatility 0 over drums at volatility 1).
+   Extends the arrangement-curve model to two dimensions.
+4. **Canon via echo_hit** — dub's echo with a ONE-BAR delay at +12, quieter,
+   is a two-voice canon generator ("Avril 14th"). Structural reuse for free.
+5. **Microtonal drift** (`note_pitch` floats — detuned wrong on purpose), odd
+   meters (satie.c proved non-16 bars; 7/8 = 14 steps), and acid lines —
+   `note_cutoff`/`note_res` squelch, which NO cart uses yet.
+
+**The rest of the wing, by engine fit:**
+
+- **Boards of Canada** — likely the best taste-fit: systematic MISTUNING as
+  warmth (inconsistent per-voice detune + slow pitch LFOs — tape memory),
+  lydian/major nostalgic 2-chord vamps, slow hip-hop kits, heavy rolloff.
+- **Burial** — 2-step garage swing (new groove template: shuffled kicks,
+  off-grid woodblock snares), vinyl + rain, "vocal" sighs = filtered saw with
+  heavy note_glide on wordless pentatonics. Sits next to lowend and ambient.
+- **Squarepusher** — the ratchet engine at maximum + the Hosono bassline
+  generator (ymo.c) turned virtuoso slap. Two existing blocks, pushed to 11.
+- **Autechre (Tri Repetae era)** — pattern mutation applied to TIMBRE:
+  percussion params (pitch, cutoff, decay) drift per hit; the drum machine as
+  a slowly-decaying organism. Needs the rotating-slot trick (audio-notes §2.2).
+- **Plaid / B12** — melodic IDM, arps in odd meters, bells. Gentlest entry.
+- **Eno "Music for Airports"** — melody cells of different PRIME lengths
+  (7/11/13 bars) phasing against each other. Nearly free; ties to the Reich
+  idea above.
+
 ## Verifying without ears
 
 The debug harness makes the music inspectable (see `debug-harness.md`):

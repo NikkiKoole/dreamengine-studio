@@ -166,3 +166,31 @@ grid, steering) — the taxonomy that began with the platformer carts is complet
 **Smaller candidates:** `drag-and-drop` done well (pick-up threshold, hover, drop
 targets, spring-back — every toy hand-rolls this); waypoint followers (tower-defense
 creeps — conceptually *rails for enemies*).
+
+**Collision labs (Track B, consolidated to three interactive carts).** A new cart
+style: draggable mouse-driven visualizers rather than mini-games — the test itself
+is the content. (Also the first tutorials to teach the mouse API at all.)
+- ✅ **`collision-lab-1` (points + boxes)** — SHIPPED 2026-06-04. Axis-shadow bars
+  show that AABB overlap = X-shadows overlap AND Y-shadows overlap; the four live
+  comparisons print with real numbers and flip green/red as you drag; the cursor is
+  the point for `point_in_box`.
+- ✅ **`collision-lab-2` (circles + distance)** — SHIPPED 2026-06-04. The right
+  triangle between the centers drawn live (Pythagoras), a 1:1 ruler showing dist vs
+  ra+rb, and the no-sqrt readout: `dist² <= (ra+rb)²` with real numbers — what
+  `near`/`circles_touch` actually compute.
+- ✅ **`collision-lab-3` (the world)** — SHIPPED 2026-06-04. The three environment
+  flavors, cheapest first: edges (clamp/bounce/wrap on the same wall, X cycles),
+  tiles (`touching_map` with the overlapped cells highlighted live), pixels
+  (`touching_color` against a drawn blob — the Worms-terrain trick), plus
+  `tile_at`/`pget` cursor readouts.
+
+- ✅ **`collision-lab-4` (circle vs box)** — SHIPPED 2026-06-04. The clamp trick:
+  two clamps find Q, the closest point on the box, then it's lab 2's distance test
+  again — "new shape pairs reduce to old tests". Center-inside falls out free.
+- ✅ **`collision-lab-5` (lines)** — SHIPPED 2026-06-04. Point-vs-segment (clamped-t
+  projection, the foot drawn, thickline as the visible hit band) and segment-vs-
+  segment (four cross products, opposite-sides test) — the anti-tunneling test that
+  `linerider` hand-rolled.
+
+**Track B (collision) complete** — the original 33–39 plan, consolidated into five
+interactive labs: points/boxes, circles/distance, the world, circle-vs-box, lines.

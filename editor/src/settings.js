@@ -9,6 +9,7 @@ const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, ce
 export const KEYMAP_DEFAULTS = {
   p0: { up: 265, down: 264, left: 263, right: 262, a: 90, b: 88 },
   p1: { up: 87,  down: 83,  left: 65,  right: 68,  a: 74, b: 75 },
+  pause: 80,   // P — single key for both players; configurable in settings → controls
 }
 
 // The bindable keys: [ KeyboardEvent.code, raylib keycode, display label ].
@@ -62,11 +63,12 @@ function loadKeymap() {
   try {
     const raw = JSON.parse(localStorage.getItem('keymap'))
     if (raw && raw.p0 && raw.p1) {
-      // merge over defaults so a partial/old blob still yields all six buttons
-      return { p0: { ...KEYMAP_DEFAULTS.p0, ...raw.p0 }, p1: { ...KEYMAP_DEFAULTS.p1, ...raw.p1 } }
+      // merge over defaults so a partial/old blob still yields all keys
+      return { p0: { ...KEYMAP_DEFAULTS.p0, ...raw.p0 }, p1: { ...KEYMAP_DEFAULTS.p1, ...raw.p1 },
+               pause: Number.isInteger(raw.pause) ? raw.pause : KEYMAP_DEFAULTS.pause }
     }
   } catch {}
-  return { p0: { ...KEYMAP_DEFAULTS.p0 }, p1: { ...KEYMAP_DEFAULTS.p1 } }
+  return { p0: { ...KEYMAP_DEFAULTS.p0 }, p1: { ...KEYMAP_DEFAULTS.p1 }, pause: KEYMAP_DEFAULTS.pause }
 }
 
 function load() {
@@ -185,15 +187,50 @@ export function buildSettingsPanel(el) {
 
   keysSection.appendChild(table)
 
+  // pause key row — single key for both players
+  const pauseRow = document.createElement('div')
+  pauseRow.className = 'key-row'
+  const pauseLabel = document.createElement('span')
+  pauseLabel.className = 'key-player'
+  pauseLabel.textContent = 'pause'
+  const pauseCell = document.createElement('button')
+  pauseCell.className = 'key'
+  pauseCell.textContent = keyLabel(settings.keymap.pause)
+  pauseCell.title = 'pause menu key — click, then press a key'
+  pauseCell.addEventListener('click', () => {
+    const wasArmed = armed && armed.cell === pauseCell
+    disarm()
+    if (wasArmed) return
+    armed = { cell: pauseCell, pid: null, btn: 'pause', prevLabel: pauseCell.textContent }
+    pauseCell.classList.add('key-armed')
+    pauseCell.textContent = '…'
+    window.addEventListener('keydown', e => {
+      if (!armed) return
+      e.preventDefault(); e.stopPropagation()
+      if (e.key === 'Escape') { disarm(); return }
+      const k = eventToKey(e)
+      if (!k) return
+      settings.keymap.pause = k.code
+      save('keymap', JSON.stringify(settings.keymap))
+      pauseCell.classList.remove('key-armed')
+      pauseCell.textContent = k.label
+      armed = null
+    }, { once: false, capture: true })
+  })
+  pauseRow.appendChild(pauseLabel)
+  pauseRow.appendChild(pauseCell)
+  keysSection.appendChild(pauseRow)
+
   const reset = document.createElement('button')
   reset.className = 'settings-reset'
   reset.textContent = 'reset to defaults'
   reset.addEventListener('click', () => {
     disarm()
-    settings.keymap = { p0: { ...KEYMAP_DEFAULTS.p0 }, p1: { ...KEYMAP_DEFAULTS.p1 } }
+    settings.keymap = { p0: { ...KEYMAP_DEFAULTS.p0 }, p1: { ...KEYMAP_DEFAULTS.p1 }, pause: KEYMAP_DEFAULTS.pause }
     save('keymap', JSON.stringify(settings.keymap))
     for (const [pid] of PLAYERS)
       for (const btn of BTNS) cells[pid][btn].textContent = keyLabel(settings.keymap[pid][btn])
+    pauseCell.textContent = keyLabel(settings.keymap.pause)
   })
   keysSection.appendChild(reset)
   keysSection.appendChild(note('click a slot, then press any key to bind it — letters, digits, arrows, numpad (KP8…), function keys, and modifiers (LShift, RAlt…) all work. Esc cancels. machine-local — applies to every cart you run; carts read these via btn(), or use key() for raw keypresses. takes effect on the next ▶ run.'))

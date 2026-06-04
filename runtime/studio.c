@@ -167,6 +167,11 @@ static int             frame_count      = 0;
 static bool            web_started      = false;  // true after the user clicks to start
 #endif
 
+// pause key — default P; overridden by -DPAUSE_KEY=<raylib keycode> from the editor's settings → controls
+#ifndef PAUSE_KEY
+#define PAUSE_KEY KEY_P
+#endif
+
 // pause overlay — P/ENTER opens it; ESC or selecting Continue closes it
 static bool  pause_active = false;
 static int   pause_sel    = 0;    // 0 = Continue, 1 = Restart
@@ -719,6 +724,17 @@ static void harness_inspect(int fno) {
             }
         }
     }
+#ifdef DE_PROFILE
+    // profiler snapshot
+    f = fopen(".bake/profiler_request", "r");
+    if (f) {
+        char out[512] = {0};
+        if (fgets(out, sizeof out, f)) out[strcspn(out, "\n\r")] = '\0';
+        fclose(f);
+        remove(".bake/profiler_request");
+        if (out[0]) prof_write(out);
+    }
+#endif
 }
 #endif
 
@@ -761,8 +777,8 @@ static ProfGuard prof_push(const char *name) {
 }
 static void prof_pop(ProfGuard *g) { (void)g; prof_depth--; }
 
-static void prof_write(void) {
-    FILE *f = fopen("perf.json", "w");
+static void prof_write(const char *path) {
+    FILE *f = fopen(path, "w");
     if (!f) return;
     long frames = prof_frames > 0 ? prof_frames : 1;
     fprintf(f, "{\"frames\":%ld,\"workMsAvg\":%.4f,\"workMsMax\":%.4f,\"frameMsAvg\":%.4f,\"calls\":[",
@@ -914,7 +930,7 @@ static void loop_step(void) {
             prof_frame_total += frame_dt * 1000.0;        // full frame incl. vsync
             prof_frames++;
         }
-        if (frame_count % 30 == 0) prof_write();          // periodic flush (survives kill)
+        if (frame_count % 30 == 0) prof_write("perf.json"); // periodic flush (survives kill)
     }
 #endif
     if (clip_active) { EndScissorMode(); clip_active = false; }
@@ -1245,6 +1261,9 @@ int main(int argc, char **argv) {
 #endif
 #ifndef P1_BTN_B
 #define P1_BTN_B     KEY_K
+#endif
+#ifndef PAUSE_KEY
+#define PAUSE_KEY    KEY_P
 #endif
 
 bool btn(int player, int button) {

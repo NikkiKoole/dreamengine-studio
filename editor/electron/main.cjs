@@ -172,6 +172,7 @@ function keymapDefs(keymap) {
       if (Number.isInteger(code)) out.push(`-D${prefix}_BTN_${suffix}=${code}`)
     }
   }
+  if (Number.isInteger(keymap.pause)) out.push(`-DPAUSE_KEY=${keymap.pause}`)
   return out
 }
 

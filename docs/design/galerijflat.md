@@ -128,6 +128,24 @@ dressed.
 - State can change slowly: blinds come down at dusk, curtains close before
   bed — cheap, legible "the building is alive" signals tied to the clock.
 
+### 3. Windowsills — things on them
+
+The **vensterbank**: Dutch windowsill culture, visible from the street, rolled
+per household alongside the treatment.
+
+- **Items**: tiny plants (green pixel atop a pot pixel), pots, jars/vases,
+  clutter/trash, or deliberately **nothing**. At kitchen-window scale
+  (~8×6 px) each item is 1–2 px — a sill row is a handful of psets.
+- **Arrangement is character**: **symmetrical** (mirrored around the window
+  center — the tidy, deliberate household; classic vensterbank) vs **random
+  scatter** (lived-in) vs **empty** (just moved in? doesn't care?). The
+  arrangement style says as much about the household as the items do.
+- **Night payoff**: against a lit window the sill items become little black
+  **silhouettes** in the glow — drawn after the light, before the treatment's
+  shaping. By day they're colored specks on the facade rhythm.
+- Mostly static (unlike treatments) — sills change on re-roll, not on the
+  clock. Maybe the rare exception: a plant appearing one day.
+
 *(list to be continued in a future session)*
 
 ## Open questions (for the next sessions)

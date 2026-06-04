@@ -347,7 +347,6 @@ Minimal sky keyframes: night / dawn / day / dusk / evening (no smooth lerp — s
 does that). Clock HUD bottom-left. **T key jumps +1 hour** for testing.
 
 Starts at `TOD_START = 20.0` (8pm) — building lit up at launch.
-Latest commit: `7a7cabd`.
 
 **Building reads very differently per time slot:**
 - 20:00 — warm scattered lights, TV flickers; most households awake
@@ -357,10 +356,60 @@ Latest commit: `7a7cabd`.
 - 08:00–17:30 — dead (everyone at work); facade colour dominates
 - 17:30 — lights start coming back on floor by floor
 
-## Handoff — next agent starts here (2026-06-04, session 3 complete)
+### Step 3 — global facade tint + fixes (2026-06-04, session 4)
+
+**Tinting approach.** A `t_avg[32][32]` multiply-average blend table (from
+blendlab) is built once in `init()`. Each frame, `push_tint(tod)` remaps all 32
+palette entries through `t_avg[filter]`, then **restores five light-source
+colours** so they stay vivid against the darkened scene:
+
+| exempt colour | reason |
+|---|---|
+| `CLR_LIGHT_YELLOW` | warm window glow + lamp heads |
+| `CLR_LIGHT_PEACH` | lit vitrage (glow through net curtains) |
+| `CLR_TRUE_BLUE` | blue glass / TV background |
+| `CLR_BLUE` | TV flicker |
+| `CLR_RED` | antenna blink |
+
+Sky and stars are drawn **before** `push_tint()` fires so they're already in
+the framebuffer and unaffected. Ground + lampposts are drawn **inside** the
+tinted section. `pal_reset()` is called before the HUD.
+
+**Filter colours per time slot** — chosen to be dark/desaturated so `t_avg`
+creates a visible cast without washing out individual colours:
+
+| time | filter | effect |
+|---|---|---|
+| 22:00–07:00 | `CLR_DARK_BLUE` | cold blue night |
+| 07:00–09:00 | `CLR_BROWN` | warm dawn |
+| 09:00–17:00 | *(none)* | natural daylight |
+| 17:00–20:30 | `CLR_BROWN` | warm dusk |
+| 20:30–22:00 | `CLR_DARKER_BLUE` | cooling evening |
+
+Key lesson: `t_mul` barely changes already-dark colours (dark × dark ≈ dark).
+`t_avg` shifts every colour 50% toward the filter regardless of starting
+brightness — the right tool for global ambient light. Vivid filters like
+`CLR_DARK_ORANGE` collapse all colours toward orange; `CLR_BROWN` gives a
+warm cast while preserving individual hue identity.
+
+**`B` key** toggles the tint on/off for direct comparison.
+
+**Doors.** All doors in a building now share one colour (`doorBase`), matching
+real galerijflat practice (housing corporation standard). The previous 15%
+random per-unit door colour was removed.
+
+**`tint_clash` guard.** `tint_clash(a, b)` returns true if `a == b` OR if
+`t_avg[filter][a] == t_avg[filter][b]` for any active filter. `doorBase` is
+re-rolled (up to 30 tries) until it doesn't clash with `wallC` at day or under
+any tint. `TINT_FILTERS[]` lists the active filters — keep it in sync with the
+`push_tint()` cases when adding new time slots.
+
+Latest commits: `af3c6f1` (tint) → `57b0dae` (tint_clash guard).
+
+## Handoff — next agent starts here (2026-06-04, session 4 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Latest commit: `7a7cabd`.
+Latest commit: `57b0dae`.
 
 **The bake loop** (~10s per iteration):
 ```bash
@@ -370,7 +419,7 @@ node tools/make-cart.js --run editor/public/carts/galerijflat.cart.png
 magick build/.bake/galerijflat/screenshot.png -scale 960x600 /tmp/gf.png
 ```
 
-**What's done:** static facade (step 1) + clock + light schedules (sys 6 starter).
+**What's done:** static facade + clock + light schedules + global facade tint.
 
 **Next build steps:** gallery walkers (figures walking the band — the building's
 main "alive" signal) → sys 7 (elevator state machine) → sys 4 (the flip).

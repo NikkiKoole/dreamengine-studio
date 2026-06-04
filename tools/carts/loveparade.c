@@ -546,7 +546,7 @@ void update(void) {
 // ── render ─────────────────────────────────────────────────────────────────────
 void draw(void) {
     vgradient(0, 0, SCREEN_W, 84, CLR_BLUE, CLR_LIGHT_GREY);
-    vgradient(0, 84, SCREEN_W, SCREEN_H - 84, CLR_DARK_GREEN, CLR_MEDIUM_GREEN);
+    gradient(0, 84, SCREEN_W, SCREEN_H - 84, CLR_DARK_GREEN, CLR_MEDIUM_GREEN, 90);
     for (int l = 0; l < NLANE; l++) rectfill(0, LANE_Y[l] - 1, SCREEN_W, 2, CLR_DARK_GREEN);
 
     int mx = mouse_x(), my = mouse_y();

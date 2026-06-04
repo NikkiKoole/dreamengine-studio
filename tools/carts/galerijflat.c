@@ -16,6 +16,11 @@
 #define PLINTH_H 14
 #define FH       24          // floor band height
 #define TW       20          // lift tower width
+#define WW       10          // window width
+#define WH       10          // window height
+#define DW        6          // door width
+#define SLAB_H    2          // gallery slab thickness
+#define SPANDREL  4          // wall gap above door/window before next slab
 #define MAXF     12
 #define MAXB     12
 
@@ -129,7 +134,7 @@ static void roll_home(Home *h) {
 }
 
 static void roll_building(void) {
-    NF = 6;
+    NF = 7;
     BW = rnd_between(26, 30);
     NB = (SCREEN_W - 16 - TW) / BW;
     towerLeft = chance(50);
@@ -172,43 +177,43 @@ void update(void) { if (keyp(KEY_SPACE)) roll_building(); }
 
 // one kitchen window: glass + light + treatment shaping it + vensterbank
 static void draw_window(Home *h, int f, int b, int wx, int wy) {
-    // wy = top of the 10×6 glass
+    // wy = top of the WW×WH glass
     int glass = h->lit ? (h->tv ? CLR_TRUE_BLUE : CLR_LIGHT_YELLOW)
                        : (h->arch == A_VACANT ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE);
-    rectfill(wx, wy, 10, 6, glass);
+    rectfill(wx, wy, WW, WH, glass);
     if (h->tv && h->lit && ((frame() / 3 + f * 13 + b * 7) & 7) < 3)
-        rectfill(wx + 2 + ((frame() / 5 + b) & 3), wy + 2, 3, 2, CLR_BLUE);  // flicker
+        rectfill(wx + 2 + ((frame() / 5 + b) & 3), wy + WH/2, 3, 2, CLR_BLUE);  // flicker
 
     switch (h->treat) {
-    case TR_VITRAGE:                       // net curtains: a dither veil over all
+    case TR_VITRAGE:
         fillp(0xA5A5, -1);
-        rectfill(wx, wy, 10, 6, h->lit ? CLR_LIGHT_PEACH : CLR_LIGHT_GREY);
+        rectfill(wx, wy, WW, WH, h->lit ? CLR_LIGHT_PEACH : CLR_LIGHT_GREY);
         fillp_reset();
         break;
     case TR_CURTAIN:
-        if (h->curtOpen) {                 // fabric strips at the sides
-            rectfill(wx, wy, 2, 6, h->lit ? h->tBright : h->tDark);
-            rectfill(wx + 8, wy, 2, 6, h->lit ? h->tBright : h->tDark);
-        } else {                           // closed: the whole window is fabric
-            rectfill(wx, wy, 10, 6, h->lit ? h->tBright : h->tDark);
+        if (h->curtOpen) {
+            rectfill(wx, wy, 2, WH, h->lit ? h->tBright : h->tDark);
+            rectfill(wx + WW - 2, wy, 2, WH, h->lit ? h->tBright : h->tDark);
+        } else {
+            rectfill(wx, wy, WW, WH, h->lit ? h->tBright : h->tDark);
         }
         break;
-    case TR_ROLLER: {                      // hard top edge, glow below
-        int rh = (int)(h->roller * 5.0f) + 1;
-        rectfill(wx, wy, 10, rh, h->tDark);
+    case TR_ROLLER: {
+        int rh = (int)(h->roller * (WH - 1.0f)) + 1;
+        rectfill(wx, wy, WW, rh, h->tDark);
         break; }
-    case TR_VENETIAN:                      // slat stripes over the glow
-        for (int yy = wy; yy < wy + 6; yy += 2)
-            rectfill(wx, yy, 10, 1, CLR_DARK_GREY);
+    case TR_VENETIAN:
+        for (int yy = wy; yy < wy + WH; yy += 2)
+            rectfill(wx, yy, WW, 1, CLR_DARK_GREY);
         break;
     }
 
-    // vensterbank — silhouettes against a lit window, muted color on dark glass
+    // vensterbank
     int closedOff = (h->treat == TR_CURTAIN && !h->curtOpen) ||
                     (h->treat == TR_ROLLER && h->roller > 0.75f);
     if (!closedOff)
         for (int i = 0; i < h->nIt && i < 4; i++) {
-            int ix = wx + 1 + h->itX[i], iy = wy + 5;
+            int ix = wx + 1 + h->itX[i], iy = wy + WH - 1;
             int sil = h->lit;
             pset(ix, iy, sil ? CLR_BROWNISH_BLACK : h->itCol[i]);
             if (h->itPlant[i])
@@ -218,18 +223,23 @@ static void draw_window(Home *h, int f, int b, int wx, int wy) {
 
 static void draw_band(int f) {
     int yb = baseY - f * FH;                       // band bottom
+    // shadow cast by the slab above — dithered strip at band top
+    rectfill(baysX, yb - FH, NB * BW, 1, CLR_DARKER_GREY);
+    fillp(0x8888, -1);
+    rectfill(baysX, yb - FH + 1, NB * BW, 2, CLR_DARKER_GREY);
+    fillp_reset();
     // gallery slab — the signature horizontal
-    rectfill(baysX, yb - 2, NB * BW, 2, slabC);
+    rectfill(baysX, yb - SLAB_H, NB * BW, SLAB_H, slabC);
 
     for (int b = 0; b < NB; b++) {
         Home *h = &homes[f][b];
         int x = baysX + b * BW;
-        // front door (sits on the slab, behind the railing)
-        rectfill(x + 3, yb - 12, 6, 10, h->doorCol);
-        pset(x + 7, yb - 8, CLR_BROWNISH_BLACK);                 // letter slot
-        rectfill(x + 4, yb - 11, 4, 2, h->arch == A_VACANT ? h->doorCol : CLR_DARKER_BLUE); // door glass
+        // front door: SPANDREL gap at top, door height = FH - SLAB_H - SPANDREL
+        rectfill(x + 3, yb - FH + SPANDREL, DW, FH - SLAB_H - SPANDREL, h->doorCol);
+        pset(x + 3 + DW - 2, yb - 9, CLR_BROWNISH_BLACK);       // letter slot
+        rectfill(x + 4, yb - FH + SPANDREL, DW - 2, 4, h->arch == A_VACANT ? h->doorCol : CLR_DARKER_BLUE); // door glass
         // kitchen window
-        draw_window(h, f, b, x + 12, yb - 12);
+        draw_window(h, f, b, x + 3 + DW + 3, yb - FH + SPANDREL);
     }
 
     // railing in front of everything
@@ -311,6 +321,17 @@ void draw(void) {
 
     // the slab: wall, then the bands of dwellings
     rectfill(baysX, wallTop, NB * BW, baseY - wallTop, wallC);
+    // dithered shadow on facade next to the tower, fading away from it
+    {
+        int sx = towerLeft ? baysX : baysX + NB * BW - 4;
+        int pat[4] = { 0x4444, 0x8888, 0xCCCC, 0xEEEE };
+        for (int i = 0; i < 4; i++) {
+            int x = towerLeft ? sx + i : sx + 3 - i;
+            fillp(pat[i], -1);
+            rectfill(x, wallTop, 1, baseY - wallTop, CLR_DARKER_GREY);
+        }
+        fillp_reset();
+    }
     for (int f = 0; f < NF; f++) draw_band(f);
     rectfill(baysX - 1, wallTop - 3, NB * BW + 2, 3, slabC);      // roof edge
     draw_tower();

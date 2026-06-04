@@ -551,7 +551,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         float mix = 0.0f;
 
         for (int di = 0; di < delayed_count; ) {
-            if (--delayed[di].delay_samples <= 0) {
+            if (--delayed[di].delay_samples < 0) {
                 sound_fire_req(delayed[di]);
                 delayed[di] = delayed[--delayed_count];   // swap-remove
             } else {

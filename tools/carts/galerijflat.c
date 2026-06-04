@@ -118,10 +118,10 @@ static const int LIGHT_COLORS[] = {
 static void push_tint(float t) {
     if (!tint_on) return;
     int filter;
-    if      (t <  7.0f || t >= 22.0f)       filter = CLR_DARKER_BLUE;   // night
-    else if (t <  9.0f)                      filter = CLR_DARK_ORANGE;   // dawn
-    else if (t >= 17.0f && t < 20.5f)        filter = CLR_DARK_ORANGE;   // dusk
-    else if (t >= 20.5f)                     filter = CLR_DARK_BLUE;     // cooling evening
+    if      (t <  7.0f || t >= 22.0f)       filter = CLR_DARK_BLUE;     // night
+    else if (t <  9.0f)                      filter = CLR_BROWN;         // dawn
+    else if (t >= 17.0f && t < 20.5f)        filter = CLR_BROWN;         // dusk
+    else if (t >= 20.5f)                     filter = CLR_DARKER_BLUE;   // cooling evening
     else return;                                                           // 9-17: day, no tint
     for (int i = 0; i < 32; i++) pal(i, t_avg[filter][i]);
     // restore light-source colours — they don't reflect ambient, they emit

@@ -538,35 +538,27 @@ bool paused(void) { return pause_active; }
 // with the game and looks pixel-perfect — same renderer, same font, same pixels.
 static void draw_pause_canvas(void) {
     if (!pause_active) return;
-    const int fs = 8;   // native font glyph size
     const int bw = 120, bh = 50;
     const int bx = (SCREEN_W - bw) / 2, by = (SCREEN_H - bh) / 2;
 
-    // dim the whole scene
-    DrawRectangle(0, 0, SCREEN_W, SCREEN_H, (Color){ 0, 0, 0, 140 });
+    // dim using a checkerboard — no RGBA blending needed, pure palette pixels
+    fillp(0xAAAA, -1);
+    rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK);
+    fillp_reset();
 
-    // box: filled dark + 1-game-pixel border
-    DrawRectangle(bx, by, bw, bh, (Color){ 8, 8, 28, 240 });
-    DrawRectangleLines(bx, by, bw, bh, (Color){ 200, 200, 220, 220 });
+    rectfill(bx, by, bw, bh, CLR_DARKER_BLUE);
+    rect(bx, by, bw, bh, CLR_INDIGO);
 
-    // title
     const char *title = "PAUSED";
-    float tw = MeasureTextEx(game_font, title, fs, 1).x;
-    DrawTextEx(game_font, title,
-               (Vector2){ bx + (bw - tw) * 0.5f, by + 5 }, fs, 1,
-               (Color){ 160, 160, 255, 255 });
+    print(title, bx + (bw - text_width(title)) / 2, by + 5, CLR_BLUE);
 
-    // menu items
     const char *items[] = { "CONTINUE", "RESTART" };
     for (int i = 0; i < 2; i++) {
-        bool sel = (pause_sel == i);
-        Color col = sel ? (Color){ 255, 255, 255, 255 } : (Color){ 140, 140, 140, 255 };
-        float iw = MeasureTextEx(game_font, items[i], fs, 1).x;
-        float ix  = bx + (bw - iw) * 0.5f;
-        float iy  = by + 20 + i * 12;
-        if (sel)
-            DrawTextEx(game_font, "\x10", (Vector2){ ix - 10, iy }, fs, 1, col);
-        DrawTextEx(game_font, items[i], (Vector2){ ix, iy }, fs, 1, col);
+        int col = (pause_sel == i) ? CLR_WHITE : CLR_DARK_GREY;
+        int ix  = bx + (bw - text_width(items[i])) / 2;
+        int iy  = by + 20 + i * 12;
+        if (pause_sel == i) print("\x10", ix - 10, iy, CLR_WHITE);
+        print(items[i], ix, iy, col);
     }
 }
 

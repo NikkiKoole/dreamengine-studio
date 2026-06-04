@@ -46,7 +46,8 @@ docs/
 │   ├── sharing.md                ways to publish finished carts
 │   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect (tools/play.js)
 │   ├── profiler.md               one-click CPU profiler (⏱ profile button): hot functions + call paths, frame budget, draw-call counts
-│   └── live-coding.md            how-to for the live (libtcc) run mode: edit-while-running, hot reload, STATE/S state that survives reloads
+│   ├── live-coding.md            how-to for the live (libtcc) run mode: edit-while-running, hot reload, STATE/S state that survives reloads
+│   └── game-music.md             generative soundtrack recipes: step clock, chord brain, voice leading, time feel, seeds; worked example = bossa.c
 └── archive/           superseded / done notes, kept for history
 ```
 

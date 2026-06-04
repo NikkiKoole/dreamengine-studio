@@ -1,32 +1,33 @@
 #include "studio.h"
 
-// GALERIJFLAT — sys 6 starter: slow day/night clock + archetype-driven light schedules.
+// GALERIJFLAT — sys 6 starter: clock + light schedules + facade tinting.
 //
-// Each dwelling has a wake/sleep schedule correlated with their archetype. Lights
-// switch on when dark + the household is home; off when asleep or during daytime.
-// The building reads very differently at dusk (warm scattered lights) vs 2am (dark
-// except the student) vs 8am (dead — everyone at work).
+// Facade tinting: a multiply blend table (from blendlab) maps wallC/slabC to
+// night (cold dark) or dusk/dawn (warm golden) variants at roll time. In draw(),
+// pal() swaps them in before the building is drawn, pal_reset() after — so only
+// the large concrete surfaces change with the light; lit windows and coloured
+// doors stay vivid against the tinted wall.
 //
 //   SPACE   — re-roll the building
 //   T       — jump forward 1 hour (for testing)
+//   B       — toggle facade tint on/off (compare)
 
 #define GROUND_H 12
 #define PLINTH_H 14
-#define FH       24          // floor band height
-#define TW       20          // lift tower width
-#define WW       10          // window width
-#define WH       10          // window height
-#define DW        7          // door width
-#define SLAB_H    2          // gallery slab thickness
-#define SPANDREL  4          // wall gap above door/window before next slab
-#define BAY_PAD   3          // left margin inside each bay before the door
-#define WIN_GAP   3          // gap between door right edge and window left edge
+#define FH       24
+#define TW       20
+#define WW       10
+#define WH       10
+#define DW        7
+#define SLAB_H    2
+#define SPANDREL  4
+#define BAY_PAD   3
+#define WIN_GAP   3
 #define MAXF     12
 #define MAXB     12
 
-// sys 6: clock speed — one full day in DAY_REAL_SECS real seconds (tune here)
 #define DAY_REAL_SECS  300.0f
-#define TOD_START      20.0f   // start at 20:00 — building lit up at launch
+#define TOD_START      20.0f
 #define TOD_RATE       (24.0f / (DAY_REAL_SECS * 60.0f))
 
 enum { A_VACANT, A_ELDER, A_COUPLE, A_FAMILY, A_STUDENT };
@@ -36,15 +37,15 @@ enum { RAIL_BARS, RAIL_PANEL };
 
 typedef struct {
     int   arch;
-    int   treat;               // window treatment (sys 2)
-    int   tBright, tDark;      // curtain color lit / unlit
-    float roller;              // 0..1 how far down roller blind hangs
-    int   curtOpen;            // daytime curtain preference; overridden at night
-    int   sill, nIt;           // vensterbank (sys 3)
+    int   treat;
+    int   tBright, tDark;
+    float roller;
+    int   curtOpen;
+    int   sill, nIt;
     int   itX[4], itPlant[4], itCol[4];
     int   doorCol;
     int   bike;
-    float wake_h, sleep_h;     // schedule in hours; sleep_h may exceed 24 (past midnight)
+    float wake_h, sleep_h;
 } Home;
 
 static int   NF, NB, BW;
@@ -53,7 +54,7 @@ static int   baseY, wallTop;
 static int   wallC, slabC, towerC, railStyle, panelC, doorBase;
 static int   liftFloor, lampX[3], nLamp;
 static Home  homes[MAXF][MAXB];
-static float tod;              // time of day, hours 0..24
+static float tod;
 
 static const int CURT[][2] = {
     { CLR_RED,        CLR_DARK_RED    }, { CLR_ORANGE,     CLR_DARK_ORANGE },
@@ -62,16 +63,77 @@ static const int CURT[][2] = {
 };
 #define NCURT 6
 
+// ── facade tint — multiply blend table (from blendlab) ────────────────────────
+// wallC and slabC are the dominant concrete surfaces; pre-computing tinted
+// variants at roll time means pal() swaps are instant each frame.
+
+static const unsigned char PAL_RGB[32][3] = {
+    {0x00,0x00,0x00},{0x1d,0x2b,0x53},{0x7e,0x25,0x53},{0x00,0x87,0x51},
+    {0xab,0x52,0x36},{0x5f,0x57,0x4f},{0xc2,0xc3,0xc7},{0xff,0xf1,0xe8},
+    {0xff,0x00,0x4d},{0xff,0xa3,0x00},{0xff,0xec,0x27},{0x00,0xe4,0x36},
+    {0x29,0xad,0xff},{0x83,0x76,0x9c},{0xff,0x77,0xa8},{0xff,0xcc,0xaa},
+    {0x29,0x18,0x14},{0x11,0x1d,0x35},{0x42,0x21,0x36},{0x12,0x53,0x59},
+    {0x74,0x2f,0x29},{0x49,0x33,0x3b},{0xa2,0x88,0x79},{0xf3,0xef,0x7d},
+    {0xbe,0x12,0x50},{0xff,0x6c,0x24},{0xa8,0xe7,0x2e},{0x00,0xb5,0x43},
+    {0x06,0x5a,0xb5},{0x75,0x46,0x65},{0xff,0x6e,0x59},{0xff,0x9d,0x81},
+};
+static unsigned char t_mul[32][32];
+
+static int pal_nearest(int r, int g, int b) {
+    int best = 0; long bd = 0x7fffffff;
+    for (int i = 0; i < 32; i++) {
+        int dr = r-(int)PAL_RGB[i][0], dg = g-(int)PAL_RGB[i][1], db = b-(int)PAL_RGB[i][2];
+        long d = 2L*dr*dr + 4L*dg*dg + 3L*db*db;
+        if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+}
+
+static void build_tint_table(void) {
+    for (int s = 0; s < 32; s++)
+        for (int d = 0; d < 32; d++) {
+            int sr=PAL_RGB[s][0], sg=PAL_RGB[s][1], sb=PAL_RGB[s][2];
+            int dr=PAL_RGB[d][0], dg=PAL_RGB[d][1], db=PAL_RGB[d][2];
+            t_mul[s][d] = pal_nearest(sr*dr/255, sg*dg/255, sb*db/255);
+        }
+}
+
+// pre-computed per-building tinted colours for wallC and slabC
+static int wallC_night, wallC_dawn, wallC_dusk, wallC_eve;
+static int slabC_night, slabC_dawn, slabC_dusk, slabC_eve;
+static int tint_on = 1;
+
+static void compute_tints(void) {
+    wallC_night = t_mul[CLR_DARKER_BLUE][wallC];   // cold dark night
+    wallC_dawn  = t_mul[CLR_DARK_ORANGE][wallC];   // warm early light
+    wallC_dusk  = t_mul[CLR_DARK_ORANGE][wallC];   // same warm cast at dusk
+    wallC_eve   = t_mul[CLR_DARK_BLUE][wallC];     // cooling evening (less dark than full night)
+    slabC_night = t_mul[CLR_DARKER_BLUE][slabC];
+    slabC_dawn  = t_mul[CLR_DARK_ORANGE][slabC];
+    slabC_dusk  = t_mul[CLR_DARK_ORANGE][slabC];
+    slabC_eve   = t_mul[CLR_DARK_BLUE][slabC];
+}
+
+static void push_facade_tint(float t) {
+    if (!tint_on) return;
+    int wc, sc;
+    if      (t <  7.0f || t >= 22.0f)          { wc = wallC_night; sc = slabC_night; }
+    else if (t <  9.0f)                         { wc = wallC_dawn;  sc = slabC_dawn;  }
+    else if (t >= 17.0f && t < 20.5f)           { wc = wallC_dusk;  sc = slabC_dusk;  }
+    else if (t >= 20.5f)                        { wc = wallC_eve;   sc = slabC_eve;   }
+    else return;  // 9-17: daytime, no tint
+    pal(wallC, wc);
+    pal(slabC, sc);
+}
+
 // ── schedule helpers ──────────────────────────────────────────────────────────
 
-// lights only visible when it's dark enough outside to need them
 static int is_dark(float t) { return (t < 7.5f || t >= 17.5f); }
 
 static int home_lit(Home *h, float t) {
     if (h->arch == A_VACANT || !is_dark(t)) return 0;
     float s = h->sleep_h;
-    if (s > 24.0f)                          // student wraps past midnight
-        return (t >= h->wake_h) || (t < s - 24.0f);
+    if (s > 24.0f) return (t >= h->wake_h) || (t < s - 24.0f);
     return (t >= h->wake_h && t < s);
 }
 
@@ -86,7 +148,6 @@ static int home_tv(Home *h, float t) {
     }
 }
 
-// curtains: daytime preference, but always drawn for privacy at night
 static int home_curt_open(Home *h, float t) {
     if (h->treat != TR_CURTAIN) return h->curtOpen;
     return (t < 6.0f || t > 22.0f) ? 0 : h->curtOpen;
@@ -145,7 +206,7 @@ static void roll_home(Home *h) {
         h->nIt  = 1 + rnd(2);
         h->bike = chance(34);
         h->wake_h  = rnd_float_between(9.0f, 12.0f);
-        h->sleep_h = rnd_float_between(24.0f, 27.0f);  // past midnight
+        h->sleep_h = rnd_float_between(24.0f, 27.0f);
         break;
     }
 
@@ -207,18 +268,25 @@ static void roll_building(void) {
     for (int i = 0; i < nLamp; i++)
         lampX[i] = 20 + (SCREEN_W - 40) * (i * 2 + 1) / (nLamp * 2);
 
+    compute_tints();  // depends on wallC + slabC just set above
+
     for (int f = 0; f < NF; f++)
         for (int b = 0; b < NB; b++)
             roll_home(&homes[f][b]);
 }
 
-void init(void) { tod = TOD_START; roll_building(); }
+void init(void) {
+    build_tint_table();
+    tod = TOD_START;
+    roll_building();
+}
 
 void update(void) {
     tod += TOD_RATE;
     if (tod >= 24.0f) tod -= 24.0f;
     if (keyp(KEY_SPACE)) roll_building();
     if (keyp('T')) { tod += 1.0f; if (tod >= 24.0f) tod -= 24.0f; }
+    if (keyp('B')) tint_on = !tint_on;
 }
 
 // ── drawing ───────────────────────────────────────────────────────────────────
@@ -343,16 +411,15 @@ static void draw_plinth(void) {
     rect    (ex, baseY + 3, 12, 11, CLR_DARK_GREY);
 }
 
-// minimal sky — conveys time of day without distraction; sys 1 is the full treatment
 static void draw_sky(float t) {
     int horizon = SCREEN_H - GROUND_H;
     int top, bot;
-    if      (t <  5.5f)  { top = CLR_BLACK;       bot = CLR_DARKER_BLUE;   }  // deep night
-    else if (t <  7.5f)  { top = CLR_DARKER_BLUE;  bot = CLR_DARK_ORANGE;  }  // dawn
-    else if (t < 18.0f)  { top = CLR_BLUE;         bot = CLR_TRUE_BLUE;    }  // day
-    else if (t < 20.5f)  { top = CLR_DARKER_BLUE;  bot = CLR_DARK_PEACH;   }  // dusk
-    else if (t < 22.5f)  { top = CLR_DARK_BLUE;    bot = CLR_DARKER_PURPLE;}  // evening
-    else                 { top = CLR_BLACK;         bot = CLR_DARKER_BLUE;  }  // night
+    if      (t <  5.5f)  { top = CLR_BLACK;       bot = CLR_DARKER_BLUE;   }
+    else if (t <  7.5f)  { top = CLR_DARKER_BLUE;  bot = CLR_DARK_ORANGE;  }
+    else if (t < 18.0f)  { top = CLR_BLUE;         bot = CLR_TRUE_BLUE;    }
+    else if (t < 20.5f)  { top = CLR_DARKER_BLUE;  bot = CLR_DARK_PEACH;   }
+    else if (t < 22.5f)  { top = CLR_DARK_BLUE;    bot = CLR_DARKER_PURPLE;}
+    else                 { top = CLR_BLACK;         bot = CLR_DARKER_BLUE;  }
     gradient(0, 0, SCREEN_W, horizon, top, bot, 90);
 }
 
@@ -361,11 +428,14 @@ void draw(void) {
     int horizon = SCREEN_H - GROUND_H;
     draw_sky(tod);
 
-    // stars only at night / dusk
+    // stars drawn BEFORE pal() swaps (so they're already in the framebuffer)
     if (tod < 7.5f || tod > 19.5f)
         for (int i = 0; i < 26; i++)
             pset((i * 73 + 19) % SCREEN_W, (i * 41 + 7) % wallTop,
                  i % 4 ? CLR_INDIGO : CLR_LIGHT_GREY);
+
+    // swap in tinted concrete colours for this frame
+    push_facade_tint(tod);
 
     // wall + tower shadow
     rectfill(baysX, wallTop, NB * BW, baseY - wallTop, wallC);
@@ -384,6 +454,8 @@ void draw(void) {
     draw_tower();
     draw_plinth();
 
+    pal_reset();  // restore real colours before drawing ground + HUD
+
     // ground
     rectfill(0, horizon, SCREEN_W, 5, CLR_DARKER_GREY);
     rectfill(0, horizon + 5, SCREEN_W, GROUND_H - 5, CLR_DARK_GREEN);
@@ -394,14 +466,17 @@ void draw(void) {
         pset(lampX[i] + 2, horizon - 12, CLR_LIGHT_YELLOW);
     }
 
-    // HUD — clock + controls
+    // HUD
     {
         int h24 = (int)tod % 24, m = (int)((tod - (int)tod) * 60.0f);
         char buf[6] = { '0'+h24/10, '0'+h24%10, ':', '0'+m/10, '0'+m%10, 0 };
         font(FONT_TINY);
         print(buf, 4, SCREEN_H - 6, CLR_DARK_GREY);
         print("GALERIJFLAT", 28, SCREEN_H - 6, CLR_MEDIUM_GREY);
-        print_right("SPACE=re-roll  T=+1h", SCREEN_W - 3, SCREEN_H - 6, CLR_DARK_GREY);
+        print_right(tint_on ? "B=tint:ON  T=+1h  SPACE=re-roll"
+                             : "B=tint:OFF T=+1h  SPACE=re-roll",
+                    SCREEN_W - 3, SCREEN_H - 6,
+                    tint_on ? CLR_DARK_GREY : CLR_MEDIUM_GREY);
         font(FONT_NORMAL);
     }
 }

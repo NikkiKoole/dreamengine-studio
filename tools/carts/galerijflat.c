@@ -64,9 +64,12 @@ static const int CURT[][2] = {
 };
 #define NCURT 6
 
-// ── tint — multiply blend table (from blendlab) ───────────────────────────────
-// All 32 palette entries are remapped through t_mul[filter] each frame.
-// Light-source colours are restored after the loop so they stay vivid.
+// ── tint — average blend table (from blendlab) ───────────────────────────────
+// All 32 palette entries are remapped through t_avg[filter] each frame.
+// Average-blend shifts every colour toward the filter regardless of brightness,
+// so dark doors/concrete/grass visibly pick up the night/dusk cast (unlike
+// multiply which barely moves already-dark colours). Light-source colours are
+// restored after the loop so they stay vivid.
 
 static const unsigned char PAL_RGB[32][3] = {
     {0x00,0x00,0x00},{0x1d,0x2b,0x53},{0x7e,0x25,0x53},{0x00,0x87,0x51},
@@ -79,6 +82,7 @@ static const unsigned char PAL_RGB[32][3] = {
     {0x06,0x5a,0xb5},{0x75,0x46,0x65},{0xff,0x6e,0x59},{0xff,0x9d,0x81},
 };
 static unsigned char t_mul[32][32];
+static unsigned char t_avg[32][32];
 static int tint_on = 1;
 
 static int pal_nearest(int r, int g, int b) {
@@ -97,6 +101,7 @@ static void build_tint_table(void) {
             int sr=PAL_RGB[s][0], sg=PAL_RGB[s][1], sb=PAL_RGB[s][2];
             int dr=PAL_RGB[d][0], dg=PAL_RGB[d][1], db=PAL_RGB[d][2];
             t_mul[s][d] = pal_nearest(sr*dr/255, sg*dg/255, sb*db/255);
+            t_avg[s][d] = pal_nearest((sr+dr)/2, (sg+dg)/2, (sb+db)/2);
         }
 }
 
@@ -118,7 +123,7 @@ static void push_tint(float t) {
     else if (t >= 17.0f && t < 20.5f)        filter = CLR_DARK_ORANGE;   // dusk
     else if (t >= 20.5f)                     filter = CLR_DARK_BLUE;     // cooling evening
     else return;                                                           // 9-17: day, no tint
-    for (int i = 0; i < 32; i++) pal(i, t_mul[filter][i]);
+    for (int i = 0; i < 32; i++) pal(i, t_avg[filter][i]);
     // restore light-source colours — they don't reflect ambient, they emit
     for (int i = 0; i < N_LIGHT_COLORS; i++) pal(LIGHT_COLORS[i], LIGHT_COLORS[i]);
 }

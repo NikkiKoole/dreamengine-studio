@@ -112,6 +112,7 @@
     X(chord) \
     X(strum) \
     X(schedule) \
+    X(schedule_hit) \
     X(bpm) \
     X(beat) \
     X(beat_pos) \

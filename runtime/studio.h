@@ -313,6 +313,7 @@ void strum(int root, int type, int instr, int vol, int delay_ms);  // chord with
 
 // musical timing
 void  schedule(int delay_ms, int midi, int instr, int vol);  // play a note in the future
+void  schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms);  // schedule() + hit() in one: a custom-length note at a sample-accurate future time. THE tool for fast sfx/arp steps — no frame-rate jitter
 void  bpm(int rate);                                          // set tempo (default 120)
 int   beat(void);                                             // current beat counter (advances based on bpm)
 float beat_pos(void);                                         // fractional position within current beat: 0.0 → 1.0

@@ -121,7 +121,7 @@ static int           music_current = -1;
 // e0/e1/e2: extra payload (instrument attack/decay/release samples).
 typedef struct { int kind, a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   256   // generous: live held-voice control pushes many setters/frame (cutoff/res/duty/3×lfo per voice)
-#define SOUND_DELAYED_MAX 16
+#define SOUND_DELAYED_MAX 64    // pending delayed notes (strum/schedule/schedule_hit) — fast sfx steps queue several ahead
 
 static SoundReq      req_queue[SOUND_REQ_QUEUE];
 static volatile int  req_head = 0;   // written by main thread
@@ -887,6 +887,14 @@ void schedule(int delay_ms, int midi, int instr, int vol) {
     int ds = (delay_ms * SOUND_SAMPLE_RATE) / 1000;
     if (ds < 0) ds = 0;
     sound_push_req(2, midi, instr, vol, ds, 0);
+}
+
+void schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms) {
+    int ds  = (delay_ms * SOUND_SAMPLE_RATE) / 1000;
+    int dur = (dur_ms   * SOUND_SAMPLE_RATE) / 1000;
+    if (ds  < 0) ds  = 0;
+    if (dur < 1) dur = 1;
+    sound_push_req(2, midi, instr, vol, ds, dur);
 }
 
 void bpm(int rate) {

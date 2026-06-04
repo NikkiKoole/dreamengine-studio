@@ -110,6 +110,9 @@ static AudioStream   sound_stream;
 static Sfx           sfx_bank[SOUND_SFX_SLOTS];
 static Pattern       music_bank[SOUND_MUSIC_SLOTS];
 static Instrument    instr_bank[SOUND_INSTR_SLOTS];
+#define SOUND_USER_WAVES 4
+#define SOUND_WAVE_LEN   64
+static float         user_wave[SOUND_USER_WAVES][SOUND_WAVE_LEN];   // INSTR_USER0..3 single-cycle tables (filled via wave_set)
 static int           music_current = -1;
 
 // request ring buffer (main thread pushes → audio thread drains)
@@ -191,6 +194,14 @@ static inline float sound_osc(int wave, float phase, float duty, int *noise_stat
         return ((*noise_state >> 16) & 0xff) / 127.5f - 1.0f;
     }
     case INSTR_SINE:   return sinf(phase * 6.2831853f);
+    case INSTR_USER0: case INSTR_USER1: case INSTR_USER2: case INSTR_USER3: {
+        // custom drawn single-cycle table, linear-interpolated (wave_set fills it)
+        const float *w = user_wave[wave - INSTR_USER0];
+        float fp = phase * (float)SOUND_WAVE_LEN;
+        int   i0 = (int)fp & (SOUND_WAVE_LEN - 1), i1 = (i0 + 1) & (SOUND_WAVE_LEN - 1);
+        float fr = fp - (float)(int)fp;
+        return w[i0] + (w[i1] - w[i0]) * fr;
+    }
     }
     return 0.0f;
 }
@@ -474,6 +485,9 @@ static void sound_fire_req(SoundReq r) {
             v->env_d_samp[e] = r.c;
             v->env_amount[e] = r.e2 / 1000.0f;
         }
+    } else if (r.kind == 20) {      // wave_set: one sample of a user wavetable — a=which, b=index, c=value*32767
+        if (r.a >= 0 && r.a < SOUND_USER_WAVES && r.b >= 0 && r.b < SOUND_WAVE_LEN)
+            user_wave[r.a][r.b] = r.c / 32767.0f;
     }
 }
 
@@ -844,6 +858,22 @@ void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, in
     sound_push_ctrl(3, slot, wave, sustain, a, d, r);
 }
 
+void wave_set(int which, const float *samples, int n) {
+    if (which < 0 || which >= SOUND_USER_WAVES || !samples || n < 2) return;
+    // resample the drawn cycle (any length) to the 64-entry table, one ring-buffer write per
+    // sample — rides the request queue like every other mutation, so the audio thread never tears
+    for (int i = 0; i < SOUND_WAVE_LEN; i++) {
+        float fp = i * (float)n / (float)SOUND_WAVE_LEN;
+        int   i0 = (int)fp;
+        float fr = fp - (float)i0;
+        float a = samples[i0 % n], b = samples[(i0 + 1) % n];   // wrap: it's one cycle
+        float v = a + (b - a) * fr;
+        if (v >  1.0f) v =  1.0f;
+        if (v < -1.0f) v = -1.0f;
+        sound_push_ctrl(20, which, i, (int)(v * 32767.0f), 0, 0, 0);
+    }
+}
+
 void instrument_duty(int slot, float duty) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(4, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
@@ -948,6 +978,11 @@ static void sound_init(void) {
         instr_bank[i].flt_cutoff = 1000.0f;
         instr_bank[i].flt_q      = 1.0f;
     }
+
+    // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence
+    for (int w = 0; w < SOUND_USER_WAVES; w++)
+        for (int i = 0; i < SOUND_WAVE_LEN; i++)
+            user_wave[w][i] = sinf(i / (float)SOUND_WAVE_LEN * 6.2831853f);
 
     sound_load_demo_data();
 

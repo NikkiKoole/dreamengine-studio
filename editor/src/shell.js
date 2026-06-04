@@ -8,6 +8,15 @@ import { marked } from 'marked'
 
 let currentCartName = ''  // set when a cart is loaded; used as the game window title
 
+// the loaded cart's name lives OUTSIDE the editor chrome: in the macOS menu bar
+// (as a top-level menu — the window's titlebar is hidden) and in document.title
+// (dock / Mission Control / browser tab). Glance up to see what you're editing.
+function setCartName(name) {
+  currentCartName = name || ''
+  document.title = currentCartName ? `dreamengine — ${currentCartName}` : 'dreamengine'
+  window.studio?.setCartName?.(currentCartName)
+}
+
 // ── tab switching ─────────────────────────────────────────────
 // The "pixels" tab hosts both the sprite editor (#panel-sprites) and the map
 // editor (#panel-map); a sub-toggle picks which one is visible. The two panels
@@ -87,7 +96,7 @@ const sections = [
   { title: 'collision',    keys: ['boxes_touch', 'point_in_box', 'circles_touch', 'near', 'touching_map', 'tile_at', 'touching_color', 'bounce_at_edges'] },
   { title: 'animation',     keys: ['anim', 'anim_once', 'blink'] },
   { title: 'strings',        keys: ['str'] },
-  { title: 'sound',       keys: ['sfx', 'music', 'note', 'hit', 'note_on', 'note_off', 'note_pitch', 'note_vol', 'note_cutoff', 'note_duty', 'note_res', 'note_lfo', 'note_env', 'note_filter', 'note_glide', 'note_off_all', 'instrument', 'instrument_duty', 'instrument_lfo', 'instrument_filter', 'instrument_env', 'tone', 'chord', 'strum', 'schedule', 'schedule_hit', 'bpm', 'beat', 'beat_pos', 'every', 'euclid', 'chance', 'degree', 'INSTR_SQUARE', 'INSTR_SAW', 'INSTR_TRI', 'INSTR_NOISE', 'INSTR_SINE', 'LFO_PITCH', 'LFO_DUTY', 'LFO_VOLUME', 'LFO_CUTOFF', 'ENV_CUTOFF', 'ENV_PITCH', 'ENV_DUTY', 'FILTER_OFF', 'FILTER_LOW', 'FILTER_HIGH', 'FILTER_BAND', 'FILTER_NOTCH', 'SCALE_MAJOR', 'SCALE_MINOR', 'SCALE_PENTA', 'SCALE_PENTA_MIN', 'SCALE_BLUES', 'SCALE_CHROMATIC', 'CHORD_MAJ', 'CHORD_MIN', 'CHORD_DIM', 'CHORD_AUG', 'CHORD_MAJ7', 'CHORD_MIN7', 'CHORD_DOM7', 'CHORD_SUS4', 'CHORD_POWER'] },
+  { title: 'sound',       keys: ['sfx', 'music', 'note', 'hit', 'note_on', 'note_off', 'note_pitch', 'note_vol', 'note_cutoff', 'note_duty', 'note_res', 'note_lfo', 'note_env', 'note_filter', 'note_glide', 'note_off_all', 'instrument', 'instrument_duty', 'instrument_lfo', 'instrument_filter', 'instrument_env', 'wave_set', 'tone', 'chord', 'strum', 'schedule', 'schedule_hit', 'bpm', 'beat', 'beat_pos', 'every', 'euclid', 'chance', 'degree', 'INSTR_SQUARE', 'INSTR_SAW', 'INSTR_TRI', 'INSTR_NOISE', 'INSTR_SINE', 'INSTR_USER0', 'INSTR_USER1', 'INSTR_USER2', 'INSTR_USER3', 'LFO_PITCH', 'LFO_DUTY', 'LFO_VOLUME', 'LFO_CUTOFF', 'ENV_CUTOFF', 'ENV_PITCH', 'ENV_DUTY', 'FILTER_OFF', 'FILTER_LOW', 'FILTER_HIGH', 'FILTER_BAND', 'FILTER_NOTCH', 'SCALE_MAJOR', 'SCALE_MINOR', 'SCALE_PENTA', 'SCALE_PENTA_MIN', 'SCALE_BLUES', 'SCALE_CHROMATIC', 'CHORD_MAJ', 'CHORD_MIN', 'CHORD_DIM', 'CHORD_AUG', 'CHORD_MAJ7', 'CHORD_MIN7', 'CHORD_DOM7', 'CHORD_SUS4', 'CHORD_POWER'] },
   { title: 'utility', keys: ['rnd', 'rnd_between', 'rnd_float', 'rnd_float_between', 'now', 'dt', 'epoch', 'frame', 'fps', 'sgn', 'mid', 'timer', 'timer_reset'] },
   { title: 'persistence', keys: ['save', 'load', 'save_int', 'load_int', 'save_bytes', 'load_bytes', 'de_state', 'STATE', 'S', 'GameState'] },
   { title: 'debug',     keys: ['printh', 'watch', 'watch_visible'] },
@@ -683,7 +692,7 @@ async function buildTutorialsPanel() {
     card.appendChild(img)
     card.appendChild(info)
 
-    card.addEventListener('click', () => { currentCartName = title; loadCartFromUrl(url) })
+    card.addEventListener('click', () => { setCartName(title); loadCartFromUrl(url) })
 
     grid.appendChild(card)
     return { card, titleEl, descEl, idx, title: title || '', desc: description || '',
@@ -886,7 +895,12 @@ saveCartBtn.addEventListener('click', async () => {
     screenW: settings.screenW, screenH: settings.screenH, scale: settings.scale,
     cellW: settings.cellW, cellH: settings.cellH, mapW: settings.mapW, mapH: settings.mapH,
   }
-  await window.studio.saveCart({ source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings })
+  const saved = await window.studio.saveCart({ source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings })
+  // adopt the saved filename as the cart name (shown in the window title)
+  if (saved && saved.ok && saved.filePath) {
+    const base = saved.filePath.split('/').pop().replace(/\.cart\.png$/, '').replace(/\.png$/, '')
+    if (base) setCartName(base)
+  }
 })
 
 // Cmd/Ctrl+S → save cart, from anywhere (capture phase, so CodeMirror doesn't eat it)
@@ -935,7 +949,7 @@ function applyCart(cart) {
 loadCartBtn.addEventListener('click', async () => {
   if (!window.studio) return
   const cart = await window.studio.loadCart()
-  if (cart && cart.ok) { if (cart.name) currentCartName = cart.name; applyCart(cart) }
+  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); applyCart(cart) }
 })
 
 // ── build for web ─────────────────────────────────────────────
@@ -972,7 +986,7 @@ document.addEventListener('drop', async e => {
   if (!file || !file.name.endsWith('.png')) return
   const filePath = window.studio.getFilePath(file)
   const cart = await window.studio.loadCartFile(filePath)
-  if (cart && cart.ok) { if (cart.name) currentCartName = cart.name; applyCart(cart) }
+  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); applyCart(cart) }
 })
 
 let hideTimer = null
@@ -1237,7 +1251,7 @@ window.addEventListener('load', () => {
   if (settings.welcomeCart === 'empty') {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: EMPTY_TEMPLATE } })
   } else {
-    currentCartName = 'pixel zoo'
+    setCartName('pixel zoo')
     loadCartFromUrl('/carts/zoo.cart.png').catch(() => {})
   }
 })

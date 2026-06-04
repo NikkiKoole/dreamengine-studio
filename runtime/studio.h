@@ -239,6 +239,12 @@ void map_scale(int n);                                  // integer zoom for map 
 #define INSTR_TRI     2
 #define INSTR_NOISE   3
 #define INSTR_SINE    4
+// custom DRAWN waveforms — four single-cycle tables you fill with wave_set(), then play
+// like any wave: note(60, INSTR_USER0, 5). Draw one in the "wave editor" cart.
+#define INSTR_USER0   5
+#define INSTR_USER1   6
+#define INSTR_USER2   7
+#define INSTR_USER3   8
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
 void music(int n);                            // play music pattern n; -1 stops music
@@ -261,6 +267,7 @@ void note_off_all(void);                                  // release every held 
 
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..15: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release
+void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
 
 // one routable LFO per instrument — a slow sine that wobbles one parameter

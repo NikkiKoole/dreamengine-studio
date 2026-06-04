@@ -108,6 +108,7 @@
     X(instrument_lfo) \
     X(instrument_filter) \
     X(instrument_env) \
+    X(wave_set) \
     X(tone) \
     X(chord) \
     X(strum) \

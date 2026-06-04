@@ -1,30 +1,50 @@
 #include "studio.h"
 
-// Sprite slots 1-4 hold a 4-frame walk cycle (defined in 15-anim.cart.js)
-#define COUNT 7
-#define FPS   5.0f
+// Sprite slots 1-6 hold a 6-frame walk cycle. No frame was hand-drawn:
+// ONE parametric walker(t) function in 15-anim.cart.js samples the same
+// figure at 6 points of its stride (the sprite-draw.js workflow).
+#define COUNT  7
+#define FRAMES 6
+#define FPS    9.0f
+
+// the sprite's body uses magic pal() colors (28 main / 29 dark),
+// so the same 6 frames dress up as seven different walkers
+static const int MAINC[COUNT] = { CLR_GREEN, CLR_PINK, CLR_BLUE,
+    CLR_ORANGE, CLR_RED, CLR_YELLOW, CLR_LIGHT_GREY };
+static const int DARKC[COUNT] = { CLR_DARK_GREEN, CLR_DARK_PURPLE, CLR_DARK_BLUE,
+    CLR_BROWN, CLR_DARK_RED, CLR_DARK_ORANGE, CLR_DARK_GREY };
 
 void init() {
     colorkey(CLR_BLACK);
 }
 
+// one walker drawn 2x, recolored, at animation phase `ph` (0..1)
+static void walker(int i, int x, int y, float ph) {
+    int s = 1 + anim(FRAMES, FPS, ph);
+    pal(28, MAINC[i]); pal(29, DARKC[i]);
+    sspr((s % 8) * 16, (s / 8) * 16, 16, 16, x, y, 32, 32);
+    pal_reset();
+}
+
 void draw() {
-    cls(CLR_DARK_BLUE);
+    cls(CLR_DARKER_BLUE);
 
     // ── top row: all in sync ─────────────────────────────────
-    print("phase 0 — in sync", 4, 4, CLR_LIGHT_GREY);
+    print("phase 0 - in sync", 8, 8, CLR_LIGHT_GREY);
+    line(0, 52, SCREEN_W, 52, CLR_DARKER_GREY);     // ground
     for (int i = 0; i < COUNT; i++) {
-        spr(1 + anim(4, FPS, 0.0f), 8 + i * 44, 18);
+        walker(i, 8 + i * 44, 20, 0.0f);
     }
 
     // ── bottom row: staggered ────────────────────────────────
-    print("phase i/count — staggered", 4, 96, CLR_LIGHT_GREY);
+    print("phase i/count - staggered", 8, 96, CLR_LIGHT_GREY);
+    line(0, 140, SCREEN_W, 140, CLR_DARKER_GREY);   // ground
     for (int i = 0; i < COUNT; i++) {
-        spr(1 + anim(4, FPS, (float)i / COUNT), 8 + i * 44, 110);
+        walker(i, 8 + i * 44, 108, (float)i / COUNT);
     }
 
     // ── usage hint ───────────────────────────────────────────
-    print("spr(1 + anim(4, fps,", 4, 162, CLR_YELLOW);
-    print("    (float)i/n), x, y);", 4, 172, CLR_YELLOW);
-    print("phase 0..1 shifts the cycle start.", 4, 185, CLR_DARK_GREY);
+    print("spr(1 + anim(6, fps,", 8, 162, CLR_YELLOW);
+    print("    (float)i/n), x, y);", 8, 172, CLR_YELLOW);
+    print("phase 0..1 shifts the cycle start.", 8, 186, CLR_DARK_GREY);
 }

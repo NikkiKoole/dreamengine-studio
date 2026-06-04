@@ -1,12 +1,13 @@
 #include "studio.h"
 
-// GALERIJFLAT — sys 6 starter: clock + light schedules + facade tinting.
+// GALERIJFLAT — sys 6 starter: clock + light schedules + global facade tinting.
 //
-// Facade tinting: a multiply blend table (from blendlab) maps wallC/slabC to
-// night (cold dark) or dusk/dawn (warm golden) variants at roll time. In draw(),
-// pal() swaps them in before the building is drawn, pal_reset() after — so only
-// the large concrete surfaces change with the light; lit windows and coloured
-// doors stay vivid against the tinted wall.
+// Time-of-day tint: remap all 32 palette entries through t_mul[filter] before
+// drawing. Sky + stars are already in the framebuffer before the remap fires so
+// they're unaffected. Five "light-source" colours are restored after the global
+// remap so they stay vivid against the darkened scene: LIGHT_YELLOW, LIGHT_PEACH,
+// TRUE_BLUE, BLUE, RED. Everything else — concrete, doors, curtains, grass —
+// picks up the ambient light.
 //
 //   SPACE   — re-roll the building
 //   T       — jump forward 1 hour (for testing)
@@ -63,9 +64,9 @@ static const int CURT[][2] = {
 };
 #define NCURT 6
 
-// ── facade tint — multiply blend table (from blendlab) ────────────────────────
-// wallC and slabC are the dominant concrete surfaces; pre-computing tinted
-// variants at roll time means pal() swaps are instant each frame.
+// ── tint — multiply blend table (from blendlab) ───────────────────────────────
+// All 32 palette entries are remapped through t_mul[filter] each frame.
+// Light-source colours are restored after the loop so they stay vivid.
 
 static const unsigned char PAL_RGB[32][3] = {
     {0x00,0x00,0x00},{0x1d,0x2b,0x53},{0x7e,0x25,0x53},{0x00,0x87,0x51},
@@ -78,6 +79,7 @@ static const unsigned char PAL_RGB[32][3] = {
     {0x06,0x5a,0xb5},{0x75,0x46,0x65},{0xff,0x6e,0x59},{0xff,0x9d,0x81},
 };
 static unsigned char t_mul[32][32];
+static int tint_on = 1;
 
 static int pal_nearest(int r, int g, int b) {
     int best = 0; long bd = 0x7fffffff;
@@ -98,32 +100,27 @@ static void build_tint_table(void) {
         }
 }
 
-// pre-computed per-building tinted colours for wallC and slabC
-static int wallC_night, wallC_dawn, wallC_dusk, wallC_eve;
-static int slabC_night, slabC_dawn, slabC_dusk, slabC_eve;
-static int tint_on = 1;
+// colours that emit their own light — exempt from ambient tint
+static const int LIGHT_COLORS[] = {
+    CLR_LIGHT_YELLOW,   // warm window glow + lamp heads
+    CLR_LIGHT_PEACH,    // lit vitrage (glow through net curtains)
+    CLR_TRUE_BLUE,      // blue glass / TV background
+    CLR_BLUE,           // TV flicker
+    CLR_RED,            // antenna blink
+};
+#define N_LIGHT_COLORS 5
 
-static void compute_tints(void) {
-    wallC_night = t_mul[CLR_DARKER_BLUE][wallC];   // cold dark night
-    wallC_dawn  = t_mul[CLR_DARK_ORANGE][wallC];   // warm early light
-    wallC_dusk  = t_mul[CLR_DARK_ORANGE][wallC];   // same warm cast at dusk
-    wallC_eve   = t_mul[CLR_DARK_BLUE][wallC];     // cooling evening (less dark than full night)
-    slabC_night = t_mul[CLR_DARKER_BLUE][slabC];
-    slabC_dawn  = t_mul[CLR_DARK_ORANGE][slabC];
-    slabC_dusk  = t_mul[CLR_DARK_ORANGE][slabC];
-    slabC_eve   = t_mul[CLR_DARK_BLUE][slabC];
-}
-
-static void push_facade_tint(float t) {
+static void push_tint(float t) {
     if (!tint_on) return;
-    int wc, sc;
-    if      (t <  7.0f || t >= 22.0f)          { wc = wallC_night; sc = slabC_night; }
-    else if (t <  9.0f)                         { wc = wallC_dawn;  sc = slabC_dawn;  }
-    else if (t >= 17.0f && t < 20.5f)           { wc = wallC_dusk;  sc = slabC_dusk;  }
-    else if (t >= 20.5f)                        { wc = wallC_eve;   sc = slabC_eve;   }
-    else return;  // 9-17: daytime, no tint
-    pal(wallC, wc);
-    pal(slabC, sc);
+    int filter;
+    if      (t <  7.0f || t >= 22.0f)       filter = CLR_DARKER_BLUE;   // night
+    else if (t <  9.0f)                      filter = CLR_DARK_ORANGE;   // dawn
+    else if (t >= 17.0f && t < 20.5f)        filter = CLR_DARK_ORANGE;   // dusk
+    else if (t >= 20.5f)                     filter = CLR_DARK_BLUE;     // cooling evening
+    else return;                                                           // 9-17: day, no tint
+    for (int i = 0; i < 32; i++) pal(i, t_mul[filter][i]);
+    // restore light-source colours — they don't reflect ambient, they emit
+    for (int i = 0; i < N_LIGHT_COLORS; i++) pal(LIGHT_COLORS[i], LIGHT_COLORS[i]);
 }
 
 // ── schedule helpers ──────────────────────────────────────────────────────────
@@ -153,7 +150,7 @@ static int home_curt_open(Home *h, float t) {
     return (t < 6.0f || t > 22.0f) ? 0 : h->curtOpen;
 }
 
-// ── rolling one household ─────────────────────────────────────────────────────
+// ── rolling ───────────────────────────────────────────────────────────────────
 
 static void roll_home(Home *h) {
     *h = (Home){0};
@@ -267,8 +264,6 @@ static void roll_building(void) {
     nLamp = rnd_between(2, 4);
     for (int i = 0; i < nLamp; i++)
         lampX[i] = 20 + (SCREEN_W - 40) * (i * 2 + 1) / (nLamp * 2);
-
-    compute_tints();  // depends on wallC + slabC just set above
 
     for (int f = 0; f < NF; f++)
         for (int b = 0; b < NB; b++)
@@ -426,18 +421,18 @@ static void draw_sky(float t) {
 void draw(void) {
     cls(0);
     int horizon = SCREEN_H - GROUND_H;
-    draw_sky(tod);
 
-    // stars drawn BEFORE pal() swaps (so they're already in the framebuffer)
+    // sky + stars: in the framebuffer BEFORE any pal() swap, so always unaffected
+    draw_sky(tod);
     if (tod < 7.5f || tod > 19.5f)
         for (int i = 0; i < 26; i++)
             pset((i * 73 + 19) % SCREEN_W, (i * 41 + 7) % wallTop,
                  i % 4 ? CLR_INDIGO : CLR_LIGHT_GREY);
 
-    // swap in tinted concrete colours for this frame
-    push_facade_tint(tod);
+    // global tint: all 32 colours remapped, light-source colours restored
+    push_tint(tod);
 
-    // wall + tower shadow
+    // building
     rectfill(baysX, wallTop, NB * BW, baseY - wallTop, wallC);
     {
         int sx = towerLeft ? baysX : baysX + NB * BW - 4;
@@ -454,19 +449,18 @@ void draw(void) {
     draw_tower();
     draw_plinth();
 
-    pal_reset();  // restore real colours before drawing ground + HUD
-
-    // ground
+    // ground (also tinted — pavement + grass pick up the ambient light)
     rectfill(0, horizon, SCREEN_W, 5, CLR_DARKER_GREY);
     rectfill(0, horizon + 5, SCREEN_W, GROUND_H - 5, CLR_DARK_GREEN);
     for (int i = 0; i < nLamp; i++) {
         rectfill(lampX[i], horizon - 13, 1, 13, CLR_DARK_GREY);
         pset(lampX[i] + 1, horizon - 13, CLR_DARK_GREY);
-        pset(lampX[i] + 2, horizon - 13, CLR_LIGHT_YELLOW);
+        pset(lampX[i] + 2, horizon - 13, CLR_LIGHT_YELLOW);   // lamp head: exempt, stays warm
         pset(lampX[i] + 2, horizon - 12, CLR_LIGHT_YELLOW);
     }
 
-    // HUD
+    pal_reset();  // HUD always in real colours
+
     {
         int h24 = (int)tod % 24, m = (int)((tod - (int)tod) * 60.0f);
         char buf[6] = { '0'+h24/10, '0'+h24%10, ':', '0'+m/10, '0'+m%10, 0 };

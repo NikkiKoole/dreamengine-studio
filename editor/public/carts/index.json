@@ -1972,6 +1972,15 @@
     ]
   },
   {
+    "title": "oil show",
+    "description": "Liquid light show — five metaballs drift across the screen; the scalar field at each pixel drives Bayer ordered-dithering between adjacent palette colours, giving the oily iridescent edges where blobs merge. The whole colour scheme slowly drifts through the rainbow. A re-rolls the blobs, B pauses the colour drift.",
+    "file": "oilshow.cart.png",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ]
+  },
+  {
     "title": "blend lab",
     "description": "Can 32 colors fake real translucency? A cart-space prototype of BLEND TABLES (result = table[src][dst], always a palette index — the VGA/Doom/Picotron trick). 1: a night street where additive glows light the building behind them, 2: a draggable glass pane + cloud shadows + fog over a swatch sweep of all 32 colors, 3: the raw 32x32 tables. D shows the same shapes as today's fillp dither-fake for comparison; P reads dst via pget to demonstrate the one-frame feedback artifact. Arrows switch glass color / table. Zero new engine API — the experiment behind STATUS item 18.",
     "file": "blendlab.cart.png",

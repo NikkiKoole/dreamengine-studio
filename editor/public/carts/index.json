@@ -1957,6 +1957,12 @@
     ]
   },
   {
+    "title": "galerijflat",
+    "description": "A generative Dutch gallery-access apartment block at dusk. Each re-roll randomises the concrete scheme, railing style, and every household's archetype — vitrage + symmetrical plants = elderly, bare glass + TV flicker = student. SPACE re-rolls.",
+    "file": "galerijflat.cart.png",
+    "kind": ["generative"]
+  },
+  {
     "title": "blend lab",
     "description": "Can 32 colors fake real translucency? A cart-space prototype of BLEND TABLES (result = table[src][dst], always a palette index — the VGA/Doom/Picotron trick). 1: a night street where additive glows light the building behind them, 2: a draggable glass pane + cloud shadows + fog over a swatch sweep of all 32 colors, 3: the raw 32x32 tables. D shows the same shapes as today's fillp dither-fake for comparison; P reads dst via pget to demonstrate the one-frame feedback artifact. Arrows switch glass color / table. Zero new engine API — the experiment behind STATUS item 18.",
     "file": "blendlab.cart.png",

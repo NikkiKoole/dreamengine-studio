@@ -349,6 +349,9 @@ static void draw_window(Home *h, int f, int b, int wx, int wy) {
         break;
     }
 
+    // windowsill ledge — structural concrete, same material as the gallery slabs
+    rectfill(wx, wy + WH - 1, WW, 1, slabC);
+
     int closedOff = (h->treat == TR_CURTAIN && !curt) ||
                     (h->treat == TR_ROLLER && h->roller > 0.75f);
     if (!closedOff)
@@ -358,9 +361,6 @@ static void draw_window(Home *h, int f, int b, int wx, int wy) {
             if (h->itPlant[i])
                 pset(ix, iy - 1, lit ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
         }
-
-    // windowsill ledge — 1px below glass; colour from curtain bright pair
-    rectfill(wx, wy + WH, WW, 1, h->tBright);
 }
 
 static void draw_band(int f) {

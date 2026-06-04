@@ -36,8 +36,37 @@
 //   accent — not a sound! On the real unit it's a knob that just makes the
 //     flagged steps louder. Here: orange ticks above the grid, vol +2.
 //
+//   swing — on the real CR-78, "Swing" and "Shuffle" were canned PRESETS
+//     with the triplet feel baked into the pattern data; adjustable swing
+//     timing didn't exist until the LM-1 (1980). This cart has the knob the
+//     original never got: Z/X sets swing 50 (straight) to 66 (full triplet)
+//     by scheduling the offbeat 8ths late. Shuffle/Swing presets load at 66.
+//
 //   Q W E R T Y U I O P A S D F G   play each voice by hand
 //   LEFT / RIGHT  preset      UP / DOWN  tempo      SPACE  start / stop
+//   Z / X  swing down / up
+//   MOUSE  click/drag cells to edit the pattern (presets are starting
+//          points — switching preset reloads it), click a label to
+//          audition, click the orange strip to move the accents
+//
+// ── PARKED IDEA: per-cell pitch + filter locks ───────────────────────────
+// (also ledgered in docs/STATUS.md → Open). Elektron-style parameter locks:
+// each lit cell optionally carries a pitch offset and a cutoff override, so
+// the bongo row plays a melody and a hat line opens across the bar. That
+// would stack three eras in one box: CR-78 voices (1978) + the swing knob
+// (LM-1, 1980) + p-locks (Machinedrum, 2001). Design notes from the session:
+//   - pitch is trivial: cells become a small struct {on, semi, cut}; fire()
+//     adds `semi` to the voice's base midi. Done.
+//   - filter is the catch: cutoff lives on the INSTRUMENT SLOT, and a
+//     scheduled note snapshots its slot AT FIRE TIME (audio-notes §2.2) —
+//     redefining the slot per step would retroactively bend the note already
+//     queued one step ahead. Cure = the sfx-editor rotating-slot pattern:
+//     copy the voice's recipe into a scratch slot (25..31 are free), set the
+//     cell's cutoff, fire that slot. Pool of 2-3 suffices at one-step
+//     lookahead.
+//   - UI on 9x7px cells: hover + wheel = pitch lock, hold C + wheel = cutoff
+//     lock, right-click clears; notch markers (top = pitched up, bottom =
+//     down, off-color = filtered) since there's no room for digits.
 
 // voices — named indices, never raw numbers (house rule)
 enum {
@@ -66,11 +95,17 @@ static const int VCLR[NV] = {
 
 #define STEPS 16
 
+#define GX   88    // grid left edge
+#define GY   44    // grid top edge
+#define SX   13    // column stride
+#define SY   9     // row stride
+
 typedef struct {
     const char *name;
     int         tempo;
     const char *row[NV];   // 16 chars, 'x' = hit; NULL = silent row
     const char *accent;    // 16 chars, 'x' = +2 volume on that step
+    int         swing;     // 50 = straight, 66 = triplet feel (offbeat 8ths late)
 } Pat;
 
 static const Pat PRESET[] = {
@@ -114,6 +149,16 @@ static const Pat PRESET[] = {
         [V_HATC]  = "x.x.x.x.x.x.x.x.",
         [V_BONL]  = "..............x.",
       }, "x.........x....." },
+    { "SHUFFLE", 96, {             // triplet feel baked in — swing 66
+        [V_KICK]  = "x.......x.......",
+        [V_SNARE] = "....x.......x...",
+        [V_HATC]  = "x.x.x.x.x.x.x.x.",
+      }, "x.......x.......", 66 },
+    { "SWING", 138, {              // jazz ride on the closed hat, rim on 2+4
+        [V_KICK]  = "x.......x.......",
+        [V_HATC]  = "x...x.x.x...x.x.",
+        [V_RIM]   = "....x.......x...",
+      }, "x.......x.......", 66 },
 };
 #define NP ((int)(sizeof PRESET / sizeof PRESET[0]))
 
@@ -123,6 +168,22 @@ static bool running  = true;
 static int  last16   = -1;
 static int  playhead = 0;
 static int  flash[NV];
+static bool grid[NV][STEPS];   // the live pattern — editable, loaded from preset
+static bool gacc[STEPS];       // live accent row
+static bool paint_val;         // what a click-drag writes (set on press)
+static int  swing = 50;        // 50 = straight .. 66 = full triplet
+
+static void load_preset(void) {
+    const Pat *p = &PRESET[pre];
+    for (int v = 0; v < NV; v++)
+        for (int s = 0; s < STEPS; s++)
+            grid[v][s] = p->row[v] && p->row[v][s] == 'x';
+    for (int s = 0; s < STEPS; s++)
+        gacc[s] = p->accent && p->accent[s] == 'x';
+    tempo = p->tempo;
+    swing = p->swing ? p->swing : 50;
+    bpm(tempo);
+}
 
 static int vv(int base, int boost) {
     int v = base + boost;
@@ -233,21 +294,51 @@ void init(void) {
     instrument(SL_MET, INSTR_SQUARE, 0, 180, 0, 60);
     instrument_filter(SL_MET, FILTER_BAND, 3300, 6);
 
-    tempo = PRESET[pre].tempo;
-    bpm(tempo);
+    load_preset();
+}
+
+// hit-test the step grid: row -1 = accent strip, -2 = miss; col via *col
+static int grid_row(int mx, int my, int *col) {
+    int s = (mx - GX) / SX;
+    if (mx < GX || s < 0 || s >= STEPS) return -2;
+    if (my >= GY - 8 && my < GY - 1) { *col = s; return -1; }   // accent strip
+    int v = (my - GY) / SY;
+    if (my < GY || v < 0 || v >= NV) return -2;
+    *col = s;
+    return v;
 }
 
 void update(void) {
-    const Pat *p = &PRESET[pre];
-
     for (int v = 0; v < NV; v++)
         if (keyp(VKEY[v])) { fire(v, 1, 0); flash[v] = 5; }
 
     if (keyp(KEY_SPACE)) { running = !running; last16 = -1; }
-    if (keyp(KEY_LEFT))  { pre = (pre + NP - 1) % NP; tempo = PRESET[pre].tempo; bpm(tempo); last16 = -1; }
-    if (keyp(KEY_RIGHT)) { pre = (pre + 1) % NP;      tempo = PRESET[pre].tempo; bpm(tempo); last16 = -1; }
+    if (keyp(KEY_LEFT))  { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; }
+    if (keyp(KEY_RIGHT)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; }
     if (keyp(KEY_UP))   { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); }
     if (keyp(KEY_DOWN)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); }
+    if (keyp('Z')) { swing -= 2; if (swing < 50) swing = 50; }
+    if (keyp('X')) { swing += 2; if (swing > 66) swing = 66; }
+
+    // mouse: press toggles a cell (and remembers the value so a drag PAINTS
+    // it across cells); a click on a row's label auditions the voice
+    int mc, mr = grid_row(mouse_x(), mouse_y(), &mc);
+    if (mouse_pressed(MOUSE_LEFT)) {
+        if (mr >= 0) {
+            paint_val = !grid[mr][mc];
+            grid[mr][mc] = paint_val;
+            if (paint_val) { fire(mr, 0, 0); flash[mr] = 5; }
+        } else if (mr == -1) {
+            paint_val = !gacc[mc];
+            gacc[mc] = paint_val;
+        } else if (mouse_x() < GX && mouse_y() >= GY && mouse_y() < GY + NV * SY) {
+            int v = (mouse_y() - GY) / SY;
+            fire(v, 1, 0); flash[v] = 5;
+        }
+    } else if (mouse_down(MOUSE_LEFT)) {
+        if (mr >= 0)       grid[mr][mc] = paint_val;
+        else if (mr == -1) gacc[mc]     = paint_val;
+    }
 
     if (!running) return;
 
@@ -261,28 +352,27 @@ void update(void) {
         playhead = s16 & 15;
 
         for (int v = 0; v < NV; v++)
-            if (p->row[v] && p->row[v][playhead] == 'x') flash[v] = 5;
+            if (grid[v][playhead]) flash[v] = 5;
 
         float f = beat_pos() * 4.0f; f -= (int)f;
         int step_ms = 15000 / tempo;
         int delay   = (int)((1.0f - f) * step_ms);
         int nx      = (s16 + 1) & 15;
-        int boost   = (p->accent && p->accent[nx] == 'x') ? 2 : 0;
+        // swing: push each offbeat 8th (steps 2,6,10,14) late. At 66 the
+        // offbeat lands 2/3 into the quarter — the triplet shuffle the real
+        // CR-78 could only fake with pre-swung preset patterns
+        if ((nx & 3) == 2) delay += (swing - 50) * 4 * step_ms / 100;
+        int boost   = gacc[nx] ? 2 : 0;
         for (int v = 0; v < NV; v++)
-            if (p->row[v] && p->row[v][nx] == 'x') fire(v, boost, delay);
+            if (grid[v][nx]) fire(v, boost, delay);
 
         if (first) {   // fresh start: also sound the step we're already on
-            int b0 = (p->accent && p->accent[playhead] == 'x') ? 2 : 0;
+            int b0 = gacc[playhead] ? 2 : 0;
             for (int v = 0; v < NV; v++)
-                if (p->row[v] && p->row[v][playhead] == 'x') fire(v, b0, 0);
+                if (grid[v][playhead]) fire(v, b0, 0);
         }
     }
 }
-
-#define GX   88    // grid left edge
-#define GY   44    // grid top edge
-#define SX   13    // column stride
-#define SY   9     // row stride
 
 void draw(void) {
     const Pat *p = &PRESET[pre];
@@ -295,6 +385,8 @@ void draw(void) {
     rect(8, 10, 304, 182, CLR_DARK_GREY);
 
     print("COMPURHYTHM CR-78", 16, 16, CLR_LIGHT_GREY);
+    sprintf(buf, "SW%2d", swing);
+    print(buf, 204, 16, swing > 50 ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
     sprintf(buf, "%3d BPM", tempo);
     print(buf, 248, 16, CLR_LIGHT_PEACH);
     sprintf(buf, "< %s >", p->name);
@@ -305,10 +397,11 @@ void draw(void) {
     if (running)
         rectfill(GX + playhead * SX - 1, GY - 7, SX - 1, NV * SY + 8, CLR_DARKER_GREY);
 
-    // accent ticks above the grid (the real unit's accent = louder steps)
+    // accent ticks above the grid (the real unit's accent = louder steps);
+    // off slots stay faintly visible so you can see they're clickable
     for (int s = 0; s < STEPS; s++)
-        if (p->accent && p->accent[s] == 'x')
-            rectfill(GX + s * SX, GY - 6, SX - 4, 3, CLR_ORANGE);
+        rectfill(GX + s * SX, GY - 6, SX - 4, 3,
+                 gacc[s] ? CLR_ORANGE : CLR_DARKER_GREY);
 
     for (int v = 0; v < NV; v++) {
         int y = GY + v * SY;
@@ -317,7 +410,7 @@ void draw(void) {
         print(VNAME[v], 26, y, flash[v] > 0 ? CLR_WHITE : CLR_MEDIUM_GREY);
         for (int s = 0; s < STEPS; s++) {
             int x   = GX + s * SX;
-            bool on = p->row[v] && p->row[v][s] == 'x';
+            bool on = grid[v][s];
             int  c  = on ? ((flash[v] > 0 && s == playhead && running) ? CLR_WHITE : VCLR[v])
                          : ((s & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);
             if (on) rectfill(x, y, SX - 4, 7, c);
@@ -326,5 +419,5 @@ void draw(void) {
         if (flash[v] > 0) flash[v]--;
     }
 
-    print("Q-G PLAY  <> PRESET  ^v BPM  SPC RUN", 16, 184, CLR_MEDIUM_GREY);
+    print("CLICK TO EDIT  <> PRESET  ^v BPM  SPC", 14, 184, CLR_MEDIUM_GREY);
 }

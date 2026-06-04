@@ -326,6 +326,19 @@ their `kind[]` tags.
     (Picotron findings + three-layer plan: new default → `palette_set` + `de:palette` chunk →
     tables-from-active-palette).
 
+19. **Per-cell parameter locks in the cr-78 cart** *(cart-space idea, zero engine API — parked
+    2026-06-05)* — Elektron-style p-locks for `tools/carts/cr78.c`: each lit step optionally
+    carries a pitch offset (melodic bongos/congas/metal riffs, TR-727 style) and a cutoff
+    override (hats opening across the bar). Historically cheeky on purpose: CR-78 voices (1978)
+    + the cart's swing knob (LM-1, 1980) + p-locks (Machinedrum, 2001) in one box. Pitch is
+    trivial (`fire()` already passes midi). **The known crux is the filter**: one-shot cutoff
+    lives on the instrument slot and scheduled notes snapshot their slot at fire time
+    ([`design/audio-notes.md`](design/audio-notes.md) §2.2) — per-step cutoff therefore needs
+    the sfx-editor **rotating scratch-slot pattern** (cr78 uses slots 9–24; 25–31 free, pool of
+    2-3 suffices at one-step lookahead). UI sketch in the cart header: hover+wheel = pitch,
+    C+wheel = cutoff, notch markers on the 9×7px cells. Full design notes at the top of
+    `tools/carts/cr78.c`.
+
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 
 **Smaller open items (no design doc yet):** looping ambience (`drone`)/`volume`/mute. Noted

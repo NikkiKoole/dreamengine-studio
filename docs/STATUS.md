@@ -141,6 +141,10 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
    - Back
 
    **Further deferred:**
+   - **Per-player pause key** — currently one shared `PAUSE_KEY` for both players.
+     When gamepad support lands, each player should have their own pause button
+     (P0_PAUSE_KEY / P1_PAUSE_KEY, same `-D` flag pattern as the other bindings).
+     The architecture already supports it — just not exposed in the UI yet.
    - **`menuitem(index, label, callback)`** — let carts add custom rows ("restart
      level", "toggle music", "easy mode") to the pause menu. Zero layout work for
      the cart; ~30 carts currently hand-roll their own options screens.

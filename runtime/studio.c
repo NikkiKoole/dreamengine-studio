@@ -1585,7 +1585,10 @@ void bar(int x, int y, int w, int h, float pct, int fill, int bg) {
 // patterned fill: each (pattern,c1,c0) bakes a tiny 4×4 POT texture, tiled in one
 // draw via REPEAT wrap. We CACHE textures (never unload one mid-frame) so multiple
 // different patterns in the same frame don't corrupt raylib's draw batch.
-#define FP_CACHE 32
+// 17 unique threshold patterns × N vgradient calls per frame; 32 was too small for 2
+// stacked vgradients (34 needed) — eviction caused OpenGL to reuse a texture ID still
+// referenced by a pending batch entry, drawing the wrong gradient colour at the top row.
+#define FP_CACHE 64
 static struct { int pat, c1, c0; Texture2D tex; bool used; } fp_cache[FP_CACHE];
 static int fp_round = 0;
 

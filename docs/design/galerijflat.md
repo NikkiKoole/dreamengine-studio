@@ -16,6 +16,8 @@ Decisions so far:
 
 - ✓ **View: the gallery facade, straight on.** Flat elevation, no perspective.
   The whole screen is the building (plus a strip of sky and ground).
+- ✓ **A flip button shows the balcony side** — same building seen from the
+  other side, NOT a second facade. One model, two views (system 4 below).
 - ✓ **The archetype**, not a specific real building. Generic systeembouw slab:
   concrete bands, steel railings, repeated bays. Bijlmer-adjacent but anonymous.
 
@@ -145,6 +147,33 @@ per household alongside the treatment.
   shaping. By day they're colored specks on the facade rhythm.
 - Mostly static (unlike treatments) — sills change on re-roll, not on the
   clock. Maybe the rare exception: a plant appearing one day.
+
+### 4. The flip — one building, two faces
+
+A button flips the view to the **balcony side**. The non-negotiable: it must
+read as *the same flat seen from behind*, never as another building.
+
+- **One model, two renderers.** All state lives in the building/household
+  model; the gallery facade and the balcony facade are two views of it.
+  Nothing is rolled per-view.
+- **Mirrored, like walking around it**: flipping reverses the horizontal
+  order — the dwelling at the left end seen from the gallery side is at the
+  right end seen from the balcony side. The lift tower swaps ends. Getting
+  this wrong would silently break the "same building" illusion.
+- **Each dwelling has two rooms showing**: kitchen + front door on the
+  gallery side, living room + balcony on the other. One household state
+  drives both — and they can *differ meaningfully by time*: morning = kitchen
+  lit / living room dark; evening = TV glow in the living room, kitchen dark.
+  Anyone who flips at dusk should see the same households awake, with the
+  light in the other room. Household identity carries across (curtain
+  colors/taste, tidy-vs-messy applies to balcony clutter too).
+- **Balcony-side anatomy**: balcony slabs + railings/privacy panels in the
+  same band rhythm, bigger living-room windows, laundry racks, parasols,
+  plants, the occasional stored bike — the *private* face vs the gallery's
+  *shared* face. No front doors, no walkers; quieter.
+- **The flip itself**: instant cut vs a tiny transition (sky stays put,
+  building swaps) — open. Sky/weather/time are of course identical on both
+  sides (sun side might warrant a brightness bias later).
 
 *(list to be continued in a future session)*
 

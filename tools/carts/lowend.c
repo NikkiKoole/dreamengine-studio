@@ -27,10 +27,10 @@
 //    front and center), minimalism (bass + drums + one or two elements, no
 //    more), crisp drum programming with LAYERED hits (Q-Tip stacked up to
 //    three snares into one sound — here: noise crack + sine thump fired
-//    together), and the groove template from docs/guides/game-music.md:
-//    hats rush −8ms, snare drags +22ms, bass leans +12ms, kick holds the
-//    grid, 16ths swung ~57%. Samplers don't drift: NO tempo wobble here,
-//    unlike jangle/jingle — the machine is steady and the players lean.
+//    together), and the groove template from docs/guides/game-music.md at
+//    half strength (hats rush, snare drags, bass leans, kick holds the
+//    grid, 16ths lightly swung — see the PUSH_* defines). Samplers don't
+//    drift: NO tempo wobble here — the machine is steady, the players lean.
 //
 //   SPACE next song   R play it again   [ ] song history   M radio on/off
 //   LEFT/RIGHT feel (layers)   UP/DOWN tempo   H or ? help
@@ -51,11 +51,14 @@
 #define I_VINYL  11  // the dust
 
 // ── the groove template (ms, added to dly) ────────────────────────────────
+// Tuned DOWN from the guide's maximal Dilla numbers (−8/+22/+12, swing 57%)
+// after ear-testing: at radio volume the full drag read as stumbling, not
+// leaning. Half-strength keeps the head-nod. Turn it back up to taste.
 #define PUSH_KICK   0    // the kick IS the grid
-#define PUSH_HAT   -8    // hats rush, eager
-#define PUSH_SNARE 22    // the snare drags — the head-nod
-#define PUSH_BASS  12    // bass leans toward the snare's time
-#define SWING      0.14f // odd 16ths land 57% late
+#define PUSH_HAT   -5    // hats rush, eager
+#define PUSH_SNARE 12    // the snare drags — the head-nod
+#define PUSH_BASS   7    // bass leans toward the snare's time
+#define SWING      0.08f // odd 16ths land 54% late
 
 // ── chords — everything voiced lush ──────────────────────────────────────
 enum { Q_MAJ7, Q_MAJ9, Q_MAJ9S11, Q_SUS9, Q_MIN9, NQ };
@@ -102,7 +105,7 @@ typedef struct {
 
 static Song   sng;
 static int    tempo     = 92;
-static int    intensity = 2;     // 0 bass+drums · 1 +rhodes · 2 +hook lead · 3 16th hats
+static int    intensity = 1;     // feel: shifts the arrangement's density curve (headnod = as composed)
 static bool   radioOn   = true;
 static bool   showHelp  = false;
 static long   scheduled = -1;
@@ -197,6 +200,18 @@ static int chord_idx(long s)  { return (int)((s / 8) % sng.nCh); }   // half-bar
 static int root_pc(int ci)    { return (sng.keyPc + sng.off[ci]) % 12; }
 static int sect_of(long bar)  { long x = bar / 8; return (int)(x < 8 ? FORM[x] : S_OUTRO); }
 
+// density = arrangement curve + feel shift, two separate dimensions: the hook
+// stays fuller than the verse at ANY knob position; the knob moves the whole
+// envelope. (Bass and drums are the foundation — they never leave.)
+//   lvl 0: bass + drums only   lvl 2: + the hook lead
+//   lvl 1: + rhodes stabs      lvl 3: + 16th hats, busier ghosts
+static int level_of(long bar) {
+    int s = sect_of(bar);
+    int base = (s == S_INTRO || s == S_OUTRO) ? 0 : (s == S_V ? 1 : 2);
+    int lvl = base + intensity - 1;
+    return lvl < 0 ? 0 : lvl > 3 ? 3 : lvl;
+}
+
 static void chord_label(char *out, int n, int ci) {
     snprintf(out, n, "%s%s", PCNAME[root_pc(ci)], QN[sng.q[ci]]);
 }
@@ -271,6 +286,7 @@ static void play_step(long abs, double pos) {
     if (bar >= 64) return;
     int  ci   = chord_idx(s);
     int  sect = sect_of(bar);
+    int  lvl  = level_of(bar);
     int  sw   = (step % 2 == 1) ? (int)(stepMs * SWING) : 0;   // swung 16ths
     int  inSlot = (int)(s % 8);                                 // step within the chord
 
@@ -311,7 +327,7 @@ static void play_step(long abs, double pos) {
         if ((s32 == 11 || s32 == 27) && chance(18))        // ghost snare before the drag
             schedule_hit(dly + PUSH_SNARE + sw, 62, I_SNARE, 2, 35);
         // hats rush
-        int hatEvery = (intensity >= 3) ? 1 : 2;
+        int hatEvery = (lvl >= 3) ? 1 : 2;
         if (step % hatEvery == 0) {
             int hv = (step % 4 == 2) ? 3 : 2;
             if (hatEvery == 1 && step % 2 == 1) hv = 1;
@@ -324,7 +340,7 @@ static void play_step(long abs, double pos) {
     }
 
     // RHODES — sparse stabs on the chord changes, tremolo doing the rest
-    if (intensity >= 1 && sect != S_INTRO) {
+    if (lvl >= 1) {
         if (inSlot == 0 && chance(75)) {
             lead_voices(ci);
             int dur = (sng.off[ci] == 0) ? 700 : rnd_between(280, 480);   // home rings
@@ -339,7 +355,7 @@ static void play_step(long abs, double pos) {
     }
 
     // HOOK LEAD — the cell, narrowed to each chord's tones
-    if (intensity >= 2 && sect == S_H)
+    if (lvl >= 2)
         for (int i = 0; i < cellN; i++)
             if (cellOn[i] == s32 && chance(80)) {
                 int gap = (i + 1 < cellN) ? cellOn[i + 1] - s32 : 32 - s32;

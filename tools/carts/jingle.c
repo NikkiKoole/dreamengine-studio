@@ -102,7 +102,7 @@ typedef struct {
 
 static Song   sng;
 static int    tempo     = 82;
-static int    intensity = 2;     // 0 gtr+bass · 1 +kit · 2 +melody · 3 fuller
+static int    intensity = 1;     // feel: shifts the arrangement's density curve (dusky = as composed)
 static bool   radioOn   = true;
 static bool   showHelp  = false;
 static long   scheduled = -1;
@@ -277,15 +277,36 @@ static int pick_mel(Ch c) {
     return bestM;
 }
 
-// ── layers per section, gated by the feel knob ────────────────────────────
-static bool kit_on(long bar) {
+// ── density: arrangement curve × feel knob, two SEPARATE dimensions ───────
+// The arrangement gives each section a baseline density (intro/outro 0,
+// verse 1, chorus 2) — a fuller chorus over an emptier verse, always.
+// The feel knob doesn't gate layers directly; it SHIFTS THE WHOLE CURVE
+// (hush −1 · dusky 0 · tender +1 · aglow +2). At any knob position the
+// chorus stays fuller than the verse; the knob moves the song's envelope.
+// What each density level plays:
+//   0: sparse fingerpicking + bass        2: + kick and the melody
+//   1: + rim & hat brushes                3: no gaps, chorus strums, fuller
+static const int GAPS[4] = { 28, 14, 8, 0 };   // % chance a picked 8th rests
+
+static int level_of(long bar) {
     int s = sect_of(bar);
-    long sect = bar / 8;
-    return intensity >= 1 && (s == S_C || (s == S_V && sect >= 4));   // kit joins after first chorus
+    int base = (s == S_INTRO || s == S_OUTRO) ? 0 : (s == S_V ? 1 : 2);
+    int lvl = base + intensity - 1;
+    return lvl < 0 ? 0 : lvl > 3 ? 3 : lvl;
 }
-static bool mel_on(long bar) {
-    int s = sect_of(bar);
-    return intensity >= 2 && (s == S_C || sect_of(bar + 8) == S_OUTRO || (intensity >= 3 && s == S_V));
+
+// ── the tone knob — the radio's other dimension (T cycles) ───────────────
+// master brightness: re-issues the filter cutoffs live. mellow = the same
+// song through a warm old speaker; bright = the tweeter cleaned up.
+static int toneSel = 2;
+static const char *TONENAME[4] = { "mellow", "warm", "clear", "bright" };
+static const float TONEMUL[4]  = { 0.55f, 0.78f, 1.0f, 1.28f };
+
+static void apply_voicing(void) {
+    float m = TONEMUL[toneSel];
+    instrument_filter(I_GTR,  FILTER_LOW, (int)(1900 * m), 2);
+    instrument_filter(I_MEL,  FILTER_LOW, (int)(2300 * m), 2);
+    instrument_filter(I_BASS, FILTER_LOW, (int)(520 * (0.75f + 0.25f * m)), 1);
 }
 
 // ── the step player ───────────────────────────────────────────────────────
@@ -327,27 +348,30 @@ static void play_step(long abs, double pos) {
         }
     }
 
-    // GUITAR — fingerpicked 8ths (delicate), or gentle strums in the chorus
-    bool strum = sng.strumChorus && sect == S_C;
+    int lvl = level_of(bar);                            // arrangement curve + feel shift
+
+    // GUITAR — fingerpicked 8ths (delicate), or gentle strums when it's full
+    bool strum = (sng.strumChorus || lvl >= 3) && sect == S_C && lvl >= 2;
     if (strum) {
         if (step == 0 || step == 8 || (step == 6 && chance(40))) {
             lead_voices(c);
+            int sv = lvl >= 3 ? 4 : 3;
             for (int k = 0; k < 3; k++)
-                schedule_hit(dly + k * 14 + rnd(6), gv[k], I_GTR, 3, (int)(stepMs * 4));
+                schedule_hit(dly + k * 14 + rnd(6), gv[k], I_GTR, sv, (int)(stepMs * 4));
             vu += 2.2f;
         }
-    } else if (step % 2 == 0) {
-        if (chance(10)) return;                         // delicate gaps
+    } else if (step % 2 == 0 && !chance(GAPS[lvl])) {   // gaps sized by density
         lead_voices(c);
         int v = gv[PICKV[sng.pick][(step / 2) % 8]];
-        schedule_hit(dly + rnd(7), v, I_GTR, (step == 0) ? 3 : 2, (int)(stepMs * 2.4));
+        int gvol = (step == 0 || lvl >= 3) ? 3 : 2;
+        schedule_hit(dly + rnd(7), v, I_GTR, gvol, (int)(stepMs * 2.4));
         vu += 1.0f;
     }
 
-    // KIT — soft: kick, cross-stick rim, quiet hats; loose behind the bass
-    if (kit_on(bar) && sect != S_INTRO && sect != S_OUTRO) {
+    // KIT — rim & hat brushes from level 1, the kick from level 2
+    if (lvl >= 1) {
         int lag = dly + kitLag + rnd(4);
-        if (step == 0 || (step == 8 && chance(70)))
+        if (lvl >= 2 && (step == 0 || (step == 8 && chance(70))))
             { schedule_hit(lag, 40, I_KICK, 4, 100); vu += 1.5f; }
         if (step == 4 || step == 12)
             { schedule_hit(lag, 72, I_RIM, 3, 35); vu += 1.5f; }
@@ -356,7 +380,7 @@ static void play_step(long abs, double pos) {
     }
 
     // MELODY — the seeded cell, re-pitched with the accommodation rule
-    if (mel_on(bar)) {
+    if (lvl >= 2) {
         int s32 = (int)(s % 32);
         for (int i = 0; i < cellN; i++)
             if (cellOn[i] == s32 && chance(85)) {
@@ -402,6 +426,7 @@ void update(void) {
 
     if (!booted) {
         setup_instruments();
+        apply_voicing();
         if (JINGLE_SEED) { new_song(pos, JINGLE_SEED); hist[histN++] = sng.seed; histPos = 0; }
         else fresh_song(pos);
         scheduled = (long)pos;
@@ -421,6 +446,7 @@ void update(void) {
         if (!radioOn) note_off_all();
         else scheduled = (long)pos;
     }
+    if (keyp('T')) { toneSel = (toneSel + 1) % 4; apply_voicing(); }
     if (keyp('H')) showHelp = !showHelp;
     if (mouse_pressed(MOUSE_LEFT)) {
         int hx = mouse_x() - 288, hy = mouse_y() - 172;
@@ -543,12 +569,16 @@ void draw(void) {
             circfill(208 + i * 8, 124, 1, i <= bar / 8 ? CLR_PINK : CLR_DARK_GREY);
     }
 
-    // knobs + power LED
+    // knobs + power LED — feel shifts density, tone shifts brightness;
+    // the vu lives as a little bar in the display now
     static const char *FEEL[4] = { "hush", "dusky", "tender", "aglow" };
     knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_PINK);
     knob(218, 148, 9, (tempo - 64) / 36.0f, "tempo", CLR_PINK);
-    float vt = vu / 12.0f;
-    knob(262, 148, 11, vt > 1 ? 1 : vt, "wow", CLR_RED);
+    knob(262, 148, 11, toneSel / 3.0f, TONENAME[toneSel], CLR_PINK);
+    if (radioOn) {
+        float vt = vu / 12.0f;
+        rectfill(154, 91, (int)((vt > 1 ? 1 : vt) * 80), 2, CLR_PINK);
+    }
     circfill(282, 28, 2, radioOn && beat_pos() < 0.25f ? CLR_RED : CLR_DARK_RED);
 
     // help button + hint
@@ -562,22 +592,23 @@ void draw(void) {
         rect(44, 40, 232, 122, CLR_PINK);
         print("JINGLE RADIO", 52, 46, CLR_PINK);
         font(FONT_SMALL);
-        static const char *HELP[7][2] = {
+        static const char *HELP[8][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
-            { "LEFT/RIGHT", "feel - how many layers play" },
+            { "LEFT/RIGHT", "feel - shifts the density curve" },
             { "UP/DOWN",    "tempo of this tune" },
+            { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
         };
-        for (int i = 0; i < 7; i++) {
-            print(HELP[i][0], 52, 60 + i * 9, CLR_YELLOW);
-            print(HELP[i][1], 106, 60 + i * 9, CLR_WHITE);
+        for (int i = 0; i < 8; i++) {
+            print(HELP[i][0], 52, 58 + i * 9, CLR_YELLOW);
+            print(HELP[i][1], 106, 58 + i * 9, CLR_WHITE);
         }
-        print("the #number on the display IS the song.", 52, 128, CLR_PINK);
-        print("pin it for good: #define JINGLE_SEED 0x...", 52, 137, CLR_PINK);
-        print("seeded composition, played fresh every time", 52, 146, CLR_PINK);
+        print("the #number on the display IS the song.", 52, 132, CLR_PINK);
+        print("pin it for good: #define JINGLE_SEED 0x...", 52, 141, CLR_PINK);
+        print("chorus stays fuller than verse at any feel", 52, 150, CLR_PINK);
         font(FONT_NORMAL);
     }
 }

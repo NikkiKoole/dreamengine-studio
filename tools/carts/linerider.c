@@ -65,7 +65,17 @@ static void collide(Vp *p, float fric) {
         float cy = segs[i].y1 + t*ey;
         float sd = (p->x - cx)*nx + (p->y - cy)*ny;  // + above, - below
 
-        if (sd > 0.5f || sd < -4.0f) continue;
+        if (sd > 0.5f) continue;  // well above: nothing to do
+
+        // Crossing test: if the point went deep, verify it came from the above side.
+        // This catches fast-moving points that tunnel through the line in one frame.
+        if (sd < -0.5f) {
+            float t_p = ((p->px-segs[i].x1)*ex + (p->py-segs[i].y1)*ey) / len2;
+            t_p = clamp(t_p, 0.0f, 1.0f);
+            float sd_p = (p->px - (segs[i].x1+t_p*ex))*nx
+                       + (p->py - (segs[i].y1+t_p*ey))*ny;
+            if (sd_p < -0.5f) continue;  // was already below → came from the wrong side
+        }
 
         // velocity before push
         float vx = p->x - p->px, vy = p->y - p->py;
@@ -165,11 +175,13 @@ void update(void) {
 
     if (keyp(KEY_SPACE) || btnp(0, BTN_A)) {
         playing = !playing;
-        if (playing) rider_reset();
+        // no reset — resume from wherever the rider is (pause-draw-unpause workflow)
     }
     if (keyp('R') || btnp(0, BTN_B)) {
-        if (playing) rider_reset();
-        else { nseg = 0; rider_reset(); }
+        rider_reset();   // always resets rider to spawn
+    }
+    if (keyp(KEY_BACKSPACE)) {
+        nseg = 0;        // clear all lines (keep rider position)
     }
 
     if (!playing) {
@@ -314,13 +326,13 @@ void draw(void) {
     if (!playing) {
         print("DRAW", 4, 4, CLR_DARK_BLUE);
         font(FONT_SMALL);
-        print("SPACE play   R clear   RMB erase   arrows pan", 4, SCREEN_H-8, CLR_DARK_GREY);
+        print("SPACE play   R reset   DEL clear   RMB erase   arrows pan", 4, SCREEN_H-8, CLR_DARK_GREY);
         font(FONT_NORMAL);
         print(str("%d", nseg), SCREEN_W-30, 4, CLR_DARK_GREY);
     } else {
         print("PLAY", 4, 4, CLR_DARK_GREEN);
         font(FONT_SMALL);
-        print("SPACE draw   R retry", 4, SCREEN_H-8, CLR_DARK_GREY);
+        print("SPACE pause+draw   R reset", 4, SCREEN_H-8, CLR_DARK_GREY);
         font(FONT_NORMAL);
         if (crashed) {
             print_centered("CRASHED!", SCREEN_W/2, SCREEN_H/2 - 5, CLR_RED);

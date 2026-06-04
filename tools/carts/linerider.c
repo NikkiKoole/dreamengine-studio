@@ -48,6 +48,8 @@ static void rod_solve(int i) {
 }
 
 // Resolve point against all lines; fric = friction coefficient (0-1 keeps velocity).
+// Two-sided: uses the previous-frame signed distance to decide which side to push
+// back to, so lines work regardless of drawing direction and at any speed.
 static void collide(Vp *p, float fric) {
     for (int i = 0; i < nseg; i++) {
         float ex = segs[i].x2 - segs[i].x1;
@@ -55,37 +57,31 @@ static void collide(Vp *p, float fric) {
         float len2 = ex*ex + ey*ey;
         if (len2 < 1.0f) continue;
         float len = fsqrt(len2);
-
-        // right-hand normal — points "up" (above the line in screen-space where +y is down)
-        float nx = ey/len, ny = -ex/len;
+        float nx = ey/len, ny = -ex/len;   // one of the two normals (arbitrary side)
 
         float t = ((p->x - segs[i].x1)*ex + (p->y - segs[i].y1)*ey) / len2;
         if (t < 0.0f || t > 1.0f) continue;
+        float sd = (p->x - (segs[i].x1 + t*ex))*nx
+                 + (p->y - (segs[i].y1 + t*ey))*ny;
 
-        float cx = segs[i].x1 + t*ex;
-        float cy = segs[i].y1 + t*ey;
-        float sd = (p->x - cx)*nx + (p->y - cy)*ny;  // + above, - below
+        // Previous position — tells us which side of the line the rider came from.
+        float t_p = ((p->px-segs[i].x1)*ex + (p->py-segs[i].y1)*ey) / len2;
+        t_p = clamp(t_p, 0.0f, 1.0f);
+        float sd_p = (p->px - (segs[i].x1 + t_p*ex))*nx
+                   + (p->py - (segs[i].y1 + t_p*ey))*ny;
 
-        if (sd > 0.5f) continue;  // well above: nothing to do
+        // side = +1 or -1: which half-space the rider occupies
+        float side   = (sd_p >= 0.0f) ? 1.0f : -1.0f;
+        float sd_eff = sd * side;   // positive = safely on own side of the line
 
-        // Crossing test: if the point went deep, verify it came from the above side.
-        // This catches fast-moving points that tunnel through the line in one frame.
-        if (sd < -0.5f) {
-            float t_p = ((p->px-segs[i].x1)*ex + (p->py-segs[i].y1)*ey) / len2;
-            t_p = clamp(t_p, 0.0f, 1.0f);
-            float sd_p = (p->px - (segs[i].x1+t_p*ex))*nx
-                       + (p->py - (segs[i].y1+t_p*ey))*ny;
-            if (sd_p < -0.5f) continue;  // was already below → came from the wrong side
-        }
+        if (sd_eff > 0.5f) continue;   // far enough away: no contact
 
-        // velocity before push
-        float vx = p->x - p->px, vy = p->y - p->py;
+        float vx = p->x - p->px, vy = p->y - p->py;   // velocity before push
 
-        // push point onto surface (sit 0.5px above)
-        p->x += nx*(0.5f - sd);
-        p->y += ny*(0.5f - sd);
+        // push back to 0.5px on the correct side
+        p->x += nx * side * (0.5f - sd_eff);
+        p->y += ny * side * (0.5f - sd_eff);
 
-        // project velocity onto tangent, apply friction
         float tx = ex/len, ty = ey/len;
         float vt = (vx*tx + vy*ty) * fric;
         p->px = p->x - tx*vt;

@@ -4,7 +4,7 @@
 > were **built to answer an API question**: *should the engine own X, or can a
 > cart do it?* This file is the census: which cart probes which question, and
 > what the verdict was. Carts in this role carry `"probe"` in their `kind[]`
-> tags (`editor/public/carts/index.json`, vocabulary in `tools/tag-carts.js`);
+> tags (`editor/public/carts/index.json`, vocabulary in `tools/lint-carts.js`);
 > the tag marks the role, **this file holds the verdict**.
 >
 > The method is [ADR-0006](../decisions/0006-library-carts-not-engine.md):

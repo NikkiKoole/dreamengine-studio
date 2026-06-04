@@ -35,7 +35,6 @@
 enum { A_VACANT, A_ELDER, A_COUPLE, A_FAMILY, A_STUDENT };
 enum { TR_NONE, TR_VITRAGE, TR_CURTAIN, TR_ROLLER, TR_VENETIAN };
 enum { SI_EMPTY, SI_SYMM, SI_RANDOM };
-enum { RAIL_BARS, RAIL_PANEL };
 
 typedef struct {
     int   arch;
@@ -53,7 +52,7 @@ typedef struct {
 static int   NF, NB, BW;
 static int   baysX, towerX, towerLeft;
 static int   baseY, wallTop;
-static int   wallC, slabC, towerC, railStyle, panelC, doorBase;
+static int   wallC, slabC, towerC, panelC, doorBase;
 static int   liftFloor, lampX[3], nLamp;
 static Home  homes[MAXF][MAXB];
 static float tod;
@@ -314,7 +313,6 @@ static void roll_building(void) {
     }
     slabC  = chance(60) ? CLR_LIGHT_GREY : CLR_WHITE;
     towerC = (wallC == CLR_INDIGO) ? CLR_DARKER_PURPLE : CLR_DARK_GREY;
-    railStyle = chance(55) ? RAIL_BARS : RAIL_PANEL;
     // panel must stay distinct from wall
     { static const int pc[4] = { CLR_BLUE_GREEN, CLR_MAUVE, CLR_DARK_GREEN, CLR_TRUE_BLUE };
       int tries = 0;
@@ -423,15 +421,10 @@ static void draw_band(int f) {
     // gallery walkway floor — visible through bar gaps, hidden by panel
     rectfill(baysX, yb - SLAB_H - GALLERY_FLOOR, NB * BW, GALLERY_FLOOR, slabC);
 
-    // handrail cap — slabC (light concrete, always contrasts with dark wall)
+    // railing — handrail cap in slabC, bars in panelC (clash-guarded against wallC)
     rectfill(baysX, yb - 9, NB * BW, 1, slabC);
-    if (railStyle == RAIL_BARS) {
-        // bars in panelC — clash-guarded against wallC like the panel style
-        for (int x = baysX; x < baysX + NB * BW; x += 3)
-            rectfill(x, yb - 8, 1, 6, panelC);
-    } else {
-        rectfill(baysX, yb - 8, NB * BW, 6, panelC);
-    }
+    for (int x = baysX; x < baysX + NB * BW; x += 3)
+        rectfill(x, yb - 8, 1, 6, panelC);
 
 }
 

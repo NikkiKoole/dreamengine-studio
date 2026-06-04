@@ -1,8 +1,18 @@
 #include "studio.h"
+#include <math.h>
 
 // MARBLE MADNESS
-// Arrows roll the marble through an isometric course to the GOAL before time runs out.
-// Slopes accelerate you, edges drop you off (respawn), acid kills. Z/Enter to restart.
+// Arrows roll the marble down an isometric course of three PLATEAUS to the GOAL
+// before time runs out. Ramps are the only way UP a ledge; rolling OFF one gives a
+// little airborne hop — the speedrun tech: the east ledge skips the second ramp,
+// but overshoot it and you fly off the open edge. Acid kills. Z/Enter to restart.
+//
+// RACE YOUR GHOST: every run is recorded; the run that sets a new best time becomes
+// the GHOST — a see-through blue marble re-rolling that exact run alongside you,
+// saved between sessions (save_bytes). Beat it and your new run takes its place.
+// The ghost is a POSITION stream, not replayed input: this sim integrates with
+// dt() (variable timestep), so input-replay would diverge — see
+// docs/design/input-recording-looper.md ("ghost" section) for the trade-off.
 
 // ---- course grid -------------------------------------------------
 // the course is a small tile grid. each tile has a TYPE and a base HEIGHT.
@@ -12,6 +22,8 @@
 #define TILE 22          // iso half-width per tile step (screen px)
 #define TILE_H 11        // iso half-height per tile step (screen px)
 #define ZSTEP 14         // screen px per unit of elevation
+#define MR     0.22f     // marble radius in tile units (it collides as a circle, not a point)
+#define MCLIMB 0.45f     // tallest ledge the marble can roll up — taller needs a ramp
 
 enum { T_VOID, T_FLOOR, T_WALL, T_ACID, T_START, T_GOAL, T_CHK,
        T_RN, T_RE, T_RS, T_RW };   // ramps tilt toward N/E/S/W (downhill that way)
@@ -21,21 +33,39 @@ static unsigned char ttype[GH][GW];
 static signed char   thgt [GH][GW];
 
 // the hand-laid course. '#' wall, '.' floor, 'A' acid, 'S' start, 'G' goal,
-// 'C' checkpoint, ' ' void, ramps n/e/s/w (lowercase). digits after = none.
-// elevation is layered in by code below.
+// 'C' checkpoint, ' ' void, ramps n/e/s/w (lowercase, downhill that way).
+// HGT carries elevation per tile: floor = surface height, ramp = its LOW base
+// (a ramp always bridges exactly +1), wall = its drawn top.
+// Three plateaus: top room (h2) -> ramp -> mid (h1) -> ramp -> bottom (h0).
+// The (6,8) tile is the SHORTCUT: a one-unit drop off the mid ledge that skips
+// the second ramp — but east of it the floor ends in open void.
 static const char *LAYOUT[GH] = {
-    "   ######   ",
-    "  #S....e#  ",
-    "  #.##.#.#  ",
-    "  #..A..s#  ",
-    "  ##.#####  ",
-    "   #C#      ",
-    "   #.####   ",
-    "   #..n.#   ",
-    "   ##.#A#   ",
-    "    #..s#   ",
-    "    #CG#    ",
-    "    ####    ",
+    "            ",
+    " ######     ",
+    " #S...#     ",
+    " #....#     ",
+    " ##ss##     ",
+    "  #..A.#    ",
+    "  #....#    ",
+    "  #C...#    ",
+    "  ###s.     ",
+    "  #....     ",
+    "  #.G..     ",
+    "  #####     ",
+};
+static const char *HGT[GH] = {
+    "            ",
+    " 333333     ",
+    " 322223     ",
+    " 322223     ",
+    " 331133     ",
+    "  211112    ",
+    "  211112    ",
+    "  211112    ",
+    "  22200     ",
+    "  10000     ",
+    "  10000     ",
+    "  11111     ",
 };
 
 static int start_gx, start_gy;
@@ -45,30 +75,26 @@ static void build_course(void) {
     for (int y = 0; y < GH; y++) {
         for (int x = 0; x < GW; x++) {
             char c = LAYOUT[y][x];
-            int t = T_VOID, h = 0;
+            int t;
             switch (c) {
-                case '#': t = T_WALL;  h = 2; break;
-                case '.': t = T_FLOOR; h = 0; break;
-                case 'A': t = T_ACID;  h = 0; break;
-                case 'S': t = T_START; h = 0; break;
-                case 'G': t = T_GOAL;  h = 0; break;
-                case 'C': t = T_CHK;   h = 0; break;
-                case 'n': t = T_RN; h = 1; break;
-                case 'e': t = T_RE; h = 1; break;
-                case 's': t = T_RS; h = 1; break;
-                case 'w': t = T_RW; h = 1; break;
-                default:  t = T_VOID; h = 0; break;
+                case '#': t = T_WALL;  break;
+                case '.': t = T_FLOOR; break;
+                case 'A': t = T_ACID;  break;
+                case 'S': t = T_START; break;
+                case 'G': t = T_GOAL;  break;
+                case 'C': t = T_CHK;   break;
+                case 'n': t = T_RN; break;
+                case 'e': t = T_RE; break;
+                case 's': t = T_RS; break;
+                case 'w': t = T_RW; break;
+                default:  t = T_VOID;  break;
             }
+            char hc = HGT[y][x];
             ttype[y][x] = (unsigned char)t;
-            thgt [y][x] = (signed char)h;
+            thgt [y][x] = (signed char)(hc >= '0' && hc <= '9' ? hc - '0' : 0);
             if (c == 'S') { start_gx = x; start_gy = y; }
         }
     }
-    // give the course a gentle overall tilt so the top is higher than the bottom
-    for (int y = 0; y < GH; y++)
-        for (int x = 0; x < GW; x++)
-            if (ttype[y][x] != T_VOID)
-                thgt[y][x] += (signed char)((GH - 1 - y) / 3);
 }
 
 static bool walkable(int t) {
@@ -126,11 +152,42 @@ static float time_left;
 static bool  falling;
 static float fall_t;
 static int   best_time;        // *100 (centiseconds), 0 = none
+static int   bounce_cool;      // frames until the wall-bounce sound may fire again
+
+// can the marble's edge enter (fx,fy)? walls always block; a walkable tile blocks
+// when its surface is a ledge too tall to hop (> MCLIMB above the marble). void
+// doesn't block — rolling onto it is how you fall off the course.
+static bool hits_side(float fx, float fy) {
+    int x = (int)fx, y = (int)fy;
+    if (x < 0 || x >= GW || y < 0 || y >= GH) return false;
+    int t = ttype[y][x];
+    if (t == T_WALL) return true;
+    if (t == T_VOID) return false;
+    return ground_z(fx, fy) > mz + MCLIMB;
+}
 
 enum { ST_PLAY, ST_WIN, ST_OVER };
 static int gstate;
+static bool newbest;           // this win set a new best (and saved the ghost)
 
 static int roll_slot = 5;
+
+// ---- ghost: your best run, re-raced against you -------------------
+// recorded as a position stream (6 bytes/frame), one sample per play frame.
+#define G_MAX   1800                     // 30s at 60fps — the whole timer
+#define G_MAGIC 0x4D42474C               // blob header — bump when the course changes
+typedef struct { short x, y, z; } GPos;  // marble position, grid units x256
+static GPos grec[G_MAX];  static int grec_n;   // this run, being recorded
+static GPos gbest[G_MAX]; static int gbest_n;  // the best run, replaying
+static int  gframe;                            // ghost playback cursor
+static struct { int magic; GPos p[G_MAX]; } gblob;   // disk image: header + stream
+
+// record this frame's position + advance the ghost. called once per play frame.
+static void ghost_tick(void) {
+    if (grec_n < G_MAX)
+        grec[grec_n++] = (GPos){ (short)(mx * 256), (short)(my * 256), (short)(mz * 256) };
+    gframe++;                  // past gbest_n = ghost finished and vanishes
+}
 
 static void respawn(void) {
     mx = chk_gx + 0.5f;
@@ -144,8 +201,10 @@ static void start_game(void) {
     build_course();
     chk_gx = start_gx; chk_gy = start_gy;
     lives = 3;
-    time_left = 60.0f;
+    time_left = 30.0f;
     gstate = ST_PLAY;
+    newbest = false;
+    grec_n = 0; gframe = 0;    // fresh recording; ghost rolls from the start
     respawn();
 }
 
@@ -153,7 +212,12 @@ void init(void) {
     // a rolling-rumble instrument: filtered saw, sustained
     instrument(roll_slot, INSTR_SAW, 8, 40, 5, 120);
     instrument_filter(roll_slot, FILTER_LOW, 700, 4);
-    best_time = load_int("best", 0);
+    best_time = load_int("best2", 0);
+    int n = load_bytes(&gblob, sizeof gblob);          // yesterday's ghost...
+    if (n >= 4 && gblob.magic == G_MAGIC) {            // ...unless it ran an older course
+        gbest_n = (n - 4) / (int)sizeof(GPos);
+        for (int i = 0; i < gbest_n; i++) gbest[i] = gblob.p[i];
+    }
     start_game();
 }
 
@@ -182,12 +246,15 @@ void update(void) {
         mz += vz * d;
         mh += 1.0f;
         mx += vx * d; my += vy * d;
+        ghost_tick();          // the ghost saw your falls too
         if (fall_t > 0.55f) die();
         return;
     }
 
     // ---- input: tilt nudge, mapped to the iso axes ----
     // screen-up should move the marble up-and-back in the iso world: -gx,-gy.
+    // in the air you barely steer — commit to the drop before you take it.
+    bool air = mz > ground_z(mx, my) + 0.02f;
     const float ACC = 9.0f;
     float ix = 0, iy = 0;
     if (btn(0, BTN_UP))    { ix -= 1; iy -= 1; }
@@ -196,8 +263,8 @@ void update(void) {
     if (btn(0, BTN_RIGHT)) { ix += 1; iy -= 1; }
     float il = length((int)(ix*100), (int)(iy*100)) / 100.0f;
     if (il > 0.001f) { ix /= il; iy /= il; }
-    vx += ix * ACC * d;
-    vy += iy * ACC * d;
+    vx += ix * ACC * (air ? 0.35f : 1.0f) * d;
+    vy += iy * ACC * (air ? 0.35f : 1.0f) * d;
 
     // ---- slope gravity ----
     float ax, ay; slope_push(mx, my, &ax, &ay);
@@ -215,36 +282,38 @@ void update(void) {
     const float VMAX = 5.0f;
     if (sp > VMAX) { vx = vx / sp * VMAX; vy = vy / sp * VMAX; }
 
-    // ---- integrate, with wall collision (axis-separated) ----
+    // ---- integrate, with radius + ledge-aware wall collision (axis-separated) ----
     float nx = mx + vx * d;
-    {
-        int cx = (int)nx, cy = (int)my;
-        if (cx < 0 || cx >= GW || ttype[cy][cx] == T_WALL ||
-            ttype[cy][cx] == T_VOID) {
-            // wall: bounce; void: let it roll off (handled below)
-            if (cx >= 0 && cx < GW && ttype[cy][cx] == T_WALL) {
-                vx = -vx * 0.4f; note(55, INSTR_SQUARE, 2);
-            } else nx = nx;   // allow walking onto void to trigger fall
-        }
-    }
-    {
-        int cx = (int)nx, cy = (int)my;
-        if (cx >= 0 && cx < GW && ttype[cy][cx] == T_WALL) nx = mx;
+    float ex = nx + (vx > 0 ? MR : -MR);                      // leading edge of the ball
+    if (hits_side(ex, my - MR * 0.7f) || hits_side(ex, my + MR * 0.7f)) {
+        if (fabsf(vx) > 1.0f && bounce_cool == 0) { note(55, INSTR_SQUARE, 2); bounce_cool = 6; }
+        vx = -vx * 0.4f;
+        nx = mx;
     }
     mx = nx;
 
     float ny = my + vy * d;
-    {
-        int cx = (int)mx, cy = (int)ny;
-        if (cy >= 0 && cy < GH && cx >= 0 && cx < GW && ttype[cy][cx] == T_WALL) {
-            vy = -vy * 0.4f; ny = my; note(55, INSTR_SQUARE, 2);
-        }
+    float ey = ny + (vy > 0 ? MR : -MR);
+    if (hits_side(mx - MR * 0.7f, ey) || hits_side(mx + MR * 0.7f, ey)) {
+        if (fabsf(vy) > 1.0f && bounce_cool == 0) { note(55, INSTR_SQUARE, 2); bounce_cool = 6; }
+        vy = -vy * 0.4f;
+        ny = my;
     }
     my = ny;
+    if (bounce_cool > 0) bounce_cool--;
 
-    // keep z glued to the ground surface
+    // ---- vertical: hug the ground uphill, fall off ledges with real airtime ----
     float gz = ground_z(mx, my);
-    if (gz > -900.0f) mz = lerp(mz, gz, 1.0f);
+    if (gz > -900.0f) {
+        if (mz > gz + 0.02f) {              // airborne: gravity until touchdown
+            vz -= 10.0f * d;
+            mz += vz * d;
+            if (mz <= gz) {
+                if (vz < -3.0f) { hit(38, roll_slot, 4, 70); shake(1.2f); }  // landing thump
+                mz = gz; vz = 0;
+            }
+        } else { mz = gz; vz = 0; }         // grounded: ride the surface (ramps, small steps)
+    }
 
     // ---- tile under marble: edge / acid / goal / checkpoint ----
     int cx = (int)mx, cy = (int)my;
@@ -259,7 +328,14 @@ void update(void) {
     } else if (under == T_GOAL) {
         gstate = ST_WIN;
         int cs = (int)(time_left * 100);
-        if (best_time == 0 || cs > best_time) { best_time = cs; save_int("best", cs); }
+        newbest = (best_time == 0 || cs > best_time);
+        if (newbest) {
+            best_time = cs; save_int("best2", cs);
+            gblob.magic = G_MAGIC;                          // this run IS the new ghost
+            for (int i = 0; i < grec_n; i++) { gblob.p[i] = grec[i]; gbest[i] = grec[i]; }
+            gbest_n = grec_n;
+            save_bytes(&gblob, 4 + grec_n * (int)sizeof(GPos));
+        }
         // little fanfare
         note(72, INSTR_SINE, 6);
         schedule(110, 76, INSTR_SINE, 6);
@@ -278,6 +354,13 @@ void update(void) {
             hit(midi, roll_slot, 2 + (int)(sp), 90);
         }
     }
+
+    ghost_tick();
+
+#ifdef DE_TRACE
+    watch("pos", "%.2f %.2f z=%.2f vz=%.2f air=%d", mx, my, mz, vz, air);
+    watch("ghost", "rec=%d play=%d/%d", grec_n, gframe, gbest_n);
+#endif
 
     // ---- camera follows the marble ----
     int psx, psy; iso(mx, my, mz, &psx, &psy);
@@ -350,6 +433,22 @@ static void draw_tile(int x, int y) {
     line(dxp, dyp, ax, ay, CLR_BLACK);
 }
 
+// the ghost: a see-through (checkered) blue marble re-rolling the best run.
+// gframe was already advanced this frame, so the current sample is gframe-1.
+static void draw_ghost(void) {
+    GPos g = gbest[gframe - 1];
+    float gx = g.x / 256.0f, gy = g.y / 256.0f, gz = g.z / 256.0f;
+    int sx, sy; iso(gx, gy, gz, &sx, &sy);
+    sy -= 5;
+    fillp(FILL_CHECKER, -1);              // every other pixel transparent
+    circfill(sx, sy, 6, CLR_BLUE);
+    circfill(sx - 2, sy - 2, 2, CLR_WHITE);
+    fillp_reset();
+    circ(sx, sy, 6, CLR_DARK_BLUE);
+}
+
+static bool ghost_alive(void) { return gstate == ST_PLAY && gframe > 0 && gframe <= gbest_n; }
+
 static void draw_marble(void) {
     int sx, sy; iso(mx, my, mz + 0.0f, &sx, &sy);
     sy -= 5;                      // sit the marble's center above the surface
@@ -382,9 +481,13 @@ void draw(void) {
             if (x < 0 || x >= GW) continue;
             draw_tile(x, y);
         }
-        // draw the marble in its diagonal band so it overlaps correctly
+        // draw ghost + marble in their diagonal bands so they overlap correctly
+        if (ghost_alive() &&
+            (int)(gbest[gframe - 1].x / 256.0f + gbest[gframe - 1].y / 256.0f) == s) draw_ghost();
         if ((int)(mx + my) == s) draw_marble();
     }
+    if (ghost_alive() &&
+        (int)(gbest[gframe - 1].x / 256.0f + gbest[gframe - 1].y / 256.0f) >= GW + GH) draw_ghost();
     if ((int)(mx + my) >= GW + GH) draw_marble();
 
     camera(0, 0);
@@ -393,6 +496,7 @@ void draw(void) {
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     // lives as little marbles
     for (int i = 0; i < lives; i++) circfill(7 + i * 11, 5, 3, CLR_LIGHT_GREY);
+    if (gbest_n > 0) print("vs GHOST", 42, 2, CLR_BLUE);
     // timer
     int col = time_left < 10 ? (blink(6) ? CLR_RED : CLR_ORANGE) : CLR_WHITE;
     print_centered(str("%05.2f", time_left), SCREEN_W/2, 2, col);
@@ -402,11 +506,13 @@ void draw(void) {
     // ---- overlays ----
     if (gstate == ST_WIN) {
         fade(0.4f);
-        rectfill(SCREEN_W/2-70, SCREEN_H/2-26, 140, 52, CLR_BLACK);
-        rect    (SCREEN_W/2-70, SCREEN_H/2-26, 140, 52, CLR_YELLOW);
-        print_centered("GOAL!", SCREEN_W/2, SCREEN_H/2-18, CLR_YELLOW);
-        print_centered(str("TIME LEFT %.2f", time_left), SCREEN_W/2, SCREEN_H/2-4, CLR_WHITE);
-        print_centered("Z to play again", SCREEN_W/2, SCREEN_H/2+12, CLR_LIGHT_GREY);
+        rectfill(SCREEN_W/2-70, SCREEN_H/2-32, 140, 64, CLR_BLACK);
+        rect    (SCREEN_W/2-70, SCREEN_H/2-32, 140, 64, CLR_YELLOW);
+        print_centered("GOAL!", SCREEN_W/2, SCREEN_H/2-24, CLR_YELLOW);
+        print_centered(str("TIME LEFT %.2f", time_left), SCREEN_W/2, SCREEN_H/2-10, CLR_WHITE);
+        if (newbest)
+            print_centered("NEW BEST - GHOST SAVED", SCREEN_W/2, SCREEN_H/2+4, CLR_BLUE);
+        print_centered("Z to play again", SCREEN_W/2, SCREEN_H/2+18, CLR_LIGHT_GREY);
     } else if (gstate == ST_OVER) {
         fade(0.5f);
         rectfill(SCREEN_W/2-70, SCREEN_H/2-26, 140, 52, CLR_BLACK);

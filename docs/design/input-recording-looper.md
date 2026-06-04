@@ -177,6 +177,20 @@ the cart prototypes come first and generate the evidence.
    the loop seam needs no on/off pairing. No engine friction found.
 2. **Ghost cart** — retrofit a racer or platformer with record-your-run /
    race-your-ghost, demonstrating the input-snapshot structure + `save_bytes()`
-   persistence.
+   persistence. **✅ Shipped** — retrofitted into `tools/carts/marble.c`: a run
+   that sets a new best time becomes a see-through ghost marble racing you,
+   persisted via `save_bytes()` with a magic header so a course change
+   invalidates stale ghosts. Findings:
+   - It records a **position stream** (6 bytes/frame), *not* input — marble's
+     sim integrates with `dt()` (variable timestep), so input-replay would
+     diverge exactly as §"the ghost" predicted. Rule of thumb confirmed: input
+     ghosts need a frame-stepped sim; dt-integrated sims record positions.
+   - The retrofit forced a real **gameplay fix pass** first (the marble could
+     be fully hidden behind tall iso walls, ledges teleported, ramps connected
+     nothing) — a ghost is only worth racing on a course with honest physics.
+     Harness filmstrips (`--dump`) were how each fix was verified.
+   - Ghost visibility debugging gotcha: replaying a ghost against the *same*
+     deterministic script hides it pixel-perfectly under the player — test
+     with an offset run.
 3. **Revisit**: did either generate evidence for engine surface (ring-buffer
    tee, packed-input helper)? Update STATUS / write the ADR then, not before.

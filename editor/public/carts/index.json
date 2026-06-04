@@ -1755,7 +1755,7 @@
   },
   {
     "title": "Marble Madness",
-    "description": "Roll a chrome marble through a hand-laid isometric obstacle course and reach the blinking GOAL before the 60-second clock runs out. Real momentum physics carry you: arrows only nudge, gravity does the rest — ramps accelerate you downhill, walls bank you off, and one slip past an unguarded ledge or into a shimmering acid pool sends the marble tumbling out of view for a respawn. Checkpoints bank your progress, a filtered rolling rumble rises in pitch with your speed, and your best clear time is saved between runs. Three lives, one focused course, all drawn from shaded iso primitives. Arrows roll the marble (relative to the iso view); Z or Enter to play again after a win or game over.",
+    "description": "Roll a chrome marble down three isometric plateaus to the blinking GOAL before the 30-second clock runs out — then RACE YOUR GHOST: every winning run that sets a new best time is recorded (a position stream, saved between sessions) and replays as a see-through blue marble rolling that exact run alongside you. Real momentum physics: arrows only nudge, gravity does the rest. Ramps are the only way UP a ledge; rolling OFF one gives real airtime — the speedrun tech: a one-unit drop on the east side skips the second ramp, but overshoot it and you fly off the open edge into the void. Acid kills, checkpoints bank progress, a filtered rumble rises with your speed, and a landing thump + screen kick sell every drop. Arrows roll the marble (relative to the iso view); Z or Enter restarts.",
     "file": "marble.cart.png",
     "kind": [
       "game"

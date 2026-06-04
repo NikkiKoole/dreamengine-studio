@@ -84,6 +84,52 @@ A resident walking the gallery is the building's single biggest "alive" signal
   1 px — all comfortably drawable with `rectfill`/`line`/`pset`, no sprites
   needed (matches the trafficjam "no sprite art" approach)
 
+## Systems (running list — being collected across sessions, not complete)
+
+The cart decomposes into a few systems we'll design/build one at a time:
+
+### 1. Time of day & sky
+
+Day, night, weather — the sky as a slow clock behind/above the slab.
+
+- **Keyframed sky gradients**: a set of (top, bottom) palette pairs along the
+  day — night / dawn / morning / flat grey noon / golden hour / dusk / deep
+  night — drawn with `vgradient()` (trafficjam's sky is the one-liner version).
+- **Transitions**: with 32 fixed colors there's no smooth lerp between
+  keyframes; the candidate technique is a **dithered crossfade** — `fillp()`
+  patterns blending the outgoing gradient into the incoming one over a few
+  steps (the tint-to-white sequencing trick from the juice notes, applied to
+  sky). `geometry-helpers.md` parks the true-color-lerp idea; we stay
+  palette-pure.
+- **Weather**: overcast (grey gradient set, flatter light), rain (streaks +
+  wet-dark concrete?), big Dutch cumulus? Weather modulates which keyframe
+  set is active — it's a *filter on the day*, not a separate clock.
+- Time also drives the *building*: household wake/sleep windows, when lights
+  make sense. Other systems read the clock; the clock reads nothing.
+
+### 2. Windows — what we see in them
+
+Every dwelling's window gets a **window treatment**, rolled per household as
+part of its generative identity. Very Dutch axis: from bare glass to fully
+dressed.
+
+- **Treatment types**: none (bare glass) / **vitrage** (net curtains — the
+  Dutch staple) / fabric curtains (open ↔ closed, household color) / roller
+  blind (down to a per-household height) / venetian blinds (slat stripes).
+- **Patterns & colors**: treatments carry color and pattern variation —
+  `fillp()` is the natural tool (dither = lace/vitrage, horizontal stripe
+  patterns = venetian slats, solid = roller blind).
+- **Interaction with light** (this is where it gets arty): the treatment
+  *shapes* the lit window at night — venetians = striped glow, roller blind
+  half down = glow with a hard top edge, closed curtains = soft colored
+  wash, vitrage = dimmed dithered glow, bare glass = full warm rectangle
+  (+ TV flicker visible). By day the treatments read as pattern/color on
+  dark glass instead.
+- State can change slowly: blinds come down at dusk, curtains close before
+  bed — cheap, legible "the building is alive" signals tied to the clock.
+
+*(list to be continued in a future session)*
+
 ## Open questions (for the next sessions)
 
 1. **Time**: a real slow day/night cycle (the facade as a clock — dawn greys,

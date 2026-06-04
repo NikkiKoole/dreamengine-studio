@@ -28,8 +28,9 @@ static int   spd_ms = 80;         // step length
 static bool  loop_on = false;
 
 static int   play_i = -1;         // step about to fire; -1 = stopped
-static int   head = -1;           // step last fired (the playhead column)
-static float play_t = 0;
+static int   head = -1;           // the playhead column
+static float play_t = 0;          // time until the next UNSCHEDULED step (the queue-ahead clock)
+static float vis_t = -1;          // visual clock for the playhead; <0 = stopped
 
 static int   ui_held = 0;
 static const char *msg = ""; static int msg_t = 0;
@@ -82,8 +83,9 @@ static void export_code(void) {
     printh("void sfx_tick(void) {                            // call every frame in update()");
     printh("    if (sfx_i < 0) return;");
     printh("    sfx_t -= dt();");
-    printh("    while (sfx_i >= 0 && sfx_t <= 0) {");
-    printh("        if (SFX_V[sfx_i]) hit(SFX_P[sfx_i], SFX_W[sfx_i], SFX_V[sfx_i], SFX_SPD + 25);");
+    printh("    while (sfx_i >= 0 && sfx_t < 0.034f) {       // queue ~2 frames ahead, sample-accurate");
+    printh("        if (SFX_V[sfx_i]) schedule_hit(sfx_t > 0 ? (int)(sfx_t * 1000.0f) : 0,");
+    printh("                                       SFX_P[sfx_i], SFX_W[sfx_i], SFX_V[sfx_i], SFX_SPD + 5);");
     printh("        sfx_t += SFX_SPD / 1000.0f;");
     printh("        if (++sfx_i >= %d) sfx_i = -1;", NSTEP);
     printh("    }");
@@ -100,7 +102,7 @@ void init(void) {
 
 void update(void) {
     if (keyp(KEY_SPACE)) {
-        if (play_i < 0) { play_i = 0; play_t = 0; } else { play_i = -1; head = -1; }
+        if (play_i < 0) { play_i = 0; play_t = 0; vis_t = 0; } else { play_i = -1; head = -1; vis_t = -1; }
     }
     if (keyp('E')) export_code();
     if (keyp('S')) save_it();
@@ -108,15 +110,24 @@ void update(void) {
     if (keyp(KEY_BACKSPACE)) { for (int i = 0; i < NSTEP; i++) st[i].vol = 0; msg = "cleared"; msg_t = 60; }
     if (msg_t > 0) msg_t--;
 
-    // step playback — exactly what an exported game does: hit() per step
-    play_t -= dt();
-    while (play_i >= 0 && play_t <= 0) {
-        if (st[play_i].vol) hit(st[play_i].pitch, st[play_i].wave, st[play_i].vol, spd_ms + 25);
-        head = play_i;
-        play_t += spd_ms / 1000.0f;
-        play_i = (play_i + 1 >= NSTEP) ? (loop_on ? 0 : -1) : play_i + 1;
+    // step playback — queue steps ~2 frames ahead with schedule_hit(), so the audio thread
+    // fires them sample-accurately (sub-frame speeds stay crisp). Same as the exported player.
+    if (play_i >= 0) {
+        play_t -= dt();
+        while (play_i >= 0 && play_t < 0.034f) {
+            if (st[play_i].vol) schedule_hit(play_t > 0 ? (int)(play_t * 1000.0f) : 0,
+                                             st[play_i].pitch, st[play_i].wave, st[play_i].vol, spd_ms + 5);
+            play_t += spd_ms / 1000.0f;
+            play_i = (play_i + 1 >= NSTEP) ? (loop_on ? 0 : -1) : play_i + 1;
+        }
     }
-    if (play_i < 0 && play_t < -0.3f) head = -1;   // playhead off a beat after the end
+    if (vis_t >= 0) {                                       // playhead runs on its own clock
+        vis_t += dt();
+        int s = (int)(vis_t * 1000.0f / spd_ms);
+        if (loop_on) head = s % NSTEP;
+        else if (s >= NSTEP) { head = -1; vis_t = -1; }
+        else head = s;
+    }
 
     // painting (skipped while a slider is held)
     if (ui_held == 0) {
@@ -201,7 +212,7 @@ void draw(void) {
     if (pl_hot && mouse_pressed(MOUSE_LEFT)) { if (play_i < 0) { play_i = 0; play_t = 0; } else { play_i = -1; head = -1; } }
 
     print("SPD", 8, 180, CLR_MEDIUM_GREY);
-    spd_ms = (int)slider(1, 36, 180, 120, (float)spd_ms, 30, 200, CLR_PINK);
+    spd_ms = (int)slider(1, 36, 180, 120, (float)spd_ms, 8, 200, CLR_PINK);   // 8ms = true sfx speed (schedule_hit keeps it crisp)
     print(str("%dms", spd_ms), 162, 180, CLR_LIGHT_GREY);
 
     font(FONT_SMALL);

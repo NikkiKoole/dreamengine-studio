@@ -176,8 +176,8 @@ What this doc adds to the ADR's inputs:
    blendlab's math against the live candidate). Built on two **experimental**
    runtime hooks: `palette_hex(i, hex)` (the `EXPERIMENTAL` banner at the
    bottom of `studio.h`; rides the `pal()` shader path, so existing sprite art
-   recolors too; deliberately absent from docs/autocomplete; sunset rule:
-   becomes Layer 2's `palette_set()` or is deleted) and **`PALETTE_SIZE` 32→64
+   recolors too; in the help tab under "experimental — testing only"; sunset
+   rule: becomes Layer 2's `palette_set()` or is deleted) and **`PALETTE_SIZE` 32→64
    with slots 32–63 mirroring 0–31 by default** — byte-identical for every
    existing cart (`color % 64` lands on the copy; `pget`/shader nearest-match
    scan low-first; verified: `raster_test` 46/46 frames `mismatches:0`,

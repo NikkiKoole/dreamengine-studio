@@ -91,10 +91,10 @@ built to ask it).
 Most probes are pure cart-land. When a question is *unreachable* from cart code
 (the palette lives behind `studio.c` statics), the probe may get **one
 explicitly-experimental engine hook** rather than a full public API: declared in
-`studio.h` under the `EXPERIMENTAL` banner, deliberately **not** in
-studioDocs/autocomplete/help (the four-place rule is skipped on purpose), with a
-written sunset — it resolves into real API or gets deleted with its probe.
-Current experiments:
+`studio.h` under the `EXPERIMENTAL` banner, documented in the help tab under
+**"experimental — testing only"** (discoverable, but clearly flagged as not for
+games), with a written sunset — it resolves into real API or gets deleted with
+its probe. Current experiments:
 
 | Hook | Probe | Sunset |
 |---|---|---|

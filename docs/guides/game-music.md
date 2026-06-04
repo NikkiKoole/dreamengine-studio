@@ -128,9 +128,34 @@ exit per vamp-loop (intro: gtr+bass → groove: +drums → solo: +lead → outro
 drop). This is also the game-friendliest brain: a vamp tolerates being ducked,
 paused, and intensity-swept without losing its place.
 
+### The fourth chord brain: a stolen playbook (jingle.c)
+
+When an artist's harmonic language has been *catalogued* (here: Reverb Machine's
+"Mac DeMarco Chord Theory"), encode it as **template progressions + flavor rolls**
+instead of a generative walk. jingle.c stores six progressions from cited songs as
+`{degree, quality, borrowed}` rows ("Blue Boy" I–ii–vi–bVII, "Another One"
+IV–iii–bIII–iii, "A Heart Like Hers" vi–bVImaj7–v–I7 …), picks one for the verse
+and one for the chorus, then rolls the signature variables per song: the bVII
+voiced maj / 7 / 9, the bIII voiced maj7 / m6. Three supporting rules from the
+same source:
+
+- **Chromatic bass descents** — the templates are chosen so roots walk by
+  semitone; a *voice-led bass* (nearest octave copy of each root, like the chord
+  voices) keeps the descent intact in every key.
+- **Melodic accommodation** — over a *borrowed* chord the melody narrows to that
+  chord's own tones (+9), so it never clashes a semitone with the borrowed note;
+  over diatonic chords it roams the whole key.
+- **Verse/chorus form** — verses draw from the diatonic-leaning templates,
+  choruses from the borrowed-forward ones (the "Moonlight on the River" move:
+  the chorus is where the bIII lives).
+
+Trace-verified: verse `G D F9 C` / chorus `Bbm6 Em7 Am7 D9` — I–V–bVII9–IV into a
+borrowed-bIII chorus, a plausible DeMarco chart nobody wrote.
+
 **Pick the brain by what the music is for:** pull (action, songs) → functions +
 cadences; float (menus, exploration, night) → one mode + drift; sit (background,
-overworld, menus you stay in) → vamp + arrangement.
+overworld, menus you stay in) → vamp + arrangement; sound like *someone* (homage,
+a licensed-feel pastiche) → stolen playbook + flavor rolls.
 
 ## 3. Voice leading — the single biggest "sounds composed" trick
 
@@ -324,7 +349,8 @@ What changes between styles is mostly **data** — the engine above carries over
 | **bossa** | 112–140 | straight, clave masks, anticipation | maj7/9, ii-V chains, tritone subs, iv | nylon gtr, surdo bass, shaker, rim, flute | ✅ `bossa.c` |
 | **lofi jazz** | 70–85 | swing 56–60%, melody very late | m9/maj9, slower changes (2 bars/chord), pentatonic noodle | rhodes, soft kick/snare, dusty hats, crackle | idea |
 | **jangle pop (DeMarco)** | 86–109 | straight + loose (kit +2..10ms vs bass), tempo wobble ±1 at bar lines | mixolydian vamp: 2–4 chords looped, NO bridge — arrangement is the form | chorus-wobble gtr (5.5Hz pitch-LFO pluck), round bass, CR-78-ish kit, legato whistle lead w/ glide | ✅ `jangle.c` |
-| **boom-bap (ATCQ)** | 88–96 | groove template: hats −8ms, snare +22ms, bass +12ms | jazzy ii–V loops 2 bars long, m9 stabs, walking-ish bass fragments | dusty kick (pitch-env sine), cracky snare, ride, upright-ish bass, rhodes stabs | after jangle |
+| **dusk ballad (DeMarco theory)** | 72–92 | fingerpicked 8ths w/ gaps, soft loose kit, gentle 4.6Hz warble | stolen playbook: song templates + bVII (maj/7/9) + bIII (maj7/m6) rolls, chromatic bass descents, verse/chorus, melodic accommodation | picked add9 tri gtr, voice-led sine bass, rim/hat kit, soft sine lead | ✅ `jingle.c` |
+| **boom-bap (ATCQ)** | 88–96 | groove template: hats −8ms, snare +22ms, bass +12ms | jazzy ii–V loops 2 bars long, m9 stabs, walking-ish bass fragments | dusty kick (pitch-env sine), cracky snare, ride, upright-ish bass, rhodes stabs | idea |
 | **ambient** | 60 fixed, pace knob | beatless; chords hold 8–16 beats, held `note_on` voices morph via `note_glide` | one mode per song, degree walk, no cadences | 4 detuned saw pads, sine sub, band-noise wind, bell arps | ✅ `ambient.c` |
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 

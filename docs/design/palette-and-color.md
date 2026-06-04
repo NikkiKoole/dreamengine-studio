@@ -134,6 +134,17 @@ trio of 64s, each testing a different theory of what a 64-palette is for:
   (the snap has neighbors, but from other clusters) — evidence that for a
   console whose carts lean on blends/gradients, ramp density beats hue count.
 
+*(2026-06-04, candidates 8–9)* — two more schools completed the field:
+- **Journey** (PineappleOnPizza) — the painterly school: violet-cast darks
+  (even its "black" is midnight blue), ramps that bend through *hue*, not just
+  lightness. First look: the most atmospheric night scene of all candidates;
+  tests whether a strong unified cast suits a whole console vs neutral coverage.
+- **Jehkoba64** (Jehkoba) — the lattice school: hue-family ramps of five, every
+  hue given the same value treatment. Tests whether a *systematic grid* blends
+  more predictably than hand curation. First look: glows ring slightly lavender
+  (the uniform 5-step ramps run shallow in the dark range) — symmetric in
+  structure isn't automatically symmetric in *perception*.
+
 Migration cost (the honest part): every existing cart's *art* shifts hue —
 sprites store indices, so nothing breaks structurally, but all ~215 thumbnails
 need a re-bake and some carts' color choices will read differently (the closer

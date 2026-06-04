@@ -26,6 +26,12 @@
 //   7  FAMICUBE             — the opposite philosophy: a fictional CONSOLE's
 //      identity palette — distinct hues over dense ramps. Tests whether dense
 //      ramps are even the right goal for a fantasy console.
+//   8  JOURNEY              — the painterly school: everything violet-tinted,
+//      ramps that bend through hue instead of just lightness. Tests whether a
+//      strong unified CAST (vs neutral coverage) suits a whole console.
+//   9  JEHKOBA64            — the lattice school: hue-family ramps of five,
+//      every hue given the same value treatment. Tests whether a SYSTEMATIC
+//      grid blends more predictably than hand-curated ramps.
 //
 // NOTE the derived/upper colors only show where something SAMPLES them — the
 // dither scenes (sunset/portrait) reference indices 0-31 and are identical for
@@ -40,7 +46,7 @@
 // CAVEAT while a custom palette is active: pal(c0,c1) would inject the SHIPPED
 // c1 color (base_palette stays the texel-matching key) — scenes avoid pal().
 //
-// CONTROLS: 1-7 palette · LEFT/RIGHT scene · D dither-fake vs real blend ·
+// CONTROLS: 1-9 palette · LEFT/RIGHT scene · D dither-fake vs real blend ·
 // C glass color · T cycle AVG/ADD/MUL in the table view · mouse = glow/pane.
 
 // ---- the shipped palette, for the blend tables + completeness -----------
@@ -120,6 +126,38 @@ static const int PAL_FCX[32] = {
     0xe2c9ff, 0xa675fe, 0x6a31ca, 0x5a1991, 0x3d34a5, 0x6264dc, 0x98dcff, 0x0a89ff,
 };
 
+// JOURNEY (by PineappleOnPizza, lospec.com/palette-list/journey), pico-role
+// order + the other 32 upper. The painterly school: violet-cast darks, ramps
+// that bend through hue — note even "black" (slot 0) is a midnight blue.
+static const int PAL_J64[32] = {
+    0x050914, 0x132243, 0x691749, 0x429058, 0xbd4035, 0x5b537d, 0xc7d4e1, 0xfaffff,
+    0xd41e3c, 0xed7b39, 0xfff540, 0x3dff6e, 0x488bd4, 0x928fb8, 0xff417d, 0xffcf8e,
+    0x24142c, 0x0e0f2c, 0x3d1132, 0x153c4a, 0x691b22, 0x392946, 0xcf968c, 0xf8ffb8,
+    0x9b0e3e, 0xed4c40, 0xc6d831, 0x28c074, 0x144491, 0x8f5765, 0xd46453, 0xf5a15d,
+};
+static const int PAL_J64X[32] = {
+    0x110524, 0x3b063a, 0x9c3247, 0xff7a7d, 0xd61a88, 0x94007a, 0x42004e, 0x220029,
+    0x100726, 0x25082c, 0x73263d, 0xffb84a, 0x77b02a, 0x2c645e, 0x052137, 0x0e0421,
+    0x0c0b42, 0x032769, 0x78d7ff, 0xb0fff1, 0x1a466b, 0x10908e, 0xf0c297, 0x52294b,
+    0x0f022e, 0x35003b, 0x64004c, 0xff9757, 0xd4662f, 0x9c341a, 0x450c28, 0x2d002e,
+};
+
+// JEHKOBA64 (by Jehkoba, lospec.com/palette-list/jehkoba64), pico-role order
+// + the other 32 upper. The lattice school: hue-family ramps of five, every
+// hue given the same five-step value treatment — a systematic grid.
+static const int PAL_K64[32] = {
+    0x000000, 0x243966, 0x852264, 0x068051, 0x9e4c4c, 0x696570, 0xc4bbb3, 0xf2f2da,
+    0xf53141, 0xfaa032, 0xfad937, 0x55b33b, 0x25acf5, 0x807980, 0xeb758f, 0xfabbaf,
+    0x472e3e, 0x0d2140, 0x4e278c, 0x116061, 0x875d58, 0x495169, 0xb58c7f, 0xccc73d,
+    0xc40c2e, 0xf2621f, 0x94bf30, 0x179c43, 0x195ba6, 0x6e4250, 0xff7070, 0xfa9891,
+};
+static const int PAL_K64X[32] = {
+    0xd94c8e, 0xb32d7d, 0xf58122, 0xdb4b16, 0xffb938, 0xe69b22, 0xcc8029, 0xad6a45,
+    0xb3b02d, 0x989c27, 0x8c8024, 0x7a5e37, 0xa0eba8, 0x7ccf9a, 0x5cb888, 0x3da17e,
+    0x20806c, 0x49c2f2, 0x1793e6, 0x1c75bd, 0xae88e3, 0x7e7ef2, 0x586ac4, 0x3553a6,
+    0xe29bfa, 0xca7ef2, 0xa35dd9, 0x773bbf, 0x9e7767, 0xa69a9c, 0x050e1a, 0xd9a798,
+};
+
 // candidate 4: E32 + derived in-betweens — midpoint pairs (ramp neighbours +
 // hue bridges so cross-ramp blends have somewhere to land)
 static const int MIX_PAIRS[32][2] = {
@@ -133,8 +171,8 @@ static const int MIX_PAIRS[32][2] = {
     {8,12},{9,12},{11,12},{10,7},     // hue bridges (glow-over-water class)
 };
 
-#define NPAL 7
-static int cur_pal;        // 0 pico, 1 e32, 2 r64, 3 e32+derived, 4 e64, 5 aap64, 6 famicube
+#define NPAL 9
+static int cur_pal;        // 0 pico, 1 e32, 2 r64, 3 e32+derived, 4 e64, 5 aap64, 6 famicube, 7 journey, 8 jehkoba
 static int pal_n;          // how many DISTINCT colors the candidate brings (32 or 64)
 static int cur_hex[64];    // active palette as hexes — feeds the blend tables
 static int scene;
@@ -180,8 +218,8 @@ static void build_tables(void) {
 
 static void apply_palette(int which) {
     cur_pal = which;
-    static const int *LO[NPAL] = { PAL_PICO, PAL_E32, PAL_R32, PAL_E32, PAL_E64, PAL_A64, PAL_FC };
-    static const int *HI[NPAL] = { 0, 0, PAL_R64X, 0 /*derived*/, PAL_E64X, PAL_A64X, PAL_FCX };
+    static const int *LO[NPAL] = { PAL_PICO, PAL_E32, PAL_R32, PAL_E32, PAL_E64, PAL_A64, PAL_FC, PAL_J64, PAL_K64 };
+    static const int *HI[NPAL] = { 0, 0, PAL_R64X, 0 /*derived*/, PAL_E64X, PAL_A64X, PAL_FCX, PAL_J64X, PAL_K64X };
     for (int i = 0; i < 32; i++) cur_hex[i] = LO[which][i];
     if (HI[which])       { for (int i = 0; i < 32; i++) cur_hex[32 + i] = HI[which][i]; pal_n = 64; }
     else if (which == 3) { for (int i = 0; i < 32; i++) cur_hex[32 + i] = mix_hex(PAL_E32[MIX_PAIRS[i][0]], PAL_E32[MIX_PAIRS[i][1]]); pal_n = 64; }
@@ -412,7 +450,7 @@ void draw(void) {
         case 5: scene_table();    break;
     }
     static const char *pnames[NPAL] = { "1 PICO-8 (shipped)", "2 ENDESGA 32", "3 RESURRECT 64", "4 E32+32 DERIVED",
-                                        "5 ENDESGA 64", "6 AAP-64", "7 FAMICUBE" };
+                                        "5 ENDESGA 64", "6 AAP-64", "7 FAMICUBE", "8 JOURNEY", "9 JEHKOBA64" };
     static const char *snames[NSCENES] = { "SWATCHES+RAMPS", "SUNSET", "PORTRAIT", "NIGHT GLOW", "GLASS+FOG", "BLEND TABLE" };
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print(pnames[cur_pal], 4, 2, CLR_WHITE);
@@ -420,6 +458,6 @@ void draw(void) {
                     snames[scene], scene + 1, NSCENES), 316, 2, CLR_LIGHT_GREY);
     font(FONT_SMALL);
     rectfill(0, 193, SCREEN_W, 7, CLR_BLACK);
-    print("1-7 palette  LEFT/RIGHT scene  D fake/real  C glass  T table", 4, 194, CLR_MEDIUM_GREY);
+    print("1-9 palette  LEFT/RIGHT scene  D fake/real  C glass  T table", 4, 194, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }

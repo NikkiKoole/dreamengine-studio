@@ -32,6 +32,7 @@ static bool  drag_on;
 static float drag_sx, drag_sy;   // last emitted segment endpoint (updates as you draw)
 static float drag_px, drag_py;   // true start of the whole stroke (for the preview line)
 static float cam_x, cam_y;
+static int   pan_mx, pan_my;     // middle-drag: last mouse position
 
 // ---- helpers ----
 
@@ -126,6 +127,13 @@ static void phys_step(void) {
 
     // 8 iterations: constraints then collision each round (stable at realistic speeds)
     for (int iter = 0; iter < 8; iter++) {
+        // Upright spring — fights the sled tilt, keeps Bosh from lying flat on steep slopes.
+        // Applied before rod_solve so the rods negotiate a balance between sled angle and vertical.
+        {
+            float lean = vp[3].x - vp[2].x;   // chest_x − butt_x: +forward, −backward lean
+            vp[3].x -= lean * 0.010f;
+            vp[2].x += lean * 0.010f;
+        }
         for (int r = 0; r < NR; r++) rod_solve(r);
         collide(&vp[0], FRIC);
         collide(&vp[1], FRIC);
@@ -184,15 +192,28 @@ void update(void) {
         nseg = 0;        // clear all lines (keep rider position)
     }
 
+    // Middle-drag pan — works in both draw and play modes.
+    // Cancels the camera-follow lerp while held so you can look ahead.
+    if (mouse_pressed(MOUSE_MIDDLE)) {
+        pan_mx = mouse_x();  pan_my = mouse_y();
+        drag_on = false;   // cancel any in-progress draw stroke
+    }
+    if (mouse_down(MOUSE_MIDDLE)) {
+        cam_x -= (float)(mouse_x() - pan_mx);
+        cam_y -= (float)(mouse_y() - pan_my);
+        pan_mx = mouse_x();  pan_my = mouse_y();
+        camera((int)cam_x, (int)cam_y);
+    }
+
     if (!playing) {
         float spd = 2.5f;
         if (btn(0, BTN_LEFT))  cam_x -= spd;
         if (btn(0, BTN_RIGHT)) cam_x += spd;
         if (btn(0, BTN_UP))    cam_y -= spd;
         if (btn(0, BTN_DOWN))  cam_y += spd;
-        camera((int)cam_x, (int)cam_y);   // update after pan
+        camera((int)cam_x, (int)cam_y);
 
-        float wx = (float)mouse_world_x();
+        float wx = (float)mouse_world_x();   // read after any panning above
         float wy = (float)mouse_world_y();
 
         // left-drag: continuous drawing — emit segments as mouse moves
@@ -233,11 +254,13 @@ void update(void) {
         }
     } else {
         phys_step();
-        // smooth camera follow — trails behind sled center
-        float rx = (vp[0].x + vp[1].x) * 0.5f;
-        float ry = (vp[0].y + vp[1].y) * 0.5f;
-        cam_x = lerp(cam_x, rx - SCREEN_W*0.4f,  0.07f);
-        cam_y = lerp(cam_y, ry - SCREEN_H*0.45f, 0.07f);
+        // smooth camera follow — suspended while middle-dragging so panning sticks
+        if (!mouse_down(MOUSE_MIDDLE)) {
+            float rx = (vp[0].x + vp[1].x) * 0.5f;
+            float ry = (vp[0].y + vp[1].y) * 0.5f;
+            cam_x = lerp(cam_x, rx - SCREEN_W*0.4f,  0.07f);
+            cam_y = lerp(cam_y, ry - SCREEN_H*0.45f, 0.07f);
+        }
     }
 }
 

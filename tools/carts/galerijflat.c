@@ -64,6 +64,14 @@ static const int CURT[][2] = {
 };
 #define NCURT 6
 
+// door colours — broader than curtains; Dutch housing block palette
+static const int DOOR_COLORS[] = {
+    CLR_DARK_RED, CLR_DARK_ORANGE, CLR_DARK_GREEN, CLR_DARK_BROWN,
+    CLR_TRUE_BLUE, CLR_MAUVE, CLR_BLUE_GREEN, CLR_DARKER_PURPLE,
+    CLR_MEDIUM_GREY, CLR_BROWN, CLR_DARK_BLUE, CLR_INDIGO,
+};
+#define N_DOOR_COLORS 12
+
 // ── tint — average blend table (from blendlab) ───────────────────────────────
 // All 32 palette entries are remapped through t_avg[filter] each frame.
 // Average-blend shifts every colour toward the filter regardless of brightness,
@@ -277,7 +285,7 @@ static void roll_building(void) {
     }
     // door must stay distinct from wall under all tint filters, not just at day
     { int tries = 0;
-      do { doorBase = CURT[rnd(NCURT)][1]; tries++; }
+      do { doorBase = DOOR_COLORS[rnd(N_DOOR_COLORS)]; tries++; }
       while (tries < 30 && tint_clash(doorBase, wallC)); }
     liftFloor = rnd(NF);
     nLamp = rnd_between(2, 4);

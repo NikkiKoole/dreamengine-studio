@@ -314,7 +314,12 @@ their `kind[]` tags.
     Verdict: the look works (additive glow / glass / fog all read correctly, in-palette), and
     the engine crux is identified — dst must be read from the *in-progress* frame (a `pget`
     last-frame read feeds back and blooms; demonstrated by the cart's `P` mode). Candidate
-    implementation: shader + per-scope canvas snapshot, the decision-0007 lane. Next step: ADR.
+    implementation: shader + per-scope canvas snapshot, the decision-0007 lane. Next step: ADR —
+    **after the palette decision**: blend tables are computed *from* the palette, and the default
+    palette (lifted verbatim from PICO-8) should become our own / settable first, or #18 bakes the
+    borrowed palette one layer deeper. See [`design/palette-and-color.md`](design/palette-and-color.md)
+    (Picotron findings + three-layer plan: new default → `palette_set` + `de:palette` chunk →
+    tables-from-active-palette).
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

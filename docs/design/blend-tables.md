@@ -6,6 +6,11 @@
 > (the `blend lab` tech-demo) — built with zero new engine API; its findings are
 > recorded below. Engine work needs an ADR-weight decision first (same class as
 > [decision 0007](../decisions/0007-pal-recolors-sprites.md)); nothing here is committed.
+> **Sequencing note (2026-06-04):** the ADR should follow the *palette* decision —
+> blend tables are a pure function of the palette's RGB values, and the default
+> palette question (ours vs the lifted PICO-8 one, fixed vs settable) is open in
+> [`palette-and-color.md`](palette-and-color.md). Build #18 against the active
+> palette, not baked constants.
 
 ---
 

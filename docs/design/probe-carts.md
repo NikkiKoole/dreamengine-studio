@@ -42,7 +42,7 @@ tag answers "why does this cart exist?", which stays true forever.
 
 | Cart | What it proved | API that shipped |
 |---|---|---|
-| `blendlab` | 32-color translucency works as a lookup table, **but cart-land can't read dst correctly** — its deliberately-broken `P` mode shows the last-frame `pget` feedback bloom; dst must come from the in-progress frame | **verdict in, API not yet built** — STATUS #18, [`blend-tables.md`](blend-tables.md); next step is the ADR. The one probe that proved *need* and is awaiting the build. |
+| `blendlab` | 32-color translucency works as a lookup table, **but cart-land can't read dst correctly** — its deliberately-broken `P` mode shows the last-frame `pget` feedback bloom; dst must come from the in-progress frame | **verdict in, API not yet built** — STATUS #18, [`blend-tables.md`](blend-tables.md); next step is the ADR, **sequenced after the palette decision** ([`palette-and-color.md`](palette-and-color.md) — tables derive from the palette). The one probe that proved *need* and is awaiting the build. |
 | `waveed` | drawable single-cycle waves earn their keep (live-morph drone) | `wave_set()` + `INSTR_USER0..3` |
 | `platform-paint` (vs `platform-rects`) *(not tagged — shipped with the API as its teaching pair)* | level-as-painted-data needs a spritesheet read | `sget()` |
 | `podracer` *(not tagged — a game that stumbled onto the cliff, not built to ask)* | software-poly perf cliff is real | off-screen bbox clamp (STATUS #14) |

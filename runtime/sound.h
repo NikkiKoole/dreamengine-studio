@@ -123,7 +123,8 @@ static int           music_current = -1;
 // delay_samples: 0 = fire immediately; >0 = audio thread holds it in `delayed[]` and fires when countdown expires.
 // e0/e1/e2: extra payload (instrument attack/decay/release samples).
 typedef struct { int kind, a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
-#define SOUND_REQ_QUEUE   256   // generous: live held-voice control pushes many setters/frame (cutoff/res/duty/3×lfo per voice)
+#define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
+                                // init() can define dozens of slots + several wave_set tables in one burst
 #define SOUND_DELAYED_MAX 64    // pending delayed notes (strum/schedule/schedule_hit) — fast sfx steps queue several ahead
 
 static SoundReq      req_queue[SOUND_REQ_QUEUE];
@@ -485,9 +486,13 @@ static void sound_fire_req(SoundReq r) {
             v->env_d_samp[e] = r.c;
             v->env_amount[e] = r.e2 / 1000.0f;
         }
-    } else if (r.kind == 20) {      // wave_set: one sample of a user wavetable — a=which, b=index, c=value*32767
-        if (r.a >= 0 && r.a < SOUND_USER_WAVES && r.b >= 0 && r.b < SOUND_WAVE_LEN)
-            user_wave[r.a][r.b] = r.c / 32767.0f;
+    } else if (r.kind == 20) {      // wave_set: FOUR samples of a user wavetable — a=which, b=start index, c/e0/e1/e2 = values*32767
+        if (r.a >= 0 && r.a < SOUND_USER_WAVES && r.b >= 0 && r.b + 3 < SOUND_WAVE_LEN) {
+            user_wave[r.a][r.b]     = r.c  / 32767.0f;
+            user_wave[r.a][r.b + 1] = r.e0 / 32767.0f;
+            user_wave[r.a][r.b + 2] = r.e1 / 32767.0f;
+            user_wave[r.a][r.b + 3] = r.e2 / 32767.0f;
+        }
     }
 }
 
@@ -860,17 +865,22 @@ void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, in
 
 void wave_set(int which, const float *samples, int n) {
     if (which < 0 || which >= SOUND_USER_WAVES || !samples || n < 2) return;
-    // resample the drawn cycle (any length) to the 64-entry table, one ring-buffer write per
-    // sample — rides the request queue like every other mutation, so the audio thread never tears
-    for (int i = 0; i < SOUND_WAVE_LEN; i++) {
-        float fp = i * (float)n / (float)SOUND_WAVE_LEN;
-        int   i0 = (int)fp;
-        float fr = fp - (float)i0;
-        float a = samples[i0 % n], b = samples[(i0 + 1) % n];   // wrap: it's one cycle
-        float v = a + (b - a) * fr;
-        if (v >  1.0f) v =  1.0f;
-        if (v < -1.0f) v = -1.0f;
-        sound_push_ctrl(20, which, i, (int)(v * 32767.0f), 0, 0, 0);
+    // resample the drawn cycle (any length) to the 64-entry table and ride the request queue
+    // like every other mutation (no tearing). Packed 4 samples per request — 16 requests per
+    // wave — so an init() that sets all four tables plus dozens of instruments fits the queue.
+    for (int i = 0; i < SOUND_WAVE_LEN; i += 4) {
+        int q[4];
+        for (int k = 0; k < 4; k++) {
+            float fp = (i + k) * (float)n / (float)SOUND_WAVE_LEN;
+            int   i0 = (int)fp;
+            float fr = fp - (float)i0;
+            float a = samples[i0 % n], b = samples[(i0 + 1) % n];   // wrap: it's one cycle
+            float v = a + (b - a) * fr;
+            if (v >  1.0f) v =  1.0f;
+            if (v < -1.0f) v = -1.0f;
+            q[k] = (int)(v * 32767.0f);
+        }
+        sound_push_ctrl(20, which, i, q[0], q[1], q[2], q[3]);
     }
 }
 

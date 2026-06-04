@@ -115,6 +115,10 @@ static const int LIGHT_COLORS[] = {
 };
 #define N_LIGHT_COLORS 5
 
+// all filters used by push_tint — keep in sync with the cases below
+static const int TINT_FILTERS[]  = { CLR_DARK_BLUE, CLR_BROWN, CLR_DARKER_BLUE };
+#define N_TINT_FILTERS 3
+
 static void push_tint(float t) {
     if (!tint_on) return;
     int filter;
@@ -126,6 +130,14 @@ static void push_tint(float t) {
     for (int i = 0; i < 32; i++) pal(i, t_avg[filter][i]);
     // restore light-source colours — they don't reflect ambient, they emit
     for (int i = 0; i < N_LIGHT_COLORS; i++) pal(LIGHT_COLORS[i], LIGHT_COLORS[i]);
+}
+
+// true if colours a and b look identical at day OR under any tint filter
+static int tint_clash(int a, int b) {
+    if (a == b) return 1;
+    for (int i = 0; i < N_TINT_FILTERS; i++)
+        if (t_avg[TINT_FILTERS[i]][a] == t_avg[TINT_FILTERS[i]][b]) return 1;
+    return 0;
 }
 
 // ── schedule helpers ──────────────────────────────────────────────────────────
@@ -263,7 +275,10 @@ static void roll_building(void) {
         int pc[4] = { CLR_BLUE_GREEN, CLR_MAUVE, CLR_DARK_GREEN, CLR_TRUE_BLUE };
         panelC = pc[rnd(4)];
     }
-    do { doorBase = CURT[rnd(NCURT)][1]; } while (doorBase == wallC);
+    // door must stay distinct from wall under all tint filters, not just at day
+    { int tries = 0;
+      do { doorBase = CURT[rnd(NCURT)][1]; tries++; }
+      while (tries < 30 && tint_clash(doorBase, wallC)); }
     liftFloor = rnd(NF);
     nLamp = rnd_between(2, 4);
     for (int i = 0; i < nLamp; i++)

@@ -2612,6 +2612,20 @@ bool keyr(int k) { return inp_released(k); }
 
 void pal(int c0, int c1)  { if (c0 >= 0 && c0 < PALETTE_SIZE && c1 >= 0 && c1 < PALETTE_SIZE) { palette[c0] = base_palette[c1]; pal_recompute(); } }
 void pal_reset(void)      { for (int i = 0; i < PALETTE_SIZE; i++) palette[i] = base_palette[i]; pal_recompute(); }
+
+// EXPERIMENTAL (palette probe — see docs/design/palette-and-color.md). Write an
+// arbitrary 0xRRGGBB into LIVE palette slot i: primitives/text use it immediately,
+// and the pal() shader recolors existing sprite art to match (base_palette stays
+// the texel-matching key, exactly like pal()). pal_reset() restores the shipped
+// palette. Caveat: pal(c0,c1) under a custom palette injects the SHIPPED c1 color.
+// Resolves into a real palette_set() (palette-and-color.md Layer 2) or gets deleted.
+void palette_hex(int i, int hex) {
+    if (i < 0 || i >= PALETTE_SIZE) return;
+    palette[i] = (Color){ (unsigned char)((hex >> 16) & 0xFF),
+                          (unsigned char)((hex >> 8)  & 0xFF),
+                          (unsigned char)( hex        & 0xFF), 255 };
+    pal_recompute();
+}
 void fade(float a)        { fade_amt  = a < 0 ? 0 : (a > 1 ? 1 : a); }
 void shake(float a)       { if (a > shake_amt) shake_amt = a; }
 

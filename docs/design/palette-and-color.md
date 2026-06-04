@@ -168,6 +168,17 @@ What this doc adds to the ADR's inputs:
 
 1. **Palette contact-sheet probe cart** (Layer 1's evidence; tag `probe`) —
    render candidate palettes against worst-case corpus scenes.
+   **✅ Shipped** — `tools/carts/palettelab.c`: 1/2/3 swaps the live palette
+   (shipped / ENDESGA 32 / Resurrect-32 cut, role-mapped), LEFT/RIGHT walks
+   swatches+ramps / sunset / night-glow / portrait. Built on an
+   **experimental** `palette_hex(i, hex)` in the runtime (the `EXPERIMENTAL`
+   banner at the bottom of `studio.h`; rides the `pal()` shader path, so
+   existing sprite art recolors too; deliberately absent from
+   docs/autocomplete; sunset rule: becomes Layer 2's `palette_set()` or is
+   deleted). First finding from the role-mapping work itself: **E32 lacks a
+   lime, a second dark plum, and a near-black navy pair** (three slots dup),
+   while the Resurrect cut filled every role — the curated-64 advantage
+   showing up before any scene was even rendered.
 2. Decide + ship the new default (Layer 1). Re-bake thumbnails.
 3. `palette_set` + `de:palette` chunk (Layer 2) — independently useful even if
    blending waited forever.

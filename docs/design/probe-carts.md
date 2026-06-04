@@ -65,6 +65,7 @@ They are not tagged; listed here so nobody re-tags them.)*
 | `bones` | offscreen canvas / baked rotation atlas (STATUS #13, [`baked-rotation-atlas.md`](baked-rotation-atlas.md)) | the animator that hits the realtime-drawing wall; whether the buffer primitive is needed is unproven either way |
 | **the instrument cabinet** — `stylophone`, `musicalsaw`, `moog`, `modrack` | is the audio surface expressive enough? Each deliberately exercises a corner "no other cart touches" (live duty, live LFO, full patching, modular routing) | open by design — this family already surfaced the mod-envelope gap (shipped); it keeps probing as the synth grows |
 | `bossa` *(in flight, another session)* | likely the groove/rhythm-timing question (STATUS #8) | unverified — its author should classify it here |
+| `palettelab` | which default palette replaces the lifted PICO-8 one? ([`palette-and-color.md`](palette-and-color.md) Layer 1) | contact sheet live: shipped-32 vs ENDESGA 32 vs Resurrect-32 cut, role-mapped, across swatch/ramp/sunset/glow/portrait scenes. Built on the **experimental** `palette_hex()` (see below) |
 
 ## 🧪 Not probes — regression guards (don't re-tag)
 
@@ -84,6 +85,20 @@ built to ask it).
   carts built to test whether a cart-land message array is just fine.
 
 ---
+
+## Experimental engine surface (probes sometimes need one hook)
+
+Most probes are pure cart-land. When a question is *unreachable* from cart code
+(the palette lives behind `studio.c` statics), the probe may get **one
+explicitly-experimental engine hook** rather than a full public API: declared in
+`studio.h` under the `EXPERIMENTAL` banner, deliberately **not** in
+studioDocs/autocomplete/help (the four-place rule is skipped on purpose), with a
+written sunset — it resolves into real API or gets deleted with its probe.
+Current experiments:
+
+| Hook | Probe | Sunset |
+|---|---|---|
+| `palette_hex(i, hex)` | `palettelab` | becomes `palette_set()` ([`palette-and-color.md`](palette-and-color.md) Layer 2) or is deleted with the palette decision |
 
 ## Housekeeping rules
 

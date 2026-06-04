@@ -447,4 +447,14 @@ void watch(const char *name, const char *fmt, ...);  // show a named live value 
 void watch_visible(bool on);                         // hide/show the watch overlay (default: on; F1 toggles it)
 bool paused(void);                                   // true while the runtime pause overlay is open (P/ENTER to toggle)
 
+// ------------------------------------------------------------
+// EXPERIMENTAL — may change or vanish without notice. Deliberately NOT in the
+// help tab / autocomplete (the four-place rule is skipped on purpose): these
+// exist to gather evidence for an open design question, then resolve into real
+// API or get deleted. Current experiments + their sunset rules live in
+// docs/design/palette-and-color.md and docs/design/probe-carts.md.
+// ------------------------------------------------------------
+
+void palette_hex(int i, int hex);  // EXPERIMENT: write raw 0xRRGGBB into live palette slot i (0-31). Primitives + existing sprite art recolor immediately; pal_reset() restores the shipped palette. For palette try-outs only — see palette-and-color.md
+
 #endif // STUDIO_H

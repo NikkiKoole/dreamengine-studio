@@ -2090,6 +2090,15 @@
     ]
   },
   {
+    "title": "palette lab",
+    "description": "Try on a new default palette without touching anything else — the Layer-1 probe from palette-and-color.md. Keys 1/2/3 swap the LIVE palette between the shipped PICO-8 32, ENDESGA 32, and a 32-color cut of Resurrect 64 (both role-mapped onto the same slots, so every scene just re-skins); LEFT/RIGHT walk four contact-sheet scenes: the swatch grid + five dithered corpus ramps (sky/warm/green/grey/skin — the load-bearing test for gradient() and every dither fake), a sunset with sun halo and fog band, a night-glow street (the galerijflat lights gap), and a portrait, because skin tones are where palettes get cruel. Built on the EXPERIMENTAL palette_hex() — sprite editor, cart format and docs stay untouched.",
+    "file": "palettelab.cart.png",
+    "kind": [
+      "tech-demo",
+      "probe"
+    ]
+  },
+  {
     "title": "monster mix lab",
     "description": "Assemble the monster the customer ordered, then STAMP it with the piston press. The sprite side is the show: tools/sprite-draw.js draws 9 parts (3 heads, 3 bodies, 3 legs) and stamp()-composites all 27 combos at bake time; the magic pal() indices (28/29) recolor them into 4 schemes at draw time — 108 monsters from 9 drawn parts. Also: a 32-wide machine split() across two slots, a concave polyfill star, noise() speckle tiles, mirror()ed symmetric parts and outlined() borders. Right order = points + a streak of climbing chords; wrong or too slow = a lost heart. LEFT/RIGHT choose a slot, UP/DOWN change the part, Z stamps.",
     "file": "monstermix.cart.png",

@@ -1990,6 +1990,12 @@
     ]
   },
   {
+    "title": "line rider",
+    "description": "Draw a track with the mouse, hit Space and watch Bosh slide. Verlet physics — gravity, rolling friction, crash detection. Left drag: draw lines. Right click: erase. Space: play / pause. R: reset rider (or clear track while in draw mode). Arrow keys: pan. The rider's scarf trails behind when moving fast enough.",
+    "file": "linerider.cart.png",
+    "kind": ["toy", "sandbox"]
+  },
+  {
     "title": "blend lab",
     "description": "Can 32 colors fake real translucency? A cart-space prototype of BLEND TABLES (result = table[src][dst], always a palette index — the VGA/Doom/Picotron trick). 1: a night street where additive glows light the building behind them, 2: a draggable glass pane + cloud shadows + fog over a swatch sweep of all 32 colors, 3: the raw 32x32 tables. D shows the same shapes as today's fillp dither-fake for comparison; P reads dst via pget to demonstrate the one-frame feedback artifact. Arrows switch glass color / table. Zero new engine API — the experiment behind STATUS item 18.",
     "file": "blendlab.cart.png",

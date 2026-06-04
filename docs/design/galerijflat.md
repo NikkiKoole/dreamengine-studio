@@ -108,6 +108,16 @@ Day, night, weather — the sky as a slow clock behind/above the slab.
   set is active — it's a *filter on the day*, not a separate clock.
 - Time also drives the *building*: household wake/sleep windows, when lights
   make sense. Other systems read the clock; the clock reads nothing.
+- **Build plan (decided): the sky gets its own standalone cart first**
+  (`sky.c` / `dutchsky.c`, own session) — the full cycle night → dawn → grey
+  noon → golden hour → dusk → deep night, the dithered-crossfade transition,
+  weather variants, all tunable in isolation. House pattern: one technique,
+  one cart (doomfire-shaped). Constraints so it lifts cleanly: same 320×200,
+  same palette discipline, **keyframes as a data table** (time → top/bottom
+  color pairs) + a `draw_sky(t)` function — importing into galerijflat is
+  then a copy-paste, not a rewrite. It also produces evidence for the
+  blend-API investigation (sys 6 note). Until then galerijflat carries a
+  fixed-dusk placeholder sky.
 
 ### 2. Windows — what we see in them
 
@@ -281,6 +291,64 @@ they want** — it's the building's circulation pump and its metronome.
    the fleet?
 6. **Title**: working name `galerijflat`. Alternatives: `galerij`, `de flat`,
    `tien hoog` ("ten storeys up").
+
+## Build log
+
+### Step 1 — the static facade (2026-06-04, WIP)
+
+Cart: `tools/carts/galerijflat.c` — **exists, renders, deliberately NOT yet
+registered in `index.json`** (stays out of the tutorials panel until it looks
+right). Contains temporary debug guards (a bands-only early return + an
+NF/NB/BW/baseY/wallTop debug print) — remove when finding #2 below is closed.
+
+**Validated:** the screen budget holds exactly as designed — debug bake reads
+`NF10 NB10 BW26 base174 top34`. Slab, floor bands (slab line / railing bars or
+colored corrugated panel / door + kitchen window per bay), lift tower with
+glazed stair zigzag + landing lights, berging plinth with lit entrance, ground
+strip, lampposts: all render and the silhouette unmistakably reads
+*galerijflat*. Household roll (archetype-first, correlated treatment/sill/lit
+per sys 5) is in and produces legible variety.
+
+**Findings — three real issues uncovered, one still open:**
+
+1. **ENGINE BUG (confirmed): `vgradient` renders inverted.** The dithered
+   interior of every vertical gradient puts `c_bot` at the top and `c_top` at
+   the bottom; only the exact first/last rows (early-return paths in
+   `gradient_band`) are correct, leaving a 1px discontinuity nobody noticed.
+   Mechanism: `gradient_band` encodes blend ratio `t` as a dither-threshold
+   pattern but applies the table backwards relative to `fillp`'s
+   bit-semantics (`t→0` yields pattern `0x0000` = all draw-color = `c_bot`).
+   **Evidence it's engine-wide, not this cart:** trafficjam's sky
+   (`vgradient(... CLR_BLUE, CLR_LIGHT_PEACH)`) bakes with peach at the top.
+   Fix is ~one line (use `(1-t)` or swap the fillp/rectfill color roles), BUT
+   it visibly flips every existing vgradient cart → needs a quick audit of
+   `vgradient`/`hgradient` call sites + re-bake of affected thumbnails.
+   Logged in `docs/STATUS.md` (under the shipped geometry-helpers item).
+   **The sky cart (sys 1 build plan) must land after this fix.**
+2. **OPEN MYSTERY: the "phantom band".** The full bake shows a full-width
+   band at y≈3–24 (vitrage-like peach dither + railing-like 3px bars on
+   white + grey checker) that no code on paper draws there. Bisect state:
+   sky-only bake → band absent (not the sky); bands-only bake → absent (not
+   the bands). Remaining suspects: `draw_tower` / `draw_plinth` / ground /
+   title — yet all are coordinate-bounded on paper. Next test: re-enable
+   those one at a time. (Lesson from trafficjam applies: "can't happen on
+   paper" is where the bug lives.)
+3. **Self-bug, trivial: the crescent moon** is a near-total eclipse — the
+   cover circle (same radius, offset 3px) hides almost the whole disc,
+   leaving a black blob. Draw a thinner crescent (smaller/farther cover).
+4. **Look pass needed (not a bug): too confetti for dusk.** Saturated doors/
+   curtains everywhere + too many lit windows read as carnival, washing out
+   at thumbnail scale; wall color barely visible between elements. Muting
+   plan: doors mostly from the dark palette row, fewer lit windows, curtain
+   *dark* variants dominant at dusk, lit warm windows as the scarce accent.
+   Also: house numbers currently print at `baseY-4` (on the floor-0 band) —
+   move them onto the plinth.
+
+**Going forward (order):** (a) bisect the phantom band to its source;
+(b) moon + house numbers + muting pass; (c) the `vgradient` engine fix as its
+own commit with cart audit; (d) then the sky cart session builds on the fixed
+primitive; (e) register the cart in `index.json` only when the dusk facade is
+worth a thumbnail.
 
 ## References in-repo
 

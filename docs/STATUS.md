@@ -115,6 +115,16 @@ Ordered by leverage. Section refs point at the design doc that specs each item.
      See particle survey + open questions in [`design/api-notes.md`](design/api-notes.md) §C.
 2. ~~**2D geometry helpers**~~ — **SHIPPED** as `ngon`/`ngonfill`, `star`/`starfill`, `poly`/`polyfill`, `thickline`, `rrect`/`rrectfill`, `vgradient`/`hgradient` (+ outline siblings `arcoutline`/`ringoutline`/`thicklineoutline` so every filled shape has a matching boundary-ring outline). Demo: `shapes.cart.png`. See [`design/geometry-helpers.md`](design/geometry-helpers.md).
    - *Parked thought (not a build item):* true smooth color interpolation (`lerp_color`/`rgb`) — splits the color model; needs its own ADR. Gradients are dithered.
+   - **BUG (found 2026-06-04, galerijflat build): `vgradient` renders INVERTED.** The dithered
+     interior puts `c_bot` at the top and `c_top` at the bottom; only the exact first/last rows
+     are right (early-return paths), leaving a 1px discontinuity. Mechanism: `gradient_band`
+     applies its dither-threshold table backwards vs `fillp` bit-semantics (`t→0` → pattern
+     `0x0000` → all draw-color → `c_bot`). Evidence engine-wide: trafficjam's sky
+     (`CLR_BLUE`→`CLR_LIGHT_PEACH`) bakes peach-at-top. Fix ~1 line (use `1-t`, or swap the
+     fillp/rectfill color roles) **but flips the look of every existing `vgradient`/`hgradient`
+     call** — audit call sites + re-bake affected thumbnails in the same change. `hgradient`
+     presumably shares the bug (same `gradient_band`) — verify. Blocks the planned sky cart
+     ([`design/galerijflat.md`](design/galerijflat.md) build log, finding 1).
 3. **Events** — `broadcast(msg_id)` / `received(msg_id)`. Confirmed demand (independently
    surfaced by the brainstorm review). Touches main-loop drain semantics.
    [`design/api-notes.md`](design/api-notes.md) §11.

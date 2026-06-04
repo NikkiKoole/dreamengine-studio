@@ -223,6 +223,40 @@ float voice_gate_prev[2];
    - **CHORD** — takes one pitch input, outputs a chord via `strum()` on gate
    - **ENV** — AD envelope that outputs a 0..1 CV shape on each trigger (for filter sweeps without using the LFO)
 
+## Module ideas — parking lot
+
+Modules discussed but not yet built. Rough priority order.
+
+### MIX — CV mixer
+Two CV inputs, one output (summed). Sounds trivial but opens a lot of patching: combine two
+LFOs, add a manual offset to a pitch CV, layer two modulation sources. 2-in version fits in
+3×5 (same size as SLEW/ATTN). A 4-in version at 4×5 would be even more useful.
+
+### CHORD — chord voice
+Takes a root pitch + gate, plays a full chord via the `chord()` API. One knob for chord type
+(maj/min/dim/aug/maj7/dom7/sus4/power). Strum variant: `strum()` with a delay knob.
+Different character from VOICE — instant harmonic texture on a single gate.
+
+### DIVIDER — clock divider
+Takes any gate input and divides by N (knob: 2–16). Different from CLOCK's built-in /2 /4
+outputs — those are fixed and only from the internal clock. A DIVIDER lets you derive
+slower sub-rhythms from EUCLID, GRIDS, or SEQ's gate output.
+
+### OFFSET — CV bias
+Adds a fixed offset to a CV (knob: −1..+1). Transpose a pitch, shift an LFO's range,
+push a CV above a threshold. Tiny — 3×4 or 3×5, one knob, in/out jacks. Pairs naturally
+with ATTN (attenuate then offset = full attenuverter).
+
+### COMPARE — CV-to-gate threshold
+Outputs a gate when input CV exceeds a threshold knob. Extracts rhythmic information from
+continuous CVs (e.g. turn a slow LFO into an irregular gate pattern). Pairs well with MATHS
+cycling: the shape of the ramp determines the gate duty cycle.
+
+### Already built this session
+- **SEQ** (8-step CV sequencer) — shipped
+- **VIBE** (audio-rate vibrato via `note_lfo()`) — shipped
+- **CHANCE** (probabilistic gate filter) — shipped
+
 ## Existing carts to not duplicate
 
 - `drummachine.c` — 16-step grid already exists; DRUMS module here is just 4 trigger inputs, no internal sequencer

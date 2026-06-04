@@ -368,6 +368,20 @@ their `kind[]` tags.
     - **Maestro Rhythm King (1970)** — Sly Stone's funk preset box; simpler/weirder than CR-78.
     - **Stylophone (1968)** — mouse-as-stylus, ~20 lines, instant Bowie.
 
+    **Pre-Roland wing — Raymond Scott** (Manhattan Research Inc., the basement where all of
+    this started; Bob Moog sold him circuits in the '50s):
+    - **Circle Machine (~1959)** — strongest candidate of the whole list: a RING of bulbs, each
+      with a brightness knob, swept by a rotating photocell arm — a step sequencer a decade
+      before the word. Cart: circular sequencer, drag bulb brightness (= pitch/volume per
+      step), rotating playhead instead of left-to-right, rotation speed = tempo. `euclid()`
+      would feel period-appropriate. Visually unlike every other music cart in the studio.
+    - **Clavivox (1956)** — keyboard theremin with portamento; the great-grandfather of the
+      tb303 cart's `note_glide`. Could be a small mouse-played instrument cart.
+    - **Electronium (1959-70s)** — not an instrument, a collaborative composition machine you
+      NUDGE ("faster", "more like that"); Motown bought one and hired Scott as electronic R&D
+      director. Already has descendants here: the bossa/ambient/jangle radio carts. A cart
+      that adds the nudge-interface to a generative engine would close the circle.
+
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 
 **Smaller open items (no design doc yet):** looping ambience (`drone`)/`volume`/mute. Noted

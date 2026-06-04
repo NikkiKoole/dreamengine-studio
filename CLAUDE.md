@@ -60,7 +60,9 @@ eventually2/
 │   ├── tag-carts.js    #   one-shot: merge kind[]/genre/homage tags into index.json
 │   │                   #   validates against a controlled vocabulary; run after adding carts
 │   ├── gen-tcc-symbols.js  # auto-generate runtime/studio_tcc_symbols.h from studio.h
-│   │                   #   re-run whenever studio.h declarations change (libtcc live backend)
+│   │                   #   the editor's live-host build re-runs it automatically; after
+│   │                   #   editing studio.h, also run it manually so the regenerated
+│   │                   #   file lands in the same commit (libtcc live backend)
 │   └── carts/          #   <name>.c (+ optional <name>.cart.js) — cart source of truth
 │                       #   .cart.js exports { sprites, map, charMap, mapW, mapH }
 │                       #   Three use patterns:

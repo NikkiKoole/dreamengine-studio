@@ -290,6 +290,9 @@ function buildTccHost(dims) {
     if (!fs.existsSync(path.join(LIBTCC_DIR, 'libtcc.dylib'))) {
       return resolve({ ok: false, cmd: '', output: `live backend needs runtime/libtcc/ — not found.\nSee runtime/libtcc/README.md.` })
     }
+    // re-derive the libtcc symbol list from studio.h before every host build,
+    // so a new API function can never be missing from the live backend
+    try { require('../../tools/gen-tcc-symbols.js').generate() } catch (e) { console.error('gen-tcc-symbols failed:', e.message) }
     const cmd = `clang ${macTccHostArgs(dims).join(' ')}`
     exec(cmd, (err, _o, stderr) => {
       const output = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()

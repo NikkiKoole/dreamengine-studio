@@ -339,15 +339,14 @@ their `kind[]` tags.
     C+wheel = cutoff, notch markers on the 9×7px cells. Full design notes at the top of
     `tools/carts/cr78.c`.
 
-20. **TB-303 bassline cart** *(cart-space idea, zero engine API — parked 2026-06-05, user-requested
-    "another time")* — the acid machine, third box in the classic-machine family (cr78, tr808).
-    Arguably the BEST API fit of the family: one `note_on()` voice + `note_glide()` (the 303's
-    signature slide between tied steps) + `note_cutoff()`/`note_res()` live sweeps — the
-    `note_res` doc literally says "acid squelch". Per-step data is pitch/accent/slide (the real
-    303's programming model), so it's also the gentlest on polyphony: ONE held voice total.
-    Cutoff/resonance/env-mod/decay as virtual knobs (mouse or keys), saw/square wave toggle,
-    16-step grid in the cr78/tr808 cart family style. Accent on the 303 = louder + filter kicked
-    open (use `note_env` ENV_CUTOFF per accented step, or just `note_cutoff` bump + decay back).
+20. ~~**TB-303 bassline cart**~~ — **SHIPPED same-day 2026-06-05** as `tools/carts/tb303.c` /
+    `tb303.cart.png` ("parked for another time" lasted about an hour — user asked for it).
+    Exactly as sketched: one `note_on()` voice, `note_glide(60)` slides that don't refire the
+    filter envelope (authentic to the circuit), accent = vol 7 + env amount × ACC knob,
+    staccato gate at 70% of step, five mouse-draggable knobs with CUT/RES applied live to the
+    ringing voice (`note_cutoff`/`note_res`), saw/square switch, mouse piano roll with
+    OCT/ACC/SLD flag rows, and an N-key random acid-line generator (root-heavy minor
+    pentatonic). The classic-machine family is now cr78 + tr808 + tb303.
 
 > `tritex` (affine textured triangle) shipped in session 8 — it was Open here; now in the API.
 

@@ -279,6 +279,16 @@
     "homage": "Roland TR-808 Rhythm Composer (1980)"
   },
   {
+    "title": "tb-303 bass line",
+    "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass, sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and five draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res, which is the entire point of acid. Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents and slides, the honest way it was always done). Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop.",
+    "file": "tb303.cart.png",
+    "kind": [
+      "instrument",
+      "generative"
+    ],
+    "homage": "Roland TB-303 Bass Line (1981)"
+  },
+  {
     "title": "space invaders",
     "description": "Classic arcade shooter. 8×3 alien grid that speeds up as you clear it, 3 enemy bullets, lives. Left/right to move, A to shoot.",
     "file": "18-invaders.cart.png",

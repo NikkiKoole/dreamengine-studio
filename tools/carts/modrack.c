@@ -1,4 +1,5 @@
 #include "studio.h"
+#include <math.h>   // sinf — bakes the org/vox/bel/fld user-wave tables in init()
 
 // MODRACK — a tiny modular synth (see docs/design/modular-synth.md).
 //
@@ -54,7 +55,7 @@ ModType TYPES[NTYPE] = {
                    2, {{"scl",0,5.99f,SCALE_PENTA,18,28,FMT_SCALE},{"root",0,11.99f,0,42,28,FMT_NOTE}} },
     [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 8, 7, {{0,false,3,84,"g"},{1,false,13,84,"p"},{2,false,23,84,"f"},{2,false,33,84,"r"},{2,false,43,84,"w"},{2,false,53,84,"a"},{0,false,63,84,"vb"}},
                    7, {{"cut",200,2200,700,20,28,FMT_INT},{"res",0,15,6,52,28,FMT_INT},
-                       {"pw",0.05f,0.95f,0.5f,12,46,FMT_F1},{"wav",0,4.99f,0,36,46,FMT_WAVE},{"flt",0,3.99f,0,58,46,FMT_FILTER},
+                       {"pw",0.05f,0.95f,0.5f,12,46,FMT_F1},{"wav",0,8.99f,0,36,46,FMT_WAVE},{"flt",0,3.99f,0,58,46,FMT_FILTER},
                        {"fenv",0,3000,0,20,64,FMT_INT},{"penv",-48,48,0,52,64,FMT_INT}} },   // vb = VIBE patch point; a = amp/VCA CV; flt = filter mode
     [MOD_EUCLID]= { "EUCLID", CLR_RED, 5, 6, 2, {{0,false,18,60,"clk"},{0,true,42,60,"g"}},
                    2, {{"h",1,8.99f,4,18,26,FMT_INT},{"s",2,16.99f,8,42,26,FMT_INT}} },
@@ -420,15 +421,32 @@ void load_patch(void) {
 }
 
 void init(void) {
-    // five voice slots (5-9) that differ ONLY in waveform, so VOICE's wav knob is a pure
+    // four DRAWN timbres (wave_set → INSTR_USER0..3) for the wav knob's org/vox/bel/fld
+    // positions — single-cycle tables, integer harmonics only so the cycle wraps cleanly
+    float tbl[64];
+    for (int i = 0; i < 64; i++) { float x = i / 64.0f * 6.2831853f;             // ORG — drawbar-organ sum
+        tbl[i] = 0.55f * sinf(x) + 0.28f * sinf(2 * x) + 0.18f * sinf(3 * x) + 0.12f * sinf(4 * x); }
+    wave_set(0, tbl, 64);
+    for (int i = 0; i < 64; i++) { float x = i / 64.0f * 6.2831853f;             // VOX — hollow odd partials
+        tbl[i] = 0.45f * sinf(x) + 0.30f * sinf(3 * x) + 0.18f * sinf(5 * x) + 0.07f * sinf(7 * x); }
+    wave_set(1, tbl, 64);
+    for (int i = 0; i < 64; i++) { float x = i / 64.0f * 6.2831853f;             // BEL — sparse high partials, metallic
+        tbl[i] = 0.60f * sinf(x) + 0.35f * sinf(4 * x) + 0.25f * sinf(7 * x) + 0.15f * sinf(10 * x); }
+    wave_set(2, tbl, 64);
+    for (int i = 0; i < 64; i++) { float x = i / 64.0f * 6.2831853f;             // FLD — wavefolded sine, gnarly
+        tbl[i] = sinf(2.5f * sinf(x)); }
+    wave_set(3, tbl, 64);
+
+    // nine voice slots (5-13) that differ ONLY in waveform, so VOICE's wav knob is a pure
     // waveshape selector (same ADSR + filter; cutoff/res/pw are driven live per note)
-    int waves[5] = { INSTR_SAW, INSTR_SQUARE, INSTR_TRI, INSTR_SINE, INSTR_NOISE };
-    for (int i = 0; i < 5; i++) { instrument(5 + i, waves[i], 6, 120, 4, 300); instrument_filter(5 + i, FILTER_LOW, 800, 8); }
+    int waves[9] = { INSTR_SAW, INSTR_SQUARE, INSTR_TRI, INSTR_SINE, INSTR_NOISE,
+                     INSTR_USER0, INSTR_USER1, INSTR_USER2, INSTR_USER3 };
+    for (int i = 0; i < 9; i++) { instrument(5 + i, waves[i], 6, 120, 4, 300); instrument_filter(5 + i, FILTER_LOW, 800, 8); }
     instrument_duty(6, 0.5f);   // square's pw knob overrides this live
-    // a second bank (10-14): same waves but a FLAT envelope (full sustain, no baked decay).
+    // a second bank (14-22): same waves but a FLAT envelope (full sustain, no baked decay).
     // The VOICE plays from this bank when its amp jack is patched, so the patched ENV fully
     // shapes the amplitude (a true VCA) instead of fighting the slot's own 120ms decay.
-    for (int i = 0; i < 5; i++) { instrument(10 + i, waves[i], 2, 0, 7, 8); instrument_filter(10 + i, FILTER_LOW, 800, 8); }
+    for (int i = 0; i < 9; i++) { instrument(14 + i, waves[i], 2, 0, 7, 8); instrument_filter(14 + i, FILTER_LOW, 800, 8); }
     preset_generative();
 }
 
@@ -470,7 +488,7 @@ void eval_mod(int mi) {
             }
             float gate = read_in(mi, 0), pitch = read_in(mi, 1), fcv = read_in(mi, 2);
             bool amp_cv = cable_into(mi, 5) >= 0;   // 'a' patched → ENV shapes the amplitude (a VCA)
-            int slot = (amp_cv ? 10 : 5) + (int)m->param[3];   // wav picks the wave; VCA uses the flat-envelope bank (10-14)
+            int slot = (amp_cv ? 14 : 5) + (int)m->param[3];   // wav picks the wave (9 incl. user waves); VCA uses the flat-envelope bank (14-22)
             if (gate > 0.5f && m->state[0] <= 0.5f) {
                 int mm = (int)pitch; if (mm < 1) mm = 48;
                 int h = (int)m->state[1]; if (h > 0) note_off(h);
@@ -479,8 +497,8 @@ void eval_mod(int mi) {
                 // onboard mod-envelopes — fire per note: filter "pew" + pitch punch (fixed
                 // snappy decays; the knobs set the depth, 0 = off). This is the audio-rate
                 // upgrade over patching the control-rate ENV module into 'f'.
-                note_env(h, 0, ENV_CUTOFF, 0, 130, m->param[4]);   // fenv → filter sweep
-                note_env(h, 1, ENV_PITCH,  0,  45, m->param[5]);   // penv → pitch blip
+                note_env(h, 0, ENV_CUTOFF, 0, 130, m->param[5]);   // fenv → filter sweep   (param 5 = the fenv knob)
+                note_env(h, 1, ENV_PITCH,  0,  45, m->param[6]);   // penv → pitch blip     (param 6 = the penv knob)
                 m->state[3] = 0;   // trigger flash
             }
             m->state[0] = gate; m->state[3] += 1;
@@ -488,7 +506,7 @@ void eval_mod(int mi) {
             int h = (int)m->state[1];
             if (h > 0) {
                 note_pitch(h, pitch < 1 ? 48.0f : pitch);                                     // track pitch CV every frame (enables live vibrato, bends)
-                note_filter(h, 1 + (int)clamp(m->param[6], 0, 3));                           // lp/hp/bp/nt
+                note_filter(h, 1 + (int)clamp(m->param[4], 0, 3));                           // lp/hp/bp/nt   (param 4 = the flt knob)
                 note_cutoff(h, (int)m->state[2]);
                 note_res(h, (int)clamp(m->param[1] + read_in(mi, 3) * 15.0f, 0, 15));
                 note_duty(h, clamp(m->param[2] + read_in(mi, 4) * 0.5f, 0.05f, 0.95f));
@@ -672,7 +690,7 @@ int near_col(int x, int y) {
 
 const char *knob_str(int fmt, float v) {
     if (fmt == FMT_LOGIC) { const char *L[3] = { "AND", "OR", "XOR" }; return L[(int)v]; }
-    if (fmt == FMT_WAVE)  { const char *W[5] = { "saw", "sqr", "tri", "sin", "noi" }; return W[(int)v]; }
+    if (fmt == FMT_WAVE)  { const char *W[9] = { "saw", "sqr", "tri", "sin", "noi", "org", "vox", "bel", "fld" }; return W[(int)v]; }   // org/vox/bel/fld = drawn user waves
     if (fmt == FMT_FILTER){ const char *F[4] = { "lp",  "hp",  "bp",  "nt"  }; return F[(int)clamp(v, 0, 3)]; }
     if (fmt == FMT_DEST)  { const char *D[3] = { "pit", "cut", "pw"  }; return D[(int)clamp(v, 0, 2)]; }
     if (fmt == FMT_SCALE) return SCALES[(int)v];

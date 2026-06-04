@@ -15,7 +15,7 @@
 #define SOUND_SFX_STEPS    32
 #define SOUND_SFX_SLOTS    32
 #define SOUND_MUSIC_SLOTS  16
-#define SOUND_INSTR_SLOTS  16
+#define SOUND_INSTR_SLOTS  32   // 0-4 = the raw waves; 5-31 cart-defined (rich patch carts like modrack want banks per wave)
 
 // Waveform IDs (INSTR_*) come from studio.h.
 

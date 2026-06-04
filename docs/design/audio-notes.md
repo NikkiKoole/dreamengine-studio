@@ -36,62 +36,71 @@ Three corollaries:
 
 ## 2. Where we are now (in code)
 
-A small PICO-8-style software synth. Facts, straight from `runtime/sound.h`:
+> **Refreshed 2026-06-04**, after the §11 mod-envelopes shipped. This is the authoritative
+> map of the shipped sound surface: **32 functions + 32 constants**. §5–§11 hold the
+> rationale for how it got here; STATUS item 5 holds what's next (engines, SFX authoring).
 
 **Engine**
-- 8 voices (`SOUND_VOICES`), 44.1 kHz, **mono**, software-mixed.
-- Mix = sum of voices × 0.2 gain each, then hard-clipped to [-1, 1].
-- Runs on raylib's audio-stream callback (the **audio thread**).
-- Voice allocation: first free → else steal a non-music voice → else steal voice 0.
+- 8 voices (`SOUND_VOICES`), 44.1 kHz, **mono**, software-mixed (sum × 0.2 gain each,
+  hard-clipped to [-1, 1]). Runs on raylib's audio-stream callback (the **audio thread**).
+- Voice allocation: first free → else a non-music **non-held** voice → else any non-music
+  → voice 0. Held notes are stolen last — they're meant to last.
+- Held-note **handles** pack slot (low 3 bits) + generation; a stale handle (its voice was
+  stolen or the slot reused) silently no-ops. 8 handle slots. See `held-notes.md`.
 
-**Waveforms** (the `INSTR_*` ids, defined in `studio.h`)
-- `INSTR_SQUARE` — fixed **50% duty** pulse
-- `INSTR_SAW`
-- `INSTR_TRI` — true linear triangle
-- `INSTR_NOISE` — LCG white noise (not a periodic LFSR like the NES)
-- `INSTR_SINE`
+**The surface, in four layers**
 
-**Envelope**
-- A single *fixed* attack/release declick per step: ~5% ramp in, ~15% ramp out.
-- **No real ADSR.** Decay/sustain shaping is faked by writing successive volume
-  values into SFX steps.
+1. **Just make sound — zero setup.** `note` `hit` `chord`(+9 `CHORD_*`) `strum`
+   `tone`(+6 `SCALE_*`) `schedule` `sfx` `music`. Slots 0–4 come pre-filled with the raw
+   waves (`INSTR_SQUARE/SAW/TRI/NOISE/SINE`), so the first `note(60, INSTR_SAW, 5)` needs
+   nothing else.
+2. **Design an instrument.** A slot (5–15) is the container; one call per axis —
+   `instrument` (timbre + **amp ADSR**) · `instrument_duty` (pulse width) ·
+   `instrument_lfo` (**×3**, cyclic modulation) · `instrument_env` (**×2**, one-shot AD
+   modulation, bipolar amount — §11) · `instrument_filter` (resonant SVF, 5 `FILTER_*`
+   modes). Five axes that multiply: timbre × amp-env × LFOs × mod-envs × filter.
+3. **Play it live — held notes.** `note_on`→handle, `note_off`, `note_off_all`;
+   performance gestures `note_pitch` / `note_vol` / `note_glide`; live twins of the
+   defines: `note_duty` `note_lfo` `note_env` `note_filter` `note_cutoff` `note_res`.
+   Live writes slew per-sample (no zipper).
+4. **Musical time & theory.** `bpm` `beat` `beat_pos` `every` (the clock, ticked in
+   `sound_tick(dt)`) · `euclid` `chance` `degree` (rhythm + scale math).
+
+**The modulation matrix is complete** — every parameter is reachable three ways
+(cyclically, per-note, and by hand). This table *is* the synth:
+
+| Destination | LFO (cycles) | mod-env (one-shot) | live (`note_*`) |
+|---|---|---|---|
+| pitch  | `LFO_PITCH` vibrato   | `ENV_PITCH` punch / zap | `note_pitch` (+ `note_glide`) |
+| cutoff | `LFO_CUTOFF` wah      | `ENV_CUTOFF` the "pew"  | `note_cutoff` / `note_res` |
+| duty   | `LFO_DUTY` PWM shimmer| `ENV_DUTY` PWM sweep    | `note_duty` |
+| volume | `LFO_VOLUME` tremolo  | — *(the amp ADSR — deliberate, no `ENV_VOLUME`)* | `note_vol` |
 
 **Data model**
-- **SFX**: 32 slots × up to 32 steps. Each step = `{pitch (MIDI), instr, vol 0..7}`.
-  `step_dur` is in 10ms units; per-SFX `loop` flag.
-- **Music**: 16 patterns, each = 4 channels of SFX indices (`-1` = silent) + loop flag.
-- ⚠️ **The SFX/music banks are hardcoded** in `sound_load_demo_data()`. **There is no
-  cart-side API to author SFX or patterns yet.** Carts that call `sfx(n)`/`music(n)`
-  play the built-in demo data; almost all real carts instead use the live one-shot
-  calls below.
+- **SFX**: 32 slots × up to 32 steps `{pitch (MIDI), instr, vol 0..7}`; `step_dur` in
+  10ms units; per-SFX loop flag. **Music**: 16 patterns × 4 channels of SFX indices + loop.
+- ⚠️ **The SFX/music banks are still hardcoded** in `sound_load_demo_data()` — no
+  cart-side authoring yet. The oldest open gap (STATUS #5); real carts use the live calls.
 
 **Thread-safe control (the important architectural fact)**
-- Main thread → audio thread via a 32-entry **request ring buffer** (`sound_push_req`).
-  Kinds: `0=sfx`, `1=music`, `2=note`.
-- Delayed requests (for `strum`/`schedule`) sit in a 16-entry holding pen on the audio
-  thread and fire when their sample countdown expires.
-- **This ring buffer is the one correct place to mutate sound state.** Any new control
-  surface should ride it rather than poke shared structs directly (avoids tearing).
+- Main thread → audio thread via a 256-entry **request ring buffer**; kinds 0–19 cover
+  play (0–2), define (3–6, 18), and held-note live control (7–17, 19). Delayed requests
+  (`strum`/`schedule`) sit in a 16-entry holding pen on the audio thread.
+- **The ring buffer is the one correct place to mutate sound state.** Every new control
+  surface rides it rather than poking shared structs (the §11 mod-envelopes are kinds 18/19).
 
-**Musical clock**
-- `bpm` / `beat` / `beat_pos`, ticked once per frame in `sound_tick(dt)`.
+**Rules that shape everything**
+1. **Wave + amp-ADSR snapshot at note-on** — you can't re-attack or re-timbre a ringing
+   voice. Everything else (filter, duty, LFOs, mod-envs, pitch, volume) is live on a held note.
+2. **One-shots stay fire-and-forget**; continuous control is the held-note layer (§6 → §10.3,
+   shipped). The two models coexist; handles make the live layer safe.
 
-**Public API today** (`studio.h`)
-- One-shot voices: `note(midi,instr,vol)`, `hit(midi,instr,vol,dur_ms)`
-- Banks: `sfx(n)`, `music(n)`
-- Theory helpers: `tone(scale,oct,instr,vol)`, `chord(root,type,instr,vol)`,
-  `strum(...,delay_ms)`, `degree(scale,oct,n)`
-- Timing/rhythm: `schedule(delay_ms,...)`, `bpm`, `beat`, `beat_pos`, `every(n)`,
-  `euclid(hits,steps,b)`, `chance(percent)`
-- Scales: `SCALE_MAJOR/MINOR/PENTA/PENTA_MIN/BLUES/CHROMATIC`
-- Chords: `CHORD_MAJ/MIN/DIM/AUG/MAJ7/MIN7/DOM7/SUS4/POWER`
-
-**Two key constraints that shape every idea below**
-1. **Voices snapshot at note-on.** `sound_set_step()` copies freq/vol/wave into the
-   `Voice`; a playing voice holds no reference back to its source. Mutating a bank
-   entry therefore affects only *future* notes, not the one currently ringing.
-2. **Everything is fire-and-forget.** No held/sustained voice exists; the default note
-   is 250 ms. Continuous control needs a new "held voice" concept (see §6).
+**Known warts (accepted, documented)**
+- LFO `depth` / env `amount` **units depend on the destination** (semitones / Hz / 0..1) —
+  the §10.2 wart; named sugar wrappers are the known escape if it ever bites.
+- Mixed ranges (vol 0–7, res 0–15, sustain 0–7) — each fits its domain; small cognitive tax.
+- The mod-env is **AD-only** (no sustain/release stage) — widening noted in §11.2.
+- No master volume / mute / looping ambience yet (STATUS "smaller open items").
 
 ---
 
@@ -760,14 +769,17 @@ where width lives — so resolve stereo before or alongside this layer.
 
 ## 10. The four axes, one container — SHIPPED
 
-> **Status: shipped** (HEAD `141a0a7`). All four axes below are live on the raw waveforms,
-> bundled per instrument slot: `instrument()` (ADSR), `instrument_duty()`, `instrument_lfo()`,
-> `instrument_filter()`. Deltas from the original sketch: **3 LFOs per slot**, so
-> `instrument_lfo()` takes a `which` (0–2) index; **held channels (§6) are NOT built**, so
-> `ch_*` doesn't exist yet — `LFO_CUTOFF` is the filter-sweep/wah path for now, and the
-> `dream synth` cart fakes hold-to-sustain with a fixed note gate. Carts: `instruments`,
-> `lfo`, `filter`, `dream synth`. §2's "where we are now" predates this and is superseded
-> for the instrument model. (The original proposal text is kept below as the rationale.)
+> **Status: shipped** (originally HEAD `141a0a7`; updated since). All four axes below are
+> live on the raw waveforms, bundled per instrument slot: `instrument()` (ADSR),
+> `instrument_duty()`, `instrument_lfo()`, `instrument_filter()` — **plus a fifth axis
+> since: `instrument_env()` (×2 mod-envelopes, §11)**. Deltas from the original sketch:
+> **3 LFOs per slot**, so `instrument_lfo()` takes a `which` (0–2) index; **held voices
+> shipped as `note_on()` + handle-based `note_*` setters** (see `held-notes.md`), not the
+> `ch_*` channel API sketched in §10.3 — same capability, handle-safe. The `dream synth`
+> cart now plays real held notes (hold-to-sustain) with live filter/LFO control and the
+> §11 filter-contour/pitch-env editors. Carts: `instruments`, `lfo`, `filter`,
+> `dream synth`, `filterenv`, `pitchenv`. §2 ("where we are now") was refreshed 2026-06-04
+> and is the current surface map. (The original proposal text is kept below as rationale.)
 
 A concrete API sketch for the whole expressive space. The realization that drives it: the
 range we want isn't a *list* of features — it's **four orthogonal axes that multiply**, and

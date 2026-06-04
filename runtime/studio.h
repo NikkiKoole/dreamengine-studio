@@ -145,7 +145,6 @@ int  print_scaled(const char *text, int x, int y, int color, int scale); // bigg
 int  print_outline(const char *text, int x, int y, int color, int outline_color); // text with a 1px outline in all 8 directions; maximum legibility
 void line(int x1, int y1, int x2, int y2, int color);
 void bezier(int x0, int y0, int cx, int cy, int x1, int y1, int color);                                                    // quadratic Bezier: smooth curve from (x0,y0) to (x1,y1) pulled toward control point (cx,cy)
-void bezier_cubic(int x0, int y0, int cx0, int cy0, int cx1, int cy1, int x1, int y1, int color);                          // cubic Bezier: two control points — S-curves and tighter bends
 void pset(int x, int y, int color);                     // set a single pixel (pairs with pget)
 void rect(int x, int y, int w, int h, int color);       // rectangle border
 void rectfill(int x, int y, int w, int h, int color);   // filled rectangle
@@ -398,14 +397,12 @@ bool near(int ax, int ay, int bx, int by, int d);                               
 bool touching_map(int x, int y, int w, int h);    // does this pixel-space box overlap any non-empty map cell?
 int  tile_at(int px, int py);                      // map sprite index at pixel (px,py); same as mget(px/16, py/16)
 bool touching_color(int x, int y, int w, int h, int color); // does this box cover any pixel of this palette color?
-void bounce_at_edges(int *x, int *y, int *vx, int *vy, int w, int h);  // flip velocity at screen edges (DVD-logo bounce)
 
 // ------------------------------------------------------------
 // animation
 // ------------------------------------------------------------
 
 int anim(int n_frames, float fps, float phase);        // current frame 0..n_frames-1, looping forever. phase 0..1 offsets the cycle start — use (float)i/count to stagger multiple entities
-int anim_once(int n_frames, float fps, float start_t); // frame of an animation started at start_t; stays on the last frame
 bool blink(int period);                                // true for `period` frames, then false for `period` frames — flashing/blinking via frame(). blink(3) ~ a fast flash
 
 // ------------------------------------------------------------

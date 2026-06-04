@@ -13,8 +13,8 @@ answer. Win and the row dances; lose and the answer is revealed. One clean play 
    ENTER submits. A submit is rejected (a buzz + a little shake) if the row isn't full or
    the word isn't in the allowed list.
 2. On a valid submit, the row's five tiles **flip one-by-one** (a quick stagger via
-   `anim_once`/`ease`), revealing green/yellow/gray. The keyboard repaints to the best
-   color each letter has earned.
+   a per-tile start time + `ease_out`), revealing green/yellow/gray. The keyboard
+   repaints to the best color each letter has earned.
 3. If the guess equals the answer → **WIN**: the winning row bounces, a rising arpeggio
    plays. If that was the sixth guess and it's wrong → **LOSE**: the answer is shown.
 4. Press ENTER on the result screen to **restart** with a fresh random answer.
@@ -33,8 +33,9 @@ answer. Win and the row dances; lose and the answer is revealed. One clean play 
   idiom is `typesave.c`. BACKSPACE/ENTER via `keyp(KEY_*)`.
 - **On-screen keyboard with mouse** — `mouse_pressed(MOUSE_LEFT)` + `point_in_box()` so it
   plays on a trackpad too, mirroring the typed path exactly.
-- **`anim_once` + `ease_out`** — the tile flip/reveal stagger; this is the whole "juice"
-  budget and it's where the game earns its feel.
+- **Timed reveal + `ease_out`** — the tile flip/reveal stagger (a one-shot is just
+  `min((int)((now() - t0) * fps), n - 1)`; `anim_once` was cut, decision 0014); this is
+  the whole "juice" budget and it's where the game earns its feel.
 - **`shake()` + a noise buzz** — the rejected-guess feedback (invalid word / short row).
 - **Sound** — a soft key click on each letter, a tile-reveal blip per flip, a rising
   arpeggio on win (`note`/`schedule`), a low buzz on lose.

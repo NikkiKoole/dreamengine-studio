@@ -92,7 +92,7 @@ used with depth beat a dozen used shallowly.
 - **Math/feel:** trig in degrees (`sin_deg`/`dx`/`dy`/`angle_to`), `lerp`/`clamp`/
   `remap`/`mid`, easing, `noise*`, `anim`/`blink`, `rnd*`, `dt`/`now`/`frame`/`timer`.
 - **Collision:** `boxes_touch`, `circles_touch`, `near`, `touching_map`, `tile_at`,
-  `touching_color`, `bounce_at_edges`.
+  `touching_color`.
 - **Persistence:** `save`/`load`, `save_bytes`/`load_bytes`.  **Debug:** `watch`, `printh`.
 
 ## The quality bar — depth where it serves the game

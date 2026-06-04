@@ -100,7 +100,6 @@ export const studioDocs = {
                doc: 'Texture-mapped triangle — the textured-3D primitive. Each corner maps a screen point (x,y) to a pixel on the sprite sheet (u,v, in sheet pixels, 0–127). The texture is interpolated across the triangle in screen space with no perspective correction — the authentic affine "swimmy" PS1 look. For 3D, project your model to 2D yourself, then feed the screen coords here. Sampling is nearest-neighbour; sheet transparency shows through.\ntritex(10,10,0,0, 90,20,16,0, 50,90,8,16);' },
   line:       { sig: 'void line(int x1, int y1, int x2, int y2, int color)',          doc: 'Draw a line from (x1, y1) to (x2, y2).' },
   bezier:      { sig: 'void bezier(int x0, int y0, int cx, int cy, int x1, int y1, int color)', doc: 'Quadratic Bezier curve from (x0,y0) to (x1,y1) pulled toward control point (cx,cy). One handle, one smooth bend.\nbezier(10, 100, 160, 10, 310, 100, CLR_WHITE);' },
-  bezier_cubic: { sig: 'void bezier_cubic(int x0, int y0, int cx0, int cy0, int cx1, int cy1, int x1, int y1, int color)', doc: 'Cubic Bezier curve with two control points — draws S-curves and tighter bends. The standard Illustrator/CSS curve shape.\nbezier_cubic(10,100, 80,10, 240,190, 310,100, CLR_WHITE);' },
   pset:       { sig: 'void pset(int x, int y, int color)',                            doc: 'Set a single pixel at (x, y). Pairs with pget().' },
   BTN_UP:     { sig: '#define BTN_UP 0',                                              doc: 'Up button.' },
   BTN_DOWN:   { sig: '#define BTN_DOWN 1',                                            doc: 'Down button.' },
@@ -267,11 +266,9 @@ export const studioDocs = {
   touching_map:    { sig: 'bool touching_map(int x, int y, int w, int h)',             doc: 'True if this pixel-space box overlaps any non-empty map cell (value != 0).\nThe easy "am I standing on a wall?" check.' },
   tile_at:         { sig: 'int tile_at(int px, int py)',                               doc: 'Tile index of the map cell under pixel (px, py). 0 if empty/out of bounds.\nConverts pixels → cell using the current cell size and map_scale().' },
   touching_color:  { sig: 'bool touching_color(int x, int y, int w, int h, int color)', doc: 'True if any pixel inside this box is the given palette color.\nPaint your walls one color, then ask "am I touching it?" — collision with no hitboxes.' },
-  bounce_at_edges: { sig: 'void bounce_at_edges(int *x, int *y, int *vx, int *vy, int w, int h)', doc: 'Flip the velocity when a w×h box hits a screen edge — the classic DVD-logo bounce.\nPass addresses: bounce_at_edges(&x, &y, &vx, &vy, 16, 16);' },
 
   // ── animation ──
   anim:       { sig: 'int anim(int n_frames, float fps, float phase)',                 doc: 'Which animation frame to show right now (0..n_frames-1), looping forever.\nphase 0..1 offsets the cycle start — use (float)i/count to stagger multiple entities.\nspr(walk + anim(4, 10, 0), x, y); — a 4-frame walk cycle at 10 fps.\nspr(walk + anim(4, 10, (float)i/5), x, y); — 5 entities walking out of phase.' },
-  anim_once:  { sig: 'int anim_once(int n_frames, float fps, float start_t)',          doc: 'Like anim(), but plays once from start_t and stays on the last frame.\nUse now() as start_t when the action begins (e.g. an explosion).' },
 
   // ── strings ──
   str:        { sig: 'const char *str(const char *fmt, ...)',                          doc: 'Build a string with values in it, printf-style, for print().\nprint(str("score %d", score), 4, 4, CLR_WHITE);\nReuses a few buffers — fine within a frame, don\'t store the result.' },

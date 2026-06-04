@@ -25,10 +25,10 @@ For reference, the current API (all of `studio.h`) groups into:
 | **Input — mouse + keyboard** | `mouse_x`, `mouse_y`, `mouse_down`, `mouse_pressed`, `mouse_released`, `mouse_wheel`, `key`, `keyp`, `text_input`, `KEY_*` |
 | **Graphics** | `cls`, `spr`, `sprf`, `sspr`, `sspr_ex`, `spr_rot`, `pset`, `pget`, `print`, `print_centered`, `print_right`, `print_scaled`, `text_width`, `line`, `rect`, `rectfill`, `circ`, `circfill`, `oval`, `ovalfill`, `tri`, `trifill`, `tritex`, `bar`, `camera`, `clip`, `colorkey`, `map_scale`, `fillp`, `fillp_reset`, `pal`, `pal_reset`, `fade`, `shake`, `FILL_*` |
 | **Map** | `mget`, `mset`, `map`, `MAP_W`, `MAP_H` |
-| **Sound** | `sfx`, `music`, `note`, `hit`, `tone`, `chord`, `strum`, `schedule`, `bpm`, `beat`, `beat_pos`, `every`, `euclid`, `chance`, `degree`, `instrument`, `instrument_duty`, `instrument_lfo`, `instrument_filter`, `INSTR_*`, `LFO_*`, `FILTER_*`, `SCALE_*`, `CHORD_*` |
+| **Sound** | `sfx`, `note`, `hit`, `tone`, `chord`, `strum`, `schedule`, `bpm`, `beat`, `beat_pos`, `every`, `euclid`, `chance`, `degree`, `instrument`, `instrument_duty`, `instrument_lfo`, `instrument_filter`, `INSTR_*`, `LFO_*`, `FILTER_*`, `SCALE_*`, `CHORD_*` (`music` cut — [decision 0013](../decisions/0013-cut-music-api.md)) |
 | **Math** | `abs`, `min`, `max`, `clamp`, `mid`, `sgn`, `lerp`, `remap`, `distance`, `length`, `angle_to`, `dx`, `dy`, `sin_deg`, `cos_deg`, `fsqrt` |
-| **Collision** | `boxes_touch`, `circles_touch`, `near`, `point_in_box`, `touching_map`, `tile_at`, `touching_color`, `bounce_at_edges` |
-| **Animation** | `anim`, `anim_once`, `blink` |
+| **Collision** | `boxes_touch`, `circles_touch`, `near`, `point_in_box`, `touching_map`, `tile_at`, `touching_color` (`bounce_at_edges` cut — [decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)) |
+| **Animation** | `anim`, `blink` (`anim_once` cut — [decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)) |
 | **Easing** | `ease_in`, `ease_out`, `ease_in_out` |
 | **Noise** | `noise`, `noise2`, `noise3` |
 | **Persistence** | `save`, `load`, `save_bytes`, `load_bytes` |
@@ -396,6 +396,10 @@ Internally: if x < 0 or x + w >= SCREEN_W, flip vx; same for y/vy.
 Operates in screen-space, not world-space, since "edges" only makes
 sense relative to the visible screen.
 
+> **Shipped, then cut** ([decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)):
+> zero carts adopted it in ~236 carts — bouncing is two `if`s that every cart
+> hand-rolls with its own flavor (margins, squash, sound).
+
 ### 3. Animation — one helper, no objects
 
 GameMaker's `image_index` is implicit; PICO-8 makes you do
@@ -417,6 +421,10 @@ frames per second.
 Naming note: `anim` reads well in context (`anim(4, 10)` = "4-frame
 animation at 10 fps"). Shorter than `current_frame_of_animation()`
 and it's already a familiar term to anyone who's used GameMaker.
+
+> **`anim_once` shipped, then cut** ([decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)):
+> `anim` landed in 23 carts; the one-shot variant in zero — a one-shot is just
+> `min((int)((now() - t0) * fps), n - 1)` in cart code.
 
 ### 4. Easing / interpolation
 

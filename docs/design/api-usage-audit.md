@@ -19,10 +19,10 @@ It also cross-checks the "four places" rule (`studio.h` ↔ `studioDocs.js` ↔
 |---|---|
 | `tap`, `touch_controls`, `stick_x`, `stick_y` (+ `touch_x`/`touch_y` at 1 cart each) | touch/gamepad input — nothing exercises it on desktop. Fair, but untested code. |
 | `music` | **CUT same day** ([decision 0013](../decisions/0013-cut-music-api.md)): the only pattern in `music_bank` was the built-in demo (`music 0` = bass+hihat), and there was no cart-facing API to author patterns. Carts build music from `note`/`schedule`/`strum`/`bpm` instead — the direction `guides/game-music.md` teaches. |
-| `bezier_cubic` | quadratic `bezier` covers the need; even that is only in 2 carts |
+| `bezier_cubic` | **CUT** ([decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)): quadratic `bezier` covers the need; even that is only in 2 carts |
 | `map_scale` | every map cart runs at default scale |
-| `bounce_at_edges` | the helper exists but carts hand-roll bouncing — the helper's signature (4 pointer args) may be the friction |
-| `anim_once` | looping `anim` is in 23 carts; the one-shot variant in none |
+| `bounce_at_edges` | **CUT** ([decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)): carts hand-roll bouncing — the 4-pointer-arg signature was more friction than the two `if`s it saved |
+| `anim_once` | **CUT** ([decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)): looping `anim` is in 23 carts; a one-shot is `min((int)((now()-t0)*fps), n-1)` in cart code |
 | `watch_visible`, `paused` | host/debug conveniences — and `paused` is also the one function **missing from `studioDocs.js` and `shell.js`** (the four-places check found exactly this one gap) |
 
 Used exactly once: `arcoutline`, `thicklineoutline`, `hgradient`, `noise3`, `keyr`,

@@ -1904,22 +1904,6 @@ void bezier(int x0, int y0, int cx, int cy, int x1, int y1, int color) {
         px = nx; py = ny;
     }
 }
-void bezier_cubic(int x0, int y0, int cx0, int cy0, int cx1, int cy1, int x1, int y1, int color) {
-    PROF("bezier_cubic");
-    float len = sqrtf((float)((cx0-x0)*(cx0-x0)+(cy0-y0)*(cy0-y0)))
-              + sqrtf((float)((cx1-cx0)*(cx1-cx0)+(cy1-cy0)*(cy1-cy0)))
-              + sqrtf((float)((x1-cx1)*(x1-cx1)+(y1-cy1)*(y1-cy1)));
-    int n = bez_steps(len);
-    float px = (float)x0, py = (float)y0;
-    for (int i = 1; i <= n; i++) {
-        float t = i / (float)n, mt = 1.0f - t;
-        float nx = mt*mt*mt*x0 + 3.0f*mt*mt*t*cx0 + 3.0f*mt*t*t*cx1 + t*t*t*x1;
-        float ny = mt*mt*mt*y0 + 3.0f*mt*mt*t*cy0 + 3.0f*mt*t*t*cy1 + t*t*t*y1;
-        line((int)roundf(px), (int)roundf(py), (int)roundf(nx), (int)roundf(ny), color);
-        px = nx; py = ny;
-    }
-}
-
 void pset(int x, int y, int color) {
     PROF("pset");
     DrawPixel(x, y, palette[color % PALETTE_SIZE]);
@@ -2437,14 +2421,6 @@ bool touching_color(int x, int y, int w, int h, int color) {
     return false;
 }
 
-void bounce_at_edges(int *x, int *y, int *vx, int *vy, int w, int h) {
-    if (!x || !y || !vx || !vy) return;
-    if      (*x < 0)            { *x = 0;            if (*vx < 0) *vx = -*vx; }
-    else if (*x + w > SCREEN_W) { *x = SCREEN_W - w; if (*vx > 0) *vx = -*vx; }
-    if      (*y < 0)            { *y = 0;            if (*vy < 0) *vy = -*vy; }
-    else if (*y + h > SCREEN_H) { *y = SCREEN_H - h; if (*vy > 0) *vy = -*vy; }
-}
-
 // ------------------------------------------------------------
 // animation
 // ------------------------------------------------------------
@@ -2453,14 +2429,6 @@ int anim(int n_frames, float fps, float phase) {
     if (n_frames <= 0) return 0;
     int f = (int)(now() * fps + phase * n_frames) % n_frames;
     if (f < 0) f += n_frames;
-    return f;
-}
-
-int anim_once(int n_frames, float fps, float start_t) {
-    if (n_frames <= 0) return 0;
-    int f = (int)((now() - start_t) * fps);
-    if (f < 0) f = 0;
-    if (f >= n_frames) f = n_frames - 1;
     return f;
 }
 

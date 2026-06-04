@@ -22,10 +22,15 @@
 //   • THE VOID — the last beat before every drop, the whole band cuts to
 //     dead silence; the drop slams in from nothing. One `return` statement,
 //     the genre's most reliable thrill.
-//   • THE LOOP — harmony like a crate find: a seeded 4-bar disco loop
-//     (filtered minor funk or lush major seventh pop), sometimes ROTATED so
-//     it doesn't open on the tonic (lowend.c's needle-drop move), looped the
-//     entire track. The arrangement does all the work; the loop just spins.
+//   • THE LOOP — a STOLEN PLAYBOOK (jingle.c style): 4-bar template loops
+//     transcribed from the records French house actually sampled — Modjo's
+//     Chic loop (i9-bVImaj7-iv9-bVII9), Stardust's Neapolitan bIImaj7,
+//     Braxe/Falke's i-bIII-iv, One More Time's tonic-avoiding IVmaj7-V-iii7
+//     (Chilly Gonzales: the unresolved progression IS the longing), the
+//     Digital Love slash-bass IVmaj7-I/3-ii9-V9sus — plus flavor rolls (the
+//     Lost in Music iv->IV9 dorian flip, the V melting to 9sus) and the
+//     needle-drop ROTATION (lowend.c's move). Sources at the chord tables.
+//     The arrangement does all the work; the loop just spins.
 //   • the DA FUNK LEAD — a seeded riff on a held mono square with
 //     note_glide portamento, gated with note_vol. Drops only.
 //   • 808 DRUMS ON LOAN from tools/carts/tr808.c — the measured circuits:
@@ -54,25 +59,57 @@
 #define SL_CYM  13
 #define SL_MAR  14
 
-// ── chords ────────────────────────────────────────────────────────────────
-enum { Q_MAJ7, Q_MIN7, Q_DOM9, Q_MIN9, NQ };
-static const char *QN[NQ] = { "maj7", "m7", "9", "m9" };
-static const int QV[NQ][3] = {            // rootless: 3rd + 7th + 9th
-    { 4, 11, 14 }, { 3, 10, 14 }, { 4, 10, 14 }, { 3, 10, 14 },
+// ── chords — the stolen playbook ──────────────────────────────────────────
+// French house harmony is SAMPLED late-70s disco, so the chord brain is a
+// catalogue, not a generator (the jingle.c / lowend.c approach): template
+// loops transcribed from the actual records, with flavor rolls. Sources:
+//   Stardust "Music Sounds Better With You" (<- Chaka Khan "Fate"):
+//     Em7 Fmaj7 Cmaj7 Fmaj7 = i7 bIImaj7 bVImaj7 bIImaj7 — the Neapolitan
+//   Modjo "Lady" (<- Chic "Soup for One"): Bbm9 Gbmaj7 Ebm9 Ab9
+//   Braxe/Falke "Intro": Fm Ab Bbm7 = i bIII iv7
+//   Daft Punk "One More Time" (<- Eddie Johns): IVmaj7 V iii7 V — the major
+//     loops AVOID the root-position tonic (Chilly Gonzales on Digital Love:
+//     the unresolved progression IS the longing); alt transcription
+//     Fmaj7 Cmaj7/E Em7 G adds the stepwise SLASH-CHORD bass
+//   Sister Sledge "Lost in Music" (Attack Magazine, Lessons From Disco
+//     Chords): Dm7 C Gm->G Bbmaj7 — the iv flipping MAJOR (the dorian move,
+//     same engine as "Good Times"' Em9-A13 vamp)
+enum { Q_MAJ7, Q_MIN7, Q_MIN9, Q_DOM9, Q_SUS9, NQ };
+static const char *QN[NQ] = { "maj7", "m7", "m9", "9", "9sus" };
+static const int QV[NQ][3] = {
+    { 4, 11, 14 },   // maj7  — voiced with the 9, disco-session lush
+    { 3, 10, 12 },   // m7    — plain (the iii7: a 9th would leave the key)
+    { 3, 10, 14 },   // m9    — the Chic color, the default minor
+    { 4, 10, 14 },   // 9     — dominant with the 9
+    { 5, 10, 14 },   // 9sus  — the suspended V, longing unresolved
 };
 static const char *PCNAME[12] = { "C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B" };
 static const int PENTMIN[5] = { 0, 3, 5, 7, 10 };
 static const int PENTMAJ[5] = { 0, 2, 4, 7, 9 };
 
-typedef struct { int off, q; } Ch;
-// the crates: weighted pools, anchor first (repeats = more likely)
-static const Ch POOL_MIN[8] = {   // filtered minor funk — i iv bVII bIII bVI v
-    { 5, Q_MIN7 }, { 5, Q_MIN9 }, { 10, Q_DOM9 }, { 10, Q_DOM9 },
-    { 3, Q_MAJ7 }, { 8, Q_MAJ7 }, { 7, Q_MIN7 }, { 0, Q_MIN9 },
+typedef struct { int off, q, bass; } Ch;   // bass: semitones above chord root
+                                           // (4 = first inversion, the /3)
+// side A — minor: the filtered funk crates
+static const Ch TMPL_MIN[5][4] = {
+    // "lady": i9 bVImaj7 iv9 bVII9 (Modjo / Chic)
+    { {0,Q_MIN9,0}, {8,Q_MAJ7,0}, {5,Q_MIN9,0}, {10,Q_DOM9,0} },
+    // "stardust": i7 bIImaj7 bVImaj7 bIImaj7 — the Neapolitan shimmer
+    { {0,Q_MIN9,0}, {1,Q_MAJ7,0}, {8,Q_MAJ7,0}, {1,Q_MAJ7,0} },
+    // "braxe": i9 bIIImaj7 iv9 i9
+    { {0,Q_MIN9,0}, {3,Q_MAJ7,0}, {5,Q_MIN9,0}, {0,Q_MIN9,0} },
+    // "lost in music": i9 bVII9 IV9(major! the dorian flip) bVImaj7
+    { {0,Q_MIN9,0}, {10,Q_DOM9,0}, {5,Q_DOM9,0}, {8,Q_MAJ7,0} },
+    // "good times": the two-chord dorian vamp, i9 to IV9 forever
+    { {0,Q_MIN9,0}, {0,Q_MIN9,0}, {5,Q_DOM9,0}, {5,Q_DOM9,0} },
 };
-static const Ch POOL_MAJ[8] = {   // lush major seventh pop — vi ii IV V iii
-    { 9, Q_MIN7 }, { 9, Q_MIN7 }, { 2, Q_MIN9 }, { 5, Q_MAJ7 },
-    { 7, Q_DOM9 }, { 4, Q_MIN7 }, { 5, Q_MAJ7 }, { 0, Q_MAJ7 },
+// side B — major: lush, and the tonic never sits at home
+static const Ch TMPL_MAJ[3][4] = {
+    // "one more time": IVmaj7 V9 iii7 V9sus
+    { {5,Q_MAJ7,0}, {7,Q_DOM9,0}, {4,Q_MIN7,0}, {7,Q_SUS9,0} },
+    // "royal road": IVmaj7 V9 iii7 vi9 (city pop's loop, a continent over)
+    { {5,Q_MAJ7,0}, {7,Q_DOM9,0}, {4,Q_MIN7,0}, {9,Q_MIN9,0} },
+    // "digital": IVmaj7 I/3 ii9 V9sus — the stepwise slash-chord bass
+    { {5,Q_MAJ7,0}, {0,Q_MAJ7,4}, {2,Q_MIN9,0}, {7,Q_SUS9,0} },
 };
 
 // ── the form — 8 phrases x 8 bars; the RIDE keys off this, not the chords ─
@@ -106,7 +143,7 @@ static int    songCount = 0;
 static double stepMs    = 123.0;
 static float  vu        = 0;
 static int    bassLast  = 38;
-static char   nowChord[4][8];
+static char   nowChord[4][12];
 
 // voice-led voicings: stabs and strings each keep their own fingers
 static int  gvStab[3] = { 64, 67, 71 };
@@ -144,15 +181,24 @@ static void new_song(double pos, unsigned seed) {
 
     sng.keyPc    = srnd(12);
     sng.minorKey = srnd(100) < 60;
-    const Ch *pool = sng.minorKey ? POOL_MIN : POOL_MAJ;
 
-    // the loop: anchor on the tonic, fill from the crate; 30% two-chord loop
-    sng.loop[0] = sng.minorKey ? (Ch){ 0, Q_MIN9 } : (Ch){ 0, Q_MAJ7 };
-    for (int i = 1; i < 4; i++) sng.loop[i] = pool[srnd(8)];
-    if (srnd(100) < 30) { sng.loop[2] = sng.loop[0]; sng.loop[3] = sng.loop[1]; }
-    if (srnd(100) < 35) {                 // the needle drop: rotate the loop so
-        int r = 1 + srnd(3);              // it doesn't open on the tonic
-        Ch tmp[4];
+    // the loop: pick ONE transcribed template from the crate...
+    {
+        const Ch *t = sng.minorKey ? TMPL_MIN[srnd(5)] : TMPL_MAJ[srnd(3)];
+        for (int i = 0; i < 4; i++) sng.loop[i] = t[i];
+    }
+    // ...then the flavor rolls (jingle.c style):
+    if (sng.minorKey && srnd(100) < 25)            // the Lost in Music move —
+        for (int i = 1; i < 4; i++)                // flip a minor iv to major IV9
+            if (sng.loop[i].off == 5 && sng.loop[i].q == Q_MIN9)
+                { sng.loop[i].q = Q_DOM9; break; }
+    if (!sng.minorKey && srnd(100) < 30)           // melt the V into a 9sus
+        for (int i = 1; i < 4; i++)
+            if (sng.loop[i].off == 7 && sng.loop[i].q == Q_DOM9)
+                { sng.loop[i].q = Q_SUS9; break; }
+    if (srnd(100) < 35) {                 // the needle drop: rotate the loop —
+        int r = 1 + srnd(3);              // the sample starts where the needle
+        Ch tmp[4];                        // fell, not where home is
         for (int i = 0; i < 4; i++) tmp[i] = sng.loop[(i + r) % 4];
         for (int i = 0; i < 4; i++) sng.loop[i] = tmp[i];
     }
@@ -217,9 +263,13 @@ static void fresh_song(double pos) {
 static int sect_of(long bar)  { long x = bar / 8; return (int)(x < 8 ? FORM[x] : S_OUTRO); }
 static Ch  chord_at(long bar) { return sng.loop[bar % 4]; }
 static int root_pc(Ch c)      { return (sng.keyPc + c.off) % 12; }
+static int bass_pc(Ch c)      { return (sng.keyPc + c.off + c.bass) % 12; }  // the slash
 
 static void chord_label(char *out, int n, Ch c) {
-    snprintf(out, n, "%s%s", PCNAME[root_pc(c)], QN[c.q]);
+    if (c.bass)
+        snprintf(out, n, "%s%s/%s", PCNAME[root_pc(c)], QN[c.q], PCNAME[bass_pc(c)]);
+    else
+        snprintf(out, n, "%s%s", PCNAME[root_pc(c)], QN[c.q]);
 }
 
 // drums sit out the break, and the last bars of the outro
@@ -373,19 +423,19 @@ static void play_step(long abs, double pos) {
     // BASS — octave disco pop, or the masked funk walk (intro waits 4 bars)
     if (!(sect == S_INTRO && bar % 8 < 4)) {
         if (sng.bassOct) {
-            int b = bass_near(root_pc(c));
+            int b = bass_near(bass_pc(c));               // the slash bass lives here
             if (step % 8 == 0)
                 { schedule_hit(dly + rnd(2), b, I_BASS, 6, (int)(stepMs * 1.7)); vu += 2; }
             else if (step % 4 == 2)
                 { schedule_hit(dly + rnd(2), b + 12, I_BASS, 4, 90); vu += 1; }   // the pop
             else if (step == 14) {                       // approach into the next bar
-                int np = root_pc(chord_at(bar + 1));
-                if (np != root_pc(c))
+                int np = bass_pc(chord_at(bar + 1));
+                if (np != bass_pc(c))
                     schedule_hit(dly + rnd(2), bass_near(np) + (chance(50) ? -1 : 1),
                                  I_BASS, 4, 80);
             }
         } else if (step % 2 == 0 && (sng.bassMask >> (step / 2)) & 1) {
-            int b = (step == 0) ? bass_near(root_pc(c)) : bassLast;
+            int b = (step == 0) ? bass_near(bass_pc(c)) : bassLast;
             int n = b + sng.bassDeg[step / 2];
             while (n > 45) n -= 12;
             schedule_hit(dly + rnd(2), n, I_BASS, 5, (int)(stepMs * 1.4));
@@ -547,7 +597,7 @@ void update(void) {
         if (songStep >= 64L * 16) fresh_song(pos);
 
         long bar = songStep >= 0 ? songStep / 16 : 0;
-        for (int i = 0; i < 4; i++) chord_label(nowChord[i], 8, sng.loop[i]);
+        for (int i = 0; i < 4; i++) chord_label(nowChord[i], 12, sng.loop[i]);
 
         // ── THE RIDE — every frame: aim the filters from the arrangement ──
         double sp = pos - songBase;

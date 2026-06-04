@@ -530,6 +530,42 @@ mistuning. The other half of the engine's expressiveness, mostly unexplored.
   (7/11/13 bars) phasing against each other. Nearly free; ties to the Reich
   idea above.
 
+### Batch three: the functional-music wing
+
+Music engineered for a PURPOSE — plants, shops, television programs that
+didn't exist yet. The meta-joke is the point: these radios already ARE library
+music — generative tracks with mood metadata waiting for a game to license
+them. This wing makes that explicit.
+
+- **Plantasia (Mort Garson, 1976)** — "warm earth music for plants." Early
+  Moog, and the first MELODY-FORWARD station: every cart so far buries the
+  lead in the arrangement; here the mono Moog lead is the protagonist — a held
+  voice with note_glide portamento + vibrato (jangle's lead, promoted),
+  bouncy staccato bass, celesta bells, innocent major harmony with vaudeville
+  chromatic passing chords. Face gimmick: a generative houseplant that GROWS
+  as the piece plays — fresh plant per seed, fully grown by the outro.
+- **Muzak / sounds of the supermarket** — the Muzak Corporation's "Stimulus
+  Progression" (1948): 15-minute blocks of ASCENDING INTENSITY engineered to
+  pace workers — literally this guide's density curve, invented as a corporate
+  product 75 years early (the cart should cite it). Vibraphone-led easy
+  listening, muted brass, everything consonant and dynamically flattened, plus
+  the foley layer: PA bing-bong chime, register beeps as percussion. Optional
+  modern lens: mallsoft (drown it in echo_hit, pitch it down). Face:
+  fluorescent aisle, PA speaker, the seed on a price display.
+- **KPM library music (the green sleeves)** — Mansfield/Hawkshaw/Dale/Tew:
+  big-band breakbeat funk made for unknown television, the most-sampled
+  catalogue in hip hop. Two engine ideas, one big:
+  - **the break** — an arrangement section that is deliberately DRUMS-ONLY as
+    a feature (the bars that made these records sampleable; connects to
+    lowend.c).
+  - **MOOD METADATA AS THE FRONT DOOR** — KPM sold tracks by descriptor
+    ("bright, confident movement", "tension: industrial"). The cart picks the
+    mood FIRST and derives everything (tempo, key, template, kit) from a mood
+    table, displayed on a generated green sleeve with a seeded catalogue
+    number. This prototypes the API every game actually wants from generative
+    music — "give me tension", "give me victory lap" — and could retrofit the
+    whole radio family as a mood-keyed library.
+
 ## Verifying without ears
 
 The debug harness makes the music inspectable (see `debug-harness.md`):

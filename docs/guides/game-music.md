@@ -152,10 +152,34 @@ same source:
 Trace-verified: verse `G D F9 C` / chorus `Bbm6 Em7 Am7 D9` — I–V–bVII9–IV into a
 borrowed-bIII chorus, a plausible DeMarco chart nobody wrote.
 
+### The fifth chord brain: the sampled loop (lowend.c)
+
+How hip hop hears harmony — encoded from the r/musictheory analysis of ATCQ's
+"Electric Relaxation" loop (`Bmaj7 D#sus G#maj9 F#sus2 Emaj9#11` — a *3-bar* loop
+of modal mixture where every borrowed chord is voiced lush). Three rules:
+
+- **Mixture, voiced pretty.** Pool = I, ii, IV, Vsus + borrowed bIII/bVI/bVII —
+  all as maj7/maj9 (the bVI gets the maj9#11). The 9sus replaces the dominant.
+- **Odd loop lengths.** 2/3/4 bars with 3 favoured — a 3-bar loop never squares
+  with the ear, so the head keeps nodding. Let it roll over 8-bar section lines;
+  the sample doesn't know about your song form.
+- **Rotate the cut.** Generate the progression with a real Vsus→I cadence inside
+  it, then rotate the loop by a random offset — "their sampling moved the tonic."
+  The loop starts where the needle dropped, not where home is. Trace-verified:
+  `Dmaj7 Amaj7 Gb9sus Bmaj9 Dmaj9 Amaj9` in B — starts on bIII, cadence mid-loop,
+  exactly the Electric Relaxation shape.
+
+Production side (The Low End Theory playbook): bass first (voice-led upright,
+vol 6, leaning +12ms), minimalism (bass + drums + one element), **layered hits**
+(Q-Tip stacked snares — fire a noise crack + sine thump together), the full
+groove template, and **no tempo wobble** — samplers don't drift; the machine is
+steady and the players lean.
+
 **Pick the brain by what the music is for:** pull (action, songs) → functions +
 cadences; float (menus, exploration, night) → one mode + drift; sit (background,
 overworld, menus you stay in) → vamp + arrangement; sound like *someone* (homage,
-a licensed-feel pastiche) → stolen playbook + flavor rolls.
+a licensed-feel pastiche) → stolen playbook + flavor rolls; nod (hip hop, anything
+loop-born) → sampled loop, cut and rotated.
 
 ## 3. Voice leading — the single biggest "sounds composed" trick
 
@@ -350,7 +374,7 @@ What changes between styles is mostly **data** — the engine above carries over
 | **lofi jazz** | 70–85 | swing 56–60%, melody very late | m9/maj9, slower changes (2 bars/chord), pentatonic noodle | rhodes, soft kick/snare, dusty hats, crackle | idea |
 | **jangle pop (DeMarco)** | 86–109 | straight + loose (kit +2..10ms vs bass), tempo wobble ±1 at bar lines | mixolydian vamp: 2–4 chords looped, NO bridge — arrangement is the form | chorus-wobble gtr (5.5Hz pitch-LFO pluck), round bass, CR-78-ish kit, legato whistle lead w/ glide | ✅ `jangle.c` |
 | **dusk ballad (DeMarco theory)** | 72–92 | fingerpicked 8ths w/ gaps, soft loose kit, gentle 4.6Hz warble | stolen playbook: song templates + bVII (maj/7/9) + bIII (maj7/m6) rolls, chromatic bass descents, verse/chorus, melodic accommodation | picked add9 tri gtr, voice-led sine bass, rim/hat kit, soft sine lead | ✅ `jingle.c` |
-| **boom-bap (ATCQ)** | 88–96 | groove template: hats −8ms, snare +22ms, bass +12ms | jazzy ii–V loops 2 bars long, m9 stabs, walking-ish bass fragments | dusty kick (pitch-env sine), cracky snare, ride, upright-ish bass, rhodes stabs | idea |
+| **boom-bap (ATCQ)** | 88–97 | full groove template (hats −8ms, snare +22ms, bass +12ms, swing 57%), NO tempo drift | sampled loop: modal-mixture maj9 pool, 9sus dominant, 2/3/4-bar cut, rotated | voice-led upright bass (the star), layered snare, dusty kick, tremolo rhodes, vinyl dust | ✅ `lowend.c` |
 | **ambient** | 60 fixed, pace knob | beatless; chords hold 8–16 beats, held `note_on` voices morph via `note_glide` | one mode per song, degree walk, no cadences | 4 detuned saw pads, sine sub, band-noise wind, bell arps | ✅ `ambient.c` |
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 

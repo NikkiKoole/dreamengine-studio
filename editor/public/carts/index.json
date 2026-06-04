@@ -2162,5 +2162,15 @@
       "instrument"
     ],
     "homage": "Mac DeMarco (Reverb Machine chord theory)"
+  },
+  {
+    "title": "low end radio",
+    "description": "Endless jazz-rap boom bap - the A Tribe Called Quest / Low End Theory homage, fifth of the radio family. Chord brain #5, THE SAMPLED LOOP: generates a lush modal-mixture soul progression (borrowed bIII/bVI/bVII voiced maj7/maj9, a 9sus dominant, the bVI as maj9#11 - per the r/musictheory Electric Relaxation analysis), then cuts a 2/3/4-bar loop (3 favoured) and ROTATES it like a crate-digger dropping the needle mid-phrase, so the tonic moves. Upright-ish bass front and center leaning +12ms, full groove template (hats rush -8ms, snare drags +22ms, 16ths swung 57%), Q-Tip layered snare (noise crack + sine thump as one hit), tremolo rhodes stabs, vinyl dust, hook lead narrowed to each chord's tones. No tempo wobble - samplers don't drift. Seed on display (LOWEND_SEED / R / [ ] history), H help. Worked example #5 for docs/guides/game-music.md.",
+    "file": "lowend.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "A Tribe Called Quest - The Low End Theory"
   }
 ]

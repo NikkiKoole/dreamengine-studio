@@ -175,6 +175,36 @@ read as *the same flat seen from behind*, never as another building.
   building swaps) — open. Sky/weather/time are of course identical on both
   sides (sun side might warrant a brightness bias later).
 
+### 5. The inhabitants — households as the generative root
+
+Who lives there. Composition ranges from **one old person** to a **young
+family of five** and everything in between — and crucially, **the household
+explains the window**: sill and curtains must *correlate* with who lives
+behind them. A stranger reading the facade should be able to guess.
+
+- **Roll order inverts**: the household is rolled FIRST; treatments (sys 2),
+  sill (sys 3), light schedule (sys 1) and balcony clutter (sys 4) are
+  *expressed traits* of that household — derived with correlated
+  distributions, not independent rolls. (Same idea as trafficjam's
+  type-then-jitter: archetype sets the center, jitter keeps it alive.
+  Archetypes **bias**, never dictate — the occasional chaotic granny is
+  the point.)
+- **Archetype sketches** (the correlation table to tune later):
+  - *single elderly* — vitrage + symmetrical sill (the full vensterbank),
+    warm light, early to bed, slow rare gallery walks
+  - *young family (3–5)* — closed curtains at night, cluttered/random sill
+    (toys), early mornings, most laundry on the balcony, most walkers
+  - *student / young single* — bare glass or a half-stuck roller blind,
+    empty-or-trash sill, TV flicker, lights on past midnight
+  - *couple, middle* — venetians, modest tidy sill, regular hours
+  - *vacant* — no treatment, empty sill, never lit (a few per building;
+    silence is part of the rhythm)
+- **Composition shows**: number of residents = how many figures can walk the
+  gallery / appear on the balcony; family bustle vs single-person stillness
+  is visible in event frequency, not just decor.
+- **Day rhythm per archetype**: who's lit at 7:00 (family kitchen) vs 01:00
+  (student) — the facade patchwork becomes *legible* once you know the codes.
+
 *(list to be continued in a future session)*
 
 ## Open questions (for the next sessions)

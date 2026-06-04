@@ -313,32 +313,24 @@ no debug guards. Layout redesigned this session:
 - Dithered shadow strip under each gallery slab (3px, fades)
 - 4-column dithered shadow on facade adjacent to lift tower
 
-**Still open for this cart:**
-1. **Muting pass** — too many lit/saturated windows still. Plan: ~40% lit max,
-   curtain *dark* variants dominate at dusk, lit warm (yellow/blue-tv) as
-   accent only. House numbers still print at `baseY-4` — move onto plinth.
-2. **Moon crescent** — cover circle same radius as disc (offset 3px left, 1px
-   up), self-eclipses to near-black blob. Needs smaller/farther cover circle.
-3. **Sky cart** (system 1) — deferred to its own session. Builds on the now-
-   fixed `gradient()` primitive. See sys 1 build plan above.
+**Step 1 is complete.** Static facade renders clean, registered in `index.json`.
 
-### Step 1 — session 1 findings (2026-06-04, resolved)
+### Step 1 — all findings resolved
 
-Original findings — all closed:
+1. ✓ `vgradient` inverted — fixed engine-wide, 4 carts re-baked.
+2. ✓ Phantom band — was vgradient inversion + missing `cls(0)`. Gone.
+3. ✓ Moon — removed entirely.
+4. ✓ House numbers — removed entirely.
+5. ✓ Wall palette — expanded 3→8 entries, doors guaranteed ≠ wall color.
 
-1. ✓ **ENGINE BUG: `vgradient` inverted** — fixed (`gradient_band` color roles
-   swapped); 4 carts re-baked. `docs/STATUS.md` updated.
-2. ✓ **Phantom band at y≈3–24** — was the inverted sky gradient drawing the
-   warm end (`CLR_DARK_PEACH`) near y=0. Resolved by vgradient fix + `cls(0)`.
-3. **Moon crescent self-eclipse** — still open (see above).
-4. **Too confetti for dusk** — partially addressed (wall palette expanded, door
-   colors constrained). Full muting pass still open.
+**What's next:** systems 2–7 (see above). Sky/time-of-day (sys 1) is being
+handled by a separate agent. The static facade is the foundation; the living
+systems build on top of it.
 
-## Handoff — next agent starts here (written 2026-06-04, session 2)
+## Handoff — next agent starts here (2026-06-04, session 2 complete)
 
-**Repo state.** Cart at `tools/carts/galerijflat.c`, registered in
-`editor/public/carts/index.json`, no debug guards, renders clean.
-Latest commit: `6349674`.
+**Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
+Latest commit: `d9b1129`.
 
 **The bake loop** (~10s per iteration):
 ```bash
@@ -346,30 +338,14 @@ node tools/make-cart.js tools/carts/galerijflat.c editor/public/carts/galerijfla
 node tools/make-cart.js --run editor/public/carts/galerijflat.cart.png
 # inspect build/.bake/galerijflat/screenshot.png — NEVER build/screenshot.png
 magick build/.bake/galerijflat/screenshot.png -scale 960x600 /tmp/gf.png
-magick build/.bake/galerijflat/screenshot.png -crop 160x48+80+80 +repage -scale 960x288 /tmp/gf_zoom.png
 ```
 
-**Task 1 — muting pass** (the most important remaining visual task):
-The facade reads as carnival — too many lit windows, too many saturated
-door/curtain colors. Fix in `roll_home`:
-- Reduce `h->lit` probability (currently roughly 50% — drop to ~30%)
-- Bias lit windows toward warm yellow/blue-tv, not the full curtain rainbow
-- Curtain treatment: at dusk, `tDark` should dominate — `h->curtOpen`
-  probability should be lower (≤40%)
-Also: house numbers in `draw_plinth` print at `baseY - 4` (landing on the
-floor-0 band's slab area). Move to `baseY + 3` (onto the plinth face).
+**Next build steps are systems 2–7** — see the systems section above for full
+specs. Suggested order: sys 5 (inhabitants, already partially in) → sys 2
+(window treatments driven by archetype) → sys 3 (windowsills) → sys 6 (daily
+round / clock-driven state) → sys 7 (elevator) → sys 4 (the flip).
 
-**Task 2 — moon crescent fix** (trivial, 2 lines):
-In `draw()`, the cover circle is `circfill(moonX - 3, wallTop/2 - 1, 5, ...)`.
-Same radius as the disc → near-total eclipse. Change to radius 4, offset 4px
-left: `circfill(moonX - 4, wallTop/2 - 1, 4, CLR_DARKER_BLUE)`. Thinner
-crescent, clearly readable.
-
-**Task 3 — sky cart** (own session, deferred):
-See sys 1 build plan above. Only after the dusk facade is visually settled.
-
-House rules: commit directly on `master`; `git add` per-file; two-step bake
-every time (step 1 re-embeds source, step 2 captures screenshot).
+House rules: commit on `master`; `git add` per-file; two-step bake every time.
 
 ## References in-repo
 

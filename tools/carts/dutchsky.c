@@ -8,36 +8,35 @@
 #define NS  90   // stars
 #define GH  16   // ground strip height (px)
 
-// p1..p4 are blend-zone boundaries (0=sky top, 1=sky bottom):
-//   solid_top: 0→p1 | blend top→mid: p1→p2 | solid_mid: p2→p3
-//   blend mid→bot: p3→p4 | solid_bot: p4→1
-// Colours snap at the keyframe midpoint; p1..p4 lerp continuously —
-// the dpaInt effect: blend zones grow/shrink rather than the whole sky snapping.
+// mid_y: where the mid colour peaks (fraction of sky height, 0=top 1=bottom)
+// bot_y: where the solid horizon strip starts
+// No solid_top or solid_mid — just two stacked vgradients + a solid horizon.
+// That removes all hard junctions inside the sky; only the very bottom edge is flat.
 typedef struct {
     float t;
     int   top, mid, bot;
-    float p1, p2, p3, p4;
+    float mid_y, bot_y;
 } SkyKey;
 
 static const SkyKey SK[NK] = {
-  // time   top                  mid                 bot                   p1     p2     p3     p4
-  { 0.00f, CLR_BROWNISH_BLACK, CLR_DARKER_BLUE,  CLR_DARKER_BLUE,   0.35f, 0.48f, 0.72f, 0.80f },// midnight
-  { 0.09f, CLR_DARKER_BLUE,   CLR_DARKER_BLUE,  CLR_DARK_BLUE,     0.35f, 0.48f, 0.72f, 0.80f },// late night
-  { 0.17f, CLR_DARKER_BLUE,   CLR_DARK_BLUE,    CLR_DARKER_PURPLE, 0.33f, 0.46f, 0.68f, 0.78f },// pre-dawn
-  { 0.20f, CLR_DARKER_BLUE,   CLR_TRUE_BLUE,    CLR_DARK_PEACH,    0.26f, 0.42f, 0.52f, 0.76f },// dawn glow
-  { 0.24f, CLR_DARKER_BLUE,   CLR_TRUE_BLUE,    CLR_DARK_ORANGE,   0.18f, 0.38f, 0.45f, 0.78f },// dawn
-  { 0.28f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_ORANGE,        0.22f, 0.42f, 0.52f, 0.76f },// sunrise
-  { 0.33f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_LIGHT_PEACH,   0.28f, 0.46f, 0.60f, 0.76f },// morning
-  { 0.50f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_LIGHT_PEACH,   0.38f, 0.50f, 0.72f, 0.82f },// noon
-  { 0.64f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_LIGHT_PEACH,   0.38f, 0.50f, 0.72f, 0.82f },// afternoon
-  { 0.68f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_DARK_PEACH,    0.32f, 0.47f, 0.62f, 0.78f },// late afternoon
-  { 0.71f, CLR_DARK_BLUE,     CLR_TRUE_BLUE,    CLR_DARK_ORANGE,   0.18f, 0.40f, 0.47f, 0.78f },// pre-golden
-  { 0.75f, CLR_DARKER_BLUE,   CLR_DARK_ORANGE,  CLR_ORANGE,        0.06f, 0.38f, 0.44f, 0.82f },// golden hour
-  { 0.78f, CLR_DARKER_BLUE,   CLR_MAUVE,        CLR_DARK_PEACH,    0.10f, 0.40f, 0.48f, 0.82f },// dusk
-  { 0.81f, CLR_DARKER_BLUE,   CLR_DARK_PURPLE,  CLR_MAUVE,         0.18f, 0.44f, 0.56f, 0.80f },// deep dusk
-  { 0.85f, CLR_DARKER_BLUE,   CLR_DARK_PURPLE,  CLR_DARKER_GREY,   0.26f, 0.47f, 0.64f, 0.78f },// twilight
-  { 0.91f, CLR_BROWNISH_BLACK,CLR_DARKER_BLUE,  CLR_DARKER_PURPLE, 0.32f, 0.48f, 0.70f, 0.80f },// late twilight
-  { 1.00f, CLR_BROWNISH_BLACK,CLR_DARKER_BLUE,  CLR_DARKER_BLUE,   0.35f, 0.48f, 0.72f, 0.80f },// midnight
+  // time   top                  mid                bot               mid_y  bot_y
+  { 0.00f, CLR_BROWNISH_BLACK, CLR_DARKER_BLUE,  CLR_DARKER_BLUE,  0.48f, 0.80f },// midnight
+  { 0.09f, CLR_DARKER_BLUE,   CLR_DARKER_BLUE,  CLR_DARK_BLUE,    0.48f, 0.80f },// late night
+  { 0.17f, CLR_DARKER_BLUE,   CLR_DARK_BLUE,    CLR_DARKER_PURPLE,0.45f, 0.78f },// pre-dawn
+  { 0.20f, CLR_DARKER_BLUE,   CLR_TRUE_BLUE,    CLR_DARK_PEACH,   0.40f, 0.74f },// dawn glow
+  { 0.24f, CLR_DARKER_BLUE,   CLR_TRUE_BLUE,    CLR_DARK_ORANGE,  0.32f, 0.74f },// dawn
+  { 0.28f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_ORANGE,       0.38f, 0.76f },// sunrise
+  { 0.33f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_LIGHT_PEACH,  0.44f, 0.78f },// morning
+  { 0.50f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_LIGHT_PEACH,  0.52f, 0.84f },// noon
+  { 0.64f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_LIGHT_PEACH,  0.52f, 0.84f },// afternoon
+  { 0.68f, CLR_TRUE_BLUE,     CLR_BLUE,         CLR_DARK_PEACH,   0.46f, 0.80f },// late afternoon
+  { 0.71f, CLR_DARK_BLUE,     CLR_TRUE_BLUE,    CLR_DARK_ORANGE,  0.34f, 0.78f },// pre-golden
+  { 0.75f, CLR_DARKER_BLUE,   CLR_DARK_ORANGE,  CLR_ORANGE,       0.24f, 0.80f },// golden hour
+  { 0.78f, CLR_DARKER_BLUE,   CLR_MAUVE,        CLR_DARK_PEACH,   0.28f, 0.80f },// dusk
+  { 0.81f, CLR_DARKER_BLUE,   CLR_DARK_PURPLE,  CLR_MAUVE,        0.36f, 0.80f },// deep dusk
+  { 0.85f, CLR_DARKER_BLUE,   CLR_DARK_PURPLE,  CLR_DARKER_GREY,  0.44f, 0.80f },// twilight
+  { 0.91f, CLR_BROWNISH_BLACK,CLR_DARKER_BLUE,  CLR_DARKER_PURPLE,0.46f, 0.80f },// late twilight
+  { 1.00f, CLR_BROWNISH_BLACK,CLR_DARKER_BLUE,  CLR_DARKER_BLUE,  0.48f, 0.80f },// midnight
 };
 
 static float tod   = 0.78f;   // time of day 0..1 (0 = midnight, 0.5 = noon)
@@ -66,34 +65,26 @@ static void sky_find(float t, int *ai, int *bi, float *frac) {
 }
 
 // ── draw_atm ──────────────────────────────────────────────────────────────────
-// Colours snap at the keyframe midpoint; blend-zone boundaries (p1..p4) lerp
-// continuously. The zones grow/shrink like a dpaint gradient being dragged —
-// the orange horizon at dawn literally expands upward into the blue sky.
+// Two stacked vgradients + a solid horizon strip. No solid zones in the middle
+// so there are no hard junctions to see. mid_y and bot_y lerp continuously —
+// the mid-colour peak slides up/down as the day changes.
 
 static void draw_atm(int y0, int h, float t) {
     if (h <= 1) return;
     int ai, bi; float frac;
     sky_find(t, &ai, &bi, &frac);
 
-    const SkyKey *k = frac < 0.5f ? &SK[ai] : &SK[bi];
-    float p1 = lerp(SK[ai].p1, SK[bi].p1, frac);
-    float p2 = lerp(SK[ai].p2, SK[bi].p2, frac);
-    float p3 = lerp(SK[ai].p3, SK[bi].p3, frac);
-    float p4 = lerp(SK[ai].p4, SK[bi].p4, frac);
-    if (p2 < p1) p2 = p1;
-    if (p3 < p2) p3 = p2;
-    if (p4 < p3) p4 = p3;
+    const SkyKey *k  = frac < 0.5f ? &SK[ai] : &SK[bi];
+    float mid_y = lerp(SK[ai].mid_y, SK[bi].mid_y, frac);
+    float bot_y = lerp(SK[ai].bot_y, SK[bi].bot_y, frac);
+    if (bot_y < mid_y) bot_y = mid_y;
 
-    int y1 = y0 + (int)(p1 * h);
-    int y2 = y0 + (int)(p2 * h);
-    int y3 = y0 + (int)(p3 * h);
-    int y4 = y0 + (int)(p4 * h);
+    int ym = y0 + (int)(mid_y * h);
+    int yb = y0 + (int)(bot_y * h);
 
-    if (y1 > y0)    rectfill(0, y0, SCREEN_W, y1-y0,   k->top);
-    if (y2 > y1)    vgradient(0, y1, SCREEN_W, y2-y1,  k->top, k->mid);
-    if (y3 > y2)    rectfill(0, y2, SCREEN_W, y3-y2,   k->mid);
-    if (y4 > y3)    vgradient(0, y3, SCREEN_W, y4-y3,  k->mid, k->bot);
-    if (y0+h > y4)  rectfill(0, y4, SCREEN_W, y0+h-y4, k->bot);
+    if (ym > y0)    vgradient(0, y0, SCREEN_W, ym-y0,   k->top, k->mid);
+    if (yb > ym)    vgradient(0, ym, SCREEN_W, yb-ym,   k->mid, k->bot);
+    if (y0+h > yb)  rectfill(0,  yb, SCREEN_W, y0+h-yb, k->bot);
 }
 
 // ── stars ─────────────────────────────────────────────────────────────────────

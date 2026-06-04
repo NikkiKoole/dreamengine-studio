@@ -358,6 +358,9 @@ static void draw_window(Home *h, int f, int b, int wx, int wy) {
             if (h->itPlant[i])
                 pset(ix, iy - 1, lit ? CLR_BROWNISH_BLACK : CLR_DARK_GREEN);
         }
+
+    // windowsill ledge — 1px below glass; colour from curtain bright pair
+    rectfill(wx, wy + WH, WW, 1, h->tBright);
 }
 
 static void draw_band(int f) {

@@ -92,12 +92,16 @@ static int cart_load(const char *path) {
 // Called once per frame: if the cart file changed on disk, recompile and hot-swap
 // the entry points — WITHOUT re-running init(), so de_state (and thus game state)
 // carries across the reload. A compile error leaves the running cart untouched.
+static void key_claims_reset(void);   // defined with the pause state below
 static void cart_reload_if_changed(void) {
     if (!cart_path_buf[0]) return;
     long m = file_mtime(cart_path_buf);
     if (!m || m == cart_mtime) return;
     char path[1024]; snprintf(path, sizeof path, "%s", cart_path_buf);
-    if (cart_load(path) == 0) fprintf(stderr, "[tcc] hot-reloaded %s\n", path);
+    if (cart_load(path) == 0) {
+        fprintf(stderr, "[tcc] hot-reloaded %s\n", path);
+        key_claims_reset();   // the new cart re-claims whatever it reads
+    }
     else                      cart_mtime = m;   // don't re-attempt the broken file every frame
 }
 #endif // DE_TCC
@@ -180,6 +184,16 @@ static bool            web_started      = false;  // true after the user clicks 
 static bool  pause_active = false;
 static int   pause_sel    = 0;    // 0 = Continue, 1 = Restart
 static char **restart_argv = NULL;
+
+// keys the cart reads via key()/keyp()/keyr() are "claimed" — the pause
+// hotkey skips them, so a cart using the whole keyboard (sh101's two-manual
+// piano takes P) doesn't fight the overlay. Claims are sticky per cart run.
+#define KEY_CLAIM_MAX 512
+static bool key_claimed[KEY_CLAIM_MAX];
+static void key_claim(int k) { if (k >= 0 && k < KEY_CLAIM_MAX) key_claimed[k] = true; }
+#ifdef DE_TCC
+static void key_claims_reset(void) { memset(key_claimed, 0, sizeof key_claimed); }
+#endif
 
 // ------------------------------------------------------------
 // debug harness — deterministic clock + input record/replay + trace.
@@ -865,14 +879,18 @@ static void loop_step(void) {
     update_stick();
     if (inp_pressed(KEY_F1)) watch_show = !watch_show;
 
-    // pause overlay — P or ENTER toggles; when open ESC resumes instead of closing the window
+    // pause overlay — PAUSE_KEY or ENTER toggles; when open ESC resumes instead
+    // of closing the window. Keys the cart reads itself are claimed and skipped.
     SetExitKey(pause_active ? KEY_NULL : KEY_ESCAPE);
-    if (inp_pressed(KEY_P) || (!pause_active && inp_pressed(KEY_ENTER))) {
+    bool pause_opened_now = false;
+    if ((inp_pressed(PAUSE_KEY) && !key_claimed[PAUSE_KEY])
+        || (!pause_active && inp_pressed(KEY_ENTER) && !key_claimed[KEY_ENTER])) {
         pause_active = !pause_active;
         pause_sel = 0;
+        pause_opened_now = pause_active;   // don't let the menu eat the same press
         SetMasterVolume(pause_active ? 0.0f : 1.0f);
     }
-    if (pause_active) {
+    if (pause_active && !pause_opened_now) {
         if (inp_pressed(KEY_ESCAPE)) {
             pause_active = false;
             SetMasterVolume(1.0f);
@@ -2580,9 +2598,9 @@ float dt(void) { return frame_dt; }
 int   fps(void) { return GetFPS(); }
 
 const char *text_input(void) { return text_buf; }
-bool key(int k)  { return inp_down(k); }
-bool keyp(int k) { return inp_pressed(k); }
-bool keyr(int k) { return inp_released(k); }
+bool key(int k)  { key_claim(k); return inp_down(k); }
+bool keyp(int k) { key_claim(k); return inp_pressed(k); }
+bool keyr(int k) { key_claim(k); return inp_released(k); }
 
 void pal(int c0, int c1)  { if (c0 >= 0 && c0 < PALETTE_SIZE && c1 >= 0 && c1 < PALETTE_SIZE) { palette[c0] = base_palette[c1]; pal_recompute(); } }
 void pal_reset(void)      { for (int i = 0; i < PALETTE_SIZE; i++) palette[i] = base_palette[i]; pal_recompute(); }

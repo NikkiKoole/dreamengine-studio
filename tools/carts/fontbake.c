@@ -45,9 +45,12 @@ void draw(void) {
         line(SCREEN_W / 2 + i * 7, hz, SCREEN_W / 2 + i * 52, SCREEN_H, CLR_DARK_PURPLE);
     line(0, hz, SCREEN_W, hz, CLR_PINK);
 
-    // "DREAM" — baked sheet region (0,0,128,32) drawn 2x, sine-waved in strips
+    // "DREAM" — baked sheet region (0,0,128,32) drawn 2x, sine-waved in strips.
+    // recolor BOTH baked colors: the fill and its AA edge — the edge is its own
+    // palette index (orange), so swapping the fill alone leaves a clashing rim
     static const int tints[4] = { CLR_YELLOW, CLR_PINK, CLR_LIME_GREEN, CLR_BLUE };
-    if (cycle) pal(CLR_YELLOW, tints[cycle]);
+    static const int edges[4] = { CLR_ORANGE, CLR_DARK_RED, CLR_MEDIUM_GREEN, CLR_TRUE_BLUE };
+    if (cycle) { pal(CLR_YELLOW, tints[cycle]); pal(CLR_ORANGE, edges[cycle]); }
     for (int sx = 0; sx < 128; sx += 4) {
         int off = (int)(sinf(t * 2.2f + sx * 0.05f) * 3.0f);
         sspr(sx, 0, 4, 32, 32 + sx * 2, 34 + off, 8, 64);

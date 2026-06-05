@@ -4,22 +4,23 @@
 // SOUND CHECK — the sound engine's self-test cart. init() slams the request queue with the
 // WORST-CASE burst (all 27 instrument slots defined with envs/LFOs/filters/engine macros +
 // all 4 user wavetables in one frame), then update() walks the whole API: every wave id
-// audibly in sequence (including the INSTR_PLUCK engine), chords/strums, a schedule_hit
-// machine-gun burst (stresses the delayed pen), and a held note driven by every live setter.
+// audibly in sequence (including the INSTR_PLUCK and INSTR_MALLET engines), chords/strums,
+// a schedule_hit machine-gun burst (stresses the delayed pen), and a held note driven by
+// every live setter.
 //
 // PASS/FAIL: the engine now counts dropped requests and printh-screams
 //   "[sound] WARNING: request queue overflow..."
 // if ANY sound call was lost. Run this cart and watch the log (or run headless:
 //   node tools/play.js soundcheck run
 // any [sound] WARNING line in the output = FAIL). Silence = the queue, the delayed pen,
-// and the slot/wave banks all survived max load. Ears double-check: the 10 played waves
+// and the slot/wave banks all survived max load. Ears double-check: the 11 played waves
 // must all sound DIFFERENT (a stuck-on-square bug is instantly audible).
 
 static int   step = -1;          // current test step (-1 until the first beat)
 static float t = 0;
 static const char *label = "warming up";
 
-static const char *WN[10] = { "SQUARE", "SAW", "TRI", "NOISE", "SINE", "USER0 org", "USER1 vox", "USER2 bel", "USER3 fld", "PLUCK ks" };
+static const char *WN[11] = { "SQUARE", "SAW", "TRI", "NOISE", "SINE", "USER0 org", "USER1 vox", "USER2 bel", "USER3 fld", "PLUCK ks", "MALLET bar" };
 
 static int  held = -1;           // the live-setter test voice
 static int  burst_left = 0;      // schedule_hit machine-gun
@@ -55,11 +56,16 @@ void init(void) {
         instrument_timbre(s, 0.5f);
         instrument_morph(s, 0.4f);
     }
-    // the modeled engine: slot 31 re-defined as the KS pluck (played in the wave walk)
+    // the modeled engines: slot 31 re-defined as the KS pluck, slot 30 as the modal
+    // mallet (both played in the wave walk)
     instrument(31, INSTR_PLUCK, 1, 0, 7, 120);
     instrument_harmonics(31, 0.6f);
     instrument_timbre(31, 0.7f);
     instrument_morph(31, 0.25f);
+    instrument(30, INSTR_MALLET, 1, 0, 7, 120);
+    instrument_harmonics(30, 0.3f);
+    instrument_timbre(30, 0.7f);
+    instrument_morph(30, 0.5f);
     bpm(120);
 }
 
@@ -74,27 +80,28 @@ void update(void) {
     if (t < 0.6f) return;
     t = 0;
     step++;
-    int s = step % 17;
-    if (s < 10) {                               // each wave id, audibly, labeled
+    int s = step % 18;
+    if (s < 11) {                               // each wave id, audibly, labeled
         label = WN[s];
-        if (s == 9) hit(57, 31, 6, 500);         // the KS pluck engine (slot 31)
-        else        note(57, s, 6);              // slots 0-8: raw waves + the 4 user waves
-    } else if (s == 10) {
+        if      (s == 9)  hit(57, 31, 6, 500);   // the KS pluck engine (slot 31)
+        else if (s == 10) hit(69, 30, 6, 500);   // the modal mallet engine (slot 30)
+        else              note(57, s, 6);        // slots 0-8: raw waves + the 4 user waves
+    } else if (s == 11) {
         label = "chord + strum";
         chord(48, CHORD_MIN7, 5, 4);
         strum(60, CHORD_MAJ, 6, 4, 40);
-    } else if (s == 11) {
+    } else if (s == 12) {
         label = "tone + schedule";
         tone(SCALE_PENTA, 4, 7, 4);
         schedule(120, 72, 8, 4);
-    } else if (s == 12) {
+    } else if (s == 13) {
         label = "schedule_hit burst (40x9ms)";
         burst_left = 40;
-    } else if (s == 13) {
+    } else if (s == 14) {
         label = "note_on + live setters";
         held = note_on(52, 9, 5);
         note_glide(held, 80);
-    } else if (s == 14 && held >= 0) {
+    } else if (s == 15 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";
         note_pitch(held, 59);
         note_cutoff(held, 2000);
@@ -106,11 +113,11 @@ void update(void) {
         note_harmonics(held, 0.9f);              // engine macros ride kind 22 — no-op on a
         note_timbre(held, 0.7f);                 // wavetable slot, but the request path and
         note_morph(held, 0.3f);                  // stale-handle safety must survive them
-    } else if (s == 15) {
+    } else if (s == 16) {
         label = "note_off + panic";
         if (held >= 0) { note_off(held); held = -1; }
         note_off_all();
-    } else if (s == 16) {
+    } else if (s == 17) {
         label = "sfx + music banks";
         sfx(0);
     }
@@ -120,9 +127,9 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     print("SOUND CHECK", 8, 6, CLR_WHITE);
     print_scaled(label, 8, 60, CLR_YELLOW, 2);
-    print(str("step %d", step < 0 ? 0 : step % 17), 8, 90, CLR_LIGHT_GREY);
+    print(str("step %d", step < 0 ? 0 : step % 18), 8, 90, CLR_LIGHT_GREY);
     print("PASS = no [sound] WARNING in the log", 8, 130, CLR_LIME_GREEN);
-    print("       and all 10 waves sound different", 8, 140, CLR_LIME_GREEN);
+    print("       and all 11 waves sound different", 8, 140, CLR_LIME_GREEN);
     print("FAIL = any dropped-request warning", 8, 154, CLR_DARK_PEACH);
     font(FONT_SMALL);
     print("init slammed: 4 wavetables + 27 slots x 11 defines in one frame (the worst case)", 8, 178, CLR_MEDIUM_GREY);

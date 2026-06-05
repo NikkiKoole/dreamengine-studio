@@ -108,6 +108,12 @@ typedef struct {
     float  ks_buf[SOUND_KS_MAX];
     int    ks_len, ks_widx;        // ks_len = ALLOCATED length (period*2 headroom for down-bends)
     float  ks_last;                // previous read (the damping average runs across it)
+    // modal bar state (INSTR_MALLET): four decaying sine modes, buffer-free. Mode frequencies
+    // derive from freq*pitch_mul EVERY sample — the whole pitch machinery bends the bar too.
+    float  md_phase[4], md_amp[4]; // per-mode phase + decaying amplitude (the ring lives here)
+    float  md_trem_ph;             // vibe motor tremolo phase (morph's top end switches the motor on)
+    int    md_strike;              // strike-noise samples remaining (the mallet contact click)
+    bool   md_on;                  // struck this note — guards an engine id without a note-on init
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -319,12 +325,93 @@ static void sound_pluck_start(Voice *v) {
     for (int i = period; i < alloc; i++) v->ks_buf[i] = v->ks_buf[i % period];   // tile
 }
 
-// One engine sample. PLUCK is the only engine so far; this grows a dispatch when #2 lands.
-// pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries note_pitch/
-// note_glide (slewed) — so the SAME pitch machinery every oscillator answers bends the
-// string: the tap distance just tracks it. Linear-interpolated read; the interpolation's
-// slight extra damping at fractional positions is natural string behavior.
+// MALLET note-on: strike the bar. The voice's four modes get their initial energy here;
+// sound_mallet_sample then rings them down. Macros at the strike:
+//   timbre = MALLET HARDNESS — how much energy lands in the upper modes (0 = soft yarn,
+//            almost pure fundamental; 1 = hard brass, full spectrum) + the contact click.
+//   harmonics picks the BAR's amp profile (wood = fundamental-heavy, bell = partial-rich);
+//            the partial RATIOS it also controls are read live in the sample fn (so
+//            note_harmonics bends a ringing bar's partials — the drone trick).
+// The strike is normalized so every macro setting hits at the same loudness (pluck lesson).
+static void sound_mallet_start(Voice *v) {
+    // wood bar (marimba, fundamental-dominant) → bell/metal (partial-rich) amp profiles,
+    // numbers from navkit's measured presets (marimba / glockenspiel)
+    static const float AW[4] = { 1.0f, 0.25f, 0.08f, 0.02f };
+    static const float AB[4] = { 1.0f, 0.55f, 0.35f, 0.20f };
+    float sum = 0.0f;
+    for (int m = 0; m < 4; m++) {
+        v->md_phase[m] = 0.0f;
+        float base = AW[m] + (AB[m] - AW[m]) * v->harm;
+        // hardness: soft mallets can't excite the high modes. pow-shaped so the knob's
+        // bottom is a real felt thud, not just "slightly darker" (perceptual, §8.8.1)
+        float soft = 0.12f + 0.88f * v->timb;
+        float hw   = 1.0f;
+        for (int k = 0; k < m; k++) hw *= soft;     // mode m scaled soft^m
+        v->md_amp[m] = base * hw;
+        sum += v->md_amp[m];
+    }
+    if (sum > 0.0001f) {
+        float g = 1.0f / sum;                        // equal-loudness strike across the knobs
+        for (int m = 0; m < 4; m++) v->md_amp[m] *= g;
+    }
+    v->md_trem_ph = 0.0f;
+    // the contact click: ~1.5ms of noise, only audible with a hard mallet
+    v->md_strike  = (int)(0.0015f * (float)SOUND_SAMPLE_RATE);
+    v->md_on      = true;
+}
+
+// One MALLET sample: sum the four modes, decay them, add the strike click and the motor.
+// Live macros: harmonics sweeps the partial RATIOS (tuned wood octaves → inharmonic
+// ideal-bar clang), morph sets the RING as a perceptual T60 (≈0.09s dry tick → ≈8s vibe
+// sustain, exponential so every quarter-turn is an audible step — the §8.8.1 rule) and
+// fades the vibraphone motor tremolo in over its top third.
+static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
+    if (!v->md_on) return 0.0f;                       // engine id without a note-on init
+    const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    // tuned-bar ratios (marimba undercut, octave-aligned) → ideal-bar ratios (inharmonic
+    // metal clang). Sweeping harm GLISSES the upper partials between them.
+    static const float RW[4] = { 1.0f, 4.0f, 10.0f, 20.0f };
+    static const float RB[4] = { 1.0f, 2.756f, 5.404f, 8.933f };
+    float f = v->freq * pitch_mul;
+    if (f < 20.0f) f = 20.0f;
+    float t60  = 0.09f * expf(v->mor * 4.5f);         // 0.09s → ~8.1s to -60dB
+    float rate = 6.9078f / t60;                       // amp *= (1 - rate·dt) ≈ e^-6.9 at t60
+    float out  = 0.0f;
+    for (int m = 0; m < 4; m++) {
+        float amp = v->md_amp[m];
+        if (amp < 0.00002f) continue;
+        float ratio = RW[m] + (RB[m] - RW[m]) * v->harm;
+        float mf = f * ratio;
+        // upper modes ring shorter than the fundamental (what makes it read as a struck bar)
+        v->md_amp[m] = amp - amp * rate * (1.0f + 1.6f * (float)m) * dt;
+        if (mf >= (float)SOUND_SAMPLE_RATE * 0.45f) continue;   // above Nyquist: decays silently
+        v->md_phase[m] += mf * dt;
+        if (v->md_phase[m] >= 1.0f) v->md_phase[m] -= 1.0f;
+        out += sinf(v->md_phase[m] * 6.2831853f) * amp;
+    }
+    if (v->md_strike > 0) {                           // the mallet contact click (hardness-gated)
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        out += n * 0.22f * v->timb * v->timb * ((float)v->md_strike * dt / 0.0015f);
+        v->md_strike--;
+    }
+    float motor = (v->mor - 0.65f) / 0.35f;           // morph's top third = the vibe motor
+    if (motor > 0.0f) {
+        if (motor > 1.0f) motor = 1.0f;
+        v->md_trem_ph += 5.2f * dt;                   // ~5Hz, the classic vibraphone rate
+        if (v->md_trem_ph >= 1.0f) v->md_trem_ph -= 1.0f;
+        out *= 1.0f - 0.45f * motor * (0.5f + 0.5f * sinf(v->md_trem_ph * 6.2831853f));
+    }
+    return out * 0.9f;
+}
+
+// One engine sample — the dispatch (engine ids >= INSTR_ENGINE_BASE). The default body is
+// PLUCK. pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries
+// note_pitch/note_glide (slewed) — so the SAME pitch machinery every oscillator answers
+// bends the string: the tap distance just tracks it. Linear-interpolated read; the
+// interpolation's slight extra damping at fractional positions is natural string behavior.
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
+    if (v->wave == INSTR_MALLET) return sound_mallet_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -480,7 +567,9 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->mor  = v->mor_target  = ins->morph;
     v->last_out = 0.0f;
     v->ks_len = 0;
-    if (v->wave >= INSTR_ENGINE_BASE) sound_pluck_start(v);   // excite the string (the only engine so far)
+    v->md_on  = false;
+    if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
+    else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);

@@ -5,7 +5,8 @@ have, what the real genre uses, and which alternatives are worth rolling per
 song so the same radio sounds like a different record each time.
 
 Alternatives are marked: **now** = buildable with current API · **pluck** =
-needs INSTR_PLUCK (shipped) · **mallet** = needs INSTR_MALLET (next engine) ·
+needs INSTR_PLUCK (shipped) · **mallet** = needs INSTR_MALLET (shipped 2026-06-05;
+macro taste-tuning still settling in the `mallet` cart) ·
 **FM** = needs second oscillator / FM (further out).
 
 ---
@@ -213,11 +214,12 @@ an arrangement.
 - Bossa guitar, jangle guitar: already A/B'd — vary macro values per song seed
 - Jingle guitar: swap in INSTR_PLUCK (not yet done)
 
-**INSTR_MALLET (next):**
-- Bossa lead on ballads: vibraphone
+**INSTR_MALLET (shipped 2026-06-05 — retrofits now unblocked):**
+- Lowend lead: vibraphone = the Nujabes sound — single highest-value engine swap, do first
 - Ambient bell: real bell/vibraphone ring
 - YMO lead: marimba/vibraphone counterpoint (Hosono territory)
-- Lowend lead: vibraphone = the Nujabes sound — single highest-value engine swap
+- Bossa lead on ballads: vibraphone
+- (each retrofit: live A/B toggle against the old fake — the G-key pattern from jangle/bossa)
 
 **FM / second oscillator (further):**
 - Citypop lead: real Rhodes bell overtone

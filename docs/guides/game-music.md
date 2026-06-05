@@ -406,6 +406,28 @@ per-song timbre roll wants to seed. The three knobs are the same on every future
 engine (audio-notes §8.1.1); the `pluck` cart is the hands-on tour (grab a string
 to bend it, sweep open space to strum).
 
+### The real bar — `INSTR_MALLET` (engine #2)
+
+The struck-bar family — marimba / xylophone / celesta / vibraphone / glockenspiel —
+is one wave id (shipped 2026-06-05; macro taste is still settling in the `mallet`
+cart, which carries the five hardware names as preset knob positions). Same
+rules as the string: it rings on its own, so give it room.
+
+```c
+instrument(I_VIBE, INSTR_MALLET, 1, 0, 7, 1200);     // a struck bar — rings on its own
+instrument_harmonics(I_VIBE, 0.25f);                 // bar material (0 wood/marimba → 1 metal/bell)
+instrument_timbre(I_VIBE, 0.5f);                     // mallet hardness (yarn thump → brass + click)
+instrument_morph(I_VIBE, 0.9f);                      // ring length — the top third turns the
+                                                     //   vibraphone motor tremolo ON
+hit(midi, I_VIBE, 5, 2500);                          // long gate: never chop the ring
+```
+
+First customers (`radio-instrument-options.md`): lowend's lead → vibraphone (the
+Nujabes sound, the single highest-value engine swap), ambient's bell, ymo's
+marimba counterpoint. The roll trick: a mallet *tremolo roll* is just 5–6
+`schedule_hit`s ~70ms apart on one bar, alternating vol 3/4 — see the mallet
+cart's autoplay.
+
 ### Drawn waves — `wave_set` + `INSTR_USER0..3` (the lever nobody pulled)
 
 Beyond the five built-in waves there are four **user wave slots**: fill one with a

@@ -575,7 +575,13 @@ independently shippable:
    independent of engine count).~~ **→ SHIPPED 2026-06-05** — per-voice KS buffer (§8.2) made
    concrete, full macro surface (`instrument_harmonics/timbre/morph` + `note_*` twins), `pluck`
    showcase cart. Station retrofit (jangle/bossa) is the open follow-up.
-2. **`INSTR_MALLET`/`INSTR_CELESTA`** — buffer-free modal; the music-box / silent-movie voice. ← **NEXT**
+2. ~~**`INSTR_MALLET`/`INSTR_CELESTA`** — buffer-free modal; the music-box / silent-movie voice.~~
+   **→ SHIPPED 2026-06-05** — one id (`INSTR_MALLET`), buffer-free (4 modal sines + strike
+   click, ~10 floats on `Voice`, no delay line), full macro surface (harmonics = bar material
+   wood→bell, timbre = mallet hardness, morph = ring length + the motor tremolo in its top
+   third), `mallet` showcase cart with the 5 hardware presets as baked macro positions.
+   Built by the §8.8.2 playbook (its first full walk). Open tail: macro taste-tuning by ear
+   + the lowend/ambient/ymo retrofits (`radio-instrument-options.md`).
 3. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
    (drawbars → scanner on the buffer → shared rotary). The SVF is the reusable primitive that also
    gives §5.5 and §8.3's formant.
@@ -729,6 +735,64 @@ Empirical, from one day of building and listening. Each bit of taste below cost 
    the engine audibly and pushes the macro kinds (21/22) through the queue at
    worst-case load — a request kind the self-test never fires is a kind the
    tripwire never guards.
+
+### 8.8.2 The engine-shipping playbook (validated by pluck + mallet)
+
+The §8.8.1 lessons, turned into the **standard procedure for every new engine**.
+Walked twice (PLUCK 2026-06-05, MALLET 2026-06-05); organ/EP/piano follow this
+path. The steps in order — none optional, most are one sitting:
+
+1. **Design the macros on paper first.** The engine's row in the §8.9 catalog
+   (or the §8.8 sketch) must say what `harmonics` / `timbre` / `morph` mean
+   *before* any code — and per §8.1.1 they are the ONLY knobs; no per-engine
+   named params, ever. If two doc passes disagree on a mapping (it happened:
+   mallet's timbre was "strike position" in §8.1.1 but "hardness" in §8.8),
+   resolve it now, in the doc, not in the code.
+2. **Port the oscillator** (navkit pointers: §8.7). Two functions: a note-on
+   excitation (`sound_<engine>_start`) and a per-sample generator
+   (`sound_<engine>_sample`), dispatched from `sound_setup_note` and
+   `sound_engine_sample`. State lives on `Voice` — buffer-free if possible
+   (mallet: ~10 floats); the shared per-voice delay (§8.2) if waveguide.
+   Non-negotiables, each one a §8.8.1 scar:
+   - **consume the pitch machinery from day one** — derive frequency from
+     `v->freq * pitch_mul` *per sample*, so vibrato / pitch-env / `note_pitch`
+     / `note_glide` work verbatim. Pitch is never a macro.
+   - **map percepts, not parameters** — ring/decay knobs set an exponential
+     target quantity (T60), brightness knobs a pow-shaped weight; the test is
+     "every quarter-turn audibly steps, on every key."
+   - **normalize the excitation** — every macro position strikes at the same
+     loudness, or the knobs read as volume controls.
+   - **self-decay means the ADSR is an override** (§10.4) and gates must be
+     generous (the showcase cart scales its `hit()` duration with the ring
+     knob); guard the engine-id-without-note-on case (an sfx step naming the
+     id) so it stays silent instead of reading stale state.
+3. **Wire the id in all four places** — `studio.h` (`INSTR_*` + house-style
+   one-liner, plus a clause in each of the six macro one-liners),
+   `studioDocs.js` (the constant's entry + the three `instrument_*` macro
+   entries), `shell.js` (the keys array). Run `gen-tcc-symbols.js` in the same
+   commit. An engine adds **zero functions** — if you're adding one, stop and
+   re-read §8.1.1.
+4. **Grow `soundcheck.c` in the same commit** — the engine gets its own slot
+   and an audible step in the wave walk; then the tripwire run
+   (`node tools/play.js soundcheck script /dev/null --headless --frames 900`,
+   silence = PASS) is also the engine's compile + queue test.
+5. **Build the showcase cart = the tuning rig** (pluck.c / mallet.c are the
+   template): keys play it, the three macros are draggable sliders that
+   *audition while dragging*, autoplay keeps it sounding, `watch()` the knobs
+   under `DE_TRACE`. **Give it preset keys named after hardware** — presets
+   are nothing but baked macro positions (§8.1), which makes them the
+   acceptance test: *if pressing "vibraphone" doesn't sound like a vibraphone,
+   the mapping is wrong, not the preset.* Bake the screenshot, register in
+   index.json, `lint-carts`.
+6. **Tune by ear in that cart.** Iterate the mapping function (the per-engine
+   taste table lives in `sound.h`, never in API), rebuild, listen. This step
+   is the human's; everything before it just makes the loop fast.
+7. **Retrofit a shipped station** — `radio-instrument-options.md` keeps the
+   ranked target list per engine (mallet: lowend's vibraphone lead is "the
+   single highest-value engine swap"). Wire a live A/B toggle against the old
+   fake (the G-key pattern from jangle/bossa) so the verdict is one keypress.
+8. **Update the ledgers** — STATUS item 5, the §8.5 phase list, §13's order of
+   work, and a recipe in `game-music.md` once the macros have settled.
 
 ### 8.9 Candidate engine catalog (running wishlist)
 

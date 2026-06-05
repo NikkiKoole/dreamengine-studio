@@ -181,8 +181,11 @@ their `kind[]` tags.
      1. ~~**`INSTR_PLUCK`** (Karplus-Strong)~~ **SHIPPED 2026-06-05** — per-voice KS buffer (§8.2)
         made concrete, full macro surface, `pluck` showcase cart. Station retrofit (jangle/bossa)
         is the open follow-up.
-     2. **`INSTR_MALLET`** — buffer-free celesta / music-box voice. ← **NEXT**
-     3. **`INSTR_ORGAN` + Leslie** — Hammond drawbars → scanner → shared rotary, as one package.
+     2. ~~**`INSTR_MALLET`** — buffer-free celesta / music-box voice.~~ **SHIPPED 2026-06-05** —
+        4 modal sines + strike click, no buffer, `mallet` showcase cart (5 hardware presets =
+        baked macro positions). First full walk of the §8.8.2 engine-shipping playbook. Open
+        tail: macro taste-tuning + the lowend vibraphone retrofit.
+     3. **`INSTR_ORGAN` + Leslie** — Hammond drawbars → scanner → shared rotary, as one package. ← **NEXT**
      4. **EP / acoustic-piano / guitar** family (buffered, on the proven path).
    Two findings already resolved: the **MT70 presets** (Flute/Bells/Organ/Vibes/JzOrg2…) are
    **all pure sine + ADSR + filter — not an engine**, so they need *no port* and ship as

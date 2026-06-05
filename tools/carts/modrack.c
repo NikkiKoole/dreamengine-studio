@@ -33,8 +33,8 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 // ── module type registry ──
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, MOD_TURING, MOD_GRIDS, MOD_MARBLES, MOD_MATHS,
-       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, NTYPE };
-enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE };
+       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, NTYPE };
+enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
@@ -94,6 +94,10 @@ ModType TYPES[NTYPE] = {
     [MOD_MACRO]   = { "MACRO", CLR_DARK_PURPLE, 6, 7, 5, {{0,false,8,72,"g"},{1,false,22,72,"p"},{2,false,36,72,"h"},{2,false,50,72,"t"},{2,false,64,72,"m"}},
                      4, {{"eng",0,2.99f,0,20,32,FMT_ENGINE},{"har",0,1,0.5f,52,32,FMT_F1},
                          {"tmb",0,1,0.5f,20,54,FMT_F1},{"mor",0,1,0.5f,52,54,FMT_F1}} },
+    // pitch utility: a precision adder — shifts any pitch line by whole octaves (the only
+    // way to reach the bass register; QUANT's root knob is semitones-up within ROOT_OCT)
+    [MOD_XPOSE]   = { "XPOSE", CLR_DARK_PEACH, 3, 5, 2, {{1,false,9,48,"in"},{1,true,27,48,"out"}},
+                     1, {{"oct",-2,2,0,18,32,FMT_OCT}} },
 };
 // knob-index names for the multi-knob sound modules — MUST stay in the same order as the
 // knob arrays in TYPES[] above. Use these instead of raw numbers in eval/presets: a
@@ -129,6 +133,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_VIBRATO]= { "Audio-rate vibrato via note_lfo(). rate=Hz,", "dpt=depth, dst=pit/cut/pw. 'g' unpatched=", "always on; patched=gate-enable." },
     [MOD_CHANCE] = { "Gate filter: lets incoming gates through", "with prob chance (0=never 1=always).", "Thins patterns without changing the rhythm." },
     [MOD_MACRO]  = { "Modeled voice (Plaits-style). eng = plk/mlt/", "fm engine; har/tmb/mor shape it (per-engine", "meaning). h/t/m CV inlets add to the knobs." },
+    [MOD_XPOSE]  = { "Octave shifter. Patch a pitch line through", "it (QUANT/KEYS -> VOICE) and oct moves it", "by -2..+2 whole octaves. Basses live here." },
 };
 
 // ── module instances + cables ──
@@ -193,16 +198,19 @@ void preset_generative(void) {   // the default: in-key melody over a euclidean 
     for (int i = 0; i < 8; i++) spawn(i, bayx(i), bayy(i));
     wire_default();
 }
-void preset_acid(void) {         // euclid-gated squelch bass, slewed pitch + LFO wah
+void preset_acid(void) {         // euclid-gated squelch bass, slewed pitch + LFO wah — XPOSE -1 puts it in the bass register
     note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
     int ck = spawn(MOD_CLOCK, bayx(0), bayy(0)), eu = spawn(MOD_EUCLID, bayx(1), bayy(1));
     int lf = spawn(MOD_LFO, bayx(2), bayy(2)), sh = spawn(MOD_SH, bayx(3), bayy(3));
     int sl = spawn(MOD_SLEW, bayx(4), bayy(4)), qt = spawn(MOD_QUANT, bayx(5), bayy(5)), vo = spawn(MOD_VOICE, bayx(6), bayy(6));
+    int xp = spawn(MOD_XPOSE, bayx(7), bayy(7));
     mod[vo].param[VK_CUT] = 420; mod[vo].param[VK_RES] = 11; mod[vo].param[VK_WAV] = 1;   // low cutoff, squelchy res, square wave
     mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[xp].param[0] = -1;                                                  // down an octave — where acid bass lives
     add_cable(ck, 0, eu, 0); add_cable(eu, 1, vo, 0);
     add_cable(ck, 0, sh, 1); add_cable(lf, 0, sh, 0);
-    add_cable(sh, 2, sl, 0); add_cable(sl, 1, qt, 0); add_cable(qt, 1, vo, 1);
+    add_cable(sh, 2, sl, 0); add_cable(sl, 1, qt, 0);
+    add_cable(qt, 1, xp, 0); add_cable(xp, 1, vo, 1);                       // QUANT → XPOSE → VOICE pitch
     add_cable(lf, 0, vo, 2);
 }
 void preset_beats(void) {        // two euclidean rhythms → a drum kit
@@ -723,6 +731,11 @@ void eval_mod(int mi) {
                 note_harmonics(h, hv); note_timbre(h, tv); note_morph(h, mv);
             }
             break; }
+        case MOD_XPOSE: {  // precision adder for pitch lines: out = in + oct*12 (whole octaves, snapped)
+            int oct = (int)floorf(m->param[0] + 0.5f);
+            float p = read_in(mi, 0);
+            m->jackval[1] = p < 1 ? 0 : clamp(p + oct * 12, 1, 127);   // no input → no pitch (downstream default kicks in)
+            break; }
     }
 }
 
@@ -764,6 +777,7 @@ const char *knob_str(int fmt, float v) {
     if (fmt == FMT_FILTER){ const char *F[4] = { "lp",  "hp",  "bp",  "nt"  }; return F[(int)clamp(v, 0, 3)]; }
     if (fmt == FMT_DEST)  { const char *D[3] = { "pit", "cut", "pw"  }; return D[(int)clamp(v, 0, 2)]; }
     if (fmt == FMT_ENGINE){ const char *E[3] = { "plk", "mlt", "fm"  }; return E[(int)clamp(v, 0, 2)]; }   // pluck/mallet/fm modeled engines
+    if (fmt == FMT_OCT)   { int o = (int)floorf(v + 0.5f); return o == 0 ? "0" : str("%+d", o); }          // snapped whole octaves
     if (fmt == FMT_SCALE) return SCALES[(int)v];
     if (fmt == FMT_NOTE)  return NOTES[(int)v];
     if (fmt == FMT_F1)    return str("%.1f", v);
@@ -918,6 +932,10 @@ void draw_extras(int mi) {
                 rectfill(x + 22, y + 13 + b * 4, 42, 2, CLR_BLACK);
                 rectfill(x + 22, y + 13 + b * 4, (int)(clamp(m->state[5 + b], 0, 1) * 42), 2, CLR_PINK);
             }
+            break; }
+        case MOD_XPOSE: {   // the snapped octave reads at a glance (it's a switch, not a sweep)
+            const char *s = knob_str(FMT_OCT, m->param[0]);
+            print(s, cx - text_width(s) / 2, y + 14, CLR_WHITE);
             break; }
         case MOD_KEYS: {    // 7 white keys; lit while held
             const char KK[7] = { 'A','S','D','F','G','H','J' }; const int OFF[7] = { 0,2,4,5,7,9,11 };

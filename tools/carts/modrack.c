@@ -33,7 +33,7 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 // ── module type registry ──
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, MOD_TURING, MOD_GRIDS, MOD_MARBLES, MOD_MATHS,
-       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, NTYPE };
+       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, MOD_CMP, NTYPE };
 enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
@@ -103,6 +103,10 @@ ModType TYPES[NTYPE] = {
     // base level an inverted signal swings down from (a=-1, off=1 -> an upside-down LFO).
     [MOD_MIX]     = { "MIX", CLR_MEDIUM_GREY, 5, 5, 3, {{2,false,12,48,"a"},{2,false,30,48,"b"},{2,true,48,48,"out"}},
                      3, {{"a",-1,1,1,12,26,FMT_F1},{"b",-1,1,1,30,26,FMT_F1},{"off",0,1,0,48,26,FMT_F1}} },
+    // comparator — the cv→gate conversion: gate high while in > thr. An LFO through it is a
+    // clock whose pulse width IS the threshold; ramps become rhythms, randomness becomes triggers
+    [MOD_CMP]     = { "CMP", CLR_DARK_GREEN, 3, 5, 2, {{2,false,9,48,"in"},{0,true,27,48,"out"}},
+                     1, {{"thr",0,1,0.5f,18,32,FMT_F1}} },
 };
 // knob-index names for the multi-knob sound modules — MUST stay in the same order as the
 // knob arrays in TYPES[] above. Use these instead of raw numbers in eval/presets: a
@@ -141,6 +145,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_MACRO]  = { "Modeled voice (Plaits-style). eng = plk/mlt/", "fm engine; har/tmb/mor shape it (per-engine", "meaning). h/t/m CV inlets add to the knobs." },
     [MOD_XPOSE]  = { "Octave shifter. Patch a pitch line through", "it (QUANT/KEYS -> VOICE) and oct moves it", "by -2..+2 whole octaves. Basses live here." },
     [MOD_MIX]    = { "CV mixer: out = a*ka + b*kb + off. Knobs go", "-1..+1 (attenuvert: negative = inverted).", "Sum an LFO + ENV into one filter cutoff." },
+    [MOD_CMP]    = { "Comparator: gate high while cv in > thr.", "An LFO through it becomes a clock -- thr", "sets the pulse width. CV -> rhythm, no CLOCK." },
 };
 
 // ── module instances + cables ──
@@ -461,9 +466,25 @@ void preset_mix(void) {          // THE classic synth patch: slow LFO wah + per-
     add_cable(ck, 2, dr, 0); add_cable(ck, 0, dr, 2);
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix };
-#define NPRESET 21
+void preset_clockless(void) {    // NO CLOCK: two free-running LFOs through two CMPs make the whole groove
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int l1 = spawn(MOD_LFO, bayx(0), bayy(0)), l2 = spawn(MOD_LFO, bayx(1), bayy(1));
+    int c1 = spawn(MOD_CMP, bayx(2), bayy(2)), c2 = spawn(MOD_CMP, bayx(2) + 48, bayy(2));   // two slim CMPs share a bay
+    int qt = spawn(MOD_QUANT, bayx(4), bayy(4)), vo = spawn(MOD_VOICE, bayx(5), bayy(5));
+    int dr = spawn(MOD_DRUM,  bayx(6), bayy(6));
+    mod[l1].param[0] = 0.6f; mod[l2].param[0] = 1.7f;    // incommensurate rates — the rhythm never quite repeats
+    mod[c1].param[0] = 0.6f;                             // thr = pulse width: notes get medium gates
+    mod[c2].param[0] = 0.85f;                            // hats only on the LFO's crest — tight ticks
+    mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[vo].param[VK_CUT] = 700; mod[vo].param[VK_RES] = 6; mod[vo].param[VK_FENV] = 800;
+    add_cable(l1, 0, c1, 0); add_cable(c1, 1, vo, 0); add_cable(c1, 1, dr, 0);   // LFO1 rhythm → note + kick
+    add_cable(l2, 0, c2, 0); add_cable(c2, 1, dr, 2);                             // LFO2 rhythm → hats
+    add_cable(l2, 0, qt, 0); add_cable(qt, 1, vo, 1);                             // pitch rides the OTHER lfo — cross-rhythm melody
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless };
+#define NPRESET 22
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;
@@ -765,6 +786,9 @@ void eval_mod(int mi) {
         case MOD_MIX:      // attenuverting mixer: combine two modulators into one cv (invert via negative knobs)
             m->jackval[2] = clamp(read_in(mi, 0) * m->param[MX_A] + read_in(mi, 1) * m->param[MX_B] + m->param[MX_OFF], 0, 1);
             break;
+        case MOD_CMP:      // comparator: cv → gate (high while above threshold — pulse width is the knob)
+            m->jackval[1] = read_in(mi, 0) > m->param[0] ? 1 : 0;
+            break;
     }
 }
 
@@ -968,6 +992,9 @@ void draw_extras(int mi) {
             break; }
         case MOD_MIX:       // the summed cv, live — watch two modulators braid into one
             meter(x + 45, y + 12, 6, 10, m->jackval[2], CLR_WHITE);
+            break;
+        case MOD_CMP:       // gate LED — high while the cv sits above the threshold
+            circfill(cx, y + 16, 4, m->jackval[1] > 0.5f ? CLR_GREEN : CLR_DARKER_GREY);
             break;
         case MOD_KEYS: {    // 7 white keys; lit while held
             const char KK[7] = { 'A','S','D','F','G','H','J' }; const int OFF[7] = { 0,2,4,5,7,9,11 };

@@ -130,6 +130,97 @@ quality question on-device in minutes. Until then the lean stands: swipes are
 ~10 cart lines once touch-release lands (touch-notes §3), and a `gestures.h`
 library header may beat engine API (ADR-0006 instinct).
 
+## 6b. Which key() reads are actually a problem — and the keycap idea
+
+Precision on "reads keys = bad", because the overlay changes the calculus
+(verified in `studio.c:1427` — the on-screen stick + A/B feed **`btn()` only**;
+`key()/keyp()/keyr()` are invisible to it, *even for arrow keycodes*):
+
+| The cart reads | On a phone | Fix |
+|---|---|---|
+| `btn(0, …)` | works once the overlay is on | `touchControls: true` — one line |
+| `key(KEY_LEFT/RIGHT/UP/DOWN)`, `key('Z'/'X')` | dead — overlay doesn't feed `key()` | switch those reads to `btn()`; it's what btn is for |
+| `key(KEY_SPACE)`, `key('R')`, `key('[')`, … | dead, and **unsynthesizable** — no overlay can guess them | this is the real gap → keycaps, below |
+
+*(A runtime alternative for row 2 — stick also satisfying `key()` for the six
+mapped keycodes — would work, but teaching carts to use `btn()` for movement is
+the cleaner fix; the API already says so.)*
+
+### Tappable key labels — "keycaps"
+
+The unsynthesizable keys are almost always already *on screen as text*: every
+radio prints `SPACE next · R again · [ ] history` in its help line. The idea:
+make that label **be** the button. One call draws a keycap-styled chip and
+returns true when the key is pressed **or** the chip is tapped:
+
+```c
+// draws [SPACE] next song   — returns true on keyp(KEY_SPACE) OR a tap on the chip
+if (keycap(x, y, "SPACE", "next song", KEY_SPACE)) next_song();
+```
+
+Why it's the right shape:
+
+- **Self-documenting** — the control hint and the touch target are the same
+  pixels; no separate mobile UI to design, and desktop users see the same thing
+  they see today.
+- **Composable with the lint** — a keycap cart reads `tapp()`, so it counts as
+  touch-ready automatically; no special-casing.
+- **Cheap** — it's `rect` + `print` + `keyp` + `tapp`, all existing API.
+  ~30 lines.
+- **Sizing rule carries over** — chips must respect the ≥16 canvas-px floor
+  (the lint's tiny-target check applies as-is).
+
+Shape: start as a **cart-land helper header** (`runtime/keycap.h`, the
+`radio.h`/`improv.h` precedent — ADR-0006 instinct: a library header beats
+engine API until many customers prove the need). Promote to `studio.h` only if
+it wants runtime privileges (key claiming, pause-overlay theming). First
+customers: the radios — their help line becomes a row of caps and they jump
+🟡 → 🟢 without a redesign.
+
+### But the real policy: design touch-first, keys as accelerators
+
+The keycap is a **retrofit** tool — the cheap bridge for the ~40 shipped carts
+whose help lines name keys. For *new* carts the better idea is to not depend
+on the keyboard in the first place:
+
+- **Controls are on-screen icons/buttons**, labeled by *action*, not by key:
+  `⏭` next song, `⏸` pause, `↻` again — drawn rects read with `tapp()`.
+  Every action reachable by tap; the UI looks identical on desktop and phone.
+- **Keys become optional accelerators** that mirror the buttons — SPACE also
+  fires `⏭`, silently. Power users keep their shortcuts; the help line
+  doesn't have to advertise them (or does so subtly).
+- **Movement stays `btn()`** — stick overlay on phone, arrows/WASD on desktop.
+
+The hierarchy, then: **new carts → touch-first icons** (keys mirror them);
+**existing carts → keycap retrofit** (the label becomes the button);
+**movement → always `btn()`**, never `key(KEY_LEFT)`. A cart designed this
+way lints 🟢 with no special effort.
+
+## 6c. Native text input — there isn't one
+
+`text_input()` (Raylib `GetCharPressed`) only ever sees a **hardware
+keyboard**. On mobile web there is no way to summon the OS virtual keyboard
+from a canvas: iOS/Android only open it when a real DOM `<input>`/
+`<textarea>` gains focus, and the emscripten/GLFW shim renders to a bare
+`<canvas>` — no input element, no keyboard, ever. So "type your name" is
+silently impossible on a phone today.
+
+Options if a cart needs name entry on mobile:
+
+1. **Arcade-style initials picker** — 3 slots, arrows/taps cycle A–Z. Solved
+   in 1980, touch-friendly by construction, zero new machinery. The right
+   default for hiscores.
+2. **In-cart tap keyboard** — a drawn QWERTY grid of `tapp()` rects; pairs
+   naturally with the keycap header (§6b) — it's just rows of caps.
+3. **Shell-level hidden `<input>`** — `web_shell.html` focuses an invisible
+   DOM input and forwards its events into the wasm key queue. The only way to
+   get the *real* OS keyboard (autocorrect, emoji, IMEs), but it's per-shell
+   plumbing, fights fullscreen, and the soft keyboard reflows/obscures the
+   canvas. Park unless a cart genuinely needs free text on phones.
+
+Lint angle: `text_input()` reads are now surfaced as a `text-input` warning —
+dead path on any touch device.
+
 ## 7. Next steps
 
 1. ~~**`tools/mobile-lint.js` v1**~~ — **SHIPPED 2026-06-05** (checks 1, 3, 4, 5
@@ -164,3 +255,12 @@ library header may beat engine API (ADR-0006 instinct).
    entry — manual verdict beats lint (it can't see key-gated title screens
    etc.). Iterated three times same-day: emoji-glyph chips → plain three-tier
    words → this colored-dot four-tier set.
+6. **Touch-first control policy + keycap retrofit** (§6b) — write the policy
+   into `guides/cart-authoring.md` (new carts: on-screen action icons via
+   `tapp()`, keys as silent accelerators, movement via `btn()`); prototype
+   `runtime/keycap.h` and retrofit one radio as the proof (expected 🟡 → 🟢).
+7. ~~**Lint: list the keys each cart reads**~~ — **SHIPPED 2026-06-05**:
+   `keys(SPACE,R,M,…)` warning on every cart that reads literal keycodes —
+   the manual-testing worklist and the keycap-retrofit shopping list in one;
+   `text_input()` reads surfaced as a `text-input` warning (§6c — no OS
+   keyboard on mobile web, ever).

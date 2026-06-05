@@ -88,6 +88,21 @@ function lint(name) {
   if ((verdict === 'touch-ready' || verdict === 'tap-as-mouse') && reads.btn && !reads.tc)
     warnings.push('btn-without-overlay')
 
+  // which keys, exactly — the manual-testing worklist / keycap-retrofit shopping
+  // list (mobile-web-notes §6b). Literal args only; dynamic args show as '?'.
+  if (reads.key) {
+    const keys = new Set()
+    for (const m of src.matchAll(/\bkey[pr]?\s*\(\s*([^)]*)\)/g)) {
+      const arg = m[1].trim()
+      let k = /^KEY_(\w+)$/.exec(arg)?.[1] ?? /^'(.)'$/.exec(arg)?.[1]
+      keys.add(k ?? '?')
+    }
+    warnings.push(`keys(${[...keys].sort().join(',')})`)
+  }
+
+  // text_input() never sees a phone — no OS keyboard on canvas (§6c)
+  if (has(/\btext_input\s*\(/)) warnings.push('text-input')
+
   return { name, verdict, warnings }
 }
 

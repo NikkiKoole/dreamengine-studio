@@ -383,9 +383,11 @@ their `kind[]` tags.
       Revolution 909, Gabber); closed hat chokes open via `instrument_choke`. **The
       classic-machine family (cr78 + tr808 + tb303 + sh101 + tr909) now covers the full
       ReBirth RB-338 rack** (303 + 808 + 909). Same-day follow-up: **FLAM shipped** after
-      all ("the one panel feature not modeled" lasted one message) — right-click paints a
-      flam, grace note 22ms early at −3 vol, `'f'` in preset rows, split-cell rendering,
-      Hardfloor preset flams its claps. Plus a deliberate impurity by ear-feedback: a
+      all ("the one panel feature not modeled" lasted one message) — and grew into a
+      **stroke cycle**: right-click cycles plain → flam (1 grace, 22ms early) → drag
+      (2 graces) → ratchet (4 even hits chopped across the step — post-909, but the
+      techno fill); `'f'`/`'d'`/`'r'` in preset rows, cells draw their strokes as ticks,
+      Hardfloor flams its claps + ends the hat row on a ratchet, Gabber drags its snare. Plus a deliberate impurity by ear-feedback: a
       **metal-filter XY pad** (cut × resonance, `instrument_filter` re-aimed live across
       all five FM/noise metal slots) because the FM hats landed bright and hissy —
       defaults nudged fuller than the first build. Sound tripwire: PASS (700 headless

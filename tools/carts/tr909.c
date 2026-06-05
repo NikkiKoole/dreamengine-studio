@@ -41,9 +41,12 @@
 //   accent — the TOTAL ACCENT row, red strip (orange on the 808 cart).
 //   flam — the panel's OTHER humanize trick, right next to SHUFFLE: a
 //           flammed step plays a quiet grace note ~22ms before the main
-//           hit (the Hardfloor snare/clap signature). RIGHT-CLICK a cell
-//           to flam it; flam cells draw split (grace tick + main bar).
-//           Preset rows mark them 'f'.
+//           hit (the Hardfloor snare/clap signature). RIGHT-CLICK cycles
+//           a cell through the stroke family: plain → FLAM (1 grace) →
+//           DRAG (2 graces, the rudiment) → RATCHET (4 even hits chopped
+//           across the step — not on the 1983 panel, but the fill its
+//           children shipped and techno lives on). Cells draw their
+//           strokes as ticks. Preset rows mark them 'f' / 'd' / 'r'.
 //
 //   Q W E R T Y U I O P A   play each voice by hand
 //   LEFT / RIGHT  preset      UP / DOWN  tempo      SPACE  start / stop
@@ -85,7 +88,7 @@ static const char VKEY[NV] = {
 typedef struct {
     const char *name;
     int         tempo;
-    const char *row[NV];   // 16 chars, 'x' = hit, 'f' = flammed hit; NULL = silent row
+    const char *row[NV];   // 16 chars: 'x' hit, 'f' flam, 'd' drag, 'r' ratchet; NULL = silent
     const char *accent;    // 16 chars, 'x' = +2 volume on that step
     int         swing;     // 50 = straight .. 66 = triplet (0 = straight)
 } Pat;
@@ -118,9 +121,9 @@ static const Pat PRESET[] = {
         [V_MT] = "..........x.....",
         [V_RS] = "..x..x....x...x.",
       }, "x.......x......." },
-    { "HARDFLOOR", 130, {          // acid shuffle + the flammed claps
+    { "HARDFLOOR", 130, {          // acid shuffle, flammed claps, ratchet fill
         [V_BD] = "x...x...x...x...",
-        [V_CH] = "xxxxxxxxxxxxxxxx",
+        [V_CH] = "xxxxxxxxxxxxxxxr",
         [V_OH] = "..x...x...x...x.",
         [V_CP] = "....f.......f...",
         [V_RS] = "......x.......f.",
@@ -134,7 +137,7 @@ static const Pat PRESET[] = {
       }, "x.......x......." },
     { "GABBER", 185, {             // Rotterdam — the kick IS the song
         [V_BD] = "x...x...x...x...",
-        [V_SD] = "....x.......x...",
+        [V_SD] = "....x.......d...",
         [V_OH] = "..x...x...x...x.",
         [V_CC] = "x...............",
       }, "x...x...x...x..." },
@@ -147,11 +150,14 @@ static bool running  = true;
 static int  last16   = -1;
 static int  playhead = 0;
 static int  flash[NV];
+// stroke kinds, cycled by right-click — named, never raw numbers (house rule)
+enum { ST_PLAIN, ST_FLAM, ST_DRAG, ST_RATCHET, NSTROKE };
+
 static bool grid[NV][STEPS];   // the live pattern — editable, loaded from preset
-static bool gflam[NV][STEPS];  // flammed steps (grace note FLAM_MS early)
+static unsigned char gstroke[NV][STEPS];  // ST_* per cell (only meaningful when grid on)
 static bool gacc[STEPS];       // live accent row
 static bool paint_val;         // what a click-drag writes (set on press)
-static bool paint_flam;        // whether this drag paints flams (right button)
+static int  paint_stroke;      // the ST_* a right-drag paints (set on press)
 static int  swing = 50;        // 50 = straight .. 66 = full triplet
 
 static float ktune[NV];        // 0..1, center=0.5 → ±12 semitones
@@ -223,8 +229,9 @@ static void load_preset(void) {
     for (int v = 0; v < NV; v++)
         for (int s = 0; s < STEPS; s++) {
             char c = p->row[v] ? p->row[v][s] : '.';
-            grid[v][s]  = c == 'x' || c == 'f';
-            gflam[v][s] = c == 'f';
+            grid[v][s]    = c == 'x' || c == 'f' || c == 'd' || c == 'r';
+            gstroke[v][s] = c == 'f' ? ST_FLAM : c == 'd' ? ST_DRAG
+                          : c == 'r' ? ST_RATCHET : ST_PLAIN;
         }
     for (int s = 0; s < STEPS; s++)
         gacc[s] = p->accent && p->accent[s] == 'x';
@@ -321,6 +328,27 @@ static void fire(int v, int boost, int delay) {
         schedule_hit(delay, k_midi(v, 76), SL_RC, vv(4, boost), k_dur(v, 600));
         schedule_hit(delay, k_midi(v, 83), SL_RC, vv(2, boost), k_dur(v, 600));
         break;
+    }
+}
+
+// fire a step with its stroke. Flam/drag lead the main hit with 1/2 quiet
+// grace notes; a ratchet replaces it with four even hits across the step.
+static void fire_stroke(int v, int st, int boost, int delay, int step_ms) {
+    int g;
+    switch (st) {
+    case ST_DRAG:
+        g = delay - 2 * FLAM_MS; fire(v, boost - 4, g < 0 ? 0 : g);
+        /* fall through — a drag is a flam with one more grace */
+    case ST_FLAM:
+        g = delay - FLAM_MS;     fire(v, boost - 3, g < 0 ? 0 : g);
+        fire(v, boost, delay);
+        break;
+    case ST_RATCHET:
+        for (int k = 0; k < 4; k++)
+            fire(v, k == 0 ? boost : boost - 2, delay + k * step_ms / 4);
+        break;
+    default:
+        fire(v, boost, delay);
     }
 }
 
@@ -460,8 +488,8 @@ void update(void) {
     if (mouse_pressed(MOUSE_LEFT) && !on_knob) {
         if (mr >= 0) {
             paint_val = !grid[mr][mc];
-            grid[mr][mc]  = paint_val;
-            gflam[mr][mc] = false;
+            grid[mr][mc]    = paint_val;
+            gstroke[mr][mc] = ST_PLAIN;
         } else if (mr == -1) {
             paint_val = !gacc[mc];
             gacc[mc] = paint_val;
@@ -470,17 +498,17 @@ void update(void) {
             fire(v, 1, 0); flash[v] = 5;
         }
     } else if (mouse_down(MOUSE_LEFT) && !on_knob) {
-        if (mr >= 0)       { grid[mr][mc] = paint_val; if (!paint_val) gflam[mr][mc] = false; }
+        if (mr >= 0)       { grid[mr][mc] = paint_val; if (!paint_val) gstroke[mr][mc] = ST_PLAIN; }
         else if (mr == -1) gacc[mc]     = paint_val;
     }
 
-    // RIGHT button paints flams — the panel's FLAM + step-button gesture.
-    // Flamming an off cell turns it on; un-flamming keeps the plain hit.
+    // RIGHT button cycles a cell through the stroke family (an off cell
+    // joins at FLAM); right-drag paints the stroke the press landed on.
     if (mouse_pressed(MOUSE_RIGHT) && mr >= 0)
-        paint_flam = !(grid[mr][mc] && gflam[mr][mc]);
+        paint_stroke = grid[mr][mc] ? (gstroke[mr][mc] + 1) % NSTROKE : ST_FLAM;
     if (mouse_down(MOUSE_RIGHT) && mr >= 0) {
-        if (paint_flam) { grid[mr][mc] = true; gflam[mr][mc] = true; }
-        else            gflam[mr][mc] = false;
+        grid[mr][mc]    = true;
+        gstroke[mr][mc] = (unsigned char)paint_stroke;
     }
 
     if (!running) return;
@@ -504,13 +532,8 @@ void update(void) {
         if (nx & 1) delay += (swing - 50) * 2 * step_ms / 100;
         int boost   = gacc[nx] ? 2 : 0;
         for (int v = 0; v < NV; v++)
-            if (grid[v][nx]) {
-                if (gflam[v][nx]) {   // grace note FLAM_MS early, 3 vol quieter
-                    int gd = delay - FLAM_MS;
-                    fire(v, boost - 3, gd < 0 ? 0 : gd);
-                }
-                fire(v, boost, delay);
-            }
+            if (grid[v][nx])
+                fire_stroke(v, gstroke[v][nx], boost, delay, step_ms);
 
         if (first) {   // fresh start: also sound the step we're already on
             int b0 = gacc[playhead] ? 2 : 0;
@@ -565,11 +588,23 @@ void draw(void) {
             // first step of each quarter gets a white tick (beat marker)
             if (grid[v][s]) {
                 int c = (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : CLR_ORANGE;
-                if (gflam[v][s]) {   // split cell: grace tick + main bar
+                switch (gstroke[v][s]) {
+                case ST_FLAM:     // grace tick + main bar
                     rectfill(x, y, 2, 7, c);
                     rectfill(x + 4, y, SX - 8, 7, c);
-                } else
+                    break;
+                case ST_DRAG:     // two grace ticks + main bar
+                    rectfill(x, y, 1, 7, c);
+                    rectfill(x + 2, y, 1, 7, c);
+                    rectfill(x + 4, y, SX - 8, 7, c);
+                    break;
+                case ST_RATCHET:  // four even chops
+                    for (int k = 0; k < 4; k++)
+                        rectfill(x + 1 + k * 2, y, 1, 7, c);
+                    break;
+                default:
                     rectfill(x, y, SX - 4, 7, c);
+                }
             } else
                 rect(x, y, SX - 4, 7, (s & 3) == 0 ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
         }
@@ -604,5 +639,5 @@ void draw(void) {
     print("RES^", PADX - 22, PADY, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
-    print("<> PRESET ^v BPM Z/X SHFL RCLIK FLAM", 14, 186, CLR_DARK_GREY);
+    print("<> PRESET ^v BPM Z/X SHFL RCLK STROKE", 14, 186, CLR_DARK_GREY);
 }

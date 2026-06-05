@@ -435,9 +435,92 @@ What changes between styles is mostly **data** — the engine above carries over
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 
 Each future style should land as its own cart (lofi radio, ambient radio…) reusing
-this guide's blocks; the copied core (clock + chord brain + voice leading + seed
-contract + help panel, ~150 lines) has now survived seven carts verbatim —
-extraction into a shared header is overdue whenever someone wants that refactor.
+this guide's blocks; the copied core has now survived **ten** carts essentially
+verbatim — extraction is overdue, and the plan is written up below
+("`radio.h` — the shared chassis").
+
+## `radio.h` — the shared chassis, and how to lift it out
+
+Planned 2026-06-05. Inventory of what is verbatim (or one-rename-away) across
+all ten stations:
+
+- the **xorshift32 composition PRNG** (`rngState/srnd_u/srnd`) + the seed
+  derivation in `new_song` (`rnd<<16 ^ rnd ^ frame()*2654435761u`)
+- the **session history** (`hist[64]`, `fresh_song`, `[`/`]` walking)
+- **nearest-tone voice leading** — house.c's generalized
+  `lead_to(c, voices, n, lo, hi, &init)` is the canonical form (n voices,
+  register window as parameters)
+- the **schedule-ahead step clock** (`scheduled/songBase/stepMs`, the
+  `while (scheduled < target)` loop)
+- the **input block** (SPACE/R/[ ]/arrows/M/T/H + the mouse ?-button hit test)
+- the **chassis draw**: `knob()`, the dial strip, the display window, the
+  boxed-chord readout, the help-panel scaffold, power LED, footer hint
+- the **density model** (`level_of = sectionBase + intensity - 1`, clamped),
+  the **tone knob** (`TONENAME/TONEMUL` + an `apply_voicing` hook), the vu
+  decay, `PCNAME[12]`, `iabs`
+
+What changed every time (stays in carts): the chord brain, instruments,
+`play_step` content, FORM/sections, the window art, FEEL names, help text.
+
+**Shape: a toolkit, not a framework.** The tempting version — `radio.h` owns
+`update()`/`draw()` and carts fill in callbacks — is wrong for this family:
+ambient has *no step clock at all*, satie runs *twelve-step 3/4 bars*, and
+the guide's own field note says "the clock, the chord brain, and every
+instrument changed completely" between stations. So the header exports
+**blocks the cart calls**, never the other way around:
+
+```c
+// runtime/radio.h — header-only, static fns; carts opt into pieces
+typedef struct { /* hist[64], histN, histPos, rngState, seed */ } RadioSeed;
+unsigned rad_new_seed(RadioSeed *r);            // derive + log to history
+void     rad_replay(RadioSeed *r, unsigned s);  // R / [ / ] re-entry
+int      rad_srnd(RadioSeed *r, int n);         // composition PRNG
+
+void rad_lead_to(int root_pc, const int *iv, int *v, int n,
+                 int lo, int hi, bool *init);   // the voice-leading block
+
+typedef struct { /* scheduled, songBase, stepMs */ } RadioClock;
+long rad_clock_tick(RadioClock *c, double pos); // returns steps to schedule
+
+typedef struct { /* station name, accent color, FEEL[4], help rows,
+                    tempo min/max/step, tone-knob on/off, hooks */ } RadioFace;
+bool rad_input(RadioFace *f, /* &tempo, &intensity, &toneSel, ... */);
+void rad_draw_chassis(const RadioFace *f, /* title, freq, seed, vu, ... */);
+// the cart draws ONLY its window art + chord readout inside the callback
+```
+
+Where it lives: **`runtime/radio.h`** — already on `-I` for every build path
+(editor clang, `make-cart.js`, `play.js`, and the libtcc live host). Header-
+only static functions compile into the cart's own TU, so **no
+`studio_tcc_symbols.h` regeneration is needed** — zero engine surface grows.
+
+**The seed-compatibility rule (the only dangerous part):** a pinned seed IS
+the song, and the composition is just the *sequence of `srnd` calls*. The
+extraction must not add, remove, or reorder a single PRNG call in any
+migrated cart, or every pinned `*_SEED` and noted seed breaks silently.
+Acceptance test per cart, before/after each migration:
+
+```bash
+node tools/play.js <name> run --headless --trace a.jsonl --frames 3000 --seed 7
+# migrate, rebuild, rerun to b.jsonl — then the chord/sect streams must be
+# IDENTICAL: diff <(jq -c .w a.jsonl) <(jq -c .w b.jsonl)
+```
+
+**Migration order** (one cart per commit — parallel-agent hygiene):
+
+1. `house.c` as pilot (newest, already has the generalized `lead_to`)
+2. the synth trio `ymo.c` / `dub.c` (same skeleton, near-zero adaptation)
+3. `citypop.c`, `lowend.c`, `jingle.c`, `jangle.c`, `bossa.c`
+4. `ambient.c` and `satie.c` **last** — they deviate most (beatless; 3/4)
+   and prove the toolkit claim: they should be able to take the PRNG,
+   history, voice leading and chassis while *skipping* the clock entirely.
+
+**Sequencing note:** do the extraction **before** the per-song timbre-roll
+refit (section below) — then the roll helpers (`rad_roll_filter`, register
+shift, wave pools) land once in `radio.h` and the whole family inherits the
+fix instead of ten hand-copies. The estimated arithmetic: core ≈ 300–350
+header lines; each cart sheds ≈ 150–220; and stations eleven+ (gamelan,
+Italo, the Doors) start from a scaffold instead of a copy of dub.c.
 
 ## The same band every night — per-song timbre rolls (family-wide refit)
 

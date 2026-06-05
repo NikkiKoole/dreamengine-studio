@@ -1028,3 +1028,56 @@ Reuses machinery that already exists — no new subsystem:
 **Demo carts (one each, the "tweak rig" pattern):** a `pitchenv` cart (drum punch + zap) and a
 `filterenv` cart (pluck-bass "pew" + sweep), each with attack/decay/amount sliders and a keyboard —
 mirroring `heldnotes`/`instruments` cart style. These double as the by-ear tuning rig.
+
+---
+
+## 12. Instrument gaps — found by building the radio family (2026-06-05)
+
+**Empirical, not speculative:** this list is what was actually missing while
+building and planning the ten radio stations (bossa → house) plus the next
+batch's designs (gamelan, Italo, Steely Dan, the Doors). Ranked by how often
+the wall was hit, and scored against §1's leverage rule.
+
+1. **Voice choke groups.** The family's one *documented* infidelity:
+   `tr808.c`'s header admits "real 808 closed hats CHOKE the open hat; our
+   one-shot notes can't cut each other," and house.c inherits the flaw (the
+   offbeat open hat rings through the next closed hat). Every drum-machine
+   genre wants it. Tiny surface — `instrument_choke(slot_a, slot_b)`: a note
+   on `a` kills sounding notes on `b`. High leverage for one call.
+
+2. **A second oscillator per voice** (detune pair, or 2-op FM). The big
+   timbre unlock, felt three distinct ways:
+   - **Electric piano doesn't exist.** The guide's recipe ("SINE + tremolo")
+     is a placeholder, not a Rhodes. Italo disco, Steely Dan/AOR and any
+     deeper citypop all *center* on epiano/DX keys — the planned batch runs
+     straight into this wall.
+   - **Bells and metal are out of reach.** FM's inharmonic partials are
+     exactly gamelan's bronze (ombak beating *inside* one voice) and
+     exotica's vibraphone.
+   - **Pads cost double.** ambient.c burns 4 of `SOUND_VOICES 8` on one
+     chord; house.c cut its string machine to 2 voices for budget. An
+     instrument-level **unison-detune flag** would halve every pad's
+     polyphony cost — arguably the cheapest 80% of this item.
+
+3. **A plucked-string wave (Karplus-Strong).** Every guitar on the dial is a
+   filtered TRI envelope: bossa's nylon, jangle's chorus-wobble, the planned
+   Krieger drone guitar. One wave type covers guitar / harp / koto — and KS
+   variants do metallic percussion too. Famously ~20 lines.
+
+4. **Finer dynamics.** `vol 0..7` is coarse: ghost notes jump audibly
+   between 1 and 2, and satie.c — solo piano, where *touch is the whole
+   arrangement* — strains hardest against 8 steps. Even 0..15 would let
+   grooves breathe. (Mind the API-churn cost: every existing call site.)
+
+5. **The contentious one: a tiny shared room.** The family is bone dry.
+   dub.c proved echo can be *scheduled notes* — but diffuse tails can't be
+   scheduled. satie/ambient/exotica would transform with one fixed mono
+   plate + per-slot send level. Counter-argument: dryness IS the chip
+   identity. A taste decision, not a clear gap — flagging, not advocating.
+
+**What was NOT missing**, for the record: the per-note modulation system is
+complete in practice — house.c's entire filter ride was `note_cutoff` +
+`note_res` with zero friction, and the env/LFO routing covered every recipe
+in game-music.md so far. Also `wave_set`/`INSTR_USER0..3` went **unused by
+all ten stations** — a drawn single-cycle wave could fake organ drawbars or
+a nasal clav today; worth a reminder in the guide before adding anything.

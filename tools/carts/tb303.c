@@ -104,7 +104,10 @@ static void define_voice(void) {
     instrument_duty(SLOT, 0.48f);
     instrument_filter(SLOT, FILTER_LOW, cut_hz(), res_q());
     instrument_drive(SLOT, drv_x());
+    instrument_echo(SLOT, 0.10f);   // the delay pedal every acid set ran into — subtle slapback
 }
+
+static void sync_echo(void) { echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f); }   // dotted-8th
 
 static void gen_random(void) {
     int prev = 0;
@@ -126,6 +129,7 @@ static void load_preset(void) {
     const Pat *p = &PRESET[pre];
     tempo = p->tempo;
     bpm(tempo);
+    sync_echo();
     if (!p->nt[0]) { gen_random(); return; }
     for (int s = 0; s < STEPS; s++) {
         char c = p->nt[s];
@@ -174,8 +178,8 @@ void update(void) {
     if (keyp(KEY_SPACE)) { running = !running; last16 = -1; if (!running) all_off(); }
     if (keyp(KEY_LEFT))  { pre = (pre + NP - 1) % NP; load_preset(); last16 = -1; all_off(); }
     if (keyp(KEY_RIGHT)) { pre = (pre + 1) % NP;      load_preset(); last16 = -1; all_off(); }
-    if (keyp(KEY_UP))   { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); }
-    if (keyp(KEY_DOWN)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); }
+    if (keyp(KEY_UP))   { tempo += 4; if (tempo > 250) tempo = 250; bpm(tempo); sync_echo(); }
+    if (keyp(KEY_DOWN)) { tempo -= 4; if (tempo <  40) tempo =  40; bpm(tempo); sync_echo(); }
     if (keyp('N')) { gen_random(); }
     if (keyp('H')) show_help = !show_help;
 

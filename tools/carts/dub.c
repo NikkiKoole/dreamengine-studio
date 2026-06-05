@@ -7,10 +7,12 @@
 // Tubby / Augustus Pablo homage. Seventh station, and the one where the
 // engine's own machinery IS the genre:
 //
-//   • ECHO AS SCHEDULED NOTES — dub's defining effect needs no FX engine:
-//     every skank chop, rim shot and melodica note schedules its own decaying
-//     repeats (echo_hit: 2-6 taps, a dotted-8th apart, fading volume). The
-//     delay line is just more notes in the future.
+//   • ECHO AS SCHEDULED NOTES *PLUS* THE BUS — the rhythm of dub echo is
+//     scheduled notes (echo_hit: 2-6 taps, a dotted-8th apart, fading
+//     volume; the delay line is just more notes in the future). Under them
+//     sits what scheduled notes could never do: the engine's echo bus
+//     (same dotted-8th time) puts a diffuse, DARKENING tail beneath every
+//     tap, and a throw rides the skank's send fader hot for the phrase.
 //   • THE DESK IS THE INSTRUMENT — a dub track is one riddim plus a mixing
 //     engineer riding the faders. Every 4-bar phrase, the desk re-rolls which
 //     layers are in (bass ~92%, drums ~90%, skank, organ, melodica). When the
@@ -83,6 +85,7 @@ typedef struct {
 
 static Song   sng;
 static int    tempo     = 72;
+static void   apply_echo_bus(void);   // defined below echo_hit (new_song needs it early)
 static int    intensity = 1;     // feel: shifts the arrangement's density curve
 static bool   radioOn   = true;
 static bool   showHelp  = false;
@@ -158,6 +161,7 @@ static void new_song(double pos, unsigned seed) {
 
     tempo = 66 + srnd(15);                               // 66..80
     bpm(tempo);
+    apply_echo_bus();                                    // the tape loop follows the riddim
     songBase = (long)pos + 8;
     gvInit   = false;
     melPitch = 76;
@@ -221,6 +225,16 @@ static void echo_hit(int dly, int midi, int instr, int vol, int dur, int taps) {
         if (v <= 0) break;
         schedule_hit(dly + k * t, midi, instr, v, dur);
     }
+}
+
+// ── THE BUS — the diffuse tail under the taps (audio-notes §17 step 3) ────
+// The scheduled taps above ARE the rhythm of dub echo and they stay. What
+// they could never do is the diffuse, darkening wash a real tape loop puts
+// under them — that's the engine's echo bus: same dotted-8th time, repeats
+// losing brightness every pass. Modest sends on the echoed voices; the
+// throw rides the skank's send fader hot (see the desk).
+static void apply_echo_bus(void) {
+    echo((int)(60000.0 / (tempo * 4) * 3.0), 0.45f, 0.22f);
 }
 
 // voice-led bass register, deep: G1..G2
@@ -304,12 +318,16 @@ static void play_step(long abs, double pos) {
         dkMelo  = chance(lvl >= 3 ? 55 : 35);
         if (!dkBass && !dkDrums) dkDrums = true;        // someone holds the floor
         // the THROW: the skank leaves and its ghost echoes into the dark
-        if (skankWas && !dkSkank && lvl >= 1) {
+        bool throwNow = skankWas && !dkSkank && lvl >= 1;
+        if (throwNow) {
             lead_voices(c);
             for (int k = 1; k < 3; k++)
                 echo_hit(dly, gv[k], I_SKANK, 5, 70, lvl >= 3 ? 6 : 4);
             vu += 3;
         }
+        // ride the skank's send fader: hot through a throw phrase so the taps
+        // dissolve into the bus's darkening wash, back to the base wash after
+        instrument_echo(I_SKANK, throwNow ? 0.8f : 0.18f);
         // the meltdown toy
         if (lvl >= 3 && chance(18))
             for (int k = 0; k < 3; k++)
@@ -393,6 +411,10 @@ static void setup_instruments(void) {
     instrument(I_MELO, INSTR_SQUARE, 12, 160, 5, 180);       // reedy melodica
     instrument_duty(I_MELO, 0.38f);
     instrument_lfo(I_MELO, 0, LFO_PITCH, 5.0f, 0.18f);
+    instrument_echo(I_MELO, 0.25f);                          // melodica always sings into the tape
+
+    instrument_echo(I_SKANK, 0.18f);                         // base wash; the desk rides it on throws
+    instrument_echo(I_RIM, 0.25f);                           // rim throws carry a real tail too
 
     instrument(I_ORG, INSTR_TRI, 4, 70, 3, 50);              // the bubble
     instrument_lfo(I_ORG, 0, LFO_VOLUME, 6.5f, 0.12f);
@@ -434,8 +456,8 @@ void update(void) {
     if (keyp(']') && histPos < histN - 1) new_song(pos, hist[++histPos]);
     if (keyp(KEY_RIGHT) && intensity < 3) intensity++;
     if (keyp(KEY_LEFT)  && intensity > 0) intensity--;
-    if (keyp(KEY_UP)   && tempo < 88) { tempo += 2; bpm(tempo); }
-    if (keyp(KEY_DOWN) && tempo > 60) { tempo -= 2; bpm(tempo); }
+    if (keyp(KEY_UP)   && tempo < 88) { tempo += 2; bpm(tempo); apply_echo_bus(); }
+    if (keyp(KEY_DOWN) && tempo > 60) { tempo -= 2; bpm(tempo); apply_echo_bus(); }
     if (keyp('T')) { toneSel = (toneSel + 1) % 4; apply_voicing(); }
     if (keyp('M')) {
         radioOn = !radioOn;

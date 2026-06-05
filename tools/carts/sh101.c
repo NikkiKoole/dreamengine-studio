@@ -151,6 +151,7 @@ static void define_slots(void) {
         // LFO → pitch (vibrato) and LFO → cutoff, when the shape is TRI
         instrument_lfo(slot, 0, LFO_PITCH,  rate, (tri && s != 3) ? f_vmod(vmod_v) : 0.0f);
         instrument_lfo(slot, 1, LFO_CUTOFF, rate, tri ? f_fmod(fmod_v) : 0.0f);
+        instrument_echo(slot, 0.08f);   // the delay pedal on the guitar-strap synth — barely-there slapback
     }
     // pulse-specific: width + its modulation source
     instrument_duty(SL_PULSE, duty_man());

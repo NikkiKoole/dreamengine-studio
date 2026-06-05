@@ -226,28 +226,49 @@ cart — every function gets a frame on stage) and **`monstermix.cart.js`**
 
 ### font-bake.js — real TTF text as sprites
 
-For title screens and logos: `tools/font-bake.js` rasterizes text from any TTF
-(every Google Font works) into the same 2D canvases sprite-draw uses — at
-**build time**, so the cart has zero runtime font code.
+For title screens, logos, and big verdict words: `tools/font-bake.js`
+rasterizes text from any TTF (every Google Font works) into the same 2D
+canvases sprite-draw uses — at **build time**, so the cart has zero runtime
+font code.
+
+The everyday entry point is `bakeBanner` — it fits, centers, outlines and
+shadows a word into a fixed slot-rect and returns ready 16×16 tiles:
 
 ```js
-const { bakeText, measure } = require('../font-bake.js')
-const g = bakeText('fonts/Bungee-Regular.ttf', 'DREAM',
-                   { px: 28, color: 10, aa: 9 })   // aa = darker edge color
-// g is an ordinary sprite-draw grid: outlined(g, 16), stamp it, split() it
+const { bakeBanner } = require('../font-bake.js')
+// 8 cols × 2 rows of slots; color/aa/outline/shadow are palette indices (-1 = off)
+const tiles = bakeBanner('fonts/Smokum-Regular.ttf', 'DRAW!', 8, 2,
+                         { color: 8, aa: 24, outline: 16, shadow: 20 })
+tiles.forEach((t, i) => { sprites[base + ((i / 8) | 0) * 8 + (i % 8)] = t })
 ```
 
-- `measure(font, text, px)` → `{w, h}` without rasterizing — loop it to find the
-  biggest `px` that fits a slot budget.
-- `aa` maps partial-coverage edge pixels to a darker companion color so small
-  text doesn't look chewed. **If the cart recolors the text with `pal()`, remap
-  the `aa` color too** — fill and edge are separate palette indices, and
-  swapping only the fill leaves a clashing rim.
-- Border/shadow are just sprite-draw composition: `outlined(g, color)` for the
-  border (bake with `pad: 2` to leave room), and stamp a recolored `clone()` at
-  a 1px offset under the text for a drop shadow.
-- Fonts live in `tools/fonts/` (with their OFL license). New ones are one curl
-  from the google/fonts repo:
+Because the word is centered in the rect, the C side `sspr()`s a *constant*
+sheet region regardless of the word's width — change the text, the C code
+doesn't care.
+
+Three rules learned the hard way:
+
+- **`colorkey(0)` in `init()` is mandatory.** There is no default transparent
+  color — without it every banner drags its empty slot-rect along as an opaque
+  black box (invisible over a black sky, glaring over anything else).
+- **Give every word two slot-rows.** One row leaves ~11px glyphs after the
+  outline trim — too thin for most display fonts at 2x. Short words can share
+  a row pair as half-width rects (highnoon packs five words into exactly 64
+  slots that way: two 8×2 + two 4×2 + one 8×2).
+- **If the cart recolors the text with `pal()`, remap the `aa` color too** —
+  fill and edge are separate palette indices, and swapping only the fill
+  leaves a clashing rim.
+
+Lower-level pieces, for custom treatments:
+
+- `bakeText(font, text, {px, color, aa, threshold, pad})` → tight 2D grid; an
+  ordinary sprite-draw canvas (`outlined()` it, `stamp()` it, `split()` it).
+  `aa` maps partial-coverage edge pixels to a darker companion color so small
+  text doesn't look chewed.
+- `measure(font, text, px)` → `{w, h}` without rasterizing — loop it to find
+  the biggest `px` that fits a budget (bakeBanner does this internally).
+- Fonts live in `tools/fonts/` (with their OFL/Apache license file). New ones
+  are one curl from the google/fonts repo (check `ofl/` first, then `apache/`):
   ```bash
   curl -sL -o tools/fonts/<File>.ttf \
     "https://github.com/google/fonts/raw/main/ofl/<family>/<File>.ttf"
@@ -256,10 +277,9 @@ const g = bakeText('fonts/Bungee-Regular.ttf', 'DREAM',
   is a banner/title tool, not a text renderer — `print()` stays the workhorse
   for dynamic text.
 
-Worked showcase: **`fontbake.cart.js`** — each word baked centered into a fixed
-slot-rect so the C side `sspr()`s a constant sheet region regardless of the
-word's width; the cart waves the title in strips and `pal()`-recolors it live
-(fill + edge together).
+Worked showcases: **`fontbake.cart.js`** (Bungee; all the treatments, waving
+strips, live `pal()` recolor) and **`highnoon.cart.js`** (Smokum; five words
+packed to exactly 64 slots — the words ARE the gameplay).
 
 ---
 

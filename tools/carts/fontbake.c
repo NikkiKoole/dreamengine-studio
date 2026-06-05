@@ -14,6 +14,10 @@
 
 static int cycle = 0;
 
+void init(void) {
+    colorkey(0);    // baked banners: palette 0 around the words = transparent
+}                   // (without this each banner drags an opaque black slot-rect)
+
 void update(void) {
     if (btnp(0, BTN_A)) cycle = (cycle + 1) % 4;
 }

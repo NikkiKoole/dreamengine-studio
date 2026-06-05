@@ -86,9 +86,13 @@ eventually2/
 │   │                   #   showcases: foundry (watch each op draw), monstermix (stamp composition)
 │   ├── font-bake.js    #   bake real-TTF text (any Google Font) into sprite-draw canvases
 │   │                   #   at build time — titles/logos with zero runtime font code
-│   │                   #   exports: bakeText (px/color/aa-edge), measure, loadFont
-│   │                   #   fonts in tools/fonts/ (+ OFL); vendored opentype.js in tools/vendor/
-│   │                   #   showcase: fontbake cart; see guides/cart-authoring.md → font-bake.js
+│   │                   #   exports: bakeBanner (THE entry point: fit+center+outline+shadow
+│   │                   #            into a slot-rect → ready tiles), bakeText, measure, loadFont
+│   │                   #   carts drawing banners MUST colorkey(0) in init() or the empty
+│   │                   #   slot-rect draws as an opaque black box
+│   │                   #   fonts in tools/fonts/ (+ license); vendored opentype.js in tools/vendor/
+│   │                   #   showcases: fontbake (treatments), highnoon (words-as-gameplay)
+│   │                   #   see guides/cart-authoring.md → font-bake.js
 │   ├── lint-carts.js   #   validate index.json: every cart tagged (kind[] from the
 │   │                   #   vocabulary, genre required for games) + every .cart.png
 │   │                   #   registered. Owns the tag vocabulary; run after adding carts
@@ -152,16 +156,18 @@ The web build (emcc → `cart.html/js/wasm`) is its own "Build for web" button, 
 // input
 bool btn(int player, int button);   // player 0=Arrows+Z/X, player 1=WASD+J/K (default; rebind in settings → controls)
 
-// graphics
+// graphics — note the PICO-8-style short names: pset/circ/circfill,
+// NOT pixel/circle/circlefill (the sprite-draw.js *JS* lib uses the long
+// names; the C API does not — a recurring agent trip-up)
 void cls(int color);
 void spr(int index, int x, int y);
-void print(const char *text, int x, int y, int color);
+int  print(const char *text, int x, int y, int color);  // returns x after last char
 void rect(int x, int y, int w, int h, int color);       // border
 void rectfill(int x, int y, int w, int h, int color);   // filled
-void circle(int x, int y, int radius, int color);       // border
-void circlefill(int x, int y, int radius, int color);   // filled
+void circ(int x, int y, int radius, int color);         // border
+void circfill(int x, int y, int radius, int color);     // filled
 void line(int x1, int y1, int x2, int y2, int color);
-void pixel(int x, int y, int color);
+void pset(int x, int y, int color);                     // single pixel
 
 // constants
 SCREEN_W, SCREEN_H          // canvas dimensions

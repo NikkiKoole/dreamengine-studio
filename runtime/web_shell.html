@@ -26,8 +26,23 @@
 </head>
 <body>
   <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  <div id="rotate-hint" style="display:none; position:fixed; top:12px; left:50%; transform:translateX(-50%);
+       background:#25262b; color:#e8e6e3; border:1px solid #ff6c24; border-radius:8px;
+       padding:8px 14px; font:13px ui-monospace,Menlo,monospace; pointer-events:none;">&#8635; rotate your phone</div>
   <script>
     var Module = { canvas: document.getElementById('canvas') };
+    // landscape cart viewed in portrait on a touch device? show a gentle hint.
+    // checked at runtime (canvas is sized by Raylib at boot) so a portrait-shaped
+    // cart never nags. hint only — we never CSS-rotate the canvas, because the
+    // GLFW shim maps touch/mouse from the bounding rect and a transform breaks it.
+    function rotateHint() {
+      var c = Module.canvas, h = document.getElementById('rotate-hint');
+      var portrait = window.innerHeight > window.innerWidth;
+      var coarse   = window.matchMedia('(pointer: coarse)').matches;  // touch device
+      h.style.display = (coarse && portrait && c.width > c.height) ? 'block' : 'none';
+    }
+    window.addEventListener('resize', rotateHint);
+    setTimeout(rotateHint, 1000);  // after Raylib has sized the canvas
     // emscripten's GLFW shim (-s USE_GLFW=3) drops mouse events whose target isn't
     // the canvas, and its own capture call (event.target.setCapture()) is a legacy
     // Firefox/IE API that throws on Chrome/Safari. Without capture, a drag released

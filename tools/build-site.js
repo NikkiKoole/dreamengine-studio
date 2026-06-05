@@ -18,6 +18,7 @@ const fs   = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
 const mk   = require('./make-cart.js')
+const { lint } = require('./mobile-lint.js')
 
 const ROOT       = path.join(__dirname, '..')
 const RUNTIME    = path.join(ROOT, 'runtime')
@@ -145,6 +146,17 @@ function cartMeta(name) {
   return cartIndex().find(c => c.file === `${name}.cart.png`)
 }
 
+// phone-playability badge per mobile-lint verdict (visitor-facing wording:
+// "fixable" is a worklist term — until touchControls actually lands the cart
+// needs a keyboard, so it shows as desktop-only too)
+const BADGES = {
+  'touch-ready':   { cls: 'b-touch', text: '👆 phone-ready' },
+  'tap-as-mouse':  { cls: 'b-tap',   text: '👉 tap to play' },
+  'fixable':       { cls: 'b-keys',  text: '⌨ desktop only' },
+  'keyboard-only': { cls: 'b-keys',  text: '⌨ desktop only' },
+  'no-input':      { cls: 'b-watch', text: '👀 watch — it plays itself' },
+}
+
 function buildGallery() {
   if (!fs.existsSync(SITE_DIR)) fs.mkdirSync(SITE_DIR, { recursive: true })
   const built = fs.readdirSync(SITE_DIR, { withFileTypes: true })
@@ -158,14 +170,18 @@ function buildGallery() {
   }
   entries.sort((a, b) => a.title.localeCompare(b.title))
 
-  const cards = entries.map(e => `
+  const cards = entries.map(e => {
+    const badge = BADGES[lint(e.name).verdict]
+    return `
     <a class="card" href="${e.name}/">
       <img src="${e.name}/cart.png" alt="${esc(e.title)}" loading="lazy">
       <div class="body">
         <h2>${esc(e.title)}${e.genre ? ` <span class="tag">${esc(e.genre)}</span>` : ''}</h2>
+        ${badge ? `<div class="badge ${badge.cls}">${badge.text}</div>` : ''}
         <p>${esc(e.description)}</p>
       </div>
-    </a>`).join('\n')
+    </a>`
+  }).join('\n')
 
   fs.writeFileSync(path.join(SITE_DIR, 'index.html'), `<!DOCTYPE html>
 <html lang="en">
@@ -188,6 +204,9 @@ function buildGallery() {
   .card img { width: 100%; aspect-ratio: 8/5; object-fit: cover; image-rendering: pixelated; display: block; }
   .body { padding: 10px 12px 12px; }
   h2 { font-size: 14px; } .tag { color: #ffa300; font-size: 11px; font-weight: normal; }
+  .badge { font-size: 11px; margin-top: 4px; }
+  .b-touch { color: #00e436; } .b-tap { color: #ffa300; }
+  .b-keys { color: #9a948c; } .b-watch { color: #06b5e0; }
   .body p { color: #9a948c; font-size: 12px; margin-top: 4px; }
   footer { max-width: 960px; margin: 32px auto 0; color: #5f5a54; font-size: 12px; }
 </style>

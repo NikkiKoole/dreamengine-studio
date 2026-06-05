@@ -145,5 +145,8 @@ library header may beat engine API (ADR-0006 instinct).
 4. **touchlab on iPhone, formally** — run the §5 checklist from touch-notes,
    write verdicts into probe-carts.md; add a button-size page (how small can a
    `tapp()` rect be and stay hittable?) and a gesture readout page (§6).
-5. **Gallery badges** — surface the lint verdicts on the site so phone
-   visitors see what's playable before tapping.
+5. ~~**Gallery badges**~~ — **SHIPPED 2026-06-05**: `build-site.js` requires
+   `mobile-lint.js` and stamps an emoji chip on every gallery card
+   (👆 phone-ready / 👉 tap to play / ⌨ desktop only / 👀 watch — it plays
+   itself). Visitor-facing wording collapses `fixable` into desktop-only —
+   until `touchControls` actually lands, a btn()-cart still needs a keyboard.

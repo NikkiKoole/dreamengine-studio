@@ -91,6 +91,9 @@ function lint(name) {
   return { name, verdict, warnings }
 }
 
+module.exports = { lint }   // build-site.js badges the gallery with these verdicts
+if (require.main !== module) return
+
 // ── target selection ──────────────────────────────────────────
 const argv = process.argv.slice(2)
 let names

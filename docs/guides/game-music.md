@@ -914,6 +914,19 @@ stations 11–14 ranked the remaining candidates:
 (Ethio-jazz and J-fusion fell off the "blocked" list when `improv.h` shipped —
 they're now ordinary stations: scales-as-data + the improviser.)
 
+**Scouted BY the axis (2026-06-05)** — traditions found by hunting for
+mechanisms we lack, rather than genres we know. None needs new engine API:
+
+| candidate | new brains | the mechanisms |
+|---|---|---|
+| **Indian classical / raga** | **3–4** | raga as melody GRAMMAR (ascent ≠ descent, direction-gated tones, the pakad signature phrase — melody brain #3, beyond the improviser's mode walk) · tala + THE TIHAI (a cadence you COMPUTE: a phrase ×3 calculated to land exactly on sam) · alap (meterless form — the raga's notes revealed one at a time, pitch-set as dramaturgy) · the tanpura drone; raga-by-time-of-day is mood-metadata's cousin |
+| **tango / Romantic rubato** | 1 big | TEMPO AS A VOICE — phrase-level accel/rit via live `bpm()` (the clock survives changes by design, untouched since bossa); + marcato/síncopa alternation. Lush, dramatic, high taste-fit |
+| **barbershop / close harmony** | 1–2 | ADAPTIVE JUST INTONATION — retune each held chord to pure ratios with `note_pitch` floats (the "ring"); gamelan's tuning idea per-CHORD instead of per-song — the two reinforce |
+| **West African / Afro-Cuban** | 1–2 | true POLYMETER (12/8 bell over 4/4, the timeline as the lock) · batucada's CONDUCTOR — a performance channel that *signals* the band (calls, breaks, re-entries; the desk mixes, the conductor commands) |
+| **Balkan / klezmer aksak** | 1 | additive meter as data (2+2+3 limping 7/8) — satie proved odd bars |
+| **pedal steel / country** | 1 | bending INDIVIDUAL VOICES inside a held chord (per-handle `note_pitch` — chord-internal glides nobody has used) |
+| **the fill grammar** | 1 | cross-genre: phrase-end fills/turnarounds as a rule system — none of 14 stations does fills |
+
 ### Batch two: the IDM / electronic wing
 
 The first nine stations were about **harmony brains**; this batch is about

@@ -116,7 +116,8 @@ typedef struct {
     bool   md_on;                  // struck this note — guards an engine id without a note-on init
     // FM state (INSTR_FM): the carrier rides v->phase (advanced by the mix loop like any
     // wave); only the inaudible modulator needs its own phase + the feedback memory.
-    float  fm_mph, fm_fb;
+    // fm_tph is the DX tine ping (1:1 detent only — see sound_fm_sample).
+    float  fm_mph, fm_fb, fm_tph;
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -432,7 +433,23 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     v->fm_fb = m;
     v->fm_mph += f * RATIO[ri] / (float)SOUND_SAMPLE_RATE;
     if (v->fm_mph >= 1.0f) v->fm_mph -= 1.0f;
-    return sinf(v->phase * 6.2831853f + m * beta);
+    float out = sinf(v->phase * 6.2831853f + m * beta);
+    // the DX TINE: the E.PIANO 1 attack bell — a quiet 14x ping, ear-verdict driven
+    // (audio-notes §8.5 phase 3: "close but not exactly DX Rhodes"). Triple-contained so
+    // it can't leak into other presets: it only exists on the 1:1 detent, it dies in
+    // ~75ms, and feedback fades it out (growly brass barely hears it). Scaled by timbre —
+    // a soft strike has no tine, just like the hardware.
+    if (ri == 1) {
+        float td = expf(-(float)v->step_samples / (0.025f * (float)SOUND_SAMPLE_RATE));
+        float tf = f * 14.0f;
+        if (td > 0.002f && tf < (float)SOUND_SAMPLE_RATE * 0.45f) {
+            v->fm_tph += tf / (float)SOUND_SAMPLE_RATE;
+            if (v->fm_tph >= 1.0f) v->fm_tph -= 1.0f;
+            float tm = 1.0f - v->mor; if (tm < 0.0f) tm = 0.0f;
+            out += sinf(v->fm_tph * 6.2831853f) * 0.18f * v->timb * tm * td;
+        }
+    }
+    return out;
 }
 
 // One engine sample — the dispatch (engine ids >= INSTR_ENGINE_BASE). The default body is
@@ -599,7 +616,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->last_out = 0.0f;
     v->ks_len = 0;
     v->md_on  = false;
-    v->fm_mph = v->fm_fb = 0.0f;   // FM needs no excitation, just deterministic phases
+    v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
     v->step_samples     = 0;

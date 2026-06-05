@@ -43,7 +43,8 @@ Three corollaries:
 > for how it got here; STATUS item 5 holds what's next (engines, SFX authoring).
 
 **Engine**
-- 8 voices (`SOUND_VOICES`), 44.1 kHz, **mono**, software-mixed (sum × 0.2 gain each,
+- 16 voices (`SOUND_VOICES` — 8 until 2026-06-05, raised after the §15 starvation
+  measurement), 44.1 kHz, **mono**, software-mixed (sum × 0.2 gain each,
   hard-clipped to [-1, 1]). Runs on raylib's audio-stream callback (the **audio thread**).
 - Voice allocation: first free → else a **non-held** voice → else voice 0. Held notes
   are stolen last — they're meant to last.
@@ -1521,9 +1522,25 @@ renders of the `house` cart (densest radio station, seed 7) at 8 vs 16 voices:
 - Soundcheck tripwire: PASS at both voice counts.
 
 Conclusion: **16 voices is measured-safe and audibly restores starved parts.**
-The remaining gate is the ear test (A/B the 8- vs 16-voice renders of the
-house drop, t ≈ 21–30 s) before flipping the define for real. Still at 8 as
-of this note.
+**FLIPPED TO 16 same day.** The flip surfaced a landmine the experiment alone
+couldn't: note_on handles packed their slot in 3 hardcoded bits (`& 7` /
+`>> 3` at 13 call sites) — handle slots 8–15 aliased onto 0–7, live setters
+steering the wrong notes. Now `SOUND_HANDLE_BITS`/`SOUND_HANDLE_MASK` + a
+`_Static_assert` that fails the build if `SOUND_VOICES` ever outgrows the
+field.
+
+The refactor's byte-diff was itself a measurement: the corrected 16-voice
+house render differs from the pre-fix one **from t≈1s**, proving house holds
+**more than 8 simultaneous note_on handles** — at 8 voices it was hitting
+*two* ceilings at once: voice starvation (tails stolen) *and* handle-slot
+exhaustion (`note_on` with all 8 slots live reuses slot 0, releasing the
+oldest held note and disowning its handle — so live cutoff rides steered
+nothing or the wrong voice). The corrected 8-vs-16 comparison is starker than
+the first pass: **57 of 60 seconds differ**, divergence from t=0, and at 51 s
+the 16-voice render is 26.5% *quieter* — correct note_off/note_cutoff control
+means fewer wrongly-ringing notes, not just more restored tails. The filter
+ride being the genre's whole form, house is the cart that suffered most.
+Soundcheck tripwire: PASS.
 
 ## 16. WAV capture + analysis tooling — SHIPPED (2026-06-05)
 

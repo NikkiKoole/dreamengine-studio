@@ -18,7 +18,7 @@
 #include <string.h>
 
 #define SOUND_SAMPLE_RATE  44100
-#define SOUND_VOICES       8
+#define SOUND_VOICES       16
 #define SOUND_SFX_STEPS    32
 #define SOUND_SFX_SLOTS    32
 #define SOUND_INSTR_SLOTS  32   // 0-4 = the raw waves; 5-31 cart-defined (rich patch carts like modrack want banks per wave)
@@ -122,12 +122,16 @@ typedef struct {
 
 static Voice         voices[SOUND_VOICES];
 
-// held-note handles. A handle packs slot (low 3 bits) + generation (rest). The main
-// thread owns hn_gen/hn_used (hands out handles); the audio thread owns held_voice
-// (maps a handle slot → the voice currently serving it, or -1). A setter is honored
-// only if the live voice still carries the handle's generation — so a stale handle
-// (its voice was stolen or the slot reused) silently no-ops instead of hitting the
-// wrong note. See docs/design/held-notes.md.
+// held-note handles. A handle packs slot (low SOUND_HANDLE_BITS) + generation
+// (rest). The main thread owns hn_gen/hn_used (hands out handles); the audio
+// thread owns held_voice (maps a handle slot → the voice currently serving it,
+// or -1). A setter is honored only if the live voice still carries the handle's
+// generation — so a stale handle (its voice was stolen or the slot reused)
+// silently no-ops instead of hitting the wrong note. See docs/design/held-notes.md.
+#define SOUND_HANDLE_BITS 4                      // slot field width — must hold SOUND_VOICES-1
+#define SOUND_HANDLE_MASK ((1 << SOUND_HANDLE_BITS) - 1)
+_Static_assert(SOUND_VOICES <= (1 << SOUND_HANDLE_BITS),
+               "SOUND_VOICES no longer fits the handle slot field - bump SOUND_HANDLE_BITS");
 static int           hn_gen[SOUND_VOICES];      // main thread: generation per handle slot
 static bool          hn_used[SOUND_VOICES];     // main thread: slot handed out (between note_on/note_off)
 static int           held_voice[SOUND_VOICES];  // audio thread: handle slot → voice index, or -1
@@ -1195,35 +1199,35 @@ int note_on(int midi, int instr, int vol) {
     if (++hn_gen[slot] <= 0) hn_gen[slot] = 1;   // generations start at 1, stay positive
     int gen = hn_gen[slot];
     sound_push_ctrl(SR_NOTE_ON, midi, instr, vol, slot, gen, 0);
-    return slot | (gen << 3);                    // handle: slot in low 3 bits, generation above
+    return slot | (gen << SOUND_HANDLE_BITS);    // handle: slot in the low bits, generation above
 }
 
 void note_off(int handle) {
     if (handle <= 0) return;
-    int slot = handle & 7;
+    int slot = handle & SOUND_HANDLE_MASK;
     hn_used[slot] = false;
-    sound_push_ctrl(SR_NOTE_OFF, 0, 0, 0, slot, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_OFF, 0, 0, 0, slot, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_pitch(int handle, float midi) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_PITCH, (int)(midi * 256.0f), 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_PITCH, (int)(midi * 256.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_vol(int handle, int vol) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_VOL, vol, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_VOL, vol, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_cutoff(int handle, int hz) {
     if (handle <= 0) return;
     if (hz < 20) hz = 20;
-    sound_push_ctrl(SR_NOTE_CUTOFF, hz, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_CUTOFF, hz, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_res(int handle, int resonance) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_RES, resonance, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_RES, resonance, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_lfo(int handle, int which, int dest, float rate_hz, float depth) {
@@ -1231,22 +1235,22 @@ void note_lfo(int handle, int which, int dest, float rate_hz, float depth) {
     if (which < 0 || which >= SOUND_LFOS) return;
     if (rate_hz < 0) rate_hz = 0;
     if (depth   < 0) depth   = 0;
-    sound_push_ctrl(SR_NOTE_LFO, which, dest, (int)(rate_hz * 1000.0f), handle & 7, handle >> 3, (int)(depth * 1000.0f));
+    sound_push_ctrl(SR_NOTE_LFO, which, dest, (int)(rate_hz * 1000.0f), handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, (int)(depth * 1000.0f));
 }
 
 void note_filter(int handle, int mode) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_FILTER, mode, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_FILTER, mode, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_glide(int handle, int ms) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_GLIDE, ms, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_GLIDE, ms, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_duty(int handle, float duty) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_DUTY, (int)(duty * 1000.0f), 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_DUTY, (int)(duty * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void note_off_all(void) {
@@ -1324,7 +1328,7 @@ static void sound_macro_slot(int slot, int which, float x) {
 }
 static void sound_macro_note(int handle, int which, float x) {
     if (handle <= 0) return;
-    sound_push_ctrl(SR_NOTE_MACRO, which, (int)(x * 1000.0f), 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_MACRO, which, (int)(x * 1000.0f), 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 void instrument_harmonics(int slot, float x) { sound_macro_slot(slot, 0, x); }
 void instrument_timbre(int slot, float x)    { sound_macro_slot(slot, 1, x); }
@@ -1345,7 +1349,7 @@ void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, floa
     int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
     if (a < 0) a = 0;
     if (d < 0) d = 0;
-    sound_push_ctrl(SR_NOTE_ENV, ((which & 0xf) << 4) | (dest & 0xf), a, d, handle & 7, handle >> 3, (int)(amount * 1000.0f));
+    sound_push_ctrl(SR_NOTE_ENV, ((which & 0xf) << 4) | (dest & 0xf), a, d, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, (int)(amount * 1000.0f));
 }
 
 void schedule(int delay_ms, int midi, int instr, int vol) {

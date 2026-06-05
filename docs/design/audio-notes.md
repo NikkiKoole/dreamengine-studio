@@ -1367,25 +1367,34 @@ fit the existing style of the classic-machine family (cr-78, tr-808, tb-303):
 
 ### SH-101 (1982) — monophonic lead/bass synth
 
-**Build it now. No new engine work needed.**
+**SHIPPED 2026-06-05** — `sh101` cart, panel-faithful (grey fader panel:
+TUNE | MODULATOR | VCO | SOURCE MIXER | VCF | VCA | ENV + sequencer/arpeggio
+LED row + bender). The original assessment ("build it now, no engine work")
+held, with four build lessons worth recording:
 
-Every SH-101 feature maps directly to the current API:
+- **The SOURCE MIXER is voice-stacking.** Pulse + saw + sub + noise each get
+  their own slot and `note_on`; one held note = 4 of 8 voices, faders ride
+  live via `note_vol()`. This answers §12 gap 2 ("simultaneous waveform mix")
+  **for monosynths only** — a poly like the Juno-60 can't afford 4 voices per
+  key, so gap 2 proper (a real second-oscillator path) stays open.
+- **Engine LFOs are sine-only; the rest is a software LFO.** The 101's
+  tri/square/random(S&H)/noise modulator: TRI rides the engine LFO, the other
+  three are computed per-frame in `update()` and pushed through the live
+  setters (`note_pitch`/`note_duty`/`note_cutoff`). Fine for held notes at
+  60fps; scheduled arp hits (`schedule_hit`) only get the engine path — a
+  per-hit LFO-shape param would close that if it ever matters.
+- **KYBD tracking = per-note `note_cutoff` scaling** (cutoff × 2^((midi−60)/12·k)
+  right after `note_on`). Same limitation: `schedule_hit` carries no per-note
+  cutoff, so arp steps don't track. Audible only at high KYBD + wide arps.
+- **LFO RATE doubles as the seq/arp clock** (the real panel's LFO/CLK slider).
+  Self-scheduled with a ~100 ms `schedule_hit` lookahead off `now()` — no bpm
+  grid needed, and tempo follows the slider live.
 
-| SH-101 | Our API |
-|---|---|
-| DCO: saw / square (with PWM) | `INSTR_SAW` / `INSTR_SQUARE` + `instrument_duty()` |
-| Sub oscillator (−12 or −24 st) | Second `note_on` slot at the sub pitch; burns 2 of 8 voices but the SH-101 is monophonic so this is fine |
-| PWM LFO | `instrument_lfo(slot, LFO_DUTY, ...)` |
-| 4-pole resonant LP | `instrument_filter(FILTER_LOW, cutoff, res)` |
-| Filter envelope | `instrument_env(ENV_CUTOFF, ...)` |
-| LFO → pitch, filter, PWM | `instrument_lfo()` to all three destinations |
-| Portamento | `note_glide()` |
-| Arpeggiator | Scheduling logic in `update()`, same pattern as tb-303's sequencer |
-
-The SH-101 is the clearest free win in the classic-machine family — a
-monophonic lead/bass synth with the full ADSR, filter, LFO, and glide surface
-already used by tb-303.c. It would be the first *instrument* cart (rather than
-drum machine) that lets you shape a sound like a real synthesizer.
+Runtime side-effect of the build: **key claiming** — a cart that reads a key
+via `key()/keyp()/keyr()` claims it from the pause hotkey (the two-manual
+keyboard needs P as a note; ENTER still pauses). Plus two pause bugfixes:
+`-DPAUSE_KEY` is now honored (was hardcoded `KEY_P`) and ENTER can actually
+open the overlay (the menu used to consume the same press as Continue).
 
 ### TR-909 (1983) — hybrid drum machine
 

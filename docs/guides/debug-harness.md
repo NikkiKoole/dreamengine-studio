@@ -113,6 +113,17 @@ click 165 160 100      # click to close it
 That makes mouse-driven carts (neon rain, the economy game, …) fully scriptable and
 replayable — `mouse_x/y/mouse_pressed` all read the injected pointer under replay.
 
+### Gotcha: injected keys can hit the pause overlay
+
+Scripted input goes through the same path as real input, so the **runtime pause
+overlay** reacts to it: `ENTER` opens it (freezing `update()` — your trace's
+`watch()` fields go empty `{}` from that frame), and while it's open **Z/ENTER
+confirm** and **UP/DOWN move the selection** — an injected `Z` meant as a cart key
+will instead select *Continue* and unpause. Keys the cart itself reads are
+*claimed* and never trigger pause (`P` is safe in a cart that polls `P`), but a key
+the cart does **not** read is fair game for the overlay. If a scripted run
+mysteriously freezes mid-trace, check the script for a stray `ENTER`.
+
 ---
 
 ## The three ways to "play together"

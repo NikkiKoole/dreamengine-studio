@@ -140,13 +140,16 @@ their `kind[]` tags.
 4. **Pause** — runtime-owned pause overlay. (`fps()` SHIPPED — see Shipped above.)
    [`design/api-notes.md`](design/api-notes.md) §16.
 
-   **First pass (ready to build):**
-   - **P / ENTER** opens the overlay; **ESC** while paused resumes; **ESC** while
-     not paused closes the window (already works — unchanged).
-   - Overlay dims the scene behind it, freezes `update()`, mutes sound.
-   - Two items only: **Continue** / **Restart** (restart = `execv` re-exec, NES-style
-     full reset — no checkpoints).
-   - `paused()` API so carts can check state (e.g. stop a timer).
+   **First pass — SHIPPED** (P/ENTER opens, ESC resumes, freezes `update()`,
+   mutes sound, Continue/Restart via `execv`, `paused()` API).
+   **2026-06-05 hardening** (sh101's full keyboard collided with P):
+   - **Key claiming** — a key the cart reads via `key()/keyp()/keyr()` is
+     claimed and skipped by the pause hotkey; claims reset on libtcc hot-reload.
+     A full-keyboard cart keeps P; ENTER still pauses everything.
+   - `-DPAUSE_KEY` (settings → controls) is honored now — the check was
+     hardcoded `KEY_P`, so the rebind never worked.
+   - ENTER can actually open the overlay — the menu used to consume the same
+     press as Continue in the same frame, net no-op.
 
    **Deferred — Options submenu (document now, build later):**
    Matches PICO-8's pause → Options screen:

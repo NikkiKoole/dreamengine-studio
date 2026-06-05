@@ -537,6 +537,7 @@ What changes between styles is mostly **data** — the engine above carries over
 | **Satie (gymnopédie)** | 56–70, **3/4** | twelve-step bars; bass on 1, chord on 2, beat 3 empty; rubato in gnossienne mode | chord brain #6, the ALTERNATING PAIR: rock two chords for bars on end, drift the pair per section; gnossienne = phrygian-dominant minor | SOLO PIANO (two tri slots) — density curve shapes touch/ornament, not layers; mordents; melody enters late, stepwise, held over barlines | ✅ `satie.c` |
 | **French house (Daft Punk)** | 114–126 | four-on-floor 808, claps on 2+4, machine-straight; THE VOID — last beat before every drop is dead silence | stolen playbook of the records the genre sampled: Modjo/Chic i9–bVImaj7–iv9–bVII9, Stardust's Neapolitan bIImaj7, One More Time's tonic-avoiding IVmaj7–V–iii7, Digital Love's slash bass; dorian iv→IV9 + 9sus rolls, needle-drop rotation — harmony never develops, **the FILTER is the form** | THE RIDE: `note_cutoff`/`note_res` swept on held strings per 8-bar arcs + sidechain pump (cutoff ducks at each kick, blooms across the beat); saw stabs, octave disco bass, Da Funk `note_glide` mono lead, 808 circuits on loan from `tr808.c` | ✅ `house.c` |
 | **exotica (Denny/Baxter)** | 84–100, lazy two-feel | rim clave + conga heartbeat + shaker; vibes 15–25ms behind the beat; tremolo ROLLS on long notes | lounge loops: maj9/6-9 lush, borrowed ivm6 dusk, pagan minor (i–bVI / i–bIII–bVI); melody = re-pitched cell | vibes lead (**MALLET**, motor on), nylon comp (**PLUCK**), glass bell arps (**FM**) — all three engines; upright TRI bass; THE AVIARY: unseeded bird/frog calls per bar (the band improvising the jungle) | ✅ `exotica.c` |
+| **yacht rock (Steely Dan)** | 92–114, session-tight OR Purdie half-time shuffle (swung ghosts vol 1) OR CR-78 machine — rolled per song | citypop anticipations (and-of-4 epiano push), chromatic bass runs INTO changes, +2 gear change in the last chorus | THE MU CHORD (add9 voiced 3-5-9, a named quality) in stolen-playbook loops: two-mu vamp, ii–V13, maj7 planing, dorian i–IV13; mu-ify + sus-melt rolls | **FM epiano** comp (1:1 detent — the tine pings every chord) + tremolo, PLUCK strat 9th-stabs, breathy narrow-pulse sax, soft saw strings, kit circuits swapped per groove (cr78.c on loan) | ✅ `yacht.c` |
 | **ambient** | 60 fixed, pace knob | beatless; chords hold 8–16 beats, held `note_on` voices morph via `note_glide` | one mode per song, degree walk, no cadences | 4 detuned saw pads, sine sub, band-noise wind, bell arps | ✅ `ambient.c` |
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 
@@ -826,12 +827,12 @@ partly, and candidate genres can be scored against them:
 
 Genres scoring 4/4, in taste order:
 
-- **Yacht rock / Steely Dan & AOR** — the literal source citypop imported
-  ("Plastic Love" is Tokyo's answer to Aja). Even MORE codified: the mu
-  chord (μ — add9 voiced 1-2-3-5) is a *named Steely Dan invention*, the
-  ii–V-over-groove language exhaustively analyzed, and they were the most
-  session-perfectionist act ever recorded. Rhodes + clean gtr + tight kit,
-  all doable. The deep pick.
+- ~~**Yacht rock / Steely Dan & AOR**~~ — ✅ shipped as `yacht.c` (2026-06-05),
+  second scaffold-born station. The mu chord landed as a first-class chord
+  QUALITY in the template tables (+ a "mu-ify" flavor roll), the FM epiano
+  got its first station workout (the tine pings every comp hit), and the kit
+  rolls between session 16ths / Purdie half-time shuffle / CR-78 circuits on
+  loan (the Hall & Oates machine-soul move).
 - **Italo disco** — citypop's machine cousin: sequenced octave-arpeggio
   bass, dramatic minor formulas (i–bVI–bVII–V), bright stabs, drum-machine
   time, and the truck driver's gear change lives here too. Reuses house.c's

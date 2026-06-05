@@ -21,6 +21,7 @@
 const fs = require('fs')
 const path = require('path')
 const opentype = require('./vendor/opentype.cjs')
+const { blank, clone, stamp, split, outlined } = require('./sprite-draw.js')
 
 const fontCache = {}
 
@@ -121,4 +122,35 @@ function bakeText(fontPath, text, { px = 16, color = 7, aa = -1, threshold = 0.5
   return g
 }
 
-module.exports = { loadFont, measure, bakeText }
+// Bake `text` centered into a slotCols×slotRows slot-rect at the biggest px
+// that fits, returning flat 16×16 tiles (row-major) ready for sprite slots.
+// Place each row of tiles 8 slots apart so the sheet region is contiguous and
+// the C side can sspr() one constant rect regardless of the word's width.
+// Treatments compose like on any sprite:
+//   color/aa  see bakeText
+//   outline   sprite-draw outlined() border color (-1 = off)
+//   shadow    1px drop shadow color, stamped under the (outlined) text (-1 = off)
+function bakeBanner(fontPath, text, slotCols, slotRows, { color = 7, aa = -1, outline = -1, shadow = -1 } = {}) {
+  const trim = 3 + (outline >= 0 ? 2 : 0) + (shadow >= 0 ? 1 : 0)
+  const maxW = slotCols * 16 - trim, maxH = slotRows * 16 - trim
+  let px = 64
+  while (px > 6) {
+    const m = measure(fontPath, text, px)
+    if (m.w <= maxW && m.h <= maxH) break
+    px--
+  }
+  let g = bakeText(fontPath, text, { px, color, aa, pad: outline >= 0 ? 2 : 1 })
+  if (outline >= 0) g = outlined(g, outline)
+  const c = blank(slotCols * 16, slotRows * 16)
+  const ox = ((slotCols * 16 - g[0].length) / 2) | 0
+  const oy = ((slotRows * 16 - g.length) / 2) | 0
+  if (shadow >= 0) {
+    const sh = clone(g)
+    for (const row of sh) for (let i = 0; i < row.length; i++) if (row[i]) row[i] = shadow
+    stamp(c, sh, ox + 1, oy + 1)
+  }
+  stamp(c, g, ox, oy)
+  return split(c)
+}
+
+module.exports = { loadFont, measure, bakeText, bakeBanner }

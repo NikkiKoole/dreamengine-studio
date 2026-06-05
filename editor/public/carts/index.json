@@ -2199,6 +2199,16 @@
     ]
   },
   {
+    "title": "high noon",
+    "description": "A quick-draw reaction duel at sunset. Five outlaws, each with a faster trigger finger (SLOW JOE 600ms down to DEATH HIMSELF 215ms) — wait through the standoff, ignore the tumbleweed, and fire the frame you see DRAW!. Shoot early and the EARLY! verdict shames you; hesitate and you're DEAD. Every big word is a sprite baked from the Google Font \"Smokum\" (the wanted-poster slab serif) by tools/font-bake.js — the second font-bake cart, and the one where the words ARE the game: start signal and verdicts all sspr()'d sheet regions over a vgradient sunset. Z to draw.",
+    "file": "highnoon.cart.png",
+    "kind": [
+      "game",
+      "tech-demo"
+    ],
+    "genre": "arcade"
+  },
+  {
     "title": "sound check",
     "description": "The sound engine self-test. init() slams the request queue with the worst-case burst (all 27 instrument slots defined with envs/LFOs/filters + all 4 user wavetables in one frame), then walks the whole API: every wave id audibly in sequence, chords, a 40-shot schedule_hit machine-gun, and a held note driven by every live setter. PASS = no [sound] WARNING in the log and all 9 waves sound different; the engine now counts dropped requests and screams if any sound call was lost. Headless: node tools/play.js soundcheck run.",
     "file": "soundcheck.cart.png",

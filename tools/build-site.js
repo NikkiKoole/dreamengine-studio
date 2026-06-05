@@ -146,15 +146,33 @@ function cartMeta(name) {
   return cartIndex().find(c => c.file === `${name}.cart.png`)
 }
 
-// phone-playability badge per mobile-lint verdict (visitor-facing wording:
-// "fixable" is a worklist term — until touchControls actually lands the cart
-// needs a keyboard, so it shows as desktop-only too)
+// phone-playability badge, four tiers. "ready" is strict: any dead input path
+// on a touch screen demotes — if there's a keyboard button to press somewhere,
+// it's not perfect. The split below "ready": dead EXTRAS (keys/right-click read
+// alongside a working tap path, or watch-only radios — the music plays, the
+// key controls don't) = mostly; a dead CORE interaction (hover/wheel — things
+// a touch screen simply doesn't have) = rough. "fixable" is a worklist term —
+// until touchControls actually lands the cart needs a keyboard, so: desktop.
+// A hand-tested `"mobile": "ready"|"mostly"|"rough"|"desktop"` in the cart's
+// index.json entry beats the static guess (the lint can't see key-gated title
+// screens etc.).
 const BADGES = {
-  'touch-ready':   { cls: 'b-touch', text: '👆 phone-ready' },
-  'tap-as-mouse':  { cls: 'b-tap',   text: '👉 tap to play' },
-  'fixable':       { cls: 'b-keys',  text: '⌨ desktop only' },
-  'keyboard-only': { cls: 'b-keys',  text: '⌨ desktop only' },
-  'no-input':      { cls: 'b-watch', text: '👀 watch — it plays itself' },
+  ready:   { cls: 'b-ready',   text: '🟢 Mobile Ready — plays perfectly' },
+  mostly:  { cls: 'b-mostly',  text: '🟡 Mostly Playable — works, with rough edges' },
+  rough:   { cls: 'b-rough',   text: '🟠 Rough on Mobile — technically runs, expect pain' },
+  desktop: { cls: 'b-desktop', text: '🔴 Desktop Only — good luck past the title screen' },
+}
+const DEAD_EXTRA = /^(also-reads-keys|btn-without-overlay|right\/middle|touch>5)/
+const DEAD_CORE  = /^(hover|wheel)/
+
+function mobileTier(name, meta) {
+  if (BADGES[meta.mobile]) return meta.mobile        // manual verdict wins
+  const r = lint(name)
+  if (r.verdict === 'fixable' || r.verdict === 'keyboard-only') return 'desktop'
+  if (r.warnings.some(w => DEAD_CORE.test(w)))  return 'rough'
+  if (r.verdict === 'no-input')                 return 'mostly'  // watch/listen-only
+  if (r.warnings.some(w => DEAD_EXTRA.test(w))) return 'mostly'
+  return 'ready'
 }
 
 function buildGallery() {
@@ -171,7 +189,7 @@ function buildGallery() {
   entries.sort((a, b) => a.title.localeCompare(b.title))
 
   const cards = entries.map(e => {
-    const badge = BADGES[lint(e.name).verdict]
+    const badge = BADGES[mobileTier(e.name, e)]
     return `
     <a class="card" href="${e.name}/">
       <img src="${e.name}/cart.png" alt="${esc(e.title)}" loading="lazy">
@@ -205,8 +223,8 @@ function buildGallery() {
   .body { padding: 10px 12px 12px; }
   h2 { font-size: 14px; } .tag { color: #ffa300; font-size: 11px; font-weight: normal; }
   .badge { font-size: 11px; margin-top: 4px; }
-  .b-touch { color: #00e436; } .b-tap { color: #ffa300; }
-  .b-keys { color: #9a948c; } .b-watch { color: #06b5e0; }
+  .b-ready { color: #00e436; } .b-mostly { color: #ffa300; }
+  .b-rough { color: #ff6c24; } .b-desktop { color: #9a948c; }
   .body p { color: #9a948c; font-size: 12px; margin-top: 4px; }
   footer { max-width: 960px; margin: 32px auto 0; color: #5f5a54; font-size: 12px; }
 </style>

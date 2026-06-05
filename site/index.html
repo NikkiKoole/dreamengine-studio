@@ -20,8 +20,8 @@
   .body { padding: 10px 12px 12px; }
   h2 { font-size: 14px; } .tag { color: #ffa300; font-size: 11px; font-weight: normal; }
   .badge { font-size: 11px; margin-top: 4px; }
-  .b-touch { color: #00e436; } .b-tap { color: #ffa300; }
-  .b-keys { color: #9a948c; } .b-watch { color: #06b5e0; }
+  .b-ready { color: #00e436; } .b-mostly { color: #ffa300; }
+  .b-rough { color: #ff6c24; } .b-desktop { color: #9a948c; }
   .body p { color: #9a948c; font-size: 12px; margin-top: 4px; }
   footer { max-width: 960px; margin: 32px auto 0; color: #5f5a54; font-size: 12px; }
 </style>
@@ -38,7 +38,7 @@
       <img src="juice/cart.png" alt="19. juice" loading="lazy">
       <div class="body">
         <h2>19. juice</h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>The cheap tricks that make a game FEEL good. The same bouncing ball, but every impact fires five classic effects: screen-shake, squash &amp; stretch, a white flash, hit-stop (freeze a few frames for weight), and a puff of dust particles. Press Z to toggle ALL of it off and on so you feel exactly what the juice adds. X to bonk it yourself.</p>
       </div>
     </a>
@@ -47,7 +47,7 @@
       <img src="ambient/cart.png" alt="ambient radio" loading="lazy">
       <div class="body">
         <h2>ambient radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>The night sibling of bossa radio: an endless AM station composing beatless ambient drift. Four held pad voices (note_on) morph between chords via note_glide portamento - the sound never stops; per-note LFOs add tape wow and filter breathing. Harmony is a weighted walk over one mode (lydian/dorian/mixolydian/aeolian), no cadences, just drift; sub bass glides under, wind and sparse bell arps above. Every song is a 32-bit seed on the display. SPACE next, R same dream again, [ ] history, LEFT/RIGHT feel, UP/DOWN pace, M power. Pin a favourite via AMBIENT_SEED. Worked example #2 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -56,7 +56,7 @@
       <img src="bossa/cart.png" alt="bossa radio" loading="lazy">
       <div class="body">
         <h2>bossa radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>An endless radio station that composes bossa nova. Every song is generated from a 32-bit seed shown on the display: key, AABA chord progression (Markov walk over jazz harmony - ii-V-I, tritone subs, backdoor dominants), voice-led guitar comping on the bossa clave, surdo bass, shaker, a One Note Samba-style melody cell, tempo, even the title. SPACE next song, R play the same chart again, [ ] song history, LEFT/RIGHT feel (layers), UP/DOWN tempo, M power. Pin a favourite: put its #seed in BOSSA_SEED at the top of the source. The worked example for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -65,7 +65,7 @@
       <img src="citypop/cart.png" alt="city pop radio" loading="lazy">
       <div class="body">
         <h2>city pop radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless Japanese pop-funk - the city pop homage (Tatsuro Yamashita / Mariya Takeuchi / Plastic Love), sixth of the radio family. The canon as data: the ROYAL ROAD progression (IVmaj7-V7-iiim7-vim9, THE J-pop changes), Just-the-Two-of-Us loops (IVmaj7-III7alt-vim9-I9), the bittersweet descent (Imaj9-I9-IVmaj7-ivm6); octave-popping disco bass with double-chromatic 16th runs; two-voice guitar chucks that lay out for the bar turn; saw-brass anticipation hits; session-tight timing (the opposite of low end radio - no groove lag, +-2ms only); and the truck driver's gear change: the last chorus modulates up a whole step. Density = arrangement curve x feel knob; T cycles tone. Seed on display (CITYPOP_SEED / R / [ ] history), H help. Worked example #6 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -74,7 +74,7 @@
       <img src="cocktail/cart.png" alt="cocktail radio" loading="lazy">
       <div class="body">
         <h2>cocktail radio</h2>
-        <div class="badge b-watch">👀 watch — it plays itself</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>An endless piano-trio set - the Vince Guaraldi / Oscar Peterson lounge homage, station #14. Two blocks make it: THE WALKING BASS, the long-promised ~20-line generator (chord tone on beat 1, scale/arpeggio motion through the middle, a chromatic approach into the next bar's root on beat 4 - four quarters a bar, forever, never repeating), and THE IMPROVISER's second gig - runtime/improv.h, extracted from roadhouse.c by the second-customer rule: the piano solos over full tension arcs, and then THE BASS TAKES A SOLO (same brain, low register, two-thirds density, the room leans in - brushes drop to a whisper, the piano just nods). Harmony is a weighted ii-V-I functional walk with secondary dominants and the tritone sub, cadences FORCED into the last two bars of every 8 - the set always comes home. Swing at 62%: ride pattern ding ding-ga-ding, hat snapping 2 and 4, feathered kick, brush sweeps. Trio set form: head, piano solo, bass solo, piano trades back, head out. R replays the tune - the solos are always new. SPACE next tune, [ ] history, LEFT/RIGHT feel (last call/set one/set two/burner), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
       </div>
     </a>
@@ -83,7 +83,7 @@
       <img src="cr78/cart.png" alt="cr-78 compurhythm" loading="lazy">
       <div class="body">
         <h2>cr-78 compurhythm</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy bandpassed hats, highpassed maracas, resonant tambourine jingle), detuned square pairs/triples for cowbell and the metallic beat, and the guiro's ratcheting scrape — bandpassed noise chopped by a 36Hz volume LFO under a rising cutoff sweep. Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop.</p>
       </div>
     </a>
@@ -92,7 +92,7 @@
       <img src="dinorun/cart.png" alt="dino run" loading="lazy">
       <div class="body">
         <h2>dino run <span class="tag">platformer</span></h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>Chrome-offline-dino homage. You auto-run to the right — jump over cacti and duck under pterodactyls before they clip you. Speed climbs the longer you last, gaps between obstacles shrink, and birds only start appearing once you hit 300. Z / Up to jump; Down to duck. Score and best run saved.</p>
       </div>
     </a>
@@ -101,7 +101,7 @@
       <img src="moog/cart.png" alt="dream synth" loading="lazy">
       <div class="body">
         <h2>dream synth</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A playable Moog-style synth that ties the whole sound engine together. Build a patch with the mouse — pick a WAVE, drag the famous ADSR ENVELOPE dots, route THREE LFOs (pitch/duty/volume/cutoff) and dial a resonant FILTER with a DRIVE slider (the most Moog control on the panel: the real Minimoog's warmth IS its mixer overdriving the ladder filter — instrument_drive/note_drive recreate that filter-into-saturation bite, live on a ringing chord) — then play it on the on-screen keyboard with the mouse or your computer keys: the A row is the white keys, W E T Y U O P are the black keys, Z/X shift octave, C/V change velocity. Real hold-to-sustain: a key rings as long as you hold it, and the held chord follows the FILTER and PW sliders LIVE — drag the cutoff while a chord rings and it sweeps under your fingers.</p>
       </div>
     </a>
@@ -110,7 +110,7 @@
       <img src="dreamcad/cart.png" alt="dreamcad" loading="lazy">
       <div class="body">
         <h2>dreamcad</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-rough">🟠 Rough on Mobile — technically runs, expect pain</div>
         <p>A picoCAD-style 3D model editor. Orbit camera in perspective view, three orthographic views (Tab to cycle). Object list in the sidebar. v1: view the default cube, orbit and zoom with mouse. More editing coming soon.</p>
       </div>
     </a>
@@ -119,7 +119,7 @@
       <img src="drummachine/cart.png" alt="drum machine" loading="lazy">
       <div class="body">
         <h2>drum machine</h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>A 16-step sequencer that shows off the sound synth. Six drum voices (kick, snare, hats, clap, bass), a playhead that sweeps the grid off the beat() clock, and a starter groove built in. WASD move the cursor, Z toggles a cell, X clears, arrow keys change tempo.</p>
       </div>
     </a>
@@ -128,7 +128,7 @@
       <img src="dub/cart.png" alt="dub radio" loading="lazy">
       <div class="body">
         <h2>dub radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless roots dub - the King Tubby / Augustus Pablo homage, seventh of the radio family, and the one where the engine IS the genre. ECHO AS SCHEDULED NOTES: every skank chop, rim shot and melodica phrase schedules its own decaying repeats (dotted-8th apart) - no FX engine, the delay line is just more notes in the future. THE DESK IS THE INSTRUMENT: every 4-bar phrase a performance-level mixing brain re-rolls which layers are in (bass ~92%, drums ~90%, skank, organ bubble, melodica); when the skank leaves, its ghost gets thrown into a long echo tail. The desk is engine-rnd, so the same seed MIXES ITSELF DIFFERENTLY every listen - exactly how dubplates worked. Seeded 2-bar minor-pentatonic riddim bassline, one-drop/rockers/steppers kits, dub siren at meltdown feel. Seed on display (DUB_SEED / R / [ ] history), T tone, H help. Worked example #7 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -137,7 +137,7 @@
       <img src="dutchsky/cart.png" alt="dutch sky" loading="lazy">
       <div class="body">
         <h2>dutch sky</h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>A day/night sky cycle over a flat Dutch horizon. 10 keyframes — midnight, pre-dawn, dawn, morning, noon, afternoon, golden hour, dusk, twilight — blended with a scanline dither. ← → scrub time of day. ↑ ↓ fly up through the atmosphere into space: sky compresses below, stars fill the black above. A toggles auto-advance.</p>
       </div>
     </a>
@@ -146,7 +146,7 @@
       <img src="exotica/cart.png" alt="exotica radio" loading="lazy">
       <div class="body">
         <h2>exotica radio</h2>
-        <div class="badge b-watch">👀 watch — it plays itself</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless exotica - the Martin Denny / Les Baxter / Arthur Lyman homage: lush vibraphone over lazy latin percussion, faux-tropical lounge from 1957 (Hosono's origin story). The eleventh radio station, with three firsts: born on the runtime/radio.h scaffold instead of a hand-copy; ALL THREE modeled engines in one band (vibraphone lead = INSTR_MALLET with the motor on, nylon rhythm guitar = INSTR_PLUCK, glass-bell sparkles = INSTR_FM); and THE AVIARY - bird calls and frog croaks as an aleatoric performance channel, chance() per bar firing pitch-swooped calls that are never seeded, so replaying a seed replays the tune but the jungle never answers the same way twice (a bird crosses the lagoon window when it sings). Seeded per song: key, lounge changes (borrowed-iv dusk, pagan minor), the vibes cell with tremolo rolls, and the whole BAND's timbre (vibes macros, guitar pick, kit dressing, bird species). SPACE next song, R same tune (new birds), [ ] history, LEFT/RIGHT feel (lull/lounge/luau/rite), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
       </div>
     </a>
@@ -155,7 +155,7 @@
       <img src="fm/cart.png" alt="fm" loading="lazy">
       <div class="body">
         <h2>fm</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>INSTR_FM showcase - the third modeled ENGINE: two-operator FM, the DX-synth recipe. An inaudible modulator sine bends the carrier's phase; brightness DECAYS within each note like a real DX strike (bright attack, mellow tail), and SWELLS along a slow amp attack so brass can speak. The 1:1 detent carries the built-in DX tine - the E.PIANO attack ping. The three engine macros: instrument_harmonics = carrier:mod ratio (snapped detents - integers sound musical/harmonic, off-integers are bells and metal), instrument_timbre = brightness (FM amount), instrument_morph = modulator feedback (clean to saw-edge growl to noisy clang). Five presets (1 epiano, 2 bell, 3 bass, 4 brass, 5 clang) are knob positions plus an ADSR - a DX patch is both, since this engine deliberately doesn't bake its amp envelope. The modeling rig: seven sliders (three macros + a full ADSR with live ms readouts and a drawn envelope shape - the selected segment lights up), and the panel prints the exact instrument() call to copy into your cart. The scope draws the engine's actual formula live - strike a key and watch the wave mellow (and the tine flicker). A S D F G H J K play a major scale, 1..5 presets, drag any slider (or LEFT/RIGHT + UP/DOWN), SPACE chord, M autoplay on/off.</p>
       </div>
     </a>
@@ -164,7 +164,7 @@
       <img src="galerijflat/cart.png" alt="galerijflat" loading="lazy">
       <div class="body">
         <h2>galerijflat</h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>A generative Dutch gallery-access apartment block at dusk. Each re-roll randomises the concrete scheme, railing style, and every household's archetype — vitrage + symmetrical plants = elderly, bare glass + TV flicker = student. SPACE re-rolls.</p>
       </div>
     </a>
@@ -173,7 +173,7 @@
       <img src="heldnotes/cart.png" alt="held notes" loading="lazy">
       <div class="body">
         <h2>held notes</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-ready">🟢 Mobile Ready — plays perfectly</div>
         <p>A theremin built on the new HELD NOTE api. Press and HOLD anywhere on the pad — one sustained voice starts (note_on) and rings until you release (note_off). While you hold, the mouse drives it live: X slides the pitch (note_pitch), Y sweeps the filter cutoff (note_cutoff). This is the opposite of fire-and-forget note(): a voice you keep talking to. The building block behind engine revs, sirens, charging lasers, and real hold-to-sustain keyboards.</p>
       </div>
     </a>
@@ -182,7 +182,7 @@
       <img src="highnoon/cart.png" alt="high noon" loading="lazy">
       <div class="body">
         <h2>high noon <span class="tag">arcade</span></h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>A quick-draw reaction duel at sunset. Five outlaws, each with a faster trigger finger (SLOW JOE 600ms down to DEATH HIMSELF 215ms) — wait through the standoff, ignore the tumbleweed, and fire the frame you see DRAW!. Shoot early and the EARLY! verdict shames you; hesitate and you're DEAD. Every big word is a sprite baked from the Google Font &quot;Smokum&quot; (the wanted-poster slab serif) by tools/font-bake.js — the second font-bake cart, and the one where the words ARE the game: start signal and verdicts all sspr()'d sheet regions over a vgradient sunset. Z to draw.</p>
       </div>
     </a>
@@ -191,7 +191,7 @@
       <img src="hotline/cart.png" alt="hotline" loading="lazy">
       <div class="body">
         <h2>hotline <span class="tag">shooter</span></h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Top-down, one-hit-kill, instant-retry neon carnage — a Hotline Miami tribute. Storm three building floors of rooms (a real tile map() of walls and kickable doors) and clear every guard: you and every thug die in ONE hit, so it's pure twitch and instant R restarts. Start with a bat, pry pistols/shotguns/uzis off the corpses, and when you run dry THROW the gun to knock a guard down for a free melee finish. Burst a door with SPACE and the guard behind it goes down. Enemies patrol with LOS vision cones, hear your gunshots and come investigate, and telegraph before they fire. Chain kills fast for a popping score multiplier. The juice is the game: hot neon palette (pal()-tinted per floor), screen-shake + white flash + hit-stop on every kill, slow-mo on a room's last kill, blood pools that stain the floor, brass casings and gibs - over a driving synthwave bed (LFO-swept filtered saw bass, square arp, four-on-the-floor drums, bass-drop sting on clear). One body sprite recolored into player/thug/guard via the crowd.c pal() trick. WASD move, mouse aim, LEFT-CLICK attack/fire, RIGHT-CLICK or Q throw your gun, SPACE kick a door, walk over a dropped weapon to grab it, R restart.</p>
       </div>
     </a>
@@ -200,7 +200,7 @@
       <img src="house/cart.png" alt="house radio" loading="lazy">
       <div class="body">
         <h2>house radio</h2>
-        <div class="badge b-watch">👀 watch — it plays itself</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless French house / filter disco - the Daft Punk / Stardust homage, tenth of the radio family, and the genre that made one trick a movement: THE FILTER RIDE IS THE SONG. note_cutoff()/note_res() swept live on held string-machine voices from an arrangement-level cutoff curve (intro closed, build sweeps up with resonance climbing, drop wide open, breakdown half-lit) while the stab and bass filters get re-aimed from the same curve - harmony never develops, the filter is the form. The SIDECHAIN PUMP as a filter gesture: the strings' cutoff ducks at every kick and blooms across the beat (beat_pos() drives it). THE VOID: the last beat before every drop the whole band cuts to silence, then slams in from nothing. Harmony is a STOLEN PLAYBOOK of 4-bar loops transcribed from the records French house actually sampled - Modjo's Chic loop (i9-bVImaj7-iv9-bVII9), Stardust's Neapolitan bIImaj7, Braxe/Falke's i-bIII-iv, One More Time's tonic-avoiding IVmaj7-V-iii7 (the unresolved progression IS the longing), Digital Love's slash-chord bass - plus flavor rolls (the Lost in Music iv-to-IV9 dorian flip, the V melting to 9sus) and needle-drop rotation, spun the entire track. A seeded Da Funk riff on a held mono square with note_glide portamento owns the drops, and the 808 drums (kick boom, three-retrigger clap, metal-bank hats) are ON LOAN FROM tr808.c - house was born on that box. Seed on display (HOUSE_SEED / R / [ ] history), T tone, H help. Worked example #10 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -209,7 +209,7 @@
       <img src="jangle/cart.png" alt="jangle radio" loading="lazy">
       <div class="body">
         <h2>jangle radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>The afternoon sibling of bossa/ambient radio: endless feel-good mixolydian slacker pop, the Mac DeMarco / One Wayne G homage. Every song is a 2-4 chord vamp with NO bridge - the arrangement (intro/groove/solo/outro layers per loop) is the form. Chorused jangle guitar (constant 5.5Hz pitch-LFO warble), drum machine running 2-10ms loose behind the bass (sample-exact groove timing), tape tempo wobble, and a lazy legato lead that slides between mixolydian tones on one held voice via note_glide. Most songs are titled by date stamp, like the tape. Seed on the display pins the composition (JANGLE_SEED / R / [ ] history); the performance re-rolls. SPACE next, LEFT/RIGHT feel, UP/DOWN tempo, M power, H help. Worked example #3 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -218,7 +218,7 @@
       <img src="jingle/cart.png" alt="jingle radio" loading="lazy">
       <div class="body">
         <h2>jingle radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>The dusk sibling of jangle radio - the delicate side of the same songwriter. Composes from the actual Mac DeMarco harmonic playbook (Reverb Machine's chord-theory breakdown): progression templates from cited songs (Blue Boy, Dreaming, Stars Keep on Calling, Moonlight on the River, Another One, A Heart Like Hers), per-song bVII flavor rolls (maj/7/9) and borrowed bIII (maj7/m6), chromatic bass descents preserved in every key by a voice-led bass, real verse/chorus form, and the article's subtlest rule in code: MELODIC ACCOMMODATION - over a borrowed chord the melody narrows to that chord's own tones. Fingerpicked add9 voicings, gentle 4.6Hz warble, soft rim/hat kit. Seed on display (JINGLE_SEED / R / [ ] history), H help. Worked example #4 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -227,7 +227,7 @@
       <img src="loopstation/cart.png" alt="loopstation" loading="lazy">
       <div class="body">
         <h2>loopstation</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A live-looper pedal — the first cart that RECORDS ITSELF. Four instruments share one 4-bar loop: arm a track, play, and what you played comes back around; layer the next instrument on top and you're a one-person band. Drums (Z/X/C), pentatonic bass (A-K) and lead (Q-I) record as discrete notes quantized to the 16th grid, so sloppy timing comes back tight. The THEREMIN (drag the pad: y=pitch, x=volume) records as a continuous gesture stream — note_pitch/note_vol sampled only when your hand moves — and replays it verbatim, drawing a ghost crosshair where your hand was. The loop ring shows every event as a dot on its track's circle. 1-4 select a track, SPACE arms record, M mutes, BACKSPACE clears, N toggles the click. The cart-land prototype for docs/design/input-recording-looper.md.</p>
       </div>
     </a>
@@ -236,7 +236,7 @@
       <img src="lowend/cart.png" alt="low end radio" loading="lazy">
       <div class="body">
         <h2>low end radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless jazz-rap boom bap - the A Tribe Called Quest / Low End Theory homage, fifth of the radio family. Chord brain #5, THE SAMPLED LOOP: generates a lush modal-mixture soul progression (borrowed bIII/bVI/bVII voiced maj7/maj9, a 9sus dominant, the bVI as maj9#11 - per the r/musictheory Electric Relaxation analysis), then cuts a 2/3/4-bar loop (3 favoured) and ROTATES it like a crate-digger dropping the needle mid-phrase, so the tonic moves. Upright-ish bass front and center leaning +12ms, full groove template (hats rush -8ms, snare drags +22ms, 16ths swung 57%), Q-Tip layered snare (noise crack + sine thump as one hit), tremolo rhodes stabs, vinyl dust, hook lead narrowed to each chord's tones. No tempo wobble - samplers don't drift. Seed on display (LOWEND_SEED / R / [ ] history), H help. Worked example #5 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -245,7 +245,7 @@
       <img src="mallet/cart.png" alt="mallet" loading="lazy">
       <div class="body">
         <h2>mallet</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>INSTR_MALLET showcase - the second modeled ENGINE: every note strikes a bar simulation (four decaying sine modes + the mallet's contact click), so hits ring down and their partials fade at their own rates. Eight pentatonic bars + the same three engine macros every engine answers (instrument_harmonics = bar material, wood to bell; instrument_timbre = mallet hardness, soft yarn to hard brass; instrument_morph = ring length, dry tick to vibraphone sustain - the top third switches the motor tremolo on). The five presets (1 marimba, 2 xylophone, 3 celesta, 4 vibraphone, 5 glockenspiel) are nothing but knob positions - proof that named instruments are baked macro settings. A S D F G H J K strike bars, click or sweep across the keyboard for a glissando, 1..5 presets, drag the sliders (or LEFT/RIGHT + UP/DOWN), SPACE gliss run, M autoplay on/off.</p>
       </div>
     </a>
@@ -254,7 +254,7 @@
       <img src="fourx/cart.png" alt="micro 4x" loading="lazy">
       <div class="body">
         <h2>micro 4x <span class="tag">strategy</span></h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A tiny turn-based 4X strategy game (eXplore, eXpand, eXploit, eXterminate), you (blue) versus an AI rival (red) on a fogged tile map. Mouse-driven: click your unit then an adjacent tile to move, or onto an enemy to attack. A Settler founds a city on grass or forest; click a city to spend the gold it earns on Warriors or Settlers. END TURN lets the rival act and collects income. Reveal the map, expand your cities, and wipe out the enemy to win. Each map is freshly generated.</p>
       </div>
     </a>
@@ -263,7 +263,7 @@
       <img src="modrack/cart.png" alt="modrack" loading="lazy">
       <div class="body">
         <h2>modrack</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-rough">🟠 Rough on Mobile — technically runs, expect pain</div>
         <p>A tiny modular synth, built in steps. STEP 1: the generative Berlin-school chain is hardcoded in C — CLOCK ticks a SAMPLE &amp; HOLD that freezes a wandering LFO, a QUANTIZER snaps it to a scale (always in key), and a VOICE plays it as a held note whose filter the same LFO sweeps live. Endless in-key melody, zero composition. Later steps draw editable module strips and patch cables. Built on the held-note API (note_on/note_pitch/note_cutoff).</p>
       </div>
     </a>
@@ -272,7 +272,7 @@
       <img src="multitouch/cart.png" alt="multitouch paint" loading="lazy">
       <div class="body">
         <h2>multitouch paint</h2>
-        <div class="badge b-touch">👆 phone-ready</div>
+        <div class="badge b-ready">🟢 Mobile Ready — plays perfectly</div>
         <p>Finger-paint playground for the touch API. Every finger paints its own color at the same time - touch_id() keeps a finger's color stable while other fingers come and go - a new finger landing plays a mallet blip pitched by where it touched, and the CLEAR button shows tapp() edge-triggering: one tap, one clear. Best on a touchscreen: settings &gt; Build for web, then open the LAN url from the build log on an iPad/phone on the same wifi. On desktop the mouse paints as a single finger.</p>
       </div>
     </a>
@@ -281,7 +281,7 @@
       <img src="omnichord/cart.png" alt="omnichord" loading="lazy">
       <div class="body">
         <h2>omnichord</h2>
-        <div class="badge b-touch">👆 phone-ready</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A tribute to the Suzuki Omnichord (1981) — an electronic autoharp — with a built-in drum machine. Two views toggle from the top bar (or TAB). OMNI: pick a chord from the grid (rows = major/minor/7th, columns = the 12 roots) with the mouse OR the computer keyboard — three rows, one per quality: the top row QWERTYUIOP[] plays major, the home row ASDFGHJKL;'\ plays minor, the bottom row `ZXCVBNM,./ plays 7ths, each key a root from C up — and just like the real Omnichord, holding two keys of the same root gives an extended chord (major+7th = maj7, minor+7th = m7, major+minor = diminished, all three = augmented). Then sweep the rainbow SONIC STRINGS strumplate (mouse or finger) to play it as a harp glissando spanning six octaves. RHYTHM: a 16-step drum sequencer (kick/snare/hat/clap, musical noise voices) whose BASS row follows your selected chord root, with preset grooves from the home-organ days — rock, bossa nova, cha-cha, swing, disco, march (keys 1-6 or click). The beat keeps playing while you strum over it; PLAY/STOP (or SPACE) starts it, arrows set tempo. The strings are a soft plucked bell with a warm lowpass.</p>
       </div>
     </a>
@@ -290,7 +290,7 @@
       <img src="otamatone/cart.png" alt="otamatone" loading="lazy">
       <div class="body">
         <h2>otamatone</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>The little face-on-a-stem toy, built entirely from the HELD NOTE api. DRAG the vertical stem to play — one sustained voice (note_on) whose pitch chases your finger up and down the fretless ribbon (note_pitch + note_glide for the signature slurp). Hold SPACE (or right-click) to squeeze the mouth open: that sweeps a resonant lowpass from a muffled 'mm' to a bright 'aah' (note_cutoff), and the pixel mouth opens to match. Wiggle while you slide for hand vibrato. Q toggles fretless ↔ snap-to-pentatonic.</p>
       </div>
     </a>
@@ -299,7 +299,7 @@
       <img src="palettelab/cart.png" alt="palette lab" loading="lazy">
       <div class="body">
         <h2>palette lab</h2>
-        <div class="badge b-keys">⌨ desktop only</div>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>Try on a new default palette and judge it where it matters most: BLENDING. This is blendlab x palettes — the Layer-1/1b probe from palette-and-color.md with blendlab's scene-function architecture ported in, so every blend runs against the LIVE candidate. Keys 1-9 swap the palette: shipped PICO-8 / ENDESGA 32 / full RESURRECT 64 / E32 + 32 derived in-betweens (sRGB ramp midpoints + hue bridges, computed in-cart) / ENDESGA 64 (the same author's own curated expansion — candidate 4 vs 5 is generate-vs-curate head to head) / AAP-64 (the other canonical long-ramp 64) / FAMICUBE (the opposite philosophy: a fictional console's identity palette, distinct hues over dense ramps — watch its glows ring in the wrong family) / JOURNEY (the painterly school: violet-cast darks, ramps that bend through hue — even its black is a midnight blue) / JEHKOBA64 (the lattice school: hue-family ramps of five, every hue given the same value treatment — does a systematic grid blend more predictably than hand curation?). LEFT/RIGHT walk six scenes: the 64-swatch grid + five dithered corpus ramps, a sunset, a portrait (skin tones are where palettes get cruel), the NIGHT GLOW street with real additive streetlights (D toggles today's fillp fake next to it; carry a glow on the mouse), GLASS+FOG (translucent pane on the mouse, C cycles its color, drifting MUL cloud shadows, an AVG fog band), and the raw BLEND TABLE grid (T cycles AVG/ADD/MUL). The AVG/ADD/MUL tables rebuild from the candidate's RGB on every switch — more/denser colors visibly band less. Note the dither scenes only reference slots 0-31, so candidates 2 and 4 are identical there by construction; the blend scenes are where 32 vs 64 separates. Built on the EXPERIMENTAL palette_hex() + the 64-slot palette.</p>
       </div>
     </a>
@@ -308,7 +308,7 @@
       <img src="physics/cart.png" alt="Physics playground" loading="lazy">
       <div class="body">
         <h2>Physics playground</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A tiny verlet physics world you can read end to end — the whole engine is three ideas: a point remembers where it was last frame (so velocity is just now-minus-last), a stick keeps two points a fixed distance apart, and each frame you move every point then relax the sticks a few times. From those two primitives the cart builds a whole showcase: a dangling chain, a draping cloth sheet, a wobbly soft-body blob (a ring of points around a hub), pseudo-solid boxes and a triangle that stack and tumble, and bouncy balls — all colliding as circles and against each other's edges. Left/Right change the substep count live (more substeps = fast/heavy things stop tunnelling through thin surfaces). Drag any point to grab and throw it; Z drops a ball, X drops a box, R resets.</p>
       </div>
     </a>
@@ -317,7 +317,7 @@
       <img src="pluck/cart.png" alt="pluck" loading="lazy">
       <div class="body">
         <h2>pluck</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>INSTR_PLUCK showcase - the first modeled ENGINE (wave ids 16+): every note excites a Karplus-Strong string simulation instead of reading a wavetable, so plucks decay and darken on their own like a real string. Eight pentatonic strings + the three engine macros every future engine answers too (instrument_harmonics = ring time, instrument_timbre = pick brightness, instrument_morph = pick position) - turn a knob and hear the same string go from dead thunk to endless drone, felt thumb to hard pick, full to hollow. The read tap is fractional, so pitch reaches the string live - and the strings are real objects: GRAB one (press right on it) and drag to bend its pitch like a real guitar, or press in open space and sweep the pick past strings to strum them. V toggles a jangle-style chorus warble. A S D F G H J K pluck strings, drag the sliders (or LEFT/RIGHT + UP/DOWN), SPACE strum, M autoplay on/off.</p>
       </div>
     </a>
@@ -326,7 +326,7 @@
       <img src="ragdoll/cart.png" alt="Ragdoll" loading="lazy">
       <div class="body">
         <h2>Ragdoll</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Three tiny Verlet-physics stick figures that struggle to stay upright — connected points, distance constraints, and gravity. Drag any limb to grab and throw: while held a character goes fully limp, and the moment its feet touch the ground again it straightens back up. Z drops a rolling ball at the mouse, X spawns a new character from the sky, R resets the scene.</p>
       </div>
     </a>
@@ -335,7 +335,7 @@
       <img src="spacecho/cart.png" alt="re-201 space echo" loading="lazy">
       <div class="body">
         <h2>re-201 space echo</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-rough">🟠 Rough on Mobile — technically runs, expect pain</div>
         <p>Roland's RE-201 (1974) — a free-running tape loop, a record head, and an INTENSITY knob that feeds the tape back into itself; the box that made echo an instrument. Showcase cart for THE echo bus (the engine has exactly one, by design): a guitar string (INSTR_PLUCK) plays into the chamber, and five knobs map straight onto the new API — RATE is echo() time and the headline trick: sweep it while a tail rings and the repeats PITCH-BEND, because the bus's read tap glides like varying tape speed. INT is feedback, and past the red mark (&gt;1.0) the loop genuinely self-oscillates — a tanh inside the feedback path saturates the runaway like tape instead of exploding; crank it and play the machine itself with the RATE knob. TONE is the loop filter (every repeat passes through it once, so tails get darker pass by pass — the thing scheduled-note echo could never do), ECHO is instrument_echo() send, DRV the pushed-tube input. SPACE toggles a sparse dub phrase that THROWS one note per bar into the echo with the send cranked for that single hit — the signature dub move. ZXCVBNM,./ + SDGHJL; play, UP/DOWN octave, knobs drag or wheel, H help.</p>
       </div>
     </a>
@@ -344,7 +344,7 @@
       <img src="roadhouse/cart.png" alt="roadhouse radio" loading="lazy">
       <div class="body">
         <h2>roadhouse radio</h2>
-        <div class="badge b-watch">👀 watch — it plays itself</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless modal psych-rock - the Doors homage, station #13, built to carry THE IMPROVISER (melody brain #2): the first station whose band can take a SOLO. The jam form is head, organ solo, guitar solo, head out - and each 16-bar solo is improvised phrase by phrase: a 3-4 note motif invented at solo start gets stated, answered (inverted), sequenced up the mode, and doubled at the peak of a tension arc (density rises, register climbs, release comes home long), with breath rests between phrases. The improviser is PURE PERFORMANCE - engine rnd, never the seed - so R replays the song but the solos are new every time. A seeded 'how blue' knob biases b3/b7/b5 intrusions over the major-side vamp (the deliberate clash). The band: Vox-style combo organ - the FIRST station to use wave_set (a drawn drawbar cycle on INSTR_USER0); Rhodes PIANO BASS = the FM epiano detent an octave down playing a seeded swung ostinato; Krieger guitar = INSTR_PLUCK with an open-string drone ringing under the solo line; trio kit rolled shuffle / latin / rock. Mixolydian, dorian, or phrygian two-chord vamps (B-A forever). SPACE next jam, R same song new solos, [ ] history, LEFT/RIGHT feel (seance/lounge/jam/storm), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
       </div>
     </a>
@@ -353,7 +353,7 @@
       <img src="satie/cart.png" alt="satie radio" loading="lazy">
       <div class="body">
         <h2>satie radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless gymnopedies and gnossiennes for solo piano - the Erik Satie homage, ninth of the radio family and its patron saint: Satie invented furniture music (musique d'ameublement, 1917), the idea every station on this dial descends from. Three engine firsts: 3/4 TIME (twelve-step bars), ONE INSTRUMENT (solo piano - the density curve shapes touch and ornament instead of layers), and chord brain #6, THE ALTERNATING PAIR: Satie rocks between two chords for bars on end (Gymnopedie No.1 is Gmaj7-Dmaj7 forever) and lets the pair itself drift between sections. Gymnopedie mode = modal maj7 pendulums, the suspended lilt (bass on 1, chord on 2, beat 3 empty); gnossienne mode = minor with the phrygian-dominant augmented 2nd, mordent ornaments, chord restruck on 3, rubato. Melody enters late, moves stepwise, holds over the barline. Real Satie tempo markings on the display. Seed (SATIE_SEED / R / [ ]), T tone, H help. Worked example #9 for docs/guides/game-music.md.</p>
       </div>
     </a>
@@ -362,7 +362,7 @@
       <img src="sfxed/cart.png" alt="sfx editor" loading="lazy">
       <div class="body">
         <h2>sfx editor</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Draw a sound, PICO-8 style. Paint a pitch contour over 32 steps with the mouse (left = draw, right = erase), shape the volume lane and the filter CUT lane (top = wide open, lower = darker; a RES slider adds squelch), pick a wave per step, set the speed, SPACE to hear it. A SCALE picker (major/minor/penta/blues/hexatonic/whole-tone + a KEY root; click cycles, right-click cycles back) snaps painted notes in key, with faint row guides showing where notes can land — OFF for chromatic freehand. Press E to EXPORT the sound as C code — a step array plus a tiny player function — printed to the log, ready to paste into your game (no engine sound banks needed: playback is just hit() per step). S/L save and load, LOOP toggles looping, BACKSPACE clears. The prototype for cart-authored sfx (audio-notes §5.6).</p>
       </div>
     </a>
@@ -371,7 +371,7 @@
       <img src="sfxgen/cart.png" alt="sfx generator" loading="lazy">
       <div class="body">
         <h2>sfx generator</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Sliders make the sound — a dreamengine take on sfxp/bfxr. Three lanes (AMP, PITCH, WAVE), each with hold/decay and an LFO: 17 sliders GENERATE a 32-step sound, the colored curves show the result, and every change replays it. RANDOM for instant inspiration, MUTATE to refine what you almost like (the game-jam workflow), arrows undo/redo, Z replays. Press E to export the baked steps as paste-ready C code — the same format as the sfx editor cart, so either feeds your game the same way. S/L save and load.</p>
       </div>
     </a>
@@ -380,7 +380,7 @@
       <img src="sh101/cart.png" alt="sh-101" loading="lazy">
       <div class="body">
         <h2>sh-101</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-rough">🟠 Rough on Mobile — technically runs, expect pain</div>
         <p>Roland's SH-101 (1982) — the guitar-strap monosynth, fourth box in the classic-machine family (cr-78, tr-808, tb-303), modeled on the real grey panel section for section: TUNE | MODULATOR | VCO | SOURCE MIXER | VCF | VCA | ENV, all vertical faders with tick scales, plus the sequencer/arpeggio button row, the logo, and volume/porta/bender at lower left. The SOURCE MIXER is the heart, like the hardware: pulse + saw + sub-osc + noise mixed SIMULTANEOUSLY on four faders (each source is its own engine voice, riding live on a held note via note_vol), with the 3-position sub switch (-1 oct / -2 oct / -2 oct pulse). MODULATOR: LFO with tri / square / random (S&amp;H) / noise waveforms whose RATE slider is also the seq+arp CLOCK, exactly like the real LFO/CLK slider. VCO: MOD (vibrato), RANGE rotary (16' 8' 4' 2'), PW fader + source switch LFO/MAN/ENV. VCF: FREQ RES ENV MOD KYBD — five faders, all live on the ringing voice, with real keyboard tracking. VCA: ADSR or plain GATE. SEQUENCER: LOAD records key presses, PLAY loops them. ARPEGGIO: DOWN / U&amp;D / UP buttons + HOLD latch. PORTAMENTO with the real AUTO/OFF/ON switch (AUTO glides only when legato), springy pitch BENDER, TRANSPOSE L/M/H. Mono, last-note priority. Two-manual computer keyboard covers all 32 keys: ZXCVBNM,./ + SDGHJL; lower, QWERTYUIOP + 2356790 upper, []= top, arrows = octave, SPACE = arp, ? = help.</p>
       </div>
     </a>
@@ -389,7 +389,7 @@
       <img src="stylophone/cart.png" alt="stylophone deluxe" loading="lazy">
       <div class="body">
         <h2>stylophone deluxe</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-ready">🟢 Mobile Ready — plays perfectly</div>
         <p>The pocket stylus-synth, built to reach two corners of the audio engine no other instrument cart touches. LIVE PULSE-WIDTH: the TONE fader morphs the buzzy square's duty by hand (note_duty), thin/nasal to hollow/fat. THE TRANSPORT: the famous REITER (reiteration) switch retriggers the held note in time with the tempo (bpm + beat + beat_pos) — the cabinet's first tempo-synced instrument; crank RATE up and it machine-guns, flip ARP and the retrigger walks a major arpeggio. Play it with the STYLUS (the mouse): touch the metal keyboard and slide for the classic glissando (note_pitch stepping pad-to-pad). VIBRATO and SUB (sub-octave) are switches, like the real deluxe panel. Watch the BEAT lamp pulse with the transport.</p>
       </div>
     </a>
@@ -398,7 +398,7 @@
       <img src="tango/cart.png" alt="tango radio" loading="lazy">
       <div class="body">
         <h2>tango radio</h2>
-        <div class="badge b-watch">👀 watch — it plays itself</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless tango - the Golden Age orquesta tipica homage (D'Arienzo's drive, Pugliese's yumba, Troilo's singing bandoneon), station #15. THE NEW BRAIN: TEMPO AS A VOICE - the first station where the clock itself is an instrument. A per-frame conductor eases a rubato multiplier toward phrase-shaped targets and drives bpm() live: a lean forward through every phrase, a real ritardando into every 8-bar boundary with a hard a-tempo SNAP on the next downbeat, and a long rallentando into the ending. Depth is seeded - every song breathes its own amount, and the bandoneon's bellows in the window breathe WITH the curve. Plus the tango kit nobody else has: MARCATO/SINCOPA alternation rolled per phrase (the accent ON the and-of-2), THE ARRASTRE (three crescendo bass graces dragged into the downbeat), chicharra/golpe percussion from the band itself (no drum kit at all), and THE CHAN-CHAN - every song actually ENDS: rallentando, near-silence, V7b9... home. Harmony: a minor functional walk in the harmonic-minor dialect (iio-V7b9 cadence forced, the Neapolitan bII, an Andalusian-tetrachord flavor roll) with parallel-major cantabile sections where the violin takes the song. Form: intro A B A B A VARIACION (continuous-16th bandoneon runs) final. The bandoneon is wave_set's second station gig: a drawn free-reed cycle with a bellows-tremble LFO. SPACE next tango, [ ] history, LEFT/RIGHT feel (salon/tanda/orquesta/pugliese), UP/DOWN base tempo, T tone, M power, B band (swap chairs live), H help.</p>
       </div>
     </a>
@@ -407,7 +407,7 @@
       <img src="tb303/cart.png" alt="tb-303 bass line" loading="lazy">
       <div class="body">
         <h2>tb-303 bass line</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-rough">🟠 Rough on Mobile — technically runs, expect pain</div>
         <p>The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass, sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and six draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), and DRV is the new instrument_drive/note_drive saturation: tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite. Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents and slides, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop.</p>
       </div>
     </a>
@@ -416,7 +416,7 @@
       <img src="loveparade/cart.png" alt="the love parade" loading="lazy">
       <div class="body">
         <h2>the love parade</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A generative toy in the rectangular style of Donkey Kong and Boulder Dash — every little person and animal is built from rectfill/circfill (no sprite art), from a random bag of GENES: proportions, colours, haircut, clothing pattern (sometimes), head shape, ears, tail, neck, horns, wings, antennae, eyes. Roll endlessly and a parade strolls past across depth lanes, never the same one twice. The hook: PICK ONE UP and drop it on another and they BREED — an offspring pops out (a tiny baby that grows up over ~10s), its genes a 50/50 mix of the two parents plus the odd mutation. Breeding only ever happens when YOU trigger it. Crazy outcomes: person × beast can make a CENTAUR, two humans can make a HUMAN-ON-ALL-FOURS, and giants/cyclops/winged hybrids turn up. Drag a critter onto another to breed; SPACE re-rolls the crowd; right-click adds a newcomer.</p>
       </div>
     </a>
@@ -425,7 +425,7 @@
       <img src="touchlab/cart.png" alt="touchlab" loading="lazy">
       <div class="body">
         <h2>touchlab</h2>
-        <div class="badge b-touch">👆 phone-ready</div>
+        <div class="badge b-ready">🟢 Mobile Ready — plays perfectly</div>
         <p>Device test card for the touch API - pick it up the day a real touchscreen is available. Build for web, open the LAN url on the iPad/phone, and run down the 7-point checklist on screen: crosshair accuracy under CSS scaling, ten-finger tracking, touch_id stability while other fingers tap, tapp() single-fire drumming, lift detection (cart-side diff - the data a future touch_ended API would return), iOS audio unlock blips, and whether Safari gestures leak (pinch/double-tap/edge-swipe must not move the page). Verdicts go to docs/design/touch-notes.md section 5. On desktop the mouse is one finger (id -2), enough to smoke-test half the card.</p>
       </div>
     </a>
@@ -434,7 +434,7 @@
       <img src="tr808/cart.png" alt="tr-808 rhythm composer" loading="lazy">
       <div class="body">
         <h2>tr-808 rhythm composer</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click name to audition, drag knobs to shape.</p>
       </div>
     </a>
@@ -443,7 +443,7 @@
       <img src="tr909/cart.png" alt="tr-909 rhythm composer" loading="lazy">
       <div class="body">
         <h2>tr-909 rhythm composer</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag knobs Y=coarse X=fine.</p>
       </div>
     </a>
@@ -452,7 +452,7 @@
       <img src="trafficjam/cart.png" alt="traffic jam" loading="lazy">
       <div class="body">
         <h2>traffic jam</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>A generative cars toy in the rectangular style of Donkey Kong and Boulder Dash — every vehicle is built from rectfill/polyfill/circfill (no sprite art) from a random bag of GENE-DIMENSIONS rolled within its TYPE, so the same sedan is never the same sedan twice. Ten knobs vary one car: length, body height, roof height, cabin length, cabin position, windscreen rake, backlight rake, wheel radius, ground clearance, wheelbase — plus colours, two-tone, passengers, spoiler, roof-rack, antenna. 17 types: micro, hatchback, sedan, wagon, SUV, MPV, coupe, sports, supercar, muscle, luxury, convertible, antique, pickup, van, bus, and a long-ass semi truck — each with a driver and passengers visible through the glass. They roll past in a four-lane procession governed by a TRAFFIC LIGHT: go red and a stop-and-go jam piles up behind the line and ripples backward (real car-following), go green and it flows. Click a car to HONK, click the light (or L) to flip it, SPACE re-rolls the fleet.</p>
       </div>
     </a>
@@ -461,7 +461,7 @@
       <img src="waveed/cart.png" alt="wave editor" loading="lazy">
       <div class="body">
         <h2>wave editor</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Draw the actual waveform. The engine has four custom wave slots (INSTR_USER0-3), each a 64-sample single cycle — paint that cycle with the mouse and hear it instantly. The killer trick: SPACE starts a drone, then redraw the shape while it rings — wave_set() is live, so the timbre morphs under your pen. Seed shapes (sine, square, saw, organ, vocal, wobble) plus SMOOTH and NORM, A-K play notes, P toggles an arp. Press E to export wave_set() code; your drawn wave then works everywhere a wave id does: note(), instruments, the other sound carts.</p>
       </div>
     </a>
@@ -470,7 +470,7 @@
       <img src="yacht/cart.png" alt="yacht radio" loading="lazy">
       <div class="body">
         <h2>yacht radio</h2>
-        <div class="badge b-watch">👀 watch — it plays itself</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless yacht rock / AOR - the Steely Dan / Doobies / Hall &amp; Oates homage, station #12 (second born on the radio.h scaffold). Built around THE MU CHORD - Steely Dan's named invention, a major triad with the added 9th voiced 3-5-9 - in stolen-playbook loop templates (the two-mu vamp, ii-V13 lush, maj7 PLANING, dorian funk) with mu-ify and sus-melt flavor rolls. The comping instrument is the FM epiano on the 1:1 detent, so the DX tine pings every chord; clean PLUCK strat stabs, breathy sax lead, chromatic bass runs INTO every change, citypop anticipations on the and-of-4, and a +2 gear change in the last chorus. Three kit personalities rolled per song: tight session 16ths, the PURDIE half-time shuffle (swung ghosts at vol 1), or CR-78 circuits on loan from cr78.c (the Hall &amp; Oates 'I Can't Go For That' move). SPACE next song, R replay, [ ] history, LEFT/RIGHT feel (dock/cruise/regatta/open sea), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
       </div>
     </a>
@@ -479,7 +479,7 @@
       <img src="ymo/cart.png" alt="ymo radio" loading="lazy">
       <div class="body">
         <h2>ymo radio</h2>
-        <div class="badge b-tap">👉 tap to play</div>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
         <p>Endless techno-kayo - the Yellow Magic Orchestra homage (Hosono/Sakamoto/Takahashi), eighth of the radio family, and the one genre where the synth isn't imitating anything: square waves and white noise ARE the original instruments. Sakamoto harmony as templates (the chromatic mediant 'Tong Poo' pull, maj7 planing in whole steps, the kayo minor cadence with its harmonic-minor V), a HOSONO BASSLINE GENERATOR (melodic 8th-note counterpoint with directional inertia and octave leaps - the bassline is a second melody), yonanuki pentatonic lead, a sequencer arp ticking chord tones, and drum voices ON LOAN FROM THE CR-78 CART (cr78.c's circuit recipes: soft round kick, two-layer snare, the swishy hats, the metallic clang) driven by machine-tight pattern strings. No swing, no lag - it's 1979 and the machine is the point. Seed on display (YMO_SEED / R / [ ] history), T tone, H help. Worked example #8 for docs/guides/game-music.md.</p>
       </div>
     </a>

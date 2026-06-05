@@ -146,7 +146,21 @@ library header may beat engine API (ADR-0006 instinct).
    write verdicts into probe-carts.md; add a button-size page (how small can a
    `tapp()` rect be and stay hittable?) and a gesture readout page (§6).
 5. ~~**Gallery badges**~~ — **SHIPPED 2026-06-05**: `build-site.js` requires
-   `mobile-lint.js` and stamps an emoji chip on every gallery card
-   (👆 phone-ready / 👉 tap to play / ⌨ desktop only / 👀 watch — it plays
-   itself). Visitor-facing wording collapses `fixable` into desktop-only —
-   until `touchControls` actually lands, a btn()-cart still needs a keyboard.
+   `mobile-lint.js` and stamps a colored chip on every gallery card, four
+   tiers: **🟢 Mobile Ready — plays perfectly** (touch/tap-driven AND zero dead
+   input paths — if there's a keyboard button to press somewhere, it's not
+   perfect) / **🟡 Mostly Playable — works, with rough edges** (dead *extras*:
+   `also-reads-keys`, `btn-without-overlay`, right/middle, `touch>5`; plus the
+   no-input radios — the music plays, the key controls don't) / **🟠 Rough on
+   Mobile — technically runs, expect pain** (dead *core* interaction: hover or
+   wheel — things a touch screen simply doesn't have) / **🔴 Desktop Only —
+   good luck past the title screen** (fixable + keyboard-only; until
+   `touchControls` actually lands, a btn()-cart still needs a keyboard). First
+   run over 50 carts: 4 ready (heldnotes, multitouch, stylophone, touchlab) /
+   34 mostly / 5 rough (dreamcad, modrack, spacecho, sh101, tb303 — the
+   knob-and-wheel synth UIs, accurately) / 7 desktop. The static guess is
+   overridable per cart: hand-test on a device, then put
+   `"mobile": "ready"|"mostly"|"rough"|"desktop"` in the cart's `index.json`
+   entry — manual verdict beats lint (it can't see key-gated title screens
+   etc.). Iterated three times same-day: emoji-glyph chips → plain three-tier
+   words → this colored-dot four-tier set.

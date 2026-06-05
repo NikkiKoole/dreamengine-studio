@@ -842,6 +842,19 @@ tine ping). If the cart's epiano preset fails the nameplate test on pure 2-op, t
 a small *internal* third op (navkit's `FM_ALG_PAIR` is the crib — mod1→carrier plus an
 additive ping), still zero API. Don't build it speculatively.
 
+**Post-ship ear findings (2026-06-05, both fixed same day):**
+- **Brass:** the in-note decay is *backwards* for horns — FM brass SWELLS into brightness.
+  Shipped answer (a variant of the follow-amp-env alternative above): **brightness follows
+  the amp ATTACK** — `beta` ramps over the slot's attack samples, so a 70ms-attack slot
+  speaks like a horn while instant-attack patches are byte-identical. Corollary: an FM
+  *patch* is macros **+ an ADSR** (this engine deliberately doesn't bake amplitude), so the
+  fm cart's presets carry both — the nameplate contract is unchanged.
+- **Clang:** pointing it at ratio **14 was a theory error — integer ratios are HARMONIC**
+  (sidebands at f0(1±14k) are all multiples of f0 → periodic → buzzy organ-bright, never
+  metal). Metal lives on the NON-integer detents (3.5 in the table). Clang now sits on
+  3.5 with feedback cranked; the 14 detent remains useful as sparse harmonic shimmer.
+  Rule for future engines: **inharmonicity, not ratio height, is what reads as metal.**
+
 Mechanics: buffer-free (~3 floats on `Voice`: mod phase, feedback sample, plus nothing —
 the index decay derives from `step_samples`). No note-on excitation buffer → no stale-state
 guard needed (sines from any phase are safe). Pitch: carrier = `freq × pitch_mul` per

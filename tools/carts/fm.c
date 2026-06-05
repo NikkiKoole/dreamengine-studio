@@ -8,10 +8,11 @@
 //   timbre    = brightness        (FM amount; decays per note like a real DX strike)
 //   morph     = feedback          (0 clean .. saw-edge growl .. noisy clang)
 //
-// The named presets are nothing but KNOB POSITIONS (audio-notes §8.1) — the tuning rig
-// contract: if pressing 1 doesn't sound like an electric piano, the MAPPING is wrong.
-// (brass is the deliberate stress test: classic FM brass wants the index to RISE on
-// attack, our bake decays it — §8.8.3's open question, answered by ear here.)
+// The named presets are knob positions + an ADSR (the FM engine deliberately doesn't bake
+// its amp envelope, so a DX patch is both) — the tuning rig contract still holds: if
+// pressing 1 doesn't sound like an electric piano, the MAPPING is wrong. Brass earns its
+// nameplate from its 70ms attack: the engine swells brightness along the amp attack
+// (§8.8.3's brass answer), so the horn SPEAKS instead of arriving pre-brightened.
 //
 // The scope draws the engine's actual formula, including the per-note brightness decay —
 // strike a key and WATCH the wave mellow as it rings.
@@ -36,14 +37,18 @@ static const char *KNOB_HI[3]   = { "tine",  "bright", "clang" };
 // MUST match the engine's snapped table (sound.h sound_fm_sample) — display only
 static const float RATIO[10] = { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 3.5f, 4.0f, 5.0f, 7.0f, 14.0f };
 
-// the presets: knob positions with a hardware name. STARTING GUESSES — tune by ear here.
-typedef struct { const char *name; float h, t, m; } Preset;
+// the presets: macro positions + an ADSR. The FM engine deliberately doesn't bake its amp
+// envelope (unlike PLUCK/MALLET), so a DX patch is BOTH — brass without its slow attack
+// can never speak (the engine swells brightness along the attack: §8.8.3's brass answer).
+// Clang sits on the 3.5 detent, not 14: integer ratios are HARMONIC (buzzy, organ-bright);
+// metal needs the non-integer sidebands. STARTING GUESSES — tune by ear here.
+typedef struct { const char *name; float h, t, m; int a, d, s, r; } Preset;
 static const Preset PRESET[5] = {
-    { "epiano", 0.15f, 0.45f, 0.10f },
-    { "bell",   0.55f, 0.60f, 0.15f },
-    { "bass",   0.00f, 0.75f, 0.30f },
-    { "brass",  0.15f, 0.90f, 0.50f },   // the stress test (see header)
-    { "clang",  0.95f, 0.80f, 0.90f },
+    { "epiano", 0.15f, 0.45f, 0.10f,  2, 700, 3, 350 },
+    { "bell",   0.55f, 0.60f, 0.15f,  1, 900, 2, 600 },
+    { "bass",   0.00f, 0.75f, 0.30f,  1, 250, 5, 120 },
+    { "brass",  0.15f, 0.90f, 0.45f, 70, 200, 6, 180 },   // the attack IS the brass
+    { "clang",  0.55f, 0.95f, 0.95f,  1, 600, 2, 400 },   // bell's detent, feedback cranked
 };
 
 static int   midi_of[NKEY];
@@ -86,14 +91,15 @@ static void play_chord(void) {
 static void set_preset(int p) {
     knob[0] = PRESET[p].h; knob[1] = PRESET[p].t; knob[2] = PRESET[p].m;
     cur_preset = p;
+    instrument(I_FM, INSTR_FM, PRESET[p].a, PRESET[p].d, PRESET[p].s, PRESET[p].r);
     apply_knobs();
     play_key(2, 6);
 }
 
 void init(void) {
-    // the engine doesn't decay on its own (unlike PLUCK/MALLET) — a normal ADSR shapes it.
-    // one fixed piano-ish envelope for every preset; brass strains against it on purpose.
-    instrument(I_FM, INSTR_FM, 2, 700, 3, 350);
+    // the engine doesn't decay on its own (unlike PLUCK/MALLET) — each preset brings its
+    // own ADSR (set_preset); the engine swells brightness along the attack, so brass speaks
+    instrument(I_FM, INSTR_FM, PRESET[0].a, PRESET[0].d, PRESET[0].s, PRESET[0].r);
     apply_knobs();
     for (int b = 0; b < NKEY; b++) midi_of[b] = degree(SCALE_MAJOR, 4, b);
     bpm(96);

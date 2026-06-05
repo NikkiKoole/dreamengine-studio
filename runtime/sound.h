@@ -426,6 +426,11 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     // index reads as cheap organ. Decay derives from step_samples (retriggers per note).
     float beta = v->timb * v->timb * 12.0f
                * (0.25f + 0.75f * expf(-(float)v->step_samples / (0.9f * (float)SOUND_SAMPLE_RATE)));
+    // brightness follows the amp ATTACK: a slow-attack slot swells into brightness — FM
+    // brass speaks instead of arriving pre-brightened (the §8.8.3 brass answer). Instant
+    // attacks (epiano/bell/bass) are byte-identical to before.
+    if (v->a_samp > 0 && v->step_samples < v->a_samp)
+        beta *= (float)v->step_samples / (float)v->a_samp;
     if (f * RATIO[ri] >= (float)SOUND_SAMPLE_RATE * 0.45f) beta = 0.0f;   // mod above Nyquist → pure sine
     // morph = modulator feedback: 0 = pure two-sine FM, up = the modulator self-saturates
     // toward saw → growl → noisy clang at the top (useful percussion territory)

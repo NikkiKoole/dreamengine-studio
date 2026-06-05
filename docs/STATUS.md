@@ -382,8 +382,14 @@ their `kind[]` tags.
       pre-build assessment). Six presets (Good Life, The Bells, Energy Flash, Hardfloor,
       Revolution 909, Gabber); closed hat chokes open via `instrument_choke`. **The
       classic-machine family (cr78 + tr808 + tb303 + sh101 + tr909) now covers the full
-      ReBirth RB-338 rack** (303 + 808 + 909). FLAM is the one panel feature not modeled
-      (needs a 3-state grid). Sound tripwire: PASS (600 headless frames, no drops).
+      ReBirth RB-338 rack** (303 + 808 + 909). Same-day follow-up: **FLAM shipped** after
+      all ("the one panel feature not modeled" lasted one message) — right-click paints a
+      flam, grace note 22ms early at −3 vol, `'f'` in preset rows, split-cell rendering,
+      Hardfloor preset flams its claps. Plus a deliberate impurity by ear-feedback: a
+      **metal-filter XY pad** (cut × resonance, `instrument_filter` re-aimed live across
+      all five FM/noise metal slots) because the FM hats landed bright and hissy —
+      defaults nudged fuller than the first build. Sound tripwire: PASS (700 headless
+      frames on Hardfloor incl. flams + pad clicks, no drops).
     - **EKO ComputeRhythm (1972)** — Jarre's punch-card programmable box; UI gimmick = draw the
       punch card. Pre-dates the CR-78's "first programmable" claim by six years.
     - **Wurlitzer Sideman (1959)** — the FIRST rhythm machine: tubes + rotating contact wheel;

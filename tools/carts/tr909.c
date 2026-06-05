@@ -33,15 +33,24 @@
 //           as an admitted anachronism; the 909 is where Roland actually
 //           shipped it (after the LM-1 proved swing sells). 909-style:
 //           the even 16ths drag, not the offbeat 8ths. Z/X, 50..66%.
+//   metal pad — NOT on the 1983 panel: an XY rect (bottom right) riding
+//           the highpass of all five FM/noise metal slots. X = cutoff
+//           (left = darker/fuller, right = thin sizzle), Y = resonance
+//           (up = the SVF peak whistles — body and ring). The FM stand-ins
+//           land bright and hissy by default; this is their tone control.
 //   accent — the TOTAL ACCENT row, red strip (orange on the 808 cart).
-//   not modeled: FLAM (the panel's other trick) — a flagged step would
-//           need a 3-state grid; parked until a pattern misses it.
+//   flam — the panel's OTHER humanize trick, right next to SHUFFLE: a
+//           flammed step plays a quiet grace note ~22ms before the main
+//           hit (the Hardfloor snare/clap signature). RIGHT-CLICK a cell
+//           to flam it; flam cells draw split (grace tick + main bar).
+//           Preset rows mark them 'f'.
 //
 //   Q W E R T Y U I O P A   play each voice by hand
 //   LEFT / RIGHT  preset      UP / DOWN  tempo      SPACE  start / stop
 //   Z / X  shuffle down / up
-//   MOUSE  click/drag cells to edit, click the strip above for accents,
-//          click a label to audition, drag the knobs (Y coarse, X fine)
+//   MOUSE  click/drag cells to edit (RIGHT-click = flam), click the strip
+//          above for accents, click a label to audition, drag the knobs
+//          (Y coarse, X fine)
 
 // voices — named indices, never raw numbers (house rule)
 enum { V_BD, V_SD, V_LT, V_MT, V_HT, V_RS, V_CP, V_CH, V_OH, V_CC, V_RC, NV };
@@ -76,10 +85,18 @@ static const char VKEY[NV] = {
 typedef struct {
     const char *name;
     int         tempo;
-    const char *row[NV];   // 16 chars, 'x' = hit; NULL = silent row
+    const char *row[NV];   // 16 chars, 'x' = hit, 'f' = flammed hit; NULL = silent row
     const char *accent;    // 16 chars, 'x' = +2 volume on that step
     int         swing;     // 50 = straight .. 66 = triplet (0 = straight)
 } Pat;
+
+#define FLAM_MS 22         // grace-note lead — the panel's fixed flam spacing
+
+// metal-filter XY pad (bottom right, below the grid)
+#define PADX 252
+#define PADY 152
+#define PADW 52
+#define PADH 30
 
 static const Pat PRESET[] = {
     { "GOOD LIFE", 118, {          // Inner City — the Detroit house blueprint
@@ -101,12 +118,12 @@ static const Pat PRESET[] = {
         [V_MT] = "..........x.....",
         [V_RS] = "..x..x....x...x.",
       }, "x.......x......." },
-    { "HARDFLOOR", 130, {          // acid shuffle — the knob earns its keep
+    { "HARDFLOOR", 130, {          // acid shuffle + the flammed claps
         [V_BD] = "x...x...x...x...",
         [V_CH] = "xxxxxxxxxxxxxxxx",
         [V_OH] = "..x...x...x...x.",
-        [V_CP] = "....x.......x...",
-        [V_RS] = "......x.......x.",
+        [V_CP] = "....f.......f...",
+        [V_RS] = "......x.......f.",
       }, "x...x...x...x...", 58 },
     { "REVOLUTION 909", 122, {     // Daft Punk — filtered french house
         [V_BD] = "x...x...x...x...",
@@ -131,8 +148,10 @@ static int  last16   = -1;
 static int  playhead = 0;
 static int  flash[NV];
 static bool grid[NV][STEPS];   // the live pattern — editable, loaded from preset
+static bool gflam[NV][STEPS];  // flammed steps (grace note FLAM_MS early)
 static bool gacc[STEPS];       // live accent row
 static bool paint_val;         // what a click-drag writes (set on press)
+static bool paint_flam;        // whether this drag paints flams (right button)
 static int  swing = 50;        // 50 = straight .. 66 = full triplet
 
 static float ktune[NV];        // 0..1, center=0.5 → ±12 semitones
@@ -141,6 +160,24 @@ static float kcolor[NV];       // 0..1, center=0.5 → voice-specific character 
 static int   drag_v = -1, drag_k = -1;
 static int   drag_y0, drag_x0;
 static int   hover_v = -1, hover_k = -1;
+
+// metal pad state — defaults a notch fuller than the first build, which
+// shipped bright and hissy (cut 0.5 / res 0.25 = the original voicing)
+static float mcut = 0.40f, mres = 0.33f;
+static bool  pad_drag = false;
+
+// re-aim the highpass on all five metal slots from the pad. X scales each
+// slot's base cutoff ×0.3..×1.7, Y is shared resonance 0..12 (the SVF peak
+// at the cutoff is what gives the clang body and ring back).
+static void apply_metal_filter(void) {
+    float m = 0.3f + 1.4f * mcut;
+    int   r = (int)(mres * 12.0f + 0.5f);
+    instrument_filter(SL_HHC, FILTER_HIGH, (int)(8500 * m), r);
+    instrument_filter(SL_HHO, FILTER_HIGH, (int)(8000 * m), r);
+    instrument_filter(SL_CC,  FILTER_HIGH, (int)(4500 * m), r);
+    instrument_filter(SL_CCN, FILTER_HIGH, (int)(5200 * m), r);
+    instrument_filter(SL_RC,  FILTER_HIGH, (int)(5000 * m), r);
+}
 
 // knob column labels — k=0,1 are the same for every voice; k=2 is per-voice
 static const char *KLABEL[2] = { "TUNE", "DECAY" };
@@ -184,8 +221,11 @@ static int k_cv(int v, int lo, int hi) {
 static void load_preset(void) {
     const Pat *p = &PRESET[pre];
     for (int v = 0; v < NV; v++)
-        for (int s = 0; s < STEPS; s++)
-            grid[v][s] = p->row[v] && p->row[v][s] == 'x';
+        for (int s = 0; s < STEPS; s++) {
+            char c = p->row[v] ? p->row[v][s] : '.';
+            grid[v][s]  = c == 'x' || c == 'f';
+            gflam[v][s] = c == 'f';
+        }
     for (int s = 0; s < STEPS; s++)
         gacc[s] = p->accent && p->accent[s] == 'x';
     tempo = p->tempo;
@@ -325,14 +365,12 @@ void init(void) {
     instrument_harmonics(SL_HHC, 0.55f);
     instrument_timbre(SL_HHC, 0.90f);
     instrument_morph(SL_HHC, 0.85f);
-    instrument_filter(SL_HHC, FILTER_HIGH, 8500, 3);
     instrument_env(SL_HHC, 0, ENV_CUTOFF, 0, 28, -5000.0f);
 
     instrument(SL_HHO, INSTR_FM, 0, 380, 0, 110);
     instrument_harmonics(SL_HHO, 0.55f);
     instrument_timbre(SL_HHO, 0.90f);
     instrument_morph(SL_HHO, 0.85f);
-    instrument_filter(SL_HHO, FILTER_HIGH, 8000, 3);
     instrument_env(SL_HHO, 0, ENV_CUTOFF, 0, 220, -4500.0f);
     instrument_choke(SL_HHC, SL_HHO);   // closed hat chokes the open hat
 
@@ -341,16 +379,15 @@ void init(void) {
     instrument_harmonics(SL_CC, 0.55f);
     instrument_timbre(SL_CC, 1.00f);
     instrument_morph(SL_CC, 0.90f);
-    instrument_filter(SL_CC, FILTER_HIGH, 4500, 2);
     instrument(SL_CCN, INSTR_NOISE, 0, 1200, 0, 320);
-    instrument_filter(SL_CCN, FILTER_HIGH, 5200, 2);
 
     // ride — same metal, less feedback = a cleaner ringing ping
     instrument(SL_RC, INSTR_FM, 0, 550, 0, 160);
     instrument_harmonics(SL_RC, 0.55f);
     instrument_timbre(SL_RC, 0.72f);
     instrument_morph(SL_RC, 0.58f);
-    instrument_filter(SL_RC, FILTER_HIGH, 5000, 2);
+
+    apply_metal_filter();   // the XY pad owns all five metal highpasses
 
     for (int v = 0; v < NV; v++) { ktune[v] = 0.5f; kdecay[v] = 0.5f; kcolor[v] = 0.5f; }
     load_preset();
@@ -404,13 +441,27 @@ void update(void) {
     }
     if (!mouse_down(MOUSE_LEFT)) { drag_v = -1; drag_k = -1; }
 
+    // metal pad: press inside starts a drag; keeps tracking outside the rect
+    if (mouse_pressed(MOUSE_LEFT) &&
+        mx >= PADX && mx < PADX + PADW && my >= PADY && my < PADY + PADH)
+        pad_drag = true;
+    if (!mouse_down(MOUSE_LEFT)) pad_drag = false;
+    if (pad_drag) {
+        float cx = (mx - PADX) / (float)(PADW - 1);
+        float cy = 1.0f - (my - PADY) / (float)(PADH - 1);
+        mcut = cx < 0.0f ? 0.0f : cx > 1.0f ? 1.0f : cx;
+        mres = cy < 0.0f ? 0.0f : cy > 1.0f ? 1.0f : cy;
+        apply_metal_filter();
+    }
+
     // mouse: press toggles a cell (drag paints), label click auditions
     bool on_knob = hover_v >= 0 || drag_v >= 0;
     int mc, mr = grid_row(mx, my, &mc);
     if (mouse_pressed(MOUSE_LEFT) && !on_knob) {
         if (mr >= 0) {
             paint_val = !grid[mr][mc];
-            grid[mr][mc] = paint_val;
+            grid[mr][mc]  = paint_val;
+            gflam[mr][mc] = false;
         } else if (mr == -1) {
             paint_val = !gacc[mc];
             gacc[mc] = paint_val;
@@ -419,8 +470,17 @@ void update(void) {
             fire(v, 1, 0); flash[v] = 5;
         }
     } else if (mouse_down(MOUSE_LEFT) && !on_knob) {
-        if (mr >= 0)       grid[mr][mc] = paint_val;
+        if (mr >= 0)       { grid[mr][mc] = paint_val; if (!paint_val) gflam[mr][mc] = false; }
         else if (mr == -1) gacc[mc]     = paint_val;
+    }
+
+    // RIGHT button paints flams — the panel's FLAM + step-button gesture.
+    // Flamming an off cell turns it on; un-flamming keeps the plain hit.
+    if (mouse_pressed(MOUSE_RIGHT) && mr >= 0)
+        paint_flam = !(grid[mr][mc] && gflam[mr][mc]);
+    if (mouse_down(MOUSE_RIGHT) && mr >= 0) {
+        if (paint_flam) { grid[mr][mc] = true; gflam[mr][mc] = true; }
+        else            gflam[mr][mc] = false;
     }
 
     if (!running) return;
@@ -444,7 +504,13 @@ void update(void) {
         if (nx & 1) delay += (swing - 50) * 2 * step_ms / 100;
         int boost   = gacc[nx] ? 2 : 0;
         for (int v = 0; v < NV; v++)
-            if (grid[v][nx]) fire(v, boost, delay);
+            if (grid[v][nx]) {
+                if (gflam[v][nx]) {   // grace note FLAM_MS early, 3 vol quieter
+                    int gd = delay - FLAM_MS;
+                    fire(v, boost - 3, gd < 0 ? 0 : gd);
+                }
+                fire(v, boost, delay);
+            }
 
         if (first) {   // fresh start: also sound the step we're already on
             int b0 = gacc[playhead] ? 2 : 0;
@@ -497,10 +563,14 @@ void draw(void) {
             int x = GX + s * SX;
             // 909 step buttons: uniform grey keys, orange when lit, the
             // first step of each quarter gets a white tick (beat marker)
-            if (grid[v][s])
-                rectfill(x, y, SX - 4, 7,
-                         (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : CLR_ORANGE);
-            else
+            if (grid[v][s]) {
+                int c = (flash[v] > 0 && s == playhead && running) ? CLR_WHITE : CLR_ORANGE;
+                if (gflam[v][s]) {   // split cell: grace tick + main bar
+                    rectfill(x, y, 2, 7, c);
+                    rectfill(x + 4, y, SX - 8, 7, c);
+                } else
+                    rectfill(x, y, SX - 4, 7, c);
+            } else
                 rect(x, y, SX - 4, 7, (s & 3) == 0 ? CLR_MEDIUM_GREY : CLR_DARKER_GREY);
         }
         if (flash[v] > 0) flash[v]--;
@@ -520,5 +590,19 @@ void draw(void) {
         }
     }
 
-    print("<> PRESET ^v BPM Z/X SHFL DRAG KNOBS", 14, 186, CLR_DARK_GREY);
+    // metal-filter XY pad — crosshair dot, grid hairlines at the neutral point
+    rectfill(PADX, PADY, PADW, PADH, CLR_WHITE);
+    rect(PADX, PADY, PADW, PADH, CLR_MEDIUM_GREY);
+    int px = PADX + (int)(mcut * (PADW - 1) + 0.5f);
+    int py = PADY + (int)((1.0f - mres) * (PADH - 1) + 0.5f);
+    line(px, PADY + 1, px, PADY + PADH - 2, CLR_LIGHT_GREY);
+    line(PADX + 1, py, PADX + PADW - 2, py, CLR_LIGHT_GREY);
+    rectfill(px - 1, py - 1, 3, 3, pad_drag ? CLR_RED : CLR_DARK_RED);
+    font(FONT_SMALL);
+    print("METAL", PADX + 2, PADY - 7, CLR_DARK_GREY);
+    print("CUT>", PADX - 22, PADY + PADH - 7, CLR_DARK_GREY);
+    print("RES^", PADX - 22, PADY, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+
+    print("<> PRESET ^v BPM Z/X SHFL RCLIK FLAM", 14, 186, CLR_DARK_GREY);
 }

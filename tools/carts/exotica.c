@@ -116,7 +116,16 @@ static int    birdCount = 0;
 static int  gvGtr[3] = { 55, 60, 64 };
 static bool gtrInit = false;
 
+// THE BAND (B) — the chairs and their candidates, from radio-instrument-options.md.
+// Only the two mallet chairs are seats here: the vibes lead (marimba / Denny piano
+// poles) and the FM sparkle (celesta alt). The comp guitar already rolls its pick
+// per song and the aviary stays unseeded — the doc says leave both.
+static RadBand band;
+static int chVibe, chBell;
+
 #define srnd(n) rad_srnd(&rs, (n))
+
+static void apply_band_overrides(void);   // defined with the chairs, below
 
 // ── song generation — composition AND the band, all from the seed ─────────
 static const char *TW1[] = { "Quiet", "Jungle", "Coral", "Moonlit", "Tiki", "Velvet",
@@ -172,6 +181,7 @@ static void new_song(double pos, unsigned seed) {
 
     tempo = 84 + srnd(17);                          // 84..100 — lazy
     bpm(tempo);
+    apply_band_overrides();          // picked chairs beat the per-song macro roll above
     songBase = (long)pos + 8;
     gtrInit = false;
     bassLast = 36;
@@ -314,15 +324,54 @@ static void play_step(long abs, double pos) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
+// Each chair's candidates are full recipes — switching re-aims the slot from
+// scratch, so a swap mid-song is clean. sel 0 is always the shipped sound;
+// for the vibes chair, sel 0 is JUST the base instrument() call so new_song's
+// per-song macro roll (harmonics/timbre/morph) stays authoritative.
+static void apply_chair(int idx) {
+    int sel = band.c[idx].sel;
+    if (idx == chVibe) {
+        if (sel == 0) {                                      // "vibes" — shipped MALLET base
+            instrument(I_VIBE, INSTR_MALLET, 1, 0, 7, 1500); //   (new_song rolls the macros)
+        } else if (sel == 1) {                               // "marimba" — wood bar, drier ring
+            instrument(I_VIBE, INSTR_MALLET, 1, 0, 7, 1500);
+            instrument_harmonics(I_VIBE, 0.05f);
+            instrument_timbre(I_VIBE, 0.45f);
+            instrument_morph(I_VIBE, 0.30f);
+        } else {                                             // "denny piano" — the other pole
+            instrument(I_VIBE, INSTR_TRI, 2, 600, 2, 240);   //   felt piano (satie/cocktail recipe)
+            instrument_env(I_VIBE, 0, ENV_CUTOFF, 0, 70, 700);
+        }
+    } else if (idx == chBell) {
+        if (sel == 0) {                                      // "fm glass" — shipped bell detent
+            instrument(I_BELL, INSTR_FM, 1, 500, 2, 400);
+            instrument_harmonics(I_BELL, 0.55f);             // the 3.5 bell detent
+            instrument_timbre(I_BELL, 0.55f);
+            instrument_morph(I_BELL, 0.12f);
+        } else {                                             // "celesta" — mallet sparkle
+            instrument(I_BELL, INSTR_MALLET, 1, 500, 2, 400);
+            instrument_harmonics(I_BELL, 0.50f);             //   (the celesta preset from mallet.c)
+            instrument_timbre(I_BELL, 0.55f);
+            instrument_morph(I_BELL, 0.45f);
+        }
+    }
+}
+
+// re-assert any non-default chair (new_song re-rolls macros/filters over the
+// slots; default chairs keep the per-song roll, picked chairs win over it)
+static void apply_band_overrides(void) {
+    for (int i = 0; i < band.n; i++)
+        if (band.c[i].sel) apply_chair(i);
+}
+
 static void setup_instruments(void) {
-    // the three engines, one band (per-song macros rolled in new_song)
-    instrument(I_VIBE, INSTR_MALLET, 1, 0, 7, 1500);         // the vibraphone
+    chVibe = rad_chair(&band, "vibes",   "vibes",   "marimba", "denny piano", NULL);
+    chBell = rad_chair(&band, "sparkle", "fm glass", "celesta", NULL, NULL);
+    for (int i = 0; i < band.n; i++) apply_chair(i);         // base sounds (sel 0)
+
+    // the rest of the band (per-song macros rolled in new_song)
     instrument(I_GTR,  INSTR_PLUCK,  1, 0, 7, 900);          // soft nylon comp
     instrument_harmonics(I_GTR, 0.42f);
-    instrument(I_BELL, INSTR_FM,     1, 500, 2, 400);        // glass sparkle
-    instrument_harmonics(I_BELL, 0.55f);                     // the 3.5 bell detent
-    instrument_timbre(I_BELL, 0.55f);
-    instrument_morph(I_BELL, 0.12f);
 
     instrument(I_BASS, INSTR_TRI, 4, 260, 4, 140);           // upright-ish
     instrument_env(I_BASS, 0, ENV_PITCH, 0, 18, 2);
@@ -381,6 +430,9 @@ void update(void) {
         instrument_filter(I_VIBE, FILTER_LOW, (int)(4200 * tm), 0);
         instrument_filter(I_BELL, FILTER_LOW, (int)(3800 * tm), 0);
     }
+
+    int chair = rad_band_input(&band, &showHelp);   // THE BAND — B, then click/number
+    if (chair >= 0) apply_chair(chair);
 
     if (radioOn) {
         long st;
@@ -472,7 +524,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_ORANGE, CLR_DARK_BROWN);
 
     rad_help_button(CLR_ORANGE);
-    rad_footer("SPACE next song   H help");
+    rad_footer("SPACE next song   B band   H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {
@@ -483,7 +535,7 @@ void draw(void) {
             { "UP/DOWN",    "tempo of this tune" },
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
-            { "H or ?",     "show / hide this help" },
+            { "B",          "the band - swap chairs live" },
         };
         static const char *NOTES[3] = {
             "vibes=MALLET gtr=PLUCK bells=FM - all 3 engines",
@@ -492,4 +544,5 @@ void draw(void) {
         };
         rad_help_panel("EXOTICA RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
     }
+    rad_band_panel(&band, CLR_ORANGE);
 }

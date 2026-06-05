@@ -114,7 +114,15 @@ static int  gvEp[3]  = { 62, 66, 69 };
 static int  gvPad[3] = { 55, 59, 62 };
 static bool epInit = false, padInit = false;
 
+// THE BAND (B) — the chairs and their candidates, from radio-instrument-options.md.
+// Each chair's sel 0 is the shipped marina sound; the panel is the live override.
+// The toolkit never touches rad_srnd, so pinned seeds stay byte-identical.
+static RadBand band;
+static int chEp, chBass, chLead, chPad;
+
 #define srnd(n) rad_srnd(&rs, (n))
+
+static void apply_band_overrides(void);   // defined with the chairs, below
 
 // ── song generation — the tune AND the band, all from the seed ────────────
 static const char *TW1[] = { "Marina", "Pacific", "Chrome", "Midnight", "Coastal",
@@ -165,6 +173,7 @@ static void new_song(double pos, unsigned seed) {
 
     tempo = 92 + srnd(23);                          // 92..114
     bpm(tempo);
+    apply_band_overrides();          // picked chairs beat the per-song rolls above
     songBase = (long)pos + 8;
     epInit = padInit = false;
     bassLast = 33;
@@ -363,26 +372,91 @@ static void setup_kit_cr78(void) {
     instrument_filter(SL_HATO, FILTER_BAND, 7200, 4);
 }
 
-static void setup_instruments(void) {
-    // THE EPIANO — INSTR_FM, 1:1 detent: the DX tine pings every comp hit
-    instrument(I_EP, INSTR_FM, 2, 700, 3, 350);
-    instrument_harmonics(I_EP, 0.15f);                       // the epiano detent
-    instrument_lfo(I_EP, 0, LFO_VOLUME, 4.6f, 0.10f);        // the session tremolo
+// ── THE BAND — each chair's candidates are full recipes; switching re-aims the
+// slot from scratch so a swap mid-song is clean. sel 0 is always the shipped
+// marina sound (verbatim from the original setup_instruments). Candidates from
+// docs/design/radio-instrument-options.md (the yacht section).
+static void apply_chair(int idx) {
+    int sel = band.c[idx].sel;
+    if (idx == chEp) {
+        if (sel == 0) {
+            // dx tine — INSTR_FM, 1:1 detent: the DX tine pings every comp hit
+            instrument(I_EP, INSTR_FM, 2, 700, 3, 350);
+            instrument_harmonics(I_EP, 0.15f);               // the epiano detent
+            instrument_lfo(I_EP, 0, LFO_VOLUME, 4.6f, 0.10f); // the session tremolo
+        } else if (sel == 1) {
+            // soft rhodes — duller tine, a touch more tremolo
+            instrument(I_EP, INSTR_FM, 2, 700, 3, 350);
+            instrument_harmonics(I_EP, 0.15f);
+            instrument_timbre(I_EP, 0.30f);
+            instrument_lfo(I_EP, 0, LFO_VOLUME, 4.6f, 0.14f);
+        } else {
+            // clavinet — bright + percussive, near-bridge pluck
+            instrument(I_EP, INSTR_PLUCK, 1, 0, 6, 300);
+            instrument_harmonics(I_EP, 0.35f);
+            instrument_timbre(I_EP, 0.85f);
+            instrument_morph(I_EP, 0.15f);
+            instrument_filter(I_EP, FILTER_LOW, 3000, 1);
+        }
+    } else if (idx == chBass) {
+        if (sel == 0) {
+            instrument(I_BASS, INSTR_TRI, 2, 220, 4, 90);    // round fingered electric
+            instrument_env(I_BASS, 0, ENV_PITCH, 0, 14, 3);
+        } else if (sel == 1) {
+            instrument(I_BASS, INSTR_SINE, 2, 220, 4, 90);   // round — pure low end
+            instrument_filter(I_BASS, FILTER_LOW, 500, 2);
+            instrument_env(I_BASS, 0, ENV_PITCH, 0, 14, 3);
+        } else {
+            instrument(I_BASS, INSTR_SAW, 2, 220, 4, 90);    // bright — slap-adjacent
+            instrument_filter(I_BASS, FILTER_LOW, 900, 2);
+            instrument_env(I_BASS, 0, ENV_PITCH, 0, 14, 3);
+        }
+    } else if (idx == chLead) {
+        if (sel == 0) {
+            instrument(I_SAX, INSTR_SQUARE, 25, 160, 5, 130); // breathy narrow pulse
+            instrument_duty(I_SAX, 0.12f);
+            instrument_filter(I_SAX, FILTER_LOW, 1900, 2);
+            instrument_lfo(I_SAX, 0, LFO_PITCH, 5.1f, 0.16f);
+        } else if (sel == 1) {
+            instrument(I_SAX, INSTR_SQUARE, 25, 160, 5, 130); // synth — fatter pulse
+            instrument_duty(I_SAX, 0.30f);
+            instrument_filter(I_SAX, FILTER_LOW, 2200, 2);
+            instrument_lfo(I_SAX, 0, LFO_PITCH, 5.1f, 0.10f);
+        } else {
+            instrument(I_SAX, INSTR_PLUCK, 1, 0, 6, 500);     // the session guitar solo
+            instrument_harmonics(I_SAX, 0.5f);
+            instrument_timbre(I_SAX, 0.75f);
+            instrument_filter(I_SAX, FILTER_LOW, 2600, 1);
+        }
+    } else if (idx == chPad) {
+        if (sel == 0) {
+            instrument(I_PAD, INSTR_SAW, 260, 400, 5, 700);   // soft strings
+            instrument_filter(I_PAD, FILTER_LOW, 850, 1);
+        } else {
+            instrument(I_PAD, INSTR_SAW, 10, 400, 5, 700);    // syn brass — short attack
+            instrument_filter(I_PAD, FILTER_LOW, 1400, 1);
+            instrument_env(I_PAD, 0, ENV_PITCH, 0, 40, -2);   // the citypop brass fall
+        }
+    }
+}
 
-    instrument(I_BASS, INSTR_TRI, 2, 220, 4, 90);            // round fingered electric
-    instrument_env(I_BASS, 0, ENV_PITCH, 0, 14, 3);
+// re-assert any non-default chair (new_song re-rolls some slots per song;
+// default chairs keep that roll, picked chairs win over it)
+static void apply_band_overrides(void) {
+    for (int i = 0; i < band.n; i++)
+        if (band.c[i].sel) apply_chair(i);
+}
+
+static void setup_instruments(void) {
+    chEp   = rad_chair(&band, "epiano", "dx tine", "soft rhodes", "clavinet", NULL);
+    chBass = rad_chair(&band, "bass",   "fingered", "round", "bright", NULL);
+    chLead = rad_chair(&band, "lead",   "sax", "synth", "guitar", NULL);
+    chPad  = rad_chair(&band, "pad",    "strings", "syn brass", NULL, NULL);
+    for (int i = 0; i < band.n; i++) apply_chair(i);
 
     instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 600);            // clean strat stabs
     instrument_harmonics(I_GTR, 0.35f);
     instrument_filter(I_GTR, FILTER_LOW, 2800, 1);
-
-    instrument(I_SAX, INSTR_SQUARE, 25, 160, 5, 130);        // breathy narrow pulse
-    instrument_duty(I_SAX, 0.12f);
-    instrument_filter(I_SAX, FILTER_LOW, 1900, 2);
-    instrument_lfo(I_SAX, 0, LFO_PITCH, 5.1f, 0.16f);
-
-    instrument(I_PAD, INSTR_SAW, 260, 400, 5, 700);          // soft strings
-    instrument_filter(I_PAD, FILTER_LOW, 850, 1);
 
     instrument(SL_RIDE, INSTR_SQUARE, 0, 300, 0, 160);       // ride ping
     instrument_filter(SL_RIDE, FILTER_HIGH, 6000, 4);
@@ -423,6 +497,9 @@ void update(void) {
             kitNow = sng.groove;
         }
     }
+
+    int chair = rad_band_input(&band, &showHelp);   // THE BAND — B, then click/number
+    if (chair >= 0) apply_chair(chair);
 
     if (radioOn) {
         long st;
@@ -508,7 +585,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_BLUE, CLR_DARKER_BLUE);
 
     rad_help_button(CLR_BLUE);
-    rad_footer("SPACE next song   H help");
+    rad_footer("SPACE next song   B band   H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {
@@ -519,7 +596,7 @@ void draw(void) {
             { "UP/DOWN",    "tempo of this track" },
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
-            { "H or ?",     "show / hide this help" },
+            { "B",          "the band - swap chairs live" },
         };
         static const char *NOTES[3] = {
             "the MU chord + the FM epiano's tine on",
@@ -528,4 +605,5 @@ void draw(void) {
         };
         rad_help_panel("YACHT RADIO", HELP, 8, NOTES, 3, CLR_BLUE);
     }
+    rad_band_panel(&band, CLR_BLUE);
 }

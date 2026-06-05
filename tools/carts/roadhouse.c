@@ -116,7 +116,15 @@ static char   nowChord[4][12];
 static int  gvOrg[3] = { 60, 64, 67 };
 static bool orgInit = false;
 
+// THE BAND (B) — the chairs and their candidates, from radio-instrument-options.md.
+// The organ chair is the WAVE chair: cycling it regenerates the wave_set(0, ...)
+// drawbar table, retimbring BOTH I_ORG and I_ORGL (they share INSTR_USER0).
+static RadBand band;
+static int chOrgan, chPBass, chGtr;
+
 #define srnd(n) rad_srnd(&rs, (n))
+
+static void apply_band_overrides(void);   // defined with the chairs, below
 
 // ══ THE IMPROVISER — now shared machinery (runtime/improv.h) ══════════════
 // Born in this cart; extracted verbatim when the cocktail trio became its
@@ -167,6 +175,7 @@ static void new_song(double pos, unsigned seed) {
 
     tempo = 96 + srnd(27);                          // 96..122
     bpm(tempo);
+    apply_band_overrides();          // picked chairs beat the per-song roll above
     songBase = (long)pos + 8;
     orgInit = false;
     songCount++;
@@ -290,29 +299,89 @@ static void play_step(long abs, double pos) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
-static void setup_instruments(void) {
-    // THE VOX — wave_set's first station gig: a drawn drawbar cycle
-    // (8' + 4' + 2 2/3' + 2', the recipe from game-music.md / waveed.c)
-    float t[64];
-    for (int i = 0; i < 64; i++) {
-        float ph = i / 64.0f;
-        t[i] = 0.55f * sinf(ph *  6.2832f) + 0.28f * sinf(ph * 12.566f)
-             + 0.18f * sinf(ph * 18.850f) + 0.12f * sinf(ph * 25.133f);
+// Each chair's candidates are full recipes — switching re-aims the slot from
+// scratch, so a swap mid-song is clean. sel 0 is always the shipped sound.
+// These apply functions NEVER call srnd — pinned seeds stay byte-identical.
+static void apply_chair(int idx) {
+    int sel = band.c[idx].sel;
+    if (idx == chOrgan) {
+        // THE WAVE CHAIR — regenerate the INSTR_USER0 drawbar table, retimbring
+        // BOTH I_ORG and I_ORGL (they share USER0). Roll the vibrato depth with it.
+        float t[64];
+        if (sel == 0) {
+            // VOX night — the shipped drawbar cycle (8' + 4' + 2 2/3' + 2')
+            for (int i = 0; i < 64; i++) {
+                float ph = i / 64.0f;
+                t[i] = 0.55f * sinf(ph *  6.2832f) + 0.28f * sinf(ph * 12.566f)
+                     + 0.18f * sinf(ph * 18.850f) + 0.12f * sinf(ph * 25.133f);
+            }
+            wave_set(0, t, 64);
+            instrument(I_ORG, INSTR_USER0, 18, 90, 6, 120);      // the combo organ
+            instrument_filter(I_ORG, FILTER_LOW, 2600, 1);
+            instrument_lfo(I_ORG, 0, LFO_PITCH, 6.2f, 0.05f);    // the cheesy vibrato tab
+            instrument(I_ORGL, INSTR_USER0, 6, 60, 6, 90);       // solo stop: brighter
+            instrument_filter(I_ORGL, FILTER_LOW, 3400, 2);
+            instrument_lfo(I_ORGL, 0, LFO_PITCH, 6.2f, 0.07f);
+        } else {
+            // GIBSON G-101 night — reedier, brighter footage: more 2nd/4th, a 6th
+            for (int i = 0; i < 64; i++) {
+                float ph = i / 64.0f;
+                t[i] = 0.48f * sinf(ph *  6.2832f) + 0.34f * sinf(ph * 12.566f)
+                     + 0.10f * sinf(ph * 18.850f) + 0.22f * sinf(ph * 25.133f)
+                     + 0.10f * sinf(ph * 37.699f);
+            }
+            wave_set(0, t, 64);
+            instrument(I_ORG, INSTR_USER0, 18, 90, 6, 120);
+            instrument_filter(I_ORG, FILTER_LOW, 3000, 1);       // filters up a bit
+            instrument_lfo(I_ORG, 0, LFO_PITCH, 6.2f, 0.07f);    // vibrato a touch deeper
+            instrument(I_ORGL, INSTR_USER0, 6, 60, 6, 90);
+            instrument_filter(I_ORGL, FILTER_LOW, 3900, 2);
+            instrument_lfo(I_ORGL, 0, LFO_PITCH, 6.2f, 0.09f);
+        }
+    } else if (idx == chPBass) {
+        if (sel == 0) {
+            instrument(I_PBASS, INSTR_FM, 2, 500, 4, 180);       // the Rhodes piano bass
+            instrument_harmonics(I_PBASS, 0.15f);                // epiano detent, low register
+        } else {
+            instrument(I_PBASS, INSTR_TRI, 3, 300, 5, 110);      // the L.A. Woman session bassist
+            instrument_filter(I_PBASS, FILTER_LOW, 480, 1);
+            instrument_env(I_PBASS, 0, ENV_PITCH, 0, 16, 2);     // the upright thump
+        }
+    } else if (idx == chGtr) {
+        if (sel == 0) {
+            instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 800);        // Krieger's line
+            instrument_harmonics(I_GTR, 0.55f);
+            instrument_filter(I_GTR, FILTER_LOW, 2400, 2);
+            instrument_drive(I_GTR, 0.0f);                       // clean
+        } else if (sel == 1) {
+            instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 800);        // the fuzz night
+            instrument_harmonics(I_GTR, 0.55f);
+            instrument_filter(I_GTR, FILTER_LOW, 1900, 2);       // darker, growling
+            instrument_drive(I_GTR, 0.45f);
+        } else {
+            instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 800);        // the flatpick night
+            instrument_harmonics(I_GTR, 0.55f);
+            instrument_timbre(I_GTR, 0.75f);                     // bright pick
+            instrument_filter(I_GTR, FILTER_LOW, 2400, 2);
+            instrument_drive(I_GTR, 0.0f);                       // clean
+        }
     }
-    wave_set(0, t, 64);
-    instrument(I_ORG, INSTR_USER0, 18, 90, 6, 120);          // the combo organ
-    instrument_filter(I_ORG, FILTER_LOW, 2600, 1);
-    instrument_lfo(I_ORG, 0, LFO_PITCH, 6.2f, 0.05f);        // the cheesy vibrato tab
-    instrument(I_ORGL, INSTR_USER0, 6, 60, 6, 90);           // solo stop: brighter
-    instrument_filter(I_ORGL, FILTER_LOW, 3400, 2);
-    instrument_lfo(I_ORGL, 0, LFO_PITCH, 6.2f, 0.07f);
+}
 
-    instrument(I_PBASS, INSTR_FM, 2, 500, 4, 180);           // the Rhodes piano bass
-    instrument_harmonics(I_PBASS, 0.15f);                    // epiano detent, low register
+// re-assert any non-default chair (new_song re-rolls timbre/morph over the
+// slots; default chairs keep the per-song roll, picked chairs win over it)
+static void apply_band_overrides(void) {
+    for (int i = 0; i < band.n; i++)
+        if (band.c[i].sel) apply_chair(i);
+}
 
-    instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 800);            // Krieger's line
-    instrument_harmonics(I_GTR, 0.55f);
-    instrument_filter(I_GTR, FILTER_LOW, 2400, 2);
+static void setup_instruments(void) {
+    chOrgan = rad_chair(&band, "organ", "vox", "gibson", NULL, NULL);
+    chPBass = rad_chair(&band, "piano bass", "rhodes", "upright", NULL, NULL);
+    chGtr   = rad_chair(&band, "guitar", "krieger", "fuzz", "flatpick", NULL);
+    for (int i = 0; i < band.n; i++) apply_chair(i);
+
+    // the open-string pedal under the guitar — not a chair, the string stays
     instrument(I_DRONE, INSTR_PLUCK, 1, 0, 7, 1400);         // the open string
     instrument_harmonics(I_DRONE, 0.75f);                    // long ring
     instrument_timbre(I_DRONE, 0.25f);
@@ -359,6 +428,9 @@ void update(void) {
         instrument_filter(I_ORGL, FILTER_LOW, (int)(3400 * tm), 2);
         instrument_filter(I_GTR,  FILTER_LOW, (int)(2400 * tm), 2);
     }
+
+    int chair = rad_band_input(&band, &showHelp);   // THE BAND — B, then click/number
+    if (chair >= 0) apply_chair(chair);
 
     if (radioOn) {
         long st;
@@ -450,7 +522,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_ORANGE, CLR_DARK_BROWN);
 
     rad_help_button(CLR_ORANGE);
-    rad_footer("SPACE next song   H help");
+    rad_footer("SPACE next song   B band   H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {
@@ -461,7 +533,7 @@ void draw(void) {
             { "UP/DOWN",    "tempo of this jam" },
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
-            { "H or ?",     "show / hide this help" },
+            { "B",          "the band - swap chairs live" },
         };
         static const char *NOTES[3] = {
             "THE IMPROVISER: solos are phrases - a motif",
@@ -470,4 +542,5 @@ void draw(void) {
         };
         rad_help_panel("ROADHOUSE RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
     }
+    rad_band_panel(&band, CLR_ORANGE);
 }

@@ -133,7 +133,18 @@ static char   nowChord[4][12];
 static int  gvBand[3] = { 62, 65, 69 };
 static bool bandInit = false;
 
+// THE BAND (B) — the chairs and their candidates, from radio-instrument-options.md.
+// The three chairs ARE the three orquestas in the header: cycling the bandoneón
+// reed retimbres the whole reed section (D'Arienzo drive / Pugliese yumba), the
+// violins go pizzicato for the síncopa, the piano darkens. The percussion (the
+// chicharra + golpe) IS the band — no chair, it stays. The toolkit never calls
+// rad_srnd, so pinned seeds stay intact; the cart applies each swap.
+static RadBand band;
+static int chBand, chVln, chPno;
+
 #define srnd(n) rad_srnd(&rs, (n))
+
+static void apply_band_overrides(void);   // defined with the chairs, below
 
 // ── song generation — composition AND the band, all from the seed ─────────
 static const char *TW1[] = { "Tango", "Luna", "Noche", "Calle", "Sombra", "Humo",
@@ -211,6 +222,8 @@ static void new_song(double pos, unsigned seed) {
     bandInit = false;
     bassLast = 33; melLast = 72; varLast = 74; varDir = 1;
     songCount++;
+
+    apply_band_overrides();   // picked chairs beat the per-song rolls above
 }
 
 static void fresh_song(double pos) {
@@ -443,27 +456,76 @@ static void play_step(long abs, double pos) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
-static void setup_instruments(void) {
-    // THE BANDONEÓN — wave_set's second station gig: a drawn free-reed cycle
-    // (odd-harmonic-leaning buzz; the bellows tremble is an LFO_VOLUME)
-    float t[64];
-    for (int i = 0; i < 64; i++) {
-        float ph = i / 64.0f * 6.2832f;
-        t[i] = 0.46f * sinf(ph)     + 0.20f * sinf(ph * 2)
-             + 0.30f * sinf(ph * 3) + 0.10f * sinf(ph * 4)
-             + 0.16f * sinf(ph * 5) + 0.06f * sinf(ph * 6)
-             + 0.10f * sinf(ph * 7) + 0.05f * sinf(ph * 9);
+// Each chair's candidates are full recipes — switching re-aims the slot from
+// scratch, so a swap mid-song is clean. sel 0 is always the shipped sound.
+// The three chairs are the three orquestas the header names.
+static void apply_chair(int idx) {
+    int sel = band.c[idx].sel;
+    if (idx == chBand) {
+        // THE BANDONEÓN — wave_set's second station gig: a drawn free-reed cycle.
+        // Cycling regenerates the reed table, retimbring BOTH I_BAND and I_BANDL
+        // (they share INSTR_USER0). The bellows LFO on I_BANDL stays in every night.
+        float t[64];
+        int aBand = 5, aBandL = 6;       // attacks (ms) — Troilo's shipped feel
+        for (int i = 0; i < 64; i++) {
+            float ph = i / 64.0f * 6.2832f;
+            if (sel == 1) {              // D'Arienzo — the bright drive night
+                // upper odd harmonics (3rd/5th/7th) +40%, renormalized ~/1.13
+                t[i] = (0.46f * sinf(ph)     + 0.20f * sinf(ph * 2)
+                      + 0.42f * sinf(ph * 3) + 0.10f * sinf(ph * 4)
+                      + 0.224f * sinf(ph * 5) + 0.06f * sinf(ph * 6)
+                      + 0.14f * sinf(ph * 7) + 0.05f * sinf(ph * 9)) / 1.13f;
+            } else if (sel == 2) {       // Pugliese — the dark yumba night
+                // heavier fundamental + 2nd, upper partials halved
+                t[i] = 0.62f * sinf(ph)      + 0.28f * sinf(ph * 2)
+                     + 0.15f * sinf(ph * 3)  + 0.05f * sinf(ph * 4)
+                     + 0.08f * sinf(ph * 5)  + 0.03f * sinf(ph * 6)
+                     + 0.05f * sinf(ph * 7)  + 0.025f * sinf(ph * 9);
+            } else {                     // Troilo — the shipped reed, verbatim
+                t[i] = 0.46f * sinf(ph)     + 0.20f * sinf(ph * 2)
+                     + 0.30f * sinf(ph * 3) + 0.10f * sinf(ph * 4)
+                     + 0.16f * sinf(ph * 5) + 0.06f * sinf(ph * 6)
+                     + 0.10f * sinf(ph * 7) + 0.05f * sinf(ph * 9);
+            }
+        }
+        if (sel == 1) { aBand = 8; aBandL = 4; }      // faster attacks — the drive
+        else if (sel == 2) { aBand = 20; }            // slower attack — the yumba
+        wave_set(0, t, 64);
+        instrument(I_BAND,  INSTR_USER0, aBand,  320, 5, 120);   // left hand: chords
+        instrument(I_BANDL, INSTR_USER0, aBandL, 220, 5, 110);   // right hand: the song
+        instrument_lfo(I_BANDL, 0, LFO_VOLUME, 5.6f, 0.08f);     // bellows tremble
+    } else if (idx == chVln) {
+        if (sel == 0) {
+            instrument(I_VLN, INSTR_SAW, 70, 400, 6, 220);       // arco — the violins, one desk
+            // (vibrato + the SCOOP into each note are rolled per song over this)
+        } else {
+            instrument(I_VLN, INSTR_SAW, 2, 180, 0, 60);         // pizzicato — plucked, for the síncopa
+            instrument_filter(I_VLN, FILTER_LOW, 2000, 1);
+        }
+    } else if (idx == chPno) {
+        if (sel == 0) {
+            instrument(I_PNO, INSTR_TRI, 2, 520, 2, 200);        // felt — satie's piano
+            instrument_env(I_PNO, 0, ENV_CUTOFF, 0, 70, 700);
+        } else {
+            instrument(I_PNO, INSTR_SINE, 2, 520, 2, 200);       // dark felt — the closed registration
+            instrument_filter(I_PNO, FILTER_LOW, 1100, 1);
+            instrument_env(I_PNO, 0, ENV_CUTOFF, 0, 70, 400);
+        }
     }
-    wave_set(0, t, 64);
-    instrument(I_BAND,  INSTR_USER0, 14, 320, 5, 120);   // left hand: chords
-    instrument(I_BANDL, INSTR_USER0,  6, 220, 5, 110);   // right hand: the song
-    instrument_lfo(I_BANDL, 0, LFO_VOLUME, 5.6f, 0.08f); // bellows tremble
+}
 
-    instrument(I_VLN, INSTR_SAW, 70, 400, 6, 220);       // the violins, one desk
-    // (vibrato + the SCOOP into each note are rolled per song)
+// re-assert any non-default chair (new_song re-rolls filters/LFOs/envs over the
+// slots; default chairs keep the per-song roll, picked chairs win over it)
+static void apply_band_overrides(void) {
+    for (int i = 0; i < band.n; i++)
+        if (band.c[i].sel) apply_chair(i);
+}
 
-    instrument(I_PNO, INSTR_TRI, 2, 520, 2, 200);        // satie's felt piano
-    instrument_env(I_PNO, 0, ENV_CUTOFF, 0, 70, 700);
+static void setup_instruments(void) {
+    chBand = rad_chair(&band, "bandoneon", "troilo", "d'arienzo", "pugliese", NULL);
+    chVln  = rad_chair(&band, "violins", "arco", "pizzicato", NULL, NULL);
+    chPno  = rad_chair(&band, "piano", "felt", "dark felt", NULL, NULL);
+    for (int i = 0; i < band.n; i++) apply_chair(i);
 
     instrument(I_BASS, INSTR_TRI, 3, 280, 5, 100);       // the upright
     instrument_env(I_BASS, 0, ENV_PITCH, 0, 16, 2);
@@ -498,6 +560,9 @@ void update(void) {
         else scheduled = (long)pos;
     }
     if (ev & RAD_EV_TONE) apply_tone();
+
+    int chair = rad_band_input(&band, &showHelp);   // THE BAND — B, then click/number
+    if (chair >= 0) apply_chair(chair);
 
     // ══ TEMPO AS A VOICE — the conductor, every frame ══
     // ease toward the curve: fast when rising (the a-tempo snap), slow when
@@ -615,7 +680,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARKER_PURPLE);
 
     rad_help_button(CLR_RED);
-    rad_footer("SPACE next tango   H help");
+    rad_footer("SPACE next tango   B band   H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {
@@ -626,7 +691,7 @@ void draw(void) {
             { "UP/DOWN",    "base tempo (the rubato rides it)" },
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
-            { "H or ?",     "show / hide this help" },
+            { "B",          "the band - swap chairs live" },
         };
         static const char *NOTES[3] = {
             "TEMPO AS A VOICE: live bpm() rubato -",
@@ -635,4 +700,5 @@ void draw(void) {
         };
         rad_help_panel("TANGO RADIO", HELP, 8, NOTES, 3, CLR_RED);
     }
+    rad_band_panel(&band, CLR_RED);
 }

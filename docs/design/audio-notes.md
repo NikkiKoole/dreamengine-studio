@@ -601,8 +601,11 @@ independently shippable:
    presets (gated to the 1:1 ratio detent · dies in ~75ms · scaled by timbre and by
    1−morph, so soft strikes and feedback-heavy patches never hear it) — the §8.1.1
    pattern of taste living inside the mapping fn, like the mallet's motor only waking at
-   morph's top. Awaiting the next ear pass on preset 1 (and a check that brass — same
-   detent, feedback 0.5 — reads its faint attack blip as period-correct, not as a bug).
+   morph's top. → **Second ear pass, same day: "now it really sounds like the FM
+   epiano" — nameplate test PASSED.** The tine ships as-is; the fm cart's scope draws it
+   (the 14× flicker on strike). This closes the epiano taste loop and greenlights the
+   citypop/lowend Rhodes retrofits with confidence. Remaining FM tail: the brass
+   stress test (attack-rise question, §8.8.3's follow-amp-env alternative if it bites).
 4. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
    (drawbars → scanner on the buffer → shared rotary). The SVF is the reusable primitive that also
    gives §5.5 and §8.3's formant.

@@ -34,6 +34,7 @@ docs/
 │   ├── galerijflat.md   IN PROGRESS (multi-session): design seed for an experimental/arty cart — the Dutch gallery-access apartment slab as a generative tableau of ordinary life (gallery facade straight-on, the archetype; the facade as a pixel grid of households)
 │   ├── headless-autoplay.md  growing the debug harness toward windowless fast runs + agents that play to find bugs (navkit-informed)
 │   ├── multiplayer-research.md  RESEARCH: netplay for native C + wasm — WebRTC DataChannels (libdatachannel/datachannel-wasm) as the one cross-target transport, input-lockstep reusing the --det harness, join-code UX + LAN discovery, iPad path, friendly net_host()/net_join() API sketch, staged plan
+│   ├── touch-notes.md  multitouch: the touch API + identity model, the parked release-API design (tapr/touch_ended_*, second customer = touch piano), raylib gestures survey (swipe/pinch — lean: don't wrap yet), and the on-device checklist the `touchlab` probe cart runs (BLOCKED on hardware)
 │   ├── profiler-extensions.md  PARKED: first-frame/init timing + region "zone" timers (extend the in-engine profiler; reuse perf.json)
 │   └── packaging-distribution.md  NOT STARTED: shipping to non-dev machines — the dev icon/name stopgap, what real packaging needs (bundler/signing/notarization), and the real blocker (the ▶ run model needs a compiler; web/wasm is the likely public path)
 ├── guides/            how-to

@@ -371,6 +371,27 @@ static void play_step(long abs, double pos) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
+
+// the lead chair has two candidates — A/B them live with G. Same evidence-gathering
+// step as jangle/bossa's guitar chair (per-song timbre roll): once both sound right,
+// the song seed rolls WHICH lead shows up. The vibraphone is the Nujabes sound —
+// radio-instrument-options.md calls it the single highest-value engine swap.
+static int leadVibes = 0;   // 0 = TRI+vibrato (shipped sound), 1 = INSTR_MALLET vibraphone
+
+static void setup_lead(void) {
+    if (!leadVibes) {
+        instrument(I_LEAD, INSTR_TRI, 10, 180, 4, 200);          // the sparse-hook fake
+        instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.4f, 0.12f);
+        instrument_filter(I_LEAD, FILTER_LOW, 2200, 2);
+    } else {
+        instrument(I_LEAD, INSTR_MALLET, 1, 0, 7, 1200);         // struck bar — rings on its own
+        instrument_harmonics(I_LEAD, 0.25f);                     // the vibes preset from the
+        instrument_timbre(I_LEAD, 0.50f);                        //   mallet cart (key 4):
+        instrument_morph(I_LEAD, 0.90f);                         //   morph's top = the motor
+        instrument_filter(I_LEAD, FILTER_LOW, 2600, 2);          // sit it back in the lofi mix
+    }
+}
+
 static void setup_instruments(void) {
     instrument(I_RHODES, INSTR_TRI, 8, 300, 3, 200);
     instrument_filter(I_RHODES, FILTER_LOW, 1600, 2);
@@ -382,9 +403,7 @@ static void setup_instruments(void) {
     instrument_env(I_BASS, 0, ENV_PITCH, 0, 35, 4);          // the thump
     instrument_drive(I_BASS, 0.20f);                         // tape warmth, not fuzz — the Low End is SATURATED low end
 
-    instrument(I_LEAD, INSTR_TRI, 10, 180, 4, 200);
-    instrument_lfo(I_LEAD, 0, LFO_PITCH, 5.4f, 0.12f);
-    instrument_filter(I_LEAD, FILTER_LOW, 2200, 2);
+    setup_lead();
 
     instrument(I_KICK, INSTR_SINE, 0, 95, 0, 35);            // boom
     instrument_env(I_KICK, 0, ENV_PITCH, 0, 50, 16);
@@ -427,6 +446,7 @@ void update(void) {
         if (!radioOn) note_off_all();
         else scheduled = (long)pos;
     }
+    if (keyp('G')) { leadVibes = !leadVibes; setup_lead(); }   // A/B the lead chair, mid-song
     if (keyp('H')) showHelp = !showHelp;
     if (mouse_pressed(MOUSE_LEFT)) {
         int hx = mouse_x() - 288, hy = mouse_y() - 172;
@@ -554,23 +574,24 @@ void draw(void) {
     circfill(288, 172, 6, CLR_DARK_GREY);
     circ(288, 172, 6, CLR_BLACK);
     print("?", 285, 169, CLR_ORANGE);
-    print("SPACE next song   H help", 8, 190, CLR_DARK_GREY);
+    print(str("SPACE next song   G lead:%s   H help", leadVibes ? "VIBES" : "TRI"), 8, 190, CLR_DARK_GREY);
 
     if (showHelp) {
         rectfill(44, 40, 232, 122, CLR_BLACK);
         rect(44, 40, 232, 122, CLR_ORANGE);
         print("LOW END RADIO", 52, 46, CLR_ORANGE);
         font(FONT_SMALL);
-        static const char *HELP[7][2] = {
+        static const char *HELP[8][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
             { "LEFT/RIGHT", "feel - how many layers play" },
             { "UP/DOWN",    "tempo of this tune" },
             { "M",          "radio power on / off" },
+            { "G",          "lead: tri hook / vibraphone" },
             { "H or ?",     "show / hide this help" },
         };
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             print(HELP[i][0], 52, 60 + i * 9, CLR_YELLOW);
             print(HELP[i][1], 106, 60 + i * 9, CLR_WHITE);
         }

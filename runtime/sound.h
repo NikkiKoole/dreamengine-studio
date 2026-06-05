@@ -99,9 +99,13 @@ typedef struct {
     // engine macros (current + slew target, riding the same machinery as cutoff/duty)
     float  harm, timb, mor;
     float  harm_target, timb_target, mor_target;
-    // Karplus-Strong string state (INSTR_PLUCK) — pitch comes from the buffer LENGTH, not phase
+    float  last_out;               // this voice's previous mixed contribution — feeds the steal-declick tail
+    // Karplus-Strong string state (INSTR_PLUCK): a write head + a FRACTIONAL read tap.
+    // Pitch = the tap distance, recomputed every sample from freq*pitch_mul — so vibrato,
+    // pitch envelopes, note_pitch and note_glide all bend the string live.
     float  ks_buf[SOUND_KS_MAX];
-    int    ks_len, ks_idx;
+    int    ks_len, ks_widx;        // ks_len = ALLOCATED length (period*2 headroom for down-bends)
+    float  ks_last;                // previous read (the damping average runs across it)
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -242,20 +246,25 @@ static inline float sound_osc(int wave, float phase, float duty, int *noise_stat
 // ids. Every engine reads the same three macros (v->harm / v->timb / v->mor); the mapping
 // from macro to internal parameter is the engine's taste, curated here, never exposed as API.
 
-// PLUCK note-on: excite the string. Karplus-Strong = fill a delay line of length SR/freq
-// with a noise burst, then per-sample average + feedback (sound_engine_sample). The macros
-// shape the EXCITATION here (timbre/morph) and the FEEDBACK there (harmonics).
+// PLUCK note-on: excite the string. Karplus-Strong = a delay line excited with a noise
+// burst, recirculated through a damping average (sound_engine_sample). The macros shape
+// the EXCITATION here (timbre/morph) and the FEEDBACK there (harmonics). The buffer is
+// allocated at 2x the note period (capped) and the excitation TILED across it, so the
+// fractional read tap can swing a full octave downward without leaving valid signal.
 static void sound_pluck_start(Voice *v) {
-    int len = (int)((float)SOUND_SAMPLE_RATE / (v->freq > 20.0f ? v->freq : 20.0f));
-    if (len < 2) len = 2;
-    if (len > SOUND_KS_MAX) len = SOUND_KS_MAX;
-    v->ks_len = len;
-    v->ks_idx = 0;
+    int period = (int)((float)SOUND_SAMPLE_RATE / (v->freq > 20.0f ? v->freq : 20.0f));
+    if (period < 2) period = 2;
+    if (period > SOUND_KS_MAX) period = SOUND_KS_MAX;
+    int alloc = period * 2 + 4;
+    if (alloc > SOUND_KS_MAX) alloc = SOUND_KS_MAX;
+    v->ks_len  = alloc;
+    v->ks_widx = 0;
+    v->ks_last = 0.0f;
     // timbre = pick brightness: one-pole lowpass over the noise burst
     // (0 = soft felt thud, 1 = hard pick, full spectrum)
     float k  = 0.04f + 0.96f * v->timb * v->timb;
     float lp = 0.0f;
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < period; i++) {
         v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
         float n = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
         lp += k * (n - lp);
@@ -263,34 +272,43 @@ static void sound_pluck_start(Voice *v) {
     }
     // morph = pick position: comb-filter the excitation (subtract a shifted copy) — notches
     // the harmonics a real pluck point cancels. 0 = near the bridge (full), 1 = mid-string (hollow)
-    int pos = (int)(len * (0.04f + 0.46f * v->mor));
+    int pos = (int)(period * (0.04f + 0.46f * v->mor));
     if (pos > 0) {
         float tmp[SOUND_KS_MAX];
-        memcpy(tmp, v->ks_buf, len * sizeof(float));
-        for (int i = 0; i < len; i++) v->ks_buf[i] = tmp[i] - tmp[(i + pos) % len];
+        memcpy(tmp, v->ks_buf, period * sizeof(float));
+        for (int i = 0; i < period; i++) v->ks_buf[i] = tmp[i] - tmp[(i + pos) % period];
     }
     // remove DC (the feedback loop would sustain it forever) + normalize so every
     // macro setting plucks at the same loudness
     float mean = 0.0f;
-    for (int i = 0; i < len; i++) mean += v->ks_buf[i];
-    mean /= (float)len;
+    for (int i = 0; i < period; i++) mean += v->ks_buf[i];
+    mean /= (float)period;
     float peak = 0.0f;
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < period; i++) {
         v->ks_buf[i] -= mean;
         float a = fabsf(v->ks_buf[i]);
         if (a > peak) peak = a;
     }
     if (peak > 0.0001f) {
         float g = 0.9f / peak;
-        for (int i = 0; i < len; i++) v->ks_buf[i] *= g;
+        for (int i = 0; i < period; i++) v->ks_buf[i] *= g;
     }
+    for (int i = period; i < alloc; i++) v->ks_buf[i] = v->ks_buf[i % period];   // tile
 }
 
 // One engine sample. PLUCK is the only engine so far; this grows a dispatch when #2 lands.
-static inline float sound_engine_sample(Voice *v) {
-    if (v->ks_len < 2) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
-    int   i   = v->ks_idx, j = (i + 1 >= v->ks_len) ? 0 : i + 1;
-    float cur = v->ks_buf[i];
+// pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries note_pitch/
+// note_glide (slewed) — so the SAME pitch machinery every oscillator answers bends the
+// string: the tap distance just tracks it. Linear-interpolated read; the interpolation's
+// slight extra damping at fractional positions is natural string behavior.
+static inline float sound_engine_sample(Voice *v, float pitch_mul) {
+    int alloc = v->ks_len;
+    if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
+    float f = v->freq * pitch_mul;
+    if (f < 20.0f) f = 20.0f;
+    float len_f = (float)SOUND_SAMPLE_RATE / f;          // the tap distance IS the pitch
+    if (len_f > (float)alloc - 2.0f) len_f = (float)alloc - 2.0f;
+    if (len_f < 2.0f)                len_f = 2.0f;
     // harmonics = ring time, mapped PERCEPTUALLY: the knob sets a target decay time
     // (T60 ≈ 0.04s thunk → ~2min drone, exponential so every knob position is an audible
     // step) and the feedback coefficient is derived from it per note frequency. A raw
@@ -298,11 +316,18 @@ static inline float sound_engine_sample(Voice *v) {
     // the bottom three-quarters of the knob did nothing. Frequency compensation keeps the
     // knob honest across the neck; at the very top the 0.5 average below becomes the real
     // ceiling (it still darkens highs faster — which is what sells "string").
-    float t60 = 0.04f * expf(v->harm * 8.0f);             // 0.04 * 2980^harm seconds to -60dB
-    float fb  = expf(-6.9078f / (t60 * v->freq));         // fb^(freq*t60) = 0.001
-    v->ks_buf[i] = (cur + v->ks_buf[j]) * 0.5f * fb;
-    v->ks_idx = j;
-    return cur;
+    float t60 = 0.04f * expf(v->harm * 8.0f);            // 0.04 * 2980^harm seconds to -60dB
+    float fb  = expf(-6.9078f / (t60 * f));              // fb^(freq*t60) = 0.001
+    float rpos = (float)v->ks_widx - len_f;
+    if (rpos < 0.0f) rpos += (float)alloc;
+    int   i0 = (int)rpos;        if (i0 >= alloc) i0 = 0;
+    int   i1 = i0 + 1;           if (i1 >= alloc) i1 = 0;
+    float fr  = rpos - (float)i0;
+    float out = v->ks_buf[i0] + (v->ks_buf[i1] - v->ks_buf[i0]) * fr;
+    v->ks_buf[v->ks_widx] = (out + v->ks_last) * 0.5f * fb;   // damping average + feedback
+    v->ks_last = out;
+    if (++v->ks_widx >= alloc) v->ks_widx = 0;
+    return out;
 }
 
 // ADSR amplitude during the gated (held) portion of a note. `s` = samples since note-on.
@@ -354,6 +379,10 @@ static void sound_unclaim_held(int vi) {
     voices[vi].owner_slot = -1;
 }
 
+// declick accumulator (audio-thread-owned): a stolen voice's last output lands here and
+// fades over ~3ms instead of cutting to zero in one sample. See the mix loop.
+static float steal_tail = 0.0f;
+
 static int sound_find_voice(void) {
     int vi = 0;
     // prefer fully free; else a non-held voice; else voice 0.
@@ -361,6 +390,7 @@ static int sound_find_voice(void) {
     for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].active)  { vi = i; goto done; }
     for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].held)    { vi = i; goto done; }
 done:
+    if (voices[vi].active) steal_tail += voices[vi].last_out;   // pay the cut into the declick tail
     sound_unclaim_held(vi);
     return vi;
 }
@@ -424,6 +454,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->harm = v->harm_target = ins->harmonics;
     v->timb = v->timb_target = ins->timbre;
     v->mor  = v->mor_target  = ins->morph;
+    v->last_out = 0.0f;
     v->ks_len = 0;
     if (v->wave >= INSTR_ENGINE_BASE) sound_pluck_start(v);   // excite the string (the only engine so far)
     v->step_samples     = 0;
@@ -455,7 +486,10 @@ static void sound_fire_req(SoundReq r) {
         int n = r.a;
         if (n == -1) {
             for (int i = 0; i < SOUND_VOICES; i++)
-                if (!voices[i].held) voices[i].active = false;  // held notes survive sfx(-1)
+                if (!voices[i].held && voices[i].active) {
+                    steal_tail += voices[i].last_out;           // declick the hard stop
+                    voices[i].active = false;                   // held notes survive sfx(-1)
+                }
         } else if (n >= 0 && n < SOUND_SFX_SLOTS) {
             int vi = sound_find_voice();
             Voice *v = &voices[vi];
@@ -709,19 +743,28 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             }
 
             // engine fork: wavetable oscillators below INSTR_ENGINE_BASE, modeled engines at/above
-            float s = (v->wave >= INSTR_ENGINE_BASE) ? sound_engine_sample(v)
+            float s = (v->wave >= INSTR_ENGINE_BASE) ? sound_engine_sample(v, pitch_mul)
                                                      : sound_osc(v->wave, v->phase, duty, &v->noise_state);
             if (v->sfx_idx < 0 && v->flt_mode != FILTER_OFF) {
                 if (cutoff < 20.0f) cutoff = 20.0f;
                 if (cutoff > SOUND_SAMPLE_RATE * 0.45f) cutoff = SOUND_SAMPLE_RATE * 0.45f;
                 s = sound_svf(v, s, cutoff);
             }
-            mix += s * v->vol * env * trem * 0.2f;
+            float contrib = s * v->vol * env * trem * 0.2f;
+            v->last_out = contrib;        // remembered so a steal can declick (see steal_tail)
+            mix += contrib;
 
             v->phase += v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             if (v->phase >= 1.0f) v->phase -= 1.0f;
             v->step_samples++;
         }
+
+        // steal-declick: when an audibly-ringing voice is stolen, its output step-discontinuity
+        // is paid into this tail, which fades over ~3ms — the pop becomes a soft tick. Long
+        // full-amplitude pluck voices made the old hard cut newly audible.
+        mix += steal_tail;
+        steal_tail *= 0.992f;
+        if (steal_tail > -1e-5f && steal_tail < 1e-5f) steal_tail = 0.0f;
 
         if (mix >  1.0f) mix =  1.0f;
         if (mix < -1.0f) mix = -1.0f;

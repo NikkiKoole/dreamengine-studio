@@ -318,11 +318,33 @@ static void lead_tick(double pos) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
+
+// the guitar chair has two candidates — A/B them live with G. This is the evidence-
+// gathering step for the per-song timbre roll (game-music.md "the same band every
+// night"): once both sound right, the song seed rolls WHICH guitar shows up.
+static int gtrPluck = 0;   // 0 = chorus TRI (shipped sound), 1 = INSTR_PLUCK real string
+
+static void setup_gtr(void) {
+    if (!gtrPluck) {
+        instrument(I_GTR, INSTR_TRI, 1, 350, 2, 180);        // jangle pluck (the TRI fake)
+        instrument_filter(I_GTR, FILTER_LOW, 2400, 2);
+        instrument_lfo(I_GTR, 0, LFO_PITCH, 5.5f, 0.12f);    // chorus warble — THE sound
+        instrument_lfo(I_GTR, 1, LFO_VOLUME, 4.7f, 0.08f);   // soft tremolo under it
+    } else {
+        instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 180);        // a real string (KS engine)
+        instrument_filter(I_GTR, FILTER_LOW, 2600, 2);       // keep the jangle top-end cap
+        instrument_harmonics(I_GTR, 0.5f);                   // ~1.2s ring — strummy, not washy
+        instrument_timbre(I_GTR, 0.75f);                     // bright pick — it IS jangle
+        instrument_morph(I_GTR, 0.2f);                       // near the bridge, full harmonics
+        instrument_lfo(I_GTR, 0, LFO_PITCH, 5.5f, 0.12f);    // chorus warble — the KS read tap is
+                                                             //   fractional, so the SAME recipe
+                                                             //   bends the real string too
+        instrument_lfo(I_GTR, 1, LFO_VOLUME, 4.7f, 0.08f);   // soft tremolo under it
+    }
+}
+
 static void setup_instruments(void) {
-    instrument(I_GTR, INSTR_TRI, 1, 350, 2, 180);            // jangle pluck
-    instrument_filter(I_GTR, FILTER_LOW, 2400, 2);
-    instrument_lfo(I_GTR, 0, LFO_PITCH, 5.5f, 0.12f);        // chorus warble — THE sound
-    instrument_lfo(I_GTR, 1, LFO_VOLUME, 4.7f, 0.08f);       // soft tremolo under it
+    setup_gtr();
 
     instrument(I_BASS, INSTR_SINE, 2, 250, 4, 90);
     instrument_filter(I_BASS, FILTER_LOW, 600, 1);
@@ -368,6 +390,7 @@ void update(void) {
         if (!radioOn) { note_off_all(); leadH = -1; }
         else scheduled = (long)pos;
     }
+    if (keyp('G')) { gtrPluck = !gtrPluck; setup_gtr(); }   // A/B the guitar chair, mid-song
     if (keyp('H')) showHelp = !showHelp;
     if (mouse_pressed(MOUSE_LEFT)) {
         int hx = mouse_x() - 288, hy = mouse_y() - 172;
@@ -504,29 +527,30 @@ void draw(void) {
     circfill(288, 172, 6, CLR_DARK_ORANGE);
     circ(288, 172, 6, CLR_BROWNISH_BLACK);
     print("?", 285, 169, CLR_LIGHT_PEACH);
-    print("SPACE next song   H help", 8, 190, CLR_BROWN);
+    print(str("SPACE next song   G gtr:%s   H help", gtrPluck ? "PLUCK" : "TRI"), 8, 190, CLR_BROWN);
 
     if (showHelp) {
         rectfill(44, 40, 232, 122, CLR_BROWNISH_BLACK);
         rect(44, 40, 232, 122, CLR_ORANGE);
         print("JANGLE RADIO", 52, 46, CLR_ORANGE);
         font(FONT_SMALL);
-        static const char *HELP[7][2] = {
+        static const char *HELP[8][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
             { "LEFT/RIGHT", "feel - how many layers play" },
             { "UP/DOWN",    "tempo of this tune" },
             { "M",          "radio power on / off" },
+            { "G",          "guitar: chorus tri / real string" },
             { "H or ?",     "show / hide this help" },
         };
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             print(HELP[i][0], 52, 60 + i * 9, CLR_YELLOW);
             print(HELP[i][1], 106, 60 + i * 9, CLR_WHITE);
         }
-        print("the #number on the display IS the song.", 52, 128, CLR_PEACH);
-        print("pin it for good: #define JANGLE_SEED 0x...", 52, 137, CLR_PEACH);
-        print("seeded composition, played fresh every time", 52, 146, CLR_PEACH);
+        print("the #number on the display IS the song.", 52, 137, CLR_PEACH);
+        print("pin it for good: #define JANGLE_SEED 0x...", 52, 146, CLR_PEACH);
+        print("seeded composition, played fresh every time", 52, 155, CLR_PEACH);
         font(FONT_NORMAL);
     }
 }

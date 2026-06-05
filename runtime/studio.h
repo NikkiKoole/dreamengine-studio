@@ -247,7 +247,7 @@ void map_scale(int n);                                  // integer zoom for map 
 // modeled ENGINES — wave ids 16+. An engine computes its sound per note (a tiny physical
 // simulation, not a wavetable). Wrap one in a slot like any wave — instrument(5, INSTR_PLUCK, …)
 // — and shape it with the three macro knobs below (instrument_harmonics/timbre/morph).
-#define INSTR_PLUCK   16  // Karplus-Strong plucked string — guitar/harp/koto. Decays on its own (give it a long hit() or release); pitch locks at note-on
+#define INSTR_PLUCK   16  // Karplus-Strong plucked string — guitar/harp/koto. Decays on its own (give it a long hit() or release); vibrato/glide/pitch-env all bend it live
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
 void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..31 yourself)

@@ -119,7 +119,7 @@ void init(void) {
 
 void update(void) {
     if (keyp(KEY_SPACE)) drone_toggle();
-    if (keyp('P')) arp_on = !arp_on;
+    if (keyp('M')) arp_on = !arp_on;   // M, not P — 'P' belongs to the runtime pause overlay
     if (keyp('E')) export_code();
     if (keyp('1')) save_it();          // S is a piano key here, so save/load live on 1/2
     if (keyp('2')) load_it();
@@ -214,7 +214,7 @@ void draw(void) {
             msg = bn[b]; msg_t = 40;
         }
     }
-    print("A-K play   SPACE drone   P arp   E export code   1/2 save/load", 8, 162, CLR_MEDIUM_GREY);
+    print("A-K play   SPACE drone   M arp   E export code   1/2 save/load", 8, 162, CLR_MEDIUM_GREY);
     print("draw with the mouse; switch U1-U4 and layer them in your game as INSTR_USER0-3", 8, 172, CLR_DARK_GREY);
     font(FONT_NORMAL);
     print(str("editing U%d -> INSTR_USER%d", cur + 1, cur), 8, 184, TCOL[cur]);

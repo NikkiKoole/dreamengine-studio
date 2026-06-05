@@ -439,6 +439,16 @@ in [`POLISH_TODO.md`](POLISH_TODO.md).
 - **JS-only extras** — `hflip`/`vflip`, `rotate90` (reuse one sprite in 4 orientations). Also: migrate terrain-tile carts (cannonfodder, druglord, heroes, hotline, etc.) to use `noise()` instead of their copy-pasted `(x*a + y*b) % m` patterns.
 - **Stress-test cart** — a cart exercising all primitives as a visual reference + regression guard.
 
+22. **Mobile-web readiness** *(new 2026-06-05, born from the live gallery + first
+    real-device session)* — desktop-authored carts meet phones now. The worklist:
+    `tools/mobile-lint.js` static checker (keyboard-only carts, key-gated starts,
+    >5-touch assumptions — iPhone Safari caps at ~5 simultaneous touches, found
+    on-device; tiny tap targets), a per-cart `fit` setting (letterbox / stretch /
+    integer-scale) flowing `.cart.js` → `de:settings` → shell, a
+    `touch_available()` API so carts can self-adapt (auto `touch_controls(true)`,
+    tap-to-start), and gallery input badges. Full design + device findings:
+    [`design/mobile-web-notes.md`](design/mobile-web-notes.md).
+
 ---
 
 ## Decided-against / deferred ✗

@@ -51,6 +51,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0012](0012-loderunner-movement-model.md) | Lode Runner movement model: floor division, not rounding | accepted |
 | [0013](0013-cut-music-api.md) | Cut `music()`: the pattern-bank model lost to code-first music | accepted |
 | [0014](0014-cut-unused-convenience-helpers.md) | Cut three zero-adoption helpers (`bezier_cubic`, `anim_once`, `bounce_at_edges`) | accepted |
+| [0015](0015-effects-are-recipes-not-primitives.md) | Effects are recipes, not primitives: the roster is closed | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

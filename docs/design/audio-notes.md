@@ -1670,3 +1670,10 @@ v1, document it on the panel.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
+
+> **Update 2026-06-05:** the four-layer table above is now a frozen decision —
+> [decisions/0015](../decisions/0015-effects-are-recipes-not-primitives.md) closes the
+> primitive roster at ~12 functions forever. Everything else (wah, chorus, tape, the
+> Leslie, sidechain…) is a recipe of these primitives or a refusal with the musical
+> need covered elsewhere; the pedalboard audit lives in that ADR. A new primitive must
+> prove it can't be a recipe.

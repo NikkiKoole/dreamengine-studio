@@ -160,7 +160,7 @@ const char *HELP[NTYPE][3] = {
 };
 
 // ── module instances + cables ──
-typedef struct { int type, x, y; float param[8], state[24], jackval[4]; } Module;   // param[] up to 8 knobs; state[] holds SCOPE history
+typedef struct { int type, x, y; float param[8], state[24], jackval[8]; } Module;   // param[]/jackval[] sized to the 8-jack/8-knob registry max — jackval MUST cover every jack index (an out jack at index 4+ used to silently corrupt the neighbouring Module when it was [4])
 #define MAX_MOD 24
 Module mod[MAX_MOD];
 int    nmod = 0;
@@ -188,6 +188,7 @@ int   drag_mod = -1, grab_dx = 0, grab_dy = 0;    // module being dragged around
 int   palette_scroll = 0, preset_open = 0;         // sidebar scroll offset (px); presets dropdown open?
 
 int  spawn(int type, int x, int y) {
+    if (nmod >= MAX_MOD) return MAX_MOD - 1;   // rack full — callers should check, but never write past mod[]
     Module *m = &mod[nmod];
     *m = (Module){ type, snap12(x), snap12(y), {0}, {0}, {0} };   // snap to the cell grid
     for (int k = 0; k < TYPES[type].nknob; k++) m->param[k] = TYPES[type].knob[k].def;
@@ -541,13 +542,37 @@ void save_patch(void) {
     save_bytes(&p, sizeof p);
     msg = "SAVED"; msg_flash = 40;
 }
+// Loading VALIDATES, never trusts: the blob is raw struct bytes from disk (size-checked
+// only), so a stale/corrupt/foreign save can carry any type/index/float. Out-of-range
+// module types become SCOPEs, out-of-range params snap to the knob's default (this also
+// kills NaNs and a div-by-zero in DIV's eval), and cables are dropped unless both ends
+// exist, point at real jacks, and run out → in.
 void load_patch(void) {
     Patch p;
     if (load_bytes(&p, sizeof p) == (int)sizeof p) {
+        note_off_all();   // presets do this; load must too, or ringing voices orphan into drones
         nmod = p.nmod < 0 ? 0 : p.nmod > MAX_MOD ? MAX_MOD : p.nmod;
-        for (int i = 0; i < nmod; i++) { mod[i] = (Module){ p.m[i].type, p.m[i].x, p.m[i].y, {0}, {0}, {0} }; for (int k = 0; k < 8; k++) mod[i].param[k] = p.m[i].param[k]; }
-        ncable = p.ncable < 0 ? 0 : p.ncable > MAXCABLE ? MAXCABLE : p.ncable;
-        for (int c = 0; c < ncable; c++) cable[c] = p.cable[c];
+        for (int i = 0; i < nmod; i++) {
+            int t = p.m[i].type;
+            if (t < 0 || t >= NTYPE) t = MOD_SCOPE;   // unknown kind (corrupt or future save) → harmless placeholder
+            mod[i] = (Module){ t, p.m[i].x, p.m[i].y, {0}, {0}, {0} };
+            for (int k = 0; k < TYPES[t].nknob; k++) {
+                KnobDef kd = TYPES[t].knob[k];
+                float v = p.m[i].param[k];
+                mod[i].param[k] = (v >= kd.lo && v <= kd.hi) ? v : kd.def;   // NaN fails both → def
+            }
+        }
+        ncable = 0;
+        int want = p.ncable < 0 ? 0 : p.ncable > MAXCABLE ? MAXCABLE : p.ncable;
+        for (int c = 0; c < want; c++) {
+            Cable cb = p.cable[c];
+            if (cb.sm < 0 || cb.sm >= nmod || cb.dm < 0 || cb.dm >= nmod) continue;
+            ModType *st = &TYPES[mod[cb.sm].type], *dt = &TYPES[mod[cb.dm].type];
+            if (cb.sj < 0 || cb.sj >= st->njack || cb.dj < 0 || cb.dj >= dt->njack) continue;
+            if (!st->jack[cb.sj].out || dt->jack[cb.dj].out) continue;                  // must run out → in
+            if (st->jack[cb.sj].type != dt->jack[cb.dj].type) continue;                 // same type-check the UI enforces
+            cable[ncable++] = cb;
+        }
         msg = "LOADED";
     } else msg = "no save";
     msg_flash = 40;
@@ -586,6 +611,14 @@ void init(void) {
     instrument(23, INSTR_PLUCK,  1,   0, 7, 1200);
     instrument(24, INSTR_MALLET, 1,   0, 7, 1200);
     instrument(25, INSTR_FM,     2, 700, 3,  350);
+
+    // registry tripwire: every loop in the cart indexes jack[8]/knob[8]/param[8]/jackval[8].
+    // A ModType declaring more than 8 of either reads/writes garbage — fail LOUDLY at boot
+    // instead of corrupting memory quietly. (Hit this check? Grow the arrays together.)
+    for (int t = 0; t < NTYPE; t++)
+        if (TYPES[t].njack > 8 || TYPES[t].nknob > 8) {
+            msg = "BAD ModType registry: >8 jacks/knobs"; msg_flash = 99999;
+        }
     preset_generative();
 }
 

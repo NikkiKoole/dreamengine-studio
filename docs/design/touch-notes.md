@@ -129,7 +129,10 @@ them yet**, for three reasons:
 If device testing shows rgestures is solid *and* carts keep re-rolling the same
 detection, the wrapper would be thin: `bool swiped(int dir)` (reusing `BTN_*`
 direction constants), `float pinch(void)` (scale factor this frame, 0 = no
-pinch). Park until evidence.
+pinch). ~~Park until evidence.~~ **Evidence arrived 2026-06-05 (§5 item 8): reason
+3 confirmed on an iPhone — a live DRAG is abandoned the instant a second finger
+taps. rgestures will not be wrapped; gestures are cart-land, per-finger, on
+`touch_id()` (blocked only on the §3 release API).**
 
 ## 5. What only a real device can answer — the touchlab checklist
 
@@ -166,6 +169,15 @@ the card:
    direction, pinch in/out are distinguished, HOLD doesn't false-positive on a
    resting finger, and nothing fires during normal multi-finger play (§4 reason
    3 — one global gesture at a time is the suspected flaw).
+   **VERDICT (same day, iPhone): the §4-reason-3 flaw is confirmed on
+   hardware** — an in-progress DRAG dies the moment a second finger taps; the
+   detector abandons the gesture and re-evaluates globally. That kills rgestures
+   for games regardless of how good its swipe detection is. **Decision: never
+   wrap rgestures; per-finger gestures live in cart-land** on `touch_id()`
+   bookkeeping (a `gestures.h` library header once the release API of §3
+   lands). Swipe-reliability/pinch/HOLD-false-positive sub-questions are moot
+   for engine purposes — rgestures stays available to carts via extern decls
+   (touchlab shows how) for anything single-gesture.
 
 Write verdicts into [`probe-carts.md`](probe-carts.md) (touchlab's row) and fix
 what fails; items 1/6/7 are shell bugs if they fail, 2/3/4/5 are engine bugs.

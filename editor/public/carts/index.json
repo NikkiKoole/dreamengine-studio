@@ -2295,5 +2295,14 @@
       "instrument",
       "tech-demo"
     ]
+  },
+  {
+    "title": "fm",
+    "description": "INSTR_FM showcase - the third modeled ENGINE: two-operator FM, the DX-synth recipe. An inaudible modulator sine bends the carrier's phase; brightness DECAYS within each note like a real DX strike (bright attack, mellow tail). The three engine macros: instrument_harmonics = carrier:mod ratio (snapped detents - integers sound musical, off-integers are bells, the top is the DX tine), instrument_timbre = brightness (FM amount), instrument_morph = modulator feedback (clean to saw-edge growl to noisy clang). Five presets (1 epiano, 2 bell, 3 bass, 4 brass, 5 clang) are nothing but knob positions. The scope draws the engine's actual formula live - strike a key and watch the wave mellow as it rings. A S D F G H J K play a major scale, 1..5 presets, drag the sliders (or LEFT/RIGHT + UP/DOWN), SPACE chord, M autoplay on/off.",
+    "file": "fm.cart.png",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ]
   }
 ]

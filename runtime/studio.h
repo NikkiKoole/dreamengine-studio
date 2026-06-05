@@ -247,8 +247,9 @@ void map_scale(int n);                                  // integer zoom for map 
 // modeled ENGINES — wave ids 16+. An engine computes its sound per note (a tiny physical
 // simulation, not a wavetable). Wrap one in a slot like any wave — instrument(5, INSTR_PLUCK, …)
 // — and shape it with the three macro knobs below (instrument_harmonics/timbre/morph).
-#define INSTR_PLUCK   16  // Karplus-Strong plucked string — guitar/harp/koto. Decays on its own (give it a long hit() or release); vibrato/glide/pitch-env all bend it live
-#define INSTR_MALLET  17  // struck bar — marimba/celesta/vibraphone/glockenspiel. Four decaying sine modes; rings on its own like PLUCK. macros: harmonics = bar material, timbre = mallet hardness, morph = ring length
+#define INSTR_PLUCK   16  // Karplus-Strong plucked string — guitar/harp/koto. Decays on its own (give it a long hit() or release); vibrato/glide/pitch-env all bend it live. macros: harmonics = ring time, timbre = pick brightness, morph = pick position
+#define INSTR_MALLET  17  // struck bar — marimba/celesta/vibraphone/glockenspiel. Four decaying sine modes; rings on its own like PLUCK. macros: harmonics = bar material (wood→bell), timbre = mallet hardness, morph = ring length (top = motor tremolo)
+#define INSTR_FM      18  // 2-op FM — DX-style epiano/bells/bass/brass/clang. Brightness decays within each note like a real DX strike. macros: harmonics = carrier:mod ratio (snapped detents — integers harmonic, offs = bells), timbre = brightness (mod index), morph = feedback (clean → growl → clang)
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
 void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..31 yourself)
@@ -297,15 +298,16 @@ void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mo
 #define ENV_DUTY    2   // pulse-width sweep (square/pulse slots only). amount 0.0..1.0
 void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);  // attach mod-envelope `which` (0..1) to a slot. dest ENV_*. pluck: ENV_CUTOFF amount 1500, attack 0, decay 120. amount 0 = off
 
-// engine macros — three 0..1 knobs that EVERY modeled engine (INSTR_PLUCK, INSTR_MALLET, …)
-// answers; what they sweep is per-engine, but the API never grows when a new engine lands. Defaults: 0.5.
-void instrument_harmonics(int slot, float x);  // engine macro 0..1 — PLUCK: ring time (0 dead slap, 1 near-endless) · MALLET: bar material (0 wood/marimba, 1 metal/bell)
-void instrument_timbre(int slot, float x);     // engine macro 0..1 — PLUCK: pick brightness (0 felt thud, 1 sharp pick) · MALLET: mallet hardness (0 soft yarn, 1 hard brass + click)
-void instrument_morph(int slot, float x);      // engine macro 0..1 — PLUCK: pick position (0 bridge = full, 1 mid-string = hollow) · MALLET: ring length (0 dry tick, 1 vibraphone sustain — the top switches the motor tremolo on)
+// engine macros — three 0..1 knobs that EVERY modeled engine answers; what each knob sweeps
+// is per-engine (documented on the INSTR_PLUCK/MALLET/FM lines above), but the API never
+// grows when a new engine lands. Defaults: 0.5.
+void instrument_harmonics(int slot, float x);  // engine macro 1 of 3 — e.g. PLUCK ring time · MALLET bar material · FM carrier:mod ratio
+void instrument_timbre(int slot, float x);     // engine macro 2 of 3 — e.g. PLUCK pick brightness · MALLET mallet hardness · FM brightness
+void instrument_morph(int slot, float x);      // engine macro 3 of 3 — e.g. PLUCK pick position · MALLET ring length · FM feedback growl
 void instrument_choke(int slot_a, int slot_b); // declare that a new note on slot_a instantly kills any sounding voice on slot_b (open/closed hat choke)
-void note_harmonics(int handle, float x);      // live macro on a held note, slewed — PLUCK: reshapes the ring · MALLET: bends the partials of a ringing bar
-void note_timbre(int handle, float x);         // live macro on a held note, slewed — PLUCK/MALLET: the strike already happened, applies at the next note
-void note_morph(int handle, float x);          // live macro on a held note, slewed — PLUCK: applies at the next note · MALLET: reshapes the ring (and the motor) live
+void note_harmonics(int handle, float x);      // live macro on a held note, slewed — ring/partial/ratio changes reach a sounding voice (PLUCK ring, MALLET partials, FM ratio)
+void note_timbre(int handle, float x);         // live macro on a held note, slewed — strike-shaping macros (PLUCK/MALLET timbre) apply at the next note; FM brightness moves live
+void note_morph(int handle, float x);          // live macro on a held note, slewed — MALLET ring/motor and FM feedback move live; PLUCK position applies at the next note
 
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti
@@ -456,7 +458,7 @@ float noise3(float x, float y, float z); // 3D: animated 2D noise (pass now() as
 void printh(const char *fmt, ...);                   // printf to the editor's runtime log panel (not the game window)
 void watch(const char *name, const char *fmt, ...);  // show a named live value in the corner of the game window
 void watch_visible(bool on);                         // hide/show the watch overlay (default: on; F1 toggles it)
-bool paused(void);                                   // true while the runtime pause overlay is open (P/ENTER to toggle)
+bool paused(void);                                   // true while the runtime pause overlay is open (P/ENTER to toggle; a key the cart reads via key()/keyp()/keyr() is claimed by the cart and won't trigger pause)
 
 // ------------------------------------------------------------
 // EXPERIMENTAL — may change or vanish without notice. Documented in the help

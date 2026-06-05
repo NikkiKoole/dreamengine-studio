@@ -114,6 +114,9 @@ typedef struct {
     float  md_trem_ph;             // vibe motor tremolo phase (morph's top end switches the motor on)
     int    md_strike;              // strike-noise samples remaining (the mallet contact click)
     bool   md_on;                  // struck this note — guards an engine id without a note-on init
+    // FM state (INSTR_FM): the carrier rides v->phase (advanced by the mix loop like any
+    // wave); only the inaudible modulator needs its own phase + the feedback memory.
+    float  fm_mph, fm_fb;
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -405,6 +408,33 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
     return out * 0.9f;
 }
 
+// One FM sample (2-op + feedback — §8.8.3 in audio-notes). The carrier is v->phase, which
+// the mix loop already advances by freq*pitch_mul — so the whole pitch machinery works by
+// construction; only the modulator phase lives here. The second oscillator is INAUDIBLE
+// (it bends the carrier's phase) — this is NOT the deferred second-audible-osc plumbing.
+static inline float sound_fm_sample(Voice *v, float pitch_mul) {
+    // harmonics = carrier:modulator ratio, SNAPPED to a curated table — a continuous ratio
+    // is out-of-tune clang everywhere except the integers. Each detent is a different
+    // instrument: integers = harmonic (bass/epiano/brass), offs = bells/clang, 14 = DX tine.
+    static const float RATIO[10] = { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 3.5f, 4.0f, 5.0f, 7.0f, 14.0f };
+    int ri = (int)(v->harm * 9.999f);
+    if (ri < 0) ri = 0; else if (ri > 9) ri = 9;
+    float f = v->freq * pitch_mul;
+    // timbre = peak mod index (brightness, beta in radians). The index DECAYS within the
+    // note toward a 25% floor over ~0.9s — the DX strike-then-mellow signature; a static
+    // index reads as cheap organ. Decay derives from step_samples (retriggers per note).
+    float beta = v->timb * v->timb * 12.0f
+               * (0.25f + 0.75f * expf(-(float)v->step_samples / (0.9f * (float)SOUND_SAMPLE_RATE)));
+    if (f * RATIO[ri] >= (float)SOUND_SAMPLE_RATE * 0.45f) beta = 0.0f;   // mod above Nyquist → pure sine
+    // morph = modulator feedback: 0 = pure two-sine FM, up = the modulator self-saturates
+    // toward saw → growl → noisy clang at the top (useful percussion territory)
+    float m = sinf(v->fm_mph * 6.2831853f + v->mor * 1.3f * v->fm_fb * 3.14159265f);
+    v->fm_fb = m;
+    v->fm_mph += f * RATIO[ri] / (float)SOUND_SAMPLE_RATE;
+    if (v->fm_mph >= 1.0f) v->fm_mph -= 1.0f;
+    return sinf(v->phase * 6.2831853f + m * beta);
+}
+
 // One engine sample — the dispatch (engine ids >= INSTR_ENGINE_BASE). The default body is
 // PLUCK. pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries
 // note_pitch/note_glide (slewed) — so the SAME pitch machinery every oscillator answers
@@ -412,6 +442,7 @@ static inline float sound_mallet_sample(Voice *v, float pitch_mul) {
 // interpolation's slight extra damping at fractional positions is natural string behavior.
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_MALLET) return sound_mallet_sample(v, pitch_mul);
+    if (v->wave == INSTR_FM)     return sound_fm_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -568,6 +599,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->last_out = 0.0f;
     v->ks_len = 0;
     v->md_on  = false;
+    v->fm_mph = v->fm_fb = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
     v->step_samples     = 0;

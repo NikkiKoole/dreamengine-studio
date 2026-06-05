@@ -428,6 +428,30 @@ marimba counterpoint. The roll trick: a mallet *tremolo roll* is just 5–6
 `schedule_hit`s ~70ms apart on one bar, alternating vol 3/4 — see the mallet
 cart's autoplay.
 
+### The DX keys — `INSTR_FM` (engine #3)
+
+Two-operator FM (shipped 2026-06-05; taste settling in the `fm` cart). Unlike
+the string and the bar it does **not** decay on its own — give it a normal
+ADSR; what it does do on its own is **mellow within each note** (the FM amount
+decays like a real DX strike), so comped chords sparkle on the attack and sit
+back in the mix as they ring. The electric-piano gap, finally:
+
+```c
+instrument(I_EP, INSTR_FM, 2, 700, 3, 350);          // piano-ish ADSR — the engine needs one
+instrument_harmonics(I_EP, 0.15f);                   // ratio detent 1:1 — the harmonic/musical zone
+instrument_timbre(I_EP, 0.45f);                      // brightness (decays per note automatically)
+instrument_morph(I_EP, 0.10f);                       // a touch of feedback = warmth, not growl
+instrument_lfo(I_EP, 0, LFO_VOLUME, 4.5f, 0.10f);    // the classic Rhodes tremolo on top
+chord(57, CHORD_MAJ7, I_EP, 4);                      // DX comping
+```
+
+The harmonics knob is **detented**, not continuous — each step is a different
+instrument family (integer ratios = epiano/bass/brass; off-integers = bells;
+the top detent is the DX tine). Roll *which detent* per song, not a float.
+First customers: citypop's lead (the Rhodes bell overtone it always wanted),
+lowend's Rhodes A/B. For bells, compare against `INSTR_MALLET` first — the
+mallet's bell end is physical, FM's is glassier/DX-flavored.
+
 ### Drawn waves — `wave_set` + `INSTR_USER0..3` (the lever nobody pulled)
 
 Beyond the five built-in waves there are four **user wave slots**: fill one with a

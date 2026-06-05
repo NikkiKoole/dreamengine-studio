@@ -7,7 +7,9 @@ song so the same radio sounds like a different record each time.
 Alternatives are marked: **now** = buildable with current API · **pluck** =
 needs INSTR_PLUCK (shipped) · **mallet** = needs INSTR_MALLET (shipped 2026-06-05;
 macro taste-tuning still settling in the `mallet` cart) ·
-**FM** = needs second oscillator / FM (further out).
+**FM** = needs INSTR_FM (shipped 2026-06-05; taste-tuning settling in the `fm`
+cart — note this is the FM *engine*, gap 2a; the Juno second-audible-oscillator
+plumbing, gap 2b, is still deferred).
 
 ---
 
@@ -221,6 +223,8 @@ an arrangement.
 - Bossa lead on ballads: vibraphone
 - (each retrofit: live A/B toggle against the old fake — the G-key pattern from jangle/bossa)
 
-**FM / second oscillator (further):**
-- Citypop lead: real Rhodes bell overtone
-- House lead: talkbox formant
+**INSTR_FM (shipped 2026-06-05 — retrofits now unblocked):**
+- Citypop lead: real Rhodes bell overtone (the epiano preset, ratio 1 + decaying brightness)
+- Lowend Rhodes: candidate A/B against the TRI+tremolo fake
+- House lead: talkbox-adjacent growl via the feedback macro (true formant still needs §8.3)
+- (each retrofit: live A/B toggle against the old fake — the G-key pattern)

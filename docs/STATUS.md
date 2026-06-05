@@ -185,8 +185,15 @@ their `kind[]` tags.
         4 modal sines + strike click, no buffer, `mallet` showcase cart (5 hardware presets =
         baked macro positions). First full walk of the §8.8.2 engine-shipping playbook. Open
         tail: macro taste-tuning + the lowend vibraphone retrofit.
-     3. **`INSTR_ORGAN` + Leslie** — Hammond drawbars → scanner → shared rotary, as one package. ← **NEXT**
-     4. **EP / acoustic-piano / guitar** family (buffered, on the proven path).
+     3. ~~**`INSTR_FM`** — 2-op + feedback, buffer-free (§12 gap **2a** only — the self-contained
+        engine, NOT the deferred Juno second-osc plumbing, gap 2b). Promoted ahead of the organ
+        2026-06-05: epiano/bell demand is already on the dial.~~ **SHIPPED 2026-06-05** —
+        snapped ratio table, in-note brightness decay (the DX strike), feedback morph; `fm`
+        showcase cart (epiano/bell/bass/brass/clang presets + a live formula scope). Design:
+        audio-notes §8.8.3. Open tail: taste-tuning (brass is the named stress test) + the
+        citypop/lowend epiano retrofits.
+     4. **`INSTR_ORGAN` + Leslie** — Hammond drawbars → scanner → shared rotary, as one package. ← **NEXT**
+     5. **EP / acoustic-piano / guitar** family (buffered, on the proven path).
    Two findings already resolved: the **MT70 presets** (Flute/Bells/Organ/Vibes/JzOrg2…) are
    **all pure sine + ADSR + filter — not an engine**, so they need *no port* and ship as
    demo/preset carts on existing API (§8.9); and **`INSTR_SINE` = Additive at harmonics 0**, so

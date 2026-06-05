@@ -582,14 +582,28 @@ independently shippable:
    third), `mallet` showcase cart with the 5 hardware presets as baked macro positions.
    Built by the §8.8.2 playbook (its first full walk). Open tail: macro taste-tuning by ear
    + the lowend/ambient/ymo retrofits (`radio-instrument-options.md`).
-3. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
+3. ~~**`INSTR_FM`** (2-op + feedback, buffer-free) — promoted ahead of the organ
+   2026-06-05: the demand is on the dial today (citypop's Rhodes overtone, the epiano gap
+   blocking the whole Italo/AOR batch, gamelan's bronze, exotica's bells), while nothing
+   ships blocked on drawbars — and the organ's best self wants the Leslie (the effects-layer
+   bite) anyway. Crucially this is §12 gap **2a** only — a self-contained engine behind one
+   wave id, NOT the deferred second-oscillator plumbing (gap 2b). Design: §8.8.3.~~
+   **→ SHIPPED 2026-06-05** (same-day as the §8.8.3 design — the playbook's second walk):
+   `INSTR_FM` with the snapped ratio table, in-note brightness decay, feedback morph;
+   ~2 floats on `Voice` (the carrier rides `v->phase`, so the pitch machinery is satisfied
+   by construction). `fm` showcase cart: epiano/bell/bass/brass/clang presets + a live
+   scope drawing the engine's actual formula. Open tail: taste-tuning by ear — **brass is
+   the named stress test** (it wants the index to *rise* on attack; the §8.8.3 follow-amp-env
+   alternative is the prepared answer if it fails) — and the DX-tine question for epiano.
+4. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
    (drawbars → scanner on the buffer → shared rotary). The SVF is the reusable primitive that also
    gives §5.5 and §8.3's formant.
-4. **`INSTR_EPIANO` / `INSTR_PIANO` / `INSTR_GUITAR`/`INSTR_HARP`** — the rest of the buffered
-   family, riding the path pluck validated. The pianist.
-5. **Formant filter** + the **effects layer** (§8.10 — buses vs. master; reverb / delay / tape /
+5. **`INSTR_EPIANO` / `INSTR_PIANO` / `INSTR_GUITAR`/`INSTR_HARP`** — the rest of the buffered
+   family, riding the path pluck validated. The pianist. (If §8.8.3's epiano preset lands
+   well, the dedicated modal `INSTR_EPIANO` may shrink to a nice-to-have.)
+6. **Formant filter** + the **effects layer** (§8.10 — buses vs. master; reverb / delay / tape /
    leslie / wah, starting with one master reverb + the formalized bus concept).
-6. **Optional:** bowed strings; and/or the SCW bank (§8.4).
+7. **Optional:** bowed strings; and/or the SCW bank (§8.4).
 
 ### 8.6 Cons / watch-outs
 
@@ -794,6 +808,35 @@ path. The steps in order — none optional, most are one sitting:
 8. **Update the ledgers** — STATUS item 5, the §8.5 phase list, §13's order of
    work, and a recipe in `game-music.md` once the macros have settled.
 
+### 8.8.3 Engine #3: FM — the step-1 design (2026-06-05)
+
+The playbook's paper round for `INSTR_FM`, resolving the §8.9 row into buildable taste.
+**Scope guard first:** this is §12 gap **2a** — a self-contained engine whose second
+oscillator is an *inaudible phase-wiggler* sealed inside the sample function (you only
+ever hear the carrier). It is NOT gap **2b** (second *audible* oscillator on the generic
+voice path — Juno saw+square mix, unison detune), which stays deferred until the Juno-60
+cart defines it. Architecture: **2-op + feedback** — the Plaits/MicroFreak FM engine's
+shape, not the DX7's 6-op/32-algorithm panel (which is exactly the per-engine-param
+explosion §8.1.1 exists to forbid). The DX *sound family* — epiano, glass bells, solid
+bass, brassy growl, clang — is the target; the architecture is not.
+
+| macro | maps to | the taste decision (made here, on paper) |
+|---|---|---|
+| **harmonics** | carrier:modulator **ratio** | **SNAPPED to a curated table** (~10 entries: 0.5 · 1 · 1.5 · 2 · 3 · 3.5 · 4 · 5 · 7 · 14), never continuous — a continuous ratio is out-of-tune clang everywhere except the integers. Integer entries = harmonic family (bass/epiano/brass); non-integer = bells/clang; 14 is the DX tine. Each detent is a *different instrument* — the strongest possible quarter-turn audibility |
+| **timbre** | **mod index** (peak FM amount) | the index must **decay within the note** (bright strike → mellow tail — the DX epiano/bell signature; a static index reads as cheap organ). Bake an exponential settle toward a ~25% floor over ~0.9s; engines own their timbral motion (the pluck/mallet precedent). Open alternative if brass suffers: scale the index with the voice's own amp envelope instead (sustained ADSR = sustained brightness) — decide in the cart |
+| **morph** | modulator **feedback** | 0 = pure two-sine FM; up = the modulator self-saturates toward saw → growl → at the top, noisy clang (useful percussion territory). One knob, huge range |
+
+Known risk, named up front: **DX7 E.PIANO 1 is two op-pairs** (1:1 body + a faint 14:1
+tine ping). If the cart's epiano preset fails the nameplate test on pure 2-op, the fix is
+a small *internal* third op (navkit's `FM_ALG_PAIR` is the crib — mod1→carrier plus an
+additive ping), still zero API. Don't build it speculatively.
+
+Mechanics: buffer-free (~3 floats on `Voice`: mod phase, feedback sample, plus nothing —
+the index decay derives from `step_samples`). No note-on excitation buffer → no stale-state
+guard needed (sines from any phase are safe). Pitch: carrier = `freq × pitch_mul` per
+sample, modulator = carrier × ratio — the §8.8.1 rule satisfied by construction. Cart
+presets (= the acceptance tests): **epiano · bell · bass · brass · clang**.
+
 ### 8.9 Candidate engine catalog (running wishlist)
 
 The set we'd *like*, beyond the first-bite engines (§8.5). Adding one is mostly: port the
@@ -805,7 +848,7 @@ the table's only job is to say what those three mean for each. Grow it freely.
 | Engine | navkit src (§8.7) | buffer | harmonics | timbre | morph | character |
 |---|---|---|---|---|---|---|
 | **Additive / sine** (bell, choir, brass, strings) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | rich multi-partial pads. (A *bare* sine is already `INSTR_SINE` — see the MT70 note below) |
-| **FM** (2–3 op, DX) | `processFm…` | free | carrier:modulator ratio | mod index (FM amount) | feedback / 2nd-op depth | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial" |
+| **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full step-1 design: §8.8.3** ← next |
 | **AM / ring mod** | trivial (≈10 lines native) | free | modulator ratio | AM ↔ ring depth | modulator detune / wave | metallic, robotic, clangorous bells |
 | **Voice / formant** | formant SVF + buzz (§8.3) | free (reuses SVF) | vowel (a→e→i→o→u) | breathiness / brightness | formant shift (size/gender) | choir "aah", vocal-organ, talkbox. Comes near-free with the §8.3 filter |
 
@@ -1151,19 +1194,30 @@ the wall was hit, and scored against §1's leverage rule.
    others, covering future cymbal-choke and hi-hat-pedal scenarios.
 
 2. **A second oscillator per voice** (detune pair, or 2-op FM). The big
-   timbre unlock, felt four distinct ways:
-   - **Electric piano doesn't exist.** The guide's recipe ("SINE + tremolo")
+   timbre unlock, felt four distinct ways.
+   **→ SPLIT 2026-06-05 — this gap conflated two architecturally opposite things:**
+   - **2a — an FM *engine*** (`INSTR_FM`): the second oscillator is an *inaudible*
+     phase-wiggler sealed inside one engine's sample function — you only ever hear
+     the carrier. Self-contained behind one wave id, buffer-free, zero new API,
+     zero shared plumbing. Covers the epiano/bell/brass/clang needs below.
+     Design: §8.8.3. **Promoted to next engine.**
+   - **2b — second-oscillator *infrastructure***: a second *audible* source on the
+     generic voice path (Juno saw+square mix, the unison-detune flag) — touches
+     `Voice`/mix-loop semantics for every wave and needs new API surface. **Stays
+     deferred** until the Juno-60 cart defines the requirements (§14 gap A).
+   The original four motivations, now tagged by which half they need:
+   - **[2a] Electric piano doesn't exist.** The guide's recipe ("SINE + tremolo")
      is a placeholder, not a Rhodes. Italo disco, Steely Dan/AOR and any
      deeper citypop all *center* on epiano/DX keys — the planned batch runs
      straight into this wall.
-   - **Bells and metal are out of reach.** FM's inharmonic partials are
+   - **[2a] Bells and metal are out of reach.** FM's inharmonic partials are
      exactly gamelan's bronze (ombak beating *inside* one voice) and
      exotica's vibraphone.
-   - **Pads cost double.** ambient.c burns 4 of `SOUND_VOICES 8` on one
+   - **[2b] Pads cost double.** ambient.c burns 4 of `SOUND_VOICES 8` on one
      chord; house.c cut its string machine to 2 voices for budget. An
      instrument-level **unison-detune flag** would halve every pad's
      polyphony cost — arguably the cheapest 80% of this item.
-   - **Juno-60 DCO mixer.** The Juno mixes SAW + SQUARE simultaneously per
+   - **[2b] Juno-60 DCO mixer.** The Juno mixes SAW + SQUARE simultaneously per
      voice — that's a second oscillator with a different waveform, not an
      FM pair. The unison-detune flag alone doesn't cover it (detune = same
      wave, slightly offset pitch). A static approximation is possible via a
@@ -1257,11 +1311,14 @@ how an afternoon lever displaces the week that moves the project.
    toggles (G); the listening verdict + macro taste-tuning are the open
    tail. Porting lessons for engine #2: §8.8.1.
 2. **Choke groups** (§12 gap 1) — **→ SHIPPED 2026-06-05**. See §12 above.
-3. **Second oscillator / FM** (§12 gap 2) — when the Italo/gamelan/AOR
-   batch actually starts. That batch defines the requirements and settles
-   the FM-vs-modal-epiano ambiguity §12 left open: build for the station
-   in front of you, not the abstraction. (The unison-detune flag may ship
-   earlier — it's the cheapest 80% and pure polyphony relief.)
+2½. **Mallet engine** (§8.5 phase 2) — **→ SHIPPED 2026-06-05** by the §8.8.2
+   playbook; `mallet` cart. Taste-tuning + lowend retrofit are the open tail.
+3. **FM engine — §12 gap 2a only** (split 2026-06-05; design §8.8.3) —
+   **→ SHIPPED 2026-06-05** as `INSTR_FM` + the `fm` cart (§8.5 phase 3 has the
+   ship note). Gap **2b** (the audible second osc: Juno saw+square mix,
+   unison-detune flag) stays deferred until the Juno-60 cart defines it; the
+   detune flag remains the cheapest 80% of 2b and may ship on its own as pure
+   polyphony relief.
 4. **The SCW bank — opportunistically**, the first time a station wants
    organ or clav color (the Doors' Vox Continental is the likely trigger).
    Shape is decided, see below.
@@ -1341,14 +1398,16 @@ a fixed ADSR (see §12 SFX modeler note).
 The Juno-60's voice architecture (polyphonic `note_on`, LP filter, LFO, ADSR)
 maps fine. Two things stand between a Juno-60 cart and the real instrument:
 
-**Gap A — DCO SAW+PULSE simultaneous mix (§12 gap 2).**
+**Gap A — DCO SAW+PULSE simultaneous mix (§12 gap 2b).**
 The Juno mixes saw and square waveforms per voice for thickness — that's a
 second oscillator with a *different* waveform, distinct from both FM and
-unison-detune. Current workaround: draw a blended SCW (`INSTR_USER`) with
-partial saw + partial pulse harmonics — static mix, can't sweep the ratio, but
-costs nothing. The full dynamic mix requires the second-oscillator path in §12
-gap 2. The unison-detune flag (cheapest 80% of gap 2) covers the
-*thickness* aspect but not the waveform blend.
+unison-detune. ⚠️ Note (2026-06-05): the **FM engine (§12 gap 2a / §8.8.3) does
+NOT close this gap** — its second oscillator is an inaudible phase modulator,
+not a second audible source. Current workaround: draw a blended SCW
+(`INSTR_USER`) with partial saw + partial pulse harmonics — static mix, can't
+sweep the ratio, but costs nothing. The full dynamic mix requires the
+second-oscillator path in §12 gap 2b. The unison-detune flag (cheapest 80% of
+gap 2b) covers the *thickness* aspect but not the waveform blend.
 
 **Gap B — BBD chorus (§8.10).**
 The Juno's chorus is *the* defining sound. Without it the cart is a dry generic

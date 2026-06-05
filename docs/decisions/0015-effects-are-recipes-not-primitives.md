@@ -36,8 +36,12 @@ The pedalboard audit. Running the classic effects through the four layers:
 in all three forms (pedal wah = `FILTER_BAND` + res + live `note_cutoff`, auto-wah =
 `LFO_CUTOFF`, touch wah = `instrument_env(ENV_CUTOFF)` — it retriggers per note, which
 is exactly what an envelope-follower does); tremolo = `LFO_VOLUME`; vibrato = `LFO_PITCH`;
-EQ = `instrument_filter`; whammy = `note_pitch`/`note_glide`; amp/cab sim = drive + lowpass;
-limiter = the master soft-clip.
+whammy = `note_pitch`/`note_glide`; amp/cab sim = drive + lowpass; limiter = the master
+soft-clip. **EQ** splits in two: the *cut* half (and the whole DJ low/mid/high **kill**
+set) is exactly the four filter modes — kill lows = `FILTER_HIGH`, kill highs =
+`FILTER_LOW`, scoop mids = `FILTER_NOTCH` — and a band *boost* has a crude recipe in the
+SVF's resonance peak (`FILTER_LOW` at 120Hz, res 8 = a low shelf-ish bump; the 303
+squelch is "EQ boost as instrument").
 
 **Unlocked by the queued §17 work** — slapback/dub/tape echo → echo bus; room/hall →
 reverb bus; chorus/unison/supersaw → **detune** (two notes a few cents apart *is* chorus);
@@ -57,7 +61,13 @@ ring mod (its musical job — metallic inharmonic clang — is already INSTR_FM'
 off-integer detents); octaver (a pedal exists because a guitar has one string — we
 have polyphony: play the octave); auto-pan/stereo width (the engine is mono — console
 identity, not a missing feature); granular/shimmer/freeze (DAW-tier; a cart has
-`wave_set()` and ambition).
+`wave_set()` and ambition); **channel-strip EQ** (boost-this-band-leave-the-rest:
+2–3 extra biquads per voice + more API for a tool whose job is carving *dense* mixes —
+ours are 16 simple waves, and **register discipline is the real EQ at this fidelity**:
+bass plays low, lead plays high, waveform/duty/drive set the brightness. If the cart
+corpus ever proves otherwise — several music carts hand-rolling double-filter tricks,
+the 0014 evidence pattern in reverse — the admitted shape is one function,
+`instrument_eq(slot, low, mid, high)`, and a new interrogation here).
 
 **Why named functions despite the growth?** Because `studio.h`'s one-liner-per-function
 style *is the documentation system* — autocomplete, hover and the help tab all hang off

@@ -19,7 +19,7 @@ The touch API after `touch_id()`/`tapp()` landed (commit `1d7bf50`):
 | **buttons** | `btn()` | `btnp()` | `btnr()` |
 | **keyboard** | `key(k)` | `keyp(k)` | `keyr(k)` |
 | **mouse** | `mouse_down()` | `mouse_pressed()` | `mouse_released()` |
-| **touch** | `tap(x,y,w,h)` | `tapp(x,y,w,h)` | **— (missing, see §3)** |
+| **touch** | `tap(x,y,w,h)` | `tapp(x,y,w,h)` | `tapr(x,y,w,h)` (§3, shipped 2026-06-05) |
 
 Plus the enumeration view: `touch_count()`, `touch_x(i)`, `touch_y(i)`,
 `touch_id(i)` — up to 10 raylib touches per frame, canvas-space coordinates.
@@ -54,13 +54,13 @@ against this frame's:
 - id present now, absent before → finger **landed** (this one the engine also
   answers rect-wise via `tapp()`)
 - id present in both → finger **moved** (delta = drag)
-- id absent now, present before → finger **lifted** ← *the engine can't answer
-  this at all today*
+- id absent now, present before → finger **lifted** ← *now engine-answered:
+  `touch_ended_count/id/x/y` + `tapr()` (§3, shipped 2026-06-05)*
 
 `tools/carts/multitouch.c` (paint) and `tools/carts/touchlab.c` (device test
 card) both implement the diff; touchlab is the reference copy.
 
-## 3. The missing release API — designed, not built
+## 3. The release API — SHIPPED 2026-06-05 (with the touch piano)
 
 **Why it's absent:** a released touch is a *ghost* — the finger has no index
 this frame, so the existing `touch_x(i)`-style API physically cannot address
@@ -69,7 +69,8 @@ A release API is a new *shape*: the runtime must also snapshot previous-frame
 **positions** (today only ids are kept) and expose the vanished contacts as
 their own little list.
 
-**Proposed signatures** (parked until the customer arrives):
+**Shipped signatures** (exactly as designed — the snapshot implementation below
+landed in `studio.c` unchanged):
 
 ```c
 int  touch_ended_count(void);            // fingers that lifted since last frame
@@ -83,13 +84,15 @@ Implementation is cheap — one more `Vector2 vt_prev_pos[VT_MAX]` snapshot in
 `poll_virtual_touches()`, plus a "in prev, not in cur" scan. All five functions
 read the same two snapshots.
 
-**The designated second customer: a touch piano.** Paint didn't need releases
-(a lifted finger just stops adding dots). A piano *cannot exist* without them —
-every key needs `note_off` when its finger lifts, or every note drones forever.
-Per the second-customer rule, ship the release API **in the same commit as the
-touch-piano cart** (sh101-style two-hand keyboard played on the iPad), which is
-also the perfect stress test for `touch_id` (ten fingers, ids crossing keys)
-and iOS audio.
+**Shipped with its designated customer: the touch piano**
+(`tools/carts/touchpiano.c`) — two octaves, per-finger note_on/note_off keyed
+by `touch_ended_id`, glissando on slide, lift-ripples at `touch_ended_x/y`.
+Ten fingers, ids crossing keys, iOS audio — the §5 stress points in one cart.
+**`gestures.h` followed the same day** (`runtime/gestures.h`): per-finger
+swipes judged at lift time (`gest_update()` + `swiped(dir)` / `swiped_in(rect)`
+/ `pinch_scale()`), the cart-land answer §4 called for. touchlab test 9 runs it
+side-by-side against rgestures (test 8) — swipe while drumming other fingers;
+9 keeps firing where 8 dies.
 
 ## 4. Raylib gestures — what's available, and the lean
 
@@ -187,5 +190,5 @@ what fails; items 1/6/7 are shell bugs if they fail, 2/3/4/5 are engine bugs.
 | Cart | Role | State |
 |---|---|---|
 | `multitouch` (paint) | first multitouch demo — `touch_id` colors, `tapp` CLEAR | shipped, untested on hardware |
-| `touchlab` | the device test card (§5) | shipped, **waiting for a device** |
-| touch piano | second customer for the release API (§3) | not started — build with `tapr`/`touch_ended_*` |
+| `touchlab` | the device test card (§5, now 9 points: +rgestures readout, +gestures.h side-by-side) | shipped, first iPhone contact 2026-06-05 (gesture verdict in §5.8) |
+| `touchpiano` | the release API's customer (§3) | **shipped 2026-06-05**, same commit as the API |

@@ -324,6 +324,12 @@ static int     vt_id[VT_MAX];
 // previous frame's ids — lets tapp() spot a touch that BEGAN this frame
 static int     vt_prev_count = 0;
 static int     vt_prev_id[VT_MAX];
+// previous frame's positions + this frame's lifted contacts — a released touch
+// is a ghost (no index this frame), so touch_ended_*/tapr() read these instead
+static Vector2 vt_prev_pos[VT_MAX];
+static int     vt_ended_count = 0;
+static int     vt_ended_id[VT_MAX];
+static Vector2 vt_ended_pos[VT_MAX];
 
 // camera + clip state
 // the camera is a raylib Camera2D applied via BeginMode2D, so zoom/rotation are GPU
@@ -363,7 +369,10 @@ static bool vt_was_down(int id) {
 
 static void poll_virtual_touches(void) {
     vt_prev_count = vt_count;
-    for (int i = 0; i < vt_count; i++) vt_prev_id[i] = vt_id[i];
+    for (int i = 0; i < vt_count; i++) {
+        vt_prev_id[i]  = vt_id[i];
+        vt_prev_pos[i] = vt_pos[i];
+    }
     int n = GetTouchPointCount();
     if (n > VT_MAX - 1) n = VT_MAX - 1;
     for (int i = 0; i < n; i++) {
@@ -375,6 +384,19 @@ static void poll_virtual_touches(void) {
         vt_pos[vt_count] = GetMousePosition();
         vt_id[vt_count]  = MOUSE_TOUCH_ID;
         vt_count++;
+    }
+    // contacts present last frame but gone now → this frame's ended list,
+    // carrying their last-seen position (touch_ended_* / tapr read this)
+    vt_ended_count = 0;
+    for (int j = 0; j < vt_prev_count; j++) {
+        bool still = false;
+        for (int i = 0; i < vt_count; i++)
+            if (vt_id[i] == vt_prev_id[j]) { still = true; break; }
+        if (!still) {
+            vt_ended_id[vt_ended_count]  = vt_prev_id[j];
+            vt_ended_pos[vt_ended_count] = vt_prev_pos[j];
+            vt_ended_count++;
+        }
     }
 }
 
@@ -1479,6 +1501,29 @@ bool tapp(int x, int y, int w, int h) {
     for (int i = 0; i < vt_count; i++) {
         if (vt_was_down(vt_id[i])) continue;   // finger was already down last frame
         int cx = (int)(vt_pos[i].x / SCALE), cy = (int)(vt_pos[i].y / SCALE);
+        if (cx >= x && cx < x + w && cy >= y && cy < y + h) return true;
+    }
+    return false;
+}
+
+int touch_ended_count(void) { return vt_ended_count; }
+
+int touch_ended_id(int i) {
+    if (i < 0 || i >= vt_ended_count) return -1;
+    return vt_ended_id[i];
+}
+int touch_ended_x(int i) {
+    if (i < 0 || i >= vt_ended_count) return -1;
+    return (int)(vt_ended_pos[i].x / SCALE);
+}
+int touch_ended_y(int i) {
+    if (i < 0 || i >= vt_ended_count) return -1;
+    return (int)(vt_ended_pos[i].y / SCALE);
+}
+
+bool tapr(int x, int y, int w, int h) {
+    for (int i = 0; i < vt_ended_count; i++) {
+        int cx = (int)(vt_ended_pos[i].x / SCALE), cy = (int)(vt_ended_pos[i].y / SCALE);
         if (cx >= x && cx < x + w && cy >= y && cy < y + h) return true;
     }
     return false;

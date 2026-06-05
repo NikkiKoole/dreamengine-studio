@@ -90,6 +90,11 @@ int  touch_y(int i);                     // canvas-space y, or -1
 int  touch_id(int i);                    // stable id of touch i, or -1 — indices shuffle when a finger lifts, ids follow the finger
 bool tap(int x, int y, int w, int h);    // any touch inside this canvas-space rect?
 bool tapp(int x, int y, int w, int h);   // did a touch BEGIN inside this rect this frame? (edge-triggered, like btnp)
+int  touch_ended_count(void);            // fingers that lifted since last frame — a lifted finger has no touch_x index, read it here
+int  touch_ended_id(int i);              // stable id of lifted finger i, or -1 — pair it with the id you tracked while it was down
+int  touch_ended_x(int i);               // canvas-space x where lifted finger i was last seen, or -1
+int  touch_ended_y(int i);               // canvas-space y where lifted finger i was last seen, or -1
+bool tapr(int x, int y, int w, int h);   // did a touch END inside this rect this frame? (edge-triggered, like btnr)
 void touch_controls(bool on);            // show/hide on-screen stick + A/B (overrides default)
 
 // analog stick (only nonzero while a finger is on the on-screen stick)

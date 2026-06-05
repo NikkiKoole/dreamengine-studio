@@ -84,7 +84,7 @@ const sections = [
   { title: 'graphics',      keys: ['cls', 'colorkey', 'spr', 'sprf', 'sspr', 'spr_rot', 'sspr_ex', 'pget', 'pset', 'sget', 'font', 'FONT_NORMAL', 'FONT_SMALL', 'FONT_TINY', 'print', 'print_centered', 'print_right', 'print_scaled', 'print_outline', 'text_width', 'rect', 'rectfill', 'bar', 'circ', 'circfill', 'oval', 'ovalfill', 'arc', 'arcfill', 'arcoutline', 'ring', 'ringoutline', 'tri', 'trifill', 'tritex', 'line', 'bezier', 'camera', 'camera_ex', 'follow', 'clip', 'pal', 'pal_reset', 'fade', 'shake'] },
   { title: 'shapes',       keys: ['ngon', 'ngonfill', 'star', 'starfill', 'poly', 'polyfill', 'thickline', 'thicklineoutline', 'rrect', 'rrectfill', 'gradient', 'vgradient', 'hgradient'] },
   { title: 'input',        keys: ['btn', 'btnp', 'btnr', 'BTN_UP', 'BTN_DOWN', 'BTN_LEFT', 'BTN_RIGHT', 'BTN_A', 'BTN_B'] },
-  { title: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'touch_id', 'tap', 'tapp', 'touch_controls'] },
+  { title: 'touch',        keys: ['stick_x', 'stick_y', 'touch_count', 'touch_x', 'touch_y', 'touch_id', 'tap', 'tapp', 'touch_ended_count', 'touch_ended_id', 'touch_ended_x', 'touch_ended_y', 'tapr', 'touch_controls'] },
   { title: 'mouse',         keys: ['mouse_x', 'mouse_y', 'mouse_world_x', 'mouse_world_y', 'mouse_down', 'mouse_pressed', 'mouse_released', 'mouse_wheel', 'MOUSE_LEFT', 'MOUSE_RIGHT', 'MOUSE_MIDDLE'] },
   { title: 'keyboard',  keys: ['key', 'keyp', 'keyr', 'text_input', 'KEY_SPACE', 'KEY_ENTER', 'KEY_BACKSPACE', 'KEY_ESCAPE', 'KEY_TAB', 'KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN'] },
   { title: 'patterns',     keys: ['fillp', 'fillp_reset', 'fillp_anchor', 'FILL_SOLID', 'FILL_CHECKER', 'FILL_DOTS', 'FILL_HLINES', 'FILL_VLINES', 'FILL_DIAG', 'FILL_GRID'] },

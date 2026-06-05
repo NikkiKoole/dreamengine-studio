@@ -13,9 +13,13 @@
 //   7 PAGE   pinch / double-tap / drag / edge-swipe must NOT move the page
 //   8 GEST   swipe / flick / pinch / hold — raylib's gesture detector readout:
 //            does each fire when it should, and never when a finger just rests?
+//            (VERDICT 2026-06-05: drag dies when a 2nd finger taps — never wrap)
+//   9 SWIPE  the same swipes through gestures.h (per-finger, cart-land) — must
+//            keep firing while other fingers drum. The fix for what 8 proves.
 //
-// On desktop the mouse is one finger (id -2) — enough to smoke-test 3/4/5/6/8.
+// On desktop the mouse is one finger (id -2) — enough to smoke-test 3/4/5/6/8/9.
 #include "studio.h"
+#include "gestures.h"
 #include <stdio.h>
 
 // ── test 8: raw raylib rgestures readout (touch-notes §4: probe before wrapping)
@@ -29,6 +33,7 @@ extern RlV2  GetGestureDragVector(void);
 static int  gest_now = 0;          // gesture this frame (0 = none)
 static int  gest_prev = 0;
 static char gest_hist[40] = "";    // last few onsets, newest first
+static char swipe_hist[40] = "";   // test 9: gestures.h swipes, newest first
 
 static const char *gname(int g) {
     switch (g) {
@@ -97,6 +102,18 @@ void update(void) {
             lift_y = prev_y[j];
             any_lift = true;
         }
+    }
+
+    // test 9: per-finger swipes via gestures.h — judged at finger-lift
+    gest_update();
+    {
+        static const char *dn[4] = { "UP", "DOWN", "LEFT", "RIGHT" };
+        for (int d = 0; d < 4; d++)
+            if (swiped(d)) {
+                char tmp[40];
+                snprintf(tmp, sizeof tmp, "%s %.30s", dn[d], swipe_hist);
+                snprintf(swipe_hist, sizeof swipe_hist, "%s", tmp);
+            }
     }
 
     // test 8: log each gesture onset into the history strip
@@ -181,6 +198,9 @@ void draw(void) {
     print(buf, 4, 78, CLR_YELLOW);
     snprintf(buf, sizeof buf, "        log: %.32s", gest_hist);
     print(buf, 4, 86, CLR_LIGHT_GREY);
+    snprintf(buf, sizeof buf, "9 SWIPE gestures.h log: %.24s", swipe_hist);
+    print(buf, 4, 94, CLR_GREEN);
+    print("        swipe WHILE drumming: must still fire", 4, 102, CLR_LIGHT_GREY);
     print("verdicts -> docs/design/touch-notes.md #5", 4, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

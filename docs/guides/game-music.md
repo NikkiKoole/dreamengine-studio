@@ -536,6 +536,7 @@ What changes between styles is mostly **data** — the engine above carries over
 | **techno-kayō (YMO)** | 112–132 | machine-tight ±2ms, pattern strings (cr78.c format) | Sakamoto templates: chromatic mediant pull, maj7 planing, kayō minor cadence (harmonic-minor V), bright I–bVII–IV–V | Hosono bassline GENERATOR (melodic counterpoint w/ inertia + octave leaps), yonanuki pent lead, sequencer arp, CR-78 drum circuits on loan from `cr78.c` | ✅ `ymo.c` |
 | **Satie (gymnopédie)** | 56–70, **3/4** | twelve-step bars; bass on 1, chord on 2, beat 3 empty; rubato in gnossienne mode | chord brain #6, the ALTERNATING PAIR: rock two chords for bars on end, drift the pair per section; gnossienne = phrygian-dominant minor | SOLO PIANO (two tri slots) — density curve shapes touch/ornament, not layers; mordents; melody enters late, stepwise, held over barlines | ✅ `satie.c` |
 | **French house (Daft Punk)** | 114–126 | four-on-floor 808, claps on 2+4, machine-straight; THE VOID — last beat before every drop is dead silence | stolen playbook of the records the genre sampled: Modjo/Chic i9–bVImaj7–iv9–bVII9, Stardust's Neapolitan bIImaj7, One More Time's tonic-avoiding IVmaj7–V–iii7, Digital Love's slash bass; dorian iv→IV9 + 9sus rolls, needle-drop rotation — harmony never develops, **the FILTER is the form** | THE RIDE: `note_cutoff`/`note_res` swept on held strings per 8-bar arcs + sidechain pump (cutoff ducks at each kick, blooms across the beat); saw stabs, octave disco bass, Da Funk `note_glide` mono lead, 808 circuits on loan from `tr808.c` | ✅ `house.c` |
+| **exotica (Denny/Baxter)** | 84–100, lazy two-feel | rim clave + conga heartbeat + shaker; vibes 15–25ms behind the beat; tremolo ROLLS on long notes | lounge loops: maj9/6-9 lush, borrowed ivm6 dusk, pagan minor (i–bVI / i–bIII–bVI); melody = re-pitched cell | vibes lead (**MALLET**, motor on), nylon comp (**PLUCK**), glass bell arps (**FM**) — all three engines; upright TRI bass; THE AVIARY: unseeded bird/frog calls per bar (the band improvising the jungle) | ✅ `exotica.c` |
 | **ambient** | 60 fixed, pace knob | beatless; chords hold 8–16 beats, held `note_on` voices morph via `note_glide` | one mode per song, degree walk, no cadences | 4 detuned saw pads, sine sub, band-noise wind, bell arps | ✅ `ambient.c` |
 | **chiptune action** | 140–170 | straight 16ths, driving; euclid() fills | i–bVI–bVII–i loops, power chords | square lead 25% duty, tri bass, noise kit | idea |
 
@@ -779,13 +780,13 @@ and Sakamoto unprompted.
   `note_res` on held strings from an arrangement-level curve). Bonus finds: the
   sidechain pump as a *filter* gesture (cutoff ducks at each kick), and THE
   VOID — one `return` statement of silence before every drop.
-- **Exotica (Martin Denny / Les Baxter)** — Hosono's actual origin story (the
-  Tropical Trilogy is exotica homage). Lush vibraphone maj9/m9, lazy rubato
-  lounge time, and the fun new layer: **bird calls and frog croaks as an
-  aleatoric performance channel** — `chance()` per bar firing pitch-swooped
-  squeals that never repeat (pure engine-`rnd`, never seeded, exactly like
-  Denny's band improvising the jungle). Fewer new engine tricks than gamelan —
-  mostly timbre — but maximum taste-fit.
+- ~~**Exotica (Martin Denny / Les Baxter)**~~ — ✅ shipped as `exotica.c`
+  (2026-06-05): the first station born on the `radio.h` scaffold, the first to
+  play **all three modeled engines in one band** (MALLET vibes + PLUCK nylon +
+  FM bells — same-day engines, immediately exercised), and the aviary
+  prediction held: unseeded `chance()`-per-bar bird/frog calls read exactly as
+  the band improvising the jungle. The per-song timbre roll is built in from
+  day one (vibes macros, guitar pick, kit dressing, bird species — all seeded).
 - **Wendy Carlos / baroque counterpoint** — chord brain #7 that isn't chords
   at all: **rule-based two-voice species counterpoint** over a ground bass
   (a chaconne loop = the vamp brain's classical ancestor). Contrary motion

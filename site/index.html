@@ -39,6 +39,38 @@
       </div>
     </a>
 
+    <a class="card" href="ambient/">
+      <img src="ambient/cart.png" alt="ambient radio" loading="lazy">
+      <div class="body">
+        <h2>ambient radio</h2>
+        <p>The night sibling of bossa radio: an endless AM station composing beatless ambient drift. Four held pad voices (note_on) morph between chords via note_glide portamento - the sound never stops; per-note LFOs add tape wow and filter breathing. Harmony is a weighted walk over one mode (lydian/dorian/mixolydian/aeolian), no cadences, just drift; sub bass glides under, wind and sparse bell arps above. Every song is a 32-bit seed on the display. SPACE next, R same dream again, [ ] history, LEFT/RIGHT feel, UP/DOWN pace, M power. Pin a favourite via AMBIENT_SEED. Worked example #2 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="bossa/">
+      <img src="bossa/cart.png" alt="bossa radio" loading="lazy">
+      <div class="body">
+        <h2>bossa radio</h2>
+        <p>An endless radio station that composes bossa nova. Every song is generated from a 32-bit seed shown on the display: key, AABA chord progression (Markov walk over jazz harmony - ii-V-I, tritone subs, backdoor dominants), voice-led guitar comping on the bossa clave, surdo bass, shaker, a One Note Samba-style melody cell, tempo, even the title. SPACE next song, R play the same chart again, [ ] song history, LEFT/RIGHT feel (layers), UP/DOWN tempo, M power. Pin a favourite: put its #seed in BOSSA_SEED at the top of the source. The worked example for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="citypop/">
+      <img src="citypop/cart.png" alt="city pop radio" loading="lazy">
+      <div class="body">
+        <h2>city pop radio</h2>
+        <p>Endless Japanese pop-funk - the city pop homage (Tatsuro Yamashita / Mariya Takeuchi / Plastic Love), sixth of the radio family. The canon as data: the ROYAL ROAD progression (IVmaj7-V7-iiim7-vim9, THE J-pop changes), Just-the-Two-of-Us loops (IVmaj7-III7alt-vim9-I9), the bittersweet descent (Imaj9-I9-IVmaj7-ivm6); octave-popping disco bass with double-chromatic 16th runs; two-voice guitar chucks that lay out for the bar turn; saw-brass anticipation hits; session-tight timing (the opposite of low end radio - no groove lag, +-2ms only); and the truck driver's gear change: the last chorus modulates up a whole step. Density = arrangement curve x feel knob; T cycles tone. Seed on display (CITYPOP_SEED / R / [ ] history), H help. Worked example #6 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="cocktail/">
+      <img src="cocktail/cart.png" alt="cocktail radio" loading="lazy">
+      <div class="body">
+        <h2>cocktail radio</h2>
+        <p>An endless piano-trio set - the Vince Guaraldi / Oscar Peterson lounge homage, station #14. Two blocks make it: THE WALKING BASS, the long-promised ~20-line generator (chord tone on beat 1, scale/arpeggio motion through the middle, a chromatic approach into the next bar's root on beat 4 - four quarters a bar, forever, never repeating), and THE IMPROVISER's second gig - runtime/improv.h, extracted from roadhouse.c by the second-customer rule: the piano solos over full tension arcs, and then THE BASS TAKES A SOLO (same brain, low register, two-thirds density, the room leans in - brushes drop to a whisper, the piano just nods). Harmony is a weighted ii-V-I functional walk with secondary dominants and the tritone sub, cadences FORCED into the last two bars of every 8 - the set always comes home. Swing at 62%: ride pattern ding ding-ga-ding, hat snapping 2 and 4, feathered kick, brush sweeps. Trio set form: head, piano solo, bass solo, piano trades back, head out. R replays the tune - the solos are always new. SPACE next tune, [ ] history, LEFT/RIGHT feel (last call/set one/set two/burner), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
+      </div>
+    </a>
+
     <a class="card" href="cr78/">
       <img src="cr78/cart.png" alt="cr-78 compurhythm" loading="lazy">
       <div class="body">
@@ -71,6 +103,54 @@
       </div>
     </a>
 
+    <a class="card" href="dub/">
+      <img src="dub/cart.png" alt="dub radio" loading="lazy">
+      <div class="body">
+        <h2>dub radio</h2>
+        <p>Endless roots dub - the King Tubby / Augustus Pablo homage, seventh of the radio family, and the one where the engine IS the genre. ECHO AS SCHEDULED NOTES: every skank chop, rim shot and melodica phrase schedules its own decaying repeats (dotted-8th apart) - no FX engine, the delay line is just more notes in the future. THE DESK IS THE INSTRUMENT: every 4-bar phrase a performance-level mixing brain re-rolls which layers are in (bass ~92%, drums ~90%, skank, organ bubble, melodica); when the skank leaves, its ghost gets thrown into a long echo tail. The desk is engine-rnd, so the same seed MIXES ITSELF DIFFERENTLY every listen - exactly how dubplates worked. Seeded 2-bar minor-pentatonic riddim bassline, one-drop/rockers/steppers kits, dub siren at meltdown feel. Seed on display (DUB_SEED / R / [ ] history), T tone, H help. Worked example #7 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="exotica/">
+      <img src="exotica/cart.png" alt="exotica radio" loading="lazy">
+      <div class="body">
+        <h2>exotica radio</h2>
+        <p>Endless exotica - the Martin Denny / Les Baxter / Arthur Lyman homage: lush vibraphone over lazy latin percussion, faux-tropical lounge from 1957 (Hosono's origin story). The eleventh radio station, with three firsts: born on the runtime/radio.h scaffold instead of a hand-copy; ALL THREE modeled engines in one band (vibraphone lead = INSTR_MALLET with the motor on, nylon rhythm guitar = INSTR_PLUCK, glass-bell sparkles = INSTR_FM); and THE AVIARY - bird calls and frog croaks as an aleatoric performance channel, chance() per bar firing pitch-swooped calls that are never seeded, so replaying a seed replays the tune but the jungle never answers the same way twice (a bird crosses the lagoon window when it sings). Seeded per song: key, lounge changes (borrowed-iv dusk, pagan minor), the vibes cell with tremolo rolls, and the whole BAND's timbre (vibes macros, guitar pick, kit dressing, bird species). SPACE next song, R same tune (new birds), [ ] history, LEFT/RIGHT feel (lull/lounge/luau/rite), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
+      </div>
+    </a>
+
+    <a class="card" href="house/">
+      <img src="house/cart.png" alt="house radio" loading="lazy">
+      <div class="body">
+        <h2>house radio</h2>
+        <p>Endless French house / filter disco - the Daft Punk / Stardust homage, tenth of the radio family, and the genre that made one trick a movement: THE FILTER RIDE IS THE SONG. note_cutoff()/note_res() swept live on held string-machine voices from an arrangement-level cutoff curve (intro closed, build sweeps up with resonance climbing, drop wide open, breakdown half-lit) while the stab and bass filters get re-aimed from the same curve - harmony never develops, the filter is the form. The SIDECHAIN PUMP as a filter gesture: the strings' cutoff ducks at every kick and blooms across the beat (beat_pos() drives it). THE VOID: the last beat before every drop the whole band cuts to silence, then slams in from nothing. Harmony is a STOLEN PLAYBOOK of 4-bar loops transcribed from the records French house actually sampled - Modjo's Chic loop (i9-bVImaj7-iv9-bVII9), Stardust's Neapolitan bIImaj7, Braxe/Falke's i-bIII-iv, One More Time's tonic-avoiding IVmaj7-V-iii7 (the unresolved progression IS the longing), Digital Love's slash-chord bass - plus flavor rolls (the Lost in Music iv-to-IV9 dorian flip, the V melting to 9sus) and needle-drop rotation, spun the entire track. A seeded Da Funk riff on a held mono square with note_glide portamento owns the drops, and the 808 drums (kick boom, three-retrigger clap, metal-bank hats) are ON LOAN FROM tr808.c - house was born on that box. Seed on display (HOUSE_SEED / R / [ ] history), T tone, H help. Worked example #10 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="jangle/">
+      <img src="jangle/cart.png" alt="jangle radio" loading="lazy">
+      <div class="body">
+        <h2>jangle radio</h2>
+        <p>The afternoon sibling of bossa/ambient radio: endless feel-good mixolydian slacker pop, the Mac DeMarco / One Wayne G homage. Every song is a 2-4 chord vamp with NO bridge - the arrangement (intro/groove/solo/outro layers per loop) is the form. Chorused jangle guitar (constant 5.5Hz pitch-LFO warble), drum machine running 2-10ms loose behind the bass (sample-exact groove timing), tape tempo wobble, and a lazy legato lead that slides between mixolydian tones on one held voice via note_glide. Most songs are titled by date stamp, like the tape. Seed on the display pins the composition (JANGLE_SEED / R / [ ] history); the performance re-rolls. SPACE next, LEFT/RIGHT feel, UP/DOWN tempo, M power, H help. Worked example #3 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="jingle/">
+      <img src="jingle/cart.png" alt="jingle radio" loading="lazy">
+      <div class="body">
+        <h2>jingle radio</h2>
+        <p>The dusk sibling of jangle radio - the delicate side of the same songwriter. Composes from the actual Mac DeMarco harmonic playbook (Reverb Machine's chord-theory breakdown): progression templates from cited songs (Blue Boy, Dreaming, Stars Keep on Calling, Moonlight on the River, Another One, A Heart Like Hers), per-song bVII flavor rolls (maj/7/9) and borrowed bIII (maj7/m6), chromatic bass descents preserved in every key by a voice-led bass, real verse/chorus form, and the article's subtlest rule in code: MELODIC ACCOMMODATION - over a borrowed chord the melody narrows to that chord's own tones. Fingerpicked add9 voicings, gentle 4.6Hz warble, soft rim/hat kit. Seed on display (JINGLE_SEED / R / [ ] history), H help. Worked example #4 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
+    <a class="card" href="lowend/">
+      <img src="lowend/cart.png" alt="low end radio" loading="lazy">
+      <div class="body">
+        <h2>low end radio</h2>
+        <p>Endless jazz-rap boom bap - the A Tribe Called Quest / Low End Theory homage, fifth of the radio family. Chord brain #5, THE SAMPLED LOOP: generates a lush modal-mixture soul progression (borrowed bIII/bVI/bVII voiced maj7/maj9, a 9sus dominant, the bVI as maj9#11 - per the r/musictheory Electric Relaxation analysis), then cuts a 2/3/4-bar loop (3 favoured) and ROTATES it like a crate-digger dropping the needle mid-phrase, so the tonic moves. Upright-ish bass front and center leaning +12ms, full groove template (hats rush -8ms, snare drags +22ms, 16ths swung 57%), Q-Tip layered snare (noise crack + sine thump as one hit), tremolo rhodes stabs, vinyl dust, hook lead narrowed to each chord's tones. No tempo wobble - samplers don't drift. Seed on display (LOWEND_SEED / R / [ ] history), H help. Worked example #5 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
     <a class="card" href="multitouch/">
       <img src="multitouch/cart.png" alt="multitouch paint" loading="lazy">
       <div class="body">
@@ -95,11 +175,35 @@
       </div>
     </a>
 
+    <a class="card" href="roadhouse/">
+      <img src="roadhouse/cart.png" alt="roadhouse radio" loading="lazy">
+      <div class="body">
+        <h2>roadhouse radio</h2>
+        <p>Endless modal psych-rock - the Doors homage, station #13, built to carry THE IMPROVISER (melody brain #2): the first station whose band can take a SOLO. The jam form is head, organ solo, guitar solo, head out - and each 16-bar solo is improvised phrase by phrase: a 3-4 note motif invented at solo start gets stated, answered (inverted), sequenced up the mode, and doubled at the peak of a tension arc (density rises, register climbs, release comes home long), with breath rests between phrases. The improviser is PURE PERFORMANCE - engine rnd, never the seed - so R replays the song but the solos are new every time. A seeded 'how blue' knob biases b3/b7/b5 intrusions over the major-side vamp (the deliberate clash). The band: Vox-style combo organ - the FIRST station to use wave_set (a drawn drawbar cycle on INSTR_USER0); Rhodes PIANO BASS = the FM epiano detent an octave down playing a seeded swung ostinato; Krieger guitar = INSTR_PLUCK with an open-string drone ringing under the solo line; trio kit rolled shuffle / latin / rock. Mixolydian, dorian, or phrygian two-chord vamps (B-A forever). SPACE next jam, R same song new solos, [ ] history, LEFT/RIGHT feel (seance/lounge/jam/storm), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
+      </div>
+    </a>
+
+    <a class="card" href="satie/">
+      <img src="satie/cart.png" alt="satie radio" loading="lazy">
+      <div class="body">
+        <h2>satie radio</h2>
+        <p>Endless gymnopedies and gnossiennes for solo piano - the Erik Satie homage, ninth of the radio family and its patron saint: Satie invented furniture music (musique d'ameublement, 1917), the idea every station on this dial descends from. Three engine firsts: 3/4 TIME (twelve-step bars), ONE INSTRUMENT (solo piano - the density curve shapes touch and ornament instead of layers), and chord brain #6, THE ALTERNATING PAIR: Satie rocks between two chords for bars on end (Gymnopedie No.1 is Gmaj7-Dmaj7 forever) and lets the pair itself drift between sections. Gymnopedie mode = modal maj7 pendulums, the suspended lilt (bass on 1, chord on 2, beat 3 empty); gnossienne mode = minor with the phrygian-dominant augmented 2nd, mordent ornaments, chord restruck on 3, rubato. Melody enters late, moves stepwise, holds over the barline. Real Satie tempo markings on the display. Seed (SATIE_SEED / R / [ ]), T tone, H help. Worked example #9 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
+
     <a class="card" href="sh101/">
       <img src="sh101/cart.png" alt="sh-101" loading="lazy">
       <div class="body">
         <h2>sh-101</h2>
         <p>Roland's SH-101 (1982) — the guitar-strap monosynth, fourth box in the classic-machine family (cr-78, tr-808, tb-303), modeled on the real grey panel section for section: TUNE | MODULATOR | VCO | SOURCE MIXER | VCF | VCA | ENV, all vertical faders with tick scales, plus the sequencer/arpeggio button row, the logo, and volume/porta/bender at lower left. The SOURCE MIXER is the heart, like the hardware: pulse + saw + sub-osc + noise mixed SIMULTANEOUSLY on four faders (each source is its own engine voice, riding live on a held note via note_vol), with the 3-position sub switch (-1 oct / -2 oct / -2 oct pulse). MODULATOR: LFO with tri / square / random (S&amp;H) / noise waveforms whose RATE slider is also the seq+arp CLOCK, exactly like the real LFO/CLK slider. VCO: MOD (vibrato), RANGE rotary (16' 8' 4' 2'), PW fader + source switch LFO/MAN/ENV. VCF: FREQ RES ENV MOD KYBD — five faders, all live on the ringing voice, with real keyboard tracking. VCA: ADSR or plain GATE. SEQUENCER: LOAD records key presses, PLAY loops them. ARPEGGIO: DOWN / U&amp;D / UP buttons + HOLD latch. PORTAMENTO with the real AUTO/OFF/ON switch (AUTO glides only when legato), springy pitch BENDER, TRANSPOSE L/M/H. Mono, last-note priority. Two-manual computer keyboard covers all 32 keys: ZXCVBNM,./ + SDGHJL; lower, QWERTYUIOP + 2356790 upper, []= top, arrows = octave, SPACE = arp, ? = help.</p>
+      </div>
+    </a>
+
+    <a class="card" href="tango/">
+      <img src="tango/cart.png" alt="tango radio" loading="lazy">
+      <div class="body">
+        <h2>tango radio</h2>
+        <p>Endless tango - the Golden Age orquesta tipica homage (D'Arienzo's drive, Pugliese's yumba, Troilo's singing bandoneon), station #15. THE NEW BRAIN: TEMPO AS A VOICE - the first station where the clock itself is an instrument. A per-frame conductor eases a rubato multiplier toward phrase-shaped targets and drives bpm() live: a lean forward through every phrase, a real ritardando into every 8-bar boundary with a hard a-tempo SNAP on the next downbeat, and a long rallentando into the ending. Depth is seeded - every song breathes its own amount, and the bandoneon's bellows in the window breathe WITH the curve. Plus the tango kit nobody else has: MARCATO/SINCOPA alternation rolled per phrase (the accent ON the and-of-2), THE ARRASTRE (three crescendo bass graces dragged into the downbeat), chicharra/golpe percussion from the band itself (no drum kit at all), and THE CHAN-CHAN - every song actually ENDS: rallentando, near-silence, V7b9... home. Harmony: a minor functional walk in the harmonic-minor dialect (iio-V7b9 cadence forced, the Neapolitan bII, an Andalusian-tetrachord flavor roll) with parallel-major cantabile sections where the violin takes the song. Form: intro A B A B A VARIACION (continuous-16th bandoneon runs) final. The bandoneon is wave_set's second station gig: a drawn free-reed cycle with a bellows-tremble LFO. SPACE next tango, [ ] history, LEFT/RIGHT feel (salon/tanda/orquesta/pugliese), UP/DOWN base tempo, T tone, M power, B band (swap chairs live), H help.</p>
       </div>
     </a>
 
@@ -134,7 +238,23 @@
         <p>The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag knobs Y=coarse X=fine.</p>
       </div>
     </a>
+
+    <a class="card" href="yacht/">
+      <img src="yacht/cart.png" alt="yacht radio" loading="lazy">
+      <div class="body">
+        <h2>yacht radio</h2>
+        <p>Endless yacht rock / AOR - the Steely Dan / Doobies / Hall &amp; Oates homage, station #12 (second born on the radio.h scaffold). Built around THE MU CHORD - Steely Dan's named invention, a major triad with the added 9th voiced 3-5-9 - in stolen-playbook loop templates (the two-mu vamp, ii-V13 lush, maj7 PLANING, dorian funk) with mu-ify and sus-melt flavor rolls. The comping instrument is the FM epiano on the 1:1 detent, so the DX tine pings every chord; clean PLUCK strat stabs, breathy sax lead, chromatic bass runs INTO every change, citypop anticipations on the and-of-4, and a +2 gear change in the last chorus. Three kit personalities rolled per song: tight session 16ths, the PURDIE half-time shuffle (swung ghosts at vol 1), or CR-78 circuits on loan from cr78.c (the Hall &amp; Oates 'I Can't Go For That' move). SPACE next song, R replay, [ ] history, LEFT/RIGHT feel (dock/cruise/regatta/open sea), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.</p>
+      </div>
+    </a>
+
+    <a class="card" href="ymo/">
+      <img src="ymo/cart.png" alt="ymo radio" loading="lazy">
+      <div class="body">
+        <h2>ymo radio</h2>
+        <p>Endless techno-kayo - the Yellow Magic Orchestra homage (Hosono/Sakamoto/Takahashi), eighth of the radio family, and the one genre where the synth isn't imitating anything: square waves and white noise ARE the original instruments. Sakamoto harmony as templates (the chromatic mediant 'Tong Poo' pull, maj7 planing in whole steps, the kayo minor cadence with its harmonic-minor V), a HOSONO BASSLINE GENERATOR (melodic 8th-note counterpoint with directional inertia and octave leaps - the bassline is a second melody), yonanuki pentatonic lead, a sequencer arp ticking chord tones, and drum voices ON LOAN FROM THE CR-78 CART (cr78.c's circuit recipes: soft round kick, two-layer snare, the swishy hats, the metallic clang) driven by machine-tight pattern strings. No swing, no lag - it's 1979 and the machine is the point. Seed on display (YMO_SEED / R / [ ] history), T tone, H help. Worked example #8 for docs/guides/game-music.md.</p>
+      </div>
+    </a>
 </div>
-<footer>13 carts · arrows + Z/X to play (most carts)</footer>
+<footer>28 carts · arrows + Z/X to play (most carts)</footer>
 </body>
 </html>

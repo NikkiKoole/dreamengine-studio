@@ -617,9 +617,16 @@ independently shippable:
 4. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
    (drawbars → scanner on the buffer → shared rotary). The SVF is the reusable primitive that also
    gives §5.5 and §8.3's formant.
-5. **`INSTR_EPIANO` / `INSTR_PIANO` / `INSTR_GUITAR`/`INSTR_HARP`** — the rest of the buffered
-   family, riding the path pluck validated. The pianist. (If §8.8.3's epiano preset lands
-   well, the dedicated modal `INSTR_EPIANO` may shrink to a nice-to-have.)
+5. **`INSTR_EPIANO` / `INSTR_PIANO` / `INSTR_GUITAR`/`INSTR_HARP`** — the rest of the family.
+   **Not all buffered (verified in navkit source, 2026-06-05):** piano (`StifKarpSettings` has a
+   `ks2Buffer[2048]` second-string line) and guitar (KS string + body resonator) ride the
+   pluck-validated buffer path, but the **EP is buffer-free** — a pure 12-mode modal bank +
+   pickup nonlinearity (~296 B/voice, no delay line; the §8.5 cost table had this right all
+   along). So the EP port is a *mallet-sized* job, not a pluck-sized one — and one engine
+   covers Rhodes/Wurli/Clav via `pickupType` (see §8.7). The pianist. (If §8.8.3's epiano
+   preset lands well, the dedicated modal `INSTR_EPIANO` may shrink to a nice-to-have — though
+   its case is really the *electromechanical* corner FM can't reach: Wurli reed bark, Clav
+   pickup pluck, mark-I Rhodes growl. The FM tine keeps the DX corner.)
 6. **Formant filter** + the **effects layer** (§8.10 — buses vs. master; reverb / delay / tape /
    leslie / wah, starting with one master reverb + the formalized bus concept).
 7. **Optional:** bowed strings; and/or the SCW bank (§8.4).
@@ -639,13 +646,33 @@ independently shippable:
 
 ### 8.7 navkit source pointers (for when we port)
 
-- Organ: `engines/synth.h` (`OrganSettings`) + `engines/synth_oscillators.h`
-  (`processOrganOscillator`); plan in `docs/done/organ-engine-plan.md`
-- Electric piano: `processEPianoOscillator`; Rhodes/Wurli/Clav presets in `instrument_presets.h`
+> Paths verified 2026-06-05 — navkit lives at `../navkit`, and everything below sits under
+> `navkit/soundsystem/` (the bare `engines/…` paths in earlier drafts were missing that prefix).
+
+- Organ: `soundsystem/engines/synth.h` (`OrganSettings`, `:925`) +
+  `soundsystem/engines/synth_oscillators.h` (`initOrganSettings` `:4036`,
+  `processOrganOscillator` `:4064`); plan in `soundsystem/docs/done/organ-engine-plan.md`
+- Electric piano: `processEPianoOscillator` (`synth_oscillators.h:3937`, settings init `:3663`).
+  **Buffer-free (verified 2026-06-05):** `EPianoSettings` (`synth.h:909`) is a pure 12-mode
+  modal bank (`EPIANO_MODES` ratios/amps/decays/phases) + pickup nonlinearity + DC blocker —
+  no delay line anywhere in struct or process fn. ~296 B/voice; mallet-family port cost.
+  **Wurlitzer (`#111`) and Clavinet (`#112`) in `instrument_presets.h` are parameterizations of
+  this same EP engine** — three pickup models built in: `EP_PICKUP_ELECTROMAGNETIC` (Rhodes),
+  `EP_PICKUP_ELECTROSTATIC` (Wurli), `EP_PICKUP_CONTACT` (Clav) — so porting the EP engine
+  brings Rhodes/Wurli/Clav as baked macro positions, the §8.8.2 mallet-preset pattern.
+  (`FM Clav` `#134` is an *FM* preset — try recreating it on the shipped `INSTR_FM` first.)
 - Acoustic piano: `processStifKarpOscillator`
 - Guitar: `processGuitarOscillator`; Bowed: `processBowedOscillator`; Mallet: `processMalletOscillator`
-- Leslie: `engines/effects.h`; Formant spec: `docs/vocoder-formant-effect.md`
-- SCW data + embed tool: `engines/scw_data.h`, `tools/scw_embed.c`
+- Winds (all in `synth_oscillators.h`): Reed `processReedOscillator` (`:587`, `ReedSettings`
+  `synth.h:860` — one `boreBuf[1024]`); Brass `processBrassOscillator` (`:725`, `BrassSettings`
+  `synth.h:883` — one `boreBuf[1024]`); Pipe/flute `processPipeOscillator` (`:496`,
+  `PipeSettings` `synth.h:838`); Bowed `BowedSettings` `synth.h:818` (nut+bridge lines)
+- Phase distortion (CZ): `processPDOscillator` (`:1508`, `PDSettings` `synth.h:425` — 2 floats)
+- Leslie: `soundsystem/engines/effects.h` (`:77` constants, params `:271`); **Wah / auto-wah:
+  same file (`:68` — swept bandpass, LFO + envelope-follow modes, per-bus in navkit's DAW)** —
+  maps straight onto the §8.10 wah row (the per-voice SVF, 4th use of the one filter).
+  Formant spec: `soundsystem/docs/vocoder-formant-effect.md`
+- SCW data + embed tool: `soundsystem/engines/scw_data.h`, `tools/scw_embed.c`
 - Calling convention: set `voice.wave`/`frequency`/envelope, then per sample
   `sample = processXxxOscillator(&voice, sampleRate)` — no heap, all state in-struct.
 
@@ -883,6 +910,25 @@ the table's only job is to say what those three mean for each. Grow it freely.
 | **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full step-1 design: §8.8.3** ← next |
 | **AM / ring mod** | trivial (≈10 lines native) | free | modulator ratio | AM ↔ ring depth | modulator detune / wave | metallic, robotic, clangorous bells |
 | **Voice / formant** | formant SVF + buzz (§8.3) | free (reuses SVF) | vowel (a→e→i→o→u) | breathiness / brightness | formant shift (size/gender) | choir "aah", vocal-organ, talkbox. Comes near-free with the §8.3 filter |
+| **Bowed string** (violin/cello) | `processBowedOscillator` (Smith/McIntyre waveguide) | nut+bridge lines, **sum = one period → likely packs into the one `ks_buf`** (split at the bow point; verify at port) | bow position (sul tasto ↔ ponticello) | bow pressure (smooth ↔ scratchy stick-slip) | bow velocity / swell | sustained strings that *speak* — attack scratch, swells. Wants held notes (§6); macros-as-CV is its natural surface |
+| **Reed** (clarinet ↔ sax) | `processReedOscillator` (pressure-driven reed valve) | one `boreBuf[1024]` — **fits today's `ks_buf` as-is** | bore conicity (clarinet hollow-odd ↔ sax full) — literally navkit's `bore` param | reed stiffness (dark ↔ bright) | breath / aperture (soft ↔ overblown squawk) | the *blown* family's workhorse; klezmer to smoky jazz on one knob |
+| **Pipe / flute** (Fletcher/Verge jet-drive) | `processPipeOscillator` | upper+lower bore halves (sum ≈ bore; same one-buffer pack as bowed) + tiny `jetBuf[64]` | overblow (fundamental ↔ octave flageolet) | breath noise (pure ↔ airy) | embouchure | airy flutes, pan pipes, organ-flue color; breathy attacks for free |
+| **Brass** (lip-valve waveguide) | `processBrassOscillator` (2nd-order lip mass-spring + bore) | one `boreBuf[1024]` — **fits `ks_buf` as-is** | bore conicity (trumpet ↔ horn) | blow pressure (soft ↔ brassy blare — the rip/blare *is* the model) | mute (open ↔ harmon) | **the prepared answer if FM brass fails its §8.8.3 attack-rise stress test** — a real lip model, not an approximation |
+| **PD / phase distortion** (Casio CZ) | `processPDOscillator` — **2 floats, 8 wavetypes incl. 3 resonant** | free (cheapest in the catalog) | wavetype (snapped detents, like FM's ratio table) | distortion amount (the CZ "DCW" sweep — filter-like brightness with zero filter) | saw ↔ reso window blend | CZ basses, synth-brass, the famous resonant sweeps; deeply chiptune-adjacent — strong identity fit, near-zero cost |
+| **Membrane** (tabla/conga/bongo/djembe/tom) | `processMembraneOscillator` (`:1754`, `MembraneSettings` `synth.h:437` — 6 modal sines at circular-membrane Bessel ratios) | free (~100 B — mallet-family cost) | head character (tabla ↔ djembe mode spread / tension) | **strike position** (center thump ↔ edge ring — the model reweights modes physically; conga open/slap/mute in one knob) | **pitch-bend depth/decay** (the tabla bayan *glissando* — baked into the model) | hand percussion the analog 808/909 recipes can't reach — bend + strike-pos are exactly what sine+pitch-env approximations lack. World-music radio fuel (promoted from the census NO list 2026-06-05) |
+
+> **Full navkit census (2026-06-05) — 23 engines in `soundsystem/engines/synth_oscillators.h`.**
+> Shipped here: pluck, mallet, FM. Roadmapped: organ (next), EP + StifKarp-piano + guitar (§8.5
+> step 5). Catalog above: additive, AM, voice/formant, bowed, reed, pipe, brass, PD, membrane
+> (promoted from this NO list 2026-06-05 — the bend + strike-pos physics earn it). **Not
+> taken** (revisit freely): `Granular`,
+> `Metallic`, `Mandolin` (paired-course guitar variant — likely a guitar preset, not an engine),
+> `Whistle`, `Bird` (chirp/trill/warble — charming as game-SFX, not music), `Shaker`
+> (maraca/tambourine physical model), `BandedWG` (bowed bars / glass harmonica — exotic),
+> `VoiceOscillator`/`VoicForm` (superseded by the §8.3 formant-SVF plan). The wind/bowed group
+> (reed, brass, pipe, bowed) are continuous-excitation instruments — they pair with held notes
+> (§6) and live macros the way the organ does, and reed + brass need **zero** new buffer
+> architecture (one bore line ≤ `SOUND_KS_MAX`).
 
 > **MT70 — resolved (verified in navkit `demo/songs/*.song`, 2026-06-03).** The "MT70" presets
 > (Flute, Bells, Organ, Vibes, JzOrg2, …) are **all `waveType = sine`** — *not* a synthesis engine.
@@ -1662,6 +1708,21 @@ v1, document it on the panel.
    tanh-shaped above, slope-continuous, asymptote ±1.0.
 3. **Echo bus** — the real architecture step (audio-thread-owned buffer, send
    field in `Instrument`, bus params via the request ring like everything else).
+   **✓ SHIPPED 2026-06-05** — `echo(time_ms, feedback, tone)` / `instrument_echo(slot, send)`
+   / `note_echo(handle, x)`, exactly the §17-table shape. One 2s delay line
+   (~345 KB, audio-thread-owned), dormant until the first echo call ever arrives —
+   old carts verified bytes-identical (soundcheck + bossa golden WAVs). Three
+   design wins beyond the sketch: (a) **tone is a one-pole LP *inside* the
+   feedback loop**, so repeats genuinely darken each pass; (b) **a tanh inside
+   the loop lets feedback go to 1.1** — past 1.0 it self-oscillates into a
+   tape-style saturation plateau (verified: 10s runaway grows 0.018→0.042 RMS,
+   peak −12 dBFS, zero clipping) instead of exploding; (c) **the read tap is
+   fractional and slews toward its target with a clamped per-sample step**, so
+   sweeping `echo()` time live pitch-bends the ringing tail like varying tape
+   speed. Showcase: `spacecho.c` (RE-201 — the effect as the instrument).
+   Adoption: dub.c layers the bus's darkening wash under its scheduled-note
+   taps and rides the skank's send hot on throws (the §12 "diffuse tails"
+   gap, closed); tb303/sh101 get subtle slapback sends.
 4. **Detune** — small, after drive (driven unison is the payoff).
 5. **Bitcrush** — on-brand dessert; decide insert vs master when it lands.
 6. **Cart-side, no engine change: swing knob on CLOCK** (`schedule_hit` already

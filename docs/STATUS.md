@@ -195,8 +195,14 @@ their `kind[]` tags.
         showcase cart (epiano/bell/bass/brass/clang presets + a live formula scope). Design:
         audio-notes §8.8.3. Open tail: taste-tuning (brass is the named stress test) + the
         citypop/lowend epiano retrofits.
-     4. **`INSTR_ORGAN` + Leslie** — Hammond drawbars → scanner → shared rotary, as one package. ← **NEXT**
-     5. **EP / acoustic-piano / guitar** family (buffered, on the proven path).
+     4. **`INSTR_ORGAN`** — Hammond drawbars → scanner. ← **NEXT** *(decided 2026-06-05: the
+        Leslie ships LATER as an add-on, not in the same bite — the drawbar core is buffer-free
+        and the morph macro's scanner vibrato gives motion without it; the Leslie is a decoupled
+        shared effect (§8.3/§8.8c) and folds into the effects/bus layer (§8.10) when that opens.)*
+     5. **EP / acoustic-piano / guitar** family. *(Corrected 2026-06-05 from navkit source: the
+        EP is buffer-free — 12-mode modal bank + pickup nonlinearity, mallet-sized port, one
+        engine = Rhodes/Wurli/Clav via pickup type; only piano + guitar need the pluck-proven
+        buffer path. audio-notes §8.5 step 5 + §8.7.)*
    Two findings already resolved: the **MT70 presets** (Flute/Bells/Organ/Vibes/JzOrg2…) are
    **all pure sine + ADSR + filter — not an engine**, so they need *no port* and ship as
    demo/preset carts on existing API (§8.9); and **`INSTR_SINE` = Additive at harmonics 0**, so

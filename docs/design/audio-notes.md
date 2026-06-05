@@ -1455,3 +1455,91 @@ makes the unison-detune flag, the second-oscillator path (§12 gap 2), and the
 §8.10 effects layer all more urgent. If and when the Italo/gamelan/AOR batch
 starts and §12 gap 2 opens, design the second-oscillator surface with the
 Juno-60 in mind alongside the Rhodes and the bell engines.
+
+## 15. Voice budget — what `SOUND_VOICES 8` actually costs (2026-06-05)
+
+Analysis only — **no change made yet**; the radio family pressing the 8-voice
+ceiling (octave doublings, two-voice brass spreads, ambient's 4-voice pad)
+prompted the question "why 8, why not 16?". Findings from reading `sound.h`:
+
+**Hardware is not the constraint.** Per voice per sample: one oscillator (or
+modeled engine), an SVF, 3 LFOs, 2 mod-envelopes — order of ~100 flops. At
+44.1 kHz that's ~35 MFLOPs for 8 voices, ~70 for 16; trivial on every target
+(Apple Silicon native, Electron, the WASM web build). Memory is ~4.5 KB/voice
+(dominated by `ks_buf[1024]`), so 16 voices ≈ 72 KB. Inactive voices skip the
+mix loop — you only pay for what rings.
+
+**The real coupling is loudness.** `sound.h` mixes each voice at a fixed
+scale, then hard-clips the sum:
+
+```c
+float contrib = s * v->vol * env * trem * 0.2f;   // per-voice scale
+...
+if (mix >  1.0f) mix =  1.0f;                     // hard clip ±1
+```
+
+5 × 0.2 = 1.0 — six full-volume voices can already clip today (rare in
+practice because envelopes/filters keep levels lower). The 0.2 constant is
+where "how many simultaneous voices we expect" is really encoded:
+
+- bump `SOUND_VOICES` to 16 and keep 0.2 → busy carts clip harshly;
+- lower the scale to compensate → **every existing cart gets quieter and its
+  mix balance shifts** (the real migration cost — not performance).
+
+Everything else scales mechanically: handle slots, choke loops, and the
+steal path all derive from `SOUND_VOICES`; stealing already degrades
+gracefully (free → non-held → steal + declick tail).
+
+**Recommendation (parked until measured):** if the radio carts genuinely need
+headroom, go to 12–16 **paired with a soft-clip** (tanh-shaped) replacing the
+hard clamp — graceful overload instead of digital clipping, without touching
+the 0.2 scale or existing carts' loudness. Gate the change on: the soundcheck
+tripwire, an ear test on the densest carts (radio stations, modrack), and a
+measured before/after — which needs the WAV tooling below. The aesthetic
+argument for keeping 8 ("fantasy consoles are scarce") is weak here: with 32
+instrument slots, per-voice filters, and three modeled engines, this is
+SNES/Amiga-class, not NES-class.
+
+## 16. WAV capture + analysis tooling — proposed (2026-06-05)
+
+Ear tests don't scale and don't diff. The §15 experiment (and mallet/fm macro
+taste-tuning, and any future DSP change) wants: render a cart's audio to a
+WAV, compute metrics, compare two runs. The sibling project already has the
+working patterns — steal the shape, not the code:
+
+- `~/Projects/navkit/soundsystem/tools/preset_audition.c` — headless preset
+  renderer → WAV + audio metrics, `--ref` mode compares against a reference
+  WAV and suggests parameter changes (directly relevant to mallet/fm tuning).
+- `~/Projects/navkit/soundsystem/tools/golden_wav_gen.sh` — golden-WAV
+  regression: render representative songs, checksum, re-render + verify after
+  engine changes.
+- `~/Projects/navkit/soundsystem/tools/audio_analyze.py` — musical analysis
+  (tempo/key/chords via librosa), for transcription-level checks.
+
+**Capture design (two modes, one tap point).** The whole engine mixes into a
+single float in `sound_render()` — tap `mix` right before `out[i] = mix`:
+
+1. **Live capture — `wav_request` trigger file**, same handshake as
+   `screenshot_request`/`state_request` (write a file containing the output
+   path + a duration; the engine records the next N seconds of callback
+   output, writes a 44.1 kHz mono WAV, deletes the request). Works on any
+   running cart, editor or `play.js`, no flags.
+2. **Deterministic render — `--wav <file>` harness flag** (with `--det`):
+   render the mixer in lockstep with frames (44100/60 samples per tick),
+   no audio device needed — headless-safe, byte-reproducible. This is what
+   makes **golden-WAV regression** possible: same cart + same script + same
+   seed → identical WAV → checksum diff catches silent DSP regressions the
+   soundcheck tripwire can't (it only catches dropped requests).
+
+**Analysis tiers:**
+
+- **Tier 1 (no deps, build first):** `tools/wav-analyze.js` — peak, RMS,
+  crest factor, clipped-sample count, per-second envelope. Plain node reading
+  the WAV; enough to run the §15 experiment (8 vs 16+softclip on a busy
+  station: did clip count drop? did RMS hold?).
+- **Tier 2 (borrow, don't port):** shell out to navkit's `audio_analyze.py`
+  for tempo/key/chord checks, and crib `preset_audition.c`'s `--ref` metric
+  comparison for engine taste-tuning against real-instrument reference WAVs.
+
+Order of work: capture (1+2) → tier-1 analyzer → run §15 experiment → golden
+WAVs as a by-product once `--wav` exists.

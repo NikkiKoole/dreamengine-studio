@@ -1074,12 +1074,13 @@ building and planning the ten radio stations (bossa → house) plus the next
 batch's designs (gamelan, Italo, Steely Dan, the Doors). Ranked by how often
 the wall was hit, and scored against §1's leverage rule.
 
-1. **Voice choke groups.** The family's one *documented* infidelity:
-   `tr808.c`'s header admits "real 808 closed hats CHOKE the open hat; our
-   one-shot notes can't cut each other," and house.c inherits the flaw (the
-   offbeat open hat rings through the next closed hat). Every drum-machine
-   genre wants it. Tiny surface — `instrument_choke(slot_a, slot_b)`: a note
-   on `a` kills sounding notes on `b`. High leverage for one call.
+1. **Voice choke groups.**
+   **→ SHIPPED 2026-06-05** as `instrument_choke(slot_a, slot_b)` (SR_INSTR_CHOKE,
+   kind 23): a new note on slot `a` instantly kills any sounding voice on slot `b`
+   (with steal-declick). `tr808.c` and `house.c` both wire
+   `instrument_choke(SL_HATC, SL_HATO)` — the documented infidelity is closed.
+   The bitmask design (`choke_mask` on `Instrument`) lets one slot choke several
+   others, covering future cymbal-choke and hi-hat-pedal scenarios.
 
 2. **A second oscillator per voice** (detune pair, or 2-op FM). The big
    timbre unlock, felt three distinct ways:
@@ -1168,8 +1169,7 @@ how an afternoon lever displaces the week that moves the project.
    and the **steal-declick** tail. jangle.c and bossa.c carry live A/B
    toggles (G); the listening verdict + macro taste-tuning are the open
    tail. Porting lessons for engine #2: §8.8.1.
-2. **Choke groups** (§12 gap 1) — tiny surface; ride along with whatever
-   drum work happens near the pluck retrofits, no slot of its own.
+2. **Choke groups** (§12 gap 1) — **→ SHIPPED 2026-06-05**. See §12 above.
 3. **Second oscillator / FM** (§12 gap 2) — when the Italo/gamelan/AOR
    batch actually starts. That batch defines the requirements and settles
    the FM-vs-modal-epiano ambiguity §12 left open: build for the station

@@ -45,7 +45,7 @@ docs/
 │   ├── cart-specs-index.md       batch-1 spec index + assembly recipe + parallel-build workflow
 │   ├── cart-specs/               per-game cart specs (individual game files, not shown in sidebar)
 │   ├── sharing.md                ways to publish finished carts
-│   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect (tools/play.js)
+│   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect + WAV capture/analysis (tools/play.js, tools/wav-analyze.js)
 │   ├── profiler.md               one-click CPU profiler (⏱ profile button): hot functions + call paths, frame budget, draw-call counts
 │   ├── live-coding.md            how-to for the live (libtcc) run mode: edit-while-running, hot reload, STATE/S state that survives reloads
 │   └── game-music.md             generative soundtrack recipes: step clock, chord brain, voice leading, time feel, seeds; worked example = bossa.c

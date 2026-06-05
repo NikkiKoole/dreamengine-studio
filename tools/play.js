@@ -18,6 +18,9 @@
 //   --dump-every <n>   ... every n frames (default 1 when --dump is given)
 //   --headless         hidden window (for batch replay/script runs)
 //   --seed <n>         RNG seed for deterministic runs (default 1)
+//   --wav <file>       render the audio to a WAV (deterministic: same script +
+//                      seed + frames = identical bytes; analyze with
+//                      tools/wav-analyze.js — see docs/guides/debug-harness.md)
 //   --bpm <n>          tempo used to convert `beat` directives to frames (default 120)
 //   --screen WxH       screen dims (default from cart settings / 320x200)
 //

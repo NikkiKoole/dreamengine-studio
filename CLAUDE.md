@@ -63,7 +63,10 @@ eventually2/
 ├── tools/              # repo-root CLI tools (plain `node`, CommonJS)
 │   ├── make-cart.js    #   build/bake .cart.png from tools/carts/<name>.c
 │   │                   #   also a library module: play.js requires it for buildSpriteSheet/buildMap/etc.
-│   ├── play.js         #   debug harness driver (record/replay/script + trace)
+│   ├── play.js         #   debug harness driver (record/replay/script + trace + --wav audio render)
+│   ├── wav-analyze.js  #   audio metrics from an engine WAV (peak/RMS/crest/clipping, two-file
+│   │                   #   compare with bytes-identical check) — pairs with --wav and the
+│   │                   #   .bake/wav_request live-capture trigger; see guides/debug-harness.md
 │   ├── sprite-draw.js  #   reusable 2D pixel-canvas API for programmatic .cart.js sprites
 │   │                   #   exports: blank, pixel, rectfill, rrectfill, line,
 │   │                   #            circlefill, ovalfill, trifill, polyfill, ngonfill,
@@ -476,6 +479,7 @@ node tools/play.js <name> replay <in.rec>     # replay a recording deterministic
 node tools/play.js <name> beats  <in.beats>   # author inputs in musical beats, run them
 node tools/play.js <name> script <in.script>  # run a raw frame-script
 # options: --trace <f> --frames <n> --dump <dir> --dump-every <n> --headless --seed <n> --bpm <n>
+#          --wav <f>  render audio to WAV (byte-reproducible under --det) → analyze with tools/wav-analyze.js
 ```
 
 `play.js` compiles `tools/carts/<name>.c` **with `-DDE_TRACE`** and runs the native
@@ -498,6 +502,7 @@ the Bash tool — don't ask the user to run these commands:
 echo "/abs/path/build/.bake/screen.png"  > /abs/path/build/.bake/screenshot_request
 echo "/abs/path/build/.bake/state.json"  > /abs/path/build/.bake/state_request
 echo "/abs/path/build/.bake/perf.json"   > /abs/path/build/.bake/profiler_request
+printf "/abs/path/cap.wav\n5\n"          > /abs/path/build/.bake/wav_request   # record next N seconds of audio (line 2, default 5)
 
 # 2. wait one frame for the game to pick them up
 sleep 0.5

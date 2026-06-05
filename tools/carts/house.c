@@ -486,6 +486,7 @@ static void setup_instruments(void) {
     instrument_filter(SL_HATC, FILTER_HIGH, 7000, 3);
     instrument(SL_HATO, INSTR_SQUARE, 0, 340, 0, 90);
     instrument_filter(SL_HATO, FILTER_HIGH, 7000, 3);
+    instrument_choke(SL_HATC, SL_HATO);  // closed hat chokes the open hat
 
     instrument(SL_CYM, INSTR_SQUARE, 0, 850, 0, 200);        // the long ring
     instrument_filter(SL_CYM, FILTER_HIGH, 3440, 3);

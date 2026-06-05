@@ -62,6 +62,7 @@ typedef struct {
     int   env_d_samp[2];            // decay, in samples
     float env_amount[2];            // 0 = off; bipolar; units depend on dest (Hz / semitones / 0..1)
     float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
+    uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
 } Instrument;
 
 #define SOUND_LFOS 3
@@ -99,6 +100,7 @@ typedef struct {
     // engine macros (current + slew target, riding the same machinery as cutoff/duty)
     float  harm, timb, mor;
     float  harm_target, timb_target, mor_target;
+    int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_out;               // this voice's previous mixed contribution — feeds the steal-declick tail
     // Karplus-Strong string state (INSTR_PLUCK): a write head + a FRACTIONAL read tap.
     // Pitch = the tap distance, recomputed every sample from freq*pitch_mul — so vibrato,
@@ -127,21 +129,42 @@ static Instrument    instr_bank[SOUND_INSTR_SLOTS];
 #define SOUND_WAVE_LEN   64
 static float         user_wave[SOUND_USER_WAVES][SOUND_WAVE_LEN];   // INSTR_USER0..3 single-cycle tables (filled via wave_set)
 
-// request ring buffer (main thread pushes → audio thread drains)
-// kind: 0=sfx, 1=(retired: music — cut 2026-06, see decisions/), 2=note, 3=define instrument,
-//       4=set duty, 5=set lfo, 6=set filter,
-//       7=note_on, 8=note_off, 9=note_pitch, 10=note_vol, 11=note_cutoff, 12=note_duty,
-//       13=note_off_all, 14=note_res, 15=note_lfo, 16=note_filter, 17=note_glide,
-//       18=instrument_env, 19=note_env, 20=wave_set (4 samples/request),
-//       21=instrument macro (harmonics/timbre/morph), 22=note macro (live, slewed).
-//       -1 in the a slot = "stop" for sfx.
+// Request kinds for the ring buffer (main thread pushes → audio thread drains).
+// -1 in the `a` slot = "stop" for SR_SFX.
 // delay_samples: 0 = fire immediately; >0 = audio thread holds it in `delayed[]` and fires when countdown expires.
 // e0/e1/e2: extra payload (instrument attack/decay/release samples).
-// ⚠ ORDERING SUBTLETY: define kinds (3-6, 18, 20) apply when DRAINED (next callback), but a
-// delayed note (delay_samples > 0) snapshots its instrument slot AT FIRE TIME — so per-step
-// instrument changes for scheduled notes need a ROTATING slot per pending step (see the
-// sfx editor cart's CUT lane), or the last define wins for every queued note.
-typedef struct { int kind, a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
+// ⚠ ORDERING SUBTLETY: define kinds (SR_INSTR..SR_INSTR_FILTER, SR_INSTR_ENV, SR_WAVE_SET)
+// apply when DRAINED (next callback), but a delayed note (delay_samples > 0) snapshots its
+// instrument slot AT FIRE TIME — so per-step instrument changes for scheduled notes need a
+// ROTATING slot per pending step (see the sfx editor cart's CUT lane), or the last define
+// wins for every queued note.
+typedef enum {
+    SR_SFX          = 0,
+    /* 1 retired — music track, cut 2026-06, see decisions/ */
+    SR_NOTE         = 2,
+    SR_INSTR        = 3,
+    SR_INSTR_DUTY   = 4,
+    SR_INSTR_LFO    = 5,
+    SR_INSTR_FILTER = 6,
+    SR_NOTE_ON      = 7,
+    SR_NOTE_OFF     = 8,
+    SR_NOTE_PITCH   = 9,
+    SR_NOTE_VOL     = 10,
+    SR_NOTE_CUTOFF  = 11,
+    SR_NOTE_DUTY    = 12,
+    SR_NOTE_OFF_ALL = 13,
+    SR_NOTE_RES     = 14,
+    SR_NOTE_LFO     = 15,
+    SR_NOTE_FILTER  = 16,
+    SR_NOTE_GLIDE   = 17,
+    SR_INSTR_ENV    = 18,
+    SR_NOTE_ENV     = 19,
+    SR_WAVE_SET     = 20,
+    SR_INSTR_MACRO  = 21,
+    SR_NOTE_MACRO   = 22,
+    SR_INSTR_CHOKE  = 23,
+} SoundReqKind;
+typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
                                 // init() can define dozens of slots + several wave_set tables in one burst
 #define SOUND_DELAYED_MAX 64    // pending delayed notes (strum/schedule/schedule_hit) — fast sfx steps queue several ahead
@@ -184,7 +207,7 @@ static void sound_tick(float dt) {
 }
 
 // dur_samples: 0 = use default 250ms (for note/schedule); >0 = custom note length (for hit).
-static void sound_push_req(int kind, int a, int b, int c, int delay_samples, int dur_samples) {
+static void sound_push_req(SoundReqKind kind, int a, int b, int c, int delay_samples, int dur_samples) {
     int h = req_head;
     int next = (h + 1) % SOUND_REQ_QUEUE;
     if (next == req_tail) { sound_dropped++; return; }   // full — drop request (and trip the wire)
@@ -199,7 +222,7 @@ static void sound_push_req(int kind, int a, int b, int c, int delay_samples, int
 }
 
 // Push a control request carrying the extra e0/e1/e2 payload (used by instrument()).
-static void sound_push_ctrl(int kind, int a, int b, int c, int e0, int e1, int e2) {
+static void sound_push_ctrl(SoundReqKind kind, int a, int b, int c, int e0, int e1, int e2) {
     int h = req_head;
     int next = (h + 1) % SOUND_REQ_QUEUE;
     if (next == req_tail) { sound_dropped++; return; }   // full — drop (and trip the wire)
@@ -419,10 +442,11 @@ static void sound_begin_release(Voice *v) {
 static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_samples) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) slot = 0;
     Instrument *ins = &instr_bank[slot];
-    v->active     = true;
-    v->held       = false;
-    v->owner_slot = -1;
-    v->sfx_idx    = -1;
+    v->active      = true;
+    v->held        = false;
+    v->owner_slot  = -1;
+    v->sfx_idx     = -1;
+    v->instr_slot  = slot;
     v->phase      = 0.0f;
     v->freq       = v->freq_target   = sound_midi_to_freq(midi);
     v->vol        = v->vol_target    = (vol < 0 ? 0 : vol > 7 ? 7 : vol) / 7.0f;
@@ -482,7 +506,7 @@ static void sound_set_step(Voice *v, SfxStep step, int step_dur_units) {
 
 // Fire a request now (called on the audio thread).
 static void sound_fire_req(SoundReq r) {
-    if (r.kind == 0) {              // sfx
+    if (r.kind == SR_SFX) {
         int n = r.a;
         if (n == -1) {
             for (int i = 0; i < SOUND_VOICES; i++)
@@ -498,12 +522,34 @@ static void sound_fire_req(SoundReq r) {
             v->step       = 0;
             sound_set_step(v, sfx_bank[n].steps[0], sfx_bank[n].step_dur);
         }
-    } else if (r.kind == 2) {       // note (one-shot)
+    } else if (r.kind == SR_NOTE) {
         int gate = r.dur_samples > 0 ? r.dur_samples : SOUND_SAMPLE_RATE / 4;
+        uint32_t cmask = (r.b >= 0 && r.b < SOUND_INSTR_SLOTS) ? instr_bank[r.b].choke_mask : 0;
+        if (cmask) {
+            for (int i = 0; i < SOUND_VOICES; i++) {
+                if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
+                    if (voices[i].held && voices[i].owner_slot >= 0)
+                        held_voice[voices[i].owner_slot] = -1;
+                    steal_tail += voices[i].last_out;
+                    voices[i].active = false;
+                }
+            }
+        }
         sound_setup_note(&voices[sound_find_voice()], r.a, r.b, r.c, gate);
-    } else if (r.kind == 7) {       // note_on (held / sustained) — e0 = handle slot, e1 = generation
+    } else if (r.kind == SR_NOTE_ON) {    // held / sustained — e0 = handle slot, e1 = generation
         int slot = r.e0, gen = r.e1;
         if (slot >= 0 && slot < SOUND_VOICES) {
+            uint32_t cmask = (r.b >= 0 && r.b < SOUND_INSTR_SLOTS) ? instr_bank[r.b].choke_mask : 0;
+            if (cmask) {
+                for (int i = 0; i < SOUND_VOICES; i++) {
+                    if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
+                        if (voices[i].held && voices[i].owner_slot >= 0)
+                            held_voice[voices[i].owner_slot] = -1;
+                        steal_tail += voices[i].last_out;
+                        voices[i].active = false;
+                    }
+                }
+            }
             if (held_voice[slot] >= 0) sound_begin_release(&voices[held_voice[slot]]);  // slot reused → fade the old one
             int vi = sound_find_voice();
             sound_setup_note(&voices[vi], r.a, r.b, r.c, SOUND_HELD_GATE);
@@ -512,25 +558,25 @@ static void sound_fire_req(SoundReq r) {
             voices[vi].owner_gen  = gen;
             held_voice[slot] = vi;
         }
-    } else if (r.kind == 8) {       // note_off — collapse the gate into release
+    } else if (r.kind == SR_NOTE_OFF) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { sound_begin_release(v); held_voice[r.e0] = -1; }
-    } else if (r.kind == 9) {       // note_pitch — a = midi * 256 (fixed-point float)
+    } else if (r.kind == SR_NOTE_PITCH) {   // a = midi * 256 (fixed-point float)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->freq_target = sound_midi_to_freq_f(r.a / 256.0f);
-    } else if (r.kind == 10) {      // note_vol — a = 0..7
+    } else if (r.kind == SR_NOTE_VOL) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->vol_target = (r.a < 0 ? 0 : r.a > 7 ? 7 : r.a) / 7.0f;
-    } else if (r.kind == 11) {      // note_cutoff — a = Hz (drives the slot's filter base; LFO adds on top)
+    } else if (r.kind == SR_NOTE_CUTOFF) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->cutoff_target = (float)r.a;
-    } else if (r.kind == 12) {      // note_duty — a = duty * 1000
+    } else if (r.kind == SR_NOTE_DUTY) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float d = r.a / 1000.0f; v->duty_target = d < 0.01f ? 0.01f : d > 0.99f ? 0.99f : d; }
-    } else if (r.kind == 14) {      // note_res — a = resonance 0..15 (same mapping as instrument_filter)
+    } else if (r.kind == SR_NOTE_RES) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { int res = r.a < 0 ? 0 : r.a > 15 ? 15 : r.a; v->flt_q_target = 2.0f - res * 0.13f; }
-    } else if (r.kind == 15) {      // note_lfo — a=which, b=dest, c=rate*1000, e2=depth*1000 (phase kept → no click)
+    } else if (r.kind == SR_NOTE_LFO) {   // a=which, b=dest, c=rate*1000, e2=depth*1000 (phase kept → no click)
         Voice *v = sound_held_voice(r.e0, r.e1);
         int L = r.a;
         if (v && L >= 0 && L < SOUND_LFOS) {
@@ -538,20 +584,20 @@ static void sound_fire_req(SoundReq r) {
             v->lfo_rate[L]  = r.c  / 1000.0f;
             v->lfo_depth[L] = r.e2 / 1000.0f;
         }
-    } else if (r.kind == 16) {      // note_filter — a = filter mode (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
+    } else if (r.kind == SR_NOTE_FILTER) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->flt_mode = r.a;
-    } else if (r.kind == 17) {      // note_glide — a = portamento time in ms (0 = snap to pitch)
+    } else if (r.kind == SR_NOTE_GLIDE) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float k = r.a <= 0 ? 1.0f : 1000.0f / ((float)r.a * (float)SOUND_SAMPLE_RATE);
             v->freq_slew = k > 1.0f ? 1.0f : k < 0.00001f ? 0.00001f : k;
         }
-    } else if (r.kind == 13) {      // note_off_all — panic: release every held voice
+    } else if (r.kind == SR_NOTE_OFF_ALL) {
         for (int i = 0; i < SOUND_VOICES; i++)
             if (voices[i].active && voices[i].held) { sound_begin_release(&voices[i]); }
         for (int i = 0; i < SOUND_VOICES; i++) held_voice[i] = -1;
-    } else if (r.kind == 3) {       // define instrument (wave + ADSR)
+    } else if (r.kind == SR_INSTR) {
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         Instrument *ins = &instr_bank[slot];
@@ -561,14 +607,14 @@ static void sound_fire_req(SoundReq r) {
         ins->d_samp  = r.e1;
         ins->r_samp  = r.e2;
         // duty is left untouched — set independently via instrument_duty()
-    } else if (r.kind == 4) {       // set instrument pulse duty
+    } else if (r.kind == SR_INSTR_DUTY) {
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float duty = r.b / 1000.0f;
         if (duty < 0.01f) duty = 0.01f;
         if (duty > 0.99f) duty = 0.99f;
         instr_bank[slot].duty = duty;
-    } else if (r.kind == 5) {       // set one of an instrument's LFOs
+    } else if (r.kind == SR_INSTR_LFO) {
         int slot = r.a;
         int L = r.e1;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -576,14 +622,14 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].lfo_dest[L]  = r.b;
         instr_bank[slot].lfo_rate[L]  = r.c  / 1000.0f;
         instr_bank[slot].lfo_depth[L] = r.e0 / 1000.0f;
-    } else if (r.kind == 6) {       // set instrument filter
+    } else if (r.kind == SR_INSTR_FILTER) {
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         int res = r.e0 < 0 ? 0 : r.e0 > 15 ? 15 : r.e0;
         instr_bank[slot].flt_mode   = r.b;
         instr_bank[slot].flt_cutoff = (float)r.c;
         instr_bank[slot].flt_q      = 2.0f - res * 0.13f;   // res 0 → damped, 15 → resonant peak
-    } else if (r.kind == 18) {      // set an instrument's mod-envelope: a=slot, b=which, c=dest, e0=attack, e1=decay, e2=amount*1000
+    } else if (r.kind == SR_INSTR_ENV) {   // a=slot, b=which, c=dest, e0=attack, e1=decay, e2=amount*1000
         int slot = r.a, e = r.b;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         if (e < 0 || e >= SOUND_ENVS) return;
@@ -591,7 +637,7 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].env_a_samp[e] = r.e0;
         instr_bank[slot].env_d_samp[e] = r.e1;
         instr_bank[slot].env_amount[e] = r.e2 / 1000.0f;
-    } else if (r.kind == 19) {      // set a held note's mod-envelope: a=(which<<4)|dest, b=attack, c=decay, e2=amount*1000
+    } else if (r.kind == SR_NOTE_ENV) {    // a=(which<<4)|dest, b=attack, c=decay, e2=amount*1000
         Voice *v = sound_held_voice(r.e0, r.e1);
         int e = (r.a >> 4) & 0xf, dest = r.a & 0xf;
         if (v && e >= 0 && e < SOUND_ENVS) {
@@ -600,14 +646,14 @@ static void sound_fire_req(SoundReq r) {
             v->env_d_samp[e] = r.c;
             v->env_amount[e] = r.e2 / 1000.0f;
         }
-    } else if (r.kind == 20) {      // wave_set: FOUR samples of a user wavetable — a=which, b=start index, c/e0/e1/e2 = values*32767
+    } else if (r.kind == SR_WAVE_SET) {    // a=which, b=start index, c/e0/e1/e2 = values*32767
         if (r.a >= 0 && r.a < SOUND_USER_WAVES && r.b >= 0 && r.b + 3 < SOUND_WAVE_LEN) {
             user_wave[r.a][r.b]     = r.c  / 32767.0f;
             user_wave[r.a][r.b + 1] = r.e0 / 32767.0f;
             user_wave[r.a][r.b + 2] = r.e1 / 32767.0f;
             user_wave[r.a][r.b + 3] = r.e2 / 32767.0f;
         }
-    } else if (r.kind == 21) {      // instrument engine macro: a=slot, b=which 0..2, c=val*1000
+    } else if (r.kind == SR_INSTR_MACRO) {  // a=slot, b=which 0..2, c=val*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
         float x = r.c / 1000.0f;
@@ -615,7 +661,7 @@ static void sound_fire_req(SoundReq r) {
         if      (r.b == 0) instr_bank[slot].harmonics = x;
         else if (r.b == 1) instr_bank[slot].timbre    = x;
         else if (r.b == 2) instr_bank[slot].morph     = x;
-    } else if (r.kind == 22) {      // note engine macro (live, slewed): a=which 0..2, b=val*1000
+    } else if (r.kind == SR_NOTE_MACRO) {   // a=which 0..2, b=val*1000 (live, slewed)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) {
             float x = r.b / 1000.0f;
@@ -624,6 +670,9 @@ static void sound_fire_req(SoundReq r) {
             else if (r.a == 1) v->timb_target = x;
             else if (r.a == 2) v->mor_target  = x;
         }
+    } else if (r.kind == SR_INSTR_CHOKE) {  // a=slot_a, b=slot_b
+        if (r.a >= 0 && r.a < SOUND_INSTR_SLOTS && r.b >= 0 && r.b < SOUND_INSTR_SLOTS)
+            instr_bank[r.a].choke_mask |= (1u << r.b);
     }
 }
 
@@ -814,7 +863,7 @@ static void sound_load_demo_data(void) {
 
 void sfx(int n) {
     if (n < -1 || n >= SOUND_SFX_SLOTS) return;
-    sound_push_req(0, n, 0, 0, 0, 0);
+    sound_push_req(SR_SFX, n, 0, 0, 0, 0);
 }
 
 // Look up chord intervals (used by chord() and strum()).
@@ -856,7 +905,7 @@ void strum(int root, int type, int instr, int vol, int delay_ms) {
     for (int i = 0; i < n; i++) {
         int idx   = (dir > 0) ? i : (n - 1 - i);
         int delay = (i * abs_ms * SOUND_SAMPLE_RATE) / 1000;
-        sound_push_req(2, root + ivl[idx], instr, vol, delay, 0);
+        sound_push_req(SR_NOTE, root + ivl[idx], instr, vol, delay, 0);
     }
 }
 
@@ -919,13 +968,13 @@ float beat_pos(void) {
 }
 
 void note(int midi, int instr, int vol) {
-    sound_push_req(2, midi, instr, vol, 0, 0);
+    sound_push_req(SR_NOTE, midi, instr, vol, 0, 0);
 }
 
 void hit(int midi, int instr, int vol, int dur_ms) {
     int dur = (dur_ms * SOUND_SAMPLE_RATE) / 1000;
     if (dur < 1) dur = 1;
-    sound_push_req(2, midi, instr, vol, 0, dur);
+    sound_push_req(SR_NOTE, midi, instr, vol, 0, dur);
 }
 
 // ── held notes: start a sustained voice, drive it live, release it (see docs/design/held-notes.md) ──
@@ -937,7 +986,7 @@ int note_on(int midi, int instr, int vol) {
     hn_used[slot] = true;
     if (++hn_gen[slot] <= 0) hn_gen[slot] = 1;   // generations start at 1, stay positive
     int gen = hn_gen[slot];
-    sound_push_ctrl(7, midi, instr, vol, slot, gen, 0);
+    sound_push_ctrl(SR_NOTE_ON, midi, instr, vol, slot, gen, 0);
     return slot | (gen << 3);                    // handle: slot in low 3 bits, generation above
 }
 
@@ -945,28 +994,28 @@ void note_off(int handle) {
     if (handle <= 0) return;
     int slot = handle & 7;
     hn_used[slot] = false;
-    sound_push_ctrl(8, 0, 0, 0, slot, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_OFF, 0, 0, 0, slot, handle >> 3, 0);
 }
 
 void note_pitch(int handle, float midi) {
     if (handle <= 0) return;
-    sound_push_ctrl(9, (int)(midi * 256.0f), 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_PITCH, (int)(midi * 256.0f), 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_vol(int handle, int vol) {
     if (handle <= 0) return;
-    sound_push_ctrl(10, vol, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_VOL, vol, 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_cutoff(int handle, int hz) {
     if (handle <= 0) return;
     if (hz < 20) hz = 20;
-    sound_push_ctrl(11, hz, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_CUTOFF, hz, 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_res(int handle, int resonance) {
     if (handle <= 0) return;
-    sound_push_ctrl(14, resonance, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_RES, resonance, 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_lfo(int handle, int which, int dest, float rate_hz, float depth) {
@@ -974,27 +1023,27 @@ void note_lfo(int handle, int which, int dest, float rate_hz, float depth) {
     if (which < 0 || which >= SOUND_LFOS) return;
     if (rate_hz < 0) rate_hz = 0;
     if (depth   < 0) depth   = 0;
-    sound_push_ctrl(15, which, dest, (int)(rate_hz * 1000.0f), handle & 7, handle >> 3, (int)(depth * 1000.0f));
+    sound_push_ctrl(SR_NOTE_LFO, which, dest, (int)(rate_hz * 1000.0f), handle & 7, handle >> 3, (int)(depth * 1000.0f));
 }
 
 void note_filter(int handle, int mode) {
     if (handle <= 0) return;
-    sound_push_ctrl(16, mode, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_FILTER, mode, 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_glide(int handle, int ms) {
     if (handle <= 0) return;
-    sound_push_ctrl(17, ms, 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_GLIDE, ms, 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_duty(int handle, float duty) {
     if (handle <= 0) return;
-    sound_push_ctrl(12, (int)(duty * 1000.0f), 0, 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_DUTY, (int)(duty * 1000.0f), 0, 0, handle & 7, handle >> 3, 0);
 }
 
 void note_off_all(void) {
     for (int i = 0; i < SOUND_VOICES; i++) hn_used[i] = false;
-    sound_push_ctrl(13, 0, 0, 0, 0, 0, 0);
+    sound_push_ctrl(SR_NOTE_OFF_ALL, 0, 0, 0, 0, 0, 0);
 }
 
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms) {
@@ -1005,7 +1054,7 @@ void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, in
     if (a < 0) a = 0;
     if (d < 0) d = 0;
     if (r < 0) r = 0;
-    sound_push_ctrl(3, slot, wave, sustain, a, d, r);
+    sound_push_ctrl(SR_INSTR, slot, wave, sustain, a, d, r);
 }
 
 void wave_set(int which, const float *samples, int n) {
@@ -1025,13 +1074,13 @@ void wave_set(int which, const float *samples, int n) {
             if (v < -1.0f) v = -1.0f;
             q[k] = (int)(v * 32767.0f);
         }
-        sound_push_ctrl(20, which, i, q[0], q[1], q[2], q[3]);
+        sound_push_ctrl(SR_WAVE_SET, which, i, q[0], q[1], q[2], q[3]);
     }
 }
 
 void instrument_duty(int slot, float duty) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-    sound_push_ctrl(4, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
+    sound_push_ctrl(SR_INSTR_DUTY, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
 }
 
 void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth) {
@@ -1039,13 +1088,13 @@ void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth) {
     if (which < 0 || which >= SOUND_LFOS) return;
     if (rate_hz < 0) rate_hz = 0;
     if (depth   < 0) depth   = 0;
-    sound_push_ctrl(5, slot, dest, (int)(rate_hz * 1000.0f), (int)(depth * 1000.0f), which, 0);
+    sound_push_ctrl(SR_INSTR_LFO, slot, dest, (int)(rate_hz * 1000.0f), (int)(depth * 1000.0f), which, 0);
 }
 
 void instrument_filter(int slot, int mode, int cutoff_hz, int resonance) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     if (cutoff_hz < 20) cutoff_hz = 20;
-    sound_push_ctrl(6, slot, mode, cutoff_hz, resonance, 0, 0);
+    sound_push_ctrl(SR_INSTR_FILTER, slot, mode, cutoff_hz, resonance, 0, 0);
 }
 
 void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount) {
@@ -1055,7 +1104,7 @@ void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, 
     int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
     if (a < 0) a = 0;
     if (d < 0) d = 0;
-    sound_push_ctrl(18, slot, which, dest, a, d, (int)(amount * 1000.0f));
+    sound_push_ctrl(SR_INSTR_ENV, slot, which, dest, a, d, (int)(amount * 1000.0f));
 }
 
 // ── engine macros: three 0..1 knobs every modeled engine answers — six functions, forever
@@ -1063,15 +1112,20 @@ void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, 
 
 static void sound_macro_slot(int slot, int which, float x) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-    sound_push_ctrl(21, slot, which, (int)(x * 1000.0f), 0, 0, 0);
+    sound_push_ctrl(SR_INSTR_MACRO, slot, which, (int)(x * 1000.0f), 0, 0, 0);
 }
 static void sound_macro_note(int handle, int which, float x) {
     if (handle <= 0) return;
-    sound_push_ctrl(22, which, (int)(x * 1000.0f), 0, handle & 7, handle >> 3, 0);
+    sound_push_ctrl(SR_NOTE_MACRO, which, (int)(x * 1000.0f), 0, handle & 7, handle >> 3, 0);
 }
 void instrument_harmonics(int slot, float x) { sound_macro_slot(slot, 0, x); }
 void instrument_timbre(int slot, float x)    { sound_macro_slot(slot, 1, x); }
 void instrument_morph(int slot, float x)     { sound_macro_slot(slot, 2, x); }
+void instrument_choke(int slot_a, int slot_b) {
+    if (slot_a < 0 || slot_a >= SOUND_INSTR_SLOTS) return;
+    if (slot_b < 0 || slot_b >= SOUND_INSTR_SLOTS) return;
+    sound_push_req(SR_INSTR_CHOKE, slot_a, slot_b, 0, 0, 0);
+}
 void note_harmonics(int handle, float x)     { sound_macro_note(handle, 0, x); }
 void note_timbre(int handle, float x)        { sound_macro_note(handle, 1, x); }
 void note_morph(int handle, float x)         { sound_macro_note(handle, 2, x); }
@@ -1083,13 +1137,13 @@ void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, floa
     int d = (decay_ms  * SOUND_SAMPLE_RATE) / 1000;
     if (a < 0) a = 0;
     if (d < 0) d = 0;
-    sound_push_ctrl(19, ((which & 0xf) << 4) | (dest & 0xf), a, d, handle & 7, handle >> 3, (int)(amount * 1000.0f));
+    sound_push_ctrl(SR_NOTE_ENV, ((which & 0xf) << 4) | (dest & 0xf), a, d, handle & 7, handle >> 3, (int)(amount * 1000.0f));
 }
 
 void schedule(int delay_ms, int midi, int instr, int vol) {
     int ds = (delay_ms * SOUND_SAMPLE_RATE) / 1000;
     if (ds < 0) ds = 0;
-    sound_push_req(2, midi, instr, vol, ds, 0);
+    sound_push_req(SR_NOTE, midi, instr, vol, ds, 0);
 }
 
 void schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms) {
@@ -1097,7 +1151,7 @@ void schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms) {
     int dur = (dur_ms   * SOUND_SAMPLE_RATE) / 1000;
     if (ds  < 0) ds  = 0;
     if (dur < 1) dur = 1;
-    sound_push_req(2, midi, instr, vol, ds, dur);
+    sound_push_req(SR_NOTE, midi, instr, vol, ds, dur);
 }
 
 void bpm(int rate) {

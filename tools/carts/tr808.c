@@ -1,5 +1,6 @@
 #include "studio.h"
 #include <stdio.h>
+#include <math.h>
 
 // ── TR-808 RHYTHM COMPOSER ────────────────────────────────────────────────
 // The big one. Roland's TR-808 (1980) — commercial flop, then the foundation
@@ -53,9 +54,9 @@ enum {
 };
 
 static const char *VNAME[NV] = {
-    "BASS",  "SNARE", "LO TOM", "MD TOM", "HI TOM", "LO CGA", "MD CGA",
-    "HI CGA", "RIM",  "CLAVES", "CLAP",  "MARACAS", "COWBELL", "CYMBAL",
-    "OPEN HH", "CLSD HH"
+    "BASS", "SNRE", "LTOM", "MTOM", "HTOM", "LCGA", "MCGA",
+    "HCGA", "RIM",  "CLAV", "CLAP", "MARA", "COWB", "CYMB",
+    "OPHH", "CHHH"
 };
 static const char VKEY[NV] = {
     'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I',
@@ -68,6 +69,13 @@ static const char VKEY[NV] = {
 #define GY   39    // grid top edge
 #define SX   13    // column stride
 #define SY   9     // row stride
+
+// per-voice knobs: two 8×8 rotary knobs in the label column (x 60-87)
+// K_TUNE: ±12 semitones (center = no change)   K_DCAY: gate duration scale
+#define K0X  60    // tune knob x
+#define K1X  70    // decay knob x
+#define K2X  80    // character knob x (voice-specific: SNPY/THUD/TONE/RING)
+#define KW    8    // knob size
 
 // the iconic step-button colors: steps 1-4 red, 5-8 orange, 9-12 yellow, 13-16 white
 static const int QCLR[4] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_WHITE };
@@ -140,6 +148,50 @@ static bool gacc[STEPS];       // live accent row
 static bool paint_val;         // what a click-drag writes (set on press)
 static int  swing = 50;        // 50 = straight .. 66 = full triplet
 
+static float ktune[NV];        // 0..1, center=0.5 → ±12 semitones
+static float kdecay[NV];       // 0..1, center=0.5 → 1× scale (0→0.25×, 1→4×)
+static float kcolor[NV];       // 0..1, center=0.5 → voice-specific character knob
+static int   drag_v = -1, drag_k = -1;
+static int   drag_y0, drag_x0;
+static int   hover_v = -1, hover_k = -1;
+
+// knob column labels — k=0,1 are the same for every voice; k=2 is per-voice
+static const char *KLABEL[2] = { "TUNE", "DECAY" };
+static const char *K2LABEL[NV] = {
+    NULL,   "SNPY", "THUD", "THUD", "THUD",  // BD SD LT MT HT
+    NULL,   NULL,   NULL,                     // LC MC HC — single layer
+    NULL,   NULL,   NULL,   NULL,             // RS CLV CP MA
+    "TONE", "TONE", "RING", NULL,             // CB CY OH CH
+};
+
+// 8×8 rotary knob: circle outline + single tick pixel showing value position.
+// Sweep: 135° (lower-left) → 270° (top) → 405°=45° (lower-right) = 270° total.
+static void draw_knob(int x, int y, float val, int col) {
+    int cx = x + 3, cy = y + 3;
+    circ(cx, cy, 3, CLR_DARKER_GREY);
+    float a = (135.0f + val * 270.0f) * (3.14159265f / 180.0f);
+    pset(cx + (int)(cosf(a) * 2.5f + 0.5f),
+         cy + (int)(sinf(a) * 2.5f + 0.5f), col);
+}
+
+// apply tune knob: ±12 semitones offset
+static int k_midi(int v, int base) {
+    return base + (int)((ktune[v] - 0.5f) * 24.0f + 0.5f);
+}
+
+// apply decay knob: powf scale centred on 1.0 at val=0.5 (range 0.25× to 4×)
+static int k_dur(int v, int base) {
+    float s = powf(4.0f, (kdecay[v] - 0.5f) * 2.0f);
+    int d = (int)(base * s + 0.5f);
+    return d < 5 ? 5 : d;
+}
+
+// crossfade a vol level using kcolor[v]: lo at kcolor=0, hi at kcolor=1, clamped 0..7
+static int k_cv(int v, int lo, int hi) {
+    int val = (int)(lo + (hi - lo) * kcolor[v] + 0.5f);
+    return val < 0 ? 0 : val > 7 ? 7 : val;
+}
+
 static void load_preset(void) {
     const Pat *p = &PRESET[pre];
     for (int v = 0; v < NV; v++)
@@ -150,6 +202,40 @@ static void load_preset(void) {
     tempo = p->tempo;
     swing = p->swing ? p->swing : 50;
     bpm(tempo);
+
+    // reset knobs to neutral then apply preset character
+    for (int v = 0; v < NV; v++) { ktune[v] = 0.5f; kdecay[v] = 0.5f; kcolor[v] = 0.5f; }
+    switch (pre) {
+    case 0: // PLANET ROCK — tight claves, medium kick
+        kdecay[V_CLV] = 0.38f;
+        kdecay[V_BD]  = 0.55f;
+        break;
+    case 1: // HEALING — slow jam; long open hat, softer kick
+        kdecay[V_BD]  = 0.58f;
+        kdecay[V_OH]  = 0.70f;
+        kcolor[V_SD]  = 0.42f;  // more body, less snap
+        break;
+    case 2: // HOUSE — punchy kick, tight hats
+        kdecay[V_BD]   = 0.38f;
+        kdecay[V_CH]   = 0.36f;
+        kcolor[V_SD]   = 0.60f;  // snappier clap
+        break;
+    case 3: // ELECTRO — wider tom tuning for the descending cascade
+        ktune[V_LT]  = 0.35f;
+        ktune[V_HT]  = 0.60f;
+        kdecay[V_BD] = 0.60f;
+        break;
+    case 4: // BOOM BAP — long boomy kick, snappy snare, breathing hat
+        kdecay[V_BD]  = 0.74f;
+        kcolor[V_SD]  = 0.66f;
+        kdecay[V_OH]  = 0.64f;
+        break;
+    case 5: // COWBELL JAM — bright cowbell, tight claves
+        kcolor[V_CB]  = 0.70f;
+        kdecay[V_CB]  = 0.55f;
+        kdecay[V_CLV] = 0.36f;
+        break;
+    }
 }
 
 static int vv(int base, int boost) {
@@ -163,54 +249,56 @@ static int vv(int base, int boost) {
 static void fire(int v, int boost, int delay) {
     switch (v) {
     case V_BD:  // ~50Hz bridged-T with the decay-knob boom
-        schedule_hit(delay, 31, SL_BD, vv(6, boost), 500);
+        schedule_hit(delay, k_midi(v, 31), SL_BD, vv(6, boost), k_dur(v, 500));
         break;
-    case V_SD:  // 180Hz + 330Hz modes under snappy noise
-        schedule_hit(delay, 54, SL_SDB, vv(4, boost), 110);
-        schedule_hit(delay, 64, SL_SDB, vv(3, boost), 110);
-        schedule_hit(delay, 60, SL_SDN, vv(4, boost), 140);
+    case V_SD: {  // 180Hz + 330Hz modes; SNPY knob fades body↔noise
+        int body = k_cv(v, 8, 0), snpy = k_cv(v, 0, 8);
+        schedule_hit(delay, k_midi(v, 54), SL_SDB, vv(body, boost), k_dur(v, 110));
+        schedule_hit(delay, k_midi(v, 64), SL_SDB, vv(body, boost), k_dur(v, 110));
+        schedule_hit(delay, k_midi(v, 60), SL_SDN, vv(snpy, boost), k_dur(v, 140));
         break;
-    case V_LT: case V_MT: case V_HT: {  // sine drop + low noise thud
+    }
+    case V_LT: case V_MT: case V_HT: {  // sine drop + THUD knob controls noise thud level
         int m = v == V_LT ? 40 : v == V_MT ? 45 : 52;
-        schedule_hit(delay, m, SL_TOM, vv(4, boost), 280);
-        schedule_hit(delay, 60, SL_TOMN, vv(2, boost), 30);
+        schedule_hit(delay, k_midi(v, m),  SL_TOM,  vv(4, boost), k_dur(v, 280));
+        schedule_hit(delay, k_midi(v, 60), SL_TOMN, vv(k_cv(v, 0, 5), boost), k_dur(v, 30));
         break;
     }
     case V_LC: case V_MC: case V_HC: {  // same circuit, cleaner + shorter
         int m = v == V_LC ? 52 : v == V_MC ? 57 : 63;
-        schedule_hit(delay, m, SL_CON, vv(4, boost), 160);
+        schedule_hit(delay, k_midi(v, m), SL_CON, vv(4, boost), k_dur(v, 160));
         break;
     }
     case V_RS:  // dual bridged-T: 1667Hz (midi 92) + 455Hz (midi 70)
-        schedule_hit(delay, 92, SL_RS, vv(4, boost), 50);
-        schedule_hit(delay, 70, SL_RS, vv(3, boost), 50);
+        schedule_hit(delay, k_midi(v, 92), SL_RS, vv(4, boost), k_dur(v, 50));
+        schedule_hit(delay, k_midi(v, 70), SL_RS, vv(3, boost), k_dur(v, 50));
         break;
     case V_CLV: // the rimshot circuit retuned to 2500Hz = midi 99 exactly
-        schedule_hit(delay, 99, SL_CLV, vv(4, boost), 45);
+        schedule_hit(delay, k_midi(v, 99), SL_CLV, vv(4, boost), k_dur(v, 45));
         break;
     case V_CP:  // three retriggers ~10ms apart + a soft room tail
-        schedule_hit(delay,      60, SL_CP, vv(4, boost), 12);
-        schedule_hit(delay + 10, 60, SL_CP, vv(4, boost), 12);
-        schedule_hit(delay + 20, 60, SL_CP, vv(4, boost), 12);
-        schedule_hit(delay + 28, 60, SL_CP, vv(3, boost), 140);
+        schedule_hit(delay,      k_midi(v, 60), SL_CP, vv(4, boost), 12);
+        schedule_hit(delay + 10, k_midi(v, 60), SL_CP, vv(4, boost), 12);
+        schedule_hit(delay + 20, k_midi(v, 60), SL_CP, vv(4, boost), 12);
+        schedule_hit(delay + 28, k_midi(v, 60), SL_CP, vv(3, boost), k_dur(v, 140));
         break;
-    case V_MA:  schedule_hit(delay, 90, SL_MAR, vv(3, boost), 30); break;
-    case V_CB:  // bank oscillators 1+2: 540Hz + 800Hz
-        schedule_hit(delay, 73, SL_CB, vv(4, boost), 220);
-        schedule_hit(delay, 79, SL_CB, vv(3, boost), 220);
+    case V_MA:  schedule_hit(delay, k_midi(v, 90), SL_MAR, vv(3, boost), k_dur(v, 30)); break;
+    case V_CB:  // bank osc 1+2; TONE fades 540Hz↔800Hz emphasis
+        schedule_hit(delay, k_midi(v, 73), SL_CB, vv(k_cv(v, 7, 0), boost), k_dur(v, 220));
+        schedule_hit(delay, k_midi(v, 79), SL_CB, vv(k_cv(v, 0, 7), boost), k_dur(v, 220));
         break;
-    case V_CY:  // three bank members through the high bandpass, long ring
-        schedule_hit(delay, 79, SL_CYT, vv(3, boost), 900);
-        schedule_hit(delay, 72, SL_CYT, vv(2, boost), 900);
-        schedule_hit(delay, 66, SL_CYT, vv(2, boost), 900);
+    case V_CY:  // three bank members; TONE fades warm↔bright
+        schedule_hit(delay, k_midi(v, 79), SL_CYT, vv(k_cv(v, 0, 6), boost), k_dur(v, 900));
+        schedule_hit(delay, k_midi(v, 72), SL_CYT, vv(2, boost), k_dur(v, 900));
+        schedule_hit(delay, k_midi(v, 66), SL_CYT, vv(k_cv(v, 5, 0), boost), k_dur(v, 900));
         break;
-    case V_OH:  // two bank members, highpassed, long decay
-        schedule_hit(delay, 79, SL_HATO, vv(3, boost), 360);
-        schedule_hit(delay, 72, SL_HATO, vv(2, boost), 360);
+    case V_OH:  // two bank members; RING fades warm↔bright
+        schedule_hit(delay, k_midi(v, 79), SL_HATO, vv(k_cv(v, 0, 6), boost), k_dur(v, 360));
+        schedule_hit(delay, k_midi(v, 72), SL_HATO, vv(k_cv(v, 5, 0), boost), k_dur(v, 360));
         break;
     case V_CH:  // same two, ~50ms
-        schedule_hit(delay, 79, SL_HATC, vv(3, boost), 50);
-        schedule_hit(delay, 72, SL_HATC, vv(2, boost), 50);
+        schedule_hit(delay, k_midi(v, 79), SL_HATC, vv(3, boost), k_dur(v, 50));
+        schedule_hit(delay, k_midi(v, 72), SL_HATC, vv(2, boost), k_dur(v, 50));
         break;
     }
 }
@@ -268,7 +356,9 @@ void init(void) {
     instrument_filter(SL_HATO, FILTER_HIGH, 7000, 3);
     instrument(SL_HATC, INSTR_SQUARE, 0, 42, 0, 16);
     instrument_filter(SL_HATC, FILTER_HIGH, 7000, 3);
+    instrument_choke(SL_HATC, SL_HATO);  // closed hat chokes the open hat
 
+    for (int v = 0; v < NV; v++) { ktune[v] = 0.5f; kdecay[v] = 0.5f; kcolor[v] = 0.5f; }
     load_preset();
 }
 
@@ -295,21 +385,46 @@ void update(void) {
     if (keyp('Z')) { swing -= 2; if (swing < 50) swing = 50; }
     if (keyp('X')) { swing += 2; if (swing > 66) swing = 66; }
 
+    // knob hover + drag (Y=coarse, X=fine, same as modrack)
+    int mx = mouse_x(), my = mouse_y();
+    hover_v = -1; hover_k = -1;
+    if (my >= GY && my < GY + NV * SY) {
+        int v = (my - GY) / SY;
+        if      (mx >= K0X && mx < K0X + KW)                          { hover_v = v; hover_k = 0; }
+        else if (mx >= K1X && mx < K1X + KW)                          { hover_v = v; hover_k = 1; }
+        else if (mx >= K2X && mx < K2X + KW && K2LABEL[v] != NULL)    { hover_v = v; hover_k = 2; }
+    }
+    if (mouse_pressed(MOUSE_LEFT) && hover_v >= 0) {
+        drag_v = hover_v; drag_k = hover_k; drag_y0 = my; drag_x0 = mx;
+    }
+    if (drag_v >= 0 && mouse_down(MOUSE_LEFT)) {
+        float dy = drag_y0 - my;          // up = positive = increase (coarse)
+        float dx = mx     - drag_x0;      // right = positive = increase (fine)
+        float delta = dy / 80.0f + dx / 600.0f;
+        float *kp = drag_k == 0 ? &ktune[drag_v]
+                  : drag_k == 1 ? &kdecay[drag_v]
+                  :               &kcolor[drag_v];
+        float nv = *kp + delta;
+        *kp = nv < 0.0f ? 0.0f : nv > 1.0f ? 1.0f : nv;
+        drag_y0 = my; drag_x0 = mx;
+    }
+    if (!mouse_down(MOUSE_LEFT)) { drag_v = -1; drag_k = -1; }
+
     // mouse: press toggles a cell (drag paints), label click auditions
-    int mc, mr = grid_row(mouse_x(), mouse_y(), &mc);
-    if (mouse_pressed(MOUSE_LEFT)) {
+    bool on_knob = hover_v >= 0 || drag_v >= 0;
+    int mc, mr = grid_row(mx, my, &mc);
+    if (mouse_pressed(MOUSE_LEFT) && !on_knob) {
         if (mr >= 0) {
             paint_val = !grid[mr][mc];
             grid[mr][mc] = paint_val;
-            if (paint_val) { fire(mr, 0, 0); flash[mr] = 5; }
         } else if (mr == -1) {
             paint_val = !gacc[mc];
             gacc[mc] = paint_val;
-        } else if (mouse_x() < GX && mouse_y() >= GY && mouse_y() < GY + NV * SY) {
-            int v = (mouse_y() - GY) / SY;
+        } else if (mx < GX && my >= GY && my < GY + NV * SY) {
+            int v = (my - GY) / SY;
             fire(v, 1, 0); flash[v] = 5;
         }
-    } else if (mouse_down(MOUSE_LEFT)) {
+    } else if (mouse_down(MOUSE_LEFT) && !on_knob) {
         if (mr >= 0)       grid[mr][mc] = paint_val;
         else if (mr == -1) gacc[mc]     = paint_val;
     }
@@ -377,6 +492,11 @@ void draw(void) {
         sprintf(buf, "%c", VKEY[v]);
         print(buf, 14, y, flash[v] > 0 ? CLR_WHITE : CLR_YELLOW);
         print(VNAME[v], 26, y, flash[v] > 0 ? CLR_WHITE : CLR_MEDIUM_GREY);
+        int base_col = flash[v] > 0 ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY;
+        draw_knob(K0X, y, ktune[v],  (drag_v==v&&drag_k==0) ? CLR_WHITE : base_col);
+        draw_knob(K1X, y, kdecay[v], (drag_v==v&&drag_k==1) ? CLR_WHITE : base_col);
+        if (K2LABEL[v])
+            draw_knob(K2X, y, kcolor[v], (drag_v==v&&drag_k==2) ? CLR_WHITE : base_col);
         for (int s = 0; s < STEPS; s++) {
             int x = GX + s * SX;
             int q = QCLR[s >> 2];   // step-button color by quarter
@@ -389,5 +509,19 @@ void draw(void) {
         if (flash[v] > 0) flash[v]--;
     }
 
-    print("CLICK TO EDIT  <> PRESET  ^v BPM  Z/X SWING", 14, 186, CLR_MEDIUM_GREY);
+    // hover label — fixed in the header band (never overlaps a knob row)
+    int hv = (drag_v >= 0) ? drag_v : hover_v;
+    int hk = (drag_v >= 0) ? drag_k : hover_k;
+    if (hv >= 0 && hk >= 0) {
+        const char *lbl = hk == 2 ? K2LABEL[hv] : KLABEL[hk];
+        if (lbl) {
+            char buf2[24];
+            sprintf(buf2, "%s %s", VNAME[hv], lbl);
+            font(FONT_SMALL);
+            print(buf2, K0X, 31, CLR_LIGHT_GREY);
+            font(FONT_NORMAL);
+        }
+    }
+
+    print("CLICK <> PRESET ^v BPM Z/X SWING DRAG KNOBS", 14, 186, CLR_MEDIUM_GREY);
 }

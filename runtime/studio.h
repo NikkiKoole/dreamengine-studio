@@ -301,6 +301,7 @@ void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, 
 void instrument_harmonics(int slot, float x);  // engine macro 0..1 — PLUCK: ring time (0 dead slap, 1 near-endless sustain)
 void instrument_timbre(int slot, float x);     // engine macro 0..1 — PLUCK: pick brightness (0 soft felt thud, 1 sharp bright pick)
 void instrument_morph(int slot, float x);      // engine macro 0..1 — PLUCK: pick position (0 near the bridge = full, 1 mid-string = hollow)
+void instrument_choke(int slot_a, int slot_b); // declare that a new note on slot_a instantly kills any sounding voice on slot_b (open/closed hat choke)
 void note_harmonics(int handle, float x);      // live macro on a held note, slewed — PLUCK: reshapes the ring while it sounds
 void note_timbre(int handle, float x);         // live macro on a held note, slewed — PLUCK: the pick is already struck, applies at the next note
 void note_morph(int handle, float x);          // live macro on a held note, slewed — PLUCK: the pick is already struck, applies at the next note

@@ -595,6 +595,12 @@ independently shippable:
    scope drawing the engine's actual formula. Open tail: taste-tuning by ear — **brass is
    the named stress test** (it wants the index to *rise* on attack; the §8.8.3 follow-amp-env
    alternative is the prepared answer if it fails) — and the DX-tine question for epiano.
+   **Ear verdict (owner, 2026-06-05): epiano is close but "not exactly DX Rhodes" — the
+   §8.8.3 tine prediction confirmed.** Accepted as-is for now. When it's worth fixing: the
+   internal tine is ~6 lines inside `sound_fm_sample`, triple-contained so it can't leak
+   into other presets (gated to the 1:1 ratio detent · dies in ~80ms · scaled by 1−morph,
+   so feedback-heavy patches never hear it) — the §8.1.1 pattern of taste living inside
+   the mapping fn, like the mallet's motor only waking at morph's top.
 4. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
    (drawbars → scanner on the buffer → shared rotary). The SVF is the reusable primitive that also
    gives §5.5 and §8.3's formant.

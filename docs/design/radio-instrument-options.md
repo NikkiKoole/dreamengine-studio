@@ -146,6 +146,7 @@ varies: vocoder, talkbox, mono synth, or filtered sample hit. Drum machine alway
 | bass | TRI+snap-env | **now** — SAW+LP = rounder disco bass; SINE+LP = very round sub-bass style. |
 | lead | SQUARE+duty 0.3 = Da Funk | **now** — SAW+LP = talkbox hint (more harmonics); SQUARE+duty 0.5 = fatter; **FM** = real talkbox formant. |
 | strings | SAW+slow-attack+LP | **now** — vary filter cutoff 700–1200Hz by seed for dark/mid strings; short attack = pizzicato stab. |
+| hats/shimmer | offbeat open hat + 16th maracas, always on | **owner feedback (2026-06-05):** *"the tingling rhythm sound — sounds very disco, but we shouldn't have that in every song."* Roll it from the composition seed: some songs get the full disco shimmer (open-hat offbeat + maracas), some swap to closed-hat-only or ride-style, some drop the maracas entirely. Part of the per-song timbre roll (kit dressing), not a fixed layer. |
 
 ---
 

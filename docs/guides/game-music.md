@@ -603,17 +603,39 @@ only static functions compile into the cart's own TU, so **no
 the song, and the composition is just the *sequence of `srnd` calls*. The
 extraction must not add, remove, or reorder a single PRNG call in any
 migrated cart, or every pinned `*_SEED` and noted seed breaks silently.
-Acceptance test per cart, before/after each migration:
+
+Acceptance test per cart, before/after each migration — **refined by the
+house.c pilot (2026-06-05), which caught two flaws in the naive recipe**:
+(a) a free-roaming cart derives its seed from `frame()` at boot, which
+wall-clock startup jitter makes unreproducible between runs — **pin the
+cart's `*_SEED` to a fixed value for the test**; (b) even pinned, scheduling
+lands ±2–6 frames apart between runs (the beat clock starts at a slightly
+different wall moment), so a per-frame diff false-fails — **compare the
+TRANSITION SEQUENCE of (song, sect, chord), not frames**. Control: the same
+binary run twice must show the same boundary skew (it does — 38 frame
+mismatches, 0 transition mismatches).
 
 ```bash
+# 1. set <NAME>_SEED to a fixed value (e.g. 0xBEE71234) in the cart
 node tools/play.js <name> run --headless --trace a.jsonl --frames 3000 --seed 7
-# migrate, rebuild, rerun to b.jsonl — then the chord/sect streams must be
-# IDENTICAL: diff <(jq -c .w a.jsonl) <(jq -c .w b.jsonl)
+# 2. migrate, rebuild, rerun to b.jsonl
+# 3. dedup consecutive (song,sect,chord) tuples from each .w stream —
+#    the two transition sequences must be IDENTICAL (python, not jq+diff)
+# 4. restore <NAME>_SEED 0
 ```
+
+**Status (2026-06-05): `runtime/radio.h` EXTRACTED; `house.c` migrated as the
+pilot — transition sequences identical, 788 → ~640 lines.** The chosen path:
+new stations build on the scaffold immediately; the other nine carts migrate
+opportunistically (e.g. in the same visit as their engine retrofit), since an
+unmigrated cart keeps working untouched. The migration recipe that worked:
+`#define srnd(n) rad_srnd(&rs, (n))` keeps every PRNG call site textually
+identical (zero reorder risk), and `#define stepMs (clk.stepMs)` etc. alias
+the clock fields under their old names — smallest possible diff.
 
 **Migration order** (one cart per commit — parallel-agent hygiene):
 
-1. `house.c` as pilot (newest, already has the generalized `lead_to`)
+1. ~~`house.c` as pilot~~ ✅ **migrated 2026-06-05** (newest, already had the generalized `lead_to`)
 2. the synth trio `ymo.c` / `dub.c` (same skeleton, near-zero adaptation)
 3. `citypop.c`, `lowend.c`, `jingle.c`, `jangle.c`, `bossa.c`
 4. `ambient.c` and `satie.c` **last** — they deviate most (beatless; 3/4)

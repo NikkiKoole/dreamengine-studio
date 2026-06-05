@@ -289,6 +289,15 @@
     "homage": "Roland TB-303 Bass Line (1981)"
   },
   {
+    "title": "sh-101",
+    "description": "Roland's SH-101 (1982) — the guitar-strap monosynth, fourth box in the classic-machine family (cr-78, tr-808, tb-303). One voice, last-note priority: hold two keys and the newest wins; release it and the previous note comes back. DCO section: SAW or SQUARE wave with a PW (pulse width) knob, plus a SUB OSCILLATOR at -1 or -2 octaves (a second voice burns one of the 8 slots, fine for a mono synth). PORTAMENTO slider wires into note_glide — grab a knob while holding a note and hear the pitch slew. VCF: cutoff + resonance sliders, bipolar ENV MOD amount (the filter envelope opens on attack then closes, or inverts for the 'dwow' bass), and keyboard tracking toggle. ENV: a single ADSR shared by both VCA and VCF — move the sustain while a note rings and hear the filter and volume follow. LFO: RATE + DEPTH knobs and three destinations — VIB (pitch vibrato), PWM (pulse-width shimmer), WAH (filter sweep, live on the held voice). ARPEGGIATOR: UP / DOWN / UP-DOWN mode, 1–3 octave range, RATE knob; hold any keys and SPACE to start. A-; row = white keys, WETYUOP = black, Z/X = octave shift, H = help.",
+    "file": "sh101.cart.png",
+    "kind": [
+      "instrument"
+    ],
+    "homage": "Roland SH-101 (1982)"
+  },
+  {
     "title": "space invaders",
     "description": "Classic arcade shooter. 8×3 alien grid that speeds up as you clear it, 3 enemy bullets, lives. Left/right to move, A to shoot.",
     "file": "18-invaders.cart.png",

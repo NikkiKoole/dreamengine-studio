@@ -33,8 +33,8 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 // ── module type registry ──
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, MOD_TURING, MOD_GRIDS, MOD_MARBLES, MOD_MATHS,
-       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, NTYPE };
-enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST };
+       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, NTYPE };
+enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
@@ -88,6 +88,12 @@ ModType TYPES[NTYPE] = {
                      3, {{"rate",0.5f,14,5.5f,8,28,FMT_F1},{"dpt",0,1,0.3f,24,28,FMT_F1},{"dst",0,2.99f,0,40,28,FMT_DEST}} },
     [MOD_CHANCE]  = { "CHANCE", CLR_BROWN, 4, 5, 2, {{0,false,14,48,"in"},{0,true,34,48,"out"}},
                      1, {{"prob",0,1,0.5f,24,28,FMT_F1}} },
+    // Plaits-style macro voice (audio-notes §8): eng picks a modeled engine, the three
+    // 0..1 macros (har/tmb/mor) mean something different per engine; h/t/m CV inlets ADD
+    // to their knobs (full range — patch an ATTN before the inlet to set depth)
+    [MOD_MACRO]   = { "MACRO", CLR_DARK_PURPLE, 6, 7, 5, {{0,false,8,72,"g"},{1,false,22,72,"p"},{2,false,36,72,"h"},{2,false,50,72,"t"},{2,false,64,72,"m"}},
+                     4, {{"eng",0,2.99f,0,20,32,FMT_ENGINE},{"har",0,1,0.5f,52,32,FMT_F1},
+                         {"tmb",0,1,0.5f,20,54,FMT_F1},{"mor",0,1,0.5f,52,54,FMT_F1}} },
 };
 // knob-index names for the multi-knob sound modules — MUST stay in the same order as the
 // knob arrays in TYPES[] above. Use these instead of raw numbers in eval/presets: a
@@ -95,6 +101,7 @@ ModType TYPES[NTYPE] = {
 // cross-wiring (the fenv/flt/penv mixup of 2026-06-04).
 enum { VK_CUT, VK_RES, VK_PW, VK_WAV, VK_FLT, VK_FENV, VK_PENV };   // MOD_VOICE knobs
 enum { BK_RATE, BK_DEPTH, BK_DEST };                                // MOD_VIBRATO knobs
+enum { MK_ENG, MK_HARM, MK_TIMB, MK_MORPH };                        // MOD_MACRO knobs
 
 int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
 int th(int type) { return TYPES[type].ch * CELL; }
@@ -121,6 +128,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_SEQ]    = { "8-step CV sequencer. Knobs set step values", "0-1 (patch cv→QUANT for pitched melody).", "Advances on clk, fires gate on each step." },
     [MOD_VIBRATO]= { "Audio-rate vibrato via note_lfo(). rate=Hz,", "dpt=depth, dst=pit/cut/pw. 'g' unpatched=", "always on; patched=gate-enable." },
     [MOD_CHANCE] = { "Gate filter: lets incoming gates through", "with prob chance (0=never 1=always).", "Thins patterns without changing the rhythm." },
+    [MOD_MACRO]  = { "Modeled voice (Plaits-style). eng = plk/mlt/", "fm engine; har/tmb/mor shape it (per-engine", "meaning). h/t/m CV inlets add to the knobs." },
 };
 
 // ── module instances + cables ──
@@ -400,9 +408,28 @@ void preset_chance(void) {       // probabilistic gates: dense euclid filtered a
     add_cable(ck, 0, dr, 0); add_cable(ck, 0, dr, 2);
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance };
-#define NPRESET 19
+void preset_macro(void) {        // Plaits-style MACRO voice: Turing epiano, LFO swells morph (FM feedback) on its own
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,  bayx(0), bayy(0)), tm = spawn(MOD_TURING, bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT,  bayx(2), bayy(2)), mc = spawn(MOD_MACRO,  bayx(3), bayy(3));
+    int lf = spawn(MOD_LFO,    bayx(4), bayy(4)), eu = spawn(MOD_EUCLID, bayx(5), bayy(5));
+    int dr = spawn(MOD_DRUM,   bayx(6), bayy(6));
+    mod[ck].param[0] = 96;
+    mod[tm].param[0] = 0.25f;                            // mostly-locked melody loop
+    mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[mc].param[MK_ENG] = 2;                           // FM engine
+    mod[mc].param[MK_HARM] = 0.15f; mod[mc].param[MK_TIMB] = 0.45f; mod[mc].param[MK_MORPH] = 0;   // the epiano detent (fm cart preset 1)
+    mod[lf].param[0] = 0.2f;                             // slow swell into the morph inlet
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, mc, 1);
+    add_cable(ck, 1, mc, 0);                             // /2 gates — give each strike room to ring
+    add_cable(lf, 0, mc, 4);                             // LFO → m: the patch growls and cleans up on its own
+    mod[eu].param[0] = 3; mod[eu].param[1] = 8;
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro };
+#define NPRESET 20
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;
@@ -454,6 +481,12 @@ void init(void) {
     // The VOICE plays from this bank when its amp jack is patched, so the patched ENV fully
     // shapes the amplitude (a true VCA) instead of fighting the slot's own 120ms decay.
     for (int i = 0; i < 9; i++) { instrument(14 + i, waves[i], 2, 0, 7, 8); instrument_filter(14 + i, FILTER_LOW, 800, 8); }
+    // MACRO voice's three modeled engines, one slot each (23-25). PLUCK/MALLET decay on
+    // their own — the long release just lets them ring out after the gate drops; FM gets
+    // the epiano-ish DX strike (decaying brightness) from the fm cart's tuning.
+    instrument(23, INSTR_PLUCK,  1,   0, 7, 1200);
+    instrument(24, INSTR_MALLET, 1,   0, 7, 1200);
+    instrument(25, INSTR_FM,     2, 700, 3,  350);
     preset_generative();
 }
 
@@ -660,6 +693,36 @@ void eval_mod(int mi) {
                 if (rnd_float() < m->param[0]) { m->jackval[1] = 1; m->state[1] = 0; }
             m->state[0] = g; m->state[1] += 1;
             break; }
+        case MOD_MACRO: {
+            if (cable_into(mi, 0) < 0) {   // gate input unpatched → release (no dangling drone)
+                int h = (int)m->state[1]; if (h > 0) { note_off(h); m->state[1] = 0; }
+            }
+            int slot = 23 + (int)clamp(m->param[MK_ENG], 0, 2);
+            float gate = read_in(mi, 0), pitch = read_in(mi, 1);
+            float hv = clamp(m->param[MK_HARM]  + read_in(mi, 2), 0, 1);   // macro = knob + CV inlet
+            float tv = clamp(m->param[MK_TIMB]  + read_in(mi, 3), 0, 1);
+            float mv = clamp(m->param[MK_MORPH] + read_in(mi, 4), 0, 1);
+            if (gate > 0.5f && m->state[0] <= 0.5f) {
+                // strike-shaping macros (pluck pick, mallet hardness) are read at excitation
+                // time — push them onto the slot BEFORE note_on (the request queue keeps order)
+                instrument_harmonics(slot, hv); instrument_timbre(slot, tv); instrument_morph(slot, mv);
+                int mm = (int)pitch; if (mm < 1) mm = 48;
+                int h = (int)m->state[1]; if (h > 0) note_off(h);
+                m->state[1] = note_on(mm, slot, 5);
+                m->state[3] = 0;   // trigger flash
+            } else if (gate <= 0.5f && m->state[0] > 0.5f) {
+                // gate fall = let go: the engine rings through its release (a pluck's whole
+                // point). Drop the handle — the tail keeps its baked pitch/macros.
+                int h = (int)m->state[1]; if (h > 0) { note_off(h); m->state[1] = 0; }
+            }
+            m->state[0] = gate; m->state[3] += 1;
+            m->state[5] = hv; m->state[6] = tv; m->state[7] = mv;   // live bars in draw_extras
+            int h = (int)m->state[1];
+            if (h > 0) {   // live macros reach the sounding voice, slewed (FM brightness, mallet ring, pluck damping)
+                note_pitch(h, pitch < 1 ? 48.0f : pitch);
+                note_harmonics(h, hv); note_timbre(h, tv); note_morph(h, mv);
+            }
+            break; }
     }
 }
 
@@ -700,6 +763,7 @@ const char *knob_str(int fmt, float v) {
     if (fmt == FMT_WAVE)  { const char *W[9] = { "saw", "sqr", "tri", "sin", "noi", "org", "vox", "bel", "fld" }; return W[(int)v]; }   // org/vox/bel/fld = drawn user waves
     if (fmt == FMT_FILTER){ const char *F[4] = { "lp",  "hp",  "bp",  "nt"  }; return F[(int)clamp(v, 0, 3)]; }
     if (fmt == FMT_DEST)  { const char *D[3] = { "pit", "cut", "pw"  }; return D[(int)clamp(v, 0, 2)]; }
+    if (fmt == FMT_ENGINE){ const char *E[3] = { "plk", "mlt", "fm"  }; return E[(int)clamp(v, 0, 2)]; }   // pluck/mallet/fm modeled engines
     if (fmt == FMT_SCALE) return SCALES[(int)v];
     if (fmt == FMT_NOTE)  return NOTES[(int)v];
     if (fmt == FMT_F1)    return str("%.1f", v);
@@ -742,7 +806,7 @@ int handle_at(int mx, int my) {  // the title-bar drag handle (top strip, minus 
     return -1;
 }
 void delete_mod(int mi) {
-    if (mod[mi].type == MOD_VOICE && (int)mod[mi].state[1] > 0) note_off((int)mod[mi].state[1]);   // don't leave a stuck note
+    if ((mod[mi].type == MOD_VOICE || mod[mi].type == MOD_MACRO) && (int)mod[mi].state[1] > 0) note_off((int)mod[mi].state[1]);   // don't leave a stuck note
     for (int c = ncable - 1; c >= 0; c--) if (cable[c].sm == mi || cable[c].dm == mi) remove_cable(c);
     for (int k = mi; k < nmod - 1; k++) mod[k] = mod[k + 1];
     nmod--;
@@ -848,6 +912,13 @@ void draw_extras(int mi) {
         case MOD_CHANCE:
             circfill(cx, y + 18, 4, m->state[1] < 6 ? CLR_WHITE : CLR_BROWN);
             break;
+        case MOD_MACRO: {   // trigger LED + live har/tmb/mor bars — CV modulation made visible
+            circfill(x + 10, y + 17, 4, m->state[3] < 6 ? CLR_WHITE : CLR_DARK_PURPLE);
+            for (int b = 0; b < 3; b++) {
+                rectfill(x + 22, y + 13 + b * 4, 42, 2, CLR_BLACK);
+                rectfill(x + 22, y + 13 + b * 4, (int)(clamp(m->state[5 + b], 0, 1) * 42), 2, CLR_PINK);
+            }
+            break; }
         case MOD_KEYS: {    // 7 white keys; lit while held
             const char KK[7] = { 'A','S','D','F','G','H','J' }; const int OFF[7] = { 0,2,4,5,7,9,11 };
             for (int i = 0; i < 7; i++) {

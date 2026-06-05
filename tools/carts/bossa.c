@@ -137,6 +137,7 @@ static long   songBase   = 0;        // absolute step where the current song sta
 static int    songCount  = 0;
 static double stepMs     = 119.0;
 static int    gv[3]      = { 64, 67, 71 };  // guitar voices (midi), led chord to chord
+static int    gtrPluck   = 0;              // 0 = TRI fake, 1 = INSTR_PLUCK real string
 static bool   gvInit     = false;
 static int    melPitch   = 79;       // melody walker position
 static bool   melOn      = true;     // does the cell play this 2-bar instance?
@@ -350,10 +351,25 @@ static void play_step(long abs, double pos) {
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────
+// the guitar chair has two candidates — A/B them live with G.
+// (gtrPluck=0) TRI + filter env = the shipped bossa nylon fake.
+// (gtrPluck=1) INSTR_PLUCK with low timbre/morph = nylon character from the real string engine.
+static void setup_gtr(void) {
+    if (!gtrPluck) {
+        instrument(I_GTR, INSTR_TRI, 1, 180, 1, 120);
+        instrument_filter(I_GTR, FILTER_LOW, 2200, 3);
+        instrument_env(I_GTR, 0, ENV_CUTOFF, 0, 90, 1400);   // attack sparkle
+    } else {
+        instrument(I_GTR, INSTR_PLUCK, 1, 0, 7, 120);
+        instrument_filter(I_GTR, FILTER_LOW, 2200, 3);        // same warmth cap
+        instrument_harmonics(I_GTR, 0.40f);                   // shorter ring — nylon decays fast
+        instrument_timbre(I_GTR, 0.15f);                      // soft thumb, no pick brightness
+        instrument_morph(I_GTR, 0.45f);                       // mid-string warmth
+    }
+}
+
 static void setup_instruments(void) {
-    instrument(I_GTR, INSTR_TRI, 1, 180, 1, 120);            // nylon pluck
-    instrument_filter(I_GTR, FILTER_LOW, 2200, 3);
-    instrument_env(I_GTR, 0, ENV_CUTOFF, 0, 90, 1400);       // attack sparkle
+    setup_gtr();
 
     instrument(I_BASS, INSTR_TRI, 2, 200, 4, 80);            // round fingered bass
     instrument_filter(I_BASS, FILTER_LOW, 700, 2);
@@ -401,6 +417,7 @@ void update(void) {
         if (!radioOn) note_off_all();
         else scheduled = (long)pos;        // rejoin the broadcast mid-song
     }
+    if (keyp('G')) { gtrPluck = !gtrPluck; setup_gtr(); }    // A/B the guitar chair, mid-song
     if (keyp('H')) showHelp = !showHelp;
     if (mouse_pressed(MOUSE_LEFT)) {       // the little ? button on the chassis
         int hx = mouse_x() - 288, hy = mouse_y() - 172;
@@ -516,23 +533,24 @@ void draw(void) {
     circfill(288, 172, 6, CLR_DARK_BROWN);
     circ(288, 172, 6, CLR_BLACK);
     print("?", 285, 169, CLR_LIGHT_PEACH);
-    print("SPACE next song   H help", 8, 190, CLR_DARK_GREY);
+    print(str("SPACE next song   G gtr:%s   H help", gtrPluck ? "PLUCK" : "TRI"), 8, 190, CLR_DARK_GREY);
 
     if (showHelp) {
         rectfill(44, 40, 232, 122, CLR_BLACK);
         rect(44, 40, 232, 122, CLR_LIGHT_PEACH);
         print("BOSSA RADIO", 52, 46, CLR_LIGHT_PEACH);
         font(FONT_SMALL);
-        static const char *HELP[7][2] = {
+        static const char *HELP[8][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
             { "LEFT/RIGHT", "feel - how many layers play" },
             { "UP/DOWN",    "tempo of this tune" },
+            { "G",          "guitar: nylon tri / real string" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
         };
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             print(HELP[i][0], 52, 60 + i * 9, CLR_YELLOW);
             print(HELP[i][1], 106, 60 + i * 9, CLR_WHITE);
         }

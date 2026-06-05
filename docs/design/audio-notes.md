@@ -571,10 +571,11 @@ decided (§8.2), so the old buffer-free/buffered gate no longer drives the seque
 with the engine that proves the most for the least code. Suggested ordering, each phase
 independently shippable:
 
-1. **`INSTR_PLUCK`** (Karplus-Strong) + the fixed macro surface (§8.1.1 — 6 fns total, independent
-   of engine count). Smallest engine, exercises the per-voice buffer, no companion effect — proves
-   macros + engine-fork + buffer end to end.
-2. **`INSTR_MALLET`/`INSTR_CELESTA`** — buffer-free modal; the music-box / silent-movie voice.
+1. ~~**`INSTR_PLUCK`** (Karplus-Strong) + the fixed macro surface (§8.1.1 — 6 fns total,
+   independent of engine count).~~ **→ SHIPPED 2026-06-05** — per-voice KS buffer (§8.2) made
+   concrete, full macro surface (`instrument_harmonics/timbre/morph` + `note_*` twins), `pluck`
+   showcase cart. Station retrofit (jangle/bossa) is the open follow-up.
+2. **`INSTR_MALLET`/`INSTR_CELESTA`** — buffer-free modal; the music-box / silent-movie voice. ← **NEXT**
 3. **`INSTR_ORGAN` + Leslie (shared) + resonant SVF filter** — the organ as a complete package
    (drawbars → scanner on the buffer → shared rotary). The SVF is the reusable primitive that also
    gives §5.5 and §8.3's formant.

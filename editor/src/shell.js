@@ -985,26 +985,32 @@ if (settings.showPublish) publishBtn.style.display = ''
 
 publishBtn.addEventListener('click', async () => {
   if (!window.studio) return
+  // a Vite hot-reload shows this button before Electron has the new backend —
+  // preload/main only update on a full restart
+  if (!window.studio.publish) { showToast('restart the editor first (run `make`) — publish backend not loaded'); return }
   const slug = (currentCartName || '').toLowerCase().replace(/\.cart\.png$/, '').replace(/[^a-z0-9_-]+/g, '')
   if (!slug) { showToast('the cart needs a name — load one, or "save cart" first'); return }
   if (!confirm(`Publish "${slug}" to the PUBLIC site?\n\nCommits to github.com/NikkiKoole/dreamengine (site/ + tools/carts/${slug}.c) and pushes to master.\n\nLive at: nikkikoole.github.io/dreamengine/${slug}/`)) return
 
-  const tilemapCanvas = document.querySelector('#tilemap-canvas')
-  if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
-  await window.studio.saveMap(getMapBytes())
-
   publishBtn.textContent = 'publishing…'
   publishBtn.disabled = true
-  rlogClear()
+  try {
+    const tilemapCanvas = document.querySelector('#tilemap-canvas')
+    if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+    await window.studio.saveMap(getMapBytes())
+    rlogClear()
 
-  const code = view.state.doc.toString()
-  const result = await window.studio.publish(code, { ...settings, cartName: slug })
+    const code = view.state.doc.toString()
+    const result = await window.studio.publish(code, { ...settings, cartName: slug })
 
-  publishBtn.textContent = '🚀 publish to site'
-  publishBtn.disabled = false
-
-  if (result.ok) showToast(`live in ~1 min: ${result.url}`)
-  else showLog(result)
+    if (result.ok) showToast(`live in ~1 min: ${result.url}`)
+    else showLog(result)
+  } catch (e) {
+    showToast(`publish failed: ${e.message}`)
+  } finally {
+    publishBtn.textContent = '🚀 publish to site'
+    publishBtn.disabled = false
+  }
 })
 
 // ── drag-and-drop cart loading ────────────────────────────────

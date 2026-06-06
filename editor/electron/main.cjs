@@ -1016,7 +1016,30 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
 
     const url = `https://nikkikoole.github.io/dreamengine/${name}/`
     log(`✓ the wasm lives in the dreamengine repo under site/${name}/ — pushed.\n`)
-    log(`▶ play it (live in ~1 min): ${url}\n`)
+    log(`⏳ waiting for GitHub Pages to deploy (~1 min)…\n`)
+
+    // watch OUR commit's deploy run via the public Actions API (no auth needed
+    // for a public repo) and announce when the cart is actually playable
+    const sha = execSync('git rev-parse HEAD', { cwd: ROOT_DIR }).toString().trim()
+    ;(async () => {
+      const api = `https://api.github.com/repos/NikkiKoole/dreamengine/actions/runs?head_sha=${sha}&per_page=1`
+      for (let i = 0; i < 24; i++) {                       // ~4 min max
+        await new Promise(r => setTimeout(r, 10000))
+        try {
+          const res = await fetch(api, { headers: { accept: 'application/vnd.github+json' } })
+          if (!res.ok) continue
+          const run = (await res.json()).workflow_runs?.[0]
+          if (run?.status === 'completed') {
+            log(run.conclusion === 'success'
+              ? `🟢 deployed — it's live: ${url}\n`
+              : `🔴 deploy ${run.conclusion} — see https://github.com/NikkiKoole/dreamengine/actions\n`)
+            return
+          }
+        } catch {}
+      }
+      log(`⚠ couldn't confirm the deploy — check https://github.com/NikkiKoole/dreamengine/actions\n`)
+    })()
+
     return { ok: true, url, output: null }
   } catch (e) {
     log('✗ publish failed:\n' + e.message + '\n')

@@ -962,14 +962,14 @@ buildWebBtn.addEventListener('click', async () => {
   if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
   await window.studio.saveMap(getMapBytes())
 
-  buildWebBtn.textContent = 'building…'
+  const stopDots = busyDots(buildWebBtn, 'building', 'build for web')
   buildWebBtn.disabled = true
   rlogClear()   // open the runtime log panel for step-by-step output
 
   const code = view.state.doc.toString()
   const result = await window.studio.buildWeb(code, settings)
 
-  buildWebBtn.textContent = 'build for web'
+  stopDots()
   buildWebBtn.disabled = false
 
   if (result.ok) {
@@ -978,6 +978,18 @@ buildWebBtn.addEventListener('click', async () => {
     showLog(result)
   }
 })
+
+// busy-dots: "⌛ label", "⌛ label.", "⌛ label.." … while a slow build runs.
+// returns a stop() that restores the button's resting text.
+function busyDots(btn, label, resting) {
+  let n = 0
+  btn.textContent = `⌛ ${label}`
+  const tick = setInterval(() => {
+    n = (n + 1) % 4
+    btn.textContent = `⌛ ${label}${'.'.repeat(n)}`
+  }, 350)
+  return () => { clearInterval(tick); btn.textContent = resting }
+}
 
 // ── publish to site (gated by settings → publish toggle) ─────
 const publishBtn = document.getElementById('publish-btn')
@@ -992,7 +1004,7 @@ publishBtn.addEventListener('click', async () => {
   if (!slug) { showToast('the cart needs a name — load one, or "save cart" first'); return }
   if (!confirm(`Publish "${slug}" to the PUBLIC site?\n\nCommits to github.com/NikkiKoole/dreamengine (site/ + tools/carts/${slug}.c) and pushes to master.\n\nLive at: nikkikoole.github.io/dreamengine/${slug}/`)) return
 
-  publishBtn.textContent = 'publishing…'
+  const stopDots = busyDots(publishBtn, 'publishing', '🚀 publish to site')
   publishBtn.disabled = true
   try {
     const tilemapCanvas = document.querySelector('#tilemap-canvas')
@@ -1008,7 +1020,7 @@ publishBtn.addEventListener('click', async () => {
   } catch (e) {
     showToast(`publish failed: ${e.message}`)
   } finally {
-    publishBtn.textContent = '🚀 publish to site'
+    stopDots()
     publishBtn.disabled = false
   }
 })

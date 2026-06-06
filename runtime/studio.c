@@ -380,7 +380,15 @@ static void poll_virtual_touches(void) {
         vt_id[i]  = GetTouchPointId(i);
     }
     vt_count = n;
-    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && vt_count < VT_MAX) {
+    // mouse-as-touch is a DESKTOP affordance. On a real touch device the browser
+    // also EMULATES mouse events from touches (iOS fires a compatibility mousedown
+    // around finger-release with no clean mouseup during multitouch) — appending
+    // the mouse there creates a stationary ghost contact the moment one of several
+    // fingers lifts (found on iPhone via touchlab, 2026-06-05). Once a real touch
+    // has ever been seen, the device has fingers: stop synthesizing the mouse.
+    static bool seen_real_touch = false;
+    if (n > 0) seen_real_touch = true;
+    if (!seen_real_touch && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && vt_count < VT_MAX) {
         vt_pos[vt_count] = GetMousePosition();
         vt_id[vt_count]  = MOUSE_TOUCH_ID;
         vt_count++;

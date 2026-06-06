@@ -99,6 +99,15 @@ simultaneous fingers on the piano — a full chord at Safari's touch ceiling —
 each note released by exactly its own finger. The release API + per-finger
 model survives contact with hardware on day one.
 
+**Device finding #3 — the ghost contact (FIXED same day):** drag two fingers,
+lift one → a stationary ring lingered. Cause: mouse-as-touch (`MOUSE_TOUCH_ID`)
+is a desktop affordance, but browsers *emulate* mouse events from touches — iOS
+fires a compatibility mousedown around finger-release with no clean mouseup
+during multitouch, so the synthetic mouse joined the pool as a stale contact.
+Fix in `poll_virtual_touches()`: once any real touch has been seen, the mouse
+is never synthesized again that session (a device with fingers doesn't need the
+mouse fallback; its "mouse" is an emulation).
+
 ## 4. Raylib gestures — what's available, and the lean
 
 Raylib ships a gestures module (`rgestures.h`) the engine doesn't expose:

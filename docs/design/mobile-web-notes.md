@@ -152,6 +152,31 @@ makes the 6th-finger nuke unreachable in normal play), any cart swapping
 phone-class screens. Native: all three compile-time (desktop / no touch / 0)
 until a native touch platform exists.
 
+**The ceiling-safeguard pattern (why `touch_ceiling()` matters).** The
+6th-finger mass-cancel (touch-notes device finding #5) **cannot be blocked** —
+iOS abandons the whole gesture at the OS level; no web API intercepts it, and
+by the time the cart hears about it every contact is already cancelled. The
+safeguard is therefore two layers, neither of which is "stop the nuke":
+
+1. **Prevention by design** — the ceiling is a *budget* read at startup; shape
+   the interaction so deliberate play stays at or under it:
+   ```c
+   void init(void) {
+       if (touch_ceiling() > 0 && touch_ceiling() <= 5) {
+           octaves = 1;   // fewer, fatter keys: chords need 3-4 fingers,
+       }                  // finger #6 stops being something players reach for
+   }
+   ```
+   Don't build the playground at the edge of the cliff.
+2. **Graceful failure anyway** — the nuke still happens *accidentally*: a
+   resting palm or the edge of a hand counts as contacts, so a legitimate
+   5-finger chord + a grazing palm = 6 = mass-cancel. Every touch cart must
+   land sane after one: all holds released, no stuck state, play resumes
+   instantly (touchpiano already passes). The signature is detectable if a
+   cart wants to react — all contacts ended on one frame while
+   `touch_count()` sat at the ceiling — e.g. flash a "too many fingers!"
+   toast instead of leaving the player wondering why their chord died.
+
 ## 6. Gestures — status unchanged, now with a device
 
 Raylib's rgestures (swipe/pinch/hold/drag) exist one `#include` below us;

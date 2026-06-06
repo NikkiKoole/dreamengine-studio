@@ -1009,12 +1009,21 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
     await step('node', ['tools/build-site.js', '--finish', name])
 
     log('committing + pushing…\n')
+    const url = `https://nikkikoole.github.io/dreamengine/${name}/`
     const out = await step('sh', ['tools/publish-cart.sh', '--no-build', name])
+
+    // unchanged cart → identical wasm → nothing committed or pushed. Say so
+    // and skip the deploy watcher (there will be no deploy).
+    if (out.includes('nothing new to publish')) {
+      log(`✓ nothing changed since the last publish — no push needed.\n`)
+      log(`▶ the current version is already live: ${url}\n`)
+      return { ok: true, url, output: null }
+    }
+
     // the script echoes its own URLs — drop those lines so the live link below
     // is the ONE clickable url in the log
     log(out.split('\n').filter(l => l.trim() && !l.includes('https://')).join('\n') + '\n')
 
-    const url = `https://nikkikoole.github.io/dreamengine/${name}/`
     log(`✓ the wasm lives in the dreamengine repo under site/${name}/ — pushed.\n`)
     log(`⏳ waiting for GitHub Pages to deploy (~1 min)…\n`)
 
@@ -1023,12 +1032,17 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
     const sha = execSync('git rev-parse HEAD', { cwd: ROOT_DIR }).toString().trim()
     ;(async () => {
       const api = `https://api.github.com/repos/NikkiKoole/dreamengine/actions/runs?head_sha=${sha}&per_page=1`
+      let emptyPolls = 0
       for (let i = 0; i < 24; i++) {                       // ~4 min max
         await new Promise(r => setTimeout(r, 10000))
         try {
           const res = await fetch(api, { headers: { accept: 'application/vnd.github+json' } })
           if (!res.ok) continue
           const run = (await res.json()).workflow_runs?.[0]
+          if (!run && ++emptyPolls >= 6) {                 // a minute with no run at all
+            log(`⚠ no deploy run appeared for this push — check https://github.com/NikkiKoole/dreamengine/actions\n`)
+            return
+          }
           if (run?.status === 'completed') {
             log(run.conclusion === 'success'
               ? `🟢 deployed — it's live: ${url}\n`

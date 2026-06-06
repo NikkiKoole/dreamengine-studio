@@ -5,6 +5,10 @@
 > only a physical touchscreen can answer. The on-device probe is the **`touchlab`**
 > cart — pick it up the day an iPad is available.
 >
+> **2026-06-06: the web phantom-touch bug is root-caused (emscripten `wontfix` +
+> raylib single-removal) with a concrete fix plan → §7.** gestures.h follow-ups
+> (2-finger pan vs pinch, id-keyed pinch pair) → §8.
+>
 > Status of shipped/open items → [`../STATUS.md`](../STATUS.md). Probe verdicts →
 > [`probe-carts.md`](probe-carts.md).
 
@@ -206,3 +210,96 @@ what fails; items 1/6/7 are shell bugs if they fail, 2/3/4/5 are engine bugs.
 | `multitouch` (paint) | first multitouch demo — `touch_id` colors, `tapp` CLEAR | shipped, untested on hardware |
 | `touchlab` | the device test card (§5, now 9 points: +rgestures readout, +gestures.h side-by-side) | shipped, first iPhone contact 2026-06-05 (gesture verdict in §5.8) |
 | `touchpiano` | the release API's customer (§3) | **shipped 2026-06-05**, same commit as the API |
+
+## 7. The web phantom touch point — ROOT CAUSE FOUND (2026-06-06)
+
+**Symptom** (observed on device, web builds only — native is clean): lift a finger
+and its touch point *stays in the list* — `touch_count()` doesn't drop, a stale
+contact sits frozen at the last position. Not every time, but often, and **most
+reliably when two fingers release at (nearly) the same moment**. Raylib's own
+"input multi touch" web example reproduces it; the "input gestures" example
+doesn't (explained below). `gestures.h` can't paper over it — garbage in: the
+virtual touch pool mirrors raylib's list, so the phantom never produces a
+`touch_ended_*` event, lift-judged swipes never fire, and `tap()` rects read as
+held forever.
+
+**The cause is two bugs stacked, and the bottom one is `wontfix`:**
+
+1. **Emscripten violates the Touch Events spec** —
+   [emscripten#4679](https://github.com/emscripten-core/emscripten/issues/4679)
+   (closed `wontfix`). Per W3C, a `touchend`'s `changedTouches` lists *only* the
+   lifted fingers and `touches` lists *only* the remaining ones. Emscripten's
+   `library_html5.js` instead hands C a `touches[]` that conflates
+   remaining + lifted, **with `isChanged == true` on every entry**. So native
+   code physically cannot tell which finger lifted from the emscripten event
+   alone.
+2. **Raylib's web backend removes at most ONE point per `touchend` event** —
+   [raylib#4474](https://github.com/raysan5/raylib/issues/4474) ("Touches do not
+   release at the correct time"), patched by
+   [PR#4488](https://github.com/raysan5/raylib/pull/4488) (in raylib 5.5 — which
+   is exactly what `runtime/raylib-web/` vendors) as a blunt
+   `pointCount--` per touchend; current master refines it to "find the first
+   `isChanged` entry, shift the array up, decrement, **`break`**". Either way:
+   a single `touchend` carrying **two** genuine releases (your
+   two-fingers-at-once case — the browser batches them into one event)
+   decrements once. One phantom remains until some later touch event happens to
+   shake it loose. Upgrading raylib does not fix this; the upstream data is
+   ambiguous (bug 1) and the removal loop is single-shot by design.
+
+**Why the "input gestures" example looks immune:** `rgestures.h` never re-reads
+the raw point array — on any `TOUCH_ACTION_UP` it hard-resets all gesture state
+and forces `pointCount = 0`. The phantom still exists in the array; the gestures
+module just never looks at it again. (And why it turns a two-finger drag into
+pinch/zoom: its `pointCount == 2` branch *is* the pinch branch — there is no
+two-finger-pan gesture at all, and `MINIMUM_PINCH` is a tiny 0.005 normalized
+threshold, so any two-finger motion with the slightest distance change reads as
+GESTURE_PINCH_IN/OUT. Confirms the §4 never-wrap verdict from yet another angle.)
+
+**The fix — own the touch truth on web (don't trust raylib's array there).**
+The DOM's `event.touches` *is* spec-correct in every browser: it always lists
+exactly the currently-active contacts. So rebuild, don't decrement:
+
+- `runtime/web_shell.html`: add canvas `touchstart/move/end/cancel` listeners
+  (`addEventListener` **coexists** with emscripten's handlers — nothing about
+  raylib's plumbing changes). On *every* event, rebuild a JS mirror array
+  (`identifier, x, y` per entry) from `event.touches`, canvas-space via
+  `getBoundingClientRect()` (same scaling math touchlab test 1 verifies).
+  `touches.length === 0` ⇒ mirror is empty, unconditionally. `touchcancel`
+  handled identically to `touchend` (OS interruptions — and WebKit sometimes
+  drops it, which the rebuild-every-event model shrugs off anyway).
+- `studio.c`, `poll_virtual_touches()`: under `PLATFORM_WEB`/emscripten, read
+  the mirror via a small `EM_JS` instead of
+  `GetTouchPointCount()/GetTouchPointId()/GetTouchPosition()`. Everything
+  downstream — the vt pool, `tapp/tapr`, `touch_ended_*`, gestures.h — is
+  already keyed by id and just starts receiving correct data. Native path
+  untouched.
+
+This is immune to both bugs by construction: we never decrement a count, we
+*replace* the active set with the browser's canonical one each event.
+
+**Acceptance test** (touchlab, on device, web build): repeatedly press two
+fingers and lift both simultaneously — `touch_count()` must return to 0 every
+single time, and LIFT must report both ids. Then the §5 card top-to-bottom to
+confirm no regressions (especially test 1 coordinates and test 3 id stability,
+since both now flow through the mirror).
+
+## 8. gestures.h — known gaps (work after §7 lands)
+
+§7 is the prerequisite: until the phantom is fixed, lift-judged gestures misfire
+on web no matter what this header does. Then, in rough order of value:
+
+1. **Two-finger pan vs pinch.** `pinch_scale()` is a naive distance ratio of
+   touches 0 and 1 — any two-finger drag *also* changes that distance slightly,
+   and there's no pan output at all. The classifier games actually want:
+   compare **centroid motion** (pan) against **inter-finger distance change**
+   (pinch) with a dead-zone/hysteresis — below thresholds, report neither;
+   commit to whichever dominates. Add `gest_pan_x()/gest_pan_y()` (centroid
+   delta this frame, two-finger only) beside a hardened `pinch_scale()`.
+2. **Pinch pair must be id-keyed.** Today the pair is whatever sits at indices
+   0 and 1 — a third finger landing or an index shuffle silently swaps the pair
+   and `p_dist` compares two different geometries for one frame (spike). Track
+   the pinch pair by id (first two ids seen), reset cleanly when either lifts.
+3. **Net-direction-only swipes** — only landing and lift positions are judged;
+   a finger that hooks (left then right) records the net direction. Fine for
+   now; noted so nobody mistakes it for a bug. Path tracking only if a cart
+   actually needs flick-curves.

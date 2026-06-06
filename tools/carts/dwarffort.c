@@ -71,7 +71,7 @@ static int   day;
 static float day_t;          // seconds into the current day
 static float banner_t;       // new-day banner ease-in
 static int   tool;           // TOOL_DIG / TOOL_WALL
-static bool  paused;
+static bool  sim_paused;
 static int   over;           // 0 play, 1 endured
 static bool  drag_l, drag_r; // left/right designation drags
 #define DAY_SECS   16.0f
@@ -279,7 +279,7 @@ static void reset_game(void) {
 
     stone = 6; shown_stone = 6;
     day = 1; day_t = 0; banner_t = 1.0f;
-    tool = TOOL_DIG; paused = false; over = 0;
+    tool = TOOL_DIG; sim_paused = false; over = 0;
     drag_l = drag_r = false;
 }
 
@@ -303,7 +303,7 @@ void update(void) {
     // tool + pause hotkeys
     if (keyp('1')) tool = TOOL_DIG;
     if (keyp('2')) tool = TOOL_WALL;
-    if (keyp(KEY_SPACE)) paused = !paused;
+    if (keyp(KEY_SPACE)) sim_paused = !sim_paused;
     if (mouse_wheel() > 0) tool = TOOL_DIG;
     if (mouse_wheel() < 0) tool = TOOL_WALL;
 
@@ -318,7 +318,7 @@ void update(void) {
     if (drag_l && in_map(mx, my)) designate(cx, cy, false);
     if (drag_r && in_map(mx, my)) designate(cx, cy, true);
 
-    if (paused) { shown_stone = lerp(shown_stone, stone, clamp(7 * D, 0, 1)); return; }
+    if (sim_paused) { shown_stone = lerp(shown_stone, stone, clamp(7 * D, 0, 1)); return; }
 
     // day clock
     day_t += D;
@@ -443,7 +443,7 @@ void draw(void) {
     rect(64, by, 60, 11, tool == TOOL_WALL ? CLR_WHITE : CLR_DARK_GREY);
     print("2 WALL", 69, by + 2, tool == TOOL_WALL ? CLR_BLACK : CLR_LIGHT_GREY);
     // hint / pause
-    if (paused) print(blink(18) ? "-- PAUSED (space) --" : "", 150, by + 2, CLR_YELLOW);
+    if (sim_paused) print(blink(18) ? "-- PAUSED (space) --" : "", 150, by + 2, CLR_YELLOW);
     else print("L-drag mark  R-drag erase", 132, by + 2, CLR_DARK_GREY);
 
     // new-day banner

@@ -1026,6 +1026,7 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
 
     log(`✓ the wasm lives in the dreamengine repo under site/${name}/ — pushed.\n`)
     log(`⏳ waiting for GitHub Pages to deploy (~1 min)…\n`)
+    log(`   follow it live: https://github.com/NikkiKoole/dreamengine/actions\n`)
 
     // watch OUR commit's deploy run via the public Actions API (no auth needed
     // for a public repo) and announce when the cart is actually playable

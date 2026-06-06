@@ -11,6 +11,8 @@ let currentCartName = ''  // set when a cart is loaded; used as the game window 
 // the loaded cart's name lives OUTSIDE the editor chrome: in the macOS menu bar
 // (as a top-level menu — the window's titlebar is hidden) and in document.title
 // (dock / Mission Control / browser tab). Glance up to see what you're editing.
+let currentCartFile = ''   // the cart's FILE slug (zoo, loveparade) — publish uses
+                           // this, never the display title ("pixel zoo" ≠ zoo.cart.png)
 function setCartName(name) {
   currentCartName = name || ''
   document.title = currentCartName ? `dreamengine — ${currentCartName}` : 'dreamengine'
@@ -693,7 +695,7 @@ async function buildTutorialsPanel() {
     card.appendChild(img)
     card.appendChild(info)
 
-    card.addEventListener('click', () => { setCartName(title); loadCartFromUrl(url) })
+    card.addEventListener('click', () => { setCartName(title); currentCartFile = String(file).replace(/\.cart\.png$/i, ''); loadCartFromUrl(url) })
 
     grid.appendChild(card)
     return { card, titleEl, descEl, idx, title: title || '', desc: description || '',
@@ -900,7 +902,7 @@ saveCartBtn.addEventListener('click', async () => {
   // adopt the saved filename as the cart name (shown in the window title)
   if (saved && saved.ok && saved.filePath) {
     const base = saved.filePath.split('/').pop().replace(/\.cart\.png$/, '').replace(/\.png$/, '')
-    if (base) setCartName(base)
+    if (base) { setCartName(base); currentCartFile = base }
   }
 })
 
@@ -950,7 +952,7 @@ function applyCart(cart) {
 loadCartBtn.addEventListener('click', async () => {
   if (!window.studio) return
   const cart = await window.studio.loadCart()
-  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); applyCart(cart) }
+  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } applyCart(cart) }
 })
 
 // ── build for web ─────────────────────────────────────────────
@@ -1000,7 +1002,7 @@ publishBtn.addEventListener('click', async () => {
   // a Vite hot-reload shows this button before Electron has the new backend —
   // preload/main only update on a full restart
   if (!window.studio.publish) { showToast('restart the editor first (run `make`) — publish backend not loaded'); return }
-  const slug = (currentCartName || '').toLowerCase().replace(/\.cart\.png$/, '').replace(/[^a-z0-9_-]+/g, '')
+  const slug = (currentCartFile || currentCartName || '').toLowerCase().replace(/\.cart\.png$/, '').replace(/[^a-z0-9_-]+/g, '')
   if (!slug) { showToast('the cart needs a name — load one, or "save cart" first'); return }
   if (!confirm(`Publish "${slug}" to the PUBLIC site?\n\nCommits to github.com/NikkiKoole/dreamengine (site/ + tools/carts/${slug}.c) and pushes to master.\n\nLive at: nikkikoole.github.io/dreamengine/${slug}/`)) return
 
@@ -1033,7 +1035,7 @@ document.addEventListener('drop', async e => {
   if (!file || !file.name.endsWith('.png')) return
   const filePath = window.studio.getFilePath(file)
   const cart = await window.studio.loadCartFile(filePath)
-  if (cart && cart.ok) { if (cart.name) setCartName(cart.name); applyCart(cart) }
+  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } applyCart(cart) }
 })
 
 let hideTimer = null
@@ -1316,6 +1318,7 @@ window.addEventListener('load', () => {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: EMPTY_TEMPLATE } })
   } else {
     setCartName('pixel zoo')
+    currentCartFile = 'zoo'
     loadCartFromUrl('/carts/zoo.cart.png').catch(() => {})
   }
 })

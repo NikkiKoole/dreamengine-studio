@@ -1210,7 +1210,24 @@ function rlogClear() {
 function rlogAddLine(text, cls) {
   const line = document.createElement('div')
   if (cls) line.className = cls
-  line.textContent = text
+  // linkify https URLs — click opens the system browser (not the editor window)
+  const re = /https?:\/\/[^\s)]+/g
+  let last = 0, m
+  while ((m = re.exec(text)) !== null) {
+    const url = m[0]
+    line.appendChild(document.createTextNode(text.slice(last, m.index)))
+    const a = document.createElement('a')
+    a.href = url
+    a.textContent = url
+    a.addEventListener('click', e => {
+      e.preventDefault()
+      if (window.studio?.openExternal) window.studio.openExternal(url)
+      else window.open(url, '_blank')
+    })
+    line.appendChild(a)
+    last = m.index + url.length
+  }
+  line.appendChild(document.createTextNode(text.slice(last)))
   rlogBody.appendChild(line)
   while (rlogBody.childElementCount > RLOG_MAX_LINES) {
     rlogBody.removeChild(rlogBody.firstChild)

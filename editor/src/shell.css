@@ -298,6 +298,8 @@ html, body {
   word-break: break-word;
   color: var(--fg);
 }
+.rlog-body a { color: #06b5e0; text-decoration: underline; cursor: pointer; }
+.rlog-body a:hover { color: #5fd7ff; }
 .rlog-exit  { color: #7ec87e; }
 .rlog-crash { color: #ff6e6e; }
 

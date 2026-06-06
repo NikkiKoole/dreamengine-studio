@@ -918,6 +918,11 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
   })
 })
 
+// open a URL in the system browser (rlog's clickable links)
+ipcMain.handle('studio:open-external', (_e, url) => {
+  if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
+})
+
 // ── publish to site ───────────────────────────────────────────
 // Builds the CURRENT editor cart (code + sprites + map + settings) straight to
 // site/<name>/, writes the C source back to tools/carts/<name>.c (repo and site
@@ -986,6 +991,10 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
 
   try {
     await step('emcc', args)
+    for (const f of ['index.html', 'index.js', 'index.wasm']) {
+      const fp = path.join(outDir, f)
+      if (fs.existsSync(fp)) log(`  ${fp}  (${Math.round(fs.statSync(fp).size / 1024)} KB)\n`)
+    }
 
     // write the source back so tools/carts/ and the site can't drift.
     // (sprites are NOT written back: editor pixels and a .cart.js generator are
@@ -1004,7 +1013,8 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
     log(out + '\n')
 
     const url = `https://nikkikoole.github.io/dreamengine/${name}/`
-    log(`✓ pushed — live in ~1 min: ${url}\n`)
+    log(`✓ pushed — the wasm now lives in the dreamengine repo under site/${name}/,\n`)
+    log(`  served by GitHub Pages at ${url} (live in ~1 min)\n`)
     return { ok: true, url, output: null }
   } catch (e) {
     log('✗ publish failed:\n' + e.message + '\n')

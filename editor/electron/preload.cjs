@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('studio', {
   getFilePath:  (file)     => webUtils.getPathForFile(file),
   buildWeb:     (code, cfg) => ipcRenderer.invoke('studio:build-web', code, cfg),
   publish:      (code, cfg) => ipcRenderer.invoke('studio:publish', code, cfg),
+  openExternal: (url)       => ipcRenderer.invoke('studio:open-external', url),
   setCartName:  (name)     => ipcRenderer.send('cart:set-name', name),
 })

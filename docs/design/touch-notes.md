@@ -213,7 +213,10 @@ what fails; items 1/6/7 are shell bugs if they fail, 2/3/4/5 are engine bugs.
 
 ## 7. The web phantom touch point — ROOT CAUSE FOUND (2026-06-06)
 
-> **Fix BUILT same day, pending device confirmation.** Exactly the plan below:
+> **Fix BUILT & DEVICE-PASSED same day** (phone, live gallery: two-finger
+> simultaneous releases drop the count to 0; touchpiano's lift ripples — once
+> intermittent because releases were swallowed — now fire on every lift).
+> Exactly the plan below:
 > `web_shell.html` rebuilds `Module.deTouches` (flat `[id,x,y]` triples, canvas
 > pixels, filtered to `touch.target === canvas`) from `event.touches` on every
 > touch event; `studio.c`'s `poll_virtual_touches()` reads it via

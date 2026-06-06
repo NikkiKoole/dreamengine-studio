@@ -1,0 +1,15 @@
+{
+  "name": "5. draw your character",
+  "short_name": "5. draw your character",
+  "display": "fullscreen",
+  "background_color": "#1b1c1f",
+  "theme_color": "#1b1c1f",
+  "start_url": "./",
+  "icons": [
+    {
+      "src": "cart.png",
+      "sizes": "320x200",
+      "type": "image/png"
+    }
+  ]
+}

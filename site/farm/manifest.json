@@ -1,0 +1,15 @@
+{
+  "name": "Lil Farm",
+  "short_name": "Lil Farm",
+  "display": "fullscreen",
+  "background_color": "#1b1c1f",
+  "theme_color": "#1b1c1f",
+  "start_url": "./",
+  "icons": [
+    {
+      "src": "cart.png",
+      "sizes": "320x200",
+      "type": "image/png"
+    }
+  ]
+}

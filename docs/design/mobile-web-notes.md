@@ -119,6 +119,39 @@ plus a cart that exercises it, per CLAUDE.md. Shell-side (no API): small-screen
 CSS tweaks if needed, and verifying iOS audio unlock (touch-notes §5.6) — the
 radios make first-tap audio behavior very visible.
 
+**Extension (researched 2026-06-06, after device finding #5 — the iPhone
+6th-finger mass-cancel made device class actionable):** grow the one function
+into a small device-facts trio, same plumbing precedent as the `Module.deTouches`
+touch mirror (shell computes once at boot → `EM_JS` read):
+
+```c
+bool touch_available(void);   // as above
+int  device_class(void);      // DEV_DESKTOP / DEV_PHONE / DEV_TABLET
+int  touch_ceiling(void);     // max simultaneous fingers: 5 iPhone, 10 iPad,
+                              // maxTouchPoints Android, 0 desktop
+```
+
+Detection facts (the Apple traps, so nobody re-derives them):
+
+- **iPhone** is honest — UA contains `iPhone`.
+- **iPad lies**: since iPadOS 13 Safari masquerades as a desktop Mac
+  (`Macintosh; Intel Mac OS X`). The canonical tell: UA says Mac **and**
+  `navigator.maxTouchPoints > 1` → iPad (real Macs report 0).
+- **`navigator.maxTouchPoints` can't give the iOS ceiling**: it reports 5 on
+  BOTH iPhone and iPad, while the iPad really delivers ~10 (touchlab-measured).
+  So the ceiling is *derived*: iPhone → 5, iPad → 10, Android →
+  `maxTouchPoints` (digitizers report truthfully there), desktop → 0.
+- **No physical screen size exists on the web** — CSS px are roughly constant
+  angular size, so the standard proxy is `min(innerWidth, innerHeight)`:
+  ≲ 500 → phone-class, ~500–900 → tablet-class, above → desktop; combine with
+  `matchMedia('(pointer: coarse)')` for finger-vs-mouse.
+
+First customers: touchpiano (`touch_ceiling() <= 5` → one octave, fatter keys —
+makes the 6th-finger nuke unreachable in normal play), any cart swapping
+"press Z" for "tap to start", tiny-font carts choosing `FONT_NORMAL` on
+phone-class screens. Native: all three compile-time (desktop / no touch / 0)
+until a native touch platform exists.
+
 ## 6. Gestures — status unchanged, now with a device
 
 Raylib's rgestures (swipe/pinch/hold/drag) exist one `#include` below us;

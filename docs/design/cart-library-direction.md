@@ -92,14 +92,18 @@ pattern at the bottom.
    tinydaws.md.
 7. **MT-70 Casiotone preset keyboard** (decided 2026-06-07: cart-land first, per
    the second-customer rule — instrument-engines §8.9 corrected note has the full
-   story). A little home keyboard with the 10 preset buttons; the build *is* the
-   showcase, because the presets split across three shipped techniques: the struck
-   half (Vibes/Celesta/Chime/Bells/Banjo) = `INSTR_MALLET` macro positions, the
-   sustained half (Organ/Flute/JzOrg2) = **2-slot sine stacking** (the sh101
-   SOURCE-MIXER pattern — the source code literally teaches additive synthesis),
-   Cosmic's crossfade = two `note_vol` rides. Doubles as the **probe cart for the
-   Additive engine**: its tuned ratio/decay table is the future engine's macro
-   homework, and presets re-bake as macro positions when that engine lands.
+   story). **→ SHIPPED 2026-06-07** as the `mt70` cart, built slightly simpler than
+   sketched: **stacking is the primary implementation for all 10 presets** (1–3
+   `note_on`s per key on separate slots, `note_pitch` float correction for exact
+   ratios — 3.0 = +19.02 st), because the Chime's perfect-4th interval is outside
+   mallet's fixed modal ratios; `INSTR_MALLET` is instead the **SRC A/B switch** on
+   the five struck presets (recipe vs engine, judged by ear). Trace-verified:
+   VIBES key = 2 voices, BELLS key = 3, mallet mode = 1. Plus vibrato, the
+   obligatory demo tune, and a voices/16 meter with an oldest-key budget guard.
+   Open tail: the owner ear pass (preset taste-tuning, A/B verdict) + the
+   probe-carts.md findings entry. Doubles as the **probe cart for the Additive
+   engine**: its tuned ratio/decay table is the future engine's macro homework,
+   and presets re-bake as macro positions when that engine lands.
 
 **Blocked on missing engines** ([`instrument-engines.md`](instrument-engines.md) §8.9
 owns the "which engine next" call):

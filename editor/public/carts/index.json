@@ -2341,6 +2341,14 @@
     ]
   },
   {
+    "title": "mt-70",
+    "description": "A 1982 Casiotone home keyboard rebuilt with ZERO new engine code - the probe cart that proves 'two oscillators' is a recipe, not missing infrastructure. The real MT-70 mixed 2 (sometimes 3) sine waves per key, each with its own decay; here every key press fires 1-3 stacked notes on separate instrument slots, pitch-corrected to EXACT harmonic ratios with note_pitch floats (ratio 3.0 = +19.02 semitones - integer rounding would beat). All ten hardware presets transcribed from the source data, each with its original description ('the dullest piano ever'). The SRC switch is the A/B experiment: struck presets (vibes, chime, bells, celesta, banjo) can swap to a single INSTR_MALLET voice - your ear judges recipe vs engine. The voices meter shows the real cost: stacking pays 2-3 voices per key. Touch the keys (multitouch, slide = glissando, lift = release), Z..M + , = one octave on the computer keyboard, 1..0 presets, A vibrato, K src 2-osc/mallet, SPACE the obligatory demo tune.",
+    "file": "mt70.cart.png",
+    "kind": [
+      "instrument"
+    ]
+  },
+  {
     "title": "fm",
     "description": "INSTR_FM showcase - the third modeled ENGINE: two-operator FM, the DX-synth recipe. An inaudible modulator sine bends the carrier's phase; brightness DECAYS within each note like a real DX strike (bright attack, mellow tail), and SWELLS along a slow amp attack so brass can speak. The 1:1 detent carries the built-in DX tine - the E.PIANO attack ping. The three engine macros: instrument_harmonics = carrier:mod ratio (snapped detents - integers sound musical/harmonic, off-integers are bells and metal), instrument_timbre = brightness (FM amount), instrument_morph = modulator feedback (clean to saw-edge growl to noisy clang). Five presets (1 epiano, 2 bell, 3 bass, 4 brass, 5 clang) are knob positions plus an ADSR - a DX patch is both, since this engine deliberately doesn't bake its amp envelope. The modeling rig: seven sliders (three macros + a full ADSR with live ms readouts and a drawn envelope shape - the selected segment lights up), and the panel prints the exact instrument() call to copy into your cart. The scope draws the engine's actual formula live - strike a key and watch the wave mellow (and the tine flicker). A S D F G H J K play a major scale, 1..5 presets, drag any slider (or LEFT/RIGHT + UP/DOWN), SPACE chord, M autoplay on/off.",
     "file": "fm.cart.png",

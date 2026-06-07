@@ -201,7 +201,9 @@ their `kind[]` tags.
         2026-06-05: epiano/bell demand is already on the dial.~~ **SHIPPED 2026-06-05** —
         snapped ratio table, in-note brightness decay (the DX strike), feedback morph; `fm`
         showcase cart (epiano/bell/bass/brass/clang presets + a live formula scope). Design:
-        instrument-engines §8.8.3. Open tail: taste-tuning (brass is the named stress test) + the
+        instrument-engines §8.8.3. The two named risks both resolved same-day (§8.8.3
+        post-ship findings): epiano tine added → nameplate test PASSED; brass fixed by
+        making brightness follow the amp attack. Open tail: plain taste-tuning + the
         citypop/lowend epiano retrofits.
      4. **`INSTR_ORGAN`** — Hammond drawbars → scanner. ← **NEXT** *(decided 2026-06-05: the
         Leslie ships LATER as an add-on, not in the same bite — the drawbar core is buffer-free
@@ -212,8 +214,8 @@ their `kind[]` tags.
         engine = Rhodes/Wurli/Clav via pickup type; only piano + guitar need the pluck-proven
         buffer path. instrument-engines §8.5 step 5 + §8.7.)*
      Beyond that, the decided queue (2026-06-05, full rationale instrument-engines §8.5 steps 6–10):
-     **PD (CZ — the cheap snack, 2 floats) → reed** *(or waveguide brass first, if FM's brass
-     stress test fails)* **→ membrane (hand percussion) → bowed/pipe + the buffered
+     **PD (CZ — the cheap snack, 2 floats) → reed** *(FM's brass stress test passed, so the
+     waveguide-brass swap clause is moot)* **→ membrane (hand percussion) → bowed/pipe + the buffered
      piano/guitar pair → formant + effects layer.** Additive stays deferred (`INSTR_SINE` + FM
      cover its near corners; it subsumes the MT70/sine family when it lands).
    Two findings already resolved: the **MT70 presets** (Flute/Bells/Organ/Vibes/JzOrg2…) are

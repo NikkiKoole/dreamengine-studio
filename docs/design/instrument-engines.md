@@ -259,8 +259,12 @@ independently shippable:
    morph's top. → **Second ear pass, same day: "now it really sounds like the FM
    epiano" — nameplate test PASSED.** The tine ships as-is; the fm cart's scope draws it
    (the 14× flicker on strike). This closes the epiano taste loop and greenlights the
-   citypop/lowend Rhodes retrofits with confidence. Remaining FM tail: the brass
-   stress test (attack-rise question, §8.8.3's follow-amp-env alternative if it bites).
+   citypop/lowend Rhodes retrofits with confidence. → **The brass stress test also
+   resolved the same day** (§8.8.3 post-ship findings): the in-note decay was backwards
+   for horns, so brightness now **follows the amp attack** — a 70ms-attack slot speaks
+   like a horn, instant-attack patches byte-identical. Both named risks closed; the FM
+   tail is plain taste-tuning. (Already exercised in anger: yacht.c's epiano comps,
+   tr909's clang hats, game-music's hard-bop combo recipe.)
 4. **`INSTR_ORGAN`** — drawbars → scanner, buffer-free core. *(2026-06-05: the Leslie is
    deferred — ships later as the effects/bus layer's first instance, §8.10; the morph macro's
    scanner vibrato carries the motion until then.)* Pilots the held-notes + macros-as-CV
@@ -276,8 +280,9 @@ independently shippable:
 6. **`INSTR_PD`** (Casio CZ) — the snack between bigger ports: 2 floats, buffer-free,
    resonant sweeps with zero filter. Slot it in whenever a small win is wanted.
 7. **`INSTR_REED`** (clarinet↔sax) — first true wind; one bore line fits `ks_buf` as-is,
-   zero architecture work. **Swap with waveguide Brass if FM's brass stress test (§8.8.3)
-   fails — then Brass jumps the queue as the prepared answer.**
+   zero architecture work. *(The swap clause is moot: FM's brass stress test **passed**
+   2026-06-05 — §8.8.3 post-ship findings — so reed keeps this slot; waveguide Brass
+   stays a catalog row for when a real lip model is wanted.)*
 8. **`INSTR_MEMBRANE`** — tabla/conga/djembe, ~100 B mallet-pattern port; hand percussion
    (strike-pos + pitch-bend) for the world-music stations.
 9. **Bowed / Pipe** — after the organ proves the held-note surface, and pending the
@@ -565,13 +570,13 @@ the table's only job is to say what those three mean for each. Grow it freely.
 | Engine | navkit src (§8.7) | buffer | harmonics | timbre | morph | character |
 |---|---|---|---|---|---|---|
 | **Additive / sine** (bell, choir, brass, strings) | additive osc | free | # / spread of partials | spectral tilt (brightness) | per-partial decay + inharmonicity | rich multi-partial pads. (A *bare* sine is already `INSTR_SINE` — see the MT70 note below) |
-| **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full step-1 design: §8.8.3** ← next |
+| **FM** (2-op + feedback, DX) | `processFMOscillator` | free | carrier:modulator ratio (snapped table) | mod index (decays in-note) | feedback | DX bells, chimes, e-pianos, clang. Macros *are* the cure for "expert to dial". **Full design + post-ship findings: §8.8.3** — SHIPPED 2026-06-05 |
 | **AM / ring mod** | trivial (≈10 lines native) | free | modulator ratio | AM ↔ ring depth | modulator detune / wave | metallic, robotic, clangorous bells |
 | **Voice / formant** | formant SVF + buzz (§8.3) | free (reuses SVF) | vowel (a→e→i→o→u) | breathiness / brightness | formant shift (size/gender) | choir "aah", vocal-organ, talkbox. Comes near-free with the §8.3 filter |
 | **Bowed string** (violin/cello) | `processBowedOscillator` (Smith/McIntyre waveguide) | nut+bridge lines, **sum = one period → likely packs into the one `ks_buf`** (split at the bow point; verify at port) | bow position (sul tasto ↔ ponticello) | bow pressure (smooth ↔ scratchy stick-slip) | bow velocity / swell | sustained strings that *speak* — attack scratch, swells. Wants held notes (§6); macros-as-CV is its natural surface |
 | **Reed** (clarinet ↔ sax) | `processReedOscillator` (pressure-driven reed valve) | one `boreBuf[1024]` — **fits today's `ks_buf` as-is** | bore conicity (clarinet hollow-odd ↔ sax full) — literally navkit's `bore` param | reed stiffness (dark ↔ bright) | breath / aperture (soft ↔ overblown squawk) | the *blown* family's workhorse; klezmer to smoky jazz on one knob |
 | **Pipe / flute** (Fletcher/Verge jet-drive) | `processPipeOscillator` | upper+lower bore halves (sum ≈ bore; same one-buffer pack as bowed) + tiny `jetBuf[64]` | overblow (fundamental ↔ octave flageolet) | breath noise (pure ↔ airy) | embouchure | airy flutes, pan pipes, organ-flue color; breathy attacks for free |
-| **Brass** (lip-valve waveguide) | `processBrassOscillator` (2nd-order lip mass-spring + bore) | one `boreBuf[1024]` — **fits `ks_buf` as-is** | bore conicity (trumpet ↔ horn) | blow pressure (soft ↔ brassy blare — the rip/blare *is* the model) | mute (open ↔ harmon) | **the prepared answer if FM brass fails its §8.8.3 attack-rise stress test** — a real lip model, not an approximation |
+| **Brass** (lip-valve waveguide) | `processBrassOscillator` (2nd-order lip mass-spring + bore) | one `boreBuf[1024]` — **fits `ks_buf` as-is** | bore conicity (trumpet ↔ horn) | blow pressure (soft ↔ brassy blare — the rip/blare *is* the model) | mute (open ↔ harmon) | a real lip model, not an approximation. *(Was the prepared answer if FM brass failed its §8.8.3 stress test — FM passed, so this is no longer queued; port it when a station wants the genuine rip/blare)* |
 | **PD / phase distortion** (Casio CZ) | `processPDOscillator` — **2 floats, 8 wavetypes incl. 3 resonant** | free (cheapest in the catalog) | wavetype (snapped detents, like FM's ratio table) | distortion amount (the CZ "DCW" sweep — filter-like brightness with zero filter) | saw ↔ reso window blend | CZ basses, synth-brass, the famous resonant sweeps; deeply chiptune-adjacent — strong identity fit, near-zero cost |
 | **Membrane** (tabla/conga/bongo/djembe/tom) | `processMembraneOscillator` (`:1754`, `MembraneSettings` `synth.h:437` — 6 modal sines at circular-membrane Bessel ratios) | free (~100 B — mallet-family cost) | head character (tabla ↔ djembe mode spread / tension) | **strike position** (center thump ↔ edge ring — the model reweights modes physically; conga open/slap/mute in one knob) | **pitch-bend depth/decay** (the tabla bayan *glissando* — baked into the model) | hand percussion the analog 808/909 recipes can't reach — bend + strike-pos are exactly what sine+pitch-env approximations lack. World-music radio fuel (promoted from the census NO list 2026-06-05) |
 

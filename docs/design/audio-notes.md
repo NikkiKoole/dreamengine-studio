@@ -56,20 +56,27 @@ Three corollaries:
 
 ## 2. Where we are now (in code)
 
-> **Refreshed 2026-06-04**, after the §11 mod-envelopes shipped (same-day additions:
-> `schedule_hit`, `wave_set` + `INSTR_USER0..3`; same-day cut: `music()` —
-> [decision 0013](../decisions/0013-cut-music-api.md)). This is the authoritative map of
-> the shipped sound surface: **33 functions + 36 constants**. §5–§11 hold the rationale
-> for how it got here; STATUS item 5 holds what's next (engines, SFX authoring).
+> **Refreshed 2026-06-07**, after the 2026-06-05 wave landed: the first three modeled
+> engines (`INSTR_PLUCK/MALLET/FM` + the six macro functions —
+> [`instrument-engines.md`](instrument-engines.md)), `instrument_choke` (§12),
+> drive / master soft-clip / the echo bus (§17), and the 8→16 voice flip (§15).
+> Prior refresh 2026-06-04 (the §11 mod-envelopes; `schedule_hit`, `wave_set` +
+> `INSTR_USER0..3`; `music()` cut — [decision 0013](../decisions/0013-cut-music-api.md)).
+> This is the authoritative map of the shipped sound surface: **45 functions +
+> 39 constants** (recount with `node tools/api-usage.js` when in doubt). §5–§11 hold the
+> rationale for how it got here; STATUS item 5 holds what's next (organ, SFX authoring).
 
 **Engine**
 - 16 voices (`SOUND_VOICES` — 8 until 2026-06-05, raised after the §15 starvation
-  measurement), 44.1 kHz, **mono**, software-mixed (sum × 0.2 gain each,
-  hard-clipped to [-1, 1]). Runs on raylib's audio-stream callback (the **audio thread**).
+  measurement), 44.1 kHz, **mono**, software-mixed (sum × 0.2 gain each, then the §17
+  **master soft-clip**: linear below a ±0.8 knee, tanh-shaped above — quiet mixes
+  bit-identical, hot mixes glue instead of slamming a wall). Runs on raylib's
+  audio-stream callback (the **audio thread**).
 - Voice allocation: first free → else a **non-held** voice → else voice 0. Held notes
-  are stolen last — they're meant to last.
-- Held-note **handles** pack slot (low 3 bits) + generation; a stale handle (its voice was
-  stolen or the slot reused) silently no-ops. 8 handle slots. See `held-notes.md`.
+  are stolen last — they're meant to last. Ringing engines get a ~3ms steal-declick tail.
+- Held-note **handles** pack slot (low `SOUND_HANDLE_BITS` = 4 bits, guarded by a
+  `_Static_assert` against `SOUND_VOICES`) + generation; a stale handle (its voice was
+  stolen or the slot reused) silently no-ops. 16 handle slots. See `held-notes.md`.
 
 **The surface, in four layers**
 
@@ -78,17 +85,21 @@ Three corollaries:
    with the raw waves (`INSTR_SQUARE/SAW/TRI/NOISE/SINE`), so the first
    `note(60, INSTR_SAW, 5)` needs nothing else. `schedule_hit` (delay **+** duration) fills
    the note-call quadrant that lets a cart sequence sub-frame sfx steps sample-accurately.
-2. **Design an instrument.** A slot (5–15) is the container; one call per axis —
+2. **Design an instrument.** A slot (5–31) is the container; one call per axis —
    `instrument` (timbre + **amp ADSR**) · `instrument_duty` (pulse width) ·
    `instrument_lfo` (**×3**, cyclic modulation) · `instrument_env` (**×2**, one-shot AD
    modulation, bipolar amount — §11) · `instrument_filter` (resonant SVF, 5 `FILTER_*`
-   modes). Five axes that multiply: timbre × amp-env × LFOs × mod-envs × filter.
-   Timbre itself is extensible: **`wave_set` + `INSTR_USER0..3`** are four DRAWN
+   modes) · `instrument_drive` (post-filter tanh, §17) · `instrument_echo` (send to the
+   one echo bus, §17) · `instrument_choke` (new note on a kills b — hats, §12).
+   Timbre itself is extensible two ways: **`wave_set` + `INSTR_USER0..3`** are four DRAWN
    single-cycle waveforms (64 samples, live-morphable — the §8.4 SCW idea; draw them in
-   the `wave editor` cart) that work anywhere a wave id does.
+   the `wave editor` cart), and **`INSTR_PLUCK/MALLET/FM`** are modeled engines
+   ([`instrument-engines.md`](instrument-engines.md)), each shaped by the three macros
+   `instrument_harmonics/timbre/morph` — all work anywhere a wave id does.
 3. **Play it live — held notes.** `note_on`→handle, `note_off`, `note_off_all`;
    performance gestures `note_pitch` / `note_vol` / `note_glide`; live twins of the
-   defines: `note_duty` `note_lfo` `note_env` `note_filter` `note_cutoff` `note_res`.
+   defines: `note_duty` `note_lfo` `note_env` `note_filter` `note_cutoff` `note_res`
+   `note_drive` `note_echo` `note_harmonics` `note_timbre` `note_morph`.
    Live writes slew per-sample (no zipper).
 4. **Musical time & theory.** `bpm` `beat` `beat_pos` `every` (the clock, ticked in
    `sound_tick(dt)`) · `euclid` `chance` `degree` (rhythm + scale math).
@@ -103,6 +114,11 @@ Three corollaries:
 | duty   | `LFO_DUTY` PWM shimmer| `ENV_DUTY` PWM sweep    | `note_duty` |
 | volume | `LFO_VOLUME` tremolo  | — *(the amp ADSR — deliberate, no `ENV_VOLUME`)* | `note_vol` |
 
+Three newer parameter families (2026-06-05) ride the define + live halves of this
+pattern but are deliberately **not** LFO/env destinations: the engine macros
+(`harmonics/timbre/morph` — modrack patches CV into the live setters instead),
+`drive`, and the per-slot `echo` send.
+
 **Data model**
 - **SFX**: 32 slots × up to 32 steps `{pitch (MIDI), instr, vol 0..7}`; `step_dur` in
   10ms units; per-SFX loop flag. (**Music patterns are gone** — `music()` cut 2026-06-04,
@@ -116,10 +132,11 @@ Three corollaries:
   [`input-recording-looper.md`](input-recording-looper.md).
 
 **Thread-safe control (the important architectural fact)**
-- Main thread → audio thread via a 512-entry **request ring buffer**; kinds 0–20 cover
-  play (0–2), define (3–6, 18, 20 = `wave_set`, packed 4 samples/request), and held-note
-  live control (7–17, 19). Delayed requests (`strum`/`schedule`/`schedule_hit`) sit in a
-  64-entry holding pen on the audio thread.
+- Main thread → audio thread via a 512-entry **request ring buffer**; kinds 0–28 cover
+  play (0–2), define (3–6, 18, 20 = `wave_set` packed 4 samples/request, 21 macros,
+  23 choke, 24 drive, 26–27 echo), and held-note live control (7–17, 19, 22, 25, 28).
+  Delayed requests (`strum`/`schedule`/`schedule_hit`) sit in a 64-entry holding pen on
+  the audio thread.
 - **The ring buffer is the one correct place to mutate sound state.** Every new control
   surface rides it rather than poking shared structs (the §11 mod-envelopes are kinds 18/19).
 - **Overflow is a tripwire, not silence**: dropped requests are counted and `sound_tick`
@@ -146,6 +163,16 @@ Three corollaries:
 ---
 
 ## 3. Where that sits vs. the chips
+
+> **Status: HISTORICAL — the 2026-05 gap analysis; every ❌ below has since shipped.**
+> Kept because this table is what motivated §5–§11. The ❌s became: variable duty + PWM
+> (`instrument_duty`/`LFO_DUTY`), full ADSR (`instrument`), resonant multimode filter
+> (`instrument_filter`, per-slot), vibrato + pitch sweep (`instrument_lfo`/`instrument_env`)
+> — and voices are 16 now (§15), with three modeled engines on top
+> ([`instrument-engines.md`](instrument-engines.md)). Still true today: no ring mod / hard
+> sync (AM/ring sits in the engine catalog, instrument-engines §8.9) and no PCM samples
+> (the FM-clang hat workaround covers the 909 case). The honest 2026 comparison is no
+> longer SID/NES — §15 calls it SNES/Amiga-class. Current surface: §2.
 
 Short version: it's chiptune-family, but **cleaner and more generic** than either the
 C64 SID or the NES APU, because the *expressive* tools that define those chips are the
@@ -413,8 +440,10 @@ candidate catalog, the §8.10 effects layer) resolves in that doc, same numbers.
   pitch contour over steps, toggle wave/vol per step — which needs **no new engine API**
   (see §5.6). The cart prototype is the cheap way to find out if the editor earns a place
   before any engine-side bank API is built.
-- **Voice budget:** with held channels reserving voices, do we raise `SOUND_VOICES`, or
-  is 8 still plenty once some are long-lived?
+- ~~**Voice budget:** with held channels reserving voices, do we raise `SOUND_VOICES`, or
+  is 8 still plenty once some are long-lived?~~ — **Resolved (2026-06-05, measured): 16.**
+  8 was hitting voice starvation *and* handle-slot exhaustion on the dense carts; the flip
+  is measured-safe with the 0.2 scale kept. Full experiment + the handle-bits landmine: §15.
 - ~~**Per-voice buffers (§8.2):**~~ **Resolved (2026-06-03): yes** — a `Voice` may carry a small
   ~2 KB delay-line buffer. Wanted by the organ scanner and reused across the whole Karplus-Strong /
   physical-modeling family (pluck / piano / guitar). See §8.2.

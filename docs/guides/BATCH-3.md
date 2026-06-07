@@ -3,8 +3,8 @@
 Third wave — fills the empty *genres* the catalog was missing (board games, match-3 /
 falling-block, card games, word games, classic fixed shooters, dig-'em, single-screen
 arcade) plus a few high-value one-offs. Built the same orchestrated way as batch 2 (see
-"Building many in parallel" in [`README.md`](README.md)); pairs under the brief in
-[`cart-authoring-prompt.md`](../cart-authoring-prompt.md). Batches 1 & 2 stay intact as
+"Building many in parallel" in [`cart-specs-index.md`](cart-specs-index.md)); pairs under the brief in
+[`cart-authoring-prompt.md`](cart-authoring-prompt.md). Batches 1 & 2 stay intact as
 their own historic records.
 
 ## Specs

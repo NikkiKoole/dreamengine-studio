@@ -4,7 +4,7 @@ Each file here is the **per-game half** of a cartridge-authoring prompt. To buil
 cart, paste into a fresh context:
 
 1. the reusable brief — the fenced block in
-   [`cart-authoring-prompt.md`](../cart-authoring-prompt.md)
+   [`cart-authoring-prompt.md`](cart-authoring-prompt.md)
    (it ends with a `# The game you're building` placeholder), then
 2. the contents of the spec file below it.
 
@@ -25,7 +25,7 @@ steps that race the others** (the `--run` thumbnail bake + the `index.json` edit
 **coordinator does those serially** at the end to avoid clobbering the shared `build/`
 dir and `index.json`.
 
-- **By hand (copy-paste):** paste [`AGENT-MESSAGE.md`](../AGENT-MESSAGE.md) into each session
+- **By hand (copy-paste):** paste [`AGENT-MESSAGE.md`](AGENT-MESSAGE.md) into each session
   alongside its `brief + spec`. It instructs the session to build, run only the
   parallel-safe CREATE step, and end with just its `index.json` JSON blob. You play
   coordinator: bake each thumbnail (`make-cart.js --run`) and merge the blobs.
@@ -45,7 +45,7 @@ dir and `index.json`.
   you ever want it *fully* hands-off, give each build agent `isolation: 'worktree'` so it
   can `--run` in its own checkout — more setup per agent, only worth it at large scale.)
 
-  Batch 2 (the 16 in [`BATCH-2.md`](../BATCH-2.md)) was built this way: 16 agents in one
+  Batch 2 (the 16 in [`BATCH-2.md`](BATCH-2.md)) was built this way: 16 agents in one
   workflow wrote spec + cart + CREATE, then the bake + merge ran serially. All 16 compiled
   on the first bake.
 

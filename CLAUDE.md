@@ -103,6 +103,11 @@ eventually2/
 │   ├── lint-carts.js   #   validate index.json: every cart tagged (kind[] from the
 │   │                   #   vocabulary, genre required for games) + every .cart.png
 │   │                   #   registered. Owns the tag vocabulary; run after adding carts
+│   ├── lint-docs.js    #   validate docs/ cross-references: relative .md links resolve
+│   │                   #   + doc-qualified §-refs ("audio-notes §8.9") hit a real
+│   │                   #   heading (resolving via a split-stub/parent = soft note, not
+│   │                   #   error; bare §-refs deliberately unchecked). Run after any
+│   │                   #   doc split / move / rename
 │   ├── gen-tcc-symbols.js  # auto-generate runtime/studio_tcc_symbols.h from studio.h
 │   │                   #   the editor's live-host build re-runs it automatically; after
 │   │                   #   editing studio.h, also run it manually so the regenerated

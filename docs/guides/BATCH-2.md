@@ -1,8 +1,8 @@
 # Cart specs — Batch 2
 
 Second wave of per-game cart prompts, built in parallel like the first batch. Same
-process as [`README.md`](README.md): each row points at a `<spec>.md` design spec that
-pairs under the reusable brief in [`cart-authoring-prompt.md`](../cart-authoring-prompt.md).
+process as [`cart-specs-index.md`](cart-specs-index.md): each row points at a `<spec>.md` design spec that
+pairs under the reusable brief in [`cart-authoring-prompt.md`](cart-authoring-prompt.md).
 Batch 1's table in `README.md` is left intact as the historic record of the first wave.
 
 > Generated full-pipeline: one agent per game wrote both the spec `.md` *and* the cart

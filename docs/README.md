@@ -99,4 +99,8 @@ prose — link to those. (This is why the old "~100 functions" counts kept going
   (`instrument-engines.md` is the worked example); otherwise just renumber. The kept
   numbering exists *only* to serve live references — once those age out, renumbering the
   doc is ordinary cleanup, not a rule violation.
+- Moved / split / renamed any doc? → **`node tools/lint-docs.js`** — verifies every
+  relative `.md` link and doc-qualified §-reference (stub/parent resolutions show as
+  soft notes; bare §-refs are deliberately unchecked). It caught 7 broken links from a
+  2026-06 file move on its first run; trust it over grep.
 - A doc went stale or started duplicating another? → prune it. This README is the contract.

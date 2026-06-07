@@ -58,6 +58,38 @@ how much they define the project. Candidates:
 Bonus: these exercise the newer shipped API (`ngon`/`star`/`poly`/gradients, `fillp`) that
 few carts actually use yet.
 
+### 2b. More whimsical playable instruments (2026-06-07)
+
+The instrument shelf (otamatone, musicalsaw, glassharmonica, hurdygurdy, stylophone,
+fartsynth…) is the same "creative toy" DNA and these carts double as future rack
+voices ([`tinydaws.md`](tinydaws.md)). Candidates, with what each rides on:
+
+- **Slide whistle ("pulling whistle")** — drag a plunger; pitch follows with
+  overshoot + bounce. `INSTR_SINE` held note + `note_glide`. Zero engine work;
+  already named as Space-Age rack whimsy in tinydaws.md. One finger = one plunger —
+  the most touch-native instrument imaginable.
+- **Melodeon** — THE interaction gem: **bisonoric** — the same button sounds a
+  *different note* pushing vs pulling the bellows. Bellows = drag direction (or
+  two-finger squeeze); direction-changes-the-note is a uniquely touch-friendly
+  mechanic no desktop instrument has. Voice: borrow tango.c's drawn bandoneón reed
+  (`wave_set` — the bandoneón IS the melodeon's big cousin); upgrade path = the
+  reed engine ([`audio-notes.md`](audio-notes.md) §8.9).
+- **Accordion** — unisonoric + Stradella chord buttons: omnichord's chord-button
+  layout meets a bellows whose drag *speed* is the volume swell (like the real
+  thing — no bellows motion, no sound). Same reed voice as the melodeon.
+- **Mouth harmonica** — bisonoric again (blow/draw), 10 holes, richter tuning.
+  Vertical drag on a hole = the draw bend; cupped-hand wah = `note_cutoff`.
+  Same reed family.
+- **Standing bass (upright)** — `INSTR_PLUCK` low register exists today; slap =
+  a noise transient layered on the pluck. The fingerboard is the touch surface.
+  Autopilot mode = cocktail.c's `walk_note()` walking-bass generator (already
+  flagged a graduation candidate in game-music.md) — *tap a chord, the bass walks
+  itself*. Arco mode waits on the bowed engine (§8.9).
+
+The shared note for the build session: melodeon/accordion/harmonica are one
+*family* — a `reeds`-style shared voice + three interaction skins. Build the
+bellows interaction once.
+
 ### 3. The few genuinely-missing, *teachable* game types
 
 Not "another clone" — each earns its place:

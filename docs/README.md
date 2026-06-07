@@ -22,7 +22,15 @@ docs/
 ├── design/            exploratory design notes (scratchpads) — rationale + proposals
 │   ├── api-notes.md     engine API: classics survey, signatures, naming, cart-patterns
 │   ├── cart-as-script.md  EXPLORATION: run cart C without an external compiler via libtcc (in-memory compile + hot-reload); the 3-symbol host↔cart boundary, why Wasmer clang/WASIX won't do graphics, native goal vs. browser goal
-│   ├── audio-notes.md   sound: current engine, chip comparison, expansion roadmap
+│   ├── audio-notes.md   sound: current engine, chip comparison, expansion roadmap (incl. §8.9 candidate engine catalog, §12 instrument gaps, §14 Roland machine readiness)
+│   ├── held-notes.md    SHIPPED spec: note_on/note_off handles + live note_pitch/vol/cutoff/duty + slew — the sustain layer the instruments ride on
+│   ├── input-recording-looper.md  exploration: can a cart record the player and loop it back — recording levels for music looping + gameplay ghosts
+│   ├── modular-synth.md  modrack design spec: Eurorack-style control-rate patcher cart (modules, cables, data model, shipped ledger)
+│   ├── tinydaws.md      IDEA: ReBirth-style genre racks (generate → play → export) — radios as song generators feeding editable sequencer carts; the lane format, seed-as-song-code handoff, song.h export for game soundtracks, the 7-rack genre table + the wider map (unbuilt stations × engine wishlist, cross-indexed from game-music/audio-notes)
+│   ├── blend-tables.md  exploration behind STATUS item 18: index-only translucency/glow/shadow; cart-space prototype = blendlab.c
+│   ├── palette-and-color.md  exploration: own palette vs the borrowed PICO-8 32 — one decision wearing two questions, sequenced before blend tables bake it in
+│   ├── physics-notes.md  brainstorm: a tiny in-engine physics layer? (sparked by ragdoll.c; nothing decided)
+│   ├── probe-carts.md   LEDGER (kept current): which cart was built to answer which API question, and the verdicts
 │   ├── cart-library-direction.md  snapshot of the ~201-cart shelf + opinionated "what carts to build next" (tutorial on-ramp, more toys, the few missing teachable games; NOT more clones)
 │   ├── tutorial-curriculum.md  plan for the next wave of tutorial carts (25+): the language-fundamentals / collision / whole-game-capstone tracks, adapted from the Nerdy Teachers PICO-8 course (adapt the arc, rewrite in C)
 │   ├── cart-survey-api-priorities.md   cart-evidence-first memo: what real carts prove, filtered through existing decisions
@@ -78,5 +86,9 @@ prose — link to those. (This is why the old "~100 functions" counts kept going
 - Shipped / cut / deferred a feature? → update **`STATUS.md`**, then the relevant design note.
 - A choice is now *settled* (especially a "no")? → write a **`decisions/`** ADR-lite and link to it.
 - Proposing new API? → **`design/api-notes.md`** (sound → **`design/audio-notes.md`**).
+- New **audio idea**? Route by kind: a cart to build → `design/cart-library-direction.md` ·
+  an engine/synthesis want → `audio-notes.md` (§8.9 engines, §12 gaps) · a musical style →
+  `guides/game-music.md` style cheat-sheet · genre racks / generate-play-export →
+  `design/tinydaws.md` · a per-station timbre swap → `design/radio-instrument-options.md`.
 - Product direction or a core principle changed? → **`VISION.md`**.
 - A doc went stale or started duplicating another? → prune it. This README is the contract.

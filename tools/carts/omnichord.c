@@ -5,8 +5,13 @@
 //  drum machine you can flip to. Two views share one top bar:
 //
 //    OMNI   — pick a CHORD (grid: rows = maj/min/7th, cols = 12 roots) with
-//             the mouse OR the computer keyboard, then sweep the SONIC STRINGS
+//             a tap OR the computer keyboard, then sweep the SONIC STRINGS
 //             strumplate to play it as a harp glissando across the octaves.
+//             MULTITOUCH: every finger strums its own glissando, and you can
+//             tap chords mid-strum. HOLD a second button of the same root to
+//             extend the chord (maj+7 = maj7, min+7 = m7, maj+min = dim, all
+//             three = aug) — same combos as the keyboard. Desktop mouse works
+//             everywhere too (the runtime exposes it as one synthetic finger).
 //    RHYTHM — a 16-step drum sequencer (kick/snare/hat/clap + a BASS row that
 //             follows your selected chord root). Borrowed from the drummachine
 //             cart: musical noise voices, transport off the synth clock.
@@ -118,7 +123,12 @@ int   selRoot  = 0;
 int   selChord = CHORD_MAJ;     // the live chord type — extended ones via 2-key holds
 int   strNote[20], nStr = 0;
 float litT[20];
-int   lastStr = -1;
+
+// per-finger strum state — each finger on the plate sweeps its own glissando
+#define NFINGER  10
+#define NOFINGER (-999)
+int   strId  [NFINGER];         // touch id owning this slot, or NOFINGER
+int   strLast[NFINGER];         // last string that finger struck (-1 = just landed)
 
 // sequencer state
 bool  grid[ROWS][STEPS];
@@ -212,6 +222,7 @@ void loadPreset(int p) {
 void init() {
     instrument(HARP, INSTR_TRI, 1, 180, 1, 280);     // sonic strings: soft plucked bell
     instrument_filter(HARP, FILTER_LOW, 2200, 4);
+    for (int k = 0; k < NFINGER; k++) strId[k] = NOFINGER;
     buildStrings();
     loadPreset(0);
 }
@@ -235,12 +246,11 @@ void update() {
     if (keyp(KEY_TAB))   view = !view;
     if (keyp(KEY_SPACE)) playing = !playing;
 
-    // clickable top bar: view tabs + play/stop
-    if (mouse_pressed(MOUSE_LEFT) && mouse_y() < 14) {
-        if (point_in_box(mouse_x(), mouse_y(), 92,  1, 44, 12)) view = OMNI;
-        if (point_in_box(mouse_x(), mouse_y(), 140, 1, 58, 12)) view = RHYTHM;
-        if (point_in_box(mouse_x(), mouse_y(), 204, 1, 44, 12)) playing = !playing;
-    }
+    // tappable top bar: view tabs + play/stop (tapp = any finger; the desktop
+    // mouse arrives as a synthetic touch, so it taps too)
+    if (tapp(92,  1, 44, 12)) view = OMNI;
+    if (tapp(140, 1, 58, 12)) view = RHYTHM;
+    if (tapp(204, 1, 44, 12)) playing = !playing;
 
     if (view == OMNI) {
         // keyboard chords: three rows (major / minor / 7th). Holding two keys of
@@ -260,28 +270,52 @@ void update() {
             }
         }
 
-        // mouse: click a chord button
-        if (mouse_pressed(MOUSE_LEFT) && mouse_y() >= GRID_Y)
-            for (int r = 0; r < 3; r++)
-                for (int c = 0; c < 12; c++)
-                    if (point_in_box(mouse_x(), mouse_y(), GRID_X + c * COLW, GRID_Y + r * ROWH, COLW - 1, ROWH - 2))
-                        selectChord(c, r == 0 ? CHORD_MAJ : r == 1 ? CHORD_MIN : CHORD_DOM7);
-
-        // strumplate: sweep with mouse or finger
-        int ptrx, ptry; bool down;
-        if (touch_count() > 0) { ptrx = touch_x(0); ptry = touch_y(0); down = true; }
-        else                   { ptrx = mouse_x(); ptry = mouse_y(); down = mouse_down(MOUSE_LEFT); }
-        if (down && ptry >= PLATE_Y && ptry <= PLATE_Y + PLATE_H) {
-            int s = stringAt(ptrx);
-            if (s >= 0) {
-                if (lastStr < 0) strike(s);
-                else if (s != lastStr) {
-                    int d = sgn(s - lastStr);
-                    for (int k = lastStr + d; ; k += d) { strike(k); if (k == s) break; }
+        // tap a chord button — fingers still HELD on other rows of the same root
+        // extend the chord, mirroring the 2-key keyboard combos above
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 12; c++)
+                if (tapp(GRID_X + c * COLW, GRID_Y + r * ROWH, COLW - 1, ROWH - 2)) {
+                    bool hm = tap(GRID_X + c * COLW, GRID_Y + 0 * ROWH, COLW - 1, ROWH - 2);
+                    bool hn = tap(GRID_X + c * COLW, GRID_Y + 1 * ROWH, COLW - 1, ROWH - 2);
+                    bool h7 = tap(GRID_X + c * COLW, GRID_Y + 2 * ROWH, COLW - 1, ROWH - 2);
+                    int ch = hm && hn && h7 ? CHORD_AUG
+                           : hm && h7       ? CHORD_MAJ7
+                           : hn && h7       ? CHORD_MIN7
+                           : hm && hn       ? CHORD_DIM
+                           : h7             ? CHORD_DOM7
+                           : hn             ? CHORD_MIN
+                           :                  CHORD_MAJ;
+                    selectChord(c, ch);
                 }
-                lastStr = s;
+
+        // strumplate: EVERY finger sweeps its own glissando (desktop mouse = one finger)
+        for (int i = 0; i < touch_count(); i++) {
+            int id = touch_id(i);
+            int f = -1, freeSlot = -1;
+            for (int k = 0; k < NFINGER; k++) {
+                if (strId[k] == id) { f = k; break; }
+                if (strId[k] == NOFINGER && freeSlot < 0) freeSlot = k;
             }
-        } else lastStr = -1;
+            if (touch_y(i) < PLATE_Y || touch_y(i) > PLATE_Y + PLATE_H) {
+                if (f >= 0) strId[f] = NOFINGER;       // slid off the plate
+                continue;
+            }
+            int s = stringAt(touch_x(i));
+            if (s < 0) continue;
+            if (f < 0) {                               // finger landed on the plate
+                if (freeSlot < 0) continue;
+                f = freeSlot; strId[f] = id; strLast[f] = -1;
+            }
+            if (strLast[f] < 0) strike(s);
+            else if (s != strLast[f]) {                // sweep every string crossed
+                int d = sgn(s - strLast[f]);
+                for (int k = strLast[f] + d; ; k += d) { strike(k); if (k == s) break; }
+            }
+            strLast[f] = s;
+        }
+        for (int i = 0; i < touch_ended_count(); i++)  // lifted fingers free their slot
+            for (int k = 0; k < NFINGER; k++)
+                if (strId[k] == touch_ended_id(i)) strId[k] = NOFINGER;
     } else {
         // ── RHYTHM view: edit the grid (WASD/Z/X + mouse), arrows = tempo ──
         if (btnp(0, BTN_UP))    curR = (curR + ROWS - 1) % ROWS;
@@ -296,23 +330,20 @@ void update() {
             for (int r = 0; r < ROWS; r++)
                 for (int c = 0; c < STEPS; c++) grid[r][c] = false;
 
-        if (mouse_pressed(MOUSE_LEFT) && mouse_y() >= GY)
-            for (int r = 0; r < ROWS; r++)
-                for (int c = 0; c < STEPS; c++)
-                    if (point_in_box(mouse_x(), mouse_y(), GX + c * SX, GY + r * SY, CW, CH)) {
-                        curR = r; curC = c;
-                        grid[r][c] = !grid[r][c];
-                        if (grid[r][c]) { play_row(r); flash[r] = frame(); }
-                    }
+        for (int r = 0; r < ROWS; r++)
+            for (int c = 0; c < STEPS; c++)
+                if (tapp(GX + c * SX, GY + r * SY, CW, CH)) {
+                    curR = r; curC = c;
+                    grid[r][c] = !grid[r][c];
+                    if (grid[r][c]) { play_row(r); flash[r] = frame(); }
+                }
 
         if (btnp(1, BTN_LEFT))  tempo = max(60,  tempo - 4);
         if (btnp(1, BTN_RIGHT)) tempo = min(220, tempo + 4);
 
         // load a preset groove — number keys 1..6 or the buttons along the bottom
-        for (int p = 0; p < NPRESET; p++) if (keyp('1' + p)) loadPreset(p);
-        if (mouse_pressed(MOUSE_LEFT) && mouse_y() >= 180)
-            for (int p = 0; p < NPRESET; p++)
-                if (point_in_box(mouse_x(), mouse_y(), 4 + p * 52, 180, 50, 15)) loadPreset(p);
+        for (int p = 0; p < NPRESET; p++)
+            if (keyp('1' + p) || tapp(4 + p * 52, 180, 50, 15)) loadPreset(p);
     }
 }
 
@@ -348,8 +379,9 @@ void drawOmni() {
             line(x + 1, PLATE_Y + 3, x + 1, PLATE_Y + PLATE_H - 3, col);
         }
     }
-    if (mouse_down(MOUSE_LEFT) && mouse_y() >= PLATE_Y && mouse_y() <= PLATE_Y + PLATE_H)
-        circfill(mouse_x(), mouse_y(), 3, CLR_WHITE);
+    for (int i = 0; i < touch_count(); i++)        // a cursor under every strumming finger
+        if (touch_y(i) >= PLATE_Y && touch_y(i) <= PLATE_Y + PLATE_H)
+            circfill(touch_x(i), touch_y(i), 3, CLR_WHITE);
 
     print(str("%s %s", NOTE[selRoot], chordName(selChord)), PLATE_X + 5, PLATE_Y + 4, CLR_WHITE);
     print("SONIC STRINGS  ~  strum me", PLATE_X + 5, PLATE_Y + PLATE_H - 11, CLR_INDIGO);

@@ -1,9 +1,15 @@
 #include "studio.h"
 
-// A little Moog-style synth playground. Build a sound with the mouse — waveform,
+// A little Moog-style synth playground. Build a sound with the panel — waveform,
 // the famous ADSR envelope, three LFOs, and a resonant filter — then play it on
-// the on-screen keyboard with the mouse or your computer keys (A row = white,
+// the on-screen keyboard or your computer keys (A row = white,
 // W E T Y U O P = black). Z/X shift octave, C/V change velocity.
+//
+// Input is touch-first: every finger on the keyboard is its own voice (chords,
+// glissando, per-finger release — the touchpiano pattern), and the panel is
+// driven by whichever finger lands on it — so you can hold a chord with one
+// hand and sweep the filter with the other. The desktop mouse arrives as one
+// synthetic finger, so the same code path covers it.
 //
 // Real hold-to-sustain: each key starts a HELD note (note_on) that rings as long as
 // you hold it and releases on key-up (note_off) — the ADSR sustain stage finally does
@@ -39,11 +45,29 @@ float penv_amt = 0,    penv_atk = 0, penv_dec = 120;   // pitch env: semitones (
 int   base = 48;                   // MIDI of the leftmost white key (C3)
 int   vel  = 98;                   // 0..127, like a real synth
 
-// ---- mouse / immediate-mode UI state ----
-int mx, my, ui_held = 0, mouse_semi = NONE;
+// ---- immediate-mode UI pointer: the finger driving the panel (y < 200).
+//      adopted when a touch BEGINS on the panel, released when it lifts.
+//      desktop mouse = a synthetic touch, so this is also the mouse. ----
+#define NOFINGER -999
+int mx, my, ui_held = 0;
+int ui_finger = NOFINGER;     // touch id driving the panel UI
+int ui_press  = 0;            // pointer went down on the panel this frame
+int ui_down   = 0;            // pointer is currently down
 
-// ---- held-note handles, one per playable key (-1 = key is up) ----
-int wh[11], bh[7], mouse_h = -1;
+// previous frame's touch ids — lets us spot a touch that BEGAN this frame
+int seen_ids[12]; int seen_n = 0;
+int touch_began(int id) {
+    for (int i = 0; i < seen_n; i++) if (seen_ids[i] == id) return 0;
+    return 1;
+}
+
+// ---- held-note handles, one per computer key (-1 = key is up) ----
+int wh[11], bh[7];
+
+// ---- per-finger keyboard voices (semitones 0..17 over the two octaves) ----
+#define NSEMI 18
+int s_handle[NSEMI];          // ringing note handle per semitone, -1 = silent
+int s_finger[NSEMI];          // touch id holding that key, NOFINGER = none
 
 // ---- keyboard layout ----
 const char wkey[]  = "ASDFGHJKL;'";
@@ -104,10 +128,13 @@ int  vel07(void) { return CLI(vel * 7 / 127, 1, 7); }
 void voice_on(int *h, int semi) { apply_synth(); *h = note_on(base + semi, SLOT, vel07()); }
 void voice_off(int *h)          { if (*h >= 0) note_off(*h); *h = -1; }
 
-int key_at_mouse(void) {
-    if (my < 200) return NONE;
-    for (int j = 0; j < 7;  j++) if (in_box(black_x(j), 200, 24, 62))  return bsemi[j];
-    for (int i = 0; i < 11; i++) if (in_box(white_x(i), 200, 39, 100)) return wsemi[i];
+// which semitone is under canvas point x,y? NONE = not on the keyboard
+int key_at(int x, int y) {
+    if (y < 200) return NONE;
+    for (int j = 0; j < 7;  j++)
+        if (x >= black_x(j) && x < black_x(j) + 24 && y < 262) return bsemi[j];
+    for (int i = 0; i < 11; i++)
+        if (x >= white_x(i) && x < white_x(i) + 39) return wsemi[i];
     return NONE;
 }
 
@@ -117,11 +144,11 @@ int ui_btn(int x, int y, int w, int h, const char *label, int on, int col) {
     rectfill(x, y, w, h, on ? col : CLR_BLACK);
     rect(x, y, w, h, hot ? CLR_WHITE : CLR_DARK_GREY);
     print(label, x + 3, y + (h - 5) / 2, on ? CLR_BLACK : CLR_MEDIUM_GREY);
-    return hot && mouse_pressed(MOUSE_LEFT);
+    return hot && ui_press;
 }
 
 float ui_slider(int id, int x, int y, int w, float val, float lo, float hi, int col) {
-    if (mouse_pressed(MOUSE_LEFT) && in_box(x - 2, y - 3, w + 4, 11)) ui_held = id;
+    if (ui_press && in_box(x - 2, y - 3, w + 4, 11)) ui_held = id;
     if (ui_held == id) val = lo + clamp((float)(mx - x) / w, 0, 1) * (hi - lo);
     rectfill(x, y + 1, w, 2, CLR_DARK_GREY);
     int kx = x + (int)((val - lo) / (hi - lo) * w);
@@ -133,7 +160,7 @@ float ui_slider(int id, int x, int y, int w, float val, float lo, float hi, int 
 // *vy on the vertical (bottom→top = ylo→yhi). One control for cutoff × resonance.
 void ui_xy(int id, int x, int y, int w, int h, float *vx, float xlo, float xhi,
            float *vy, float ylo, float yhi, int col) {
-    if (mouse_pressed(MOUSE_LEFT) && in_box(x, y, w, h)) ui_held = id;
+    if (ui_press && in_box(x, y, w, h)) ui_held = id;
     if (ui_held == id) {
         *vx = xlo + clamp((float)(mx - x) / w, 0, 1) * (xhi - xlo);
         *vy = yhi - clamp((float)(my - y) / h, 0, 1) * (yhi - ylo);   // top = more
@@ -157,6 +184,7 @@ void panel(int x, int y, int w, int h, const char *title, int col) {
 void init() {
     for (int i = 0; i < 11; i++) wh[i] = -1;
     for (int j = 0; j < 7;  j++) bh[j] = -1;
+    for (int k = 0; k < NSEMI; k++) { s_handle[k] = -1; s_finger[k] = NOFINGER; }
 }
 
 void update() {
@@ -174,11 +202,27 @@ void update() {
     if (keyp('C')) vel  = CLI(vel - 10, 1, 127);
     if (keyp('V')) vel  = CLI(vel + 10, 1, 127);
 
-    if (mouse_pressed(MOUSE_LEFT)) {                     // mouse on the on-screen keys
-        int s = key_at_mouse();
-        if (s != NONE) { mouse_semi = s; apply_synth(); mouse_h = note_on(base + s, SLOT, vel07()); }
+    // touch keyboard: every finger is a voice — chords, glissando, per-finger
+    // release (the touchpiano pattern). the panel's UI finger is skipped so a
+    // slider drag straying below y=200 never plays a note.
+    for (int i = 0; i < touch_count(); i++) {
+        int id = touch_id(i);
+        if (id == ui_finger) continue;
+        int s = key_at(touch_x(i), touch_y(i));
+        int cur = NONE;
+        for (int k = 0; k < NSEMI; k++) if (s_finger[k] == id) { cur = k; break; }
+        if (s == cur) continue;                          // same key (or still off-keys)
+        if (cur != NONE) { voice_off(&s_handle[cur]); s_finger[cur] = NOFINGER; }
+        if (s != NONE && s_finger[s] == NOFINGER) {      // claim, unless another finger has it
+            voice_on(&s_handle[s], s);
+            s_finger[s] = id;
+        }
     }
-    if (mouse_released(MOUSE_LEFT)) { voice_off(&mouse_h); mouse_semi = NONE; }
+    for (int i = 0; i < touch_ended_count(); i++) {      // lifted fingers release their keys
+        int id = touch_ended_id(i);
+        for (int k = 0; k < NSEMI; k++)
+            if (s_finger[k] == id) { voice_off(&s_handle[k]); s_finger[k] = NOFINGER; }
+    }
 }
 
 // the famous ADSR envelope editor, with three drag handles
@@ -192,7 +236,7 @@ void draw_adsr(int gx, int gy, int gw, int gh) {
     int by  = gy + gh;
 
     // grab handles
-    if (mouse_pressed(MOUSE_LEFT)) {
+    if (ui_press) {
         if      (in_box(ax - 5, gy - 5, 10, 10))  ui_held = 11;
         else if (in_box(dsx - 5, sy - 5, 10, 10)) ui_held = 12;
         else if (in_box(rx - 5, by - 5, 10, 10))  ui_held = 13;
@@ -232,7 +276,7 @@ void draw_adenv(int gx, int gy, int gw, int gh, float *atk, float atkmax,
     int py = (int)clamp(zy - *amt / amtmax * half, gy, gy + gh);
     int ex = px + (int)(*dec / decmax * dMax);
 
-    if (mouse_pressed(MOUSE_LEFT)) {
+    if (ui_press) {
         if      (in_box(px - 5, py - 5, 10, 10)) ui_held = 14;
         else if (in_box(ex - 5, zy - 5, 10, 10)) ui_held = 15;
     }
@@ -255,8 +299,21 @@ void draw_adenv(int gx, int gy, int gw, int gh, float *atk, float atkmax,
 }
 
 void draw() {
-    mx = mouse_x(); my = mouse_y();
-    if (!mouse_down(MOUSE_LEFT)) ui_held = 0;
+    // resolve the UI pointer: stick with ui_finger while it's down, otherwise
+    // adopt a touch that began on the panel (y < 200) this frame
+    ui_press = 0; ui_down = 0;
+    int fi = -1;
+    for (int i = 0; i < touch_count(); i++)
+        if (touch_id(i) == ui_finger) { fi = i; break; }
+    if (fi < 0) {
+        ui_finger = NOFINGER; ui_held = 0;
+        for (int i = 0; i < touch_count(); i++)
+            if (touch_y(i) < 200 && touch_began(touch_id(i))) {
+                ui_finger = touch_id(i); ui_press = 1; fi = i; break;
+            }
+    }
+    if (fi >= 0) { mx = touch_x(fi); my = touch_y(fi); ui_down = 1; }
+    else         { mx = mouse_x();   my = mouse_y(); }   // hover highlight only
 
     cls(CLR_DARKER_GREY);
     print("DREAM SYNTH", 8, 4, CLR_WHITE);
@@ -317,14 +374,14 @@ void draw() {
     // ---- keyboard ----
     for (int i = 0; i < 11; i++) {
         int x = white_x(i);
-        int lit = key(wkey[i]) || (mouse_down(MOUSE_LEFT) && mouse_semi == wsemi[i]);
+        int lit = key(wkey[i]) || s_finger[wsemi[i]] != NOFINGER;
         rectfill(x, 200, 39, 100, lit ? CLR_YELLOW : CLR_WHITE);
         rect(x, 200, 39, 100, CLR_DARK_GREY);
         print(str("%c", wkey[i]), x + 16, 288, CLR_DARK_GREY);
     }
     for (int j = 0; j < 7; j++) {
         int x = black_x(j);
-        int lit = key(bkey[j]) || (mouse_down(MOUSE_LEFT) && mouse_semi == bsemi[j]);
+        int lit = key(bkey[j]) || s_finger[bsemi[j]] != NOFINGER;
         rectfill(x, 200, 24, 62, lit ? CLR_ORANGE : CLR_BROWNISH_BLACK);
         print(str("%c", bkey[j]), x + 8, 248, CLR_WHITE);
     }
@@ -333,5 +390,9 @@ void draw() {
     // frame — tweak them while a chord rings and you hear it change under your fingers.
     for (int i = 0; i < 11; i++) drive_live(wh[i]);
     for (int j = 0; j < 7;  j++) drive_live(bh[j]);
-    drive_live(mouse_h);
+    for (int k = 0; k < NSEMI; k++) drive_live(s_handle[k]);
+
+    // snapshot this frame's touch ids — touch_began() compares against these
+    seen_n = 0;
+    for (int i = 0; i < touch_count() && seen_n < 12; i++) seen_ids[seen_n++] = touch_id(i);
 }

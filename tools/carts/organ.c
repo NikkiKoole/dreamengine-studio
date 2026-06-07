@@ -15,28 +15,33 @@
 //
 // THE LESLIE is NOT in the engine — it's a per-voice RECIPE (decision 0015): tremolo
 // (LFO_VOLUME) + doppler (LFO_PITCH), the rate lerping slow<->fast = the horn's mechanical
-// spin-up inertia. Press L to cycle OFF / slow (chorale) / fast (tremolo) and hear the
-// engine + its companion recipe together — the whole §8.10/0015 story in one cart.
+// spin-up inertia. Cycle OFF / slow (chorale) / fast (tremolo) and hear the engine + its
+// companion recipe together — the whole §8.10/0015 story in one cart.
 //
-// THE QUESTION THIS CART ANSWERS (ADR-0016): is `morph` a FULL, distinct axis, or thin? Sweep
-// it under a held chord. Full -> combo organ folds onto it later; thin -> combo needs its own
-// engine. Listen, then record the verdict.
-//
-// controls: A S D F G H J K   hold a key (chords welcome — hold several)
-//           Z / X             octave down / up
-//           1..8  presets: reggae combo bookerT jimmy larry ballad jonlord gospel
+// controls: white keys  A S D F G H J K   ·   black keys  W E . T Y U
+//           hold for sustain (chords welcome — hold several)
+//           Z / X  octave down / up   ·   1..8 presets   ·   L leslie   ·   M autoplay
 //           drag a slider (morphs every held note LIVE), or LEFT/RIGHT pick + UP/DOWN turn
-//           L Leslie (off/slow/fast)   ·   M autoplay on/off
 // MULTITOUCH: every finger is its own pointer — hold keys with several fingers while another
-// rides a slider; the desktop mouse arrives as one synthetic finger.
+// rides a slider; tap the on-screen octave +/- and Leslie buttons. The desktop mouse arrives
+// as one synthetic finger, so the same code path covers it.
 
 #include "studio.h"
 #include <math.h>
 
 #define I_ORG 5
-#define NKEY  8
 
-static const char KEYCH[NKEY] = { 'A','S','D','F','G','H','J','K' };
+// a piano octave: 8 white keys (C..C) + 5 black keys. handles/glow index white 0..7 then
+// black 8..12. WSEMI/BSEMI = semitone offsets from the octave's C; BWHICH = which white key
+// each black sits to the right of (no black after E(2) or B(6)).
+#define NWHITE 8
+#define NBLACK 5
+#define NKEY   (NWHITE + NBLACK)
+static const char WKEY[NWHITE]  = { 'A','S','D','F','G','H','J','K' };
+static const int  WSEMI[NWHITE] = { 0, 2, 4, 5, 7, 9, 11, 12 };
+static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
+static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
+static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
 
 static const char *KNOB_NAME[3] = { "harmonics (reg)", "timbre (bright)", "morph (anim)" };
 static const char *KNOB_LO[3]   = { "thin",  "dark",  "still" };
@@ -81,19 +86,36 @@ enum { PTR_IDLE, PTR_DRAG, PTR_KEY };
 typedef struct { int id, mode, k, key; } Ptr;
 static Ptr ptr[NPTR];
 
-// key geometry — a row of manual keys
-#define KEY_W   34
-#define KEY_GAP 4
-#define KEY_X(b) (14 + (b) * (KEY_W + KEY_GAP))
-#define KEY_Y    44
-#define KEY_H    74
+// key geometry — a row of white keys with black keys overlaid
+#define KEY_W   36
+#define KEY_GAP 1
+#define KEY_X(b) (10 + (b) * (KEY_W + KEY_GAP))
+#define KEY_Y    48
+#define KEY_H    72
+#define BLACK_W  20
+#define BLACK_H  42
+#define BLACK_X(k) (KEY_X(BWHICH[k]) + KEY_W - BLACK_W / 2)
+
+// top-bar button hit zones (shared by draw + touch)
+#define OCT_DN_X 12
+#define OCT_UP_X 56
+#define OCT_BTN_Y 24
+#define OCT_BTN_W 20
+#define OCT_BTN_H 18
+#define LES_X (SCREEN_W - 96)
+#define LES_Y 22
+#define LES_W 90
+#define LES_H 20
 
 // slider geometry — shared by draw() and the hit-test
 #define KNOB_W   88
 #define KNOB_Y   (SCREEN_H - 30)
 #define KNOB_X(k) (14 + (k) * 102)
 
-static int midi_of(int b) { return degree(SCALE_MAJOR, octave, b + 1); }
+static int midi_of(int idx) {
+    int base = (octave + 1) * 12;
+    return base + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]);
+}
 
 // apply the macros to the slot template AND to every held voice (the live morph — the point
 // of the cart). Leslie LFOs ride the same held voices when engaged.
@@ -149,6 +171,13 @@ static void key_up(int b) {
     handle[b] = -1;
 }
 
+static void octave_step(int d) {
+    int n = octave + d;
+    if (n < 1 || n > 7) return;
+    for (int b = 0; b < NKEY; b++) key_up(b);   // drop held notes so they don't stick at the old pitch
+    octave = n;
+}
+
 static void set_preset(int p) {
     knob[0] = PRESET[p].h; knob[1] = PRESET[p].t; knob[2] = PRESET[p].m; drv = PRESET[p].drv;
     cur_preset = p;
@@ -165,12 +194,16 @@ void init(void) {
 
 void update(void) {
     // manual keys — held while down (chords: hold several)
-    for (int b = 0; b < NKEY; b++) {
-        if (keyp(KEYCH[b])) key_down(b);
-        if (keyr(KEYCH[b])) key_up(b);
+    for (int b = 0; b < NWHITE; b++) {
+        if (keyp(WKEY[b])) key_down(b);
+        if (keyr(WKEY[b])) key_up(b);
     }
-    if (keyp('Z') && octave > 1) octave--;
-    if (keyp('X') && octave < 7) octave++;
+    for (int k = 0; k < NBLACK; k++) {
+        if (keyp(BKEY[k])) key_down(NWHITE + k);
+        if (keyr(BKEY[k])) key_up(NWHITE + k);
+    }
+    if (keyp('Z')) octave_step(-1);
+    if (keyp('X')) octave_step(+1);
 
     for (int p = 0; p < 8; p++) if (keyp('1' + p)) set_preset(p);
 
@@ -190,7 +223,7 @@ void update(void) {
     leslie_rate += (target - leslie_rate) * 0.06f;
     apply_leslie();
 
-    // touch: every finger holds a key or drags a slider, independently
+    // touch: every finger holds a key, taps a button, or drags a slider, independently
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
         Ptr *p = 0, *freeP = 0;
@@ -202,6 +235,9 @@ void update(void) {
             if (!freeP) continue;
             p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1 };
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) { autoplay = !autoplay; continue; }
+            if (point_in_box(tx, ty, LES_X, LES_Y, LES_W, LES_H)) { leslie = (leslie + 1) % 3; continue; }
+            if (point_in_box(tx, ty, OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(-1); continue; }
+            if (point_in_box(tx, ty, OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(+1); continue; }
             if (ty >= KNOB_Y - 26 && ty < KNOB_Y - 12) {    // preset labels tappable
                 for (int q = 0; q < 8; q++)
                     if (tx >= 12 + q * 38 && tx < 12 + q * 38 + 36) { set_preset(q); break; }
@@ -211,10 +247,17 @@ void update(void) {
                 if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y - 6, KNOB_W + 4, 18)) {
                     p->mode = PTR_DRAG; p->k = sel = k;
                 }
+            // keys: black sit ON TOP, so test them first
+            if (p->mode == PTR_IDLE) {
+                for (int k = 0; k < NBLACK && p->mode == PTR_IDLE; k++)
+                    if (point_in_box(tx, ty, BLACK_X(k), KEY_Y, BLACK_W, BLACK_H)) {
+                        key_down(NWHITE + k); p->mode = PTR_KEY; p->key = NWHITE + k;
+                    }
+            }
             if (p->mode == PTR_IDLE && ty >= KEY_Y && ty < KEY_Y + KEY_H) {
-                for (int b = 0; b < NKEY; b++)
+                for (int b = 0; b < NWHITE && p->mode == PTR_IDLE; b++)
                     if (point_in_box(tx, ty, KEY_X(b), KEY_Y, KEY_W, KEY_H)) {
-                        key_down(b); p->mode = PTR_KEY; p->key = b; break;
+                        key_down(b); p->mode = PTR_KEY; p->key = b;
                     }
             }
         } else if (p->mode == PTR_DRAG) {
@@ -256,6 +299,7 @@ void update(void) {
     watch("timb", "%.2f", knob[1]);
     watch("mor",  "%.2f", knob[2]);
     watch("preset", "%d", cur_preset);
+    watch("octave", "%d", octave);
     watch("leslie", "%d", leslie);
 #endif
 }
@@ -265,33 +309,55 @@ void draw(void) {
     print("ORGAN", 8, 6, CLR_LIGHT_YELLOW);
     font(FONT_SMALL);
     print("tonewheel drawbar engine", 56, 8, CLR_MEDIUM_GREY);
-    print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 8,
+    print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 6,
                 autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     font(FONT_NORMAL);
 
-    // the Leslie rotor — a spinning bar, speed = the live (eased) rate, so you SEE the spin-up
+    // OCTAVE control — prominent, with tappable - / + buttons (keys Z / X)
+    print("OCTAVE", OCT_DN_X, 14, CLR_MEDIUM_GREY);
+    rectfill(OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
+    rect(OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
+    print("Z", OCT_DN_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
+    print_scaled(str("%d", octave), OCT_DN_X + 26, OCT_BTN_Y, CLR_LIGHT_YELLOW, 2);
+    rectfill(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
+    rect(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
+    print("X", OCT_UP_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
+
+    // LESLIE button — a spinning rotor (speed = the live eased rate, so you SEE the spin-up)
     rotor_ph += 0.02f + leslie_rate * 0.06f;
-    int rx = SCREEN_W - 26, ry = 26, rr = 9;
-    const char *lname = leslie == 2 ? "fast" : leslie == 1 ? "slow" : "off";
-    circ(rx, ry, rr, leslie ? CLR_ORANGE : CLR_DARK_GREY);
+    rectfill(LES_X, LES_Y, LES_W, LES_H, leslie ? CLR_DARK_ORANGE : CLR_DARKER_GREY);
+    rect(LES_X, LES_Y, LES_W, LES_H, leslie ? CLR_ORANGE : CLR_DARK_GREY);
+    int rx = LES_X + 12, ry = LES_Y + LES_H / 2, rr = 7;
     line(rx - (int)(cosf(rotor_ph) * rr), ry - (int)(sinf(rotor_ph) * rr),
          rx + (int)(cosf(rotor_ph) * rr), ry + (int)(sinf(rotor_ph) * rr),
-         leslie ? CLR_LIGHT_YELLOW : CLR_DARKER_GREY);
-    font(FONT_TINY);
-    print_right(str("L leslie %s", lname), rx - rr - 4, ry - 3, leslie ? CLR_ORANGE : CLR_DARK_GREY);
-    print_right(str("oct %d  Z/X", octave), SCREEN_W - 10, 18, CLR_DARK_GREY);
+         leslie ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    font(FONT_SMALL);
+    print(str("L leslie %s", leslie == 2 ? "fast" : leslie == 1 ? "slow" : "off"),
+          LES_X + 24, ry - 3, leslie ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
-    // the manual
-    for (int b = 0; b < NKEY; b++) {
+    // the manual — white keys first, then black keys overlaid on top
+    for (int b = 0; b < NWHITE; b++) {
         int x = KEY_X(b);
         glow[b] *= 0.90f;
         bool down = handle[b] >= 0;
         int col = down ? CLR_LIGHT_YELLOW : glow[b] > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
         rectfill(x, KEY_Y, KEY_W, KEY_H, col);
         rect(x, KEY_Y, KEY_W, KEY_H, down ? CLR_WHITE : CLR_DARK_BROWN);
-        print(str("%c", KEYCH[b]), x + KEY_W / 2 - 2, KEY_Y + KEY_H - 12,
+        print(str("%c", WKEY[b]), x + KEY_W / 2 - 2, KEY_Y + KEY_H - 12,
               down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
+    }
+    for (int k = 0; k < NBLACK; k++) {
+        int x = BLACK_X(k), idx = NWHITE + k;
+        glow[idx] *= 0.90f;
+        bool down = handle[idx] >= 0;
+        int col = down ? CLR_ORANGE : glow[idx] > 0.1f ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK;
+        rectfill(x, KEY_Y, BLACK_W, BLACK_H, col);
+        rect(x, KEY_Y, BLACK_W, BLACK_H, down ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
+        font(FONT_TINY);
+        print(str("%c", BKEY[k]), x + BLACK_W / 2 - 1, KEY_Y + BLACK_H - 9,
+              down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
     }
 
     // preset row
@@ -322,7 +388,7 @@ void draw(void) {
     }
 
     font(FONT_TINY);
-    print("A..K hold (chords)   1..8 presets   L leslie   drag a slider (morphs held notes live)",
-          10, SCREEN_H - 8, CLR_DARK_GREY);
+    print("white A..K  black W E T Y U  hold (chords)   Z/X octave   1..8 presets   drag a slider (live)",
+          8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

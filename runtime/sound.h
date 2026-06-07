@@ -28,6 +28,7 @@
 // modeled ENGINES — stateful per-note simulations that read the three macros (harm/timb/mor).
 #define INSTR_ENGINE_BASE  INSTR_PLUCK
 #define SOUND_KS_MAX       1024   // Karplus-Strong delay line cap (~4KB/voice) — bottoms out around 43Hz / MIDI 29
+#define ORGAN_SCAN         64     // INSTR_ORGAN scanner-chorus delay taps (~1.5ms; borrows ks_buf's head — organ never uses the Karplus path)
 
 // One step in an SFX. pitch=0 means silence; vol 0..7.
 typedef struct {
@@ -124,6 +125,15 @@ typedef struct {
     // wave); only the inaudible modulator needs its own phase + the feedback memory.
     // fm_tph is the DX tine ping (1:1 detent only — see sound_fm_sample).
     float  fm_mph, fm_fb, fm_tph;
+    // tonewheel organ state (INSTR_ORGAN): 9 additive drawbar sines (buffer-free), plus a
+    // key-click burst, a percussion ping, and the scanner chorus — whose short delay line
+    // borrows the head of ks_buf (organ never touches the Karplus path), so it adds no buffer.
+    float  org_ph[9];              // per-drawbar phase accumulators
+    float  org_click;              // key-click noise-burst envelope (decays ~3ms)
+    float  org_perc, org_perc_ph;  // percussion ping envelope + its 2nd-harmonic phase
+    float  org_scan_ph;            // scanner LFO phase (6.9Hz, gear-locked to the motor)
+    int    org_widx;               // scanner delay write index into ks_buf[0..ORGAN_SCAN)
+    bool   org_on;                 // struck this note — guards an engine id without a note-on init
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -565,6 +575,100 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     return out;
 }
 
+// ORGAN note-on: organ tone is continuous (no struck excitation like pluck/mallet) — the
+// drawbar sines simply start sounding. We only ARM the two attack transients here: the key
+// click (rides timbre — a bright patch clicks harder) and the percussion ping (rides morph's
+// top end — a lively B3 chips, a still combo organ doesn't), and clear the borrowed scanner
+// tail so stale Karplus data can't click through.
+static void sound_organ_start(Voice *v) {
+    for (int i = 0; i < 9; i++) v->org_ph[i] = (float)i / 9.0f;   // spread phases: no coherent attack spike
+    for (int i = 0; i < ORGAN_SCAN; i++) v->ks_buf[i] = 0.0f;     // clear borrowed scanner delay
+    v->org_widx    = 0;
+    v->org_scan_ph = 0.0f;
+    v->org_click   = v->timb;                                     // brightness drives the click bite (§8.8.4)
+    float perc = (v->mor - 0.55f) / 0.45f;                        // percussion fades in over morph's top ~45%
+    v->org_perc    = perc < 0.0f ? 0.0f : (perc > 1.0f ? 1.0f : perc);
+    v->org_perc_ph = 0.0f;
+    v->org_on      = true;
+}
+
+// One ORGAN sample: 9 additive drawbar sines at the Hammond footage ratios, picked as a
+// SNAPPED registration (harmonics — like FM's ratio table, each detent a different recipe),
+// tilted bright/dark (timbre), then animated by the scanner chorus + percussion (morph).
+// Pitch: every drawbar derives from freq*pitch_mul per sample, so vibrato/glide/pitch-env
+// bend the whole stack together (§8.8.1). The scanner delay borrows ks_buf[0..ORGAN_SCAN).
+static inline float sound_organ_sample(Voice *v, float pitch_mul) {
+    if (!v->org_on) return 0.0f;                       // engine id without a note-on init
+    const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    static const float RAT[9] = { 0.5f, 1.5f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 8.0f };       // 16'..1' footages
+    static const float OCT[9] = { -1.0f, 0.585f, 0.0f, 1.0f, 1.585f, 2.0f, 2.322f, 2.585f, 3.0f }; // log2(ratio), precomputed
+    // harmonics = registration, SNAPPED to a curated table of iconic recipes (thin → full).
+    static const float REG[8][9] = {
+        { 0.0f, 0.0f, 0.75f, 0.0f, 0.75f, 0.0f, 0.0f, 0.0f, 0.0f }, // reggae bubble — hollow upstroke
+        { 0.0f, 0.0f, 0.75f, 0.75f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f }, // soft combo — cocktail
+        { 1.0f, 1.0f, 0.75f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },  // booker t — 60s clean
+        { 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },   // jimmy smith — fat jazz B3
+        { 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },   // larry young — modern jazz
+        { 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.5f },   // ballad — sub+fund+sparkle
+        { 1.0f, 1.0f, 1.0f, 0.75f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f },  // jon lord — rock growl
+        { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f },   // gospel full — all bars out
+    };
+    int ri = (int)(v->harm * 7.999f);
+    if (ri < 0) ri = 0; else if (ri > 7) ri = 7;
+    const float *reg = REG[ri];
+    float f = v->freq * pitch_mul;
+    if (f < 20.0f) f = 20.0f;
+    // timbre = brightness tilt across the drawbars (a spectral tilt by octave) + click bite
+    float tilt = (v->timb - 0.5f) * 2.0f;              // -1 dark .. +1 bright
+    float nyq  = (float)SOUND_SAMPLE_RATE * 0.45f;
+    float dry = 0.0f, ampSum = 0.0f;
+    for (int i = 0; i < 9; i++) {
+        float lvl = reg[i];
+        if (lvl < 0.001f) continue;
+        float w = 1.0f + tilt * (OCT[i] - 1.2f) * 0.45f;
+        if (w < 0.0f) w = 0.0f;
+        lvl *= w;
+        float df = f * RAT[i];
+        if (df >= nyq) continue;                        // above Nyquist: drop this drawbar
+        v->org_ph[i] += df * dt;
+        if (v->org_ph[i] >= 1.0f) v->org_ph[i] -= 1.0f;
+        dry += sinf(v->org_ph[i] * 6.2831853f) * lvl;
+        ampSum += lvl;
+    }
+    if (ampSum > 0.0001f) dry /= ampSum;                // equal loudness across registration + tilt (§8.8.1)
+    if (v->org_click > 0.0001f) {                       // key click: a short noise burst (~3ms)
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        dry += n * v->org_click * 0.35f;
+        v->org_click *= 1.0f - dt / 0.003f;
+        if (v->org_click < 0.0001f) v->org_click = 0.0f;
+    }
+    if (v->org_perc > 0.0001f) {                        // percussion: a 2nd-harmonic ping, fast decay
+        v->org_perc_ph += f * 2.0f * dt;
+        if (v->org_perc_ph >= 1.0f) v->org_perc_ph -= 1.0f;
+        dry += sinf(v->org_perc_ph * 6.2831853f) * v->org_perc * 0.4f;
+        v->org_perc *= 1.0f - dt / 0.2f;                // ~200ms
+        if (v->org_perc < 0.0001f) v->org_perc = 0.0f;
+    }
+    // morph = animation: the scanner CHORUS (C-mode, dry+wet) deepens with morph; 0 = a
+    // stone-still combo organ. The 6.9Hz scanner LFO sweeps a fractional tap in the borrowed
+    // ks_buf head — the comb shimmer that defines the gospel/jazz B3 (audio-notes §8.8.4).
+    float depth = v->mor * 30.0f;                       // up to ~0.7ms excursion (navkit C3)
+    if (depth < 0.5f) return dry * 0.9f;                // still: dry only, no scanner
+    v->ks_buf[v->org_widx] = dry;
+    v->org_scan_ph += 6.9f * dt;
+    if (v->org_scan_ph >= 1.0f) v->org_scan_ph -= 1.0f;
+    float lfo = sinf(v->org_scan_ph * 6.2831853f);
+    float rp  = (float)v->org_widx - (32.0f + lfo * depth);  // tap centered 32 behind the write head
+    if (rp < 0.0f) rp += (float)ORGAN_SCAN;
+    int   r0 = (int)rp;
+    float fr = rp - (float)r0;
+    int   r1 = r0 + 1; if (r1 >= ORGAN_SCAN) r1 = 0;
+    float wet = v->ks_buf[r0] + (v->ks_buf[r1] - v->ks_buf[r0]) * fr;
+    v->org_widx++; if (v->org_widx >= ORGAN_SCAN) v->org_widx = 0;
+    return (0.5f * dry + 0.5f * wet) * 0.9f;
+}
+
 // One engine sample — the dispatch (engine ids >= INSTR_ENGINE_BASE). The default body is
 // PLUCK. pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries
 // note_pitch/note_glide (slewed) — so the SAME pitch machinery every oscillator answers
@@ -573,6 +677,7 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_MALLET) return sound_mallet_sample(v, pitch_mul);
     if (v->wave == INSTR_FM)     return sound_fm_sample(v, pitch_mul);
+    if (v->wave == INSTR_ORGAN)  return sound_organ_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -731,9 +836,11 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->last_out = 0.0f;
     v->ks_len = 0;
     v->md_on  = false;
+    v->org_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
+    else if (v->wave == INSTR_ORGAN)  sound_organ_start(v);    // arm the click + perc, clear the scanner
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);

@@ -258,6 +258,7 @@ void map_scale(int n);                                  // integer zoom for map 
 #define INSTR_PLUCK   16  // Karplus-Strong plucked string — guitar/harp/koto. Decays on its own (give it a long hit() or release); vibrato/glide/pitch-env all bend it live. macros: harmonics = ring time, timbre = pick brightness, morph = pick position
 #define INSTR_MALLET  17  // struck bar — marimba/celesta/vibraphone/glockenspiel. Four decaying sine modes; rings on its own like PLUCK. macros: harmonics = bar material (wood→bell), timbre = mallet hardness, morph = ring length (top = motor tremolo)
 #define INSTR_FM      18  // 2-op FM — DX-style epiano/bells/bass/brass/clang. Brightness decays within each note like a real DX strike. macros: harmonics = carrier:mod ratio (snapped detents — integers harmonic, offs = bells), timbre = brightness (mod index), morph = feedback (clean → growl → clang)
+#define INSTR_ORGAN   19  // tonewheel organ — Hammond/gospel/jazz drawbar registrations. 9 additive sines, holds while sustained. macros: harmonics = registration (snapped drawbar recipes — thin combo → full gospel), timbre = brightness tilt + key click, morph = animation (scanner chorus + percussion; 0 = still combo organ)
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
 void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..31 yourself)

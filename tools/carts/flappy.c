@@ -102,6 +102,7 @@ static void die(void) {
 }
 
 void init(void) {
+    colorkey(0);                 // index 0 = the sprites' blank background → transparent
     best = load_int("flappy_best", 0);
     for (int i = 0; i < 4; i++) { cloud[i].x = i * 90 + 10; cloud[i].y = 18 + (i % 3) * 26; cloud[i].big = i & 1; }
     start_game();

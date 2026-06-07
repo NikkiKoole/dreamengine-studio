@@ -511,6 +511,32 @@ Two cautions: each tap occupies a slot in the engine's 64-deep delayed pen, so
 keep taps modest (throws of 5–6 are the ceiling); and each sounding tap is a
 voice, so echo short notes (60–80ms chops echo beautifully; pads don't).
 
+### Wah is just the filter swept (epiano.c)
+
+Wah needs no FX engine either — it's the per-voice SVF with a moving cutoff
+([decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md): "the
+4th use of the one filter"). Engage a *resonant* lowpass and sweep the cutoff;
+*how* you sweep it is which wah you get:
+
+```c
+// AUTO-WAH — an LFO sweeps the cutoff (the 70s Rhodes/clav wobble)
+instrument_filter(slot, FILTER_LOW, 900, 9);            // resonant lowpass — the vowel peak
+instrument_lfo(slot, 0, LFO_CUTOFF, 4.0f, 1200.0f);     // rate Hz, depth Hz
+
+// ENVELOPE-WAH — the cutoff opens on each strike then closes (the funky-clav "quack")
+instrument_filter(slot, FILTER_LOW, 350, 9);            // start closed
+instrument_env(slot, 0, ENV_CUTOFF, 2, 180, 2400.0f);   // attack/decay ms, amount Hz
+
+// PEDAL-WAH — you are the LFO: sweep it live on a held note
+note_filter(h, FILTER_BAND); note_res(h, 10); note_cutoff(h, foot_hz);
+```
+
+The **resonance (8–10) is the whole trick** — it's the peak that reads as a vowel
+rather than a tone control. Set it all at the slot and every strike inherits it
+(fire-and-forget notes too). Worked example with a toggle + depth slider:
+`epiano.c` — its clav preset boots into envelope-wah (Stevie's "Superstition").
+Full effects-as-recipes audit: [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md).
+
 ### The desk is an instrument (dub.c)
 
 A dub track is one riddim plus an engineer riding the faders — i.e. an

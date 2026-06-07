@@ -1,5 +1,5 @@
 # 0016 — Combo organ: a recipe now; its own macro axis or engine only when a station proves it
-Date: 2026-06-07 · Status: proposed (outcome deferred — the path + triggers are what's decided)
+Date: 2026-06-07 · Status: proposed (morph-fill verdict in — branch B; combo build still gated on a station, see Consequences)
 
 ## Context
 `INSTR_ORGAN` is designed ([instrument-engines.md §8.8.4](../design/instrument-engines.md)):
@@ -66,6 +66,13 @@ the §8.1.1 sin; off the table regardless of how the triggers resolve.
   pointer here.
 - The combo question is **pre-reasoned**: a future context asking "should combo be its own engine?"
   reads this instead of re-deriving it from scratch.
-- **Watch item during the build:** is `morph` (scanner + percussion animation) a *full* axis or
-  *thin*? Record the verdict here when known — it picks branch A vs B.
+- **Morph-fill verdict (2026-06-07, preliminary): FULL — no spare macro → branch B.** Playing the
+  `organ.c` showcase (scanner chorus + percussion on `morph`), the third macro is a *full,
+  distinct axis* — it is not free to repurpose. So **branch A (one engine, morph = combo blend) is
+  ruled out**: when combo organ earns promotion (a built station proving the bright+drive recipe
+  insufficient, per the second-customer rule), it lands as **branch B — its own `INSTR_COMBO`
+  engine**, not a repurposed macro. *Still preliminary on the timbre side:* the per-registration
+  sounds haven't been fully auditioned yet (organ-type familiarity), so the preset/mapping
+  ear-tuning (§8.8.2 step 6) is open — but that tuning won't free up `morph`, so the branch-B
+  verdict stands regardless.
 - Does not supersede 0015; it is an **application** of it to a specific engine.

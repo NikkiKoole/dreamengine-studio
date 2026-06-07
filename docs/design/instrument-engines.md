@@ -649,8 +649,10 @@ Hammond; a transistor combo organ's character is a non-sine divider waveform a p
 can't model, only approximate. Ship it as a cart preset (bright registration + baked `drive`); it
 graduates to its own `morph` axis or a second `INSTR_COMBO` engine only when a built station proves
 the recipe insufficient — the path + named triggers are [decision 0016](../decisions/0016-combo-organ-recipe-then-macro-or-engine.md).
-**Watch during the build:** whether `morph` (scanner + perc) is a *full* axis or *thin* — that
-verdict picks 0016's branch A (repurpose morph for combo blend) vs B (second engine).
+**Morph-fill verdict (2026-06-07, preliminary): FULL** — playing `organ.c`, the scanner+perc
+`morph` is a full distinct axis, *not* spare. So 0016 resolves to **branch B**: combo organ, when
+it earns promotion, gets its own `INSTR_COMBO` engine rather than folding onto morph. (Preset
+timbre ear-tuning is still open, but won't free morph.)
 
 #### Appendix — navkit's 9 organ registrations (verbatim, `instrument_presets.h:3427`)
 

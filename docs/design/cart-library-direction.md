@@ -73,7 +73,10 @@ pattern at the bottom.
    punch card is secretly a baby tinydaws lane editor. Gateway drug.
 2. **Hang drum / handpan** — circle of tone fields, `INSTR_MALLET`. Possibly the
    most *satisfying* touch instrument there is; shows mallet's harmonics/morph
-   macros beautifully.
+   macros beautifully. **→ SHIPPED 2026-06-07** as the `handpan` cart: the scale
+   zigzag (neighbors consonant), strike offset = per-hit timbre macro, shoulder
+   tok, four tunings (kurd/celtic/hijaz/pygmy), full multitouch. Published to the
+   web gallery same day.
 3. **Music box** — wind it up, it plays itself and *runs down* (tempo + pitch sag
    as the spring dies). TRI + clockwork ticks; shows `bpm()`-as-a-voice (tango's
    conductor trick) in toy form.

@@ -1,4 +1,4 @@
-// organ — INSTR_ORGAN showcase: a tonewheel manual + the three engine macros + the Leslie.
+// organ — INSTR_ORGAN showcase: a tonewheel manual + the three engine macros + drive + Leslie.
 //
 // The fourth modeled ENGINE: every key sums NINE drawbar sines at the Hammond footages, so
 // what you hear is a registration — a recipe of harmonics, not a single wave. Unlike pluck
@@ -8,6 +8,9 @@
 //   harmonics = registration  (snapped recipes — thin reggae .. full gospel; each detent a sound)
 //   timbre    = brightness     (dark drawbars .. bright + key click)
 //   morph     = animation      (0 still combo organ .. scanner chorus shimmer + percussion chip)
+// ...plus a fourth slider, DRIVE — NOT a macro, it's the per-voice overdrive (instrument_drive):
+// the cranked-tube / overdriven-Leslie growl. Bright registration + drive = the combo-organ
+// approximation from decision 0016 — push it and hear why.
 //
 // The named instruments are just KNOB POSITIONS (audio-notes §8.1 / §8.8.4): if pressing
 // "jimmy" doesn't sound like a jazz B3, the MAPPING is wrong, not the preset — this cart is
@@ -43,29 +46,31 @@ static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
 static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
 static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
 
-static const char *KNOB_NAME[3] = { "harmonics (reg)", "timbre (bright)", "morph (anim)" };
-static const char *KNOB_LO[3]   = { "thin",  "dark",  "still" };
-static const char *KNOB_HI[3]   = { "full",  "bright","shimmer" };
+// four sliders: the THREE engine macros + DRIVE (an effect, not a macro — styled apart).
+#define NSL 4
+enum { SL_HARM, SL_TIMB, SL_MOR, SL_DRIVE };
+static const char *SL_NAME[NSL] = { "harmonics", "timbre", "morph", "drive" };
+static const char *SL_LO[NSL]   = { "thin", "dark",  "still",   "clean" };
+static const char *SL_HI[NSL]   = { "full", "bright","shimmer", "growl" };
 
-// presets = knob positions with a hardware name (+ a baked drive — jon lord growls). The
+// presets = slider positions with a hardware name (drive baked in — jon lord growls). The
 // harmonics value lands on the matching registration detent (8 detents, h ~ (i+0.5)/8).
-typedef struct { const char *name; float h, t, m, drv; } Preset;
+typedef struct { const char *name; float v[NSL]; } Preset;   // v = {harm, timb, morph, drive}
 static const Preset PRESET[8] = {
-    { "reggae",  0.06f, 0.55f, 0.00f, 0.00f },   // hollow upstroke, no motion
-    { "combo",   0.19f, 0.45f, 0.30f, 0.00f },   // soft cocktail combo
-    { "bookerT", 0.31f, 0.45f, 0.22f, 0.00f },   // 60s clean, light chorus
-    { "jimmy",   0.44f, 0.55f, 0.75f, 0.00f },   // fat jazz B3, perc + C3 chorus
-    { "larry",   0.56f, 0.60f, 0.65f, 0.00f },   // modern jazz
-    { "ballad",  0.69f, 0.60f, 0.55f, 0.00f },   // sub+fund+sparkle
-    { "jonlord", 0.81f, 0.70f, 0.40f, 0.18f },   // rock growl (baked drive — the combo-grit preview)
-    { "gospel",  0.94f, 0.65f, 0.88f, 0.00f },   // all bars out, full shimmer + perc
+    { "reggae",  { 0.06f, 0.55f, 0.00f, 0.00f } },   // hollow upstroke, no motion
+    { "combo",   { 0.19f, 0.45f, 0.30f, 0.00f } },   // soft cocktail combo
+    { "bookerT", { 0.31f, 0.45f, 0.22f, 0.00f } },   // 60s clean, light chorus
+    { "jimmy",   { 0.44f, 0.55f, 0.75f, 0.00f } },   // fat jazz B3, perc + C3 chorus
+    { "larry",   { 0.56f, 0.60f, 0.65f, 0.00f } },   // modern jazz
+    { "ballad",  { 0.69f, 0.60f, 0.55f, 0.00f } },   // sub+fund+sparkle
+    { "jonlord", { 0.81f, 0.70f, 0.40f, 0.30f } },   // rock growl — baked DRIVE (the combo-grit preview)
+    { "gospel",  { 0.94f, 0.65f, 0.88f, 0.00f } },   // all bars out, full shimmer + perc
 };
 
 static int   handle[NKEY];     // held note_on handle per key (-1 = up)
 static float glow[NKEY];       // visual key-down flash
 static int   octave = 4;
-static float knob[3] = { 0.44f, 0.55f, 0.75f };   // boot on "jimmy"
-static float drv = 0.0f;
+static float val[NSL] = { 0.44f, 0.55f, 0.75f, 0.0f };   // boot on "jimmy"
 static int   sel = 0;
 static int   cur_preset = 3;
 static bool  autoplay = true;
@@ -107,37 +112,33 @@ static Ptr ptr[NPTR];
 #define LES_W 90
 #define LES_H 20
 
-// slider geometry — shared by draw() and the hit-test
-#define KNOB_W   88
+// slider geometry — four across; shared by draw() and the hit-test
+#define KNOB_W   64
 #define KNOB_Y   (SCREEN_H - 30)
-#define KNOB_X(k) (14 + (k) * 102)
+#define KNOB_X(k) (12 + (k) * 76)
 
 static int midi_of(int idx) {
     int base = (octave + 1) * 12;
     return base + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]);
 }
 
-// apply the macros to the slot template AND to every held voice (the live morph — the point
-// of the cart). Leslie LFOs ride the same held voices when engaged.
+// push all four sliders onto a single voice (held key or autoplay comp): the three engine
+// macros + the drive effect. Called live so dragging morphs every sounding note.
+static void apply_voice(int h) {
+    note_harmonics(h, val[SL_HARM]);
+    note_timbre(h, val[SL_TIMB]);
+    note_morph(h, val[SL_MOR]);
+    note_drive(h, val[SL_DRIVE]);
+}
+
+// apply to the slot template AND to every held voice (the live morph — the point of the cart)
 static void apply_live(void) {
-    instrument_harmonics(I_ORG, knob[0]);
-    instrument_timbre(I_ORG, knob[1]);
-    instrument_morph(I_ORG, knob[2]);
-    instrument_drive(I_ORG, drv);
-    for (int b = 0; b < NKEY; b++) {
-        if (handle[b] < 0) continue;
-        note_harmonics(handle[b], knob[0]);
-        note_timbre(handle[b], knob[1]);
-        note_morph(handle[b], knob[2]);
-        note_drive(handle[b], drv);
-    }
-    for (int i = 0; i < 3; i++) {
-        if (ap_h[i] < 0) continue;
-        note_harmonics(ap_h[i], knob[0]);
-        note_timbre(ap_h[i], knob[1]);
-        note_morph(ap_h[i], knob[2]);
-        note_drive(ap_h[i], drv);
-    }
+    instrument_harmonics(I_ORG, val[SL_HARM]);
+    instrument_timbre(I_ORG, val[SL_TIMB]);
+    instrument_morph(I_ORG, val[SL_MOR]);
+    instrument_drive(I_ORG, val[SL_DRIVE]);
+    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) apply_voice(handle[b]);
+    for (int i = 0; i < 3; i++)    if (ap_h[i] >= 0)   apply_voice(ap_h[i]);
 }
 
 // push the Leslie recipe (tremolo + doppler) onto every sounding voice at the current rate
@@ -159,10 +160,7 @@ static void apply_leslie(void) {
 static void key_down(int b) {
     if (handle[b] >= 0) return;
     handle[b] = note_on(midi_of(b), I_ORG, 6);
-    note_harmonics(handle[b], knob[0]);
-    note_timbre(handle[b], knob[1]);
-    note_morph(handle[b], knob[2]);
-    note_drive(handle[b], drv);
+    apply_voice(handle[b]);
     glow[b] = 1.0f;
 }
 static void key_up(int b) {
@@ -179,7 +177,7 @@ static void octave_step(int d) {
 }
 
 static void set_preset(int p) {
-    knob[0] = PRESET[p].h; knob[1] = PRESET[p].t; knob[2] = PRESET[p].m; drv = PRESET[p].drv;
+    for (int k = 0; k < NSL; k++) val[k] = PRESET[p].v[k];
     cur_preset = p;
     apply_live();
 }
@@ -207,10 +205,10 @@ void update(void) {
 
     for (int p = 0; p < 8; p++) if (keyp('1' + p)) set_preset(p);
 
-    if (keyp(KEY_LEFT))  sel = (sel + 2) % 3;
-    if (keyp(KEY_RIGHT)) sel = (sel + 1) % 3;
+    if (keyp(KEY_LEFT))  sel = (sel + NSL - 1) % NSL;
+    if (keyp(KEY_RIGHT)) sel = (sel + 1) % NSL;
     if (key(KEY_UP) || key(KEY_DOWN)) {
-        knob[sel] = clamp(knob[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
+        val[sel] = clamp(val[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
         cur_preset = -1;
         apply_live();
     }
@@ -243,7 +241,7 @@ void update(void) {
                     if (tx >= 12 + q * 38 && tx < 12 + q * 38 + 36) { set_preset(q); break; }
                 continue;
             }
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < NSL; k++)
                 if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y - 6, KNOB_W + 4, 18)) {
                     p->mode = PTR_DRAG; p->k = sel = k;
                 }
@@ -261,7 +259,7 @@ void update(void) {
                     }
             }
         } else if (p->mode == PTR_DRAG) {
-            knob[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
+            val[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
             cur_preset = -1;
             apply_live();
         }
@@ -284,9 +282,7 @@ void update(void) {
             int chord_notes[3] = { r, r + (TYPE[ap_step % 4] == CHORD_MIN7 ? 3 : 4), r + 7 };
             for (int i = 0; i < 3; i++) {
                 ap_h[i] = note_on(chord_notes[i], I_ORG, 4);
-                note_harmonics(ap_h[i], knob[0]);
-                note_timbre(ap_h[i], knob[1]);
-                note_morph(ap_h[i], knob[2]);
+                apply_voice(ap_h[i]);
             }
             ap_step++;
         }
@@ -295,9 +291,10 @@ void update(void) {
     }
 
 #ifdef DE_TRACE
-    watch("harm", "%.2f", knob[0]);
-    watch("timb", "%.2f", knob[1]);
-    watch("mor",  "%.2f", knob[2]);
+    watch("harm", "%.2f", val[SL_HARM]);
+    watch("timb", "%.2f", val[SL_TIMB]);
+    watch("mor",  "%.2f", val[SL_MOR]);
+    watch("drive","%.2f", val[SL_DRIVE]);
     watch("preset", "%d", cur_preset);
     watch("octave", "%d", octave);
     watch("leslie", "%d", leslie);
@@ -372,23 +369,24 @@ void draw(void) {
     }
     font(FONT_NORMAL);
 
-    // the three macro knobs
-    for (int k = 0; k < 3; k++) {
+    // the four sliders — 3 engine macros + DRIVE (an effect, tinted apart in red/orange)
+    for (int k = 0; k < NSL; k++) {
         int x = KNOB_X(k), y = KNOB_Y;
         bool on = (k == sel);
+        bool fx = (k == SL_DRIVE);
         font(FONT_SMALL);
-        print(KNOB_NAME[k], x, y - 8, on ? CLR_YELLOW : CLR_MEDIUM_GREY);
+        print(SL_NAME[k], x, y - 8, on ? CLR_YELLOW : fx ? CLR_DARK_ORANGE : CLR_MEDIUM_GREY);
         font(FONT_NORMAL);
-        bar(x, y, KNOB_W, 7, knob[k], on ? CLR_ORANGE : CLR_BROWN, CLR_DARKER_GREY);
+        bar(x, y, KNOB_W, 7, val[k], on ? CLR_ORANGE : fx ? CLR_DARK_ORANGE : CLR_BROWN, CLR_DARKER_GREY);
         font(FONT_TINY);
-        print(KNOB_LO[k], x, y + 9, CLR_DARK_GREY);
-        print_right(KNOB_HI[k], x + KNOB_W, y + 9, CLR_DARK_GREY);
+        print(SL_LO[k], x, y + 9, CLR_DARK_GREY);
+        print_right(SL_HI[k], x + KNOB_W, y + 9, CLR_DARK_GREY);
         font(FONT_NORMAL);
         if (on) print(">", x - 9, y, CLR_YELLOW);
     }
 
     font(FONT_TINY);
-    print("white A..K  black W E T Y U  hold (chords)   Z/X octave   1..8 presets   drag a slider (live)",
+    print("white A..K  black W E T Y U   Z/X octave   1..8 presets   drag a slider (live)   L leslie",
           8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

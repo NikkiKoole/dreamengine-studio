@@ -32,6 +32,12 @@
 // v1 is grep-grade and informational (always exits 0): it produces a worklist,
 // not a gate. Known gap (manual check): key-gated title screens — "press Z to
 // start" — on otherwise touch-capable carts.
+//
+// Library headers: a quote-include of a runtime/ header (ui.h, gestures.h …)
+// is inlined before scanning, so a cart whose whole input story lives in
+// ui.h widgets still ranks touch-ready (the §5.4 contract: an all-ui.h cart
+// lints green by construction). studio.h is skipped — it's declarations
+// only, and its prototypes would match every input regex.
 
 const fs   = require('fs')
 const path = require('path')
@@ -44,10 +50,23 @@ function stripComments(src) {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
 }
 
+// inline quote-included runtime/ library headers (ui.h, gestures.h, …) so
+// their input reads count as the cart's; studio.h skipped (declarations only)
+function inlineRuntimeIncludes(src, seen) {
+  seen = seen || new Set()
+  return src.replace(/#include\s+"([^"]+\.h)"/g, (m, h) => {
+    if (h === 'studio.h' || seen.has(h)) return ''
+    const f = path.join(ROOT, 'runtime', h)
+    if (!fs.existsSync(f)) return ''
+    seen.add(h)
+    return inlineRuntimeIncludes(stripComments(fs.readFileSync(f, 'utf8')), seen)
+  })
+}
+
 function lint(name) {
   const srcFile = path.join(CARTS_DIR, `${name}.c`)
   if (!fs.existsSync(srcFile)) return { name, verdict: 'MISSING', warnings: [] }
-  const src = stripComments(fs.readFileSync(srcFile, 'utf8'))
+  const src = inlineRuntimeIncludes(stripComments(fs.readFileSync(srcFile, 'utf8')))
   const has = (re) => re.test(src)
 
   // .cart.js settings (touchControls)

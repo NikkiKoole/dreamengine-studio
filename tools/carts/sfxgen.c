@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "ui.h"
 #include <stdio.h>
 #include <math.h>
 
@@ -37,7 +38,6 @@ static const int WMAP[5] = { INSTR_SINE, INSTR_TRI, INSTR_SQUARE, INSTR_SAW, INS
 static int   play_i = -1, head = -1;
 static float play_t = 0;          // time until the next UNSCHEDULED step (the queue-ahead clock)
 static float vis_t = -1;          // visual clock for the playhead; <0 = stopped
-static int   ui_row = -1;          // slider row being dragged
 static const char *msg = ""; static int msg_t = 0;
 
 // undo/redo of whole param sets (mutate too far -> step back)
@@ -208,13 +208,8 @@ void update(void) {
     }
     if (msg_t > 0) msg_t--;
 
-    // slider rows — press in a row, drag horizontally
-    if (mouse_pressed(MOUSE_LEFT)) {
-        int r = (mouse_y() - RY) / RH;
-        if (mouse_x() >= RX - 2 && mouse_x() < RX + RW + 2 && r >= 0 && r < NP && mouse_y() >= RY) { remember(); ui_row = r; }
-    }
-    if (!mouse_down(MOUSE_LEFT)) { if (ui_row >= 0) replay(); ui_row = -1; }
-    if (ui_row >= 0) { P[ui_row] = clamp((mouse_x() - RX) / (float)RW, 0, 1); gen(); }
+    // (sliders + buttons live in draw() now — ui.h widgets; this cart is
+    // the header's second customer, ui-widgets-notes.md §5)
 
     // playback — queue steps ~2 frames ahead with schedule_hit(), so the AUDIO thread fires
     // them sample-accurately: 8ms steps stay crisp instead of colliding in the 60fps frame
@@ -233,22 +228,31 @@ void update(void) {
         head = (int)(vis_t * 1000.0f / SPD_MS);
         if (head >= NSTEP) { head = -1; vis_t = -1; }
     }
+
+#ifdef DE_TRACE
+    watch("pst", "%.2f", P[P_ST]);   // pitch-start slider (retrofit test target)
+    watch("spd_i", "%d", spd_i);
+    watch("hist", "%d", hist_i);
+    watch("caps", "%d", ui_cap_n);
+    watch("playing", "%d", play_i >= 0 ? 1 : 0);
+#endif
 }
 
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
+    ui_begin();
     print("SFX GENERATOR", 8, 3, CLR_WHITE);
     font(FONT_SMALL);
     if (msg_t > 0) print(msg, 120, 5, CLR_LIGHT_PEACH);
     else           print_right("arrows undo  E export  S/L save", 312, 5, CLR_MAUVE);
 
-    // 17 slider rows (the row IS the slider, sfxp style)
+    // 17 slider rows (the row IS the slider, sfxp style) — ui.h widgets:
+    // grab = undo point (fires before the press-jump lands), drag regenerates,
+    // release replays. Multi-finger: every finger rides its own row.
     for (int i = 0; i < NP; i++) {
-        int y = RY + i * RH;
-        bool hot = ui_row == i || (mouse_y() >= y && mouse_y() < y + RH && mouse_x() >= RX && mouse_x() < RX + RW);
-        rectfill(RX, y + 1, RW, RH - 3, CLR_DARKER_BLUE);
-        rectfill(RX, y + 1, (int)(P[i] * RW), RH - 3, hot ? CLR_BLUE : CLR_DARKER_PURPLE);
-        print(PNAME[i], RX + 3, y + 2, hot ? CLR_WHITE : CLR_LIGHT_GREY);
+        if (ui_grabbed(&P[i])) remember();
+        if (ui_slider(&P[i], RX, RY + i * RH, RW, PNAME[i])) gen();
+        if (ui_released(&P[i])) replay();
     }
 
     // the generated curves, overlaid to the right: amp / pitch / wave per step
@@ -266,33 +270,25 @@ void draw(void) {
     print("pitch", cx0 + 3, cy0 + 9, CLR_ORANGE);
     print("wave", cx0 + 3, cy0 + 16, CLR_GREEN);
 
-    // sfxr-style category row — tiny buttons, each click = a fresh variant (keys 1-7)
+    // sfxr-style category row — each click = a fresh variant (keys 1-7)
     int py2 = RY + NP * RH + 2;
-    for (int c = 0; c < 7; c++) {
-        int x = 8 + c * 43;
-        bool hot = mouse_x() >= x && mouse_x() < x + 41 && mouse_y() >= py2 && mouse_y() < py2 + 10;
-        rectfill(x, py2, 41, 10, CLR_DARKER_PURPLE);
-        rect(x, py2, 41, 10, hot ? CLR_WHITE : CLR_DARK_GREY);
-        print(CATN[c], x + 10, py2 + 2, hot ? CLR_WHITE : CLR_LIGHT_PEACH);
-        if (hot && mouse_pressed(MOUSE_LEFT)) category(c);
-    }
+    for (int c = 0; c < 7; c++)
+        if (ui_button(8 + c * 43, py2, 41, 10, CATN[c])) category(c);
 
     // main bar: play / random / mutate / speed
     int by = py2 + 12;
     const char *bn[4] = { "PLAY (Z)", "RANDOM (R)", "MUTATE (M)", str("SPD %dms", SPD_MS) };
     for (int b = 0; b < 4; b++) {
         int x = 8 + b * 78;
-        bool hot = mouse_x() >= x && mouse_x() < x + 72 && mouse_y() >= by && mouse_y() < by + 11;
-        rectfill(x, by, 72, 11, CLR_DARKER_BLUE);
-        rect(x, by, 72, 11, hot ? CLR_WHITE : CLR_DARK_GREY);
-        print(bn[b], x + 5, by + 3, CLR_LIGHT_GREY);
-        if (hot && mouse_pressed(MOUSE_LEFT)) {
+        if (ui_button(x, by, 72, 11, bn[b])) {
             if (b == 0) replay();
             if (b == 1) randomize(false);
             if (b == 2) randomize(true);
             if (b == 3) { spd_i = (spd_i + 1) % NSPD; replay(); }
         }
-        if (b == 1 && hot && mouse_pressed(MOUSE_RIGHT)) randomize(true);   // sfxp tradition: rclick random = mutate
+        if (b == 1 && ui_hover(x, by, 72, 11) && mouse_pressed(MOUSE_RIGHT))
+            randomize(true);   // sfxp tradition: rclick random = mutate
     }
     font(FONT_NORMAL);
+    ui_end();
 }

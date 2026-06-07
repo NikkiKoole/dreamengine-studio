@@ -1,11 +1,20 @@
 # ui.h — a small cross-input widget kit (button · slider · knob · panel · drag-from)
 
-> **Genre: design exploration (scratchpad).** Proposal for a cart-land library
+> **Genre: design exploration → build record.** Proposal for a cart-land library
 > header (`runtime/ui.h`, the `gestures.h`/`improv.h` pattern — all `static`,
 > zero engine API, no tcc-symbol regen) giving carts a tiny set of UI elements
 > that work for **mouse, touch, and keyboard/keypad/gamepad** at once. Status →
-> [`../STATUS.md`](../STATUS.md) (open item 25). Prereq for trusting it on
-> phones: the web phantom-touch fix, [`touch-notes.md`](touch-notes.md) §7.
+> [`../STATUS.md`](../STATUS.md) (open item 25). The phone prereq (web
+> phantom-touch, [`touch-notes.md`](touch-notes.md) §7) cleared 2026-06-06.
+>
+> **v1 SHIPPED 2026-06-07** — `runtime/ui.h`: `ui_begin/ui_end` + **button /
+> slider / knob** + per-contact capture + hit-pad inflation + opt-in focus
+> ring + `ui_grabbed`/`ui_released` events. **Panel and drag-from were cut
+> from v1** (user call, the second-customer rule applied per-widget — §4's
+> dragfrom customers were speculative; they wait for a real retrofit that
+> wants them). Shipped per §5: `uikit` showcase/probe cart + the `sfxgen`
+> retrofit. Build learnings → §7 below; device-probe half still open
+> ([`probe-carts.md`](probe-carts.md)).
 
 ---
 
@@ -146,6 +155,11 @@ void draw(void) {
 
 ## 6. Deliberately NOT in v1
 
+- **Panel and drag-from** *(moved here from §4 at ship time)* — the §4 sketch
+  had five widgets, but judged by our own per-widget second-customer standard,
+  `ui_dragfrom`'s named customers were speculative (modrack jack-patching is
+  not a planned retrofit; monstermix composites at *bake* time) and `ui_panel`
+  had none. They ship when a real cart demands them.
 - Windowing (drag/resize/z-order panels), modal dialogs, scroll regions.
 - Text fields — mobile web can't do native text input anyway
   ([`mobile-web-notes.md`](mobile-web-notes.md) §6c); a tappable `ui_keyboard`
@@ -155,3 +169,42 @@ void draw(void) {
   carts keep writing the same three lines.
 - Layout engines, anchoring, autosizing. Coordinates are literals; this is the
   PICO-8 lane.
+
+## 7. Build learnings (v1, 2026-06-07) — what the retrofit taught the API
+
+The `sfxgen` retrofit (17 sliders + 11 buttons) was run as the §5.2 test —
+"if the retrofit fights the API, the API is wrong" — and it found two fights,
+both resolved API-side:
+
+- **Event timing: grab must fire *before* the first value change.** sfxgen's
+  undo (`remember()`) needs the *pre-drag* param set, but sliders are
+  absolute — the press itself jumps the value. Fix: presses are resolved at
+  `ui_end()` and the grab event is pushed *there*, one frame before the
+  widget applies the jump. A cart that checks `ui_grabbed(&v)` **above** the
+  widget call snapshots clean pre-drag state; `ui_released` is symmetric
+  (pushed in `ui_begin`, checked after the call so the final position has
+  landed). Verified: scripted drag → undo restores the exact pre-press value.
+- **Button identity is the RECT, not the label pointer.** sfxgen's SPD button
+  labels with `str("SPD %dms", …)` — a rotating buffer whose pointer changes
+  every frame, which would orphan the capture mid-press under §3b's
+  label-pointer scheme. Rect-only identity is also just *truer* for immediate
+  mode: whatever is drawn at the pressed rect is what you pressed. (Value
+  widgets keep the value-address identity exactly as §3b designed.)
+- **Deferred press resolution doubles as the dense-layout answer.** Presses
+  collected in `ui_begin`, resolved against *all* widgets at `ui_end`
+  (visual-rect hit beats inflated hit; nearest center among inflated
+  candidates): sfxgen's 17 rows at 9px pitch route correctly even though
+  every row's inflated target overlaps its neighbours. Cost: captures start
+  one frame late — invisible at 60fps, and a sub-frame tap still lands
+  (press resolves at N, release marked at N+1, button activates at N+1).
+- **mobile-lint §5.4 contract enforced from the lint side:** the lint now
+  inlines quote-included `runtime/` headers before scanning (skipping
+  `studio.h` — declarations would match every regex), so `uikit`/`sfxgen`
+  rank **touch-ready by construction** instead of keyboard-only/tap-as-mouse.
+- Verified by harness, not by hand: handcrafted `.rec` replays drive the vt
+  pool (the injected pointer becomes the synthetic touch), so slider
+  press-jump/drag/release, knob relative drag + clamp, button
+  release-activation, capture counts, focus traversal (F → arrows →
+  LEFT/RIGHT adjust) are all asserted from `--trace` output. The remaining
+  unverifiable-by-replay piece is real multi-touch (two knobs, two fingers) —
+  that's the device probe.

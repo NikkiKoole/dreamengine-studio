@@ -15,32 +15,24 @@
 
 ## What dreamengine has today
 
-For reference, the current API (all of `studio.h`) groups into:
+**Deliberately not a table.** A ~125-function prose copy of the API sat in this spot and
+silently rotted to **199 functions** within days of its last refresh (it never learned
+about the held-note family, the modeled engines, drive/echo/choke…) — exactly the
+failure `docs/README.md` predicts: *don't maintain a second copy of the function list in
+prose*. Cut 2026-06-07. Where to look instead:
 
-| Group | Symbols |
-|---|---|
-| **Callbacks** | `update`, `draw`, `init` |
-| **Input — buttons** | `btn`, `btnp`, `BTN_*` |
-| **Input — touch** | `touch_count`, `touch_x`, `touch_y`, `tap`, `stick_x/y`, `touch_controls` |
-| **Input — mouse + keyboard** | `mouse_x`, `mouse_y`, `mouse_down`, `mouse_pressed`, `mouse_released`, `mouse_wheel`, `key`, `keyp`, `text_input`, `KEY_*` |
-| **Graphics** | `cls`, `spr`, `sprf`, `sspr`, `sspr_ex`, `spr_rot`, `pset`, `pget`, `print`, `print_centered`, `print_right`, `print_scaled`, `text_width`, `line`, `rect`, `rectfill`, `circ`, `circfill`, `oval`, `ovalfill`, `tri`, `trifill`, `tritex`, `bar`, `camera`, `clip`, `colorkey`, `map_scale`, `fillp`, `fillp_reset`, `pal`, `pal_reset`, `fade`, `shake`, `FILL_*` |
-| **Map** | `mget`, `mset`, `map`, `MAP_W`, `MAP_H` |
-| **Sound** | `sfx`, `note`, `hit`, `tone`, `chord`, `strum`, `schedule`, `bpm`, `beat`, `beat_pos`, `every`, `euclid`, `chance`, `degree`, `instrument`, `instrument_duty`, `instrument_lfo`, `instrument_filter`, `INSTR_*`, `LFO_*`, `FILTER_*`, `SCALE_*`, `CHORD_*` (`music` cut — [decision 0013](../decisions/0013-cut-music-api.md)) |
-| **Math** | `abs`, `min`, `max`, `clamp`, `mid`, `sgn`, `lerp`, `remap`, `distance`, `length`, `angle_to`, `dx`, `dy`, `sin_deg`, `cos_deg`, `fsqrt` |
-| **Collision** | `boxes_touch`, `circles_touch`, `near`, `point_in_box`, `touching_map`, `tile_at`, `touching_color` (`bounce_at_edges` cut — [decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)) |
-| **Animation** | `anim`, `blink` (`anim_once` cut — [decision 0014](../decisions/0014-cut-unused-convenience-helpers.md)) |
-| **Easing** | `ease_in`, `ease_out`, `ease_in_out` |
-| **Noise** | `noise`, `noise2`, `noise3` |
-| **Persistence** | `save`, `load`, `save_bytes`, `load_bytes` |
-| **Time** | `now`, `frame`, `dt`, `timer`, `timer_reset`, `epoch` |
-| **Strings** | `str` |
-| **Random** | `rnd`, `rnd_between`, `rnd_float`, `rnd_float_between` |
-| **Camera** | `camera`, `follow` |
-| **3D helpers** | `V3`, `rot3`, `project3`, `zsort`, `quadfill` (turtle/pen API removed 2026-06-01 → cart-side; see [decision 0008](../decisions/0008-cut-turtle-graphics-api.md)) |
-| **Debug** | `watch`, `watch_visible`, `printh` |
-| **Palette** | 32 `CLR_*` constants |
+- **`runtime/studio.h`** — the reference: declarations, grouped, one-liner-commented.
+  (LSP `documentSymbol` on it lists the whole API with signatures in one call.)
+- **`editor/src/studioDocs.js`** — the one-liners that drive autocomplete/hover/help.
+- **`node tools/api-usage.js`** — the live count (199 functions, 2026-06-07), per-cart
+  usage, and the studio.h ↔ studioDocs ↔ shell.js coverage cross-check.
 
-Roughly **~125 functions + ~90 constants** in `studio.h` today. Strong across the board. **Still missing: events, Strudel extras, Dilla groove timing, gamepad, and pause debug (`fps()` now shipped).** (Since this table was first written: sprite rotation/scale `spr_rot`/`sspr_ex` (§18); the juice batch `pal`/`fade`/`shake`/`print_scaled` and `fillp` patterns (§19); the four-axis **instrument synth** `instrument`/`instrument_duty`/`instrument_lfo`/`instrument_filter` (see audio-notes §10); and `tritex` textured triangles.)
+What this section *should* hold is the durable, decision-shaped prose — **the cuts**:
+`music()` ([0013](../decisions/0013-cut-music-api.md)) ·
+`bounce_at_edges`/`anim_once`/`bezier_cubic` ([0014](../decisions/0014-cut-unused-convenience-helpers.md)) ·
+turtle/pen ([0008](../decisions/0008-cut-turtle-graphics-api.md)) — and **what's still
+missing** vs. the proposals below: events (§11), Strudel extras (§13), Dilla groove
+timing (§14), gamepad (§15), `voices_active()` (§16).
 
 ---
 
@@ -839,6 +831,11 @@ that `btn(0, BTN_A)` returns true if either the Z key *or* the
 gamepad-0 A button is held. Same for player 1 mapping to
 gamepad-1. No cart-facing change.
 
+> ⚠ Note (2026-06-07): `studio.h`'s `BTN_A`/`BTN_B` comments already *say* "z /
+> gamepad a" — but there is zero `IsGamepad*` code in `studio.c` (verified). The
+> header promises this section before it exists; either honor the comment when
+> this ships, or trim it meanwhile so a beginner with a controller isn't misled.
+
 What we *do* need a new surface for is analog input:
 
 ```c
@@ -876,8 +873,12 @@ int fps(void);             // SHIPPED — measured frame rate now, averaged over
 int voices_active(void);   // how many sound voices are currently playing
 ```
 
-> **`fps()` shipped (2026-06-02)** — the rest of this section (`pause()`/`paused()`,
-> `voices_active()`) is still open. See STATUS open item 4.
+> **Mostly shipped, differently than sketched.** `fps()` shipped 2026-06-02. Pause
+> shipped ~2026-06-05 as a **runtime-owned overlay** (P/ENTER hotkey, `-DPAUSE_KEY`
+> rebind, keys the cart reads are claimed and skip the hotkey) + the **`paused()`**
+> query — not the cart-controlled `pause(bool)` setter below; the runtime owns the
+> freeze, carts just ask. Still open: `voices_active()`, and the `menuitem()` idea
+> folded into STATUS open item 4. (The sketch below is kept as the original design.)
 
 `pause(true)` stops `update()` from firing; `draw()` keeps running
 each frame so the screen doesn't freeze. Carts can use this for
@@ -924,7 +925,7 @@ strings yourself.
 
 ### 18. Convenient sprite drawing — ✓ shipped
 
-> **✓ Shipped (in working tree, pending commit).** Landed as two functions — a simple
+> **✓ Shipped 2026-05-30** (commit `160db70`). Landed as two functions — a simple
 > whole-sprite spin and a full source-rect transform:
 > ```c
 > void spr_rot(int index, int x, int y, float deg);  // spin a whole sprite `deg` around its center. (x,y) = top-left like spr(). the everyday rotate

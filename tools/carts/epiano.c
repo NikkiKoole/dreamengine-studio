@@ -1,4 +1,4 @@
-// epiano — INSTR_EPIANO showcase: a piano manual + the three engine macros.
+// epiano — INSTR_EPIANO showcase: a piano manual + the three engine macros + a WAH.
 //
 // The fifth modeled ENGINE: Rhodes / Wurlitzer / Clavinet in ONE. Every key sums 12 decaying
 // inharmonic sine modes and pushes them through a PICKUP NONLINEARITY — the bark/buzz/honk
@@ -9,22 +9,25 @@
 //   timbre    = brightness  (mellow, centered pickup .. bright/snappy, offset + hard hammer)
 //   morph     = bark        (0 clean fundamental .. dig-in growl — the pickup driven hard)
 //
+// THE WAH is not an engine — it's a RECIPE (decision 0015): wah is just the per-voice filter
+// swept, "the 4th use of the one SVF". Two forms, on a toggle: AUTO (an LFO_CUTOFF wobble) and
+// ENV (ENV_CUTOFF opens on each strike — the funky-clav "quack"). Zero new engine code; the
+// slider sets how deep. The classic envelope-wah Clavinet (Stevie's "Superstition") is one
+// preset away. (The DX/digital EP is INSTR_FM; this is the electromechanical one.)
+//
 // The named instruments are just KNOB POSITIONS (audio-notes §8.1 / §8.8.5): if pressing
-// "wurli" doesn't sound like a Wurlitzer, the MAPPING is wrong, not the preset — this cart is
-// the engine's tuning rig. (The DX/digital EP is INSTR_FM; this is the electromechanical one.)
+// "wurli" doesn't sound like a Wurlitzer, the MAPPING is wrong, not the preset.
 //
 // controls: white keys  A S D F G H J K   ·   black keys  W E . T Y U
-//           Z / X  octave down / up   ·   1..6 presets   ·   M autoplay
+//           Z / X  octave   ·   1..6 presets   ·   V wah (off/auto/env)   ·   M autoplay
 //           drag a slider (re-strikes to audition), or LEFT/RIGHT pick + UP/DOWN turn
-// MULTITOUCH: every finger is its own pointer — play with several fingers while another rides
-// a slider; tap the on-screen octave +/-. The desktop mouse arrives as one synthetic finger.
+// MULTITOUCH: every finger is its own pointer; tap the on-screen octave +/- and wah buttons.
 
 #include "studio.h"
 #include <math.h>
 
 #define I_EP 5
 
-// a piano octave: 8 white keys (C..C) + 5 black keys (see organ.c for the layout notes).
 #define NWHITE 8
 #define NBLACK 5
 #define NKEY   (NWHITE + NBLACK)
@@ -34,33 +37,37 @@ static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
 static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
 static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
 
-static const char *KNOB_NAME[3] = { "instrument", "brightness", "bark" };
-static const char *KNOB_LO[3]   = { "rhodes", "mellow", "clean" };
-static const char *KNOB_HI[3]   = { "clav",   "bright", "growl" };
+#define NSL 4
+enum { SL_INST, SL_BRITE, SL_BARK, SL_WAH };
+static const char *SL_NAME[NSL] = { "instrument", "bright", "bark", "wah" };
+static const char *SL_LO[NSL]   = { "rhodes", "mellow", "clean", "subtle" };
+static const char *SL_HI[NSL]   = { "clav",   "bright", "growl", "deep" };
 static const char *INSTRUMENT[3]= { "RHODES", "WURLI", "CLAV" };
+static const char *WAHNAME[3]   = { "off", "auto", "env" };
 
-// presets = slider positions with a hardware name. harmonics lands on an instrument detent
-// (Rhodes ~0.15, Wurli ~0.5, Clav ~0.85); timbre/morph set the variant.
-typedef struct { const char *name; float h, t, m; } Preset;
+// presets = slider positions + a wah mode. harmonics lands on an instrument detent.
+typedef struct { const char *name; float v[NSL]; int wah; } Preset;
 static const Preset PRESET[6] = {
-    { "rhodes",   0.15f, 0.30f, 0.25f },   // warm suitcase-ish
-    { "rho brite",0.15f, 0.78f, 0.55f },   // bright stage, barky
-    { "suitcase", 0.15f, 0.20f, 0.12f },   // mellow, clean, long
-    { "wurli",    0.50f, 0.35f, 0.30f },   // soul ballad
-    { "wur buzz", 0.50f, 0.66f, 0.82f },   // cranked reed buzz
-    { "clav",     0.85f, 0.75f, 0.55f },   // funky bridge pickup
+    { "rhodes",   { 0.15f, 0.30f, 0.25f, 0.5f }, 0 },   // warm suitcase-ish
+    { "rho brite",{ 0.15f, 0.78f, 0.55f, 0.5f }, 0 },   // bright stage, barky
+    { "suitcase", { 0.15f, 0.20f, 0.12f, 0.5f }, 0 },   // mellow, clean, long
+    { "wurli",    { 0.50f, 0.35f, 0.30f, 0.5f }, 0 },   // soul ballad
+    { "wur buzz", { 0.50f, 0.66f, 0.82f, 0.6f }, 1 },   // cranked reed + auto-wah movement
+    { "clav",     { 0.85f, 0.75f, 0.55f, 0.7f }, 2 },   // funky bridge pickup + ENVELOPE WAH
 };
 
-static int   handle[NKEY];     // held note_on handle per key (-1 = up)
+static int   handle[NKEY];
 static float glow[NKEY];
 static int   octave = 4;
-static float knob[3] = { 0.15f, 0.30f, 0.25f };   // boot on "rhodes"
+static float val[NSL] = { 0.15f, 0.30f, 0.25f, 0.5f };   // boot on "rhodes"
 static int   sel = 0;
 static int   cur_preset = 0;
+static int   wah = 0;            // 0 off, 1 auto (LFO_CUTOFF), 2 env (ENV_CUTOFF quack)
 static bool  autoplay = true;
 
-static int   ap_h[3] = { -1, -1, -1 };   // autoplay comp voices
+static int   ap_h[3] = { -1, -1, -1 };
 static int   ap_step = 0;
+static int   aud_h = -1;         // audition scratch voice (so preset/slider strikes carry the wah)
 
 #define NPTR 10
 #define NOID (-999)
@@ -82,10 +89,14 @@ static Ptr ptr[NPTR];
 #define OCT_BTN_Y 24
 #define OCT_BTN_W 20
 #define OCT_BTN_H 18
+#define WAH_X (SCREEN_W - 92)
+#define WAH_Y 22
+#define WAH_W 86
+#define WAH_H 20
 
-#define KNOB_W   88
+#define KNOB_W   64
 #define KNOB_Y   (SCREEN_H - 30)
-#define KNOB_X(k) (14 + (k) * 102)
+#define KNOB_X(k) (12 + (k) * 76)
 
 static int midi_of(int idx) {
     int base = (octave + 1) * 12;
@@ -93,22 +104,39 @@ static int midi_of(int idx) {
 }
 
 static void apply_slot(void) {
-    instrument_harmonics(I_EP, knob[0]);
-    instrument_timbre(I_EP, knob[1]);
-    instrument_morph(I_EP, knob[2]);
+    instrument_harmonics(I_EP, val[SL_INST]);
+    instrument_timbre(I_EP, val[SL_BRITE]);
+    instrument_morph(I_EP, val[SL_BARK]);
 }
 
-// EP is struck — harmonics/timbre are baked at the strike, so a moving slider auditions by
-// re-striking (mallet pattern). Only morph (bark) is read live by ringing voices.
+// THE WAH RECIPE — all slot-level, so every strike (keys, auditions, autoplay) inherits it.
+// wah is just the per-voice SVF swept: AUTO = an LFO on the cutoff; ENV = the cutoff envelope
+// opening on each strike (the funky-clav quack). No engine code — see decision 0015.
+static void apply_wah(void) {
+    float amt = val[SL_WAH];
+    if (wah == 0) {
+        instrument_filter(I_EP, FILTER_OFF, 4000, 0);
+        instrument_lfo(I_EP, 0, LFO_CUTOFF, 0.0f, 0.0f);
+        instrument_env(I_EP, 0, ENV_CUTOFF, 0, 0, 0.0f);
+    } else if (wah == 1) {                       // AUTO: LFO sweeps a resonant lowpass
+        instrument_filter(I_EP, FILTER_LOW, 900, 9);
+        instrument_env(I_EP, 0, ENV_CUTOFF, 0, 0, 0.0f);
+        instrument_lfo(I_EP, 0, LFO_CUTOFF, 1.5f + amt * 6.0f, 400.0f + amt * 1400.0f);
+    } else {                                     // ENV: cutoff opens on the strike, then closes
+        instrument_filter(I_EP, FILTER_LOW, 350, 9);
+        instrument_lfo(I_EP, 0, LFO_CUTOFF, 0.0f, 0.0f);
+        instrument_env(I_EP, 0, ENV_CUTOFF, 2, 90 + (int)(amt * 260.0f), 900.0f + amt * 2400.0f);
+    }
+}
+
 static void key_down(int b) {
     if (handle[b] >= 0) { note_off(handle[b]); handle[b] = -1; }
-    apply_slot();
     handle[b] = note_on(midi_of(b), I_EP, 6);
     glow[b] = 1.0f;
 }
 static void key_up(int b) {
     if (handle[b] < 0) return;
-    note_off(handle[b]);                 // damper stops the ring (release tail)
+    note_off(handle[b]);
     handle[b] = -1;
 }
 
@@ -119,11 +147,17 @@ static void octave_step(int d) {
     octave = n;
 }
 
-static void audition(void) { apply_slot(); hit(midi_of(3), I_EP, 5, 1500); glow[3] = 1.0f; }
+static void audition(void) {
+    if (aud_h >= 0) note_off(aud_h);
+    aud_h = note_on(midi_of(3), I_EP, 5);
+    glow[3] = 1.0f;
+}
 
 static void set_preset(int p) {
-    knob[0] = PRESET[p].h; knob[1] = PRESET[p].t; knob[2] = PRESET[p].m;
+    for (int k = 0; k < NSL; k++) val[k] = PRESET[p].v[k];
+    wah = PRESET[p].wah;
     cur_preset = p;
+    apply_slot(); apply_wah();
     audition();
 }
 
@@ -131,7 +165,7 @@ void init(void) {
     instrument(I_EP, INSTR_EPIANO, 1, 0, 7, 1500);   // long gate: never chop the ring
     for (int b = 0; b < NKEY; b++) handle[b] = -1;
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
-    apply_slot();
+    apply_slot(); apply_wah();
     bpm(76);
 }
 
@@ -149,19 +183,19 @@ void update(void) {
 
     for (int p = 0; p < 6; p++) if (keyp('1' + p)) set_preset(p);
 
-    if (keyp(KEY_LEFT))  sel = (sel + 2) % 3;
-    if (keyp(KEY_RIGHT)) sel = (sel + 1) % 3;
+    if (keyp(KEY_LEFT))  sel = (sel + NSL - 1) % NSL;
+    if (keyp(KEY_RIGHT)) sel = (sel + 1) % NSL;
     if (key(KEY_UP) || key(KEY_DOWN)) {
-        knob[sel] = clamp(knob[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
+        val[sel] = clamp(val[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
         cur_preset = -1;
-        apply_slot();
-        if (frame() % 14 == 0) audition();              // re-strike to audition (struck engine)
+        apply_slot(); apply_wah();
+        if (frame() % 14 == 0) audition();
     }
 
+    if (keyp('V')) { wah = (wah + 1) % 3; apply_wah(); audition(); }
     if (keyp('M')) autoplay = !autoplay;
 
-    // live macro: only morph (bark) reaches a ringing note; harmonics/timbre are baked at strike
-    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) note_morph(handle[b], knob[2]);
+    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) note_morph(handle[b], val[SL_BARK]);
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
@@ -174,6 +208,7 @@ void update(void) {
             if (!freeP) continue;
             p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1 };
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) { autoplay = !autoplay; continue; }
+            if (point_in_box(tx, ty, WAH_X, WAH_Y, WAH_W, WAH_H)) { wah = (wah + 1) % 3; apply_wah(); audition(); continue; }
             if (point_in_box(tx, ty, OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(-1); continue; }
             if (point_in_box(tx, ty, OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(+1); continue; }
             if (ty >= KNOB_Y - 26 && ty < KNOB_Y - 12) {
@@ -181,7 +216,7 @@ void update(void) {
                     if (tx >= 12 + q * 50 && tx < 12 + q * 50 + 48) { set_preset(q); break; }
                 continue;
             }
-            for (int k = 0; k < 3; k++)
+            for (int k = 0; k < NSL; k++)
                 if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y - 6, KNOB_W + 4, 18)) {
                     p->mode = PTR_DRAG; p->k = sel = k;
                 }
@@ -198,9 +233,9 @@ void update(void) {
                     }
             }
         } else if (p->mode == PTR_DRAG) {
-            knob[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
+            val[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
             cur_preset = -1;
-            apply_slot();
+            apply_slot(); apply_wah();
             if (frame() % 14 == 0) audition();
         }
     }
@@ -211,19 +246,14 @@ void update(void) {
                 ptr[j].id = NOID;
             }
 
-    // autoplay: a slow Rhodes-ish comp, ii-V-I-vi, each chord struck and left to ring
     if (autoplay) {
         if (every(2)) {
             static const int ROOT[4] = { 50, 55, 48, 57 };
             static const int THIRD[4]= { 3, 4, 4, 3 };
             for (int i = 0; i < 3; i++) if (ap_h[i] >= 0) { note_off(ap_h[i]); ap_h[i] = -1; }
-            apply_slot();
             int r = ROOT[ap_step % 4];
             int notes[3] = { r, r + THIRD[ap_step % 4], r + 7 };
-            for (int i = 0; i < 3; i++) {
-                ap_h[i] = note_on(notes[i], I_EP, 4);
-                note_morph(ap_h[i], knob[2]);
-            }
+            for (int i = 0; i < 3; i++) { ap_h[i] = note_on(notes[i], I_EP, 4); note_morph(ap_h[i], val[SL_BARK]); }
             ap_step++;
         }
     } else {
@@ -231,10 +261,10 @@ void update(void) {
     }
 
 #ifdef DE_TRACE
-    watch("harm", "%.2f", knob[0]);
-    watch("timb", "%.2f", knob[1]);
-    watch("mor",  "%.2f", knob[2]);
-    watch("instr", "%d", (int)(knob[0] * 2.999f));
+    watch("harm", "%.2f", val[SL_INST]);
+    watch("timb", "%.2f", val[SL_BRITE]);
+    watch("bark", "%.2f", val[SL_BARK]);
+    watch("wah",  "%d", wah);
     watch("preset", "%d", cur_preset);
 #endif
 }
@@ -243,7 +273,7 @@ void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     print("EPIANO", 8, 6, CLR_LIGHT_YELLOW);
     font(FONT_SMALL);
-    int inst = (int)(knob[0] * 2.999f); if (inst > 2) inst = 2;
+    int inst = (int)(val[SL_INST] * 2.999f); if (inst > 2) inst = 2;
     print(INSTRUMENT[inst], 64, 8, CLR_PEACH);
     print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 6,
                 autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
@@ -258,6 +288,14 @@ void draw(void) {
     rectfill(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
     rect(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
     print("X", OCT_UP_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
+
+    // WAH button (tappable; off/auto/env)
+    bool won = (wah != 0);
+    rectfill(WAH_X, WAH_Y, WAH_W, WAH_H, won ? CLR_DARK_ORANGE : CLR_DARKER_GREY);
+    rect(WAH_X, WAH_Y, WAH_W, WAH_H, won ? CLR_ORANGE : CLR_DARK_GREY);
+    font(FONT_SMALL);
+    print(str("V wah: %s", WAHNAME[wah]), WAH_X + 6, WAH_Y + 6, won ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
+    font(FONT_NORMAL);
 
     // the manual
     for (int b = 0; b < NWHITE; b++) {
@@ -295,23 +333,24 @@ void draw(void) {
     }
     font(FONT_NORMAL);
 
-    // the three macro knobs
-    for (int k = 0; k < 3; k++) {
+    // the four sliders — 3 engine macros + WAH amount (an effect, tinted apart)
+    for (int k = 0; k < NSL; k++) {
         int x = KNOB_X(k), y = KNOB_Y;
         bool on = (k == sel);
+        bool fx = (k == SL_WAH);
         font(FONT_SMALL);
-        print(KNOB_NAME[k], x, y - 8, on ? CLR_YELLOW : CLR_MEDIUM_GREY);
+        print(SL_NAME[k], x, y - 8, on ? CLR_YELLOW : fx ? CLR_DARK_ORANGE : CLR_MEDIUM_GREY);
         font(FONT_NORMAL);
-        bar(x, y, KNOB_W, 7, knob[k], on ? CLR_ORANGE : CLR_BROWN, CLR_DARKER_GREY);
+        bar(x, y, KNOB_W, 7, val[k], on ? CLR_ORANGE : fx ? CLR_DARK_ORANGE : CLR_BROWN, CLR_DARKER_GREY);
         font(FONT_TINY);
-        print(KNOB_LO[k], x, y + 9, CLR_DARK_GREY);
-        print_right(KNOB_HI[k], x + KNOB_W, y + 9, CLR_DARK_GREY);
+        print(SL_LO[k], x, y + 9, CLR_DARK_GREY);
+        print_right(SL_HI[k], x + KNOB_W, y + 9, CLR_DARK_GREY);
         font(FONT_NORMAL);
         if (on) print(">", x - 9, y, CLR_YELLOW);
     }
 
     font(FONT_TINY);
-    print("white A..K  black W E T Y U   Z/X octave   1..6 presets   drag a slider",
+    print("white A..K  black W E T Y U   Z/X octave   1..6 presets   V wah   drag a slider",
           8, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

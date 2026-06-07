@@ -55,9 +55,7 @@ static void draw_step(int i) {
         case 3: rectfill(B(40), BY(64), 66, 50, CLR_ORANGE); break;
         case 4: trifill(B(34), BY(64), B(73), BY(34), B(112), BY(64), CLR_RED); break;
         case 5: rectfill(B(62), BY(90), 18, 24, CLR_BROWN); break;
-        case 6: rect(B(48), BY(74), 16, 14, CLR_WHITE);
-                line(B(56), BY(74), B(56), BY(88), CLR_WHITE);
-                line(B(48), BY(81), B(64), BY(81), CLR_WHITE); break;
+        case 6: rect(B(48), BY(74), 16, 14, CLR_WHITE); break;   // exactly the listed call — one rect, one mark
         case 7: print("HOME", B(116), BY(120), CLR_WHITE); break;
     }
 }

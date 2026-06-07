@@ -22,11 +22,14 @@ docs/
 ├── design/            exploratory design notes (scratchpads) — rationale + proposals
 │   ├── api-notes.md     engine API: classics survey, signatures, naming, cart-patterns
 │   ├── cart-as-script.md  EXPLORATION: run cart C without an external compiler via libtcc (in-memory compile + hot-reload); the 3-symbol host↔cart boundary, why Wasmer clang/WASIX won't do graphics, native goal vs. browser goal
-│   ├── audio-notes.md   sound: current engine, chip comparison, expansion roadmap (incl. §8.9 candidate engine catalog, §12 instrument gaps, §14 Roland machine readiness)
+│   ├── audio-notes.md   sound HUB: current surface map (§2), parameter placement (§4), §12 instrument gaps, §13 SCWs-vs-engines, §14 Roland machine readiness — tops with the audio-family index ("where does an audio idea go?")
+│   ├── instrument-engines.md  the navkit rich-instrument port program (was audio-notes §8 — numbering preserved): 3-macro discipline §8.1.1, phase ordering §8.5, shipping playbook §8.8.2, §8.9 candidate engine catalog, §8.10 effects layer
+│   ├── future-stations.md  the radio-station candidates parking lot (was game-music's "Future stations"): ranked candidates, the citypop conditions, new-brains-per-cart axis, IDM + functional-music wings
+│   ├── radio-instrument-options.md  per-station timbre swaps / engine retrofits, ranked per engine (mallet → lowend's vibraphone, etc.)
 │   ├── held-notes.md    SHIPPED spec: note_on/note_off handles + live note_pitch/vol/cutoff/duty + slew — the sustain layer the instruments ride on
 │   ├── input-recording-looper.md  exploration: can a cart record the player and loop it back — recording levels for music looping + gameplay ghosts
 │   ├── modular-synth.md  modrack design spec: Eurorack-style control-rate patcher cart (modules, cables, data model, shipped ledger)
-│   ├── tinydaws.md      IDEA: ReBirth-style genre racks (generate → play → export) — radios as song generators feeding editable sequencer carts; the lane format, seed-as-song-code handoff, song.h export for game soundtracks, the 8-rack genre table (incl. rebirth-classic, the RB-338 homage itself) + the wider map (unbuilt stations × engine wishlist, cross-indexed from game-music/audio-notes)
+│   ├── tinydaws.md      IDEA: ReBirth-style genre racks (generate → play → export) — radios as song generators feeding editable sequencer carts; the lane format, seed-as-song-code handoff, song.h export for game soundtracks, the 8-rack genre table (incl. rebirth-classic, the RB-338 homage itself) + the wider map (unbuilt stations × engine wishlist, cross-indexed from future-stations/instrument-engines)
 │   ├── blend-tables.md  exploration behind STATUS item 18: index-only translucency/glow/shadow; cart-space prototype = blendlab.c
 │   ├── palette-and-color.md  exploration: own palette vs the borrowed PICO-8 32 — one decision wearing two questions, sequenced before blend tables bake it in
 │   ├── physics-notes.md  brainstorm: a tiny in-engine physics layer? (sparked by ragdoll.c; nothing decided)
@@ -60,7 +63,7 @@ docs/
 │   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect + WAV capture/analysis (tools/play.js, tools/wav-analyze.js)
 │   ├── profiler.md               one-click CPU profiler (⏱ profile button): hot functions + call paths, frame budget, draw-call counts
 │   ├── live-coding.md            how-to for the live (libtcc) run mode: edit-while-running, hot reload, STATE/S state that survives reloads
-│   └── game-music.md             generative soundtrack recipes: step clock, chord brain, voice leading, time feel, seeds; worked example = bossa.c
+│   └── game-music.md             generative soundtrack recipes: step clock, chord brain, voice leading, time feel, seeds, brain catalog, radio.h; worked example = bossa.c (station candidates live in design/future-stations.md)
 └── archive/           superseded / done notes, kept for history
 ```
 
@@ -86,9 +89,9 @@ prose — link to those. (This is why the old "~100 functions" counts kept going
 - Shipped / cut / deferred a feature? → update **`STATUS.md`**, then the relevant design note.
 - A choice is now *settled* (especially a "no")? → write a **`decisions/`** ADR-lite and link to it.
 - Proposing new API? → **`design/api-notes.md`** (sound → **`design/audio-notes.md`**).
-- New **audio idea**? Route by kind: a cart to build → `design/cart-library-direction.md` ·
-  an engine/synthesis want → `audio-notes.md` (§8.9 engines, §12 gaps) · a musical style →
-  `guides/game-music.md` style cheat-sheet · genre racks / generate-play-export →
-  `design/tinydaws.md` · a per-station timbre swap → `design/radio-instrument-options.md`.
+- New **audio idea**? → the **family index at the top of `design/audio-notes.md`** routes it
+  (engines, stations, styles, racks, retrofits — one table). Rule of thumb: an audio
+  investigation longer than ~a screen gets its own `design/` file + a one-line pointer,
+  never a new § appended to the hub.
 - Product direction or a core principle changed? → **`VISION.md`**.
 - A doc went stale or started duplicating another? → prune it. This README is the contract.

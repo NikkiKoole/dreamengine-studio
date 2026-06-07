@@ -4,7 +4,8 @@ STATUS: IDEA / exploration (2026-06). Nothing built yet. Companion reading:
 [`../guides/game-music.md`](../guides/game-music.md) (the generation recipes this
 builds on), [`radio-instrument-options.md`](radio-instrument-options.md) (the band
 panel — the first "open the radio up" affordance), [`audio-notes.md`](audio-notes.md)
-(engine surface), [`touch-notes.md`](touch-notes.md) (these must be touch-first).
+(engine surface), [`instrument-engines.md`](instrument-engines.md) (the engine
+catalog), [`touch-notes.md`](touch-notes.md) (these must be touch-first).
 
 ## The idea in one paragraph
 
@@ -151,8 +152,10 @@ exists and is battle-tested. Both stay — they are not the same genre.
 The repo already holds three relevant wishlists; this section cross-indexes them
 through the tinydaws lens so nobody re-derives it. Sources:
 [`../guides/game-music.md`](../guides/game-music.md) → "Style cheat-sheet" + "The
-brain catalog", [`audio-notes.md`](audio-notes.md) → §8.9 candidate engine catalog
-+ §12 instrument gaps + §14 machine readiness,
+brain catalog", [`future-stations.md`](future-stations.md) (the station
+parking lot, split out of game-music 2026-06-07),
+[`instrument-engines.md`](instrument-engines.md) → §8.9 candidate engine catalog,
+[`audio-notes.md`](audio-notes.md) → §12 instrument gaps + §14 machine readiness,
 [`radio-instrument-options.md`](radio-instrument-options.md).
 
 ### Stations already planned but unbuilt → the racks they'd become
@@ -172,7 +175,7 @@ unblocked today** — they were waiting on engines that have since shipped.
 
 ### New instruments ranked by tinydaw leverage
 
-audio-notes §8.9 re-scored by *how many racks/stations each engine unlocks*:
+instrument-engines §8.9 re-scored by *how many racks/stations each engine unlocks*:
 
 | Engine | Cost (per §8.9) | Unlocks |
 |---|---|---|
@@ -217,8 +220,8 @@ generator for free.
 
 The door-type ranking (formant = biggest single door, reed = biggest cart
 family, membrane = the rhythm-section unlock, AM/ring = best per-line) is
-recorded in [`audio-notes.md`](audio-notes.md) §8.9, right under the engine
-catalog it scores — that doc owns the "which engine next" call.
+recorded in [`instrument-engines.md`](instrument-engines.md) §8.9, right under the
+engine catalog it scores — that doc owns the "which engine next" call.
 
 ## Universal control layout (touch-first)
 

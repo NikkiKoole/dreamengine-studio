@@ -83,7 +83,8 @@ never cart-authorable, the generative beat-clock path won;
 - **Drawable waveforms** — `wave_set()` + `INSTR_USER0..3`: four 64-sample single-cycle
   tables you can draw and play like any wave; live-morphable (a ringing note changes as the
   table is rewritten). Demo cart: `wave editor` (draw the cycle, SPACE-drone + live morph,
-  seed shapes, exports `wave_set()` code). The cart-authorable half of audio-notes §8.4.
+  seed shapes, exports `wave_set()` code). The cart-authorable half of
+  [`design/instrument-engines.md`](design/instrument-engines.md) §8.4.
 - **Sound-tool carts (draw → export-as-code)** — `sfx editor` (paint 32 steps),
   `sfx generator` (sfxp/bfxr-style: 17 sliders + RANDOM/MUTATE + sfxr category buttons),
   `wave editor`. All export paste-ready C (a data array + a tiny player) — the
@@ -184,8 +185,10 @@ their `kind[]` tags.
    engine + raw wave better and frees the pluck `morph` knob to be *inharmonicity* instead of
    filter-decay. Demo carts: `pitchenv`, `filterenv`. Spec: [`design/audio-notes.md`](design/audio-notes.md) **§11**.
    Then, behind it: the **navkit rich-instrument port** (rich non-chiptune voices as `INSTR_*`
-   engines, each played behind a tiny fixed 3-macro API: harmonics/timbre/morph, §8.1.1).
-   The bite order (audio-notes §8 status note + §8.8 port sketch):
+   engines, each played behind a tiny fixed 3-macro API: harmonics/timbre/morph, §8.1.1 — all
+   §8.x refs here = [`design/instrument-engines.md`](design/instrument-engines.md), split out of
+   audio-notes 2026-06-07, numbering preserved).
+   The bite order (instrument-engines §8 status note + §8.8 port sketch):
      1. ~~**`INSTR_PLUCK`** (Karplus-Strong)~~ **SHIPPED 2026-06-05** — per-voice KS buffer (§8.2)
         made concrete, full macro surface, `pluck` showcase cart. Station retrofit (jangle/bossa)
         is the open follow-up.
@@ -198,7 +201,7 @@ their `kind[]` tags.
         2026-06-05: epiano/bell demand is already on the dial.~~ **SHIPPED 2026-06-05** —
         snapped ratio table, in-note brightness decay (the DX strike), feedback morph; `fm`
         showcase cart (epiano/bell/bass/brass/clang presets + a live formula scope). Design:
-        audio-notes §8.8.3. Open tail: taste-tuning (brass is the named stress test) + the
+        instrument-engines §8.8.3. Open tail: taste-tuning (brass is the named stress test) + the
         citypop/lowend epiano retrofits.
      4. **`INSTR_ORGAN`** — Hammond drawbars → scanner. ← **NEXT** *(decided 2026-06-05: the
         Leslie ships LATER as an add-on, not in the same bite — the drawbar core is buffer-free
@@ -207,8 +210,8 @@ their `kind[]` tags.
      5. **`INSTR_EPIANO`** — its own bite now. *(Corrected 2026-06-05 from navkit source: the
         EP is buffer-free — 12-mode modal bank + pickup nonlinearity, mallet-sized port, one
         engine = Rhodes/Wurli/Clav via pickup type; only piano + guitar need the pluck-proven
-        buffer path. audio-notes §8.5 step 5 + §8.7.)*
-     Beyond that, the decided queue (2026-06-05, full rationale audio-notes §8.5 steps 6–10):
+        buffer path. instrument-engines §8.5 step 5 + §8.7.)*
+     Beyond that, the decided queue (2026-06-05, full rationale instrument-engines §8.5 steps 6–10):
      **PD (CZ — the cheap snack, 2 floats) → reed** *(or waveguide brass first, if FM's brass
      stress test fails)* **→ membrane (hand percussion) → bowed/pipe + the buffered
      piano/guitar pair → formant + effects layer.** Additive stays deferred (`INSTR_SINE` + FM
@@ -392,7 +395,7 @@ their `kind[]` tags.
       predicted SFX-editor one: **`INSTR_FM` on the 3.5 inharmonic clang detent** (harmonics
       0.55, feedback cranked) through a highpass whose cutoff starts ~5kHz low and rises via a
       **negative `ENV_CUTOFF` amount** — the fast-closing sizzle of a sampled hat, synthesized.
-      (Same-day §8.8 insight applied: inharmonicity reads as metal; the engine clamps cutoff
+      (Same-day instrument-engines §8.8 insight applied: inharmonicity reads as metal; the engine clamps cutoff
       after env addition, so negative amounts are safe.) Swing-knob saga complete: the 909
       shuffle is period-correct at last (even 16ths drag — audio-notes §14 still carries the
       pre-build assessment). Six presets (Good Life, The Bells, Energy Flash, Hardfloor,

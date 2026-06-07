@@ -150,7 +150,7 @@ The sprite editor lets you flip between N "frames" with `[1]/[2]`, where each fr
 ### Sound Tool — diverged from original vision
 The original plan was a 4-channel tracker/sequencer UI. What got built instead is a **code-first sound API** — an 8-voice synth where making music **is** programming, which fits the learn-to-code mission. Strudel-inspired (`every`, `euclid`, `chance`, `degree`), with chords, strum, schedule, and a bpm/beat clock.
 
-The full sound design — current engine, where it sits vs. the SID/NES chips, and the expansion roadmap (instruments, filter, held channels, the navkit instrument port) — lives in **[`design/audio-notes.md`](design/audio-notes.md)**. Whether to *also* build a tracker UI later is still genuinely open.
+The full sound design — current engine, where it sits vs. the SID/NES chips, parameter placement, the gap ledger — lives in **[`design/audio-notes.md`](design/audio-notes.md)** (which also indexes the whole audio doc family); the navkit instrument-port program is **[`design/instrument-engines.md`](design/instrument-engines.md)**. Whether to *also* build a tracker UI later is still genuinely open.
 
 ---
 

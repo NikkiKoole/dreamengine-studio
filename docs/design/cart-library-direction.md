@@ -91,8 +91,8 @@ pattern at the bottom.
    most touch-native instrument imaginable; already Space-Age rack whimsy in
    tinydaws.md.
 
-**Blocked on missing engines** ([`audio-notes.md`](audio-notes.md) §8.9 owns the
-"which engine next" call):
+**Blocked on missing engines** ([`instrument-engines.md`](instrument-engines.md) §8.9
+owns the "which engine next" call):
 
 - **Hand-drum (tabla/conga)** — needs **membrane**. The killer pairing: touch
   *position* on the drumhead = the engine's strike-position macro. Touch API and
@@ -117,7 +117,7 @@ pattern at the bottom.
 - **Slide trombone** — needs **brass**; the slide gesture is begging for it.
 
 The pattern worth noticing: the blocked ones are all *continuous-gesture*
-instruments — exactly why §8.9 says the wind/bowed group "pairs with held notes
+instruments — exactly why instrument-engines §8.9 says the wind/bowed group "pairs with held notes
 and live macros." The touch work on the instrument shelf is the other half of
 that pairing.
 

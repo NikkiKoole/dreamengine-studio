@@ -123,7 +123,7 @@ map onto our control-rate engine (cables carry gate/pitch/cv; sound is made by `
 - **MATHS / FUNC** (Make Noise Maths) — the beloved all-in-one rise/fall function gen = envelope
   + LFO + slew + end-of-cycle trigger. We have those split (ENV/LFO/SLEW); Maths bundles them.
 
-**Doable once the timbre work lands (needs the navkit instrument port, audio-notes §8):**
+**Doable once the timbre work lands (needs the navkit instrument port, [`instrument-engines.md`](instrument-engines.md)):**
 - **PLAITS** — a macro-oscillator: one voice, many synthesis *models* (analog/FM/wavetable/bell/
   chord) with timbre + morph knobs. We'd expose navkit engines (organ/Rhodes/Karplus) as a MACRO voice.
 - **RINGS** — physical-modeling strings/bells (Karplus/modal) as a voice timbre.
@@ -243,7 +243,7 @@ gate can fire a *different* voice. Both can exist; name them apart (DELAY vs ECH
 CHANCE (probabilistic gate filter).
 
 **2026-06-05 — six modules, each with a showcase preset:**
-- **MACRO** — the Plaits-style modeled voice (§"borrowing" above, audio-notes §8): eng knob
+- **MACRO** — the Plaits-style modeled voice (§"borrowing" above, instrument-engines §8): eng knob
   picks plk/mlt/fm (engine slots 23–25), har/tmb/mor knobs + h/t/m CV inlets that *add* to
   the knobs. Preset: *Macro voice* (LFO swells FM feedback).
 - **XPOSE** — octave shifter for pitch lines (−2..+2 snapped); the only way to the bass

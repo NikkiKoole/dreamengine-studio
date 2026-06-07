@@ -618,6 +618,20 @@ the table's only job is to say what those three mean for each. Grow it freely.
 > (§5.4 / §10.1), not as an engine — but note it is now the **first named concrete
 > customer for the Additive engine** (2–3 partials with per-partial decay is literally
 > that row's morph column), strengthening additive's case rather than the reverse.
+>
+> **Build order (decided 2026-06-07): cart-land first — the second-customer rule.**
+> The Plaits-style "hide it in one engine" instinct is right *eventually* (one voice per
+> key, live macros, scales to the 8–16-partial choir/bell territory), but MT70 alone is
+> a recipe, and [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)'s
+> bar applies: a primitive must prove it can't be one. So: ship the **mt70 cart** on
+> building blocks (mallet presets + 2-slot stacking — the entry on
+> [`cart-library-direction.md`](cart-library-direction.md)'s instrument shelf has the
+> technique split); it doubles as the **Additive probe** — its tuned ratio/decay table is
+> half of the playbook's step-1 macro design. The engine graduates when the **second
+> customer** appears (the rule that produced `radio.h`/`improv.h`): a choir/strings/bell
+> pad station, or MT70-style tones wanted as *polyphonic pads* where stacking's
+> 2–3-voices-per-key bill stops being affordable. Building additive sooner *because the
+> MicroFreak aesthetic is attractive* is exactly the §13 cheap-lever trap.
 
 > **Sine = Additive at `harmonics = 0`.** `INSTR_SINE` and the Additive engine aren't two things —
 > additive *is* a sum of N sine partials, so one partial is a sine. The MT70 family (per the

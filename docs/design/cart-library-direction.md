@@ -90,6 +90,16 @@ pattern at the bottom.
    note + `note_glide` with overshoot + bounce. One finger = one plunger — the
    most touch-native instrument imaginable; already Space-Age rack whimsy in
    tinydaws.md.
+7. **MT-70 Casiotone preset keyboard** (decided 2026-06-07: cart-land first, per
+   the second-customer rule — instrument-engines §8.9 corrected note has the full
+   story). A little home keyboard with the 10 preset buttons; the build *is* the
+   showcase, because the presets split across three shipped techniques: the struck
+   half (Vibes/Celesta/Chime/Bells/Banjo) = `INSTR_MALLET` macro positions, the
+   sustained half (Organ/Flute/JzOrg2) = **2-slot sine stacking** (the sh101
+   SOURCE-MIXER pattern — the source code literally teaches additive synthesis),
+   Cosmic's crossfade = two `note_vol` rides. Doubles as the **probe cart for the
+   Additive engine**: its tuned ratio/decay table is the future engine's macro
+   homework, and presets re-bake as macro positions when that engine lands.
 
 **Blocked on missing engines** ([`instrument-engines.md`](instrument-engines.md) §8.9
 owns the "which engine next" call):

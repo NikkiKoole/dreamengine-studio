@@ -24,20 +24,25 @@
 //   VCA         ENV / GATE switch (ADSR shaped, or plain organ gate)
 //   ENV         one ADSR shared by VCA and VCF env amount
 //
-// Below the panel: the SEQUENCER (LOAD records key presses, PLAY loops them
-// at the clock rate), the ARPEGGIO buttons (DOWN / U&D / UP — click one to
-// run it on whatever keys you hold, click it again to stop), and HOLD
-// (latches keys: chords keep arpeggiating after you let go).
-// Bottom left: VOLUME, PORTAMENTO (+ AUTO/OFF/ON — AUTO glides only when
-// you play legato), TRANSPOSE L/M/H, and a springy pitch BENDER.
+// Below the panel, one strip: the SEQUENCER (LOAD records key presses, PLAY
+// loops them at the clock rate), the ARPEGGIO buttons (DOWN / U&D / UP — tap
+// one to run it on whatever keys you hold, tap again to stop), HOLD (latches
+// keys: chords keep arpeggiating after you let go), then VOLUME, PORTAMENTO
+// (+ AUTO/OFF/ON — AUTO glides only when you play legato) and TRANSPOSE L/M/H.
+// The springy pitch BENDER stands vertically at the keybed's left end, where
+// the real lever lives. The keybed itself gets the bottom half of the screen.
 //
 //   KEYBOARD  two manuals, every onscreen key covered:
 //             lower:  Z X C V B N M , . /  whites + S D G H J L ; blacks
 //             upper:  Q W E R T Y U I O P  whites + 2 3 5 6 7 9 0 blacks
 //             top:    [ ] whites, = black      UP / DOWN arrows = octave
-//   MOUSE     drag sliders/knobs/bender, wheel works on hover, click keys
+//   TOUCH     every finger is its own pointer — hold a chord and ride the
+//             filter at the same time. Fader grab zones tile each section,
+//             so a near-miss lands on the nearest fader; sliding a finger
+//             across the keys hands the note over legato (AUTO porta glides).
+//             The desktop mouse is one synthetic finger; wheel works on hover.
 //   SPACE     toggle arpeggiator (last mode used)
-//   ?         help overlay (bottom left)
+//   ?         help overlay (bottom left corner)
 
 // ── engine slots: one per mixer source ───────────────────────────────────
 #define SL_PULSE 5
@@ -105,12 +110,72 @@ static float  step_flash = 0.0f;         // PLAY-LED blink
 static int    base = 48;                 // leftmost white key MIDI (C3)
 static int    show_help = 0;
 
-// ── UI drag state ─────────────────────────────────────────────────────────
-static int   mx, my;
-static int   drag_id = 0;
-static int   drag_m0;
-static float drag_v0;
-static int   mouse_midi = NONE;
+// ── UI pointer state — every finger is its own pointer ───────────────────
+// A finger lands on a widget and CAPTURES it (generously: fader grab boxes
+// tile the whole section, so a near-miss grabs the nearest fader); after
+// capture only vertical motion matters. Other fingers are free to hold keys,
+// ride other faders, lean on the bender — all at once. The desktop mouse
+// arrives as one synthetic finger, same code path; the wheel stays a
+// desktop-only bonus on hover.
+#define NPTR 10
+#define NOID (-999)
+typedef struct {
+    int id;        // touch id, NOID = slot free
+    int widget;    // 0 = free, fader/knob id, 98 = keyboard, 99 = bender
+    int cx, cy;    // current position, refreshed each frame
+    int m0y;       // y at capture
+    float v0;      // widget value at capture
+    int midi;      // note this finger is sounding (keyboard), or NONE
+    int fresh;     // landed this frame
+} Ptr;
+static Ptr ptrs[NPTR];
+static int mx, my;             // mouse position — hover highlights + wheel only
+
+static void key_up(int midi);  // fwd (touch-end releases notes)
+
+// sync the pointer table with the engine's touch list: refresh positions,
+// admit new fingers (fresh), release whatever lifted fingers were doing
+static void ptrs_begin_frame(void) {
+    for (int j = 0; j < NPTR; j++) ptrs[j].fresh = 0;
+    for (int i = 0; i < touch_count(); i++) {
+        int id = touch_id(i);
+        Ptr *p = 0, *freeP = 0;
+        for (int j = 0; j < NPTR; j++) {
+            if (ptrs[j].id == id) { p = &ptrs[j]; break; }
+            if (ptrs[j].id == NOID && !freeP) freeP = &ptrs[j];
+        }
+        if (!p) {
+            if (!freeP) continue;
+            p = freeP;
+            *p = (Ptr){ id, 0, 0, 0, 0, 0.0f, NONE, 1 };
+        }
+        p->cx = touch_x(i); p->cy = touch_y(i);
+    }
+    for (int i = 0; i < touch_ended_count(); i++)
+        for (int j = 0; j < NPTR; j++)
+            if (ptrs[j].id == touch_ended_id(i)) {
+                if (ptrs[j].midi != NONE) key_up(ptrs[j].midi);
+                ptrs[j].id = NOID;
+            }
+}
+
+// a fresh, uncommitted finger inside this box — the widget capture test
+static Ptr *grab_fresh(int x, int y, int w, int h) {
+    for (int j = 0; j < NPTR; j++)
+        if (ptrs[j].id != NOID && ptrs[j].fresh && ptrs[j].widget == 0 &&
+            ptrs[j].cx >= x && ptrs[j].cx < x + w &&
+            ptrs[j].cy >= y && ptrs[j].cy < y + h)
+            return &ptrs[j];
+    return 0;
+}
+
+// tap targets that sit INSIDE a knob's grab box (wave icons, range feet) must
+// run first and CONSUME the finger, or the knob steals the tap and reverts it
+static int claim_tap(int x, int y, int w, int h) {
+    Ptr *g = grab_fresh(x, y, w, h);
+    if (g) { g->widget = -1; return 1; }
+    return 0;
+}
 
 // ── colors ────────────────────────────────────────────────────────────────
 #define C_BODY   CLR_DARK_GREY
@@ -145,6 +210,8 @@ static void define_slots(void) {
         int slot = SRC_SLOT[s];
         int wave = (s == 1) ? INSTR_SAW : (s == 3) ? INSTR_NOISE : INSTR_SQUARE;
         instrument(slot, wave, att, dec, sus, rel);
+        instrument_tune(slot, tune_semi());   // the TUNE trimmer — slot-level, so
+                                              // arp/seq hits and ringing notes all bend
         instrument_filter(slot, FILTER_LOW, cut, rs);
         // filter envelope (shared ADSR shapes its A/D)
         instrument_env(slot, 0, ENV_CUTOFF, f_att(a_v), f_dec(d_v), f_fenv(fenv_v));
@@ -164,7 +231,7 @@ static void define_slots(void) {
 
 // redefine only when something actually moved
 typedef struct {
-    float lv[NSRC], cut, res, fenv, fmod, a, d, s, r, rate, vmod, pw, mvol;
+    float lv[NSRC], cut, res, fenv, fmod, a, d, s, r, rate, vmod, pw, mvol, tune;
     int gate, lwave, pwsrc, submode;
 } Params;
 static Params prev_p;
@@ -175,6 +242,7 @@ static void sync_slots(void) {
     p.cut = cut_v; p.res = res_v; p.fenv = fenv_v; p.fmod = fmod_v;
     p.a = a_v; p.d = d_v; p.s = s_v; p.r = r_v;
     p.rate = rate_v; p.vmod = vmod_v; p.pw = pw_v; p.mvol = mvol;
+    p.tune = tune_v;
     p.gate = vca_gate; p.lwave = lfo_wave; p.pwsrc = pw_src; p.submode = sub_mode;
     if (memcmp(&p, &prev_p, sizeof p) != 0) { prev_p = p; define_slots(); }
 }
@@ -201,7 +269,7 @@ static void start_note(int midi) {
         v[s] = note_on((int)src_pitch(s, midi), SRC_SLOT[s], vol_of(s));
         if (v[s] >= 0) {
             note_glide(v[s], 0);
-            note_pitch(v[s], src_pitch(s, midi) + tune_semi());
+            note_pitch(v[s], src_pitch(s, midi));   // slot tune carries the trimmer
             note_cutoff(v[s], (int)eff_cut(midi));
         }
     }
@@ -213,7 +281,7 @@ static void glide_to(int midi) {
     for (int s = 0; s < NSRC; s++)
         if (v[s] >= 0) {
             note_glide(v[s], ms);
-            note_pitch(v[s], src_pitch(s, midi) + tune_semi());
+            note_pitch(v[s], src_pitch(s, midi));   // slot tune carries the trimmer
         }
     cur_midi = midi;
 }
@@ -362,14 +430,16 @@ static void drive_live(void) {
             note_lfo(v[0], 2, LFO_DUTY, rate, (pw_src == 0) ? pw_v * 0.4f : 0.0f);
     }
 
-    // pitch: bender + software vibrato share one per-frame write
+    // pitch: bender + software vibrato share one per-frame write. (TUNE no
+    // longer lives here — instrument_tune() carries it at the slot level, so
+    // ringing notes AND scheduled arp/seq hits bend with the knob.)
     int need = (bend != 0.0f) || (soft && vmod_v > 0.01f);
     if (need || pitch_override) {
         float off = bend * 2.0f + (soft ? lval * f_vmod(vmod_v) : 0.0f);
         for (int s = 0; s < NSRC - 1; s++)                 // not the noise
             if (v[s] >= 0) {
                 note_glide(v[s], 0);
-                note_pitch(v[s], src_pitch(s, cur_midi) + tune_semi() + off);
+                note_pitch(v[s], src_pitch(s, cur_midi) + off);
             }
     }
     pitch_override = need;
@@ -383,12 +453,16 @@ static int in_box(int x, int y, int w, int h) {
     return mx >= x && mx < x + w && my >= y && my < y + h;
 }
 
-// vertical fader with tick scale and a colored cap line
-static float ui_fader(int id, int x, int y, int h, float val, int capcol, int ticks) {
-    if (mouse_pressed(MOUSE_LEFT) && in_box(x - 6, y - 4, 13, h + 8)) {
-        drag_id = id; drag_m0 = my; drag_v0 = val;
-    }
-    if (drag_id == id) val = clamp(drag_v0 + (drag_m0 - my) / (float)h, 0.0f, 1.0f);
+// vertical fader with tick scale and a colored cap line. gw = grab half-width:
+// capture boxes tile the section (half the fader pitch each side), so a tap
+// anywhere in the column grabs the nearest fader — after capture only vertical
+// motion matters, horizontal precision stops mattering
+static float ui_fader(int id, int x, int y, int h, float val, int capcol, int ticks, int gw) {
+    Ptr *g = grab_fresh(x - gw, y - 8, gw * 2, h + 16);
+    if (g) { g->widget = id; g->m0y = g->cy; g->v0 = val; }
+    for (int j = 0; j < NPTR; j++)
+        if (ptrs[j].id != NOID && ptrs[j].widget == id)
+            val = clamp(ptrs[j].v0 + (ptrs[j].m0y - ptrs[j].cy) / (float)h, 0.0f, 1.0f);
     if (in_box(x - 7, y, 15, h) && mouse_wheel() != 0)
         val = clamp(val + mouse_wheel() * 0.04f, 0.0f, 1.0f);
     if (ticks)
@@ -406,12 +480,13 @@ static float ui_fader(int id, int x, int y, int h, float val, int capcol, int ti
     return val;
 }
 
-// rotary knob, optional detents
+// rotary knob, optional detents — capture box is finger-padded, drag is vertical
 static float ui_knob(int id, int x, int y, int r, float val, int detents) {
-    if (mouse_pressed(MOUSE_LEFT) && in_box(x - r, y - r, r * 2, r * 2)) {
-        drag_id = id; drag_m0 = my; drag_v0 = val;
-    }
-    if (drag_id == id) val = clamp(drag_v0 + (drag_m0 - my) / 60.0f, 0.0f, 1.0f);
+    Ptr *g = grab_fresh(x - r - 6, y - r - 6, r * 2 + 12, r * 2 + 12);
+    if (g) { g->widget = id; g->m0y = g->cy; g->v0 = val; }
+    for (int j = 0; j < NPTR; j++)
+        if (ptrs[j].id != NOID && ptrs[j].widget == id)
+            val = clamp(ptrs[j].v0 + (ptrs[j].m0y - ptrs[j].cy) / 60.0f, 0.0f, 1.0f);
     if (in_box(x - r - 2, y - r - 2, r * 2 + 4, r * 2 + 4) && mouse_wheel() != 0)
         val = clamp(val + mouse_wheel() * 0.04f, 0.0f, 1.0f);
     float shown = val;
@@ -423,14 +498,15 @@ static float ui_knob(int id, int x, int y, int r, float val, int detents) {
     return val;
 }
 
-// small option box (the panel's switch positions)
+// small option box (the panel's switch positions) — tapp = touch-began edge,
+// covers the synthetic mouse finger too
 static int ui_opt(int x, int y, int w, int h, const char *label, int active) {
     int hot = in_box(x, y, w, h);
     rectfill(x, y, w, h, active ? C_ACT : C_DARK);
     rect(x, y, w, h, hot ? CLR_WHITE : CLR_BLACK);
     print(label, x + (w - text_width(label)) / 2, y + (h - 7) / 2 + 1,
           active ? CLR_BLACK : CLR_MEDIUM_GREY);
-    return hot && mouse_pressed(MOUSE_LEFT);
+    return tapp(x - 2, y - 2, w + 4, h + 4);
 }
 
 // cream panel button with a red LED above it
@@ -441,7 +517,7 @@ static int ui_led_btn(int x, int y, const char *label, int led) {
     rectfill(x, y, w, h, CLR_LIGHT_GREY);
     rect(x, y, w, h, hot ? CLR_WHITE : CLR_BLACK);
     print(label, x + (w - text_width(label)) / 2, y + 3, CLR_BLACK);
-    return hot && mouse_pressed(MOUSE_LEFT);
+    return tapp(x - 2, y - 4, w + 4, h + 6);
 }
 
 // tiny LFO waveform icons
@@ -474,7 +550,7 @@ static void big_glyph(const unsigned char rows[5], int x, int y, int cell, int c
                 rectfill(x + c * cell + (4 - r), y + r * cell, cell, cell, col);
 }
 
-static void draw_logo(int x, int y) {
+static void draw_logo(int x, int y, int cell, int spacing) {
     static const unsigned char S[5] = { 0x1F, 0x10, 0x1F, 0x01, 0x1F };
     static const unsigned char H[5] = { 0x11, 0x11, 0x1F, 0x11, 0x11 };
     static const unsigned char D[5] = { 0x00, 0x00, 0x0E, 0x00, 0x00 };
@@ -482,7 +558,7 @@ static void draw_logo(int x, int y) {
     static const unsigned char N0[5] = { 0x1F, 0x11, 0x11, 0x11, 0x1F };
     const unsigned char *g[6] = { S, H, D, N1, N0, N1 };
     print("Roland", x + 2, y - 11, CLR_WHITE);
-    for (int i = 0; i < 6; i++) big_glyph(g[i], x + i * 26, y, 4, CLR_WHITE);
+    for (int i = 0; i < 6; i++) big_glyph(g[i], x + i * spacing, y, cell, CLR_WHITE);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -490,10 +566,12 @@ static void draw_logo(int x, int y) {
 // ─────────────────────────────────────────────────────────────────────────
 #define NWHITE 19
 #define NBLACK 13
-#define KBX   94
-#define KBY  178
-#define KBH  118
-#define KBW   19
+#define KBX   20
+#define KBY  152
+#define KBH  146
+#define KBW   23
+#define BKW   13          // black key width
+#define BKH   90          // black key height
 static const int  W_SEMI[NWHITE]  = { 0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26,28,29,31 };
 static const int  B_SEMI[NBLACK]  = { 1,3,6,8,10,13,15,18,20,22,25,27,30 };
 static const int  B_AFTER[NBLACK] = { 0,1,3,4,5,7,8,10,11,12,14,15,17 };
@@ -520,7 +598,18 @@ static const char BLBL[NBLACK + 1] = "SDGHJL;56790=";
 static int kmap_midi[NKMAP];
 
 static int white_kx(int i) { return KBX + i * KBW; }
-static int black_kx(int j) { return white_kx(B_AFTER[j]) + KBW - 5; }
+static int black_kx(int j) { return white_kx(B_AFTER[j]) + KBW - BKW / 2 - 1; }
+
+// which key sits at this point? black keys win in their upper region
+static int key_at(int x, int y) {
+    if (y < KBY || y >= KBY + KBH || x < KBX || x >= KBX + NWHITE * KBW) return NONE;
+    if (y < KBY + BKH)
+        for (int j = 0; j < NBLACK; j++)
+            if (x >= black_kx(j) && x < black_kx(j) + BKW) return base + B_SEMI[j];
+    for (int i = 0; i < NWHITE; i++)
+        if (x >= white_kx(i) && x < white_kx(i) + KBW - 1) return base + W_SEMI[i];
+    return NONE;
+}
 
 static int midi_held(int midi) {
     for (int i = 0; i < nlatch; i++) if (latch[i] == midi) return 1;
@@ -536,6 +625,7 @@ void init(void) {
     define_slots();
     memset(&prev_p, 0xFF, sizeof prev_p);   // force first sync_slots
     for (int i = 0; i < NKMAP; i++) kmap_midi[i] = NONE;
+    for (int j = 0; j < NPTR; j++) ptrs[j].id = NOID;
 }
 
 void update(void) {
@@ -558,12 +648,13 @@ void update(void) {
     watch("arp", "%d", arp_mode);
     watch("seq", "%d/%d %s", seq_idx, seq_n, seq_play ? "PLAY" : seq_load ? "LOAD" : "-");
     watch("clock", "%.1fHz", f_rate(rate_v));
+    watch("tune", "%+.2f", tune_semi());
 #endif
 }
 
 void draw(void) {
     mx = mouse_x(); my = mouse_y();
-    if (!mouse_down(MOUSE_LEFT)) drag_id = 0;
+    ptrs_begin_frame();
 
     cls(C_BODY);
 
@@ -579,67 +670,66 @@ void draw(void) {
     // ── section header band ─────────────────────────────────────────────
     line(0, 8, SCREEN_W, 8, C_DARK);
     line(0, 20, SCREEN_W, 20, C_DARK);
-    line(0, 130, SCREEN_W, 130, C_DARK);
+    line(0, 114, SCREEN_W, 114, C_DARK);
     static const int SEC_X[8] = { 0, 44, 122, 212, 288, 378, 416, 460 };
     static const char *SEC_N[7] = { "TUNE", "MODULATOR", "VCO", "MIXER", "VCF", "VCA", "ENV" };
     for (int i = 0; i < 7; i++) {
         int x0 = SEC_X[i], x1 = SEC_X[i + 1];
         print(SEC_N[i], x0 + (x1 - x0 - text_width(SEC_N[i])) / 2, 10, CLR_WHITE);
-        if (i) line(x0, 8, x0, 130, C_DARK);
+        if (i) line(x0, 8, x0, 114, C_DARK);
     }
 
-    int SLY = 44, SLH = 72;
+    int SLY = 40, SLH = 58;
 
     // ── TUNE ────────────────────────────────────────────────────────────
-    tune_v = ui_knob(1, 22, 64, 9, tune_v, 0);
-    print("-", 6, 74, C_LABEL); print("+", 32, 74, C_LABEL);
+    tune_v = ui_knob(1, 22, 58, 9, tune_v, 0);
+    print("-", 6, 68, C_LABEL); print("+", 32, 68, C_LABEL);
 
     // ── MODULATOR ───────────────────────────────────────────────────────
     print("RATE", 48, 26, C_LABEL);
-    rate_v = ui_fader(2, 64, SLY, SLH, rate_v, CLR_GREEN, 1);
+    rate_v = ui_fader(2, 64, SLY, SLH, rate_v, CLR_GREEN, 1, 8);
     print("WAVE", 86, 26, C_LABEL);
     {
-        float wv = ui_knob(3, 100, 58, 8, lfo_wave / 3.0f, 4);
-        if (drag_id == 3) lfo_wave = (int)(wv * 3.0f + 0.5f);
-        for (int w = 0; w < 4; w++) {
-            int iy = 76 + w * 13;
-            icon_wave(w, 96, iy, lfo_wave == w ? C_ACT : CLR_MEDIUM_GREY);
-            if (mouse_pressed(MOUSE_LEFT) && in_box(94, iy - 2, 14, 12)) lfo_wave = w;
-        }
+        for (int w = 0; w < 4; w++)                         // taps first — see claim_tap
+            if (claim_tap(92, 62 + w * 12, 18, 12)) lfo_wave = w;
+        float wv = ui_knob(3, 100, 50, 8, lfo_wave / 3.0f, 4);
+        lfo_wave = (int)(wv * 3.0f + 0.5f);
+        for (int w = 0; w < 4; w++)
+            icon_wave(w, 96, 64 + w * 12, lfo_wave == w ? C_ACT : CLR_MEDIUM_GREY);
     }
 
     // ── VCO ─────────────────────────────────────────────────────────────
     print("MOD", 126, 24, C_LABEL);
-    vmod_v = ui_fader(4, 134, SLY, SLH, vmod_v, CLR_GREEN, 1);
+    vmod_v = ui_fader(4, 134, SLY, SLH, vmod_v, CLR_GREEN, 1, 7);
     print("RANGE", 141, 33, C_LABEL);
     {
-        float rv = ui_knob(5, 158, 64, 9, range_sel / 3.0f, 4);
-        if (drag_id == 5) range_sel = (int)(rv * 3.0f + 0.5f);
         static const char *FT[4] = { "16", "8", "4", "2" };
-        static const int FX[4] = { 142, 148, 164, 170 }, FY[4] = { 78, 46, 46, 78 };
-        for (int f = 0; f < 4; f++) {
+        static const int FX[4] = { 142, 148, 164, 170 }, FY[4] = { 74, 44, 44, 74 };
+        for (int f = 0; f < 4; f++)                         // taps first — see claim_tap
+            if (claim_tap(FX[f] - 2, FY[f] - 2, 14, 11)) range_sel = f;
+        float rv = ui_knob(5, 158, 58, 9, range_sel / 3.0f, 4);
+        range_sel = (int)(rv * 3.0f + 0.5f);
+        for (int f = 0; f < 4; f++)
             print(FT[f], FX[f], FY[f], range_sel == f ? C_ACT : C_LABEL);
-            if (mouse_pressed(MOUSE_LEFT) && in_box(FX[f] - 2, FY[f] - 2, 14, 11)) range_sel = f;
-        }
     }
     print("PW", 172, 24, C_LABEL);
-    pw_v = ui_fader(6, 178, SLY, SLH, pw_v, C_ACT, 1);
-    if (ui_opt(186, 42, 25, 11, "LFO", pw_src == 0)) pw_src = 0;
-    if (ui_opt(186, 56, 25, 11, "MAN", pw_src == 1)) pw_src = 1;
-    if (ui_opt(186, 70, 25, 11, "ENV", pw_src == 2)) pw_src = 2;
+    pw_v = ui_fader(6, 178, SLY, SLH, pw_v, C_ACT, 1, 7);
+    if (ui_opt(186, 40, 25, 11, "LFO", pw_src == 0)) pw_src = 0;
+    if (ui_opt(186, 54, 25, 11, "MAN", pw_src == 1)) pw_src = 1;
+    if (ui_opt(186, 68, 25, 11, "ENV", pw_src == 2)) pw_src = 2;
 
     // ── SOURCE MIXER ────────────────────────────────────────────────────
     icon_wave(1, 217, 26, C_LABEL);                 // pulse
     icon_wave(4, 232, 26, C_LABEL);                 // saw
     print("SUB", 242, 35, C_LABEL);
     icon_wave(3, 265, 26, C_LABEL);                 // noise
-    lv[0] = ui_fader(7,  222, SLY, SLH, lv[0], CLR_GREEN, 1);
-    lv[1] = ui_fader(8,  238, SLY, SLH, lv[1], CLR_GREEN, 1);
-    lv[2] = ui_fader(9,  254, SLY, SLH, lv[2], C_ACT,     1);
-    lv[3] = ui_fader(10, 270, SLY, SLH, lv[3], CLR_WHITE, 1);
-    if (ui_opt(216, 119, 22, 10, "-1", sub_mode == 0)) sub_mode = 0;
-    if (ui_opt(240, 119, 22, 10, "-2", sub_mode == 1)) sub_mode = 1;
-    if (ui_opt(264, 119, 22, 10, "2P", sub_mode == 2)) sub_mode = 2;
+    lv[0] = ui_fader(7,  222, SLY, SLH, lv[0], CLR_GREEN, 1, 8);
+    lv[1] = ui_fader(8,  238, SLY, SLH, lv[1], CLR_GREEN, 1, 8);
+    lv[2] = ui_fader(9,  254, SLY, SLH, lv[2], C_ACT,     1, 8);
+    lv[3] = ui_fader(10, 270, SLY, SLH, lv[3], CLR_WHITE, 1, 8);
+    if (ui_opt(216, 102, 22, 10, "-1", sub_mode == 0)) sub_mode = 0;
+    if (ui_opt(240, 102, 22, 10, "-2", sub_mode == 1)) sub_mode = 1;
+    if (ui_opt(264, 102, 22, 10, "2P", sub_mode == 2)) sub_mode = 2;
 
     // ── VCF ─────────────────────────────────────────────────────────────
     print("FRQ", 285, 24, C_LABEL);
@@ -647,12 +737,12 @@ void draw(void) {
     print("ENV", 317, 24, C_LABEL);
     print("MOD", 333, 33, C_LABEL);
     print("KYB", 349, 24, C_LABEL);
-    cut_v  = ui_fader(11, 296, SLY, SLH, cut_v,  C_ACT,     1);
-    res_v  = ui_fader(12, 312, SLY, SLH, res_v,  CLR_WHITE, 1);
-    fenv_v = ui_fader(13, 328, SLY, SLH, fenv_v, C_ACT,     1);
-    fmod_v = ui_fader(14, 344, SLY, SLH, fmod_v, CLR_WHITE, 1);
-    kyb_v  = ui_fader(15, 360, SLY, SLH, kyb_v,  CLR_WHITE, 1);
-    print(str("%dHz", (int)f_cut(cut_v)), 290, 121, CLR_MEDIUM_GREY);
+    cut_v  = ui_fader(11, 296, SLY, SLH, cut_v,  C_ACT,     1, 8);
+    res_v  = ui_fader(12, 312, SLY, SLH, res_v,  CLR_WHITE, 1, 8);
+    fenv_v = ui_fader(13, 328, SLY, SLH, fenv_v, C_ACT,     1, 8);
+    fmod_v = ui_fader(14, 344, SLY, SLH, fmod_v, CLR_WHITE, 1, 8);
+    kyb_v  = ui_fader(15, 360, SLY, SLH, kyb_v,  CLR_WHITE, 1, 8);
+    print(str("%dHz", (int)f_cut(cut_v)), 290, 104, CLR_MEDIUM_GREY);
 
     // ── VCA ─────────────────────────────────────────────────────────────
     if (ui_opt(380, 46, 34, 12, "ENV",  !vca_gate)) vca_gate = 0;
@@ -661,66 +751,74 @@ void draw(void) {
     // ── ENV ─────────────────────────────────────────────────────────────
     print("A", 417, 26, C_LABEL); print("D", 428, 26, C_LABEL);
     print("S", 439, 26, C_LABEL); print("R", 450, 26, C_LABEL);
-    a_v = ui_fader(16, 420, SLY, SLH, a_v, CLR_GREEN, 0);
-    d_v = ui_fader(17, 431, SLY, SLH, d_v, CLR_GREEN, 0);
-    s_v = ui_fader(18, 442, SLY, SLH, s_v, CLR_GREEN, 0);
-    r_v = ui_fader(19, 453, SLY, SLH, r_v, CLR_GREEN, 0);
+    a_v = ui_fader(16, 420, SLY, SLH, a_v, CLR_GREEN, 0, 5);
+    d_v = ui_fader(17, 431, SLY, SLH, d_v, CLR_GREEN, 0, 5);
+    s_v = ui_fader(18, 442, SLY, SLH, s_v, CLR_GREEN, 0, 5);
+    r_v = ui_fader(19, 453, SLY, SLH, r_v, CLR_GREEN, 0, 5);
 
-    // ── mid strip: power, sequencer, arpeggio, hold, logo ───────────────
-    rectfill(8, 138, 10, 14, CLR_BLACK);
-    rectfill(10, 140, 6, 5, CLR_RED);
-    print("POWER", 2, 156, C_LABEL);
+    // ── mid strip: power, sequencer, arpeggio, hold, vol/porta/transpose,
+    //    compact logo — everything that used to live left of the keybed ────
+    rectfill(6, 120, 8, 12, CLR_BLACK);
+    rectfill(7, 122, 6, 4, CLR_RED);
+    font(FONT_SMALL);
+    print("POWER", 2, 135, C_LABEL);
+    print(str("OCT C%d", base / 12 - 1), 2, 144, CLR_MEDIUM_GREY);
+    font(FONT_NORMAL);
 
-    if (ui_led_btn(56, 142, "LOAD", seq_load)) {
+    if (ui_led_btn(56, 124, "LOAD", seq_load)) {
         seq_load = !seq_load;
         if (seq_load) { seq_n = 0; seq_play = 0; }
     }
-    if (ui_led_btn(92, 142, "PLAY", seq_play && step_flash > 0.4f)) {
+    if (ui_led_btn(92, 124, "PLAY", seq_play && step_flash > 0.4f)) {
         if (seq_n > 0) { seq_play = !seq_play; seq_load = 0; seq_idx = 0; stop_note(); next_step = -1.0; }
     }
-    if (ui_led_btn(140, 142, "DOWN", arp_mode == 0)) arp_toggle(0);
-    if (ui_led_btn(176, 142, "U&D",  arp_mode == 1)) arp_toggle(1);
-    if (ui_led_btn(212, 142, "UP",   arp_mode == 2)) arp_toggle(2);
-    if (ui_led_btn(252, 142, "HOLD", hold_on)) {
+    if (ui_led_btn(140, 124, "DOWN", arp_mode == 0)) arp_toggle(0);
+    if (ui_led_btn(176, 124, "U&D",  arp_mode == 1)) arp_toggle(1);
+    if (ui_led_btn(212, 124, "UP",   arp_mode == 2)) arp_toggle(2);
+    if (ui_led_btn(248, 124, "HOLD", hold_on)) {
         hold_on = !hold_on;
         if (!hold_on) { nlatch = nphys; memcpy(latch, phys, nphys * sizeof(int));
                         if (nphys == 0 && arp_mode < 0 && !seq_play) stop_note(); }
     }
-    line(56, 158, 124, 158, C_LABEL);
-    print("SEQUENCER", 54, 161, C_LABEL);
-    line(140, 158, 244, 158, C_LABEL);
-    print("ARPEGGIO", 160, 161, C_LABEL);
-    if (seq_load) print(str("%d", seq_n), 126, 145, C_ACT);
+    font(FONT_SMALL);
+    print("SEQUENCER", 60, 140, C_LABEL);
+    print("ARPEGGIO + HOLD", 168, 140, C_LABEL);
+    font(FONT_NORMAL);
+    if (seq_load) print(str("%d", seq_n), 126, 127, C_ACT);
 
-    draw_logo(300, 146);
+    // volume + portamento knobs (live where the logo used to be)
+    mvol    = ui_knob(20, 294, 129, 8, mvol, 0);
+    porta_v = ui_knob(21, 320, 129, 8, porta_v, 0);
+    font(FONT_SMALL);
+    print("VOL", 287, 142, C_LABEL);
+    print("PORTA", 311, 142, C_LABEL);
+    font(FONT_NORMAL);
+    if (ui_opt(338, 116, 26, 10, "AUT", porta_mode == 0)) porta_mode = 0;
+    if (ui_opt(338, 128, 26, 10, "OFF", porta_mode == 1)) porta_mode = 1;
+    if (ui_opt(338, 140, 26, 10, "ON",  porta_mode == 2)) porta_mode = 2;
+    if (ui_opt(368, 116, 16, 10, "L", base == 36)) base = 36;
+    if (ui_opt(368, 128, 16, 10, "M", base == 48)) base = 48;
+    if (ui_opt(368, 140, 16, 10, "H", base == 60)) base = 60;
 
-    // ── lower left: volume / portamento / transpose / bender ───────────
-    print("VOL", 12, 176, C_LABEL);
-    mvol = ui_knob(20, 22, 198, 8, mvol, 0);
-    print("PORTA", 48, 176, C_LABEL);
-    porta_v = ui_knob(21, 68, 198, 8, porta_v, 0);
-    if (ui_opt(2,  212, 27, 10, "AUT", porta_mode == 0)) porta_mode = 0;
-    if (ui_opt(31, 212, 27, 10, "OFF", porta_mode == 1)) porta_mode = 1;
-    if (ui_opt(60, 212, 27, 10, "ON",  porta_mode == 2)) porta_mode = 2;
-    print("TRANSPOSE", 2, 228, C_LABEL);
-    if (ui_opt(2,  238, 27, 10, "L", base == 36)) base = 36;
-    if (ui_opt(31, 238, 27, 10, "M", base == 48)) base = 48;
-    if (ui_opt(60, 238, 27, 10, "H", base == 60)) base = 60;
+    draw_logo(386, 126, 2, 11);
 
-    print("BENDER", 22, 254, C_LABEL);
+    // ── BENDER: vertical, left of the keybed like the real lever ────────
     {
-        int bx = 6, by = 264, bw = 80, bh = 12;
-        if (mouse_pressed(MOUSE_LEFT) && in_box(bx, by - 2, bw, bh + 4)) drag_id = 99;
-        if (drag_id == 99) bend = clamp((mx - (bx + bw / 2)) / 36.0f, -1.0f, 1.0f);
-        else bend = 0.0f;
-        rectfill(bx, by, bw, bh, CLR_BLACK);
-        int tx = bx + bw / 2 + (int)(bend * 36.0f);
-        rectfill(tx - 4, by - 2, 9, bh + 4, C_DARK);
-        rect(tx - 4, by - 2, 9, bh + 4, CLR_BLACK);
-        rectfill(tx - 1, by - 2, 2, bh + 4, CLR_LIGHT_GREY);
+        int bx = 2, bw = 14, by = KBY, bh = KBH - 22;
+        int bcy = by + bh / 2, range = bh / 2 - 8;
+        Ptr *g = grab_fresh(bx - 2, by, bw + 6, bh);
+        if (g) g->widget = 99;
+        bend = 0.0f;                                  // springs back untouched
+        for (int j = 0; j < NPTR; j++)
+            if (ptrs[j].id != NOID && ptrs[j].widget == 99)
+                bend = clamp((bcy - ptrs[j].cy) / (float)range, -1.0f, 1.0f);
+        rectfill(bx + bw / 2 - 1, by, 2, bh, CLR_BLACK);
+        int ty = bcy - (int)(bend * range);
+        rectfill(bx, ty - 4, bw, 9, C_DARK);
+        rect(bx, ty - 4, bw, 9, CLR_BLACK);
+        rectfill(bx, ty - 1, bw, 2, CLR_LIGHT_GREY);
     }
-    print(str("OCT C%d ^/v", base / 12 - 1), 2, 286, CLR_MEDIUM_GREY);
-    if (ui_opt(70, 283, 14, 13, "?", show_help)) show_help = !show_help;
+    if (ui_opt(2, KBY + KBH - 14, 14, 13, "?", show_help)) show_help = !show_help;
 
     // ── keyboard ────────────────────────────────────────────────────────
     for (int i = 0; i < NWHITE; i++) {
@@ -730,27 +828,28 @@ void draw(void) {
         rect(x, KBY, KBW - 1, KBH, CLR_BLACK);
         print(str("%c", WLBL[i]), x + (KBW - 9) / 2, KBY + KBH - 10, CLR_MEDIUM_GREY);
     }
-    if (mouse_pressed(MOUSE_LEFT) && my >= KBY && my < KBY + KBH && mx >= KBX) {
-        int on_black = 0;
-        for (int j = 0; j < NBLACK; j++)
-            if (my < KBY + 72 && mx >= black_kx(j) && mx < black_kx(j) + 11) {
-                mouse_midi = base + B_SEMI[j]; key_down(mouse_midi); on_black = 1; break;
-            }
-        if (!on_black)
-            for (int i = 0; i < NWHITE; i++)
-                if (mx >= white_kx(i) && mx < white_kx(i) + KBW - 1) {
-                    mouse_midi = base + W_SEMI[i]; key_down(mouse_midi); break;
-                }
-    }
     for (int j = 0; j < NBLACK; j++) {
         int x = black_kx(j);
         int lit = midi_held(base + B_SEMI[j]);
-        rectfill(x, KBY, 11, 72, lit ? C_ACT : CLR_BLACK);
-        print(str("%c", BLBL[j]), x + 2, KBY + 60, CLR_DARK_GREY);
+        rectfill(x, KBY, BKW, BKH, lit ? C_ACT : CLR_BLACK);
+        print(str("%c", BLBL[j]), x + (BKW - 7) / 2, KBY + BKH - 12, CLR_DARK_GREY);
     }
-    if (mouse_released(MOUSE_LEFT) && mouse_midi != NONE) {
-        key_up(mouse_midi);
-        mouse_midi = NONE;
+    // per-finger keys: a fresh finger sounds its key; sliding onto another
+    // key hands the note over (down-then-up = legato, so AUTO porta glides)
+    for (int j = 0; j < NPTR; j++) {
+        Ptr *p = &ptrs[j];
+        if (p->id == NOID) continue;
+        if (p->fresh && p->widget == 0) {
+            int m = key_at(p->cx, p->cy);
+            if (m != NONE) { p->widget = 98; p->midi = m; key_down(m); }
+        } else if (p->widget == 98) {
+            int m = key_at(p->cx, p->cy);
+            if (m != NONE && m != p->midi) {
+                key_down(m);
+                key_up(p->midi);
+                p->midi = m;
+            }
+        }
     }
 
     // ── help overlay ─────────────────────────────────────────────────────
@@ -772,10 +871,11 @@ void draw(void) {
             "SEQ: LOAD then play notes, then PLAY",
             "ARPEGGIO: DOWN/U&D/UP + HOLD latch",
             "PORTA: AUTO glides only when legato",
-            "Drag the BENDER, it springs back",
+            "BENDER: the strip left of the keys",
+            "Multitouch: chord + faders at once",
             "SPACE arp on/off    ? close help",
         };
-        for (int i = 0; i < 15; i++)
-            print(HL[i], 70, 48 + i * 11, i < 3 ? CLR_YELLOW : CLR_LIGHT_GREY);
+        for (int i = 0; i < 16; i++)
+            print(HL[i], 70, 46 + i * 11, i < 3 ? CLR_YELLOW : CLR_LIGHT_GREY);
     }
 }

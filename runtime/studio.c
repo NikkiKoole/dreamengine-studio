@@ -477,8 +477,21 @@ static void poll_virtual_touches(void) {
     // has ever been seen, the device has fingers: stop synthesizing the mouse.
     static bool seen_real_touch = false;
     if (n > 0) seen_real_touch = true;
-    if (!seen_real_touch && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && vt_count < VT_MAX) {
-        vt_pos[vt_count] = GetMousePosition();
+    // harness-aware mouse: under --replay/--script the injected pointer must
+    // become the synthetic touch too, or touch-path carts (tap/tapp/touch_*)
+    // are undriveable from a script. vt positions are window pixels, the
+    // injected pointer is canvas space — scale back up.
+#ifndef PLATFORM_WEB
+    bool  syn_down = inp_mouse_down(MOUSE_LEFT);
+    Vector2 syn_pos = inject_input
+        ? (Vector2){ (float)(mouse_inj_x * SCALE), (float)(mouse_inj_y * SCALE) }
+        : GetMousePosition();
+#else
+    bool  syn_down = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+    Vector2 syn_pos = GetMousePosition();
+#endif
+    if (!seen_real_touch && syn_down && vt_count < VT_MAX) {
+        vt_pos[vt_count] = syn_pos;
         vt_id[vt_count]  = MOUSE_TOUCH_ID;
         vt_count++;
     }

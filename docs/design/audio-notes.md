@@ -691,6 +691,13 @@ the wall was hit, and scored against §1's leverage rule.
 
 2. **A second oscillator per voice** (detune pair, or 2-op FM). The big
    timbre unlock, felt four distinct ways.
+   **→ PARTIAL 2026-06-07: `instrument_tune(slot, float semitones)` SHIPPED** — a
+   slot-level detune (±24, fractions the point) read LIVE by every sounding voice,
+   scheduled arp/seq hits included. Born from the SH-101's TUNE trimmer not
+   reaching the arp. It's the cheap 80% of the *detune-pair* want: two slots, one
+   tuned +0.06 = unison shimmer (still costs two voices — the polyphony-halving
+   unison *flag* of 2b stays deferred); also gamelan ombak in one call. Wired all
+   four places + soundcheck PASS; worked example = sh101.c `define_slots()`.
    **→ SPLIT 2026-06-05 — this gap conflated two architecturally opposite things:**
    - **2a — an FM *engine*** (`INSTR_FM`): the second oscillator is an *inaudible*
      phase-wiggler sealed inside one engine's sample function — you only ever hear

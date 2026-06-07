@@ -64,6 +64,8 @@ typedef struct {
     float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
     float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
+    float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
+                                    // sounding voice each sample — fire-and-forget hits bend too. default 1
     uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
 } Instrument;
 
@@ -278,6 +280,7 @@ typedef enum {
     SR_ECHO         = 26,
     SR_INSTR_ECHO   = 27,
     SR_NOTE_ECHO    = 28,
+    SR_INSTR_TUNE   = 29,
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -954,6 +957,12 @@ static void sound_fire_req(SoundReq r) {
         if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
         instr_bank[slot].echo = x;
         echo_used = true;
+    } else if (r.kind == SR_INSTR_TUNE) {   // a=slot, b=semitones*1000 (signed)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float semis = r.b / 1000.0f;
+        if (semis < -24.0f) semis = -24.0f; if (semis > 24.0f) semis = 24.0f;
+        instr_bank[slot].tune_mul = powf(2.0f, semis / 12.0f);
     } else if (r.kind == SR_NOTE_ECHO) {    // a=val*1000 (live, slewed)
         echo_used = true;
         Voice *v = sound_held_voice(r.e0, r.e1);
@@ -1081,6 +1090,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 }
                 if (duty < 0.05f) duty = 0.05f;
                 if (duty > 0.95f) duty = 0.95f;
+                // slot detune (instrument_tune): read LIVE from the bank each sample,
+                // so ringing voices — scheduled arp/seq hits included — bend with the knob
+                if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
+                    pitch_mul *= instr_bank[v->instr_slot].tune_mul;
             }
 
             // engine fork: wavetable oscillators below INSTR_ENGINE_BASE, modeled engines at/above
@@ -1463,6 +1476,15 @@ void note_harmonics(int handle, float x)     { sound_macro_note(handle, 0, x); }
 void note_timbre(int handle, float x)        { sound_macro_note(handle, 1, x); }
 void note_morph(int handle, float x)         { sound_macro_note(handle, 2, x); }
 
+// ── tune: per-slot detune in semitones (fractions are the point) — applies LIVE to every
+//    sounding voice on the slot, fire-and-forget hits included (the SH-101 TUNE trimmer,
+//    unison-detune pairs, gamelan ombak) ──
+
+void instrument_tune(int slot, float semitones) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_TUNE, slot, (int)(semitones * 1000.0f), 0, 0, 0, 0);
+}
+
 // ── drive: post-filter tanh saturation, per slot (audio-notes §17 — the missing nonlinearity) ──
 
 void instrument_drive(int slot, float x) {
@@ -1565,6 +1587,7 @@ static void sound_init(void) {
         instr_bank[i].harmonics  = 0.5f;   // engine macros: center detent, Plaits-style
         instr_bank[i].timbre     = 0.5f;
         instr_bank[i].morph      = 0.5f;
+        instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
     }

@@ -318,6 +318,7 @@ void note_timbre(int handle, float x);         // live macro on a held note, sle
 void note_morph(int handle, float x);          // live macro on a held note, slewed — MALLET ring/motor and FM feedback move live; PLUCK position applies at the next note
 
 // drive — saturation AFTER the filter, so resonance screams into it. The grit knob.
+void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)
 void instrument_drive(int slot, float x);      // overdrive a slot 0.0..1.0 — 0 = clean (default), 0.3 = warm, 1 = fuzz. loudness stays put; character changes
 void note_drive(int handle, float x);          // sweep a held note's drive live, slewed — ride it up mid-phrase for the acid scream
 

@@ -560,6 +560,24 @@ in [`POLISH_TODO.md`](POLISH_TODO.md).
     self-describing `de:meta` chunk + generated index is parked as a direction. Proposals +
     priority table: [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md).
 
+28. **Library headers invisible inside the editor** *(new 2026-06-07, surfaced by the ui.h
+    ship)* — the cart-land library headers (`ui.h`, `gestures.h`, `improv.h`, `radio.h`)
+    are now documented for *readers of the repo* (CLAUDE.md runtime/ tree +
+    [`guides/cart-authoring.md`](guides/cart-authoring.md) → "Cart-land library headers")
+    but a learner **inside the editor** still can't find out they exist: the help tab is
+    `studioDocs.js`-driven (engine API only), so the only in-editor path is already knowing
+    to type `#include "ui.h"` and cmd-click it — chicken-and-egg. This is editor work, not
+    docs work. Fix slices, cheapest first: (a) a **"library headers" section in the help
+    tab** — one entry per header (name, one-liner, its showcase carts) whose click opens
+    the existing cmd-click include preview ([`editor/src/navigate.js`](../editor/src/navigate.js)
+    already renders any `runtime/*.h`; the help tab just needs to call it) — no new
+    viewer, no studioDocs entries per *function* (the header's top-comment manual is the
+    doc, by contract); (b) autocomplete offering `ui.h`/`gestures.h`/… inside an
+    `#include "` quote; (c) *maybe* the starter cart mentioning the lane in a comment.
+    Function-level autocomplete/hover for header symbols is deliberately out — that
+    machinery is keyed to `studioDocs.js` and the four-places contract, which is engine-API
+    surface only (the header manual + outline-in-preview cover it).
+
 ---
 
 ## Decided-against / deferred ✗

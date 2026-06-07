@@ -113,6 +113,17 @@ click 165 160 100      # click to close it
 That makes mouse-driven carts (neon rain, the economy game, …) fully scriptable and
 replayable — `mouse_x/y/mouse_pressed` all read the injected pointer under replay.
 
+**Touch-path carts too (2026-06-07):** the injected pointer also becomes the
+synthetic mouse-touch, so `tap()`/`tapp()`/`touch_*` and per-finger-pointer carts
+(touchpiano, handpan, sh101) are equally script-drivable — one finger's worth.
+A drag needs the pointer to move *while the button is down*; `click` holds for
+3 frames, so put `move` lines on the frames right after it:
+
+```
+click 60 300 70        # land on the VCF cutoff fader (capture)
+move  61 300 40        # drag up while the click is still held → the fader follows
+```
+
 ### Gotcha: injected keys can hit the pause overlay
 
 Scripted input goes through the same path as real input, so the **runtime pause

@@ -962,6 +962,19 @@ the table's only job is to say what those three mean for each. Grow it freely.
 *Format for adding more:* just name the sound + a reference patch/track if you have one; the
 buffer flag, navkit source, and macro mapping get filled in here.
 
+> **Which engine next, scored by what it opens (2026-06-07, the tinydaws angle —**
+> **see [`tinydaws.md`](tinydaws.md) "wider map" for the full cross-index):**
+> rank by *kind of door*, not just cost. **Formant = the biggest single door**
+> (the human voice — a whole category nothing on the dial touches: Toy-Town lead,
+> choirs, doo-wop; near-free on the §8.3 SVF). **Reed = the biggest cart family**
+> (the bellows trio in [`cart-library-direction.md`](cart-library-direction.md)
+> §2b — melodeon/accordion/harmonica — plus fairground clarinet, klezmer, ska,
+> hard-bop sax; one bore buffer, fits `ks_buf`). **Membrane = the rhythm-section
+> unlock** (what the 808/909 analog recipes structurally can't do). **AM/ring =
+> best leverage-per-line** (~10 lines = the Radiophonic Workshop's identity —
+> should probably just happen). Two natural "next sessions": formant + AM/ring
+> completes the Radiophonic rack end-to-end; reed alone completes the bellows trio.
+
 ### 8.10 Effects layer — buses vs. master (the §8.5-phase-4 plan)
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first

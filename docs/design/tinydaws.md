@@ -118,6 +118,7 @@ codebase is ours). Each = one cart, own faceplate identity, same chassis.
 
 | Rack | Vibe | Lead | Chords/comp | Bass | Drums | Whimsy/FX |
 |---|---|---|---|---|---|---|
+| **rebirth-classic** | acid techno — THE homage: 2×303 + 808 + 909, the RB-338 itself | 303 #1 (slide/accent acid line) | — (acid barely moves: one minor chord for bars) | 303 #2 | 808 + 909 banks side by side | the 303 filter knobs ARE the show |
 | **rebirth-house** (pilot) | disco/house | riff (I_STAB-ish) | stabs, voice-led | house bass | 808 bank | filter sweeps |
 | **Spaghetti Western** | desert noir | musicalsaw/otamatone whistle (sine + drift — exists) | INSTR_PLUCK "tic-tac" baritone | sh101 sub | 808 cowbell/woodblock | jew's-harp twang (BPF saw, new ~10-liner) |
 | **Broken Fairground** | carnival macabre | stylophone buzz | omnichord, limping strum | 303-as-tuba (short decay, low) | 808 kick/snare + swing | steam calliope (detuned sines + noise puff, new) |
@@ -134,6 +135,16 @@ is exactly the kit for writing them.
 The genuinely-new sound work across the whole table: a handful of ~10-line voice
 recipes (calliope, slide whistle, jew's harp, music box) + one real project (the
 formant voice). Everything else exists.
+
+**rebirth-classic notes** (added 2026-06-07): the only rack where every voice is
+already a shipped cart (tb303 ×2, tr808, tr909) — zero new sound work, maximum
+homage. What it lacks is a generator: there is no acid station, and french house
+(house.c) is a *different idiom* — acid's 303 pattern IS the song, slide/accent
+placement is the craft, harmony barely moves. So it needs a small new
+`new_song()` (seeded 16-step acid lines + slide/accent rolls) — arguably the most
+fun generator in the set to write. Pilot trade-off: classic is the purer homage
+with simpler harmony; house keeps the pilot slot because its generator already
+exists and is battle-tested. Both stay — they are not the same genre.
 
 ## The wider map — mining the existing parking lots (2026-06-07)
 
@@ -203,6 +214,11 @@ near-free) → unlocks the **Radiophonic Workshop** rack end-to-end — fittingl
 the one genre that *celebrates* sounding like a fantasy console. Meanwhile the
 zero-engine stations (lofi jazz, hard-bop) would each hand a future rack its
 generator for free.
+
+The door-type ranking (formant = biggest single door, reed = biggest cart
+family, membrane = the rhythm-section unlock, AM/ring = best per-line) is
+recorded in [`audio-notes.md`](audio-notes.md) §8.9, right under the engine
+catalog it scores — that doc owns the "which engine next" call.
 
 ## Universal control layout (touch-first)
 

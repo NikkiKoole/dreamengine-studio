@@ -26,7 +26,7 @@ docs/
 │   ├── held-notes.md    SHIPPED spec: note_on/note_off handles + live note_pitch/vol/cutoff/duty + slew — the sustain layer the instruments ride on
 │   ├── input-recording-looper.md  exploration: can a cart record the player and loop it back — recording levels for music looping + gameplay ghosts
 │   ├── modular-synth.md  modrack design spec: Eurorack-style control-rate patcher cart (modules, cables, data model, shipped ledger)
-│   ├── tinydaws.md      IDEA: ReBirth-style genre racks (generate → play → export) — radios as song generators feeding editable sequencer carts; the lane format, seed-as-song-code handoff, song.h export for game soundtracks, the 7-rack genre table + the wider map (unbuilt stations × engine wishlist, cross-indexed from game-music/audio-notes)
+│   ├── tinydaws.md      IDEA: ReBirth-style genre racks (generate → play → export) — radios as song generators feeding editable sequencer carts; the lane format, seed-as-song-code handoff, song.h export for game soundtracks, the 8-rack genre table (incl. rebirth-classic, the RB-338 homage itself) + the wider map (unbuilt stations × engine wishlist, cross-indexed from game-music/audio-notes)
 │   ├── blend-tables.md  exploration behind STATUS item 18: index-only translucency/glow/shadow; cart-space prototype = blendlab.c
 │   ├── palette-and-color.md  exploration: own palette vs the borrowed PICO-8 32 — one decision wearing two questions, sequenced before blend tables bake it in
 │   ├── physics-notes.md  brainstorm: a tiny in-engine physics layer? (sparked by ragdoll.c; nothing decided)

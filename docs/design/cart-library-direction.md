@@ -62,33 +62,61 @@ few carts actually use yet.
 
 The instrument shelf (otamatone, musicalsaw, glassharmonica, hurdygurdy, stylophone,
 fartsynth…) is the same "creative toy" DNA and these carts double as future rack
-voices ([`tinydaws.md`](tinydaws.md)). Candidates, with what each rides on:
+voices ([`tinydaws.md`](tinydaws.md)). Split by what they ride on — and note the
+pattern at the bottom.
 
-- **Slide whistle ("pulling whistle")** — drag a plunger; pitch follows with
-  overshoot + bounce. `INSTR_SINE` held note + `note_glide`. Zero engine work;
-  already named as Space-Age rack whimsy in tinydaws.md. One finger = one plunger —
-  the most touch-native instrument imaginable.
-- **Melodeon** — THE interaction gem: **bisonoric** — the same button sounds a
-  *different note* pushing vs pulling the bellows. Bellows = drag direction (or
-  two-finger squeeze); direction-changes-the-note is a uniquely touch-friendly
-  mechanic no desktop instrument has. Voice: borrow tango.c's drawn bandoneón reed
-  (`wave_set` — the bandoneón IS the melodeon's big cousin); upgrade path = the
-  reed engine ([`audio-notes.md`](audio-notes.md) §8.9).
-- **Accordion** — unisonoric + Stradella chord buttons: omnichord's chord-button
-  layout meets a bellows whose drag *speed* is the volume swell (like the real
-  thing — no bellows motion, no sound). Same reed voice as the melodeon.
-- **Mouth harmonica** — bisonoric again (blow/draw), 10 holes, richter tuning.
-  Vertical drag on a hole = the draw bend; cupped-hand wah = `note_cutoff`.
-  Same reed family.
-- **Standing bass (upright)** — `INSTR_PLUCK` low register exists today; slap =
-  a noise transient layered on the pluck. The fingerboard is the touch surface.
-  Autopilot mode = cocktail.c's `walk_note()` walking-bass generator (already
-  flagged a graduation candidate in game-music.md) — *tap a chord, the bass walks
-  itself*. Arco mode waits on the bowed engine (§8.9).
+**Buildable today** (current engines), ranked by fun × feature-showcase value:
 
-The shared note for the build session: melodeon/accordion/harmonica are one
-*family* — a `reeds`-style shared voice + three interaction skins. Build the
-bellows interaction once.
+1. **Barrel/crank organ** — the top pick. Crank it with a finger-circle gesture
+   (speed = tempo, wobble = pitch warble); the tune is a **punch card you poke
+   holes in**. Shows `wave_set` drawbars (roadhouse proved the voice) — and the
+   punch card is secretly a baby tinydaws lane editor. Gateway drug.
+2. **Hang drum / handpan** — circle of tone fields, `INSTR_MALLET`. Possibly the
+   most *satisfying* touch instrument there is; shows mallet's harmonics/morph
+   macros beautifully.
+3. **Music box** — wind it up, it plays itself and *runs down* (tempo + pitch sag
+   as the spring dies). TRI + clockwork ticks; shows `bpm()`-as-a-voice (tango's
+   conductor trick) in toy form.
+4. **Slide guitar** — `INSTR_PLUCK` + `note_glide`, a combo no cart has used.
+   Bottleneck drag = a great one-finger gesture.
+5. **Standing bass (upright)** — PLUCK low register + a noise slap transient; the
+   fingerboard is the touch surface. Autopilot = cocktail.c's `walk_note()`
+   (already a graduation candidate in game-music.md) — *tap a chord, the bass
+   walks itself*. Arco mode waits on the bowed engine.
+6. **Slide whistle ("pulling whistle")** — cheapest of all: `INSTR_SINE` held
+   note + `note_glide` with overshoot + bounce. One finger = one plunger — the
+   most touch-native instrument imaginable; already Space-Age rack whimsy in
+   tinydaws.md.
+
+**Blocked on missing engines** ([`audio-notes.md`](audio-notes.md) §8.9 owns the
+"which engine next" call):
+
+- **Hand-drum (tabla/conga)** — needs **membrane**. The killer pairing: touch
+  *position* on the drumhead = the engine's strike-position macro. Touch API and
+  engine physics map 1:1 — the best feature showcase on this list once membrane
+  lands.
+- **The bellows trio** — needs **reed** (fakeable today on tango.c's drawn
+  bandoneón `wave_set` wave; the squawk/breath character wants the engine).
+  One shared voice + three interaction skins — build the bellows once:
+  - **Melodeon** — THE interaction gem: **bisonoric**, the same button sounds a
+    *different note* pushing vs pulling. Bellows = drag direction (or two-finger
+    squeeze); direction-changes-the-note is a uniquely touch-friendly mechanic
+    no desktop instrument has.
+  - **Accordion** — unisonoric + Stradella chord buttons: omnichord's
+    chord-button layout meets a bellows whose drag *speed* is the volume swell
+    (no bellows motion, no sound).
+  - **Mouth harmonica** — bisonoric again (blow/draw), 10 holes, richter tuning;
+    vertical drag on a hole = the draw bend, cupped-hand wah = `note_cutoff`.
+- **Finger choir** (drag voices through vowels) + **talkbox / Dalek voice toy** —
+  need **formant** (+ AM/ring for the Dalek).
+- **Violin / cello** — needs **bowed**; drag speed = bow pressure, another
+  gesture-to-physics 1:1.
+- **Slide trombone** — needs **brass**; the slide gesture is begging for it.
+
+The pattern worth noticing: the blocked ones are all *continuous-gesture*
+instruments — exactly why §8.9 says the wind/bowed group "pairs with held notes
+and live macros." The touch work on the instrument shelf is the other half of
+that pairing.
 
 ### 3. The few genuinely-missing, *teachable* game types
 

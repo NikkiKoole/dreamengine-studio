@@ -139,9 +139,12 @@ that pairing.
 
 Not "another clone" — each earns its place:
 
-- **A minimal one-button game (Flappy-style).** There is *no* flappy/one-tap game. It's
-  the canonical "smallest possible complete game," ~40 lines, huge juice ceiling — the
-  perfect bridge between tutorials and the big carts. **Suggested first build.**
+- ~~**A minimal one-button game (Flappy-style).**~~ **→ SHIPPED 2026-06-07** as `flappy`:
+  the full attract→play→game-over arc (not just the mechanic), `save_int` hi-score + medal,
+  programmatic sprite-draw bird with a sampled flap cycle, sspr_ex tilt+squash, feather
+  particles, flash/shake/hit-stop, parallax sky/ground. One-button on every device
+  (`tapp` full-screen + btnp + key) → phone-playable. The tutorial↔big-game bridge, built.
+  (Also tutorial-curriculum Track C #40.)
 - **An idle / incremental ("numbers go up").** Trivial to code, genuinely engaging, and
   the *first game a beginner can finish and feel proud of.* None exist.
 - **A typing game** (Typing of the Dead style) — educational *and* shows off

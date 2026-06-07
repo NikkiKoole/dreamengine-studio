@@ -89,7 +89,7 @@ Modeled on their Bitesize set, scaled to teachable size.
 
 | # | cart | teaches | source echo |
 |---|---|---|---|
-| 40 | **flappy (one-button)** | the smallest complete game; state machine + hi-score + juice | *quickest high-value win* |
+| 40 | ✅ **flappy (one-button)** | **SHIPPED 2026-06-07** as `flappy`: full attract→play→dead→game-over state machine, `save_int` hi-score + medal, programmatic sprite-draw bird (one `bird()` fn → flap cycle), sspr_ex tilt+squash, feather particles, flash/shake/hit-stop, parallax. One-button via `tapp(0,0,W,H)`+btnp+key → phone-playable. | *quickest high-value win* |
 | 41 | pong | ball physics, two paddles, 2-player input | Nerdy Pong |
 | 42 | catcher / fruit drop | spawn waves, lives, "miss = lose" | Fruit Drop |
 | 43 | breakout | brick array + rect collision (pays off Track B) | — |

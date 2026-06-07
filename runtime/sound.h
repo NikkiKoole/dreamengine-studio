@@ -106,6 +106,7 @@ typedef struct {
     float  harm, timb, mor;
     float  harm_target, timb_target, mor_target;
     float  drv, drv_target;        // post-filter drive (current + slew target, same machinery)
+    float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_out;               // this voice's previous mixed contribution — feeds the steal-declick tail
@@ -961,6 +962,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->timb = v->timb_target = ins->timbre;
     v->mor  = v->mor_target  = ins->morph;
     v->drv  = v->drv_target  = ins->drive;
+    v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
     v->last_out = 0.0f;
     v->ks_len = 0;
@@ -1350,6 +1352,14 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (v->sfx_idx < 0 && v->drv > 0.001f) {
                 float g = v->drv * v->drv * 24.0f;
                 s = tanhf(s * g) / tanhf(g);
+                // DC blocker: tanh of an asymmetric wave (e.g. a driven organ registration)
+                // injects a DC offset, which the per-note env ramp turns into a click/thump on
+                // attack + release. One-pole HP ~7Hz removes it. Only runs when driven, so clean
+                // voices stay bit-identical. (2nd customer for a DC blocker after INSTR_EPIANO.)
+                float dcin = s;
+                s = dcin - v->drv_dc_x1 + 0.999f * v->drv_dc_y1;
+                v->drv_dc_x1 = dcin;
+                v->drv_dc_y1 = s;
             }
             float contrib = s * v->vol * env * trem * 0.2f;
             v->last_out = contrib;        // remembered so a steal can declick (see steal_tail)

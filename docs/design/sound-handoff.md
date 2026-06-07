@@ -65,5 +65,8 @@ FM §8.8.3 pattern) and delete this section.
 **PD (Casio CZ — the cheap snack) → reed → membrane → bowed/pipe + the buffered piano/guitar
 pair → formant + the effects layer.** The effects layer (master reverb + the bus, Leslie,
 chorus, the Juno unblock) is sequenced LAST, after the engines; resolve **stereo** (§9) before
-it. DC blocker is now a second-customer watch item (organ-drive + EP both want it → may
-graduate to a shared helper).
+it. ~~DC blocker is a second-customer watch item~~ **DONE (2026-06-07): a DC blocker
+graduated to the shared per-voice drive path** in `sound.h` (the tanh of an asymmetric
+driven wave injected DC → a click on the env ramp; reported on the organ). One-pole HP ~7Hz,
+runs only when `drv>0.001` so clean voices stay bit-identical. Fixes every driven engine at
+once. (EP keeps its own internal blocker — different signal point, the pickup nonlinearity.)

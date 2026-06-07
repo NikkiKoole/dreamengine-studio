@@ -33,7 +33,9 @@ float duty    = 0.5f;
 int   fmode   = 1;                 // FILTER_LOW
 float cutoff  = 700, res = 7;      // lower base so the FILTER CONTOUR has room to open it (the Moog "wow")
 float drive_v = 0.25f;             // post-filter saturation — a Minimoog runs a little hot by default
-typedef struct { int target; float rate; float depth; } Lfo;   // target 0=OFF,1=PIT,2=DUT,3=VOL,4=CUT
+typedef struct { int target; float rate; float depth; } Lfo;   // target 0=OFF,1=PIT,2=DUT,3=VOL,4=CUT,5=DRV
+                                                               // (DRV has no engine LFO dest — it runs cart-side:
+                                                               // drive_live() wobbles the slewed note_drive per frame)
 Lfo   lfos[3] = { {1, 5.0f, 0.25f}, {0, 3.0f, 0.3f}, {0, 0.4f, 0.6f} };
 
 // mod-envelopes — a filter contour (ENV_CUTOFF) and a pitch envelope (ENV_PITCH), each a
@@ -98,7 +100,8 @@ void apply_synth(void) {
     instrument(SLOT, wave, (int)attack, (int)decay, CLI(sustain + 0.5f, 0, 7), (int)release);
     instrument_duty(SLOT, duty);
     for (int L = 0; L < 3; L++) {
-        if (lfos[L].target == 0) { instrument_lfo(SLOT, L, LFO_PITCH, 0, 0); continue; }
+        if (lfos[L].target == 0 || lfos[L].target == 5)   // OFF — and DRV, which is cart-side
+            { instrument_lfo(SLOT, L, LFO_PITCH, 0, 0); continue; }
         int dest = lfos[L].target - 1;                 // 1..4 -> LFO_PITCH..LFO_CUTOFF
         instrument_lfo(SLOT, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
     }
@@ -116,10 +119,17 @@ void drive_live(int h) {
     note_filter(h, fmode);
     note_cutoff(h, (int)cutoff);
     note_res(h, CLI(res + 0.5f, 0, 15));
-    note_drive(h, drive_v);
+    // DRV-targeted LFOs wobble drive here, cart-side (the engine has no LFO_DRIVE
+    // dest): note_drive is slewed, so the per-frame steps smooth out
+    float drv = drive_v;
+    for (int L = 0; L < 3; L++)
+        if (lfos[L].target == 5)
+            drv += sin_deg(now() * lfos[L].rate * 360.0f) * lfos[L].depth * 0.5f;
+    note_drive(h, clamp(drv, 0.0f, 1.0f));
     note_duty(h, duty);
     for (int L = 0; L < 3; L++) {
-        if (lfos[L].target == 0) { note_lfo(h, L, LFO_PITCH, 0, 0); continue; }
+        if (lfos[L].target == 0 || lfos[L].target == 5)
+            { note_lfo(h, L, LFO_PITCH, 0, 0); continue; }
         int dest = lfos[L].target - 1;
         note_lfo(h, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
     }
@@ -353,13 +363,13 @@ void draw() {
     drive_v = ui_slider(3, 340, 107, 100, drive_v, 0.0f, 1.0f, CLR_ORANGE);
 
     // ---- 3 LFOs ----
-    const char *tn[5] = { "OFF", "PITCH", "DUTY", "VOL", "CUT" };
+    const char *tn[6] = { "OFF", "PITCH", "DUTY", "VOL", "CUT", "DRIVE" };
     int lcol[3] = { CLR_PINK, CLR_YELLOW, CLR_INDIGO };
     for (int L = 0; L < 3; L++) {
         int x = 6 + L * 151, y = 122, w = 146;
         panel(x, y, w, 62, str("LFO %d", L + 1), lcol[L]);
         if (ui_btn(x + 6, y + 14, 64, 12, tn[lfos[L].target], lfos[L].target != 0, lcol[L]))
-            lfos[L].target = (lfos[L].target + 1) % 5;
+            lfos[L].target = (lfos[L].target + 1) % 6;
         // live dot so you can see it tick
         if (lfos[L].target != 0) {
             int dotx = x + w - 16 + (int)(sin_deg(now() * lfos[L].rate * 360.0f) * 7);

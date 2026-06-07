@@ -119,7 +119,7 @@ the instrument stays "impossible to make ugly":
 
 | Engine | harmonics | timbre | morph |
 |---|---|---|---|
-| **Organ** | drawbar registration (sub / 8′ / 4′ / 2′ mix) | brightness / drawbar tilt | percussion + internal vibrato/chorus scanner depth *(Leslie is a separate shared effect — §8.3, not a macro)* |
+| **Organ** | drawbar registration (snapped table — **full design §8.8.4**) | brightness / drawbar tilt + click bite | percussion + internal vibrato/chorus scanner depth *(Leslie is a separate per-voice recipe — §8.8.4 / 0015, not a macro)* |
 | **Electric piano** | partial spread (Rhodes↔Wurli) | pickup growl / bark amount | bell↔tine balance |
 | **Acoustic piano** | unison detune / string spread | strike hardness | dispersion ("expensive"-ness) + damping |
 | **Strings** | section size (1 player↔ensemble) | bow brightness | bow pressure / attack bite |
@@ -559,6 +559,122 @@ the index decay derives from `step_samples`). No note-on excitation buffer → n
 guard needed (sines from any phase are safe). Pitch: carrier = `freq × pitch_mul` per
 sample, modulator = carrier × ratio — the §8.8.1 rule satisfied by construction. Cart
 presets (= the acceptance tests): **epiano · bell · bass · brass · clang**.
+
+### 8.8.4 Engine #4: ORGAN — the step-1 design (2026-06-07)
+
+The playbook's paper round for `INSTR_ORGAN`, the §8.5-phase-4 / [STATUS §5](../STATUS.md)
+**NEXT** engine. navkit crib (all paths in `~/Projects/navkit/soundsystem/engines/`):
+`processOrganOscillator` — `synth_oscillators.h:4064`; `OrganSettings` — `synth.h:912`;
+**9 named registration presets** — `instrument_presets.h:3427` (reproduced in the appendix
+below). **Scope guard:** this is the **dry tonewheel core only**. The **Leslie is NOT in the
+engine** — [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md) rules it a
+*per-voice recipe* (`LFO_VOLUME` + `LFO_PITCH` + `LFO_CUTOFF`, with a cart-side rate `lerp` for
+the chorale↔tremolo spin-up). The engine's own motion is the **internal scanner vibrato/chorus**
+(the Hammond V/C system) — a different, complementary thing that lives *under* a Leslie, not
+instead of it.
+
+**The whole oscillator is 9 additive sine partials** at fixed tonewheel ratios (navkit
+`organDrawbarRatios`, `synth_oscillators.h:4032` — these ARE the standard Hammond drawbar
+footages, in order):
+
+```c
+//                16'   5⅓'   8'   4'   2⅔'   2'   1⅗'   1⅓'   1'
+static const float organRatios[9] = {
+    0.5f, 1.5f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 8.0f };
+//  the 5th partial (1⅗', ratio 5.0) is the major-3rd — the "nonobvious" Hammond color
+```
+
+**The mapping — 9 drawbars + percussion + scanner → 3 macros.** The hard part of this engine:
+a B3 is nine independent faders and we get three knobs. Resolution (this **refines the §8.1.1
+organ row**, which now points here; the playbook step-1 "resolve disagreements in the doc" call):
+
+| macro | maps to | the taste decision (made here, on paper) |
+|---|---|---|
+| **harmonics** | drawbar **registration** | **SNAPPED to a curated table** of the iconic registrations (the appendix's nine + Vox/Farfisa combo), exactly like FM's ratio table — *not* a continuous 9→1 blend, which collapses to mush and reads as volume. Each detent is a different drawbar recipe = a different instrument: the strongest quarter-turn audibility, and presets become trivial. (Registrations *do* stay in tune if crossfaded — they're all harmonics of one fundamental — so continuous is *possible*; snapping is the taste call, not a necessity, because nobody thinks in "halfway between 888000000 and 006876540".) |
+| **timbre** | drawbar **brightness tilt** + key-click bite | a continuous spectral tilt applied *over* the chosen registration: dark = weight 16'/8', bright = weight 2'/1⅗'/1⅓'/1' (a pow-curve gain per partial keyed by ratio). Folds in **key-click** amount (navkit `orgClick`: brighter ⇒ more attack click). The "open it up" knob; works on every registration. |
+| **morph** | **animation**: scanner V/C depth + percussion | one "liveliness" axis from dead-still combo organ → fully animated jazz/gospel B3. 0 = no vibrato, no perc (Vox/Farfisa/reggae skank); rising sweeps the navkit scanner **C1→C2→C3** chorus depth (the appendix's depth table) and fades in the **percussion chiff** (2nd-harmonic ping) near the top. Keeps §8.1.1's stated "percussion + scanner depth" pairing — they co-vary on a real lively B3. |
+
+**The buffer question (decided here).** STATUS/§8.5 call organ "buffer-free." True of the
+drawbar core — 9 phase accumulators, zero buffer. But the **authentic scanner is not**: navkit's
+**C (chorus) modes mix dry+wet from a 64-sample modulated delay** (`ORGAN_VIBRATO_BUFSIZE 64`,
+~1.5 ms, `synth.h`) — the comb shimmer that *is* the gospel/jazz B3, unreproducible by a pitch-LFO
+alone (that only gives the V/vibrato modes). **Decision: reuse the per-voice `ks_buf` (§8.2)** —
+borrow 64 of its 1024 samples for the scanner tap. The engine then adds **no new buffer
+infrastructure** (which is the sense in which "buffer-free" was meant), and the C-modes ship
+authentic. Buffer-free fallback (V-modes only, scanner as a pitch-LFO) is the degraded option if
+`ks_buf` reuse proves awkward — note it, but prefer the buffer. *(This sharpens the §8.5/STATUS
+"buffer-free" wording: the core is, the scanner borrows.)*
+
+**Known risks, named up front (the §8.8.3 discipline):**
+- **Single-trigger percussion is monophonic + stateful.** A real Hammond fires the perc ping only
+  on the *first* key of a legato phrase, re-arming on full release; navkit gates it on a global
+  `orgPercKeysHeld` count. Our voices are independent — faithful single-trigger needs a
+  per-instrument held-key tally on the audio thread. **Shippable default: per-note chiff** (every
+  note-on pings) — polyphonically correct, slightly less authentic on fast legato runs.
+  Single-trigger is a *deferred nicety, not a phase-4 blocker* — organ's "DX epiano is two
+  op-pairs": don't build the faithful version speculatively.
+- **Additive normalization = a hidden volume knob.** Gospel (9 bars) vs Reggae (2 bars) differ ~5×
+  in raw sum. The §8.8.1 "normalize the excitation" rule is non-negotiable here: each harmonics
+  detent must be **loudness-matched** (navkit's `sum /= ampSum` when `ampSum>1` is the start; then
+  tune by ear so registration reads as *timbre*, never level).
+- **CPU — heaviest engine yet: 9 `sinf()` × 16 voices = 144 sines/sample** (+ the scanner read),
+  vs pluck=1 / mallet=4 / FM=2. Probably fine, but PROF-check the showcase cart. Cheap mitigations
+  if it bites: a shared sine LUT (the raw waves already want one), and skip sub-0.001 drawbars
+  (navkit's `if (level < 0.001f) continue;`).
+
+**Mechanics:** state on `Voice` (an `OrganState`: 9 `drawbarPhases`, `clickEnv`, `percEnv`,
+`percPhase`, `scannerPhase`, + a write-index into the borrowed `ks_buf` scanner tap). The nine
+effective levels are **recomputed per-block from the live slewed macros** (registration × timbre
+tilt) — *not* cached at note-on like navkit — so drag-to-audition works (the playbook's live-macro
+rule; the macros are slewed already). Pitch: each partial = `v->freq × pitch_mul × organRatios[i]`
+*per sample*, so vibrato / pitch-env / `note_pitch` / `note_glide` bend the whole stack together
+(§8.8.1 satisfied by construction). The only excitation state is the scanner buffer → guard the
+id-named-by-an-sfx-step-without-note-on case so it stays silent, not stale.
+
+**Cart presets (= the acceptance tests), straight from navkit's nameplates:** **Jimmy Smith ·
+Gospel Full · Jon Lord · Booker T · Larry Young · Reggae Bubble · Soft Combo · Ballad** (drop
+Emerson or keep as a deep cut). Each is a baked (harmonics-detent, timbre, morph) triple — *if
+pressing "Jimmy Smith" doesn't sound like a jazz B3, the mapping is wrong, not the preset.* The
+showcase cart `organ.c` (pluck.c / mallet.c template: keys + three audition-while-dragging macro
+sliders + autoplay) also puts the **Leslie recipe on a button** (chorale↔tremolo spin-up via a
+`note_lfo()` rate lerp) — so the engine *and* its companion recipe are demonstrated end-to-end,
+the whole §8.10/0015 story in one cart.
+
+**Retrofit target:** **roadhouse** (the Doors) already auditions VOX/Gibson drawbar tables in its
+THE BAND panel — the natural first station swap. A dedicated **gospel / soul / ska** station is
+the bigger prize. `radio-instrument-options.md` owns the ranked list.
+
+**Combo organ (Vox/Farfisa) is deliberately a *recipe* here, not a detent.** This is tonewheel
+Hammond; a transistor combo organ's character is a non-sine divider waveform a pure-sine engine
+can't model, only approximate. Ship it as a cart preset (bright registration + baked `drive`); it
+graduates to its own `morph` axis or a second `INSTR_COMBO` engine only when a built station proves
+the recipe insufficient — the path + named triggers are [decision 0016](../decisions/0016-combo-organ-recipe-then-macro-or-engine.md).
+**Watch during the build:** whether `morph` (scanner + perc) is a *full* axis or *thin* — that
+verdict picks 0016's branch A (repurpose morph for combo blend) vs B (second engine).
+
+#### Appendix — navkit's 9 organ registrations (verbatim, `instrument_presets.h:3427`)
+
+Drawbar columns in standard footage order (`8`=full/1.0, `6`=0.75, `4`=0.5, `0`=off):
+
+| preset | 16′ 5⅓′ 8′ 4′ 2⅔′ 2′ 1⅗′ 1⅓′ 1′ | click | percussion | scanner | character |
+|---|---|---|---|---|---|
+| **Jimmy Smith** | `8 8 8 0 0 0 0 0 0` | .20 | 2nd, fast | C3 | fat sub+fund jazz B3 |
+| **Gospel Full** | `8 8 8 8 8 8 8 8 8` | .40 | 2nd, fast | C3 | all bars out, choir wall (+crosstalk .3) |
+| **Jon Lord** | `8 8 8 6 0 0 0 0 0` | .50 | off | V3 | Deep Purple growl (+drive .15, crosstalk .4) |
+| **Booker T** | `8 8 6 0 0 0 0 0 0` | .15 | off | C1 | Green Onions, 60s clean |
+| **Ballad** | `8 0 8 0 0 0 0 0 4` | 0 | 3rd, soft, slow | C2 | sub+fund+sparkle |
+| **Reggae Bubble** | `0 0 6 0 6 0 0 0 0` | 0 | off | off | skanky upstroke (no motion) |
+| **Larry Young** | `8 8 8 8 0 0 0 0 0` | .30 | 3rd, fast | C2 | Unity-era modern jazz |
+| **Emerson** | `8 8 8 8 0 8 0 0 8` | .50 | 2nd, slow | V3 | prog bombast (+drive .1, crosstalk .3) |
+| **Soft Combo** | `0 0 6 6 0 0 4 0 0` | 0 | off | C1 | cocktail lounge |
+
+Scanner depths (`processOrganOscillator`, the LFO is **6.9 Hz** gear-locked to the motor):
+**V1/C1** = ±0.15 ms · **V2/C2** = ±0.40 ms · **V3/C3** = ±0.70 ms. **V** modes are wet-only
+(pitch vibrato); **C** modes are 50/50 dry+wet (the chorus shimmer — needs the buffer). Other
+modeled extras available to borrow if wanted: **tonewheel crosstalk** (`orgCrosstalk`, ~−36 dB
+adjacent-wheel leakage — cheap dirt, several presets use it) and the **3 ms key-click** noise
+burst (already folded into `timbre` above). Percussion: 2nd or 3rd harmonic, soft = −3 dB,
+fast ≈ 200 ms / slow ≈ 500 ms decay.
 
 ### 8.9 Candidate engine catalog (running wishlist)
 

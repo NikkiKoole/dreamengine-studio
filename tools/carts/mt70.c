@@ -21,7 +21,9 @@
 //           out past the lift — only sustained ones gate off)
 //           computer keys = GarageBand musical typing, same as moog.c:
 //           A S D F G H J K L ; ' whites · W E T Y U O P blacks (1.5 octaves)
-//           1..9,0 presets · Z vibrato · X src 2-osc/mallet · SPACE demo tune
+//           Z/X octave down/up (also GarageBand) · 1..9,0 presets
+//           C vibrato · V src 2-osc/mallet · SPACE demo tune
+//           every control is also an on-screen button — fully playable by touch
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>
@@ -67,6 +69,8 @@ static bool demo    = false;
 
 // ---------------------------------------------------------------- keyboard
 #define BASE_MIDI 48           // C3 — two octaves up from here
+static int octave = 0;         // Z/X shift, GarageBand-style; -2..+2
+#define KB_BASE (BASE_MIDI + octave * 12)
 #define NSEMI     25           // C3..C5 inclusive
 #define NWHITE    15
 #define KB_X0     ((SCREEN_W - NWHITE * WKW) / 2)
@@ -165,7 +169,7 @@ static void press_semi(int s, int finger) {
         release_semi(old);
     }
 
-    float fm = (float)(BASE_MIDI + s);
+    float fm = (float)(KB_BASE + s);
     KeyState *K = &ks[s];
     if (K->nh) release_semi(s);              // re-strike / demo collision: no orphans
     K->nh = 0;
@@ -173,7 +177,7 @@ static void press_semi(int s, int finger) {
     K->struck = (p->s == 0);                 // decays-to-silence preset → rings past lift
     K->engine_decay = false;
     if (use_mallet && p->struck) {
-        K->handle[K->nh] = note_on(BASE_MIDI + s, SL_MALLET, 6);
+        K->handle[K->nh] = note_on(KB_BASE + s, SL_MALLET, 6);
         K->ring_ms[K->nh] = 600 + (int)(p->mm * p->mm * 6000.0f);  // mallet rings itself
         K->bvol[K->nh] = K->lvol[K->nh] = 6;
         K->engine_decay = true;
@@ -191,13 +195,13 @@ static void press_semi(int s, int finger) {
         for (int L = 0; L < 3; L++) {
             if (vols[L] == 0) continue;
             int slot = SL_FUND + L;
-            int h = note_on(BASE_MIDI + s + (int)(sts[L] + 0.5f), slot, vols[L]);
+            int h = note_on(KB_BASE + s + (int)(sts[L] + 0.5f), slot, vols[L]);
             if (sts[L] != (float)(int)sts[L]) note_pitch(h, fm + sts[L]); // exact ratio
             K->bvol[K->nh] = K->lvol[K->nh] = vols[L];
             K->ring_ms[K->nh] = ring[L];
             K->handle[K->nh++] = h;
         }
-        if (p->click_vol) hit(BASE_MIDI + s + 24, SL_CLICK, p->click_vol, 8);
+        if (p->click_vol) hit(KB_BASE + s + 24, SL_CLICK, p->click_vol, 8);
     }
     K->finger = finger;
     K->since  = frame();
@@ -290,7 +294,8 @@ static int semi_at(int x, int y) {
 #define PBT_W 30
 #define PBT_X(i) (4 + (i) * 31)
 #define CBT_Y 40
-static int cbt_x[3], cbt_w[3];                   // VIBRATO / DEMO / SRC zones, set by draw()
+#define NCBT 5
+static int cbt_x[NCBT], cbt_w[NCBT];             // VIBRATO/DEMO/SRC/OCT-/OCT+ zones, set by draw()
 
 void init(void) {
     instrument(SL_MALLET, INSTR_MALLET, 1, 0, 7, 1200);
@@ -307,8 +312,11 @@ void update(void) {
     // presets: 1..9 then 0
     for (int i = 0; i < 10; i++)
         if (keyp(i == 9 ? '0' : '1' + i)) { preset = i; apply_preset(); }
-    if (keyp('Z')) { vibrato = !vibrato; apply_preset(); vibrato_live(); }
-    if (keyp('X') && p->struck) { use_mallet = !use_mallet; }
+    // Z/X = octave down/up (the GarageBand convention, same as moog)
+    if (keyp('Z') && octave > -2) octave--;
+    if (keyp('X') && octave <  2) octave++;
+    if (keyp('C')) { vibrato = !vibrato; apply_preset(); vibrato_live(); }
+    if (keyp('V') && p->struck) { use_mallet = !use_mallet; }
     if (keyp(KEY_SPACE)) { demo = !demo; if (!demo) demo_off(); }
 
     // computer keyboard: 1.5 octaves, gate = key held
@@ -340,6 +348,8 @@ void update(void) {
     if (tapp(cbt_x[0], CBT_Y, cbt_w[0], 16)) { vibrato = !vibrato; apply_preset(); vibrato_live(); }
     if (tapp(cbt_x[1], CBT_Y, cbt_w[1], 16)) { demo = !demo; if (!demo) demo_off(); }
     if (tapp(cbt_x[2], CBT_Y, cbt_w[2], 16) && p->struck) use_mallet = !use_mallet;
+    if (tapp(cbt_x[3], CBT_Y, cbt_w[3], 16) && octave > -2) octave--;
+    if (tapp(cbt_x[4], CBT_Y, cbt_w[4], 16) && octave <  2) octave++;
 
     if (demo) demo_tick();
     ring_tick();
@@ -349,6 +359,7 @@ void update(void) {
     watch("voices", "%d", voices_used());
     watch("mallet", "%d", use_mallet ? 1 : 0);
     watch("demo", "%d", demo ? 1 : 0);
+    watch("oct", "%d", octave);
 #endif
 }
 
@@ -376,23 +387,31 @@ void draw(void) {
     }
     font(FONT_NORMAL);
 
-    // control row — VIBRATO / DEMO / SRC + the voice meter
+    // control row — every control is a touchable button (keys are shortcuts)
     font(FONT_SMALL);
-    const char *lbl[3];
+    const char *lbl[NCBT];
     lbl[0] = vibrato ? "VIBRATO:ON" : "VIBRATO";
     lbl[1] = demo ? "DEMO:ON" : "DEMO";
-    lbl[2] = !p->struck ? "SRC: 2-OSC" : (use_mallet ? "SRC:MALLET" : "SRC: 2-OSC");
-    bool lit[3] = { vibrato, demo, use_mallet && p->struck };
+    lbl[2] = !p->struck ? "SRC:2-OSC" : (use_mallet ? "SRC:MALLET" : "SRC:2-OSC");
+    lbl[3] = "OCT-";
+    lbl[4] = "OCT+";
+    bool lit[NCBT] = { vibrato, demo, use_mallet && p->struck, false, false };
     int x = 8;
-    for (int b = 0; b < 3; b++) {
+    for (int b = 0; b < NCBT; b++) {
         int w = text_width(lbl[b]) + 10;
         cbt_x[b] = x; cbt_w[b] = w;
-        rectfill(x, CBT_Y, w, 16, lit[b] ? CLR_LIME_GREEN : CLR_DARK_GREY);
+        int body = lit[b] ? CLR_LIME_GREEN
+                 : (b == 2 && !p->struck) ? CLR_DARKER_GREY : CLR_DARK_GREY;
+        rectfill(x, CBT_Y, w, 16, body);
         rect(x, CBT_Y, w, 16, CLR_MEDIUM_GREY);
-        print(lbl[b], x + 5, CBT_Y + 5, lit[b] ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);
-        x += w + 6;
+        print(lbl[b], x + 5, CBT_Y + 5, lit[b] ? CLR_BROWNISH_BLACK
+                                       : (b == 2 && !p->struck) ? CLR_DARK_GREY : CLR_LIGHT_GREY);
+        x += w + 5;
+        if (b == 3) {           // the octave readout sits between OCT- and OCT+
+            print(str("%+d", octave), x + 1, CBT_Y + 5, octave ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
+            x += 14;
+        }
     }
-    if (!p->struck) print("(mallet A/B: struck presets)", x + 4, CBT_Y + 5, CLR_DARK_GREY);
     // voice meter — the probe readout: stacked sines cost real voices
     int vu = voices_used();
     print_right(str("voices %d/16", vu), SCREEN_W - 10, CBT_Y + 5, vu >= 12 ? CLR_RED : CLR_MEDIUM_GREY);
@@ -403,7 +422,7 @@ void draw(void) {
     print(str("\"%s\"", p->quote), 8, CBT_Y + 22, CLR_LIGHT_GREY);
     int nl = (use_mallet && p->struck) ? 1 : 1 + (p->o2_vol ? 1 : 0) + (p->o3_vol ? 1 : 0);
     print_right(str("%d voice%s/key", nl, nl == 1 ? "" : "s"), SCREEN_W - 10, CBT_Y + 22, CLR_DARK_GREY);
-    print("A..' keys (garageband layout)  1..0 presets  Z vib  X src  SPACE demo", 8, CBT_Y + 32, CLR_DARK_GREY);
+    print("A..' keys (garageband layout)  Z/X octave  C vib  V src  1..0 presets  SPACE demo", 8, CBT_Y + 32, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
     // keyboard

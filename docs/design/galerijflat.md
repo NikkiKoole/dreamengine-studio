@@ -281,8 +281,9 @@ they want** — it's the building's circulation pump and its metronome.
 2. ✓ **Simulation depth**: gallery walkers are in (step 5) — door-height
    figures that stroll the band between the lift tower and a front door. Still
    decoupled from the light schedules (entering a door doesn't yet light that
-   home); wiring walker→light causality is the sys 5/6-full work. The lift is
-   still faked (indicator only) — sys 7 (real elevator) is the next build step.
+   home); wiring walker→light causality is the sys 5/6-full work. The lift now
+   has a visible glazed cab that eases between floors (step 5b), but no
+   scheduler yet — sys 7 (call queue + boarding) is the next build step.
 3. **Interactivity**: pure ambient watch-piece, or light mouse play — hover a
    window to hear/see a hint of that household, click to ring a doorbell?
    (Mouse API is in: `mouse_x/y`, `mouse_pressed`; see orion for patterns.)
@@ -481,19 +482,44 @@ int — that segfaults; see smooch.c for the pattern). Verify visually by
 dumping headless frames and cropping on the traced `w0x`:
 `node tools/play.js galerijflat script /dev/null --headless --frames 500 --dump <dir> --dump-every 5 --seed 7`.
 
-## Handoff — next agent starts here (2026-06-07, session 5 complete)
+### Step 5b — the lift car, a glazed cab (2026-06-08, session 5 cont.)
+
+The tower's right column was a flat per-floor indicator light; it's now a real
+**glazed lift shaft with a lit car you can watch travel** — the panoramic
+glass lift the design's sys-7 sketch implied, built as a *visual* ahead of the
+state machine.
+
+- **Shaft**: a dark-glass column (`towerX+11`, 7px wide) spanning the dwelling
+  floors, with guide rails either side and a hoist cable dropping from the
+  machine room to the car top. The stairwell zigzag keeps the tower's left.
+- **Car**: a `CLR_LIGHT_GREY` frame around a `CLR_LIGHT_YELLOW` glass cab
+  (tint-exempt, so it glows warm against the dark tower at night), ceiling +
+  floor lines, ~`FH-5` tall. A `CLR_BROWNISH_BLACK` passenger silhouette shows
+  **only while the car is moving** — empty lit cab when parked.
+- **Motion**: a new `liftCarY` float eases toward `baseY - liftFloor*FH` each
+  frame in `update()` — cruises ~1.7px/frame, decelerates over the last
+  half-floor, snaps on arrival. Since step 5 already points `liftFloor` at
+  walker comings/goings, the car now visibly glides to fetch/drop people.
+  `roll_building()` parks it at its floor on re-roll. Traced as `liftF`/`carY`.
+
+This is rendering only — there's no call queue or boarding yet. Sys 7 is now
+"give this existing cab a real scheduler", not "draw a lift".
+
+## Handoff — next agent starts here (2026-06-08, session 5 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
 Walkers (step 5) added on top of the step-4 facade.
 
 **What's done:** static facade + clock/light schedules + global tint + full
-detail pass + **gallery walkers**.
+detail pass + **gallery walkers** + **glazed lift car** (visual; eases between
+floors).
 
-**Next build steps:** sys 7 (real elevator state machine — promote the faked
-`liftFloor` indicator into an actual car with a call queue + visible queueing;
-walkers already ARRIVE/LEAVE at the tower, so hook them to ride it) → sys 4
-(the flip to the balcony side) → walker→light causality (an entering walker
-lights their home).
+**Next build steps:** sys 7 (real elevator state machine — the cab + its
+`liftCarY` motion already exist, so this is now the *scheduler*: a call queue,
+the classic elevator-algorithm direction logic, and visible queueing at the
+tower door per floor; walkers already ARRIVE/LEAVE at the tower, so make them
+actually board/ride/alight instead of teleporting) → sys 4 (the flip to the
+balcony side) → walker→light causality (an entering walker lights their home).
 
 **The bake loop** (~10s per iteration):
 ```bash

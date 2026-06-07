@@ -66,6 +66,7 @@ static int   baysX, towerX, towerLeft;
 static int   baseY, wallTop;
 static int   wallC, slabC, towerC, panelC, doorBase;
 static int   liftFloor, lampX[3], nLamp;
+static float liftCarY;     // eased pixel y of the lift car's floor (glides toward liftFloor)
 static Home  homes[MAXF][MAXB];
 static float tod;
 static Walker walkers[MAXW];
@@ -382,6 +383,7 @@ static void roll_building(void) {
 
     for (int i = 0; i < MAXW; i++) walkers[i].active = 0;
     spawn_cooldown = 0;
+    liftCarY = baseY - liftFloor * FH;   // car starts parked at its floor
 }
 
 // ── gallery walkers ─────────────────────────────────────────────────────────
@@ -504,6 +506,17 @@ void update(void) {
     if (keyp('T')) { tod += 1.0f; if (tod >= 24.0f) tod -= 24.0f; }
     if (keyp('B')) tint_on = !tint_on;
     update_walkers();
+
+    // lift car glides toward its target floor — cruise, then ease into the slab
+    float target = baseY - liftFloor * FH;
+    float d = target - liftCarY, ad = d < 0 ? -d : d;
+    if (ad > 0.5f) {
+        float spd = ad < 12.0f ? ad * 0.16f : 1.7f;   // decelerate over the last half-floor
+        if (spd < 0.3f) spd = 0.3f;
+        liftCarY += (d > 0) ? spd : -spd;
+    } else {
+        liftCarY = target;
+    }
 #ifdef DE_TRACE
     {
         int n = 0, fx = -1, ff = -1, fs = -1;
@@ -514,6 +527,7 @@ void update(void) {
             }
         watch("nwalk", "%d", n);
         watch("w0x", "%d", fx); watch("w0f", "%d", ff); watch("w0s", "%d", fs);
+        watch("liftF", "%d", liftFloor); watch("carY", "%d", (int)liftCarY);
     }
 #endif
 }
@@ -616,11 +630,29 @@ static void draw_tower(void) {
         if (f & 1) line(sx, yb - 4, sx + 4, yb - FH + 4, CLR_DARK_GREY);
         else       line(sx, yb - FH + 4, sx + 4, yb - 4, CLR_DARK_GREY);
     }
-    for (int f = 0; f < NF; f++) {
-        int yb = baseY - f * FH;
-        rectfill(towerX + 12, yb - 10, 4, 4,
-                 f == liftFloor ? CLR_LIGHT_YELLOW : CLR_DARKER_BLUE);
+    // ── the lift: a glazed shaft with a lit car you can watch travel ──────────
+    int lx = towerX + 11, lw = 7;            // shaft x, width
+    int shTop = wallTop, shBot = baseY;      // shaft spans the dwelling floors
+    rectfill(lx, shTop, lw, shBot - shTop, CLR_DARKER_BLUE);   // dark shaft glass
+    rectfill(lx - 1, shTop, 1, shBot - shTop, CLR_DARK_GREY);  // guide rails
+    rectfill(lx + lw, shTop, 1, shBot - shTop, CLR_DARK_GREY);
+
+    int carBot = (int)(liftCarY + 0.5f);     // car floor line (eased)
+    int cabH   = FH - 5;                     // a touch shorter than the floor pitch
+    int carTop = carBot - cabH;
+    int moving = (carBot != baseY - liftFloor * FH);
+
+    rectfill(lx + lw / 2, shTop, 1, carTop - shTop, CLR_DARK_GREY);   // hoist cable from the machine room
+    rectfill(lx, carTop, lw, cabH, CLR_LIGHT_GREY);                  // car frame
+    rectfill(lx + 1, carTop + 1, lw - 2, cabH - 2, CLR_LIGHT_YELLOW); // lit glass cab (tint-exempt → glows)
+    line(lx, carTop, lx + lw - 1, carTop, CLR_DARK_GREY);            // ceiling
+    line(lx, carBot - 1, lx + lw - 1, carBot - 1, CLR_DARK_GREY);    // floor
+    if (moving) {                            // a passenger riding
+        int ox = lx + 2, oy = carBot - 2;
+        rectfill(ox, oy - 5, 2, 5, CLR_BROWNISH_BLACK);   // body
+        pset(ox, oy - 6, CLR_BROWNISH_BLACK);             // head
     }
+
     rectfill(towerX + 3, top - 9, TW - 6, 9, CLR_DARKER_GREY);
     line(towerX + TW - 7, top - 9, towerX + TW - 7, top - 17, CLR_DARK_GREY);
     pset(towerX + TW - 7, top - 18, blink(40) ? CLR_RED : CLR_DARK_RED);

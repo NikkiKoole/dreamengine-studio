@@ -632,6 +632,14 @@ the table's only job is to say what those three mean for each. Grow it freely.
 > pad station, or MT70-style tones wanted as *polyphonic pads* where stacking's
 > 2–3-voices-per-key bill stops being affordable. Building additive sooner *because the
 > MicroFreak aesthetic is attractive* is exactly the §13 cheap-lever trap.
+>
+> **mt70 SHIPPED 2026-06-07 + ear verdict (probe-carts.md).** The cart's A/B (`V`)
+> pits 2-osc stacking against `INSTR_MALLET` on the struck presets. Owner verdict:
+> *"they sound very different, I like both."* Reading: stacking and the engine are
+> **complementary, not rival** — so this is a **soft, non-blocking** pull toward
+> Additive (wanted for *range*, the choir/bell territory stacking can't reach), not
+> evidence that stacking failed. The graduation trigger is unchanged: a second real
+> customer, not "mt70 wanted it." §12 gap 2b stays deferred — mt70 never needed it.
 
 > **Sine = Additive at `harmonics = 0`.** `INSTR_SINE` and the Additive engine aren't two things —
 > additive *is* a sum of N sine partials, so one partial is a sine. The MT70 family (per the
@@ -662,6 +670,32 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > completes the Radiophonic rack end-to-end; reed alone completes the bellows trio.
 
 ### 8.10 Effects layer — buses vs. master (the §8.5-phase-4 plan)
+
+> **⚠️ Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)
+> (2026-06-05), which post-dates and *supersedes the framing* of this section.** Read 0015 first:
+> it closes the effects roster at **four layers** — voice insert (`drive` ✓, bitcrush) · **shared
+> bus, capped at TWO** (`echo` ✓, `reverb`) · oscillator param (`detune`) · master stage (soft-clip
+> ✓, tape) — for **~12 named functions, forever**. A new primitive must *prove it can't be a recipe*;
+> 0015 carries the full pedalboard audit (every classic pedal → which layer/recipe). This §8.10
+> below is the **routing-model sketch + wishlist** that 0015 then disciplined — keep it for the
+> bus-routing mechanics, but where the two differ, **0015 wins.** Two corrections it makes:
+>
+> - **Leslie is NOT a bus insert (the table below is the old framing).** 0015 rules it a
+>   **per-voice recipe**: tremolo (`LFO_VOLUME`) + Doppler (`LFO_PITCH`) + swirl (`LFO_CUTOFF`) +
+>   tube growl (`drive`) — the three per-slot LFOs spent on one effect, the chorale↔tremolo spin-up
+>   a cart-side `note_lfo()` rate `lerp`. *No `instrument_leslie`, ever.*
+> - **Chorus is NOT a queued bus/delay effect — it's `detune`** (oscillator param): "two notes a
+>   few cents apart *is* chorus." So the **Juno-60's chorus need is mostly the second-oscillator
+>   detune plumbing (§12 gap 2b)**, not the delay-line "BBD chorus" sketched below. A *true*
+>   modulated-delay chorus sits with **flanger** in 0015's deferral pile — it only lands free if
+>   the master tape wow/flutter buffer ever ships. (The "BBD falls out of Leslie work" line below
+>   is the pre-0015 reasoning; treat it as superseded.)
+>
+> **Build state (2026-06-07):** of the two shared buses, **`echo` is SHIPPED** (`runtime/sound.h`,
+> the lone existing bus); **`reverb` is the second and last** admitted bus, and §8.10's "begin
+> small" first bite (master reverb + formalizing the bus concept). Next *sound* feature per
+> [STATUS §5](../STATUS.md) is **`INSTR_ORGAN` (dry, buffer-free)** — the effects layer opens
+> *after* it. Stereo (§9) is the real prerequisite for this whole layer.
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first
 > engines ship) — begin small. The Leslie (§8.3/§8.8) is the first instance and sets the pattern.

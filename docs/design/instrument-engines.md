@@ -120,7 +120,7 @@ the instrument stays "impossible to make ugly":
 | Engine | harmonics | timbre | morph |
 |---|---|---|---|
 | **Organ** | drawbar registration (snapped table — **full design §8.8.4**) | brightness / drawbar tilt + click bite | percussion + internal vibrato/chorus scanner depth *(Leslie is a separate per-voice recipe — §8.8.4 / 0015, not a macro)* |
-| **Electric piano** | partial spread (Rhodes↔Wurli) | pickup growl / bark amount | bell↔tine balance |
+| **Electric piano** | instrument (snapped: Rhodes/Wurli/Clav — **full design §8.8.5**) | brightness (pickup pos + hammer) | bark (pickup-nonlinearity drive) |
 | **Acoustic piano** | unison detune / string spread | strike hardness | dispersion ("expensive"-ness) + damping |
 | **Strings** | section size (1 player↔ensemble) | bow brightness | bow pressure / attack bite |
 | **Mallet** | inharmonicity (marimba↔bell) | strike position | decay length (celesta↔vibe) |
@@ -685,6 +685,98 @@ modeled extras available to borrow if wanted: **tonewheel crosstalk** (`orgCross
 adjacent-wheel leakage — cheap dirt, several presets use it) and the **3 ms key-click** noise
 burst (already folded into `timbre` above). Percussion: 2nd or 3rd harmonic, soft = −3 dB,
 fast ≈ 200 ms / slow ≈ 500 ms decay.
+
+### 8.8.5 Engine #5: ELECTRIC PIANO — the step-1 design (2026-06-07)
+
+The playbook's paper round for `INSTR_EPIANO`, §8.5 step 5. navkit crib (all in
+`~/Projects/navkit/soundsystem/engines/`): `processEPianoOscillator` (`synth_oscillators.h:3937`),
+the ratio/amp tables (`:3675`–`:3766`), `initEPianoSettings` (`:3663`), `EPianoSettings`
+(`synth.h:892`), 9 presets (`instrument_presets.h:3168`–`3398`). **Scope:** Rhodes / Wurlitzer /
+Clavinet in ONE engine (the roadmap's "one engine = Rhodes/Wurli/Clav via pickup type").
+**Buffer-free, confirmed from source:** a **12-mode modal bank + a pickup nonlinearity + a DC
+blocker**, no delay line — the mallet family with 12 modes instead of 4. **Struck and
+self-decaying** (NOT held like organ): hit it and the modes ring down, so it plays like
+pluck/mallet with the ADSR as an override (§10.4), and it fits melodic comping (the citypop/yacht
+EP retrofits).
+
+**The whole engine in one line:** sum 12 decaying inharmonic sine modes → push the sum through a
+pickup nonlinearity (the polynomial that makes it an EP, not a dull bell) → DC-block. The ratios,
+amp profiles, decays, and the polynomial are all per-instrument data (appendix) — taste curated in
+`sound.h`, never API.
+
+**The mapping — navkit's ~9 params → 3 macros.** navkit exposes
+hardness/toneBar/pickupPos/pickupDist/decay/bell/bellTone/ratioSet/pickupType. Collapse (this
+refines the §8.1.1 EP row, which now points here):
+
+| macro | maps to | the taste decision (on paper) |
+|---|---|---|
+| **harmonics** | the **instrument**, SNAPPED | three detents — **Rhodes (tine) · Wurlitzer (reed) · Clavinet (string)** — each selects a *different physical recipe*: ratio table, amp profile, nonlinearity polynomial (Rhodes = asymmetric even-harmonic **bark**; Wurli = symmetric odd-harmonic **buzz**; Clav = mixed **honk**), and the baked decay + bell character. SNAPPED, not continuous — the three have *different harmonic structures* (even vs odd), uninterpolatable: FM's ratio-table lesson again. |
+| **timbre** | **brightness** = pickup position + hammer hardness | mellow (centered pickup → fundamental-heavy, soft hammer) → bright/snappy (offset pickup → strong 2nd, hard hammer → fast attack). The "tone" knob; works on every instrument. |
+| **morph** | **bark** = the pickup-nonlinearity drive (navkit `pickupDist`) | the expressive dig-in: 0 = crystal-clean fundamental → up = the Rhodes bark / Wurli buzz / Clav honk grows. *The* electric-piano gesture (digging in distorts the pickup); stands in for velocity-driven drive. |
+
+**Macro budget — the 0016 lesson applied up front: all three are full.** harmonics (instrument),
+timbre (brightness), morph (bark) each do real, distinct work — no spare knob — so **decay/sustain
+and bell-emphasis are baked per detent** (Rhodes = long tone-bar sustain + shimmer; Wurli = short,
+reedy; Clav = very short, percussive), not live macros. An EP *patch* = macros + baked decay + the
+voice ADSR (the FM precedent: a patch is macros + an envelope). A live decay knob would be the
+moment to interrogate a 4th surface — not now.
+
+**Known risks, named up front:**
+- **Register scaling is not optional — it's the line between "EP" and "thin junk."** navkit's
+  biggest correctness machinery is the per-mode rolloff with register (`freqNorm`): high notes
+  shed their upper modes and most of the nonlinearity toward a near-pure sine (a real Rhodes top
+  octave nearly *is* a sine), low notes stay rich and barky. Skip it → glassy-thin top, muddy
+  bottom. Port the `(1−freqNorm)²`/cubic rolloff **and** the per-mode velocity floors (so soft
+  hits still feed the nonlinearity). This is EP's "normalize the excitation" scar.
+- **The pickup nonlinearity IS the instrument.** A bare 12-sine sum is a dull marimba-bell, not a
+  Rhodes. The polynomial (asymmetric sum²+sum³ bark / symmetric sum³+sum⁵ buzz / sum²+sum³ honk)
+  generates the harmonics the ear reads as "electric piano." Ships with the engine, not as a macro.
+- **A DC blocker is mandatory** (navkit: one-pole HP, R=0.995, ~7 Hz) — the even-harmonic (sum²)
+  nonlinearity injects DC. **This is the same DC the organ's drive produced** (§8.8.4 post-ship
+  finding) — here it's designed in from frame one, and it's the **second customer** for a DC
+  blocker: if reed/brass/the voice drive-path also want one, it graduates to a shared helper.
+- **12 modes × 16 voices = up to 192 `sinf`/sample** + the polynomial — heaviest engine yet (organ
+  9, mallet 4). PROF-check; the register rolloff helps (skip `mode_amp < 0.0001` modes), a shared
+  sine LUT is the mitigation if it bites.
+
+**Mechanics:** state on `Voice` (an `EPianoState`: 12× `mode_ph`/`mode_amp`/`mode_decay`/
+`mode_ratio`, the 2 DC-blocker taps, `freq_norm`, captured strike level/bark). At note-on, build
+the 12 ratios/amps/decays from the harmonics-detent tables × timbre/morph × register/velocity
+scaling (navkit `initEPianoSettings` is the crib). Per sample: advance + decay each mode, sum,
+apply the detent's polynomial (reading morph live for bark), DC-block. Pitch: `mode_freq =
+v->freq × pitch_mul × ratio[i]` per sample → vibrato/glide bend the whole stack (§8.8.1).
+Self-decaying → guard the id-without-note-on case (silent) and give the showcase a long gate.
+
+**Cart presets (= acceptance tests), navkit's nameplates:** **Rhodes Warm · Rhodes Bright ·
+Rhodes Suitcase · Wurli Soul · Wurli Buzz · Clav Funky** — each a baked (harmonics-detent, timbre,
+morph) + decay recipe. *If "Wurli Soul" doesn't sound like Ray Charles, the mapping is wrong, not
+the preset.* Showcase `epiano.c` is the tuning rig (pluck/mallet/organ template; struck keys, the
+3 macro sliders, presets).
+
+**Retrofit target:** **citypop** already fakes its Rhodes with `INSTR_FM` (the FM-Rhodes
+retrofit) — the natural first swap to the real modal EP; **yacht** (DX-tine EP) and **lowend**
+next. `radio-instrument-options.md` owns the ranked list. (FM stays the *DX/digital* electric
+piano; `INSTR_EPIANO` is the *electromechanical* one — two different sounds, both wanted.)
+
+#### Appendix — navkit's EP data (verbatim)
+
+**Mode ratios** (`synth_oscillators.h:3675`):
+- **Rhodes** tine+spring: `1, 4.2, 9.5, 16.3, 24.8, 35, 47, 61, 77, 95, 115, 137` (wildly inharmonic — the bell attack)
+- **Wurli** reed (odd-ish): `1, 2.02, 3.01, 5.04, 7.05, 9.08, 11.1, 13.1, 15.2, 17.2, 19.3, 21.3`
+- **Clav** string (near-harmonic): `1, 2.003, 3.012, 4.028, 5.15, 6.35, 7.6, 8.9, 10.2, 11.6, 13.0, 14.5`
+
+**Amp profiles** — centered (mellow) / offset (bright), `:3747`; timbre crossfades them:
+- Rhodes ctr `1, .04, .03, .06, .03, .02, …` · off `.6, .35, .08, .20, .08, .05, …`
+- Wurli  ctr `1, .08, .45, .12, .10, .04, 0…` · off `.6, .15, .60, .20, .20, .08, 0…`
+- Clav   ctr `1, .30, .20, .35, .15, .06, 0…` · off `.6, .55, .50, .20, .30, .10, 0…`
+
+**Nonlinearity polynomials** (the soul; `:3960`+), all register- & velocity-scaled:
+- **Rhodes** (electromagnetic): `out = sum + k·sum² + k2·sum³ + …`, **asymmetric** soft-clip (negative path ×0.85) → even harmonics = bark.
+- **Wurli** (electrostatic): `out = sum + k3·sum³ + k5·sum⁵`, **symmetric** `tanh` → odd harmonics = reedy buzz.
+- **Clav** (contact): `out = sum + k2·sum² + k3·sum³`, symmetric `tanh(·1.2)` (harder clip) → mixed = funky honk.
+- All three → DC blocker `y = x − x₋₁ + 0.995·y₋₁`.
+
+**Tone bar (Rhodes only):** extends fundamental decay ×(1 + 1.5·toneBar), 2nd ×(1 + 0.6·toneBar) — the suitcase's singing sustain. **Register rolloff:** upper modes ×`(1−freqNorm)³` (Rhodes bell modes ×6th power), fundamental ×`(1−0.15·freqNorm)`. **Key presets:** Rhodes Warm (soft hammer, long decay, centered) · Rhodes Bright (hard, offset, short) · Rhodes Suitcase (very soft, max tone bar, +tremolo) · Wurli Soul (soft, clean) · Wurli Buzz (hard, cranked `pickupDist`) · Clav Funky (hard, bridge pickup, filter-wah) — full dumps at `instrument_presets.h:3168`+.
 
 ### 8.9 Candidate engine catalog (running wishlist)
 

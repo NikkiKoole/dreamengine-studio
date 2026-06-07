@@ -208,3 +208,71 @@ both resolved API-side:
   LEFT/RIGHT adjust) are all asserted from `--trace` output. The remaining
   unverifiable-by-replay piece is real multi-touch (two knobs, two fingers) —
   that's the device probe.
+
+## 8. v2 candidates — what the sh101 retrofit taught (2026-06-07, same day, parallel)
+
+Context: hours before v1 shipped, sh101 grew the most advanced *hand-rolled*
+version of this exact layer (per-finger pointer table, grab zones tiling each
+panel section, a `claim_tap` ordering guard, slide-legato key handover —
+commit 60b1f02). Convergent evolution, and a free design review in both
+directions. What v1 already does better: deferred `ui_end()` press resolution
+**obsoletes sh101's `claim_tap`** (tap targets inside a knob's inflated zone
+route correctly because visual-rect hits beat inflated hits — no call-order
+discipline needed). What sh101 exposes as v2 gaps, each with named customers:
+
+### 8a. Vertical fader — the synth-panel staple
+
+sh101 has 13 of them; modrack, tb303, the dream synth and every future
+tinydaws rack lane want the same shape. Not just `ui_slider` rotated — it
+drags in y, reads bottom-up, and carries the feel question below.
+
+### 8b. The slider-feel question (OPEN — decide before the fader ships)
+
+v1 sliders are **absolute** (press sets the value at the press point, sfxp
+style); sh101's faders are **relative** (drag from wherever you grabbed —
+the tb303 fine-control style v1's *knob* already uses). The tension:
+
+- **Absolute** is instantly legible and great for coarse "set it about here"
+  sliders (sfxgen's 17 rows). But on a dense hardware-replica panel a sloppy
+  grab **teleports the value** — and the inflated hit target makes this
+  *worse*: a fat-finger press that lands in the inflation zone *off* the
+  track end jumps the value to an extreme. The very feature that makes dense
+  layouts grabbable makes absolute jumps more violent.
+- **Relative** never teleports, feels like hardware (the cap is a physical
+  thing you push), and fine control falls out of drag distance. Costs:
+  coarse moves take a longer drag, and a tap-without-drag does nothing
+  (which a player may read as broken).
+- **Middle paths to weigh:**
+  1. the DAW convention — *absolute when the press lands on the track,
+     relative when it lands on the cap* (grab the handle = push it; tap the
+     scale = jump there);
+  2. a per-widget flag (`ui_slider_rel()` / `UI_SLIDER_RELATIVE`) and let
+     the cart pick its feel — replica panels relative, utility panels
+     absolute;
+  3. absolute with slew (the value glides to the press point — softens the
+     teleport but adds hidden state and lag).
+- Whatever wins, the **vertical fader and the horizontal slider should
+  answer it the same way** — one feel rule, not per-orientation surprise.
+
+### 8c. `ui_surface` — the per-finger zone primitive
+
+sh101's keybed, handpan's drumhead, touchpiano, drum pads, and **the XY pad
+in every tinydaws rack** ([`tinydaws.md`](tinydaws.md) "universal layout")
+are not widgets — they're *surfaces*: per-finger enter/leave/move over a
+zone map, where a moving finger **hands over between zones**
+(sh101's slide-legato: key_down(new) then key_up(old), so AUTO portamento
+glides). Note this is the deliberate *opposite* of widget capture (a
+captured contact never migrates widgets — right for knobs, wrong for
+keybeds). A v2 `ui_surface` would hand the cart per-finger events
+(enter/move/leave + which zone) and keep the policy cart-side. Until it
+exists, sh101's pointer table is the reference recipe — don't migrate sh101
+onto ui.h before this and 8a land; its hand-rolled layer is currently *more*
+capable than the kit.
+
+### 8d. Already banked
+
+The injected-pointer→synthetic-touch harness fix (same commit) makes every
+ui.h widget script/replay-drivable — §7's verification leans on it. And the
+tinydaws rack chassis is the kit's next big customer: step-grid = buttons,
+lane levels = vertical faders (8a), the play-pad = a surface (8c) — the
+rack work order and this v2 list are the same list.

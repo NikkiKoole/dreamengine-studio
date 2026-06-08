@@ -45,6 +45,9 @@
 #ifndef SOLO_VOL
 #define SOLO_VOL 5            // the solo sits ABOVE the backing track
 #endif
+#ifndef SOLO_OCT_MAX
+#define SOLO_OCT_MAX 2        // octave shift range: the - / + buttons span ±this
+#endif
 
 // the vertical axis: horizontal picks the note, vertical SHAPES it — and what
 // it shapes is the station's call (game-music.md → "the jam layer"). The strip
@@ -74,6 +77,7 @@ static float solo_curY   = -1;     // last vertical position 0..1 (-1 = silent)
 static bool solo_pending = false;  // a press waiting for its 16th (quantize)
 static int  solo_pendMidi = -1;
 static long solo_pendStep = 0;
+static int  solo_oct      = 0;     // octave shift of the playable window (- / + buttons)
 
 static bool  solo_open(void) { return solo_open_f; }
 static int   solo_midi(void) { return solo_curMidi; }   // -1 = silent
@@ -86,8 +90,9 @@ static void solo_kill(void) {
 
 // build the ascending list of in-scale midis across [lo,hi]; returns count
 static int solo_notes(const SoloCtx *cx, int *out, int max) {
-    int n = 0;
-    for (int m = cx->loMidi; m <= cx->hiMidi && n < max; m++) {
+    int n = 0, sh = solo_oct * 12;                          // the octave shift
+    for (int m = cx->loMidi + sh; m <= cx->hiMidi + sh && n < max; m++) {
+        if (m < 24 || m > 100) continue;                    // stay in a sane register
         int pc = ((m - cx->root) % 12 + 12) % 12;
         for (int s = 0; s < cx->nscale; s++)
             if (cx->scale[s] == pc) { out[n++] = m; break; }
@@ -131,8 +136,22 @@ static void solo_strip(const SoloCtx *cx, int x, int y, int w, int h, int accent
         return;
     }
 
-    // ── open: the scale-locked keybed in [x, tx), tab on the right ─────────
-    int sw = tx - x - 2;                                    // keybed width (gap before tab)
+    // ── open: keybed on the left; octave - / + and the tab on the right ────
+    if (keyp(',') && solo_oct > -SOLO_OCT_MAX) solo_oct--;  // octave keys (buttons below)
+    if (keyp('.') && solo_oct <  SOLO_OCT_MAX) solo_oct++;
+    int octW = 16, octUpX = tx - octW, octDnX = octUpX - octW;
+    static int octdn_id, octup_id;
+    ui_reg(&octdn_id, octDnX, y, octW, h, 0);
+    ui_reg(&octup_id, octUpX, y, octW, h, 0);
+    UiCap *odc = ui_cap_for(&octdn_id), *ouc = ui_cap_for(&octup_id);
+    if (odc && odc->released &&
+        ui_in(odc->rx, odc->ry, octDnX - UI_HIT_PAD, y - UI_HIT_PAD, octW + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD)
+        && solo_oct > -SOLO_OCT_MAX) solo_oct--;
+    if (ouc && ouc->released &&
+        ui_in(ouc->rx, ouc->ry, octUpX - UI_HIT_PAD, y - UI_HIT_PAD, octW + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD)
+        && solo_oct <  SOLO_OCT_MAX) solo_oct++;
+
+    int sw = octDnX - x - 2;                                // keybed up to the octave buttons
     int notes[48];
     int nn = solo_notes(cx, notes, 48);
     if (nn == 0 || sw < nn) { rectfill(x, y, sw, h, CLR_BLACK); }
@@ -209,6 +228,16 @@ static void solo_strip(const SoloCtx *cx, int x, int y, int w, int h, int accent
         rect(cx0, y, cw, h, CLR_WHITE);
     }
     rect(x, y, sw, h, accent);
+
+    // octave - / + buttons (ui.h inflates the hit target so fat fingers land)
+    bool dnHot = odc != 0 || ui_hover(octDnX, y, octW, h);
+    bool upHot = ouc != 0 || ui_hover(octUpX, y, octW, h);
+    rectfill(octDnX, y, octW, h, dnHot ? accent : CLR_DARKER_GREY);
+    rect(octDnX, y, octW, h, accent);
+    print("-", octDnX + (octW - text_width("-")) / 2, y + (h - 6) / 2, dnHot ? CLR_BLACK : accent);
+    rectfill(octUpX, y, octW, h, upHot ? accent : CLR_DARKER_GREY);
+    rect(octUpX, y, octW, h, accent);
+    print("+", octUpX + (octW - text_width("+")) / 2, y + (h - 6) / 2, upHot ? CLR_BLACK : accent);
 
     // the tab, lit (tap to close)
     rectfill(tx, y, tw, h, accent);

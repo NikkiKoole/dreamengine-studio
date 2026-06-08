@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 8 (the ground lobby) complete.** Cart:
+**Status: building — step 9 (queue & lobby polish, bigger crowds) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -583,19 +583,41 @@ lobby — and the circulation loop is visible end to end.
   the queue churning ≤4; morning rush plateaus ~18 active / ~8 waiting, drains
   after 09:00. Cab serves `carF=-1` regularly (confirmed in trace).
 
-## Handoff — next agent starts here (2026-06-08, session 8 complete)
+### Step 9 — queue & lobby polish, bigger crowds (2026-06-08, session 8)
+
+Tightening the circulation so it reads honestly, and turning the crowd up.
+
+- **Cab reaches the street.** `LOBBY_DROP` 7→14 (a full `PLINTH_H`), so the cab's
+  ground floor lands at `baseY+14` = the pavement line. `ground_feet()` is now
+  `floor_y(GROUND)`, so a passenger steps straight out onto the street — no hop.
+- **Walk to the back of the line, not the front.** Walkers used to walk to the
+  lift door, then teleport to the end of the queue. Now each carries a join
+  number `q`; `queue_rank()` counts how many joined ahead (recomputed each
+  frame) and they `walk_toward(wait_x(floor, rank))` — straight to their slot.
+  Because rank is live, when the front boards everyone **shuffles forward** a
+  slot on their own. Movement is unified through `walk_toward` (sets `vx`, so
+  `draw_walker` reads facing/standing from actual motion). `count_waiting` is
+  gone; `tx` is now only the fixed targets (door / street edge).
+- **Bigger crowds.** `MAXW` 36→60 and rush rates dropped below lift throughput
+  on purpose (morning 32 / evening 30 / trickle 60 / night 220) so the **queues
+  visibly grow** — morning rush climbs past 30 waiting / ~40 active before
+  draining after 09:00; evening idles ~10–21 active.
+
+## Handoff — next agent starts here (2026-06-08, session 9 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Ground lobby (step 8) on top of step-7 causality + 3× walkers.
+Queue/lobby polish (step 9) on top of the step-8 ground lobby.
 
 **What's done:** static facade + clock/light schedules + global tint + full
 detail pass + gallery walkers + glazed lift car + a real elevator (LOOK
-scheduler) + walker→light causality + 3× population + **a ground lobby**
-(walkers walk in off the street, ride, and leave at street level).
+scheduler) + walker→light causality + a ground lobby + **proper join-order
+queues that shuffle forward** + bigger rush crowds.
 
 **Next build steps:** sys 4 (the flip to the balcony side — one model, two
 mirrored views) → sound (lift ding on door-open, the hum while travelling,
-wind) → import the keyframed sky from the `dutchsky` cart. `MAXW` is now 36.
+wind) → import the keyframed sky from the `dutchsky` cart. `MAXW` is now 60;
+front-of-queue boarding is still instant (waiters teleport into the cab from
+their slot — a "walk into the cab" step is the obvious next polish).
 
 **The bake loop** (~10s per iteration):
 ```bash

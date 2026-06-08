@@ -15,9 +15,7 @@ this session:
   (combo organ → its own engine when a station proves the recipe; morph is a full axis).
 - **`INSTR_EPIANO`** (§8.8.5) — Rhodes/Wurli/Clav, shipped + showcase `epiano.c`. **Rhodes ring
   FIXED** (2026-06-08): the inharmonic tine/bell modes now decay fast (body-vs-bell split) over a
-  warm fundamental — "sounds much better". Tuning lives in a `de_ept_*` scaffold in `sound.h`
-  (body 0.7 / bell 0.13 / belllvl 12) — **still to bake into constants** once the ear is fully
-  happy. **WAH reworked** (2026-06-08, after rendering navkit — see bottom): toggle off/auto/
+  warm fundamental — "sounds much better". BAKED to constants (2026-06-08): RHO_BODY/RHO_BELL/RHO_BLVL (0.7 / 0.13 / 12). **WAH reworked** (2026-06-08, after rendering navkit — see bottom): toggle off/auto/
   **env**/touch (one per mod source), clav boots into **env** = a fast per-note filter-env quack
   (navkit's real funky-clav recipe), clav decay shortened. NOT yet published.
 - **Envelope follower** SHIPPED (2026-06-08) — `instrument_follow`/`note_follow`, the 3rd
@@ -42,8 +40,7 @@ roadmap [§8.5](instrument-engines.md) · [ADR-0016](../decisions/0016-combo-org
 **Resolved.** WAV envelope analysis (amplitude + a brightness/HF measure) confirmed the prime
 suspect: the bell/tine modes decayed in lockstep with the fundamental (no ding). Fix = split the
 Rhodes decay into a long BODY (mode 0) and a short BELL (modes ≥1) + a bell-level boost, so the
-tine *dings* (brightness drops in ~250ms) over a sustaining warm body. The `de_ept_*` scaffold in
-`sound_epiano_start` holds the tuned values — **bake to constants when fully ear-approved.** The
+tine *dings* (brightness drops in ~250ms) over a sustaining warm body. BAKED to constants 2026-06-08 (RHO_BODY/RHO_BELL/RHO_BLVL). The
 detail below is kept as the method record (the brightness-envelope trick is reusable).
 
 User flagged this by ear AND hit the same thing porting in navkit. Method that found it, all in

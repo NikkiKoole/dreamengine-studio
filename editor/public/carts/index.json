@@ -2444,6 +2444,16 @@
     "homage": "Juan D'Arienzo / Osvaldo Pugliese / Anibal Troilo (Golden Age tango)"
   },
   {
+    "title": "motorik radio",
+    "description": "Endless krautrock - the Neu! x Stereolab homage, station #16, and the first to prove THE PROCESS FORM: a radio with NO sections at all. The relentless motorik 4/4 (a live drummer quantized dead to the grid - kick on every quarter, understated backbeat, straight-8th hat, no fills ever) drives under a thin Farfisa drone (INSTR_ORGAN, the engine that unblocked this station) with maj7 chords PLANING on top (parallel voicings gliding over the drone - the only harmonic motion there is). A single progress value 0..1 runs the WHOLE song: every layer accumulates and then ebbs on its own seeded threshold, never on a bar boundary - so the loop has no seam, which makes it the best game-background music on the dial (nothing ever interrupts). THE MODULATION EVENT: one seeded key lift per song, around two-thirds through, slides the whole drone up under the topline - a story beat, not a grid position. The least performance-random station on the dial; the invariance IS the genre. Seeded per song: key, mode (lydian/major/mixolydian), length, the layer thresholds, the modulation, the pad's planing path, the topline cell, and the band roll (bright Farfisa night vs dark Vox night, round-saw vs buzzy-square Moog bass). The window is an autobahn at night - centerline dashes streaming toward you at the pulse, each layer that enters lighting the scene a little further; the horizon flares when the key lifts. SPACE next drive, R same drive, [ ] history, LEFT/RIGHT feel (idle/cruise/drive/redline - pulls the layers in sooner), UP/DOWN tempo, T tone, M power, H help.",
+    "file": "motorik.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "Neu! / Stereolab (krautrock / motorik)"
+  },
+  {
     "title": "multitouch paint",
     "description": "Finger-paint playground for the touch API. Every finger paints its own color at the same time - touch_id() keeps a finger's color stable while other fingers come and go - a new finger landing plays a mallet blip pitched by where it touched, and the CLEAR button shows tapp() edge-triggering: one tap, one clear. Best on a touchscreen: settings > Build for web, then open the LAN url from the build log on an iPad/phone on the same wifi. On desktop the mouse paints as a single finger.",
     "file": "multitouch.cart.png",

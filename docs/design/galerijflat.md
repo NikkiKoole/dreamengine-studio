@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 14 (real households: multiple residents) complete.** Cart:
+**Status: building — step 15 (the daily round: per-resident routines) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -708,7 +708,33 @@ people, who come and go independently.
 - Busier as a result (peak ~27 active evening, rarely empty); the single lift
   still copes for now. Second lift is the next step.
 
-## Handoff — next agent starts here (2026-06-08, session 14 complete)
+### Step 15 — the daily round: each resident on their own routine (2026-06-08, session 14)
+
+Comings and goings were random; now each resident runs their own schedule, so
+the building breathes with real rush hours. (This is sys 6 from the systems list.)
+
+- Each `Resident` gains `wake_h`/`sleep_h` (their lit window) and
+  `leave_h`/`return_h` (their daily out-window; `leave_h < 0` = homebody),
+  rolled by role: working adults ~7.5→18 (80% have a job), school kids ~8→15,
+  toddlers/most elders stay home, students out in the evening back in the small
+  hours. Returns may wrap past midnight (`return_h < leave_h`).
+- `want_out(p,t)` says where the schedule wants them; `home_lit` is now "anyone
+  home AND awake" (per-resident `awake()`), replacing the household window.
+- `spawn_walker` no longer flips a tod-biased coin — it finds a resident whose
+  `want_out` disagrees with their `away` (and isn't `inTransit`) and dispatches
+  that exact trip. One dispatch every ~4–10 frames; bursts when many are due at
+  once. `inTransit` guards against double-dispatch (cleared when the leaver
+  exits or the arriver reaches their door).
+- Emergent daily arc (verified over a full 18k-frame day): dead-quiet
+  pre-dawn, a couple of students drifting home at 2–3am, **morning rush ~8:00**
+  that pegs the cap (one 4-seat lift can't empty the block), **drains by mid-
+  afternoon**, **evening rush ~16:30–20:00**, then settles. No deadlock.
+- Inspect panel shows each resident's own out-window (`8-18`, green=in /
+  grey=out) instead of a household up/bed line; homebodies read `home`.
+- The single lift is plainly overwhelmed at rush — that's the cue for the
+  **second lift** (the next step).
+
+## Handoff — next agent starts here (2026-06-08, session 15 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
 Real multi-resident households (step 14) on top of the step-13 hover inspect.
@@ -717,8 +743,8 @@ Real multi-resident households (step 14) on top of the step-13 hover inspect.
 detail pass + gallery walkers + glazed lift car + a real elevator (directional
 LOOK with up/down hall calls) + walker→light causality + a ground lobby +
 join-order queues that shuffle forward + bigger rush crowds + occupants in the
-windows + hover-inspect panel + **real households (multiple residents, each
-their own walker)**.
+windows + hover-inspect panel + real households (multiple residents) +
+**each resident on their own daily routine** (schedule-driven rush hours).
 
 **Next build steps (user's plan):** a SECOND lift car in the tower to handle the
 fuller building → then sys 4, the balcony flip (one model, two mirrored views).

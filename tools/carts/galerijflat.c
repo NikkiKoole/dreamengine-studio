@@ -54,9 +54,12 @@ enum { LIFT_IDLE, LIFT_MOVING, LIFT_DOORS };
 #define MAXRES 5               // most people in one dwelling
 
 typedef struct {
-    int  nameIdx, age;
-    int  kid;                  // a child (younger; shown compactly)
-    int  away;                 // 0 = home, 1 = out in the world
+    int   nameIdx, age;
+    int   kid;                 // a child (younger; shown compactly)
+    int   away;                // 0 = home, 1 = out in the world
+    int   inTransit;           // a walker is currently realising this resident's trip
+    float wake_h, sleep_h;     // their own waking hours (lit window)
+    float leave_h, return_h;   // their own daily out-window (leave_h < 0 = homebody)
 } Resident;
 
 typedef struct {
@@ -287,13 +290,24 @@ static int residents_home(Home *h) {
     for (int i = 0; i < h->nRes; i++) if (!h->res[i].away) n++;
     return n;
 }
+// is this resident awake at t (their own waking window, may wrap past midnight)
+static int awake(Resident *p, float t) {
+    float s = p->sleep_h;
+    if (s > 24.0f) return (t >= p->wake_h) || (t < s - 24.0f);
+    return (t >= p->wake_h && t < s);
+}
+// should this resident be out right now (their own daily out-window, may wrap)
+static int want_out(Resident *p, float t) {
+    if (p->leave_h < 0.0f) return 0;               // homebody
+    if (p->return_h > p->leave_h) return (t >= p->leave_h && t < p->return_h);
+    return (t >= p->leave_h || t < p->return_h);   // wraps past midnight
+}
 
 static int home_lit(Home *h, float t) {
     if (h->arch == A_VACANT || !is_dark(t)) return 0;
-    if (residents_home(h) == 0) return 0;          // nobody home → dark
-    float s = h->sleep_h;                          // someone home: lit during their waking hours
-    if (s > 24.0f) return (t >= h->wake_h) || (t < s - 24.0f);
-    return (t >= h->wake_h && t < s);
+    for (int i = 0; i < h->nRes; i++)              // lit if anyone's home and up
+        if (!h->res[i].away && awake(&h->res[i], t)) return 1;
+    return 0;
 }
 
 static int home_tv(Home *h, float t) {
@@ -379,12 +393,46 @@ static void roll_home(Home *h) {
     for (int i = 0; i < h->nRes; i++) {
         Resident *p = &h->res[i];
         p->nameIdx = rnd(N_NAMES);
-        p->away = 0;
+        p->away = 0; p->inTransit = 0;
         p->kid = (h->arch == A_FAMILY && i >= 2);
-        if (p->kid)                          p->age = rnd_between(2, 16);    // the children
-        else if (h->arch == A_ELDER)         p->age = rnd_between(66, 86);
-        else if (h->arch == A_STUDENT)       p->age = rnd_between(18, 26);
-        else                                 p->age = rnd_between(30, 56);   // adults
+        p->leave_h = -1.0f; p->return_h = -1.0f;     // homebody unless set below
+
+        if (p->kid) {
+            p->age = rnd_between(2, 16);
+            if (p->age >= 5) {                        // off to school
+                p->leave_h  = rnd_float_between(7.8f, 8.5f);
+                p->return_h = rnd_float_between(14.5f, 16.0f);
+            }
+            p->wake_h = rnd_float_between(7.0f, 7.8f);
+            p->sleep_h = rnd_float_between(19.5f, 21.0f);
+        } else if (h->arch == A_ELDER) {
+            p->age = rnd_between(66, 86);
+            if (chance(30)) {                         // a midday errand
+                p->leave_h  = rnd_float_between(10.0f, 11.0f);
+                p->return_h = rnd_float_between(12.5f, 14.0f);
+            }
+            p->wake_h = rnd_float_between(5.5f, 7.0f);
+            p->sleep_h = rnd_float_between(21.0f, 22.5f);
+        } else if (h->arch == A_STUDENT) {
+            p->age = rnd_between(18, 26);
+            if (chance(55)) {                         // out for the evening, back small hours
+                p->leave_h  = rnd_float_between(18.0f, 21.0f);
+                p->return_h = rnd_float_between(0.5f, 3.0f);
+            } else {                                  // out in the day
+                p->leave_h  = rnd_float_between(10.0f, 13.0f);
+                p->return_h = rnd_float_between(15.0f, 18.0f);
+            }
+            p->wake_h = rnd_float_between(9.0f, 12.0f);
+            p->sleep_h = rnd_float_between(24.0f, 27.0f);
+        } else {                                      // working-age adult
+            p->age = rnd_between(30, 56);
+            if (chance(80)) {                         // has a job to get to
+                p->leave_h  = rnd_float_between(7.3f, 9.0f);
+                p->return_h = rnd_float_between(16.5f, 19.0f);
+            }
+            p->wake_h = rnd_float_between(6.5f, 8.0f);
+            p->sleep_h = rnd_float_between(22.5f, 24.0f);
+        }
     }
 
     switch (h->treat) {
@@ -539,27 +587,27 @@ static void spawn_walker(void) {
     for (int i = 0; i < MAXW; i++) if (!walkers[i].active) { slot = i; break; }
     if (slot < 0) return;
 
-    // arrive vs leave biased by time of day: morning down-rush, evening up-rush
-    int arrive;
-    if      (tod >= 6.5f && tod <  9.0f)  arrive = chance(25);
-    else if (tod >= 16.5f && tod < 19.5f) arrive = chance(75);
-    else                                  arrive = chance(50);
-
-    // find a household + a specific resident in the right state for this trip:
-    // a leaver must currently be home; an arriver must currently be out
-    int want_away = arrive ? 1 : 0;
-    int f = -1, b = -1, ri = -1;
-    for (int tries = 0; tries < 12 && ri < 0; tries++) {
+    // find a resident whose routine disagrees with where they are (and isn't
+    // already mid-trip) — that's who makes a lift trip now. So departures and
+    // returns happen at each person's own leave/return time: rush hours emerge.
+    int f = -1, b = -1, ri = -1, leaving = 0;
+    for (int tries = 0; tries < 16 && ri < 0; tries++) {
         int ff = rnd(NF), bb = rnd(NB);
         Home *hh = &homes[ff][bb];
         if (hh->arch == A_VACANT || hh->nRes == 0) continue;
         int start = rnd(hh->nRes);
         for (int j = 0; j < hh->nRes; j++) {
-            int idx = (start + j) % hh->nRes;
-            if (hh->res[idx].away == want_away) { f = ff; b = bb; ri = idx; break; }
+            Resident *p = &hh->res[(start + j) % hh->nRes];
+            if (p->inTransit) continue;
+            int wo = want_out(p, tod);
+            if (wo && !p->away) { f = ff; b = bb; ri = (start + j) % hh->nRes; leaving = 1; break; }
+            if (!wo && p->away) { f = ff; b = bb; ri = (start + j) % hh->nRes; leaving = 0; break; }
         }
     }
-    if (ri < 0) return;        // nobody available for this trip right now
+    if (ri < 0) return;        // everyone's where their schedule says they should be
+
+    Resident *pr = &homes[f][b].res[ri];
+    pr->inTransit = 1;
 
     Walker *w = &walkers[slot];
     *w = (Walker){0};
@@ -571,31 +619,23 @@ static void spawn_walker(void) {
     w->spd = walk_speed();
     walker_dress(w);
 
-    if (arrive) {
-        // walks in off the street straight to the back of the lobby queue, rides up
-        // (resident stays `away` until they reach their own door)
-        w->state = WK_ENTER; w->floor = GROUND; w->dest = f;
-        w->x = exit_x();
-    } else {
-        // leaving: walk the gallery straight to the back of the queue, ride down
+    if (leaving) {
+        // walk the gallery to the back of the queue, ride down, out
         w->state = WK_TO_LIFT; w->floor = f; w->dest = GROUND;
         w->x = bay_door_x(b);
-        homes[f][b].res[ri].away = 1;   // stepped out — window darkens if they were the last home
+        pr->away = 1;          // stepped out — window darkens if they were the last home
+    } else {
+        // walk in off the street to the lobby queue, ride up (stays away til their door)
+        w->state = WK_ENTER; w->floor = GROUND; w->dest = f;
+        w->x = exit_x();
     }
 }
 
 static void update_walkers(void) {
-    if (spawn_cooldown > 0) {
-        spawn_cooldown--;
-    } else {
-        int rate;   // per-frame 1/rate spawn chance — lower = busier. Rush now out-paces
-                    // the single 3-seat lift on purpose, so the queues visibly build.
-        if      (tod < 6.0f || tod >= 23.0f)  rate = 220;   // night: still quiet
-        else if (tod >= 6.5f && tod <  9.0f)  rate = 32;    // morning rush
-        else if (tod >= 16.5f && tod < 19.5f) rate = 30;    // evening rush
-        else                                  rate = 60;    // daytime trickle
-        if (rnd(rate) == 0) { spawn_walker(); spawn_cooldown = rnd_between(6, 16); }
-    }
+    // dispatch one schedule-driven trip every few frames — bursts at rush (many
+    // residents due to leave/return at once), quiet when everyone's settled
+    if (spawn_cooldown > 0) spawn_cooldown--;
+    else { spawn_walker(); spawn_cooldown = rnd_between(4, 10); }
 
     for (int i = 0; i < MAXW; i++) {
         Walker *w = &walkers[i];
@@ -614,7 +654,8 @@ static void update_walkers(void) {
         case WK_FROM_LIFT:                     // out of the lift → walk to the front door
             if (w->pause > 0) {
                 if (--w->pause == 0) {
-                    homes[w->home_floor][w->bay].res[w->resIdx].away = 0;   // home now — window lights
+                    Resident *p = &homes[w->home_floor][w->bay].res[w->resIdx];
+                    p->away = 0; p->inTransit = 0;   // home now — window lights
 #ifdef DE_TRACE
                     dbg_lit = w->home_floor * 100 + w->bay;
 #endif
@@ -625,7 +666,10 @@ static void update_walkers(void) {
             if (walk_toward(w, w->tx)) w->pause = rnd_between(20, 45);   // fumble keys, then inside
             break;
         case WK_EXIT:                          // out the lobby → walk the pavement off-screen
-            if (walk_toward(w, w->tx)) w->active = 0;
+            if (walk_toward(w, w->tx)) {
+                homes[w->home_floor][w->bay].res[w->resIdx].inTransit = 0;   // trip done; they're out
+                w->active = 0;
+            }
             break;
         case WK_RIDING:                        // inside the cab — moved by the lift
             break;
@@ -1085,10 +1129,6 @@ static const char *sill_label(int s) {
     default:        return "bare sill";
     }
 }
-static void hhmm(char *b, float hf) {
-    int hh = (int)hf % 24, mm = (int)((hf - (int)hf) * 60.0f);
-    b[0]='0'+hh/10; b[1]='0'+hh%10; b[2]=':'; b[3]='0'+mm/10; b[4]='0'+mm%10; b[5]=0;
-}
 
 static void draw_inspect(void) {
     int mx = mouse_x(), my = mouse_y(), hf = -1, hb = -1;
@@ -1109,8 +1149,8 @@ static void draw_inspect(void) {
 
     int num = (hf + 1) * 100 + (hb + 1);
     int vacant = (h->arch == A_VACANT);
-    int lines = vacant ? 2 : (h->nRes + 5);   // Nr + kind + residents + treatment + sill + hours
-    int pw = 104, ph = lines * 9 + 5;
+    int lines = vacant ? 2 : (h->nRes + 4);   // Nr + kind + residents(with hours) + treatment + sill
+    int pw = 108, ph = lines * 9 + 5;
     int px = mx + 6, py = my - 4;
     if (px + pw > SCREEN_W) px = mx - pw - 6; if (px < 0) px = 0;
     if (py + ph > SCREEN_H) py = SCREEN_H - ph; if (py < 0) py = 0;
@@ -1140,7 +1180,7 @@ static void draw_inspect(void) {
     }
     print(desc, tx, ty, CLR_LIGHT_GREY); ty += 9;
 
-    // the residents, each with their in/out status
+    // each resident: name, age, and their own out-hours, coloured by in/out now
     for (int i = 0; i < h->nRes; i++) {
         Resident *p = &h->res[i];
         char rb[16]; int k = 0;
@@ -1150,17 +1190,19 @@ static void draw_inspect(void) {
         else { rb[k++] = '0'+p->age/10; rb[k++] = '0'+p->age%10; }
         rb[k] = 0;
         int rx = print(rb, tx + 2, ty, p->kid ? CLR_LIGHT_GREY : CLR_WHITE);
-        print(p->away ? " out" : " in", rx, ty, p->away ? CLR_MEDIUM_GREY : CLR_GREEN);
+        int col = p->away ? CLR_MEDIUM_GREY : CLR_GREEN;
+        if (p->leave_h < 0.0f) {
+            print(p->away ? " out" : " home", rx, ty, col);     // homebody
+        } else {
+            int lv = (int)p->leave_h, rt = (int)p->return_h;     // their daily out-window
+            char tb[8] = { ' ', '0'+lv/10, '0'+lv%10, '-', '0'+rt/10, '0'+rt%10, 0 };
+            print(tb, rx, ty, col);
+        }
         ty += 9;
     }
 
     print(treat_label(h->treat), tx, ty, CLR_INDIGO); ty += 9;
-    print(sill_label(h->sill), tx, ty, CLR_INDIGO); ty += 9;
-    char w1[6], s1[6]; hhmm(w1, h->wake_h); hhmm(s1, h->sleep_h);
-    int xx = print("up ", tx, ty, CLR_DARK_GREY);
-    xx = print(w1, xx, ty, CLR_LIGHT_GREY);
-    xx = print(" bed ", xx, ty, CLR_DARK_GREY);
-    print(s1, xx, ty, CLR_LIGHT_GREY);
+    print(sill_label(h->sill), tx, ty, CLR_INDIGO);
     font(FONT_NORMAL);
 }
 

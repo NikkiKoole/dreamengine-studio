@@ -43,6 +43,16 @@
 #define FLIP_OFF 3.0f           // px a body rides off-centre; a flip point swaps the side
 #define RIDE_ZOOM 2.4f          // POV ride-cam zoom factor
 
+// riders — 2 per cart (front/back), each a fixed body + two 2-segment verlet arms
+#define CHARS_PER_CART 2
+#define CHAR_OFF 2.6f           // char distance from cart centre along the tangent
+#define BODY_W   1.4f           // torso half-width (along tangent); shoulders sit at the top corners
+#define BODY_H   3.0f           // torso height (toward body-up); = shoulder height
+#define ARM_UP   3.4f           // upper-arm rest length (shoulder→elbow)
+#define ARM_LO   3.0f           // lower-arm rest length (elbow→hand)
+#define ARM_GRAV 0.30f          // world gravity pulling the free arm points down
+#define ARM_DAMP 0.90f          // verlet velocity damping (arms settle)
+
 // ── zones ─────────────────────────────────────────────────────────────────
 // zone is one-of (boost/brake/hoist); flip is an orthogonal flag — a point can
 // be both a boost AND a flip point, just like the original achtbaan.
@@ -71,6 +81,17 @@ typedef struct {
 } Body;
 static Body bodies[MAX_BODY];
 static int  n_bodies = 10;
+
+// a rider's arm: 3 verlet points — [0] shoulder (pinned to the cart each frame),
+// [1] elbow, [2] hand (free). px/py current, ox/oy previous (velocity = the diff).
+typedef struct { float px[3], py[3], ox[3], oy[3]; } VArm;
+typedef struct {
+    VArm  arm[2];               // two arms, offset fore/aft so both show in profile
+    float tension;              // 0 = loose flailer .. 1 = tense clutcher (personality)
+    int   clothes;              // body colour
+} Rider;
+static Rider riders[MAX_BODY][CHARS_PER_CART];
+static int   riders_primed = 0; // arms snapped to a start pose yet?
 
 // particles
 typedef struct { float x, y, vx, vy; int life, col; } Part;
@@ -188,13 +209,21 @@ static void sample(float d, float *ox, float *oy, int *oseg, float *ux, float *u
 }
 
 // ── bodies ──────────────────────────────────────────────────────────────────
+static const int CLOTHES[] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN,
+                               CLR_BLUE, CLR_PINK, CLR_WHITE, CLR_INDIGO };
+
 static void init_bodies(void) {
     for (int i = 0; i < MAX_BODY; i++) {
         bodies[i].pos = 0; bodies[i].vel = 0;
         bodies[i].wait = closed ? 0 : i * RIDE_GAP;   // slide: stagger releases
         bodies[i].hue = (i * 5) % 6;
         bodies[i].offset_dir = 1;
+        for (int c = 0; c < CHARS_PER_CART; c++) {    // a varied crowd
+            riders[i][c].tension = rnd_float();
+            riders[i][c].clothes = CLOTHES[rnd(8)];
+        }
     }
+    riders_primed = 0;
     if (closed && n_bodies > 0) bodies[0].vel = 40;   // nudge the train off
 }
 
@@ -222,6 +251,69 @@ static void apply_offset(Body *b) {
     float nx = b->uy, ny = -b->ux;                     // segment normal
     b->x += nx * FLIP_OFF * b->offset_dir;
     b->y += ny * FLIP_OFF * b->offset_dir;
+}
+
+// ── rider arms (verlet) ──────────────────────────────────────────────────────
+// Each arm is a tiny pinned rope (rope.c's trick): the shoulder is pinned to the
+// cart, the elbow + hand are free. World-down gravity makes them hang; the free
+// points keep their world velocity, so when the cart yanks the shoulder they lag
+// and whip — gravity hang + inertial fling for free. A "muscle" spring then pulls
+// the hand toward a target: on the hoist everyone throws their arms UP (raised by
+// 1-tension), elsewhere tense riders pull their arms in (loose ones just flail).
+static void arm_step(VArm *a, float sx, float sy, float tx, float ty, float muscle) {
+    a->px[0] = a->ox[0] = sx; a->py[0] = a->oy[0] = sy;     // pin shoulder
+    for (int i = 1; i <= 2; i++) {                          // verlet the free points
+        float vx = (a->px[i] - a->ox[i]) * ARM_DAMP;
+        float vy = (a->py[i] - a->oy[i]) * ARM_DAMP;
+        a->ox[i] = a->px[i]; a->oy[i] = a->py[i];
+        a->px[i] += vx; a->py[i] += vy + ARM_GRAV;
+    }
+    a->px[2] += (tx - a->px[2]) * muscle;                   // muscle pulls the hand
+    a->py[2] += (ty - a->py[2]) * muscle;
+    for (int it = 0; it < 4; it++) {                        // relax segment lengths
+        float dx = a->px[1] - a->px[0], dy = a->py[1] - a->py[0];
+        float d = fsqrt(dx * dx + dy * dy); if (d < 0.001f) d = 0.001f;
+        float k = (ARM_UP - d) / d;                         // shoulder pinned → move elbow
+        a->px[1] += dx * k; a->py[1] += dy * k;
+        dx = a->px[2] - a->px[1]; dy = a->py[2] - a->py[1];
+        d = fsqrt(dx * dx + dy * dy); if (d < 0.001f) d = 0.001f;
+        k = (ARM_LO - d) / d * 0.5f;
+        a->px[1] -= dx * k; a->py[1] -= dy * k;
+        a->px[2] += dx * k; a->py[2] += dy * k;
+    }
+}
+
+// drive both riders' arms on one cart for this frame
+static void step_arms(Body *b, int ci) {
+    float nx = b->uy, ny = -b->ux;                          // body-up = track normal
+    for (int c = 0; c < CHARS_PER_CART; c++) {
+        float fb = (c == 0) ? 1.0f : -1.0f;                 // front / back along tangent
+        float cx = b->x + b->ux * CHAR_OFF * fb;
+        float cy = b->y + b->uy * CHAR_OFF * fb;
+        Rider *r = &riders[ci][c];
+        for (int arm = 0; arm < 2; arm++) {
+            float fa = (arm == 0) ? BODY_W : -BODY_W;       // top corners of the torso
+            float shx = cx + b->ux * fa + nx * BODY_H;
+            float shy = cy + b->uy * fa + ny * BODY_H;
+            VArm *A = &r->arm[arm];
+            if (!riders_primed) {                           // snap to a raised pose
+                A->px[0] = A->ox[0] = shx;            A->py[0] = A->oy[0] = shy;
+                A->px[1] = A->ox[1] = shx + nx * ARM_UP;          A->py[1] = A->oy[1] = shy + ny * ARM_UP;
+                A->px[2] = A->ox[2] = shx + nx * (ARM_UP + ARM_LO); A->py[2] = A->oy[2] = shy + ny * (ARM_UP + ARM_LO);
+            }
+            // arms always WANT their personal pose — bold riders point straight up,
+            // timid ones (high tension) blend toward the chest. The muscle is modest,
+            // so it holds the pose in calm stretches but the cart's inertia overwhelms
+            // it under heavy g (drops/loops/launches): forces take over, then the arms
+            // drift back. No special-casing — the verlet does it.
+            float reach = ARM_UP + ARM_LO;
+            float upx = shx + nx * reach, upy = shy + ny * reach;
+            float t = r->tension;
+            float tx = lerp(upx, cx, t), ty = lerp(upy, cy, t);
+            float muscle = lerp(0.16f, 0.28f, t);
+            arm_step(A, shx, shy, tx, ty, muscle);
+        }
+    }
 }
 
 // ── ride sound ───────────────────────────────────────────────────────────────
@@ -288,13 +380,16 @@ static void update_coaster(float dt) {
     while (lead->pos >= total_len) lead->pos -= total_len;
     if (flip_cross(lead, d)) flip_sound();
     apply_offset(lead);
+    step_arms(lead, 0);
     for (int i = 1; i < n_bodies; i++) {
         bodies[i].pos = lead->pos - i * CART_GAP;
         int seg; sample(bodies[i].pos, &bodies[i].x, &bodies[i].y, &seg,
                         &bodies[i].ux, &bodies[i].uy);
         flip_cross(&bodies[i], d);
         apply_offset(&bodies[i]);
+        step_arms(&bodies[i], i);
     }
+    riders_primed = 1;   // all carts have placed their arms now
     // feel: spark + whoosh + shake scale with speed; louder on a steep drop
     float sp = lead->vel < 0 ? -lead->vel : lead->vel;
     if (sp > 360 && rnd(3) == 0) {
@@ -547,6 +642,27 @@ static void draw_rider(Body *b) {
     pset(rx, ry - 2, CLR_DARK_BROWN);               // head
 }
 
+// the two coaster riders on cart ci: fixed torso + head, plus the verlet arms
+static void draw_riders(Body *b, int ci) {
+    float ux = b->ux, uy = b->uy, nx = b->uy, ny = -b->ux;   // tangent + body-up
+    for (int c = 0; c < CHARS_PER_CART; c++) {
+        float fb = (c == 0) ? 1.0f : -1.0f;
+        float cx = b->x + ux * CHAR_OFF * fb, cy = b->y + uy * CHAR_OFF * fb;
+        Rider *r = &riders[ci][c];
+        float bt = BODY_W, top = BODY_H;                      // torso half-width / height
+        quadfill((int)(cx - ux * bt), (int)(cy - uy * bt),
+                 (int)(cx + ux * bt), (int)(cy + uy * bt),
+                 (int)(cx + ux * bt + nx * top), (int)(cy + uy * bt + ny * top),
+                 (int)(cx - ux * bt + nx * top), (int)(cy - uy * bt + ny * top), r->clothes);
+        circfill((int)(cx + nx * (top + 1.4f)), (int)(cy + ny * (top + 1.4f)), 1, CLR_PEACH);
+        for (int arm = 0; arm < 2; arm++) {                   // shoulder→elbow→hand
+            VArm *A = &r->arm[arm];
+            line((int)A->px[0], (int)A->py[0], (int)A->px[1], (int)A->py[1], CLR_DARK_PEACH);
+            line((int)A->px[1], (int)A->py[1], (int)A->px[2], (int)A->py[2], CLR_DARK_PEACH);
+        }
+    }
+}
+
 // shortest-path angle lerp (handles the 360° wrap)
 static float lerp_angle(float a, float b, float t) {
     float d = b - a;
@@ -599,7 +715,7 @@ void draw(void) {
             for (int i = 0; i + 1 < n_bodies; i++)
                 line((int)bodies[i].x, (int)bodies[i].y,
                      (int)bodies[i + 1].x, (int)bodies[i + 1].y, CLR_DARK_GREY);
-            for (int i = 0; i < n_bodies; i++) draw_cart(&bodies[i]);
+            for (int i = 0; i < n_bodies; i++) { draw_cart(&bodies[i]); draw_riders(&bodies[i], i); }
         } else {
             for (int i = 0; i < n_bodies; i++)
                 if (bodies[i].wait <= 0) draw_rider(&bodies[i]);

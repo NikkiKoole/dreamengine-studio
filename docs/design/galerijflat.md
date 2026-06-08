@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 15 (the daily round: per-resident routines) complete.** Cart:
+**Status: building — step 16 (a second lift car) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -734,24 +734,42 @@ the building breathes with real rush hours. (This is sys 6 from the systems list
 - The single lift is plainly overwhelmed at rush — that's the cue for the
   **second lift** (the next step).
 
-## Handoff — next agent starts here (2026-06-08, session 15 complete)
+### Step 16 — a second lift car (sys 7, two cars) (2026-06-08, session 15)
+
+The morning rush proved one 4-seat car can't empty the block; now there are two.
+
+- The per-car state moved into a `Lift` struct (`carY/floor/target/dir/state/
+  depart/closing/doorTimer/door/shaftX`); `lifts[NLIFT=2]` replaces the globals.
+  The tower widened (`TW` 20→30) to hold the stairwell + two `LIFT_W=9` shafts
+  (`shaftX = towerX+9` and `+19`); `draw_cab(i)` draws each.
+- Riders belong to a car: `Walker.car` is set on boarding; `count_riders(i)` /
+  `rider_alights(i,fl)` / the cab render are all per-car.
+- All the LOOK functions take a car index. Light coordination so they don't
+  both chase one call: `claimed_by_other(i,fl)` drops a waiter from car i's
+  *targeting* if the other car is parked there or moving there and closer;
+  `other_serving(i,fl)` stops car i opening at a floor the other is serving
+  (but a car always opens to drop its *own* rider). Boarding is first-come
+  (state flips to RIDING), so no double-boarding.
+- Verified over a day: both cars run independently at different floors; morning
+  peak waiting 41→31 and the rush **clears by ~noon instead of mid-afternoon**;
+  no crash, no two-cars-on-one-floor stalls. Trace: `L0st/L0f`, `L1st/L1f`.
+
+## Handoff — next agent starts here (2026-06-08, session 16 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Real multi-resident households (step 14) on top of the step-13 hover inspect.
+A second lift car (step 16) on top of step-15 per-resident routines.
 
 **What's done:** static facade + clock/light schedules + global tint + full
-detail pass + gallery walkers + glazed lift car + a real elevator (directional
-LOOK with up/down hall calls) + walker→light causality + a ground lobby +
-join-order queues that shuffle forward + bigger rush crowds + occupants in the
-windows + hover-inspect panel + real households (multiple residents) +
-**each resident on their own daily routine** (schedule-driven rush hours).
+detail pass + gallery walkers + a real elevator (directional LOOK) + walker→
+light causality + a ground lobby + join-order queues + occupants in the windows
++ hover-inspect panel + real households (multiple residents) + each resident on
+their own daily routine + **two coordinated lift cars**.
 
-**Next build steps (user's plan):** a SECOND lift car in the tower to handle the
-fuller building → then sys 4, the balcony flip (one model, two mirrored views).
-After: sound (lift ding, travelling hum, wind) → import the keyframed sky from
-`dutchsky`. `MAXW` is 60; front-of-queue boarding is still instant (a "walk into
-the cab" step is optional polish). The household model (residents + presence) is
-now the thing the flip will render on both faces.
+**Next build steps:** sys 4 — the balcony flip (one model, two mirrored views;
+the household + resident model is what it renders on both faces). After: sound
+(lift ding, travelling hum, wind) → import the keyframed sky from `dutchsky`.
+`MAXW` is 60; `NLIFT` is 2; front-of-queue boarding is still instant (a "walk
+into the cab" step is optional polish).
 
 **The bake loop** (~10s per iteration):
 ```bash

@@ -263,6 +263,8 @@ void map_scale(int n);                                  // integer zoom for map 
 #define INSTR_PD      21  // phase-distortion (Casio CZ) — buzzy basses, resonant leads, the CZ "wowww" sweep. Holds while sustained. macros: harmonics = wavetype (snapped: saw/square/pulse/doublepulse/sawpulse + 3 resonant), timbre = distortion (brightness / resonant-peak), morph = DCW sweep (distortion snaps bright on the strike, settles — the CZ envelope)
 #define INSTR_MEMBRANE 22 // struck drumhead — tabla/conga/bongo/djembe/tom. Six decaying sine modes at circular-membrane ratios; rings on its own like MALLET. macros: harmonics = head (tuned tabla → inharmonic djembe), timbre = strike position (center thump → edge ring/slap), morph = pitch-bend (the tabla bayan gliss; 0 = flat)
 #define INSTR_REED    23  // blown reed — clarinet/sax/oboe. A self-oscillating bore waveguide; holds while sustained (like ORGAN). macros: harmonics = bore (cylindrical clarinet → conical sax), timbre = reed edge (dark → bright/nasal), morph = breath (soft → leaning growl + vibrato)
+#define INSTR_PIPE    25  // blown flute — flute/recorder/pan pipe. A self-oscillating STK jet-drive bore; holds while sustained, breathy like a real flute. macros: harmonics = overblow (fundamental → octave flageolet + bright), timbre = breath air (pure → airy), morph = embouchure (hollow/dark → focused/bright)
+#define INSTR_VOICE   24  // EXPERIMENTAL formant voice (navkit VoicForm port) — glottal pulse → 4 vowel formants. Holds while sustained. Drive its raw params with voice_param() during the voxlab prototype; the public 3-macro mapping isn't locked yet
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
 void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..31 yourself)
@@ -329,6 +331,8 @@ void instrument_choke(int slot_a, int slot_b); // declare that a new note on slo
 void note_harmonics(int handle, float x);      // live macro on a held note, slewed — ring/partial/ratio changes reach a sounding voice (PLUCK ring, MALLET partials, FM ratio)
 void note_timbre(int handle, float x);         // live macro on a held note, slewed — strike-shaping macros (PLUCK/MALLET timbre) apply at the next note; FM brightness moves live
 void note_morph(int handle, float x);          // live macro on a held note, slewed — MALLET ring/motor and FM feedback move live; PLUCK position applies at the next note
+void voice_param(int handle, int idx, float value); // EXPERIMENTAL — poke a raw INSTR_VOICE param by index on a held note (0 vowel · 1 size · 2 breath · 3 open-quotient · 4 tilt · 5 vibrato-depth · 6 vibrato-rate), value 0..1. The voxlab prototype's fat control surface; not the final API
+void voice_consonant(int handle, int id);      // EXPERIMENTAL — begin a held INSTR_VOICE note with a consonant onset that morphs into the vowel ("bah"/"mah"/"sss-ah"). Call right after note_on; id 0..7 = b d g m n l s sh, -1 = none. A timed attack, not a held axis
 
 // drive — saturation AFTER the filter, so resonance screams into it. The grit knob.
 void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)

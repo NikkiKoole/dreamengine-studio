@@ -394,6 +394,24 @@
     ]
   },
   {
+    "title": "voxlab",
+    "description": "The FAT prototype for the formant VOICE engine (INSTR_VOICE — a navkit VoicForm port: a glottal pulse through four vowel formants). A probe: it exposes all SEVEN raw voice params on sliders (vowel U→I morph · size/vocal-tract length · breath · glottal open-quotient · spectral tilt · vibrato depth · vibrato rate) so you can AUDITION by ear which three deserve to become the public harmonics/timbre/morph macros. The four 'layout' buttons (gen / mouth / creat / sing) load candidate 3-axis combos — press one, sweep the sliders it leans on, judge whether that combination feels expressive. Drives the engine through voice_param(handle, idx, value), an EXPERIMENTAL by-index poke that retires once the axes are chosen. SPACE plays a sustained note · Z/X drop/raise pitch · drag the sliders.",
+    "file": "voxlab.cart.png",
+    "kind": [
+      "instrument",
+      "probe"
+    ]
+  },
+  {
+    "title": "vox",
+    "description": "The formant VOICE engine (INSTR_VOICE — navkit VoicForm port) reduced to the THREE axes the voxlab probe landed on, plus a per-note CONSONANT attack, for a real play: VOWEL (the U→O→A→E→I morph — what's said), SIZE (formant shift = vocal-tract length, giant→child — who says it), and EFFORT — a single macro sweeping breath + glottal open-quotient + spectral tilt together, the soft→hard gesture (breathy/dark/relaxed → pressed/bright/clean). The CONSONANT row (b d g m n l s sh) fires a timed articulation onset at note-start (voice_consonant) so a note begins 'bah'/'mah'/'sss-ah' before settling on the held vowel — a timed attack, NOT a continuous axis; click one to (re)say the note. Vibrato is also not an axis: the V toggle adds it as an external pitch LFO (note_lfo → LFO_PITCH). Still drives the engine through the experimental voice_param()/voice_consonant() path pending the final wiring. SPACE (re)articulates · Z/X pitch · V vibrato · drag the three sliders · click a consonant.",
+    "file": "vox.cart.png",
+    "kind": [
+      "instrument",
+      "probe"
+    ]
+  },
+  {
     "title": "mouth harp",
     "description": "A jaw harp (Jew's harp / mondharp) — the instrument where the PITCH NEVER CHANGES and you play with your MOUTH instead. A buzzy fixed-pitch saw drone (every harmonic) runs through a TIGHT resonant BANDPASS (FILTER_BAND, resonance 14), and sweeping note_cutoff is your mouth cavity: the resonant peak hunts across the drone's overtones and picks out which one 'speaks' — the vocal boi-oi-oing / wah-yeoww talking quality, and THAT is the melody. The corner of the engine no other cart centres on: where otamatone moves pitch over a plain lowpass, here pitch is frozen and the high-Q formant sweep is the whole tune. Move the mouse up/down to play (a harmonic comb on the right glows on the overtone you're voicing). TAB switches two flavours: PLUCK (folk) — each twang decays, HOLD to auto-pluck locked to the tempo for the iconic boing-boing-a-boing, UP/DOWN sets the subdivision; DRONE (dan-moi) — one continuous buzz you shape forever, hold SPACE for a breath swell. SPACE or click = pluck, LEFT/RIGHT pick the harp's key, M autoplay.",
     "file": "mouthharp.cart.png",

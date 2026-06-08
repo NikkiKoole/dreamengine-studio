@@ -17,7 +17,7 @@ this session:
   FIXED** (2026-06-08): the inharmonic tine/bell modes now decay fast (body-vs-bell split) over a
   warm fundamental — "sounds much better". BAKED to constants (2026-06-08): RHO_BODY/RHO_BELL/RHO_BLVL (0.7 / 0.13 / 12). **WAH reworked** (2026-06-08, after rendering navkit — see bottom): toggle off/auto/
   **env**/touch (one per mod source), clav boots into **env** = a fast per-note filter-env quack
-  (navkit's real funky-clav recipe), clav decay shortened. NOT yet published.
+  (navkit's real funky-clav recipe), clav decay shortened. PUBLISHED 2026-06-08. The 3 macros all bite now (timbre hammer-hardness fix; bark folds in drive); wah toggle kept but flagged TEMP! (per-voice, provisional).
 - **Envelope follower** SHIPPED (2026-06-08) — `instrument_follow`/`note_follow`, the 3rd
   modulation source (tracks the voice's own amplitude → cutoff/vol/pitch). The touch-responsive
   auto-wah. Full 4-place wiring + tripwire. Needs its own doc section in audio-notes (modulation).

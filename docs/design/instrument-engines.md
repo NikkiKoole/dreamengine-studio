@@ -570,7 +570,12 @@ guard needed (sines from any phase are safe). Pitch: carrier = `freq × pitch_mu
 sample, modulator = carrier × ratio — the §8.8.1 rule satisfied by construction. Cart
 presets (= the acceptance tests): **epiano · bell · bass · brass · clang**.
 
-### 8.8.4 Engine #4: ORGAN — the step-1 design (2026-06-07)
+### 8.8.4 Engine #4: ORGAN — SHIPPED + published 2026-06-07 (was the step-1 design)
+> **Post-ship (2026-06-07):** shipped per the design below + the `organ` cart. Two fixes landed:
+> a **drive-fizz** rolloff (saturating a sparse bright registration made harsh intermodulation —
+> the engine now rolls its top off before the voice drive) and the shared per-voice **DC blocker**
+> on the drive path (driven organ injected DC → an env-ramp click). Leslie stays a per-voice
+> recipe / a future bus item (§8.10, 0015).
 
 The playbook's paper round for `INSTR_ORGAN`, the §8.5-phase-4 / [STATUS §5](../STATUS.md)
 **NEXT** engine. navkit crib (all paths in `~/Projects/navkit/soundsystem/engines/`):
@@ -696,7 +701,23 @@ adjacent-wheel leakage — cheap dirt, several presets use it) and the **3 ms ke
 burst (already folded into `timbre` above). Percussion: 2nd or 3rd harmonic, soft = −3 dB,
 fast ≈ 200 ms / slow ≈ 500 ms decay.
 
-### 8.8.5 Engine #5: ELECTRIC PIANO — the step-1 design (2026-06-07)
+### 8.8.5 Engine #5: ELECTRIC PIANO — SHIPPED + published 2026-06-08 (was the step-1 design)
+> **Post-ship findings (2026-06-08), tuned by ear + the navkit-render A/B (`tools/navkit-render.c`
+> + `tools/wav-envelope.js`):**
+> - **Rhodes was too "ringy."** The inharmonic tine/bell modes decayed in lockstep with the
+>   fundamental (a drone, not a *ding*) — which also made the 3 Rhodes presets sound alike. Fix:
+>   split the decay into a long BODY (mode 0) + a short BELL (modes ≥1) + a bell-level boost so
+>   the tine dings over a sustaining body (`RHO_BODY/RHO_BELL/RHO_BLVL` consts in `sound_epiano_start`).
+> - **`timbre` did nothing on Wurli/Clav** — it was only the pickup-position crossfade, whose
+>   profiles are near-identical there. Added the **hammer-hardness** half (timbre scales the upper
+>   modes), so timbre now brightens every instrument (clav 3× / wurli 4× / rhodes 6.5× swing).
+> - **`bark` (morph) folds in drive** above its halfway point — clean → pickup-bark → tanh-growl
+>   on one knob (the cart maps the bark slider to `instrument_morph` + `instrument_drive`).
+> - **The funky-clav "wah" is a fast per-note filter-env quack** (resonant lowpass, ~100ms snap),
+>   baked into the clav. The realistic **"woah woah" auto-wah is a BUS effect** (one filter on the
+>   summed mix, exp sweep, follower on the whole performance) — deferred to §8.10; the per-voice
+>   wah + the envelope follower are PARKED (0015 Correction, sound-handoff.md). 12 modes/voice ≈
+>   the heaviest engine — PROF-check stands.
 
 The playbook's paper round for `INSTR_EPIANO`, §8.5 step 5. navkit crib (all in
 `~/Projects/navkit/soundsystem/engines/`): `processEPianoOscillator` (`synth_oscillators.h:3937`),

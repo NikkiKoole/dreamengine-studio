@@ -206,19 +206,20 @@ their `kind[]` tags.
         post-ship findings): epiano tine added → nameplate test PASSED; brass fixed by
         making brightness follow the amp attack. Open tail: plain taste-tuning + the
         citypop/lowend epiano retrofits.
-     4. **`INSTR_ORGAN`** — Hammond drawbars → scanner. ← **NEXT** *(decided 2026-06-05: the
-        Leslie ships LATER as an add-on, not in the same bite — the drawbar core is buffer-free
-        and the morph macro's scanner vibrato gives motion without it; the Leslie is a decoupled
-        shared effect (§8.3/§8.8c) and folds into the effects/bus layer (§8.10) when that opens.)*
-     5. **`INSTR_EPIANO`** — its own bite now. *(Corrected 2026-06-05 from navkit source: the
-        EP is buffer-free — 12-mode modal bank + pickup nonlinearity, mallet-sized port, one
-        engine = Rhodes/Wurli/Clav via pickup type; only piano + guitar need the pluck-proven
-        buffer path. instrument-engines §8.5 step 5 + §8.7.)*
-     Beyond that, the decided queue (2026-06-05, full rationale instrument-engines §8.5 steps 6–10):
-     **PD (CZ — the cheap snack, 2 floats) → reed** *(FM's brass stress test passed, so the
-     waveguide-brass swap clause is moot)* **→ membrane (hand percussion) → bowed/pipe + the buffered
-     piano/guitar pair → formant + effects layer.** Additive stays deferred (`INSTR_SINE` + FM +
-     MALLET cover its near corners; the MT70 family is its first named customer).
+     4. ~~**`INSTR_ORGAN`**~~ **SHIPPED + PUBLISHED 2026-06-07** — Hammond tonewheel, 9 drawbar
+        additive, `organ` showcase cart (full design instrument-engines §8.8.4). Post-ship: a
+        drive-fizz fix (pre-drive HF rolloff) and the shared per-voice **DC blocker** on the drive
+        path both landed. Leslie stays a per-voice recipe / future bus item (0015, §8.10).
+     5. ~~**`INSTR_EPIANO`**~~ **SHIPPED + PUBLISHED 2026-06-08** — Rhodes/Wurli/Clav, 12-mode modal
+        bank + pickup nonlinearity, `epiano` showcase (§8.8.5). Post-ship tuning (by ear + the
+        navkit-render A/B, tools/navkit-render.c): the **Rhodes ring** fixed (body/bell decay split,
+        `RHO_*` consts), **timbre** given a hammer-hardness tilt so it bites on all 3, **bark** folds
+        in drive (clean→growl), clav has a fast filter-env quack. The per-voice **wah is provisional**
+        (flagged TEMP! in-cart) — the real auto-wah is a bus effect (§8.10). 🅿️ see PARKED below.
+     Next: **PD (CZ — the cheap snack, 2 floats)** ← NEXT, then **reed** *(FM's brass stress test
+     passed, so the waveguide-brass swap clause is moot)* **→ membrane (hand percussion) → bowed/pipe
+     + the buffered piano/guitar pair → formant + effects layer.** Additive stays deferred
+     (`INSTR_SINE` + FM + MALLET cover its near corners; the MT70 family is its first named customer).
    The **MT70 finding, corrected 2026-06-07** (the 2026-06-03 "all one pure sine" verdict was a
    verification artifact — the songs' `osc2*` fields sit ~50 lines into each block and are
    non-zero): the presets are **2–3 mixed sines with per-partial decay + click** — small

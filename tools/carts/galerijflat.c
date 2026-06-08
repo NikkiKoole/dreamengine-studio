@@ -45,7 +45,7 @@ enum { WK_ENTER, WK_TO_LIFT, WK_WAIT, WK_RIDING, WK_FROM_LIFT, WK_EXIT };
 
 // lift car state machine (sys 7)
 enum { LIFT_IDLE, LIFT_MOVING, LIFT_DOORS };
-#define LIFT_CAP   3       // people the cab holds
+#define LIFT_CAP   4       // people the cab holds
 #define DOOR_HOLD  30      // frames doors stay open
 #define GROUND    (-1)     // the lift's bottom stop: the street-level lobby
 #define LOBBY_DROP 14      // px the cab descends below floor 0 — a full plinth, to street level
@@ -812,15 +812,24 @@ void update(void) {
 
 // ── drawing ───────────────────────────────────────────────────────────────────
 
-// someone moving about inside a window: a small figure that drifts slowly so a
-// lit/curtained home reads as lived-in. Only drawn for occ==1 homes — the ones
-// a walker was actually seen entering, so it's the payoff of that walk.
+// someone moving about inside a window: a small figure that wanders a "room"
+// wider than the glass, so it walks off behind the wall at the edges, vanishes
+// into another room now and then, and drifts back — a lived-in home, not a
+// decal. Only drawn for occ==1 homes (a walker was seen entering — the payoff).
 static void draw_occupant(int wx, int wy, int f, int b, int col) {
-    int t  = frame() / 110;                    // a slow shuffle — pottering about the room
-    int ox = (t * 7 + f * 5 + b * 11) & 3;     // 0..3, drifts side to side
-    int fx = wx + 2 + ox;
-    rectfill(fx,     wy + 2, 2, 2, col);       // head
-    rectfill(fx - 1, wy + 4, 4, 4, col);       // shoulders/torso (lower body cut by the sill)
+    int phase = f * 53 + b * 97;               // each home keeps its own rhythm
+    int t = frame();
+    if (((t / 220 + phase) % 6) == 0) return;  // off in another room for a spell — empty window
+
+    int period = 240 + (phase % 140);          // 4–6.5s per length of the room
+    int tri = abs(((t + phase * 7) % (2 * period)) - period);   // ping-pong 0..period
+    int rx = -5 + (tri * (WW + 10)) / period;  // room x runs -5 .. WW+5 (off-glass = behind wall)
+    int fx = wx + rx;
+
+    clip(wx, wy, WW, WH);                       // anything past the glass edge hides behind the wall
+    rectfill(fx,     wy + 2, 2, 2, col);        // head
+    rectfill(fx - 1, wy + 4, 4, 4, col);        // shoulders/torso (lower body cut by the sill)
+    clip(0, 0, 0, 0);                           // restore full-screen drawing
 }
 
 static void draw_window(Home *h, int f, int b, int wx, int wy) {
@@ -936,7 +945,7 @@ static void draw_tower(void) {
         else       line(sx, yb - FH + 4, sx + 4, yb - 4, CLR_DARK_GREY);
     }
     // ── the lift: a glazed shaft with a lit car you can watch travel ──────────
-    int lx = towerX + 11, lw = 7;            // shaft x, width
+    int lx = towerX + 10, lw = 9;            // shaft x, width (wide enough for 4 riders)
     int shTop = wallTop, shBot = baseY + LOBBY_DROP + 2;   // down into the ground lobby
     rectfill(lx, shTop, lw, shBot - shTop, CLR_DARKER_BLUE);   // dark shaft glass
     rectfill(lx - 1, shTop, 1, shBot - shTop, CLR_DARK_GREY);  // guide rails
@@ -951,13 +960,17 @@ static void draw_tower(void) {
     rectfill(lx, carTop, lw, cabH, CLR_LIGHT_GREY);                  // car frame
     rectfill(ix0, carTop + 1, iw, cabH - 2, CLR_LIGHT_YELLOW);        // lit glass cab (tint-exempt → glows)
 
-    // passengers — little silhouettes visible through the glass
+    // passengers — the actual walkers who boarded, in their own colours, so you
+    // recognise who got in (lit cab, so you see them rather than a silhouette)
     int nr = 0;
     for (int i = 0; i < MAXW && nr < LIFT_CAP; i++) {
-        if (!walkers[i].active || walkers[i].state != WK_RIDING) continue;
+        Walker *w = &walkers[i];
+        if (!w->active || w->state != WK_RIDING) continue;
         int rx = ix0 + nr * 2, ry = carBot - 3;
-        pset(rx, ry - 4, CLR_BROWNISH_BLACK);              // head
-        rectfill(rx, ry - 3, 1, 4, CLR_BROWNISH_BLACK);    // body + legs
+        pset(rx, ry - 4, w->hair);                 // head
+        pset(rx, ry - 3, w->skin);                 // face
+        rectfill(rx, ry - 2, 1, 2, w->shirt);      // torso
+        pset(rx, ry,     w->pants);                // legs (lower body cut by the floor)
         nr++;
     }
 

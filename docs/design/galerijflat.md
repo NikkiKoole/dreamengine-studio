@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 11 (directional lift dispatch) complete.** Cart:
+**Status: building — step 12 (cab capacity 4, recognisable riders, wandering occupants) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -654,7 +654,21 @@ vice-versa. Now it's a proper **directional LOOK** with up/down hall calls:
   and **zero door-opens that served nobody**; queues still drain (max ~6 waiting
   evening, empty 42% of frames), no stranding, no stalls.
 
-## Handoff — next agent starts here (2026-06-08, session 11 complete)
+### Step 12 — cab capacity 4, recognisable riders, livelier occupants (2026-06-08, session 11)
+
+- **`LIFT_CAP` 3→4.** Cab widened to `lx=towerX+10, lw=9` (shifted one left of the
+  stairwell) so four rider columns still fit at 2px spacing.
+- **Riders are the walkers.** The cab silhouettes were generic black; now each
+  `WK_RIDING` walker draws in its own `hair`/`skin`/`shirt`/`pants` (lit cab, so
+  you see them, not a silhouette) — you recognise who you watched board.
+- **Window occupants wander for real.** `draw_occupant` no longer jiggles ±1px.
+  It now walks a "room" wider than the glass (`rx` runs `-5 .. WW+5`) on a
+  per-home ping-pong, `clip()`'d to the window so they slip behind the wall at
+  the edges, and goes "away in another room" (empty window) ~1/6 of the time.
+  Period/phase vary per home (`f*53 + b*97`). Applies to both the night shadow
+  and the day figure.
+
+## Handoff — next agent starts here (2026-06-08, session 12 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
 Directional hall calls (step 11) on top of the step-10 window occupants.

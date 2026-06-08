@@ -713,10 +713,25 @@ fast ≈ 200 ms / slow ≈ 500 ms decay.
 ### 8.8.5 Engine #5: ELECTRIC PIANO — SHIPPED + published 2026-06-08 (was the step-1 design)
 > **Post-ship findings (2026-06-08), tuned by ear + the navkit-render A/B (`tools/navkit-render.c`
 > + `tools/wav-envelope.js`):**
-> - **Rhodes was too "ringy."** The inharmonic tine/bell modes decayed in lockstep with the
->   fundamental (a drone, not a *ding*) — which also made the 3 Rhodes presets sound alike. Fix:
->   split the decay into a long BODY (mode 0) + a short BELL (modes ≥1) + a bell-level boost so
->   the tine dings over a sustaining body (`RHO_BODY/RHO_BELL/RHO_BLVL` consts in `sound_epiano_start`).
+> - **Rhodes rebuilt from MEASURED spectra (2026-06-08, second pass — supersedes the body/bell
+>   split below).** The bigger problem was structural: the old `RAT[0]` (`1, 4.2, 9.5, 16.3…`) made
+>   the *loudest, longest* partial an INHARMONIC 4.2× — an "untuned bell." FFT of our own render
+>   confirmed it (4.2× louder than the fundamental). Real Rhodes is the opposite (Shear 2011 UCSB
+>   thesis §2.1.2/Fig 2.2-2.3; Münster & Pfeifle JASA 148(5) 2020): the tine settles into near
+>   **simple harmonic** motion — fundamental + INTEGER harmonics 2,3,4,5 (2nd often loudest, *made
+>   by the nonlinear pickup*, Faraday + non-uniform field); the genuine inharmonic cantilever modes
+>   (clamped-free bar series **1 : 6.27 : 17.55 : 34.4**) are SHORT-LIVED — a fast attack ding only.
+>   Fix: `RAT[0]` = harmonics 1-6 + 6.27× bell + harmonics 8/10/12 + 17.55×/34.4× bells; per-mode
+>   `DEC_R[]` (harmonics sustain, bells die in ~0.1s); `AC/AO[0]` give the **"voicing"** crossfade
+>   (mellow = fundamental-dominant; bright = 2nd-harmonic dominant with even>odd partials, Shear
+>   §2.2.2); pickup nonlinearity gets an **always-on grit floor** + gentler register gate (it's the
+>   harmonic source, not just a dig-in effect). Verified by FFT vs the paper's figures: mellow →
+>   fundamental-dominant, bright → 2nd-dominant + both tine bells in the attack. Removed
+>   `RHO_BODY/BELL/BLVL`. (Tremolo is separate — see sound-handoff.md PARKED.)
+> - ~~**Rhodes was too "ringy."**~~ *(SUPERSEDED by the measured rebuild above.)* The inharmonic
+>   tine/bell modes decayed in lockstep with the fundamental (a drone, not a *ding*) — which also
+>   made the 3 Rhodes presets sound alike. First fix (now replaced): split the decay into a long
+>   BODY (mode 0) + a short BELL (modes ≥1) + a bell-level boost (the old `RHO_BODY/BELL/BLVL`).
 > - **`timbre` did nothing on Wurli/Clav** — it was only the pickup-position crossfade, whose
 >   profiles are near-identical there. Added the **hammer-hardness** half (timbre scales the upper
 >   modes), so timbre now brightens every instrument (clav 3× / wurli 4× / rhodes 6.5× swing).
@@ -801,7 +816,10 @@ piano; `INSTR_EPIANO` is the *electromechanical* one — two different sounds, b
 #### Appendix — navkit's EP data (verbatim)
 
 **Mode ratios** (`synth_oscillators.h:3675`):
-- **Rhodes** tine+spring: `1, 4.2, 9.5, 16.3, 24.8, 35, 47, 61, 77, 95, 115, 137` (wildly inharmonic — the bell attack)
+- **Rhodes** tine+spring: `1, 4.2, 9.5, 16.3, 24.8, 35, 47, 61, 77, 95, 115, 137` (wildly inharmonic)
+  — ⚠ **REPLACED 2026-06-08.** This navkit row sounded like an "untuned bell" (loud sustained 4.2×);
+  our shipping `RAT[0]` is now the measured `1,2,3,4,5,6, 6.27, 8,10,12, 17.55, 34.4` (harmonic body
+  + sparse fast inharmonic bells). See §8.8.5 post-ship findings + the `DEC_R` note in `sound.h`.
 - **Wurli** reed (odd-ish): `1, 2.02, 3.01, 5.04, 7.05, 9.08, 11.1, 13.1, 15.2, 17.2, 19.3, 21.3`
 - **Clav** string (near-harmonic): `1, 2.003, 3.012, 4.028, 5.15, 6.35, 7.6, 8.9, 10.2, 11.6, 13.0, 14.5`
 

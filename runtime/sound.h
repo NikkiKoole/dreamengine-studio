@@ -170,6 +170,17 @@ typedef struct {
     int    rd_len;                   // bore delay length (half-wavelength); 0 = no note-on init
     int    rd_idx;                   // bore write index into ks_buf
     bool   rd_on;                    // note-on init guard (engine id hit without a strike → silent)
+    // formant-voice state (INSTR_VOICE): navkit VoicForm port — a glottal pulse through four SVF
+    // formants with a continuous vowel morph. EXPERIMENTAL: the raw params live FLAT in vox_p[]
+    // (poked by voice_param() — the voxlab fat prototype) instead of riding the 3 macro knobs,
+    // so we can audition which three deserve to become harmonics/timbre/morph. vowels-only for now.
+    float  vox_p[7];                 // raw param TARGETS 0..1 (voice_param idx): vowel/size/breath/openQ/tilt/vibDepth/vibRate
+    float  vox_s[7];                 // slewed copies (per-sample one-pole → no zipper on slider moves)
+    float  vox_glot_ph;              // glottal pulse phase
+    float  vox_tilt_lp;              // spectral-tilt 1-pole state
+    float  vox_vib_ph;               // vibrato LFO phase
+    float  vox_f_low[4], vox_f_band[4]; // 4 formant SVF states (low, band) — high recomputed per sample
+    bool   vox_on;                   // note-on init guard (engine id hit without a start → silent)
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -336,6 +347,7 @@ typedef enum {
     SR_INSTR_TUNE   = 29,
     SR_INSTR_FOLLOW = 30,
     SR_NOTE_FOLLOW  = 31,
+    SR_VOICE_PARAM  = 32,   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab): a=idx, b=val*1000
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -812,35 +824,47 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     return out * 0.9f;
 }
 
-// Rhodes envelope split (tuned by ear + the navkit render, 2026-06-08). The fundamental is a
-// long warm BODY; the inharmonic tine/bell modes are a short DING over it. Without this split
-// the bell modes rang on as a drone — un-Rhodesy, and it made the 3 Rhodes presets sound alike.
-// RHO_BLVL boosts the (intentionally quiet) bell modes so the tine is audible — most of what
-// reads as "Rhodes" is this fast bright ding over a sustaining body. (audio-notes §8.8.5.)
-static const float RHO_BODY = 0.7f;    // Rhodes fundamental (body) decay, s
-static const float RHO_BELL = 0.13f;   // Rhodes bell/tine decay, s — the ding
-static const float RHO_BLVL = 12.0f;   // Rhodes bell-mode level
+// Rhodes per-mode decay (s). Rebuilt 2026-06-08 from measured spectra (Shear 2011 UCSB thesis
+// §2.1.2/Fig 2.2-2.3; Münster & Pfeifle JASA 148(5) 2020): a real Rhodes tine settles into near
+// SIMPLE HARMONIC motion — fundamental + INTEGER harmonics 2,3,4,5 (2nd often loudest, made by
+// the nonlinear pickup), the upper ones rolling off faster. The cantilever's genuine INHARMONIC
+// modes (6.27×, 17.55×, 34.4× — a clamped-free bar's 1:6.27:17.55 series) are SHORT-LIVED: a
+// fast attack DING, gone in ~0.1s. The old model had this inside-out (a loud sustained 4.2×
+// inharmonic partial = an "untuned bell"); now the harmonics are the body and the bell is sparse
+// + fast. Indices: 0-5 = harmonics 1..6, 6 = 6.27× bell, 7-9 = harmonics 8/10/12, 10-11 = 17.55×/
+// 34.4× bell. (audio-notes §8.8.5.)
+static const float DEC_R[12] = {
+    0.95f, 0.80f, 0.55f, 0.50f, 0.40f, 0.38f,   // harmonics 1,2,3,4,5,6 — body → mid sustain
+    0.12f,                                        // 6.27× tine bell — fast attack ding
+    0.30f, 0.22f, 0.18f,                          // harmonics 8,10,12 — bright, shorter
+    0.12f, 0.10f,                                 // 17.55×, 34.4× tine bells — fast
+};
 
 // EP note-on: build the 12 modal sines from the instrument detent (harmonics), brightness
 // (timbre = pickup position), register, and strike level. The modes then ring down (struck,
 // self-decaying — mallet family); the sample fn sums them, runs the pickup nonlinearity
-// (morph = bark, read live) and a DC blocker. navkit crib: initEPianoSettings + the tables.
+// (morph = bark, read live) and a DC blocker. Rhodes row = measured (see DEC_R note); Wurli/Clav
+// rows still navkit cribs (initEPianoSettings + the tables).
 static void sound_epiano_start(Voice *v) {
-    // 12 mode ratios per instrument (navkit synth_oscillators.h:3675 — the inharmonicity is
-    // the bell attack): Rhodes tine+spring, Wurli reed (odd-ish), Clav string (near-harmonic)
+    // 12 mode ratios per instrument. Rhodes (row 0) = harmonics 1-6 + 6.27× bell + harmonics
+    // 8/10/12 + 17.55×/34.4× bells (measured — see DEC_R note). Wurli reed (odd-ish), Clav string
+    // (near-harmonic) rows are navkit cribs (synth_oscillators.h:3675).
     static const float RAT[3][12] = {
-        { 1.0f, 4.2f, 9.5f, 16.3f, 24.8f, 35.0f, 47.0f, 61.0f, 77.0f, 95.0f, 115.0f, 137.0f },
+        { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 6.27f, 8.0f, 10.0f, 12.0f, 17.55f, 34.4f },
         { 1.0f, 2.02f, 3.01f, 5.04f, 7.05f, 9.08f, 11.1f, 13.1f, 15.2f, 17.2f, 19.3f, 21.3f },
         { 1.0f, 2.003f, 3.012f, 4.028f, 5.15f, 6.35f, 7.6f, 8.9f, 10.2f, 11.6f, 13.0f, 14.5f },
     };
-    // amp profiles, centered (mellow) -> offset (bright); timbre crossfades them (:3747)
+    // amp profiles, centered (mellow) -> offset (bright); timbre crossfades them (:3747).
+    // Rhodes row: mellow = fundamental-dominant, steep rolloff; bright = 2nd harmonic dominant
+    // with EVEN partials (2,4,6 → idx 1,3,5) over ODD (1,3,5 → idx 0,2,4) — the "voicing" effect
+    // (Shear §2.2.2: tine near pickup axis attenuates fundamental + odd partials, 2nd dominates).
     static const float AC[3][12] = {
-        { 1.0f, .04f, .03f, .06f, .03f, .02f, .015f, .012f, .010f, .008f, .006f, .004f },
+        { 1.0f, .28f, .10f, .05f, .03f, .015f, .10f, .008f, .005f, .003f, .04f, .01f },
         { 1.0f, .08f, .45f, .12f, .10f, .04f, 0,0,0,0,0,0 },
         { 1.0f, .30f, .20f, .35f, .15f, .06f, 0,0,0,0,0,0 },
     };
     static const float AO[3][12] = {
-        { .60f, .35f, .08f, .20f, .08f, .05f, .04f, .03f, .025f, .02f, .015f, .01f },
+        { .55f, 1.0f, .32f, .42f, .14f, .22f, .30f, .10f, .06f, .04f, .16f, .05f },
         { .60f, .15f, .60f, .20f, .20f, .08f, 0,0,0,0,0,0 },
         { .60f, .55f, .50f, .20f, .30f, .10f, 0,0,0,0,0,0 },
     };
@@ -866,14 +890,11 @@ static void sound_epiano_start(Voice *v) {
             a *= 0.45f + 1.1f * pp;                           // timbre = HAMMER HARDNESS: scales the upper
                                                              // modes so timbre always bites (the pickup
                                                              // crossfade alone is flat on wurli/clav)
-            if (ty == 0) a *= RHO_BLVL;                      // Rhodes bell-mode level
         }
         v->ep_amp[i] = a;
         float dec;
-        if (ty == 0) {                                       // TEMP Rhodes ring: body (mode 0) vs bell (>=1, the ding)
-            dec = (i == 0) ? RHO_BODY : RHO_BELL;
-            if (i >= 1) dec *= 1.0f / (1.0f + (RAT[0][i] - 1.0f) * 0.04f);  // higher tines a touch shorter
-            dec *= (1.0f - fn * 0.4f);                       // register
+        if (ty == 0) {                                       // Rhodes: per-mode decay — harmonics
+            dec = DEC_R[i] * (1.0f - fn * 0.4f);             // sustain, inharmonic bells die fast (register-scaled)
         } else {
             float dfac = 1.0f / (1.0f + (RAT[ty][i] - 1.0f) * 0.25f);   // upper modes ring shorter
             dec = BASE_DEC[ty] * (1.0f - fn * 0.4f) * dfac;
@@ -919,11 +940,16 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         float k3 = 0.40f + bark * 0.6f;
         out = sum + k2 * s2 + k3 * sum * s2;
         out = tanhf(out * 1.2f);
-    } else {                                          // Rhodes: even harmonics, asymmetric clip
-        float k  = (0.25f + bark * 1.2f) * regDist;
-        float k2 = (0.10f + bark * 0.4f) * regDist;
+    } else {                                          // Rhodes: even harmonics, asymmetric clip.
+        // The pickup nonlinearity is the REAL Rhodes harmonic source (Shear §2.2.1, Faraday's law
+        // + non-uniform field), so it has an ALWAYS-ON floor (0.15) — even soft notes have grit —
+        // and a GENTLER register gate than Wurli/Clav (present up the keyboard, not just low notes).
+        float rbark = 0.15f + bark * 0.85f;
+        float rdist = 1.0f - v->ep_freqnorm * 0.55f;
+        float k  = (0.18f + rbark * 0.9f) * rdist;
+        float k2 = (0.07f + rbark * 0.35f) * rdist;
         out = sum + k * s2 + k2 * sum * s2;
-        float drive = 1.0f + bark * 0.5f * regDist;
+        float drive = 1.0f + rbark * 0.4f;
         out = (out >= 0.0f) ? tanhf(out * drive) : tanhf(out * drive * 0.85f) * 0.9f;
     }
     float dcin = out;                                 // DC blocker (pickup AC coupling, ~7Hz)
@@ -1067,7 +1093,7 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
     // mouth pressure: steady blow + a little vibrato + a slow drift + the resonated breath noise
     float Pm = blow + vib * 0.045f + v->rd_drift * blow * 0.05f + blow * air * v->rd_noise_lp;
     // bore delay: fractional read length tracks the live pitch — plus our pitch vibrato (where a
-    // real wind vibrato mostly lives), and any cart LFO/glide/pitch-env (§8.8.1)
+    // real wind vibrato mostly lives), the lip drift, and any cart LFO/glide/pitch-env (§8.8.1)
     float curf = v->freq * pitch_mul * (1.0f + vib * 0.011f); if (curf < 20.0f) curf = 20.0f;
     float effLen = (float)v->rd_len * v->rd_initfreq / curf;
     if (effLen < 2.0f) effLen = 2.0f;
@@ -1107,6 +1133,102 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
     return bright * 1.5f * (1.0f + bore * 2.0f);
 }
 
+// ── INSTR_VOICE: formant voice (navkit VoicForm port; vowels-only for the voxlab prototype) ──
+// A glottal source (Rosenberg polynomial pulse + aspiration breath) through four parallel SVF
+// formant filters whose centre frequencies trace a continuous vowel path. The raw params
+// (voice_param idx 0..6) are exposed FLAT so the voxlab cart can audition which three deserve
+// to become the public harmonics/timbre/morph macros. navkit crib: processVoicFormOscillator /
+// vfPhonemeTable (navkit/soundsystem/engines/synth_oscillators.h). The formant SVF here is the
+// same Chamberlin topology as navkit's processFormantFilter and dreamengine's own filter().
+#define VOX_NPARAM 7
+// vowel path U→O→A→E→I (close-back → open → close-front): F1..F4 (Hz) + relative amps.
+// Trimmed from navkit's vfPhonemeTable vowel rows; bandwidths are derived from the centre freq.
+static const float vox_vowel_f[5][4] = {
+    { 300.0f,  870.0f, 2240.0f, 3400.0f},   // U  "oo" (boot)
+    { 570.0f,  840.0f, 2410.0f, 3400.0f},   // O  "oh" (go)
+    { 730.0f, 1090.0f, 2440.0f, 3400.0f},   // A  "ah" (father)
+    { 530.0f, 1840.0f, 2480.0f, 3400.0f},   // E  "eh" (bed)
+    { 270.0f, 2290.0f, 3010.0f, 3400.0f},   // I  "ee" (see)
+};
+static const float vox_vowel_a[5][4] = {
+    {1.0f, 0.30f, 0.15f, 0.08f},
+    {1.0f, 0.40f, 0.20f, 0.10f},
+    {1.0f, 0.50f, 0.30f, 0.10f},
+    {1.0f, 0.70f, 0.30f, 0.10f},
+    {1.0f, 0.50f, 0.20f, 0.10f},
+};
+
+// note-on: seed a neutral "ah" so a bare note(60, INSTR_VOICE, …) speaks; voice_param overrides live
+static void sound_voice_start(Voice *v) {
+    const float def[VOX_NPARAM] = { 0.5f, 0.33f, 0.10f, 0.5f, 0.30f, 0.15f, 0.5f };
+    for (int i = 0; i < VOX_NPARAM; i++) v->vox_p[i] = v->vox_s[i] = def[i];
+    v->vox_glot_ph = v->vox_tilt_lp = v->vox_vib_ph = 0.0f;
+    for (int i = 0; i < 4; i++) { v->vox_f_low[i] = 0.0f; v->vox_f_band[i] = 0.0f; }
+    v->vox_on = true;
+}
+
+// One INSTR_VOICE sample. params (vox_s, all 0..1): 0 vowel (U→I morph) · 1 size (formant
+// shift 0.5→2.0, the vocal-tract length / body) · 2 breath (aspiration noise) · 3 open-quotient
+// (glottal pulse width: pressed→relaxed) · 4 spectral tilt (bright→dark) · 5 vibrato depth ·
+// 6 vibrato rate (3→8 Hz). Pitch tracks freq*pitch_mul like every engine.
+static inline float sound_voice_sample(Voice *v, float pitch_mul) {
+    if (!v->vox_on) return 0.0f;
+    const float SR = (float)SOUND_SAMPLE_RATE;
+    const float PI_F = 3.14159265f, TWO_PI = 6.2831853f;
+    // slew the raw params toward their targets (one-pole, ~5ms) — kills slider zipper
+    for (int i = 0; i < VOX_NPARAM; i++) v->vox_s[i] += (v->vox_p[i] - v->vox_s[i]) * 0.004f;
+    float vowel = v->vox_s[0] * 4.0f;            // 0..4 position along the 5-vowel path
+    int vi = (int)vowel; if (vi > 3) vi = 3; if (vi < 0) vi = 0;
+    float vf = vowel - (float)vi;                // morph fraction to the next vowel
+    if (vf < 0.0f) vf = 0.0f; if (vf > 1.0f) vf = 1.0f;
+    float shift  = 0.5f + v->vox_s[1] * 1.5f;    // formant shift 0.5..2.0
+    float breath = v->vox_s[2];                  // aspiration 0..1
+    float oq     = 0.30f + v->vox_s[3] * 0.40f;  // open quotient 0.3..0.7
+    float tilt   = v->vox_s[4];                  // spectral tilt 0..1
+    float vibd   = v->vox_s[5];                  // vibrato depth 0..1
+    float vibr   = 3.0f + v->vox_s[6] * 5.0f;    // vibrato rate 3..8 Hz
+
+    // vibrato → pitch (±~1 semitone at full depth)
+    v->vox_vib_ph += vibr / SR; if (v->vox_vib_ph >= 1.0f) v->vox_vib_ph -= 1.0f;
+    float vib = sinf(v->vox_vib_ph * TWO_PI) * vibd * 0.06f;
+    float freq = v->freq * pitch_mul * powf(2.0f, vib);
+    if (freq < 20.0f) freq = 20.0f;
+
+    // glottal source: Rosenberg polynomial pulse (open-phase rise, closing fall, closed gap)
+    v->vox_glot_ph += freq / SR; if (v->vox_glot_ph >= 1.0f) v->vox_glot_ph -= 1.0f;
+    float t = v->vox_glot_ph, src;
+    float te = oq + 0.1f; if (te > 0.95f) te = 0.95f;
+    if (t < oq)      { float tn = t / oq;             src = 3.0f*tn*tn - 2.0f*tn*tn*tn; }
+    else if (t < te) { float tn = (t - oq)/(te - oq); src = 0.5f*(1.0f + cosf(tn * PI_F)); }
+    else             { src = 0.0f; }
+    // spectral tilt: a 1-pole LP darkens the source (bright bypass → dark)
+    float tc = 0.2f + tilt * 0.75f;
+    v->vox_tilt_lp += tc * (src - v->vox_tilt_lp);
+    src = src * (1.0f - tilt * 0.7f) + v->vox_tilt_lp * tilt * 0.7f;
+    // aspiration breath: mix white noise into the source
+    v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+    float nz = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+    src = src * (1.0f - breath * 0.5f) + nz * breath * 0.5f;
+
+    // 4 parallel SVF formants: centres morphed between adjacent vowels, then size-shifted
+    float out = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        float fc_hz = (vox_vowel_f[vi][i] * (1.0f - vf) + vox_vowel_f[vi+1][i] * vf) * shift;
+        if (fc_hz > SR * 0.45f) fc_hz = SR * 0.45f;
+        float amp = vox_vowel_a[vi][i] * (1.0f - vf) + vox_vowel_a[vi+1][i] * vf;
+        float bw  = 60.0f + fc_hz * 0.08f;               // bandwidth grows with centre freq
+        float f = 2.0f * sinf(PI_F * fc_hz / SR);
+        if (f > 0.99f) f = 0.99f; else if (f < 0.001f) f = 0.001f;
+        float q = fc_hz / (bw + 1.0f);
+        if (q < 0.5f) q = 0.5f; else if (q > 20.0f) q = 20.0f;
+        v->vox_f_low[i] += f * v->vox_f_band[i];
+        float high = src - v->vox_f_low[i] - v->vox_f_band[i] / q;
+        v->vox_f_band[i] += f * high;
+        out += v->vox_f_band[i] * amp;
+    }
+    return out * 0.8f;
+}
+
 // One engine sample — the dispatch (engine ids >= INSTR_ENGINE_BASE). The default body is
 // PLUCK. pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries
 // note_pitch/note_glide (slewed) — so the SAME pitch machinery every oscillator answers
@@ -1120,6 +1242,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_PD)     return sound_pd_sample(v, pitch_mul);
     if (v->wave == INSTR_MEMBRANE) return sound_membrane_sample(v, pitch_mul);
     if (v->wave == INSTR_REED)   return sound_reed_sample(v, pitch_mul);
+    if (v->wave == INSTR_VOICE)  return sound_voice_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -1290,6 +1413,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->ep_on  = false;
     v->mb_on  = false;
     v->rd_on  = false;
+    v->vox_on = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -1297,6 +1421,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_EPIANO) sound_epiano_start(v);   // build the 12 modal sines
     else if (v->wave == INSTR_MEMBRANE) sound_membrane_start(v); // strike the drumhead
     else if (v->wave == INSTR_REED)   sound_reed_start(v);     // size + seed the bore (self-oscillates)
+    else if (v->wave == INSTR_VOICE)  sound_voice_start(v);    // seed a neutral vowel (self-oscillates)
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
@@ -1386,6 +1511,12 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_NOTE_CUTOFF) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) v->cutoff_target = (float)r.a;
+    } else if (r.kind == SR_VOICE_PARAM) {   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v && r.a >= 0 && r.a < VOX_NPARAM) {
+            float x = r.b / 1000.0f; if (x < 0.0f) x = 0.0f; else if (x > 1.0f) x = 1.0f;
+            v->vox_p[r.a] = x;
+        }
     } else if (r.kind == SR_NOTE_DUTY) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float d = r.a / 1000.0f; v->duty_target = d < 0.01f ? 0.01f : d > 0.99f ? 0.99f : d; }
@@ -2105,6 +2236,13 @@ void instrument_choke(int slot_a, int slot_b) {
 void note_harmonics(int handle, float x)     { sound_macro_note(handle, 0, x); }
 void note_timbre(int handle, float x)        { sound_macro_note(handle, 1, x); }
 void note_morph(int handle, float x)         { sound_macro_note(handle, 2, x); }
+
+// EXPERIMENTAL — poke a raw INSTR_VOICE param by index on a held note (the voxlab fat prototype).
+// idx 0..6: vowel / size / breath / open-quotient / tilt / vibrato-depth / vibrato-rate. value 0..1.
+void voice_param(int handle, int idx, float value) {
+    if (handle <= 0 || idx < 0 || idx >= VOX_NPARAM) return;
+    sound_push_ctrl(SR_VOICE_PARAM, idx, (int)(value * 1000.0f), 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
 
 // ── tune: per-slot detune in semitones (fractions are the point) — applies LIVE to every
 //    sounding voice on the slot, fire-and-forget hits included (the SH-101 TUNE trimmer,

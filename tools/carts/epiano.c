@@ -1,4 +1,4 @@
-// epiano — INSTR_EPIANO showcase: a piano manual + the three engine macros + a WAH.
+// epiano — INSTR_EPIANO showcase: a piano manual + the three engine macros + a WAH + TREMOLO.
 //
 // The fifth modeled ENGINE: Rhodes / Wurlitzer / Clavinet in ONE. Every key sums 12 decaying
 // inharmonic sine modes and pushes them through a PICKUP NONLINEARITY — the bark/buzz/honk
@@ -43,29 +43,29 @@ static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
 static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
 static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
 
-#define NSL 4
-enum { SL_INST, SL_BRITE, SL_BARK, SL_WAH };
-static const char *SL_NAME[NSL] = { "instrument", "bright", "bark", "wah" };
-static const char *SL_LO[NSL]   = { "rhodes", "mellow", "clean", "subtle" };
-static const char *SL_HI[NSL]   = { "clav",   "bright", "growl", "deep" };
+#define NSL 5
+enum { SL_INST, SL_BRITE, SL_BARK, SL_WAH, SL_TREM };
+static const char *SL_NAME[NSL] = { "instrument", "bright", "bark", "wah", "tremolo" };
+static const char *SL_LO[NSL]   = { "rhodes", "mellow", "clean", "subtle", "off" };
+static const char *SL_HI[NSL]   = { "clav",   "bright", "growl", "deep",   "throb" };
 static const char *INSTRUMENT[3]= { "RHODES", "WURLI", "CLAV" };
 static const char *WAHNAME[4]   = { "off", "auto", "env", "touch" };
 
 // presets = slider positions + a wah mode. harmonics lands on an instrument detent.
 typedef struct { const char *name; float v[NSL]; int wah; } Preset;
 static const Preset PRESET[6] = {
-    { "rhodes",   { 0.15f, 0.30f, 0.25f, 0.5f }, 0 },   // warm suitcase-ish
-    { "rho brite",{ 0.15f, 0.78f, 0.55f, 0.5f }, 0 },   // bright stage, barky
-    { "suitcase", { 0.15f, 0.20f, 0.12f, 0.5f }, 0 },   // mellow, clean, long
-    { "wurli",    { 0.50f, 0.35f, 0.30f, 0.5f }, 0 },   // soul ballad
-    { "wur buzz", { 0.50f, 0.66f, 0.82f, 0.6f }, 1 },   // cranked reed + auto-wah movement
-    { "clav",     { 0.85f, 0.75f, 0.55f, 0.6f }, 2 },   // funky bridge pickup + ENV-WAH (the fast per-note filter quack — navkit's "Clav Funky", confirmed by rendering it)
+    { "rhodes",   { 0.15f, 0.30f, 0.25f, 0.5f, 0.35f }, 0 },   // warm suitcase-ish + classic wobble
+    { "rho brite",{ 0.15f, 0.78f, 0.55f, 0.5f, 0.30f }, 0 },   // bright stage, barky
+    { "suitcase", { 0.15f, 0.20f, 0.12f, 0.5f, 0.45f }, 0 },   // mellow, clean, long, deep tremolo
+    { "wurli",    { 0.50f, 0.35f, 0.30f, 0.5f, 0.50f }, 0 },   // soul ballad — the 200A's deeper trem
+    { "wur buzz", { 0.50f, 0.66f, 0.82f, 0.6f, 0.55f }, 1 },   // cranked reed + auto-wah + trem
+    { "clav",     { 0.85f, 0.75f, 0.55f, 0.6f, 0.0f  }, 2 },   // funky bridge pickup + ENV-WAH (the fast per-note filter quack — navkit's "Clav Funky", confirmed by rendering it). NO tremolo — a real clav has none
 };
 
 static int   handle[NKEY];
 static float glow[NKEY];
 static int   octave = 4;
-static float val[NSL] = { 0.15f, 0.30f, 0.25f, 0.5f };   // boot on "rhodes"
+static float val[NSL] = { 0.15f, 0.30f, 0.25f, 0.5f, 0.35f };   // boot on "rhodes"
 static int   sel = 0;
 static int   cur_preset = 0;
 static int   wah = 0;            // 0 off, 1 auto (LFO_CUTOFF), 2 env (ENV_CUTOFF quack)
@@ -100,9 +100,9 @@ static Ptr ptr[NPTR];
 #define WAH_W 86
 #define WAH_H 20
 
-#define KNOB_W   64
+#define KNOB_W   52
 #define KNOB_Y   (SCREEN_H - 30)
-#define KNOB_X(k) (12 + (k) * 76)
+#define KNOB_X(k) (8 + (k) * 62)
 
 static int midi_of(int idx) {
     int base = (octave + 1) * 12;
@@ -151,6 +151,15 @@ static void apply_wah(void) {
     }
 }
 
+// THE TREMOLO RECIPE — the suitcase/Wurli amp wobble, the "electric" signature: an LFO on the
+// voice VOLUME (~5-6 Hz, depth scales with the slider). Slot-level so every strike inherits it.
+// LFO slot 1 — the wah owns slot 0 (LFO_VOLUME and LFO_CUTOFF run independently). Rhodes &
+// Wurli want this (the 200A's is deeper); the clav preset zeroes it — a real clav has no tremolo.
+static void apply_trem(void) {
+    float amt = val[SL_TREM];
+    instrument_lfo(I_EP, 1, LFO_VOLUME, 5.0f + amt * 1.5f, amt * 0.85f);
+}
+
 static void key_down(int b) {
     if (handle[b] >= 0) { note_off(handle[b]); handle[b] = -1; }
     handle[b] = note_on(midi_of(b), I_EP, 6);
@@ -179,7 +188,7 @@ static void set_preset(int p) {
     for (int k = 0; k < NSL; k++) val[k] = PRESET[p].v[k];
     wah = PRESET[p].wah;
     cur_preset = p;
-    apply_slot(); apply_wah();
+    apply_slot(); apply_wah(); apply_trem();
     audition();
 }
 
@@ -187,7 +196,7 @@ void init(void) {
     instrument(I_EP, INSTR_EPIANO, 1, 0, 7, 1500);   // long gate: never chop the ring
     for (int b = 0; b < NKEY; b++) handle[b] = -1;
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
-    apply_slot(); apply_wah();
+    apply_slot(); apply_wah(); apply_trem();
     bpm(76);
 }
 
@@ -210,7 +219,7 @@ void update(void) {
     if (key(KEY_UP) || key(KEY_DOWN)) {
         val[sel] = clamp(val[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
         cur_preset = -1;
-        apply_slot(); apply_wah();
+        apply_slot(); apply_wah(); apply_trem();
         if (frame() % 14 == 0) audition();
     }
 
@@ -260,7 +269,7 @@ void update(void) {
         } else if (p->mode == PTR_DRAG) {
             val[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
             cur_preset = -1;
-            apply_slot(); apply_wah();
+            apply_slot(); apply_wah(); apply_trem();
             if (frame() % 14 == 0) audition();
         }
     }
@@ -289,6 +298,7 @@ void update(void) {
     watch("harm", "%.2f", val[SL_INST]);
     watch("timb", "%.2f", val[SL_BRITE]);
     watch("bark", "%.2f", val[SL_BARK]);
+    watch("trem", "%.2f", val[SL_TREM]);
     watch("wah",  "%d", wah);
     watch("preset", "%d", cur_preset);
 #endif
@@ -365,7 +375,7 @@ void draw(void) {
     for (int k = 0; k < NSL; k++) {
         int x = KNOB_X(k), y = KNOB_Y;
         bool on = (k == sel);
-        bool fx = (k == SL_WAH);
+        bool fx = (k == SL_WAH || k == SL_TREM);
         font(FONT_SMALL);
         print(SL_NAME[k], x, y - 8, on ? CLR_YELLOW : fx ? CLR_DARK_ORANGE : CLR_MEDIUM_GREY);
         font(FONT_NORMAL);

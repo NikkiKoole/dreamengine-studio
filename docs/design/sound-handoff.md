@@ -42,7 +42,7 @@ we are" + the FIXED/PARKED sections). Nothing on EP is blocking. Next:
    because of the wah detour — don't skip it.)
 2. Optional treat: a **Rhodes comping under the organ** (two engines together).
 3. When the effects-bus layer (§8.10) eventually opens: revisit the PARKED per-voice wah +
-   envelope follower (fold into the bus wah or remove).
+   envelope follower + epiano tremolo (fold into shared phase-coherent bus modulators, or remove).
 
 ## ~~OPEN~~ FIXED (2026-06-08) — the Rhodes "doesn't sound Rhodesy" (prime suspect was right)
 
@@ -137,6 +137,24 @@ for finished intent or build more on top of them:
   likely be replaced by the bus wah.
 - **The envelope follower (`instrument_follow`/`note_follow`)** — its real home is bus-level. No
   shipped customer yet. Keep, but it's a re-evaluate-when-§8.10-lands item, not a proven primitive.
+- **Per-voice epiano tremolo (`epiano.c` SL_TREM → `LFO_VOLUME` on LFO slot 1, added 2026-06-08)**
+  — the suitcase/Wurli amp wobble, the "electric" signature the dry tine+pickup model was missing.
+  But on real hardware tremolo is a **bus effect**: one LFO in the suitcase preamp, downstream of
+  where the tines sum, so the whole keyboard pulses in lockstep. Our per-voice version resets each
+  voice's LFO phase to 0 at note-on (`sound.h:1369`), so **block chords struck on one frame wobble
+  coherently** (the common case, sounds right) but **staggered/rolled notes drift out of phase** —
+  hardware keeps them locked regardless of strike time. **Per-variant target when this graduates:**
+  - **Rhodes SUITCASE wants a stereo AUTO-PAN** — its amp tremolo is really the signal panning
+    between two speaker/amp pairs (left↔right movement, not just a level dip). We're a MONO engine
+    today, so we can only do amplitude tremolo; the suitcase's defining wobble needs stereo — itself
+    a reason its real home is the bus/output layer (§8.10), where a stereo field can exist. Until
+    then the mono amp-trem is a stand-in for the suitcase.
+  - **Wurlitzer wants mono amplitude tremolo** (the 200A's built-in trem genuinely is level
+    modulation, deeper/faster than the Rhodes) — so our per-voice amp-trem already matches the Wurli
+    closely; it's only the Rhodes it under-serves.
+  - **Clav**: none (the preset zeroes it; a real clav has no tremolo).
+  Move it to the bus layer (§8.10) **alongside the auto-wah** — one shared phase-coherent LFO on the
+  summed mix, and the home for the suitcase stereo auto-pan. Good interim; not the end goal.
 
 **Hygiene rule (so this happens less):** see the **engine playbook step 0** (§8.8.2) — *render
 the reference and locate its LAYER before building*. The wah detour was a per-voice build chasing

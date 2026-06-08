@@ -27,6 +27,44 @@
 // phone with no keyboard. Open, the strip replaces that corner. solo_midi()
 // returns the note sounding right now (-1 = silent) for display or a trace.
 //
+// ── MAKING ROOM: the station must yield its own lead ───────────────────────
+// Most stations ALSO play their own melodic lead (a flute, a whistle, a
+// melodica). With the strip live there are now two soloists in the same
+// register — and two leads blowing at once is mud, on a real bandstand too.
+// So the station owes the player room: gate its OWN lead block on one of the
+// two signals this header exposes. (The strip never silences the station — it
+// can't know which voice is the lead; only the station does. So this is a
+// one-line guard YOU add, per station, on the lead's emission.)
+//
+// Two signals, three strategies — pick by genre, decide by ear:
+//
+//   • LAY OUT  — guard the lead on `!solo_open()`. The instant the player
+//     opens the strip the station stops launching lead notes; gating note-ons
+//     (not the sounding voice) lets the current note ring to its end, so the
+//     soloist finishes ON THE BEAT and hands over — no mid-note chop. A held/
+//     legato lead (jangle) should route through its existing trail-off so the
+//     sustained voice releases instead of cutting. This is the default: clear
+//     "I've got it" gesture, zero clash. Cost: a brief hole if the player opens
+//     the tab and doesn't play — which reads as an invitation, not a bug.
+//     Used by: bossa, citypop, jingle, jangle.
+//
+//   • TRADE   — guard the lead on `!solo_playing()`. The station lead drops out
+//     ONLY while a strip note is actually held, and fills the gaps when the
+//     player rests: call-and-response / trading fours. No hole, the busiest and
+//     most "alive" feel. Best where a tail bridges the handoff — dub's tape
+//     echo makes the melodica trade gorgeous. Used by: dub.
+//
+//   • DUCK    — keep the lead sounding but quieter while the player plays.
+//     Truest to a mixing desk, but our notes are scheduled-ahead at a fixed
+//     vol, so it's awkward to retro-quiet them; TRADE (gate the emission) is
+//     the practical stand-in here. Documented for completeness, unused so far.
+//
+// Don't put the strip on stations whose idiom has no soloist to begin with
+// (ambient, satie) — there's nothing to make room, and a lead pad just fights
+// the texture. The five stations above were chosen because each already has a
+// lead voice the player is stepping in for. Full reasoning: game-music.md →
+// "the jam layer".
+//
 // Everything static (gestures.h / improv.h / ui.h pattern).
 
 #ifndef SOLO_H
@@ -81,6 +119,7 @@ static int  solo_oct      = 0;     // octave shift of the playable window (- / +
 
 static bool  solo_open(void) { return solo_open_f; }
 static int   solo_midi(void) { return solo_curMidi; }   // -1 = silent
+static bool  solo_playing(void) { return solo_curMidi >= 0; }  // a strip note is sounding NOW
 static float solo_y(void)    { return solo_curY; }      // vertical 0..1, -1 = silent
 
 static void solo_kill(void) {

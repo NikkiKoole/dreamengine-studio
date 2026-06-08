@@ -304,8 +304,11 @@ static void play_step(long abs, double pos) {
                 vu += 1.5f;
             }
 
-    // MELODY — the repeating cell, re-pitched to each chord; rests breathe
-    if (intensity >= 2) {
+    // MELODY — the repeating cell, re-pitched to each chord; rests breathe.
+    // The band's flute lays out while you have the jam strip open: gating new
+    // note-ons (not the sounding voice) lets the current note ring to its end,
+    // so the soloist finishes on the beat and yields the lead — no mid-note chop.
+    if (intensity >= 2 && !solo_open()) {
         if (s32 == 0) melOn = chance(intensity >= 3 ? 85 : 60);
         if (melOn)
             for (int i = 0; i < sng.cellN; i++)

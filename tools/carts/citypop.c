@@ -319,8 +319,9 @@ static void play_step(long abs, double pos) {
         vu += 2.5f;
     }
 
-    // LEAD — the chorus hook, glittering up top
-    if (lvl >= 2) {
+    // LEAD — the chorus hook, glittering up top. Lays out while the player has
+    // the jam strip open (gating note-ons lets the sounding note ring to its end).
+    if (lvl >= 2 && !solo_open()) {
         int s32 = (int)(s % 32);
         for (int i = 0; i < cellN; i++)
             if (cellOn[i] == s32 && chance(85)) {

@@ -349,8 +349,9 @@ static void play_step(long abs, double pos) {
             schedule_hit(lag, 88, I_HAT, (step % 8 == 4) ? 2 : 1, 22);
     }
 
-    // MELODY — the seeded cell, re-pitched with the accommodation rule
-    if (lvl >= 2) {
+    // MELODY — the seeded cell, re-pitched with the accommodation rule. Lays out
+    // while the player has the jam strip open (the sounding note rings to its end).
+    if (lvl >= 2 && !solo_open()) {
         int s32 = (int)(s % 32);
         for (int i = 0; i < cellN; i++)
             if (cellOn[i] == s32 && chance(85)) {

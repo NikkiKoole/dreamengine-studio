@@ -252,7 +252,7 @@ static void lead_tick(double pos) {
     if (s < 0) { return; }
     long bar = s / 16;
     long L   = bar / vamp_bars();
-    bool want = radioOn && solo_on(L);
+    bool want = radioOn && solo_on(L) && !solo_open();   // lay out for the player's strip
 
     if (!want) {
         if (leadH >= 0 && chance(8)) { note_off(leadH); leadH = -1; }   // trail off

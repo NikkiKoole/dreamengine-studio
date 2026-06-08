@@ -708,16 +708,14 @@ static inline float sound_organ_sample(Voice *v, float pitch_mul) {
     return out * 0.9f;
 }
 
-// --- TEMP epiano Rhodes-ring tuning (2026-06-08) -------------------------------------------
-// The Rhodes was too "ringy" — the inharmonic tine/bell modes sustained instead of pinging and
-// dying over a warm fundamental (which also made the 3 Rhodes presets sound alike). Split the
-// Rhodes decay into a long BODY (mode 0) and a short BELL (modes >=1, the ding) + a bell level.
-// Tuned via render + wav-analyze; once the envelope's right, fold these into the per-mode decay
-// below as constants and delete this block. See sound-handoff.md.
-static float de_ept_body = 0.7f;   // Rhodes fundamental (body) decay, seconds
-static float de_ept_bell = 0.13f;  // Rhodes bell/tine decay, seconds — the "ding" length
-static float de_ept_blvl = 12.0f;  // Rhodes bell-mode level multiplier
-// -------------------------------------------------------------------------------------------
+// Rhodes envelope split (tuned by ear + the navkit render, 2026-06-08). The fundamental is a
+// long warm BODY; the inharmonic tine/bell modes are a short DING over it. Without this split
+// the bell modes rang on as a drone — un-Rhodesy, and it made the 3 Rhodes presets sound alike.
+// RHO_BLVL boosts the (intentionally quiet) bell modes so the tine is audible — most of what
+// reads as "Rhodes" is this fast bright ding over a sustaining body. (audio-notes §8.8.5.)
+static const float RHO_BODY = 0.7f;    // Rhodes fundamental (body) decay, s
+static const float RHO_BELL = 0.13f;   // Rhodes bell/tine decay, s — the ding
+static const float RHO_BLVL = 12.0f;   // Rhodes bell-mode level
 
 // EP note-on: build the 12 modal sines from the instrument detent (harmonics), brightness
 // (timbre = pickup position), register, and strike level. The modes then ring down (struck,
@@ -761,12 +759,12 @@ static void sound_epiano_start(Voice *v) {
             float k = keep * keep;                           // upper modes fade with register
             if (i >= 4) k *= keep;                           // bell modes steeper (real Rhodes top ~ pure sine)
             a *= k * (0.3f + 0.7f * vel);                    // and brighter when struck harder
-            if (ty == 0) a *= de_ept_blvl;                   // TEMP: Rhodes bell-mode level
+            if (ty == 0) a *= RHO_BLVL;                      // Rhodes bell-mode level
         }
         v->ep_amp[i] = a;
         float dec;
         if (ty == 0) {                                       // TEMP Rhodes ring: body (mode 0) vs bell (>=1, the ding)
-            dec = (i == 0) ? de_ept_body : de_ept_bell;
+            dec = (i == 0) ? RHO_BODY : RHO_BELL;
             if (i >= 1) dec *= 1.0f / (1.0f + (RAT[0][i] - 1.0f) * 0.04f);  // higher tines a touch shorter
             dec *= (1.0f - fn * 0.4f);                       // register
         } else {

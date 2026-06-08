@@ -234,6 +234,12 @@ their `kind[]` tags.
    own banks. See audio-notes §5.6 direction note.*
    ⚠️ The port touches `runtime/sound.h`/`studio.c` — shared with the live/libtcc runtime work;
    sync before starting. [`design/audio-notes.md`](design/audio-notes.md) §5–8, [`design/held-notes.md`](design/held-notes.md).
+   🅿️ **PARKED — revisit when the effects-bus layer (instrument-engines §8.10) lands:** the
+   per-voice wah (epiano AUTO/TOUCH flavours) and the **envelope follower** (`instrument_follow`/
+   `note_follow`) are *interim* — the realistic "woah woah" auto-wah is a BUS effect and will
+   likely replace them; the follower's real home is bus-level. Kept (may be handy) but flagged so
+   we don't build more on them. When §8.10 is built: reassess whether to fold these into the bus
+   wah or remove. Full context: [`design/sound-handoff.md`](design/sound-handoff.md) → PARKED.
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
 7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.

@@ -764,6 +764,22 @@ the wall was hit, and scored against §1's leverage rule.
    - **[2a] Bells and metal are out of reach.** FM's inharmonic partials are
      exactly gamelan's bronze (ombak beating *inside* one voice) and
      exotica's vibraphone.
+     **→ MOSTLY CLOSED 2026-06-08** by `INSTR_MALLET` (struck bronze/vibes) +
+     `INSTR_FM`'s 3.5 clang detent (inharmonic bell) — exotica/lowend/addis all
+     play bronze today. **The one remaining sliver — the sustained GONG.**
+     (Noted 2026-06-09 while speccing [`gamelan.md`](gamelan.md).) A big hanging
+     gong (gong ageng/kempul) needs a *10–30 s shimmering metallic tail* — and no
+     engine sustains inharmonic metal that long: MALLET and FM are both **struck**
+     (self-decaying within the note), so a held gong fights its own decay envelope.
+     The shippable **workaround** (good enough for the gamelan station, documented
+     in its spec): `instrument(I_GONG, INSTR_MALLET, 1, 0, 7, 5000)` — full bell
+     ratios, soft strike, max ring, **sustain 7 + a long ~5 s release** — plus
+     `instrument_tune` shimmer for the ombak *inside* the gong and a little
+     `instrument_echo()` (the dub-throw bus send) for pavilion air. The **true
+     fix** is the deferred room/reverb layer (gap 5 below): a gong's defining
+     shimmer is the bronze *plus* the pavilion acoustics, and a diffuse tail can't
+     be a struck envelope. Until that ships, the honest fallback is a shorter,
+     more *present* gong rather than one pretending to ring for 20 s.
    - **[2b] Pads cost double.** ambient.c burns 4 of `SOUND_VOICES 8` on one
      chord; house.c cut its string machine to 2 voices for budget. An
      instrument-level **unison-detune flag** would halve every pad's

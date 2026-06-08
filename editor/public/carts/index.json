@@ -404,7 +404,7 @@
   },
   {
     "title": "vox",
-    "description": "The formant VOICE engine (INSTR_VOICE — navkit VoicForm port) reduced to the THREE axes the voxlab probe landed on, plus a per-note CONSONANT attack, for a real play: VOWEL (the U→O→A→E→I morph — what's said), SIZE (formant shift = vocal-tract length, giant→child — who says it), and EFFORT — a single macro sweeping breath + glottal open-quotient + spectral tilt together, the soft→hard gesture (breathy/dark/relaxed → pressed/bright/clean). The CONSONANT row (b d g m n l s sh) fires a timed articulation onset at note-start (voice_consonant) so a note begins 'bah'/'mah'/'sss-ah' before settling on the held vowel — a timed attack, NOT a continuous axis; click one to (re)say the note. Vibrato is also not an axis: the V toggle adds it as an external pitch LFO (note_lfo → LFO_PITCH). Still drives the engine through the experimental voice_param()/voice_consonant() path pending the final wiring. SPACE (re)articulates · Z/X pitch · V vibrato · drag the three sliders · click a consonant.",
+    "description": "The formant VOICE engine (INSTR_VOICE — navkit VoicForm port) on the THREE axes the voxlab probe landed on (VOWEL = U→O→A→E→I morph · SIZE = formant shift / vocal-tract length, giant→child · EFFORT = one macro of breath + glottal open-quotient + spectral tilt, breathy/dark/relaxed → pressed/bright/clean), with TWO ways to play. The SLIDERS + SPACE hold a sustained drone you tweak by hand. The JAM PAD is a scale-locked 2D strip (like the radio jam bar): drag across it to sing — X picks the note (major pentatonic, always in tune), Y is the second dimension = effort (up = louder/pressed), and every new note grabs a RANDOM consonant + vowel so dragging auto-scats ('ba-doo-la-see'). The SHAPE toggle (S) flips where the consonant goes: CV 'b·a' = a consonant ONSET (voice_consonant), the note starts on it ('bah'/'mah'); VC 'a·m' = a consonant CODA (voice_coda), the note closes on it ('ahh-m'/'oo-d') as it releases. Consonants are timed onsets/codas, vibrato is the external pitch LFO (V toggle) — neither is an axis. Still drives the engine through the experimental voice_param()/voice_consonant()/voice_coda() path pending the final wiring. Drag the JAM PAD to sing · SPACE = drone · Z/X shift the scale root · V vibrato · S syllable shape (CV/VC) · drag the three sliders for the base voice.",
     "file": "vox.cart.png",
     "kind": [
       "instrument",
@@ -2524,6 +2524,16 @@
       "instrument"
     ],
     "homage": "Mulatu Astatke / Swinging Addis (ethio-jazz)"
+  },
+  {
+    "title": "gamelan radio",
+    "description": "Endless Indonesian gamelan - the Java / Bali homage, station #19, and the FIRST station to leave the equal-tempered grid: TUNING AS DATA. The seed rolls slendro (5 tones) or pelog (7) as a CENT table, then jitters every degree, because no two village gamelans are tuned alike - each song is played on slightly different bronze, named for its ensemble (Kyai Kanyut, Mendung...). It's realized as a BRONZE BANK: one INSTR_MALLET slot per scale degree, instrument_tune()'d once per song to that degree's microtonal residual - so because an octave is exactly 12 integer semitones, the whole pitched range plays through sample-tight schedule_hit() on integer midi while the slot detune bends each note off the 12-TET grid. The suling (bamboo flute, INSTR_REED) takes the other road: note_pitch() float, truly continuous, floating free of the pulse. COLOTOMIC TIME, a new TIME brain: form is nested gong cycles, not bar/phrase/section - the great gong (gong ageng) closes the gongan, kenong marks its quarters, kempul the points between, and the window's cycle ring rides round to the gong. KOTEKAN, a new MELODY brain: two voices (polos + sangsih) on complementary onset masks that sum to an unbroken 16th stream neither plays alone - built by dealing alternate sixteenths, so the interlock is disjoint-and-full by construction (trace-verified). OMBAK is the timbral identity: the great gong is struck as a detuned PAIR, two slots a few cents apart, beating against itself. And IRAMA is the feel knob - the gamelan inversion of 'more': turn it up and the core melody SLOWS while the elaboration thickens (Java end to Bali end). The band is all bronze (INSTR_MALLET), the gong pair, the kendang hand drums (INSTR_MEMBRANE), and the suling. SPACE next gamelan (a new village), R same gamelan (the suling is new), [ ] history, LEFT/RIGHT irama (lancar/tanggung/dadi/wiled), UP/DOWN tempo, T tone, M power, H help.",
+    "file": "gamelan.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "Javanese / Balinese gamelan"
   },
   {
     "title": "carlos radio",

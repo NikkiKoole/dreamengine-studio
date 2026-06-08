@@ -60,8 +60,20 @@ and Sakamoto unprompted.
    rule applied to melody); roadhouse.c migrated same-day. Bonus the plan didn't
    call: the BASS takes a solo too (same brain, register 45, density 0.62 — the
    brushes drop to a whisper and the piano just nods).
-5. **Gamelan (Java/Bali)** — planned 2026-06-05; the first station to leave
-   12-TET entirely. Four new tricks in one cart:
+5. ~~**Gamelan (Java/Bali)**~~ — ✅ shipped as `gamelan.c` (2026-06-09, station
+   #19); full design record + open items in [`gamelan.md`](gamelan.md). The first
+   station to leave **12-TET's equal-tempered grid** — note `addis.c` already left
+   major/minor (scales-as-data), but stayed on 12 equal semitones; gamelan's
+   genuinely-new headline held: **seed-rolled MICROTONAL tuning** (cent tables,
+   different bronze every song), realized via a BRONZE BANK — one MALLET slot per
+   degree, `instrument_tune`'d to its residual, so integer `schedule_hit` lands
+   microtonal and stays sample-tight. All four predicted tricks landed (tuning as
+   data · colotomic time · kotekan interlock, masks trace-verified disjoint+full ·
+   ombak on the gong pair), plus irama as the feel knob (the "more = slower core +
+   denser elaboration" inversion). The one approximation: the sustained great gong
+   (no long-tail inharmonic-metal engine — MALLET + long release stands in; see
+   [`audio-notes.md`](audio-notes.md) §12, the gong note). Four new tricks in one
+   cart:
    - **the tuning system as data** — sléndro/pélog as cent tables fed through
      `note_pitch` floats; and since *no two real gamelans are tuned alike*
      (every village ensemble is its own instrument), **the seed rolls the

@@ -885,9 +885,42 @@ static inline float sound_ad_env(int s, int a, int d) {
     return expf(-4.0f * (float)s / (float)d);         // e^-4 ≈ 0.018 by the end — punchy, near-zero
 }
 
-// Chamberlin state-variable filter — one sample. Updates the voice's running state and
-// returns the lowpass/highpass/bandpass/notch tap. `q` is damping (1/Q); smaller = more resonant.
+// --- TEMP filter A/B (2026-06-08) -----------------------------------------------------------
+// Two SVF topologies behind one switch so we can A/B + wav-analyze the wah before committing:
+//   de_svf_tpt = 0 → the original CHAMBERLIN SVF (current behaviour — DEFAULT, zero regression)
+//   de_svf_tpt = 1 → a TPT / Cytomic (zero-delay-feedback) SVF: cleaner, accurately-tuned
+//     resonant peak at high cutoff/Q (the navkit-wah quality). Both reuse flt_low/flt_band
+//     (TPT: the two integrator states) and flt_q (damping ≈ 1/Q ≈ k).
+// Resolve after the A/B: keep one, delete the other + this flag + the cart toggle.
+int de_svf_tpt = 0;
+
+// State-variable filter — one sample. Returns the lowpass/highpass/bandpass/notch tap per
+// v->flt_mode. `flt_q` is damping (1/Q); smaller = more resonant.
 static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
+    if (de_svf_tpt) {
+        // TPT / Cytomic SVF (Andrew Simper) — zero-delay feedback, accurate at all fc/Q.
+        float g  = tanf(3.14159265f * cutoff_hz / (float)SOUND_SAMPLE_RATE);
+        float k  = v->flt_q;                       // damping = 1/Q (same mapping as Chamberlin)
+        float a1 = 1.0f / (1.0f + g * (g + k));
+        float a2 = g * a1;
+        float a3 = g * a2;
+        float ic1 = v->flt_band, ic2 = v->flt_low; // integrator states (reuse the fields)
+        float v3 = in - ic2;
+        float v1 = a1 * ic1 + a2 * v3;
+        float v2 = ic2 + a2 * ic1 + a3 * v3;
+        v->flt_band = 2.0f * v1 - ic1;
+        v->flt_low  = 2.0f * v2 - ic2;
+        if      (v->flt_band >  4.0f) v->flt_band =  4.0f; else if (v->flt_band < -4.0f) v->flt_band = -4.0f;
+        if      (v->flt_low  >  4.0f) v->flt_low  =  4.0f; else if (v->flt_low  < -4.0f) v->flt_low  = -4.0f;
+        switch (v->flt_mode) {
+            case FILTER_LOW:   return v2;
+            case FILTER_HIGH:  return in - k * v1 - v2;
+            case FILTER_BAND:  return v1;
+            case FILTER_NOTCH: return in - k * v1;
+        }
+        return in;
+    }
+    // Chamberlin SVF (the original) — one-sample-delay feedback.
     float f = 2.0f * sinf(3.14159265f * cutoff_hz / (float)SOUND_SAMPLE_RATE);
     if (f > 0.99f)   f = 0.99f;          // keep the simple SVF stable
     if (f < 0.0005f) f = 0.0005f;

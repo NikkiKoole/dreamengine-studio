@@ -298,6 +298,7 @@ void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth); 
 #define FILTER_BAND  3   // bandpass — keep only a band around cutoff (vowel/wah)
 #define FILTER_NOTCH 4   // notch — scoop OUT a band around cutoff (phasey)
 void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mode FILTER_*, cutoff in Hz (e.g. 800), resonance 0..15 (high = whistly peak). sweep cutoff with LFO_CUTOFF
+extern int de_svf_tpt;  // TEMP A/B (2026-06-08): 0 = Chamberlin SVF (default), 1 = TPT/Cytomic SVF — comparing filter quality, see sound-handoff.md
 
 // modulation envelopes per instrument — a one-shot AD contour (the envelope twin of the LFO).
 // fires once per note: ramps up over attack_ms, then decays back over decay_ms. amount is

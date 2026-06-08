@@ -197,6 +197,7 @@ void update(void) {
     }
 
     if (keyp('V')) { wah = (wah + 1) % 3; apply_wah(); audition(); }
+    if (keyp('B')) { de_svf_tpt = !de_svf_tpt; audition(); }   // TEMP A/B: Chamberlin vs TPT filter
     if (keyp('M')) autoplay = !autoplay;
 
     for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) note_morph(handle[b], val[SL_BARK]);
@@ -279,6 +280,7 @@ void draw(void) {
     font(FONT_SMALL);
     int inst = (int)(val[SL_INST] * 2.999f); if (inst > 2) inst = 2;
     print(INSTRUMENT[inst], 64, 8, CLR_PEACH);
+    print(str("B svf:%s", de_svf_tpt ? "TPT" : "cham"), 120, 8, de_svf_tpt ? CLR_LIME_GREEN : CLR_DARK_GREY);
     print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 6,
                 autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     font(FONT_NORMAL);

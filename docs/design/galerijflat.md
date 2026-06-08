@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 5 (gallery walkers) complete.** Cart:
+**Status: building — step 6 (the elevator, sys 7) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -278,12 +278,11 @@ they want** — it's the building's circulation pump and its metronome.
 1. ✓ **Time**: implemented — `tod` clock, archetype wake/sleep schedules,
    `t_avg` global tint per time slot. Building reads very differently at 02:00
    vs 08:00 vs 20:00.
-2. ✓ **Simulation depth**: gallery walkers are in (step 5) — door-height
-   figures that stroll the band between the lift tower and a front door. Still
-   decoupled from the light schedules (entering a door doesn't yet light that
-   home); wiring walker→light causality is the sys 5/6-full work. The lift now
-   has a visible glazed cab that eases between floors (step 5b), but no
-   scheduler yet — sys 7 (call queue + boarding) is the next build step.
+2. ✓ **Simulation depth**: gallery walkers (step 5) + a real elevator
+   (step 6 / sys 7) — walkers queue at the lift, board, ride, and alight; the
+   car runs a LOOK scheduler off live calls. Still decoupled from the light
+   schedules (entering a door doesn't yet light that home); wiring
+   walker→light causality is the remaining sys 5/6-full work.
 3. **Interactivity**: pure ambient watch-piece, or light mouse play — hover a
    window to hear/see a hint of that household, click to ring a doorbell?
    (Mouse API is in: `mouse_x/y`, `mouse_pressed`; see orion for patterns.)
@@ -505,21 +504,56 @@ state machine.
 This is rendering only — there's no call queue or boarding yet. Sys 7 is now
 "give this existing cab a real scheduler", not "draw a lift".
 
-## Handoff — next agent starts here (2026-06-08, session 5 complete)
+### Step 6 — the elevator, for real (sys 7) (2026-06-08, session 6)
+
+The cab now runs a proper **LOOK-algorithm scheduler** off live calls, and the
+walkers actually use it — they queue, board, ride, and alight.
+
+**Floor model.** Floor 0 is the ground/entry. Floors `1..NF-1` are served
+dwellings; floor-0 residents don't ride (they walk straight in/out).
+
+**Walker lifecycle** (states `WK_TO_LIFT / WK_WAIT / WK_RIDING / WK_FROM_LIFT`,
+each walker carries `home_floor`, `dest`, `bay`):
+- *Leaving*: spawn at the door → walk to the tower → `WK_WAIT` (queue, dest 0)
+  → board → ride down → alight at the ground → gone.
+- *Arriving*: spawn waiting at the ground (dest = home floor) → board → ride up
+  → `WK_FROM_LIFT` (walk tower→door) → fumble keys → home.
+- Queue stacking: `queue_x(k)` backs the k-th waiter away from the tower door
+  into the gallery, so a same-floor cluster reads as a line.
+
+**The scheduler** (`update_lift`, states `LIFT_IDLE/MOVING/DOORS`):
+- A *call* is computed live — `lift_wants_stop(fl)` = a rider wants to alight at
+  `fl`, or someone waits at `fl`. No separate queue structure to drift.
+- LOOK: commit a direction, sweep to the *furthest* call that way
+  (`lift_furthest`), **pass-through-stop at every aligned call en route**, then
+  reverse (`lift_decide`). `liftDepart` suppresses an immediate re-stop at the
+  floor just left, and clears once the car is >0.6·FH away (so a floor can be
+  re-served on the way back).
+- `LIFT_DOORS`: `liftDoor` eases open, `lift_service()` runs (alight riders,
+  then board waiters up to `LIFT_CAP=3`), holds `DOOR_HOLD` frames, eases shut,
+  then `lift_decide()`. Boarding is direction-agnostic — at a 7px cab a rider
+  riding one extra floor reads as nothing, and it keeps the logic stranding-free.
+- Rendering: riders are dark silhouettes in the lit cab (drawn by `draw_tower`,
+  skipped by `draw_band`); a centre door-seam parts as `liftDoor`→1.
+
+Verified headless across seeds: arrivers fetched from the ground and carried up,
+leavers carried down and out, queues of 2–3 at morning rush, no stuck states
+over 3000 frames. Traced as `liftSt/carF/tgt/dir/riders/waiting`.
+
+## Handoff — next agent starts here (2026-06-08, session 6 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Walkers (step 5) added on top of the step-4 facade.
+Elevator (step 6 / sys 7) on top of the step-5 walkers.
 
 **What's done:** static facade + clock/light schedules + global tint + full
-detail pass + **gallery walkers** + **glazed lift car** (visual; eases between
-floors).
+detail pass + gallery walkers + glazed lift car + **a real elevator** (LOOK
+scheduler; walkers queue/board/ride/alight).
 
-**Next build steps:** sys 7 (real elevator state machine — the cab + its
-`liftCarY` motion already exist, so this is now the *scheduler*: a call queue,
-the classic elevator-algorithm direction logic, and visible queueing at the
-tower door per floor; walkers already ARRIVE/LEAVE at the tower, so make them
-actually board/ride/alight instead of teleporting) → sys 4 (the flip to the
-balcony side) → walker→light causality (an entering walker lights their home).
+**Next build steps:** sys 4 (the flip to the balcony side — one model, two
+mirrored views) → walker→light causality (an arriving walker who enters their
+door lights that home; a leaver darkens it) → sound (lift ding on door-open,
+the hum while travelling, wind) → import the keyframed sky from the `dutchsky`
+cart. The lift `MAXW` is now 12 to allow rush clusters.
 
 **The bake loop** (~10s per iteration):
 ```bash

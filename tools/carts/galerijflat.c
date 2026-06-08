@@ -27,7 +27,7 @@
 #define WIN_GAP   3
 #define MAXF     12
 #define MAXB     12
-#define MAXW     12   // gallery walkers + lift queue (the building's "alive" signal)
+#define MAXW     36   // gallery walkers + lift queue (the building's "alive" signal)
 
 #define DAY_REAL_SECS  300.0f
 #define TOD_START      20.0f
@@ -59,6 +59,7 @@ typedef struct {
     int   doorCol;
     int   fillPat;             // fillp pattern for this household's treatment
     float wake_h, sleep_h;
+    int   occ;                 // presence override: -1 follow schedule, 0 left (dark), 1 home (lit)
 } Home;
 
 typedef struct {
@@ -92,6 +93,9 @@ static Home  homes[MAXF][MAXB];
 static float tod;
 static Walker walkers[MAXW];
 static int    spawn_cooldown;
+#ifdef DE_TRACE
+static int    dbg_lit = -1;   // last home (floor*100+bay) a walker lit by arriving
+#endif
 
 static const int CURT[][2] = {
     { CLR_RED,          CLR_DARK_RED      },
@@ -253,7 +257,9 @@ static int is_dark(float t) { return (t < 7.5f || t >= 17.5f); }
 
 static int home_lit(Home *h, float t) {
     if (h->arch == A_VACANT || !is_dark(t)) return 0;
-    float s = h->sleep_h;
+    if (h->occ == 1) return 1;        // saw them come home → lit (overrides schedule)
+    if (h->occ == 0) return 0;        // saw them leave → dark
+    float s = h->sleep_h;             // occ == -1: follow the wake/sleep schedule
     if (s > 24.0f) return (t >= h->wake_h) || (t < s - 24.0f);
     return (t >= h->wake_h && t < s);
 }
@@ -278,6 +284,7 @@ static int home_curt_open(Home *h, float t) {
 
 static void roll_home(Home *h) {
     *h = (Home){0};
+    h->occ = -1;                 // follow the schedule until a walker proves otherwise
     int r = rnd(100);
     h->arch = r < 8 ? A_VACANT : r < 30 ? A_ELDER : r < 55 ? A_COUPLE
             : r < 82 ? A_FAMILY : A_STUDENT;
@@ -491,6 +498,7 @@ static void spawn_walker(void) {
         w->state = WK_TO_LIFT; w->floor = f; w->dest = 0;
         w->x = bay_door_x(b); w->tx = tower_edge_x();
         w->vx = (w->tx > w->x ? 1.0f : -1.0f) * walk_speed();
+        homes[f][b].occ = 0;   // they've stepped out — the window goes dark
     }
 }
 
@@ -498,12 +506,13 @@ static void update_walkers(void) {
     if (spawn_cooldown > 0) {
         spawn_cooldown--;
     } else {
-        int rate;   // per-frame 1/rate spawn chance — lower = busier
-        if      (tod < 6.0f || tod >= 23.0f)  rate = 600;   // night: rare ding
-        else if (tod >= 6.5f && tod <  9.0f)  rate = 90;    // morning rush
-        else if (tod >= 16.5f && tod < 19.5f) rate = 80;    // evening rush
-        else                                  rate = 200;   // daytime trickle
-        if (rnd(rate) == 0) { spawn_walker(); spawn_cooldown = rnd_between(20, 60); }
+        int rate;   // per-frame 1/rate spawn chance — lower = busier (~3× the old pace,
+                    // but rush is held back so one 3-seat lift can still churn the queue)
+        if      (tod < 6.0f || tod >= 23.0f)  rate = 200;   // night: still quiet
+        else if (tod >= 6.5f && tod <  9.0f)  rate = 50;    // morning rush
+        else if (tod >= 16.5f && tod < 19.5f) rate = 45;    // evening rush
+        else                                  rate = 67;    // daytime trickle
+        if (rnd(rate) == 0) { spawn_walker(); spawn_cooldown = rnd_between(7, 20); }
     }
 
     for (int i = 0; i < MAXW; i++) {
@@ -520,7 +529,16 @@ static void update_walkers(void) {
             }
             break;
         case WK_FROM_LIFT:                     // walking from the tower to the front door
-            if (w->pause > 0) { if (--w->pause == 0) w->active = 0; break; }
+            if (w->pause > 0) {
+                if (--w->pause == 0) {
+                    homes[w->home_floor][w->bay].occ = 1;   // inside now — the window lights up
+#ifdef DE_TRACE
+                    dbg_lit = w->home_floor * 100 + w->bay;
+#endif
+                    w->active = 0;
+                }
+                break;
+            }
             w->x += w->vx;
             if ((w->vx > 0) ? (w->x >= w->tx) : (w->x <= w->tx)) {
                 w->x = w->tx; w->pause = rnd_between(20, 45);    // fumble keys, then inside
@@ -699,15 +717,18 @@ void update(void) {
     update_lift();
 #ifdef DE_TRACE
     {
-        int nw = 0, nr = 0;
+        int na = 0, nw = 0, nr = 0;
         for (int i = 0; i < MAXW; i++) {
             if (!walkers[i].active) continue;
+            na++;
             if (walkers[i].state == WK_WAIT) nw++;
             if (walkers[i].state == WK_RIDING) nr++;
         }
+        watch("active", "%d", na);
         watch("liftSt", "%d", liftState); watch("carF", "%d", carFloor);
         watch("tgt", "%d", liftTarget);   watch("dir", "%d", liftDir);
         watch("riders", "%d", nr);        watch("waiting", "%d", nw);
+        watch("lit", "%d", dbg_lit);
     }
 #endif
 }

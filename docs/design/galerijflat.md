@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 6 (the elevator, sys 7) complete.** Cart:
+**Status: building — step 7 (walker→light causality + 3× walkers) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -279,10 +279,9 @@ they want** — it's the building's circulation pump and its metronome.
    `t_avg` global tint per time slot. Building reads very differently at 02:00
    vs 08:00 vs 20:00.
 2. ✓ **Simulation depth**: gallery walkers (step 5) + a real elevator
-   (step 6 / sys 7) — walkers queue at the lift, board, ride, and alight; the
-   car runs a LOOK scheduler off live calls. Still decoupled from the light
-   schedules (entering a door doesn't yet light that home); wiring
-   walker→light causality is the remaining sys 5/6-full work.
+   (step 6 / sys 7) + walker→light causality (step 7) — walkers queue at the
+   lift, board, ride, alight, and the home they enter lights up while the one
+   they leave goes dark. The patchwork is now testimony, not random twinkle.
 3. **Interactivity**: pure ambient watch-piece, or light mouse play — hover a
    window to hear/see a hint of that household, click to ring a doorbell?
    (Mouse API is in: `mouse_x/y`, `mouse_pressed`; see orion for patterns.)
@@ -540,20 +539,40 @@ Verified headless across seeds: arrivers fetched from the ground and carried up,
 leavers carried down and out, queues of 2–3 at morning rush, no stuck states
 over 3000 frames. Traced as `liftSt/carF/tgt/dir/riders/waiting`.
 
-## Handoff — next agent starts here (2026-06-08, session 6 complete)
+### Step 7 — walker→light causality + 3× walkers (2026-06-08, session 6 cont.)
+
+The facade now answers *why* a window changed.
+
+- **Causality.** Each `Home` carries `occ` (presence override): `-1` follow the
+  wake/sleep schedule (default), `0` someone left → forced dark, `1` someone is
+  home → forced lit (still gated by `is_dark`). A leaver sets `occ=0` the moment
+  they step out the door (spawn); an arriver sets `occ=1` when they finish the
+  walk and go inside (`WK_FROM_LIFT` fumble ends). `home_lit` checks `occ` before
+  the schedule. So you watch someone ride up, walk the gallery, key the door —
+  and *that* window lights. `roll_home` must reset `occ=-1` (the `(Home){0}`
+  zero would otherwise force every home dark). occ persists as the home's
+  last-known state; arrivals/leaves are ~balanced so the building doesn't drift.
+  Abstraction: one walker event = the whole household (no per-resident count).
+- **3× walkers.** `MAXW` 12 → 36 and spawn frequency ~3× (trickle rate 200→67,
+  with rush held back — morning 50 / evening 45 — so one 3-seat lift still
+  churns its queue instead of piling to the cap). Evening sits at ~8–10 active;
+  morning rush peaks ~18 active / ~9 waiting then drains after 09:00.
+- Verify causality headless: trace `dbg_lit` (set on each arrival-light, guarded
+  by `DE_TRACE`), find the frame it changes, and `compare` the dumped frames
+  either side — the lit window shows as a changed block amid the walker motion.
+
+## Handoff — next agent starts here (2026-06-08, session 7 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Elevator (step 6 / sys 7) on top of the step-5 walkers.
+Causality + 3× walkers (step 7) on top of the step-6 elevator.
 
 **What's done:** static facade + clock/light schedules + global tint + full
-detail pass + gallery walkers + glazed lift car + **a real elevator** (LOOK
-scheduler; walkers queue/board/ride/alight).
+detail pass + gallery walkers + glazed lift car + a real elevator (LOOK
+scheduler) + **walker→light causality** + 3× population.
 
 **Next build steps:** sys 4 (the flip to the balcony side — one model, two
-mirrored views) → walker→light causality (an arriving walker who enters their
-door lights that home; a leaver darkens it) → sound (lift ding on door-open,
-the hum while travelling, wind) → import the keyframed sky from the `dutchsky`
-cart. The lift `MAXW` is now 12 to allow rush clusters.
+mirrored views) → sound (lift ding on door-open, the hum while travelling,
+wind) → import the keyframed sky from the `dutchsky` cart. `MAXW` is now 36.
 
 **The bake loop** (~10s per iteration):
 ```bash

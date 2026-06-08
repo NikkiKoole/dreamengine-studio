@@ -2476,5 +2476,14 @@
       "probe",
       "tech-demo"
     ]
+  },
+  {
+    "title": "coaster & slide",
+    "description": "Draw a track with the mouse, then watch it run. Flip with M between COASTER - a closed loop where a coupled train circulates forever, fed by a chain-lift (hoist) up the back - and SLIDE - an open water flume where riders flow top-to-bottom, splash at the end, and ride again. Same gravity-along-the-tangent physics core for both. Drag in empty space to lay track, drag a point to reshape it; hold B/S/H/F while drawing to paint boost/slow/hoist zones (green/red/yellow) or flip points (pink) where carts swap to the other rail for corkscrews. Up/down lengthen the train. Support beams drop to the ground automatically. Opens on a ready-made loop. A port of an old LOVE2D toy.",
+    "file": "coaster.cart.png",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ]
   }
 ]

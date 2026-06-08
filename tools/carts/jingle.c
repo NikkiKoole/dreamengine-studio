@@ -445,6 +445,7 @@ void update(void) {
 // own) ─────────────────────────────────────────────────────────────────────
 void draw(void) {
     cls(CLR_DARKER_BLUE);                               // early night outside
+    ui_begin();                                         // knobs are touch-draggable
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
 
@@ -511,9 +512,9 @@ void draw(void) {
     // knobs + power LED — feel shifts density, tone shifts brightness;
     // the vu lives as a little bar in the display now
     static const char *FEEL[4] = { "hush", "dusky", "tender", "aglow" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_PINK);
-    rad_knob(218, 148, 9, (tempo - 64) / 36.0f, "tempo", CLR_PINK);
-    rad_knob(262, 148, 11, toneSel / 3.0f, TONENAME[toneSel], CLR_PINK);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_PINK);
+    if (rad_knob_int(&tempo, 64, 100, 2, 218, 148, 9, "tempo", CLR_PINK)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, TONENAME[toneSel], CLR_PINK)) apply_voicing();
     if (radioOn) {
         float vt = vu / 12.0f;
         rectfill(154, 91, (int)((vt > 1 ? 1 : vt) * 80), 2, CLR_PINK);
@@ -541,4 +542,6 @@ void draw(void) {
         };
         rad_help_panel("JINGLE RADIO", HELP, 8, NOTES, 3, CLR_PINK);
     }
+
+    ui_end();
 }

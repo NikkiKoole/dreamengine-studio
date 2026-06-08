@@ -22,6 +22,9 @@
 #define RADIO_H
 
 #include "studio.h"
+#include "ui.h"      // cross-input widget plumbing — the draggable control knobs
+                     // below reuse its per-finger capture (carts bracket draw()
+                     // with ui_begin()/ui_end(); see rad_knob_int/_sel/_float)
 #include <stdio.h>
 #include <math.h>
 
@@ -211,13 +214,104 @@ static void rad_dial(float freq, int accent) {
     line(nx, 29, nx, 43, accent);
 }
 
-// a labelled rotary knob, t = 0..1
+// a labelled rotary knob, t = 0..1 — the READOUT form (vu/drift meters)
 static void rad_knob(int x, int y, int r, float t, const char *label, int col) {
     circfill(x, y, r, CLR_DARK_GREY);
     circ(x, y, r, CLR_BLACK);
     float a = (-0.75f + t * 1.5f) * 3.14159f;
     line(x, y, x + (int)(sinf(a) * (r - 2)), y - (int)(cosf(a) * (r - 2)), col);
     print(label, x - text_width(label) / 2, y + r + 3, CLR_LIGHT_GREY);
+}
+
+// ── draggable CONTROL knobs (mouse + touch, built on ui.h) ─────────────────
+// rad_knob above is a meter; these are live controls. They reuse ui.h's
+// per-finger capture (so two knobs turn at once) but render with the rad_knob
+// face — every station keeps its accent. The cart MUST bracket its draw() with
+// ui_begin()/ui_end() or the capture never resolves. The keyboard path in
+// rad_input still works: drag and the arrow keys write the same var and coexist.
+// Vertical drag, UI_KNOB_DRAG_PX for a full sweep; mouse wheel fine-tunes on
+// hover. Each helper returns true ONLY the frame the value actually changes, so
+// the cart re-applies its side effect (bpm(), apply_voicing()) on that frame.
+
+// the knob face with a hot tint while grabbed/hovered (rad_knob look, live)
+static void rad_knob_face(int x, int y, int r, float t,
+                          const char *label, int col, bool hot) {
+    circfill(x, y, r, CLR_DARK_GREY);
+    circ(x, y, r, hot ? CLR_WHITE : CLR_BLACK);
+    float a = (-0.75f + t * 1.5f) * 3.14159f;
+    line(x, y, x + (int)(sinf(a) * (r - 2)), y - (int)(cosf(a) * (r - 2)), col);
+    print(label, x - text_width(label) / 2, y + r + 3, CLR_LIGHT_GREY);
+}
+
+// shared capture: id = the bound value's address; updates *t (0..1) from the
+// drag/wheel and returns true if the contact moved it this frame. *hot out.
+static bool rad_knob_drag(void *id, int x, int y, int r, float *t, bool *hot) {
+    ui_reg(id, x - r, y - r, 2 * r + 1, 2 * r + 1, 0);
+    UiCap *c = ui_cap_for(id);
+    *hot = c != 0 || ui_hover(x - r, y - r, 2 * r + 1, 2 * r + 1);
+    if (c) {
+        if (!c->has_v0) { c->has_v0 = 1; c->v0 = *t; c->by = c->cy; }
+        int py = c->released ? c->ry : c->cy;
+        *t = clamp(c->v0 + (c->by - py) / (float)UI_KNOB_DRAG_PX, 0, 1);
+        return true;
+    }
+    if (*hot && mouse_wheel() != 0) {
+        *t = clamp(*t + mouse_wheel() * UI_WHEEL_STEP, 0, 1);
+        return true;
+    }
+    return false;
+}
+
+// knob bound to a ranged int (tempo): lo..hi by step
+static bool rad_knob_int(int *value, int lo, int hi, int step,
+                         int x, int y, int r, const char *label, int col) {
+    int span = hi - lo;
+    float t = span > 0 ? (float)(*value - lo) / span : 0;
+    bool hot, changed = false;
+    if (rad_knob_drag(value, x, y, r, &t, &hot)) {
+        int nv = lo + (int)(t * span / step + 0.5f) * step;
+        nv = nv < lo ? lo : nv > hi ? hi : nv;
+        changed = (nv != *value);
+        *value = nv;
+        t = span > 0 ? (float)(*value - lo) / span : 0;
+    }
+    rad_knob_face(x, y, r, t, label, col, hot);
+    return changed;
+}
+
+// knob bound to a discrete selector 0..ndetent-1 (feel, tone): snaps to detents
+static bool rad_knob_sel(int *sel, int ndetent,
+                         int x, int y, int r, const char *label, int col) {
+    float t = ndetent > 1 ? (float)*sel / (ndetent - 1) : 0;
+    bool hot, changed = false;
+    if (rad_knob_drag(sel, x, y, r, &t, &hot)) {
+        int nv = (int)(t * (ndetent - 1) + 0.5f);
+        nv = nv < 0 ? 0 : nv > ndetent - 1 ? ndetent - 1 : nv;
+        changed = (nv != *sel);
+        *sel = nv;
+        t = ndetent > 1 ? (float)*sel / (ndetent - 1) : 0;
+    }
+    rad_knob_face(x, y, r, t, label, col, hot);
+    return changed;
+}
+
+// knob bound to a float in [lo,hi] (ambient's pace); step 0 = continuous
+static bool rad_knob_float(float *value, float lo, float hi, float step,
+                           int x, int y, int r, const char *label, int col) {
+    float span = hi - lo;
+    float t = span > 0 ? (*value - lo) / span : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    bool hot, changed = false;
+    if (rad_knob_drag(value, x, y, r, &t, &hot)) {
+        float nv = lo + t * span;
+        if (step > 0) nv = lo + roundf((nv - lo) / step) * step;
+        nv = nv < lo ? lo : nv > hi ? hi : nv;
+        changed = (nv != *value);
+        *value = nv;
+        t = span > 0 ? (*value - lo) / span : 0;
+    }
+    rad_knob_face(x, y, r, t, label, col, hot);
+    return changed;
 }
 
 // the loop readout: chord labels in a row, current one boxed in the accent

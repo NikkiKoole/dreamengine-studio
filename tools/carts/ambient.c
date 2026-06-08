@@ -199,6 +199,18 @@ static void stop_voices(void) {
     gvInit = false;
 }
 
+// re-sync the wind layer + pad volumes to the current feel — the touch knob
+// uses this (the LEFT/RIGHT keys carry the same change inline). idempotent.
+static void ambient_feel_sync(void) {
+    if (!radioOn || padH[0] < 0) return;
+    if (intensity >= 1 && windH < 0) {
+        windH = note_on(70, I_WIND, 2);
+        note_lfo(windH, 0, LFO_CUTOFF, 0.06f, 450);
+    }
+    if (intensity == 0 && windH >= 0) { note_off(windH); windH = -1; }
+    for (int i = 0; i < 4; i++) note_vol(padH[i], intensity >= 3 ? 5 : 4);
+}
+
 static void apply_chord(int idx) {
     lead_voices(sng.deg[idx]);
     if (padH[0] < 0) start_voices();
@@ -300,6 +312,7 @@ void update(void) {
 // since a beatless AM station doesn't fit the FM-dial chassis) ─────────────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();                              // the feel + pace knobs are touch-draggable
     float t = timer();
 
     // stars behind everything
@@ -372,10 +385,10 @@ void draw(void) {
 
     // knobs + slow-breathing power LED (no beat to blink to)
     static const char *FEEL[4] = { "void", "night", "dawn", "aurora" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_BLUE);
-    rad_knob(218, 148, 9, (pace - 0.55f) / 1.2f, "pace", CLR_BLUE);
+    if (rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_BLUE)) ambient_feel_sync();
+    rad_knob_float(&pace, 0.55f, 1.75f, 0.15f, 218, 148, 9, "pace", CLR_BLUE);
     float breathe = 0.5f + 0.5f * sinf(t * 0.8f);
-    rad_knob(262, 148, 11, radioOn ? breathe : 0, "drift", CLR_RED);
+    rad_knob(262, 148, 11, radioOn ? breathe : 0, "drift", CLR_RED);   // meter
     circfill(282, 28, 2, radioOn && breathe > 0.5f ? CLR_RED : CLR_DARK_RED);  // breathes, no beat
 
     rad_help_button(CLR_INDIGO);
@@ -398,4 +411,6 @@ void draw(void) {
         };
         rad_help_panel("AMBIENT RADIO", HELP, 7, NOTES, 3, CLR_INDIGO);
     }
+
+    ui_end();
 }

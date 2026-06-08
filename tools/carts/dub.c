@@ -484,6 +484,7 @@ void update(void) {
 // — the speaker stack breathing with the VU, the desk faders — stays dub's) ──
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
+    ui_begin();                                         // knobs are touch-draggable
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
 
@@ -550,9 +551,9 @@ void draw(void) {
 
     // knobs + power LED
     static const char *FEEL[4] = { "skeleton", "riddim", "version", "meltdown" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_MEDIUM_GREEN);
-    rad_knob(218, 148, 9, (tempo - 60) / 28.0f, "tempo", CLR_MEDIUM_GREEN);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_MEDIUM_GREEN);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_MEDIUM_GREEN);
+    if (rad_knob_int(&tempo, 60, 88, 2, 218, 148, 9, "tempo", CLR_MEDIUM_GREEN)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_MEDIUM_GREEN)) apply_voicing();
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_MEDIUM_GREEN);
@@ -576,4 +577,6 @@ void draw(void) {
         };
         rad_help_panel("DUB RADIO", HELP, 8, NOTES, 3, CLR_MEDIUM_GREEN);
     }
+
+    ui_end();
 }

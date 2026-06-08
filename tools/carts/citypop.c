@@ -417,6 +417,7 @@ void update(void) {
 // own, and so does the white-plastic face with its pink/teal double pinstripe) ─
 void draw(void) {
     cls(CLR_DARKER_BLUE);
+    ui_begin();                                         // knobs are touch-draggable
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
 
@@ -509,9 +510,9 @@ void draw(void) {
 
     // knobs + power LED
     static const char *FEEL[4] = { "4am", "cruise", "downtown", "neon" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_PINK);
-    rad_knob(218, 148, 9, (tempo - 96) / 28.0f, "tempo", CLR_PINK);
-    rad_knob(262, 148, 11, toneSel / 3.0f, TONENAME[toneSel], CLR_PINK);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_PINK);
+    if (rad_knob_int(&tempo, 96, 124, 2, 218, 148, 9, "tempo", CLR_PINK)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, TONENAME[toneSel], CLR_PINK)) apply_voicing();
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_PINK);
@@ -535,4 +536,6 @@ void draw(void) {
         };
         rad_help_panel("CITY POP RADIO", HELP, 8, NOTES, 3, CLR_PINK);
     }
+
+    ui_end();
 }

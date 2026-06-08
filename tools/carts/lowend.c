@@ -443,6 +443,7 @@ void update(void) {
 // window art — the seed-lit city skyline at night — stays lowend's own) ─────
 void draw(void) {
     cls(CLR_DARKER_BLUE);
+    ui_begin();                                         // knobs are touch-draggable
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
 
@@ -500,10 +501,10 @@ void draw(void) {
 
     // knobs + power LED
     static const char *FEEL[4] = { "basement", "headnod", "cypher", "banger" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_ORANGE);
-    rad_knob(218, 148, 9, (tempo - 82) / 22.0f, "tempo", CLR_ORANGE);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_ORANGE);
+    if (rad_knob_int(&tempo, 82, 104, 2, 218, 148, 9, "tempo", CLR_ORANGE)) bpm(tempo);
     float vt = vu / 12.0f;
-    rad_knob(262, 148, 11, vt > 1 ? 1 : vt, "low", CLR_RED);
+    rad_knob(262, 148, 11, vt > 1 ? 1 : vt, "low", CLR_RED);   // meter
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_ORANGE);
@@ -527,4 +528,6 @@ void draw(void) {
         };
         rad_help_panel("LOW END RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
     }
+
+    ui_end();
 }

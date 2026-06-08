@@ -439,6 +439,7 @@ void update(void) {
 // art — the rising sun over the BGM dot grid — stays YMO's own) ────────────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();                                         // knobs are touch-draggable
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
 
@@ -495,9 +496,9 @@ void draw(void) {
 
     // knobs + power LED
     static const char *FEEL[4] = { "bgm", "kayo", "techno", "rydeen" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_RED);
-    rad_knob(218, 148, 9, (tempo - 104) / 36.0f, "tempo", CLR_RED);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_RED);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_RED);
+    if (rad_knob_int(&tempo, 104, 140, 2, 218, 148, 9, "tempo", CLR_RED)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_RED)) apply_voicing();
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_RED);
@@ -521,4 +522,6 @@ void draw(void) {
         };
         rad_help_panel("YMO RADIO", HELP, 8, NOTES, 3, CLR_RED);
     }
+
+    ui_end();
 }

@@ -415,6 +415,7 @@ void update(void) {
 // speaker grille pulsing with the VU — stays bossa's own) ──────────────────
 void draw(void) {
     cls(CLR_DARKER_BLUE);
+    ui_begin();                              // contacts in — the knobs are touch-draggable
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? (songStep / 16) % 32 : 0;
 
@@ -459,10 +460,10 @@ void draw(void) {
         rad_phrase_dots(236, 126, 8, bar % 8, CLR_YELLOW);
     }
 
-    // knobs + power LED
+    // knobs (feel + tempo are draggable; vu is a meter) + power LED
     static const char *FEEL[4] = { "midnight", "cafe", "classic", "festival" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_YELLOW);
-    rad_knob(218, 148, 9, (tempo - 100) / 52.0f, "tempo", CLR_YELLOW);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_YELLOW);
+    if (rad_knob_int(&tempo, 100, 152, 4, 218, 148, 9, "tempo", CLR_YELLOW)) bpm(tempo);
     float vt = vu / 12.0f;
     rad_knob(262, 148, 11, vt > 1 ? 1 : vt, "vu", CLR_RED);
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
@@ -488,4 +489,6 @@ void draw(void) {
         };
         rad_help_panel("BOSSA RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
     }
+
+    ui_end();                                // resolve this frame's knob grabs
 }

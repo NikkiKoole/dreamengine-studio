@@ -245,6 +245,7 @@ static void reset_flight(void) {                  // (re)start the flight at the
 }
 
 void init(void) {
+    touch_controls(true);   // floating stick (left) steers L/R/U/D, A/B (right) = throttle — touch/mouse playable
     // 1. bake the earth: noise → terrain colour bands (texel grid → world coords)
     for (int ty = 0; ty < TEX; ty++)
         for (int tx = 0; tx < TEX; tx++) {

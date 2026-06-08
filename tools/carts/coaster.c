@@ -64,6 +64,7 @@ static int   n_pts;
 static float seglen[MAX_PTS];   // arc length of segment i -> i+1
 static float total_len;
 static int   closed;            // 1 = coaster loop, 0 = open slide
+static int   wood = 1;          // construction: 1 = wooden trestle, 0 = tubular steel
 static float flip_pos[MAX_PTS]; // arc positions of flip points (for crossing tests)
 static int   n_flip;
 
@@ -332,8 +333,8 @@ static void step_arms(Body *b, int ci) {
 // One primitive: the train clicks once per `spacing` px of track travelled, so
 // the click RATE is the speed — no timers. Each zone picks the click's voice.
 // The hoist's heavy chain-dog ratchet is the signature; plain track is a light
-// wheel-joint tick. MATERIAL (wood vs metal) would later scale midi/instr/dur in
-// this one table — metal-ish defaults for now.
+// wheel-joint tick. The `wood` toggle shifts the whole table lower+longer (a
+// hollow timber clatter) vs higher (a brighter steel clack).
 static float clack_accum;     // px travelled since the last click
 
 static void coaster_sound(int zone, float sp, float ad) {
@@ -345,6 +346,8 @@ static void coaster_sound(int zone, float sp, float ad) {
         case Z_BRAKE: spacing = 4;  instr = INSTR_NOISE;  midi = 30;                vol = 4; dur = 55; break;
         default:      spacing = 15; instr = INSTR_NOISE;  midi = 50 + (int)(sp / 90); vol = 3; dur = 20; break;
     }
+    if (wood) { midi -= 7; dur += 6; }                  // hollow wooden clatter — lower, longer
+    else      { midi += 3; }                            // brighter steel clack
     clack_accum += ad;
     int fired = 0;
     while (clack_accum >= spacing && fired < 3) {       // cap: never dump a burst
@@ -603,6 +606,7 @@ static void handle_input(void) {
     }
 
     if (keyp('M')) { closed = !closed; recompute(); init_bodies(); silence_scream(); }
+    if (keyp('K')) wood = !wood;                       // construction: wood / steel
     if (keyp('C')) ride = !ride;                       // POV ride-cam
     if (keyp(KEY_SPACE)) is_paused = !is_paused;
     if (keyp('N')) start_new();
@@ -659,16 +663,61 @@ static int zone_col(unsigned char z) {
            z == Z_HOIST ? CLR_YELLOW : -1;
 }
 
+// one vertical bent (the post part). Real coaster supports are near-vertical
+// posts, not triangles — the cross-bracing that ties them together (draw_bay)
+// is what reads as a coaster instead of a row of radio towers.
+//   wood  → a paired timber post with horizontal ledgers up its length
+//   steel → a fat tubular column (a few parallel lines for thickness)
+static void draw_post(float bx, int by, int gy) {
+    int x = (int)bx;
+    if (wood) {
+        line(x - 1, by, x - 1, gy, CLR_DARK_BROWN);    // the bent = a pair of timbers
+        line(x + 1, by, x + 1, gy, CLR_BROWN);
+        for (int y = gy - 6; y > by; y -= 9)           // ledgers up the post
+            line(x - 2, y, x + 2, y, CLR_DARK_BROWN);
+        line(x - 2, gy, x + 2, gy, CLR_DARK_BROWN);    // footing
+    } else {
+        line(x - 1, by, x - 1, gy, CLR_DARK_GREY);     // fat steel tube (cool, shaded)
+        line(x,     by, x,     gy, CLR_LIGHT_GREY);
+        line(x + 1, by, x + 1, gy, CLR_DARK_GREY);
+        line(x - 2, gy, x + 2, gy, CLR_DARK_GREY);     // concrete footer
+    }
+}
+
+// the structure BETWEEN two adjacent bents — this is what makes it continuous.
+//   wood  → a dense X cross-brace lattice + horizontal chords
+//   steel → just a couple of cross-ties (sparse, like skyscraper framing)
+static void draw_bay(float x0f, int y0, float x1f, int y1, int gy) {
+    int x0 = (int)x0f, x1 = (int)x1f;
+    int top = y0 > y1 ? y0 : y1;                       // brace only where both posts exist
+    int h = gy - top; if (h <= 3) return;
+    if (wood) {
+        int bays = h / 9; if (bays < 1) bays = 1;
+        for (int k = 0; k < bays; k++) {
+            int ya = gy - h * k / bays, yb = gy - h * (k + 1) / bays;
+            line(x0, ya, x1, yb, CLR_BROWN);           // X cross-brace
+            line(x1, ya, x0, yb, CLR_BROWN);
+            line(x0, yb, x1, yb, CLR_DARK_BROWN);      // horizontal chord
+        }
+    } else {
+        line(x0, gy - h / 3,     x1, gy - h / 3,     CLR_DARK_GREY);   // two ties only
+        line(x0, gy - 2 * h / 3, x1, gy - 2 * h / 3, CLR_DARK_GREY);
+    }
+}
+
 static void draw_track(void) {
     int segs = n_segs();
     int gy = ground_y();
 
-    // support beams behind everything
-    for (int i = 0; i < n_beams; i++)
-        if (beam_y[i] < gy) {
-            line((int)beam_x[i], (int)beam_y[i], (int)beam_x[i], gy, CLR_DARKER_GREY);
-            circfill((int)beam_x[i], (int)beam_y[i], 1, CLR_DARK_GREY);
-        }
+    // support structure behind everything: vertical bents tied together into a
+    // continuous lattice (wood) or sparse braced columns (steel)
+    for (int i = 0; i + 1 < n_beams; i++) {            // ties between neighbours first
+        float dx = beam_x[i + 1] - beam_x[i]; if (dx < 0) dx = -dx;
+        if (beam_y[i] < gy && beam_y[i + 1] < gy && dx < SUPPORT_SPACING * 2.2f)
+            draw_bay(beam_x[i], (int)beam_y[i], beam_x[i + 1], (int)beam_y[i + 1], gy);
+    }
+    for (int i = 0; i < n_beams; i++)                 // then the posts on top
+        if (beam_y[i] < gy) draw_post(beam_x[i], (int)beam_y[i], gy);
 
     for (int i = 0; i < segs; i++) {
         int j = (i + 1) % n_pts;
@@ -705,6 +754,46 @@ static void draw_track(void) {
             line((int)(pts[i].x + nx), (int)(pts[i].y + ny),
                  (int)(pts[i].x - nx), (int)(pts[i].y - ny), CLR_PINK);
         }
+
+    // ── decals: the details that read as a real ride (coaster only) ──────────
+    if (closed && total_len > 0) {
+        // catwalk — a maintenance walkway dashed alongside the track, with posts
+        for (int i = 0; i < segs; i += 2) {
+            int j = (i + 1) % n_pts;
+            float dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y, L = seglen[i] > 0 ? seglen[i] : 1;
+            float ox = dy / L * 5.0f, oy = -dx / L * 5.0f;
+            line((int)(pts[i].x + ox), (int)(pts[i].y + oy), (int)(pts[j].x + ox), (int)(pts[j].y + oy), CLR_DARKER_GREY);
+            if (i % 6 == 0)
+                line((int)pts[i].x, (int)pts[i].y, (int)(pts[i].x + ox), (int)(pts[i].y + oy), CLR_DARKER_GREY);
+        }
+        // per-zone mechanism: chain + anti-rollback sawtooth on the lift, fins on the brake
+        for (int i = 0; i < segs; i++) {
+            int j = (i + 1) % n_pts;
+            float dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y, L = seglen[i] > 0 ? seglen[i] : 1;
+            float nx = dy / L, ny = -dx / L;
+            if (pts[i].zone == Z_HOIST) {
+                int links = (int)(L / 3); if (links < 1) links = 1;
+                for (int k = 0; k <= links; k++) {
+                    float t = (float)k / links;
+                    int cx = (int)lerp(pts[i].x, pts[j].x, t), cy = (int)lerp(pts[i].y, pts[j].y, t);
+                    pset(cx, cy, (k & 1) ? CLR_LIGHT_GREY : CLR_DARK_GREY);                 // chain links
+                    if (k & 1) pset((int)(cx + nx * 3), (int)(cy + ny * 3), CLR_MEDIUM_GREY); // sawtooth teeth
+                }
+            } else if (pts[i].zone == Z_BRAKE) {
+                int fins = (int)(L / 4); if (fins < 1) fins = 1;
+                for (int k = 0; k < fins; k++) {
+                    float t = (k + 0.5f) / fins;
+                    int cx = (int)lerp(pts[i].x, pts[j].x, t), cy = (int)lerp(pts[i].y, pts[j].y, t);
+                    line((int)(cx + nx * 2), (int)(cy + ny * 2), (int)(cx - nx * 2), (int)(cy - ny * 2), CLR_LIGHT_GREY);
+                }
+            }
+        }
+        // summit flag at the highest point of the track
+        int hi = 0; for (int i = 1; i < n_pts; i++) if (pts[i].y < pts[hi].y) hi = i;
+        int fx = (int)pts[hi].x, fy = (int)pts[hi].y;
+        line(fx, fy, fx, fy - 11, CLR_LIGHT_GREY);                       // flagpole
+        trifill(fx, fy - 11, fx, fy - 6, fx + 6, fy - 9, CLR_RED);       // pennant
+    }
 
     // points while editing
     if (drawing || drag_idx >= 0)
@@ -785,9 +874,8 @@ static void update_camera(void) {
 void draw(void) {
     update_camera();
 
-    // sky in SCREEN space (before the camera) so banking never reveals gaps
-    cls(CLR_DARK_BLUE);
-    rectfill(0, 0, SCREEN_W, SCREEN_H / 3, CLR_DARKER_BLUE);
+    // flat happy sky in SCREEN space (before the camera) so banking never reveals gaps
+    cls(CLR_BLUE);
 
     camera_ex((int)cam_x, (int)cam_y, cam_zoom, cam_angle);
     int gy = ground_y();
@@ -817,7 +905,8 @@ void draw(void) {
 
     // ── HUD (screen space) ────────────────────────────────────────────────
     camera(0, 0);
-    print(closed ? "COASTER" : "SLIDE", 4, 4, CLR_WHITE);
+    int tx2 = print(closed ? "COASTER" : "SLIDE", 4, 4, CLR_WHITE);
+    print(wood ? " WOOD" : " STEEL", tx2, 4, wood ? CLR_BROWN : CLR_LIGHT_GREY);
     if (n_pts < 2) {
         print("DRAG TO DRAW A TRACK", SCREEN_W / 2 - 78, SCREEN_H / 2, CLR_WHITE);
     } else if (closed) {
@@ -853,7 +942,7 @@ void draw(void) {
         print("drag empty=draw  drag pt=move", x, y, CLR_LIGHT_GREY);          y += 9;
         print("hold B/S/H/F while drawing:", x, y, CLR_LIGHT_GREY);            y += 9;
         print(" boost / slow / hoist / flip", x, y, CLR_LIGHT_GREY);           y += 9;
-        print("C ride-cam   M swap mode", x, y, CLR_LIGHT_GREY);               y += 9;
+        print("C ride  M mode  K wood/steel", x, y, CLR_LIGHT_GREY);           y += 9;
         print("N new SPACE pause up/dn carts", x, y, CLR_LIGHT_GREY);          y += 9;
         print("TAB hide help", x, y, CLR_LIGHT_GREY);
     } else {

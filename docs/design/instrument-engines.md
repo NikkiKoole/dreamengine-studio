@@ -954,7 +954,15 @@ just the lead = route the lead to an aux bus carrying delay (`instrument_bus(LEA
 else stays dry. That's per-*instrument*, achieved with one shared delay line + bus routing — the
 buffer-hungry effects (delay/reverb/tape) are shared-and-routed rather than per-voice purely on
 memory cost (a per-voice echo line would be ~384 KB × 8 voices for an effect nobody wants 8 of).
-The cheap exception is **wah** — it's just the per-voice SVF, so it genuinely *is* per-note.
+The cheap exception is **simple wah** — pedal/LFO/per-note-quack wah is just the per-voice SVF
+swept, so it genuinely *is* per-note (the `epiano.c` clav quack is this). **But the realistic
+"woah woah" auto-wah is a true bus effect** and belongs here on an aux bus: a bandpass on the
+*summed* mix with an exponential sweep + an envelope follower tracking the *whole performance*
+— so a chord sweeps coherently and the wah pumps with the groove (a per-voice filter can do
+neither). Confirmed 2026-06-08 by rendering navkit (`tools/navkit-render.c`); corrects
+[decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)'s "wah is per-voice,
+already covered" claim. So wah lands in TWO places: simple = per-voice recipe (done), great
+auto-wah = this bus layer (deferred). The envelope follower's real home is here too (bus-level).
 
 | Effect | granularity | DSP | buffer | home | insert/send | notes |
 |---|---|---|---|---|---|---|

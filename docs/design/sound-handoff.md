@@ -108,3 +108,16 @@ than reading its source and guessing. Tools (committed):
 
 > **Watch:** `tools/wav-envelope.js`'s brightness proxy conflates a resonant-filter PEAK with
 > perceptual brightness, so it under-shows a resonant snap — trust ears for resonant timbre.
+
+**The "woah woah" wah is a BUS effect — stop chasing it per-voice (2026-06-08).** Rendering
+navkit's clav *with its bus wah on* settled it: the deep vocal "woah woah" is the **bus wah** —
+a bandpass on the *summed mix*, exponential sweep (300→2500), envelope follower on the *whole
+performance*. A per-voice filter can't sweep a chord coherently or pump with the groove. So:
+- The funky-clav **quack** (per-note env snap) is done per-voice — that's correct and shippable.
+- The great **auto-wah** belongs in the **effects-bus layer (§8.10)**, deferred — alongside
+  reverb/Leslie/chorus/the Juno. The envelope follower's real home is there (bus-level), not
+  per-voice. This is the strongest reason to **park the per-voice follower** until §8.10.
+- **Doc lesson:** the docs *contradicted themselves* — 0015 filed wah as a done per-voice recipe
+  (and wrongly equated a per-note env with an envelope follower), while §8.10 listed wah as an
+  aux-bus effect. Both now corrected (0015 Correction note + §8.10 wah line). The render is what
+  resolved it — confident *doc* claims need the same empirical check as confident reasoning.

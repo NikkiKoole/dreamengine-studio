@@ -85,3 +85,26 @@ convention — it's **refusing to admit new primitives**.
 - Echo and reverb, when they land, complete the roster; their API shapes are sketched
   in [audio-notes §17](../design/audio-notes.md) and bounded by this decision.
 - Supersedes nothing; extends the §8.1.1 macro discipline from engines to effects.
+
+## Correction (2026-06-08) — wah is TWO things; the §35 audit oversimplified
+
+The audit above files wah under "already covered today" and claims *touch wah =
+`instrument_env(ENV_CUTOFF)` = exactly an envelope follower.* Rendering navkit's actual wah
+(`tools/navkit-render.c`) proved that wrong. The truth, split:
+
+- **Simple wah IS a per-voice recipe** (still true): pedal = `FILTER_BAND` + res + live
+  `note_cutoff`; rhythmic auto-wah = `LFO_CUTOFF`; the funky-clav *quack* = a FAST per-note
+  `ENV_CUTOFF` snap (~100ms) on a resonant filter. The clav showcase (`epiano.c`) uses this.
+- **The realistic "woah woah" auto-wah is a BUS effect** — NOT covered today. navkit's is a
+  bandpass on the **summed mix** with an **exponential** sweep (300→2500) and an envelope
+  *follower* tracking the **whole performance**. Two things a per-voice filter can't do: sweep
+  a chord *coherently* (one vowel for all notes), and *pump with the groove* (follow the summed
+  amplitude). That belongs in the **effects-bus layer ([instrument-engines §8.10](../design/instrument-engines.md))**,
+  where §8.10 already (correctly) lists wah as an aux-bus insert — the framing that conflicted
+  with this audit's "per-voice, done" framing. §8.10 wins.
+- A per-note env is **not** an envelope follower (per-note retrigger vs continuous
+  amplitude-tracking). The follower was built as a per-voice primitive (`instrument_follow`)
+  but its real home is bus-level; per-voice it's the pale version (see sound-handoff.md).
+
+Net: the *decision* (effects are recipes, roster closed) stands; this corrects the **wah
+classification** — the good auto-wah is a deferred bus effect, not a covered per-voice one.

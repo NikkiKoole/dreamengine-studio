@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 10 (occupants in the windows) complete.** Cart:
+**Status: building — step 11 (directional lift dispatch) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -633,16 +633,37 @@ occupant — that's the link; schedule-lit homes just glow.
 - Verified by forcing `occ=1` everywhere: figures render clearly in both modes,
   hidden behind solid treatments as intended.
 
-## Handoff — next agent starts here (2026-06-08, session 10 complete)
+### Step 11 — directional hall calls (real up/down dispatch) (2026-06-08, session 10)
+
+Boarding was direction-agnostic — an up-going car stopped for down-waiters and
+vice-versa. Now it's a proper **directional LOOK** with up/down hall calls:
+
+- `want_dir(w)` = the button a waiter pressed (`sign(dest - floor)`). `stop_here(fl,
+  dir)` opens the doors only for riders alighting **or** same-direction waiters
+  *with room* (a full car only stops to let people off — no pointless opens).
+  `lift_service` boards only `want_dir == liftDir`.
+- The car still *travels* to the furthest floor with anyone waiting (`furthest_call`,
+  direction-agnostic) — the turning point — even if it won't stop on the way up;
+  `lift_dispatch()` then flips direction there and serves those waiters on the
+  return. So a lone down-waiter up high is fetched and boarded going *down*, not
+  picked up by an up-trip.
+- `lift_dispatch()` replaces `lift_decide()` and also drives `LIFT_IDLE`: serve a
+  call at the current floor (choosing the leave-direction), else travel
+  (continue / reverse / nearest), else idle.
+- Verified across seeds (`DE_TRACE` counters `opens`/`serve`): serve-per-open ≈ 1.8
+  and **zero door-opens that served nobody**; queues still drain (max ~6 waiting
+  evening, empty 42% of frames), no stranding, no stalls.
+
+## Handoff — next agent starts here (2026-06-08, session 11 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Window occupants (step 10) on top of the step-9 queue/lobby polish.
+Directional hall calls (step 11) on top of the step-10 window occupants.
 
 **What's done:** static facade + clock/light schedules + global tint + full
-detail pass + gallery walkers + glazed lift car + a real elevator (LOOK
-scheduler) + walker→light causality + a ground lobby + join-order queues that
-shuffle forward + bigger rush crowds + **occupants visible in the windows**
-(night shadow on the curtain, day figure behind the glass).
+detail pass + gallery walkers + glazed lift car + a real elevator (directional
+LOOK with up/down hall calls) + walker→light causality + a ground lobby +
+join-order queues that shuffle forward + bigger rush crowds + occupants visible
+in the windows (night shadow on the curtain, day figure behind the glass).
 
 **Next build steps:** sys 4 (the flip to the balcony side — one model, two
 mirrored views) → sound (lift ding on door-open, the hum while travelling,

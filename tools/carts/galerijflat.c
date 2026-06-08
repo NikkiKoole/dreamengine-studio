@@ -102,6 +102,8 @@ static int    joinSeq;           // monotonic queue join counter
 static float  floor_y(int fl);   // cab/floor-line y for a lift floor (GROUND-aware)
 #ifdef DE_TRACE
 static int    dbg_lit = -1;   // last home (floor*100+bay) a walker lit by arriving
+static int    dbg_open = 0;   // cumulative door-open events
+static int    dbg_serve = 0;  // cumulative boards + alights
 #endif
 
 static const int CURT[][2] = {
@@ -578,12 +580,12 @@ static void update_walkers(void) {
 }
 
 // ── the lift, for real (sys 7) ──────────────────────────────────────────────
-// A LOOK-algorithm car: it commits to a direction, sweeps to the furthest call
-// that way (stopping at every call it passes), then reverses. Calls come live
-// from the walkers — a waiter at a floor or a rider wanting to alight there.
-// Boarding is direction-agnostic (keeps the logic simple; at this scale a rider
-// riding one extra floor reads as nothing). GROUND (below floor 0) is the
-// street lobby — its calls and stops work just like any floor's.
+// A directional LOOK car with up/down hall calls. A waiter presses up OR down;
+// a car sweeping up only stops for up-waiters (and riders alighting), and picks
+// the down-waiters up on the way back. It still *travels* to the furthest floor
+// with anyone waiting (the turning point), then flips and serves them on the
+// return. GROUND (below floor 0) is the street lobby — waiters there always want
+// up; leavers ride down to it and walk out.
 
 static int count_riders(void) {
     int n = 0;
@@ -591,32 +593,51 @@ static int count_riders(void) {
         if (walkers[i].active && walkers[i].state == WK_RIDING) n++;
     return n;
 }
-static int lift_wants_stop(int fl) {
+// the direction a waiting walker pressed (their dest is always up or down of them)
+static int want_dir(Walker *w) { return (w->dest > w->floor) ? 1 : -1; }
+
+static int rider_alights(int fl) {       // is a rider getting off at fl?
+    for (int i = 0; i < MAXW; i++)
+        if (walkers[i].active && walkers[i].state == WK_RIDING && walkers[i].dest == fl) return 1;
+    return 0;
+}
+static int waiter_going(int fl, int dir) {   // a waiter at fl who pressed `dir`
     for (int i = 0; i < MAXW; i++) {
         Walker *w = &walkers[i];
-        if (!w->active) continue;
-        if (w->state == WK_RIDING && w->dest  == fl) return 1;   // a rider alights here
-        if (w->state == WK_WAIT   && w->floor == fl) return 1;   // someone boards here
+        if (w->active && w->state == WK_WAIT && w->floor == fl && want_dir(w) == dir) return 1;
     }
     return 0;
 }
-static int lift_any_call(void) {
-    for (int fl = GROUND; fl < NF; fl++) if (lift_wants_stop(fl)) return 1;
+// open the doors here while travelling `dir`: riders off, or same-direction
+// boarders we have room for (a full car only stops to let people OFF, never to
+// pointlessly open for a waiter it can't take)
+static int stop_here(int fl, int dir) {
+    if (rider_alights(fl)) return 1;
+    return waiter_going(fl, dir) && count_riders() < LIFT_CAP;
+}
+// any reason to ever visit fl (used to find the turning point — direction-agnostic)
+static int any_call_here(int fl) {
+    for (int i = 0; i < MAXW; i++) {
+        Walker *w = &walkers[i];
+        if (!w->active) continue;
+        if (w->state == WK_RIDING && w->dest  == fl) return 1;
+        if (w->state == WK_WAIT   && w->floor == fl) return 1;
+    }
     return 0;
 }
-static int lift_nearest(int dir) {       // nearest call strictly in dir, or NONE
-    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++)       if (lift_wants_stop(fl)) return fl; }
-    else         { for (int fl = carFloor - 1; fl >= GROUND; fl--)  if (lift_wants_stop(fl)) return fl; }
-    return GROUND - 1;
-}
-static int lift_furthest(int dir) {      // furthest call in dir (the sweep target), or NONE
+static int furthest_call(int dir) {      // furthest floor in dir with anyone to serve (turning point)
     int best = GROUND - 1;
-    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++)       if (lift_wants_stop(fl)) best = fl; }
-    else         { for (int fl = carFloor - 1; fl >= GROUND; fl--)  if (lift_wants_stop(fl)) best = fl; }
+    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++)      if (any_call_here(fl)) best = fl; }
+    else         { for (int fl = carFloor - 1; fl >= GROUND; fl--) if (any_call_here(fl)) best = fl; }
     return best;
 }
+static int nearest_call(int dir) {
+    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++)      if (any_call_here(fl)) return fl; }
+    else         { for (int fl = carFloor - 1; fl >= GROUND; fl--) if (any_call_here(fl)) return fl; }
+    return GROUND - 1;
+}
 
-// at carFloor with the doors open: drop riders, then take on waiters
+// at carFloor with the doors open: drop riders, then board waiters going liftDir
 static void lift_service(void) {
     for (int i = 0; i < MAXW; i++) {
         Walker *w = &walkers[i];
@@ -628,39 +649,68 @@ static void lift_service(void) {
                 w->state = WK_EXIT; w->floor = GROUND;   // step out, walk off across the pavement
                 w->x = lobby_x(); w->tx = exit_x();
             }
+#ifdef DE_TRACE
+            dbg_serve++;
+#endif
         }
     }
-    for (int i = 0; i < MAXW; i++) {
+    for (int i = 0; i < MAXW; i++) {                    // only those heading the car's way
         Walker *w = &walkers[i];
-        if (w->active && w->state == WK_WAIT && w->floor == carFloor && count_riders() < LIFT_CAP)
-            w->state = WK_RIDING;                       // board
+        if (w->active && w->state == WK_WAIT && w->floor == carFloor &&
+            want_dir(w) == liftDir && count_riders() < LIFT_CAP) {
+            w->state = WK_RIDING;
+#ifdef DE_TRACE
+            dbg_serve++;
+#endif
+        }
     }
 }
 
-// after the doors close, decide the next move
-static void lift_decide(void) {
-    if (liftDir != 0) {                                 // keep sweeping while calls lie ahead
-        int t = lift_furthest(liftDir);
-        if (t >= GROUND) { liftTarget = t; liftDepart = carFloor; liftState = LIFT_MOVING; return; }
+static void lift_open(void) {
+    liftCarY = floor_y(carFloor);
+    liftState = LIFT_DOORS; liftClosing = 0; liftDoorTimer = DOOR_HOLD;
+#ifdef DE_TRACE
+    dbg_open++;
+#endif
+}
+
+// decide what the idle/just-closed car does next: serve here, travel, or sleep
+static void lift_dispatch(void) {
+    // 1. is there someone to serve right here? choose the direction we'll leave in
+    if (any_call_here(carFloor)) {
+        int d = liftDir;
+        if (d == 0 || furthest_call(d) < GROUND)        // no continuation that way → (re)choose
+            d = (waiter_going(carFloor, 1) || furthest_call(1) >= GROUND) ? 1
+              : (waiter_going(carFloor, -1) || furthest_call(-1) >= GROUND) ? -1
+              : (liftDir != 0 ? liftDir : 1);
+        if (stop_here(carFloor, d)) { liftDir = d; lift_open(); return; }
     }
-    int up = lift_nearest(+1), dn = lift_nearest(-1);   // else turn to the nearest call
-    if (up >= GROUND && (dn < GROUND || (up - carFloor) <= (carFloor - dn))) { liftDir = +1; liftTarget = lift_furthest(+1); }
-    else if (dn >= GROUND)                                                   { liftDir = -1; liftTarget = lift_furthest(-1); }
-    else { liftDir = 0; liftState = LIFT_IDLE; return; }
-    liftDepart = carFloor; liftState = LIFT_MOVING;
+    // 2. travel toward calls — keep direction, else reverse, else (idle) pick the nearer
+    int d0, d1;
+    if (liftDir > 0)      { d0 = 1;  d1 = -1; }
+    else if (liftDir < 0) { d0 = -1; d1 = 1;  }
+    else {
+        int up = nearest_call(1), dn = nearest_call(-1);
+        d0 = (up >= GROUND && (dn < GROUND || (up - carFloor) <= (carFloor - dn))) ? 1 : -1;
+        d1 = -d0;
+    }
+    int t = furthest_call(d0);
+    if (t >= GROUND) { liftDir = d0; liftTarget = t; liftDepart = carFloor; liftState = LIFT_MOVING; return; }
+    t = furthest_call(d1);
+    if (t >= GROUND) { liftDir = d1; liftTarget = t; liftDepart = carFloor; liftState = LIFT_MOVING; return; }
+    liftDir = 0; liftState = LIFT_IDLE;
 }
 
 static void update_lift(void) {
     switch (liftState) {
     case LIFT_IDLE:
         liftDoor = lerp(liftDoor, 0.0f, 0.3f);
-        if (lift_wants_stop(carFloor)) { liftState = LIFT_DOORS; liftClosing = 0; liftDoorTimer = DOOR_HOLD; }
-        else if (lift_any_call())      { liftDir = 0; lift_decide(); }
+        lift_dispatch();
         break;
 
     case LIFT_MOVING: {
         liftDoor = lerp(liftDoor, 0.0f, 0.4f);
-        int far = lift_furthest(liftDir);               // extend/retract as calls change
+        int far = furthest_call(liftDir);               // extend/retract as calls change
         if (far >= GROUND) liftTarget = far;
         float tY = floor_y(liftTarget);
         float d = tY - liftCarY, ad = d < 0 ? -d : d;
@@ -674,27 +724,16 @@ static void update_lift(void) {
             if (dy < 0) dy = -dy;
             if (dy > FH * 0.6f) liftDepart = NO_DEPART;
         }
-        // pass-through stop at grid floors (GROUND is only ever the sweep end)
+        // pass-through stop at grid floors we'd serve going liftDir
         int nf = (int)((baseY - liftCarY) / (float)FH + 0.5f);
         if (nf < 0) nf = 0; if (nf >= NF) nf = NF - 1;
         float nfY = baseY - nf * FH, ndy = liftCarY - nfY;
         if (ndy < 0) ndy = -ndy;
         if (ndy < 1.0f) {                               // aligned with a floor
             carFloor = nf;
-            if (carFloor != liftDepart && lift_wants_stop(carFloor)) {
-                liftCarY = nfY; liftState = LIFT_DOORS; liftClosing = 0; liftDoorTimer = DOOR_HOLD;
-                break;
-            }
+            if (carFloor != liftDepart && stop_here(carFloor, liftDir)) { lift_open(); break; }
         }
-        if (ad <= 0.5f) {                               // reached the sweep end (incl. GROUND,
-            carFloor = liftTarget;                      // which is off the FH grid the pass-through
-            if (lift_wants_stop(carFloor)) {            // check above scans — so service it here)
-                liftCarY = floor_y(carFloor);
-                liftState = LIFT_DOORS; liftClosing = 0; liftDoorTimer = DOOR_HOLD;
-            } else {
-                lift_decide();
-            }
-        }
+        if (ad <= 0.5f) { carFloor = liftTarget; lift_dispatch(); }   // reached the turning point
         break; }
 
     case LIFT_DOORS:
@@ -703,7 +742,7 @@ static void update_lift(void) {
             if (liftDoor > 0.92f) { liftDoor = 1.0f; lift_service(); if (--liftDoorTimer <= 0) liftClosing = 1; }
         } else {
             liftDoor = lerp(liftDoor, 0.0f, 0.3f);
-            if (liftDoor < 0.08f) { liftDoor = 0.0f; liftDepart = carFloor; lift_decide(); }
+            if (liftDoor < 0.08f) { liftDoor = 0.0f; liftDepart = carFloor; lift_dispatch(); }
         }
         break;
     }
@@ -765,6 +804,7 @@ void update(void) {
         watch("tgt", "%d", liftTarget);   watch("dir", "%d", liftDir);
         watch("riders", "%d", nr);        watch("waiting", "%d", nw);
         watch("wmask", "%d", wmask);      watch("gwait", "%d", gwait);
+        watch("opens", "%d", dbg_open);   watch("serve", "%d", dbg_serve);
         watch("lit", "%d", dbg_lit);
     }
 #endif

@@ -216,9 +216,14 @@ their `kind[]` tags.
         `RHO_*` consts), **timbre** given a hammer-hardness tilt so it bites on all 3, **bark** folds
         in drive (clean→growl), clav has a fast filter-env quack. The per-voice **wah is provisional**
         (flagged TEMP! in-cart) — the real auto-wah is a bus effect (§8.10). 🅿️ see PARKED below.
-     Next: **PD (CZ — the cheap snack, 2 floats)** ← NEXT, then **reed** *(FM's brass stress test
-     passed, so the waveguide-brass swap clause is moot)* **→ membrane (hand percussion) → bowed/pipe
-     + the buffered piano/guitar pair → formant + effects layer.** Additive stays deferred
+     7. ~~**`INSTR_MEMBRANE`**~~ **SHIPPED 2026-06-08** — struck drumhead, 6 modal sines, buffer-free,
+        `tabla` showcase (5 kit presets + drumhead viz). Ported from navkit's `processMembraneOscillator`
+        with its live circular-membrane strike-position weighting (timbre) and monotonic pitch-bend chirp
+        (morph); the one deviation — harmonics also crossfades the *ratios* tuned-harmonic↔Bessel (tabla
+        really is harmonic), not just the amps. Hand percussion the 808/909 sine+pitch-env can't reach
+        (instrument-engines §8.5 step 8). (PD shipped separately, item 6.)
+     Next: **reed** *(FM's brass stress test passed, so the waveguide-brass swap clause is moot)*
+     **→ bowed/pipe + the buffered piano/guitar pair → formant + effects layer.** Additive stays deferred
      (`INSTR_SINE` + FM + MALLET cover its near corners; the MT70 family is its first named customer).
    The **MT70 finding, corrected 2026-06-07** (the 2026-06-03 "all one pure sine" verdict was a
    verification artifact — the songs' `osc2*` fields sit ~50 lines into each block and are

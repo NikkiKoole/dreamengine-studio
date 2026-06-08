@@ -13,9 +13,15 @@ this session:
 - **`INSTR_ORGAN`** (§8.8.4) — tonewheel, shipped + **published** + timbre confirmed by ear
   ("sounds awesome"). Drive-fizz fix landed (pre-drive HF rolloff). ADR-0016 = branch B
   (combo organ → its own engine when a station proves the recipe; morph is a full axis).
-- **`INSTR_EPIANO`** (§8.8.5) — Rhodes/Wurli/Clav, shipped + showcase `epiano.c` (now with a
-  WAH recipe: toggle off/auto/env + depth slider, clav boots into envelope-wah). **NOT yet
-  published, NOT yet ear-confirmed** — see the open items.
+- **`INSTR_EPIANO`** (§8.8.5) — Rhodes/Wurli/Clav, shipped + showcase `epiano.c`. **Rhodes ring
+  FIXED** (2026-06-08): the inharmonic tine/bell modes now decay fast (body-vs-bell split) over a
+  warm fundamental — "sounds much better". Tuning lives in a `de_ept_*` scaffold in `sound.h`
+  (body 0.7 / bell 0.13 / belllvl 12) — **still to bake into constants** once the ear is fully
+  happy. **WAH reworked** to a resonant BANDPASS + a toggle off/auto/**touch**; the clav boots
+  into touch-wah (the new envelope follower). NOT yet published.
+- **Envelope follower** SHIPPED (2026-06-08) — `instrument_follow`/`note_follow`, the 3rd
+  modulation source (tracks the voice's own amplitude → cutoff/vol/pitch). The touch-responsive
+  auto-wah. Full 4-place wiring + tripwire. Needs its own doc section in audio-notes (modulation).
 
 Canonical state lives here (don't duplicate it — update these):
 [STATUS §5](../STATUS.md) · engine specs [§8.8.3 FM / §8.8.4 organ / §8.8.5 EP](instrument-engines.md) ·
@@ -30,11 +36,17 @@ roadmap [§8.5](instrument-engines.md) · [ADR-0016](../decisions/0016-combo-org
 2. If good → publish (`tools/publish-cart.sh epiano`) like organ.
 3. Optional treat: a Rhodes comping under the organ (two engines together).
 
-## OPEN — the Rhodes "doesn't sound Rhodesy" hypothesis (the real one to chase)
+## ~~OPEN~~ FIXED (2026-06-08) — the Rhodes "doesn't sound Rhodesy" (prime suspect was right)
 
-User flagged this by ear AND hit the same thing porting in navkit — so it's likely
-**structural**, not a typo. Confirm the symptom first, then chase in this order. All in
-`runtime/sound.h` → `sound_epiano_start` / `sound_epiano_sample`.
+**Resolved.** WAV envelope analysis (amplitude + a brightness/HF measure) confirmed the prime
+suspect: the bell/tine modes decayed in lockstep with the fundamental (no ding). Fix = split the
+Rhodes decay into a long BODY (mode 0) and a short BELL (modes ≥1) + a bell-level boost, so the
+tine *dings* (brightness drops in ~250ms) over a sustaining warm body. The `de_ept_*` scaffold in
+`sound_epiano_start` holds the tuned values — **bake to constants when fully ear-approved.** The
+detail below is kept as the method record (the brightness-envelope trick is reusable).
+
+User flagged this by ear AND hit the same thing porting in navkit. Method that found it, all in
+`runtime/sound.h` → `sound_epiano_start` / `sound_epiano_sample`:
 
 **Prime suspect — the tine/bell modes decay too slowly.** A Rhodes is a fast bell *ding*
 (~50–150 ms) over a warm sustaining fundamental. Right now the per-mode decay is

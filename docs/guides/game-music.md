@@ -513,29 +513,42 @@ voice, so echo short notes (60–80ms chops echo beautifully; pads don't).
 
 ### Wah is just the filter swept (epiano.c)
 
-Wah needs no FX engine either — it's the per-voice SVF with a moving cutoff
+Wah needs no FX engine — it's the per-voice SVF with a moving centre
 ([decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md): "the
-4th use of the one filter"). Engage a *resonant* lowpass and sweep the cutoff;
-*how* you sweep it is which wah you get:
+4th use of the one filter"). Two things make it sound like a *wah* and not a tone
+knob (learned by A/B-ing against navkit's wah):
+
+1. **Use `FILTER_BAND`, not `FILTER_LOW`.** A bandpass moves a *resonant peak*
+   through the spectrum (rejecting both lows and highs around it) — that moving
+   peak IS the vowel. A lowpass just opens the top; much weaker.
+2. **High resonance (10–12)** — the peak is the vowel; a gentle one reads as a tone
+   control.
+
+Then *what sweeps the centre* is which wah you get — and the choice depends on
+whether the sound sustains or is percussive:
 
 ```c
-// AUTO-WAH — an LFO sweeps the cutoff (the 70s Rhodes/clav wobble)
-instrument_filter(slot, FILTER_LOW, 900, 9);            // resonant lowpass — the vowel peak
+instrument_filter(slot, FILTER_BAND, 900, 12);          // resonant bandpass — the vowel peak
+
+// AUTO-WAH — an LFO sweeps the centre (rhythmic; works on anything, even staccato)
 instrument_lfo(slot, 0, LFO_CUTOFF, 4.0f, 1200.0f);     // rate Hz, depth Hz
 
-// ENVELOPE-WAH — the cutoff opens on each strike then closes (the funky-clav "quack")
-instrument_filter(slot, FILTER_LOW, 350, 9);            // start closed
-instrument_env(slot, 0, ENV_CUTOFF, 2, 180, 2400.0f);   // attack/decay ms, amount Hz
+// TOUCH-WAH (envelope follower) — opens from the note's OWN amplitude, responds to
+// how hard you play, "hangs" on the release. The funky envelope filter (Mu-Tron).
+instrument_follow(slot, LFO_CUTOFF, 3, 200, 2400.0f);   // attack ms, release ms, depth Hz
 
 // PEDAL-WAH — you are the LFO: sweep it live on a held note
 note_filter(h, FILTER_BAND); note_res(h, 10); note_cutoff(h, foot_hz);
 ```
 
-The **resonance (8–10) is the whole trick** — it's the peak that reads as a vowel
-rather than a tone control. Set it all at the slot and every strike inherits it
-(fire-and-forget notes too). Worked example with a toggle + depth slider:
-`epiano.c` — its clav preset boots into envelope-wah (Stevie's "Superstition").
-Full effects-as-recipes audit: [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md).
+**Sustained vs percussive matters.** On a sustained voice (Rhodes/strings) a
+per-note `ENV_CUTOFF` "quack" works, but on a *percussive* one (clav) the env just
+tracks the natural decay and you hear nothing — use the **LFO** (continuous motion)
+or the **follower** (touch). The follower is the realistic 70s sound; it's the
+envelope-follower modulation source (see [`audio-notes.md`](../design/audio-notes.md)
+§ modulation). Worked example with off/auto/touch toggle + depth slider: `epiano.c`
+(its clav preset boots into touch-wah — Stevie's "Superstition"). Full
+effects-as-recipes audit: [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md).
 
 ### The desk is an instrument (dub.c)
 

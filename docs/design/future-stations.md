@@ -214,11 +214,22 @@ Genres scoring 4/4, in taste order:
   got its first station workout (the tine pings every comp hit), and the kit
   rolls between session 16ths / Purdie half-time shuffle / CR-78 circuits on
   loan (the Hall & Oates machine-soul move).
-- **Italo disco** — citypop's machine cousin: sequenced octave-arpeggio
-  bass, dramatic minor formulas (i–bVI–bVII–V), bright stabs, drum-machine
-  time, and the truck driver's gear change lives here too. Reuses house.c's
-  808 + pump. The easy-win pick. (Its descendant **eurobeat** is the same
-  recipe at 155 bpm if maximum formula is ever wanted.)
+- ~~**Italo disco**~~ — ✅ shipped as `italo.c` (2026-06-09, station #20),
+  citypop's machine cousin. The "0 new brains, schedule it as dessert"
+  prediction held to the letter — it is PURE RECOMBINATION: ymo's arp pointed
+  at the bass register (the relentless octave-bouncing 16th-note sequencer
+  bass, the Moroder pulse), house's 808 + sidechain pump, citypop's
+  truck-driver gear change (final chorus + outro up a semitone — `MOD_BAR`,
+  lifted verbatim), FM brass stabs + EPIANO keys + a PD soaring lead, and a
+  stolen playbook of five dramatic minor formulas (i–bVI–bVII–V and the
+  descending i–bVII–bVI–V, all with the borrowed harmonic-minor dominant —
+  the tear). The one gesture that's *new to the dial*, even if not a new
+  brain: **the Simmons tom fill** — a descending electronic-tom roll
+  (`INSTR_SINE` + steep downward `ENV_PITCH`) into every chorus, the genre's
+  signature, and the first station to do a phrase-end drum fill (cf. the
+  scout list's "fill grammar"). High gloss, an easy afternoon, taught
+  nothing — exactly as billed, and a good one. (Its descendant **eurobeat**
+  is the same recipe at 155 bpm if maximum formula is ever wanted.)
 - **J-fusion (Casiopea / T-Square)** — citypop's instrumental twin, same
   Tokyo session scene — but it needs real solos, so it should wait for the
   Doors station's improviser (melody brain #2).
@@ -239,7 +250,7 @@ stations 11–14 ranked the remaining candidates:
 | **Plantasia** | 1 | the MELODY-FORWARD arrangement — first station where the lead is the protagonist (could promote the improviser from soloist to frontman) + the growing-houseplant face |
 | **Eno / Reich phasing** | 1 | prime-length cells drifting against each other; nearly free |
 | **Boards of Canada** | 1 | systematic MISTUNING as warmth (inconsistent per-voice detune + slow pitch LFOs as tape memory) |
-| **Italo disco** | **0** | pure recombination: ymo's arp + house's pump + citypop's gear change + FM keys + new minor templates. High gloss, an easy afternoon, teaches nothing — *that's fine, but schedule it as dessert* |
+| ~~**Italo disco**~~ | **0** | ✅ shipped `italo.c` (#20). Pure recombination, as predicted: ymo's arp (→ octave-bounce sequencer bass) + house's pump + citypop's gear change + FM keys + new minor templates. The dessert, served — plus the Simmons tom fill as the one new-to-the-dial gesture |
 
 (Ethio-jazz and J-fusion fell off the "blocked" list when `improv.h` shipped —
 they're now ordinary stations: scales-as-data + the improviser.)

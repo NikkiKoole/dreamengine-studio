@@ -135,6 +135,7 @@ closest genre cousin, never start a station from scratch.
 | **motorik radio** (`motorik`) | krautrock (Neu! × Stereolab) | `improv.h` vibraphone soloist |
 | **addis radio** (`addis`) | ethio-jazz (Mulatu Astatke) — scales-as-data | five engines, `improv.h` |
 | **carlos radio** (`carlos`) | Switched-On Bach (Wendy Carlos) — two-voice species counterpoint | `moog.c`'s fat-Moog signal path; no chord table |
+| **italo disco radio** (`italo`) | Italo disco (Gazebo / Den Harrow) — minor-key spaghetti disco | octave-arp `INSTR_SAW` bass, `INSTR_FM` brass stabs, `INSTR_EPIANO` keys, `INSTR_PD` lead; the truck-driver gear change; 808 + pump on loan from `house` |
 
 Many stations also support **THE BAND** panel (press **B**) — a live timbre-audition
 overlay to swap a chair's instrument mid-song. Candidate swaps:

@@ -2341,6 +2341,16 @@
     "homage": "Daft Punk / Stardust (French house)"
   },
   {
+    "title": "italo disco radio",
+    "description": "Endless Italo disco - spaghetti disco, the lovelorn machine-pop of early-80s Italy (Gazebo, Den Harrow, Ryan Paris, the Moroder lineage). Citypop's machine cousin, but neon-at-midnight MINOR instead of sunlit major: dramatic, desperate, unashamedly cheesy. PURE RECOMBINATION (the parking-lot prediction: 0 new brains, dessert) - ymo's arp + house's pump + the citypop gear change + FM keys + new minor templates. THE SEQUENCER BASS is the spine: a relentless 16th-note synth bass that bounces octaves (root low, root high, forever - the Moroder pulse) with seeded chord-tone spice, a resonant lowpass + per-note cutoff env giving each note an analog-sequencer blip. Harmony is a stolen playbook of five dramatic minor formulas - i-bVI-bVII-V, the descending i-bVII-bVI-V, i-iv-bVI-V (the harmonic-minor V, the tear) - all with the borrowed dominant that makes Italo weep. FM BRASS STABS (INSTR_FM, bright integer ratio) punctuate the offbeats; EPIANO KEYS (INSTR_EPIANO, the 'FM keys') comp the bed; a PD soaring lead (INSTR_PD, glided, minor-pentatonic) owns the chorus. THE SIMMONS TOM FILL - the unmistakable descending electronic-tom roll into every chorus - is the genre's signature gesture, and THE TRUCK DRIVER'S GEAR CHANGE lifts the final chorus + outro up a semitone (of course). 808 kit + sidechain pump on loan from house.c / tr808.c. Seed on display (ITALO_SEED / R / [ ] history), LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, H help.",
+    "file": "italo.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "Gazebo / Den Harrow (Italo disco)"
+  },
+  {
     "title": "pluck",
     "description": "INSTR_PLUCK showcase - the first modeled ENGINE (wave ids 16+): every note excites a Karplus-Strong string simulation instead of reading a wavetable, so plucks decay and darken on their own like a real string. Eight pentatonic strings + the three engine macros every future engine answers too (instrument_harmonics = ring time, instrument_timbre = pick brightness, instrument_morph = pick position) - turn a knob and hear the same string go from dead thunk to endless drone, felt thumb to hard pick, full to hollow. The read tap is fractional, so pitch reaches the string live - and the strings are real objects: GRAB one (press right on it) and drag to bend its pitch like a real guitar, or press in open space and sweep the pick past strings to strum them. V toggles a jangle-style chorus warble. A S D F G H J K pluck strings, drag the sliders (or LEFT/RIGHT + UP/DOWN), SPACE strum, M autoplay on/off.",
     "file": "pluck.cart.png",

@@ -110,7 +110,10 @@ and Sakamoto unprompted.
 **Also very doable:**
 
 - **Motorik / Stereolab** — one-chord pulse, strict-8ths motorik kit, Farfisa-ish
-  drones on held voices, maj7 planing on top. The experimental axis.
+  drones on held voices, maj7 planing on top. The experimental axis. **→ now
+  fully spec'd: [`motorik.md`](motorik.md)** (promoted once `INSTR_ORGAN`
+  unblocked the Farfisa drone; proves THE PROCESS FORM — the first sectionless
+  station).
 - **Chicha / Peruvian cumbia** — wobbly surf guitar (jangle's warble at higher
   depth), minor vamps, güiro 16ths. Crate-digger royalty.
 - **Afrobeat** — 2–3 interlocking single-note guitar ostinatos (`euclid()` was

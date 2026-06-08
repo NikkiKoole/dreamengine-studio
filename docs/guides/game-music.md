@@ -640,6 +640,7 @@ verbatim — extraction is overdue, and the plan is written up below
 | 4 | stolen playbook | `jingle.c`, `citypop.c`, `house.c`, `yacht.c` (+ the mu chord as a named QUALITY) | sound like *someone* |
 | 5 | sampled loop, cut + rotated | `lowend.c` | nod — loop-born harmony |
 | 6 | alternating pair | `satie.c` | rock two chords for bars on end |
+| 7 | **no chords at all — two-voice species counterpoint** | `carlos.c` | the harmony is whatever two rule-generated lines SPELL: consonance on strong beats, passing dissonance on weak, contrary motion preferred, no parallel perfect 5ths/8ves, over a seeded chaconne ground — and the feel knob slides strict canon → free counterpoint |
 | — | lounge templates + flavor rolls | `exotica.c` (borrowed-ivm6 dusk) | 4-brain's gentler cousin |
 
 **Time brains / feels**: schedule-ahead clock (`radio.h` `RadioClock`) · groove templates (`lowend.c` push/drag lanes) · swing 55–62% (`cocktail.c` has the full ride pattern) · machine-tight ±2ms (`citypop.c`/`ymo.c`/`house.c`) · lazy two-feel (`exotica.c`) · Purdie half-time shuffle + ghosts (`yacht.c`) · **TEMPO AS A VOICE — the conductor (`tango.c`)**: phrase-level rubato via live `bpm()`, eased asymmetrically (rising fast = the a-tempo snap, falling slow = the band sags together), depth seeded per song; the clock survived untouched, exactly as promised · *future:* colotomic cycles (gamelan), the process form (motorik), volatility grammar (Aphex).

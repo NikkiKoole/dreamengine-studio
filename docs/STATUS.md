@@ -219,9 +219,11 @@ their `kind[]` tags.
         bell"; FFT of our own render confirmed it. Replaced `RAT[0]` with the real structure
         (harmonic body 1-6 + sparse fast inharmonic tine bells 6.27×/17.55×/34.4×) + per-mode `DEC_R`
         + a 2nd-harmonic "voicing" crossfade (Shear 2011 / Münster & Pfeifle 2020), FFT-verified.
-        Added a **tremolo** slider (suitcase/Wurli amp wobble). Wurli/Clav are still the navkit cribs
-        and **could use the same measured pass** — they're plausible but not validated against
-        references the way Rhodes now is. The per-voice **wah is provisional** (flagged TEMP! in-cart)
+        Added a **tremolo** slider (suitcase/Wurli amp wobble). **Wurli** then got its own A/B pass
+        (2026-06-09): boosted the OCTAVE partials (2,4,8,16) over the reedy 3rd — the 200A's
+        fuller/punchier tone (Reed200 spectral-model crib), FFT-checked + ear-confirmed. **Clav** is
+        still the navkit crib (a near-harmonic struck string — plausible, but not reference-validated
+        like Rhodes/Wurli; candidate for a future pass). The per-voice **wah is provisional** (flagged TEMP! in-cart)
         — the real auto-wah is a bus effect (§8.10). 🅿️ see PARKED below.
      7. ~~**`INSTR_MEMBRANE`**~~ **SHIPPED 2026-06-08** — struck drumhead, 6 modal sines, buffer-free,
         `tabla` showcase (5 kit presets + drumhead viz). Ported from navkit's `processMembraneOscillator`

@@ -826,7 +826,10 @@ piano; `INSTR_EPIANO` is the *electromechanical* one — two different sounds, b
   our shipping `RAT[0]` is now the measured `1,2,3,4,5,6, 6.27, 8,10,12, 17.55, 34.4` (harmonic body
   + sparse fast inharmonic bells). See §8.8.5 post-ship findings + the `DEC_R` note in `sound.h`.
 - **Wurli** reed (odd-ish): `1, 2.02, 3.01, 5.04, 7.05, 9.08, 11.1, 13.1, 15.2, 17.2, 19.3, 21.3`
-- **Clav** string (near-harmonic): `1, 2.003, 3.012, 4.028, 5.15, 6.35, 7.6, 8.9, 10.2, 11.6, 13.0, 14.5`
+  — ⚠ **REPLACED 2026-06-09.** Too odd-dominant (weak 2nd, no 4th) — missing the 200A's octave
+  warmth. Shipping `RAT[1]` is now `1,2,3,4,5,6,7,8,9,11,13,16` with the OCTAVE partials (2,4,8,16)
+  amped up near the reedy 3rd (Reed200 spectral-model crib; A/B + FFT confirmed). See §8.8.5.
+- **Clav** string (near-harmonic): `1, 2.003, 3.012, 4.028, 5.15, 6.35, 7.6, 8.9, 10.2, 11.6, 13.0, 14.5` *(still shipping — near-harmonic struck string, plausible)*
 
 **Amp profiles** — centered (mellow) / offset (bright), `:3747`; timbre crossfades them:
 - Rhodes ctr `1, .04, .03, .06, .03, .02, …` · off `.6, .35, .08, .20, .08, .05, …`

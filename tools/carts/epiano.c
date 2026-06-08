@@ -109,10 +109,15 @@ static int midi_of(int idx) {
     return base + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]);
 }
 
+// bark's lower half = the pickup nonlinearity (morph); its upper half ALSO folds in tanh DRIVE
+// — two stacked dirts (pickup bark + amp growl), the navkit driven-EP funk, on one knob.
+static float bark_drive(float bark) { return bark > 0.5f ? (bark - 0.5f) * 1.4f : 0.0f; }  // 0 → 0.7
+
 static void apply_slot(void) {
     instrument_harmonics(I_EP, val[SL_INST]);
     instrument_timbre(I_EP, val[SL_BRITE]);
     instrument_morph(I_EP, val[SL_BARK]);
+    instrument_drive(I_EP, bark_drive(val[SL_BARK]));   // bark → growl at the top
 }
 
 // THE WAH RECIPE — all slot-level, so every strike (keys, auditions, autoplay) inherits it.
@@ -212,7 +217,10 @@ void update(void) {
     if (keyp('V')) { wah = (wah + 1) % 4; apply_wah(); audition(); }
     if (keyp('M')) autoplay = !autoplay;
 
-    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) note_morph(handle[b], val[SL_BARK]);
+    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) {   // live bark on ringing notes (morph + drive)
+        note_morph(handle[b], val[SL_BARK]);
+        note_drive(handle[b], bark_drive(val[SL_BARK]));
+    }
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);

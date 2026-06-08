@@ -76,6 +76,7 @@ typedef struct {
     int   fillPat;             // fillp pattern for this household's treatment
     float wake_h, sleep_h;
     int   nRes;
+    int   balProp;             // balcony clutter: 0 none, 1 laundry, 2 plants
     Resident res[MAXRES];      // the actual people who live here
 } Home;
 
@@ -114,6 +115,8 @@ static int   baysX, towerX, towerLeft;
 static int   baseY, wallTop;
 static int   wallC, slabC, towerC, panelC, doorBase;
 static int   lampX[3], nLamp;
+static int   bldX;             // building's left edge (for mirroring to the balcony side)
+static int   view;            // 0 = gallery (front), 1 = balcony (back)
 static Lift  lifts[NLIFT];
 static Home  homes[MAXF][MAXB];
 static float tod;
@@ -443,6 +446,15 @@ static void roll_home(Home *h) {
         }
     }
 
+    // what's out on the balcony (the private face) — correlated with the household
+    switch (h->arch) {
+    case A_ELDER:   h->balProp = chance(65) ? 2 : 0;                       break;  // plants
+    case A_COUPLE:  h->balProp = chance(35) ? 2 : chance(40) ? 1 : 0;      break;
+    case A_FAMILY:  h->balProp = chance(60) ? 1 : chance(40) ? 2 : 0;      break;  // laundry
+    case A_STUDENT: h->balProp = chance(30) ? 1 : 0;                       break;
+    default:        h->balProp = 0;                                        break;
+    }
+
     switch (h->treat) {
     case TR_VITRAGE:  h->fillPat = VITRAGE_PATS[rnd(N_VITRAGE_PATS)];   break;
     case TR_CURTAIN:  h->fillPat = CURTAIN_PATS[rnd(N_CURTAIN_PATS)];   break;
@@ -481,6 +493,7 @@ static void roll_building(void) {
 
     int bldW = TW + NB * BW;
     int mx = (SCREEN_W - bldW) / 2;
+    bldX = mx;
     if (towerLeft) { towerX = mx; baysX = mx + TW; }
     else           { baysX = mx; towerX = mx + NB * BW; }
 
@@ -917,6 +930,7 @@ void update(void) {
     if (keyp(KEY_SPACE)) roll_building();
     if (keyp('T')) { tod += 1.0f; if (tod >= 24.0f) tod -= 24.0f; }
     if (keyp('B')) tint_on = !tint_on;
+    if (keyp('F')) view = !view;   // flip: gallery ↔ balcony
     update_walkers();
     update_lift();
 #ifdef DE_TRACE
@@ -945,17 +959,17 @@ void update(void) {
 // wider than the glass, so it walks off behind the wall at the edges, vanishes
 // into another room now and then, and drifts back — a lived-in home, not a
 // decal. Only drawn for occ==1 homes (a walker was seen entering — the payoff).
-static void draw_occupant(int wx, int wy, int f, int b, int col) {
+static void draw_occupant(int wx, int wy, int ww, int wh, int f, int b, int col) {
     int phase = f * 53 + b * 97;               // each home keeps its own rhythm
     int t = frame();
     if (((t / 220 + phase) % 6) == 0) return;  // off in another room for a spell — empty window
 
     int period = 240 + (phase % 140);          // 4–6.5s per length of the room
     int tri = abs(((t + phase * 7) % (2 * period)) - period);   // ping-pong 0..period
-    int rx = -5 + (tri * (WW + 10)) / period;  // room x runs -5 .. WW+5 (off-glass = behind wall)
+    int rx = -5 + (tri * (ww + 10)) / period;  // room x runs -5 .. ww+5 (off-glass = behind wall)
     int fx = wx + rx;
 
-    clip(wx, wy, WW, WH);                       // anything past the glass edge hides behind the wall
+    clip(wx, wy, ww, wh);                       // anything past the glass edge hides behind the wall
     rectfill(fx,     wy + 2, 2, 2, col);        // head
     rectfill(fx - 1, wy + 4, 4, 4, col);        // shoulders/torso (lower body cut by the sill)
     clip(0, 0, 0, 0);                           // restore full-screen drawing
@@ -963,14 +977,13 @@ static void draw_occupant(int wx, int wy, int f, int b, int col) {
 
 static void draw_window(Home *h, int f, int b, int wx, int wy) {
     int lit  = home_lit(h, tod);
-    int tv   = home_tv(h, tod);
     int curt = home_curt_open(h, tod);
 
-    int glass = lit ? (tv ? CLR_TRUE_BLUE : CLR_LIGHT_YELLOW)
+    // gallery side is the kitchen — warm light, no TV (the telly's in the living
+    // room, on the balcony face; revisit after the flip)
+    int glass = lit ? CLR_LIGHT_YELLOW
                     : (h->arch == A_VACANT ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE);
     rectfill(wx, wy, WW, WH, glass);
-    if (tv && lit && ((frame() / 3 + f * 13 + b * 7) & 7) < 3)
-        rectfill(wx + 2 + ((frame() / 5 + b) & 3), wy + WH/2, 3, 2, CLR_BLUE);
 
     switch (h->treat) {
     case TR_VITRAGE:
@@ -1005,12 +1018,12 @@ static void draw_window(Home *h, int f, int b, int wx, int wy) {
     //          glass, open drapes, or net) — closed curtains/blinds hide them
     if (residents_home(h) > 0) {
         if (lit) {
-            draw_occupant(wx, wy, f, b, CLR_BROWNISH_BLACK);
+            draw_occupant(wx, wy, WW, WH, f, b, CLR_BROWNISH_BLACK);
         } else if (!is_dark(tod)) {           // daytime, someone home
             int see_in = (h->treat == TR_NONE) ||
                          (h->treat == TR_CURTAIN && curt) ||
                          (h->treat == TR_VITRAGE);
-            if (see_in) draw_occupant(wx, wy, f, b, CLR_INDIGO);
+            if (see_in) draw_occupant(wx, wy, WW, WH, f, b, CLR_INDIGO);
         }
     }
 
@@ -1064,9 +1077,9 @@ static void draw_band(int f) {
 }
 
 // one glazed shaft + its lit car, riders in their own colours, sliding doors
-static void draw_cab(int i) {
+static void draw_cab(int i, int lx) {
     Lift *L = &lifts[i];
-    int lx = L->shaftX, lw = LIFT_W;
+    int lw = LIFT_W;
     int shTop = wallTop, shBot = baseY + LOBBY_DROP + 2;       // down into the ground lobby
     rectfill(lx, shTop, lw, shBot - shTop, CLR_DARKER_BLUE);   // dark shaft glass
     rectfill(lx - 1, shTop, 1, shBot - shTop, CLR_DARK_GREY);  // guide rails
@@ -1107,11 +1120,107 @@ static void draw_tower(void) {
         if (f & 1) line(sx, yb - 4, sx + 3, yb - FH + 4, CLR_DARK_GREY);
         else       line(sx, yb - FH + 4, sx + 3, yb - 4, CLR_DARK_GREY);
     }
-    for (int i = 0; i < NLIFT; i++) draw_cab(i);                // the two cars
+    for (int i = 0; i < NLIFT; i++) draw_cab(i, lifts[i].shaftX);   // the two cars
 
     rectfill(towerX + 2, top - 9, TW - 4, 9, CLR_DARKER_GREY);  // machine room + antenna
     line(towerX + TW - 7, top - 9, towerX + TW - 7, top - 17, CLR_DARK_GREY);
     pset(towerX + TW - 7, top - 18, blink(40) ? CLR_RED : CLR_DARK_RED);
+}
+
+// ── the balcony side: the same building seen from behind ────────────────────
+// Mirrored — the tower swaps ends and the dwelling order reverses. Each home's
+// living-room window (wider than its kitchen) carries the same curtains and
+// lit/occupant state; in front sits a private balcony with a screen and clutter.
+#define BAL_SCREEN 11   // privacy-screen top above the slab (vs the gallery's bars at 9)
+
+// balcony layout for the back view: tower at the opposite end, bays reversed
+static int bal_towerX(void) { return towerLeft ? bldX + NB * BW : bldX; }
+static int bal_baysX(void)  { return towerLeft ? bldX : bldX + TW; }
+static int bal_bay_home(int s) { return NB - 1 - s; }   // left-to-right slot → home bay
+
+static void draw_balcony_window(Home *h, int f, int b, int wx, int wy, int ww, int wh) {
+    int lit  = home_lit(h, tod);
+    int curt = home_curt_open(h, tod);
+    int glass = lit ? CLR_LIGHT_YELLOW
+                    : (h->arch == A_VACANT ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE);
+    rectfill(wx, wy, ww, wh, glass);
+
+    // curtains drawn down the sides (the big living-room window)
+    if (h->treat == TR_CURTAIN || h->treat == TR_VITRAGE || h->treat == TR_VENETIAN) {
+        int cc = (h->treat == TR_VITRAGE) ? (lit ? CLR_LIGHT_PEACH : CLR_LIGHT_GREY)
+                                          : (lit ? h->tBright : h->tDark);
+        if (h->fillPat) fillp(h->fillPat, -1);
+        if (h->treat == TR_CURTAIN && curt) {
+            rectfill(wx, wy, 2, wh, cc);
+            rectfill(wx + ww - 2, wy, 2, wh, cc);
+        } else {
+            rectfill(wx, wy, ww, wh, cc);
+        }
+        if (h->fillPat) fillp_reset();
+    } else if (h->treat == TR_ROLLER) {
+        int rh = (int)(h->roller * (wh - 1.0f)) + 1;
+        rectfill(wx, wy, ww, rh, h->tDark);
+    }
+
+    if (residents_home(h) > 0) {                 // the same occupant, in the living room
+        if (lit) draw_occupant(wx, wy, ww, wh, f, b, CLR_BROWNISH_BLACK);
+        else if (!is_dark(tod)) {
+            int see_in = (h->treat == TR_NONE) || (h->treat == TR_CURTAIN && curt) || (h->treat == TR_VITRAGE);
+            if (see_in) draw_occupant(wx, wy, ww, wh, f, b, CLR_INDIGO);
+        }
+    }
+}
+
+static void draw_balcony_band(int f) {
+    int yb = baseY - f * FH, bx = bal_baysX();
+    rectfill(bx, yb - FH, NB * BW, 1, CLR_DARKER_GREY);    // floor slab above
+    fillp(0x8888, -1);
+    rectfill(bx, yb - FH + 1, NB * BW, 2, CLR_DARKER_GREY);
+    fillp_reset();
+    rectfill(bx, yb - SLAB_H, NB * BW, SLAB_H, slabC);     // balcony floor edge
+
+    for (int s = 0; s < NB; s++) {
+        Home *h = &homes[f][bal_bay_home(s)];
+        int x = bx + s * BW;
+        // big living-room window across the bay, down to behind the screen
+        draw_balcony_window(h, f, bal_bay_home(s), x + 2, yb - FH + SPANDREL,
+                            BW - 4, FH - SLAB_H - SPANDREL);
+        // balcony clutter — tops peek above the privacy screen
+        if (h->balProp == 1) {                            // laundry line
+            for (int g = 0; g < 3; g++)
+                rectfill(x + 5 + g * 5, yb - BAL_SCREEN - 3, 2, 4, CURT[(f * 7 + s * 3 + g) % NCURT][0]);
+        } else if (h->balProp == 2) {                     // plants on the rail
+            for (int g = 0; g < 3; g++) {
+                pset(x + 5 + g * 6, yb - BAL_SCREEN - 1, CLR_DARK_GREEN);
+                pset(x + 5 + g * 6, yb - BAL_SCREEN - 2, CLR_GREEN);
+            }
+        }
+    }
+
+    // privacy screens — a solid corrugated panel per balcony (vs the gallery's bars)
+    rectfill(bx, yb - BAL_SCREEN, NB * BW, 1, slabC);     // handrail cap
+    for (int s = 0; s < NB; s++) {
+        int x = bx + s * BW;
+        fillp(0xCCCC, -1);
+        rectfill(x + 1, yb - BAL_SCREEN + 1, BW - 2, BAL_SCREEN - 1 - SLAB_H, panelC);
+        fillp_reset();
+    }
+}
+
+static void draw_balcony_tower(void) {
+    int top = wallTop - 6, bot = SCREEN_H - GROUND_H, tx = bal_towerX();
+    rectfill(tx, top, TW, bot - top, towerC);
+    int sx = tx + TW - 7;                                  // stairwell on the far side (mirrored)
+    rectfill(sx, wallTop, 4, baseY - wallTop, CLR_DARKER_BLUE);
+    for (int f = 0; f < NF; f++) {
+        int yb = baseY - f * FH;
+        if (f & 1) line(sx, yb - 4, sx + 3, yb - FH + 4, CLR_DARK_GREY);
+        else       line(sx, yb - FH + 4, sx + 3, yb - 4, CLR_DARK_GREY);
+    }
+    for (int i = 0; i < NLIFT; i++) draw_cab(i, tx + 3 + i * 10);   // same cars, mirrored side
+    rectfill(tx + 2, top - 9, TW - 4, 9, CLR_DARKER_GREY);
+    line(tx + 6, top - 9, tx + 6, top - 17, CLR_DARK_GREY);
+    pset(tx + 6, top - 18, blink(40) ? CLR_RED : CLR_DARK_RED);
 }
 
 static void draw_plinth(void) {
@@ -1159,21 +1268,25 @@ static const char *sill_label(int s) {
 }
 
 static void draw_inspect(void) {
-    int mx = mouse_x(), my = mouse_y(), hf = -1, hb = -1;
+    int mx = mouse_x(), my = mouse_y(), hf = -1, hb = -1, hx = 0;
+    int bx = view ? bal_baysX() : baysX;
     for (int f = 0; f < NF && hf < 0; f++) {
         int yb = baseY - f * FH;
         if (my < yb - FH || my >= yb) continue;       // not this band
-        for (int b = 0; b < NB; b++) {
-            int cx = baysX + b * BW;
-            if (mx >= cx && mx < cx + BW) { hf = f; hb = b; break; }
+        for (int s = 0; s < NB; s++) {
+            int cx = bx + s * BW;
+            if (mx >= cx && mx < cx + BW) {
+                hf = f; hb = view ? bal_bay_home(s) : s; hx = cx; break;
+            }
         }
     }
     if (hf < 0) return;
     Home *h = &homes[hf][hb];
 
-    // highlight the hovered front door
-    int yb = baseY - hf * FH, dx = baysX + hb * BW + BAY_PAD, dy = yb - FH + SPANDREL;
-    rect(dx - 1, dy - 1, DW + 2, FH - SLAB_H - SPANDREL - GALLERY_FLOOR + 2, CLR_LIGHT_YELLOW);
+    // highlight the hovered dwelling (front door on the gallery, window on the balcony)
+    int yb = baseY - hf * FH, dy = yb - FH + SPANDREL;
+    if (view) rect(hx + 1, dy - 1, BW - 2, FH - SLAB_H - SPANDREL + 2, CLR_LIGHT_YELLOW);
+    else      rect(hx + BAY_PAD - 1, dy - 1, DW + 2, FH - SLAB_H - SPANDREL - GALLERY_FLOOR + 2, CLR_LIGHT_YELLOW);
 
     int num = (hf + 1) * 100 + (hb + 1);
     int vacant = (h->arch == A_VACANT);
@@ -1248,22 +1361,31 @@ void draw(void) {
     // global tint: all 32 colours remapped, light-source colours restored
     push_tint(tod);
 
-    // building
-    rectfill(baysX, wallTop, NB * BW, baseY - wallTop, wallC);
-    {
-        int sx = towerLeft ? baysX : baysX + NB * BW - 4;
+    // building — gallery (front) or balcony (back, mirrored)
+    int bx = view ? bal_baysX() : baysX;
+    rectfill(bx, wallTop, NB * BW, baseY - wallTop, wallC);
+    {   // dithered shadow on the facade next to the lift tower
+        int tl = view ? !towerLeft : towerLeft;
+        int sx = tl ? bx : bx + NB * BW - 4;
         int pat[4] = { 0x4444, 0x8888, 0xCCCC, 0xEEEE };
         for (int i = 0; i < 4; i++) {
-            int x = towerLeft ? sx + i : sx + 3 - i;
+            int x = tl ? sx + i : sx + 3 - i;
             fillp(pat[i], -1);
             rectfill(x, wallTop, 1, baseY - wallTop, CLR_DARKER_GREY);
         }
         fillp_reset();
     }
-    for (int f = 0; f < NF; f++) draw_band(f);
-    rectfill(baysX - 1, wallTop - 3, NB * BW + 2, 3, slabC);
-    draw_tower();
-    draw_plinth();
+    if (!view) {
+        for (int f = 0; f < NF; f++) draw_band(f);
+        rectfill(bx - 1, wallTop - 3, NB * BW + 2, 3, slabC);
+        draw_tower();
+        draw_plinth();
+    } else {
+        for (int f = 0; f < NF; f++) draw_balcony_band(f);
+        rectfill(bx - 1, wallTop - 3, NB * BW + 2, 3, slabC);
+        draw_balcony_tower();
+        rectfill(bx, baseY, NB * BW, PLINTH_H, CLR_DARKER_GREY);   // plain back base, no lobby
+    }
 
     // ground (also tinted — pavement + grass pick up the ambient light)
     rectfill(0, horizon, SCREEN_W, 5, CLR_DARKER_GREY);
@@ -1275,10 +1397,11 @@ void draw(void) {
         pset(lampX[i] + 2, horizon - 12, CLR_LIGHT_YELLOW);
     }
 
-    // ground-level walkers — coming in off the street, leaving, or queuing at the lobby
-    for (int i = 0; i < MAXW; i++)
-        if (walkers[i].active && walkers[i].floor == GROUND && walkers[i].state != WK_RIDING)
-            draw_walker(&walkers[i], ground_feet() + 4);
+    // ground-level walkers live on the gallery/street side only
+    if (!view)
+        for (int i = 0; i < MAXW; i++)
+            if (walkers[i].active && walkers[i].floor == GROUND && walkers[i].state != WK_RIDING)
+                draw_walker(&walkers[i], ground_feet() + 4);
 
     pal_reset();  // HUD always in real colours
 
@@ -1287,11 +1410,9 @@ void draw(void) {
         char buf[6] = { '0'+h24/10, '0'+h24%10, ':', '0'+m/10, '0'+m%10, 0 };
         font(FONT_TINY);
         print(buf, 4, SCREEN_H - 6, CLR_DARK_GREY);
-        print("GALERIJFLAT", 28, SCREEN_H - 6, CLR_MEDIUM_GREY);
-        print_right(tint_on ? "B=tint:ON  T=+1h  SPACE=re-roll"
-                             : "B=tint:OFF T=+1h  SPACE=re-roll",
-                    SCREEN_W - 3, SCREEN_H - 6,
-                    tint_on ? CLR_DARK_GREY : CLR_MEDIUM_GREY);
+        print(view ? "GALERIJFLAT \x10 balcony" : "GALERIJFLAT \x10 gallery",
+              28, SCREEN_H - 6, CLR_MEDIUM_GREY);
+        print_right("F=flip  T=+1h  SPACE=re-roll", SCREEN_W - 3, SCREEN_H - 6, CLR_DARK_GREY);
         font(FONT_NORMAL);
     }
 

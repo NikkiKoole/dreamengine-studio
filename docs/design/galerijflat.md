@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 16 (a second lift car) complete.** Cart:
+**Status: building — step 17 (the flip: gallery ↔ balcony) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -754,22 +754,49 @@ The morning rush proved one 4-seat car can't empty the block; now there are two.
   peak waiting 41→31 and the rush **clears by ~noon instead of mid-afternoon**;
   no crash, no two-cars-on-one-floor stalls. Trace: `L0st/L0f`, `L1st/L1f`.
 
-## Handoff — next agent starts here (2026-06-08, session 16 complete)
+### Step 17 — the flip: gallery ↔ balcony (sys 4) (2026-06-08, session 16)
+
+`F` flips between the gallery (front) and the balcony (back) — one model, two
+renderers. (First the TV came off the gallery windows: that side is the kitchen,
+warm light only; the telly belongs to the living room and will return on the
+balcony face.)
+
+- **Mirrored geometry.** `bldX` (building left edge) is stored; the balcony view
+  puts the tower at the opposite end (`bal_towerX`) and reverses the dwelling
+  order (`bal_bay_home(s) = NB-1-s`), so the flat at the left end out front is at
+  the right end round the back. The dithered tower-shadow flips sides too.
+- **Same households, living-room face.** `draw_balcony_band` draws each home a
+  wide living-room window (vs its narrow kitchen) carrying the *same* curtains,
+  lit state and occupant (`draw_occupant` now takes a width). In front: a solid
+  corrugated **privacy screen** per balcony (vs the gallery's thin bars) and
+  **clutter** — `Home.balProp` (laundry / plants, correlated with the household)
+  peeking over the screen.
+- **The lift is shared.** `draw_cab(i, x)` takes an explicit shaft x; the balcony
+  tower draws the same two cars (same heights/riders) mirrored. Gallery walkers
+  and the street lobby are front-only (not drawn on the back); the sim keeps
+  running regardless of view, so flipping is purely a camera.
+- Hover-inspect works on both faces (maps the mirrored bay back to its home).
+
+Still to do on the balcony: TV glow in the living room (evening), balcony
+*sitters*, a garden/courtyard ground, and a transition instead of an instant cut.
+
+## Handoff — next agent starts here (2026-06-08, session 17 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-A second lift car (step 16) on top of step-15 per-resident routines.
+The balcony flip (step 17) on top of step-16's second lift car.
 
-**What's done:** static facade + clock/light schedules + global tint + full
-detail pass + gallery walkers + a real elevator (directional LOOK) + walker→
-light causality + a ground lobby + join-order queues + occupants in the windows
-+ hover-inspect panel + real households (multiple residents) + each resident on
-their own daily routine + **two coordinated lift cars**.
+**What's done:** static facade + clock/light + global tint + detail pass +
+gallery walkers + a real elevator (directional LOOK) + walker→light causality +
+ground lobby + join-order queues + window occupants + hover-inspect + real
+multi-resident households + per-resident daily routines + two coordinated lift
+cars + **the gallery↔balcony flip** (F).
 
-**Next build steps:** sys 4 — the balcony flip (one model, two mirrored views;
-the household + resident model is what it renders on both faces). After: sound
-(lift ding, travelling hum, wind) → import the keyframed sky from `dutchsky`.
-`MAXW` is 60; `NLIFT` is 2; front-of-queue boarding is still instant (a "walk
-into the cab" step is optional polish).
+**Next build steps:** balcony polish — TV glow in the living room (evening; the
+`home_tv()` helper is kept ready, just unused on the gallery now), balcony
+*sitters* (a still figure out on a nice-weather balcony), a garden/courtyard
+ground on the back, and a flip *transition* (currently an instant cut). Then
+sound (lift ding, travelling hum, wind) → import the keyframed sky from
+`dutchsky`. `MAXW` 60, `NLIFT` 2, `view` toggled by F.
 
 **The bake loop** (~10s per iteration):
 ```bash

@@ -77,6 +77,7 @@ typedef struct {
     float wake_h, sleep_h;
     int   nRes;
     int   balProp;             // balcony clutter: 0 none, 1 laundry, 2 plants
+    int   balPanel;            // colour of the infill panel below the balcony window
     Resident res[MAXRES];      // the actual people who live here
 } Home;
 
@@ -207,6 +208,13 @@ static const int WALK_HAIR[] = {
     CLR_BROWNISH_BLACK, CLR_DARK_BROWN, CLR_BROWN, CLR_LIGHT_GREY,
 };
 #define N_WALK_HAIR 4
+
+// bright infill panels below the balcony windows — that 60s/70s housing-estate look
+static const int PANEL_COLORS[] = {
+    CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN, CLR_TRUE_BLUE, CLR_BLUE_GREEN,
+    CLR_PINK, CLR_LIME_GREEN, CLR_DARK_ORANGE, CLR_WHITE, CLR_MEDIUM_GREY, CLR_MAUVE,
+};
+#define N_PANEL_COLORS 12
 
 // resident first names for the hover panel — the mix you'd find in a real slab
 static const char *NAMES[] = {
@@ -454,6 +462,7 @@ static void roll_home(Home *h) {
     case A_STUDENT: h->balProp = chance(30) ? 1 : 0;                       break;
     default:        h->balProp = 0;                                        break;
     }
+    h->balPanel = PANEL_COLORS[rnd(N_PANEL_COLORS)];
 
     switch (h->treat) {
     case TR_VITRAGE:  h->fillPat = VITRAGE_PATS[rnd(N_VITRAGE_PATS)];   break;
@@ -959,20 +968,29 @@ void update(void) {
 // wider than the glass, so it walks off behind the wall at the edges, vanishes
 // into another room now and then, and drifts back — a lived-in home, not a
 // decal. Only drawn for occ==1 homes (a walker was seen entering — the payoff).
+// a little person walking about the room — same walk cycle as the gallery
+// walkers, but a flat silhouette in one colour, grounded on the window floor
 static void draw_occupant(int wx, int wy, int ww, int wh, int f, int b, int col) {
-    int phase = f * 53 + b * 97;               // each home keeps its own rhythm
-    int t = frame();
-    if (((t / 220 + phase) % 6) == 0) return;  // off in another room for a spell — empty window
+    int phase = f * 53 + b * 97, t = frame();
+    if (((t / 220 + phase) % 6) == 0) return;   // off in another room for a spell — empty window
 
-    int period = 240 + (phase % 140);          // 4–6.5s per length of the room
-    int tri = abs(((t + phase * 7) % (2 * period)) - period);   // ping-pong 0..period
-    int rx = -5 + (tri * (ww + 10)) / period;  // room x runs -5 .. ww+5 (off-glass = behind wall)
-    int fx = wx + rx;
+    int period = 240 + (phase % 140);           // 4–6.5s to cross the room
+    int ph2 = (t + phase * 7) % (2 * period);
+    int tri = abs(ph2 - period);
+    int dir = (ph2 < period) ? 1 : -1;          // facing = travel direction
+    int cx = wx + (-3 + (tri * (ww + 6)) / period);   // off the glass edges = behind the wall
+    int fy = wy + wh - 1;                        // feet on the room floor
+    int step = ((cx >> 1) & 1);
 
-    clip(wx, wy, ww, wh);                       // anything past the glass edge hides behind the wall
-    rectfill(fx,     wy + 2, 2, 2, col);        // head
-    rectfill(fx - 1, wy + 4, 4, 4, col);        // shoulders/torso (lower body cut by the sill)
-    clip(0, 0, 0, 0);                           // restore full-screen drawing
+    clip(wx, wy, ww, wh);
+    rectfill(cx - 1, fy - 7, 2, 2, col);         // head
+    rectfill(cx - 1, fy - 5, 3, 3, col);         // torso
+    pset(step ? cx - 2 : cx + 2, fy - 4, col);   // a swinging arm
+    int lf = step ? cx - 1 + dir : cx - 1 - dir; // scissoring legs
+    int rf = step ? cx + 1 - dir : cx + 1 + dir;
+    line(cx - 1, fy - 2, lf, fy, col);
+    line(cx + 1, fy - 2, rf, fy, col);
+    clip(0, 0, 0, 0);
 }
 
 static void draw_window(Home *h, int f, int b, int wx, int wy) {
@@ -1188,9 +1206,14 @@ static void draw_balcony_band(int f) {
                  lit ? CLR_LIGHT_YELLOW : (vac ? CLR_DARKER_PURPLE : CLR_DARKER_BLUE));
         pset(dx + DW - 2, yb - 12, CLR_BROWNISH_BLACK);    // handle
 
-        // living-room window — slightly bigger and notably taller than the kitchen
+        // living-room window over a bright infill panel — the housing-estate look
         int lwx = dx + DW + WIN_GAP, lww = inX + inW - lwx;
-        draw_balcony_window(h, f, bal_bay_home(s), lwx, wy, lww, wh);
+        int winH = 9;                                       // glazed part (kept modest)
+        draw_balcony_window(h, f, bal_bay_home(s), lwx, wy, lww, winH);
+        rect(lwx, wy, lww, winH, h->doorCol);               // window frame, matching the door
+        int panelTop = wy + winH;
+        rectfill(lwx, panelTop, lww, (yb - SLAB_H) - panelTop,
+                 vac ? CLR_DARKER_GREY : h->balPanel);      // coloured panel below the window
 
         // this dwelling's own little balcony — a protruding box, NOT a continuous
         // gallery: floor slab + gallery-style rail (same slabC cap + panelC bars,

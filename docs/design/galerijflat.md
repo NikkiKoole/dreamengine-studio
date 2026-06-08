@@ -785,6 +785,14 @@ balcony is a protruding box with bare wall in the gaps), so it no longer reads
 as a continuous gallery. The balcony-side **tower is a blank concrete end** (no
 shafts/cabs/stairwell — the lifts are reached from the gallery side).
 
+More balcony feedback (same session): the windows were too big — now a modest
+glazed window (~9px) over a **bright colored infill panel** (`Home.balPanel`,
+housing-estate primaries) and a **door-coloured frame** around the glass. And
+the window occupant is no longer a floaty blob: `draw_occupant` now draws a
+proper little walker-shaped silhouette (head/torso/swinging-arm/scissoring legs,
+the same walk cycle, one flat colour) **grounded on the window floor** — applies
+to the gallery kitchen windows too.
+
 Still to do on the balcony: TV glow in the living room (evening), balcony
 *sitters*, a garden/courtyard ground, and a transition instead of an instant cut.
 

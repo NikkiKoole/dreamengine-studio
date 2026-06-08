@@ -107,6 +107,7 @@ cleanest examples of "here's what this engine sounds like."
 | **pd** (`pd`) | `INSTR_PD` | Phase distortion — the Casio CZ sound. |
 | **tabla** (`tabla`) | `INSTR_MEMBRANE` | A struck drumhead. |
 | **handpan** (`handpan`) | `INSTR_MALLET` | A steel hang drum — one ding, eight tone fields, every strike a gesture. |
+| **voxlab** (`voxlab`) | `INSTR_VOICE` *(experimental)* | The formant VOICE — a navkit VoicForm port (glottal pulse → 4 vowel formants). **A probe, not a finished showcase**: 7 raw params on sliders via the throwaway `voice_param()` poke, auditioning which 3 become the public macros. Verdict pending in [`probe-carts.md`](../design/probe-carts.md); don't build a voice cart on the API until it's locked. |
 
 ## Radio stations — auto-composing genre machines
 

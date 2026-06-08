@@ -333,6 +333,7 @@ void note_timbre(int handle, float x);         // live macro on a held note, sle
 void note_morph(int handle, float x);          // live macro on a held note, slewed — MALLET ring/motor and FM feedback move live; PLUCK position applies at the next note
 void voice_param(int handle, int idx, float value); // EXPERIMENTAL — poke a raw INSTR_VOICE param by index on a held note (0 vowel · 1 size · 2 breath · 3 open-quotient · 4 tilt · 5 vibrato-depth · 6 vibrato-rate), value 0..1. The voxlab prototype's fat control surface; not the final API
 void voice_consonant(int handle, int id);      // EXPERIMENTAL — begin a held INSTR_VOICE note with a consonant onset that morphs into the vowel ("bah"/"mah"/"sss-ah"). Call right after note_on; id 0..7 = b d g m n l s sh, -1 = none. A timed attack, not a held axis
+void voice_coda(int handle, int id);           // EXPERIMENTAL — close a held INSTR_VOICE note ON a consonant: the vowel morphs into it ("ahh-m"/"oo-d"). Call right before note_off; id 0..7, -1 = none. The mirror of voice_consonant; use voiced ids (b d g m n l)
 
 // drive — saturation AFTER the filter, so resonance screams into it. The grit knob.
 void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)

@@ -193,8 +193,10 @@ typedef struct {
     float  vox_tilt_lp;              // spectral-tilt 1-pole state
     float  vox_vib_ph;               // vibrato LFO phase
     float  vox_f_low[4], vox_f_band[4]; // 4 formant SVF states (low, band) — high recomputed per sample
-    int    vox_cons;                 // consonant onset id (VC_*), -1 = none; set by voice_consonant()
+    int    vox_cons;                 // consonant ONSET id (VC_*), -1 = none; set by voice_consonant()
     float  vox_cons_t;               // seconds since the consonant onset began (counts up to its duration)
+    int    vox_coda;                 // consonant CODA id (VC_*), -1 = none; set by voice_coda() near release
+    float  vox_coda_t;               // seconds since the coda morph began (vowel → consonant at note end)
     bool   vox_on;                   // note-on init guard (engine id hit without a start → silent)
 } Voice;
 
@@ -364,6 +366,7 @@ typedef enum {
     SR_NOTE_FOLLOW  = 31,
     SR_VOICE_PARAM  = 32,   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab): a=idx, b=val*1000
     SR_VOICE_CONS   = 33,   // EXPERIMENTAL INSTR_VOICE consonant onset (voxlab): a=consonant id (VC_*), -1 = none
+    SR_VOICE_CODA   = 34,   // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab): a=consonant id (VC_*), -1 = none
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1301,6 +1304,7 @@ static void sound_voice_start(Voice *v) {
     v->vox_glot_ph = v->vox_tilt_lp = v->vox_vib_ph = 0.0f;
     for (int i = 0; i < 4; i++) { v->vox_f_low[i] = 0.0f; v->vox_f_band[i] = 0.0f; }
     v->vox_cons = -1; v->vox_cons_t = 0.0f;
+    v->vox_coda = -1; v->vox_coda_t = 0.0f;
     v->vox_on = true;
 }
 
@@ -1355,6 +1359,20 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
                 : (p < 0.55f ? 0.0f : (p - 0.55f) / 0.45f);                // unvoiced: voice in late
         v->vox_cons_t += 1.0f / SR;
         if (v->vox_cons_t >= vox_cons_dur[c]) v->vox_cons = -1;            // onset done → pure vowel
+    }
+    // consonant CODA (the mirror of the onset): once voice_coda() fires near release, morph the
+    // vowel → the consonant over its duration, so the note CLOSES on it — "ahh-m", "oo-d", "ah-ng".
+    // Same table; op runs 1 (vowel) → 0 (consonant). Coda pool is voiced, so the glottis stays on.
+    if (v->vox_coda >= 0 && v->vox_coda < VC_COUNT) {
+        int c = v->vox_coda;
+        float p = v->vox_coda_t / vox_cons_dur[c]; if (p > 1.0f) p = 1.0f;
+        float op = 1.0f - p * p * (3.0f - 2.0f * p);     // 1 = full vowel → 0 = full consonant
+        for (int i = 0; i < 4; i++) {
+            vfreq[i] = vox_cons_f[c][i] * (1.0f - op) + vfreq[i] * op;
+            vamp[i]  = vox_cons_a[c][i] * (1.0f - op) + vamp[i]  * op;
+        }
+        con_noise += vox_cons_noise[c] * (1.0f - op);    // closing hiss/voiced-burst, swells as it shuts
+        v->vox_coda_t += 1.0f / SR;                      // (held at the consonant once p hits 1)
     }
 
     // glottal source: Rosenberg polynomial pulse (open-phase rise, closing fall, closed gap)
@@ -1690,6 +1708,9 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_VOICE_CONS) {     // EXPERIMENTAL INSTR_VOICE consonant onset (voxlab)
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { v->vox_cons = (r.a >= 0 && r.a < VC_COUNT) ? r.a : -1; v->vox_cons_t = 0.0f; }
+    } else if (r.kind == SR_VOICE_CODA) {     // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) { v->vox_coda = (r.a >= 0 && r.a < VC_COUNT) ? r.a : -1; v->vox_coda_t = 0.0f; }
     } else if (r.kind == SR_NOTE_DUTY) {
         Voice *v = sound_held_voice(r.e0, r.e1);
         if (v) { float d = r.a / 1000.0f; v->duty_target = d < 0.01f ? 0.01f : d > 0.99f ? 0.99f : d; }
@@ -2423,6 +2444,14 @@ void voice_param(int handle, int idx, float value) {
 void voice_consonant(int handle, int id) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_VOICE_CONS, id, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+// EXPERIMENTAL — close a held INSTR_VOICE note ON a consonant: the vowel morphs into it ("ahh-m",
+// "oo-d"). Call right BEFORE note_off; id is a VC_* index (0..7), -1 = none. The mirror of
+// voice_consonant — a coda instead of an onset; use voiced ids (b d g m n l) so it stays sung.
+void voice_coda(int handle, int id) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_VOICE_CODA, id, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 // ── tune: per-slot detune in semitones (fractions are the point) — applies LIVE to every

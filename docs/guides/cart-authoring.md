@@ -323,8 +323,9 @@ the include, and they never touch engine internals or the tcc symbol table.
 | `ui.h` | cross-input widgets: `ui_button`/`ui_slider`/`ui_knob` + per-finger drag-capture, fat-finger hit pads, opt-in keyboard/gamepad focus ring | **editing a value** (slider/knob) or a **panel of mixed widgets** you want keyboard-navigable — don't hand-roll the drag-capture machine. NOT for plain hit-targets (next row) | `uikit`, `sfxgen` |
 | `studio.h` `tapp()`/`tapr()` (not a header — the built-in) | "did a touch begin / end in this rect this frame" — edge-triggered, stateless, no capture | **discrete hit-targets on your own drawn surface**: toggle a grid cell, a preset chip, a transport button, a piano key | `mt70`, `drummachine`, `mallet` |
 | `gestures.h` | per-finger swipes judged at lift (`swiped`/`swiped_in`) + `pinch_scale` | touch games where fingers act independently (a swipe must survive other fingers drumming) | `touchlab` (test 9) |
-| `improv.h` | melodic improvisation helpers for the radio stations | generative music carts that want a soloist | `cocktail`, `roadhouse` |
-| `radio.h` | radio-station chrome: chair registry, THE BAND panel, seeded-song plumbing | building a new generative radio station | the radio carts, `tango`, `yacht` |
+| `improv.h` | melodic improvisation helpers — the *computer* solos | generative music carts that want an **auto**-soloist | `cocktail`, `roadhouse` |
+| `radio.h` | radio-station chrome: chassis draw blocks, seeded-song plumbing (PRNG/clock/voice-leading/input), draggable control knobs (`rad_knob_int`/`_sel`/`_float`) | building a new generative radio station | the radio carts, `tango`, `yacht` |
+| `solo.h` | the jam layer: a scale-locked solo strip the *player* drives (mono + glide, chord-tone highlight, per-station vertical expression `SOLO_Y_*`, octave shift, tap-to-toggle) on `ui.h` capture | letting a listener **play along** with a generative radio without playing wrong — pairs with `radio.h`. NOT for stations with no soloist (`ambient`, `satie`) | `bossa`, `citypop`, `dub`, `jangle`, `jingle` |
 
 **Reading them:** each header opens with its own manual (why it exists, usage,
 tunables). In the editor they're all listed under the **docs tab → "engine

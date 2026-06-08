@@ -48,8 +48,12 @@ eventually2/
 │       │               #   sliders/buttons include this, never hand-roll the
 │       │               #   drag machine (uikit + sfxgen are the references)
 │       ├── gestures.h  #   per-finger swipes judged at lift + pinch_scale
-│       ├── improv.h    #   melodic improvisation for the radio stations
-│       └── radio.h     #   radio-station chrome (chairs, THE BAND panel)
+│       ├── improv.h    #   melodic improvisation for the radio stations (auto-solo)
+│       ├── radio.h     #   radio-station chrome (chassis, seeded-song plumbing,
+│       │               #   draggable rad_knob_int/_sel/_float control knobs)
+│       └── solo.h      #   the jam layer — a scale-locked solo strip the PLAYER
+│                       #   drives over a radio (pairs with radio.h; built on ui.h
+│                       #   capture). NOT for soloist-less stations (ambient/satie)
 │       full table + contract: docs/guides/cart-authoring.md → "Cart-land
 │       library headers"
 ├── editor/

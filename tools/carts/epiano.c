@@ -119,17 +119,18 @@ static void apply_wah(void) {
         instrument_lfo(I_EP, 0, LFO_CUTOFF, 0.0f, 0.0f);
         instrument_follow(I_EP, LFO_CUTOFF, 0, 0, 0.0f);
     } else if (wah == 1) {                       // AUTO: an LFO sweeps a resonant BANDPASS (the
-        // moving resonant peak IS the wah vowel — a lowpass just opens the top, much weaker).
-        // Rhythmic, plays regardless of touch.
-        instrument_filter(I_EP, FILTER_BAND, 1100, 12);
+        // moving resonant peak IS the wah vowel). The sweep STAYS in a musical band (~400-2200
+        // Hz) — the old wide depth dove to the 20Hz clamp where a bandpass passes nothing, so
+        // the wah pulsed to mud. Centre 1300 ± (400..900). Rhythmic, plays regardless of touch.
+        instrument_filter(I_EP, FILTER_BAND, 1300, 11);
         instrument_follow(I_EP, LFO_CUTOFF, 0, 0, 0.0f);
-        instrument_lfo(I_EP, 0, LFO_CUTOFF, 1.5f + amt * 6.0f, 500.0f + amt * 1300.0f);
+        instrument_lfo(I_EP, 0, LFO_CUTOFF, 1.5f + amt * 6.0f, 400.0f + amt * 500.0f);
     } else {                                     // TOUCH: the envelope FOLLOWER opens the bandpass
         // from the note's own amplitude (fast attack, slow release) — the funky envelope-filter
-        // that responds to how hard you play. Dig in → it opens wider; it hangs on release.
-        instrument_filter(I_EP, FILTER_BAND, 350, 12);
+        // that responds to how hard you play. Centre opens ~350 -> ~2300, capped (not 3kHz+).
+        instrument_filter(I_EP, FILTER_BAND, 350, 11);
         instrument_lfo(I_EP, 0, LFO_CUTOFF, 0.0f, 0.0f);
-        instrument_follow(I_EP, LFO_CUTOFF, 3, 200, 1400.0f + amt * 2600.0f);
+        instrument_follow(I_EP, LFO_CUTOFF, 3, 200, 1000.0f + amt * 1500.0f);
     }
 }
 
@@ -197,7 +198,6 @@ void update(void) {
     }
 
     if (keyp('V')) { wah = (wah + 1) % 3; apply_wah(); audition(); }
-    if (keyp('B')) { de_svf_tpt = !de_svf_tpt; audition(); }   // TEMP A/B: Chamberlin vs TPT filter
     if (keyp('M')) autoplay = !autoplay;
 
     for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) note_morph(handle[b], val[SL_BARK]);
@@ -280,7 +280,6 @@ void draw(void) {
     font(FONT_SMALL);
     int inst = (int)(val[SL_INST] * 2.999f); if (inst > 2) inst = 2;
     print(INSTRUMENT[inst], 64, 8, CLR_PEACH);
-    print(str("B svf:%s", de_svf_tpt ? "TPT" : "cham"), 120, 8, de_svf_tpt ? CLR_LIME_GREEN : CLR_DARK_GREY);
     print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 6,
                 autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     font(FONT_NORMAL);

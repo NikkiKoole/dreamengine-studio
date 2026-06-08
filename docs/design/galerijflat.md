@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 7 (walker→light causality + 3× walkers) complete.** Cart:
+**Status: building — step 8 (the ground lobby) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -561,14 +561,37 @@ The facade now answers *why* a window changed.
   by `DE_TRACE`), find the frame it changes, and `compare` the dumped frames
   either side — the lit window shows as a changed block amid the walker motion.
 
-## Handoff — next agent starts here (2026-06-08, session 7 complete)
+### Step 8 — the ground lobby: walkers come and go at street level (2026-06-08, session 7)
+
+Before this, the lift's bottom stop was floor 0 (the first dwelling) and walkers
+teleported in/out there. Now there's a real **GROUND** stop — the street-level
+lobby — and the circulation loop is visible end to end.
+
+- **Floor model.** `GROUND` (`-1`) is a lift stop below floor 0; `floor_y(fl)`
+  maps it `LOBBY_DROP` px into the plinth, so the cab visibly descends into the
+  lobby. Floors `0..NF-1` are all served dwellings (no more floor-0 special
+  case). Sentinels: `lift_*` return `GROUND-1` for "no call"; `liftDepart` uses
+  `NO_DEPART` (`-1` is a real floor now).
+- **Two new walker states.** `WK_ENTER` — an arriver walks in off the street
+  (`exit_x`, just off-screen) across the pavement to the lobby, then queues at
+  `GROUND`. `WK_EXIT` — a leaver who rode down to the lobby steps out and walks
+  the pavement off-screen, then gone. Ground walkers (`floor==GROUND`) are drawn
+  by a pass in `draw()` at `ground_feet()`, in front of the plinth.
+- **Throughput retune.** Every passenger now rides the full height to/from the
+  lobby, which cut throughput, so: `DOOR_HOLD` 45→30, cruise 1.7→2.4 px/f, and
+  rates eased (trickle 90 / rush 65–70 / night 300). Evening ~10–18 active with
+  the queue churning ≤4; morning rush plateaus ~18 active / ~8 waiting, drains
+  after 09:00. Cab serves `carF=-1` regularly (confirmed in trace).
+
+## Handoff — next agent starts here (2026-06-08, session 8 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Causality + 3× walkers (step 7) on top of the step-6 elevator.
+Ground lobby (step 8) on top of step-7 causality + 3× walkers.
 
 **What's done:** static facade + clock/light schedules + global tint + full
 detail pass + gallery walkers + glazed lift car + a real elevator (LOOK
-scheduler) + **walker→light causality** + 3× population.
+scheduler) + walker→light causality + 3× population + **a ground lobby**
+(walkers walk in off the street, ride, and leave at street level).
 
 **Next build steps:** sys 4 (the flip to the balcony side — one model, two
 mirrored views) → sound (lift ding on door-open, the hum while travelling,

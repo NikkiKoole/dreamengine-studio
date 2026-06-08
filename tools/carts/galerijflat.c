@@ -36,17 +36,20 @@
 enum { A_VACANT, A_ELDER, A_COUPLE, A_FAMILY, A_STUDENT };
 enum { TR_NONE, TR_VITRAGE, TR_CURTAIN, TR_ROLLER, TR_VENETIAN };
 enum { SI_EMPTY, SI_SYMM, SI_RANDOM };
-// walker lifecycle around the lift:
-//  leaving:  spawn at door → WK_TO_LIFT (walk to tower) → WK_WAIT (queue) →
-//            WK_RIDING (in cab, dest 0) → alight at ground, gone
-//  arriving: spawn at ground → WK_WAIT (queue, dest = home floor) →
-//            WK_RIDING → WK_FROM_LIFT (walk tower→door) → fumble → home
-enum { WK_TO_LIFT, WK_WAIT, WK_RIDING, WK_FROM_LIFT };
+// walker lifecycle around the lift (GROUND is the street-level lobby):
+//  leaving:  door → WK_TO_LIFT (walk to tower) → WK_WAIT (queue on home floor)
+//            → WK_RIDING (dest GROUND) → WK_EXIT (walk the pavement out) → gone
+//  arriving: WK_ENTER (walk in from the street) → WK_WAIT (queue at GROUND,
+//            dest = home floor) → WK_RIDING → WK_FROM_LIFT (tower→door) → home
+enum { WK_ENTER, WK_TO_LIFT, WK_WAIT, WK_RIDING, WK_FROM_LIFT, WK_EXIT };
 
 // lift car state machine (sys 7)
 enum { LIFT_IDLE, LIFT_MOVING, LIFT_DOORS };
-#define LIFT_CAP   3     // people the cab holds
-#define DOOR_HOLD  45    // frames doors stay open
+#define LIFT_CAP   3       // people the cab holds
+#define DOOR_HOLD  30      // frames doors stay open
+#define GROUND    (-1)     // the lift's bottom stop: the street-level lobby
+#define LOBBY_DROP 7       // px the cab descends below floor 0 into the plinth lobby
+#define NO_DEPART (-100)   // liftDepart sentinel (GROUND is a real floor now)
 
 typedef struct {
     int   arch;
@@ -64,7 +67,7 @@ typedef struct {
 
 typedef struct {
     int   active;
-    int   state;               // WK_TO_LIFT / WK_WAIT / WK_RIDING / WK_FROM_LIFT
+    int   state;               // WK_ENTER/TO_LIFT/WAIT/RIDING/FROM_LIFT/EXIT
     int   floor;               // band the walker is physically on (gallery)
     int   home_floor;          // their dwelling floor
     int   dest;                // floor they want the lift to carry them to
@@ -93,6 +96,7 @@ static Home  homes[MAXF][MAXB];
 static float tod;
 static Walker walkers[MAXW];
 static int    spawn_cooldown;
+static float  floor_y(int fl);   // cab/floor-line y for a lift floor (GROUND-aware)
 #ifdef DE_TRACE
 static int    dbg_lit = -1;   // last home (floor*100+bay) a walker lit by arriving
 #endif
@@ -411,9 +415,9 @@ static void roll_building(void) {
     for (int i = 0; i < MAXW; i++) walkers[i].active = 0;
     spawn_cooldown = 0;
     carFloor = rnd(NF); liftTarget = carFloor; liftDir = 0;
-    liftState = LIFT_IDLE; liftDepart = -1; liftClosing = 0; liftDoorTimer = 0;
+    liftState = LIFT_IDLE; liftDepart = NO_DEPART; liftClosing = 0; liftDoorTimer = 0;
     liftDoor = 0.0f;
-    liftCarY = baseY - carFloor * FH;   // car starts parked at a floor
+    liftCarY = floor_y(carFloor);   // car starts parked at a floor
 }
 
 // ── gallery walkers ─────────────────────────────────────────────────────────
@@ -433,6 +437,15 @@ static int bay_door_x(int b) {
 }
 static float walk_speed(void) { return rnd_float_between(0.28f, 0.45f); }
 
+// cab floor-line y for a lift floor — floors sit on the FH grid; GROUND drops
+// the cab into the plinth lobby below floor 0
+static float floor_y(int fl) { return (fl < 0) ? (float)(baseY + LOBBY_DROP) : (float)(baseY - fl * FH); }
+// feet line for someone standing/walking on the pavement out front
+static int   ground_feet(void) { return SCREEN_H - GROUND_H + 2; }
+// the lobby door at the tower base, and the screen edge the pavement runs to
+static int   lobby_x(void) { return towerX + 14; }
+static int   exit_x(void)  { return towerLeft ? SCREEN_W + 6 : -6; }
+
 // how many are already queued at the lift on this floor (for stacking the line)
 static int count_waiting(int fl) {
     int n = 0;
@@ -440,10 +453,11 @@ static int count_waiting(int fl) {
         if (walkers[i].active && walkers[i].state == WK_WAIT && walkers[i].floor == fl) n++;
     return n;
 }
-// x of the k-th person in the queue: backed away from the tower door, into the gallery
-static int queue_x(int k) {
+// x of the k-th person in the queue, backed away from the lift door
+static int wait_x(int fl, int k) {
     int away = towerLeft ? 1 : -1;
-    return tower_edge_x() + away * (2 + k * 4);
+    if (fl == GROUND) return lobby_x()      + away * (4 + k * 4);   // on the pavement
+    return                   tower_edge_x() + away * (2 + k * 4);   // on the gallery
 }
 
 static void walker_dress(Walker *w) {
@@ -484,18 +498,13 @@ static void spawn_walker(void) {
     walker_dress(w);
 
     if (arrive) {
-        // comes in at the ground; rides up to floor f (floor 0 just walks in)
-        if (f == 0) {
-            w->state = WK_FROM_LIFT; w->floor = 0;
-            w->x = tower_edge_x(); w->tx = bay_door_x(b);
-            w->vx = (w->tx > w->x ? 1.0f : -1.0f) * walk_speed();
-        } else {
-            w->state = WK_WAIT; w->floor = 0; w->dest = f;
-            w->x = queue_x(count_waiting(0));
-        }
+        // walks in off the street, crosses the pavement to the lobby, rides up
+        w->state = WK_ENTER; w->floor = GROUND; w->dest = f;
+        w->x = exit_x(); w->tx = lobby_x();
+        w->vx = (w->tx > w->x ? 1.0f : -1.0f) * walk_speed();
     } else {
-        // leaving: walk to the tower, queue for the ride down (floor 0 just exits)
-        w->state = WK_TO_LIFT; w->floor = f; w->dest = 0;
+        // leaving: walk to the tower, queue for the ride down to the ground
+        w->state = WK_TO_LIFT; w->floor = f; w->dest = GROUND;
         w->x = bay_door_x(b); w->tx = tower_edge_x();
         w->vx = (w->tx > w->x ? 1.0f : -1.0f) * walk_speed();
         homes[f][b].occ = 0;   // they've stepped out — the window goes dark
@@ -508,10 +517,10 @@ static void update_walkers(void) {
     } else {
         int rate;   // per-frame 1/rate spawn chance — lower = busier (~3× the old pace,
                     // but rush is held back so one 3-seat lift can still churn the queue)
-        if      (tod < 6.0f || tod >= 23.0f)  rate = 200;   // night: still quiet
-        else if (tod >= 6.5f && tod <  9.0f)  rate = 50;    // morning rush
-        else if (tod >= 16.5f && tod < 19.5f) rate = 45;    // evening rush
-        else                                  rate = 67;    // daytime trickle
+        if      (tod < 6.0f || tod >= 23.0f)  rate = 300;   // night: still quiet
+        else if (tod >= 6.5f && tod <  9.0f)  rate = 70;    // morning rush
+        else if (tod >= 16.5f && tod < 19.5f) rate = 65;    // evening rush
+        else                                  rate = 90;    // daytime trickle
         if (rnd(rate) == 0) { spawn_walker(); spawn_cooldown = rnd_between(7, 20); }
     }
 
@@ -520,13 +529,19 @@ static void update_walkers(void) {
         if (!w->active) continue;
 
         switch (w->state) {
+        case WK_ENTER:                         // walking the pavement in from the street
+            w->x += w->vx;
+            if ((w->vx > 0) ? (w->x >= w->tx) : (w->x <= w->tx))
+                { w->state = WK_WAIT; w->x = wait_x(GROUND, count_waiting(GROUND)); }
+            break;
+        case WK_EXIT:                          // walking the pavement out to the street
+            w->x += w->vx;
+            if ((w->vx > 0) ? (w->x >= w->tx) : (w->x <= w->tx)) w->active = 0;
+            break;
         case WK_TO_LIFT:                       // walking the gallery toward the tower
             w->x += w->vx;
-            if ((w->vx > 0) ? (w->x >= w->tx) : (w->x <= w->tx)) {
-                w->x = w->tx;
-                if (w->floor == 0) { w->active = 0; }       // ground floor: straight out, no lift
-                else { w->state = WK_WAIT; w->x = queue_x(count_waiting(w->floor)); }
-            }
+            if ((w->vx > 0) ? (w->x >= w->tx) : (w->x <= w->tx))
+                { w->state = WK_WAIT; w->x = wait_x(w->floor, count_waiting(w->floor)); }
             break;
         case WK_FROM_LIFT:                     // walking from the tower to the front door
             if (w->pause > 0) {
@@ -556,7 +571,8 @@ static void update_walkers(void) {
 // that way (stopping at every call it passes), then reverses. Calls come live
 // from the walkers — a waiter at a floor or a rider wanting to alight there.
 // Boarding is direction-agnostic (keeps the logic simple; at this scale a rider
-// riding one extra floor reads as nothing). Floor 0 is the ground/entry.
+// riding one extra floor reads as nothing). GROUND (below floor 0) is the
+// street lobby — its calls and stops work just like any floor's.
 
 static int count_riders(void) {
     int n = 0;
@@ -574,18 +590,18 @@ static int lift_wants_stop(int fl) {
     return 0;
 }
 static int lift_any_call(void) {
-    for (int fl = 0; fl < NF; fl++) if (lift_wants_stop(fl)) return 1;
+    for (int fl = GROUND; fl < NF; fl++) if (lift_wants_stop(fl)) return 1;
     return 0;
 }
-static int lift_nearest(int dir) {       // nearest call strictly in dir, or -1
-    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++) if (lift_wants_stop(fl)) return fl; }
-    else         { for (int fl = carFloor - 1; fl >= 0; fl--) if (lift_wants_stop(fl)) return fl; }
-    return -1;
+static int lift_nearest(int dir) {       // nearest call strictly in dir, or NONE
+    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++)       if (lift_wants_stop(fl)) return fl; }
+    else         { for (int fl = carFloor - 1; fl >= GROUND; fl--)  if (lift_wants_stop(fl)) return fl; }
+    return GROUND - 1;
 }
-static int lift_furthest(int dir) {      // furthest call in dir (the sweep target), or -1
-    int best = -1;
-    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++) if (lift_wants_stop(fl)) best = fl; }
-    else         { for (int fl = carFloor - 1; fl >= 0; fl--) if (lift_wants_stop(fl)) best = fl; }
+static int lift_furthest(int dir) {      // furthest call in dir (the sweep target), or NONE
+    int best = GROUND - 1;
+    if (dir > 0) { for (int fl = carFloor + 1; fl < NF; fl++)       if (lift_wants_stop(fl)) best = fl; }
+    else         { for (int fl = carFloor - 1; fl >= GROUND; fl--)  if (lift_wants_stop(fl)) best = fl; }
     return best;
 }
 
@@ -598,8 +614,10 @@ static void lift_service(void) {
                 w->state = WK_FROM_LIFT; w->floor = carFloor;
                 w->x = tower_edge_x(); w->tx = bay_door_x(w->bay);
                 w->vx = (w->tx > w->x ? 1.0f : -1.0f) * walk_speed();
-            } else {
-                w->active = 0;                          // ground floor — out of the building
+            } else {                                    // reached the ground lobby
+                w->state = WK_EXIT; w->floor = GROUND;   // step out, walk off across the pavement
+                w->x = lobby_x(); w->tx = exit_x();
+                w->vx = (w->tx > w->x ? 1.0f : -1.0f) * walk_speed();
             }
         }
     }
@@ -614,11 +632,11 @@ static void lift_service(void) {
 static void lift_decide(void) {
     if (liftDir != 0) {                                 // keep sweeping while calls lie ahead
         int t = lift_furthest(liftDir);
-        if (t >= 0) { liftTarget = t; liftDepart = carFloor; liftState = LIFT_MOVING; return; }
+        if (t >= GROUND) { liftTarget = t; liftDepart = carFloor; liftState = LIFT_MOVING; return; }
     }
     int up = lift_nearest(+1), dn = lift_nearest(-1);   // else turn to the nearest call
-    if (up >= 0 && (dn < 0 || (up - carFloor) <= (carFloor - dn))) { liftDir = +1; liftTarget = lift_furthest(+1); }
-    else if (dn >= 0)                                              { liftDir = -1; liftTarget = lift_furthest(-1); }
+    if (up >= GROUND && (dn < GROUND || (up - carFloor) <= (carFloor - dn))) { liftDir = +1; liftTarget = lift_furthest(+1); }
+    else if (dn >= GROUND)                                                   { liftDir = -1; liftTarget = lift_furthest(-1); }
     else { liftDir = 0; liftState = LIFT_IDLE; return; }
     liftDepart = carFloor; liftState = LIFT_MOVING;
 }
@@ -634,19 +652,20 @@ static void update_lift(void) {
     case LIFT_MOVING: {
         liftDoor = lerp(liftDoor, 0.0f, 0.4f);
         int far = lift_furthest(liftDir);               // extend/retract as calls change
-        if (far >= 0) liftTarget = far;
-        float tY = baseY - liftTarget * FH;
+        if (far >= GROUND) liftTarget = far;
+        float tY = floor_y(liftTarget);
         float d = tY - liftCarY, ad = d < 0 ? -d : d;
-        float spd = ad < 12.0f ? ad * 0.16f : 1.7f;     // cruise, decelerate near the slab
+        float spd = ad < 12.0f ? ad * 0.2f : 2.4f;      // cruise, decelerate near the slab
         if (spd < 0.3f) spd = 0.3f;
         if (ad > 0.5f) liftCarY += (d > 0) ? spd : -spd; else liftCarY = tY;
 
         // once we've truly left the departed floor, allow stopping there again
-        if (liftDepart >= 0) {
-            float dy = liftCarY - (baseY - liftDepart * FH);
+        if (liftDepart != NO_DEPART) {
+            float dy = liftCarY - floor_y(liftDepart);
             if (dy < 0) dy = -dy;
-            if (dy > FH * 0.6f) liftDepart = -1;
+            if (dy > FH * 0.6f) liftDepart = NO_DEPART;
         }
+        // pass-through stop at grid floors (GROUND is only ever the sweep end)
         int nf = (int)((baseY - liftCarY) / (float)FH + 0.5f);
         if (nf < 0) nf = 0; if (nf >= NF) nf = NF - 1;
         float nfY = baseY - nf * FH, ndy = liftCarY - nfY;
@@ -834,7 +853,7 @@ static void draw_tower(void) {
     }
     // ── the lift: a glazed shaft with a lit car you can watch travel ──────────
     int lx = towerX + 11, lw = 7;            // shaft x, width
-    int shTop = wallTop, shBot = baseY;      // shaft spans the dwelling floors
+    int shTop = wallTop, shBot = baseY + LOBBY_DROP + 2;   // down into the ground lobby
     rectfill(lx, shTop, lw, shBot - shTop, CLR_DARKER_BLUE);   // dark shaft glass
     rectfill(lx - 1, shTop, 1, shBot - shTop, CLR_DARK_GREY);  // guide rails
     rectfill(lx + lw, shTop, 1, shBot - shTop, CLR_DARK_GREY);
@@ -938,6 +957,11 @@ void draw(void) {
         pset(lampX[i] + 2, horizon - 13, CLR_LIGHT_YELLOW);   // lamp head: exempt, stays warm
         pset(lampX[i] + 2, horizon - 12, CLR_LIGHT_YELLOW);
     }
+
+    // ground-level walkers — coming in off the street, leaving, or queuing at the lobby
+    for (int i = 0; i < MAXW; i++)
+        if (walkers[i].active && walkers[i].floor == GROUND && walkers[i].state != WK_RIDING)
+            draw_walker(&walkers[i], ground_feet() + 4);
 
     pal_reset();  // HUD always in real colours
 

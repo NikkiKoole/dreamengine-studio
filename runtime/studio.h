@@ -260,6 +260,8 @@ void map_scale(int n);                                  // integer zoom for map 
 #define INSTR_FM      18  // 2-op FM — DX-style epiano/bells/bass/brass/clang. Brightness decays within each note like a real DX strike. macros: harmonics = carrier:mod ratio (snapped detents — integers harmonic, offs = bells), timbre = brightness (mod index), morph = feedback (clean → growl → clang)
 #define INSTR_ORGAN   19  // tonewheel organ — Hammond/gospel/jazz drawbar registrations. 9 additive sines, holds while sustained. macros: harmonics = registration (snapped drawbar recipes — thin combo → full gospel), timbre = brightness tilt + key click, morph = animation (scanner chorus + percussion; 0 = still combo organ)
 #define INSTR_EPIANO  20  // electric piano — Rhodes/Wurlitzer/Clavinet. 12 decaying sine modes through a pickup nonlinearity; struck, rings down on its own (give a long hit()). macros: harmonics = instrument (snapped Rhodes/Wurli/Clav), timbre = brightness (pickup + hammer), morph = bark (dig-in growl)
+#define INSTR_PD      21  // phase-distortion (Casio CZ) — buzzy basses, resonant leads, the CZ "wowww" sweep. Holds while sustained. macros: harmonics = wavetype (snapped: saw/square/pulse/doublepulse/sawpulse + 3 resonant), timbre = distortion (brightness / resonant-peak), morph = DCW sweep (distortion snaps bright on the strike, settles — the CZ envelope)
+#define INSTR_MEMBRANE 22 // struck drumhead — tabla/conga/bongo/djembe/tom. Six decaying sine modes at circular-membrane ratios; rings on its own like MALLET. macros: harmonics = head (tuned tabla → inharmonic djembe), timbre = strike position (center thump → edge ring/slap), morph = pitch-bend (the tabla bayan gliss; 0 = flat)
 
 void sfx(int n);                              // play sfx slot n; -1 stops all sfx
 void note(int midi, int instr, int vol);                  // one-shot note (250ms). vol 0..7. `instr` is an instrument slot (0..4 are the waves above; define 5..31 yourself)
@@ -273,7 +275,7 @@ void note_vol(int handle, int vol);                       // change a held note'
 void note_cutoff(int handle, int hz);                     // sweep a held note's filter cutoff live (needs a filter on its instrument slot)
 void note_res(int handle, int resonance);                 // sweep a held note's filter resonance 0..15 live (pairs with note_cutoff for the acid squelch)
 void note_lfo(int handle, int which, int dest, float rate_hz, float depth);  // retune a held note's LFO `which` (0..2) live — dest LFO_PITCH/DUTY/VOLUME/CUTOFF; depth 0 = off
-void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount);  // set a held note's mod-envelope `which` (0..1) live — same shape as instrument_env(); amount 0 = off
+void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount);  // set a held note's mod-envelope `which` (0..2) live — same shape as instrument_env(); amount 0 = off
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap)
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
@@ -289,7 +291,10 @@ void instrument_duty(int slot, float duty);               // pulse width 0.0..1.
 #define LFO_DUTY    1   // PWM / duty sweep — depth 0.0..0.5 (square-wave slots only)
 #define LFO_VOLUME  2   // tremolo — depth 0.0..1.0
 #define LFO_CUTOFF  3   // filter sweep / wah — depth in Hz (needs a filter on the slot)
-void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth);  // attach sine LFO `which` (0..2 — a slot has 3) to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF. rate 4–8 Hz typical. depth 0 = off
+#define LFO_HARMONICS 4 // sweep the harmonics macro (engine voices, INSTR_PLUCK+). SNAPPED — STEPS through detents (wavetype/ratio/instrument). depth 0..1
+#define LFO_TIMBRE  5   // sweep the timbre macro (brightness; on PD-reso = a resonant filter sweep with no filter). depth 0..1
+#define LFO_MORPH   6   // sweep the morph macro (the engine's 3rd axis — PD DCW depth, FM feedback, organ chorus, EP bark). depth 0..1
+void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth);  // attach sine LFO `which` (0..2 — a slot has 3) to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF or the macro dests LFO_HARMONICS/TIMBRE/MORPH (engine voices). rate 4–8 Hz typical. depth 0 = off
 
 // resonant filter per instrument — sculpts the tone (the SID-style knob)
 #define FILTER_OFF   0
@@ -306,7 +311,10 @@ void instrument_filter(int slot, int mode, int cutoff_hz, int resonance);  // mo
 #define ENV_CUTOFF  0   // sweep filter cutoff — the pluck "pew"/"dwow". amount in Hz (+ opens then closes). needs a filter on the slot
 #define ENV_PITCH   1   // pitch blip — drum punch / attack snap / zap. amount in semitones (+ starts sharp, settles to the note)
 #define ENV_DUTY    2   // pulse-width sweep (square/pulse slots only). amount 0.0..1.0
-void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);  // attach mod-envelope `which` (0..1) to a slot. dest ENV_*. pluck: ENV_CUTOFF amount 1500, attack 0, decay 120. amount 0 = off
+#define ENV_HARMONICS 3 // one-shot sweep of the harmonics macro (engine voices; SNAPPED — steps detents). amount 0..1
+#define ENV_TIMBRE  4   // one-shot sweep of the timbre macro (a per-note brightness contour). amount 0..1
+#define ENV_MORPH   5   // one-shot sweep of the morph macro (e.g. a per-note PD DCW shape on top of the engine's own). amount 0..1
+void instrument_env(int slot, int which, int dest, int attack_ms, int decay_ms, float amount);  // attach mod-envelope `which` (0..2) to a slot. dest ENV_CUTOFF/PITCH/DUTY or the macro dests ENV_HARMONICS/TIMBRE/MORPH. pluck: ENV_CUTOFF amount 1500, attack 0, decay 120. amount 0 = off
 void instrument_follow(int slot, int dest, int attack_ms, int release_ms, float amount);  // envelope FOLLOWER: tracks the slot's own amplitude (fast attack, slow release) → dest LFO_CUTOFF/VOLUME/PITCH. The touch-responsive auto-wah (FILTER_BAND + this) — play harder, it opens more. amount = Hz (cutoff); 0 = off
 void note_follow(int handle, int dest, int attack_ms, int release_ms, float amount);  // set a held note's envelope follower live — same shape as instrument_follow(); amount 0 = off
 

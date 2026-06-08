@@ -55,9 +55,9 @@ ModType TYPES[NTYPE] = {
     [MOD_QUANT] = { "QUANT", CLR_GREEN, 5, 6, 2, {{2,false,18,60,"in"},{1,true,42,60,"pit"}},
                    2, {{"scl",0,5.99f,SCALE_PENTA,18,28,FMT_SCALE},{"root",0,11.99f,0,42,28,FMT_NOTE}} },
     [MOD_VOICE] = { "VOICE", CLR_BLUE, 6, 8, 7, {{0,false,3,84,"g"},{1,false,13,84,"p"},{2,false,23,84,"f"},{2,false,33,84,"r"},{2,false,43,84,"w"},{2,false,53,84,"a"},{0,false,63,84,"vb"}},
-                   7, {{"cut",200,2200,700,20,28,FMT_INT},{"res",0,15,6,52,28,FMT_INT},
+                   8, {{"cut",200,2200,700,20,28,FMT_INT},{"res",0,15,6,52,28,FMT_INT},
                        {"pw",0.05f,0.95f,0.5f,12,46,FMT_F1},{"wav",0,8.99f,0,36,46,FMT_WAVE},{"flt",0,3.99f,0,58,46,FMT_FILTER},
-                       {"fenv",0,3000,0,20,64,FMT_INT},{"penv",-48,48,0,52,64,FMT_INT}} },   // vb = VIBE patch point; a = amp/VCA CV; flt = filter mode
+                       {"fenv",0,3000,0,14,64,FMT_INT},{"penv",-48,48,0,36,64,FMT_INT},{"denv",0,1,0,58,64,FMT_F1}} },   // vb = VIBE patch point; a = amp/VCA CV; flt = filter mode; denv = duty (PWM) env, square/pulse only
     [MOD_EUCLID]= { "EUCLID", CLR_RED, 5, 6, 2, {{0,false,18,60,"clk"},{0,true,42,60,"g"}},
                    2, {{"h",1,8.99f,4,18,26,FMT_INT},{"s",2,16.99f,8,42,26,FMT_INT}} },
     [MOD_ENV]   = { "ENV", CLR_MEDIUM_GREEN, 4, 6, 2, {{0,false,14,60,"g"},{2,true,34,60,"cv"}},
@@ -86,15 +86,16 @@ ModType TYPES[NTYPE] = {
                      8, {{"1",0,1,0,    8,26,FMT_F1},{"2",0,1,0.14f,24,26,FMT_F1},{"3",0,1,0.28f,40,26,FMT_F1},{"4",0,1,0.43f,56,26,FMT_F1},
                          {"5",0,1,0.57f,8,42,FMT_F1},{"6",0,1,0.71f,24,42,FMT_F1},{"7",0,1,0.85f,40,42,FMT_F1},{"8",0,1,1,    56,42,FMT_F1}} },
     [MOD_VIBRATO] = { "VIBE", CLR_DARK_BLUE, 4, 5, 2, {{0,false,9,48,"g"},{0,true,27,48,"out"}},
-                     3, {{"rate",0.5f,14,5.5f,8,28,FMT_F1},{"dpt",0,1,0.3f,24,28,FMT_F1},{"dst",0,2.99f,0,40,28,FMT_DEST}} },
+                     3, {{"rate",0.5f,14,5.5f,8,28,FMT_F1},{"dpt",0,1,0.3f,24,28,FMT_F1},{"dst",0,6.99f,0,40,28,FMT_DEST}} },
     [MOD_CHANCE]  = { "CHANCE", CLR_BROWN, 4, 5, 2, {{0,false,14,48,"in"},{0,true,34,48,"out"}},
                      1, {{"prob",0,1,0.5f,24,28,FMT_F1}} },
     // Plaits-style macro voice (audio-notes §8): eng picks a modeled engine, the three
     // 0..1 macros (har/tmb/mor) mean something different per engine; h/t/m CV inlets ADD
     // to their knobs (full range — patch an ATTN before the inlet to set depth)
-    [MOD_MACRO]   = { "MACRO", CLR_DARK_PURPLE, 6, 7, 5, {{0,false,8,72,"g"},{1,false,22,72,"p"},{2,false,36,72,"h"},{2,false,50,72,"t"},{2,false,64,72,"m"}},
-                     4, {{"eng",0,2.99f,0,20,32,FMT_ENGINE},{"har",0,1,0.5f,52,32,FMT_F1},
-                         {"tmb",0,1,0.5f,20,54,FMT_F1},{"mor",0,1,0.5f,52,54,FMT_F1}} },
+    [MOD_MACRO]   = { "MACRO", CLR_DARK_PURPLE, 6, 8, 6, {{0,false,4,86,"g"},{1,false,16,86,"p"},{2,false,28,86,"h"},{2,false,40,86,"t"},{2,false,52,86,"m"},{0,false,64,86,"vb"}},
+                     7, {{"eng",0,5.99f,0,20,28,FMT_ENGINE},{"har",0,1,0.5f,52,28,FMT_F1},
+                         {"tmb",0,1,0.5f,20,48,FMT_F1},{"mor",0,1,0.5f,52,48,FMT_F1},
+                         {"drv",0,1,0,14,68,FMT_F1},{"eko",0,1,0,36,68,FMT_F1},{"tun",-12,12,0,58,68,FMT_F1}} },
     // pitch utility: a precision adder — shifts any pitch line by whole octaves (the only
     // way to reach the bass register; QUANT's root knob is semitones-up within ROOT_OCT)
     [MOD_XPOSE]   = { "XPOSE", CLR_DARK_PEACH, 3, 5, 2, {{1,false,9,48,"in"},{1,true,27,48,"out"}},
@@ -122,9 +123,9 @@ ModType TYPES[NTYPE] = {
 // reordered or inserted knob then fails loudly at the compiler instead of silently
 // cross-wiring (the fenv/flt/penv mixup of 2026-06-04).
 enum { CK_BPM, CK_SWG };                                            // MOD_CLOCK knobs
-enum { VK_CUT, VK_RES, VK_PW, VK_WAV, VK_FLT, VK_FENV, VK_PENV };   // MOD_VOICE knobs
+enum { VK_CUT, VK_RES, VK_PW, VK_WAV, VK_FLT, VK_FENV, VK_PENV, VK_DENV };   // MOD_VOICE knobs
 enum { BK_RATE, BK_DEPTH, BK_DEST };                                // MOD_VIBRATO knobs
-enum { MK_ENG, MK_HARM, MK_TIMB, MK_MORPH };                        // MOD_MACRO knobs
+enum { MK_ENG, MK_HARM, MK_TIMB, MK_MORPH, MK_DRV, MK_EKO, MK_TUN };  // MOD_MACRO knobs
 enum { MX_A, MX_B, MX_OFF };                                        // MOD_MIX knobs
 enum { AK_ATK, AK_DEC, AK_SUS, AK_REL };                            // MOD_ADSR knobs
 
@@ -137,7 +138,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate sets speed. Patch the cv out into", "any cv input to modulate it." },
     [MOD_SH]     = { "Sample & Hold. On each clk pulse it", "grabs the cv at 'in' and holds it until", "the next clk -> a stepped, random-ish cv." },
     [MOD_QUANT]  = { "Quantizer. Snaps any cv to the nearest", "note of a scale (scl/root) so it's always", "in key. cv in -> pitch out." },
-    [MOD_VOICE]  = { "Voice. g=gate p=pitch; f/r/w/a CV =", "cutoff/res/pw/amp. Patch an ENV into 'a' for", "a percussive VCA. fenv/penv = filter+pitch punch." },
+    [MOD_VOICE]  = { "Voice. g=gate p=pitch; f/r/w/a CV =", "cutoff/res/pw/amp. Patch an ENV into 'a' for", "a percussive VCA. fenv/penv/denv = flt/pitch/PWM punch." },
     [MOD_EUCLID] = { "Euclidean rhythm: h hits spread evenly", "over s steps. Advances on clk, fires a", "gate on each hit. Patch 'o' into DRUM." },
     [MOD_ENV]    = { "AD envelope. A gate makes a 0->1->0 cv", "ramp (atk up, dec down). Patch cv into a", "filter for a pluck on every note." },
     [MOD_DRUM]   = { "Three drum voices. A gate at k/s/h", "fires kick / snare / hat. Patch gates", "(from EUCLID or CLOCK) into them." },
@@ -151,9 +152,9 @@ const char *HELP[NTYPE][3] = {
     [MOD_MARBLES]= { "Shaped randomness. dens = how often the", "random gate (g) fires; sprd = how wide the", "random cv swings. Clock it; cv -> QUANT." },
     [MOD_MATHS]  = { "Function generator (Make Noise Maths).", "rise/fall shape a cv ramp: 't' triggers a", "one-shot; cyc>0 loops it (an LFO). eoc pulses at end." },
     [MOD_SEQ]    = { "8-step CV sequencer. Knobs set step values", "0-1 (patch cv→QUANT for pitched melody).", "Advances on clk, fires gate on each step." },
-    [MOD_VIBRATO]= { "Audio-rate vibrato via note_lfo(). rate=Hz,", "dpt=depth, dst=pit/cut/pw. 'g' unpatched=", "always on; patched=gate-enable." },
+    [MOD_VIBRATO]= { "Audio-rate LFO via note_lfo(). rate=Hz, dpt=depth,", "dst=pit/cut/pw/vol + har/tmb/mor (MACRO macros).", "Patch 'out'->VOICE/MACRO 'vb'. 'g' off=always on." },
     [MOD_CHANCE] = { "Gate filter: lets incoming gates through", "with prob chance (0=never 1=always).", "Thins patterns without changing the rhythm." },
-    [MOD_MACRO]  = { "Modeled voice (Plaits-style). eng = plk/mlt/", "fm engine; har/tmb/mor shape it (per-engine", "meaning). h/t/m CV inlets add to the knobs." },
+    [MOD_MACRO]  = { "Modeled voice. eng=plk/mlt/fm/org/ep/pd. har/tmb/mor", "shape it (+h/t/m CV inlets); drv/eko/tun=grit/echo/detune.", "Patch a VIBE into 'vb' (dst=har/tmb/mor) to LFO a macro." },
     [MOD_XPOSE]  = { "Octave shifter. Patch a pitch line through", "it (QUANT/KEYS -> VOICE) and oct moves it", "by -2..+2 whole octaves. Basses live here." },
     [MOD_MIX]    = { "CV mixer: out = a*ka + b*kb + off. Knobs go", "-1..+1 (attenuvert: negative = inverted).", "Sum an LFO + ENV into one filter cutoff." },
     [MOD_CMP]    = { "Comparator: gate high while cv in > thr.", "An LFO through it becomes a clock -- thr", "sets the pulse width. CV -> rhythm, no CLOCK." },
@@ -444,21 +445,23 @@ void preset_chance(void) {       // probabilistic gates: dense euclid filtered a
     add_cable(ck, 0, dr, 0); add_cable(ck, 0, dr, 2);
 }
 
-void preset_macro(void) {        // Plaits-style MACRO voice: Turing epiano, LFO swells morph (FM feedback) on its own
+void preset_macro(void) {        // Plaits-style MACRO voice on the PD (Casio CZ) engine: a VIBE
+                                 // sweeps the morph macro at AUDIO RATE — the DCW "wowww" pulsing
+                                 // (showcases the macros-as-LFO-destinations feature, dst=mor)
     note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
-    int ck = spawn(MOD_CLOCK,  bayx(0), bayy(0)), tm = spawn(MOD_TURING, bayx(1), bayy(1));
-    int qt = spawn(MOD_QUANT,  bayx(2), bayy(2)), mc = spawn(MOD_MACRO,  bayx(4), bayy(4));
-    int lf = spawn(MOD_LFO,    bayx(5), bayy(5)), eu = spawn(MOD_EUCLID, bayx(6), bayy(6));
-    int dr = spawn(MOD_DRUM,   bayx(3), bayy(3));   // MACRO front-and-centre (bay 4); drums take the edge bay
+    int ck = spawn(MOD_CLOCK,   bayx(0), bayy(0)), tm = spawn(MOD_TURING,  bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT,   bayx(2), bayy(2)), mc = spawn(MOD_MACRO,   bayx(4), bayy(4));
+    int vb = spawn(MOD_VIBRATO, bayx(5), bayy(5)), eu = spawn(MOD_EUCLID,  bayx(6), bayy(6));
+    int dr = spawn(MOD_DRUM,    bayx(3), bayy(3));   // MACRO front-and-centre (bay 4); drums take the edge bay
     mod[ck].param[0] = 96;
     mod[tm].param[0] = 0.25f;                            // mostly-locked melody loop
     mod[qt].param[0] = SCALE_PENTA_MIN;
-    mod[mc].param[MK_ENG] = 2;                           // FM engine
-    mod[mc].param[MK_HARM] = 0.15f; mod[mc].param[MK_TIMB] = 0.45f; mod[mc].param[MK_MORPH] = 0;   // the epiano detent (fm cart preset 1)
-    mod[lf].param[0] = 0.2f;                             // slow swell into the morph inlet
+    mod[mc].param[MK_ENG] = 5;                           // PD (Casio CZ) engine
+    mod[mc].param[MK_HARM] = 0.94f; mod[mc].param[MK_TIMB] = 0.5f; mod[mc].param[MK_MORPH] = 0.3f;   // resonant wavetype, mid distortion, some DCW
+    mod[vb].param[BK_RATE] = 3.0f; mod[vb].param[BK_DEPTH] = 0.5f; mod[vb].param[BK_DEST] = 6;        // dst=mor: LFO the DCW sweep (the new macro dest)
     add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, mc, 1);
     add_cable(ck, 1, mc, 0);                             // /2 gates — give each strike room to ring
-    add_cable(lf, 0, mc, 4);                             // LFO → m: the patch growls and cleans up on its own
+    add_cable(vb, 1, mc, 5);                             // VIBE out → MACRO vb: audio-rate LFO on morph (the new feature)
     mod[eu].param[0] = 3; mod[eu].param[1] = 8;
     add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
 }
@@ -531,9 +534,50 @@ void preset_adsrpad(void) {      // ADSR pad: wide CMP gates + a sustaining VCA 
     add_cable(l2, 0, qt, 0); add_cable(qt, 1, vo, 1);    // pitch wanders the scale while the note holds
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad };
-#define NPRESET 24
+void preset_pdreso(void) {       // PD on a resonant wavetype: a VIBE sweeps TIMBRE = a resonant
+                                 // filter sweep with NO filter (+ drive for grit). The CZ recipe,
+                                 // and the standout new sound from macros-as-LFO-destinations.
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,   bayx(0), bayy(0)), tm = spawn(MOD_TURING,  bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT,   bayx(2), bayy(2)), mc = spawn(MOD_MACRO,   bayx(4), bayy(4));
+    int vb = spawn(MOD_VIBRATO, bayx(5), bayy(5)), dr = spawn(MOD_DRUM,    bayx(6), bayy(6));
+    mod[ck].param[0] = 124;
+    mod[tm].param[0] = 0.3f;
+    mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[mc].param[MK_ENG] = 5;                           // PD (Casio CZ)
+    mod[mc].param[MK_HARM] = 0.94f; mod[mc].param[MK_TIMB] = 0.35f; mod[mc].param[MK_MORPH] = 0.2f;  // reso wavetype, low base distortion
+    mod[mc].param[MK_DRV] = 0.4f;                        // drive = grit into the resonance
+    mod[vb].param[BK_RATE] = 1.2f; mod[vb].param[BK_DEPTH] = 0.55f; mod[vb].param[BK_DEST] = 5;       // dst=tmb: the resonant sweep
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, mc, 1);
+    add_cable(ck, 0, mc, 0);
+    add_cable(vb, 1, mc, 5);                             // VIBE out → MACRO vb: audio-rate timbre sweep
+    add_cable(ck, 0, dr, 0); add_cable(ck, 0, dr, 2);
+}
+void preset_organ(void) {        // ORGAN engine: harmonics = drawbar registration, a VIBE sweeps
+                                 // MORPH = animated chorus/percussion. SAME routing as the PD
+                                 // presets, different engine — the engine-agnostic-modulation point.
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,   bayx(0), bayy(0)), tm = spawn(MOD_TURING,  bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT,   bayx(2), bayy(2)), mc = spawn(MOD_MACRO,   bayx(4), bayy(4));
+    int vb = spawn(MOD_VIBRATO, bayx(5), bayy(5)), eu = spawn(MOD_EUCLID,  bayx(6), bayy(6));
+    int dr = spawn(MOD_DRUM,    bayx(3), bayy(3));
+    mod[ck].param[0] = 100;
+    mod[tm].param[0] = 0.2f;
+    mod[qt].param[0] = SCALE_MAJOR;
+    mod[mc].param[MK_ENG] = 3;                           // ORGAN (tonewheel)
+    mod[mc].param[MK_HARM] = 0.45f; mod[mc].param[MK_TIMB] = 0.55f; mod[mc].param[MK_MORPH] = 0.5f;  // jazz-ish drawbars, chorus on
+    mod[mc].param[MK_EKO] = 0.2f;                        // a little echo-bus space
+    mod[vb].param[BK_RATE] = 0.8f; mod[vb].param[BK_DEPTH] = 0.4f; mod[vb].param[BK_DEST] = 6;        // dst=mor: slow chorus swell
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, mc, 1);
+    add_cable(ck, 1, mc, 0);                             // /2 gates — organ holds while gated
+    add_cable(vb, 1, mc, 5);
+    mod[eu].param[0] = 3; mod[eu].param[1] = 8;
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ };
+#define NPRESET 26
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;
@@ -615,6 +659,11 @@ void init(void) {
     instrument(23, INSTR_PLUCK,  1,   0, 7, 1200);
     instrument(24, INSTR_MALLET, 1,   0, 7, 1200);
     instrument(25, INSTR_FM,     2, 700, 3,  350);
+    // the three newer modeled engines — slots 29-31 (ENG_SLOT in eval MUST match). ORGAN/PD
+    // hold while gated (sustain 7); EPIANO is struck and rings out on the long release.
+    instrument(29, INSTR_ORGAN,  1,   0, 7,  200);
+    instrument(30, INSTR_EPIANO, 1,   0, 7, 1200);
+    instrument(31, INSTR_PD,     2, 500, 6,  400);
     // DRUM voices (26-28) — the §17 "darker drums" pass. The kick is the punch-preset
     // recipe baked in: a LONG sine whose pitch env does the donk (909 boom), not a 90ms
     // tri tick. Snare = band-passed noise over a tonal body; hat = high-passed noise.
@@ -688,6 +737,7 @@ void eval_mod(int mi) {
                 // upgrade over patching the control-rate ENV module into 'f'.
                 note_env(h, 0, ENV_CUTOFF, 0, 130, m->param[VK_FENV]);   // fenv → filter sweep
                 note_env(h, 1, ENV_PITCH,  0,  45, m->param[VK_PENV]);   // penv → pitch blip
+                note_env(h, 2, ENV_DUTY,   0, 130, m->param[VK_DENV]);   // denv → PWM sweep (square/pulse only)
                 m->state[3] = 0;   // trigger flash
             }
             m->state[0] = gate; m->state[3] += 1;
@@ -704,10 +754,10 @@ void eval_mod(int mi) {
                 int vc = cable_into(mi, 6);
                 if (vc >= 0 && mod[cable[vc].sm].type == MOD_VIBRATO && mod[cable[vc].sm].jackval[1] > 0.5f) {
                     Module *vb = &mod[cable[vc].sm];
-                    int dst = (int)clamp(vb->param[BK_DEST], 0, 2);
-                    int dests[] = { LFO_PITCH, LFO_CUTOFF, LFO_DUTY };
+                    int dst = (int)clamp(vb->param[BK_DEST], 0, 6);
+                    int dests[] = { LFO_PITCH, LFO_CUTOFF, LFO_DUTY, LFO_VOLUME, LFO_HARMONICS, LFO_TIMBRE, LFO_MORPH };
                     float d = vb->param[BK_DEPTH];
-                    float dep[] = { d * 2.5f, d * 800.0f, d * 0.35f };
+                    float dep[] = { d * 2.5f, d * 800.0f, d * 0.35f, d, d, d, d };   // vol = tremolo; har/tmb/mor = macro swing (no-op on a wavetable VOICE)
                     note_lfo(h, 0, dests[dst], vb->param[BK_RATE], dep[dst]);
                 }
             }
@@ -846,11 +896,19 @@ void eval_mod(int mi) {
             if (cable_into(mi, 0) < 0) {   // gate input unpatched → release (no dangling drone)
                 int h = (int)m->state[1]; if (h > 0) { note_off(h); m->state[1] = 0; }
             }
-            int slot = 23 + (int)clamp(m->param[MK_ENG], 0, 2);
+            // eng → slot: plk/mlt/fm live at 23-25; the three newer engines at 29-31
+            // (26-28 are the drum voices, so this can't be plain 23+eng). MUST match init().
+            static const int ENG_SLOT[6] = { 23, 24, 25, 29, 30, 31 };
+            int slot = ENG_SLOT[(int)clamp(m->param[MK_ENG], 0, 5)];
             float gate = read_in(mi, 0), pitch = read_in(mi, 1);
             float hv = clamp(m->param[MK_HARM]  + read_in(mi, 2), 0, 1);   // macro = knob + CV inlet
             float tv = clamp(m->param[MK_TIMB]  + read_in(mi, 3), 0, 1);
             float mv = clamp(m->param[MK_MORPH] + read_in(mi, 4), 0, 1);
+            // per-voice character (knobs, no CV inlets): drive = gnarl, eko = echo-bus send,
+            // tun = detune. Set on the slot every frame — instrument_tune is live, drive/echo
+            // reach a sounding voice via note_* below; new notes pick them all up.
+            float dv = clamp(m->param[MK_DRV], 0, 1), ev = clamp(m->param[MK_EKO], 0, 1), tn = m->param[MK_TUN];
+            instrument_drive(slot, dv); instrument_echo(slot, ev); instrument_tune(slot, tn);
             if (gate > 0.5f && m->state[0] <= 0.5f) {
                 // strike-shaping macros (pluck pick, mallet hardness) are read at excitation
                 // time — push them onto the slot BEFORE note_on (the request queue keeps order)
@@ -870,6 +928,18 @@ void eval_mod(int mi) {
             if (h > 0) {   // live macros reach the sounding voice, slewed (FM brightness, mallet ring, pluck damping)
                 note_pitch(h, pitch < 1 ? 48.0f : pitch);
                 note_harmonics(h, hv); note_timbre(h, tv); note_morph(h, mv);
+                note_drive(h, dv); note_echo(h, ev);   // tune is already live via instrument_tune
+                // vb jack (5): a patched VIBE drives an audio-rate LFO on a macro (or any dest) —
+                // har/tmb/mor are the new macro destinations (e.g. LFO the PD DCW sweep)
+                int vc = cable_into(mi, 5);
+                if (vc >= 0 && mod[cable[vc].sm].type == MOD_VIBRATO && mod[cable[vc].sm].jackval[1] > 0.5f) {
+                    Module *vb = &mod[cable[vc].sm];
+                    int dst = (int)clamp(vb->param[BK_DEST], 0, 6);
+                    int dests[] = { LFO_PITCH, LFO_CUTOFF, LFO_DUTY, LFO_VOLUME, LFO_HARMONICS, LFO_TIMBRE, LFO_MORPH };
+                    float d = vb->param[BK_DEPTH];
+                    float dep[] = { d * 2.5f, d * 800.0f, d * 0.35f, d, d, d, d };
+                    note_lfo(h, 0, dests[dst], vb->param[BK_RATE], dep[dst]);
+                }
             }
             break; }
         case MOD_XPOSE: {  // precision adder for pitch lines: out = in + oct*12 (whole octaves, snapped)
@@ -952,8 +1022,8 @@ const char *knob_str(int fmt, float v) {
     if (fmt == FMT_LOGIC) { const char *L[3] = { "AND", "OR", "XOR" }; return L[(int)v]; }
     if (fmt == FMT_WAVE)  { const char *W[9] = { "saw", "sqr", "tri", "sin", "noi", "org", "vox", "bel", "fld" }; return W[(int)v]; }   // org/vox/bel/fld = drawn user waves
     if (fmt == FMT_FILTER){ const char *F[4] = { "lp",  "hp",  "bp",  "nt"  }; return F[(int)clamp(v, 0, 3)]; }
-    if (fmt == FMT_DEST)  { const char *D[3] = { "pit", "cut", "pw"  }; return D[(int)clamp(v, 0, 2)]; }
-    if (fmt == FMT_ENGINE){ const char *E[3] = { "plk", "mlt", "fm"  }; return E[(int)clamp(v, 0, 2)]; }   // pluck/mallet/fm modeled engines
+    if (fmt == FMT_DEST)  { const char *D[7] = { "pit", "cut", "pw", "vol", "har", "tmb", "mor" }; return D[(int)clamp(v, 0, 6)]; }   // har/tmb/mor = engine macros (MACRO voice only)
+    if (fmt == FMT_ENGINE){ const char *E[6] = { "plk", "mlt", "fm", "org", "ep", "pd" }; return E[(int)clamp(v, 0, 5)]; }   // pluck/mallet/fm/organ/epiano/pd modeled engines
     if (fmt == FMT_OCT)   { int o = (int)floorf(v + 0.5f); return o == 0 ? "0" : str("%+d", o); }          // snapped whole octaves
     if (fmt == FMT_DIV)   return str("/%d", (int)v);                                                       // clock division
     if (fmt == FMT_SCALE) return SCALES[(int)v];

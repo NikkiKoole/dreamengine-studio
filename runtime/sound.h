@@ -58,10 +58,10 @@ typedef struct {
     int   flt_mode;                 // FILTER_OFF / LOW / HIGH / BAND / NOTCH
     float flt_cutoff;               // Hz
     float flt_q;                    // damping coefficient (1/Q); small = resonant
-    int   env_dest[2];              // ENV_CUTOFF / ENV_PITCH / ENV_DUTY, per mod-envelope
-    int   env_a_samp[2];            // attack, in samples
-    int   env_d_samp[2];            // decay, in samples
-    float env_amount[2];            // 0 = off; bipolar; units depend on dest (Hz / semitones / 0..1)
+    int   env_dest[3];              // ENV_CUTOFF / ENV_PITCH / ENV_DUTY, per mod-envelope
+    int   env_a_samp[3];            // attack, in samples
+    int   env_d_samp[3];            // decay, in samples
+    float env_amount[3];            // 0 = off; bipolar; units depend on dest (Hz / semitones / 0..1)
     int   flw_dest;                 // envelope FOLLOWER dest (LFO_CUTOFF/VOLUME/PITCH) — the 3rd mod source
     float flw_atk, flw_rel;         // per-sample smoothing coeffs (from attack/release ms)
     float flw_amount;               // 0 = off; Hz for cutoff, 0..1 for volume(duck), semitones for pitch
@@ -74,7 +74,7 @@ typedef struct {
 } Instrument;
 
 #define SOUND_LFOS 3
-#define SOUND_ENVS 2   // routable mod-envelopes per instrument (the one-shot twin of the LFOs)
+#define SOUND_ENVS 3   // routable mod-envelopes per instrument (the one-shot twin of the LFOs)
 
 typedef struct {
     bool   active;
@@ -94,9 +94,9 @@ typedef struct {
     float  rel_start;          // envelope level at the moment the gate ends (release fades from here)
     int    lfo_dest[3];
     float  lfo_rate[3], lfo_depth[3], lfo_phase[3];
-    int    env_dest[2];              // mod-envelopes (AD; timer = step_samples, retriggered at note-on)
-    int    env_a_samp[2], env_d_samp[2];
-    float  env_amount[2];
+    int    env_dest[3];              // mod-envelopes (AD; timer = step_samples, retriggered at note-on)
+    int    env_a_samp[3], env_d_samp[3];
+    float  env_amount[3];
     int    flw_dest;                 // envelope follower: tracks this voice's own amplitude → dest
     float  flw_atk, flw_rel, flw_amount, flw_amp;   // attack/release coeffs, depth, + the running level
     int    flt_mode;
@@ -148,6 +148,12 @@ typedef struct {
     float  ep_freqnorm;              // register position 0..1 (upper modes + bark fade out high up)
     int    ep_type;                  // 0 Rhodes / 1 Wurli / 2 Clav (from harmonics at note-on)
     bool   ep_on;                    // struck this note — guards an engine id without a note-on init
+    // membrane-drum state (INSTR_MEMBRANE): six decaying sine modes at circular-membrane
+    // (Bessel) ratios, buffer-free (mallet family). Struck/self-decaying. The bayan pitch-bend
+    // (morph) is derived from step_samples per sample — no extra state, like PD's DCW.
+    float  mb_phase[6], mb_amp[6];   // per-mode phase + decaying amplitude (the head's ring)
+    int    mb_strike;                // strike-noise samples remaining (the finger/slap contact)
+    bool   mb_on;                    // struck this note — guards an engine id without a note-on init
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -598,6 +604,88 @@ static inline float sound_fm_sample(Voice *v, float pitch_mul) {
     return out;
 }
 
+// One PD (Casio CZ phase-distortion) sample — buffer-free, NO note-on init (phase rides
+// v->phase like FM; the only per-note motion is the DCW envelope, which derives from
+// step_samples — the FM beta-decay trick — so it needs zero Voice state). Design + the STEP 0
+// render findings: docs/design/instrument-engines.md §8.8.6.
+static inline float sound_pd_sample(Voice *v, float pitch_mul) {
+    float phase = v->phase;                 // 0..1, advanced by the mix loop like any wave
+    // (literals inline below — PI and TAU are raylib macros, so don't declare locals named that)
+    // harmonics = wavetype, SNAPPED to 8 CZ detents (the FM ratio-table pattern; never
+    // crossfaded — the formulas are discontinuous). 0..4 phase-warp family, 5..7 resonant.
+    int wt = (int)(v->harm * 7.999f);
+    if (wt < 0) wt = 0; else if (wt > 7) wt = 7;
+    // timbre = static distortion (the DCW amount). morph = DCW-ENVELOPE depth: distortion
+    // snaps toward 1 on the strike and settles to the timbre value over ~0.25s — the CZ
+    // "wowww" navkit omits. morph 0 = static (navkit-flat); 1 = full sweep.
+    float d_sus = v->timb;
+    float dcw   = expf(-(float)v->step_samples / (0.25f * (float)SOUND_SAMPLE_RATE));
+    float d = d_sus + (1.0f - d_sus) * v->mor * dcw;
+    if (d > 0.999f) d = 0.999f; else if (d < 0.0f) d = 0.0f;
+    float out = 0.0f;
+    switch (wt) {
+        case 0: {  // SAW: compress first half of the phase ramp, stretch the second
+            float dp;
+            if (phase < 0.5f) dp = phase * (1.0f + d);
+            else { float t = (phase - 0.5f) * 2.0f; dp = 0.5f * (1.0f + d) + t * (1.0f - 0.5f * (1.0f + d)); }
+            if (dp < 0.0f) dp = 0.0f; else if (dp > 1.0f) dp = 1.0f;
+            out = cosf(dp * 3.14159265f);
+            break;
+        }
+        case 1: {  // SQUARE: sharpen the transitions at 0.25 / 0.75
+            float sh = 0.5f - d * 0.45f, dp;
+            if      (phase < 0.25f) dp = phase / 0.25f * sh;
+            else if (phase < 0.5f)  dp = sh + (phase - 0.25f) / 0.25f * (0.5f - sh);
+            else if (phase < 0.75f) dp = 0.5f + (phase - 0.5f) / 0.25f * sh;
+            else                    dp = 0.5f + sh + (phase - 0.75f) / 0.25f * (0.5f - sh);
+            out = cosf(dp * 6.2831853f);
+            break;
+        }
+        case 2: {  // PULSE: compress the active portion to a narrow pulse
+            float w = 0.5f - d * 0.45f, dp;
+            if (phase < w) dp = phase / w * 0.5f;
+            else           dp = 0.5f + (phase - w) / (1.0f - w) * 0.5f;
+            out = cosf(dp * 6.2831853f);
+            break;
+        }
+        case 3: {  // DOUBLEPULSE: two peaks per cycle (sync-like, octave-up flavour)
+            float dp = phase * 2.0f; if (dp >= 1.0f) dp -= 1.0f;
+            float w = 0.5f - d * 0.4f;
+            if (dp < w) dp = dp / w * 0.5f;
+            else        dp = 0.5f + (dp - w) / (1.0f - w) * 0.5f;
+            out = cosf(dp * 6.2831853f);
+            break;
+        }
+        case 4: {  // SAWPULSE: saw + pulse blend
+            float dp1;
+            if (phase < 0.5f) dp1 = phase * (1.0f + d * 0.5f);
+            else              dp1 = 0.5f * (1.0f + d * 0.5f) + (phase - 0.5f) * (1.0f - d * 0.25f);
+            if (dp1 < 0.0f) dp1 = 0.0f; else if (dp1 > 1.0f) dp1 = 1.0f;
+            float saw = cosf(dp1 * 3.14159265f);
+            float w = 0.5f - d * 0.3f, dp2;
+            if (phase < w) dp2 = phase / w * 0.5f;
+            else           dp2 = 0.5f + (phase - w) / (1.0f - w) * 0.5f;
+            out = (saw + cosf(dp2 * 6.2831853f)) * 0.5f;
+            break;
+        }
+        default: { // 5/6/7 RESONANT: a window gates a cosine at the resonant peak (1 + d·7×).
+            // STEP 0 finding (§8.8.6): the raw d·7 peak is an icepick at high notes (brightness
+            // 0.022 at C3 → 0.938 at C6). Scale the multiplier DOWN as the note rises, EP-style.
+            float f  = v->freq * pitch_mul;
+            float fn = (f - 80.0f) / 1200.0f; if (fn < 0.0f) fn = 0.0f; else if (fn > 1.0f) fn = 1.0f;
+            float resoFreq = 1.0f + d * 7.0f * (1.0f - fn * 0.7f);
+            float window;
+            if (wt == 5)      window = 1.0f - fabsf(2.0f * phase - 1.0f);                 // RESO1 triangle
+            else if (wt == 6) window = (phase < 0.25f) ? phase * 4.0f                     // RESO2 trapezoid
+                                     : (phase < 0.75f) ? 1.0f : (1.0f - phase) * 4.0f;
+            else              window = 1.0f - phase;                                      // RESO3 saw (classic CZ)
+            out = window * cosf(phase * resoFreq * 6.2831853f);
+            break;
+        }
+    }
+    return out;
+}
+
 // ORGAN note-on: organ tone is continuous (no struck excitation like pluck/mallet) — the
 // drawbar sines simply start sounding. We only ARM the two attack transients here: the key
 // click (rides timbre — a bright patch clicks harder) and the percussion ping (rides morph's
@@ -829,6 +917,77 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
     return out * 0.8f;
 }
 
+// MEMBRANE note-on: strike the drumhead. The six modes get a generic membrane energy profile
+// (upper modes weaker); the strike POSITION (timbre) reweights them LIVE in the sample fn, so
+// note_timbre reshapes a ringing head. Head ratios (harmonics) and the bend (morph) are read
+// live too. navkit crib: initMembranePreset / processMembraneOscillator (synth_oscillators.h).
+static void sound_membrane_start(Voice *v) {
+    // base mode energies — a generic struck head, the partials falling off with mode index.
+    // Strike position (timbre) does the center/edge shaping live; harmonics does the ratios.
+    static const float BASE[6] = { 1.0f, 0.60f, 0.45f, 0.32f, 0.22f, 0.13f };
+    float sum = 0.0f;
+    for (int m = 0; m < 6; m++) { v->mb_phase[m] = 0.0f; v->mb_amp[m] = BASE[m]; sum += BASE[m]; }
+    if (sum > 0.0001f) { float g = 1.0f / sum; for (int m = 0; m < 6; m++) v->mb_amp[m] *= g; }
+    // the contact transient: ~2ms of noise, only audible toward the edge (the slap snap)
+    v->mb_strike = (int)(0.002f * (float)SOUND_SAMPLE_RATE);
+    v->mb_on     = true;
+}
+
+// One MEMBRANE sample: sum the six modes, decay them (upper modes die fast — that's the
+// "thump"), weight them by strike position, add the slap click, and bend the whole head.
+// Live macros: harmonics crossfades the mode RATIOS (tuned-harmonic tabla ↔ ideal-membrane
+// inharmonic djembe) and sets the ring length; timbre is the STRIKE POSITION (center thump ↔
+// edge ring/slap); morph is the BEND DEPTH — pitch starts raised off the strike and settles
+// over ~90ms (the membrane chirp / tabla bayan gliss), derived from step_samples so it needs
+// no state. The bend on a SIX-mode head is what a one-sine 808/909 can't reach. Pitch per
+// sample (§8.8.1).
+static inline float sound_membrane_sample(Voice *v, float pitch_mul) {
+    if (!v->mb_on) return 0.0f;                          // engine id without a note-on init
+    const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    // tuned head (tabla — its loaded skin pulls the modes to a near-HARMONIC series, a pitched
+    // drum) ↔ ideal circular-membrane ratios (djembe/conga — Bessel zeros, inharmonic thud).
+    static const float RT[6] = { 1.0f, 2.0f,   3.0f,   4.0f,   5.0f,   6.0f   };
+    static const float RD[6] = { 1.0f, 1.594f, 2.136f, 2.296f, 2.653f, 2.918f };  // navkit Bessel
+    float f = v->freq * pitch_mul;
+    if (f < 20.0f) f = 20.0f;
+    // the bend: pitch starts raised off the strike (≈+morph fifth at the peak) and settles to
+    // the base over ~90ms — navkit's membrane chirp; morph 0 = flat. 808/909 do this to ONE
+    // sine, here it bends all six modes together.
+    float t = (float)v->step_samples * dt;
+    float bend = 1.0f + v->mor * 0.6f * expf(-t / 0.09f);
+    // ring: a tuned tabla head SINGS — its loaded skin sustains a pitched tone for ~1.5s+ —
+    // while a damped djembe is a short thud. harmonics tilts between the two.
+    float t60  = 1.6f - 1.25f * v->harm;                 // ~1.6s tuned tabla ring → ~0.35s djembe thud
+    float rate = 6.9078f / t60;                          // amp *= (1 - rate·dt) ≈ e^-6.9 at t60
+    float nyq  = (float)SOUND_SAMPLE_RATE * 0.45f;
+    float out  = 0.0f;
+    for (int m = 0; m < 6; m++) {
+        float amp = v->mb_amp[m];
+        if (amp < 0.00002f) continue;
+        // upper modes ring much shorter than the fundamental — the head dumps its highs fast,
+        // which is exactly what reads as a struck drum rather than a sustained pad
+        v->mb_amp[m] = amp - amp * rate * (1.0f + 1.4f * (float)m) * dt;
+        float ratio = RT[m] + (RD[m] - RT[m]) * v->harm;
+        float mf = f * ratio * bend;
+        if (mf >= nyq) continue;                         // above Nyquist: decays silently
+        v->mb_phase[m] += mf * dt;
+        if (v->mb_phase[m] >= 1.0f) v->mb_phase[m] -= 1.0f;
+        // strike position (timbre): center (0) damps the upper modes → round boom; edge (1)
+        // lifts them progressively → bright ring/slap. navkit's circular-membrane weighting
+        // (the fundamental, mode 0, is unaffected — it's there wherever you strike).
+        float pos = 1.0f;
+        if (m > 0) pos = (1.0f - v->timb) * (1.0f / (float)(m + 1)) + v->timb * (float)m * 0.15f;
+        out += sinf(v->mb_phase[m] * 6.2831853f) * amp * pos;
+    }
+    if (v->mb_strike > 0) {                              // slap contact click (edge/slap-gated)
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        out += n * 0.25f * v->timb * ((float)v->mb_strike * dt / 0.002f);
+        v->mb_strike--;
+    }
+    return out * 0.9f;
+}
+
 // One engine sample — the dispatch (engine ids >= INSTR_ENGINE_BASE). The default body is
 // PLUCK. pitch_mul carries the per-sample LFO/env pitch modulation; v->freq carries
 // note_pitch/note_glide (slewed) — so the SAME pitch machinery every oscillator answers
@@ -839,6 +998,8 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_FM)     return sound_fm_sample(v, pitch_mul);
     if (v->wave == INSTR_ORGAN)  return sound_organ_sample(v, pitch_mul);
     if (v->wave == INSTR_EPIANO) return sound_epiano_sample(v, pitch_mul);
+    if (v->wave == INSTR_PD)     return sound_pd_sample(v, pitch_mul);
+    if (v->wave == INSTR_MEMBRANE) return sound_membrane_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -1007,11 +1168,13 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->md_on  = false;
     v->org_on = false;
     v->ep_on  = false;
+    v->mb_on  = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
     else if (v->wave == INSTR_ORGAN)  sound_organ_start(v);    // arm the click + perc, clear the scanner
     else if (v->wave == INSTR_EPIANO) sound_epiano_start(v);   // build the 12 modal sines
+    else if (v->wave == INSTR_MEMBRANE) sound_membrane_start(v); // strike the drumhead
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
@@ -1358,6 +1521,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
             // LFOs (one-shot notes only): up to 3 routable sines → pitch / duty / volume / cutoff
             float duty = v->duty, trem = 1.0f, pitch_mul = 1.0f, cutoff = v->flt_cutoff;
+            float harm_mod = 0.0f, timb_mod = 0.0f, mor_mod = 0.0f;   // macro modulation (engine voices)
             if (v->sfx_idx < 0) {
                 for (int L = 0; L < SOUND_LFOS; L++) {
                     if (v->lfo_depth[L] <= 0.0f) continue;
@@ -1368,6 +1532,9 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     else if (v->lfo_dest[L] == LFO_DUTY)   duty += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_VOLUME) trem *= 1.0f - 0.5f * v->lfo_depth[L] * (1.0f - lfo);
                     else if (v->lfo_dest[L] == LFO_CUTOFF) cutoff += lfo * v->lfo_depth[L];
+                    else if (v->lfo_dest[L] == LFO_HARMONICS) harm_mod += lfo * v->lfo_depth[L];   // engine macros (INSTR_PLUCK+)
+                    else if (v->lfo_dest[L] == LFO_TIMBRE)    timb_mod += lfo * v->lfo_depth[L];
+                    else if (v->lfo_dest[L] == LFO_MORPH)     mor_mod  += lfo * v->lfo_depth[L];
                 }
                 // mod-envelopes (one-shot AD, timer = step_samples): same destinations as the
                 // LFOs but a per-note contour instead of a cycle. The pitch env multiplies freq;
@@ -1380,6 +1547,9 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     if      (v->env_dest[e] == ENV_PITCH)  pitch_mul *= powf(2.0f, m / 12.0f);
                     else if (v->env_dest[e] == ENV_CUTOFF) cutoff    += m;
                     else if (v->env_dest[e] == ENV_DUTY)   duty      += m;
+                    else if (v->env_dest[e] == ENV_HARMONICS) harm_mod += m;   // engine macros (one-shot contour)
+                    else if (v->env_dest[e] == ENV_TIMBRE)    timb_mod += m;
+                    else if (v->env_dest[e] == ENV_MORPH)     mor_mod  += m;
                 }
                 // envelope follower: the 3rd mod source — uses LAST sample's tracked level
                 // (flw_amp, updated just after the oscillator below), so it modulates from the
@@ -1399,8 +1569,20 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             }
 
             // engine fork: wavetable oscillators below INSTR_ENGINE_BASE, modeled engines at/above
-            float s = (v->wave >= INSTR_ENGINE_BASE) ? sound_engine_sample(v, pitch_mul)
-                                                     : sound_osc(v->wave, v->phase, duty, &v->noise_state);
+            float s;
+            if (v->wave >= INSTR_ENGINE_BASE) {
+                // macro modulation: the engines read v->harm/timb/mor directly, so apply the
+                // LFO/env offset by temporarily nudging them, then restore (the slewed base is
+                // untouched, next sample re-applies). Zero-cost when nothing modulates a macro.
+                float h0 = v->harm, t0 = v->timb, m0 = v->mor;
+                if (harm_mod != 0.0f) v->harm = v->harm + harm_mod < 0 ? 0 : (v->harm + harm_mod > 1 ? 1 : v->harm + harm_mod);
+                if (timb_mod != 0.0f) v->timb = v->timb + timb_mod < 0 ? 0 : (v->timb + timb_mod > 1 ? 1 : v->timb + timb_mod);
+                if (mor_mod  != 0.0f) v->mor  = v->mor  + mor_mod  < 0 ? 0 : (v->mor  + mor_mod  > 1 ? 1 : v->mor  + mor_mod);
+                s = sound_engine_sample(v, pitch_mul);
+                v->harm = h0; v->timb = t0; v->mor = m0;
+            } else {
+                s = sound_osc(v->wave, v->phase, duty, &v->noise_state);
+            }
             // envelope follower: track the PRE-filter amplitude (|s| scaled by velocity) with a
             // fast-attack/slow-release peak detector. Used by next sample's modulation above —
             // a 1-sample feedback, inaudible. This is what makes the auto-wah respond to touch.

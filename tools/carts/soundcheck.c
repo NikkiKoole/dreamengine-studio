@@ -20,7 +20,7 @@ static int   step = -1;          // current test step (-1 until the first beat)
 static float t = 0;
 static const char *label = "warming up";
 
-static const char *WN[14] = { "SQUARE", "SAW", "TRI", "NOISE", "SINE", "USER0 org", "USER1 vox", "USER2 bel", "USER3 fld", "PLUCK ks", "MALLET bar", "FM 2op", "ORGAN B3", "EPIANO" };
+static const char *WN[15] = { "SQUARE", "SAW", "TRI", "NOISE", "SINE", "USER0 org", "USER1 vox", "USER2 bel", "USER3 fld", "PLUCK ks", "MALLET bar", "FM 2op", "ORGAN B3", "EPIANO", "PD cz" };
 
 static int  held = -1;           // the live-setter test voice
 static int  burst_left = 0;      // schedule_hit machine-gun
@@ -79,6 +79,12 @@ void init(void) {
     instrument_harmonics(27, 0.15f);             // Rhodes
     instrument_timbre(27, 0.35f);
     instrument_morph(27, 0.4f);                  // a little bark
+    instrument(26, INSTR_PD, 1, 0, 7, 700);      // slot 26 = the phase-distortion (Casio CZ) engine
+    instrument_harmonics(26, 0.85f);             // a resonant wavetype
+    instrument_timbre(26, 0.45f);
+    instrument_morph(26, 0.6f);                  // the DCW sweep on
+    instrument_lfo(26, 2, LFO_MORPH, 3.0f, 0.4f);     // exercise the new macro-LFO destination
+    instrument_env(26, 2, ENV_TIMBRE, 0, 200, 0.4f);  // and the new macro-ENV dest (3rd env slot)
     bpm(120);
 }
 
@@ -93,31 +99,32 @@ void update(void) {
     if (t < 0.6f) return;
     t = 0;
     step++;
-    int s = step % 21;
-    if (s < 14) {                               // each wave id, audibly, labeled
+    int s = step % 22;
+    if (s < 15) {                               // each wave id, audibly, labeled
         label = WN[s];
         if      (s == 9)  hit(57, 31, 6, 500);   // the KS pluck engine (slot 31)
         else if (s == 10) hit(69, 30, 6, 500);   // the modal mallet engine (slot 30)
         else if (s == 11) hit(57, 29, 6, 500);   // the 2-op FM engine (slot 29)
         else if (s == 12) hit(45, 28, 6, 700);   // the tonewheel organ engine (slot 28)
         else if (s == 13) hit(57, 27, 6, 900);   // the electric-piano engine (slot 27)
+        else if (s == 14) hit(45, 26, 6, 700);   // the phase-distortion (CZ) engine (slot 26)
         else              note(57, s, 6);        // slots 0-8: raw waves + the 4 user waves
-    } else if (s == 14) {
+    } else if (s == 15) {
         label = "chord + strum";
         chord(48, CHORD_MIN7, 5, 4);
         strum(60, CHORD_MAJ, 6, 4, 40);
-    } else if (s == 15) {
+    } else if (s == 16) {
         label = "tone + schedule";
         tone(SCALE_PENTA, 4, 7, 4);
         schedule(120, 72, 8, 4);
-    } else if (s == 16) {
+    } else if (s == 17) {
         label = "schedule_hit burst (40x9ms)";
         burst_left = 40;
-    } else if (s == 17) {
+    } else if (s == 18) {
         label = "note_on + live setters";
         held = note_on(52, 9, 5);
         note_glide(held, 80);
-    } else if (s == 18 && held >= 0) {
+    } else if (s == 19 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";
         note_pitch(held, 59);
         note_cutoff(held, 2000);
@@ -130,11 +137,11 @@ void update(void) {
         note_harmonics(held, 0.9f);              // engine macros ride kind 22 — no-op on a
         note_timbre(held, 0.7f);                 // wavetable slot, but the request path and
         note_morph(held, 0.3f);                  // stale-handle safety must survive them
-    } else if (s == 19) {
+    } else if (s == 20) {
         label = "note_off + panic";
         if (held >= 0) { note_off(held); held = -1; }
         note_off_all();
-    } else if (s == 20) {
+    } else if (s == 21) {
         label = "sfx + music banks";
         sfx(0);
     }
@@ -144,9 +151,9 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     print("SOUND CHECK", 8, 6, CLR_WHITE);
     print_scaled(label, 8, 60, CLR_YELLOW, 2);
-    print(str("step %d", step < 0 ? 0 : step % 21), 8, 90, CLR_LIGHT_GREY);
+    print(str("step %d", step < 0 ? 0 : step % 22), 8, 90, CLR_LIGHT_GREY);
     print("PASS = no [sound] WARNING in the log", 8, 130, CLR_LIME_GREEN);
-    print("       and all 12 waves sound different", 8, 140, CLR_LIME_GREEN);
+    print("       and all 15 waves sound different", 8, 140, CLR_LIME_GREEN);
     print("FAIL = any dropped-request warning", 8, 154, CLR_DARK_PEACH);
     font(FONT_SMALL);
     print("init slammed: 4 wavetables + 27 slots x 11 defines in one frame (the worst case)", 8, 178, CLR_MEDIUM_GREY);

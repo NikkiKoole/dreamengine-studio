@@ -2394,6 +2394,24 @@
     ]
   },
   {
+    "title": "pd",
+    "description": "INSTR_PD showcase - the sixth modeled ENGINE: phase distortion, the Casio CZ sound. A cosine read through a WARPED phase ramp makes bright, buzzy, resonant tones with no filter at all (the warp IS the brightness) - rubbery basses, glassy resonant leads, and the famous CZ 'wowww' sweep. The three engine macros: instrument_harmonics = wavetype (snapped across 8 - saw / square / pulse / double-pulse / sawpulse, then 3 resonant types), instrument_timbre = distortion amount (brightness, or how high the resonant peak sits), instrument_morph = the DCW sweep (0 = static; turn it up and the distortion snaps bright on the strike then settles - the CZ envelope, which the navkit reference omits, so this is built from scratch). Like FM, the engine doesn't bake its amp envelope, so a CZ patch is macros plus an ADSR - both are sliders here. The scope draws the actual warped waveform; with the DCW sweep up it shows TWO traces - the bright strike (faint) settling to the steady tone. Five presets (1 cz bass, 2 reso lead, 3 synth brass, 4 sweep pad, 5 cz pluck), and the panel prints the exact instrument() call to copy into your cart. A S D F G H J K play a major scale, Z/X octave, 1..5 presets, drag any slider (or LEFT/RIGHT + UP/DOWN), SPACE chord, M autoplay on/off.",
+    "file": "pd.cart.png",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ]
+  },
+  {
+    "title": "tabla",
+    "description": "INSTR_MEMBRANE showcase - the seventh modeled ENGINE: a struck drumhead. Six decaying sine modes at a circular membrane's vibration ratios plus a slap contact click, buffer-free. One id covers tabla / conga / bongo / djembe / tom - hand percussion the analog 808/909 recipes structurally can't reach, because it's REAL membrane modes plus a pitch bend, not one sine plus a pitch envelope. The three engine macros: instrument_harmonics = head character (0 = tuned harmonic tabla, pitched and longer-ringing; 1 = inharmonic djembe/conga thud), instrument_timbre = strike position (0 = center thump; 1 = edge ring plus slap click - open/slap/mute in one knob, navkit's live circular-membrane weighting), instrument_morph = pitch bend (0 = flat; up = the membrane chirp / tabla bayan gliss - pitch starts raised off the strike and settles, bending all six modes together). A struck engine self-decays, so it has no ADSR (unlike fm/pd, which hold); the cart's fourth slider is instead a cart-side RING control (mute to open) - the hit() gate length, a tight palm-damped thwack to a stroke left to ring out, which is how hand percussion is actually played. The drumhead on the left shows the syahi tuning patch on the tabla side, a marker for where timbre strikes (center to edge), and ripples on every hit; the panel prints the exact instrument() call to copy into your cart. Five presets (1 tabla, 2 conga, 3 bongo, 4 djembe, 5 tom). A S D F G H J K strike a tuned low ladder, Z/X tune, 1..5 kits, drag a slider (or LEFT/RIGHT + UP/DOWN), SPACE roll, M autoplay groove on/off. Multitouch: drum with several fingers, sweep the pads for a roll.",
+    "file": "tabla.cart.png",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ]
+  },
+  {
     "title": "exotica radio",
     "description": "Endless exotica - the Martin Denny / Les Baxter / Arthur Lyman homage: lush vibraphone over lazy latin percussion, faux-tropical lounge from 1957 (Hosono's origin story). The eleventh radio station, with three firsts: born on the runtime/radio.h scaffold instead of a hand-copy; ALL THREE modeled engines in one band (vibraphone lead = INSTR_MALLET with the motor on, nylon rhythm guitar = INSTR_PLUCK, glass-bell sparkles = INSTR_FM); and THE AVIARY - bird calls and frog croaks as an aleatoric performance channel, chance() per bar firing pitch-swooped calls that are never seeded, so replaying a seed replays the tune but the jungle never answers the same way twice (a bird crosses the lagoon window when it sings). Seeded per song: key, lounge changes (borrowed-iv dusk, pagan minor), the vibes cell with tremolo rolls, and the whole BAND's timbre (vibes macros, guitar pick, kit dressing, bird species). SPACE next song, R same tune (new birds), [ ] history, LEFT/RIGHT feel (lull/lounge/luau/rite), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.",
     "file": "exotica.cart.png",

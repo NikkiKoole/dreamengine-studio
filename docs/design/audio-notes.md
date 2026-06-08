@@ -114,11 +114,58 @@ Three corollaries:
 | cutoff | `LFO_CUTOFF` wah      | `ENV_CUTOFF` the "pew"  | `note_cutoff` / `note_res` |
 | duty   | `LFO_DUTY` PWM shimmer| `ENV_DUTY` PWM sweep    | `note_duty` |
 | volume | `LFO_VOLUME` tremolo  | — *(the amp ADSR — deliberate, no `ENV_VOLUME`)* | `note_vol` |
+| harmonics | `LFO_HARMONICS` *(SNAPPED — steps detents)* | `ENV_HARMONICS` | `note_harmonics` |
+| timbre | `LFO_TIMBRE` *(PD-reso = filter sweep, no filter)* | `ENV_TIMBRE` | `note_timbre` |
+| morph  | `LFO_MORPH` *(PD DCW / FM fb / organ chorus / EP bark)* | `ENV_MORPH` | `note_morph` |
 
-Three newer parameter families (2026-06-05) ride the define + live halves of this
-pattern but are deliberately **not** LFO/env destinations: the engine macros
-(`harmonics/timbre/morph` — modrack patches CV into the live setters instead),
-`drive`, and the per-slot `echo` send.
+The bottom three rows — the **engine macros** — were added 2026-06-08 (§2.1); they're the
+per-engine 3-axis surface (INSTR_PLUCK+), so what each modulation *does* is per-engine.
+Two newer parameter families still ride only the define + live halves and are deliberately
+**not** LFO/env destinations: `drive` and the per-slot `echo` send.
+
+### 2.1 Macros as LFO/mod-env destinations — SHIPPED 2026-06-08
+
+> **Status: shipped + proven.** Closed the matrix's biggest hole. Born from the PD `morph`
+> = DCW-sweep macro: "LFO the DCW sweep" wanted `morph` to be an LFO target. General across
+> all six engines, not PD-only. Second customer: modrack's VIBE module now offers
+> `har/tmb/mor` destinations into the MACRO voice's `vb` jack — `preset_macro` ships a PD
+> patch with the VIBE sweeping morph at audio rate. Proof: a deterministic A/B render
+> (VIBE depth 0.5 vs 0) diverges byte-for-byte, so the LFO demonstrably reaches the engine.
+
+**What ships:** the macro family gains its LFO + mod-env columns. Six new destination
+*constants* — `LFO_HARMONICS / LFO_TIMBRE / LFO_MORPH` and `ENV_HARMONICS / ENV_TIMBRE /
+ENV_MORPH` — reusing the existing `instrument_lfo` / `note_lfo` / `instrument_env` /
+`note_env` calls (NO new functions; the live `note_harmonics/…` half already exists).
+
+**The apply (no per-engine edits).** The mix loop already computes per-sample LFO/env
+contributions at the bottom of the sample block (`sound.h` ~1450-1473) into `pitch_mul /
+cutoff / duty / trem` for the next sample. Add three more accumulators — `harm_mod /
+timb_mod / mor_mod` — fed by the new dest cases. Then at the oscillator call, for engine
+voices only, **save → set effective macro = `clamp(base + mod, 0, 1)` → call
+`sound_engine_sample` → restore**. Localized to the mix loop; every engine reads
+`v->harm/timb/mor` unchanged; zero cost when no macro is modulated (mod == 0).
+
+**Units:** macros are `0..1`, so LFO `depth` and env `amount` for a macro dest are `0..1`
+(a swing / bipolar offset), not Hz or semitones.
+
+**Per-engine meaning (each macro means something different — that's the point):**
+- `timbre` / `morph` are **continuous** → smooth modulation. PD: `timbre` = a resonant
+  filter sweep *with no filter* (the cheap auto-wah — note this is the per-voice cousin of
+  the PARKED §8.10 bus wah), `morph` = wobbling the DCW depth. FM: `timbre` = brightness
+  LFO, `morph` = feedback sweep. Organ: `morph` = chorus/animation depth. EP: `morph` = bark.
+- `harmonics` is **SNAPPED** to detents inside each engine → modulation **steps** through
+  them (wavetype / ratio / instrument). A feature on PD (a wavetype sequencer off an LFO)
+  but jarring on EP (Rhodes→Wurli→Clav mid-note). Ship it; document the spice.
+
+**Wiring:** 4 places for the 6 constants (`studio.h` + `studioDocs.js` + `shell.js`; no
+tcc symbols — constants), a `soundcheck` line exercising a macro-LFO, the sound tripwire.
+
+**Resolved at build:** shipped **all six** (incl. the snapped `harmonics` — its detent-stepping
+is a useful spice, e.g. a wavetype sequencer on PD, and symmetry keeps the matrix honest). The
+§2 matrix table now carries the three macro rows; the "deliberately not destinations" note now
+covers only `drive` + `echo`. Constants: `LFO_HARMONICS/TIMBRE/MORPH` = 4/5/6,
+`ENV_HARMONICS/TIMBRE/MORPH` = 3/4/5. Apply = a save→`clamp(base+mod)`→restore around
+`sound_engine_sample` (no per-engine edits; zero-cost when unmodulated).
 
 **Data model**
 - **SFX**: 32 slots × up to 32 steps `{pitch (MIDI), instr, vol 0..7}`; `step_dur` in

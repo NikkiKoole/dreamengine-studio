@@ -33,9 +33,13 @@ Organ + epiano are shipped **and published**; their macro/wah/Rhodes tuning is d
 we are" + the FIXED/PARKED sections). Nothing on EP is blocking. Next:
 
 1. **`INSTR_PD` (Casio CZ)** ← the next engine (roadmap §8.5 step 6, decision b079874): the cheap
-   2-float, buffer-free snack, deeply chiptune-adjacent. **Run playbook STEP 0 first** (§8.8.2):
-   render navkit's CZ preset with `tools/navkit-render.c`, characterize it + locate its layer,
-   *then* design. (That step exists because of the wah detour — don't skip it.)
+   2-float, buffer-free snack, deeply chiptune-adjacent. **Step-1 design DONE — see §8.8.6**
+   (2026-06-08): the engine is genuinely thin (navkit = wavetype + one distortion knob), so the
+   3-macro mapping is harmonics=wavetype(snapped) / timbre=static distortion / **morph=DCW-envelope
+   depth** — the CZ "wowww" navkit omits, built from our second EG. **Run playbook STEP 0 before any
+   code** (§8.8.2): render navkit presets 52/53 with `tools/navkit-render.c` and A/B — the macro
+   *architecture* is solid, but the `d` ranges + DCW decay + reso cap are ear-tuned. (STEP 0 exists
+   because of the wah detour — don't skip it.)
 2. Optional treat: a **Rhodes comping under the organ** (two engines together).
 3. When the effects-bus layer (§8.10) eventually opens: revisit the PARKED per-voice wah +
    envelope follower (fold into the bus wah or remove).

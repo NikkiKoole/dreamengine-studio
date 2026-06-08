@@ -284,7 +284,13 @@ independently shippable:
    2026-06-05 — §8.8.3 post-ship findings — so reed keeps this slot; waveguide Brass
    stays a catalog row for when a real lip model is wanted.)*
 8. **`INSTR_MEMBRANE`** — tabla/conga/djembe, ~100 B mallet-pattern port; hand percussion
-   (strike-pos + pitch-bend) for the world-music stations.
+   (strike-pos + pitch-bend) for the world-music stations. **SHIPPED 2026-06-08** — `INSTR_MEMBRANE`
+   (22), six modal sines, buffer-free; `harmonics` crossfades tuned-harmonic (tabla) ↔ navkit's
+   ideal-membrane Bessel ratios (djembe) **and** sets the ring (the one deviation from the navkit
+   port, which keeps Bessel for every preset — real tablas *are* harmonic, and the doc wanted the
+   macro to span the head); `timbre` is navkit's live circular-membrane strike-position weighting
+   (center thump ↔ edge ring + slap click); `morph` is the monotonic pitch-bend chirp (raised →
+   settles, navkit's model). Showcase: the **tabla** cart (5 kit presets, the drumhead viz).
 9. **Bowed / Pipe** — after the organ proves the held-note surface, and pending the
    one-buffer-pack verification (§8.9 rows). Then **`INSTR_PIANO` (StifKarp) /
    `INSTR_GUITAR`/`INSTR_HARP`** — the genuinely buffered pair (piano's `ks2Buffer[2048]`
@@ -809,6 +815,72 @@ piano; `INSTR_EPIANO` is the *electromechanical* one — two different sounds, b
 
 **Tone bar (Rhodes only):** extends fundamental decay ×(1 + 1.5·toneBar), 2nd ×(1 + 0.6·toneBar) — the suitcase's singing sustain. **Register rolloff:** upper modes ×`(1−freqNorm)³` (Rhodes bell modes ×6th power), fundamental ×`(1−0.15·freqNorm)`. **Key presets:** Rhodes Warm (soft hammer, long decay, centered) · Rhodes Bright (hard, offset, short) · Rhodes Suitcase (very soft, max tone bar, +tremolo) · Wurli Soul (soft, clean) · Wurli Buzz (hard, cranked `pickupDist`) · Clav Funky (hard, bridge pickup, filter-wah) — full dumps at `instrument_presets.h:3168`+.
 
+### 8.8.6 Engine #6: PD (Casio CZ) — the step-1 design (2026-06-08)
+
+The playbook's paper round for `INSTR_PD` — roadmap §8.5 step 6, the cheap snack between
+bigger ports. Buffer-free, ~2 floats on `Voice`, no filter needed (the resonance is *in*
+the oscillator). Target sound family: CZ basses, synth-brass, and the famous resonant
+sweeps — deeply chiptune-adjacent, a strong identity fit at near-zero cost.
+
+**Scope finding first — the engine is thin, and that's the design problem.** navkit's
+`PDSettings` (`synth.h:422`) is exactly two fields: `waveType` (8 discrete) + `distortion`
+(0..1, the DCW amount, driven live per sample as `patch_value + pdLfoMod`). The sample
+function `processPDOscillator` (`synth_oscillators.h:1508`) is one `switch` over 8 wavetypes,
+each a `cosf()` through a warped phase. navkit ships **two** presets (PD Bass SAW@0.7, PD
+Lead SQUARE@0.5) and leans on the *shared* ADSR + filter-env + LFO for all movement — there
+is **no dedicated DCW envelope**, the one thing that actually makes a CZ sound like a CZ.
+So natively this is ~1.5 continuous axes, not enough for three macros. The third macro is
+**built here**, from the feature navkit omitted (we already ship the second EG, so it's
+nearly free — and makes our PD *more* authentic than the reference).
+
+The 8 wavetypes split into two families: **phase-warp** (SAW · SQUARE · PULSE · DOUBLEPULSE
+· SAWPULSE — `distortion` warps the phase ramp → harmonic brightening; DOUBLEPULSE is
+sync/octave-up, SAWPULSE a saw+pulse blend) and **window×reso-cosine** (RESO1/2/3 — the
+classic CZ resonance: a window gates a cosine whose freq = `1 + d·7` (1–8× harmonic), so `d`
+sweeps a formant peak up). Note `distortion` *means a different thing* per family — fine,
+because the wavetype is itself a macro detent.
+
+| macro | maps to | the taste decision (made here, on paper) |
+|---|---|---|
+| **harmonics** | **wavetype**, SNAPPED to the 8 detents | exactly the FM §8.8.3 pattern — each detent is a different instrument (saw/square/pulse/doublepulse/sawpulse/reso1/reso2/reso3), max quarter-turn audibility. Never crossfaded — the wavetype formulas are discontinuous (blending two warped cosines = mud) |
+| **timbre** | **static `distortion` `d`** | the steady-state brightness / resonant-peak position — the one knob navkit has, and the strongest axis. Phase-warp family: brightening; reso family: formant sweep |
+| **morph** | **DCW-envelope depth** (internal attack→settle sweep of `d`) | **the engine's signature, built here.** 0 = static (navkit-flat); up = the CZ "wowww" — `d` snaps to a peak on the strike and decays toward the `timbre` setting over the note. An exponential settle (crib the FM index-decay mechanics — derives from `step_samples`, no extra EG plumbing). This is what reads as "phase distortion" rather than "a buzzy oscillator" |
+
+Known risk, named up front: the **reso family can sweep into the harsh top** (`d·7` → 8×
+harmonic with a hard window edge) → aliasing/icepick. Lever if it bites: cap the reso
+multiplier below 8× in the played range, or soften the saw window (RESO3) edge. Decide by
+ear, don't pre-clamp speculatively. (Phase-warp family is bandlimited-ish by the cosine
+read-out and should be safe.)
+
+Mechanics: buffer-free. Per `Voice`: the phase accumulator (already there) + the DCW
+envelope's current value + its target — call it ~2 floats. No note-on excitation buffer →
+no stale-state guard needed (cosine from any phase is safe). Pitch: phase advances at
+`freq × pitch_mul / sampleRate` per sample — the §8.8.1 rule satisfied by construction.
+
+**Build order — STEP 0 is non-negotiable (this is the wah-detour scar, §8.8.2 / sound-handoff
+PARKED):** before freezing any numbers, **render navkit's presets 52/53** with
+`tools/navkit-render.c` and A/B them against ours — the macro *architecture* above is
+source-derived and solid, but the `d` ranges, the DCW decay time, and the reso cap are
+ear-tuned, not read off the source. Then the cart presets (= the acceptance tests):
+**CZ bass · resonant lead · synth-brass · the sweep-pad (full DCW "wowww") · a pluck/clav**.
+
+**STEP 0 render findings (2026-06-08) — done before building, all confirm the design:**
+- **The warp family has zero in-note spectral motion.** navkit's two presets (52 SAW@0.7,
+  53 SQUARE@0.5) render with brightness **dead flat at 0.001** the whole note — only the amp
+  ADSR moves. Empirical proof there's no DCW envelope → the `morph`=DCW-sweep macro is genuinely
+  additive, not redundant. (Reference WAVs: `/tmp/navkit_pd_bass.wav`, `/tmp/navkit_pd_lead.wav`.)
+- **The reso family's peak climbs with distortion, as modeled.** navkit ships no reso preset, so
+  this was rendered by overriding a PD patch's `p_pdWaveType`→RESO3 + sweeping `p_pdDistortion`
+  (the throwaway `/tmp/nkreso.c` — note the irony: characterizing the reso engine meant *writing*
+  it in navkit-land). Brightness rose monotonically `0.007 → 0.011 → 0.017 → 0.022` for
+  `d = 0.25/0.5/0.75/0.9` at C3 — the `1+d·7` resonant peak marching up. So `timbre` (static `d`)
+  and `morph` (DCW sweep of `d`) have real, audible work.
+- **The reso cap-risk is REAL and register-dependent.** The *same* RESO3 @ d=0.90 goes brightness
+  **0.022 at C3 → 0.938 at C6** (near-total HF energy — a whistle/icepick, though no hard
+  clipping: 0 clipped samples either way). So the fix lever named above is required, and it's
+  **register-scaled**: cap the reso multiplier *lower as the note rises* (cheap: scale the `·7`
+  by `(1 − freqNorm)` like EP's register rolloff, §8.8.5). Tune the curve by ear during the build.
+
 ### 8.9 Candidate engine catalog (running wishlist)
 
 The set we'd *like*, beyond the first-bite engines (§8.5). Adding one is mostly: port the
@@ -827,8 +899,8 @@ the table's only job is to say what those three mean for each. Grow it freely.
 | **Reed** (clarinet ↔ sax) | `processReedOscillator` (pressure-driven reed valve) | one `boreBuf[1024]` — **fits today's `ks_buf` as-is** | bore conicity (clarinet hollow-odd ↔ sax full) — literally navkit's `bore` param | reed stiffness (dark ↔ bright) | breath / aperture (soft ↔ overblown squawk) | the *blown* family's workhorse; klezmer to smoky jazz on one knob |
 | **Pipe / flute** (Fletcher/Verge jet-drive) | `processPipeOscillator` | upper+lower bore halves (sum ≈ bore; same one-buffer pack as bowed) + tiny `jetBuf[64]` | overblow (fundamental ↔ octave flageolet) | breath noise (pure ↔ airy) | embouchure | airy flutes, pan pipes, organ-flue color; breathy attacks for free |
 | **Brass** (lip-valve waveguide) | `processBrassOscillator` (2nd-order lip mass-spring + bore) | one `boreBuf[1024]` — **fits `ks_buf` as-is** | bore conicity (trumpet ↔ horn) | blow pressure (soft ↔ brassy blare — the rip/blare *is* the model) | mute (open ↔ harmon) | a real lip model, not an approximation. *(Was the prepared answer if FM brass failed its §8.8.3 stress test — FM passed, so this is no longer queued; port it when a station wants the genuine rip/blare)* |
-| **PD / phase distortion** (Casio CZ) | `processPDOscillator` — **2 floats, 8 wavetypes incl. 3 resonant** | free (cheapest in the catalog) | wavetype (snapped detents, like FM's ratio table) | distortion amount (the CZ "DCW" sweep — filter-like brightness with zero filter) | saw ↔ reso window blend | CZ basses, synth-brass, the famous resonant sweeps; deeply chiptune-adjacent — strong identity fit, near-zero cost |
-| **Membrane** (tabla/conga/bongo/djembe/tom) | `processMembraneOscillator` (`:1754`, `MembraneSettings` `synth.h:437` — 6 modal sines at circular-membrane Bessel ratios) | free (~100 B — mallet-family cost) | head character (tabla ↔ djembe mode spread / tension) | **strike position** (center thump ↔ edge ring — the model reweights modes physically; conga open/slap/mute in one knob) | **pitch-bend depth/decay** (the tabla bayan *glissando* — baked into the model) | hand percussion the analog 808/909 recipes can't reach — bend + strike-pos are exactly what sine+pitch-env approximations lack. World-music radio fuel (promoted from the census NO list 2026-06-05) |
+| **PD / phase distortion** (Casio CZ) | `processPDOscillator` — **2 floats, 8 wavetypes incl. 3 resonant** | free (cheapest in the catalog) | wavetype (snapped detents, like FM's ratio table) | static distortion amount (filter-like brightness / reso-peak position, zero filter) | **DCW-envelope depth** — an attack→settle sweep of distortion (the CZ "wowww"; navkit omits this, we build it from the second EG) | CZ basses, synth-brass, the famous resonant sweeps; deeply chiptune-adjacent — strong identity fit, near-zero cost. **Full design: §8.8.6** (2026-06-08) |
+| **Membrane** (tabla/conga/bongo/djembe/tom) | `processMembraneOscillator` (`:1754`, `MembraneSettings` `synth.h:437` — 6 modal sines at circular-membrane Bessel ratios) | free (~100 B — mallet-family cost) | head character (tabla ↔ djembe mode spread / tension) | **strike position** (center thump ↔ edge ring — the model reweights modes physically; conga open/slap/mute in one knob) | **pitch-bend depth/decay** (the tabla bayan *glissando* — baked into the model) | hand percussion the analog 808/909 recipes can't reach — bend + strike-pos are exactly what sine+pitch-env approximations lack. World-music radio fuel (promoted from the census NO list 2026-06-05). **SHIPPED 2026-06-08** as `INSTR_MEMBRANE` (22) — see §8.5 step 8 for the macro mapping + the one deviation from the port (harmonics also crossfades the *ratios*, tuned↔Bessel) |
 
 > **Full navkit census (2026-06-05) — 23 engines in `soundsystem/engines/synth_oscillators.h`.**
 > Shipped here: pluck, mallet, FM. Roadmapped: organ (next), EP + StifKarp-piano + guitar (§8.5

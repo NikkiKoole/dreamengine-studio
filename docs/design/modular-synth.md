@@ -252,7 +252,7 @@ CHANCE (probabilistic gate filter).
 **2026-06-05 — six modules, each with a showcase preset:**
 - **MACRO** — the Plaits-style modeled voice (§"borrowing" above, instrument-engines §8): eng knob
   picks plk/mlt/fm (engine slots 23–25), har/tmb/mor knobs + h/t/m CV inlets that *add* to
-  the knobs. Preset: *Macro voice* (LFO swells FM feedback).
+  the knobs. Preset: *Macro voice* (LFO swells FM feedback). *(→ greatly expanded 2026-06-08, below.)*
 - **XPOSE** — octave shifter for pitch lines (−2..+2 snapped); the only way to the bass
   register, since QUANT's root walks semitones-up within ROOT_OCT. Retune: *Acid bass* now
   runs through XPOSE(−1). Subsumes the parked OFFSET's "transpose a pitch" half.
@@ -266,6 +266,34 @@ CHANCE (probabilistic gate filter).
 - **ADSR** — envelope with a real SUSTAIN stage (gate-length-aware, legato retrigger);
   ENV stays as the simple AD. Preset: *ADSR pad* (CMP gates + ADSR into VOICE 'a' — the
   rack's first ambient patch).
+
+**2026-06-08 — the MACRO voice grows up + macros become modulation targets:**
+- **Six engines on the MACRO `eng` knob** — `plk / mlt / fm / org / ep / pd` (the three newer
+  modeled engines added: organ, electric piano, PD/Casio-CZ; slots 29–31, the `eng→slot` map is
+  a table since 26–28 are drums). Every engine answers the same `har/tmb/mor` macros, so all six
+  play through one module. *(PLAITS borrow, line 134, is now realized.)*
+- **Per-voice character knobs on MACRO** — `drv` (drive/overdrive), `eko` (echo-bus send), `tun`
+  (detune); a 6×7→6×8 module. Drive on PD is the gnarly move; tun gives unison/detune.
+- **The macros are now LFO/mod-env destinations** (engine feature, audio-notes §2.1 — six new
+  dests `LFO_HARMONICS/TIMBRE/MORPH`, `ENV_HARMONICS/TIMBRE/MORPH`). **How the rack reaches them:**
+  *control-rate* — patch any CV module (LFO/ENV/ADSR/SEQ/MATHS) into MACRO's `h/t/m` inlets (they
+  add to the knob, per frame); *audio-rate* — a **VIBE** patched into MACRO's new **`vb` jack**
+  with `dst = har/tmb/mor` runs a per-sample `note_lfo` on the macro. The key idea is
+  **engine-agnostic modulation**: patch an LFO to "morph" and it does something musical on *any*
+  engine — the engine decides what its third axis means. Standout recipe: `LFO_TIMBRE` on a PD
+  resonant wavetype = **a resonant filter sweep with no filter**.
+- **VOICE gains `denv`** (a third onboard mod-env → `ENV_DUTY`, a per-note PWM sweep); needed an
+  engine bump `SOUND_ENVS 2→3`, so *every* cart now has three routable mod-envelopes. VIBE's
+  `dst` also gained `vol` (`LFO_VOLUME` tremolo).
+- **Presets:** *Macro voice* retargeted to PD with a VIBE sweeping `morph` at audio rate (the CZ
+  "wowww" pulsing — the user's "LFO the DCW sweep"); new *PD reso* (VIBE→`timbre` resonant sweep +
+  drive) and *Organ jam* (organ engine, VIBE→`morph` animated chorus — same routing, different
+  engine, proving the engine-agnostic point).
+- **Why no new modules/jacks:** the `h/t/m` inlets + the `vb` LFO routing already cover three of
+  the four modulation quadrants (control-rate cyclic *and* per-note via any module; audio-rate
+  cyclic via VIBE). Only audio-rate *per-note macro env* is unreachable, and the control-rate
+  ENV→inlet covers that need well enough — adding a module for it would be the surface bloat the
+  macro abstraction exists to avoid.
 
 With CMP shipped, the signal-conversion matrix is complete (gate→cv ENV/MATHS, cv→pitch
 QUANT, cv→gate CMP, pitch→pitch XPOSE, cv→cv SLEW/ATTN/S&H/MIX, gate→gate

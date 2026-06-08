@@ -108,6 +108,15 @@ static float run_started = 0;
 static int   ride = 0;
 static float cam_x, cam_y, cam_zoom = 1, cam_angle;
 
+// g-force felt by the riders (1 = rest) + the crowd scream tied to it
+#define SCREAM_SLOT 5
+static float gforce = 1, gpeak = 1;     // total g-load magnitude + the lap's peak
+static float g_long, g_norm;            // load split along travel / across the seat (g)
+static float fgx = 0, fgy = 1;          // smoothed load VECTOR in g's (rest = (0,1))
+static float excite = 0;                // jerk-fed excitement envelope → drives the scream
+static float prev_vel;                  // lead signed speed last frame (for tangential accel)
+static int   scream_h = -1;             // handle of the held crowd-scream note (-1 = none)
+
 static int ground_y(void) { return SCREEN_H - GROUND_PAD; }
 
 // ── particles ───────────────────────────────────────────────────────────────
@@ -348,6 +357,61 @@ static void flip_sound(void) {                          // a quick "fwip" on inv
     hit(43, INSTR_NOISE, 3, 70);
 }
 
+static void silence_scream(void) { if (scream_h >= 0) { note_off(scream_h); scream_h = -1; } }
+
+// what the riders FEEL: net of (gravity − the cart's acceleration), projected onto
+// the seat-down axis, in g units. 1 at rest; >1 heavy (fast valley); →0/negative is
+// airtime (floaty crest). Cart accel = how fast the velocity vector turned/grew.
+static void update_gforce(Body *lead, float dt) {
+    if (dt <= 0) return;
+    // Build the cart's acceleration from SMOOTH geometry, not a frame-to-frame
+    // velocity diff (which spikes at every polyline vertex):
+    //   • tangential a_t = change in speed (already smooth, from the physics)
+    //   • centripetal a_n = v²·curvature, curvature from a wide arc stencil
+    float a_t = (lead->vel - prev_vel) / dt;
+    prev_vel = lead->vel;
+    float D = 14, ax1, ay1, ax2, ay2, u1x, u1y, u2x, u2y; int s;
+    sample(lead->pos - D, &ax1, &ay1, &s, &u1x, &u1y);
+    sample(lead->pos + D, &ax2, &ay2, &s, &u2x, &u2y);
+    float a1 = angle_to(0, 0, (int)(u1x * 512), (int)(u1y * 512));
+    float a2 = angle_to(0, 0, (int)(u2x * 512), (int)(u2y * 512));
+    float dth = a2 - a1; while (dth > 180) dth -= 360; while (dth < -180) dth += 360;
+    float kappa = (dth * 0.0174533f) / (2 * D);         // signed curvature, 1/px
+    float a_n = lead->vel * lead->vel * kappa;          // centripetal accel
+    float tx = lead->ux, ty = lead->uy, nx = -lead->uy, ny = lead->ux;
+    float acx = a_t * tx + a_n * nx, acy = a_t * ty + a_n * ny;
+    // load VECTOR = (gravity − cart accel), in g's, smoothed
+    float Fx = clamp(-acx / GRAV, -8, 8), Fy = clamp((GRAV - acy) / GRAV, -8, 8);
+    float pfx = fgx, pfy = fgy;
+    fgx = lerp(fgx, Fx, 0.25f); fgy = lerp(fgy, Fy, 0.25f);
+    // split into travel-axis (launch/brake) and seat-axis (valley/airtime)
+    g_long = fgx * tx + fgy * ty;
+    g_norm = fgx * nx + fgy * ny;
+    gforce = fsqrt(fgx * fgx + fgy * fgy);
+    if (gforce > gpeak) gpeak = gforce;
+    // JERK — how fast the load is CHANGING. That's the thrill: the snap into a
+    // valley, the pop over a crest, the launch kick. A jolt pumps `excite`; it
+    // decays, so the scream rings out after the transition instead of droning.
+    float jx = (fgx - pfx) / dt, jy = (fgy - pfy) / dt;
+    float jerk = fsqrt(jx * jx + jy * jy);
+    float pump = clamp((jerk - 1.5f) * 0.06f, 0, 1);
+    excite *= 0.90f;
+    if (pump > excite) excite = pump;
+}
+
+// the crowd scream rides the EXCITEMENT (driven by jerk): it kicks in on a jolt,
+// glides its pitch with the intensity, and fades as `excite` decays.
+static void update_scream(float sp) {
+    if (excite > 0.12f && sp > 50) {
+        float midi = 69 + excite * 16;                  // bigger jolt → higher pitch
+        int vol = 2 + (int)(excite * 4); if (vol > 6) vol = 6;
+        if (scream_h < 0) { scream_h = note_on((int)midi, SCREAM_SLOT, vol); note_glide(scream_h, 120); }
+        else { note_pitch(scream_h, midi); note_vol(scream_h, vol); }
+    } else if (scream_h >= 0) {
+        note_off(scream_h); scream_h = -1;
+    }
+}
+
 static void integrate(Body *b, float dt) {
     int seg; sample(b->pos, &b->x, &b->y, &seg, &b->ux, &b->uy);
     int zone = pts[seg].zone;
@@ -399,12 +463,18 @@ static void update_coaster(float dt) {
               rnd_between(5, 10), CLR_LIGHT_YELLOW);
     }
     if (lead->uy > 0.45f && sp > 280) shake(sp * 0.006f);
+    update_gforce(lead, dt);
+    update_scream(sp);
     // ride sound: ratchet voiced by the lead's current zone, rate = speed
     { int ls; float lx, ly, lux, luy; sample(lead->pos, &lx, &ly, &ls, &lux, &luy);
       coaster_sound(pts[ls].zone, sp, d < 0 ? -d : d); }
 #ifdef DE_TRACE
     watch("pos", "%.1f", lead->pos);
     watch("vel", "%.1f", lead->vel);
+    watch("g", "%.2f", gforce);
+    watch("glong", "%.2f", g_long);
+    watch("gnorm", "%.2f", g_norm);
+    watch("excite", "%.2f", excite);
 #endif
 }
 
@@ -452,6 +522,7 @@ static void add_point(float x, float y) {
 static void start_new(void) {
     n_pts = 0; total_len = 0; n_beams = 0; drawing = 0; drag_idx = -1;
     for (int i = 0; i < MAXP; i++) parts[i].life = 0;
+    silence_scream();
 }
 
 static int nearest_point(int x, int y, float thresh) {
@@ -519,7 +590,7 @@ static void handle_input(void) {
         }
     }
 
-    if (keyp('M')) { closed = !closed; recompute(); init_bodies(); }
+    if (keyp('M')) { closed = !closed; recompute(); init_bodies(); silence_scream(); }
     if (keyp('C')) ride = !ride;                       // POV ride-cam
     if (keyp(KEY_SPACE)) is_paused = !is_paused;
     if (keyp('N')) start_new();
@@ -531,6 +602,13 @@ static void handle_input(void) {
 // a ready-made loop so the cart is alive the moment it opens — a hilly closed
 // circuit with a chain-lift (hoist) up the back so it runs forever.
 void init(void) {
+    // a faked crowd-scream voice: bright saw, a resonant band-pass ≈ a vowel
+    // formant, a 6 Hz pitch wobble (the quiver), and a little rasp from drive
+    instrument(SCREAM_SLOT, INSTR_SAW, 20, 140, 6, 200);
+    instrument_filter(SCREAM_SLOT, FILTER_BAND, 1200, 11);
+    instrument_lfo(SCREAM_SLOT, 0, LFO_PITCH, 6.0f, 0.5f);
+    instrument_drive(SCREAM_SLOT, 0.25f);
+
     int N = 64;
     float cx = SCREEN_W / 2.0f, cy = 138, rx = 205, ry = 76;
     for (int i = 0; i < N; i++) {
@@ -554,7 +632,7 @@ void update(void) {
     watch("len", "%.0f", total_len);
     watch("closed", "%d", closed);
 #endif
-    if (is_paused) return;
+    if (is_paused) { silence_scream(); return; }
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
     if (closed) update_coaster(dt_); else update_slide(dt_);
     tick_parts(dt_);
@@ -734,6 +812,23 @@ void draw(void) {
         print(buf, 4, 14, CLR_LIGHT_YELLOW);
         snprintf(buf, sizeof buf, "CARTS %d", n_bodies);
         print(buf, 4, 24, CLR_LIGHT_GREY);
+        // g-meter: current g, lap peak, and an airtime flag
+        int gcol = gforce < 0.45f ? CLR_BLUE : gforce > 2.2f ? CLR_RED : CLR_GREEN;
+        snprintf(buf, sizeof buf, "%.1fG", gforce);
+        print(buf, 4, 36, gcol);
+        snprintf(buf, sizeof buf, "PEAK %.1f", gpeak);
+        print(buf, 40, 36, CLR_DARK_GREY);
+        if (gforce < 0.35f && sp > 110) print("AIRTIME!", 4, 46, CLR_LIGHT_YELLOW);
+        // g-ball: a 2-axis gauge. rests at centre; up = heavy, down = airtime,
+        // left/right = brake/launch (the longitudinal axis).
+        int gbs = 28, gbx = SCREEN_W - gbs - 6, gby = 6;
+        rectfill(gbx, gby, gbs, gbs, CLR_BROWNISH_BLACK);
+        int gcx = gbx + gbs / 2, gcy = gby + gbs / 2;
+        line(gbx, gcy, gbx + gbs, gcy, CLR_DARKER_GREY);
+        line(gcx, gby, gcx, gby + gbs, CLR_DARKER_GREY);
+        int dx = gcx + (int)clamp(g_long * 4.5f, -13, 13);
+        int dy = gcy - (int)clamp((gforce - 1) * 4.5f, -13, 13);
+        circfill(dx, dy, 2, gcol);
     }
     if (is_paused) print("PAUSED", SCREEN_W / 2 - 24, 4, CLR_YELLOW);
 

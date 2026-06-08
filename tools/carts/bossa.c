@@ -503,7 +503,8 @@ void draw(void) {
         for (int k = 0; k < 4; k++) chord[k] = (rp + QTONES[q][k]) % 12;
     }
     static const int PENT[5] = { 0, 2, 4, 7, 9 };
-    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false };
+    // vertical = breath dynamics (a flute leans soft→loud)
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6 };
     solo_strip(&jc, 28, 170, 250, 18, CLR_ORANGE);
 
     ui_end();                                // resolve this frame's knob + jam grabs

@@ -46,6 +46,12 @@
 #define SOLO_VOL 5            // the solo sits ABOVE the backing track
 #endif
 
+// the vertical axis: horizontal picks the note, vertical SHAPES it — and what
+// it shapes is the station's call (game-music.md → "the jam layer"). The strip
+// applies VOL/BRIGHT to the held voice itself; SOLO_Y_OFF + solo_y() lets a
+// cart map the 0..1 height to anything bespoke (echo send, a second LFO, …).
+enum { SOLO_Y_OFF, SOLO_Y_VOL, SOLO_Y_BRIGHT };
+
 typedef struct {
     int  root;                // key root pitch class (0..11)
     const int *scale;         // in-key semitone offsets (0..11)…
@@ -55,21 +61,25 @@ typedef struct {
     int  instr;               // the station's I_SOLO slot
     int  loMidi, hiMidi;      // the strip's playable register, inclusive
     bool quantize;            // snap each note-on to the next 16th
+    int  ymode;               // SOLO_Y_* — what vertical drag does (top = more)
+    float yMin, yMax;         // that mode's range: VOL = vol levels, BRIGHT = cutoff Hz
 } SoloCtx;
 
 static bool solo_open_f  = false;
 static int  solo_handle  = -1;     // the held mono voice (-1 = silent)
 static int  solo_curMidi = -1;     // what's sounding (display / trace)
+static float solo_curY   = -1;     // last vertical position 0..1 (-1 = silent)
 static bool solo_pending = false;  // a press waiting for its 16th (quantize)
 static int  solo_pendMidi = -1;
 static long solo_pendStep = 0;
 
-static bool solo_open(void) { return solo_open_f; }
-static int  solo_midi(void) { return solo_curMidi; }   // -1 = silent
+static bool  solo_open(void) { return solo_open_f; }
+static int   solo_midi(void) { return solo_curMidi; }   // -1 = silent
+static float solo_y(void)    { return solo_curY; }      // vertical 0..1, -1 = silent
 
 static void solo_kill(void) {
     if (solo_handle >= 0) note_off(solo_handle);
-    solo_handle = -1; solo_curMidi = -1; solo_pending = false;
+    solo_handle = -1; solo_curMidi = -1; solo_curY = -1; solo_pending = false;
 }
 
 // build the ascending list of in-scale midis across [lo,hi]; returns count
@@ -139,6 +149,13 @@ static void solo_strip(const SoloCtx *cx, int x, int y, int w, int h, int accent
         midi = notes[cell];
     }
 
+    float vy = -1;                                          // vertical 0..1 (top = more)
+    if (c) {
+        int cyp = c->released ? c->ry : c->cy;
+        vy = 1.0f - (cyp - y) / (float)h;
+        vy = vy < 0 ? 0 : vy > 1 ? 1 : vy;
+    }
+
     double pos = (double)beat() * 4.0 + beat_pos() * 4.0;   // 16th-step clock
 
     // note lifecycle: grab → on (quantized or now); drag → glide; release → off
@@ -162,14 +179,31 @@ static void solo_strip(const SoloCtx *cx, int x, int y, int w, int h, int accent
     }
     if (ui_released(&strip_id)) solo_kill();
 
+    // the vertical axis — the station decides what it means (top = more)
+    if (solo_handle >= 0 && vy >= 0) {
+        solo_curY = vy;
+        float v = cx->yMin + vy * (cx->yMax - cx->yMin);
+        if      (cx->ymode == SOLO_Y_VOL)    note_vol(solo_handle, (int)(v + 0.5f));
+        else if (cx->ymode == SOLO_Y_BRIGHT) note_cutoff(solo_handle, (int)v);
+    }
+
     // ── draw the keybed ────────────────────────────────────────────────────
     rectfill(x, y, sw, h, CLR_BLACK);
     for (int i = 0; i < nn; i++) {
-        int col = (i == cell)                       ? CLR_WHITE
-                : solo_is_chord_pc(cx, notes[i])    ? accent
-                : (notes[i] % 12 == cx->root)       ? CLR_MEDIUM_GREY   // the tonic
-                                                    : CLR_DARK_GREY;
+        int col = solo_is_chord_pc(cx, notes[i]) ? accent
+                : (notes[i] % 12 == cx->root)     ? CLR_MEDIUM_GREY   // the tonic
+                                                  : CLR_DARK_GREY;
         rectfill(x + i * cw + 1, y + 1, cw - 2, h - 2, col);
+    }
+    if (cell >= 0 && solo_handle >= 0) {                    // the played note + its Y level
+        int cx0 = x + cell * cw;
+        if (cx->ymode == SOLO_Y_OFF || vy < 0)
+            rectfill(cx0 + 1, y + 1, cw - 2, h - 2, CLR_WHITE);
+        else {
+            int barH = (int)(vy * (h - 2) + 0.5f);          // a level meter = the Y axis
+            rectfill(cx0 + 1, y + 1 + (h - 2 - barH), cw - 2, barH, CLR_WHITE);
+        }
+        rect(cx0, y, cw, h, CLR_WHITE);
     }
     rect(x, y, sw, h, accent);
 

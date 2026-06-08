@@ -552,7 +552,8 @@ void draw(void) {
     }
     int soloRoot = (sng.keyPc + (bar >= MOD_BAR ? 2 : 0)) % 12;
     static const int PENT[5] = { 0, 2, 4, 7, 9 };
-    SoloCtx jc = { soloRoot, PENT, 5, chord, 4, I_SOLO, 72, 91, false };
+    // vertical = filter brightness (the synth opens up as you push)
+    SoloCtx jc = { soloRoot, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_BRIGHT, 1200, 6000 };
     solo_strip(&jc, 28, 170, 250, 18, CLR_PINK);
 
     ui_end();

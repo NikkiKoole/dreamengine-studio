@@ -15,6 +15,12 @@
 // it) / TOUCH (the envelope FOLLOWER — opens from the note's amplitude, dynamic; great on
 // bass/leads). The clav boots into ENV. (The DX/digital EP is INSTR_FM; this is the real one.)
 //
+// NOTE (2026-06-08): this is a SIMPLE per-voice wah, and it's INTERIM. Rendering navkit showed
+// the real "woah woah" auto-wah is a BUS effect (one filter on the summed mix, exp sweep,
+// envelope follower on the whole performance) — deferred to the effects-bus layer (§8.10), and
+// it will likely REPLACE the AUTO/TOUCH flavours here. The per-voice wah + the envelope follower
+// are PARKED: kept because they may be handy, but they aren't the end goal. See sound-handoff.md.
+//
 // The named instruments are just KNOB POSITIONS (audio-notes §8.1 / §8.8.5): if pressing
 // "wurli" doesn't sound like a Wurlitzer, the MAPPING is wrong, not the preset.
 //

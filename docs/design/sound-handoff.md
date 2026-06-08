@@ -121,3 +121,18 @@ performance*. A per-voice filter can't sweep a chord coherently or pump with the
   (and wrongly equated a per-note env with an envelope follower), while §8.10 listed wah as an
   aux-bus effect. Both now corrected (0015 Correction note + §8.10 wah line). The render is what
   resolved it — confident *doc* claims need the same empirical check as confident reasoning.
+
+## PARKED — provisional, kept but NOT the end goal (2026-06-08, user call)
+
+Both are kept (might be handy soon) but explicitly interim — flagged so we don't mistake them
+for finished intent or build more on top of them:
+- **Per-voice wah (epiano AUTO/TOUCH flavours)** — a *simple* wah; the real "woah woah" is the
+  bus effect above (§8.10). The clav ENV quack stays (it's genuinely per-voice). AUTO/TOUCH will
+  likely be replaced by the bus wah.
+- **The envelope follower (`instrument_follow`/`note_follow`)** — its real home is bus-level. No
+  shipped customer yet. Keep, but it's a re-evaluate-when-§8.10-lands item, not a proven primitive.
+
+**Hygiene rule (so this happens less):** see the **engine playbook step 0** (§8.8.2) — *render
+the reference and locate its LAYER before building*. The wah detour was a per-voice build chasing
+a bus-layer target; one render up front would have caught it. Treat confident claims (ours or the
+docs') about a reference sound as hypotheses until rendered.

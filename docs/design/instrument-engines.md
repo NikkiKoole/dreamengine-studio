@@ -466,6 +466,16 @@ The §8.8.1 lessons, turned into the **standard procedure for every new engine**
 Walked twice (PLUCK 2026-06-05, MALLET 2026-06-05); organ/EP/piano follow this
 path. The steps in order — none optional, most are one sitting:
 
+0. **Render the navkit reference FIRST, and characterize it — before building anything.**
+   `tools/navkit-render.c` renders the actual navkit preset to a WAV; `tools/wav-envelope.js`
+   plots its amplitude+brightness. Ask: *what is it, really* — which engine, what modulation,
+   and critically **what LAYER** (per-voice vs a bus effect)? This step is cheap (~2 min) and it
+   is the one that stops rabbit holes. Added 2026-06-08 after the wah detour: we spent a session
+   building a per-voice follower to chase navkit's "woah woah" wah — then rendered it and found
+   it's a *bus* effect (and that the docs' confident "wah is per-voice" claim was wrong, 0015
+   Correction). **A confident claim — yours, mine, or a doc's — about a reference sound is a
+   hypothesis until you've rendered the reference.** Don't write engine/primitive code to match a
+   target you haven't first reproduced and located on the right layer.
 1. **Design the macros on paper first.** The engine's row in the §8.9 catalog
    (or the §8.8 sketch) must say what `harmonics` / `timbre` / `morph` mean
    *before* any code — and per §8.1.1 they are the ONLY knobs; no per-engine

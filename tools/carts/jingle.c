@@ -1,5 +1,6 @@
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
+#include "solo.h"    // the jam layer — a scale-locked lead over the progression
 #include <stdio.h>
 #include <math.h>
 
@@ -43,6 +44,7 @@
 #define I_KICK 8
 #define I_RIM  9
 #define I_HAT  10
+#define I_SOLO 11  // the jam-strip lead — sits on top of the progression
 
 // ── chords ────────────────────────────────────────────────────────────────
 enum { Q_MAJ, Q_MAJ7, Q_DOM7, Q_DOM9, Q_MIN, Q_MIN7, Q_MIN6, NQ };
@@ -384,6 +386,10 @@ static void setup_instruments(void) {
 
     instrument(I_HAT, INSTR_NOISE, 0, 20, 0, 14);
     instrument_filter(I_HAT, FILTER_HIGH, 7000, 3);
+
+    instrument(I_SOLO, INSTR_SINE, 12, 200, 6, 240);         // the jam lead — soft but present
+    instrument_lfo(I_SOLO, 0, LFO_PITCH, 5.2f, 0.16f);       // a singing vibrato
+    instrument_filter(I_SOLO, FILTER_LOW, 3000, 2);          // brighter than the comp lead
 }
 
 // ── update ────────────────────────────────────────────────────────────────
@@ -542,6 +548,16 @@ void draw(void) {
         };
         rad_help_panel("JINGLE RADIO", HELP, 8, NOTES, 3, CLR_PINK);
     }
+
+    // the jam strip — lead on the key's pentatonic, the current chord's tones
+    // lit. vertical = filter brightness (J or tap the corner)
+    int chord[4]; {
+        Ch c = chord_at(bar);
+        for (int k = 0; k < 4; k++) chord[k] = (root_pc(c) + QT[c.q][k]) % 12;
+    }
+    static const int PENT[5] = { 0, 2, 4, 7, 9 };
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_BRIGHT, 1400, 5500 };
+    solo_strip(&jc, 28, 170, 250, 18, CLR_PINK);
 
     ui_end();
 }

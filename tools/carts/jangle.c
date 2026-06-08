@@ -1,5 +1,6 @@
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
+#include "solo.h"    // the jam layer — a scale-locked whistle over the vamp
 #include <stdio.h>
 #include <math.h>
 
@@ -41,6 +42,7 @@
 #define I_KICK  8
 #define I_SNARE 9
 #define I_HAT   10
+#define I_SOLO  11  // the jam-strip whistle — sits on top of the vamp
 
 // ── mixolydian world ──────────────────────────────────────────────────────
 static const int MIXO[7] = { 0, 2, 4, 5, 7, 9, 10 };   // the whole song lives here
@@ -332,6 +334,11 @@ static void setup_instruments(void) {
 
     instrument(I_HAT, INSTR_NOISE, 0, 24, 0, 16);
     instrument_filter(I_HAT, FILTER_HIGH, 6500, 3);
+
+    instrument(I_SOLO, INSTR_SQUARE, 16, 150, 6, 180);       // the jam whistle — present
+    instrument_duty(I_SOLO, 0.24f);
+    instrument_lfo(I_SOLO, 0, LFO_PITCH, 5.3f, 0.16f);       // a singing wobble
+    instrument_filter(I_SOLO, FILTER_LOW, 3200, 2);          // brighter than the comp whistle
 }
 
 // ── update ────────────────────────────────────────────────────────────────
@@ -487,6 +494,18 @@ void draw(void) {
         };
         rad_help_panel("JANGLE RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
     }
+
+    // the jam strip — whistle on the key's pentatonic, the vamp chord lit.
+    // vertical = breath dynamics (J or tap the corner)
+    int chord[3]; {
+        int ci = chord_of_bar(bar), r = root_pc(ci);
+        chord[0] = r;
+        chord[1] = (r + (sng.vampMin[ci] ? 3 : 4)) % 12;
+        chord[2] = (r + 7) % 12;
+    }
+    static const int PENT[5] = { 0, 2, 4, 7, 9 };
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 3, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6 };
+    solo_strip(&jc, 28, 170, 250, 18, CLR_ORANGE);
 
     ui_end();
 }

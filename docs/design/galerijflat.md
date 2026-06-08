@@ -1,6 +1,6 @@
 # galerijflat — an experimental/arty cart (design seed)
 
-**Status: building — step 9 (queue & lobby polish, bigger crowds) complete.** Cart:
+**Status: building — step 10 (occupants in the windows) complete.** Cart:
 `tools/carts/galerijflat.c`, registered in `index.json`, clean. This doc is the
 shared understanding for a cart designed/built across multiple sessions.
 Decisions are marked ✓. **Next agent: start at "Handoff" at the bottom.**
@@ -613,15 +613,36 @@ Tightening the circulation so it reads honestly, and turning the crowd up.
   Verified across seeds: doors open at GROUND every cycle, no sustained stalls.
   (Trace adds `wmask`/`gwait` under `DE_TRACE` to see which floors hold waiters.)
 
-## Handoff — next agent starts here (2026-06-08, session 9 complete)
+### Step 10 — occupants in the windows: the walk pays off (2026-06-08, session 9)
+
+You can now *see* the person a walker brought home, so the arrival has a visible
+consequence. Only `occ==1` homes (a walker was watched entering) get an
+occupant — that's the link; schedule-lit homes just glow.
+
+- `draw_occupant()` is a small 3–4px figure that drifts a slot every ~1.8s
+  (`frame()/110` + per-home phase) so the room reads as lived-in, not a decal.
+- **Night (`lit`)**: a `CLR_BROWNISH_BLACK` silhouette drawn *over* the
+  treatment — the classic shadow on a closed curtain, or a dark figure against
+  the warm glow / TV blue.
+- **Day (`!lit`)**: a `CLR_INDIGO` (lavender-blue) figure drawn on top, but only
+  when you could actually see in — bare glass, open drapes, or net curtains;
+  closed curtains / blinds / a down roller hide them. Realistic that midday is
+  mostly empty (everyone left for work, `occ=0`) with a figure only where
+  someone's home. In continuous play `occ` accumulates overnight, so the morning
+  shows plenty before the rush empties it out.
+- Verified by forcing `occ=1` everywhere: figures render clearly in both modes,
+  hidden behind solid treatments as intended.
+
+## Handoff — next agent starts here (2026-06-08, session 10 complete)
 
 **Repo state.** `tools/carts/galerijflat.c`, in `index.json`, clean.
-Queue/lobby polish (step 9) on top of the step-8 ground lobby.
+Window occupants (step 10) on top of the step-9 queue/lobby polish.
 
 **What's done:** static facade + clock/light schedules + global tint + full
 detail pass + gallery walkers + glazed lift car + a real elevator (LOOK
-scheduler) + walker→light causality + a ground lobby + **proper join-order
-queues that shuffle forward** + bigger rush crowds.
+scheduler) + walker→light causality + a ground lobby + join-order queues that
+shuffle forward + bigger rush crowds + **occupants visible in the windows**
+(night shadow on the curtain, day figure behind the glass).
 
 **Next build steps:** sys 4 (the flip to the balcony side — one model, two
 mirrored views) → sound (lift ding on door-open, the hum while travelling,

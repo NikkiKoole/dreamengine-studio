@@ -772,6 +772,17 @@ void update(void) {
 
 // ── drawing ───────────────────────────────────────────────────────────────────
 
+// someone moving about inside a window: a small figure that drifts slowly so a
+// lit/curtained home reads as lived-in. Only drawn for occ==1 homes — the ones
+// a walker was actually seen entering, so it's the payoff of that walk.
+static void draw_occupant(int wx, int wy, int f, int b, int col) {
+    int t  = frame() / 110;                    // a slow shuffle — pottering about the room
+    int ox = (t * 7 + f * 5 + b * 11) & 3;     // 0..3, drifts side to side
+    int fx = wx + 2 + ox;
+    rectfill(fx,     wy + 2, 2, 2, col);       // head
+    rectfill(fx - 1, wy + 4, 4, 4, col);       // shoulders/torso (lower body cut by the sill)
+}
+
 static void draw_window(Home *h, int f, int b, int wx, int wy) {
     int lit  = home_lit(h, tod);
     int tv   = home_tv(h, tod);
@@ -808,6 +819,21 @@ static void draw_window(Home *h, int f, int b, int wx, int wy) {
         rectfill(wx, wy, WW, WH, CLR_DARK_GREY);
         fillp_reset();
         break;
+    }
+
+    // an occupant a walker brought home (occ==1):
+    //  night → a dark backlit silhouette (shadow on the curtain / against the glow)
+    //  day   → a dim blue figure, but only when you could actually see in (bare
+    //          glass, open drapes, or net) — closed curtains/blinds hide them
+    if (h->occ == 1) {
+        if (lit) {
+            draw_occupant(wx, wy, f, b, CLR_BROWNISH_BLACK);
+        } else {
+            int see_in = (h->treat == TR_NONE) ||
+                         (h->treat == TR_CURTAIN && curt) ||
+                         (h->treat == TR_VITRAGE);
+            if (see_in) draw_occupant(wx, wy, f, b, CLR_INDIGO);
+        }
     }
 
     // windowsill ledge — structural concrete, same material as the gallery slabs

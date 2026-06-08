@@ -602,6 +602,7 @@ void update(void) {
 // ── draw — the milonga chassis; window art = the breathing bandoneón ──────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
     int  sect = sect_of(bar);
@@ -674,9 +675,9 @@ void draw(void) {
     }
 
     static const char *FEEL[4] = { "salon", "tanda", "orquesta", "pugliese" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_RED);
-    rad_knob(218, 148, 9, (tempo - 96) / 44.0f, "tempo", CLR_RED);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_RED);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_RED);
+    if (rad_knob_int(&tempo, 96, 140, 2, 218, 148, 9, "tempo", CLR_RED)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_RED)) apply_tone();
     rad_power_led(radioOn, CLR_RED, CLR_DARKER_PURPLE);
 
     rad_help_button(CLR_RED);
@@ -701,4 +702,5 @@ void draw(void) {
         rad_help_panel("TANGO RADIO", HELP, 8, NOTES, 3, CLR_RED);
     }
     rad_band_panel(&band, CLR_RED);
+    ui_end();
 }

@@ -603,6 +603,7 @@ void update(void) {
 // draws only its window art: the mirror ball + the filter slider) ─────────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
     int  sect = sect_of(bar);
@@ -671,9 +672,9 @@ void draw(void) {
 
     // knobs + power LED
     static const char *FEEL[4] = { "afterhours", "warmup", "club", "peak" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_PINK);
-    rad_knob(218, 148, 9, (tempo - 108) / 24.0f, "tempo", CLR_PINK);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_PINK);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_PINK);
+    if (rad_knob_int(&tempo, 108, 132, 2, 218, 148, 9, "tempo", CLR_PINK)) bpm(tempo);
+    rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_PINK);
     rad_power_led(radioOn, CLR_PINK, CLR_DARK_PURPLE);
 
     rad_help_button(CLR_PINK);
@@ -697,4 +698,5 @@ void draw(void) {
         };
         rad_help_panel("HOUSE RADIO", HELP, 8, NOTES, 3, CLR_PINK);
     }
+    ui_end();
 }

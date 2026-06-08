@@ -464,6 +464,12 @@ static void setup_instruments(void) {
 }
 
 // ── update ────────────────────────────────────────────────────────────────
+static void apply_tone(void) {
+    float tm = RAD_TONEMUL[toneSel];
+    instrument_filter(I_EP,  FILTER_LOW, (int)(3200 * tm), 1);
+    instrument_filter(I_SAX, FILTER_LOW, (int)(1900 * tm), 2);
+}
+
 void update(void) {
     static bool booted = false;
     static int  kitNow = -1;
@@ -488,9 +494,7 @@ void update(void) {
         else scheduled = (long)pos;
     }
     if (ev & (RAD_EV_TONE | RAD_EV_NEW | RAD_EV_REPLAY | RAD_EV_BACK | RAD_EV_FWD) || kitNow != sng.groove) {
-        float tm = RAD_TONEMUL[toneSel];
-        instrument_filter(I_EP,  FILTER_LOW, (int)(3200 * tm), 1);
-        instrument_filter(I_SAX, FILTER_LOW, (int)(1900 * tm), 2);
+        apply_tone();
         if (kitNow != sng.groove) {                  // swap the kit circuits per song
             if (sng.groove == G_CR78) setup_kit_cr78();
             else setup_kit_session();
@@ -527,6 +531,7 @@ void update(void) {
 // ── draw — the marina chassis; window art = a yacht at golden hour ────────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
     int  sect = sect_of(bar);
@@ -579,9 +584,9 @@ void draw(void) {
     }
 
     static const char *FEEL[4] = { "dock", "cruise", "regatta", "open sea" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_BLUE);
-    rad_knob(218, 148, 9, (tempo - 84) / 36.0f, "tempo", CLR_BLUE);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_BLUE);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_BLUE);
+    if (rad_knob_int(&tempo, 84, 120, 2, 218, 148, 9, "tempo", CLR_BLUE)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_BLUE)) apply_tone();
     rad_power_led(radioOn, CLR_BLUE, CLR_DARKER_BLUE);
 
     rad_help_button(CLR_BLUE);
@@ -606,4 +611,5 @@ void draw(void) {
         rad_help_panel("YACHT RADIO", HELP, 8, NOTES, 3, CLR_BLUE);
     }
     rad_band_panel(&band, CLR_BLUE);
+    ui_end();
 }

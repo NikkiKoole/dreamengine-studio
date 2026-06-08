@@ -404,6 +404,12 @@ static void setup_instruments(void) {
     for (int i = 0; i < band.n; i++) apply_chair(i);
 }
 
+static void apply_tone(void) {
+    float tm = RAD_TONEMUL[toneSel];
+    instrument_filter(I_PNO,   FILTER_LOW, (int)(2200 * tm), 1);
+    instrument_filter(I_PSOLO, FILTER_LOW, (int)(2700 * tm), 1);
+}
+
 // ── update ────────────────────────────────────────────────────────────────
 void update(void) {
     static bool booted = false;
@@ -428,9 +434,7 @@ void update(void) {
         else scheduled = (long)pos;
     }
     if (ev & RAD_EV_TONE) {
-        float tm = RAD_TONEMUL[toneSel];
-        instrument_filter(I_PNO,   FILTER_LOW, (int)(2200 * tm), 1);
-        instrument_filter(I_PSOLO, FILTER_LOW, (int)(2700 * tm), 1);
+        apply_tone();
     }
 
     int chair = rad_band_input(&band, &showHelp);   // THE BAND — B, then click/number
@@ -464,6 +468,7 @@ void update(void) {
 // ── draw — the lounge chassis; window art = the bar at last call ──────────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
     int  sect = sect_of(bar);
@@ -521,9 +526,9 @@ void draw(void) {
     }
 
     static const char *FEEL[4] = { "last call", "set one", "set two", "burner" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_PEACH);
-    rad_knob(218, 148, 9, (tempo - 92) / 60.0f, "tempo", CLR_PEACH);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_PEACH);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_PEACH);
+    if (rad_knob_int(&tempo, 92, 152, 2, 218, 148, 9, "tempo", CLR_PEACH)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_PEACH)) apply_tone();
     rad_power_led(radioOn, CLR_PEACH, CLR_MAUVE);
 
     rad_help_button(CLR_PEACH);
@@ -548,4 +553,5 @@ void draw(void) {
         rad_help_panel("COCKTAIL RADIO", HELP, 8, NOTES, 3, CLR_PEACH);
     }
     rad_band_panel(&band, CLR_PEACH);
+    ui_end();
 }

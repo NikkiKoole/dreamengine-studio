@@ -18,7 +18,7 @@
 // ZONES:  hold a key WHILE drawing (or hover + tap after) to paint a stretch:
 //            B = boost (green)    S = slow/brake (red)    H = hoist (yellow)
 // CARTS:  up / down arrows  —  longer / shorter train (coaster mode).
-// M = swap coaster/slide      SPACE = pause      N = new/clear      TAB = help
+// M = swap coaster/slide      SPACE = pause      N = new/clear      ? / TAB = help
 // ============================================================================
 
 // ── tuning ──────────────────────────────────────────────────────────────────
@@ -102,8 +102,14 @@ static Part parts[MAXP];
 static int   drawing = 0;
 static int   drag_idx = -1;
 static int   is_paused = 0;
-static int   show_help = 1;
+static int   show_help = 0;          // hidden behind the on-screen ? button
 static float run_started = 0;
+
+// the ? help toggle button, bottom-right corner
+#define HELP_BW 13
+#define HELP_BH 13
+#define HELP_BX (SCREEN_W - HELP_BW - 4)
+#define HELP_BY (SCREEN_H - HELP_BH - 4)
 
 // POV ride-cam — smoothed camera state, eased toward its target every frame
 static int   ride = 0;
@@ -552,6 +558,14 @@ static int nearest_point(int x, int y, float thresh) {
 static void handle_input(void) {
     int mx = mouse_x(), my = mouse_y();
 
+    // the ? button toggles the help panel — consume the click so it can't also
+    // start drawing a track (left-click is overloaded for drawing here)
+    if (mouse_pressed(MOUSE_LEFT) &&
+        point_in_box(mx, my, HELP_BX - 3, HELP_BY - 3, HELP_BW + 6, HELP_BH + 6)) {
+        show_help = !show_help;
+        return;
+    }
+
     if (mouse_pressed(MOUSE_LEFT)) {
         int near = (n_pts > 1 && !drawing) ? nearest_point(mx, my, 9) : -1;
         if (near >= 0) {
@@ -944,8 +958,13 @@ void draw(void) {
         print(" boost / slow / hoist / flip", x, y, CLR_LIGHT_GREY);           y += 9;
         print("C ride  M mode  K wood/steel", x, y, CLR_LIGHT_GREY);           y += 9;
         print("N new SPACE pause up/dn carts", x, y, CLR_LIGHT_GREY);          y += 9;
-        print("TAB hide help", x, y, CLR_LIGHT_GREY);
-    } else {
-        print(ride ? "RIDING  (C exit)" : "TAB help", SCREEN_W - 70, SCREEN_H - 10, CLR_DARK_GREY);
+        print("? or TAB to hide", x, y, CLR_LIGHT_GREY);
+    } else if (ride) {
+        print("RIDING  (C exit)", SCREEN_W - 70, SCREEN_H - 10, CLR_DARK_GREY);
     }
+
+    // the ? help toggle — always on screen, highlighted while the panel is open
+    rectfill(HELP_BX, HELP_BY, HELP_BW, HELP_BH, show_help ? CLR_YELLOW : CLR_BROWNISH_BLACK);
+    rect(HELP_BX, HELP_BY, HELP_BW, HELP_BH, CLR_LIGHT_GREY);
+    print("?", HELP_BX + 4, HELP_BY + 3, show_help ? CLR_BROWNISH_BLACK : CLR_WHITE);
 }

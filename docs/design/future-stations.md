@@ -35,11 +35,24 @@ and Sakamoto unprompted.
    circuits on loan from `cr78.c` exactly as hoped. The native-timbre prediction
    held too; the Hosono bassline generator (counterpoint with inertia) is the
    reusable new block.
-3. **Ethio-jazz (Mulatu Astatke)** — the deepest crate. The whole genre is
-   **scales as data**: tizita, bati, anchihoye — pentatonic modes that sound like
-   nothing else on the dial, over hypnotic minor vamps with horns and
-   vibraphone-ish keys. A new chord-brain variant (modal vamp in a non-Western
-   scale) and the accommodation rule doing something genuinely new.
+3. ~~**Ethio-jazz (Mulatu Astatke)**~~ — ✅ shipped as `addis.c` (2026-06-08,
+   station #17), the deepest crate and the first station to leave 12-TET's
+   major/minor world. **SCALES AS DATA landed as designed**: the seed rolls one
+   of four qñit (tizita / bati / anchihoye / ambassel) as a 7-entry table, and
+   every melodic voice (vibes head, bass ostinato, both solos) walks it — the
+   improviser's `mode7` contract ate the pentatonic without a change (each
+   entry reduces mod-12 into the five pitch classes, so a solo can only land
+   in-scale). **THE MODAL VAMP** is the new chord-brain: a tonic drone (± a
+   second i↔iv/i↔bII centre) held eight bars over a locked bass ostinato — no
+   functional changes at all. Bonus the plan didn't call: it's the **first
+   five-engine band** (MALLET vibes · EPIANO/ORGAN keys · PD horn · FM bass ·
+   MEMBRANE congas/bongos/kebero) — MEMBRANE and PD, both same-day 2026-06-08
+   engines, earning their first station slot. PD stands in for the horn line
+   (no breath engine exists; synth-brass through a lowpass reads as a reedy
+   horn doubling the vibes in unison + taking the second solo). The original
+   pitch — *minor vamps with horns and vibraphone-ish keys, the accommodation
+   rule doing something new* — held; accommodation is automatic here since the
+   whole band shares one qñit.
 4. ~~**Swing / cocktail jazz trio**~~ — ✅ shipped as `cocktail.c` (2026-06-05,
    station #14). The walking-bass prediction held: root → chord/scale motion →
    chromatic approach, ~20 lines as promised. **And it triggered THE IMPROVISER's

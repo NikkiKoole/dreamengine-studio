@@ -400,6 +400,13 @@ static void setup_instruments(void) {
     instrument_env(I_FROG, 0, ENV_PITCH, 0, 90, 3);
 }
 
+static void apply_tone(void) {
+    float tm = RAD_TONEMUL[toneSel];
+    instrument_filter(I_GTR,  FILTER_LOW, (int)(2400 * tm), 1);
+    instrument_filter(I_VIBE, FILTER_LOW, (int)(4200 * tm), 0);
+    instrument_filter(I_BELL, FILTER_LOW, (int)(3800 * tm), 0);
+}
+
 // ── update ────────────────────────────────────────────────────────────────
 void update(void) {
     static bool booted = false;
@@ -425,10 +432,7 @@ void update(void) {
     }
     if (ev & (RAD_EV_TONE | RAD_EV_NEW | RAD_EV_REPLAY | RAD_EV_BACK | RAD_EV_FWD)) {
         // tone knob: the whole band brightens/mellows (re-aim, keeping song rolls)
-        float tm = RAD_TONEMUL[toneSel];
-        instrument_filter(I_GTR,  FILTER_LOW, (int)(2400 * tm), 1);
-        instrument_filter(I_VIBE, FILTER_LOW, (int)(4200 * tm), 0);
-        instrument_filter(I_BELL, FILTER_LOW, (int)(3800 * tm), 0);
+        apply_tone();
     }
 
     int chair = rad_band_input(&band, &showHelp);   // THE BAND — B, then click/number
@@ -460,6 +464,7 @@ void update(void) {
 // ── draw — the tiki chassis; window art = the lagoon at sunset ────────────
 void draw(void) {
     cls(CLR_BLACK);
+    ui_begin();
     long songStep = scheduled - songBase;
     long bar = songStep >= 0 ? songStep / 16 : 0;
     int  sect = sect_of(bar);
@@ -518,9 +523,9 @@ void draw(void) {
     }
 
     static const char *FEEL[4] = { "lull", "lounge", "luau", "rite" };
-    rad_knob(168, 148, 9, intensity / 3.0f, FEEL[intensity], CLR_ORANGE);
-    rad_knob(218, 148, 9, (tempo - 76) / 36.0f, "tempo", CLR_ORANGE);
-    rad_knob(262, 148, 11, toneSel / 3.0f, RAD_TONENAME[toneSel], CLR_ORANGE);
+    rad_knob_sel(&intensity, 4, 168, 148, 9, FEEL[intensity], CLR_ORANGE);
+    if (rad_knob_int(&tempo, 76, 112, 2, 218, 148, 9, "tempo", CLR_ORANGE)) bpm(tempo);
+    if (rad_knob_sel(&toneSel, 4, 262, 148, 11, RAD_TONENAME[toneSel], CLR_ORANGE)) apply_tone();
     rad_power_led(radioOn, CLR_ORANGE, CLR_DARK_BROWN);
 
     rad_help_button(CLR_ORANGE);
@@ -545,4 +550,5 @@ void draw(void) {
         rad_help_panel("EXOTICA RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
     }
     rad_band_panel(&band, CLR_ORANGE);
+    ui_end();
 }

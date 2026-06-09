@@ -966,12 +966,13 @@ real idle-in-gear figures: **1st ≈ 5–10 km/h** (measured 3.9 mph GPS / ~5 mp
 ~1000 rpm, and **3rd+ stalls** on most cars. The mechanism: creep speed = idle_rpm ÷ (gear
 ratio × final drive), so it's **∝ 1/ratio** — taller gear, faster idle.
 
-Modelled as a per-gear creep floor `vf → IDLE_CREEP / ratio` (eased on at `CREEP_ACCEL`,
-capped at `CREEP_MAX`), applied when off-gas + off-brake + in gear; the **brake overrides**
-it (hold to sit still, like a manual at a light), and reverse idles backward. Verified:
-**1st 9.9, 2nd 16.8, 3rd 25.1 km/h** — matching the player's 10 / 15–20 / 25. Tuned so 1st
-hits ~10 (their car idles a touch high vs the ~6–8 textbook); the *shape* is the real
-1/ratio law. The cap stands in for the real stall/lug in tall gears (we chose the forgiving
-no-stall model back in §1b). Sources:
+Modelled as a per-gear creep floor `vf → IDLE_CREEP / ratio` (eased on at `CREEP_ACCEL`),
+applied when off-gas + off-brake + in gear; the **brake overrides** it (hold to sit still,
+like a manual at a light), and reverse idles backward. **Anchored to the real-world data**
+(not the player's higher memory): `IDLE_CREEP` set so 1st ≈ the textbook **~6 km/h**
+(≈ 4.4 mph/1000 rpm × 800 rpm idle ≈ 3.5 mph), the rest falling out by 1/ratio — verified
+**1st 6.0, 2nd 10.2, 3rd 15.1** (4th ~22, 5th ~29) km/h. No artificial cap — the 1/ratio
+law gives sane values for every gear on its own. (Real manuals *stall* in tall gears at
+idle; our forgiving no-stall model just lets the creep get faster — see §1b.) Sources:
 [Promaster forum — 1st-gear idle speed](https://www.promasterforum.com/threads/first-gear-idle-speed-and-how-to-engage-it.40914/),
 [GR86 forum — how slow in 2nd before lugging](https://www.gr86.org/threads/how-slow-can-you-go-in-2nd-gear.10665/).

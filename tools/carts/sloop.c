@@ -217,11 +217,12 @@ static float stabL, stabR;        // lateral reach of the hull from the COM (lef
                                   // STOPS a coasting rig. Drag ∝ v only asymptotes to 0 (floaty);
                                   // this constant term dominates at low speed and snaps v to rest.
 // ── idle creep: engine idles in gear → the car trundles with the throttle released ──
-// Real manual idle-in-gear (clutch out, no gas): clean in 1st (~5–10 km/h), marginal in
-// 2nd (~20, near lugging), stalls in 3rd+. We model creep ∝ idle_rpm/ratio so it tracks the
-// gear (1st ~10, 2nd ~17, 3rd ~25 km/h) and CAP it (stands in for "a tall gear would stall").
-#define IDLE_CREEP    48.0f       // creep "speed×ratio": idle holds vf ≈ IDLE_CREEP / ratio
-#define CREEP_MAX     38.0f       // cap — a too-tall gear can't idle past ~3rd-gear creep
+// Real manual idle-in-gear (clutch out, no gas): ~6 km/h in 1st (≈4.4 mph/1000rpm × 800rpm
+// idle ≈ 3.5 mph), and creep ∝ idle_rpm/ratio so it tracks the gear. IDLE_CREEP is anchored
+// to that real 1st-gear figure (~6 km/h ≈ 8.3 px/s × ratio 3.5), the rest fall out by 1/ratio:
+// 1st ~6, 2nd ~10, 3rd ~15, 4th ~22, 5th ~29 km/h. (Real manuals stall in tall gears at idle;
+// our forgiving no-stall model just lets the creep get faster — see §1b.)
+#define IDLE_CREEP    29.0f       // creep "speed×ratio": idle holds vf ≈ IDLE_CREEP / ratio
 #define CREEP_ACCEL   55.0f       // how briskly idle eases you onto the creep speed (px/s^2)
 // ── transmission & gears (§1b) ───────────────────────────────────────────────
 // A gear ratio multiplies torque and sets the engine RPM = speed·ratio/V_REF. Low
@@ -684,7 +685,7 @@ static void update_drive(float dt_) {
     //     at a gear-set floor (taller gear = faster, capped). Only pulls UP to the floor (it
     //     won't fight drag from above). Brake overrides → sit still (a manual at a light).
     if (!in_gas && !in_brk) {
-        float vcreep = clamp(IDLE_CREEP / ratio, 0, CREEP_MAX);
+        float vcreep = IDLE_CREEP / ratio;            // idle RPM in this gear → 1/ratio law
         if (gear == 0) {                                  // reverse idles backward
             if (vf > -vcreep) { vf -= CREEP_ACCEL * dt_; if (vf < -vcreep) vf = -vcreep; }
         } else if (vf >= 0 && vf < vcreep) {              // forward: ease up to the floor

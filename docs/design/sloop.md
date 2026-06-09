@@ -125,6 +125,92 @@ Enum-name the parts and address arrays by enum, never raw index — the CLAUDE.m
 data-driven-cart rule (modrack's lesson: a mid-list insert silently cross-wires
 everything).
 
+### 1a. Engines — kinds, how they drive, what they need
+
+The single `engine` part above is a placeholder. Engines are sloop's richest axis, and
+the honest-core rule still holds: **an engine is just five numbers, and the felt
+differences fall out of them — no per-engine special-casing in the drive loop.**
+
+```
+engine = { power, mass, delivery(curve), source(what it burns), throttle(how you feed it) }
+```
+
+`power` and `mass` already work (thrust sums, mass divides). The two *new* axes are
+**delivery** (how power comes on with speed — the "feel") and **source/throttle** (what
+gates it). Inspired by Cataclysm: DDA's engine roster, trimmed to a legible set.
+
+| Engine | Power | Mass | Delivery (feel) | Source | Throttle |
+|---|---|---|---|---|---|
+| **electric** | med | med | flat — full torque from a standstill; instant, snappy | battery (charge) | hold |
+| **gas** (spark) | high | med | revvy — bogs low, peaks mid-range, falls near top; must find the power band | tank: gasoline / alcohol | hold |
+| **diesel** | high | heavy | grunt — strong low-end pull, runs out of top end; the hauler's engine | tank: diesel / JP-8 | hold |
+| **steam** | med | very heavy | spool-up — sluggish until the boiler builds pressure (~3-5 s), then steady | firebox: solid fuel + water | hold |
+| **nuclear / exotic** | huge | extreme | flat + immense; no management, just go | none (infinite) | hold |
+| **foot crank** | low-med | light | per-stroke pulses; legs = bigger impulse, slower cadence, deep stamina | the driver (stamina) | **rhythmic press** |
+| **hand crank** | low | light | per-stroke pulses; arms = smaller impulse, faster cadence, tires quickly | the driver (stamina) | **rhythmic press** |
+
+**Delivery is one cheap function, `delivery(kind, u)`,** where `u = vf / v_ref` is
+normalized speed standing in for "revs" (same honest-stand-in trick as rows→aero-profile).
+`thrust += engine.power * throttle * delivery(kind, u)`:
+
+- **electric** → ~1.0 flat (tiny taper at top). Instant — the reason it feels snappy.
+- **gas** → a bump: ~0.4 at `u=0`, peak ~1.1 around `u≈0.55`, ~0.5 near `u=1`.
+- **diesel** → ~1.1 at `u=0` sloping to ~0.6 at `u=1`. Low-end torque, weak top.
+- **steam** → `delivery = boiler`, a 0..1 state that charges while running and bleeds when
+  idle — the spool-up. (The one engine that needs a per-rig state variable.)
+- **nuclear** → 1.0 flat, but `power` is several× the others.
+
+That single curve is the whole "how engines handle" story; everything else (accel, top
+speed, turn-in) is the existing mass/drag/I math reacting to the thrust it produces.
+
+**Muscle engines — the novel control mode (and the no-fuel starter vehicle).** The
+driver *is* the power source: no fuel part, gated by a **stamina** meter (0..1, drains
+per crank stroke, regens while coasting; at 0 you can't crank — you coast). This is the
+exact pattern oersoep's stamina-gated dash already uses — reuse it. Throttle is
+**`THR_IMPULSE`**: each gas press = one stroke = one thrust impulse (hold = auto-cadence,
+but rhythmic tapping rewards timing). Foot vs hand is the legs-vs-arms trade (impulse,
+cadence, drain). A soapbox / pedal-cart / railway pump-trolley — the rig you build before
+you scavenge a real engine, and steam's cousin in the "when you have no fuel" niche.
+
+**Source = the gating resource (this is system 2, generalized).** Each engine names a
+required source part; BUILD warns if it's missing (extends the soft "no engine!" /
+"no wheels!" checks → "no fuel tank!" / "no battery!"):
+
+- **battery** (electric) — charge drains with use, **rechargeable**: a solar part (passive)
+  and/or regen braking (free + emergent — brake force tops the battery up). Electric's hook.
+- **tank** (combustion) — liquid fuel, mass bleeds off as it empties (system 2's nice touch).
+- **firebox** (steam) — *two* consumables, solid fuel + water. Bulky. MVP: one `boiler`
+  part holding both, for legibility (vs separate firebox + water tank).
+- **none** (nuclear) — infinite, but extreme mass + a radiological hazard if damaged (a
+  reason not to just bolt the best engine on everything; pairs with rung-4 breakage).
+
+**Hybrid rigs.** DDA's classic move — electric for silent cruising, a big V8/V12 for
+hauling or escape. Today engines just **sum**; that's fine until there's a reason to pick
+one (noise, fuel scarcity). When there is, add an **active-source toggle** (a key) that
+selects which engine kind drives. Recommend: keep summing for MVP, add selection alongside
+fuel (rung 6). Same-throttle engines sum cleanly; mixing `hold` + `impulse` is the only
+case that genuinely needs the toggle.
+
+**Two more axes, parked with a home:**
+- **Noise / stealth** — electric is silent, combustion is loud. Only matters if the world
+  has things that *hear* you. No threats are planned yet, so park it — but it's electric's
+  whole point, so don't lose it.
+- **Overheat** — sustained combustion/nuclear load builds heat → power derate or damage.
+  This reuses the `heat` value rung 2.5 already added and lands with rung-4 breakage.
+  Muscle "overheats" the driver (= stamina); electric stays cool.
+
+**Rung placement:**
+- **Rung 2.6 — engine delivery curves + sub-kinds** (electric / gas / diesel / steam /
+  nuclear). Pure drive-core feel, no fuel yet (engines just always have power); the curves
+  *are* the deliverable. The natural sibling of the rung-1.95 handling levers.
+- **Rung 2.7 — muscle engines** (foot/hand crank): the `THR_IMPULSE` interface + a stamina
+  meter. Self-contained; could even ship before 2.6 as the "starter rig."
+- **Rung 6 — sources as the clock**: battery / tank / firebox parts, fuel burn, range,
+  recharge, the missing-source warning, the hybrid toggle. Where the resource layer belongs.
+- **Rung 4 — overheat derate** (reuses rung-2.5 heat). **Parked:** noise/stealth (needs
+  threats), multi-cell engine blocks (V12 = 2 cells — placement interest vs the 1-part =
+  1-cell grid; decide later).
+
 ### 2. Fuel & range (the clock)
 
 Tanks hold fuel; engines burn it ∝ throttle·power. Range is the real constraint that
@@ -275,6 +361,8 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | Top speed mass-INDEPENDENT | drag is a force; mass sets accel, not top speed (DDA's insight) | 1.95 | ✅ |
 | **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ✅ |
 | **Unsupported cells scrape** | a cell cantilevered past the wheel span drags on the floor: extra drag + lateral anchor + off-centre yaw, with sparks/heat/grind. Wheels become *spatial*, not a scalar; wheel-spam costs mass+drag, too few wheels drags | 2.5 | ✅ |
+| **Engine delivery curve** | how power comes on with speed: electric flat (snappy), gas revvy (mid-range band), diesel low-end grunt, steam spool-up. One `delivery(kind,u)` curve; see §1a | 2.6 | ⬜ |
+| **Muscle throttle (stamina + rhythm)** | foot/hand crank: each press = one stroke (`THR_IMPULSE`), gated by a stamina meter; the no-fuel starter rig. See §1a | 2.7 | ⬜ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
 | **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
 | **Stability / tippiness** | tall narrow high-COM rig spins out / "tips" above a lateral-g threshold vs track width (the 2-D stand-in for roll, since we don't model z) | 3–4 | ⬜ |

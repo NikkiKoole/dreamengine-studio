@@ -194,13 +194,21 @@ static int   nHull;
 static float stabL, stabR;        // lateral reach of the hull from the COM (left/right) — BUILD readout
 
 // ── tuning ───────────────────────────────────────────────────────────────────
-#define ENGINE_POWER  2600.0f     // forward force units per engine at full throttle
+#define ENGINE_POWER  850.0f      // forward force per engine. LOW (vs drag, also low) so accel
+                                  // is gentle and the climb to top speed takes several seconds —
+                                  // that's what lets you DWELL in each gear (off in 1st, build
+                                  // 2nd, cruise 3rd/4th) instead of blasting to top in a blink.
 // Drag is a FORCE (DDA's model): top speed = thrust / drag, MASS-INDEPENDENT — mass
 // sets acceleration, not top speed. Drag = base + per-wheel rolling resistance + a
 // frontal-profile aero term, so SHAPE and WHEEL COUNT set top speed, not just weight.
-#define DRAG_BASE     4.0f        // baseline drag (force per px/s)
-#define DRAG_WHEEL    1.5f        // lever: each wheel adds rolling resistance (grip↑, top speed↓)
-#define DRAG_AERO     3.9f        // lever: drag per cell of frontal profile (narrow = fast)
+// Drag set LOW so top speed is high (~2x): the launch stays punchy (accel = thrust/M,
+// drag negligible at low speed) but the rig keeps PULLING to a far higher top — which
+// both stretches the gears into a real progression (off in 1st, build 2nd, cruise 3/4)
+// and makes the world rip by (sense of speed). The speed-dependent handling below
+// (V_REF, STAB_H, SKID_SLIP…) is scaled to match.
+#define DRAG_BASE     0.6f        // baseline drag (force per px/s)
+#define DRAG_WHEEL    0.25f       // lever: each wheel adds rolling resistance (grip↑, top speed↓)
+#define DRAG_AERO     0.6f        // lever: drag per cell of frontal profile (narrow = fast)
 #define BRAKE         560.0f      // max braking decel (px/s^2) — real brakes >> engine accel;
                                   // capped per-rig by tyre grip below (GRIP_TO_FORCE·grip/M),
                                   // so MORE/BETTER WHEELS = harder stops (an under-wheeled rig
@@ -216,11 +224,11 @@ static float stabL, stabR;        // lateral reach of the hull from the COM (lef
 // band to manage). Reverse is a GEAR (0), so the brake is pure deceleration.
 enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define NGEAR         5           // forward gears (AUTO/MANUAL)
-#define V_REF         110.0f      // speed (px/s) where a ratio-1.0 gear hits redline
+#define V_REF         200.0f      // speed (px/s) where a ratio-1.0 gear hits redline
 #define REV_RATIO     2.2f        // reverse gear ratio (torquey, low top)
 #define SINGLE_RATIO  0.95f       // the one direct-drive ratio (electric): flat, strong, no band
-#define AUTO_UP       0.82f       // AUTO upshifts above this rpm
-#define AUTO_DOWN     0.34f       // AUTO downshifts below this rpm
+#define AUTO_UP       0.90f       // AUTO upshifts above this rpm (revs high → you HEAR the gear)
+#define AUTO_DOWN     0.42f       // AUTO downshifts below this rpm
 #define LAT_GRIP      32.0f       // lateral velocity killed per second (tire grip)
 #define STEER_RESP    680.0f      // steering authority (deg/s^2) at speed
 #define ANG_DAMP      5.0f        // angular self-centering (1/s)
@@ -230,16 +238,16 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define GRIP_TO_FORCE 2000.0f     // wheel grip → max traction force
 #define GROUND_GRIP   1.0f        // road: plenty (sand/mud come in rung 3)
 #define DRIFT_GRIP_MULT 0.13f     // handbrake: lateral grip drops to this fraction
-#define SKID_SLIP     16.0f       // lateral speed (px/s) where tires start marking
+#define SKID_SLIP     28.0f       // lateral speed (px/s) where tires start marking
 // ── ground-scrape: a cell hanging past the wheel span drags on the floor ──────
 #define SCRAPE_DRAG   9.0f        // extra drag force per dragging cell (top speed ↓)
 #define SCRAPE_LAT    7.0f        // extra lateral resistance per dragging cell (anchors sideways)
 #define SCRAPE_YAW    160.0f      // an off-centre scrape twists the rig (deg/s^2 per cell·unit)
-#define SCRAPE_MINSPD 10.0f       // below this speed nothing scrapes (kinetic friction only when moving)
+#define SCRAPE_MINSPD 18.0f       // below this speed nothing scrapes (kinetic friction only when moving)
 #define HEAT_RISE     1.4f        // heat gained per second per dragging cell while moving
 #define HEAT_COOL     0.8f        // heat lost per second when not scraping
 // ── dynamic stability (tipping under cornering load) ─────────────────────────
-#define STAB_H        0.022f      // COM-height stand-in: lateral-g → COM load-shift (px per px/s^2)
+#define STAB_H        0.013f      // COM-height stand-in: lateral-g → COM load-shift (px per px/s^2)
 #define STAB_GRIP_LOSS 0.85f      // fraction of lateral grip lost when fully tipped (tires unload)
 #define DEG2RAD       0.017453f   // angVel is deg/s; centripetal accel needs rad/s
 // ── drivetrain: where power hits the ground sets push/pull directional stability ──
@@ -673,7 +681,7 @@ static void update_drive(float dt_) {
     for (int i = 0; i < MAXSKID; i++) if (skid[i].life > 0) skid[i].life--;
 
     // --- steering: torque about the COM, scaled by how fast you're going -------
-    float speed_factor = clamp(af(vf) / 30.0f, 0, 1);
+    float speed_factor = clamp(af(vf) / 50.0f, 0, 1);
     float dir = vf >= 0 ? 1.0f : -1.0f;
     float gyro = I / M;                              // radius of gyration squared
     float turnEase = REF_GYRO / (gyro + REF_GYRO);   // small/light rig → turns easier
@@ -692,7 +700,7 @@ static void update_drive(float dt_) {
     // "bike" genuinely drives better in reverse (wheel leads, the bare stub trails).
     float driveOff = clamp(driveX - comX, -DRIVE_OFF_MAX, DRIVE_OFF_MAX);  // >0 = ahead of COM
     float lead = driveOff * dir;                     // travel frame: >0 pull (lead), <0 push (trail)
-    angVel -= STAB_YAW_K * lead * angVel * clamp(spd0 / 25.0f, 0, 1) * dt_;
+    angVel -= STAB_YAW_K * lead * angVel * clamp(spd0 / 45.0f, 0, 1) * dt_;
     ang += angVel * dt_;
     if (ang < 0) ang += 360; else if (ang >= 360) ang -= 360;
 
@@ -734,8 +742,10 @@ void update(void) {
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
     update_drive(dt_);
 
-    cam_x = lerp(cam_x, sx - SCREEN_W / 2.0f, 0.15f);
-    cam_y = lerp(cam_y, sy - SCREEN_H / 2.0f, 0.15f);
+    // camera LEADS the rig in the travel direction (more so the faster you go) — you
+    // see where you're rushing into, which reads as speed.
+    cam_x = lerp(cam_x, sx + vx * 0.28f - SCREEN_W / 2.0f, 0.15f);
+    cam_y = lerp(cam_y, sy + vy * 0.28f - SCREEN_H / 2.0f, 0.15f);
 
 #ifdef DE_TRACE
     float fwx = cos_deg(ang), fwy = sin_deg(ang);
@@ -776,13 +786,20 @@ static void draw_ground(void) {
     // grid of asphalt seams — gives motion + a rotation reference
     for (int x = x0; x <= x1; x += step) line(x, y0, x, y1, CLR_DARK_GREY);
     for (int y = y0; y <= y1; y += step) line(x0, y, x1, y, CLR_DARK_GREY);
-    // deterministic speckle so speed is legible
+    // deterministic speckle — at speed each fleck STREAKS opposite travel (motion blur),
+    // the strongest sense-of-speed cue and tied to the rig's actual velocity.
+    float spd = fsqrt(vx * vx + vy * vy);
+    float sl = clamp(spd * 0.085f, 0, 11.0f);        // streak length (px)
+    float ux = 0, uy = 0;
+    if (spd > 1.0f) { ux = vx / spd; uy = vy / spd; }
     for (int x = x0; x <= x1; x += step)
         for (int y = y0; y <= y1; y += step) {
             unsigned h = hash2(x / step, y / step);
             if ((h & 7) == 0) {
                 int px = x + (int)(h >> 4) % step, py = y + (int)(h >> 12) % step;
-                pset(px, py, (h & 8) ? CLR_MEDIUM_GREY : CLR_BROWN);
+                int col = (h & 8) ? CLR_MEDIUM_GREY : CLR_BROWN;
+                if (sl > 1.5f) line(px, py, px - (int)(ux * sl), py - (int)(uy * sl), col);
+                else pset(px, py, col);
             }
         }
 }

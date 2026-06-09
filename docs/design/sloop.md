@@ -855,3 +855,19 @@ types, gear-driven sound, and **reverse decoupled from the brake**.
 (electric flat / gas revvy / diesel grunt / steam spool) and the engine roster — 2.7 gives
 the gearbox + a single generic powerband; distinct engine kinds remain (§1a, a follow-on).
 **Stall** went the forgiving way (lug/bog, no full stall+restart) per the spec's open fork.
+
+**Speed + gear-dwell pass (same day, after a playtest).** Two coupled complaints: the box
+ripped 1→5 in ~1 s, and the rig "didn't look fast." Root cause: the whole speed scale was
+small *and* acceleration was huge, so it hit a low top instantly — gears flashed by. Fix:
+- **Lower acceleration + lower drag together.** `ENGINE_POWER` 2600→850 and drag ~⅓ — accel
+  drops (gentle launch) but the LOW drag keeps the rig pulling to a high top (~165). Climb to
+  top now takes ~6 s, so the gears are a real progression: off in 1st (~0.7 s), build 2nd/3rd,
+  cruise 4th, top out in 5th. `V_REF` 110→200 stretches the gears over the bigger range;
+  `AUTO_UP` 0.82→0.90 revs each gear high before shifting (you hear it).
+- **Sense of speed (rendering):** the ground speckle now **streaks** opposite travel (length
+  ∝ speed), and the **camera leads** the rig in the travel direction — you see where you're
+  rushing into. Plus the world simply scrolls ~1.6× faster.
+- Speed-dependent handling rescaled to match: `STAB_H` 0.022→0.013, `SKID_SLIP` 16→28,
+  `SCRAPE_MINSPD` 10→18, steering/dir-stab speed ramps /30→/50, /25→/45. Re-verified headless:
+  the 3-wheeler still tips asymmetrically (right 0.19 / left 0.00), braking still dead-stops
+  (144→0 in ~0.5 s), drivetrain push/pull intact.

@@ -299,17 +299,34 @@ independently shippable:
    **`INSTR_PIPE`** (flute/recorder/pan pipe) — **SHIPPED 2026-06-09** (25): an STK jet-drive
    flute, bore reuses `ks_buf` + a tiny `jetBuf[64]`, reusing reed's whole breath/vibrato/chiff
    surface; harmonics = overblow, timbre = breath air, morph = embouchure. Design + STEP-0: §8.8.8.
-   **Bowed** (violin/cello) — **needs a proper STEP-0 sweep, not parked-as-research** (verdict
-   revised 2026-06-09 after a lit check). The original audition rejected navkit's bowed off one
-   render (erratic envelope, crest 12.6 vs a clean voice's ~2–5), but the DSP literature says that
-   is the signature of bowing *outside the Schelleng wedge* (too little force → double-slip "surface
-   sound"; too much → raucous crunch) — a bow-force/velocity/position **regime** problem, not
-   inherent instability. A working bowed string settles into low-crest Helmholtz "leaning sawtooth"
-   motion (crest ~2). Same trap as the Rhodes/Wurli mis-tuning: a bad preset, not a bad engine. Next
-   move: render navkit's bowed across a bow-force × velocity × position sweep to find the Helmholtz
-   wedge; if it won't settle, the standard fix is a hysteresis bow table (McIntyre-Schumacher-
-   Woodhouse 1983 — which Smith's simplified STK table explicitly omits). It is still the hardest of
-   the family (narrow wedge, fiddly real-time control), so sequence it after the buffered pluck pair.
+   **Bowed** (violin/cello) — **STEP-0 sweep DONE 2026-06-09: GREEN LIGHT, engine is stable, the
+   reject was a bad preset.** The original audition rejected navkit's bowed off one render (erratic
+   envelope, crest 12.6 vs a clean voice's ~2–5). The lit-check hunch — that crest-12.6 is the
+   signature of bowing *outside the Schelleng wedge* (too little force → double-slip "surface sound";
+   too much → raucous crunch), a bow-force/velocity/position **regime** problem, not inherent
+   instability — is now **measured and confirmed.** `tools/navkit-bowsweep.c` renders navkit's bowed
+   across a pressure × velocity × position grid and classifies each cell on the steady-state tail by
+   pitch-period autocorrelation + crest:
+   - **The crest-12.6 reject IS preset 107's operating point** (P=0.6, V=0.5, β=0.13): `wav-analyze`
+     reports crest **12.61 dB** — the exact number in the original verdict. That cell's steady-state
+     pitch-lock is only **corr=0.36** — genuinely *not* locked, real surface sound. Presets 107
+     (Cello, P=0.6) and 108 (Fiddle, P=0.8) both sit in the over-pressed `~` band. The original
+     STEP-0 measured one preset and rejected the engine — the **Rhodes/Wurli trap exactly.**
+   - **A large, range-stable Helmholtz wedge exists.** 100–150 of 600 cells lock cleanly (corr→1.0)
+     at *every* pitch G2 (98 Hz) → A4 (440 Hz). Best cell P=0.2/V=0.2/β=0.25: **corr 1.00, crest
+     1.67** — textbook leaning-sawtooth. Wedge shape is textbook Schelleng: a stable band bounded by
+     collapse below and surface-noise above, **widening with bow velocity**, shrinking slightly with
+     pitch (150→101 cells) but never vanishing. **No hysteresis bow table needed** — Smith's
+     simplified STK friction table locks fine *inside* the wedge.
+   - **Model param note:** in navkit's friction (`pres = pressure*5+0.5`, `f = pres·dv·exp(-pres·dv²)`)
+     *higher* `pressure` steepens/narrows the slip region → chaos, so the clean band is **LOW
+     pressure (~0.15–0.45)**, inverted from the physical-force intuition. Macro plan that falls out
+     (keep all three INSIDE the wedge): **`timbre` → bow pressure mapped 0.15–0.45** (the narrow
+     axis; low=collapse, high=deliberate scratch), **`harmonics` → bow position β 0.05–0.25**
+     (ponticello→tasto, all have wedges), **`morph` → bow velocity/swell 0.2–1.0** (safe, and louder
+     speaks cleaner since velocity widens the wedge). Reuses one delay line in `ks_buf`, held-note
+     voice — same port difficulty as the shipped reed/pipe, NOT "the hardest of the family." Next:
+     the line-for-line port (per the piano lesson), `INSTR_BOWED` (28).
    Then the genuinely buffered pair on the pluck-validated path: **`INSTR_GUITAR` (26) — SHIPPED
    2026-06-09** (KS string + 4 body-formant biquads; design + status §8.8.9), and **`INSTR_PIANO`
    (StifKarp, 27) — SHIPPED 2026-06-09** (KS string + dispersion allpass chain + soundboard;

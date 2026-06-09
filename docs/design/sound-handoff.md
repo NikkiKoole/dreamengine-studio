@@ -41,15 +41,17 @@ the buffered string pair are now done. What remains, in order:
    [`instrument-engines.md`](instrument-engines.md) §8.8.9. **`HARP` folded into `GUITAR`** (a preset,
    like Rhodes/Wurli/Clav fold into EPiano). Tuning scaffolding `eng_tune()` (weight/attack) is live
    on the showcase carts — EXPERIMENTAL, bake-to-constants-and-retire when the values lock.
-   - **Bowed (violin/cello) — still the remaining string engine; re-examine, the "unstable" verdict was over-read** (2026-06-09 lit
-     check). STEP-0 rejected navkit's bowed off one render (erratic envelope, crest 12.6 vs a clean
-     voice's ~2–5), but the DSP literature says that's the signature of bowing *outside the Schelleng
-     wedge* (too little force → double-slip "surface sound"; too much → raucous crunch) — a
-     bow-force/velocity/position **regime** problem, not inherent instability. A working bowed string
-     is a low-crest Helmholtz "leaning sawtooth." Same trap as the Rhodes/Wurli mis-tuning: a bad
-     preset, not a bad engine. Next: a proper bow-force × velocity × position sweep of navkit's
-     bowed to find the Helmholtz wedge; fallback is the standard hysteresis bow table (McIntyre-
-     Schumacher-Woodhouse 1983, which Smith's simplified STK table omits). Detail: §8.5 step 9.
+   - **Bowed (violin/cello) — the remaining string engine; STEP-0 DONE 2026-06-09, GREEN LIGHT.**
+     The "unstable" verdict was over-read: `tools/navkit-bowsweep.c` swept navkit's bowed across
+     pressure × velocity × position and the crest-12.6 reject turned out to be **preset 107's
+     operating point** (P=0.6/V=0.5/β=0.13 → corr 0.36, real surface sound) — one bad preset, not a
+     bad engine (the Rhodes/Wurli trap). A large Helmholtz wedge exists (100–150/600 cells lock
+     corr→1.0, crest 1.6–1.8) and holds across G2→A4. **No hysteresis bow table needed** — Smith's
+     simplified friction locks inside the wedge. The clean band is **LOW** pressure (~0.15–0.45;
+     navkit's friction inverts the force intuition). Macro plan: `timbre`→pressure 0.15–0.45,
+     `harmonics`→bow position β 0.05–0.25, `morph`→velocity/swell 0.2–1.0. Reuses one `ks_buf` delay
+     line, held-note — same difficulty as the shipped reed/pipe. Next: line-for-line port (the piano
+     lesson), `INSTR_BOWED` (28). Detail + the wedge map: §8.5 step 9.
 2. **Formant + the effects-bus layer (§8.10).** `INSTR_VOICE` (24) is **EXPERIMENTAL** — the voxlab
    prototype is live but the public 3-macro mapping isn't locked (which is why it's not in the help
    tab yet). The effects-bus layer is sequenced LAST, after the engines: master reverb + the bus

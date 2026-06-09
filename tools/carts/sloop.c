@@ -194,10 +194,12 @@ static int   nHull;
 static float stabL, stabR;        // lateral reach of the hull from the COM (left/right) — BUILD readout
 
 // ── tuning ───────────────────────────────────────────────────────────────────
-#define ENGINE_POWER  1180.0f     // forward force per engine. LOW (vs drag, also low) so accel
-                                  // is gentle and the climb to top speed takes several seconds —
-                                  // that's what lets you DWELL in each gear (off in 1st, build
-                                  // 2nd, cruise 3rd/4th) instead of blasting to top in a blink.
+#define ENGINE_POWER  531.0f      // forward force per engine. The WHOLE force budget (this + the
+                                  // drags + ROLL_FRIC) is scaled ~0.45× together vs the first cut:
+                                  // top speed (= thrust/drag, a ratio) is UNCHANGED, but acceleration
+                                  // (= force/mass) is ~2.2× gentler → a realistic ~9 s to 100 km/h
+                                  // (was a hypercar-ish 4 s). THAT is what finally lets you dwell in
+                                  // gears 1-3 instead of blasting through them in under a second.
 // Drag is a FORCE (DDA's model): top speed = thrust / drag, MASS-INDEPENDENT — mass
 // sets acceleration, not top speed. Drag = base + per-wheel rolling resistance + a
 // frontal-profile aero term, so SHAPE and WHEEL COUNT set top speed, not just weight.
@@ -206,16 +208,18 @@ static float stabL, stabR;        // lateral reach of the hull from the COM (lef
 // both stretches the gears into a real progression (off in 1st, build 2nd, cruise 3/4)
 // and makes the world rip by (sense of speed). The speed-dependent handling below
 // (V_REF, STAB_H, SKID_SLIP…) is scaled to match.
-#define DRAG_BASE     0.6f        // baseline drag (force per px/s)
-#define DRAG_WHEEL    0.25f       // lever: each wheel adds rolling resistance (grip↑, top speed↓)
-#define DRAG_AERO     0.6f        // lever: drag per cell of frontal profile (narrow = fast)
+#define DRAG_BASE     0.27f       // baseline drag (force per px/s) — scaled with the force budget
+#define DRAG_WHEEL    0.113f      // lever: each wheel adds rolling resistance (grip↑, top speed↓)
+#define DRAG_AERO     0.27f       // lever: drag per cell of frontal profile (narrow = fast)
 #define BRAKE         560.0f      // max braking decel (px/s^2) — real brakes >> engine accel;
                                   // capped per-rig by tyre grip below (GRIP_TO_FORCE·grip/M),
                                   // so MORE/BETTER WHEELS = harder stops (an under-wheeled rig
                                   // can't haul up as fast). At slow speed this stops you dead.
-#define ROLL_FRIC     16.0f       // CONSTANT rolling/bearing friction (px/s^2) — what actually
+#define ROLL_FRIC     7.2f        // CONSTANT rolling/bearing friction (px/s^2) — what actually
                                   // STOPS a coasting rig. Drag ∝ v only asymptotes to 0 (floaty);
                                   // this constant term dominates at low speed and snaps v to rest.
+                                  // Scaled with the force budget (16→7.2); a touch longer coast,
+                                  // but ANY positive value still kills the asymptote → a real stop.
 // ── idle creep: engine idles in gear → the car trundles with the throttle released ──
 // Real manual idle-in-gear (clutch out, no gas): ~6 km/h in 1st (≈4.4 mph/1000rpm × 800rpm
 // idle ≈ 3.5 mph), and creep ∝ idle_rpm/ratio so it tracks the gear. IDLE_CREEP is anchored

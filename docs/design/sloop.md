@@ -1086,3 +1086,21 @@ engine **throb**. It plays the whole time the engine runs — so idle/creep now 
 rumble — and `note_off`s on stall / key-off / pause / BUILD. Verified by rendering WAVs:
 idle is a steady ~0.040 RMS (was silent), gas ~0.066 and brighter, no clipping, low crest
 (a continuous tone, not a beep train). Transients (shift clunk, skid, scrape) stay one-shots.
+
+### Realistic acceleration — 0-100 km/h in ~9 s (2026-06-09)
+
+A playtest nailed it: the first three gears were a sub-second blur. A WOT trace confirmed
+0-100 km/h in **4.1 s** (0-50 in 0.6 s!) — hypercar acceleration — so gears 1-3 (which cover
+0-64 km/h) were over in 0.95 s combined. The ratios were fine; the *clock* was ~2.2× too fast.
+
+Fix: scale the **whole force budget** — `ENGINE_POWER`, all three `DRAG_*`, and `ROLL_FRIC` —
+down by ~0.45× together. Top speed is `thrust/drag`, a **ratio**, so it's unchanged (held to the
+pixel at 155 px/s ≈ 112 km/h); but every acceleration is `force/mass`, so the climb stretches
+~2.2×. The rolling-friction term *had* to scale too — at top speed the engine only just
+out-muscles the resistances, so leaving `ROLL_FRIC` fixed would have collapsed the top end.
+Grip, braking and handling are all mass-based → untouched. Result (verified headless): **0-100
+in 9.0 s**, top speed unchanged, gears 1-3 now ~2.0 s combined (each meaningful), and the rev
+climb per gear is long enough that the held-voice engine sound actually sweeps.
+
+(Top speed itself reads a touch low at 112 km/h — deferred to the engine-focus phase, where
+power-to-weight / aero per engine kind is the right place to raise it.)

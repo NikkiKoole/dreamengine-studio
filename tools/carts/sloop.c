@@ -306,6 +306,7 @@ static float cam_x, cam_y;
 static float lead_x, lead_y;      // low-passed camera lead (smooth, no curb jitter)
 static float t_eng_snd, t_skid_snd, t_scrape_snd;
 static int   is_paused;
+static float wheel_ang;           // eased steering-wheel angle (deg) for the cockpit dial
 
 // ── modes: BUILD (paused grid editor) ↔ DRIVE (the rig loose in the world) ───
 enum { MODE_DRIVE, MODE_BUILD };
@@ -468,6 +469,7 @@ static void reset_vehicle(void) {
     sx = 0; sy = 0; vx = vy = 0; ang = 0; angVel = 0;
     heat = 0; tip_amt = 0; gear = 1; rpm = 0;   // trans_mode persists (player setting)
     engine_on = 1; stalled = 0; restart_grace = 0;   // fresh rig starts cranked
+    wheel_ang = 0;
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
     for (int i = 0; i < MAXSPARK; i++) spark[i].life = 0;
 }
@@ -504,6 +506,71 @@ static void rot(float lx, float ly, float *wx, float *wy) {
 
 // ── input ─────────────────────────────────────────────────────────────────────
 static int in_gas, in_brk, in_steer, in_hand, in_up, in_down;
+
+// ── cockpit dashboard: touch / mouse / keyboard controls + round gauges ───────
+// The layout is shared between handle_input (hit-testing) and hud (drawing), so
+// the rects live here as #defines. Every control is LABELLED with its key and
+// fires on a tap, a mouse press, OR the key — all three at once. Hold controls
+// (steer/gas/brake/drift) use a level test; discrete ones (shift/ignition/trans/
+// build) an edge test. Built on tap()/tapp()+mouse rather than ui.h capture:
+// the zones don't overlap, so two fingers (hold gas + tap shift) just work.
+#define DASH_Y   148                  // top of the dashboard band (… SCREEN_H)
+#define WHEEL_CX 31                   // steering wheel centre + radius
+#define WHEEL_CY 174
+#define WHEEL_R  20
+#define WHL_X    4                    // wheel hit-area: left half steers left, right half right
+#define WHL_Y    150
+#define WHL_W    54
+#define WHL_H    48
+#define PED_X    62                   // pedals (held), stacked: gas / brake / drift
+#define PED_W    30
+#define PED_H    16
+#define GAS_Y    150
+#define BRK_Y    167
+#define DRF_Y    184
+#define SPD_X    94                   // speed LED readout (display)
+#define SPD_Y    152
+#define DIAL_CX  170                  // round RPM tach (display)
+#define DIAL_CY  174
+#define DIAL_R   22
+#define STK_X    198                  // stickshift gate: upper half = up (E), lower = down (Q)
+#define STK_Y    150
+#define STK_W    42
+#define STK_H    48
+#define BTN_X    244                  // right button column (edge): ignition / trans / build
+#define BTN_W    54
+#define BTN_H    15
+#define IGN_Y    150
+#define TRN_Y    167
+#define BLD_Y    184
+
+static int pt_in(int x, int y, int w, int h) {        // mouse pointer inside rect?
+    int mx = mouse_x(), my = mouse_y();
+    return mx >= x && mx < x + w && my >= y && my < y + h;
+}
+static int ctl_held(int x, int y, int w, int h) {     // finger resting here, or mouse held over it
+    return tap(x, y, w, h) || (mouse_down(MOUSE_LEFT) && pt_in(x, y, w, h));
+}
+static int ctl_hit(int x, int y, int w, int h) {      // touch began here, or mouse clicked here, this frame
+    return tapp(x, y, w, h) || (mouse_pressed(MOUSE_LEFT) && pt_in(x, y, w, h));
+}
+static void do_ignition(void) {                       // crank or kill (key I or the IGN button)
+    engine_on = !engine_on;
+    if (engine_on) { stalled = 0; restart_grace = RESTART_GRACE; hit(32, INSTR_SAW, 2, 70); hit(45, INSTR_SAW, 2, 120); }
+    else           { stalled = 0; hit(26, INSTR_NOISE, 2, 90); }
+}
+static void do_trans(void) { trans_mode = (trans_mode + 1) % 3; gear = 1; }   // cycle SINGLE/AUTO/MANUAL
+
+// a labelled cockpit button: fills with `actcol` when active, shows label + key hint
+static void dash_btn(int x, int y, int w, int h, const char *lbl, const char *keyhint, int active, int actcol) {
+    rectfill(x, y, w, h, active ? actcol : CLR_DARKER_GREY);
+    rect(x, y, w, h, CLR_DARK_GREY);
+    font(FONT_SMALL);
+    print_centered(lbl, x + w / 2, y + 2, active ? CLR_BLACK : CLR_LIGHT_GREY);
+    if (keyhint) print_centered(keyhint, x + w / 2, y + h - 7, active ? CLR_BLACK : CLR_MEDIUM_GREY);
+    font(FONT_NORMAL);
+}
+
 static void clear_grid(void) {
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) grid[r][c] = P_NONE;
@@ -536,21 +603,21 @@ static void handle_input(void) {
         if (keyp('X')) sel_part = P_NONE;      // eraser
         return;
     }
-    // ---- DRIVE input ----
+    // ---- DRIVE input: keyboard OR the on-screen cockpit (touch + mouse) ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
-    if (keyp('I')) {                                  // ignition: crank or kill
-        engine_on = !engine_on;
-        if (engine_on) { stalled = 0; restart_grace = RESTART_GRACE; hit(32, INSTR_SAW, 2, 70); hit(45, INSTR_SAW, 2, 120); }
-        else           { stalled = 0; hit(26, INSTR_NOISE, 2, 90); }   // deliberate key-off thunk
-    }
-    if (keyp('G')) { trans_mode = (trans_mode + 1) % 3; gear = 1; }   // cycle SINGLE/AUTO/MANUAL
-    in_gas = key('Z') || key(KEY_UP) || btn(0, BTN_A) || btn(0, BTN_UP);
-    in_brk = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN);
-    in_steer = (key(KEY_RIGHT) || btn(0, BTN_RIGHT)) - (key(KEY_LEFT) || btn(0, BTN_LEFT));
-    in_hand = key(KEY_SPACE);
-    in_up   = keyp('E');                       // shift up / out of reverse
-    in_down = keyp('Q');                       // shift down / into reverse (when stopped)
+    if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
+    if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
+    if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
+
+    int steer_l = key(KEY_LEFT)  || btn(0, BTN_LEFT)  || ctl_held(WHL_X, WHL_Y, WHL_W / 2, WHL_H);
+    int steer_r = key(KEY_RIGHT) || btn(0, BTN_RIGHT) || ctl_held(WHL_X + WHL_W / 2, WHL_Y, WHL_W / 2, WHL_H);
+    in_gas   = key('Z') || key(KEY_UP)   || btn(0, BTN_A) || btn(0, BTN_UP)   || ctl_held(PED_X, GAS_Y, PED_W, PED_H);
+    in_brk   = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN) || ctl_held(PED_X, BRK_Y, PED_W, PED_H);
+    in_hand  = key(KEY_SPACE) || ctl_held(PED_X, DRF_Y, PED_W, PED_H);
+    in_steer = steer_r - steer_l;
+    in_up    = keyp('E') || ctl_hit(STK_X, STK_Y, STK_W, STK_H / 2);                 // upper half of the gate
+    in_down  = keyp('Q') || ctl_hit(STK_X, STK_Y + STK_H / 2, STK_W, STK_H / 2);     // lower half
 }
 
 static void lay_skid(float x, float y) {
@@ -762,6 +829,9 @@ static void update_drive(float dt_) {
     angVel -= STAB_YAW_K * lead * angVel * clamp(spd0 / 45.0f, 0, 1) * dt_;
     ang += angVel * dt_;
     if (ang < 0) ang += 360; else if (ang >= 360) ang -= 360;
+
+    // steering-wheel visual: ease toward the steer input (±~26° lock)
+    wheel_ang = lerp(wheel_ang, (float)in_steer * 26.0f, 0.22f);
 
     // --- sound -----------------------------------------------------------------
     float spd = fsqrt(vx * vx + vy * vy);
@@ -1041,16 +1111,15 @@ static void draw_vehicle(void) {
     line((int)sx, (int)sy - 2, (int)sx, (int)sy + 2, CLR_WHITE);
 }
 
-// ── HUD ──────────────────────────────────────────────────────────────────────
-// A dashboard strip across the bottom holds every live gauge (speed/gear/tach/
-// mode); the play area above stays clear save the rig name + a road-sign speed
-// limit. Build-time facts (mass, part counts) live in BUILD mode, not here.
-// One blinking banner just above the strip carries warnings + the fading hints.
-#define STRIP_H 28
+// ── HUD: a touch/mouse/keyboard COCKPIT ───────────────────────────────────────
+// The bottom band is a driveable dashboard: a steering wheel (press its left/right
+// half), gas/brake/drift pedals, a digital speed readout, a round RPM tach with a
+// needle, a stickshift H-gate (tap upper=up E / lower=down Q) showing the current
+// gear, and ignition/trans/build buttons. Every control reads keyboard, touch AND
+// mouse (see the helpers + handle_input). Play area + road-sign limit sit above.
 static void hud(void) {
     char buf[48];
     float spd = fsqrt(vx * vx + vy * vy);
-    int   y0  = SCREEN_H - STRIP_H;          // top of the dashboard panel
 
     // --- top of screen: rig identity (dim) + the zone's limit (a road sign) ----
     print(DES_NAME[cur_des], 4, 4, CLR_DARK_GREY);
@@ -1060,48 +1129,83 @@ static void hud(void) {
         bar(SCREEN_W - 70, 13, 62, 4, heat, heat > 0.66f ? CLR_RED : CLR_ORANGE, CLR_DARKER_GREY);
     }
 
-    // --- one banner above the strip: warnings (priority) else fading hints ------
+    // --- warning banner just above the dashboard --------------------------------
     if (stalled)
-        print_centered("\x07 STALLED  press I to restart", SCREEN_W / 2, y0 - 11, blink(16) ? CLR_RED : CLR_DARK_GREY);
+        print_centered("\x07 STALLED  tap IGN", SCREEN_W / 2, DASH_Y - 9, blink(16) ? CLR_RED : CLR_DARK_GREY);
     else if (!engine_on)
-        print_centered("ENGINE OFF  press I", SCREEN_W / 2, y0 - 11, CLR_MEDIUM_GREY);
+        print_centered("ENGINE OFF  tap IGN", SCREEN_W / 2, DASH_Y - 9, CLR_MEDIUM_GREY);
     else if (tip_amt > 0.05f)
-        print_centered("\x07 TIPPING", SCREEN_W / 2, y0 - 11, CLR_ORANGE);
-    else if (in_hand && spd > 8)
-        print_centered("DRIFT", SCREEN_W / 2, y0 - 11, CLR_YELLOW);
-    else {                                   // control hints — always on, one tiny line
-        font(FONT_TINY);
-        print_centered("\x1b\x1a steer  Z gas  X brake  SPACE drift  Q/E gear  G trans  I ignition  TAB build",
-                       SCREEN_W / 2, y0 - 8, CLR_MEDIUM_GREY);
-        font(FONT_NORMAL);
+        print_centered("\x07 TIPPING", SCREEN_W / 2, DASH_Y - 9, CLR_ORANGE);
+
+    // --- the dashboard panel ----------------------------------------------------
+    rectfill(0, DASH_Y, SCREEN_W, SCREEN_H - DASH_Y, CLR_BLACK);
+    line(0, DASH_Y, SCREEN_W - 1, DASH_Y, CLR_DARK_GREY);
+
+    // STEERING WHEEL — left half steers left, right half right (arrows light up)
+    int hl = ctl_held(WHL_X, WHL_Y, WHL_W / 2, WHL_H);
+    int hr = ctl_held(WHL_X + WHL_W / 2, WHL_Y, WHL_W / 2, WHL_H);
+    circ(WHEEL_CX, WHEEL_CY, WHEEL_R, CLR_LIGHT_GREY);
+    circ(WHEEL_CX, WHEEL_CY, WHEEL_R - 1, CLR_MEDIUM_GREY);
+    for (int k = 0; k < 3; k++) {            // three spokes, rotated by the eased wheel angle
+        float sa = wheel_ang + 90.0f + k * 120.0f;
+        line(WHEEL_CX, WHEEL_CY,
+             WHEEL_CX + (int)((WHEEL_R - 2) * cos_deg(sa)),
+             WHEEL_CY - (int)((WHEEL_R - 2) * sin_deg(sa)), CLR_MEDIUM_GREY);
     }
+    circfill(WHEEL_CX, WHEEL_CY, 4, CLR_LIGHT_GREY);
+    print("\x1b", WHL_X + 2,          WHEEL_CY - 3, hl ? CLR_WHITE : CLR_DARK_GREY);   // ◄
+    print("\x1a", WHL_X + WHL_W - 10, WHEEL_CY - 3, hr ? CLR_WHITE : CLR_DARK_GREY);   // ►
 
-    // --- the dashboard panel ---------------------------------------------------
-    rectfill(0, y0, SCREEN_W, STRIP_H, CLR_BLACK);
-    line(0, y0, SCREEN_W - 1, y0, CLR_DARK_GREY);          // top edge highlight
+    // PEDALS — gas / brake / drift (held)
+    dash_btn(PED_X, GAS_Y, PED_W, PED_H - 1, "GAS",   "Z",     in_gas,  CLR_GREEN);
+    dash_btn(PED_X, BRK_Y, PED_W, PED_H - 1, "BRAKE", "X",     in_brk,  CLR_RED);
+    dash_btn(PED_X, DRF_Y, PED_W, PED_H - 1, "DRIFT", "SPC",   in_hand, CLR_YELLOW);
 
-    // SPEED — the hero: big number, small unit
-    snprintf(buf, sizeof buf, "%.0f", spd * KMH);
-    print_scaled(buf, 6, y0 + 5, CLR_WHITE, 2);
-    print("KM/H", 58, y0 + 9, CLR_MEDIUM_GREY);
-    line(92, y0 + 4, 92, y0 + STRIP_H - 4, CLR_DARK_GREY);
+    // SPEED — digital LED readout
+    rectfill(SPD_X, SPD_Y, 50, 26, CLR_DARKER_GREY);
+    rect(SPD_X, SPD_Y, 50, 26, CLR_DARK_GREY);
+    snprintf(buf, sizeof buf, "%3.0f", spd * KMH);
+    print_scaled(buf, SPD_X + 2, SPD_Y + 4, CLR_GREEN, 2);
+    font(FONT_SMALL); print_centered("KM/H", SPD_X + 25, SPD_Y + 20, CLR_MEDIUM_GREY); font(FONT_NORMAL);
 
-    // GEAR — big; reverse is a red R
-    print("GEAR", 98, y0 + 4, CLR_MEDIUM_GREY);
-    char gstr[2] = { (gear == 0) ? 'R' : (char)('0' + gear), 0 };
-    print_scaled(gstr, 104, y0 + 11, (gear == 0) ? CLR_RED : CLR_WHITE, 2);
-    line(136, y0 + 4, 136, y0 + STRIP_H - 4, CLR_DARK_GREY);
+    // RPM — round tach with ticks + a needle (240° sweep, 210°→-30°)
+    circfill(DIAL_CX, DIAL_CY, DIAL_R, CLR_DARKER_GREY);
+    circ(DIAL_CX, DIAL_CY, DIAL_R, CLR_DARK_GREY);
+    for (int t = 0; t <= 10; t++) {
+        float frac = t / 10.0f, ad = 210.0f - frac * 240.0f;
+        line(DIAL_CX + (int)((DIAL_R - 1) * cos_deg(ad)), DIAL_CY - (int)((DIAL_R - 1) * sin_deg(ad)),
+             DIAL_CX + (int)((DIAL_R - 4) * cos_deg(ad)), DIAL_CY - (int)((DIAL_R - 4) * sin_deg(ad)),
+             frac > 0.85f ? CLR_RED : CLR_MEDIUM_GREY);
+    }
+    float nd = 210.0f - clamp(rpm, 0, 1.0f) * 240.0f;
+    line(DIAL_CX, DIAL_CY,
+         DIAL_CX + (int)((DIAL_R - 4) * cos_deg(nd)), DIAL_CY - (int)((DIAL_R - 4) * sin_deg(nd)),
+         !engine_on ? CLR_DARK_GREY : rpm > 0.92f ? CLR_RED : CLR_WHITE);
+    circfill(DIAL_CX, DIAL_CY, 2, CLR_LIGHT_GREY);
+    font(FONT_SMALL); print_centered("RPM", DIAL_CX, DIAL_CY + DIAL_R - 10, CLR_MEDIUM_GREY); font(FONT_NORMAL);
 
-    // TACH — RPM bar, reddens near the redline (greys out with the engine dead)
-    print("RPM", 142, y0 + 4, CLR_MEDIUM_GREY);
-    bar(142, y0 + 15, 70, 6, rpm, !engine_on ? CLR_DARK_GREY : rpm > 0.92f ? CLR_RED : CLR_GREEN, CLR_DARKER_GREY);
-    line(218, y0 + 4, 218, y0 + STRIP_H - 4, CLR_DARK_GREY);
+    // STICKSHIFT GATE — tap upper half to up-shift (E), lower to down-shift (Q)
+    int su = ctl_held(STK_X, STK_Y, STK_W, STK_H / 2);
+    int sd = ctl_held(STK_X, STK_Y + STK_H / 2, STK_W, STK_H / 2);
+    rectfill(STK_X, STK_Y, STK_W, STK_H, CLR_DARKER_GREY);
+    rect(STK_X, STK_Y, STK_W, STK_H, CLR_DARK_GREY);
+    int colx[3] = { STK_X + 9, STK_X + 21, STK_X + 33 };
+    int gtopy = STK_Y + 14, gboty = STK_Y + STK_H - 8, gmidy = (gtopy + gboty) / 2;
+    line(colx[0], gmidy, colx[2], gmidy, CLR_MEDIUM_GREY);          // gate channel
+    for (int c = 0; c < 3; c++) line(colx[c], gtopy, colx[c], gboty, CLR_MEDIUM_GREY);
+    int gi   = (gear == 0) ? 2 : (gear - 1) / 2;                    // column: 1/2 · 3/4 · 5/R
+    int gtop = (gear != 0) && ((gear - 1) % 2 == 0);                // odd gears up, even down, R down
+    circfill(colx[gi], gtop ? gtopy : gboty, 3, engine_on ? CLR_WHITE : CLR_DARK_GREY);
+    // up/down labels in the 8×8 font (the small fonts lack the ▲▼ glyphs)
+    print_centered("\x1e" "E", STK_X + STK_W / 2, STK_Y + 1,          su ? CLR_WHITE : CLR_MEDIUM_GREY);   // up E
+    print_centered("\x1f" "Q", STK_X + STK_W / 2, STK_Y + STK_H - 8,  sd ? CLR_WHITE : CLR_MEDIUM_GREY);   // down Q
 
-    // TRANSMISSION + drivetrain
-    print(trans_label(), 224, y0 + 5,  engine_on ? CLR_LIGHT_GREY : CLR_DARK_GREY);
-    print(drive_label(), 224, y0 + 15, CLR_MEDIUM_GREY);
+    // RIGHT BUTTONS — ignition (lit when running) / transmission / build
+    dash_btn(BTN_X, IGN_Y, BTN_W, BTN_H, engine_on ? "IGN ON" : "IGN OFF", "I", engine_on, CLR_GREEN);
+    dash_btn(BTN_X, TRN_Y, BTN_W, BTN_H, trans_label(), "G", 0, CLR_DARKER_GREY);
+    dash_btn(BTN_X, BLD_Y, BTN_W, BTN_H, "BUILD", "TAB", 0, CLR_DARKER_GREY);
 
-    if (is_paused) print_centered("PAUSED", SCREEN_W / 2, SCREEN_H / 2, CLR_WHITE);
+    if (is_paused) print_centered("PAUSED", SCREEN_W / 2, SCREEN_H / 2 - 20, CLR_WHITE);
 }
 
 // ── BUILD mode: a paused grid editor — place parts, watch the numbers move ───
@@ -1112,6 +1216,9 @@ static void hud(void) {
 static void draw_build(void) {
     cls(CLR_DARKER_BLUE);
     ui_begin();
+
+    // back to driving (touch/mouse; TAB also works)
+    if (ui_button(6, 6, 60, 18, "\x10 drive")) { mode = MODE_DRIVE; reset_vehicle(); }
 
     // --- part palette (left) ---------------------------------------------------
     static const int PAL[] = { P_FRAME, P_ENGINE, P_WHEEL, P_DRIVE, P_CASTER, P_SEAT, P_NONE };

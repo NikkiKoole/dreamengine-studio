@@ -1026,3 +1026,29 @@ strip in priority order — no more corner-hunting. Control hints live on a sing
 line there too, rendered in **`FONT_TINY` (3×5)** so the whole control list fits on one row
 without crowding (the engine's 4×6/3×5 fonts, not just the default 8×8). Build stats now live
 only in BUILD mode, where they belong.
+
+### Cockpit dashboard — touch/mouse/keyboard controls (2026-06-09)
+
+Took the flat strip the rest of the way to a **driveable cockpit** (player ask, modelled on
+the classic Amiga/C64 racer dashboards). The bottom band is now interactive instruments, every
+control **labelled with its key** and reading **keyboard, touch AND mouse at once**:
+
+- **Steering wheel** (left): a rim + three spokes that rotate with an eased `wheel_ang`; its
+  left half steers left, right half right (◄ ► light up when pressed).
+- **Pedals**: GAS / BRAKE / DRIFT buttons (held), labelled Z / X / SPC, lit green/red/yellow.
+- **Speed**: a digital green LED readout (km/h).
+- **RPM**: a round tach — tick marks over a 240° sweep + a needle (red past the redline, greys
+  out when the engine's dead).
+- **Stickshift H-gate**: the signature piece — a 3-column gate with a knob at the current
+  gear's position (1/2 · 3/4 · 5/R); tap the **upper** half to up-shift (▲E), **lower** to
+  down-shift (▼Q).
+- **Right buttons**: IGN (lit when running), TRANS (cycles mode), BUILD (→ editor); a "▶ drive"
+  `ui_button` in BUILD closes the loop for touch.
+
+Implementation: a shared `#define` layout block feeds both `handle_input` (hit-testing) and
+`hud` (drawing). Two helpers — `ctl_held` (level: `tap()` ‖ `mouse_down`+in-rect) for hold
+controls and `ctl_hit` (edge: `tapp()` ‖ `mouse_pressed`+in-rect) for discrete ones — are
+OR'd into the existing key reads, so all three input paths coexist. Built on `tap`/`tapp`+mouse
+rather than `ui.h` capture: the zones don't overlap, so two fingers (hold gas + tap shift) just
+work. Verified by scripting mouse clicks through the harness — IGN toggles the engine, TRANS →
+MANUAL, gate-upper/lower shift up/down. `mobile-lint`: **touch-ready**.

@@ -50,17 +50,55 @@ enum { P_NONE, P_FRAME, P_ENGINE, P_WHEEL, P_SEAT, P_KINDS };
 typedef struct { float mass, power, grip; int col; const char *name; } PartKind;
 static PartKind KIND[P_KINDS];   // filled in init() (avoid designated inits for libtcc)
 
-// ── the rig: a small grid of parts (rung 1 = one hardcoded layout) ───────────
-#define GW   4
+// ── the rig: a grid of parts ─────────────────────────────────────────────────
+// Rung 1 had one hardcoded layout; here we toggle between a few PRESET rigs (1-4)
+// to FEEL how the derived physics changes with the build — orbit's playbook (its
+// 1/2/3 rockets) before the parts-bin builder (rung 2). Same drive core, no tuning
+// per rig: every difference below is purely the mass / COM / I / grip falling out
+// of where the parts sit.
+#define GW   6                     // max grid footprint (rigs pad unused cells with P_NONE)
 #define GH   3
-#define CELL 7.0f                 // world px per cell
+#define CELL 7.0f                  // world px per cell
 static int grid[GH][GW];
+
+#define NDES 4
+static const int DESIGNS[NDES][GH][GW] = {
+    { // 0 BUGGY — balanced 4-wheeler, engine centred: drives clean
+        { P_WHEEL, P_FRAME, P_FRAME,  P_WHEEL, P_NONE,  P_NONE },
+        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE,  P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_WHEEL, P_NONE,  P_NONE },
+    },
+    { // 1 HAULER — long & heavy, one engine: crawls, turns lazily (big mass + I)
+        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL },
+        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_FRAME, P_FRAME },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL },
+    },
+    { // 2 SPRINTER — light, TWIN engine centred: huge accel, snappy
+        { P_WHEEL,  P_FRAME,  P_FRAME,  P_WHEEL, P_NONE, P_NONE },
+        { P_SEAT,   P_ENGINE, P_ENGINE, P_FRAME, P_NONE, P_NONE },
+        { P_WHEEL,  P_FRAME,  P_FRAME,  P_WHEEL, P_NONE, P_NONE },
+    },
+    { // 3 JALOPY — 3 wheels + off-centre engine: loose, pulls, slides
+        { P_WHEEL, P_FRAME, P_ENGINE, P_NONE,  P_NONE, P_NONE },
+        { P_FRAME, P_SEAT,  P_FRAME,  P_NONE,  P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_WHEEL,  P_NONE,  P_NONE, P_NONE },
+    },
+};
+static const char *DES_NAME[NDES] = {
+    "BUGGY \x07 balanced",
+    "HAULER \x07 heavy, sluggish",
+    "SPRINTER \x07 twin-engine, fast",
+    "JALOPY \x07 off-centre, loose",
+};
+static int cur_des = 0;
 
 // derived body properties (recomputed when the build changes)
 static float M;                   // total mass
 static float comX, comY;          // centre of mass, in local grid px
 static float I;                   // moment of inertia about the COM
 static float wheelGrip;           // Σ wheel grip
+static float frontX;              // local-x of the rig's front edge (for the nose marker)
+static int   nEngines, nWheels;   // for the readout
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 #define ENGINE_POWER  2600.0f     // forward force units per engine at full throttle
@@ -96,14 +134,18 @@ static float af(float v) { return v < 0 ? -v : v; }
 
 // ── derive body properties from the part grid ────────────────────────────────
 static void recompute_body(void) {
-    M = 0; comX = 0; comY = 0; wheelGrip = 0;
+    M = 0; comX = 0; comY = 0; wheelGrip = 0; frontX = 0; nEngines = 0; nWheels = 0;
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
-            PartKind *k = &KIND[grid[r][c]];
+            int p = grid[r][c];
+            PartKind *k = &KIND[p];
             if (k->mass <= 0) continue;
             float cx = (c + 0.5f) * CELL, cy = (r + 0.5f) * CELL;
             M += k->mass; comX += k->mass * cx; comY += k->mass * cy;
             wheelGrip += k->grip;
+            if ((c + 1) * CELL > frontX) frontX = (c + 1) * CELL;
+            if (p == P_ENGINE) nEngines++;
+            if (p == P_WHEEL)  nWheels++;
         }
     if (M <= 0) M = 1;
     comX /= M; comY /= M;
@@ -125,6 +167,13 @@ static void reset_vehicle(void) {
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
 }
 
+static void load_design(int idx) {
+    cur_des = (idx + NDES) % NDES;
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) grid[r][c] = DESIGNS[cur_des][r][c];
+    reset_vehicle();
+}
+
 // rotate a local offset (relative to COM) into world space
 static void rot(float lx, float ly, float *wx, float *wy) {
     float c = cos_deg(ang), s = sin_deg(ang);
@@ -137,6 +186,10 @@ static int in_gas, in_brk, in_steer, in_hand;
 static void handle_input(void) {
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
+    if (keyp('1')) load_design(0);
+    if (keyp('2')) load_design(1);
+    if (keyp('3')) load_design(2);
+    if (keyp('4')) load_design(3);
     in_gas = key('Z') || key(KEY_UP) || btn(0, BTN_A) || btn(0, BTN_UP);
     in_brk = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN);
     in_steer = (key(KEY_RIGHT) || btn(0, BTN_RIGHT)) - (key(KEY_LEFT) || btn(0, BTN_LEFT));
@@ -358,11 +411,12 @@ static void draw_vehicle(void) {
                 if (isWheel != pass) continue;
                 draw_cell(r, c, KIND[p].col);
             }
-    // a nose marker so heading is unmistakable
+    // a nose marker so heading is unmistakable (at the rig's actual front edge)
+    float fr = frontX - comX;
     float nx, ny, tx, ty;
-    rot((GW * CELL - comX) + 3, -2, &nx, &ny);
-    rot((GW * CELL - comX) + 3, 2, &tx, &ty);
-    float bx, by; rot((GW * CELL - comX) + 8, 0, &bx, &by);
+    rot(fr + 1, -2, &nx, &ny);
+    rot(fr + 1, 2, &tx, &ty);
+    float bx, by; rot(fr + 6, 0, &bx, &by);
     trifill((int)nx, (int)ny, (int)tx, (int)ty, (int)bx, (int)by, CLR_YELLOW);
     // COM crosshair (the readout that makes the physics visible — pays off in BUILD)
     line((int)sx - 2, (int)sy, (int)sx + 2, (int)sy, CLR_WHITE);
@@ -373,13 +427,14 @@ static void draw_vehicle(void) {
 static void hud(void) {
     char buf[48];
     float spd = fsqrt(vx * vx + vy * vy);
-    print("SLOOP \x07 rung 1", 4, 4, CLR_WHITE);
+    print(DES_NAME[cur_des], 4, 4, CLR_WHITE);
     snprintf(buf, sizeof buf, "SPEED %4.0f", spd);   print(buf, 4, 14, CLR_LIGHT_GREY);
     snprintf(buf, sizeof buf, "MASS  %4.1f", M);     print(buf, 4, 22, CLR_LIGHT_GREY);
-    snprintf(buf, sizeof buf, "HEAD  %4.0f", ang);   print(buf, 4, 30, CLR_LIGHT_GREY);
+    snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels);
+    print(buf, 4, 30, CLR_MEDIUM_GREY);
     if (in_hand && spd > 8) print("DRIFT", 4, 40, CLR_YELLOW);
-    print("\x18\x19 gas/brake  \x1b\x1a steer  SPACE drift  R reset",
-          SCREEN_W / 2 - 116, SCREEN_H - 12, CLR_MEDIUM_GREY);
+    print("1-4 swap rig  \x1b\x1a steer  \x18\x19 gas/brake  SPACE drift",
+          SCREEN_W / 2 - 132, SCREEN_H - 12, CLR_MEDIUM_GREY);
     if (is_paused) print("PAUSED", SCREEN_W / 2 - 22, SCREEN_H / 2, CLR_WHITE);
 }
 
@@ -405,17 +460,7 @@ void init(void) {
     KIND[P_WHEEL]  = (PartKind){ 1.5f, 0,            1.0f, CLR_BLACK,       "wheel" };
     KIND[P_SEAT]   = (PartKind){ 1.2f, 0,            0,    CLR_BLUE,        "seat" };
 
-    // the hardcoded rig: a symmetric 4-wheel buggy facing +x (east).
-    //   wheels at the corners, engine centre-right, seat centre-left, frames between.
-    int layout[GH][GW] = {
-        { P_WHEEL, P_FRAME,  P_FRAME,  P_WHEEL },
-        { P_FRAME, P_SEAT,   P_ENGINE, P_FRAME },
-        { P_WHEEL, P_FRAME,  P_FRAME,  P_WHEEL },
-    };
-    for (int r = 0; r < GH; r++)
-        for (int c = 0; c < GW; c++) grid[r][c] = layout[r][c];
-
-    reset_vehicle();
+    load_design(0);                       // start on the balanced buggy
     cam_x = sx - SCREEN_W / 2.0f;
     cam_y = sy - SCREEN_H / 2.0f;
 }

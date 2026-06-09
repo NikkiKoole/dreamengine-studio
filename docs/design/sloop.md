@@ -1,6 +1,6 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: building — rung 1 (drive) + 1.5 (drift) + 1.75 (schematic course) done.** Cart:
+**Status: building — rung 1 drive / 1.5 drift / 1.75 course / 1.9 rig-toggle done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -345,6 +345,31 @@ that doesn't fight you yet, drawn in the same design style as the grid. Added
 This is the **parcours skeleton**: rung 3 makes it solid — lanes become a traction
 zone (on-road grip vs off-road drag), cones/roundabouts become collidable obstacles.
 For now it's a playground to feel the handling against.
+
+### Rung 1.9 — preset rig toggle (2026-06-09)
+
+Before the BUILD editor, prove the derived physics *reads differently per build* —
+orbit's playbook (its 1/2/3 rockets "feel each way to fail" before the parts-bin
+builder). `1`–`4` swap four preset layouts in `DESIGNS[]`; same drive core, **zero
+per-rig tuning** — every difference is mass / COM / I / grip falling out of where the
+parts sit. Grid footprint widened to 6×3 (rigs pad unused cells with `P_NONE`); the
+nose marker now sits at the rig's real front edge (`frontX`), and the HUD shows the
+rig name + mass + engine/wheel counts.
+
+Measured (gas to terminal, then a hard right — all emergent, headless `--trace`):
+
+| Rig | Mass | I | Top speed | Turn | Feel |
+|---|---|---|---|---|---|
+| BUGGY | 17.2 | 1479 | ~102 | 75°/s | balanced baseline |
+| HAULER | 23.2 | 3923 | ~78 | 54°/s | heavy + long → crawls, turns lazily |
+| SPRINTER | 20.2 | 1541 | ~169 | 78°/s | twin engine → rockets, snappy |
+| JALOPY | 13.7 | 984 | ~124 | 83°/s | light, 3 wheels → loose; **pulls** |
+
+JALOPY's off-centre engine fires the `eng_torque` term: heading drifts to ~2° under
+pure throttle *before any steering input* — the honest-core "asymmetric build pulls"
+claim, visible in the trace. (Small for a grid this size, as expected; the looseness
+from 3 wheels + low mass is the bigger felt difference.) This is the proof rung 2
+needs: the build genuinely drives the feel.
 
 **Next — rung 2 (the BUILD flip):** mode toggle, place/remove parts on the grid,
 `recompute_body()` already does the live readouts; add the COM crosshair *in the build

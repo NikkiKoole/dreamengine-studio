@@ -59,6 +59,9 @@ typedef struct {
     float panic;              // 0..1 flee intensity (prey)
     float lunge;              // 0..1 hunt flash (predator)
     int   bite_cd;            // frames before this cell can bite again
+    int   burst;              // frames of a hunting lunge-surge left (their "dash")
+    int   burst_cd;           // cooldown before it can surge again
+    int   flee_timer;         // frames it breaks off and flees you (spike recoil)
     bool  alive;
 } Microbe;
 
@@ -140,7 +143,10 @@ static void spawn_microbe(int idx) {
     // thin the herd or grow fast, so the pond hunts a grazer LESS — fewer, gentler
     // predators — to keep that path alive.
     float r = S->r < 4 ? 4 : S->r;
-    int pred_cut = (S->diet == D_HERB) ? 91 : 85;   // herb: ~9% predators, carn: ~15%
+    // herbivores get hunted less; and the pond gets MEANER each tier — more predators
+    // as you climb, so growing raises the stakes instead of coasting.
+    int pred_cut = (S->diet == D_HERB) ? 92 : 87;
+    pred_cut -= S->tier * 2;                          // tier 1 ≈ 10%/15%, tier 4 ≈ 16%/21%
     int roll = rnd(100);
     float sz;
     if      (roll < 58)        sz = rnd_float_between(r * 0.30f, r * 0.85f);  // prey
@@ -149,7 +155,7 @@ static void spawn_microbe(int idx) {
     float a = rnd(360);
     S->herd[idx] = (Microbe){
         rnd_between(20, WORLDW - 20), rnd_between(20, WORLDH - 20),
-        cos_deg(a) * 1.2f, sin_deg(a) * 1.2f, sz, 0, 0, 0, true
+        cos_deg(a) * 1.2f, sin_deg(a) * 1.2f, sz, 0, 0, 0, 0, 0, 0, true
     };
 }
 
@@ -210,10 +216,15 @@ static void step_flock(void) {
         // relationship to the player, recomputed every frame
         bool predator = b->size > S->r * 1.08f;
         bool prey     = b->size <= S->r * 0.92f;
+        if (b->burst_cd > 0)   b->burst_cd--;
+        if (b->burst    > 0)   b->burst--;
+        if (b->flee_timer > 0) b->flee_timer--;
+        // a hunter that just got spiked breaks off and flees for a moment, like prey
+        bool spooked = b->flee_timer > 0;
 
         float pdx = b->x - S->px, pdy = b->y - S->py;
         float pd  = fsqrt(pdx * pdx + pdy * pdy);
-        if (predator) {
+        if (predator && !spooked) {
             // Hunters only notice you UP CLOSE — the pond is mostly ambient, and the
             // danger is blundering near a big mouth, not a pack converging from
             // off-screen. (Prey, below, are skittish from much farther.)
@@ -224,8 +235,15 @@ static void step_flock(void) {
                 float pull = 0.4f + t * 1.9f;
                 b->vx -= pdx / pd * pull;
                 b->vy -= pdy / pd * pull;
+                // LUNGE-SURGE — their answer to your dash: once locked on and close, a
+                // committed hunter bursts to close the gap (cooldown so it's not constant,
+                // and it commits harder the higher the tier).
+                if (b->burst <= 0 && b->burst_cd <= 0 && t > 0.45f &&
+                    chance(3 + S->tier * 2)) {
+                    b->burst = 16; b->burst_cd = 80;
+                }
             }
-        } else if (prey) {
+        } else if (prey || spooked) {
             float sense = FLEE_R + S->r;       // prey bolt from far off
             if (pd < sense && pd > 0.01f) {
                 float t = 1.0f - pd / sense;
@@ -239,10 +257,12 @@ static void step_flock(void) {
         b->lunge *= 0.90f;
 
         // caps tuned around the player's base swim (~2.6): prey top out just below it
-        // (you slowly reel them in; a wall corner or a flagellum seals the chase),
-        // and a hunter is only barely faster than you can flee — barely.
-        float cap = predator ? 1.6f + b->lunge * 1.0f
+        // (you reel them in; a wall corner or a flagellum seals it), a hunter is barely
+        // faster than you can flee — UNLESS it's mid-surge, when it nearly matches your
+        // dash, so escaping a committed hunter takes a dash of your own + a turn.
+        float cap = predator ? 1.6f + b->lunge * 1.0f + (b->burst > 0 ? 2.0f : 0.0f)
                   : 1.3f + b->panic * 1.0f;
+        if (spooked) cap = 2.6f;               // recoiling hunters scatter fast
         float sp = fsqrt(b->vx * b->vx + b->vy * b->vy);
         if (sp > cap)                 { b->vx = b->vx / sp * cap;  b->vy = b->vy / sp * cap; }
         else if (sp > 0 && sp < 0.5f) { b->vx = b->vx / sp * 0.5f; b->vy = b->vy / sp * 0.5f; }
@@ -392,11 +412,18 @@ void update(void) {
         // BIG cell touches you
         bool predator = b->size > S->r * 1.08f;
         if (predator && dd < S->r + b->size * 0.5f) {
-            if (PART(P_SPIKE)) {          // spike turns the tables
+            if (PART(P_SPIKE)) {
+                // Spike is a DETERRENT, not a kill-button: a hunter that rams it gets
+                // flung back and breaks off (flees a beat), and takes a tiny chip — so
+                // it stays the same size, stays RED, stays a threat, it's just learned
+                // not to ram you. (The old version shaved 2.5 a hit, so two touches
+                // turned every hunter into a harmless blue blob and the game went limp.)
                 if (b->bite_cd <= 0) {
-                    b->size -= 2.5f; b->bite_cd = 30;
+                    b->bite_cd = 45; b->flee_timer = 70; b->lunge = 0;
+                    b->burst = 0; b->burst_cd = 90;        // can't immediately re-surge
+                    b->size -= 0.4f;                       // a slow grind is possible, barely
                     float a = angle_to((int)S->px, (int)S->py, (int)b->x, (int)b->y);
-                    b->vx += cos_deg(a) * 4.0f; b->vy += sin_deg(a) * 4.0f;
+                    b->vx += cos_deg(a) * 6.0f; b->vy += sin_deg(a) * 6.0f;
                     puff(b->x, b->y, 4, CLR_LIGHT_GREY);
                     hit(64, INSTR_SQUARE, 3, 50);
                     if (b->size < 2.0f) b->alive = false;

@@ -1217,6 +1217,11 @@ static void hud(void) {
     print("E", STK_X + 2, STK_Y + 2,          su ? CLR_WHITE : CLR_DARK_GREY);
     print("Q", STK_X + 2, STK_Y + STK_H - 7,  sd ? CLR_WHITE : CLR_DARK_GREY);
     font(FONT_NORMAL);
+    if (trans_mode != TR_MANUAL) {                                // 1-GEAR / AUTO manage the gears
+        fillp(FILL_CHECKER, -1);                                 // → dither the gate to read "not yours"
+        rectfill(STK_X + 1, STK_Y + 1, STK_W - 2, STK_H - 2, CLR_BLACK);
+        fillp_reset();
+    }
 
     // RIGHT BUTTONS — ignition (lit when running) / transmission / build
     dash_btn(BTN_X, IGN_Y, BTN_W, BTN_H, engine_on ? "IGN ON" : "IGN OFF", "I", engine_on, CLR_GREEN);

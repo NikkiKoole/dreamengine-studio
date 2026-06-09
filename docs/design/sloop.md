@@ -1070,4 +1070,5 @@ them but leave reverse a manual choice.
 reference photo): **1·3·5** across the top, **2·4·R** across the bottom, chrome verticals joined
 by the centre channel, and a ball riding the engaged gear. R glows orange when you're slow
 enough to drop into it — so "how do I reverse?" answers itself. The upper/lower tap zones still
-shift up/down (tiny E/Q key hints kept in the corners).
+shift up/down (tiny E/Q key hints kept in the corners). In **AUTO / 1-GEAR** the gate is
+`FILL_CHECKER`-dithered (the box auto-manages the gears, so manual shifting isn't "yours").

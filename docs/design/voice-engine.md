@@ -2,8 +2,9 @@
 
 > **Status: in design (experimental).** Engine ported + playable; the public API is NOT
 > locked. Lives behind `voice_param()`/`voice_consonant()`/`voice_coda()` — none are in
-> `studioDocs.js`/`shell.js` yet. Probe carts: `voxlab` (fat 7-param prototype) and `vox`
-> (the 3-axis play cart + jam pad). Probe ledger row: [`probe-carts.md`](probe-carts.md).
+> `studioDocs.js`/`shell.js` yet. Probe carts: `voxlab` (fat 7-param prototype), `vox`
+> (the 3-axis play cart + jam pad), and `say` (the PROSODY probe — §"Prosody" below).
+> Probe ledger rows: [`probe-carts.md`](probe-carts.md).
 
 ## What it is
 
@@ -88,8 +89,54 @@ Things that would deepen the instrument without necessarily adding macros:
 - **Vowel on the pad's Y axis** (instead of effort) — sing words by gesture.
 - **Per-note random size** — a ragged kids'-choir / crowd texture.
 
+## Prosody — the fourth kind of control (toward SPEAKING)
+
+The three kinds above (continuous timbre / per-note articulation / modulators) cover *singing
+one note*. **Speaking** needs a fourth: **prosody** — pitch, timing and stress shaped over a
+whole *phrase*. It's where "is this a question?", "which word is emphasized?", and the melody of
+a spoken sentence live. Crucially it is mostly **not** an engine concern — it's *sequencing*, so
+per the recipe-first instinct ([ADR-0006](../decisions/0006-library-carts-not-engine.md),
+[decision-0015](../decisions/0015-effects-are-recipes-not-primitives.md)) it should prove out in
+cart-land before any new API. The `say` probe does exactly that.
+
+**What `say` established by ear (2026-06-09), using ONLY existing primitives:**
+
+- **Connected speech works on ONE held note.** Re-firing `voice_consonant()` on an
+  already-held note resets `vox_cons_t`, so it re-articulates the consonant *mid-note* — turning
+  the "one syllable per note" voice into CVCVCV chains ("ba-loo-nee-doh") on a single `note_on`,
+  no retrigger. **So a dedicated mid-note-consonant API is not *required* to prototype speech** —
+  the open question is whether the onset-morph *reads* as a true inter-vocalic stop or needs one.
+- **Pitch contour = per-frame `note_pitch()`** along a per-syllable shape (flat/rise/fall/peak)
+  plus phrase-level declination. Intonation falls out as data: statement = final fall, question =
+  final rise, exclaim = hard fall; **emphasis** = a syllable gets a pitch *accent* (peak) + longer
+  duration. This is the "pitch in a word / question / emphasize a word" the design was reaching for.
+- **Character** (the old terminal `say()` "vary character" lever) = a preset bundle of
+  size/breath/open-q/tilt + pitch-offset + **pitch-RANGE** + rate. robot = zero range + no glide →
+  monotone; kid = small+high+wide; giant = long+low+slow; whisper = breath maxed.
+
+**The engine gaps the probe surfaces** (candidate real API, each must earn it by ear):
+
+1. **Creak / jitter in the glottal source** — without it robot can't sound truly sterile and
+   there's no old-man rasp / vocal fry. The lever that most "varies character"; cheap to add to the
+   Rosenberg pulse. *Most likely first engine addition.*
+2. **A fuller consonant set** — only `b d g m n l s sh` today; speech wants `h w r f v` and the
+   unvoiced stops `p t k`. Each is a formant/noise table row.
+3. **Schwa (reduced vowel)** — unstressed syllables collapse to it; without it everything
+   over-enunciates. A trivial vowel row.
+4. **Diphthong / vowel-glide target within a note** — "I", "oh", "now"; also makes *singing* far
+   more natural. Already listed under enrichment above.
+
+The contour/timing/stress layer itself stays a **cart recipe**; only if it proves universal does a
+`voice_phrase()` convenience earn a place.
+
 ## Decision log
 
+- **2026-06-09** — Built the `say` prosody probe (see §"Prosody" above). Confirmed by render
+  that **connected speech runs on a single held note** via re-fired `voice_consonant()`, that a
+  per-frame `note_pitch()` contour gives statement/question/emphasis intonation, and that
+  character presets cover the terminal-`say()` "vary character" lever — all with **zero new
+  engine API**. Prosody stays a cart recipe. Next engine lever to audition: **creak/jitter** in
+  the glottal source (the one gap that's clearly kernel-only and most changes perceived character).
 - **2026-06-09** — On "is 3 macros enough?": **defer the API shape; audition first.** Decide
   whether breath / nasality / 2D-vowel each earn their own continuous knob *by ear* in
   `voxlab`/`vox` before committing to either the lean (3-macro + events) or the richer

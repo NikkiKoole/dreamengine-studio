@@ -12,8 +12,10 @@
 // THE FEEL: you don't just press a string — you RUB it. Drag your finger/mouse back and forth
 // across a string and it speaks; the harder/faster you rub, the louder and fuller it sings.
 // Stop moving and the bow rests on the string (silent). It's friction, like rubbing a drumhead.
-// A quick TAP (no rub) instead PLUCKS the string — pizzicato (a short-decay INSTR_GUITAR preset;
-// a different engine, but the same instrument's other voice — the docs: pizz is "free" here).
+// A quick TAP (no rub) instead PLUCKS the string — pizzicato. This is the SAME bowed string: a
+// second INSTR_BOWED slot flagged pizz (eng_tune(slot,0,1)), where the engine seeds the waveguide
+// with a pluck and switches the bow friction off, so the very same string + body rings down. Arco
+// and pizz differ only in how energy enters — exactly as on a real violin.
 //
 // controls: touch/mouse — RUB a string back-and-forth to bow it · quick TAP a string = pizzicato
 //                          drag a string sideways while bowing bends nothing; drag a slider to set macros
@@ -27,7 +29,7 @@
 #include <math.h>
 
 #define I_STR 5    // the bowed (arco) engine
-#define I_PIZ 6    // pizzicato = a short-mute INSTR_GUITAR preset (the same instrument's plucked voice)
+#define I_PIZ 6    // pizzicato = INSTR_BOWED in pizz mode — the SAME string + body, plucked not bowed
 #define NSTR  7
 
 static const char STRKEY[NSTR]  = { 'A','S','D','F','G','H','J' };
@@ -85,7 +87,7 @@ static void bow_off(int s) {
 }
 static void pizz(int s, int vol) {                 // a plucked note on the guitar-pizz voice
     bow_off(s);                                    // pizz cancels any bow on the same string
-    hit(midi_of[s], I_PIZ, vol, 700);
+    hit(midi_of[s], I_PIZ, vol, 800);              // long gate — the plucked string rings down on its own
     amp[s] = 1.0f; vib_ph[s] = 0.0f;
 }
 
@@ -113,10 +115,14 @@ static int str_x(int s) { return STR_X0 + s * STR_GAP; }
 
 void init(void) {
     instrument(I_STR, INSTR_BOWED, 80, 0, 7, 300);    // quick-ish swell, short release (rub controls level)
-    instrument(I_PIZ, INSTR_GUITAR, 1, 0, 7, 900);    // the pizzicato voice
-    instrument_harmonics(I_PIZ, 0.20f);               // little body
-    instrument_timbre(I_PIZ, 0.60f);                  // mid-bright string
-    instrument_morph(I_PIZ, 0.85f);                   // tight mute = the pizz "pluck-stop"
+    // PIZZICATO = the SAME bowed string, plucked instead of bowed: INSTR_BOWED with the pizz flag
+    // (eng_p[0]>=0.5). The engine seeds the waveguide with a pluck and bypasses the bow friction, so
+    // it rings down through the same string + body — not a separate instrument. Near-instant attack
+    // (the pluck IS the attack); the string decays on its own, so give it a long gate.
+    instrument(I_PIZ, INSTR_BOWED, 1, 0, 7, 300);
+    instrument_harmonics(I_PIZ, 0.30f);               // pluck position (sets the pluck's spectrum)
+    instrument_timbre(I_PIZ, 0.42f);                  // pluck brightness — warm finger, not a bright pick
+    eng_tune(I_PIZ, 0, 1.0f);                         // FLAG this slot pizzicato
     for (int s = 0; s < NSTR; s++) hnd[s] = -1;
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
     build_strings();

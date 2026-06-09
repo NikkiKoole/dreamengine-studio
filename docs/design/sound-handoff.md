@@ -50,7 +50,10 @@ the buffered string pair are now done. What remains, in order:
      swell). The timbre axis is ear/metric-confirmed: corr 0.96 clean → 0.35 deliberate scratch. No
      hysteresis bow table needed. Showcase: the **bowed** cart — RUB to bow (energy accumulates),
      TAP to pizz (via an `INSTR_GUITAR` preset). Soundcheck slot 23, tripwire PASS, 4-place wired.
-     Detail + the wedge map: §8.5 step 9. **The modeled string family is now complete.**
+     PIZZICATO is the same waveguide, not a guitar preset: a slot flagged `eng_p[0]>=0.5`
+     (`eng_tune(slot,0,1)`) seeds the string with a pluck and bypasses the friction, so the identical
+     string+body rings down — arco/pizz differ only in excitation. Detail + the wedge map: §8.5 step
+     9. **The modeled string family is now complete.**
 2. **Formant + the effects-bus layer (§8.10).** `INSTR_VOICE` (24) is **EXPERIMENTAL** — the voxlab
    prototype is live but the public 3-macro mapping isn't locked (which is why it's not in the help
    tab yet). The effects-bus layer is sequenced LAST, after the engines: master reverb + the bus

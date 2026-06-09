@@ -257,6 +257,9 @@ typedef struct {
     int    bw_attack;                   // bow-bite onset samples (the catch at note start)
     float  bw_dc_prev, bw_dc_state;     // output DC blocker (steady bow drives a large DC)
     bool   bw_on;                       // note-on init guard
+    bool   bw_pizz;                     // PIZZICATO: seed the string with a pluck + bypass the bow
+                                        // friction, so the SAME waveguide (string + body) rings down
+                                        // instead of self-oscillating. Set from eng_p[0] >= 0.5 at note-on.
     // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
@@ -1330,14 +1333,24 @@ static void sound_bowed_start(Voice *v) {
     v->bw_nutlen = nutLen; v->bw_brlen = brLen;
     v->bw_nutidx = 0; v->bw_bridx = 0;
     v->bw_nutrefl = 0.0f; v->bw_brrefl = 0.0f;
-    // seed both halves with tiny noise (navkit's noise()*0.005 startup)
-    for (int i = 0; i < nutLen; i++) {
-        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
-        v->ks_buf[i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.005f;
-    }
-    for (int i = 0; i < brLen; i++) {
-        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
-        v->ks_buf[nutLen + i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.005f;
+    // PIZZICATO vs ARCO is one difference: how energy enters the string. ARCO seeds tiny noise
+    // (navkit's 0.005 startup) and lets the bow friction drive it. PIZZ seeds a real PLUCK burst —
+    // a lowpassed noise excitation across the whole string (Karplus-Strong style) — and the friction
+    // is bypassed per-sample, so the same waveguide just rings down. eng_p[0] >= 0.5 → pizz.
+    v->bw_pizz = (v->eng_p[0] >= 0.5f);
+    if (v->bw_pizz) {
+        float lp = 0.0f, bright = 0.20f + v->timb * 0.45f;   // warmer (more LP) = a rounder finger pluck
+        for (int i = 0; i < nutLen + brLen; i++) {
+            v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+            float wn = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+            lp += bright * (wn - lp);
+            v->ks_buf[i] = lp * 1.4f;                        // pluck amplitude (sets the attack level)
+        }
+    } else {
+        for (int i = 0; i < nutLen + brLen; i++) {
+            v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+            v->ks_buf[i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.005f;
+        }
     }
     v->bw_initfreq = f;
     v->bw_vib_ph = v->bw_drift_ph = v->bw_drift = v->bw_noise_lp = 0.0f;
@@ -1406,17 +1419,27 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     // string velocity at the bow = sum of the returning traveling waves
     float vStringAtBow = nutReturn + bridgeReturn;
     float deltaV = velocity - vStringAtBow;
-    // Smith hyperbolic stick-slip friction: linear at small dv (stick), falls off (slip)
-    float pres = pressure * 5.0f + 0.5f;
-    float friction = pres * deltaV * expf(-pres * deltaV * deltaV);
+    // Smith hyperbolic stick-slip friction: linear at small dv (stick), falls off (slip).
+    // PIZZICATO bypasses it entirely — no bow drive, so the seeded pluck just rings down through
+    // the reflections (the string was plucked and released, not bowed).
+    float friction;
+    if (v->bw_pizz) {
+        friction = 0.0f;
+    } else {
+        float pres = pressure * 5.0f + 0.5f;
+        friction = pres * deltaV * expf(-pres * deltaV * deltaV);
+    }
     // outgoing waves from the bow point toward each end
     float toNut = bridgeReturn + friction;
     float toBridge = nutReturn + friction;
+    // bridge loss: arco is near-lossless (it self-oscillates); pizz damps faster so the pluck
+    // decays in a musical ~1s instead of ringing on
+    float brLoss = v->bw_pizz ? 0.990f : 0.995f;
     // nut-end reflection: fixed end → invert + one-pole LP (stiffness loss)
     float nutReflected = -toNut;
     v->bw_nutrefl = v->bw_nutrefl * 0.35f + nutReflected * 0.65f;
     // bridge-end reflection: invert + loss + stronger LP
-    float bridgeReflected = -toBridge * 0.995f;
+    float bridgeReflected = -toBridge * brLoss;
     v->bw_brrefl = v->bw_brrefl * 0.15f + bridgeReflected * 0.85f;
     // write the reflected waves back at the current write indices (read again after a round-trip)
     v->ks_buf[v->bw_nutidx]    = v->bw_nutrefl;

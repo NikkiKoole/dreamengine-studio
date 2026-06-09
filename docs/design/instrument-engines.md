@@ -310,8 +310,13 @@ independently shippable:
    corr 0.96 (soft, clean Helmholtz) → 0.35 (hard, the scratchy "surface sound" — a real articulation,
    the same corr that got preset 107 rejected). Soundcheck slot 23, tripwire PASS, full 4-place wiring.
    Showcase: the **bowed** cart — played by RUBBING (energy accumulates: rub more → builds & digs in;
-   stop → rests), a TAP plucks it (pizzicato via an `INSTR_GUITAR` short-mute preset — the same
-   instrument's other voice, "free" per the buffered-pair finding). Below: the STEP-0 sweep that
+   stop → rests), a TAP plucks it (PIZZICATO). **Pizz is the same waveguide, not a guitar preset:**
+   a second `INSTR_BOWED` slot flagged via `eng_p[0] >= 0.5` (`eng_tune(slot,0,1)`) seeds the two
+   delay lines with a lowpassed pluck burst and bypasses the stick-slip friction per-sample, so the
+   identical string + body rings down (~1s, brLoss 0.990 vs the bowed 0.995) instead of
+   self-oscillating — arco and pizz differ *only* in excitation, exactly as on a real violin. (Can't
+   self-oscillate: friction=0 → it can only decay.) Verified: clean pluck, sharp attack → fast
+   brightness rolloff → warm ~1s ring-down, peak ≈ arco level, DC≈0. Below: the STEP-0 sweep that
    green-lit it.
    **Bowed** (violin/cello) — **STEP-0 sweep DONE 2026-06-09: GREEN LIGHT, engine is stable, the
    reject was a bad preset.** The original audition rejected navkit's bowed off one render (erratic

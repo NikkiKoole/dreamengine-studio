@@ -1,6 +1,6 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) done.** Cart:
+**Status: building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) + 2.5 (unsupported cells scrape) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -274,6 +274,7 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Weight balance → under/oversteer** | nose-heavy pushes wide, tail-heavy turns in (COM vs wheelbase) | 1.95 | ✅ |
 | Top speed mass-INDEPENDENT | drag is a force; mass sets accel, not top speed (DDA's insight) | 1.95 | ✅ |
 | **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ✅ |
+| **Unsupported cells scrape** | a cell cantilevered past the wheel span drags on the floor: extra drag + lateral anchor + off-centre yaw, with sparks/heat/grind. Wheels become *spatial*, not a scalar; wheel-spam costs mass+drag, too few wheels drags | 2.5 | ✅ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
 | **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
 | **Stability / tippiness** | tall narrow high-COM rig spins out / "tips" above a lateral-g threshold vs track width (the 2-D stand-in for roll, since we don't model z) | 3–4 | ⬜ |
@@ -526,3 +527,41 @@ fuel/damage) per the catalogue → rungs 3–4.
 **Next — rung 3 (biomes + traction):** noise biome map, grip/drag per terrain, the
 wheel-area/ground-pressure lever (heavy-on-few-wheels bogs in sand), camera-follow
 minimap. The BUILD editor + drive core are the stable base it builds on.
+
+### Rung 2.5 — unsupported cells scrape the floor (2026-06-09)
+
+Player-reported gap: you could drive a bike on one wheel, or spam wheels everywhere,
+and it barely changed how the rig handled. The model treated wheels as a *scalar* (a
+summed grip number) with no notion of whether they actually hold the chassis up. This
+rung gives wheels a **spatial** role: a cell hanging out past the wheels drags on the
+ground. Resolves the bike observation directly and gives wheel-spam a real downside.
+
+- ✓ **Support span, not "a wheel under every cell."** `recompute_body()` computes the
+  bounding box of all support points (wheels + casters), in cell indices. An occupied,
+  non-support cell **scrapes** only if it falls *outside* that box — i.e. cantilevered
+  past the outermost wheels. Cells *between* the wheels are carried by the wheelbase, so
+  a big frame floor needs wheels only at its extremes (no wheels-everywhere). The bbox is
+  a cheap stand-in for the support hull and lands all 5 presets at zero drag while a
+  de-wheeled bike or a 1-wheel rig drags. `dragging[GH][GW]` + `nDrag` are the outputs.
+- ✓ **Scrape physics — the same force model as the wheels, on the unsupported cells.**
+  Extra forward drag (`SCRAPE_DRAG`·nDrag, folded into the drag force → lower top speed),
+  a lateral anchor, and — if the scrape is off the centre-line — a **yaw** that pulls the
+  rig to that side (`scrape_torque`, mirrors the off-centre-engine torque). Kinetic: only
+  bites above `SCRAPE_MINSPD`.
+- ✓ **Feel: sparks + heat + grind.** Each scraping cell throws sparks (white-hot core
+  fading to orange/yellow, flung opposite travel), a `heat` value (0..1) rises under load
+  and cools off, the scraping cells **glow** (red→orange→yellow→white by heat), and a low
+  `INSTR_NOISE` grind plays. HUD shows `SCRAPE x{n}` + a heat bar.
+- ✓ **Shown in BUILD too** — dragging cells get an orange ring + a "N cells scrape!"
+  warning, and `est_top_speed()` now folds in the scrape drag *and* the traction cap, so
+  the readout tells the truth (verified: a one-wheel bike reads TOPSPD 73 and drives 73,
+  vs 213 intact).
+- ✓ **Verified** (headless script: load motorbike → BUILD → erase a wheel → DRIVE → gas):
+  `ndrag` 0→2, mass 8.2→6.7, top speed 213→73, `heat` climbs to 1.0; the intact rig stays
+  `ndrag:0` (no false positives). Lever catalogue updated.
+
+**Terrain detail (deferred to rung 3):** sparks + heat are **metal-on-tarmac**. Offroad
+(sand / mud / grass) a dragging cell wouldn't spark — it would plough a **dirt furrow**,
+and drag would be *worse* (it digs in rather than skating). When biomes land, gate
+`throw_spark()`/heat on a hard-surface terrain flag and swap in a dust/furrow effect with
+a higher off-road `SCRAPE_DRAG`. Noted at `throw_spark()` in the cart. Today: all tarmac.

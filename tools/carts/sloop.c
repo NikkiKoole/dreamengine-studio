@@ -42,6 +42,14 @@
 // back, the slide is killed, and you shoot off along the nose (the drift exit).
 // Tires lay marks on the asphalt exactly while the lateral slide exceeds SKID_SLIP,
 // same trigger steer.c uses. Honest: it's the one grip term, scaled.
+//
+// ── rung 2.5: unsupported cells scrape (wheels become spatial) ───────────────
+// Wheels aren't just a grip number — they hold the chassis off the ground. A cell
+// that hangs OUTSIDE the bounding span of the wheels (cantilevered past them) drags:
+// extra drag + a lateral anchor + an off-centre yaw, with sparks, heat, and a grind.
+// Cells *between* the wheels are carried by the wheelbase (you don't need a wheel
+// under every cell). So losing a wheel makes the rig scrape, and wheel-spam costs you
+// mass + drag. The sparks/heat are metal-on-tarmac — offroad becomes a furrow (rung 3).
 // ============================================================================
 
 // ── part vocabulary ──────────────────────────────────────────────────────────
@@ -112,6 +120,12 @@ static float frontX;              // local-x of the rig's front edge (for the no
 static int   nEngines, nWheels;   // for the readout
 static int   frontalCells;        // rig height across the direction of travel (aero profile)
 static float balance;             // COM vs wheelbase: +1 front-heavy (understeer) .. -1 rear-heavy
+// ── ground contact: which cells hang off the ground (no wheel under them) ──────
+// A cell scrapes only if it sits OUTSIDE the span of the support points (wheels +
+// casters) — i.e. cantilevered out past the outermost wheels. Cells *between* the
+// wheels are held up by the wheelbase; you don't need a wheel under every cell.
+static int dragging[GH][GW];      // 1 = this occupied cell hangs past the wheel span
+static int nDrag;                 // how many cells are scraping the floor
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 #define ENGINE_POWER  2600.0f     // forward force units per engine at full throttle
@@ -133,6 +147,13 @@ static float balance;             // COM vs wheelbase: +1 front-heavy (understee
 #define GROUND_GRIP   1.0f        // road: plenty (sand/mud come in rung 3)
 #define DRIFT_GRIP_MULT 0.13f     // handbrake: lateral grip drops to this fraction
 #define SKID_SLIP     16.0f       // lateral speed (px/s) where tires start marking
+// ── ground-scrape: a cell hanging past the wheel span drags on the floor ──────
+#define SCRAPE_DRAG   9.0f        // extra drag force per dragging cell (top speed ↓)
+#define SCRAPE_LAT    7.0f        // extra lateral resistance per dragging cell (anchors sideways)
+#define SCRAPE_YAW    160.0f      // an off-centre scrape twists the rig (deg/s^2 per cell·unit)
+#define SCRAPE_MINSPD 10.0f       // below this speed nothing scrapes (kinetic friction only when moving)
+#define HEAT_RISE     1.4f        // heat gained per second per dragging cell while moving
+#define HEAT_COOL     0.8f        // heat lost per second when not scraping
 
 // ── skid marks (laid in world space while the tires scrub) ───────────────────
 #define MAXSKID 512
@@ -140,13 +161,20 @@ typedef struct { float x, y; int life; } Skid;
 static Skid skid[MAXSKID];
 static int  skid_head;
 
+// ── sparks (thrown off a scraping cell, in world space) ──────────────────────
+#define MAXSPARK 96
+typedef struct { float x, y, vx, vy; int life, col; } Spark;
+static Spark spark[MAXSPARK];
+static int   spark_head;
+static float heat;                // 0..1, rises while cells scrape under load, cools off
+
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
 static float vx, vy;              // world velocity
 static float ang, angVel;         // heading (deg, 0 = facing +x / east) + spin
 
 static float cam_x, cam_y;
-static float t_eng_snd, t_skid_snd;
+static float t_eng_snd, t_skid_snd, t_scrape_snd;
 static int   is_paused;
 
 // ── modes: BUILD (paused grid editor) ↔ DRIVE (the rig loose in the world) ───
@@ -161,6 +189,7 @@ static void recompute_body(void) {
     M = 0; comX = 0; comY = 0; wheelGrip = 0; wheelRoll = 0; frontX = 0; nEngines = 0; nWheels = 0;
     int minRow = GH, maxRow = -1;
     float wMinX = 1e9f, wMaxX = -1e9f;     // wheelbase extent (x of frontmost/rearmost wheel)
+    int sMinR = GH, sMaxR = -1, sMinC = GW, sMaxC = -1;  // support span, in CELL INDICES (wheels+casters)
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
             int p = grid[r][c];
@@ -173,7 +202,12 @@ static void recompute_body(void) {
             if (r < minRow) minRow = r;
             if (r > maxRow) maxRow = r;
             if (p == P_ENGINE) nEngines++;
-            if (k->roll > 0) { nWheels++; if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx; }
+            if (k->roll > 0) {                 // a support point (wheel or caster)
+                nWheels++;
+                if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx;
+                if (r < sMinR) sMinR = r; if (r > sMaxR) sMaxR = r;
+                if (c < sMinC) sMinC = c; if (c > sMaxC) sMaxC = c;
+            }
         }
     if (M <= 0) M = 1;
     comX /= M; comY /= M;
@@ -195,19 +229,40 @@ static void recompute_body(void) {
             I += k->mass * (dx * dx + dy * dy);
         }
     if (I <= 0) I = 1;
+
+    // ── ground contact: a cell scrapes if it falls OUTSIDE the support span ────
+    // The span is the box bounding all wheels/casters. Interior cells are carried
+    // by the wheelbase (no wheel needed under them); only cells cantilevered past
+    // the outermost support drag. A wheel/caster never drags. No support → all drag.
+    nDrag = 0;
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) {
+            dragging[r][c] = 0;
+            PartKind *k = &KIND[grid[r][c]];
+            if (k->mass <= 0 || k->roll > 0) continue;   // empty cells & supports never scrape
+            int outside = (sMaxR < 0) ||                 // no support at all
+                          r < sMinR || r > sMaxR || c < sMinC || c > sMaxC;
+            if (outside) { dragging[r][c] = 1; nDrag++; }
+        }
 }
 
 static void reset_vehicle(void) {
     recompute_body();
     sx = 0; sy = 0; vx = vy = 0; ang = 0; angVel = 0;
+    heat = 0;
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
+    for (int i = 0; i < MAXSPARK; i++) spark[i].life = 0;
 }
 
 // live readout estimates — the same formulas the drive core uses, so BUILD shows
 // the truth about a rig before you ever drive it.
 static float est_top_speed(void) {
     float thrust = nEngines * KIND[P_ENGINE].power;
-    float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells;
+    // traction cap: too few wheels can't lay down all the engine's power (rolling support)
+    float tract = wheelRoll * GROUND_GRIP * GRIP_TO_FORCE;
+    if (tract > 0 && thrust > tract) thrust = tract;
+    // include scrape drag so a cantilevered build shows its real (lower) top speed
+    float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells + SCRAPE_DRAG * nDrag;
     return drag > 0 ? thrust / drag : 0;
 }
 static float est_turn_rate(void) {                 // steady deg/s at speed
@@ -273,6 +328,22 @@ static void lay_skid(float x, float y) {
     skid_head++;
 }
 
+// sparks fly off a scraping cell, mostly opposite the rig's travel (like a grinder).
+// NOTE (terrain, rung 3): sparks are METAL-ON-TARMAC. On road the belly grinds and
+// throws sparks + heats up; OFFROAD (sand/mud/grass) there's no spark and little heat —
+// the cell ploughs a DIRT FURROW instead, and drag is *worse* (it digs in, not skates).
+// When biomes land, gate throw_spark()/heat on a hard-surface terrain flag and swap in
+// a dust/furrow effect + a higher SCRAPE_DRAG off-road. Today everything is tarmac.
+static void throw_spark(float x, float y, float vfx, float vfy) {
+    int col = (rnd_float() < 0.4f) ? CLR_WHITE : (rnd_float() < 0.6f) ? CLR_ORANGE : CLR_YELLOW;
+    spark[spark_head % MAXSPARK] = (Spark){
+        x, y,
+        -vfx * 0.4f + rnd_float_between(-22, 22),
+        -vfy * 0.4f + rnd_float_between(-22, 22),
+        rnd_between(8, 18), col };
+    spark_head++;
+}
+
 // ── physics: the honest core ──────────────────────────────────────────────────
 static void update_drive(float dt_) {
     float fwx = cos_deg(ang), fwy = sin_deg(ang);   // forward unit vector
@@ -281,6 +352,28 @@ static void update_drive(float dt_) {
     // decompose velocity into forward + lateral
     float vf = vx * fwx + vy * fwy;
     float vl = vx * ltx + vy * lty;
+
+    // --- ground scrape: cells hanging past the wheel span drag on the floor -----
+    // Same force model as the wheels, applied to the cells with NO support under
+    // them: extra forward drag (top speed ↓), a lateral anchor, and — if the scrape
+    // is off-centre — a yaw that pulls the rig to that side. Each scraping cell also
+    // throws sparks and heats up. Kinetic: only bites once the rig is actually moving.
+    float spd0 = fsqrt(vf * vf + vl * vl);
+    int   scraping = (nDrag > 0 && spd0 > SCRAPE_MINSPD);
+    float scrape_drag = 0, scrape_torque = 0;
+    if (scraping) {
+        scrape_drag = SCRAPE_DRAG * nDrag;
+        for (int r = 0; r < GH; r++)
+            for (int c = 0; c < GW; c++) {
+                if (!dragging[r][c]) continue;
+                float oy = (r + 0.5f) * CELL - comY;       // off-centre → twists the rig
+                scrape_torque += -oy * SCRAPE_DRAG;        // a corner drag pulls to that side
+                if (rnd_float() < clamp(spd0 / 220.0f, 0.05f, 0.7f)) {
+                    float wx, wy; rot((c + 0.5f) * CELL - comX, oy, &wx, &wy);
+                    throw_spark(wx, wy, fwx * spd0, fwy * spd0);
+                }
+            }
+    }
 
     // --- engine: sum thrust + the yaw torque from any off-centre engine --------
     float throttle = in_gas ? 1.0f : (in_brk && vf <= 5.0f ? -REVERSE : 0.0f);
@@ -303,7 +396,7 @@ static void update_drive(float dt_) {
     // --- linear: net force / mass. Drag is a FORCE (base + per-wheel rolling
     //     resistance + frontal-profile aero), so top speed = thrust/drag is
     //     mass-INDEPENDENT — mass only governs how fast you reach it. -----------
-    float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells;
+    float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells + scrape_drag;
     vf += ((thrust - drag * vf) / M) * dt_;
     if (in_brk && vf > 0) { vf -= BRAKE * dt_; if (vf < 0) vf = 0; }
 
@@ -312,6 +405,8 @@ static void update_drive(float dt_) {
     float lat_mult = in_hand ? DRIFT_GRIP_MULT : 1.0f;
     float grip = clamp((wheelGrip * GROUND_GRIP / M) * LAT_GRIP * lat_mult, 0, 1.0f / dt_);
     vl -= vl * grip * dt_;
+    if (scraping)                                    // a dragging belly also anchors sideways
+        vl -= vl * clamp((SCRAPE_LAT * nDrag) / M, 0, 1.0f / dt_) * dt_;
 
     // recombine
     vx = fwx * vf + ltx * vl;
@@ -339,6 +434,7 @@ static void update_drive(float dt_) {
     float steer_bal = 1.0f - BALANCE_K * balance;
     float ang_acc = in_steer * STEER_RESP * speed_factor * dir * turnEase * steer_bal;
     ang_acc += ENG_YAW_K * (eng_torque / I);         // off-centre engine pulls
+    if (scraping) ang_acc += SCRAPE_YAW * (scrape_torque / I) * dir;  // off-centre scrape drags
     angVel += ang_acc * dt_;
     angVel -= angVel * ANG_DAMP * dt_;
     ang += angVel * dt_;
@@ -354,6 +450,23 @@ static void update_drive(float dt_) {
         t_skid_snd -= dt_;
         if (t_skid_snd <= 0) { hit(54, INSTR_NOISE, 2, 70); t_skid_snd = 0.05f; }
     }
+    if (scraping) {                                  // a low grinding scrape, pitch tracks speed
+        t_scrape_snd -= dt_;
+        if (t_scrape_snd <= 0) { hit(36 + (int)(spd * 0.06f), INSTR_NOISE, 2, 60); t_scrape_snd = 0.045f; }
+    }
+
+    // --- heat: rises while the belly grinds under load, cools off otherwise -----
+    if (scraping) heat = clamp(heat + HEAT_RISE * nDrag * dt_, 0, 1.0f);
+    else          heat = clamp(heat - HEAT_COOL * dt_, 0, 1.0f);
+
+    // --- tick sparks (top-down: no gravity, just air-drag + fade) ---------------
+    for (int i = 0; i < MAXSPARK; i++)
+        if (spark[i].life > 0) {
+            spark[i].x += spark[i].vx * dt_;
+            spark[i].y += spark[i].vy * dt_;
+            spark[i].vx *= 0.90f; spark[i].vy *= 0.90f;
+            spark[i].life--;
+        }
 }
 
 void update(void) {
@@ -375,6 +488,8 @@ void update(void) {
     watch("I", "%.0f", I);
     watch("front", "%d", frontalCells);
     watch("bal", "%.2f", balance);
+    watch("ndrag", "%d", nDrag);
+    watch("heat", "%.2f", heat);
 #endif
 }
 
@@ -468,6 +583,12 @@ static void draw_course(void) {
         }
 }
 
+// glow ramp for a scraping cell — red (cold/parked) → orange → yellow → white (hot)
+static int hot_col(void) {
+    return heat > 0.66f ? CLR_WHITE : heat > 0.40f ? CLR_YELLOW
+         : heat > 0.15f ? CLR_ORANGE : CLR_RED;
+}
+
 // ── vehicle: draw each occupied cell as a rotated quad ───────────────────────
 static void draw_cell(int r, int c, int p) {
     float lx = (c + 0.5f) * CELL - comX, ly = (r + 0.5f) * CELL - comY;
@@ -476,7 +597,8 @@ static void draw_cell(int r, int c, int p) {
     rot(lx - h, ly - h, &ax, &ay); rot(lx + h, ly - h, &bx, &by);
     rot(lx + h, ly + h, &cx2, &cy2); rot(lx - h, ly + h, &dx, &dy);
     int xy[8] = { (int)ax, (int)ay, (int)bx, (int)by, (int)cx2, (int)cy2, (int)dx, (int)dy };
-    polyfill(xy, 4, KIND[p].col);
+    int col = dragging[r][c] ? hot_col() : KIND[p].col;   // scraping cells glow
+    polyfill(xy, 4, col);
     if (p == P_CASTER) {                          // a swivel pivot dot marks a caster
         float px, py; rot(lx, ly, &px, &py);
         pset((int)px, (int)py, CLR_LIGHT_GREY);
@@ -516,6 +638,11 @@ static void hud(void) {
     snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels);
     print(buf, 4, 30, CLR_MEDIUM_GREY);
     if (in_hand && spd > 8) print("DRIFT", 4, 40, CLR_YELLOW);
+    if (nDrag > 0) {                       // scraping warning + heat bar
+        snprintf(buf, sizeof buf, "SCRAPE x%d", nDrag);
+        print(buf, SCREEN_W - 74, 4, hot_col());
+        bar(SCREEN_W - 74, 13, 68, 4, heat, heat > 0.66f ? CLR_RED : CLR_ORANGE, CLR_DARKER_GREY);
+    }
     print("TAB build  1-5 rig  \x1b\x1a steer  \x18\x19 gas/brake  SPACE drift",
           SCREEN_W / 2 - 140, SCREEN_H - 12, CLR_MEDIUM_GREY);
     if (is_paused) print("PAUSED", SCREEN_W / 2 - 22, SCREEN_H / 2, CLR_WHITE);
@@ -549,7 +676,9 @@ static void draw_build(void) {
             if (p == P_NONE) { rect(x, y, ED_CELL, ED_CELL, CLR_DARK_GREY); }
             else {
                 rectfill(x + 1, y + 1, ED_CELL - 2, ED_CELL - 2, KIND[p].col);
-                rect(x, y, ED_CELL, ED_CELL, CLR_DARKER_GREY);
+                rect(x, y, ED_CELL, ED_CELL, dragging[r][c] ? CLR_RED : CLR_DARKER_GREY);
+                if (dragging[r][c])               // hangs past the wheels → will scrape
+                    rect(x + 1, y + 1, ED_CELL - 2, ED_CELL - 2, CLR_ORANGE);
                 if (p == P_CASTER) circfill(x + ED_CELL / 2, y + ED_CELL / 2, 2, CLR_LIGHT_GREY);
             }
         }
@@ -578,6 +707,10 @@ static void draw_build(void) {
     ry += 11;
     if (nEngines == 0) { print("no engine!", rx, ry, CLR_RED); ry += 9; }
     if (nWheels == 0)  { print("no wheels!", rx, ry, CLR_RED); ry += 9; }
+    if (nDrag > 0) {                              // cells cantilevered past the wheels
+        snprintf(buf, sizeof buf, "%d cell%s scrape!", nDrag, nDrag > 1 ? "s" : "");
+        print(buf, rx, ry, CLR_ORANGE); ry += 9;
+    }
 
     print("BUILD", 6, 4, CLR_WHITE);
     print("TAB drive   click place/erase   1-5 templates   R clear",
@@ -607,6 +740,11 @@ void draw(void) {
             pset((int)skid[i].x, (int)skid[i].y,
                  skid[i].life > 90 ? CLR_BLACK : CLR_BROWNISH_BLACK);
     draw_vehicle();
+    for (int i = 0; i < MAXSPARK; i++)    // sparks thrown off the grinding belly (over the rig)
+        if (spark[i].life > 0) {
+            int col = spark[i].life > 12 ? CLR_WHITE : spark[i].col;   // hot core fades to its tint
+            pset((int)spark[i].x, (int)spark[i].y, col);
+        }
     camera(0, 0);
     hud();
 }

@@ -1546,6 +1546,16 @@
     ]
   },
   {
+    "title": "worldgen",
+    "description": "A faithful C port of the procedural world from my old gtascii project (an ASCII GTA), rebuilt as an endless, deterministic top-down map you pan across. The recipe is gtascii's, line for line: a layered value-noise heightmap (three octaves summed 0.6 / 0.3 / 0.1) thresholded into a terrain colour ladder — deep water, shallows, beach, dunes, scrub, grass, forest, hills, rock, peaks; meandering RIVERS carved by a second squared-noise field; CITIES dropped on habitable lowland (black footprints with a street grid), and ROADS that connect nearby cities only where the land between them is passable. Where gtascii scanned one fixed grid, this hashes each map cell so the same world streams around the camera with no global pass — effectively infinite. A live legend shows which biome the centre sits on. This is the world sloop's build-a-vehicle rig will later drive across (docs/design/sloop.md → rung 3, biomes). Controls: arrows / WASD pan, Z / X zoom the terrain in / out about the centre (gtascii's scalein 1/16/128), SPACE jumps to a fresh region, R recentres.",
+    "file": "worldgen.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "homage": "gtascii (github.com/NikkiKoole/gtascii)"
+  },
+  {
     "title": "Football Manager",
     "description": "An FC-Mobile-style manager mode: run a club's starting XI on a drag-to-arrange formation pitch, with a bench of spares, switchable 4-4-2 / 4-3-3 shapes, and an out-of-position penalty that makes your shape matter. Wheel and deal in a transfer market against a cash budget — sign a face, sell the deadwood — then hit PLAY MATCH and the engine auto-sims a scoreline from your XI's strength versus the opponent's, ticking the goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT. Other clubs play their own fixtures and the 6-team league table re-sorts live on points and goal difference across a 10-round season; finish top to be champions. Drag players between the pitch and the bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL in the market, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays).",
     "file": "soccermgr.cart.png",

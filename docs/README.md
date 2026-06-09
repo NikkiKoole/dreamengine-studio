@@ -23,7 +23,8 @@ docs/
 │   ├── api-notes.md     engine API: classics survey, signatures, naming, cart-patterns
 │   ├── cart-as-script.md  EXPLORATION: run cart C without an external compiler via libtcc (in-memory compile + hot-reload); the 3-symbol host↔cart boundary, why Wasmer clang/WASIX won't do graphics, native goal vs. browser goal
 │   ├── audio-notes.md   sound HUB: current surface map (§2), parameter placement (§4), §12 instrument gaps, §13 SCWs-vs-engines, §14 Roland machine readiness — tops with the audio-family index ("where does an audio idea go?")
-│   ├── instrument-engines.md  the navkit rich-instrument port program (was audio-notes §8 — numbering preserved): 3-macro discipline §8.1.1, phase ordering §8.5, shipping playbook §8.8.2, §8.9 candidate engine catalog, §8.10 effects layer
+│   ├── instrument-engines.md  the navkit rich-instrument port program (was audio-notes §8 — numbering preserved): 3-macro discipline §8.1.1, phase ordering §8.5, shipping playbook §8.8.2, §8.9 candidate engine catalog, §8.10 effects layer (+ §8.10.1 PARKED interim items)
+│   ├── stereo.md         SPEC (design call ahead of build): resolves §9 "Stereo?" — instrument_pan/note_pan + LFO_PAN, linear pan law (center byte-identical), echo mono in v1; the §8.10 effects-layer prerequisite + a pre-flight bite checklist
 │   ├── future-stations.md  the radio-station candidates parking lot (was game-music's "Future stations"): ranked candidates, the citypop conditions, new-brains-per-cart axis, IDM + functional-music wings
 │   ├── radio-instrument-options.md  per-station timbre swaps / engine retrofits, ranked per engine (mallet → lowend's vibraphone, etc.)
 │   ├── held-notes.md    SHIPPED spec: note_on/note_off handles + live note_pitch/vol/cutoff/duty + slew — the sustain layer the instruments ride on

@@ -1208,7 +1208,8 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > the lone existing bus); **`reverb` is the second and last** admitted bus, and §8.10's "begin
 > small" first bite (master reverb + formalizing the bus concept). Next *sound* feature per
 > [STATUS §5](../STATUS.md) is **`INSTR_ORGAN` (dry, buffer-free)** — the effects layer opens
-> *after* it. Stereo (§9) is the real prerequisite for this whole layer.
+> *after* it. Stereo (§9) is the real prerequisite for this whole layer — **specced in
+[`stereo.md`](stereo.md)** (API + linear pan law + the bite checklist + build order).
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first
 > engines ship) — begin small. The Leslie (§8.3/§8.8) is the first instance and sets the pattern.

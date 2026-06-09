@@ -29,14 +29,19 @@ Canonical state lives in the docs below — don't duplicate it here, update thos
 
 ## Start here next session
 
-The continuous-excitation family (reed, pipe) and the modal families (mallet, membrane, epiano)
-are done. Two things remain on the roadmap, in order:
+The continuous-excitation family (reed, pipe), the modal families (mallet, membrane, epiano), AND
+the buffered string pair are now done. What remains, in order:
 
-1. **The buffered acoustic pair — `INSTR_PIANO` (StifKarp) / `INSTR_GUITAR` / `INSTR_HARP`**
-   (§8.5 step 9 tail). The *genuinely buffered* engines — piano's `ks2Buffer[2048]` second string,
-   guitar's KS string + body resonator — on the pluck-validated path. **This is the next engine.**
-   navkit cribs: `processStifKarpOscillator` / `processGuitarOscillator` (§8.7).
-   - **Bowed (violin/cello) — re-examine; the "unstable" verdict was over-read** (2026-06-09 lit
+1. **The buffered acoustic pair — `INSTR_GUITAR` (26) + `INSTR_PIANO` (27) — SHIPPED 2026-06-09.**
+   Guitar = Karplus-Strong + body resonator; piano = a **verbatim** StifKarp port (near-lossless
+   string, 6 voicings grand→celesta, dispersion, soundboard, detuned 2nd string, brightness bloom).
+   The verbatim port was the key lesson: param-matching navkit wasn't enough, the DSP had to be
+   line-for-line (the harpsichord then matched navkit's render). Pizzicato = a short-mute guitar
+   preset; clavinet stays an EPiano position (`WAVE_EPIANO`, not a string engine). Design + journey:
+   [`instrument-engines.md`](instrument-engines.md) §8.8.9. **`HARP` folded into `GUITAR`** (a preset,
+   like Rhodes/Wurli/Clav fold into EPiano). Tuning scaffolding `eng_tune()` (weight/attack) is live
+   on the showcase carts — EXPERIMENTAL, bake-to-constants-and-retire when the values lock.
+   - **Bowed (violin/cello) — still the remaining string engine; re-examine, the "unstable" verdict was over-read** (2026-06-09 lit
      check). STEP-0 rejected navkit's bowed off one render (erratic envelope, crest 12.6 vs a clean
      voice's ~2–5), but the DSP literature says that's the signature of bowing *outside the Schelleng
      wedge* (too little force → double-slip "surface sound"; too much → raucous crunch) — a

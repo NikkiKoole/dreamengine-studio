@@ -136,6 +136,10 @@ eventually2/
 │   ├── lint-carts.js   #   validate index.json: every cart tagged (kind[] from the
 │   │                   #   vocabulary, genre required for games) + every .cart.png
 │   │                   #   registered. Owns the tag vocabulary; run after adding carts
+│   ├── cart-status.js  #   what's out of date: thumbnails whose EMBEDDED de:source !=
+│   │                   #   tools/carts/<name>.c (need rebake), carts with no site/<name>/
+│   │                   #   (need publish), + stale-published (source newer than the site
+│   │                   #   build, git-time). --quiet exits 1 if anything pending; --json
 │   ├── lint-docs.js    #   validate docs/ cross-references: relative .md links resolve
 │   │                   #   + doc-qualified §-refs ("audio-notes §8.9") hit a real
 │   │                   #   heading (resolving via a split-stub/parent = soft note, not

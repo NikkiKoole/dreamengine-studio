@@ -4,21 +4,33 @@ A fantasy console / learning programming environment. Write C, hit run, get a na
 
 ## Git — NEVER branch; commit on the current branch
 
-**Do not create or switch git branches. Ever — even when committing would normally warrant a branch.** Commit directly to the current branch (normally `master`): just `git add` + `git commit`. No `git checkout -b`, no `git switch -c`, no feature/PR branches.
+**Do not create or switch git branches. Ever — even when committing would normally warrant a branch.** Commit directly to the current branch (normally `master`). **Always commit by explicit pathspec** — `git add <your files>` then `git commit -m "…" -- <the same files>` — never a bare `git commit` (see hazard 1 below). No `git checkout -b`, no `git switch -c`, no feature/PR branches.
 
 Why: **multiple agents work in parallel on the same branch.** If any agent creates or switches branches, the others get confused and lose their place. Merge conflicts are rare in practice because work is naturally isolated per cart (each task touches separate files). This rule **overrides** the usual "branch before committing on the default branch" default.
 
 Two parallel-agent commit hazards (both have bitten):
 
 1. **The git index is shared.** Another agent may have files *staged* while you work; a bare
-   `git commit` after your `git add` sweeps their staged WIP into your commit. Before every
-   commit: `git diff --cached --name-only` and confirm the list is exactly your files
-   (unstage strays with `git restore --staged <file>`).
+   `git commit` after your `git add` sweeps their staged WIP into your commit. **Fix: commit
+   by explicit pathspec.** `git add <your files>` then `git commit -m "…" -- <the same files>`
+   commits ONLY those paths and leaves any foreign staged files staged & untouched (no reset,
+   no data loss — verified). Rules that make it reliable:
+   - **List EVERY file your change touches** (`.c` + `index.json` + `.cart.png` + docs). Pathspec
+     commits only what you name — miss one and you ship a broken partial commit. Completeness
+     is on you.
+   - **`git add` first, always** — pathspec can't commit a new *untracked* file on its own; it's
+     silently omitted (the commit still succeeds). The `add` stages new files; the `-- <paths>`
+     is the safety net that ignores everything else in the index.
+   - **Exact filenames, never a directory/glob** (`git commit -- editor/` re-sweeps foreign
+     changes under it). And `-m` goes *before* `--` (a flag after the path is parsed as a pathspec).
+   - Backstop: still `git diff --cached --name-only` before committing if unsure; but the
+     pathspec form means a stray staged file can't reach your commit even if you don't.
 2. **Shared registry files** (`editor/public/carts/index.json` is the big one) often carry
-   another agent's uncommitted entries. Don't commit the whole file blindly — their entries
-   may reference cart files that aren't committed yet (broken refs). If the file is dirty
-   with foreign edits: stash your working copy, `git checkout HEAD -- <file>`, splice in
-   ONLY your entry, commit, then restore the working copy.
+   another agent's uncommitted entries. **Pathspec commit does NOT save you here** — it commits
+   the current working-tree version of the shared file, foreign edits and all. Don't commit the
+   whole file blindly — their entries may reference cart files that aren't committed yet (broken
+   refs). If the file is dirty with foreign edits: stash your working copy, `git checkout HEAD --
+   <file>`, splice in ONLY your entry, commit (by pathspec), then restore the working copy.
 
 ## Running the editor
 

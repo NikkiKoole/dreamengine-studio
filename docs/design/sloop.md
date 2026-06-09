@@ -202,9 +202,10 @@ case that genuinely needs the toggle.
   Muscle "overheats" the driver (= stamina); electric stays cool.
 
 **Rung placement** (2.6 was taken by the drivetrain/drive-wheel work — see the build log):
-- **Rung 2.7 — engine delivery curves + sub-kinds** (electric / gas / diesel / steam /
-  nuclear). Pure drive-core feel, no fuel yet (engines just always have power); the curves
-  *are* the deliverable. The natural sibling of the rung-1.95 handling levers.
+- **Rung 2.7 — engine powerband + transmission** (electric / gas / diesel / steam /
+  nuclear curves **+ gears**, see §1b). Pure drive-core feel, no fuel yet (engines just
+  always have power); the powerband + gears are the deliverable, and gears decouple
+  reverse from the brake. The natural sibling of the rung-1.95 handling levers.
 - **Rung 2.8 — muscle engines** (foot/hand crank): the `THR_IMPULSE` interface + a stamina
   meter. Self-contained; could even ship before 2.7 as the "starter rig."
 - **Rung 6 — sources as the clock**: battery / tank / firebox parts, fuel burn, range,
@@ -234,6 +235,70 @@ case that genuinely needs the toggle.
 > dead in ~0.16 s. Plus a **reverse dwell**: the brake key flips to reverse only after the
 > rig has been stopped (`REV_DWELL` frames at ~0) and then *latches* — so a hard stop LANDS
 > firmly before backing up, instead of mushily creeping into reverse at `vf ≤ 5`.
+
+### 1b. Transmission & gears — the layer between engine and wheels
+
+The missing piece between §1a's engine and the wheels. A gearbox trades **torque ↔ speed**
+via a ratio, and — crucially for *feel* — gives the engine an **RPM** that rises within a
+gear and drops on a shift (the satisfying part, both to drive and to hear). It also fixes
+the unrealistic "↓ = brake **and** reverse at once": **reverse is a gear**, not a function
+of the brake pedal.
+
+**The honest model** (extends §1a's `delivery(kind,u)` — `u` becomes per-gear RPM, not
+absolute speed):
+
+```
+rpm        = clamp(|vf| · ratio[gear] / V_REF, 0, 1.1)   // wheel speed → engine revs
+torqueMul  = band(rpm)                                    // the powerband: low at idle,
+                                                          //   peak mid, falls past redline
+thrust     = engine_power · throttle · torqueMul · ratio[gear]   // low gear = high ratio
+                                                          //   = more thrust, revs climb fast
+```
+Low gear → big `ratio` → lots of thrust but `rpm` hits redline early → **low top speed, fast
+accel**. High gear → small `ratio` → less thrust, **high top speed**. So *each gear has its
+own top speed*, and you climb through them — top speed = thrust/drag, now gear-gated.
+
+**Transmission types** (the player's list — tied to the engine kind, the natural fit):
+
+| Type | Who | Behaviour |
+|---|---|---|
+| **single (direct drive)** | **electric** (1 gear, as you said), karts, the muscle/crank rigs | one ratio, no shifting; `rpm` ∝ speed directly. Electric's flat torque means it just *goes* — no powerband to manage. Simplest + the reason EVs feel effortless |
+| **automatic** | most combustion road rigs | shifts for you: up when `rpm > ~0.85`, down when `rpm < ~0.3`. Hold the gas; the box keeps you in band. Sound auto-drops on each shift |
+| **manual ×N** | sportier/heavier rigs | you shift up/down (two keys). Keep it in the band yourself; **a wrong gear bites** (below) — the skill/risk option |
+
+**Wrong gear bites (manual)** — the "putting it in the wrong gear causes stuff" you want:
+- **Lugging** (too-high gear, low speed): `rpm` below the band → `torqueMul` tiny → bogs, barely pulls. Drop deep enough under load → **stall** (engine cuts, you coast; restart cost — or, friendlier, just bogs to a crawl. Open: how punishing?).
+- **Over-rev** (too-low gear, high speed): `rpm` past redline → `torqueMul → 0` (rev limiter), harsh sound, no more accel; held there → engine **damage** (ties to rung-4 engine HP).
+
+**Reverse = a gear (R).** Selecting reverse (shift below 1st / a dedicated press) lets the
+gas drive you backward; the **foot brake (`X`/`↓`) goes back to being pure deceleration**,
+always. This removes the brake/reverse conflation cleanly. (Automatic may still auto-pick R
+from a standstill; manual makes it explicit.)
+
+**Sound — the satisfying bit.** Engine pitch tracks `rpm`: it *climbs* as you accelerate in
+a gear, then **drops on each upshift** (the classic "waaah-waaah" gear-change), climbs again.
+Distinct per engine kind (electric whine that just rises and holds; combustion growl that
+steps). Maps `rpm → midi` for the engine voice — far more alive than today's
+`hit(28 + spd·0.12, …)` flat ramp.
+
+**Controls:** manual needs **two shift keys** (up/down) on top of gas/brake/steer/handbrake
+— e.g. a shoulder pair, or `Q`/`E`. Automatic + single need none. BUILD shows the gear
+count + a live tach (RPM bar) so you can feel the band before driving.
+
+**Open forks (decide before building):**
+- **Where does the transmission live?** (a) a **property of the engine kind** (electric =
+  single, combustion = auto-or-manual) — simplest, fewest parts, and matches "EVs have 1
+  gear"; (b) an explicit **gearbox part** you bolt on (pick type + gear count) — most
+  build-ethos but the most UI; (c) a **global rig setting** cycled in BUILD. Lean (a) for
+  MVP, revisit (b) when the part vocabulary justifies it.
+- **Stall punishment:** full stall + restart (realistic, punishing) vs bog-to-a-crawl
+  (forgiving). Probably forgiving for MVP.
+
+**Rung placement:** gears are the same subsystem as §1a's powerband (`delivery`/`band`) —
+build them **together at rung 2.7** (rename it "engine powerband + transmission"), since a
+powerband only matters if you can shift to stay in it, and gears only matter if there's a
+band to chase. The reverse-as-gear decoupling lands here too. Muscle (2.8) and fuel/sources
+(rung 6) are unaffected.
 
 ### 2. Fuel & range (the clock)
 
@@ -386,6 +451,7 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ✅ |
 | **Unsupported cells scrape** | a cell cantilevered past the wheel span drags on the floor: extra drag + lateral anchor + off-centre yaw, with sparks/heat/grind. Wheels become *spatial*, not a scalar; wheel-spam costs mass+drag, too few wheels drags | 2.5 | ✅ |
 | **Engine delivery curve** | how power comes on with speed: electric flat (snappy), gas revvy (mid-range band), diesel low-end grunt, steam spool-up. One `delivery(kind,u)` curve; see §1a | 2.7 | ⬜ |
+| **Transmission / gears** | a gear ratio trades torque ↔ top speed; RPM rises in a gear, drops on a shift. single (electric/EV = 1 gear) / automatic / manual×N (wrong gear lugs or over-revs). Reverse becomes a gear, not a brake function. Engine pitch tracks RPM (the satisfying sound). See §1b | 2.7 | ⬜ |
 | **Muscle throttle (stamina + rhythm)** | foot/hand crank: each press = one stroke (`THR_IMPULSE`), gated by a stamina meter; the no-fuel starter rig. See §1a | 2.8 | ⬜ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
 | **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |

@@ -1072,3 +1072,17 @@ by the centre channel, and a ball riding the engaged gear. R glows orange when y
 enough to drop into it — so "how do I reverse?" answers itself. The upper/lower tap zones still
 shift up/down (tiny E/Q key hints kept in the corners). In **AUTO / 1-GEAR** the gate is
 `FILL_CHECKER`-dithered (the box auto-manages the gears, so manual shifting isn't "yours").
+
+### Engine sound — one sustained voice, not a beep (2026-06-09)
+
+The old engine note was a `hit(30 + rpm·30, INSTR_SAW, …)` re-triggered every 80 ms — the
+PC-speaker buzz — and it only played *under throttle* (idle/creep was silent). Replaced with a
+single **held voice** (`note_on`, `INSTR_ENGINE` = a saw through a resonant `FILTER_LOW`)
+driven live every frame: `note_pitch` tracks the revs over a low range (idle ~24, redline ~52
+MIDI) with a 70 ms glide (so it climbs in a gear and **drops on each upshift** for free),
+`note_cutoff` opens the filter with revs + throttle (muffled at idle, bright under power),
+`note_vol` sits lower at idle/creep than on the gas, and an `LFO_VOLUME` tremolo gives the
+engine **throb**. It plays the whole time the engine runs — so idle/creep now has its low
+rumble — and `note_off`s on stall / key-off / pause / BUILD. Verified by rendering WAVs:
+idle is a steady ~0.040 RMS (was silent), gas ~0.066 and brighter, no clipping, low crest
+(a continuous tone, not a beep train). Transients (shift clunk, skid, scrape) stay one-shots.

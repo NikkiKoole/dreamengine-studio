@@ -306,7 +306,7 @@ static float ang, angVel;         // heading (deg, 0 = facing +x / east) + spin
 
 static float cam_x, cam_y;
 static float lead_x, lead_y;      // low-passed camera lead (smooth, no curb jitter)
-static float t_eng_snd, t_skid_snd, t_scrape_snd;
+static float t_skid_snd, t_scrape_snd;
 static int   is_paused;
 static float wheel_ang;           // eased steering-wheel angle (deg) for the cockpit dial
 
@@ -839,14 +839,10 @@ static void update_drive(float dt_) {
     wheel_ang = lerp(wheel_ang, (float)in_steer * 26.0f, 0.22f);
 
     // --- sound -----------------------------------------------------------------
+    // The engine itself is ONE sustained voice driven live (see engine_sound() in
+    // update) — not a re-triggered beep. Here we only fire the transient one-shots.
     float spd = fsqrt(vx * vx + vy * vy);
     if (shift_snd) { hit(40, INSTR_NOISE, 2, 45); shift_snd = 0; }   // gear-change clunk
-    if (in_gas && engine_on) {
-        // engine note tracks RPM: climbs within a gear, DROPS on each upshift (the
-        // satisfying gear-change), climbs again. (rpm resets per gear; spd would not.)
-        t_eng_snd -= dt_;
-        if (t_eng_snd <= 0) { hit(30 + (int)(rpm * 30.0f), INSTR_SAW, 3, 90); t_eng_snd = 0.08f; }
-    }
     if (af(vl) > 35) {                               // tires scrubbing sideways
         t_skid_snd -= dt_;
         if (t_skid_snd <= 0) { hit(54, INSTR_NOISE, 2, 70); t_skid_snd = 0.05f; }
@@ -870,8 +866,38 @@ static void update_drive(float dt_) {
         }
 }
 
+// ── engine audio: ONE sustained voice, driven live ───────────────────────────
+// A re-triggered hit() every 80ms is the PC-speaker buzz. Instead we hold a single
+// note and steer it: a saw through a resonant lowpass (the muffled body), pitch
+// tracking the revs (so it climbs in a gear and drops on each upshift), the filter
+// opening as you rev/throttle (bright under power, muffled at idle), and a tremolo
+// for the engine throb. It plays the whole time the engine runs — including the low
+// idle/creep rumble — and stops (note_off) when it stalls, keys off, or you pause.
+#define INSTR_ENGINE 9
+static int eng_voice = -1;
+
+static void engine_sound_init(void) {
+    instrument(INSTR_ENGINE, INSTR_SAW, 40, 0, 7, 250);        // a held drone (full sustain)
+    instrument_filter(INSTR_ENGINE, FILTER_LOW, 350, 7);       // muffled + a little resonant growl
+    instrument_lfo(INSTR_ENGINE, 0, LFO_VOLUME, 9.0f, 0.4f);   // the throb
+}
+static void engine_sound(int audible) {
+    if (!audible) { if (eng_voice >= 0) { note_off(eng_voice); eng_voice = -1; } return; }
+    float r     = clamp(rpm, 0, 1.0f);
+    float pitch = 24.0f + r * 28.0f;                           // low; idle ~24, redline ~52
+    int   vol   = in_gas ? 5 : 3;                              // idle/creep quieter than under power
+    int   cut   = 220 + (int)((r * 0.75f + (in_gas ? 0.25f : 0.0f)) * 1500);  // opens with revs/throttle
+    if (eng_voice < 0) { eng_voice = note_on((int)pitch, INSTR_ENGINE, vol); note_glide(eng_voice, 70); }
+    note_pitch (eng_voice, pitch);                             // glided → smooth rev tracking
+    note_vol   (eng_voice, vol);
+    note_cutoff(eng_voice, cut);
+}
+
 void update(void) {
+    static int snd_ready = 0;
+    if (!snd_ready) { engine_sound_init(); snd_ready = 1; }
     handle_input();
+    engine_sound(mode == MODE_DRIVE && !is_paused && engine_on);   // every frame (also kills it in BUILD/pause)
     if (mode == MODE_BUILD || is_paused) return;   // BUILD pauses the simulation
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
     update_drive(dt_);

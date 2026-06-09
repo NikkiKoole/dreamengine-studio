@@ -194,7 +194,7 @@ static int   nHull;
 static float stabL, stabR;        // lateral reach of the hull from the COM (left/right) — BUILD readout
 
 // ── tuning ───────────────────────────────────────────────────────────────────
-#define ENGINE_POWER  850.0f      // forward force per engine. LOW (vs drag, also low) so accel
+#define ENGINE_POWER  1180.0f     // forward force per engine. LOW (vs drag, also low) so accel
                                   // is gentle and the climb to top speed takes several seconds —
                                   // that's what lets you DWELL in each gear (off in 1st, build
                                   // 2nd, cruise 3rd/4th) instead of blasting to top in a blink.
@@ -224,8 +224,9 @@ static float stabL, stabR;        // lateral reach of the hull from the COM (lef
 // band to manage). Reverse is a GEAR (0), so the brake is pure deceleration.
 enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define NGEAR         5           // forward gears (AUTO/MANUAL)
-#define V_REF         200.0f      // speed (px/s) where a ratio-1.0 gear hits redline
-#define REV_RATIO     2.2f        // reverse gear ratio (torquey, low top)
+#define V_REF         135.0f      // speed (px/s) where a ratio-1.0 gear hits redline (absorbs
+                                  // the real final-drive ~3.6 + wheel size + px↔world units)
+#define REV_RATIO     3.50f       // reverse ≈ 1st gear (real gearboxes share the ratio)
 #define SINGLE_RATIO  0.95f       // the one direct-drive ratio (electric): flat, strong, no band
 #define AUTO_UP       0.90f       // AUTO upshifts above this rpm (revs high → you HEAR the gear)
 #define AUTO_DOWN     0.42f       // AUTO downshifts below this rpm
@@ -291,9 +292,11 @@ static int sel_part = P_WHEEL;    // palette selection; P_NONE = the eraser
 
 static float af(float v) { return v < 0 ? -v : v; }
 
-// gear ratios, 1st→top. Each gear's redline speed (V_REF/ratio) steps UP so every gear
-// out-tops the last (1st ≈42 → 5th drag-limited ≈100); high ratio = torque, low = speed.
-static const float GEAR_RATIO[NGEAR] = { 2.6f, 2.0f, 1.53f, 1.22f, 1.0f };
+// gear ratios — a real Getrag/Muncie 5-speed (3.50/2.05/1.38/0.94/0.72, final drive ~3.6
+// folded into V_REF + ENGINE_POWER). 1st is a low torque gear, 4th ≈ direct (1.0), 5th an
+// overdrive (<1). Spacing is PROGRESSIVE (big drop 1→2, gears close up top) — exactly the
+// real-world "staged" pattern. Each gear's redline speed (V_REF/ratio) still steps up.
+static const float GEAR_RATIO[NGEAR] = { 3.50f, 2.05f, 1.38f, 0.94f, 0.72f };
 
 // the powerband: torque factor vs normalised RPM. Broad/flat across the usable range so
 // the tall top gear can still pull, a gentle idle lug, then a hard rev-limiter cut past
@@ -614,7 +617,10 @@ static void update_drive(float dt_) {
                 : (gear == 0) ? REV_RATIO : GEAR_RATIO[gear - 1];
     float gdir  = (gear == 0) ? -1.0f : 1.0f;
     rpm = clamp(af(vf) * ratio / V_REF, 0, 1.15f);
-    float gmul = (trans_mode == TR_SINGLE) ? SINGLE_RATIO : powerband(rpm) * ratio;
+    // SINGLE (electric): instant flat torque that just tapers toward the motor's max revs —
+    // no powerband to chase, snappy off the line, moderate top (the single-speed EV trade).
+    float gmul = (trans_mode == TR_SINGLE) ? SINGLE_RATIO * clamp(1.15f - 0.6f * rpm, 0.2f, 1.15f)
+                                           : powerband(rpm) * ratio;
 
     // --- engine: thrust through the gear, + the yaw torque from an off-centre engine
     float throttle = in_gas ? 1.0f : 0.0f;           // gas drives in the gear's direction

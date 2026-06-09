@@ -901,3 +901,26 @@ yet but the number is now meaningful against them (groundwork for rung 3 "speedi
 And **city streets are one-way** — no yellow centre line (two-way) like town/rural; the
 centre dash is gated out of `Z_CITY`, so the city reads as a tight one-way grid and town
 now matches rural's two-way treatment.
+
+### Gear ratios grounded in real data (2026-06-09)
+
+The first-cut gear ratios were eyeballed. Looked up real 5-speed manuals and replaced them:
+a **Getrag/Muncie set — 3.50 / 2.05 / 1.38 / 0.94 / 0.72** (final drive ~3.6, folded into
+`V_REF` + `ENGINE_POWER`). The real pattern our guess missed: 1st should be a *low* torque
+gear (~3.5, not 2.6), 4th ≈ direct (1.0), **5th an overdrive (<1, ~0.72)** — and the spacing
+is **progressive** (big drop 1→2, gears close up top), the "staged" factory pattern. Only
+our old 2nd (2.0 ≈ 2.05) had been right.
+
+- Re-derived the scale knobs to keep the feel: `V_REF` 200→135 (so the overdrive top gear
+  redlines just above top speed), `ENGINE_POWER` 850→1180 (compensates the lower top-gear
+  ratio). Reverse = 1st (3.50), as real boxes share it.
+- Verified: AUTO climbs through all five, top ~159 px/s ≈ **114 km/h** (just under the SUPER
+  120 sign); low gears are brief (real), you dwell in the overdrive 4th/5th.
+- **SINGLE (electric)** retuned for the now-lower drag: instead of flat torque (which ran
+  away to ~250 px/s) it's flat torque *tapering toward the motor's max revs* (`SINGLE_RATIO ·
+  clamp(1.15 − 0.6·rpm)`) — snappy launch, no shifting, moderate top ~118 px/s ≈ 85 km/h (the
+  single-speed EV trade: you sacrifice top end). Reverse/tipping/braking unaffected.
+
+Sources: [5speeds.com — wide vs close ratios](https://5speeds.com/ratios.html),
+[OnAllCylinders — GM/Chevy manual gear-ratio charts](https://www.onallcylinders.com/2017/10/27/manual-transmission-gear-ratio-chart-for-gmchevy-vehicles/),
+[Transmission Digest — manual transmission theory](https://www.transmissiondigest.com/manual-transmission-theory-back-to-basics/).

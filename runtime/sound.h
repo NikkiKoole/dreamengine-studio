@@ -242,6 +242,21 @@ typedef struct {
     float  pn_ks2_last, pn_ks2_apc, pn_ks2_aps;
     float  pn_ks2_disp[4];              // 2nd string dispersion states (reuses pn_disp_c coeffs)
     bool   pn_on;                       // note-on init guard
+    // bowed state (INSTR_BOWED): navkit's Smith/McIntyre bowed-string waveguide (line-for-line port).
+    // Two delay lines meet at the bow contact point — PACKED into ks_buf (distinct wave id, never
+    // shares a voice with the Karplus/reed/pipe paths): nut half = ks_buf[0..bw_nutlen), bridge half
+    // = ks_buf[bw_nutlen..bw_nutlen+bw_brlen). A hyperbolic stick-slip friction re-excites the
+    // string → self-oscillation; held like reed/pipe. STEP-0 (navkit-bowsweep.c) found the Helmholtz
+    // wedge — the macros are pinned inside it: harmonics = bow position β (note-on split), timbre =
+    // bow pressure (0.15–0.42, the narrow axis), morph = bow velocity/swell (wider wedge as it grows).
+    int    bw_nutlen, bw_brlen;         // delay-line split lengths (sum = full wavelength, ≤ KS_MAX-1)
+    int    bw_nutidx, bw_bridx;         // write indices within each half (bridge offset by bw_nutlen)
+    float  bw_nutrefl, bw_brrefl;       // reflection-filter states (nut end / bridge end)
+    float  bw_initfreq;                 // freq at note-on (bore sized for it; pitch tracking glides off it)
+    float  bw_vib_ph, bw_drift_ph, bw_drift, bw_noise_lp;  // humanized pitch-vibrato + bow-noise (rosin) + drift
+    int    bw_attack;                   // bow-bite onset samples (the catch at note start)
+    float  bw_dc_prev, bw_dc_state;     // output DC blocker (steady bow drives a large DC)
+    bool   bw_on;                       // note-on init guard
     // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
@@ -1292,6 +1307,129 @@ static inline float sound_pipe_sample(Voice *v, float pitch_mul) {
     return dc * 2.0f;
 }
 
+// ── INSTR_BOWED: bowed string (navkit processBowedOscillator / initBowed, line-for-line) ──
+// BOWED note-on: size the string (full wavelength = nut + bridge halves), SPLIT it at the bow
+// contact point β (from harmonics), and seed both halves with tiny noise so the friction loop
+// starts. REUSES ks_buf packed as two sub-range circular buffers (distinct wave id — never
+// collides with the Karplus/reed/pipe paths on a voice). Mirrors navkit's initBowed exactly,
+// except β comes from the harmonics macro (mapped into the wedge) instead of a fixed preset.
+static void sound_bowed_start(Voice *v) {
+    float f = v->freq; if (f < 20.0f) f = 20.0f;
+    int totalLen = (int)((float)SOUND_SAMPLE_RATE / f);     // full wavelength (bow→nut + bow→bridge)
+    if (totalLen > SOUND_KS_MAX - 1) totalLen = SOUND_KS_MAX - 1;
+    if (totalLen < 4) totalLen = 4;
+    // harmonics = bow position β (sul ponticello → tasto). STEP-0 wedge: 0.05–0.25 all lock.
+    float pos = 0.05f + v->harm * 0.20f;
+    if (pos < 0.05f) pos = 0.05f; else if (pos > 0.95f) pos = 0.95f;   // navkit's clamp
+    int nutLen = (int)(totalLen * pos);
+    int brLen  = totalLen - nutLen;
+    if (nutLen < 2) nutLen = 2;
+    if (brLen  < 2) brLen  = 2;
+    if (nutLen > SOUND_KS_MAX - 3) nutLen = SOUND_KS_MAX - 3;          // leave room for the bridge half
+    if (nutLen + brLen > SOUND_KS_MAX) brLen = SOUND_KS_MAX - nutLen;
+    v->bw_nutlen = nutLen; v->bw_brlen = brLen;
+    v->bw_nutidx = 0; v->bw_bridx = 0;
+    v->bw_nutrefl = 0.0f; v->bw_brrefl = 0.0f;
+    // seed both halves with tiny noise (navkit's noise()*0.005 startup)
+    for (int i = 0; i < nutLen; i++) {
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        v->ks_buf[i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.005f;
+    }
+    for (int i = 0; i < brLen; i++) {
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        v->ks_buf[nutLen + i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.005f;
+    }
+    v->bw_initfreq = f;
+    v->bw_vib_ph = v->bw_drift_ph = v->bw_drift = v->bw_noise_lp = 0.0f;
+    v->bw_dc_prev = v->bw_dc_state = 0.0f;
+    v->bw_attack = (int)(0.030f * (float)SOUND_SAMPLE_RATE);   // ~30ms bow-bite catch at onset
+    v->bw_on = true;
+}
+
+// One BOWED sample: navkit's processBowedOscillator verbatim. Two fractional-delay reads (nut +
+// bridge) sum to the string velocity at the bow; the differential bow↔string velocity drives a
+// hyperbolic stick-slip friction (f = pres·dv·exp(-pres·dv²)) that re-excites both halves. The
+// reflections (inverted + lossy LP at each end) close the loop → self-oscillation. Macros are
+// pinned INSIDE the STEP-0 Helmholtz wedge (navkit-bowsweep.c): timbre = bow PRESSURE (low =
+// clean leaning-sawtooth, high = scratchy surface — the narrow axis), morph = bow VELOCITY/swell
+// (louder + wider wedge as it grows). Realism navkit omits (else it reads as a synth saw): a
+// humanized PITCH vibrato (a violinist's left hand), light bow-NOISE on the velocity (rosin
+// texture), and a brief attack BITE. Pitch tracks freq*pitch_mul like reed/pipe (§8.8.1).
+static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
+    if (!v->bw_on || v->bw_nutlen <= 0 || v->bw_brlen <= 0) return 0.0f;   // engine id w/o note-on
+    const float TWO_PI = 6.2831853f;
+    const float SR = (float)SOUND_SAMPLE_RATE;
+    // macros → physical params, pinned inside the wedge
+    float pressure = 0.15f + v->timb * 0.27f;              // timbre = bow pressure [0.15,0.42]
+    float bowSpeed = 0.30f + v->mor  * 0.60f;              // morph = bow speed [0.30,0.90]
+    float velocity = bowSpeed * 0.2f;                      // navkit's physical-range scale
+    // HUMANIZED pitch vibrato — wandering rate/depth, lives in PITCH (like a real bowed string)
+    v->bw_drift_ph += 0.6f / SR; if (v->bw_drift_ph >= 1.0f) v->bw_drift_ph -= 1.0f;
+    float wob = sinf(v->bw_drift_ph * TWO_PI);
+    v->bw_vib_ph += (5.3f + 0.8f * wob) / SR; if (v->bw_vib_ph >= 1.0f) v->bw_vib_ph -= 1.0f;
+    float vib = sinf(v->bw_vib_ph * TWO_PI) * (0.6f + 0.4f * wob);
+    // bow noise (rosin grip texture) + a slow drift on the bow speed — navkit omits both
+    v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+    float wn = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+    v->bw_noise_lp += 0.5f * (wn - v->bw_noise_lp);
+    v->bw_drift += 0.0006f * (wn - v->bw_drift);
+    velocity += velocity * (0.03f * v->bw_noise_lp + 0.05f * v->bw_drift);
+    if (v->bw_attack > 0) {                                // the bow catch: a stronger bite at onset
+        velocity += velocity * 0.5f * (float)v->bw_attack / (0.030f * SR);
+        v->bw_attack--;
+    }
+    // pitch tracking: read length scales by initfreq/curf (arp/glide/pitch-LFO all bend it)
+    float curf = v->freq * pitch_mul * (1.0f + vib * 0.009f); if (curf < 20.0f) curf = 20.0f;
+    float ratio = curf / (v->bw_initfreq > 20.0f ? v->bw_initfreq : 20.0f);
+    if (ratio < 0.25f) ratio = 0.25f; if (ratio > 4.0f) ratio = 4.0f;
+    // nut-side fractional read (ks_buf[0..nutlen))
+    float nutEffLen = (float)v->bw_nutlen / ratio;
+    if (nutEffLen < 2.0f) nutEffLen = 2.0f;
+    if (nutEffLen > (float)v->bw_nutlen) nutEffLen = (float)v->bw_nutlen;
+    float nutReadPos = (float)v->bw_nutidx - nutEffLen;
+    while (nutReadPos < 0.0f) nutReadPos += (float)v->bw_nutlen;
+    int n0 = (int)nutReadPos; if (n0 >= v->bw_nutlen) n0 -= v->bw_nutlen;
+    int n1 = (n0 + 1 < v->bw_nutlen) ? n0 + 1 : 0;
+    float nfr = nutReadPos - floorf(nutReadPos);
+    float nutReturn = v->ks_buf[n0] + nfr * (v->ks_buf[n1] - v->ks_buf[n0]);
+    // bridge-side fractional read (ks_buf[nutlen..nutlen+brlen)), base-offset into the packed buffer
+    int base = v->bw_nutlen;
+    float brEffLen = (float)v->bw_brlen / ratio;
+    if (brEffLen < 2.0f) brEffLen = 2.0f;
+    if (brEffLen > (float)v->bw_brlen) brEffLen = (float)v->bw_brlen;
+    float brReadPos = (float)v->bw_bridx - brEffLen;
+    while (brReadPos < 0.0f) brReadPos += (float)v->bw_brlen;
+    int b0 = (int)brReadPos; if (b0 >= v->bw_brlen) b0 -= v->bw_brlen;
+    int b1 = (b0 + 1 < v->bw_brlen) ? b0 + 1 : 0;
+    float bfr = brReadPos - floorf(brReadPos);
+    float bridgeReturn = v->ks_buf[base + b0] + bfr * (v->ks_buf[base + b1] - v->ks_buf[base + b0]);
+    // string velocity at the bow = sum of the returning traveling waves
+    float vStringAtBow = nutReturn + bridgeReturn;
+    float deltaV = velocity - vStringAtBow;
+    // Smith hyperbolic stick-slip friction: linear at small dv (stick), falls off (slip)
+    float pres = pressure * 5.0f + 0.5f;
+    float friction = pres * deltaV * expf(-pres * deltaV * deltaV);
+    // outgoing waves from the bow point toward each end
+    float toNut = bridgeReturn + friction;
+    float toBridge = nutReturn + friction;
+    // nut-end reflection: fixed end → invert + one-pole LP (stiffness loss)
+    float nutReflected = -toNut;
+    v->bw_nutrefl = v->bw_nutrefl * 0.35f + nutReflected * 0.65f;
+    // bridge-end reflection: invert + loss + stronger LP
+    float bridgeReflected = -toBridge * 0.995f;
+    v->bw_brrefl = v->bw_brrefl * 0.15f + bridgeReflected * 0.85f;
+    // write the reflected waves back at the current write indices (read again after a round-trip)
+    v->ks_buf[v->bw_nutidx]    = v->bw_nutrefl;
+    v->ks_buf[base + v->bw_bridx] = v->bw_brrefl;
+    v->bw_nutidx = (v->bw_nutidx + 1) % v->bw_nutlen;
+    v->bw_bridx  = (v->bw_bridx  + 1) % v->bw_brlen;
+    // output: bridge-side signal (what the body radiates), DC-blocked + makeup gain
+    float out = toBridge * 0.8f;
+    float dc  = out - v->bw_dc_prev + 0.995f * v->bw_dc_state;
+    v->bw_dc_prev = out; v->bw_dc_state = dc;
+    return dc * 3.0f;
+}
+
 // ── INSTR_VOICE: formant voice (navkit VoicForm port; vowels-only for the voxlab prototype) ──
 // A glottal source (Rosenberg polynomial pulse + aspiration breath) through four parallel SVF
 // formant filters whose centre frequencies trace a continuous vowel path. The raw params
@@ -1856,6 +1994,7 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_VOICE)  return sound_voice_sample(v, pitch_mul);
     if (v->wave == INSTR_GUITAR) return sound_guitar_sample(v, pitch_mul);
     if (v->wave == INSTR_PIANO)  return sound_piano_sample(v, pitch_mul);
+    if (v->wave == INSTR_BOWED)  return sound_bowed_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -2040,6 +2179,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->vox_on = false;
     v->gt_on  = false;
     v->pn_on  = false;
+    v->bw_on  = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -2051,6 +2191,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_VOICE)  sound_voice_start(v);    // seed a neutral vowel (self-oscillates)
     else if (v->wave == INSTR_GUITAR) sound_guitar_start(v);   // excite the string + voice the body
     else if (v->wave == INSTR_PIANO)  sound_piano_start(v);    // hammer-strike + arm dispersion + soundboard
+    else if (v->wave == INSTR_BOWED)  sound_bowed_start(v);    // size + split the string at the bow, seed it
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);

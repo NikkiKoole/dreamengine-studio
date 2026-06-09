@@ -93,6 +93,10 @@ void init(void) {
     instrument_harmonics(24, 0.25f);             // grand-piano-ish stiffness
     instrument_timbre(24, 0.45f);                // felt hammer
     instrument_morph(24, 0.6f);                  // pedal partway down (some sustain)
+    instrument(23, INSTR_BOWED, 120, 0, 7, 400); // slot 23 = the bowed-string engine (self-oscillating, held)
+    instrument_harmonics(23, 0.5f);              // mid bow position
+    instrument_timbre(23, 0.3f);                 // light pressure — clean Helmholtz, inside the wedge
+    instrument_morph(23, 0.7f);                  // a good bow speed
     bpm(120);
 }
 
@@ -134,6 +138,7 @@ void update(void) {
         label = "note_on + live setters";
         held = note_on(52, 9, 5);
         note_glide(held, 80);
+        note_on(57, 23, 5);   // exercise the bowed engine's held/self-oscillating request path (slot 23)
     } else if (s == 21 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";
         note_pitch(held, 59);

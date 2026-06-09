@@ -2493,6 +2493,15 @@
     ]
   },
   {
+    "title": "bowed",
+    "description": "INSTR_BOWED showcase - the bowed string (violin / viola / cello), the last modeled string engine. A Smith/McIntyre stick-slip friction waveguide: a bow drags the string, the rosin grips then slips, and that friction drives a SELF-OSCILLATING loop - so unlike the plucked/struck strings it HOLDS while sustained and swells as you lean in. STEP-0 (tools/navkit-bowsweep.c) mapped the Schelleng wedge of stable bowing and the three macros are pinned inside it: instrument_harmonics = bow position (0 = sul ponticello, near the bridge, bright/edgy; 1 = sul tasto, over the fingerboard, soft), instrument_timbre = bow pressure (0 = light/clean singing leaning-sawtooth; 1 = heavy/scratchy surface sound - a real articulation, not a bug), instrument_morph = bow speed/swell (0 = gentle; 1 = digging in, louder and cleaner). THE FEEL: you don't press a string, you RUB it - drag back and forth and it speaks; the energy ACCUMULATES, so the longer/harder you rub the more it builds and digs in, and stopping lets the bow rest (silent). A quick TAP instead PLUCKS the string - pizzicato, via a short-mute INSTR_GUITAR preset (a different engine, the same instrument's other voice). Six presets: 1 violin / 2 viola / 3 cello / 4 ponticello / 5 tasto / 6 tremolo. Keyboard: HOLD A S D F G H J to bow, tap Q W E R T Y U to pluck; LEFT/RIGHT pick a knob + UP/DOWN turn, Z/X octave, M autoplay arco. Multitouch: rub a drone with one hand, pluck a melody with the other. Design + STEP-0: instrument-engines.md §8.5 step 9.",
+    "file": "bowed.cart.png",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ]
+  },
+  {
     "title": "exotica radio",
     "description": "Endless exotica - the Martin Denny / Les Baxter / Arthur Lyman homage: lush vibraphone over lazy latin percussion, faux-tropical lounge from 1957 (Hosono's origin story). The eleventh radio station, with three firsts: born on the runtime/radio.h scaffold instead of a hand-copy; ALL THREE modeled engines in one band (vibraphone lead = INSTR_MALLET with the motor on, nylon rhythm guitar = INSTR_PLUCK, glass-bell sparkles = INSTR_FM); and THE AVIARY - bird calls and frog croaks as an aleatoric performance channel, chance() per bar firing pitch-swooped calls that are never seeded, so replaying a seed replays the tune but the jungle never answers the same way twice (a bird crosses the lagoon window when it sings). Seeded per song: key, lounge changes (borrowed-iv dusk, pagan minor), the vibes cell with tremolo rolls, and the whole BAND's timbre (vibes macros, guitar pick, kit dressing, bird species). SPACE next song, R same tune (new birds), [ ] history, LEFT/RIGHT feel (lull/lounge/luau/rite), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help.",
     "file": "exotica.cart.png",

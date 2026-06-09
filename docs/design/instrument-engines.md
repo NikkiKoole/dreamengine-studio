@@ -299,6 +299,20 @@ independently shippable:
    **`INSTR_PIPE`** (flute/recorder/pan pipe) — **SHIPPED 2026-06-09** (25): an STK jet-drive
    flute, bore reuses `ks_buf` + a tiny `jetBuf[64]`, reusing reed's whole breath/vibrato/chiff
    surface; harmonics = overblow, timbre = breath air, morph = embouchure. Design + STEP-0: §8.8.8.
+   **Bowed** (violin/cello) — **SHIPPED 2026-06-09** as `INSTR_BOWED` (28): a line-for-line port of
+   navkit's `processBowedOscillator`/`initBowed` (the two nut+bridge delay lines PACKED into one
+   `ks_buf` — nut = `[0..nutLen)`, bridge = `[nutLen..total)` — distinct wave id, never collides with
+   the Karplus/reed/pipe paths). Self-oscillating/held like reed/pipe. Macros pinned inside the
+   STEP-0 wedge: harmonics = bow position β (note-on split, 0.05–0.25), timbre = bow pressure
+   (0.15–0.42, the narrow axis), morph = bow speed/swell. Realism navkit omits, added like reed/pipe:
+   humanized pitch-vibrato, light bow-noise (rosin), an attack bite. Verified: the showcase's held A3
+   locks at steady-state crest ~3 / pitch-lock corr ~0.8 (with vibrato), and the timbre axis spans
+   corr 0.96 (soft, clean Helmholtz) → 0.35 (hard, the scratchy "surface sound" — a real articulation,
+   the same corr that got preset 107 rejected). Soundcheck slot 23, tripwire PASS, full 4-place wiring.
+   Showcase: the **bowed** cart — played by RUBBING (energy accumulates: rub more → builds & digs in;
+   stop → rests), a TAP plucks it (pizzicato via an `INSTR_GUITAR` short-mute preset — the same
+   instrument's other voice, "free" per the buffered-pair finding). Below: the STEP-0 sweep that
+   green-lit it.
    **Bowed** (violin/cello) — **STEP-0 sweep DONE 2026-06-09: GREEN LIGHT, engine is stable, the
    reject was a bad preset.** The original audition rejected navkit's bowed off one render (erratic
    envelope, crest 12.6 vs a clean voice's ~2–5). The lit-check hunch — that crest-12.6 is the

@@ -319,6 +319,12 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
    The vocabulary lives at the top of `tools/lint-carts.js` — extending it is fine,
    in the same commit as the first cart that uses the new value.
 
+> **After editing carts, check what's out of date:** `node tools/cart-status.js` reports
+> thumbnails whose embedded source drifted from `tools/carts/<name>.c` (NEEDS REBAKE — the
+> editor loads the *embedded* source, so this is the "cart ignores my changes" trap), carts
+> with no web build (NOT PUBLISHED), and carts whose source changed after their last
+> `site/` build (STALE PUBLISHED). `--quiet` exits non-zero if anything's pending.
+
 **Other `make-cart.js` commands:**
 ```bash
 node tools/make-cart.js --update <cart.png> <screenshot.png>  # swap in a thumbnail manually

@@ -195,6 +195,12 @@ you can also remap a default letter.
 > pick up the merge. `buildSpriteSheet` in `tools/make-cart.js` now does
 > `{ ...DEFAULT_CHAR_MAP, ...cartCharMap }`.
 
+> **Which carts need rebaking?** `node tools/cart-status.js` flags every `.cart.png`
+> whose embedded `de:source` no longer matches `tools/carts/<name>.c` (the editor loads
+> the *embedded* source, so a stale embed silently ignores your code edits — the classic
+> "the cart ignores my changes" trap). It also reports publish status. Run it after a
+> round of cart edits; `--quiet` exits non-zero if anything's pending.
+
 > **Extended palette (indices 16–31):** the default char map only reaches index
 > 15. To use the extended `CLR_DARKER_*` / `CLR_TRUE_BLUE` / etc. colors in a
 > sprite, either use the **flat array** form (palette indices go straight in,

@@ -5,6 +5,10 @@
 > regenerates the thumbnail gallery; `tools/publish-cart.sh <name>` does build → commit →
 > push in one command (GitHub Pages publishes the committed `site/` via
 > `.github/workflows/pages.yml` — no emscripten in CI, builds happen locally).
+> **What needs publishing?** `node tools/cart-status.js` lists carts with no `site/` build
+> (NOT PUBLISHED) and carts whose source changed after their last build (STALE PUBLISHED) —
+> plus thumbnails that need rebaking. Run it before a publish pass to find the work; feed the
+> names straight to `publish-cart.sh`.
 > This is the "GitHub Pages" option below, chosen because the repo already lives there.
 > **The editor has the button too (2026-06-06):** settings → "publish to site" toggle
 > reveals 🚀 *publish to site* next to "build for web" — compiles the current cart into

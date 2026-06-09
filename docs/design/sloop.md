@@ -480,6 +480,14 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
   allowed, or is it game-over/restart (orbit's R)? Tied to the dismount question.
 - **Touch story.** BUILD is a natural touch fit (tap parts onto the grid, ui.h handles
   it). DRIVE needs throttle + steer — on-screen pad. Worth `touchControls:true`?
+- **Ignition + stall ("uitvallen") — parked, pick up separately (player request).** Add an
+  engine on/off state with a toggle key (ignition, e.g. `I`/`Enter`); when off, no thrust,
+  no idle creep, sound stops, you coast. And make the engine **stall** when you lug a too-tall
+  gear at too-low speed — e.g. 5th at ~10 km/h (`rpm < STALL_RPM` while moving above a small
+  `VSTALL_MIN`, so a 1st-gear launch and a dead-stop idle don't false-stall). 1st/2nd/3rd
+  survive low speed; 4th/5th cut out → re-ignite to restart. This finally retires the
+  "forgiving no-stall" caveat noted in §1b. Self-contained (~engine_on bool + stall check +
+  one key + HUD/sound) — a clean next unit.
 - **Two brakes (already in: foot brake `X`/`↓` + handbrake `SPACE`).** The foot brake
   decelerates the whole rig evenly (grip-limited, strong, lands a firm stop → reverse on
   hold). The handbrake breaks the tyres loose for a drift. *Refinement (with per-axle

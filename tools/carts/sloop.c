@@ -290,6 +290,7 @@ static float vx, vy;              // world velocity
 static float ang, angVel;         // heading (deg, 0 = facing +x / east) + spin
 
 static float cam_x, cam_y;
+static float lead_x, lead_y;      // low-passed camera lead (smooth, no curb jitter)
 static float t_eng_snd, t_skid_snd, t_scrape_snd;
 static int   is_paused;
 
@@ -771,10 +772,13 @@ void update(void) {
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
     update_drive(dt_);
 
-    // camera LEADS the rig in the travel direction (more so the faster you go) — you
-    // see where you're rushing into, which reads as speed.
-    cam_x = lerp(cam_x, sx + vx * 0.28f - SCREEN_W / 2.0f, 0.15f);
-    cam_y = lerp(cam_y, sy + vy * 0.28f - SCREEN_H / 2.0f, 0.15f);
+    // camera LEADS the rig in the travel direction (you see where you're rushing into —
+    // reads as speed). The lead is HEAVILY low-passed (lead_x/y ease toward vx/vy) so it
+    // doesn't jitter the bright curbs frame-to-frame or snap through the city's 90° corners.
+    lead_x = lerp(lead_x, vx * 0.26f, 0.04f);
+    lead_y = lerp(lead_y, vy * 0.26f, 0.04f);
+    cam_x = lerp(cam_x, sx + lead_x - SCREEN_W / 2.0f, 0.15f);
+    cam_y = lerp(cam_y, sy + lead_y - SCREEN_H / 2.0f, 0.15f);
 
 #ifdef DE_TRACE
     float fwx = cos_deg(ang), fwy = sin_deg(ang);

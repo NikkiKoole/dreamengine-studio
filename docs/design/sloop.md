@@ -871,3 +871,26 @@ small *and* acceleration was huge, so it hit a low top instantly — gears flash
   `SCRAPE_MINSPD` 10→18, steering/dir-stab speed ramps /30→/50, /25→/45. Re-verified headless:
   the 3-wheeler still tips asymmetrically (right 0.19 / left 0.00), braking still dead-stops
   (144→0 in ~0.5 s), drivetrain push/pull intact.
+
+### Course → a zoned Dutch road hierarchy (2026-06-09)
+
+The schematic course (rung 1.75) was a uniform grid. Reworked `draw_course()` into a
+**road hierarchy zoned by distance from origin**, so driving outward walks you up the
+speed tiers and you *feel* the speed context (still just lines/rects on the floor —
+nothing collides, rung 3 makes it solid). Concentric rings (euclidean `zone_at`):
+
+| Zone | radius | pitch / lane | character |
+|---|---|---|---|
+| **CITY 30** | <1800 | 100 / 16 | tight grid, narrow streets, **houses packed in every block** (detail streaking past = feels fast even slow), zebra/school crossings |
+| **TOWN 50** | <4500 | 200 / 26 | broader streets, bigger blocks, fewer/larger houses, roundabouts |
+| **RURAL 80** | <8500 | 600 / 40 | long straights, sparse crossings, patchwork green/brown fields |
+| **HWY 100** | <15000 | 1200 / 60 | wide, very sparse, long straights |
+| **SUPER 120** | ≥15000 | 2400 / 104 | broad multi-lane (extra dashed lane dividers), longest straights |
+
+Block pitches are origin-anchored multiples so coarser roads nest inside finer ones (the
+grid *thins* across a ring boundary rather than popping). Everything deterministic by
+world position → stable + headless-renderable. The HUD shows the current zone + its limit
+(`zone_at(camera centre)` → `cur_zone`). Verified by driving a long straight and dumping
+frames in each ring — all five read distinctly. **Note:** the zone is picked from the
+camera centre so the whole screen is one zone; crossing a ring still nudges house/field
+decoration in/out (acceptable for the schematic pass; rung 3's solid roads will smooth it).

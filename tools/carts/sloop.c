@@ -804,67 +804,116 @@ static void draw_ground(void) {
         }
 }
 
-// ── the course: schematic lanes + roundabouts + cones ────────────────────────
-// Purely VISUAL for now (rung 1.5) — lines to use as roads and objects to weave
-// through, drawn in the same design style as the grid. Nothing collides yet; this
-// is the parcours skeleton that rung 3+ will make solid (traction zones, obstacles).
-// Everything is a deterministic function of world position, so it's stable as you
-// drive and the world is effectively infinite.
-#define LANE_SP   192             // block size: roads laid on this world grid
-#define LANE_W    64              // lane band width = 2 of the 32px grid cells
+// ── the course: a schematic DUTCH road hierarchy, zoned by distance from origin ─
+// Purely VISUAL for now (nothing collides — rung 3 makes it solid). Driving OUTWARD
+// from spawn walks you up the hierarchy: tight 30-zone city grid (narrow streets,
+// houses packed everywhere → lots of detail streaking past = feels fast even slow) →
+// 50-zone town with roundabouts → open 80 rural straights with fields → 100 highway →
+// 120 superhighway (wide, multi-lane, very long straights). Pitch (block spacing) and
+// lane width grow per ring, so the roads thin and lengthen the faster the zone. Block
+// pitches are origin-anchored multiples so coarser roads nest inside finer ones (the
+// grid thins rather than jumps at a ring boundary). Deterministic → stable + headless.
+enum { Z_CITY, Z_TOWN, Z_RURAL, Z_HWY, Z_SUPER, Z_N };
+static const int   ZONE_PITCH[Z_N] = { 100, 200, 600, 1200, 2400 };  // block spacing (px)
+static const int   ZONE_LANE[Z_N]  = { 16,  26,  40,  60,   104   }; // road width (px)
+static const float ZONE_R[Z_N]     = { 1800.f, 4500.f, 8500.f, 15000.f, 1e9f }; // outer radius
+static const char *ZONE_NAME[Z_N]  = { "CITY 30", "TOWN 50", "RURAL 80", "HWY 100", "SUPER 120" };
+static int cur_zone;               // set each frame in draw_course, read by the HUD
 
 static int ifloordiv(int a, int b) {
     int q = a / b;
     if ((a % b) != 0 && ((a < 0) != (b < 0))) q--;
     return q;
 }
+static int zone_at(float x, float y) {
+    float d = fsqrt(x * x + y * y);
+    for (int z = 0; z < Z_N; z++) if (d < ZONE_R[z]) return z;
+    return Z_SUPER;
+}
+
+// fill one city/town block's interior with packed houses (deterministic) — the detail
+// that streaks past and screams "city". `n` = houses per row.
+static void draw_houses(int bx, int by, int p, int hw, int n) {
+    int x0 = bx * p + hw + 3, x1 = (bx + 1) * p - hw - 3;
+    int y0 = by * p + hw + 3, y1 = (by + 1) * p - hw - 3;
+    int cw = (x1 - x0) / n, ch = (y1 - y0) / n;
+    if (cw < 4 || ch < 4) return;
+    int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++) {
+            unsigned h = hash2(bx * 131 + i, by * 131 + j);
+            if ((h & 7) == 0) continue;                 // some empty lots / yards
+            int hx = x0 + i * cw, hy = y0 + j * ch;
+            rectfill(hx + 1, hy + 1, cw - 2, ch - 2, roof[h & 3]);
+            rect(hx + 1, hy + 1, cw - 2, ch - 2, CLR_BROWNISH_BLACK);
+        }
+}
 
 static void draw_course(void) {
     int L = (int)cam_x, R = L + SCREEN_W, T = (int)cam_y, B = T + SCREEN_H;
-    int kx0 = ifloordiv(L, LANE_SP) - 1, kx1 = ifloordiv(R, LANE_SP) + 1;
-    int ky0 = ifloordiv(T, LANE_SP) - 1, ky1 = ifloordiv(B, LANE_SP) + 1;
-    int hw = LANE_W / 2;
+    cur_zone = zone_at(cam_x + SCREEN_W / 2.0f, cam_y + SCREEN_H / 2.0f);
+    int p = ZONE_PITCH[cur_zone], hw = ZONE_LANE[cur_zone] / 2;
+    int kx0 = ifloordiv(L, p) - 1, kx1 = ifloordiv(R, p) + 1;
+    int ky0 = ifloordiv(T, p) - 1, ky1 = ifloordiv(B, p) + 1;
 
-    // 1. tarmac bands (a touch lighter than the ground), crossing in a grid
+    // 0. fields between rural+ roads (green), or houses in the city/town blocks
     for (int kx = kx0; kx <= kx1; kx++)
-        rectfill(kx * LANE_SP - hw, T - 1, LANE_W, (B - T) + 2, CLR_DARK_GREY);
-    for (int ky = ky0; ky <= ky1; ky++)
-        rectfill(L - 1, ky * LANE_SP - hw, (R - L) + 2, LANE_W, CLR_DARK_GREY);
+        for (int ky = ky0; ky <= ky1; ky++) {
+            if (cur_zone == Z_CITY)      draw_houses(kx, ky, p, hw, 4);
+            else if (cur_zone == Z_TOWN) draw_houses(kx, ky, p, hw, 2);
+            else if (cur_zone >= Z_RURAL && (hash2(kx, ky) & 1)) {     // patchwork fields
+                int fx = kx * p + hw + 4, fy = ky * p + hw + 4;
+                rectfill(fx, fy, p - ZONE_LANE[cur_zone] - 8, p - ZONE_LANE[cur_zone] - 8,
+                         (hash2(kx, ky) & 2) ? CLR_DARK_GREEN : CLR_BROWN);
+            }
+        }
 
-    // 2. bright curbs + dashed centre line (the bit that reads as "lane")
+    // 1. tarmac bands (lighter than ground), crossing in a grid at the zone pitch
+    for (int kx = kx0; kx <= kx1; kx++)
+        rectfill(kx * p - hw, T - 1, hw * 2, (B - T) + 2, CLR_DARK_GREY);
+    for (int ky = ky0; ky <= ky1; ky++)
+        rectfill(L - 1, ky * p - hw, (R - L) + 2, hw * 2, CLR_DARK_GREY);
+
+    // 2. curbs + dashed centre line; SUPER adds a 2nd dashed line (multi-lane)
     for (int kx = kx0; kx <= kx1; kx++) {
-        int cx = kx * LANE_SP;
+        int cx = kx * p;
         line(cx - hw, T, cx - hw, B, CLR_LIGHT_GREY);
         line(cx + hw, T, cx + hw, B, CLR_LIGHT_GREY);
         for (int y = ifloordiv(T, 24) * 24; y < B; y += 24) line(cx, y, cx, y + 11, CLR_YELLOW);
+        if (cur_zone == Z_SUPER)
+            for (int y = ifloordiv(T, 20) * 20; y < B; y += 20) {
+                line(cx - hw / 2, y, cx - hw / 2, y + 9, CLR_MEDIUM_GREY);
+                line(cx + hw / 2, y, cx + hw / 2, y + 9, CLR_MEDIUM_GREY);
+            }
     }
     for (int ky = ky0; ky <= ky1; ky++) {
-        int cy = ky * LANE_SP;
+        int cy = ky * p;
         line(L, cy - hw, R, cy - hw, CLR_LIGHT_GREY);
         line(L, cy + hw, R, cy + hw, CLR_LIGHT_GREY);
         for (int x = ifloordiv(L, 24) * 24; x < R; x += 24) line(x, cy, x + 11, cy, CLR_YELLOW);
+        if (cur_zone == Z_SUPER)
+            for (int x = ifloordiv(L, 20) * 20; x < R; x += 20) {
+                line(x, cy - hw / 2, x + 9, cy - hw / 2, CLR_MEDIUM_GREY);
+                line(x, cy + hw / 2, x + 9, cy + hw / 2, CLR_MEDIUM_GREY);
+            }
     }
 
-    // 3. roundabout islands at ~1/4 of crossings (steer AROUND them)
-    for (int kx = kx0; kx <= kx1; kx++)
-        for (int ky = ky0; ky <= ky1; ky++)
-            if ((hash2(kx, ky) & 3) == 0) {
-                int cx = kx * LANE_SP, cy = ky * LANE_SP;
-                circfill(cx, cy, 13, CLR_DARK_GREEN);
-                circ(cx, cy, 13, CLR_LIGHT_GREY);
-            }
-
-    // 4. cones scattered in the blocks (objects to weave through)
-    int span = LANE_SP - LANE_W - 8;
-    for (int kx = kx0; kx <= kx1; kx++)
-        for (int ky = ky0; ky <= ky1; ky++) {
-            unsigned h = hash2(kx * 7 + 1, ky * 7 + 3);
-            if ((h & 3) != 0) continue;
-            int cx = kx * LANE_SP + hw + 4 + (int)(h % span);
-            int cy = ky * LANE_SP + hw + 4 + (int)((h >> 8) % span);
-            circfill(cx, cy, 4, CLR_ORANGE);
-            circ(cx, cy, 4, CLR_BROWNISH_BLACK);
-        }
+    // 3. town roundabouts (rounded corners to steer around) + city zebra crossings
+    if (cur_zone == Z_TOWN)
+        for (int kx = kx0; kx <= kx1; kx++)
+            for (int ky = ky0; ky <= ky1; ky++)
+                if ((hash2(kx, ky) & 3) == 0) {
+                    int cx = kx * p, cy = ky * p;
+                    circfill(cx, cy, hw, CLR_DARK_GREEN);
+                    circ(cx, cy, hw, CLR_LIGHT_GREY);
+                }
+    if (cur_zone == Z_CITY)                                  // pedestrian/school crossings
+        for (int kx = kx0; kx <= kx1; kx++)
+            for (int ky = ky0; ky <= ky1; ky++)
+                if ((hash2(kx, ky) & 3) == 0) {
+                    int cx = kx * p, cy = ky * p;
+                    for (int s = -hw + 2; s < hw; s += 4) line(cx + s, cy - hw, cx + s, cy + hw, CLR_WHITE);
+                }
 }
 
 // glow ramp for a scraping cell — red (cold/parked) → orange → yellow → white (hot)
@@ -929,6 +978,7 @@ static void hud(void) {
     char buf[48];
     float spd = fsqrt(vx * vx + vy * vy);
     print(DES_NAME[cur_des], 4, 4, CLR_WHITE);
+    print(ZONE_NAME[cur_zone], SCREEN_W / 2 - 24, 4, CLR_YELLOW);   // road zone + its limit
     snprintf(buf, sizeof buf, "SPEED %4.0f", spd);   print(buf, 4, 14, CLR_LIGHT_GREY);
     snprintf(buf, sizeof buf, "MASS  %4.1f", M);     print(buf, 4, 22, CLR_LIGHT_GREY);
     snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels);

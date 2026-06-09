@@ -480,14 +480,11 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
   allowed, or is it game-over/restart (orbit's R)? Tied to the dismount question.
 - **Touch story.** BUILD is a natural touch fit (tap parts onto the grid, ui.h handles
   it). DRIVE needs throttle + steer — on-screen pad. Worth `touchControls:true`?
-- **Ignition + stall ("uitvallen") — parked, pick up separately (player request).** Add an
-  engine on/off state with a toggle key (ignition, e.g. `I`/`Enter`); when off, no thrust,
-  no idle creep, sound stops, you coast. And make the engine **stall** when you lug a too-tall
-  gear at too-low speed — e.g. 5th at ~10 km/h (`rpm < STALL_RPM` while moving above a small
-  `VSTALL_MIN`, so a 1st-gear launch and a dead-stop idle don't false-stall). 1st/2nd/3rd
-  survive low speed; 4th/5th cut out → re-ignite to restart. This finally retires the
-  "forgiving no-stall" caveat noted in §1b. Self-contained (~engine_on bool + stall check +
-  one key + HUD/sound) — a clean next unit.
+- ✓ **Ignition + stall ("uitvallen") — DONE (2026-06-09).** `I` toggles the engine (off ⇒ no
+  thrust, no creep, silent, coast); it **stalls** when `rpm < STALL_RPM (0.12)` while rolling
+  above `VSTALL_MIN (8 px/s)` in a forward gear — so tall gears lug out at low speed but a
+  launch / dead-stop idle / AUTO never false-stall. `RESTART_GRACE` lets re-ignition catch.
+  Retires the "forgiving no-stall" caveat. See the build log → "Ignition + stall".
 - **Two brakes (already in: foot brake `X`/`↓` + handbrake `SPACE`).** The foot brake
   decelerates the whole rig evenly (grip-limited, strong, lands a firm stop → reverse on
   hold). The handbrake breaks the tyres loose for a drift. *Refinement (with per-axle
@@ -863,6 +860,7 @@ types, gear-driven sound, and **reverse decoupled from the brake**.
 (electric flat / gas revvy / diesel grunt / steam spool) and the engine roster — 2.7 gives
 the gearbox + a single generic powerband; distinct engine kinds remain (§1a, a follow-on).
 **Stall** went the forgiving way (lug/bog, no full stall+restart) per the spec's open fork.
+*(Superseded — full stall + ignition landed later; see the ignition/stall rung below.)*
 
 **Speed + gear-dwell pass (same day, after a playtest).** Two coupled complaints: the box
 ripped 1→5 in ~1 s, and the rig "didn't look fast." Root cause: the whole speed scale was
@@ -984,3 +982,32 @@ law gives sane values for every gear on its own. (Real manuals *stall* in tall g
 idle; our forgiving no-stall model just lets the creep get faster — see §1b.) Sources:
 [Promaster forum — 1st-gear idle speed](https://www.promasterforum.com/threads/first-gear-idle-speed-and-how-to-engage-it.40914/),
 [GR86 forum — how slow in 2nd before lugging](https://www.gr86.org/threads/how-slow-can-you-go-in-2nd-gear.10665/).
+
+### Ignition + stall ("uitvallen") (2026-06-09)
+
+Player request: be able to **turn the engine off/on**, and have it **stall** when you lug a
+too-tall gear. Both landed as one self-contained unit (`engine_on` bool + `stalled` flag +
+one key + a stall check + HUD/sound), retiring the "forgiving no-stall" caveat from rung 2.7.
+
+- **Ignition (`I`).** Cranks or kills the engine. Engine off ⇒ throttle ignored (no thrust),
+  no idle creep, engine note silenced — you **coast** (drag, rolling friction, braking and
+  steering all still work). Cranking plays a two-note starter chirp; a deliberate key-off
+  plays a low thunk. `reset_vehicle()` always starts cranked.
+- **Stall.** Cuts the engine when `rpm < STALL_RPM (0.12)` **while still rolling** above
+  `VSTALL_MIN (8 px/s)`, in a forward gear, not SINGLE/electric. The threshold falls straight
+  out of the existing gear math: idle creep holds rpm at `IDLE_CREEP/V_REF ≈ 0.21` in **every**
+  gear (the `vcreep·ratio/V_REF` cancels the ratio), so a launch or a dead-stop idle never dips
+  under 0.12 — **only braking/coasting a tall gear down past idle does**. AUTO downshifts at
+  0.42 so it's naturally stall-proof (like a real automatic); **the bite lands in MANUAL**,
+  which is finally what makes MANUAL matter. A `RESTART_GRACE (0.5 s)` of stall-immunity after
+  a crank means re-ignition always takes and gives you a beat to downshift (the starter
+  catching). Stall plays a cough; the HUD blinks red **"STALLED ▸ I to start"** (a deliberate
+  key-off shows steady grey **"ENGINE OFF ▸ I"** instead — the `stalled` flag distinguishes).
+- **Verified headless** (`build/.bake/*.script` + trace): braking 5th down from 138→11 px/s
+  stalls at f454 (`rpm` under 0.12, `engine_on→0`, `stalled→1`); a MANUAL 1st-gear launch and
+  180 frames of idle creep stall **zero** times (creep sits at rpm ≈ 0.21); key-off→re-ignite
+  cranks back and drives. Bumped the runtime `WATCH_MAX` 16→24 — the cart now sets 18 watches,
+  so engine state was silently overflowing the trace/overlay.
+
+**Still open:** per-engine-kind powerband *curves* (§1a) and the engine roster remain the
+next transmission-side unit; touch controls for DRIVE (on-screen throttle/steer/ignition).

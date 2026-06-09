@@ -648,7 +648,7 @@ typedef struct {
     int  age;                    // frames since last touched
 } WatchEntry;
 
-#define WATCH_MAX 16
+#define WATCH_MAX 24
 static WatchEntry watches[WATCH_MAX];
 static int        watch_count = 0;
 static bool       watch_show  = true;   // F1 toggles

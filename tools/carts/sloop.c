@@ -238,6 +238,16 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define SINGLE_RATIO  0.95f       // the one direct-drive ratio (electric): flat, strong, no band
 #define AUTO_UP       0.90f       // AUTO upshifts above this rpm (revs high → you HEAR the gear)
 #define AUTO_DOWN     0.42f       // AUTO downshifts below this rpm
+// ── ignition + stall ("uitvallen", §1b) ──────────────────────────────────────
+// The engine has an on/off state (I to crank). Stall = lugging a too-tall gear
+// below idle revs while STILL ROLLING. The threshold falls out of the gear math:
+// idle creep holds rpm at IDLE_CREEP/V_REF ≈ 0.21 in EVERY gear (vcreep·ratio/V_REF
+// cancels the ratio), so a launch or a dead-stop idle never dips under STALL_RPM —
+// only braking/coasting a tall gear down past idle does. AUTO downshifts at 0.42 so
+// it's naturally stall-proof (like a real automatic); the bite lands in MANUAL.
+#define STALL_RPM     0.12f       // below this (while rolling) the engine cuts out
+#define VSTALL_MIN    8.0f        // ... but only above this speed (px/s) — protects idle/launch
+#define RESTART_GRACE 0.5f        // s of stall-immunity after a crank (starter catches; downshift)
 #define LAT_GRIP      32.0f       // lateral velocity killed per second (tire grip)
 #define STEER_RESP    680.0f      // steering authority (deg/s^2) at speed
 #define ANG_DAMP      5.0f        // angular self-centering (1/s)
@@ -283,6 +293,9 @@ static int   trans_mode = TR_AUTO;  // SINGLE / AUTO / MANUAL — player setting
 static int   gear = 1;            // 0 = reverse, 1..NGEAR = forward
 static float rpm;                 // 0..~1.15 normalised engine revs (tach + sound)
 static int   shift_snd;           // 1 = a gear change happened this frame (play a clunk)
+static int   engine_on = 1;       // ignition: I cranks/kills it; stall flips it off
+static int   stalled;             // engine died from lugging (vs a deliberate key-off) — HUD wording
+static float restart_grace;       // s of stall-immunity after a crank (see RESTART_GRACE)
 
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
@@ -454,6 +467,7 @@ static void reset_vehicle(void) {
     recompute_body();
     sx = 0; sy = 0; vx = vy = 0; ang = 0; angVel = 0;
     heat = 0; tip_amt = 0; gear = 1; rpm = 0;   // trans_mode persists (player setting)
+    engine_on = 1; stalled = 0; restart_grace = 0;   // fresh rig starts cranked
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
     for (int i = 0; i < MAXSPARK; i++) spark[i].life = 0;
 }
@@ -525,6 +539,11 @@ static void handle_input(void) {
     // ---- DRIVE input ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
+    if (keyp('I')) {                                  // ignition: crank or kill
+        engine_on = !engine_on;
+        if (engine_on) { stalled = 0; restart_grace = RESTART_GRACE; hit(32, INSTR_SAW, 2, 70); hit(45, INSTR_SAW, 2, 120); }
+        else           { stalled = 0; hit(26, INSTR_NOISE, 2, 90); }   // deliberate key-off thunk
+    }
     if (keyp('G')) { trans_mode = (trans_mode + 1) % 3; gear = 1; }   // cycle SINGLE/AUTO/MANUAL
     in_gas = key('Z') || key(KEY_UP) || btn(0, BTN_A) || btn(0, BTN_UP);
     in_brk = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN);
@@ -627,13 +646,23 @@ static void update_drive(float dt_) {
                 : (gear == 0) ? REV_RATIO : GEAR_RATIO[gear - 1];
     float gdir  = (gear == 0) ? -1.0f : 1.0f;
     rpm = clamp(af(vf) * ratio / V_REF, 0, 1.15f);
+    // --- stall: lug a too-tall gear below idle revs while still rolling → it cuts out.
+    // Skipped briefly after a crank (RESTART_GRACE) so re-ignition always takes and you
+    // get a beat to downshift; SINGLE (electric) and reverse never stall.
+    if (restart_grace > 0) restart_grace -= dt_;
+    if (engine_on && restart_grace <= 0 && trans_mode != TR_SINGLE && gear >= 1
+        && rpm < STALL_RPM && af(vf) > VSTALL_MIN) {
+        engine_on = 0; stalled = 1;
+        hit(28, INSTR_NOISE, 3, 200);                 // the cough as it dies
+    }
+    if (!engine_on) rpm = 0;                           // dead engine → tach drops to zero
     // SINGLE (electric): instant flat torque that just tapers toward the motor's max revs —
     // no powerband to chase, snappy off the line, moderate top (the single-speed EV trade).
     float gmul = (trans_mode == TR_SINGLE) ? SINGLE_RATIO * clamp(1.15f - 0.6f * rpm, 0.2f, 1.15f)
                                            : powerband(rpm) * ratio;
 
     // --- engine: thrust through the gear, + the yaw torque from an off-centre engine
-    float throttle = in_gas ? 1.0f : 0.0f;           // gas drives in the gear's direction
+    float throttle = (in_gas && engine_on) ? 1.0f : 0.0f;  // gas drives in the gear's direction (dead engine = no thrust)
     float thrust = 0, eng_torque = 0;
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
@@ -685,7 +714,7 @@ static void update_drive(float dt_) {
     // --- idle creep: throttle released, in gear, no brake → the idling engine trundles you
     //     at a gear-set floor (taller gear = faster, capped). Only pulls UP to the floor (it
     //     won't fight drag from above). Brake overrides → sit still (a manual at a light).
-    if (!in_gas && !in_brk) {
+    if (!in_gas && !in_brk && engine_on) {
         float vcreep = IDLE_CREEP / ratio;            // idle RPM in this gear → 1/ratio law
         if (gear == 0) {                                  // reverse idles backward
             if (vf > -vcreep) { vf -= CREEP_ACCEL * dt_; if (vf < -vcreep) vf = -vcreep; }
@@ -737,7 +766,7 @@ static void update_drive(float dt_) {
     // --- sound -----------------------------------------------------------------
     float spd = fsqrt(vx * vx + vy * vy);
     if (shift_snd) { hit(40, INSTR_NOISE, 2, 45); shift_snd = 0; }   // gear-change clunk
-    if (in_gas) {
+    if (in_gas && engine_on) {
         // engine note tracks RPM: climbs within a gear, DROPS on each upshift (the
         // satisfying gear-change), climbs again. (rpm resets per gear; spd would not.)
         t_eng_snd -= dt_;
@@ -800,6 +829,8 @@ void update(void) {
     watch("gear", "%d", gear);
     watch("rpm", "%.2f", rpm);
     watch("trans", "%d", trans_mode);
+    watch("engine_on", "%d", engine_on);
+    watch("stalled", "%d", stalled);
 #endif
 }
 
@@ -1033,9 +1064,12 @@ static void hud(void) {
     snprintf(buf, sizeof buf, "%s  G:%c", trans_label(), gch);
     print(buf, SCREEN_W - 84, 26, CLR_LIGHT_GREY);
     bar(SCREEN_W - 84, 35, 78, 4, rpm, rpm > 0.92f ? CLR_RED : CLR_GREEN, CLR_DARKER_GREY);
+    // ignition: dead engine warns (blinks) so you reach for I; stalled = lugged it
+    if (stalled && blink(16)) print("STALLED \x07 I to start", SCREEN_W - 130, 17, CLR_RED);
+    else if (!engine_on)      print("ENGINE OFF \x07 I", SCREEN_W - 100, 17, CLR_MEDIUM_GREY);
     print("\x1b\x1a steer   Z gas   X brake   SPACE handbrake",
           SCREEN_W / 2 - 132, SCREEN_H - 20, CLR_MEDIUM_GREY);
-    print("TAB build   1-8 rig   Q/E gear   G auto/manual",
+    print("TAB build   Q/E gear   G trans   I ignition",
           SCREEN_W / 2 - 132, SCREEN_H - 11, CLR_MEDIUM_GREY);
     if (is_paused) print("PAUSED", SCREEN_W / 2 - 22, SCREEN_H / 2, CLR_WHITE);
 }

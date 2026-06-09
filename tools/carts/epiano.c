@@ -19,7 +19,7 @@
 // the real "woah woah" auto-wah is a BUS effect (one filter on the summed mix, exp sweep,
 // envelope follower on the whole performance) — deferred to the effects-bus layer (§8.10), and
 // it will likely REPLACE the AUTO/TOUCH flavours here. The per-voice wah + the envelope follower
-// are PARKED: kept because they may be handy, but they aren't the end goal. See sound-handoff.md.
+// are PARKED: kept because they may be handy, but they aren't the end goal. See instrument-engines.md §8.10.1.
 //
 // The named instruments are just KNOB POSITIONS (audio-notes §8.1 / §8.8.5): if pressing
 // "wurli" doesn't sound like a Wurlitzer, the MAPPING is wrong, not the preset.
@@ -325,7 +325,7 @@ void draw(void) {
     print("X", OCT_UP_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
 
     // WAH button (tappable; off/auto/env/touch) — flagged TEMP: the real "woah woah" auto-wah
-    // is a bus effect (§8.10), this per-voice version is provisional. See sound-handoff.md PARKED.
+    // is a bus effect (§8.10), this per-voice version is provisional. See instrument-engines.md §8.10.1 PARKED.
     bool won = (wah != 0);
     rectfill(WAH_X, WAH_Y, WAH_W, WAH_H, won ? CLR_DARK_ORANGE : CLR_DARKER_GREY);
     rect(WAH_X, WAH_Y, WAH_W, WAH_H, won ? CLR_ORANGE : CLR_DARK_GREY);

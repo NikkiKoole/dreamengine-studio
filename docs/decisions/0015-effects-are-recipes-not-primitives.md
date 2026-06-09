@@ -104,7 +104,7 @@ The audit above files wah under "already covered today" and claims *touch wah =
   with this audit's "per-voice, done" framing. §8.10 wins.
 - A per-note env is **not** an envelope follower (per-note retrigger vs continuous
   amplitude-tracking). The follower was built as a per-voice primitive (`instrument_follow`)
-  but its real home is bus-level; per-voice it's the pale version (see sound-handoff.md).
+  but its real home is bus-level; per-voice it's the pale version (see instrument-engines.md §8.10.1).
 
 Net: the *decision* (effects are recipes, roster closed) stands; this corrects the **wah
 classification** — the good auto-wah is a deferred bus effect, not a covered per-voice one.

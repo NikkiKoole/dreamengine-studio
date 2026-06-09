@@ -254,7 +254,7 @@ their `kind[]` tags.
    `note_follow`) are *interim* — the realistic "woah woah" auto-wah is a BUS effect and will
    likely replace them; the follower's real home is bus-level. Kept (may be handy) but flagged so
    we don't build more on them. When §8.10 is built: reassess whether to fold these into the bus
-   wah or remove. Full context: [`design/sound-handoff.md`](design/sound-handoff.md) → PARKED.
+   wah or remove. Full context: [`design/instrument-engines.md`](design/instrument-engines.md) → §8.10.1 PARKED.
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
 7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.

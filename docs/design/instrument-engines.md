@@ -732,7 +732,7 @@ fast ≈ 200 ms / slow ≈ 500 ms decay.
 >   §2.2.2); pickup nonlinearity gets an **always-on grit floor** + gentler register gate (it's the
 >   harmonic source, not just a dig-in effect). Verified by FFT vs the paper's figures: mellow →
 >   fundamental-dominant, bright → 2nd-dominant + both tine bells in the attack. Removed
->   `RHO_BODY/BELL/BLVL`. (Tremolo is separate — see sound-handoff.md PARKED.)
+>   `RHO_BODY/BELL/BLVL`. (Tremolo is separate — see §8.10.1 PARKED.)
 > - ~~**Rhodes was too "ringy."**~~ *(SUPERSEDED by the measured rebuild above.)* The inharmonic
 >   tine/bell modes decayed in lockstep with the fundamental (a drone, not a *ding*) — which also
 >   made the 3 Rhodes presets sound alike. First fix (now replaced): split the decay into a long
@@ -745,7 +745,7 @@ fast ≈ 200 ms / slow ≈ 500 ms decay.
 > - **The funky-clav "wah" is a fast per-note filter-env quack** (resonant lowpass, ~100ms snap),
 >   baked into the clav. The realistic **"woah woah" auto-wah is a BUS effect** (one filter on the
 >   summed mix, exp sweep, follower on the whole performance) — deferred to §8.10; the per-voice
->   wah + the envelope follower are PARKED (0015 Correction, sound-handoff.md). 12 modes/voice ≈
+>   wah + the envelope follower are PARKED (0015 Correction, §8.10.1). 12 modes/voice ≈
 >   the heaviest engine — PROF-check stands.
 
 The playbook's paper round for `INSTR_EPIANO`, §8.5 step 5. navkit crib (all in
@@ -1271,3 +1271,38 @@ auto-wah = this bus layer (deferred). The envelope follower's real home is here 
 the bus concept** (so the Leslie stops being a hardcoded organ special-case). Delay / tape / wah
 follow. Stereo (a §9 open question) matters more here than for engines — reverb/delay/Leslie are
 where width lives — so resolve stereo before or alongside this layer.
+
+#### 8.10.1 PARKED — interim per-voice items that fold in here when this layer opens
+
+These shipped per-voice as stand-ins because the bus layer doesn't exist yet. Each is explicitly
+**interim, not the end goal** — kept because it's handy now, flagged so we don't build more on top
+of it or mistake it for finished intent. When §8.10 opens, fold each into a shared, phase-coherent
+bus processor (or remove it). *(Migrated 2026-06-09 from the retired `sound-handoff.md`; this is now
+the canonical home — the §8.8.5 post-ship notes point here.)*
+
+- **Per-voice wah (epiano AUTO / TOUCH flavours)** — a *simple* swept SVF. The real "woah woah" is
+  the **bus auto-wah** specced above (bandpass on the summed mix). The clav **ENV quack** stays
+  per-voice (a fast per-note filter-env snap, ~100ms — genuinely per-note and shippable); AUTO/TOUCH
+  will likely be replaced by the bus wah.
+- **The envelope follower (`instrument_follow` / `note_follow`)** — the 3rd modulation source
+  (tracks a voice's own amplitude → cutoff/vol/pitch). Shipped + wired + tripwired, but its real
+  home is **bus-level** (it should track the *whole performance*, not one voice), and it has no
+  shipped per-voice customer. Re-evaluate when §8.10 lands; don't build on it meanwhile.
+- **Per-voice epiano tremolo** (`epiano.c` `SL_TREM` → `LFO_VOLUME` on LFO slot 1) — the
+  suitcase/Wurli amp wobble, the "electric" signature the dry tine+pickup model lacked. On real
+  hardware tremolo is a **bus effect**: one LFO downstream of where the tines sum, so the whole
+  keyboard pulses in lockstep. Our per-voice version resets each voice's LFO phase to 0 at note-on
+  (`sound.h` `sound_*_start`), so **block chords struck on one frame wobble coherently** (the common
+  case — sounds right) but **staggered/rolled notes drift out of phase** (hardware stays locked).
+  Per-variant target when it graduates:
+  - **Rhodes SUITCASE wants a stereo AUTO-PAN** — its "tremolo" is really the signal panning between
+    two amp pairs (L↔R movement, not just a level dip). We're MONO today, so we only do amplitude
+    tremolo; the suitcase's defining wobble needs a stereo field — itself a reason its home is the
+    output/bus layer. The mono amp-trem is a stand-in until then.
+  - **Wurlitzer wants mono amplitude tremolo** (the 200A's built-in trem genuinely is level
+    modulation, deeper/faster than the Rhodes) — our per-voice amp-trem already matches it closely.
+  - **Clav**: none (the preset zeroes it; a real clav has no tremolo).
+
+All three want **one shared phase-coherent LFO on the summed mix**, alongside the bus auto-wah — and
+the bus is where the suitcase stereo auto-pan can finally exist. See
+[decision 0015 Correction](../decisions/0015-effects-are-recipes-not-primitives.md).

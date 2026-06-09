@@ -1,6 +1,6 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: building — rung 1 drive / 1.5 drift / 1.75 course / 1.9 rig-toggle done.** Cart:
+**Status: building — rung 1 drive / 1.5 drift / 1.75 course / 1.9 rigs / 1.95 handling done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -217,8 +217,10 @@ before the parts bin. Each rung is a runnable cart.
 2. **The BUILD flip.** Mode toggle; place/remove parts on the grid; live readouts +
    COM crosshair. Now you build *then* drive — and feel a bad build.
 3. **Biomes + traction.** Noise biome map, grip/drag per biome; sand vs road makes
-   the same rig behave differently. Camera scroll + minimap.
+   the same rig behave differently. Camera scroll + minimap. *Levers here:* wheel-area /
+   ground-pressure traction, per-axle grip, stability/tippiness (see lever catalogue).
 4. **Collisions & breakage.** Obstacles, impact → parts detach + scatter. Connectivity.
+   *Levers here:* plating absorbs shock, damaged-engine power ∝ HP.
 5. **Scavenging loop.** Scrap currency, parts in wrecks → cargo → bolt on; fuel caches.
 6. **The journey.** Beacon goal, fuel as the clock, win/score.
 
@@ -226,6 +228,57 @@ Cut for v1 (DDA rabbit holes): crew/NPCs, combat, electrical systems, part HP ba
 turrets, interior tiles, water/amphibious. Each is a clean v2.
 
 Likely ~900–1200 lines at MVP (peers: orbit 703, coaster 970, galerijflat 1440).
+
+## DDA reference — how parts decide performance (2026-06-09 research)
+
+Captured from the Cataclysm: DDA source/wiki (sources at the bottom). DDA hangs *all*
+vehicle performance on **engine power scaled by two master coefficients**:
+
+```
+max_velocity  = engine_power × 80                               // power alone caps the ceiling
+safe_velocity = engine_power × m2c × K_dynamics × K_mass × 80
+acceleration  = safe_velocity × K_mass / 20
+```
+- **K_mass** — power-to-weight (1 = mass doesn't slow you, 0 = won't move). Heavier →
+  worse accel *and* lower safe speed.
+- **K_dynamics** — combined **aero drag + wheel rolling resistance** (1 = frictionless).
+  Where *shape* and *wheels* cost top speed.
+- **m2c** — an engine's safe-power / max-power band.
+
+Part → stat map:
+
+| Part | Decides |
+|---|---|
+| **Frame** | mass + structural durability. A frame bridging two parts is *unbreakable* (spine). |
+| **Engine** | power → top speed + accel; fuel burn. Multiple engines **stack**. Damaged engine → power ∝ remaining HP. |
+| **Wheels** | total **area vs mass** decides if it can move (optimal ≈ 1.58·√mass; too little → bogs, esp. off-road); size/width/style set **rolling resistance** (more/wider/off-road = slower on road, better off-road); **steerable** wheels (placement) set turning. |
+| **Tank / battery** | range. |
+| **Plating** | protects the part it's installed *over* in a collision (shock still radiates to neighbours ÷ distance). |
+| **Seat + controls** | required (same tile) to drive. |
+
+Note DDA is **grid-based and never rotates** — it has *no* moment of inertia and *no*
+off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torque`).
+
+### The lever catalogue — what makes handling depend on the build, and where it lands
+
+✅ = in the cart now. Each is purely emergent (no per-rig tuning):
+
+| Lever | What it does | Rung | Status |
+|---|---|---|---|
+| Mass → acceleration | `accel = thrust/M`; heavy rig accelerates slowly | 1 | ✅ |
+| Engine power (stacks) | more/bigger engines → more thrust | 1 | ✅ |
+| Moment of inertia → turn rate | long/heavy rig turns lazily (`STEER/I`) | 1 | ✅ |
+| Off-centre engine → yaw | engine off the centre-line pulls under power | 1 | ✅ |
+| **Aero drag from frontal profile** | top speed ∝ 1/(cells across travel) — narrow = fast | 1.95 | ✅ |
+| **Wheels as a trade-off** | each wheel adds rolling resistance (grip↑, top speed↓) | 1.95 | ✅ |
+| **Weight balance → under/oversteer** | nose-heavy pushes wide, tail-heavy turns in (COM vs wheelbase) | 1.95 | ✅ |
+| Top speed mass-INDEPENDENT | drag is a force; mass sets accel, not top speed (DDA's insight) | 1.95 | ✅ |
+| **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ⬜ |
+| **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
+| **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
+| **Stability / tippiness** | tall narrow high-COM rig spins out / "tips" above a lateral-g threshold vs track width (the 2-D stand-in for roll, since we don't model z) | 3–4 | ⬜ |
+| **Fuel burn ∝ power; damaged engine power ∝ HP** | range as the clock; a half-wrecked engine gives half thrust | 3–4 | ⬜ |
+| **Plating absorbs collision shock for its cell** | armour trade (mass↑, speed↓, survives hits) | 4 (breakage) | ⬜ |
 
 ## Open questions (next sessions)
 
@@ -267,6 +320,13 @@ or English single words in the series' plain-noun register — *Jalopy*, *Overla
 - `runtime/ui.h` — BUILD-mode widgets (part palette buttons, sliders); never hand-roll.
 - CLAUDE.md → "Data-driven carts: name your indices" — the part enum rule (modrack).
 - CLAUDE.md → "Game feel" — breakage/impact wants hit-stop + shake + debris + sound.
+- DDA vehicle model (2026-06-09 research) — part→stat + K_mass/K_dynamics:
+  [Vehicle parts (srgnis wiki)](https://srgnis.github.io/cdda-wiki/cdda_wiki/Vehicle_parts),
+  [Vehicle construction (danmakudan)](https://cddawiki.danmakudan.com/wiki/index.php/Vehicle_construction),
+  [New Contributor Guide: Vehicle Parts](https://github.com/CleverRaven/Cataclysm-DDA/wiki/New-Contributor-Guide-Vehicle-Parts),
+  [speed rework #25652](https://github.com/CleverRaven/Cataclysm-DDA/issues/25652),
+  [K mass/dynamics #6653](https://github.com/CleverRaven/Cataclysm-DDA/issues/6653),
+  [offroad penalty #12549](https://github.com/CleverRaven/Cataclysm-DDA/issues/12549).
 
 ## Build log
 
@@ -366,10 +426,10 @@ Measured (gas to terminal, then a hard right — all emergent, headless `--trace
 | JALOPY | 13.7 | 984 | ~124 | 83°/s | light, 3 wheels → loose; **pulls** |
 | MOTORBIKE | 8.2 | 383 | ~264 | 91°/s | narrow inline 2-wheeler → fastest, dartiest, slides |
 
-(`5` = MOTORBIKE, added per request: a single-row `WHEEL·ENGINE·SEAT·WHEEL` rig.
-Top speed = `thrust/(M·ROLL)`, so the feather-light bike out-runs even the twin-engine
-SPRINTER — honest, if surprising; bikes *are* fast and twitchy. Top-down rigid body,
-so it doesn't lean/tip — an accepted arcade abstraction.)
+(`5` = MOTORBIKE, added per request: a single-row `WHEEL·ENGINE·SEAT·WHEEL` rig. At
+this rung drag was still a mass-coupled rolling term, so the feather-light bike topped
+out absurdly fast (~264, climbing) — rung 1.95 fixed that by making drag a force.
+Top-down rigid body, so it doesn't lean/tip — an accepted arcade abstraction.)
 
 JALOPY's off-centre engine fires the `eng_torque` term: heading drifts to ~2° under
 pure throttle *before any steering input* — the honest-core "asymmetric build pulls"
@@ -377,7 +437,52 @@ claim, visible in the trace. (Small for a grid this size, as expected; the loose
 from 3 wheels + low mass is the bigger felt difference.) This is the proof rung 2
 needs: the build genuinely drives the feel.
 
+### Rung 1.95 — handling depth: three DDA levers (2026-06-09)
+
+After researching DDA's vehicle model (see "DDA reference" above), added the three
+levers that need no new systems and reuse data we already derive. All emergent, no
+per-rig tuning:
+
+1. **Drag is now a FORCE, not a mass-coupled rate** — DDA's key insight. Top speed =
+   `thrust / drag` is **mass-independent**; mass governs *acceleration* only. This fixed
+   the runaway feather-light bike (was ~264 and climbing → now a sane ~211) and made the
+   HAULER reach roughly the BUGGY's top speed but *accelerate* like a truck — exactly right.
+2. **Aero drag from frontal profile** — `DRAG_AERO × frontalCells`, where `frontalCells`
+   is the rig's span across the direction of travel. The narrow MOTORBIKE (`front=1`) is
+   fast because it's *slippery*, not just light; the others (`front=3`) pay full aero.
+3. **Wheels as a trade-off** — `DRAG_WHEEL × nWheels`. Each wheel adds rolling resistance,
+   so bolting on wheels for grip now *costs top speed* — a real decision, not always-yes.
+4. **Weight balance → under/oversteer** — `balance` = COM position along the wheelbase
+   (+1 nose-heavy … −1 tail-heavy), scaling steering authority (`1 − BALANCE_K·balance`).
+   Nose-heavy pushes wide (understeer), tail-heavy turns in eagerly (oversteer). JALOPY's
+   front-mounted engine reads `balance ≈ 0.18` → a mild understeer *on top of* its yaw-pull.
+
+Re-measured all five (gas to terminal, then a hard right; headless `--trace`):
+
+| Rig | Mass | front | balance | Top speed | Accel feel | Turn |
+|---|---|---|---|---|---|---|
+| BUGGY | 17.2 | 3 | +0.05 | ~109 | brisk | ~72°/s |
+| HAULER | 23.2 | 3 | −0.03 | ~104 | sluggish (heavy) | lazy |
+| SPRINTER | 20.2 | 3 | −0.01 | ~206 | strong (2 eng) | snappy |
+| JALOPY | 13.7 | 3 | +0.18 | ~119 | quick | understeers + pulls |
+| MOTORBIKE | 8.2 | 1 | −0.11 | ~211 | rocket | dartiest |
+
+For the (fairly symmetric) presets `balance` is mild; its real payoff arrives with the
+rung-2 BUILD editor, where mounting a heavy engine at the very nose or tail will swing
+the car's character. Remaining levers (caster wheels, ground-pressure, per-axle grip,
+tippiness, fuel/damage, plating) are catalogued above against their rungs.
+
+**Piano-on-casters observation (parked for rung 2):** a pushed piano has a *vastly*
+different feel from a car — caster wheels give support but **no preferred rolling
+direction**, so it slides any way and pivots freely (no nose-tracking), and a tall
+high-COM rig is *tippy*. Both are real levers we don't have yet: a **caster/omni wheel
+type** (≈ zero lateral grip — the opposite of our tire-grip line) belongs in rung 2's
+part vocabulary, and **stability/tippiness** (a 2-D stand-in for roll: spin-out above a
+lateral-g threshold set by track width vs a notional COM height) fits rung 3–4. Logged
+in the lever catalogue.
+
 **Next — rung 2 (the BUILD flip):** mode toggle, place/remove parts on the grid,
 `recompute_body()` already does the live readouts; add the COM crosshair *in the build
 view* (it shifts as you place parts — the orbit apoapsis-marker move) and ui.h part
-buttons. The drive core above does not change.
+buttons. Fold in the caster wheel type while expanding the part vocabulary. The drive
+core above does not change.

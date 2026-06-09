@@ -105,10 +105,17 @@ static float I;                   // moment of inertia about the COM
 static float wheelGrip;           // Σ wheel grip
 static float frontX;              // local-x of the rig's front edge (for the nose marker)
 static int   nEngines, nWheels;   // for the readout
+static int   frontalCells;        // rig height across the direction of travel (aero profile)
+static float balance;             // COM vs wheelbase: +1 front-heavy (understeer) .. -1 rear-heavy
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 #define ENGINE_POWER  2600.0f     // forward force units per engine at full throttle
-#define ROLL          1.2f        // rolling resistance (1/s) — sets top speed
+// Drag is a FORCE (DDA's model): top speed = thrust / drag, MASS-INDEPENDENT — mass
+// sets acceleration, not top speed. Drag = base + per-wheel rolling resistance + a
+// frontal-profile aero term, so SHAPE and WHEEL COUNT set top speed, not just weight.
+#define DRAG_BASE     4.0f        // baseline drag (force per px/s)
+#define DRAG_WHEEL    1.5f        // lever: each wheel adds rolling resistance (grip↑, top speed↓)
+#define DRAG_AERO     3.9f        // lever: drag per cell of frontal profile (narrow = fast)
 #define BRAKE         240.0f      // extra deceleration when braking (px/s^2)
 #define REVERSE       0.55f       // reverse throttle fraction
 #define LAT_GRIP      32.0f       // lateral velocity killed per second (tire grip)
@@ -116,6 +123,7 @@ static int   nEngines, nWheels;   // for the readout
 #define ANG_DAMP      5.0f        // angular self-centering (1/s)
 #define REF_GYRO      130.0f      // gyradius^2 (px^2) a "normal" rig turns easily at
 #define ENG_YAW_K     0.9f        // how hard an off-centre engine yaws the rig
+#define BALANCE_K     0.4f        // lever: front-heavy understeers, rear-heavy oversteers
 #define GRIP_TO_FORCE 2000.0f     // wheel grip → max traction force
 #define GROUND_GRIP   1.0f        // road: plenty (sand/mud come in rung 3)
 #define DRIFT_GRIP_MULT 0.13f     // handbrake: lateral grip drops to this fraction
@@ -141,6 +149,8 @@ static float af(float v) { return v < 0 ? -v : v; }
 // ── derive body properties from the part grid ────────────────────────────────
 static void recompute_body(void) {
     M = 0; comX = 0; comY = 0; wheelGrip = 0; frontX = 0; nEngines = 0; nWheels = 0;
+    int minRow = GH, maxRow = -1;
+    float wMinX = 1e9f, wMaxX = -1e9f;     // wheelbase extent (x of frontmost/rearmost wheel)
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
             int p = grid[r][c];
@@ -150,11 +160,21 @@ static void recompute_body(void) {
             M += k->mass; comX += k->mass * cx; comY += k->mass * cy;
             wheelGrip += k->grip;
             if ((c + 1) * CELL > frontX) frontX = (c + 1) * CELL;
+            if (r < minRow) minRow = r;
+            if (r > maxRow) maxRow = r;
             if (p == P_ENGINE) nEngines++;
-            if (p == P_WHEEL)  nWheels++;
+            if (p == P_WHEEL) { nWheels++; if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx; }
         }
     if (M <= 0) M = 1;
     comX /= M; comY /= M;
+    // frontal profile: how many cells tall the rig is ACROSS the direction of travel
+    // (forward is +x, so the perpendicular span is the rows) — the aero cross-section.
+    frontalCells = (maxRow >= minRow) ? (maxRow - minRow + 1) : 1;
+    // weight balance: where the COM sits along the wheelbase. +1 = over/ahead of the
+    // front axle (nose-heavy → understeer), -1 = behind the rear axle (tail-heavy → oversteer).
+    float wbHalf = (wMaxX - wMinX) * 0.5f;
+    float wbMid  = (wMaxX + wMinX) * 0.5f;
+    balance = (wbHalf > 0.5f) ? clamp((comX - wbMid) / wbHalf, -1.0f, 1.0f) : 0.0f;
     // moment of inertia about the COM
     I = 0;
     for (int r = 0; r < GH; r++)
@@ -235,9 +255,11 @@ static void update_drive(float dt_) {
         thrust *= s; eng_torque *= s;
     }
 
-    // --- linear: F = ma, then rolling resistance + braking --------------------
-    vf += (thrust / M) * dt_;
-    vf -= vf * ROLL * dt_;
+    // --- linear: net force / mass. Drag is a FORCE (base + per-wheel rolling
+    //     resistance + frontal-profile aero), so top speed = thrust/drag is
+    //     mass-INDEPENDENT — mass only governs how fast you reach it. -----------
+    float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells;
+    vf += ((thrust - drag * vf) / M) * dt_;
     if (in_brk && vf > 0) { vf -= BRAKE * dt_; if (vf < 0) vf = 0; }
 
     // --- tire grip: bleed the sideways velocity away (the car-feel line) -------
@@ -267,7 +289,10 @@ static void update_drive(float dt_) {
     float dir = vf >= 0 ? 1.0f : -1.0f;
     float gyro = I / M;                              // radius of gyration squared
     float turnEase = REF_GYRO / (gyro + REF_GYRO);   // small/light rig → turns easier
-    float ang_acc = in_steer * STEER_RESP * speed_factor * dir * turnEase;
+    // weight balance: nose-heavy (balance>0) pushes wide (understeer), tail-heavy
+    // (balance<0) turns in eagerly (oversteer). Uses the COM we already derive.
+    float steer_bal = 1.0f - BALANCE_K * balance;
+    float ang_acc = in_steer * STEER_RESP * speed_factor * dir * turnEase * steer_bal;
     ang_acc += ENG_YAW_K * (eng_torque / I);         // off-centre engine pulls
     angVel += ang_acc * dt_;
     angVel -= angVel * ANG_DAMP * dt_;
@@ -303,6 +328,8 @@ void update(void) {
     watch("angvel", "%.0f", angVel);
     watch("mass", "%.1f", M);
     watch("I", "%.0f", I);
+    watch("front", "%d", frontalCells);
+    watch("bal", "%.2f", balance);
 #endif
 }
 

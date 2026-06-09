@@ -389,6 +389,8 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Muscle throttle (stamina + rhythm)** | foot/hand crank: each press = one stroke (`THR_IMPULSE`), gated by a stamina meter; the no-fuel starter rig. See §1a | 2.8 | ⬜ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
 | **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
+| **Grip limit → spin-out ("uit de bocht vliegen")** | each tyre holds only so much sideways force (≈ grip·weight, the friction circle); corner too fast (demand `v²/r` > limit) and the tyres LET GO → plough wide or the rear breaks away and you spin. Sibling of 2.55 tipping (that's grip loss from load leaving the hull; this is from exceeding the friction limit at speed). Today grip is a soft per-frame bleed that never catastrophically lets go | 3–4 | ⬜ |
+| **Aquaplaning / terrain grip** | `GROUND_GRIP` drops toward ~0 on water/ice/wet → the rig floats, steering does nothing; cross a puddle mid-corner → instant slide. Rides on the existing `GROUND_GRIP` hook (=1.0 road today), set per-biome | 3 (biomes) | ⬜ |
 | **Dynamic stability / tipping** | cornering load shifts the COM toward the turn's outside; leaving the support polygon (hull of the wheels) tips the rig → transient scrape + lateral grip collapse. A 3-wheeler tips toward its gap but not the other way (asymmetric); single-track (bike) exempt. The 2-D stand-in for roll | 2.55 | ✅ |
 | **Drivetrain location (FWD/RWD)** | power lays down through the *drive wheels*; drive point ahead of the COM (in travel) pulls → stable/understeer, behind pushes → loose/spin. Reversing flips it → a rear-wheel bike drives better backwards. Explicit `drive` part | 2.6 | ✅ |
 | **Fuel burn ∝ power; damaged engine power ∝ HP** | range as the clock; a half-wrecked engine gives half thrust | 3–4 | ⬜ |
@@ -412,6 +414,12 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
   allowed, or is it game-over/restart (orbit's R)? Tied to the dismount question.
 - **Touch story.** BUILD is a natural touch fit (tap parts onto the grid, ui.h handles
   it). DRIVE needs throttle + steer — on-screen pad. Worth `touchControls:true`?
+- **Two brakes (already in: foot brake `X`/`↓` + handbrake `SPACE`).** The foot brake
+  decelerates the whole rig evenly (grip-limited, strong, lands a firm stop → reverse on
+  hold). The handbrake breaks the tyres loose for a drift. *Refinement (with per-axle
+  grip, rung 3–4):* a real handbrake should lock the **rear** wheels specifically → the
+  tail steps out / spins, vs today's global `DRIFT_GRIP_MULT`. Same per-axle model as the
+  true FWD/RWD oversteer and the rear-only-grip spin-out.
 
 ## Name
 

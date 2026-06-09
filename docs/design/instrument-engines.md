@@ -121,7 +121,8 @@ the instrument stays "impossible to make ugly":
 |---|---|---|---|
 | **Organ** | drawbar registration (snapped table — **full design §8.8.4**) | brightness / drawbar tilt + click bite | percussion + internal vibrato/chorus scanner depth *(Leslie is a separate per-voice recipe — §8.8.4 / 0015, not a macro)* |
 | **Electric piano** | instrument (snapped: Rhodes/Wurli/Clav — **full design §8.8.5**) | brightness (pickup pos + hammer) | bark (pickup-nonlinearity drive) |
-| **Acoustic piano** | unison detune / string spread | strike hardness | dispersion ("expensive"-ness) + damping |
+| **Acoustic piano** (StifKarp) | string stiffness / inharmonicity (pure → metallic shimmer — **full design §8.8.9**) | hammer (soft felt → hard plectrum) | pedal (dry/damped → open + sympathetic bloom) |
+| **Guitar** (bodied pluck) | body (open harp → resonant box → bright banjo — **full design §8.8.9**) | string brightness (warm nylon → bright steel) | mute (long ring → tight pizzicato stop) |
 | **Strings** | section size (1 player↔ensemble) | bow brightness | bow pressure / attack bite |
 | **Mallet** | inharmonicity (marimba↔bell) | strike position | decay length (celesta↔vibe) |
 
@@ -298,11 +299,36 @@ independently shippable:
    **`INSTR_PIPE`** (flute/recorder/pan pipe) — **SHIPPED 2026-06-09** (25): an STK jet-drive
    flute, bore reuses `ks_buf` + a tiny `jetBuf[64]`, reusing reed's whole breath/vibrato/chiff
    surface; harmonics = overblow, timbre = breath air, morph = embouchure. Design + STEP-0: §8.8.8.
-   **Bowed** (violin/cello) stays parked — STEP-0 (2026-06-09) found navkit's model *unstable*
-   (erratic envelope, crest 12.6 vs a clean voice's ~2–5), a real friction-stability DSP project,
-   not a clean port; revisit only as a deliberate effort. Then **`INSTR_PIANO` (StifKarp) /
-   `INSTR_GUITAR`/`INSTR_HARP`** — the genuinely buffered pair (piano's `ks2Buffer[2048]`
-   second string, guitar's KS string + body resonator) on the pluck-validated path.
+   **Bowed** (violin/cello) — **needs a proper STEP-0 sweep, not parked-as-research** (verdict
+   revised 2026-06-09 after a lit check). The original audition rejected navkit's bowed off one
+   render (erratic envelope, crest 12.6 vs a clean voice's ~2–5), but the DSP literature says that
+   is the signature of bowing *outside the Schelleng wedge* (too little force → double-slip "surface
+   sound"; too much → raucous crunch) — a bow-force/velocity/position **regime** problem, not
+   inherent instability. A working bowed string settles into low-crest Helmholtz "leaning sawtooth"
+   motion (crest ~2). Same trap as the Rhodes/Wurli mis-tuning: a bad preset, not a bad engine. Next
+   move: render navkit's bowed across a bow-force × velocity × position sweep to find the Helmholtz
+   wedge; if it won't settle, the standard fix is a hysteresis bow table (McIntyre-Schumacher-
+   Woodhouse 1983 — which Smith's simplified STK table explicitly omits). It is still the hardest of
+   the family (narrow wedge, fiddly real-time control), so sequence it after the buffered pluck pair.
+   Then the genuinely buffered pair on the pluck-validated path: **`INSTR_GUITAR` (26) — SHIPPED
+   2026-06-09** (KS string + 4 body-formant biquads; design + status §8.8.9), and **`INSTR_PIANO`
+   (StifKarp, 27) — SHIPPED 2026-06-09** (KS string + dispersion allpass chain + soundboard;
+   single-string v1, double-string `ks2Buffer` deferred; §8.8.9). The buffered pair is shipped.
+   **STEP-0 done 2026-06-09 — green light, two engines not three:**
+   - **Harp folds into guitar.** navkit ships harp as `GUITAR_HARP` (preset 216), one of *eight*
+     `WAVE_GUITAR` presets (210 Acoustic · 211 Classical · 212 Banjo · 213 Sitar · 214 Oud · 215
+     Koto · 216 Harp · 217 Ukulele). So `INSTR_HARP` is **not** its own engine — it's a guitar
+     preset, exactly the way Rhodes/Wurli/Clav fold into EPiano. The buffered work is **two**
+     engines: `INSTR_GUITAR` (the whole plucked-string family) + `INSTR_PIANO` (`WAVE_STIFKARP`,
+     preset 218 Grand Piano). **Pizzicato strings are another short-decay `INSTR_GUITAR` preset** —
+     this engine unlocks them for free.
+   - **Stable across the range — clean ports, no friction fight** (unlike bowed). Rendered 210/216/218
+     at C3/G4/C5/G5 (`/tmp/nk_{210,216,218}_*.wav`): 0 clipped samples, DC ≈ 0 everywhere (piano a
+     negligible ~0.001–0.004). Crest is *high and rising with pitch* (gtr 21→27 dB, piano 14.5→19.6
+     dB) — **correct for a plucked voice**: a sharp attack over a long decay tail measured across the
+     whole window. The metric inverts vs. the sustained engines — for a pluck, high crest = real
+     attack + ring-out (good); only for a *held* voice (bowed/reed/pipe) does it mean a lurching
+     envelope (bad). So the bowed crest-12.6 alarm does **not** apply here.
 10. **Formant filter** + the **effects layer** (§8.10 — buses vs. master; reverb / delay /
     tape / leslie / wah, starting with one master reverb + the formalized bus concept).
     **Additive stays deferred** — `INSTR_SINE` + FM + MALLET cover its near corners today —
@@ -1029,8 +1055,8 @@ lowest-risk port on the board *because* reed paved it.
 navkit's pipe preset (109 Pipe Flute) across the range with `tools/navkit-render.c`:
 
 - **Rock-stable C3→G6** — crest 5.4–5.8, RMS dead-even (0.36–0.39), 0 clipped, DC ≈ 0 at *every*
-  pitch. The opposite of navkit's bowed (which lurched, crest 12.6, erratic envelope — auditioned
-  and rejected). No register icepick like PD's reso. So no stability fight: the model just works.
+  pitch. The opposite of navkit's bowed render (which lurched, crest 12.6, erratic envelope — though
+  that was later traced to a Schelleng-wedge tuning issue, not inherent instability; see §8.5 step 9). No register icepick like PD's reso. So no stability fight: the model just works.
   (Reference WAVs: `/tmp/fl_pipeflute_{c3,g4,g5,g6}.wav`.)
 - **Cheap buffer tier — fits `ks_buf` like reed.** `initPipe` sizes the bore at `SR/(freq·boreScale)`
   capped at **1023**, and the oscillator reads only `lowerBuf` (the struct's `upperBuf` is vestigial —
@@ -1072,6 +1098,90 @@ recorder (breathy, low embouchure) · pan pipe (airy, more breath noise) · an *
 a **pipe** cart (the reed cart's sibling — bore viz → a fipple/jet mouth, the overblow register
 shown). Id `INSTR_PIPE` = **25** (24 is the in-flight `INSTR_VOICE`); wire all four places + the
 soundcheck tripwire after `sound.h`.
+
+### 8.8.9 Engines #9–10: GUITAR + PIANO — the buffered pluck pair, step-1 design (2026-06-09)
+
+The playbook's paper round for the two **genuinely buffered** engines — roadmap §8.5 step 9 tail.
+**`INSTR_GUITAR` (26) SHIPPED 2026-06-09** — ported onto our KS path (PLUCK's string + 4 parallel
+body-formant biquads, lerped open→boxy by harmonics, + a DC blocker; morph drives the mute/decay,
+timbre the excitation brightness). Wired all 4 places, soundcheck slot 25 (tripwire PASS), showcase
+`guitar` cart with 8 hardware presets incl. pizzicato. Output verified clean (DC≈0, 0 clipping,
+crest 19 dB — navkit's reference range). **Open tail: STEP-6 macro tuning by ear** (the body-formant
+anchors + the mute→T60 curve are first-pass). Buzz/jawari (sitar) deferred.
+**`INSTR_PIANO` (27) SHIPPED 2026-06-09 — VERBATIM StifKarp port.** First attempt (adapted onto our
+KS loop) measured *thin* — A/B vs navkit showed grand 1–3k presence 3% vs navkit's 44%. The lesson:
+param-matching isn't enough, the DSP must be **verbatim**. Re-ported `processStifKarpOscillator`
+line-for-line: **near-lossless loop** (decay comes from the amp envelope/gate, NOT the loop — that's
+what keeps the upper harmonics alive), one-period buffer + fractional-delay allpass tuning, averaging
+strike comb, per-voicing brightness/damping, dispersion, per-voicing soundboard + tone-filter,
+detuned 2nd string (grand/bright), sympathetic tap. **Result: harpsichord now matches navkit**
+(1–3k 40% vs 43%), grand has real presence + a brightness **bloom** (bright strike → mellow) + hammer
+thump for character — user-approved. Macros: **harmonics = voicing** (snaps grand/bright/harpsi/
+dulcimer/clavichord/celesta — each a full navkit voicing table; the EPiano-style selector), timbre =
+hammer, morph = pedal. The 6 presets = the 6 voicings. Also shipped this pass: **`eng_tune()`** (the
+throwaway weight/attack tuning poke), the **brightness bloom**, and a core fix — **quietest-voice
+stealing** in `sound_find_voice` (steal the most-faded tail, not a loud ring-out; needed now that the
+string engines sustain for seconds — helps pluck/guitar too). Wired all 4 places, soundcheck slot 24
+(tripwire PASS), showcase `piano` cart (6 voicings, 2-row tuning knobs). Verified stable (DC≈0, 0
+clipping). **STEP 0 is done** (rendered navkit 210 Acoustic / 216 Harp / 218 Grand Piano across C3→G5: clean,
+stable, 0 clipping, DC≈0 — high crest is correct decaying-pluck behavior, *not* bowed-style
+instability; see §8.5 step 9 tail). Two structural findings from STEP 0 set the scope:
+
+- **Two engines, not three.** navkit ships harp as `GUITAR_HARP`, one of eight `WAVE_GUITAR`
+  presets — so `INSTR_HARP` folds into `INSTR_GUITAR` the way Rhodes/Wurli/Clav fold into EPiano.
+  The work is `INSTR_GUITAR` (the whole bodied plucked-string family) + `INSTR_PIANO`
+  (`WAVE_STIFKARP`, the stiff-string keyboards).
+- **Both must earn their slot vs. the existing `INSTR_PLUCK` (16)**, which is the *bare* KS string
+  (harmonics=ring, timbre=pick brightness, morph=pick position). The new engines foreground what
+  PLUCK lacks: GUITAR = **+ body resonator + buzz**; PIANO = **+ string stiffness/inharmonicity +
+  hammer + pedal**. The macros spend their three knobs on those new percepts, not on what PLUCK
+  already does. **PLUCK coexists** — it stays the cheap bare string (≈45 carts may use it); GUITAR
+  is the richer bodied tier (a clean good/better ladder, no breakage).
+
+Macro design (§8.1.1: three knobs only; map percepts, not parameters; every quarter-turn audible
+on every key). navkit param ranges are the menu each macro sweeps.
+
+**`INSTR_GUITAR` — bodied plucked-string family** (acoustic / classical / banjo / koto / oud /
+sitar / harp / ukulele — **and pizzicato**). KS string through a resonant body; decays on its own.
+
+| Macro | Percept (0 → 1) | navkit params | Why |
+|---|---|---|---|
+| **harmonics** | **body** — open & bodyless (harp) → resonant box (acoustic/oud) → bright snappy box (banjo/koto) | `guitarBodyMix` 0.15→0.7 (+ `bodyBrightness`) | The body *is* why GUITAR exists vs. PLUCK; the "which instrument" family axis. Continuous (cf. reed's bore), not snapped. |
+| **timbre** | **string brightness** — warm nylon → bright steel | `pluckBrightness` 0.35→0.85 (+ `bodyBrightness`) | Universal dark↔bright; nylon-vs-steel. Same slot as every engine's timbre. |
+| **morph** | **mute/damping** — long open ring → tight muted stop (palm-mute → **pizzicato**) | `pluckDamping` 0.9995→0.993 (+ `release`) | The live gesture: drag to choke a ringing note. Hands the player **pizzicato on a knob**; staccato/palm-mute for free. |
+
+Dropped to fit three knobs (baked per preset): `guitarPickPosition` (PLUCK already owns pick
+position as *its* morph) and `guitarBuzz` (sitar jawari — niche; baked into the Sitar preset).
+
+```c
+#define INSTR_GUITAR  26  // plucked string + body — acoustic/nylon/banjo/koto/harp/uke/pizzicato. KS string through a resonant body; decays on its own (long hit()/release). macros: harmonics = body (open harp → resonant box → bright banjo), timbre = string brightness (warm nylon → bright steel), morph = mute (long ring → tight pizzicato stop)
+```
+
+**`INSTR_PIANO` — struck stiff-string keyboards** (grand / bright / harpsichord / dulcimer /
+clavichord). Inharmonic string + hammer + soundboard + sympathetic strings; rings down on its own.
+
+| Macro | Percept (0 → 1) | navkit params | Why |
+|---|---|---|---|
+| **harmonics** | **stiffness** — pure harmonic → stretched/metallic inharmonic shimmer | `stifkarpStiffness` 0.1→0.4 | Literally the partial series — the cleanest "harmonics" mapping. The stretched-octave shimmer *is* what reads as real piano/dulcimer. |
+| **timbre** | **hammer** — soft felt & mellow → hard & bright (grand → harpsichord plectrum) | `stifkarpHardness` 0.2→0.9 (+ `pluckBrightness`) | Exact precedent: MALLET's timbre is "mallet hardness." Felt-vs-plectrum brightness. |
+| **morph** | **pedal** — dry/damped → sustain-pedal open + sympathetic bloom | `stifkarpDamper` 0.9→0.0 + `stifkarpSympathetic` 0→0.25 (+ `pluckDamping`) | The piano's signature *live* gesture — drag = press the pedal: the note opens and other strings ring sympathetically. |
+
+Dropped to fit three knobs (baked per preset): `stifkarpStrikePos`, soundboard
+`bodyMix`/`bodyBrightness` (clavichord low → dulcimer high), `stifkarpDetune` (the 3-string chorus).
+
+```c
+#define INSTR_PIANO   27  // struck stiff string (StifKarp, verbatim) — grand/bright/harpsichord/dulcimer/clavichord/celesta. Near-lossless KS string + dispersion + soundboard; rings down on its own (long hit()). macros: harmonics = voicing (snaps the six), timbre = hammer (soft felt → hard plectrum), morph = pedal (dry/damped → long open sustain)
+```
+
+**Acceptance-test presets (STEP 5 — "if 'Harpsichord' doesn't sound like one, the mapping's wrong"):**
+GUITAR — Harp · Classical (nylon) · Acoustic (steel) · Banjo · Koto · Ukulele · Sitar ·
+**Pizzicato** (harmonics≈0 open, morph≈high mute, short ADSR). PIANO — Grand · Bright ·
+Harpsichord · Dulcimer · Clavichord.
+
+> Ids `26`/`27` assume `INSTR_VOICE` (24) and `INSTR_PIPE` (25) hold — confirm the next free id at
+> port time. Open mapping question carried into STEP 6 (tune-by-ear): guitar morph = mute may want
+> to fight PLUCK's morph = pick-position for the slot; mute won on giving pizzicato directly, revisit
+> if the body axis already implies enough decay variation.
 
 ### 8.9 Candidate engine catalog (running wishlist)
 

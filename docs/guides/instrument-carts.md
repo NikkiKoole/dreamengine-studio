@@ -107,6 +107,8 @@ cleanest examples of "here's what this engine sounds like."
 | Cart | Engine | What it is |
 |---|---|---|
 | **pluck** (`pluck`) | `INSTR_PLUCK` | Karplus-Strong string — eight pentatonic strings, three live knobs. |
+| **guitar** (`guitar`) | `INSTR_GUITAR` | The bodied pluck — PLUCK's string + a resonant body (4 formant biquads). Eight strings, three macros (body/brightness/mute), eight hardware presets incl. pizzicato. Built on `pluck`. |
+| **piano** (`piano`) | `INSTR_PIANO` | The struck stiff string (StifKarp) — KS string + a dispersion allpass chain (the metallic shimmer) + a baked grand-piano soundboard. A one-octave keyboard, three macros (stiffness/hammer/pedal), six presets (grand→celesta). Single-string v1. |
 | **mallet** (`mallet`) | `INSTR_MALLET` | Struck bar simulation. |
 | **organ** (`organ`) | `INSTR_ORGAN` | Nine drawbar sines per key. |
 | **epiano** (`epiano`) | `INSTR_EPIANO` | Rhodes / Wurlitzer / Clavinet in one. |

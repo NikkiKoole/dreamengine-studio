@@ -52,6 +52,7 @@ typedef struct {
     int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
     float sustain;                  // 0..1
     float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
+    float eng_p[2];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click
     int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
     float lfo_rate[3];              // Hz
     float lfo_depth[3];             // 0 = off; units depend on dest
@@ -76,6 +77,10 @@ typedef struct {
 
 #define SOUND_LFOS 3
 #define SOUND_ENVS 3   // routable mod-envelopes per instrument (the one-shot twin of the LFOs)
+
+// An RBJ constant-skirt bandpass biquad — the body-resonator formant used by INSTR_GUITAR's
+// 4 body modes. Coeffs set by sound_biquad_set(), one sample run by sound_biquad_run().
+typedef struct { float b0, b1, b2, a1, a2, z1, z2; } SoundBiquad;
 
 typedef struct {
     bool   active;
@@ -200,6 +205,50 @@ typedef struct {
     int    vox_coda;                 // consonant CODA id (VC_*), -1 = none; set by voice_coda() near release
     float  vox_coda_t;               // seconds since the coda morph began (vowel → consonant at note end)
     bool   vox_on;                   // note-on init guard (engine id hit without a start → silent)
+    // guitar state (INSTR_GUITAR): the bodied plucked string — PLUCK's Karplus-Strong string
+    // (REUSES ks_buf, distinct wave id from the bare pluck path) + 4 parallel body-resonator
+    // bandpass formants + an output DC blocker. macros: harmonics = body (open/clear → resonant/
+    // boxy — sets the formant voicing + dry/wet mix at note-on), timbre = string brightness (the
+    // excitation lowpass), morph = mute (per-sample feedback: long open ring → tight pizzicato).
+    // Buzz/jawari (sitar) deferred to a future preset. Design: instrument-engines.md §8.8.9.
+    SoundBiquad gt_body[4];          // body formants (parallel bandpass), voiced from harmonics
+    float  gt_bodymix;               // dry string ↔ wet body blend (from harmonics)
+    float  gt_dc_prev, gt_dc_state;  // output DC blocker (long-sustain bodies build DC)
+    bool   gt_on;                    // note-on init guard (engine id hit without a pluck → silent)
+    // piano state (INSTR_PIANO): StifKarp stiff string — our KS string (REUSES ks_buf) + a
+    // dispersion allpass chain (the inharmonic "stretched partial" piano shimmer, the engine's
+    // defining feature) + a baked grand-piano soundboard (4 body biquads) + an output DC blocker.
+    // macros: harmonics = stiffness (dispersion depth + stages), timbre = hammer (excitation
+    // lowpass: soft felt → hard), morph = pedal (decay length + high-freq retention: damped
+    // staccato → long open sustain). Double-string detune + prepared buzz deferred. §8.8.9.
+    float  pn_disp_c[4], pn_disp_s[4];  // dispersion allpass coeffs (set from stiffness) + states
+    int    pn_disp_n;                   // active dispersion stages (1..4, by stiffness)
+    SoundBiquad pn_body[4];             // per-voicing soundboard formants (set at note-on)
+    float  pn_bodymix;
+    float  pn_loop_lp, pn_loopco;       // output tone-filter (1-pole LP) state + coeff (per voicing)
+    float  pn_symp;                     // sympathetic-resonance level (per voicing)
+    float  pn_detune;                   // 2nd-string detune ratio (per voicing; 1.0 = no 2nd string)
+    float  pn_dc_prev, pn_dc_state;     // output DC blocker
+    // navkit-verbatim KS string: near-lossless loop (decay comes from the AMP ENVELOPE, not the
+    // loop — that's what keeps the upper harmonics alive), one-period buffer + fractional-delay
+    // allpass tuning, per-voicing brightness/damping.
+    float  pn_ksb, pn_ksd;              // ksBrightness (high-harmonic retention) + ksDamping (≈0.999)
+    float  pn_ksb_cur;                  // brightness ENVELOPE: strikes bright, settles to pn_ksb (the piano "bloom")
+    float  pn_apc, pn_aps;              // fractional-delay allpass coeff + state (pitch tuning)
+    float  pn_initf;                    // freq at note-on (pitch-tracking reference)
+    float  pn_dampg, pn_damps;          // damper gain (pedal) + slewed state
+    float  pn_ks2[SOUND_KS_MAX];        // detuned 2nd string delay line (own loop)
+    int    pn_ks2_widx, pn_ks2_len;
+    float  pn_ks2_last, pn_ks2_apc, pn_ks2_aps;
+    float  pn_ks2_disp[4];              // 2nd string dispersion states (reuses pn_disp_c coeffs)
+    bool   pn_on;                       // note-on init guard
+    // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
+    // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
+    // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
+    // eng_p[] (eng_tune, live while we dial it in; then baked to constants).
+    float  eng_p[2];                    // copied from the instrument at note-on (0 weight · 1 attack)
+    float  eng_subph, eng_env;          // sub-osc phase + envelope follower
+    int    eng_click;                   // onset-click samples remaining
 } Voice;
 
 static Voice         voices[SOUND_VOICES];
@@ -371,6 +420,7 @@ typedef enum {
     SR_VOICE_CODA   = 34,   // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab): a=consonant id (VC_*), -1 = none
     SR_INSTR_PAN    = 35,   // a=slot, b=pan*1000 (signed) — per-instrument stereo position (stereo.md)
     SR_NOTE_PAN     = 36,   // a=pan*1000 (signed, live/slewed), e0/e1=handle — live pan on a held note
+    SR_ENG_TUNE     = 37,   // EXPERIMENTAL guitar/piano tuning poke: a=slot, b=idx (0 weight·1 attack), c=val*1000
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -507,7 +557,7 @@ static void sound_pluck_start(Voice *v) {
     if (pos > 0) {
         float tmp[SOUND_KS_MAX];
         memcpy(tmp, v->ks_buf, period * sizeof(float));
-        for (int i = 0; i < period; i++) v->ks_buf[i] = tmp[i] - tmp[(i + pos) % period];
+        for (int i = 0; i < period; i++) v->ks_buf[i] = tmp[i] - 0.55f * tmp[(i + pos) % period];
     }
     // remove DC (the feedback loop would sustain it forever) + normalize so every
     // macro setting plucks at the same loudness
@@ -1442,6 +1492,358 @@ static inline float sound_voice_sample(Voice *v, float pitch_mul) {
 // note_pitch/note_glide (slewed) — so the SAME pitch machinery every oscillator answers
 // bends the string: the tap distance just tracks it. Linear-interpolated read; the
 // interpolation's slight extra damping at fractional positions is natural string behavior.
+// ── INSTR_GUITAR: bodied plucked string (§8.8.9) ─────────────────────────────
+// PLUCK's Karplus-Strong string + a parallel body resonator (4 bandpass formants) + a DC
+// blocker — the body is what bare PLUCK lacks. The string reuses ks_buf and the same fractional
+// read tap as the pluck path, but GUITAR remaps the macros: harmonics = BODY, timbre = string
+// brightness, morph = MUTE. navkit crib: processGuitarOscillator (synth_oscillators.h).
+
+// RBJ constant-skirt bandpass — peak gain = `gain`, bandwidth `bw` in octaves. Resets state.
+static void sound_biquad_set(SoundBiquad *bq, float fc, float bw, float gain) {
+    float w0 = 6.2831853f * fc / (float)SOUND_SAMPLE_RATE;
+    float sn = sinf(w0), cs = cosf(w0);
+    float alpha = sn * sinhf(0.34657359f * bw * w0 / (sn > 1e-6f ? sn : 1e-6f));  // 0.3466 = ln2/2
+    float a0 = 1.0f + alpha;
+    bq->b0 = (alpha * gain) / a0;
+    bq->b1 = 0.0f;
+    bq->b2 = (-alpha * gain) / a0;
+    bq->a1 = (-2.0f * cs) / a0;
+    bq->a2 = (1.0f - alpha) / a0;
+    bq->z1 = bq->z2 = 0.0f;
+}
+static inline float sound_biquad_run(SoundBiquad *bq, float in) {
+    float out = bq->b0 * in + bq->z1;
+    bq->z1 = bq->b1 * in - bq->a1 * out + bq->z2;
+    bq->z2 = bq->b2 * in - bq->a2 * out;
+    return out;
+}
+
+// note-on: excite the string (noise burst → timbre lowpass → fixed pick comb → DC-remove +
+// normalize + tile, the pluck recipe) then voice the body resonator from harmonics.
+static void sound_guitar_start(Voice *v) {
+    int period = (int)((float)SOUND_SAMPLE_RATE / (v->freq > 20.0f ? v->freq : 20.0f));
+    if (period < 2) period = 2;
+    if (period > SOUND_KS_MAX) period = SOUND_KS_MAX;
+    int alloc = period * 2 + 4;
+    if (alloc > SOUND_KS_MAX) alloc = SOUND_KS_MAX;
+    v->ks_len  = alloc;
+    v->ks_widx = 0;
+    v->ks_last = 0.0f;
+    // timbre = string brightness: lowpass the noise burst (0 = warm nylon, 1 = bright steel)
+    float k  = 0.04f + 0.96f * v->timb * v->timb;
+    float lp = 0.0f;
+    for (int i = 0; i < period; i++) {
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        lp += k * (n - lp);
+        v->ks_buf[i] = lp;
+    }
+    // fixed pick comb at ~1/4 string — pick position is baked here (morph carries mute, not pick pos)
+    int pos = (int)(period * 0.25f);
+    if (pos > 0) {
+        float tmp[SOUND_KS_MAX];
+        memcpy(tmp, v->ks_buf, period * sizeof(float));
+        for (int i = 0; i < period; i++) v->ks_buf[i] = tmp[i] - 0.55f * tmp[(i + pos) % period];
+    }
+    float mean = 0.0f;
+    for (int i = 0; i < period; i++) mean += v->ks_buf[i];
+    mean /= (float)period;
+    float peak = 0.0f;
+    for (int i = 0; i < period; i++) { v->ks_buf[i] -= mean; float a = fabsf(v->ks_buf[i]); if (a > peak) peak = a; }
+    if (peak > 0.0001f) { float g = 0.9f / peak; for (int i = 0; i < period; i++) v->ks_buf[i] *= g; }
+    for (int i = period; i < alloc; i++) v->ks_buf[i] = v->ks_buf[i % period];   // tile
+    // harmonics = body: lerp the 4 formant modes between an OPEN/dark anchor (harp/oud: broad, low,
+    // quiet — minimal box) and a RESONANT/bright anchor (banjo/koto: sharp, high, loud).
+    float h = v->harm;
+    // mode 0 is the body Helmholtz (~110Hz, real guitar F#2–A2) — kept modest so it doesn't
+    // become a sub lump; modes 2–3 carry the 1–3k presence (boosted vs the first pass).
+    // mode 0–1 = body warmth (low-mid weight), modes 2–3 = 1–3k presence. Both kept up: warmth is
+    // what stops it sounding thin; presence is what stops it sounding dull.
+    static const float f_lo[4]  = { 110.0f, 220.0f, 420.0f,  800.0f };
+    static const float f_hi[4]  = { 180.0f, 480.0f, 950.0f, 2000.0f };
+    static const float bw_lo[4] = { 0.9f, 0.8f, 0.6f, 0.5f };
+    static const float bw_hi[4] = { 0.7f, 0.4f, 0.3f, 0.4f };
+    static const float g_lo[4]  = { 0.45f, 0.45f, 0.35f, 0.28f };
+    static const float g_hi[4]  = { 0.60f, 0.65f, 0.55f, 0.45f };
+    for (int i = 0; i < 4; i++)
+        sound_biquad_set(&v->gt_body[i], f_lo[i] + (f_hi[i] - f_lo[i]) * h,
+                         bw_lo[i] + (bw_hi[i] - bw_lo[i]) * h, g_lo[i] + (g_hi[i] - g_lo[i]) * h);
+    v->gt_bodymix = 0.30f + 0.55f * h;       // open harp (some body) → boxy banjo (lots of body)
+    v->gt_dc_prev = v->gt_dc_state = 0.0f;
+    v->eng_subph  = v->eng_env = 0.0f;
+    v->eng_click  = 700;
+    v->gt_on = true;
+}
+
+// per-sample: KS string with morph-driven decay (mute) → parallel body resonator → DC blocker.
+static inline float sound_guitar_sample(Voice *v, float pitch_mul) {
+    int alloc = v->ks_len;
+    if (alloc < 4 || !v->gt_on) return 0.0f;   // engine id without a note-on init → silent
+    float f = v->freq * pitch_mul;
+    if (f < 20.0f) f = 20.0f;
+    float len_f = (float)SOUND_SAMPLE_RATE / f;          // the tap distance IS the pitch
+    if (len_f > (float)alloc - 2.0f) len_f = (float)alloc - 2.0f;
+    if (len_f < 2.0f) len_f = 2.0f;
+    // morph = mute: T60 from a long open ring (mor=0, ~6s) to a tight pizzicato stop (mor=1, ~80ms)
+    float t60 = 0.08f * expf((1.0f - v->mor) * 4.3f);
+    float fb  = expf(-6.9078f / (t60 * f));
+    float rpos = (float)v->ks_widx - len_f;
+    if (rpos < 0.0f) rpos += (float)alloc;
+    int   i0 = (int)rpos;        if (i0 >= alloc) i0 = 0;
+    int   i1 = i0 + 1;           if (i1 >= alloc) i1 = 0;
+    float fr  = rpos - (float)i0;
+    float dry = v->ks_buf[i0] + (v->ks_buf[i1] - v->ks_buf[i0]) * fr;
+    // loop filter: the KS damping average, but timbre keeps the upper harmonics (1–3k presence)
+    // alive instead of nuking them every pass — the cure for the "thin/dull" spectral hump
+    float lpf  = (dry + v->ks_last) * 0.5f;
+    float loop = (lpf + (dry - lpf) * (0.40f + 0.50f * v->timb)) * fb;
+    v->ks_buf[v->ks_widx] = loop;
+    v->ks_last = dry;
+    if (++v->ks_widx >= alloc) v->ks_widx = 0;
+    // body resonator: 4 parallel bandpass formants, blended in by harmonics (gt_bodymix)
+    float body = 0.0f;
+    for (int i = 0; i < 4; i++) body += sound_biquad_run(&v->gt_body[i], dry);
+    body *= 0.35f;
+    float mix = dry + v->gt_bodymix * (body - dry * 0.3f);
+    // DC blocker (long-sustain bodies + the body filters can drift DC)
+    float dc = mix - v->gt_dc_prev + 0.990f * v->gt_dc_state;   // ~70Hz high-pass: trims sub mud
+    v->gt_dc_prev  = mix;
+    v->gt_dc_state = dc;
+    // fundamental reinforcement: a sine at the note pitch, envelope-following the string, mixed
+    // under it for low-end weight (anti-thin). weight = v->duty while tuning live, then baked.
+    float aenv = fabsf(dry);
+    v->eng_env = aenv > v->eng_env ? aenv : v->eng_env * 0.9997f;
+    v->eng_subph += f / (float)SOUND_SAMPLE_RATE;
+    if (v->eng_subph >= 1.0f) v->eng_subph -= 1.0f;
+    float tri = 4.0f * fabsf(v->eng_subph - 0.5f) - 1.0f;   // triangle: fuller + less phase-cancel than a sine
+    float out = dc + v->eng_p[0] * 0.8f * v->eng_env * tri;
+    if (v->eng_click > 0) {                                 // onset pick transient (attack), eng_p[1]
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n  = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        float ce = (float)v->eng_click / 700.0f;
+        out += v->eng_p[1] * 1.3f * n * ce * ce;
+        v->eng_click--;
+    }
+    return out;
+}
+
+// ── INSTR_PIANO: struck stiff string (StifKarp, §8.8.9) ──────────────────────
+// Our KS string + a DISPERSION allpass chain (stretches the upper partials sharp — the
+// inharmonic metallic shimmer that reads as "piano", the stiff-string magic) + a baked
+// grand-piano soundboard (4 body biquads) + a DC blocker. macros: harmonics = stiffness,
+// timbre = hammer, morph = pedal. navkit crib: processStifKarpOscillator. Single-string v1
+// (double-string detune + prepared-piano buzz deferred, like guitar's jawari).
+
+// The StifKarp voicings, ported faithfully from navkit (initStifKarpPreset + the 218–222 patches).
+// harmonics SNAPS to one of these (the "which keyboard" axis); timbre modulates the hammer, morph
+// the pedal/sustain. Each field is a navkit param so each voicing reproduces navkit's sound.
+typedef struct {
+    float fF[4], fBW[4], fG[4];   // soundboard formants: center Hz, bandwidth (oct), gain
+    float loopco;                 // output tone-filter coeff (dark → bright)
+    float hammer;                 // base hammer hardness (timbre modulates around it)
+    float strike;                 // strike position (excitation comb)
+    float stiff;                  // dispersion / inharmonicity 0..1
+    float bodymix;                // dry string ↔ soundboard
+    float ring;                   // base ring time (s) at full pedal
+    float symp;                   // sympathetic-resonance level
+    float detune;                 // 2nd-string detune ratio (1.0 = single string)
+    const char *name;
+} PianoVoicing;
+static const PianoVoicing PIANO_V[6] = {
+    { {110,200,440,1800},{0.8f,0.7f,0.5f,0.4f}, {0.35f,0.55f,0.50f,0.25f}, 0.25f,0.45f,0.12f,0.25f,0.55f,4.0f,0.15f,1.000694f,"grand" },
+    { {110,200,480,2200},{0.8f,0.7f,0.5f,0.4f}, {0.35f,0.60f,0.55f,0.35f}, 0.35f,0.65f,0.11f,0.30f,0.55f,5.0f,0.20f,1.000462f,"bright" },
+    { {200,400,900,1800},{0.5f,0.4f,0.3f,0.3f}, {0.80f,0.60f,0.40f,0.20f}, 0.70f,0.92f,0.08f,0.15f,0.25f,1.4f,0.00f,1.0f,     "harpsi" },
+    { {180,360,720,1500},{0.6f,0.5f,0.4f,0.3f}, {1.00f,0.70f,0.45f,0.25f}, 0.50f,0.70f,0.15f,0.40f,0.75f,3.0f,0.25f,1.0f,     "dulcimer" },
+    { {150,300,600,1200},{0.8f,0.6f,0.4f,0.3f}, {0.50f,0.30f,0.15f,0.08f}, 0.10f,0.20f,0.50f,0.10f,0.18f,1.6f,0.05f,1.0f,     "clavichord" },
+    { {400,800,1600,3200},{0.4f,0.3f,0.3f,0.2f},{0.80f,0.60f,0.40f,0.20f}, 0.60f,0.35f,0.25f,0.55f,0.45f,5.0f,0.10f,1.0f,     "celesta" },
+};
+// per-voicing string brightness (navkit pluckBrightness — high-harmonic RETENTION, the presence
+// lever) + damping (pluckDamping ≈ 0.999 — a near-lossless string; the note decays via the AMP
+// ENVELOPE/gate, NOT the loop, which is what keeps the upper harmonics alive).
+static const float PIANO_BRIGHT[6] = { 0.55f, 0.70f, 0.85f, 0.65f, 0.35f, 0.60f };
+static const float PIANO_DAMP[6]   = { 0.9992f, 0.9994f, 0.9970f, 0.9988f, 0.9980f, 0.9990f };
+static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f };   // bodyBrightness (scales soundboard gains)
+
+// note-on — navkit playStifKarp verbatim: ONE-period KS buffer + fractional-delay allpass tuning,
+// hammer-shaped excitation, AVERAGING strike comb, per-voicing brightness/damping, dispersion,
+// soundboard, optional detuned 2nd string.
+static void sound_piano_start(Voice *v) {
+    int vi = (int)(v->harm * 5.999f);
+    if (vi < 0) vi = 0; if (vi > 5) vi = 5;
+    const PianoVoicing *pv = &PIANO_V[vi];
+    float freq = v->freq > 20.0f ? v->freq : 20.0f;
+
+    float ideal = (float)SOUND_SAMPLE_RATE / freq;     // one period, allpass for the remainder
+    int len = (int)ideal;
+    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
+    if (len < 2) len = 2;
+    float frac = ideal - (float)len;
+    v->ks_len = len; v->ks_widx = 0; v->ks_last = 0.0f;
+    v->pn_apc = (1.0f - frac) / (1.0f + frac); v->pn_aps = 0.0f;
+    v->pn_initf = freq;
+    v->pn_ksb   = PIANO_BRIGHT[vi];
+    v->pn_ksb_cur = PIANO_BRIGHT[vi] + 0.35f;          // strike bright, then bloom down to pn_ksb
+    if (v->pn_ksb_cur > 0.97f) v->pn_ksb_cur = 0.97f;
+    v->pn_ksd   = PIANO_DAMP[vi];
+    v->pn_dampg = v->pn_damps = v->mor;                // pedal
+
+    // excitation: noise burst → hammer lowpass (timbre modulates the voicing's hardness) → normalize
+    float hard = pv->hammer + (v->timb - 0.5f) * 0.6f;
+    if (hard < 0.02f) hard = 0.02f; if (hard > 0.98f) hard = 0.98f;
+    float cut = 0.05f + 0.85f * hard, lp = 0.0f;
+    for (int i = 0; i < len; i++) {
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        lp += cut * (n - lp);
+        v->ks_buf[i] = lp;
+    }
+    float mean = 0.0f;                                 // remove excitation DC — else the near-lossless
+    for (int i = 0; i < len; i++) mean += v->ks_buf[i]; // loop sustains it into a sub-bass boom
+    mean /= (float)len;
+    float peak = 0.0f;
+    for (int i = 0; i < len; i++) { v->ks_buf[i] -= mean; float a = fabsf(v->ks_buf[i]); if (a > peak) peak = a; }
+    if (peak > 0.001f) { float g = 1.0f / peak; for (int i = 0; i < len; i++) v->ks_buf[i] *= g; }
+    int ps = (int)(pv->strike * (float)len);           // strike comb (AVERAGING — navkit applyPickPosition)
+    if (ps < 1) ps = 1; if (ps >= len) ps = len - 1;
+    { float tmp[SOUND_KS_MAX];
+      memcpy(tmp, v->ks_buf, len * sizeof(float));
+      for (int i = 0; i < len; i++) v->ks_buf[i] = (tmp[i] + tmp[(i + ps) % len]) * 0.5f; }
+
+    // dispersion (inharmonicity) — per voicing
+    float B = pv->stiff * pv->stiff * 0.015f;
+    float fscale = 1.0f + (freq - 261.0f) / 2000.0f;
+    if (fscale < 0.5f) fscale = 0.5f; if (fscale > 3.0f) fscale = 3.0f;
+    B *= fscale;
+    v->pn_disp_n = (pv->stiff < 0.1f) ? 1 : (pv->stiff < 0.4f) ? 2 : (pv->stiff < 0.7f) ? 3 : 4;
+    for (int i = 0; i < 4; i++) {
+        float pt = B * (float)(i + 1) * freq / (float)SOUND_SAMPLE_RATE;
+        if (pt > 0.9f) pt = 0.9f;
+        v->pn_disp_c[i] = (i < v->pn_disp_n) ? (1.0f - pt) / (1.0f + pt) : 0.0f;
+        v->pn_disp_s[i] = 0.0f;
+    }
+    float bbg = 0.5f + 0.5f * PIANO_BODYB[vi];   // navkit scales soundboard gains by bodyBrightness
+    for (int i = 0; i < 4; i++) sound_biquad_set(&v->pn_body[i], pv->fF[i], pv->fBW[i], pv->fG[i] * bbg);
+    v->pn_bodymix = pv->bodymix;
+    v->pn_loopco  = pv->loopco;
+    v->pn_loop_lp = 0.0f;
+    v->pn_symp    = pv->symp;
+    v->pn_detune  = pv->detune;
+    v->pn_dc_prev = v->pn_dc_state = 0.0f;
+    if (pv->detune > 1.00001f) {                       // 2nd string: own detuned length + allpass
+        float ideal2 = (float)SOUND_SAMPLE_RATE / (freq * pv->detune);
+        int len2 = (int)ideal2;
+        if (len2 > SOUND_KS_MAX - 1) len2 = SOUND_KS_MAX - 1;
+        if (len2 < 2) len2 = 2;
+        float frac2 = ideal2 - (float)len2;
+        v->pn_ks2_len = len2;
+        v->pn_ks2_apc = (1.0f - frac2) / (1.0f + frac2);
+        v->pn_ks2_aps = 0.0f; v->pn_ks2_widx = 0; v->pn_ks2_last = 0.0f;
+        for (int i = 0; i < len2; i++) v->pn_ks2[i] = (i < len) ? v->ks_buf[i] : 0.0f;
+        for (int i = 0; i < 4; i++) v->pn_ks2_disp[i] = 0.0f;
+    }
+    v->eng_subph = v->eng_env = 0.0f;
+    v->eng_click = 700;
+    v->pn_on = true;
+}
+
+// per-sample — navkit processStifKarpOscillator verbatim: near-lossless KS loop (avg → brightness
+// blend → effectiveDamping → dispersion → allpass tuning), one-period delay, optional 2nd string,
+// tone-filter, soundboard crossfade, sympathetic tap. Decay is the amp envelope, not the loop.
+static inline float sound_piano_sample(Voice *v, float pitch_mul) {
+    int len = v->ks_len;
+    if (len < 2 || !v->pn_on) return 0.0f;       // engine id without a note-on init → silent
+    float f = v->freq * pitch_mul;
+    if (f < 20.0f) f = 20.0f;
+    float ratio = (v->pn_initf > 20.0f) ? (f / v->pn_initf) : 1.0f;   // pitch tracking (arp/glide/vibrato)
+    if (ratio < 0.25f) ratio = 0.25f; if (ratio > 4.0f) ratio = 4.0f;
+    float effLen = (float)len / ratio;
+    if (effLen < 2.0f) effLen = 2.0f; if (effLen > (float)len) effLen = (float)len;
+    v->pn_damps += (v->pn_dampg - v->pn_damps) * 0.0005f;            // damper (pedal) slews in
+    float effDamp = v->pn_ksd * (0.992f + 0.008f * v->pn_damps);     // ≈ ksDamping (near-lossless)
+    v->pn_ksb_cur += (v->pn_ksb - v->pn_ksb_cur) * 0.00008f;         // brightness bloom: bright strike → mellow (~0.3s)
+    float ksb = v->pn_ksb_cur;
+    // ---- string 1 ----
+    float rpos = (float)v->ks_widx - effLen;
+    while (rpos < 0.0f) rpos += (float)len;
+    int i0 = (int)rpos; if (i0 >= len) i0 -= len;
+    int i1 = (i0 + 1 < len) ? i0 + 1 : 0;
+    float cur = v->ks_buf[i0] + (rpos - floorf(rpos)) * (v->ks_buf[i1] - v->ks_buf[i0]);
+    float nxt = v->ks_buf[(v->ks_widx + 1) % len];
+    float blended = (cur + nxt) * 0.5f;
+    blended += (cur - blended) * ksb;        // brightness keeps the highs (the presence lever)
+    float filt = blended * effDamp;
+    v->ks_last = filt;
+    for (int i = 0; i < v->pn_disp_n; i++) {        // dispersion (inharmonicity)
+        float c = v->pn_disp_c[i];
+        float ap = c * filt + v->pn_disp_s[i];
+        v->pn_disp_s[i] = filt - c * ap;
+        filt = ap;
+    }
+    float apo = v->pn_apc * filt + v->pn_aps;        // fractional-delay allpass tuning
+    v->pn_aps = filt - v->pn_apc * apo;
+    v->ks_buf[v->ks_widx] = apo;
+    v->ks_widx = (v->ks_widx + 1) % len;
+    float out = cur;
+    // ---- string 2 (detuned unison) ----
+    if (v->pn_detune > 1.00001f) {
+        int len2 = v->pn_ks2_len;
+        float effLen2 = (float)len2 / ratio;
+        if (effLen2 < 2.0f) effLen2 = 2.0f; if (effLen2 > (float)len2) effLen2 = (float)len2;
+        float rp2 = (float)v->pn_ks2_widx - effLen2;
+        while (rp2 < 0.0f) rp2 += (float)len2;
+        int j0 = (int)rp2; if (j0 >= len2) j0 -= len2;
+        int j1 = (j0 + 1 < len2) ? j0 + 1 : 0;
+        float c2 = v->pn_ks2[j0] + (rp2 - floorf(rp2)) * (v->pn_ks2[j1] - v->pn_ks2[j0]);
+        float n2 = v->pn_ks2[(v->pn_ks2_widx + 1) % len2];
+        float bl2 = (c2 + n2) * 0.5f;
+        bl2 += (c2 - bl2) * ksb;
+        float ft2 = bl2 * effDamp;
+        v->pn_ks2_last = ft2;
+        for (int i = 0; i < v->pn_disp_n; i++) {
+            float c = v->pn_disp_c[i];
+            float ap = c * ft2 + v->pn_ks2_disp[i];
+            v->pn_ks2_disp[i] = ft2 - c * ap;
+            ft2 = ap;
+        }
+        float ap2 = v->pn_ks2_apc * ft2 + v->pn_ks2_aps;
+        v->pn_ks2_aps = ft2 - v->pn_ks2_apc * ap2;
+        v->pn_ks2[v->pn_ks2_widx] = ap2;
+        v->pn_ks2_widx = (v->pn_ks2_widx + 1) % len2;
+        out = (cur + c2) * 0.7f;
+    }
+    // output tone-filter (per voicing): dark clavichord → bright harpsichord
+    v->pn_loop_lp += v->pn_loopco * (out - v->pn_loop_lp);
+    out = v->pn_loop_lp;
+    // soundboard crossfade (navkit step 9)
+    float body = 0.0f;
+    for (int i = 0; i < 4; i++) body += sound_biquad_run(&v->pn_body[i], out);
+    body *= 0.35f;
+    out = out * (1.0f - v->pn_bodymix * 0.6f) + body * v->pn_bodymix;
+    // sympathetic resonance: feed a touch back at the 3rd partial
+    if (v->pn_symp > 0.001f) {
+        int tap = len / 3;
+        if (tap > 0) v->ks_buf[(v->ks_widx + tap) % len] += out * v->pn_symp * 0.015f;
+    }
+    float dc = out - v->pn_dc_prev + 0.995f * v->pn_dc_state;        // gentle DC safety
+    v->pn_dc_prev  = out;
+    v->pn_dc_state = dc;
+    // optional fundamental weight + attack (eng_tune; default 0 = off, so this A/Bs against navkit)
+    float aenv = fabsf(out);
+    v->eng_env = aenv > v->eng_env ? aenv : v->eng_env * 0.9997f;
+    v->eng_subph += f / (float)SOUND_SAMPLE_RATE;
+    if (v->eng_subph >= 1.0f) v->eng_subph -= 1.0f;
+    float tri = 4.0f * fabsf(v->eng_subph - 0.5f) - 1.0f;
+    float res = dc + v->eng_p[0] * 0.8f * v->eng_env * tri;
+    if (v->eng_click > 0) {
+        v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
+        float n  = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
+        float ce = (float)v->eng_click / 700.0f;
+        res += v->eng_p[1] * 1.3f * n * ce * ce;
+        v->eng_click--;
+    }
+    return res;
+}
+
 static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_MALLET) return sound_mallet_sample(v, pitch_mul);
     if (v->wave == INSTR_FM)     return sound_fm_sample(v, pitch_mul);
@@ -1452,6 +1854,8 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (v->wave == INSTR_REED)   return sound_reed_sample(v, pitch_mul);
     if (v->wave == INSTR_PIPE)   return sound_pipe_sample(v, pitch_mul);
     if (v->wave == INSTR_VOICE)  return sound_voice_sample(v, pitch_mul);
+    if (v->wave == INSTR_GUITAR) return sound_guitar_sample(v, pitch_mul);
+    if (v->wave == INSTR_PIANO)  return sound_piano_sample(v, pitch_mul);
     int alloc = v->ks_len;
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
@@ -1536,11 +1940,18 @@ static void sound_unclaim_held(int vi) {
 static float steal_tailL = 0.0f, steal_tailR = 0.0f;   // stereo: a stolen voice pays its last PANNED output per channel
 
 static int sound_find_voice(void) {
-    int vi = 0;
-    // prefer fully free; else a non-held voice; else voice 0.
-    // (held notes are stolen only after plain event voices — they're meant to last.)
-    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].active)  { vi = i; goto done; }
-    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].held)    { vi = i; goto done; }
+    int vi = -1;
+    // prefer a fully free voice
+    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].active) { vi = i; goto done; }
+    // else steal the QUIETEST non-held voice (a faded ring-out tail you won't hear) rather than the
+    // first one — so a still-ringing chord isn't hard-cut ("clamped") when polyphony runs out. This
+    // matters now that the string engines (pluck/guitar/piano) sustain for seconds.
+    float quietest = 1e30f;
+    for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].held) {
+        float a = fabsf(voices[i].last_outL) + fabsf(voices[i].last_outR);
+        if (a < quietest) { quietest = a; vi = i; }
+    }
+    if (vi < 0) vi = 0;   // everything is a held note — fall back to voice 0
 done:
     if (voices[vi].active) { steal_tailL += voices[vi].last_outL; steal_tailR += voices[vi].last_outR; }   // pay the cut into the declick tail
     sound_unclaim_held(vi);
@@ -1613,6 +2024,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->timb = v->timb_target = ins->timbre;
     v->mor  = v->mor_target  = ins->morph;
     v->drv  = v->drv_target  = ins->drive;
+    v->eng_p[0] = ins->eng_p[0];
+    v->eng_p[1] = ins->eng_p[1];
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
     v->pan  = v->pan_target  = ins->pan;
@@ -1625,6 +2038,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->rd_on  = false;
     v->pp_on  = false;
     v->vox_on = false;
+    v->gt_on  = false;
+    v->pn_on  = false;
     v->fm_mph = v->fm_fb = v->fm_tph = 0.0f;   // FM needs no excitation, just deterministic phases
     if      (v->wave == INSTR_PLUCK)  sound_pluck_start(v);    // excite the string
     else if (v->wave == INSTR_MALLET) sound_mallet_start(v);   // strike the bar
@@ -1634,6 +2049,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     else if (v->wave == INSTR_REED)   sound_reed_start(v);     // size + seed the bore (self-oscillates)
     else if (v->wave == INSTR_PIPE)   sound_pipe_start(v);     // size + seed the flute bore + jet
     else if (v->wave == INSTR_VOICE)  sound_voice_start(v);    // seed a neutral vowel (self-oscillates)
+    else if (v->wave == INSTR_GUITAR) sound_guitar_start(v);   // excite the string + voice the body
+    else if (v->wave == INSTR_PIANO)  sound_piano_start(v);    // hammer-strike + arm dispersion + soundboard
     v->step_samples     = 0;
     v->step_len_samples = gate_samples;
     v->rel_start        = sound_adsr_gated(gate_samples, v->a_samp, v->d_samp, v->sustain);
@@ -1779,6 +2196,10 @@ static void sound_fire_req(SoundReq r) {
         if (duty < 0.01f) duty = 0.01f;
         if (duty > 0.99f) duty = 0.99f;
         instr_bank[slot].duty = duty;
+    } else if (r.kind == SR_ENG_TUNE) {
+        int slot = r.a, idx = r.b;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 2) return;
+        instr_bank[slot].eng_p[idx] = r.c / 1000.0f;
     } else if (r.kind == SR_INSTR_LFO) {
         int slot = r.a;
         int L = r.e1;
@@ -2432,6 +2853,12 @@ void instrument_duty(int slot, float duty) {
     sound_push_ctrl(SR_INSTR_DUTY, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
 }
 
+void eng_tune(int slot, int idx, float value) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 2) return;
+    if (value < 0.0f) value = 0.0f; if (value > 1.0f) value = 1.0f;
+    sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
+}
+
 void instrument_pan(int slot, float pan) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_PAN, slot, (int)(pan * 1000.0f), 0, 0, 0, 0);
@@ -2639,6 +3066,8 @@ static void sound_init(void) {
         instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
+        instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (eng_tune) — off until set
+        instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (eng_tune) — off until set
     }
 
     // echo bus: clean slate (matters for libtcc hot-reload + --det reproducibility)

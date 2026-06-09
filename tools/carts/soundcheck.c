@@ -20,7 +20,7 @@ static int   step = -1;          // current test step (-1 until the first beat)
 static float t = 0;
 static const char *label = "warming up";
 
-static const char *WN[15] = { "SQUARE", "SAW", "TRI", "NOISE", "SINE", "USER0 org", "USER1 vox", "USER2 bel", "USER3 fld", "PLUCK ks", "MALLET bar", "FM 2op", "ORGAN B3", "EPIANO", "PD cz" };
+static const char *WN[17] = { "SQUARE", "SAW", "TRI", "NOISE", "SINE", "USER0 org", "USER1 vox", "USER2 bel", "USER3 fld", "PLUCK ks", "MALLET bar", "FM 2op", "ORGAN B3", "EPIANO", "PD cz", "GUITAR body", "PIANO stif" };
 
 static int  held = -1;           // the live-setter test voice
 static int  burst_left = 0;      // schedule_hit machine-gun
@@ -85,6 +85,14 @@ void init(void) {
     instrument_morph(26, 0.6f);                  // the DCW sweep on
     instrument_lfo(26, 2, LFO_MORPH, 3.0f, 0.4f);     // exercise the new macro-LFO destination
     instrument_env(26, 2, ENV_TIMBRE, 0, 200, 0.4f);  // and the new macro-ENV dest (3rd env slot)
+    instrument(25, INSTR_GUITAR, 1, 0, 7, 900);  // slot 25 = the bodied guitar engine
+    instrument_harmonics(25, 0.55f);             // mid body — acoustic-ish box
+    instrument_timbre(25, 0.6f);                 // steel-ish brightness
+    instrument_morph(25, 0.2f);                  // mostly open ring (low mute)
+    instrument(24, INSTR_PIANO, 1, 0, 7, 1500);  // slot 24 = the StifKarp piano engine
+    instrument_harmonics(24, 0.25f);             // grand-piano-ish stiffness
+    instrument_timbre(24, 0.45f);                // felt hammer
+    instrument_morph(24, 0.6f);                  // pedal partway down (some sustain)
     bpm(120);
 }
 
@@ -99,8 +107,8 @@ void update(void) {
     if (t < 0.6f) return;
     t = 0;
     step++;
-    int s = step % 22;
-    if (s < 15) {                               // each wave id, audibly, labeled
+    int s = step % 24;
+    if (s < 17) {                               // each wave id, audibly, labeled
         label = WN[s];
         if      (s == 9)  hit(57, 31, 6, 500);   // the KS pluck engine (slot 31)
         else if (s == 10) hit(69, 30, 6, 500);   // the modal mallet engine (slot 30)
@@ -108,23 +116,25 @@ void update(void) {
         else if (s == 12) hit(45, 28, 6, 700);   // the tonewheel organ engine (slot 28)
         else if (s == 13) hit(57, 27, 6, 900);   // the electric-piano engine (slot 27)
         else if (s == 14) hit(45, 26, 6, 700);   // the phase-distortion (CZ) engine (slot 26)
+        else if (s == 15) hit(50, 25, 6, 800);   // the bodied guitar engine (slot 25)
+        else if (s == 16) hit(48, 24, 6, 1000);  // the StifKarp piano engine (slot 24)
         else              note(57, s, 6);        // slots 0-8: raw waves + the 4 user waves
-    } else if (s == 15) {
+    } else if (s == 17) {
         label = "chord + strum";
         chord(48, CHORD_MIN7, 5, 4);
         strum(60, CHORD_MAJ, 6, 4, 40);
-    } else if (s == 16) {
+    } else if (s == 18) {
         label = "tone + schedule";
         tone(SCALE_PENTA, 4, 7, 4);
         schedule(120, 72, 8, 4);
-    } else if (s == 17) {
+    } else if (s == 19) {
         label = "schedule_hit burst (40x9ms)";
         burst_left = 40;
-    } else if (s == 18) {
+    } else if (s == 20) {
         label = "note_on + live setters";
         held = note_on(52, 9, 5);
         note_glide(held, 80);
-    } else if (s == 19 && held >= 0) {
+    } else if (s == 21 && held >= 0) {
         label = "live: pitch/cutoff/res/duty/lfo/env/macros";
         note_pitch(held, 59);
         note_cutoff(held, 2000);
@@ -137,11 +147,11 @@ void update(void) {
         note_harmonics(held, 0.9f);              // engine macros ride kind 22 — no-op on a
         note_timbre(held, 0.7f);                 // wavetable slot, but the request path and
         note_morph(held, 0.3f);                  // stale-handle safety must survive them
-    } else if (s == 20) {
+    } else if (s == 22) {
         label = "note_off + panic";
         if (held >= 0) { note_off(held); held = -1; }
         note_off_all();
-    } else if (s == 21) {
+    } else if (s == 23) {
         label = "sfx + music banks";
         sfx(0);
     }
@@ -151,9 +161,9 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     print("SOUND CHECK", 8, 6, CLR_WHITE);
     print_scaled(label, 8, 60, CLR_YELLOW, 2);
-    print(str("step %d", step < 0 ? 0 : step % 22), 8, 90, CLR_LIGHT_GREY);
+    print(str("step %d", step < 0 ? 0 : step % 24), 8, 90, CLR_LIGHT_GREY);
     print("PASS = no [sound] WARNING in the log", 8, 130, CLR_LIME_GREEN);
-    print("       and all 15 waves sound different", 8, 140, CLR_LIME_GREEN);
+    print("       and all 17 waves sound different", 8, 140, CLR_LIME_GREEN);
     print("FAIL = any dropped-request warning", 8, 154, CLR_DARK_PEACH);
     font(FONT_SMALL);
     print("init slammed: 4 wavetables + 27 slots x 11 defines in one frame (the worst case)", 8, 178, CLR_MEDIUM_GREY);

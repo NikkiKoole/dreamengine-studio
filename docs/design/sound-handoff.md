@@ -36,9 +36,15 @@ are done. Two things remain on the roadmap, in order:
    (§8.5 step 9 tail). The *genuinely buffered* engines — piano's `ks2Buffer[2048]` second string,
    guitar's KS string + body resonator — on the pluck-validated path. **This is the next engine.**
    navkit cribs: `processStifKarpOscillator` / `processGuitarOscillator` (§8.7).
-   - **Bowed (violin/cello) stays PARKED** — STEP-0 (2026-06-09) found navkit's model *unstable*
-     (erratic envelope, crest 12.6 vs a clean voice's ~2–5): a real friction-stability DSP project,
-     not a clean port. Revisit only as a deliberate effort.
+   - **Bowed (violin/cello) — re-examine; the "unstable" verdict was over-read** (2026-06-09 lit
+     check). STEP-0 rejected navkit's bowed off one render (erratic envelope, crest 12.6 vs a clean
+     voice's ~2–5), but the DSP literature says that's the signature of bowing *outside the Schelleng
+     wedge* (too little force → double-slip "surface sound"; too much → raucous crunch) — a
+     bow-force/velocity/position **regime** problem, not inherent instability. A working bowed string
+     is a low-crest Helmholtz "leaning sawtooth." Same trap as the Rhodes/Wurli mis-tuning: a bad
+     preset, not a bad engine. Next: a proper bow-force × velocity × position sweep of navkit's
+     bowed to find the Helmholtz wedge; fallback is the standard hysteresis bow table (McIntyre-
+     Schumacher-Woodhouse 1983, which Smith's simplified STK table omits). Detail: §8.5 step 9.
 2. **Formant + the effects-bus layer (§8.10).** `INSTR_VOICE` (24) is **EXPERIMENTAL** — the voxlab
    prototype is live but the public 3-macro mapping isn't locked (which is why it's not in the help
    tab yet). The effects-bus layer is sequenced LAST, after the engines: master reverb + the bus

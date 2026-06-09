@@ -481,11 +481,14 @@ candidate catalog, the §8.10 effects layer) resolves in that doc, same numbers.
 - ~~**Where does duty live?**~~ — **Resolved (shipped): on the instrument** (`instrument_duty`)
   **+ live** (`note_duty`). The `INSTR_PULSE_*` named shortcuts were not added — folded into
   the zero-setup preset-bank idea (§5.3) if it ever ships.
-- **Stereo?** Everything is mono today. Panning is cheap to add but doubles the mix and
-  raises "is it worth the surface?" — likely low leverage for this audience. **→ SPECCED
-  (2026-06-09): [`stereo.md`](stereo.md)** — `instrument_pan`/`note_pan` + `LFO_PAN`, linear
-  pan law (center byte-identical), echo stays mono in v1; it's the §8.10 effects-layer
-  prerequisite. Not built yet; fold the shipped note back here when it lands.
+- ~~**Stereo?**~~ — **Resolved (SHIPPED 2026-06-09): yes.** The path is 2-channel;
+  `instrument_pan`/`note_pan` + `LFO_PAN` place a voice in the field. **Linear pan law,
+  center unchanged** — a centered voice is byte-identical to the old mono mix, so it doubles
+  only the final accumulate (not the per-voice synthesis) and existing carts are untouched. The
+  "low leverage for this audience" worry is answered by keeping the surface tiny: one pan knob,
+  default center, never required. Echo stays a mono bus in v1; stereo width (ping-pong, reverb
+  spread) belongs to the §8.10 effects layer this unblocks. Full spec + the bite checklist:
+  [`stereo.md`](stereo.md).
 - **Tracker UI**: VISION mentions a sound tracker to match the sprite editor.
   *Direction (2026-06-04):* leaning **PICO-8-style and prototyped as a CART** — draw the
   pitch contour over steps, toggle wave/vol per step — which needs **no new engine API**

@@ -50,6 +50,13 @@ single-cycle wave (`wave_set`). The raw chiptune waves (`SINE`/`SAW`/`SQUARE`/`T
 are still there for everything else. Full engine catalog + what's unbuilt:
 [`design/instrument-engines.md`](../design/instrument-engines.md) §8.9.
 
+**Stereo (cross-cutting — any model above can use it):** place a voice in the field with
+`instrument_pan(slot, -1..+1)` (per slot), `note_pan(handle, -1..+1)` (live — e.g. follow a
+sprite's screen-x for positional audio), or `LFO_PAN` (auto-pan). Default is center, and the
+linear pan law leaves a centered voice bit-identical to mono, so it's opt-in and free. Reference:
+the **`pan`** cart. Stereo *width* effects (ping-pong, reverb spread) are the deferred §8.10 layer,
+not per-voice. Full spec: [`design/stereo.md`](../design/stereo.md).
+
 ---
 
 ## Playable synths

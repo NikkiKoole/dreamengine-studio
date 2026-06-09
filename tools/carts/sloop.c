@@ -1041,37 +1041,67 @@ static void draw_vehicle(void) {
     line((int)sx, (int)sy - 2, (int)sx, (int)sy + 2, CLR_WHITE);
 }
 
-// ── HUD ────────────────────────────────────────────────────────────────────────
+// ── HUD ──────────────────────────────────────────────────────────────────────
+// A dashboard strip across the bottom holds every live gauge (speed/gear/tach/
+// mode); the play area above stays clear save the rig name + a road-sign speed
+// limit. Build-time facts (mass, part counts) live in BUILD mode, not here.
+// One blinking banner just above the strip carries warnings + the fading hints.
+#define STRIP_H 28
 static void hud(void) {
     char buf[48];
     float spd = fsqrt(vx * vx + vy * vy);
-    print(DES_NAME[cur_des], 4, 4, CLR_WHITE);
-    print(ZONE_NAME[cur_zone], SCREEN_W / 2 - 24, 4, CLR_YELLOW);   // road zone + its limit
-    snprintf(buf, sizeof buf, "%3.0f km/h", spd * KMH);   print(buf, 4, 14, CLR_LIGHT_GREY);
-    snprintf(buf, sizeof buf, "MASS  %4.1f", M);     print(buf, 4, 22, CLR_LIGHT_GREY);
-    snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels);
-    print(buf, 4, 30, CLR_MEDIUM_GREY);
-    print(drive_label(), 4, 38, CLR_MEDIUM_GREY);
-    if (in_hand && spd > 8) print("DRIFT", 4, 48, CLR_YELLOW);
-    if (tip_amt > 0.05f) print("TIP!", 44, 48, CLR_ORANGE);   // tipping onto an unsupported corner
-    if (nDrag > 0) {                       // scraping warning + heat bar
-        snprintf(buf, sizeof buf, "SCRAPE x%d", nDrag);
-        print(buf, SCREEN_W - 74, 4, hot_col());
-        bar(SCREEN_W - 74, 13, 68, 4, heat, heat > 0.66f ? CLR_RED : CLR_ORANGE, CLR_DARKER_GREY);
+    int   y0  = SCREEN_H - STRIP_H;          // top of the dashboard panel
+
+    // --- top of screen: rig identity (dim) + the zone's limit (a road sign) ----
+    print(DES_NAME[cur_des], 4, 4, CLR_DARK_GREY);
+    print_centered(ZONE_NAME[cur_zone], SCREEN_W / 2, 4, CLR_YELLOW);
+    if (nDrag > 0) {                         // scrape heat — shown only while it bites
+        print("SCRAPE", SCREEN_W - 52, 4, hot_col());
+        bar(SCREEN_W - 70, 13, 62, 4, heat, heat > 0.66f ? CLR_RED : CLR_ORANGE, CLR_DARKER_GREY);
     }
-    // transmission + gear + tach (RPM bar; reddens near the redline)
-    char gch = (gear == 0) ? 'R' : (char)('0' + gear);
-    snprintf(buf, sizeof buf, "%s  G:%c", trans_label(), gch);
-    print(buf, SCREEN_W - 84, 26, CLR_LIGHT_GREY);
-    bar(SCREEN_W - 84, 35, 78, 4, rpm, rpm > 0.92f ? CLR_RED : CLR_GREEN, CLR_DARKER_GREY);
-    // ignition: dead engine warns (blinks) so you reach for I; stalled = lugged it
-    if (stalled && blink(16)) print("STALLED \x07 I to start", SCREEN_W - 130, 17, CLR_RED);
-    else if (!engine_on)      print("ENGINE OFF \x07 I", SCREEN_W - 100, 17, CLR_MEDIUM_GREY);
-    print("\x1b\x1a steer   Z gas   X brake   SPACE handbrake",
-          SCREEN_W / 2 - 132, SCREEN_H - 20, CLR_MEDIUM_GREY);
-    print("TAB build   Q/E gear   G trans   I ignition",
-          SCREEN_W / 2 - 132, SCREEN_H - 11, CLR_MEDIUM_GREY);
-    if (is_paused) print("PAUSED", SCREEN_W / 2 - 22, SCREEN_H / 2, CLR_WHITE);
+
+    // --- one banner above the strip: warnings (priority) else fading hints ------
+    if (stalled)
+        print_centered("\x07 STALLED  press I to restart", SCREEN_W / 2, y0 - 11, blink(16) ? CLR_RED : CLR_DARK_GREY);
+    else if (!engine_on)
+        print_centered("ENGINE OFF  press I", SCREEN_W / 2, y0 - 11, CLR_MEDIUM_GREY);
+    else if (tip_amt > 0.05f)
+        print_centered("\x07 TIPPING", SCREEN_W / 2, y0 - 11, CLR_ORANGE);
+    else if (in_hand && spd > 8)
+        print_centered("DRIFT", SCREEN_W / 2, y0 - 11, CLR_YELLOW);
+    else {                                   // control hints — always on, one tiny line
+        font(FONT_TINY);
+        print_centered("\x1b\x1a steer  Z gas  X brake  SPACE drift  Q/E gear  G trans  I ignition  TAB build",
+                       SCREEN_W / 2, y0 - 8, CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
+    }
+
+    // --- the dashboard panel ---------------------------------------------------
+    rectfill(0, y0, SCREEN_W, STRIP_H, CLR_BLACK);
+    line(0, y0, SCREEN_W - 1, y0, CLR_DARK_GREY);          // top edge highlight
+
+    // SPEED — the hero: big number, small unit
+    snprintf(buf, sizeof buf, "%.0f", spd * KMH);
+    print_scaled(buf, 6, y0 + 5, CLR_WHITE, 2);
+    print("KM/H", 58, y0 + 9, CLR_MEDIUM_GREY);
+    line(92, y0 + 4, 92, y0 + STRIP_H - 4, CLR_DARK_GREY);
+
+    // GEAR — big; reverse is a red R
+    print("GEAR", 98, y0 + 4, CLR_MEDIUM_GREY);
+    char gstr[2] = { (gear == 0) ? 'R' : (char)('0' + gear), 0 };
+    print_scaled(gstr, 104, y0 + 11, (gear == 0) ? CLR_RED : CLR_WHITE, 2);
+    line(136, y0 + 4, 136, y0 + STRIP_H - 4, CLR_DARK_GREY);
+
+    // TACH — RPM bar, reddens near the redline (greys out with the engine dead)
+    print("RPM", 142, y0 + 4, CLR_MEDIUM_GREY);
+    bar(142, y0 + 15, 70, 6, rpm, !engine_on ? CLR_DARK_GREY : rpm > 0.92f ? CLR_RED : CLR_GREEN, CLR_DARKER_GREY);
+    line(218, y0 + 4, 218, y0 + STRIP_H - 4, CLR_DARK_GREY);
+
+    // TRANSMISSION + drivetrain
+    print(trans_label(), 224, y0 + 5,  engine_on ? CLR_LIGHT_GREY : CLR_DARK_GREY);
+    print(drive_label(), 224, y0 + 15, CLR_MEDIUM_GREY);
+
+    if (is_paused) print_centered("PAUSED", SCREEN_W / 2, SCREEN_H / 2, CLR_WHITE);
 }
 
 // ── BUILD mode: a paused grid editor — place parts, watch the numbers move ───

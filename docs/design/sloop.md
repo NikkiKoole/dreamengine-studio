@@ -1011,3 +1011,18 @@ one key + a stall check + HUD/sound), retiring the "forgiving no-stall" caveat f
 
 **Still open:** per-engine-kind powerband *curves* (§1a) and the engine roster remain the
 next transmission-side unit; touch controls for DRIVE (on-screen throttle/steer/ignition).
+
+### Cleaner DRIVE HUD — a dashboard strip (2026-06-09)
+
+The old HUD scattered text across all four corners and, worse, kept **build-time facts**
+(mass, engine/wheel counts, drivetrain) on screen every frame even though they never change
+while driving and are already shown in BUILD's readout. Reworked into a **dashboard strip**: a
+solid panel across the bottom holds every *live* gauge in one row — **speed** (big, the hero,
+via `print_scaled` ×2), **gear** (big; red `R` for reverse), a **tach** bar (greys out when the
+engine's dead), and the **transmission + drivetrain** labels. The play area above stays clear
+save the rig name (dim, top-left) and the zone's **speed limit** centred up top like a road
+sign. Warnings (STALLED / ENGINE OFF / TIPPING / DRIFT) share **one banner** just above the
+strip in priority order — no more corner-hunting. Control hints live on a single always-on
+line there too, rendered in **`FONT_TINY` (3×5)** so the whole control list fits on one row
+without crowding (the engine's 4×6/3×5 fonts, not just the default 8×8). Build stats now live
+only in BUILD mode, where they belong.

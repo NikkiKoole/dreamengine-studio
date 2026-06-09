@@ -634,6 +634,22 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     viewer renders and the day/night theme follows; built and bundle-verified, not yet
     eyeballed live.)*
 
+29. **Sub-pixel camera — thin features shimmer when panning at fractional zoom** *(new
+    2026-06-09, surfaced by procplaces' zoomable world)* — `camera_ex(int x, int y, float
+    zoom, float angle)` takes **integer** world coordinates. At a fractional zoom (e.g.
+    0.55×) a smoothly-moving camera can only snap to whole world units, and 1px features
+    (road curbs, dashes, grid lines) land on different fractional screen pixels each frame
+    as the world scrolls — so they crawl/shimmer while panning. Static, they're fine. Same
+    *class* of problem as sloop's bright-curb jitter (commit fe5553f), but that was a
+    velocity-lead wobble (fixed cart-side by low-passing the lead); this is the deeper
+    integer-camera limitation underneath. **Cart-side workaround in place** (procplaces):
+    suppress thin markings below ~0.55× zoom — wide solid fills are pixel-stable, and the
+    detail is invisible zoomed out anyway. **A real fix is engine-level:** give the camera
+    a sub-pixel float position and snap world→screen to the zoom pixel grid (so `zoom *
+    cam` stays integer), or offer a `camera_exf(float x, float y, …)`. Until then any
+    cart drawing thin lines in a zoomable/pannable world will shimmer at non-integer zoom.
+    Probably belongs with the rasterization work — [`design/rasterization-consistency.md`](design/rasterization-consistency.md).
+
 ---
 
 ## Decided-against / deferred ✗

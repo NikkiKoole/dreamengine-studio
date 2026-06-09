@@ -68,6 +68,7 @@ typedef struct {
     float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
     float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
+    float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
     uint32_t choke_mask;            // bitmask: bit N set = a new note on this slot kills active voices on slot N
@@ -113,8 +114,9 @@ typedef struct {
     float  drv, drv_target;        // post-filter drive (current + slew target, same machinery)
     float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
+    float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
-    float  last_out;               // this voice's previous mixed contribution — feeds the steal-declick tail
+    float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
     // Karplus-Strong string state (INSTR_PLUCK): a write head + a FRACTIONAL read tap.
     // Pitch = the tap distance, recomputed every sample from freq*pitch_mul — so vibrato,
     // pitch envelopes, note_pitch and note_glide all bend the string live.
@@ -367,6 +369,8 @@ typedef enum {
     SR_VOICE_PARAM  = 32,   // EXPERIMENTAL INSTR_VOICE raw-param poke (voxlab): a=idx, b=val*1000
     SR_VOICE_CONS   = 33,   // EXPERIMENTAL INSTR_VOICE consonant onset (voxlab): a=consonant id (VC_*), -1 = none
     SR_VOICE_CODA   = 34,   // EXPERIMENTAL INSTR_VOICE consonant coda (voxlab): a=consonant id (VC_*), -1 = none
+    SR_INSTR_PAN    = 35,   // a=slot, b=pan*1000 (signed) — per-instrument stereo position (stereo.md)
+    SR_NOTE_PAN     = 36,   // a=pan*1000 (signed, live/slewed), e0/e1=handle — live pan on a held note
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1529,7 +1533,7 @@ static void sound_unclaim_held(int vi) {
 
 // declick accumulator (audio-thread-owned): a stolen voice's last output lands here and
 // fades over ~3ms instead of cutting to zero in one sample. See the mix loop.
-static float steal_tail = 0.0f;
+static float steal_tailL = 0.0f, steal_tailR = 0.0f;   // stereo: a stolen voice pays its last PANNED output per channel
 
 static int sound_find_voice(void) {
     int vi = 0;
@@ -1538,7 +1542,7 @@ static int sound_find_voice(void) {
     for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].active)  { vi = i; goto done; }
     for (int i = 0; i < SOUND_VOICES; i++) if (!voices[i].held)    { vi = i; goto done; }
 done:
-    if (voices[vi].active) steal_tail += voices[vi].last_out;   // pay the cut into the declick tail
+    if (voices[vi].active) { steal_tailL += voices[vi].last_outL; steal_tailR += voices[vi].last_outR; }   // pay the cut into the declick tail
     sound_unclaim_held(vi);
     return vi;
 }
@@ -1611,7 +1615,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->drv  = v->drv_target  = ins->drive;
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
-    v->last_out = 0.0f;
+    v->pan  = v->pan_target  = ins->pan;
+    v->last_outL = v->last_outR = 0.0f;
     v->ks_len = 0;
     v->md_on  = false;
     v->org_on = false;
@@ -1659,7 +1664,7 @@ static void sound_fire_req(SoundReq r) {
         if (n == -1) {
             for (int i = 0; i < SOUND_VOICES; i++)
                 if (!voices[i].held && voices[i].active) {
-                    steal_tail += voices[i].last_out;           // declick the hard stop
+                    steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;   // declick the hard stop
                     voices[i].active = false;                   // held notes survive sfx(-1)
                 }
         } else if (n >= 0 && n < SOUND_SFX_SLOTS) {
@@ -1678,7 +1683,7 @@ static void sound_fire_req(SoundReq r) {
                 if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
                     if (voices[i].held && voices[i].owner_slot >= 0)
                         held_voice[voices[i].owner_slot] = -1;
-                    steal_tail += voices[i].last_out;
+                    steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
                     voices[i].active = false;
                 }
             }
@@ -1693,7 +1698,7 @@ static void sound_fire_req(SoundReq r) {
                     if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
                         if (voices[i].held && voices[i].owner_slot >= 0)
                             held_voice[voices[i].owner_slot] = -1;
-                        steal_tail += voices[i].last_out;
+                        steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
                         voices[i].active = false;
                     }
                 }
@@ -1893,6 +1898,19 @@ static void sound_fire_req(SoundReq r) {
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->eko_target = x;
         }
+    } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float x = r.b / 1000.0f;
+        if (x < -1.0f) x = -1.0f; if (x > 1.0f) x = 1.0f;
+        instr_bank[slot].pan = x;
+    } else if (r.kind == SR_NOTE_PAN) {     // a=pan*1000 (live, slewed)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) {
+            float x = r.a / 1000.0f;
+            if (x < -1.0f) x = -1.0f; if (x > 1.0f) x = 1.0f;
+            v->pan_target = x;
+        }
     }
 }
 
@@ -1921,8 +1939,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
     // the pen per sample keeps every schedule_hit offset intact; the pen is
     // tiny (<64) so the cost is noise.
     for (unsigned int i = 0; i < frames; i++) {
-        float mix = 0.0f;
-        float echo_in = 0.0f;   // this sample's summed sends into the echo bus
+        float mixL = 0.0f, mixR = 0.0f;   // stereo accumulators (centered voices keep mixL == mixR)
+        float echo_in = 0.0f;   // this sample's summed sends into the echo bus (MONO — echo is centered in v1)
 
         for (int di = 0; di < delayed_count; ) {
             if (--delayed[di].delay_samples < 0) {
@@ -1952,6 +1970,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->mor        += (v->mor_target    - v->mor)        * 0.002f;
                 v->drv        += (v->drv_target    - v->drv)        * 0.002f;   // drive (note_drive)
                 v->eko        += (v->eko_target    - v->eko)        * 0.002f;   // echo send (note_echo)
+                v->pan        += (v->pan_target    - v->pan)        * 0.002f;   // stereo pan (note_pan) — anti-zipper slew
             }
 
             // step advance? (SFX walk their step list; one-shots fall through to ADSR release)
@@ -1988,6 +2007,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // LFOs (one-shot notes only): up to 3 routable sines → pitch / duty / volume / cutoff
             float duty = v->duty, trem = 1.0f, pitch_mul = 1.0f, cutoff = v->flt_cutoff;
             float harm_mod = 0.0f, timb_mod = 0.0f, mor_mod = 0.0f;   // macro modulation (engine voices)
+            float pan_mod = 0.0f;   // LFO_PAN offset (auto-pan), added to the slewed base pan below
             if (v->sfx_idx < 0) {
                 for (int L = 0; L < SOUND_LFOS; L++) {
                     if (v->lfo_depth[L] <= 0.0f) continue;
@@ -2001,6 +2021,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                     else if (v->lfo_dest[L] == LFO_HARMONICS) harm_mod += lfo * v->lfo_depth[L];   // engine macros (INSTR_PLUCK+)
                     else if (v->lfo_dest[L] == LFO_TIMBRE)    timb_mod += lfo * v->lfo_depth[L];
                     else if (v->lfo_dest[L] == LFO_MORPH)     mor_mod  += lfo * v->lfo_depth[L];
+                    else if (v->lfo_dest[L] == LFO_PAN)       pan_mod  += lfo * v->lfo_depth[L];   // auto-pan (depth 0..1 = full sweep)
                 }
                 // mod-envelopes (one-shot AD, timer = step_samples): same destinations as the
                 // LFOs but a per-note contour instead of a cycle. The pitch env multiplies freq;
@@ -2079,9 +2100,16 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->drv_dc_y1 = s;
             }
             float contrib = s * v->vol * env * trem * 0.2f;
-            v->last_out = contrib;        // remembered so a steal can declick (see steal_tail)
-            mix += contrib;
-            if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in += contrib * v->eko;   // post-everything send (dry stays full)
+            // stereo pan (linear law, stereo.md): clamp the slewed base pan + any LFO_PAN offset
+            // to [-1,1], then split. pan 0 → pL=pR=1 (a centered voice is byte-identical to mono).
+            float pan = v->pan + pan_mod;
+            if (pan < -1.0f) pan = -1.0f; else if (pan > 1.0f) pan = 1.0f;
+            float pL = pan <= 0.0f ? 1.0f : 1.0f - pan;
+            float pR = pan >= 0.0f ? 1.0f : 1.0f + pan;
+            float cL = contrib * pL, cR = contrib * pR;
+            v->last_outL = cL; v->last_outR = cR;   // panned contributions feed the steal declick
+            mixL += cL; mixR += cR;
+            if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in += contrib * v->eko;   // echo send is MONO (pre-pan)
 
             v->phase += v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             if (v->phase >= 1.0f) v->phase -= 1.0f;
@@ -2091,9 +2119,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // steal-declick: when an audibly-ringing voice is stolen, its output step-discontinuity
         // is paid into this tail, which fades over ~3ms — the pop becomes a soft tick. Long
         // full-amplitude pluck voices made the old hard cut newly audible.
-        mix += steal_tail;
-        steal_tail *= 0.992f;
-        if (steal_tail > -1e-5f && steal_tail < 1e-5f) steal_tail = 0.0f;
+        mixL += steal_tailL; mixR += steal_tailR;
+        steal_tailL *= 0.992f; steal_tailR *= 0.992f;
+        if (steal_tailL > -1e-5f && steal_tailL < 1e-5f) steal_tailL = 0.0f;
+        if (steal_tailR > -1e-5f && steal_tailR < 1e-5f) steal_tailR = 0.0f;
 
         // THE echo bus (dormant until the first echo API call — old carts skip this entirely)
         if (echo_used) {
@@ -2116,23 +2145,26 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // self-oscillation plateau instead of blowing up — the tape echo behaviour
             echo_buf[echo_widx] = tanhf(echo_in + echo_lp * echo_fb);
             if (++echo_widx >= SOUND_ECHO_MAX) echo_widx = 0;
-            mix += echo_lp;   // the filtered tap IS the audible echo (wet adds to dry)
+            mixL += echo_lp; mixR += echo_lp;   // echo is a MONO bus in v1 — wet adds to both channels equally (centered)
         }
 
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
-        // tanh-shaped above, asymptote at ±1.0 — a hot 16-voice sum folds over smoothly
-        // instead of slamming the old hard wall. Slope is continuous at the knee.
-        if      (mix >  0.8f) mix =  0.8f + 0.2f * tanhf((mix - 0.8f) * 5.0f);
-        else if (mix < -0.8f) mix = -0.8f - 0.2f * tanhf((-mix - 0.8f) * 5.0f);
-        // stereo: centered for now (linear pan law — L = R = mix). Per-voice panning
-        // arrives with instrument_pan/note_pan (stereo.md step 2); until then every voice
-        // sits dead center, so each channel is exactly the old mono mix — identical content,
-        // just duplicated. The soft-clip above is applied to the shared mix BEFORE the split,
-        // so the two channels can never clip asymmetrically (stereo.md bite #5).
-        out[2 * i]     = mix;
-        out[2 * i + 1] = mix;
-        if (wavcap_state == 1) {                  // WAV capture tap (wav_request) — stays MONO
-            wavcap_buf[wavcap_pos++] = mix;       // taps the internal mix, not the interleaved out
+        // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
+        // slamming a hard wall. STEREO (stereo.md bite #5): derive ONE gain from the PEAK of the
+        // two channels and apply it to both, so the L/R ratio (the pan position) is preserved —
+        // clipping each channel independently would make a hard-panned hot signal's apparent pan
+        // wander under load. Centered (|mixL| == |mixR| == |mix|) this reduces to the old scalar
+        // soft-clip exactly: gain·mix = clipped, so each channel is byte-identical to mono.
+        float pk = fabsf(mixL) > fabsf(mixR) ? fabsf(mixL) : fabsf(mixR);
+        if (pk > 0.8f) {
+            float clamped = 0.8f + 0.2f * tanhf((pk - 0.8f) * 5.0f);
+            float g = clamped / pk;
+            mixL *= g; mixR *= g;
+        }
+        out[2 * i]     = mixL;
+        out[2 * i + 1] = mixR;
+        if (wavcap_state == 1) {                       // WAV capture tap (wav_request) — MONO downmix
+            wavcap_buf[wavcap_pos++] = (mixL + mixR) * 0.5f;   // (L+R)/2 == the old mono mix when centered
             if (wavcap_pos >= wavcap_total) wavcap_state = 2;
         }
     }
@@ -2398,6 +2430,16 @@ void wave_set(int which, const float *samples, int n) {
 void instrument_duty(int slot, float duty) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_DUTY, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
+}
+
+void instrument_pan(int slot, float pan) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_PAN, slot, (int)(pan * 1000.0f), 0, 0, 0, 0);
+}
+
+void note_pan(int handle, float pan) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_PAN, (int)(pan * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
 void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth) {

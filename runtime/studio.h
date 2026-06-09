@@ -282,12 +282,14 @@ void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, floa
 void note_filter(int handle, int mode);                   // switch a held note's filter mode live (FILTER_OFF/LOW/HIGH/BAND/NOTCH)
 void note_glide(int handle, int ms);                      // portamento: make note_pitch slide over `ms` instead of snapping (0 = snap)
 void note_duty(int handle, float duty);                   // change a held note's pulse width 0.0..1.0 live (pulse/square slots only)
+void note_pan(int handle, float pan);                     // change a held note's stereo position live -1 L..0 center..+1 R (slewed). pair with LFO_PAN for auto-pan
 void note_off_all(void);                                  // release every held note at once (panic / cleanup)
 
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..31: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release
 void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw
 void instrument_duty(int slot, float duty);               // pulse width 0.0..1.0 for a square-wave slot (0.5 = square, 0.12 = thin/nasal). no effect on other waves
+void instrument_pan(int slot, float pan);                 // stereo position for a slot: -1 left .. 0 center (default) .. +1 right. linear law; voices inherit at note-on. sweep live with note_pan or LFO_PAN
 
 // one routable LFO per instrument — a slow sine that wobbles one parameter
 #define LFO_PITCH   0   // vibrato — depth in semitones (0.3 subtle, 2 wide)
@@ -297,6 +299,7 @@ void instrument_duty(int slot, float duty);               // pulse width 0.0..1.
 #define LFO_HARMONICS 4 // sweep the harmonics macro (engine voices, INSTR_PLUCK+). SNAPPED — STEPS through detents (wavetype/ratio/instrument). depth 0..1
 #define LFO_TIMBRE  5   // sweep the timbre macro (brightness; on PD-reso = a resonant filter sweep with no filter). depth 0..1
 #define LFO_MORPH   6   // sweep the morph macro (the engine's 3rd axis — PD DCW depth, FM feedback, organ chorus, EP bark). depth 0..1
+#define LFO_PAN     7   // auto-pan — sweep the stereo position. depth 0..1 (1 = full L↔R). the declarative path for tremolo-pan / rotary-style motion
 void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth);  // attach sine LFO `which` (0..2 — a slot has 3) to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF or the macro dests LFO_HARMONICS/TIMBRE/MORPH (engine voices). rate 4–8 Hz typical. depth 0 = off
 
 // resonant filter per instrument — sculpts the tone (the SID-style knob)

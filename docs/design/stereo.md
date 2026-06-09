@@ -115,10 +115,21 @@ Grounded in the current mono mix path (`sound.h` `sound_callback`, the single `f
    commit so master is never left half-broken; the live-capture `wavcap` tap stays mono (it reads the
    internal `mix`, not the interleaved `out`). **Not yet done from #8:** regenerating committed `--det`
    baselines (deferred until the pan knob actually changes output — centered output is still identical).
-2. `instrument_pan` / `note_pan` + slew + cached gains; the 4-place wiring; a showcase cart that
-   sweeps pan and one that hard-pans a kit.
-3. Soft-clip on a shared gain (#5); pan the steal tail (#4).
-4. WAV capture → interleaved; update both analyzers; regenerate `--det` baselines (#8).
-5. Tripwire + a `--wav` render diff to confirm reproducibility holds in stereo.
-6. **Only then** the effects layer (§8.10): master reverb first, then delay, then ping-pong/auto-pan
-   as the stereo-aware bus recipes the parked items fold into.
+2. ✅ **DONE 2026-06-09.** `instrument_pan(slot,pan)` / `note_pan(handle,pan)` + `LFO_PAN` (dest 7),
+   pan slewed like vol/duty (anti-zipper), per-instrument default inherited at note-on. 4-place wired
+   (studio.h / sound.h impl / studioDocs.js / shell.js) + tcc symbols regenerated. Showcase: the
+   **pan** cart (ball-follows note_pan + hard-L/R instrument_pan + an LFO_PAN drone). Verified a
+   panned render is genuinely stereo: 99.9% of frames L≠R, max |L−R| 6860, L/R balanced over a full
+   sweep. **Pan computed inline** from the slewed base + LFO offset (not cached) — slew changes it
+   most samples during a sweep anyway, so the per-sample 2-ternary cost is below caching's bookkeeping.
+3. ✅ **DONE 2026-06-09 (folded into step 2 — adding pan made both bites live at once).** Soft-clip
+   now derives ONE gain from the peak of the two channels and applies it to both, preserving the pan
+   ratio (#5); the steal-declick tail is per-channel `steal_tailL/R`, paid the stolen voice's panned
+   `last_outL/R` (#4). Both are **byte-identical when centered** (verified), so no regression.
+4. ✅ **Mostly done (step 1).** WAV capture interleaved + both analyzers de-interleave. **`--det`
+   baseline regen NOT needed** after all: with the linear/center-unchanged law, every existing cart
+   (none of which pan) is byte-identical — only a cart that actually calls pan changes output.
+5. ✅ Tripwire clean in stereo; centered `--det` render byte-identical to the pre-stereo mono baseline.
+6. **Next: the effects layer (§8.10)** — master reverb first, then delay, then ping-pong/auto-pan as
+   the stereo-aware bus recipes the §8.10.1 parked items (per-voice wah, follower, tremolo, suitcase
+   auto-pan) fold into. Pan + `LFO_PAN` are the primitives those recipes will build on.

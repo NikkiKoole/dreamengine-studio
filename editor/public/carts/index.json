@@ -2627,5 +2627,14 @@
     ],
     "genre": "arcade",
     "homage": "Spore (2008)"
+  },
+  {
+    "title": "pan",
+    "description": "The STEREO showcase - three ways to place a sound in the left-right field, the engine's first stereo feature. A ball bounces left to right and a held pad note follows it across the field (note_pan = positional audio: map a sound to where its source is on screen). Tap A for a hard-LEFT pluck, B for a hard-RIGHT pluck (instrument_pan, set once per slot, -1 = hard left, +1 = hard right). A low drone at the bottom pans on its own, hands-off, via an LFO routed to LFO_PAN (instrument_lfo with dest LFO_PAN = auto-pan, the declarative rotary/tremolo-pan motion). Pan uses a linear law with center unchanged, so a centered sound is bit-for-bit the old mono mix - nothing moves until you actually pan. Headphones recommended. A = hard-left pluck, B = hard-right pluck; the ball and drone pan themselves.",
+    "file": "pan.cart.png",
+    "kind": [
+      "tech-demo",
+      "instrument"
+    ]
   }
 ]

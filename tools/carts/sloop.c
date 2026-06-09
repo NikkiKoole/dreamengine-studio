@@ -1,0 +1,314 @@
+#include "studio.h"
+#include <stdio.h>
+
+// ============================================================================
+// SLOOP  —  build a vehicle from parts, drive it across a procedural world.
+//           ── MVP rung 1: drive a fixed rig on one biome (road). ──
+//
+//   ◄ / ►        steer
+//   Z / ▲        gas
+//   X / ▼        brake / reverse
+//   R            reset
+//
+// ── the one honest core ──────────────────────────────────────────────────────
+// The vehicle is NOT a sprite with stats. It is a GRID OF PARTS, and how it
+// drives is COMPUTED from the parts you bolted on. From the grid we derive three
+// numbers — total mass, centre of mass (COM), and moment of inertia (I) — and the
+// whole rig is then ONE 2-D rigid body:
+//
+//     accel    = engine_force / mass          (F = ma, no fudge — heavy rig crawls)
+//     ang_accel = steer_torque / I            (big heavy rig turns lazily)
+//     + an engine bolted off the COM's centre-line produces its OWN yaw torque,
+//       so an asymmetric build genuinely pulls to one side. Nothing is faked.
+//
+// Same DNA as orbit (one integrator, no lies) and coaster (one physics core, two
+// modes). This rung proves the DRIVE feels right with a hardcoded symmetric rig;
+// rung 2 bolts a BUILD-grid editor onto this exact core (see docs/design/sloop.md).
+//
+// ── why it feels like a car and not an air-hockey puck ───────────────────────
+// The trap with torque-only steering is ice-skating. The cure is TIRE GRIP: each
+// frame we split velocity into forward + lateral components and bleed the lateral
+// one away (LAT_GRIP). Turning the heading then leaves the old velocity pointing
+// "sideways", grip kills it, and the car tracks its nose. More wheels / better
+// ground = more grip = less slide. That single line is the difference.
+// ============================================================================
+
+// ── part vocabulary ──────────────────────────────────────────────────────────
+// Addressed by enum, never raw index (CLAUDE.md data-driven rule). Each kind:
+// mass, engine power, wheel grip, colour.
+enum { P_NONE, P_FRAME, P_ENGINE, P_WHEEL, P_SEAT, P_KINDS };
+typedef struct { float mass, power, grip; int col; const char *name; } PartKind;
+static PartKind KIND[P_KINDS];   // filled in init() (avoid designated inits for libtcc)
+
+// ── the rig: a small grid of parts (rung 1 = one hardcoded layout) ───────────
+#define GW   4
+#define GH   3
+#define CELL 7.0f                 // world px per cell
+static int grid[GH][GW];
+
+// derived body properties (recomputed when the build changes)
+static float M;                   // total mass
+static float comX, comY;          // centre of mass, in local grid px
+static float I;                   // moment of inertia about the COM
+static float wheelGrip;           // Σ wheel grip
+
+// ── tuning ───────────────────────────────────────────────────────────────────
+#define ENGINE_POWER  2600.0f     // forward force units per engine at full throttle
+#define ROLL          1.2f        // rolling resistance (1/s) — sets top speed
+#define BRAKE         240.0f      // extra deceleration when braking (px/s^2)
+#define REVERSE       0.55f       // reverse throttle fraction
+#define LAT_GRIP      32.0f       // lateral velocity killed per second (tire grip)
+#define STEER_RESP    680.0f      // steering authority (deg/s^2) at speed
+#define ANG_DAMP      5.0f        // angular self-centering (1/s)
+#define REF_GYRO      130.0f      // gyradius^2 (px^2) a "normal" rig turns easily at
+#define ENG_YAW_K     0.9f        // how hard an off-centre engine yaws the rig
+#define GRIP_TO_FORCE 2000.0f     // wheel grip → max traction force
+#define GROUND_GRIP   1.0f        // road: plenty (sand/mud come in rung 3)
+
+// ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
+static float sx, sy;              // world position of the COM
+static float vx, vy;              // world velocity
+static float ang, angVel;         // heading (deg, 0 = facing +x / east) + spin
+
+static float cam_x, cam_y;
+static float t_eng_snd, t_skid_snd;
+static int   is_paused;
+
+static float af(float v) { return v < 0 ? -v : v; }
+
+// ── derive body properties from the part grid ────────────────────────────────
+static void recompute_body(void) {
+    M = 0; comX = 0; comY = 0; wheelGrip = 0;
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) {
+            PartKind *k = &KIND[grid[r][c]];
+            if (k->mass <= 0) continue;
+            float cx = (c + 0.5f) * CELL, cy = (r + 0.5f) * CELL;
+            M += k->mass; comX += k->mass * cx; comY += k->mass * cy;
+            wheelGrip += k->grip;
+        }
+    if (M <= 0) M = 1;
+    comX /= M; comY /= M;
+    // moment of inertia about the COM
+    I = 0;
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) {
+            PartKind *k = &KIND[grid[r][c]];
+            if (k->mass <= 0) continue;
+            float dx = (c + 0.5f) * CELL - comX, dy = (r + 0.5f) * CELL - comY;
+            I += k->mass * (dx * dx + dy * dy);
+        }
+    if (I <= 0) I = 1;
+}
+
+static void reset_vehicle(void) {
+    recompute_body();
+    sx = 0; sy = 0; vx = vy = 0; ang = 0; angVel = 0;
+}
+
+// rotate a local offset (relative to COM) into world space
+static void rot(float lx, float ly, float *wx, float *wy) {
+    float c = cos_deg(ang), s = sin_deg(ang);
+    *wx = sx + lx * c - ly * s;
+    *wy = sy + lx * s + ly * c;
+}
+
+// ── input ─────────────────────────────────────────────────────────────────────
+static int in_gas, in_brk, in_steer;
+static void handle_input(void) {
+    if (keyp('R')) reset_vehicle();
+    if (keyp('P')) is_paused = !is_paused;
+    in_gas = key('Z') || key(KEY_UP) || btn(0, BTN_A) || btn(0, BTN_UP);
+    in_brk = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN);
+    in_steer = (key(KEY_RIGHT) || btn(0, BTN_RIGHT)) - (key(KEY_LEFT) || btn(0, BTN_LEFT));
+}
+
+// ── physics: the honest core ──────────────────────────────────────────────────
+static void update_drive(float dt_) {
+    float fwx = cos_deg(ang), fwy = sin_deg(ang);   // forward unit vector
+    float ltx = -fwy, lty = fwx;                    // lateral (left) unit vector
+
+    // decompose velocity into forward + lateral
+    float vf = vx * fwx + vy * fwy;
+    float vl = vx * ltx + vy * lty;
+
+    // --- engine: sum thrust + the yaw torque from any off-centre engine --------
+    float throttle = in_gas ? 1.0f : (in_brk && vf <= 5.0f ? -REVERSE : 0.0f);
+    float thrust = 0, eng_torque = 0;
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) {
+            if (grid[r][c] != P_ENGINE) continue;
+            float t = KIND[P_ENGINE].power * throttle;
+            float oy = (r + 0.5f) * CELL - comY;     // lateral offset of this engine
+            thrust += t;
+            eng_torque += -oy * t;                   // off the centre-line → it yaws
+        }
+    // traction caps how much of that thrust the ground can actually take
+    float tract = wheelGrip * GROUND_GRIP * GRIP_TO_FORCE;
+    if (af(thrust) > tract && tract > 0) {
+        float s = tract / af(thrust);
+        thrust *= s; eng_torque *= s;
+    }
+
+    // --- linear: F = ma, then rolling resistance + braking --------------------
+    vf += (thrust / M) * dt_;
+    vf -= vf * ROLL * dt_;
+    if (in_brk && vf > 0) { vf -= BRAKE * dt_; if (vf < 0) vf = 0; }
+
+    // --- tire grip: bleed the sideways velocity away (the car-feel line) -------
+    float grip = clamp((wheelGrip * GROUND_GRIP / M) * LAT_GRIP, 0, 1.0f / dt_);
+    vl -= vl * grip * dt_;
+
+    // recombine
+    vx = fwx * vf + ltx * vl;
+    vy = fwy * vf + lty * vl;
+    sx += vx * dt_; sy += vy * dt_;
+
+    // --- steering: torque about the COM, scaled by how fast you're going -------
+    float speed_factor = clamp(af(vf) / 30.0f, 0, 1);
+    float dir = vf >= 0 ? 1.0f : -1.0f;
+    float gyro = I / M;                              // radius of gyration squared
+    float turnEase = REF_GYRO / (gyro + REF_GYRO);   // small/light rig → turns easier
+    float ang_acc = in_steer * STEER_RESP * speed_factor * dir * turnEase;
+    ang_acc += ENG_YAW_K * (eng_torque / I);         // off-centre engine pulls
+    angVel += ang_acc * dt_;
+    angVel -= angVel * ANG_DAMP * dt_;
+    ang += angVel * dt_;
+    if (ang < 0) ang += 360; else if (ang >= 360) ang -= 360;
+
+    // --- sound -----------------------------------------------------------------
+    float spd = fsqrt(vx * vx + vy * vy);
+    if (in_gas) {
+        t_eng_snd -= dt_;
+        if (t_eng_snd <= 0) { hit(28 + (int)(spd * 0.12f), INSTR_SAW, 3, 90); t_eng_snd = 0.08f; }
+    }
+    if (af(vl) > 35) {                               // tires scrubbing sideways
+        t_skid_snd -= dt_;
+        if (t_skid_snd <= 0) { hit(54, INSTR_NOISE, 2, 70); t_skid_snd = 0.05f; }
+    }
+}
+
+void update(void) {
+    handle_input();
+    if (is_paused) return;
+    float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
+    update_drive(dt_);
+
+    cam_x = lerp(cam_x, sx - SCREEN_W / 2.0f, 0.15f);
+    cam_y = lerp(cam_y, sy - SCREEN_H / 2.0f, 0.15f);
+
+#ifdef DE_TRACE
+    float fwx = cos_deg(ang), fwy = sin_deg(ang);
+    watch("vf", "%.1f", vx * fwx + vy * fwy);
+    watch("vl", "%.1f", vx * (-fwy) + vy * fwx);
+    watch("ang", "%.0f", ang);
+    watch("angvel", "%.0f", angVel);
+    watch("mass", "%.1f", M);
+    watch("I", "%.0f", I);
+#endif
+}
+
+// ── world: a single biome (road) that scrolls under you ──────────────────────
+static unsigned hash2(int a, int b) {
+    unsigned h = (unsigned)(a * 73856093) ^ (unsigned)(b * 19349663);
+    h ^= h >> 13; h *= 0x5bd1e995u; h ^= h >> 15;
+    return h;
+}
+
+static void draw_ground(void) {
+    int step = 32;
+    int x0 = ((int)cam_x / step - 1) * step;
+    int y0 = ((int)cam_y / step - 1) * step;
+    int x1 = (int)cam_x + SCREEN_W + step;
+    int y1 = (int)cam_y + SCREEN_H + step;
+    // grid of asphalt seams — gives motion + a rotation reference
+    for (int x = x0; x <= x1; x += step) line(x, y0, x, y1, CLR_DARK_GREY);
+    for (int y = y0; y <= y1; y += step) line(x0, y, x1, y, CLR_DARK_GREY);
+    // deterministic speckle so speed is legible
+    for (int x = x0; x <= x1; x += step)
+        for (int y = y0; y <= y1; y += step) {
+            unsigned h = hash2(x / step, y / step);
+            if ((h & 7) == 0) {
+                int px = x + (int)(h >> 4) % step, py = y + (int)(h >> 12) % step;
+                pset(px, py, (h & 8) ? CLR_MEDIUM_GREY : CLR_BROWN);
+            }
+        }
+}
+
+// ── vehicle: draw each occupied cell as a rotated quad ───────────────────────
+static void draw_cell(int r, int c, int col) {
+    float lx = (c + 0.5f) * CELL - comX, ly = (r + 0.5f) * CELL - comY;
+    float h = CELL * 0.5f;
+    float ax, ay, bx, by, cx2, cy2, dx, dy;
+    rot(lx - h, ly - h, &ax, &ay); rot(lx + h, ly - h, &bx, &by);
+    rot(lx + h, ly + h, &cx2, &cy2); rot(lx - h, ly + h, &dx, &dy);
+    int xy[8] = { (int)ax, (int)ay, (int)bx, (int)by, (int)cx2, (int)cy2, (int)dx, (int)dy };
+    polyfill(xy, 4, col);
+}
+
+static void draw_vehicle(void) {
+    // body cells first, wheels on top so they read as round-ish dark pads
+    for (int pass = 0; pass < 2; pass++)
+        for (int r = 0; r < GH; r++)
+            for (int c = 0; c < GW; c++) {
+                int p = grid[r][c];
+                if (p == P_NONE) continue;
+                int isWheel = (p == P_WHEEL);
+                if (isWheel != pass) continue;
+                draw_cell(r, c, KIND[p].col);
+            }
+    // a nose marker so heading is unmistakable
+    float nx, ny, tx, ty;
+    rot((GW * CELL - comX) + 3, -2, &nx, &ny);
+    rot((GW * CELL - comX) + 3, 2, &tx, &ty);
+    float bx, by; rot((GW * CELL - comX) + 8, 0, &bx, &by);
+    trifill((int)nx, (int)ny, (int)tx, (int)ty, (int)bx, (int)by, CLR_YELLOW);
+    // COM crosshair (the readout that makes the physics visible — pays off in BUILD)
+    line((int)sx - 2, (int)sy, (int)sx + 2, (int)sy, CLR_WHITE);
+    line((int)sx, (int)sy - 2, (int)sx, (int)sy + 2, CLR_WHITE);
+}
+
+// ── HUD ────────────────────────────────────────────────────────────────────────
+static void hud(void) {
+    char buf[48];
+    float spd = fsqrt(vx * vx + vy * vy);
+    print("SLOOP \x07 rung 1", 4, 4, CLR_WHITE);
+    snprintf(buf, sizeof buf, "SPEED %4.0f", spd);   print(buf, 4, 14, CLR_LIGHT_GREY);
+    snprintf(buf, sizeof buf, "MASS  %4.1f", M);     print(buf, 4, 22, CLR_LIGHT_GREY);
+    snprintf(buf, sizeof buf, "HEAD  %4.0f", ang);   print(buf, 4, 30, CLR_LIGHT_GREY);
+    print("\x18\x19 gas/brake  \x1b\x1a steer  R reset",
+          SCREEN_W / 2 - 92, SCREEN_H - 12, CLR_MEDIUM_GREY);
+    if (is_paused) print("PAUSED", SCREEN_W / 2 - 22, SCREEN_H / 2, CLR_WHITE);
+}
+
+void draw(void) {
+    cls(CLR_DARKER_GREY);                 // asphalt
+    camera((int)cam_x, (int)cam_y);
+    draw_ground();
+    draw_vehicle();
+    camera(0, 0);
+    hud();
+}
+
+void init(void) {
+    // part vocabulary (ordered by enum — no designated inits, libtcc-safe)
+    KIND[P_NONE]   = (PartKind){ 0,    0,            0,    0,               "." };
+    KIND[P_FRAME]  = (PartKind){ 1.0f, 0,            0,    CLR_LIGHT_GREY,  "frame" };
+    KIND[P_ENGINE] = (PartKind){ 4.0f, ENGINE_POWER, 0,    CLR_RED,         "engine" };
+    KIND[P_WHEEL]  = (PartKind){ 1.5f, 0,            1.0f, CLR_BLACK,       "wheel" };
+    KIND[P_SEAT]   = (PartKind){ 1.2f, 0,            0,    CLR_BLUE,        "seat" };
+
+    // the hardcoded rig: a symmetric 4-wheel buggy facing +x (east).
+    //   wheels at the corners, engine centre-right, seat centre-left, frames between.
+    int layout[GH][GW] = {
+        { P_WHEEL, P_FRAME,  P_FRAME,  P_WHEEL },
+        { P_FRAME, P_SEAT,   P_ENGINE, P_FRAME },
+        { P_WHEEL, P_FRAME,  P_FRAME,  P_WHEEL },
+    };
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) grid[r][c] = layout[r][c];
+
+    reset_vehicle();
+    cam_x = sx - SCREEN_W / 2.0f;
+    cam_y = sy - SCREEN_H / 2.0f;
+}

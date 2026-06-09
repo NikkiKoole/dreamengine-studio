@@ -1,6 +1,8 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: seed, nothing built.** Captures a design conversation (2026-06-09).
+**Status: building — MVP rung 1 (drive a fixed rig on one biome) complete.** Cart:
+`tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
+conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
 (`tools/carts/coaster.c`, `tools/carts/orbit.c`) and
 [`galerijflat`](galerijflat.md): one big honest system, executed straight, with the
@@ -268,5 +270,37 @@ or English single words in the series' plain-noun register — *Jalopy*, *Overla
 
 ## Build log
 
-*(empty — nothing built yet. First builder: start at the MVP ladder, rung 1. Add ✓
-decisions and dated steps here as galerijflat.md does.)*
+### Rung 1 — drive a fixed rig on one biome (2026-06-09)
+
+The honest core, runnable. `tools/carts/sloop.c` (~270 lines). What landed:
+
+- ✓ **Body derived from the grid.** `recompute_body()` walks the part grid and
+  produces total mass, COM (mass-weighted cell centres), `I` (Σ m·d² about the COM),
+  and Σ wheel grip. The hardcoded rig is a symmetric 4-wheel buggy (`GW`×`GH` = 4×3:
+  corner wheels, centre-right engine, centre-left seat, frames between). Trace
+  confirms M = 17.2, I = 1479, both falling straight out of the layout.
+- ✓ **One rigid body.** `sx,sy` track the COM (rotation pivots about it); velocity is
+  split each frame into forward + lateral. `accel = thrust/M`, rolling resistance sets
+  top speed (~107 px/s), steering is `STEER_RESP·speed_factor / turnEase` integrated
+  into `angVel` with `ANG_DAMP` self-centering. Off-centre engines add their own yaw
+  torque (`-oy·thrust / I`) — zero for this symmetric rig, live for rung 2's builds.
+- ✓ **Tire grip = car feel.** The load-bearing line: lateral velocity is bled away at
+  `LAT_GRIP·(wheelGrip/M)` per second, so turning the heading makes the rig track its
+  nose instead of skating. Tuned to ~10° slip in a hard corner settling to near-zero —
+  planted with a little character.
+- ✓ **One biome (road).** Scrolling asphalt grid + deterministic speckle for speed
+  legibility; camera lerps to follow. HUD prints speed / mass / heading; a white COM
+  crosshair is drawn on the rig (the readout that pays off in BUILD, rung 2).
+
+**Tuning numbers** (all `#define` at the top, easy to revisit): `ENGINE_POWER 2600`,
+`ROLL 1.2`, `LAT_GRIP 32`, `STEER_RESP 680`, `ANG_DAMP 5`, `REF_GYRO 130`. Turn rate
+settled ~75°/s at speed. Verified headless via `tools/play.js sloop script … --trace`
+(gas → steer → release): speed plateaus, heading ramps + self-centers, slip stays low.
+
+Colours: chassis `LIGHT_GREY`, wheels `BLACK`, engine `RED`, seat `BLUE` — wheels were
+`DARK_GREY` first and vanished against the asphalt; black reads as tires.
+
+**Next — rung 2 (the BUILD flip):** mode toggle, place/remove parts on the grid,
+`recompute_body()` already does the live readouts; add the COM crosshair *in the build
+view* (it shifts as you place parts — the orbit apoapsis-marker move) and ui.h part
+buttons. The drive core above does not change.

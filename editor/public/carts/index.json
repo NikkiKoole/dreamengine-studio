@@ -2607,5 +2607,15 @@
       "tech-demo"
     ],
     "genre": "space"
+  },
+  {
+    "title": "sloop",
+    "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck. MVP rung 1: a fixed 4-wheel buggy on one biome (road) - proving the drive feels right before the BUILD-grid editor (rung 2) bolts onto this exact core. Z/UP gas, X/DOWN brake-reverse, LEFT/RIGHT steer, R reset.",
+    "file": "sloop.cart.png",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "genre": "sandbox"
   }
 ]

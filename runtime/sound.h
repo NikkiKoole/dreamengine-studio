@@ -2124,9 +2124,15 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // instead of slamming the old hard wall. Slope is continuous at the knee.
         if      (mix >  0.8f) mix =  0.8f + 0.2f * tanhf((mix - 0.8f) * 5.0f);
         else if (mix < -0.8f) mix = -0.8f - 0.2f * tanhf((-mix - 0.8f) * 5.0f);
-        out[i] = mix;
-        if (wavcap_state == 1) {                  // WAV capture tap (wav_request)
-            wavcap_buf[wavcap_pos++] = mix;
+        // stereo: centered for now (linear pan law — L = R = mix). Per-voice panning
+        // arrives with instrument_pan/note_pan (stereo.md step 2); until then every voice
+        // sits dead center, so each channel is exactly the old mono mix — identical content,
+        // just duplicated. The soft-clip above is applied to the shared mix BEFORE the split,
+        // so the two channels can never clip asymmetrically (stereo.md bite #5).
+        out[2 * i]     = mix;
+        out[2 * i + 1] = mix;
+        if (wavcap_state == 1) {                  // WAV capture tap (wav_request) — stays MONO
+            wavcap_buf[wavcap_pos++] = mix;       // taps the internal mix, not the interleaved out
             if (wavcap_pos >= wavcap_total) wavcap_state = 2;
         }
     }
@@ -2612,7 +2618,7 @@ static void sound_init(void) {
 
     if (!sound_synth_mode) {       // --wav: no device stream; the main thread pumps
         SetAudioStreamBufferSizeDefault(1024);
-        sound_stream = LoadAudioStream(SOUND_SAMPLE_RATE, 32, 1);
+        sound_stream = LoadAudioStream(SOUND_SAMPLE_RATE, 32, 2);   // stereo (centered until pan API; stereo.md)
         SetAudioStreamCallback(sound_stream, sound_callback);
         PlayAudioStream(sound_stream);
     }

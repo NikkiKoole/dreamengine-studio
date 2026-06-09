@@ -27,11 +27,18 @@ function readWav(file) {
     off += 8 + len + (len & 1)
   }
   if (!fmt || !data) throw new Error(`${file}: missing fmt/data chunk`)
-  if (fmt.tag !== 1 || fmt.bits !== 16 || fmt.ch !== 1)
-    throw new Error(`${file}: expected 16-bit PCM mono, got tag=${fmt.tag} bits=${fmt.bits} ch=${fmt.ch}`)
-  const n = Math.floor(data.len / 2)
+  if (fmt.tag !== 1 || fmt.bits !== 16 || (fmt.ch !== 1 && fmt.ch !== 2))
+    throw new Error(`${file}: expected 16-bit PCM mono/stereo, got tag=${fmt.tag} bits=${fmt.bits} ch=${fmt.ch}`)
+  // stereo (the runtime went stereo — stereo.md): downmix L/R to mono for the metrics.
+  // While voices are centered this equals the old mono sample exactly; the master soft-clip
+  // is applied pre-split so neither channel clips independently, so the mean stays representative.
+  const ch = fmt.ch
+  const n = Math.floor(data.len / 2 / ch)
   const s = new Int16Array(n)
-  for (let i = 0; i < n; i++) s[i] = b.readInt16LE(data.off + i * 2)
+  for (let i = 0; i < n; i++) {
+    if (ch === 1) s[i] = b.readInt16LE(data.off + i * 2)
+    else s[i] = (b.readInt16LE(data.off + i * 4) + b.readInt16LE(data.off + i * 4 + 2)) >> 1
+  }
   return { sr: fmt.sr, s }
 }
 

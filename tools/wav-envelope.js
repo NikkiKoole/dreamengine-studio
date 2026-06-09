@@ -23,16 +23,19 @@ const fs = require('fs');
 
 function readWav(f) {
   const b = fs.readFileSync(f);
-  let off = 12, data = null, sr = 44100;
+  let off = 12, data = null, sr = 44100, ch = 1;
   while (off + 8 <= b.length) {
     const id = b.toString('ascii', off, off + 4), len = b.readUInt32LE(off + 4);
-    if (id === 'fmt ') sr = b.readUInt32LE(off + 12);
+    if (id === 'fmt ') { sr = b.readUInt32LE(off + 12); ch = b.readUInt16LE(off + 10); }
     if (id === 'data') data = { off: off + 8, len };
     off += 8 + len + (len & 1);
   }
   if (!data) throw new Error(`${f}: no data chunk`);
-  const n = (data.len / 2) | 0, s = new Float32Array(n);
-  for (let i = 0; i < n; i++) s[i] = b.readInt16LE(data.off + i * 2) / 32768;
+  // stereo (stereo.md): downmix L/R to mono — equals the old mono while voices are centered.
+  const n = (data.len / 2 / ch) | 0, s = new Float32Array(n);
+  for (let i = 0; i < n; i++)
+    s[i] = ch === 1 ? b.readInt16LE(data.off + i * 2) / 32768
+                    : (b.readInt16LE(data.off + i * 4) + b.readInt16LE(data.off + i * 4 + 2)) / 65536;
   return { sr, s };
 }
 

@@ -273,6 +273,69 @@ static void draw_ground(void) {
         }
 }
 
+// ── the course: schematic lanes + roundabouts + cones ────────────────────────
+// Purely VISUAL for now (rung 1.5) — lines to use as roads and objects to weave
+// through, drawn in the same design style as the grid. Nothing collides yet; this
+// is the parcours skeleton that rung 3+ will make solid (traction zones, obstacles).
+// Everything is a deterministic function of world position, so it's stable as you
+// drive and the world is effectively infinite.
+#define LANE_SP   192             // block size: roads laid on this world grid
+#define LANE_W    64              // lane band width = 2 of the 32px grid cells
+
+static int ifloordiv(int a, int b) {
+    int q = a / b;
+    if ((a % b) != 0 && ((a < 0) != (b < 0))) q--;
+    return q;
+}
+
+static void draw_course(void) {
+    int L = (int)cam_x, R = L + SCREEN_W, T = (int)cam_y, B = T + SCREEN_H;
+    int kx0 = ifloordiv(L, LANE_SP) - 1, kx1 = ifloordiv(R, LANE_SP) + 1;
+    int ky0 = ifloordiv(T, LANE_SP) - 1, ky1 = ifloordiv(B, LANE_SP) + 1;
+    int hw = LANE_W / 2;
+
+    // 1. tarmac bands (a touch lighter than the ground), crossing in a grid
+    for (int kx = kx0; kx <= kx1; kx++)
+        rectfill(kx * LANE_SP - hw, T - 1, LANE_W, (B - T) + 2, CLR_DARK_GREY);
+    for (int ky = ky0; ky <= ky1; ky++)
+        rectfill(L - 1, ky * LANE_SP - hw, (R - L) + 2, LANE_W, CLR_DARK_GREY);
+
+    // 2. bright curbs + dashed centre line (the bit that reads as "lane")
+    for (int kx = kx0; kx <= kx1; kx++) {
+        int cx = kx * LANE_SP;
+        line(cx - hw, T, cx - hw, B, CLR_LIGHT_GREY);
+        line(cx + hw, T, cx + hw, B, CLR_LIGHT_GREY);
+        for (int y = ifloordiv(T, 24) * 24; y < B; y += 24) line(cx, y, cx, y + 11, CLR_YELLOW);
+    }
+    for (int ky = ky0; ky <= ky1; ky++) {
+        int cy = ky * LANE_SP;
+        line(L, cy - hw, R, cy - hw, CLR_LIGHT_GREY);
+        line(L, cy + hw, R, cy + hw, CLR_LIGHT_GREY);
+        for (int x = ifloordiv(L, 24) * 24; x < R; x += 24) line(x, cy, x + 11, cy, CLR_YELLOW);
+    }
+
+    // 3. roundabout islands at ~1/4 of crossings (steer AROUND them)
+    for (int kx = kx0; kx <= kx1; kx++)
+        for (int ky = ky0; ky <= ky1; ky++)
+            if ((hash2(kx, ky) & 3) == 0) {
+                int cx = kx * LANE_SP, cy = ky * LANE_SP;
+                circfill(cx, cy, 13, CLR_DARK_GREEN);
+                circ(cx, cy, 13, CLR_LIGHT_GREY);
+            }
+
+    // 4. cones scattered in the blocks (objects to weave through)
+    int span = LANE_SP - LANE_W - 8;
+    for (int kx = kx0; kx <= kx1; kx++)
+        for (int ky = ky0; ky <= ky1; ky++) {
+            unsigned h = hash2(kx * 7 + 1, ky * 7 + 3);
+            if ((h & 3) != 0) continue;
+            int cx = kx * LANE_SP + hw + 4 + (int)(h % span);
+            int cy = ky * LANE_SP + hw + 4 + (int)((h >> 8) % span);
+            circfill(cx, cy, 4, CLR_ORANGE);
+            circ(cx, cy, 4, CLR_BROWNISH_BLACK);
+        }
+}
+
 // ── vehicle: draw each occupied cell as a rotated quad ───────────────────────
 static void draw_cell(int r, int c, int col) {
     float lx = (c + 0.5f) * CELL - comX, ly = (r + 0.5f) * CELL - comY;
@@ -324,6 +387,7 @@ void draw(void) {
     cls(CLR_DARKER_GREY);                 // asphalt
     camera((int)cam_x, (int)cam_y);
     draw_ground();
+    draw_course();
     for (int i = 0; i < MAXSKID; i++)     // tire marks burned into the road
         if (skid[i].life > 0)
             pset((int)skid[i].x, (int)skid[i].y,

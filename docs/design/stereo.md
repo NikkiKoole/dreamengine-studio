@@ -107,8 +107,14 @@ Grounded in the current mono mix path (`sound.h` `sound_callback`, the single `f
 
 ## Build order when this opens
 
-1. Stream → 2ch + the `out[2*i]`/`out[2*i+1]` split, centered (`panL=panR=1`) — **prove old carts
-   sound identical** (linear law makes this literally byte-identical per channel) before adding the knob.
+1. ✅ **DONE 2026-06-09.** Stream → 2ch + the `out[2*i]`/`out[2*i+1]` split, centered (`L=R=mix`) —
+   verified byte-identical: a `--det` render's left channel matched the pre-change mono baseline on
+   all 220,500 samples, L==R everywhere, frame count exact (no chipmunk). Soft-clip applied to the
+   shared mix pre-split (bite #5 pre-empted). The `--wav` path (`wav_stream_pump` + header) and both
+   analyzers (`wav-analyze.js` / `wav-envelope.js`, downmix L+R→mono) went stereo-aware in the same
+   commit so master is never left half-broken; the live-capture `wavcap` tap stays mono (it reads the
+   internal `mix`, not the interleaved `out`). **Not yet done from #8:** regenerating committed `--det`
+   baselines (deferred until the pan knob actually changes output — centered output is still identical).
 2. `instrument_pan` / `note_pan` + slew + cached gains; the 4-place wiring; a showcase cart that
    sweeps pan and one that hard-pans a kit.
 3. Soft-clip on a shared gain (#5); pan the steal tail (#4).

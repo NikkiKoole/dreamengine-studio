@@ -929,8 +929,8 @@ static int   wav_samples = 0;
 static void wav_stream_open(const char *path) {
     wav_out = fopen(path, "wb");
     if (!wav_out) { fprintf(stderr, "harness: cannot open --wav %s\n", path); return; }
-    int z = 0, sr = SOUND_SAMPLE_RATE, byterate = sr * 2, fmtlen = 16;
-    short fmt = 1, ch = 1, block = 2, bits = 16;
+    int z = 0, sr = SOUND_SAMPLE_RATE, byterate = sr * 4, fmtlen = 16;
+    short fmt = 1, ch = 2, block = 4, bits = 16;   // stereo (interleaved L,R; stereo.md)
     fwrite("RIFF", 1, 4, wav_out); fwrite(&z, 4, 1, wav_out); fwrite("WAVE", 1, 4, wav_out);
     fwrite("fmt ", 1, 4, wav_out); fwrite(&fmtlen, 4, 1, wav_out);
     fwrite(&fmt, 2, 1, wav_out); fwrite(&ch, 2, 1, wav_out);
@@ -941,12 +941,12 @@ static void wav_stream_open(const char *path) {
 
 static void wav_stream_pump(void) {
     if (!wav_out) return;
-    float scratch[735];
-    short pcm[735];
+    float scratch[735 * 2];   // stereo: the callback writes 2 interleaved samples per frame
+    short pcm[735 * 2];
     sound_callback(scratch, 735);
-    for (int i = 0; i < 735; i++) pcm[i] = (short)(scratch[i] * 32767.0f);
-    fwrite(pcm, 2, 735, wav_out);
-    wav_samples += 735;
+    for (int i = 0; i < 735 * 2; i++) pcm[i] = (short)(scratch[i] * 32767.0f);
+    fwrite(pcm, 2, 735 * 2, wav_out);
+    wav_samples += 735 * 2;   // counts int16 SAMPLES written (2 per frame), not frames
 }
 
 static void wav_stream_close(void) {

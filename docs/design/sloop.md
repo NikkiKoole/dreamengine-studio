@@ -1,6 +1,6 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: building — rung 1 (drive a fixed rig) + 1.5 (handbrake drift) complete.** Cart:
+**Status: building — rung 1 (drive) + 1.5 (drift) + 1.75 (schematic course) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -323,6 +323,28 @@ Trace (gas → handbrake+steer → release): slip angle hit **~34°** mid-drift 
 vf 89, heading swung to 49°) vs ~10° in a normal corner, then on release vl → −1.5 and
 forward speed recovers to ~99 — clean carve-out. Thumbnail is now a mid-drift frame
 (four trailing tire marks) rather than the static buggy.
+
+### Rung 1.75 — a schematic course to steer around (2026-06-09)
+
+Asked for: "lanes I can use to steer as if roads, and some objects" — a parcours
+that doesn't fight you yet, drawn in the same design style as the grid. Added
+`draw_course()`, **purely visual** (nothing collides — that's rung 3's job):
+
+- ✓ **Lanes on a world grid.** 2-cell-wide (`LANE_W` 64) tarmac bands crossing on a
+  `LANE_SP` 192 grid — a Manhattan street layout. Bright `LIGHT_GREY` curbs + a dashed
+  `YELLOW` centre line do the "this is a lane" reading; the band fill is just a hair
+  lighter than the ground so it stays schematic.
+- ✓ **Roundabout islands** at ~1/4 of intersections (hash-gated) — a green island +
+  ring to steer around.
+- ✓ **Cones** scattered one-per-some-blocks in the off-road interiors — objects to
+  weave through.
+- All deterministic from world position (`hash2`), so the course is stable as you
+  drive and the world stays effectively infinite. Drawn under the skid marks (tires
+  mark the road) and the vehicle.
+
+This is the **parcours skeleton**: rung 3 makes it solid — lanes become a traction
+zone (on-road grip vs off-road drag), cones/roundabouts become collidable obstacles.
+For now it's a playground to feel the handling against.
 
 **Next — rung 2 (the BUILD flip):** mode toggle, place/remove parts on the grid,
 `recompute_body()` already does the live readouts; add the COM crosshair *in the build

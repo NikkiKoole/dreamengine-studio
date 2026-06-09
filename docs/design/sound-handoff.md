@@ -7,8 +7,8 @@
 
 ## Where we are — the §8.5 engine roadmap
 
-Nine modeled engines shipped + fully wired (studio.h id · sound.h · studioDocs.js · shell.js ·
-soundcheck slot · showcase cart). In roadmap order:
+Twelve modeled engines shipped + fully wired (studio.h id · sound.h · studioDocs.js · shell.js ·
+soundcheck slot · showcase cart). Roadmap-step order, then the string family (ids 26–28):
 
 | # | Engine | Status |
 |---|---|---|
@@ -20,6 +20,11 @@ soundcheck slot · showcase cart). In roadmap order:
 | 7 | **`INSTR_REED`** (clarinet↔sax) | ✅ shipped — first self-oscillating held wind (§8.8.7) |
 | 8 | **`INSTR_MEMBRANE`** (tabla/conga/djembe) | ✅ shipped |
 | 9 | **`INSTR_PIPE`** (flute/recorder/pan pipe) | ✅ shipped (§8.8.8) |
+| 26 | **`INSTR_GUITAR`** (acoustic/nylon/banjo/koto/harp/uke/pizz) | ✅ shipped (§8.8.9) |
+| 27 | **`INSTR_PIANO`** (StifKarp — grand→celesta) | ✅ shipped (§8.8.9) |
+| 28 | **`INSTR_BOWED`** (violin/cello — arco + pizz from one waveguide) | ✅ shipped (§8.5 step 9) |
+
+**The modeled string family (pluck → guitar → piano → bowed) is complete.**
 
 Canonical state lives in the docs below — don't duplicate it here, update those:
 [STATUS §5](../STATUS.md) · engine specs + the **§8.5 roadmap** + the **§8.8.2 playbook**
@@ -30,36 +35,37 @@ Canonical state lives in the docs below — don't duplicate it here, update thos
 ## Start here next session
 
 The continuous-excitation family (reed, pipe), the modal families (mallet, membrane, epiano), AND
-the buffered string pair are now done. What remains, in order:
+the **full string family** (pluck / guitar / piano / bowed — arco *and* pizz) are all done. With
+the string family closed, the only modeled-engine work left is the formant voice; after that the
+roadmap turns to the effects layer. What remains, in order:
 
-1. **The buffered acoustic pair — `INSTR_GUITAR` (26) + `INSTR_PIANO` (27) — SHIPPED 2026-06-09.**
-   Guitar = Karplus-Strong + body resonator; piano = a **verbatim** StifKarp port (near-lossless
-   string, 6 voicings grand→celesta, dispersion, soundboard, detuned 2nd string, brightness bloom).
-   The verbatim port was the key lesson: param-matching navkit wasn't enough, the DSP had to be
-   line-for-line (the harpsichord then matched navkit's render). Pizzicato = a short-mute guitar
-   preset; clavinet stays an EPiano position (`WAVE_EPIANO`, not a string engine). Design + journey:
-   [`instrument-engines.md`](instrument-engines.md) §8.8.9. **`HARP` folded into `GUITAR`** (a preset,
-   like Rhodes/Wurli/Clav fold into EPiano). Tuning scaffolding `eng_tune()` (weight/attack) is live
-   on the showcase carts — EXPERIMENTAL, bake-to-constants-and-retire when the values lock.
-   - **Bowed (violin/cello) — SHIPPED 2026-06-09 as `INSTR_BOWED` (28).** The "unstable" verdict was
-     over-read: `tools/navkit-bowsweep.c` swept navkit's bowed and the crest-12.6 reject turned out to
-     be **preset 107's operating point** (corr 0.36, real surface sound) — one bad preset, not a bad
-     engine (the Rhodes/Wurli trap). Port is line-for-line (the piano lesson): navkit's two nut+bridge
-     delay lines PACKED into one `ks_buf`, self-oscillating/held like reed/pipe, macros pinned inside
-     the wedge (timbre=pressure 0.15–0.42 the narrow axis, harmonics=position β 0.05–0.25, morph=speed/
-     swell). The timbre axis is ear/metric-confirmed: corr 0.96 clean → 0.35 deliberate scratch. No
-     hysteresis bow table needed. Showcase: the **bowed** cart — RUB to bow (energy accumulates),
-     TAP to pizz (via an `INSTR_GUITAR` preset). Soundcheck slot 23, tripwire PASS, 4-place wired.
-     PIZZICATO is the same waveguide, not a guitar preset: a slot flagged `eng_p[0]>=0.5`
-     (`eng_tune(slot,0,1)`) seeds the string with a pluck and bypasses the friction, so the identical
-     string+body rings down — arco/pizz differ only in excitation. Detail + the wedge map: §8.5 step
-     9. **The modeled string family is now complete.**
-2. **Formant + the effects-bus layer (§8.10).** `INSTR_VOICE` (24) is **EXPERIMENTAL** — the voxlab
+1. **Formant + the effects-bus layer (§8.10).** `INSTR_VOICE` (24) is **EXPERIMENTAL** — the voxlab
    prototype is live but the public 3-macro mapping isn't locked (which is why it's not in the help
    tab yet). The effects-bus layer is sequenced LAST, after the engines: master reverb + the bus
-   concept, then delay/tape/leslie/wah. **Resolve stereo (§9) before it.** The PARKED interim items
+   concept, then delay/tape/leslie/wah. (Stereo §9 — now resolved.) The PARKED interim items
    (per-voice wah, envelope follower, epiano tremolo, suitcase auto-pan) all fold in here — see
    [§8.10.1](instrument-engines.md).
+2. **Cleanup, when the values lock:** the `eng_tune()` scaffolding is EXPERIMENTAL on three slots —
+   guitar/piano weight+attack-click, and the **bowed pizz flag** (`eng_tune(slot,0,1)` → `eng_p[0]`).
+   Bake the dialed-in values to constants and retire the live knobs.
+
+### ✅ Done this session — the string family (reference, not remaining work)
+
+- **Buffered acoustic pair — `INSTR_GUITAR` (26) + `INSTR_PIANO` (27), SHIPPED 2026-06-09.** Guitar =
+  Karplus-Strong + body resonator; piano = a **verbatim** StifKarp port (near-lossless string, 6
+  voicings grand→celesta, dispersion, soundboard, detuned 2nd string, brightness bloom). The verbatim
+  port was the key lesson: param-matching navkit wasn't enough, the DSP had to be line-for-line.
+  `HARP` folds into `GUITAR` (a preset); clavinet stays an EPiano position. §8.8.9.
+- **Bowed — `INSTR_BOWED` (28), SHIPPED 2026-06-09.** The "unstable" verdict was over-read:
+  `tools/navkit-bowsweep.c` swept navkit's bowed and the crest-12.6 reject turned out to be **preset
+  107's operating point** (corr 0.36, real surface sound) — one bad preset, not a bad engine (the
+  Rhodes/Wurli trap). Line-for-line port: navkit's two nut+bridge delay lines PACKED into one
+  `ks_buf`, self-oscillating/held, macros pinned inside the wedge (timbre=pressure 0.15–0.42 the
+  narrow axis, harmonics=position β 0.05–0.25, morph=speed/swell); timbre confirmed corr 0.96 clean →
+  0.35 deliberate scratch. **PIZZICATO is the same waveguide** — a slot flagged `eng_p[0]>=0.5`
+  (`eng_tune(slot,0,1)`) seeds the string with a pluck and bypasses the friction, so the identical
+  string+body rings down (arco/pizz differ only in excitation). Showcase: the **bowed** cart — RUB to
+  bow (energy accumulates), TAP to pizz. Soundcheck slot 23, tripwire PASS. Detail: §8.5 step 9.
 
 **Run playbook STEP 0 before any new-engine code** (§8.8.2): render the navkit reference and locate
 its LAYER (per-voice vs bus) before building. STEP 0 exists because of the wah detour (a per-voice

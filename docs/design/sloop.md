@@ -1,7 +1,9 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
 **Status: building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) + 2.5 (scrape) + 2.55 (tipping) + 2.6 (drivetrain FWD/RWD) + 2.7 (gears/transmission) + 2.7-engines (per-kind powerband
-+ power-to-weight + extreme 45–300 km/h range) done.** Cart:
++ power-to-weight + extreme 45–300 km/h range) + handling-depth (per-axle grip + friction-circle
+spin-out + rear-only handbrake) + long vehicles (9-long grid, SEMI/SCHOOLBUS)
++ neutral & reverse-in-auto done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -366,6 +368,51 @@ tension; reaching it is the win. Keeps the cart from being open-ended-and-pointl
 without bolting on survival systems. Distance travelled as the score even if you don't
 make it. (Could be a series of waypoints — "convoy run." Open.)
 
+### 7. Articulation & attachments — trailers, caravans, jackknife (future rung) ⬜
+
+**The idea (player ask, 2026-06-09):** tow things behind you — a cargo **trailer**, a **caravan**,
+a **semi's** box, or a working **attachment** (plough, tanker, gritter). Anything hitched behind
+the vehicle is a *second body on a hinge*, and the headline payoff is the **jackknife**: brake too
+hard in a bend and the trailer's momentum swings it around the hitch, folds toward the cab, and
+takes the whole rig with it. This is the one thing the current rigid SEMI/SCHOOLBUS **can't** do
+(they're single rigid bodies); it needs a genuinely new physics core, so it's its own rung.
+
+**Two halves, and the build half comes first.** The physics is the flashy part, but the honest
+question is *how does an attachment exist in the build grid* — and that deserves its own phase, not
+a hand-wave:
+
+- **Phase A — attachments in the BUILD grid (prerequisite).** A **hitch** part you place at the
+  rig's rear (the kingpin / tow-ball / 3-point mount). A trailer is then *its own part grid* you
+  build (frame/wheels/cargo/tank/plate — the same vocabulary), authored in BUILD like the tractor,
+  and snapped to the hitch. Open design questions for this phase: one trailer grid or a **chain**
+  (road-train / multi-trailer)? Does the trailer get its own COM/I/wheels readout panel? How does
+  the editor show two grids (tractor + trailer side by side, joined at the hitch)? Are
+  caravans/implements just trailers with different parts, or named attachment *types* with special
+  behaviour (a plough that digs, a tanker whose fluid sloshes)? **Decide this before the physics** —
+  the attachment's mass/wheel layout is what the jackknife math runs on, so it must be a real built
+  object, not a procedural box. (An MVP could ship a *procedural* trailer first to prove the
+  physics, then promote it to a grid-built one — note that as the cut line.)
+- **Phase B — articulated physics + jackknife.** Each attachment is a rigid body pinned at the
+  hitch (1 rotational DOF relative to its tower). The honest model (sketched, to be built):
+  - The trailer's rear wheels pull it back into line — the classic trailer equation, the heading
+    rotates toward the hitch's direction of travel at a rate `∝ (v_forward / trailer_len)·sin(β)`,
+    where β is the articulation angle. **Forward = self-correcting (tracks behind); reverse flips
+    the sign → it folds** (why backing a trailer is hard — and a great feel to capture).
+  - **Jackknife = the friction circle on the trailer's tyres.** A cap on that restoring force;
+    **hard braking unloads the trailer's wheels** (or the trailer brakes lock), so braking hard in
+    a bend lets β run past the fold angle. Past the fold it's unrecoverable; before it, easing off
+    lets the rear tyres pull it straight again.
+  - **The cab-shove (the reaction).** The swinging trailer yanks the hitch, so the fold reacts back
+    on the tractor's yaw — the cab gets spun by its own trailer. That feedback is what makes a
+    jackknife *scary* rather than cosmetic; it's the whole point.
+  - Reuses what's already here: the per-axle friction circle (rung handling-depth) is the same
+    grip-let-go model, now on the trailer's axle; breakage (rung 4) could **snap the hitch** on a
+    bad enough fold (the trailer detaches and scatters — orbit's part-scatter feel).
+
+**Rung placement:** after the current handling work and the breakage rung (it wants the
+collision/detach machinery for a snapping hitch). Phase A (build-grid attachments) is the gate; it
+likely pairs with the part-vocabulary/cargo work (rung 5). Logged in the lever catalogue.
+
 ## Rendering & screen budget (320×200, provisional)
 
 - **DRIVE:** camera centred on the vehicle, world scrolls under it. Vehicle drawn as
@@ -456,9 +503,10 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Gearing per engine kind (the speed scale)** | a kind carries its own `vref` (gearing), so the top-gear redline — the hard speed ceiling — moves with it. Unlocks the extreme range: RACE V12 geared tall → 300 km/h, TRACTOR geared ultra-short → ~45 km/h, no global re-tune | 2.7 | ✅ |
 | **Transmission / gears** | a gear ratio trades torque ↔ top speed; RPM rises in a gear, drops on a shift. single (electric/EV = 1 gear) / automatic / manual×5 (wrong gear lugs or over-revs). Reverse is a gear, not a brake function. Engine pitch tracks RPM (the satisfying sound). See §1b | 2.7 | ✅ |
 | **Muscle throttle (stamina + rhythm)** | foot/hand crank: each press = one stroke (`THR_IMPULSE`), gated by a stamina meter; the no-fuel starter rig. See §1a | 2.8 | ⬜ |
+| **Articulation / jackknife (trailers, caravans, attachments)** | a second body on a hitch: tows behind, the rear tyres pull it in line (forward-stable, reverse-folds); brake hard in a bend → the trailer swings past the fold angle and yanks the cab around. Needs a build-grid attachments phase first (a hitch part + a trailer grid). See §7 | future (post-breakage) | ⬜ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
-| **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
-| **Grip limit → spin-out ("uit de bocht vliegen")** | each tyre holds only so much sideways force (≈ grip·weight, the friction circle); corner too fast (demand `v²/r` > limit) and the tyres LET GO → plough wide or the rear breaks away and you spin. Sibling of 2.55 tipping (that's grip loss from load leaving the hull; this is from exceeding the friction limit at speed). Today grip is a soft per-frame bleed that never catastrophically lets go | 3–4 | ⬜ |
+| **Per-axle grip (two-axle model)** | lateral grip split front/rear of the COM, applied as a force at each axle → a yaw couple. Front lets go = understeer (push), rear = oversteer (tail out); rear-only handbrake; FWD washes / RWD spins under power. Replaces the body-level scalar bleed (single-track exempt) | handling-depth | ✅ |
+| **Grip limit → spin-out ("uit de bocht vliegen")** | the friction circle: each axle holds slip only up to `SLIP_MAX`, then LETS GO (force saturates → it slides). Corner too hard/fast → the loaded axle breaks away → plough wide or spin. The driven axle's limit also shrinks with the power it lays down (power-on over/understeer). Sibling of 2.55 tipping (grip loss from load leaving the hull) — this is from exceeding the limit at speed | handling-depth | ✅ |
 | **Aquaplaning / terrain grip** | `GROUND_GRIP` drops toward ~0 on water/ice/wet → the rig floats, steering does nothing; cross a puddle mid-corner → instant slide. Rides on the existing `GROUND_GRIP` hook (=1.0 road today), set per-biome | 3 (biomes) | ⬜ |
 | **Dynamic stability / tipping** | cornering load shifts the COM toward the turn's outside; leaving the support polygon (hull of the wheels) tips the rig → transient scrape + lateral grip collapse. A 3-wheeler tips toward its gap but not the other way (asymmetric); single-track (bike) exempt. The 2-D stand-in for roll | 2.55 | ✅ |
 | **Drivetrain location (FWD/RWD)** | power lays down through the *drive wheels*; drive point ahead of the COM (in travel) pulls → stable/understeer, behind pushes → loose/spin. Reversing flips it → a rear-wheel bike drives better backwards. Explicit `drive` part | 2.6 | ✅ |
@@ -1160,3 +1208,107 @@ sources as the clock (battery/tank/firebox/recharge — rung 6); the hybrid acti
 RACE/TRACTOR are demo powertrains beyond the §1a roster (they bundle gearing as a vehicle-class
 shorthand); if the part vocabulary later justifies an explicit gearbox part, the per-kind `vref`
 is where that knowledge already lives.
+
+### Rung handling-depth — per-axle grip + friction-circle spin-out (2026-06-09)
+
+The two catalogue levers that needed no new world systems, only a deeper lateral model:
+**per-axle grip** (true understeer/oversteer, rear-only handbrake) and the **friction-circle
+spin-out** ("uit de bocht vliegen"). Both required the same thing — replacing the single
+body-level grip scalar with a **two-axle ("bicycle") model**, which is the honest core for
+lateral dynamics the way the rigid-body integrator is for the rest.
+
+- ✓ **Two-axle model.** `recompute_body()` now splits lateral grip FRONT vs REAR of the COM
+  (`frontGrip`/`rearGrip` at lever arms `aF`/`aR`). Each axle resists the lateral velocity AT
+  ITS OWN POSITION; the two forces act fore/aft of the COM, so they form a **yaw couple**. Two
+  payoffs fall out: (a) yaw damping is now PHYSICAL (∝ grip·wheelbase²/I) — a long heavy rig is
+  calm, a short one darty, no hand-tuned constant; (b) the front and rear can let go
+  independently. Tuned (`ANG_DAMP_AXLE` + the couple ≈ the old ~5/s on the buggy) so it reduces
+  to the previous feel when symmetric + gripping: verified buggy **79°/s @ 90** (was 77/89),
+  moto **87 @ 131** (exact — single-track stays on the old bleed, see below).
+- ✓ **Friction circle → spin-out.** Each axle converts lateral slip to grip only up to
+  `SLIP_MAX`; beyond that the force saturates — it has LET GO and slides. Front lets go →
+  understeer (plough wide); rear → oversteer (tail steps out / spin). Verified: gentle/straight
+  driving grips (slide 0.00), full-throttle-full-lock breaks loose (buggy drifts controllably,
+  the tail-happy RWD/supercar spin), heavy truck never exceeds the limit.
+- ✓ **Power-on over/understeer (the same circle).** The DRIVEN axle's limit shrinks with the
+  drive force it lays down (`POWER_EAT`): rear-drive → rear breaks loose under power = oversteer;
+  front-drive → front washes = understeer; AWD splits it. Verified FWD ploughs (won't rotate),
+  RWD spins, on full power.
+- ✓ **Rear-only handbrake.** The handbrake now cuts the REAR axle's grip limit only
+  (`DRIFT_GRIP_MULT`), so the tail steps out while the front keeps tracking — a real drift/spin,
+  not the old whole-body slide. Verified rear lets go (`slide_rear` = 1).
+- ✓ **Feel + reconciliation.** A `SLIDE`/`PUSH` HUD cue (rear vs front let-go) joins the warning
+  banner; the existing skid marks + screech fire emergently on the lateral slip. Single-track
+  rigs (inline bikes, `nHull < 3`) are exempt and keep the old single-bleed bite — same exemption
+  tipping uses. Tipping still scales both axle limits. `WATCH_MAX` bumped 24→32 (the cart now sets
+  ~29 watches). Top speeds, the engine kinds, and braking are all longitudinal → untouched
+  (re-verified gas 121 / supercar 300 / truck 46).
+
+**Open / for playtest tuning:** the drift/spin *fun* (how loose, how recoverable) lives in a few
+constants — `SLIP_MAX` (when it lets go), `POWER_EAT` (power-oversteer strength), `DRIFT_GRIP_MULT`
+(handbrake bite), `GRIP_YAW_K` (per-rig damping) — all commented for tweaking. The rung-2.6
+drivetrain push/pull (`STAB_YAW_K`) now coexists with the at-limit per-axle let-go (sub-limit
+directional feel vs over-the-limit slide); if RWD reads too loose, that's the term to trim.
+Per-axle weight-transfer under braking/accel (front dives → more front grip) is the natural next
+refinement; today axle load ≈ its grip share.
+
+### Long vehicles + brake skids (2026-06-09)
+
+A grab-bag pass from playtest notes: bigger rigs, harder-stopping feedback, and two bug fixes.
+
+- ✓ **The build grid is now 9 cells long (was 6)**, so genuinely LONG vehicles fit. `ED_CELL`
+  shrank 20→13 to keep 9 cells between the palette and the readout; every existing preset just
+  pads the extra columns with `P_NONE` (COM/I are computed from occupied cells, so they're
+  unchanged — verified the buggy drives identically). The drive-view rig is correspondingly
+  longer at `CELL` = 7 px/cell.
+- ✓ **SEMI (template `-`) — the real 18-wheeler.** A full-length rig: cab front-right, long
+  trailer, tandem rear axles + drive axle + steer axle (8 wheel cells), DIESEL. Everything
+  lumbering falls out of the build, no special engine: **mass 37, I ≈ 14,400 (≈10× the buggy →
+  a vast lazy turning circle), tops ~84 km/h** (it can't even pull top gear — settles in 4th —
+  and the 8 wheels + big body pile on rolling+aero drag). Glacial to wind up (heavy).
+- ✓ **SCHOOLBUS (template `=`)** — long boxy body, front-engine rear-drive, two axles, DIESEL;
+  ~85 km/h, heavy and long so it leans into corners but isn't the multi-axle semi.
+- ✓ **Hard-braking skid marks + screech.** Standing on the foot brake above `BRAKE_SKID_SPD`
+  (~50 km/h) now locks the tyres: straight skid marks laid frame-by-frame + a brake screech
+  (a touch lower than the cornering scrub). Only on a hard, fast stop — gentle braking is silent.
+- ✓ **Bug: engine no longer sticks across templates.** Loading the supercar then pressing `1`
+  used to leave the RACE V12 bolted on the buggy (templates were "keep current engine"). Now a
+  template is a WHOLE vehicle — the eight handling demos load GAS, the extremes their own
+  powertrains. (`K` in BUILD still swaps the engine deliberately afterward.)
+- ✓ **Bug: `est_top_speed()` was wrong for heavy rigs.** It assumed top gear, but a heavy rig
+  tops out in a LOWER gear (more thrust). Now it takes the best gear — `max` over gears of
+  `min(drag-limited, that gear's redline)` — so the semi's BUILD readout reads ~73 (was a
+  nonsense 33; actual ~84). Light rigs unchanged (they reach top gear, which wins the max).
+
+**Handbrake clarity:** there are two brakes — the foot BRAKE (`X`/`↓`, pure deceleration, stops
+you) and the handbrake on `SPACE`, labelled **DRIFT** because that's its job (it cuts the REAR
+grip → tail out). They're distinct; "DRIFT" is just the effect-name for the e-brake. (Open: could
+relabel the pedal "HAND" if "DRIFT" reads as a separate thing.)
+
+### Neutral + reverse-in-automatic (2026-06-09)
+
+Two playtest gaps in the gearbox. Re-encoded `gear` as **-1 = REVERSE · 0 = NEUTRAL · 1..5 =
+forward** (was 0 = reverse, no neutral), which fixed both at once:
+
+- ✓ **MANUAL gets a neutral ("free").** Up/down now step the whole sequence R ↔ N ↔ 1 ↔ … ↔ 5
+  (a real H-gate). In neutral the engine is disconnected — **no thrust, no idle creep, just
+  coast** — but the throttle still **free-revs** it (rpm climbs with the gas, a satisfying vroom
+  with the car standing still). N→R only engages at a near-stop.
+- ✓ **Reverse works in AUTOMATIC.** AUTO/1-GEAR don't expose neutral; instead one **down-tap from
+  a standstill drops straight into R** (and up returns to DRIVE) — so you can actually back up in
+  automatic, which you couldn't before (reverse was only reachable through the dithered gate and
+  read as disabled). Verified headless: AUTO tap-down → gear -1 → gas → vf goes negative; MANUAL
+  down to N → gas revs (rpm 0.9) but vf stays 0; forward unchanged in both.
+- ✓ **The H-gate shows it:** the ball rides the slot for 1-5, sits in the **centre channel for
+  NEUTRAL**, and the **R slot** for reverse (glows orange when you're slow enough to drop into it).
+  Removed the full-gate dither in AUTO/1 — the gate now reads live in every mode (it was hiding
+  that reverse is reachable).
+
+### Articulation / jackknife — documented as a future rung (2026-06-09)
+
+Player asked to capture the trailer/caravan/semi/attachment idea (and the jackknife) rather than
+build it now. Written up as **§7** above + a lever-catalogue row: the two-phase plan (a build-grid
+**attachments** phase — a hitch part + a trailer grid — *before* the articulated-body physics), the
+honest trailer model (rear-axle tracking, forward-stable/reverse-folds, friction-circle jackknife
+under braking, the cab-shove reaction), and where it lands (after breakage, reusing the per-axle
+grip + detach machinery). Not built — design seed only.

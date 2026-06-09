@@ -131,68 +131,85 @@ static float boiler;               // steam ONLY: boiler pressure 0..1 — the s
 // 1/2/3 rockets) before the parts-bin builder (rung 2). Same drive core, no tuning
 // per rig: every difference below is purely the mass / COM / I / grip falling out
 // of where the parts sit.
-#define GW   6                     // max grid footprint (rigs pad unused cells with P_NONE)
+#define GW   9                     // max grid footprint (rigs pad unused cells with P_NONE). 9 long
+                                   // so LONG vehicles fit — the SEMI (18-wheeler) and SCHOOLBUS use
+                                   // the full length; shorter rigs just leave the extra cells empty.
 #define GH   3
 #define CELL 7.0f                  // world px per cell
 static int grid[GH][GW];
 
-#define NDES 10
+#define NDES 12
 static const int DESIGNS[NDES][GH][GW] = {
     { // 0 BUGGY — balanced 4-wheeler, engine centred: drives clean
-        { P_WHEEL, P_FRAME, P_FRAME,  P_WHEEL, P_NONE,  P_NONE },
-        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE,  P_NONE },
-        { P_WHEEL, P_FRAME, P_FRAME,  P_WHEEL, P_NONE,  P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_WHEEL, P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_WHEEL, P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 1 HAULER — long & heavy, one engine: crawls, turns lazily (big mass + I)
-        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL },
-        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_FRAME, P_FRAME },
-        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE },
+        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_FRAME, P_FRAME, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE },
     },
     { // 2 SPRINTER — light, TWIN engine centred: huge accel, snappy
-        { P_WHEEL,  P_FRAME,  P_FRAME,  P_WHEEL, P_NONE, P_NONE },
-        { P_SEAT,   P_ENGINE, P_ENGINE, P_FRAME, P_NONE, P_NONE },
-        { P_WHEEL,  P_FRAME,  P_FRAME,  P_WHEEL, P_NONE, P_NONE },
+        { P_WHEEL,  P_FRAME,  P_FRAME,  P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_SEAT,   P_ENGINE, P_ENGINE, P_FRAME, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL,  P_FRAME,  P_FRAME,  P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 3 JALOPY — 3 wheels + off-centre engine: loose, pulls, slides
-        { P_WHEEL, P_FRAME, P_ENGINE, P_NONE,  P_NONE, P_NONE },
-        { P_FRAME, P_SEAT,  P_FRAME,  P_NONE,  P_NONE, P_NONE },
-        { P_WHEEL, P_FRAME, P_WHEEL,  P_NONE,  P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_ENGINE, P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_FRAME, P_SEAT,  P_FRAME,  P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_WHEEL,  P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 4 MOTORBIKE — narrow inline 2-wheeler: feather-light, darty, twitchy
-        { P_NONE,  P_NONE,   P_NONE, P_NONE,  P_NONE, P_NONE },
-        { P_WHEEL, P_ENGINE, P_SEAT, P_WHEEL, P_NONE, P_NONE },
-        { P_NONE,  P_NONE,   P_NONE, P_NONE,  P_NONE, P_NONE },
+        { P_NONE,  P_NONE,   P_NONE, P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL, P_ENGINE, P_SEAT, P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_NONE,  P_NONE,   P_NONE, P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 5 FWD — drive wheels at the FRONT (c3): front pulls → planted, understeers
-        { P_WHEEL, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE },
-        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE, P_NONE },
-        { P_WHEEL, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 6 RWD — drive wheels at the REAR (c0), rear engine: rear pushes → tail-happy
-        { P_DRIVE, P_FRAME,  P_FRAME, P_WHEEL, P_NONE, P_NONE },
-        { P_FRAME, P_ENGINE, P_SEAT,  P_FRAME, P_NONE, P_NONE },
-        { P_DRIVE, P_FRAME,  P_FRAME, P_WHEEL, P_NONE, P_NONE },
+        { P_DRIVE, P_FRAME,  P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_FRAME, P_ENGINE, P_SEAT,  P_FRAME, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_DRIVE, P_FRAME,  P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 7 4WD — drive wheels at all four corners: power everywhere → grippy, neutral
-        { P_DRIVE, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE },
-        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE, P_NONE },
-        { P_DRIVE, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE },
+        { P_DRIVE, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_FRAME, P_SEAT,  P_ENGINE, P_FRAME, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_DRIVE, P_FRAME, P_FRAME,  P_DRIVE, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE },
     },
     { // 8 SUPERCAR — low (2-row → slippery), light, rear-drive + the RACE engine → ~300 km/h
-        { P_DRIVE, P_FRAME, P_ENGINE, P_FRAME, P_WHEEL, P_NONE },
-        { P_DRIVE, P_FRAME, P_SEAT,   P_FRAME, P_WHEEL, P_NONE },
-        { P_NONE,  P_NONE,  P_NONE,   P_NONE,  P_NONE,  P_NONE },
+        { P_DRIVE, P_FRAME, P_ENGINE, P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_DRIVE, P_FRAME, P_SEAT,   P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE, P_NONE },
+        { P_NONE,  P_NONE,  P_NONE,   P_NONE,  P_NONE,  P_NONE, P_NONE, P_NONE, P_NONE },
     },
-    { // 9 TRUCK — big, heavy, wide, 6 wheels + the TRACTOR engine (short gears) → ~45 km/h grunt
-        { P_DRIVE, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_DRIVE },
-        { P_DRIVE, P_SEAT,  P_ENGINE, P_FRAME, P_FRAME, P_DRIVE },
-        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL },
+    { // 9 TRUCK — heavy, wide, 6 wheels + the TRACTOR engine (short gears) → ~45 km/h grunt
+        { P_DRIVE, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_DRIVE, P_NONE, P_NONE, P_NONE },
+        { P_DRIVE, P_SEAT,  P_ENGINE, P_FRAME, P_FRAME, P_DRIVE, P_NONE, P_NONE, P_NONE },
+        { P_WHEEL, P_FRAME, P_FRAME,  P_FRAME, P_FRAME, P_WHEEL, P_NONE, P_NONE, P_NONE },
+    },
+    { // 10 SEMI — full-length 18-wheeler: cab front-right, long trailer, tandem axles. DIESEL,
+      //    huge mass + wheelbase → very slow to wind up and a massive lazy turning circle.
+        { P_WHEEL, P_WHEEL, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_DRIVE, P_FRAME, P_WHEEL },
+        { P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_ENGINE, P_SEAT },
+        { P_WHEEL, P_WHEEL, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_DRIVE, P_FRAME, P_WHEEL },
+    },
+    { // 11 SCHOOLBUS — long boxy body, front engine, rear-drive, 2 axles (front+rear). DIESEL;
+      //    long + heavy so it leans into corners and lumbers, but only two axles (not the semi).
+        { P_DRIVE, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_WHEEL },
+        { P_FRAME, P_FRAME, P_SEAT,  P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_ENGINE, P_FRAME },
+        { P_DRIVE, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_FRAME, P_WHEEL },
     },
 };
-// the engine kind each preset loads with (-1 = keep the player's current kind). The first 8
-// leave the kind alone (they're handling demos); SUPERCAR/TRUCK set the extreme powertrains.
+// the engine kind each preset loads with — a template is a WHOLE vehicle (body + engine), so
+// loading one always sets a sensible engine (you can still swap it after with K in BUILD). The
+// eight handling demos take the everyday GAS engine; SUPERCAR/TRUCK carry the extreme powertrains.
+// (-1 would mean "keep the current kind", which surprised people — a V12 stuck on the buggy.)
 static const int DES_ENGINE[NDES] = {
-    -1, -1, -1, -1, -1, -1, -1, -1, EK_RACE, EK_TRACTOR,
+    EK_GAS, EK_GAS, EK_GAS, EK_GAS, EK_GAS, EK_GAS, EK_GAS, EK_GAS, EK_RACE, EK_TRACTOR,
+    EK_DIESEL, EK_DIESEL,   // SEMI + SCHOOLBUS: diesel haulers (grunt, ~road-speed top, but heavy → slow)
 };
 static const char *DES_NAME[NDES] = {
     "BUGGY \x07 balanced",
@@ -205,6 +222,8 @@ static const char *DES_NAME[NDES] = {
     "4WD \x07 all-drive, grippy",
     "SUPERCAR \x07 RACE V12, ~300 km/h",
     "TRUCK \x07 TRACTOR grunt, ~45 km/h",
+    "SEMI \x07 18-wheeler, lumbering",
+    "SCHOOLBUS \x07 long, boxy diesel",
 };
 static int cur_des = 0;
 
@@ -221,6 +240,17 @@ static float driveX;              // local-x of the drive point (where thrust is
 static float driveRoll;           // Σ rolling support of the DRIVE wheels (their traction cap)
 static int   frontalCells;        // rig height across the direction of travel (aero profile)
 static float balance;             // COM vs wheelbase: +1 front-heavy (understeer) .. -1 rear-heavy
+// ── per-axle grip (the two-axle / "bicycle" model — rung handling-depth) ───────
+// Lateral grip split FRONT vs REAR of the COM, so each axle can let go on its own:
+// front lets go → understeer (push wide), rear lets go → oversteer (tail steps out /
+// spin). frontAxleX/rearAxleX are the mean x of the wheels on each side of the COM;
+// aF/aR are their lever arms (aF>0 ahead, aR<0 behind). rearDriveFrac = how much of the
+// drive is at the rear (the friction-circle "power eats rear grip" → power-on oversteer).
+// twoAxle is false for a single-axle/degenerate layout → fall back to one body bleed.
+static float frontGrip, rearGrip; // Σ lateral grip ahead of / behind the COM
+static float aF, aR;              // front/rear axle lever arms (px from COM; aF>0, aR<0)
+static float rearDriveFrac;       // fraction of drive roll on the rear axle (0..1)
+static int   twoAxle;             // 1 = front and rear both have grip at distinct x
 // ── ground contact: which cells hang off the ground (no wheel under them) ──────
 // A cell scrapes only if it sits OUTSIDE the span of the support points (wheels +
 // casters) — i.e. cantilevered out past the outermost wheels. Cells *between* the
@@ -312,7 +342,14 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define BOILER_FALL   0.12f       // ... and bled/s when the engine's off (slower than it builds)
 #define LAT_GRIP      32.0f       // lateral velocity killed per second (tire grip)
 #define STEER_RESP    680.0f      // steering authority (deg/s^2) at speed
-#define ANG_DAMP      5.0f        // angular self-centering (1/s)
+#define ANG_DAMP      5.0f        // angular self-centering (1/s) for SINGLE-TRACK / fallback rigs
+                                  // (no per-axle couple to lean on, so they keep the original value)
+#define ANG_DAMP_AXLE 2.6f        // self-centering for TWO-AXLE rigs: lower, because the per-axle
+                                  // grip couple (GRIP_YAW_K) supplies the rest of the yaw damping
+                                  // PHYSICALLY (∝ grip·wheelbase²/I) — long rig calm, short one darty.
+                                  // ANG_DAMP_AXLE + the couple ≈ the old ~5/s on the buggy.
+#define GRIP_YAW_K    0.26f       // scales the yaw couple from the two front/rear grip forces (the
+                                  // per-rig damping spread + the source of emergent under/oversteer)
 #define REF_GYRO      130.0f      // gyradius^2 (px^2) a "normal" rig turns easily at
 #define ENG_YAW_K     0.9f        // how hard an off-centre engine yaws the rig
 #define BALANCE_K     0.4f        // lever: front-heavy understeers, rear-heavy oversteers
@@ -320,8 +357,18 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define GROUND_GRIP   1.0f        // road: plenty (sand/mud come in rung 3)
 #define KMH           0.72f       // px/s → km/h for the readout (top ~166 px/s ≈ 120 km/h,
                                   // so the SPEED number lines up with the zone limit signs)
-#define DRIFT_GRIP_MULT 0.13f     // handbrake: lateral grip drops to this fraction
-#define SKID_SLIP     28.0f       // lateral speed (px/s) where tires start marking
+#define DRIFT_GRIP_MULT 0.13f     // handbrake: REAR axle's grip limit drops to this fraction → tail out
+#define SKID_SLIP     28.0f       // lateral speed (px/s) where tires start marking (sideways scrub)
+#define BRAKE_SKID_SPD 70.0f      // forward speed (px/s) above which STANDING ON THE BRAKE locks the
+                                  // tyres → straight skid marks + a screech (only on a hard, fast stop)
+// ── friction circle (per-axle let-go — "uit de bocht vliegen") ────────────────
+// A tyre converts lateral slip into grip only up to SLIP_MAX of slip velocity; beyond that
+// the force saturates — it has LET GO and slides. Front lets go → understeer (push wide);
+// rear lets go → oversteer (tail steps out / spin). The rear's limit also shrinks with the
+// drive force it's laying down (POWER_EAT), so flooring a rear-drive rig mid-corner breaks
+// the back loose — power-on oversteer, emergent from the same circle.
+#define SLIP_MAX      36.0f       // lateral slip velocity (px/s) a tyre holds before it lets go
+#define POWER_EAT     0.55f       // fraction of the rear's grip budget eaten at full power (rear-drive)
 // ── ground-scrape: a cell hanging past the wheel span drags on the floor ──────
 #define SCRAPE_DRAG   9.0f        // extra drag force per dragging cell (top speed ↓)
 #define SCRAPE_LAT    7.0f        // extra lateral resistance per dragging cell (anchors sideways)
@@ -350,9 +397,11 @@ static Spark spark[MAXSPARK];
 static int   spark_head;
 static float heat;                // 0..1, rises while cells scrape under load, cools off
 static float tip_amt;             // 0..1, how hard the rig is tipping this frame (HUD)
+static float slide_amt;           // 0..1, how far past the friction limit a tyre is (spin-out feedback)
+static int   slide_rear;          // 1 = the REAR let go (oversteer/spin), 0 = front (understeer/push)
 // ── transmission state (§1b) ─────────────────────────────────────────────────
 static int   trans_mode = TR_AUTO;  // SINGLE / AUTO / MANUAL — player setting, persists
-static int   gear = 1;            // 0 = reverse, 1..NGEAR = forward
+static int   gear = 1;            // -1 = REVERSE, 0 = NEUTRAL (manual only), 1..NGEAR = forward
 static float rpm;                 // 0..~1.15 normalised engine revs (tach + sound)
 static int   shift_snd;           // 1 = a gear change happened this frame (play a clunk)
 static int   engine_on = 1;       // ignition: I cranks/kills it; stall flips it off
@@ -528,6 +577,25 @@ static void recompute_body(void) {
     float wbHalf = (wMaxX - wMinX) * 0.5f;
     float wbMid  = (wMaxX + wMinX) * 0.5f;
     balance = (wbHalf > 0.5f) ? clamp((comX - wbMid) / wbHalf, -1.0f, 1.0f) : 0.0f;
+    // ── per-axle grip split: which wheels sit ahead of / behind the COM (two-axle model) ──
+    frontGrip = rearGrip = 0;
+    float fSumX = 0, rSumX = 0, fDrive = 0, rDrive = 0; int nF = 0, nR = 0;
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) {
+            PartKind *k = &KIND[grid[r][c]];
+            if (k->grip <= 0) continue;                 // only laterally-gripping wheels (incl. casters)
+            float cx = (c + 0.5f) * CELL;
+            if (cx >= comX) { frontGrip += k->grip; fSumX += cx; nF++; if (k->drive > 0) fDrive += k->roll; }
+            else            { rearGrip  += k->grip; rSumX += cx; nR++; if (k->drive > 0) rDrive += k->roll; }
+        }
+    aF = (nF ? fSumX / nF : comX) - comX;               // front/rear axle lever arms (px from COM)
+    aR = (nR ? rSumX / nR : comX) - comX;
+    float totDrive = fDrive + rDrive;
+    rearDriveFrac = (totDrive > 0) ? rDrive / totDrive : (nDrive == 0 ? 0.5f : 0.0f);  // AWD ≈ half rear
+    // two-axle needs grip front AND rear at distinct x, AND a real track (nHull>=3) — a
+    // single-track inline bike (nHull<3) keeps the old single-bleed feel (darty), the same
+    // exemption tipping uses; we don't model its lean, so the yaw-couple damping doesn't fit it.
+    twoAxle = (frontGrip > 0.01f && rearGrip > 0.01f && (aF - aR) > CELL * 0.5f && nHull >= 3);
     // moment of inertia about the COM
     I = 0;
     for (int r = 0; r < GH; r++)
@@ -571,19 +639,28 @@ static void reset_vehicle(void) {
 // live readout estimates — the same formulas the drive core uses, so BUILD shows
 // the truth about a rig before you ever drive it.
 static float est_top_speed(void) {
-    // the SAME force balance the drive core reaches at terminal: geared, delivered thrust near
-    // redline vs (aero/rolling drag·v + the constant ROLL_FRIC force) — then capped by the
-    // gearing ceiling (top-gear redline = vref/topratio), which is what actually limits the
-    // strong kinds. So the BUILD number tracks what you'll really top out at, per engine kind.
-    float topratio = (ENG[eng_kind].deftrans == TR_SINGLE) ? SINGLE_RATIO : GEAR_RATIO[NGEAR - 1];
-    float thrust = nEngines * ENG[eng_kind].power * delivery(eng_kind, 0.9f, 1.0f) * topratio;
-    float tract = driveRoll * GROUND_GRIP * GRIP_TO_FORCE;     // powered wheels cap the laid-down force
-    if (tract > 0 && thrust > tract) thrust = tract;
+    // The terminal speed is the BEST any gear can sustain — not just top gear. A light rig pulls
+    // top gear (drag-limited there); a HEAVY rig can't, and tops out in a lower gear where the
+    // higher ratio gives more thrust (still below that gear's redline). So we check every gear:
+    // in each, top = min(drag-limited speed, the gear's redline) — and take the max. This is the
+    // same force balance the drive core reaches (geared thrust vs aero/rolling drag + ROLL_FRIC).
     float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells + SCRAPE_DRAG * nDrag;
-    float vdrag = (drag > 0) ? (thrust - ROLL_FRIC * M) / drag : 0;   // drag-limited top
-    if (vdrag < 0) vdrag = 0;
-    float cap = ENG[eng_kind].vref / topratio;                 // gearing ceiling (top-gear redline)
-    return (vdrag < cap) ? vdrag : cap;
+    if (drag <= 0) return 0;
+    float tract = driveRoll * GROUND_GRIP * GRIP_TO_FORCE;     // powered wheels cap the laid-down force
+    float vref  = ENG[eng_kind].vref;
+    int   single = (ENG[eng_kind].deftrans == TR_SINGLE);
+    int   ng = single ? 1 : NGEAR;
+    float best = 0;
+    for (int g = 0; g < ng; g++) {
+        float ratio = single ? SINGLE_RATIO : GEAR_RATIO[g];
+        float thrust = nEngines * ENG[eng_kind].power * delivery(eng_kind, 0.9f, 1.0f) * ratio;
+        if (tract > 0 && thrust > tract) thrust = tract;
+        float vdrag   = (thrust - ROLL_FRIC * M) / drag;       // drag-limited speed in THIS gear
+        float redline = vref / ratio;                          // this gear's redline (rpm = 1)
+        float topg = (vdrag < redline) ? vdrag : redline;      // whichever binds first
+        if (topg > best) best = topg;
+    }
+    return best < 0 ? 0 : best;
 }
 static float est_turn_rate(void) {                 // steady deg/s at speed
     float turnEase = REF_GYRO / (I / M + REF_GYRO);
@@ -703,6 +780,8 @@ static void handle_input(void) {
     if (keyp('8')) load_design(7);   // 4WD
     if (keyp('9')) load_design(8);   // SUPERCAR (RACE engine → ~300 km/h)
     if (keyp('0')) load_design(9);   // TRUCK (TRACTOR engine → ~45 km/h)
+    if (keyp('-')) load_design(10);  // SEMI — the long 18-wheeler (diesel)
+    if (keyp('=')) load_design(11);  // SCHOOLBUS — long boxy diesel
 
     if (mode == MODE_BUILD) {
         if (keyp('R')) clear_grid();           // R clears the grid to empty
@@ -807,17 +886,25 @@ static void update_drive(float dt_) {
         heat = clamp(heat + HEAT_RISE * dt_, 0, 1.0f);
     }
 
-    // --- shifting: reverse (gear 0) sits "below 1st" — down at a near-stop engages it,
-    //     up returns to 1st; the R↔1 swap zeroes forward speed so it's a clean change, not
-    //     a jarring flip. MANUAL also steps the forward gears with up/down; AUTO/SINGLE keep
-    //     reverse a manual choice but auto-manage the forward gears below. -----------------
-    if (in_up) {                                     // E / gate-up: out of reverse, or upshift
-        if (gear == 0) { if (af(vf) < REV_ENGAGE_SPD) { gear = 1; vf = 0; shift_snd = 1; } }
-        else if (trans_mode == TR_MANUAL && gear < NGEAR) { gear++; shift_snd = 1; }
+    // --- shifting: gear is REVERSE (-1) · NEUTRAL (0) · forward 1..NGEAR. -------------------
+    //   MANUAL  : up/down step the whole sequence R ↔ N ↔ 1 ↔ 2 ↔ … (a real H-gate with neutral).
+    //   AUTO/1  : the box manages forward gears; up/down just pick DRIVE vs REVERSE (one tap from a
+    //             stop drops it into R — so you CAN reverse in automatic). No exposed neutral.
+    //   Engaging reverse needs a near-stop (REV_ENGAGE_SPD) and zeroes vf for a clean swap.
+    if (in_up) {                                     // E / gate-up
+        if (trans_mode == TR_MANUAL) {
+            if (gear < NGEAR) { if (gear < 0) vf = 0; gear++; shift_snd = 1; }   // R→N→1→…→5
+        } else if (gear < 1) {                       // AUTO/1: R → DRIVE
+            gear = 1; vf = 0; shift_snd = 1;
+        }
     }
-    if (in_down) {                                   // Q / gate-down: downshift, or into reverse
-        if (trans_mode == TR_MANUAL && gear > 1) { gear--; shift_snd = 1; }
-        else if (gear >= 1 && af(vf) < REV_ENGAGE_SPD) { gear = 0; vf = 0; shift_snd = 1; }
+    if (in_down) {                                   // Q / gate-down
+        if (trans_mode == TR_MANUAL) {
+            if (gear > 0) { gear--; shift_snd = 1; }                              // 5→…→1→N
+            else if (gear == 0 && af(vf) < REV_ENGAGE_SPD) { gear = -1; vf = 0; shift_snd = 1; }  // N→R
+        } else if (gear >= 1 && af(vf) < REV_ENGAGE_SPD) {                        // AUTO/1: DRIVE → R
+            gear = -1; vf = 0; shift_snd = 1;
+        }
     }
     if (trans_mode == TR_SINGLE && gear > 1) gear = 1;          // single keeps one forward gear
     if (trans_mode == TR_AUTO && gear >= 1) {                   // auto-shift to stay in the band
@@ -829,9 +916,16 @@ static void update_drive(float dt_) {
     float curvref = ENG[eng_kind].vref;             // gearing per engine kind = the speed scale:
                                                     // top-gear redline = vref/0.72 is the hard ceiling
     float ratio = (trans_mode == TR_SINGLE) ? SINGLE_RATIO
-                : (gear == 0) ? REV_RATIO : GEAR_RATIO[gear - 1];
-    float gdir  = (gear == 0) ? -1.0f : 1.0f;
-    rpm = clamp(af(vf) * ratio / curvref, 0, 1.15f);
+                : (gear == -1) ? REV_RATIO
+                : (gear <= 0)  ? GEAR_RATIO[0]              // neutral: nominal (thrust is zeroed below)
+                : GEAR_RATIO[gear - 1];
+    float gdir  = (gear == -1) ? -1.0f : 1.0f;
+    if (gear == 0) {                                        // NEUTRAL — engine disconnected: free-revs
+        float idle = IDLE_CREEP / V_REF;                   // ≈ the idle rpm
+        rpm = lerp(rpm, !engine_on ? 0.0f : (in_gas ? 0.9f : idle), 0.12f);   // gas → vroom, no drive
+    } else {
+        rpm = clamp(af(vf) * ratio / curvref, 0, 1.15f);
+    }
     // --- stall: lug a too-tall gear below idle revs while still rolling → it cuts out.
     // Only the COMBUSTION kinds (gas/diesel) stall — electric/nuclear have no idle to lose,
     // and steam is gated by its boiler, not revs. SINGLE and reverse never stall either.
@@ -853,7 +947,7 @@ static void update_drive(float dt_) {
     float gmul = delivery(eng_kind, rpm, boiler) * ratio;
 
     // --- engine: thrust through the gear, + the yaw torque from an off-centre engine
-    float throttle = (in_gas && engine_on) ? 1.0f : 0.0f;  // gas drives in the gear's direction (dead engine = no thrust)
+    float throttle = (in_gas && engine_on && gear != 0) ? 1.0f : 0.0f;  // neutral / dead engine = no drive
     float thrust = 0, eng_torque = 0;
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
@@ -885,12 +979,43 @@ static void update_drive(float dt_) {
         else        { vf += d; if (vf > 0) vf = 0; }
     }
 
-    // --- tire grip: bleed the sideways velocity away (the car-feel line) -------
-    // the handbrake breaks the tires loose — same grip term, turned down → drift.
-    float lat_mult = in_hand ? DRIFT_GRIP_MULT : 1.0f;
-    lat_mult *= (1.0f - STAB_GRIP_LOSS * tip_amt);   // tipping unloads the tires → they let go
-    float grip = clamp((wheelGrip * GROUND_GRIP / M) * LAT_GRIP * lat_mult, 0, 1.0f / dt_);
-    vl -= vl * grip * dt_;
+    // --- tire grip: PER-AXLE, the two-axle ("bicycle") model -------------------
+    // Each axle resists the lateral velocity AT ITS OWN POSITION (front/rear of the COM).
+    // The two corrective forces act fore/aft of the COM, so they form a YAW COUPLE that
+    // damps spin for free, scaling with grip·wheelbase²/I — a long heavy rig is naturally
+    // calm, a short light one darty, no hand-tuned term. Symmetric grip + below the limit
+    // reduces to the old single body bleed; front-vs-rear letting go INDEPENDENTLY
+    // (understeer if the front goes, oversteer if the rear does) arrives with the
+    // friction-circle cap (next step). Handbrake + tipping still scale both axles here.
+    float tipMul = 1.0f - STAB_GRIP_LOSS * tip_amt;  // tipping unloads the tires → they let go
+    slide_amt = 0;
+    if (twoAxle) {
+        float wRad = angVel * DEG2RAD;
+        float vlF = vl + wRad * aF;                  // lateral slip velocity at the front axle
+        float vlR = vl + wRad * aR;                  // ... and the rear
+        // friction circle: each axle holds slip only up to its limit (SLIP_MAX), then LETS GO.
+        // The DRIVEN axle's limit shrinks with the power it lays down (the drive force eats its
+        // sideways budget): rear-drive → rear breaks loose under power = oversteer; front-drive →
+        // front washes out under power = understeer. The handbrake cuts the REAR only (tail out).
+        float capF = SLIP_MAX * tipMul * (1.0f - POWER_EAT * (1.0f - rearDriveFrac) * throttle);
+        float capR = SLIP_MAX * tipMul * (in_hand ? DRIFT_GRIP_MULT : 1.0f)
+                                       * (1.0f - POWER_EAT * rearDriveFrac * throttle);
+        float clF = clamp(vlF, -capF, capF);         // slip the tyre actually converts to grip
+        float clR = clamp(vlR, -capR, capR);
+        float accF = clF * (frontGrip * GROUND_GRIP / M) * LAT_GRIP;   // capped corrective accel
+        float accR = clR * (rearGrip  * GROUND_GRIP / M) * LAT_GRIP;
+        vl     -= (accF + accR) * dt_;                                 // net lateral correction
+        angVel -= (accF * aF + accR * aR) * (M / I) * GRIP_YAW_K / DEG2RAD * dt_;  // the yaw couple
+        // how far past the limit each axle is → spin-out feedback (rear over = oversteer/spin)
+        float satF = af(vlF) - capF, satR = af(vlR) - capR;
+        slide_rear = (satR >= satF);
+        float sat = (satR > satF) ? satR : satF;
+        slide_amt = clamp(sat / (SLIP_MAX + 1.0f), 0, 1);
+    } else {                                          // single-track / fallback: old whole-body bleed
+        float lat_mult = (in_hand ? DRIFT_GRIP_MULT : 1.0f) * tipMul;
+        float grip = clamp((wheelGrip * GROUND_GRIP / M) * LAT_GRIP * lat_mult, 0, 1.0f / dt_);
+        vl -= vl * grip * dt_;
+    }
     if (scraping)                                    // a dragging belly also anchors sideways
         vl -= vl * clamp((SCRAPE_LAT * nDrag) / M, 0, 1.0f / dt_) * dt_;
 
@@ -905,12 +1030,12 @@ static void update_drive(float dt_) {
     // --- idle creep: throttle released, in gear, no brake → the idling engine trundles you
     //     at a gear-set floor (taller gear = faster, capped). Only pulls UP to the floor (it
     //     won't fight drag from above). Brake overrides → sit still (a manual at a light).
-    if (!in_gas && !in_brk && engine_on) {
+    if (!in_gas && !in_brk && engine_on && gear != 0) {   // NEUTRAL freewheels — no creep, just coast
         // idle holds a CONSTANT rpm (IDLE_CREEP/V_REF) whatever the gearing → creep speed scales
         // with vref, so a tall-geared supercar idles faster and a short-geared tractor crawls,
         // and neither false-stalls (idle rpm stays above STALL_RPM regardless of vref).
         float vcreep = IDLE_CREEP * (curvref / V_REF) / ratio;   // idle RPM in this gear → 1/ratio law
-        if (gear == 0) {                                  // reverse idles backward
+        if (gear == -1) {                                 // reverse idles backward
             if (vf > -vcreep) { vf -= CREEP_ACCEL * dt_; if (vf < -vcreep) vf = -vcreep; }
         } else if (vf >= 0 && vf < vcreep) {              // forward: ease up to the floor
             vf += CREEP_ACCEL * dt_; if (vf > vcreep) vf = vcreep;
@@ -922,8 +1047,10 @@ static void update_drive(float dt_) {
     vy = fwy * vf + lty * vl;
     sx += vx * dt_; sy += vy * dt_;
 
-    // --- skid marks: lay at every wheel while the tires are scrubbing sideways -
-    if (af(vl) > SKID_SLIP)
+    // --- skid marks: lay at every wheel while the tires scrub sideways OR lock under a
+    //     hard brake at speed (a straight stopping skid, laid frame-by-frame as you slide) -
+    int hard_brake = in_brk && af(vf) > BRAKE_SKID_SPD;
+    if (af(vl) > SKID_SLIP || hard_brake)
         for (int r = 0; r < GH; r++)
             for (int c = 0; c < GW; c++)
                 if (grid[r][c] == P_WHEEL || grid[r][c] == P_DRIVE) {
@@ -945,7 +1072,7 @@ static void update_drive(float dt_) {
     ang_acc += ENG_YAW_K * (eng_torque / I);         // off-centre engine pulls
     if (scraping) ang_acc += SCRAPE_YAW * (scrape_torque / I) * dir;  // off-centre scrape drags
     angVel += ang_acc * dt_;
-    angVel -= angVel * ANG_DAMP * dt_;
+    angVel -= angVel * (twoAxle ? ANG_DAMP_AXLE : ANG_DAMP) * dt_;   // axle rigs lean on the couple too
     // directional stability: the drive point ahead of the COM (in the travel frame)
     // PULLS the rig → extra self-centering (stable, understeer); behind it PUSHES →
     // anti-damping (the heavy end wants to swing round → oversteer / spin). Reversing
@@ -965,9 +1092,9 @@ static void update_drive(float dt_) {
     // update) — not a re-triggered beep. Here we only fire the transient one-shots.
     float spd = fsqrt(vx * vx + vy * vy);
     if (shift_snd) { hit(40, INSTR_NOISE, 2, 45); shift_snd = 0; }   // gear-change clunk
-    if (af(vl) > 35) {                               // tires scrubbing sideways
+    if (af(vl) > 35 || hard_brake) {                 // tires scrubbing sideways OR locked braking
         t_skid_snd -= dt_;
-        if (t_skid_snd <= 0) { hit(54, INSTR_NOISE, 2, 70); t_skid_snd = 0.05f; }
+        if (t_skid_snd <= 0) { hit(hard_brake ? 48 : 54, INSTR_NOISE, 2, 70); t_skid_snd = 0.05f; }
     }
     if (scraping) {                                  // a low grinding scrape, pitch tracks speed
         t_scrape_snd -= dt_;
@@ -1069,6 +1196,13 @@ void update(void) {
     watch("stalled", "%d", stalled);
     watch("ekind", "%d", eng_kind);
     watch("boiler", "%.2f", boiler);
+    watch("fgrip", "%.1f", frontGrip);
+    watch("rgrip", "%.1f", rearGrip);
+    watch("aF", "%.1f", aF);
+    watch("aR", "%.1f", aR);
+    watch("2axle", "%d", twoAxle);
+    watch("slide", "%.2f", slide_amt);
+    watch("slidR", "%d", slide_rear);
 #endif
 }
 
@@ -1308,6 +1442,9 @@ static void hud(void) {
         print_centered("ENGINE OFF  tap IGN", SCREEN_W / 2, DASH_Y - 9, CLR_MEDIUM_GREY);
     else if (tip_amt > 0.05f)
         print_centered("\x07 TIPPING", SCREEN_W / 2, DASH_Y - 9, CLR_ORANGE);
+    else if (slide_amt > 0.18f)                      // a tyre let go past the friction limit
+        print_centered(slide_rear ? "\x07 SLIDE" : "\x07 PUSH", SCREEN_W / 2, DASH_Y - 9,
+                       slide_rear ? CLR_RED : CLR_ORANGE);   // rear out (oversteer) vs front wash (understeer)
 
     // --- the dashboard panel ----------------------------------------------------
     rectfill(0, DASH_Y, SCREEN_W, SCREEN_H - DASH_Y, CLR_BLACK);
@@ -1367,28 +1504,29 @@ static void hud(void) {
     int gtopy = STK_Y + 13, gboty = STK_Y + STK_H - 14, gmidy = (gtopy + gboty) / 2;
     for (int c = 0; c < 3; c++) line(colx[c], gtopy, colx[c], gboty, CLR_LIGHT_GREY);  // chrome H
     line(colx[0], gmidy, colx[2], gmidy, CLR_LIGHT_GREY);                              // ... + channel
-    int gi   = (gear == 0) ? 2 : (gear - 1) / 2;                    // column: 1/2 · 3/4 · 5/R
-    int gtop = (gear != 0) && ((gear - 1) % 2 == 0);               // odd gears up, even + R down
-    int can_rev = (gear >= 1 && spd < REV_ENGAGE_SPD);             // could drop into reverse right now
+    // ball position: forward 1-5 in their slots, NEUTRAL in the centre channel, REVERSE the R slot
+    int ballx, bally;
+    if (gear == 0)      { ballx = colx[1]; bally = gmidy; }                 // N — stick in the channel
+    else if (gear < 0)  { ballx = colx[2]; bally = gboty; }                 // R — bottom-right slot
+    else { int col = (gear - 1) / 2; ballx = colx[col]; bally = ((gear - 1) % 2 == 0) ? gtopy : gboty; }
+    int can_rev = (gear == 0 && spd < REV_ENGAGE_SPD);             // in N + slow = ready to drop into R
     static const char *TOPN[3] = { "1", "3", "5" };
     static const char *BOTN[3] = { "2", "4", "R" };
     for (int c = 0; c < 3; c++) {
-        int ton = gtop && c == gi, bon = !gtop && c == gi;
+        int topg = c * 2 + 1;                                     // col → 1 / 3 / 5
+        int botg = (c < 2) ? c * 2 + 2 : -1;                      // col → 2 / 4 / R(-1)
+        int ton = (gear == topg), bon = (gear == botg);
         int bcol = (c == 2 && can_rev) ? CLR_ORANGE : (sd ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY);
         print_centered(TOPN[c], colx[c], STK_Y + 2,         ton ? CLR_WHITE : (su ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY));
         print_centered(BOTN[c], colx[c], STK_Y + STK_H - 9, bon ? CLR_WHITE : bcol);
     }
-    circfill(colx[gi], gtop ? gtopy : gboty, 3, engine_on ? CLR_WHITE : CLR_DARK_GREY);   // shift ball
-    circ(colx[gi], gtop ? gtopy : gboty, 3, CLR_LIGHT_GREY);
+    print_centered("N", colx[1], gmidy - 3, gear == 0 ? CLR_WHITE : CLR_DARK_GREY);   // neutral, in the channel
+    circfill(ballx, bally, 3, engine_on ? CLR_WHITE : CLR_DARK_GREY);   // shift ball rides the engaged gear
+    circ(ballx, bally, 3, CLR_LIGHT_GREY);
     font(FONT_TINY);                                              // tiny key hints (keep it photo-clean)
     print("E", STK_X + 2, STK_Y + 2,          su ? CLR_WHITE : CLR_DARK_GREY);
     print("Q", STK_X + 2, STK_Y + STK_H - 7,  sd ? CLR_WHITE : CLR_DARK_GREY);
     font(FONT_NORMAL);
-    if (trans_mode != TR_MANUAL) {                                // 1-GEAR / AUTO manage the gears
-        fillp(FILL_CHECKER, -1);                                 // → dither the gate to read "not yours"
-        rectfill(STK_X + 1, STK_Y + 1, STK_W - 2, STK_H - 2, CLR_BLACK);
-        fillp_reset();
-    }
 
     // RIGHT BUTTONS — ignition (lit when running) / transmission / build
     dash_btn(BTN_X, IGN_Y, BTN_W, BTN_H, engine_on ? "IGN ON" : "IGN OFF", "I", engine_on, CLR_GREEN);
@@ -1399,7 +1537,8 @@ static void hud(void) {
 }
 
 // ── BUILD mode: a paused grid editor — place parts, watch the numbers move ───
-#define ED_CELL 20                        // editor cell size (px)
+#define ED_CELL 13                        // editor cell size (px) — smaller now the grid is 9 wide,
+                                          // so 9 cells (117px) still fit between palette and readout
 #define ED_X    76                        // grid left (palette to its left, readout to its right)
 #define ED_Y    56
 
@@ -1501,8 +1640,8 @@ static void draw_build(void) {
     }
 
     print("BUILD", 6, 4, CLR_WHITE);
-    print("TAB drive  click place/erase  1-0 templates (9 super,0 truck)  K engine  R clear",
-          SCREEN_W / 2 - 200, SCREEN_H - 12, CLR_MEDIUM_GREY);
+    print("TAB drive  click place/erase  1-0,-,= templates (- semi, = bus)  K engine  R clear",
+          SCREEN_W / 2 - 205, SCREEN_H - 12, CLR_MEDIUM_GREY);
 
     ui_end();
 

@@ -213,6 +213,11 @@ case that genuinely needs the toggle.
   threats), multi-cell engine blocks (V12 = 2 cells — placement interest vs the 1-part =
   1-cell grid; decide later).
 
+> Demo presets added with rung 2.6: **6 FWD** (drive at front → planted/understeer),
+> **7 RWD** (drive at rear → tail-happy/oversteer), **8 4WD** (all corners driven → neutral,
+> full traction). Templates `1`–`8` now. Verified: FWD `driveoff +9.8`, RWD `−9.8`, 4WD `−0.6`.
+> (NB: which wheels *steer* is a separate, still-unbuilt lever — see per-axle, rungs 3–4.)
+
 ### 2. Fuel & range (the clock)
 
 Tanks hold fuel; engines burn it ∝ throttle·power. Range is the real constraint that

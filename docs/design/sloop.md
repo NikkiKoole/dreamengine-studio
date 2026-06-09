@@ -1,6 +1,6 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: building — rung 1 drive / 1.5 drift / 1.75 course / 1.9 rigs / 1.95 handling done.** Cart:
+**Status: building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -214,8 +214,8 @@ before the parts bin. Each rung is a runnable cart.
 1. **Drive a fixed rig.** Hard-coded 4-part grid (frame+engine+2 wheels), one biome
    (road), full physics: mass/COM/I derived, force÷mass accel, torque steering,
    integrator. Prove it *feels* like driving. No build, no world gen.
-2. **The BUILD flip.** Mode toggle; place/remove parts on the grid; live readouts +
-   COM crosshair. Now you build *then* drive — and feel a bad build.
+2. **The BUILD flip.** ✅ done (2026-06-09). Mode toggle; place/remove parts on the grid;
+   live readouts + COM crosshair. Now you build *then* drive — and feel a bad build.
 3. **Biomes + traction.** Noise biome map, grip/drag per biome; sand vs road makes
    the same rig behave differently. Camera scroll + minimap. *Levers here:* wheel-area /
    ground-pressure traction, per-axle grip, stability/tippiness (see lever catalogue).
@@ -273,7 +273,7 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Wheels as a trade-off** | each wheel adds rolling resistance (grip↑, top speed↓) | 1.95 | ✅ |
 | **Weight balance → under/oversteer** | nose-heavy pushes wide, tail-heavy turns in (COM vs wheelbase) | 1.95 | ✅ |
 | Top speed mass-INDEPENDENT | drag is a force; mass sets accel, not top speed (DDA's insight) | 1.95 | ✅ |
-| **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ⬜ |
+| **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ✅ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
 | **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
 | **Stability / tippiness** | tall narrow high-COM rig spins out / "tips" above a lateral-g threshold vs track width (the 2-D stand-in for roll, since we don't model z) | 3–4 | ⬜ |
@@ -486,3 +486,43 @@ in the lever catalogue.
 view* (it shifts as you place parts — the orbit apoapsis-marker move) and ui.h part
 buttons. Fold in the caster wheel type while expanding the part vocabulary. The drive
 core above does not change.
+
+### Rung 2 — the BUILD editor (2026-06-09)
+
+The titular feature: a **BUILD ↔ DRIVE flip** (TAB or `B`), the cart's spine like
+coaster's M. The drive core was untouched — rung 2 is pure UI over the engine
+`recompute_body()` already feeds.
+
+- ✓ **BUILD mode** (paused, `cls` to a blue backdrop). A `ui.h` part palette down the
+  left — frame / engine / wheel / caster / seat / erase, each with a colour chip and a
+  white selection ring; click a button (or hotkeys F/E/W/C/S/X) to pick. The grid
+  editor is centred; **click or drag a cell** to place the selected part (erase = the
+  eraser). `1`–`5` load the presets as **editable templates**, `R` clears to empty.
+- ✓ **Live readouts — the build telling the truth before you drive.** A **COM crosshair
+  drawn on the grid that shifts as you place parts** (the orbit apoapsis-marker move —
+  the most satisfying piece), plus a READOUT panel: mass, estimated top speed, turn
+  rate, engine/wheel counts, and an understeer/neutral/oversteer label from `balance`.
+  `est_top_speed()`/`est_turn_rate()` use the *same formulas the drive core uses*, so
+  the numbers don't lie. Soft "no engine!" / "no wheels!" warnings; no hard validation
+  (floating parts allowed — connectivity is a later add).
+- ✓ **Round-trip verified** (headless script: B → place an engine → B → gas): the custom
+  rig drives with its new mass (17.2 → 21.2 for +1 engine) and the added front engine
+  read `balance 0.36` → understeer, exactly as built.
+- ✓ **Caster wheel** (the piano-on-casters lever) shipped here: `PartKind` gained a
+  `roll` field — `grip` is lateral nose-tracking, `roll` is rolling support. A fixed
+  WHEEL has both; a CASTER has `roll=1` but `grip=0.12`, so it rolls/drives but barely
+  tracks — build an all-caster rig and it slides any way and pivots, the piano-dolly
+  feel. Traction now uses `wheelRoll`; lateral grip still uses `wheelGrip`. Drawn with a
+  swivel-pivot dot.
+
+Note: the BUILD↔DRIVE toggle is **TAB or B** — the play.js harness can't inject TAB
+(its key-name table is SPACE/arrows only), so `B` doubles as the testable/alternate key.
+
+**Deferred (clean later adds):** connectivity enforcement, save/load of designs, scrap
+costs, touch-grid placement (palette already works via ui.h touch; grid placement is
+mouse-only for now). Remaining levers (ground-pressure, per-axle grip, tippiness,
+fuel/damage) per the catalogue → rungs 3–4.
+
+**Next — rung 3 (biomes + traction):** noise biome map, grip/drag per terrain, the
+wheel-area/ground-pressure lever (heavy-on-few-wheels bogs in sand), camera-follow
+minimap. The BUILD editor + drive core are the stable base it builds on.

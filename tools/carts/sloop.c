@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "ui.h"
 #include <stdio.h>
 
 // ============================================================================
@@ -46,8 +47,11 @@
 // ── part vocabulary ──────────────────────────────────────────────────────────
 // Addressed by enum, never raw index (CLAUDE.md data-driven rule). Each kind:
 // mass, engine power, wheel grip, colour.
-enum { P_NONE, P_FRAME, P_ENGINE, P_WHEEL, P_SEAT, P_KINDS };
-typedef struct { float mass, power, grip; int col; const char *name; } PartKind;
+enum { P_NONE, P_FRAME, P_ENGINE, P_WHEEL, P_CASTER, P_SEAT, P_KINDS };
+// grip = lateral (nose-tracking) grip; roll = rolling support (traction + can-move).
+// A fixed WHEEL has both; a CASTER rolls (support) but barely grips sideways — it
+// swivels, so the rig slides any way and won't track its nose (the piano-dolly feel).
+typedef struct { float mass, power, grip, roll; int col; const char *name; } PartKind;
 static PartKind KIND[P_KINDS];   // filled in init() (avoid designated inits for libtcc)
 
 // ── the rig: a grid of parts ─────────────────────────────────────────────────
@@ -102,7 +106,8 @@ static int cur_des = 0;
 static float M;                   // total mass
 static float comX, comY;          // centre of mass, in local grid px
 static float I;                   // moment of inertia about the COM
-static float wheelGrip;           // Σ wheel grip
+static float wheelGrip;           // Σ lateral grip (nose-tracking; casters add ~none)
+static float wheelRoll;           // Σ rolling support (traction + can-move; casters count)
 static float frontX;              // local-x of the rig's front edge (for the nose marker)
 static int   nEngines, nWheels;   // for the readout
 static int   frontalCells;        // rig height across the direction of travel (aero profile)
@@ -144,11 +149,16 @@ static float cam_x, cam_y;
 static float t_eng_snd, t_skid_snd;
 static int   is_paused;
 
+// ── modes: BUILD (paused grid editor) ↔ DRIVE (the rig loose in the world) ───
+enum { MODE_DRIVE, MODE_BUILD };
+static int mode = MODE_DRIVE;
+static int sel_part = P_WHEEL;    // palette selection; P_NONE = the eraser
+
 static float af(float v) { return v < 0 ? -v : v; }
 
 // ── derive body properties from the part grid ────────────────────────────────
 static void recompute_body(void) {
-    M = 0; comX = 0; comY = 0; wheelGrip = 0; frontX = 0; nEngines = 0; nWheels = 0;
+    M = 0; comX = 0; comY = 0; wheelGrip = 0; wheelRoll = 0; frontX = 0; nEngines = 0; nWheels = 0;
     int minRow = GH, maxRow = -1;
     float wMinX = 1e9f, wMaxX = -1e9f;     // wheelbase extent (x of frontmost/rearmost wheel)
     for (int r = 0; r < GH; r++)
@@ -158,12 +168,12 @@ static void recompute_body(void) {
             if (k->mass <= 0) continue;
             float cx = (c + 0.5f) * CELL, cy = (r + 0.5f) * CELL;
             M += k->mass; comX += k->mass * cx; comY += k->mass * cy;
-            wheelGrip += k->grip;
+            wheelGrip += k->grip; wheelRoll += k->roll;
             if ((c + 1) * CELL > frontX) frontX = (c + 1) * CELL;
             if (r < minRow) minRow = r;
             if (r > maxRow) maxRow = r;
             if (p == P_ENGINE) nEngines++;
-            if (p == P_WHEEL) { nWheels++; if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx; }
+            if (k->roll > 0) { nWheels++; if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx; }
         }
     if (M <= 0) M = 1;
     comX /= M; comY /= M;
@@ -193,6 +203,18 @@ static void reset_vehicle(void) {
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
 }
 
+// live readout estimates — the same formulas the drive core uses, so BUILD shows
+// the truth about a rig before you ever drive it.
+static float est_top_speed(void) {
+    float thrust = nEngines * KIND[P_ENGINE].power;
+    float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells;
+    return drag > 0 ? thrust / drag : 0;
+}
+static float est_turn_rate(void) {                 // steady deg/s at speed
+    float turnEase = REF_GYRO / (I / M + REF_GYRO);
+    return STEER_RESP * turnEase * (1.0f - BALANCE_K * balance) / ANG_DAMP;
+}
+
 static void load_design(int idx) {
     cur_des = (idx + NDES) % NDES;
     for (int r = 0; r < GH; r++)
@@ -209,14 +231,37 @@ static void rot(float lx, float ly, float *wx, float *wy) {
 
 // ── input ─────────────────────────────────────────────────────────────────────
 static int in_gas, in_brk, in_steer, in_hand;
+static void clear_grid(void) {
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) grid[r][c] = P_NONE;
+    recompute_body();
+}
 static void handle_input(void) {
-    if (keyp('R')) reset_vehicle();
-    if (keyp('P')) is_paused = !is_paused;
+    if (keyp(KEY_TAB) || keyp('B')) {          // flip between BUILD and DRIVE (TAB or B)
+        mode = (mode == MODE_DRIVE) ? MODE_BUILD : MODE_DRIVE;
+        if (mode == MODE_DRIVE) reset_vehicle();   // drive your current build, fresh
+    }
+    // templates (1-5) load an editable starting rig in either mode
     if (keyp('1')) load_design(0);
     if (keyp('2')) load_design(1);
     if (keyp('3')) load_design(2);
     if (keyp('4')) load_design(3);
     if (keyp('5')) load_design(4);
+
+    if (mode == MODE_BUILD) {
+        if (keyp('R')) clear_grid();           // R clears the grid to empty
+        // part-select hotkeys mirror the palette
+        if (keyp('F')) sel_part = P_FRAME;
+        if (keyp('E')) sel_part = P_ENGINE;
+        if (keyp('W')) sel_part = P_WHEEL;
+        if (keyp('C')) sel_part = P_CASTER;
+        if (keyp('S')) sel_part = P_SEAT;
+        if (keyp('X')) sel_part = P_NONE;      // eraser
+        return;
+    }
+    // ---- DRIVE input ----
+    if (keyp('R')) reset_vehicle();
+    if (keyp('P')) is_paused = !is_paused;
     in_gas = key('Z') || key(KEY_UP) || btn(0, BTN_A) || btn(0, BTN_UP);
     in_brk = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN);
     in_steer = (key(KEY_RIGHT) || btn(0, BTN_RIGHT)) - (key(KEY_LEFT) || btn(0, BTN_LEFT));
@@ -248,8 +293,8 @@ static void update_drive(float dt_) {
             thrust += t;
             eng_torque += -oy * t;                   // off the centre-line → it yaws
         }
-    // traction caps how much of that thrust the ground can actually take
-    float tract = wheelGrip * GROUND_GRIP * GRIP_TO_FORCE;
+    // traction caps how much of that thrust the ground can actually take (rolling support)
+    float tract = wheelRoll * GROUND_GRIP * GRIP_TO_FORCE;
     if (af(thrust) > tract && tract > 0) {
         float s = tract / af(thrust);
         thrust *= s; eng_torque *= s;
@@ -313,7 +358,7 @@ static void update_drive(float dt_) {
 
 void update(void) {
     handle_input();
-    if (is_paused) return;
+    if (mode == MODE_BUILD || is_paused) return;   // BUILD pauses the simulation
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
     update_drive(dt_);
 
@@ -424,26 +469,30 @@ static void draw_course(void) {
 }
 
 // ── vehicle: draw each occupied cell as a rotated quad ───────────────────────
-static void draw_cell(int r, int c, int col) {
+static void draw_cell(int r, int c, int p) {
     float lx = (c + 0.5f) * CELL - comX, ly = (r + 0.5f) * CELL - comY;
     float h = CELL * 0.5f;
     float ax, ay, bx, by, cx2, cy2, dx, dy;
     rot(lx - h, ly - h, &ax, &ay); rot(lx + h, ly - h, &bx, &by);
     rot(lx + h, ly + h, &cx2, &cy2); rot(lx - h, ly + h, &dx, &dy);
     int xy[8] = { (int)ax, (int)ay, (int)bx, (int)by, (int)cx2, (int)cy2, (int)dx, (int)dy };
-    polyfill(xy, 4, col);
+    polyfill(xy, 4, KIND[p].col);
+    if (p == P_CASTER) {                          // a swivel pivot dot marks a caster
+        float px, py; rot(lx, ly, &px, &py);
+        pset((int)px, (int)py, CLR_LIGHT_GREY);
+    }
 }
 
 static void draw_vehicle(void) {
-    // body cells first, wheels on top so they read as round-ish dark pads
+    // body cells first, wheels/casters on top so they read as round-ish dark pads
     for (int pass = 0; pass < 2; pass++)
         for (int r = 0; r < GH; r++)
             for (int c = 0; c < GW; c++) {
                 int p = grid[r][c];
                 if (p == P_NONE) continue;
-                int isWheel = (p == P_WHEEL);
+                int isWheel = (p == P_WHEEL || p == P_CASTER);
                 if (isWheel != pass) continue;
-                draw_cell(r, c, KIND[p].col);
+                draw_cell(r, c, p);
             }
     // a nose marker so heading is unmistakable (at the rig's actual front edge)
     float fr = frontX - comX;
@@ -467,12 +516,88 @@ static void hud(void) {
     snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels);
     print(buf, 4, 30, CLR_MEDIUM_GREY);
     if (in_hand && spd > 8) print("DRIFT", 4, 40, CLR_YELLOW);
-    print("1-5 swap rig  \x1b\x1a steer  \x18\x19 gas/brake  SPACE drift",
-          SCREEN_W / 2 - 132, SCREEN_H - 12, CLR_MEDIUM_GREY);
+    print("TAB build  1-5 rig  \x1b\x1a steer  \x18\x19 gas/brake  SPACE drift",
+          SCREEN_W / 2 - 140, SCREEN_H - 12, CLR_MEDIUM_GREY);
     if (is_paused) print("PAUSED", SCREEN_W / 2 - 22, SCREEN_H / 2, CLR_WHITE);
 }
 
+// ── BUILD mode: a paused grid editor — place parts, watch the numbers move ───
+#define ED_CELL 20                        // editor cell size (px)
+#define ED_X    76                        // grid left (palette to its left, readout to its right)
+#define ED_Y    56
+
+static void draw_build(void) {
+    cls(CLR_DARKER_BLUE);
+    ui_begin();
+
+    // --- part palette (left) ---------------------------------------------------
+    static const int PAL[] = { P_FRAME, P_ENGINE, P_WHEEL, P_CASTER, P_SEAT, P_NONE };
+    static const char *PAL_LBL[] = { "frame", "engine", "wheel", "caster", "seat", "erase" };
+    print("PARTS", 6, 40, CLR_LIGHT_GREY);
+    for (int i = 0; i < 6; i++) {
+        int by = 50 + i * 20;
+        if (ui_button(6, by, 60, 17, PAL_LBL[i])) sel_part = PAL[i];
+        if (PAL[i] == sel_part) rect(5, by - 1, 62, 19, CLR_WHITE);     // selection ring
+        if (PAL[i] != P_NONE) rectfill(56, by + 4, 8, 8, KIND[PAL[i]].col);  // colour chip
+    }
+
+    // --- the grid editor (centre) ---------------------------------------------
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++) {
+            int x = ED_X + c * ED_CELL, y = ED_Y + r * ED_CELL;
+            int p = grid[r][c];
+            if (p == P_NONE) { rect(x, y, ED_CELL, ED_CELL, CLR_DARK_GREY); }
+            else {
+                rectfill(x + 1, y + 1, ED_CELL - 2, ED_CELL - 2, KIND[p].col);
+                rect(x, y, ED_CELL, ED_CELL, CLR_DARKER_GREY);
+                if (p == P_CASTER) circfill(x + ED_CELL / 2, y + ED_CELL / 2, 2, CLR_LIGHT_GREY);
+            }
+        }
+    // "front" arrow on the right edge — the rig faces +x
+    print("\x10", ED_X + GW * ED_CELL + 2, ED_Y + GH * ED_CELL / 2 - 3, CLR_YELLOW);
+    print("front \x10", ED_X + 64, ED_Y - 9, CLR_MEDIUM_GREY);
+
+    // COM crosshair on the grid — shifts live as you place parts
+    if (M > 1.01f) {
+        int cx = ED_X + (int)(comX / CELL * ED_CELL), cy = ED_Y + (int)(comY / CELL * ED_CELL);
+        line(cx - 4, cy, cx + 4, cy, CLR_WHITE);
+        line(cx, cy - 4, cx, cy + 4, CLR_WHITE);
+        print("COM", cx + 5, cy - 3, CLR_WHITE);
+    }
+
+    // --- readouts (right) ------------------------------------------------------
+    char buf[40];
+    int rx = 206, ry = 40;
+    print("READOUT", rx, ry, CLR_LIGHT_GREY); ry += 11;
+    snprintf(buf, sizeof buf, "MASS  %4.1f", M);             print(buf, rx, ry, CLR_LIGHT_GREY); ry += 9;
+    snprintf(buf, sizeof buf, "TOPSPD %3.0f", est_top_speed()); print(buf, rx, ry, CLR_LIGHT_GREY); ry += 9;
+    snprintf(buf, sizeof buf, "TURN  %4.0f", est_turn_rate()); print(buf, rx, ry, CLR_LIGHT_GREY); ry += 9;
+    snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels); print(buf, rx, ry, CLR_MEDIUM_GREY); ry += 9;
+    const char *bl = balance > 0.12f ? "understeer" : balance < -0.12f ? "oversteer" : "neutral";
+    print(bl, rx, ry, balance > 0.12f ? CLR_ORANGE : balance < -0.12f ? CLR_TRUE_BLUE : CLR_MEDIUM_GREY);
+    ry += 11;
+    if (nEngines == 0) { print("no engine!", rx, ry, CLR_RED); ry += 9; }
+    if (nWheels == 0)  { print("no wheels!", rx, ry, CLR_RED); ry += 9; }
+
+    print("BUILD", 6, 4, CLR_WHITE);
+    print("TAB drive   click place/erase   1-5 templates   R clear",
+          SCREEN_W / 2 - 152, SCREEN_H - 12, CLR_MEDIUM_GREY);
+
+    ui_end();
+
+    // --- placement: click a grid cell (outside the palette) --------------------
+    if (mouse_pressed(MOUSE_LEFT) || mouse_down(MOUSE_LEFT)) {
+        int mx = mouse_x(), my = mouse_y();
+        int c = (mx - ED_X) / ED_CELL, r = (my - ED_Y) / ED_CELL;
+        if (mx >= ED_X && my >= ED_Y && c >= 0 && c < GW && r >= 0 && r < GH) {
+            if (grid[r][c] != sel_part) { grid[r][c] = sel_part; recompute_body(); }
+        }
+    }
+}
+
 void draw(void) {
+    if (mode == MODE_BUILD) { draw_build(); return; }
+
     cls(CLR_DARKER_GREY);                 // asphalt
     camera((int)cam_x, (int)cam_y);
     draw_ground();
@@ -488,11 +613,13 @@ void draw(void) {
 
 void init(void) {
     // part vocabulary (ordered by enum — no designated inits, libtcc-safe)
-    KIND[P_NONE]   = (PartKind){ 0,    0,            0,    0,               "." };
-    KIND[P_FRAME]  = (PartKind){ 1.0f, 0,            0,    CLR_LIGHT_GREY,  "frame" };
-    KIND[P_ENGINE] = (PartKind){ 4.0f, ENGINE_POWER, 0,    CLR_RED,         "engine" };
-    KIND[P_WHEEL]  = (PartKind){ 1.5f, 0,            1.0f, CLR_BLACK,       "wheel" };
-    KIND[P_SEAT]   = (PartKind){ 1.2f, 0,            0,    CLR_BLUE,        "seat" };
+    //                            mass  power         grip  roll  colour           name
+    KIND[P_NONE]   = (PartKind){ 0,    0,            0,    0,    0,               "." };
+    KIND[P_FRAME]  = (PartKind){ 1.0f, 0,            0,    0,    CLR_LIGHT_GREY,  "frame" };
+    KIND[P_ENGINE] = (PartKind){ 4.0f, ENGINE_POWER, 0,    0,    CLR_RED,         "engine" };
+    KIND[P_WHEEL]  = (PartKind){ 1.5f, 0,            1.0f, 1.0f, CLR_BLACK,       "wheel" };
+    KIND[P_CASTER] = (PartKind){ 1.5f, 0,            0.12f,1.0f, CLR_DARK_GREY,   "caster" };
+    KIND[P_SEAT]   = (PartKind){ 1.2f, 0,            0,    0,    CLR_BLUE,        "seat" };
 
     load_design(0);                       // start on the balanced buggy
     cam_x = sx - SCREEN_W / 2.0f;

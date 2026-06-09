@@ -817,7 +817,9 @@ static void draw_ground(void) {
 // grid thins rather than jumps at a ring boundary). Deterministic → stable + headless.
 enum { Z_CITY, Z_TOWN, Z_RURAL, Z_HWY, Z_SUPER, Z_N };
 static const int   ZONE_PITCH[Z_N] = { 100, 200, 600, 1200, 2400 };  // block spacing (px)
-static const int   ZONE_LANE[Z_N]  = { 16,  26,  40,  60,   104   }; // road width (px)
+static const int   ZONE_LANE[Z_N]  = { 26,  50,  50,  76,   104   }; // road width: city = 1 lane,
+                                                                     // town/rural = 2 lanes (~2×),
+                                                                     // hwy wider, super widest
 static const float ZONE_R[Z_N]     = { 1800.f, 4500.f, 8500.f, 15000.f, 1e9f }; // outer radius
 static const char *ZONE_NAME[Z_N]  = { "CITY 30", "TOWN 50", "RURAL 80", "HWY 100", "SUPER 120" };
 static int cur_zone;               // set each frame in draw_course, read by the HUD

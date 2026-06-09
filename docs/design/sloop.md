@@ -881,10 +881,10 @@ nothing collides, rung 3 makes it solid). Concentric rings (euclidean `zone_at`)
 
 | Zone | radius | pitch / lane | character |
 |---|---|---|---|
-| **CITY 30** | <1800 | 100 / 16 | tight grid, narrow streets, **houses packed in every block** (detail streaking past = feels fast even slow), zebra/school crossings |
-| **TOWN 50** | <4500 | 200 / 26 | broader streets, bigger blocks, fewer/larger houses, roundabouts |
-| **RURAL 80** | <8500 | 600 / 40 | long straights, sparse crossings, patchwork green/brown fields |
-| **HWY 100** | <15000 | 1200 / 60 | wide, very sparse, long straights |
+| **CITY 30** | <1800 | 100 / 26 | tight grid, **one-lane** one-way streets (no centre line), **houses packed in every block** (detail streaking past = feels fast even slow), zebra/school crossings |
+| **TOWN 50** | <4500 | 200 / 50 | **two lanes** (~2× city, centre line), bigger blocks, fewer/larger houses, roundabouts |
+| **RURAL 80** | <8500 | 600 / 50 | two lanes like town, long straights, sparse crossings, patchwork green/brown fields |
+| **HWY 100** | <15000 | 1200 / 76 | wider, very sparse, long straights |
 | **SUPER 120** | ≥15000 | 2400 / 104 | broad multi-lane (extra dashed lane dividers), longest straights |
 
 Block pitches are origin-anchored multiples so coarser roads nest inside finer ones (the

@@ -1,6 +1,6 @@
 # sloop — build-your-own-vehicle, travel a procedural world (design seed)
 
-**Status: building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) + 2.5 (scrape) + 2.55 (dynamic tipping) done.** Cart:
+**Status: building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) + 2.5 (scrape) + 2.55 (tipping) + 2.6 (drivetrain FWD/RWD) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -111,7 +111,9 @@ role-specific fields:
 |---|---|---|---|---|
 | **frame** | structural | low | — | the skeleton; parts attach to frames; cheap |
 | **engine** | drive | high | `power`, `fuel_rate` | thrust ∝ power; drains fuel ∝ throttle |
-| **wheel** | traction | med | `grip` | turns engine force into motion; lever for steering |
+| **wheel** | traction | med | `grip`, `roll` | free-rolling: grip + support, undriven (see drive) |
+| **drive** | powered wheel | med | `grip`, `roll`, `drive` | a wheel that carries the engine's power; placement = FWD/RWD/AWD (built rung 2.6) |
+| **caster** | swivel support | med | `roll` | rolls + supports but barely grips → piano-dolly slide |
 | **tank** | fuel | med (full) | `capacity` | range; mass drops as it empties (nice emergent touch) |
 | **seat** | required | low | — | need ≥1 to drive (where the driver is); defines facing |
 | **cargo** | storage | low | `slots` | holds scavenged parts/scrap you can't bolt on yet |
@@ -199,12 +201,12 @@ case that genuinely needs the toggle.
   This reuses the `heat` value rung 2.5 already added and lands with rung-4 breakage.
   Muscle "overheats" the driver (= stamina); electric stays cool.
 
-**Rung placement:**
-- **Rung 2.6 — engine delivery curves + sub-kinds** (electric / gas / diesel / steam /
+**Rung placement** (2.6 was taken by the drivetrain/drive-wheel work — see the build log):
+- **Rung 2.7 — engine delivery curves + sub-kinds** (electric / gas / diesel / steam /
   nuclear). Pure drive-core feel, no fuel yet (engines just always have power); the curves
   *are* the deliverable. The natural sibling of the rung-1.95 handling levers.
-- **Rung 2.7 — muscle engines** (foot/hand crank): the `THR_IMPULSE` interface + a stamina
-  meter. Self-contained; could even ship before 2.6 as the "starter rig."
+- **Rung 2.8 — muscle engines** (foot/hand crank): the `THR_IMPULSE` interface + a stamina
+  meter. Self-contained; could even ship before 2.7 as the "starter rig."
 - **Rung 6 — sources as the clock**: battery / tank / firebox parts, fuel burn, range,
   recharge, the missing-source warning, the hybrid toggle. Where the resource layer belongs.
 - **Rung 4 — overheat derate** (reuses rung-2.5 heat). **Parked:** noise/stealth (needs
@@ -361,11 +363,12 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | Top speed mass-INDEPENDENT | drag is a force; mass sets accel, not top speed (DDA's insight) | 1.95 | ✅ |
 | **Wheel type: caster vs fixed** | casters (piano dolly/cart) give support but ~no lateral grip → slides any way, no nose-tracking; fixed wheels track forward | 2 (part vocab) | ✅ |
 | **Unsupported cells scrape** | a cell cantilevered past the wheel span drags on the floor: extra drag + lateral anchor + off-centre yaw, with sparks/heat/grind. Wheels become *spatial*, not a scalar; wheel-spam costs mass+drag, too few wheels drags | 2.5 | ✅ |
-| **Engine delivery curve** | how power comes on with speed: electric flat (snappy), gas revvy (mid-range band), diesel low-end grunt, steam spool-up. One `delivery(kind,u)` curve; see §1a | 2.6 | ⬜ |
-| **Muscle throttle (stamina + rhythm)** | foot/hand crank: each press = one stroke (`THR_IMPULSE`), gated by a stamina meter; the no-fuel starter rig. See §1a | 2.7 | ⬜ |
+| **Engine delivery curve** | how power comes on with speed: electric flat (snappy), gas revvy (mid-range band), diesel low-end grunt, steam spool-up. One `delivery(kind,u)` curve; see §1a | 2.7 | ⬜ |
+| **Muscle throttle (stamina + rhythm)** | foot/hand crank: each press = one stroke (`THR_IMPULSE`), gated by a stamina meter; the no-fuel starter rig. See §1a | 2.8 | ⬜ |
 | **Wheel area / ground pressure** | traction = f(wheel area ÷ mass) per terrain; heavy-on-few-wheels bogs in sand | 3 (biomes) | ⬜ |
 | **Per-axle grip** | front-steer/rear-drive split → rear-only handbrake, true oversteer drift | 3–4 | ⬜ |
 | **Dynamic stability / tipping** | cornering load shifts the COM toward the turn's outside; leaving the support polygon (hull of the wheels) tips the rig → transient scrape + lateral grip collapse. A 3-wheeler tips toward its gap but not the other way (asymmetric); single-track (bike) exempt. The 2-D stand-in for roll | 2.55 | ✅ |
+| **Drivetrain location (FWD/RWD)** | power lays down through the *drive wheels*; drive point ahead of the COM (in travel) pulls → stable/understeer, behind pushes → loose/spin. Reversing flips it → a rear-wheel bike drives better backwards. Explicit `drive` part | 2.6 | ✅ |
 | **Fuel burn ∝ power; damaged engine power ∝ HP** | range as the clock; a half-wrecked engine gives half thrust | 3–4 | ⬜ |
 | **Plating absorbs collision shock for its cell** | armour trade (mass↑, speed↓, survives hits) | 4 (breakage) | ⬜ |
 
@@ -690,3 +693,38 @@ rung adds the **dynamic** half: the build tips under cornering load.
 rear-only grip loss giving distinct understeer vs power-on oversteer — needs grip applied
 at each wheel, which is the per-axle lever. 2.55 is the body-level stand-in; it reads as
 "the rig lets go," not yet "the back steps out."
+
+### Rung 2.6 — drivetrain: drive wheels + push/pull directional stability (2026-06-09)
+
+Two player observations, one principle: (a) a rear-wheel-only bike should drive *better
+backwards*, and (b) front-engine vs rear-engine drive should handle very differently. Both
+are **where a force acts, fore/aft of the COM, in the travel direction** — the wheelbarrow
+rule: traction *ahead* of the COM in travel = the rig is **pulled** (tracks straight,
+stable); *behind* = **pushed** (the heavy end wants to swing round → oversteer / spin).
+
+- ✓ **Explicit drive-wheel part** (`P_DRIVE`, palette `drive`, hotkey `D`). A fixed wheel
+  that also carries the engine's power — a powered axle. Drawn as a wheel with an **orange
+  hub** (vs the caster's grey hub). Placement = the drivetrain: front = FWD, rear = RWD,
+  both = AWD. **No drive wheels placed → the engine powers all wheels (AWD)**, so every
+  preset is unchanged. `PartKind` gained a `drive` flag (chosen over engine-adjacency or
+  nearest-wheel: explicit + unambiguous, the player's call).
+- ✓ **Power lays down through the drive wheels.** Traction now caps thrust to
+  `driveRoll · …` (only the *powered* wheels' rolling support), so a one-drive-wheel rig
+  can't deploy all its engine — fewer driven wheels = less power to the ground.
+- ✓ **Directional-stability term.** `driveX` = the drive point (mean x of the drive
+  wheels). `lead = (driveX − comX) · sign(vf)` → in the travel frame, >0 pulls, <0 pushes.
+  A yaw damping `angVel −= STAB_YAW_K · lead · angVel · speedFactor · dt`: pulling adds
+  self-centering (stable, understeer), pushing removes it (loose, spin-prone). Clamped
+  (`DRIVE_OFF_MAX`) so worst-case push can't exceed the baseline `ANG_DAMP` and spin
+  instantly. Symmetric presets have `driveX ≈ comX` → term ≈ 0 → **today's feel untouched.**
+- ✓ **Surfaced.** HUD + BUILD show `FWD pull / RWD push / AWD`; the drive-wheel hubs are
+  orange in both the rig and the editor grid + palette chip.
+- ✓ **Verified** (headless): rear-wheel bike `driveoff −6.7` — a steer pulse settles
+  `121→21` over ~40 frames driving **forward** (push, twitchy) but `−49→0` in ~25 frames in
+  **reverse** (pull, tracks true): drives better backwards, as predicted. An RWD 4-wheeler
+  reads `RWD push`; FWD reads `FWD pull`.
+
+**Caveat (the honest boundary, same as 2.55):** this is the *directional* feel (pull-stable
+/ push-loose / reverse-bike). The full per-tire split — front tyres washing out under power
+as true understeer vs the rears lighting up as power-on oversteer — is still the per-axle
+grip lever (rung 3–4); 2.6 applies the stability at the body level off the drive point.

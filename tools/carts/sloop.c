@@ -59,16 +59,30 @@
 // A 4-wheeler's quad rarely tips; a 3-wheeler's triangle tips toward its missing
 // corner but corners clean the other way (asymmetric, emergent from the geometry).
 // A single-track rig (<3 wheels, a bike) is exempt — we don't model lean, it balances.
+//
+// ── rung 2.6: drivetrain — where power hits the ground (FWD vs RWD) ──────────
+// The engine lays its power down THROUGH the DRIVE wheels (the orange-hub part),
+// at their position. The wheelbarrow rule: a traction point AHEAD of the COM in the
+// travel direction PULLS the rig (tracks straight, stable, understeer); BEHIND it
+// PUSHES (the heavy end wants to swing round → loose, oversteer, spin). Reversing
+// flips which end leads — so a rear-wheel-only rig genuinely drives better backwards.
+// Place drive wheels at the front = FWD, rear = RWD, both = AWD. No drive wheels = the
+// engine powers all wheels (AWD), so the presets are unchanged.
 // ============================================================================
 
 // ── part vocabulary ──────────────────────────────────────────────────────────
 // Addressed by enum, never raw index (CLAUDE.md data-driven rule). Each kind:
 // mass, engine power, wheel grip, colour.
-enum { P_NONE, P_FRAME, P_ENGINE, P_WHEEL, P_CASTER, P_SEAT, P_KINDS };
+enum { P_NONE, P_FRAME, P_ENGINE, P_WHEEL, P_CASTER, P_SEAT, P_DRIVE, P_KINDS };
 // grip = lateral (nose-tracking) grip; roll = rolling support (traction + can-move).
 // A fixed WHEEL has both; a CASTER rolls (support) but barely grips sideways — it
 // swivels, so the rig slides any way and won't track its nose (the piano-dolly feel).
-typedef struct { float mass, power, grip, roll; int col; const char *name; } PartKind;
+// A DRIVE wheel is a fixed wheel that ALSO receives the engine's power (a powered
+// axle): the engine lays its thrust down THROUGH the drive wheels, at their position.
+// So WHERE you put them sets the drivetrain — front = pull (FWD, stable/understeer),
+// rear = push (RWD, tail-happy/oversteer). No drive wheels placed = the engine powers
+// all wheels (AWD), so the presets are unchanged. `drive` flags the kind.
+typedef struct { float mass, power, grip, roll, drive; int col; const char *name; } PartKind;
 static PartKind KIND[P_KINDS];   // filled in init() (avoid designated inits for libtcc)
 
 // ── the rig: a grid of parts ─────────────────────────────────────────────────
@@ -127,6 +141,9 @@ static float wheelGrip;           // Σ lateral grip (nose-tracking; casters add
 static float wheelRoll;           // Σ rolling support (traction + can-move; casters count)
 static float frontX;              // local-x of the rig's front edge (for the nose marker)
 static int   nEngines, nWheels;   // for the readout
+static int   nDrive;              // powered wheels; 0 = engine falls back to all wheels (AWD)
+static float driveX;              // local-x of the drive point (where thrust is laid down)
+static float driveRoll;           // Σ rolling support of the DRIVE wheels (their traction cap)
 static int   frontalCells;        // rig height across the direction of travel (aero profile)
 static float balance;             // COM vs wheelbase: +1 front-heavy (understeer) .. -1 rear-heavy
 // ── ground contact: which cells hang off the ground (no wheel under them) ──────
@@ -180,6 +197,9 @@ static float stabL, stabR;        // lateral reach of the hull from the COM (lef
 #define STAB_H        0.022f      // COM-height stand-in: lateral-g → COM load-shift (px per px/s^2)
 #define STAB_GRIP_LOSS 0.85f      // fraction of lateral grip lost when fully tipped (tires unload)
 #define DEG2RAD       0.017453f   // angVel is deg/s; centripetal accel needs rad/s
+// ── drivetrain: where power hits the ground sets push/pull directional stability ──
+#define STAB_YAW_K    0.42f       // how hard drive-point fore/aft of the COM (de)stabilizes yaw
+#define DRIVE_OFF_MAX 12.0f       // clamp the drive-point offset (px) so push can't spin instantly
 
 // ── skid marks (laid in world space while the tires scrub) ───────────────────
 #define MAXSKID 512
@@ -270,10 +290,12 @@ static float lateral_reach(float dir) {
 // ── derive body properties from the part grid ────────────────────────────────
 static void recompute_body(void) {
     M = 0; comX = 0; comY = 0; wheelGrip = 0; wheelRoll = 0; frontX = 0; nEngines = 0; nWheels = 0;
+    nDrive = 0; driveRoll = 0;
     int minRow = GH, maxRow = -1;
     float wMinX = 1e9f, wMaxX = -1e9f;     // wheelbase extent (x of frontmost/rearmost wheel)
     int sMinR = GH, sMaxR = -1, sMinC = GW, sMaxC = -1;  // support span, in CELL INDICES (wheels+casters)
     float supX[GH * GW], supY[GH * GW]; int nSup = 0;    // support positions (world-local px) for the hull
+    float driveSumX = 0, allWheelSumX = 0;               // for the drive point (x of powered wheels)
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
             int p = grid[r][c];
@@ -286,16 +308,22 @@ static void recompute_body(void) {
             if (r < minRow) minRow = r;
             if (r > maxRow) maxRow = r;
             if (p == P_ENGINE) nEngines++;
-            if (k->roll > 0) {                 // a support point (wheel or caster)
+            if (k->roll > 0) {                 // a support point (wheel / caster / drive)
                 nWheels++;
                 supX[nSup] = cx; supY[nSup] = cy; nSup++;
+                allWheelSumX += cx;
                 if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx;
                 if (r < sMinR) sMinR = r; if (r > sMaxR) sMaxR = r;
                 if (c < sMinC) sMinC = c; if (c > sMaxC) sMaxC = c;
             }
+            if (k->drive > 0) { nDrive++; driveRoll += k->roll; driveSumX += cx; }
         }
     if (M <= 0) M = 1;
     comX /= M; comY /= M;
+    // drivetrain: the engine lays power down THROUGH the drive wheels, at their average
+    // x. No drive wheels placed → power goes to all wheels (AWD), traction = all rolling.
+    if (nDrive > 0) driveX = driveSumX / nDrive;
+    else            { driveX = (nWheels > 0) ? allWheelSumX / nWheels : comX; driveRoll = wheelRoll; }
     // support polygon: hull of the wheels, in COM-local px (drives the tip model)
     for (int i = 0; i < nSup; i++) { supX[i] -= comX; supY[i] -= comY; }
     build_hull(supX, supY, nSup);
@@ -399,6 +427,7 @@ static void handle_input(void) {
         if (keyp('F')) sel_part = P_FRAME;
         if (keyp('E')) sel_part = P_ENGINE;
         if (keyp('W')) sel_part = P_WHEEL;
+        if (keyp('D')) sel_part = P_DRIVE;     // powered (driven) wheel
         if (keyp('C')) sel_part = P_CASTER;
         if (keyp('S')) sel_part = P_SEAT;
         if (keyp('X')) sel_part = P_NONE;      // eraser
@@ -497,8 +526,9 @@ static void update_drive(float dt_) {
             thrust += t;
             eng_torque += -oy * t;                   // off the centre-line → it yaws
         }
-    // traction caps how much of that thrust the ground can actually take (rolling support)
-    float tract = wheelRoll * GROUND_GRIP * GRIP_TO_FORCE;
+    // traction caps thrust to what the DRIVE wheels can lay down — fewer powered
+    // wheels = less grip to the ground = the engine can't deploy all its power.
+    float tract = driveRoll * GROUND_GRIP * GRIP_TO_FORCE;
     if (af(thrust) > tract && tract > 0) {
         float s = tract / af(thrust);
         thrust *= s; eng_torque *= s;
@@ -529,7 +559,7 @@ static void update_drive(float dt_) {
     if (af(vl) > SKID_SLIP)
         for (int r = 0; r < GH; r++)
             for (int c = 0; c < GW; c++)
-                if (grid[r][c] == P_WHEEL) {
+                if (grid[r][c] == P_WHEEL || grid[r][c] == P_DRIVE) {
                     float wx, wy;
                     rot((c + 0.5f) * CELL - comX, (r + 0.5f) * CELL - comY, &wx, &wy);
                     lay_skid(wx, wy);
@@ -549,6 +579,14 @@ static void update_drive(float dt_) {
     if (scraping) ang_acc += SCRAPE_YAW * (scrape_torque / I) * dir;  // off-centre scrape drags
     angVel += ang_acc * dt_;
     angVel -= angVel * ANG_DAMP * dt_;
+    // directional stability: the drive point ahead of the COM (in the travel frame)
+    // PULLS the rig → extra self-centering (stable, understeer); behind it PUSHES →
+    // anti-damping (the heavy end wants to swing round → oversteer / spin). Reversing
+    // flips which end leads, so a rear-drive rig is calmer backwards — and a one-wheel
+    // "bike" genuinely drives better in reverse (wheel leads, the bare stub trails).
+    float driveOff = clamp(driveX - comX, -DRIVE_OFF_MAX, DRIVE_OFF_MAX);  // >0 = ahead of COM
+    float lead = driveOff * dir;                     // travel frame: >0 pull (lead), <0 push (trail)
+    angVel -= STAB_YAW_K * lead * angVel * clamp(spd0 / 25.0f, 0, 1) * dt_;
     ang += angVel * dt_;
     if (ang < 0) ang += 360; else if (ang >= 360) ang -= 360;
 
@@ -605,6 +643,8 @@ void update(void) {
     watch("tip", "%.2f", tip_amt);
     watch("stabL", "%.1f", stabL);
     watch("stabR", "%.1f", stabR);
+    watch("ndrive", "%d", nDrive);
+    watch("driveoff", "%.1f", driveX - comX);
 #endif
 }
 
@@ -704,6 +744,14 @@ static int hot_col(void) {
          : heat > 0.15f ? CLR_ORANGE : CLR_RED;
 }
 
+// drivetrain label from where power hits the ground vs the COM (front=pull, rear=push)
+static const char *drive_label(void) {
+    if (nWheels == 0) return "no drive";
+    if (nDrive == 0)  return "AWD";                 // no drive wheels placed → all wheels
+    float off = driveX - comX;
+    return off > CELL * 0.5f ? "FWD pull" : off < -CELL * 0.5f ? "RWD push" : "AWD";
+}
+
 // ── vehicle: draw each occupied cell as a rotated quad ───────────────────────
 static void draw_cell(int r, int c, int p) {
     float lx = (c + 0.5f) * CELL - comX, ly = (r + 0.5f) * CELL - comY;
@@ -714,9 +762,9 @@ static void draw_cell(int r, int c, int p) {
     int xy[8] = { (int)ax, (int)ay, (int)bx, (int)by, (int)cx2, (int)cy2, (int)dx, (int)dy };
     int col = dragging[r][c] ? hot_col() : KIND[p].col;   // scraping cells glow
     polyfill(xy, 4, col);
-    if (p == P_CASTER) {                          // a swivel pivot dot marks a caster
+    if (p == P_CASTER || p == P_DRIVE) {          // a hub dot: grey = swivel caster, orange = powered
         float px, py; rot(lx, ly, &px, &py);
-        pset((int)px, (int)py, CLR_LIGHT_GREY);
+        pset((int)px, (int)py, p == P_DRIVE ? CLR_ORANGE : CLR_LIGHT_GREY);
     }
 }
 
@@ -727,7 +775,7 @@ static void draw_vehicle(void) {
             for (int c = 0; c < GW; c++) {
                 int p = grid[r][c];
                 if (p == P_NONE) continue;
-                int isWheel = (p == P_WHEEL || p == P_CASTER);
+                int isWheel = (p == P_WHEEL || p == P_CASTER || p == P_DRIVE);
                 if (isWheel != pass) continue;
                 draw_cell(r, c, p);
             }
@@ -752,8 +800,9 @@ static void hud(void) {
     snprintf(buf, sizeof buf, "MASS  %4.1f", M);     print(buf, 4, 22, CLR_LIGHT_GREY);
     snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels);
     print(buf, 4, 30, CLR_MEDIUM_GREY);
-    if (in_hand && spd > 8) print("DRIFT", 4, 40, CLR_YELLOW);
-    if (tip_amt > 0.05f) print("TIP!", 4, 48, CLR_ORANGE);   // tipping onto an unsupported corner
+    print(drive_label(), 4, 38, CLR_MEDIUM_GREY);
+    if (in_hand && spd > 8) print("DRIFT", 4, 48, CLR_YELLOW);
+    if (tip_amt > 0.05f) print("TIP!", 44, 48, CLR_ORANGE);   // tipping onto an unsupported corner
     if (nDrag > 0) {                       // scraping warning + heat bar
         snprintf(buf, sizeof buf, "SCRAPE x%d", nDrag);
         print(buf, SCREEN_W - 74, 4, hot_col());
@@ -774,14 +823,15 @@ static void draw_build(void) {
     ui_begin();
 
     // --- part palette (left) ---------------------------------------------------
-    static const int PAL[] = { P_FRAME, P_ENGINE, P_WHEEL, P_CASTER, P_SEAT, P_NONE };
-    static const char *PAL_LBL[] = { "frame", "engine", "wheel", "caster", "seat", "erase" };
-    print("PARTS", 6, 40, CLR_LIGHT_GREY);
-    for (int i = 0; i < 6; i++) {
-        int by = 50 + i * 20;
+    static const int PAL[] = { P_FRAME, P_ENGINE, P_WHEEL, P_DRIVE, P_CASTER, P_SEAT, P_NONE };
+    static const char *PAL_LBL[] = { "frame", "engine", "wheel", "drive", "caster", "seat", "erase" };
+    print("PARTS", 6, 28, CLR_LIGHT_GREY);
+    for (int i = 0; i < 7; i++) {
+        int by = 38 + i * 20;
         if (ui_button(6, by, 60, 17, PAL_LBL[i])) sel_part = PAL[i];
         if (PAL[i] == sel_part) rect(5, by - 1, 62, 19, CLR_WHITE);     // selection ring
         if (PAL[i] != P_NONE) rectfill(56, by + 4, 8, 8, KIND[PAL[i]].col);  // colour chip
+        if (PAL[i] == P_DRIVE) pset(60, by + 7, CLR_ORANGE);            // powered-hub mark
     }
 
     // --- the grid editor (centre) ---------------------------------------------
@@ -796,6 +846,7 @@ static void draw_build(void) {
                 if (dragging[r][c])               // hangs past the wheels → will scrape
                     rect(x + 1, y + 1, ED_CELL - 2, ED_CELL - 2, CLR_ORANGE);
                 if (p == P_CASTER) circfill(x + ED_CELL / 2, y + ED_CELL / 2, 2, CLR_LIGHT_GREY);
+                if (p == P_DRIVE)  circfill(x + ED_CELL / 2, y + ED_CELL / 2, 2, CLR_ORANGE);
             }
         }
     // "front" arrow on the right edge — the rig faces +x
@@ -833,6 +884,9 @@ static void draw_build(void) {
     snprintf(buf, sizeof buf, "TOPSPD %3.0f", est_top_speed()); print(buf, rx, ry, CLR_LIGHT_GREY); ry += 9;
     snprintf(buf, sizeof buf, "TURN  %4.0f", est_turn_rate()); print(buf, rx, ry, CLR_LIGHT_GREY); ry += 9;
     snprintf(buf, sizeof buf, "ENG %d  WHL %d", nEngines, nWheels); print(buf, rx, ry, CLR_MEDIUM_GREY); ry += 9;
+    // drivetrain: front = pull (stable), rear = push (loose); no drive wheels = AWD
+    print(drive_label(), rx, ry, nDrive == 0 ? CLR_MEDIUM_GREY :
+          (driveX - comX) < -CELL * 0.5f ? CLR_ORANGE : CLR_TRUE_BLUE); ry += 9;
     const char *bl = balance > 0.12f ? "understeer" : balance < -0.12f ? "oversteer" : "neutral";
     print(bl, rx, ry, balance > 0.12f ? CLR_ORANGE : balance < -0.12f ? CLR_TRUE_BLUE : CLR_MEDIUM_GREY);
     ry += 9;
@@ -892,13 +946,14 @@ void draw(void) {
 
 void init(void) {
     // part vocabulary (ordered by enum — no designated inits, libtcc-safe)
-    //                            mass  power         grip  roll  colour           name
-    KIND[P_NONE]   = (PartKind){ 0,    0,            0,    0,    0,               "." };
-    KIND[P_FRAME]  = (PartKind){ 1.0f, 0,            0,    0,    CLR_LIGHT_GREY,  "frame" };
-    KIND[P_ENGINE] = (PartKind){ 4.0f, ENGINE_POWER, 0,    0,    CLR_RED,         "engine" };
-    KIND[P_WHEEL]  = (PartKind){ 1.5f, 0,            1.0f, 1.0f, CLR_BLACK,       "wheel" };
-    KIND[P_CASTER] = (PartKind){ 1.5f, 0,            0.12f,1.0f, CLR_DARK_GREY,   "caster" };
-    KIND[P_SEAT]   = (PartKind){ 1.2f, 0,            0,    0,    CLR_BLUE,        "seat" };
+    //                            mass  power         grip  roll  drive colour           name
+    KIND[P_NONE]   = (PartKind){ 0,    0,            0,    0,    0,    0,               "." };
+    KIND[P_FRAME]  = (PartKind){ 1.0f, 0,            0,    0,    0,    CLR_LIGHT_GREY,  "frame" };
+    KIND[P_ENGINE] = (PartKind){ 4.0f, ENGINE_POWER, 0,    0,    0,    CLR_RED,         "engine" };
+    KIND[P_WHEEL]  = (PartKind){ 1.5f, 0,            1.0f, 1.0f, 0,    CLR_BLACK,       "wheel" };
+    KIND[P_CASTER] = (PartKind){ 1.5f, 0,            0.12f,1.0f, 0,    CLR_DARK_GREY,   "caster" };
+    KIND[P_SEAT]   = (PartKind){ 1.2f, 0,            0,    0,    0,    CLR_BLUE,        "seat" };
+    KIND[P_DRIVE]  = (PartKind){ 1.6f, 0,            1.0f, 1.0f, 1.0f, CLR_BLACK,       "drive" };
 
     load_design(0);                       // start on the balanced buggy
     cam_x = sx - SCREEN_W / 2.0f;

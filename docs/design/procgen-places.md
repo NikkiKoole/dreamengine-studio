@@ -1,7 +1,10 @@
 # procgen-places — varying the roads-&-cities generator (design seed)
 
-**Status: design — proposal, no code yet.** Captures a design conversation
-(2026-06-09) about evolving the `ROADS & CITIES` generator in
+**Status: v1 shipped (2026-06-09).** The two-field matrix, road-class-by-
+hierarchy, domain-warp, and pavements are live in the cart (commit on `master`).
+v1.5 (parking, traffic lights, richer crossings, segment culling) and v2 (arced
+roads) remain open. Captures the design conversation that drove it (2026-06-09)
+about evolving the `ROADS & CITIES` generator in
 [`tools/carts/procplaces.c`](../../tools/carts/procplaces.c). The cart is the
 procgen testbed: a free-fly explorer shell hosting pluggable generators
 (`gens[]`), each exposing the same little vtable (draw / reseed / probe /

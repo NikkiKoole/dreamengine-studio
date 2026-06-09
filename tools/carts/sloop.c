@@ -192,7 +192,12 @@ static float stabL, stabR;        // lateral reach of the hull from the COM (lef
 #define DRAG_BASE     4.0f        // baseline drag (force per px/s)
 #define DRAG_WHEEL    1.5f        // lever: each wheel adds rolling resistance (grip↑, top speed↓)
 #define DRAG_AERO     3.9f        // lever: drag per cell of frontal profile (narrow = fast)
-#define BRAKE         240.0f      // extra deceleration when braking (px/s^2)
+#define BRAKE         560.0f      // max braking decel (px/s^2) — real brakes >> engine accel;
+                                  // capped per-rig by tyre grip below (GRIP_TO_FORCE·grip/M),
+                                  // so MORE/BETTER WHEELS = harder stops (an under-wheeled rig
+                                  // can't haul up as fast). At slow speed this stops you dead.
+#define REV_DWELL     10          // frames braked at a standstill before reverse engages — lets
+                                  // a slam-brake LAND a firm stop first, then back up if held
 #define ROLL_FRIC     16.0f       // CONSTANT rolling/bearing friction (px/s^2) — what actually
                                   // STOPS a coasting rig. Drag ∝ v only asymptotes to 0 (floaty);
                                   // this constant term dominates at low speed and snaps v to rest.
@@ -235,6 +240,8 @@ static Spark spark[MAXSPARK];
 static int   spark_head;
 static float heat;                // 0..1, rises while cells scrape under load, cools off
 static float tip_amt;             // 0..1, how hard the rig is tipping this frame (HUD)
+static int   brake_dwell;         // frames held at a standstill under braking (delays reverse)
+static int   reversing;           // latched: braking past the dwell flipped us into reverse
 
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
@@ -388,7 +395,7 @@ static void recompute_body(void) {
 static void reset_vehicle(void) {
     recompute_body();
     sx = 0; sy = 0; vx = vy = 0; ang = 0; angVel = 0;
-    heat = 0; tip_amt = 0;
+    heat = 0; tip_amt = 0; brake_dwell = 0; reversing = 0;
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
     for (int i = 0; i < MAXSPARK; i++) spark[i].life = 0;
 }
@@ -540,7 +547,11 @@ static void update_drive(float dt_) {
     }
 
     // --- engine: sum thrust + the yaw torque from any off-centre engine --------
-    float throttle = in_gas ? 1.0f : (in_brk && vf <= 5.0f ? -REVERSE : 0.0f);
+    // reverse engages only once braking has LANDED a stop (dwelled at ~0), then LATCHES
+    // so the rig actually backs up — a slam-brake stops you dead first, reverses if held.
+    if (!in_brk || in_gas) reversing = 0;
+    else if (af(vf) <= 1.0f && brake_dwell >= REV_DWELL) reversing = 1;
+    float throttle = in_gas ? 1.0f : (reversing ? -REVERSE : 0.0f);
     float thrust = 0, eng_torque = 0;
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
@@ -563,7 +574,15 @@ static void update_drive(float dt_) {
     //     mass-INDEPENDENT — mass only governs how fast you reach it. -----------
     float drag = DRAG_BASE + DRAG_WHEEL * nWheels + DRAG_AERO * frontalCells + scrape_drag;
     vf += ((thrust - drag * vf) / M) * dt_;
-    if (in_brk && vf > 0) { vf -= BRAKE * dt_; if (vf < 0) vf = 0; }
+    // braking: strong, but capped by what the tyres can grip (GRIP_TO_FORCE·grip/M) —
+    // a well-wheeled rig stops hard, an under-wheeled one can't. Works fwd or reverse.
+    if (in_brk && af(vf) > 1.0f) {
+        float brake = clamp(GRIP_TO_FORCE * wheelGrip * GROUND_GRIP / M, 0, BRAKE);
+        float d = brake * dt_;
+        if (vf > 0) { vf -= d; if (vf < 0) vf = 0; }
+        else if (throttle == 0) { vf += d; if (vf > 0) vf = 0; }   // braking while rolling back
+    }
+    if (in_brk && af(vf) <= 1.0f) brake_dwell++; else brake_dwell = 0;
 
     // --- tire grip: bleed the sideways velocity away (the car-feel line) -------
     // the handbrake breaks the tires loose — same grip term, turned down → drift.

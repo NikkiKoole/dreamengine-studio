@@ -226,6 +226,15 @@ case that genuinely needs the toggle.
 > dwarfs it, so accel is unaffected and top speed drops only ~12% (buggy ~120→106); it bites
 > at low speed and brings the rig to a clean, dead stop in ~1.8 s from cruising.
 
+> **Stronger, grip-limited braking (2026-06-09).** Braking felt weak (`BRAKE` 240 ≈ engine
+> accel). Real brakes >> acceleration, so bumped to 560 — but **capped per-rig by tyre grip**
+> (`min(BRAKE, GRIP_TO_FORCE·wheelGrip·GROUND_GRIP / M)`), so more/better wheels stop harder
+> and an under-wheeled/heavy rig can't haul up as fast (the honest "how hard you can brake
+> depends on the build", since a keyboard pedal is binary). A slam-brake now stops a buggy
+> dead in ~0.16 s. Plus a **reverse dwell**: the brake key flips to reverse only after the
+> rig has been stopped (`REV_DWELL` frames at ~0) and then *latches* — so a hard stop LANDS
+> firmly before backing up, instead of mushily creeping into reverse at `vf ≤ 5`.
+
 ### 2. Fuel & range (the clock)
 
 Tanks hold fuel; engines burn it ∝ throttle·power. Range is the real constraint that

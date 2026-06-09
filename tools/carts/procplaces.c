@@ -1,5 +1,6 @@
 #include "studio.h"
 #include <stdio.h>
+#include <math.h>
 
 // ============================================================================
 // PROCEDURAL PLACES — a testbed for procedural-generation.
@@ -16,10 +17,12 @@
 // field_col — so the shell never knows or cares what it's drawing. Ships with two
 // structurally-opposite generators to prove the seam is real:
 //
-//   1. ROADS & CITIES — a STRUCTURED grid: a noise density field zones the world
-//      into city/town/rural/hwy/super, and a nested road lattice is "promoted"
-//      per zone. Cities cluster on the noise peaks; valleys get only an arterial.
-//      Pan out and you see many cities, organic — not a bullseye.
+//   1. ROADS & CITIES — TWO orthogonal fields (SimCity-2000 model): a LAND-USE
+//      field (residential/commercial/industrial/green) crossed with an INTENSITY
+//      field (wild/light/medium/heavy). The pair picks what a block looks like;
+//      a nested road lattice is promoted by class (local→avenue→arterial→highway)
+//      and culled by local intensity. Both fields are domain-warped so districts
+//      are organic blobs, not bullseyes.
 //   2. TERRAIN        — a pure scalar FIELD: fbm elevation rendered as coloured
 //      bands (sea → beach → grass → forest → rock → snow). No structure.
 //
@@ -31,7 +34,7 @@
 // (e.g. sloop consuming the road field for collision), they live here as in-file
 // sections: cleaner to tweak, and honest about reuse. EXTRACT WHEN NEEDED — lift a
 // section into runtime/<name>.h (make every fn `static`) the day a second cart
-// includes it.
+// includes it.  Design notes: docs/design/procgen-places.md.
 //
 // ── seeded & repeatable ──────────────────────────────────────────────────────
 // Everything is a pure function of world position + seed. The engine's noise is
@@ -42,39 +45,32 @@
 // ============================================================================
 
 // ════════════════════════════════════════════════════════════════════════════
-//  GENERATOR 1 — ROADS & CITIES   (structured grid over a density field)
+//  GENERATOR 1 — ROADS & CITIES   (two orthogonal fields + a classed lattice)
 // ════════════════════════════════════════════════════════════════════════════
-// Two layers: a DENSITY FIELD d(x,y)∈0..1 from noise, and a NESTED ROAD LATTICE
-// at one fine base pitch. Local density picks a ZONE; the zone "promotes" lattice
-// lines — city promotes every line (dense grid), rural every 6th (long straights),
-// super every 24th (arterials). Pitches are nested multiples, so a city's fine
-// grid melts into the coarse arterials at its edge instead of tearing.
+// THE WRONG TURN TO AVOID (docs/design/procgen-places.md): draw() and road_at()
+// must read the SAME geometry, so all the sampling/visibility logic lives in two
+// shared helpers — roads_zone_at() (what's here) and roads_line_render() (is this
+// lattice line drawn, and how wide). Both the renderer and the query call them, so
+// a future consumer (sloop's collision) can never disagree with what's on screen.
 #define ROADS_BASE 100        // finest lattice pitch (px) = one city block
-#define ROADS_FREQ 0.00045f   // density-field frequency (smaller = bigger cities)
+#define ROADS_IFREQ 0.00045f  // intensity-field frequency (smaller = bigger cities)
+#define ROADS_LFREQ 0.00080f  // land-use-field frequency (smaller = bigger districts)
+#define ROADS_WFREQ 0.00060f  // domain-warp frequency
+#define ROADS_WAMP  210.0f    // domain-warp amplitude (px) — how organic the blobs
 
-enum { Z_CITY, Z_TOWN, Z_RURAL, Z_HWY, Z_SUPER, Z_N };   // finest → coarsest
-static const int   ZONE_STEP[Z_N] = { 1, 2, 6, 12, 24 };           // pitch = BASE*step → 100/200/600/1200/2400
-static const int   ZONE_LANE[Z_N] = { 16, 26, 40, 60, 104 };       // road width (px)
-static const char *ZONE_NAME[Z_N] = { "CITY 30", "TOWN 50", "RURAL 80", "HWY 100", "SUPER 120" };
-// min density for a level to appear (CITY rarest). Checked finest-first, so the
-// finest level whose threshold the point clears is the local zone.
-static const float ZONE_MIN[Z_N]  = { 0.74f, 0.60f, 0.46f, 0.30f, 0.0f };
+enum { LU_GREEN, LU_RES, LU_COM, LU_IND, LU_N };          // land use
+enum { LV_WILD, LV_LIGHT, LV_MED, LV_HEAVY };             // intensity level
+enum { RC_LOCAL, RC_AVENUE, RC_ARTERIAL, RC_HIGHWAY };    // road class (by lattice level)
+
+static const char *LU_NAME[LU_N] = { "GREEN", "RES", "COM", "IND" };
+static const char *LV_NAME[4]    = { "wild", "light", "med", "heavy" };
 
 static int roads_seed = 0;
 static void roads_reseed(int seed) { roads_seed = seed; }
 
-typedef struct { int zone; bool on_road; float density; } Place;
+typedef struct { int lu; int level; float intensity; } Zone;   // "what kind of place"
+typedef struct { Zone z; bool on_road; int road_class; } Place; // + "is there a road here"
 
-static float roads_density(float x, float y) {
-    float z = (float)roads_seed;
-    float a = noise3(x * ROADS_FREQ,        y * ROADS_FREQ,        z);          // landmass
-    float b = noise3(x * ROADS_FREQ * 2.9f, y * ROADS_FREQ * 2.9f, z + 1.0f);   // detail octave
-    return clamp(a * 0.7f + b * 0.3f, 0.0f, 1.0f);
-}
-static int roads_zone_of(float d) {
-    for (int z = 0; z < Z_N; z++) if (d >= ZONE_MIN[z]) return z;
-    return Z_SUPER;
-}
 static int roads_ifloordiv(int a, int b) {        // floor division (handles negatives)
     int q = a / b;
     if ((a % b) != 0 && ((a < 0) != (b < 0))) q--;
@@ -86,19 +82,197 @@ static unsigned roads_hash2(int a, int b) {       // per-cell pseudo-random (hou
     return h;
 }
 
-// fill one block's interior with packed houses — the detail that screams "city".
-static void roads_houses(int wx, int wy, int span, int n) {
+// ── the two fields, domain-warped ────────────────────────────────────────────
+// warp bends the SAMPLE point; the lattice geometry stays straight, so roads keep
+// their nesting (no tearing) while the ZONES they pass through go wavy & organic.
+static void roads_warp(float x, float y, float *ox, float *oy) {
+    float z = (float)roads_seed;
+    *ox = x + (noise3(x * ROADS_WFREQ, y * ROADS_WFREQ, z + 30.0f) - 0.5f) * 2.0f * ROADS_WAMP;
+    *oy = y + (noise3(x * ROADS_WFREQ, y * ROADS_WFREQ, z + 40.0f) - 0.5f) * 2.0f * ROADS_WAMP;
+}
+static float roads_intensity_raw(float x, float y) {     // fbm, 2 octaves
+    float z = (float)roads_seed;
+    float a = noise3(x * ROADS_IFREQ,        y * ROADS_IFREQ,        z);
+    float b = noise3(x * ROADS_IFREQ * 2.7f, y * ROADS_IFREQ * 2.7f, z + 1.0f);
+    return clamp(a * 0.68f + b * 0.32f, 0.0f, 1.0f);
+}
+static int roads_level_of(float i) {
+    if (i < 0.42f) return LV_WILD;
+    if (i < 0.60f) return LV_LIGHT;
+    if (i < 0.77f) return LV_MED;
+    return LV_HEAVY;
+}
+static int roads_landuse_of(float x, float y) {
+    float r = noise3(x * ROADS_LFREQ, y * ROADS_LFREQ, (float)roads_seed + 70.0f);
+    if (r < 0.30f) return LU_RES;
+    if (r < 0.56f) return LU_COM;
+    if (r < 0.80f) return LU_IND;
+    return LU_GREEN;                                       // parks even inside a city
+}
+
+// THE shared sampler — every place-query goes through here (warp once, read both).
+static Zone roads_zone_at(float x, float y) {
+    float wx, wy;
+    roads_warp(x, y, &wx, &wy);
+    float in = roads_intensity_raw(wx, wy);
+    int lv = roads_level_of(in);
+    int lu = (lv == LV_WILD) ? LU_GREEN : roads_landuse_of(wx, wy);  // countryside = green
+    return (Zone){ lu, lv, in };
+}
+
+// ── the classed lattice ──────────────────────────────────────────────────────
+// A line's CLASS is a pure function of its index — nested pitch 1/3/9/27. So a
+// highway is a highway wherever it runs, independent of the zone it crosses.
+static int roads_class_of(int k) {
+    if (k % 27 == 0) return RC_HIGHWAY;
+    if (k % 9  == 0) return RC_ARTERIAL;
+    if (k % 3  == 0) return RC_AVENUE;
+    return RC_LOCAL;
+}
+// Shared visibility+width: is the line of class `cls` drawn in zone `z`, how wide,
+// and is it an unpaved dirt track? Both draw and road_at call this — never inline.
+static bool roads_line_render(int cls, const Zone *z, int *hw, bool *dirt) {
+    *dirt = false;
+    switch (cls) {
+        case RC_HIGHWAY:  *hw = 44; return true;                     // skeleton: everywhere
+        case RC_ARTERIAL: *hw = 20; return z->level >= LV_LIGHT;
+        case RC_AVENUE:
+            if (z->level >= LV_MED) { *hw = 11; return true; }
+            if (z->level >= LV_LIGHT && z->lu == LU_GREEN) { *hw = 3; *dirt = true; return true; }
+            return false;                                            // farm dirt lane
+        default:          *hw = 7;  return z->level >= LV_HEAVY;     // local streets
+    }
+}
+
+// ── block interiors (land use × intensity = the look) ────────────────────────
+static void roads_houses(int wx, int wy, int span, int n, const int *roofs, int nroof) {
     int cw = span / n, ch = span / n;
     if (cw < 4 || ch < 4) return;
-    int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++) {
             unsigned h = roads_hash2(wx + i * 137 + roads_seed * 911, wy + j * 137);
-            if ((h & 7) == 0) continue;                          // empty lots / yards
+            if ((h & 7) == 0) continue;                              // empty lots / yards
             int hx = wx + i * cw, hy = wy + j * ch;
-            rectfill(hx + 1, hy + 1, cw - 2, ch - 2, roof[h & 3]);
+            rectfill(hx + 1, hy + 1, cw - 2, ch - 2, roofs[h % nroof]);
             rect(hx + 1, hy + 1, cw - 2, ch - 2, CLR_BROWNISH_BLACK);
         }
+}
+static void roads_towers(int wx, int wy, int span) {                 // downtown: big lit slabs
+    int slab[4] = { CLR_DARKER_GREY, CLR_DARK_GREY, CLR_DARKER_BLUE, CLR_INDIGO };
+    int cells = 2, cw = span / cells;
+    for (int i = 0; i < cells; i++)
+        for (int j = 0; j < cells; j++) {
+            unsigned h = roads_hash2(wx + i * 211 + roads_seed * 7, wy + j * 211);
+            int hx = wx + i * cw + 2, hy = wy + j * cw + 2, w = cw - 4, hh = cw - 4;
+            rectfill(hx, hy, w, hh, slab[h & 3]);
+            rect(hx, hy, w, hh, CLR_BLACK);
+            for (int wyy = hy + 2; wyy < hy + hh - 2; wyy += 4)        // lit windows
+                for (int wxx = hx + 2; wxx < hx + w - 2; wxx += 3)
+                    if ((roads_hash2(wxx, wyy + (int)h) & 3) == 0)
+                        pset(wxx, wyy, CLR_LIGHT_YELLOW);
+        }
+}
+static void roads_factory(int wx, int wy, int span) {                // industrial: big footprints
+    int body[3] = { CLR_DARKER_GREY, CLR_DARK_BROWN, CLR_DARKER_PURPLE };
+    unsigned h = roads_hash2(wx + roads_seed * 13, wy);
+    rectfill(wx + 3, wy + 3, span - 6, span - 6, body[h % 3]);
+    rect(wx + 3, wy + 3, span - 6, span - 6, CLR_BROWNISH_BLACK);
+    for (int s = wx + 8; s < wx + span - 8; s += 9)                   // sawtooth roof / vents
+        line(s, wy + 6, s, wy + span - 7, CLR_BROWNISH_BLACK);
+    if (h & 1) circfill(wx + span - 12, wy + 11, 4, CLR_MEDIUM_GREY); // tank
+}
+static void roads_park(int wx, int wy, int span, int level) {        // green: farm or park
+    if (level == LV_WILD) {                                          // wilderness: scattered trees
+        for (int i = 0; i < 5; i++) {
+            unsigned h = roads_hash2(wx + i * 53 + roads_seed, wy - i * 91);
+            if (h & 1) continue;
+            int tx = wx + 8 + (int)(h % (span - 16)), ty = wy + 8 + (int)((h >> 8) % (span - 16));
+            circfill(tx, ty, 3 + (h & 1), CLR_MEDIUM_GREEN);
+        }
+        return;
+    }
+    unsigned hf = roads_hash2(wx + roads_seed, wy);                   // farm patchwork / park lawn
+    int g = (hf & 2) ? CLR_MEDIUM_GREEN : CLR_LIME_GREEN;
+    rectfill(wx + 4, wy + 4, span - 8, span - 8, g);
+    for (int i = 0; i < 3; i++) {
+        unsigned h = roads_hash2(wx + i * 47, wy + i * 71 + roads_seed);
+        circfill(wx + 10 + (int)(h % (span - 20)), wy + 10 + (int)((h >> 7) % (span - 20)),
+                 3, CLR_DARK_GREEN);
+    }
+}
+
+static void roads_fill_block(int wx, int wy, int span, const Zone *z) {
+    static const int RES_ROOF[5] = { CLR_BROWN, CLR_RED, CLR_DARK_RED, CLR_DARK_PURPLE, CLR_PEACH };
+    static const int COM_ROOF[4] = { CLR_DARK_GREY, CLR_TRUE_BLUE, CLR_BLUE_GREEN, CLR_INDIGO };
+    int in = wx + 4, iw = span - 8;                                  // 4px gutter; roads overpaint
+    switch (z->lu) {
+        case LU_RES:
+            roads_houses(in, in - wx + wy, iw, z->level == LV_LIGHT ? 2 : z->level == LV_MED ? 3 : 4,
+                         RES_ROOF, 5);
+            break;
+        case LU_COM:
+            if (z->level >= LV_HEAVY) roads_towers(wx, wy, span);
+            else roads_houses(in, in - wx + wy, iw, z->level == LV_LIGHT ? 2 : 3, COM_ROOF, 4);
+            break;
+        case LU_IND:
+            roads_factory(wx, wy, span);
+            break;
+        default:  // LU_GREEN
+            roads_park(wx, wy, span, z->level);
+            break;
+    }
+}
+
+// dashed centre line down a vertical span / across a horizontal span
+static void roads_dashes_v(int x, int t, int b, int col) {
+    for (int y = roads_ifloordiv(t, 24) * 24; y < b; y += 24) line(x, y, x, y + 11, col);
+}
+static void roads_dashes_h(int y, int l, int r, int col) {
+    for (int x = roads_ifloordiv(l, 24) * 24; x < r; x += 24) line(x, y, x + 11, y, col);
+}
+
+// draw the vertical lattice line owned by this cell (its LEFT edge), top→bottom of cell
+static void roads_road_v(int wx, int wy, int kx, const Zone *z) {
+    int hw; bool dirt;
+    int cls = roads_class_of(kx);
+    if (!roads_line_render(cls, z, &hw, &dirt)) return;
+    int col = dirt ? CLR_DARK_BROWN : (cls == RC_HIGHWAY ? CLR_BROWNISH_BLACK : CLR_DARK_GREY);
+    rectfill(wx - hw, wy, hw * 2, ROADS_BASE, col);
+    if (z->lu != LU_GREEN && z->level >= LV_MED && cls <= RC_ARTERIAL && !dirt) {   // pavement
+        rectfill(wx - hw - 2, wy, 2, ROADS_BASE, CLR_MEDIUM_GREY);
+        rectfill(wx + hw,     wy, 2, ROADS_BASE, CLR_MEDIUM_GREY);
+    }
+    if (cls == RC_AVENUE && !dirt) {
+        line(wx - hw, wy, wx - hw, wy + ROADS_BASE, CLR_LIGHT_GREY);
+        line(wx + hw, wy, wx + hw, wy + ROADS_BASE, CLR_LIGHT_GREY);
+    } else if (cls >= RC_ARTERIAL) {
+        roads_dashes_v(wx, wy, wy + ROADS_BASE, CLR_YELLOW);
+        if (cls == RC_HIGHWAY) {
+            line(wx - hw + 3, wy, wx - hw + 3, wy + ROADS_BASE, CLR_LIGHT_GREY);
+            line(wx + hw - 3, wy, wx + hw - 3, wy + ROADS_BASE, CLR_LIGHT_GREY);
+        }
+    }
+}
+static void roads_road_h(int wx, int wy, int ky, const Zone *z) {
+    int hw; bool dirt;
+    int cls = roads_class_of(ky);
+    if (!roads_line_render(cls, z, &hw, &dirt)) return;
+    int col = dirt ? CLR_DARK_BROWN : (cls == RC_HIGHWAY ? CLR_BROWNISH_BLACK : CLR_DARK_GREY);
+    rectfill(wx, wy - hw, ROADS_BASE, hw * 2, col);
+    if (z->lu != LU_GREEN && z->level >= LV_MED && cls <= RC_ARTERIAL && !dirt) {   // pavement
+        rectfill(wx, wy - hw - 2, ROADS_BASE, 2, CLR_MEDIUM_GREY);
+        rectfill(wx, wy + hw,     ROADS_BASE, 2, CLR_MEDIUM_GREY);
+    }
+    if (cls == RC_AVENUE && !dirt) {
+        line(wx, wy - hw, wx + ROADS_BASE, wy - hw, CLR_LIGHT_GREY);
+        line(wx, wy + hw, wx + ROADS_BASE, wy + hw, CLR_LIGHT_GREY);
+    } else if (cls >= RC_ARTERIAL) {
+        roads_dashes_h(wy, wx, wx + ROADS_BASE, CLR_YELLOW);
+        if (cls == RC_HIGHWAY) {
+            line(wx, wy - hw + 3, wx + ROADS_BASE, wy - hw + 3, CLR_LIGHT_GREY);
+            line(wx, wy + hw - 3, wx + ROADS_BASE, wy + hw - 3, CLR_LIGHT_GREY);
+        }
+    }
 }
 
 // cam/zoom match the shell's camera_ex. Enumerates the visible-world rect (wider
@@ -113,80 +287,53 @@ static void roads_draw(float cam_x, float cam_y, float zoom) {
     int kx0 = roads_ifloordiv(L, B0) - 1, kx1 = roads_ifloordiv(R, B0) + 1;
     int ky0 = roads_ifloordiv(T, B0) - 1, ky1 = roads_ifloordiv(B, B0) + 1;
 
-    // 0. grass/ground backdrop over the whole visible rect
-    rectfill(L - B0, T - B0, (R - L) + 2 * B0, (B - T) + 2 * B0, CLR_DARK_GREEN);
+    rectfill(L - B0, T - B0, (R - L) + 2 * B0, (B - T) + 2 * B0, CLR_DARK_GREEN);  // grass backdrop
 
-    // 1. per base-cell: zone from local density → fill interior + promote roads
+    // pass A — block interiors
     for (int kx = kx0; kx <= kx1; kx++)
         for (int ky = ky0; ky <= ky1; ky++) {
             int wx = kx * B0, wy = ky * B0;
-            float d = roads_density(wx + B0 / 2.0f, wy + B0 / 2.0f);
-            int z = roads_zone_of(d), step = ZONE_STEP[z], hw = ZONE_LANE[z] / 2;
-
-            if (z == Z_CITY)      roads_houses(wx + hw + 2, wy + hw + 2, B0 - 2 * hw - 4, 4);
-            else if (z == Z_TOWN) roads_houses(wx + hw + 2, wy + hw + 2, B0 - 2 * hw - 4, 3);
-            else if (z == Z_RURAL && (roads_hash2(kx, ky) & 1)) {          // patchwork fields
-                unsigned hf = roads_hash2(kx + roads_seed, ky);
-                rectfill(wx + 4, wy + 4, B0 - 8, B0 - 8, (hf & 2) ? CLR_DARK_GREEN : CLR_BROWN);
-            }
-            // promoted tarmac: this column's left edge / this row's top edge
-            if (kx % step == 0) rectfill(wx - hw, wy, hw * 2, B0, CLR_DARK_GREY);
-            if (ky % step == 0) rectfill(wx, wy - hw, B0, hw * 2, CLR_DARK_GREY);
+            Zone z = roads_zone_at(wx + B0 / 2.0f, wy + B0 / 2.0f);
+            roads_fill_block(wx, wy, B0, &z);
         }
-
-    // 2. curbs + dashed centre lines, sampling zone per line midpoint
-    for (int kx = kx0; kx <= kx1; kx++) {
-        int wx = kx * B0;
-        int z = roads_zone_of(roads_density((float)wx, cy)), step = ZONE_STEP[z], hw = ZONE_LANE[z] / 2;
-        if (kx % step != 0) continue;
-        line(wx - hw, T, wx - hw, B, CLR_LIGHT_GREY);
-        line(wx + hw, T, wx + hw, B, CLR_LIGHT_GREY);
-        for (int y = roads_ifloordiv(T, 24) * 24; y < B; y += 24) line(wx, y, wx, y + 11, CLR_YELLOW);
-    }
-    for (int ky = ky0; ky <= ky1; ky++) {
-        int wy = ky * B0;
-        int z = roads_zone_of(roads_density(cx, (float)wy)), step = ZONE_STEP[z], hw = ZONE_LANE[z] / 2;
-        if (ky % step != 0) continue;
-        line(L, wy - hw, R, wy - hw, CLR_LIGHT_GREY);
-        line(L, wy + hw, R, wy + hw, CLR_LIGHT_GREY);
-        for (int x = roads_ifloordiv(L, 24) * 24; x < R; x += 24) line(x, wy, x + 11, wy, CLR_YELLOW);
-    }
-
-    // 3. town roundabouts + city zebra crossings at promoted crossings
+    // pass B — roads on top (so they front the buildings; markings read at crossings)
     for (int kx = kx0; kx <= kx1; kx++)
         for (int ky = ky0; ky <= ky1; ky++) {
             int wx = kx * B0, wy = ky * B0;
-            int z = roads_zone_of(roads_density(wx + B0 / 2.0f, wy + B0 / 2.0f));
-            int step = ZONE_STEP[z], hw = ZONE_LANE[z] / 2;
-            if (kx % step != 0 || ky % step != 0) continue;
-            if (z == Z_TOWN && (roads_hash2(kx, ky) & 3) == 0) {
-                circfill(wx, wy, hw, CLR_DARK_GREEN);
-                circ(wx, wy, hw, CLR_LIGHT_GREY);
-            } else if (z == Z_CITY && (roads_hash2(kx, ky) & 3) == 0) {
-                for (int s = -hw + 2; s < hw; s += 4) line(wx + s, wy - hw, wx + s, wy + hw, CLR_WHITE);
-            }
+            Zone z = roads_zone_at(wx + B0 / 2.0f, wy + B0 / 2.0f);
+            roads_road_v(wx, wy, kx, &z);
+            roads_road_h(wx, wy, ky, &z);
         }
 }
 
 // query (this is what a consumer cart — sloop rung 3 — would call once extracted)
 static Place road_at(float x, float y) {
-    float d = roads_density(x, y);
-    int z = roads_zone_of(d), step = ZONE_STEP[z], hw = ZONE_LANE[z] / 2;
-    int pitch = ROADS_BASE * step;
-    int ix = (int)x - roads_ifloordiv((int)x, pitch) * pitch;
-    int iy = (int)y - roads_ifloordiv((int)y, pitch) * pitch;
-    int dx = ix < pitch - ix ? ix : pitch - ix;
-    int dy = iy < pitch - iy ? iy : pitch - iy;
-    return (Place){ z, (dx <= hw) || (dy <= hw), d };
+    Zone z = roads_zone_at(x, y);
+    int kxn = (int)lroundf(x / ROADS_BASE), kyn = (int)lroundf(y / ROADS_BASE);
+    bool on = false; int best = RC_LOCAL;
+    int hw; bool dirt;
+    int cv = roads_class_of(kxn);
+    if (roads_line_render(cv, &z, &hw, &dirt) && fabsf(x - kxn * (float)ROADS_BASE) <= hw) { on = true; best = cv; }
+    int ch = roads_class_of(kyn);
+    if (roads_line_render(ch, &z, &hw, &dirt) && fabsf(y - kyn * (float)ROADS_BASE) <= hw && ch > best) {
+        on = true; best = ch;
+    } else if (roads_line_render(ch, &z, &hw, &dirt) && fabsf(y - kyn * (float)ROADS_BASE) <= hw) {
+        on = true;
+    }
+    return (Place){ z, on, best };
 }
-static int roads_field_col(float x, float y) {       // overlay tint: colour by zone
-    static const int zc[Z_N] = { CLR_RED, CLR_ORANGE, CLR_LIME_GREEN, CLR_BLUE, CLR_DARK_BLUE };
-    return zc[roads_zone_of(roads_density(x, y))];
+static int roads_field_col(float x, float y) {       // overlay tint: colour by land use
+    static const int lc[LU_N] = { CLR_LIME_GREEN, CLR_ORANGE, CLR_BLUE, CLR_MAUVE };
+    Zone z = roads_zone_at(x, y);
+    if (z.level == LV_WILD) return CLR_DARK_GREEN;
+    return lc[z.lu];
 }
 static const char *roads_probe(float x, float y) {
-    static char buf[40];
+    static char buf[48];
     Place p = road_at(x, y);
-    snprintf(buf, sizeof buf, "%s %s d%.2f", ZONE_NAME[p.zone], p.on_road ? "ROAD" : "lot ", p.density);
+    static const char *RC_NAME[4] = { "local", "avenue", "arterial", "highway" };
+    snprintf(buf, sizeof buf, "%s %s %s i%.2f", LU_NAME[p.z.lu], LV_NAME[p.z.level],
+             p.on_road ? RC_NAME[p.road_class] : "lot", p.z.intensity);
     return buf;
 }
 
@@ -266,8 +413,8 @@ static Generator gens[] = {
 };
 #define N_GENS ((int)(sizeof gens / sizeof gens[0]))
 
-static float cam_x = -160, cam_y = -100;   // world coord of screen top-left at zoom 1
-static float zoom  = 1.0f;
+static float cam_x = 3887, cam_y = -100;   // world coord of screen top-left at zoom 1
+static float zoom  = 0.55f;                // open zoomed-out over a varied district (seed 1)
 static int   seed  = 1;
 static int   cur   = 0;
 static bool  overlay = false;

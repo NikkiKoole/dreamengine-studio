@@ -10,6 +10,8 @@ A dream environment for learning programming through making games and interactiv
 
 The north star: a teenager picks this up, makes something that moves on screen in under an hour, and learns real programming concepts without hitting a wall.
 
+That north star still holds — it's the on-ramp. But a **second pursuit has grown up alongside it**, and it now drives much of the work: dreamengine as a tool for the maker *and Claude, together,* to build **deep, honest simulations hidden behind a humble lo-fi / SNES-ish surface** — one true core per cart, set up so the system tells you the truth (the "legendary" carts: `orbit`, `coaster`, `galerijflat`, `sloop`). It isn't a pivot — the learning-toy constraints are *why* the deep sims read clearly. The fuller reflection (the thesis, why the combination is load-bearing, the honest tensions and forks) is in [`design/second-north-star.md`](design/second-north-star.md).
+
 ---
 
 ## References

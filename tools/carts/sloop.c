@@ -298,13 +298,14 @@ static float af(float v) { return v < 0 ? -v : v; }
 // real-world "staged" pattern. Each gear's redline speed (V_REF/ratio) still steps up.
 static const float GEAR_RATIO[NGEAR] = { 3.50f, 2.05f, 1.38f, 0.94f, 0.72f };
 
-// the powerband: torque factor vs normalised RPM. Broad/flat across the usable range so
-// the tall top gear can still pull, a gentle idle lug, then a hard rev-limiter cut past
-// redline (1.0) — over-revving (too low a gear) is the bite. Wrong gear → wrong band.
+// the powerband: torque ÷ peak-torque vs normalised RPM, fitted to a real NA-gasoline dyno
+// (Honda 2.0 SI): idle ≈ 0.61, PEAK at ≈ 0.66 of redline, ≈ 0.79 still pulling at redline —
+// then the rev limiter cuts hard past 1.0 (over-revving a too-low gear is the bite). The
+// low-rpm side is flat-ish (idle floor 0.6) — real curves don't sag to a parabola down low.
 static float powerband(float r) {
-    if (r > 1.0f) return clamp(0.6f - (r - 1.0f) * 8.0f, 0.0f, 0.6f);   // over-rev → cut
-    float d = r - 0.6f;
-    return clamp(1.05f - 1.1f * d * d, 0.4f, 1.05f);                    // broad plateau
+    if (r > 1.0f) return clamp(0.79f - (r - 1.0f) * 9.0f, 0.0f, 0.79f); // rev limiter
+    float d = r - 0.66f;
+    return clamp(1.0f - 1.82f * d * d, 0.6f, 1.0f);                     // peak 1.0 @ 0.66 redline
 }
 
 // ── support-hull geometry (all in COM-local px) ───────────────────────────────

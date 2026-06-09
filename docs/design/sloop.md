@@ -924,3 +924,35 @@ our old 2nd (2.0 ≈ 2.05) had been right.
 Sources: [5speeds.com — wide vs close ratios](https://5speeds.com/ratios.html),
 [OnAllCylinders — GM/Chevy manual gear-ratio charts](https://www.onallcylinders.com/2017/10/27/manual-transmission-gear-ratio-chart-for-gmchevy-vehicles/),
 [Transmission Digest — manual transmission theory](https://www.transmissiondigest.com/manual-transmission-theory-back-to-basics/).
+
+### Powerband grounded in a real dyno (2026-06-09)
+
+The torque curve `powerband(rpm)` was also eyeballed (a parabola peaking at 0.6). Looked up
+real dyno data (x-engineer.org) and refitted it to a **Honda 2.0 SI naturally-aspirated
+gasoline** engine, normalised (torque ÷ peak, rpm ÷ redline):
+
+| rpm (norm) | torque (% peak) |
+|---|---|
+| idle ≈ 0.12 | **61 %** |
+| **0.66 (peak)** | **100 %** |
+| redline 1.0 | **79 %** |
+| > 1.0 | rev-limiter cut → 0 |
+
+Curve now `clamp(1.0 − 1.82·(r−0.66)², 0.6, 1.0)` with a hard cut past redline. What the
+guess missed: **peak torque sits at ~⅔ of redline** (peak *power* is ~95 % of redline,
+torque ~80 %, per the rule of thumb), the engine **still pulls ~79 % at redline** (not a
+sag), and the low-rpm side is **flat-ish** (real curves don't drop to a parabola down low —
+the 0.6 idle floor models that). Top speed shifted ~159→153 px/s (~110 km/h) — left as is.
+
+**Reference curves for the future §1a engine *kinds*** (same dyno source, captured now so
+they're not eyeballed later — normalised peak-RPM and idle/redline % of peak):
+
+| Engine | peak torque @ | idle % | redline % | character |
+|---|---|---|---|---|
+| **NA gasoline** (Honda 2.0) | ~0.66 redline | 61 | 79 | the curve above — broad mid peak |
+| **turbo petrol** (Saab 2.0T) | ~0.40 redline | 44 | 68 | early peak, flat plateau (boost) |
+| **diesel** (Toyota 2.0 D-4D) | ~0.45 redline | 39 | 70 | low, flat plateau then drop — grunt |
+| **electric** | 0 rpm | 100 | tapers | max torque from a standstill (SINGLE already approximates this) |
+
+Sources: [x-engineer.org — power vs torque (dyno curves)](https://x-engineer.org/power-vs-torque/),
+[Haltech — how to read power curves](https://www.haltech.com/news-events/how-to-read-power-curves/).

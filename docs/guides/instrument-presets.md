@@ -12,7 +12,7 @@ This file gives each recipe a **clear name** so the per-station voice charts
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis** (see
+> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -261,6 +261,23 @@ becomes a short **tap**. cocktail's drums on stick nights.
 - used by: cocktail (stick nights)
 - pair: rolls against `kit/cocktail-brushes`.
 
+### kit/yacht-studio **(voicings)**
+A tight, dry **studio session kit** — same engines as the synth kit but more produced
+(filtered kick, cut-env snare), seed-rolled between two "nights":
+
+| piece | night A | night B |
+|---|---|---|
+| kick (`SL_KICK`) | SINE A0 D230 R50 · LP 300/2 · pitch-env →16 (0/35) | SINE A0 D170 R40 · LP 320/2 · pitch-env →13 (0/45) |
+| snare (`SL_SN`)  | NOISE A0 D120 R60 · BP 1500/4 · cut-env →800 | NOISE A0 D130 R35 · BP 1700/3 · cut-env →900 |
+| hats (`SL_HATC`/`SL_HATO`) | NOISE · HP 8000/7400 | NOISE · BP 7800/7200 |
+| ride (`SL_RIDE`) | SQUARE A0 D300 R160 · HP 6000/4 (always on) | — |
+
+- tier: unique (two nights)
+- origin: yacht
+- used by: yacht (`SL_KICK`/`SL_SN`/`SL_HATC`/`SL_HATO`/`SL_RIDE`)
+- kin: the synth-kit families (`drum/synth-kick`, `drum/noise-snare`, `drum/noise-hat`) —
+  same engines, but yacht produces them into a studio kit rather than a drum machine.
+
 ## Bass
 
 > **The bass is the second-most-rebuilt voice** (runner-up to the synth kit). Almost every
@@ -276,6 +293,23 @@ The octave-bouncing sequencer bass — a saw with a fast cutoff sparkle and a li
 - tier: unique
 - origin: italo
 - used by: italo (`I_BASS`)
+
+### bass/yacht-fingered **(voicings)**
+*One* round fingered-electric bass part (A2 D220 S4 R90 · pitch-env →3 (0/14)), seed-rolled
+across **three oscillators** — the clearest "same part, different gear" case in the catalog
+(contrast cocktail's two genuinely-different basses):
+
+| voicing | recipe |
+|---|---|
+| TRI  | INSTR_TRI — round fingered electric |
+| SINE | INSTR_SINE · LP 500/2 — pure low end |
+| SAW  | INSTR_SAW · LP 900/2 — bright, slap-adjacent |
+
+- tier: unique (one part, oscillator-rolled)
+- origin: yacht
+- used by: yacht (`I_BASS`)
+- kin: touches both the TRI and SINE bass piles — but here it's deliberately one part you
+  pick the oscillator for, not three conceived instruments.
 
 ### fm/ostinato-bass
 `INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.30 · pitch-env →2 (0/16)
@@ -397,6 +431,27 @@ motorik's thin combo drone, with a little scanner-chorus motion.
 - used by: addis (`I_KEYS`, ORGAN mode)
 - kin: the `INSTR_ORGAN` family (`organ/combo-drone` motorik #1, `organ/reggae-chop` dub #0)
   — three stations, three registrations of the one engine.
+
+### fm/rhodes
+`INSTR_FM` · A2 D700 S3 R350 · h0.15 (the detent) · vol-LFO 4.6 Hz (session tremolo) · seeded timbre/morph
+yacht's electric-piano center — an **FM** Rhodes (1:1 detent, tine on), with a slow session
+tremolo. Voicings (seeded "gear change"): tremolo depth 0.10 vs 0.14; an alt voicing adds
+`timbre 0.30`; and the slot can also render as a bright **PLUCK "clav"** (h0.35 t0.85 m0.15).
+- tier: unique (voicings)
+- origin: yacht
+- used by: yacht (`I_EP`)
+- kin: a 3rd "Rhodes" approach — italo/addis voice theirs on `INSTR_EPIANO`
+  (`epiano/rhodes-detent`, `epiano/wurli-comp`); yacht uses `INSTR_FM` (same engine as
+  `fm/brass-stab`, `fm/ostinato-bass`).
+
+### pluck/strat-stab
+`INSTR_PLUCK` · A1 D0 S7 R600 · h0.35 · LP 2800/1 · seeded timbre/morph
+Clean Strat 9th-stabs — a bright Karplus-Strong electric, the AOR comp guitar.
+- tier: unique
+- origin: yacht
+- used by: yacht (`I_GTR`)
+- kin: the PLUCK-guitar family (`pluck/nylon-guitar`, `pluck/jangle-guitar`, `pluck/archtop`)
+  — same engine, a bright-electric voicing.
 
 ### tri/tremolo-rhodes
 `INSTR_TRI` · A8 D300 S3 R200 · LP 1600/2 · vol-LFO 4.2 Hz/0.10 (tremolo) · cut-env →900 (0/110, bark)
@@ -628,6 +683,21 @@ The dub "meltdown toy" — a PWM square with a long pitch-env sweep, fired as an
 - used by: dub (`I_SIREN`)
 - kin: PWM-square family (see `square/melodica`).
 
+### square/sax **(voicings)**
+yacht's chorus lead — a breathy narrow-pulse "sax." Seed-rolls between three voicings:
+
+| voicing | recipe |
+|---|---|
+| sax    | SQUARE A25 D160 S5 R130 · duty **0.12** (narrow, breathy) · LP 1900/2 · pitch-LFO 5.1/0.16 |
+| synth  | SQUARE A25 D160 S5 R130 · duty **0.30** (fatter) · LP 2200/2 · pitch-LFO 5.1/0.10 |
+| gtr solo | INSTR_PLUCK A1 D0 S6 R500 · h0.5 t0.75 · LP 2600/1 — a session guitar solo |
+
+- tier: unique (voicings)
+- origin: yacht
+- used by: yacht (`I_SAX`)
+- kin: sax/synth voicings are the PWM-square family (`square/whistle`, `square/melodica`…);
+  the gtr-solo voicing is kin to `pluck/strat-stab`.
+
 ### sine/singing-lead
 `INSTR_SINE` · A14 D200 S4 R240 · LP 2300/2 · pitch-LFO 5.1 Hz/0.12 (vibrato)
 A soft, wordless "singing" lead — a SINE with a gentle vibrato, jingle's delicate topline.
@@ -702,6 +772,20 @@ The author's comment ties it to organ.c's registration #1.
 - tier: unique
 - origin: motorik (registration after organ.c #1)
 - used by: motorik (`I_ORG`)
+
+### saw/yacht-strings **(voicings)**
+yacht's "choruses-only" pad — a soft SAW string machine, with a syn-brass alternative:
+
+| voicing | recipe |
+|---|---|
+| strings   | INSTR_SAW A260 D400 S5 R700 · LP 850/1 — soft strings |
+| syn-brass | INSTR_SAW A10 D400 S5 R700 · LP 1400/1 · pitch-env →−2 (0/40) — short attack, the "fall" |
+
+- tier: unique (voicings)
+- origin: yacht
+- used by: yacht (`I_PAD`)
+- kin: the strings voicing joins the `saw/string-machine` pad pile; the syn-brass voicing
+  reuses the exact `→−2` "fall" gesture of citypop's `saw/brass-section`.
 
 ---
 

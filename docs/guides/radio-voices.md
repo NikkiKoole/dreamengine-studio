@@ -333,13 +333,39 @@ synthetic/dance idiom; real-engine stations build their own.**
 
 ---
 
+## yacht — Yacht rock / AOR (Steely Dan)
+
+Solo layer: **none** (a seeded session band, not a player jam).
+
+A **gear-changing session band**: most slots seed-roll between *voicings* of a fixed part —
+its "gear change." It shares nothing byte-identical, but is **kin to half the catalog**
+(EPIANO/FM Rhodes, PLUCK guitars, PWM-square sax, SAW strings, the synth kit). Voicings are
+listed in each preset's catalog entry.
+
+| slot | role | preset | engine(s) |
+|---|---|---|---|
+| `I_EP`   | FM electric piano (center) | `fm/rhodes` (voicings: tremolo depth · PLUCK clav) | FM / PLUCK |
+| `I_BASS` | fingered electric bass | `bass/yacht-fingered` (one part, TRI·SINE·SAW) | TRI/SINE/SAW |
+| `I_GTR`  | clean Strat 9th-stabs | `pluck/strat-stab` | PLUCK |
+| `I_SAX`  | chorus sax lead | `square/sax` (voicings: sax · synth · gtr solo) | SQUARE / PLUCK |
+| `I_PAD`  | strings / syn-brass | `saw/yacht-strings` | SAW |
+| `SL_*`   | studio kit (2 nights) | `kit/yacht-studio` | SINE / NOISE / SQUARE |
+
+**Borrowing at a glance:** zero copies, all kin. yacht is a real/session-engine **island**
+like addis, but where addis built brand-new families, yacht's voices are *kin* to existing
+ones (its Rhodes is FM where italo's is EPIANO; its strat joins the PLUCK guitars; its sax
+the PWM-squares; its studio kit the synth kit, produced). And the **gear-change** pattern —
+seed-rolling voicings of one part (the bass on three oscillators) — is new here.
+
+---
+
 ## Stations not yet charted
 
 carlos · exotica · gamelan ·
-roadhouse · satie · tango · ymo · yacht
+roadhouse · satie · tango · ymo
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail · lowend · bossa · dub · jangle · jingle · addis (11). addis confirms real-engine
-stations add new families rather than reuse the synth kit. Remaining: the other `improv.h`
-soloist roadhouse, and the acoustic/orchestral stations satie/tango/gamelan/carlos/exotica/
-yacht/ymo.)
+cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht (12). Both real/session-
+engine bands (addis, yacht) build their own voices — addis brand-new families, yacht kin to
+existing ones. Remaining: roadhouse (improv.h) and the acoustic/orchestral stations
+satie/tango/gamelan/carlos/exotica/ymo.)

@@ -1331,7 +1331,7 @@ catalog so far):
 | italo (`I_STR`)   | A280 D500 S6 R800 · LP 1100/2 |
 | house (`I_STR`)   | A320 D500 S6 R900 · LP 900/2 · *cutoff = the ride* |
 | motorik (`I_PAD`) | A360 D600 S5 R1100 · LP 1800·feel/2 · slow pitch-LFO 0.18 Hz/0.05 (tape wow) |
-| air (`I_PAD`), aka **`saw/solina-ensemble`** | A600 D400 S6 R1600 · LP 2000/2 · **`instrument_tune` +0.07 (a detuned PAIR = the ensemble shimmer)** · pitch-LFO 0.18 Hz/0.05 (wow) + vol-LFO 4.4 Hz (string-machine chorus) · echo-bus wash | the AIR signature — closest the cart gets to a real Solina without the chorus bus |
+| air (`I_PAD`), aka **`saw/solina-ensemble`** (kin `solina.c`) | A600 D400 S6 R1600 · LP 2000/2 · `instrument_tune` +0.05 (subtle divide-down beating) · pitch-LFO 0.18 Hz/0.05 (wow) · **THE ENSEMBLE = a real per-part `instrument_chorus`** (0.9/0.50, mix 0.58–0.70 via the strings chair) + reverb send + master `tape()` | the AIR signature — the genuine Solina recipe (saw + ensemble chorus, à la `solina.c`), at radio scale: ONE slot not six, and now the **per-part** chorus so it swirls the pad alone (master chorus off → Kelly's kit stays dry) |
 
 - tier: **variant**
 - origin: house (likely earliest of the three — all hand-rolled, none shares a symbol)

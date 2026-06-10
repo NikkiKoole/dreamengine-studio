@@ -586,7 +586,7 @@ stand-in — AIR is drenched).
 
 | slot | role | preset | engine |
 |---|---|---|---|
-| `I_PAD`  | Solina string-machine wash (detuned pair) | `saw/solina-ensemble` ≈ (italo/house/motorik `saw/string-machine`) | SAW |
+| `I_PAD`  | Solina string-machine wash (detuned saw + per-part `instrument_chorus` = the ENSEMBLE) | `saw/solina-ensemble` — kin `solina.c` (the canonical Solina showcase); ≈ italo/house/motorik `saw/string-machine` | SAW |
 | `I_EP`   | Rhodes/Wurli comp | `epiano/air-rhodes` · `epiano/air-wurli` (chair) | EPIANO |
 | `I_GTR`  | fingerpicked nylon (Cherry) | `guitar/air-nylon` (kin: afrobeat guitars, guitar.c `nylon`) | GUITAR |
 | `I_BASS` | the bass — **rolls by archetype** | `saw/air-fuzz-bass` (Sexy/Kelly, +drive) · `tri/air-round-bass` (Argent rolling / Playground / Cherry) | SAW / TRI |
@@ -604,6 +604,38 @@ struck-bar, ⟳) and the Solina pad as a *cousin* (≈) of the `saw/string-machi
 stations share. The genre's effects-blocked wants (reverb, chorus, true vocoder, tape) — plus an
 `INSTR_PIPE` intonation note — are catalogued in
 [`../design/air-effects-wants.md`](../design/air-effects-wants.md).
+
+## napoleon — *Napoleon Dynamite* (an ARTIST station, 5 song archetypes)
+
+Solo layer: **`solo.h`** — and the jam ribbon's *voice + behavior change per archetype* (the
+player gets the instrument that fits the song they're jamming over).
+
+Not a genre but the film's *musical world*: the seed rolls one of **five song archetypes**,
+each a cited piece of the soundtrack/score (the dance "Canned Heat" · Kip's serenade "Always &
+Forever" · John Swihart's deadpan score · "Forever Young" 80s-synth · "We're Going to Be
+Friends" folk). The archetype fixes the **lead voice, groove, tempo, mood and form** — so most
+melodic/harmonic slots are *reconfigured per song* (the engine itself changes). Its addition:
+`INSTR_VOICE` as a **sung, vibrato falsetto croon** (Kip's serenade lead + the Jamiroquai "ooh")
+— AIR reached the engine first, but as a vocoder; this is the first to *sing* on it.
+
+| slot | role | preset (rolls by archetype) | engine |
+|---|---|---|---|
+| `I_BASS` | the low end | `tri/funk-slap` (DANCE) · `sine/round-bass` ⟳ (SERENADE/FRIENDS) · `square/toy-bass` (SWIHART) · `saw/synth-pulse` (FOREVER) | SAW / SINE / SQUARE |
+| `I_COMP` | comp / pad | `epiano/funk-clav` (DANCE, auto-wah) · `epiano/napoleon-rhodes` (SERENADE) · `square/toy-organ`-twin (SWIHART detune pair) · `saw/string-machine` ≈ (FOREVER pad) | EPIANO / SQUARE / SAW |
+| `I_LEAD` | the star topline | `brass/funk-stab` (DANCE horns) · `square/toy-organ` (SWIHART melody) · `square/forever-lead` (FOREVER) | BRASS / SQUARE |
+| `I_GTR` | guitar | `guitar/pizz-mute` (SWIHART double) · `guitar/napoleon-nylon` (FRIENDS fingerpick) | GUITAR |
+| `I_AUX` | sparkle / pad | `saw/string-machine` ≈ (SERENADE strings) · `mallet/glockenspiel` (SWIHART) · `pluck/forever-arp` (FOREVER) | SAW / MALLET / PLUCK |
+| `I_VOX` | the SUNG croon | `voice/croon` *(first SUNG radio `INSTR_VOICE`)* — SERENADE lead · DANCE "ooh" · FRIENDS voice | VOICE |
+| `I_KICK`/`I_SNARE`/`I_HAT`/`I_PERC` | kit — re-tuned per archetype | disco four-floor / soft-soul / stiff straight-8 / big-gated-80s / sparse-brush+clap | SINE / NOISE / SQUARE |
+| `I_SOLO` | jam ribbon — voice & behavior per archetype | funk synth (quantized) · `voice/croon` (free) · glock (struck) · synth lead · nylon (struck) | SQUARE / VOICE / MALLET / GUITAR |
+
+**Borrowing at a glance:** mostly napoleon-original because it spans five genres. Reuses on
+purpose: the `saw/string-machine` pad pile (≈, for the SERENADE strings + FOREVER pad) and the
+round SINE bass (⟳). New recipes it contributes: **`voice/croon`** (the sung falsetto — its
+headline), **`square/toy-organ`** (the Swihart deadpan-score identity), **`tri/funk-slap`**, and
+first radio voicings of `guitar/pizz`-mute and `mallet/glockenspiel`. The effects-blocked wants
+(gated reverb, plate/spring reverb, tape wow, chorus, a noise gate) are catalogued in
+[`../design/napoleon-effects-wants.md`](../design/napoleon-effects-wants.md).
 
 ## mariachi — Mariachi / son jalisciense (the SESQUIALTERA)
 

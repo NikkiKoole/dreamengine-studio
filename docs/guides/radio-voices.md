@@ -572,6 +572,100 @@ and trumpet are the **first** of their engines on the dial. The synth-kit idiom 
 
 ---
 
+## air — AIR / Moon Safari (an ARTIST station, 5 song archetypes)
+
+Solo layer: **`solo.h`** (the jam strip — play along on the song's scale).
+
+Not a genre but an *artist*: the seed rolls one of **five song archetypes**, each a cited AIR
+track (Sexy Boy · La Femme d'Argent · Playground Love · Cherry Blossom Girl · Kelly Watch the
+Stars). The archetype fixes the **lead voice, groove, tempo, mood and form** — so `I_BASS` and
+`I_LEAD` are *reconfigured per song* (the engine itself changes). Three radio firsts for AIR's
+real lineup: `INSTR_VOICE` as a melodic **vocoder lead**, `INSTR_PIPE` flute, and the Solina
+string-machine wash on a detuned-SAW pair. Everything sits in the **echo bus** (a reverb
+stand-in — AIR is drenched).
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_PAD`  | Solina string-machine wash (detuned pair) | `saw/solina-ensemble` ≈ (italo/house/motorik `saw/string-machine`) | SAW |
+| `I_EP`   | Rhodes/Wurli comp | `epiano/air-rhodes` · `epiano/air-wurli` (chair) | EPIANO |
+| `I_GTR`  | fingerpicked nylon (Cherry) | `guitar/air-nylon` (kin: afrobeat guitars, guitar.c `nylon`) | GUITAR |
+| `I_BASS` | the bass — **rolls by archetype** | `saw/air-fuzz-bass` (Sexy/Kelly, +drive) · `tri/air-round-bass` (Argent rolling / Playground / Cherry) | SAW / TRI |
+| `I_LEAD` | the star voice — **rolls by archetype** | `pd/air-moog-lead` (Sexy/Argent) · `reed/air-tenor-sax` (Playground; kin reed.c `tenor_sax`) · `pipe/air-flute` *(first radio PIPE)* · `voice/air-vocoder` *(first radio VOICE lead)* | PD / REED / PIPE / VOICE |
+| `I_VIBE` | high twinkle on the hook | `mallet/vibes` ⟳ (lowend · motorik · cocktail · exotica; origin mallet.c) | MALLET |
+| `I_KICK` | soft sine thump | `sine/air-kick` | SINE |
+| `I_SNR`  | clap / brushed snare on 2&4 | `noise/air-clap` | NOISE |
+| `I_HAT`  | off-beat hat / brush sweep | `noise/air-hat` | NOISE |
+| `I_SOLO` | jam-strip lead (solo.h) | `sine/air-jam` | SINE |
+
+**Borrowing at a glance:** mostly air-original because the lead lineup lives on engines barely
+used elsewhere — `voice/air-vocoder` is the **first radio melodic use of `INSTR_VOICE`**, and
+`pipe/air-flute` the **first radio `INSTR_PIPE`**. Reuses on purpose: `mallet/vibes` (the shared
+struck-bar, ⟳) and the Solina pad as a *cousin* (≈) of the `saw/string-machine` pad three dance
+stations share. The genre's effects-blocked wants (reverb, chorus, true vocoder, tape) — plus an
+`INSTR_PIPE` intonation note — are catalogued in
+[`../design/air-effects-wants.md`](../design/air-effects-wants.md).
+
+## mariachi — Mariachi / son jalisciense (the SESQUIALTERA)
+
+No solo layer; no drum kit (the strumming *is* the percussion, like tango). The seed rolls a
+groove (son / vals / huapango), a major-or-minor key, an 8-bar functional progression, and the
+form. **First radio station to reach `INSTR_BOWED`** — the violin section is the real bowed
+string, not a saw fake. The violins (copla) and trumpets (respuesta) **trade** the melody in
+parallel thirds; the time feel is the 6/8-against-3/4 cross-rhythm.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_VLN1` | violin 1 — melody lead | `bowed/mariachi-violin` *(first radio BOWED)* · `sinte` swaps to `saw/mariachi-strings` (chair) | BOWED / SAW |
+| `I_VLN2` | violin 2 — the third below | `bowed/mariachi-violin` (a touch warmer) | BOWED / SAW |
+| `I_TPT1` | trumpet 1 — section + fanfare | `brass/mariachi-trumpet` (kin afrobeat trumpet, brass.c `trumpet`) | BRASS |
+| `I_TPT2` | trumpet 2 — the third below | `brass/mariachi-trumpet` · `una` drops it to a flugel (chair) | BRASS |
+| `I_VIH`  | vihuela — the manico strum | `guitar/vihuela` (bright, short ring) | GUITAR |
+| `I_GTR`  | guitarra de golpe — body strum | `guitar/mariachi-rhythm` · `nylon` warmer (chair) | GUITAR |
+| `I_GTRON`| guitarrón — root-fifth bass | `guitar/guitarron` (woody, fretless-gut) | GUITAR |
+
+**Borrowing at a glance:** mostly mariachi-original, because the lineup lives on the
+real-string/brass engines barely used elsewhere. `bowed/mariachi-violin` is the **first radio
+`INSTR_BOWED`**; `brass/mariachi-trumpet` is *kin* to afrobeat's horn-section trumpet (both real
+`INSTR_BRASS`, voiced bright); the three `guitar/*` voices join afrobeat's and air's as the
+`INSTR_GUITAR` users. The genre's effects-blocked wants (hall reverb, a true violin-*section*
+unison beyond the two-desk pan) are noted in
+[`../design/sound-next-steps.md`](../design/sound-next-steps.md).
+
+---
+
+## polopan — Polo & Pan (an ARTIST station, 5 song archetypes)
+
+Solo layer: **`solo.h`** (a celesta-twinkle jam strip over the changes). The seed rolls one
+of five archetypes — **Canopée / Ani Kuni / Nanga / Tunnel / Coeur Croisé** — each fixing its
+groove, tempo, lead voice and form (stolen-playbook chord brain #4); the seed then varies
+key / progression / patterns / timbre *within* it. The lineup lives on the mallet-and-
+percussion + untapped-engine shelves: a marimba/balafon/glock/vibe **mallet chair**, a
+**pizzicato** bounce on `INSTR_BOWED`, a per-archetype **topline STAR** that swaps engine
+(flute / vocoder / glass / sung), and the **Korg MS-10** resonant bass.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_MAL`   | mallet chair — marimba / balafon / glock / vibe (per archetype) | `mallet/marimba` (mallet.c) · `mallet/balafon` *(new)* · `mallet/glockenspiel` / `mallet/vibes` (rolled by archetype) | MALLET |
+| `I_PIZZ`  | the pizzicato bounce (the groove) | `bowed/pizzicato` *(BOWED pizz — `eng_tune(slot,0,1)`)* | BOWED |
+| `I_STAR`  | the archetype's topline | `pipe/flute` (Nanga) · `voice/polopan-chant` (Canopée/Ani Kuni) · `sine/glass-stab` (Tunnel) · `sine/sung-lead` (Coeur) — **swapped per song**; the Nanga flute has a live `pipe`/`sine` A/B in the band panel | PIPE / VOICE / SINE |
+| `I_BASS`  | bass — MS-10 riff (Tunnel/Ani Kuni) / round | `saw/ms10-bass` *(new: resonant LP + cut-env wow + drive)* | SAW |
+| `I_PAD`   | the lush Solina string wash | `saw/string-machine` ⟳ | SAW |
+| `I_ARP`   | the bright sampled-D50 arp build | `pluck/seq-arp` ≈ | PLUCK |
+| `I_KICK`/`I_CLAP`/`I_HAT` | breezy Balearic four-floor + clap + swish/shaker | `drum/synth-kick` ⟳ · `drum/house-clap` ↗house · `drum/noise-hat` ⟳ | SINE / NOISE |
+| `I_CONGA` | tropical hand percussion (Nanga/Canopée tumbao) | `membrane/conga` ↗addis | MEMBRANE |
+| `I_SOLO`  | the jam-strip lead | `mallet/celesta`-ish twinkle | MALLET |
+
+**Borrowing at a glance:** the kit / bass / pad reuse the dance-station shelf (`drum/house-clap`
+verbatim, `drum/synth-kick` / `drum/noise-hat` variants, `saw/string-machine` pad, `membrane/
+conga` shared with addis). The *new* recipes are `mallet/balafon` and `saw/ms10-bass`. polopan
+joins **air** on `INSTR_PIPE` / `INSTR_VOICE` and **mariachi** on `INSTR_BOWED` (here the
+*pizzicato* technique, where mariachi bows) — the cluster of stations reaching the engines that
+sat untapped before this batch. Effects-blocked wants (plate reverb, tape/chorus on the pads,
+ping-pong delay on flute/mallet) noted in
+[`../design/sound-next-steps.md`](../design/sound-next-steps.md).
+
+---
+
 # Findings — all 20 stations charted
 
 The catalog answers the question this pair was built for: *what plays what, and where are we

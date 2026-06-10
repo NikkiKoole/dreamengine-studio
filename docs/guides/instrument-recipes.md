@@ -66,8 +66,9 @@ macros. Gate is dynamic: `600ms + (1−morph)² · 14000ms`.
 | guitar/oud | guitar.c | h0.50 t0.20 m0.55 · gate~4.4s | Dark resonant Middle-Eastern oud, warm timbre, short decay. |
 
 > The body-resonance macro (`harmonics`: open/harp→banjo) is what `INSTR_GUITAR` adds over
-> `INSTR_PLUCK`. No radio station charted so far uses `INSTR_GUITAR` — these eight are an
-> untapped shelf.
+> `INSTR_PLUCK`. No longer an untapped shelf: `afrobeat` (interlocking rhythm guitars), `air`
+> (nylon), and `mariachi` (vihuela / guitarra / guitarrón — one engine, three registers) all
+> reach it now. These eight are still the reference rig.
 
 ## INSTR_MALLET — modal struck bar
 
@@ -243,9 +244,10 @@ Schelleng bowing wedge (position/pressure/speed).
 | bowed/tremolo | bowed.c | h0.40 t0.35 m0.85 | Fast hard bow speed, moderate position/pressure — driving tremolo. |
 | bowed/pizzicato | bowed.c | A1 D0 S7 R300 (pizz, friction off) · h0.30 t0.42 | Plucked string, same waveguide, pluck seeded — warm finger pluck. |
 
-> **Cross-ref:** no radio station uses `INSTR_BOWED` yet — tango's violin section
-> (`saw/violins-arco`/`saw/violins-pizz`) fakes both arco and pizz on SAW. bowed.c models
-> the real thing, including the arco↔pizz technique split (mirrors tango's pair).
+> **Cross-ref:** **`mariachi.c` is the FIRST radio station to use `INSTR_BOWED`** — its violin
+> section (`bowed/mariachi-violin`, two desks panned wide + a portamento scoop). tango's violin
+> section (`saw/violins-arco`/`saw/violins-pizz`) still fakes both arco and pizz on SAW; bowed.c
+> models the real thing, including the arco↔pizz technique split (mirrors tango's pair).
 
 ## INSTR_BRASS — lip-reed waveguide (self-oscillating)
 
@@ -262,9 +264,10 @@ breath/lip lean-in. The `oct` column is the cart's register shift, not part of t
 | brass/french-horn | brass.c | h0.70 t0.34 m0.50 | Dark, round, a little breath — the orchestral horn. |
 | brass/tuba | brass.c | h0.92 t0.46 m0.48 (oct −1) | Wide dark bore, an octave down — the bass brass. |
 
-> **Cross-ref:** the only "brass" on the dial today is faked — italo's `INSTR_FM` brass stabs
-> and citypop's saw-brass anticipation hits. `INSTR_BRASS` models the real lip-reed rip; an
-> A/B retrofit of italo's stabs is a tracked follow-up (instrument-engines.md §8.8.10).
+> **Cross-ref:** real `INSTR_BRASS` is on the dial now — `afrobeat`'s horn-section trumpet
+> (first) and `mariachi`'s two trumpets (`brass/mariachi-trumpet`). The faked brass remains —
+> italo's `INSTR_FM` brass stabs and citypop's saw-brass anticipation hits; an A/B retrofit of
+> italo's stabs is a tracked follow-up (instrument-engines.md §8.8.10).
 
 ## INSTR_PIANO — StifKarp struck stiff string (inharmonic shimmer)
 

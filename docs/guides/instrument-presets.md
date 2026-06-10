@@ -579,6 +579,16 @@ blip on the attack (the finger snap). kin: addis `fm/ostinato-bass` (same FM-bas
 - origin: afrobeat
 - used by: afrobeat (`I_BASS`)
 
+### guitar/guitarron
+`INSTR_GUITAR` · A1 D0 S7 R400 · h0.35 t0.18 m0.50 · LP 1400/1
+The mariachi guitarrón — the big fretless-gut acoustic bass, voiced low on the bodied-string
+engine: dark, woody, a quick stop (mid mute), playing the root-fifth "boom" on the meter's
+strong beats. kin: the `INSTR_GUITAR` family (afrobeat's guitars, air's nylon) — same engine,
+a deep bass register.
+- tier: unique
+- origin: mariachi
+- used by: mariachi (`I_GTRON`)
+
 ## Comp & rhythm
 
 ### epiano/rhodes-detent
@@ -869,6 +879,24 @@ cluster re-voiced per 2-bar via the shared voice-leader. kin: organ.c `organ/jim
 - origin: afrobeat
 - used by: afrobeat (`I_ORG`)
 
+### guitar/vihuela
+`INSTR_GUITAR` · A1 D0 S7 R700 · h0.70 t0.80 m0.55 · LP 4200/1 · pan +0.30
+The vihuela — the small high 5-string that drives the mariachi *manico*. Bright, hard-strummed,
+a short ring (the heavy-ish mute + quick stop give it the percussive chuck), voiced high. The
+rhythmic engine of the band.
+- tier: unique
+- origin: mariachi
+- used by: mariachi (`I_VIH`)
+
+### guitar/mariachi-rhythm
+`INSTR_GUITAR` · A1 D0 S7 R900 · h0.55 t0.55 m0.30 · LP 3200/1 · pan −0.25
+The *guitarra de golpe* — the mid body-strum filling between vihuela and guitarrón. A chair
+flag swaps it to a warmer **nylon** voicing (h0.45 t0.20 m0.30) for the bolero feel. kin: the
+nylon/steel guitars (bossa/exotica/air) on the same engine.
+- tier: unique (voicings — steel/nylon)
+- origin: mariachi
+- used by: mariachi (`I_GTR`)
+
 ## Stabs & leads
 
 ### fm/brass-stab
@@ -878,6 +906,39 @@ punctuation.
 - tier: unique
 - origin: italo
 - used by: italo (`I_STAB`)
+
+### bowed/mariachi-violin  *(FIRST radio `INSTR_BOWED`)*
+`INSTR_BOWED` · A24–70 D0 S7 R340 · h0.45 t0.30 m0.70 · vib 5.6 Hz/0.10 · scoop `ENV_PITCH`
+(groove-gated: vals −1.0/80ms, son/huapango −0.25/38ms) · LP ~3400·tone
+The mariachi violin section — the **real bowed string** (bowed.c's `bowed/violin` macros),
+two desks (`I_VLN1`/`I_VLN2`, the 2nd a touch warmer h0.48 t0.32 m0.62) panned wide for the
+ensemble spread, leading the copla in parallel thirds. The portamento **scoop INTO the note**
+follows the groove — it sings on the slow vals, stays a hint on the staccato son (a deep scoop
+on a short note just squeals; the attack shortens for fast passages too). **No radio station
+used `INSTR_BOWED` before** — tango faked its violins on SAW.
+- tier: unique
+- origin: mariachi
+- used by: mariachi (`I_VLN1`/`I_VLN2`)
+- kin: tango's `saw/violins-arco` (the *faked* prior-art violin); bowed.c `bowed/violin` (the rig).
+
+### saw/mariachi-strings
+`INSTR_SAW` · A55 D200 S6 R320 · vib 5.6 Hz/0.09 · LP ~3400·tone
+The **`sinte` fallback** for the violin chair — smooth saw synth-strings (no bow-friction
+scratch), the soft alternative when the real bow is too aggressive. The faked-violin road
+tango/ambient take. kin: tango's `saw/violins-arco`.
+- tier: unique
+- origin: mariachi
+- used by: mariachi (`I_VLN1`/`I_VLN2`, sinte chair)
+
+### brass/mariachi-trumpet
+`INSTR_BRASS` · A1 D0 S4 R1200 · h0.15 t0.62 m0.42 · LP ~3800·tone/2
+The two mariachi trumpets — bright, blatty real `INSTR_BRASS` (brass.c's `trumpet` macros),
+voiced a third apart (`I_TPT1`/`I_TPT2`), trading call-and-response with the violins. A chair
+flag (`una`) drops the second to a mellow flugel (h0.46 t0.30). kin: afrobeat's horn-section
+trumpet — both real `INSTR_BRASS`, voiced bright.
+- tier: unique (kin afrobeat trumpet)
+- origin: mariachi
+- used by: mariachi (`I_TPT1`/`I_TPT2`)
 
 ### saw/house-stab
 `INSTR_SAW` · A1 D130 S2 R60 · LP 1400/2 · drive 0.25 · *(cutoff is the filter ride)*
@@ -957,6 +1018,26 @@ bell chair: a **4th showcase-cart lineage** after vibes / the organ.c registrati
 - origin: **mallet.c `PRESET[2]` "celesta"**
 - used by: exotica (`I_BELL`, celesta roll)
 - kin: `mallet/vibes` (also from mallet.c); the bell chair rolls between this and `fm/glass-bell`.
+
+### mallet/marimba
+`INSTR_MALLET` · A1 D0 S7 R1200 · h0.00 t0.45 m0.35
+The warm wooden struck bar — **`mallet.c` `PRESET[0]` "marimba"**, voiced into polopan's mallet
+chair (Canopée's bounce, doubled with the pizzicato). The first charted *station* to use the
+marimba preset (vs the vibe/celesta the others borrow). In Canopée's stacked-mallet outro it
+piles up in octaves.
+- tier: unique
+- origin: **mallet.c `PRESET[0]` "marimba"**
+- used by: polopan (`I_MAL`, Canopée roll)
+- kin: the `mallet/vibes` / `mallet/celesta` family (all mallet.c) — the wood end of the bar.
+
+### mallet/balafon
+`INSTR_MALLET` · A1 D0 S7 R1200 · h0.10 t0.72 m0.18
+Polo & Pan's harder, woodier African bar — brighter mallet (t0.72) and a shorter ring (m0.18)
+than the round marimba, the West-African gourd-resonated xylophone. polopan's Nanga balafon.
+- tier: unique (**new recipe**)
+- origin: polopan
+- used by: polopan (`I_MAL`, Nanga roll)
+- kin: `mallet/marimba` — same engine, harder/drier; the balafon to its marimba.
 
 ### fm/glass-bell
 `INSTR_FM` · A1 D500 S2 R400 · h0.55 t0.55 m0.12 (the 3.5 bell detent)
@@ -1154,7 +1235,7 @@ The jazz vibraphone — soft mallet, metal bar, long ring with motor tremolo (mo
 
 - tier: **shared** (mallet/lowend/motorik macros byte-identical) — cocktail is a hair-off variant (m0.85)
 - origin: **mallet.c** `PRESET[3]` "vibes" (key 4)
-- used by: motorik (`I_SOLO`) · lowend (`I_LEAD`, opt-in behind `leadVibes`) · cocktail (`I_PSOLO`, MJQ nights only)
+- used by: motorik (`I_SOLO`) · lowend (`I_LEAD`, opt-in behind `leadVibes`) · cocktail (`I_PSOLO`, MJQ nights only) · air (`I_VIBE`, the Cherry/hook sparkle)
 - ⚠ **provenance drift in the wild:** motorik's comment credits lowend.c, but lowend was
   only the middleman — the recipe is mallet.c's. A hand-copied preset whose chain of
   custody is *already* garbled in the comments. Prime candidate to extract into a real
@@ -1225,10 +1306,11 @@ catalog so far):
 | italo (`I_STR`)   | A280 D500 S6 R800 · LP 1100/2 |
 | house (`I_STR`)   | A320 D500 S6 R900 · LP 900/2 · *cutoff = the ride* |
 | motorik (`I_PAD`) | A360 D600 S5 R1100 · LP 1800·feel/2 · slow pitch-LFO 0.18 Hz/0.05 (tape wow) |
+| air (`I_PAD`), aka **`saw/solina-ensemble`** | A600 D400 S6 R1600 · LP 2000/2 · **`instrument_tune` +0.07 (a detuned PAIR = the ensemble shimmer)** · pitch-LFO 0.18 Hz/0.05 (wow) + vol-LFO 4.4 Hz (string-machine chorus) · echo-bus wash | the AIR signature — closest the cart gets to a real Solina without the chorus bus |
 
 - tier: **variant**
 - origin: house (likely earliest of the three — all hand-rolled, none shares a symbol)
-- used by: italo (`I_STR`) · house (`I_STR`) · motorik (`I_PAD`)
+- used by: italo (`I_STR`) · house (`I_STR`) · motorik (`I_PAD`) · air (`I_PAD`, the detuned-pair "solina-ensemble" voicing)
 
 ### pluck/drone
 `INSTR_PLUCK` · A1 D0 S7 R1400 · h0.75 (long ring) · t0.25
@@ -1261,6 +1343,69 @@ yacht's "choruses-only" pad — a soft SAW string machine, with a syn-brass alte
 - used by: yacht (`I_PAD`)
 - kin: the strings voicing joins the `saw/string-machine` pad pile; the syn-brass voicing
   reuses the exact `→−2` "fall" gesture of citypop's `saw/brass-section`.
+
+---
+
+## air (Moon Safari) — new recipes
+
+The artist station reconfigures `I_BASS` and `I_LEAD` **per song archetype**, so several of
+these are roll-selected, not fixed. Clustered here by cart (the file is by-engine elsewhere, but
+an artist station's identity is the *set*). The Solina pad is folded into `saw/string-machine`
+above (the detuned-pair "solina-ensemble" voicing); `mallet/vibes` is reused (see its entry).
+
+### voice/air-vocoder  *(FIRST radio melodic `INSTR_VOICE`)*
+`INSTR_VOICE` · A8 D90 S6 R220 · h0.62 (O→A vowel) t0.40 (size) m0.70 (pressed effort) · `instrument_drive` 0.25 · pitch-LFO 5.6 Hz/0.06 · LP 2400/2 · echo 0.14
+The Kelly-Watch-the-Stars robot lead — a sung vowel, not a true vocoder (that needs the §8.10
+formant/vocoder bus; see [`../design/air-effects-wants.md`](../design/air-effects-wants.md)).
+No station had used `INSTR_VOICE` for a melodic lead before.
+- tier: unique · origin: air · used by: air (`I_LEAD`, KELLY archetype)
+
+### pipe/air-flute  *(FIRST radio `INSTR_PIPE`)*
+`INSTR_PIPE` · A1 D0 S4 R1200 · **h0.00 (overblow OFF — stays out of the jet-gain "screech at
+the top" zone), t0.38 air, m0.70 embouchure** · register 67–83 · pitch-LFO 5.0/0.08 · echo 0.22
+The Cherry-Blossom-Girl flute — the showcase `pipe/flute` recipe verbatim. **Intonation note:**
+overblow had to stay at 0 and the register kept low or PIPE goes audibly sharp up top — logged
+in [`../design/air-effects-wants.md`](../design/air-effects-wants.md) ("Engine note").
+- tier: unique (kin pipe.c `pipe/flute`) · origin: air · used by: air (`I_LEAD`, CHERRY)
+
+### pd/air-moog-lead
+`INSTR_PD` · A20 D320 S4 R300 · h0.94 (resonant wavetype) t0.55 m0.45 · pitch-LFO 5.0/0.10 · LP 2600/2 · echo 0.22
+The resonant Moog topline (La Femme d'Argent melody, Sexy Boy hook). kin: pd.c `pd/reso-lead`,
+italo's `pd/soaring-lead`.
+- tier: unique (kin pd.c `reso-lead`) · origin: air · used by: air (`I_LEAD`, SEXY/ARGENT)
+
+### reed/air-tenor-sax
+`INSTR_REED` · A1 D0 S4 R1200 · h0.82 t0.30 m0.62 · sits ~22 ms late · echo 0.22
+The smoky Playground-Love tenor — same recipe family as afrobeat's sax. kin: `reed/afro-tenor-sax`,
+reed.c `reed/tenor_sax`.
+- tier: unique (kin `reed/afro-tenor-sax`) · origin: air · used by: air (`I_LEAD`, PLAYGROUND)
+
+### saw/air-fuzz-bass
+`INSTR_SAW` · A2 D150 S4 R110 · LP 720/2 · ENV_CUTOFF 0/130/900 (pluck snap) · **`instrument_drive` 0.40–0.95 (seed-rolled fuzz)** · echo dry
+The saturated Moog bass — the *star* of Sexy Boy (the grind) and Kelly's driving pulse.
+- tier: unique · origin: air · used by: air (`I_BASS`, SEXY/KELLY)
+
+### tri/air-round-bass
+`INSTR_TRI` · A2 D220 S5 R130 · LP 560–760/2–3 (Argent sings higher) · clean
+The warm fingered bass — voice-led roots for Playground/Cherry, and the **rolling melodic
+ostinato** (root–5–oct–passing over the dorian loop) that is La Femme d'Argent's signature.
+- tier: unique · origin: air · used by: air (`I_BASS`, ARGENT/PLAYGROUND/CHERRY)
+
+### epiano/air-rhodes · epiano/air-wurli
+`INSTR_EPIANO` · A2 D0 S6 R900 · LP 2200/2 · echo 0.14 · **Rhodes** h0.15 t0.35 m0.20 · **Wurli** (B-chair) h0.50 t0.42 m0.35
+The comp bed for Argent/Playground (the B-chair swaps the model live).
+- tier: unique · origin: air · used by: air (`I_EP`)
+
+### guitar/air-nylon
+`INSTR_GUITAR` · A1 D0 S7 R1100 · h0.45 (nylon body) t0.22 m0.24 · LP 2600/2 · echo 0.16
+Cherry's fingerpicked arpeggios. kin: guitar.c `guitar/nylon`, afrobeat's guitars.
+- tier: unique (kin guitar.c `nylon`) · origin: air · used by: air (`I_GTR`, CHERRY)
+
+### sine/air-kick · noise/air-clap · noise/air-hat · sine/air-jam
+The soft vintage kit + jam-strip lead: `sine/air-kick` (SINE, ENV_PITCH 0/42/16), `noise/air-clap`
+(NOISE BP1500/4, claps on 2&4 / brushed on the ballad), `noise/air-hat` (NOISE HP6800/3), and
+`sine/air-jam` (SINE, the `solo.h` strip lead — soft sine + 5.2 Hz vibrato + echo 0.22).
+- tier: unique · origin: air · used by: air (`I_KICK`/`I_SNR`/`I_HAT`/`I_SOLO`)
 
 ---
 

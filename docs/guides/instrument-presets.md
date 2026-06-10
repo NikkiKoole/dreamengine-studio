@@ -11,12 +11,11 @@ This file gives each recipe a **clear name** so the per-station voice charts
 ([`radio-voices.md`](radio-voices.md)) can reference the name instead of repeating four
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
-> **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht**,
-> **roadhouse**, **satie**, **gamelan**, **tango**, **carlos**, **exotica** (see
-> [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
-> at a time. When a new station reuses a recipe already named here, add it to that
-> preset's **used by** line rather than minting a duplicate.
+> **Status: complete — all 20 stations charted.** italo · house · citypop · motorik ·
+> cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse · satie ·
+> gamelan · tango · carlos · exotica · ymo · ambient. See [`radio-voices.md`](radio-voices.md)
+> for the per-station charts and the findings summary. If a new station reuses a recipe named
+> here, add it to that preset's **used by** line rather than minting a duplicate.
 
 ## How to read an entry
 
@@ -342,6 +341,26 @@ A tight, dry **studio session kit** — same engines as the synth kit but more p
 - kin: the synth-kit families (`drum/synth-kick`, `drum/noise-snare`, `drum/noise-hat`) —
   same engines, but yacht produces them into a studio kit rather than a drum machine.
 
+### kit/cr78
+The CR-78 (CompuRhythm) kit — **voice circuits lifted from `cr78.c`** (the drum-machine
+showcase cart). The first **whole-kit** showcase-cart lineage (vs single-preset borrows):
+
+| piece | recipe |
+|---|---|
+| kick (`SL_KICK`)        | SINE A0 D170 R40 · LP 320/2 · pitch-env →13 (0/45) — soft round |
+| snare shell (`SL_SNB`)  | SINE A0 D70 R25 · LP 900/1 · pitch-env →5 (0/25) — tonal layer |
+| snare rattle (`SL_SNN`) | NOISE A0 D130 R35 · BP 1700/3 · cut-env →900 — noise layer |
+| hats (`SL_HATC`/`SL_HATO`) | NOISE · BP 7800/7200 — the famous swish |
+| metal beat (`SL_MET`)   | SQUARE A0 D210 R60 · BP 3100/6 |
+| claves (`SL_CLV`)       | TRI A0 D36 R14 · LP 3600/6 |
+
+- tier: unique (a whole kit)
+- origin: **cr78.c** (the CompuRhythm showcase cart)
+- used by: ymo (`SL_*`)
+- note: its **two-layer snare** (tonal SINE shell + bandpassed NOISE rattle) is richer than
+  the single `drum/noise-snare`. Kin to the synth-kit families, but a specific machine
+  recreation — and the first time a station borrows an entire kit, not one voice.
+
 ### kit/roadhouse-live
 A live rock trio kit — produced like yacht's, plus a tambourine:
 
@@ -401,6 +420,15 @@ left-hand ostinato (the Doors' Ray Manzarek move). One of two ways `I_PBASS` is 
 - used by: roadhouse (`I_PBASS`, Rhodes-bass mode)
 - kin: the `INSTR_FM` voices (`fm/rhodes`, `fm/ostinato-bass`). I_PBASS rolls between this and
   `tri/upright-bass` (the session-bassist night).
+
+### square/hosono-bass
+`INSTR_SQUARE` · A1 D140 S4 R60 · duty 0.35 · cut-env →700 (0/70)
+ymo's Hosono counterpoint bass — a PWM **synth** bass (not an upright fake), a melodic
+8th-note second line. A new oscillator for the bass piles (SQUARE, alongside TRI/SINE/SAW/FM).
+- tier: unique
+- origin: ymo
+- used by: ymo (`I_BASS`)
+- kin: the PWM-square family (duty + the square engine) used as a bass.
 
 ### fm/ostinato-bass
 `INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.30 · pitch-env →2 (0/16)
@@ -732,6 +760,15 @@ jangle), with the same chorus warble laid over the KS read tap.
 - used by: jangle (`I_GTR`, opt-in)
 - pair: alternative to `tri/jangle-guitar`.
 
+### tri/sequencer
+`INSTR_TRI` · A0 D70 S2 R40
+ymo's "conveyor belt" — a short, dry TRI pluck ticking chord tones on 8ths/16ths, the
+sequencer layer.
+- tier: unique
+- origin: ymo
+- used by: ymo (`I_ARP`)
+- kin: italo's `pluck/seq-arp` — same arpeggiator role, a different (cheaper) oscillator.
+
 ### pluck/exotica-nylon
 `INSTR_PLUCK` · A1 D0 S7 R900 · h0.42 · seeded timbre/morph
 A soft nylon rhythm-guitar comp — longer ring than bossa's nylon (it comps rather than picks).
@@ -948,6 +985,17 @@ The dub "meltdown toy" — a PWM square with a long pitch-env sweep, fired as an
 - used by: dub (`I_SIREN`)
 - kin: PWM-square family (see `square/melodica`).
 
+### square/ymo-lead
+`INSTR_SQUARE` · A4 D150 S5 R120 · duty 0.25 · pitch-LFO 5.6 Hz/0.12
+"The proud square" — ymo's yonanuki-pentatonic melody lead. A clean PWM square with a
+singing vibrato; the square wave *is* the instrument (no imitation).
+- tier: unique
+- origin: ymo
+- used by: ymo (`I_LEAD`)
+- kin: the PWM-square lead family (`square/glossy-lead`, `square/da-funk-lead`,
+  `square/whistle`…) — the catalog's most-reused *technique* (square + duty + ~5.5 Hz vibrato),
+  seven voices, none a copy.
+
 ### square/sax **(voicings)**
 yacht's chorus lead — a breathy narrow-pulse "sax." Seed-rolls between three voicings:
 
@@ -1039,6 +1087,39 @@ The jazz vibraphone — soft mallet, metal bar, long ring with motor tremolo (mo
   shared helper. (lowend/cocktail are referenced here for this preset only — not yet fully charted.)
 
 ## Pads
+
+### saw/ambient-pad
+`INSTR_SAW` · A1400 D600 S6 R2800 · LP 620/1 (LFO breathes it)
+ambient's chord pad — a very slow-swell filtered saw, 4 held voices, long dark fade. The
+extreme attack/release makes it pure wash.
+- tier: unique
+- origin: ambient
+- used by: ambient (`I_PAD`)
+- kin: the `saw/string-machine` pad pile — the slowest, darkest member.
+
+### sine/sub-drone
+`INSTR_SINE` · A900 D400 S6 R2000 · LP 300/1
+A held sine sub-bass root — "felt, not heard." The floor under the drift.
+- tier: unique
+- origin: ambient
+- used by: ambient (`I_SUB`)
+
+### sine/bell
+`INSTR_SINE` · A4 D1400 S0 R600 · LP 3400/2
+A long, glassy sine bell that dies slowly — sparse arps on chord changes.
+- tier: unique
+- origin: ambient
+- used by: ambient (`I_BELL`)
+- kin: a 3rd "bell" approach — `fm/glass-bell` (FM) and `mallet/celesta` (MALLET) are the
+  others; ambient's is the plainest, a pure sine.
+
+### noise/wind
+`INSTR_NOISE` · A2000 D800 S5 R2500 · BP 700/6
+The "weather" — a held, band-passed noise drone with a 2-second swell. Texture, not rhythm
+(unlike the short HP-noise hats/shakers).
+- tier: unique
+- origin: ambient
+- used by: ambient (`I_WIND`)
 
 ### saw/string-machine
 `INSTR_SAW` · long attack (A280–360) · LP ~900–1100 · held 3-voice pad

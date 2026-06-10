@@ -496,15 +496,99 @@ and the fully-aleatoric aviary. A lounge station sits squarely in the acoustic c
 
 ---
 
-## Stations not yet charted
+## ymo — Techno-kayō (Yellow Magic Orchestra)
 
-ymo *(the last one)*
+Solo layer: **none**.
 
-(20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse · satie ·
-gamelan · tango · carlos · exotica (18). Refined finding: sharing clusters by **idiom**, not engine —
-a **dance/groove** palette (synth kit, 808, disco basses, PWM-squares) and an **acoustic
-jazz/classical** palette (fake TRI/SINE pianos, the session upright, cross-stick) spanning
-cocktail/roadhouse/tango. Islands build their own: world/ethio (gamelan, addis) and even
-synthetic ones (carlos is all-SAW but shares nothing — "synthetic" ≠ "dance cluster").
-Remaining: exotica · ymo.)
+The synthetic bookend — "square waves and white noise *are* the original instruments" (no
+imitation). Its kit is the **CR-78 lifted whole from `cr78.c`**; its lead joins the big
+PWM-square family.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_BASS` | Hosono counterpoint bass | `square/hosono-bass` | SQUARE |
+| `I_ARP`  | sequencer "conveyor belt" | `tri/sequencer` | TRI |
+| `I_LEAD` | yonanuki lead | `square/ymo-lead` (kin: PWM-square family) | SQUARE |
+| `SL_*`   | CR-78 kit (kick, 2-layer snare, hats, metal, claves) | `kit/cr78` | SINE/NOISE/SQUARE/TRI |
+
+**Borrowing at a glance:** synthetic and dance-adjacent, but it draws from `cr78.c` (the
+**5th showcase-cart lineage**, and the first *whole-kit* borrow) rather than the generic synth
+kit. Its lead is kin to the seven-strong PWM-square family; its SQUARE bass adds a new
+oscillator to the bass piles. A clean bookend: we opened on the dance clones, close on a
+synthetic station that builds from a machine recreation.
+
+---
+
+## ambient — Beatless ambient drift
+
+Solo layer: **none** (beatless — no kit, no soloist).
+
+The 20th and quietest — modal drift, held layers, **no beat at all**. Four sustained voices;
+the closest the family comes to pure texture.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_PAD`  | filtered saw chord (4 held voices) | `saw/ambient-pad` (kin: `saw/string-machine`) | SAW |
+| `I_SUB`  | sine sub-bass root (felt, not heard) | `sine/sub-drone` | SINE |
+| `I_BELL` | glassy sine bell (sparse arps) | `sine/bell` | SINE |
+| `I_WIND` | band-passed noise "weather" | `noise/wind` | NOISE |
+
+**Borrowing at a glance:** none copied — a **drone island**. All four voices are held/sustained
+(the only beatless station), so it shares nothing with the kit-driven clusters; its pad is kin
+to the SAW string-machine pile, the rest is its own texture. The quiet end of the whole family.
+
+---
+
+# Findings — all 20 stations charted
+
+The catalog answers the question this pair was built for: *what plays what, and where are we
+reusing the same recipe?* The picture that emerged:
+
+## Reuse clusters by **idiom**, not by engine or by `solo.h`/`improv.h` membership
+
+| cluster | shared palette | stations |
+|---|---|---|
+| **dance / groove** | the synth kit (kick/snare/hat ×6), the 808 box, the disco bass, the PWM-square leads | house · italo · citypop · motorik · lowend · dub · jangle · jingle |
+| **acoustic jazz / classical** | fake TRI/SINE pianos, the session upright bass, the cross-stick/clave, the shaker | cocktail · roadhouse · tango · exotica (· bossa percussion) |
+| **islands** (own voices, engine-level kin only) | — | gamelan · addis · carlos · satie · ambient |
+
+`solo.h` membership predicts *nothing* (its five stations split across all three groups);
+"synthetic" predicts nothing either (carlos is all-SAW yet shares nothing). The axis is the
+**music idiom**.
+
+## The big shared things (extract candidates, by evidence)
+
+1. **The synth kit** — `drum/synth-kick` ×6, `drum/noise-hat` ×6, `drum/noise-snare` ×4. The
+   single most-rebuilt thing; well past where a shared helper would pay for itself.
+2. **The bass** — 8 hand-rolled basses across engine piles: TRI (disco/upright/fingered),
+   SINE (gut/boom-bap/riddim/round), + SAW, FM, pulse, SQUARE one-offs. The session
+   **`tri/upright-bass`** alone spans 4 stations.
+3. **The PWM-square lead** — `square/` leads (da-funk, glossy, whistle, sax, melodica, siren,
+   ymo-lead, hosono-bass): 8 voices on one SQUARE+duty+~5.5 Hz-vibrato *technique*, none a copy
+   — reuse as craft, not duplication.
+
+## Showcase carts are the de-facto preset library (5 lineages)
+
+Stations lift presets from the instrument/showcase carts by hand:
+**mallet.c** → `mallet/vibes` (×3 stations) + `mallet/celesta`; **organ.c** → three `INSTR_ORGAN`
+registrations; **moog.c** → `saw/fat-moog`; **cr78.c** → `kit/cr78` (a whole kit). These hand-
+copies drift — `mallet/vibes`' provenance comment was *already wrong* by the time motorik
+copied it.
+
+## Upgrade candidates (fake X where the engine now models X)
+
+- **satie / cocktail / tango / exotica** fake the piano on TRI/SINE — none uses the modeled
+  `INSTR_PIANO`. satie's is a *fossil* (it predates the engine).
+- "Organ" has **four** routes (3× modeled `INSTR_ORGAN` + roadhouse's drawn `INSTR_USER0`);
+  "Rhodes" has two (EPIANO vs yacht's FM) — worth knowing the carts don't converge on one engine.
+
+## How variety is produced (three axes, all charted)
+
+- **cross-cart** — shared / variant / cousin / kin (the clustering above).
+- **nights** — a slot becomes a *different instrument* per song (cocktail's piano/vibes/guitar).
+- **voicings / gear-change** — same part, different tone per song (yacht's bass on TRI/SINE/SAW).
+
+---
+
+*(20 stations total, all on `runtime/radio.h`. This pass is complete; keep the **used by**
+lines current as new stations or recipes appear.)*

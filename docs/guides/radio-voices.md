@@ -539,6 +539,39 @@ to the SAW string-machine pile, the rest is its own texture. The quiet end of th
 
 ---
 
+## afrobeat — Afrobeat (Fela Kuti & Africa 70 / Tony Allen)
+
+Solo layer: **`improv.h`** (the tenor sax takes the solo over the vamp).
+
+The station that finally reaches the **untapped engine shelves** — three radio firsts at
+once: `INSTR_GUITAR` (the two interlocking guitars), `INSTR_BRASS` (the trumpet), and the
+horn **section** proper (`REED` sax + `BRASS` trumpet voiced a 3rd apart, panned wide to fake
+the ensemble spread). Built on `euclid()` polyrhythm + a held modal vamp.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_GTR1` | muted "tenor" interlock guitar (panned L) | `guitar/afro-tenor` *(first radio GUITAR)* | GUITAR |
+| `I_GTR2` | brighter rhythm guitar (panned R) | `guitar/afro-rhythm` | GUITAR |
+| `I_BASS` | syncopated electric ostinato | `fm/afro-bass` (kin: `fm/ostinato-bass`) | FM |
+| `I_ORG`  | combo-organ comp | `organ/afro-comp` (kin: `organ/jimmy`) · `epiano` (chair) | ORGAN / EPIANO |
+| `I_SAX`  | horn-section top + the solo (improv.h) | `reed/afro-tenor-sax` (kin: reed.c `tenor_sax`) | REED |
+| `I_TPT`  | horn-section trumpet + stabs | `brass/afro-trumpet` *(first radio BRASS)* | BRASS |
+| `SL_KICK`| syncopated kick | `sine/afro-kick` | SINE |
+| `SL_SNR` | backbeat + ghost notes (Tony Allen feel) | `noise/afro-snare` | NOISE |
+| `SL_CONGA`| open conga | `membrane/conga` ↗addis | MEMBRANE |
+| `SL_SHK` | shekere 16ths | `noise/afro-shekere` (kin: `noise/caxixi`) | NOISE |
+| `SL_BELL`| gankogui timeline (euclid 7-in-16, hi/lo) | `fm/gankogui-bell` | FM |
+
+**Borrowing at a glance:** almost all afrobeat-original, because most of its band lives on
+engines nothing else uses. Its **one verbatim copy** is the conga (↗addis — now a *shared*
+2-station entry). The sax is the 2nd radio `INSTR_REED` (after gamelan's suling); the guitars
+and trumpet are the **first** of their engines on the dial. The synth-kit idiom is deliberately
+*not* borrowed — it builds a bespoke broken-funk kick/snare. The genre's effects-blocked wants
+(wah guitar, room reverb, section chorus, Leslie) are catalogued in
+[`../design/afrobeat-effects-wants.md`](../design/afrobeat-effects-wants.md).
+
+---
+
 # Findings — all 20 stations charted
 
 The catalog answers the question this pair was built for: *what plays what, and where are we
@@ -595,5 +628,7 @@ copied it.
 
 ---
 
-*(20 stations total, all on `runtime/radio.h`. This pass is complete; keep the **used by**
+*(The Findings above are the original 20-station pass; **afrobeat** (charted above the
+Findings) is the 21st, added on ship — the first to reach the untapped GUITAR/BRASS shelves.
+All on `runtime/radio.h`. Keep the **used by**
 lines current as new stations or recipes appear.)*

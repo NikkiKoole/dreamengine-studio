@@ -31,7 +31,7 @@ This is the station-side mirror of the instrument new-sound score in
 | ★★★★★ | **Eno "Music for Airports"** | real `INSTR_PIANO` **and** `INSTR_VOICE` choir (the sung vowels) — two untapped shelves at once + a prime-length-loops generative-form brain |
 | ★★★★☆ | **Plantasia (Mort Garson)** | a Mellotron → the whole wind/bowed/voice shelf (`PIPE` flutes, `BOWED` strings, `VOICE` choir) |
 | ★★★★☆ | **Steve Reich minimalism** | real `INSTR_PIANO` + a **phase brain** (two voices drifting out of step — a new TIME mechanism) |
-| ★★★☆☆ | **Afrobeat** | `INSTR_GUITAR` interlocking ostinatos + `INSTR_REED` horn section + a `euclid()` groove brain |
+| ✅ shipped | ~~**Afrobeat**~~ → `afrobeat.c` | delivered all three: first radio `INSTR_GUITAR` (the interlocking guitars) + first radio `INSTR_BRASS` & a `REED`+`BRASS` horn section + the `euclid()` polyrhythm bell/conga. The prediction held. |
 | ★★☆☆☆ | **J-fusion / Lofi-hiphop / Boards of Canada** | mostly covered engine territory (FM/EPIANO/saws); the *new* is brains (mistuning, swing), not timbre |
 
 So the newest demand rhymes with the instrument finding: the candidates that need the
@@ -169,8 +169,11 @@ and Sakamoto unprompted.
   station).
 - **Chicha / Peruvian cumbia** — wobbly surf guitar (jangle's warble at higher
   depth), minor vamps, güiro 16ths. Crate-digger royalty.
-- **Afrobeat** — 2–3 interlocking single-note guitar ostinatos (`euclid()` was
-  made for this), one chord for eleven minutes, horn riffs as call-and-response.
+- ~~**Afrobeat**~~ — ✅ shipped as `afrobeat.c`: the interlocking guitars (the
+  first radio `INSTR_GUITAR`), `euclid()` polyrhythm (gankogui 7-in-16 + cross-conga
+  5-in-16), one mode held for eleven minutes, and the horn section's call-and-response
+  (the first radio `INSTR_BRASS`). The genre's effects-blocked wants are catalogued in
+  [`afrobeat-effects-wants.md`](afrobeat-effects-wants.md).
 - ~~**French house / disco edits**~~ — ✅ shipped as `house.c`, and the
   prediction held to the letter: the filter ride IS the song (`note_cutoff`/
   `note_res` on held strings from an arrangement-level curve). Bonus finds: the

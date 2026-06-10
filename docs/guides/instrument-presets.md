@@ -272,9 +272,9 @@ drummer:
 ### membrane/conga
 `INSTR_MEMBRANE` · A1 D0 S7 R200 · h0.55 t0.35 m0.15
 The open conga — the syncopated heart of the groove, mid-tuned.
-- tier: unique
+- tier: **shared** (byte-identical across addis/afrobeat)
 - origin: addis
-- used by: addis (`SL_CONGA`)
+- used by: addis (`SL_CONGA`) · afrobeat (`SL_CONGA`)
 
 ### membrane/bongo
 `INSTR_MEMBRANE` · A1 D0 S7 R120 · h0.72 t0.65 m0.10
@@ -282,6 +282,38 @@ The bongo / edge-slap accents — bright, short, high-tuned hard mallet.
 - tier: unique
 - origin: addis
 - used by: addis (`SL_BONGO`)
+
+### fm/gankogui-bell
+`INSTR_FM` · A8 D160 S2 R180 · h0.55 t0.60 m0.12 · pan +0.35
+The forged-iron double bell — the Afrobeat *timeline*. Short bright FM bell struck on two
+pitches (hi 86 / lo 79) by a euclid 7-in-16 pattern; the whole groove hangs off it.
+- tier: unique
+- origin: afrobeat
+- used by: afrobeat (`SL_BELL`)
+
+### sine/afro-kick
+`INSTR_SINE` · A1 D60 S0 R90 · pitch-env →28 (0/45)
+A bespoke punchy synth kick — sine with a fast pitch thwack. Deliberately *not* the shared
+`drum/synth-kick`: tuned for the syncopated Afrobeat pocket, not four-on-the-floor.
+- tier: unique
+- origin: afrobeat
+- used by: afrobeat (`SL_KICK`)
+
+### noise/afro-snare
+`INSTR_NOISE` · A1 D0 S0 R120 · BP 1900/4
+The crack for the backbeat *and* Tony Allen's scattered ghost notes — same voice, low
+velocity off the grid (the broken-funk feel is performance rnd on the velocity + delay).
+- tier: unique
+- origin: afrobeat
+- used by: afrobeat (`SL_SNR`)
+
+### noise/afro-shekere
+`INSTR_NOISE` · A1 D30 S0 R22 · HP 6000/3
+The gourd shaker — continuous 16ths, accented on the beat. kin: `noise/caxixi` (the same
+high-passed-noise shaker idea, a hair brighter/shorter).
+- tier: unique (kin `noise/caxixi`)
+- origin: afrobeat
+- used by: afrobeat (`SL_SHK`)
 
 ### noise/cross-stick
 A woody cross-stick / rim clave — tightly band-passed noise with a quick pitch blip for the
@@ -538,6 +570,14 @@ A round triangle bass with a short pitch-env "pluck snap" — the funk/disco low
 - tier: **variant**
 - origin: house (likely; confirm against earlier stations)
 - used by: house (`I_BASS`) · citypop (`I_BASS`)
+
+### fm/afro-bass
+`INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.32 · pitch-env →2 (0/16)
+A round electric bass for the syncopated ostinato — fundamental-heavy FM with a short pitch
+blip on the attack (the finger snap). kin: addis `fm/ostinato-bass` (same FM-bass idea).
+- tier: unique (kin `fm/ostinato-bass`)
+- origin: afrobeat
+- used by: afrobeat (`I_BASS`)
 
 ## Comp & rhythm
 
@@ -801,6 +841,33 @@ brightness), mid-string warmth. bossa's opt-in guitar.
 - origin: bossa
 - used by: bossa (`I_GTR`, opt-in)
 - pair: alternative to the shipped `tri/nylon-fake`.
+
+### guitar/afro-tenor  *(FIRST radio `INSTR_GUITAR`)*
+`INSTR_GUITAR` · A1 D0 S7 R1200 · h0.20 t0.60 m0.85 · pan −0.55
+The muted "tenor" rhythm guitar — tight pizzicato chuck (heavy mute, quick stop), the left
+half of the interlocking weave. **No radio station had used `INSTR_GUITAR` before** (the
+Karplus-Strong + resonant-body engine); the dance stations all faked guitar on PLUCK/TRI.
+- tier: unique
+- origin: afrobeat
+- used by: afrobeat (`I_GTR1`)
+- pair: interlocks with `guitar/afro-rhythm`.
+
+### guitar/afro-rhythm
+`INSTR_GUITAR` · A1 D0 S7 R1200 · h0.52 t0.70 m0.35 · pan +0.55
+The brighter rhythm guitar — more body resonance, a touch more ring than the muted tenor;
+the right half of the weave, panned opposite. The two-guitar interlock IS the Afrobeat sound.
+- tier: unique
+- origin: afrobeat
+- used by: afrobeat (`I_GTR2`)
+- pair: interlocks with `guitar/afro-tenor`.
+
+### organ/afro-comp
+`INSTR_ORGAN` · A1 D0 S7 R200 · h0.44 t0.55 m0.75
+The combo-organ comp — jazz-B3 registration, percussion + scanner chorus (the morph). Held
+cluster re-voiced per 2-bar via the shared voice-leader. kin: organ.c `organ/jimmy`.
+- tier: unique (kin `organ/jimmy`)
+- origin: afrobeat
+- used by: afrobeat (`I_ORG`)
 
 ## Stabs & leads
 
@@ -1092,6 +1159,25 @@ The jazz vibraphone — soft mallet, metal bar, long ring with motor tremolo (mo
   only the middleman — the recipe is mallet.c's. A hand-copied preset whose chain of
   custody is *already* garbled in the comments. Prime candidate to extract into a real
   shared helper. (lowend/cocktail are referenced here for this preset only — not yet fully charted.)
+
+### reed/afro-tenor-sax
+`INSTR_REED` · A1 D0 S4 R1200 · h0.82 t0.30 m0.62 · pan −0.28
+The breathy tenor sax — the top of the horn section *and* the soloist (the shared improviser
+walks the mode through it). kin: reed.c `reed/tenor_sax` (the 2nd radio `INSTR_REED`, after
+gamelan's suling). The "sax only" chair voicing opens it toward an alto (h0.78 t0.45 m0.55).
+- tier: unique (kin reed.c `tenor_sax`)
+- origin: afrobeat
+- used by: afrobeat (`I_SAX`)
+
+### brass/afro-trumpet  *(FIRST radio `INSTR_BRASS`)*
+`INSTR_BRASS` · A1 D0 S4 R1200 · h0.15 t0.60 m0.42 · *(plays oct +1)* · pan +0.28
+The bright blatty trumpet — voiced a 3rd below the sax to make the section, panned opposite
+for width (the in-cart fake for the missing chorus effect; see afrobeat-effects-wants.md).
+**No radio station had used `INSTR_BRASS` before** — the only "brass" on the dial was faked
+(italo's FM stabs, citypop's saw hits). kin: brass.c `brass/trumpet`.
+- tier: unique (kin brass.c `trumpet`)
+- origin: afrobeat
+- used by: afrobeat (`I_TPT`)
 
 ## Pads
 

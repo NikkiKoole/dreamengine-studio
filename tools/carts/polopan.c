@@ -249,9 +249,9 @@ static void voice_song(void) {
     instrument_filter(I_ARP, FILTER_LOW, (int)(3600 * tm), 2);
     instrument_filter(I_PIZZ, FILTER_LOW, (int)(2600 * tm), 1);
 
-    // ── effects — Polo & Pan is drenched: archetype-coupled reverb + chorus.
-    // (the flute/mallet tape-DELAY throws wait for the real tape-delay engine —
-    //  no echo() stand-in.) Order: Canopee · Ani Kuni · Nanga · Tunnel · Coeur.
+    // ── effects — Polo & Pan is drenched: archetype-coupled reverb + chorus + tape warmth.
+    // (the dubby tape-DELAY throws still wait for the real tape-delay engine — we don't have
+    //  that variant yet; no echo() stand-in.) Order: Canopee · Ani Kuni · Nanga · Tunnel · Coeur.
     static const float RV_SIZE[NARCH] = { 0.55f, 0.55f, 0.70f, 0.40f, 0.68f };
     static const float RV_DAMP[NARCH] = { 0.35f, 0.40f, 0.30f, 0.62f, 0.30f };
     static const float RV_WET [NARCH] = { 0.85f, 0.80f, 1.10f, 0.55f, 1.05f }; // overall send scale
@@ -274,6 +274,14 @@ static void voice_song(void) {
     static const float CH_DEPTH[NARCH] = { 0.30f, 0.25f, 0.40f, 0.0f, 0.50f };
     static const float CH_MIX[NARCH]   = { 0.25f, 0.20f, 0.35f, 0.0f, 0.45f };
     chorus(CH_RATE[a], CH_DEPTH[a], CH_MIX[a]);
+
+    // master tape — the Caravelle analog warmth: a soft-clip saturation + a whisper of
+    // wow/flutter. Warm on the vintage/dreamy archetypes, nearly off on the modern Tunnel.
+    // (This is tape SATURATION — which we have; the tape DELAY throws are the missing bit.)
+    static const float TP_WOW[NARCH] = { 0.05f, 0.04f, 0.08f, 0.00f, 0.06f };
+    static const float TP_FLT[NARCH] = { 0.04f, 0.03f, 0.05f, 0.00f, 0.04f };
+    static const float TP_SAT[NARCH] = { 0.24f, 0.20f, 0.30f, 0.12f, 0.28f };
+    tape(TP_WOW[a], TP_FLT[a], TP_SAT[a]);
 }
 
 // ── form / harmony lookups ────────────────────────────────────────────────

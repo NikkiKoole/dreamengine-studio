@@ -19,16 +19,22 @@ tape echo**. Sibling notes: [`air-effects-wants.md`](air-effects-wants.md),
 |---|---|---|
 | **Reverb — the drench.** Mallets, pizz, flute, glass and the Solina pad all bloom into a hall; the ambience *is* the sound (Nanga and Coeur Croisé especially). | — | ✅ **USED.** `reverb(size,damping)` + per-slot `instrument_reverb()` sends, **coupled to the archetype** — a big hall on Nanga/Coeur (size 0.68–0.70, wet ×1.05–1.10), a small dark room on the driving Tunnel (0.40, damping 0.62, wet ×0.55). Low end + kick + clap kept dry/punchy. |
 | **Chorus — the Solina/Juno shimmer.** The detuned string-machine wash is half the P&P signature; the bright arps and pads want that swirl. | — | ✅ **USED.** `chorus(rate,depth,mix)` per archetype — lush on Coeur (mix 0.45) and Nanga (0.35), light on Canopée/Ani Kuni (0.20–0.25), **OFF on Tunnel** (it stays tight). *Caveat (shared with air):* chorus is **master-wide** in v1, so I can't chorus *only* the pad without washing the kit — polopan works around it by re-setting the master chorus **per song** (so each archetype gets the right amount), but within a song the kit shares the pad's chorus. The per-part routing waits for the deferred aux bus (sound-next-steps § 8.10). |
-| **Tape delay — the throws.** The flute and the Canopée mallet tails want a tape/ping-pong delay throw — a warbling, filtered, slewed repeat, not clean taps. | The one bus we have (`echo()`) is a clean digital delay; using it as a tape-delay stand-in reads wrong (and the station owner asked to wait for the real one). | ⏳ **PENDING — deliberately NOT wired.** No `echo()` stand-in; the flute/mallet throws wait for the **real tape-delay engine**. polopan is a **demand witness** for it. Marked in `polopan.c` (`voice_song()` FX block comment). |
+| **Tape saturation — the Caravelle warmth.** The whole mix wants warm analog tape (soft-clip + a whisper of wow/flutter), the hi-fi-but-warm sound of their records. | — | ✅ **USED.** `tape(wow,flutter,saturation)` master, archetype-coupled — warm on the vintage/dreamy archetypes (Nanga sat 0.30, Coeur 0.28), nearly off on the modern tight Tunnel (0.12). The soft-clip also tames peaks (wettest archetype −5.44 dBFS, 0 clipped). |
+| **Tape DELAY — the dubby throws.** The flute and the Canopée mallet tails want a *dub* tape-delay throw — a warbling, filtered, slewed, self-feeding repeat, not clean digital taps. | The one delay we have (`echo()`) is a clean digital delay; the **dubby tape-delay variant doesn't exist yet** (tape saturation ≠ tape delay). Using `echo()` as a stand-in reads wrong. | ⏳ **PENDING — deliberately NOT wired.** No `echo()` stand-in; the flute/mallet throws wait for the **real tape-DELAY engine** (the dub variant). polopan is a **demand witness**. Marked in `polopan.c` (`voice_song()` FX comment). |
 
 ## Also nice, lower priority
 
-- **Tape saturation** — a touch of warm tape on the master would suit the Caravelle-era warmth
-  (kin to air's want). Low priority; the cart sounds right without it.
-- **Per-part / aux routing** — would let the Solina pad be chorused while the four-floor kit
-  stays dry *within the same song* (today it's per-archetype only). Tracked in § 8.10.
+- **Per-part / aux routing** — per-instrument inserts shipped (`instrument_chorus`/`instrument_tape`),
+  so polopan *could* now chorus only the Solina pad instead of the whole mix per archetype. Today it
+  still uses the master `chorus()`/`tape()` (per-archetype amounts read fine); a per-part pass is a
+  possible refinement, not a need.
 
-## When the tape delay lands
+> **Engine note (resolved):** the original out-of-tune flute complaint was an `INSTR_PIPE` bug
+> (octave-low + flat) — **fixed in `sound.h` (in tune A2–A4)**. polopan's topline plays higher
+> (C5–F6), so the `pipe`/`sine` flute A/B in the band panel stays useful; a possible follow-up is
+> dropping the Nanga flute an octave into the in-tune/natural flute range.
+
+## When the tape DELAY (dub variant) lands
 
 Wire light, slewed/filtered throws on `I_STAR` (the Nanga flute especially) and the Canopée
 `I_MAL` mallet tails — archetype-coupled like the reverb, dialed back on Tunnel. Then strike the

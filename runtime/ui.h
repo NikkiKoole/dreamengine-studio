@@ -95,6 +95,18 @@
 #ifndef UI_WHEEL_STEP
 #define UI_WHEEL_STEP 0.02f
 #endif
+#ifndef UI_LOUPE_ZOOM
+#define UI_LOUPE_ZOOM 3.0f    // magnification inside the lens
+#endif
+#ifndef UI_LOUPE_W
+#define UI_LOUPE_W 120        // lens panel size, canvas px
+#endif
+#ifndef UI_LOUPE_H
+#define UI_LOUPE_H 84
+#endif
+#ifndef UI_LOUPE_HANDLE
+#define UI_LOUPE_HANDLE 20    // corner summon handle, square px
+#endif
 #ifndef UI_COL_BG
 #define UI_COL_BG CLR_DARKER_BLUE
 #endif
@@ -128,20 +140,24 @@ typedef struct {        // a widget drawn this frame
     int x, y, w, h;     // visual rect
     int hx, hy, hw, hh; // inflated hit rect
     int focusable;      // takes part in focus traversal
+    int kind;           // loupe redraw: 0 slider, 1 knob, 2 button
+    const char *label;  // loupe redraw: the widget's label (may be 0)
+    int hot, pressed;   // loupe redraw: visual state captured this frame
 } UiWid;
 
 typedef struct {        // a contact that owns a widget
     void *wid;
     int   id;           // contact id (mouse = the vt pool's synthetic finger)
-    int   cx, cy;       // contact position right now
-    int   rx, ry;       // where it lifted (valid when released)
+    int   cx, cy;       // contact position right now (loupe-mapped if inside the lens)
+    int   rx, ry;       // where it lifted (valid when released; loupe-mapped)
     int   by;           // knob: y where v0 was snapped
     float v0;           // knob: value at grab
     int   has_v0;       // knob baseline snapped
     int   released;     // contact lifted; widget gets one frame to react
+    int   in_lens;      // was this contact inside the lens last frame (re-anchor edge)
 } UiCap;
 
-typedef struct { int id, x, y; } UiPress;
+typedef struct { int id, x, y, over; } UiPress;  // over = press was on the lens panel
 
 static UiWid   ui_wids[UI_MAX_WID];   static int ui_wid_n = 0;
 static UiCap   ui_caps[UI_MAX_CAP];   static int ui_cap_n = 0;
@@ -159,10 +175,50 @@ static float ui_adj = 0;         // focused-value delta this frame (left/right)
 static int   ui_activate = 0;    // A pressed this frame (focused button fires)
 static int   ui_hold_l = 0, ui_hold_r = 0;
 
+// loupe — a magnifier for tiny targets (docs/design/loupe-notes.md). Off by
+// default; a cart opts in with ui_loupe(1). Touch ids can be negative (desktop
+// mouse = -2), so "no finger" is a sentinel no real contact can take.
+#define UI_NO_FINGER 0x7fffffff
+static int   ui_loupe_on  = 0;             // feature enabled by the cart
+static int   ui_loupe_show = 0;            // lens currently visible (parked/dragging)
+static int   ui_loupe_pos = UI_NO_FINGER;  // finger positioning the lens
+static int   ui_loupe_px = 0, ui_loupe_py = 0;   // panel top-left, canvas space
+static float ui_loupe_sx = 0, ui_loupe_sy = 0;   // sampled center, board space
+
 // ── internals ────────────────────────────────────────────────────────────
 
 static int ui_in(int px, int py, int x, int y, int w, int h) {
     return px >= x && px < x + w && py >= y && py < y + h;
+}
+
+// ── loupe internals ────────────────────────────────────────────────────────
+// The engine touch pool is read raw (we do NOT warp studio.c); the loupe maps
+// coordinates only inside ui.h, at the few sites that record contacts.
+static int ui_loupe_active(void) { return ui_loupe_on && ui_loupe_show; }
+
+// is a RAW canvas point physically over the lens panel?
+static int ui_loupe_over(int x, int y) {
+    return ui_loupe_active() &&
+           ui_in(x, y, ui_loupe_px, ui_loupe_py, UI_LOUPE_W, UI_LOUPE_H);
+}
+// map a raw canvas point to board space when it's inside the lens (else identity)
+static void ui_loupe_map(int *x, int *y) {
+    if (!ui_loupe_over(*x, *y)) return;
+    float cx = ui_loupe_px + UI_LOUPE_W / 2.0f, cy = ui_loupe_py + UI_LOUPE_H / 2.0f;
+    *x = (int)(ui_loupe_sx + (*x - cx) / UI_LOUPE_ZOOM);
+    *y = (int)(ui_loupe_sy + (*y - cy) / UI_LOUPE_ZOOM);
+}
+// raw position of contact id; returns 0 if not currently down
+static int ui_touch_raw(int id, int *x, int *y) {
+    for (int i = 0; i < touch_count(); i++)
+        if (touch_id(i) == id) { *x = touch_x(i); *y = touch_y(i); return 1; }
+    return 0;
+}
+// park the lens: sample under the finger, panel floated just above, clamped
+static void ui_loupe_park(int fx, int fy) {
+    ui_loupe_sx = (float)fx; ui_loupe_sy = (float)fy;
+    ui_loupe_px = (int)clamp(fx - UI_LOUPE_W / 2.0f, 0, SCREEN_W - UI_LOUPE_W);
+    ui_loupe_py = (int)clamp(fy - UI_LOUPE_H - 16.0f, 0, SCREEN_H - UI_LOUPE_H);
 }
 
 static int ui_seen_has(int id) {
@@ -201,7 +257,16 @@ static int ui_reg(void *wid, int x, int y, int w, int h, int focusable) {
     if (h + 2 * pady < UI_MIN_TARGET) pady = (UI_MIN_TARGET - h + 1) / 2;
     u->hx = x - padx; u->hy = y - pady; u->hw = w + 2 * padx; u->hh = h + 2 * pady;
     u->focusable = focusable;
+    u->kind = 0; u->label = 0; u->hot = 0; u->pressed = 0;
     return focusable ? ui_foc_n++ : -1;
+}
+
+// record loupe-redraw metadata onto the widget just registered by ui_reg
+static void ui_tag(void *wid, int kind, const char *label, int hot, int pressed) {
+    if (ui_wid_n > 0 && ui_wids[ui_wid_n - 1].wid == wid) {
+        UiWid *u = &ui_wids[ui_wid_n - 1];
+        u->kind = kind; u->label = label; u->hot = hot; u->pressed = pressed;
+    }
 }
 
 static int ui_hover(int x, int y, int w, int h) {
@@ -222,6 +287,86 @@ static void ui_ring(int x, int y, int w, int h) {
     }
 }
 
+// loupe gesture: follow/park the positioning finger, and claim a new contact on
+// the corner handle. Runs at the TOP of ui_begin (before presses are recorded)
+// and reads RAW touch; the handle finger is marked seen so it never becomes a
+// widget press. (Dismiss-on-tap-empty is resolved in ui_end.)
+static void ui_loupe_step(void) {
+    if (!ui_loupe_on) { ui_loupe_show = 0; ui_loupe_pos = UI_NO_FINGER; return; }
+
+    if (ui_loupe_pos != UI_NO_FINGER) {
+        int fx, fy;
+        if (ui_touch_raw(ui_loupe_pos, &fx, &fy)) ui_loupe_park(fx, fy);
+        else { ui_loupe_pos = UI_NO_FINGER; ui_loupe_show = 1; }  // lifted → park
+    }
+
+    int hx = SCREEN_W - UI_LOUPE_HANDLE - 4, hy = SCREEN_H - UI_LOUPE_HANDLE - 4;
+    for (int i = 0; i < touch_count(); i++) {
+        int id = touch_id(i);
+        if (ui_seen_has(id)) continue;                       // not a new contact
+        int tx = touch_x(i), ty = touch_y(i);
+        if (ui_in(tx, ty, hx, hy, UI_LOUPE_HANDLE, UI_LOUPE_HANDLE)) {
+            ui_loupe_pos = id; ui_loupe_show = 1; ui_loupe_park(tx, ty);
+            if (ui_seen_n < UI_MAX_SEEN) ui_seen[ui_seen_n++] = id;  // consume it
+        }
+    }
+}
+
+// map a board-space rect into lens-panel space
+static void ui_loupe_rect(int bx, int by, int bw, int bh, int *ox, int *oy, int *ow, int *oh) {
+    float cx = ui_loupe_px + UI_LOUPE_W / 2.0f, cy = ui_loupe_py + UI_LOUPE_H / 2.0f;
+    *ox = (int)(cx + (bx - ui_loupe_sx) * UI_LOUPE_ZOOM);
+    *oy = (int)(cy + (by - ui_loupe_sy) * UI_LOUPE_ZOOM);
+    *ow = (int)(bw * UI_LOUPE_ZOOM);
+    *oh = (int)(bh * UI_LOUPE_ZOOM);
+}
+
+// draw the lens (magnified widgets) + the corner handle. Called LAST in ui_end so
+// it overlays the cart. Redraws the widgets registered this frame, scaled — pure
+// ui.h widgets only (a cart's own background/labels won't appear in the lens).
+static void ui_loupe_render(void) {
+    if (!ui_loupe_on) return;
+    if (ui_loupe_show) {
+        rectfill(ui_loupe_px + 3, ui_loupe_py + 3, UI_LOUPE_W, UI_LOUPE_H, CLR_BLACK); // shadow
+        clip(ui_loupe_px, ui_loupe_py, UI_LOUPE_W, UI_LOUPE_H);
+        rectfill(ui_loupe_px, ui_loupe_py, UI_LOUPE_W, UI_LOUPE_H, UI_COL_BG);
+        for (int w = 0; w < ui_wid_n; w++) {
+            UiWid *u = &ui_wids[w];
+            int x, y, ww, hh;
+            ui_loupe_rect(u->x, u->y, u->w, u->h, &x, &y, &ww, &hh);
+            if (u->kind == 1) {                              // knob
+                int kcx = x + ww / 2, kcy = y + hh / 2, kr = ww / 2;
+                float v = *(float *)u->wid;
+                circfill(kcx, kcy, kr, UI_COL_BG);
+                circ(kcx, kcy, kr, u->hot ? UI_COL_TEXT_HOT : UI_COL_FRAME);
+                float a = 225.0f - v * 270.0f;
+                line(kcx, kcy, kcx + (int)(cos_deg(a) * (kr - 2)),
+                     kcy - (int)(sin_deg(a) * (kr - 2)), u->hot ? UI_COL_FILL_HOT : UI_COL_TEXT);
+            } else if (u->kind == 2) {                       // button
+                rectfill(x, y, ww, hh, u->pressed ? UI_COL_FILL_HOT : UI_COL_BG);
+                rect(x, y, ww, hh, u->hot ? UI_COL_TEXT_HOT : UI_COL_FRAME);
+                if (u->label) print(u->label, x + (ww - text_width(u->label)) / 2,
+                                    y + (hh - 6) / 2, u->pressed ? UI_COL_TEXT_HOT : UI_COL_TEXT);
+            } else {                                         // slider
+                float v = *(float *)u->wid;
+                rectfill(x, y, ww, hh, UI_COL_BG);
+                rectfill(x, y, (int)(v * ww), hh, u->hot ? UI_COL_FILL_HOT : UI_COL_FILL);
+                rect(x, y, ww, hh, UI_COL_FRAME);
+            }
+        }
+        clip(0, 0, 0, 0);
+        rect(ui_loupe_px, ui_loupe_py, UI_LOUPE_W, UI_LOUPE_H, UI_COL_TEXT_HOT);
+        rect(ui_loupe_px - 1, ui_loupe_py - 1, UI_LOUPE_W + 2, UI_LOUPE_H + 2, UI_COL_FRAME);
+    }
+    int hx = SCREEN_W - UI_LOUPE_HANDLE - 4, hy = SCREEN_H - UI_LOUPE_HANDLE - 4;
+    rrectfill(hx, hy, UI_LOUPE_HANDLE, UI_LOUPE_HANDLE, 4,
+              ui_loupe_pos != UI_NO_FINGER ? UI_COL_FILL_HOT : UI_COL_FILL);
+    rect(hx, hy, UI_LOUPE_HANDLE, UI_LOUPE_HANDLE, UI_COL_TEXT_HOT);
+    int mx = hx + UI_LOUPE_HANDLE / 2, my = hy + UI_LOUPE_HANDLE / 2;
+    line(mx - 5, my, mx + 5, my, UI_COL_TEXT_HOT);
+    line(mx, my - 5, mx, my + 5, UI_COL_TEXT_HOT);
+}
+
 // ── frame brackets ───────────────────────────────────────────────────────
 
 // call FIRST in draw(): tracks contacts, marks releases, reads focus keys.
@@ -233,12 +378,21 @@ static void ui_begin(void) {
     ui_wid_n = 0; ui_foc_n = 0;
     ui_press_n = 0;
 
-    // update captured contacts with their current position
+    ui_loupe_step();   // position the lens + consume the handle finger first
+
+    // update captured contacts with their current position (loupe-mapped when
+    // inside the lens; a contact crossing the lens edge re-anchors its knob)
     for (int c = 0; c < ui_cap_n; c++) {
         for (int i = 0; i < touch_count(); i++)
             if (touch_id(i) == ui_caps[c].id) {
-                ui_caps[c].cx = touch_x(i);
-                ui_caps[c].cy = touch_y(i);
+                int x = touch_x(i), y = touch_y(i);
+                int over = ui_loupe_over(x, y);
+                ui_loupe_map(&x, &y);
+                ui_caps[c].cx = x; ui_caps[c].cy = y;
+                if (over != ui_caps[c].in_lens) {       // crossed the boundary
+                    ui_caps[c].in_lens = over;
+                    ui_caps[c].has_v0 = 0;              // force knob re-snap → no jump
+                }
                 break;
             }
     }
@@ -248,8 +402,11 @@ static void ui_begin(void) {
         int id = touch_id(i);
         if (ui_seen_has(id)) continue;
         if (ui_seen_n < UI_MAX_SEEN) ui_seen[ui_seen_n++] = id;
+        int x = touch_x(i), y = touch_y(i);
+        int over = ui_loupe_over(x, y);
+        ui_loupe_map(&x, &y);
         if (ui_press_n < UI_MAX_PRESS)
-            ui_press[ui_press_n++] = (UiPress){ id, touch_x(i), touch_y(i) };
+            ui_press[ui_press_n++] = (UiPress){ id, x, y, over };
     }
 
     // lifted contacts → mark their capture released (widget reacts this frame)
@@ -259,8 +416,9 @@ static void ui_begin(void) {
         for (int c = 0; c < ui_cap_n; c++)
             if (ui_caps[c].id == id && !ui_caps[c].released) {
                 ui_caps[c].released = 1;
-                ui_caps[c].rx = touch_ended_x(i);
-                ui_caps[c].ry = touch_ended_y(i);
+                int rx = touch_ended_x(i), ry = touch_ended_y(i);
+                ui_loupe_map(&rx, &ry);            // release point in board space
+                ui_caps[c].rx = rx; ui_caps[c].ry = ry;
                 ui_push_rel(ui_caps[c].wid);
             }
     }
@@ -317,8 +475,10 @@ static void ui_end(void) {
         }
         if (best >= 0) {
             ui_caps[ui_cap_n++] = (UiCap){ ui_wids[best].wid, ui_press[p].id,
-                ui_press[p].x, ui_press[p].y, 0, 0, 0, 0, 0, 0 };
+                ui_press[p].x, ui_press[p].y, 0, 0, 0, 0, 0, 0, ui_press[p].over };
             ui_push_grab(ui_wids[best].wid);   // cart sees it NEXT frame, before the value moves
+        } else if (ui_loupe_active() && !ui_press[p].over) {
+            ui_loupe_show = 0;                 // tap on empty space (not the lens) → dismiss
         }
     }
 
@@ -332,12 +492,32 @@ static void ui_end(void) {
     }
 
     ui_foc_count = ui_foc_n;     // next frame's traversal range
+    ui_loupe_render();           // lens + handle overlay, on top of the cart
 }
 
 // ── cart-facing state queries ────────────────────────────────────────────
 
 // opt-in keyboard/gamepad focus (sticky; call once or toggle live)
 static void ui_focus(int on) { ui_focus_on = on; if (!on) ui_focus_i = 0; }
+
+// opt-in magnifier loupe (sticky): a corner handle summons a fixed-zoom lens
+// that magnifies the widgets under it for fat-finger editing on small screens.
+// See docs/design/loupe-notes.md. Drag the handle to position, tap empty space
+// to dismiss.
+static void ui_loupe(int on) {
+    ui_loupe_on = on;
+    if (!on) { ui_loupe_show = 0; ui_loupe_pos = UI_NO_FINGER; }
+}
+// summon + park the lens programmatically over canvas point (sx,sy) — for carts
+// that want their own summon affordance, or to seed a screenshot.
+static void ui_loupe_at(int sx, int sy) {
+    ui_loupe_on = 1; ui_loupe_show = 1; ui_loupe_park(sx, sy);
+}
+// true while contact `id` is physically over the lens panel (re-anchor helper)
+static int ui_loupe_has(int id) {
+    int x, y;
+    return ui_touch_raw(id, &x, &y) && ui_loupe_over(x, y);
+}
 
 // true the frame a contact grabbed the widget editing v (push your undo state here)
 static int ui_grabbed(void *v) {
@@ -368,6 +548,7 @@ static int ui_slider(float *v, int x, int y, int w, const char *label) {
     if (focused && ui_adj != 0) *v = clamp(*v + ui_adj, 0, 1);
 
     int hot = c != 0 || ui_hover(x, y, w, h);
+    ui_tag(v, 0, label, hot, 0);
     rectfill(x, y + 1, w, h - 3, UI_COL_BG);
     rectfill(x, y + 1, (int)(*v * w), h - 3, hot ? UI_COL_FILL_HOT : UI_COL_FILL);
     if (label) print(label, x + 3, y + 2, hot ? UI_COL_TEXT_HOT : UI_COL_TEXT);
@@ -395,6 +576,7 @@ static int ui_knob(float *v, int x, int y, const char *label) {
         *v = clamp(*v + mouse_wheel() * UI_WHEEL_STEP, 0, 1);
     if (focused && ui_adj != 0) *v = clamp(*v + ui_adj, 0, 1);
 
+    ui_tag(v, 1, label, hot, 0);
     circfill(x, y, r, UI_COL_BG);
     circ(x, y, r, hot ? UI_COL_TEXT_HOT : UI_COL_FRAME);
     float a = 225.0f - *v * 270.0f;            // min 7 o'clock → max 5 o'clock
@@ -428,6 +610,7 @@ static int ui_button(int x, int y, int w, int h, const char *label) {
     if (focused && ui_activate) { activated = 1; pressed = 1; }
 
     int hot = c != 0 || ui_hover(x, y, w, h);
+    ui_tag(wid, 2, label, hot, pressed);
     rectfill(x, y, w, h, pressed ? UI_COL_FILL_HOT : UI_COL_BG);
     rect(x, y, w, h, hot ? UI_COL_TEXT_HOT : UI_COL_FRAME);
     if (label) print(label, x + (w - text_width(label)) / 2 + (pressed ? 1 : 0),

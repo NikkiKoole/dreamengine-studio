@@ -992,11 +992,23 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
     path.join(RAYLIB_WEB, 'lib', 'libraylib.a'),
     '-s', 'USE_GLFW=3', '-s', 'TOTAL_MEMORY=67108864',
     '-s', 'EXPORTED_RUNTIME_METHODS=ccall,HEAPF32',
-    '--shell-file', path.join(RUNTIME_DIR, 'web_shell.html'),
-    '-o', path.join(outDir, 'index.html'),
-  ]
+  ]   // baseArgs — shell/output tail appended per build below
 
-  log('compiling for web… (~10s)\n')
+  // AudioWorklet backend: MATCH build-site — instrument-kind carts (looked up in
+  // index.json by name) or worklet:true ship a worklet build + a ScriptProcessor
+  // fallback + the auto-pick loader + coi; everything else builds plain. worklet:false
+  // opts out. See design/audio-threading.md.
+  let kindWorklet = false
+  try {
+    const idx = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'editor', 'public', 'carts', 'index.json'), 'utf8'))
+    const e = (Array.isArray(idx) ? idx : idx.carts || []).find(c => c.file === `${name}.cart.png`)
+    kindWorklet = !!e && (e.kind || []).includes('instrument')
+  } catch {}
+  const wantWorklet = cfg?.worklet === true || (cfg?.worklet !== false && kindWorklet)
+  const workletFlags = ['-DDE_AUDIO_WORKLET', '-s', 'AUDIO_WORKLET=1', '-s', 'WASM_WORKERS=1',
+                        '--js-library', path.join(RUNTIME_DIR, 'audio-worklet-stub.js')]
+
+  log(`compiling for web…${wantWorklet ? ' (worklet + fallback)' : ' (~10s)'}\n`)
   const step = (file, fargs, opts = {}) => new Promise((res, rej) => {
     const { execFile } = require('child_process')
     execFile(file, fargs, { timeout: 180000, cwd: ROOT_DIR, ...opts }, (err, stdout, stderr) =>
@@ -1004,8 +1016,16 @@ ipcMain.handle('studio:publish', async (_event, code, cfg) => {
   })
 
   try {
-    await step('emcc', args)
-    for (const f of ['index.html', 'index.js', 'index.wasm']) {
+    if (wantWorklet) {
+      await step('emcc', [...args, '-o', path.join(outDir, 'plain.js')])                  // ScriptProcessor fallback
+      await step('emcc', [...args, ...workletFlags, '-o', path.join(outDir, 'worklet.js')]) // AudioWorklet
+      fs.copyFileSync(path.join(RUNTIME_DIR, 'web_shell_worklet.html'), path.join(outDir, 'index.html'))
+      fs.copyFileSync(path.join(RUNTIME_DIR, 'coi-serviceworker.js'), path.join(outDir, 'coi-serviceworker.js'))
+      for (const f of ['index.js', 'index.wasm']) { const p = path.join(outDir, f); if (fs.existsSync(p)) fs.unlinkSync(p) }
+    } else {
+      await step('emcc', [...args, '--shell-file', path.join(RUNTIME_DIR, 'web_shell.html'), '-o', path.join(outDir, 'index.html')])
+    }
+    for (const f of (wantWorklet ? ['worklet.wasm', 'plain.wasm'] : ['index.html', 'index.js', 'index.wasm'])) {
       const fp = path.join(outDir, f)
       if (fs.existsSync(fp)) log(`  ${fp}  (${Math.round(fs.statSync(fp).size / 1024)} KB)\n`)
     }

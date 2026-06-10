@@ -232,10 +232,11 @@ Staged so each step is verifiable on its own; **Stage 0 is the real risk to reti
   fallback when not isolated. **Editor parity:** the editor's "Build for web" now also
   dual-builds when settings → "audio (web)" → AudioWorklet is on (`main.cjs` + a
   `worklet` setting), default off. **Verified in-editor (2026-06-10): straight.**
-  **Remaining:** the editor's `studio:publish` handler still
-  builds plain (its own emcc, separate from `build-site`) — give it the same dual-build
-  (gate on the cart's `kind`), or route its compile through `build-site.js`. Low impact
-  (publish-cart.sh/`build-site` is the primary, correct path; editor-publish is opt-in).
+  **Editor `studio:publish` too:** it now dual-builds the same way — auto-on for
+  instrument-kind carts (looked up in `index.json` by name) or `worklet:true`, keeping its
+  own editor-sprite handling (the git leg via `publish-cart.sh --no-build` picks up the new
+  files). So both editor web paths now match `build-site`. *Syntax-checked; smoke-test the
+  publish button on an instrument cart to confirm in Electron.*
 
 Risks to watch: Stage 0 (graphics+threads coexistence); artifact-size/rebuild-time bump;
 iOS Safari worklet quirks + the audio-unlock gesture; and keeping the ScriptProcessor

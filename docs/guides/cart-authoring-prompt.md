@@ -46,6 +46,12 @@ never invent a signature or re-propose something deliberately cut:
 Then read **2–3 existing carts closest to what you're building** — they show the
 working idioms. By genre:
 
+> **Sound/music carts are the exception — don't read the cousins yet.** If your cart
+> makes music, do the intent-first blind-band step (§"Designing a sound cart's voices"
+> just below the table) *before* opening any cousin: imagine the band from the genre,
+> shop the palette, and only then read a cousin for its **chassis**. Reading the cousin
+> first anchors you to its voice lineup — the homogenization the firewall exists to stop.
+
 | Building… | Read these `tools/carts/` sources |
 |---|---|
 | Sprites + recolor + tile world | `crowd.c` (+`.cart.js`), `platform.c` (+`.cart.js`), `zelda.c` |

@@ -293,10 +293,16 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
 **Adding a new cart:**
 
 > Making a **sound/instrument cart** (synth, machine, station, engine showcase, sound
-> toy)? Before writing, open [`docs/guides/instrument-carts.md`](docs/guides/instrument-carts.md)
-> — it indexes the whole shelf by the building block each cart copies (`radio.h` /
-> held-notes / `ui.h` / `INSTR_*`), so you start from the closest existing cart. Add a
-> row there when you ship.
+> toy)? **If it makes *music* (a station, a band, a tune): imagine the ideal band from
+> the genre BEFORE you read any existing cart** — write the lineup from the music itself,
+> then shop the palette, *then* copy a cousin's chassis. Reading a cousin first anchors
+> you to its voices and homogenizes the library (the why + the firewall:
+> [`docs/guides/cart-authoring-prompt.md`](docs/guides/cart-authoring-prompt.md)
+> §"Designing a sound cart's voices"). Only *after* the blind-band step, open
+> [`docs/guides/instrument-carts.md`](docs/guides/instrument-carts.md) — it indexes the
+> whole shelf by the building block each cart copies (`radio.h` / held-notes / `ui.h` /
+> `INSTR_*`), so you start the *chassis* from the closest existing cart (its 🛑 banner
+> restates this order). Add a row there when you ship.
 >
 > **Shipping a sound cart? Keep the recipe docs current — a rule, not a nicety** (they only
 > stay useful if maintained):

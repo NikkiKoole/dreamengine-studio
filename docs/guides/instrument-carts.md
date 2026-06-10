@@ -37,10 +37,37 @@ generative-soundtrack how-to is [`game-music.md`](game-music.md).
 
 ---
 
-## The building blocks — pick your model before you start
+> ## 🛑 STOP — if your cart makes *music* (a station / a band / a tune), do this FIRST
+>
+> **Before you open a single cousin cart, imagine the band blind.** This is the one
+> rule that keeps the library from homogenizing — and it only works if you do it
+> *before* reading how other carts are voiced (reading a cousin first anchors you to
+> its lineup; that inertia is how the same synth kit ended up in 6 stations and every
+> piano got faked on TRI).
+>
+> 1. **Picture the ideal band from the genre alone** — what does a real record in this
+>    style actually use? Write the lineup (instruments + harmony/rhythm/form brains +
+>    signature moves) from the *music*, not from our palette. Wikipedia/musicology, not
+>    `tools/carts/`.
+> 2. **THEN shop the palette** — [`instrument-recipes.md`](instrument-recipes.md) /
+>    [`instrument-presets.md`](instrument-presets.md): which imagined voices already
+>    exist? Reuse on purpose. Whatever the genre wants that we lack is your new recipe —
+>    usually the most valuable thing the cart adds (often an untapped engine:
+>    `VOICE`/`PIANO`/`REED`/`BOWED`/`PIPE`/`GUITAR`).
+> 3. **THEN copy a cousin's *chassis* only** — the `radio.h`/`solo.h`/`ui.h` wiring from
+>    the table below. Take its skeleton; do **not** inherit its instrument lineup.
+>
+> Full discipline + why: [`cart-authoring-prompt.md`](cart-authoring-prompt.md)
+> §"Designing a sound cart's voices — intent-first, then shop". The gap-ledger that
+> proves the cost of skipping it: [`../design/radio-genre-fidelity.md`](../design/radio-genre-fidelity.md).
+> **The table below is step 3 (chassis) — don't let it be step 1.**
 
-Almost every instrument cart is one of a few shapes. Decide which shape your new cart
-is, then open the **reference cart** named here and copy its skeleton.
+## The building blocks — copy the CHASSIS (not the voices) from your closest cousin
+
+Almost every instrument cart is one of a few shapes. Once you've imagined the band
+(banner above), decide which shape your new cart is, then open the **reference cart**
+named here and copy its **skeleton/wiring** — the `radio.h`/`ui.h`/held-note plumbing.
+Design the *voices* intent-first; never inherit the cousin's instrument lineup.
 
 | If your cart is… | Built from | Reference cart(s) to copy | Notes |
 |---|---|---|---|

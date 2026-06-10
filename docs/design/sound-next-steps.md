@@ -114,6 +114,29 @@ chains, master = bus 0. Start with one master reverb. The effects that live here
 > of thumb from it: default the "either" effects to a **bus** unless there's a reason not to.
 > Nothing new to design — read **0015 + § 8.10 + § 8.10.1** and build.
 
+### Each effect → its showcase cart (the build-list)
+
+The project's flywheel: **an effect/engine ships → a flagship cart proves it** (echo bus →
+`spacecho`, brass engine → `brass`, chorus → Juno). The same "famous box built around the
+effect" homage works for the whole bus roster — which turns "build the effects bus" into a
+concrete sequenced build-list, each cart doubling as the effect's acceptance test *and* an
+upgrade to existing stations:
+
+| effect | showcase cart | also rescues |
+|---|---|---|
+| chorus | **Juno** (poly synth — see above) | jingle haze, yacht stereo Rhodes |
+| reverb | a **"cathedral" infinite-space pad** (a chord blooms into an endless hall) — or a spring-reverb tank | `ambient` tails, the orchestra hall, glassharmonica, dub's spring-crash |
+| leslie (rotary) | a **Hammond B3 + Leslie** organ (slow/fast footswitch) | roadhouse, yacht |
+| wah / auto-wah | a **funk clavinet / wah-guitar** (the pedal quack) | citypop funk guitar, the clav |
+| formant filter | a **vocoder / talkbox** (carrier shaped through vowels) | the vocal gap for non-voice timbres |
+| ring-mod | a **ring-modulator robot-voice toy** (Dalek the VOX) + metallic bells | the Dalek/robot vocal |
+| tape (wow/flutter/sat) | a **Frippertronics tape-loop** looper (Eno/Fripp endless tape) | motorik's Conny-Plank echo, jangle/jingle tape-wow |
+| bitcrush / decimate *(if rostered)* | a **lo-fi SP-1200 / 8-bit degrader** boombox | lowend's 12-bit grit |
+
+Two properties make this the right sequencing: the cart is the effect's **acceptance test**
+(you don't know the reverb works till you've played the cathedral through it), and each one
+**pays twice** (the leslie cart also hands roadhouse/yacht their organ).
+
 ## Free recipe wins (no engine work — layering techniques, pieces already exist)
 
 The cheapest realism upgrades on the whole list — no engine, no decision, just technique:

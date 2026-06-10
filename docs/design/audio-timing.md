@@ -184,3 +184,33 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
 - **Quantify on-device**: an on-device audio capture (no native harness path exists
   for web) against a click track would separate jitter (variance) from any slow creep
   (suspect #3).
+
+## Further reading — AudioWorklet & web-audio timing (for the fix #7 work)
+
+Worklets vs workers: **ScriptProcessorNode** (what we ship now, by default) runs audio
+on the *main* thread — deprecated, the cause of suspect #3. **AudioWorklet** runs it on
+the dedicated audio thread ("separate thread, very low latency") — the fix. **Wasm
+Workers / pthreads** are emscripten's threading primitives the worklet builds on
+(usually `-sAUDIO_WORKLET=1` **and** `-sWASM_WORKERS=1`).
+
+1. **Chris Wilson — "A Tale of Two Clocks: Scheduling Web Audio with Precision"** →
+   `web.dev/articles/audio-scheduling`. The foundational read — our TRUTH (schedule
+   ahead against the audio clock) is this pattern; explains why the playback clock, not
+   the frame clock, governs timing.
+2. **web.dev — "Enter Audio Worklet"** → `web.dev/articles/audio-worklet`. Why
+   main-thread ScriptProcessor is bad and what the worklet fixes — suspect #3 in prose.
+3. **MDN — `AudioWorklet`** (+ `AudioWorkletProcessor`/`AudioWorkletNode`) →
+   `developer.mozilla.org/en-US/docs/Web/API/AudioWorklet`. API reference.
+4. **MDN — `ScriptProcessorNode` (deprecated)** — what we're on today, and why it's gone.
+5. **Emscripten — Wasm Audio Worklets** →
+   `emscripten.org/docs/api_reference/wasm_audio_worklets.html`. Running C/wasm audio in
+   a worklet — the implementation path for us.
+6. **Emscripten — Wasm Workers** → `emscripten.org/docs/api_reference/wasm_workers.html`.
+7. **miniaudio** → `miniaud.io`. raylib's audio *is* miniaudio; feasibility hinges on its
+   emscripten worklet support (`MA_ENABLE_AUDIO_WORKLETS`).
+
+**The make-or-break gotcha:** threaded wasm / `SharedArrayBuffer` usually needs
+cross-origin isolation (COOP/COEP headers), which **GitHub Pages can't set**
+(`web.dev/articles/coop-coep`). First feasibility question: does emscripten AudioWorklet
+run *without* SAB / cross-origin isolation? If not, the Pages deploy needs a workaround
+(service-worker header shim, or a different host).

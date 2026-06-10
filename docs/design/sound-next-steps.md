@@ -141,8 +141,9 @@ If it's genuinely self-contained per-note → per-voice. Run this before committ
 - **Reverb** — ✅ **SHIPPED 2026-06-10** as a master SEND bus (`reverb`/`instrument_reverb`/
   `note_reverb`). Bus-only, unambiguous (one shared tail; a chord must bloom into *one* space) —
   which is exactly why it was the safe first build, and it landed with no placement surprises.
-- **Tape (wow/flutter/sat)** — master insert; whole-mix glue + one shared modulated-delay buffer
-  (the same buffer flanger/true-chorus fall out of free).
+- **Tape (wow/flutter/sat)** — ✅ **SHIPPED 2026-06-11** as `tape()`/`instrument_tape()`: a per-bus
+  stereo insert (the 3rd use of the mod-delay technique, after chorus/flanger), whole-mix glue or
+  per-instrument lo-fi. Landed exactly as the "safe insert" prediction — no placement surprise.
 - **Ring-mod** — single-input (carrier × an *internal* sine), "either," low risk. Just don't
   confuse it with the vocoder.
 
@@ -198,7 +199,7 @@ upgrade to existing stations:
 | wah / auto-wah | a **funk clavinet / wah-guitar** (the pedal quack) | citypop funk guitar, the clav |
 | formant filter | a **vocoder / talkbox** (carrier shaped through vowels) | the vocal gap for non-voice timbres, **air's Kelly-vocoder lead (faked on raw INSTR_VOICE today)** |
 | ring-mod | a **ring-modulator robot-voice toy** (Dalek the VOX) + metallic bells | the Dalek/robot vocal |
-| tape (wow/flutter/sat) | a **Frippertronics tape-loop** looper (Eno/Fripp endless tape) | motorik's Conny-Plank echo, jangle/jingle tape-wow, **air's vintage analog warmth** |
+| tape (wow/flutter/sat) ✅ **SHIPPED** | **tapeloop** cart (Frippertronics — pad → long echo loop → `tape()` degrades each pass) ✅ built | motorik's Conny-Plank echo, jangle/jingle tape-wow, **air's vintage analog warmth** — now wirable via `tape()`/`instrument_tape()` |
 | bitcrush / decimate *(if rostered)* | a **lo-fi SP-1200 / 8-bit degrader** boombox | lowend's 12-bit grit |
 
 Two properties make this the right sequencing: the cart is the effect's **acceptance test**

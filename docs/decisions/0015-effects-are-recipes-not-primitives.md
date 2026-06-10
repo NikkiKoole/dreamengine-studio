@@ -142,3 +142,15 @@ convention — it's **refusing to admit new primitives**.
   *send* cap still holds (echo + reverb, one tank each); the bus *pool* is an insert-routing
   mechanism, a different axis. No new primitives — routing, not roster. Build:
   [instrument-engines §8.10](../design/instrument-engines.md).
+
+- **2026-06-11 — the reserved "wow/flutter buffer" landed, as tape.** The master-stage roster row
+  listed "soft-clip ✓ · (wow/flutter buffer, if tape ever lands)" — and tape ever landed.
+  `tape(wow, flutter, saturation)` is the **third use of the modulated-delay technique** (after
+  chorus + flanger), so the buffer the chorus/flanger story kept invoking now has its namesake
+  customer. Zero new roster entries: tape = the rostered mod-delay primitive (wow/flutter) +
+  saturation (a soft-clip nonlinearity, already rostered as the master-stage entry) + a baked HF
+  rolloff (a filter, rostered). The effects roster is now essentially built out — echo, reverb,
+  chorus, flanger, tape — and the remaining items (auto-wah bus, formant/vocoder, ring-mod,
+  bitcrush, leslie recipe, compression) are all either recipes, deferrals, or unrostered candidates
+  exactly as this decision laid out. Build: [instrument-engines §8.10](../design/instrument-engines.md);
+  showcase: the `tapeloop` cart (Frippertronics).

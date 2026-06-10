@@ -46,11 +46,14 @@ the effects-layer plan. **Genre: design exploration.**
 > `instrument_reverb`. Sends (echo/reverb) deliberately stay one shared tank (NOT per-bus: 8 rooms /
 > 2.7 MB, and breaks the per-slot send API); only inserts go per-bus. The send-vs-insert reasoning +
 > the placement sanity-check per effect are in [`sound-next-steps.md`](sound-next-steps.md).
-> **Next:** **tape** as the third use of the mod-delay technique (slow wow/flutter LFO + saturation);
-> explicit named buses to route *several* instruments through one shared insert (the remaining
-> generalization); the §8.10.1 PARKED per-voice stand-ins migrate onto real phase-coherent buses
-> (the **great auto-wah** = bandpass on the summed mix + follower, **epiano tremolo**, the **envelope
-> follower**); leslie per the build-list.
+> **Tape SHIPPED 2026-06-11** — the third use of the mod-delay technique (`tape(wow, flutter,
+> saturation)` + `instrument_tape`): warm saturation + slow-wow/fast-flutter pitch warble (one shared
+> transport LFO) + baked HF rolloff, a per-bus stereo insert after chorus→flanger. Showcase:
+> **tapeloop** (Frippertronics). So the roster is essentially complete: echo/reverb/chorus/flanger/
+> tape, all per-instrument. **Next:** explicit named buses to route *several* instruments through one
+> shared insert (the remaining generalization); the §8.10.1 PARKED per-voice stand-ins migrate onto
+> real phase-coherent buses (the **great auto-wah** = bandpass on the summed mix + follower, **epiano
+> tremolo**, the **envelope follower**); leslie per the build-list.
 > **Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)**
 > (effects are recipes; ~12 primitives, forever); this doc's §8.10 is the routing sketch 0015
 > disciplined — where they differ, 0015 wins. To work on effects, read **0015 + §8.10 +
@@ -1504,6 +1507,16 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > send API); only inserts go per-bus. Showcase: **mistress** (flanged lead + dry bass); customer:
 > **air.c** (chorus on the Solina pad). Remaining: explicit named buses to *group* several
 > instruments through one insert.
+
+> **Tape SHIPPED 2026-06-11** — the third use of the mod-delay technique, riding the same 8-bus pool.
+> `tape(wow, flutter, saturation)` + `instrument_tape(slot,…)`: warm normalized-tanh saturation + a
+> slow WOW + fast FLUTTER pitch warble (a modulated-delay read, one shared transport LFO so both
+> channels' pitch drifts together → stereo-preserving, unlike mono flanger) + a baked HF rolloff
+> (darker as you saturate). navkit `processTape` minus the noise-LFO + hiss → plain-sine LFOs, fully
+> deterministic. A per-bus stereo insert chained after chorus→flanger. So the mod-delay technique now
+> has THREE uses (chorus/flanger/tape) — the "write the technique once, place it many ways" discipline
+> (cf. the SVF serving filter/formant/wah). Showcase: **tapeloop** (Frippertronics — pad → long echo
+> loop → tape degrades each pass). The §8.10 effects roster is essentially complete.
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first
 > engines ship) — begin small. The Leslie (§8.3/§8.8) is the first instance and sets the pattern.

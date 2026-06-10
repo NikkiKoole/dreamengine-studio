@@ -12,7 +12,8 @@ This file gives each recipe a **clear name** so the per-station voice charts
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht** (see
+> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht**,
+> **roadhouse** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -278,6 +279,23 @@ A tight, dry **studio session kit** — same engines as the synth kit but more p
 - kin: the synth-kit families (`drum/synth-kick`, `drum/noise-snare`, `drum/noise-hat`) —
   same engines, but yacht produces them into a studio kit rather than a drum machine.
 
+### kit/roadhouse-live
+A live rock trio kit — produced like yacht's, plus a tambourine:
+
+| piece | recipe |
+|---|---|
+| kick (`SL_KICK`) | SINE A0 D240 R50 · LP 300/2 · pitch-env →15 (0/40) |
+| snare (`SL_SN`)  | NOISE A0 D110 R55 · BP 1600/4 |
+| hat (`SL_HATC`)  | NOISE A0 D32 R15 · HP 7800/3 |
+| ride (`SL_RIDE`) | SQUARE A0 D280 R150 · HP 5800/4 |
+| tamb (`SL_TAMB`) | NOISE A0 D80 R28 · BP 8200/9 — a tight band-passed tambourine |
+
+- tier: unique
+- origin: roadhouse
+- used by: roadhouse (`SL_KICK`/`SL_SN`/`SL_HATC`/`SL_RIDE`/`SL_TAMB`)
+- kin: the synth-kit families + yacht's `kit/yacht-studio` (same engines, live-rock produced).
+  The tambourine is roadhouse's own.
+
 ## Bass
 
 > **The bass is the second-most-rebuilt voice** (runner-up to the synth kit). Almost every
@@ -311,6 +329,16 @@ across **three oscillators** — the clearest "same part, different gear" case i
 - kin: touches both the TRI and SINE bass piles — but here it's deliberately one part you
   pick the oscillator for, not three conceived instruments.
 
+### fm/rhodes-bass
+`INSTR_FM` · A2 D500 S4 R180 · h0.15 (epiano detent) · seeded timbre/morph
+roadhouse's Rhodes piano bass — `INSTR_FM`'s epiano detent voiced an octave down for the
+left-hand ostinato (the Doors' Ray Manzarek move). One of two ways `I_PBASS` is built.
+- tier: unique
+- origin: roadhouse
+- used by: roadhouse (`I_PBASS`, Rhodes-bass mode)
+- kin: the `INSTR_FM` voices (`fm/rhodes`, `fm/ostinato-bass`). I_PBASS rolls between this and
+  `tri/upright-bass` (the session-bassist night).
+
 ### fm/ostinato-bass
 `INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.30 · pitch-env →2 (0/16)
 addis's electric/upright bass — 2-op FM at a low harmonic ratio (fundamental-heavy, round),
@@ -330,12 +358,18 @@ roll. Drives the relentless motorik pulse.
 - used by: motorik (`I_BASS`)
 
 ### tri/upright-bass
-`INSTR_TRI` · A3 D300 S5 R110 · pitch-env →2 (0/16)
-Woody fingered upright — cocktail's walking bass on its brighter nights. The short
-pitch-env is the "thumb."
-- tier: unique
-- origin: cocktail
-- used by: cocktail (`I_BASS`, upright nights)
+Woody fingered upright — a TRI walking bass, the short pitch-env →2 the "thumb." Two
+non-dance stations build the session upright **near-identically** (a real cross-cart link):
+
+| cart (slot) | recipe |
+|---|---|
+| cocktail (`I_BASS`, upright night)            | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) |
+| roadhouse (`I_PBASS`, session-bassist night)  | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) · LP 480/1 |
+
+- tier: **variant** (same recipe; roadhouse just caps it with a filter)
+- origin: cocktail (or earlier)
+- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`)
+- kin: the TRI-bass pile (`tri/disco-bass`, `tri/fingered-bass`).
 
 ### tri/fingered-bass
 `INSTR_TRI` · A2 D200 S4 R80 · LP 700/2
@@ -443,6 +477,33 @@ tremolo. Voicings (seeded "gear change"): tremolo depth 0.10 vs 0.14; an alt voi
 - kin: a 3rd "Rhodes" approach — italo/addis voice theirs on `INSTR_EPIANO`
   (`epiano/rhodes-detent`, `epiano/wurli-comp`); yacht uses `INSTR_FM` (same engine as
   `fm/brass-stab`, `fm/ostinato-bass`).
+
+### user0/combo-organ **(voicings)**
+`INSTR_USER0` (a drawn drawbar single-cycle wave, via `wave_set`) · A18 D90 S6 R120 · LP ~2600 · pitch-LFO 6.2 Hz (cheesy vibrato tab)
+roadhouse's Vox-style combo organ — the **first station to pull the `wave_set` lever**: a
+hand-drawn drawbar cycle on `INSTR_USER0` rather than the modelled `INSTR_ORGAN`. Its **solo
+stop** (`I_ORGL`) is the same wave brighter (LP 3400+, deeper vibrato). Section voicings nudge
+the filter/vibrato up for the jam.
+- tier: unique (voicings + solo stop)
+- origin: roadhouse
+- used by: roadhouse (`I_ORG` comp · `I_ORGL` solo stop)
+- kin: a 3rd "organ" approach — `organ/combo-drone`, `organ/reggae-chop`, `organ/addis-comp`
+  use the modelled `INSTR_ORGAN`; roadhouse draws its own drawbar wave.
+
+### pluck/krieger-guitar **(voicings)**
+`INSTR_PLUCK` · A1 D0 S7 R800 · h0.55 · seeded timbre/morph
+roadhouse's Krieger guitar line — a Karplus-Strong electric, seed-rolled across a pedalboard:
+
+| voicing | recipe |
+|---|---|
+| clean    | LP 2400/2 · drive 0 |
+| fuzz     | LP 1900/2 · drive 0.45 — darker, growling |
+| flatpick | LP 2400/2 · timbre 0.75 · drive 0 — bright pick |
+
+- tier: unique (voicings — one guitar, pedal/pick choices)
+- origin: roadhouse
+- used by: roadhouse (`I_GTR`)
+- kin: the PLUCK-guitar family (`pluck/strat-stab`, `pluck/jangle-guitar`, `pluck/archtop`…).
 
 ### pluck/strat-stab
 `INSTR_PLUCK` · A1 D0 S7 R600 · h0.35 · LP 2800/1 · seeded timbre/morph
@@ -763,6 +824,15 @@ catalog so far):
 - tier: **variant**
 - origin: house (likely earliest of the three — all hand-rolled, none shares a symbol)
 - used by: italo (`I_STR`) · house (`I_STR`) · motorik (`I_PAD`)
+
+### pluck/drone
+`INSTR_PLUCK` · A1 D0 S7 R1400 · h0.75 (long ring) · t0.25
+roadhouse's open-string pedal — a long-ringing Karplus-Strong drone held under the moving
+guitar line.
+- tier: unique
+- origin: roadhouse
+- used by: roadhouse (`I_DRONE`)
+- kin: the PLUCK family — here a sustained pedal rather than a played line.
 
 ### organ/combo-drone
 `INSTR_ORGAN` · A70 D200 S6 R360 · h0.19 t(rolled Farfisa↔Vox) m0.18 · LP 2200·feel/2 · held

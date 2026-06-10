@@ -359,13 +359,37 @@ seed-rolling voicings of one part (the bass on three oscillators) — is new her
 
 ---
 
+## roadhouse — Modal psych-rock (The Doors)
+
+Solo layer: **`improv.h`** (organ solo, then guitar solo — improv.h was *born here*).
+
+A jamming band: two keyboards played by one man, a guitar with a held drone, a live kit.
+Mostly its own/kin voices, but with two notable points — the **first `INSTR_USER0` drawn-wave
+organ**, and a bass that shares cocktail's session upright.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_ORG`   | combo organ (+ solo stop `I_ORGL`) | `user0/combo-organ` | USER0 (drawn) |
+| `I_PBASS` | piano-bass left hand | `fm/rhodes-bass` · `tri/upright-bass` ⟳ (cocktail) *(rolls)* | FM / TRI |
+| `I_GTR`   | Krieger guitar | `pluck/krieger-guitar` (clean/fuzz/flatpick voicings) | PLUCK |
+| `I_DRONE` | open-string pedal | `pluck/drone` | PLUCK |
+| `SL_*`    | live rock kit + tambourine | `kit/roadhouse-live` | SINE/NOISE/SQUARE |
+
+**Borrowing at a glance:** real-engine band, mostly own/kin — but two real links: its
+session-bassist bass night **is** cocktail's `tri/upright-bass` (near-byte-identical), and
+its kit is kin to yacht's studio kit. The standout is `user0/combo-organ` — the first station
+to draw its own drawbar wave via `wave_set`, a 4th distinct route to "organ" (after the three
+`INSTR_ORGAN` registrations).
+
+---
+
 ## Stations not yet charted
 
 carlos · exotica · gamelan ·
-roadhouse · satie · tango · ymo
+satie · tango · ymo
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht (12). Both real/session-
-engine bands (addis, yacht) build their own voices — addis brand-new families, yacht kin to
-existing ones. Remaining: roadhouse (improv.h) and the acoustic/orchestral stations
-satie/tango/gamelan/carlos/exotica/ymo.)
+cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse (13). The
+real-engine bands build their own voices (addis brand-new families, yacht/roadhouse kin to
+existing). Remaining: the acoustic/orchestral stations satie · tango · gamelan · carlos ·
+exotica · ymo.)

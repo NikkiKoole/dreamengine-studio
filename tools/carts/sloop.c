@@ -390,6 +390,15 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define POWER_EAT     0.72f       // fraction of the rear's grip budget eaten at full power (rear-drive).
                                   // higher → throttle keeps the rear loose → a power-drift SUSTAINS
                                   // (balanced against SELF_ALIGN_K, which pulls it straight)
+// ── drift-exit hysteresis: the rear stays loose for a beat after a slide ───────
+// Grip recovers INSTANTLY today (the cap is recomputed each frame), so a drift ends crisply
+// the moment you straighten. This lingers a "looseness" that spikes when the rear breaks away
+// and bleeds off slowly — while it bleeds, the rear keeps a touch less grip, so the tail HANGS
+// out a beat and settles (the satisfying trailing exit) instead of snapping straight.
+#define DRIFT_RECOVER 0.45f       // how much the lingering looseness cuts rear grip (at full memory)
+#define DRIFT_DECAY   0.05f       // per-frame bleed of the looseness (lower = longer, lazier tail-out)
+#define DRIFT_TRIG    0.5f        // rear-slide level that COUNTS as a breakaway (below = normal hard
+                                  // cornering, no lingering; the looseness ramps from here up to a full slide)
 // ── weight transfer (dynamic load shift — the engine of a controllable drift) ──
 // Static weight DISTRIBUTION (where the part masses sit → COM/I/balance/frontGrip/rearGrip)
 // already decides the rig's character. This is the DYNAMIC half: the load on each axle
@@ -457,6 +466,8 @@ static float slide_amt;           // 0..1, how far past the friction limit a tyr
 static int   slide_rear;          // 1 = the REAR let go (oversteer/spin), 0 = front (understeer/push)
 static float wt_long;             // low-passed longitudinal accel (px/s^2) driving weight transfer
 static float wt_xfer;             // load-shift fraction this frame (+ = rear under accel, - = front under braking)
+static float drift_loose;         // 0..1 lingering rear looseness (drift-exit hysteresis) — spikes on a
+                                  // rear slide, bleeds off slowly so the tail hangs out a beat on exit
 // ── transmission state (§1b) ─────────────────────────────────────────────────
 static int   trans_mode = TR_AUTO;  // SINGLE / AUTO / MANUAL — player setting, persists
 static int   gear = 1;            // -1 = REVERSE, 0 = NEUTRAL (manual only), 1..NGEAR = forward
@@ -740,6 +751,7 @@ static void reset_vehicle(void) {
     sx = 0; sy = 0; vx = vy = 0; ang = 0; angVel = 0;
     heat = 0; tip_amt = 0; gear = 1; rpm = 0;   // trans_mode + eng_kind persist (player settings)
     wt_long = 0; wt_xfer = 0;                   // weight transfer starts settled
+    drift_loose = 0;                            // no lingering slide
     steer_pos = 0;                              // wheel centred
 
     engine_on = 1; stalled = 0; restart_grace = 0;   // fresh rig starts cranked
@@ -1191,6 +1203,7 @@ static void update_drive(float dt_) {
             float cap = SLIP_MAX * loadScale;
             if (wheelPX[i] < 0 && in_hand) cap *= DRIFT_GRIP_MULT;                 // handbrake = the rear wheels
             if (wheelPD[i] && throttle > 0) cap *= (1.0f - POWER_EAT * throttle);  // a driven wheel eats its grip
+            if (wheelPX[i] < 0) cap *= (1.0f - DRIFT_RECOVER * drift_loose);       // hysteresis: rear hangs loose on exit
             float cl = clamp(vlat, -cap, cap);
             float acc = cl * (g * GROUND_GRIP / M) * LAT_GRIP;  // peak force ∝ cap ∝ load
             sumLat += acc;
@@ -1204,7 +1217,15 @@ static void update_drive(float dt_) {
         slide_rear = (satR >= satF);
         float sat = (satR > satF) ? satR : satF;
         slide_amt = clamp(sat / (SLIP_MAX + 1.0f), 0, 1);
+        // drift-exit hysteresis: a real rear BREAKAWAY (slide past DRIFT_TRIG) spikes the looseness
+        // (instant attack); it then bleeds off slowly, so the rear keeps a touch less grip on the way
+        // out → the tail trails, not snaps. Gated above DRIFT_TRIG so normal hard cornering doesn't loosen.
+        float over = slide_amt - DRIFT_TRIG;
+        float looseTgt = (slide_rear && over > 0) ? clamp(over / (1.0f - DRIFT_TRIG), 0, 1) : 0.0f;
+        if (looseTgt > drift_loose) drift_loose = looseTgt;
+        else drift_loose += (0.0f - drift_loose) * DRIFT_DECAY;
     } else {                                          // single-track (bike): whole-body grip bleed
+        drift_loose = 0;
         float lat_mult = (in_hand ? DRIFT_GRIP_MULT : 1.0f) * tipMul;
         float grip = clamp((wheelGrip * GROUND_GRIP / M) * LAT_GRIP * lat_mult, 0, 1.0f / dt_);
         vl -= vl * grip * dt_;
@@ -1428,6 +1449,7 @@ void update(void) {
         watch("loadF", "%.1f", lF);    watch("loadR", "%.1f", lR);
         watch("loadRt", "%.1f", lRight); watch("loadLf", "%.1f", lLeft);
     }
+    watch("loose", "%.2f", drift_loose);
 #endif
 }
 

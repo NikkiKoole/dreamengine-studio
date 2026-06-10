@@ -1547,3 +1547,14 @@ block is now just `if (nHull >= 3) { per-wheel } else { single-track }`.
 now ONE mechanism (the spring loads), and it also makes **cargo placement bias grip per wheel** for
 free. The per-wheel load model is the natural substrate for **rung-4 breakage** (lose a wheel → loads
 redistribute on their own).
+### Drift-exit hysteresis — the lazy trailing exit (2026-06-10)
+
+The Stage-3 piece the drifts work flagged and skipped: grip recovered *instantly* (the cap is
+recomputed each frame), so a drift ended crisply the moment you straightened. Added a lingering
+**`drift_loose`** (0..1): a real rear **breakaway** (slide past `DRIFT_TRIG` 0.5) spikes it to ~1
+(instant attack), then it **bleeds off slowly** (`DRIFT_DECAY`); while it bleeds, the rear caps are
+cut by `DRIFT_RECOVER`·loose, so the tail **hangs out a beat and settles** instead of snapping
+straight. Gated above `DRIFT_TRIG` so **normal hard cornering doesn't loosen** (verified: normal
+buggy turn `loose` stays 0.00; a real drift trails from 45°→29° at f220 vs 19° before, then settles).
+Rear-axle + ≥3-wheel only (single-track zeroes it). Knobs: `DRIFT_RECOVER` (how loose on exit),
+`DRIFT_DECAY` (how long the hang), `DRIFT_TRIG` (what counts as a breakaway) — all in `sloop.c`.

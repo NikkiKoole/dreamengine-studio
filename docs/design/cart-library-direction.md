@@ -65,6 +65,38 @@ fartsynth…) is the same "creative toy" DNA and these carts double as future ra
 voices ([`tinydaws.md`](tinydaws.md)). Split by what they ride on — and note the
 pattern at the bottom.
 
+> **Update — new-sound scoring + engine-status correction (2026-06-10).** Cross-referenced
+> against the now-complete recipe palette
+> ([`../guides/instrument-recipes.md`](../guides/instrument-recipes.md)). **The "blocked on
+> missing engines" list below is STALE: `MEMBRANE`, `REED`, and `BOWED` have all shipped** —
+> the hand-drum, the bellows trio, the violin/cello (and an **arco** upright) are *buildable
+> today*. Only **brass** (slide trombone) is still engine-blocked. Scored here by **new sonic
+> territory** (does it make sound the *playable* carts can't?) — a different axis from the
+> fun × showcase ranking below. Highest new-sound = taking an engine that today lives only in
+> a showcase/radio and making it *playable* for the first time.
+>
+> | new-sound | instrument | engine | why |
+> |---|---|---|---|
+> | ★★★★★ | hand-drum (tabla/conga) | `MEMBRANE` ✅ | the drumhead engine into a **touch** instrument for the first time — touch-position = strike-position macro, 1:1 |
+> | ★★★★★ | bellows / melodeon | `REED` ✅ | first *played* self-oscillating reed; **bisonoric** push/pull = different note (accordion/harmonica share the voice) |
+> | ★★★★☆ | violin / cello | `BOWED` ✅ | first *played* friction string; drag = bow pressure. Also unblocks **arco upright bass** (the "waits on bowed" note below is now stale) |
+> | ★★★★☆ | finger choir / talkbox / Dalek | `VOICE` ⚠️ | morphing vowels — a new sonic class; discounted because VOICE's public macros aren't locked |
+> | ★★★☆☆ | **clanky pots & pans** 🆕 | `FM` clang + detuned `SQUARE` + inharmonic `MALLET`/`MEMBRANE` | a *played, per-object-tuned* junk-metal kit; the clang recipes exist scattered (`fm/clang`, `cr78/metal-beat`, `808/cowbell`/`cymbal`) but no cart assembles them into an instrument |
+> | ★★★☆☆ | slide guitar | `PLUCK` + `note_glide` | glissando on a plucked string — a combo no cart uses |
+> | ★★★☆☆ | **Juno** poly synth 🆕 | raw `SAW`/pulse + sub + resonant `LP` | lush **poly** pad/stab — a real gap (our synths are mono leads/basses). Caveat: osc+filter territory is dense (sh101/tb303/moog) and the signature **chorus** leans on the pending effects bus (fake meanwhile with detuned layers / `LFO_PAN`) |
+> | ★★★☆☆ | **upright bass** (arco + pizz) 🆕scope | `BOWED` ✅ + `PLUCK` | arco double-bass now buildable (bowed shipped); pizz + noise-slap is the lesser-new half |
+> | ★★☆☆☆ | slide whistle | `SINE` + glide overshoot/bounce | charming + maximally touch-native, but SINE glides already exist (theremin/glass) |
+> | ★★☆☆☆ | music box | `TRI` + run-down | the novelty is the run-down *mechanic* (pitch/tempo sag), not the timbre |
+> | ★★☆☆☆ | standing bass (pizz-only) | `PLUCK` low + noise slap | mostly a *better* version of the already-faked upright (see the arco entry instead) |
+> | ★☆☆☆☆ | barrel/crank organ | `USER0` drawbars | re-treads roadhouse's combo-organ / stylophone's drawn organ; the crank wobble is the only-new bit |
+> | — | slide trombone | `BRASS` ❌ | still engine-blocked (only FM/PD fakes); out of "reuse existing engines" scope |
+>
+> **New-sound ≠ build priority.** The barrel organ scores lowest here yet remains the top
+> *buildable* pick below (tinydaws gateway, great gesture). If the goal is "cover the most new
+> sonic ground," build the **hand-drum, bellows, and violin** first — each makes a powerful,
+> currently-showcase-only engine *playable*, the biggest untapped sound in the library (cf.
+> the palette's "GUITAR/PIPE/BOWED/PIANO/VOICE have no consumers yet").
+
 **Buildable today** (current engines), ranked by fun × feature-showcase value:
 
 1. **Barrel/crank organ** — the top pick. Crank it with a finger-circle gesture
@@ -105,14 +137,16 @@ pattern at the bottom.
    engine**: its tuned ratio/decay table is the future engine's macro homework,
    and presets re-bake as macro positions when that engine lands.
 
-**Blocked on missing engines** ([`instrument-engines.md`](instrument-engines.md) §8.9
-owns the "which engine next" call):
+**Was blocked on missing engines** ([`instrument-engines.md`](instrument-engines.md) §8.9
+owns the "which engine next" call) — ⚠️ **mostly UNBLOCKED as of 2026-06-10** (membrane,
+reed, bowed, and the experimental formant voice have all shipped; see the scoring update
+above). Only brass remains. The interaction notes still stand:
 
-- **Hand-drum (tabla/conga)** — needs **membrane**. The killer pairing: touch
+- **Hand-drum (tabla/conga)** — ✅ membrane shipped (tabla.c is the showcase). The killer pairing: touch
   *position* on the drumhead = the engine's strike-position macro. Touch API and
   engine physics map 1:1 — the best feature showcase on this list once membrane
   lands.
-- **The bellows trio** — needs **reed** (fakeable today on tango.c's drawn
+- **The bellows trio** — ✅ reed shipped (reed.c showcase; gamelan's suling uses it). Still fakeable on tango.c's drawn
   bandoneón `wave_set` wave; the squawk/breath character wants the engine).
   One shared voice + three interaction skins — build the bellows once:
   - **Melodeon** — THE interaction gem: **bisonoric**, the same button sounds a
@@ -124,11 +158,11 @@ owns the "which engine next" call):
     (no bellows motion, no sound).
   - **Mouth harmonica** — bisonoric again (blow/draw), 10 holes, richter tuning;
     vertical drag on a hole = the draw bend, cupped-hand wah = `note_cutoff`.
-- **Finger choir** (drag voices through vowels) + **talkbox / Dalek voice toy** —
+- **Finger choir** (drag voices through vowels) + **talkbox / Dalek voice toy** — ⚠️ formant voice shipped but EXPERIMENTAL (voxlab/vox; macros not locked) —
   need **formant** (+ AM/ring for the Dalek).
-- **Violin / cello** — needs **bowed**; drag speed = bow pressure, another
+- **Violin / cello** — ✅ bowed shipped (bowed.c showcase; arco + pizzicato). Drag speed = bow pressure, another
   gesture-to-physics 1:1.
-- **Slide trombone** — needs **brass**; the slide gesture is begging for it.
+- **Slide trombone** — ❌ still blocked: **brass** has no engine yet (only FM/PD fakes); the slide gesture is begging for it.
 
 The pattern worth noticing: the blocked ones are all *continuous-gesture*
 instruments — exactly why instrument-engines §8.9 says the wind/bowed group "pairs with held notes

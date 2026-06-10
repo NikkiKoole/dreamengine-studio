@@ -248,6 +248,32 @@ static void voice_song(void) {
     instrument_filter(I_PAD, FILTER_LOW, (int)(950 * tm), 2);
     instrument_filter(I_ARP, FILTER_LOW, (int)(3600 * tm), 2);
     instrument_filter(I_PIZZ, FILTER_LOW, (int)(2600 * tm), 1);
+
+    // ── effects — Polo & Pan is drenched: archetype-coupled reverb + chorus.
+    // (the flute/mallet tape-DELAY throws wait for the real tape-delay engine —
+    //  no echo() stand-in.) Order: Canopee · Ani Kuni · Nanga · Tunnel · Coeur.
+    static const float RV_SIZE[NARCH] = { 0.55f, 0.55f, 0.70f, 0.40f, 0.68f };
+    static const float RV_DAMP[NARCH] = { 0.35f, 0.40f, 0.30f, 0.62f, 0.30f };
+    static const float RV_WET [NARCH] = { 0.85f, 0.80f, 1.10f, 0.55f, 1.05f }; // overall send scale
+    reverb(RV_SIZE[a], RV_DAMP[a]);
+    float w = RV_WET[a];
+    instrument_reverb(I_MAL,   0.32f * w);
+    instrument_reverb(I_PIZZ,  0.18f * w);
+    instrument_reverb(I_STAR,  (a == A_TUNNEL ? 0.22f : 0.42f) * w);
+    instrument_reverb(I_PAD,   0.40f * w);
+    instrument_reverb(I_ARP,   0.24f * w);
+    instrument_reverb(I_CONGA, 0.20f * w);
+    instrument_reverb(I_HAT,   0.10f * w);
+    instrument_reverb(I_SOLO,  0.34f * w);
+    instrument_reverb(I_CLAP,  0.06f * w);
+    instrument_reverb(I_BASS,  0.0f);                        // keep the low end + kick dry/punchy
+    instrument_reverb(I_KICK,  0.0f);
+
+    // master chorus — the Solina/Juno shimmer; lush on the dreamy archetypes, OFF on tight Tunnel
+    static const float CH_RATE[NARCH]  = { 1.5f, 1.5f, 1.2f, 0.0f, 0.9f };
+    static const float CH_DEPTH[NARCH] = { 0.30f, 0.25f, 0.40f, 0.0f, 0.50f };
+    static const float CH_MIX[NARCH]   = { 0.25f, 0.20f, 0.35f, 0.0f, 0.45f };
+    chorus(CH_RATE[a], CH_DEPTH[a], CH_MIX[a]);
 }
 
 // ── form / harmony lookups ────────────────────────────────────────────────

@@ -114,6 +114,12 @@ tine harmonic.
 All from **epiano** (showcase), same base `A1 D0 S7 R1500`; the harmonics macro picks the
 model (Rhodes 0.15 / Wurli 0.50 / Clav 0.85), plus WAH and TREMOLO modulation.
 
+> ⚠ **Temporary — the TREM/WAH columns are provisional.** The tremolo and auto-wah baked
+> into these presets are a stopgap living *inside* the instrument. They're slated to move to
+> the planned **effects bus**; once that lands they may be **removed** from these recipes (the
+> dry patch is just the macros + ADSR — the wobble/vowel-sweep becomes a bus send). Don't
+> treat the `TREM`/`WAH` parts as a permanent property of the epiano recipes.
+
 | name | source cart | recipe | character |
 |---|---|---|---|
 | epiano/rhodes | epiano | h0.15 t0.30 m0.25 · TREM 5Hz/35% | Warm suitcase Rhodes with classic volume wobble, clean fundamental. |

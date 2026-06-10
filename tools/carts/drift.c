@@ -59,6 +59,7 @@ static long  trigLast   = -1;   // last 16th index the frame-trigger fired
 static int   fcLastFrame = 0;   // frame() of the frame-counter's last fire
 static int   fcN         = 7;   // frames per 16th @60fps (recomputed from tempo)
 static int   glitchReq   = 0;
+static int   ratchetReq  = 0;
 
 // formatting helpers (defined at the bottom)
 static void print_to(char *b, int n, float ms);
@@ -78,14 +79,15 @@ static void push(int v, float err) {
 // ── bottom transport row: geometry shared by the hit-test and the draw ──
 #define BTN_Y 178
 #define BTN_H 18
-enum { B_M0, B_M1, B_M2, B_TDN, B_TUP, B_GLITCH, NBTN };
+enum { B_M0, B_M1, B_M2, B_TDN, B_TUP, B_GLITCH, B_RATCHET, NBTN };
 static const struct { int x, w, key; const char *label; } BTN[NBTN] = {
-    {   4, 50, '1',       "TRUTH" },
-    {  56, 50, '2',       "TRIG"  },
-    { 108, 50, '3',       "FCNT"  },
-    { 168, 32, KEY_LEFT,  "BPM-"  },
-    { 202, 32, KEY_RIGHT, "BPM+"  },
-    { 248, 68, KEY_SPACE, "GLITCH" },
+    {   4, 42, '1',       "TRUTH"  },
+    {  49, 42, '2',       "TRIG"   },
+    {  94, 42, '3',       "FCNT"   },
+    { 139, 42, KEY_LEFT,  "BPM-"   },
+    { 184, 42, KEY_RIGHT, "BPM+"   },
+    { 229, 42, KEY_SPACE, "GLITCH" },
+    { 274, 42, 'R',       "RATCHET"},
 };
 
 void init() {
@@ -111,6 +113,17 @@ void update() {
         glitchReq = 0;
         double t0 = now(); volatile double x = 0;
         for (long i = 0; i < 400000000L && now() - t0 < 0.18; i++) x += (double)i;
+    }
+
+    // ── RATCHET: a perfectly-even rapid burst, batch-scheduled in ONE frame. Each hit
+    //    carries a sample-accurate delay, so the audio thread fires them at exact sample
+    //    offsets — the INTERNAL spacing stays rock-solid even on web (only the burst's
+    //    downbeat snaps to the audio buffer). This is "a perfect ratchet, like native":
+    //    the truth that schedule_hit's micro-timing survives the web backend.
+    if (ratchetReq) {
+        ratchetReq = 0;
+        for (int i = 0; i < 24; i++)
+            schedule_hit((int)(i * 20.0f), 84, SL_TRUTH, 5, 16);   // 24 hits · 20ms ≈ 50Hz roll
     }
 
     // ── TRUTH: book every step up to LOOKAHEAD ahead, sample-accurate ──
@@ -152,6 +165,7 @@ void update() {
                 case B_TDN: tempo = mid(40, tempo - 6, 300); break;
                 case B_TUP: tempo = mid(40, tempo + 6, 300); break;
                 case B_GLITCH: glitchReq = 1; break;
+                case B_RATCHET: ratchetReq = 1; break;
             }
         }
     }

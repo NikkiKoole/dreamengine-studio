@@ -1237,3 +1237,36 @@ broken speaker it should play through.**
 > Leslie, sidechain…) is a recipe of these primitives or a refusal with the musical
 > need covered elsewhere; the pedalboard audit lives in that ADR. A new primitive must
 > prove it can't be a recipe.
+
+## 18. Tuning measurement — `tune-check.js` + first-engine audit (2026-06-10)
+
+The §16 WAV tooling measures *level*, not *pitch*: `wav-analyze.js` is blind to whether
+an engine plays in tune. Adding the modeled engines (bowed, piped, brass, …) made that a
+gap worth closing — a waveguide whose delay length is quantized to whole samples drifts
+sharp/flat in ways you can't see in an RMS plot. So: **`tools/tune-check.js`** (no deps),
+driven by the **`tunecheck`** harness cart. The cart plays a sweep of every non-standard
+engine across four octaves of A and `watch()`es the expected MIDI per note; the analyzer
+reads that ground truth from the trace, measures each note's actual fundamental, and
+reports the error in cents. How-to + the pitch-detection gotchas it sidesteps (frame- not
+time-indexing; ±18% candidate-constrained autocorrelation to dodge subharmonic octave
+errors) live in [`debug-harness.md` → "Tuning"](../guides/debug-harness.md). `SINE` is the
+control — it reads 0.0¢, which is what proves the measurement itself is sound.
+
+**First-run audit (2026-06-10, default voices, A2–A5).** Three buckets:
+
+- **In tune (≤ ±6¢):** SINE (control, 0.0¢), MALLET, EPIANO, PD, PIANO, GUITAR, FM, and —
+  notably — **BOWED** (≤ +3¢). Whatever's off about the bowed voice, it isn't pitch.
+- **Flatten toward the top (the waveguide signature):** PLUCK, REED, BRASS read ~0¢ low,
+  then progressively flat as pitch rises — BRASS A5 −24.8¢, REED A5 −18.3¢, PLUCK A5
+  −17.2¢. Consistent with integer-sample delay-length quantization (the period can only
+  be a whole number of samples, so high notes round to the nearest available pitch). The
+  open fix: a fractional-delay (interpolated) read tap, or a tuning correction baked per
+  note. Tracked here until someone takes it.
+- **PIPE flute — genuinely out of tune.** Speaks an **octave low** AND goes badly flat as
+  it climbs: A2 −13¢, A3 −35¢, A4 −78¢, A5 −159¢. The strongest periodicity isn't near
+  the played note at all (e.g. A4=440 → ~210 Hz). This is the one that needs an engine
+  fix, not a trim — the jet/bore is locking to the wrong register at higher pitches.
+
+Not a fault, correctly separated by the tool into a "transposed, not detuned" list:
+**ORGAN** reads ~an octave low because the default registration leans on the 16′
+sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.

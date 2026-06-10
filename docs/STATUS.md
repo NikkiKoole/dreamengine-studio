@@ -684,6 +684,21 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       `lint-carts.js` let an agent *ask* "what's stale / do refs resolve" instead of reading
       everything. That's the right direction; more of it beats more prose.
 
+31. **Engine tuning — some modeled engines play out of tune** *(new 2026-06-10, found by
+    the new `tune-check.js`)*. Run `node tools/tune-check.js` for the live per-engine cents
+    report (SINE is the 0¢ control); full first-run audit + the *why* in
+    [`design/audio-notes.md`](design/audio-notes.md) §18. **The to-do list, worst first:**
+    - **`INSTR_PIPE` (flute) — the bad one.** Plays an **octave low AND progressively flat**
+      as it climbs (A2 −13¢ → A5 −159¢); the strongest periodicity isn't near the played
+      note (A4=440 → ~210 Hz). The jet/bore is locking to the wrong register up high — an
+      engine fix, not a trim.
+    - **`INSTR_PLUCK` / `INSTR_REED` / `INSTR_BRASS` — flatten at the top** (A5 −17 to −25¢),
+      ~0¢ low down. Classic integer-sample delay-length quantization in the waveguides; the
+      fix is a fractional (interpolated) delay read tap, or a per-note tuning correction.
+    - **In tune, no action:** SINE/MALLET/EPIANO/PD/PIANO/GUITAR/FM, and **BOWED** (≤ +3¢ —
+      whatever's off about the bowed voice, it is *not* pitch). **`INSTR_ORGAN`** reads an
+      octave low but is in tune (+3–7¢) — that's the 16′ sub-octave drawbar, expected.
+
 ---
 
 ## Decided-against / deferred ✗

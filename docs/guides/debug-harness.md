@@ -225,6 +225,42 @@ never trips it; this is how you catch a width effect that *isn't*. The pan traje
 how the `pan_law()` A/B was measured — a steady tone swept −1→+1 traces straight across
 the meter. (Ear-checking a 3 dB pan-law difference failed; this measured it cold.)
 
+### Tuning — is each engine in tune?
+
+`wav-analyze.js` measures *level*, not *pitch* — it can't tell you an engine is
+playing sharp. **`tools/tune-check.js`** does (no deps). It renders the
+[`tunecheck`](../../tools/carts/tunecheck.c) harness cart — a sweep of every
+non-standard engine across four octaves of A — reads the trace to learn what each
+note *should* be, then measures the actual fundamental and reports the error in
+**cents** (100¢ = one semitone). `SINE` is rendered first as a control: it's
+mathematically exact, so a non-zero `SINE` reading would mean the *measurement* is
+off, not the engine.
+
+```bash
+node tools/tune-check.js                 # render the sweep + per-engine cents report
+node tools/tune-check.js --json          # machine-readable
+node tools/tune-check.js --quiet         # exit 1 if anything is out of tune (CI gate)
+node tools/tune-check.js --keep          # keep the render (build/.tune/sweep.wav + trace)
+node tools/tune-check.js note.wav --note 69   # measure ONE wav against a MIDI note (A4)
+```
+
+How it stays honest (the pitch-detection gotchas it sidesteps, learned the hard way):
+- **Frame-indexed, not time-indexed.** The audio is frame-locked at SR/60 samples per
+  frame; the trace's `t` advances at a slightly different rate, so the WAV is indexed by
+  the trace **frame number** (`f`), not `t` — using `t` drifts ~18 ms/s and lands on the
+  wrong note within seconds.
+- **No octave errors.** Pitch is measured by autocorrelation constrained to ±18% around
+  *known candidates* {expected×2, ×1, ÷2}, not a wide global-max search (which picks
+  subharmonics — a sharp tone correlates better at a multiple of its period). The played
+  octave wins unless another is *clearly* stronger, so a Hammond's 16′ sub-octave drawbar
+  or a flute overblowing is reported as "in tune, 1 oct low/high" — separated from real
+  detuning, not flagged as a fault.
+
+The first-run findings (the why-this-exists) live in
+[`audio-notes.md` §18](../design/audio-notes.md). Building a new modeled engine? Run
+this — a waveguide/Karplus engine that quantizes its delay length goes flat at the top
+of its range, and this is how you see it before a player does.
+
 ### Before/after diff
 
 ```bash

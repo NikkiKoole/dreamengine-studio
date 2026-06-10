@@ -24,10 +24,11 @@ tape echo**. Sibling notes: [`air-effects-wants.md`](air-effects-wants.md),
 
 ## Also nice, lower priority
 
-- **Per-part / aux routing** — per-instrument inserts shipped (`instrument_chorus`/`instrument_tape`),
-  so polopan *could* now chorus only the Solina pad instead of the whole mix per archetype. Today it
-  still uses the master `chorus()`/`tape()` (per-archetype amounts read fine); a per-part pass is a
-  possible refinement, not a need.
+- **Per-part / aux routing** — ✅ **DONE for chorus.** Now that per-instrument inserts shipped,
+  the Solina shimmer is `instrument_chorus()` on the lush voices (pad most, then mallets/pizz/
+  lead/arp/solo), so the four-on-the-floor **kit + bass stay bone dry** while the pad swirls —
+  no more washing the whole mix. Tape stays **master** on purpose (the whole record to tape is
+  the Caravelle sound); reverb was already per-slot.
 
 > **Engine note (resolved):** the original out-of-tune flute complaint was an `INSTR_PIPE` bug
 > (octave-low + flat) — **fixed in `sound.h` (in tune A2–A4)**. polopan's topline plays higher

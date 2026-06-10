@@ -269,11 +269,19 @@ static void voice_song(void) {
     instrument_reverb(I_BASS,  0.0f);                        // keep the low end + kick dry/punchy
     instrument_reverb(I_KICK,  0.0f);
 
-    // master chorus — the Solina/Juno shimmer; lush on the dreamy archetypes, OFF on tight Tunnel
-    static const float CH_RATE[NARCH]  = { 1.5f, 1.5f, 1.2f, 0.0f, 0.9f };
-    static const float CH_DEPTH[NARCH] = { 0.30f, 0.25f, 0.40f, 0.0f, 0.50f };
-    static const float CH_MIX[NARCH]   = { 0.25f, 0.20f, 0.35f, 0.0f, 0.45f };
-    chorus(CH_RATE[a], CH_DEPTH[a], CH_MIX[a]);
+    // chorus — the Solina/Juno shimmer, now PER-INSTRUMENT (was master-wide): it lives ON the
+    // lush voices (the pad most), so the four-on-the-floor KIT + bass stay bone dry while the
+    // pad swirls. Lush on the dreamy archetypes, OFF on tight Tunnel (all mixes → 0).
+    chorus(0, 0, 0);                                         // master chorus off — per-slot now
+    static const float CH_PAD[NARCH] = { 0.35f, 0.30f, 0.45f, 0.0f, 0.55f };  // the Solina pad
+    static const float CH_VOX[NARCH] = { 0.22f, 0.18f, 0.30f, 0.0f, 0.35f };  // mallets/pizz/lead/arp/solo
+    float cp = CH_PAD[a], cv = CH_VOX[a];
+    instrument_chorus(I_PAD,  1.1f, 0.40f, cp);
+    instrument_chorus(I_MAL,  1.2f, 0.30f, cv);
+    instrument_chorus(I_PIZZ, 1.2f, 0.30f, cv);
+    instrument_chorus(I_STAR, 1.2f, 0.30f, cv);
+    instrument_chorus(I_ARP,  1.3f, 0.30f, cv);
+    instrument_chorus(I_SOLO, 1.2f, 0.30f, cv);
 
     // master tape — the Caravelle analog warmth: a soft-clip saturation + a whisper of
     // wow/flutter. Warm on the vintage/dreamy archetypes, nearly off on the modern Tunnel.

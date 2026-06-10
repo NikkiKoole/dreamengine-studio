@@ -43,13 +43,12 @@ all shipped, so these are buildable today):
 Plus the fresh ideas: **clanky pots & pans** (an FM-clang/detuned-square junk-metal kit) and
 **arco upright bass**. Build any with the [intent-first voice brief](../guides/cart-authoring-prompt.md).
 
-> **Juno — build it *after* the chorus bus.** A Juno-106 needs no new engine (saw/pulse + sub +
-> resonant LP + LFO, all built — it's `sh101`/`tb303`/`moog` territory), and polyphony is free.
-> Its *one* distinctive bit is the **BBD chorus** — the lush shimmer that makes a Juno a Juno —
-> which is § 8.10 effects-bus work. Without it, a Juno is just "sh101 with more voices"; with it
-> it's a distinctively lush poly machine nothing else does. So **the Juno is the chorus bus's
-> natural showcase cart** — build them together, the way `spacecho` showed off the echo bus and
-> `brass` showed off the brass engine. That's the sequencing: chorus lands → Juno proves it.
+> **Juno — ✅ SHIPPED 2026-06-10 as the `juno` cart, with chorus.** The sequencing held exactly:
+> chorus landed (the BBD modulated-delay, master insert) and the **juno** cart proved it — a
+> saw+sub+resonant-LP poly synth (`sh101`/`tb303`/`moog` territory, polyphony free) whose one
+> distinctive bit is the BBD chorus. Dry it's "sh101 with more voices"; the OFF/I/II switch flips
+> it to a lush poly machine nothing else does — the same effect→showcase flywheel as `spacecho`
+> (echo) and `cathedral` (reverb).
 
 ## New stations — newest *demand*
 
@@ -94,9 +93,18 @@ that live here:
    The epiano's *temporary* TREM/WAH
    ([`../guides/instrument-recipes.md`](../guides/instrument-recipes.md)) are § 8.10.1 "PARKED
    per-voice stand-ins" still slated to **migrate onto a real bus** here.
-2. **Chorus / unison width** — the lush detuned-width of a Juno / stereo Rhodes / string
-   *section*. Partly fakeable by layering (see "section blend" below); a real chorus packages it.
-   **Its showcase cart is the Juno** (see New instruments) — build them together.
+2. **Chorus / unison width** — ✅ **SHIPPED 2026-06-10** as `chorus(rate, depth, mix)`: the real
+   BBD modulated-delay (navkit port, antiphase stereo width), the lush Juno/Solina swirl — NOT the
+   detune fake. It landed as a **master INSERT on the shared mod-delay buffer** (the 0015 path: not
+   a third send bus; flanger + tape will reuse the same buffer), so it's master-wide in v1.
+   Showcase: the **juno** cart (the OFF/I/II switch is the whole point).
+   - **▶ RETROFIT — `air.c`'s Solina pad (still pending: needs per-part).** AIR's `I_PAD`
+     (`saw/solina-ensemble`) fakes the ARP/Eminent String Ensemble with a static **detune-pair**
+     (`instrument_tune +0.07`) + a volume LFO — body, but no swirl. A Solina/Juno pad *is literally
+     a BBD ensemble chorus* on a saw stack, so route `I_PAD` through `chorus()` and drop the
+     tune-pair hack — **once per-part routing exists.** Chorus is master-wide today, so applying it
+     would wash air's *whole* mix, not just the pad; the retrofit waits for the deferred aux bus.
+     Pairs with [`air-effects-wants.md`](air-effects-wants.md).
 3. **Formant filter** — 4-bandpass-peak vowel filter (navkit-spec'd, reuses a state-variable
    filter). Run **any** instrument through it → choir / vocal-organ / **talkbox** (vowel) color.
    A *complement* to the maturing `INSTR_VOICE` synth, not a substitute: cheap per-instrument
@@ -137,12 +145,15 @@ If it's genuinely self-contained per-note → per-voice. Run this before committ
   confuse it with the vocoder.
 
 **⚠️ Real traps — same shape as wah; decide before building:**
-- **Chorus splits into two effects.** *Unison detune* (a few cents apart) = per-voice, **shipped**
-  as `instrument_tune`. *BBD/string-machine chorus* (the Solina/Juno swirl) = a modulated short
-  delay on the **summed** signal → **bus**. Trap: ship the detune fake, call "chorus" done, then
-  find the Solina/Juno lushness needs the bus version (0015 even defers the real one to the
-  flanger pile — it lands free off the tape buffer). The build-list's "chorus → Juno" row means
-  the **bus** chorus.
+- **Chorus splits into two effects.** ✅ **RESOLVED / SHIPPED 2026-06-10.** *Unison detune* (a few
+  cents apart) = per-voice, shipped as `instrument_tune` (the cheap stand-in). *BBD/string-machine
+  chorus* (the Solina/Juno swirl) = a modulated short delay on the **summed** signal — and it
+  landed as a **master INSERT** (`chorus(rate, depth, mix)`), NOT a third send bus: per
+  [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md) it's the first use of
+  the shared master modulated-delay buffer (the same buffer flanger + tape-wow reuse). So the
+  earlier guess that it'd be a *send bus* was off — the 0015-correct home is a master insert on the
+  reserved buffer, and that's where it shipped. Showcase: the **juno** cart. The trap the split
+  warned against (ship the detune fake, call chorus done) was avoided.
 - **Vocoder ≠ formant filter (conflation trap).** *Formant filter* (4 vowel bandpass peaks on one
   instrument) is a **filter** → per-voice-capable (the SVF's 4th use) or bus insert; single input.
   *Vocoder* is carrier × modulator — a synth/chord shaped by a **separate** voice → **two inputs**,
@@ -178,7 +189,7 @@ upgrade to existing stations:
 
 | effect | showcase cart | also rescues |
 |---|---|---|
-| chorus | **Juno** (poly synth — see above) | jingle haze, yacht stereo Rhodes, **air's Solina string-machine ensemble** |
+| chorus ✅ **SHIPPED** | **juno** cart (Roland Juno-6 — OFF/I/II chorus switch) ✅ built | jingle haze, yacht stereo Rhodes, **air's Solina ensemble** (master-wide now; per-part waits for aux routing) |
 | reverb ✅ **SHIPPED** | **cathedral** cart (a chord blooms into an endless hall) ✅ built | `ambient` tails, the orchestra hall, glassharmonica, dub's spring-crash, **air's whole drenched mix** — now wirable via `instrument_reverb` |
 | leslie (rotary) | a **Hammond B3 + Leslie** organ (slow/fast footswitch) | roadhouse, yacht |
 | wah / auto-wah | a **funk clavinet / wah-guitar** (the pedal quack) | citypop funk guitar, the clav |

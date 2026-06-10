@@ -101,3 +101,18 @@ convention — it's **refusing to admit new primitives**.
   + follower — [instrument-engines §8.10](../design/instrument-engines.md)), and a per-note env is
   not a follower. The "Why → Already covered today" wah clause now states this directly; the
   *decision itself* (effects are recipes, roster closed) was never affected.
+
+- **2026-06-10 — the modulated-delay buffer landed early (via chorus), and the decision held.**
+  This doc reserved a single master "wow/flutter buffer" (the master-stage row) as the home for a
+  real modulated-delay chorus + flanger + tape-wow, deferred until tape, and ruled plain chorus =
+  `detune`. The Juno showcase brought the *real* BBD chorus forward, so that buffer **shipped now,
+  via chorus instead of tape** (`chorus(rate, depth, mix)`, a navkit BBD port). Crucially it landed
+  exactly as the roster prescribes — **a MASTER-STAGE INSERT (the reserved buffer), NOT a third
+  send bus** — so the "shared buses capped at two (echo, reverb)" line is untouched, and there is
+  **no `instrument_chorus`** (master-wide; per-part waits for aux routing). Flanger (= same buffer +
+  feedback + short delay) and tape wow/flutter (= same buffer + slow LFO) are now queued *uses of
+  this one buffer*, not new primitives — the "write the mod-delay once, place it many ways"
+  discipline. So the decision didn't bend: chorus is a recipe/use of a rostered primitive, the
+  buffer was always sanctioned, only its *timing* moved (chorus-first, not tape-first). The
+  detune-as-cheap-chorus note still stands as the zero-cost stand-in. Build: [instrument-engines
+  §8.10](../design/instrument-engines.md) build-state; showcase: the `juno` cart.

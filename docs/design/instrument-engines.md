@@ -24,21 +24,24 @@ the effects-layer plan. **Genre: design exploration.**
 > `instrument_pan`/`note_pan`/`LFO_PAN`); constant-power added as a gated opt-in `pan_law()`
 > 2026-06-10. Full record: [`stereo.md`](stereo.md). The §8.10 gate is now open.
 >
-> **▶ Effects-bus layer (§8.10): STARTED. Reverb SHIPPED 2026-06-10** — the first effect.
-> Rather than `bus[NBUS]` + per-slot aux routing up front, the first bite **formalized the
-> per-sample MASTER FX SECTION** (in `sound_callback`): an explicit, ordered, send/insert-aware
-> block — SEND RETURNS (echo, reverb — each a shared processor with per-slot sends) then the
-> INSERT CHAIN ending in the soft-clip limiter, with a documented (not built) side-chain seam.
-> **Reverb is a SEND bus modelled exactly like the echo bus** — `reverb(size, damping)` +
-> `instrument_reverb`/`note_reverb`, a line-for-line port of navkit's Schroeder core (4 comb + 2
-> allpass + pre-delay), mono v1, dormant-until-called (byte-identical for old carts). Showcase:
-> the **cathedral** cart. Per-slot AUX routing (`instrument_bus`) stays the deferred next
-> increment; the reasoning (sends are the minority, inserts the majority — build the section to
-> take both) + the placement sanity-check per effect are in
-> [`sound-next-steps.md`](sound-next-steps.md). **Next:** the §8.10.1 PARKED per-voice stand-ins
-> migrate onto real phase-coherent buses (the **great auto-wah** = bandpass on the summed mix +
-> follower, **epiano tremolo**, the **envelope follower**), and chorus/tape/leslie per the
-> build-list. **Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)**
+> **▶ Effects-bus layer (§8.10): STARTED. Reverb + chorus SHIPPED 2026-06-10.** The first bite
+> **formalized the per-sample MASTER FX SECTION** (in `sound_callback`): an explicit, ordered,
+> send/insert-aware block — SEND RETURNS (echo, reverb — each a shared processor with per-slot
+> sends) then the INSERT CHAIN (chorus → … → soft-clip limiter last), with a documented (not
+> built) side-chain seam. Rather than `bus[NBUS]` + per-slot aux routing up front.
+> **Reverb** = a SEND bus modelled like the echo bus (`reverb(size, damping)` +
+> `instrument_reverb`/`note_reverb`, navkit Schroeder port, mono v1). Showcase: **cathedral**.
+> **Chorus** = the first use of the **shared modulated-delay buffer** 0015 reserves (the master
+> "wow/flutter buffer" — flanger + tape-wow will reuse it). It's a MASTER INSERT, not a third send
+> bus, so 0015's two-bus cap holds — `chorus(rate, depth, mix)`, navkit's BBD port with antiphase
+> stereo taps (mono → wide), master-wide. Showcase: **juno**. Both dormant-until-called
+> (byte-identical for old carts). Per-slot AUX routing (`instrument_bus`) stays the deferred next
+> increment; the send-vs-insert reasoning + the placement sanity-check per effect are in
+> [`sound-next-steps.md`](sound-next-steps.md). **Next:** **flanger + tape** as further uses of the
+> chorus buffer; the §8.10.1 PARKED per-voice stand-ins migrate onto real phase-coherent buses (the
+> **great auto-wah** = bandpass on the summed mix + follower, **epiano tremolo**, the **envelope
+> follower**); leslie per the build-list.
+> **Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)**
 > (effects are recipes; ~12 primitives, forever); this doc's §8.10 is the routing sketch 0015
 > disciplined — where they differ, 0015 wins. To work on effects, read **0015 + §8.10 +
 > §8.10.1** and skip the rest.
@@ -1457,6 +1460,16 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > next increment; v1 is master-only. Stereo (§9) was the real prerequisite and shipped
 > 2026-06-09 — **specced in [`stereo.md`](stereo.md)**. Per-effect placement calls + the
 > send-vs-insert reasoning: [`sound-next-steps.md`](../design/sound-next-steps.md).
+>
+> **chorus SHIPPED 2026-06-10** (the second §8.10 effect) — but NOT as a third send bus (the cap
+> holds). It's the **first use of the shared master modulated-delay buffer** 0015 reserves (the
+> "wow/flutter buffer"): a MASTER INSERT, `chorus(rate, depth, mix)`, navkit's BBD port with
+> antiphase stereo taps (a centered mono mix → wide stereo — the Juno's two amps). The buffer
+> landed early via chorus rather than tape; **flanger** (= same buffer + feedback + short delay)
+> and **tape wow/flutter** (= same buffer + slow LFO) are now queued uses of it — the "write the
+> mod-delay once, place it many ways" discipline (cf. the SVF serving filter/formant/wah). Master-
+> wide (no `instrument_chorus` — 0015-faithful; per-part waits for aux routing). Showcase: **juno**.
+> See [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)'s 2026-06-10 update.
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first
 > engines ship) — begin small. The Leslie (§8.3/§8.8) is the first instance and sets the pattern.

@@ -22,10 +22,12 @@ through an amp, onto tape, with the rhythm guitar through a wah pedal.* That lay
 > shipped-station gap ledger is [`radio-genre-fidelity.md`](radio-genre-fidelity.md); this is
 > its forward-looking sibling for a station being built.
 >
-> **UPDATE 2026-06-10 — reverb SHIPPED.** The first §8.10 effect landed: `reverb(size,damping)`
-> + `instrument_reverb`/`note_reverb`. Afrobeat's "band-in-a-room glue (reverb)" want is met —
-> `afrobeat.c` can send the whole band into one shared room. The other votes below (wah, tape,
-> chorus, leslie, drive, and the not-yet-rostered compression) are still open.
+> **UPDATE 2026-06-10 — reverb + chorus SHIPPED.** Two §8.10 effects landed:
+> `reverb(size,damping)` (Afrobeat's "band-in-a-room glue" want, met — send the whole band into one
+> room) and `chorus(rate,depth,mix)` (the BBD modulated-delay; meets the horn-section-width vote at
+> the master level — chorus is master-wide in v1, so it widens the whole mix, not just the horns,
+> until per-part aux routing lands). Still open: wah, tape, leslie, drive, and the not-yet-rostered
+> compression.
 
 ---
 

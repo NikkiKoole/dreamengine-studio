@@ -22,10 +22,12 @@ a string-machine chorus, onto warm tape.* That layer is missing.
 > build-list is in [`sound-next-steps.md`](sound-next-steps.md) § "Each effect → its showcase
 > cart" (AIR is now a demand witness there). Sibling: [`afrobeat-effects-wants.md`](afrobeat-effects-wants.md).
 >
-> **UPDATE 2026-06-10 — reverb SHIPPED.** The first §8.10 effect landed: `reverb(size,damping)`
-> + `instrument_reverb`/`note_reverb` (a real room, not the echo-delay stand-in). AIR's top vote
-> is met — `air.c` can drop the echo-bus reverb fake and send its whole mix into a real hall. The
-> remaining wants below (chorus, vocoder, tape) are still open.
+> **UPDATE 2026-06-10 — reverb + chorus SHIPPED.** The first two §8.10 effects landed:
+> `reverb(size,damping)` (a real room, not the echo-delay stand-in — AIR's top vote, met) and
+> `chorus(rate,depth,mix)` (the real BBD modulated-delay chorus, not the detuned-SAW stand-in).
+> Caveat for AIR's Solina: chorus is **master-wide** in v1, so `air.c` can't yet chorus *only* the
+> string pad without washing the whole mix — that per-part routing waits for the deferred aux bus.
+> Until then the detune-pair stand-in stays. Remaining open: a true vocoder, tape sat.
 
 ---
 

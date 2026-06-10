@@ -29,10 +29,10 @@
 
 static const char KEYS[NPAD] = { 'A','S','D','F','G','H','J','K' };
 
-#define NSLIDER 4   // 0..2 = engine macros, 3 = cart-side SLIDE (portamento ms, mono only)
-static const char *MNAME[NSLIDER] = { "harmonics", "timbre",  "morph",   "slide" };
-static const char *MLO[NSLIDER]   = { "trumpet",   "mellow",  "steady",  "snap"  };
-static const char *MHI[NSLIDER]   = { "tuba",      "blatty",  "growl",   "smear" };
+#define NSLIDER 5   // 0..2 = engine macros, 3 = cart-side SLIDE (mono only), 4 = VIBRATO (note_lfo)
+static const char *MNAME[NSLIDER] = { "harmonics", "timbre",  "morph",   "slide",  "vibrato" };
+static const char *MLO[NSLIDER]   = { "trumpet",   "mellow",  "steady",  "snap",   "none"    };
+static const char *MHI[NSLIDER]   = { "tuba",      "blatty",  "growl",   "smear",  "wide"    };
 
 // presets: macro positions across the brass family (instrument/bore · brassiness · breath).
 // STARTING GUESSES, tuned by ear against the engine — the harmonics arc walks bright→dark.
@@ -84,9 +84,9 @@ static Ptr ptr[NPTR];
 #define PAD_Y    96
 #define PAD_H    24
 #define PRE_Y    128
-#define MROW_Y   158
-#define MROW_W   66
-#define MROW_X(k) (8 + (k) * 78)
+#define MROW_W    66
+#define MROW_X(k) (8 + ((k) % 4) * 78)       // 4 columns wide
+#define MROW_Y(k) (150 + ((k) / 4) * 26)     // wraps to a 2nd row at index 4 (vibrato, +mute…)
 // the trombone slide ribbon (top) — the marquee gesture
 #define SLIDE_X  10
 #define SLIDE_Y  44
@@ -132,6 +132,7 @@ static void push_live(void) {
         note_harmonics(h[i], knob[0]);
         note_timbre(h[i], t);
         note_morph(h[i], knob[2]);
+        note_lfo(h[i], 0, LFO_PITCH, 5.5f, knob[4] * 0.4f);   // VIBRATO — independent of morph's growl
     }
 }
 
@@ -242,7 +243,7 @@ void update(void) {
             if (ty >= PRE_Y - 2 && ty < PRE_Y + 12)
                 for (int q = 0; q < 6; q++) if (tx >= 12 + q * 50 && tx < 12 + q * 50 + 48) { set_preset(q); break; }
             for (int k = 0; k < NSLIDER; k++)
-                if (point_in_box(tx, ty, MROW_X(k) - 2, MROW_Y - 8, MROW_W + 4, 20)) { p->mode = PTR_DRAG; p->k = sel = k; }
+                if (point_in_box(tx, ty, MROW_X(k) - 2, MROW_Y(k) - 8, MROW_W + 4, 20)) { p->mode = PTR_DRAG; p->k = sel = k; }
             if (p->mode == PTR_IDLE && mono && point_in_box(tx, ty, SLIDE_X, SLIDE_Y, SLIDE_W, SLIDE_H)) {
                 p->mode = PTR_SLIDE; slide_grip(tx);
             }
@@ -389,7 +390,7 @@ void draw(void) {
 
     // ── macro row (0..2 engine macros move live; 3 = cart-side slide, dimmed in poly)
     for (int k = 0; k < NSLIDER; k++) {
-        int x = MROW_X(k), y = MROW_Y;
+        int x = MROW_X(k), y = MROW_Y(k);
         bool on = (k == sel);
         bool dim = (k == 3 && !mono);    // slide only bites in mono mode
         font(FONT_SMALL);

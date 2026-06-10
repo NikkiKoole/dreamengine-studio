@@ -2846,5 +2846,14 @@
       "instrument"
     ],
     "homage": "ARP/Eminent Solina String Ensemble (1974)"
+  },
+  {
+    "title": "electric mistress",
+    "description": "Electro-Harmonix Electric Mistress (1976) - the flanger pedal (Andy Summers, Gilmour, the chime on Walking on the Moon), and the showcase for flanger(). A flanger is a short swept delay with feedback whose moving comb-filter notches give the JET-PLANE whoosh and the metallic chime - and it only reads on a rich source, so you strum a GUITAR through it. Third box in the effects family (spacecho=echo, cathedral=reverb, juno=chorus, mistress=flanger). The FLANGER footswitch A/Bs the dry guitar vs the swept comb; RATE/DEPTH set the sweep, FEEDBACK is the jet/metallic intensity (low=gentle, high=screaming resonant comb), MIX is dry..wet. The hero is JET: one button fires a 2-second noise swell through a deep slow flange = the textbook jet passing overhead. The COMB window draws the notches sweeping. Tap a chord pad or press 1..4 to strum E/A/D/G; SPACE toggles AUTO (a self-strumming progression); F footswitch, J jet, H help.",
+    "file": "mistress.cart.png",
+    "kind": [
+      "instrument"
+    ],
+    "homage": "Electro-Harmonix Electric Mistress"
   }
 ]

@@ -29,6 +29,7 @@ docs/
 │   ├── stereo.md         SPEC (design call ahead of build): resolves §9 "Stereo?" — instrument_pan/note_pan + LFO_PAN, linear pan law (center byte-identical), echo mono in v1; the §8.10 effects-layer prerequisite + a pre-flight bite checklist
 │   ├── future-stations.md  the radio-station candidates parking lot (was game-music's "Future stations"): ranked candidates, the citypop conditions, new-brains-per-cart axis, IDM + functional-music wings, the "newest demand" scoring
 │   ├── radio-genre-fidelity.md  gap ledger: each station's genre-true IDEAL (researched blind) vs what we built — the holes (faked/missing instruments where a real engine sits unused, the generative brains we lack), aggregated + per-station
+│   ├── sound-next-steps.md  the actionable digest of the 2026-06-10 sound research: prioritized upgrade-wirings, new instruments/stations to build, new generative brains, and decisions pending — each linking to the doc with detail
 │   ├── radio-instrument-options.md  per-station timbre swaps / engine retrofits, ranked per engine (mallet → lowend's vibraphone, etc.)
 │   ├── held-notes.md    SHIPPED spec: note_on/note_off handles + live note_pitch/vol/cutoff/duty + slew — the sustain layer the instruments ride on
 │   ├── input-recording-looper.md  exploration: can a cart record the player and loop it back — recording levels for music looping + gameplay ghosts

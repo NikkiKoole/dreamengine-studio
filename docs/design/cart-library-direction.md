@@ -70,7 +70,8 @@ pattern at the bottom.
 > ([`../guides/instrument-recipes.md`](../guides/instrument-recipes.md)). **The "blocked on
 > missing engines" list below is STALE: `MEMBRANE`, `REED`, and `BOWED` have all shipped** —
 > the hand-drum, the bellows trio, the violin/cello (and an **arco** upright) are *buildable
-> today*. Only **brass** (slide trombone) is still engine-blocked. Scored here by **new sonic
+> today*. (**Brass too, as of 2026-06-10** — `INSTR_BRASS` shipped; the cart's in progress.
+> *No instrument is engine-blocked anymore.*) Scored here by **new sonic
 > territory** (does it make sound the *playable* carts can't?) — a different axis from the
 > fun × showcase ranking below. Highest new-sound = taking an engine that today lives only in
 > a showcase/radio and making it *playable* for the first time.
@@ -89,7 +90,7 @@ pattern at the bottom.
 > | ★★☆☆☆ | music box | `TRI` + run-down | the novelty is the run-down *mechanic* (pitch/tempo sag), not the timbre |
 > | ★★☆☆☆ | standing bass (pizz-only) | `PLUCK` low + noise slap | mostly a *better* version of the already-faked upright (see the arco entry instead) |
 > | ★☆☆☆☆ | barrel/crank organ | `USER0` drawbars | re-treads roadhouse's combo-organ / stylophone's drawn organ; the crank wobble is the only-new bit |
-> | — | slide trombone | `BRASS` ❌ | still engine-blocked (only FM/PD fakes); out of "reuse existing engines" scope |
+> | ★★★★☆ | slide trombone / brass | `BRASS` ✅ *just shipped* | first *played* lip-reed brass — the slide gesture wants the live glide; horn fakes (addis/dub/citypop/yacht) can move onto it. Cart in progress (Nikki) |
 >
 > **New-sound ≠ build priority.** The barrel organ scores lowest here yet remains the top
 > *buildable* pick below (tinydaws gateway, great gesture). If the goal is "cover the most new
@@ -147,7 +148,8 @@ pattern at the bottom.
 **Was blocked on missing engines** ([`instrument-engines.md`](instrument-engines.md) §8.9
 owns the "which engine next" call) — ⚠️ **mostly UNBLOCKED as of 2026-06-10** (membrane,
 reed, bowed, and the experimental formant voice have all shipped; see the scoring update
-above). Only brass remains. The interaction notes still stand:
+above) — and **brass shipped 2026-06-10** too, so *nothing here is engine-blocked anymore*.
+The interaction notes still stand:
 
 - **Hand-drum (tabla/conga)** — ✅ membrane shipped (tabla.c is the showcase). The killer pairing: touch
   *position* on the drumhead = the engine's strike-position macro. Touch API and
@@ -169,7 +171,7 @@ above). Only brass remains. The interaction notes still stand:
   need **formant** (+ AM/ring for the Dalek).
 - **Violin / cello** — ✅ bowed shipped (bowed.c showcase; arco + pizzicato). Drag speed = bow pressure, another
   gesture-to-physics 1:1.
-- **Slide trombone** — ❌ still blocked: **brass** has no engine yet (only FM/PD fakes); the slide gesture is begging for it.
+- **Slide trombone** — ✅ `INSTR_BRASS` shipped (2026-06-10, lip-reed waveguide that slides/glisses live); the brass instrument cart is in progress. The slide gesture finally has its engine.
 
 The pattern worth noticing: the blocked ones are all *continuous-gesture*
 instruments — exactly why instrument-engines §8.9 says the wind/bowed group "pairs with held notes

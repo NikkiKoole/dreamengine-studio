@@ -589,6 +589,18 @@ a deep bass register.
 - origin: mariachi
 - used by: mariachi (`I_GTRON`)
 
+### saw/ms10-bass
+`INSTR_SAW` · A2 D160 S4 R120 · LP 720/7 · cut-env →1500 (0/70) · drive 0.22
+The fat resonant Korg **MS-10** mono-synth bass — a saw through a high-resonance lowpass with a
+fast cut-env "wow" and a little drive: the propulsive riff that IS the song on Tunnel (and the
+Ani Kuni drive). The slot also voices a *round* sibling for the other archetypes (res 2,
+cut-env →900, drive 0.08). The first MS-10-style resonant analog bass on the dial.
+- tier: unique (**new recipe**; round sibling folded in)
+- origin: polopan
+- used by: polopan (`I_BASS`, Tunnel/Ani Kuni riff + round elsewhere)
+- kin: the SAW-bass idea (italo's `saw/italo-seq-bass`, carlos's `saw/fat-moog`) — same
+  resonant-LP + cut-env + drive path, voiced as a driving mono bass.
+
 ## Comp & rhythm
 
 ### epiano/rhodes-detent
@@ -1066,6 +1078,19 @@ The same violins **plucked** (pizzicato) — short, dry, for the síncopa.
 - used by: tango (`I_VLN`, pizzicato sections)
 - pair: rolls against `saw/violins-arco`.
 
+### bowed/polopan-pizz
+`INSTR_BOWED` (PIZZICATO via `eng_tune(slot,0,1)`) · A1 D0 S7 R400 · h0.30 t0.42 m0.30
+The plucked-string bounce that IS Polo & Pan's groove — the **real** bowed-string waveguide
+plucked instead of bowed (a warm finger pizzicato that rings down on its own), doubled with the
+marimba on Canopée and comping the changes on Coeur Croisé. Where **mariachi** *bows*
+`INSTR_BOWED` and **tango** *fakes* pizz on SAW (`saw/violins-pizz`), this plucks the modelled
+string — the engine's own arco↔pizz split.
+- tier: unique
+- origin: polopan
+- used by: polopan (`I_PIZZ`)
+- kin: `saw/violins-pizz` (tango's faked pizz) and `bowed/mariachi-violin` (the bowed side of
+  the same engine) — polopan is the BOWED *pizzicato* technique.
+
 ### mallet/bronze
 `INSTR_MALLET` · A1 D0 S7 R1100 · h0.55 t0.40 m0.30 (ring, **no motor**) · `instrument_tune()` per degree
 A bank of tuned bronze metallophones — **one MALLET slot per scale degree** (`I_BRONZE`+0..6),
@@ -1359,6 +1384,27 @@ The Kelly-Watch-the-Stars robot lead — a sung vowel, not a true vocoder (that 
 formant/vocoder bus; see [`../design/air-effects-wants.md`](../design/air-effects-wants.md)).
 No station had used `INSTR_VOICE` for a melodic lead before.
 - tier: unique · origin: air · used by: air (`I_LEAD`, KELLY archetype)
+
+### voice/polopan-chant
+`INSTR_VOICE` · A40 D90 S7 R180 · h0.52 (≈"A" vowel) t0.42 (size) m0.55 (effort) · pitch-LFO 5.5 Hz/0.22
+The Polo & Pan "ah-ah" sung chant — an open-vowel `INSTR_VOICE` lead with a rich vibrato, the
+topline of the Canopée and Ani Kuni archetypes (the hypnotic Ani Kuni cell, doubled by the
+glockenspiel). kin: air's `voice/air-vocoder` — the second melodic `INSTR_VOICE` on the dial,
+voiced more open and vibrato-sung than air's pressed robot lead.
+- tier: unique (kin `voice/air-vocoder`)
+- origin: polopan
+- used by: polopan (`I_STAR`, Canopée / Ani Kuni)
+
+### pipe/polopan-flute
+`INSTR_PIPE` · A45 D0 S6 R240 · h0.00 (overblow OFF) t0.42 m0.68 · register kept mid · pitch-LFO 5.0/0.14
+Nanga's breathy flute — the showcase `pipe/flute` recipe. **Same intonation caveat air logged**
+(PIPE goes sharp toward the top with overblow on / a high register), so overblow is OFF and the
+melody sits mid-register — and polopan ships a live **`pipe`/`sine` A/B** in the band panel so
+the player can swap to a clean in-tune SINE breathy flute (`sine/breathy-flute` kin) if the
+waveguide still drifts on their ear. Engine note: `../design/air-effects-wants.md`.
+- tier: unique (kin pipe.c `pipe/flute`, air's `pipe/air-flute`)
+- origin: polopan
+- used by: polopan (`I_STAR`, Nanga — A/B with a SINE fake)
 
 ### pipe/air-flute  *(FIRST radio `INSTR_PIPE`)*
 `INSTR_PIPE` · A1 D0 S4 R1200 · **h0.00 (overblow OFF — stays out of the jet-gain "screech at

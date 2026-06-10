@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Stage-0 combo — raylib window + AudioWorklet</title>
+<!-- coi-serviceworker FIRST: isolation → shared memory → the worklet build can run -->
+<script src="coi-serviceworker.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#111;color:#eee;font:16px/1.5 system-ui,sans-serif}
+  .wrap{max-width:520px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+  h1{font-size:18px;margin:0}
+  #canvas{display:block;width:100%;max-width:480px;image-rendering:pixelated;background:#000;border:1px solid #333}
+  #iso,#sab{font-weight:700}.ok{color:#5e5}.bad{color:#f66}
+  button{font-size:20px;padding:16px;border:0;border-radius:12px;background:#2a6;color:#fff;font-weight:700}
+  #reset{background:#a33;font-size:14px;padding:10px}
+  #status{background:#000;border-radius:8px;padding:10px;min-height:2.5em;white-space:pre-wrap;font:13px/1.4 ui-monospace,monospace;color:#bdb}
+  .hint{font-size:13px;color:#999}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Stage-0 combo — raylib window + AudioWorklet (one shared-memory build)</h1>
+  <div>cross-origin isolated: <span id="iso">…</span> · SharedArrayBuffer: <span id="sab">…</span></div>
+  <canvas id="canvas" width="320" height="200" tabindex="-1"></canvas>
+  <button id="start">▶ TAP TO START AUDIO — listen for a dead-even roll</button>
+  <button id="reset">↻ RESET — unregister SW, clear caches, reload (clean test)</button>
+  <div class="hint"><b>Pass =</b> the box animates (GL window alive) <b>AND</b> the roll is
+    dead-even <b>AND</b> CPU stays low (check your browser's task manager — a CPU spike
+    would mean the lean <code>emscripten_thread_sleep</code> stub is being hit and we'd
+    switch to <code>-pthread</code>). If isolation reads <b>false</b>, hit RESET / use a
+    fresh tab — the page self-reloads once as the service worker takes control.</div>
+  <div id="status">booting…</div>
+</div>
+<script>
+  function setFlags(){
+    var i=document.getElementById('iso'), s=document.getElementById('sab');
+    if(window.crossOriginIsolated){i.textContent='true ✓';i.className='ok';} else {i.textContent='false ✗';i.className='bad';}
+    if(typeof SharedArrayBuffer!=='undefined'){s.textContent='yes ✓';s.className='ok';} else {s.textContent='no ✗';s.className='bad';}
+  }
+  setFlags();
+  window.__spikeStatus=function(m){var s=document.getElementById('status');s.textContent+='\n'+m;};
+  window.addEventListener('error',function(e){window.__spikeStatus('JS ERROR: '+e.message);});
+  var Module={
+    canvas:document.getElementById('canvas'),
+    onRuntimeInitialized:function(){window.__spikeStatus('runtime initialized ✓ (shared memory OK)');},
+    onAbort:function(w){window.__spikeStatus('ABORT: '+w+' (shared memory blocked? not isolated)');},
+    printErr:function(t){window.__spikeStatus('stderr: '+t);}
+  };
+  document.getElementById('start').addEventListener('click',function(){
+    try{Module.ccall('resume_audio',null,[],[]);window.__spikeStatus('resume_audio() called — you should hear the roll');}
+    catch(e){window.__spikeStatus('resume failed: '+e);}
+  });
+  document.getElementById('reset').addEventListener('click',async function(){
+    try{
+      if(navigator.serviceWorker){const r=await navigator.serviceWorker.getRegistrations();await Promise.all(r.map(x=>x.unregister()));}
+      if(window.caches){const k=await caches.keys();await Promise.all(k.map(x=>caches.delete(x)));}
+      sessionStorage.clear();window.__spikeStatus('reset — reloading…');setTimeout(()=>location.reload(),300);
+    }catch(e){window.__spikeStatus('reset error: '+e);}
+  });
+</script>
+<script src="combo.js"></script>
+</body>
+</html>

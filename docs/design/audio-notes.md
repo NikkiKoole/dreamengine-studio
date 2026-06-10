@@ -1279,3 +1279,28 @@ control — it reads 0.0¢, which is what proves the measurement itself is sound
 Not a fault, correctly separated by the tool into a "transposed, not detuned" list:
 **ORGAN** reads ~an octave low because the default registration leans on the 16′
 sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
+
+### Conclusions (2026-06-11)
+
+1. **The library is in tune; the modeled-waveguide engines were the exceptions.** SINE
+   (control, 0.0¢), MALLET, EPIANO, PD, PIANO, GUITAR, FM, and **BOWED** are all within a
+   few cents. ORGAN's "octave low" is its 16′ drawbar, not detuning.
+2. **PIPE was the real bug, and it's fixed.** Octave-low (full- vs half-wavelength bore +
+   an inverting reflection) and flat (uncompensated loop delay). Now in tune ~±3¢ from C4 to
+   ~E6 at any sane embouchure. This was the station owner's *"that pipe is hella out of tune"*
+   (air's Cherry flute) — the cart-side workaround (register drop, overblow 0) was masking an
+   engine bug; with the engine fixed, air's register reopened.
+3. **The decisive lesson: tuning is per-RECIPE, not per-engine — measure in the regime the
+   cart actually uses.** PIPE's loop delay scales with the jet length, which the *morph*
+   (embouchure) macro sets, so a constant calibrated at the default voice left real recipes a
+   semitone sharp. And the A-only sweep hid a flat ramp the dense sweep exposed. Two takeaways
+   for the next modeled engine: (a) derive any tuning compensation from the physical parameter
+   that varies (here jetLen), don't hard-code a constant; (b) sweep densely and at the target
+   macro settings, not just octaves of A at defaults.
+4. **Known residuals (tracked, [STATUS](../STATUS.md) #31):** PLUCK/REED/BRASS go flat at the
+   very top (A5 −17…−25¢) — integer-sample delay quantization, fix is a fractional read tap.
+   PIPE's extreme morph≈0 voice (longest jet ≈ a short top-octave bore) is seed-unstable on
+   the overblow edge — harmless in practice (recipes use morph ≳ 0.3) but only fully closed by
+   a jet∝bore re-voicing.
+5. **The measurement is now reusable.** `tune-check.js` is the regression gate for any future
+   pitched-engine work (`--quiet` in CI); SINE stays the 0.0¢ proof the rig itself is honest.

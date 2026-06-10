@@ -282,8 +282,6 @@ static int   wheelPD[MAXWP];                   // 1 = a drive wheel
 static float wheelG[MAXWP];                    // lateral grip coefficient (wheel 1.0, caster 0.12)
 static float wheelLoad[MAXWP];                 // solved vertical load (mass units; Σ ≈ M)
 static int   nWheelP;
-static int   use_circle = 1;                   // §8 combined-slip: longitudinal force eats lateral grip
-                                               // via the friction circle (the chosen model). M still A/Bs vs POWER_EAT.
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 // ENGINE_POWER is the GAS baseline (the everyday engine); the other kinds scale off it
@@ -390,13 +388,10 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 // ── friction circle (per-axle let-go — "uit de bocht vliegen") ────────────────
 // A tyre converts lateral slip into grip only up to SLIP_MAX of slip velocity; beyond that
 // the force saturates — it has LET GO and slides. Front lets go → understeer (push wide);
-// rear lets go → oversteer (tail steps out / spin). The rear's limit also shrinks with the
-// drive force it's laying down (POWER_EAT), so flooring a rear-drive rig mid-corner breaks
-// the back loose — power-on oversteer, emergent from the same circle.
+// rear lets go → oversteer (tail steps out / spin). Each wheel's lateral budget ALSO shrinks
+// with the longitudinal force it's carrying (combined slip, the latFactor below) — so flooring
+// a rear-drive rig mid-corner, or braking into one, breaks the tyres loose. Emergent.
 #define SLIP_MAX      36.0f       // lateral slip velocity (px/s) a tyre holds before it lets go
-#define POWER_EAT     0.72f       // fraction of the rear's grip budget eaten at full power (rear-drive).
-                                  // higher → throttle keeps the rear loose → a power-drift SUSTAINS
-                                  // (balanced against SELF_ALIGN_K, which pulls it straight)
 // ── drift-exit hysteresis: the rear stays loose for a beat after a slide ───────
 // Grip recovers INSTANTLY today (the cap is recomputed each frame), so a drift ends crisply
 // the moment you straighten. This lingers a "looseness" that spikes when the rear breaks away
@@ -433,8 +428,8 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 // can hold opposite lock without superhuman reflexes, and it's what arrests a slide into a
 // stable angle instead of a spin. We add it as a yaw toward the velocity vector, ∝ the slip
 // angle (atan2(vl,vf)) and speed. Gentle at small slip (normal driving barely feels it),
-// strong in a big slide → the rear breaks loose, this catches it, and THROTTLE (via
-// POWER_EAT) trims the held angle: the controllable, sustainable, realistic drift.
+// strong in a big slide → the rear breaks loose, this catches it, and THROTTLE (via the
+// friction circle) trims the held angle: the controllable, sustainable, realistic drift.
 #define SELF_ALIGN_K  0.18f       // strength of the self-steer toward the travel direction. LOW enough
                                   // that a drift can develop and be HELD; just enough to catch a spin
                                   // and give the player automatic counter-steer help (digital input)
@@ -998,7 +993,6 @@ static void handle_input(void) {
     // ---- DRIVE input: keyboard OR the on-screen cockpit (touch + mouse) ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
-    if (keyp('M')) use_circle = !use_circle;   // §8: A/B the combined-slip friction circle vs POWER_EAT
     if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
     if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
     if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
@@ -1252,7 +1246,7 @@ static void update_drive(float dt_) {
     solve_wheel_loads(wt_long, aLat);                // §8: per-wheel vertical loads for THIS frame
     // combined-slip inputs: the longitudinal force each wheel is carrying this frame — drive force
     // (its share of the laid-down thrust) + brake force (even split). Used by the friction circle
-    // below to shrink that wheel's LATERAL grip (power-/brake-eats-cornering), retiring POWER_EAT.
+    // below to shrink that wheel's LATERAL grip (power-/brake-eats-cornering) — the friction circle.
     float nDriveActive = (nDrive > 0) ? (float)nDrive : (float)nWheels;
     float fxDrive = (nDriveActive > 0) ? thrustLaid / nDriveActive : 0;
     float fxBrake = (nWheels > 0) ? (brakeAccel * M) / nWheels : 0;
@@ -1273,17 +1267,13 @@ static void update_drive(float dt_) {
             float loadScale = wheelLoad[i] / avgLoad;          // >1 loaded, ~0 lifted
             float cap = SLIP_MAX * loadScale;
             if (wheelPX[i] < 0 && in_hand) cap *= DRIFT_GRIP_MULT;                 // handbrake = the rear wheels
-            if (use_circle) {
-                // friction circle: longitudinal force (drive + brake) eats into this wheel's lateral
-                // budget. latFactor = √(1−(Fx/Fmax)²): flooring a drive wheel → it lets go laterally
-                // (power-oversteer); braking an unloaded rear → it steps out (trail-braking). Emergent.
-                float Fmax = MU_TRACTION * GROUND_GRIP * wheelLoad[i] + 1.0f;
-                float fx = fxBrake + ((wheelPD[i] || nDrive == 0) ? fxDrive : 0);
-                float u = clamp(fx / Fmax, 0, 1);
-                cap *= fsqrt(1.0f - u * u);
-            } else if (wheelPD[i] && throttle > 0) {
-                cap *= (1.0f - POWER_EAT * throttle);                             // the old fudge (circle off)
-            }
+            // friction circle: the longitudinal force (drive + brake) this wheel carries eats into its
+            // LATERAL budget. latFactor = √(1−(Fx/Fmax)²): flooring a drive wheel → it lets go laterally
+            // (power-oversteer); braking an unloaded rear → it steps out (trail-braking). All emergent.
+            float Fmax = MU_TRACTION * GROUND_GRIP * wheelLoad[i] + 1.0f;
+            float fx = fxBrake + ((wheelPD[i] || nDrive == 0) ? fxDrive : 0);
+            float u = clamp(fx / Fmax, 0, 1);
+            cap *= fsqrt(1.0f - u * u);
             if (wheelPX[i] < 0) cap *= (1.0f - DRIFT_RECOVER * drift_loose);       // hysteresis: rear hangs loose on exit
             float cl = clamp(vlat, -cap, cap);
             float acc = cl * (g * GROUND_GRIP / M) * LAT_GRIP;  // peak force ∝ cap ∝ load
@@ -1791,8 +1781,6 @@ static void hud(void) {
     // --- top of screen: rig identity (dim) + the zone's limit (a road sign) ----
     print(DES_NAME[cur_des], 4, 4, CLR_DARK_GREY);
     print(ENG[eng_kind].name, 4, 12, ENG[eng_kind].col);   // the rig's engine kind (§1a)
-    print(use_circle ? "GRIP: CIRCLE \x07M" : "GRIP: POWER-EAT \x07M", 4, 20,   // §8 A/B: which lateral model
-          use_circle ? CLR_LIME_GREEN : CLR_DARK_GREY);
     print_centered(ZONE_NAME[cur_zone], SCREEN_W / 2, 4, CLR_YELLOW);
     if (nDrag > 0) {                         // scrape heat — shown only while it bites
         print("SCRAPE", SCREEN_W - 52, 4, hot_col());

@@ -1627,6 +1627,7 @@ carrying — `latFactor = √(1−(Fx/Fmax)²)`, `Fx` = its drive share (of laid
   ~43°→~34°, trail ~33°→~12° — a real *feel change* to the tuned drift, not a regression.
 - **Trail-braking emerges** — braking into a corner eats front/rear lateral budget (rear worse as it
   unloads) → rotation. The one genuinely new feel; couldn't be faked.
-**ADOPTED (2026-06-10): default ON** — CIRCLE is the chosen lateral model (a green `GRIP: CIRCLE` HUD
-tag shows it; `M` still A/Bs vs POWER_EAT). Open follow-ups: re-tune the drift punchier if the gentler
-high-gear slide wants it, then retire `POWER_EAT` + the toggle for good.
+**ADOPTED & CONSOLIDATED (2026-06-10):** drove it, felt good → the friction circle is now the *only*
+lateral grip model. `POWER_EAT`, the `M` A/B toggle and the `GRIP:` HUD tag are **removed**; power-
+oversteer + trail-braking are fully emergent from the circle. Drift unchanged from circle-on (build
+~-16 / hold ~34 / trail ~12). The gentler-than-POWER_EAT high-gear drift was judged fine as-is.

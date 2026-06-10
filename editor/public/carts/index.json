@@ -2792,6 +2792,16 @@
     "genre": "puzzle"
   },
   {
+    "title": "air fm",
+    "description": "The Moon Safari station - the AIR (Nicolas Godin & J.B. Dunckel) homage, and an ARTIST station, not a genre: the dial plays recognizably DIFFERENT songs OF THEIRS, not one texture re-keyed. SPACE rolls a new tune and you get 'the Sexy Boy one' or 'the Cherry Blossom one' - a different song every time, but always THAT song. Built on the stolen-playbook chord brain: FIVE SONG ARCHETYPES, each a cited AIR track encoded as a template progression that ALSO fixes its groove, tempo, lead voice, mood and form. SEXY BOY (i-bVI-bVII vamp, a fuzzy driven Moog bass riff, laid-back four-on-floor); LA FEMME D'ARGENT (sunny dorian jazz loop, THE rolling melodic bassline, Rhodes comp, Moog lead); PLAYGROUND LOVE (a slow minor torch-song fall, smoky tenor sax, brushed kit); CHERRY BLOSSOM GIRL (bright I-V-vi-IV folk-pop, fingerpicked nylon guitar + breathy flute, airy); KELLY WATCH THE STARS (driving electro four-on-floor, a vocoder robotic lead). The seed varies key / melody cell / patterns / timbre WITHIN an archetype, so two Sexy Boys differ but both are unmistakably Sexy Boy. Reaches engines for AIR's real lineup: INSTR_VOICE as a melodic vocoder lead (a radio first), INSTR_PIPE breathy flute, INSTR_REED tenor sax, the Solina string-machine wash on a detuned-SAW pair, INSTR_EPIANO Rhodes/Wurli, INSTR_GUITAR nylon, and a fuzzy instrument_drive Moog bass - everything sitting in the echo bus's tape wash (AIR is always drenched). The window is a moon over the night highway. SPACE next song, R same tune (a fresh take), [ ] history, LEFT/RIGHT feel (hush/dusk/warm/aglow), UP/DOWN tempo, T tone, B band (strings/e-piano/echo), J jam strip (play along), M power, H help.",
+    "file": "air.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "AIR (Moon Safari)"
+  },
+  {
     "title": "mariachi fm",
     "description": "Endless mariachi, live from the plaza - a charro ensemble on a Saturday night, and the FIRST RADIO STATION TO REACH INSTR_BOWED: the violin section is the real bowed-string waveguide (every fiddle on the dial before this was faked on saw, like tango's), two desks panned wide for the ensemble spread, with a portamento scoop INTO the note and vibrato. It's also the second station to reach real INSTR_BRASS - two trumpets voiced a third apart, bright and blatty, that ANSWER the violins call-and-response. The rhythm section (armonia) is three registers of one INSTR_GUITAR engine: a bright short-ringing VIHUELA chattering the manico, a mid GUITARRA, and the woody GUITARRON bass on its root-fifth boom. The brains, all cart-side over radio.h's clock: THE SESQUIALTERA - a 12-sixteenth bar read two ways at once, 6/8 (accents on 0,6) against 3/4 (accents on 0,4,8), with the guitarron anchoring one meter while the vihuela accents the other on hemiola bars - two against three, the son jalisciense's signature cross-rhythm; the GROOVE rolls son (the lilting sesquialtera), vals (a clean 3/4 waltz, no cross-rhythm) or huapango (fast, hard hemiola). FUNCTIONAL HARMONY - a major-or-minor key with a I-IV-V walk, a secondary dominant (V/V) and a FORCED V-to-I cadence, one 8-bar progression locked so every copla sings the same changes. THE COPLA + THE RESPUESTA - the violins state a diatonic melodic cell in parallel thirds (the verse), the trumpets answer it a section later (the figure echoed/inverted, also in thirds); they TRADE, never both on the melody at once. THE ADORNO - in the showy section a soloist (violin or trumpet, rolled) rips a scalar flourish, pure performance rnd so it is new every replay. FORM rolls corto / son / fiesta: an entrada fanfare, coplas, trumpet trades, the adorno, and a remate tag that actually ends the tune. Seeded per song: key, major/minor, the progression, groove, form, tempo, the cell and the trumpet figure. The window is the plaza at night - papel picado banners, a charro in the great sombrero, a trumpet bell flashing when the horns play. SPACE next song, R same tune (a new adorno), [ ] history, LEFT/RIGHT feel (suave/tibio/alegre/fiesta), UP/DOWN tempo, T tone, B band (violines seccion/solo/sinte - sinte swaps the bowed strings for smooth saw synth-strings; trompetas dos/una/off; armonia vihuela/nylon), M power, H help.",
     "file": "mariachi.cart.png",
@@ -2800,5 +2810,15 @@
       "instrument"
     ],
     "homage": "Mariachi / son jalisciense"
+  },
+  {
+    "title": "polo & pan radio",
+    "description": "The Polo & Pan station - their escapist French dream-pop, and an ARTIST station, not a genre: SPACE rolls a new tune and you get 'the Canopee one' or 'the Tunnel one' - a different song every time, but always THAT song. Built on the stolen-playbook chord brain: FIVE SONG ARCHETYPES, each a real Polo & Pan track encoded as a template progression that ALSO fixes its groove, tempo, lead voice, mood and form. CANOPEE (sunny tropical pluck-house ~115bpm: a bouncing pizzicato+marimba riff, vocoder 'ah' accents, the famous stacked-mallet outro); ANI KUNI (driving Balearic chant-house ~122bpm: a hypnotic vocoder chant cell + a bright pluck-arp build, a big terraced drop and break); NANGA (dreamy downtempo exotica ~100bpm: a breathy flute over balafon + congas, a hypnotic wander, no drop); TUNNEL (dark propulsive minimal ~120bpm: the fat resonant Korg MS-10 synth-bass riff IS the song, sparse glassy stabs); COEUR CROISE (warm romantic dream-pop ~108bpm: a sung wordless lead over a lush Solina pad, glockenspiel twinkle, pizzicato comp). The seed varies key / progression / patterns / timbre WITHIN an archetype, so two Canopees differ but both are unmistakably Canopee. The lineup leans on the mallet-and-percussion + barely-used engines: a marimba/balafon/glock/vibe mallet chair, an INSTR_BOWED PIZZICATO bounce, a topline that swaps engine per song (INSTR_PIPE flute / INSTR_VOICE vocoder chant / SINE glass & sung), the Korg MS-10 resonant SAW bass, a Solina string pad, and a breezy Balearic kit (four-floor + clap + swish + congas). The window is a sunny terrace - a palm canopy, a sun over a lagoon, the sky tinting per archetype. SPACE next song, R same tune (a fresh take), [ ] history, LEFT/RIGHT feel (hush/breezy/sunny/aglow), UP/DOWN tempo, T tone, B band (A/B the Nanga flute: INSTR_PIPE model vs a clean in-tune SINE), J jam strip (play along on the pentatonic), M power, H help.",
+    "file": "polopan.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "Polo & Pan (Caravelle / Cyclorama)"
   }
 ]

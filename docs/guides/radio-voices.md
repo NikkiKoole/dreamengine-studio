@@ -423,14 +423,39 @@ family resemblance, nothing copied.
 
 ---
 
+## tango — Golden-age orquesta típica (D'Arienzo / Pugliese / Troilo)
+
+Solo layer: **none** (a per-frame rubato conductor drives the time instead).
+
+Despite being orchestral, tango is a **bridge** — it shares the *acoustic* palette (fake
+pianos, the session upright) with cocktail/roadhouse, while building its own bandoneón,
+violins and tango percussion.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_BAND`/`I_BANDL` | bandoneón (2 hands) | `user0/bandoneon` | USER0 (drawn) |
+| `I_VLN`  | violins, one desk | `saw/violins-arco` · `saw/violins-pizz` *(rolls by section)* | SAW |
+| `I_PNO`  | piano (marcato/cantabile) | `tri/felt-grand` ⟳ · `sine/closed-lid-piano` ⟳ (cocktail) *(rolls)* | TRI / SINE |
+| `I_BASS` | marcato upright | `tri/upright-bass` ⟳ (cocktail · roadhouse) | TRI |
+| `SL_CHIC`| chicharra scratch | `noise/chicharra` | NOISE |
+| `SL_GLP` | golpe (box knock) | `noise/golpe` | NOISE |
+
+**Borrowing at a glance:** the surprise — an orchestral station that shares plenty, but with
+the **acoustic cluster**, not the dance one. Its felt/closed pianos are cocktail's fake pianos;
+its upright is the 3-station session bass; its bandoneón is the 2nd `INSTR_USER0` drawn-wave
+voice (kin roadhouse). Only the violins (arco/pizz) and the chicharra/golpe percussion are
+tango's own.
+
+---
+
 ## Stations not yet charted
 
-carlos · exotica ·
-tango · ymo
+carlos · exotica · ymo
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
 cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse · satie ·
-gamelan (15). The real/acoustic stations build their own voices. Notable: no charted station
-uses the modeled `INSTR_PIANO` (all fake pianos on TRI/SINE — satie is an upgrade candidate);
-gamelan brought microtonal `instrument_tune()`, ombak, and the first `INSTR_REED`. Remaining:
-tango · carlos · exotica · ymo.)
+gamelan · tango (16). Refined finding: there are **two** sharing clusters, not "dance shares /
+acoustic builds own" — a **dance/synthetic** palette (synth kit, 808, disco basses,
+PWM-squares) and an **acoustic jazz/classical** palette (fake TRI/SINE pianos, the session
+upright, cross-stick) spanning cocktail/roadhouse/tango. The true islands are the world/ethio
+stations (gamelan, addis). Remaining: carlos · exotica · ymo.)

@@ -13,7 +13,7 @@ lines of `instrument_*` calls — and so shared recipes become visible on one pa
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
 > **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht**,
-> **roadhouse**, **satie**, **gamelan** (see
+> **roadhouse**, **satie**, **gamelan**, **tango** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -201,6 +201,21 @@ The kebero / low drum on the one — the struck-drumhead engine tuned low, near-
   instead of the synth kit. `kebero`/`conga`/`bongo` are one engine at three tunings (three
   different drums → three names, per the naming rule).
 
+### noise/chicharra
+`INSTR_NOISE` · A1 D34 S0 R20 · BP 3400/8
+The chicharra — a tight band-passed scratch (behind the violin's bridge). tango has no drum
+kit; the percussion is the band itself.
+- tier: unique
+- origin: tango
+- used by: tango (`SL_CHIC`)
+
+### noise/golpe
+`INSTR_NOISE` · A0 D40 S0 R24 · LP 900/4 · pitch-env →4 (0/30)
+The golpe — knuckles on the bandoneón box, a low woody knock.
+- tier: unique
+- origin: tango
+- used by: tango (`SL_GLP`)
+
 ### membrane/kendang
 A paired hand-drum (kendang) on `INSTR_MEMBRANE` — an interlocking high/low pair, one
 drummer:
@@ -380,11 +395,13 @@ non-dance stations build the session upright **near-identically** (a real cross-
 |---|---|
 | cocktail (`I_BASS`, upright night)            | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) |
 | roadhouse (`I_PBASS`, session-bassist night)  | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) · LP 480/1 |
+| tango (`I_BASS`, marcato)                     | TRI A3 D280 S5 R100 · pitch-env →2 (0/16) |
 
-- tier: **variant** (same recipe; roadhouse just caps it with a filter)
+- tier: **variant** (3 stations — the session upright; near-byte-identical)
 - origin: cocktail (or earlier)
-- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`)
-- kin: the TRI-bass pile (`tri/disco-bass`, `tri/fingered-bass`).
+- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`) · tango (`I_BASS`)
+- kin: the TRI-bass pile (`tri/disco-bass`, `tri/fingered-bass`). This one is the **acoustic
+  jazz/classical** cluster's shared bass (vs the dance stations' disco-bass).
 
 ### tri/fingered-bass
 `INSTR_TRI` · A2 D200 S4 R80 · LP 700/2
@@ -520,6 +537,22 @@ roadhouse's Krieger guitar line — a Karplus-Strong electric, seed-rolled acros
 - used by: roadhouse (`I_GTR`)
 - kin: the PLUCK-guitar family (`pluck/strat-stab`, `pluck/jangle-guitar`, `pluck/archtop`…).
 
+### user0/bandoneon **(voicings)**
+`INSTR_USER0` (a drawn free-reed single cycle, via `wave_set`) · vol-LFO (bellows tremble)
+tango's bandoneón — the **2nd `INSTR_USER0` drawn-wave station** (after roadhouse's organ): a
+hand-drawn free-reed cycle, two hands:
+
+| hand | recipe |
+|---|---|
+| left (`I_BAND`)  | INSTR_USER0 A~ D320 S5 R120 · vol-LFO 4.2 Hz (seeded) — the chords |
+| right (`I_BANDL`)| INSTR_USER0 A~ D220 S5 R110 · vol-LFO 5.6 Hz/0.08 (bellows tremble) — the canto + variación |
+
+- tier: unique (two hands)
+- origin: tango
+- used by: tango (`I_BAND` · `I_BANDL`)
+- kin: roadhouse's `user0/combo-organ` — both draw their own single-cycle wave via `wave_set`
+  rather than using a modelled engine (`INSTR_REED` exists, but tango draws a free reed).
+
 ### pluck/strat-stab
 `INSTR_PLUCK` · A1 D0 S7 R600 · h0.35 · LP 2800/1 · seeded timbre/morph
 Clean Strat 9th-stabs — a bright Karplus-Strong electric, the AOR comp guitar.
@@ -596,19 +629,32 @@ softness." satie's *only* instrument — solo piano, two hands at different regi
   exists to make visible.
 
 ### tri/felt-grand
-`INSTR_TRI` · A2 D600 S2 R240 · cut-env →700 (0/70)
-A soft, woody "felt grand" — cocktail's comp piano on its warmer nights. A *fake* piano (no
-`INSTR_PIANO`).
-- tier: unique
-- origin: cocktail
-- used by: cocktail (`I_PNO`, felt-grand nights)
+A soft, woody "felt grand" — a *fake* piano on TRI (cut-env = hammer softness). Two acoustic
+stations build it near-identically (same cut-env →700/0/70):
+
+| cart (slot) | recipe |
+|---|---|
+| cocktail (`I_PNO`, felt-grand night) | TRI A2 D600 S2 R240 · cut-env →700 (0/70) |
+| tango (`I_PNO`, felt registration)   | TRI A2 D520 S2 R200 · cut-env →700 (0/70) |
+
+- tier: **variant** (the acoustic fake-piano cluster)
+- origin: cocktail (or earlier)
+- used by: cocktail (`I_PNO`) · tango (`I_PNO`)
+- kin: the fake-piano-on-TRI cluster (`sine/closed-lid-piano`, satie's `tri/felt-piano`).
 
 ### sine/closed-lid-piano
-`INSTR_SINE` · A3 D700 S2 R260 · LP 1400/1
-The dark, intimate "closed-lid ballad" piano — cocktail's comp piano on its quieter nights.
-- tier: unique
-- origin: cocktail
-- used by: cocktail (`I_PNO`, closed-lid nights)
+The dark, intimate "closed-lid" piano — a fake piano on SINE. The same two acoustic stations
+build a dark registration this way:
+
+| cart (slot) | recipe |
+|---|---|
+| cocktail (`I_PNO`, closed-lid night) | SINE A3 D700 S2 R260 · LP 1400/1 |
+| tango (`I_PNO`, dark registration)   | SINE A2 D520 S2 R200 · LP 1100/1 · cut-env →400 (0/70) |
+
+- tier: **variant** (the acoustic fake-piano cluster)
+- origin: cocktail (or earlier)
+- used by: cocktail (`I_PNO`) · tango (`I_PNO`)
+- kin: `tri/felt-grand`, satie's `tri/felt-piano` — fake pianos all (none uses `INSTR_PIANO`).
 
 ### tri/piano-solo-stop
 `INSTR_TRI` · A1 D500 S3 R220 · cut-env →900 (0/60)
@@ -738,6 +784,24 @@ is subtly different. An alt voicing drops to h0.06 t0.50 m0.28 (woodier, drier, 
 - used by: addis (`I_VIBE`, lead + improv.h solo)
 - kin: `mallet/vibes` — same `INSTR_MALLET` vibraphone, but addis voices its own rather than
   copying mallet.c's preset. The one vibe cart that *didn't* lift the shared recipe.
+
+### saw/violins-arco
+`INSTR_SAW` · A70 D400 S6 R220 · pitch-LFO ~5 Hz (vibrato) · pitch-env scoop (→−1, seeded)
+tango's violin section (one desk), **bowed** — a SAW with a slow attack, vibrato, and the
+characteristic upward "scoop" into the note.
+- tier: unique
+- origin: tango
+- used by: tango (`I_VLN`, arco sections)
+- pair: rolls to `saw/violins-pizz` by section (arco ≠ pizzicato — different technique, like
+  brushes vs sticks).
+
+### saw/violins-pizz
+`INSTR_SAW` · A2 D180 S0 R60 · LP 2000/1
+The same violins **plucked** (pizzicato) — short, dry, for the síncopa.
+- tier: unique
+- origin: tango
+- used by: tango (`I_VLN`, pizzicato sections)
+- pair: rolls against `saw/violins-arco`.
 
 ### mallet/bronze
 `INSTR_MALLET` · A1 D0 S7 R1100 · h0.55 t0.40 m0.30 (ring, **no motor**) · `instrument_tune()` per degree

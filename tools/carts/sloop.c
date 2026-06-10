@@ -271,6 +271,17 @@ static float hullX[MAXHULL], hullY[MAXHULL];
 static int   nHull;
 static float stabL, stabR;        // lateral reach of the hull from the COM (left/right) — BUILD readout
 
+// ── per-wheel contact points (the §8 spring model) ────────────────────────────
+// Every support point (wheel/caster/drive), its COM-local position, grid cell (for the
+// BUILD draw), drive flag, and solved vertical LOAD. Filled in recompute_body; the load
+// is solved by solve_wheel_loads() — statically determinate for any count via the springs.
+#define MAXWP (GH * GW)
+static float wheelPX[MAXWP], wheelPY[MAXWP];   // contact positions, COM-local px
+static int   wheelPR[MAXWP], wheelPC[MAXWP];   // their grid row/col
+static int   wheelPD[MAXWP];                   // 1 = a drive wheel
+static float wheelLoad[MAXWP];                 // solved vertical load (mass units; Σ ≈ M)
+static int   nWheelP;
+
 // ── tuning ───────────────────────────────────────────────────────────────────
 // ENGINE_POWER is the GAS baseline (the everyday engine); the other kinds scale off it
 // in the ENG[] table — `power` is now per engine-kind (§1a), not one global. The WHOLE
@@ -392,6 +403,13 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define WT_FLOOR      0.35f       // min load multiplier on an axle (it always keeps SOME grip)
 #define WT_CEIL       1.65f       // max load multiplier on the loaded axle
 #define WT_LAG        0.18f       // load-shift low-pass (per frame) — models suspension settle time
+// ── per-wheel spring contact model (§8) — the unified core, built in phases ────
+// Each wheel is a vertical spring; the chassis heaves+pitches+rolls so per-wheel LOAD
+// solves from 3 balances (carry weight, longitudinal moment, lateral moment) — determinate
+// for ANY wheel count. WHEEL_H is the COM-height coefficient that turns longitudinal/lateral
+// accel into a load-transfer moment (bigger = more transfer). PHASE 1: solve + visualise the
+// loads only; forces still come from the 2-axle core until the per-wheel force loop lands.
+#define WHEEL_H       0.020f      // COM-height coeff: accel → load-transfer moment (tune by feel)
 // ── self-aligning torque (caster / pneumatic trail — what HOLDS a drift) ──────
 // Real front tyres, when the car slides, make a torque that rotates the rig toward the
 // direction it's actually TRAVELLING — the car counter-steers itself. That's why a drifter
@@ -566,6 +584,52 @@ static float lateral_reach(float dir) {
     return t;
 }
 
+// ── per-wheel spring load solve (§8) ──────────────────────────────────────────
+// Treat each contact as a vertical spring; the rigid chassis heaves (z0) and tilts
+// (pitch p about lateral, roll r about forward). Each wheel's load = z0 + p·x + r·y.
+// Solve (z0,p,r) from 3 balances — carry the weight, match the longitudinal-accel
+// moment (pitch → fore/aft transfer), match the lateral-accel moment (roll → left/right):
+//     Σ load        = M
+//     Σ load · x_i  = −M · aLong · WHEEL_H      (braking loads the front, +x)
+//     Σ load · y_i  = −M · aLat  · WHEEL_H      (cornering loads the outside)
+// 3×3, determinate for ANY wheel count. A wheel whose load solves NEGATIVE has lifted →
+// drop it and re-solve (that clamp IS tipping, emergent). <3 contacts (single-track) or a
+// collinear/degenerate layout → even split (the single-track path owns those dynamics).
+static void solve_wheel_loads(float aLong, float aLat) {
+    int n = nWheelP;
+    for (int i = 0; i < n; i++) wheelLoad[i] = 0;
+    if (n <= 0) return;
+    if (n < 3) { for (int i = 0; i < n; i++) wheelLoad[i] = M / n; return; }
+    int active[MAXWP];
+    for (int i = 0; i < n; i++) active[i] = 1;
+    for (int iter = 0; iter < 3; iter++) {
+        float Sn = 0, Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
+        int cnt = 0;
+        for (int i = 0; i < n; i++) {
+            if (!active[i]) continue;
+            float x = wheelPX[i], y = wheelPY[i];
+            Sn += 1; Sx += x; Sy += y; Sxx += x * x; Sxy += x * y; Syy += y * y; cnt++;
+        }
+        float b0 = M, b1 = -M * aLong * WHEEL_H, b2 = -M * aLat * WHEEL_H;
+        float det = Sn * (Sxx * Syy - Sxy * Sxy) - Sx * (Sx * Syy - Sxy * Sy) + Sy * (Sx * Sxy - Sxx * Sy);
+        if (cnt < 3 || af(det) < 1e-3f) {            // degenerate (collinear) → even split
+            for (int i = 0; i < n; i++) wheelLoad[i] = active[i] ? M / cnt : 0;
+            return;
+        }
+        float z0 = (b0 * (Sxx * Syy - Sxy * Sxy) - Sx * (b1 * Syy - Sxy * b2) + Sy * (b1 * Sxy - Sxx * b2)) / det;
+        float p  = (Sn * (b1 * Syy - Sxy * b2) - b0 * (Sx * Syy - Sxy * Sy) + Sy * (Sx * b2 - b1 * Sy)) / det;
+        float r  = (Sn * (Sxx * b2 - b1 * Sxy) - Sx * (Sx * b2 - b1 * Sy) + b0 * (Sx * Sxy - Sxx * Sy)) / det;
+        int anyNeg = 0;
+        for (int i = 0; i < n; i++) {
+            if (!active[i]) { wheelLoad[i] = 0; continue; }
+            float L = z0 + p * wheelPX[i] + r * wheelPY[i];
+            if (L < 0) { active[i] = 0; wheelLoad[i] = 0; anyNeg = 1; }   // this corner lifted (tipping)
+            else wheelLoad[i] = L;
+        }
+        if (!anyNeg) break;
+    }
+}
+
 // ── derive body properties from the part grid ────────────────────────────────
 static void recompute_body(void) {
     M = 0; comX = 0; comY = 0; wheelGrip = 0; wheelRoll = 0; frontX = 0; nEngines = 0; nWheels = 0;
@@ -590,6 +654,7 @@ static void recompute_body(void) {
             if (p == P_ENGINE) nEngines++;
             if (k->roll > 0) {                 // a support point (wheel / caster / drive)
                 nWheels++;
+                wheelPR[nSup] = r; wheelPC[nSup] = c; wheelPD[nSup] = (k->drive > 0);  // for the load solve + BUILD draw
                 supX[nSup] = cx; supY[nSup] = cy; nSup++;
                 allWheelSumX += cx;
                 if (cx < wMinX) wMinX = cx; if (cx > wMaxX) wMaxX = cx;
@@ -606,6 +671,8 @@ static void recompute_body(void) {
     else            { driveX = (nWheels > 0) ? allWheelSumX / nWheels : comX; driveRoll = wheelRoll; }
     // support polygon: hull of the wheels, in COM-local px (drives the tip model)
     for (int i = 0; i < nSup; i++) { supX[i] -= comX; supY[i] -= comY; }
+    nWheelP = nSup;                                  // mirror into the contact arrays (COM-local)
+    for (int i = 0; i < nSup; i++) { wheelPX[i] = supX[i]; wheelPY[i] = supY[i]; }
     build_hull(supX, supY, nSup);
     stabL = lateral_reach(+1.0f);          // how far the COM can shift each way before
     stabR = lateral_reach(-1.0f);          // leaving the hull (BUILD readout)
@@ -663,6 +730,7 @@ static void recompute_body(void) {
                           r < sMinR || r > sMaxR || c < sMinC || c > sMaxC;
             if (outside) { dragging[r][c] = 1; nDrag++; }
         }
+    solve_wheel_loads(0, 0);                          // resting per-wheel loads (shown in BUILD)
 }
 
 static void reset_vehicle(void) {
@@ -1136,6 +1204,10 @@ static void update_drive(float dt_) {
     if (scraping)                                    // a dragging belly also anchors sideways
         vl -= vl * clamp((SCRAPE_LAT * nDrag) / M, 0, 1.0f / dt_) * dt_;
 
+    // ── per-wheel spring loads (§8, PHASE 1: solved + traced, not yet driving forces) ──
+    // live load distribution from this frame's longitudinal (wt_long) + lateral (aLat) accel.
+    solve_wheel_loads(wt_long, aLat);
+
     // --- rolling friction: a CONSTANT decel (rolling/bearing resistance) that drag ∝ v
     //     can't provide — it's what actually brings a coasting rig to a full STOP and
     //     snaps the last creep to zero (no more floaty asymptote). Engine thrust easily
@@ -1342,6 +1414,16 @@ void update(void) {
     watch("slidR", "%d", slide_rear);
     watch("wt", "%.2f", wt_xfer);
     watch("steer", "%.2f", steer_pos);
+    {   // per-wheel load distribution (§8): front/rear + right/left sums
+        // NB: +x = front (frontX side), +y = the vehicle's RIGHT (screen-y is down here)
+        float lF = 0, lR = 0, lRight = 0, lLeft = 0;
+        for (int i = 0; i < nWheelP; i++) {
+            if (wheelPX[i] >= 0) lF += wheelLoad[i]; else lR += wheelLoad[i];
+            if (wheelPY[i] >= 0) lRight += wheelLoad[i]; else lLeft += wheelLoad[i];
+        }
+        watch("loadF", "%.1f", lF);    watch("loadR", "%.1f", lR);
+        watch("loadRt", "%.1f", lRight); watch("loadLf", "%.1f", lLeft);
+    }
 #endif
 }
 
@@ -1753,6 +1835,25 @@ static void draw_build(void) {
         line(cx - 4, cy, cx + 4, cy, CLR_WHITE);
         line(cx, cy - 4, cx, cy + 4, CLR_WHITE);
         print("COM", cx + 5, cy - 3, CLR_WHITE);
+    }
+
+    // per-wheel resting LOAD (§8 spring model) — heavier than average = warm, lighter = blue.
+    // Shifts live as you place mass: drop cargo at the back and the rear wheels' numbers jump.
+    if (nWheelP > 0 && M > 1.01f) {
+        float avg = M / nWheelP;
+        font(FONT_TINY);
+        for (int i = 0; i < nWheelP; i++) {
+            int wx = ED_X + wheelPC[i] * ED_CELL + 2, wy = ED_Y + wheelPR[i] * ED_CELL + 4;
+            float L = wheelLoad[i];
+            int col = (L < 0.5f) ? CLR_RED                  // ~lifted
+                    : (L > avg * 1.25f) ? CLR_ORANGE        // heavy corner
+                    : (L < avg * 0.75f) ? CLR_TRUE_BLUE     // light corner
+                    : CLR_WHITE;
+            char lb[8]; snprintf(lb, sizeof lb, "%d", (int)(L + 0.5f));
+            print(lb, wx, wy, col);
+        }
+        print("load/wheel", ED_X, ED_Y + GH * ED_CELL + 1, CLR_MEDIUM_GREY);
+        font(FONT_NORMAL);
     }
 
     // --- readouts (right) ------------------------------------------------------

@@ -1476,3 +1476,28 @@ and the COM / `balance` / `I` / per-axle load all shift. Verified headless — t
 **balance −0.25 (oversteer) at the rear vs +0.33 (understeer) at the front** of the buggy. It's also
 the intended heavy-payload **test fixture for the §8 per-wheel spring model**. Palette spacing
 tightened (20→18 px) so 8 buttons fit above the hint line.
+
+### Per-wheel model — Phase 1: the spring load solve (2026-06-10)
+
+The hard, foundational part of §8, built and validated **in isolation** (forces UNCHANGED — still
+the 2-axle core — so zero risk to the tuned drift; this is pure plumbing under it).
+
+- ✓ **`solve_wheel_loads(aLong, aLat)`** — each contact a vertical spring; solve chassis heave +
+  pitch + roll from the 3 balances (carry `M`, longitudinal moment, lateral moment) → per-wheel
+  load, **determinate for any wheel count** (Cramer's on a 3×3). A wheel whose load solves negative
+  has **lifted** → dropped and re-solved (≤3 iters); `<3` contacts or a collinear/degenerate layout
+  → even split (single-track keeps its own path). Fed by the accels we already had — `wt_long`
+  (longitudinal) and `aLat` (= `vf·yawrate`, from tipping). Wheel positions/cells/drive-flags
+  mirrored out of `recompute_body` into `wheelP*[]`.
+- ✓ **Visible in BUILD** — each wheel cell shows its resting load (warm = heavy, blue = light, red =
+  ~lifted) + a `load/wheel` caption. Drop cargo at the rear and the rear wheels' numbers jump.
+- ✓ **Validated** (`--trace` + BUILD dumps): rear cargo → rear wheels **18 vs 10** front (readout
+  oversteer); hard braking → `loadF` **8→13**, `loadR` **8→4** (nose dive); cornering → load splits
+  to the **outside** wheels. Coord gotcha logged: local `+y` is the vehicle's *right* (screen-y down).
+- Trace headroom: `WATCH_MAX` 32→40 in `runtime/studio.c` (trace-only; left out of the cart commit
+  since studio.c carries a parallel agent's edits — committing it wholesale would sweep their WIP).
+
+**Next — Phase 2:** swap the lateral force resolution to a per-wheel loop (friction circle ∝ each
+wheel's load; yaw = Σ force×lever), A/B'd against the saved `drift2`/`kick`/`powerover`/`turn`
+traces until it matches-or-beats the feel. Then Phase 3 (per-wheel drive/brake, retire the bolt-ons),
+flip the default, delete the old core.

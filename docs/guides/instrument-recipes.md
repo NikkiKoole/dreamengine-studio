@@ -154,6 +154,7 @@ All from **organ.c** (showcase), same base `A1 D0 S7 R200`; eight registrations 
 | leslie/off | organ.c | depth_vol0 depth_pitch0 rate0 | Leslie bypass — pure organ tone. |
 | leslie/slow | organ.c | depth_vol0.45 depth_pitch0.16 → 0.8Hz | Slow chorale rotor — smooth tremolo + gentle doppler, mechanical spin-up. |
 | leslie/fast | organ.c | depth_vol0.45 depth_pitch0.16 → 6.6Hz | Fast tremolo rotor — pulsing volume + pitch doppler, rapid spin-up. |
+| organ/cathedral | cathedral.c | A30 D0 S6 R600 · h0.62 t0.50 m0.50 · **drenched in `reverb(size,damping)`** (instrument_reverb send ~0.6) | A plain full drawbar registration — the patch is almost beside the point; cathedral.c exists to show `reverb()`, so the organ is a clean source that *blooms* into a vast stone hall. The reverb is the instrument. |
 
 > **Cross-ref:** organ.c is a confirmed showcase-cart lineage. `organ/reggae` (preset 0) is
 > lifted verbatim into dub's skank (`organ/reggae-chop`). The radio's other organ voices —
@@ -469,6 +470,12 @@ NOISE click. All use `INSTR_SINE` as the base voice.
 | saw/303 | SAW | 2/60/25 S6 · FILTER_LOW 60–3840Hz/0–15Q · ENV_CUTOFF 0–3000Hz · drive · 0.48 duty · echo | Acid house — saw through resonant lowpass, live envelope + drive. The classic TB-303 tone. |
 | square/303 | SQUARE | 2/60/25 S6 · FILTER_LOW 60–3840Hz/0–15Q · ENV_CUTOFF 0–3000Hz · drive · echo | Same path, square wave — brighter, more digital bite. |
 
+### juno (poly synth — saw+sub+resonant-LP, the chorus IS the patch, from juno.c)
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| saw/juno | SAW | A24 D0 S6 R460 · FILTER_LOW 200–6000Hz / 0–12Q · sub = root −12 at lower vol · **`chorus(rate,depth,mix)` master BBD** (OFF / I 0.1Hz·0.45 / II 0.22Hz·0.62) | The Roland Juno-6. The dry voice is a plain saw+sub poly synth ("sh101 with more voices"); the **master chorus** is what makes it a Juno — flip I/II and a centered mono chord fans into a lush wide stereo wash (antiphase taps). Chorus is master-wide (not per-slot). |
+
 ### Whimsical & single-voice synths
 
 | name | source cart | engine | recipe | character |
@@ -541,6 +548,8 @@ The alternate view — each cart and the recipe names it stocks. Carts with no f
 **Synths & sequencers:**
 
 - **tb303.c** → saw/303 · square/303 (note: PRESET[] entries are sequencer patterns, not patches)
+- **juno.c** → saw/juno (the chorus showcase — the patch is a plain saw+sub poly synth; the `chorus()` master effect IS the Juno)
+- **cathedral.c** → organ/cathedral (the reverb showcase — a clean organ that blooms into a hall; `reverb()` is the instrument)
 - **stylophone.c** → pulse/square · drawn/square · /sine · /sawtooth · /organ
 - **loopstation.c** → sine/kick · noise/snare · noise/hat · saw/bass · pulse/lead · sine/theremin · tri/click
 - **touchpiano** → saw/synth-piano

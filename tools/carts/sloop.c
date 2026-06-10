@@ -282,8 +282,8 @@ static int   wheelPD[MAXWP];                   // 1 = a drive wheel
 static float wheelG[MAXWP];                    // lateral grip coefficient (wheel 1.0, caster 0.12)
 static float wheelLoad[MAXWP];                 // solved vertical load (mass units; Σ ≈ M)
 static int   nWheelP;
-static int   use_circle = 0;                   // §8 combined-slip: longitudinal force eats lateral grip
-                                               // via the friction circle (retires POWER_EAT). A/B with M.
+static int   use_circle = 1;                   // §8 combined-slip: longitudinal force eats lateral grip
+                                               // via the friction circle (the chosen model). M still A/Bs vs POWER_EAT.
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 // ENGINE_POWER is the GAS baseline (the everyday engine); the other kinds scale off it

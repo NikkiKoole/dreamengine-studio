@@ -306,13 +306,40 @@ So reuse tracks *genre adjacency*, not the `solo.h` membership itself.
 
 ---
 
+## addis — Ethio-jazz (Mulatu Astatke)
+
+Solo layer: **`improv.h`** (the vibraphone takes the solo).
+
+The first **real-engine band** — five modelled engines, almost all new families. It does
+**not** use the synth kit: its drums are real `INSTR_MEMBRANE` (kebero/conga/bongo). Its one
+reuse is the shaker. Several slots roll between voicings/engines per song.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_VIBE`  | vibraphone lead + solo | `mallet/addis-vibes` (kin: `mallet/vibes`) | MALLET |
+| `I_KEYS`  | Wurli/organ comp | `epiano/wurli-comp` · `organ/addis-comp` *(rolls)* | EPIANO / ORGAN |
+| `I_HORN`  | synth-brass horn line | `pd/synth-horn` (kin: `pd/soaring-lead`) | PD |
+| `I_BASS`  | ostinato bass | `fm/ostinato-bass` | FM |
+| `SL_KEB`  | kebero / low drum | `membrane/kebero` | MEMBRANE |
+| `SL_CONGA`| open conga | `membrane/conga` | MEMBRANE |
+| `SL_BONGO`| bongo / slap | `membrane/bongo` | MEMBRANE |
+| `SL_SHAK` | shaker 8ths | `noise/caxixi` ⟳ (bossa) | NOISE |
+
+**Borrowing at a glance:** almost none — addis is a real-engine **island**. New families on
+five engines (MALLET/EPIANO/ORGAN/PD/FM/MEMBRANE); the only ⟳ is the shaker (with bossa).
+Crucially it voices its *own* vibraphone rather than copying `mallet/vibes` — the vibe cart
+that didn't lift the shared recipe. Confirms the hunch: **the synth kit is a property of the
+synthetic/dance idiom; real-engine stations build their own.**
+
+---
+
 ## Stations not yet charted
 
-addis · carlos · exotica · gamelan ·
+carlos · exotica · gamelan ·
 roadhouse · satie · tango · ymo · yacht
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail · lowend · bossa · dub · jangle · jingle (10 — halfway). The `solo.h` cluster is now
-complete. Remaining: the `improv.h` soloists roadhouse/addis and the acoustic/orchestral
-stations (satie/tango/gamelan/carlos/exotica/yacht/ymo), which will likely add new families
-rather than reuse these.)
+cocktail · lowend · bossa · dub · jangle · jingle · addis (11). addis confirms real-engine
+stations add new families rather than reuse the synth kit. Remaining: the other `improv.h`
+soloist roadhouse, and the acoustic/orchestral stations satie/tango/gamelan/carlos/exotica/
+yacht/ymo.)

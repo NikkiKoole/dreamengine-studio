@@ -12,7 +12,7 @@ This file gives each recipe a **clear name** so the per-station voice charts
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle** (see
+> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -178,12 +178,41 @@ defines boom-bap's surface. A texture voice, not a kit piece.
 - used by: lowend (`I_VINYL`)
 
 ### noise/caxixi
-`INSTR_NOISE` · A1 D45 S0 R25 · HP 5200/4
-The caxixi — a 16th-note shaker, high-passed noise with a soft attack.
-- tier: unique
-- origin: bossa
-- used by: bossa (`I_SHAKER`)
+A 16th-note shaker — high-passed noise with a soft attack. Two stations build a shaker this way:
+
+| cart (slot) | recipe |
+|---|---|
+| bossa (`I_SHAKER`) | NOISE A1 D45 S0 R25 · HP 5200/4 — caxixi |
+| addis (`SL_SHAK`)  | NOISE A1 D36 S0 R20 · HP 5600/3 — ethio shaker 8ths |
+
+- tier: **variant**
+- origin: bossa (or earlier)
+- used by: bossa (`I_SHAKER`) · addis (`SL_SHAK`)
 - kin: HP-noise like the `drum/noise-hat` family — but a shaker, not a hat.
+
+### membrane/kebero
+`INSTR_MEMBRANE` · A1 D0 S7 R280 · h0.45 t0.30 m0.20
+The kebero / low drum on the one — the struck-drumhead engine tuned low, near-centre thump.
+- tier: unique
+- origin: addis
+- used by: addis (`SL_KEB`)
+- note: addis is the first charted station to use `INSTR_MEMBRANE` — real modelled drums
+  instead of the synth kit. `kebero`/`conga`/`bongo` are one engine at three tunings (three
+  different drums → three names, per the naming rule).
+
+### membrane/conga
+`INSTR_MEMBRANE` · A1 D0 S7 R200 · h0.55 t0.35 m0.15
+The open conga — the syncopated heart of the groove, mid-tuned.
+- tier: unique
+- origin: addis
+- used by: addis (`SL_CONGA`)
+
+### membrane/bongo
+`INSTR_MEMBRANE` · A1 D0 S7 R120 · h0.72 t0.65 m0.10
+The bongo / edge-slap accents — bright, short, high-tuned hard mallet.
+- tier: unique
+- origin: addis
+- used by: addis (`SL_BONGO`)
 
 ### noise/cross-stick
 A woody cross-stick / rim clave — tightly band-passed noise with a quick pitch blip for the
@@ -247,6 +276,16 @@ The octave-bouncing sequencer bass — a saw with a fast cutoff sparkle and a li
 - tier: unique
 - origin: italo
 - used by: italo (`I_BASS`)
+
+### fm/ostinato-bass
+`INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.30 · pitch-env →2 (0/16)
+addis's electric/upright bass — 2-op FM at a low harmonic ratio (fundamental-heavy, round),
+with a short pitch-env attack. The ethio-jazz ostinato.
+- tier: unique
+- origin: addis
+- used by: addis (`I_BASS`)
+- kin: a third bass engine alongside the TRI and SINE piles (and italo's SAW, motorik's
+  pulse); same `INSTR_FM` engine as `fm/brass-stab`, voiced as a bass.
 
 ### pulse/moog-bass
 `INSTR_SAW`/`INSTR_SQUARE` (rolled per song) · A2 D90 S3 R100 · LP ~800·feel/1
@@ -339,6 +378,25 @@ A Rhodes with the tine "detent" bark dialed low — the harmonic bed under the s
 - tier: unique
 - origin: italo
 - used by: italo (`I_KEYS`)
+
+### epiano/wurli-comp
+`INSTR_EPIANO` · A4 D0 S6 R900 · h0.55 m0.30 · (seeded timbre ~0.35)
+addis's Wurlitzer comp — the EPIANO with harmonics pushed up toward the Wurli "bark."
+- tier: unique
+- origin: addis
+- used by: addis (`I_KEYS`, EPIANO mode)
+- kin: same `INSTR_EPIANO` engine as italo's `epiano/rhodes-detent` — opposite voicing
+  (high-h Wurli bark vs low-h Rhodes detent). I_KEYS rolls between this and `organ/addis-comp`.
+
+### organ/addis-comp
+`INSTR_ORGAN` · A6 D0 S7 R200 · h0.55 m0.30 (scanner chorus)
+addis's tonewheel-organ comp — a fuller registration than dub's hollow reggae chop or
+motorik's thin combo drone, with a little scanner-chorus motion.
+- tier: unique
+- origin: addis
+- used by: addis (`I_KEYS`, ORGAN mode)
+- kin: the `INSTR_ORGAN` family (`organ/combo-drone` motorik #1, `organ/reggae-chop` dub #0)
+  — three stations, three registrations of the one engine.
 
 ### tri/tremolo-rhodes
 `INSTR_TRI` · A8 D300 S3 R200 · LP 1600/2 · vol-LFO 4.2 Hz/0.10 (tremolo) · cut-env →900 (0/110, bark)
@@ -518,6 +576,27 @@ the slot can opt into `mallet/vibes` instead).
 - tier: unique
 - origin: lowend
 - used by: lowend (`I_LEAD`, default)
+
+### mallet/addis-vibes
+`INSTR_MALLET` · A1 D0 S7 R~1200–1500 · **seeded** h≈0.15 t≈0.42 m≈0.55 (per-song jitter)
+addis's vibraphone — the star. Unlike the borrowed `mallet/vibes`, addis tunes its **own**
+bar: silvery and motor-rung, with the macros seed-jittered (±0.01·srnd) so each song's vibe
+is subtly different. An alt voicing drops to h0.06 t0.50 m0.28 (woodier, drier, shorter ring).
+- tier: unique (two voicings, seeded)
+- origin: addis
+- used by: addis (`I_VIBE`, lead + improv.h solo)
+- kin: `mallet/vibes` — same `INSTR_MALLET` vibraphone, but addis voices its own rather than
+  copying mallet.c's preset. The one vibe cart that *didn't* lift the shared recipe.
+
+### pd/synth-horn
+`INSTR_PD` · A14–26 D0 S6 R~200 · h0.56–0.94 t0.55–0.70 m0.40–0.50 · LP 2600–3200
+addis's horn line — `INSTR_PD` synth-brass (the engine's nearest thing to a reedy horn).
+Two voicings: a tamed, reedy one (h0.56, LP 2600) and a brighter, buzzier one (h0.94, LP 3200).
+- tier: unique (two voicings)
+- origin: addis
+- used by: addis (`I_HORN`, head unison + solo)
+- kin: same `INSTR_PD` engine as italo's `pd/soaring-lead` — voiced as a brass section here,
+  a lead there.
 
 ### square/whistle
 `INSTR_SQUARE` · A18 D150 S5 R160 · duty 0.22 · LP 1900/2

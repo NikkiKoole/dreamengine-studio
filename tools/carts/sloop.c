@@ -1791,6 +1791,8 @@ static void hud(void) {
     // --- top of screen: rig identity (dim) + the zone's limit (a road sign) ----
     print(DES_NAME[cur_des], 4, 4, CLR_DARK_GREY);
     print(ENG[eng_kind].name, 4, 12, ENG[eng_kind].col);   // the rig's engine kind (§1a)
+    print(use_circle ? "GRIP: CIRCLE \x07M" : "GRIP: POWER-EAT \x07M", 4, 20,   // §8 A/B: which lateral model
+          use_circle ? CLR_LIME_GREEN : CLR_DARK_GREY);
     print_centered(ZONE_NAME[cur_zone], SCREEN_W / 2, 4, CLR_YELLOW);
     if (nDrag > 0) {                         // scrape heat — shown only while it bites
         print("SCRAPE", SCREEN_W - 52, 4, hot_col());

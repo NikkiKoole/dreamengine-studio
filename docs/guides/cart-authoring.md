@@ -123,6 +123,13 @@ module.exports = {
 }
 ```
 
+Other optional keys: `screenW`/`screenH`/`scale` (canvas), `cellW`/`cellH`/`mapW`/`mapH`
+(tiles), `touchControls: true` (on-screen stick + A/B), and **`worklet`** — the web
+**AudioWorklet** backend (dedicated-thread, sample-tight audio vs the main-thread
+ScriptProcessor). It's **auto-on for `kind: "instrument"` carts** (incl. radios) — no code
+needed; set `worklet: true` to opt a *non*-instrument cart in, or `worklet: false` to opt out.
+Rationale + build: [`../design/audio-threading.md`](../design/audio-threading.md).
+
 ---
 
 ## Sprite format

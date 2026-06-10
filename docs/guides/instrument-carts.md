@@ -102,6 +102,14 @@ linear pan law leaves a centered voice bit-identical to mono, so it's opt-in and
 the **`pan`** cart. Stereo *width* effects (ping-pong, reverb spread) are the deferred §8.10 layer,
 not per-voice. Full spec: [`design/stereo.md`](../design/stereo.md).
 
+**Tight web timing — automatic (cross-cutting):** every `kind: "instrument"` cart (these,
+the radios, all of them) is **auto-built with the AudioWorklet backend** for the web — audio
+runs on a dedicated thread, so scheduled notes land sample-tight instead of wobbling on the
+main thread (the ScriptProcessor ceiling). It's free and needs no per-cart code: `build-site`
+ships both a worklet build and a ScriptProcessor fallback + a loader that auto-picks per
+browser. Opt a *non*-instrument cart in with `worklet: true` in its `.cart.js`, or opt out with
+`worklet: false`. Full rationale + the build: [`design/audio-threading.md`](../design/audio-threading.md).
+
 ---
 
 ## Playable synths

@@ -61,16 +61,26 @@ function buildCart(name, { force = false, worklet = false } = {}) {
   const outDir  = path.join(SITE_DIR, name)
   const outHtml = path.join(outDir, 'index.html')
   const cfgFile = srcC.replace(/\.c$/, '.cart.js')
-  const inputs  = [srcC, cfgFile,
-    path.join(RUNTIME, 'studio.c'), path.join(RUNTIME, 'studio.h'),
-    path.join(RUNTIME, 'web_shell.html')]
-  if (!force && fs.existsSync(outHtml) &&
-      newestMtime([path.join(outDir, 'index.wasm')]) > newestMtime(inputs)) {
+  const cfg = mk.loadConfig(srcC)
+
+  // AudioWorklet backend (design/audio-threading.md): AUTO-ON for instrument-kind carts
+  // (incl. radios — all 22 are kind:instrument), or any cart with `worklet:true`; OFF with
+  // `worklet:false`; forced by --worklet. A worklet cart ships BOTH a worklet build and a
+  // ScriptProcessor fallback + a loader that auto-picks (built in the build section below).
+  const meta = cartMeta(name)
+  const kindWorklet = (meta?.kind || []).includes('instrument')
+  const wantWorklet = worklet || (cfg.worklet !== false && (cfg.worklet === true || kindWorklet))
+
+  const inputs = [srcC, cfgFile,
+    path.join(RUNTIME, 'studio.c'), path.join(RUNTIME, 'studio.h'), path.join(RUNTIME, 'sound.h'),
+    path.join(RUNTIME, wantWorklet ? 'web_shell_worklet.html' : 'web_shell.html')]
+  if (wantWorklet) inputs.push(path.join(RUNTIME, 'coi-serviceworker.js'), path.join(RUNTIME, 'audio-worklet-stub.js'))
+  const checkWasm = path.join(outDir, wantWorklet ? 'worklet.wasm' : 'index.wasm')
+  if (!force && fs.existsSync(outHtml) && newestMtime([checkWasm]) > newestMtime(inputs)) {
     console.log(`· ${name}: up to date`)
     return true
   }
 
-  const cfg = mk.loadConfig(srcC)
   const SW = cfg.screenW ?? 320, SH = cfg.screenH ?? 200, SC = cfg.scale ?? 4
   const CW = cfg.cellW ?? 16, CH = cfg.cellH ?? 16
   const MW = cfg.mapW ?? 128, MH = cfg.mapH ?? 64
@@ -102,12 +112,6 @@ function buildCart(name, { force = false, worklet = false } = {}) {
     '-DDE_AUDIO_WORKLET', '-sAUDIO_WORKLET=1', '-sWASM_WORKERS=1',
     '--js-library', path.join(RUNTIME, 'audio-worklet-stub.js'),
   ]
-  // opt-in via cfg.worklet (.cart.js) or forced via --worklet: ship BOTH backends + a
-  // hand-written loader (web_shell_worklet.html) that picks the AudioWorklet build when the
-  // page is cross-origin isolated, else the ScriptProcessor fallback (the plain build).
-  // See design/audio-threading.md Stage 3/4.
-  const wantWorklet = worklet || !!cfg.worklet
-
   const runEmcc = (extra) => {
     try { execFileSync('emcc', [...baseArgs, ...extra], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 180000 }); return true }
     catch (e) { console.log('FAILED'); console.error(String(e.stderr || e.message).trim()); return false }

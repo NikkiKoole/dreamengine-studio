@@ -13,10 +13,16 @@
 // mode (default — a horn is one voice) a new key legato-slides the voice, in poly each key blows
 // its own. The brassiness explodes as you push TIMBRE — the loud-and-blatty fortissimo.
 //
+// THE MUTE: closing the bell with a hand/plunger (the "tight"/nasal sound, and the wah when you
+// sweep it). It's NOT an engine macro — a mute shapes the OUTPUT, so it's a swept resonant lowpass
+// on the voice (note_cutoff + note_res), the output lane per decision 0017. Drag the MUTE slider:
+// open = wide bell, closed = pinched & nasal; sweeping it live IS the wah-wah.
+//
 // controls: A S D F G H J K  blow & HOLD (release to stop)   ·   Z / X octave down / up
 //           1..6 presets: trumpet / cornet / flugelhorn / trombone / french horn / tuba
 //           drag the SLIDE (trombone, top) for a glissando   ·   V mono/poly   ·   M autoplay
-//           SPACE brassiness swell   ·   drag a slider (live), or LEFT/RIGHT pick + UP/DOWN turn
+//           SPACE brassiness swell   ·   drag a slider — incl. MUTE (close the bell / wah) ·
+//           LEFT/RIGHT pick a slider + UP/DOWN turn it
 //
 // MULTITOUCH: poly — every finger blows its own pad; mono — the last finger down wins. Drag the
 // slide with one finger while a note drones. Desktop mouse = one pointer.
@@ -29,10 +35,10 @@
 
 static const char KEYS[NPAD] = { 'A','S','D','F','G','H','J','K' };
 
-#define NSLIDER 5   // 0..2 = engine macros, 3 = cart-side SLIDE (mono only), 4 = VIBRATO (note_lfo)
-static const char *MNAME[NSLIDER] = { "harmonics", "timbre",  "morph",   "slide",  "vibrato" };
-static const char *MLO[NSLIDER]   = { "trumpet",   "mellow",  "steady",  "snap",   "none"    };
-static const char *MHI[NSLIDER]   = { "tuba",      "blatty",  "growl",   "smear",  "wide"    };
+#define NSLIDER 6   // 0..2 = engine macros, 3 = cart-side SLIDE (mono only), 4 = VIBRATO (note_lfo), 5 = MUTE
+static const char *MNAME[NSLIDER] = { "harmonics", "timbre",  "morph",   "slide",  "vibrato", "mute"   };
+static const char *MLO[NSLIDER]   = { "trumpet",   "mellow",  "steady",  "snap",   "none",    "open"   };
+static const char *MHI[NSLIDER]   = { "tuba",      "blatty",  "growl",   "smear",  "wide",    "closed" };
 
 // presets: macro positions across the brass family (instrument/bore · brassiness · breath).
 // STARTING GUESSES, tuned by ear against the engine — the harmonics arc walks bright→dark.
@@ -96,6 +102,12 @@ static Ptr ptr[NPTR];
 
 static int   km(int b) { return midi_of[b] + oct * 12; }
 static int   slide_ms(void) { return (int)(8.0f + knob[3] * knob[3] * 250.0f); }
+// MUTE = closing the bell with a hand/plunger/harmon mute — a swept resonant lowpass (the output
+// lane, ADR 0017: a mute shapes what comes OUT, it's not an engine concern). open (0) = wide bell,
+// 8kHz, no resonance → full brass; closed (1) = pinched 500Hz with a strong nasal resonant peak.
+// Because push_live() re-applies it every frame, dragging the slider sweeps it live = the wah-wah.
+static float mute_cut(void) { return 8000.0f * powf(500.0f / 8000.0f, knob[5]); }   // exp open→closed
+static float mute_res(void) { return 0.7f + knob[5] * 10.0f; }                       // nasal peak grows as it shuts
 static float slide_base(void) { return (float)(midi_of[0] + oct * 12); }   // left edge = lowest pad note
 // map a slide-ribbon x to a continuous float midi pitch
 static float slide_x_to_pitch(int x) {
@@ -112,6 +124,7 @@ static void apply_patch(void) {
     instrument_harmonics(I_BRASS, knob[0]);
     instrument_timbre(I_BRASS, knob[1]);
     instrument_morph(I_BRASS, knob[2]);
+    instrument_filter(I_BRASS, FILTER_LOW, mute_cut(), mute_res());   // the bell (mute) — note_cutoff/res sweep it live below
 }
 
 // the SPACE swell rides TIMBRE (brassiness) — a horn blooming into the blatty fortissimo.
@@ -133,6 +146,8 @@ static void push_live(void) {
         note_timbre(h[i], t);
         note_morph(h[i], knob[2]);
         note_lfo(h[i], 0, LFO_PITCH, 5.5f, knob[4] * 0.4f);   // VIBRATO — independent of morph's growl
+        note_cutoff(h[i], mute_cut());                        // MUTE — the bell, swept live (drag it = wah)
+        note_res(h[i], mute_res());
     }
 }
 
@@ -203,6 +218,7 @@ void init(void) {
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
     for (int b = 0; b < NPAD; b++) { midi_of[b] = degree(SCALE_MAJOR, 4, b); handle_of[b] = -1; }  // brass register
     knob[3] = 0.45f;       // a singing default slide for mono legato
+    knob[5] = 0.0f;        // mute open (full bell) by default
     set_preset(3);         // trombone — the slide horn, fitting for the marquee gesture
     bpm(96);
 }
@@ -340,6 +356,12 @@ void draw(void) {
         // the flared bell on the right
         rectfill(SLIDE_X + SLIDE_W - 12, sy + 1, 11, sh - 2, CLR_DARK_PEACH);
         trifill(SLIDE_X + SLIDE_W - 12, sy, SLIDE_X + SLIDE_W - 12, sy + sh, SLIDE_X + SLIDE_W, railY, CLR_PEACH);
+        // the MUTE plunger: a plate creeping over the bell mouth from the right as the bell closes
+        int mu = (int)(knob[5] * 13.0f);
+        if (mu > 0) {
+            rectfill(SLIDE_X + SLIDE_W - mu, sy + 1, mu, sh - 2, CLR_DARKER_GREY);
+            rect(SLIDE_X + SLIDE_W - mu, sy + 1, mu, sh - 2, CLR_MEDIUM_GREY);
+        }
         // the slide handle: at the dragged pitch when sliding, else the active note's pitch
         float showp = -1.0f;
         if (sliding && slide_pitch >= 0) showp = slide_pitch;
@@ -407,6 +429,6 @@ void draw(void) {
     font(FONT_TINY);
     int rx = print("A..K blow   Z/X oct   1..6 voices   V mono   ", 10, SCREEN_H - 8, CLR_DARK_GREY);
     int sx = print("SPACE brass", rx, SCREEN_H - 8, CLR_MEDIUM_GREY);
-    print("   drag the slide / sliders", sx, SCREEN_H - 8, CLR_DARK_GREY);
+    print("   drag the slide / sliders (mute = wah)", sx, SCREEN_H - 8, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

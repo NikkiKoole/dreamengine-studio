@@ -1570,3 +1570,14 @@ launch like `est_top_speed()` — best-gear thrust − drag − rolling-friction
 stock buggy 5.3s green / PWR-WT 34.9; +4 cargo → red "never" / 13.3; +2 more engines → punchy again.
 Also the diagnostic for the *sense-of-speed* question: if a build reads fast here but feels slow to
 drive, it's a rendering/scale issue, not power.
+
+### World scale pass — houses to a believable size (2026-06-10)
+
+Player: a house reading the *same size as the car* feels weird. It did — car ≈ 28px (4 cells × 7),
+city houses ≈ 15px, so a house was *smaller* than the car. Established the convention **1 cell (7px)
+≈ 1 m** (car ≈ 4 m ✓, road lane ≈ 26px ≈ 3.7 m ✓ — both already right) and fixed the houses:
+`draw_houses` now tiles **fixed ~5 m-facade houses** (`HOUSE_FACADE` 38px, drawn ~34px) instead of
+stretching N-per-block, so a house reads consistently across zones and **bigger than the car**.
+City/town block pitch enlarged 100/200→**150/300** so rows of 5 m houses fit (kept the 2× steps:
+150·300·600·1200·2400 all nest, cleaner than the old 3× jump). Lanes unchanged (already to scale).
+Placeholder course still (rung-3 rebuilds it solid) — this is just the proportion fix.

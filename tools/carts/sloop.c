@@ -1526,7 +1526,9 @@ static void draw_ground(void) {
 // pitches are origin-anchored multiples so coarser roads nest inside finer ones (the
 // grid thins rather than jumps at a ring boundary). Deterministic → stable + headless.
 enum { Z_CITY, Z_TOWN, Z_RURAL, Z_HWY, Z_SUPER, Z_N };
-static const int   ZONE_PITCH[Z_N] = { 100, 200, 600, 1200, 2400 };  // block spacing (px)
+static const int   ZONE_PITCH[Z_N] = { 150, 300, 600, 1200, 2400 };  // block spacing (px) — city/town
+                                                                     // enlarged so rows of 5 m houses fit
+                                                                     // (still 2× steps → roads nest cleanly)
 static const int   ZONE_LANE[Z_N]  = { 26,  50,  50,  76,   104   }; // road width: city = 1 lane,
                                                                      // town/rural = 2 lanes (~2×),
                                                                      // hwy wider, super widest
@@ -1545,21 +1547,26 @@ static int zone_at(float x, float y) {
     return Z_SUPER;
 }
 
-// fill one city/town block's interior with packed houses (deterministic) — the detail
-// that streaks past and screams "city". `n` = houses per row.
-static void draw_houses(int bx, int by, int p, int hw, int n) {
+// fill a city/town block with houses of a FIXED real size — ~5 m facade. At CELL≈1 m the car is
+// ~4 m, so a house now reads BIGGER than the car (a believable building), not the old car-sized
+// box. Tiled into the block interior and centred; the remainder reads as yards/gaps. Bigger blocks
+// (town) just fit more of the same-size houses → consistent scale across zones.
+#define HOUSE_FACADE 38           // px per house plot (~5 m); the drawn house is ~34px ≈ 4.9 m
+static void draw_houses(int bx, int by, int p, int hw) {
     int x0 = bx * p + hw + 3, x1 = (bx + 1) * p - hw - 3;
     int y0 = by * p + hw + 3, y1 = (by + 1) * p - hw - 3;
-    int cw = (x1 - x0) / n, ch = (y1 - y0) / n;
-    if (cw < 4 || ch < 4) return;
+    int nx = (x1 - x0) / HOUSE_FACADE, ny = (y1 - y0) / HOUSE_FACADE;
+    if (nx < 1 || ny < 1) return;                       // block too small for even one 5 m house
+    int ox = x0 + ((x1 - x0) - nx * HOUSE_FACADE) / 2;  // centre the fixed-size houses in the block
+    int oy = y0 + ((y1 - y0) - ny * HOUSE_FACADE) / 2;
     int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++) {
+    for (int i = 0; i < nx; i++)
+        for (int j = 0; j < ny; j++) {
             unsigned h = hash2(bx * 131 + i, by * 131 + j);
             if ((h & 7) == 0) continue;                 // some empty lots / yards
-            int hx = x0 + i * cw, hy = y0 + j * ch;
-            rectfill(hx + 1, hy + 1, cw - 2, ch - 2, roof[h & 3]);
-            rect(hx + 1, hy + 1, cw - 2, ch - 2, CLR_BROWNISH_BLACK);
+            int hx = ox + i * HOUSE_FACADE, hy = oy + j * HOUSE_FACADE;
+            rectfill(hx + 1, hy + 1, HOUSE_FACADE - 3, HOUSE_FACADE - 3, roof[h & 3]);
+            rect(hx + 1, hy + 1, HOUSE_FACADE - 3, HOUSE_FACADE - 3, CLR_BROWNISH_BLACK);
         }
 }
 
@@ -1573,8 +1580,7 @@ static void draw_course(void) {
     // 0. fields between rural+ roads (green), or houses in the city/town blocks
     for (int kx = kx0; kx <= kx1; kx++)
         for (int ky = ky0; ky <= ky1; ky++) {
-            if (cur_zone == Z_CITY)      draw_houses(kx, ky, p, hw, 4);
-            else if (cur_zone == Z_TOWN) draw_houses(kx, ky, p, hw, 2);
+            if (cur_zone == Z_CITY || cur_zone == Z_TOWN) draw_houses(kx, ky, p, hw);
             else if (cur_zone >= Z_RURAL && (hash2(kx, ky) & 1)) {     // patchwork fields
                 int fx = kx * p + hw + 4, fy = ky * p + hw + 4;
                 rectfill(fx, fy, p - ZONE_LANE[cur_zone] - 8, p - ZONE_LANE[cur_zone] - 8,

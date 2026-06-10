@@ -82,6 +82,32 @@ panning*. Don't regress the 99% case. Cache `panL`/`panR` on the pan *write* (no
 on both, a hard pan zeroes the far side. Revisit constant-power only if a cart that pans heavily
 sounds wrong — and if so, gate it behind the law, don't flip the default.
 
+### ✅ SHIPPED 2026-06-10 — constant-power as a gated opt-in (`pan_law()`)
+
+Done exactly as the line above prescribed: **gated, default unchanged.** A new master-stage switch
+`void pan_law(int law)` with `PAN_LINEAR` (0, default) / `PAN_POWER` (1) — wired the four places
+(`studio.h` / `sound.h` impl + `SR_PAN_LAW` request + `g_pan_law` global / `studioDocs.js` /
+`shell.js`), tcc symbols regenerated. The mix-loop keeps the linear formula on the default branch,
+so **`PAN_LINEAR` is bit-for-bit the pre-change output**; `PAN_POWER` is a `cosf/sinf` taper
+(`θ = (pan+1)·π/4`, `pL=cosθ`, `pR=sinθ`, center = 0.707).
+
+**Measured** (a steady tone swept −1→+1 under each law, per-channel RMS — rig:
+`tools/carts/panmeasure.c`):
+
+| | center vs edge total | center per-channel |
+|---|---|---|
+| **PAN_LINEAR** | **+2.83 dB** (the "center buildup" — what a heavy-panning mix feels as a crowded middle) | 0 dB ref |
+| **PAN_POWER** | **0.00 dB** (flat — equal loudness across the sweep) | −3.0 dB |
+
+So the *entire* audible difference is a ≤3 dB loudness variation, and **only on sounds that move
+through center** — hard-panned content is identical under both laws (why the A/B hard-L/R hits in
+the `pan` cart sound the same either way). The payoff is real but quiet, confirming the §9
+"low-leverage for this audience" call; `PAN_POWER` is there for the cart whose busy auto-pan mix
+*does* feel crowded in the middle. The `pan` showcase cart toggles laws live on **SPACE**.
+
+**Still NOT done (deliberately):** the `--det` baseline regen — `PAN_POWER` is opt-in, so no
+existing cart's output changes; a baseline only moves if a cart actually calls `pan_law(PAN_POWER)`.
+
 ## What bites — pre-flight checklist
 
 Grounded in the current mono mix path (`sound.h` `sound_callback`, the single `float mix` →

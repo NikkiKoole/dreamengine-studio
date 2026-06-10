@@ -377,6 +377,11 @@ static float echo_tone_coef   = 0.0f;            // one-pole LP coefficient (set
 static float echo_lp          = 0.0f;            // the loop filter's running state
 static bool  echo_used        = false;           // flips true on first echo API call, never back
 
+// master pan law (stereo.md): PAN_LINEAR (default, center=mix, byte-identical to mono) or
+// PAN_POWER (constant-power, center=-3dB, equal loudness across the sweep). gated so the
+// default never regresses centered carts; only a panning cart that opts in changes output.
+static int   g_pan_law        = PAN_LINEAR;
+
 // tone 0..1 → loop-filter cutoff 300 Hz .. ~6.8 kHz (each repeat passes through it once)
 static float sound_echo_coef(float t) {
     if (t < 0.0f) t = 0.0f; if (t > 1.0f) t = 1.0f;
@@ -439,6 +444,7 @@ typedef enum {
     SR_INSTR_PAN    = 35,   // a=slot, b=pan*1000 (signed) — per-instrument stereo position (stereo.md)
     SR_NOTE_PAN     = 36,   // a=pan*1000 (signed, live/slewed), e0/e1=handle — live pan on a held note
     SR_ENG_TUNE     = 37,   // EXPERIMENTAL guitar/piano tuning poke: a=slot, b=idx (0 weight·1 attack), c=val*1000
+    SR_PAN_LAW      = 38,   // a=law (PAN_LINEAR/PAN_POWER) — master pan law (stereo.md); gated, default LINEAR
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2496,6 +2502,8 @@ static void sound_fire_req(SoundReq r) {
             if (x < -1.0f) x = -1.0f; if (x > 1.0f) x = 1.0f;
             v->pan_target = x;
         }
+    } else if (r.kind == SR_PAN_LAW) {      // a=law (PAN_LINEAR/PAN_POWER)
+        g_pan_law = (r.a == PAN_POWER) ? PAN_POWER : PAN_LINEAR;
     }
 }
 
@@ -2685,12 +2693,22 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->drv_dc_y1 = s;
             }
             float contrib = s * v->vol * env * trem * 0.2f;
-            // stereo pan (linear law, stereo.md): clamp the slewed base pan + any LFO_PAN offset
-            // to [-1,1], then split. pan 0 → pL=pR=1 (a centered voice is byte-identical to mono).
+            // stereo pan (stereo.md): clamp the slewed base pan + any LFO_PAN offset to [-1,1],
+            // then split into L/R gains by the master pan law.
             float pan = v->pan + pan_mod;
             if (pan < -1.0f) pan = -1.0f; else if (pan > 1.0f) pan = 1.0f;
-            float pL = pan <= 0.0f ? 1.0f : 1.0f - pan;
-            float pR = pan >= 0.0f ? 1.0f : 1.0f + pan;
+            float pL, pR;
+            if (g_pan_law == PAN_POWER) {
+                // constant-power: pan [-1,1] → angle [0, π/2]; pL²+pR²=1, center = 0.707 (-3dB).
+                // equal loudness across the sweep. NOT byte-identical to mono — opt-in via pan_law().
+                float th = (pan + 1.0f) * 0.78539816f;   // (pan+1)·π/4
+                pL = cosf(th);
+                pR = sinf(th);
+            } else {
+                // linear (default): pan 0 → pL=pR=1 (a centered voice is byte-identical to mono).
+                pL = pan <= 0.0f ? 1.0f : 1.0f - pan;
+                pR = pan >= 0.0f ? 1.0f : 1.0f + pan;
+            }
             float cL = contrib * pL, cR = contrib * pR;
             v->last_outL = cL; v->last_outR = cR;   // panned contributions feed the steal declick
             mixL += cL; mixR += cR;
@@ -3031,6 +3049,10 @@ void instrument_pan(int slot, float pan) {
 void note_pan(int handle, float pan) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_PAN, (int)(pan * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+void pan_law(int law) {
+    sound_push_ctrl(SR_PAN_LAW, law, 0, 0, 0, 0, 0);
 }
 
 void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth) {

@@ -13,7 +13,7 @@ lines of `instrument_*` calls — and so shared recipes become visible on one pa
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
 > **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht**,
-> **roadhouse**, **satie**, **gamelan**, **tango**, **carlos** (see
+> **roadhouse**, **satie**, **gamelan**, **tango**, **carlos**, **exotica** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -183,12 +183,13 @@ A 16th-note shaker — high-passed noise with a soft attack. Two stations build 
 
 | cart (slot) | recipe |
 |---|---|
-| bossa (`I_SHAKER`) | NOISE A1 D45 S0 R25 · HP 5200/4 — caxixi |
-| addis (`SL_SHAK`)  | NOISE A1 D36 S0 R20 · HP 5600/3 — ethio shaker 8ths |
+| bossa (`I_SHAKER`)  | NOISE A1 D45 S0 R25 · HP 5200/4 — caxixi |
+| addis (`SL_SHAK`)   | NOISE A1 D36 S0 R20 · HP 5600/3 — ethio shaker 8ths |
+| exotica (`SL_SHAK`) | NOISE A1 D40 S0 R22 · HP 5600/3 — lounge shaker |
 
-- tier: **variant**
+- tier: **variant** (3 stations)
 - origin: bossa (or earlier)
-- used by: bossa (`I_SHAKER`) · addis (`SL_SHAK`)
+- used by: bossa (`I_SHAKER`) · addis (`SL_SHAK`) · exotica (`SL_SHAK`)
 - kin: HP-noise like the `drum/noise-hat` family — but a shaker, not a hat.
 
 ### membrane/kebero
@@ -215,6 +216,37 @@ The golpe — knuckles on the bandoneón box, a low woody knock.
 - tier: unique
 - origin: tango
 - used by: tango (`SL_GLP`)
+
+### sine/boo-bam
+`INSTR_SINE` · A0 D190 S0 R70 · pitch-env →7 (0/40)
+The boo-bam / low conga heartbeat — a SINE tuned drum with a pitch-env thump.
+- tier: unique
+- origin: exotica
+- used by: exotica (`SL_CONGA`)
+- kin: shares the SINE + pitch-env recipe of `drum/synth-kick`, voiced as a melodic low tom.
+
+### fm/finger-cymbal
+`INSTR_FM` · A0 D700 S0 R500 · h0.55 t0.75 m0.55
+A tiny FM clang — the finger cymbal.
+- tier: unique
+- origin: exotica
+- used by: exotica (`SL_FCYM`)
+- kin: the FM family (a clang voicing).
+
+### fx/aviary
+The aviary — bird calls and a frog croak, **aleatoric performance** (pure engine `rnd`, never
+seeded; "the birds never sing it the same way twice"):
+
+| voice | recipe |
+|---|---|
+| chirp (`I_CHIRP`) | SINE A1 D60 S2 R30 · pitch-env →7 (0/50) · pitch-LFO 11 Hz/0.5 — falling chirp |
+| swoop (`I_SWOOP`) | SINE A30 D300 S5 R160 · pitch-env →−9 (0/380, low→up) · pitch-LFO 6.5/0.35 — rising gull |
+| frog (`I_FROG`)   | SQUARE A4 D90 S2 R40 · duty 0.18 · LP 700/5 · pitch-env →3 (0/90) — the croak |
+
+- tier: unique (an FX set)
+- origin: exotica
+- used by: exotica (`I_CHIRP`/`I_SWOOP`/`I_FROG`)
+- note: novelty FX, not pitched instruments — the only fully-aleatoric voice group in the catalog.
 
 ### membrane/kendang
 A paired hand-drum (kendang) on `INSTR_MEMBRANE` — an interlocking high/low pair, one
@@ -253,11 +285,12 @@ A woody cross-stick / rim clave — tightly band-passed noise with a quick pitch
 |---|---|
 | bossa (`I_RIM`)  | NOISE A0 D28 S0 R18 · BP 1800/9 · pitch-env →18 (0/20) |
 | dub (`I_RIM`)    | NOISE A0 D30 S0 R25 · BP 1600/7 · pitch-env →16 (0/20) · echo send 0.25 |
-| jingle (`I_RIM`) | NOISE A0 D26 S0 R18 · BP 1500/8 · pitch-env →16 (0/18) |
+| jingle (`I_RIM`)  | NOISE A0 D26 S0 R18 · BP 1500/8 · pitch-env →16 (0/18) |
+| exotica (`SL_RIM`)| NOISE A0 D26 S0 R16 · BP 2000/9 — clave tick (no pitch blip) |
 
-- tier: **variant** (3 stations — the carts that use a cross-stick instead of a snare)
+- tier: **variant** (4 stations — cross-stick / clave; exotica's omits the pitch blip)
 - origin: bossa (or earlier; confirm)
-- used by: bossa (`I_RIM`) · dub (`I_RIM`) · jingle (`I_RIM`)
+- used by: bossa (`I_RIM`) · dub (`I_RIM`) · jingle (`I_RIM`) · exotica (`SL_RIM`)
 
 ### kit/cocktail-brushes
 The jazz trio kit played with **brushes** — soft, swept, the sweep is a sustained circular
@@ -396,10 +429,11 @@ non-dance stations build the session upright **near-identically** (a real cross-
 | cocktail (`I_BASS`, upright night)            | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) |
 | roadhouse (`I_PBASS`, session-bassist night)  | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) · LP 480/1 |
 | tango (`I_BASS`, marcato)                     | TRI A3 D280 S5 R100 · pitch-env →2 (0/16) |
+| exotica (`I_BASS`, two-feel)                  | TRI A4 D260 S4 R140 · pitch-env →2 (0/18) — looser/longer |
 
-- tier: **variant** (3 stations — the session upright; near-byte-identical)
+- tier: **variant** (4 stations — the session upright; the first three near-byte-identical)
 - origin: cocktail (or earlier)
-- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`) · tango (`I_BASS`)
+- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`) · tango (`I_BASS`) · exotica (`I_BASS`)
 - kin: the TRI-bass pile (`tri/disco-bass`, `tri/fingered-bass`). This one is the **acoustic
   jazz/classical** cluster's shared bass (vs the dance stations' disco-bass).
 
@@ -636,10 +670,11 @@ stations build it near-identically (same cut-env →700/0/70):
 |---|---|
 | cocktail (`I_PNO`, felt-grand night) | TRI A2 D600 S2 R240 · cut-env →700 (0/70) |
 | tango (`I_PNO`, felt registration)   | TRI A2 D520 S2 R200 · cut-env →700 (0/70) |
+| exotica (`I_VIBE`, felt-piano roll)  | TRI A2 D600 S2 R240 · cut-env →700 (0/70) — **byte-identical to cocktail** (its source comment says so) |
 
-- tier: **variant** (the acoustic fake-piano cluster)
+- tier: **variant** (the acoustic fake-piano cluster — exotica's is a verbatim copy)
 - origin: cocktail (or earlier)
-- used by: cocktail (`I_PNO`) · tango (`I_PNO`)
+- used by: cocktail (`I_PNO`) · tango (`I_PNO`) · exotica (`I_VIBE`, one vibe-chair roll)
 - kin: the fake-piano-on-TRI cluster (`sine/closed-lid-piano`, satie's `tri/felt-piano`).
 
 ### sine/closed-lid-piano
@@ -696,6 +731,14 @@ jangle), with the same chorus warble laid over the KS read tap.
 - origin: jangle
 - used by: jangle (`I_GTR`, opt-in)
 - pair: alternative to `tri/jangle-guitar`.
+
+### pluck/exotica-nylon
+`INSTR_PLUCK` · A1 D0 S7 R900 · h0.42 · seeded timbre/morph
+A soft nylon rhythm-guitar comp — longer ring than bossa's nylon (it comps rather than picks).
+- tier: unique
+- origin: exotica
+- used by: exotica (`I_GTR`)
+- kin: the PLUCK nylon guitars (`pluck/nylon-guitar`).
 
 ### tri/nylon-fake
 `INSTR_TRI` · A1 D180 S1 R120 · LP 2200/3 · cut-env →1400 (0/90, attack sparkle)
@@ -784,6 +827,34 @@ is subtly different. An alt voicing drops to h0.06 t0.50 m0.28 (woodier, drier, 
 - used by: addis (`I_VIBE`, lead + improv.h solo)
 - kin: `mallet/vibes` — same `INSTR_MALLET` vibraphone, but addis voices its own rather than
   copying mallet.c's preset. The one vibe cart that *didn't* lift the shared recipe.
+
+### mallet/exotica-vibes
+`INSTR_MALLET` · A1 D0 S7 R1500 · seeded h≈0.12 t≈0.40 m≈0.72 (**motor ON**)
+exotica's vibraphone — the star, motor tremolo *on* (high morph) for the lounge shimmer;
+macros seed-jittered per song. An alt voicing drops to h0.05 t0.45 m0.30 (woodier). The slot
+can also roll into `tri/felt-grand` (a fake felt piano).
+- tier: unique (voicings + a felt-piano roll)
+- origin: exotica
+- used by: exotica (`I_VIBE`)
+- kin: the MALLET vibe family (`mallet/vibes`, `mallet/addis-vibes`) — exotica's runs the motor.
+
+### mallet/celesta
+`INSTR_MALLET` · A1 D500 S2 R400 · h0.50 t0.55 m0.45
+The celesta — glass-bell sparkle. **`mallet.c` `PRESET[2]` "celesta"**, lifted into exotica's
+bell chair: a **4th showcase-cart lineage** after vibes / the organ.c registrations / moog.c.
+- tier: unique
+- origin: **mallet.c `PRESET[2]` "celesta"**
+- used by: exotica (`I_BELL`, celesta roll)
+- kin: `mallet/vibes` (also from mallet.c); the bell chair rolls between this and `fm/glass-bell`.
+
+### fm/glass-bell
+`INSTR_FM` · A1 D500 S2 R400 · h0.55 t0.55 m0.12 (the 3.5 bell detent)
+exotica's other glass sparkle — an FM bell on the 3.5-ratio detent. The bell chair rolls
+between this and `mallet/celesta`.
+- tier: unique
+- origin: exotica
+- used by: exotica (`I_BELL`, FM roll)
+- kin: the FM family (`fm/brass-stab`, `fm/rhodes`).
 
 ### saw/violins-arco
 `INSTR_SAW` · A70 D400 S6 R220 · pitch-LFO ~5 Hz (vibrato) · pitch-env scoop (→−1, seeded)

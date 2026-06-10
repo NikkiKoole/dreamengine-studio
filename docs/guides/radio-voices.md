@@ -469,13 +469,40 @@ dance cluster is about the *kit-driven groove idiom*, not the oscillator choice.
 
 ---
 
+## exotica — Exotica lounge (Martin Denny / Les Baxter)
+
+Solo layer: **none** (the band "answers the jungle" with aleatoric bird calls).
+
+The most-connected station — a lounge **bridge** that touches a remarkable number of
+families, mostly via the acoustic cluster + showcase-cart presets.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_VIBE`  | vibraphone lead | `mallet/exotica-vibes` (rolls to `tri/felt-grand` ⟳) | MALLET / TRI |
+| `I_GTR`   | nylon rhythm comp | `pluck/exotica-nylon` | PLUCK |
+| `I_BELL`  | glass sparkle | `fm/glass-bell` · `mallet/celesta` *(rolls)* | FM / MALLET |
+| `I_BASS`  | two-feel upright | `tri/upright-bass` ⟳ (cocktail · roadhouse · tango) | TRI |
+| `SL_RIM`  | clave tick | `noise/cross-stick` ⟳ (×3) | NOISE |
+| `SL_SHAK` | shaker | `noise/caxixi` ⟳ (bossa · addis) | NOISE |
+| `SL_CONGA`| boo-bam | `sine/boo-bam` | SINE |
+| `SL_FCYM` | finger cymbal | `fm/finger-cymbal` | FM |
+| `I_CHIRP`/`I_SWOOP`/`I_FROG` | the aviary (FX) | `fx/aviary` | SINE/SQUARE |
+
+**Borrowing at a glance:** the densest web of links yet — its felt-piano roll is cocktail's
+verbatim, its upright the 4-station session bass, its clave + shaker the acoustic-percussion
+families, and its celesta the **4th showcase-cart lineage** (mallet.c's celesta, after the
+vibes/organ/moog borrows). Its own: the motored vibes, glass bell, boo-bam, finger cymbal,
+and the fully-aleatoric aviary. A lounge station sits squarely in the acoustic cluster.
+
+---
+
 ## Stations not yet charted
 
-exotica · ymo
+ymo *(the last one)*
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
 cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse · satie ·
-gamelan · tango · carlos (17). Refined finding: sharing clusters by **idiom**, not engine —
+gamelan · tango · carlos · exotica (18). Refined finding: sharing clusters by **idiom**, not engine —
 a **dance/groove** palette (synth kit, 808, disco basses, PWM-squares) and an **acoustic
 jazz/classical** palette (fake TRI/SINE pianos, the session upright, cross-stick) spanning
 cocktail/roadhouse/tango. Islands build their own: world/ethio (gamelan, addis) and even

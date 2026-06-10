@@ -51,19 +51,39 @@ live-band) station is the natural demand for it, and its showcase cart writes it
 showcase-cart flywheel). Worth a line in `sound-next-steps.md`'s roster if it earns a vote
 beyond this one.
 
-## Not-effects (named so the doc isn't mistaken for complete)
+## Not-effects: two holes that are the cart's own generative business
 
-Two more holes the brief found that are **not** the effects bus's job — recorded so a future
-reader doesn't expect the bus to close them:
+Two more holes the brief found are **not** the effects bus's job — and not the engine's
+either. They're **layer-3 cart logic**: the generative C a station writes on top of the shared
+chassis (`radio.h`'s clock, `improv.h`), classified in the
+[`game-music.md`](../guides/game-music.md) **brain catalog** (chord / time / melody / bass /
+form brains). A good cart-local brain *graduates* into a shared header once a second cart wants
+it (as `improv.h` did, and as `cocktail`'s walking bass is queued to). Recorded here so a future
+reader doesn't expect the bus — or a new engine — to close them:
 
-- **Call-and-response vocals** — Fela's lead call + the female chorus answer. `INSTR_VOICE`
-  exists and is maturing (the `vox` carts), but *intelligible* sung words are beyond what the
-  generative chassis does; this is a brain/lyric problem, not an effect. The cart leaves the
-  vocal chair empty (or, at most, a wordless `INSTR_VOICE` shout as the response).
 - **Tony Allen's broken-funk feel** — the human drummer's off-grid ghost notes and elastic
-  swing. That's a **TIME/feel brain** (timing scatter + dynamic accenting), not an effect; it
-  belongs with the generative-brain backlog in [`future-stations.md`](future-stations.md), not
-  here.
+  accenting. This is a **time brain / feel** (a sibling of `yacht`'s "Purdie half-time shuffle
+  + ghosts", `lowend`'s push/drag groove templates, `cocktail`'s 55–62% swing). It's pure cart
+  C — *when* and *how hard* notes fire — riding **on top of** `radio.h`'s schedule-ahead clock,
+  which the cart must not reimplement. Graduates to a header if a second Afro/funk station wants
+  it. Brain backlog: [`future-stations.md`](future-stations.md).
+
+- **Call-and-response vocals** — Fela's lead call + the chorus answer. This is really *three*
+  layers, only one of which is a real hole:
+  - **Timbre** → `INSTR_VOICE` (the `vox` carts), an **engine** capability that exists and is
+    maturing. A given, not a hole.
+  - **The call-and-response phrasing** (lead states → chorus answers) → an ordinary **form /
+    melody brain**, the cart's business — and *already half-built*: `roadhouse`'s improviser
+    does "motif → stated / answered / sequenced / doubled", and a horn answer is a form pattern.
+    Buildable today.
+  - **Intelligible *words*** → the only genuinely hard part — and for a *generative radio* it
+    **dissolves**: radio is wordless/instrumental, so recognizable lyrics aren't a brain we'd
+    ever build here. The realistic version is a **wordless** vocal call-and-response (a vowel
+    "hey!" shout, a hummed answer) — engine + cart brain, doable now.
+
+  So the vocal "hole" is mostly a *buildable* cart brain plus an existing engine; the cart can
+  leave the chair empty for v1 and add a wordless `INSTR_VOICE` answer later without waiting on
+  anything.
 
 ---
 

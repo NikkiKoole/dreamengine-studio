@@ -40,9 +40,16 @@ all shipped, so these are buildable today):
    draggable trombone slide). This was the last engine-blocked instrument — **every modeled
    timbre now has an engine.** Follow-up: move the horn *fakes* (addis/dub/citypop/yacht) onto it.
 
-Plus the fresh ideas: **clanky pots & pans** (an FM-clang/detuned-square junk-metal kit),
-**Juno** (the lush *poly* pad we lack; chorus waits on the effects bus), **arco upright bass**.
-Build any with the [intent-first voice brief](../guides/cart-authoring-prompt.md).
+Plus the fresh ideas: **clanky pots & pans** (an FM-clang/detuned-square junk-metal kit) and
+**arco upright bass**. Build any with the [intent-first voice brief](../guides/cart-authoring-prompt.md).
+
+> **Juno — build it *after* the chorus bus.** A Juno-106 needs no new engine (saw/pulse + sub +
+> resonant LP + LFO, all built — it's `sh101`/`tb303`/`moog` territory), and polyphony is free.
+> Its *one* distinctive bit is the **BBD chorus** — the lush shimmer that makes a Juno a Juno —
+> which is § 8.10 effects-bus work. Without it, a Juno is just "sh101 with more voices"; with it
+> it's a distinctively lush poly machine nothing else does. So **the Juno is the chorus bus's
+> natural showcase cart** — build them together, the way `spacecho` showed off the echo bus and
+> `brass` showed off the brass engine. That's the sequencing: chorus lands → Juno proves it.
 
 ## New stations — newest *demand*
 
@@ -84,6 +91,7 @@ chains, master = bus 0. Start with one master reverb. The effects that live here
    per-voice stand-ins" explicitly slated to **migrate onto a real bus** here.
 2. **Chorus / unison width** — the lush detuned-width of a Juno / stereo Rhodes / string
    *section*. Partly fakeable by layering (see "section blend" below); a real chorus packages it.
+   **Its showcase cart is the Juno** (see New instruments) — build them together.
 3. **Formant filter** — 4-bandpass-peak vowel filter (navkit-spec'd, reuses a state-variable
    filter). Run **any** instrument through it → choir / vocal-organ / **talkbox** (vowel) color.
    A *complement* to the maturing `INSTR_VOICE` synth, not a substitute: cheap per-instrument

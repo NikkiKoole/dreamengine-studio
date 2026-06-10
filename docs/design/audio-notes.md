@@ -1262,15 +1262,19 @@ control — it reads 0.0¢, which is what proves the measurement itself is sound
   be a whole number of samples, so high notes round to the nearest available pitch). The
   open fix: a fractional-delay (interpolated) read tap, or a tuning correction baked per
   note. Tracked here until someone takes it.
-- **PIPE flute — was genuinely out of tune; MOSTLY FIXED 2026-06-11.** Spoke an **octave low**
-  AND went badly flat as it climbed: A2 −13¢, A3 −35¢, A4 −78¢, A5 −159¢. Cause: the bore was
-  sized a full wavelength, but the single open-end reflection INVERTS, so a waveguide resonates
-  at SR/(2·delay) — an octave down — and the uncompensated jet+filter loop delay added the flat.
-  Fix (`sound_pipe_start`): half-wavelength bore minus a mildly pitch-sloped loop-delay term, sized
-  with the bowed-string fractional-read trick to remove integer quantization. **Now A2–A4 within
-  ~±2¢, octave correct.** Residual: A5 (880 Hz) ≈ −65¢ — at a ~20-sample bore the fixed jet ≈ the
-  bore, so it sits on the overblow edge and pitch is hyper-sensitive (a trim can't reach 0¢); a
-  jet-length re-voicing would close it. Tracked in [STATUS](../STATUS.md) Open #31.
+- **PIPE flute — was genuinely out of tune; FIXED 2026-06-11.** Spoke an **octave low** AND went
+  badly flat as it climbed: A2 −13¢, A3 −35¢, A4 −78¢, A5 −159¢. Cause: the bore was sized a full
+  wavelength, but the single open-end reflection INVERTS, so a waveguide resonates at SR/(2·delay)
+  — an octave down — and the uncompensated jet+filter loop delay added the flat. Fix
+  (`sound_pipe_start`): half-wavelength bore minus a loop-delay term **derived from the note-on jet
+  length** (`1.69 + 0.308·jetLen`), sized with the bowed-string fractional-read trick to remove
+  integer quantization. The jet term matters because the embouchure macro (morph) sets the jet
+  length — a constant left morph≠0 sharp by up to a semitone (measured: morph 0.70 was +88…+147¢
+  before deriving it). **Now in tune within ~±3¢ from C4 to ~E6 at typical embouchure** (verified
+  morph 0.70, robust across seeds). Caveat: the extreme morph≈0 default (longest jet ≈ bore at the
+  top) is seed-unstable in its top octave — the `tune-check.js` default sweep tests overblow/morph 0
+  and still flags PIPE A5; any real recipe uses morph ≳ 0.3 where it's stable. Tracked in
+  [STATUS](../STATUS.md) Open #31; first customer: `air.c` reopened its flute register.
 
 Not a fault, correctly separated by the tool into a "transposed, not detuned" list:
 **ORGAN** reads ~an octave low because the default registration leans on the 16′

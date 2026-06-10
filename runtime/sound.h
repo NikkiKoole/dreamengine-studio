@@ -673,6 +673,56 @@ static void fx_set_tape(int b, float wow, float flut, float sat) {
     tape_used[b] = true;
 }
 
+// ── auto-wah — a resonant bandpass SWEPT BY AN ENVELOPE FOLLOWER on the bus signal ──
+// THE scar (0015 correction / §8.10): the realistic "woah-woah" auto-wah is a BUS effect, not
+// per-voice — a per-voice filter can't sweep a chord coherently or pump with the groove. A bus-level
+// envelope follower tracks the summed performance and opens a resonant SVF bandpass: louder playing →
+// the filter opens = the funk-clav quack. navkit processWah (ENVELOPE mode); the SVF's bus-level use.
+// Mono (like flanger). Closes the §8.10.1 PARKED auto-wah; the follower's "real home is bus-level".
+#define WAH_FREQ_LOW   300.0f
+#define WAH_FREQ_HIGH  2500.0f
+static float wah_env [SOUND_FX_BUSES];     // envelope-follower state
+static float wah_ic1 [SOUND_FX_BUSES];     // TPT SVF state
+static float wah_ic2 [SOUND_FX_BUSES];
+static float wah_sens[SOUND_FX_BUSES];     // envelope sensitivity (~0.3..5 internal)
+static float wah_res [SOUND_FX_BUSES];     // resonance/Q 0..1 (the quack)
+static float wah_mix [SOUND_FX_BUSES];     // dry/wet 0..1
+static bool  wah_used[SOUND_FX_BUSES];
+
+static void wah_process(int b, float *mixL, float *mixR) {
+    float in = (*mixL + *mixR) * 0.5f;     // follow + filter the mono sum
+    // envelope follower: fast attack, slow release (peak detector tracking the performance)
+    float level = fabsf(in) * wah_sens[b];
+    if (level > wah_env[b]) wah_env[b] += 0.01f   * (level - wah_env[b]);   // attack
+    else                    wah_env[b] += 0.0001f * (level - wah_env[b]);   // release
+    float sweep = wah_env[b]; if (sweep > 1.0f) sweep = 1.0f;
+    float freq = WAH_FREQ_LOW * powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep
+    if (freq > SOUND_SAMPLE_RATE * 0.45f) freq = SOUND_SAMPLE_RATE * 0.45f;
+    // TPT state-variable bandpass (Zavalishin)
+    float g = tanf(3.14159265f * freq / (float)SOUND_SAMPLE_RATE);
+    float k = 2.0f - 2.0f * wah_res[b] * 0.99f;                            // resonance → narrow quack
+    float a1 = 1.0f / (1.0f + g * (g + k));
+    float a2 = g * a1, a3 = g * a2;
+    float v3 = in - wah_ic2[b];
+    float v1 = a1 * wah_ic1[b] + a2 * v3;
+    float v2 = wah_ic2[b] + a2 * wah_ic1[b] + a3 * v3;
+    wah_ic1[b] = 2.0f * v1 - wah_ic1[b];
+    wah_ic2[b] = 2.0f * v2 - wah_ic2[b];
+    if (wah_ic1[b] >  4.0f) wah_ic1[b] =  4.0f; if (wah_ic1[b] < -4.0f) wah_ic1[b] = -4.0f;  // runaway guard
+    if (wah_ic2[b] >  4.0f) wah_ic2[b] =  4.0f; if (wah_ic2[b] < -4.0f) wah_ic2[b] = -4.0f;
+    float bp = v1;                          // bandpass output (mono); dry kept per channel
+    *mixL = *mixL * (1.0f - wah_mix[b]) + bp * wah_mix[b];
+    *mixR = *mixR * (1.0f - wah_mix[b]) + bp * wah_mix[b];
+}
+static void fx_set_wah(int b, float sens, float res, float mix) {
+    if (sens < 0.0f) sens = 0.0f; if (sens > 1.0f) sens = 1.0f;
+    if (res < 0.0f)  res  = 0.0f; if (res > 1.0f)  res  = 1.0f;
+    if (mix < 0.0f)  mix  = 0.0f; if (mix > 1.0f)  mix  = 1.0f;
+    wah_sens[b] = 0.3f + sens * 4.7f;       // 0..1 → ~0.3..5.0 (navkit sensitivity range)
+    wah_res[b] = res; wah_mix[b] = mix;
+    wah_used[b] = true;
+}
+
 // envelope-follower smoothing coefficient from a time in ms (one-pole; 0 ms = instant)
 static float sound_follow_coef(int ms) {
     if (ms <= 0) return 1.0f;
@@ -739,6 +789,8 @@ typedef enum {
     SR_INSTR_FLANGER= 46,   // a=slot, b=rate*1000, c=depth*1000, e0=fb*1000 (signed), e1=mix*1000 — flanger on one instrument (auto-bus)
     SR_TAPE         = 47,   // a=wow*1000, b=flutter*1000, c=sat*1000 — THE master tape (bus 0)
     SR_INSTR_TAPE   = 48,   // a=slot, b=wow*1000, c=flutter*1000, e0=sat*1000 — tape on one instrument (auto-bus)
+    SR_WAH          = 49,   // a=sens*1000, b=res*1000, c=mix*1000 — THE master auto-wah (bus 0)
+    SR_INSTR_WAH    = 50,   // a=slot, b=sens*1000, c=res*1000, e0=mix*1000 — auto-wah on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3171,6 +3223,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_tape(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_WAH) {          // master auto-wah (bus 0): a=sens, b=res, c=mix (×1000)
+        fx_set_wah(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_INSTR_WAH) {    // per-instrument: a=slot, b=sens, c=res, e0=mix (×1000)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) fx_set_wah(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3413,6 +3471,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // master (bus 0). A slot routed here (instrument_chorus/flanger) is effected in isolation;
         // everything on bus 0 bypasses. All-bus-0 carts skip this entirely → byte-identical.
         for (int b = 1; b < SOUND_FX_BUSES; b++) {
+            if (wah_used[b]) wah_process(b, &busL[b], &busR[b]);     // filter first
             if (cho_used[b]) chorus_process(b, &busL[b], &busR[b]);
             if (flg_used[b]) flanger_process(b, &busL[b], &busR[b]);
             if (tape_used[b]) tape_process(b, &busL[b], &busR[b]);

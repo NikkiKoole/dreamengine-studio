@@ -13,7 +13,9 @@
 //   • INSTR_REED  — the smoky tenor sax (Playground Love).
 //   + the Solina string-machine wash on a detuned SAW pair (the AIR signature),
 //     INSTR_EPIANO Rhodes/Wurli, INSTR_GUITAR nylon, and a fuzzy driven Moog bass.
-//   Everything sits in instrument_echo's tape wash — AIR is always drenched.
+//   Everything blooms into a real reverb hall; the Solina pad runs its own per-part BBD
+//   ENSEMBLE chorus (the stereo Rhodes too), and the whole record is committed to TAPE
+//   (per-archetype wow + saturation), with a touch of echo — AIR is always drenched.
 //
 // THE BRAIN (stolen-playbook chord brain #4, game-music.md): five SONG ARCHETYPES,
 // each a cited AIR track encoded as a template progression that ALSO fixes its
@@ -102,7 +104,7 @@ static const struct {
     { "SEXY BOY",   "~ Sexy Boy",            "fuzz-Moog groove", 1, HM_PAD,    106, 10, 64, 80 },
     { "ARGENT",     "~ La Femme d'Argent",   "the rolling bass", 2, HM_RHODES, 90, 10, 64, 81 },
     { "PLAYGROUND", "~ Playground Love",     "tenor-sax ballad", 2, HM_RHODES, 68, 10, 54, 72 },
-    { "CHERRY",     "~ Cherry Blossom Girl", "nylon & flute",    0, HM_GUITAR, 94, 10, 67, 83 },
+    { "CHERRY",     "~ Cherry Blossom Girl", "nylon & flute",    0, HM_GUITAR, 94, 10, 64, 86 },
     { "KELLY",      "~ Kelly Watch Stars",   "vocoder electro",  1, HM_PAD,   114, 10, 60, 76 },
 };
 
@@ -157,11 +159,14 @@ static char  nowChord[4][8];
 // per-song instrument base cutoffs (the tone knob multiplies these — gotcha #1)
 static int   leadCut = 2400, bassCut = 600;
 static bool  padOn   = true;
-static float padWet  = 0.28f;
+static float padWet  = 0.28f;       // pad echo (slapback) send
+static float padRev  = 0.40f;       // pad reverb send (the Solina drench; lush = wetter)
+static float padChorus = 0.58f;     // the Solina ENSEMBLE — per-part chorus on the pad alone
+static float spaceW  = 1.0f;        // the reverb chair's master scale: hall 1.0 / room 0.55 / dry 0
 
 // THE BAND (B) — chairs the player can re-voice live
 static RadBand band;
-static int chStr, chComp, chEcho;
+static int chStr, chComp, chSpace;
 
 static int iabs(int v) { return v < 0 ? -v : v; }
 
@@ -199,7 +204,12 @@ static void setup_voices(int arch) {
         leadCut = 2200;
     } else if (arch == A_CHERRY) {                         // breathy concert flute (PIPE)
         // the showcase pipe/flute recipe, verbatim — overblow at 0 keeps it OUT of the
-        // jet-gain "screech at the top" zone the engine warns about (kept the register low too)
+        // jet-gain "screech at the top" zone the engine warns about. The 2026-06-11 PIPE
+        // bore-tuning fix (was octave-low + flat) reopened the register from the old workaround
+        // 67–83 to 64–86: at this recipe's embouchure (morph 0.70, short jet) tune-check measures
+        // PIPE in tune within ±5¢ from C4 up to ~E6, so the old A5 ceiling is no longer needed.
+        // NOTE: the fix also means the flute now sounds at its WRITTEN octave (it played an octave
+        // low before), so this register sits an octave above what it used to — by design.
         instrument(I_LEAD, INSTR_PIPE, 1, 0, 4, 1200);
         instrument_harmonics(I_LEAD, 0.00f);               // NO overblow — pure fundamental, in tune
         instrument_timbre(I_LEAD, 0.38f);                  // concert-flute air
@@ -216,7 +226,23 @@ static void setup_voices(int arch) {
         leadCut = 2400;
     }
     instrument_filter(I_LEAD, FILTER_LOW, leadCut, 2);
-    instrument_echo(I_LEAD, arch == A_KELLY ? 0.14f : 0.22f);   // AIR's tape wash
+    instrument_echo(I_LEAD, arch == A_KELLY ? 0.10f : 0.14f);   // a touch of slapback…
+    instrument_reverb(I_LEAD, (arch == A_KELLY ? 0.22f : 0.32f) * spaceW);   // …but the hall carries the space now
+
+    // THE ENSEMBLE now lives PER-PART on the Solina pad (instrument_chorus in
+    // setup_instruments / the strings chair), not the master bus — so it can run full
+    // solina.c lushness on the pad while Kelly's kit & bass stay bone-dry. No archetype
+    // hold-back needed any more; master chorus() stays off.
+
+    // TAPE — the whole record committed to tape: the vintage Moon Safari glue (warmth +
+    // a slow wow drift). This one IS master-wide on purpose (it's the tape, not a per-voice
+    // FX). A different tape per archetype: the dreamy ones wow & saturate more; Kelly runs
+    // tighter & cleaner so the electro stays crisp.
+    switch (arch) {
+        case A_KELLY: tape(0.10f, 0.08f, 0.24f); break;            // clean, tight
+        case A_SEXY:  tape(0.18f, 0.10f, 0.40f); break;            // grittier saturation
+        default:      tape(0.22f, 0.11f, 0.34f); break;            // Argent/Playground/Cherry — warm & drifting
+    }
 }
 
 // ── song generation — composition AND the band, all from the seed ─────────
@@ -488,24 +514,29 @@ static void apply_chair(int idx);
 static void setup_instruments(void) {
     chStr  = rad_chair(&band, "strings", "solina", "lush", "off", NULL);
     chComp = rad_chair(&band, "e-piano", "rhodes", "wurli", NULL, NULL);
-    chEcho = rad_chair(&band, "echo",    "plate", "slap", "dry", NULL);
+    chSpace = rad_chair(&band, "reverb",  "hall", "room", "dry", NULL);
 
-    // Solina string ensemble — a detuned SAW pair (one slot, the engine pans it),
-    // slow swell + long fade, the AIR signature wash
+    chorus(1.0f, 0.4f, 0.0f);                       // master chorus OFF — the Solina ENSEMBLE is
+                                                    // now per-part (below), so the kit never gets washed
+
+    // Solina string ensemble — a saw slot whose ENSEMBLE is a real per-part BBD chorus
+    // (the solina.c recipe, now that instrument_chorus exists). The detune is just the
+    // divide-down beating under it; the chorus does the swirl.
     instrument(I_PAD, INSTR_SAW, 600, 400, 6, 1600);
     instrument_filter(I_PAD, FILTER_LOW, 2000, 2);
-    instrument_tune(I_PAD, 0.07f);                  // the ensemble shimmer (detune)
-    instrument_lfo(I_PAD, 0, LFO_PITCH, 0.18f, 0.05f);   // slow tape wow
-    instrument_lfo(I_PAD, 1, LFO_VOLUME, 4.4f, 0.07f);   // gentle string-machine chorus
+    instrument_tune(I_PAD, 0.05f);                  // subtle divide-down beating (solina.c value)
+    instrument_lfo(I_PAD, 0, LFO_PITCH, 0.18f, 0.05f);   // slow tape wow under the ensemble
+    instrument_chorus(I_PAD, 0.9f, 0.50f, padChorus);    // THE ENSEMBLE — solina.c "I", on the pad alone
     instrument_echo(I_PAD, padWet);
     instrument_pan(I_PAD, -0.15f);
 
-    // Rhodes / Wurlitzer (the chair swaps the model)
+    // Rhodes / Wurlitzer (the chair swaps the model) — a touch of chorus = the stereo Rhodes
     instrument(I_EP, INSTR_EPIANO, 2, 0, 6, 900);
     instrument_harmonics(I_EP, 0.15f);              // Rhodes
     instrument_timbre(I_EP, 0.35f);
     instrument_morph(I_EP, 0.20f);
     instrument_filter(I_EP, FILTER_LOW, 2200, 2);
+    instrument_chorus(I_EP, 0.7f, 0.30f, 0.28f);    // gentle stereo-Rhodes width
     instrument_echo(I_EP, 0.14f);
 
     // nylon acoustic guitar (Cherry's arpeggios)
@@ -541,6 +572,16 @@ static void setup_instruments(void) {
     instrument_filter(I_SOLO, FILTER_LOW, 3000, 2);
     instrument_echo(I_SOLO, 0.22f);
 
+    // a real reverb hall — the AIR drench (per-slot sends; the low end stays dry & tight)
+    reverb(0.62f, 0.38f);                  // lush but not endless; a little dark in the tail
+    instrument_reverb(I_PAD,  padRev);     // the Solina blooms into the room
+    instrument_reverb(I_EP,   0.28f);
+    instrument_reverb(I_GTR,  0.26f);
+    instrument_reverb(I_VIBE, 0.42f);      // twinkle hangs in the hall
+    instrument_reverb(I_SNR,  0.18f);
+    instrument_reverb(I_SOLO, 0.30f);
+    // I_LEAD's send is set per archetype in setup_voices; I_KICK/I_HAT/I_BASS stay dry
+
     for (int i = 0; i < band.n; i++) if (band.c[i].sel) apply_chair(i);  // base = sel 0
 }
 
@@ -548,10 +589,14 @@ static void setup_instruments(void) {
 static void apply_chair(int idx) {
     int sel = band.c[idx].sel;
     if (idx == chStr) {
-        padOn  = (sel != 2);
-        padWet = (sel == 1) ? 0.45f : 0.28f;
-        instrument_tune(I_PAD, sel == 1 ? 0.12f : 0.07f);   // lush = wider ensemble
+        padOn     = (sel != 2);
+        padWet    = (sel == 1) ? 0.45f : 0.28f;
+        padRev    = (sel == 1) ? 0.55f : 0.40f;             // lush = deeper into the hall
+        padChorus = (sel == 1) ? 0.70f : 0.58f;             // lush = ENSEMBLE II territory
+        instrument_tune(I_PAD, sel == 1 ? 0.07f : 0.05f);   // lush = wider divide-down beating
+        instrument_chorus(I_PAD, 0.9f, 0.50f, padOn ? padChorus : 0);
         instrument_echo(I_PAD, padWet);
+        instrument_reverb(I_PAD, padOn ? padRev * spaceW : 0);
     } else if (idx == chComp) {
         if (sel == 0) {                                     // Rhodes
             instrument_harmonics(I_EP, 0.15f);
@@ -560,14 +605,15 @@ static void apply_chair(int idx) {
             instrument_harmonics(I_EP, 0.50f);
             instrument_timbre(I_EP, 0.42f); instrument_morph(I_EP, 0.35f);
         }
-    } else if (idx == chEcho) {
-        float w = (sel == 0) ? 1.0f : (sel == 1) ? 0.5f : 0.0f;  // plate / slap / dry
-        instrument_echo(I_LEAD, 0.22f * w);
-        instrument_echo(I_PAD,  padWet * w);
-        instrument_echo(I_EP,   0.14f * w);
-        instrument_echo(I_GTR,  0.16f * w);
-        instrument_echo(I_VIBE, 0.30f * w);
-        instrument_echo(I_SOLO, 0.22f * w);
+    } else if (idx == chSpace) {
+        spaceW = (sel == 0) ? 1.0f : (sel == 1) ? 0.55f : 0.0f;   // hall / room / dry
+        instrument_reverb(I_PAD,  (padOn ? padRev : 0) * spaceW);
+        instrument_reverb(I_EP,   0.28f * spaceW);
+        instrument_reverb(I_GTR,  0.26f * spaceW);
+        instrument_reverb(I_VIBE, 0.42f * spaceW);
+        instrument_reverb(I_LEAD, 0.32f * spaceW);
+        instrument_reverb(I_SNR,  0.18f * spaceW);
+        instrument_reverb(I_SOLO, 0.30f * spaceW);
     }
 }
 
@@ -721,7 +767,7 @@ void draw(void) {
             { "LEFT/RIGHT", "feel - hush/dusk/warm/aglow" },
             { "UP/DOWN",    "tempo of this tune" },
             { "T",          "tone - mellow/warm/clear/bright" },
-            { "B",          "the band - strings/e-piano/echo" },
+            { "B",          "the band - strings/e-piano/reverb" },
             { "J / tap",    "the jam strip - play along" },
         };
         static const char *NOTES[3] = {

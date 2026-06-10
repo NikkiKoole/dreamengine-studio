@@ -25,6 +25,7 @@ left here — that rule is what keeps this doc from regrowing).
 | a per-station timbre swap / engine retrofit | [`radio-instrument-options.md`](radio-instrument-options.md) |
 | genre racks / generate-play-export / song.h | [`tinydaws.md`](tinydaws.md) |
 | selling any of this (market, MIDI/AUv3, latency, trademark) | [`product-notes.md`](product-notes.md) — sketch-first decision + the parked builder items |
+| timing jitter / drift (esp. web "drunk" playback) | [`audio-timing.md`](audio-timing.md) — frame-quantized triggers vs schedule-ahead; the web unclamped-`dt` hitch (latency is product-notes) |
 | holding + driving notes live (the shipped spec) | [`held-notes.md`](held-notes.md) |
 | modrack / patching | [`modular-synth.md`](modular-synth.md) |
 | recording the player, looping it back | [`input-recording-looper.md`](input-recording-looper.md) |

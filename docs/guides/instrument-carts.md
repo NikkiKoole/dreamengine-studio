@@ -162,6 +162,7 @@ overlay to swap a chair's instrument mid-song. Candidate swaps:
 | **multitouch paint** (`multitouch`) | Finger-paint playground for the touch API (makes mallet tones). | touch API, `INSTR_MALLET` |
 | **le petomane** (`fartsynth`) | A fart synthesizer that is secretly a sound-design lesson. | all chiptune waves |
 | **music garden** (`garden`) | A screensaver that plays itself — ambient generative bells. | `INSTR_TRI`/`SINE` |
+| **drift** (`drift`) | A timing **diagnostic** you can hear: the same 16th pulse on three clocks at once — `schedule_hit` (tight, center) vs `hit()`-on-frame (jittery, left) vs every-N-frames (drifts, right) — with per-voice error scopes and a GLITCH button. The A/B rig for the web `frame_dt` clamp; see [`../design/audio-timing.md`](../design/audio-timing.md). | beat clock, `schedule_hit`, `instrument_pan` |
 
 ---
 

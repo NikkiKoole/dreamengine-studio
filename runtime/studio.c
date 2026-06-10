@@ -1055,6 +1055,11 @@ static void loop_step(void) {
         return;
     }
     frame_dt = GetFrameTime();
+    // clamp hitches like the native path does (:1067). On web frame_dt is the rAF
+    // delta and is otherwise unbounded — a GC pause / scroll / tab-work stall would
+    // dump the whole gap into the beat clock at once (beat_accum += dt, sound.h),
+    // lurching the sequence forward and skipping beats. See design/audio-timing.md.
+    if (frame_dt > 0.1f) frame_dt = 0.1f; if (frame_dt < 0) frame_dt = 0;
     sound_tick(frame_dt);
 #else
     // delta time for dt()/the musical clock. det_mode pins it to a fixed step so

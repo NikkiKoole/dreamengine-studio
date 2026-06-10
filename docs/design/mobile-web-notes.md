@@ -5,7 +5,10 @@ The gallery is live (<https://nikkikoole.github.io/dreamengine/> — see
 carts now meet phones. This doc collects what that exposed and the proposed
 levers. [`touch-notes.md`](touch-notes.md) owns the touch *API* design; this doc
 owns **publishing readiness** — which carts work on a phone at all, and how the
-shell/settings/tooling should adapt.
+shell/settings/tooling should adapt. **Power/thermals** (phones running hot at a
+pinned 60fps — fps cap + on-demand/reactive rendering) is its own topic in
+[`frame-pacing.md`](frame-pacing.md); **responsive display** (resizable window,
+scale-to-fit, rotation) is §4c below.
 
 Source: first real-device session, 2026-06-05 (iPhone, carts from the live
 gallery). Findings are folded in below; touchlab's probe row in
@@ -102,6 +105,43 @@ compile-time constants carts do math against; native-res would break cart
 determinism and the fantasy-console aesthetic for marginal sharpness. The open
 remainder here is the `fit` policy (§4) — `"integer"` snap for fractional-scale
 shimmer, `"stretch"` for aspect-insensitive carts.
+
+## 4c. Resizable window & dynamic scale-to-fit — "responsive", honestly split
+
+"Responsive?" (researched 2026-06-10) is really **two** asks, and conflating them
+is the trap. The dividing line is whether the **cart** sees a different size:
+
+**(a) Display-responsive — scale the fixed canvas to whatever space exists.**
+Cheap and safe, because the canvas stays a fixed-res `RenderTexture2D` and *only
+the blit rectangle changes*; the cart never knows. This is the `fit` policy (§4)
+plus, on native, a **resizable window**:
+
+- Today the native window is created fixed-size (`InitWindow(SCREEN_W*SCALE,
+  SCREEN_H*SCALE)`, `studio.c:1385`), no `FLAG_WINDOW_RESIZABLE`, and the
+  scale-up blit hardcodes `SCREEN_W*SCALE × SCREEN_H*SCALE` (`studio.c:1182`–`:1189`).
+- To make it resizable: set the flag, then each frame compute the dest rect from
+  the *live* window size (`GetScreenWidth/Height`) with the chosen `fit` policy
+  (letterbox / integer / stretch) instead of the compile-time constant. ~15 lines,
+  and it shares its math with the web `fit` work — same three policies, one place.
+- The shake offset (`sox/soy`, `:1177`) and the touch/mouse → canvas mapping must
+  read the live scale, not `SCALE`, once the blit is dynamic.
+- **Web is already display-responsive**: CSS `max-width/height: 100%` + flex-center
+  letterboxes to the viewport and rescales touch coords through it
+  (`web_shell.html`). `fit` just swaps that CSS per build.
+
+**(b) Layout-responsive — the cart reflows to the real size, like a web app.**
+This needs `SCREEN_W/H` to become **runtime variables**, which breaks the
+determinism + pixel-art contract the whole engine leans on (and the ~45 carts that
+do arithmetic against fixed dims). **Recommendation: do not make this global.** At
+most it's an opt-in capability for a narrow class (UI tools, dashboards, radios that
+want to fill the screen) — and even then it's a real project, not a setting. Keep it
+behind the same wall §4b already drew for device-resolution rendering.
+
+**Phone rotation.** Because dims are compile-time, you can't swap portrait↔landscape
+dims at runtime. So rotation is either *letterbox the fixed canvas* (what (a) gives
+you — the existing rotate-hint already copes) or *the cart truly relayouts* (that's
+(b), the hard one, and the GLFW touch shim breaks under a CSS transform anyway —
+§4b). Ship (a); treat rotation-reflow as out of scope until one specific cart needs it.
 
 ## 5. Mobile vs desktop divergence — what a cart can't currently know
 
@@ -335,7 +375,11 @@ overlay's value is being cable-free and game-legible.
    First `--site` run over 50 published carts: 2 keyboard-only, 5 fixable,
    34 tap-as-mouse, 3 touch-ready, 6 no-input.
 2. **`fit` setting end-to-end** (§4) — `.cart.js` → `de:settings` → both build
-   paths → shell. Radios are the first `"stretch"` customers.
+   paths → shell. Radios are the first `"stretch"` customers. Resizable native
+   window + dynamic scale-to-fit share this work (§4c).
+2b. **Power: fps cap + reactive rendering** ([`frame-pacing.md`](frame-pacing.md)) —
+   the phone-heat fix. Lever A (`-DTARGET_FPS`) is the ~5-line quick win; Lever B
+   (on-demand `repaint()`) is the bigger win for the static-but-audio radios.
 3. **`touch_available()`** (§5) — 4-place wiring + first self-adapting cart.
 4. **touchlab on iPhone, formally** — run the §5 checklist from touch-notes,
    write verdicts into probe-carts.md; add a button-size page (how small can a

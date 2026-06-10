@@ -154,3 +154,14 @@ convention — it's **refusing to admit new primitives**.
   bitcrush, leslie recipe, compression) are all either recipes, deferrals, or unrostered candidates
   exactly as this decision laid out. Build: [instrument-engines §8.10](../design/instrument-engines.md);
   showcase: the `tapeloop` cart (Frippertronics).
+
+- **2026-06-11 — the wah detour is fully closed: the corrected bus auto-wah is BUILT.** The
+  2026-06-08 correction (above) re-filed the realistic "woah-woah" auto-wah as a bus effect (a
+  resonant bandpass on the *summed* signal swept by an envelope follower). It is now shipped:
+  `wah(sensitivity, resonance, mix)` + `instrument_wah(slot,…)`, a per-bus insert — an envelope
+  follower on the bus signal opening a TPT state-variable bandpass (the SVF, reused at bus level; the
+  "4th use of the one filter" the roster table predicted). No new primitive — a filter + a follower,
+  both rostered; the simple per-voice wah and the per-note clav ENV-quack remain valid recipes. So the
+  scar that *named* this whole effects-discipline (the per-voice-vs-bus mistake) is now not just
+  understood but resolved in code, with `clavinet` as the funk-clav proof. The §8.10 effects roster
+  is essentially complete. Build: [instrument-engines §8.10](../design/instrument-engines.md).

@@ -49,11 +49,14 @@ the effects-layer plan. **Genre: design exploration.**
 > **Tape SHIPPED 2026-06-11** — the third use of the mod-delay technique (`tape(wow, flutter,
 > saturation)` + `instrument_tape`): warm saturation + slow-wow/fast-flutter pitch warble (one shared
 > transport LFO) + baked HF rolloff, a per-bus stereo insert after chorus→flanger. Showcase:
-> **tapeloop** (Frippertronics). So the roster is essentially complete: echo/reverb/chorus/flanger/
-> tape, all per-instrument. **Next:** explicit named buses to route *several* instruments through one
-> shared insert (the remaining generalization); the §8.10.1 PARKED per-voice stand-ins migrate onto
-> real phase-coherent buses (the **great auto-wah** = bandpass on the summed mix + follower, **epiano
-> tremolo**, the **envelope follower**); leslie per the build-list.
+> **tapeloop** (Frippertronics). **Auto-wah SHIPPED 2026-06-11** — THE scar's resolved answer:
+> `wah()`/`instrument_wah()`, an envelope follower on the summed bus signal opening a swept resonant
+> SVF bandpass (per-bus insert, first in the chain), navkit `processWah`. Closes the §8.10.1 PARKED
+> auto-wah; the bus is the follower's "real home." Showcase: **clavinet**. So the roster is
+> essentially complete: echo/reverb/chorus/flanger/tape/auto-wah, all per-instrument. **Next:**
+> explicit named buses to route *several* instruments through one shared insert (the remaining
+> generalization); the other §8.10.1 PARKED per-voice stand-ins (**epiano tremolo**, the per-voice
+> **envelope follower**) migrate onto phase-coherent buses; leslie per the build-list.
 > **Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)**
 > (effects are recipes; ~12 primitives, forever); this doc's §8.10 is the routing sketch 0015
 > disciplined — where they differ, 0015 wins. To work on effects, read **0015 + §8.10 +
@@ -1516,7 +1519,19 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > deterministic. A per-bus stereo insert chained after chorus→flanger. So the mod-delay technique now
 > has THREE uses (chorus/flanger/tape) — the "write the technique once, place it many ways" discipline
 > (cf. the SVF serving filter/formant/wah). Showcase: **tapeloop** (Frippertronics — pad → long echo
-> loop → tape degrades each pass). The §8.10 effects roster is essentially complete.
+> loop → tape degrades each pass).
+
+> **Auto-wah SHIPPED 2026-06-11 — the wah detour's scar, finally resolved AND built.** This doc's
+> §8.10 + 0015 spent a whole correction establishing that the realistic "woah-woah" auto-wah is a
+> **bus** effect (an envelope follower on the *summed* signal opening a resonant bandpass), not the
+> per-voice filter the original audit mis-filed. Now it exists: `wah(sensitivity, resonance, mix)` +
+> `instrument_wah(slot,…)`, a per-bus insert (first in the chain), navkit `processWah` envelope mode
+> — fast-attack/slow-release follower → exponential cutoff → TPT state-variable bandpass (the SVF's
+> bus-level use, the "4th use of the one filter" finally realized at bus level). Mono. **Closes the
+> §8.10.1 PARKED auto-wah**; the bus is the envelope follower's "real home" that note named (the
+> per-voice `instrument_follow` is untouched and stays for its own uses). Showcase: **clavinet** (the
+> funk wakka-wakka). The §8.10 effects roster is essentially complete (echo/reverb/chorus/flanger/
+> tape/auto-wah, all per-instrument).
 
 > The effects wishlist + the routing model. Still **deferred** to §8.5 phase 4 (after the first
 > engines ship) — begin small. The Leslie (§8.3/§8.8) is the first instance and sets the pattern.

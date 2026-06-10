@@ -196,7 +196,7 @@ upgrade to existing stations:
 | reverb ✅ **SHIPPED** | **cathedral** cart (a chord blooms into an endless hall) ✅ built | `ambient` tails, the orchestra hall, glassharmonica, dub's spring-crash, **air's whole drenched mix** — now wirable via `instrument_reverb` |
 | flanger ✅ **SHIPPED** | **mistress** cart (EHX Electric Mistress — guitar + the JET button) ✅ built | the pure-effect showcase (0015's "one true gap," closed); thin station-rescuer (some krautrock/psych/80s texture) |
 | leslie (rotary) | a **Hammond B3 + Leslie** organ (slow/fast footswitch) | roadhouse, yacht |
-| wah / auto-wah | a **funk clavinet / wah-guitar** (the pedal quack) | citypop funk guitar, the clav |
+| wah / auto-wah ✅ **SHIPPED** | **clavinet** cart (Hohner D6 + auto-wah — the funk wakka-wakka) ✅ built | citypop funk guitar, the clav — now `instrument_wah()` |
 | formant filter | a **vocoder / talkbox** (carrier shaped through vowels) | the vocal gap for non-voice timbres, **air's Kelly-vocoder lead (faked on raw INSTR_VOICE today)** |
 | ring-mod | a **ring-modulator robot-voice toy** (Dalek the VOX) + metallic bells | the Dalek/robot vocal |
 | tape (wow/flutter/sat) ✅ **SHIPPED** | **tapeloop** cart (Frippertronics — pad → long echo loop → `tape()` degrades each pass) ✅ built | motorik's Conny-Plank echo, jangle/jingle tape-wow, **air's vintage analog warmth** — now wirable via `tape()`/`instrument_tape()` |
@@ -235,6 +235,11 @@ The cheapest realism upgrades on the whole list — no engine, no decision, just
 - **Section / unison blend** — layer N slightly-detuned voices (the gamelan `ombak` trick) so
   one solo `BOWED`/`PIPE`/`REED` reads as a *section* — the gap between one violinist and the
   strings. The only cost is voice budget.
+
+> **These two are the heart of [`recorded-timbres.md`](recorded-timbres.md)** — the recipe for
+> making a *synthesized* source read as a *recording* (attack transient + ensemble + movement +
+> noise + tape/reverb), and the design notes for a more-real **Mellotron** cart (drawn voices + the
+> ~8s tape limit). `tapeloop` is the first lean on it.
 
 ## Decisions to make (deliberate — don't auto-do)
 

@@ -668,12 +668,14 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       an agent orient cheaply — the pattern that let stereo.md convey the whole stereo+effects
       gate in one small read. Split past ~1,500 lines, keeping stable §-anchors (lint-docs
       already guards refs).
-    - **Consolidate layered corrections.** Understanding the effects decision today means
-      reading [decision 0015](decisions/0015-effects-are-recipes-not-primitives.md) + its
-      appended Correction + `instrument-engines.md` §8.10 + its "0015 supersedes this" banner
-      — 4 reads for 1 truth. Fold corrections into the primary text; push superseded rationale
-      to a clearly-marked tail (git keeps the history). Append-only is honest but taxes every
-      future reader.
+    - **Consolidate layered corrections.** ✅ **DONE for the effects decision (2026-06-10).**
+      It was the worst offender — 4 reads for 1 truth (0015 + its appended Correction +
+      `instrument-engines.md` §8.10 + its banner). Folded the wah correction into 0015's "Why"
+      lead (now correct in place; Correction shrunk to a dated tail) and trimmed the §8.10
+      banner's redundant preamble. **General pattern stays open** but explicitly *not a project*:
+      fold corrections into the primary text + push superseded rationale to a clearly-marked
+      tail, opportunistically, never as a 154-file sweep. Append-only is honest but taxes every
+      future reader — fix a doc's lead when it's outright *wrong*, not just append-decorated.
     - **Keep favoring queryable state over prose** — `cart-status.js` / `lint-docs.js` /
       `lint-carts.js` let an agent *ask* "what's stale / do refs resolve" instead of reading
       everything. That's the right direction; more of it beats more prose.

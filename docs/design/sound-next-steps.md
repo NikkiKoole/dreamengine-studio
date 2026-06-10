@@ -36,9 +36,9 @@ all shipped, so these are buildable today):
 2. **Bellows / melodeon** (REED) — bisonoric: push vs pull = different note. ★★★★★
 3. **Violin / cello** (BOWED) — drag = bow pressure. ★★★★☆
 
-4. **Brass** (trombone / trumpet / brass section) — `INSTR_BRASS` **just landed** and the
-   instrument cart is **in progress** (Nikki, 2026-06-10); the slide trombone's live slide is
-   the natural showcase. This was the last engine-blocked instrument — now unblocked.
+4. ~~**Brass**~~ **→ SHIPPED 2026-06-10** as the `brass` cart (lip-reed `INSTR_BRASS`, the
+   draggable trombone slide). This was the last engine-blocked instrument — **every modeled
+   timbre now has an engine.** Follow-up: move the horn *fakes* (addis/dub/citypop/yacht) onto it.
 
 Plus the fresh ideas: **clanky pots & pans** (an FM-clang/detuned-square junk-metal kit),
 **Juno** (the lush *poly* pad we lack; chorus waits on the effects bus), **arco upright bass**.
@@ -68,20 +68,42 @@ From the gap ledger's aggregate:
 ## Engine & effects gaps (core audio-engine work)
 
 Surfaced by the **completeness audit** (Sound Blaster FM · General MIDI · the Roland MT-32 ·
-the real orchestra, 2026-06-10) — these need *engine* work, not wiring, and the four lenses
-all converged on the same short list:
+the real orchestra, 2026-06-10). They split by *where they live in the signal graph* — and the
+bus side is **already designed and queued**: it's the **▶ NEXT BITE** in
+[`instrument-engines.md`](instrument-engines.md) § 8.10 (the gate opened 2026-06-10 once stereo
+shipped), disciplined by [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md).
+So this is *build* work on a settled architecture, not a fresh design problem.
 
-1. **A reverb bus** — the most-wanted missing effect. The orchestra's hall, `ambient`'s 8–20 s
-   tails, the MT-32's built-in reverb, GM's atmosphere/halo pads all need it. The epiano's
-   *temporary* TREM/WAH ([`../guides/instrument-recipes.md`](../guides/instrument-recipes.md))
-   are meant to fold into this effects bus. The single biggest effects gap.
-2. **Chorus / unison width** — the lush detuned-width that defines a Juno, a stereo Rhodes, a
-   string *section*. Partly fakeable by layering (see "section blend" below), but a real
-   chorus/ensemble primitive packages it.
-3. **Ring modulation / audio-rate AM** — a small synthesis primitive we lack (FM's fixed
-   carrier:mod ratio and sub-audio LFOs don't reach it): metallic/bell/clang timbres + the
-   **Dalek / talkbox** vocal FX the gap ledger flagged for `INSTR_VOICE`. Niche, but the only
-   *new* primitive the MT-32 audit surfaced.
+**Effects bus — § 8.10, designed, not built.** We already have exactly one bus (the shared
+`echo()` + per-slot `instrument_echo` sends); § 8.10 generalizes it to `bus[NBUS]` + per-bus FX
+chains, master = bus 0. Start with one master reverb. The effects that live here:
+
+1. **Reverb** — the biggest. Orchestra hall, `ambient`'s 8–20 s tails, the MT-32's reverb, GM
+   atmosphere/halo pads. The epiano's *temporary* TREM/WAH
+   ([`../guides/instrument-recipes.md`](../guides/instrument-recipes.md)) are § 8.10.1 "PARKED
+   per-voice stand-ins" explicitly slated to **migrate onto a real bus** here.
+2. **Chorus / unison width** — the lush detuned-width of a Juno / stereo Rhodes / string
+   *section*. Partly fakeable by layering (see "section blend" below); a real chorus packages it.
+3. **Formant filter** — 4-bandpass-peak vowel filter (navkit-spec'd, reuses a state-variable
+   filter). Run **any** instrument through it → choir / vocal-organ / talkbox color, *without*
+   the full `INSTR_VOICE` synth — the **cheap bridge to the #1 vocal gap**. Today faked with a
+   single `FILTER_BAND` peak (mouthharp). Per-voice filter-mode *or* bus insert — see the
+   placement note below. (Also makes the ring-mod "talkbox" use largely redundant.)
+
+**New synth primitive (engine, not a bus):**
+
+4. **Ring modulation / audio-rate AM** — metallic/bell/clang timbres FM and sub-audio LFOs
+   can't reach. Niche, and **overlaps `INSTR_FM`'s clang** — so lower priority than it looks;
+   its talkbox half is better served by the formant filter above.
+
+> **Per-voice vs bus — already settled in principle (decision 0015 + § 8.10).** Several of
+> these (formant, chorus, wah, drive) can live *either* as a per-voice insert *or* on a shared
+> bus; **reverb is bus-only**; filter/pitch are per-voice. The discipline: write each DSP unit
+> **once** and treat placement as a *routing* choice (insert chain vs send bus), not two
+> implementations — generalizing today's one hardcoded echo bus. 0015 already paid for this
+> lesson once (the **wah detour**: a per-voice follower turned out to be a *bus* effect). Rule
+> of thumb from it: default the "either" effects to a **bus** unless there's a reason not to.
+> Nothing new to design — read **0015 + § 8.10 + § 8.10.1** and build.
 
 ## Free recipe wins (no engine work — layering techniques, pieces already exist)
 
@@ -104,8 +126,8 @@ The cheapest realism upgrades on the whole list — no engine, no decision, just
   but stays unbuilt-into partly because it's experimental. Locking its 3-macro mapping unlocks
   the single most-absent timbre on the dial. → [`instrument-engines.md`](instrument-engines.md).
 
-*(Brass was the third decision here; resolved — `INSTR_BRASS` shipped and the cart is in
-progress. With it, every modeled instrument family now has an engine.)*
+*(Brass was the third decision here; resolved — `INSTR_BRASS` shipped *and* the `brass` cart
+shipped (2026-06-10). With it, every modeled instrument family now has an engine.)*
 
 ---
 

@@ -13,6 +13,13 @@ Exact controls live in each cart's `editor/public/carts/index.json` entry (the
 `description` ends with its key map) — that's the source of truth; this doc stays at
 the "what is it / what's it like" altitude so it doesn't drift.
 
+> **Looking for a specific sound/preset to grab?** [`instrument-recipes.md`](instrument-recipes.md)
+> is the palette: every named instrument recipe across these carts (the showcase presets,
+> the Roland drum voices, the whimsical patches), **organized by engine** — 107 recipes you
+> can copy into a new cart. The shelf (this doc) is "which cart"; the palette is "which
+> *recipe*." On the radio side, [`instrument-presets.md`](instrument-presets.md) +
+> [`radio-voices.md`](radio-voices.md) chart what the 20 stations actually use.
+
 > Scope: this covers carts that **make sound**. Purely-visual toys that happen to be
 > tagged `toy` (mandala, traffic jam, the love parade, bloom, dutch sky, oil show/plate,
 > line rider, flyover, lil blob, lounge larry, pixel zoo) are not instruments and live
@@ -188,8 +195,11 @@ overlay to swap a chair's instrument mid-song. Candidate swaps:
    `index.json` with `kind:["instrument"]` (+ `"toy"` for stations) → `lint-carts.js`):
    [`cart-authoring.md`](cart-authoring.md).
 6. **Add a row to the right table in this doc** so the shelf stays complete.
-7. **If it's a radio station, update the two station-instrument docs** (a rule — they only
-   stay useful if kept current): add the station's voice chart to
-   [`radio-voices.md`](radio-voices.md), and in [`instrument-presets.md`](instrument-presets.md)
-   name any new patch recipes — or, for a recipe you reused, add your cart to that preset's
-   **used by** line instead of minting a duplicate. Run `node tools/lint-docs.js` after.
+7. **Keep the recipe docs current** (a rule — they only stay useful if maintained; run
+   `node tools/lint-docs.js` after):
+   - **A radio station?** Add its voice chart to [`radio-voices.md`](radio-voices.md), and in
+     [`instrument-presets.md`](instrument-presets.md) name any new patch recipes — or, for a
+     recipe you reused, add your cart to that preset's **used by** line (don't duplicate).
+   - **A showcase / machine / whimsical instrument with presets?** Add its recipes (by engine)
+     to the palette, [`instrument-recipes.md`](instrument-recipes.md), so the shelf's recipe
+     supply stays complete.

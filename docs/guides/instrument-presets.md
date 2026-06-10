@@ -11,6 +11,13 @@ This file gives each recipe a **clear name** so the per-station voice charts
 ([`radio-voices.md`](radio-voices.md)) can reference the name instead of repeating four
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
+> **Supply vs demand.** This file (with `radio-voices.md`) is the **demand side** — what the
+> 20 radio stations *use*. Its companion [`instrument-recipes.md`](instrument-recipes.md) is
+> the **supply side** — every instrument recipe *available to grab* across the showcase carts,
+> the Roland machines, and the whimsical instruments, organized by engine. Several presets
+> named here trace straight to a supply-side recipe (e.g. `mallet/vibes` → mallet.c's
+> "vibraphone"); the cross-references run both ways.
+
 > **Status: complete — all 20 stations charted.** italo · house · citypop · motorik ·
 > cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse · satie ·
 > gamelan · tango · carlos · exotica · ymo · ambient. See [`radio-voices.md`](radio-voices.md)

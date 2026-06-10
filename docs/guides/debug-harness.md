@@ -207,6 +207,24 @@ The worked example: the §15 voice-budget experiment rendered the house cart at
 8 vs 16 voices with identical scripts — the byte-diff *is* the starvation
 measurement (identical = never starved; different = voices were being stolen).
 
+**Stereo / panning / effects-bus work — `--stereo`.** The default report downmixes
+L+R→mono, so it's *blind to the stereo field*. `--stereo` reads the channels
+separately and reports per-channel peak/RMS, **balance** (R−L dB), inter-channel
+**correlation** (+1 mono · 0 wide · <0 anti-phase), a per-second **pan trajectory**
+(a `L··@··R` meter), and the **mono-fold test** — sum to mono and measure power lost:
+
+```bash
+node tools/wav-analyze.js /tmp/a.wav --stereo   # per-channel + stereo-field (add --json)
+```
+
+The mono-fold loss is the [`stereo.md`](../design/stereo.md) **bite #6** check: ~0 dB =
+mono-compatible, ~−3 dB = naturally wide/decorrelated (fine — where amplitude panning
+lands), **< −6 dB = WARN**: a phase/delay width trick (Haas, ping-pong) that'll
+comb-cancel to near-silence on a mono phone speaker. Amplitude panning is phase-safe and
+never trips it; this is how you catch a width effect that *isn't*. The pan trajectory is
+how the `pan_law()` A/B was measured — a steady tone swept −1→+1 traces straight across
+the meter. (Ear-checking a 3 dB pan-law difference failed; this measured it cold.)
+
 ### Before/after diff
 
 ```bash

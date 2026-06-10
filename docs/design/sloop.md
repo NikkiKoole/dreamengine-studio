@@ -414,6 +414,77 @@ a hand-wave:
 collision/detach machinery for a snapping hitch). Phase A (build-grid attachments) is the gate; it
 likely pairs with the part-vocabulary/cargo work (rung 5). Logged in the lever catalogue.
 
+### 8. The per-wheel contact model (spring loads) — the unified lateral core ⬜ (design seed, 2026-06-10)
+
+**The idea.** Today's lateral physics is a **two-axle "bicycle"**: all the wheels are lumped into
+`frontGrip`/`rearGrip` at two virtual axles, and a stack of bolt-on terms (per-axle split,
+`balance`, the tipping stand-in, `POWER_EAT`, the weight-transfer caps, the self-aligning torque)
+each model one consequence of "where the load is." The honest replacement is **one mechanism: every
+wheel is its own contact patch, with a vertical LOAD, and grip + drive + brake all scale from that
+load.** It's **N-contact, not 4** — the model iterates over whatever wheels the build has (2 →
+single-track, 3 → tripod, 4 → car, 8 → the semi), which is the cart's whole premise applied to grip
+itself. Decided 2026-06-10 (player): the spring model below, migrated via an A/B scaffold.
+
+**The load solve (this is the crux — it's what makes N≥4 well-defined).** Per-wheel load for 4+
+contacts is **statically indeterminate** (the four-legged-table problem). The fix the player chose:
+treat each wheel as a **soft vertical spring**. The rigid chassis is a plane that heaves and tilts;
+each wheel's compression — hence its load — falls out of a small, always-solvable linear system:
+
+```
+compression_i = z0 + θpitch · x_i + θroll · y_i           // x_i,y_i = wheel pos in COM-local px
+load_i        = k · compression_i  (clamped ≥ 0)          // a wheel at 0 has LIFTED
+```
+Solve (z0, θpitch, θroll) — three unknowns — from three balances:
+```
+Σ load_i        = M·g                                     // carry the weight
+Σ load_i · x_i  = −M · a_long · H                         // pitch: LONGITUDINAL transfer (brake/throttle)
+Σ load_i · y_i  = −M · a_lat  · H                         // roll:  LATERAL transfer (cornering)
+```
+3×3, determinate for **any** wheel count, every frame (N is tiny). `a_long` and `a_lat` are the
+accels we **already compute** (`wt_long` from the weight-transfer work; `a_lat = vf·yawrate` from
+tipping) — so the rung-1.0…drifts work feeds straight in. `H` is the COM-height stand-in (today's
+`STAB_H`). Any wheel whose solved load goes negative has **lifted** → clamp to 0 and re-solve once;
+that clamp *is* tipping, now emergent instead of a separate hull check.
+
+**What each wheel then computes:** a friction-circle radius ∝ its `load_i`; its slip velocity from
+`v_COM + ω×r_i` (decomposed in the wheel's own frame — steered wheels rotate by the steer angle);
+a longitudinal force (drive force if it's a `P_DRIVE` wheel, + brake) and a lateral force, the two
+**combined-slip-limited** (`√(Fx²+Fy²) ≤ μ·load_i`). Sum all wheel forces → net force (→ accel) and
+net torque about the COM (→ yaw). One loop, integrated like everything else.
+
+**What collapses into it (the orbit-style "one honest core" payoff):**
+- **Longitudinal + lateral weight transfer** — both fall out of the pitch/roll solve; no separate caps.
+- **Tipping** — a wheel load hitting 0; the hull/`STAB_H` check retires.
+- **FWD/RWD/AWD + power-on over/understeer** — drive force only at drive wheels, capped by *that
+  wheel's* load (a light drive wheel spins); `POWER_EAT` becomes emergent.
+- **Self-aligning torque** — front wheels' lateral forces act ahead of the COM → the aligning torque
+  emerges; the bolt-on `SELF_ALIGN_K` term may retire (or stay as a small digital-input aid).
+- **Per-axle grip / `balance` / under-oversteer** — emergent from where the loaded, gripping wheels sit.
+- **Real steered wheels** — the still-unbuilt "which wheels steer" lever (catalogue) lands here: a
+  `steer` flag rotates a wheel's contact frame, and the turn comes from its lateral force, not a
+  body torque. (Open: keep steering as a body torque at first, or go full per-wheel steer? The latter
+  is more honest but reshapes the steering feel we just tuned — likely a follow-on within the rung.)
+
+**What stays a 2-D abstraction (NOT closed by this — be explicit):** load is a **scalar per wheel**,
+not real suspension. No body-roll angle, no dive/squat travel you'd *see*, no banking, no slopes.
+`H` remains a stand-in for COM height. The model gives transfer + lift **in-plane**; it is not 3-D.
+
+**Migration (decided): an A/B scaffold, then replace.** The per-wheel core *replaces* the tuned
+lateral handling, so it's built **alongside** behind a switch and validated against the saved
+harness fixtures — `drift2` / `kick` / `powerover` / `turn`, whose known-good slip/yaw curves
+(this doc's drift entry) are the **regression oracle** — until it matches-or-beats the current feel.
+Then flip the default and **delete the old core**. End state is a single per-wheel model; the scaffold
+is temporary. The harness is exactly the tool for this (build, measure, A/B, switch).
+
+**Open sub-decisions for build time:** spring stiffness `k` uniform vs per-part (a heavier axle
+sags more); how many clamp-and-re-solve iterations for multi-wheel liftoff (likely 1–2); whether
+to keep the digital-input self-align aid after forces go per-wheel; steered-wheel timing (above).
+
+**Rung placement & synergy:** the natural successor to the drifts work, and it **sets up rung-4
+breakage** — per-wheel load means losing a wheel redistributes its load to the others *emergently*
+(the spring solve just re-runs with one fewer contact), and impact force can be shared by load.
+Single-track (≤2 wheels, the bike) stays its own exempt path, as it is now.
+
 ## Rendering & screen budget (320×200, provisional)
 
 - **DRIVE:** camera centred on the vehicle, world scrolls under it. Vehicle drawn as
@@ -511,6 +582,7 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Dynamic weight transfer (longitudinal)** | the realized longitudinal accel shifts load front↔rear (low-passed like suspension), scaling each axle's grip cap: braking loads the front (turn-in, lift-off rotation), throttle loads the rear (squat, traction, the power-drift bite). The *dynamic* half of weight (static distribution → COM/I already exists) | drifts | ✅ |
 | **Self-aligning torque (caster / trail)** | the front tyres rotate the rig toward its travel direction when sliding — the car counter-steers itself. Catches a slide into a held angle instead of a spin, and assists digital counter-steer. ∝ `sin(slip)`, capped (past ~55° it's spinning, let it). The thing that makes a drift HOLD | drifts | ✅ |
 | **Ramped (analog) steering** | binary keys (−1/0/+1) wind a smoothed `steer_pos` toward full lock while held and ease back on release; a quick opposite tap trims the lock off a notch → fine counter-steer from digital/touch input. Without it a realistic drift is unholdable on a phone | drifts | ✅ |
+| **Per-wheel spring contact (the unified core)** | every wheel its own contact patch with a vertical LOAD from a spring solve (heave+pitch+roll, determinate for any N wheels); grip/drive/brake scale from load. SUBSUMES per-axle grip, longitudinal+lateral transfer, tipping (load→0), FWD/RWD power-oversteer, and self-align into one mechanism. Replaces the 2-axle bicycle. See §8 | future (post-drifts, pairs with rung-4 breakage) | ⬜ |
 | **Aquaplaning / terrain grip** | `GROUND_GRIP` drops toward ~0 on water/ice/wet → the rig floats, steering does nothing; cross a puddle mid-corner → instant slide. Rides on the existing `GROUND_GRIP` hook (=1.0 road today), set per-biome | 3 (biomes) | ⬜ |
 | **Dynamic stability / tipping** | cornering load shifts the COM toward the turn's outside; leaving the support polygon (hull of the wheels) tips the rig → transient scrape + lateral grip collapse. A 3-wheeler tips toward its gap but not the other way (asymmetric); single-track (bike) exempt. The 2-D stand-in for roll | 2.55 | ✅ |
 | **Drivetrain location (FWD/RWD)** | power lays down through the *drive wheels*; drive point ahead of the COM (in travel) pulls → stable/understeer, behind pushes → loose/spin. Reversing flips it → a rear-wheel bike drives better backwards. Explicit `drive` part | 2.6 | ✅ |

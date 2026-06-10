@@ -282,8 +282,6 @@ static int   wheelPD[MAXWP];                   // 1 = a drive wheel
 static float wheelG[MAXWP];                    // lateral grip coefficient (wheel 1.0, caster 0.12)
 static float wheelLoad[MAXWP];                 // solved vertical load (mass units; Σ ≈ M)
 static int   nWheelP;
-static int   use_wheel_drive = 1;              // §8: load-sensitive per-drive-wheel traction — ON (M to A/B
-                                               // vs the old constant cap). Lets too-much-torque break grip.
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 // ENGINE_POWER is the GAS baseline (the everyday engine); the other kinds scale off it
@@ -998,7 +996,6 @@ static void handle_input(void) {
     // ---- DRIVE input: keyboard OR the on-screen cockpit (touch + mouse) ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
-    if (keyp('M')) use_wheel_drive = !use_wheel_drive;   // §8: A/B load-sensitive traction vs the constant cap
     if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
     if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
     if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
@@ -1202,17 +1199,12 @@ static void update_drive(float dt_) {
         }
     // traction caps thrust to what the DRIVE wheels can lay down — fewer powered
     // wheels = less grip to the ground = the engine can't deploy all its power.
-    // §8 (toggle M): scale by the live LOAD on the drive wheels (last frame's spring solve) instead
-    // of a constant — so weight transfer + cargo make traction emergent (squat-and-go, FWD wheelspin).
-    float tract;
-    if (use_wheel_drive) {
-        float driveLoad = 0;
-        for (int i = 0; i < nWheelP; i++)
-            if (nDrive == 0 || wheelPD[i]) driveLoad += wheelLoad[i];   // nDrive==0 = AWD (all wheels)
-        tract = MU_TRACTION * GROUND_GRIP * driveLoad;
-    } else {
-        tract = driveRoll * GROUND_GRIP * GRIP_TO_FORCE;
-    }
+    // §8: scale by the live LOAD on the drive wheels (last frame's spring solve), not a constant —
+    // so weight transfer + cargo make traction emergent (squat-and-go, FWD wheelspin, overload = spin).
+    float driveLoad = 0;
+    for (int i = 0; i < nWheelP; i++)
+        if (nDrive == 0 || wheelPD[i]) driveLoad += wheelLoad[i];       // nDrive==0 = AWD (all wheels)
+    float tract = MU_TRACTION * GROUND_GRIP * driveLoad;
     // wheelspin: engine force that EXCEEDS what the tyres can lay down is wasted as spin (no extra
     // accel, but it squeals + smokes + lays burnout marks). Worst in low gear (high thrust). Eased.
     float spinNow = (tract > 0 && af(thrust) > tract) ? clamp((af(thrust) - tract) / tract, 0, 1.5f) : 0;

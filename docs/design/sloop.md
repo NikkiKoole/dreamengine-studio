@@ -1611,5 +1611,6 @@ do the physically-correct thing — let too much torque break grip. Set `MU_TRAC
   (`smoke_puff`, reuses the spark pool) + **burnout marks** at the drive wheels.
 - Top speed (drag-limited) and the drift (mid-corner thrust stays under grip) both **unaffected** — verified.
 `POWER_EAT` kept for cornering power-oversteer (the full combined-slip that would retire it is the
-deeper, riskier option, still deferred). Behind toggle `M` (default ON) for an A/B feel pass; knobs
-`MU_TRACTION` (how easily it spins) + `SPIN_SQUEAL` (feedback threshold).
+deeper, riskier option, still deferred). Felt good → **consolidated**: the `M` A/B toggle is gone, the
+load-sensitive cap is now the permanent traction model. Knobs `MU_TRACTION` (how easily it spins) +
+`SPIN_SQUEAL` (feedback threshold).

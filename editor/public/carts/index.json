@@ -2837,5 +2837,14 @@
       "instrument"
     ],
     "homage": "Roland Juno-6 (1982)"
+  },
+  {
+    "title": "solina",
+    "description": "The ARP/Eminent Solina String Ensemble (1974) - THE string machine, and the chorus() companion to JUNO-6: there the chorus widens a synth, HERE the chorus IS the instrument. Not a synth but a divide-down ORGAN - every key you hold sounds (fully polyphonic, paraphonic), each a stack of sawtooths tapped at different FOOTAGES. Six voice tabs you toggle: strings (blue) Contrabass 16', Cello 8', Viola 8', Violin 4', plus brass (orange) Trumpet 8', Horn 4'; enabled tabs all sound = the divide-down mix. Bare, those stacked saws are a buzzy organ - flip the ENSEMBLE switch (off/I/II, key E) and the triple BBD chorus smears them into the lush breathing string wash of every '70s record. Play the 2-octave keyboard by touch or QWERTY (Z..M lower, Q..U upper) - HOLD a key and it swells in (CRESCENDO) then rings out slowly on release (SUSTAIN); TONE rides the master brightness. SPACE toggles AUTO, a slow self-playing string progression (on at boot); TAB or / for help.",
+    "file": "solina.cart.png",
+    "kind": [
+      "instrument"
+    ],
+    "homage": "ARP/Eminent Solina String Ensemble (1974)"
   }
 ]

@@ -476,6 +476,15 @@ NOISE click. All use `INSTR_SINE` as the base voice.
 |---|---|---|---|
 | saw/juno | SAW | A24 D0 S6 R460 · FILTER_LOW 200–6000Hz / 0–12Q · sub = root −12 at lower vol · **`chorus(rate,depth,mix)` master BBD** (OFF / I 0.1Hz·0.45 / II 0.22Hz·0.62) | The Roland Juno-6. The dry voice is a plain saw+sub poly synth ("sh101 with more voices"); the **master chorus** is what makes it a Juno — flip I/II and a centered mono chord fans into a lush wide stereo wash (antiphase taps). Chorus is master-wide (not per-slot). |
 
+### solina (string machine — 6 stacked-saw footage tabs, the chorus IS the patch, from solina.c)
+
+The divide-down sibling to juno: where juno's chorus widens *one* voice, solina builds the timbre from **one SAW slot per footage tab** (all firing per held key = the divide-down mix), then the ensemble chorus is its whole identity. Each tab = the same swell envelope at a different octave + cutoff.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| saw/solina-tab | SAW | A60–1400 D300 S6 R300–3500 (CRESC/SUST live) · FILTER_LOW (cut×0.5–1.6 TONE)/2 · `instrument_tune` 0.05–0.08 (per-tab detune spread) · LFO_PITCH 0.16Hz/0.04 (tape wow) · brass tabs `instrument_drive` 0.20 | One Solina voice tab. Six slots stacked by footage: Contrabass 16′ (−12, cut 900) · Cello 8′ (0, 1500) · Viola 8′ (0, 2400) · Violin 4′ (+12, 3600) · Trumpet 8′ (brass, 3200) · Horn 4′ (brass, +12, 2600). Bare = a buzzy divide-down organ. |
+| (ensemble) | — | **`chorus(rate,depth,mix)` master BBD** — OFF / I 0.9Hz·0.50·0.60 / II 1.6Hz·0.70·0.72 | The triple-BBD string wash. Run lusher/deeper than juno's — it's the entire point of the Solina; off, the stacked saws are static. |
+
 ### Whimsical & single-voice synths
 
 | name | source cart | engine | recipe | character |
@@ -550,6 +559,7 @@ The alternate view — each cart and the recipe names it stocks. Carts with no f
 - **tb303.c** → saw/303 · square/303 (note: PRESET[] entries are sequencer patterns, not patches)
 - **juno.c** → saw/juno (the chorus showcase — the patch is a plain saw+sub poly synth; the `chorus()` master effect IS the Juno)
 - **cathedral.c** → organ/cathedral (the reverb showcase — a clean organ that blooms into a hall; `reverb()` is the instrument)
+- **solina.c** → saw/solina-tab (the chorus companion to juno — a divide-down string machine: 6 stacked-saw footage tabs, the ensemble `chorus()` IS the Solina)
 - **stylophone.c** → pulse/square · drawn/square · /sine · /sawtooth · /organ
 - **loopstation.c** → sine/kick · noise/snare · noise/hat · saw/bass · pulse/lead · sine/theremin · tri/click
 - **touchpiano** → saw/synth-piano

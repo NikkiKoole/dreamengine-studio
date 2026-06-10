@@ -1363,14 +1363,10 @@ buffer flag, navkit source, and macro mapping get filled in here.
 
 ### 8.10 Effects layer — buses vs. master (the §8.5-phase-4 plan)
 
-> **⚠️ Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)
-> (2026-06-05), which post-dates and *supersedes the framing* of this section.** Read 0015 first:
-> it closes the effects roster at **four layers** — voice insert (`drive` ✓, bitcrush) · **shared
-> bus, capped at TWO** (`echo` ✓, `reverb`) · oscillator param (`detune`) · master stage (soft-clip
-> ✓, tape) — for **~12 named functions, forever**. A new primitive must *prove it can't be a recipe*;
-> 0015 carries the full pedalboard audit (every classic pedal → which layer/recipe). This §8.10
-> below is the **routing-model sketch + wishlist** that 0015 then disciplined — keep it for the
-> bus-routing mechanics, but where the two differ, **0015 wins.** Two corrections it makes:
+> **⚠️ Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md).**
+> This §8.10 is the **routing-model sketch + wishlist**; 0015 (which carries the full pedalboard
+> audit + the closed roster) disciplined it. Keep this for the bus-routing mechanics, but **where
+> the two differ, 0015 wins.** Two corrections 0015 makes to the framing/table below:
 >
 > - **Leslie is NOT a bus insert (the table below is the old framing).** 0015 rules it a
 >   **per-voice recipe**: tremolo (`LFO_VOLUME`) + Doppler (`LFO_PITCH`) + swirl (`LFO_CUTOFF`) +

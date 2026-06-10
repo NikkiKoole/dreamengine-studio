@@ -33,9 +33,15 @@ covered elsewhere*. A new primitive must prove it cannot be a recipe.
 The pedalboard audit. Running the classic effects through the four layers:
 
 **Already covered today** — distortion/overdrive/fuzz = the drive knob's range; wah-wah
-in all three forms (pedal wah = `FILTER_BAND` + res + live `note_cutoff`, auto-wah =
-`LFO_CUTOFF`, touch wah = `instrument_env(ENV_CUTOFF)` — it retriggers per note, which
-is exactly what an envelope-follower does); tremolo = `LFO_VOLUME`; vibrato = `LFO_PITCH`;
+**in its simple forms** (pedal wah = `FILTER_BAND` + res + live `note_cutoff`; rhythmic
+auto-wah = `LFO_CUTOFF`; the funky-clav *quack* = a fast per-note `ENV_CUTOFF` snap, ~100ms,
+on a resonant filter — the `epiano.c` clav uses this) — **but the realistic "woah woah"
+auto-wah is NOT covered here; it's a deferred bus effect** (a bandpass on the *summed mix*
+with an exponential sweep + an envelope follower tracking the whole performance — a per-voice
+filter can do neither: it can't sweep a chord coherently or pump with the groove;
+[instrument-engines §8.10](../design/instrument-engines.md), confirmed 2026-06-08 by rendering
+navkit). NB a per-note `ENV_CUTOFF` is **not** an envelope follower — per-note retrigger ≠
+continuous amplitude-tracking. tremolo = `LFO_VOLUME`; vibrato = `LFO_PITCH`;
 whammy = `note_pitch`/`note_glide`; amp/cab sim = drive + lowpass; limiter = the master
 soft-clip. **EQ** splits in two: the *cut* half (and the whole DJ low/mid/high **kill**
 set) is exactly the four filter modes — kill lows = `FILTER_HIGH`, kill highs =
@@ -86,25 +92,12 @@ convention — it's **refusing to admit new primitives**.
   in [audio-notes §17](../design/audio-notes.md) and bounded by this decision.
 - Supersedes nothing; extends the §8.1.1 macro discipline from engines to effects.
 
-## Correction (2026-06-08) — wah is TWO things; the §35 audit oversimplified
+## Correction history
 
-The audit above files wah under "already covered today" and claims *touch wah =
-`instrument_env(ENV_CUTOFF)` = exactly an envelope follower.* Rendering navkit's actual wah
-(`tools/navkit-render.c`) proved that wrong. The truth, split:
-
-- **Simple wah IS a per-voice recipe** (still true): pedal = `FILTER_BAND` + res + live
-  `note_cutoff`; rhythmic auto-wah = `LFO_CUTOFF`; the funky-clav *quack* = a FAST per-note
-  `ENV_CUTOFF` snap (~100ms) on a resonant filter. The clav showcase (`epiano.c`) uses this.
-- **The realistic "woah woah" auto-wah is a BUS effect** — NOT covered today. navkit's is a
-  bandpass on the **summed mix** with an **exponential** sweep (300→2500) and an envelope
-  *follower* tracking the **whole performance**. Two things a per-voice filter can't do: sweep
-  a chord *coherently* (one vowel for all notes), and *pump with the groove* (follow the summed
-  amplitude). That belongs in the **effects-bus layer ([instrument-engines §8.10](../design/instrument-engines.md))**,
-  where §8.10 already (correctly) lists wah as an aux-bus insert — the framing that conflicted
-  with this audit's "per-voice, done" framing. §8.10 wins.
-- A per-note env is **not** an envelope follower (per-note retrigger vs continuous
-  amplitude-tracking). The follower was built as a per-voice primitive (`instrument_follow`)
-  but its real home is bus-level; per-voice it's the pale version (see instrument-engines.md §8.10.1).
-
-Net: the *decision* (effects are recipes, roster closed) stands; this corrects the **wah
-classification** — the good auto-wah is a deferred bus effect, not a covered per-voice one.
+- **2026-06-08 — wah classification (now folded into "Why" above).** The original audit filed
+  wah as fully "already covered today" and called a per-note `ENV_CUTOFF` an envelope follower.
+  Rendering navkit's actual wah (`tools/navkit-render.c`) split it: **simple** wah is a per-voice
+  recipe, but the realistic "woah woah" **auto-wah is a deferred bus effect** (summed-mix bandpass
+  + follower — [instrument-engines §8.10](../design/instrument-engines.md)), and a per-note env is
+  not a follower. The "Why → Already covered today" wah clause now states this directly; the
+  *decision itself* (effects are recipes, roster closed) was never affected.

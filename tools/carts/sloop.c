@@ -282,6 +282,8 @@ static int   wheelPD[MAXWP];                   // 1 = a drive wheel
 static float wheelG[MAXWP];                    // lateral grip coefficient (wheel 1.0, caster 0.12)
 static float wheelLoad[MAXWP];                 // solved vertical load (mass units; Σ ≈ M)
 static int   nWheelP;
+static int   use_circle = 0;                   // §8 combined-slip: longitudinal force eats lateral grip
+                                               // via the friction circle (retires POWER_EAT). A/B with M.
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 // ENGINE_POWER is the GAS baseline (the everyday engine); the other kinds scale off it
@@ -996,6 +998,7 @@ static void handle_input(void) {
     // ---- DRIVE input: keyboard OR the on-screen cockpit (touch + mouse) ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
+    if (keyp('M')) use_circle = !use_circle;   // §8: A/B the combined-slip friction circle vs POWER_EAT
     if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
     if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
     if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
@@ -1213,6 +1216,7 @@ static void update_drive(float dt_) {
         float s = tract / af(thrust);
         thrust *= s; eng_torque *= s;
     }
+    float thrustLaid = af(thrust);                   // force actually put down (post-cap) — for combined slip
 
     // --- linear: net force / mass. Drag is a FORCE (base + per-wheel rolling
     //     resistance + frontal-profile aero), so top speed = thrust/drag is
@@ -1221,9 +1225,10 @@ static void update_drive(float dt_) {
     vf += ((thrust - drag * vf) / M) * dt_;
     // braking: PURE deceleration, both directions (reverse is a gear now, not the brake).
     // Strong, but capped by what the tyres can grip — a well-wheeled rig stops hard.
+    float brakeAccel = 0;
     if (in_brk && af(vf) > 0.5f) {
-        float brake = clamp(GRIP_TO_FORCE * wheelGrip * GROUND_GRIP / M, 0, BRAKE);
-        float d = brake * dt_;
+        brakeAccel = clamp(GRIP_TO_FORCE * wheelGrip * GROUND_GRIP / M, 0, BRAKE);
+        float d = brakeAccel * dt_;
         if (vf > 0) { vf -= d; if (vf < 0) vf = 0; }
         else        { vf += d; if (vf > 0) vf = 0; }
     }
@@ -1245,6 +1250,12 @@ static void update_drive(float dt_) {
     wt_long = lerp(wt_long, aLong, WT_LAG);
     wt_xfer = clamp(wt_long * WT_LONG_K, -WT_MAX, WT_MAX);   // + = rear loads, - = front loads
     solve_wheel_loads(wt_long, aLat);                // §8: per-wheel vertical loads for THIS frame
+    // combined-slip inputs: the longitudinal force each wheel is carrying this frame — drive force
+    // (its share of the laid-down thrust) + brake force (even split). Used by the friction circle
+    // below to shrink that wheel's LATERAL grip (power-/brake-eats-cornering), retiring POWER_EAT.
+    float nDriveActive = (nDrive > 0) ? (float)nDrive : (float)nWheels;
+    float fxDrive = (nDriveActive > 0) ? thrustLaid / nDriveActive : 0;
+    float fxBrake = (nWheels > 0) ? (brakeAccel * M) / nWheels : 0;
     if (nHull >= 3) {
         // ── §8: per-wheel lateral force resolution — THE lateral core ────────────
         // Each wheel resists the lateral slip AT ITS POSITION, capped by a friction circle sized
@@ -1262,7 +1273,17 @@ static void update_drive(float dt_) {
             float loadScale = wheelLoad[i] / avgLoad;          // >1 loaded, ~0 lifted
             float cap = SLIP_MAX * loadScale;
             if (wheelPX[i] < 0 && in_hand) cap *= DRIFT_GRIP_MULT;                 // handbrake = the rear wheels
-            if (wheelPD[i] && throttle > 0) cap *= (1.0f - POWER_EAT * throttle);  // a driven wheel eats its grip
+            if (use_circle) {
+                // friction circle: longitudinal force (drive + brake) eats into this wheel's lateral
+                // budget. latFactor = √(1−(Fx/Fmax)²): flooring a drive wheel → it lets go laterally
+                // (power-oversteer); braking an unloaded rear → it steps out (trail-braking). Emergent.
+                float Fmax = MU_TRACTION * GROUND_GRIP * wheelLoad[i] + 1.0f;
+                float fx = fxBrake + ((wheelPD[i] || nDrive == 0) ? fxDrive : 0);
+                float u = clamp(fx / Fmax, 0, 1);
+                cap *= fsqrt(1.0f - u * u);
+            } else if (wheelPD[i] && throttle > 0) {
+                cap *= (1.0f - POWER_EAT * throttle);                             // the old fudge (circle off)
+            }
             if (wheelPX[i] < 0) cap *= (1.0f - DRIFT_RECOVER * drift_loose);       // hysteresis: rear hangs loose on exit
             float cl = clamp(vlat, -cap, cap);
             float acc = cl * (g * GROUND_GRIP / M) * LAT_GRIP;  // peak force ∝ cap ∝ load

@@ -1614,3 +1614,18 @@ do the physically-correct thing — let too much torque break grip. Set `MU_TRAC
 deeper, riskier option, still deferred). Felt good → **consolidated**: the `M` A/B toggle is gone, the
 load-sensitive cap is now the permanent traction model. Knobs `MU_TRACTION` (how easily it spins) +
 `SPIN_SQUEAL` (feedback threshold).
+
+### Full combined-slip — built behind a toggle, pending a feel call (2026-06-10)
+
+The deferred "friction circle" model: each wheel's LATERAL grip is cut by the longitudinal force it's
+carrying — `latFactor = √(1−(Fx/Fmax)²)`, `Fx` = its drive share (of laid-down thrust) + brake share,
+`Fmax = MU_TRACTION·load`. Replaces the `POWER_EAT` fudge with the real circle. Behind toggle `M`
+(default OFF). A/B findings:
+- **Longitudinal untouched** — 0-100 6.0s / top 111 identical on/off (the circle only scales lateral).
+- **Power-oversteer becomes torque-scaled** — emergent, not a constant: floor it in a low gear → lively;
+  the high-gear cruise-drift is *gentler* (you're not putting much torque down there). Drift2 hold
+  ~43°→~34°, trail ~33°→~12° — a real *feel change* to the tuned drift, not a regression.
+- **Trail-braking emerges** — braking into a corner eats front/rear lateral budget (rear worse as it
+  unloads) → rotation. The one genuinely new feel; couldn't be faked.
+**Open decision (needs a drive):** adopt it (flip default + retire `POWER_EAT`, maybe re-tune the drift
+punchier) / keep `POWER_EAT` / tune the circle's bite. Not adopted yet — default OFF preserves today's feel.

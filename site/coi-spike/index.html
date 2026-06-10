@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AudioWorklet spike — WITH coi-serviceworker</title>
+<!-- MUST be first: registers a service worker that injects COOP/COEP, then reloads
+     once so window.crossOriginIsolated becomes true (enables shared wasm memory). -->
+<script src="coi-serviceworker.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#111;color:#eee;font:16px/1.5 system-ui,sans-serif}
+  .wrap{max-width:520px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:16px}
+  h1{font-size:18px;margin:0}
+  .tag{font-size:13px;color:#9af}
+  #iso{font-weight:700}
+  .ok{color:#5e5}.bad{color:#f66}
+  button{font-size:22px;padding:18px;border:0;border-radius:12px;background:#2a6;color:#fff;font-weight:700}
+  button:active{background:#185}
+  #status{background:#000;border-radius:8px;padding:12px;min-height:3em;white-space:pre-wrap;font:13px/1.4 ui-monospace,monospace;color:#bdb}
+  .hint{font-size:13px;color:#999}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AudioWorklet spike <span class="tag">WITH coi-serviceworker</span></h1>
+  <div>cross-origin isolated: <span id="iso">checking…</span></div>
+  <button id="start">▶ TAP TO START — listen for a 440 Hz tone</button>
+  <div class="hint">Expected on GitHub Pages: the page reloads itself once (service worker
+    gaining control), isolation flips to <b>true</b>, the wasm loads, and tapping plays a
+    steady tone on the dedicated audio thread. If isolation stays <b>false</b> or the wasm
+    fails to load, the service-worker route isn't working here.</div>
+  <div id="status">booting…</div>
+</div>
+<script>
+  function setIso(){
+    var el = document.getElementById('iso');
+    if (window.crossOriginIsolated) { el.textContent='true ✓'; el.className='ok'; }
+    else { el.textContent='false ✗ (shared memory will be blocked)'; el.className='bad'; }
+  }
+  setIso();
+  window.__spikeStatus = function(m){
+    var s=document.getElementById('status'); s.textContent += '\n'+m;
+  };
+  window.addEventListener('error', function(e){ window.__spikeStatus('JS ERROR: '+e.message); });
+  var Module = {
+    onRuntimeInitialized: function(){ window.__spikeStatus('runtime initialized ✓'); },
+    onAbort: function(what){ window.__spikeStatus('ABORT: '+what+' (shared memory likely blocked — not isolated)'); },
+    printErr: function(t){ window.__spikeStatus('stderr: '+t); }
+  };
+  document.getElementById('start').addEventListener('click', function(){
+    try { Module.ccall('resume_audio', null, [], []); window.__spikeStatus('resume_audio() called — you should hear a tone'); }
+    catch(e){ window.__spikeStatus('resume failed: '+e); }
+  });
+</script>
+<script src="spike.js"></script>
+</body>
+</html>

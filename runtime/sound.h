@@ -3280,12 +3280,14 @@ static void sound_init(void) {
         // there's no AudioWorklet (build ships no -sAUDIO_WORKLET), so the callback runs
         // on the MAIN thread (ScriptProcessorNode): a SMALLER buffer = tighter timing
         // but more underrun risk; a bigger buffer = fewer dropouts but audible swing
-        // (4096≈93ms ate a whole 16th). 256 is the ScriptProcessor FLOOR (~5.8ms) — the
-        // tightest this backend can do; on-device 512 had zero crackle so 256 is safe.
-        // Residual drift below this is the main-thread jitter only the worklet removes.
-        // The real fix is AudioWorklet. Native keeps 1024. See design/audio-timing.md §3.
+        // (4096≈93ms ate a whole 16th). 512≈11.6ms is the safe catalog-wide default:
+        // tighter than the old 1024, zero crackle on-device, and enough headroom for
+        // heavy carts on weak phones (256, the ScriptProcessor floor, tightens further
+        // but risks underrun on dense carts). Residual drift at 256 was the main-thread
+        // jitter only an AudioWorklet removes — the real fix. Native keeps 1024.
+        // See design/audio-timing.md §3.
 #ifdef PLATFORM_WEB
-        SetAudioStreamBufferSizeDefault(256);
+        SetAudioStreamBufferSizeDefault(512);
 #else
         SetAudioStreamBufferSizeDefault(1024);
 #endif

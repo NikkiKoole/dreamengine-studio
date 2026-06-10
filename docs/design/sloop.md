@@ -1596,3 +1596,20 @@ build IS fast; this is whether it FEELS it):
 Knobs all `#define`d. *Caveat:* in flat 2-D a pull-back widens the view but lowers per-object screen
 speed — the streaks/lead carry the speed cue. If it reads calmer rather than faster, flip
 `CAM_ZOOM_PULL` negative (zoom IN at speed) — a one-line change. Feel-tune on desktop.
+
+### Per-wheel drive: load-sensitive traction + wheelspin (2026-06-10)
+
+The deferred per-wheel-drive piece, done as the high-value/low-risk 80%: the traction cap is now
+**`MU_TRACTION × load on the drive wheels`** (last frame's spring solve), not a constant. Player call:
+do the physically-correct thing — let too much torque break grip. Set `MU_TRACTION` low enough that
+**grip actually BINDS**: flooring (esp. low gear = high thrust) exceeds it → the excess is **wheelspin**
+(no extra accel, but it squeals + smokes + lays burnout marks). Emergent + tied to weight:
+- **Buggy** chirps in 1st off the line (spin 0.21), hooks up from 2nd — 0-100 unchanged (6.0s).
+- **Supercar** lights up hard (spin ~1.5 through 1st/2nd), traction-limited launch — 0-100 0.9s→**3.3s**
+  (far more believable), hooks up by 3rd. Few-drive-wheel / cargo-lightened / FWD-under-power rigs spin more.
+- **Feedback:** a high scrabbling squeal (`INSTR_NOISE`, gated `SPIN_SQUEAL`), grey/white tyre **smoke**
+  (`smoke_puff`, reuses the spark pool) + **burnout marks** at the drive wheels.
+- Top speed (drag-limited) and the drift (mid-corner thrust stays under grip) both **unaffected** — verified.
+`POWER_EAT` kept for cornering power-oversteer (the full combined-slip that would retire it is the
+deeper, riskier option, still deferred). Behind toggle `M` (default ON) for an A/B feel pass; knobs
+`MU_TRACTION` (how easily it spins) + `SPIN_SQUEAL` (feedback threshold).

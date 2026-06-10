@@ -282,6 +282,8 @@ static int   wheelPD[MAXWP];                   // 1 = a drive wheel
 static float wheelG[MAXWP];                    // lateral grip coefficient (wheel 1.0, caster 0.12)
 static float wheelLoad[MAXWP];                 // solved vertical load (mass units; Σ ≈ M)
 static int   nWheelP;
+static int   use_wheel_drive = 1;              // §8: load-sensitive per-drive-wheel traction — ON (M to A/B
+                                               // vs the old constant cap). Lets too-much-torque break grip.
 
 // ── tuning ───────────────────────────────────────────────────────────────────
 // ENGINE_POWER is the GAS baseline (the everyday engine); the other kinds scale off it
@@ -373,6 +375,11 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define ENG_YAW_K     0.9f        // how hard an off-centre engine yaws the rig
 #define BALANCE_K     0.4f        // lever: front-heavy understeers, rear-heavy oversteers
 #define GRIP_TO_FORCE 2000.0f     // wheel grip → max traction force
+#define MU_TRACTION   100.0f      // §8 load-sensitive traction: drive-wheel LOAD → max laid-down force.
+                                  // SET LOW ENOUGH THAT GRIP BINDS: flooring (esp. low gear = high thrust)
+                                  // exceeds it → wheels spin. Worst in 1st, hooks up as you upshift; a
+                                  // heavy/cargo'd or few-drive-wheel rig spins more. Tune by feel.
+#define SPIN_SQUEAL   0.12f       // wheelspin amount above which tyres squeal + lay burnout marks + smoke
 #define GROUND_GRIP   1.0f        // road: plenty (sand/mud come in rung 3)
 #define KMH           0.72f       // px/s → km/h for the readout (top ~166 px/s ≈ 120 km/h,
                                   // so the SPEED number lines up with the zone limit signs)
@@ -464,6 +471,8 @@ static float heat;                // 0..1, rises while cells scrape under load, 
 static float tip_amt;             // 0..1, how hard the rig is tipping this frame (HUD)
 static float slide_amt;           // 0..1, how far past the friction limit a tyre is (spin-out feedback)
 static int   slide_rear;          // 1 = the REAR let go (oversteer/spin), 0 = front (understeer/push)
+static float wheel_spin;          // 0..~1.5 wheelspin: how much engine force exceeded what the drive
+                                  // wheels can lay down (eased) — drives squeal + burnout marks + smoke
 static float wt_long;             // low-passed longitudinal accel (px/s^2) driving weight transfer
 static float wt_xfer;             // load-shift fraction this frame (+ = rear under accel, - = front under braking)
 static float drift_loose;         // 0..1 lingering rear looseness (drift-exit hysteresis) — spikes on a
@@ -489,7 +498,7 @@ static float cam_zoom = 1.0f;     // eased speed-zoom: pulls back at speed (sens
 #define CAM_ZOOM_PULL 0.16f       // how far the camera pulls BACK (zooms out) at full speed
 #define CAM_ZOOM_REF  260.0f      // speed (px/s) at which the pull-back maxes out
 #define CAM_LEAD      0.34f       // how far ahead the camera leads the rig (world px per px/s of vel)
-static float t_skid_snd, t_scrape_snd;
+static float t_skid_snd, t_scrape_snd, t_spin_snd;
 static int   is_paused;
 static float wheel_ang;           // eased steering-wheel angle (deg) for the cockpit dial
 static float steer_pos;           // ramped steer angle (-1..+1) — analog feel from digital keys
@@ -757,6 +766,7 @@ static void reset_vehicle(void) {
     heat = 0; tip_amt = 0; gear = 1; rpm = 0;   // trans_mode + eng_kind persist (player settings)
     wt_long = 0; wt_xfer = 0;                   // weight transfer starts settled
     drift_loose = 0;                            // no lingering slide
+    wheel_spin = 0;
     steer_pos = 0;                              // wheel centred
 
     engine_on = 1; stalled = 0; restart_grace = 0;   // fresh rig starts cranked
@@ -988,6 +998,7 @@ static void handle_input(void) {
     // ---- DRIVE input: keyboard OR the on-screen cockpit (touch + mouse) ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
+    if (keyp('M')) use_wheel_drive = !use_wheel_drive;   // §8: A/B load-sensitive traction vs the constant cap
     if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
     if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
     if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
@@ -1036,6 +1047,15 @@ static void throw_spark(float x, float y, float vfx, float vfy) {
         -vfx * 0.4f + rnd_float_between(-22, 22),
         -vfy * 0.4f + rnd_float_between(-22, 22),
         rnd_between(8, 18), col };
+    spark_head++;
+}
+
+// a puff of tyre smoke (reuses the spark pool) — grey/white, slow drift, longer-lived than a spark.
+static void smoke_puff(float x, float y) {
+    spark[spark_head % MAXSPARK] = (Spark){
+        x + rnd_float_between(-3, 3), y + rnd_float_between(-3, 3),
+        rnd_float_between(-9, 9), rnd_float_between(-9, 9),
+        rnd_between(16, 28), (rnd_float() < 0.5f) ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY };
     spark_head++;
 }
 
@@ -1182,7 +1202,21 @@ static void update_drive(float dt_) {
         }
     // traction caps thrust to what the DRIVE wheels can lay down — fewer powered
     // wheels = less grip to the ground = the engine can't deploy all its power.
-    float tract = driveRoll * GROUND_GRIP * GRIP_TO_FORCE;
+    // §8 (toggle M): scale by the live LOAD on the drive wheels (last frame's spring solve) instead
+    // of a constant — so weight transfer + cargo make traction emergent (squat-and-go, FWD wheelspin).
+    float tract;
+    if (use_wheel_drive) {
+        float driveLoad = 0;
+        for (int i = 0; i < nWheelP; i++)
+            if (nDrive == 0 || wheelPD[i]) driveLoad += wheelLoad[i];   // nDrive==0 = AWD (all wheels)
+        tract = MU_TRACTION * GROUND_GRIP * driveLoad;
+    } else {
+        tract = driveRoll * GROUND_GRIP * GRIP_TO_FORCE;
+    }
+    // wheelspin: engine force that EXCEEDS what the tyres can lay down is wasted as spin (no extra
+    // accel, but it squeals + smokes + lays burnout marks). Worst in low gear (high thrust). Eased.
+    float spinNow = (tract > 0 && af(thrust) > tract) ? clamp((af(thrust) - tract) / tract, 0, 1.5f) : 0;
+    wheel_spin = lerp(wheel_spin, spinNow, 0.4f);
     if (af(thrust) > tract && tract > 0) {
         float s = tract / af(thrust);
         thrust *= s; eng_torque *= s;
@@ -1306,6 +1340,16 @@ static void update_drive(float dt_) {
                     rot((c + 0.5f) * CELL - comX, (r + 0.5f) * CELL - comY, &wx, &wy);
                     lay_skid(wx, wy);
                 }
+    // wheelspin → burnout marks + tyre smoke at the DRIVE wheels (they're scrabbling for grip)
+    if (wheel_spin > SPIN_SQUEAL)
+        for (int r = 0; r < GH; r++)
+            for (int c = 0; c < GW; c++)
+                if (grid[r][c] == P_DRIVE || (nDrive == 0 && grid[r][c] == P_WHEEL)) {
+                    float wx, wy;
+                    rot((c + 0.5f) * CELL - comX, (r + 0.5f) * CELL - comY, &wx, &wy);
+                    lay_skid(wx, wy);
+                    if (rnd_float() < clamp(wheel_spin, 0.12f, 0.7f)) smoke_puff(wx, wy);
+                }
     for (int i = 0; i < MAXSKID; i++) if (skid[i].life > 0) skid[i].life--;
 
     // --- steering: torque about the COM, scaled by how fast you're going -------
@@ -1367,6 +1411,10 @@ static void update_drive(float dt_) {
     if (scraping) {                                  // a low grinding scrape, pitch tracks speed
         t_scrape_snd -= dt_;
         if (t_scrape_snd <= 0) { hit(36 + (int)(spd * 0.06f), INSTR_NOISE, 2, 60); t_scrape_snd = 0.045f; }
+    }
+    if (wheel_spin > SPIN_SQUEAL) {                  // tyres spinning — a high, scrabbling squeal
+        t_spin_snd -= dt_;
+        if (t_spin_snd <= 0) { hit(60 + (int)(wheel_spin * 8), INSTR_NOISE, 2, 50); t_spin_snd = 0.05f; }
     }
 
     // --- heat: rises while the belly grinds under load, cools off otherwise -----
@@ -1489,6 +1537,7 @@ void update(void) {
         watch("loadRt", "%.1f", lRight); watch("loadLf", "%.1f", lLeft);
     }
     watch("loose", "%.2f", drift_loose);
+    watch("spin", "%.2f", wheel_spin);
 #endif
 }
 

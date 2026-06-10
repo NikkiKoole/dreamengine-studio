@@ -189,12 +189,38 @@ two presets, but via a **code flag** (`leadVibes`), not a per-song seed roll.
 
 ---
 
+## bossa — Bossa nova (João Gilberto / Jobim)
+
+Solo layer: **`solo.h`** (a present flute the player drives over the changes).
+
+The first station with **zero cross-cart preset reuse** — entirely its own acoustic/latin
+world. Nylon guitar, breathy flute, caxixi, cross-stick clave; nothing shared with the
+dance stations' synth kit. Its only "roll" is the guitar's fake↔real code toggle, and its
+solo flute is the comp flute opened up.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_GTR`    | nylon guitar comp | `tri/nylon-fake` *(default)* · `pluck/nylon-guitar` *(opt-in)* | TRI / PLUCK |
+| `I_BASS`   | fingered surdo bass | `tri/fingered-bass` (kin: the TRI-bass pile) | TRI |
+| `I_FLUTE`  | breathy flute lead | `sine/breathy-flute` | SINE |
+| `I_SHAKER` | caxixi 16ths | `noise/caxixi` | NOISE |
+| `I_RIM`    | cross-stick clave | `noise/cross-stick` | NOISE |
+| `I_SOLO`   | jam flute (solo.h) | `sine/breathy-flute` (solo stop) | SINE |
+
+**Borrowing at a glance:** none cross-cart. bossa confirms a hunch — the acoustic/latin
+station doesn't touch the dance-station kit; it builds its own percussion (caxixi,
+cross-stick) and front line. The one thing to watch is `tri/fingered-bass` joining the
+TRI-bass pile (3 now). The guitar's two voices are a *code* toggle (`gtrPluck`), not a
+per-song seed roll.
+
+---
+
 ## Stations not yet charted
 
-ambient · addis · bossa · carlos · dub · exotica · gamelan ·
+addis · carlos · dub · exotica · gamelan ·
 jangle · jingle · roadhouse · satie · tango · ymo · yacht
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail · lowend. The `solo.h` group — bossa/dub/jangle/jingle — is still untouched; the
-`improv.h` soloists roadhouse/addis and the acoustic stations (satie/tango/gamelan/carlos)
-will likely add new families rather than reuse these.)
+cocktail · lowend · bossa. The rest of the `solo.h` group — dub/jangle/jingle — is next up;
+the `improv.h` soloists roadhouse/addis and the acoustic stations (satie/tango/gamelan/
+carlos) will likely add new families rather than reuse these.)

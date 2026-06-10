@@ -12,7 +12,7 @@ This file gives each recipe a **clear name** so the per-station voice charts
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail**, **lowend** (see
+> **cocktail**, **lowend**, **bossa** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -168,6 +168,22 @@ defines boom-bap's surface. A texture voice, not a kit piece.
 - origin: lowend
 - used by: lowend (`I_VINYL`)
 
+### noise/caxixi
+`INSTR_NOISE` · A1 D45 S0 R25 · HP 5200/4
+The caxixi — a 16th-note shaker, high-passed noise with a soft attack.
+- tier: unique
+- origin: bossa
+- used by: bossa (`I_SHAKER`)
+- kin: HP-noise like the `drum/noise-hat` family — but a shaker, not a hat.
+
+### noise/cross-stick
+`INSTR_NOISE` · A0 D28 S0 R18 · BP 1800/9 · pitch-env →18 (0/20)
+A woody cross-stick / rim clave — tightly band-passed noise with a quick pitch blip for the
+"tok."
+- tier: unique
+- origin: bossa
+- used by: bossa (`I_RIM`)
+
 ### kit/cocktail-brushes
 The jazz trio kit played with **brushes** — soft, swept, the sweep is a sustained circular
 wash. cocktail's drums on brush nights.
@@ -225,6 +241,16 @@ pitch-env is the "thumb."
 - tier: unique
 - origin: cocktail
 - used by: cocktail (`I_BASS`, upright nights)
+
+### tri/fingered-bass
+`INSTR_TRI` · A2 D200 S4 R80 · LP 700/2
+A soft, round fingered bass — bossa's surdo-pattern low end. No pluck snap (unlike the disco
+basses), just warm and even.
+- tier: unique
+- origin: bossa
+- used by: bossa (`I_BASS`)
+- kin: joins the growing **TRI-bass pile** (`tri/disco-bass`, `tri/upright-bass`) — all
+  fingered basses on TRI, differing by pitch-env snap/thumb. Three so far; watch it.
 
 ### sine/boom-bap-bass
 `INSTR_SINE` · A4 D220 S5 R120 · LP 480/1 · pitch-env →4 (0/35) · drive 0.20
@@ -313,6 +339,24 @@ A warm archtop jazz guitar, neck pickup — the "Herb Ellis night" of cocktail's
 - origin: cocktail
 - used by: cocktail (`I_PSOLO`, Herb-Ellis nights)
 
+### tri/nylon-fake
+`INSTR_TRI` · A1 D180 S1 R120 · LP 2200/3 · cut-env →1400 (0/90, attack sparkle)
+bossa's nylon guitar comp — the *fake* (shipped default): a TRI with a cutoff sparkle on the
+attack standing in for a plucked nylon string.
+- tier: unique
+- origin: bossa
+- used by: bossa (`I_GTR`, default)
+- pair: the slot opts into `pluck/nylon-guitar` (real string engine) via a code flag.
+
+### pluck/nylon-guitar
+`INSTR_PLUCK` · A1 D0 S7 R120 · LP 2200/3 · h0.40 t0.15 m0.45
+The *real* nylon — Karplus-Strong with a short ring (nylon decays fast), soft thumb (no pick
+brightness), mid-string warmth. bossa's opt-in guitar.
+- tier: unique
+- origin: bossa
+- used by: bossa (`I_GTR`, opt-in)
+- pair: alternative to the shipped `tri/nylon-fake`.
+
 ## Stabs & leads
 
 ### fm/brass-stab
@@ -371,6 +415,15 @@ the slot can opt into `mallet/vibes` instead).
 - tier: unique
 - origin: lowend
 - used by: lowend (`I_LEAD`, default)
+
+### sine/breathy-flute
+`INSTR_SINE` · A25 D120 S5 R140 · LP 2600/2 · pitch-LFO 5.2 Hz/0.18 (vibrato)
+A breathy flute lead — slow sine attack with a singing vibrato. bossa's melodic voice. Its
+**solo stop** (`I_SOLO`, the solo.h jam flute) is the same flute opened up: LP 3600, a touch
+more vibrato (5.6/0.22), louder — to sit on top.
+- tier: unique
+- origin: bossa
+- used by: bossa (`I_FLUTE` comp · `I_SOLO` solo stop)
 
 ### saw/brass-section
 `INSTR_SAW` · A4 D180 S5 R120 · LP 2000·feel/3 · pitch-env →−2 (0/40)

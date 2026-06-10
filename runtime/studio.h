@@ -362,6 +362,13 @@ void echo(int time_ms, float feedback, float tone);  // configure the bus: delay
 void instrument_echo(int slot, float send);    // how much this slot feeds the bus 0.0..1.0 — 0 = dry (default), 0.15 = slapback, 0.8 = dub throw
 void note_echo(int handle, float x);           // sweep a held note's echo send live, slewed — throw a single phrase into the tail
 
+// reverb — THE shared reverb bus (there is exactly one): each slot chooses how much to send
+// into it. A real room/hall (a chord blooms into space), not repeating taps like echo. Bus-only —
+// reverb is never per-voice. instrument_reverb() alone already sounds right (defaults size 0.5).
+void reverb(float size, float damping);        // configure the bus: size 0..1 (small room → endless hall), damping 0..1 (bright → dark tail)
+void instrument_reverb(int slot, float send);  // how much this slot feeds the bus 0.0..1.0 — 0 = dry (default), 0.3 = roomy, 0.8 = drenched
+void note_reverb(int handle, float x);         // sweep a held note's reverb send live, slewed — bloom one phrase into the hall
+
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti
 #define SCALE_MINOR      1   // natural minor

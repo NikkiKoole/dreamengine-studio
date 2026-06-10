@@ -70,6 +70,7 @@ typedef struct {
     float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
     float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
+    float reverb;                   // send to THE reverb bus 0..1; 0 = dry (default — old carts unchanged)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
                                     // sounding voice each sample — fire-and-forget hits bend too. default 1
@@ -120,6 +121,7 @@ typedef struct {
     float  drv, drv_target;        // post-filter drive (current + slew target, same machinery)
     float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
+    float  rvb, rvb_target;        // reverb-bus send (current + slew target, same machinery — note_reverb)
     float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
@@ -411,6 +413,67 @@ static float sound_echo_coef(float t) {
     return 1.0f - expf(-6.2831853f * fc / (float)SOUND_SAMPLE_RATE);
 }
 
+// ── THE reverb bus (audio-notes §17 / instrument-engines §8.10 — the first §8.10 effect) ──
+// A SEND bus, exactly like the echo bus above: ONE shared reverberator with per-slot sends, not a
+// per-voice effect (reverb is bus-only by design — decision 0015 / the placement sanity-check in
+// sound-next-steps.md). The DSP is a line-for-line port of navkit's classic Schroeder core (4
+// parallel comb filters + 2 series allpass + a pre-delay), the proven house pattern. Mono in v1
+// (stereo width is later §8.10, like the echo bus). Dormant until the first reverb API call ever
+// arrives (reverb_used), so old carts pay nothing and stay bytes-identical.
+#define REVERB_COMB_1 1559         // comb delay times in samples @44100 Hz, mutually prime (navkit)
+#define REVERB_COMB_2 1621
+#define REVERB_COMB_3 1493
+#define REVERB_COMB_4 1427
+#define REVERB_ALLPASS_1 223
+#define REVERB_ALLPASS_2 557
+#define REVERB_PREDELAY  882       // fixed 20ms pre-delay (SOUND_SAMPLE_RATE/50)
+#define REVERB_FEEDBACK_MIN   0.7f   // comb feedback at size 0 (short decay)
+#define REVERB_FEEDBACK_RANGE 0.25f  // + size → longer decay (max 0.95)
+#define REVERB_DAMP_SCALE     0.4f   // damping → comb-LP cutoff scale
+static float rvb_comb1[REVERB_COMB_1], rvb_comb2[REVERB_COMB_2], rvb_comb3[REVERB_COMB_3], rvb_comb4[REVERB_COMB_4];
+static float rvb_ap1[REVERB_ALLPASS_1], rvb_ap2[REVERB_ALLPASS_2];
+static float rvb_predelay_buf[REVERB_PREDELAY];
+static int   rvb_cp1, rvb_cp2, rvb_cp3, rvb_cp4;        // comb write positions
+static int   rvb_ap_p1, rvb_ap_p2;                      // allpass positions
+static int   rvb_pd_p;                                  // predelay write position
+static float rvb_clp1, rvb_clp2, rvb_clp3, rvb_clp4;    // per-comb damping LP states
+static float reverb_fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;  // from size (default 0.5)
+static float reverb_damp = 0.5f;
+static bool  reverb_used = false;          // flips true on first reverb API call, never back
+
+// one comb filter with lowpass damping (navkit processCombFilter — darker tails as damping rises)
+static float rvb_comb(float input, float *buf, int *pos, int size, float *lp, float fb, float damp) {
+    float output = buf[*pos];
+    float dampCoef = 1.0f - damp * REVERB_DAMP_SCALE;
+    *lp = output * dampCoef + *lp * (1.0f - dampCoef);
+    buf[*pos] = input + *lp * fb;
+    *pos = (*pos + 1) % size;
+    return output;
+}
+// one Schroeder allpass (navkit processAllpass): H(z) = (-g + z^-N)/(1 - g·z^-N), feedback from output
+static float rvb_allpass(float input, float *buf, int *pos, int size, float coef) {
+    float delayed = buf[*pos];
+    float output  = delayed - coef * input;
+    buf[*pos] = input + coef * output;
+    *pos = (*pos + 1) % size;
+    return output;
+}
+// process one sample, returns the WET signal only (navkit _processReverbCore)
+static float reverb_process(float sample) {
+    float pre = rvb_predelay_buf[rvb_pd_p];           // exactly REVERB_PREDELAY samples old
+    rvb_predelay_buf[rvb_pd_p] = sample;
+    rvb_pd_p = (rvb_pd_p + 1) % REVERB_PREDELAY;
+    // 4 parallel comb filters build a dense echo pattern
+    float c1 = rvb_comb(pre, rvb_comb1, &rvb_cp1, REVERB_COMB_1, &rvb_clp1, reverb_fb, reverb_damp);
+    float c2 = rvb_comb(pre, rvb_comb2, &rvb_cp2, REVERB_COMB_2, &rvb_clp2, reverb_fb, reverb_damp);
+    float c3 = rvb_comb(pre, rvb_comb3, &rvb_cp3, REVERB_COMB_3, &rvb_clp3, reverb_fb, reverb_damp);
+    float c4 = rvb_comb(pre, rvb_comb4, &rvb_cp4, REVERB_COMB_4, &rvb_clp4, reverb_fb, reverb_damp);
+    float sum = (c1 + c2 + c3 + c4) * 0.25f;
+    // 2 series allpass filters diffuse + smooth the tail
+    float a1 = rvb_allpass(sum, rvb_ap1, &rvb_ap_p1, REVERB_ALLPASS_1, 0.5f);
+    return rvb_allpass(a1, rvb_ap2, &rvb_ap_p2, REVERB_ALLPASS_2, 0.5f);
+}
+
 // envelope-follower smoothing coefficient from a time in ms (one-pole; 0 ms = instant)
 static float sound_follow_coef(int ms) {
     if (ms <= 0) return 1.0f;
@@ -468,6 +531,9 @@ typedef enum {
     SR_NOTE_PAN     = 36,   // a=pan*1000 (signed, live/slewed), e0/e1=handle — live pan on a held note
     SR_ENG_TUNE     = 37,   // EXPERIMENTAL guitar/piano tuning poke: a=slot, b=idx (0 weight·1 attack), c=val*1000
     SR_PAN_LAW      = 38,   // a=law (PAN_LINEAR/PAN_POWER) — master pan law (stereo.md); gated, default LINEAR
+    SR_REVERB       = 40,   // a=size*1000, b=damping*1000 — configure THE reverb bus (40-42; 39 = voice_nasal above)
+    SR_INSTR_REVERB = 41,   // a=slot, b=send*1000 — per-slot reverb send
+    SR_NOTE_REVERB  = 42,   // a=val*1000 (live, slewed), e0/e1=handle — live reverb send on a held note
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2524,6 +2590,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->eng_p[1] = ins->eng_p[1];
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
+    v->rvb  = v->rvb_target  = ins->reverb;
     v->pan  = v->pan_target  = ins->pan;
     v->last_outL = v->last_outR = 0.0f;
     v->ks_len = 0;
@@ -2823,6 +2890,29 @@ static void sound_fire_req(SoundReq r) {
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->eko_target = x;
         }
+    } else if (r.kind == SR_REVERB) {       // a=size*1000, b=damping*1000 — configure the bus
+        reverb_used = true;
+        float size = r.a / 1000.0f;
+        if (size < 0.0f) size = 0.0f; if (size > 1.0f) size = 1.0f;
+        reverb_fb = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.7 .. 0.95
+        float damp = r.b / 1000.0f;
+        if (damp < 0.0f) damp = 0.0f; if (damp > 1.0f) damp = 1.0f;
+        reverb_damp = damp;
+    } else if (r.kind == SR_INSTR_REVERB) { // a=slot, b=send*1000
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float x = r.b / 1000.0f;
+        if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
+        instr_bank[slot].reverb = x;
+        reverb_used = true;
+    } else if (r.kind == SR_NOTE_REVERB) {  // a=val*1000 (live, slewed)
+        reverb_used = true;
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) {
+            float x = r.a / 1000.0f;
+            if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
+            v->rvb_target = x;
+        }
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -2872,7 +2962,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
     // tiny (<64) so the cost is noise.
     for (unsigned int i = 0; i < frames; i++) {
         float mixL = 0.0f, mixR = 0.0f;   // stereo accumulators (centered voices keep mixL == mixR)
-        float echo_in = 0.0f;   // this sample's summed sends into the echo bus (MONO — echo is centered in v1)
+        float echo_in   = 0.0f; // this sample's summed sends into the echo bus   (MONO — centered in v1)
+        float reverb_in = 0.0f; // this sample's summed sends into the reverb bus (MONO — centered in v1)
 
         for (int di = 0; di < delayed_count; ) {
             if (--delayed[di].delay_samples < 0) {
@@ -2902,6 +2993,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->mor        += (v->mor_target    - v->mor)        * 0.002f;
                 v->drv        += (v->drv_target    - v->drv)        * 0.002f;   // drive (note_drive)
                 v->eko        += (v->eko_target    - v->eko)        * 0.002f;   // echo send (note_echo)
+                v->rvb        += (v->rvb_target    - v->rvb)        * 0.002f;   // reverb send (note_reverb)
                 v->pan        += (v->pan_target    - v->pan)        * 0.002f;   // stereo pan (note_pan) — anti-zipper slew
             }
 
@@ -3051,7 +3143,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float cL = contrib * pL, cR = contrib * pR;
             v->last_outL = cL; v->last_outR = cR;   // panned contributions feed the steal declick
             mixL += cL; mixR += cR;
-            if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in += contrib * v->eko;   // echo send is MONO (pre-pan)
+            if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in   += contrib * v->eko;   // echo send   — MONO, pre-pan
+            if (v->sfx_idx < 0 && v->rvb > 0.0005f) reverb_in += contrib * v->rvb;   // reverb send — MONO, pre-pan
 
             v->phase += v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             if (v->phase >= 1.0f) v->phase -= 1.0f;
@@ -3066,7 +3159,20 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         if (steal_tailL > -1e-5f && steal_tailL < 1e-5f) steal_tailL = 0.0f;
         if (steal_tailR > -1e-5f && steal_tailR < 1e-5f) steal_tailR = 0.0f;
 
-        // THE echo bus (dormant until the first echo API call — old carts skip this entirely)
+        // ════ MASTER FX SECTION (instrument-engines §8.10) ════════════════════════════════════
+        // The summed dry mix (mixL/mixR + steal tail) above is bus 0's input. Two ordered stages:
+        //   1. SEND RETURNS — shared parallel processors (echo, reverb). Each got a per-slot send
+        //      accumulated during the voice loop (echo_in/reverb_in, MONO pre-pan); its wet adds
+        //      back here. Add another send (e.g. a chorus bus) by mirroring these two blocks.
+        //   2. INSERT CHAIN — series processors the whole mix passes THROUGH, ending in the
+        //      soft-clip limiter (always last). Add a master insert (tape, comp, bitcrush) as a
+        //      new line just BEFORE the soft-clip — see decision 0015 / sound-next-steps.md.
+        // Each send is dormant until its API is first called, so a cart using neither is byte-
+        // identical to pre-FX output. Side-chain seam (future vocoder / sidechain-comp, §8.10):
+        // a control input would tap a source bus's level HERE, before the insert chain — not built.
+        // Per-slot AUX routing (instrument_bus) is the deferred next increment; v1 is master-only.
+
+        // SEND RETURN 1 — THE echo bus (dormant until the first echo API call)
         if (echo_used) {
             // tape-speed time slew: the read tap glides toward its target with a clamped
             // per-sample step, so a live time sweep pitch-bends the ringing tail (RE-201)
@@ -3090,6 +3196,13 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             mixL += echo_lp; mixR += echo_lp;   // echo is a MONO bus in v1 — wet adds to both channels equally (centered)
         }
 
+        // SEND RETURN 2 — THE reverb bus (dormant until the first reverb API call)
+        if (reverb_used) {
+            float wet = reverb_process(reverb_in);   // navkit Schroeder core, MONO in v1
+            mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
+        }
+
+        // INSERT CHAIN — (future master inserts: tape / comp / bitcrush go HERE, before soft-clip) →
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
         // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
         // slamming a hard wall. STEREO (stereo.md bite #5): derive ONE gain from the PEAK of the
@@ -3524,6 +3637,22 @@ void note_echo(int handle, float x) {
     sound_push_ctrl(SR_NOTE_ECHO, (int)(x * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
+// ── reverb: ONE shared bus with per-slot sends (the first §8.10 effect; decisions/0015) ──
+
+void reverb(float size, float damping) {
+    sound_push_ctrl(SR_REVERB, (int)(size * 1000.0f), (int)(damping * 1000.0f), 0, 0, 0, 0);
+}
+
+void instrument_reverb(int slot, float send) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_REVERB, slot, (int)(send * 1000.0f), 0, 0, 0, 0);
+}
+
+void note_reverb(int handle, float x) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_REVERB, (int)(x * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -3667,6 +3796,7 @@ static void sound_init(void) {
         instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
+        instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (eng_tune) — off until set
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (eng_tune) — off until set
     }
@@ -3680,6 +3810,19 @@ static void sound_init(void) {
     echo_tone_coef   = sound_echo_coef(0.5f);
     echo_lp          = 0.0f;
     echo_used        = false;
+
+    // reverb bus: clean slate (matters for libtcc hot-reload + --det reproducibility)
+    memset(rvb_comb1, 0, sizeof(rvb_comb1)); memset(rvb_comb2, 0, sizeof(rvb_comb2));
+    memset(rvb_comb3, 0, sizeof(rvb_comb3)); memset(rvb_comb4, 0, sizeof(rvb_comb4));
+    memset(rvb_ap1, 0, sizeof(rvb_ap1));     memset(rvb_ap2, 0, sizeof(rvb_ap2));
+    memset(rvb_predelay_buf, 0, sizeof(rvb_predelay_buf));
+    rvb_cp1 = rvb_cp2 = rvb_cp3 = rvb_cp4 = 0;
+    rvb_ap_p1 = rvb_ap_p2 = 0;
+    rvb_pd_p = 0;
+    rvb_clp1 = rvb_clp2 = rvb_clp3 = rvb_clp4 = 0.0f;
+    reverb_fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;   // size 0.5 default
+    reverb_damp = 0.5f;
+    reverb_used = false;
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence
     for (int w = 0; w < SOUND_USER_WAVES; w++)

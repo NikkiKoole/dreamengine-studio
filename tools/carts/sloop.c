@@ -484,6 +484,11 @@ static float ang, angVel;         // heading (deg, 0 = facing +x / east) + spin
 
 static float cam_x, cam_y;
 static float lead_x, lead_y;      // low-passed camera lead (smooth, no curb jitter)
+static float cam_zoom = 1.0f;     // eased speed-zoom: pulls back at speed (sense of speed + see-ahead)
+// ── sense-of-speed camera (eased so it never jitters) ─────────────────────────
+#define CAM_ZOOM_PULL 0.16f       // how far the camera pulls BACK (zooms out) at full speed
+#define CAM_ZOOM_REF  260.0f      // speed (px/s) at which the pull-back maxes out
+#define CAM_LEAD      0.34f       // how far ahead the camera leads the rig (world px per px/s of vel)
 static float t_skid_snd, t_scrape_snd;
 static int   is_paused;
 static float wheel_ang;           // eased steering-wheel angle (deg) for the cockpit dial
@@ -1430,10 +1435,15 @@ void update(void) {
     // camera LEADS the rig in the travel direction (you see where you're rushing into —
     // reads as speed). The lead is HEAVILY low-passed (lead_x/y ease toward vx/vy) so it
     // doesn't jitter the bright curbs frame-to-frame or snap through the city's 90° corners.
-    lead_x = lerp(lead_x, vx * 0.26f, 0.04f);
-    lead_y = lerp(lead_y, vy * 0.26f, 0.04f);
+    lead_x = lerp(lead_x, vx * CAM_LEAD, 0.04f);
+    lead_y = lerp(lead_y, vy * CAM_LEAD, 0.04f);
     cam_x = lerp(cam_x, sx + lead_x - SCREEN_W / 2.0f, 0.15f);
     cam_y = lerp(cam_y, sy + lead_y - SCREEN_H / 2.0f, 0.15f);
+    // speed-zoom: pull the camera back as you go faster — more world streams through the frame
+    // (and you see further ahead). Eased slowly so it never jitters; resets to 1 in BUILD/at rest.
+    float camspd = fsqrt(vx * vx + vy * vy);
+    float zoomTarget = 1.0f - CAM_ZOOM_PULL * clamp(camspd / CAM_ZOOM_REF, 0, 1);
+    cam_zoom = lerp(cam_zoom, zoomTarget, 0.05f);
 
 #ifdef DE_TRACE
     float fwx = cos_deg(ang), fwy = sin_deg(ang);
@@ -1491,17 +1501,21 @@ static unsigned hash2(int a, int b) {
 
 static void draw_ground(void) {
     int step = 32;
-    int x0 = ((int)cam_x / step - 1) * step;
-    int y0 = ((int)cam_y / step - 1) * step;
-    int x1 = (int)cam_x + SCREEN_W + step;
-    int y1 = (int)cam_y + SCREEN_H + step;
+    // when the speed-zoom pulls back (cam_zoom<1) the view shows more world than SCREEN_W/H —
+    // widen the draw range by that margin so the zoomed-out edges aren't left undrawn.
+    int mx = (int)(SCREEN_W * (1.0f / cam_zoom - 1.0f) * 0.5f) + step;
+    int my = (int)(SCREEN_H * (1.0f / cam_zoom - 1.0f) * 0.5f) + step;
+    int x0 = ((int)(cam_x - mx) / step - 1) * step;
+    int y0 = ((int)(cam_y - my) / step - 1) * step;
+    int x1 = (int)cam_x + SCREEN_W + mx;
+    int y1 = (int)cam_y + SCREEN_H + my;
     // grid of asphalt seams — gives motion + a rotation reference
     for (int x = x0; x <= x1; x += step) line(x, y0, x, y1, CLR_DARK_GREY);
     for (int y = y0; y <= y1; y += step) line(x0, y, x1, y, CLR_DARK_GREY);
     // deterministic speckle — at speed each fleck STREAKS opposite travel (motion blur),
     // the strongest sense-of-speed cue and tied to the rig's actual velocity.
     float spd = fsqrt(vx * vx + vy * vy);
-    float sl = clamp(spd * 0.085f, 0, 11.0f);        // streak length (px)
+    float sl = clamp(spd * 0.13f, 0, 20.0f);         // streak length (px) — longer = stronger speed cue
     float ux = 0, uy = 0;
     if (spd > 1.0f) { ux = vx / spd; uy = vy / spd; }
     for (int x = x0; x <= x1; x += step)
@@ -1571,7 +1585,10 @@ static void draw_houses(int bx, int by, int p, int hw) {
 }
 
 static void draw_course(void) {
-    int L = (int)cam_x, R = L + SCREEN_W, T = (int)cam_y, B = T + SCREEN_H;
+    // widen the drawn area to cover the speed-zoom pull-back (see draw_ground)
+    int mx = (int)(SCREEN_W * (1.0f / cam_zoom - 1.0f) * 0.5f) + 4;
+    int my = (int)(SCREEN_H * (1.0f / cam_zoom - 1.0f) * 0.5f) + 4;
+    int L = (int)cam_x - mx, R = (int)cam_x + SCREEN_W + mx, T = (int)cam_y - my, B = (int)cam_y + SCREEN_H + my;
     cur_zone = zone_at(cam_x + SCREEN_W / 2.0f, cam_y + SCREEN_H / 2.0f);
     int p = ZONE_PITCH[cur_zone], hw = ZONE_LANE[cur_zone] / 2;
     int kx0 = ifloordiv(L, p) - 1, kx1 = ifloordiv(R, p) + 1;
@@ -1984,7 +2001,7 @@ void draw(void) {
     if (mode == MODE_BUILD) { draw_build(); return; }
 
     cls(CLR_DARKER_GREY);                 // asphalt
-    camera((int)cam_x, (int)cam_y);
+    camera_ex((int)cam_x, (int)cam_y, cam_zoom, 0);   // speed-zoom (pulls back at speed)
     draw_ground();
     draw_course();
     for (int i = 0; i < MAXSKID; i++)     // tire marks burned into the road

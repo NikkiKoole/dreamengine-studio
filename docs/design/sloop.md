@@ -1581,3 +1581,18 @@ stretching N-per-block, so a house reads consistently across zones and **bigger 
 City/town block pitch enlarged 100/200→**150/300** so rows of 5 m houses fit (kept the 2× steps:
 150·300·600·1200·2400 all nest, cleaner than the old 3× jump). Lanes unchanged (already to scale).
 Placeholder course still (rung-3 rebuilds it solid) — this is just the proportion fix.
+
+### Sense-of-speed camera pass (2026-06-10)
+
+After the scale fix, a pass on *felt* speed (distinct from the power readouts — those tell you if a
+build IS fast; this is whether it FEELS it):
+- **Speed-zoom** — `draw()` now uses `camera_ex(...,cam_zoom,0)`; `cam_zoom` eases from 1.0 toward
+  `1−CAM_ZOOM_PULL` (0.16) as speed → `CAM_ZOOM_REF` (260 px/s). The camera pulls BACK at speed →
+  more world streams through the frame + you see further ahead. Pivots on screen centre, so the rig
+  stays put and proportions are preserved. `draw_ground`/`draw_course` widen their draw bounds by the
+  zoom margin so the pulled-back edges aren't left undrawn (verified clean at 162 km/h).
+- **Longer streaks** — the ground speckle streak length `spd·0.085 (cap 11)` → `spd·0.13 (cap 20)`.
+- **More lead** — camera lead `0.26` → `CAM_LEAD 0.34` (see further into the travel direction).
+Knobs all `#define`d. *Caveat:* in flat 2-D a pull-back widens the view but lowers per-object screen
+speed — the streaks/lead carry the speed cue. If it reads calmer rather than faster, flip
+`CAM_ZOOM_PULL` negative (zoom IN at speed) — a one-line change. Feel-tune on desktop.

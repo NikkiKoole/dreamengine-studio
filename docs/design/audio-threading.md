@@ -129,9 +129,11 @@ Staged so each step is verifiable on its own; **Stage 0 is the real risk to reti
   `addToLibrary({ emscripten_thread_sleep: ()=>{} })` (safe: raylib on web yields via
   `emscripten_set_main_loop` and never actually sleeps, so the path is never hit — *confirm
   at runtime*); (b) **fallback** — add full `-pthread -sPTHREAD_POOL_SIZE=1` (heavier).
-  Prefer the lean stub. **Still pending: the RUNTIME check** — deploy the combo (with
-  coi-serviceworker for isolation) and confirm the GL window actually renders *and* the
-  worklet plays in the same build, on desktop + phone.
+  Prefer the lean stub. **RUNTIME ✅ (2026-06-10):** the combo
+  (`site/coi-spike/combo.html`) on GitHub Pages — the raylib GL window **animates**, the
+  worklet **roll plays dead-even**, **CPU stays low** (so the lean stub is *never hit* —
+  confirmed safe, no `-pthread` needed), and the page is isolated. **Graphics + a real
+  audio thread coexist in one shared-memory build. Stage 0 fully retired.**
 - **Stage 1 — atomics-harden the SPSC queue** (`sound.h`): `volatile` head/tail →
   C11 `atomic_int` with acquire/release. Platform-independent; benefits native too. Verify
   with the soundcheck tripwire (CLAUDE.md) + a native A/B that nothing regresses.
@@ -143,6 +145,16 @@ Staged so each step is verifiable on its own; **Stage 0 is the real risk to reti
   above); both backends compiled into one wasm; ScriptProcessor stays the fallback.
 - **Stage 4 — coi-serviceworker in the real shell** (`web_shell.html`): the isolation +
   one-time reload, made to coexist with existing site caching and the `?debug=1` overlay.
+  **SW lifecycle lesson (from the spike):** the worker is what *provides* isolation, so it
+  must **stay registered** — never auto-unregister on load (that permanently un-isolates →
+  no worklet). Happy path = register once → one take-control reload → isolated on every
+  later visit, no reload. The mixed state (`crossOriginIsolated:false` but SAB present)
+  came from two pages sharing one SW scope + bouncing between them + the once-per-session
+  reload guard + caching. Fix = **self-heal, not always-reset**: on load, *only if*
+  not-isolated AND a SW is already registered, do one clean unregister+clear+reload
+  (guarded once/session to avoid loops); otherwise leave it alone. Better still for
+  production: own a single SW scope + caching so it never breaks. (Spike pages now do the
+  self-heal — `site/coi-spike/*.html`.)
 - **Stage 5 — wire the build flags** (`build-site.js` + the editor's build-web) and
   rebuild the catalog; bigger artifacts (shared memory) are expected. Acceptance test:
   `drift` is **straight** on desktop *and* phone when isolated, and still plays (at the

@@ -12,7 +12,7 @@ This file gives each recipe a **clear name** so the per-station voice charts
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail**, **lowend**, **bossa**, **dub**, **jangle** (see
+> **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -133,10 +133,11 @@ from house's long bridged-T boom).
 | lowend (`I_KICK`)  | SINE A0 D95 S0 R35 · pitch-env →16 (0/50) — the boom-bap "boom" |
 | dub (`I_KICK`)     | SINE A0 D110 S0 R45 · pitch-env →12 (0/55) — soft, deep one-drop |
 | jangle (`I_KICK`)  | SINE A1 D90 S0 R40 · pitch-env →14 (0/45) — CR-78-ish thud |
+| jingle (`I_KICK`)  | SINE A1 D85 S0 R40 · pitch-env →12 (0/40) — soft songwriter kick |
 
-- tier: **variant** (5 stations)
+- tier: **variant** (6 stations)
 - origin: undetermined (all hand-rolled; confirm against earlier stations)
-- used by: citypop (`I_KICK`) · motorik (`I_KICK`) · lowend (`I_KICK`) · dub (`I_KICK`) · jangle (`I_KICK`)
+- used by: citypop · motorik · lowend · dub · jangle · jingle (all `I_KICK`)
 
 ### drum/noise-snare
 A band-passed noise burst — the synth backbeat.
@@ -162,10 +163,11 @@ A high-passed noise tick.
 | lowend (`I_HAT`)  | NOISE A0 D18 S0 R14 · HP 7500/3 — closed, lo-fi, sits back |
 | dub (`I_HAT`)     | NOISE A0 D14 **S2** R60 · HP 7500/2 — sustain>0, washes (like citypop) |
 | jangle (`I_HAT`)  | NOISE A0 D24 S0 R16 · HP 6500/3 — tight tick |
+| jingle (`I_HAT`)  | NOISE A0 D20 S0 R14 · HP 7000/3 — tight tick |
 
-- tier: **variant** (5 stations; the S2 "wash" cut — citypop, dub — vs the tight ticks — motorik, lowend, jangle)
+- tier: **variant** (6 stations; the S2 "wash" cut — citypop, dub — vs the tight ticks — motorik, lowend, jangle, jingle)
 - origin: undetermined
-- used by: citypop (`I_HAT`) · motorik (`I_HAT`) · lowend (`I_HAT`) · dub (`I_HAT`) · jangle (`I_HAT`)
+- used by: citypop · motorik · lowend · dub · jangle · jingle (all `I_HAT`)
 
 ### noise/vinyl-dust
 `INSTR_NOISE` · A0 D10 S0 R8 · HP 4000/2
@@ -189,12 +191,13 @@ A woody cross-stick / rim clave — tightly band-passed noise with a quick pitch
 
 | cart (slot) | recipe |
 |---|---|
-| bossa (`I_RIM`) | NOISE A0 D28 S0 R18 · BP 1800/9 · pitch-env →18 (0/20) |
-| dub (`I_RIM`)   | NOISE A0 D30 S0 R25 · BP 1600/7 · pitch-env →16 (0/20) · echo send 0.25 |
+| bossa (`I_RIM`)  | NOISE A0 D28 S0 R18 · BP 1800/9 · pitch-env →18 (0/20) |
+| dub (`I_RIM`)    | NOISE A0 D30 S0 R25 · BP 1600/7 · pitch-env →16 (0/20) · echo send 0.25 |
+| jingle (`I_RIM`) | NOISE A0 D26 S0 R18 · BP 1500/8 · pitch-env →16 (0/18) |
 
-- tier: **variant**
+- tier: **variant** (3 stations — the carts that use a cross-stick instead of a snare)
 - origin: bossa (or earlier; confirm)
-- used by: bossa (`I_RIM`) · dub (`I_RIM`)
+- used by: bossa (`I_RIM`) · dub (`I_RIM`) · jingle (`I_RIM`)
 
 ### kit/cocktail-brushes
 The jazz trio kit played with **brushes** — soft, swept, the sweep is a sustained circular
@@ -284,13 +287,19 @@ saturation (warmth, not fuzz). Front and centre, Ron-Carter-style.
   later, collapse it *then* — on evidence, not on suspicion.
 
 ### sine/round-bass
-`INSTR_SINE` · A2 D250 S4 R90 · LP 600/1
-"Round and simple" — jangle's bass, no pitch-env at all, just a warm even SINE under the
-vamp.
-- tier: unique
+"Round and simple" — a warm even SINE under the vamp, **no pitch-env at all** (the plainest
+of the SINE basses). The songwriter pair build it near-identically:
+
+| cart (slot) | recipe |
+|---|---|
+| jangle (`I_BASS`) | SINE A2 D250 S4 R90 · LP 600/1 |
+| jingle (`I_BASS`) | SINE A3 D280 S4 R110 · LP 520/1 |
+
+- tier: **variant** (the jangle/jingle songwriter pair)
 - origin: jangle
-- used by: jangle (`I_BASS`)
-- kin: the SINE-bass pile — the plainest member (the others add a pitch-env thumb/snap).
+- used by: jangle (`I_BASS`) · jingle (`I_BASS`)
+- kin: the wider SINE-bass pile (`sine/gut-bass`, `sine/boom-bap-bass`, `sine/riddim-bass`)
+  — those add a pitch-env thumb/snap; these two omit it.
 
 ### sine/riddim-bass
 `INSTR_SINE` · A3 D260 S5 R130 · LP 420·feel/1 · pitch-env →3 (0/30)
@@ -408,14 +417,21 @@ A warm archtop jazz guitar, neck pickup — the "Herb Ellis night" of cocktail's
 - used by: cocktail (`I_PSOLO`, Herb-Ellis nights)
 
 ### tri/jangle-guitar
-`INSTR_TRI` · A1 D350 S2 R180 · LP 2400/2 · pitch-LFO 5.5 Hz/0.12 (chorus) · vol-LFO 4.7 Hz/0.08
-jangle's identity voice — the *fake* (shipped default): a TRI whose **constant chorus
-warble** (the 5.5 Hz pitch LFO, plus a soft tremolo under it) *is* the sound.
-- tier: unique
+A TRI guitar whose **constant chorus warble** (a pitch LFO + a soft tremolo under it) *is*
+the sound — the jangle-pop guitar tone. The songwriter pair build it nearly identically,
+jingle gentler:
+
+| cart (slot) | recipe |
+|---|---|
+| jangle (`I_GTR`) | TRI A1 D350 S2 R180 · LP 2400/2 · pitch-LFO 5.5/0.12 · vol-LFO 4.7/0.08 |
+| jingle (`I_GTR`) | TRI A1 D420 S2 R260 · LP 2000/2 · pitch-LFO 4.6/0.08 · vol-LFO 3.9/0.06 — gentler warble, longer ring |
+
+- tier: **variant** (the jangle/jingle songwriter pair)
 - origin: jangle
-- used by: jangle (`I_GTR`, default)
-- pair: opts into `pluck/jangle-guitar` via a code flag — the same fake↔real guitar toggle
-  bossa uses (`tri/nylon-fake` / `pluck/nylon-guitar`). A recurring authoring move.
+- used by: jangle (`I_GTR`, default) · jingle (`I_GTR`)
+- pair: jangle opts into `pluck/jangle-guitar` (real KS string) via a code flag — the same
+  fake↔real guitar toggle bossa uses (`tri/nylon-fake` / `pluck/nylon-guitar`). jingle has
+  no real-string option.
 
 ### pluck/jangle-guitar
 `INSTR_PLUCK` · A1 D0 S7 R180 · LP 2600/2 · h0.5 t0.75 m0.2 · pitch-LFO 5.5 Hz/0.12 · vol-LFO 4.7 Hz/0.08
@@ -532,6 +548,16 @@ The dub "meltdown toy" — a PWM square with a long pitch-env sweep, fired as an
 - origin: dub
 - used by: dub (`I_SIREN`)
 - kin: PWM-square family (see `square/melodica`).
+
+### sine/singing-lead
+`INSTR_SINE` · A14 D200 S4 R240 · LP 2300/2 · pitch-LFO 5.1 Hz/0.12 (vibrato)
+A soft, wordless "singing" lead — a SINE with a gentle vibrato, jingle's delicate topline.
+Its **solo stop** (`I_SOLO`) is brighter: LP 3000/2, a touch more vibrato (5.2/0.16).
+- tier: unique
+- origin: jingle
+- used by: jingle (`I_MEL` comp · `I_SOLO` solo stop)
+- kin: the SINE-lead-with-vibrato idea also in bossa's `sine/breathy-flute` (there a flute,
+  here a wordless vocal).
 
 ### sine/breathy-flute
 `INSTR_SINE` · A25 D120 S5 R140 · LP 2600/2 · pitch-LFO 5.2 Hz/0.18 (vibrato)

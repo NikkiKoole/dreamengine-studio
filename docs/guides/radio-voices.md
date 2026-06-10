@@ -269,12 +269,50 @@ toggle bossa uses. If anything is a clone of the dance-station template, it's ja
 
 ---
 
+## jingle — Mac DeMarco songwriter, the delicate side (dusk sibling of jangle)
+
+Solo layer: **`solo.h`** (a scale-locked lead over the progression).
+
+The most-borrowing station of all — almost every voice joins an existing family. It's
+*jangle re-tuned softer*: its guitar and bass are variants of jangle's, its kick/hat are the
+6-station synth kit, and it uses a cross-stick (like bossa/dub) instead of a snare. Only its
+soft singing lead is near-original.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_GTR`  | fingerpicked chorused guitar | `tri/jangle-guitar` ⟳ (jangle) | TRI |
+| `I_BASS` | round simple bass | `sine/round-bass` ⟳ (jangle) | SINE |
+| `I_MEL`  | soft singing lead | `sine/singing-lead` (kin: bossa `sine/breathy-flute`) | SINE |
+| `I_KICK` | soft kick | `drum/synth-kick` ⟳ (×5 others) | SINE |
+| `I_RIM`  | cross-stick | `noise/cross-stick` ⟳ (bossa · dub) | NOISE |
+| `I_HAT`  | tight hat | `drum/noise-hat` ⟳ (×5 others) | NOISE |
+| `I_SOLO` | jam lead (solo.h) | `sine/singing-lead` (solo stop) | SINE |
+
+**Borrowing at a glance:** jingle owns almost nothing — guitar + bass are the jangle
+songwriter-pair variants, the kit is the 6-station family, the rim is the latin/folk
+cross-stick. Only `sine/singing-lead` is its own (and kin to bossa's flute).
+
+---
+
+## The `solo.h` cluster (now complete: bossa · dub · jangle · jingle · citypop)
+
+The five player-jam stations don't form one shared palette — they split by **idiom**:
+- **songwriter pair** jangle ↔ jingle share guitar + bass (`tri/jangle-guitar`, `sine/round-bass`).
+- **latin/folk percussion** bossa ↔ dub ↔ jingle share `noise/cross-stick`.
+- the **synth kit** cuts across citypop/dub/jangle/jingle (and the non-solo motorik/lowend).
+- bossa stays most island-like; citypop sits with the dance clones.
+
+So reuse tracks *genre adjacency*, not the `solo.h` membership itself.
+
+---
+
 ## Stations not yet charted
 
 addis · carlos · exotica · gamelan ·
-jingle · roadhouse · satie · tango · ymo · yacht
+roadhouse · satie · tango · ymo · yacht
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail · lowend · bossa · dub · jangle (9). Last of the `solo.h` group is jingle; then the
-`improv.h` soloists roadhouse/addis and the acoustic stations (satie/tango/gamelan/carlos),
-which will likely add new families rather than reuse these.)
+cocktail · lowend · bossa · dub · jangle · jingle (10 — halfway). The `solo.h` cluster is now
+complete. Remaining: the `improv.h` soloists roadhouse/addis and the acoustic/orchestral
+stations (satie/tango/gamelan/carlos/exotica/yacht/ymo), which will likely add new families
+rather than reuse these.)

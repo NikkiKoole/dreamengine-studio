@@ -13,7 +13,7 @@ lines of `instrument_*` calls — and so shared recipes become visible on one pa
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
 > **cocktail**, **lowend**, **bossa**, **dub**, **jangle**, **jingle**, **addis**, **yacht**,
-> **roadhouse**, **satie**, **gamelan**, **tango** (see
+> **roadhouse**, **satie**, **gamelan**, **tango**, **carlos** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -901,6 +901,33 @@ Its **solo stop** (`I_SOLO`) is brighter: LP 3000/2, a touch more vibrato (5.2/0
 - used by: jingle (`I_MEL` comp · `I_SOLO` solo stop)
 - kin: the SINE-lead-with-vibrato idea also in bossa's `sine/breathy-flute` (there a flute,
   here a wordless vocal).
+
+### saw/fat-moog **(voicings)**
+`INSTR_SAW` · resonant LP · cut-env "wow" (the Minimoog filter env) · drive (seeded)
+The fat Moog — **the exact `moog.c` signal path** (SAW through a resonant lowpass with a
+per-note filter-envelope "wow" and a little drive), driven by carlos's two-voice counterpoint
+generator instead of a keyboard. The two voices of the invention:
+
+| voice | recipe |
+|---|---|
+| upper (`I_UP`) | SAW A5 D220 S3 R170 · LP 2200/resU · cut-env →1300 (0/110) · drive — brighter |
+| lower (`I_LO`) | SAW A6 D300 S3 R220 · LP 1450/resL · cut-env →1000 (0/150) · drive — rounder, fatter |
+
+- tier: unique (two voices)
+- origin: **`moog.c`** signal path (the dream-synth cart) — a showcase-cart lineage, like
+  `mallet/vibes` / the organ.c registrations
+- used by: carlos (`I_UP` · `I_LO`)
+- kin: the SAW family — italo's `saw/italo-seq-bass` shares the cut-env + drive idea; this is
+  the resonant-lead voicing.
+
+### saw/moog-pedal
+`INSTR_SAW` · A400 D600 S5 R1200 · LP 820/1 · pitch-LFO 0.16 Hz/0.04 (analog drift)
+The sustained tonic pedal — the "Switched-On wall" held under the counterpoint, with a hair
+of slow analog pitch drift.
+- tier: unique
+- origin: carlos
+- used by: carlos (`I_PED`)
+- kin: a held SAW drone like `saw/string-machine` — here a single sustained pedal.
 
 ### sine/breathy-flute
 `INSTR_SINE` · A25 D120 S5 R140 · LP 2600/2 · pitch-LFO 5.2 Hz/0.18 (vibrato)

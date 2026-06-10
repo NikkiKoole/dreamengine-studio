@@ -448,14 +448,36 @@ tango's own.
 
 ---
 
+## carlos — Switched-On Bach (Wendy Carlos)
+
+Solo layer: **none** (a two-voice species-counterpoint generator drives it).
+
+Pure Moog — three `INSTR_SAW` voices, no drums, no chord table. A **synthetic island**: it
+uses synths but shares nothing with the dance cluster — its kinship is to the dream-synth
+cart, not the groove stations.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_UP`  | upper Moog voice (brighter) | `saw/fat-moog` (upper) | SAW |
+| `I_LO`  | lower Moog voice (fatter) | `saw/fat-moog` (lower) | SAW |
+| `I_PED` | sustained tonic pedal | `saw/moog-pedal` | SAW |
+
+**Borrowing at a glance:** none copied — its fat-Moog patch *is* the `moog.c` signal path
+(another showcase-cart lineage), and the pedal is kin to the SAW string pad. Useful data
+point: **"synthetic" ≠ "dance cluster."** carlos is all synths but its own island, because the
+dance cluster is about the *kit-driven groove idiom*, not the oscillator choice.
+
+---
+
 ## Stations not yet charted
 
-carlos · exotica · ymo
+exotica · ymo
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
 cocktail · lowend · bossa · dub · jangle · jingle · addis · yacht · roadhouse · satie ·
-gamelan · tango (16). Refined finding: there are **two** sharing clusters, not "dance shares /
-acoustic builds own" — a **dance/synthetic** palette (synth kit, 808, disco basses,
-PWM-squares) and an **acoustic jazz/classical** palette (fake TRI/SINE pianos, the session
-upright, cross-stick) spanning cocktail/roadhouse/tango. The true islands are the world/ethio
-stations (gamelan, addis). Remaining: carlos · exotica · ymo.)
+gamelan · tango · carlos (17). Refined finding: sharing clusters by **idiom**, not engine —
+a **dance/groove** palette (synth kit, 808, disco basses, PWM-squares) and an **acoustic
+jazz/classical** palette (fake TRI/SINE pianos, the session upright, cross-stick) spanning
+cocktail/roadhouse/tango. Islands build their own: world/ethio (gamelan, addis) and even
+synthetic ones (carlos is all-SAW but shares nothing — "synthetic" ≠ "dance cluster").
+Remaining: exotica · ymo.)

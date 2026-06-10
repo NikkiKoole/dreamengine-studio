@@ -23,6 +23,9 @@ radio, and where are we (knowingly or not) reusing the same recipe?*
   (byte-identical)* with that cart; **⟳** means a *variant* (same instrument re-tuned)
   others also use; **≈** means a *cousin* (same recipe skeleton, different character). No
   mark = unique to this station.
+- **rolls between** — when a slot lists several presets, the seed picks one *per song*
+  (the cart's "nights"). One name per genuine engine choice; pure param tweaks stay folded
+  into a single preset's variations table (see `instrument-presets.md` → naming rule).
 - **solo layer** — `solo.h` (player jam strip) or `improv.h` (auto-soloist), or none.
 
 ---
@@ -137,12 +140,33 @@ byte-identical macros). Only the organ drone and Moog bass are motorik-original.
 
 ---
 
+## cocktail — Piano-trio lounge (Vince Guaraldi / Oscar Peterson)
+
+Solo layer: **`improv.h`** (the piano solos over two arcs, then the bass takes a solo on
+the *same* brain). The whole cart is built on seed-rolled **"nights"** — several voices
+*roll between different instruments* per song, so two playthroughs are two different trios.
+Where a slot lists **several presets**, the seed picks one each night.
+
+| slot | role | rolls between (one per night) |
+|---|---|---|
+| `I_PNO`   | comp + melody piano | `tri/felt-grand` · `sine/closed-lid-piano` |
+| `I_PSOLO` | solo stop (improv.h plays here) | `tri/piano-solo-stop` · `mallet/vibes` ≈ · `pluck/archtop` |
+| `I_BASS`  | walking upright | `tri/upright-bass` · `sine/gut-bass` |
+| drums (`SL_RIDE`/`SL_HAT`/`SL_BRSH`/`SL_KICK`) | jazz kit | `kit/cocktail-brushes` · `kit/cocktail-sticks` |
+
+**Borrowing at a glance:** almost all cocktail-original — its *one* cross-cart link is the
+MJQ night of the solo stop, which is `mallet/vibes` (the 5th use of that preset). The rest
+of its variety is **internal**: the seed rolling each voice through a different instrument
+each night — a different piano, a different solo voice, a different bass, and brushes vs
+sticks on the kit. Every one of those choices is a name you can point at.
+
+---
+
 ## Stations not yet charted
 
-ambient · addis · bossa · carlos · cocktail · dub · exotica · gamelan ·
+ambient · addis · bossa · carlos · dub · exotica · gamelan ·
 jangle · jingle · lowend · roadhouse · satie · tango · ymo · yacht
 
-(20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik.
-**lowend** and **cocktail** are already referenced by the `mallet/vibes` entry — charting
-either would confirm that cluster. The `solo.h` group — bossa/dub/jangle/jingle — is still
-untouched.)
+(20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
+cocktail. **lowend** is still referenced-only by `mallet/vibes` — charting it confirms that
+cluster. The `solo.h` group — bossa/dub/jangle/jingle — is still untouched.)

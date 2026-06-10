@@ -11,7 +11,8 @@ This file gives each recipe a **clear name** so the per-station voice charts
 ([`radio-voices.md`](radio-voices.md)) can reference the name instead of repeating four
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
-> **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik** (see
+> **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
+> **cocktail** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -32,6 +33,17 @@ r)`. `LP/HP/BP n/q` = `instrument_filter` low/high/band-pass at *n* Hz, resonanc
 `h/t/m` = `instrument_harmonics/timbre/morph` (0–1). `drive`, `pitch-env`, `cut-env` from
 `instrument_drive` / `instrument_env(…ENV_PITCH/ENV_CUTOFF…)`.
 
+**Naming rule — the test is "would a musician call these two different instruments or
+techniques?"** If **yes**, they get separate names: a different **engine**, a different
+**playing implement/technique** (brushes vs sticks — a real sound difference even though the
+console fakes both with the same engine), or a character change you'd hear as a different
+instrument (clean vs distorted). If it's the *same instrument merely re-tuned*
+across carts (ADSR, filter, a macro nudged) — like one disco bass two stations both build —
+that's **one name + a variations table**, not a new name. The `group/` prefix is
+usually the engine (`tri/`, `fm/`, `mallet/`), or a family (`drum/`, `kit/`) for percussion,
+so a name hints at what it is at a glance. The point: **talk about the choices a radio makes**
+with names, not name every knob wiggle.
+
 **Sharing tiers** — the reason this catalog exists:
 
 | Tier | Means | Presentation | Watch out |
@@ -40,6 +52,12 @@ r)`. `LP/HP/BP n/q` = `instrument_filter` low/high/band-pass at *n* Hz, resonanc
 | **variant** | the *same instrument* re-tuned — same engine + role, numbers drift but the sound is "the same thing" | one entry + a variants table (numbers per cart) | usually fine; if the drift is accidental, worth reconciling. |
 | **cousin** | the same recipe *skeleton* deliberately voiced into **different-sounding** instruments (e.g. one driven/distorted, one clean) | separate entries, cross-linked "see also" | not duplication — it's a reused *technique*. Fine, but the cross-link makes the shared trick visible. |
 | **unique** | one cart only | one entry | nothing to reconcile. |
+
+**Nights (intra-cart variety).** Some stations seed-roll a slot *per song*. Each genuinely
+different instrument or technique the roll can land on is its **own named preset**, and the
+voice chart lists them all — so you see every instrument a slot can become (cocktail's solo
+stop → piano *or* vibes *or* guitar; its drums → brush kit *or* stick kit). Nothing hides
+behind "it varies."
 
 ---
 
@@ -132,6 +150,39 @@ A high-passed noise tick.
 - origin: undetermined
 - used by: citypop (`I_HAT`) · motorik (`I_HAT`)
 
+### kit/cocktail-brushes
+The jazz trio kit played with **brushes** — soft, swept, the sweep is a sustained circular
+wash. cocktail's drums on brush nights.
+
+| piece | recipe |
+|---|---|
+| ride (`SL_RIDE`) | SQUARE A1 D260 R160 · HP 5400/3 — soft ping |
+| hat (`SL_HAT`)   | NOISE A0 D30 R14 · HP 8200/3 |
+| sweep (`SL_BRSH`)| NOISE A60 D300 S2 R200 · HP 4800/1 — the circular brush sweep |
+| kick (`SL_KICK`) | SINE A0 D150 R60 · LP 220/1 · pitch-env →9 (0/35) — feathered |
+
+- tier: unique
+- origin: cocktail
+- used by: cocktail (brush nights)
+- pair: rolls against `kit/cocktail-sticks`. (Its HP-noise hat and pitch-enved sine kick are
+  kin to the `drum/noise-hat` / `drum/synth-kick` families — same engines, jazz voicing.)
+
+### kit/cocktail-sticks
+The same trio kit played with **sticks** — brighter and tighter, and the brush sweep
+becomes a short **tap**. cocktail's drums on stick nights.
+
+| piece | recipe |
+|---|---|
+| ride (`SL_RIDE`) | SQUARE A0 D320 R180 · HP 6400/4 — brighter ring |
+| hat (`SL_HAT`)   | NOISE A0 D22 R12 · HP 9000/3 — tighter |
+| tap (`SL_BRSH`)  | NOISE A2 D60 R40 · BP 3200/4 — the sweep becomes a tap |
+| kick (`SL_KICK`) | SINE A0 D170 R60 · LP 300/1 · pitch-env →11 (0/38) — forward |
+
+- tier: unique
+- origin: cocktail
+- used by: cocktail (stick nights)
+- pair: rolls against `kit/cocktail-brushes`.
+
 ## Bass
 
 ### saw/italo-seq-bass
@@ -148,6 +199,21 @@ roll. Drives the relentless motorik pulse.
 - tier: unique
 - origin: motorik
 - used by: motorik (`I_BASS`)
+
+### tri/upright-bass
+`INSTR_TRI` · A3 D300 S5 R110 · pitch-env →2 (0/16)
+Woody fingered upright — cocktail's walking bass on its brighter nights. The short
+pitch-env is the "thumb."
+- tier: unique
+- origin: cocktail
+- used by: cocktail (`I_BASS`, upright nights)
+
+### sine/gut-bass
+`INSTR_SINE` · A4 D340 S5 R130 · LP 380/1 · pitch-env →2 (0/16)
+Darker, rounder "gut strings" upright — cocktail's walking bass on its mellower nights.
+- tier: unique
+- origin: cocktail
+- used by: cocktail (`I_BASS`, gut nights)
 
 ### tri/disco-bass
 A round triangle bass with a short pitch-env "pluck snap" — the funk/disco low end.
@@ -178,6 +244,36 @@ each chuck its "scratch" attack.
 - tier: unique
 - origin: citypop
 - used by: citypop (`I_GTR`)
+
+### tri/felt-grand
+`INSTR_TRI` · A2 D600 S2 R240 · cut-env →700 (0/70)
+A soft, woody "felt grand" — cocktail's comp piano on its warmer nights. A *fake* piano (no
+`INSTR_PIANO`).
+- tier: unique
+- origin: cocktail
+- used by: cocktail (`I_PNO`, felt-grand nights)
+
+### sine/closed-lid-piano
+`INSTR_SINE` · A3 D700 S2 R260 · LP 1400/1
+The dark, intimate "closed-lid ballad" piano — cocktail's comp piano on its quieter nights.
+- tier: unique
+- origin: cocktail
+- used by: cocktail (`I_PNO`, closed-lid nights)
+
+### tri/piano-solo-stop
+`INSTR_TRI` · A1 D500 S3 R220 · cut-env →900 (0/60)
+The piano's brighter "solo stop" — same TRI family as the comp, opened up for the
+`improv.h` solo.
+- tier: unique
+- origin: cocktail
+- used by: cocktail (`I_PSOLO`, piano-stop nights)
+
+### pluck/archtop
+`INSTR_PLUCK` · A1 D0 S7 R700 · h0.50 t0.45 m0.5 · LP 2300/1
+A warm archtop jazz guitar, neck pickup — the "Herb Ellis night" of cocktail's solo stop.
+- tier: unique
+- origin: cocktail
+- used by: cocktail (`I_PSOLO`, Herb-Ellis nights)
 
 ## Stabs & leads
 
@@ -253,7 +349,7 @@ The jazz vibraphone — soft mallet, metal bar, long ring with motor tremolo (mo
 
 - tier: **shared** (mallet/lowend/motorik macros byte-identical) — cocktail is a hair-off variant (m0.85)
 - origin: **mallet.c** `PRESET[3]` "vibes" (key 4)
-- used by: motorik (`I_SOLO`) · lowend (`I_LEAD`, opt-in behind `leadVibes`) · cocktail (`I_PSOLO`)
+- used by: motorik (`I_SOLO`) · lowend (`I_LEAD`, opt-in behind `leadVibes`) · cocktail (`I_PSOLO`, MJQ nights only)
 - ⚠ **provenance drift in the wild:** motorik's comment credits lowend.c, but lowend was
   only the middleman — the recipe is mallet.c's. A hand-copied preset whose chain of
   custody is *already* garbled in the comments. Prime candidate to extract into a real

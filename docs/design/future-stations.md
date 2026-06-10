@@ -311,6 +311,16 @@ mistuning. The other half of the engine's expressiveness, mostly unexplored.
 
 **Aphex Twin, decomposed** (the anchor of the batch):
 
+> **SCOPED (2026-06-10) → the `braindance` station, Path B.** Aphex isn't a genre, he's a
+> *range* (ambient / acid / drill'n'bass / solo piano / hardcore) — too wide for one coherent
+> "texture re-keyed." Decision: **don't** try to be all of him; build the **drill'n'bass /
+> braindance mode only** — the richest in new brains, and the modes we'd skip are already
+> covered (ambient → `ambient.c`, solo piano → `satie.c` / the unbuilt Eno-piano). Full
+> intent-first design: [`braindance-blind-brief.md`](braindance-blind-brief.md). The three
+> rhythm brains below are the **core engine**; the brief decides the four layers they *don't*
+> cover (the sweet melodic top, the chopped-break question, the mistuning timbre, the lurching
+> form).
+
 1. **No repeating patterns = drums as composition.** The kit is a GRAMMAR, not
    a pattern: anchors persist (kick near 1, snare backbeat-ish), everything
    else re-rolls per bar — fills are the norm. One knob: *volatility*

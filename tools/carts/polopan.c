@@ -665,10 +665,10 @@ void draw(void) {
         for (int k = 0; k < 4; k++) chord[k] = (root_pc(c) + QT[c.q][k]) % 12;
     }
     static const int PENT[5] = { 0, 2, 4, 7, 9 };
-    // the jam voice is a STRUCK mallet (celesta/xylophone), not a sustained lead — so the
-    // vertical axis shapes NOTHING (SOLO_Y_OFF). You can't bend/sweep a bar that's already
-    // ringing; horizontal still picks the note, each strike just rings out at a fixed timbre.
-    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_OFF, 0, 0 };
+    // the jam voice is a STRUCK mallet (celesta/xylophone): struck=true makes a drag RE-STRIKE
+    // each new bar (a xylophone run, old notes ringing out) instead of gliding one held voice,
+    // and SOLO_Y_OFF means the vertical axis shapes nothing — you can't bend a bar mid-ring.
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_OFF, 0, 0, true };
     solo_strip(&jc, 28, 170, 250, 18, CLR_ORANGE);
 
     ui_end();

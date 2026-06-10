@@ -106,6 +106,10 @@ typedef struct {
     bool quantize;            // snap each note-on to the next 16th
     int  ymode;               // SOLO_Y_* — what vertical drag does (top = more)
     float yMin, yMax;         // that mode's range: VOL = vol levels, BRIGHT = cutoff Hz
+    bool struck;              // STRUCK voice (mallet/xylophone): a drag RE-STRIKES each new
+                              // bar (a run of struck notes, old ones ringing out) instead of
+                              // gliding one held voice; release lets the last note ring.
+                              // Default 0 = SUSTAINED (held + glide), what every lead jam uses.
 } SoloCtx;
 
 static bool solo_open_f  = false;
@@ -218,26 +222,33 @@ static void solo_strip(const SoloCtx *cx, int x, int y, int w, int h, int accent
 
     double pos = (double)beat() * 4.0 + beat_pos() * 4.0;   // 16th-step clock
 
-    // note lifecycle: grab → on (quantized or now); drag → glide; release → off
+    // note lifecycle: grab → on (quantized or now); drag → glide (sustained) or RE-STRIKE
+    // (struck); release → off (sustained) or let the last note ring out (struck).
+    // STRUCK voices skip the glide (you can't slur a struck bar) and never note_off on drag —
+    // each new bar is a fresh note_on, the previous one decaying on its own (the xylophone run).
     if (ui_grabbed(&strip_id) && midi >= 0) {
         if (cx->quantize) { solo_pending = true; solo_pendMidi = midi; solo_pendStep = (long)pos; }
         else {
             solo_handle = note_on(midi, cx->instr, SOLO_VOL);
-            note_glide(solo_handle, SOLO_GLIDE_MS);
+            if (!cx->struck) note_glide(solo_handle, SOLO_GLIDE_MS);
             solo_curMidi = midi;
         }
     }
     if (solo_pending && (long)pos > solo_pendStep) {        // the quantized strike lands
         solo_handle = note_on(solo_pendMidi, cx->instr, SOLO_VOL);
-        note_glide(solo_handle, SOLO_GLIDE_MS);
+        if (!cx->struck) note_glide(solo_handle, SOLO_GLIDE_MS);
         solo_curMidi = solo_pendMidi;
         solo_pending = false;
     }
     if (c && !c->released && solo_handle >= 0 && midi >= 0 && midi != solo_curMidi) {
-        note_pitch(solo_handle, midi);                      // slide to the new degree
+        if (cx->struck) solo_handle = note_on(midi, cx->instr, SOLO_VOL);  // RE-STRIKE; old note rings out
+        else            note_pitch(solo_handle, midi);                     // SUSTAINED: slide to the new degree
         solo_curMidi = midi;
     }
-    if (ui_released(&strip_id)) solo_kill();
+    if (ui_released(&strip_id)) {
+        if (cx->struck) { solo_curMidi = -1; solo_curY = -1; solo_pending = false; }  // let the last bar ring
+        else solo_kill();
+    }
 
     // the vertical axis — the station decides what it means (top = more)
     if (solo_handle >= 0 && vy >= 0) {

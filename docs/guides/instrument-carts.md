@@ -39,6 +39,12 @@ generative-soundtrack how-to is [`game-music.md`](game-music.md).
 
 > ## 🛑 STOP — if your cart makes *music* (a station / a band / a tune), do this FIRST
 >
+> **Building a self-playing RADIO STATION?** Don't assemble the path yourself — there's
+> one ordered runbook for the whole arc: **[`radio-station-howto.md`](radio-station-howto.md)
+> — START THERE.** (It walks firewall → design blind → shop palette → chassis → brains →
+> build → register, linking each deep doc at the right step.) The rest of this banner and
+> the table below are pieces *it* sequences.
+>
 > **Before you open a single cousin cart, imagine the band blind.** This is the one
 > rule that keeps the library from homogenizing — and it only works if you do it
 > *before* reading how other carts are voiced (reading a cousin first anchors you to

@@ -69,6 +69,7 @@ docs/
 │   ├── BATCH-3.md                batch-3 cart index
 │   ├── cart-specs-index.md       batch-1 spec index + assembly recipe + parallel-build workflow
 │   ├── cart-specs/               per-game cart specs (individual game files, not shown in sidebar)
+│   ├── radio-station-howto.md    ★ START HERE to build a new radio station: the ordered runbook (firewall → design blind → shop palette → chassis → brains → build → register), a spine that links each deep doc at the right step
 │   ├── instrument-carts.md       the sound-toy shelf: every synth/machine/station/showcase cart, grouped by the building block it copies (radio.h / held-notes / ui.h / INSTR_*) — browse one to play, or find the closest relative when building a new one
 │   ├── instrument-recipes.md     the supply-side palette: every grabbable instrument recipe across the sound carts (showcase presets, Roland drum voices, whimsical patches), organized by ENGINE (107 recipes); the "which recipe" companion to instrument-carts.md's "which cart"
 │   ├── instrument-presets.md     the named-patch catalog: every radio station's voice recipes given clear names, with sharing tiers (shared/variant/cousin/kin) so copy-propagation across stations is visible; paired with radio-voices.md

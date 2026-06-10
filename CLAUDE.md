@@ -293,7 +293,10 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
 **Adding a new cart:**
 
 > Making a **sound/instrument cart** (synth, machine, station, engine showcase, sound
-> toy)? **If it makes *music* (a station, a band, a tune): imagine the ideal band from
+> toy)? **Building a self-playing RADIO STATION? There's one ordered runbook that
+> sequences the whole arc (firewall → design blind → shop palette → chassis → brains →
+> build → register): [`docs/guides/radio-station-howto.md`](docs/guides/radio-station-howto.md)
+> — START THERE.** For any music cart: **imagine the ideal band from
 > the genre BEFORE you read any existing cart** — write the lineup from the music itself,
 > then shop the palette, *then* copy a cousin's chassis. Reading a cousin first anchors
 > you to its voices and homogenizes the library (the why + the firewall:

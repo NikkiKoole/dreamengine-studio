@@ -169,6 +169,39 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
    emscripten audio worklets — **needs a feasibility check** (raylib bump or a custom
    audio backend) before it's a promise, not a one-liner.
 
+## AudioWorklet feasibility spike (2026-06-10)
+
+A throwaway minimal worklet (a sine via `emscripten/webaudio.h`, in
+`build/.worklet-spike/`) answered the make-or-break questions:
+
+- **Toolchain: ✅** emcc 5.0.7 compiles `-sAUDIO_WORKLET=1 -sWASM_WORKERS=1` cleanly;
+  the AudioWorklet API is present.
+- **Architecture: ✅** our sample generator + lock-free `req_queue`
+  (main-thread producer / audio-thread consumer) is *already* the worklet shape — the
+  hard design exists. (Caveat: the queue's `volatile` needs real **atomics/fences**
+  under a genuinely parallel audio thread; correctness work, not redesign.)
+- **raylib: ⚠️** `runtime/raylib-web/lib/libraylib.a` is **prebuilt** — its miniaudio
+  is the default emscripten path (ScriptProcessor). A worklet via raylib means
+  rebuilding raylib; the cleaner route is a **custom AudioWorklet that calls our mixer
+  directly**, bypassing raylib audio on web (we own every sample anyway).
+- **❌ BLOCKER — confirmed: shared memory ⇒ SharedArrayBuffer ⇒ COOP/COEP.** The
+  worklet build emits `WebAssembly.Memory({… shared:true})`. Shared memory is backed by
+  a `SharedArrayBuffer`, which browsers gate behind **cross-origin isolation**
+  (COOP/COEP response headers). **GitHub Pages can't set those headers**, so the build
+  won't even instantiate there as-is.
+
+**Ways past the blocker** (the real decision before any migration):
+1. **`coi-serviceworker`** — a service worker that injects COOP/COEP client-side,
+   enabling isolation on Pages. Works, but adds a SW + a first-load reload + cache
+   interplay (with our `?debug=1` overlay, etc.).
+2. **Move hosting** (Netlify / Cloudflare Pages) where headers are settable.
+3. **No-SAB restructure** (big): run the whole synth+clock *inside* the worklet with its
+   own memory, main thread sends only note events via `postMessage` (latency-tolerant
+   since notes are scheduled ahead). Avoids SAB, but it's a major audio-engine split.
+
+Recommended next step: deploy `spike.html` to confirm on-device that (a) it fails on
+plain Pages and (b) `coi-serviceworker` fixes it — *before* committing to the migration.
+
 ## Verification plan
 
 - **The `drift` cart is the purpose-built A/B rig** ([`../guides/instrument-carts.md`](../guides/instrument-carts.md)

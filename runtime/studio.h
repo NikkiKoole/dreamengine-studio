@@ -369,6 +369,10 @@ void reverb(float size, float damping);        // configure the bus: size 0..1 (
 void instrument_reverb(int slot, float send);  // how much this slot feeds the bus 0.0..1.0 — 0 = dry (default), 0.3 = roomy, 0.8 = drenched
 void note_reverb(int handle, float x);         // sweep a held note's reverb send live, slewed — bloom one phrase into the hall
 
+// chorus — THE master chorus (there is exactly one), applied to the whole mix: a BBD/Juno-style
+// modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).
+void chorus(float rate, float depth, float mix);  // rate 0.1..5 Hz (wobble speed), depth 0..1 (sweep), mix 0..1 (dry..wet). 0 mix = off. defaults 1.5/0.4/0.5
+
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti
 #define SCALE_MINOR      1   // natural minor

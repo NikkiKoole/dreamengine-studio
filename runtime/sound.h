@@ -474,6 +474,74 @@ static float reverb_process(float sample) {
     return rvb_allpass(a1, rvb_ap2, &rvb_ap_p2, REVERB_ALLPASS_2, 0.5f);
 }
 
+// ── THE shared modulated-delay buffer — chorus (the first use) ─────────────
+// instrument-engines §8.10 / decision 0015: 0015 reserves ONE master "wow/flutter buffer" as the
+// home where a real modulated-delay chorus + flanger + tape-wow all live — NOT three separate
+// effects. This is that buffer; **chorus is its first use** (a MASTER-STAGE insert, not a third
+// send bus, so 0015's two-send-bus cap holds). Flanger = this same buffer + feedback + a shorter
+// delay; tape wow/flutter = this buffer + a slow LFO — both reuse it later.
+// DSP = a line-for-line port of navkit's BBD chorus (the Juno-6 hardware model): one rounded-
+// triangle LFO, ANTIPHASE taps (tap1 = +mod → L, tap2 = −mod → R: a mono mix fans out to a wide
+// stereo chorus, the Juno's "two amps"), charge-well saturation for analog warmth. Dormant until
+// the first chorus() call (chorus_used), so old carts pay nothing and stay bytes-identical.
+#define CHORUS_BUF_LEN   2048      // ~46ms @44100 Hz
+#define CHORUS_MIN_DELAY 0.005f    // 5ms
+#define CHORUS_MAX_DELAY 0.030f    // 30ms
+#define CHORUS_BASE_DELAY 0.0175f  // (MIN+MAX)/2 — base ± mod stays in range at depth 1
+#define BBD_CHARGE_SAT   0.7f      // charge-well saturation threshold (warm even harmonics)
+static float cho_buf[CHORUS_BUF_LEN];
+static int   cho_widx   = 0;
+static float cho_phase  = 0.0f;            // LFO phase 0..1
+static float cho_rate   = 1.5f;            // LFO Hz (0.1..5) — gentle Juno wobble
+static float cho_depth  = 0.4f;            // sweep amount 0..1
+static float cho_mix    = 0.5f;            // dry/wet 0..1
+static bool  chorus_used = false;          // flips true on first chorus() call, never back
+
+// 4-point Hermite interpolation read from the mod-delay buffer (navkit hermiteInterp) — smoother
+// than linear, so the swept fractional tap doesn't alias
+static float cho_hermite(float readPos) {
+    int pos0 = (int)readPos;
+    float frac = readPos - (float)pos0;
+    int pm1 = (pos0 - 1 + CHORUS_BUF_LEN) % CHORUS_BUF_LEN;
+    int p0  =  pos0 % CHORUS_BUF_LEN;
+    int p1  = (pos0 + 1) % CHORUS_BUF_LEN;
+    int p2  = (pos0 + 2) % CHORUS_BUF_LEN;
+    float xm1 = cho_buf[pm1], x0 = cho_buf[p0], x1 = cho_buf[p1], x2 = cho_buf[p2];
+    float c0 = x0;
+    float c1 = 0.5f * (x1 - xm1);
+    float c2 = xm1 - 2.5f * x0 + 2.0f * x1 - 0.5f * x2;
+    float c3 = 0.5f * (x2 - xm1) + 1.5f * (x0 - x1);
+    return ((c3 * frac + c2) * frac + c1) * frac + c0;
+}
+// BBD charge-well saturation (navkit bbdSaturate): soft-clips above ±0.7, adding warm even harmonics
+static float cho_bbdsat(float x) {
+    if (x >  BBD_CHARGE_SAT) { float e = x - BBD_CHARGE_SAT;  return  BBD_CHARGE_SAT + e / (1.0f + e * 3.0f); }
+    if (x < -BBD_CHARGE_SAT) { float e = -x - BBD_CHARGE_SAT; return -(BBD_CHARGE_SAT + e / (1.0f + e * 3.0f)); }
+    return x;
+}
+// process one stereo sample IN PLACE: mono sum → mod-delay → antiphase L/R wet, dry preserved
+static void chorus_process(float *mixL, float *mixR) {
+    float mono = (*mixL + *mixR) * 0.5f;
+    cho_buf[cho_widx] = mono;
+    cho_widx = (cho_widx + 1) % CHORUS_BUF_LEN;
+    // rounded-triangle LFO (cubic soft-clip at the peaks — models the BBD capacitor rounding)
+    cho_phase += cho_rate / (float)SOUND_SAMPLE_RATE;
+    if (cho_phase >= 1.0f) cho_phase -= 1.0f;
+    float tri = cho_phase < 0.5f ? cho_phase * 4.0f - 1.0f : 3.0f - cho_phase * 4.0f;
+    tri = tri * (1.5f - 0.5f * tri * tri);
+    float modAmount = cho_depth * (CHORUS_MAX_DELAY - CHORUS_MIN_DELAY) * 0.5f;
+    float d1 = CHORUS_BASE_DELAY + tri * modAmount;   // antiphase taps
+    float d2 = CHORUS_BASE_DELAY - tri * modAmount;
+    if (d1 < CHORUS_MIN_DELAY) d1 = CHORUS_MIN_DELAY; if (d1 > CHORUS_MAX_DELAY) d1 = CHORUS_MAX_DELAY;
+    if (d2 < CHORUS_MIN_DELAY) d2 = CHORUS_MIN_DELAY; if (d2 > CHORUS_MAX_DELAY) d2 = CHORUS_MAX_DELAY;
+    float rp1 = (float)cho_widx - d1 * (float)SOUND_SAMPLE_RATE; if (rp1 < 0.0f) rp1 += CHORUS_BUF_LEN;
+    float rp2 = (float)cho_widx - d2 * (float)SOUND_SAMPLE_RATE; if (rp2 < 0.0f) rp2 += CHORUS_BUF_LEN;
+    float wet1 = cho_bbdsat(cho_hermite(rp1));   // +mod tap → left
+    float wet2 = cho_bbdsat(cho_hermite(rp2));   // −mod tap → right
+    *mixL = *mixL * (1.0f - cho_mix) + wet1 * cho_mix;
+    *mixR = *mixR * (1.0f - cho_mix) + wet2 * cho_mix;
+}
+
 // envelope-follower smoothing coefficient from a time in ms (one-pole; 0 ms = instant)
 static float sound_follow_coef(int ms) {
     if (ms <= 0) return 1.0f;
@@ -534,6 +602,7 @@ typedef enum {
     SR_REVERB       = 40,   // a=size*1000, b=damping*1000 — configure THE reverb bus (40-42; 39 = voice_nasal above)
     SR_INSTR_REVERB = 41,   // a=slot, b=send*1000 — per-slot reverb send
     SR_NOTE_REVERB  = 42,   // a=val*1000 (live, slewed), e0/e1=handle — live reverb send on a held note
+    SR_CHORUS       = 43,   // a=rate*1000, b=depth*1000, c=mix*1000 — configure THE master chorus (mod-delay buffer)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2913,6 +2982,17 @@ static void sound_fire_req(SoundReq r) {
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->rvb_target = x;
         }
+    } else if (r.kind == SR_CHORUS) {       // a=rate*1000, b=depth*1000, c=mix*1000
+        chorus_used = true;
+        float rate = r.a / 1000.0f;
+        if (rate < 0.1f) rate = 0.1f; if (rate > 5.0f) rate = 5.0f;
+        cho_rate = rate;
+        float depth = r.b / 1000.0f;
+        if (depth < 0.0f) depth = 0.0f; if (depth > 1.0f) depth = 1.0f;
+        cho_depth = depth;
+        float mix = r.c / 1000.0f;
+        if (mix < 0.0f) mix = 0.0f; if (mix > 1.0f) mix = 1.0f;
+        cho_mix = mix;
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3202,7 +3282,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
         }
 
-        // INSERT CHAIN — (future master inserts: tape / comp / bitcrush go HERE, before soft-clip) →
+        // INSERT CHAIN — series processors the whole mix passes through (more land here: tape /
+        // comp / bitcrush, before the soft-clip).
+        // INSERT 1 — chorus (the shared mod-delay buffer's first use; dormant until first chorus())
+        if (chorus_used) chorus_process(&mixL, &mixR);   // BBD chorus, antiphase stereo width, in place
+
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
         // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
         // slamming a hard wall. STEREO (stereo.md bite #5): derive ONE gain from the PEAK of the
@@ -3653,6 +3737,12 @@ void note_reverb(int handle, float x) {
     sound_push_ctrl(SR_NOTE_REVERB, (int)(x * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
+// ── chorus: THE master mod-delay (BBD) — first use of the shared modulated-delay buffer ──
+
+void chorus(float rate, float depth, float mix) {
+    sound_push_ctrl(SR_CHORUS, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
+}
+
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -3823,6 +3913,13 @@ static void sound_init(void) {
     reverb_fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;   // size 0.5 default
     reverb_damp = 0.5f;
     reverb_used = false;
+
+    // chorus / shared mod-delay buffer: clean slate (libtcc hot-reload + --det reproducibility)
+    memset(cho_buf, 0, sizeof(cho_buf));
+    cho_widx = 0;
+    cho_phase = 0.0f;
+    cho_rate = 1.5f; cho_depth = 0.4f; cho_mix = 0.5f;
+    chorus_used = false;
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence
     for (int w = 0; w < SOUND_USER_WAVES; w++)

@@ -22,16 +22,20 @@ candidates and build-order reasoning, not a how-to).
 A fourth build-order lens, cross-referenced against the now-complete instrument palette
 ([`../guides/instrument-recipes.md`](../guides/instrument-recipes.md)): **newest demand = the
 station forces sounds nothing on the dial makes yet** — chiefly the **untapped engine shelves**
-(`PIANO`/`PIPE`/`BOWED`/`VOICE`/`GUITAR`, which have *no* radio consumer) and/or a new brain.
+(of the original five — `PIANO`/`PIPE`/`BOWED`/`VOICE`/`GUITAR` — only **`PIANO`** still has *no*
+radio consumer: `GUITAR`/`BRASS` were claimed by afrobeat, `BOWED` by mariachi, `VOICE`/`PIPE`
+by air) and/or a new brain.
 This is the station-side mirror of the instrument new-sound score in
 [`cart-library-direction.md`](cart-library-direction.md) § 2b.
 
 | new demand | candidate | what it forces that nothing uses |
 |---|---|---|
 | ★★★★★ | **Eno "Music for Airports"** | real `INSTR_PIANO` **and** `INSTR_VOICE` choir (the sung vowels) — two untapped shelves at once + a prime-length-loops generative-form brain |
-| ★★★★☆ | **Plantasia (Mort Garson)** | a Mellotron → the whole wind/bowed/voice shelf (`PIPE` flutes, `BOWED` strings, `VOICE` choir) |
+| ★★★☆☆ | **Plantasia (Mort Garson)** | a Mellotron → the wind/bowed/voice shelf (`PIPE` flutes, `BOWED` strings, `VOICE` choir) — *downgraded: all three now have consumers (air, mariachi); the pull is now the Mellotron combination + a melody-forward lead, not first-use* |
 | ★★★★☆ | **Steve Reich minimalism** | real `INSTR_PIANO` + a **phase brain** (two voices drifting out of step — a new TIME mechanism) |
 | ✅ shipped | ~~**Afrobeat**~~ → `afrobeat.c` | delivered all three: first radio `INSTR_GUITAR` (the interlocking guitars) + first radio `INSTR_BRASS` & a `REED`+`BRASS` horn section + the `euclid()` polyrhythm bell/conga. The prediction held. |
+| ✅ shipped | ~~**Mariachi / son jalisciense**~~ → `mariachi.c` | **first radio `INSTR_BOWED`** (the violin section, with a portamento scoop) + `INSTR_BRASS` trumpet call-and-response + `INSTR_GUITAR` ×3 (vihuela/guitarra/guitarrón). New brain: **THE SESQUIALTERA** — a TIME brain reading one 12-step bar as 6/8 and 3/4 at once (2-against-3 hemiola). |
+| ✅ shipped | ~~**AIR / Moon Safari**~~ → `air.c` | **first radio melodic `INSTR_VOICE`** (vocoder lead) + first radio `INSTR_PIPE` flute. New brain: **the ARTIST station / SONG-ARCHETYPE roll** — cited tracks encoded as template bundles (progression + groove + tempo + lead voice + form), so the dial plays recognizably different songs *of one act*, not one re-keyed texture. |
 | ★★☆☆☆ | **J-fusion / Lofi-hiphop / Boards of Canada** | mostly covered engine territory (FM/EPIANO/saws); the *new* is brains (mistuning, swing), not timbre |
 
 So the newest demand rhymes with the instrument finding: the candidates that need the
@@ -294,7 +298,7 @@ mechanisms we lack, rather than genres we know. None needs new engine API:
 | **Indian classical / raga** | **3–4** | raga as melody GRAMMAR (ascent ≠ descent, direction-gated tones, the pakad signature phrase — melody brain #3, beyond the improviser's mode walk) · tala + THE TIHAI (a cadence you COMPUTE: a phrase ×3 calculated to land exactly on sam) · alap (meterless form — the raga's notes revealed one at a time, pitch-set as dramaturgy) · the tanpura drone; raga-by-time-of-day is mood-metadata's cousin |
 | ~~**tango / Romantic rubato**~~ | 1 big | ✅ shipped as `tango.c` (2026-06-05, station #15) — TEMPO AS A VOICE landed as designed: phrase-level accel/rit via live `bpm()`, and the clock genuinely survived untouched. Trace-verified: a rit dip at every 8-bar boundary, final rallentando to −22%, then the next song snaps a tempo. Bonus blocks the scout note didn't call: THE ARRASTRE, the chan-chan ending (the first station whose songs END rather than loop out), and the breathing-bellows window art — the new brain made visible |
 | **barbershop / close harmony** | 1–2 | ADAPTIVE JUST INTONATION — retune each held chord to pure ratios with `note_pitch` floats (the "ring"); gamelan's tuning idea per-CHORD instead of per-song — the two reinforce |
-| **West African / Afro-Cuban** | 1–2 | true POLYMETER (12/8 bell over 4/4, the timeline as the lock) · batucada's CONDUCTOR — a performance channel that *signals* the band (calls, breaks, re-entries; the desk mixes, the conductor commands) |
+| **West African / Afro-Cuban** | 1–2 | true POLYMETER (12/8 bell over 4/4, the timeline as the lock) · batucada's CONDUCTOR — a performance channel that *signals* the band (calls, breaks, re-entries; the desk mixes, the conductor commands). *Partly previewed: mariachi's **sesquialtera** is 2-against-3 within one bar; true cross-bar polymeter + the conductor channel are still unbuilt.* |
 | **Balkan / klezmer aksak** | 1 | additive meter as data (2+2+3 limping 7/8) — satie proved odd bars |
 | **pedal steel / country** | 1 | bending INDIVIDUAL VOICES inside a held chord (per-handle `note_pitch` — chord-internal glides nobody has used) |
 | **the fill grammar** | 1 | cross-genre: phrase-end fills/turnarounds as a rule system — none of 14 stations does fills |

@@ -12,7 +12,7 @@ This file gives each recipe a **clear name** so the per-station voice charts
 lines of `instrument_*` calls — and so shared recipes become visible on one page.
 
 > **Status: growing.** Charted so far: **italo**, **house**, **citypop**, **motorik**,
-> **cocktail** (see
+> **cocktail**, **lowend** (see
 > [`radio-voices.md`](radio-voices.md) for why we started with italo). Grow one station
 > at a time. When a new station reuses a recipe already named here, add it to that
 > preset's **used by** line rather than minting a duplicate.
@@ -52,6 +52,12 @@ with names, not name every knob wiggle.
 | **variant** | the *same instrument* re-tuned — same engine + role, numbers drift but the sound is "the same thing" | one entry + a variants table (numbers per cart) | usually fine; if the drift is accidental, worth reconciling. |
 | **cousin** | the same recipe *skeleton* deliberately voiced into **different-sounding** instruments (e.g. one driven/distorted, one clean) | separate entries, cross-linked "see also" | not duplication — it's a reused *technique*. Fine, but the cross-link makes the shared trick visible. |
 | **unique** | one cart only | one entry | nothing to reconcile. |
+
+**Borderline? Don't merge on suspicion — merge on proof.** When two voices are arguably "the
+same instrument" but not clearly so, keep them as separate entries with a `kin:` cross-link
+noting the relationship. Collapsing into one name is a *cut*, and a cut is worth making only
+once a cluster has visibly piled up (a dozen near-identical uprights, say). The catalog's job
+is to make that pile visible; the link is enough until the evidence is.
 
 **Nights (intra-cart variety).** Some stations seed-roll a slot *per song*. Each genuinely
 different instrument or technique the roll can land on is its **own named preset**, and the
@@ -106,12 +112,13 @@ The "dewww" — a downward pitch-swept sine, the electronic Simmons tom of '80s 
 - origin: italo
 - used by: italo (`SL_TOM`)
 
-> **The synth-drum kit vs the 808 box.** Two drum lineages run through the dance stations.
-> house + italo share a characterful *808-style box* (long bridged-T `drum/french-house-kick`,
-> SQUARE metal hats) — byte-identical, **shared**. citypop + motorik instead each hand-build
-> a *generic synth kit* (sine kick + band-passed-noise snare + HP-noise hat) — same recipes,
-> re-tuned, so they're **variant** families below. The kit is the single most-rebuilt thing
-> in the radio family.
+> **The synth-drum kit vs the 808 box.** Two drum lineages run through the dance/groove
+> stations. house + italo share a characterful *808-style box* (long bridged-T
+> `drum/french-house-kick`, SQUARE metal hats) — byte-identical, **shared**. citypop,
+> motorik **and lowend** instead each hand-build a *generic synth kit* (sine kick +
+> band-passed-noise snare + HP-noise hat) — same recipes, re-tuned per cart, so they're
+> **variant** families below. At three stations and counting, this kit is the single
+> most-rebuilt thing in the radio family — and the strongest case for a shared helper.
 
 ### drum/synth-kick
 A short downward-pitch-swept sine — the generic four-on-the-floor synth thump (distinct
@@ -121,10 +128,11 @@ from house's long bridged-T boom).
 |---|---|
 | citypop (`I_KICK`) | SINE A0 D80 S0 R30 · pitch-env →14 (0/40) — tight 80s pop |
 | motorik (`I_KICK`) | SINE A0 D100 S0 R40 · pitch-env →12 (0/50) — the motorik thud |
+| lowend (`I_KICK`)  | SINE A0 D95 S0 R35 · pitch-env →16 (0/50) — the boom-bap "boom" |
 
-- tier: **variant**
-- origin: undetermined (both look hand-rolled; confirm against earlier stations)
-- used by: citypop (`I_KICK`) · motorik (`I_KICK`)
+- tier: **variant** (3 stations)
+- origin: undetermined (all hand-rolled; confirm against earlier stations)
+- used by: citypop (`I_KICK`) · motorik (`I_KICK`) · lowend (`I_KICK`)
 
 ### drum/noise-snare
 A band-passed noise burst — the synth backbeat.
@@ -133,10 +141,11 @@ A band-passed noise burst — the synth backbeat.
 |---|---|
 | citypop (`I_SNARE`) | NOISE A0 D75 S0 R50 · BP 2400/5 · pitch-env →10 (0/30) — bright crack |
 | motorik (`I_SNR`)   | NOISE A0 D70 S0 R45 · BP 1800/5 — darker, understated |
+| lowend (`I_SNARE`)  | NOISE A0 D85 S0 R40 · BP 1700/7 · pitch-env →14 (0/25) — the "bap," tight & low |
 
-- tier: **variant**
+- tier: **variant** (3 stations)
 - origin: undetermined
-- used by: citypop (`I_SNARE`) · motorik (`I_SNR`)
+- used by: citypop (`I_SNARE`) · motorik (`I_SNR`) · lowend (`I_SNARE`)
 
 ### drum/noise-hat
 A high-passed noise tick.
@@ -145,10 +154,19 @@ A high-passed noise tick.
 |---|---|
 | citypop (`I_HAT`) | NOISE A0 D16 **S2** R70 · HP 8000/2 — sustain>0 so the open hat *washes* |
 | motorik (`I_HAT`) | NOISE A0 D12 S0 R26 · HP 8200/2 — a tight straight-8th tick |
+| lowend (`I_HAT`)  | NOISE A0 D18 S0 R14 · HP 7500/3 — closed, lo-fi, sits back |
 
-- tier: **variant** (the sustain split makes citypop's wash vs motorik's tick — borderline cousin)
+- tier: **variant** (3 stations; citypop's wash vs the others' tight ticks is borderline cousin)
 - origin: undetermined
-- used by: citypop (`I_HAT`) · motorik (`I_HAT`)
+- used by: citypop (`I_HAT`) · motorik (`I_HAT`) · lowend (`I_HAT`)
+
+### noise/vinyl-dust
+`INSTR_NOISE` · A0 D10 S0 R8 · HP 4000/2
+A tiny mid-high noise tick fired as continuous crackle — the lo-fi vinyl "dust" that
+defines boom-bap's surface. A texture voice, not a kit piece.
+- tier: unique
+- origin: lowend
+- used by: lowend (`I_VINYL`)
 
 ### kit/cocktail-brushes
 The jazz trio kit played with **brushes** — soft, swept, the sweep is a sustained circular
@@ -208,6 +226,18 @@ pitch-env is the "thumb."
 - origin: cocktail
 - used by: cocktail (`I_BASS`, upright nights)
 
+### sine/boom-bap-bass
+`INSTR_SINE` · A4 D220 S5 R120 · LP 480/1 · pitch-env →4 (0/35) · drive 0.20
+The Low End's star — a deep upright-ish sine with a long pitch-env "thump" and gentle tape
+saturation (warmth, not fuzz). Front and centre, Ron-Carter-style.
+- tier: unique
+- origin: lowend
+- used by: lowend (`I_BASS`)
+- kin: same engine + pitch-env-thumb idea as cocktail's `sine/gut-bass` — both model a jazz
+  upright on SINE. **Kept separate** (decided): lowend's is saturated/deeper (boom-bap sub),
+  cocktail's a clean dark gut upright. If a cluster of near-identical uprights piles up
+  later, collapse it *then* — on evidence, not on suspicion.
+
 ### sine/gut-bass
 `INSTR_SINE` · A4 D340 S5 R130 · LP 380/1 · pitch-env →2 (0/16)
 Darker, rounder "gut strings" upright — cocktail's walking bass on its mellower nights.
@@ -236,6 +266,14 @@ A Rhodes with the tine "detent" bark dialed low — the harmonic bed under the s
 - tier: unique
 - origin: italo
 - used by: italo (`I_KEYS`)
+
+### tri/tremolo-rhodes
+`INSTR_TRI` · A8 D300 S3 R200 · LP 1600/2 · vol-LFO 4.2 Hz/0.10 (tremolo) · cut-env →900 (0/110, bark)
+A *fake* Rhodes — TRI rather than `INSTR_EPIANO` — whose signature is the **volume-LFO
+tremolo** and a cutoff "bark" on the attack. The wobbly electric-piano stabs of boom-bap.
+- tier: unique
+- origin: lowend
+- used by: lowend (`I_RHODES`)
 
 ### tri/funk-guitar
 `INSTR_TRI` · A0 D140 S1 R60 · cut-env →1200 (0/60) · *(filter follows feel)*
@@ -325,6 +363,14 @@ Resonant Casio-CZ phase-distortion topline, DCW sweep on the strike — the chor
 - tier: unique
 - origin: italo
 - used by: italo (`I_LEAD`)
+
+### tri/sparse-hook-lead
+`INSTR_TRI` · A10 D180 S4 R200 · LP 2200/2 · pitch-LFO 5.4 Hz/0.12 (vibrato)
+A soft TRI lead with a slow vibrato — lowend's sparse melodic hook (its shipped default;
+the slot can opt into `mallet/vibes` instead).
+- tier: unique
+- origin: lowend
+- used by: lowend (`I_LEAD`, default)
 
 ### saw/brass-section
 `INSTR_SAW` · A4 D180 S5 R120 · LP 2000·feel/3 · pitch-env →−2 (0/40)

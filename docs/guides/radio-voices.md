@@ -162,11 +162,39 @@ sticks on the kit. Every one of those choices is a name you can point at.
 
 ---
 
+## lowend — Jazz-rap boom bap (A Tribe Called Quest / *Low End Theory*)
+
+Solo layer: **none**.
+
+Minimalist by doctrine — bass first, drums, one or two elements. Its melodic voices are
+lowend-original, but its **whole rhythm section is the shared synth kit** (kick/snare/hat
+= the 3-station `drum/*` variant families), and its lead can opt into the well-travelled
+`mallet/vibes`.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_RHODES` | tremolo EP stabs | `tri/tremolo-rhodes` | TRI |
+| `I_BASS`   | the star — deep upright | `sine/boom-bap-bass` (kin: cocktail `sine/gut-bass`) | SINE |
+| `I_LEAD`   | sparse hook | `tri/sparse-hook-lead` *(default)* · `mallet/vibes` *(opt-in)* | TRI / MALLET |
+| `I_KICK`   | the "boom" | `drum/synth-kick` ⟳ (citypop · motorik) | SINE |
+| `I_SNARE`  | the "bap" | `drum/noise-snare` ⟳ (citypop · motorik) | NOISE |
+| `I_HAT`    | lo-fi closed hat | `drum/noise-hat` ⟳ (citypop · motorik) | NOISE |
+| `I_VINYL`  | vinyl dust/crackle | `noise/vinyl-dust` | NOISE |
+
+**Borrowing at a glance:** confirms the synth kit as a **3-station** pattern (⟳ citypop ·
+motorik) — its kick/snare/hat are those families, boom-bap-tuned. The opt-in vibes is the
+5th `mallet/vibes` use (here the shipped default is the TRI hook, not the vibraphone). Only
+the tremolo Rhodes, sine bass, and vinyl dust are lowend-original. `I_LEAD` rolls between
+two presets, but via a **code flag** (`leadVibes`), not a per-song seed roll.
+
+---
+
 ## Stations not yet charted
 
 ambient · addis · bossa · carlos · dub · exotica · gamelan ·
-jangle · jingle · lowend · roadhouse · satie · tango · ymo · yacht
+jangle · jingle · roadhouse · satie · tango · ymo · yacht
 
 (20 stations total; all on `runtime/radio.h`. Charted: italo · house · citypop · motorik ·
-cocktail. **lowend** is still referenced-only by `mallet/vibes` — charting it confirms that
-cluster. The `solo.h` group — bossa/dub/jangle/jingle — is still untouched.)
+cocktail · lowend. The `solo.h` group — bossa/dub/jangle/jingle — is still untouched; the
+`improv.h` soloists roadhouse/addis and the acoustic stations (satie/tango/gamelan/carlos)
+will likely add new families rather than reuse these.)

@@ -184,12 +184,12 @@ swing. The genuine fix decouples the audio clock from the buffer cadence → Aud
    / an `fps` cap frees main-thread time for the audio callback, so it starves less.
    Synergistic with #5 — fewer render frames competing with the ScriptProcessor.
 7. **The real fix — AudioWorklet.** Build web audio on an `AudioWorklet`
-   (`-sAUDIO_WORKLET=1 -sWASM_WORKERS=1` + a miniaudio/raylib that targets the
-   emscripten worklet), so the callback runs on a **dedicated audio thread** with a
-   steady clock, decoupled from rendering. This is what actually makes TRUTH tight on
-   mobile. Caveat: depends on the vendored raylib/miniaudio version supporting
-   emscripten audio worklets — **needs a feasibility check** (raylib bump or a custom
-   audio backend) before it's a promise, not a one-liner.
+   (`-sAUDIO_WORKLET=1 -sWASM_WORKERS=1`, a **custom backend** calling our mixer — not
+   via raylib), so the callback runs on a **dedicated audio thread** with a steady clock,
+   decoupled from rendering. This is what actually makes TRUTH tight on mobile, and the
+   spike proved it's reachable on Pages. **The full threading model + the runtime
+   backend pick + the staged build plan now live in
+   [`audio-threading.md`](audio-threading.md)** — that's where the migration is specced.
 
 ## AudioWorklet feasibility spike (2026-06-10)
 

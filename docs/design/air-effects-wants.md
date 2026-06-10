@@ -26,9 +26,14 @@ a string-machine chorus, onto warm tape.* That layer is missing.
 > `reverb(size,damping)` (a real room — AIR's top vote, met) and `chorus(rate,depth,mix)` (the real
 > BBD modulated-delay, not the detuned-SAW stand-in). And as of 2026-06-11 the per-instrument step
 > shipped: **`instrument_chorus(I_PAD, …)` choruses the Solina pad alone** while drums/bass stay
-> dry — the earlier "master-wide, waits for the aux bus" caveat is gone. `air.c` can drop the
-> `instrument_tune` detune-pair hack and route the pad through a real ensemble chorus. Flanger is
-> also per-instrument (`instrument_flanger`). Remaining open: a true vocoder, tape sat.
+> dry — the earlier "master-wide, waits for the aux bus" caveat is gone. **WIRED in `air.c`
+> (2026-06-11):** the pad now runs a real per-part ensemble chorus (solina.c "I", mix 0.58–0.70
+> via the strings chair), the stereo Rhodes gets a light one, the master chorus is OFF, and the
+> `instrument_tune` is back to a subtle 0.05 divide-down beating under the real swirl.
+> **Tape SHIPPED + WIRED (2026-06-11):** `tape(wow,flutter,sat)` master-wide — `air.c` commits the
+> whole record to tape per archetype (dreamy songs wow & saturate more; Kelly runs clean). Verified
+> −7 dBFS, 0 clipped. **The only AIR want still open is a true vocoder** (Kelly's lead is still a
+> raw `INSTR_VOICE` vowel, not a carrier shaped by a voice's formants).
 
 ---
 
@@ -55,6 +60,24 @@ overblow 0, or does intonation drift toward the top even without overblow? If th
 real engine-tuning item (a pitch-tracking / bore-length calibration pass), not effects-bus work —
 worth a STEP-0 check the next time PIPE is touched. Logged here so it isn't mistaken for a
 missing-effect want.
+
+> **RESOLVED 2026-06-11 — it was the latter (a real engine bug), now fixed.** Built a
+> tuning meter (`tools/tune-check.js`) and measured PIPE cold: even at overblow 0 it was
+> **an octave low AND progressively flat** up the range (A2 −13¢ → A5 −159¢). Two engine
+> bugs in `sound_pipe_start`, not the overblow screech: (1) the bore was sized a *full*
+> wavelength, but the open end's reflection INVERTS, so a waveguide resonates at SR/(2·delay)
+> — an octave down; (2) the jet + filter loop delay went uncompensated, ringing it flat. The
+> bore-length calibration this note predicted is exactly the fix: **half-wavelength bore minus
+> a loop-delay term derived from the note-on jet length** (`1.69 + 0.308·jetLen`), plus the
+> bowed-string fractional-read trick for sub-sample precision. The jet term is the subtle part
+> — the *embouchure* (morph) macro sets the jet length, so a constant left morph≠0 sharp by up
+> to a semitone (this recipe's `m0.70` measured **+88…+147¢** before the fix). PIPE is now in
+> tune within **~±3¢ from C4 to ~E6** at any sane embouchure (verified at this exact recipe,
+> robust across seeds). So the screech-avoidance workaround was masking a bore bug; with the
+> engine right, `air.c`'s Cherry register **reopened 67–83 → 64–86**. Full write-up:
+> [`audio-notes.md` §18](audio-notes.md) + [`STATUS.md`](../STATUS.md) #31. One residual lives
+> on there, *not* here: the extreme overblow/longest-jet (morph≈0) voice is still seed-unstable
+> in its very top octave — irrelevant to AIR, which sits at m0.70.
 
 ## Not-effects: the cart's own generative business
 

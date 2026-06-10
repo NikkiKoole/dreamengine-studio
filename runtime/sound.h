@@ -497,16 +497,18 @@ static float cho_depth  = 0.4f;            // sweep amount 0..1
 static float cho_mix    = 0.5f;            // dry/wet 0..1
 static bool  chorus_used = false;          // flips true on first chorus() call, never back
 
-// 4-point Hermite interpolation read from the mod-delay buffer (navkit hermiteInterp) — smoother
-// than linear, so the swept fractional tap doesn't alias
-static float cho_hermite(float readPos) {
+// 4-point Hermite interpolation read from ANY mod-delay buffer (navkit hermiteInterp) — smoother
+// than linear, so a swept fractional tap doesn't alias. THE shared read of the modulated-delay
+// technique: chorus and flanger (and later tape) each instantiate their own buffer but read it
+// through this one helper — "write the technique once."
+static float moddel_hermite(const float *buf, int len, float readPos) {
     int pos0 = (int)readPos;
     float frac = readPos - (float)pos0;
-    int pm1 = (pos0 - 1 + CHORUS_BUF_LEN) % CHORUS_BUF_LEN;
-    int p0  =  pos0 % CHORUS_BUF_LEN;
-    int p1  = (pos0 + 1) % CHORUS_BUF_LEN;
-    int p2  = (pos0 + 2) % CHORUS_BUF_LEN;
-    float xm1 = cho_buf[pm1], x0 = cho_buf[p0], x1 = cho_buf[p1], x2 = cho_buf[p2];
+    int pm1 = (pos0 - 1 + len) % len;
+    int p0  =  pos0 % len;
+    int p1  = (pos0 + 1) % len;
+    int p2  = (pos0 + 2) % len;
+    float xm1 = buf[pm1], x0 = buf[p0], x1 = buf[p1], x2 = buf[p2];
     float c0 = x0;
     float c1 = 0.5f * (x1 - xm1);
     float c2 = xm1 - 2.5f * x0 + 2.0f * x1 - 0.5f * x2;
@@ -536,10 +538,50 @@ static void chorus_process(float *mixL, float *mixR) {
     if (d2 < CHORUS_MIN_DELAY) d2 = CHORUS_MIN_DELAY; if (d2 > CHORUS_MAX_DELAY) d2 = CHORUS_MAX_DELAY;
     float rp1 = (float)cho_widx - d1 * (float)SOUND_SAMPLE_RATE; if (rp1 < 0.0f) rp1 += CHORUS_BUF_LEN;
     float rp2 = (float)cho_widx - d2 * (float)SOUND_SAMPLE_RATE; if (rp2 < 0.0f) rp2 += CHORUS_BUF_LEN;
-    float wet1 = cho_bbdsat(cho_hermite(rp1));   // +mod tap → left
-    float wet2 = cho_bbdsat(cho_hermite(rp2));   // −mod tap → right
+    float wet1 = cho_bbdsat(moddel_hermite(cho_buf, CHORUS_BUF_LEN, rp1));   // +mod tap → left
+    float wet2 = cho_bbdsat(moddel_hermite(cho_buf, CHORUS_BUF_LEN, rp2));   // −mod tap → right
     *mixL = *mixL * (1.0f - cho_mix) + wet1 * cho_mix;
     *mixR = *mixR * (1.0f - cho_mix) + wet2 * cho_mix;
+}
+
+// ── flanger — the SECOND use of the modulated-delay technique (§8.10 / 0015's "one true gap") ──
+// 0015 deferred flanger until the master modulated-delay buffer existed ("if it ever lands for
+// tape, flanger falls out of it free"); chorus landed that technique, so flanger is now a second
+// instance of it — its own short buffer + the shared moddel_hermite read. A short (0.1–10ms)
+// triangle-LFO-swept delay with FEEDBACK: feedback is the flanger's identity (subtle → jet whoosh
+// → metallic resonance), negative = through-zero. Mono (the classic flange is mono — no antiphase
+// trick). MASTER INSERT, master-wide, dormant until the first flanger() call.
+#define FLANGER_BUF_LEN   512        // ~11ms @44100 Hz
+#define FLANGER_MIN_DELAY 0.0001f    // 0.1ms
+#define FLANGER_MAX_DELAY 0.010f     // 10ms
+static float flg_buf[FLANGER_BUF_LEN];
+static int   flg_widx  = 0;
+static float flg_phase = 0.0f;
+static float flg_rate  = 0.3f;             // LFO Hz (0.05..5)
+static float flg_depth = 0.7f;             // sweep amount 0..1
+static float flg_fb    = 0.7f;             // feedback −0.95..0.95 (the jet/metallic knob)
+static float flg_mix   = 0.5f;             // dry/wet 0..1
+static bool  flanger_used = false;         // flips true on first flanger() call, never back
+
+// process one stereo sample IN PLACE: mono sum → swept short delay + feedback → wet, dry preserved
+static void flanger_process(float *mixL, float *mixR) {
+    float mono = (*mixL + *mixR) * 0.5f;
+    // triangle LFO 0→1→0
+    flg_phase += flg_rate / (float)SOUND_SAMPLE_RATE;
+    if (flg_phase >= 1.0f) flg_phase -= 1.0f;
+    float lfo = flg_phase < 0.5f ? flg_phase * 2.0f : 2.0f - flg_phase * 2.0f;
+    float delaySec = FLANGER_MIN_DELAY + lfo * flg_depth * (FLANGER_MAX_DELAY - FLANGER_MIN_DELAY);
+    float ds = delaySec * (float)SOUND_SAMPLE_RATE;
+    if (ds < 1.0f) ds = 1.0f; if (ds > FLANGER_BUF_LEN - 1) ds = FLANGER_BUF_LEN - 1;
+    float rp = (float)flg_widx - ds; if (rp < 0.0f) rp += FLANGER_BUF_LEN;
+    float wet = moddel_hermite(flg_buf, FLANGER_BUF_LEN, rp);
+    float fb = mono + wet * flg_fb;            // feedback into the line = the resonant comb
+    if (fb >  1.5f) fb =  1.5f;                // navkit's runaway guard
+    if (fb < -1.5f) fb = -1.5f;
+    flg_buf[flg_widx] = fb;
+    flg_widx = (flg_widx + 1) % FLANGER_BUF_LEN;
+    *mixL = *mixL * (1.0f - flg_mix) + wet * flg_mix;   // mono wet, both channels
+    *mixR = *mixR * (1.0f - flg_mix) + wet * flg_mix;
 }
 
 // envelope-follower smoothing coefficient from a time in ms (one-pole; 0 ms = instant)
@@ -603,6 +645,7 @@ typedef enum {
     SR_INSTR_REVERB = 41,   // a=slot, b=send*1000 — per-slot reverb send
     SR_NOTE_REVERB  = 42,   // a=val*1000 (live, slewed), e0/e1=handle — live reverb send on a held note
     SR_CHORUS       = 43,   // a=rate*1000, b=depth*1000, c=mix*1000 — configure THE master chorus (mod-delay buffer)
+    SR_FLANGER      = 44,   // a=rate*1000, b=depth*1000, c=feedback*1000 (signed), e0=mix*1000 — THE master flanger
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2993,6 +3036,20 @@ static void sound_fire_req(SoundReq r) {
         float mix = r.c / 1000.0f;
         if (mix < 0.0f) mix = 0.0f; if (mix > 1.0f) mix = 1.0f;
         cho_mix = mix;
+    } else if (r.kind == SR_FLANGER) {      // a=rate*1000, b=depth*1000, c=fb*1000 (signed), e0=mix*1000
+        flanger_used = true;
+        float rate = r.a / 1000.0f;
+        if (rate < 0.05f) rate = 0.05f; if (rate > 5.0f) rate = 5.0f;
+        flg_rate = rate;
+        float depth = r.b / 1000.0f;
+        if (depth < 0.0f) depth = 0.0f; if (depth > 1.0f) depth = 1.0f;
+        flg_depth = depth;
+        float fb = r.c / 1000.0f;
+        if (fb < -0.95f) fb = -0.95f; if (fb > 0.95f) fb = 0.95f;   // signed: −=through-zero
+        flg_fb = fb;
+        float mix = r.e0 / 1000.0f;
+        if (mix < 0.0f) mix = 0.0f; if (mix > 1.0f) mix = 1.0f;
+        flg_mix = mix;
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3286,6 +3343,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // comp / bitcrush, before the soft-clip).
         // INSERT 1 — chorus (the shared mod-delay buffer's first use; dormant until first chorus())
         if (chorus_used) chorus_process(&mixL, &mixR);   // BBD chorus, antiphase stereo width, in place
+        // INSERT 2 — flanger (second use of the mod-delay technique; dormant until first flanger())
+        if (flanger_used) flanger_process(&mixL, &mixR); // short swept delay + feedback, mono, in place
 
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
         // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
@@ -3743,6 +3802,12 @@ void chorus(float rate, float depth, float mix) {
     sound_push_ctrl(SR_CHORUS, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
 }
 
+// ── flanger: THE master flanger — second use of the shared modulated-delay technique ──
+
+void flanger(float rate, float depth, float feedback, float mix) {
+    sound_push_ctrl(SR_FLANGER, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(feedback * 1000.0f), (int)(mix * 1000.0f), 0, 0);
+}
+
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -3920,6 +3985,13 @@ static void sound_init(void) {
     cho_phase = 0.0f;
     cho_rate = 1.5f; cho_depth = 0.4f; cho_mix = 0.5f;
     chorus_used = false;
+
+    // flanger / second mod-delay instance: clean slate
+    memset(flg_buf, 0, sizeof(flg_buf));
+    flg_widx = 0;
+    flg_phase = 0.0f;
+    flg_rate = 0.3f; flg_depth = 0.7f; flg_fb = 0.7f; flg_mix = 0.5f;
+    flanger_used = false;
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence
     for (int w = 0; w < SOUND_USER_WAVES; w++)

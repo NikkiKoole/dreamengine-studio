@@ -373,6 +373,10 @@ void note_reverb(int handle, float x);         // sweep a held note's reverb sen
 // modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).
 void chorus(float rate, float depth, float mix);  // rate 0.1..5 Hz (wobble speed), depth 0..1 (sweep), mix 0..1 (dry..wet). 0 mix = off. defaults 1.5/0.4/0.5
 
+// flanger — THE master flanger (one, whole mix): a short swept delay with feedback. The jet-plane
+// whoosh / metallic comb sweep. Needs a rich source (chords, noise) to hear. Master-wide.
+void flanger(float rate, float depth, float feedback, float mix);  // rate 0.05..5 Hz, depth 0..1, feedback -0.95..0.95 (more = jet/metallic; <0 = through-zero), mix 0..1 (0 = off). defaults 0.3/0.7/0.7/0.5
+
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti
 #define SCALE_MINOR      1   // natural minor

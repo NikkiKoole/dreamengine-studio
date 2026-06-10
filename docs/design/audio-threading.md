@@ -119,12 +119,19 @@ correctness native consoles need.
 
 Staged so each step is verifiable on its own; **Stage 0 is the real risk to retire first.**
 
-- **Stage 0 — de-risk graphics + worklet in ONE build.** The feasibility spike was
-  *audio-only*. Before anything else, confirm a `raylib` (GLFW/GL) window **and** an
-  AudioWorklet (`-sAUDIO_WORKLET=1 -sWASM_WORKERS=1`, shared memory) coexist in a single
-  emcc build — i.e. shared-memory wasm doesn't break raylib's GL context / main loop.
-  Build a tiny combined spike (a window + the click roll). **If this fails, the whole plan
-  changes**, so do it first.
+- **Stage 0 — de-risk graphics + worklet in ONE build. LINK ✅ (2026-06-10).** A combined
+  spike (raylib `InitWindow` + a worklet sine, in `build/.worklet-spike/combo.c`) **links
+  against the prebuilt `libraylib.a` with `-sAUDIO_WORKLET=1 -sWASM_WORKERS=1`** — the
+  single-threaded raylib lib is *not* an ABI blocker. The only snag: emscripten's
+  wasm-workers libc (`libc-ww`) pulls `clock_nanosleep.o`, which references
+  `emscripten_thread_sleep`, undefined under bare `WASM_WORKERS`. **Two fixes, both verified
+  to link:** (a) **lean** — add a one-line JS-library stub
+  `addToLibrary({ emscripten_thread_sleep: ()=>{} })` (safe: raylib on web yields via
+  `emscripten_set_main_loop` and never actually sleeps, so the path is never hit — *confirm
+  at runtime*); (b) **fallback** — add full `-pthread -sPTHREAD_POOL_SIZE=1` (heavier).
+  Prefer the lean stub. **Still pending: the RUNTIME check** — deploy the combo (with
+  coi-serviceworker for isolation) and confirm the GL window actually renders *and* the
+  worklet plays in the same build, on desktop + phone.
 - **Stage 1 — atomics-harden the SPSC queue** (`sound.h`): `volatile` head/tail →
   C11 `atomic_int` with acquire/release. Platform-independent; benefits native too. Verify
   with the soundcheck tripwire (CLAUDE.md) + a native A/B that nothing regresses.

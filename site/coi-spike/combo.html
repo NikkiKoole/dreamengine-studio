@@ -4,7 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Stage-0 combo — raylib window + AudioWorklet</title>
-<!-- coi-serviceworker FIRST: isolation → shared memory → the worklet build can run -->
+<!-- self-heal: ONLY when broken (not isolated AND a stale SW is registered), wipe it +
+     reload clean once so coi gets a fresh start. Never touches the happy path or first
+     load. This is what stops the mixed-state confusion — not "always unregister". -->
+<script>
+(function(){
+  if (window.crossOriginIsolated) return;            // already good
+  if (sessionStorage.getItem('coiSelfHeal')) return; // once per session (no loops)
+  if (!navigator.serviceWorker) return;
+  navigator.serviceWorker.getRegistrations().then(function(rs){
+    if (!rs.length) return;                           // first load, no SW → let coi register
+    sessionStorage.setItem('coiSelfHeal','1');
+    Promise.all(rs.map(function(r){ return r.unregister(); }))
+      .then(function(){ return window.caches ? caches.keys().then(function(k){ return Promise.all(k.map(function(x){ return caches.delete(x); })); }) : 0; })
+      .then(function(){ location.reload(); });
+  });
+})();
+</script>
+<!-- coi-serviceworker: isolation → shared memory → the worklet build can run -->
 <script src="coi-serviceworker.js"></script>
 <style>
   html,body{margin:0;height:100%;background:#111;color:#eee;font:16px/1.5 system-ui,sans-serif}

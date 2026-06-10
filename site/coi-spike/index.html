@@ -24,7 +24,9 @@
 <div class="wrap">
   <h1>AudioWorklet spike <span class="tag">WITH coi-serviceworker</span></h1>
   <div>cross-origin isolated: <span id="iso">checking…</span></div>
+  <div>SharedArrayBuffer available: <span id="sab">checking…</span></div>
   <button id="start">▶ TAP TO START — listen for a 440 Hz tone</button>
+  <button id="reset" style="background:#a33;font-size:15px;padding:12px">↻ RESET — unregister SW, clear caches, reload (do this for a clean test)</button>
   <div class="hint">Expected on GitHub Pages: the page reloads itself once (service worker
     gaining control), isolation flips to <b>true</b>, the wasm loads, and tapping plays a
     steady tone on the dedicated audio thread. If isolation stays <b>false</b> or the wasm
@@ -36,8 +38,24 @@
     var el = document.getElementById('iso');
     if (window.crossOriginIsolated) { el.textContent='true ✓'; el.className='ok'; }
     else { el.textContent='false ✗ (shared memory will be blocked)'; el.className='bad'; }
+    var sab = document.getElementById('sab');
+    if (typeof SharedArrayBuffer !== 'undefined') { sab.textContent='yes ✓'; sab.className='ok'; }
+    else { sab.textContent='no ✗'; sab.className='bad'; }
   }
   setIso();
+  // clean-slate button: a fragile SW/cache state is the usual cause of a mixed reading.
+  document.getElementById('reset').addEventListener('click', async function(){
+    try {
+      if (navigator.serviceWorker) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      if (window.caches) { const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); }
+      sessionStorage.clear();
+      window.__spikeStatus('reset done — reloading clean…');
+      setTimeout(()=>location.reload(), 300);
+    } catch(e){ window.__spikeStatus('reset error: '+e); }
+  });
   window.__spikeStatus = function(m){
     var s=document.getElementById('status'); s.textContent += '\n'+m;
   };

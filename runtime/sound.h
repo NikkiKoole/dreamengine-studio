@@ -1451,7 +1451,9 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         float k2 = (0.30f + bark * 0.5f) * vb;
         float k3 = (0.40f + bark * 0.6f) * vb;
         out = sum + k2 * s2 + k3 * sum * s2;
-        out = tanhf(out * (1.2f + 0.4f * v->vol));    // harder strike clips harder
+        out = tanhf(out * 1.2f);                      // navkit's fixed 1.2 — a hotter (vel-scaled) drive
+                                                      // over-saturated → high harmonics aliased into a
+                                                      // ~28dB-louder noise floor + inharmonic "bell" mess
     } else {                                          // Rhodes: even harmonics, asymmetric clip.
         // The pickup nonlinearity is the REAL Rhodes harmonic source (Shear §2.2.1, Faraday's law
         // + non-uniform field), so it has an ALWAYS-ON floor (0.15) — even soft notes have grit —

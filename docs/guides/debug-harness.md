@@ -225,6 +225,36 @@ never trips it; this is how you catch a width effect that *isn't*. The pan traje
 how the `pan_law()` A/B was measured — a steady tone swept −1→+1 traces straight across
 the meter. (Ear-checking a 3 dB pan-law difference failed; this measured it cold.)
 
+### A/B against navkit (the reference synth)
+
+Most of our instrument engines are **ports of navkit** (`~/Projects/navkit/soundsystem`),
+the sibling synth they came from — so when a ported voice sounds "off," the fastest
+diagnosis is to render navkit's *original* and compare the actual audio, not to theorize.
+navkit ships a pile of headless sound tooling that needs no raylib/audio device:
+
+| navkit tool | what it does |
+|---|---|
+| `tools/preset_audition.c` | **THE one to know** — headless preset→WAV: `preset_audition <idx> -n <midi> -d <on s> -t <total s> -o out.wav`. `-a` = analyze-only, `--ref <wav>` = compare against a reference, `--all` = every preset |
+| `tools/wav_analyze.h` | navkit's WAV metrics (peak/RMS/crest/…), the analog of our `tools/wav-analyze.js` |
+| `tools/golden_wav_gen.sh` + `golden_wavs/` | reference renders of demo songs + checksums (regression catch) |
+| `tools/song_render.c` / `daw_render.c` | render a whole song / DAW project offline |
+| `engines/instrument_presets.h` | the preset bank — search it for the index (e.g. `instrumentPresets[180].name = "Clav Funky"`) |
+
+`preset_audition` has no raylib dependency, so it builds standalone:
+```bash
+cd ~/Projects/navkit/soundsystem
+clang -O2 -o /tmp/nav_audition tools/preset_audition.c -lm
+/tmp/nav_audition 180 -n 60 -d 1.5 -t 2.0 -o /tmp/nav_clav.wav   # navkit "Clav Funky", middle C
+```
+Then render *our* equivalent voice (a cart, `play.js … --wav`), and compare both —
+`wav-analyze`'s two-file mode for levels, or an FFT for spectrum. A real worked example:
+diagnosing why our INSTR_EPIANO clav sounded "messier" than navkit's, an FFT of both
+(middle C, no wah) showed our **noise floor 28 dB higher** (−90 vs −118 dB) + spurious
+inharmonic partials — the kind of thing ears flag but only a spectrum pins down.
+**Gotcha:** isolate the note — our epiano's preset-select fires an *audition* note that
+rings ~1 s and contaminated the first measurement (a phantom partial at the audition's
+pitch); play the analyzed note seconds after any audition, with autoplay off.
+
 ### Tuning — is each engine in tune?
 
 `wav-analyze.js` measures *level*, not *pitch* — it can't tell you an engine is

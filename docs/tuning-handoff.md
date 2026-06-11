@@ -36,6 +36,16 @@ index + the decisions that are **yours** to make.
       audio agents, split, verify byte-identical, unfreeze). Only worth it if you keep running
       several audio agents at once. Not urgent — the cheap guards hold the line.
 
+## ☐ Bigger idea, parked behind a prerequisite — [`instrument-bank-plan.md`](instrument-bank-plan.md)
+
+- [ ] **Instrument bank + orchestra-tuner cart** ([STATUS #33](STATUS.md)). A shared
+      machine-readable registry of the named dependable voices (kills the copy-paste-from-doc),
+      + an audible/visual tuner cart that auditions a voice against a sine reference. Groundwork
+      audit done (zero drift; vanilla anchors pinned). **Parked until a clean 4th-axis/aux-param
+      API lands** (today's `eng_tune` is experimental) — otherwise the preset schema can't capture
+      pizz/fundamental/nasal. Full spec + locked decisions in the plan doc. *(The "radio voices
+      missing from the docs" side-task was a false positive — resolved on inspection, plan doc §6.)*
+
 ## ☐ Open engine residuals (tracked, not urgent — [STATUS #31](STATUS.md))
 
 - [ ] **PLUCK / REED / BRASS go flat at the very top** (A5 −17…−25¢) — integer-sample delay

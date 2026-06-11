@@ -735,6 +735,25 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     very clobber it prevents. High-effort; only worth it if you keep running several audio agents
     at once. Until then the cheap guards hold the line.
 
+33. **Instrument bank + orchestra tuner** *(new 2026-06-11, **PARKED behind a prerequisite** —
+    full spec in [`instrument-bank-plan.md`](instrument-bank-plan.md))*. Two complementary things
+    on one source of truth: a machine-readable **registry** of the named dependable voices
+    (engine + macros + register + tuning verdict) that carts `#include` instead of copy-pasting
+    floats out of [`guides/instrument-recipes.md`](guides/instrument-recipes.md), and an
+    **orchestra-tuner cart** — the audible/visual *audition* counterpart to the headless
+    `tune-check.js` gate (plays a voice against a sine reference so you *hear* the beating, shows
+    the baked cents needle so you *see* the verdict). Architecture: `tools/presets.json` →
+    `gen-presets.js → runtime/presets.h` (mirrors `gen-tcc-symbols.js`). **Groundwork done:** a
+    doc↔cart reconciliation audit found **zero float drift** (the doc is a clean seed) and pinned
+    the vanilla anchor per family; PIPE is the only tuning hazard (only `pipe/flute` m0.70 safe).
+    **Why parked:** the per-voice control surface beyond `h/t/m` isn't unified — `eng_tune` is
+    EXPERIMENTAL ("not a final API"), VOICE uses bespoke `voice_nasal`/`voice_consonant`. **Land a
+    clean 4th-axis/aux-param API first**, else the preset schema can't capture bowed-pizz /
+    guitar-fundamental / voice-nasal. Locked decisions, schema, and build order live in the plan
+    doc. *(The audit's "radio voices missing from the recipe docs" subtask was a false positive —
+    resolved on inspection: they're all present and value-accurate in `radio-voices.md` +
+    `instrument-presets.md`, where radio voices belong; the audit checked `instrument-recipes.md`.)*
+
 ---
 
 ## Decided-against / deferred ✗

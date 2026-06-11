@@ -55,8 +55,10 @@ the effects-layer plan. **Genre: design exploration.**
 > auto-wah; the bus is the follower's "real home." Showcase: **clavinet**. So the roster is
 > essentially complete: echo/reverb/chorus/flanger/tape/auto-wah, all per-instrument. **Next:**
 > explicit named buses to route *several* instruments through one shared insert (the remaining
-> generalization); the other §8.10.1 PARKED per-voice stand-ins (**epiano tremolo**, the per-voice
-> **envelope follower**) migrate onto phase-coherent buses; leslie per the build-list.
+> generalization); the remaining §8.10.1 PARKED per-voice stand-in is **epiano tremolo** (still
+> per-voice; wants a phase-coherent bus LFO + the suitcase stereo auto-pan) — the per-voice
+> **envelope follower** was retired as epiano's TOUCH moved onto `instrument_wah()` (2026-06-11);
+> leslie per the build-list.
 > **Authoritative roster = [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)**
 > (effects are recipes; ~12 primitives, forever); this doc's §8.10 is the routing sketch 0015
 > disciplined — where they differ, 0015 wins. To work on effects, read **0015 + §8.10 +
@@ -1603,14 +1605,19 @@ of it or mistake it for finished intent. When §8.10 opens, fold each into a sha
 bus processor (or remove it). *(Migrated 2026-06-09 from the retired `sound-handoff.md`; this is now
 the canonical home — the §8.8.5 post-ship notes point here.)*
 
-- **Per-voice wah (epiano AUTO / TOUCH flavours)** — a *simple* swept SVF. The real "woah woah" is
-  the **bus auto-wah** specced above (bandpass on the summed mix). The clav **ENV quack** stays
-  per-voice (a fast per-note filter-env snap, ~100ms — genuinely per-note and shippable); AUTO/TOUCH
-  will likely be replaced by the bus wah.
+- **Per-voice wah (epiano AUTO flavour)** — a *simple* swept SVF (an LFO on a bandpass; 0015's
+  valid "auto-wah = LFO_CUTOFF" rhythmic recipe). The clav **ENV quack** likewise stays per-voice
+  (a fast per-note filter-env snap, ~100ms — genuinely per-note and shippable). **RESOLVED
+  2026-06-11: epiano's TOUCH flavour migrated onto the bus** — it now calls the shipped
+  `instrument_wah()` (the real "woah-woah", an envelope follower on the summed bus signal), no
+  longer a per-voice `instrument_follow`. So the only per-voice wah left is the LFO AUTO + the clav
+  ENV quack, both deliberate recipes; the parked stand-in part of this bullet is closed.
 - **The envelope follower (`instrument_follow` / `note_follow`)** — the 3rd modulation source
   (tracks a voice's own amplitude → cutoff/vol/pitch). Shipped + wired + tripwired, but its real
-  home is **bus-level** (it should track the *whole performance*, not one voice), and it has no
-  shipped per-voice customer. Re-evaluate when §8.10 lands; don't build on it meanwhile.
+  home is **bus-level** (it should track the *whole performance*, not one voice), and it has **no
+  shipped per-voice customer** — epiano's TOUCH was the last demo user and dropped it for
+  `instrument_wah()` on 2026-06-11. Re-evaluate the per-voice form's fate when convenient; don't
+  build on it meanwhile.
 - **Per-voice epiano tremolo** (`epiano.c` `SL_TREM` → `LFO_VOLUME` on LFO slot 1) — the
   suitcase/Wurli amp wobble, the "electric" signature the dry tine+pickup model lacked. On real
   hardware tremolo is a **bus effect**: one LFO downstream of where the tines sum, so the whole

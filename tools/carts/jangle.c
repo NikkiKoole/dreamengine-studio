@@ -474,7 +474,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_ORANGE);
-    rad_footer(str("SPACE next song   G gtr:%s   H help", gtrPluck ? "PLUCK" : "TRI"));
+    rad_footer(str("G gtr:%s   H help", gtrPluck ? "PLUCK" : "TRI"));
 
     if (showHelp) {
         static const char *HELP[9][2] = {

@@ -681,7 +681,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARKER_PURPLE);
 
     rad_help_button(CLR_RED);
-    rad_footer("SPACE next tango   B band   H help");
+    rad_footer("B band   H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {

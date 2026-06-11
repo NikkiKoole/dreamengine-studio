@@ -822,7 +822,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_ORANGE);
-    rad_footer("SPACE song   J jam along   H help");
+    rad_footer("J jam along   H help");
 
     if (showHelp) {
         static const char *HELP[9][2] = {

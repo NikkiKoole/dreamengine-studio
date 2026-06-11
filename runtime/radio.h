@@ -165,11 +165,103 @@ enum {
     RAD_EV_TONE   = 64,   // T — toneSel cycled (re-aim filters if not done per frame)
 };
 
+// ── the TUNER: tap-to-tune-to-the-next-song (replaces "press SPACE") ────────
+// A big tune button beside the dial. Tap it (or SPACE) and the radio "tunes":
+// the needle sweeps from the current station to the new one over ~0.5s while a
+// burst of static fades through, masking the song swap. Touch-native — no
+// keyboard needed. radio.h owns the whole transition; rad_dial draws the button
+// + animates the needle, rad_input handles the tap + advances the sweep, so the
+// 7 carts that call rad_dial get it for free. The new song is rolled at the
+// instant of the tap (RAD_EV_NEW), then the needle eases to its dial position.
+#define RAD_TUNE_SECS  0.5f
+#define RAD_TUNE_BTN_X 252
+#define RAD_TUNE_BTN_Y 28
+#define RAD_TUNE_BTN_W 36
+#define RAD_TUNE_BTN_H 16
+#define RAD_DIAL_SP    11            // px per MHz (was 13; tightened to fit the button)
+#ifndef RAD_STATIC_SLOT
+#define RAD_STATIC_SLOT 31           // reserved noise slot for the static (carts use <= ~15)
+#endif
+
+static bool  rad_tuning   = false;
+static float rad_tune_t   = 0;       // 0..1 sweep progress
+static float rad_from_freq = 98.0f;  // needle start (the station we're leaving)
+static float rad_to_freq   = 98.0f;  // needle target (the new station)
+static float rad_last_freq = 98.0f;  // last real freq drawn — the "from" for the next sweep
+static int   rad_static_h  = -1;
+static bool  rad_static_ready = false;
+
+static bool rad_is_tuning(void) { return rad_tuning; }
+
+// begin a tune: snapshot where we are, fire up the static. The cart rolls the
+// new song this same frame (RAD_EV_NEW), so rad_dial captures its freq as the target.
+static void rad_tune_start(void) {
+    if (rad_tuning) return;
+    rad_tuning = true;
+    rad_tune_t = 0;
+    rad_from_freq = rad_last_freq;
+    if (!rad_static_ready) {                 // lazy: a short-tailed noise voice for the hiss
+        instrument(RAD_STATIC_SLOT, INSTR_NOISE, 6, 40, 7, 90);
+        rad_static_ready = true;
+    }
+    rad_static_h = note_on(60, RAD_STATIC_SLOT, 0);   // starts silent, bell-curve up
+}
+
+// advance the sweep one frame (called from rad_input). Shapes the static volume
+// (fast in, slow out) and ends the tune when the needle has landed.
+static void rad_tune_advance(void) {
+    if (!rad_tuning) return;
+    rad_tune_t += dt() / RAD_TUNE_SECS;
+    float t = rad_tune_t;
+    float b = t < 0.15f ? t / 0.15f : 1.0f - (t - 0.15f) / 0.85f;   // hiss envelope
+    if (b < 0) b = 0; if (b > 1) b = 1;
+    if (rad_static_h >= 0) note_vol(rad_static_h, (int)(b * 6 + 0.5f));
+    if (rad_tune_t >= 1.0f) {
+        rad_tuning = false;
+        if (rad_static_h >= 0) { note_off(rad_static_h); rad_static_h = -1; }
+        rad_last_freq = rad_to_freq;
+    }
+}
+
+// the tune button, beside the dial — lit while a sweep is running
+static void rad_tuner_button(int accent) {
+    bool hot = rad_tuning || ui_hover(RAD_TUNE_BTN_X, RAD_TUNE_BTN_Y, RAD_TUNE_BTN_W, RAD_TUNE_BTN_H);
+    rectfill(RAD_TUNE_BTN_X, RAD_TUNE_BTN_Y, RAD_TUNE_BTN_W, RAD_TUNE_BTN_H, hot ? accent : CLR_DARKER_GREY);
+    rect(RAD_TUNE_BTN_X, RAD_TUNE_BTN_Y, RAD_TUNE_BTN_W, RAD_TUNE_BTN_H, accent);
+    int tc = hot ? CLR_BLACK : accent;
+    print("tune", RAD_TUNE_BTN_X + (RAD_TUNE_BTN_W - text_width("tune")) / 2,
+          RAD_TUNE_BTN_Y + (RAD_TUNE_BTN_H - 6) / 2, tc);
+}
+
+// the freq the needle should DRAW at: animated (eased old→new) mid-sweep, else
+// the real one — and it remembers the real value as the next sweep's start.
+// rad_dial uses this; carts that hand-roll their own dial call it the same way.
+// Range-agnostic: works for FM (88..107) or ambient's AM band alike.
+static float rad_needle_freq(float real) {
+    if (rad_tuning) {
+        rad_to_freq = real;
+        float e = rad_tune_t < 0 ? 0 : rad_tune_t > 1 ? 1 : rad_tune_t;
+        e = e * e * (3 - 2 * e);                     // smoothstep ease
+        return rad_from_freq + (rad_to_freq - rad_from_freq) * e;
+    }
+    rad_last_freq = real;
+    return real;
+}
+
 static int rad_input(int *tempo, int tmin, int tmax, int tstep,
                      int *intensity, int *toneSel, int ntone,
                      bool *radioOn, bool *showHelp) {
     int ev = 0;
-    if (keyp(KEY_SPACE)) ev |= RAD_EV_NEW;
+    rad_tune_advance();                              // keep any running sweep moving
+    // the tuner: SPACE (desktop) or a tap on the tune button (mobile) starts a sweep
+    // to the next song. RAD_EV_NEW fires now so the cart rolls it; the needle eases over.
+    bool tunePress = keyp(KEY_SPACE);
+    if (mouse_pressed(MOUSE_LEFT)) {
+        int mx = mouse_x(), my = mouse_y();
+        if (mx >= RAD_TUNE_BTN_X && mx < RAD_TUNE_BTN_X + RAD_TUNE_BTN_W &&
+            my >= RAD_TUNE_BTN_Y && my < RAD_TUNE_BTN_Y + RAD_TUNE_BTN_H) tunePress = true;
+    }
+    if (tunePress && !rad_tuning) { rad_tune_start(); ev |= RAD_EV_NEW; }
     if (keyp('R'))       ev |= RAD_EV_REPLAY;
     if (keyp('['))       ev |= RAD_EV_BACK;
     if (keyp(']'))       ev |= RAD_EV_FWD;
@@ -199,19 +291,23 @@ static void rad_body(int shell, int accent) {
     rectfill(24, 20, 272, 2, accent);
 }
 
-// FM dial strip with the station needle
+// FM dial strip with the station needle + the tune button (right).
+// While tuning, the needle sweeps from the old station to this freq (the new
+// song's) — so the caller just passes its current freq and the animation rides on top.
 static void rad_dial(float freq, int accent) {
-    rectfill(32, 28, 256, 16, CLR_DARKER_GREY);
+    float shown = rad_needle_freq(freq);             // animated mid-sweep, else the real freq
+    rectfill(32, 28, 218, 16, CLR_DARKER_GREY);      // strip stops short of the tune button
     for (int fq = 88; fq <= 107; fq++) {
-        int x = 36 + (fq - 88) * 13;
+        int x = 36 + (fq - 88) * RAD_DIAL_SP;
         line(x, 38, x, 42, CLR_DARK_GREY);
         if (fq % 4 == 0) {
             char tx[8]; snprintf(tx, 8, "%d", fq);
             print(tx, x - 6, 30, CLR_LIGHT_GREY);
         }
     }
-    int nx = 36 + (int)((freq - 88.0f) * 13.0f);
+    int nx = 36 + (int)((shown - 88.0f) * RAD_DIAL_SP);
     line(nx, 29, nx, 43, accent);
+    rad_tuner_button(accent);
 }
 
 // a labelled rotary knob, t = 0..1 — the READOUT form (vu/drift meters)
@@ -336,7 +432,7 @@ static void rad_phrase_dots(int x, int y, int n, long cur, int accent) {
 
 // power LED — blinks on the beat while playing
 static void rad_power_led(bool on, int accent, int dim) {
-    circfill(282, 28, 2, on && beat_pos() < 0.25f ? accent : dim);
+    circfill(292, 36, 2, on && beat_pos() < 0.25f ? accent : dim);  // right of the tune button
 }
 
 // the ?-button (its hit test lives in rad_input) + the one-line footer hint

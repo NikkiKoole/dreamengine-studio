@@ -437,17 +437,18 @@ void draw(void) {
     line(24, 24, 295, 24, CLR_BLUE);
 
     // dial strip — citypop's own black strip with pink ticks, teal needle
-    rectfill(32, 28, 256, 16, CLR_BLACK);
+    rectfill(32, 28, 218, 16, CLR_BLACK);            // short of the tune button
     for (int fq = 88; fq <= 107; fq++) {
-        int x = 36 + (fq - 88) * 13;
+        int x = 36 + (fq - 88) * RAD_DIAL_SP;
         line(x, 38, x, 42, CLR_DARK_GREY);
         if (fq % 4 == 0) {
             char tx[8]; snprintf(tx, 8, "%d", fq);
             print(tx, x - 6, 30, CLR_PINK);
         }
     }
-    int nx = 36 + (int)((sng.freq - 88.0f) * 13.0f);
+    int nx = 36 + (int)((rad_needle_freq(sng.freq) - 88.0f) * RAD_DIAL_SP);
     line(nx, 29, nx, 43, CLR_BLUE);
+    rad_tuner_button(CLR_PINK);
 
     // the window — vaporwave sunset: banded sun, palm, neon skyline
     rectfill(34, 52, 102, 116, CLR_DARK_PURPLE);        // dusk
@@ -524,7 +525,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_PINK);
-    rad_footer("SPACE next song   H help");
+    rad_footer("H help");
 
     if (showHelp) {
         static const char *HELP[9][2] = {

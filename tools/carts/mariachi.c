@@ -678,7 +678,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_ORANGE, CLR_DARK_RED);
 
     rad_help_button(CLR_ORANGE);
-    rad_footer("SPACE otra cancion   B banda   H ayuda");
+    rad_footer("B banda   H ayuda");
 
     if (showHelp) {
         static const char *HELP[8][2] = {

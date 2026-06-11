@@ -546,7 +546,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_ORANGE);
-    rad_footer(str("SPACE next song   G lead:%s   H help", leadVibes ? "VIBES" : "TRI"));
+    rad_footer(str("G lead:%s   H help", leadVibes ? "VIBES" : "TRI"));
 
     if (showHelp) {
         static const char *HELP[8][2] = {

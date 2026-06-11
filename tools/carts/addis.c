@@ -570,7 +570,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_YELLOW, CLR_DARK_GREEN);
 
     rad_help_button(CLR_YELLOW);
-    rad_footer("SPACE next song   B band   H help");
+    rad_footer("B band   H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {

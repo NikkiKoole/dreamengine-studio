@@ -354,18 +354,19 @@ void draw(void) {
     line(24, 22, 295, 22, CLR_YELLOW);                  // a thin brass line
 
     // dial strip
-    rectfill(32, 26, 256, 18, CLR_WHITE);
-    rect(32, 26, 256, 18, CLR_MEDIUM_GREY);
+    rectfill(32, 26, 218, 18, CLR_WHITE);            // short of the tune button
+    rect(32, 26, 218, 18, CLR_MEDIUM_GREY);
     for (int fq = 88; fq <= 107; fq++) {
-        int x = 36 + (fq - 88) * 13;
+        int x = 36 + (fq - 88) * RAD_DIAL_SP;
         line(x, 38, x, 42, CLR_MEDIUM_GREY);
         if (fq % 4 == 0) {
             char tx[8]; snprintf(tx, 8, "%d", fq);
             print(tx, x - 6, 29, CLR_DARK_GREY);
         }
     }
-    int nx = 36 + (int)((sng.freq - 88.0f) * 13.0f);
+    int nx = 36 + (int)((rad_needle_freq(sng.freq) - 88.0f) * RAD_DIAL_SP);
     line(nx, 27, nx, 43, CLR_DARK_RED);
+    rad_tuner_button(CLR_DARK_RED);
 
     // the window — rain over Paris at dusk
     rectfill(34, 52, 102, 116, CLR_DARK_BLUE);
@@ -429,7 +430,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_DARK_RED, CLR_MEDIUM_GREY);
 
     rad_help_button(CLR_DARK_RED);
-    rad_footer("SPACE next piece   H help");
+    rad_footer("H help");
 
     if (showHelp) {
         static const char *HELP[8][2] = {

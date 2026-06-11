@@ -592,7 +592,7 @@ void draw(void) {
     rad_power_led(radioOn, CLR_RED, CLR_DARK_RED);
 
     rad_help_button(CLR_MEDIUM_GREEN);
-    rad_footer(str("SPACE next song   G skank:%s   H help", skankOrgan ? "B3" : "gtr"));
+    rad_footer(str("G skank:%s   H help", skankOrgan ? "B3" : "gtr"));
 
     if (showHelp) {
         static const char *HELP[10][2] = {

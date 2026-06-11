@@ -326,18 +326,19 @@ void draw(void) {
     rectfill(24, 20, 272, 160, CLR_DARKER_PURPLE);
 
     // AM dial strip
-    rectfill(32, 26, 256, 18, CLR_DARK_BLUE);
-    rect(32, 26, 256, 18, CLR_DARK_PURPLE);
+    rectfill(32, 26, 218, 18, CLR_DARK_BLUE);        // short of the tune button
+    rect(32, 26, 218, 18, CLR_DARK_PURPLE);
     for (int fq = 540; fq <= 1600; fq += 100) {
-        int x = 36 + (fq - 540) * 248 / 1060;
+        int x = 36 + (fq - 540) * 210 / 1060;
         line(x, 38, x, 42, CLR_LIGHT_GREY);
         if ((fq - 540) % 300 == 0) {
             char tx[8]; snprintf(tx, 8, "%d", fq);
             print(tx, x - 8, 29, CLR_LIGHT_GREY);
         }
     }
-    int nx = 36 + (sng.freq - 540) * 248 / 1060;
+    int nx = 36 + (int)((rad_needle_freq(sng.freq) - 540.0f) * 210.0f / 1060.0f);
     line(nx, 27, nx, 43, CLR_RED);
+    rad_tuner_button(CLR_INDIGO);
 
     // the window — aurora over a night horizon where bossa has its grille
     rectfill(34, 52, 102, 116, CLR_DARKER_BLUE);
@@ -392,7 +393,7 @@ void draw(void) {
     circfill(282, 28, 2, radioOn && breathe > 0.5f ? CLR_RED : CLR_DARK_RED);  // breathes, no beat
 
     rad_help_button(CLR_INDIGO);
-    rad_footer("SPACE next song   H help");
+    rad_footer("H help");
 
     if (showHelp) {
         static const char *HELP[7][2] = {

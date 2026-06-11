@@ -255,6 +255,24 @@ inharmonic partials — the kind of thing ears flag but only a spectrum pins dow
 rings ~1 s and contaminated the first measurement (a phantom partial at the audition's
 pitch); play the analyzed note seconds after any audition, with autoplay off.
 
+**Gotcha — navkit's velocity is `clampf(velocity·2, 0, 1)`.** Its volume range is ~0–0.5,
+so `preset_audition -v 0.5` already clamps to full velocity. To velocity-match *our* note
+(`note_on(…,6)` = 6/7 ≈ 0.857), render navkit at `-v 0.43`. Skip this and your A/B lies —
+velocity drives mode amplitudes *and* nonlinearity depth.
+
+**Gotcha — knob values do NOT transfer 1:1 between navkit and us; match by ear.** Same word,
+different math. The clearest case is **drive**: navkit `tanh(sample · (1 + drive·3))` (linear,
+no normalize) vs ours `tanh(s · drive²·24) / tanh(drive²·24)` (quadratic, loudness-preserving).
+So navkit's panel "0.10" ≈ our 0.20 by ear — and navkit's panel number *also* hides a
+`velToDrive · velocity²` term added on top. Lesson: port the **oscillator** verbatim (the modes
++ nonlinearity — those MUST be exact), but treat **effect/knob amounts as targets to dial by
+ear**, not numbers to copy. (Decision recorded: we deliberately did NOT swap our global drive to
+navkit's model — 24 carts depend on ours + its loudness-preservation, and navkit's hidden
+velToDrive means a swap wouldn't transfer 1:1 anyway. **Option B if navkit ports get frequent:**
+add an opt-in `DRIVE_NAVKIT` waveshaper mode — navkit's exact `1 + x·3` raw tanh — so ported
+instruments can use navkit drive values directly while the 24 existing carts, default
+`DRIVE_SOFT`, stay untouched. Not built yet; reach for it only when match-by-ear gets annoying.)
+
 ### Tuning — is each engine in tune?
 
 `wav-analyze.js` measures *level*, not *pitch* — it can't tell you an engine is

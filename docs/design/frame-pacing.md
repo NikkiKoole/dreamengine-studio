@@ -1,10 +1,10 @@
 # Frame pacing & on-demand rendering — keeping phones cool
 
 > EXPLORATION (researched 2026-06-10). Source: a real phone-play session — carts
-> from the live gallery make the device run **hot**. Two levers exist; this note
-> works through both and recommends which to build first. Nothing shipped yet.
-> Mobile-display companion (resizable / scale-to-fit / rotation) lives in
-> [`mobile-web-notes.md`](mobile-web-notes.md) §4c — this doc owns **power**.
+> from the live gallery make the device run **hot**. Three levers; **Lever C (render
+> cadence / `renderEvery`) shipped 2026-06-11** — see below. `fps` cap and reactive
+> (`repaint`) are still designs. Mobile-display companion (resizable / scale-to-fit /
+> rotation) lives in [`mobile-web-notes.md`](mobile-web-notes.md) §4c — this doc owns **power**.
 
 ## The problem
 
@@ -198,15 +198,37 @@ catastrophic failure modes, not the optimization**:
   cart halves the heat with *zero* stale-screen risk and no whole-program claim. The only
   casualties are `frame()%N` carts — which is why even that stays opt-in.
 
+## Lever C — render cadence (`renderEvery`) — SHIPPED 2026-06-11
+
+The decoupling the "NOT update12" section gestures at, in the *useful* direction: keep
+`update()` + `sound_tick()` + input at full rate, but **present only every Nth tick**.
+Heat is the *present* (the GPU blit/compositor), so dropping just the present to 30 cools
+the phone **without** the sluggish logic/input a whole-loop `fps` cap causes.
+
+Shipped as a per-cart `renderEvery` (`.cart.js` → `de:settings` → `-DRENDER_EVERY=N`,
+default 1 = every tick). Present fps = displayHz / `renderEvery`, so only clean divisions:
+2→30, 3→20, 5→12… `loop_step` runs every tick; on off-ticks it skips the canvas redraw +
+the present and calls `PollInputEvents()` itself (raylib normally polls inside
+`EndDrawing()`, so without that the loop goes deaf). The pget snapshot is skipped on
+off-ticks too — the canvas didn't change, so the last snapshot still matches.
+
+**Web-only by design:** native pacing lives inside `EndDrawing()` (`SetTargetFPS`), so
+skipping the present there would un-cap `update()`. Native always renders every tick
+(`skip_render` is a compile-time `false`); desktop isn't power-bound. Validated on device
+(iOS Safari): `renderEvery:2` → `fps()` reads 30 while logic stays 60. `studio.c`
+`loop_step` + `tools/build-site.js` + `editor/electron/main.cjs` build-web.
+
 ## They compose
 
 Orthogonal knobs, not either/or:
-- **Reactive** — for carts that are static most of the time (radios, tools, menus,
-  turn-based). Idle → ~0 GPU.
-- **`fps` cap** — for carts that animate continuously but don't need 60 (a calm
-  scroller at 30). Steady, lower, predictable.
+- **Reactive** (`repaint`, not yet built) — for carts static most of the time (radios,
+  tools, menus, turn-based). Idle → ~0 GPU.
+- **`fps` cap** (not yet built) — for carts that animate continuously but don't need 60
+  (a calm scroller at 30). Whole loop slows, including logic.
+- **Render cadence** (`renderEvery`, SHIPPED) — logic stays 60, only the *present* drops.
+  The fit for an animating-but-too-hot cart that must stay responsive.
 
-A cart can use both: reactive while idle, capped when it does animate.
+A cart can mix them: render-cadence while animating, (eventually) reactive while idle.
 
 ## Wiring & first customers
 

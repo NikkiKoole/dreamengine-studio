@@ -359,6 +359,7 @@ if (args[0] === '--update') {
     screenW: cfg.screenW ?? 320, screenH: cfg.screenH ?? 200, scale: cfg.scale ?? 4,
     cellW:   cfg.cellW   ?? 16,  cellH:   cfg.cellH   ?? 16,
     mapW:    cfg.mapW    ?? 128,  mapH:    cfg.mapH    ?? 64,
+    renderEvery: cfg.renderEvery ?? 1,   // present every Nth tick on web (heat lever); 1 = every tick
   }
   // Preserve the existing thumbnail image when re-embedding source into a cart
   // that's already been baked — only fall back to the placeholder for a brand

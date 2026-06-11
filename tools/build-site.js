@@ -102,6 +102,7 @@ function buildCart(name, { force = false, worklet = false } = {}) {
     `-DSCREEN_W=${SW}`, `-DSCREEN_H=${SH}`, `-DSCALE=${SC}`,
     `-DMAP_W=${MW}`, `-DMAP_H=${MH}`, `-DCELL_W=${CW}`, `-DCELL_H=${CH}`,
     `-DTOUCH_CONTROLS_DEFAULT=${cfg.touchControls ? 1 : 0}`,
+    `-DRENDER_EVERY=${cfg.renderEvery ?? 1}`,   // present every Nth tick (web heat lever); 1 = every tick
     '-Os', '-fno-delete-null-pointer-checks',
     path.join(RAYLIB_WEB, 'lib', 'libraylib.a'),
     '-s', 'USE_GLFW=3',

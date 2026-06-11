@@ -25,6 +25,15 @@
 #include <GLES2/gl2.h>   // for our own glReadPixels in the pget snapshot — dodges raylib's ES3-only format probe (WebGL1 INVALID_ENUM)
 #endif
 
+// render cadence (Lever A-lite, keeps phones cool): present only every RENDER_EVERY-th
+// tick. update()/sound_tick()/input still run every tick, so logic+audio+input stay
+// full-rate; only the GPU present drops to displayHz/RENDER_EVERY. 1 = present every tick
+// (default, unchanged). Web-only — native pacing lives in EndDrawing (SetTargetFPS), so
+// skipping the present there would un-cap update(). See docs/design/frame-pacing.md.
+#ifndef RENDER_EVERY
+#define RENDER_EVERY 1
+#endif
+
 // ------------------------------------------------------------
 // DE_TCC: load the cart as a libtcc-JIT'd module instead of static-linking it.
 // studio.c becomes a persistent host; the cart's init/update/draw are resolved at
@@ -1132,11 +1141,21 @@ static void loop_step(void) {
         }
     }
     frame_count++;                        // advance even while paused so --frames and dump filenames still work
+#ifdef PLATFORM_WEB
+    // render cadence: on off-ticks skip the canvas redraw + the present (the GPU/heat
+    // cost) while update()/sound_tick()/input keep running. Never skip while paused (the
+    // menu must stay responsive). 1 = every tick (default → always false here).
+    bool skip_render = (RENDER_EVERY > 1) && !pause_active && (frame_count % RENDER_EVERY != 0);
+#else
+    const bool skip_render = false;       // native always renders (pacing lives in EndDrawing)
+#endif
     if (pause_active) goto draw_window;   // skip update() + draw() — last frame stays frozen
 
     // snapshot last frame's canvas so pget() has stable pixels to read — but only if a
-    // cart opted in via enable_pget(). Carts that never read pixels pay nothing.
-    if (pget_enabled) {
+    // cart opted in via enable_pget(). Carts that never read pixels pay nothing. Skipped
+    // on render-cadence off-ticks too: the canvas didn't change, so the last snapshot still
+    // matches (pget/touching_color in update() read it fine).
+    if (!skip_render && pget_enabled) {
 #ifndef PLATFORM_WEB
         if (pget_snapshot.data) UnloadImage(pget_snapshot);
         pget_snapshot       = LoadImageFromTexture(canvas.texture);
@@ -1165,7 +1184,7 @@ static void loop_step(void) {
             }
         }
 #endif
-    } else {
+    } else if (!skip_render) {
         pget_snapshot_valid = false;
     }
     // snapshot input edges before update so btnp() works
@@ -1193,6 +1212,7 @@ static void loop_step(void) {
     // draw into the low-res canvas, under the camera matrix (handles scroll + zoom +
     // rotation on the GPU). camera()/camera_ex() called inside draw() re-apply via
     // cam_reapply() while cam_active is true.
+    if (!skip_render) {        // render-cadence off-tick: keep the canvas (retains last frame)
     BeginTextureMode(canvas);
         BeginMode2D(cam);
         cam_active = true;
@@ -1204,6 +1224,7 @@ static void loop_step(void) {
         cam_active = false;
         EndMode2D();
     EndTextureMode();
+    }   // end if (!skip_render) — canvas redraw
 #if !defined(PLATFORM_WEB) && !defined(DE_RELEASE)
     {
         // skip the first few frames: they carry one-time costs (texture/font
@@ -1233,6 +1254,7 @@ static void loop_step(void) {
         sox = ((rand() % 201) - 100) / 100.0f * shake_amt * SCALE;
         soy = ((rand() % 201) - 100) / 100.0f * shake_amt * SCALE;
     }
+    if (!skip_render) {
     BeginDrawing();
         DrawTexturePro(
             canvas.texture,
@@ -1248,6 +1270,10 @@ static void loop_step(void) {
         draw_touch_overlay();
         draw_watch_overlay();
     EndDrawing();
+    }   // end if (!skip_render) — present
+#ifdef PLATFORM_WEB
+    else PollInputEvents();   // present skipped: EndDrawing normally polls input, so do it ourselves or the loop goes deaf
+#endif
     if (shake_amt > 0) { shake_amt *= 0.85f; if (shake_amt < 0.2f) shake_amt = 0; }
 
 #ifndef PLATFORM_WEB

@@ -167,9 +167,17 @@ static void apply_wah(void) {
         instrument_filter(I_EP, FILTER_OFF, 4000, 0);
     }
 
-    if (on) {                                    // WAH MOTION on top of the voice: LFO pump + bus follower
-        instrument_lfo(I_EP, 0, LFO_CUTOFF, 2.5f + amt * 3.5f, 500.0f + amt * 900.0f);
-        instrument_wah(I_EP, 0.4f + amt * 0.6f, 0.45f + amt * 0.4f, 0.75f + amt * 0.25f);
+    if (on) {
+        if (clav) {
+            // CLAV + WAH = VERBATIM navkit: its master WAH read exactly "LFO, Rate 2.0, Res 0.70,
+            // Mix 1.0" (Freq Low/High = navkit defaults 300/2500, baked into wah_lfo). The clav
+            // voice-filter above + this bus LFO bandpass IS navkit's clav→wah chain. No per-voice
+            // pump, no follower — those were our non-navkit hybrid.
+            instrument_wah_lfo(I_EP, 2.0f, 0.70f, 1.0f);
+        } else {                                 // rhodes/wurli: our hybrid (per-voice LFO pump + bus follower)
+            instrument_lfo(I_EP, 0, LFO_CUTOFF, 2.5f + amt * 3.5f, 500.0f + amt * 900.0f);
+            instrument_wah(I_EP, 0.4f + amt * 0.6f, 0.45f + amt * 0.4f, 0.75f + amt * 0.25f);
+        }
     }
 }
 

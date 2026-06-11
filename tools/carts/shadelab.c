@@ -131,8 +131,8 @@ static void sh_feedback(float t, int ps) {
     float cxp = SCREEN_W * 0.5f, cyp = (y0 + y1) * 0.5f;
     float ca = cos_deg(1.5f), sa = sin_deg(1.5f);     // 1.5°/frame swirl
     float zoom = 1.012f;                               // >1 pulls from further out → zoom-in feel
-    float ex = cxp + cos_deg(t * 90.0f) * SCREEN_W * 0.30f;   // auto emitter, orbiting
-    float ey = cyp + sin_deg(t * 70.0f) * (y1 - y0) * 0.30f;
+    float ex = cxp + cos_deg(t * 90.0f) * SCREEN_W * 0.22f;   // auto emitter, orbiting (inside the bright zone)
+    float ey = cyp + sin_deg(t * 70.0f) * (y1 - y0) * 0.22f;
     for (int sy = y0; sy < y1; sy += ps)
         for (int sx = 0; sx < SCREEN_W; sx += ps) {
             float px = sx + ps * 0.5f, py = sy + ps * 0.5f;
@@ -141,7 +141,12 @@ static void sh_feedback(float t, int ps) {
             int ry = (int)(cyp + (dx * sa + dy * ca) * zoom);
             if (rx < 0) rx = 0; else if (rx >= SCREEN_W) rx = SCREEN_W - 1;   // clamp into the box:
             if (ry < y0) ry = y0; else if (ry >= y1) ry = y1 - 1;            // never read HUD / off-screen
-            int c = scale_rgb(pget_rgb(rx, ry), 0.95f);        // ← READ LAST FRAME BACK, then trail-decay
+            // radial vignette: fade the decay toward black near the edges so the rectangular
+            // box boundary can't light up — without it, clamped edge pixels spiral inward as
+            // a rotating rectangle. with it the attractor is a smooth round tunnel.
+            float nx = (px - cxp) / (SCREEN_W * 0.5f), ny = (py - cyp) / ((y1 - y0) * 0.5f);
+            float vig = clamp((1.05f - fsqrt(nx * nx + ny * ny)) * 2.5f, 0, 1);  // full-bright interior, hard fade in the outer ring
+            int c = scale_rgb(pget_rgb(rx, ry), 0.95f * vig); // ← READ LAST FRAME BACK, then vignetted trail-decay
             float d = fsqrt((px - ex) * (px - ex) + (py - ey) * (py - ey));
             if (d < 16) { float b = clamp(1 - d / 16, 0, 1); b *= b; c = cadd(c, scale_rgb(hsv(t * 0.15f, 0.8f, 1), b)); }
             if (mdown) {

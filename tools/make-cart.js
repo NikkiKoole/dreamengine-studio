@@ -170,6 +170,14 @@ function embedCartChunks(pngBuf, data) {
     const type = pngBuf.slice(offset + 4, offset + 8).toString('ascii')
     const chunk = pngBuf.slice(offset, offset + 12 + len)
     if (type === 'IEND') { iend = chunk; break }
+    // Drop any de:* zTXt chunks already in the source PNG — we re-write them
+    // below. This makes embedCartChunks idempotent, so it's safe to re-embed
+    // onto an already-baked cart.png (e.g. preserving its thumbnail image)
+    // without piling up duplicate de:source/de:sprites chunks.
+    if (type === 'zTXt' && pngBuf.slice(offset + 8, offset + 11).toString('latin1') === 'de:') {
+      offset += 12 + len
+      continue
+    }
     parts.push(chunk)
     offset += 12 + len
   }
@@ -352,8 +360,18 @@ if (args[0] === '--update') {
     cellW:   cfg.cellW   ?? 16,  cellH:   cfg.cellH   ?? 16,
     mapW:    cfg.mapW    ?? 128,  mapH:    cfg.mapH    ?? 64,
   }
-  const cartPng    = embedCartChunks(makePlaceholderPng(), { source, sprites: spritesUrl, map: mapB64, settings: JSON.stringify(cartSettings) })
+  // Preserve the existing thumbnail image when re-embedding source into a cart
+  // that's already been baked — only fall back to the placeholder for a brand
+  // new cart. Otherwise a plain `make-cart.js <src> <png>` (which doesn't run
+  // the cart) would clobber a real screenshot with a blank placeholder, and
+  // it's easy to forget the follow-up `--run` that re-bakes it. embedCartChunks
+  // strips the old de:* chunks, so re-using the baked PNG as the base is clean.
+  const reuse      = fs.existsSync(outFile)
+  const baseImage  = reuse ? fs.readFileSync(outFile) : makePlaceholderPng()
+  const cartPng    = embedCartChunks(baseImage, { source, sprites: spritesUrl, map: mapB64, settings: JSON.stringify(cartSettings) })
   fs.writeFileSync(outFile, cartPng)
-  console.log('wrote', outFile)
+  console.log(reuse
+    ? `re-embedded source into ${outFile} (kept existing thumbnail — run \`--run\` to re-bake if visuals changed)`
+    : `wrote ${outFile} (placeholder thumbnail — run \`--run\` to bake a real screenshot)`)
 }
 }

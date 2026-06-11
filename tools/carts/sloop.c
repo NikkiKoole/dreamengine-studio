@@ -240,6 +240,10 @@ static float driveX;              // local-x of the drive point (where thrust is
 static float driveRoll;           // Σ rolling support of the DRIVE wheels (their traction cap)
 static int   frontalCells;        // rig height across the direction of travel (aero profile)
 static float balance;             // COM vs wheelbase: +1 front-heavy (understeer) .. -1 rear-heavy
+// rig footprint (COM-local px) — the oriented box the world collides against (§9). +x = forward.
+static float rigL0, rigL1;        // extent along local +x (rear edge .. front edge)
+static float rigW0, rigW1;        // extent along local +y (the rig's right .. left)
+static float rigReach;            // COM → farthest cell corner (collision broad phase)
 // ── per-axle grip (the two-axle / "bicycle" model — rung handling-depth) ───────
 // Lateral grip split FRONT vs REAR of the COM, so each axle can let go on its own:
 // front lets go → understeer (push wide), rear lets go → oversteer (tail steps out /
@@ -495,6 +499,52 @@ static int   engine_on = 1;       // ignition: I cranks/kills it; stall flips it
 static int   stalled;             // engine died from lugging (vs a deliberate key-off) — HUD wording
 static float restart_grace;       // s of stall-immunity after a crank (see RESTART_GRACE)
 
+// ── the collidable world (§9): chunked procedural baseline + sparse dirty deltas ──
+// The world is infinite + deterministic: hash2(chunk) regenerates the baseline obstacles
+// for any chunk, so an untouched chunk costs nothing. Deviations (a cone you ran over and
+// shoved) live as sparse per-chunk DELTAS. A LIVE RING of chunks around the camera is
+// materialised into `pool[]`; entering a chunk loads it (regenerate baseline + replay its
+// delta), leaving evicts it (stash any dirty delta, drop beyond the bound). Bounded
+// in-memory now; the evict step is the one line that later becomes save_bytes (forever).
+// EVERY obstacle is a CELL-GRID (a cone is 1×1) — the seam that makes the future demolition
+// rung (distribute J to tiles, detach over-strength ones) a pure addition, not a rewrite.
+#define CHUNK      256            // world px per chunk (bookkeeping grid; independent of road zones)
+#define MAXOB      256            // live obstacles cap (the ring's working set)
+#define MAXLOADED  64             // live chunks cap
+#define MAXDELTA   128            // remembered run-over deltas for evicted chunks (bounded LRU)
+#define OB_GW      4              // max obstacle cell-grid (house up to 4×4 later; a cone is 1×1)
+#define OB_GH      4
+#define OB_CELL    7.0f           // px per obstacle cell (matches the rig's CELL → tiles read same scale)
+enum { OM_NONE, OM_CONE, OM_KINDS };          // cell MATERIALS (mass+strength); inc.2 adds brick/stone
+enum { OB_CONE, OB_KINDS };                    // obstacle KINDS
+typedef struct { float mass, strength; int col; const char *name; } ObMat;
+static ObMat OM[OM_KINDS];        // filled in init() (no designated inits — libtcc)
+typedef struct {
+    unsigned char alive, dirty;   // dirty = deviates from baseline → must persist on evict
+    int   kind;                   // OB_*
+    int   cx, cy, idx;            // home chunk + baseline index (the delta key)
+    float bx, by;                 // baseline (pristine) position — identity + reset
+    float x, y, ang;              // current pose (= baseline + run-over shove)
+    float vx, vy, vr;             // knocked velocity (tumbles, then settles back to rest)
+    unsigned char gw, gh;         // cell-grid dims (cone = 1×1)
+    unsigned char cell[OB_GH][OB_GW];  // material per cell (OM_*); 0 = empty
+    float mass, strength, rad;    // derived from the cells at load (footprint + collision)
+} Obstacle;
+static Obstacle pool[MAXOB];      // the live working set
+typedef struct { int cx, cy, idx; float dx, dy, dang; int age; unsigned char used; } Delta;
+static Delta wdelta[MAXDELTA];    // remembered deviations of chunks NOT currently live (LRU by age)
+static int   wclock;              // monotonically bumped each save → LRU age
+typedef struct { int cx, cy; } ChunkRef;
+static ChunkRef loaded[MAXLOADED];
+static int   nLoaded;
+static int   last_hit;            // 1 the frame a cone was run over (HUD/trace pulse)
+// forward decls (defined down in the world section, after hash2)
+static void collide_world(void);
+static void world_sync(void);
+static void obstacles_integrate(float dt_);
+static void draw_obstacles(void);
+static void world_reset(void);
+
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
 static float vx, vy;              // world velocity
@@ -670,6 +720,7 @@ static void recompute_body(void) {
     M = 0; comX = 0; comY = 0; wheelGrip = 0; wheelRoll = 0; frontX = 0; nEngines = 0; nWheels = 0;
     nDrive = 0; driveRoll = 0;
     int minRow = GH, maxRow = -1;
+    float bbX0 = 1e9f, bbX1 = -1e9f, bbY0 = 1e9f, bbY1 = -1e9f;  // occupied-cell bbox (footprint)
     float wMinX = 1e9f, wMaxX = -1e9f;     // wheelbase extent (x of frontmost/rearmost wheel)
     int sMinR = GH, sMaxR = -1, sMinC = GW, sMaxC = -1;  // support span, in CELL INDICES (wheels+casters)
     float supX[GH * GW], supY[GH * GW]; int nSup = 0;    // support positions (world-local px) for the hull
@@ -684,6 +735,8 @@ static void recompute_body(void) {
             M += pm; comX += pm * cx; comY += pm * cy;
             wheelGrip += k->grip; wheelRoll += k->roll;
             if ((c + 1) * CELL > frontX) frontX = (c + 1) * CELL;
+            if (c * CELL < bbX0) bbX0 = c * CELL; if ((c + 1) * CELL > bbX1) bbX1 = (c + 1) * CELL;
+            if (r * CELL < bbY0) bbY0 = r * CELL; if ((r + 1) * CELL > bbY1) bbY1 = (r + 1) * CELL;
             if (r < minRow) minRow = r;
             if (r > maxRow) maxRow = r;
             if (p == P_ENGINE) nEngines++;
@@ -701,6 +754,13 @@ static void recompute_body(void) {
         }
     if (M <= 0) M = 1;
     comX /= M; comY /= M;
+    // rig footprint as an oriented box about the COM (the world collides against this, §9)
+    if (bbX1 < bbX0) { bbX0 = bbX1 = bbY0 = bbY1 = 0; }   // empty grid guard
+    rigL0 = bbX0 - comX; rigL1 = bbX1 - comX;
+    rigW0 = bbY0 - comY; rigW1 = bbY1 - comY;
+    float cx0 = af(rigL0) > af(rigL1) ? af(rigL0) : af(rigL1);
+    float cy0 = af(rigW0) > af(rigW1) ? af(rigW0) : af(rigW1);
+    rigReach = fsqrt(cx0 * cx0 + cy0 * cy0);
     // drivetrain: the engine lays power down THROUGH the drive wheels, at their average
     // x. No drive wheels placed → power goes to all wheels (AWD), traction = all rolling.
     if (nDrive > 0) driveX = driveSumX / nDrive;
@@ -783,6 +843,7 @@ static void reset_vehicle(void) {
     wheel_ang = 0;
     for (int i = 0; i < MAXSKID; i++) skid[i].life = 0;
     for (int i = 0; i < MAXSPARK; i++) spark[i].life = 0;
+    world_reset();                              // §9: fresh world — origin chunks regenerate pristine
 }
 
 // live readout estimates — the same formulas the drive core uses, so BUILD shows
@@ -1345,6 +1406,7 @@ static void update_drive(float dt_) {
     vx = fwx * vf + ltx * vl;
     vy = fwy * vf + lty * vl;
     sx += vx * dt_; sy += vy * dt_;
+    collide_world();        // §9: run over / crash into world obstacles (may bleed vx/vy)
 
     // --- skid marks: lay at every wheel while the tires scrub sideways OR lock under a
     //     hard brake at speed (a straight stopping skid, laid frame-by-frame as you slide) -
@@ -1510,6 +1572,9 @@ void update(void) {
     float zoomTarget = 1.0f - CAM_ZOOM_PULL * clamp(camspd / CAM_ZOOM_REF, 0, 1);
     cam_zoom = lerp(cam_zoom, zoomTarget, 0.05f);
 
+    world_sync();                  // §9: stream chunks (load/evict) for the new camera
+    obstacles_integrate(dt_);      // knocked obstacles tumble away and settle
+
 #ifdef DE_TRACE
     float fwx = cos_deg(ang), fwy = sin_deg(ang);
     watch("vf", "%.1f", vx * fwx + vy * fwy);
@@ -1555,6 +1620,11 @@ void update(void) {
     }
     watch("loose", "%.2f", drift_loose);
     watch("spin", "%.2f", wheel_spin);
+    {   // §9 world: live obstacle count + a run-over pulse (the frame a cone is hit)
+        int nob = 0; for (int i = 0; i < MAXOB; i++) if (pool[i].alive) nob++;
+        watch("nob", "%d", nob);
+        watch("ohit", "%d", last_hit);
+    }
 #endif
 }
 
@@ -1621,6 +1691,215 @@ static int ifloordiv(int a, int b) {
     if ((a % b) != 0 && ((a < 0) != (b < 0))) q--;
     return q;
 }
+
+// ══ collidable world (§9) ════════════════════════════════════════════════════
+// The chunk machine: baseline-from-seed + sparse dirty deltas + a live ring.
+// Determinism note: placement + collision response are all derived from the seed
+// and the (deterministic) rig motion — no rnd_float in the physics path, so --det
+// replay holds. Only the cosmetic debris sparks use rnd.
+
+// derive a cone/house's footprint + collision numbers from its cell grid (the seam:
+// MVP sums to a rigid solid; demolition later reads the same per-cell mass/strength).
+static void ob_derive(Obstacle *o) {
+    o->mass = 0; o->strength = 0;
+    for (int r = 0; r < o->gh; r++)
+        for (int c = 0; c < o->gw; c++) {
+            int m = o->cell[r][c];
+            if (m) { o->mass += OM[m].mass; o->strength += OM[m].strength; }
+        }
+    int span = o->gw > o->gh ? o->gw : o->gh;
+    o->rad = 0.5f * span * OB_CELL;
+}
+
+// regenerate a chunk's BASELINE obstacles from the seed (deterministic, identical every
+// time). Returns the count; fills out[] (idx = the stable per-chunk index = the delta key).
+static int gen_chunk(int cx, int cy, Obstacle *out) {
+    unsigned h = hash2(cx, cy);
+    int n = h % 4;                      // 0..3 cones per chunk (roadworks clutter)
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+        unsigned hi = hash2(cx * 131 + i * 17, cy * 131 + 7);
+        Obstacle o;
+        o.alive = 1; o.dirty = 0; o.kind = OB_CONE;
+        o.cx = cx; o.cy = cy; o.idx = i;
+        o.bx = (float)(cx * CHUNK + (int)(hi % CHUNK));
+        o.by = (float)(cy * CHUNK + (int)((hi >> 9) % CHUNK));
+        o.x = o.bx; o.y = o.by; o.ang = (float)((hi >> 18) % 360);
+        o.vx = o.vy = o.vr = 0;
+        o.gw = 1; o.gh = 1;
+        for (int r = 0; r < OB_GH; r++)
+            for (int c = 0; c < OB_GW; c++) o.cell[r][c] = OM_NONE;
+        o.cell[0][0] = OM_CONE;
+        ob_derive(&o);
+        out[k++] = o;
+    }
+    return k;
+}
+
+static Delta *find_delta(int cx, int cy, int idx) {
+    for (int i = 0; i < MAXDELTA; i++)
+        if (wdelta[i].used && wdelta[i].cx == cx && wdelta[i].cy == cy && wdelta[i].idx == idx)
+            return &wdelta[i];
+    return NULL;
+}
+
+// stash an obstacle's deviation so it survives eviction (bounded — evict the oldest if full).
+static void save_delta(Obstacle *o) {
+    Delta *d = find_delta(o->cx, o->cy, o->idx);
+    if (!d) {
+        int slot = -1, oldest = 0x7fffffff;
+        for (int i = 0; i < MAXDELTA; i++) {
+            if (!wdelta[i].used) { slot = i; break; }
+            if (wdelta[i].age < oldest) { oldest = wdelta[i].age; slot = i; }
+        }
+        d = &wdelta[slot];
+        d->used = 1; d->cx = o->cx; d->cy = o->cy; d->idx = o->idx;
+    }
+    d->dx = o->x - o->bx; d->dy = o->y - o->by; d->dang = o->ang;
+    d->age = ++wclock;
+}
+
+static int pool_alloc(void) {
+    for (int i = 0; i < MAXOB; i++) if (!pool[i].alive) return i;
+    return -1;
+}
+
+static void load_chunk(int cx, int cy) {
+    Obstacle tmp[16];
+    int n = gen_chunk(cx, cy, tmp);
+    for (int i = 0; i < n; i++) {
+        Delta *d = find_delta(cx, cy, tmp[i].idx);   // replay a remembered run-over on top
+        if (d) { tmp[i].x = tmp[i].bx + d->dx; tmp[i].y = tmp[i].by + d->dy; tmp[i].ang = d->dang; tmp[i].dirty = 1; }
+        int s = pool_alloc();
+        if (s < 0) return;                            // pool full — drop (bounded)
+        pool[s] = tmp[i];
+    }
+}
+
+static void evict_chunk(int cx, int cy) {
+    for (int i = 0; i < MAXOB; i++)
+        if (pool[i].alive && pool[i].cx == cx && pool[i].cy == cy) {
+            if (pool[i].dirty) save_delta(&pool[i]);  // remember the deviation; else just drop
+            pool[i].alive = 0;
+        }
+}
+
+static int chunk_is_loaded(int cx, int cy) {
+    for (int i = 0; i < nLoaded; i++) if (loaded[i].cx == cx && loaded[i].cy == cy) return 1;
+    return 0;
+}
+
+// keep the live ring in sync with the camera: load chunks that entered, evict those that left.
+// Incremental (not a rebuild) so live obstacles keep their un-evicted run-over state across frames.
+static void world_sync(void) {
+    int mx = (int)(SCREEN_W * (1.0f / cam_zoom - 1.0f) * 0.5f) + CHUNK;   // margin ≥ a chunk → no pop
+    int my = (int)(SCREEN_H * (1.0f / cam_zoom - 1.0f) * 0.5f) + CHUNK;
+    int x0 = ifloordiv((int)cam_x - mx, CHUNK), x1 = ifloordiv((int)cam_x + SCREEN_W + mx, CHUNK);
+    int y0 = ifloordiv((int)cam_y - my, CHUNK), y1 = ifloordiv((int)cam_y + SCREEN_H + my, CHUNK);
+    // evict any loaded chunk now outside the ring (compact the list as we go)
+    for (int i = 0; i < nLoaded; ) {
+        if (loaded[i].cx < x0 || loaded[i].cx > x1 || loaded[i].cy < y0 || loaded[i].cy > y1) {
+            evict_chunk(loaded[i].cx, loaded[i].cy);
+            loaded[i] = loaded[--nLoaded];
+        } else i++;
+    }
+    // load any chunk in the ring not yet live
+    for (int cx = x0; cx <= x1; cx++)
+        for (int cy = y0; cy <= y1; cy++)
+            if (!chunk_is_loaded(cx, cy) && nLoaded < MAXLOADED) {
+                load_chunk(cx, cy);
+                loaded[nLoaded].cx = cx; loaded[nLoaded].cy = cy; nLoaded++;
+            }
+}
+
+// run-over / crash test: the rig (an oriented box about the COM) vs each nearby obstacle.
+// J = M·closing-speed vs the obstacle's strength decides run-over (give) vs crash (hold).
+// Increment 1: cones are always run-over (low strength) — knocked away + a small speed bleed,
+// the deviation marked dirty so it persists. (The crash branch lands with solids in inc.2.)
+static void collide_world(void) {
+    float fwx = cos_deg(ang), fwy = sin_deg(ang);
+    float ltx = -fwy, lty = fwx;
+    float spd = fsqrt(vx * vx + vy * vy);
+    last_hit = 0;
+    if (spd < 1.0f) return;                          // parked — nothing to run into
+    for (int i = 0; i < MAXOB; i++) {
+        Obstacle *o = &pool[i];
+        if (!o->alive) continue;
+        if (o->vx * o->vx + o->vy * o->vy > 100.0f) continue;   // already knocked & leaving — don't re-trigger
+        float dx = o->x - sx, dy = o->y - sy;
+        float gross = rigReach + o->rad;
+        if (dx * dx + dy * dy > gross * gross) continue;        // broad phase
+        float lx = dx * fwx + dy * fwy;              // into the rig's oriented box (forward, lateral-left)
+        float ly = dx * ltx + dy * lty;
+        float r = o->rad;
+        if (lx < rigL0 - r || lx > rigL1 + r || ly < rigW0 - r || ly > rigW1 + r) continue;  // miss
+        // HIT. J = momentum the rig carries into the contact, vs the impulse the obstacle
+        // can absorb before giving way: J ≥ strength → it GIVES (run over); J < strength → it
+        // HOLDS (crash — solids, inc.2). A cone's strength is tiny, so it's run over at any speed.
+        float J = M * spd;
+        if (J >= o->strength) {
+            // RUN OVER — knock the cone along travel + a sideways kick away from the centreline,
+            // give it a tumble, and write the deviation (this is what proves the dirty layer).
+            float side = (ly >= 0) ? 1.0f : -1.0f;       // which side of the nose it sits
+            float kick = clamp(spd * 1.4f, 60.0f, 300.0f);   // sideways scatter scales with the hit
+            o->vx = vx * 1.0f + ltx * side * kick;       // scooped along travel + deflected off the bumper
+            o->vy = vy * 1.0f + lty * side * kick;
+            o->vr = side * 480.0f;                       // a visible tumble
+            o->dirty = 1;
+            // the rig barely notices a cone: bleed ∝ its tiny mass (the honest absorb)
+            float loss = clamp(o->mass / M, 0, 1) * 0.30f;
+            vx -= vx * loss; vy -= vy * loss;
+            last_hit = 1;
+            hit(38, INSTR_NOISE, 2, 55);             // a light thunk
+            shake(1.2f);
+            for (int s = 0; s < 5; s++) throw_spark(o->x, o->y, vx, vy);   // scatter (cosmetic)
+        }
+        // else: J < strength → the obstacle HOLDS (a solid). No solids in increment 1.
+    }
+}
+
+// knocked obstacles tumble away under friction, then settle (they STAY where they land —
+// dirty, so the delta persists). Also sets up loose debris for the demolition rung.
+static void obstacles_integrate(float dt_) {
+    for (int i = 0; i < MAXOB; i++) {
+        Obstacle *o = &pool[i];
+        if (!o->alive) continue;
+        if (o->vx == 0 && o->vy == 0 && o->vr == 0) continue;
+        o->x += o->vx * dt_; o->y += o->vy * dt_; o->ang += o->vr * dt_;
+        o->vx *= 0.96f; o->vy *= 0.96f; o->vr *= 0.94f;   // light friction → it skitters a good way
+        if (o->vx * o->vx + o->vy * o->vy < 4.0f) { o->vx = 0; o->vy = 0; o->vr = 0; }  // settled
+    }
+}
+
+// reset the whole world layer (R / fresh rig) — drop the pool, deltas and loaded set so the
+// origin chunks regenerate pristine; world_sync repopulates next DRIVE frame.
+static void world_reset(void) {
+    for (int i = 0; i < MAXOB; i++) pool[i].alive = 0;
+    for (int i = 0; i < MAXDELTA; i++) wdelta[i].used = 0;
+    nLoaded = 0; wclock = 0; last_hit = 0;
+}
+
+// draw the live obstacles in world space (called inside the camera transform, under the rig).
+static void draw_obstacles(void) {
+    for (int i = 0; i < MAXOB; i++) {
+        Obstacle *o = &pool[i];
+        if (!o->alive) continue;
+        if (o->kind == OB_CONE) {
+            int moving = (o->vx != 0 || o->vy != 0);
+            if (moving) {                            // knocked over — a toppled streak
+                float c = cos_deg(o->ang), s = sin_deg(o->ang);
+                line((int)(o->x - c * 4), (int)(o->y - s * 4),
+                     (int)(o->x + c * 4), (int)(o->y + s * 4), CLR_ORANGE);
+                pset((int)o->x, (int)o->y, CLR_WHITE);
+            } else {                                 // standing — concentric rings read as a cone from above
+                circfill((int)o->x, (int)o->y, 3, CLR_ORANGE);
+                circfill((int)o->x, (int)o->y, 2, CLR_WHITE);
+                pset((int)o->x, (int)o->y, CLR_ORANGE);
+            }
+        }
+    }
+}
+
 static int zone_at(float x, float y) {
     float d = fsqrt(x * x + y * y);
     for (int z = 0; z < Z_N; z++) if (d < ZONE_R[z]) return z;
@@ -2074,6 +2353,7 @@ void draw(void) {
         if (skid[i].life > 0)
             pset((int)skid[i].x, (int)skid[i].y,
                  skid[i].life > 90 ? CLR_BLACK : CLR_BROWNISH_BLACK);
+    draw_obstacles();                     // §9: cones etc. (under the rig — you drive over them)
     draw_vehicle();
     for (int i = 0; i < MAXSPARK; i++)    // sparks thrown off the grinding belly (over the rig)
         if (spark[i].life > 0) {
@@ -2130,7 +2410,15 @@ void init(void) {
     ENG[EK_RACE]     = (EngineSpec){ 950.0f,       4.0f,  300.0f,  TR_AUTO,   CLR_PINK,         "RACE V12", "scream \x07 ~300" };
     ENG[EK_TRACTOR]  = (EngineSpec){ 1100.0f,      16.0f, 45.0f,   TR_AUTO,   CLR_DARK_GREEN,   "TRACTOR",  "grunt \x07 ~45" };
 
+    // world obstacle materials (§9) — mass + strength per cell. A cone is light and weak,
+    // so J = M_rig·speed dwarfs its strength → it's always run over. (Inc.2 adds brick/stone
+    // with strengths a rig can only beat at speed → the emergent run-over/crash boundary.)
+    //                          mass  strength  colour       name
+    OM[OM_NONE] = (ObMat){ 0,    0,        0,           "." };
+    OM[OM_CONE] = (ObMat){ 0.4f, 30.0f,    CLR_ORANGE,  "cone" };
+
     load_design(0);                       // start on the balanced buggy
+    world_reset();                        // §9: clean world; first DRIVE frame streams chunks in
     cam_x = sx - SCREEN_W / 2.0f;
     cam_y = sy - SCREEN_H / 2.0f;
 }

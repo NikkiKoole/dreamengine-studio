@@ -4,7 +4,8 @@
 + power-to-weight + extreme 45–300 km/h range) + handling-depth (per-axle grip + friction-circle
 spin-out + rear-only handbrake) + long vehicles (9-long grid, SEMI/SCHOOLBUS)
 + neutral & reverse-in-auto + phone cockpit rework + drift dynamics (weight transfer
-+ self-aligning torque + ramped steering — feel-tuning ongoing) done.** Cart:
++ self-aligning torque + ramped steering — feel-tuning ongoing) + §8 per-wheel spring model
++ §9 collidable world increment 1 (chunk streaming + run-over cones) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -485,6 +486,92 @@ breakage** — per-wheel load means losing a wheel redistributes its load to the
 (the spring solve just re-runs with one fewer contact), and impact force can be shared by load.
 Single-track (≤2 wheels, the bike) stays its own exempt path, as it is now.
 
+### 9. Collidable world — chunked deviations + emergent run-over/crash ⬜→🔨 (design seed, 2026-06-11)
+
+The detailed plan for §3's "Collisions & breakage", **split**: do **collision** now (run over /
+crash against world objects), leave **breakage of the rig** for later. The whole design is built so
+that the eventual "*alles kan kapot*" — crash a tank into a house and it shatters into tiles that
+scatter as loose world debris — is a **pure addition**, never a rewrite. The cart's name is *sloop*
+(demolition); demolition is the destination, this rung lays the honest track to it.
+
+**The honest core, one more time: the world is the rig.** A house is a grid of tiles with
+mass + strength, exactly as the rig is a grid of parts. Impact distributes the impulse to the
+contact tiles; over-strength tiles detach (the same connectivity solve that will shed a wheel);
+detached tiles become loose bodies that scatter (orbit's rocket-into-parts feel). One core, three
+uses: rig damage, run-over, demolition. So **every obstacle is a cell-grid from the start** (a cone
+is 1×1, a house is N×M) even though MVP collides them as rigid solids — the uniform representation
+is the seam that makes shattering additive.
+
+#### 9a. World memory — chunked procedural baseline + sparse dirty deltas
+
+The world is infinite and deterministic, but **deviations persist** (run over a cone and it stays
+moved; later, demolish a house and it stays demolished). You cannot hold an infinite world *or*
+all its deviations in memory — so **chunk it, and store only deltas**:
+
+- **Baseline = regenerated from the seed on demand.** A fixed chunk grid (≈256 px squares,
+  independent of the road zones — bookkeeping only). `hash2(chunk)` → which cones/houses/islands
+  populate it. Free, deterministic, identical every time. An **untouched chunk stores nothing.**
+- **Dirty delta = a sparse per-chunk overlay** of *changes from baseline only*: "cone #3 moved to
+  (x,y)", later "house tiles 4,7,9 gone", "a loose debris tile lives here". Cost scales with
+  **carnage, not distance** — drive 100 km through pristine country touching nothing → zero bytes.
+- **Lifecycle (the whole machine):**
+  ```
+  rig moves → chunks within a LIVE RING are materialised into the active collision pool
+  chunk enters ring → load:  regenerate baseline from seed, replay its saved delta on top
+  chunk leaves ring → evict: stash the delta, free the live objects
+  ```
+- **Bounded-in-memory first; disk-paging is a later, additive step** (decided 2026-06-11). The
+  evict step is the *one line* that sets the persistence policy:
+  - evict → **drop the delta** = bounded (far carnage resets to baseline). The MVP.
+  - evict → **`save_bytes()` the delta** (engine already has per-cart `cart.blob`) = effectively
+    forever, paged, cost ∝ carnage.
+
+  Build the chunk load/regenerate/replay-delta machinery (the hard part) once; the disk step drops
+  onto the same seam without touching it. MVP: a bounded LRU of live + recently-dirty chunks; evict
+  beyond the bound. Save-format / versioning stays out of scope until the seams exist to hang it on.
+
+#### 9b. Obstacle = a uniform cell-grid (rigid for now)
+
+Same struct for every obstacle: a small grid of cells, each carrying **mass + strength**, plus a
+world position and orientation (cones get a random spin from their hash). MVP collides the whole
+obstacle as **one rigid solid** (no per-tile detach yet). Demolition later is purely additive:
+distribute `J` across the contact tiles, detach the over-strength ones, spawn them as loose dirty
+debris back into the chunk delta. No rewrite — that's the point of the uniform grid.
+
+#### 9c. `J = M_rig · v_closing` at the contact point — the universal currency
+
+Run-over vs crash is **one number, not two code paths** ("given enough force, alles kan kapot").
+`strength` is the impulse an obstacle absorbs before it gives way:
+
+- **`J ≥ strength` → run over (the obstacle gives).** Shoves / flattens, the rig bleeds a sliver of
+  speed (absorbs the obstacle's little mass), *thunk* + scatter. The obstacle's new state writes to
+  the chunk delta — this is what proves the dirty layer end-to-end on the cheapest obstacle (a cone,
+  whose strength is so low that `J = M·speed` beats it at any pace).
+- **`J < strength` → crash (the obstacle holds).** Kill / reflect the rig's normal velocity, big
+  `shake()` + crunch. A boulder, a house wall, an island — until a heavy enough rig at speed pushes
+  `J` over its strength and smashes through (the tank-through-a-house moment).
+- **Off the centre-line → torque about the COM** (`J × r / I`, the same form steering uses) → the
+  rig **spins** on a glancing corner clip. This is why the rig footprint is **oriented**, not a
+  circle: the hit has to land *somewhere specific* (and later, on specific tiles). A long semi's
+  nose hits first; clip a wall with your corner and you get spun — the satisfying part.
+
+The same `J` that flattens a cone today is what the breakage rung distributes to the rig's contact
+cells (shed a wheel) and the demolition rung distributes to a house's tiles (shatter). Nothing faked,
+nothing thrown away.
+
+**Feedback** (the game-feel rule): reuse what's there — `shake()` (in studio.h, unused so far), the
+`spark[]` pool as debris/scatter, a crunch via `INSTR_NOISE`, optionally a brief hit-stop on a hard
+crash. Sound + shake scaled by `J`.
+
+#### 9d. Build order (each step provable on the harness, deterministic / `--det`)
+
+1. **Chunk streaming + cones (run-over class).** Proves baseline-regenerate + delta-persist + the
+   dirty layer + the cheap collision branch, end to end, on the smallest obstacle. 🔨 building.
+2. **Houses + roundabout islands → solid (crash class).** They're already *drawn*; make them collide
+   (stop / bounce / shake / yaw-on-clip). The satisfying *sloop* moment, no shatter yet. ⬜
+3. **(later rung) Tile-detach demolition + loose debris + disk paging.** The "alles kan kapot"
+   payoff; this is rung-4 breakage machinery pointed at world objects, plus the `save_bytes` evict. ⬜
+
 ## Rendering & screen budget (320×200, provisional)
 
 - **DRIVE:** camera centred on the vehicle, world scrolls under it. Vehicle drawn as
@@ -514,8 +601,12 @@ before the parts bin. Each rung is a runnable cart.
 3. **Biomes + traction.** Noise biome map, grip/drag per biome; sand vs road makes
    the same rig behave differently. Camera scroll + minimap. *Levers here:* wheel-area /
    ground-pressure traction, per-axle grip, stability/tippiness (see lever catalogue).
-4. **Collisions & breakage.** Obstacles, impact → parts detach + scatter. Connectivity.
-   *Levers here:* plating absorbs shock, damaged-engine power ∝ HP.
+4. **Collisions & breakage** — now **split** (see §9): **(4a) collidable world** first — chunked
+   procedural baseline + sparse dirty deltas, obstacles as cell-grids, run-over vs crash emergent
+   from `J = M·v_closing` vs strength (🔨 building 2026-06-11); **(4b) breakage** after — impact
+   distributes `J` to contact cells → parts/tiles detach + scatter (rig damage *and* house
+   demolition, the same machinery). Connectivity. *Levers:* plating absorbs shock, damaged-engine
+   power ∝ HP.
 5. **Scavenging loop.** Scrap currency, parts in wrecks → cargo → bolt on; fuel caches.
 6. **The journey.** Beacon goal, fuel as the clock, win/score.
 
@@ -1631,3 +1722,37 @@ carrying — `latFactor = √(1−(Fx/Fmax)²)`, `Fx` = its drive share (of laid
 lateral grip model. `POWER_EAT`, the `M` A/B toggle and the `GRIP:` HUD tag are **removed**; power-
 oversteer + trail-braking are fully emergent from the circle. Drift unchanged from circle-on (build
 ~-16 / hold ~34 / trail ~12). The gentler-than-POWER_EAT high-gear drift was judged fine as-is.
+
+### Collidable world — increment 1: chunk streaming + run-over cones (2026-06-11)
+
+§9's first rung, built and harness-verified. The whole chunk machine (the hard part) is in;
+cones are the first obstacle class and exercise it end-to-end.
+
+- ✓ **Chunked procedural baseline + sparse dirty deltas.** A 256 px chunk grid (bookkeeping,
+  independent of the road zones). `gen_chunk(cx,cy)` regenerates a chunk's cones from `hash2`
+  deterministically — an untouched chunk stores nothing. `world_sync()` keeps a LIVE RING (the
+  camera rect + a ≥1-chunk margin so nothing pops) materialised into `pool[]`: chunks entering
+  the ring **load** (regenerate baseline + replay any saved delta), chunks leaving **evict**
+  (stash a `Delta` if the obstacle deviated, else drop). Bounded in-memory (`MAXDELTA` LRU by a
+  `wclock` age); the evict step is the one line that later becomes `save_bytes` (the disk seam).
+- ✓ **Every obstacle is a cell-grid** (`cell[OB_GH][OB_GW]`, materials in `OM[]` with mass +
+  strength). A cone is 1×1; collision sums the grid to a rigid footprint (`ob_derive`). This is
+  the seam that makes the demolition rung additive — houses become N×M, the same struct.
+- ✓ **Run-over from `J = M·speed ≥ strength`** (the corrected sense — `strength` is the impulse
+  absorbed before giving way; a cone's is tiny, so it's flattened at any pace). The rig (an
+  oriented box about the COM, `rigL0..rigW1` from `recompute_body`) tests each nearby cone; a hit
+  knocks it along travel + a sideways kick, gives it a tumble that settles under friction, bleeds
+  a sliver of rig speed (∝ the cone's tiny mass) and marks it **dirty**. Feedback: a `shake()`,
+  an `INSTR_NOISE` thunk, scatter sparks. Crash branch (`J < strength`) is a no-op until inc.2.
+- ✓ **Verified headless** (`--trace` + a wide weave, `seed 1`): cones stream (`nob` 16–44 as
+  chunks load/evict), run-overs fire (`ohit`), and the dirty loop is proven — a cone knocked in
+  chunk(-2,1), its chunk evicted (delta SAVED), then reloaded on return (delta REPLAYED → cone
+  stays moved). **Byte-identical under `--det`** (replayable). Open-road top speed unchanged
+  (collision acts only on contact; the `recompute_body` additions are read-only) → no feel regression.
+- **Bug found + fixed in the same pass:** the `J` vs `strength` comparison was inverted (in both
+  the first code *and* this doc) — a cone's `J`≈1700 ≫ its strength 30 took the empty crash branch,
+  so nothing happened. Flipped to `J ≥ strength → give`; §9c above corrected to match.
+
+**Next — increment 2:** promote the already-drawn houses + roundabout islands into solid cell-grid
+obstacles (the crash branch: reflect/kill normal velocity, off-centre clip → yaw about the COM,
+`shake` ∝ J). No tile-detach yet. Then the demolition rung (§9d.3) + disk paging.

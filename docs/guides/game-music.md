@@ -812,6 +812,51 @@ the looser scale (the cart's pentatonic over the changes), and a scale station
 can be tightened to chord-lock. The button only appears where there's chord
 material to lock onto; `solo_locked(cx)` reports the current live state.
 
+### Four ways to play — the articulation axis
+
+The two locks above decide *which notes are safe*. This is the **other** axis:
+*what a press actually plays*. The ribbon shape (in-key cells, can't-play-wrong)
+stays the same; only the articulation changes. Read top-to-bottom it's one
+gradient — **one note held → one note struck → a chord struck together → a chord
+rolled** — set by two `SoloCtx` fields (`struck`) plus, for the chord modes, the
+parked sibling header. **Two of the four ship today.**
+
+| # | Mode | Notes / press | Articulation | Y controls | Feel | `SoloCtx` | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | **Sustained lead** | mono | held + portamento glide | a `SOLO_Y_*` macro (vol / cutoff / echo send) — or nothing | stylophone single-finger lead | `struck=0` (default) | **shipped** |
+| 2 | **Struck mallet** | mono | re-strikes each new cell, old notes **ring out** | usually `SOLO_Y_OFF` (you can't bend a ringing bar) | **xylophone / marimba run** | `struck=1` | **shipped** (`polopan.c`) |
+| 3 | **Chord-trigger** | chord | the whole chord at once — the Juno-demo / Omnichord chord button | the **strum pattern**: top = tight **block**, lower = a **rolled/spread strum** (staggered `note_on`s, block ↔ slow harp-roll) | press a button, get a chord; tilt for how hard you "strum" it | sibling header | **parked** |
+| 4 | **Strum / piano** | chord | a chord you **rake across by hand** — drag/roll over the cells to arpeggiate its tones, like a strum plate | strum direction + spread, but driven by the **motion** of the finger, not a fixed Y band | expressive Omnichord strum plate — you perform the roll | sibling header | **parked** |
+
+**Modes 1–2 are the mono pair** and already exist: `struck` flips between a held,
+gliding voice (the stylophone lead — every melodic station) and a re-struck,
+ringing one (the mallet run — polopan's French-dream-pop marimba). Mode 2 *is* the
+"xylophone" — perceptually polyphonic because old bars keep ringing, even though
+it's one voice handle re-triggered.
+
+**Modes 3–4 are the chord pair** and are parked. **Chord-trigger** is the literal
+Juno/Omnichord chord button — one cell = a named chord, Y sets block-vs-roll; the
+easiest mode of all to sound great with, since you can pick neither a wrong chord
+(the ribbon only offers in-key ones) nor a wrong voicing. **Strum / piano** is its
+expressive sibling: Y stops being a preset and your finger's travel *is* the
+strum, so you rake a chord slow or snap it tight by hand.
+
+All four are **lenses on one ribbon** — lead, mallet, chord-button, strum-plate —
+which between them cover the whole Omnichord (melody + chord buttons + strum
+plate) plus the mallet toy.
+
+**Why the chord pair is a sibling header, not just two more `SoloCtx` flags.**
+solo.h is built around **one** `solo_handle` — even struck mode re-triggers that
+single voice. Chord-trigger and strum need a small **voice pool + staggered
+`note_on`s** (the spread/roll), which is a different machine underneath. So they
+belong in a sibling — working title **`strum.h`** / **`omnichord.h`** — that
+reuses solo.h's ribbon geometry and ui.h capture but owns the voice pool. Build it
+on one **changes-heavy** station first (citypop or bossa — both already
+chord-locked, so the chord-per-cell data is right there). The standalone
+**`omnichord` instrument cart** is the nearest reference for the voice-pool +
+spread mechanics; the `strum()` sound-API call is the low-level note-stagger
+primitive both modes sit on.
+
 **Why this is the right shape for the toy thesis.** The radios sound good
 *because you can't touch them*. An editable step-grid would let a player tap
 cells and make it sound *worse* — the generation magic evaporates. The jam strip

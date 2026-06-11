@@ -2345,6 +2345,16 @@
     "homage": "Mac DeMarco (Reverb Machine chord theory)"
   },
   {
+    "title": "napoleon radio",
+    "description": "An ARTIST station for the musical world of Napoleon Dynamite (2004) - not one texture re-keyed, but the dial playing five recognizably DIFFERENT songs of theirs, the deliberate genre-clash that IS the film's soundtrack. Each SPACE rolls one of five SONG ARCHETYPES (stolen-playbook chord brain), and each fixes its own lead voice, groove, tempo and form; the seed only varies key/patterns within it. DANCE - Napoleon's class-president dance ('Canned Heat'): ~124bpm acid-funk, four-on-the-floor, popping slap bass + auto-wah clav 16ths, real horn-section stabs, falsetto 'ooh'. SERENADE - Kip's wedding song to LaFawnduh ('Always & Forever'): ~68bpm quiet-storm soul, a SUNG falsetto croon over lush Rhodes + string pad, finger-snaps. SWIHART - John Swihart's deadpan score (the film's actual identity): ~96bpm stiff straight-8s, a cheap detuned toy-organ melody doubled by muted pizzicato guitar + glockenspiel. FOREVER - anthemic 80s synth-pop ('Forever Young'): ~108bpm half-time, fat saw pad, bright arp, big gated snare. FRIENDS - gentle fingerpicked folk ('We're Going to Be Friends'): ~88bpm nylon arpeggios + a single sung voice. The first radio voice to SING on INSTR_VOICE (AIR voices the engine as a vocoder; this one croons). Play along on the jam ribbon (the song's scale, the chord tones lit) - its voice and behavior change per archetype. SPACE next, R replay, [ ] history, LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, H help.",
+    "file": "napoleon.cart.png",
+    "kind": [
+      "toy",
+      "instrument"
+    ],
+    "homage": "Napoleon Dynamite (2004) - soundtrack & John Swihart score"
+  },
+  {
     "title": "low end radio",
     "description": "Endless jazz-rap boom bap - the A Tribe Called Quest / Low End Theory homage, fifth of the radio family. Chord brain #5, THE SAMPLED LOOP: generates a lush modal-mixture soul progression (borrowed bIII/bVI/bVII voiced maj7/maj9, a 9sus dominant, the bVI as maj9#11 - per the r/musictheory Electric Relaxation analysis), then cuts a 2/3/4-bar loop (3 favoured) and ROTATES it like a crate-digger dropping the needle mid-phrase, so the tonic moves. Upright-ish bass front and center leaning +12ms, full groove template (hats rush -8ms, snare drags +22ms, 16ths swung 57%), Q-Tip layered snare (noise crack + sine thump as one hit), tremolo rhodes stabs, vinyl dust, hook lead narrowed to each chord's tones. No tempo wobble - samplers don't drift. Seed on display (LOWEND_SEED / R / [ ] history), H help. Worked example #5 for docs/guides/game-music.md.",
     "file": "lowend.cart.png",

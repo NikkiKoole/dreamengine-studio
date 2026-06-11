@@ -96,7 +96,11 @@ const CART_BIN    = path.join(BUILD_DIR, 'cart')
 const CART_EXE    = path.join(BUILD_DIR, 'cart.exe')
 // live (libtcc) backend: a persistent -DDE_TCC host that JIT-compiles cart.c and
 // hot-reloads it on save. See docs/design/cart-as-script.md.
-const LIBTCC_DIR  = path.join(RUNTIME_DIR, 'libtcc')
+// libtcc.h is shared; the arch-specific binaries (libtcc.dylib + tcclib/libtcc1.a) live
+// in a per-arch subdir (arm64/ or x64/) because the dylib bakes in the macOS SDK include
+// path at build time — see runtime/libtcc/README.md.
+const LIBTCC_DIR     = path.join(RUNTIME_DIR, 'libtcc')
+const LIBTCC_ARCH_DIR = path.join(LIBTCC_DIR, process.arch)   // 'arm64' | 'x64'
 const TCC_HOST_BIN = path.join(BUILD_DIR, 'cart_live_host')
 
 // ── cart build prep (shared by run + profile) ─────────────────
@@ -233,7 +237,7 @@ function macTccHostArgs(dims) {
     `"${path.join(RUNTIME_DIR, 'studio.c')}"`,
     '-DDE_TCC',
     `-DDE_TCC_INCDIR='"${RUNTIME_DIR}"'`,
-    `-DDE_TCC_LIBDIR='"${path.join(LIBTCC_DIR, 'tcclib')}"'`,
+    `-DDE_TCC_LIBDIR='"${path.join(LIBTCC_ARCH_DIR, 'tcclib')}"'`,
     `-I"${RUNTIME_DIR}"`,
     `-I"${LIBTCC_DIR}"`,
     `-I"${BUILD_DIR}"`,
@@ -248,8 +252,8 @@ function macTccHostArgs(dims) {
     `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
     ...keymapDefs(keymap),
     '-fno-delete-null-pointer-checks',
-    `"${path.join(LIBTCC_DIR, 'libtcc.dylib')}"`,
-    `-Wl,-rpath,"${LIBTCC_DIR}"`,
+    `"${path.join(LIBTCC_ARCH_DIR, 'libtcc.dylib')}"`,
+    `-Wl,-rpath,"${LIBTCC_ARCH_DIR}"`,
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
     '-framework CoreVideo', '-framework CoreFoundation',
@@ -288,8 +292,8 @@ function killLiveHost() {
 }
 function buildTccHost(dims) {
   return new Promise(resolve => {
-    if (!fs.existsSync(path.join(LIBTCC_DIR, 'libtcc.dylib'))) {
-      return resolve({ ok: false, cmd: '', output: `live backend needs runtime/libtcc/ — not found.\nSee runtime/libtcc/README.md.` })
+    if (!fs.existsSync(path.join(LIBTCC_ARCH_DIR, 'libtcc.dylib'))) {
+      return resolve({ ok: false, cmd: '', output: `live backend needs runtime/libtcc/${process.arch}/libtcc.dylib — not found.\nSee runtime/libtcc/README.md.` })
     }
     // re-derive the libtcc symbol list from studio.h before every host build,
     // so a new API function can never be missing from the live backend
@@ -889,6 +893,7 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
     `-DCELL_W=${cellW}`,
     `-DCELL_H=${cellH}`,
     `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
+    `-DRENDER_EVERY=${cfg?.renderEvery ?? 1}`,   // present every Nth tick (web heat lever); 1 = every tick
     '-Os',
     '-fno-delete-null-pointer-checks',
     `"${RAYLIB_WEB}/lib/libraylib.a"`,

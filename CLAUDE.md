@@ -219,7 +219,7 @@ Raylib is installed via Homebrew. `main.cjs` auto-detects the path: `/opt/homebr
 ▶ run has two backends, picked in the settings tab:
 
 - **native (clang)** — the flow above. Default; optimized, full diagnostics, + a background Windows cross-build.
-- **live (libtcc)** — a persistent host (`studio.c` built with `-DDE_TCC`, linked against vendored `runtime/libtcc/`) JIT-compiles the cart in-process. The first run opens the window; after that, editing the code auto-rewrites `cart.c` (debounced) and the host's file-watch **hot-reloads** it without restarting — state in `de_state()` survives the swap. arm64-macOS only. Full design + rationale: [`docs/design/cart-as-script.md`](docs/design/cart-as-script.md).
+- **live (libtcc)** — a persistent host (`studio.c` built with `-DDE_TCC`, linked against vendored `runtime/libtcc/`) JIT-compiles the cart in-process. The first run opens the window; after that, editing the code auto-rewrites `cart.c` (debounced) and the host's file-watch **hot-reloads** it without restarting — state in `de_state()` survives the swap. macOS only (arm64 + x64; libtcc is vendored per-arch under `runtime/libtcc/<arch>/`). Full design + rationale: [`docs/design/cart-as-script.md`](docs/design/cart-as-script.md).
 
 The web build (emcc → `cart.html/js/wasm`) is its own "Build for web" button, unchanged.
 

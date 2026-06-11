@@ -334,10 +334,11 @@ What landed:
   listed in `shell.js`). So a cart written for `live` compiles unchanged under `native`
   too (it's just a process-lifetime allocation there). The generator picks it up
   automatically (173 symbols now); the `DE_TCC` host no longer registers it by hand.
-- **Vendored libtcc** at `runtime/libtcc/` (`libtcc.dylib` + `libtcc.h` + `tcclib/`
-  = `libtcc1.a` + freestanding headers; ~0.5 MB, arm64-macOS, built from mainline). See
-  its README. The packaged Homebrew TCC is x86-only, so vendoring the source-built dylib
-  is the only option.
+- **Vendored libtcc** at `runtime/libtcc/` (shared `libtcc.h` + per-arch `<arch>/libtcc.dylib`
+  + `<arch>/tcclib/` = `libtcc1.a` + freestanding headers; ~0.5 MB each, macOS, built from
+  mainline). `main.cjs` selects `arm64/` or `x64/` by `process.arch`. See its README. The
+  packaged Homebrew TCC is x86-only and deprecated, so vendoring the source-built dylib is
+  the only option.
 - **`editor/src/settings.js`** — `backend` setting (`native` | `live`), persisted, with
   a "run mode" select in the settings tab. The run button already passes `{...settings}`,
   so `backend` flows through with no `shell.js` change.
@@ -358,7 +359,8 @@ Known v1 limitations (documented for the next pass):
   a later refinement).
 - **No crash sandbox** — a cart segfault still takes the host down (Step 4); the
   `sigsetjmp`/`siglongjmp` survive-and-wait recovery is not yet wired.
-- libtcc is **arm64-macOS only**; other platforms need their own vendored build.
+- libtcc is **macOS-only** (arm64 + x64 vendored per-arch under `runtime/libtcc/<arch>/`);
+  other platforms need their own vendored build.
 
 ## Resolved by the spike (were open questions)
 

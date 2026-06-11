@@ -1,4 +1,4 @@
-# Polo & Pan — the effects I wanted (and what's still pending)
+# Polo & Pan — the effects the music asked for (all shipped, all wired)
 
 The blind brief for the **polopan** station ([`polopan-blind-brief.md`](polopan-blind-brief.md))
 named the band *from the music* (intent-first,
@@ -13,30 +13,29 @@ tape echo**. Sibling notes: [`air-effects-wants.md`](air-effects-wants.md),
 
 > **Genre: design exploration**, not a bug list — a wishlist tied to one station's brief.
 
-## The three the music asks for
+## The wash the music asks for
 
 | want | why | status |
 |---|---|---|
 | **Reverb — the drench.** Mallets, pizz, flute, glass and the Solina pad all bloom into a hall; the ambience *is* the sound (Nanga and Coeur Croisé especially). | — | ✅ **USED.** `reverb(size,damping)` + per-slot `instrument_reverb()` sends, **coupled to the archetype** — a big hall on Nanga/Coeur (size 0.68–0.70, wet ×1.05–1.10), a small dark room on the driving Tunnel (0.40, damping 0.62, wet ×0.55). Low end + kick + clap kept dry/punchy. |
-| **Chorus — the Solina/Juno shimmer.** The detuned string-machine wash is half the P&P signature; the bright arps and pads want that swirl. | — | ✅ **USED.** `chorus(rate,depth,mix)` per archetype — lush on Coeur (mix 0.45) and Nanga (0.35), light on Canopée/Ani Kuni (0.20–0.25), **OFF on Tunnel** (it stays tight). *Caveat (shared with air):* chorus is **master-wide** in v1, so I can't chorus *only* the pad without washing the kit — polopan works around it by re-setting the master chorus **per song** (so each archetype gets the right amount), but within a song the kit shares the pad's chorus. The per-part routing waits for the deferred aux bus (sound-next-steps § 8.10). |
-| **Tape saturation — the Caravelle warmth.** The whole mix wants warm analog tape (soft-clip + a whisper of wow/flutter), the hi-fi-but-warm sound of their records. | — | ✅ **USED.** `tape(wow,flutter,saturation)` master, archetype-coupled — warm on the vintage/dreamy archetypes (Nanga sat 0.30, Coeur 0.28), nearly off on the modern tight Tunnel (0.12). The soft-clip also tames peaks (wettest archetype −5.44 dBFS, 0 clipped). |
-| **Tape DELAY — the dubby throws.** The flute and the Canopée mallet tails want a *dub* tape-delay throw — a warbling, filtered, slewed, self-feeding repeat, not clean digital taps. | The one delay we have (`echo()`) is a clean digital delay; the **dubby tape-delay variant doesn't exist yet** (tape saturation ≠ tape delay). Using `echo()` as a stand-in reads wrong. | ⏳ **PENDING — deliberately NOT wired.** No `echo()` stand-in; the flute/mallet throws wait for the **real tape-DELAY engine** (the dub variant). polopan is a **demand witness**. Marked in `polopan.c` (`voice_song()` FX comment). |
+| **Chorus — the Solina/Juno shimmer.** The detuned string-machine wash is half the P&P signature; the bright arps and pads want that swirl. | — | ✅ **USED, per-instrument.** `instrument_chorus()` on the lush voices (pad most, then mallets/pizz/lead/arp/solo), archetype-coupled — lush on Coeur/Nanga, light on Canopée/Ani Kuni, **OFF on Tunnel**. Because it's per-slot (not master), the four-on-the-floor **kit + bass stay bone dry** while the pad swirls. |
+| **Tape saturation — the Caravelle warmth.** The whole mix wants warm analog tape (soft-clip + a whisper of wow/flutter), the hi-fi-but-warm sound of their records. | — | ✅ **USED.** `tape(wow,flutter,saturation)` master, archetype-coupled — warm on the vintage/dreamy archetypes (Nanga sat 0.30, Coeur 0.28), nearly off on the modern tight Tunnel (0.12). The soft-clip also tames peaks. |
+| **Tape echo — the dub throws.** The flute and the Canopée mallet tails want a *dub* tape-echo throw — a warbling, filtered, self-feeding repeat. | — | ✅ **AVAILABLE today — not a gap.** The tape echo already exists: `echo()` (the RE-201 bus, see `spacecho`) for the repeats, with master `tape()` stacked on it for the wow/flutter wobble. Currently **not wired** in polopan — a taste call, not a missing engine. To add: see "the dub throws" below. |
 
 ## Also nice, lower priority
 
-- **Per-part / aux routing** — ✅ **DONE for chorus.** Now that per-instrument inserts shipped,
-  the Solina shimmer is `instrument_chorus()` on the lush voices (pad most, then mallets/pizz/
-  lead/arp/solo), so the four-on-the-floor **kit + bass stay bone dry** while the pad swirls —
-  no more washing the whole mix. Tape stays **master** on purpose (the whole record to tape is
-  the Caravelle sound); reverb was already per-slot.
+- **Per-part routing — ✅ done** (it's how the chorus is wired, above). Tape stays **master** on
+  purpose (the whole record to tape is the Caravelle sound); reverb is per-slot.
 
 > **Engine note (resolved):** the original out-of-tune flute complaint was an `INSTR_PIPE` bug
-> (octave-low + flat) — **fixed in `sound.h` (in tune A2–A4)**. polopan's topline plays higher
-> (C5–F6), so the `pipe`/`sine` flute A/B in the band panel stays useful; a possible follow-up is
-> dropping the Nanga flute an octave into the in-tune/natural flute range.
+> (octave-low + flat) — **fixed in `sound.h`**, and the Nanga flute was also **dropped an octave**
+> into the in-tune/natural flute range (`241a199`). The `pipe`/`sine` flute A/B stays in the band
+> panel as an option.
 
-## When the tape DELAY (dub variant) lands
+## The dub throws (optional — available now, just unwired)
 
-Wire light, slewed/filtered throws on `I_STAR` (the Nanga flute especially) and the Canopée
-`I_MAL` mallet tails — archetype-coupled like the reverb, dialed back on Tunnel. Then strike the
-PENDING row above and remove the deferral comment in `voice_song()`.
+If we want the flute / Canopée-mallet throws, no new engine is needed — wire `instrument_echo()`
+sends on `I_STAR` (the Nanga flute especially) and the Canopée `I_MAL` tails, configure the
+`echo()` bus (the RE-201) for a dub-length feedback, and the master `tape()` already supplies the
+tape wobble on the repeats. Archetype-coupled like the reverb, dialed back on Tunnel. Left out for
+now as a taste call.

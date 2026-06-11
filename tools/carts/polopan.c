@@ -250,8 +250,9 @@ static void voice_song(void) {
     instrument_filter(I_PIZZ, FILTER_LOW, (int)(2600 * tm), 1);
 
     // ── effects — Polo & Pan is drenched: archetype-coupled reverb + chorus + tape warmth.
-    // (the dubby tape-DELAY throws still wait for the real tape-delay engine — we don't have
-    //  that variant yet; no echo() stand-in.) Order: Canopee · Ani Kuni · Nanga · Tunnel · Coeur.
+    // (Dub tape-echo throws are AVAILABLE — echo() RE-201 bus + the master tape() wobble — but
+    //  left unwired here as a taste call; see polopan-effects-wants.md.) Order: Canopee · Ani
+    //  Kuni · Nanga · Tunnel · Coeur.
     static const float RV_SIZE[NARCH] = { 0.55f, 0.55f, 0.70f, 0.40f, 0.68f };
     static const float RV_DAMP[NARCH] = { 0.35f, 0.40f, 0.30f, 0.62f, 0.30f };
     static const float RV_WET [NARCH] = { 0.85f, 0.80f, 1.10f, 0.55f, 1.05f }; // overall send scale

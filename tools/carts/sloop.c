@@ -384,6 +384,14 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 // (fine counter-steer from digital input). The on-screen wheel mirrors steer_pos.
 #define STEER_RATE    3.4f        // how fast steer_pos winds toward full lock while you hold (per s)
 #define STEER_RETURN  5.0f        // how fast it self-centres when you release (per s)
+// gas + brake are RAMPED the same way (analog feel from digital keys) — but tuned FAST, since mass +
+// gears already grade acceleration: flooring stays punchy, only the instant-100% spike is gone. The
+// analog middle unlocks FEATHERING (ease the gas just under the grip limit → max launch, no wheelspin)
+// and TRAIL-BRAKING (a light brake into a corner rotates the rig via the friction circle).
+#define THROTTLE_RATE 6.0f        // gas winds to full in ~0.17 s held
+#define THROTTLE_RETURN 7.0f      // eases off on release (a natural engine-braking taper)
+#define BRAKE_RATE    9.0f        // brake bites fast (responsive) ...
+#define BRAKE_RETURN  12.0f       // ... and releases fast
 #define ANG_DAMP      5.0f        // angular self-centering (1/s) for SINGLE-TRACK / fallback rigs
                                   // (no per-axle couple to lean on, so they keep the original value)
 #define ANG_DAMP_AXLE 2.6f        // self-centering for TWO-AXLE rigs: lower, because the per-axle
@@ -562,15 +570,22 @@ static float ang, angVel;         // heading (deg, 0 = facing +x / east) + spin
 
 static float cam_x, cam_y;
 static float lead_x, lead_y;      // low-passed camera lead (smooth, no curb jitter)
-static float cam_zoom = 1.0f;     // eased speed-zoom: pulls back at speed (sense of speed + see-ahead)
+static float cam_zoom = 1.0f;     // QUANTIZED speed-zoom actually rendered (snapped to steps so thin
+                                  // world lines don't re-rasterize every frame — kills the "breathing")
+static float cam_zoom_smooth = 1.0f;  // the continuously-eased accumulator (quantized into cam_zoom)
 // ── sense-of-speed camera (eased so it never jitters) ─────────────────────────
 #define CAM_ZOOM_PULL 0.16f       // how far the camera pulls BACK (zooms out) at full speed
 #define CAM_ZOOM_REF  260.0f      // speed (px/s) at which the pull-back maxes out
+#define CAM_ZOOM_STEP 0.04f       // QUANTIZE the zoom to this grid — a fractional zoom re-rasterizes
+                                  // thin world lines (curbs, dashes) every frame it changes (the
+                                  // shimmer/"breathing"); snapping to steps holds them rock-steady
+                                  // between levels (5 levels over the pull → a few tiny pops, no crawl)
 #define CAM_LEAD      0.34f       // how far ahead the camera leads the rig (world px per px/s of vel)
 static float t_skid_snd, t_scrape_snd, t_spin_snd;
 static int   is_paused;
 static float wheel_ang;           // eased steering-wheel angle (deg) for the cockpit dial
 static float steer_pos;           // ramped steer angle (-1..+1) — analog feel from digital keys
+static float gas_pos, brake_pos;  // ramped throttle/brake (0..1) — analog feel from digital keys
 
 // ── modes: BUILD (paused grid editor) ↔ DRIVE (the rig loose in the world) ───
 enum { MODE_DRIVE, MODE_BUILD };
@@ -847,6 +862,7 @@ static void reset_vehicle(void) {
     drift_loose = 0;                            // no lingering slide
     wheel_spin = 0;
     steer_pos = 0;                              // wheel centred
+    gas_pos = 0; brake_pos = 0;                 // pedals released
 
     engine_on = 1; stalled = 0; restart_grace = 0;   // fresh rig starts cranked
     boiler = 0;                                  // steam starts cold → you feel it spool up
@@ -1281,7 +1297,15 @@ static void update_drive(float dt_) {
     int arcade_rev = (AUTO_BRAKE_REVERSE && trans_mode != TR_MANUAL && gear == -1);
     int gas_eff   = arcade_rev ? in_brk : in_gas;   // "drive in the gear's direction" pedal
     int brake_eff = arcade_rev ? in_gas : in_brk;   // "slow down" pedal
-    float throttle = (gas_eff && engine_on && gear != 0) ? 1.0f : 0.0f;  // neutral / dead engine = no drive
+    // ramp the binary pedals into analog throttle/brake (same trick as steering): wind toward held,
+    // ease off on release. Tuned fast (mass+gears already grade accel) — only the 100% spike is gone.
+    float gtarg = gas_eff ? 1.0f : 0.0f, grate = (gas_eff ? THROTTLE_RATE : THROTTLE_RETURN) * dt_;
+    if (gas_pos < gtarg) { gas_pos += grate; if (gas_pos > gtarg) gas_pos = gtarg; }
+    else                 { gas_pos -= grate; if (gas_pos < gtarg) gas_pos = gtarg; }
+    float btarg = brake_eff ? 1.0f : 0.0f, brate = (brake_eff ? BRAKE_RATE : BRAKE_RETURN) * dt_;
+    if (brake_pos < btarg) { brake_pos += brate; if (brake_pos > btarg) brake_pos = btarg; }
+    else                   { brake_pos -= brate; if (brake_pos < btarg) brake_pos = btarg; }
+    float throttle = (engine_on && gear != 0) ? gas_pos : 0.0f;   // analog: neutral / dead engine = no drive
     float thrust = 0, eng_torque = 0;
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
@@ -1317,8 +1341,8 @@ static void update_drive(float dt_) {
     // braking: PURE deceleration, both directions (reverse is a gear now, not the brake).
     // Strong, but capped by what the tyres can grip — a well-wheeled rig stops hard.
     float brakeAccel = 0;
-    if (brake_eff && af(vf) > 0.5f) {               // brake_eff swaps to GAS while arcade-reversing
-        brakeAccel = clamp(GRIP_TO_FORCE * wheelGrip * GROUND_GRIP / M, 0, BRAKE);
+    if (brake_pos > 0.001f && af(vf) > 0.5f) {      // analog: brake force ∝ brake_pos (feathered / trail-brake)
+        brakeAccel = clamp(GRIP_TO_FORCE * wheelGrip * GROUND_GRIP / M, 0, BRAKE) * brake_pos;
         float d = brakeAccel * dt_;
         if (vf > 0) { vf -= d; if (vf < 0) vf = 0; }
         else        { vf += d; if (vf > 0) vf = 0; }
@@ -1412,7 +1436,7 @@ static void update_drive(float dt_) {
     // --- idle creep: throttle released, in gear, no brake → the idling engine trundles you
     //     at a gear-set floor (taller gear = faster, capped). Only pulls UP to the floor (it
     //     won't fight drag from above). Brake overrides → sit still (a manual at a light).
-    if (!in_gas && !in_brk && engine_on && gear != 0) {   // NEUTRAL freewheels — no creep, just coast
+    if (gas_pos < 0.02f && brake_pos < 0.02f && engine_on && gear != 0) {   // both pedals off → coast/creep
         // idle holds a CONSTANT rpm (IDLE_CREEP/V_REF) whatever the gearing → creep speed scales
         // with vref, so a tall-geared supercar idles faster and a short-geared tractor crawls,
         // and neither false-stalls (idle rpm stays above STALL_RPM regardless of vref).
@@ -1432,7 +1456,7 @@ static void update_drive(float dt_) {
 
     // --- skid marks: lay at every wheel while the tires scrub sideways OR lock under a
     //     hard brake at speed (a straight stopping skid, laid frame-by-frame as you slide) -
-    int hard_brake = in_brk && af(vf) > BRAKE_SKID_SPD;
+    int hard_brake = brake_pos > 0.5f && af(vf) > BRAKE_SKID_SPD;   // analog: only a firm brake locks up
     if (af(vl) > SKID_SLIP || hard_brake)
         for (int r = 0; r < GH; r++)
             for (int c = 0; c < GW; c++)
@@ -1564,8 +1588,8 @@ static void engine_sound(int audible) {
     case EK_GAS: default: pbase = 24; pspan = 28; cbase = 220; bright = 0; break;
     }
     float pitch = pbase + r * pspan;                           // idle low, climbs to redline
-    int   vol   = in_gas ? 5 : 3;                              // idle/creep quieter than under power
-    int   cut   = cbase + (int)((r * (bright ? 0.9f : 0.75f) + (in_gas ? 0.25f : 0.0f)) * 1500);
+    int   vol   = gas_pos > 0.15f ? 5 : 3;                     // idle/creep quieter than under power
+    int   cut   = cbase + (int)((r * (bright ? 0.9f : 0.75f) + gas_pos * 0.25f) * 1500);  // brightens with throttle
     if (eng_voice < 0) { eng_voice = note_on((int)pitch, INSTR_ENGINE, vol); note_glide(eng_voice, 70); }
     note_pitch (eng_voice, pitch);                             // glided → smooth rev tracking
     note_vol   (eng_voice, vol);
@@ -1592,7 +1616,11 @@ void update(void) {
     // (and you see further ahead). Eased slowly so it never jitters; resets to 1 in BUILD/at rest.
     float camspd = fsqrt(vx * vx + vy * vy);
     float zoomTarget = 1.0f - CAM_ZOOM_PULL * clamp(camspd / CAM_ZOOM_REF, 0, 1);
-    cam_zoom = lerp(cam_zoom, zoomTarget, 0.05f);
+    cam_zoom_smooth = lerp(cam_zoom_smooth, zoomTarget, 0.05f);
+    // snap to the step grid (no roundf — studio has no math.h): the rendered zoom holds steady
+    // between levels, so thin world lines stop shimmering as it eases. Position is already
+    // pixel-snapped ((int)cam_x/cam_y). Fractional zoom leaves only a mild, even scroll-crawl.
+    cam_zoom = ((int)(cam_zoom_smooth / CAM_ZOOM_STEP + 0.5f)) * CAM_ZOOM_STEP;
 
     world_sync();                  // §9: stream chunks (load/evict) for the new camera
     obstacles_integrate(dt_);      // knocked obstacles tumble away and settle
@@ -1630,6 +1658,8 @@ void update(void) {
     watch("slidR", "%d", slide_rear);
     watch("wt", "%.2f", wt_xfer);
     watch("steer", "%.2f", steer_pos);
+    watch("gasp", "%.2f", gas_pos);
+    watch("brkp", "%.2f", brake_pos);
     {   // per-wheel load distribution (§8): front/rear + right/left sums
         // NB: +x = front (frontX side), +y = the vehicle's RIGHT (screen-y is down here)
         float lF = 0, lR = 0, lRight = 0, lLeft = 0;

@@ -675,6 +675,7 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Dynamic weight transfer (longitudinal)** | the realized longitudinal accel shifts load front↔rear (low-passed like suspension), scaling each axle's grip cap: braking loads the front (turn-in, lift-off rotation), throttle loads the rear (squat, traction, the power-drift bite). The *dynamic* half of weight (static distribution → COM/I already exists) | drifts | ✅ |
 | **Self-aligning torque (caster / trail)** | the front tyres rotate the rig toward its travel direction when sliding — the car counter-steers itself. Catches a slide into a held angle instead of a spin, and assists digital counter-steer. ∝ `sin(slip)`, capped (past ~55° it's spinning, let it). The thing that makes a drift HOLD | drifts | ✅ |
 | **Ramped (analog) steering** | binary keys (−1/0/+1) wind a smoothed `steer_pos` toward full lock while held and ease back on release; a quick opposite tap trims the lock off a notch → fine counter-steer from digital/touch input. Without it a realistic drift is unholdable on a phone | drifts | ✅ |
+| **Ramped (analog) gas + brake** | digital pedals wind `gas_pos`/`brake_pos` (0..1) like the steering ramp (tuned fast — top speed/0-100 unchanged). Unlocks FEATHERING the throttle (ease under the traction limit → no launch wheelspin) and TRAIL-BRAKING (a light brake eats lateral grip via the friction circle → rotation) — behaviour the physics already had but a binary pedal couldn't reach | §9-era | ✅ |
 | **Per-wheel spring contact (the unified core)** | every wheel its own contact patch with a vertical LOAD from a spring solve (heave+pitch+roll, determinate for any N wheels); lateral grip scales from load. SUBSUMES per-axle grip, longitudinal+lateral transfer, and tipping (load→0) into one mechanism; replaced the 2-axle bicycle for ≥3-wheel rigs (single-track keeps its bleed). See §8. *(Per-wheel DRIVE/brake force — fully emergent power-oversteer — is the remaining optional refinement.)* | drifts/§8 | ✅ |
 | **Aquaplaning / terrain grip** | `GROUND_GRIP` drops toward ~0 on water/ice/wet → the rig floats, steering does nothing; cross a puddle mid-corner → instant slide. Rides on the existing `GROUND_GRIP` hook (=1.0 road today), set per-biome | 3 (biomes) | ⬜ |
 | **Dynamic stability / tipping** | cornering load shifts the COM toward the turn's outside; leaving the support polygon (hull of the wheels) tips the rig → transient scrape + lateral grip collapse. A 3-wheeler tips toward its gap but not the other way (asymmetric); single-track (bike) exempt. The 2-D stand-in for roll | 2.55 | ✅ |
@@ -1813,3 +1814,42 @@ you just want out. Added a compile-time toggle: **`AUTO_BRAKE_REVERSE`** (defaul
   guarded by the macro so `0` dead-codes it. Verified headless: gas→fwd (gear 2) → hold brake → reverse
   (gear −1, −42) → gas → slows + returns to DRIVE (gear 1→4). The realistic gate/down-tap reverse still
   works in AUTO when the toggle's off.
+
+### Analog (ramped) gas + brake (2026-06-11)
+
+The sibling of ramped steering: the digital gas/brake keys now wind an analog `gas_pos`/`brake_pos`
+(0..1) the way `steer_pos` ramps, instead of a binary 0/1. **Why it's worth it even though gas/brake
+are already smoothed by mass + gears** (so this is much less *needed* than steering was): the analog
+middle unlocks behaviour the physics already models but a binary pedal couldn't reach —
+- **feathering the throttle** under the load-sensitive traction model → ease in just below the grip
+  limit for a clean launch instead of always spinning up in 1st;
+- **trail-braking** through the combined-slip friction circle → a *light* brake into a corner eats
+  some lateral grip and rotates the rig, where a binary brake was all-or-nothing.
+
+Tuned **fast** so it doesn't feel laggy (mass+gears already grade accel — only the instant-100% spike
+goes): `THROTTLE_RATE 6` (full in ~0.17 s) / `THROTTLE_RETURN 7`; `BRAKE_RATE 9` / `BRAKE_RETURN 12`
+(brake bites/releases quickly). `throttle = gas_pos`; brake force (and thus its friction-circle share
+`fxBrake`) scales by `brake_pos` — so one scale carries decel *and* trail-braking. The arcade-reverse
+pedal swap composes cleanly (in reverse `gas_pos` is the back-throttle off the brake key, `brake_pos`
+the slow pedal off gas). Idle-creep + lock-up-skid now gate on the ramped values, not the raw keys;
+the engine voice brightens with `gas_pos`. All four rates are `#define`d — flatten to ~99 for binary.
+
+Verified headless: `gas_pos` winds 0→1 in ~9 frames; a floored launch still reaches full throttle,
+**top speed unchanged (164 px/s ≈ 118 km/h), 0-100 6.2 s vs ~6 s** (the intended hair-softer first
+moment); arcade reverse round-trips on the ramped pedals; byte-identical under `--det`.
+
+### Speed-zoom shimmer — quantize the zoom (2026-06-11)
+
+Playtest: the speed-zoom made thin world lines (curbs, lane dashes, ground speckle) shimmer/"breathe".
+Cause: `cam_zoom` is a **fractional GPU scale that eased continuously**, so every frame a 1 px world
+line re-rasterized to a slightly different pixel. Fix: **quantize `cam_zoom` to a `CAM_ZOOM_STEP` (0.04)
+grid** — a smooth accumulator (`cam_zoom_smooth`) still eases, but the *rendered* zoom snaps to steps
+(no `roundf` — studio has no math.h — so `(int)(x/STEP + 0.5)*STEP`). Lines hold rock-steady between
+levels; only a tiny pop when speed crosses a step. The camera **position is already pixel-snapped**
+(`(int)cam_x/cam_y`). All the draw-margin maths read the same `cam_zoom`, so the zoomed-out view stays
+fully covered (verified at 107 km/h: no undrawn edges). Verified: zoom takes 4 discrete values
+(1.00/0.96/0.92/0.88) accelerating to top, not a continuous sweep; byte-identical under `--det`.
+
+*Irreducible remainder:* a fractional zoom still scroll-crawls thin lines a hair as you pan (1 px world
+→ `zoom` px screen). It's mild and even (not the breathing). If it ever bugs us: thicken curbs to 2 px,
+or a sub-pixel-precision camera target (an engine change — `camera_ex` takes int today).

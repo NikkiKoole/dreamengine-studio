@@ -131,8 +131,8 @@ static void sh_feedback(float t, int ps) {
     float cxp = SCREEN_W * 0.5f, cyp = (y0 + y1) * 0.5f;
     float ca = cos_deg(1.5f), sa = sin_deg(1.5f);     // 1.5°/frame swirl
     float zoom = 1.012f;                               // >1 pulls from further out → zoom-in feel
-    float ex = cxp + cos_deg(t * 90.0f) * SCREEN_W * 0.22f;   // auto emitter, orbiting (inside the bright zone)
-    float ey = cyp + sin_deg(t * 70.0f) * (y1 - y0) * 0.22f;
+    float ex = cxp + cos_deg(t * 80.0f) * SCREEN_W * 0.22f;   // auto emitter, orbiting (inside the bright zone)
+    float ey = cyp + sin_deg(t * 80.0f) * (y1 - y0) * 0.22f;  // same rate on both axes = a true circle (no self-crossing "shadow" trail)
     for (int sy = y0; sy < y1; sy += ps)
         for (int sx = 0; sx < SCREEN_W; sx += ps) {
             float px = sx + ps * 0.5f, py = sy + ps * 0.5f;

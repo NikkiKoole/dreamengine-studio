@@ -5,7 +5,8 @@
 spin-out + rear-only handbrake) + long vehicles (9-long grid, SEMI/SCHOOLBUS)
 + neutral & reverse-in-auto + phone cockpit rework + drift dynamics (weight transfer
 + self-aligning torque + ramped steering — feel-tuning ongoing) + §8 per-wheel spring model
-+ §9 collidable world increment 1 (chunk streaming + run-over cones) done.** Cart:
++ §9 collidable world: increment 1 (chunk streaming + run-over cones) + 2a (solid houses + the
+emergent smash-through boundary) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -567,8 +568,9 @@ crash. Sound + shake scaled by `J`.
 
 1. **Chunk streaming + cones (run-over class).** Proves baseline-regenerate + delta-persist + the
    dirty layer + the cheap collision branch, end to end, on the smallest obstacle. 🔨 building.
-2. **Houses + roundabout islands → solid (crash class).** They're already *drawn*; make them collide
-   (stop / bounce / shake / yaw-on-clip). The satisfying *sloop* moment, no shatter yet. ⬜
+2. **Houses → solid (crash class).** They're already *drawn*; make them collide (stop / bounce /
+   shake / yaw-on-clip + smash-through when hit hard enough). ✅ done. Roundabout islands deliberately
+   left non-collidable (drive-over decoration — player call 2026-06-11).
 3. **(later rung) Tile-detach demolition + loose debris + disk paging.** The "alles kan kapot"
    payoff; this is rung-4 breakage machinery pointed at world objects, plus the `save_bytes` evict. ⬜
 
@@ -1756,3 +1758,58 @@ cones are the first obstacle class and exercise it end-to-end.
 **Next — increment 2:** promote the already-drawn houses + roundabout islands into solid cell-grid
 obstacles (the crash branch: reflect/kill normal velocity, off-centre clip → yaw about the COM,
 `shake` ∝ J). No tile-detach yet. Then the demolition rung (§9d.3) + disk paging.
+
+### Collidable world — increment 2a: solid houses + the smash boundary (2026-06-11)
+
+Houses are now solid obstacles you crash into — and a heavy/fast enough rig smashes *through*.
+
+- ✓ **Houses are pool obstacles, generated per-chunk.** `gen_chunk` now tiles houses into city/town
+  block interiors (the same ~5 m-facade layout the old `draw_houses` drew — which is **deleted**;
+  houses draw from the pool in `draw_obstacles`). Each house is owned by the chunk its centre falls
+  in (no double-emit). A house is a 3×3 cell-grid of `OM_BRICK` (the demolition tiles, dormant) with
+  a box footprint (`hw,hh`). `draw_course` now only paints the flat road + fields under them. The
+  pool grew to `MAXOB 768` / `OB_PERCHUNK 80` (a dense city chunk holds dozens of houses).
+- ✓ **Solid crash response (`crash_solid`).** Rig box corners vs the house AABB → deepest penetrating
+  corner = the contact. Depenetrate (don't sink in), then a **rigid-body impulse at that contact**:
+  the normal velocity reflects (`CRASH_E` 0.25 restitution) *and* an off-centre clip yaws the rig
+  (`r×J/I`, the same form as steering) — clip a corner and you get spun. `shake` + thud scale with vn.
+- ✓ **The emergent smash boundary (§9c).** If the contact impulse `M·|vn|` beats the house strength
+  (3×3 `OM_BRICK` ≈ 4050), the house **smashes**: whole-obstacle destroy (tile-by-tile shatter is the
+  demolition rung; the cell-grid is already here for it), heavy crunch + big `shake` + debris burst,
+  and the rig barely slows. So a **light rig bounces** (buggy `M·v ≲ 2800` < 4050) while a **heavy/fast
+  rig drives through** (a SEMI, or a cargo-laden tank build) — the "alles kan kapot" boundary, no
+  per-type flag. A smashed house leaves a low rubble mark and **stays demolished** (dirty → delta).
+- ✓ **Verified headless** (`--trace`, seed 1): roads drive clear at full speed (0 false contacts);
+  a buggy turning into a house **bounces** (vf 93→78, no tunnel) and never smashes (15 bricks too
+  strong for its momentum); with bricks temporarily weakened the **smash path fires** (`ohit=2`,
+  whole-house destroy) and — proven end-to-end — **71 destroyed houses SAVED on eviction, 15 REPLAYED
+  on return** (a demolished house stays demolished). **Byte-identical under `--det`**.
+- **Open / feel:** the city is now a tight maze of narrow roads between solid blocks — claustrophobic;
+  may want wider city lanes or sparser blocks (a `draw_course`/zone tweak). The smash threshold (brick
+  strength 450/cell) is tuned so stock light rigs bounce and only a deliberately heavy build smashes —
+  reachable but not casual; dial `OM_BRICK.strength` for how hard demolition should be.
+
+**Roundabout islands — left NON-collidable (decided 2026-06-11).** Originally planned as 2b (solid
+round obstacles); the player decided to keep them as drive-over decoration (drawn in `draw_course`),
+so there's no island crash. Houses are the only solid. (A round `crash_solid` variant is still the
+path if that ever changes.)
+
+**Next:** the demolition rung (§9d.3 — distribute J to a house's 3×3 tiles, detach the over-strength
+ones into loose debris) + disk paging.
+
+### Arcade auto-reverse toggle — easy to back out of a jam (2026-06-11)
+
+Playtest feel note: now that houses are solid, you get stuck against them, and digging out via the
+gear gate (tap to R) is fiddly — *nice in a sadistic way* (the player's words), but annoying when
+you just want out. Added a compile-time toggle: **`AUTO_BRAKE_REVERSE`** (default 1, in `sloop.c`).
+
+- **On (arcade, forgiving):** in **AUTO / 1-GEAR**, holding the BRAKE past a dead stop engages reverse
+  and drives you back — the pedals swap (BRAKE = go-backward throttle, GAS = slow down / return), and
+  at a near-stop GAS shifts back to DRIVE. So it's the classic arcade "↓ reverses": hold brake to back
+  out of a jam, tap gas to drive off. No gear-changing.
+- **Off (realistic):** BRAKE is pure deceleration; reverse is a gear you select (the gate / a down-tap),
+  as before. **MANUAL is always realistic** regardless of the toggle (you keep the H-gate ritual).
+- Implemented as `arcade_rev` swapping `gas_eff`/`brake_eff` + a near-stop auto-shift in the gear block;
+  guarded by the macro so `0` dead-codes it. Verified headless: gas→fwd (gear 2) → hold brake → reverse
+  (gear −1, −42) → gas → slows + returns to DRIVE (gear 1→4). The realistic gate/down-tap reverse still
+  works in AUTO when the toggle's off.

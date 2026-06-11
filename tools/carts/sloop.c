@@ -355,6 +355,11 @@ enum { TR_SINGLE, TR_AUTO, TR_MANUAL };
 #define REV_RATIO     3.50f       // reverse ≈ 1st gear (real gearboxes share the ratio)
 #define REV_ENGAGE_SPD 12.0f      // shift into/out of reverse only below this (px/s) — ABOVE 1st-gear
                                   // idle creep (~8.3) so a stopped-but-creeping car still qualifies
+#define AUTO_BRAKE_REVERSE 1      // 1 = (arcade, forgiving) in AUTO/1-GEAR, holding BRAKE past a dead
+                                  // stop engages reverse AND drives you back — so you don't have to
+                                  // change gear to wriggle out of a jam (GAS at a stop returns to DRIVE).
+                                  // 0 = (realistic) BRAKE is pure deceleration; you select R yourself
+                                  // (the gate / a down-tap). MANUAL is ALWAYS realistic, toggle or not.
 #define SINGLE_RATIO  0.95f       // the one direct-drive ratio (electric): flat, strong, no band
 #define AUTO_UP       0.90f       // AUTO upshifts above this rpm (revs high → you HEAR the gear)
 #define AUTO_DOWN     0.42f       // AUTO downshifts below this rpm
@@ -509,41 +514,46 @@ static float restart_grace;       // s of stall-immunity after a crank (see REST
 // EVERY obstacle is a CELL-GRID (a cone is 1×1) — the seam that makes the future demolition
 // rung (distribute J to tiles, detach over-strength ones) a pure addition, not a rewrite.
 #define CHUNK      256            // world px per chunk (bookkeeping grid; independent of road zones)
-#define MAXOB      256            // live obstacles cap (the ring's working set)
+#define MAXOB      768            // live obstacles cap (a dense city chunk holds dozens of houses)
 #define MAXLOADED  64             // live chunks cap
-#define MAXDELTA   128            // remembered run-over deltas for evicted chunks (bounded LRU)
-#define OB_GW      4              // max obstacle cell-grid (house up to 4×4 later; a cone is 1×1)
+#define MAXDELTA   192            // remembered deltas for evicted chunks (bounded LRU)
+#define OB_GW      4              // obstacle cell-grid (cone 1×1, house up to 4×4 — the demolition tiles)
 #define OB_GH      4
 #define OB_CELL    7.0f           // px per obstacle cell (matches the rig's CELL → tiles read same scale)
-enum { OM_NONE, OM_CONE, OM_KINDS };          // cell MATERIALS (mass+strength); inc.2 adds brick/stone
-enum { OB_CONE, OB_KINDS };                    // obstacle KINDS
+#define OB_PERCHUNK 80            // max obstacles a single chunk can generate (a dense city chunk's houses)
+enum { OM_NONE, OM_CONE, OM_BRICK, OM_KINDS };  // cell MATERIALS (mass+strength)
+enum { OB_CONE, OB_HOUSE, OB_KINDS };           // obstacle KINDS (OB_HOUSE = a solid building)
 typedef struct { float mass, strength; int col; const char *name; } ObMat;
 static ObMat OM[OM_KINDS];        // filled in init() (no designated inits — libtcc)
 typedef struct {
-    unsigned char alive, dirty;   // dirty = deviates from baseline → must persist on evict
+    unsigned char alive, dirty, destroyed;  // dirty = deviates from baseline; destroyed = smashed (persists)
     int   kind;                   // OB_*
     int   cx, cy, idx;            // home chunk + baseline index (the delta key)
     float bx, by;                 // baseline (pristine) position — identity + reset
     float x, y, ang;              // current pose (= baseline + run-over shove)
     float vx, vy, vr;             // knocked velocity (tumbles, then settles back to rest)
-    unsigned char gw, gh;         // cell-grid dims (cone = 1×1)
+    float hw, hh;                 // footprint HALF-extents (world px) — the collision box
+    unsigned char gw, gh;         // cell-grid dims (cone 1×1; house N×M demolition tiles)
     unsigned char cell[OB_GH][OB_GW];  // material per cell (OM_*); 0 = empty
-    float mass, strength, rad;    // derived from the cells at load (footprint + collision)
+    int   col;                    // draw colour (house roof varies; cone = its material colour)
+    float mass, strength, rad;    // derived at load (mass/strength from cells; rad from the footprint)
 } Obstacle;
 static Obstacle pool[MAXOB];      // the live working set
-typedef struct { int cx, cy, idx; float dx, dy, dang; int age; unsigned char used; } Delta;
+typedef struct { int cx, cy, idx; float dx, dy, dang; unsigned char destroyed; int age; unsigned char used; } Delta;
 static Delta wdelta[MAXDELTA];    // remembered deviations of chunks NOT currently live (LRU by age)
 static int   wclock;              // monotonically bumped each save → LRU age
 typedef struct { int cx, cy; } ChunkRef;
 static ChunkRef loaded[MAXLOADED];
 static int   nLoaded;
-static int   last_hit;            // 1 the frame a cone was run over (HUD/trace pulse)
+static int   last_hit;            // 1 the frame an obstacle is run over / smashed (HUD/trace pulse)
+#define HOUSE_FACADE 38           // px per house plot (~5 m); the drawn house is ~34px ≈ 4.9 m
 // forward decls (defined down in the world section, after hash2)
 static void collide_world(void);
 static void world_sync(void);
 static void obstacles_integrate(float dt_);
 static void draw_obstacles(void);
 static void world_reset(void);
+static int  zone_at(float x, float y);   // (defined below; gen_chunk needs it to place houses)
 
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
@@ -1218,6 +1228,13 @@ static void update_drive(float dt_) {
             else if (gear == 0 && af(vf) < REV_ENGAGE_SPD) { gear = -1; vf = 0; shift_snd = 1; }
         }
     }
+    // arcade auto-reverse (AUTO_BRAKE_REVERSE): in AUTO/1-GEAR, at a near-stop GAS picks DRIVE and
+    // BRAKE picks REVERSE — so holding the brake past a stop backs you out of a jam without shifting.
+    // Only fires on the transition (the gear guards stop it re-clunking). MANUAL is never arcade.
+    if (AUTO_BRAKE_REVERSE && trans_mode != TR_MANUAL && engine_on && af(vf) < REV_ENGAGE_SPD) {
+        if (in_gas && gear < 1)                  { gear = 1;  vf = 0; shift_snd = 1; }   // gas → DRIVE
+        else if (in_brk && !in_gas && gear >= 1) { gear = -1; vf = 0; shift_snd = 1; }   // brake → REVERSE
+    }
     if (trans_mode == TR_SINGLE && gear > 1) gear = 1;          // single keeps one forward gear
     if (trans_mode == TR_AUTO && gear >= 1) {                   // auto-shift to stay in the band
         if (rpm > AUTO_UP && gear < NGEAR) { gear++; shift_snd = 1; }
@@ -1259,7 +1276,12 @@ static void update_drive(float dt_) {
     float gmul = delivery(eng_kind, rpm, boiler) * ratio;
 
     // --- engine: thrust through the gear, + the yaw torque from an off-centre engine
-    float throttle = (in_gas && engine_on && gear != 0) ? 1.0f : 0.0f;  // neutral / dead engine = no drive
+    // arcade reverse swaps the pedals: BRAKE is the go-backward throttle, GAS is the slow-down pedal
+    // (ease off / press gas to stop the reverse and, at a near-stop, return to DRIVE).
+    int arcade_rev = (AUTO_BRAKE_REVERSE && trans_mode != TR_MANUAL && gear == -1);
+    int gas_eff   = arcade_rev ? in_brk : in_gas;   // "drive in the gear's direction" pedal
+    int brake_eff = arcade_rev ? in_gas : in_brk;   // "slow down" pedal
+    float throttle = (gas_eff && engine_on && gear != 0) ? 1.0f : 0.0f;  // neutral / dead engine = no drive
     float thrust = 0, eng_torque = 0;
     for (int r = 0; r < GH; r++)
         for (int c = 0; c < GW; c++) {
@@ -1295,7 +1317,7 @@ static void update_drive(float dt_) {
     // braking: PURE deceleration, both directions (reverse is a gear now, not the brake).
     // Strong, but capped by what the tyres can grip — a well-wheeled rig stops hard.
     float brakeAccel = 0;
-    if (in_brk && af(vf) > 0.5f) {
+    if (brake_eff && af(vf) > 0.5f) {               // brake_eff swaps to GAS while arcade-reversing
         brakeAccel = clamp(GRIP_TO_FORCE * wheelGrip * GROUND_GRIP / M, 0, BRAKE);
         float d = brakeAccel * dt_;
         if (vf > 0) { vf -= d; if (vf < 0) vf = 0; }
@@ -1707,31 +1729,77 @@ static void ob_derive(Obstacle *o) {
             int m = o->cell[r][c];
             if (m) { o->mass += OM[m].mass; o->strength += OM[m].strength; }
         }
-    int span = o->gw > o->gh ? o->gw : o->gh;
-    o->rad = 0.5f * span * OB_CELL;
+    o->rad = fsqrt(o->hw * o->hw + o->hh * o->hh);   // broad-phase radius covers the box corners
+}
+
+// start a blank obstacle (common fields) — caller sets kind/pose/cells then calls ob_derive.
+static void ob_init(Obstacle *o, int cx, int cy, int idx) {
+    o->alive = 1; o->dirty = 0; o->destroyed = 0;
+    o->cx = cx; o->cy = cy; o->idx = idx;
+    o->ang = 0; o->vx = o->vy = o->vr = 0;
+    o->gw = 1; o->gh = 1;
+    for (int r = 0; r < OB_GH; r++)
+        for (int c = 0; c < OB_GW; c++) o->cell[r][c] = OM_NONE;
 }
 
 // regenerate a chunk's BASELINE obstacles from the seed (deterministic, identical every
 // time). Returns the count; fills out[] (idx = the stable per-chunk index = the delta key).
+// idx is just the running emit order k — stable because gen order is fixed (cones, then houses).
 static int gen_chunk(int cx, int cy, Obstacle *out) {
-    unsigned h = hash2(cx, cy);
-    int n = h % 4;                      // 0..3 cones per chunk (roadworks clutter)
     int k = 0;
-    for (int i = 0; i < n; i++) {
+    int x0 = cx * CHUNK, y0 = cy * CHUNK;     // this chunk's world span [x0,x0+CHUNK)
+
+    // 1. cones — light roadworks clutter, scattered anywhere (run-over class)
+    unsigned h = hash2(cx, cy);
+    int ncone = h % 4;                        // 0..3 per chunk
+    for (int i = 0; i < ncone && k < 60; i++) {
         unsigned hi = hash2(cx * 131 + i * 17, cy * 131 + 7);
-        Obstacle o;
-        o.alive = 1; o.dirty = 0; o.kind = OB_CONE;
-        o.cx = cx; o.cy = cy; o.idx = i;
-        o.bx = (float)(cx * CHUNK + (int)(hi % CHUNK));
-        o.by = (float)(cy * CHUNK + (int)((hi >> 9) % CHUNK));
+        Obstacle o; ob_init(&o, cx, cy, k);
+        o.kind = OB_CONE;
+        o.bx = (float)(x0 + (int)(hi % CHUNK));
+        o.by = (float)(y0 + (int)((hi >> 9) % CHUNK));
         o.x = o.bx; o.y = o.by; o.ang = (float)((hi >> 18) % 360);
-        o.vx = o.vy = o.vr = 0;
-        o.gw = 1; o.gh = 1;
-        for (int r = 0; r < OB_GH; r++)
-            for (int c = 0; c < OB_GW; c++) o.cell[r][c] = OM_NONE;
-        o.cell[0][0] = OM_CONE;
-        ob_derive(&o);
-        out[k++] = o;
+        o.hw = o.hh = 0.5f * OB_CELL;         // ~3.5px footprint
+        o.cell[0][0] = OM_CONE; o.col = OM[OM_CONE].col;
+        ob_derive(&o); out[k++] = o;
+    }
+
+    // 2. houses (crash class) — only in CITY/TOWN zones. Tiled into block interiors exactly as
+    //    draw_houses did, but emitted as solid obstacles. Each house is owned by the chunk its
+    //    CENTRE falls in (so no double-emit across chunk/block borders).
+    int zone = zone_at(x0 + CHUNK * 0.5f, y0 + CHUNK * 0.5f);
+    if (zone == Z_CITY || zone == Z_TOWN) {
+        int p = ZONE_PITCH[zone], hwr = ZONE_LANE[zone] / 2;
+        int bx0 = ifloordiv(x0, p) - 1, bx1 = ifloordiv(x0 + CHUNK, p) + 1;
+        int by0 = ifloordiv(y0, p) - 1, by1 = ifloordiv(y0 + CHUNK, p) + 1;
+        for (int bx = bx0; bx <= bx1; bx++)
+            for (int by = by0; by <= by1; by++) {
+                int lx0 = bx * p + hwr + 3, lx1 = (bx + 1) * p - hwr - 3;   // block interior (off the roads)
+                int ly0 = by * p + hwr + 3, ly1 = (by + 1) * p - hwr - 3;
+                int nx = (lx1 - lx0) / HOUSE_FACADE, ny = (ly1 - ly0) / HOUSE_FACADE;
+                if (nx < 1 || ny < 1) continue;
+                int ox = lx0 + ((lx1 - lx0) - nx * HOUSE_FACADE) / 2;
+                int oy = ly0 + ((ly1 - ly0) - ny * HOUSE_FACADE) / 2;
+                int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
+                for (int i = 0; i < nx && k < OB_PERCHUNK; i++)
+                    for (int j = 0; j < ny && k < OB_PERCHUNK; j++) {
+                        unsigned hh2 = hash2(bx * 131 + i, by * 131 + j);
+                        if ((hh2 & 7) == 0) continue;                  // empty lots / yards
+                        float side = HOUSE_FACADE - 3;                 // drawn house size
+                        float ccx = ox + i * HOUSE_FACADE + 1 + side * 0.5f;
+                        float ccy = oy + j * HOUSE_FACADE + 1 + side * 0.5f;
+                        if (ifloordiv((int)ccx, CHUNK) != cx || ifloordiv((int)ccy, CHUNK) != cy) continue;  // not ours
+                        Obstacle o; ob_init(&o, cx, cy, k);
+                        o.kind = OB_HOUSE;
+                        o.bx = o.x = ccx; o.by = o.y = ccy;
+                        o.hw = o.hh = side * 0.5f;
+                        o.gw = 3; o.gh = 3;                            // 3×3 rubble tiles (demolition rung)
+                        for (int rr = 0; rr < 3; rr++)
+                            for (int cc = 0; cc < 3; cc++) o.cell[rr][cc] = OM_BRICK;
+                        o.col = roof[hh2 & 3];
+                        ob_derive(&o); out[k++] = o;
+                    }
+            }
     }
     return k;
 }
@@ -1756,6 +1824,7 @@ static void save_delta(Obstacle *o) {
         d->used = 1; d->cx = o->cx; d->cy = o->cy; d->idx = o->idx;
     }
     d->dx = o->x - o->bx; d->dy = o->y - o->by; d->dang = o->ang;
+    d->destroyed = o->destroyed;
     d->age = ++wclock;
 }
 
@@ -1765,11 +1834,12 @@ static int pool_alloc(void) {
 }
 
 static void load_chunk(int cx, int cy) {
-    Obstacle tmp[16];
+    Obstacle tmp[OB_PERCHUNK];
     int n = gen_chunk(cx, cy, tmp);
     for (int i = 0; i < n; i++) {
-        Delta *d = find_delta(cx, cy, tmp[i].idx);   // replay a remembered run-over on top
-        if (d) { tmp[i].x = tmp[i].bx + d->dx; tmp[i].y = tmp[i].by + d->dy; tmp[i].ang = d->dang; tmp[i].dirty = 1; }
+        Delta *d = find_delta(cx, cy, tmp[i].idx);   // replay a remembered deviation on top
+        if (d) { tmp[i].x = tmp[i].bx + d->dx; tmp[i].y = tmp[i].by + d->dy; tmp[i].ang = d->dang;
+                 tmp[i].destroyed = d->destroyed; tmp[i].dirty = 1; }
         int s = pool_alloc();
         if (s < 0) return;                            // pool full — drop (bounded)
         pool[s] = tmp[i];
@@ -1813,9 +1883,91 @@ static void world_sync(void) {
 }
 
 // run-over / crash test: the rig (an oriented box about the COM) vs each nearby obstacle.
-// J = M·closing-speed vs the obstacle's strength decides run-over (give) vs crash (hold).
-// Increment 1: cones are always run-over (low strength) — knocked away + a small speed bleed,
-// the deviation marked dirty so it persists. (The crash branch lands with solids in inc.2.)
+// run over a cone: knock it along travel + a sideways kick away from the centreline, give it a
+// tumble, bleed a sliver of rig speed (∝ its tiny mass) and mark it dirty (so the shove persists).
+static void run_over_cone(Obstacle *o, float ltx, float lty, float ly, float spd) {
+    float side = (ly >= 0) ? 1.0f : -1.0f;
+    float kick = clamp(spd * 1.4f, 60.0f, 300.0f);   // sideways scatter scales with the hit
+    o->vx = vx * 1.0f + ltx * side * kick;           // scooped along travel + deflected off the bumper
+    o->vy = vy * 1.0f + lty * side * kick;
+    o->vr = side * 480.0f;                           // a visible tumble
+    o->dirty = 1;
+    float loss = clamp(o->mass / M, 0, 1) * 0.30f;
+    vx -= vx * loss; vy -= vy * loss;
+    last_hit = 1;
+    hit(74 + rnd_between(0, 12), INSTR_TRI, 3, 70);   // a little high "ping" (pitch varies per cone)
+    shake(1.2f);
+    for (int s = 0; s < 5; s++) throw_spark(o->x, o->y, vx, vy);
+}
+
+// crash into a SOLID (a house, axis-aligned box). Finds the deepest penetrating rig corner,
+// depenetrates, and resolves with a rigid-body impulse AT THAT CONTACT — so an off-centre clip
+// yaws the rig (the same J×r/I as steering). If the contact impulse (M·|normal vel|) beats the
+// obstacle's strength it SMASHES: a heavy/fast rig drives through what a light one bounces off
+// (the emergent run-over/crash boundary). Whole-obstacle destroy for now — tile shatter is the
+// demolition rung; the cell-grid is already here for it. A smashed house stays gone (dirty).
+#define CRASH_E 0.25f                                // restitution (a little bounce off a wall)
+#define CRASH_FX_MIN 28.0f                           // min approach speed (px/s) for crash FX (thud +
+                                                     // sparks + shake) — below this it's a resting push,
+                                                     // not an impact, so no continuous crashing at a wall
+static void crash_solid(Obstacle *o, float fwx, float fwy, float ltx, float lty) {
+    float cxl[4] = { rigL0, rigL1, rigL1, rigL0 };   // rig box corners (COM-local)
+    float cyl[4] = { rigW0, rigW0, rigW1, rigW1 };
+    float bestPen = 0, bnx = 0, bny = 0, bcx = 0, bcy = 0;
+    for (int i = 0; i < 4; i++) {
+        float wx, wy; rot(cxl[i], cyl[i], &wx, &wy);
+        float ddx = wx - o->x, ddy = wy - o->y;
+        float ox = o->hw - af(ddx), oy = o->hh - af(ddy);
+        if (ox <= 0 || oy <= 0) continue;            // this corner is outside the house
+        float pen, nx, ny;
+        if (ox < oy) { pen = ox; nx = (ddx < 0) ? -1.0f : 1.0f; ny = 0; }   // push out the nearest face
+        else         { pen = oy; nx = 0; ny = (ddy < 0) ? -1.0f : 1.0f; }
+        if (pen > bestPen) { bestPen = pen; bnx = nx; bny = ny; bcx = wx; bcy = wy; }
+    }
+    if (bestPen <= 0) {                              // no corner inside — a long rig may engulf a small house
+        float dxx = o->x - sx, dyy = o->y - sy;
+        float lx = dxx * fwx + dyy * fwy, lyy = dxx * ltx + dyy * lty;
+        if (lx > rigL0 && lx < rigL1 && lyy > rigW0 && lyy < rigW1) {
+            bestPen = 1; bnx = (lx >= 0 ? -fwx : fwx); bny = (lx >= 0 ? -fwy : fwy); bcx = o->x; bcy = o->y;
+        } else return;                              // genuinely no contact
+    }
+    float rx = bcx - sx, ry = bcy - sy;             // contact lever from the COM
+    float wrad = angVel * DEG2RAD;
+    float vcx = vx - wrad * ry, vcy = vy + wrad * rx;   // velocity at the contact point
+    float vn = vcx * bnx + vcy * bny;               // normal component (< 0 = driving into the wall)
+    sx += bnx * bestPen; sy += bny * bestPen;       // depenetrate (don't sink into the wall)
+    if (vn >= 0) return;                            // already separating — just the push-out
+    last_hit = 1;
+    float impact = M * (-vn);                       // the impulse the rig delivers
+    if (impact >= o->strength) {
+        // SMASH — whole-obstacle destroy (tile-by-tile shatter is the demolition rung). Stays gone.
+        o->destroyed = 1; o->dirty = 1; last_hit = 2;
+        hit(24, INSTR_NOISE, 4, 320);               // a heavy crunch
+        shake(clamp(impact / 120.0f, 3.0f, 9.0f));
+        for (int s = 0; s < 18; s++)
+            throw_spark(o->x + rnd_float_between(-o->hw, o->hw),
+                        o->y + rnd_float_between(-o->hh, o->hh), vx, vy);
+        vx *= 0.9f; vy *= 0.9f;                      // barely slows a rig heavy enough to break through
+        return;
+    }
+    // HOLD — rigid-body impulse at the contact: reflect the normal velocity + yaw from the lever.
+    // The impulse + depenetration run EVERY contact frame (so you can't sink in), but the FEEDBACK
+    // (thud + sparks + shake) only fires on a real IMPACT — a fast approach. Resting/pushing against
+    // a wall has a tiny per-frame vn (the depenetration keeps cancelling it) → no continuous crashing.
+    float rxn = rx * bny - ry * bnx;
+    float denom = 1.0f / M + rxn * rxn / I;
+    float jimp = -(1.0f + CRASH_E) * vn / denom;
+    vx += jimp * bnx / M; vy += jimp * bny / M;
+    angVel += (rxn * jimp / I) / DEG2RAD;
+    if (-vn > CRASH_FX_MIN) {                        // a genuine hit, not a resting nudge
+        hit(30, INSTR_NOISE, 3, 120);               // a solid thud
+        shake(clamp(-vn / 18.0f, 1.5f, 6.0f));
+        for (int s = 0; s < 6; s++) throw_spark(bcx, bcy, -vx, -vy);
+    } else last_hit = 0;                            // contact, but no impact this frame
+}
+
+// the world collides against the rig each frame: cones are run over (give), houses crash (hold,
+// or smash if hit hard enough). The decision is one number — the contact impulse vs strength.
 static void collide_world(void) {
     float fwx = cos_deg(ang), fwy = sin_deg(ang);
     float ltx = -fwy, lty = fwx;
@@ -1824,37 +1976,17 @@ static void collide_world(void) {
     if (spd < 1.0f) return;                          // parked — nothing to run into
     for (int i = 0; i < MAXOB; i++) {
         Obstacle *o = &pool[i];
-        if (!o->alive) continue;
-        if (o->vx * o->vx + o->vy * o->vy > 100.0f) continue;   // already knocked & leaving — don't re-trigger
+        if (!o->alive || o->destroyed) continue;
         float dx = o->x - sx, dy = o->y - sy;
         float gross = rigReach + o->rad;
         if (dx * dx + dy * dy > gross * gross) continue;        // broad phase
-        float lx = dx * fwx + dy * fwy;              // into the rig's oriented box (forward, lateral-left)
-        float ly = dx * ltx + dy * lty;
+        if (o->kind == OB_HOUSE) { crash_solid(o, fwx, fwy, ltx, lty); continue; }
+        // cone (run-over class): a knocked one is already leaving — don't re-trigger
+        if (o->vx * o->vx + o->vy * o->vy > 100.0f) continue;
+        float lx = dx * fwx + dy * fwy, ly = dx * ltx + dy * lty;   // into the rig's oriented box
         float r = o->rad;
         if (lx < rigL0 - r || lx > rigL1 + r || ly < rigW0 - r || ly > rigW1 + r) continue;  // miss
-        // HIT. J = momentum the rig carries into the contact, vs the impulse the obstacle
-        // can absorb before giving way: J ≥ strength → it GIVES (run over); J < strength → it
-        // HOLDS (crash — solids, inc.2). A cone's strength is tiny, so it's run over at any speed.
-        float J = M * spd;
-        if (J >= o->strength) {
-            // RUN OVER — knock the cone along travel + a sideways kick away from the centreline,
-            // give it a tumble, and write the deviation (this is what proves the dirty layer).
-            float side = (ly >= 0) ? 1.0f : -1.0f;       // which side of the nose it sits
-            float kick = clamp(spd * 1.4f, 60.0f, 300.0f);   // sideways scatter scales with the hit
-            o->vx = vx * 1.0f + ltx * side * kick;       // scooped along travel + deflected off the bumper
-            o->vy = vy * 1.0f + lty * side * kick;
-            o->vr = side * 480.0f;                       // a visible tumble
-            o->dirty = 1;
-            // the rig barely notices a cone: bleed ∝ its tiny mass (the honest absorb)
-            float loss = clamp(o->mass / M, 0, 1) * 0.30f;
-            vx -= vx * loss; vy -= vy * loss;
-            last_hit = 1;
-            hit(38, INSTR_NOISE, 2, 55);             // a light thunk
-            shake(1.2f);
-            for (int s = 0; s < 5; s++) throw_spark(o->x, o->y, vx, vy);   // scatter (cosmetic)
-        }
-        // else: J < strength → the obstacle HOLDS (a solid). No solids in increment 1.
+        if (M * spd >= o->strength) run_over_cone(o, ltx, lty, ly, spd);  // J ≥ strength → it gives
     }
 }
 
@@ -1884,7 +2016,18 @@ static void draw_obstacles(void) {
     for (int i = 0; i < MAXOB; i++) {
         Obstacle *o = &pool[i];
         if (!o->alive) continue;
-        if (o->kind == OB_CONE) {
+        if (o->kind == OB_HOUSE) {
+            int x = (int)(o->x - o->hw), y = (int)(o->y - o->hh);
+            int w = (int)(o->hw * 2), h = (int)(o->hh * 2);
+            if (o->destroyed) {                      // smashed → a low rubble pile (it stays demolished)
+                rectfill(x + 2, y + h / 2, w - 4, h / 2 - 1, CLR_DARKER_GREY);
+                rectfill(x + 4, y + h / 2 + 2, 3, 2, CLR_MEDIUM_GREY);
+                rectfill(x + w - 8, y + h - 4, 3, 2, CLR_MEDIUM_GREY);
+            } else {
+                rectfill(x, y, w, h, o->col);
+                rect(x, y, w, h, CLR_BROWNISH_BLACK);
+            }
+        } else if (o->kind == OB_CONE) {
             int moving = (o->vx != 0 || o->vy != 0);
             if (moving) {                            // knocked over — a toppled streak
                 float c = cos_deg(o->ang), s = sin_deg(o->ang);
@@ -1906,29 +2049,9 @@ static int zone_at(float x, float y) {
     return Z_SUPER;
 }
 
-// fill a city/town block with houses of a FIXED real size — ~5 m facade. At CELL≈1 m the car is
-// ~4 m, so a house now reads BIGGER than the car (a believable building), not the old car-sized
-// box. Tiled into the block interior and centred; the remainder reads as yards/gaps. Bigger blocks
-// (town) just fit more of the same-size houses → consistent scale across zones.
-#define HOUSE_FACADE 38           // px per house plot (~5 m); the drawn house is ~34px ≈ 4.9 m
-static void draw_houses(int bx, int by, int p, int hw) {
-    int x0 = bx * p + hw + 3, x1 = (bx + 1) * p - hw - 3;
-    int y0 = by * p + hw + 3, y1 = (by + 1) * p - hw - 3;
-    int nx = (x1 - x0) / HOUSE_FACADE, ny = (y1 - y0) / HOUSE_FACADE;
-    if (nx < 1 || ny < 1) return;                       // block too small for even one 5 m house
-    int ox = x0 + ((x1 - x0) - nx * HOUSE_FACADE) / 2;  // centre the fixed-size houses in the block
-    int oy = y0 + ((y1 - y0) - ny * HOUSE_FACADE) / 2;
-    int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
-    for (int i = 0; i < nx; i++)
-        for (int j = 0; j < ny; j++) {
-            unsigned h = hash2(bx * 131 + i, by * 131 + j);
-            if ((h & 7) == 0) continue;                 // some empty lots / yards
-            int hx = ox + i * HOUSE_FACADE, hy = oy + j * HOUSE_FACADE;
-            rectfill(hx + 1, hy + 1, HOUSE_FACADE - 3, HOUSE_FACADE - 3, roof[h & 3]);
-            rect(hx + 1, hy + 1, HOUSE_FACADE - 3, HOUSE_FACADE - 3, CLR_BROWNISH_BLACK);
-        }
-}
-
+// Houses are now SOLID obstacles (§9): generated per-chunk in gen_chunk (same ~5 m-facade tiling
+// the old draw_houses used) and drawn from the pool in draw_obstacles, so they can be crashed into
+// and (when smashed) stay demolished. draw_course only paints the flat road + fields under them.
 static void draw_course(void) {
     // widen the drawn area to cover the speed-zoom pull-back (see draw_ground)
     int mx = (int)(SCREEN_W * (1.0f / cam_zoom - 1.0f) * 0.5f) + 4;
@@ -1939,11 +2062,10 @@ static void draw_course(void) {
     int kx0 = ifloordiv(L, p) - 1, kx1 = ifloordiv(R, p) + 1;
     int ky0 = ifloordiv(T, p) - 1, ky1 = ifloordiv(B, p) + 1;
 
-    // 0. fields between rural+ roads (green), or houses in the city/town blocks
+    // 0. fields between rural+ roads (green); city/town houses are pool obstacles now (draw_obstacles)
     for (int kx = kx0; kx <= kx1; kx++)
         for (int ky = ky0; ky <= ky1; ky++) {
-            if (cur_zone == Z_CITY || cur_zone == Z_TOWN) draw_houses(kx, ky, p, hw);
-            else if (cur_zone >= Z_RURAL && (hash2(kx, ky) & 1)) {     // patchwork fields
+            if (cur_zone >= Z_RURAL && (hash2(kx, ky) & 1)) {          // patchwork fields
                 int fx = kx * p + hw + 4, fy = ky * p + hw + 4;
                 rectfill(fx, fy, p - ZONE_LANE[cur_zone] - 8, p - ZONE_LANE[cur_zone] - 8,
                          (hash2(kx, ky) & 2) ? CLR_DARK_GREEN : CLR_BROWN);
@@ -2413,9 +2535,12 @@ void init(void) {
     // world obstacle materials (§9) — mass + strength per cell. A cone is light and weak,
     // so J = M_rig·speed dwarfs its strength → it's always run over. (Inc.2 adds brick/stone
     // with strengths a rig can only beat at speed → the emergent run-over/crash boundary.)
-    //                          mass  strength  colour       name
-    OM[OM_NONE] = (ObMat){ 0,    0,        0,           "." };
-    OM[OM_CONE] = (ObMat){ 0.4f, 30.0f,    CLR_ORANGE,  "cone" };
+    //                          mass  strength  colour          name
+    OM[OM_NONE]  = (ObMat){ 0,    0,        0,              "." };
+    OM[OM_CONE]  = (ObMat){ 0.4f, 30.0f,    CLR_ORANGE,     "cone" };
+    // brick: a 3×3 house sums to strength ~4050 — a buggy (M·v ≲ 2800) bounces, a heavy/fast rig
+    // (semi, cargo-laden tank) pushes the contact impulse over it and SMASHES through (§9c boundary).
+    OM[OM_BRICK] = (ObMat){ 6.0f, 450.0f,   CLR_LIGHT_GREY, "brick" };
 
     load_design(0);                       // start on the balanced buggy
     world_reset();                        // §9: clean world; first DRIVE frame streams chunks in

@@ -118,21 +118,30 @@ static int sh_ripple(float u, float v, float t) {
 //     and HOLD to paint white sparks into the flow. pset_rgb wrote; pget_rgb reads it
 //     back. This one isn't in the SHADERS[] table — it needs the whole canvas, not a
 //     lone (u,v). NB: ps must stay small here, or the rotate+zoom can't smear smoothly.
+//
+//     A feedback buffer reads back WHATEVER is on screen, so it must own a clean region:
+//     we confine it to the play area BETWEEN the HUD bars (HUD_T..HUD_B) and CLAMP every
+//     sample into that box. Skip this and the HUD text/bars (drawn on top each frame) get
+//     read back and smeared into dripping curtains, and off-screen samples feed black in
+//     from the edges — both were the early "weirdness".
+#define HUD_T 10                       // top HUD bar height
+#define HUD_B 9                        // bottom HUD bar height
 static void sh_feedback(float t, int ps) {
-    float cxp = SCREEN_W * 0.5f, cyp = SCREEN_H * 0.5f;
+    int y0 = HUD_T, y1 = SCREEN_H - HUD_B;            // the clean interior, no HUD rows
+    float cxp = SCREEN_W * 0.5f, cyp = (y0 + y1) * 0.5f;
     float ca = cos_deg(1.5f), sa = sin_deg(1.5f);     // 1.5°/frame swirl
     float zoom = 1.012f;                               // >1 pulls from further out → zoom-in feel
     float ex = cxp + cos_deg(t * 90.0f) * SCREEN_W * 0.30f;   // auto emitter, orbiting
-    float ey = cyp + sin_deg(t * 70.0f) * SCREEN_H * 0.30f;
-    for (int sy = 0; sy < SCREEN_H; sy += ps)
+    float ey = cyp + sin_deg(t * 70.0f) * (y1 - y0) * 0.30f;
+    for (int sy = y0; sy < y1; sy += ps)
         for (int sx = 0; sx < SCREEN_W; sx += ps) {
             float px = sx + ps * 0.5f, py = sy + ps * 0.5f;
             float dx = px - cxp, dy = py - cyp;
             int rx = (int)(cxp + (dx * ca - dy * sa) * zoom);  // rotated+zoomed source
             int ry = (int)(cyp + (dx * sa + dy * ca) * zoom);
-            int prev = pget_rgb(rx, ry);                       // ← READ LAST FRAME BACK
-            if (prev < 0) prev = 0;                            // off-screen reads as black
-            int c = scale_rgb(prev, 0.95f);                    // trail decay (lower = shorter smear)
+            if (rx < 0) rx = 0; else if (rx >= SCREEN_W) rx = SCREEN_W - 1;   // clamp into the box:
+            if (ry < y0) ry = y0; else if (ry >= y1) ry = y1 - 1;            // never read HUD / off-screen
+            int c = scale_rgb(pget_rgb(rx, ry), 0.95f);        // ← READ LAST FRAME BACK, then trail-decay
             float d = fsqrt((px - ex) * (px - ex) + (py - ey) * (py - ey));
             if (d < 16) { float b = clamp(1 - d / 16, 0, 1); b *= b; c = cadd(c, scale_rgb(hsv(t * 0.15f, 0.8f, 1), b)); }
             if (mdown) {
@@ -140,7 +149,7 @@ static void sh_feedback(float t, int ps) {
                 if (md < 18) { float b = clamp(1 - md / 18, 0, 1); b *= b; c = cadd(c, scale_rgb(0xFFFFFF, b)); }
             }
             int bw = (sx + ps <= SCREEN_W) ? ps : SCREEN_W - sx;
-            int bh = (sy + ps <= SCREEN_H) ? ps : SCREEN_H - sy;
+            int bh = (sy + ps <= y1) ? ps : y1 - sy;
             rectfill_rgb(sx, sy, bw, bh, c);
         }
 }
@@ -198,8 +207,9 @@ void draw(void) {
             }
     }
 
-    // a crosshair on the mouse for the cursor-driven shaders (and feedback's paint cursor)
-    if (cur >= 7) {
+    // a crosshair on the mouse for the cursor-driven shaders (NOT feedback — it reads the
+    // canvas back, so a crosshair drawn here would smear into the flow as a ghost trail)
+    if (cur == 7 || cur == 8) {
         int cx = mouse_x(), cy = mouse_y();
         line(cx - 4, cy, cx + 4, cy, CLR_WHITE);
         line(cx, cy - 4, cx, cy + 4, CLR_WHITE);

@@ -411,11 +411,11 @@ void instrument_wah(int slot, float sensitivity, float resonance, float mix);  /
 void crush(float bits, float rate, float mix);                          // THE master bitcrush, on the whole mix
 void instrument_crush(int slot, float bits, float rate, float mix);     // bitcrush on just this slot (auto-grabs a private FX bus)
 
-// EQ — 2-band shelving tone: BOOST or cut a low shelf (~80 Hz) + a high shelf (~6 kHz). The ONLY
+// EQ — 3-band tone: BOOST or cut LOW (<~80 Hz) / MID (~80 Hz–6 kHz) / HIGH (>~6 kHz). The ONLY
 // effect that can boost a band (the filters only cut). Master (whole mix), or per-instrument. Pair
-// with DRIVE_ASYM (EQ around a clipper) for a guitar-amp tone. Gains in dB, ±12; 0/0 = flat (off).
-void eq(float low_gain, float high_gain);                               // THE master 2-band EQ, on the whole mix
-void instrument_eq(int slot, float low_gain, float high_gain);          // EQ on just this slot (auto-grabs a private FX bus)
+// with DRIVE_ASYM (EQ around a clipper) for a guitar-amp tone. Gains in dB, ±12; 0/0/0 = flat (off).
+void eq(float low_gain, float mid_gain, float high_gain);               // THE master 3-band EQ, on the whole mix
+void instrument_eq(int slot, float low_gain, float mid_gain, float high_gain);  // EQ on just this slot (auto-grabs a private FX bus)
 
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti

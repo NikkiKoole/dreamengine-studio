@@ -757,16 +757,19 @@ static void fx_set_wah(int b, float sens, float res, float mix) {
     wah_used[b] = true;
 }
 
-// ── EQ — 2-band shelving tone control: BOOST or cut a low shelf + a high shelf, ±12 dB each. ──
-// THE library's only BOOST (the SVF filters can only cut). navkit processMasterEQ, made stereo +
-// per-bus: split the signal into low / mid / top bands with two cascaded one-pole crossovers, then
-// scale the low + top bands by a dB→linear gain (mid stays unity). At 0/0 dB the three bands sum
-// back to the input (gain 1.0 = exact reconstruction). Paired with DRIVE_ASYM (pre/post EQ around a
-// clipper) → a real guitar-amp tone. Dormant until the first eq() call → non-users byte-identical.
-#define EQ_LOW_FREQ   80.0f     // low-shelf pivot (Hz) — reaches sub-bass / body
-#define EQ_HIGH_FREQ  6000.0f   // high-shelf pivot (Hz) — presence / air
-static float eq_low_g [SOUND_FX_BUSES];   // low-shelf linear gain = 10^(dB/20)
-static float eq_high_g[SOUND_FX_BUSES];   // high-shelf linear gain
+// ── EQ — 3-band tone control: BOOST or cut LOW / MID / HIGH, ±12 dB each. ──
+// THE library's only BOOST (the SVF filters can only cut). navkit processMasterEQ, made stereo,
+// per-bus, AND 3-band: two cascaded one-pole crossovers split the signal into low (<~80 Hz) / mid
+// (~80 Hz–6 kHz) / top (>~6 kHz) bands, then each band is scaled by its own dB→linear gain. navkit
+// left the mid at unity (a 2-band shelf); the split already computes it, so the mid knob is free.
+// At 0/0/0 dB the three bands sum back to the input (gain 1.0 = exact reconstruction). Paired with
+// DRIVE_ASYM (pre/post EQ around a clipper) → a real guitar-amp tone. Dormant until the first eq()
+// call → non-users byte-identical.
+#define EQ_LOW_FREQ   80.0f     // low/mid crossover (Hz) — reaches sub-bass / body
+#define EQ_HIGH_FREQ  6000.0f   // mid/high crossover (Hz) — presence / air
+static float eq_low_g [SOUND_FX_BUSES];   // low-band  linear gain = 10^(dB/20)
+static float eq_mid_g [SOUND_FX_BUSES];   // mid-band  linear gain
+static float eq_high_g[SOUND_FX_BUSES];   // high-band linear gain
 static float eq_loL[SOUND_FX_BUSES];      // low-crossover one-pole state (L)
 static float eq_loR[SOUND_FX_BUSES];      // … (R)
 static float eq_hiL[SOUND_FX_BUSES];      // mid/top-crossover one-pole state (L)
@@ -775,24 +778,26 @@ static bool  eq_used[SOUND_FX_BUSES];
 static void eq_process(int b, float *mixL, float *mixR) {
     float lowCoeff  = EQ_LOW_FREQ  * 6.2831853f / (float)SOUND_SAMPLE_RATE;  if (lowCoeff  > 0.99f) lowCoeff  = 0.99f;
     float highCoeff = EQ_HIGH_FREQ * 6.2831853f / (float)SOUND_SAMPLE_RATE;  if (highCoeff > 0.99f) highCoeff = 0.99f;
-    float lg = eq_low_g[b], hg = eq_high_g[b];
-    // L: low shelf = LP at EQ_LOW_FREQ; remainder split again at EQ_HIGH_FREQ into mid + top
+    float lg = eq_low_g[b], mg = eq_mid_g[b], hg = eq_high_g[b];
+    // L: low = LP at EQ_LOW_FREQ; remainder split again at EQ_HIGH_FREQ into mid + top
     eq_loL[b] += lowCoeff * (*mixL - eq_loL[b]);
     float lowL = eq_loL[b], hiL = *mixL - eq_loL[b];
     eq_hiL[b] += highCoeff * (hiL - eq_hiL[b]);
     float midL = eq_hiL[b], topL = hiL - eq_hiL[b];
-    *mixL = lowL * lg + midL + topL * hg;
+    *mixL = lowL * lg + midL * mg + topL * hg;
     // R
     eq_loR[b] += lowCoeff * (*mixR - eq_loR[b]);
     float lowR = eq_loR[b], hiR = *mixR - eq_loR[b];
     eq_hiR[b] += highCoeff * (hiR - eq_hiR[b]);
     float midR = eq_hiR[b], topR = hiR - eq_hiR[b];
-    *mixR = lowR * lg + midR + topR * hg;
+    *mixR = lowR * lg + midR * mg + topR * hg;
 }
-static void fx_set_eq(int b, float low_db, float high_db) {
+static void fx_set_eq(int b, float low_db, float mid_db, float high_db) {
     if (low_db  < -12.0f) low_db  = -12.0f; if (low_db  > 12.0f) low_db  = 12.0f;
+    if (mid_db  < -12.0f) mid_db  = -12.0f; if (mid_db  > 12.0f) mid_db  = 12.0f;
     if (high_db < -12.0f) high_db = -12.0f; if (high_db > 12.0f) high_db = 12.0f;
     eq_low_g[b]  = powf(10.0f, low_db  / 20.0f);
+    eq_mid_g[b]  = powf(10.0f, mid_db  / 20.0f);
     eq_high_g[b] = powf(10.0f, high_db / 20.0f);
     eq_used[b] = true;
 }
@@ -869,8 +874,8 @@ typedef enum {
     SR_NOTE_DRIVE_MODE  = 52,  // a=mode (DRIVE_*), e0/e1=handle — live waveshaper switch on a held note
     SR_BITCRUSH     = 53,   // a=bits*100, b=rate*100, c=mix*1000 — THE master bitcrush (bus 0)
     SR_INSTR_BITCRUSH = 54, // a=slot, b=bits*100, c=rate*100, e0=mix*1000 — bitcrush on one instrument (auto-bus)
-    SR_EQ           = 55,   // a=low_db*1000, b=high_db*1000 — THE master 2-band shelving EQ (bus 0)
-    SR_INSTR_EQ     = 56,   // a=slot, b=low_db*1000, c=high_db*1000 — EQ on one instrument (auto-bus)
+    SR_EQ           = 55,   // a=low_db*1000, b=mid_db*1000, c=high_db*1000 — THE master 3-band EQ (bus 0)
+    SR_INSTR_EQ     = 56,   // a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000 — EQ on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3393,12 +3398,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_crush(b, r.b / 100.0f, r.c / 100.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_EQ) {           // master EQ (bus 0): a=low_db*1000, b=high_db*1000
-        fx_set_eq(0, r.a / 1000.0f, r.b / 1000.0f);
-    } else if (r.kind == SR_INSTR_EQ) {     // per-instrument: a=slot, b=low_db*1000, c=high_db*1000
+    } else if (r.kind == SR_EQ) {           // master EQ (bus 0): a=low_db*1000, b=mid_db*1000, c=high_db*1000
+        fx_set_eq(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_INSTR_EQ) {     // per-instrument: a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
-        if (b >= 1) fx_set_eq(b, r.b / 1000.0f, r.c / 1000.0f);
+        if (b >= 1) fx_set_eq(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -4249,15 +4254,15 @@ void instrument_crush(int slot, float bits, float rate, float mix) {
     sound_push_ctrl(SR_INSTR_BITCRUSH, slot, (int)(bits * 100.0f), (int)(rate * 100.0f), (int)(mix * 1000.0f), 0, 0);
 }
 
-// ── EQ: THE master 2-band shelving tone — the library's only BOOST (filters only cut) ──
+// ── EQ: THE master 3-band tone (low/mid/high) — the library's only BOOST (filters only cut) ──
 
-void eq(float low_gain, float high_gain) {
-    sound_push_ctrl(SR_EQ, (int)(low_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0, 0, 0);
+void eq(float low_gain, float mid_gain, float high_gain) {
+    sound_push_ctrl(SR_EQ, (int)(low_gain * 1000.0f), (int)(mid_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0, 0);
 }
 
-void instrument_eq(int slot, float low_gain, float high_gain) {
+void instrument_eq(int slot, float low_gain, float mid_gain, float high_gain) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-    sound_push_ctrl(SR_INSTR_EQ, slot, (int)(low_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0, 0);
+    sound_push_ctrl(SR_INSTR_EQ, slot, (int)(low_gain * 1000.0f), (int)(mid_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0);
 }
 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
@@ -4451,7 +4456,7 @@ static void sound_init(void) {
         wah_sens[b] = 0.3f + 0.5f * 4.7f; wah_res[b] = 0.5f; wah_mix[b] = 0.7f; wah_used[b] = false;
         crush_bits[b] = 8.0f; crush_rate[b] = 4.0f; crush_mix[b] = 1.0f;
         crush_holdL[b] = 0.0f; crush_holdR[b] = 0.0f; crush_cnt[b] = 0; crush_used[b] = false;
-        eq_low_g[b] = 1.0f; eq_high_g[b] = 1.0f;
+        eq_low_g[b] = 1.0f; eq_mid_g[b] = 1.0f; eq_high_g[b] = 1.0f;
         eq_loL[b] = 0.0f; eq_loR[b] = 0.0f; eq_hiL[b] = 0.0f; eq_hiR[b] = 0.0f; eq_used[b] = false;
     }
 

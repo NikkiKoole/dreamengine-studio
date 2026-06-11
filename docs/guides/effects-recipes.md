@@ -138,22 +138,24 @@ call (mix 0 = off). **Showcase: `bitcrush`** (its scope doubles as an XY pad —
 > ⚠ `floorf` quantization adds a small negative DC bias at low bits (~−0.014 @ bits 5) — kept as
 > on-brand lo-fi character, not blocked. See [`audio-notes.md §17`](../design/audio-notes.md).
 
-## EQ — `eq(low_gain, high_gain)` · `instrument_eq(slot, low_gain, high_gain)`
+## EQ — `eq(low_gain, mid_gain, high_gain)` · `instrument_eq(slot, low_gain, mid_gain, high_gain)`
 
-2-band shelving tone, and **the library's only BOOST** — every other tone tool (the SVF filters)
-can only cut. A low shelf (~80 Hz, body/sub) + a high shelf (~6 kHz, presence/air), each `±12 dB`
-(+ = boost, − = cut, **0 = flat = off**, byte-identical to no EQ). Master (whole mix) or per-instrument.
-The classic partner to `DRIVE_ASYM`: EQ before/after a clipper = a real **guitar-amp tone**. **Showcase:
-`eq`** (drag the two faders, watch the response curve bend).
+3-band tone control, and **the library's only BOOST** — every other tone tool (the SVF filters)
+can only cut. Three bands split at ~80 Hz and ~6 kHz — LOW (`<80 Hz`, body/sub) / MID (`80 Hz–6 kHz`,
+the meat of most sounds) / HIGH (`>6 kHz`, presence/air) — each `±12 dB` (+ = boost, − = cut,
+**0/0/0 = flat = off**, byte-identical to no EQ). Master (whole mix) or per-instrument. The classic
+partner to `DRIVE_ASYM`: EQ before/after a clipper = a real **guitar-amp tone**. **Showcase: `eq`**
+(drag the LOW/MID/HIGH nodes in the grid, the response curve bends to follow).
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| warm & dark | `eq(4.0f, -3.0f)` | lift the body, tame the fizz — cozy/lo-fi | `eq` |
-| smile (loudness) | `eq(6.0f, 5.0f)` | boosted lows AND highs, scooped mids — the hi-fi "smile" curve | `eq` |
-| air / presence | `instrument_eq(slot, 0.0f, 6.0f)` | open up a dull lead or pad with top-end sparkle, rest untouched | `eq` |
-| fat bass | `instrument_eq(I_BASS, 7.0f, 0.0f)` | weight under one part while the mix stays clear (per-instrument bus) | `eq` |
-| guitar-amp tone | `instrument_drive_mode(slot, DRIVE_ASYM); instrument_drive(slot, 0.55f); eq(3.0f, -4.0f)` | asymmetric clip + a mid-forward EQ around it — the cranked-amp move | `eq` |
-| mud cut | `eq(-5.0f, 2.0f)` | thin out a boomy low end, add a touch of clarity up top | (cut pattern) |
+| warm & dark | `eq(4.0f, 0.0f, -3.0f)` | lift the body, tame the fizz — cozy/lo-fi | `eq` |
+| smile (loudness) | `eq(6.0f, -2.0f, 5.0f)` | boosted lows AND highs, scooped mids — the hi-fi "smile" curve | `eq` |
+| mid scoop (metal) | `eq(3.0f, -8.0f, 4.0f)` | gut the mids for a scooped, aggressive rhythm tone | `eq` |
+| air / presence | `instrument_eq(slot, 0.0f, 0.0f, 6.0f)` | open up a dull lead or pad with top-end sparkle, rest untouched | `eq` |
+| fat bass | `instrument_eq(I_BASS, 7.0f, 0.0f, 0.0f)` | weight under one part while the mix stays clear (per-instrument bus) | `eq` |
+| guitar-amp tone | `instrument_drive_mode(slot, DRIVE_ASYM); instrument_drive(slot, 0.55f); eq(3.0f, 2.0f, -4.0f)` | asymmetric clip + a mid-forward EQ around it — the cranked-amp move | `eq` |
+| mud cut | `eq(-5.0f, 1.0f, 2.0f)` | thin out a boomy low end, nudge clarity up top | (cut pattern) |
 
 ---
 

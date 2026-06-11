@@ -1247,19 +1247,23 @@ v1, document it on the panel.
    knob on its 16-step transport (↑/↓, 0–60%) — RMS −24.0 → −21.4 dBFS.
 7. **EQ** — the one tone tool that can BOOST (the SVF filters only cut, so until now no band
    could be lifted — the gap the distortion/EQ discussion flagged).
-   **✓ SHIPPED 2026-06-12** — `eq(low_gain, high_gain)` (master) **and** `instrument_eq(slot, …)`
-   (per-instrument aux bus, the tape/wah/bitcrush pattern). 2-band shelving, ported from navkit
-   `processMasterEQ`, made **stereo + per-bus**: split the signal into low / mid / top via two
-   one-pole crossovers (~80 Hz / ~6 kHz), then scale the low + top bands by a dB→linear gain
-   (`10^(dB/20)`), mid stays unity. Gains in dB, **±12**; at 0/0 dB the three bands sum back to the
-   input exactly (gain 1.0 = identity), and it's dormant until the first `eq()` call → non-users
+   **✓ SHIPPED 2026-06-12** — `eq(low_gain, mid_gain, high_gain)` (master) **and** `instrument_eq(slot, …)`
+   (per-instrument aux bus, the tape/wah/bitcrush pattern). **3-band**, ported from navkit
+   `processMasterEQ`, made **stereo, per-bus, and 3-band**: two one-pole crossovers (~80 Hz / ~6 kHz)
+   split the signal into low / mid / top, then EACH band is scaled by its own dB→linear gain
+   (`10^(dB/20)`). navkit left the mid at unity (a 2-band shelf); the split already computes the mid
+   band, so the third knob was free — shipped 2-band first, then extended to 3 on the same-day
+   "no middle?" feedback. Gains in dB, **±12**; at 0/0/0 dB the three bands sum back to the input
+   exactly (gain 1.0 = identity), and it's dormant until the first `eq()` call → non-users
    byte-identical. Applied after tape, before bitcrush, in both the per-bus insert loop and the
    master chain (so it's pre-soft-clip). `SR_EQ`=55 / `SR_INSTR_EQ`=56, gains via the `*1000`
    control convention. The point-of-having-it: paired with `DRIVE_ASYM` (EQ around a clipper) it's
-   a real **guitar-amp tone** — the `eq.c` showcase stacks exactly that on its AMP toggle. Verified
-   on a 55 Hz saw drone: `eq(+12, 0)` RMS −30.95 → −21.76 dBFS (**+9.2 dB**, the low fundamental
-   lifts as expected — under the full +12 because the tone straddles the 80 Hz pivot), `eq(−12, 0)`
-   drops it to −33.66 dBFS, per-instrument path clean (DC −0.00003) — 0 clipped, no NaN throughout.
+   a real **guitar-amp tone** — the `eq.c` showcase (a draggable LOW/MID/HIGH node grid) stacks
+   exactly that on its AMP toggle. Verified per band: a 700 Hz saw in the mid band `eq(0,+12,0)`
+   RMS −30.97 → −19.19 dBFS (**+11.8 dB** — nearly the full boost, the tone sits squarely in-band);
+   a 55 Hz drone `eq(+12,0,0)` −30.95 → −21.76 (**+9.2 dB**, under +12 since it straddles the 80 Hz
+   pivot), `eq(−12,0,0)` drops it to −33.66; per-instrument path clean (DC ~−0.00003) — 0 clipped,
+   no NaN throughout.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

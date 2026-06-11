@@ -7,7 +7,9 @@ spin-out + rear-only handbrake) + long vehicles (9-long grid, SEMI/SCHOOLBUS)
 + self-aligning torque + ramped steering — feel-tuning ongoing) + §8 per-wheel spring model
 + §9 collidable world: increment 1 (chunk streaming + run-over cones) + 2a (solid houses + the
 emergent smash-through boundary) + 2b (parked cars = the movable two-body rigid body, shoved/spun/wrecked
-under one unified resolver — §9e) done.** Cart:
+under one unified resolver — §9e) + 2c (obstacle-vs-obstacle CHAIN REACTIONS: a knocked car shoves the
+next / piles into a house / scatters a cone, same impulse with a moving obstacle as the active body, +
+a dense spawn parking lot to play in — §9f) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -641,9 +643,46 @@ the low glide friction (a long slide + spin, not a quick stop), `wreck = 0` thro
 follow-through the re-accelerating rig caught up and tapped it again (a second billiard knock). Visually the
 car slides clean across the road, intact and spinning.
 
-**Cut for this increment (logged):** no car-vs-world chaining — a shoved car slides *through* houses and
-other cars and settles, exactly as a kicked cone does today. Chain reactions are a later rung. And it's
-one rigid body, not a second part-grid sim (that's §7 articulation territory).
+**Cut for this increment (logged):** ~~no car-vs-world chaining — a shoved car slides *through* houses and
+other cars~~ — **done, see §9f.** Still cut: it's one rigid body, not a second part-grid sim (that's §7
+articulation territory).
+
+### 9f. Chain reactions — obstacle vs obstacle ✅ (2026-06-12)
+
+The car-vs-world chaining cut from 9e, now built — and it's the **same two-body impulse with a moving
+obstacle as the active body** instead of the rig. A knocked car shoves the next car (which wakes and
+shoves the next…), piles into a house, or scatters a cone — car→car→house→cone all fall out of one
+resolver. The honest pay-off of "one impulse, every use": `crash_body` is rig-vs-obstacle, `collide_obstacle_pair`
+is obstacle-vs-obstacle, same math (`box_corners_in` is the shared bidirectional corner test, generalised
+to two centred boxes).
+
+- **Every overlapping pair is resolved once per frame** (`i<j`, swap so the movable body drives). The pair
+  resolver *depenetrates always* but only applies the bouncy impulse on a **closing** contact (`vn < 0`).
+  That split is what makes it both correct and cheap: two resting, non-overlapping cars cost only a
+  broad-phase reject (no jitter — verified, the lot sits dead still); an overlapping pair is *always* pushed
+  apart (so a slow drift-in or a settle no longer leaves cars interpenetrated — the first cut tried "only
+  moving obstacles initiate", which let slow/settled overlaps slip through); and a closing hit transfers
+  momentum, waking whatever it strikes → the wave ripples on.
+- **Same J-vs-strength outcomes** as the rig: a hard car↔car hit can wreck *either* car; a knocked car
+  *piles up* against a house (its `M·v` ≈ 1200 is well under a house's ~4050 — only the heavy rig smashes
+  through, correctly); a cone just scatters (its tiny mass flies off the impulse). Cones barely bounce
+  (`CONE_E`), cars bounce (`CAR_E`).
+- **Feedback**: sparks + a glassy tick per real impact, **no camera shake** (a chain across the street
+  shouldn't seize the screen — shake stays the rig's privilege), with a per-frame sound budget so a big
+  pile-up doesn't machine-gun the mixer.
+- **Rendering**: a *rotating* car fills via a horizontal-scanline convex-quad fill (`fill_quad`), which
+  tiles integer rows perfectly — no holes. Sweeping diagonal 1px lines (the first cut) staircases and leaves
+  a lattice of gaps mid-spin; oversampling only thinned it. Resting (axis-aligned) cars take a plain
+  `rectfill`, which is both solid and cheaper, so the lot's many parked cars stay light.
+
+**Verified on the harness** (2026-06-12, `--script`): ramming the spawn lot grows the moving-car count
+`0→1→2→…→6` as the wake ripples through the rows; and with the rig **braked and reversing away** (`vf < 0`)
+the count *held at 3* — cars were moving cars, not the rig — then settled to 0 on its own. `MAXOB` (1280)
+and the broad-phase distance gate keep the pass cheap (movers are few; the run stayed headless-smooth).
+
+**Open / next:** a spatial grid if a giant pile-up ever makes the O(movers × live) pass spike (fine today);
+and this is the exact machinery the **breakage/demolition rung** wants — distribute the contact `J` across a
+struck object's *tiles* instead of moving it whole, and a smashed house's tiles become loose chained debris.
 
 ## Rendering & screen budget (320×200, provisional)
 

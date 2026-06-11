@@ -562,6 +562,7 @@ static int   last_hit;            // 1 the frame an obstacle is run over / smash
 static void collide_world(void);
 static void world_sync(void);
 static void obstacles_integrate(float dt_);
+static void collide_obstacles_chain(void);   // §9f: moving obstacle vs obstacle — the chain reaction
 static void draw_obstacles(void);
 static void world_reset(void);
 static int  zone_at(float x, float y);   // (defined below; gen_chunk needs it to place houses)
@@ -1627,6 +1628,7 @@ void update(void) {
 
     world_sync();                  // §9: stream chunks (load/evict) for the new camera
     obstacles_integrate(dt_);      // knocked obstacles tumble away and settle
+    collide_obstacles_chain();     // §9f: a moving obstacle shoves the next → chain reaction through the lot
 
 #ifdef DE_TRACE
     float fwx = cos_deg(ang), fwy = sin_deg(ang);
@@ -2182,6 +2184,107 @@ static void obstacles_integrate(float dt_) {
     }
 }
 
+// ── §9f: obstacle-vs-obstacle — the CHAIN REACTION ───────────────────────────
+// The same two-body impulse as crash_body, but the ACTIVE body is a moving obstacle (a knocked car)
+// instead of the rig. So a hit car shoves the next car (which wakes and shoves the next…), piles into a
+// house, or scatters a cone — all from the one resolver. Only MOVING obstacles initiate (a resting car is
+// just a target), which is what both makes the chain ripple AND keeps the packed parking lot stable at rest.
+#define CONE_E        0.10f      // a knocked cone barely bounces (vs CAR_E for car↔car)
+
+// deepest penetration of box P's 4 corners inside centred oriented box Q. Returns pen (>0 if a corner is
+// inside); sets the world-space outward face normal of Q at that corner (push P's owner away from Q) + the
+// corner point. (Same corner test crash_body uses, generalised to two centred boxes.)
+static float box_corners_in(float px, float py, float pc, float ps, float pex, float pey,
+                            float qx, float qy, float qc, float qs, float qhx, float qhy,
+                            float *nx, float *ny, float *ccx, float *ccy) {
+    float cx4[4] = { pex, pex, -pex, -pex }, cy4[4] = { pey, -pey, -pey, pey };
+    float best = 0;
+    for (int i = 0; i < 4; i++) {
+        float wx = px + cx4[i] * pc - cy4[i] * ps, wy = py + cx4[i] * ps + cy4[i] * pc;
+        float dx = wx - qx, dy = wy - qy;
+        float lx = dx * qc + dy * qs, ly = -dx * qs + dy * qc;   // → Q local
+        float ox = qhx - af(lx), oy = qhy - af(ly);
+        if (ox <= 0 || oy <= 0) continue;
+        float pen, lnx, lny;
+        if (ox < oy) { pen = ox; lnx = (lx < 0) ? -1.0f : 1.0f; lny = 0; }
+        else         { pen = oy; lnx = 0; lny = (ly < 0) ? -1.0f : 1.0f; }
+        if (pen > best) { best = pen; *nx = lnx * qc - lny * qs; *ny = lnx * qs + lny * qc; *ccx = wx; *ccy = wy; }
+    }
+    return best;
+}
+
+static int chain_sounds;          // per-frame budget so a big pile-up doesn't machine-gun the mixer
+
+// resolve a moving obstacle `a` against a neighbour `b` (a car, a house, or a cone). Bidirectional contact,
+// mass-split depenetration, the 2-body impulse, then the same outcomes as crash_body: wreck a struck car,
+// (rarely) smash a house, scatter a cone — all decided by J vs strength.
+static void collide_obstacle_pair(Obstacle *a, Obstacle *b) {
+    float ac = cos_deg(a->ang), as = sin_deg(a->ang);
+    int bMov = (b->kind != OB_HOUSE);
+    float bc = bMov ? cos_deg(b->ang) : 1.0f, bs = bMov ? sin_deg(b->ang) : 0.0f;
+    float n1x, n1y, c1x, c1y, n2x, n2y, c2x, c2y;
+    float p1 = box_corners_in(a->x, a->y, ac, as, a->hw, a->hh, b->x, b->y, bc, bs, b->hw, b->hh, &n1x, &n1y, &c1x, &c1y);
+    float p2 = box_corners_in(b->x, b->y, bc, bs, b->hw, b->hh, a->x, a->y, ac, as, a->hw, a->hh, &n2x, &n2y, &c2x, &c2y);
+    if (p1 <= 0 && p2 <= 0) return;
+    float pen, nx, ny, ccx, ccy;
+    if (p1 >= p2) { pen = p1; nx =  n1x; ny =  n1y; ccx = c1x; ccy = c1y; }   // a's corner in b → push a +n (out of b)
+    else          { pen = p2; nx = -n2x; ny = -n2y; ccx = c2x; ccy = c2y; }   // b's corner in a → push a away = -n
+    float Ma = a->mass, Ia = (1.0f / 3.0f) * Ma * (a->hw * a->hw + a->hh * a->hh); if (Ia < 1.0f) Ia = 1.0f;
+    float Mb = bMov ? b->mass : 0.0f;
+    float Ib = bMov ? (1.0f / 3.0f) * Mb * (b->hw * b->hw + b->hh * b->hh) : 1.0f; if (bMov && Ib < 1.0f) Ib = 1.0f;
+    float rax = ccx - a->x, ray = ccy - a->y, rbx = ccx - b->x, rby = ccy - b->y;
+    float wa = a->vr * DEG2RAD, wb = bMov ? b->vr * DEG2RAD : 0.0f;
+    float vax = a->vx - wa * ray, vay = a->vy + wa * rax;
+    float vbx = bMov ? b->vx - wb * rby : 0.0f, vby = bMov ? b->vy + wb * rbx : 0.0f;
+    float vn = (vax - vbx) * nx + (vay - vby) * ny;            // relative normal velocity (<0 = closing)
+    float aShare = bMov ? Mb / (Ma + Mb) : 1.0f;               // a yields more vs a heavy/immovable b
+    a->x += nx * pen * aShare; a->y += ny * pen * aShare; a->dirty = 1;
+    if (bMov) { b->x -= nx * pen * (1.0f - aShare); b->y -= ny * pen * (1.0f - aShare); b->dirty = 1; }
+    if (vn >= 0) return;                                       // separating — just the push-out
+    float ran = rax * ny - ray * nx, rbn = rbx * ny - rby * nx;
+    float invMa = 1.0f / Ma, invIa = 1.0f / Ia, invMb = bMov ? 1.0f / Mb : 0.0f, invIb = bMov ? 1.0f / Ib : 0.0f;
+    float denom = invMa + invMb + ran * ran * invIa + rbn * rbn * invIb;
+    float e = (b->kind == OB_CONE) ? CONE_E : CAR_E;
+    float jimp = -(1.0f + e) * vn / denom;
+    a->vx += jimp * nx * invMa; a->vy += jimp * ny * invMa; a->vr += (ran * jimp * invIa) / DEG2RAD;
+    if (bMov) { b->vx -= jimp * nx * invMb; b->vy -= jimp * ny * invMb; b->vr -= (rbn * jimp * invIb) / DEG2RAD; }
+    last_hit = 1;
+    // outcomes: J vs strength (same currency as the rig). A heavy enough relative hit wrecks a car or
+    // (rarely) smashes a house; a cone just scatters (the impulse already flung it).
+    if (b->kind == OB_HOUSE) {
+        if (Ma * (-vn) >= b->strength) { b->destroyed = 1; b->dirty = 1; }
+    } else if (b->kind == OB_CAR && jimp >= b->strength && !b->destroyed) {
+        b->destroyed = 1; b->strength *= WRECK_GIVE;
+    }
+    if (a->kind == OB_CAR && jimp >= a->strength && !a->destroyed) {   // the hitter can crumple too
+        a->destroyed = 1; a->strength *= WRECK_GIVE;
+    }
+    if (-vn > CRASH_FX_MIN) {                                  // a real impact (not a resting settle) → FX
+        for (int s = 0; s < 4; s++) throw_spark(ccx, ccy, a->vx, a->vy);
+        if (chain_sounds < 3) { hit(60 + rnd_between(0, 10), INSTR_TRI, 2, 70); chain_sounds++; }  // a glassy tick, budgeted
+    }
+}
+
+// the chain pass: resolve EVERY overlapping obstacle pair once (i<j). The pair resolver depenetrates
+// always but only applies the bouncy impulse on a CLOSING contact — so two resting, non-overlapping cars
+// cost only a broad-phase reject (no jitter), an overlapping pair is always pushed apart (no more sliding
+// through / settling interpenetrated), and a closing hit transfers momentum → the wake ripples on.
+static void collide_obstacles_chain(void) {
+    chain_sounds = 0;
+    for (int i = 0; i < MAXOB; i++) {
+        if (!pool[i].alive) continue;
+        for (int j = i + 1; j < MAXOB; j++) {
+            if (!pool[j].alive) continue;
+            Obstacle *a = &pool[i], *b = &pool[j];
+            if (a->kind == OB_HOUSE && b->kind == OB_HOUSE) continue;     // two immovables never interact
+            if (a->kind == OB_HOUSE) { Obstacle *t = a; a = b; b = t; }   // make `a` the movable body
+            float dx = b->x - a->x, dy = b->y - a->y, reach = a->rad + b->rad;
+            if (dx * dx + dy * dy > reach * reach) continue;             // broad phase
+            collide_obstacle_pair(a, b);
+        }
+    }
+}
+
 // reset the whole world layer (R / fresh rig) — drop the pool, deltas and loaded set so the
 // origin chunks regenerate pristine; world_sync repopulates next DRIVE frame.
 static void world_reset(void) {
@@ -2190,16 +2293,35 @@ static void world_reset(void) {
     nLoaded = 0; wclock = 0; last_hit = 0;
 }
 
-// fill an ORIENTED rectangle (centre, forward angle, half-length along forward, half-width) by
-// sweeping perpendicular scanlines along the spine — cars sit/spin at any angle, so AABB rectfill
-// won't do. Cheap (≈2·hl line()s; only a few cars are ever on screen).
+// hole-free fill of a convex quad via HORIZONTAL scanlines: for each pixel row, find where the row enters
+// and leaves the quad and draw one solid horizontal line. Horizontal lines on integer rows tile perfectly,
+// so there are NO gaps at any rotation (unlike sweeping diagonal lines, which staircase and leave a lattice).
+static void fill_quad(float qx[4], float qy[4], int col) {
+    float ymn = qy[0], ymx = qy[0];
+    for (int i = 1; i < 4; i++) { if (qy[i] < ymn) ymn = qy[i]; if (qy[i] > ymx) ymx = qy[i]; }
+    for (int y = (int)ymn; y <= (int)ymx; y++) {
+        float yy = y + 0.5f, xmn = 1e9f, xmx = -1e9f; int hits = 0;
+        for (int e = 0; e < 4; e++) {
+            float ax = qx[e], ay = qy[e], bx = qx[(e + 1) & 3], by = qy[(e + 1) & 3];
+            if ((ay <= yy) == (by <= yy)) continue;       // edge doesn't straddle this row
+            float x = ax + (yy - ay) / (by - ay) * (bx - ax);
+            if (x < xmn) xmn = x; if (x > xmx) xmx = x; hits++;
+        }
+        if (hits >= 2 && xmx >= xmn) line((int)xmn, y, (int)(xmx + 0.5f), y, col);
+    }
+}
+
+// fill an ORIENTED rectangle (centre, forward angle, half-length along forward, half-width).
+// Axis-aligned (the resting parked cars) → a single solid rectfill (fast). Rotated → its 4 corners through
+// the hole-free scanline fill above.
 static void fill_orect(float cx_, float cy_, float ang_, float hl, float hwid, int col) {
     float c = cos_deg(ang_), s = sin_deg(ang_);      // forward unit; lateral = (-s, c)
-    for (int i = -(int)hl; i <= (int)hl; i++) {
-        float bx = cx_ + c * i, by = cy_ + s * i;
-        line((int)(bx + s * hwid), (int)(by - c * hwid),
-             (int)(bx - s * hwid), (int)(by + c * hwid), col);
-    }
+    if (af(s) < 0.02f) { rectfill((int)(cx_ - hl), (int)(cy_ - hwid), (int)(hl*2), (int)(hwid*2), col); return; }
+    if (af(c) < 0.02f) { rectfill((int)(cx_ - hwid), (int)(cy_ - hl), (int)(hwid*2), (int)(hl*2), col); return; }
+    float fx = c * hl, fy = s * hl, lx = -s * hwid, ly = c * hwid;   // forward·hl, lateral·hwid
+    float qx[4] = { cx_ + fx + lx, cx_ + fx - lx, cx_ - fx - lx, cx_ - fx + lx };
+    float qy[4] = { cy_ + fy + ly, cy_ + fy - ly, cy_ - fy - ly, cy_ - fy + ly };
+    fill_quad(qx, qy, col);
 }
 
 // draw the live obstacles in world space (called inside the camera transform, under the rig).

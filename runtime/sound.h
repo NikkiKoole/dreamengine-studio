@@ -692,15 +692,23 @@ static float wah_sens[SOUND_FX_BUSES];     // envelope sensitivity (~0.3..5 inte
 static float wah_res [SOUND_FX_BUSES];     // resonance/Q 0..1 (the quack)
 static float wah_mix [SOUND_FX_BUSES];     // dry/wet 0..1
 static bool  wah_used[SOUND_FX_BUSES];
+static float wah_lfo_rate [SOUND_FX_BUSES]; // LFO-mode sweep rate Hz; 0 = follower mode (navkit's two wah modes)
+static float wah_lfo_phase[SOUND_FX_BUSES]; // LFO-mode phase 0..1
 
 static void wah_process(int b, float *mixL, float *mixR) {
-    float in = (*mixL + *mixR) * 0.5f;     // follow + filter the mono sum
-    // envelope follower: fast attack, slow release (peak detector tracking the performance)
-    float level = fabsf(in) * wah_sens[b];
-    if (level > wah_env[b]) wah_env[b] += 0.01f   * (level - wah_env[b]);   // attack
-    else                    wah_env[b] += 0.0001f * (level - wah_env[b]);   // release
-    float sweep = wah_env[b]; if (sweep > 1.0f) sweep = 1.0f;
-    float freq = WAH_FREQ_LOW * powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep
+    float in = (*mixL + *mixR) * 0.5f;     // filter the mono sum
+    float sweep;
+    if (wah_lfo_rate[b] > 0.0f) {          // navkit WAH_MODE_LFO: a sine rocks the band (ignores dynamics)
+        wah_lfo_phase[b] += wah_lfo_rate[b] / (float)SOUND_SAMPLE_RATE;
+        if (wah_lfo_phase[b] >= 1.0f) wah_lfo_phase[b] -= 1.0f;
+        sweep = 0.5f + 0.5f * sinf(wah_lfo_phase[b] * 6.2831853f);
+    } else {                               // WAH_MODE_ENVELOPE: peak detector tracking the performance
+        float level = fabsf(in) * wah_sens[b];
+        if (level > wah_env[b]) wah_env[b] += 0.01f   * (level - wah_env[b]);   // fast attack
+        else                    wah_env[b] += 0.0001f * (level - wah_env[b]);   // slow release
+        sweep = wah_env[b]; if (sweep > 1.0f) sweep = 1.0f;
+    }
+    float freq = WAH_FREQ_LOW * powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep (300→2500)
     if (freq > SOUND_SAMPLE_RATE * 0.45f) freq = SOUND_SAMPLE_RATE * 0.45f;
     // TPT state-variable bandpass (Zavalishin)
     float g = tanf(3.14159265f * freq / (float)SOUND_SAMPLE_RATE);
@@ -723,6 +731,16 @@ static void fx_set_wah(int b, float sens, float res, float mix) {
     if (res < 0.0f)  res  = 0.0f; if (res > 1.0f)  res  = 1.0f;
     if (mix < 0.0f)  mix  = 0.0f; if (mix > 1.0f)  mix  = 1.0f;
     wah_sens[b] = 0.3f + sens * 4.7f;       // 0..1 → ~0.3..5.0 (navkit sensitivity range)
+    wah_res[b] = res; wah_mix[b] = mix;
+    wah_lfo_rate[b] = 0.0f;                 // follower mode (the default); LFO mode = fx_set_wah_lfo
+    wah_used[b] = true;
+}
+// navkit WAH_MODE_LFO: the same bus bandpass, swept by a sine instead of the follower. The
+// rhythmic "wah-wah" (no dynamics). rate in Hz (navkit default 2.0); res/mix as the follower wah.
+static void fx_set_wah_lfo(int b, float rate, float res, float mix) {
+    if (res < 0.0f)  res  = 0.0f; if (res > 1.0f)  res  = 1.0f;
+    if (mix < 0.0f)  mix  = 0.0f; if (mix > 1.0f)  mix  = 1.0f;
+    wah_lfo_rate[b] = rate < 0.05f ? 0.05f : rate;   // >0 selects LFO mode (clamp so it can't read as "off")
     wah_res[b] = res; wah_mix[b] = mix;
     wah_used[b] = true;
 }
@@ -797,6 +815,8 @@ typedef enum {
     SR_INSTR_WAH    = 50,   // a=slot, b=sens*1000, c=res*1000, e0=mix*1000 — auto-wah on one instrument (auto-bus)
     SR_INSTR_DRIVE_MODE = 51,  // a=slot, b=mode (DRIVE_*) — set a slot's drive waveshaper
     SR_NOTE_DRIVE_MODE  = 52,  // a=mode (DRIVE_*), e0/e1=handle — live waveshaper switch on a held note
+    SR_WAH_LFO      = 53,   // a=rate*1000, b=res*1000, c=mix*1000 — THE master LFO-wah (bus 0, navkit WAH_MODE_LFO)
+    SR_INSTR_WAH_LFO= 54,   // a=slot, b=rate*1000, c=res*1000, e0=mix*1000 — LFO-wah on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3160,6 +3180,19 @@ static void sound_fire_req(SoundReq r) {
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->drv_target = x;
         }
+    } else if (r.kind == SR_INSTR_DRIVE_MODE) {  // a=slot, b=mode (DRIVE_*)
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        int m = r.b;
+        if (m < 0 || m > 3) m = 0;
+        instr_bank[slot].drive_mode = m;
+    } else if (r.kind == SR_NOTE_DRIVE_MODE) {   // a=mode (DRIVE_*), e0/e1=handle (live, snaps)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) {
+            int m = r.a;
+            if (m < 0 || m > 3) m = 0;
+            v->drv_mode = m;
+        }
     } else if (r.kind == SR_ECHO) {         // a=time_ms, b=feedback*1000, c=tone*1000
         echo_used = true;
         float ms = (float)r.a;
@@ -3254,6 +3287,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_wah(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_WAH_LFO) {      // master LFO-wah (bus 0): a=rate, b=res, c=mix (×1000)
+        fx_set_wah_lfo(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_INSTR_WAH_LFO) {// per-instrument: a=slot, b=rate, c=res, e0=mix (×1000)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) fx_set_wah_lfo(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3447,14 +3486,34 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (cutoff > SOUND_SAMPLE_RATE * 0.45f) cutoff = SOUND_SAMPLE_RATE * 0.45f;
                 s = sound_svf(v, s, cutoff);
             }
-            // drive: post-filter tanh saturation — osc → SVF → drive → VCA, so resonance
+            // drive: post-filter saturation — osc → SVF → drive → VCA, so resonance
             // screams INTO the saturation and quiet envelope tails don't pump it. The
-            // pre-gain g grows from 0 (tanh(s·g)/tanh(g) → s as g → 0, so drive 0 is a
+            // pre-gain g grows from 0 (shape(s·g)/shape(g) → s as g → 0, so drive 0 is a
             // true bypass and a slewed sweep through 0 stays continuous) to wall-of-fuzz;
-            // normalizing by tanh(g) keeps full-scale at full-scale — character, not volume.
+            // normalizing by shape(g) keeps full-scale at full-scale — character, not volume.
+            // drv_mode picks the waveshaper (DRIVE_*); all four bypass at 0 and hold full-scale.
             if (v->sfx_idx < 0 && v->drv > 0.001f) {
-                float g = v->drv * v->drv * 24.0f;
-                s = tanhf(s * g) / tanhf(g);
+                float dr = v->drv;
+                float g  = dr * dr * 24.0f;
+                switch (v->drv_mode) {
+                    case 1: {  // DRIVE_HARD — hard clip, normalized so g<1 is bypass, g>=1 clips
+                        float hg = g < 1.0f ? g : 1.0f;
+                        float c  = s * g;
+                        c = c < -1.0f ? -1.0f : (c > 1.0f ? 1.0f : c);
+                        s = c / hg;
+                    } break;
+                    case 2: {  // DRIVE_FOLD — sine wavefolder, dry/wet by amount (bounded, no divide)
+                        float w = sinf(s * (1.0f + dr * 6.0f) * 1.2f);
+                        s = s * (1.0f - dr) + w * dr;
+                    } break;
+                    case 3: {  // DRIVE_ASYM — even-harmonic tube: softer negative half, asymmetry grows with drive
+                        float ng = tanhf(g);
+                        s = (s >= 0.0f) ? tanhf(s * g) / ng
+                                        : tanhf(s * g * (1.0f - 0.4f * dr)) / ng;
+                    } break;
+                    default:   // DRIVE_SOFT (0) — tanh soft-clip (bit-identical to pre-modes)
+                        s = tanhf(s * g) / tanhf(g);
+                }
                 // DC blocker: tanh of an asymmetric wave (e.g. a driven organ registration)
                 // injects a DC offset, which the per-note env ramp turns into a click/thump on
                 // attack + release. One-pole HP ~7Hz removes it. Only runs when driven, so clean
@@ -3981,6 +4040,16 @@ void note_drive(int handle, float x) {
     sound_push_ctrl(SR_NOTE_DRIVE, (int)(x * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
+void instrument_drive_mode(int slot, int mode) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_DRIVE_MODE, slot, mode, 0, 0, 0, 0);
+}
+
+void note_drive_mode(int handle, int mode) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_DRIVE_MODE, mode, 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
 // ── echo: ONE shared bus with per-slot sends (audio-notes §17 step 3, decisions/0015) ──
 
 void echo(int time_ms, float feedback, float tone) {
@@ -4057,6 +4126,17 @@ void wah(float sensitivity, float resonance, float mix) {
 void instrument_wah(int slot, float sensitivity, float resonance, float mix) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_WAH, slot, (int)(sensitivity * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0);
+}
+
+// LFO-driven auto-wah — the SAME bus bandpass, swept by a sine instead of the envelope follower
+// (navkit's default wah mode). The rhythmic "wah-wah-wah" that doesn't depend on how hard you play.
+void wah_lfo(float rate_hz, float resonance, float mix) {
+    sound_push_ctrl(SR_WAH_LFO, (int)(rate_hz * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
+}
+
+void instrument_wah_lfo(int slot, float rate_hz, float resonance, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_WAH_LFO, slot, (int)(rate_hz * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0);
 }
 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
@@ -4201,6 +4281,7 @@ static void sound_init(void) {
         instr_bank[i].morph      = 0.5f;
         instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
+        instr_bank[i].drive_mode = 0;      // DRIVE_SOFT (tanh) until instrument_drive_mode()
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
@@ -4247,6 +4328,7 @@ static void sound_init(void) {
         tape_wow[b] = 0.3f; tape_flut[b] = 0.2f; tape_sat[b] = 0.4f; tape_used[b] = false;
         wah_env[b] = 0.0f; wah_ic1[b] = 0.0f; wah_ic2[b] = 0.0f;
         wah_sens[b] = 0.3f + 0.5f * 4.7f; wah_res[b] = 0.5f; wah_mix[b] = 0.7f; wah_used[b] = false;
+        wah_lfo_rate[b] = 0.0f; wah_lfo_phase[b] = 0.0f;   // follower mode until fx_set_wah_lfo()
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

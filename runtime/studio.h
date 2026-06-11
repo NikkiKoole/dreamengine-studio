@@ -355,9 +355,16 @@ void voice_coda(int handle, int id);           // close a held INSTR_VOICE note 
 void voice_param(int handle, int idx, float value); // LOW-LEVEL/experimental — raw INSTR_VOICE param poke by index for the probe carts (voxlab/voxab/voxpad/say). The public surface is the 3 macros + voice_nasal(); not advertised
 
 // drive — saturation AFTER the filter, so resonance screams into it. The grit knob.
+// the MODE picks the waveshaper's flavour; instrument_drive() is still the amount (0 = clean bypass).
+#define DRIVE_SOFT    0   // tanh soft-clip — warm, tube-like overdrive (the default; same as before modes existed)
+#define DRIVE_HARD    1   // hard clip — buzzy, square-edged digital fuzz (the harshest)
+#define DRIVE_FOLD    2   // sine wavefolder — metallic, glassy, ring-mod-ish as you push it
+#define DRIVE_ASYM    3   // asymmetric tube — adds EVEN harmonics (the round, fat, single-ended-amp grit)
 void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones (fractions are the point: 0.06 = unison shimmer, ±1 = a tuning trimmer). LIVE — every sounding voice on the slot bends, scheduled arp/seq hits included. 0 = off (default)
 void instrument_drive(int slot, float x);      // overdrive a slot 0.0..1.0 — 0 = clean (default), 0.3 = warm, 1 = fuzz. loudness stays put; character changes
+void instrument_drive_mode(int slot, int mode); // pick the waveshaper: DRIVE_SOFT (default) / DRIVE_HARD / DRIVE_FOLD / DRIVE_ASYM. amount stays instrument_drive()
 void note_drive(int handle, float x);          // sweep a held note's drive live, slewed — ride it up mid-phrase for the acid scream
+void note_drive_mode(int handle, int mode);    // switch a held note's drive waveshaper live (DRIVE_*) — not slewed, snaps
 
 // echo — THE shared echo bus (there is exactly one): each slot chooses how much to send
 // into it. Repeats get darker every pass (tone), and feedback past 1.0 self-oscillates
@@ -396,6 +403,8 @@ void instrument_tape(int slot, float wow, float flutter, float saturation);  // 
 // summed signal): the funky talking-clavinet quack. Best on ONE rich/percussive instrument.
 void wah(float sensitivity, float resonance, float mix);                // sensitivity 0..1 (how much dynamics open it), resonance 0..1 (the quack), mix 0..1 (0 = off). defaults 0.5/0.5/0.7
 void instrument_wah(int slot, float sensitivity, float resonance, float mix);  // auto-wah on just this slot
+void wah_lfo(float rate_hz, float resonance, float mix);                // LFO auto-wah — a sine rocks the SAME bus bandpass (the rhythmic "wah-wah", not dynamics). rate 0.5..10 Hz, resonance 0..1, mix 0..1 (0 = off)
+void instrument_wah_lfo(int slot, float rate_hz, float resonance, float mix);  // LFO auto-wah on just this slot
 
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti

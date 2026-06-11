@@ -9,17 +9,19 @@
 //   timbre    = brightness  (mellow, centered pickup .. bright/snappy, offset + hard hammer)
 //   morph     = bark        (0 clean fundamental .. dig-in growl — the pickup driven hard)
 //
-// THE WAH — four flavours on the toggle, demoing the spread of wah techniques:
+// THE WAH — five flavours on the toggle, demoing the spread of wah techniques:
 //   off
-//   AUTO  — an LFO sweeps a resonant bandpass (per-voice, rhythmic; 0015's "auto-wah = LFO_CUTOFF")
-//   ENV   — a FAST per-note cutoff snap, the funky-clav "quack" (per-voice ENV_CUTOFF; navkit's
-//           "Clav Funky", confirmed by rendering it). A real D6 uses a per-note envelope filter,
-//           NOT a follower, so this stays an authentic recipe on its own.
-//   TOUCH — the navkit "clav THROUGH a wah" STACK: the per-note quack (above) feeding the REAL
-//           bus auto-wah — instrument_wah(), an envelope follower on the summed signal opening a
-//           resonant bandpass. The quack bites each note; the follower makes the groove breathe.
-//           THE CLAV PRESET BOOTS INTO THIS — it's the super-70s funk sound (= navkit Clav-Funky's
-//           built-in filter-env + the master SVF wah, the exact pairing).
+//   AUTO   — an LFO sweeps a resonant bandpass (per-voice, rhythmic; 0015's "auto-wah = LFO_CUTOFF")
+//   ENV    — a FAST per-note cutoff snap, the funky-clav "quack" (per-voice ENV_CUTOFF; navkit's
+//            "Clav Funky", confirmed by rendering it). A real D6 uses a per-note envelope filter,
+//            NOT a follower, so this stays an authentic recipe on its own.
+//   TOUCH  — OUR HYBRID, the clav preset boots into this: per-note quack + a per-voice LFO pump +
+//            the bus FOLLOWER (instrument_wah). The follower gives character (opens with how hard
+//            you play), the LFO adds the rhythmic "wah-WAH-wah" a follower alone can't (it opens
+//            once on attack, doesn't oscillate), the quack bites each note. The super-70s funk.
+//   NAVKIT — navkit's EXACT default, for A/B: the quack + a BUS LFO-bandpass wah (instrument_wah_lfo,
+//            a sine rocking the band at navkit's literal 2 Hz / 300-2500 / res 0.7 / mix 1.0). No
+//            follower, no per-voice LFO — the pure rhythmic wah navkit ships. Compare it to TOUCH.
 // (The DX/digital EP is INSTR_FM; this is the real one.)
 //
 // Why TOUCH carries a bus call and AUTO/ENV don't: a per-voice follower can't track the whole
@@ -61,7 +63,7 @@ static const char *SL_NAME[NSL] = { "instrument", "bright", "bark", "wah", "trem
 static const char *SL_LO[NSL]   = { "rhodes", "mellow", "clean", "subtle", "off" };
 static const char *SL_HI[NSL]   = { "clav",   "bright", "growl", "deep",   "throb" };
 static const char *INSTRUMENT[3]= { "RHODES", "WURLI", "CLAV" };
-static const char *WAHNAME[4]   = { "off", "auto", "env", "touch" };
+static const char *WAHNAME[5]   = { "off", "auto", "env", "touch", "navkit" };
 
 // presets = slider positions + a wah mode. harmonics lands on an instrument detent.
 typedef struct { const char *name; float v[NSL]; int wah; } Preset;
@@ -80,7 +82,7 @@ static int   octave = 4;
 static float val[NSL] = { 0.15f, 0.30f, 0.25f, 0.5f, 0.35f };   // boot on "rhodes"
 static int   sel = 0;
 static int   cur_preset = 0;
-static int   wahmode = 0;        // 0 off, 1 auto (per-voice LFO_CUTOFF), 2 env (per-voice ENV_CUTOFF quack), 3 touch (instrument_wah bus). NOT `wah` — clashes with the wah() API
+static int   wahmode = 0;        // 0 off, 1 auto (per-voice LFO), 2 env (per-voice quack), 3 touch (quack + bus follower + per-voice LFO), 4 navkit (quack + bus LFO wah = navkit's exact default). NOT `wah` — clashes with the wah() API
 
 static bool  autoplay = true;
 
@@ -155,14 +157,21 @@ static void apply_wah(void) {
         // the envelope filter clav players actually use — not a follower (which hangs open).
         instrument_filter(I_EP, FILTER_LOW, 500, 9);
         instrument_env(I_EP, 0, ENV_CUTOFF, 2, 110, 2000.0f + amt * 800.0f);
-    } else {                                     // TOUCH: the navkit "clav THROUGH a wah" stack —
-        // a per-note resonant filter quack (the voice's OWN funk snap) feeding the REAL bus
-        // auto-wah (an envelope follower on the summed signal). navkit pairs exactly this: the
-        // Clav-Funky preset's built-in filter-env AND the master SVF wah. The quack gives every
-        // note its bite; the bus follower makes the whole performance breathe/talk. amt drives both.
+    } else if (wahmode == 3) {                   // TOUCH (our hybrid): per-note quack + a per-voice
+        // LFO pump + the bus FOLLOWER. The follower gives character (opens with how hard you play),
+        // the LFO adds the rhythmic "wah-WAH-wah" a follower alone can't (it opens once on attack,
+        // it doesn't oscillate), the quack gives each note its bite. ~2.5-6 Hz ≈ 8ths→16ths here.
         instrument_filter(I_EP, FILTER_LOW, 700, 9);
         instrument_env(I_EP, 0, ENV_CUTOFF, 2, 110, 1700.0f + amt * 700.0f);
+        instrument_lfo(I_EP, 0, LFO_CUTOFF, 2.5f + amt * 3.5f, 500.0f + amt * 900.0f);
         instrument_wah(I_EP, 0.4f + amt * 0.6f, 0.45f + amt * 0.4f, 0.75f + amt * 0.25f);
+    } else {                                     // NAVKIT: navkit's EXACT default, for A/B — the
+        // clav's per-note quack + a BUS LFO-bandpass wah: a sine rocks the band at navkit's literal
+        // defaults (rate 2 Hz, 300-2500 Hz, res 0.7, mix 1.0). No follower, no per-voice LFO — the
+        // pure rhythmic "wah-wah" navkit ships. Compare against TOUCH (our follower hybrid).
+        instrument_filter(I_EP, FILTER_LOW, 700, 9);
+        instrument_env(I_EP, 0, ENV_CUTOFF, 2, 110, 1700.0f + amt * 700.0f);
+        instrument_wah_lfo(I_EP, 2.0f, 0.7f, 1.0f);
     }
 }
 
@@ -249,7 +258,7 @@ void update(void) {
         if (frame() % 14 == 0) audition();
     }
 
-    if (keyp('V')) { wahmode = (wahmode + 1) % 4; apply_wah(); audition(); }
+    if (keyp('V')) { wahmode = (wahmode + 1) % 5; apply_wah(); audition(); }
     if (keyp('M')) autoplay = !autoplay;
 
     for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) {   // live bark on ringing notes (morph + drive)
@@ -268,7 +277,7 @@ void update(void) {
             if (!freeP) continue;
             p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1 };
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) { autoplay = !autoplay; continue; }
-            if (point_in_box(tx, ty, WAH_X, WAH_Y, WAH_W, WAH_H)) { wahmode = (wahmode + 1) % 4; apply_wah(); audition(); continue; }
+            if (point_in_box(tx, ty, WAH_X, WAH_Y, WAH_W, WAH_H)) { wahmode = (wahmode + 1) % 5; apply_wah(); audition(); continue; }
             if (point_in_box(tx, ty, OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(-1); continue; }
             if (point_in_box(tx, ty, OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(+1); continue; }
             if (ty >= KNOB_Y - 26 && ty < KNOB_Y - 12) {

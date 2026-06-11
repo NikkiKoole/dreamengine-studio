@@ -537,7 +537,7 @@ of the SINE basses). The songwriter pair build it near-identically:
 
 - tier: **variant** (the jangle/jingle songwriter pair)
 - origin: jangle
-- used by: jangle (`I_BASS`) · jingle (`I_BASS`)
+- used by: jangle (`I_BASS`) · jingle (`I_BASS`) · napoleon (`I_BASS`, SERENADE/FRIENDS)
 - kin: the wider SINE-bass pile (`sine/gut-bass`, `sine/boom-bap-bass`, `sine/riddim-bass`)
   — those add a pitch-env thumb/snap; these two omit it.
 
@@ -570,6 +570,17 @@ A round triangle bass with a short pitch-env "pluck snap" — the funk/disco low
 - tier: **variant**
 - origin: house (likely; confirm against earlier stations)
 - used by: house (`I_BASS`) · citypop (`I_BASS`)
+
+### tri/funk-slap
+`INSTR_SAW` · A1 D150 S4 R70 · LP ~900·tone/4 · cut-env →1600 (0/70) · drive 0.22
+The popping funk strut of napoleon's DANCE archetype ("Canned Heat") — a SAW bass with a fast
+bright cutoff envelope (the slap "pop") and a little grit, playing a syncopated 16th line with
+octave pops and ghost notes. Brighter/more aggressive than the `tri/disco-bass` pile — the
+cut-env is the slap, where the disco basses use a small pitch-env pluck.
+- tier: unique
+- origin: napoleon
+- used by: napoleon (`I_BASS`, DANCE)
+- kin: the disco/funk low end (`tri/disco-bass`) — same role, a slapped SAW vs a plucked TRI.
 
 ### fm/afro-bass
 `INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.32 · pitch-env →2 (0/16)
@@ -619,6 +630,18 @@ addis's Wurlitzer comp — the EPIANO with harmonics pushed up toward the Wurli 
 - kin: same `INSTR_EPIANO` engine as italo's `epiano/rhodes-detent` — opposite voicing
   (high-h Wurli bark vs low-h Rhodes detent). I_KEYS rolls between this and `organ/addis-comp`.
 
+### epiano/funk-clav
+`INSTR_EPIANO` · A1 D220 S3 R160 · h0.85 (Clav) t0.72 m0.5 · FILTER_BAND 1300·tone/6 ·
+`instrument_follow(LFO_CUTOFF, 4/120, 1800)` (auto-wah)
+napoleon's DANCE clavinet ("Canned Heat") — the EPIANO Clav model played as percussive 16th
+chord chucks, with a touch-following auto-wah (a band-pass peak that opens when you dig in =
+the quack). The in-cart stand-in for a real wah pedal (see napoleon-effects-wants.md).
+- tier: unique
+- origin: napoleon
+- used by: napoleon (`I_COMP`, DANCE)
+- kin: epiano.c's `epiano/clav` (the showcase Clavinet) — same model + env-wah idea, voiced
+  for funk comping. The follower-wah trick is shared with afrobeat's rhythm-guitar stopgap.
+
 ### organ/addis-comp
 `INSTR_ORGAN` · A6 D0 S7 R200 · h0.55 m0.30 (scanner chorus)
 addis's tonewheel-organ comp — a fuller registration than dub's hollow reggae chop or
@@ -667,6 +690,20 @@ roadhouse's Krieger guitar line — a Karplus-Strong electric, seed-rolled acros
 - origin: roadhouse
 - used by: roadhouse (`I_GTR`)
 - kin: the PLUCK-guitar family (`pluck/strat-stab`, `pluck/jangle-guitar`, `pluck/archtop`…).
+
+### square/toy-organ
+`INSTR_SQUARE` · A6 D130 S6 R130 · duty 0.44 · LP 2400·tone/3 · pitch-LFO 5.2 Hz/0.10 · drive 0.12
+The deadpan **John Swihart score** identity in napoleon's SWIHART archetype — a deliberately
+*cheap* combo/Casio organ: a fat-ish square with a cheesy vibrato tab and a hair of grit,
+doubled by a **detune-twin** (a second SQUARE, `instrument_tune +0.08` = ~8¢ sharp) so the
+pair beats like an out-of-tune toy organ. The melody is doubled again by a muted pizz guitar +
+glockenspiel. Innocent, wonky, lo-fi — the cart's second new recipe.
+- tier: unique (a detuned pair)
+- origin: napoleon
+- used by: napoleon (`I_LEAD` melody + `I_COMP` detune-twin, SWIHART)
+- kin: roadhouse's `user0/combo-organ` (a *drawn-wave* combo organ) — a different approach to
+  the same "cheap organ" goal; the detune-pair beating is gamelan's ombak trick, here for
+  cheapness not shimmer. Wants a real chorus (napoleon-effects-wants.md).
 
 ### user0/bandoneon **(voicings)**
 `INSTR_USER0` (a drawn free-reed single cycle, via `wave_set`) · vol-LFO (bellows tremble)
@@ -1201,6 +1238,21 @@ Its **solo stop** (`I_SOLO`) is brighter: LP 3000/2, a touch more vibrato (5.2/0
 - kin: the SINE-lead-with-vibrato idea also in bossa's `sine/breathy-flute` (there a flute,
   here a wordless vocal).
 
+### voice/croon
+`INSTR_VOICE` · A60 D80 S7 R220 · harmonics(VOWEL) 0.42 ahh / 0.18 ooh · timbre(SIZE) 0.66
+(small tract = falsetto) · morph(EFFORT) 0.46 · pitch-LFO 5.4 Hz/0.35 (croon vibrato) · LP 2600·tone
+napoleon's headline voice — a sweet, **sung** vibrato falsetto. Kip's serenade lead ("Always &
+Forever", a vowel "ahh") and the Jamiroquai "ooh" stabs of the dance (a tighter vowel) are the
+same recipe at two vowels. The jam ribbon hands the player this exact voice on the SERENADE
+archetype (you sing the serenade). **The first radio voice to SING on `INSTR_VOICE`** — AIR
+reached the engine first (`voice/air-vocoder`) but as a robotic vocoder lead, not a singer.
+- tier: unique
+- origin: napoleon
+- used by: napoleon (`I_VOX` — SERENADE lead · DANCE "ooh" · FRIENDS voice; `I_SOLO` SERENADE jam)
+- kin: air's `voice/air-vocoder` (the only other radio `INSTR_VOICE`) — a *cousin*: same engine,
+  opposite intent (a sung croon vs a robot vocoder). The wordless-vocal idea also in jingle's
+  `sine/singing-lead` (there faked on SINE; here the real formant engine).
+
 ### saw/fat-moog **(voicings)**
 `INSTR_SAW` · resonant LP · cut-env "wow" (the Minimoog filter env) · drive (seeded)
 The fat Moog — **the exact `moog.c` signal path** (SAW through a resonant lowpass with a
@@ -1332,10 +1384,11 @@ catalog so far):
 | house (`I_STR`)   | A320 D500 S6 R900 · LP 900/2 · *cutoff = the ride* |
 | motorik (`I_PAD`) | A360 D600 S5 R1100 · LP 1800·feel/2 · slow pitch-LFO 0.18 Hz/0.05 (tape wow) |
 | air (`I_PAD`), aka **`saw/solina-ensemble`** (kin `solina.c`) | A600 D400 S6 R1600 · LP 2000/2 · `instrument_tune` +0.05 (subtle divide-down beating) · pitch-LFO 0.18 Hz/0.05 (wow) · **THE ENSEMBLE = a real per-part `instrument_chorus`** (0.9/0.50, mix 0.58–0.70 via the strings chair) + reverb send + master `tape()` | the AIR signature — the genuine Solina recipe (saw + ensemble chorus, à la `solina.c`), at radio scale: ONE slot not six, and now the **per-part** chorus so it swirls the pad alone (master chorus off → Kelly's kit stays dry) |
+| napoleon (`I_COMP` FOREVER / `I_AUX` SERENADE) | A220–360 D400 S6 R900–1200 · LP 1700–1800·tone/2 · `instrument_tune` +0.05/+0.06 (shimmer) · vol-LFO 4.2–4.4 Hz (string-machine chorus) | the 80s synth-pop wash (FOREVER) and the quiet-storm string pad under Kip's serenade — the pile's most generic, swelled members |
 
 - tier: **variant**
 - origin: house (likely earliest of the three — all hand-rolled, none shares a symbol)
-- used by: italo (`I_STR`) · house (`I_STR`) · motorik (`I_PAD`) · air (`I_PAD`, the detuned-pair "solina-ensemble" voicing)
+- used by: italo (`I_STR`) · house (`I_STR`) · motorik (`I_PAD`) · air (`I_PAD`, the detuned-pair "solina-ensemble" voicing) · napoleon (`I_COMP`/`I_AUX`, FOREVER pad + SERENADE strings)
 
 ### pluck/drone
 `INSTR_PLUCK` · A1 D0 S7 R1400 · h0.75 (long ring) · t0.25

@@ -2929,5 +2929,14 @@
       "tech-demo",
       "toy"
     ]
+  },
+  {
+    "title": "respond",
+    "description": "A cart-land prototype of a responsive-layout primitive set, before any of it touches the engine. Drag the yellow lower-right corner to resize a 'virtual screen' rectangle - everything inside it is positioned with four candidate layout functions (flex, fluid clamp/%, anchor+inset, aspect-ratio) so you can watch a real layout REFLOW live as the screen changes size: a top bar stays pinned and fluid-height, a notification badge stays anchored to the corner, a 16:9 viewport letterboxes itself to fit, and the button bar flips from a row to a stacked column when the width drops under a breakpoint (wide -> phone). The idea: prove the toolkit in cart-land against a fake screen first, then graduate it to a runtime/lay.h header that takes the real screen rect. Drag the corner to resize; no other controls.",
+    "file": "respond.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ]
   }
 ]

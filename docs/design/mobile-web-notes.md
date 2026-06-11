@@ -147,6 +147,15 @@ most it's an opt-in capability for a narrow class (UI tools, dashboards, radios 
 want to fill the screen) — and even then it's a real project, not a setting. Keep it
 behind the same wall §4b already drew for device-resolution rendering.
 
+**What that opt-in mode's API would look like — [`responsive-layout.md`](responsive-layout.md).**
+Rather than guess, that doc picks a **four-primitive layout set** (flex / fluid
+`clamp`+% / anchor+inset / aspect) and **prototypes it in cart-land first**: the
+`respond` cart (`tools/carts/respond.c`) lets you drag the corner of a *fake*
+screen and watch a real layout reflow (button bar flips row→column at a width
+breakpoint), so we get to feel whether the set is right **before** `SCREEN_W/H`
+ever become runtime vars. The candidate `runtime/lay.h` is rect-in/rect-out, so
+nothing changes when it graduates from `vs` to a real `safe_rect()`.
+
 **Phone rotation.** Because dims are compile-time, you can't swap portrait↔landscape
 dims at runtime. So rotation is either *letterbox the fixed canvas* (what (a) gives
 you — the existing rotate-hint already copes) or *the cart truly relayouts* (that's

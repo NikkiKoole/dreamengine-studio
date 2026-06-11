@@ -4142,6 +4142,17 @@ void instrument_wah(int slot, float sensitivity, float resonance, float mix) {
     sound_push_ctrl(SR_INSTR_WAH, slot, (int)(sensitivity * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0);
 }
 
+// ── bitcrush: THE master lo-fi quantizer (bit-depth + sample-rate reduction) ──
+
+void crush(float bits, float rate, float mix) {
+    sound_push_ctrl(SR_BITCRUSH, (int)(bits * 100.0f), (int)(rate * 100.0f), (int)(mix * 1000.0f), 0, 0, 0);
+}
+
+void instrument_crush(int slot, float bits, float rate, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_BITCRUSH, slot, (int)(bits * 100.0f), (int)(rate * 100.0f), (int)(mix * 1000.0f), 0, 0);
+}
+
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -4331,6 +4342,8 @@ static void sound_init(void) {
         tape_wow[b] = 0.3f; tape_flut[b] = 0.2f; tape_sat[b] = 0.4f; tape_used[b] = false;
         wah_env[b] = 0.0f; wah_ic1[b] = 0.0f; wah_ic2[b] = 0.0f;
         wah_sens[b] = 0.3f + 0.5f * 4.7f; wah_res[b] = 0.5f; wah_mix[b] = 0.7f; wah_used[b] = false;
+        crush_bits[b] = 8.0f; crush_rate[b] = 4.0f; crush_mix[b] = 1.0f;
+        crush_holdL[b] = 0.0f; crush_holdR[b] = 0.0f; crush_cnt[b] = 0; crush_used[b] = false;
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

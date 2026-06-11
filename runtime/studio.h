@@ -203,7 +203,8 @@ void gradient(int x, int y, int w, int h, int c_a, int c_b, float angle_deg); //
 void vgradient(int x, int y, int w, int h, int c_top, int c_bot);    // vertical dithered gradient from c_top to c_bot — skies, backdrops
 void hgradient(int x, int y, int w, int h, int c_left, int c_right); // horizontal dithered gradient — side lighting, panels
 void tritex(int x1, int y1, float u1, float v1, int x2, int y2, float u2, float v2, int x3, int y3, float u3, float v3); // texture-mapped triangle: each corner maps a screen point to a sprite-sheet pixel (u,v). affine (PS1-style). the textured-3D primitive
-int  pget(int x, int y);                                // palette index at (x,y), or 0 if no match
+int  pget(int x, int y);                                // palette index at (x,y), or 0 if no match (true-colour pset_rgb/rectfill_rgb pixels rarely match — use pget_rgb to read those back)
+int  pget_rgb(int x, int y);                            // raw 0xRRGGBB at (x,y), or -1 if off-screen — the true-colour read-back (pairs with pset_rgb for feedback shaders); reads last frame, like pget
 int  sget(int sx, int sy);                              // palette index of the spritesheet pixel at (sx,sy) — read sprites as data (paint a level, lookup tables). 0 if out of range
 void camera(int x, int y);                              // plain camera: shifts all drawing by (-x,-y), no zoom/rotation. camera(0,0) resets
 void camera_ex(int x, int y, float zoom, float angle);  // camera with zoom (1=normal, 2=2x in) and angle (degrees), pivoting on screen center. for a screen-space HUD after zooming, call camera(0,0)

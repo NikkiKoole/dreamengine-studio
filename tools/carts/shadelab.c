@@ -6,10 +6,11 @@
 // has no per-pixel TRUE-colour write either... except now it does — pset_rgb()
 // paints a raw 0xRRGGBB straight to the canvas, so a shader can use all 16.7M
 // colours, not the 32-colour palette. This cart evaluates one shader over the
-// whole screen, every frame, on the CPU.
+// whole screen, every frame, on the CPU. And the LAST shader (feedback) READS the
+// canvas back with pget_rgb — read AND write, so the screen becomes its own memory.
 //
 // LEFT/RIGHT (or 1..9): switch shader   UP/DOWN: pixel size (see the fragments!)
-// SPACE: freeze time   MOUSE: drives the last two shaders (click to widen the beam)
+// SPACE: freeze time   MOUSE: drives the cursor shaders + paints into the feedback one
 //
 // READ THE SHADER FUNCTIONS BELOW — each is a complete lesson in a few lines.
 
@@ -31,6 +32,16 @@ static int hsv(float h, float s, float v) {            // hue/sat/val → 0xRRGG
     }
 }
 static float fract(float x) { return x - (int)x; }
+static int scale_rgb(int c, float b) {                 // dim a 0xRRGGBB by 0..1
+    int R = (int)(((c >> 16) & 0xFF) * b), G = (int)(((c >> 8) & 0xFF) * b), B = (int)((c & 0xFF) * b);
+    return (R << 16) | (G << 8) | B;
+}
+static int cadd(int a, int b) {                        // saturating add of two 0xRRGGBB
+    int R = ((a >> 16) & 0xFF) + ((b >> 16) & 0xFF); if (R > 255) R = 255;
+    int G = ((a >> 8)  & 0xFF) + ((b >> 8)  & 0xFF); if (G > 255) G = 255;
+    int B = (a & 0xFF)         + (b & 0xFF);          if (B > 255) B = 255;
+    return (R << 16) | (G << 8) | B;
+}
 
 // ── UNIFORMS — globals the shaders read, refreshed each frame in update(). Like a
 //    real shader's iMouse: the cursor in 0..1, plus whether the button is held. ──
@@ -99,16 +110,53 @@ static int sh_ripple(float u, float v, float t) {
     return hsv(0.55f - d, 0.7f, r);
 }
 
+// 10. FEEDBACK — the read-AND-write shader. Every other shader is a pure function of
+//     (u,v,t); this one READS THE PREVIOUS FRAME BACK with pget_rgb, so the screen
+//     becomes its own memory. Each cell samples last frame at a slightly rotated +
+//     zoomed source position, dims it a touch (the trail decay), and emitters inject
+//     fresh light — so colour smears into a glowing, swirling tunnel. Move the MOUSE
+//     and HOLD to paint white sparks into the flow. pset_rgb wrote; pget_rgb reads it
+//     back. This one isn't in the SHADERS[] table — it needs the whole canvas, not a
+//     lone (u,v). NB: ps must stay small here, or the rotate+zoom can't smear smoothly.
+static void sh_feedback(float t, int ps) {
+    float cxp = SCREEN_W * 0.5f, cyp = SCREEN_H * 0.5f;
+    float ca = cos_deg(1.5f), sa = sin_deg(1.5f);     // 1.5°/frame swirl
+    float zoom = 1.012f;                               // >1 pulls from further out → zoom-in feel
+    float ex = cxp + cos_deg(t * 90.0f) * SCREEN_W * 0.30f;   // auto emitter, orbiting
+    float ey = cyp + sin_deg(t * 70.0f) * SCREEN_H * 0.30f;
+    for (int sy = 0; sy < SCREEN_H; sy += ps)
+        for (int sx = 0; sx < SCREEN_W; sx += ps) {
+            float px = sx + ps * 0.5f, py = sy + ps * 0.5f;
+            float dx = px - cxp, dy = py - cyp;
+            int rx = (int)(cxp + (dx * ca - dy * sa) * zoom);  // rotated+zoomed source
+            int ry = (int)(cyp + (dx * sa + dy * ca) * zoom);
+            int prev = pget_rgb(rx, ry);                       // ← READ LAST FRAME BACK
+            if (prev < 0) prev = 0;                            // off-screen reads as black
+            int c = scale_rgb(prev, 0.95f);                    // trail decay (lower = shorter smear)
+            float d = fsqrt((px - ex) * (px - ex) + (py - ey) * (py - ey));
+            if (d < 16) { float b = clamp(1 - d / 16, 0, 1); b *= b; c = cadd(c, scale_rgb(hsv(t * 0.15f, 0.8f, 1), b)); }
+            if (mdown) {
+                float md = fsqrt((px - mu * SCREEN_W) * (px - mu * SCREEN_W) + (py - mv * SCREEN_H) * (py - mv * SCREEN_H));
+                if (md < 18) { float b = clamp(1 - md / 18, 0, 1); b *= b; c = cadd(c, scale_rgb(0xFFFFFF, b)); }
+            }
+            int bw = (sx + ps <= SCREEN_W) ? ps : SCREEN_W - sx;
+            int bh = (sy + ps <= SCREEN_H) ? ps : SCREEN_H - sy;
+            rectfill_rgb(sx, sy, bw, bh, c);
+        }
+}
+
 typedef int (*Shader)(float, float, float);
 static Shader SHADERS[] = { sh_uv, sh_sweep, sh_sdf, sh_plasma, sh_noise, sh_check, sh_interf,
                             sh_light, sh_ripple };
 static const char *NAMES[] = { "uv coords", "hue sweep", "distance field", "plasma",
                                "value noise", "warped checker", "interference",
-                               "cursor light", "cursor ripple" };
+                               "cursor light", "cursor ripple", "feedback" };
 static const char *NOTE[]  = { "red=x  green=y", "hue = x + time", "d = dist to centre",
                                "sum of sines", "noise2(uv + t)", "bend uv, then tile",
-                               "two wells, summed", "dist to MOUSE (click)", "rings from MOUSE" };
-#define NSHADER 9
+                               "two wells, summed", "dist to MOUSE (click)", "rings from MOUSE",
+                               "pget_rgb: read-back! HOLD mouse to paint" };
+#define NSHADER 10
+#define SH_FEEDBACK 9    // the one shader that reads the canvas back — handled apart from SHADERS[]
 
 static int   cur;        // which shader
 static int   ps = 3;     // pixel size — bigger = chunkier + faster (fewer evals)
@@ -134,19 +182,23 @@ void update(void) {
 }
 
 void draw(void) {
-    Shader sh = SHADERS[cur];
-    // evaluate one fragment per ps×ps cell, then paint the cell in ONE true-colour
-    // call — rectfill_rgb beats a pset_rgb pixel-loop as the cells get chunky.
-    for (int sy = 0; sy < SCREEN_H; sy += ps)
-        for (int sx = 0; sx < SCREEN_W; sx += ps) {
-            float u = (sx + ps * 0.5f) / SCREEN_W;
-            float v = (sy + ps * 0.5f) / SCREEN_H;
-            int bw = (sx + ps <= SCREEN_W) ? ps : SCREEN_W - sx;
-            int bh = (sy + ps <= SCREEN_H) ? ps : SCREEN_H - sy;
-            rectfill_rgb(sx, sy, bw, bh, sh(u, v, t));
-        }
+    if (cur == SH_FEEDBACK) {
+        sh_feedback(t, ps);                  // reads the previous frame back — its own branch
+    } else {
+        Shader sh = SHADERS[cur];
+        // evaluate one fragment per ps×ps cell, then paint the cell in ONE true-colour
+        // call — rectfill_rgb beats a pset_rgb pixel-loop as the cells get chunky.
+        for (int sy = 0; sy < SCREEN_H; sy += ps)
+            for (int sx = 0; sx < SCREEN_W; sx += ps) {
+                float u = (sx + ps * 0.5f) / SCREEN_W;
+                float v = (sy + ps * 0.5f) / SCREEN_H;
+                int bw = (sx + ps <= SCREEN_W) ? ps : SCREEN_W - sx;
+                int bh = (sy + ps <= SCREEN_H) ? ps : SCREEN_H - sy;
+                rectfill_rgb(sx, sy, bw, bh, sh(u, v, t));
+            }
+    }
 
-    // a crosshair on the mouse for the cursor-driven shaders
+    // a crosshair on the mouse for the cursor-driven shaders (and feedback's paint cursor)
     if (cur >= 7) {
         int cx = mouse_x(), cy = mouse_y();
         line(cx - 4, cy, cx + 4, cy, CLR_WHITE);

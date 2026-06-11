@@ -2290,6 +2290,14 @@
     "genre": "arcade"
   },
   {
+    "title": "pipe tuner",
+    "description": "An EAR test for the modeled flute. Sweeps a chromatic scale very low to very high and sounds the engine TOGETHER with a pure SINE at the same pitch: in tune = the two lock and sit still, drifting = an audible beating/wobble that speeds up the further out it goes (the classic tune-against-a-reference trick; your ears are the meter, tools/tune-check.js is the headless number version). PIPE is the point — in tune at a focused embouchure (morph >= 0.5), flat up high at a hollow one. SPACE pauses and HOLDS the current note so you can judge the beat; UP/DOWN ride the embouchure to hear it pull in and out of tune; R toggles the reference; TAB cycles the test engine (PIPE/REED/BRASS/BOWED/PLUCK). Companion to docs/instrument-bank-plan.md.",
+    "file": "pipetune.cart.png",
+    "kind": [
+      "probe"
+    ]
+  },
+  {
     "title": "sound check",
     "description": "The sound engine self-test. init() slams the request queue with the worst-case burst (all 27 instrument slots defined with envs/LFOs/filters + all 4 user wavetables in one frame), then walks the whole API: every wave id audibly in sequence, chords, a 40-shot schedule_hit machine-gun, and a held note driven by every live setter. PASS = no [sound] WARNING in the log and all 9 waves sound different; the engine now counts dropped requests and screams if any sound call was lost. Headless: node tools/play.js soundcheck run.",
     "file": "soundcheck.cart.png",
@@ -2915,7 +2923,7 @@
   },
   {
     "title": "shadelab",
-    "description": "A CPU fragment shader, the dreamengine way: there is no GPU shader hook, so every pixel is just a little C function returning a 0xRRGGBB colour through the new pset_rgb() - full 24-bit colour, bypassing the 32-colour palette, painted per pixel on the CPU. Flip through seven worked shaders - uv coords (red=x, green=y), hue sweep, distance field, plasma, value-noise clouds, warped checker, interference - and each is a few readable lines that ARE the lesson. UP/DOWN changes the pixel size so you can watch the fragments turn chunky (and trade detail for speed); LEFT/RIGHT or keys 1..7 switch shader; SPACE freezes time. Runs ~5ms/frame at 320x200. The companion to the pset_rgb engine primitive.",
+    "description": "A CPU fragment shader, the dreamengine way: there is no GPU shader hook, so every pixel is just a little C function returning a 0xRRGGBB colour through pset_rgb() - full 24-bit colour, bypassing the 32-colour palette, painted on the CPU. Flip through ten worked shaders - uv coords (red=x, green=y), hue sweep, distance field, plasma, value-noise clouds, warped checker, interference, a cursor torch and cursor ripples, and finally FEEDBACK: the read-AND-write shader that reads the previous frame back with pget_rgb (the new true-colour read-back), dims it, and re-paints it rotated+zoomed, so the screen becomes its own memory - a glowing swirling tunnel you can paint into by holding the mouse. Each shader is a few readable lines that ARE the lesson. UP/DOWN changes the pixel size so you can watch the fragments turn chunky (and trade detail for speed); LEFT/RIGHT or keys 1..9 switch shader; SPACE freezes time. The companion to the pset_rgb / pget_rgb engine primitives.",
     "file": "shadelab.cart.png",
     "kind": [
       "tech-demo",

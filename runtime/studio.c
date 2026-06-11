@@ -2237,6 +2237,19 @@ int pget(int x, int y) {
     return 0;
 }
 
+// true-colour read-back: the raw 0xRRGGBB at (x,y), skipping pget's palette match.
+// pairs with pset_rgb for feedback shaders (read your own true-colour canvas, write it
+// back). returns -1 off-screen so a real black pixel (0x000000) isn't ambiguous.
+int pget_rgb(int x, int y) {
+    if (!pget_snapshot_valid) return -1;
+    Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
+    int rx = (int)s.x;
+    int ry = (int)s.y;
+    if (rx < 0 || rx >= SCREEN_W || ry < 0 || ry >= SCREEN_H) return -1;
+    Color c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);   // RT is bottom-up; flip Y
+    return (c.r << 16) | (c.g << 8) | c.b;
+}
+
 int sget(int sx, int sy) {
     // reads the spritesheet directly (not the canvas), so it's a stable data lookup —
     // e.g. paint a level in the sprite editor and read the blocks back here. The

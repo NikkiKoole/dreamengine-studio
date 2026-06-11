@@ -62,7 +62,7 @@ static const Preset PRESET[6] = {
     { "rhodes",   { 0.15f, 0.30f, 0.25f, 0.5f, 0.35f }, 0 },   // warm suitcase-ish + classic wobble
     { "rho brite",{ 0.15f, 0.78f, 0.55f, 0.5f, 0.30f }, 0 },   // bright stage, barky
     { "suitcase", { 0.15f, 0.20f, 0.12f, 0.5f, 0.45f }, 0 },   // mellow, clean, long, deep tremolo
-    { "wurli",    { 0.50f, 0.35f, 0.30f, 0.5f, 0.50f }, 0 },   // soul ballad — the 200A's deeper trem
+    { "wurli",    { 0.50f, 0.45f, 0.60f, 0.5f, 0.50f }, 0 },   // soul ballad — navkit Wurlitzer pickupPos 0.45 (timbre) + pickupDist 0.6 (morph→buzz); the 200A's deeper trem
     { "wur buzz", { 0.50f, 0.66f, 0.82f, 0.6f, 0.55f }, 1 },   // cranked reed + the wah + trem
     { "clav",     { 0.85f, 0.75f, 0.55f, 0.6f, 0.0f  }, 1 },   // funky bridge pickup THROUGH the wah (quack + LFO pump + bus follower, navkit's clav+wah pairing). NO tremolo — a real clav has none
 };

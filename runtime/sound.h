@@ -1489,6 +1489,47 @@ static void sound_epiano_start(Voice *v) {
             v->ep_dec[i] = dt / dec;
         }
         if (ampSum > 0.001f) { float s = vel / ampSum; for (int i = 0; i < 12; i++) v->ep_amp[i] *= s; }   // peak sum ≈ vel
+    } else if (ty == 1) {
+        // ── WURLITZER: VERBATIM navkit port (initEPianoSettings, EP_PICKUP_ELECTROSTATIC). The reed's
+        // signature is a WEAK 2nd + STRONG 3rd (the electrostatic pickup cancels evens) — our old crib
+        // had H2 ~11dB too loud + a clangy intermod stack. Same fixes as the clav (ratio blend toward
+        // integer harmonics + amp NORMALIZE), plus the electrostatic register rolloff + velocity curves.
+        // navkit Wurlitzer preset: hardness 0.5, bell 0.15, bellTone 0.05, decay 1.8.
+        static const float HARM[12]  = {1,2,3,4,5,6,7,8,9,10,11,12};
+        static const float INH[12]   = {1.0f,2.02f,3.01f,5.04f,7.05f,9.08f,11.1f,13.1f,15.2f,17.2f,19.3f,21.3f};
+        static const float BLEND[12] = {0,0.1f,0.2f,0.6f,0.9f,1,1,1,1,1,1,1};
+        static const float CEN[12]   = {1.0f,0.08f,0.45f,0.12f,0.10f,0.04f,0,0,0,0,0,0};   // clean (centered)
+        static const float OFF[12]   = {0.60f,0.15f,0.60f,0.20f,0.20f,0.08f,0,0,0,0,0,0};  // buzzy (offset)
+        const float epHardness = 0.5f, epBell = 0.15f, epBellTone = 0.05f, epDecay = 1.8f;
+        float pos = pp;                                      // pickup position = timbre macro
+        float btEff = epBellTone + fn * 0.15f; if (btEff > 1.0f) btEff = 1.0f;
+        float hard = epHardness + vel * (1.0f - epHardness) * 0.3f;
+        float velSq = vel * vel, ampSum = 0.0f;
+        for (int i = 0; i < 12; i++) {
+            float modeBt = btEff * BLEND[i];
+            float ratio  = HARM[i] * (1.0f - modeBt) + INH[i] * modeBt;
+            v->ep_ratio[i] = ratio;
+            v->ep_ph[i]    = 0.0f;
+            float a = CEN[i] * (1.0f - pos) + OFF[i] * pos;
+            a *= hard + (1.0f - hard) / (1.0f + (ratio - 1.0f) * 0.5f);   // hammer-hardness tilt
+            if (i >= 3) a *= (1.0f + epBell * 1.5f);                      // bell emphasis
+            { float keep = 1.0f - fn; keep *= keep;                       // electrostatic register rolloff
+              if (i == 0)      a *= (1.0f - fn * 0.15f);
+              else if (i <= 2) a *= keep;                                 // body modes thin quadratically
+              else             a *= keep * keep; }                        // upper modes 4th-power steep
+            float velScale;                                              // electrostatic velocity curves
+            if      (i == 0) velScale = 0.10f + 0.90f * (vel * 0.6f + velSq * 0.4f);
+            else if (i == 1) velScale = 0.08f + 0.92f * (vel * 0.6f + velSq * 0.4f);
+            else if (i == 2) velScale = 0.12f + 0.88f * (vel * 0.6f + velSq * 0.4f);
+            else             velScale = 0.05f + 0.95f * velSq;
+            a *= velScale;
+            v->ep_amp[i] = a; ampSum += a;
+            float dfac = 1.0f / (1.0f + (ratio - 1.0f) * (0.3f + btEff * 0.7f));
+            float dec  = epDecay * (1.0f - fn * 0.5f) * dfac;
+            if (dec < 0.02f) dec = 0.02f;
+            v->ep_dec[i] = dt / dec;
+        }
+        if (ampSum > 0.001f) { float s = vel / ampSum; for (int i = 0; i < 12; i++) v->ep_amp[i] *= s; }   // peak sum ≈ vel
     } else
     for (int i = 0; i < 12; i++) {
         v->ep_ratio[i] = RAT[ty][i];
@@ -1550,9 +1591,13 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
     float regDist = (1.0f - v->ep_freqnorm) * (1.0f - v->ep_freqnorm);
     float bark = v->mor;                              // the dig-in growl — live (note_morph)
     float s2 = sum * sum, out;
-    if (v->ep_type == 1) {                            // Wurli: odd harmonics, symmetric clip
-        float k3 = (0.40f + bark * 1.5f) * regDist;
-        float k5 = (0.10f + bark * 0.4f) * regDist;
+    if (v->ep_type == 1) {                            // Wurli: VERBATIM navkit electrostatic nonlinearity
+        // odd-only terms (sum³ + sum⁵) preserve the reed's odd-harmonic character; register-scaled
+        // (high reeds are short, less nonlinear); symmetric tanh. pickupDist = morph, strikeVel = vol.
+        float dist = bark;                            // morph = pickup distance (navkit Wurli 0.6)
+        float velBoost = 1.0f + v->vol * dist;
+        float k3 = dist * 1.5f * velBoost * regDist;
+        float k5 = dist * 0.4f * velBoost * regDist;
         out = sum + k3 * sum * s2 + k5 * sum * s2 * s2;
         out = tanhf(out);
     } else if (v->ep_type == 2) {                     // Clav: VERBATIM navkit contact-pickup nonlinearity

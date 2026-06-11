@@ -107,21 +107,96 @@ Contract:
      a few Hz `setTimeout`) while idle and restore rAF on the next dirty frame — this is
      what stops the browser from running the rAF callback 60×/sec at all.
 
-### Rejected: automatic frame-hashing
+### Why opt-in, not the default
 
-Render then hash the pixels and present only on change — tempting because it needs zero
-cart cooperation, but it requires a **GPU readback**, which this codebase already calls
-out as "expensive and triggers GL errors on WebGL1" — the reason `pget` is disabled on
-web (`:1110`–`:1114`). The explicit dirty flag is cheaper, portable, and honest about the
-immediate-mode model. (A CPU-side draw-call-log hash avoids readback but amounts to a
-retained-mode rewrite — out of scope.)
+It's tempting to make reactive the standard — most of the catalog *is* static most of
+the time. The reason not to comes down to **who pays vs. who benefits**: the cost of
+reactive is borne by *every* cart and *every* author; the benefit lands only on the
+subset that's genuinely static. Opt-in aligns those two sets. Default does not.
 
-### Risk & mitigation
+The deeper framing: always-redraw is immediate mode's whole gift — **statelessness**.
+`draw()` runs every frame, you `cls()`, you repaint the world from scratch, and the
+invariant is *"if you drew it, it's on screen."* `repaint()` smuggles retained-mode
+bookkeeping back in — it asks the author to prove a negative about their **entire
+program** ("nothing changed this frame") every frame, forever. That's worth it for a
+radio idling at ~0 GPU; it's a bad tax on a platformer.
 
-A cart that forgets `repaint()` after a state change shows a **stale screen**. Mitigations:
-auto-repaint-on-input covers the common case (the change usually *follows* an input);
-it's opt-in so beginners never hit it; and the failure is obvious and local during
-authoring. Document the rule next to the radios that adopt it first.
+The concrete dangers, deepest first:
+
+1. **The failure mode is silent, intermittent, and content-dependent — the worst kind.**
+   Forgetting a `repaint()` after a state change shows a **stale screen**. And
+   auto-repaint-on-input *hides* the bug during authoring — the author is clicking around,
+   every input repaints, everything looks fine. It surfaces later for a user *watching*
+   something change untouched: a ticking timer, a scripted enemy, a beat flash. Invisible
+   when written, emergent in the field.
+2. **Self-animation is the killer, and the engine cannot detect it.** Anything driven by
+   `t()` / `frame()` / `sin(now())` — pulsing cursors, scrolling starfields, VU meters, a
+   clock — raises no input edge and trips no engine animation. The engine has no way to
+   tell a static radio face from one with a blinking 1px LED; only the author knows.
+   Reactive-by-default freezes all of it unless the cart repaints every frame — which is
+   just always-redraw with a footgun. **This asymmetry is the reason the safe default must
+   be the one that's correct without the engine knowing anything about the cart.**
+3. **It leaks into every shared header.** `ui.h` / `radio.h` / `solo.h` / `gestures.h`
+   all draw, and a library author can't see the cart's reactive setting. Default-on means
+   every widget (a knob drag, a focus ring appearing, a loupe opening) must `repaint()` at
+   the right moment or silently break — threading render *policy* into UI *widgets*. Opt-in
+   contains the blast radius to carts that asked and were tested that way.
+4. **It breaks the teachability invariant.** This is a *learning* environment; step one is
+   "make something move." Always-redraw means "you drew it, it's there" — the property
+   that makes the engine teachable. Reactive-by-default means a beginner's first animation
+   silently won't move until they learn a render-policy call: a retained-mode concept in
+   lesson one of an immediate-mode tool.
+5. **Depth-2 doesn't fail soft — it can hard-lock.** Stale pixels annoy; a missed
+   input-poll / wake-up (especially the web rAF timing dance) leaves the cart **hung**, not
+   stale. The more valuable the optimization, the scarier its failure mode.
+
+### "Why not just auto-detect change?" — the dirty flag & frame-hashing
+
+The natural intuition — keep one dirty flag in the back and auto-raise it whenever
+anything changes — is the right instinct, but **can't be made automatic** in this model.
+"Did anything change" has no engine-answerable form, because there's no scene state to
+watch:
+
+- The engine can only observe what **it** owns — input edges, `shake`/`fade`, pause,
+  resize, hot-reload — and it already raises the flag for exactly those (see the design
+  above). That half *is* automatic.
+- It **cannot** see that the *cart's* own state changed: cart state is opaque C memory.
+  And even a full record of every cart variable write wouldn't help, because
+  **state-changed ≠ pixels-changed** — a cart can mutate a variable that never reaches the
+  screen, or redraw an identical frame from new numbers.
+
+That leaves only two ways to detect change *without* cart cooperation, both rejected:
+
+- **Hash the rendered pixels** and present only on change — tempting because it's zero
+  cart-cooperation, but it needs a **GPU readback**, which this codebase already calls out
+  as "expensive and triggers GL errors on WebGL1" — the reason `pget` is disabled on web
+  (`:1110`–`:1114`).
+- **Hash a CPU-side draw-call log** — avoids the readback, but amounts to building a
+  retained-mode scene every frame: out of scope, and it throws away the immediate-mode
+  simplicity that's the whole point.
+
+So the flag exists either way — the real question is **who sets it**. The explicit
+`repaint()` is cheaper, portable, and honest about the immediate-mode model: the engine
+raises it for its half, the cart calls `repaint()` for theirs, because the author is the
+only one who knows that *this* state change maps to a visible one.
+
+### Safer-default candidates
+
+If reach matters more than the last drop of idle savings, the move is to **kill the
+catastrophic failure modes, not the optimization**:
+
+- **Idle floor instead of true zero.** Reactive with a minimum ~4–8 fps repaint while
+  idle. Self-animation degrades to *choppy* rather than *frozen*; a deaf-input lockup
+  becomes impossible. Every correctness bug above turns into a mild quality bug. This is
+  the concrete answer to the open question below ("should reactive auto-imply a low `fps`
+  cap"): **yes — and the floored variant is the only one safe enough to even consider
+  defaulting.** True 0-present stays an explicit opt-*down* for hand-verified radios.
+- **Default-on only inside chrome you control** — bake the `repaint()` discipline into
+  `radio.h` and enable it for *stations*, where one maintainer guarantees the invariant,
+  rather than engine-wide across ~50 authors.
+- **The genuinely near-defaultable lever is A, not B.** A 30 fps cap on a `dt()`-paced
+  cart halves the heat with *zero* stale-screen risk and no whole-program claim. The only
+  casualties are `frame()%N` carts — which is why even that stays opt-in.
 
 ## They compose
 

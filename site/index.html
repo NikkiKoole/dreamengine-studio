@@ -112,6 +112,26 @@
       </div>
     </a>
 
+    <a class="card" href="pipetune/" data-title="pipe tuner" data-search="pipetune pipe tuner probe an ear test for the modeled flute. sweeps a chromatic scale very low to very high and sounds the engine together with a pure sine at the same pitch: in tune = the two lock and sit still, drifting = an audible beating/wobble that speeds up the further out it goes (the classic tune-against-a-reference trick; your ears are the meter, tools/tune-check.js is the headless number version). pipe is the point — in tune at a focused embouchure (morph &gt;= 0.5), flat up high at a hollow one. space pauses and holds the current note so you can judge the beat; up/down ride the embouchure to hear it pull in and out of tune; r toggles the reference; tab cycles the test engine (pipe/reed/brass/bowed/pluck). companion to docs/instrument-bank-plan.md." data-added="2026-06-11" data-tier="3">
+      <img src="pipetune/cart.png" alt="pipe tuner" loading="lazy">
+      <div class="body">
+        <h2>pipe tuner</h2>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
+        <p>An EAR test for the modeled flute. Sweeps a chromatic scale very low to very high and sounds the engine TOGETHER with a pure SINE at the same pitch: in tune = the two lock and sit still, drifting = an audible beating/wobble that speeds up the further out it goes (the classic tune-against-a-reference trick; your ears are the meter, tools/tune-check.js is the headless number version). PIPE is the point — in tune at a focused embouchure (morph &gt;= 0.5), flat up high at a hollow one. SPACE pauses and HOLDS the current note so you can judge the beat; UP/DOWN ride the embouchure to hear it pull in and out of tune; R toggles the reference; TAB cycles the test engine (PIPE/REED/BRASS/BOWED/PLUCK). Companion to docs/instrument-bank-plan.md.</p>
+        <div class="added">added 2026-06-11</div>
+      </div>
+    </a>
+
+    <a class="card" href="shadelab/" data-title="shadelab" data-search="shadelab shadelab tech-demo toy a cpu fragment shader, the dreamengine way: there is no gpu shader hook, so every pixel is just a little c function returning a 0xrrggbb colour through pset_rgb() - full 24-bit colour, bypassing the 32-colour palette, painted on the cpu. flip through ten worked shaders - uv coords (red=x, green=y), hue sweep, distance field, plasma, value-noise clouds, warped checker, interference, a cursor torch and cursor ripples, and finally feedback: the read-and-write shader that reads the previous frame back with pget_rgb (the new true-colour read-back), dims it, and re-paints it rotated+zoomed, so the screen becomes its own memory - a glowing swirling tunnel you can paint into by holding the mouse. each shader is a few readable lines that are the lesson. up/down changes the pixel size so you can watch the fragments turn chunky (and trade detail for speed); left/right or keys 1..9 switch shader; space freezes time. the companion to the pset_rgb / pget_rgb engine primitives." data-added="2026-06-11" data-tier="1">
+      <img src="shadelab/cart.png" alt="shadelab" loading="lazy">
+      <div class="body">
+        <h2>shadelab</h2>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
+        <p>A CPU fragment shader, the dreamengine way: there is no GPU shader hook, so every pixel is just a little C function returning a 0xRRGGBB colour through pset_rgb() - full 24-bit colour, bypassing the 32-colour palette, painted on the CPU. Flip through ten worked shaders - uv coords (red=x, green=y), hue sweep, distance field, plasma, value-noise clouds, warped checker, interference, a cursor torch and cursor ripples, and finally FEEDBACK: the read-AND-write shader that reads the previous frame back with pget_rgb (the new true-colour read-back), dims it, and re-paints it rotated+zoomed, so the screen becomes its own memory - a glowing swirling tunnel you can paint into by holding the mouse. Each shader is a few readable lines that ARE the lesson. UP/DOWN changes the pixel size so you can watch the fragments turn chunky (and trade detail for speed); LEFT/RIGHT or keys 1..9 switch shader; SPACE freezes time. The companion to the pset_rgb / pget_rgb engine primitives.</p>
+        <div class="added">added 2026-06-11</div>
+      </div>
+    </a>
+
     <a class="card" href="tapeloop/" data-title="tapeloop" data-search="tapeloop tapeloop instrument frippertronics (fripp + eno) meets the mellotron - and the showcase for tape(). the source is a faked recording of a real instrument: strings, choir or flute, each a drawn single-cycle wave (a stack of a few harmonics via wave_set into instr_user0). it feeds a long echo loop, and the whole circulating wash runs through tape, so every pass returns warmer and more warped: wow (slow pitch drift) + flutter (fast warble) + saturation (warm soft-clip + hf rolloff). the tape degradation turns a clean synth into an aging recording - it is what makes a delay sound like a worn tape loop. fifth box in the effects family (spacecho=echo, cathedral=reverb, juno=chorus, mistress=flanger, tapeloop=tape). two reels spin and wobble with the flutter; the tape sags and sways with the wow; a loop meter shows the wash hanging on. timbre cycles the loaded recording (t, or tap the button); wow / flutter / sat drive tape(); feedback sets how long the loop survives (echo regeneration); space toggles auto (a sparse phrase plays itself into the loop); 1..6 drop a note in by hand; h help." data-added="2026-06-11" data-tier="2">
       <img src="tapeloop/cart.png" alt="tapeloop" loading="lazy">
       <div class="body">
@@ -3242,7 +3262,7 @@
       </div>
     </a>
 </div>
-<footer>317 carts · arrows + Z/X to play (most carts)</footer>
+<footer>319 carts · arrows + Z/X to play (most carts)</footer>
 <script>
 (function () {
   var grid = document.querySelector('.grid')

@@ -29,6 +29,16 @@ that makes both honest is the **single registry**: the tuner is only honest if i
 values the radio carts run, and the gate is only useful if it measures the *named recipes* people
 actually pick (it currently measures bare engine defaults — see §4).
 
+> **▶ A working prototype already ships: the `pipetune` cart** (`tools/carts/pipetune.c`, in the
+> gallery as **"pipe tuner"**, tag `probe`). It's the PIPE-focused, single-engine version of the
+> orchestra tuner above: a chromatic sweep low→high sounded against a pure SINE so you *hear* drift
+> as beating. The five flute presets are on keys **1–5** (flute/piccolo lock in tune;
+> recorder/breathy/pan-pipe go audibly flat — the hollow-embouchure `morph ≤ 0.5` failure), and the
+> embouchure macro is live on **UP/DOWN** so you can hear a macro retune the model. Every on-screen
+> tuning verdict was validated against `tune-check.js`. **This is the audible reference for "is a
+> voice in tune"** — and it proves out the per-voice `tune:` verdict the registry needs (§3 schema):
+> the cart already carries it as a per-preset `bad` flag.
+
 ### Hard design principle — the bank is an opt-in palette, NEVER a gate
 A cart that wants a weird voice just sets `instrument_harmonics/timbre/morph(slot, x)` raw, same
 as today. The bank is a *convenience + a guarantee* for the dependable voices, not a checkpoint.

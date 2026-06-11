@@ -12,6 +12,11 @@ index + the decisions that are **yours** to make.
   - **Recipe mode**: `node tools/tune-check.js --engine PIPE --macros h,t,m --range lo-hi`
     — checks an engine at the macros a CART actually uses (the default sweep tests macros 0,
     the worst case). This is the verify-before-shipping step for a flute voice.
+- **HEAR it — the `pipetune` cart** (gallery: **"pipe tuner"**, `tools/carts/pipetune.c`). The
+  audible companion to the meter: a chromatic sweep sounded against a pure SINE so drift = beating.
+  Keys **1–5** flip the PIPE presets (flute/piccolo lock; recorder/breathy/pan-pipe go audibly
+  flat); **UP/DOWN** rides the embouchure live to hear a macro retune the model. Verdicts validated
+  against `tune-check.js`. Doubles as the prototype for the parked orchestra-tuner ([STATUS #33](STATUS.md)).
 - **PIPE engine fixed** — was an octave low + flat. Now in tune ~±3¢ from C4 to ~E6 **at a
   focused embouchure (morph ≳ 0.5)**. Fix = half-wavelength bore − a jet-length-derived loop
   delay + the fractional-read trick. (`runtime/sound.h` `sound_pipe_start`.)

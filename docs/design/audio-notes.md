@@ -1191,6 +1191,15 @@ v1, document it on the panel.
    acid line crest 13.6 → 6.9 dB, RMS −20.6 → −17.2 dBFS, zero clipping.
    tb303 grew the DRV knob (live `note_drive` on the ringing voice — RES + DRV
    is the squelch §17.1 said we were missing).
+   **✓ MODES 2026-06-11** — `instrument_drive_mode(slot, mode)` / `note_drive_mode()` pick the
+   waveshaper while `instrument_drive()` stays the amount: `DRIVE_SOFT` (the original tanh, the
+   default — bit-identical), `DRIVE_HARD` (hard clip `clamp(s·g)/min(g,1)`), `DRIVE_FOLD` (sine
+   wavefolder, dry/wet by amount, no divide), `DRIVE_ASYM` (asymmetric tube — softer negative
+   half scaled by drive, the even-harmonic warmth). All four keep the bypass-at-0 + full-scale
+   contract; the existing DC blocker cleans ASYM/FOLD. Showcase: `drivemodes.c`. Verified: WAV
+   cycle through all four — 0 clipped, steady RMS, DC ~0.0006. (Rectify deliberately dropped: an
+   even function can't bypass-at-zero, and a `/fold(g)`-normalized folder divides by zero at high
+   drive.)
 2. **Master soft-clip** — three lines, pays for §15's 16 voices immediately.
    **✓ SHIPPED 2026-06-05** — linear below a ±0.8 knee (quiet mixes bit-identical),
    tanh-shaped above, slope-continuous, asymptote ±1.0.
@@ -1213,6 +1222,15 @@ v1, document it on the panel.
    gap, closed); tb303/sh101 get subtle slapback sends.
 4. **Detune** — small, after drive (driven unison is the payoff).
 5. **Bitcrush** — on-brand dessert; decide insert vs master when it lands.
+   **✓ SHIPPED 2026-06-11** — `crush(bits, rate, mix)` (master) **and** `instrument_crush(slot, …)`
+   (per-instrument aux bus, the tape/wah pattern), so it's BOTH whole-mix lo-fi and per-part
+   (crush the drums, leave the lead hi-fi). Bit-depth = floor to 2^bits levels; rate = sample-
+   and-hold every Nth sample. Applied last in both the per-bus insert loop and the master chain,
+   before the soft-clip; dormant until first call (mix 0 = off), so non-users stay byte-identical.
+   `floorf` quantization adds a small negative DC bias at low bits (~−0.014 @ bits 5) — kept as
+   on-brand lo-fi character (navkit ships it the same way). Showcase: `bitcrush.c` (master vs
+   per-instrument on a clean lead over a crushed bass). Verified: OFF/MASTER/BASS-ONLY renders
+   all distinct + clean (0 clipped, no NaN).
 6. **Cart-side, no engine change: swing knob on CLOCK** (`schedule_hit` already
    keeps the timing), **darker DRUM voices** (909 kick = longer sine + pitch
    env — the "Punch (VCA)" preset recipe, baked in).

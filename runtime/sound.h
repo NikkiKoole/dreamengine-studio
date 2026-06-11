@@ -677,6 +677,36 @@ static void fx_set_tape(int b, float wow, float flut, float sat) {
     tape_used[b] = true;
 }
 
+// ── bitcrush — lo-fi quantizer: bit-depth reduction (floor to 2^bits levels) + sample-rate
+// reduction (sample-and-hold every `rate` samples). navkit processBitcrusher, made stereo and
+// per-bus. Cheap + stateless-ish (just the held sample + a counter). Dormant until first crush().
+static float crush_bits [SOUND_FX_BUSES];  // bit depth 1..16
+static float crush_rate [SOUND_FX_BUSES];  // sample-hold downsample factor 1..64
+static float crush_mix  [SOUND_FX_BUSES];  // dry/wet 0..1
+static float crush_holdL[SOUND_FX_BUSES];  // last sampled value (L)
+static float crush_holdR[SOUND_FX_BUSES];  // … (R)
+static int   crush_cnt  [SOUND_FX_BUSES];  // sample counter for rate reduction
+static bool  crush_used [SOUND_FX_BUSES];
+static void crush_process(int b, float *mixL, float *mixR) {
+    float dryL = *mixL, dryR = *mixR;
+    if (++crush_cnt[b] >= (int)crush_rate[b]) {        // sample-rate reduction: re-sample every `rate`
+        crush_cnt[b] = 0;
+        float levels = powf(2.0f, crush_bits[b]);      // bit-depth reduction: quantize to 2^bits steps
+        crush_holdL[b] = floorf(*mixL * levels) / levels;
+        crush_holdR[b] = floorf(*mixR * levels) / levels;
+    }
+    float mix = crush_mix[b];
+    *mixL = dryL * (1.0f - mix) + crush_holdL[b] * mix;
+    *mixR = dryR * (1.0f - mix) + crush_holdR[b] * mix;
+}
+static void fx_set_crush(int b, float bits, float rate, float mix) {
+    if (bits < 1.0f) bits = 1.0f; if (bits > 16.0f) bits = 16.0f;
+    if (rate < 1.0f) rate = 1.0f; if (rate > 64.0f) rate = 64.0f;
+    if (mix < 0.0f)  mix  = 0.0f; if (mix > 1.0f)  mix  = 1.0f;
+    crush_bits[b] = bits; crush_rate[b] = rate; crush_mix[b] = mix;
+    crush_used[b] = (mix > 0.0f);   // mix 0 = off (like chorus/flanger/wah)
+}
+
 // ── auto-wah — a resonant bandpass SWEPT BY AN ENVELOPE FOLLOWER on the bus signal ──
 // THE scar (0015 correction / §8.10): the realistic "woah-woah" auto-wah is a BUS effect, not
 // per-voice — a per-voice filter can't sweep a chord coherently or pump with the groove. A bus-level
@@ -692,23 +722,15 @@ static float wah_sens[SOUND_FX_BUSES];     // envelope sensitivity (~0.3..5 inte
 static float wah_res [SOUND_FX_BUSES];     // resonance/Q 0..1 (the quack)
 static float wah_mix [SOUND_FX_BUSES];     // dry/wet 0..1
 static bool  wah_used[SOUND_FX_BUSES];
-static float wah_lfo_rate [SOUND_FX_BUSES]; // LFO-mode sweep rate Hz; 0 = follower mode (navkit's two wah modes)
-static float wah_lfo_phase[SOUND_FX_BUSES]; // LFO-mode phase 0..1
 
 static void wah_process(int b, float *mixL, float *mixR) {
-    float in = (*mixL + *mixR) * 0.5f;     // filter the mono sum
-    float sweep;
-    if (wah_lfo_rate[b] > 0.0f) {          // navkit WAH_MODE_LFO: a sine rocks the band (ignores dynamics)
-        wah_lfo_phase[b] += wah_lfo_rate[b] / (float)SOUND_SAMPLE_RATE;
-        if (wah_lfo_phase[b] >= 1.0f) wah_lfo_phase[b] -= 1.0f;
-        sweep = 0.5f + 0.5f * sinf(wah_lfo_phase[b] * 6.2831853f);
-    } else {                               // WAH_MODE_ENVELOPE: peak detector tracking the performance
-        float level = fabsf(in) * wah_sens[b];
-        if (level > wah_env[b]) wah_env[b] += 0.01f   * (level - wah_env[b]);   // fast attack
-        else                    wah_env[b] += 0.0001f * (level - wah_env[b]);   // slow release
-        sweep = wah_env[b]; if (sweep > 1.0f) sweep = 1.0f;
-    }
-    float freq = WAH_FREQ_LOW * powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep (300→2500)
+    float in = (*mixL + *mixR) * 0.5f;     // follow + filter the mono sum
+    // envelope follower: fast attack, slow release (peak detector tracking the performance)
+    float level = fabsf(in) * wah_sens[b];
+    if (level > wah_env[b]) wah_env[b] += 0.01f   * (level - wah_env[b]);   // attack
+    else                    wah_env[b] += 0.0001f * (level - wah_env[b]);   // release
+    float sweep = wah_env[b]; if (sweep > 1.0f) sweep = 1.0f;
+    float freq = WAH_FREQ_LOW * powf(WAH_FREQ_HIGH / WAH_FREQ_LOW, sweep);  // exponential sweep
     if (freq > SOUND_SAMPLE_RATE * 0.45f) freq = SOUND_SAMPLE_RATE * 0.45f;
     // TPT state-variable bandpass (Zavalishin)
     float g = tanf(3.14159265f * freq / (float)SOUND_SAMPLE_RATE);
@@ -731,16 +753,6 @@ static void fx_set_wah(int b, float sens, float res, float mix) {
     if (res < 0.0f)  res  = 0.0f; if (res > 1.0f)  res  = 1.0f;
     if (mix < 0.0f)  mix  = 0.0f; if (mix > 1.0f)  mix  = 1.0f;
     wah_sens[b] = 0.3f + sens * 4.7f;       // 0..1 → ~0.3..5.0 (navkit sensitivity range)
-    wah_res[b] = res; wah_mix[b] = mix;
-    wah_lfo_rate[b] = 0.0f;                 // follower mode (the default); LFO mode = fx_set_wah_lfo
-    wah_used[b] = true;
-}
-// navkit WAH_MODE_LFO: the same bus bandpass, swept by a sine instead of the follower. The
-// rhythmic "wah-wah" (no dynamics). rate in Hz (navkit default 2.0); res/mix as the follower wah.
-static void fx_set_wah_lfo(int b, float rate, float res, float mix) {
-    if (res < 0.0f)  res  = 0.0f; if (res > 1.0f)  res  = 1.0f;
-    if (mix < 0.0f)  mix  = 0.0f; if (mix > 1.0f)  mix  = 1.0f;
-    wah_lfo_rate[b] = rate < 0.05f ? 0.05f : rate;   // >0 selects LFO mode (clamp so it can't read as "off")
     wah_res[b] = res; wah_mix[b] = mix;
     wah_used[b] = true;
 }
@@ -815,8 +827,8 @@ typedef enum {
     SR_INSTR_WAH    = 50,   // a=slot, b=sens*1000, c=res*1000, e0=mix*1000 — auto-wah on one instrument (auto-bus)
     SR_INSTR_DRIVE_MODE = 51,  // a=slot, b=mode (DRIVE_*) — set a slot's drive waveshaper
     SR_NOTE_DRIVE_MODE  = 52,  // a=mode (DRIVE_*), e0/e1=handle — live waveshaper switch on a held note
-    SR_WAH_LFO      = 53,   // a=rate*1000, b=res*1000, c=mix*1000 — THE master LFO-wah (bus 0, navkit WAH_MODE_LFO)
-    SR_INSTR_WAH_LFO= 54,   // a=slot, b=rate*1000, c=res*1000, e0=mix*1000 — LFO-wah on one instrument (auto-bus)
+    SR_BITCRUSH     = 53,   // a=bits*100, b=rate*100, c=mix*1000 — THE master bitcrush (bus 0)
+    SR_INSTR_BITCRUSH = 54, // a=slot, b=bits*100, c=rate*100, e0=mix*1000 — bitcrush on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3287,12 +3299,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_wah(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_WAH_LFO) {      // master LFO-wah (bus 0): a=rate, b=res, c=mix (×1000)
-        fx_set_wah_lfo(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_WAH_LFO) {// per-instrument: a=slot, b=rate, c=res, e0=mix (×1000)
+    } else if (r.kind == SR_BITCRUSH) {     // master bitcrush (bus 0): a=bits*100, b=rate*100, c=mix*1000
+        fx_set_crush(0, r.a / 100.0f, r.b / 100.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_INSTR_BITCRUSH) { // per-instrument: a=slot, b=bits*100, c=rate*100, e0=mix*1000
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
-        if (b >= 1) fx_set_wah_lfo(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+        if (b >= 1) fx_set_crush(b, r.b / 100.0f, r.c / 100.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3559,6 +3571,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (cho_used[b]) chorus_process(b, &busL[b], &busR[b]);
             if (flg_used[b]) flanger_process(b, &busL[b], &busR[b]);
             if (tape_used[b]) tape_process(b, &busL[b], &busR[b]);
+            if (crush_used[b]) crush_process(b, &busL[b], &busR[b]);  // bitcrush last (lo-fi dessert)
             busL[0] += busL[b]; busR[0] += busR[b];
         }
 
@@ -3621,6 +3634,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         if (cho_used[0]) chorus_process(0, &mixL, &mixR);   // BBD chorus, antiphase stereo width, in place
         if (flg_used[0]) flanger_process(0, &mixL, &mixR);  // short swept delay + feedback, mono, in place
         if (tape_used[0]) tape_process(0, &mixL, &mixR);    // wow/flutter/saturation, stereo, in place
+        if (crush_used[0]) crush_process(0, &mixL, &mixR);  // bitcrush — lo-fi dessert, last before the clip
 
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
         // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
@@ -4128,17 +4142,6 @@ void instrument_wah(int slot, float sensitivity, float resonance, float mix) {
     sound_push_ctrl(SR_INSTR_WAH, slot, (int)(sensitivity * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0);
 }
 
-// LFO-driven auto-wah — the SAME bus bandpass, swept by a sine instead of the envelope follower
-// (navkit's default wah mode). The rhythmic "wah-wah-wah" that doesn't depend on how hard you play.
-void wah_lfo(float rate_hz, float resonance, float mix) {
-    sound_push_ctrl(SR_WAH_LFO, (int)(rate_hz * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
-}
-
-void instrument_wah_lfo(int slot, float rate_hz, float resonance, float mix) {
-    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
-    sound_push_ctrl(SR_INSTR_WAH_LFO, slot, (int)(rate_hz * 1000.0f), (int)(resonance * 1000.0f), (int)(mix * 1000.0f), 0, 0);
-}
-
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -4328,7 +4331,6 @@ static void sound_init(void) {
         tape_wow[b] = 0.3f; tape_flut[b] = 0.2f; tape_sat[b] = 0.4f; tape_used[b] = false;
         wah_env[b] = 0.0f; wah_ic1[b] = 0.0f; wah_ic2[b] = 0.0f;
         wah_sens[b] = 0.3f + 0.5f * 4.7f; wah_res[b] = 0.5f; wah_mix[b] = 0.7f; wah_used[b] = false;
-        wah_lfo_rate[b] = 0.0f; wah_lfo_phase[b] = 0.0f;   // follower mode until fx_set_wah_lfo()
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

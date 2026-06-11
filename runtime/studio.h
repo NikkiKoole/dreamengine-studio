@@ -403,8 +403,13 @@ void instrument_tape(int slot, float wow, float flutter, float saturation);  // 
 // summed signal): the funky talking-clavinet quack. Best on ONE rich/percussive instrument.
 void wah(float sensitivity, float resonance, float mix);                // sensitivity 0..1 (how much dynamics open it), resonance 0..1 (the quack), mix 0..1 (0 = off). defaults 0.5/0.5/0.7
 void instrument_wah(int slot, float sensitivity, float resonance, float mix);  // auto-wah on just this slot
-void wah_lfo(float rate_hz, float resonance, float mix);                // LFO auto-wah — a sine rocks the SAME bus bandpass (the rhythmic "wah-wah", not dynamics). rate 0.5..10 Hz, resonance 0..1, mix 0..1 (0 = off)
-void instrument_wah_lfo(int slot, float rate_hz, float resonance, float mix);  // LFO auto-wah on just this slot
+
+// bitcrush — lo-fi quantization: drop the bit depth + the sample rate for crunchy 8-bit/retro
+// grit. Master (whole mix), or per-instrument (crush just the drums, the rest hi-fi). bits 1..16
+// = bit depth (low = gnarlier steps), rate = sample-hold downsampling 1..64x (high = more
+// aliasing whine), mix 0..1 (0 = off). Defaults 8 / 4 / 1.0.
+void crush(float bits, float rate, float mix);                          // THE master bitcrush, on the whole mix
+void instrument_crush(int slot, float bits, float rate, float mix);     // bitcrush on just this slot (auto-grabs a private FX bus)
 
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti

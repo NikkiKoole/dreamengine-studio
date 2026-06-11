@@ -1619,14 +1619,16 @@ the canonical home — the §8.8.5 post-ship notes point here.)*
   tangent CLICK on attack and a velocity→drive link on the clav nonlinearity, both in `sound.h`
   `sound_epiano_*`; plus filter key-tracking in `epiano.c`. navkit ref: instrument_presets.h
   preset 180 "Clav Funky", clickLevel 0.35 / velToDrive 1.0 / filterKeyTrack 0.6.)*
-  **The bus wah gained navkit's second mode (2026-06-11): an LFO sweep.** A follower opens once
-  on attack and releases — it can't give the *rhythmic* "wah-wah-wah". So the bus wah now also runs
-  in navkit's `WAH_MODE_LFO`: the same TPT bandpass swept by a sine instead of the follower. New
-  primitives `wah_lfo(rate,res,mix)` / `instrument_wah_lfo(slot,…)` (4-place wired + tcc); the
-  follower path stays bit-identical (`wah_lfo_rate` defaults 0 → follower). epiano added a 5th
-  toggle flavour **NAVKIT** — the clav quack + the bus LFO wah at navkit's literal defaults
-  (rate 2 Hz, 300–2500 Hz, res 0.7, mix 1.0) — as a live A/B against our follower-hybrid TOUCH.
-  (TOUCH also picked up a per-voice LFO pump so it carries motion *and* the follower's character.)
+  **Final shape (2026-06-11): epiano's wah is one on/off flavour, and the per-voice LFO carries
+  the motion.** A follower opens once on attack and can't give the *rhythmic* "wah-wah-wah", so the
+  kept wah stacks three layers: the per-note ENV **quack** (bite) + a per-voice **LFO** on that
+  filter (the rhythmic motion) + the bus **follower** (`instrument_wah`, dynamic character). The
+  clav preset boots into it; `V` is just off/on. *Tried and reverted same day:* a bus-LFO wah mode
+  (`wah_lfo`/`instrument_wah_lfo`, navkit's `WAH_MODE_LFO`) + a `NAVKIT` A/B flavour — but by ear
+  the difference between all the flavours collapsed to "quack + an LFO at some rate" (a slider, not
+  a mode), so per 0015 they were cut rather than kept as unexercised surface. The bus wah is back to
+  follower-only; only `wah`/`instrument_wah` exist. (navkit's LFO wah is recoverable from git if a
+  real customer ever appears.)
 - **The envelope follower (`instrument_follow` / `note_follow`)** — the 3rd modulation source
   (tracks a voice's own amplitude → cutoff/vol/pitch). Shipped + wired + tripwired, but its real
   home is **bus-level** (it should track the *whole performance*, not one voice), and it has **no

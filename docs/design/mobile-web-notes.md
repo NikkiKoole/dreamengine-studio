@@ -235,6 +235,32 @@ safeguard is therefore two layers, neither of which is "stop the nuke":
    `touch_count()` sat at the ceiling — e.g. flash a "too many fingers!"
    toast instead of leaving the player wondering why their chord died.
 
+## 5c. `pget` / canvas read-back is OFF on web (the feedback-cart trap)
+
+`pget`, `pget_rgb`, and `touching_color()` read the rendered canvas back from the GPU
+(`LoadImageFromTexture` → `glReadPixels`). On the web build this is **compiled out**:
+WebGL1's `glReadPixels` errors on the canvas's **framebuffer object (FBO)** every frame,
+so the snapshot is skipped and `pget`→0 / `pget_rgb`→-1 / `touching_color`→false.
+
+As of 2026-06-11 the read-back is **opt-in via `enable_pget(true)`** (off by default on
+*both* platforms — it costs a GPU stall + a 256KB Image alloc/free per frame, so only
+carts that read pixels pay). A cart that opts in works on native but still gets empty
+reads on web until the FBO-readback path exists there.
+
+**The trap:** a cart whose *gameplay* reads pixels looks fine in the editor and silently
+misbehaves on a phone — feedback shaders (shadelab feedback mode, blendlab P-mode,
+inkrunner), pixel-collision (collision-lab-3, `touching_color`), terrain-as-pixels
+(lemmings), paint read-back (splatoon). `mobile-lint.js` should flag any cart calling
+`pget`/`pget_rgb`/`touching_color` as **native-only until web read-back lands**.
+
+**Fix path (open):** rebuild `runtime/raylib-web` for **WebGL2 / GLES3**
+(`-s MAX_WEBGL_VERSION=2` in `build-site.js` + a raylib lib compiled
+`GRAPHICS_API_OPENGL_ES3`), where `glReadPixels` on an RGBA8 FBO is legal; then drop the
+`#else` stub in `studio.c`'s snapshot gate (already structured for it). Better still on
+mobile: a WebGL2 **PBO async read** — issue the read, collect it 1–2 frames later with no
+pipeline stall. `pget` already reads *last* frame, so that latency *matches* the contract
+instead of being a compromise. Until that lands: native-only.
+
 ## 6. Gestures — status unchanged, now with a device
 
 Raylib's rgestures (swipe/pinch/hold/drag) exist one `#include` below us;

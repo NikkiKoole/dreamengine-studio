@@ -92,9 +92,12 @@ to itch.io to share publicly.
   satisfies Chrome's autoplay restriction; `InitAudioDevice()`, `sound_init()`,
   and `init()` all run inside the click handler so the AudioContext is created
   after a real user gesture. Sound works fully after clicking.
-- **`pget()` returns 0** — GPU readback (`LoadImageFromTexture`) triggers
-  WebGL1 framebuffer errors every frame; disabled on web. `touching_color()` also
-  always returns false on web as a result.
+- **`pget()` returns 0 on web** — the canvas read-back is opt-in via
+  `enable_pget(true)` (off by default on both platforms; 2026-06-11). Even when a cart
+  enables it, the web build compiles it out: GPU readback (`LoadImageFromTexture` →
+  `glReadPixels`) errors on the canvas FBO under WebGL1 every frame. So `pget`→0,
+  `pget_rgb`→-1, `touching_color`→false on web. Fix path: a WebGL2/GLES3 raylib-web
+  build (see mobile-web-notes §5c). Native is unaffected.
 - **`save()`/`load()` don't persist** — emscripten's virtual filesystem is
   in-memory only; data is lost on page reload. Fix later with localStorage.
 - **ScriptProcessorNode deprecation warning** — cosmetic, harmless. Raylib uses

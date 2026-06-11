@@ -26,15 +26,22 @@ fi
 case "$NAME" in *[!a-z0-9_-]*) echo "error: cartname must be [a-z0-9_-]: $NAME" >&2; exit 1;; esac
 
 MAX="${MAX:-24}"; SATURATE="${SATURATE:-2.2}"; POSTERIZE="${POSTERIZE:-5}"
-OUTLINE="${OUTLINE:-1}"; OUTFLAG=""; [ "$OUTLINE" = "1" ] && OUTFLAG="--outline"
+# outline OFF by default: the cart draws a crisp render-time silhouette outline,
+# so a baked-in one would just double up (and breaks under downscaling). Set
+# OUTLINE=1 only if you want it baked into the sprite instead.
+OUTLINE="${OUTLINE:-0}"; OUTFLAG=""; [ "$OUTLINE" = "1" ] && OUTFLAG="--outline"
 
 CART="tools/carts/$NAME.c"
 PNG="editor/public/carts/$NAME.cart.png"
 ASSETS="build/.fml-assets-$NAME"
 TEMPLATE="tools/carts/floorwalker.c"
 
-echo "▸ template  $TEMPLATE -> $CART"
-cp "$TEMPLATE" "$CART"
+if [ "$CART" = "$TEMPLATE" ]; then
+  echo "▸ template  (regenerating the template cart in place)"
+else
+  echo "▸ template  $TEMPLATE -> $CART"
+  cp "$TEMPLATE" "$CART"
+fi
 
 echo "▸ geometry  (floor $FLOOR, ${SCALE}cm/px, maxfurn ${MAXFURN}cm)"
 node fmltools/fml2cart.js "$FML" --out "$CART" --scale "$SCALE" --maxfurn "$MAXFURN" --floor "$FLOOR"

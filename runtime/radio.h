@@ -352,8 +352,13 @@ static void rad_footer(const char *hint) {
 // the help panel scaffold: key/desc rows + accent note lines at the bottom
 static void rad_help_panel(const char *title, const char *(*rows)[2], int nrows,
                            const char **notes, int nnotes, int accent) {
-    rectfill(44, 40, 232, 122, CLR_BLACK);
-    rect(44, 40, 232, 122, accent);
+    // panel auto-sizes to its content (was a fixed 122-tall box that capped out at
+    // 8 rows + 3 notes; the 9th row collided with the notes). notesY = 132 for the
+    // common 8-row case, so existing panels stay pixel-identical.
+    int notesY = 58 + nrows * 9 + 2;            // notes sit one line below the last control row
+    int panelH = (notesY + nnotes * 9 + 2) - 40;
+    rectfill(44, 40, 232, panelH, CLR_BLACK);
+    rect(44, 40, 232, panelH, accent);
     print(title, 52, 46, accent);
     font(FONT_SMALL);
     for (int i = 0; i < nrows; i++) {
@@ -361,7 +366,7 @@ static void rad_help_panel(const char *title, const char *(*rows)[2], int nrows,
         print(rows[i][1], 106, 58 + i * 9, CLR_WHITE);
     }
     for (int i = 0; i < nnotes; i++)
-        print(notes[i], 52, 132 + i * 9, accent);
+        print(notes[i], 52, notesY + i * 9, accent);
     font(FONT_NORMAL);
 }
 

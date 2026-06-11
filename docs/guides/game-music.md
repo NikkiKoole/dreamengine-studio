@@ -775,17 +775,42 @@ fix instead of ten hand-copies. The estimated arithmetic: core ≈ 300–350
 header lines; each cart sheds ≈ 150–220; and stations eleven+ (gamelan,
 Italo, the Doors) start from a scaffold instead of a copy of dub.c.
 
-## The jam layer — a scale-locked solo over the radio (`solo.h`)
+## The jam layer — a "can't play wrong" solo over the radio (`solo.h`)
 
 Added 2026-06. The radios *generate*; the jam layer lets you *play along* without
 being able to play wrong. `runtime/solo.h` is the companion to `radio.h`: a
-horizontal strip of only the in-key notes (current chord's tones lit),
-monophonic with portamento so drags slide like a stylophone/Omnichord. The
-station supplies the **voice** (an `I_SOLO` instrument tuned to sit on top of the
-mix); solo.h owns the **interaction** (capture via ui.h's per-finger model, so
-mouse+touch for free, scale-lock, glide, optional beat-quantize, octave shift,
-the strip + the closed "jam" tab). Usage is one `SoloCtx` fill + one
-`solo_strip()` call between `ui_begin/ui_end` — see the header.
+horizontal strip of only the safe notes, monophonic with portamento so drags
+slide like a stylophone/Omnichord. The station supplies the **voice** (an
+`I_SOLO` instrument tuned to sit on top of the mix); solo.h owns the
+**interaction** (capture via ui.h's per-finger model, so mouse+touch for free,
+glide, optional beat-quantize, octave shift, the strip + the closed "jam" tab).
+Usage is one `SoloCtx` fill + one `solo_strip()` call between `ui_begin/ui_end` —
+see the header.
+
+### Two locks — match the strip to the station's harmony (not habit)
+
+The original ribbons all hardcoded **major pentatonic** — a copy-paste, not a
+decision. The lock should follow the *song*. solo.h offers two, chosen per
+station by how its harmony moves:
+
+| Lock | `chordLock` | Cells are… | Use when | Stations |
+|---|---|---|---|---|
+| **Scale-lock** (default) | 0 | every note of a FIXED scale; chord tones merely *lit* | the song stays in one mode/scale — pass the **song's own** scale, not a generic pentatonic | jangle (mixolydian — the b7 is the idiom), air (its archetype's mode), dub (minor-pent *is* the riddim), napoleon (per-archetype pent) |
+| **Chord-lock** (Omnichord) | 1 | ONLY the live chord's tones, re-shaped every chord change | **changes-heavy** harmony where no single scale fits — the station "presses the chord button" for you, you literally can't miss, the harmony slides under your hand | citypop (Royal Road + +2 gear change), bossa (jazz ii-V-I), jingle (Mac-DeMarco borrowed chords), polopan (borrowed-chord progs, + struck) |
+
+Chord-lock detail: a held note does **not** re-pitch when the chord changes — it
+re-maps on your **next** press, so your finger only glides when *you* move (calm;
+no note sliding out from under you). The strip lights the chord **root**; the
+rest are its other tones. This split is what makes the ribbon "follow the song":
+modal stations get their actual mode, jazzy stations get the live chord.
+
+**`chordLock` is only the STARTING state — the player toggles it live.** The open
+strip carries a small **`ch`/`sc` button** (lit accent `ch` = chord-locked, dim
+`sc` = free scale play), and `SOLO_LOCK_KEY` (default `L`) does the same. So
+chord-lock is never a trap: a station that feels too constraining is one tap from
+the looser scale (the cart's pentatonic over the changes), and a scale station
+can be tightened to chord-lock. The button only appears where there's chord
+material to lock onto; `solo_locked(cx)` reports the current live state.
 
 **Why this is the right shape for the toy thesis.** The radios sound good
 *because you can't touch them*. An editable step-grid would let a player tap

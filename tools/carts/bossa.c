@@ -481,7 +481,7 @@ void draw(void) {
     rad_footer(str("SPACE next song   G gtr:%s   H help", gtrPluck ? "PLUCK" : "TRI"));
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -490,24 +490,27 @@ void draw(void) {
             { "G",          "guitar: nylon tri / real string" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "the #number on the display IS the song.",
             "pin it for good: #define BOSSA_SEED 0x...",
             "seeded composition, played fresh every time",
         };
-        rad_help_panel("BOSSA RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
+        rad_help_panel("BOSSA RADIO", HELP, 9, NOTES, 3, CLR_ORANGE);
     }
 
-    // the jam strip — solo over the changes on the key's pentatonic, the
-    // current chord's tones lit (J or tap the corner to open)
+    // the jam strip — CHORD-LOCK (Omnichord): the strip is the current chord's own
+    // tones (root/3rd/5th/9th), re-shaped as the ii-V-I changes move under you. Bossa's
+    // jazz harmony is too rich for one scale; chord-lock keeps every note consonant over
+    // the secondary dominants and tritone subs (J or tap the corner to open)
     int chord[4]; {
         int f = sng.prog[bar_to_prog(bar)], q = F_QUAL[f], rp = root_pc(f);
         for (int k = 0; k < 4; k++) chord[k] = (rp + QTONES[q][k]) % 12;
     }
-    static const int PENT[5] = { 0, 2, 4, 7, 9 };
+    static const int PENT[5] = { 0, 2, 4, 7, 9 };  // the "sc" toggle's fallback: free pentatonic over the changes
     // vertical = breath dynamics (a flute leans soft→loud)
-    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6 };
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6, false, true };
     solo_strip(&jc, 28, 170, 250, 18, CLR_ORANGE);
 
     ui_end();                                // resolve this frame's knob + jam grabs

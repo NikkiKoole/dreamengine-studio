@@ -527,7 +527,7 @@ void draw(void) {
     rad_footer("SPACE next song   H help");
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -536,25 +536,28 @@ void draw(void) {
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "the #number on the display IS the song.",
             "pin it for good: #define CITYPOP_SEED 0x...",
             "the last chorus modulates up. of course.",
         };
-        rad_help_panel("CITY POP RADIO", HELP, 8, NOTES, 3, CLR_PINK);
+        rad_help_panel("CITY POP RADIO", HELP, 9, NOTES, 3, CLR_PINK);
     }
 
-    // the jam strip — solo on the key's pentatonic (it rides the +2 gear change
-    // with the song), the current chord's tones lit (J or tap the corner)
+    // the jam strip — CHORD-LOCK (Omnichord): the strip is the live chord's own
+    // tones (root/3rd/5th/7th), re-shaped each chord change as the Royal Road and
+    // the +2 gear change move under you — city pop's changes are too rich for a
+    // single scale to fit. You can't miss; the harmony slides beneath your hand.
     int chord[4]; {
         Ch c = chord_at(bar);
         for (int k = 0; k < 4; k++) chord[k] = (root_pc(c, bar) + QT[c.q][k]) % 12;
     }
     int soloRoot = (sng.keyPc + (bar >= MOD_BAR ? 2 : 0)) % 12;
-    static const int PENT[5] = { 0, 2, 4, 7, 9 };
+    static const int PENT[5] = { 0, 2, 4, 7, 9 };  // the "sc" toggle's fallback: free pentatonic over the changes
     // vertical = filter brightness (the synth opens up as you push)
-    SoloCtx jc = { soloRoot, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_BRIGHT, 1200, 6000 };
+    SoloCtx jc = { soloRoot, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_BRIGHT, 1200, 6000, false, true };
     solo_strip(&jc, 28, 170, 250, 18, CLR_PINK);
 
     ui_end();

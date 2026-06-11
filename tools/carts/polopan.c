@@ -663,7 +663,7 @@ void draw(void) {
     rad_footer("SPACE next song   B band   J jam   H help");
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -672,26 +672,29 @@ void draw(void) {
             { "T",          "tone - mellow/warm/clear/bright" },
             { "B",          "band - A/B the Nanga flute voice" },
             { "J / M / H",  "jam / power / this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "5 of their songs: Canopee, Ani Kuni,",
             "Nanga, Tunnel, Coeur Croise - the dial",
             "rolls which one, then varies it.",
         };
-        rad_help_panel("POLO & PAN RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
+        rad_help_panel("POLO & PAN RADIO", HELP, 9, NOTES, 3, CLR_ORANGE);
     }
     rad_band_panel(&band, CLR_ORANGE);   // B — the flute A/B overlay (shares the help spot)
 
-    // the jam strip — pentatonic over the key, the current chord's tones lit
+    // the jam strip — CHORD-LOCK (Omnichord) + STRUCK: you tap out the current chord's own
+    // tones on a mallet (celesta/xylophone), and the strip re-shapes each chord change as the
+    // borrowed-chord progressions move under you — every struck note stays consonant.
     int chord[4]; {
         Ch c = chord_at(bar);
         for (int k = 0; k < 4; k++) chord[k] = (root_pc(c) + QT[c.q][k]) % 12;
     }
-    static const int PENT[5] = { 0, 2, 4, 7, 9 };
-    // the jam voice is a STRUCK mallet (celesta/xylophone): struck=true makes a drag RE-STRIKE
-    // each new bar (a xylophone run, old notes ringing out) instead of gliding one held voice,
-    // and SOLO_Y_OFF means the vertical axis shapes nothing — you can't bend a bar mid-ring.
-    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_OFF, 0, 0, true };
+    static const int PENT[5] = { 0, 2, 4, 7, 9 };  // the "sc" toggle's fallback: free pentatonic over the changes
+    // struck=true makes a drag RE-STRIKE each new cell (a mallet run, old notes ringing out)
+    // instead of gliding one held voice; SOLO_Y_OFF means vertical shapes nothing (you can't
+    // bend a bar mid-ring); chordLock=true is the final field.
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_OFF, 0, 0, true, true };
     solo_strip(&jc, 28, 170, 250, 18, CLR_ORANGE);
 
     ui_end();

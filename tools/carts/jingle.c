@@ -532,7 +532,7 @@ void draw(void) {
     rad_footer("SPACE next song   H help");
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -541,23 +541,26 @@ void draw(void) {
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "the #number on the display IS the song.",
             "pin it for good: #define JINGLE_SEED 0x...",
             "chorus stays fuller than verse at any feel",
         };
-        rad_help_panel("JINGLE RADIO", HELP, 8, NOTES, 3, CLR_PINK);
+        rad_help_panel("JINGLE RADIO", HELP, 9, NOTES, 3, CLR_PINK);
     }
 
-    // the jam strip — lead on the key's pentatonic, the current chord's tones
-    // lit. vertical = filter brightness (J or tap the corner)
+    // the jam strip — CHORD-LOCK (Omnichord): the strip is the current chord's own
+    // tones, re-shaped each change as the Mac-DeMarco borrowed chords (bVII/bIII) and
+    // chromatic descents move under you — too chromatic for one scale to fit.
+    // vertical = filter brightness (J or tap the corner)
     int chord[4]; {
         Ch c = chord_at(bar);
         for (int k = 0; k < 4; k++) chord[k] = (root_pc(c) + QT[c.q][k]) % 12;
     }
-    static const int PENT[5] = { 0, 2, 4, 7, 9 };
-    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_BRIGHT, 1400, 5500 };
+    static const int PENT[5] = { 0, 2, 4, 7, 9 };  // the "sc" toggle's fallback: free pentatonic over the changes
+    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 4, I_SOLO, 72, 91, false, SOLO_Y_BRIGHT, 1400, 5500, false, true };
     solo_strip(&jc, 28, 170, 250, 18, CLR_PINK);
 
     ui_end();

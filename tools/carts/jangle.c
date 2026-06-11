@@ -477,7 +477,7 @@ void draw(void) {
     rad_footer(str("SPACE next song   G gtr:%s   H help", gtrPluck ? "PLUCK" : "TRI"));
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next song (rolls a new seed)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -486,25 +486,27 @@ void draw(void) {
             { "M",          "radio power on / off" },
             { "G",          "guitar: chorus tri / real string" },
             { "H or ?",     "show / hide this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "the #number on the display IS the song.",
             "pin it for good: #define JANGLE_SEED 0x...",
             "seeded composition, played fresh every time",
         };
-        rad_help_panel("JANGLE RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
+        rad_help_panel("JANGLE RADIO", HELP, 9, NOTES, 3, CLR_ORANGE);
     }
 
-    // the jam strip — whistle on the key's pentatonic, the vamp chord lit.
-    // vertical = breath dynamics (J or tap the corner)
+    // the jam strip — whistle on the song's own MODE, the vamp chord lit. The whole
+    // song lives in MIXOLYDIAN (MIXO above, what the lead whistle roams), so the strip
+    // follows the song's actual scale rather than a generic pentatonic — its idiom IS
+    // the b7 of mixo, and the player should get that note. vertical = breath dynamics
     int chord[3]; {
         int ci = chord_of_bar(bar), r = root_pc(ci);
         chord[0] = r;
         chord[1] = (r + (sng.vampMin[ci] ? 3 : 4)) % 12;
         chord[2] = (r + 7) % 12;
     }
-    static const int PENT[5] = { 0, 2, 4, 7, 9 };
-    SoloCtx jc = { sng.keyPc, PENT, 5, chord, 3, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6 };
+    SoloCtx jc = { sng.keyPc, MIXO, 7, chord, 3, I_SOLO, 72, 91, false, SOLO_Y_VOL, 2, 6 };
     solo_strip(&jc, 28, 170, 250, 18, CLR_ORANGE);
 
     ui_end();

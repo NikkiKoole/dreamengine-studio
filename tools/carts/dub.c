@@ -595,7 +595,7 @@ void draw(void) {
     rad_footer(str("SPACE next song   G skank:%s   H help", skankOrgan ? "B3" : "gtr"));
 
     if (showHelp) {
-        static const char *HELP[9][2] = {
+        static const char *HELP[10][2] = {
             { "SPACE",      "next dubplate (rolls a new seed)" },
             { "R",          "same plate - the desk mixes anew" },
             { "[ / ]",      "back / forward through history" },
@@ -605,13 +605,14 @@ void draw(void) {
             { "G",          "skank: guitar chop / Hammond B3" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "the #number IS the riddim; the MIX is live -",
             "the desk re-rides the faders every listen.",
             "pin it: #define DUB_SEED 0x...",
         };
-        rad_help_panel("DUB RADIO", HELP, 9, NOTES, 3, CLR_MEDIUM_GREEN);
+        rad_help_panel("DUB RADIO", HELP, 10, NOTES, 3, CLR_MEDIUM_GREEN);
     }
 
     // the jam strip — a melodica on the riddim's minor pentatonic, the vamp

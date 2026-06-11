@@ -825,7 +825,7 @@ void draw(void) {
     rad_footer("SPACE song   J jam along   H help");
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next song (rolls a new one)" },
             { "R",          "same song again - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -834,13 +834,14 @@ void draw(void) {
             { "T",          "tone - mellow/warm/clear/bright" },
             { "M",          "radio power on / off" },
             { "H or ?",     "show / hide this help" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "five different songs of theirs - SPACE to roll one.",
             "the dance, kip's serenade, the score, forever, friends.",
             "the #number on the display IS the song.",
         };
-        rad_help_panel("NAPOLEON RADIO", HELP, 8, NOTES, 3, CLR_ORANGE);
+        rad_help_panel("NAPOLEON RADIO", HELP, 9, NOTES, 3, CLR_ORANGE);
     }
 
     // the jam ribbon — play along on the song's scale, the chord tones lit. The voice

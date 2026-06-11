@@ -760,7 +760,7 @@ void draw(void) {
     rad_footer("SPACE next song   B band   J jam   H help");
 
     if (showHelp) {
-        static const char *HELP[8][2] = {
+        static const char *HELP[9][2] = {
             { "SPACE",      "next tune (rolls a new song)" },
             { "R",          "same tune - a fresh take" },
             { "[ / ]",      "back / forward through history" },
@@ -769,13 +769,14 @@ void draw(void) {
             { "T",          "tone - mellow/warm/clear/bright" },
             { "B",          "the band - strings/e-piano/reverb" },
             { "J / tap",    "the jam strip - play along" },
+            { "L",          "jam ch/sc: chord-lock / free" },
         };
         static const char *NOTES[3] = {
             "the dial plays different AIR songs: Sexy Boy,",
             "La Femme d'Argent, Playground Love, Cherry",
             "Blossom Girl, Kelly Watch the Stars.",
         };
-        rad_help_panel("AIR FM", HELP, 8, NOTES, 3, ACC);
+        rad_help_panel("AIR FM", HELP, 9, NOTES, 3, ACC);
     }
     rad_band_panel(&band, ACC);
 

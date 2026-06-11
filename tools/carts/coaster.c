@@ -343,7 +343,20 @@ static void step_arms(Body *b, int ci) {
 // hollow timber clatter) vs higher (a brighter steel clack).
 static float clack_accum;     // px travelled since the last click
 
-static void coaster_sound(int zone, float sp, float ad) {
+// Map a WORLD point to a stereo pan from where it lands ON SCREEN, so a sound
+// plays from its actual position: ride clacks and screams track the train as it
+// sweeps the loop. Replays the camera transform (translate → zoom → rotate about
+// the screen centre) on cam_* state; cam_* lag one frame here (they're eased in
+// draw()), which is inaudible. 0 = screen centre, ±1 = the screen edges.
+static float world_pan(float wx, float wy) {
+    float c = cos_deg(cam_angle), s = sin_deg(cam_angle);
+    float rx = (wx - (cam_x + SCREEN_W / 2.0f)) * cam_zoom;
+    float ry = (wy - (cam_y + SCREEN_H / 2.0f)) * cam_zoom;
+    float sx  = rx * c - ry * s + SCREEN_W / 2.0f;      // on-screen x
+    return clamp((sx / SCREEN_W) * 2.0f - 1.0f, -1, 1); // 0..W → -1..+1
+}
+
+static void coaster_sound(int zone, float sp, float ad, float pan) {
     if (sp < 12) { clack_accum = 0; return; }          // parked → silent
     float spacing; int instr, midi, vol, dur;
     switch (zone) {
@@ -358,13 +371,16 @@ static void coaster_sound(int zone, float sp, float ad) {
     int fired = 0;
     while (clack_accum >= spacing && fired < 3) {       // cap: never dump a burst
         clack_accum -= spacing;
+        instrument_pan(instr, pan);                     // clack plays from the train's screen position
         hit(midi, instr, vol, dur);
         fired++;
     }
     if (clack_accum > spacing) clack_accum = 0;         // outran the cap → resync
 }
 
-static void flip_sound(void) {                          // a quick "fwip" on inversion
+static void flip_sound(float pan) {                     // a quick "fwip" on inversion
+    instrument_pan(INSTR_SINE,  pan);
+    instrument_pan(INSTR_NOISE, pan);
     hit(57, INSTR_SINE,  5, 120);
     hit(43, INSTR_NOISE, 3, 70);
 }
@@ -418,7 +434,7 @@ static void update_gforce(Body *lead, float dt) {
 // the crowd scream rides the EXCITEMENT (driven by jerk): it kicks in on a jolt,
 // glides its pitch with the intensity, and fades as `excite` decays. More voices
 // join on bigger jolts — a little bump is one yelp, a big plunge is the whole car.
-static void update_scream(float sp) {
+static void update_scream(float sp, float pan) {
     int want = 0;
     if (excite > 0.18f && sp > 50)
         want = 1 + (excite > 0.35f) + (excite > 0.55f);  // 1..3 voices by intensity
@@ -429,6 +445,7 @@ static void update_scream(float sp) {
             float m = midi + SCREAM_OFF[i];
             if (scream_h[i] < 0) { scream_h[i] = note_on((int)m, 5 + i, vol); note_glide(scream_h[i], 130); }
             else { note_pitch(scream_h[i], m); note_vol(scream_h[i], vol); }
+            note_pan(scream_h[i], pan);                  // the crowd screams from the train's screen position
         } else if (scream_h[i] >= 0) {
             note_off(scream_h[i]); scream_h[i] = -1;
         }
@@ -465,7 +482,8 @@ static void update_coaster(float dt) {
     float d = lead->vel * dt;     // arc moved this frame (every cart moves the same)
     while (lead->pos < 0) lead->pos += total_len;
     while (lead->pos >= total_len) lead->pos -= total_len;
-    if (flip_cross(lead, d)) flip_sound();
+    float lead_pan = world_pan(lead->x, lead->y);   // the train's stereo position this frame
+    if (flip_cross(lead, d)) flip_sound(lead_pan);
     apply_offset(lead);
     step_arms(lead, 0);
     for (int i = 1; i < n_bodies; i++) {
@@ -487,10 +505,10 @@ static void update_coaster(float dt) {
     }
     if (lead->uy > 0.45f && sp > 280) shake(sp * 0.006f);
     update_gforce(lead, dt);
-    update_scream(sp);
+    update_scream(sp, lead_pan);
     // ride sound: ratchet voiced by the lead's current zone, rate = speed
     { int ls; float lx, ly, lux, luy; sample(lead->pos, &lx, &ly, &ls, &lux, &luy);
-      coaster_sound(pts[ls].zone, sp, d < 0 ? -d : d); }
+      coaster_sound(pts[ls].zone, sp, d < 0 ? -d : d, lead_pan); }
 #ifdef DE_TRACE
     watch("pos", "%.1f", lead->pos);
     watch("vel", "%.1f", lead->vel);
@@ -632,6 +650,8 @@ static void handle_input(void) {
 // a ready-made loop so the cart is alive the moment it opens — a hilly closed
 // circuit with a chain-lift (hoist) up the back so it runs forever.
 void init(void) {
+    pan_law(PAN_POWER);   // even loudness as clacks/screams sweep the stereo field (positional audio)
+
     // three faked scream voices (slots 5..7) — each a different vowel (band-pass
     // centre), wobble rate and detune, so together they read as a few different
     // people rather than one. Kept soft; layering does the rest.

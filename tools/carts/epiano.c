@@ -132,7 +132,7 @@ static void apply_slot(void) {
     // FIXED 0.10 — navkit's Clav-Funky reads exactly "Drive: Soft, 0.10" (the slight saturation
     // that rounds it / "a bit more muted"; DRIVE_SOFT/tanh is our default mode = navkit's Soft).
     // Its honk comes from morph→pickupDist in the oscillator, so the post-filter drive stays fixed.
-    instrument_drive(I_EP, ty == 2 ? 0.10f : bark_drive(val[SL_BARK]));
+    instrument_drive(I_EP, ty == 2 ? 0.20f : bark_drive(val[SL_BARK]));
 }
 
 // THE WAH — slot-level, so every strike (keys, auditions, autoplay) inherits it. One flavour now,

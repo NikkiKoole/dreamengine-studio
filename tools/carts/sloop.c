@@ -529,8 +529,9 @@ static float restart_grace;       // s of stall-immunity after a crank (see REST
 #define OB_GH      4
 #define OB_CELL    7.0f           // px per obstacle cell (matches the rig's CELL → tiles read same scale)
 #define OB_PERCHUNK 80            // max obstacles a single chunk can generate (a dense city chunk's houses)
-enum { OM_NONE, OM_CONE, OM_BRICK, OM_KINDS };  // cell MATERIALS (mass+strength)
-enum { OB_CONE, OB_HOUSE, OB_KINDS };           // obstacle KINDS (OB_HOUSE = a solid building)
+#define WRECK_GIVE 0.4f           // a wrecked car keeps 40% of its strength → keeps shoving easily after
+enum { OM_NONE, OM_CONE, OM_BRICK, OM_CAR, OM_KINDS };  // cell MATERIALS (mass+strength)
+enum { OB_CONE, OB_HOUSE, OB_CAR, OB_KINDS };   // obstacle KINDS (OB_HOUSE = solid building; OB_CAR = movable rigid body)
 typedef struct { float mass, strength; int col; const char *name; } ObMat;
 static ObMat OM[OM_KINDS];        // filled in init() (no designated inits — libtcc)
 typedef struct {
@@ -1831,6 +1832,38 @@ static int gen_chunk(int cx, int cy, Obstacle *out) {
                     }
             }
     }
+
+    // 3. parked cars (the MOVABLE 2-body class) — line the curbs of CITY/TOWN streets. Unlike a house
+    //    (immovable) or a cone (weightless projectile), a car is a real rigid body with mass + inertia:
+    //    crash one and the SAME contact impulse SHOVES + SPINS it AND kicks back on your rig (momentum
+    //    transfers both ways). It then rolls to a stop on its tyres (anisotropic friction). Emitted after
+    //    houses so cone/house idx stay stable (idx = the delta key).
+    if (zone == Z_CITY || zone == Z_TOWN) {
+        int p = ZONE_PITCH[zone], hwr = ZONE_LANE[zone] / 2;
+        float carHH = OB_CELL;                         // half-WIDTH (2 cells / 2 × OB_CELL)
+        float lat = hwr - carHH - 1.0f;                // park just inside the curb
+        int ncar = 2 + ((h >> 5) % 3);                 // 2..4 per city/town chunk
+        for (int i = 0; i < ncar && k < OB_PERCHUNK && lat >= 2.0f; i++) {
+            unsigned hc = hash2(cx * 197 + i * 53, cy * 197 + 41);
+            int span = (CHUNK / p) + 1;
+            int kx = ifloordiv(x0, p) + (int)(hc % (unsigned)(span < 1 ? 1 : span));
+            float px_ = kx * p + ((hc & 1) ? lat : -lat);          // sit beside a vertical road's curb
+            float py_ = (float)(y0 + (int)((hc >> 9) % CHUNK));
+            if (ifloordiv((int)px_, CHUNK) != cx) continue;        // owned by the chunk px_ falls in
+            Obstacle o; ob_init(&o, cx, cy, k);
+            o.kind = OB_CAR;
+            o.bx = o.x = px_; o.by = o.y = py_;
+            o.ang = 90.0f;                             // parked along the vertical road (forward = +y)
+            o.gw = 2; o.gh = 4;                        // 2 wide × 4 long (top-down car)
+            for (int rr = 0; rr < 4; rr++)
+                for (int cc = 0; cc < 2; cc++) o.cell[rr][cc] = OM_CAR;
+            o.hw = o.gh * OB_CELL * 0.5f;              // half-LENGTH along local +x (forward / long axis)
+            o.hh = o.gw * OB_CELL * 0.5f;              // half-WIDTH (lateral)
+            int pal[6] = { CLR_RED, CLR_TRUE_BLUE, CLR_DARK_GREEN, CLR_LIGHT_GREY, CLR_YELLOW, CLR_MAUVE };
+            o.col = pal[(hc >> 16) % 6];
+            ob_derive(&o); out[k++] = o;
+        }
+    }
     return k;
 }
 
@@ -1869,7 +1902,8 @@ static void load_chunk(int cx, int cy) {
     for (int i = 0; i < n; i++) {
         Delta *d = find_delta(cx, cy, tmp[i].idx);   // replay a remembered deviation on top
         if (d) { tmp[i].x = tmp[i].bx + d->dx; tmp[i].y = tmp[i].by + d->dy; tmp[i].ang = d->dang;
-                 tmp[i].destroyed = d->destroyed; tmp[i].dirty = 1; }
+                 tmp[i].destroyed = d->destroyed; tmp[i].dirty = 1;
+                 if (d->destroyed && tmp[i].kind == OB_CAR) tmp[i].strength *= WRECK_GIVE; }  // reload a wreck soft
         int s = pool_alloc();
         if (s < 0) return;                            // pool full — drop (bounded)
         pool[s] = tmp[i];
@@ -1930,70 +1964,114 @@ static void run_over_cone(Obstacle *o, float ltx, float lty, float ly, float spd
     for (int s = 0; s < 5; s++) throw_spark(o->x, o->y, vx, vy);
 }
 
-// crash into a SOLID (a house, axis-aligned box). Finds the deepest penetrating rig corner,
-// depenetrates, and resolves with a rigid-body impulse AT THAT CONTACT — so an off-centre clip
-// yaws the rig (the same J×r/I as steering). If the contact impulse (M·|normal vel|) beats the
-// obstacle's strength it SMASHES: a heavy/fast rig drives through what a light one bounces off
-// (the emergent run-over/crash boundary). Whole-obstacle destroy for now — tile shatter is the
-// demolition rung; the cell-grid is already here for it. A smashed house stays gone (dirty).
-#define CRASH_E 0.25f                                // restitution (a little bounce off a wall)
+// crash into a SOLID box obstacle — ONE resolver for two cases that are the two LIMITS of a rigid-body
+// collision: a HOUSE is immovable (infinite mass — only the rig responds) and a CAR is MOVABLE (finite
+// mass + inertia — the SAME impulse is applied equal-and-opposite to BOTH bodies, so momentum transfers).
+// Finds the deepest penetrating rig corner in the OBSTACLE's local frame (a house is axis-aligned, a car
+// is oriented), depenetrates, then a contact impulse: an off-centre clip yaws the rig (J×r/I, the same
+// form steering uses), and for a car it spins the car too. J vs strength still decides give-vs-hold — for
+// a house "give" = SMASH (stays gone); for a car "give" = WRECK (crumples, but stays a shoveable wreck).
+// The cone (weightless projectile, run_over_cone) is the third limit: M_obstacle → 0. One core, three uses.
+#define CRASH_E   0.25f                              // restitution into a house wall (a little bounce)
+#define CAR_E     0.6f                               // restitution car↔rig: steel-ball bounce — they scatter,
+                                                     // not thud-and-stick (the billiard feel)
 #define CRASH_FX_MIN 28.0f                           // min approach speed (px/s) for crash FX (thud +
                                                      // sparks + shake) — below this it's a resting push,
                                                      // not an impact, so no continuous crashing at a wall
-static void crash_solid(Obstacle *o, float fwx, float fwy, float ltx, float lty) {
+static void crash_body(Obstacle *o, float fwx, float fwy, float ltx, float lty) {
+    int movable = (o->kind == OB_CAR);
+    float oc = movable ? cos_deg(o->ang) : 1.0f, os = movable ? sin_deg(o->ang) : 0.0f;
     float cxl[4] = { rigL0, rigL1, rigL1, rigL0 };   // rig box corners (COM-local)
     float cyl[4] = { rigW0, rigW0, rigW1, rigW1 };
     float bestPen = 0, bnx = 0, bny = 0, bcx = 0, bcy = 0;
     for (int i = 0; i < 4; i++) {
-        float wx, wy; rot(cxl[i], cyl[i], &wx, &wy);
+        float wx, wy; rot(cxl[i], cyl[i], &wx, &wy);     // rig corner → world
         float ddx = wx - o->x, ddy = wy - o->y;
-        float ox = o->hw - af(ddx), oy = o->hh - af(ddy);
-        if (ox <= 0 || oy <= 0) continue;            // this corner is outside the house
-        float pen, nx, ny;
-        if (ox < oy) { pen = ox; nx = (ddx < 0) ? -1.0f : 1.0f; ny = 0; }   // push out the nearest face
-        else         { pen = oy; nx = 0; ny = (ddy < 0) ? -1.0f : 1.0f; }
-        if (pen > bestPen) { bestPen = pen; bnx = nx; bny = ny; bcx = wx; bcy = wy; }
+        float lxo =  ddx * oc + ddy * os;                // → obstacle local frame (house: oc=1,os=0 → identity)
+        float lyo = -ddx * os + ddy * oc;
+        float ox = o->hw - af(lxo), oy = o->hh - af(lyo);
+        if (ox <= 0 || oy <= 0) continue;                // this corner is outside the box
+        float pen, lnx, lny;
+        if (ox < oy) { pen = ox; lnx = (lxo < 0) ? -1.0f : 1.0f; lny = 0; }  // push out the nearest local face
+        else         { pen = oy; lnx = 0; lny = (lyo < 0) ? -1.0f : 1.0f; }
+        if (pen > bestPen) {
+            bestPen = pen; bcx = wx; bcy = wy;
+            bnx = lnx * oc - lny * os;                   // local normal → world
+            bny = lnx * os + lny * oc;
+        }
     }
-    if (bestPen <= 0) {                              // no corner inside — a long rig may engulf a small house
+    if (bestPen <= 0) {                              // no corner inside — a long rig may engulf a small box
         float dxx = o->x - sx, dyy = o->y - sy;
         float lx = dxx * fwx + dyy * fwy, lyy = dxx * ltx + dyy * lty;
         if (lx > rigL0 && lx < rigL1 && lyy > rigW0 && lyy < rigW1) {
             bestPen = 1; bnx = (lx >= 0 ? -fwx : fwx); bny = (lx >= 0 ? -fwy : fwy); bcx = o->x; bcy = o->y;
         } else return;                              // genuinely no contact
     }
-    float rx = bcx - sx, ry = bcy - sy;             // contact lever from the COM
+    float rx = bcx - sx, ry = bcy - sy;             // contact lever from the rig COM
     float wrad = angVel * DEG2RAD;
-    float vcx = vx - wrad * ry, vcy = vy + wrad * rx;   // velocity at the contact point
-    float vn = vcx * bnx + vcy * bny;               // normal component (< 0 = driving into the wall)
-    sx += bnx * bestPen; sy += bny * bestPen;       // depenetrate (don't sink into the wall)
+    float vcx = vx - wrad * ry, vcy = vy + wrad * rx;   // rig velocity at the contact point
+    // movable obstacle: its mass + box inertia + contact velocity (a house: all → 0/infinite, terms vanish)
+    float Mo = movable ? o->mass : 0.0f;
+    float Io = movable ? (1.0f / 3.0f) * Mo * (o->hw * o->hw + o->hh * o->hh) : 1.0f;
+    if (movable && Io < 1.0f) Io = 1.0f;
+    float rox = bcx - o->x, roy = bcy - o->y;       // contact lever from the car COM
+    float worad = movable ? o->vr * DEG2RAD : 0.0f;
+    float ovx = movable ? o->vx - worad * roy : 0.0f;
+    float ovy = movable ? o->vy + worad * rox : 0.0f;
+    float vn = (vcx - ovx) * bnx + (vcy - ovy) * bny;   // RELATIVE normal velocity (< 0 = closing)
+    float push = movable ? Mo / (M + Mo) : 1.0f;        // depenetrate split by mass (heavy car barely yields)
+    sx += bnx * bestPen * push; sy += bny * bestPen * push;
+    if (movable) { o->x -= bnx * bestPen * (1.0f - push); o->y -= bny * bestPen * (1.0f - push); o->dirty = 1; }
     if (vn >= 0) return;                            // already separating — just the push-out
     last_hit = 1;
-    float impact = M * (-vn);                       // the impulse the rig delivers
-    if (impact >= o->strength) {
-        // SMASH — whole-obstacle destroy (tile-by-tile shatter is the demolition rung). Stays gone.
-        o->destroyed = 1; o->dirty = 1; last_hit = 2;
-        hit(24, INSTR_NOISE, 4, 320);               // a heavy crunch
-        shake(clamp(impact / 120.0f, 3.0f, 9.0f));
-        for (int s = 0; s < 18; s++)
-            throw_spark(o->x + rnd_float_between(-o->hw, o->hw),
-                        o->y + rnd_float_between(-o->hh, o->hh), vx, vy);
-        vx *= 0.9f; vy *= 0.9f;                      // barely slows a rig heavy enough to break through
-        return;
-    }
-    // HOLD — rigid-body impulse at the contact: reflect the normal velocity + yaw from the lever.
-    // The impulse + depenetration run EVERY contact frame (so you can't sink in), but the FEEDBACK
-    // (thud + sparks + shake) only fires on a real IMPACT — a fast approach. Resting/pushing against
-    // a wall has a tiny per-frame vn (the depenetration keeps cancelling it) → no continuous crashing.
-    float rxn = rx * bny - ry * bnx;
-    float denom = 1.0f / M + rxn * rxn / I;
-    float jimp = -(1.0f + CRASH_E) * vn / denom;
+    float rxn  = rx  * bny - ry  * bnx;             // rig lever ⟂ normal
+    float rxno = rox * bny - roy * bnx;             // car lever ⟂ normal
+    float invMo = movable ? 1.0f / Mo : 0.0f, invIo = movable ? 1.0f / Io : 0.0f;
+    float denom = 1.0f / M + invMo + rxn * rxn / I + rxno * rxno * invIo;   // house: invMo=invIo=0 → 1/M+rxn²/I
+    float jimp = -(1.0f + (movable ? CAR_E : CRASH_E)) * vn / denom;   // contact impulse (>0); cars bounce more
+    // apply to the rig (and, for a car, equal-and-opposite to the car — Newton's third law)
     vx += jimp * bnx / M; vy += jimp * bny / M;
     angVel += (rxn * jimp / I) / DEG2RAD;
-    if (-vn > CRASH_FX_MIN) {                        // a genuine hit, not a resting nudge
-        hit(30, INSTR_NOISE, 3, 120);               // a solid thud
-        shake(clamp(-vn / 18.0f, 1.5f, 6.0f));
-        for (int s = 0; s < 6; s++) throw_spark(bcx, bcy, -vx, -vy);
-    } else last_hit = 0;                            // contact, but no impact this frame
+    if (movable) {
+        o->vx -= jimp * bnx * invMo; o->vy -= jimp * bny * invMo;
+        o->vr -= (rxno * jimp * invIo) / DEG2RAD;
+    }
+    if (!movable) {
+        // HOUSE: J vs strength on the infinite-mass impulse the rig delivers (M·|vn|, the original measure).
+        if (M * (-vn) >= o->strength) {             // SMASH — whole-obstacle destroy (tile shatter = demo rung)
+            o->destroyed = 1; o->dirty = 1; last_hit = 2;
+            // undo the bounce we just applied: a rig heavy enough to break through barely slows, doesn't rebound
+            vx -= jimp * bnx / M; vy -= jimp * bny / M; angVel -= (rxn * jimp / I) / DEG2RAD;
+            hit(24, INSTR_NOISE, 4, 320);           // a heavy crunch
+            shake(clamp(M * (-vn) / 120.0f, 3.0f, 9.0f));
+            for (int s = 0; s < 18; s++)
+                throw_spark(o->x + rnd_float_between(-o->hw, o->hw),
+                            o->y + rnd_float_between(-o->hh, o->hh), vx, vy);
+            vx *= 0.9f; vy *= 0.9f;                  // barely slows a rig heavy enough to break through
+            return;
+        }
+        if (-vn > CRASH_FX_MIN) {                    // a genuine hit, not a resting nudge against the wall
+            hit(30, INSTR_NOISE, 3, 120);            // a solid thud
+            shake(clamp(-vn / 18.0f, 1.5f, 6.0f));
+            for (int s = 0; s < 6; s++) throw_spark(bcx, bcy, -vx, -vy);
+        } else last_hit = 0;                        // contact, but no impact this frame
+        return;
+    }
+    // CAR: the impulse already shoved + spun it. J vs strength now decides WRECK vs a clean shunt.
+    if (jimp >= o->strength && !o->destroyed) {     // WRECK — crumples, but STAYS a (softer) shoveable wreck
+        o->destroyed = 1; last_hit = 2;
+        o->strength *= WRECK_GIVE;                   // gives more easily on the next hit
+        hit(26, INSTR_NOISE, 4, 260);               // a metal crunch
+        shake(clamp(jimp / 100.0f, 3.0f, 8.0f));
+        for (int s = 0; s < 14; s++)
+            throw_spark(bcx + rnd_float_between(-o->hh, o->hh),
+                        bcy + rnd_float_between(-o->hh, o->hh), vx, vy);
+    } else if (-vn > CRASH_FX_MIN) {                // a clean KNOCK (no wreck) — a bright steel-and-glass clack
+        hit(66 + rnd_between(0, 8), INSTR_TRI, 2, 90);   // high ping (the "glass") — pitch varies per hit
+        hit(34, INSTR_NOISE, 2, 70);                     // a short metal tick under it (the "steel")
+        shake(clamp(-vn / 22.0f, 1.0f, 5.0f));
+        for (int s = 0; s < 5; s++) throw_spark(bcx, bcy, -vx, -vy);
+    } else last_hit = 0;
 }
 
 // the world collides against the rig each frame: cones are run over (give), houses crash (hold,
@@ -2010,7 +2088,7 @@ static void collide_world(void) {
         float dx = o->x - sx, dy = o->y - sy;
         float gross = rigReach + o->rad;
         if (dx * dx + dy * dy > gross * gross) continue;        // broad phase
-        if (o->kind == OB_HOUSE) { crash_solid(o, fwx, fwy, ltx, lty); continue; }
+        if (o->kind == OB_HOUSE || o->kind == OB_CAR) { crash_body(o, fwx, fwy, ltx, lty); continue; }
         // cone (run-over class): a knocked one is already leaving — don't re-trigger
         if (o->vx * o->vx + o->vy * o->vy > 100.0f) continue;
         float lx = dx * fwx + dy * fwy, ly = dx * ltx + dy * lty;   // into the rig's oriented box
@@ -2028,8 +2106,19 @@ static void obstacles_integrate(float dt_) {
         if (!o->alive) continue;
         if (o->vx == 0 && o->vy == 0 && o->vr == 0) continue;
         o->x += o->vx * dt_; o->y += o->vy * dt_; o->ang += o->vr * dt_;
-        o->vx *= 0.96f; o->vy *= 0.96f; o->vr *= 0.94f;   // light friction → it skitters a good way
-        if (o->vx * o->vx + o->vy * o->vy < 4.0f) { o->vx = 0; o->vy = 0; o->vr = 0; }  // settled
+        if (o->kind == OB_CAR) {
+            // a knocked car GLIDES like a struck ball: low friction so it carries the hit a long way and
+            // keeps spinning, only gently favouring its rolling direction (a hint of tyre grip, not a brake).
+            float c = cos_deg(o->ang), s = sin_deg(o->ang);
+            float vf = o->vx * c + o->vy * s, vl = -o->vx * s + o->vy * c;   // car-frame fwd / lateral
+            vf *= 0.992f; vl *= 0.96f;                     // mostly free glide, a touch of nose-tracking
+            o->vx = vf * c - vl * s; o->vy = vf * s + vl * c;
+            o->vr *= 0.97f;                                // it keeps spinning a while
+            if (o->vx * o->vx + o->vy * o->vy < 4.0f && af(o->vr) < 4.0f) { o->vx = 0; o->vy = 0; o->vr = 0; }
+        } else {
+            o->vx *= 0.96f; o->vy *= 0.96f; o->vr *= 0.94f;   // cone: light friction → it skitters a good way
+            if (o->vx * o->vx + o->vy * o->vy < 4.0f) { o->vx = 0; o->vy = 0; o->vr = 0; }  // settled
+        }
     }
 }
 
@@ -2039,6 +2128,18 @@ static void world_reset(void) {
     for (int i = 0; i < MAXOB; i++) pool[i].alive = 0;
     for (int i = 0; i < MAXDELTA; i++) wdelta[i].used = 0;
     nLoaded = 0; wclock = 0; last_hit = 0;
+}
+
+// fill an ORIENTED rectangle (centre, forward angle, half-length along forward, half-width) by
+// sweeping perpendicular scanlines along the spine — cars sit/spin at any angle, so AABB rectfill
+// won't do. Cheap (≈2·hl line()s; only a few cars are ever on screen).
+static void fill_orect(float cx_, float cy_, float ang_, float hl, float hwid, int col) {
+    float c = cos_deg(ang_), s = sin_deg(ang_);      // forward unit; lateral = (-s, c)
+    for (int i = -(int)hl; i <= (int)hl; i++) {
+        float bx = cx_ + c * i, by = cy_ + s * i;
+        line((int)(bx + s * hwid), (int)(by - c * hwid),
+             (int)(bx - s * hwid), (int)(by + c * hwid), col);
+    }
 }
 
 // draw the live obstacles in world space (called inside the camera transform, under the rig).
@@ -2056,6 +2157,21 @@ static void draw_obstacles(void) {
             } else {
                 rectfill(x, y, w, h, o->col);
                 rect(x, y, w, h, CLR_BROWNISH_BLACK);
+            }
+        } else if (o->kind == OB_CAR) {
+            // top-down car: body (oriented), a darker cabin strip toward the rear, light windshield, outline.
+            int body = o->destroyed ? CLR_DARK_GREY : o->col;
+            fill_orect(o->x, o->y, o->ang, o->hw, o->hh, body);
+            if (o->destroyed) {                          // wreck — crumple: a dent + scattered debris dots
+                float c = cos_deg(o->ang), s = sin_deg(o->ang);
+                fill_orect(o->x + c * o->hw * 0.4f, o->y + s * o->hw * 0.4f, o->ang, o->hw * 0.35f, o->hh * 0.7f, CLR_DARKER_GREY);
+                pset((int)(o->x - s * o->hh), (int)(o->y + c * o->hh), CLR_MEDIUM_GREY);
+            } else {
+                float c = cos_deg(o->ang), s = sin_deg(o->ang);
+                // cabin (rear half, darker) + windshield band (front, light) read the car's facing
+                fill_orect(o->x - c * o->hw * 0.25f, o->y - s * o->hw * 0.25f, o->ang, o->hw * 0.4f, o->hh * 0.78f, CLR_DARKER_BLUE);
+                line((int)(o->x + c * o->hw * 0.45f + s * o->hh * 0.7f), (int)(o->y + s * o->hw * 0.45f - c * o->hh * 0.7f),
+                     (int)(o->x + c * o->hw * 0.45f - s * o->hh * 0.7f), (int)(o->y + s * o->hw * 0.45f + c * o->hh * 0.7f), CLR_LIGHT_GREY);
             }
         } else if (o->kind == OB_CONE) {
             int moving = (o->vx != 0 || o->vy != 0);
@@ -2574,6 +2690,14 @@ void init(void) {
     // brick: a 3×3 house sums to strength ~4050 — a buggy (M·v ≲ 2800) bounces, a heavy/fast rig
     // (semi, cargo-laden tank) pushes the contact impulse over it and SMASHES through (§9c boundary).
     OM[OM_BRICK] = (ObMat){ 6.0f, 450.0f,   CLR_LIGHT_GREY, "brick" };
+    // car cell (a parked vehicle's 2×4 = 8-cell body): mass ~16 total → comparable to a mid rig, so a
+    // balanced buggy BOUNCES off it while a semi BULLDOZES it (mass ratio falls out of the 2-body impulse).
+    // strength ~1800 total = the WRECK threshold vs the contact impulse jimp, set HIGH on purpose: at
+    // normal speeds a hit just KNOCKS the car clean across the road (billiard-ball scatter, no crumple).
+    // Only an EXTREME impact (supercar near top speed, a heavy semi) clears it and wrecks — the demolition
+    // seam stays, just out of reach of everyday driving for now. (Measured: a 104 km/h head-on lands the
+    // first-frame jimp ~1200, under 1800; a tuned-up supercar gets there.)
+    OM[OM_CAR]   = (ObMat){ 2.0f, 225.0f,   CLR_RED,        "car" };
 
     load_design(0);                       // start on the balanced buggy
     world_reset();                        // §9: clean world; first DRIVE frame streams chunks in

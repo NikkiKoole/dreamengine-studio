@@ -6,7 +6,8 @@ spin-out + rear-only handbrake) + long vehicles (9-long grid, SEMI/SCHOOLBUS)
 + neutral & reverse-in-auto + phone cockpit rework + drift dynamics (weight transfer
 + self-aligning torque + ramped steering — feel-tuning ongoing) + §8 per-wheel spring model
 + §9 collidable world: increment 1 (chunk streaming + run-over cones) + 2a (solid houses + the
-emergent smash-through boundary) done.** Cart:
+emergent smash-through boundary) + 2b (parked cars = the movable two-body rigid body, shoved/spun/wrecked
+under one unified resolver — §9e) done.** Cart:
 `tools/carts/sloop.c`, registered in `index.json`, lint clean. Captures a design
 conversation (2026-06-09).
 A new entry in the "legendary series" alongside `coaster` and `orbit`
@@ -571,8 +572,61 @@ crash. Sound + shake scaled by `J`.
 2. **Houses → solid (crash class).** They're already *drawn*; make them collide (stop / bounce /
    shake / yaw-on-clip + smash-through when hit hard enough). ✅ done. Roundabout islands deliberately
    left non-collidable (drive-over decoration — player call 2026-06-11).
+2b. **Parked cars → the MOVABLE class (the general two-body case).** ✅ done (2026-06-11). See §9e —
+   a real rigid body with mass + inertia, shoved + spun by the same contact impulse, kicking back on the
+   rig; a hard hit wrecks it (stays a shoveable wreck). This is the missing middle the cone and house
+   bracket; unifying all three under one resolver (`crash_body`) is the honest move.
 3. **(later rung) Tile-detach demolition + loose debris + disk paging.** The "alles kan kapot"
    payoff; this is rung-4 breakage machinery pointed at world objects, plus the `save_bytes` evict. ⬜
+
+#### 9e. Parked cars — the MOVABLE rigid body (the general two-body case) ✅ (2026-06-11)
+
+The cone and the house turned out to be the two *limits* of a rigid-body collision, and the parked car
+is the general case sitting between them:
+
+- **cone** — `M_obstacle → 0` (weightless projectile): the obstacle takes nearly the whole impulse, the
+  rig barely cares (`run_over_cone`).
+- **house** — `M_obstacle → ∞` (immovable wall): the rig takes the whole response — reflect + yaw about
+  the contact (`J×r/I`), smash if it beats `strength`.
+- **car** — *finite* mass **and** inertia: the **same contact impulse** is applied equal-and-opposite to
+  **both** bodies, so momentum transfers. You shove the car forward, it spins if you clip a corner
+  (`J×r_o/I_o`), and your rig slows / deflects / spins by exactly the reaction.
+
+So all three collapse into **one resolver, `crash_body()`**, with the impulse denominator
+`1/M + 1/M_o + rxn²/I + rxn_o²/I_o` — drop the obstacle's two terms (`M_o → ∞`) and it is *exactly* the
+old house code; that's why the house behaviour is byte-for-byte unchanged. The house path stays
+axis-aligned; a car is an **oriented** box (it parks along the road and spins when hit), so the
+penetration test runs in the obstacle's local frame (a house has `ang = 0` → identity → the old AABB test).
+
+Details that make it read as a *car* and not a crate:
+- **Mass ≈ a mid rig** (`OM_CAR` → ~16 total): a balanced buggy *bounces* off it, an 18-wheeler
+  *bulldozes* it — the felt difference is purely the mass ratio in the impulse, no per-rig tuning.
+- **The billiard-ball feel** (the chosen target — *"billiard balls of steel and glass"*): a struck car
+  should *scatter*, not thud-and-stick. Two knobs do it: a higher car↔rig restitution (`CAR_E = 0.6` vs the
+  house's `0.25`) so it kicks off with energy, and a **low-friction glide** in `obstacles_integrate`'s
+  `OB_CAR` branch — it carries the hit a long way and keeps spinning, only gently favouring its rolling
+  direction (`vf *= 0.992`, `vl *= 0.96`, `vr *= 0.97`; a hint of tyre grip, not a brake). Decompose
+  velocity into the car's own forward/lateral so the grip is anisotropic. The clean knock plays a bright
+  `INSTR_TRI` ping + a short noise tick (the "glass and steel" clack), distinct from the house's dull crunch.
+- **`strength` = the WRECK threshold** (the demolition seam) — set HIGH on purpose (`~1800` total): every
+  hit *pushes/knocks*; only an **extreme** impact (a supercar near top speed, a heavy semi) makes the
+  first-frame `jimp` clear it, and only then does the car **crumple** (`destroyed`, drawn dark + dented) and
+  **stay a shoveable wreck** (strength drops to `WRECK_GIVE`). At everyday speeds nothing wrecks — that's a
+  deliberate player call (2026-06-11): we want the clean knock for now, with the wreck machinery parked just
+  out of reach (measured: a 104 km/h head-on lands first-frame `jimp ≈ 1200`, under 1800). Drop `strength`
+  to bring wrecks back into normal range later.
+- **Persistence**: a shoved/wrecked car is `dirty`, so its pose + `destroyed` ride the chunk-delta layer
+  like a run-over cone (a reloaded wreck re-applies the `WRECK_GIVE` softening).
+
+**Verified on the harness** (2026-06-11, deterministic `--script`): a head-on at 104 km/h dropped rig speed
+`103→27` (momentum dumped into the car) and the car shot off at `carv ≈ 76`, then *decayed slowly* under
+the low glide friction (a long slide + spin, not a quick stop), `wreck = 0` throughout; on the
+follow-through the re-accelerating rig caught up and tapped it again (a second billiard knock). Visually the
+car slides clean across the road, intact and spinning.
+
+**Cut for this increment (logged):** no car-vs-world chaining — a shoved car slides *through* houses and
+other cars and settles, exactly as a kicked cone does today. Chain reactions are a later rung. And it's
+one rigid body, not a second part-grid sim (that's §7 articulation territory).
 
 ## Rendering & screen budget (320×200, provisional)
 
@@ -677,6 +731,7 @@ off-centre torque. sloop already goes beyond it on those (our `I` and `eng_torqu
 | **Ramped (analog) steering** | binary keys (−1/0/+1) wind a smoothed `steer_pos` toward full lock while held and ease back on release; a quick opposite tap trims the lock off a notch → fine counter-steer from digital/touch input. Without it a realistic drift is unholdable on a phone | drifts | ✅ |
 | **Ramped (analog) gas + brake** | digital pedals wind `gas_pos`/`brake_pos` (0..1) like the steering ramp (tuned fast — top speed/0-100 unchanged). Unlocks FEATHERING the throttle (ease under the traction limit → no launch wheelspin) and TRAIL-BRAKING (a light brake eats lateral grip via the friction circle → rotation) — behaviour the physics already had but a binary pedal couldn't reach | §9-era | ✅ |
 | **Per-wheel spring contact (the unified core)** | every wheel its own contact patch with a vertical LOAD from a spring solve (heave+pitch+roll, determinate for any N wheels); lateral grip scales from load. SUBSUMES per-axle grip, longitudinal+lateral transfer, and tipping (load→0) into one mechanism; replaced the 2-axle bicycle for ≥3-wheel rigs (single-track keeps its bleed). See §8. *(Per-wheel DRIVE/brake force — fully emergent power-oversteer — is the remaining optional refinement.)* | drifts/§8 | ✅ |
+| **Rig mass vs parked car (two-body collision)** | crashing a parked car resolves the *same* contact impulse equal-and-opposite on both bodies, so the outcome is the mass ratio: a light buggy bounces off (loses lots of speed), a heavy semi bulldozes it forward (barely slows). No per-rig tuning — it falls out of `M` vs the car's mass in the impulse. See §9e | §9-2b | ✅ |
 | **Aquaplaning / terrain grip** | `GROUND_GRIP` drops toward ~0 on water/ice/wet → the rig floats, steering does nothing; cross a puddle mid-corner → instant slide. Rides on the existing `GROUND_GRIP` hook (=1.0 road today), set per-biome | 3 (biomes) | ⬜ |
 | **Dynamic stability / tipping** | cornering load shifts the COM toward the turn's outside; leaving the support polygon (hull of the wheels) tips the rig → transient scrape + lateral grip collapse. A 3-wheeler tips toward its gap but not the other way (asymmetric); single-track (bike) exempt. The 2-D stand-in for roll | 2.55 | ✅ |
 | **Drivetrain location (FWD/RWD)** | power lays down through the *drive wheels*; drive point ahead of the COM (in travel) pulls → stable/understeer, behind pushes → loose/spin. Reversing flips it → a rear-wheel bike drives better backwards. Explicit `drive` part | 2.6 | ✅ |

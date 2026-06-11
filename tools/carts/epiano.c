@@ -153,8 +153,9 @@ static void apply_wah(void) {
     // mid-band "noisy bell" hash (proven against navkit's render — its clav is NEVER unfiltered).
     // Rhodes/Wurli stay open unless the wah is on (their gentler nonlinearity doesn't need it).
     if (clav) {
-        instrument_filter(I_EP, FILTER_LOW, 900, 6);                 // navkit filterCutoff ~0.5, modest reso
-        instrument_env(I_EP, 0, ENV_CUTOFF, 2, 100, 1500.0f);        // the funk quack: open on strike, shut ~100ms
+        instrument_filter(I_EP, FILTER_LOW, 1500, 6);                // gentle — keeps H4/H5 like navkit (the
+        instrument_env(I_EP, 0, ENV_CUTOFF, 2, 100, 1600.0f);        // verbatim osc is clean, so don't over-filter).
+                                                                     // env = the funk quack: opens on strike, ~100ms
     } else if (on) {
         instrument_filter(I_EP, FILTER_LOW, 700, 9);
         instrument_env(I_EP, 0, ENV_CUTOFF, 2, 110, 1700.0f + amt * 700.0f);

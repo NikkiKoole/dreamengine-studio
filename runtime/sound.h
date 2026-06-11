@@ -1423,6 +1423,49 @@ static void sound_epiano_start(Voice *v) {
     v->ep_freqnorm = fn;
     const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
     float keep = 1.0f - fn;
+    if (ty == 2) {
+        // ── CLAV: VERBATIM navkit port (synth_oscillators.h initEPianoSettings, EP_PICKUP_CONTACT).
+        // Rhodes/Wurli keep our own engine below — only the clav is navkit's. The pieces our old
+        // crib was missing and that make navkit's clav sit right: (1) the RATIO BLEND that pulls the
+        // modes toward INTEGER harmonics (so only the very top is inharmonic, not a clangy 5.15×/6.35×
+        // stack); (2) bell emphasis; (3) the per-mode velocity curves; (4) the amp NORMALIZE so the
+        // summed signal ≈ velocity (the pickup nonlinearity is amplitude-dependent). Macro mapping:
+        // timbre = pickup position, morph = pickup distance (the honk), the rest are navkit's clav
+        // preset constants (hardness 0.8, bell 0.15, bellTone 0.3, decay 1.0).
+        static const float HARM[12]  = {1,2,3,4,5,6,7,8,9,10,11,12};
+        static const float INH[12]   = {1.0f,2.003f,3.012f,4.028f,5.15f,6.35f,7.6f,8.9f,10.2f,11.6f,13.0f,14.5f};
+        static const float BLEND[12] = {0,0,0.05f,0.2f,0.5f,0.75f,0.85f,0.9f,0.95f,1,1,1};
+        static const float CEN[12]   = {1.0f,0.30f,0.20f,0.35f,0.15f,0.06f,0,0,0,0,0,0};   // neck pickup
+        static const float OFF[12]   = {0.60f,0.55f,0.50f,0.20f,0.30f,0.10f,0,0,0,0,0,0};  // bridge pickup
+        const float epHardness = 0.8f, epBell = 0.15f, epBellTone = 0.3f, epDecay = 1.0f;
+        float pos = pp;                                      // pickup position = timbre macro
+        float btEff = epBellTone + fn * 0.15f; if (btEff > 1.0f) btEff = 1.0f;
+        float hard = epHardness + vel * (1.0f - epHardness) * 0.3f;
+        float velSq = vel * vel, ampSum = 0.0f;
+        for (int i = 0; i < 12; i++) {
+            float modeBt = btEff * BLEND[i];
+            float ratio  = HARM[i] * (1.0f - modeBt) + INH[i] * modeBt;
+            v->ep_ratio[i] = ratio;
+            v->ep_ph[i]    = 0.0f;
+            float a = CEN[i] * (1.0f - pos) + OFF[i] * pos;
+            a *= hard + (1.0f - hard) / (1.0f + (ratio - 1.0f) * 0.5f);   // hammer-hardness tilt
+            if (i >= 3) a *= (1.0f + epBell * 1.5f);                      // bell emphasis (modes 4-6)
+            if (i == 0)      a *= (1.0f - fn * 0.3f);                     // register
+            else if (i >= 3) a *= (1.0f + fn * 0.4f);
+            float velScale;                                              // per-mode velocity curves
+            if      (i == 0) velScale = 0.05f + 0.95f * (velSq * (1.0f - epBell * 0.5f) + vel * epBell * 0.5f);
+            else if (i == 1) velScale = 0.08f + 0.92f * (vel * 0.6f + velSq * 0.4f);
+            else if (i == 2) velScale = 0.05f + 0.95f * (vel * 0.4f + velSq * 0.6f);
+            else { float mix = 0.3f + epBell * 0.4f; velScale = 0.05f + 0.95f * (sqrtf(vel) * mix + vel * (1.0f - mix)); }
+            a *= velScale;
+            v->ep_amp[i] = a; ampSum += a;
+            float dfac = 1.0f / (1.0f + (ratio - 1.0f) * (0.3f + btEff * 0.7f));
+            float dec  = epDecay * (1.0f - fn * 0.5f) * dfac;
+            if (dec < 0.02f) dec = 0.02f;
+            v->ep_dec[i] = dt / dec;
+        }
+        if (ampSum > 0.001f) { float s = vel / ampSum; for (int i = 0; i < 12; i++) v->ep_amp[i] *= s; }   // peak sum ≈ vel
+    } else
     for (int i = 0; i < 12; i++) {
         v->ep_ratio[i] = RAT[ty][i];
         v->ep_ph[i]    = (float)i * 0.083f;                  // small spread (keep the attack edge, dodge a DC spike)
@@ -1488,14 +1531,15 @@ static inline float sound_epiano_sample(Voice *v, float pitch_mul) {
         float k5 = (0.10f + bark * 0.4f) * regDist;
         out = sum + k3 * sum * s2 + k5 * sum * s2 * s2;
         out = tanhf(out);
-    } else if (v->ep_type == 2) {                     // Clav: mixed even+odd, harder clip
-        float vb = 0.6f + 0.4f * v->vol;              // velToDrive — dig in → more honk (navkit velToDrive 1.0)
-        float k2 = (0.30f + bark * 0.5f) * vb;
-        float k3 = (0.40f + bark * 0.6f) * vb;
+    } else if (v->ep_type == 2) {                     // Clav: VERBATIM navkit contact-pickup nonlinearity
+        // pickupDist = morph (the honk macro); strikeVelocity = vol (captured). sum² = even
+        // harmonics (honk/wah), sum³ = odd (bite), symmetric tanh*1.2 soft-clip.
+        float dist = bark;                            // morph = pickup distance (navkit clav 0.6)
+        float velBoost = 1.0f + v->vol * dist;
+        float k2 = dist * 0.8f * velBoost;
+        float k3 = dist * 1.0f * velBoost;
         out = sum + k2 * s2 + k3 * sum * s2;
-        out = tanhf(out * 1.2f);                      // navkit's fixed 1.2 — a hotter (vel-scaled) drive
-                                                      // over-saturated → high harmonics aliased into a
-                                                      // ~28dB-louder noise floor + inharmonic "bell" mess
+        out = tanhf(out * 1.2f);
     } else {                                          // Rhodes: even harmonics, asymmetric clip.
         // The pickup nonlinearity is the REAL Rhodes harmonic source (Shear §2.2.1, Faraday's law
         // + non-uniform field), so it has an ALWAYS-ON floor (0.15) — even soft notes have grit —

@@ -396,6 +396,10 @@ static bool  clip_active = false;
 // the previous frame's canvas (consistent state, no mid-frame RT readback)
 static Image pget_snapshot     = (Image){0};
 static bool  pget_snapshot_valid = false;
+// non-sticky gate: pget()/pget_rgb() set this true; the snapshot at the top of the
+// next frame runs only if a read happened during the last frame's draw. Carts that
+// never read pixels pay nothing (no readback, no per-frame 256KB Image churn).
+static bool  pget_was_used = false;
 
 static void init_touch_layout(void) {
     int W = SCREEN_W * SCALE, H = SCREEN_H * SCALE;
@@ -1130,9 +1134,15 @@ static void loop_step(void) {
     // snapshot last frame's canvas so pget() has stable pixels to read
     // (skipped on web — GPU readback is expensive and triggers GL errors on WebGL1)
 #ifndef PLATFORM_WEB
-    if (pget_snapshot.data) UnloadImage(pget_snapshot);
-    pget_snapshot       = LoadImageFromTexture(canvas.texture);
-    pget_snapshot_valid = pget_snapshot.data != NULL;
+    if (pget_was_used) {                 // a cart read pixels during last frame's draw
+        if (pget_snapshot.data) UnloadImage(pget_snapshot);
+        pget_snapshot       = LoadImageFromTexture(canvas.texture);
+        pget_snapshot_valid = pget_snapshot.data != NULL;
+    } else {                             // nobody read last frame — skip the readback (no GPU stall, no 256KB Image churn)
+        if (pget_snapshot.data) { UnloadImage(pget_snapshot); pget_snapshot = (Image){0}; }
+        pget_snapshot_valid = false;
+    }
+    pget_was_used = false;               // reset for this frame's draw
 #endif
     // snapshot input edges before update so btnp() works
     for (int p = 0; p < 2; p++)
@@ -2221,6 +2231,7 @@ void pset_rgb(int x, int y, int hex) {
 }
 
 int pget(int x, int y) {
+    pget_was_used = true;   // register intent BEFORE the guard, so a first/cold read self-heals next frame
     if (!pget_snapshot_valid) return 0;
     // pget(x,y) takes a WORLD coord and reads the screen pixel it landed on, so run it
     // through the camera matrix. exact under translate; approximate under zoom/rotation
@@ -2241,6 +2252,7 @@ int pget(int x, int y) {
 // pairs with pset_rgb for feedback shaders (read your own true-colour canvas, write it
 // back). returns -1 off-screen so a real black pixel (0x000000) isn't ambiguous.
 int pget_rgb(int x, int y) {
+    pget_was_used = true;   // register intent BEFORE the guard, so a first/cold read self-heals next frame
     if (!pget_snapshot_valid) return -1;
     Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
     int rx = (int)s.x;

@@ -2108,29 +2108,32 @@ static void draw_course(void) {
     for (int ky = ky0; ky <= ky1; ky++)
         rectfill(L - 1, ky * p - hw, (R - L) + 2, hw * 2, CLR_DARK_GREY);
 
-    // 2. curbs + dashed centre line; SUPER adds a 2nd dashed line (multi-lane)
+    // 2. curbs + dashed centre line; SUPER adds a 2nd dashed line (multi-lane).
+    // 2px-wide rectfill BANDS, not 1px line()s — a 1px line scaled by the <1 speed-zoom renders at
+    // sub-pixel width and sparkles/drops out; a 2px band still covers ≥1 full pixel, so it stays solid.
+    int H = B - T, W = R - L;
     for (int kx = kx0; kx <= kx1; kx++) {
         int cx = kx * p;
-        line(cx - hw, T, cx - hw, B, CLR_LIGHT_GREY);
-        line(cx + hw, T, cx + hw, B, CLR_LIGHT_GREY);
+        rectfill(cx - hw - 1, T, 2, H, CLR_LIGHT_GREY);   // curbs straddle the band edges
+        rectfill(cx + hw - 1, T, 2, H, CLR_LIGHT_GREY);
         if (cur_zone != Z_CITY)               // city streets are one-way → no centre line
-            for (int y = ifloordiv(T, 24) * 24; y < B; y += 24) line(cx, y, cx, y + 11, CLR_YELLOW);
+            for (int y = ifloordiv(T, 24) * 24; y < B; y += 24) rectfill(cx - 1, y, 2, 12, CLR_YELLOW);
         if (cur_zone == Z_SUPER)
             for (int y = ifloordiv(T, 20) * 20; y < B; y += 20) {
-                line(cx - hw / 2, y, cx - hw / 2, y + 9, CLR_MEDIUM_GREY);
-                line(cx + hw / 2, y, cx + hw / 2, y + 9, CLR_MEDIUM_GREY);
+                rectfill(cx - hw / 2 - 1, y, 2, 10, CLR_MEDIUM_GREY);
+                rectfill(cx + hw / 2 - 1, y, 2, 10, CLR_MEDIUM_GREY);
             }
     }
     for (int ky = ky0; ky <= ky1; ky++) {
         int cy = ky * p;
-        line(L, cy - hw, R, cy - hw, CLR_LIGHT_GREY);
-        line(L, cy + hw, R, cy + hw, CLR_LIGHT_GREY);
+        rectfill(L, cy - hw - 1, W, 2, CLR_LIGHT_GREY);
+        rectfill(L, cy + hw - 1, W, 2, CLR_LIGHT_GREY);
         if (cur_zone != Z_CITY)
-            for (int x = ifloordiv(L, 24) * 24; x < R; x += 24) line(x, cy, x + 11, cy, CLR_YELLOW);
+            for (int x = ifloordiv(L, 24) * 24; x < R; x += 24) rectfill(x, cy - 1, 12, 2, CLR_YELLOW);
         if (cur_zone == Z_SUPER)
             for (int x = ifloordiv(L, 20) * 20; x < R; x += 20) {
-                line(x, cy - hw / 2, x + 9, cy - hw / 2, CLR_MEDIUM_GREY);
-                line(x, cy + hw / 2, x + 9, cy + hw / 2, CLR_MEDIUM_GREY);
+                rectfill(x, cy - hw / 2 - 1, 10, 2, CLR_MEDIUM_GREY);
+                rectfill(x, cy + hw / 2 - 1, 10, 2, CLR_MEDIUM_GREY);
             }
     }
 
@@ -2148,7 +2151,7 @@ static void draw_course(void) {
             for (int ky = ky0; ky <= ky1; ky++)
                 if ((hash2(kx, ky) & 3) == 0) {
                     int cx = kx * p, cy = ky * p;
-                    for (int s = -hw + 2; s < hw; s += 4) line(cx + s, cy - hw, cx + s, cy + hw, CLR_WHITE);
+                    for (int s = -hw + 2; s < hw; s += 4) rectfill(cx + s, cy - hw, 2, hw * 2, CLR_WHITE);
                 }
 }
 

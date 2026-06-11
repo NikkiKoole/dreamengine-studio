@@ -1851,5 +1851,12 @@ fully covered (verified at 107 km/h: no undrawn edges). Verified: zoom takes 4 d
 (1.00/0.96/0.92/0.88) accelerating to top, not a continuous sweep; byte-identical under `--det`.
 
 *Irreducible remainder:* a fractional zoom still scroll-crawls thin lines a hair as you pan (1 px world
-→ `zoom` px screen). It's mild and even (not the breathing). If it ever bugs us: thicken curbs to 2 px,
-or a sub-pixel-precision camera target (an engine change — `camera_ex` takes int today).
+→ `zoom` px screen). It's mild and even (not the breathing). If it ever bugs us: a sub-pixel-precision
+camera target (an engine change — `camera_ex` takes int today).
+
+**Follow-on — road markings as 2 px bands (2026-06-11).** A separate issue the quantize didn't fix: the
+curbs / centre dashes / lane dividers / zebra crossings were 1 px `line()`s, and a 1 px line scaled by
+the `<1` speed-zoom renders at sub-pixel width → it sparkles / drops out at speed. Redrew them all in
+`draw_course` as **2 px-wide `rectfill` bands** (a 2 px line × 0.84 ≈ 1.7 px still covers ≥1 full pixel),
+so they stay solid when zoomed out. Verified by eye at 231 km/h (zoom 0.84): curbs + dashes read clean.
+(The town roundabout's 1 px ring is left as-is — decoration, not a road line.)

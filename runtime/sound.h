@@ -1607,20 +1607,24 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
 // only modeled reflection and it INVERTS (`-boreReturn`), so the loop resonates at SR/(2·delay)
 // — a HALF wavelength, not a full one. Sizing the bore at SR/f rang the flute an octave too low.
 // The loop also carries the jet sub-loop + the reflection/radiation-filter group delay, which
-// rang it flat; that extra delay (the jet contributes only fractionally — NOT its full 3–11 sample
-// length, so don't subtract jetLen) is ~5 samples low/mid and shrinks up high. So: half wavelength
-// minus a small down-sloping loop-delay term, sized with the bowed-string fractional-read trick
-// below to kill integer quantization. Result (A440, mor=0): A2–A4 land within ~±2¢, the whole
-// core range. A5 (≈20-sample bore) sits on the overblow edge where pitch is hyper-sensitive and
-// the tuning trim can't reliably reach 0¢ — it stays in the right octave (~−65¢) and would need a
-// jet-length re-voicing (a timbre change), tracked in STATUS Open #31. Sibling REED already sized
-// its bore at SR/f/2 — PIPE was the outlier. SINE in the sweep stays 0.0¢, so the cents are real.
+// rang it flat. That extra delay is pitch-independent but scales with the JET length (the morph/
+// embouchure macro): ~0.31 sample per jet sample + a ~1.69 filter constant. So: half wavelength
+// minus that jet-derived term, sized with the bowed-string fractional-read trick below to kill
+// integer quantization. Result: in tune within ~±3¢ from C4 to ~E6 at typical embouchure (verified
+// morph 0.70). A *constant* left morph≠0 sharp by up to a semitone — deriving from jetLen is what
+// makes it morph-robust. CAVEAT: the extreme morph≈0 voice (jetLen 11 ≈ a ~20-sample top-octave
+// bore) sits on the overblow edge and is seed-unstable in its top octave (tune-check's default
+// sweep tests morph 0 and still flags PIPE A5); any real recipe uses morph ≳ 0.3. Sibling REED
+// already sized its bore at SR/f/2 — PIPE was the outlier. (STATUS Open #31.)
 static void sound_pipe_start(Voice *v) {
     float f = v->freq; if (f < 20.0f) f = 20.0f;
-    // Loop delay = the jet sub-loop + reflection/radiation LP group delay. Measured ~5 samples
-    // through the low/mid range, dropping toward the top where the fixed-length jet is a big slice
-    // of a short bore — a small downward slope above A4 fits the whole range to within ~±10¢.
-    float loopDelay = 5.0f - (f > 440.0f ? (f - 440.0f) * 0.0021f : 0.0f);
+    // Loop delay = the jet sub-loop + reflection/radiation LP group delay. It's pitch-independent
+    // but scales with the JET length (the morph/embouchure macro): ~0.31 sample per jet sample +
+    // a ~1.69 filter constant (morph 0 → jetLen 11 → ~5.1; morph 0.7 → jetLen 5 → ~3.2). Deriving
+    // from jetLen keeps it in tune across the whole embouchure range — a CONSTANT left morph≠0
+    // sharp by up to a semitone. (jetLen0 must mirror the sample-loop jetLen below.)
+    int   jetLen0 = 3 + (int)((1.0f - v->mor) * 8.0f);
+    float loopDelay = 1.69f + 0.308f * (float)jetLen0;
     float targetBore = (float)SOUND_SAMPLE_RATE / (2.0f * f) - loopDelay;   // exact bore (float)
     if (targetBore < 3.0f) targetBore = 3.0f;
     // Buffer a hair LONGER than the target, then reference an effective init freq so the per-sample

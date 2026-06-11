@@ -345,6 +345,13 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
 >   [`docs/guides/instrument-recipes.md`](docs/guides/instrument-recipes.md) (the supply-side
 >   palette). If it's a one-off toy with no fixed/reusable patch, note it under that doc's
 >   "By cart" index as live/sequenced rather than skipping it.
+> - **Adding OR meaningfully using an engine EFFECT** (echo/reverb/chorus/flanger/tape/wah/
+>   drive[+`DRIVE_*` modes]/bitcrush/`instrument_tune` shimmer) → name the recipe in
+>   [`docs/guides/effects-recipes.md`](docs/guides/effects-recipes.md) (the effects cookbook):
+>   the exact call + values, one line of character, your cart under **used by** (add to an
+>   existing row, don't duplicate). New effect FUNCTIONS also need the four-place API wiring
+>   (studio.h / studio.c|sound.h / studioDocs.js / shell.js) + the §17 ledger note in
+>   [`docs/design/audio-notes.md`](docs/design/audio-notes.md).
 
 1. Write the C source → `tools/carts/<name>.c`
 2. *(Optional)* Add sprites/map → `tools/<name>.cart.js`. Exports `{ sprites, map, charMap, mapW, mapH }`:

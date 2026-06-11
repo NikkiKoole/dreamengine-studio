@@ -22,6 +22,7 @@
 
 #ifdef PLATFORM_WEB
 #include <emscripten/emscripten.h>
+#include <GLES2/gl2.h>   // for our own glReadPixels in the pget snapshot — dodges raylib's ES3-only format probe (WebGL1 INVALID_ENUM)
 #endif
 
 // ------------------------------------------------------------
@@ -1141,9 +1142,28 @@ static void loop_step(void) {
         pget_snapshot       = LoadImageFromTexture(canvas.texture);
         pget_snapshot_valid = pget_snapshot.data != NULL;
 #else
-        // web: the read-back needs a WebGL2 raylib-web build (WebGL1's glReadPixels
-        // errors on the canvas FBO). Until that lands, pget stays unavailable on web.
-        pget_snapshot_valid = false;
+        // web: raylib's LoadImageFromTexture runs an ES3-only framebuffer format probe
+        // that throws a cosmetic INVALID_ENUM every frame on WebGL1. We don't need the
+        // probe — the canvas is always RGBA8 — so read the FBO ourselves with a plain
+        // glReadPixels (the universal GL subset, in every backend raylib supports) into a
+        // reused buffer. No probe (clean console), no per-frame alloc (no churn). Bottom-up
+        // RGBA, same orientation LoadImageFromTexture returns, so pget's Y-flip is unchanged.
+        // Native paths (incl. any future native target) keep using raylib — this is web-only.
+        {
+            static unsigned char *web_px = NULL;
+            int w = canvas.texture.width, h = canvas.texture.height;
+            if (!web_px) web_px = (unsigned char *)malloc((size_t)w * h * 4);
+            if (web_px) {
+                rlEnableFramebuffer(canvas.id);                              // bind via rlgl (portable, no GL header)
+                glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, web_px); // raw read — no format probe
+                rlDisableFramebuffer();
+                pget_snapshot = (Image){ .data = web_px, .width = w, .height = h,
+                                         .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8A8, .mipmaps = 1 };
+                pget_snapshot_valid = true;
+            } else {
+                pget_snapshot_valid = false;
+            }
+        }
 #endif
     } else {
         pget_snapshot_valid = false;

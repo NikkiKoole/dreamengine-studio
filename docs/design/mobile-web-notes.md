@@ -235,31 +235,38 @@ safeguard is therefore two layers, neither of which is "stop the nuke":
    `touch_count()` sat at the ceiling — e.g. flash a "too many fingers!"
    toast instead of leaving the player wondering why their chord died.
 
-## 5c. `pget` / canvas read-back is OFF on web (the feedback-cart trap)
+## 5c. `pget` / canvas read-back on web — WORKS (opt-in), via our own `glReadPixels`
 
-`pget`, `pget_rgb`, and `touching_color()` read the rendered canvas back from the GPU
-(`LoadImageFromTexture` → `glReadPixels`). On the web build this is **compiled out**:
-WebGL1's `glReadPixels` errors on the canvas's **framebuffer object (FBO)** every frame,
-so the snapshot is skipped and `pget`→0 / `pget_rgb`→-1 / `touching_color`→false.
+`pget`, `pget_rgb`, and `touching_color()` read the rendered canvas back from the GPU.
+The read-back is **opt-in via `enable_pget(true)`** (off by default on both platforms — it
+costs a GPU stall + memory, so only carts that read pixels pay; see studio.h). With it on:
 
-As of 2026-06-11 the read-back is **opt-in via `enable_pget(true)`** (off by default on
-*both* platforms — it costs a GPU stall + a 256KB Image alloc/free per frame, so only
-carts that read pixels pay). A cart that opts in works on native but still gets empty
-reads on web until the FBO-readback path exists there.
+- **Native** uses raylib's `LoadImageFromTexture` (unchanged — works, no error).
+- **Web** does its *own* `glReadPixels` on the canvas FBO (`studio.c`, the `#else` branch).
 
-**The trap:** a cart whose *gameplay* reads pixels looks fine in the editor and silently
-misbehaves on a phone — feedback shaders (shadelab feedback mode, blendlab P-mode,
-inkrunner), pixel-collision (collision-lab-3, `touching_color`), terrain-as-pixels
-(lemmings), paint read-back (splatoon). `mobile-lint.js` should flag any cart calling
-`pget`/`pget_rgb`/`touching_color` as **native-only until web read-back lands**.
+**Why not `LoadImageFromTexture` on web:** it runs an ES3-only framebuffer *format probe*
+(`glGetFramebufferAttachmentParameteriv`) that WebGL1 rejects with a cosmetic per-frame
+`INVALID_ENUM`. The read-back itself works regardless, but the console spam is ugly. We
+don't need the probe — the canvas is always RGBA8 — so the web branch binds the FBO via
+`rlEnableFramebuffer(canvas.id)` and calls a plain `glReadPixels(... GL_RGBA,
+GL_UNSIGNED_BYTE ...)` into a reused buffer: no probe (clean console), no per-frame alloc
+(no churn), bottom-up RGBA so `pget`'s Y-flip is unchanged. `glReadPixels` is in the
+universal GL subset (every backend raylib supports), and it's **web-gated** — native and
+any future native target stay pure raylib, so no portability cost.
 
-**Fix path (open):** rebuild `runtime/raylib-web` for **WebGL2 / GLES3**
-(`-s MAX_WEBGL_VERSION=2` in `build-site.js` + a raylib lib compiled
-`GRAPHICS_API_OPENGL_ES3`), where `glReadPixels` on an RGBA8 FBO is legal; then drop the
-`#else` stub in `studio.c`'s snapshot gate (already structured for it). Better still on
-mobile: a WebGL2 **PBO async read** — issue the read, collect it 1–2 frames later with no
-pipeline stall. `pget` already reads *last* frame, so that latency *matches* the contract
-instead of being a compromise. Until that lands: native-only.
+**Validated 2026-06-11:** desktop Chrome + iOS Safari both return correct pixels with a
+clean console (the `pgetweb` diagnostic cart). The old "disabled on web, needs WebGL2"
+note was over-cautious — readback was always functional; only the probe-spam was the issue.
+
+**Caveats:**
+- A cart must call `enable_pget(true)` or reads return empty (one-time log warning fires).
+- Feedback/collision carts already in the gallery (shadelab, inkrunner, collision-lab-3,
+  lemmings, splatoon, blendlab) need a **republish** to pick up this engine change before
+  they work on the live web build.
+- Mobile perf: it's a synchronous per-frame `glReadPixels` (a TBDR stall). Fine for the
+  diagnostic; a heavy full-canvas feedback cart may run warm. A WebGL2 **PBO async read**
+  (collect 1–2 frames later — matches `pget`'s already-last-frame contract) is the future
+  perf upgrade if needed, but no longer a correctness blocker.
 
 ## 6. Gestures — status unchanged, now with a device
 

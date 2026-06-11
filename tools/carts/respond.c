@@ -55,6 +55,21 @@ static Box lay_cell(Box c, int dir, int n, int i, float gap) {
     /* col */     { float ch = (c.h - gap * (n - 1)) / n; return box(c.x, c.y + i * (ch + gap), c.w, ch); }
 }
 
+// wrap(): the i-th of n items in an AUTO-FLOWING grid — as many ~minItem-wide
+// columns as fit in c.w, wrapping to new rows (CSS repeat(auto-fit,
+// minmax(minItem, 1fr))). Unlike cell(), the column count responds to width on
+// its own: shrink the container and columns fall 3→2→1 with no breakpoint.
+static Box lay_wrap(Box c, int n, int i, float minItem, float gap) {
+    int cols = (int)((c.w + gap) / (minItem + gap));   // how many fit
+    if (cols < 1) cols = 1;
+    if (cols > n) cols = n;
+    int rows = (n + cols - 1) / cols;
+    float cw = (c.w - gap * (cols - 1)) / cols;         // stretch to fill (the 1fr)
+    float ch = (c.h - gap * (rows - 1)) / rows;
+    int cx = i % cols, cy = i / cols;
+    return box(c.x + cx * (cw + gap), c.y + cy * (ch + gap), cw, ch);
+}
+
 // aspect(): fit a ratio (w/h) box inside the container, centered — CSS
 // aspect-ratio + object-fit:contain. The 16:9 viewport that letterboxes
 // itself inside whatever space it's given.
@@ -180,10 +195,22 @@ void draw(void) {
         Box view = lay_aspect(mid, 16.0f / 9.0f);        // contained 16:9
         boxfill(view, CLR_BLUE_GREEN);
         boxrect(view, CLR_BLUE);
-        font(FONT_TINY);
-        if (view.w > 28)
-            print_centered("16:9 viewport",
-                           (int)(view.x + view.w / 2), (int)(view.y + view.h / 2 - 2), CLR_LIGHT_PEACH);
+
+        // ...and inside the viewport, a WRAP grid: a palette of swatches that
+        // auto-fits as many columns as the viewport width allows. Drag the
+        // screen narrower and watch the columns fall 4→3→2→1 on their own.
+        int sw_clr[8] = {CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN,
+                         CLR_BLUE, CLR_INDIGO, CLR_PINK, CLR_PEACH};
+        Box grid = lay_inset(view, 3);
+        float sgap = 2, minItem = 13;
+        if (grid.w > 8 && grid.h > 8) {
+            for (int i = 0; i < 8; i++) {
+                Box s = lay_wrap(grid, 8, i, minItem, sgap);
+                if (s.w < 2 || s.h < 2) continue;         // too small to bother
+                boxfill(lay_inset(s, 0.5f), sw_clr[i]);
+                boxrect(s, CLR_DARKER_BLUE);
+            }
+        }
     }
 
     clip(0, 0, 0, 0);   // back to the real screen

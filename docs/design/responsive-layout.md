@@ -56,8 +56,9 @@ tree — you call them each frame, like every other draw call.
 
 - **Full CSS Grid** — flex + a wrap covers ~90%; grid is a big retained model.
   The one grid feature worth stealing is `repeat(auto-fit, minmax())`
-  (auto-wrapping responsive grid) — if/when wanted, fold it into the flex
-  primitive as a `lay_wrap()`, don't import grid wholesale.
+  (auto-wrapping responsive grid). That single feature is now in the prototype
+  as **`lay_wrap()`** (a fifth helper — the swatch palette in `respond`'s
+  viewport); the rest of Grid stays out.
 - **Media / container queries (as syntax)** — unneeded. `device_class()`
   (mobile-web-notes §5) plus a plain `if (screen_w() < BP)` **is** a breakpoint
   in C. Query syntax buys nothing in an imperative cart; the `respond` demo's
@@ -89,7 +90,10 @@ What each element demonstrates:
 - **Title bar** — `anchor` top + `fluid` height (`14%` of screen height, clamped).
 - **Notification badge** — `anchor` to the title's **top-right** corner + inset
   (the safe-area analog).
-- **16:9 viewport** — `aspect`, letterboxing itself inside the leftover middle.
+- **16:9 viewport** — `aspect`, letterboxing itself inside the leftover middle,
+  with an 8-swatch **`wrap`** palette inside it whose column count auto-fits the
+  width (8 across when wide, falling to fewer rows as you drag narrower) — a
+  second, breakpoint-free kind of reflow next to the button bar's flip.
 - **Button bar** — `flex`; `dir` flips **row → column** under a `150px` width
   breakpoint, and the cart reports `[wide]` / `[phone]` live.
 - **Fluid type** — the body font steps TINY → SMALL → NORMAL as the screen
@@ -109,6 +113,7 @@ float lay_fluid(float pct, float container, float lo, float hi);  // clamp(pct*c
 Box   lay_inset(Box c, float m);
 Box   lay_at   (Box c, int anchor, float w, float h, float inset); // anchor ∈ L_TL..L_BR (9-grid)
 Box   lay_cell (Box c, int dir, int n, int i, float gap);          // dir 0=row 1=col; i-th of n
+Box   lay_wrap (Box c, int n, int i, float minItem, float gap);    // auto-fit columns, wrap to rows
 Box   lay_aspect(Box c, float ratio);                              // ratio = w/h
 ```
 
@@ -118,8 +123,8 @@ container.
 
 ## Path to graduation (if the prototype proves out)
 
-1. **Live now** — keep iterating in `respond.c`; add `lay_wrap()` if a wrapping
-   grid turns out to be needed. Pure cart-land, no engine risk.
+1. **Live now** — keep iterating in `respond.c` (already has the five helpers
+   incl. `lay_wrap`). Pure cart-land, no engine risk.
 2. **Promote** the helpers to `runtime/lay.h` (an ADR-0006 cart-land library
    header, like `ui.h`/`gestures.h`) — still operating on an arbitrary `Box`,
    so non-responsive carts can use it for sub-panels today.

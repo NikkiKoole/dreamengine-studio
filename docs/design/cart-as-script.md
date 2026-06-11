@@ -292,6 +292,15 @@ function. Fix in the cart: `#include <stdio.h>`. Design implication: the cart te
 should include `<stdio.h>` (or `studio.h` should, or we provide a non-variadic
 number-print helper) so beginners don't hit this.
 
+**mtime-granularity gotcha found (fixed):** the file-watch first stored the cart's mtime
+as `(long)st.st_mtime` — **whole-second** resolution. Editing + Running within the same
+second as the prior load left the mtime unchanged, so `cart_reload_if_changed()` silently
+no-op'd while `main.cjs` had already logged `↻ live reload` — the cart kept running old
+code. Bites anyone iterating quickly. Fix: `file_mtime()` now returns **nanoseconds**
+(`st_mtimespec`). Verified end-to-end: two rewrites 0.25 s apart now both hot-reload (the
+whole-second logic dropped the second one). macOS-only field, fine since the live backend
+is macOS-only.
+
 ### Step 4 (robustness probes) — all green
 
 - **Compile latency — fast enough for per-keystroke.** Across carts from 8 to 704

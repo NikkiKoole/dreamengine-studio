@@ -56,12 +56,15 @@ static void (*cart_init)(void)   = NULL;
 static void (*cart_update)(void) = NULL;
 static void (*cart_draw)(void)   = NULL;
 static char cart_path_buf[1024] = "";   // path of the loaded cart (for file-watch)
-static long cart_mtime = 0;             // its mtime at load time
+static long long cart_mtime = 0;        // its mtime at load time (nanoseconds)
 // de_state() (the persistent cart-state block) is now a first-class studio.h API,
 // implemented unconditionally below and exposed to carts via the generated symbol
 // table — so it works under every backend, not just DE_TCC.
 
-static long file_mtime(const char *p) { struct stat st; return stat(p, &st) == 0 ? (long)st.st_mtime : 0; }
+// Nanosecond resolution: whole-second mtime missed sub-second rewrites — an edit + Run
+// within the same second as the prior load kept cart_mtime equal, so the hot-reload
+// silently no-op'd while the editor still logged "↻ live reload" (ran old code).
+static long long file_mtime(const char *p) { struct stat st; return stat(p, &st) == 0 ? (long long)st.st_mtimespec.tv_sec * 1000000000LL + st.st_mtimespec.tv_nsec : 0; }
 
 static void cart_tcc_error(void *u, const char *msg) { (void)u; fprintf(stderr, "[tcc] %s\n", msg); }
 
@@ -105,7 +108,7 @@ static int cart_load(const char *path) {
 static void key_claims_reset(void);   // defined with the pause state below
 static void cart_reload_if_changed(void) {
     if (!cart_path_buf[0]) return;
-    long m = file_mtime(cart_path_buf);
+    long long m = file_mtime(cart_path_buf);
     if (!m || m == cart_mtime) return;
     char path[1024]; snprintf(path, sizeof path, "%s", cart_path_buf);
     if (cart_load(path) == 0) {

@@ -230,6 +230,9 @@ the meter. (Ear-checking a 3 dB pan-law difference failed; this measured it cold
 Most of our instrument engines are **ports of navkit** (`~/Projects/navkit/soundsystem`),
 the sibling synth they came from — so when a ported voice sounds "off," the fastest
 diagnosis is to render navkit's *original* and compare the actual audio, not to theorize.
+(Porting a *new* instrument/effect over, rather than debugging one? The full playbook —
+port the oscillator verbatim, the gotchas, the checklist — is
+[`porting-from-navkit.md`](porting-from-navkit.md); this section is the A/B *tooling* it leans on.)
 navkit ships a pile of headless sound tooling that needs no raylib/audio device:
 
 | navkit tool | what it does |

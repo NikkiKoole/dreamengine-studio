@@ -49,22 +49,31 @@ static int print_sloppy(const char *s, int x, int y, int color,
     return cx;
 }
 
-// RANSOM-NOTE — throw in big COMIC letters among the 8×8 ones, bottom-aligned so
-// the baseline holds despite the height jump, with bigger tilts. Cut-and-paste look.
-static int print_ransom(const char *s, int x, int baseline, int color, float maxang) {
-    static const int fonts[]   = { FONT_NORMAL, FONT_THIN, FONT_COMIC };
-    static const int heights[] = { 8,           8,         20 };           // glyph-cell heights
+// WILD / ransom-note — the full jumble: every glyph picks from ALL five fonts
+// (TINY 3×5 → COMIC 10×20) AND a random scale, so sizes lurch from tiny to huge.
+// All bottom-aligned to one baseline so it still reads as a line. The engine can't
+// rotate AND scale in one call (cart-land), so the split is: 1× glyphs tilt
+// (print_rot), scaled-up glyphs stand upright and big (print_scaled). The size
+// chaos carries it. Scale is capped per font (small fonts blow up most, COMIC
+// stays 1× — it's already 20px) so a single letter never runs off the line.
+static int print_wild(const char *s, int x, int baseline, int color, float maxang) {
+    static const int fonts[]   = { FONT_TINY, FONT_SMALL, FONT_NORMAL, FONT_THIN, FONT_COMIC };
+    static const int heights[] = { 5,         6,          8,           8,         20 };
     int cx = x;
     for (int i = 0; s[i]; i++) {
         if (s[i] == ' ') { cx += 8; continue; }
-        unsigned h = (unsigned)i * 40503u ^ (unsigned)(unsigned char)s[i] * 2654435761u;
-        int fi = (h >> 5) % 3u;
+        unsigned h = (unsigned)i * 2654435761u ^ (unsigned)(unsigned char)s[i] * 40503u;
+        int fi = (h >> 5) % 5u;
         font(fonts[fi]);
-        float a = (prand(h) * 2.0f - 1.0f) * maxang;
+        int want  = 1 + (int)(prand(h) * 3.0f);           // roll 1..3
+        int cap   = 26 / heights[fi]; if (cap < 1) cap = 1;  // tiny→5, small→4, normal→3, comic→1
+        int scale = want < cap ? want : cap;
         char ch[2] = { s[i], 0 };
-        int top = baseline - heights[fi];                 // bottom-align to a shared baseline
-        print_rot(ch, cx, top, a, color, 0);
-        cx += text_width(ch) + 2;
+        int w   = text_width(ch) * scale;
+        int top = baseline - heights[fi] * scale;         // bottom-align the (scaled) cell
+        if (scale == 1) print_rot(ch, cx, top, (prand(h ^ 0x55u) * 2.0f - 1.0f) * maxang, color, 0);
+        else            print_scaled(ch, cx, top, color, scale);   // big upright pop
+        cx += w + 2;
     }
     font(FONT_NORMAL);
     return cx;
@@ -89,8 +98,7 @@ void draw(void) {
     print("live wobble:", 6, 104, CLR_INDIGO);
     print_sloppy("wibbly wobbly", 6, 116, CLR_GREEN, 5.0f, 1, 4.0f, S->frame);
 
-    // 4) ransom note: mixed sizes, bottom-aligned, big tilts
-    print("ransom note:", 6, 150, CLR_INDIGO);
-    print_ransom("PAY UP", 6, 184, CLR_RED, 12.0f);
-    print_ransom("or else", 110, 184, CLR_LIGHT_PEACH, 10.0f);
+    // 4) wild: all five fonts + random scale-up, bottom-aligned. tiny→huge jumble
+    print("wild (tiny..big, scaled up):", 6, 144, CLR_INDIGO);
+    print_wild("ransom NOTE", 6, 196, CLR_RED, 10.0f);
 }

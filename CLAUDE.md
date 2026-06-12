@@ -307,6 +307,7 @@ demonstrating it tends to go unnoticed and undertested.
 
 - **Editor**: Comic Mono (TTF, loaded via `@font-face`)
 - **In-game**: `dos_8x8.png` — a 145×145 bitmap sheet, 16×16 grid of 8×8 glyphs, yellow separator lines, loaded with Raylib's `LoadFontFromImage(image, YELLOW, 0)` — no TrueType rasterization, raw pixels
+- **More in-game fonts** via `font(FONT_*)`: `FONT_SMALL` 4×6, `FONT_TINY` 3×5, `FONT_LARGE` (IBM MDA 9×14), `FONT_BOOT` (IBM VGA 9×16), `FONT_SMOOTH` (the 8×8 EPX-upscaled to 16×16). The MDA/VGA/smooth atlases are baked by `tools/gen-rom-font.js` (ROM dumps in `tools/fonts/` + an EPX upscale) into `editor/public/font*.png` + `runtime/font*_data.h`. **Adding a font: see [`docs/design/font-rendering.md`](docs/design/font-rendering.md) → "the bitmap-font pipeline"** (atlas format contract + the studio.c five-spot wiring).
 
 ## Tutorial carts
 

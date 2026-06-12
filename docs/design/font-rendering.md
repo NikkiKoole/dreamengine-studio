@@ -15,6 +15,9 @@
 
 ## Where we are today
 
+> **Note (2026-06-12):** the "one font" framing below is the *original* state. There are now
+> **six** fonts via `font()` — see [The font family + the bitmap-font pipeline](#the-font-family--the-bitmap-font-pipeline-2026-06-12-session-12) below for the current roster and how to add more.
+
 **One font, drawn two ways.** The in-game font is `dos_8x8` — a full DOS-OEM 8×8
 bitmap sheet (16×16 grid), loaded via `LoadFontFromImage(..., YELLOW, 0)` with
 `TEXTURE_FILTER_POINT`. It is **monospace**: `text_width = strlen × 8`.
@@ -133,6 +136,77 @@ the sheet is now full printable ASCII. Known-weak hand-drawn glyphs to revisit: 
 ## Shipped first batch (2026-06-01)
 
 `print_outline` / `print_shadow` ✓ shipped. `print_wave` + `print_type` remain open — still the recommended next step (title juice + dialogue). The inline-control-code system is the "real PICO-8" answer and is genuinely cool, but it's a bigger commitment — better as a deliberate follow-up once we've seen which effects carts reach for most.
+
+## The font family + the bitmap-font pipeline (2026-06-12, session 12)
+
+Added three more fonts, so the `font()` family is now six, and — this is the part worth
+keeping — a **reproducible generator** (`tools/gen-rom-font.js`) so the next font is a
+recipe, not archaeology.
+
+| constant | cell | source | character |
+|---|---|---|---|
+| `FONT_TINY`   | 3×5  | TTF bake (2026-06-01) | max density |
+| `FONT_SMALL`  | 4×6  | filmote/Font4x6 bake  | compact HUD |
+| `FONT_NORMAL` | 8×8  | `dos_8x8` (the default)| the workhorse |
+| `FONT_LARGE`  | 9×14 | IBM **MDA** ROM dump  | green-screen terminal |
+| `FONT_BOOT`   | 9×16 | IBM **VGA** ROM dump  | the BIOS/boot screen |
+| `FONT_SMOOTH` | 16×16| `dos_8x8` → EPX upscale| rounded-diagonal pixel; rotates cleanest |
+
+Origin: wanting **rotated** text (the experimental `print_rot`) to read better. The 8×8 is
+the worst case for rotation — too few pixels, so diagonals stair-step hard. Taller/denser
+fonts alias more finely; `FONT_SMOOTH` rounds the corners outright. See `tools/carts/rottext.c`
+(the playground: cycles all rotation-candidate fonts on **X**).
+
+### The atlas format — the contract every font shares
+
+All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` path in
+`studio.c` (no per-font code), so each atlas PNG must be built identically:
+
+- **16×16 grid** of glyph cells. `dos_8x8` and the ROM/smooth fonts use **`firstChar = 0`**
+  (full 256-glyph OEM / CP437 set, incl. box-drawing); the tiny TTF-baked fonts use `32`.
+- **1px opaque-yellow `(255,255,0,255)` separators + border** = the key colour. This is what
+  delimits cells; even a blank cell (space) is detected because its interior is *not* key.
+- **Glyph pixels opaque white; cell interiors transparent** `(0,0,0,0)`. Transparent ≠ key,
+  so the cell is found; alpha 0 means the non-ink pixels simply don't draw, and the white ink
+  is tinted by the `print` colour at draw time.
+- Sheet size = `cells*cell + (cells+1)` per axis (the +1s are the separator lattice). A
+  9×14 font → `16*9+17 = 161` wide, `16*14+17 = 241` tall.
+
+### Two ways to fill an atlas (both in `gen-rom-font.js`)
+
+1. **IBM ROM dump** (`FONT_LARGE`, `FONT_BOOT`). Raw `*.F14`/`*.F16` files from VileR's
+   int10h collection live in `tools/fonts/`. Each is 256 glyphs × H bytes, one byte per
+   8-pixel scanline (MSB = leftmost). IBM text modes render these 8-wide glyphs in a **9-wide
+   cell**: the 9th column is blank EXCEPT for the line-drawing range **`0xC0–0xDF`**, where it
+   duplicates the 8th column so box rules connect. `romGlyphs()` bakes that 9th column in.
+2. **EPX/Scale2x upscale** (`FONT_SMOOTH`). Decode an existing atlas PNG (`dos_8x8.png`),
+   extract each 8×8 glyph, and run it through **EPX** — the same algorithm as
+   `sprite-draw.js`'s `scale2x()` — to a 16×16 glyph with diagonals rounded. Stays 2-colour
+   (no AA/blur). `gen-rom-font.js` carries a minimal PNG decoder (`decodePNG`, handles all 5
+   filter types) for this. *Note:* one EPX pass on an 8×8 source only rounds corners; for
+   genuinely smooth curves you'd want hq4x (8→32, adds grey AA pixels — no longer crisp pixel)
+   or a font drawn natively at 16px.
+
+### Wiring a new font in (the mechanical checklist)
+
+`gen-rom-font.js` emits two files per font: `editor/public/font<NAME>.png` (human-viewable)
+and `runtime/font<NAME>_data.h` (embedded byte array). Then, to expose it:
+
+- **`runtime/studio.c` — five spots:** `#include` the header; add a `static Font font_x`;
+  load it in `init` (`LoadImageFromMemory(".png", …_DATA, …_DATA_LEN)` →
+  `LoadFontFromImage(img, YELLOW, 0)` → `SetTextureFilter(…, POINT)`); `UnloadFont` it on
+  shutdown; add an `active_font_id == FONT_X` case to `cur_font()`; and add `FONT_X` to the
+  `font()` validator's allowed set.
+- **The usual four places** for the `FONT_X` constant: `studio.h` (`#define` + one-liner),
+  `studioDocs.js`, `shell.js` (the graphics section's `keys`). (`studio.c` is covered above.)
+  Re-run `tools/gen-tcc-symbols.js` after touching `studio.h`.
+
+### Sources & licensing
+
+ROM dumps: VileR's [int10h vga-text-mode-fonts](https://github.com/viler-int10h/vga-text-mode-fonts)
+(`FONTS/PC-IBM/MDA9.F14`, `VGA9.F16`). The underlying IBM ROM bitmaps are public-domain; we
+keep the raw `.F14`/`.F16` in `tools/fonts/` as the source-of-truth so the generator is
+reproducible. `FONT_SMOOTH` is derived from our own `dos_8x8`, no third-party asset.
 
 ## When this settles
 

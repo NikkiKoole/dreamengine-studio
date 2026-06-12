@@ -144,6 +144,9 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
 #define FONT_NORMAL  0   // default 8×8 DOS font
 #define FONT_SMALL   1   // 4×6 font — fits ~64 chars across 320px
 #define FONT_TINY    2   // 3×5 font — fits ~80 chars across 320px
+#define FONT_LARGE   3   // IBM MDA 9×14 font — tall retro terminal glyphs; nostalgic + reads better rotated (print_rot)
+#define FONT_BOOT    4   // IBM VGA 9×16 font — the BIOS/boot-screen font; pair with print_scaled for big wide titles
+#define FONT_SMOOTH  5   // the 8×8 default upscaled to 16×16 via EPX/Scale2x — rounded diagonals, still crisp pixel; rotates cleanest
 void font(int f);        // set active font for all print calls; font(FONT_NORMAL) resets to the default 8×8
 int  text_width(const char *text);                                 // pixel width using the active font — for centering in your own boxes
 int  print(const char *text, int x, int y, int color);             // returns x after the last char (so you can chain or check if text went offscreen)
@@ -449,6 +452,17 @@ void instrument_phaser(int slot, float rate, float depth, float feedback, float 
 #define FX_EQ       6   // EQ
 #define FX_CRUSH    7   // bitcrush
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 8
+
+// leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
+// horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds
+// and take seconds to spin up/down when you flip the speed — the iconic chorale↔tremolo swell.
+// THE classic organ effect; great on electric piano, guitar, or a whole psychedelic mix too.
+// Runs at the END of the chain (the speaker/cabinet output stage — not a reorderable FX_* pedal).
+#define LESLIE_STOP  0   // brake — rotors coast to a halt (a static, slightly-doubled tone)
+#define LESLIE_SLOW  1   // chorale — slow, gentle, hymn-like sway (~0.7 Hz)
+#define LESLIE_FAST  2   // tremolo — fast, shimmering swirl (~6 Hz). flip SLOW↔FAST for the swell
+void leslie(int speed, float drive, float balance, float doppler, float mix);                      // speed LESLIE_*, drive 0..1 (tube preamp), balance 0=drum..1=horn, doppler 0..1, mix 0..1 (0 = off). THE master Leslie
+void instrument_leslie(int slot, int speed, float drive, float balance, float doppler, float mix); // Leslie on just this slot (auto-grabs a private FX bus)
 
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti

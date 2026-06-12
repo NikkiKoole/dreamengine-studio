@@ -1,6 +1,6 @@
 // rottext — print_rot playground. NOT a shipped cart; a throwaway to eyeball
 // how the bitmap font looks rotated at every angle before we commit the API.
-//   ← / →  nudge the live angle    SPACE  spin    Z  toggle pivot
+//   ← / →  nudge the live angle    SPACE  spin    Z  pivot    X  font
 #include "studio.h"
 #include <stdio.h>
 
@@ -11,14 +11,24 @@ STATE {
     float angle;     // the live, user-driven angle
     int   spinning;
     int   pivot;     // 0 = top-left (x,y)   1 = text center
+    int   fi;        // font index into FONTS[]
 };
+
+static const int   FONTS[]  = { FONT_NORMAL, FONT_LARGE, FONT_BOOT,      FONT_SMOOTH };
+static const char *FNAMES[] = { "8x8",       "MDA 9x14",  "VGA boot 9x16", "smooth 16x16 (epx)" };
+#define NFONTS 4
+
+void init(void) {
+    S->fi = 3;   // show off the smoothed font by default; X cycles through them
+}
 
 void update(void) {
     if (S->spinning) S->angle += 1.5f;
     if (btn(0, BTN_LEFT))  S->angle -= 2.0f;
     if (btn(0, BTN_RIGHT)) S->angle += 2.0f;
     if (keyp(KEY_SPACE))   S->spinning = !S->spinning;
-    if (btnp(0, BTN_A))    S->pivot = !S->pivot;   // Z
+    if (btnp(0, BTN_A))    S->pivot = !S->pivot;            // Z
+    if (btnp(0, BTN_B))    S->fi = (S->fi + 1) % NFONTS;    // X
     if (S->angle >= 360) S->angle -= 360;
     if (S->angle < 0)    S->angle += 360;
 }
@@ -26,9 +36,20 @@ void update(void) {
 void draw(void) {
     int p = S->pivot;
     cls(CLR_DARK_BLUE);
+    // chrome stays in the default 8x8 so labels don't move as we toggle
+    font(FONT_NORMAL);
     print("print_rot playground", 6, 5, CLR_WHITE);
     print(p ? "pivot: CENTER (z)" : "pivot: top-left (z)", 6, 16, CLR_ORANGE);
-    print("< > angle   space spin", 6, SCREEN_H - 12, CLR_INDIGO);
+    char fb[32]; snprintf(fb, sizeof fb, "font: %s (x)", FNAMES[S->fi]);
+    print(fb, 6, 38, CLR_BLUE);
+    print("< > angle  space spin", 6, SCREEN_H - 12, CLR_INDIGO);
+
+    // "bigger & wider" with no new asset: the boot font scaled 2x (DOS 40-col style)
+    font(FONT_BOOT);
+    print_scaled("BOOT", SCREEN_W - 92, SCREEN_H - 36, CLR_MEDIUM_GREEN, 2);
+
+    // the rotated samples use whichever font we're auditing
+    font(FONTS[S->fi]);
 
     // 1) a fan: the same word from one anchor at fixed 30-deg steps. with the
     //    top-left pivot words radiate outward; with center they pinwheel in place

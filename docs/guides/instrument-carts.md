@@ -253,6 +253,7 @@ overlay to swap a chair's instrument mid-song. Candidate swaps:
 | Cart | What it is | Built from |
 |---|---|---|
 | **drum machine** (`drummachine`) | A 16-step sequencer — the original sound-synth showcase. | step grid |
+| **groovebox** (`groovebox`) | A self-playing house/techno box that is the **home for the summed-bus effects** the pedalboard can't show (a chain runs one voice; this sums six looping parts into one master, then sculpts the whole mix). A 6×16 grid over a held, breathing PAD; the rack rides PUMP (faked sidechain — kick ducks the pad, like `house`), CRUSH (summed bitcrush), EQ tilt, TAPE, SPACE, + a master `fx_order` CRUSH↔EQ toggle. A dormant GLUE knob reserves the seat for a future bus compressor. Built as the place upcoming bus effects (sidechain, glue) land. | step grid (`drummachine` chassis) + `ui.h` rack + held pad |
 | **loopstation** (`loopstation`) | A live-looper pedal — arm a track, play, layer; the first cart that records itself. | beat clock, `note_on`, all chiptune waves |
 | **composer (mario paint sound)** (`mariopaint`) | A melodic music toy in the spirit of Mario Paint's Sound mode — place notes on a staff. | chiptune waves |
 | **touch piano** (`touchpiano`) | A two-octave multi-finger piano — the touch-release API's first customer. | touch API, `note_on`, `INSTR_SAW` |

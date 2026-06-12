@@ -23,6 +23,18 @@ an optional **per-instrument** form (`instrument_echo(slot, …)` etc.) so you c
 and leave the rest dry. `drive` is the exception — it's a **per-voice** insert (`instrument_drive`
 / `note_drive`). Full architecture: [`audio-notes.md §8.10`](../design/audio-notes.md).
 
+> **⚠ Effects are SET-AND-HOLD — (re)configure them only when a value CHANGES, never every frame.**
+> `crush()`/`tape()`/`eq()`/`chorus()`/`flanger()`/`reverb()`… reconfigure bus DSP (ring buffers,
+> filter coefficients) on each call. Wiring a knob straight into `update()`/`draw()` so the configure
+> fn fires 60×/s churns the audio thread and reads as **stutter / lag — not a crash** (so it's easy
+> to miss and easy to blame on the wrong thing). Re-apply **only when the value actually moved**:
+> keep a `last-applied` copy and compare, or gate on the `ui_*` widget's "changed" return. Same for
+> the live per-note setters (`note_cutoff`/`note_reverb`/`note_vol`): push only when the target
+> changed — a value that's genuinely sweeping every frame (a tape-speed wobble, a sidechain duck) is
+> fine, but stop re-issuing it once it settles. **Pattern to copy: `groovebox`'s `apply_fx()`** (a
+> change-gated re-apply; its pad cutoff only pushes while the pump is actually moving). This was a
+> real lag bug in `groovebox` v1 — profiler-confirmed once the per-frame churn was removed.
+
 > **The showcase carts ARE the de-facto effect library.** Each effect has one cart whose whole
 > point is *that effect as the instrument* — crib from it first. Showcases:
 > `spacecho` (echo) · `cathedral` (reverb) · `juno`/`solina` (chorus) · `mistress` (flanger) ·
@@ -180,7 +192,7 @@ partner to `DRIVE_ASYM`: EQ before/after a clipper = a real **guitar-amp tone**.
 | fat bass | `instrument_eq(I_BASS, 7.0f, 0.0f, 0.0f)` | weight under one part while the mix stays clear (per-instrument bus) | `eq` |
 | guitar-amp tone | `instrument_drive_mode(slot, DRIVE_ASYM); instrument_drive(slot, 0.55f); eq(3.0f, 2.0f, -4.0f)` | asymmetric clip + a mid-forward EQ around it — the cranked-amp move | `eq` |
 | mud cut | `eq(-5.0f, 1.0f, 2.0f)` | thin out a boomy low end, nudge clarity up top | (cut pattern) |
-| tilt control | `float t=(k-0.5f)*2; eq(-t*6.0f, 0.0f, t*6.0f)` | one knob rocks dark↔bright around a flat center (0/0/0 at k=0.5 = off) — the live whole-mix tone knob | `groovebox` (EQ knob) |
+| live 3-band | `eq((lo-0.5f)*24, (mid-0.5f)*24, (hi-0.5f)*24)` | three knobs over the whole mix, ±12 dB each (0.5 = flat = off). A *louder* EQ is what makes the `fx_order` crush↔eq order audible (a gentle tilt isn't enough to hear) | `groovebox` (LO/MID/HI) |
 
 ## tremolo — `tremolo(rate, depth, shape)` · `instrument_tremolo(slot, rate, depth, shape)`
 

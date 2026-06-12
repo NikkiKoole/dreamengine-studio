@@ -3037,6 +3037,15 @@
     ]
   },
   {
+    "title": "groovebox",
+    "description": "A tiny house/techno box that plays itself so both your hands are free to ride the SUMMED-BUS effects - the half a pedalboard can't show (a chain runs ONE guitar; this sums six looping voices into one master, then sculpts the whole mix). A 6-row x 16-step grid (kick/clap/hats/bass/stab) sweeps off the beat() clock over a held, breathing PAD chord. The headline is PUMP - sidechain: the kick ducks the pad every beat (faked the way the house station fakes it, until a real sidechain() ships; watch the PUMP meter breathe). The rest of the rack is real engine effects on a full mix for the first time: CRUSH (summed bitcrush), EQ tilt, TAPE, SPACE (reverb), and an ORDER toggle that swaps the master CRUSH<->EQ insert order (audibly different). The dimmed GLUE knob is the next tenant - a bus compressor's reserved seat. TAP/DRAG cells to edit, WASD+Z cursor, arrows = tempo.",
+    "file": "groovebox.cart.png",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ]
+  },
+  {
     "title": "rotated text (playground)",
     "description": "A throwaway sandbox for the experimental print_rot() — does the bitmap font hold up rotated? A fan of the same word radiates from one anchor at 30-degree steps (so you can see the pivot sits at the start of the text), one big word you drag through every angle live, and a column of fixed 0/45/90/135-degree samples for a crispness check (right angles stay pixel-crisp; odd angles go softly GPU-sampled). LEFT/RIGHT nudge the angle, SPACE toggles auto-spin.",
     "file": "rottext.cart.png",

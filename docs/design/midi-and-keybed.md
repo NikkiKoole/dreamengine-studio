@@ -240,6 +240,37 @@ bends or breaks. Each drove a capability or is a known limitation:
 - **Sibling opportunity:** the 8-pad scale-locked family (`fm`, `filterenv`, `reed`, `pipe`,
   `pluck`) all hand-roll a *diatonic pad row* — a candidate for a *separate* helper, not keybed.h.
 
+## Deferred — exceptional cases (batch them later, on purpose)
+
+The clean chromatic-keybed family is migrated (7 carts). Two keybed carts and a set
+of *other* instrument families are **deliberately deferred**: rather than bolt a
+feature on per-cart, we collect ALL the exceptional cases first, then design the
+advanced capabilities once, informed by the whole set. Come back when the list below
+feels complete.
+
+**Deferred keybed carts:**
+- **`mt70`** — the most elaborate voice model: 1–3 stacked oscillator voices per key,
+  struck notes that *detach and keep ringing on lift* (bell behaviour), and a
+  cart-driven exponential decay via live `note_vol()` per layer. Fits manual-voice
+  mode, but intricate. Migrate when we revisit advanced voice lifecycles.
+- **`sh101`** — split keyboard / two manuals → needs **instance-based keybed** (a
+  `Keybed*` the cart owns instead of file-global state). This is the one feature that
+  needs a keybed.h structural change; do it once and it also covers any future
+  split/stacked-manual cart.
+
+**Other families that will add exceptional cases (phase 2):**
+- **Continuous-pitch ribbons** (`martenot`, `upright`, `pdbass`, `spacecho`,
+  `musicalsaw`) — one held voice + `note_pitch`; share only `midi_get()`. May want a
+  small *ribbon* helper.
+- **Diatonic pad rows** (`fm`, `filterenv`, `reed`, `pipe`, `pluck`, `pan`, `pd`) —
+  fixed scale pads, not chromatic keys. Candidate for a *separate* sibling helper.
+- **`solo.h` radios** — the smart-screen / free-MIDI asymmetry (touch = scale-locked,
+  MIDI = chromatic). See the weird-patterns note above.
+
+The throughline for the revisit: an **instance-based keybed** + a **richer voice
+lifecycle** (the manual-voice callbacks already point the way) likely cover `mt70`,
+`sh101`, and several phase-2 cases together.
+
 ## What shipped (2026-06-12)
 
 Built and committed this session — see `STATUS.md` for the canonical ledger:

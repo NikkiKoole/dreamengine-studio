@@ -112,10 +112,11 @@ for (const w of walls) {
     const half = (o.width / 2) / Lmm;
     const lo = Math.max(0, o.t - half), hi = Math.min(1, o.t + half);
     (o.type === 'window' ? wins : doors).push([lo, hi]);
-    // placement for the real door/window sprite (centred on the opening, along the wall)
+    // placement for the real door/window sprite (centred on the opening, along the wall).
+    // windows sit thin in the wall; doors get a near-square footprint so the leaf/swing reads.
     openings.push({
       cx: PX(ax + (bx - ax) * o.t), cy: PY(ay + (by - ay) * o.t),
-      w: PL(o.width), h: thick, rot: wallDeg, type: o.type,
+      w: PL(o.width), h: (o.type === 'window' ? thick : PL(o.width)), rot: wallDeg, type: o.type,
       ref: refIndex(o.refid || ''),
     });
   }

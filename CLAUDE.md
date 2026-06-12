@@ -90,6 +90,15 @@ eventually2/
 │       ├── improv.h    #   melodic improvisation for the radio stations (auto-solo)
 │       ├── radio.h     #   radio-station chrome (chassis, seeded-song plumbing,
 │       │               #   draggable rad_knob_int/_sel/_float control knobs)
+│       ├── keybed.h    #   a polyphonic CHROMATIC keybed: touch+mouse+QWERTY+MIDI
+│       │               #   → note_on/off into one slot, with chords/glissando/
+│       │               #   velocity. The shared piano every keybed cart copies
+│       │               #   (epiano/moog/touchpiano/mellotron) — NEVER hand-roll
+│       │               #   the key tables + finger pool again. Default drawn
+│       │               #   manual or geometry helpers for custom keys. A USB MIDI
+│       │               #   keyboard plays it for free (engine midi_get(); macOS).
+│       │               #   NOT for ribbons (martenot/heldnotes) or the radio
+│       │               #   scale strip (solo.h) — design/midi-and-keybed.md
 │       └── solo.h      #   the jam layer — a scale-locked solo strip the PLAYER
 │                       #   drives over a radio (pairs with radio.h; built on ui.h
 │                       #   capture). NOT for soloist-less stations (ambient/satie)

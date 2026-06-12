@@ -303,6 +303,7 @@ int  midi_get(int *note, int *vel);                       // drain one event thi
 bool midi_held(int note);                                 // is this MIDI note currently held down? (poll style, like btn())
 int  midi_bend(void);                                     // last pitch-bend wheel value, -8192..+8191 (0 = centred) — for ribbons/glides
 bool midi_present(void);                                  // is any MIDI keyboard connected? (false = no device / web Safari / not macOS)
+const char *midi_name(void);                              // name of the connected MIDI keyboard (e.g. "Arturia KeyStep"), or "" if none — for a "connected to …" readout
 
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..31: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release

@@ -905,6 +905,7 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
     '-s USE_GLFW=3',
     '-s TOTAL_MEMORY=67108864',
     '-s EXPORTED_RUNTIME_METHODS=ccall,HEAPF32',
+    `--post-js "${path.join(RUNTIME_DIR, 'web_midi.js')}"`,   // Web MIDI → midi_get() bridge
   ]   // baseArgs — the shell/output tail is appended per build below
 
   // AudioWorklet backend (settings → "audio (web)"): mirror build-site — ship BOTH a

@@ -32,7 +32,7 @@ void update(void) {
 void draw(void) {
     cls(CLR_DARKER_BLUE);
     print("MIDI TEST", 8, 6, CLR_WHITE);
-    print(midi_present() ? "device: CONNECTED" : "device: none (plug in USB MIDI)",
+    print(midi_present() ? str("device: %s", midi_name()[0] ? midi_name() : "CONNECTED") : "device: none (plug in USB MIDI)",
           8, 16, midi_present() ? CLR_LIME_GREEN : CLR_DARK_GREY);
 
     // 128-note held grid (16 x 8)

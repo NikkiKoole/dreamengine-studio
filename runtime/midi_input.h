@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 // ── platform-independent event ring + live state (also the web backend's target) ──
 #define MIDI_RING 256   // power of two
@@ -33,6 +34,7 @@ static volatile unsigned midi_w = 0, midi_r = 0;
 static volatile uint8_t  midi_down[128];
 static volatile int      midi_bend_v = 0;     // -8192..8191
 static volatile int      midi_dev_count = 0;
+static char              midi_dev_name[64] = {0};   // name of the connected keyboard (CoreMIDI / Web MIDI)
 
 // producer side — called from the CoreMIDI thread (or, later, the web JS bridge)
 static void de_midi_push(int type, int note, int vel) {
@@ -56,6 +58,7 @@ int midi_get(int *note, int *vel) {
 bool midi_held(int note)  { return (note >= 0 && note < 128) && midi_down[note] != 0; }
 int  midi_bend(void)      { return midi_bend_v; }
 bool midi_present(void)   { return midi_dev_count > 0; }
+const char *midi_name(void) { return midi_dev_name; }   // connected keyboard's name, or "" if none
 
 // ── CoreMIDI backend (macOS only) ──────────────────────────────────────────────
 #if defined(__APPLE__) && !defined(PLATFORM_WEB)
@@ -107,10 +110,17 @@ static void midi_read_cb(const MIDIPacketList *pkts, void *a, void *b) {
 static void midi_connect_sources(void) {
     ItemCount n = MIDIGetNumberOfSources();
     int count = 0;
+    char name[64] = {0};
     for (ItemCount i = 0; i < n; i++) {
         MIDIEndpointRef src = MIDIGetSource(i);
         if (!src) continue;
         count++;
+        // remember a device name to show ("connected to …") — the display name (e.g. "Arturia KeyStep 32")
+        CFStringRef cf = NULL;
+        if (MIDIObjectGetStringProperty(src, kMIDIPropertyDisplayName, &cf) == noErr && cf) {
+            CFStringGetCString(cf, name, sizeof name, kCFStringEncodingUTF8);
+            CFRelease(cf);
+        }
         bool already = false;
         for (int j = 0; j < midi_nconnected; j++) if (midi_connected[j] == src) { already = true; break; }
         if (!already && midi_nconnected < 32) {
@@ -119,6 +129,8 @@ static void midi_connect_sources(void) {
         }
     }
     midi_dev_count = count;
+    if (count == 0) midi_dev_name[0] = 0;
+    else            strncpy(midi_dev_name, name, sizeof midi_dev_name - 1);
 }
 
 // hot-plug: re-scan sources whenever the MIDI setup changes (keyboard plugged in
@@ -142,10 +154,21 @@ static void midi_input_shutdown(void) {
 
 #pragma clang diagnostic pop
 
-#else  // ── non-macOS / web: stubs (the web JS bridge calls de_midi_push directly) ──
+#else  // ── non-macOS / web: stubs (the web JS bridge calls the exports below) ──
 
 static void midi_input_init(void)     {}
 static void midi_input_shutdown(void) {}
+
+#ifdef PLATFORM_WEB
+// Web MIDI bridge: runtime/web_midi.js (emcc --post-js) drives navigator.requestMIDIAccess()
+// and calls these to feed the same ring/state the cart drains via midi_get(). KEEPALIVE so
+// the linker keeps them; called from JS via Module.ccall.
+#include <emscripten.h>
+EMSCRIPTEN_KEEPALIVE void de_midi_web_push(int type, int note, int vel) { de_midi_push(type, note, vel); }
+EMSCRIPTEN_KEEPALIVE void de_midi_web_bend(int v)     { midi_bend_v = v; }
+EMSCRIPTEN_KEEPALIVE void de_midi_web_present(int n)  { midi_dev_count = n; if (n == 0) midi_dev_name[0] = 0; }
+EMSCRIPTEN_KEEPALIVE void de_midi_web_name(const char *s) { strncpy(midi_dev_name, s ? s : "", sizeof midi_dev_name - 1); midi_dev_name[sizeof midi_dev_name - 1] = 0; }
+#endif
 
 #endif
 

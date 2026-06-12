@@ -108,6 +108,7 @@ function buildCart(name, { force = false, worklet = false } = {}) {
     '-s', 'USE_GLFW=3',
     '-s', 'TOTAL_MEMORY=67108864',
     '-s', 'EXPORTED_RUNTIME_METHODS=ccall,HEAPF32',
+    '--post-js', path.join(RUNTIME, 'web_midi.js'),   // Web MIDI → midi_get() bridge
   ]
   const workletFlags = [
     '-DDE_AUDIO_WORKLET', '-sAUDIO_WORKLET=1', '-sWASM_WORKERS=1',

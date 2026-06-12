@@ -151,7 +151,7 @@ int  print_centered(const char *text, int x, int y, int color);    // draw text 
 int  print_right(const char *text, int right_x, int y, int color); // right-align text at right_x; returns x after last char
 int  print_scaled(const char *text, int x, int y, int color, int scale); // bigger text for titles/menus (scale 2 = double size); returns x after last char
 int  print_outline(const char *text, int x, int y, int color, int outline_color); // text with a 1px outline in all 8 directions; maximum legibility
-int  print_rot(const char *text, int x, int y, float deg, int color); // EXPERIMENTAL playground: text rotated `deg` degrees around (x,y). not yet wired into docs/help
+int  print_rot(const char *text, int x, int y, float deg, int color, int pivot); // EXPERIMENTAL playground: text rotated `deg` degrees. pivot 0 = around (x,y)=top-left, 1 = around text center. not yet wired into docs/help
 void line(int x1, int y1, int x2, int y2, int color);
 void bezier(int x0, int y0, int cx, int cy, int x1, int y1, int color);                                                    // quadratic Bezier: smooth curve from (x0,y0) to (x1,y1) pulled toward control point (cx,cy)
 void pset(int x, int y, int color);                     // set a single pixel (pairs with pget)

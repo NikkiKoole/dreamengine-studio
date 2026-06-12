@@ -1982,9 +1982,14 @@ int print_outline(const char *text, int x, int y, int color, int outline_color) 
     return print(text, x, y, color);
 }
 
-int print_rot(const char *text, int x, int y, float deg, int color) {
+int print_rot(const char *text, int x, int y, float deg, int color, int pivot) {
     PROF("print_rot");
-    DrawTextPro(cur_font(), text, (Vector2){ (float)x, (float)y }, (Vector2){ 0, 0 },
+    Vector2 org = { 0, 0 };   // pivot 0 = rotate around (x,y) = top-left of the text
+    if (pivot) {              // pivot 1 = rotate around the text's center; (x,y) is that center
+        org.x = text_width(text) / 2.0f;
+        org.y = cur_font_size() / 2.0f;
+    }
+    DrawTextPro(cur_font(), text, (Vector2){ (float)x, (float)y }, org,
                 deg, cur_font_size(), 0, palette[color % PALETTE_SIZE]);
     return x + text_width(text);
 }

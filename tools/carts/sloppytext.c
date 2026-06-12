@@ -49,30 +49,31 @@ static int print_sloppy(const char *s, int x, int y, int color,
     return cx;
 }
 
-// WILD / ransom-note — the full jumble: every glyph picks from ALL five fonts
-// (TINY 3×5 → COMIC 10×20) AND a random scale, so sizes lurch from tiny to huge.
-// All bottom-aligned to one baseline so it still reads as a line. The engine can't
-// rotate AND scale in one call (cart-land), so the split is: 1× glyphs tilt
-// (print_rot), scaled-up glyphs stand upright and big (print_scaled). The size
-// chaos carries it. Scale is capped per font (small fonts blow up most, COMIC
-// stays 1× — it's already 20px) so a single letter never runs off the line.
+// WILD / ransom-note — the size jumble, done so it stays crisp. Big letters come
+// from SCALING UP the 8×8 fonts (NORMAL/THIN double cleanly to 16/24px) or from
+// dropping in COMIC (already a chunky 20px) — never from scaling the little fonts,
+// which just turns to mush. SMALL appears at 1× as the odd tiny accent. All
+// bottom-aligned to one baseline. The engine can't rotate AND scale in one call
+// (cart-land), so 1× glyphs tilt (print_rot) and scaled 8×8 glyphs stand upright
+// and big (print_scaled). Per glyph we roll a treatment:
+//   ~50% normal 8×8 (tilted)   ~20% BIG scaled 8×8 (2–3×)   ~15% COMIC   ~15% small accent
 static int print_wild(const char *s, int x, int baseline, int color, float maxang) {
-    static const int fonts[]   = { FONT_TINY, FONT_SMALL, FONT_NORMAL, FONT_THIN, FONT_COMIC };
-    static const int heights[] = { 5,         6,          8,           8,         20 };
     int cx = x;
     for (int i = 0; s[i]; i++) {
-        if (s[i] == ' ') { cx += 8; continue; }
+        if (s[i] == ' ') { cx += 10; continue; }
         unsigned h = (unsigned)i * 2654435761u ^ (unsigned)(unsigned char)s[i] * 40503u;
-        int fi = (h >> 5) % 5u;
-        font(fonts[fi]);
-        int want  = 1 + (int)(prand(h) * 3.0f);           // roll 1..3
-        int cap   = 26 / heights[fi]; if (cap < 1) cap = 1;  // tiny→5, small→4, normal→3, comic→1
-        int scale = want < cap ? want : cap;
+        int roll = h % 20u;
+        int fnt, scale, gh;
+        if      (roll < 10) { fnt = (h & 1u) ? FONT_THIN : FONT_NORMAL; scale = 1;                 gh = 8;          }
+        else if (roll < 14) { fnt = (h & 1u) ? FONT_THIN : FONT_NORMAL; scale = 2 + (int)((h >> 5) & 1u); gh = 8 * scale; }
+        else if (roll < 17) { fnt = FONT_COMIC;                         scale = 1;                 gh = 20;         }
+        else                { fnt = FONT_SMALL;                         scale = 1;                 gh = 6;          }
+        font(fnt);
         char ch[2] = { s[i], 0 };
         int w   = text_width(ch) * scale;
-        int top = baseline - heights[fi] * scale;         // bottom-align the (scaled) cell
+        int top = baseline - gh;                          // bottom-align the (scaled) cell
         if (scale == 1) print_rot(ch, cx, top, (prand(h ^ 0x55u) * 2.0f - 1.0f) * maxang, color, 0);
-        else            print_scaled(ch, cx, top, color, scale);   // big upright pop
+        else            print_scaled(ch, cx, top, color, scale);   // big upright pop, crisp
         cx += w + 2;
     }
     font(FONT_NORMAL);
@@ -99,6 +100,6 @@ void draw(void) {
     print_sloppy("wibbly wobbly", 6, 116, CLR_GREEN, 5.0f, 1, 4.0f, S->frame);
 
     // 4) wild: all five fonts + random scale-up, bottom-aligned. tiny→huge jumble
-    print("wild (tiny..big, scaled up):", 6, 144, CLR_INDIGO);
+    print("wild (8x8 scaled up + comic):", 6, 144, CLR_INDIGO);
     print_wild("ransom NOTE", 6, 196, CLR_RED, 10.0f);
 }

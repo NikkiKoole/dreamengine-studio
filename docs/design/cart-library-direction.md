@@ -104,6 +104,18 @@ pattern at the bottom.
 > low on *new sound* (it reuses existing oscillators) but high on **new interaction**, a
 > genuinely fresh UI unlike any music cart here; the **Clavivox** (keyboard theremin) is a
 > small `note_glide` instrument. Listed here so they're not lost in STATUS.
+>
+> **Two more candidates (2026-06-11)** — each shows off an engine move no cart leans on:
+>
+> | new-sound | instrument | engine | why |
+> |---|---|---|---|
+> | ★★★☆☆ | **vibraphone** 🆕 | `MALLET` + `LFO_VOLUME` | jazzy tap bars; the **motor tremolo** (spinning-disc resonators = `instrument_lfo(…, LFO_VOLUME, rate, depth)` with a dial-able rate) is unused by any cart. Exists only as a *preset* in `mallet.c` today — make it a played instrument. Very mobile-friendly. Low effort, copies the `mallet`/`handpan` chassis. |
+> | ★★★★☆ | **Ondes Martenot** 🆕 | `SINE`/`VOICE` + live `note_pitch`/`note_vol`/`note_cutoff` + `note_glide` | the expressive ribbon synth (Radiohead / film scores): drag-ribbon = pitch, *touche d'intensité* = volume swell, timbre stops = filter. The most expressive thing buildable; a spiritual upgrade to the theremin. Extends `heldnotes.c`. No engine gap — ribbon/touche are cart-land gestures. **→ SHIPPED 2026-06-12** as the `martenot` cart (ribbon-first: X = pitch, Y = swell; touche d'intensité; combinable wave-stops; four diffuseurs; a detuned twin + slow drift for the eerie character). Its ribbon+touche chassis is the natural base for a **singing/`VOICE` instrument** — a vocal-theremin where Y morphs vowels (a strong candidate, cf. the "finger choir" row above). |
+>
+> **Checked and NOT new:** *Gamelan* — already shipped as **gamelan radio** (station #19,
+> 2026-06-09); it already does the *ombak* detuned-pair shimmer via `instrument_tune()`.
+> *Music box* — already on this backlog (rows below); refinement worth noting: glassy
+> `MALLET`/glock timbre + a hand-crank whose speed = tempo, on top of the run-down mechanic.
 
 **Buildable today** (current engines), ranked by fun × feature-showcase value:
 

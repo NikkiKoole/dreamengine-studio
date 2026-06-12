@@ -311,7 +311,7 @@ if (args[0] === '--update') {
     '-DTOUCH_CONTROLS_DEFAULT=0', '-Os', '-fno-delete-null-pointer-checks',
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
-    '-framework CoreVideo', '-framework CoreFoundation',
+    '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
     `-Wl,-dead_strip`, `-o "${BAKE_BIN}"`,
   ].join(' ')
 

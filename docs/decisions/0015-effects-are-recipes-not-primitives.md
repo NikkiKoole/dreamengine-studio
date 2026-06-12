@@ -29,6 +29,11 @@ Keep **named functions**, and close the primitive roster at the §17 taxonomy:
 "effect" is either a *recipe* of these primitives or a *refusal with the musical need
 covered elsewhere*. A new primitive must prove it cannot be a recipe.
 
+> **The concrete proof is the pedalboard test:** *would you want it as a pedal on the pedalboard?*
+> If yes it MUST be a real bus effect — a per-voice recipe (`LFO_PAN`, a `note_*` env) categorically
+> can't be an `fx_order` insert, so the pedal requirement is itself the "can't be a recipe" proof.
+> Full rule + worked examples (auto-pan, Dyno, bark): [`effects-bus-architecture.md`](../design/effects-bus-architecture.md) §0.
+
 ## Why
 The pedalboard audit. Running the classic effects through the four layers:
 

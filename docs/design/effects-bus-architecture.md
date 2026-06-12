@@ -28,6 +28,49 @@ closed — this is *routing* work, not new effects) and the §8.10 effects layer
 
 ---
 
+## 0. "I want an effect" — recipe, or real bus effect? **The pedalboard test**
+
+Before building any effect, ask one question:
+
+> **Would I ever want it as a pedal on the pedalboard?** (i.e. dropped into a chain, reordered
+> against other effects, run on a whole mix or a routed instrument.)
+
+- **Yes → it must be a *real bus effect*** — a rostered `FX_*` insert the audio thread walks via
+  `fx_order` (or a send/pinned-output stage). Examples: reverb, chorus, flanger, tape, wah, bitcrush,
+  EQ, tremolo, **stereo auto-pan**.
+- **No — it only ever shapes one voice/note inside one cart, never reordered → a *recipe*** is right:
+  a per-voice LFO (`instrument_lfo` + `LFO_*`), an envelope (`instrument_env`), a `note_*` sweep, a
+  filter move. Examples: a clav's per-note filter-quack, a vibrato on one held pad, the **bark**
+  (the engine `morph` macro).
+
+**Why this is decisive, not taste:** the pedalboard runs **bus inserts**. A per-voice recipe
+(`LFO_PAN`, a `note_cutoff` env, …) is *categorically not an insert* — it cannot be placed in an
+`fx_order` chain. So "I'll make it a per-voice recipe" and "I want it as a pedal" are **mutually
+exclusive**. Wanting the pedal *forces* the bus-effect form. This **sharpens
+[decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md)** ("a new primitive must
+prove it can't be a recipe"): **"it needs to be a pedalboard pedal / a reorderable bus insert" IS that
+proof** — a recipe simply can't be one.
+
+**Then, before minting a brand-new `FX_*` kind, check if it's a MODE of an effect you already have**
+(0015's "extend, don't bloat"). The clearest case: **stereo auto-pan is just *stereo tremolo*** — the
+same amplitude LFO applied **antiphase** to L/R instead of in-phase. So it's best added as a stereo
+mode/shape of the existing `tremolo` insert, not a whole new pedal — one constant + a few lines, and
+the TREMOLO pedal gains a stereo toggle.
+
+**Worked examples (the epiano machines, 2026-06):**
+
+| want | verdict | why |
+|---|---|---|
+| **stereo auto-pan** (Rhodes Suitcase vibrato) | **real bus effect** (a stereo mode of `tremolo`) | you want it as a pedal AND it pans the whole output incl. the tail — the per-voice `LFO_PAN` recipe can't be an insert |
+| **Dyno** (bright Rhodes) | **recipe of existing pedals** | = `chorus` + `eq` presence — both are *already* rostered bus effects/pedals; no new effect |
+| **bark / dig-in** | **recipe** (per-instrument) | it's the engine `morph` macro on one voice; never a pedal |
+
+So the rule of thumb when an effect idea shows up: **picture it as a stompbox first.** If it belongs
+on the board, build the bus effect (and check it isn't a mode of an existing one); if it only ever
+lives inside one instrument's voice, keep it a recipe.
+
+---
+
 ## 1. The mental model: the engine is already a mixing console
 
 This is the load-bearing realization. The audio render loop in `runtime/sound.h` already

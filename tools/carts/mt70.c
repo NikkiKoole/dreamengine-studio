@@ -85,6 +85,7 @@ static const int bsemi[7] = { 1, 3, -1, 6, 8, 10, -1 };
 #define NOFINGER (-999)
 #define FNG_KB   (-1234)       // "held by the computer keyboard"
 #define FNG_DEMO (-5678)       // "held by the demo sequencer"
+#define FNG_MIDI (-7777)       // "held by a MIDI keyboard key"
 typedef struct {
     int  handle[3], nh;
     int  finger;               // NOFINGER = nobody holds it (may still be RINGING)
@@ -323,6 +324,16 @@ void update(void) {
     for (int s = 0; s < NKBKEY; s++) {
         if (keyp(KBMAP[s]) && ks[s].finger == NOFINGER) press_semi(s, FNG_KB);
         if (keyr(KBMAP[s]) && ks[s].finger == FNG_KB)   lift_semi(s);
+    }
+
+    // a plugged-in MIDI keyboard (engine midi_get; macOS) — its notes land in the
+    // C3..C5 window (mn - KB_BASE); notes outside the 2-octave range are ignored
+    int mn, mv, mt2;
+    while ((mt2 = midi_get(&mn, &mv)) != 0) {
+        int s = mn - KB_BASE;
+        if (s < 0 || s >= NSEMI) continue;
+        if (mt2 > 0) { if (ks[s].finger == NOFINGER) press_semi(s, FNG_MIDI); }
+        else         { if (ks[s].finger == FNG_MIDI) lift_semi(s); }
     }
 
     // touch: live fingers claim keys / glissando (touchpiano pattern)

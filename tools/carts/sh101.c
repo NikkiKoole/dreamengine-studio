@@ -629,6 +629,11 @@ void init(void) {
 }
 
 void update(void) {
+    // a plugged-in MIDI keyboard plays the mono voice directly (engine midi_get; macOS).
+    // absolute pitches — independent of the on-screen octave, like a real keyboard.
+    int mn, mv, mt;
+    while ((mt = midi_get(&mn, &mv)) != 0) { if (mt > 0) key_down(mn); else key_up(mn); }
+
     for (int i = 0; i < NKMAP; i++) {
         if (keyp(KMAP[i].k)) { kmap_midi[i] = base + KMAP[i].semi; key_down(kmap_midi[i]); }
         if (keyr(KMAP[i].k) && kmap_midi[i] != NONE) { key_up(kmap_midi[i]); kmap_midi[i] = NONE; }

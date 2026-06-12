@@ -14,12 +14,12 @@ STATE {
     int   fi;        // font index into FONTS[]
 };
 
-static const int   FONTS[]  = { FONT_NORMAL, FONT_LARGE, FONT_BOOT,      FONT_SMOOTH };
-static const char *FNAMES[] = { "8x8",       "MDA 9x14",  "VGA boot 9x16", "smooth 16x16 (epx)" };
-#define NFONTS 4
+static const int   FONTS[]  = { FONT_NORMAL, FONT_SMALL, FONT_TINY, FONT_LARGE,  FONT_BOOT,   FONT_SMOOTH,    FONT_COMIC,    FONT_THIN };
+static const char *FNAMES[] = { "NORMAL 8x8", "SMALL 4x6", "TINY 3x5", "LARGE 9x14", "BOOT 9x16", "SMOOTH 16x16", "COMIC 10x20", "THIN CGA 8x8" };
+#define NFONTS 8
 
 void init(void) {
-    S->fi = 3;   // show off the smoothed font by default; X cycles through them
+    S->fi = 6;   // show off the new comic font by default; X cycles through them all
 }
 
 void update(void) {
@@ -36,12 +36,16 @@ void update(void) {
 void draw(void) {
     int p = S->pivot;
     cls(CLR_DARK_BLUE);
+
+    // the headline: the CURRENT font's name rendered IN that font, centered up
+    // top — you read the name and see the glyphs at once. X cycles all 7 fonts.
+    font(FONTS[S->fi]);
+    print_centered(FNAMES[S->fi], SCREEN_W / 2, 4, CLR_YELLOW);
+
     // chrome stays in the default 8x8 so labels don't move as we toggle
     font(FONT_NORMAL);
-    print("print_rot playground", 6, 5, CLR_WHITE);
-    print(p ? "pivot: CENTER (z)" : "pivot: top-left (z)", 6, 16, CLR_ORANGE);
-    char fb[32]; snprintf(fb, sizeof fb, "font: %s (x)", FNAMES[S->fi]);
-    print(fb, 6, 38, CLR_BLUE);
+    print("print_rot  (X cycles font)", 6, 30, CLR_WHITE);
+    print(p ? "pivot: CENTER (z)" : "pivot: top-left (z)", 6, 41, CLR_ORANGE);
     print("< > angle  space spin", 6, SCREEN_H - 12, CLR_INDIGO);
 
     // "bigger & wider" with no new asset: the boot font scaled 2x (DOS 40-col style)
@@ -78,5 +82,6 @@ void draw(void) {
 
     char buf[24];
     snprintf(buf, sizeof buf, "angle %d", (int)S->angle);
-    print(buf, 6, 27, CLR_PINK);
+    font(FONT_NORMAL);
+    print(buf, 6, 52, CLR_PINK);
 }

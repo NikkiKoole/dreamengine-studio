@@ -24,6 +24,8 @@
 const fs   = require('fs')
 const zlib = require('zlib')
 const path = require('path')
+const opentype = require('./vendor/opentype.cjs')
+const { contoursFromPath, rasterize } = require('./font-bake.js')
 
 const ROOT = path.join(__dirname, '..')
 const COLS = 16, ROWS = 16
@@ -79,7 +81,9 @@ function writeAtlas(glyphs, gw, gh, pngName, hdrName, sym, note) {
 
 // ── source 1: IBM ROM dump → 9-wide glyph grids ──
 const NINTH_LO = 0xC0, NINTH_HI = 0xDF
-function romGlyphs(srcFile, rows) {
+// width 9 = IBM MDA/VGA cell (8 pixels + the box-drawing 9th column); width 8 =
+// true CGA cell (no 9th column, the chip rendered glyphs edge-to-edge at 8px).
+function romGlyphs(srcFile, rows, width = 9) {
   const rom = fs.readFileSync(path.join(ROOT, 'tools/fonts', srcFile))
   if (rom.length !== 256 * rows) { console.error(`${srcFile}: expected ${256 * rows} bytes, got ${rom.length}`); process.exit(1) }
   const glyphs = []
@@ -87,7 +91,7 @@ function romGlyphs(srcFile, rows) {
     const g = []
     for (let y = 0; y < rows; y++) {
       const row = rom[code * rows + y], r = []
-      for (let x = 0; x < 9; x++) {
+      for (let x = 0; x < width; x++) {
         if (x < 8) r.push((row >> (7 - x)) & 1)
         else r.push((code >= NINTH_LO && code <= NINTH_HI) ? (row & 1) : 0)  // 9th col copies col 8
       }
@@ -148,6 +152,42 @@ function smoothGlyphs() {
   return glyphs
 }
 
+// ── source 3: rasterize a TTF into fixed gw×gh cells (printable ASCII 32–127) ──
+// Reuses font-bake.js's outline→coverage path. Monospace glyphs are centred in
+// the cell by advance width; the baseline is placed so descenders clear the
+// bottom edge. Non-printable codes (0–31, 128–255) stay blank — this atlas loads
+// with firstChar 0 like the ROM fonts, so cell index == codepoint.
+// Hand cleanups applied AFTER rasterization, so they survive every re-bake.
+// Keyed by character → list of [x, y, value] (value 1 = set ink, 0 = clear).
+// Coordinates are cell-local (0..gw-1, 0..gh-1; y down). Add entries as the
+// auto-rasterized glyph needs a stray pixel removed or a gap filled.
+const COMIC_PATCHES = {
+  // '&': [[10, 3, 0]],   // example: clear a stray pixel top-right of the ampersand
+}
+
+function ttfGlyphs(fontFile, px, gw, gh, threshold = 0.5, patches = {}) {
+  const buf  = fs.readFileSync(path.join(ROOT, 'editor/public', fontFile))
+  const font = opentype.parse(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength))
+  const scale = px / font.unitsPerEm
+  const advPx = font.charToGlyph('M').advanceWidth * scale   // monospace: same for all
+  const ox    = (gw - advPx) / 2                              // centre the advance box in the cell
+  const by    = Math.round(gh + font.descender * scale)       // baseline: leave room for descenders
+  const glyphs = []
+  for (let code = 0; code < 256; code++) {
+    const g = Array.from({ length: gh }, () => Array(gw).fill(0))
+    if (code >= 32 && code <= 127) {
+      const p = font.getPath(String.fromCharCode(code), ox, by, px)
+      const cov = rasterize(contoursFromPath(p), gw, gh)
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++)
+        if (cov[y * gw + x] >= threshold) g[y][x] = 1
+      const fixes = patches[String.fromCharCode(code)]
+      if (fixes) for (const [x, y, v] of fixes) if (y >= 0 && y < gh && x >= 0 && x < gw) g[y][x] = v
+    }
+    glyphs.push(g)
+  }
+  return glyphs
+}
+
 // ── generate everything ──
 writeAtlas(romGlyphs('MDA9.F14', 14), 9, 14, 'font9x14.png', 'font9x14_data.h', 'FONT9X14',
   'IBM MDA 9×14 atlas (source: int10h MDA9.F14, public-domain ROM dump).')
@@ -155,3 +195,7 @@ writeAtlas(romGlyphs('VGA9.F16', 16), 9, 16, 'font9x16.png', 'font9x16_data.h', 
   'IBM VGA 9×16 / BIOS boot font atlas (source: int10h VGA9.F16, public-domain ROM dump).')
 writeAtlas(smoothGlyphs(), 16, 16, 'font16x16.png', 'font16x16_data.h', 'FONT16X16',
   'dos_8x8 default upscaled 8×8→16×16 via EPX/Scale2x (diagonals smoothed, stays 2-colour).')
+writeAtlas(ttfGlyphs('ComicMono-Bold.ttf', 18, 10, 20, 0.5, COMIC_PATCHES), 10, 20, 'fontcomic10x20.png', 'fontcomic10x20_data.h', 'FONTCOMIC10X20',
+  'Comic Mono Bold rasterized at 18px into 10×20 cells (source: ComicMono-Bold.ttf, MIT).')
+writeAtlas(romGlyphs('CGA-TH.F08', 8, 8), 8, 8, 'fontthin8x8.png', 'fontthin8x8_data.h', 'FONTTHIN8X8',
+  'IBM CGA "thin" 8×8 atlas — the narrow alternate CGA ROM font (source: int10h CGA-TH.F08, public-domain ROM dump).')

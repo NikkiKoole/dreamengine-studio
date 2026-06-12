@@ -16,7 +16,7 @@
 ## Where we are today
 
 > **Note (2026-06-12):** the "one font" framing below is the *original* state. There are now
-> **six** fonts via `font()` — see [The font family + the bitmap-font pipeline](#the-font-family--the-bitmap-font-pipeline-2026-06-12-session-12) below for the current roster and how to add more.
+> **seven** fonts via `font()` — see [The font family + the bitmap-font pipeline](#the-font-family--the-bitmap-font-pipeline-2026-06-12-session-12) below for the current roster and how to add more.
 
 **One font, drawn two ways.** The in-game font is `dos_8x8` — a full DOS-OEM 8×8
 bitmap sheet (16×16 grid), loaded via `LoadFontFromImage(..., YELLOW, 0)` with
@@ -139,9 +139,9 @@ the sheet is now full printable ASCII. Known-weak hand-drawn glyphs to revisit: 
 
 ## The font family + the bitmap-font pipeline (2026-06-12, session 12)
 
-Added three more fonts, so the `font()` family is now six, and — this is the part worth
-keeping — a **reproducible generator** (`tools/gen-rom-font.js`) so the next font is a
-recipe, not archaeology.
+Added three more fonts (then `FONT_COMIC` later the same day), so the `font()` family is now
+seven, and — this is the part worth keeping — a **reproducible generator**
+(`tools/gen-rom-font.js`) so the next font is a recipe, not archaeology.
 
 | constant | cell | source | character |
 |---|---|---|---|
@@ -151,6 +151,7 @@ recipe, not archaeology.
 | `FONT_LARGE`  | 9×14 | IBM **MDA** ROM dump  | green-screen terminal |
 | `FONT_BOOT`   | 9×16 | IBM **VGA** ROM dump  | the BIOS/boot screen |
 | `FONT_SMOOTH` | 16×16| `dos_8x8` → EPX upscale| rounded-diagonal pixel; rotates cleanest |
+| `FONT_COMIC`  | 10×20| `ComicMono-Bold.ttf` rasterized @18px | friendly rounded handwriting; titles/dialogue |
 
 Origin: wanting **rotated** text (the experimental `print_rot`) to read better. The 8×8 is
 the worst case for rotation — too few pixels, so diagonals stair-step hard. Taller/denser
@@ -172,7 +173,7 @@ All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` p
 - Sheet size = `cells*cell + (cells+1)` per axis (the +1s are the separator lattice). A
   9×14 font → `16*9+17 = 161` wide, `16*14+17 = 241` tall.
 
-### Two ways to fill an atlas (both in `gen-rom-font.js`)
+### Three ways to fill an atlas (all in `gen-rom-font.js`)
 
 1. **IBM ROM dump** (`FONT_LARGE`, `FONT_BOOT`). Raw `*.F14`/`*.F16` files from VileR's
    int10h collection live in `tools/fonts/`. Each is 256 glyphs × H bytes, one byte per
@@ -186,6 +187,18 @@ All fonts load through the **one** `LoadFontFromImage(img, YELLOW, firstChar)` p
    filter types) for this. *Note:* one EPX pass on an 8×8 source only rounds corners; for
    genuinely smooth curves you'd want hq4x (8→32, adds grey AA pixels — no longer crisp pixel)
    or a font drawn natively at 16px.
+3. **TTF rasterization** (`FONT_COMIC`). `ttfGlyphs(fontFile, px, gw, gh, threshold, patches)`
+   reuses `font-bake.js`'s outline→coverage path (`contoursFromPath` + `rasterize`, both now
+   exported) to bake a real TrueType font into fixed cells. Monospace glyphs are centred in the
+   cell by advance width; the baseline is placed so descenders clear the bottom edge; printable
+   ASCII 32–127 fill the atlas (firstChar 0, so cell index == codepoint). **Pick `px` from the
+   font's own metrics, not by eye** — read `unitsPerEm`/cap-height/advance/descender and find the
+   `px` where caps and advance land on whole pixels (Comic Mono Bold: cap 0.576em, advance 0.545em,
+   box ~1.13em → px 18 gives cap≈8, advance≈8, box≈20, hence the 10×20 cell). The optional
+   `patches` table (`COMIC_PATCHES`) applies per-glyph pixel set/clear *after* rasterization, so
+   hand cleanups survive every re-bake — keyed by character, `[x, y, value]`, cell-local coords.
+   **Only works on monospace TTFs** — a proportional font baked into fixed cells loses its spacing
+   (the engine's `print` is monospace: `text_width = strlen × cell`).
 
 ### Wiring a new font in (the mechanical checklist)
 

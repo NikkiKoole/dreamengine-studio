@@ -19,6 +19,8 @@
 #include "font9x14_data.h"
 #include "font9x16_data.h"
 #include "font16x16_data.h"
+#include "fontcomic10x20_data.h"
+#include "fontthin8x8_data.h"
 #include "sprites_data.h"
 #include "map_data.h"
 #include "sound.h"
@@ -147,6 +149,8 @@ static Font            font_tiny  = {0};
 static Font            font_large = {0};
 static Font            font_boot  = {0};
 static Font            font_smooth = {0};
+static Font            font_comic = {0};
+static Font            font_thin = {0};
 static int             active_font_id = FONT_NORMAL;
 static bool            custom_font = false;
 static Color           palette[PALETTE_SIZE];
@@ -1536,6 +1540,18 @@ int main(int argc, char **argv) {
         SetTextureFilter(font_smooth.texture, TEXTURE_FILTER_POINT);
         UnloadImage(img);
     }
+    {
+        Image img = LoadImageFromMemory(".png", FONTCOMIC10X20_DATA, FONTCOMIC10X20_DATA_LEN);
+        font_comic = LoadFontFromImage(img, (Color){ 255, 255, 0, 255 }, 0);   // Comic Mono Bold @ 18px, 10×20 cells
+        SetTextureFilter(font_comic.texture, TEXTURE_FILTER_POINT);
+        UnloadImage(img);
+    }
+    {
+        Image img = LoadImageFromMemory(".png", FONTTHIN8X8_DATA, FONTTHIN8X8_DATA_LEN);
+        font_thin = LoadFontFromImage(img, (Color){ 255, 255, 0, 255 }, 0);    // IBM CGA "thin" 8×8, narrow-stroke alternate
+        SetTextureFilter(font_thin.texture, TEXTURE_FILTER_POINT);
+        UnloadImage(img);
+    }
 
     if (SPRITES_DATA_LEN > 0) {
         Image img = LoadImageFromMemory(".png", SPRITES_DATA, SPRITES_DATA_LEN);
@@ -1585,6 +1601,8 @@ int main(int argc, char **argv) {
     if (font_large.texture.id > 0) UnloadFont(font_large);
     if (font_boot.texture.id  > 0) UnloadFont(font_boot);
     if (font_smooth.texture.id > 0) UnloadFont(font_smooth);
+    if (font_comic.texture.id > 0) UnloadFont(font_comic);
+    if (font_thin.texture.id > 0) UnloadFont(font_thin);
     if (pal_shader_ok) UnloadShader(pal_shader);
     if (spritesheet.width > 0) UnloadTexture(spritesheet);
     if (spritesheet_img.data) UnloadImage(spritesheet_img);
@@ -1971,7 +1989,7 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
 // font state + print helpers
 // ------------------------------------------------------------
 
-void font(int f) { active_font_id = (f == FONT_SMALL || f == FONT_TINY || f == FONT_LARGE || f == FONT_BOOT || f == FONT_SMOOTH) ? f : FONT_NORMAL; }
+void font(int f) { active_font_id = (f == FONT_SMALL || f == FONT_TINY || f == FONT_LARGE || f == FONT_BOOT || f == FONT_SMOOTH || f == FONT_COMIC || f == FONT_THIN) ? f : FONT_NORMAL; }
 
 static Font cur_font(void) {
     if (active_font_id == FONT_SMALL) return font_small;
@@ -1979,6 +1997,8 @@ static Font cur_font(void) {
     if (active_font_id == FONT_LARGE) return font_large;
     if (active_font_id == FONT_BOOT)  return font_boot;
     if (active_font_id == FONT_SMOOTH) return font_smooth;
+    if (active_font_id == FONT_COMIC) return font_comic;
+    if (active_font_id == FONT_THIN) return font_thin;
     return game_font;
 }
 

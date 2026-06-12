@@ -147,6 +147,8 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
 #define FONT_LARGE   3   // IBM MDA 9×14 font — tall retro terminal glyphs; nostalgic + reads better rotated (print_rot)
 #define FONT_BOOT    4   // IBM VGA 9×16 font — the BIOS/boot-screen font; pair with print_scaled for big wide titles
 #define FONT_SMOOTH  5   // the 8×8 default upscaled to 16×16 via EPX/Scale2x — rounded diagonals, still crisp pixel; rotates cleanest
+#define FONT_COMIC   6   // Comic Mono Bold baked to pixels (18px, 10×20) — friendly rounded handwriting; great for titles/dialogue
+#define FONT_THIN    7   // IBM CGA "thin" 8×8 — the narrow-stroke alternate CGA ROM font; lighter than the default 8×8
 void font(int f);        // set active font for all print calls; font(FONT_NORMAL) resets to the default 8×8
 int  text_width(const char *text);                                 // pixel width using the active font — for centering in your own boxes
 int  print(const char *text, int x, int y, int color);             // returns x after the last char (so you can chain or check if text went offscreen)

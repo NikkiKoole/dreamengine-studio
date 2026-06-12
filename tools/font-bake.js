@@ -153,4 +153,6 @@ function bakeBanner(fontPath, text, slotCols, slotRows, { color = 7, aa = -1, ou
   return split(c)
 }
 
-module.exports = { loadFont, measure, bakeText, bakeBanner }
+// contoursFromPath + rasterize are the low-level glyph→coverage primitives;
+// tools/gen-rom-font.js reuses them to bake a TTF into a fixed-cell font atlas.
+module.exports = { loadFont, measure, bakeText, bakeBanner, contoursFromPath, rasterize }

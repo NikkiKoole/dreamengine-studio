@@ -289,15 +289,21 @@ at once, which nothing currently wants.
 ## What shipped (2026-06-12)
 
 Built and committed this session — see `STATUS.md` for the canonical ledger:
-- Engine MIDI input (`midi_get`/`midi_held`/`midi_bend`/`midi_present`, CoreMIDI),
-  hardware-verified on an Arturia KeyStep.
-- `keybed.h` with the touch/mouse/QWERTY/MIDI router + discrete voice manager +
-  drawn manual + geometry helpers. API grew, via battle-testing four carts, to:
-  `keybed_config/layout/velocity/update/draw`, `keybed_held/glow/handle/finger/octave`,
-  `keybed_white_rect/black_rect/white_midi/midi_at`, `keybed_octave_shift`,
-  `keybed_on_note` (pre-note hook).
-- Migrated: **epiano, moog, touchpiano, mellotron** (each plays from a MIDI keyboard
-  now; ~210 lines of duplicated keybed code removed net).
+- **Engine MIDI input** — `midi_get`/`midi_held`/`midi_bend`/`midi_present`/`midi_name`.
+  **Native** = CoreMIDI (hot-plug, device name), hardware-verified on an Arturia KeyStep.
+  **Web** = a JS bridge (`runtime/web_midi.js`, emcc `--post-js`) driving
+  `navigator.requestMIDIAccess()` into the SAME ring — so a USB keyboard plays carts in
+  desktop Chrome/Edge/Firefox (not Safari/iOS), over https/localhost, with a connect toast.
+- `keybed.h` — the touch/mouse/QWERTY/MIDI router + discrete voice manager + manual-voice
+  mode (`keybed_manage_voices`/`on_note`/`on_off`) + glissando toggle + drawn manual +
+  geometry helpers (`keybed_config/layout/velocity/update/draw`, `keybed_held/glow/handle/
+  finger/octave`, `keybed_white_rect/black_rect/white_midi/midi_at`, `keybed_octave_shift`).
+- **Migrated (7):** epiano, moog, touchpiano, mellotron, organ, solina, piano — unified
+  input + velocity, GarageBand keyboard layout everywhere; ~480 lines of duplicated keybed
+  code removed net.
+- **Exceptions (2):** mt70, sh101 — MIDI wired cart-side via `midi_get()`; full keybed.h
+  adoption deferred (their headers + the shelf say why).
 
-Still open: `solo.h` MIDI-snap, martenot ribbon (`midi_get` direct), the Web MIDI
-backend (desktop Chrome).
+Still open: full keybed.h adoption for mt70/sh101, `solo.h` MIDI-snap (smart-screen /
+free-MIDI), martenot ribbon (`midi_get` direct), velocity/pitch-bend on the exceptions,
+a native device-name toast.

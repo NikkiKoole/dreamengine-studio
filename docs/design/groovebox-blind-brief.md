@@ -111,9 +111,11 @@ later is a one-row change.
 
 ---
 
-_Built: `tools/carts/groovebox.c` (Phase 2). Chassis = `drummachine` grid + `ui.h` rack + a held
-pumped pad. The PUMP is faked cart-side (kick-triggered cutoff duck — verified ducking the pad
-openness 0.97 → 0.42 on each kick); CRUSH/EQ/TAPE/SPACE + the `fx_order` CRUSH↔EQ toggle are real.
-GLUE is the drawn-dormant seat for the next bus effect. **No `sound.h` change.** When real
-`sidechain()` / a bus compressor ship, they land on this rack — PUMP rewires under the same knob,
-GLUE wakes up._
+_Built (Phase 2), then UPGRADED through three engine landings: reverb_insert (SPACE became a real
+master insert, ORDER toggle → reverb↔crush), and finally **effects-bus Increment D — the real
+`sidechain()`/`glue()`** shipped, so the faked cart-side pump was REWIRED onto the engine: PUMP =
+`sidechain_key(SL_KICK,0,1)` + `sidechain(0,0,amount,…)` ducking the whole master mix; GLUE =
+`glue(0,…)` self-keyed bus comp. They share the one master comp (engine: one per bus) and are
+exclusive in the UI. The cart was the acceptance test that surfaced that one-comp-per-bus constraint.
+PUMP knob stayed put exactly as the brief predicted — only the wiring under it changed. The faked
+duck now lives only in the meter (a visual mirror)._

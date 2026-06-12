@@ -10,13 +10,13 @@
 // breathe. So: a 6-row × 16-step grid plays itself, freeing both hands to ride
 // the rack along the bottom.
 //
-// The headline is the PUMP (sidechain). A real summed-bus sidechain compressor
-// isn't in the engine yet — so the pump is FAKED cart-side exactly the way the
-// `house` station fakes it: a kick-triggered envelope ducks the held PAD voice
-// every time the kick fires (see docs/design/groovebox-blind-brief.md). When a
-// real `sidechain()` ships, the PUMP knob stays put and only the wiring under it
-// changes — that's why this cart is "a home for upcoming effects." The GLUE slot
-// is the next tenant: drawn-but-dormant, waiting for a bus compressor.
+// The headline is the PUMP — a REAL summed-bus sidechain (effects-bus Increment D):
+// sidechain_key(SL_KICK, 0, 1) routes the kick as the trigger, and sidechain(0, 0,
+// amount, …) ducks the WHOLE master mix on every kick — bass, stab, pad all breathe
+// together (not the old per-voice filter fake). GLUE is the same engine compressor
+// self-keyed (glue(), no trigger) — the mix squashed as one lump. The engine has one
+// comp per bus, so PUMP and GLUE share the master comp and the UI keeps them exclusive.
+// The PUMP meter mirrors the duck so you can see the mix breathe.
 //
 // Everything else on the rack is REAL and already in the engine, here shown on a
 // full mix for the first time: CRUSH (summed bitcrush — the SP-1200 grit that
@@ -75,14 +75,13 @@ static int  flash[ROWS];               // frame() each row last fired
 static int  tempo    = 122;
 static int  chordIdx = 0, lastChord = -1;
 
-static int   padH[3] = { -1, -1, -1 }; // the held, pumped pad chord
-static float pumpEnv = 0;              // 1 the instant the kick fires, decays → 0
-static float openness = 1;             // pad "openness" 0..1, for the meter
-static int   lastPadCut = -1;          // last cutoff pushed to the pad (skip redundant)
+static int   padH[3] = { -1, -1, -1 }; // the held pad chord
+static float pumpEnv = 0;              // VISUAL only — 1 on each kick, decays (mirrors the engine duck on the meter)
+static float openness = 1;             // meter level 0..1
 
 // rack knobs (0..1). EQ is the engine's real 3 bands (0.5 = flat) — a louder EQ is
 // what makes the fx_order CRUSH↔EQ toggle audible (gentle = no difference to hear).
-static float k_pump = 0.65f, k_crush = 0.0f, k_tape = 0.20f, k_space = 0.30f;
+static float k_pump = 0.60f, k_glue = 0.0f, k_crush = 0.0f, k_tape = 0.20f, k_space = 0.30f;
 static float k_eqLo = 0.5f, k_eqMid = 0.5f, k_eqHi = 0.5f;
 static bool  orderSwapped = false;     // CRUSH after eq (default) vs before
 
@@ -112,7 +111,7 @@ static void play_row(int r) {
     switch (r) {
         case 0: hit(72, INSTR_NOISE, 2, 12);                 // kick click...
                 hit(34, SL_KICK, 6, 250);                    // ...over the sine boom
-                pumpEnv = 1.0f; break;                       // ← the sidechain trigger
+                pumpEnv = 1.0f; break;                       // ← visual meter only (real trigger = the kick's level via sidechain_key)
         case 1: hit(64, SL_CLAP, 4, 35);                     // clap — three hands
                 schedule_hit(12, 64, SL_CLAP, 3, 30);
                 schedule_hit(24, 64, SL_CLAP, 4, 60); break;
@@ -157,6 +156,8 @@ void init() {
     // start the held pad chord — it breathes from frame one
     for (int k = 0; k < 3; k++) padH[k] = note_on(SL_PAD, CHORD[0][k], 6);
 
+    sidechain_key(SL_KICK, 0, 1.0f);   // the kick IS the sidechain trigger (key 0) — drives the real PUMP
+
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
 }
 
@@ -164,7 +165,7 @@ void init() {
 // crush/tape/eq every frame (60×/s) churns the bus DSP and was the source of the
 // stutter — these are set-and-hold, not per-frame controls.
 static void apply_fx(void) {
-    static float aCrush = -1, aLo = -2, aMid = -2, aHi = -2, aTape = -1, aSpace = -1;
+    static float aCrush = -1, aLo = -2, aMid = -2, aHi = -2, aTape = -1, aSpace = -1, aPump = -1, aGlue = -1;
     if (k_crush != aCrush) {
         if (k_crush < 0.02f) crush(8, 6, 0);                 // mix 0 = off
         else                 crush(12.0f - 9.0f * k_crush, 6, k_crush);
@@ -182,6 +183,14 @@ static void apply_fx(void) {
     if (k_space != aSpace) {
         reverb_insert(0.62f, 0.40f, k_space);    // a REAL master insert (mix 0 = bypass), not a send —
         aSpace = k_space;                        // so its chain position (ORDER toggle) is audible
+    }
+    // PUMP & GLUE share the ONE master compressor (engine: one comp per bus). PUMP = kick-keyed
+    // sidechain; GLUE = self-keyed bus comp. The UI keeps them exclusive (raising one zeroes the other).
+    if (k_pump != aPump || k_glue != aGlue) {
+        if (k_pump > 0.02f)      sidechain(0, 0, k_pump, 1, 140);   // the real summed-bus pump (kick → key 0)
+        else if (k_glue > 0.02f) glue(0, k_glue, 8, 150);          // the bus-glue compressor
+        else                     sidechain(0, 0, 0.0f, 1, 140);     // both off → master comp dormant
+        aPump = k_pump; aGlue = k_glue;
     }
 }
 
@@ -205,15 +214,10 @@ void update() {
             if (grid[r][cur_step]) { play_row(r); flash[r] = frame(); }
     }
 
-    // ── THE PUMP (faked sidechain) — duck the pad on every kick, recover ──
-    pumpEnv *= 0.90f;                                        // release (fixed for v1)
-    openness = 1.0f - k_pump * pumpEnv;                      // 0 = ducked shut, 1 = open
-    int padCut = 350 + (int)(1900 * openness);
-    if (padCut != lastPadCut) {                              // only push when it moved
-        for (int k = 0; k < 3; k++)
-            if (padH[k] >= 0) note_cutoff(padH[k], padCut);
-        lastPadCut = padCut;
-    }
+    // ── PUMP meter (VISUAL) — the real duck now happens in the ENGINE (master sidechain, keyed off
+    // the kick via sidechain_key). This kick-triggered envelope just mirrors it on the meter below. ──
+    pumpEnv *= 0.90f;                                        // decays after each kick
+    openness = 1.0f - (k_pump > 0.02f ? k_pump : k_glue) * pumpEnv;  // shows whichever comp is active
 
     // ── the REAL master rack — re-applied ONLY when a knob actually moved ──
     apply_fx();
@@ -255,18 +259,6 @@ void update() {
     watch("chord",    "%s", CNAME[chordIdx]);
     watch("openness", "%.2f", openness);
 #endif
-}
-
-// a knob slot drawn but DORMANT — the panel's home for the next bus effect
-static void glue_slot(int x, int y) {
-    int r = UI_KNOB_R;
-    circfill(x, y, r, CLR_DARKER_GREY);
-    circ(x, y, r, CLR_DARK_GREY);
-    line(x, y, x, y - (r - 3), CLR_DARK_GREY);
-    print("GLUE", x - text_width("GLUE") / 2, y + r + 3, CLR_DARK_GREY);
-    font(FONT_SMALL);
-    print("soon", x - text_width("soon") / 2, y - 3, CLR_DARK_GREY);
-    font(FONT_NORMAL);
 }
 
 void draw() {
@@ -317,14 +309,14 @@ void draw() {
     ui_begin();
     int ky = 172, kx[8] = { 20, 60, 100, 140, 180, 220, 260, 300 };
     font(FONT_SMALL);
-    ui_knob(&k_pump,  kx[0], ky, "PUMP");
+    if (ui_knob(&k_pump, kx[0], ky, "PUMP") && k_pump > 0.02f) k_glue = 0.0f;   // PUMP & GLUE share one master comp —
     ui_knob(&k_crush, kx[1], ky, "CRUSH");
     ui_knob(&k_eqLo,  kx[2], ky, "LO");
     ui_knob(&k_eqMid, kx[3], ky, "MID");
     ui_knob(&k_eqHi,  kx[4], ky, "HI");
     ui_knob(&k_tape,  kx[5], ky, "TAPE");
     ui_knob(&k_space, kx[6], ky, "SPACE");
-    glue_slot(kx[7], ky);
+    if (ui_knob(&k_glue, kx[7], ky, "GLUE") && k_glue > 0.02f) k_pump = 0.0f;   // … so raising one zeroes the other
     // bracket the three EQ bands as one 3-band cluster
     line(kx[2] - 9, ky - 13, kx[4] + 9, ky - 13, CLR_DARK_GREY);
     print("EQ", kx[3] - text_width("EQ") / 2, ky - 11, CLR_LIGHT_GREY);

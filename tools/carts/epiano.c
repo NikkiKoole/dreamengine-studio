@@ -1,44 +1,28 @@
-// epiano — INSTR_EPIANO showcase: a piano manual + the three engine macros + a WAH + TREMOLO + a PHASER.
-//
-// The fifth modeled ENGINE: Rhodes / Wurlitzer / Clavinet in ONE. Every key sums 12 decaying
-// inharmonic sine modes and pushes them through a PICKUP NONLINEARITY — the bark/buzz/honk
-// that makes it sound electric instead of a dull bell. It's STRUCK and rings down on its own
-// (like pluck/mallet): hold a key and it sustains+decays, release and the damper stops it.
-// The same three knobs every engine answers:
-//   harmonics = instrument  (snapped: Rhodes ·· Wurli ·· Clav — each its own ratio table + pickup)
-//   timbre    = brightness  (mellow, centered pickup .. bright/snappy, offset + hard hammer)
-//   morph     = bark        (0 clean fundamental .. dig-in growl — the pickup driven hard)
-//
-// THE WAH (V toggles off / on) — the funky-clav-through-a-wah, three layers stacked:
-//   • a per-note resonant filter QUACK (FILTER_LOW + ENV_CUTOFF) — each note's bite, the navkit
-//     "Clav Funky" filter-env (a real D6 uses exactly this per-note envelope filter)
-//   • a per-voice LFO PUMP on that filter — the rhythmic "wah-WAH-wah" (a follower alone opens
-//     once on attack and can't oscillate, so the motion is its own LFO; ~2.5-6 Hz)
-//   • the bus FOLLOWER (instrument_wah) — the dynamic "talking" character on the summed signal
-// The clav preset boots into it. The super-70s funk; navkit's Clav-Funky filter-env + a wah pedal.
-// (Earlier this cart toured auto/env/navkit flavours too — cut once only this one earned its place
-//  by ear; the rest collapsed to "quack + an LFO at some rate," a slider not a mode. The realistic
-//  auto-wah being a BUS effect, not a per-voice filter, is the "wah detour" scar — 0015 / §8.10.1.)
-// (The DX/digital EP is INSTR_FM; this is the real one.)
-//
-// THE ENGINE got two funk upgrades (2026-06-11, sound.h): a velocity+hardness-scaled TANGENT
-// CLICK on attack (the clav's percussive chink — navkit clickLevel 0.35; subtle on Rhodes/Wurli)
-// and a velocity→drive link on the clav nonlinearity (dig in → more honk). Plus filter
-// key-tracking here (ep_keytrack) so the quack/wah floor opens higher up the keyboard.
-//
-// The named instruments are just KNOB POSITIONS (audio-notes §8.1 / §8.8.5): if pressing
-// "wurli" doesn't sound like a Wurlitzer, the MAPPING is wrong, not the preset.
-//
-// controls: white keys  A S D F G H J K   ·   black keys  W E . T Y U
-//           Z / X  octave   ·   1..6 presets   ·   V wah (off/on)   ·   P phaser (off/on)   ·   M autoplay
-//           drag a slider (re-strikes to audition), or LEFT/RIGHT pick + UP/DOWN turn
-// MULTITOUCH: every finger is its own pointer; tap the on-screen octave +/-, wah and phaser buttons.
-
 #include "studio.h"
+#include "fxicons.h"     // shared effect icons + colours (same "pedals" as the pedalboard)
 #include <math.h>
+
+// ── EPIANO ───────────────────────────────────────────────────────────────────────────────────
+// The electromechanical keyboards, rooted in the originals — pick the MACHINE, then flip its own
+// authentic PEDALS. One INSTR_EPIANO slot voiced three ways, each with the modulation that
+// actually defines it. Every effect is a self-contained stompbox: a footswitch + its own knob(s).
+//
+//   RHODES (tine)  — VIBE (Suitcase stereo vibrato = auto-pan) · DYNO (bright stereo chorus) ·
+//                    PHASE (the 70s swirl). All off = a dry Stage Rhodes.
+//   WURLI (reed)   — TREM (its built-in mono tremolo) · BUZZ (reed dig-in growl).
+//   CLAV (string)  — WAH (the Superstition funk) · MUTE (the D6 damper tone).
+//   + a BARK knob on every machine (the pickup driven hard — read live on ringing notes).
+//
+// The pedal icons + colours come from runtime/fxicons.h (the pedalboard's exact visual language).
+// VIBE's icon is a TEMPORARY rectangle — it becomes the real auto-pan pedal once that bus effect
+// lands; today the sway is LFO_PAN (swap the one instrument_lfo call below for the pedal then).
+//
+// controls: white A S D F G H J K · black W E . T Y U · Z/X octave · 1/2/3 machine · tap pedals/
+//           footswitches · drag knobs · SLIDE across the keys for glissando · M autoplay. Multitouch.
 
 #define I_EP 5
 
+// ── the keybed ──
 #define NWHITE 8
 #define NBLACK 5
 #define NKEY   (NWHITE + NBLACK)
@@ -48,178 +32,180 @@ static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
 static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
 static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
 
-#define NSL 5
-enum { SL_INST, SL_BRITE, SL_BARK, SL_WAH, SL_TREM };
-static const char *SL_NAME[NSL] = { "instrument", "bright", "bark", "wah", "tremolo" };
-static const char *SL_LO[NSL]   = { "rhodes", "mellow", "clean", "subtle", "off" };
-static const char *SL_HI[NSL]   = { "clav",   "bright", "growl", "deep",   "throb" };
-static const char *INSTRUMENT[3]= { "RHODES", "WURLI", "CLAV" };
-static const char *WAHNAME[2]   = { "off", "on" };
+// ── the engine param layer (drives the tuned apply_* — unchanged voicing) ──
+enum { SL_INST, SL_BRITE, SL_BARK, SL_WAH, SL_TREM, NSL };
+static float val[NSL] = { 0.08f, 0.30f, 0.25f, 0.5f, 0.35f };
+static int   wahmode = 0;        // clav wah — NOT `wah` (clashes with the API)
+static int   phasermode = 0;     // phased-Rhodes swirl — NOT `phaser`
+static float phaser_rate = 0.9f, phaser_str = 0.6f, trem_spd = 0.45f;   // knob-driven
 
-// presets = slider positions + a wah mode + a phaser mode. harmonics lands on an instrument detent.
-typedef struct { const char *name; float v[NSL]; int wah; int phase; } Preset;
-static const Preset PRESET[6] = {
-    { "rhodes",   { 0.15f, 0.30f, 0.25f, 0.5f, 0.35f }, 0, 0 },   // warm suitcase-ish + classic wobble
-    { "rho brite",{ 0.15f, 0.78f, 0.55f, 0.5f, 0.30f }, 0, 0 },   // bright stage, barky
-    { "suitcase", { 0.15f, 0.20f, 0.12f, 0.5f, 0.45f }, 0, 1 },   // mellow, clean, long, deep tremolo + the classic phased-Rhodes swirl
-    { "wurli",    { 0.50f, 0.45f, 0.60f, 0.5f, 0.50f }, 0, 0 },   // soul ballad — navkit Wurlitzer pickupPos 0.45 (timbre) + pickupDist 0.6 (morph→buzz); the 200A's deeper trem
-    { "wur buzz", { 0.50f, 0.66f, 0.82f, 0.6f, 0.55f }, 1, 0 },   // cranked reed + the wah + trem
-    { "clav",     { 0.85f, 0.75f, 0.55f, 0.6f, 0.0f  }, 1, 0 },   // funky bridge pickup THROUGH the wah (quack + LFO pump + bus follower, navkit's clav+wah pairing). NO tremolo — a real clav has none
+// ── the machines ──
+enum { M_RHODES, M_WURLI, M_CLAV, NMACHINE };
+static const char *MNAME[NMACHINE] = { "RHODES", "WURLI", "CLAV" };
+static const int M_BODY[NMACHINE]   = { CLR_DARK_BROWN, CLR_BLUE_GREEN,   CLR_DARK_PURPLE };
+static const int M_ACCENT[NMACHINE] = { CLR_DARK_ORANGE, CLR_LIGHT_YELLOW, CLR_MAUVE };
+static const int M_LIT[NMACHINE]    = { CLR_PEACH,       CLR_LIGHT_PEACH,  CLR_PINK };
+static const float M_INST[NMACHINE] = { 0.08f, 0.5f, 0.85f };
+static int machine = M_RHODES;
+
+// ── the PEDALS: a footswitch + 1-2 knobs each, per machine ──
+// pedal icons: real fxicons (PHASE/TREM/WAH genuinely ARE those effects) or CUSTOM ones drawn for
+// this cart (VIBE/DYNO/BUZZ/MUTE — machine-specific, not standard pedals; never borrow an icon from
+// an effect a pedal isn't based on). The custom kinds are negative; ep_icon() draws them.
+#define ICON_NONE (-1)
+#define ICON_PAN  (-2)   // VIBE — stereo vibrato (TEMP rectangle until the real auto-pan pedal lands)
+#define ICON_DYNO (-3)   // DYNO — the bright "sheen" mod
+#define ICON_BUZZ (-4)   // BUZZ — reed overdrive growl
+#define ICON_MUTE (-5)   // MUTE — the D6 damper
+typedef struct { int icon; const char *name; int nk; const char *kl[2]; float kdef[2]; } PedalDef;
+static const PedalDef PED[NMACHINE][3] = {
+  { { ICON_PAN,  "VIBE",  2, {"SPD","DEP"}, {0.45f,0.50f} },    // RHODES — Suitcase stereo vibrato
+    { ICON_DYNO, "DYNO",  1, {"AMT", 0},    {0.55f,0} },        //          Dyno bright-chorus
+    { FX_PHASER, "PHASE", 2, {"RATE","STR"}, {0.50f,0.60f} } }, //          the swirl (rate + strength)
+  { { FX_TREM,   "TREM",  2, {"SPD","DEP"}, {0.45f,0.55f} },    // WURLI  — built-in tremolo
+    { ICON_BUZZ, "BUZZ",  1, {"AMT", 0},    {0.50f,0} },        //          reed dig-in growl
+    { ICON_NONE,0,0,{0,0},{0,0} } },
+  { { FX_WAH,    "WAH",   1, {"AMT", 0},    {0.60f,0} },        // CLAV   — the funk wah
+    { ICON_MUTE, "MUTE",  1, {"TONE",0},    {0.40f,0} },        //          the D6 damper
+    { ICON_NONE,0,0,{0,0},{0,0} } },
 };
+static const int  NPED[NMACHINE] = { 3, 2, 2 };
+static bool  ped_on[NMACHINE][3] = { { true, false, false }, { true, false, false }, { true, false, false } };
+static float ped_k [NMACHINE][3][2];
+static float barkv [NMACHINE] = { 0.25f, 0.40f, 0.55f };
 
-static int   handle[NKEY];
-static float glow[NKEY];
+// PRESETS — per machine, a small vertical stack of buttons at the LEFT of the option row. Each is a
+// named patch = which pedals are on. Pick one, or flip footswitches by hand (clears the highlight).
+typedef struct { const char *name; bool on[3]; } MPreset;
+static const MPreset MPRESET[NMACHINE][3] = {
+  { { "stage",    { 0, 0, 0 } }, { "suitcase", { 1, 0, 0 } }, { "dyno", { 0, 1, 1 } } },  // RHODES (3)
+  { { "wurli",    { 1, 0, 0 } }, { "buzz",     { 1, 1, 0 } }, { 0, { 0 } } },             // WURLI (2)
+  { { "clav",     { 1, 0, 0 } }, { "mute",     { 1, 1, 0 } }, { 0, { 0 } } },             // CLAV (2)
+};
+static const int NMP[NMACHINE] = { 3, 2, 2 };
+static int cur_mp[NMACHINE] = { 1, 0, 0 };   // active preset per machine (boot matches ped_on; -1 = hand-tweaked)
+
 static int   octave = 4;
-static float val[NSL] = { 0.15f, 0.30f, 0.25f, 0.5f, 0.35f };   // boot on "rhodes"
-static int   sel = 0;
-static int   cur_preset = 0;
-static int   wahmode = 0;        // 0 off, 1 on (the funky-clav wah: quack + per-voice LFO pump + bus follower). NOT `wah` — clashes with the wah() API
-static int   phasermode = 0;     // 0 off, 1 on (the 70s phased-Rhodes swirl — navkit's processPhaser, ported verbatim). NOT `phaser` — clashes with the phaser() API
-
 static bool  autoplay = true;
-
 static int   ap_h[3] = { -1, -1, -1 };
 static int   ap_step = 0;
-static int   aud_h = -1;         // audition scratch voice (so preset/slider strikes carry the wah)
+static int   handle[NKEY];
+static float glow[NKEY];
+static int   aud_h = -1;
 
+// ── per-contact pointer pool (glissando + drag knobs at once) ──
 #define NPTR 10
 #define NOID (-999)
-enum { PTR_IDLE, PTR_DRAG, PTR_KEY };
-typedef struct { int id, mode, k, key; } Ptr;
+enum { PTR_IDLE, PTR_KEY, PTR_KNOB };
+typedef struct { int id, mode, key, pedal, knob; float grabv; int grabY; } Ptr;
 static Ptr ptr[NPTR];
 
-#define KEY_W   36
-#define KEY_GAP 1
+// ── geometry ──
+#define MSEL_Y   17
+#define MSEL_H   19
+#define MSEL_W   100
+#define MSEL_X(m) (8 + (m) * 102)
+#define OPT_Y    40
+#define OPT_H    58            // tall enough for icon + knobs + footswitch
+#define PED_TOP  41
+#define BARK_CX  286
+#define KEY_Y    102           // big keybed
+#define KEY_H    92
+#define KEY_W    36
+#define KEY_GAP  1
 #define KEY_X(b) (10 + (b) * (KEY_W + KEY_GAP))
-#define KEY_Y    48
-#define KEY_H    72
 #define BLACK_W  20
-#define BLACK_H  42
+#define BLACK_H  54
 #define BLACK_X(k) (KEY_X(BWHICH[k]) + KEY_W - BLACK_W / 2)
+#define OCT_DN_X 232
+#define OCT_UP_X 286
+#define OCT_Y    4
+#define OCT_W    24
+#define OCT_H    14
+// the per-machine PRESET column (left of the pedals): a small vertical stack of buttons
+#define MP_X     6
+#define MP_W     48
+#define MP_GAP   (MP_X + MP_W + 6)          // pedals begin after the preset column
+#define MP_BY(n, i) (PED_TOP + (i) * ((OPT_H - 2) / (n)))
+#define MP_BH(n)    ((OPT_H - 2) / (n) - 1)
 
-#define OCT_DN_X 12
-#define OCT_UP_X 56
-#define OCT_BTN_Y 24
-#define OCT_BTN_W 20
-#define OCT_BTN_H 18
-#define WAH_X (SCREEN_W - 92)
-#define WAH_Y 22
-#define WAH_W 86
-#define WAH_H 20
-#define PHA_W 80
-#define PHA_X (WAH_X - PHA_W - 6)   // just left of the wah button, same row
-#define PHA_Y WAH_Y
-#define PHA_H WAH_H
-
-#define KNOB_W   52
-#define KNOB_Y   (SCREEN_H - 30)
-#define KNOB_X(k) (8 + (k) * 62)
-
-static int midi_of(int idx) {
-    int base = (octave + 1) * 12;
-    return base + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]);
+// pedal x/width: 2-knob pedals are wider. laid out left→right per machine.
+static int ped_w(int m, int i) { return PED[m][i].nk >= 2 ? 66 : 48; }
+static int ped_x(int m, int i) { int x = MP_GAP; for (int j = 0; j < i; j++) x += ped_w(m, j) + 4; return x; }
+static int pknob_cx(int m, int i, int k) {            // knob centre within pedal i
+    int x = ped_x(m, i), w = ped_w(m, i);
+    return PED[m][i].nk >= 2 ? (x + (k ? w * 7 / 10 : w * 3 / 10)) : (x + w / 2);
 }
+#define PKNOB_CY (PED_TOP + 30)
+#define FOOT_Y   (PED_TOP + 47)
+#define KNOB_R   7
 
-// bark's lower half = the pickup nonlinearity (morph); its upper half ALSO folds in tanh DRIVE
-// — two stacked dirts (pickup bark + amp growl), the navkit driven-EP funk, on one knob.
-static float bark_drive(float bark) { return bark > 0.5f ? (bark - 0.5f) * 1.4f : 0.0f; }  // 0 → 0.7
+static int midi_of(int idx) { return (octave + 1) * 12 + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]); }
+static float bark_drive(float bark) { return bark > 0.5f ? (bark - 0.5f) * 1.4f : 0.0f; }
 
+// ════ the TUNED voicing (verbatim navkit-matched; driven by val[]/wahmode/phasermode) ═══════════
 static void apply_slot(void) {
-    // damper RELEASE tracks the instrument: a clav has a tight damper (~140ms, like navkit's
-    // Clav-Funky 120ms), a Rhodes tine rings longer after you lift the key. (SR_INSTR only sets
-    // wave+ADSR, so re-calling instrument() here leaves the macros below untouched.)
     int ty = (int)(val[SL_INST] * 2.999f); if (ty < 0) ty = 0; else if (ty > 2) ty = 2;
-    instrument(I_EP, INSTR_EPIANO, 1, 0, 7, ty == 2 ? 140 : ty == 1 ? 280 : 450);   // clav / wurli / rhodes
+    instrument(I_EP, INSTR_EPIANO, 1, 0, 7, ty == 2 ? 140 : ty == 1 ? 280 : 450);
     instrument_harmonics(I_EP, val[SL_INST]);
     instrument_timbre(I_EP, val[SL_BRITE]);
     instrument_morph(I_EP, val[SL_BARK]);
-    // drive (post-filter soft-clip): the CLAV and WURLI carry navkit's preset drive as a FIXED
-    // amount — their honk/buzz comes from morph→pickupDist in the oscillator, so the drive is
-    // SEPARATE (no double-dip). navkit's panel number doesn't transfer 1:1 (different curve +
-    // velToDrive — see porting-from-navkit.md), so these are the by-ear match:
-    //   clav  0.20  ≈ navkit "Soft 0.10" + velToDrive 1.0 (effective gain ~2.4)
-    //   wurli 0.17  ≈ navkit "Soft 0.15" + velToDrive 0.4 (weaker vel term → effective gain ~1.8)
-    // Rhodes keeps the bark-driven growl (ours).
     instrument_drive(I_EP, ty == 2 ? 0.20f : ty == 1 ? 0.17f : bark_drive(val[SL_BARK]));
 }
-
-// THE WAH — slot-level, so every strike (keys, auditions, autoplay) inherits it. One flavour now,
-// the funky-clav-through-a-wah that won the A/B vs navkit: a per-note resonant filter QUACK (the
-// voice's own bite) + a per-voice LFO PUMP (the rhythmic "wah-WAH-wah", since a follower alone
-// opens once on attack and can't oscillate) feeding the bus envelope FOLLOWER (the dynamic
-// character). navkit's Clav-Funky filter-env + a wah pedal, in one. amt = the wah slider.
-// (Earlier this cart toured auto/env/navkit flavours too — cut once only this one earned its
-//  place by ear; the difference between them collapsed to LFO rate, a slider not a mode.)
 static void apply_wah(void) {
     float amt = val[SL_WAH];
     int  ty   = (int)(val[SL_INST] * 2.999f); if (ty < 0) ty = 0; else if (ty > 2) ty = 2;
-    bool clav = (ty == 2);
-    bool on   = (wahmode != 0);
-    instrument_lfo(I_EP, 0, LFO_CUTOFF, 0.0f, 0.0f);     // clear all three; re-armed below
+    bool clav = (ty == 2), on = (wahmode != 0);
+    instrument_lfo(I_EP, 0, LFO_CUTOFF, 0.0f, 0.0f);
     instrument_env(I_EP, 0, ENV_CUTOFF, 0, 0, 0.0f);
-    instrument_wah(I_EP, 0.0f, 0.0f, 0.0f);              // bus follower off unless re-armed (mix 0 = bypass)
-
-    // BASELINE VOICE FILTER — the CLAV is filtered by default, exactly like navkit's Clav-Funky
-    // preset (it always has filterEnabled): a static resonant lowpass + a fast per-note QUACK.
-    // This rolls off the pickup nonlinearity's inharmonic intermod that a bare clav exposes as
-    // mid-band "noisy bell" hash (proven against navkit's render — its clav is NEVER unfiltered).
-    // Rhodes/Wurli stay open unless the wah is on (their gentler nonlinearity doesn't need it).
-    if (clav) {
-        instrument_filter(I_EP, FILTER_LOW, 1500, 6);                // gentle — keeps H4/H5 like navkit (the
-        instrument_env(I_EP, 0, ENV_CUTOFF, 2, 100, 1600.0f);        // verbatim osc is clean, so don't over-filter).
-                                                                     // env = the funk quack: opens on strike, ~100ms
-    } else if (on) {
-        instrument_filter(I_EP, FILTER_LOW, 700, 9);
-        instrument_env(I_EP, 0, ENV_CUTOFF, 2, 110, 1700.0f + amt * 700.0f);
-    } else {
-        instrument_filter(I_EP, FILTER_OFF, 4000, 0);
-    }
-
+    instrument_wah(I_EP, 0.0f, 0.0f, 0.0f);
+    if (clav)     { instrument_filter(I_EP, FILTER_LOW, 1500, 6); instrument_env(I_EP, 0, ENV_CUTOFF, 2, 100, 1600.0f); }
+    else if (on)  { instrument_filter(I_EP, FILTER_LOW, 700, 9);  instrument_env(I_EP, 0, ENV_CUTOFF, 2, 110, 1700.0f + amt * 700.0f); }
+    else            instrument_filter(I_EP, FILTER_OFF, 4000, 0);
     if (on) {
-        if (clav) {
-            // CLAV + WAH = VERBATIM navkit: its master WAH read exactly "LFO, Rate 2.0, Res 0.70,
-            // Mix 1.0" (Freq Low/High = navkit defaults 300/2500, baked into wah_lfo). The clav
-            // voice-filter above + this bus LFO bandpass IS navkit's clav→wah chain. No per-voice
-            // pump, no follower — those were our non-navkit hybrid.
-            instrument_wah_lfo(I_EP, 2.0f, 0.70f, 1.0f);
-        } else {                                 // rhodes/wurli: our hybrid (per-voice LFO pump + bus follower)
-            instrument_lfo(I_EP, 0, LFO_CUTOFF, 2.5f + amt * 3.5f, 500.0f + amt * 900.0f);
-            instrument_wah(I_EP, 0.4f + amt * 0.6f, 0.45f + amt * 0.4f, 0.75f + amt * 0.25f);
-        }
+        if (clav) instrument_wah_lfo(I_EP, 2.0f, 0.70f, 1.0f);
+        else { instrument_lfo(I_EP, 0, LFO_CUTOFF, 2.5f + amt * 3.5f, 500.0f + amt * 900.0f);
+               instrument_wah(I_EP, 0.4f + amt * 0.6f, 0.45f + amt * 0.4f, 0.75f + amt * 0.25f); }
     }
 }
+static void ep_keytrack(int h, int midi) { if (h < 0 || wahmode == 0) return; note_cutoff(h, 300 + (midi - 36) * 14); }
+static void apply_trem(void)   { instrument_tremolo(I_EP, 4.5f + trem_spd * 3.0f, val[SL_TREM] * 0.9f, TREM_SINE); }
+static void apply_phaser(void) { instrument_phaser(I_EP, phaser_rate, 0.5f + phaser_str * 0.5f, 0.35f + phaser_str * 0.5f, (machine == M_RHODES && phasermode) ? 0.5f : 0.0f, 6); }
 
-// filter KEY-TRACKING — the per-note quack/wah floor opens higher up the keyboard (so high
-// comps stay bright, not muffled). navkit filterKeyTrack 0.6. Base + ENV_CUTOFF are additive
-// (sound.h), so raising the per-note base lifts the floor the quack settles to. Only meaningful
-// when the wah is on (its per-note filter is live); call right after every note_on.
-static void ep_keytrack(int h, int midi) {
-    if (h < 0 || wahmode == 0) return;               // only when the wah's per-note filter is live
-    note_cutoff(h, 300 + (midi - 36) * 14);          // ~+14 Hz/semitone above C2
-}
+// ════ the FRONT PANEL → the param layer + the per-machine effects ════════════════════════════════
+static void apply_machine(void) {
+    val[SL_INST] = M_INST[machine];
+    val[SL_BARK] = barkv[machine];
+    val[SL_TREM] = 0.0f; val[SL_BRITE] = 0.35f; wahmode = 0; phasermode = 0;
 
-// THE TREMOLO RECIPE — the suitcase/Wurli amp wobble, the "electric" signature: the BUS tremolo
-// on the EP's slot (~5-6 Hz, depth scales with the slider). instrument_tremolo is navkit's amp
-// tremolo VERBATIM (processBusEffects, A/B-matched on a sine: rate + depth dead-on) — one shared
-// LFO phase across the whole instrument, so every note throbs in UNISON like a real amp. (This
-// replaced a per-voice LFO_VOLUME, where each note had its own phase = a shimmer, not the coherent
-// amp wobble the Wurli is known for — the verbatim-navkit fix.) Rhodes & Wurli want this (the 200A's
-// is deeper); the clav preset zeroes it (depth 0 = bypass) — a real clav has no tremolo.
-static void apply_trem(void) {
-    float amt = val[SL_TREM];
-    instrument_tremolo(I_EP, 5.0f + amt * 1.5f, amt * 0.85f, TREM_SINE);
-}
+    bool suitcase = false, dyno = false;
+    if (machine == M_RHODES) {
+        suitcase   = ped_on[0][0];
+        dyno       = ped_on[0][1];
+        phasermode = ped_on[0][2];
+        phaser_rate = 0.4f + ped_k[0][2][0] * 1.6f;
+        phaser_str  = ped_k[0][2][1];
+        val[SL_BRITE] = dyno ? 0.78f : 0.28f;
+    } else if (machine == M_WURLI) {
+        if (ped_on[1][0]) { trem_spd = ped_k[1][0][0]; val[SL_TREM] = ped_k[1][0][1]; }
+        val[SL_BRITE] = 0.45f + (ped_on[1][1] ? 0.25f : 0.0f);
+    } else { // CLAV
+        wahmode     = ped_on[2][0];
+        val[SL_WAH] = ped_k[2][0][0];
+        val[SL_BRITE] = ped_on[2][1] ? 0.30f : 0.80f;
+    }
+    apply_slot(); apply_wah(); apply_trem(); apply_phaser();
 
-// THE PHASER — the 70s phased-Rhodes swirl, cranked (P toggles). navkit's processPhaser ported
-// VERBATIM (an allpass chain swept by an LFO, A/B-matched sample-for-sample on a sine). A bold,
-// resonant 6-stage setting: 0.9 Hz sweep (faster, obvious movement), full depth, high feedback 0.75
-// (pronounced "vocal" resonance around the notches), 6 stages (more notches = thicker than a stock
-// 4-stage Phase-90). mix stays 0.5 — the DEEPEST-notch point: the notches form in the dry+wet sum,
-// so pushing mix past 0.5 toward all-wet (a magnitude-flat allpass) shrinks them, not grows them.
-// Slot-level so every strike inherits it. mix 0 = bypass. Off on the clav/Wurli (a real clav has wah,
-// a Wurli has tremolo); the suitcase preset boots it on — the classic phased suitcase Rhodes.
-static void apply_phaser(void) {
-    instrument_phaser(I_EP, 0.9f, 1.0f, 0.75f, phasermode ? 0.5f : 0.0f, 6);
+    // RHODES VIBE — stereo vibrato (auto-pan). LFO_PAN now; → the auto-pan PEDAL when it ships.
+    float vs = 3.0f + ped_k[0][0][0] * 4.0f;
+    instrument_lfo(I_EP, 1, LFO_PAN, vs, suitcase ? (0.35f + ped_k[0][0][1] * 0.55f) : 0.0f);
+    // RHODES DYNO — lush stereo chorus + an EQ presence bump
+    instrument_chorus(I_EP, 0.6f, 0.35f + ped_k[0][1][0] * 0.4f, dyno ? 0.55f : 0.0f);
+    instrument_eq(I_EP, 0.0f, 0.0f, dyno ? 4.0f : 0.0f);
+    // WURLI BUZZ — extra reed drive
+    if (machine == M_WURLI && ped_on[1][1]) instrument_drive(I_EP, 0.17f + ped_k[1][1][0] * 0.45f);
+    // CLAV MUTE — the D6 damper: a lowpass the TONE knob opens/closes
+    if (machine == M_CLAV && ped_on[2][1]) instrument_filter(I_EP, FILTER_LOW, 600 + (int)(ped_k[2][1][0] * 1400.0f), 5);
 }
 
 static void key_down(int b) {
@@ -228,241 +214,193 @@ static void key_down(int b) {
     ep_keytrack(handle[b], midi_of(b));
     glow[b] = 1.0f;
 }
-static void key_up(int b) {
-    if (handle[b] < 0) return;
-    note_off(handle[b]);
-    handle[b] = -1;
+static void key_up(int b) { if (handle[b] < 0) return; note_off(handle[b]); handle[b] = -1; }
+static int key_at(int tx, int ty) {            // black first (they overlap the whites up top)
+    if (ty < KEY_Y || ty >= KEY_Y + KEY_H) return -1;
+    for (int k = 0; k < NBLACK; k++) if (point_in_box(tx, ty, BLACK_X(k), KEY_Y, BLACK_W, BLACK_H)) return NWHITE + k;
+    for (int b = 0; b < NWHITE; b++) if (point_in_box(tx, ty, KEY_X(b), KEY_Y, KEY_W, KEY_H)) return b;
+    return -1;
 }
-
-static void octave_step(int d) {
-    int n = octave + d;
-    if (n < 1 || n > 7) return;
-    for (int b = 0; b < NKEY; b++) key_up(b);
-    octave = n;
-}
-
-static void audition(void) {
-    if (aud_h >= 0) note_off(aud_h);
-    aud_h = note_on(midi_of(3), I_EP, 5);
-    ep_keytrack(aud_h, midi_of(3));
-    glow[3] = 1.0f;
-}
-
-static void set_preset(int p) {
-    for (int k = 0; k < NSL; k++) val[k] = PRESET[p].v[k];
-    wahmode = PRESET[p].wah;
-    phasermode = PRESET[p].phase;
-    cur_preset = p;
-    apply_slot(); apply_wah(); apply_trem(); apply_phaser();
-    audition();
+static void octave_step(int d) { int n = octave + d; if (n < 1 || n > 7) return; for (int b = 0; b < NKEY; b++) key_up(b); octave = n; }
+static void audition(void) { if (aud_h >= 0) note_off(aud_h); aud_h = note_on(midi_of(3), I_EP, 5); ep_keytrack(aud_h, midi_of(3)); glow[3] = 1.0f; }
+static void set_machine(int m) { machine = m; apply_machine(); audition(); }
+static void apply_mpreset(int i) {                      // the current machine's named patch
+    for (int k = 0; k < 3; k++) ped_on[machine][k] = MPRESET[machine][i].on[k];
+    cur_mp[machine] = i;
+    apply_machine(); audition();
 }
 
 void init(void) {
-    instrument(I_EP, INSTR_EPIANO, 1, 0, 7, 450);    // defines the slot; apply_slot() then sets release per type
+    instrument(I_EP, INSTR_EPIANO, 1, 0, 7, 450);
     for (int b = 0; b < NKEY; b++) handle[b] = -1;
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
-    apply_slot(); apply_wah(); apply_trem(); apply_phaser();
+    for (int m = 0; m < NMACHINE; m++) for (int i = 0; i < 3; i++) { ped_k[m][i][0] = PED[m][i].kdef[0]; ped_k[m][i][1] = PED[m][i].kdef[1]; }
+    apply_machine();
     bpm(76);
 }
 
 void update(void) {
-    for (int b = 0; b < NWHITE; b++) {
-        if (keyp(WKEY[b])) key_down(b);
-        if (keyr(WKEY[b])) key_up(b);
-    }
-    for (int k = 0; k < NBLACK; k++) {
-        if (keyp(BKEY[k])) key_down(NWHITE + k);
-        if (keyr(BKEY[k])) key_up(NWHITE + k);
-    }
+    for (int b = 0; b < NWHITE; b++) { if (keyp(WKEY[b])) key_down(b); if (keyr(WKEY[b])) key_up(b); }
+    for (int k = 0; k < NBLACK; k++) { if (keyp(BKEY[k])) key_down(NWHITE + k); if (keyr(BKEY[k])) key_up(NWHITE + k); }
     if (keyp('Z')) octave_step(-1);
     if (keyp('X')) octave_step(+1);
-
-    for (int p = 0; p < 6; p++) if (keyp('1' + p)) set_preset(p);
-
-    if (keyp(KEY_LEFT))  sel = (sel + NSL - 1) % NSL;
-    if (keyp(KEY_RIGHT)) sel = (sel + 1) % NSL;
-    if (key(KEY_UP) || key(KEY_DOWN)) {
-        val[sel] = clamp(val[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
-        cur_preset = -1;
-        apply_slot(); apply_wah(); apply_trem();
-        if (frame() % 14 == 0) audition();
-    }
-
-    if (keyp('V')) { wahmode = (wahmode + 1) % 2; apply_wah(); audition(); }
-    if (keyp('P')) { phasermode = (phasermode + 1) % 2; apply_phaser(); audition(); }
+    if (keyp('1')) set_machine(M_RHODES);
+    if (keyp('2')) set_machine(M_WURLI);
+    if (keyp('3')) set_machine(M_CLAV);
     if (keyp('M')) autoplay = !autoplay;
 
-    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) {   // live bark on ringing notes (morph + drive)
-        note_morph(handle[b], val[SL_BARK]);
-        note_drive(handle[b], bark_drive(val[SL_BARK]));
-    }
+    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) { note_morph(handle[b], val[SL_BARK]); note_drive(handle[b], bark_drive(val[SL_BARK])); }
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
         Ptr *p = 0, *freeP = 0;
-        for (int j = 0; j < NPTR; j++) {
-            if (ptr[j].id == id) { p = &ptr[j]; break; }
-            if (ptr[j].id == NOID && !freeP) freeP = &ptr[j];
-        }
+        for (int j = 0; j < NPTR; j++) { if (ptr[j].id == id) { p = &ptr[j]; break; } if (ptr[j].id == NOID && !freeP) freeP = &ptr[j]; }
         if (!p) {
             if (!freeP) continue;
-            p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1 };
-            if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) { autoplay = !autoplay; continue; }
-            if (point_in_box(tx, ty, WAH_X, WAH_Y, WAH_W, WAH_H)) { wahmode = (wahmode + 1) % 2; apply_wah(); audition(); continue; }
-            if (point_in_box(tx, ty, PHA_X, PHA_Y, PHA_W, PHA_H)) { phasermode = (phasermode + 1) % 2; apply_phaser(); audition(); continue; }
-            if (point_in_box(tx, ty, OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(-1); continue; }
-            if (point_in_box(tx, ty, OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H)) { octave_step(+1); continue; }
-            if (ty >= KNOB_Y - 26 && ty < KNOB_Y - 12) {
-                for (int q = 0; q < 6; q++)
-                    if (tx >= 12 + q * 50 && tx < 12 + q * 50 + 48) { set_preset(q); break; }
+            p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1, -1, 0, ty };
+            if (point_in_box(tx, ty, 150, 2, 72, 14)) { autoplay = !autoplay; continue; }
+            if (point_in_box(tx, ty, OCT_DN_X, OCT_Y, OCT_W, OCT_H)) { octave_step(-1); continue; }
+            if (point_in_box(tx, ty, OCT_UP_X, OCT_Y, OCT_W, OCT_H)) { octave_step(+1); continue; }
+            for (int m = 0; m < NMACHINE; m++) if (point_in_box(tx, ty, MSEL_X(m), MSEL_Y, MSEL_W, MSEL_H)) { set_machine(m); break; }
+            if (ty >= MSEL_Y && ty < MSEL_Y + MSEL_H) continue;
+            if (ty >= OPT_Y && ty < OPT_Y + OPT_H) {
+                // preset column (left): pick the machine's named patch
+                int n = NMP[machine];
+                for (int q = 0; q < n; q++) if (point_in_box(tx, ty, MP_X, MP_BY(n, q), MP_W, MP_BH(n))) { apply_mpreset(q); break; }
+                if (tx < MP_GAP - 3) continue;
+                // bark knob + pedals (footswitch + knobs)
+                if (point_in_box(tx, ty, BARK_CX - 12, PKNOB_CY - 12, 24, 24)) { p->mode = PTR_KNOB; p->pedal = -1; p->grabv = barkv[machine]; p->grabY = ty; continue; }
+                for (int i2 = 0; i2 < NPED[machine]; i2++) {
+                    int x = ped_x(machine, i2), w = ped_w(machine, i2);
+                    if (point_in_box(tx, ty, x + 3, FOOT_Y, w - 6, 10)) { ped_on[machine][i2] = !ped_on[machine][i2]; cur_mp[machine] = -1; apply_machine(); audition(); break; }
+                    for (int k = 0; k < PED[machine][i2].nk; k++)
+                        if (point_in_box(tx, ty, pknob_cx(machine, i2, k) - 11, PKNOB_CY - 11, 22, 22)) { p->mode = PTR_KNOB; p->pedal = i2; p->knob = k; p->grabv = ped_k[machine][i2][k]; p->grabY = ty; break; }
+                    if (p->mode == PTR_KNOB) break;
+                }
                 continue;
             }
-            for (int k = 0; k < NSL; k++)
-                if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y - 6, KNOB_W + 4, 18)) {
-                    p->mode = PTR_DRAG; p->k = sel = k;
-                }
-            if (p->mode == PTR_IDLE) {
-                for (int k = 0; k < NBLACK && p->mode == PTR_IDLE; k++)
-                    if (point_in_box(tx, ty, BLACK_X(k), KEY_Y, BLACK_W, BLACK_H)) {
-                        key_down(NWHITE + k); p->mode = PTR_KEY; p->key = NWHITE + k;
-                    }
-            }
-            if (p->mode == PTR_IDLE && ty >= KEY_Y && ty < KEY_Y + KEY_H) {
-                for (int b = 0; b < NWHITE && p->mode == PTR_IDLE; b++)
-                    if (point_in_box(tx, ty, KEY_X(b), KEY_Y, KEY_W, KEY_H)) {
-                        key_down(b); p->mode = PTR_KEY; p->key = b;
-                    }
-            }
-        } else if (p->mode == PTR_DRAG) {
-            val[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
-            cur_preset = -1;
-            apply_slot(); apply_wah(); apply_trem();
-            if (frame() % 14 == 0) audition();
+            int kk = key_at(tx, ty);
+            if (kk >= 0) { key_down(kk); p->mode = PTR_KEY; p->key = kk; }
+        } else if (p->mode == PTR_KNOB) {
+            float nv = clamp(p->grabv + (p->grabY - ty) * 0.012f, 0.0f, 1.0f);
+            if (p->pedal < 0) barkv[machine] = nv; else ped_k[machine][p->pedal][p->knob] = nv;
+            apply_machine();                                    // live — but DON'T strike a note while dialing
+        } else if (p->mode == PTR_KEY) {                        // GLISSANDO
+            int kk = key_at(tx, ty);
+            if (kk != p->key) { if (p->key >= 0) key_up(p->key); if (kk >= 0) key_down(kk); p->key = kk; }
         }
     }
     for (int i = 0; i < touch_ended_count(); i++)
         for (int j = 0; j < NPTR; j++)
-            if (ptr[j].id == touch_ended_id(i)) {
-                if (ptr[j].mode == PTR_KEY && ptr[j].key >= 0) key_up(ptr[j].key);
-                ptr[j].id = NOID;
-            }
+            if (ptr[j].id == touch_ended_id(i)) { if (ptr[j].mode == PTR_KEY && ptr[j].key >= 0) key_up(ptr[j].key); ptr[j].id = NOID; }
 
     if (autoplay) {
         if (every(2)) {
-            static const int ROOT[4] = { 50, 55, 48, 57 };
-            static const int THIRD[4]= { 3, 4, 4, 3 };
+            static const int ROOT[4] = { 50, 55, 48, 57 }, THIRD[4] = { 3, 4, 4, 3 };
             for (int i = 0; i < 3; i++) if (ap_h[i] >= 0) { note_off(ap_h[i]); ap_h[i] = -1; }
-            int r = ROOT[ap_step % 4];
-            int notes[3] = { r, r + THIRD[ap_step % 4], r + 7 };
+            int r = ROOT[ap_step % 4]; int notes[3] = { r, r + THIRD[ap_step % 4], r + 7 };
             for (int i = 0; i < 3; i++) { ap_h[i] = note_on(notes[i], I_EP, 4); note_morph(ap_h[i], val[SL_BARK]); ep_keytrack(ap_h[i], notes[i]); }
             ap_step++;
         }
-    } else {
-        for (int i = 0; i < 3; i++) if (ap_h[i] >= 0) { note_off(ap_h[i]); ap_h[i] = -1; }
-    }
+    } else for (int i = 0; i < 3; i++) if (ap_h[i] >= 0) { note_off(ap_h[i]); ap_h[i] = -1; }
 
 #ifdef DE_TRACE
-    watch("harm", "%.2f", val[SL_INST]);
-    watch("timb", "%.2f", val[SL_BRITE]);
-    watch("bark", "%.2f", val[SL_BARK]);
-    watch("trem", "%.2f", val[SL_TREM]);
-    watch("wah",  "%d", wahmode);
-    watch("phaser", "%d", phasermode);
-    watch("preset", "%d", cur_preset);
+    watch("machine", "%d", machine); watch("wah", "%d", wahmode); watch("phaser", "%d", phasermode); watch("bark", "%.2f", val[SL_BARK]);
 #endif
+}
+
+// a panel knob (hand-rolled, generous hit box)
+static void draw_knob(int cx, int cy, float v, const char *label, int accent, int lblcol) {
+    circfill(cx, cy, KNOB_R, CLR_BROWNISH_BLACK);
+    circ(cx, cy, KNOB_R, accent);
+    float a = (-135.0f + v * 270.0f) * 0.0174533f;
+    line(cx, cy, cx + (int)(sinf(a) * (KNOB_R - 2)), cy - (int)(cosf(a) * (KNOB_R - 2)), CLR_WHITE);
+    font(FONT_TINY); print_centered(label, cx, cy + KNOB_R + 1, lblcol); font(FONT_NORMAL);
+}
+
+// CUSTOM icons for the machine-specific pedals (not borrowed from any real effect's icon)
+static void ep_icon(int kind, int cx, int cy, int col, int bg) {
+    if (kind == ICON_PAN) {                                  // stereo vibrato — TEMP rectangle + L↔R sway
+        rect(cx - 11, cy - 6, 22, 12, col);
+        line(cx - 8, cy, cx + 8, cy, col);
+        pset(cx - 8, cy, CLR_WHITE); pset(cx + 8, cy, CLR_WHITE);
+    } else if (kind == ICON_DYNO) {                          // bright sheen — a sparkle/star
+        line(cx - 7, cy, cx + 7, cy, col); line(cx, cy - 7, cx, cy + 7, col);
+        line(cx - 4, cy - 4, cx + 4, cy + 4, col); line(cx - 4, cy + 4, cx + 4, cy - 4, col);
+        circfill(cx, cy, 1, CLR_WHITE);
+    } else if (kind == ICON_BUZZ) {                          // reed growl — a clipped/jagged wave
+        int px = cx - 12, py = cy;
+        for (int s = 1; s <= 6; s++) { int xx = cx - 12 + s * 4, yy = cy + ((s & 1) ? -5 : 5); line(px, py, xx, yy, col); px = xx; py = yy; }
+    } else {                                                 // ICON_MUTE — a felt damper on a tine
+        line(cx - 11, cy + 3, cx + 11, cy + 3, col);
+        rectfill(cx - 5, cy - 5, 10, 6, col);
+        for (int xx = cx + 4; xx <= cx + 11; xx += 3) pset(xx, cy + 3, bg);   // dampened after the pad
+    }
+}
+
+// one self-contained pedal: icon (top) + its knob(s) + a footswitch (bottom, lit = on)
+static void draw_pedal(int m, int i) {
+    const PedalDef *d = &PED[m][i];
+    int x = ped_x(m, i), w = ped_w(m, i), cx = x + w / 2;
+    bool on = ped_on[m][i], custom = (d->icon < 0);
+    int body = on ? (custom ? M_BODY[m]   : fx_body(d->icon))   : CLR_DARKER_GREY;
+    int acc  = on ? (custom ? M_ACCENT[m] : fx_accent(d->icon)) : CLR_DARK_GREY;
+    rrectfill(x, PED_TOP, w, OPT_H - 2, 3, body);
+    rrect(x, PED_TOP, w, OPT_H - 2, 3, acc);
+    if (custom) ep_icon(d->icon, cx, PED_TOP + 10, acc, body);
+    else        fx_icon(d->icon, cx, PED_TOP + 10, acc, body);
+    for (int k = 0; k < d->nk; k++) draw_knob(pknob_cx(m, i, k), PKNOB_CY, ped_k[m][i][k], d->kl[k], acc, on ? CLR_LIGHT_PEACH : CLR_DARK_GREY);
+    rrectfill(x + 3, FOOT_Y, w - 6, 10, 2, on ? acc : CLR_BROWNISH_BLACK);   // footswitch
+    rrect(x + 3, FOOT_Y, w - 6, 10, 2, on ? CLR_WHITE : CLR_DARK_GREY);
+    font(FONT_TINY); print_centered(d->name, cx, FOOT_Y + 3, on ? CLR_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
 }
 
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
-    print("EPIANO", 8, 6, CLR_LIGHT_YELLOW);
-    font(FONT_SMALL);
-    int inst = (int)(val[SL_INST] * 2.999f); if (inst > 2) inst = 2;
-    print(INSTRUMENT[inst], 64, 8, CLR_PEACH);
-    print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 6,
-                autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
-    font(FONT_NORMAL);
+    print("EPIANO", 8, 5, M_LIT[machine]);
+    print_right(autoplay ? "M auto: on" : "M auto: off", 220, 6, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    rectfill(OCT_DN_X, OCT_Y, OCT_W, OCT_H, CLR_DARK_BROWN); rect(OCT_DN_X, OCT_Y, OCT_W, OCT_H, CLR_BROWN);
+    print("Z-", OCT_DN_X + 6, OCT_Y + 4, CLR_LIGHT_PEACH);
+    print_scaled(str("%d", octave), OCT_DN_X + 30, OCT_Y - 1, CLR_LIGHT_YELLOW, 2);
+    rectfill(OCT_UP_X, OCT_Y, OCT_W, OCT_H, CLR_DARK_BROWN); rect(OCT_UP_X, OCT_Y, OCT_W, OCT_H, CLR_BROWN);
+    print("X+", OCT_UP_X + 6, OCT_Y + 4, CLR_LIGHT_PEACH);
 
-    // OCTAVE control
-    print("OCTAVE", OCT_DN_X, 14, CLR_MEDIUM_GREY);
-    rectfill(OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
-    rect(OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
-    print("Z", OCT_DN_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
-    print_scaled(str("%d", octave), OCT_DN_X + 26, OCT_BTN_Y, CLR_LIGHT_YELLOW, 2);
-    rectfill(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
-    rect(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
-    print("X", OCT_UP_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
+    // machine selector
+    for (int m = 0; m < NMACHINE; m++) {
+        bool on = (m == machine);
+        rrectfill(MSEL_X(m), MSEL_Y, MSEL_W, MSEL_H, 4, on ? M_BODY[m] : CLR_DARKER_GREY);
+        rrect(MSEL_X(m), MSEL_Y, MSEL_W, MSEL_H, 4, on ? M_LIT[m] : CLR_DARK_GREY);
+        print_centered(MNAME[m], MSEL_X(m) + MSEL_W / 2, MSEL_Y + 6, on ? M_LIT[m] : CLR_MEDIUM_GREY);
+        font(FONT_TINY); print(str("%d", m + 1), MSEL_X(m) + 4, MSEL_Y + 2, on ? M_LIT[m] : CLR_DARK_GREY); font(FONT_NORMAL);
+    }
 
-    // WAH button (tappable; off/on). On = the funky-clav wah (quack + LFO pump + bus follower) —
-    // see the header note + decision 0015.
-    bool won = (wahmode != 0);
-    rectfill(WAH_X, WAH_Y, WAH_W, WAH_H, won ? CLR_DARK_ORANGE : CLR_DARKER_GREY);
-    rect(WAH_X, WAH_Y, WAH_W, WAH_H, won ? CLR_ORANGE : CLR_DARK_GREY);
-    font(FONT_SMALL);
-    print(str("V wah: %s", WAHNAME[wahmode]), WAH_X + 6, WAH_Y + 6, won ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
-    font(FONT_NORMAL);
-
-    // PHASER button (tappable; off/on). On = the 70s phased-Rhodes swirl (navkit processPhaser).
-    bool pon = (phasermode != 0);
-    rectfill(PHA_X, PHA_Y, PHA_W, PHA_H, pon ? CLR_DARK_ORANGE : CLR_DARKER_GREY);
-    rect(PHA_X, PHA_Y, PHA_W, PHA_H, pon ? CLR_ORANGE : CLR_DARK_GREY);
-    font(FONT_SMALL);
-    print(str("P phaser: %s", WAHNAME[phasermode]), PHA_X + 6, PHA_Y + 6, pon ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
-    font(FONT_NORMAL);
+    // option panel: the machine's PRESET column (left) + its pedals + a BARK knob
+    int nmp = NMP[machine];
+    for (int q = 0; q < nmp; q++) {
+        bool on = (cur_mp[machine] == q);
+        int by = MP_BY(nmp, q), bh = MP_BH(nmp);
+        rrectfill(MP_X, by, MP_W, bh, 2, on ? M_BODY[machine] : CLR_DARKER_GREY);
+        rrect(MP_X, by, MP_W, bh, 2, on ? M_LIT[machine] : CLR_DARK_GREY);
+        font(FONT_SMALL); print_centered(MPRESET[machine][q].name, MP_X + MP_W / 2, by + bh / 2 - 2, on ? M_LIT[machine] : CLR_MEDIUM_GREY); font(FONT_NORMAL);
+    }
+    for (int i = 0; i < NPED[machine]; i++) draw_pedal(machine, i);
+    draw_knob(BARK_CX, PKNOB_CY, barkv[machine], "BARK", M_ACCENT[machine], CLR_MEDIUM_GREY);
 
     // the manual
     for (int b = 0; b < NWHITE; b++) {
-        int x = KEY_X(b);
-        glow[b] *= 0.90f;
+        int x = KEY_X(b); glow[b] *= 0.90f;
         bool down = handle[b] >= 0;
-        int col = down ? CLR_LIGHT_YELLOW : glow[b] > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
+        int col = down ? M_LIT[machine] : glow[b] > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
         rectfill(x, KEY_Y, KEY_W, KEY_H, col);
         rect(x, KEY_Y, KEY_W, KEY_H, down ? CLR_WHITE : CLR_DARK_BROWN);
-        print(str("%c", WKEY[b]), x + KEY_W / 2 - 2, KEY_Y + KEY_H - 12,
-              down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
+        print(str("%c", WKEY[b]), x + KEY_W / 2 - 2, KEY_Y + KEY_H - 14, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
     }
     for (int k = 0; k < NBLACK; k++) {
-        int x = BLACK_X(k), idx = NWHITE + k;
-        glow[idx] *= 0.90f;
+        int x = BLACK_X(k), idx = NWHITE + k; glow[idx] *= 0.90f;
         bool down = handle[idx] >= 0;
         int col = down ? CLR_ORANGE : glow[idx] > 0.1f ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK;
         rectfill(x, KEY_Y, BLACK_W, BLACK_H, col);
         rect(x, KEY_Y, BLACK_W, BLACK_H, down ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
-        font(FONT_TINY);
-        print(str("%c", BKEY[k]), x + BLACK_W / 2 - 1, KEY_Y + BLACK_H - 9,
-              down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
-        font(FONT_NORMAL);
+        font(FONT_TINY); print(str("%c", BKEY[k]), x + BLACK_W / 2 - 1, KEY_Y + BLACK_H - 9, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
     }
-
-    // preset row
-    font(FONT_SMALL);
-    for (int p = 0; p < 6; p++) {
-        int x = 12 + p * 50;
-        bool on = (p == cur_preset);
-        print(str("%d", p + 1), x, KNOB_Y - 24, on ? CLR_YELLOW : CLR_DARK_GREY);
-        font(FONT_TINY);
-        print(PRESET[p].name, x + 7, KNOB_Y - 23, on ? CLR_LIGHT_YELLOW : CLR_DARKER_GREY);
-        font(FONT_SMALL);
-    }
-    font(FONT_NORMAL);
-
-    // the four sliders — 3 engine macros + WAH amount (an effect, tinted apart)
-    for (int k = 0; k < NSL; k++) {
-        int x = KNOB_X(k), y = KNOB_Y;
-        bool on = (k == sel);
-        bool fx = (k == SL_WAH || k == SL_TREM);
-        font(FONT_SMALL);
-        print(SL_NAME[k], x, y - 8, on ? CLR_YELLOW : fx ? CLR_DARK_ORANGE : CLR_MEDIUM_GREY);
-        font(FONT_NORMAL);
-        bar(x, y, KNOB_W, 7, val[k], on ? CLR_ORANGE : fx ? CLR_DARK_ORANGE : CLR_BROWN, CLR_DARKER_GREY);
-        font(FONT_TINY);
-        print(SL_LO[k], x, y + 9, CLR_DARK_GREY);
-        print_right(SL_HI[k], x + KNOB_W, y + 9, CLR_DARK_GREY);
-        font(FONT_NORMAL);
-        if (on) print(">", x - 9, y, CLR_YELLOW);
-    }
-
-    font(FONT_TINY);
-    print("white A..K  black W E T Y U   Z/X octave   1..6 presets   V wah   P phaser   drag a slider",
-          8, SCREEN_H - 8, CLR_DARK_GREY);
-    font(FONT_NORMAL);
 }

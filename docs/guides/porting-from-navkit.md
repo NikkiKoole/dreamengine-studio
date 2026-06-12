@@ -20,6 +20,10 @@ port program / engine catalog) and [decision 0015](../decisions/0015-effects-are
 (effects are recipes, not primitives). For the A/B tooling, see
 [`debug-harness.md`](debug-harness.md) → "A/B against navkit".
 
+> **Picking up the port program (effects especially)?** Start with
+> [`navkit-porting-handoff.md`](navkit-porting-handoff.md) — the proven sequence, the saved A/B kit,
+> the gotchas that bit, and the queue of what's left. This file is the oscillator detail it leans on.
+
 ## Where the source lives
 
 | navkit file | holds |

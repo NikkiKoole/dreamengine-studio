@@ -1,10 +1,15 @@
 # Effects bus architecture — reorderable inserts, multi-reverb, reverb-as-bus
 
-**Status: researched, direction agreed, not yet built — 2026-06-12.** A design map for three
-*independent* increments to the master-FX / aux-bus layer. None is urgent; the point of this doc
-is that the engine is already shaped for all three, and to record the exact costs so the eventual
-build isn't re-derived from scratch.
+**Status: Increment A SHIPPED 2026-06-12; B/C researched, direction agreed.** A design map for
+three *independent* increments to the master-FX / aux-bus layer. The point of this doc is that the
+engine is already shaped for all three, and to record the exact costs so the build isn't re-derived
+from scratch.
 
+> **✅ Increment A SHIPPED (2026-06-12)** — `fx_order(bus, kinds, n)` + `FX_*` constants; the
+> per-bus `insert_order[]` the audio thread walks; byte-identical when unused. Showcase: the
+> **pedalboard** cart rebuilt as a drag-and-drop chain builder. See STATUS.md (2026-06-12). The §3
+> sketch below is what landed (modulo the roster growing to 8 inserts incl. tremolo + phaser).
+>
 > **Conclusion (2026-06-12): build A, then C. Skip B as a standalone — C subsumes it.** C costs
 > the same memory as B (same tank pool) for marginally more routing code, is strictly more
 > capable (effects *after* the reverb), composes with A, and can still expose B's dead-simple
@@ -374,6 +379,7 @@ an abrupt gate — is the right shape. **Optional refinement, not needed for a f
 ## 7. Sequencing & decision
 
 **Agreed direction (2026-06-12): A first, then C. B is not built standalone — C subsumes it.**
+**Update: A shipped 2026-06-12 (the pedalboard builder is its showcase); C is the next step.**
 
 - **They're independent.** A touches only the insert section; B only the send section; C is the
   B tank-pool + one routing change. **A is the smallest, lowest-risk, and makes the pedalboard

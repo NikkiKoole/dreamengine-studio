@@ -1300,6 +1300,22 @@ v1, document it on the panel.
    at two settings (4-stage/fb0.3 and 6-stage/fb0.6/depth1.0). Showcase: `epiano` (the `P` toggle; the
    `suitcase` preset boots it — the classic phased suitcase Rhodes).
 
+10. **Insert ORDER** — not a new effect, but the routing that makes the chain above a *chain*:
+    the order inserts run in was hardcoded source order, so "bitcrush before vs after eq" (audibly
+    different) wasn't reachable from a cart.
+    **✓ SHIPPED 2026-06-12** — `fx_order(bus, kinds, n)` + `FX_*` kind constants. Each bus walks a
+    per-bus visit list `insert_order[bus][]` instead of the fixed `if (x_used[b]) x_process(b,…)`
+    ladder; `fx_order(0, …)` reorders the master chain, `fx_order(busN, …)` an instrument's aux bus.
+    Default order = the old ladder (`trem→wah→cho→phaser→flg→tape→eq→crush`, seeded in `sound_init`),
+    and each step still gates on its `_used[b]` flag, so a cart that never calls `fx_order` is
+    **byte-identical** (soundcheck-verified, no `[sound] WARNING`; it's post-mix insert routing, so
+    tuning is untouched). Soft-clip stays pinned last (a safety limiter, not a reorderable pedal).
+    `SR_FX_ORDER`=63 packs the kinds 3-bits-each into one int. Sends (echo/reverb) are parallel, NOT
+    in the chain — reverb's chain position only becomes real with the multi-reverb-tank step
+    (effects-bus increment C). Showcase: the **pedalboard** cart, rebuilt as a drag-and-drop chain
+    BUILDER (palette → drag to add / reorder / remove, with a live drop caret). This is increment A
+    of [`effects-bus-architecture.md`](effects-bus-architecture.md).
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

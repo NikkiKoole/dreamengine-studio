@@ -264,9 +264,9 @@ strip); these are *routing* changes, not new effects (decision 0015 holds). Shor
 
 - **Scope of A:** the **5–6 inserts** (bitcrush / eq / chorus / flanger / tape / wah). **echo +
   reverb are parallel SENDS** — not reorderable until C makes reverb a bus insert.
-- **Conclusion (2026-06-12): build A, then C; skip B standalone (C subsumes it).** Not urgent,
-  but the direction is settled. Visual-only reorder is NOT worth doing alone (implies an audio
-  change that doesn't happen).
+- **A SHIPPED 2026-06-12** — `fx_order(bus, kinds, n)` + the `FX_*` constants; the pedalboard
+  cart became a drag-and-drop chain builder (its showcase). **Next: C** (skip B standalone — C
+  subsumes it). See STATUS.md + [`effects-bus-architecture.md`](effects-bus-architecture.md).
 
 ## Decisions to make (deliberate — don't auto-do)
 

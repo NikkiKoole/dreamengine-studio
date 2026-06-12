@@ -454,6 +454,15 @@ void instrument_tremolo(int slot, float rate, float depth, int shape);  // tremo
 void phaser(float rate, float depth, float feedback, float mix, int stages);                       // rate 0..10 Hz, depth 0..1, feedback -0.95..0.95, mix 0..1 (0 = off), stages 2..8. THE master phaser
 void instrument_phaser(int slot, float rate, float depth, float feedback, float mix, int stages);  // phaser on just this slot (auto-grabs a private FX bus)
 
+// sidechain & bus compression — DYNAMICS on the SUMMED signal (not a per-voice insert): the
+// "pumping" duck and the glue. sidechain() ducks a victim bus's level whenever a TRIGGER fires,
+// keyed off a slot you route in with sidechain_key() — the kick is the classic trigger → the
+// house/EDM pump (the pad/bass breathe against the beat). glue() is the same gain stage with NO
+// trigger — a bus compressor reading its OWN level, so the whole mix moves as one lump.
+void sidechain(int victim_bus, int key, float amount, int attack_ms, int release_ms);  // duck victim_bus (0 = master) by up to amount 0..1 on every hit in trigger `key` (0..3). amount 0 = off. attack ~1ms, release ~80–250ms = the pump
+void sidechain_key(int slot, int key, float send);   // route a slot into trigger key 0..3 — its level drives any sidechain() keyed there (kick → key 0). send 0..1 (0 = not a trigger)
+void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus COMPRESSOR: duck victim_bus (0 = master) by up to amount 0..1 from its own level (no trigger) — the mix glued together. amount 0 = off
+
 // insert-chain ORDER — the inserts above run in a fixed default order; fx_order() rearranges them
 // per bus (e.g. bitcrush BEFORE vs AFTER eq — audibly different). These are the insert kinds, in
 // default order; pass an array of them to fx_order. Sends (echo/reverb) are parallel, not in the chain.

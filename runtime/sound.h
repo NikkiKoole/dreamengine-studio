@@ -73,6 +73,8 @@ typedef struct {
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
     float reverb;                   // reverb send 0..1; 0 = dry (default — old carts unchanged). Target = rvb_tank below
     int   rvb_tank;                 // which reverb tank the send feeds: -1 = the master send (default), 1.. = a reverb_bus() send-bus
+    int   sc_key;                   // sidechain trigger key this slot feeds (0..3), via sidechain_key()
+    float sc_send;                  // how much this slot drives that key 0..1; 0 = not a trigger (default)
     int   fx_bus;                   // insert bus for chorus/flanger: 0 = master (default), 1.. = a private aux bus (instrument_chorus/flanger)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
@@ -128,6 +130,8 @@ typedef struct {
     float  rvb, rvb_target;        // reverb-bus send (current + slew target, same machinery — note_reverb)
     int    bus;                    // insert bus for chorus/flanger (snapshot of instr fx_bus at note-on); 0 = master
     int    rvb_bus;                // reverb SEND target bus: 0 = the master parallel send (legacy), 1.. = a reverb_bus() send-bus
+    int    sc_key;                 // sidechain trigger key (0..3), snapshot of the instrument at note-on
+    float  sc_send;                // how much this voice drives that key 0..1 (0 = not a trigger)
     float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
@@ -1013,6 +1017,25 @@ static float leslie_hornRt[SOUND_FX_BUSES], leslie_drumRt[SOUND_FX_BUSES];   // 
 static float leslie_xoL[SOUND_FX_BUSES], leslie_xoR[SOUND_FX_BUSES];          // crossover LP state (per channel)
 static int   leslie_wpos[SOUND_FX_BUSES];                                     // Doppler write pos (shared)
 static float leslie_bufL[SOUND_FX_BUSES][LESLIE_BUF], leslie_bufR[SOUND_FX_BUSES][LESLIE_BUF];
+
+// sidechain / bus-compression DYNAMICS (studio.h sidechain()/sidechain_key()/glue()). A gain stage
+// on a victim bus driven by an envelope follower: keyed off a TRIGGER (sidechain_key → sc_key_lvl)
+// or, for glue, off the bus's OWN level. Dormant (used=false) until configured → byte-identical.
+#define N_SC_KEYS 4   // independent trigger buses (kick/snare/…); sidechain_key key index 0..3
+typedef struct { bool used; int key; float amount, atk, rel, env; } SideChain;  // key<0 = glue (self-keyed)
+static SideChain sc[SOUND_FX_BUSES];      // one keyed comp per victim bus (bus 0 = master)
+static float     sc_key_lvl[N_SC_KEYS];   // this sample's summed trigger sends per key (reset each sample)
+// duck gain for victim bus b. Updates the envelope follower; reads its trigger key (or the bus's own
+// level when self-keyed/glue). Returns the gain to multiply the bus by (1 = open, <1 = ducked).
+static float sc_apply(int b, float curL, float curR) {
+    SideChain *s = &sc[b];
+    if (!s->used) return 1.0f;
+    float k = (s->key >= 0) ? fabsf(sc_key_lvl[s->key])
+                            : (fabsf(curL) > fabsf(curR) ? fabsf(curL) : fabsf(curR));   // glue: self-key
+    s->env += (k > s->env ? s->atk : s->rel) * (k - s->env);   // fast attack, slow release
+    float e = s->env > 1.0f ? 1.0f : s->env;
+    return 1.0f - s->amount * e;
+}
 static float leslie_pre(float s, float drive) {   // tube pre-amp: Padé tanh (navkit, no libm call)
     if (drive <= 0.001f) return s;
     s *= 1.0f + drive * 5.0f;
@@ -1196,6 +1219,9 @@ typedef enum {
     SR_REVERB_INSERT = 69,  // a=size*1000, b=damp*1000, c=mix*1000 — reverb as a dry/wet-MIX INSERT on the master bus (in the fx_order chain)
     SR_FORMANT      = 70,   // a=vowel*1000, b=q*1000, c=mix*1000 — THE master formant/vowel filter (bus 0)
     SR_INSTR_FORMANT= 71,   // a=slot, b=vowel*1000, c=q*1000, e0=mix*1000 — formant filter on one instrument (auto-bus)
+    SR_SIDECHAIN    = 72,   // a=victim_bus, b=key, c=amount*1000, e0=attack_ms, e1=release_ms — duck a bus on a trigger key
+    SR_SIDECHAIN_KEY= 73,   // a=slot, b=key, c=send*1000 — route a slot into a sidechain trigger key
+    SR_GLUE         = 74,   // a=victim_bus, b=amount*1000, c=attack_ms, e0=release_ms — bus comp (self-keyed, no trigger)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3415,6 +3441,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->eko  = v->eko_target  = ins->echo;
     v->rvb  = v->rvb_target  = ins->reverb;
     v->rvb_bus = (ins->rvb_tank >= 1) ? tank_bus[ins->rvb_tank] : 0;   // resolve tank → its send-bus now (0 = master send)
+    v->sc_key  = ins->sc_key;   // sidechain trigger routing (sidechain_key); snapshot at note-on like the sends
+    v->sc_send = ins->sc_send;
     v->bus  = ins->fx_bus;
     v->pan  = v->pan_target  = ins->pan;
     v->last_outL = v->last_outR = 0.0f;
@@ -3893,6 +3921,31 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_formant(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_SIDECHAIN) {    // a=victim_bus, b=key, c=amount*1000, e0=atk_ms, e1=rel_ms
+        int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
+        int key = r.b; if (key < 0) key = 0; if (key >= N_SC_KEYS) key = N_SC_KEYS - 1;
+        float amount = r.c / 1000.0f; if (amount < 0.0f) amount = 0.0f; if (amount > 1.0f) amount = 1.0f;
+        int atk = r.e0 < 1 ? 1 : r.e0, rel = r.e1 < 1 ? 1 : r.e1;
+        sc[vb].key    = key;
+        sc[vb].amount = amount;
+        sc[vb].atk    = 1.0f - expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].rel    = 1.0f - expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].used   = (amount > 0.0005f);   // amount 0 → dormant (byte-identical)
+    } else if (r.kind == SR_SIDECHAIN_KEY) { // a=slot, b=key, c=send*1000
+        int slot = r.a; if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        int key = r.b; if (key < 0) key = 0; if (key >= N_SC_KEYS) key = N_SC_KEYS - 1;
+        float send = r.c / 1000.0f; if (send < 0.0f) send = 0.0f; if (send > 1.0f) send = 1.0f;
+        instr_bank[slot].sc_key  = key;
+        instr_bank[slot].sc_send = send;
+    } else if (r.kind == SR_GLUE) {          // a=victim_bus, b=amount*1000, c=atk_ms, e0=rel_ms
+        int vb = r.a; if (vb < 0 || vb >= SOUND_FX_BUSES) return;
+        float amount = r.b / 1000.0f; if (amount < 0.0f) amount = 0.0f; if (amount > 1.0f) amount = 1.0f;
+        int atk = r.c < 1 ? 1 : r.c, rel = r.e0 < 1 ? 1 : r.e0;
+        sc[vb].key    = -1;   // self-keyed: reads the bus's own level
+        sc[vb].amount = amount;
+        sc[vb].atk    = 1.0f - expf(-1.0f / (atk * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].rel    = 1.0f - expf(-1.0f / (rel * 0.001f * (float)SOUND_SAMPLE_RATE));
+        sc[vb].used   = (amount > 0.0005f);
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3944,6 +3997,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         float busL[SOUND_FX_BUSES] = {0.0f}, busR[SOUND_FX_BUSES] = {0.0f};   // per-insert-bus stereo accumulators (bus 0 = master)
         float echo_in   = 0.0f; // this sample's summed sends into the echo bus   (MONO — centered in v1)
         float reverb_in = 0.0f; // this sample's summed sends into the reverb bus (MONO — centered in v1)
+        for (int sk = 0; sk < N_SC_KEYS; sk++) sc_key_lvl[sk] = 0.0f;   // sidechain trigger sums, refilled below
 
         for (int di = 0; di < delayed_count; ) {
             if (--delayed[di].delay_samples < 0) {
@@ -4148,6 +4202,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 if (v->rvb_bus == 0) reverb_in += contrib * v->rvb;                  // tank 0 = master parallel send (legacy, unchanged)
                 else { float rs = contrib * v->rvb; busL[v->rvb_bus] += rs; busR[v->rvb_bus] += rs; }  // into a reverb send-bus (FX_REVERB wet-replaces it)
             }
+            if (v->sfx_idx < 0 && v->sc_send > 0.0005f) sc_key_lvl[v->sc_key] += contrib * v->sc_send;  // sidechain trigger send (MONO, pre-pan)
 
             v->phase += v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             if (v->phase >= 1.0f) v->phase -= 1.0f;
@@ -4162,6 +4217,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             // = the old fixed ladder (trem→wah→cho→phaser→flg→tape→eq→crush); fx_order() rearranges.
             for (int s = 0; s < insert_order_n[b]; s++) apply_insert(insert_order[b][s], b, &busL[b], &busR[b]);
             if (leslie_used[b]) leslie_process(b, &busL[b], &busR[b]);   // rotary speaker — pinned LAST (cabinet output stage, not a reorderable pedal)
+            if (sc[b].used) { float g = sc_apply(b, busL[b], busR[b]); busL[b] *= g; busR[b] *= g; }   // sidechain/glue duck (pinned after inserts)
             busL[0] += busL[b]; busR[0] += busR[b];
         }
 
@@ -4223,6 +4279,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // the soft-clip below (pinned last — a safety limiter, not a reorderable pedal).
         for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], 0, &mixL, &mixR);
         if (leslie_used[0]) leslie_process(0, &mixL, &mixR);   // rotary speaker — pinned after the inserts, before the soft-clip (cabinet output stage)
+        if (sc[0].used) { float g = sc_apply(0, mixL, mixR); mixL *= g; mixR *= g; }   // master sidechain/glue duck — the summed-bus pump (before the clip)
 
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
         // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
@@ -4703,6 +4760,19 @@ void reverb_insert(float size, float damp, float mix) {
     sound_push_ctrl(SR_REVERB_INSERT, (int)(size * 1000.0f), (int)(damp * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
 }
 
+// sidechain & bus compression — summed-signal DYNAMICS (studio.h). sidechain ducks a victim bus on
+// a trigger key (the pump); sidechain_key routes a slot (the kick) into a key; glue is the trigger-
+// less bus compressor. amount 0 = dormant → byte-identical.
+void sidechain(int victim_bus, int key, float amount, int attack_ms, int release_ms) {
+    sound_push_ctrl(SR_SIDECHAIN, victim_bus, key, (int)(amount * 1000.0f), attack_ms, release_ms, 0);
+}
+void sidechain_key(int slot, int key, float send) {
+    sound_push_ctrl(SR_SIDECHAIN_KEY, slot, key, (int)(send * 1000.0f), 0, 0, 0);
+}
+void glue(int victim_bus, float amount, int attack_ms, int release_ms) {
+    sound_push_ctrl(SR_GLUE, victim_bus, (int)(amount * 1000.0f), attack_ms, release_ms, 0, 0);
+}
+
 // add an effect AFTER the reverb on tank N's bus (effects-after-reverb — reverb→crush/eq/tape).
 // fx = FX_CRUSH/FX_EQ/FX_TAPE/FX_CHORUS; a/b/c are that effect's own params (×1000 packed, same
 // scale as its dedicated API). Appends to the bus chain in call order; call reverb_bus(tank,…) first.
@@ -4993,6 +5063,8 @@ static void sound_init(void) {
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
+        instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
+        instr_bank[i].sc_send    = 0.0f;
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
         instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (eng_tune) — off until set
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (eng_tune) — off until set

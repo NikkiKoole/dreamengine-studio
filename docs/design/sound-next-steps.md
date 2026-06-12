@@ -241,6 +241,24 @@ The cheapest realism upgrades on the whole list — no engine, no decision, just
 > noise + tape/reverb), and the design notes for a more-real **Mellotron** cart (drawn voices + the
 > ~8s tape limit). `tapeloop` is the first lean on it.
 
+## Parked — reorderable effects chain (engine, wanted) — 2026-06-12
+
+**Make the master INSERT order configurable**, so an effect can be moved in the chain (e.g.
+bitcrush *before* vs *after* EQ — audibly different). Today the order is **hardcoded** in
+`runtime/sound.h`'s master-FX section (`chorus → flanger → tape → eq → bitcrush`, applied as a
+fixed `if (x_used[0]) x_process(0,…)` sequence; same fixed order in the per-bus aux loop).
+
+- **Shape:** an order array the audio thread walks, calling each insert's `*_process` in that
+  order, + a small API to set it. Four-place API wiring + **hot-file care on `sound.h`** (re-read
+  region before editing, compile-gate, sentinel-check the commit).
+- **Scope:** the **5 inserts** — bitcrush / eq / chorus / flanger / tape. **echo + reverb are
+  parallel SENDS** (no position in the chain) — they stay at the end, not reorderable.
+- **Customer:** the [`pedalboard`](../../tools/carts/pedalboard.c) cart — the ask is to **drag the
+  stompboxes to reorder them** and have the *tone* actually change. The pedal row is currently
+  only a visual reading of the fixed order; this is what makes the drag mean something.
+- **Status:** user wants it, deferred (not urgent). Visual-only reorder is NOT worth doing alone
+  (it would imply an audio change that doesn't happen).
+
 ## Decisions to make (deliberate — don't auto-do)
 
 - **Extract the synth kit?** Six stations hand-rebuild the same kick/snare/hat — the strongest

@@ -204,6 +204,9 @@ static void keybed_update(void) {
     for (int k = 0; k < 128; k++) if (kb_glow[k] > 0) kb_glow[k] *= 0.88f;   // decay here so custom-draw carts get it too
 
     // 1. MIDI keyboard — absolute notes + velocity
+    //    OPEN (design/midi-and-keybed.md "MIDI velocity curve"): this LINEAR map sits
+    //    too low — normal playing lands ~vol 4-5, quieter/mellower than the fixed-6
+    //    QWERTY, so MIDI and typed keys sound different. Revisit with a gentler curve.
     int mn, mv, t;
     while ((t = midi_get(&mn, &mv)) != 0) {
         if (t > 0) { int v = (mv * 7) / 127; kb_press(mn, KB_MIDI, v < 1 ? 1 : v); }

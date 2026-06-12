@@ -310,3 +310,13 @@ Built and committed this session — see `STATUS.md` for the canonical ledger:
 Still open: full keybed.h adoption for mt70/sh101, `solo.h` MIDI-snap (smart-screen /
 free-MIDI), the other ribbons (upright/pdbass/spacecho/musicalsaw), velocity on the
 keybed exceptions, a native device-name toast.
+
+**Open — MIDI velocity curve (noticed playing epiano, 2026-06-12).** keybed.h maps MIDI
+velocity **linearly** (`(vel*7)/127` in `keybed_update`), while the computer keyboard is a
+fixed `kb_vel` (6/7). So MIDI and QWERTY *sound different*: normal MIDI playing (~mezzo)
+lands around vol 4–5 — quieter/mellower than the constant QWERTY 6, and you have to bash
+the keys to reach the full bright tone. That difference is velocity expression working (a
+feature), but the linear curve sits too low for comfortable playing. To revisit: replace
+the linear map with a gentler curve (typical presses reach ~6–7 without slamming), in
+`keybed_update` — one change, applies to every keybed cart at once. Decide then whether
+QWERTY should stay fixed-6 or pick up a default that matches the curve's centre.

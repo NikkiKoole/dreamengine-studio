@@ -1,5 +1,6 @@
 #include "studio.h"
 #include "ui.h"
+#include <math.h>
 
 // GROOVEBOX — a melodic / progressive-house box and a HOME for the summed-bus effects.
 //
@@ -23,9 +24,10 @@
 // The PUMP meter mirrors the duck so you can see the mix breathe.
 //
 // Everything else on the rack is REAL and already in the engine, here shown on a
-// full mix for the first time: CRUSH (summed bitcrush — the SP-1200 grit that
-// only exists on the sum), EQ (3-band), TAPE, SPACE (reverb as a real master
-// INSERT via reverb_insert), and the ORDER toggle that reorders the master inserts:
+// full mix: CRUSH (summed bitcrush — the SP-1200 grit that only exists on the sum),
+// EQ (3-band), TAPE, SPACE (reverb as a real master INSERT via reverb_insert), the
+// bipolar FILTER (the DJ filter — center open, ride it down to a muffle / up to thin,
+// resonance rising as you close), and the ORDER toggle that reorders the master inserts:
 // CRUSH→VERB (clean space on a gritty mix) vs VERB→CRUSH (the wet tail gets crushed
 // — grainy/vaporwave space). Reverb's position only matters because it's an insert.
 //
@@ -89,6 +91,7 @@ static float openness = 1;             // meter level 0..1
 // what makes the fx_order CRUSH↔EQ toggle audible (gentle = no difference to hear).
 static float k_pump = 0.65f, k_glue = 0.0f, k_crush = 0.0f, k_tape = 0.20f, k_space = 0.40f;
 static float k_eqLo = 0.5f, k_eqMid = 0.5f, k_eqHi = 0.5f;
+static float k_filter = 0.5f;          // the DJ filter — bipolar: 0.5 = open, < = low-pass down, > = high-pass up
 static bool  orderSwapped = false;     // CRUSH after eq (default) vs before
 
 // per-finger grid paint (the drummachine.c sweep pattern)
@@ -177,7 +180,7 @@ void init() {
 // crush/tape/eq every frame (60×/s) churns the bus DSP and was the source of the
 // stutter — these are set-and-hold, not per-frame controls.
 static void apply_fx(void) {
-    static float aCrush = -1, aLo = -2, aMid = -2, aHi = -2, aTape = -1, aSpace = -1, aPump = -1, aGlue = -1;
+    static float aCrush = -1, aLo = -2, aMid = -2, aHi = -2, aTape = -1, aSpace = -1, aPump = -1, aGlue = -1, aFilt = -1;
     if (k_crush != aCrush) {
         if (k_crush < 0.02f) crush(8, 6, 0);                 // mix 0 = off
         else                 crush(12.0f - 9.0f * k_crush, 6, k_crush);
@@ -203,6 +206,16 @@ static void apply_fx(void) {
         else if (k_glue > 0.02f) glue(0, k_glue, 8, 150);          // the bus-glue compressor
         else                     sidechain(0, 0, 0.0f, 1, 140);     // both off → master comp dormant
         aPump = k_pump; aGlue = k_glue;
+    }
+    // the DJ FILTER — one bipolar knob: center = open, turn down = low-pass closing to a muffle,
+    // turn up = high-pass thinning out. Resonance rises as you close it (the build-up scream).
+    if (k_filter != aFilt) {
+        if (fabsf(k_filter - 0.5f) < 0.02f) filter(FILTER_OFF, 0.0f, 0.0f);                          // center = open
+        else if (k_filter < 0.5f) { float t = (0.5f - k_filter) * 2.0f;                              // low-pass down
+            filter(FILTER_LOW,  18000.0f * powf(150.0f / 18000.0f, t), 0.2f + 0.5f * t); }
+        else                      { float t = (k_filter - 0.5f) * 2.0f;                              // high-pass up
+            filter(FILTER_HIGH,    20.0f * powf(6000.0f / 20.0f,    t), 0.2f + 0.5f * t); }
+        aFilt = k_filter;
     }
 }
 
@@ -317,9 +330,9 @@ void draw() {
         circfill(250 + b * 16, my + 15, 3, on ? CLR_WHITE : CLR_DARK_GREY);
     }
 
-    // ── the rack: 5 real knobs + the dormant GLUE slot, an ORDER toggle ──
+    // ── the rack: PUMP · CRUSH · EQ(LO/MID/HI) · TAPE · SPACE · GLUE · FILTER, + the ORDER toggle ──
     ui_begin();
-    int ky = 172, kx[8] = { 20, 60, 100, 140, 180, 220, 260, 300 };
+    int ky = 172, kx[9] = { 18, 54, 90, 126, 162, 198, 234, 270, 306 };
     font(FONT_SMALL);
     if (ui_knob(&k_pump, kx[0], ky, "PUMP") && k_pump > 0.02f) k_glue = 0.0f;   // PUMP & GLUE share one master comp —
     ui_knob(&k_crush, kx[1], ky, "CRUSH");
@@ -329,6 +342,7 @@ void draw() {
     ui_knob(&k_tape,  kx[5], ky, "TAPE");
     ui_knob(&k_space, kx[6], ky, "SPACE");
     if (ui_knob(&k_glue, kx[7], ky, "GLUE") && k_glue > 0.02f) k_pump = 0.0f;   // … so raising one zeroes the other
+    ui_knob(&k_filter, kx[8], ky, "FILTER");   // the bipolar DJ filter — center = open
     // bracket the three EQ bands as one 3-band cluster
     line(kx[2] - 9, ky - 13, kx[4] + 9, ky - 13, CLR_DARK_GREY);
     print("EQ", kx[3] - text_width("EQ") / 2, ky - 11, CLR_LIGHT_GREY);

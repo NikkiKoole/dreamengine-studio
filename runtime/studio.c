@@ -174,6 +174,18 @@ static Shader          scale_shader;
 static bool            scale_shader_ok   = false;
 static int             loc_scale_texsize = -1;
 static int             loc_scale_gamma   = -1;
+
+// smooth_zoom(): render the camera_ex world layer at 1:1 into an oversized offscreen,
+// then scale it to the canvas in one blit (sharp-bilinear) — so a fractional camera
+// zoom no longer re-rasterizes thin world lines every frame (no crawl). The offscreen
+// is 2× the canvas so any zoom >= 0.5 has coverage. Toggle with one call; default off.
+#define SMOOTH_W (SCREEN_W * 2)
+#define SMOOTH_H (SCREEN_H * 2)
+static RenderTexture2D  smooth_rt;
+static bool            smooth_on        = false;   // smooth_zoom() enabled?
+static bool            smooth_rt_ok     = false;   // offscreen allocated?
+static bool            smooth_capturing = false;   // mid-capture (between camera_ex and camera())
+static float           smooth_zoom_amt  = 1.0f;    // the zoom to apply at composite
 static float           fade_amt   = 0.0f;            // fade()  — 0 normal .. 1 black
 static float           shake_amt  = 0.0f;            // shake() — pixels, self-decaying
 static float           frame_dt   = 0.0f;            // dt()    — seconds since last frame
@@ -195,6 +207,8 @@ static void poly_stroke_cov(const int *xy, int n, int color);
 static void pal_shader_init(void);
 static void pal_recompute(void);
 static void scale_shader_init(void);
+static void scale_shader_ensure(void);
+static void smooth_composite(void);
 
 #define BTN_COUNT 6
 static bool            btn_curr[2][BTN_COUNT];
@@ -1242,6 +1256,7 @@ static void loop_step(void) {
 #else
         draw();
 #endif
+        if (smooth_capturing) smooth_composite();   // cart never called camera() — composite now
         cam_active = false;
         EndMode2D();
     EndTextureMode();
@@ -1277,7 +1292,14 @@ static void loop_step(void) {
     }
     if (!skip_render) {
     BeginDrawing();
-        if (scale_shader_ok) BeginShaderMode(scale_shader);   // sharp-bilinear (modes 2/3)
+        bool present_sharp = scale_shader_ok && (SCALE_FILTER >= 2);
+        if (present_sharp) {
+            float ts[2] = { (float)SCREEN_W, (float)SCREEN_H };
+            int   g = (SCALE_FILTER == 3) ? 1 : 0;
+            SetShaderValue(scale_shader, loc_scale_texsize, ts, SHADER_UNIFORM_VEC2);
+            SetShaderValue(scale_shader, loc_scale_gamma, &g, SHADER_UNIFORM_INT);
+            BeginShaderMode(scale_shader);
+        }
         DrawTexturePro(
             canvas.texture,
             (Rectangle){ 0, 0,  SCREEN_W, -SCREEN_H },
@@ -1286,7 +1308,7 @@ static void loop_step(void) {
             0.0f,
             WHITE
         );
-        if (scale_shader_ok) EndShaderMode();
+        if (present_sharp) EndShaderMode();
         if (fade_amt > 0.0f)
             DrawRectangle(0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE,
                           (Color){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
@@ -1599,6 +1621,7 @@ int main(int argc, char **argv) {
     if (font_thin.texture.id > 0) UnloadFont(font_thin);
     if (pal_shader_ok) UnloadShader(pal_shader);
     if (scale_shader_ok) UnloadShader(scale_shader);
+    if (smooth_rt_ok) UnloadRenderTexture(smooth_rt);
     if (spritesheet.width > 0) UnloadTexture(spritesheet);
     if (spritesheet_img.data) UnloadImage(spritesheet_img);
     if (pget_snapshot.data) UnloadImage(pget_snapshot);
@@ -1813,9 +1836,11 @@ float mouse_wheel(void)         { return GetMouseWheelMove(); }
 int mouse_world_x(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).x; }
 int mouse_world_y(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).y; }
 
+static int last_cls_color = 0;   // remembered so smooth_zoom's offscreen clears to the same bg
 void cls(int color) {
     PROF("cls");
-    ClearBackground(palette[color % PALETTE_SIZE]);
+    last_cls_color = color % PALETTE_SIZE;
+    ClearBackground(palette[last_cls_color]);
 }
 
 // palette-swap fragment shader. The vertex stage is raylib's default (we pass NULL).
@@ -1927,20 +1952,39 @@ static const char *SCALE_FS =
     "}\n";
 #endif
 
-// load the sharp-bilinear shader (modes 2/3 only). On failure scale_shader_ok
-// stays false and the present falls back to the plain blit (the chosen filter).
-static void scale_shader_init(void) {
+// load the sharp-bilinear shader on demand (present modes 2/3 OR smooth_zoom). On
+// failure scale_shader_ok stays false and callers fall back to a plain bilinear blit.
+// texSize/gamma uniforms are set per-use (the present and smooth use different sizes).
+static void scale_shader_ensure(void) {
 #ifndef PLATFORM_WEB
-    if (SCALE_FILTER < 2) return;          // crisp / bilinear need no shader
+    if (scale_shader_ok || scale_shader.id != 0) return;
     scale_shader = LoadShaderFromMemory(0, SCALE_FS);
     if (scale_shader.id == 0) return;
     loc_scale_texsize = GetShaderLocation(scale_shader, "texSize");
     loc_scale_gamma   = GetShaderLocation(scale_shader, "gammaCorrect");
-    float ts[2] = { (float)SCREEN_W, (float)SCREEN_H };
-    SetShaderValue(scale_shader, loc_scale_texsize, ts, SHADER_UNIFORM_VEC2);
-    int g = (SCALE_FILTER == 3) ? 1 : 0;
-    SetShaderValue(scale_shader, loc_scale_gamma, &g, SHADER_UNIFORM_INT);
     scale_shader_ok = true;
+#endif
+}
+static void scale_shader_init(void) {
+#ifndef PLATFORM_WEB
+    if (SCALE_FILTER >= 2) scale_shader_ensure();   // present filter wants it from the start
+#endif
+}
+
+// smooth_zoom(on): toggle the 1:1-render → scaled-blit path for camera_ex's fractional
+// zoom (see the SMOOTH_* note up top). One call; default off. Lazily allocates the
+// offscreen + ensures the sharp shader (used for the magnify case; bilinear fallback).
+void smooth_zoom(bool on) {
+#ifndef PLATFORM_WEB
+    smooth_on = on;
+    if (on && !smooth_rt_ok) {
+        smooth_rt = LoadRenderTexture(SMOOTH_W, SMOOTH_H);
+        SetTextureFilter(smooth_rt.texture, TEXTURE_FILTER_BILINEAR);
+        smooth_rt_ok = (smooth_rt.id != 0);
+        scale_shader_ensure();
+    }
+#else
+    (void)on;
 #endif
 }
 
@@ -2473,7 +2517,39 @@ static void cam_reapply(void) {
     if (cam_active) { EndMode2D(); BeginMode2D(cam); }
 }
 
+// finish a smooth_zoom capture: close the offscreen, blit its centred (SCREEN/zoom)
+// region onto the canvas scaled to full screen (sharp shader if loaded, else bilinear),
+// and resume canvas drawing. Called by camera()/camera_ex() and at draw() end.
+static void smooth_composite(void) {
+#ifndef PLATFORM_WEB
+    if (!smooth_capturing) return;
+    if (cam_active) EndMode2D();
+    EndTextureMode();                          // close smooth_rt
+    BeginTextureMode(canvas);                  // back to the real canvas
+    float z  = smooth_zoom_amt;
+    float sw = SCREEN_W / z, sh = SCREEN_H / z;            // captured world region (px @ 1:1)
+    float sx0 = SMOOTH_W / 2.0f - sw / 2.0f;
+    float sy0 = SMOOTH_H / 2.0f - sh / 2.0f;              // centred in the offscreen
+    Rectangle src = { sx0, SMOOTH_H - sy0 - sh, sw, -sh }; // RT is bottom-up → flip (cf. zoom_rect)
+    Rectangle dst = { 0, 0, SCREEN_W, SCREEN_H };
+    if (scale_shader_ok) {
+        float ts[2] = { (float)SMOOTH_W, (float)SMOOTH_H };
+        int   g = 1;                                       // gamma-correct seam (the good one)
+        SetShaderValue(scale_shader, loc_scale_texsize, ts, SHADER_UNIFORM_VEC2);
+        SetShaderValue(scale_shader, loc_scale_gamma, &g, SHADER_UNIFORM_INT);
+        BeginShaderMode(scale_shader);
+        DrawTexturePro(smooth_rt.texture, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
+        EndShaderMode();
+    } else {
+        DrawTexturePro(smooth_rt.texture, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
+    }
+    smooth_capturing = false;
+    if (cam_active) BeginMode2D(cam);          // resume normal canvas drawing
+#endif
+}
+
 void camera(int x, int y) {
+    if (smooth_capturing) smooth_composite();   // end the smooth world layer first
     cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
     cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
     cam.zoom     = 1.0f;   // plain camera: camera() always means no zoom / no rotation
@@ -2483,6 +2559,26 @@ void camera(int x, int y) {
 
 void camera_ex(int x, int y, float zoom, float angle) {
     if (zoom < 0.01f) zoom = 0.01f;   // guard a degenerate / inverted matrix
+    float zd = zoom > 1.0f ? zoom - 1.0f : 1.0f - zoom;
+#ifndef PLATFORM_WEB
+    if (smooth_on && smooth_rt_ok && zd > 0.002f) {       // fractional zoom → capture at 1:1
+        if (!smooth_capturing) {
+            if (cam_active) EndMode2D();
+            EndTextureMode();                              // leave the canvas
+            BeginTextureMode(smooth_rt);
+            ClearBackground(palette[last_cls_color]);   // match the cart's cls() bg, not black
+            smooth_capturing = true;
+        }
+        smooth_zoom_amt = zoom;
+        cam.offset   = (Vector2){ SMOOTH_W / 2.0f, SMOOTH_H / 2.0f };
+        cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
+        cam.zoom     = 1.0f;                               // world rasterizes at 1:1 (stable)
+        cam.rotation = angle;
+        BeginMode2D(cam);
+        cam_active = true;
+        return;
+    }
+#endif
     cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
     cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
     cam.zoom     = zoom;
@@ -2718,10 +2814,19 @@ static void poly_bbox(const int *xy, int n, int *minx, int *miny, int *maxx, int
 // superset under rotation, so no visible cell is ever dropped and the image stays
 // byte-identical; only never-plotted off-screen cells are skipped.
 static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1) {
-    Vector2 c0 = GetScreenToWorld2D((Vector2){ 0,        0        }, cam);
-    Vector2 c1 = GetScreenToWorld2D((Vector2){ SCREEN_W, 0        }, cam);
-    Vector2 c2 = GetScreenToWorld2D((Vector2){ 0,        SCREEN_H }, cam);
-    Vector2 c3 = GetScreenToWorld2D((Vector2){ SCREEN_W, SCREEN_H }, cam);
+    // viewport = the CURRENT render target, not always the canvas: under smooth_zoom
+    // the world is rasterized into the SMOOTH_W×SMOOTH_H offscreen (camera centred on
+    // it), so the visible-world AABB must be mapped from those corners. Using the
+    // canvas corners here put the camera-centred shape at the rect's edge and clamped
+    // it to one quadrant (the "only a quarter of the car shows under smooth zoom" bug).
+    float vw = SCREEN_W, vh = SCREEN_H;
+#ifndef PLATFORM_WEB
+    if (smooth_capturing) { vw = SMOOTH_W; vh = SMOOTH_H; }
+#endif
+    Vector2 c0 = GetScreenToWorld2D((Vector2){ 0,  0  }, cam);
+    Vector2 c1 = GetScreenToWorld2D((Vector2){ vw, 0  }, cam);
+    Vector2 c2 = GetScreenToWorld2D((Vector2){ 0,  vh }, cam);
+    Vector2 c3 = GetScreenToWorld2D((Vector2){ vw, vh }, cam);
     int lo_x = (int)floorf(fminf(fminf(c0.x, c1.x), fminf(c2.x, c3.x)));
     int lo_y = (int)floorf(fminf(fminf(c0.y, c1.y), fminf(c2.y, c3.y)));
     int hi_x = (int)ceilf (fmaxf(fmaxf(c0.x, c1.x), fmaxf(c2.x, c3.x)));

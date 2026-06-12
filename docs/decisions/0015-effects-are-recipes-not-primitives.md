@@ -41,7 +41,10 @@ with an exponential sweep + an envelope follower tracking the whole performance 
 filter can do neither: it can't sweep a chord coherently or pump with the groove;
 [instrument-engines §8.10](../design/instrument-engines.md), confirmed 2026-06-08 by rendering
 navkit). NB a per-note `ENV_CUTOFF` is **not** an envelope follower — per-note retrigger ≠
-continuous amplitude-tracking. tremolo = `LFO_VOLUME`; vibrato = `LFO_PITCH`;
+continuous amplitude-tracking. tremolo splits like wah: *simple* tremolo = `LFO_VOLUME` (per-voice),
+**but the realistic AMP tremolo is a bus effect** (one LFO phase across the whole instrument — a
+per-voice `LFO_VOLUME` gives each note its own phase = a shimmer, not a coherent throb; shipped
+`tremolo()`/`instrument_tremolo`, see 2026-06-12 correction); vibrato = `LFO_PITCH`;
 whammy = `note_pitch`/`note_glide`; amp/cab sim = drive + lowpass; limiter = the master
 soft-clip. **EQ** splits in two: the *cut* half (and the whole DJ low/mid/high **kill**
 set) is exactly the four filter modes — kill lows = `FILTER_HIGH`, kill highs =
@@ -165,3 +168,35 @@ convention — it's **refusing to admit new primitives**.
   scar that *named* this whole effects-discipline (the per-voice-vs-bus mistake) is now not just
   understood but resolved in code, with `clavinet` as the funk-clav proof. The §8.10 effects roster
   is essentially complete. Build: [instrument-engines §8.10](../design/instrument-engines.md).
+
+- **2026-06-12 — four more effects shipped (bitcrush, EQ, tremolo, phaser); the GATE held, the
+  "essentially complete" framing did not — and this log fell behind.** Catching up honestly:
+  - **bitcrush** + **EQ** were never violations — bitcrush is in the §17 taxonomy this decision
+    closes *around* (line 23/54), and EQ shipped through this doc's *own named escape hatch*
+    (`instrument_eq(slot, low, mid, high)`, the "channel-strip EQ" interrogation above). Both just
+    landed without a log entry. (EQ: `eq()`/`instrument_eq` + `crush()`/`instrument_crush`, per-bus
+    inserts; showcases `eq`, `bitcrush`.)
+  - **tremolo** splits *exactly* like the 2026-06-08 wah correction: simple tremolo = `LFO_VOLUME`
+    (still true, still a recipe), **but** the realistic **amp** tremolo is a bus effect — one LFO
+    phase shared across the whole instrument, which a per-voice `LFO_VOLUME` (each note its own phase
+    = a shimmer, not a coherent throb) cannot do. So `tremolo()`/`instrument_tremolo` is the same
+    "per-voice recipe vs summed-bus effect" shape as wah, not a new axis. Line 44's bare
+    "tremolo = `LFO_VOLUME`" is now refined in place to say so. Verbatim navkit `processTremolo`;
+    showcase `epiano` (the Wurli throb).
+  - **phaser** is the genuine new entry — and it's an *admitted exception under this decision's own
+    rule*, not a breach. It is **not** a recipe (no allpass primitive exists; the flanger note's
+    "falls out of the mod-delay buffer free" does NOT apply — a phaser is a cascaded allpass chain,
+    a different structure than the chorus/flanger/tape delay buffer). It **passes the gate** ("a new
+    primitive must prove it cannot be a recipe"): it can't, so it's in. `phaser(rate, depth,
+    feedback, mix, stages)` + `instrument_phaser`, a per-bus insert; verbatim navkit `processPhaser`;
+    showcase `epiano` (the 70s phased-Rhodes swirl — the one EP effect the library lacked).
+  - **The honest meta-point.** What actually held across all of this is the **named-function style**
+    and the **"prove it can't be a recipe" gate** — both intact, both still doing their job (the gate
+    correctly admitted phaser and still refuses octaver/ring-mod/granular). What did **not** hold is
+    the literal *"the roster is frozen / essentially complete"* rhetoric: porting from navkit has
+    become a steady, legitimate source of new bus inserts, each cheap (a per-bus `*_used[]` insert,
+    byte-identical when off) and each clearing the gate. So this decision's enduring value is the
+    **gate, not a fixed count** — read "closed roster" as "closed to *recipes-masquerading-as-
+    primitives*," not "no function will ever be added." The routing-layer companion
+    [`effects-bus-architecture.md`](../design/effects-bus-architecture.md) (2026-06-12) still cites
+    this decision correctly — its reorder/multi-reverb work is routing, not new effects.

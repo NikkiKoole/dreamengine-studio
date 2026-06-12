@@ -299,7 +299,8 @@ typedef struct {
     float  br_lip_y1, br_lip_y2;        // lip biquad output history (the normalized resonant bandpass)
     float  br_lip_x1, br_lip_x2;        // lip biquad input history (b2 = -b0 bandpass needs x[n-2])
     float  br_lp;                       // bell-radiation 1-pole LP state
-    float  br_dc_prev, br_dc_state;     // output DC blocker (steady blow → large DC)
+    float  br_dc_prev, br_dc_state;     // bore-return DC blocker (steady blow → large DC)
+    float  br_out_prev, br_out_state;   // OUTPUT DC blocker (the asymmetric brassiness shaper injects DC)
     float  br_vib_ph, br_drift_ph, br_drift, br_noise_lp;  // humanized lip-vibrato + breath turbulence/drift
     int    br_attack;                   // speak-transient samples remaining (the "tah" onset)
     bool   br_on;                       // note-on init guard (engine id hit without a note-on → silent)
@@ -2470,6 +2471,7 @@ static void sound_brass_start(Voice *v) {
     v->br_len = len; v->br_idx = 0; v->br_initfreq = f;
     v->br_lip_y1 = v->br_lip_y2 = v->br_lip_x1 = v->br_lip_x2 = 0.0f;   // lip biquad state
     v->br_lp = v->br_dc_prev = v->br_dc_state = 0.0f;
+    v->br_out_prev = v->br_out_state = 0.0f;
     v->br_vib_ph = v->br_drift_ph = v->br_drift = v->br_noise_lp = 0.0f;
     v->br_attack = (int)(0.018f * (float)SOUND_SAMPLE_RATE);   // ~18ms breath/"tah" speak onset
     v->br_on = true;
@@ -2571,9 +2573,22 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     // into a hollow buzz (itself a synthy tell). The formant amount grows with brassiness, so pushing
     // TIMBRE blares harder. A GENTLE waveshaper on top adds a little buzz + lets level rise with breath.
     float voiced   = dc + fmt * (1.3f + bright * 2.6f);      // formant emphasis blooms with brassiness
-    float driveOut = 1.0f + bright * (2.2f + blow * 4.0f);   // shaping grows w/ brassiness + breath (keeps crest > squaring)
-    float blaat    = tanhf(voiced * driveOut);
+    float driveOut = 1.0f + bright * (2.2f + blow * 4.0f);   // shaping grows w/ brassiness + breath
+    // ASYMMETRIC steepening — a real brass shock wave is lopsided (the compression front is steeper
+    // than the rarefaction). A plain tanh is an ODD nonlinearity, so it only ever makes ODD harmonics
+    // → the spectrum stays clarinet-like (hollow, no even partials, doesn't read as "brass"). Biasing
+    // the tanh makes it clip harder on one side, which FILLS IN the even harmonics that the ear hears
+    // as brass. The bias grows with brassiness; subtracting tanh(asym) keeps it from adding a standing
+    // DC offset (so a quiet/mellow voice stays clean).
+    float shaped   = voiced * driveOut;
+    float asym     = bright * 0.7f;
+    float blaat    = tanhf(shaped + asym) - tanhf(asym);
     float comp     = 1.0f / (0.72f + 0.28f * driveOut);      // PARTIAL gain comp (not the old level-killing /drive)
+    // block the DC the asymmetric shaper injects (a brass shock wave is lopsided → a standing offset →
+    // a thump on note-on + wasted headroom). Same one-pole as the drive effect / epiano nonlinearity.
+    float bdc = blaat - v->br_out_prev + 0.995f * v->br_out_state;
+    v->br_out_prev = blaat; v->br_out_state = bdc;
+    blaat = bdc;
     // makeup: keep loudness roughly even across the BORE axis (trumpet↔tuba) — §8.8.1 for harmonics
     return blaat * comp * (2.7f + dark * 0.7f);
 }

@@ -28,5 +28,7 @@ if printf '%s' "$out" | grep -q '\[sound\] WARNING'; then
   exit 1
 fi
 echo "[pre-commit] ✓ runtime builds. (Reminder: for pitched-engine edits also run"
-echo "             'node tools/tune-check.js --quiet' — a clobber can revert tuning silently.)"
+echo "             'node tools/tune-check.js --quiet' — a clobber can revert tuning silently."
+echo "             For engine / nonlinearity / shaper edits run 'node tools/dc-check.js --quiet'"
+echo "             — a missing or stale output DC blocker drifts a voice off zero, silent too.)"
 exit 0

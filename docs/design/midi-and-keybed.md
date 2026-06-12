@@ -213,6 +213,33 @@ incremental and independently shippable.
   functions taking a `Keybed*`) instead of the current global. Not needed yet; recorded
   so the next person hitting a split-keyboard cart knows it's a known ceiling, not a bug.
 
+## Weird patterns found during the rollout (the valuable part)
+
+Migrating real carts surfaced where the "one held note per key into one slot" model
+bends or breaks. Each drove a capability or is a known limitation:
+
+- **Struck, not held (`piano`).** Uses `hit()` (fixed duration, rings down on its own),
+  and its *whole* cart — autoplay, presets, chords — is built on `play_key()`→`hit()`.
+  Doesn't want keybed's held `note_on`. → **manual-voice mode** (`keybed_manage_voices(false)`).
+- **Multiple voices per key (`solina`).** Each key sounds up to 6 "footages" at once,
+  each transposed into a *different* slot. One `note_on` can't express it. → manual-voice mode.
+- **Custom note lifecycle (`mellotron`, `mt70`).** mellotron: a chiff transient + an 8s
+  tape limit that kills the voice mid-hold (fit via the pre-note hook + `keybed_handle`
+  + held-state-as-latch — NO new API). mt70: 3 oscillators per key with independent decay
+  + struck/sustained modes (manual-voice mode).
+- **No glissando wanted (`organ`).** An organ retriggers; a finger slide shouldn't slur.
+  → **`keybed_glissando(false)`**.
+- **Non-piano QWERTY (`solina`).** A *tracker* layout (both rows chromatic, `Z`=C `S`=C#…),
+  not the GarageBand home-row map — expressible via custom `KEYBED_WHITE_KEYS`/`_BLACK_KEYS`.
+- **Split keyboard / two manuals (`sh101`).** Hits the **singleton limitation** above —
+  needs instance-based keybed. Deferred.
+- **Smart-screen / free-MIDI asymmetry (phase 2, `solo.h` radios).** The on-screen strip
+  should stay scale-locked ("can't play wrong" on a phone), but a connected MIDI keyboard —
+  a *musician* — should play fully chromatic. So `solo.h`'s MIDI path is *unrestricted*,
+  NOT snapped to scale (the opposite of the first instinct). Recorded for the `solo.h` phase.
+- **Sibling opportunity:** the 8-pad scale-locked family (`fm`, `filterenv`, `reed`, `pipe`,
+  `pluck`) all hand-roll a *diatonic pad row* — a candidate for a *separate* helper, not keybed.h.
+
 ## What shipped (2026-06-12)
 
 Built and committed this session — see `STATUS.md` for the canonical ledger:

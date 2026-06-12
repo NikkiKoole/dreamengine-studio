@@ -1,7 +1,9 @@
 # Effects bus architecture — reorderable inserts, multi-reverb, reverb-as-bus, sidechain
 
-**Status: Increment A SHIPPED 2026-06-12; Increment C SHIPPED 2026-06-12 (multi-reverb live, AND
-effects-after-reverb live via `reverb_bus_fx` — see §5).** A design map for
+**Status: Increments A, C, D all SHIPPED 2026-06-12.** A: reorderable inserts (`fx_order`). C:
+multi-reverb + reverb-as-bus-insert + effects-after-reverb (`reverb_bus_fx`) — see §5. **D: sidechain
+& bus compression (`sidechain`/`sidechain_key`/`glue`) — the sc_key send accumulator + envelope→gain
+stage of "Increment D" below, shipped; `groovebox` PUMP/GLUE is the showcase.** A design map for
 three *independent* increments to the master-FX / aux-bus layer. The point of this doc is that the
 engine is already shaped for all three, and to record the exact costs so the build isn't re-derived
 from scratch.
@@ -559,11 +561,13 @@ an abrupt gate — is the right shape. **Optional refinement, not needed for a f
 - **Still outside both:** echo gets the same multi-tank treatment as B/C if wanted (it's a
   cheaper single ring buffer, `echo_buf`, `sound.h:401`) — not sketched here, lower priority
   than "everyone in the same room."
-- **Increment D (sidechain / bus comp) is independent of all three** and arguably the highest-demand
-  next build: it's the **cheapest** (no buffers, no bit-repro tax), it ends the per-voice pump *fake*
-  that `house` + `groovebox` ship today, and it lands the **side-chain input path the vocoder also
-  needs** — so building it pays a second debt. It does edit the hot per-voice write loop + the master
-  stage, so it wants the **same quiet tree as C** (post-tuning). Sketched in [Increment D](#increment-d--sidechain--bus-compression-the-side-chain-input-path) above; the `groovebox` PUMP/GLUE knobs are its ready showcase + acceptance test.
+- **Increment D (sidechain / bus comp) — ✅ SHIPPED 2026-06-12.** Independent of A/B/C and the
+  cheapest (no buffers, no bit-repro tax). Ended the per-voice pump *fake* `house`/`groovebox` shipped,
+  and landed the **side-chain input path the vocoder will reuse** (the `sc_key` accumulator) — paying a
+  second debt. As built: master + per-bus victim, `glue()` is the self-keyed case, one comp per bus
+  (the `groovebox` acceptance test surfaced that PUMP & GLUE must share the master comp). Sketched in
+  [Increment D](#increment-d--sidechain--bus-compression-the-side-chain-input-path) above; verified
+  compile-gate + 900-frame tripwire + tune-check exit 0.
 
 Open calls still to make when C is actually built (not blockers on the direction):
 1. **`SOUND_REVERB_TANKS` = 2 or 3?** (room+plate vs +spring; 48 KB vs 72 KB).

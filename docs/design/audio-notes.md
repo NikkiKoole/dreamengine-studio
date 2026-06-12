@@ -1376,6 +1376,19 @@ v1, document it on the panel.
     The 0015 angle: a formant filter is "the SVF reused four times" (like wah was its 4th use), so it clears
     the gate as a filter-reuse, not a new primitive shape — see the 0015 correction.
 
+14. **Sidechain & bus compression** — summed-signal DYNAMICS (the pump + the glue). **✓ SHIPPED 2026-06-12**
+    (effects-bus Increment D). `sidechain(victim_bus, key, amount, atk, rel)` ducks a victim bus on a TRIGGER;
+    `sidechain_key(slot, key, send)` routes a slot (the kick) into a trigger key; `glue(victim_bus, amount,
+    atk, rel)` is the same envelope→gain stage self-keyed (reads the bus's own level), a trigger-less bus
+    compressor. The new mechanism is a **second input path** — a per-sample `sc_key[]` accumulator (same shape
+    as `reverb_in`) the trigger slot feeds, read by `sc_apply` (one-pole atk/rel follower → `1 − amount·env`
+    gain), applied per-bus + at the master like leslie. **NOT an `fx_order` insert** (a gain stage, no `FX_*`).
+    One `SideChain` per victim bus (sidechain OR glue, not both). `SR_SIDECHAIN`=72 / `_KEY`=73 / `SR_GLUE`=74;
+    amount 0 = dormant → byte-identical. **The `sc_key` path is exactly what the vocoder needs** (the "waiting
+    on the sidechain path" the formant note above referenced — now built, ready to reuse). Showcase: the
+    **groovebox** (PUMP kick-keyed + GLUE self-keyed, sharing the master comp). Detail: effects-bus-architecture
+    Increment D.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

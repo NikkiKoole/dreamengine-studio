@@ -297,6 +297,22 @@ cabinet output stage, not a reorderable pedal). **Showcase: `organ`** (the `L` f
 
 ---
 
+## sidechain & bus compression — `sidechain(victim_bus, key, amount, atk, rel)` · `sidechain_key(slot, key, send)` · `glue(victim_bus, amount, atk, rel)`
+
+DYNAMICS on the SUMMED signal (a gain stage, **not** a chain insert — not in `fx_order`). `sidechain`
+ducks a victim bus every time a TRIGGER fires; route the trigger (the kick) into a key with
+`sidechain_key`. `glue` is the same envelope→gain with no trigger — a bus compressor reading its own
+level. amount 0 = dormant (byte-identical). **One comp per bus** (sidechain OR glue on a given bus,
+not both). **Showcase: `groovebox`** (PUMP + GLUE share the master comp). Effects-bus Increment D.
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| the house pump | `sidechain_key(SL_KICK, 0, 1.0f); sidechain(0, 0, 0.6f, 1, 140)` | the whole mix breathes against the four-floor kick — bass/pad duck and bloom across the beat | `groovebox` (PUMP) |
+| gentle bus glue | `glue(0, 0.4f, 8, 150)` | the mix squashed as one lump — drum-bus/master "glue", no trigger | `groovebox` (GLUE) |
+| tight pump | `sidechain(0, 0, 0.8f, 1, 90)` | deeper duck + faster recovery — aggressive EDM pump | — |
+
+---
+
 ## detune as an effect — `instrument_tune(slot, semitones)`
 
 Not a pitch-shift but **unison/ensemble shimmer**: tiny fractional offsets make voices beat against

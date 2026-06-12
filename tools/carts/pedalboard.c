@@ -21,6 +21,7 @@
 // Mouse + touch both work — every contact is its own pointer. The mouse is merged in explicitly.
 
 #include "studio.h"
+#include "fxicons.h"      // shared effect icons + colours (also used by the epiano)
 #include <math.h>
 
 #define I_GTR  5
@@ -375,48 +376,8 @@ void update(void) {
 
 // the little face graphic for an effect, centered at (cx,cy) — reused by the chain pedal AND the
 // (smaller) palette chip.
-static void draw_illu(int cat, int cx, int cy, int col, int bg) {
-    if (cat == C_BIT) {                                 // 8-bit critter
-        int ix = cx - 6, iy = cy - 5;
-        rectfill(ix + 2, iy, 8, 2, col); rectfill(ix, iy + 2, 12, 4, col);
-        rectfill(ix, iy + 6, 3, 3, col); rectfill(ix + 5, iy + 6, 2, 2, col); rectfill(ix + 9, iy + 6, 3, 3, col);
-        rectfill(ix + 3, iy + 3, 2, 2, bg); rectfill(ix + 7, iy + 3, 2, 2, bg);
-    } else if (cat == C_EQ) {                            // equalizer spectrum
-        static const int hh[5] = { 5, 11, 7, 13, 8 };
-        for (int i = 0; i < 5; i++) rectfill(cx - 10 + i * 5, cy + 6 - hh[i], 3, hh[i], col);
-    } else if (cat == C_CHO) {                            // shimmer waves (two offset)
-        for (int o = 0; o < 2; o++) {
-            int base = cy + (o ? 3 : -3), px = cx - 15, py = base;
-            for (int xx = cx - 15; xx <= cx + 15; xx += 2) { int wy = base + (int)(sinf((xx - cx) * 0.42f + o * 1.6f) * 3.0f); line(px, py, xx, wy, col); px = xx; py = wy; }
-        }
-    } else if (cat == C_PHA) {                            // phaser — one slow swirl + a notch dot
-        int px = cx - 14, py = cy;
-        for (int xx = cx - 14; xx <= cx + 14; xx++) { int wy = cy + (int)(sinf((xx - cx) * 0.26f) * 5.0f); line(px, py, xx, wy, col); px = xx; py = wy; }
-        circfill(cx, cy, 1, bg);
-    } else if (cat == C_FLG) {                            // a jet
-        int jx = cx + 7, jy = cy;
-        trifill(jx - 14, jy - 2, jx - 14, jy + 2, jx, jy, col);
-        trifill(jx - 10, jy, jx - 15, jy - 6, jx - 5, jy, col);
-        trifill(jx - 10, jy, jx - 15, jy + 6, jx - 5, jy, col);
-        for (int i = 0; i < 3; i++) line(cx - 16, jy - 3 + i * 3, cx - 9, jy - 3 + i * 3, col);
-    } else if (cat == C_TAP) {                            // two tape reels
-        circ(cx - 7, cy, 4, col); circfill(cx - 7, cy, 1, col);
-        circ(cx + 7, cy, 4, col); circfill(cx + 7, cy, 1, col);
-        line(cx - 7, cy - 5, cx + 7, cy - 5, col); line(cx - 7, cy + 5, cx + 7, cy + 5, col);
-    } else if (cat == C_TRM) {                            // tremolo — carrier sine inside an AM bulge
-        int px = cx - 15, py = cy;
-        for (int xx = cx - 15; xx <= cx + 15; xx++) {
-            float u = (float)(xx - (cx - 15)) / 30.0f; float env = sinf(u * 3.14159f);
-            int wy = cy + (int)(sinf((xx - cx) * 1.1f) * env * 6.0f); line(px, py, xx, wy, col); px = xx; py = wy;
-        }
-    } else if (cat == C_WAH) {                            // wah — a resonant bandpass peak
-        line(cx - 12, cy + 5, cx - 2, cy - 6, col); line(cx - 2, cy - 6, cx + 2, cy - 6, col);
-        line(cx + 2, cy - 6, cx + 12, cy + 5, col); line(cx - 13, cy + 5, cx + 13, cy + 5, col);
-    } else {                                             // REVERB — expanding rings (the bloom)
-        for (int i = 1; i <= 3; i++) circ(cx, cy, i * 3, col);
-        pset(cx, cy, col);
-    }
-}
+// the effect icons now live in the shared runtime/fxicons.h (fx_icon, keyed by FX_* kind) so the
+// epiano's "pedals" match this board's exactly. CAT[].kind maps each catalog box to its FX_* kind.
 
 static void draw_chain_pedal(int i, int x) {
     Slot *sl = &chain[i]; const FxDef *d = &CAT[sl->cat];
@@ -425,7 +386,7 @@ static void draw_chain_pedal(int i, int x) {
     rrect(x, PED_Y, PED_W, PED_H, 4, sl->on ? d->accent : CLR_DARKER_GREY);
     font(FONT_SMALL);
     print_centered(d->name, cx, PED_Y + 3, sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
-    draw_illu(sl->cat, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, d->body);
+    fx_icon(d->kind, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, d->body);
     int kr = knob_rad(d->nk);
     int lblcol = sl->on ? CLR_LIGHT_PEACH : CLR_DARK_GREY;
     for (int j = 0; j < d->nk; j++) {
@@ -449,7 +410,7 @@ static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
     const FxDef *d = &CAT[cat];
     rrectfill(x, y, w, h, 3, d->body);
     rrect(x, y, w, h, 3, ghost ? CLR_WHITE : d->accent);
-    draw_illu(cat, x + w / 2, y + 9, d->accent, d->body);
+    fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
     font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, CLR_WHITE); font(FONT_NORMAL);
 }
 

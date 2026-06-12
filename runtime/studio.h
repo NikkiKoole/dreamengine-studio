@@ -298,6 +298,12 @@ void note_duty(int handle, float duty);                   // change a held note'
 void note_pan(int handle, float pan);                     // change a held note's stereo position live -1 L..0 center..+1 R (slewed). pair with LFO_PAN for auto-pan
 void note_off_all(void);                                  // release every held note at once (panic / cleanup)
 
+// MIDI keyboard input — plug in a USB MIDI keyboard and play any sound cart (macOS now; Chrome on web later)
+int  midi_get(int *note, int *vel);                       // drain one event this frame: returns +1 note-on, -1 note-off, 0 none; fills *note (0..127) + *vel (1..127). call in a while loop
+bool midi_held(int note);                                 // is this MIDI note currently held down? (poll style, like btn())
+int  midi_bend(void);                                     // last pitch-bend wheel value, -8192..+8191 (0 = centred) — for ribbons/glides
+bool midi_present(void);                                  // is any MIDI keyboard connected? (false = no device / web Safari / not macOS)
+
 // instruments — give a slot a waveform + ADSR envelope, then play it like any wave: note(midi, slot, vol)
 void instrument(int slot, int wave, int attack_ms, int decay_ms, int sustain, int release_ms); // define slot 5..31: ms timings, sustain 0..7. pluck = fast attack+short release; pad = slow attack+long release
 void wave_set(int which, const float *samples, int n);    // fill custom wave INSTR_USER0+which (which 0..3) with one drawn cycle: n samples in -1..1, resampled to 64. Live — a ringing note morphs as you redraw

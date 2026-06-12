@@ -89,7 +89,7 @@ const clangArgs = [
   '-DTOUCH_CONTROLS_DEFAULT=0', '-DDE_TRACE', '-Os', '-fno-delete-null-pointer-checks',
   `"${mk.RAYLIB}/lib/libraylib.a"`,
   '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
-  '-framework CoreVideo', '-framework CoreFoundation',
+  '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
   '-Wl,-dead_strip', `-o "${BIN}"`,
 ].join(' ')
 

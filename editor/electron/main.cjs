@@ -222,6 +222,7 @@ function macCompileArgs(dims, optFlags) {
     '-framework IOKit',
     '-framework CoreVideo',
     '-framework CoreFoundation',
+    '-framework CoreMIDI',
     '-Wl,-dead_strip',
     `-o "${CART_BIN}"`,
   ]
@@ -256,7 +257,7 @@ function macTccHostArgs(dims) {
     `-Wl,-rpath,"${LIBTCC_ARCH_DIR}"`,
     `"${RAYLIB}/lib/libraylib.a"`,
     '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
-    '-framework CoreVideo', '-framework CoreFoundation',
+    '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
     '-lm', '-ldl', '-lpthread',
     `-o "${TCC_HOST_BIN}"`,
   ]

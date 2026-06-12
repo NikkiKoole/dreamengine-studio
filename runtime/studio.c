@@ -21,6 +21,7 @@
 #include "sprites_data.h"
 #include "map_data.h"
 #include "sound.h"
+#include "midi_input.h"
 
 #ifdef PLATFORM_WEB
 #include <emscripten/emscripten.h>
@@ -1478,6 +1479,7 @@ int main(int argc, char **argv) {
     if (wav_path) { sound_synth_mode = true; wav_stream_open(wav_path); }
     InitAudioDevice();
     sound_init();
+    midi_input_init();   // CoreMIDI keyboard input (no-op if no device / non-macOS)
 #endif
     SetTargetFPS(60);
 
@@ -1582,6 +1584,7 @@ int main(int argc, char **argv) {
     if (pget_snapshot.data) UnloadImage(pget_snapshot);
     UnloadRenderTexture(canvas);
     wav_stream_close();    // --wav: patch RIFF sizes and finish the file
+    midi_input_shutdown();
     sound_shutdown();
     CloseAudioDevice();
     CloseWindow();

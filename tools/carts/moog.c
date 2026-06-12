@@ -1,4 +1,7 @@
 #include "studio.h"
+#define KEYBED_WHITE_KEYS "ASDFGHJKL;'"   // 11 white keys (two octaves + the top notes)
+#define KEYBED_BLACK_KEYS "WE TYU OP"     // W E (gap) T Y U (gap) O P
+#include "keybed.h"
 
 // A little Moog-style synth playground. Build a sound with the panel — waveform,
 // the famous ADSR envelope, three LFOs, and a resonant filter — then play it on
@@ -44,8 +47,7 @@ int   env_view = 0;                // 0 = AMP ADSR, 1 = FILTER contour, 2 = PITC
 float fenv_amt = 1500, fenv_atk = 4, fenv_dec = 220;   // filter contour: Hz (bipolar), ms, ms
 float penv_amt = 0,    penv_atk = 0, penv_dec = 120;   // pitch env: semitones (bipolar), ms, ms
 
-int   base = 48;                   // MIDI of the leftmost white key (C3)
-int   vel  = 98;                   // 0..127, like a real synth
+int   vel  = 98;                   // 0..127, like a real synth (keybed gets vel07(); MIDI sends its own)
 
 // ---- immediate-mode UI pointer: the finger driving the panel (y < 200).
 //      adopted when a touch BEGINS on the panel, released when it lifts.
@@ -66,23 +68,9 @@ int touch_began(int id) {
     return 1;
 }
 
-// ---- held-note handles, one per computer key (-1 = key is up) ----
-int wh[11], bh[7];
-
-// ---- per-finger keyboard voices (semitones 0..17 over the two octaves) ----
-#define NSEMI 18
-int s_handle[NSEMI];          // ringing note handle per semitone, -1 = silent
-int s_finger[NSEMI];          // touch id holding that key, NOFINGER = none
-
-// ---- keyboard layout ----
-const char wkey[]  = "ASDFGHJKL;'";
-int   wsemi[11] = { 0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17 };
-char  bkey[7]   = { 'W','E','T','Y','U','O','P' };
-int   bsemi[7]  = { 1, 3, 6, 8, 10, 13, 15 };
-int   bafter[7] = { 0, 1, 3, 4, 5, 7, 8 };
-
-int white_x(int i) { return 10 + i * 40; }
-int black_x(int j) { return white_x(bafter[j]) + 28; }
+// keyboard layout, per-finger voices, glissando, octave + the QWERTY/MIDI paths
+// all live in keybed.h now (#defined at the top). NWHITE white keys, base C3.
+#define NWHITE 11
 
 int in_box(int x, int y, int w, int h) { return mx >= x && mx < x + w && my >= y && my < y + h; }
 
@@ -137,19 +125,8 @@ void drive_live(int h) {
 
 int  vel07(void) { return CLI(vel * 7 / 127, 1, 7); }
 
-// key down → start a sustained note (apply the live patch first); key up → release it
-void voice_on(int *h, int semi) { apply_synth(); *h = note_on(base + semi, SLOT, vel07()); }
-void voice_off(int *h)          { if (*h >= 0) note_off(*h); *h = -1; }
-
-// which semitone is under canvas point x,y? NONE = not on the keyboard
-int key_at(int x, int y) {
-    if (y < 200) return NONE;
-    for (int j = 0; j < 7;  j++)
-        if (x >= black_x(j) && x < black_x(j) + 24 && y < 262) return bsemi[j];
-    for (int i = 0; i < 11; i++)
-        if (x >= white_x(i) && x < white_x(i) + 39) return wsemi[i];
-    return NONE;
-}
+// keybed.h fires this just BEFORE each note_on, so wave + ADSR snapshot the live patch
+void kb_prep(int midi, int v) { (void)midi; (void)v; apply_synth(); }
 
 // ---- widgets ----
 int ui_btn(int x, int y, int w, int h, const char *label, int on, int col) {
@@ -195,48 +172,21 @@ void panel(int x, int y, int w, int h, const char *title, int col) {
 }
 
 void init() {
-    for (int i = 0; i < 11; i++) wh[i] = -1;
-    for (int j = 0; j < 7;  j++) bh[j] = -1;
-    for (int k = 0; k < NSEMI; k++) { s_handle[k] = -1; s_finger[k] = NOFINGER; }
+    keybed_config(SLOT, 3, NWHITE);     // base C3, 11 white keys
+    keybed_layout(10, 200, NWHITE * 40, 100);
+    keybed_on_note(kb_prep);            // snapshot wave + ADSR into the slot at each note-on
+    apply_synth();                      // seed the slot so a touch the first frame is voiced
 }
 
 void update() {
-    for (int i = 0; i < 11; i++) {                       // computer-key white notes
-        if (keyp(wkey[i])) voice_on(&wh[i], wsemi[i]);
-        if (keyr(wkey[i])) voice_off(&wh[i]);
-    }
-    for (int j = 0; j < 7; j++) {                        // black notes
-        if (keyp(bkey[j])) voice_on(&bh[j], bsemi[j]);
-        if (keyr(bkey[j])) voice_off(&bh[j]);
-    }
+    keybed_velocity(vel07());           // touch/QWERTY use the VELOCITY knob; MIDI sends its own
+    keybed_update();                    // keys: touch + glissando + QWERTY + MIDI + Z/X octave
 
-    // keys or the tappable [..] labels on the info line
-    if (keyp('Z') || (octdn_x >= 0 && tapp(octdn_x - 2, 186, 44, 13))) base = CLI(base - 12, 12, 96);
-    if (keyp('X') || (octup_x >= 0 && tapp(octup_x - 2, 186, 44, 13))) base = CLI(base + 12, 12, 96);
-    if (keyp('C') || (veldn_x >= 0 && tapp(veldn_x - 2, 186, 44, 13))) vel  = CLI(vel - 10, 1, 127);
-    if (keyp('V') || (velup_x >= 0 && tapp(velup_x - 2, 186, 44, 13))) vel  = CLI(vel + 10, 1, 127);
-
-    // touch keyboard: every finger is a voice — chords, glissando, per-finger
-    // release (the touchpiano pattern). the panel's UI finger is skipped so a
-    // slider drag straying below y=200 never plays a note.
-    for (int i = 0; i < touch_count(); i++) {
-        int id = touch_id(i);
-        if (id == ui_finger) continue;
-        int s = key_at(touch_x(i), touch_y(i));
-        int cur = NONE;
-        for (int k = 0; k < NSEMI; k++) if (s_finger[k] == id) { cur = k; break; }
-        if (s == cur) continue;                          // same key (or still off-keys)
-        if (cur != NONE) { voice_off(&s_handle[cur]); s_finger[cur] = NOFINGER; }
-        if (s != NONE && s_finger[s] == NOFINGER) {      // claim, unless another finger has it
-            voice_on(&s_handle[s], s);
-            s_finger[s] = id;
-        }
-    }
-    for (int i = 0; i < touch_ended_count(); i++) {      // lifted fingers release their keys
-        int id = touch_ended_id(i);
-        for (int k = 0; k < NSEMI; k++)
-            if (s_finger[k] == id) { voice_off(&s_handle[k]); s_finger[k] = NOFINGER; }
-    }
+    // the tappable [..] labels on the info line (Z/X octave is handled by keybed)
+    if (octdn_x >= 0 && tapp(octdn_x - 2, 186, 44, 13)) keybed_octave_shift(-1);
+    if (octup_x >= 0 && tapp(octup_x - 2, 186, 44, 13)) keybed_octave_shift(+1);
+    if (keyp('C') || (veldn_x >= 0 && tapp(veldn_x - 2, 186, 44, 13))) vel = CLI(vel - 10, 1, 127);
+    if (keyp('V') || (velup_x >= 0 && tapp(velup_x - 2, 186, 44, 13))) vel = CLI(vel + 10, 1, 127);
 }
 
 // the famous ADSR envelope editor, with three drag handles
@@ -382,33 +332,31 @@ void draw() {
     }
 
     // ---- info line (the [..] labels are tap targets too) ----
-    int ix = print(str("OCT C%d   ", base / 12 - 1), 8, 190, CLR_LIGHT_GREY);
+    int ix = print(str("OCT C%d   ", keybed_octave()), 8, 190, CLR_LIGHT_GREY);
     octdn_x = ix; ix = print("[Z -]", ix, 190, CLR_LIGHT_GREY) + 4;
     octup_x = ix; print("[X +]", ix, 190, CLR_LIGHT_GREY);
     ix = print(str("VELOCITY %d   ", vel), 250, 190, CLR_LIGHT_GREY);
     veldn_x = ix; ix = print("[C -]", ix, 190, CLR_LIGHT_GREY) + 4;
     velup_x = ix; print("[V +]", ix, 190, CLR_LIGHT_GREY);
 
-    // ---- keyboard ----
-    for (int i = 0; i < 11; i++) {
-        int x = white_x(i);
-        int lit = key(wkey[i]) || s_finger[wsemi[i]] != NOFINGER;
-        rectfill(x, 200, 39, 100, lit ? CLR_YELLOW : CLR_WHITE);
-        rect(x, 200, 39, 100, CLR_DARK_GREY);
-        print(str("%c", wkey[i]), x + 16, 288, CLR_DARK_GREY);
+    // ---- keyboard (keybed.h owns layout/voices/glissando; we just draw + colour it) ----
+    int nw = keybed_white_count();
+    for (int k = 0; k < nw; k++) {
+        int x, y, w, h; keybed_white_rect(k, &x, &y, &w, &h);
+        int midi = keybed_white_midi(k);
+        rectfill(x, y, w - 1, h, keybed_held(midi) ? CLR_YELLOW : CLR_WHITE);
+        rect(x, y, w - 1, h, CLR_DARK_GREY);
+        print(str("%c", KEYBED_WHITE_KEYS[k]), x + w / 2 - 3, y + h - 12, CLR_DARK_GREY);
     }
-    for (int j = 0; j < 7; j++) {
-        int x = black_x(j);
-        int lit = key(bkey[j]) || s_finger[bsemi[j]] != NOFINGER;
-        rectfill(x, 200, 24, 62, lit ? CLR_ORANGE : CLR_BROWNISH_BLACK);
-        print(str("%c", bkey[j]), x + 8, 248, CLR_WHITE);
+    for (int k = 0; k < nw; k++) {
+        int x, y, w, h, midi; if (!keybed_black_rect(k, &x, &y, &w, &h, &midi)) continue;
+        rectfill(x, y, w, h, keybed_held(midi) ? CLR_ORANGE : CLR_BROWNISH_BLACK);
+        if (KEYBED_BLACK_KEYS[k] != ' ') print(str("%c", KEYBED_BLACK_KEYS[k]), x + w / 2 - 2, y + h - 14, CLR_WHITE);
     }
 
     // LIVE: every held note follows the filter (mode+cutoff+res), PW, and LFO knobs this
     // frame — tweak them while a chord rings and you hear it change under your fingers.
-    for (int i = 0; i < 11; i++) drive_live(wh[i]);
-    for (int j = 0; j < 7;  j++) drive_live(bh[j]);
-    for (int k = 0; k < NSEMI; k++) drive_live(s_handle[k]);
+    for (int m = 0; m < 128; m++) if (keybed_held(m)) drive_live(keybed_handle(m));
 
     // snapshot this frame's touch ids — touch_began() compares against these
     seen_n = 0;

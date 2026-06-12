@@ -97,11 +97,17 @@ static bool kb_has_black(int i) { return i >= 0 && i < kb_nwhite - 1 && KB_BSEMI
 static bool keybed_held(int midi) { return midi >= 0 && midi < 128 && kb_src[midi] != 0; }
 static float keybed_glow(int midi) { return (midi >= 0 && midi < 128) ? kb_glow[midi] : 0.0f; }
 static int  keybed_handle(int midi) { return (midi >= 0 && midi < 128) ? kb_handle[midi] : -1; }  // live voice handle, or -1 — for per-note modulation
+static int  keybed_finger(int midi) { for (int i = 0; i < KB_NPTR; i++) if (kb_ptr[i].midi == midi) return kb_ptr[i].id; return -1; }  // touch id holding this note (-1 if QWERTY/MIDI/none) — for per-finger colouring
+
+// optional hook fired just BEFORE each fresh note_on — for synths whose wave/ADSR
+// are snapshot at note time (push the current patch into the slot here). moog uses it.
+static void (*kb_note_cb)(int midi, int vel) = 0;
+static void keybed_on_note(void (*cb)(int midi, int vel)) { kb_note_cb = cb; }
 
 // ── voice management (refcounted across sources so they never stomp) ──
 static void kb_press(int midi, int src, int vel) {
     if (midi < 0 || midi > 127) return;
-    if (kb_src[midi] == 0) { kb_handle[midi] = note_on(midi, kb_slot, vel); kb_glow[midi] = 1.0f; }
+    if (kb_src[midi] == 0) { if (kb_note_cb) kb_note_cb(midi, vel); kb_handle[midi] = note_on(midi, kb_slot, vel); kb_glow[midi] = 1.0f; }
     kb_src[midi] |= src;
 }
 static void kb_release(int midi, int src) {

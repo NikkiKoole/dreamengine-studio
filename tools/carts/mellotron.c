@@ -1,5 +1,8 @@
 #include "studio.h"
 #include "ui.h"
+#define KEYBED_WHITE_KEYS "ASDFGHJKL;'"   // GarageBand musical-typing: home row = whites (A = C)
+#define KEYBED_BLACK_KEYS "WE TYU OP"     // the row above = blacks
+#include "keybed.h"
 #include <math.h>
 #include <stdio.h>
 
@@ -37,29 +40,11 @@
 #define SLOT   5                           // the "tape recording" — INSTR_USER0
 #define CHIFF  6                           // the attack transient — INSTR_NOISE
 
-static const int wsemi[7] = { 0, 2, 4, 5, 7, 9, 11 };
-static const int bsemi[7] = { 1, 3, -1, 6, 8, 10, -1 };  // black key right of white i
-
-// ── per-key tape state (two octaves = 24 semitones) ──
-#define NSEMI    24
-#define NOFINGER (-999)
-#define KBD      (-2)                      // s_finger sentinel: held by a COMPUTER key, not a finger
-static int   s_handle[NSEMI];
-static int   s_finger[NSEMI];              // touch id holding this key, KBD, or NOFINGER
-static float s_start [NSEMI];              // now() when this tape started rolling
-static bool  s_spent [NSEMI];             // tape ran out — silent until the finger lifts
-
-// the GarageBand musical-typing map (the house layout — docs/guides/cart-authoring.md):
-// home row = white keys (A = C), the QWERTY row above = black keys.
-static const char gb_wkey[11]  = "ASDFGHJKL;'";
-static const int  gb_wsemi[11] = { 0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17 };
-static const char gb_bkey[7]   = { 'W', 'E', 'T', 'Y', 'U', 'O', 'P' };
-static const int  gb_bsemi[7]  = { 1, 3, 6, 8, 10, 13, 15 };
-static char  KC[18]; static int KS[18]; static int NK;   // flattened key->semitone map
-static char  kbd_char[NSEMI];                            // reverse: semitone -> key label
-
-static int octv = 0;                       // octave offset, Z/X (clamped -2..+2)
-static int base_midi(void) { return 60 + octv * 12; }    // C4 at octave 0
+// keybed.h owns the layout, per-finger capture, glissando, QWERTY, MIDI + octave.
+// This cart keeps only the *tape* lifecycle on top of it (chiff onset, the 8s limit).
+// Per-note tape state, keyed by MIDI note (keybed's voice identity).
+static float s_start[128];                 // now() when this note's tape started rolling
+static bool  s_spent[128];                 // tape ran out — silent until the key lifts
 
 // ── the four drawn "recordings" + the active LAYER blend ──
 static const char *VNAME[4] = { "STRINGS", "CHOIR", "FLUTE", "BRASS" };
@@ -111,11 +96,13 @@ static void build_active_wave(void) {
     wave_set(0, ACT, 64);
 }
 
+void kb_prep(int midi, int vel);   // the per-note tape onset (defined below)
+
 void init(void) {
     build_waves();
-    NK = 0;                                            // flatten the GB map + build labels
-    for (int i = 0; i < 11; i++) { KC[NK] = gb_wkey[i]; KS[NK] = gb_wsemi[i]; kbd_char[gb_wsemi[i]] = gb_wkey[i]; NK++; }
-    for (int i = 0; i < 7;  i++) { KC[NK] = gb_bkey[i]; KS[NK] = gb_bsemi[i]; kbd_char[gb_bsemi[i]] = gb_bkey[i]; NK++; }
+    keybed_config(SLOT, 4, NWHITE);                    // base C4, two octaves of white keys
+    keybed_layout(KX0, KEY_TOP, NWHITE * WKW, SCREEN_H - KEY_TOP);
+    keybed_on_note(kb_prep);                           // chiff onset + start the tape clock at each note-on
 
     // the sustaining tape voice: a soft swelling pad (bloom in, long release out)
     instrument(SLOT, INSTR_USER0, 140, 0, 6, 600);
@@ -138,105 +125,54 @@ void init(void) {
     tape(0.65f, 0.45f, 0.50f);             // worn-tape wobble (wow / flutter / saturation) — pronounced
 }
 
-// which semitone (0..23) is under canvas point x,y? -1 = none
-static int semi_at(int x, int y) {
-    if (y < KEY_TOP || y >= SCREEN_H) return -1;
-    if (x < KX0 || x >= KX0 + NWHITE * WKW) return -1;
-    int wk = (x - KX0) / WKW;
-    if (wk < 0) wk = 0;
-    if (wk >= NWHITE) wk = NWHITE - 1;
-    if (y < KEY_TOP + BLACK_H) {                   // black row: check both neighbours
-        for (int k = wk - 1; k <= wk; k++) {
-            if (k < 0 || k >= NWHITE) continue;
-            int pos = k % 7;
-            if (bsemi[pos] < 0) continue;
-            int bx = KX0 + (k + 1) * WKW - BLACK_W / 2;
-            if (x >= bx && x < bx + BLACK_W) return (k / 7) * 12 + bsemi[pos];
-        }
-    }
-    return (wk / 7) * 12 + wsemi[wk % 7];
-}
-
-// start a key's tape rolling: the chiff onset + the sustaining blended voice
-static void key_on(int k, int id) {
-    int midi = base_midi() + k;
+// keybed.h fires this just BEFORE the sustain note_on, for ANY source (touch/QWERTY/MIDI):
+// roll a fresh tape — the chiff onset + reset this note's tape clock. (keybed owns the
+// sustain voice itself; lifting + re-pressing re-fires this, which "rewinds" the tape.)
+void kb_prep(int midi, int vel) {
+    (void)vel;
     hit(midi, CHIFF, 2, 36);                        // soft breath as the tape-head engages
-    s_handle[k] = note_on(midi, SLOT, 6);
-    s_finger[k] = id;
-    s_start [k] = now();
-    s_spent [k] = false;
-}
-
-static void key_off(int k) {
-    note_off(s_handle[k]);
-    s_finger[k] = NOFINGER;
-    s_spent [k] = false;                            // lifting rewinds the tape
+    s_start[midi] = now();
+    s_spent[midi] = false;
 }
 
 void update(void) {
-    static bool booted = false;
-    if (!booted) { for (int k = 0; k < NSEMI; k++) s_finger[k] = NOFINGER; booted = true; }
+    keybed_update();          // touch + glissando + QWERTY (GarageBand map) + MIDI + Z/X octave
 
-    // live fingers: claim keys / glissando (finger slid to a different key)
-    for (int i = 0; i < touch_count(); i++) {
-        int id = touch_id(i);
-        int s  = semi_at(touch_x(i), touch_y(i));
-        int cur = -1;
-        for (int k = 0; k < NSEMI; k++) if (s_finger[k] == id) { cur = k; break; }
-        if (s == cur) continue;                     // same key (or still off-keys)
-        if (cur >= 0) key_off(cur);                 // slid off its old key
-        if (s >= 0 && s_finger[s] == NOFINGER) key_on(s, id);
-    }
-
-    // lifted fingers: release exactly the keys those fingers held
-    for (int i = 0; i < touch_ended_count(); i++) {
-        int id = touch_ended_id(i);
-        for (int k = 0; k < NSEMI; k++) if (s_finger[k] == id) key_off(k);
-    }
-
-    // computer keyboard (GarageBand map): press starts a tape, release rewinds it
-    // (KBD keys don't steal a finger-held key, and a finger-held key isn't released by keyr)
-    for (int i = 0; i < NK; i++) {
-        int s = KS[i];
-        if (keyp(KC[i]) && s_finger[s] == NOFINGER) key_on(s, KBD);
-        if (keyr(KC[i]) && s_finger[s] == KBD)       key_off(s);
-    }
-    if (keyp('Z') && octv > -2) octv--;             // octave down / up
-    if (keyp('X') && octv <  2) octv++;
-
-    // THE 8-SECOND TAPE LIMIT — held notes run out of tape and stop on their own
+    // THE 8-SECOND TAPE LIMIT — a held note runs out of tape and stops on its own. We kill
+    // keybed's voice early but leave the key logically HELD (keybed's held-state is the latch),
+    // so it stays silent until you lift + re-press, which re-fires kb_prep and rewinds the tape.
     float len = tape_len();
-    for (int k = 0; k < NSEMI; k++)
-        if (s_finger[k] != NOFINGER && !s_spent[k] && now() - s_start[k] >= len) {
-            note_off(s_handle[k]);
-            s_spent[k] = true;                      // silent, but the finger still holds it
+    for (int m = 0; m < 128; m++)
+        if (keybed_held(m) && !s_spent[m] && now() - s_start[m] >= len) {
+            note_off(keybed_handle(m));
+            s_spent[m] = true;
         }
 }
 
 static void set_tone(void) {
     int hz = tone_hz();
     instrument_filter(SLOT, FILTER_LOW, hz, 2);
-    for (int k = 0; k < NSEMI; k++)                 // sweep the ringing notes too
-        if (s_finger[k] != NOFINGER && !s_spent[k]) note_cutoff(s_handle[k], hz);
+    for (int m = 0; m < 128; m++)                   // sweep the ringing notes too
+        if (keybed_held(m) && !s_spent[m]) note_cutoff(keybed_handle(m), hz);
 }
 
 // draw one key with its remaining-tape fill (drains from the top as tape is used)
-static void draw_key(int x, int y, int w, int h, int k, bool black) {
-    bool held = s_finger[k] != NOFINGER;
+static void draw_key(int x, int y, int w, int h, int midi, char label, bool black) {
+    bool held = keybed_held(midi);
     int base = black ? CLR_DARK_GREY : CLR_WHITE;
     if (!held) {
         rectfill(x, y, w, h, base);
-    } else if (s_spent[k]) {
+    } else if (s_spent[midi]) {
         rectfill(x, y, w, h, CLR_BROWNISH_BLACK);   // tape ran out
     } else {
-        float used = (now() - s_start[k]) / tape_len();
+        float used = (now() - s_start[midi]) / tape_len();
         if (used < 0) used = 0; if (used > 1) used = 1;
         rectfill(x, y, w, h, VCLR[first_voice()]);  // remaining tape = the (lead) voice colour
         rectfill(x, y, w, (int)(used * h), CLR_BROWNISH_BLACK);  // used tape spools away
     }
     rect(x, y, w, h, CLR_DARK_BROWN);
-    if (kbd_char[k]) {                              // the computer key that plays this note
-        char t[2] = { kbd_char[k], 0 };
+    if (label) {                                    // the computer key that plays this note
+        char t[2] = { label, 0 };
         int col = held ? CLR_LIGHT_PEACH : (black ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY);
         print(t, x + (w - text_width(t)) / 2, y + h - (black ? 11 : 20), col);
     }
@@ -286,19 +222,20 @@ void draw(void) {
     font(FONT_NORMAL);
     ui_end();
 
-    // ── keyboard ──
-    for (int k = 0; k < NWHITE; k++) {              // white keys
-        int s = (k / 7) * 12 + wsemi[k % 7];
-        draw_key(KX0 + k * WKW + 1, KEY_TOP, WKW - 1, SCREEN_H - KEY_TOP, s, false);
+    // ── keyboard (keybed.h owns layout/voices; we draw the tape-drain fill) ──
+    int nw = keybed_white_count();
+    for (int k = 0; k < nw; k++) {                  // white keys
+        int x, y, w, h; keybed_white_rect(k, &x, &y, &w, &h);
+        char label = (k < (int)sizeof(KEYBED_WHITE_KEYS) - 1) ? KEYBED_WHITE_KEYS[k] : 0;
+        draw_key(x + 1, y, w - 1, h, keybed_white_midi(k), label, false);
         if (k % 7 == 0) {
-            char lbl[5]; snprintf(lbl, sizeof lbl, "C%d", base_midi() / 12 - 1 + k / 7);
-            print(lbl, KX0 + k * WKW + 4, SCREEN_H - 11, CLR_MEDIUM_GREY);
+            char lbl[5]; snprintf(lbl, sizeof lbl, "C%d", keybed_octave() + k / 7);
+            print(lbl, x + 4, SCREEN_H - 11, CLR_MEDIUM_GREY);
         }
     }
-    for (int k = 0; k < NWHITE; k++) {              // black keys
-        int pos = k % 7;
-        if (bsemi[pos] < 0) continue;
-        int s = (k / 7) * 12 + bsemi[pos];
-        draw_key(KX0 + (k + 1) * WKW - BLACK_W / 2, KEY_TOP, BLACK_W, BLACK_H, s, true);
+    for (int k = 0; k < nw; k++) {                  // black keys
+        int x, y, w, h, midi; if (!keybed_black_rect(k, &x, &y, &w, &h, &midi)) continue;
+        char label = (k < (int)sizeof(KEYBED_BLACK_KEYS) - 1 && KEYBED_BLACK_KEYS[k] != ' ') ? KEYBED_BLACK_KEYS[k] : 0;
+        draw_key(x, y, w, h, midi, label, true);
     }
 }

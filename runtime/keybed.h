@@ -90,6 +90,7 @@ static void keybed_velocity(int v) { kb_vel = v < 0 ? 0 : v > 7 ? 7 : v; }
 
 static int keybed_white_count(void) { return kb_nwhite; }
 static int keybed_base_midi(void)   { return (kb_base_oct + 1) * 12; }
+static int keybed_octave(void)      { return kb_base_oct; }   // current leftmost octave (for display)
 // a black key sits after white i only if i isn't the last white (needs a white to its right)
 static bool kb_has_black(int i) { return i >= 0 && i < kb_nwhite - 1 && KB_BSEMI[i % 7] >= 0; }
 
@@ -170,6 +171,8 @@ static int kb_qwerty_midi(char c) {
 
 // call once per frame (in update(), after keybed_layout has been set at least once)
 static void keybed_update(void) {
+    for (int k = 0; k < 128; k++) if (kb_glow[k] > 0) kb_glow[k] *= 0.88f;   // decay here so custom-draw carts get it too
+
     // 1. MIDI keyboard — absolute notes + velocity
     int mn, mv, t;
     while ((t = midi_get(&mn, &mv)) != 0) {
@@ -215,7 +218,6 @@ static void keybed_update(void) {
 static void keybed_draw(void) {
     int nwhite = keybed_white_count();
     int wkw = kb_w / nwhite, blackH = kb_h * 60 / 100, blackW = wkw * 7 / 12;
-    for (int k = 0; k < 128; k++) if (kb_glow[k] > 0) kb_glow[k] *= 0.88f;
     // white keys
     for (int k = 0; k < nwhite; k++) {
         int x = kb_x + k * wkw, midi = keybed_white_midi(k);

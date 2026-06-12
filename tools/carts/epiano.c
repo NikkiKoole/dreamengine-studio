@@ -1,6 +1,9 @@
 #include "studio.h"
 #include "fxicons.h"     // shared effect icons + colours (same "pedals" as the pedalboard)
 #include <math.h>
+#define KEYBED_WHITE_KEYS "ASDFGHJK"   // epiano's one-octave-plus-C manual (8 whites)
+#define KEYBED_BLACK_KEYS "WE TYU"     // C# D# (gap) F# G# A#
+#include "keybed.h"      // the shared polyphonic keybed: touch + mouse + QWERTY + MIDI
 
 // ── EPIANO ───────────────────────────────────────────────────────────────────────────────────
 // The electromechanical keyboards, rooted in the originals — pick the MACHINE, then flip its own
@@ -22,15 +25,10 @@
 
 #define I_EP 5
 
-// ── the keybed ──
-#define NWHITE 8
-#define NBLACK 5
-#define NKEY   (NWHITE + NBLACK)
-static const char WKEY[NWHITE]  = { 'A','S','D','F','G','H','J','K' };
-static const int  WSEMI[NWHITE] = { 0, 2, 4, 5, 7, 9, 11, 12 };
-static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
-static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
-static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
+// ── the keybed ── (layout/voices/glissando/input live in keybed.h now)
+#define NWHITE 8                            // 8 white keys = one octave + the top C
+static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // QWERTY labels (drawing only)
+static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
 // ── the engine param layer (drives the tuned apply_* — unchanged voicing) ──
 enum { SL_INST, SL_BRITE, SL_BARK, SL_WAH, SL_TREM, NSL };
@@ -96,12 +94,9 @@ static float bright [NMACHINE];                 // live brightness (timbre macro
 static float mharm  [NMACHINE];                 // live harmonics macro per machine (init from M_INST; the MACRO panel tweaks it)
 static bool  show_macros = false;               // the raw-macro tweak panel (HARM/TIMB/MORPH), behind the ⠿ button after BARK
 
-static int   octave = 4;
 static bool  autoplay = true;
 static int   ap_h[3] = { -1, -1, -1 };
 static int   ap_step = 0;
-static int   handle[NKEY];
-static float glow[NKEY];
 static int   aud_h = -1;
 
 // ── per-contact pointer pool (glissando + drag knobs at once) ──
@@ -154,7 +149,6 @@ static int pknob_cx(int m, int i, int k) {            // knob centre within peda
 #define FOOT_Y   (PED_TOP + 47)
 #define KNOB_R   7
 
-static int midi_of(int idx) { return (octave + 1) * 12 + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]); }
 static float bark_drive(float bark) { return bark > 0.5f ? (bark - 0.5f) * 1.4f : 0.0f; }
 
 // ════ the TUNED voicing (verbatim navkit-matched; driven by val[]/wahmode/phasermode) ═══════════
@@ -222,21 +216,8 @@ static void apply_machine(void) {
     if (machine == M_CLAV && ped_on[2][1]) instrument_filter(I_EP, FILTER_LOW, 600 + (int)(ped_k[2][1][0] * 1400.0f), 5);
 }
 
-static void key_down(int b) {
-    if (handle[b] >= 0) { note_off(handle[b]); handle[b] = -1; }
-    handle[b] = note_on(midi_of(b), I_EP, 6);
-    ep_keytrack(handle[b], midi_of(b));
-    glow[b] = 1.0f;
-}
-static void key_up(int b) { if (handle[b] < 0) return; note_off(handle[b]); handle[b] = -1; }
-static int key_at(int tx, int ty) {            // black first (they overlap the whites up top)
-    if (ty < KEY_Y || ty >= KEY_Y + KEY_H) return -1;
-    for (int k = 0; k < NBLACK; k++) if (point_in_box(tx, ty, BLACK_X(k), KEY_Y, BLACK_W, BLACK_H)) return NWHITE + k;
-    for (int b = 0; b < NWHITE; b++) if (point_in_box(tx, ty, KEY_X(b), KEY_Y, KEY_W, KEY_H)) return b;
-    return -1;
-}
-static void octave_step(int d) { int n = octave + d; if (n < 1 || n > 7) return; for (int b = 0; b < NKEY; b++) key_up(b); octave = n; }
-static void audition(void) { if (aud_h >= 0) note_off(aud_h); aud_h = note_on(midi_of(3), I_EP, 5); ep_keytrack(aud_h, midi_of(3)); glow[3] = 1.0f; }
+static void octave_step(int d) { keybed_octave_shift(d); }   // keybed releases held notes + clamps
+static void audition(void) { int m = keybed_white_midi(3); if (aud_h >= 0) note_off(aud_h); aud_h = note_on(m, I_EP, 5); ep_keytrack(aud_h, m); }
 static void set_machine(int m) { machine = m; apply_machine(); audition(); }
 static void load_mpreset(int m, int i) {                // set a machine's voice macros + pedals from a preset
     bright[m] = MPRESET[m][i].bright;
@@ -251,7 +232,8 @@ static void apply_mpreset(int i) {                      // the current machine's
 
 void init(void) {
     instrument(I_EP, INSTR_EPIANO, 1, 0, 7, 450);
-    for (int b = 0; b < NKEY; b++) handle[b] = -1;
+    keybed_config(I_EP, 4, NWHITE);                         // slot, base octave C4, 8 white keys
+    keybed_layout(KEY_X(0), KEY_Y, NWHITE * (KEY_W + KEY_GAP), KEY_H);
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
     for (int m = 0; m < NMACHINE; m++) for (int i = 0; i < 3; i++) { ped_k[m][i][0] = PED[m][i].kdef[0]; ped_k[m][i][1] = PED[m][i].kdef[1]; }
     for (int m = 0; m < NMACHINE; m++) mharm[m] = M_INST[m];         // harmonics macro starts at the instrument detent
@@ -261,16 +243,17 @@ void init(void) {
 }
 
 void update(void) {
-    for (int b = 0; b < NWHITE; b++) { if (keyp(WKEY[b])) key_down(b); if (keyr(WKEY[b])) key_up(b); }
-    for (int k = 0; k < NBLACK; k++) { if (keyp(BKEY[k])) key_down(NWHITE + k); if (keyr(BKEY[k])) key_up(NWHITE + k); }
-    if (keyp('Z')) octave_step(-1);
-    if (keyp('X')) octave_step(+1);
+    keybed_update();                         // keys: touch + mouse + QWERTY (ASDF../WETYU) + MIDI + Z/X octave
     if (keyp('1')) set_machine(M_RHODES);
     if (keyp('2')) set_machine(M_WURLI);
     if (keyp('3')) set_machine(M_CLAV);
     if (keyp('M')) autoplay = !autoplay;
 
-    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) { note_morph(handle[b], val[SL_BARK]); note_drive(handle[b], bark_drive(val[SL_BARK])); }
+    // live bark/keytrack on every ringing keybed voice (any source)
+    for (int m = 0; m < 128; m++) if (keybed_held(m)) {
+        int h = keybed_handle(m);
+        note_morph(h, val[SL_BARK]); note_drive(h, bark_drive(val[SL_BARK])); ep_keytrack(h, m);
+    }
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
@@ -309,22 +292,18 @@ void update(void) {
                 }
                 continue;
             }
-            int kk = key_at(tx, ty);
-            if (kk >= 0) { key_down(kk); p->mode = PTR_KEY; p->key = kk; }
+            // touches in the key area are handled by keybed_update(); this pool is knobs only
         } else if (p->mode == PTR_KNOB) {
             float nv = clamp(p->grabv + (p->grabY - ty) * 0.012f, 0.0f, 1.0f);
             if (p->pedal == -2) { if (p->knob == 0) mharm[machine] = nv; else if (p->knob == 1) bright[machine] = nv; else barkv[machine] = nv; cur_mp[machine] = -1; }
             else if (p->pedal < 0) barkv[machine] = nv;
             else ped_k[machine][p->pedal][p->knob] = nv;
             apply_machine();                                    // live — but DON'T strike a note while dialing
-        } else if (p->mode == PTR_KEY) {                        // GLISSANDO
-            int kk = key_at(tx, ty);
-            if (kk != p->key) { if (p->key >= 0) key_up(p->key); if (kk >= 0) key_down(kk); p->key = kk; }
         }
     }
     for (int i = 0; i < touch_ended_count(); i++)
         for (int j = 0; j < NPTR; j++)
-            if (ptr[j].id == touch_ended_id(i)) { if (ptr[j].mode == PTR_KEY && ptr[j].key >= 0) key_up(ptr[j].key); ptr[j].id = NOID; }
+            if (ptr[j].id == touch_ended_id(i)) ptr[j].id = NOID;
 
     if (autoplay) {
         if (every(2)) {
@@ -393,7 +372,7 @@ void draw(void) {
     print_right(autoplay ? "M auto: on" : "M auto: off", 220, 6, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     rectfill(OCT_DN_X, OCT_Y, OCT_W, OCT_H, CLR_DARK_BROWN); rect(OCT_DN_X, OCT_Y, OCT_W, OCT_H, CLR_BROWN);
     print("Z-", OCT_DN_X + 6, OCT_Y + 4, CLR_LIGHT_PEACH);
-    print_scaled(str("%d", octave), OCT_DN_X + 30, OCT_Y - 1, CLR_LIGHT_YELLOW, 2);
+    print_scaled(str("%d", keybed_octave()), OCT_DN_X + 30, OCT_Y - 1, CLR_LIGHT_YELLOW, 2);
     rectfill(OCT_UP_X, OCT_Y, OCT_W, OCT_H, CLR_DARK_BROWN); rect(OCT_UP_X, OCT_Y, OCT_W, OCT_H, CLR_BROWN);
     print("X+", OCT_UP_X + 6, OCT_Y + 4, CLR_LIGHT_PEACH);
 
@@ -434,21 +413,22 @@ void draw(void) {
     for (int d = 0; d < 3; d++) circ(MACRO_BX + 10 + d * 9, PED_TOP + 12, 3, show_macros ? M_LIT[machine] : CLR_MEDIUM_GREY);
     font(FONT_TINY); print_centered(show_macros ? "x" : "MACRO", MACRO_BX + MACRO_BW / 2, FOOT_Y + 3, show_macros ? CLR_WHITE : CLR_MEDIUM_GREY); font(FONT_NORMAL);
 
-    // the manual
-    for (int b = 0; b < NWHITE; b++) {
-        int x = KEY_X(b); glow[b] *= 0.90f;
-        bool down = handle[b] >= 0;
-        int col = down ? M_LIT[machine] : glow[b] > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
-        rectfill(x, KEY_Y, KEY_W, KEY_H, col);
-        rect(x, KEY_Y, KEY_W, KEY_H, down ? CLR_WHITE : CLR_DARK_BROWN);
-        print(str("%c", WKEY[b]), x + KEY_W / 2 - 2, KEY_Y + KEY_H - 14, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
+    // the manual — keybed.h owns layout/voices/glow; we draw it in epiano's machine colours
+    int nw = keybed_white_count();
+    for (int b = 0; b < nw; b++) {
+        int x, y, w, h; keybed_white_rect(b, &x, &y, &w, &h);
+        int midi = keybed_white_midi(b); bool down = keybed_held(midi);
+        int col = down ? M_LIT[machine] : keybed_glow(midi) > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
+        rectfill(x, y, w - 1, h, col);
+        rect(x, y, w - 1, h, down ? CLR_WHITE : CLR_DARK_BROWN);
+        print(str("%c", WKEY[b]), x + w / 2 - 2, y + h - 14, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
     }
-    for (int k = 0; k < NBLACK; k++) {
-        int x = BLACK_X(k), idx = NWHITE + k; glow[idx] *= 0.90f;
-        bool down = handle[idx] >= 0;
-        int col = down ? CLR_ORANGE : glow[idx] > 0.1f ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK;
-        rectfill(x, KEY_Y, BLACK_W, BLACK_H, col);
-        rect(x, KEY_Y, BLACK_W, BLACK_H, down ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
-        font(FONT_TINY); print(str("%c", BKEY[k]), x + BLACK_W / 2 - 1, KEY_Y + BLACK_H - 9, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL);
+    for (int b = 0; b < nw; b++) {
+        int x, y, w, h, midi; if (!keybed_black_rect(b, &x, &y, &w, &h, &midi)) continue;
+        bool down = keybed_held(midi);
+        int col = down ? CLR_ORANGE : keybed_glow(midi) > 0.1f ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK;
+        rectfill(x, y, w, h, col);
+        rect(x, y, w, h, down ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
+        if (BLBL[b]) { font(FONT_TINY); print(str("%c", BLBL[b]), x + w / 2 - 1, y + h - 9, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL); }
     }
 }

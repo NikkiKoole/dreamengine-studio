@@ -39,7 +39,7 @@ and leave the rest dry. `drive` is the exception — it's a **per-voice** insert
 > point is *that effect as the instrument* — crib from it first. Showcases:
 > `spacecho` (echo) · `cathedral` (reverb) · `juno`/`solina` (chorus) · `mistress` (flanger) ·
 > `tapeloop` (tape) · `clavinet` (wah) · `drivemodes` (drive modes) · `bitcrush` (bitcrush) · `eq` (EQ) ·
-> `epiano` (tremolo + phaser) · `organ` (leslie) · `vowel` (formant).
+> `epiano` (tremolo + phaser) · `organ` (leslie) · `vowel` (formant) · `djfilter` (filter).
 >
 > **The two bus-effect *homes* (effects on a whole mix, not one voice):** `pedalboard` is the
 > SERIAL-insert showcase (`fx_order` — one guitar → a reorderable chain); **`groovebox`** is the
@@ -310,11 +310,13 @@ Same SVF as wah/formant, reused as a plain swept filter (0015: filter-reuse, not
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| breakdown muffle | `filter(FILTER_LOW, cut, 0.5f)` ride cut 300→8000 | close to a thumping muffle, open for the build/drop — the four-floor breakdown | — |
-| screaming build | `filter(FILTER_LOW, cut, 0.9f)` sweep cut up | high resonance = an acid scream riding up into the drop | — |
-| thin it out | `filter(FILTER_HIGH, 800.0f, 0.3f)` | roll off the lows — a radio/telephone thinning, or a transition | — |
-| bipolar DJ filter | one knob: center = `FILTER_OFF`, CCW → `FILTER_LOW` 18k→150 Hz, CW → `FILTER_HIGH` 20→6k (resonance rises as you close) | the mixer one-knob filter — muffle on the breakdown, thin on a transition | `groovebox` (the FILTER knob) |
+| breakdown muffle | `filter(FILTER_LOW, cut, 0.5f)` ride cut 300→8000 | close to a thumping muffle, open for the build/drop — the four-floor breakdown | `djfilter` (the BUILD breakdown) |
+| screaming build | `filter(FILTER_LOW, cut, 0.9f)` sweep cut up | high resonance = an acid scream riding up into the drop | `djfilter` (the BUILD riser) |
+| thin it out | `filter(FILTER_HIGH, 800.0f, 0.3f)` | roll off the lows — a radio/telephone thinning, or a transition | `djfilter` (CW = high-pass) |
+| bipolar DJ filter | one knob: center = `FILTER_OFF`, CCW → `FILTER_LOW` 18k→150 Hz, CW → `FILTER_HIGH` 20→6k (resonance rises as you close) | the mixer one-knob filter — muffle on the breakdown, thin on a transition | `djfilter` (THE knob), `groovebox` (the FILTER knob) |
 | the filter ride | `filter(FILTER_LOW, ride_hz(songpos), res)` per frame | a master cutoff curve AS the arrangement (the house "filter ride IS the song", for real) | — |
+
+**Showcase: `djfilter`** (the bipolar one-knob mixer filter over a self-playing house loop, with a live response curve and a breakdown→riser→DROP BUILD).
 
 ## sidechain & bus compression — `sidechain(victim_bus, key, amount, atk, rel)` · `sidechain_key(slot, key, send)` · `glue(victim_bus, amount, atk, rel)`
 

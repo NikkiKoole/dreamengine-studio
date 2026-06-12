@@ -1397,7 +1397,9 @@ v1, document it on the panel.
     Cheap to re-call every frame, so the cart RIDES the cutoff live (the house "filter ride"). 0015 angle:
     filter-reuse (like wah was the SVF's 4th use), not a new primitive shape. Replaces the per-voice fake
     `house` carries. Verified: compile-gate + tripwire clean, byte-identical when off, LP-200-on-noise drops
-    RMS −20→−40 dBFS. Showcase + house-radio retrofit pending.
+    RMS −20→−40 dBFS. **Showcase shipped: `djfilter`** (the bipolar one-knob mixer filter — XONE:92/DJM
+    homage — over a self-playing house loop, with a live response curve + a breakdown→riser→DROP BUILD;
+    verified open-vs-closed: closed-LP peak −0.06→−5.58 dBFS, crest 11.4→7.2 dB). House-radio retrofit still pending.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

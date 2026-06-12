@@ -1,5 +1,8 @@
 #include "studio.h"
 #include "ui.h"
+#define KEYBED_WHITE_KEYS "ZXCVBNMQWERTYU"   // tracker layout: Z=C X=D C=E V=F B=G N=A M=B, then Q..U
+#define KEYBED_BLACK_KEYS "SD GHJ 23 567"     // S=C# D=D# (gap) G=F# H=G# J=A# (gap) 2=C# 3=D# (gap) 5 6 7
+#include "keybed.h"
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -62,22 +65,10 @@ static bool  autop = true;         // plays itself on load — a string machine 
 static bool  show_help;
 static int   last_step = -1, auto_i = 0;
 
-// per-semitone polyphony: a note handle per (key, tab), -1 = none
-static int  h_note[NSEMI][NTAB];
-static bool kbd[NSEMI];            // held by a computer key
-static int  tfinger[NSEMI];        // touch id holding this key, or NOFINGER
-
-// keyboard geometry
-static const int wsemi[7] = { 0, 2, 4, 5, 7, 9, 11 };
-static const int bsemi[7] = { 1, 3, -1, 6, 8, 10, -1 };
-
-// QWERTY → semitone (tracker layout, two octaves)
-typedef struct { int code, semi; } KMap;
-static const KMap KEYS[] = {
-    {'Z',0},{'S',1},{'X',2},{'D',3},{'C',4},{'V',5},{'G',6},{'B',7},{'H',8},{'N',9},{'J',10},{'M',11},
-    {'Q',12},{'2',13},{'W',14},{'3',15},{'E',16},{'R',17},{'5',18},{'T',19},{'6',20},{'Y',21},{'7',22},{'U',23},
-};
-#define NKEYS ((int)(sizeof(KEYS)/sizeof(KEYS[0])))
+// per-key polyphony: a note handle per (MIDI note, tab), -1 = none. keybed.h owns the
+// keyboard layout / capture / glissando / QWERTY / octave; we run in manual-voice mode
+// (keybed fires note-on/off callbacks; we own the actual multi-footage voicing).
+static int  h_note[128][NTAB];
 
 static int attack_ms(void)  { return 60  + (int)(k_cresc * 1340.0f); }   // 60..1400
 static int release_ms(void) { return 300 + (int)(k_sust  * 3200.0f); }   // 300..3500
@@ -102,37 +93,18 @@ static void apply_ensemble(void) {
     else               chorus(1.6f, 0.70f, 0.72f);           // II — deeper, faster, drenched
 }
 
-static bool sounding(int k) { return kbd[k] || tfinger[k] != NOFINGER; }
-
-static void voice_start(int k) {
+// keybed.h callbacks (manual-voice mode): one key → up to 6 footage voices, each transposed
+// into its own tab slot. Fired for ANY source (touch/QWERTY/MIDI) and on glissando.
+void voice_start(int midi, int vel) {
+    (void)vel;
     for (int t = 0; t < NTAB; t++) {
-        if (h_note[k][t] != -1) continue;                    // already on
-        if (!tab_on[t]) continue;
-        h_note[k][t] = note_on(BASE_MIDI + k + TAB[t].oct, SLOT0 + t, 5);
+        if (h_note[midi][t] != -1 || !tab_on[t]) continue;
+        h_note[midi][t] = note_on(midi + TAB[t].oct, SLOT0 + t, 5);
     }
 }
-static void voice_stop(int k) {
-    if (sounding(k)) return;                                  // still held by the other source
+void voice_stop(int midi) {
     for (int t = 0; t < NTAB; t++)
-        if (h_note[k][t] != -1) { note_off(h_note[k][t]); h_note[k][t] = -1; }
-}
-
-// which semitone (0..23) is under canvas point x,y? -1 = none
-static int semi_at(int x, int y) {
-    if (y < KEY_TOP || y >= SCREEN_H) return -1;
-    int wk = x / WKW;
-    if (wk < 0) wk = 0;
-    if (wk >= NWHITE) wk = NWHITE - 1;
-    if (y < KEY_TOP + BLACK_H) {
-        for (int k = wk - 1; k <= wk; k++) {
-            if (k < 0 || k >= NWHITE) continue;
-            int pos = k % 7;
-            if (bsemi[pos] < 0) continue;
-            int bx = (k + 1) * WKW - BLACK_W / 2;
-            if (x >= bx && x < bx + BLACK_W) return (k / 7) * 12 + bsemi[pos];
-        }
-    }
-    return (wk / 7) * 12 + wsemi[wk % 7];
+        if (h_note[midi][t] != -1) { note_off(h_note[midi][t]); h_note[midi][t] = -1; }
 }
 
 static void play_chord_auto(const int *notes, int n, int dur) {
@@ -143,7 +115,12 @@ static void play_chord_auto(const int *notes, int n, int dur) {
 
 void init(void) {
     bpm(50);
-    for (int k = 0; k < NSEMI; k++) { tfinger[k] = NOFINGER; for (int t = 0; t < NTAB; t++) h_note[k][t] = -1; }
+    for (int m = 0; m < 128; m++) for (int t = 0; t < NTAB; t++) h_note[m][t] = -1;
+    keybed_config(SLOT0, 3, NWHITE);        // base C3, 2 octaves of white keys (slot is unused in manual mode)
+    keybed_layout(0, KEY_TOP, SCREEN_W, SCREEN_H - KEY_TOP);
+    keybed_manage_voices(false);            // WE own voicing (6 footages per key)
+    keybed_on_note(voice_start);
+    keybed_on_off(voice_stop);
     apply_voices();
     apply_ensemble();
 }
@@ -152,28 +129,7 @@ void update(void) {
     if (keyp(KEY_SPACE)) { autop = !autop; last_step = -1; if (!autop) note_off_all(); }
     if (keyp(KEY_TAB) || keyp('/')) show_help = !show_help;
 
-    // computer keyboard — press = note_on, release = note_off (true holds)
-    for (int i = 0; i < NKEYS; i++) {
-        int k = KEYS[i].semi;
-        if (keyp(KEYS[i].code) && !kbd[k]) { kbd[k] = true;  voice_start(k); }
-        if (keyr(KEYS[i].code) &&  kbd[k]) { kbd[k] = false; voice_stop(k);  }
-    }
-
-    // touch — claim keys, glissando on slide, release on lift
-    for (int i = 0; i < touch_count(); i++) {
-        int id = touch_id(i);
-        int s  = semi_at(touch_x(i), touch_y(i));
-        int cur = -1;
-        for (int k = 0; k < NSEMI; k++) if (tfinger[k] == id) { cur = k; break; }
-        if (s == cur) continue;
-        if (cur >= 0) { tfinger[cur] = NOFINGER; voice_stop(cur); }
-        if (s >= 0 && tfinger[s] == NOFINGER) { tfinger[s] = id; voice_start(s); }
-    }
-    for (int i = 0; i < touch_ended_count(); i++) {
-        int id = touch_ended_id(i);
-        for (int k = 0; k < NSEMI; k++)
-            if (tfinger[k] == id) { tfinger[k] = NOFINGER; voice_stop(k); }
-    }
+    keybed_update();    // keys: touch + glissando + QWERTY (tracker map) + MIDI + Z/X octave → voice_start/stop
 
     // AUTO — a slow I–vi–IV–V string progression (Am: Am F C G), fully sustained
     if (autop) {
@@ -284,21 +240,18 @@ void draw(void) {
     print(buf, 150, 118, CLR_DARK_BROWN);
     font(FONT_NORMAL);
 
-    // ── keyboard ─────────────────────────────────────────────────────────────
-    for (int wk = 0; wk < NWHITE; wk++) {
-        int s = (wk / 7) * 12 + wsemi[wk % 7];
-        int x = wk * WKW;
-        bool on = sounding(s);
-        rectfill(x, KEY_TOP, WKW - 1, SCREEN_H - KEY_TOP, on ? CLR_LIGHT_YELLOW : CLR_WHITE);
-        rect(x, KEY_TOP, WKW - 1, SCREEN_H - KEY_TOP, CLR_DARK_GREY);
+    // ── keyboard (keybed.h owns layout + held-state) ─────────────────────────
+    int nw = keybed_white_count();
+    for (int wk = 0; wk < nw; wk++) {
+        int x, y, w, h; keybed_white_rect(wk, &x, &y, &w, &h);
+        bool on = keybed_held(keybed_white_midi(wk));
+        rectfill(x, y, w - 1, h, on ? CLR_LIGHT_YELLOW : CLR_WHITE);
+        rect(x, y, w - 1, h, CLR_DARK_GREY);
     }
-    for (int wk = 0; wk < NWHITE; wk++) {
-        int pos = wk % 7;
-        if (bsemi[pos] < 0) continue;
-        int s = (wk / 7) * 12 + bsemi[pos];
-        int bx = (wk + 1) * WKW - BLACK_W / 2;
-        bool on = sounding(s);
-        rectfill(bx, KEY_TOP, BLACK_W, BLACK_H, on ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK);
-        rect(bx, KEY_TOP, BLACK_W, BLACK_H, CLR_BLACK);
+    for (int wk = 0; wk < nw; wk++) {
+        int x, y, w, h, midi; if (!keybed_black_rect(wk, &x, &y, &w, &h, &midi)) continue;
+        bool on = keybed_held(midi);
+        rectfill(x, y, w, h, on ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK);
+        rect(x, y, w, h, CLR_BLACK);
     }
 }

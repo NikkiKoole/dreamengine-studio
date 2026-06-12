@@ -248,15 +248,27 @@ feature on per-cart, we collect ALL the exceptional cases first, then design the
 advanced capabilities once, informed by the whole set. Come back when the list below
 feels complete.
 
-**Deferred keybed carts:**
+**Both deferred carts now have MIDI** (2026-06-12) — wired straight into their existing
+note paths via the engine `midi_get()` layer (sh101: `key_down`/`key_up`; mt70:
+`press_semi`/`lift_semi` in its C3..C5 window). So the *goal* (play them from a MIDI
+keyboard) is met without migration. What stays deferred is full keybed.h adoption
+(unifying touch/QWERTY + the dedup):
 - **`mt70`** — the most elaborate voice model: 1–3 stacked oscillator voices per key,
   struck notes that *detach and keep ringing on lift* (bell behaviour), and a
   cart-driven exponential decay via live `note_vol()` per layer. Fits manual-voice
   mode, but intricate. Migrate when we revisit advanced voice lifecycles.
-- **`sh101`** — split keyboard / two manuals → needs **instance-based keybed** (a
-  `Keybed*` the cart owns instead of file-global state). This is the one feature that
-  needs a keybed.h structural change; do it once and it also covers any future
-  split/stacked-manual cart.
+- **`sh101`** — **correction:** it is NOT a split keyboard. It's a *monophonic* synth
+  whose two on-screen rows are just two octaves of the *same* keyboard stacked to save
+  space (one sound). So it needs neither two instances nor a split. Full keybed.h
+  adoption is only blocked on a **multi-row drawn layout** (keybed.h renders one
+  horizontal row; sh101 wants two stacked) — a rendering option, not a structural change.
+
+**The split-keyboard feature, reframed (better than instances).** A real split synth is
+**1 keybed → 2 sounds**: one keyboard with a split point, low notes → slot A, high notes
+→ slot B (bass left hand, lead right hand). That's far lighter than instance-based keybed
+— a split point + a second slot, not a whole `Keybed*` refactor. Prefer this when a
+genuine split cart appears. (Instance-based keybed is only needed if two keyboards must
+be played *and drawn* independently at once — no current cart wants that.)
 
 **Other families that will add exceptional cases (phase 2):**
 - **Continuous-pitch ribbons** (`martenot`, `upright`, `pdbass`, `spacecho`,
@@ -267,9 +279,12 @@ feels complete.
 - **`solo.h` radios** — the smart-screen / free-MIDI asymmetry (touch = scale-locked,
   MIDI = chromatic). See the weird-patterns note above.
 
-The throughline for the revisit: an **instance-based keybed** + a **richer voice
-lifecycle** (the manual-voice callbacks already point the way) likely cover `mt70`,
-`sh101`, and several phase-2 cases together.
+The throughline for the revisit: a **richer voice lifecycle** (the manual-voice
+callbacks already point the way) covers `mt70`; a **multi-row drawn layout** covers
+`sh101`; a **1-keybed→2-sounds split** covers real split synths; and **sibling helpers**
+(ribbon, diatonic pad row) cover the other families. None of these needs the heavy
+instance-based (`Keybed*`) refactor — that's only for drawing two independent keyboards
+at once, which nothing currently wants.
 
 ## What shipped (2026-06-12)
 

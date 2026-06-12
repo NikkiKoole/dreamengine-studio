@@ -1362,6 +1362,20 @@ v1, document it on the panel.
     doctrine ladder: **send** (`reverb()`, parallel) → **in-line insert** (`reverb_insert`, mix) → **dedicated
     space** (`reverb_bus`, wet-replace + downstream `reverb_bus_fx`).
 
+13. **Formant (vowel) filter** — the talkbox-family vowel colour, on a bus. **✓ SHIPPED 2026-06-12** —
+    `formant(vowel, q, mix)` (master) **and** `instrument_formant(slot, …)` (per-instrument aux bus). Four
+    parallel TPT bandpasses parked at the human formant frequencies (F1–F4), summed by the vowel's
+    relative amps, so any source takes on an "ooh/aah/eee" vocal colour; `vowel` 0–1 sweeps OO→OH→AH→EH→EE,
+    `q` narrows the peaks, `mix` 0–1 (0 = off). **Reuses navkit's measured vowel table** (`vox_vowel_f/a/bw`,
+    already in `sound.h` for `INSTR_VOICE`) — so it was routing + a control surface, not a new DSP port. A
+    per-bus insert: `FX_FORMANT`=9, a reorderable pedal in every bus's default chain, `fmt_used[]`-gated →
+    dormant carts byte-identical (soundcheck silent). `SR_FORMANT`=70 / `SR_INSTR_FORMANT`=71. Showcase: the
+    **vowel** cart (a saw chord that talks). **It's the BUS half of the vowel story** — color any sound;
+    `INSTR_VOICE` is the instrument half (a synth that sings, with polyphonic per-note articulation a bus
+    can't do). **NOT a vocoder** — that's carrier×modulator (two inputs), waiting on the sidechain path.
+    The 0015 angle: a formant filter is "the SVF reused four times" (like wah was its 4th use), so it clears
+    the gate as a filter-reuse, not a new primitive shape — see the 0015 correction.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

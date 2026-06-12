@@ -39,7 +39,7 @@ and leave the rest dry. `drive` is the exception — it's a **per-voice** insert
 > point is *that effect as the instrument* — crib from it first. Showcases:
 > `spacecho` (echo) · `cathedral` (reverb) · `juno`/`solina` (chorus) · `mistress` (flanger) ·
 > `tapeloop` (tape) · `clavinet` (wah) · `drivemodes` (drive modes) · `bitcrush` (bitcrush) · `eq` (EQ) ·
-> `epiano` (tremolo + phaser) · `organ` (leslie).
+> `epiano` (tremolo + phaser) · `organ` (leslie) · `vowel` (formant).
 >
 > **The two bus-effect *homes* (effects on a whole mix, not one voice):** `pedalboard` is the
 > SERIAL-insert showcase (`fx_order` — one guitar → a reorderable chain); **`groovebox`** is the
@@ -159,6 +159,23 @@ funk quack). Best on ONE rich/percussive part. **Showcase: `clavinet`.**
 |---|---|---|---|
 | talking clav | `instrument_wah(SL_CLAV, 0.6f, 0.7f, 0.85f)` | the Hohner D6 quack — opens on the stab, shuts between | `clavinet` |
 | wah-bar sweep | `instrument_wah(slot, 0.4+amt*0.6, 0.45+amt*0.4, 0.75+amt*0.25)` | one knob `amt` 0→1 ramps the whole effect in | `epiano` |
+
+## formant — `formant(vowel, q, mix)` · `instrument_formant(slot, vowel, q, mix)`
+
+The VOWEL filter — four bandpasses parked at the human formant frequencies (F1–F4), so any source
+takes on an "ooh/aah/eee" vocal colour. `vowel` 0–1 sweeps **OO→OH→AH→EH→EE** (sweep it and a synth
+talks); `q` 0–1 narrows the peaks (broad → pronounced/nasal); `mix` 0–1 (0 = off). A wah is the
+one-peak version of this; this is the multi-peak vowel. **Single-input** (the talkbox family, knob
+for a mouth) — *not* a vocoder (that needs a second carrier×modulator input — a future effect once
+the sidechain lands). Reuses navkit's measured vowel table (shared with `INSTR_VOICE`). Master or
+per-instrument. A sweeping `vowel` every frame is fine (it's a coefficient update, no buffer churn —
+unlike crush/tape). **Showcase: `vowel`** (a saw chord that talks).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| talking saw | `formant(swept 0→1, 0.6f, 0.95f)` | a buzzing chord that says its vowels as the knob moves — the talkbox move | `vowel` |
+| nasal "ee" lead | `instrument_formant(slot, 1.0f, 0.8f, 0.85f)` | a pinched, nasal vocal colour on one lead/pad, rest of the mix plain | (per-instrument pattern) |
+| open "ah" pad | `instrument_formant(I_PAD, 0.5f, 0.5f, 0.7f)` | a soft choral "ah" colour on a held pad — broad peaks, gentle | (pad pattern) |
 
 ## drive — `instrument_drive(slot, amount)` · `note_drive` · `instrument_drive_mode(slot, mode)`
 

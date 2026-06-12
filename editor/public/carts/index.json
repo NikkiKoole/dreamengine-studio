@@ -3019,6 +3019,15 @@
     ]
   },
   {
+    "title": "vowel",
+    "description": "The FORMANT FILTER as the instrument - the showcase for formant(): four bandpasses parked at the human vowel frequencies, so a plain buzzing synth suddenly SAYS a vowel. A held saw-chord drone runs into the filter; sweep VOWEL and the chord talks OO->OH->AH->EH->EE. This is the single-input vowel filter (the talkbox family, played with a knob instead of your mouth) - NOT a vocoder, which needs a separate carrier x modulator input. The BUS side of the vowel story (colour ANY sound); INSTR_VOICE is the instrument side (a synth that sings on its own). Newest box in the effects family (spacecho/cathedral/juno/mistress/tapeloop/clavinet/eq/bitcrush/organ/vowel). The on-screen MOUTH morphs with the vowel and a ruler tracks OO..EE. VOWEL the talking knob (1..5 jump straight to a vowel), Q how pronounced/nasal, MIX dry..wet; AUTO [A] sweeps it on its own, BYPASS [Z] A/Bs the raw saw chord, H help.",
+    "file": "vowel.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ]
+  },
+  {
     "title": "seinelaan 31",
     "description": "A real Eindhoven apartment (Seinelaan 31) walked as a top-down level, built from its Floorplanner .fml by the fmltools pipeline. Walls with walkable doorways and real door/window sprites, each room a distinct floor colour, 72 furniture pieces as top-down pixel sprites baked from Floorplanner CDN renders. WASD/arrows move, T toggles sprites vs boxes. Sibling of floorwalker.",
     "file": "seinelaan.cart.png",

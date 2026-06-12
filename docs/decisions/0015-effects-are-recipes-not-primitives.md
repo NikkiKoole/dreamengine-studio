@@ -227,3 +227,19 @@ convention — it's **refusing to admit new primitives**.
   Doppler + drive"), it was wrong that those could be *assembled from the rostered primitives* — and
   the gate is precisely the test that catches that. The pattern is now explicit across wah/tremolo/
   Leslie: **"X = a + b + c" does not imply "X is a recipe" unless a, b, c are each reachable today.**
+
+- **2026-06-12 — formant (vowel) filter shipped as a bus insert; the "SVF reused N times" pattern holds.**
+  `formant(vowel, q, mix)` + `instrument_formant(slot, …)` is the talkbox-family vowel filter — four
+  bandpasses at the human formant frequencies, on a per-bus insert (`FX_FORMANT`, gated → byte-identical
+  when off). It's **not a new primitive shape**: it's the state-variable filter reused four times in
+  parallel (wah was the SVF's 4th use, the realistic auto-wah; this is the same SVF, four copies, parked
+  at vowel frequencies instead of one envelope-swept peak). So it clears the gate the way EQ/wah did — a
+  *filter*, already rostered, placed a new way — not a phaser-style admitted exception. Two clarifications
+  it nails down: (1) **per-voice vs bus** — navkit runs its formant *effect* per-voice for one reason,
+  per-note vowel articulation (each note says its own phoneme), which is a *singing-synth* feature owned by
+  `INSTR_VOICE`; as an **effect** ("push any sound through a vowel") it's inherently a bus/insert (a plugin
+  only ever sees the summed track), and the bus form covers everything except polyphonic per-note vowels,
+  which aren't an effect's job. (2) **formant filter ≠ vocoder** — the vocoder is carrier×modulator (two
+  inputs) and still waits on the sidechain path; the formant filter is single-input and complete now. It
+  even reused navkit's measured vowel table verbatim (already in `sound.h` for `INSTR_VOICE`), so the port
+  was routing, not DSP. Showcase: the `vowel` cart. §17 ledger item 13.

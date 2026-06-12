@@ -796,6 +796,48 @@ static void fx_set_wah_lfo(int b, float rate, float res, float mix) {
     wah_used[b] = true;
 }
 
+// ── formant filter — vowel resonance, the "push any sound through a voice" effect ──
+// FOUR parallel TPT bandpasses tuned to the human vowel formants (F1..F4), summed by the vowel's
+// relative amplitudes → whatever passes through takes on an "ooh / aah / eee" vocal colour (the
+// synth-world formant/vowel filter; a wah pedal is the one-peak version of this). The vowel knob
+// sweeps the U→O→A→E→I path; q narrows the peaks (broad → pronounced/nasal). REUSES navkit's
+// measured vowel tables (vox_vowel_f/a/bw, shared with INSTR_VOICE) — the lookup lives in
+// fx_set_formant (defined after those tables); formant_process here is table-free (just runs the
+// SVFs from precomputed band targets) so it can sit before apply_insert. Filters the mono sum (the
+// wet is mono, like wah); dry stays per-channel. Dormant until formant()/instrument_formant() →
+// non-users byte-identical. design: docs/guides/effects-recipes.md → formant.
+static float fmt_freq[SOUND_FX_BUSES][4];   // band centre freqs (Hz), from the vowel table
+static float fmt_k   [SOUND_FX_BUSES][4];   // band damping = 1/Q = bw/fc (precomputed by fx_set_formant)
+static float fmt_amp [SOUND_FX_BUSES][4];   // band relative amplitudes (F1 loudest)
+static float fmt_ic1 [SOUND_FX_BUSES][4];   // TPT SVF state per band
+static float fmt_ic2 [SOUND_FX_BUSES][4];
+static float fmt_mix [SOUND_FX_BUSES];      // dry/wet 0..1
+static bool  fmt_used[SOUND_FX_BUSES];
+static void formant_process(int b, float *mixL, float *mixR) {
+    float in = (*mixL + *mixR) * 0.5f;      // filter the mono sum (wet is mono, like wah)
+    float out = 0.0f;
+    for (int i = 0; i < 4; i++) {
+        float fc = fmt_freq[b][i];
+        if (fc > SOUND_SAMPLE_RATE * 0.45f) fc = SOUND_SAMPLE_RATE * 0.45f;
+        float g = tanf(3.14159265f * fc / (float)SOUND_SAMPLE_RATE);   // TPT bandpass (Zavalishin), one per formant
+        float k = fmt_k[b][i];
+        float a1 = 1.0f / (1.0f + g * (g + k));
+        float a2 = g * a1, a3 = g * a2;
+        float v3 = in - fmt_ic2[b][i];
+        float v1 = a1 * fmt_ic1[b][i] + a2 * v3;
+        float v2 = fmt_ic2[b][i] + a2 * fmt_ic1[b][i] + a3 * v3;
+        fmt_ic1[b][i] = 2.0f * v1 - fmt_ic1[b][i];
+        fmt_ic2[b][i] = 2.0f * v2 - fmt_ic2[b][i];
+        if (fmt_ic1[b][i] >  4.0f) fmt_ic1[b][i] =  4.0f; if (fmt_ic1[b][i] < -4.0f) fmt_ic1[b][i] = -4.0f;  // runaway guard
+        if (fmt_ic2[b][i] >  4.0f) fmt_ic2[b][i] =  4.0f; if (fmt_ic2[b][i] < -4.0f) fmt_ic2[b][i] = -4.0f;
+        out += v1 * fmt_amp[b][i];          // bandpass output = v1, weighted by the formant's amp
+    }
+    out *= 1.6f;                            // makeup for the narrow summed bands (dialled by ear)
+    if (out > 1.0f || out < -1.0f) out = tanhf(out);   // soft-clip the wet (navkit filterbank does this) — a resonant peak can't spike
+    *mixL = *mixL * (1.0f - fmt_mix[b]) + out * fmt_mix[b];
+    *mixR = *mixR * (1.0f - fmt_mix[b]) + out * fmt_mix[b];
+}
+
 // ── EQ — 3-band tone control: BOOST or cut LOW / MID / HIGH, ±12 dB each. ──
 // THE library's only BOOST (the SVF filters can only cut). navkit processMasterEQ, made stereo,
 // per-bus, AND 3-band: two cascaded one-pole crossovers split the signal into low (<~80 Hz) / mid
@@ -1035,7 +1077,7 @@ static void fx_set_leslie(int b, int speed, float drive, float balance, float do
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_REVERB + 1)           // array size / max chain length: the pedals + FX_REVERB (reverb-bus only)
+#define N_INSERTS (FX_FORMANT + 1)          // array size / max chain length: the 8 pedals + FX_FORMANT (a pedal) + FX_REVERB (reverb-bus only)
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
 static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default N_PEDALS = the 8 pedals; FX_REVERB only on a reverb-bus)
 // dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
@@ -1049,6 +1091,7 @@ static void apply_insert(int kind, int b, float *L, float *R) {
         case FX_TAPE:    if (tape_used[b])   tape_process(b, L, R);    break;
         case FX_EQ:      if (eq_used[b])     eq_process(b, L, R);      break;
         case FX_CRUSH:   if (crush_used[b])  crush_process(b, L, R);   break;
+        case FX_FORMANT: if (fmt_used[b])    formant_process(b, L, R); break;
         // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
         // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
         // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
@@ -1151,6 +1194,8 @@ typedef enum {
     SR_INSTR_REVERB_BUS = 67, // a=slot, b=tank, c=mix*1000 — route a slot's reverb send into tank N's bus instead of the master send
     SR_REVERB_BUS_FX = 68,  // a=tank, b=fx (FX_*), c/e0/e1 = params*1000 — add/configure an insert AFTER the reverb on tank N's bus
     SR_REVERB_INSERT = 69,  // a=size*1000, b=damp*1000, c=mix*1000 — reverb as a dry/wet-MIX INSERT on the master bus (in the fx_order chain)
+    SR_FORMANT      = 70,   // a=vowel*1000, b=q*1000, c=mix*1000 — THE master formant/vowel filter (bus 0)
+    SR_INSTR_FORMANT= 71,   // a=slot, b=vowel*1000, c=q*1000, e0=mix*1000 — formant filter on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -2509,6 +2554,33 @@ static const float vox_vowel_bw[VOX_NVOWEL][4] = {
     { 75.0f, 100.0f, 120.0f, 170.0f},   // ER
 };
 
+// Configure a bus's FORMANT filter from the U→I vowel path (the public formant()/instrument_formant()).
+// vowel 0..1 sweeps U→O→A→E→I (the first 5 rows above, same path INSTR_VOICE's vowel macro walks);
+// q 0..1 narrows the formant peaks (broad → pronounced/nasal); mix 0..1 (0 = off). Interpolates the
+// measured vowel table into the 4 band TARGETS that the table-free formant_process (near wah) reads.
+// Lives HERE, after the tables — formant_process sits before apply_insert and stays table-free.
+static void fx_set_formant(int b, float vowel, float q, float mix) {
+    if (vowel < 0.0f) vowel = 0.0f; if (vowel > 1.0f) vowel = 1.0f;
+    if (q < 0.0f) q = 0.0f; if (q > 1.0f) q = 1.0f;
+    if (mix < 0.0f) mix = 0.0f; if (mix > 1.0f) mix = 1.0f;
+    float vpos = vowel * 4.0f;                  // 0..4 along the first 5 vowels (U O A E I)
+    int vi = (int)vpos; if (vi > 3) vi = 3; if (vi < 0) vi = 0;
+    float fr = vpos - (float)vi;
+    float bw_scale = 1.0f / (1.0f + q * 3.0f);  // q 0→1: bandwidth ×1.0 → ×0.25 (narrower = more vocal)
+    for (int i = 0; i < 4; i++) {
+        float fc = vox_vowel_f[vi][i]  * (1.0f - fr) + vox_vowel_f[vi + 1][i]  * fr;
+        float am = vox_vowel_a[vi][i]  * (1.0f - fr) + vox_vowel_a[vi + 1][i]  * fr;
+        float bw = vox_vowel_bw[vi][i] * (1.0f - fr) + vox_vowel_bw[vi + 1][i] * fr;
+        bw *= bw_scale;
+        float k = bw / fc; if (k < 0.02f) k = 0.02f; if (k > 2.0f) k = 2.0f;   // k = 1/Q (damping)
+        fmt_freq[b][i] = fc;
+        fmt_k[b][i]    = k;
+        fmt_amp[b][i]  = am;
+    }
+    fmt_mix[b] = mix;
+    fmt_used[b] = (mix > 0.0f);
+}
+
 // consonant ONSET table (articulation): a note can BEGIN with a brief consonant that morphs
 // into the held vowel — "bah", "mah", "sss-ah". Each row: F1..F4 + amps (navkit vfPhonemeTable
 // consonant rows), a noise gain (fricative hiss / plosive burst), a voiced flag (nasals/voiced
@@ -3815,6 +3887,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_eq(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_FORMANT) {      // master formant/vowel filter (bus 0): a=vowel, b=q, c=mix (×1000)
+        fx_set_formant(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_INSTR_FORMANT) { // per-instrument: a=slot, b=vowel, c=q, e0=mix (×1000)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) fx_set_formant(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_PAN) {    // a=slot, b=pan*1000 (signed)
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -4711,6 +4789,15 @@ void instrument_eq(int slot, float low_gain, float mid_gain, float high_gain) {
     sound_push_ctrl(SR_INSTR_EQ, slot, (int)(low_gain * 1000.0f), (int)(mid_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0);
 }
 
+void formant(float vowel, float q, float mix) {
+    sound_push_ctrl(SR_FORMANT, (int)(vowel * 1000.0f), (int)(q * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
+}
+
+void instrument_formant(int slot, float vowel, float q, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_FORMANT, slot, (int)(vowel * 1000.0f), (int)(q * 1000.0f), (int)(mix * 1000.0f), 0, 0);
+}
+
 // ── tremolo: THE master tremolo (volume LFO — the Fender/Wurlitzer amp wobble) ──
 
 void tremolo(float rate, float depth, int shape) {
@@ -4957,8 +5044,11 @@ static void sound_init(void) {
         crush_holdL[b] = 0.0f; crush_holdR[b] = 0.0f; crush_cnt[b] = 0; crush_used[b] = false;
         eq_low_g[b] = 1.0f; eq_mid_g[b] = 1.0f; eq_high_g[b] = 1.0f;
         eq_loL[b] = 0.0f; eq_loR[b] = 0.0f; eq_hiL[b] = 0.0f; eq_hiR[b] = 0.0f; eq_used[b] = false;
+        for (int i = 0; i < 4; i++) { fmt_freq[b][i] = 700.0f; fmt_k[b][i] = 0.2f; fmt_amp[b][i] = 0.0f; fmt_ic1[b][i] = 0.0f; fmt_ic2[b][i] = 0.0f; }
+        fmt_mix[b] = 0.0f; fmt_used[b] = false;   // dormant; fx_set_formant() fills the bands from the vowel table
         for (int s = 0; s < N_PEDALS; s++) insert_order[b][s] = s;   // default insert order = the 8 pedals, canonical (identity)
-        insert_order_n[b] = N_PEDALS;                                // FX_REVERB is never in the default chain — reverb_bus() places it
+        insert_order[b][N_PEDALS] = FX_FORMANT;                      // + formant as the 9th pedal (dormant until formant() → byte-identical)
+        insert_order_n[b] = N_PEDALS + 1;                            // FX_REVERB is never in the default chain — reverb_bus() places it
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

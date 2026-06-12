@@ -271,9 +271,10 @@ genuine split cart appears. (Instance-based keybed is only needed if two keyboar
 be played *and drawn* independently at once — no current cart wants that.)
 
 **Other families that will add exceptional cases (phase 2):**
-- **Continuous-pitch ribbons** (`martenot`, `upright`, `pdbass`, `spacecho`,
-  `musicalsaw`) — one held voice + `note_pitch`; share only `midi_get()`. May want a
-  small *ribbon* helper.
+- **Continuous-pitch ribbons** — one held voice + `note_pitch`; share only `midi_get()`.
+  **`martenot` now has MIDI** (cart-side: note→pitch, velocity→swell, bend→ribbon — the
+  pattern). Still to do: `upright`, `pdbass`, `spacecho`, `musicalsaw`. May want a small
+  *ribbon* helper once a few more exist.
 - **Diatonic pad rows** (`fm`, `filterenv`, `reed`, `pipe`, `pluck`, `pan`, `pd`) —
   fixed scale pads, not chromatic keys. Candidate for a *separate* sibling helper.
 - **`solo.h` radios** — the smart-screen / free-MIDI asymmetry (touch = scale-locked,
@@ -301,9 +302,11 @@ Built and committed this session — see `STATUS.md` for the canonical ledger:
 - **Migrated (7):** epiano, moog, touchpiano, mellotron, organ, solina, piano — unified
   input + velocity, GarageBand keyboard layout everywhere; ~480 lines of duplicated keybed
   code removed net.
-- **Exceptions (2):** mt70, sh101 — MIDI wired cart-side via `midi_get()`; full keybed.h
-  adoption deferred (their headers + the shelf say why).
+- **Exceptions (3, MIDI cart-side via `midi_get()`):** mt70 (multi-voice/detach-ring),
+  sh101 (two-row layout), **martenot** (the continuous-pitch ribbon — a note sets the
+  ribbon pitch, velocity = swell, and the **pitch-bend wheel bends the ribbon** ±2
+  semitones, the first real use of `midi_bend()`). Full keybed.h adoption deferred.
 
 Still open: full keybed.h adoption for mt70/sh101, `solo.h` MIDI-snap (smart-screen /
-free-MIDI), martenot ribbon (`midi_get` direct), velocity/pitch-bend on the exceptions,
-a native device-name toast.
+free-MIDI), the other ribbons (upright/pdbass/spacecho/musicalsaw), velocity on the
+keybed exceptions, a native device-name toast.

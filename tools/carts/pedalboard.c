@@ -137,15 +137,14 @@ static void chain_remove(int idx) {
     for (int i = idx; i < chain_n - 1; i++) chain[i] = chain[i + 1];
     chain_n--;
 }
-static void chain_move(int from, int to) {
+static void chain_move(int from, int to) {   // move element `from` to FINAL index `to`; size unchanged
     if (from < 0 || from >= chain_n) return;
+    if (to < 0) to = 0; if (to > chain_n - 1) to = chain_n - 1;
+    if (to == from) return;
     Slot s = chain[from];
-    for (int i = from; i < chain_n - 1; i++) chain[i] = chain[i + 1];
-    chain_n--;
-    if (to > from) to--;
-    if (to < 0) to = 0; if (to > chain_n) to = chain_n;
-    for (int i = chain_n; i > to; i--) chain[i] = chain[i - 1];
-    chain[to] = s; chain_n++;
+    if (to > from) for (int i = from; i < to; i++) chain[i] = chain[i + 1];   // others slide left
+    else           for (int i = from; i > to; i--) chain[i] = chain[i - 1];   // others slide right
+    chain[to] = s;
 }
 
 // push every effect's state to the engine, then set the INSERT ORDER from the chain order.
@@ -247,27 +246,32 @@ static int slot_under(int tx) {
 }
 
 // build the list of palette-available cats (not in the chain) + the chip rect for the a-th of them
-#define PAL_COLS 4
-#define PAL_CW   72
+#define PAL_COLS 5
+#define PAL_CW   58
 #define PAL_CH   26
 static int pal_avail(int *out) { int n = 0; for (int c = 0; c < NCAT; c++) if (chain_index(c) < 0) out[n++] = c; return n; }
-static void pal_chip_rect(int a, int *x, int *y) { *x = 6 + (a % PAL_COLS) * 78; *y = PAL_Y + 16 + (a / PAL_COLS) * (PAL_CH + 2); }
+static void pal_chip_rect(int a, int *x, int *y) { *x = 5 + (a % PAL_COLS) * 62; *y = PAL_Y + 16 + (a / PAL_COLS) * (PAL_CH + 2); }
+
+// where a dragged pedal would land in the chain — SHARED by the live caret preview and the actual
+// drop, so what you see is exactly where it goes. DRAGPAL can append (≤ chain_n); reorder can't.
+static int drop_index(Ptr *p) {
+    int t = (p->x + (int)scroll_x - CHAIN_X0 + PITCH / 2) / PITCH;
+    int hi = (p->mode == PTR_DRAGPAL) ? chain_n : chain_n - 1;
+    if (hi < 0) hi = 0;
+    if (t < 0) t = 0; if (t > hi) t = hi;
+    return t;
+}
 
 static void commit_drop(Ptr *p) {
     if (p->mode == PTR_DRAGSLOT) {
         int idx = chain_index(p->cat);
         if (idx < 0) return;
-        if (p->y >= PED_Y + PED_H) { chain_remove(idx); }          // dropped below the chain → remove
-        else {                                                     // dropped in the chain → reorder
-            int tgt = (p->x + (int)scroll_x - CHAIN_X0 + PITCH / 2) / PITCH;
-            if (tgt < 0) tgt = 0; if (tgt > chain_n - 1) tgt = chain_n - 1;
-            chain_move(idx, tgt);
-        }
+        if (p->y >= PED_Y + PED_H) chain_remove(idx);              // dropped below the chain → remove
+        else                       chain_move(idx, drop_index(p)); // dropped in the chain → reorder
         clamp_scroll(); dirty = 1;
     } else if (p->mode == PTR_DRAGPAL) {
-        if (p->y < PED_Y + PED_H && chain_index(p->cat) < 0 && chain_n < NCAT) {   // dropped into the chain → add
-            int tgt = (p->x + (int)scroll_x - CHAIN_X0 + PITCH / 2) / PITCH;
-            chain_insert(p->cat, tgt);
+        if (p->y < PED_Y + PED_H && chain_index(p->cat) < 0 && chain_n < NCAT) {   // into the chain → add
+            chain_insert(p->cat, drop_index(p));
             clamp_scroll(); dirty = 1;
         }
     }
@@ -512,15 +516,37 @@ void draw(void) {
     print_right(autoplay ? "AUTO: on" : "AUTO: off", SCREEN_W - 6, 5, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     font(FONT_NORMAL);
 
+    // a chain pedal being dragged is LIFTED out of the row (the rest close up), so the caret lines
+    // up with where it will actually land
+    int lift = -1;
+    for (int j = 0; j < NPTR; j++) if (ptr[j].id != NOID && ptr[j].mode == PTR_DRAGSLOT) { lift = chain_index(ptr[j].cat); break; }
+    int shown = chain_n - (lift >= 0 ? 1 : 0);
+
     // the chain (clipped to its viewport so half-scrolled pedals don't bleed over the bars)
     clip(CHAIN_X0, PED_Y, VIEW_W, PED_H);
+    int disp = 0;
     for (int i = 0; i < chain_n; i++) {
-        int x = ped_screen_x(i);
-        if (x > VIEW_R || x + PED_W < CHAIN_X0) continue;
-        draw_chain_pedal(i, x);
-        if (i < chain_n - 1) print(">", x + PED_W, KNOB_CY - 3, CLR_DARK_GREY);
+        if (i == lift) continue;
+        int x = CHAIN_X0 + disp * PITCH - (int)scroll_x;
+        if (!(x > VIEW_R || x + PED_W < CHAIN_X0)) {
+            draw_chain_pedal(i, x);
+            if (disp < shown - 1) print(">", x + PED_W, KNOB_CY - 3, CLR_DARK_GREY);
+        }
+        disp++;
     }
     clip(0, 0, 0, 0);
+
+    // drop caret — where the dragged pedal would land if released now (only while over the chain).
+    // Drawn unclipped, x nudged inside the viewport, so the first/last gap is fully visible.
+    for (int j = 0; j < NPTR; j++) {
+        Ptr *q = &ptr[j];
+        if (q->id == NOID || (q->mode != PTR_DRAGSLOT && q->mode != PTR_DRAGPAL) || q->y >= PED_Y + PED_H) continue;
+        int gx = CHAIN_X0 + drop_index(q) * PITCH - (int)scroll_x;
+        if (gx < CHAIN_X0 + 2) gx = CHAIN_X0 + 2; if (gx > VIEW_R - 2) gx = VIEW_R - 2;
+        rectfill(gx - 1, PED_Y, 3, PED_H, CLR_LIME_GREEN);
+        trifill(gx - 3, PED_Y, gx + 3, PED_Y, gx, PED_Y + 5, CLR_LIME_GREEN);
+        trifill(gx - 3, PED_Y + PED_H, gx + 3, PED_Y + PED_H, gx, PED_Y + PED_H - 5, CLR_LIME_GREEN);
+    }
     if (chain_n == 0) { font(FONT_SMALL); print_centered("open PEDALS, drag effects in →", SCREEN_W / 2, PED_Y + 32, CLR_DARK_GREY); font(FONT_NORMAL); }
 
     // scrollbar (only on overflow)

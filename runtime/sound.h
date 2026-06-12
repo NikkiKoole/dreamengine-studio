@@ -914,6 +914,28 @@ static void fx_set_phaser(int b, float rate, float depth, float feedback, float 
     phaser_used[b] = (mix > 0.0f);   // mix 0 = off, like chorus/flanger/tremolo
 }
 
+// ── reorderable insert chain (fx_order) ──────────────────────────────────────────────────────
+// The inserts above (FX_* in studio.h) run in a default order; fx_order() lets a cart rearrange
+// them PER BUS. fx_order[b] is the visit list; default = the canonical order, so an un-reordered
+// bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
+// so the default-order case is the same work as before.
+#define N_INSERTS (FX_CRUSH + 1)            // number of insert kinds (FX_* are 0..FX_CRUSH)
+static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
+static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default N_INSERTS)
+// dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
+static void apply_insert(int kind, int b, float *L, float *R) {
+    switch (kind) {
+        case FX_TREM:    if (trem_used[b])   trem_process(b, L, R);    break;
+        case FX_WAH:     if (wah_used[b])    wah_process(b, L, R);     break;
+        case FX_CHORUS:  if (cho_used[b])    chorus_process(b, L, R);  break;
+        case FX_PHASER:  if (phaser_used[b]) phaser_process(b, L, R);  break;
+        case FX_FLANGER: if (flg_used[b])    flanger_process(b, L, R); break;
+        case FX_TAPE:    if (tape_used[b])   tape_process(b, L, R);    break;
+        case FX_EQ:      if (eq_used[b])     eq_process(b, L, R);      break;
+        case FX_CRUSH:   if (crush_used[b])  crush_process(b, L, R);   break;
+    }
+}
+
 // envelope-follower smoothing coefficient from a time in ms (one-pole; 0 ms = instant)
 static float sound_follow_coef(int ms) {
     if (ms <= 0) return 1.0f;
@@ -994,6 +1016,7 @@ typedef enum {
     SR_INSTR_TREMOLO= 60,   // a=slot, b=rate*1000, c=depth*1000, e0=shape — tremolo on one instrument (auto-bus)
     SR_PHASER       = 61,   // a=rate*1000, b=depth*1000, c=fb*1000(signed), e0=mix*1000, e1=stages — THE master phaser (bus 0, navkit processPhaser)
     SR_INSTR_PHASER = 62,   // a=slot, b=rate*1000, c=depth*1000, e0=fb*1000(signed), e1=mix*1000, e2=stages — phaser on one instrument (auto-bus)
+    SR_FX_ORDER     = 63,   // a=bus, b=packed kinds (3 bits each, FX_*), c=count — set a bus's insert visit order
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3573,6 +3596,15 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_phaser(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2);
+    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, b=packed kinds (3 bits each), c=count
+        int bus = r.a;
+        if (bus < 0 || bus >= SOUND_FX_BUSES) return;
+        int n = r.c; if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
+        for (int s = 0; s < n; s++) {
+            int kind = (r.b >> (3 * s)) & 7;
+            insert_order[bus][s] = (kind < N_INSERTS) ? kind : FX_TREM;
+        }
+        insert_order_n[bus] = n;
     } else if (r.kind == SR_BITCRUSH) {     // master bitcrush (bus 0): a=bits*100, b=rate*100, c=mix*1000
         fx_set_crush(0, r.a / 100.0f, r.b / 100.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_BITCRUSH) { // per-instrument: a=slot, b=bits*100, c=rate*100, e0=mix*1000
@@ -3847,14 +3879,9 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // master (bus 0). A slot routed here (instrument_chorus/flanger) is effected in isolation;
         // everything on bus 0 bypasses. All-bus-0 carts skip this entirely → byte-identical.
         for (int b = 1; b < SOUND_FX_BUSES; b++) {
-            if (trem_used[b]) trem_process(b, &busL[b], &busR[b]);   // tremolo first (amp volume LFO)
-            if (wah_used[b]) wah_process(b, &busL[b], &busR[b]);     // filter next
-            if (cho_used[b]) chorus_process(b, &busL[b], &busR[b]);
-            if (phaser_used[b]) phaser_process(b, &busL[b], &busR[b]);  // swept allpass notches (after chorus, navkit's order)
-            if (flg_used[b]) flanger_process(b, &busL[b], &busR[b]);
-            if (tape_used[b]) tape_process(b, &busL[b], &busR[b]);
-            if (eq_used[b]) eq_process(b, &busL[b], &busR[b]);        // 2-band shelving tone (boost/cut)
-            if (crush_used[b]) crush_process(b, &busL[b], &busR[b]);  // bitcrush last (lo-fi dessert)
+            // run this bus's inserts in its (reorderable) order, then fold to master. Default order
+            // = the old fixed ladder (trem→wah→cho→phaser→flg→tape→eq→crush); fx_order() rearranges.
+            for (int s = 0; s < insert_order_n[b]; s++) apply_insert(insert_order[b][s], b, &busL[b], &busR[b]);
             busL[0] += busL[b]; busR[0] += busR[b];
         }
 
@@ -3910,17 +3937,11 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
         }
 
-        // INSERT CHAIN — MASTER (bus 0) inserts, on the whole mix (chorus()/flanger() configure
-        // these). Per-instrument inserts already ran on their aux buses above. (tape/comp/bitcrush
-        // land here later, before the soft-clip.)
-        if (trem_used[0]) trem_process(0, &mixL, &mixR);    // tremolo (amp volume LFO), before the filter
-        if (wah_used[0]) wah_process(0, &mixL, &mixR);      // auto-wah (envelope bandpass), filter first
-        if (cho_used[0]) chorus_process(0, &mixL, &mixR);   // BBD chorus, antiphase stereo width, in place
-        if (phaser_used[0]) phaser_process(0, &mixL, &mixR); // swept allpass notches (the Rhodes/Small Stone swirl)
-        if (flg_used[0]) flanger_process(0, &mixL, &mixR);  // short swept delay + feedback, mono, in place
-        if (tape_used[0]) tape_process(0, &mixL, &mixR);    // wow/flutter/saturation, stereo, in place
-        if (eq_used[0]) eq_process(0, &mixL, &mixR);        // 2-band shelving EQ (boost/cut), stereo, in place
-        if (crush_used[0]) crush_process(0, &mixL, &mixR);  // bitcrush — lo-fi dessert, last before the clip
+        // INSERT CHAIN — MASTER (bus 0) inserts, on the whole mix (chorus()/flanger()/… configure
+        // these). Per-instrument inserts already ran on their aux buses above. Run in bus 0's
+        // (reorderable) order — default = the old fixed ladder; fx_order(0, …) rearranges. Ends in
+        // the soft-clip below (pinned last — a safety limiter, not a reorderable pedal).
+        for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], 0, &mixL, &mixR);
 
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
         // tanh-shaped above, asymptote at ±1.0 — a hot sum folds over smoothly instead of
@@ -4483,6 +4504,20 @@ void instrument_phaser(int slot, float rate, float depth, float feedback, float 
     sound_push_ctrl(SR_INSTR_PHASER, slot, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(feedback * 1000.0f), (int)(mix * 1000.0f), stages);
 }
 
+// set a bus's insert visit order (FX_* kinds). bus 0 = master, 1.. = an instrument's private bus.
+// Pack the n kinds into one int (3 bits each, ≤ N_INSERTS slots) — the audio thread unpacks it.
+void fx_order(int bus, const int *kinds, int n) {
+    if (bus < 0 || bus >= SOUND_FX_BUSES) return;
+    if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
+    int packed = 0;
+    for (int s = 0; s < n; s++) {
+        int k = kinds[s];
+        if (k < 0 || k >= N_INSERTS) k = 0;
+        packed |= (k & 7) << (3 * s);
+    }
+    sound_push_ctrl(SR_FX_ORDER, bus, packed, n, 0, 0, 0);
+}
+
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
     if (handle <= 0) return;
     if (which < 0 || which >= SOUND_ENVS) return;
@@ -4677,6 +4712,8 @@ static void sound_init(void) {
         crush_holdL[b] = 0.0f; crush_holdR[b] = 0.0f; crush_cnt[b] = 0; crush_used[b] = false;
         eq_low_g[b] = 1.0f; eq_mid_g[b] = 1.0f; eq_high_g[b] = 1.0f;
         eq_loL[b] = 0.0f; eq_loR[b] = 0.0f; eq_hiL[b] = 0.0f; eq_hiR[b] = 0.0f; eq_used[b] = false;
+        for (int s = 0; s < N_INSERTS; s++) insert_order[b][s] = s;   // default insert order = canonical (identity)
+        insert_order_n[b] = N_INSERTS;
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

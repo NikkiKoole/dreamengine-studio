@@ -437,6 +437,19 @@ void instrument_tremolo(int slot, float rate, float depth, int shape);  // tremo
 void phaser(float rate, float depth, float feedback, float mix, int stages);                       // rate 0..10 Hz, depth 0..1, feedback -0.95..0.95, mix 0..1 (0 = off), stages 2..8. THE master phaser
 void instrument_phaser(int slot, float rate, float depth, float feedback, float mix, int stages);  // phaser on just this slot (auto-grabs a private FX bus)
 
+// insert-chain ORDER — the inserts above run in a fixed default order; fx_order() rearranges them
+// per bus (e.g. bitcrush BEFORE vs AFTER eq — audibly different). These are the insert kinds, in
+// default order; pass an array of them to fx_order. Sends (echo/reverb) are parallel, not in the chain.
+#define FX_TREM     0   // tremolo
+#define FX_WAH      1   // auto-wah
+#define FX_CHORUS   2   // chorus
+#define FX_PHASER   3   // phaser
+#define FX_FLANGER  4   // flanger
+#define FX_TAPE     5   // tape
+#define FX_EQ       6   // EQ
+#define FX_CRUSH    7   // bitcrush
+void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 8
+
 // musical scales (C root)
 #define SCALE_MAJOR      0   // do re mi fa sol la ti
 #define SCALE_MINOR      1   // natural minor

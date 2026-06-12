@@ -1997,11 +1997,54 @@ static void run_over_cone(Obstacle *o, float ltx, float lty, float ly, float spd
     for (int s = 0; s < 5; s++) throw_spark(o->x, o->y, vx, vy);
 }
 
+// OBB-vs-OBB minimum-translation vector (separating-axis test). The HONEST contact test for two oriented
+// boxes: it finds the axis of least overlap, which IS the true shortest push-out depth + normal — unlike
+// the old deepest-corner heuristic, which measured a corner's nearest-face distance and so UNDER-pushed on
+// broadside / long-rig contacts (the rig stayed buried and ground through a car; see docs/design/sloop.md §9e).
+// Both boxes given as centre + two UNIT axes + half-extents. On overlap returns 1 and sets the unit normal
+// (pointing from B toward A — move A by +n·depth to separate), the depth, and a contact point (the deepest
+// vertex of the incident box, for the yaw lever). 4 axes only (2 per box); a house passes identity axes → AABB.
+static int obb_mtv(float cax, float cay, float aux, float auy, float avx, float avy, float ahx, float ahy,
+                   float cbx, float cby, float bux, float buy, float bvx, float bvy, float bhx, float bhy,
+                   float *nx, float *ny, float *depth, float *cpx, float *cpy) {
+    float dx = cbx - cax, dy = cby - cay;                  // A → B
+    float axes[4][2] = { { aux, auy }, { avx, avy }, { bux, buy }, { bvx, bvy } };
+    float minov = 1e30f, mnx = 0, mny = 0; int mi = -1;
+    for (int i = 0; i < 4; i++) {
+        float Lx = axes[i][0], Ly = axes[i][1];
+        float dist = af(dx * Lx + dy * Ly);
+        float rA = ahx * af(aux * Lx + auy * Ly) + ahy * af(avx * Lx + avy * Ly);
+        float rB = bhx * af(bux * Lx + buy * Ly) + bhy * af(bvx * Lx + bvy * Ly);
+        float ov = rA + rB - dist;
+        if (ov <= 0) return 0;                             // a separating axis → no overlap
+        if (ov < minov) { minov = ov; mi = i; mnx = Lx; mny = Ly; }
+    }
+    if (dx * mnx + dy * mny > 0) { mnx = -mnx; mny = -mny; }   // orient B→A (push A out of B along +n)
+    *nx = mnx; *ny = mny; *depth = minov;
+    // contact point = support vertex of the INCIDENT box (the one NOT owning the MTV axis), toward the other.
+    if (mi < 2) {                                          // MTV on A's axis → incident is B; B's vertex toward A (+n)
+        float best = -1e30f;
+        for (int sa = -1; sa <= 1; sa += 2) for (int sb = -1; sb <= 1; sb += 2) {
+            float vx2 = cbx + sa * bhx * bux + sb * bhy * bvx, vy2 = cby + sa * bhx * buy + sb * bhy * bvy;
+            float d = (vx2 - cbx) * mnx + (vy2 - cby) * mny;
+            if (d > best) { best = d; *cpx = vx2; *cpy = vy2; }
+        }
+    } else {                                               // MTV on B's axis → incident is A; A's vertex toward B (-n)
+        float best = -1e30f;
+        for (int sa = -1; sa <= 1; sa += 2) for (int sb = -1; sb <= 1; sb += 2) {
+            float vx2 = cax + sa * ahx * aux + sb * ahy * avx, vy2 = cay + sa * ahx * auy + sb * ahy * avy;
+            float d = (vx2 - cax) * (-mnx) + (vy2 - cay) * (-mny);
+            if (d > best) { best = d; *cpx = vx2; *cpy = vy2; }
+        }
+    }
+    return 1;
+}
+
 // crash into a SOLID box obstacle — ONE resolver for two cases that are the two LIMITS of a rigid-body
 // collision: a HOUSE is immovable (infinite mass — only the rig responds) and a CAR is MOVABLE (finite
 // mass + inertia — the SAME impulse is applied equal-and-opposite to BOTH bodies, so momentum transfers).
-// Finds the deepest penetrating rig corner in the OBSTACLE's local frame (a house is axis-aligned, a car
-// is oriented), depenetrates, then a contact impulse: an off-centre clip yaws the rig (J×r/I, the same
+// Finds the contact via the OBB SAT minimum-translation (true normal + depth, even on a broadside/long-rig
+// contact — obb_mtv), depenetrates fully, then a contact impulse: an off-centre clip yaws the rig (J×r/I, the same
 // form steering uses), and for a car it spins the car too. J vs strength still decides give-vs-hold — for
 // a house "give" = SMASH (stays gone); for a car "give" = WRECK (crumples, but stays a shoveable wreck).
 // The cone (weightless projectile, run_over_cone) is the third limit: M_obstacle → 0. One core, three uses.
@@ -2014,56 +2057,17 @@ static void run_over_cone(Obstacle *o, float ltx, float lty, float ly, float spd
 static void crash_body(Obstacle *o, float fwx, float fwy, float ltx, float lty) {
     int movable = (o->kind == OB_CAR);
     float oc = movable ? cos_deg(o->ang) : 1.0f, os = movable ? sin_deg(o->ang) : 0.0f;
-    float cxl[4] = { rigL0, rigL1, rigL1, rigL0 };   // rig box corners (COM-local)
-    float cyl[4] = { rigW0, rigW0, rigW1, rigW1 };
-    float bestPen = 0, bnx = 0, bny = 0, bcx = 0, bcy = 0;
-    for (int i = 0; i < 4; i++) {
-        float wx, wy; rot(cxl[i], cyl[i], &wx, &wy);     // rig corner → world
-        float ddx = wx - o->x, ddy = wy - o->y;
-        float lxo =  ddx * oc + ddy * os;                // → obstacle local frame (house: oc=1,os=0 → identity)
-        float lyo = -ddx * os + ddy * oc;
-        float ox = o->hw - af(lxo), oy = o->hh - af(lyo);
-        if (ox <= 0 || oy <= 0) continue;                // this corner is outside the box
-        float pen, lnx, lny;
-        if (ox < oy) { pen = ox; lnx = (lxo < 0) ? -1.0f : 1.0f; lny = 0; }  // push out the nearest local face
-        else         { pen = oy; lnx = 0; lny = (lyo < 0) ? -1.0f : 1.0f; }
-        if (pen > bestPen) {
-            bestPen = pen; bcx = wx; bcy = wy;
-            bnx = lnx * oc - lny * os;                   // local normal → world
-            bny = lnx * os + lny * oc;
-        }
-    }
-    if (movable) {
-        // ALSO test the CAR's corners against the RIG box (in the rig's local frame, via its forward/left
-        // axes). Catches a slow nose-in to a car's side/end where NO rig corner is inside the car and the
-        // car centre isn't inside the rig yet — the contact the rig-corner test + engulf fallback both miss,
-        // which is why slow contacts used to overlap while fast ones (deep enough to engulf) pushed.
-        float ccx2[4] = {  o->hw,  o->hw, -o->hw, -o->hw };
-        float ccy2[4] = {  o->hh, -o->hh, -o->hh,  o->hh };
-        for (int i = 0; i < 4; i++) {
-            float cwx = o->x + ccx2[i] * oc - ccy2[i] * os;   // car corner → world
-            float cwy = o->y + ccx2[i] * os + ccy2[i] * oc;
-            float rlx = (cwx - sx) * fwx + (cwy - sy) * fwy;  // → rig local (project onto forward / left)
-            float rly = (cwx - sx) * ltx + (cwy - sy) * lty;
-            if (rlx <= rigL0 || rlx >= rigL1 || rly <= rigW0 || rly >= rigW1) continue;  // outside the rig
-            float dF = rigL1 - rlx, dR = rlx - rigL0, dL = rigW1 - rly, dRg = rly - rigW0;
-            float pen = dF, onx = fwx, ony = fwy;             // nearest rig face → its outward world normal
-            if (dR  < pen) { pen = dR;  onx = -fwx; ony = -fwy; }
-            if (dL  < pen) { pen = dL;  onx =  ltx; ony =  lty; }
-            if (dRg < pen) { pen = dRg; onx = -ltx; ony = -lty; }
-            if (pen > bestPen) {
-                bestPen = pen; bcx = cwx; bcy = cwy;
-                bnx = -onx; bny = -ony;                       // push the RIG away from the car corner
-            }
-        }
-    }
-    if (bestPen <= 0) {                              // no corner inside — a long rig may engulf a small box
-        float dxx = o->x - sx, dyy = o->y - sy;
-        float lx = dxx * fwx + dyy * fwy, lyy = dxx * ltx + dyy * lty;
-        if (lx > rigL0 && lx < rigL1 && lyy > rigW0 && lyy < rigW1) {
-            bestPen = 1; bnx = (lx >= 0 ? -fwx : fwx); bny = (lx >= 0 ? -fwy : fwy); bcx = o->x; bcy = o->y;
-        } else return;                              // genuinely no contact
-    }
+    // rig OBB: its COM-local box (rigL0..rigW1) → world centre + unit axes + half-extents.
+    float rcx, rcy; rot((rigL0 + rigL1) * 0.5f, (rigW0 + rigW1) * 0.5f, &rcx, &rcy);   // rig box centre (rot adds sx,sy)
+    float rhx = (rigL1 - rigL0) * 0.5f, rhy = (rigW1 - rigW0) * 0.5f;
+    // SAT minimum-translation: the TRUE push-out depth + normal (out of the obstacle) + contact point. The
+    // old deepest-corner test UNDER-pushed on broadside / long-rig contacts → the rig stayed buried and ground
+    // through the car (the bug). SAT clears it fully every frame, and the corner / engulf special-cases collapse
+    // into it. Obstacle axes: a car is oriented, a house passes identity (oc=1,os=0) → an AABB test.
+    float bnx, bny, bestPen, bcx, bcy;
+    if (!obb_mtv(rcx, rcy, fwx, fwy, ltx, lty, rhx, rhy,
+                 o->x, o->y, oc, os, -os, oc, o->hw, o->hh,
+                 &bnx, &bny, &bestPen, &bcx, &bcy)) return;   // no overlap
     float rx = bcx - sx, ry = bcy - sy;             // contact lever from the rig COM
     float wrad = angVel * DEG2RAD;
     float vcx = vx - wrad * ry, vcy = vy + wrad * rx;   // rig velocity at the contact point
@@ -2191,28 +2195,6 @@ static void obstacles_integrate(float dt_) {
 // just a target), which is what both makes the chain ripple AND keeps the packed parking lot stable at rest.
 #define CONE_E        0.10f      // a knocked cone barely bounces (vs CAR_E for car↔car)
 
-// deepest penetration of box P's 4 corners inside centred oriented box Q. Returns pen (>0 if a corner is
-// inside); sets the world-space outward face normal of Q at that corner (push P's owner away from Q) + the
-// corner point. (Same corner test crash_body uses, generalised to two centred boxes.)
-static float box_corners_in(float px, float py, float pc, float ps, float pex, float pey,
-                            float qx, float qy, float qc, float qs, float qhx, float qhy,
-                            float *nx, float *ny, float *ccx, float *ccy) {
-    float cx4[4] = { pex, pex, -pex, -pex }, cy4[4] = { pey, -pey, -pey, pey };
-    float best = 0;
-    for (int i = 0; i < 4; i++) {
-        float wx = px + cx4[i] * pc - cy4[i] * ps, wy = py + cx4[i] * ps + cy4[i] * pc;
-        float dx = wx - qx, dy = wy - qy;
-        float lx = dx * qc + dy * qs, ly = -dx * qs + dy * qc;   // → Q local
-        float ox = qhx - af(lx), oy = qhy - af(ly);
-        if (ox <= 0 || oy <= 0) continue;
-        float pen, lnx, lny;
-        if (ox < oy) { pen = ox; lnx = (lx < 0) ? -1.0f : 1.0f; lny = 0; }
-        else         { pen = oy; lnx = 0; lny = (ly < 0) ? -1.0f : 1.0f; }
-        if (pen > best) { best = pen; *nx = lnx * qc - lny * qs; *ny = lnx * qs + lny * qc; *ccx = wx; *ccy = wy; }
-    }
-    return best;
-}
-
 static int chain_sounds;          // per-frame budget so a big pile-up doesn't machine-gun the mixer
 
 // resolve a moving obstacle `a` against a neighbour `b` (a car, a house, or a cone). Bidirectional contact,
@@ -2222,13 +2204,12 @@ static void collide_obstacle_pair(Obstacle *a, Obstacle *b) {
     float ac = cos_deg(a->ang), as = sin_deg(a->ang);
     int bMov = (b->kind != OB_HOUSE);
     float bc = bMov ? cos_deg(b->ang) : 1.0f, bs = bMov ? sin_deg(b->ang) : 0.0f;
-    float n1x, n1y, c1x, c1y, n2x, n2y, c2x, c2y;
-    float p1 = box_corners_in(a->x, a->y, ac, as, a->hw, a->hh, b->x, b->y, bc, bs, b->hw, b->hh, &n1x, &n1y, &c1x, &c1y);
-    float p2 = box_corners_in(b->x, b->y, bc, bs, b->hw, b->hh, a->x, a->y, ac, as, a->hw, a->hh, &n2x, &n2y, &c2x, &c2y);
-    if (p1 <= 0 && p2 <= 0) return;
+    // SAT minimum-translation (obb_mtv): true normal + depth, even on a broadside contact — same fix as the
+    // rig resolver. n points from b toward a (push a out of b). Replaces the deepest-corner test that under-pushed.
     float pen, nx, ny, ccx, ccy;
-    if (p1 >= p2) { pen = p1; nx =  n1x; ny =  n1y; ccx = c1x; ccy = c1y; }   // a's corner in b → push a +n (out of b)
-    else          { pen = p2; nx = -n2x; ny = -n2y; ccx = c2x; ccy = c2y; }   // b's corner in a → push a away = -n
+    if (!obb_mtv(a->x, a->y, ac, as, -as, ac, a->hw, a->hh,
+                 b->x, b->y, bc, bs, -bs, bc, b->hw, b->hh,
+                 &nx, &ny, &pen, &ccx, &ccy)) return;
     float Ma = a->mass, Ia = (1.0f / 3.0f) * Ma * (a->hw * a->hw + a->hh * a->hh); if (Ia < 1.0f) Ia = 1.0f;
     float Mb = bMov ? b->mass : 0.0f;
     float Ib = bMov ? (1.0f / 3.0f) * Mb * (b->hw * b->hw + b->hh * b->hh) : 1.0f; if (bMov && Ib < 1.0f) Ib = 1.0f;

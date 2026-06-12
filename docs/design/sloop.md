@@ -619,7 +619,10 @@ Details that make it read as a *car* and not a crate:
   to bring wrecks back into normal range later.
 - **Persistence**: a shoved/wrecked car is `dirty`, so its pose + `destroyed` ride the chunk-delta layer
   like a run-over cone (a reloaded wreck re-applies the `WRECK_GIVE` softening).
-- **Contact test is bidirectional** — rig-corners-in-car **and** car-corners-in-rig. The first version only
+- **Contact test is bidirectional** — rig-corners-in-car **and** car-corners-in-rig. *(Superseded 2026-06-12:
+  the whole corner-based test — and its depenetration depth — was replaced by an OBB SAT minimum-translation
+  (`obb_mtv`); the corner test under-pushed on broadside / long-rig contacts and the rig penetrated. See the
+  build log → "Collision depenetration — SAT minimum-translation".)* The first version only
   checked the rig's corners against the car (plus a centre-engulf fallback), so a slow nose-in to a car's
   *side or end* — where no rig corner is inside the car and the car centre isn't yet inside the rig — was
   missed entirely and the rig overlapped it; at speed you plowed in far enough for the engulf fallback to
@@ -1971,3 +1974,25 @@ the `<1` speed-zoom renders at sub-pixel width → it sparkles / drops out at sp
 `draw_course` as **2 px-wide `rectfill` bands** (a 2 px line × 0.84 ≈ 1.7 px still covers ≥1 full pixel),
 so they stay solid when zoomed out. Verified by eye at 231 km/h (zoom 0.84): curbs + dashes read clean.
 (The town roundabout's 1 px ring is left as-is — decoration, not a road line.)
+
+### Collision depenetration — SAT minimum-translation, not deepest-corner (2026-06-12)
+
+Bug (player report): drift **sideways** into a car and the rig **penetrates it instead of pushing** —
+it sits buried and grinds rather than shoving the car clear. Diagnosed on the harness (instrumented
+`crash_body` with a ground-truth OBB-SAT overlap vs. what it actually pushed): **not a detection miss**
+— the contact was found fine. The push-out depth was wrong. `crash_body` (and `collide_obstacle_pair`,
+same construction) measured depenetration as *the deepest single corner's nearest-face distance*
+(`box_corners_in`), which on a **broadside / long-rig** contact is far smaller than the real overlap
+along the contact normal. So it under-pushed (~⅓ of the true depth); under power the rig re-drove in
+each frame and the overlap parked at an equilibrium. Measured: a **schoolbus** drifting into the lot
+buried **3.3 px and held**, push-out only ~1.1 px (a 2.2 px shortfall every frame). The short buggy hid
+it (corner-pen ≈ true depth there) — which is why it only bit long rigs / sideways hits.
+
+Fix: replaced the deepest-corner heuristic with a proper **OBB separating-axis minimum-translation**
+(`obb_mtv`) — the *true* normal + depth — in **both** resolvers. The old rig-corner / car-corner /
+engulf special-cases collapse into the one honest test (a house passes identity axes → AABB, behaviour
+preserved); deleted the now-dead `box_corners_in`. SAT clears the overlap fully every frame and gives a
+correct contact normal for the impulse. Verified on the harness: schoolbus broadside **3.3 → 0.3 px**
+(push == true overlap, cleared each frame), buggy plow **unchanged at 1.0 px** (no regression), chain
+reactions intact (peak 9 cars in motion ramming the lot). This is the §9c "one impulse, every use" line
+made honest at the *detection* layer too: one SAT contact test, rig-vs-obstacle and obstacle-vs-obstacle.

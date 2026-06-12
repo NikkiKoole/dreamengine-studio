@@ -33,6 +33,9 @@
 // as one synthetic finger, so the same code path covers it.
 
 #include "studio.h"
+#define KEYBED_WHITE_KEYS "ASDFGHJK"   // one-octave-plus-C manual (matches the organ's layout)
+#define KEYBED_BLACK_KEYS "WE TYU"
+#include "keybed.h"
 #include <math.h>
 
 #define I_ORG 5
@@ -40,14 +43,9 @@
 // a piano octave: 8 white keys (C..C) + 5 black keys. handles/glow index white 0..7 then
 // black 8..12. WSEMI/BSEMI = semitone offsets from the octave's C; BWHICH = which white key
 // each black sits to the right of (no black after E(2) or B(6)).
-#define NWHITE 8
-#define NBLACK 5
-#define NKEY   (NWHITE + NBLACK)
-static const char WKEY[NWHITE]  = { 'A','S','D','F','G','H','J','K' };
-static const int  WSEMI[NWHITE] = { 0, 2, 4, 5, 7, 9, 11, 12 };
-static const char BKEY[NBLACK]  = { 'W','E','T','Y','U' };
-static const int  BSEMI[NBLACK] = { 1, 3, 6, 8, 10 };
-static const int  BWHICH[NBLACK]= { 0, 1, 3, 4, 5 };
+#define NWHITE 8                                          // 8 white keys = one octave + the top C
+static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // QWERTY labels (drawing only)
+static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
 // four sliders: the THREE engine macros + DRIVE (an effect, not a macro — styled apart).
 #define NSL 4
@@ -70,9 +68,6 @@ static const Preset PRESET[8] = {
     { "gospel",  { 0.94f, 0.65f, 0.88f, 0.00f } },   // all bars out, full shimmer + perc
 };
 
-static int   handle[NKEY];     // held note_on handle per key (-1 = up)
-static float glow[NKEY];       // visual key-down flash
-static int   octave = 4;
 static float val[NSL] = { 0.44f, 0.55f, 0.75f, 0.0f };   // boot on "jimmy"
 static int   sel = 0;
 static int   cur_preset = 3;
@@ -123,11 +118,6 @@ static Ptr ptr[NPTR];
 #define KNOB_Y   (SCREEN_H - 30)
 #define KNOB_X(k) (12 + (k) * 76)
 
-static int midi_of(int idx) {
-    int base = (octave + 1) * 12;
-    return base + (idx < NWHITE ? WSEMI[idx] : BSEMI[idx - NWHITE]);
-}
-
 // push all four sliders onto a single voice (held key or autoplay comp): the three engine
 // macros + the drive effect. Called live so dragging morphs every sounding note.
 static void apply_voice(int h) {
@@ -143,7 +133,7 @@ static void apply_live(void) {
     instrument_timbre(I_ORG, val[SL_TIMB]);
     instrument_morph(I_ORG, val[SL_MOR]);
     instrument_drive(I_ORG, val[SL_DRIVE]);
-    for (int b = 0; b < NKEY; b++) if (handle[b] >= 0) apply_voice(handle[b]);
+    for (int m = 0; m < 128; m++) if (keybed_held(m)) apply_voice(keybed_handle(m));
     for (int i = 0; i < 3; i++)    if (ap_h[i] >= 0)   apply_voice(ap_h[i]);
 }
 
@@ -159,24 +149,7 @@ static void apply_leslie(void) {
     instrument_leslie(I_ORG, speed, 0.0f, 0.5f, 0.7f, lesmode ? 1.0f : 0.0f);   // off → mix 0 = dry organ
 }
 
-static void key_down(int b) {
-    if (handle[b] >= 0) return;
-    handle[b] = note_on(midi_of(b), I_ORG, 6);
-    apply_voice(handle[b]);
-    glow[b] = 1.0f;
-}
-static void key_up(int b) {
-    if (handle[b] < 0) return;
-    note_off(handle[b]);
-    handle[b] = -1;
-}
-
-static void octave_step(int d) {
-    int n = octave + d;
-    if (n < 1 || n > 7) return;
-    for (int b = 0; b < NKEY; b++) key_up(b);   // drop held notes so they don't stick at the old pitch
-    octave = n;
-}
+static void octave_step(int d) { keybed_octave_shift(d); }   // keybed drops held notes + clamps
 
 static void set_preset(int p) {
     for (int k = 0; k < NSL; k++) val[k] = PRESET[p].v[k];
@@ -186,7 +159,9 @@ static void set_preset(int p) {
 
 void init(void) {
     instrument(I_ORG, INSTR_ORGAN, 1, 0, 7, 200);   // gate unused for held notes; release tail
-    for (int b = 0; b < NKEY; b++) handle[b] = -1;
+    keybed_config(I_ORG, 4, NWHITE);                 // base C4, 8 white keys
+    keybed_layout(KEY_X(0), KEY_Y, NWHITE * (KEY_W + KEY_GAP), KEY_H);
+    keybed_glissando(false);                         // an organ retriggers — sliding a finger shouldn't slur
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
     set_preset(3);
     apply_leslie();    // route I_ORG through its Leslie bus from note 1 (mix 0 = bypass until L)
@@ -194,17 +169,9 @@ void init(void) {
 }
 
 void update(void) {
-    // manual keys — held while down (chords: hold several)
-    for (int b = 0; b < NWHITE; b++) {
-        if (keyp(WKEY[b])) key_down(b);
-        if (keyr(WKEY[b])) key_up(b);
-    }
-    for (int k = 0; k < NBLACK; k++) {
-        if (keyp(BKEY[k])) key_down(NWHITE + k);
-        if (keyr(BKEY[k])) key_up(NWHITE + k);
-    }
-    if (keyp('Z')) octave_step(-1);
-    if (keyp('X')) octave_step(+1);
+    keybed_update();    // keys: touch + QWERTY (ASDF../WETYU) + MIDI + Z/X octave (no glissando)
+    // fresh + held voices follow the live macros (the point of the cart)
+    for (int m = 0; m < 128; m++) if (keybed_held(m)) apply_voice(keybed_handle(m));
 
     for (int p = 0; p < 8; p++) if (keyp('1' + p)) set_preset(p);
 
@@ -248,31 +215,16 @@ void update(void) {
                 if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y - 6, KNOB_W + 4, 18)) {
                     p->mode = PTR_DRAG; p->k = sel = k;
                 }
-            // keys: black sit ON TOP, so test them first
-            if (p->mode == PTR_IDLE) {
-                for (int k = 0; k < NBLACK && p->mode == PTR_IDLE; k++)
-                    if (point_in_box(tx, ty, BLACK_X(k), KEY_Y, BLACK_W, BLACK_H)) {
-                        key_down(NWHITE + k); p->mode = PTR_KEY; p->key = NWHITE + k;
-                    }
-            }
-            if (p->mode == PTR_IDLE && ty >= KEY_Y && ty < KEY_Y + KEY_H) {
-                for (int b = 0; b < NWHITE && p->mode == PTR_IDLE; b++)
-                    if (point_in_box(tx, ty, KEY_X(b), KEY_Y, KEY_W, KEY_H)) {
-                        key_down(b); p->mode = PTR_KEY; p->key = b;
-                    }
-            }
+            // keys themselves are handled by keybed_update() (touches over the key area)
         } else if (p->mode == PTR_DRAG) {
             val[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
             cur_preset = -1;
             apply_live();
         }
     }
-    for (int i = 0; i < touch_ended_count(); i++)      // lifted fingers release their key + slot
+    for (int i = 0; i < touch_ended_count(); i++)      // free the slider/button pointer slots
         for (int j = 0; j < NPTR; j++)
-            if (ptr[j].id == touch_ended_id(i)) {
-                if (ptr[j].mode == PTR_KEY && ptr[j].key >= 0) key_up(ptr[j].key);
-                ptr[j].id = NOID;
-            }
+            if (ptr[j].id == touch_ended_id(i)) ptr[j].id = NOID;
 
     // autoplay: a managed 3-voice held comp through a gospel-ish ii-V-I-vi, the scanner
     // (morph) gently breathing so the live-macro motion is always audible
@@ -299,7 +251,7 @@ void update(void) {
     watch("mor",  "%.2f", val[SL_MOR]);
     watch("drive","%.2f", val[SL_DRIVE]);
     watch("preset", "%d", cur_preset);
-    watch("octave", "%d", octave);
+    watch("octave", "%d", keybed_octave());
     watch("leslie", "%d", lesmode);
 #endif
 }
@@ -318,7 +270,7 @@ void draw(void) {
     rectfill(OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
     rect(OCT_DN_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
     print("Z", OCT_DN_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
-    print_scaled(str("%d", octave), OCT_DN_X + 26, OCT_BTN_Y, CLR_LIGHT_YELLOW, 2);
+    print_scaled(str("%d", keybed_octave()), OCT_DN_X + 26, OCT_BTN_Y, CLR_LIGHT_YELLOW, 2);
     rectfill(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_DARK_BROWN);
     rect(OCT_UP_X, OCT_BTN_Y, OCT_BTN_W, OCT_BTN_H, CLR_BROWN);
     print("X", OCT_UP_X + 7, OCT_BTN_Y + 5, CLR_LIGHT_PEACH);
@@ -336,28 +288,23 @@ void draw(void) {
           LES_X + 24, ry - 3, lesmode ? CLR_LIGHT_YELLOW : CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
-    // the manual — white keys first, then black keys overlaid on top
-    for (int b = 0; b < NWHITE; b++) {
-        int x = KEY_X(b);
-        glow[b] *= 0.90f;
-        bool down = handle[b] >= 0;
-        int col = down ? CLR_LIGHT_YELLOW : glow[b] > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
-        rectfill(x, KEY_Y, KEY_W, KEY_H, col);
-        rect(x, KEY_Y, KEY_W, KEY_H, down ? CLR_WHITE : CLR_DARK_BROWN);
-        print(str("%c", WKEY[b]), x + KEY_W / 2 - 2, KEY_Y + KEY_H - 12,
-              down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
+    // the manual — keybed.h owns layout/voices/glow; we draw it in the organ's colours
+    int nw = keybed_white_count();
+    for (int b = 0; b < nw; b++) {
+        int x, y, w, h; keybed_white_rect(b, &x, &y, &w, &h);
+        int midi = keybed_white_midi(b); bool down = keybed_held(midi);
+        int col = down ? CLR_LIGHT_YELLOW : keybed_glow(midi) > 0.1f ? CLR_PEACH : CLR_LIGHT_PEACH;
+        rectfill(x, y, w - 1, h, col);
+        rect(x, y, w - 1, h, down ? CLR_WHITE : CLR_DARK_BROWN);
+        print(str("%c", WKEY[b]), x + w / 2 - 2, y + h - 12, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
     }
-    for (int k = 0; k < NBLACK; k++) {
-        int x = BLACK_X(k), idx = NWHITE + k;
-        glow[idx] *= 0.90f;
-        bool down = handle[idx] >= 0;
-        int col = down ? CLR_ORANGE : glow[idx] > 0.1f ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK;
-        rectfill(x, KEY_Y, BLACK_W, BLACK_H, col);
-        rect(x, KEY_Y, BLACK_W, BLACK_H, down ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
-        font(FONT_TINY);
-        print(str("%c", BKEY[k]), x + BLACK_W / 2 - 1, KEY_Y + BLACK_H - 9,
-              down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY);
-        font(FONT_NORMAL);
+    for (int b = 0; b < nw; b++) {
+        int x, y, w, h, midi; if (!keybed_black_rect(b, &x, &y, &w, &h, &midi)) continue;
+        bool down = keybed_held(midi);
+        int col = down ? CLR_ORANGE : keybed_glow(midi) > 0.1f ? CLR_DARK_ORANGE : CLR_BROWNISH_BLACK;
+        rectfill(x, y, w, h, col);
+        rect(x, y, w, h, down ? CLR_LIGHT_YELLOW : CLR_DARK_BROWN);
+        if (BLBL[b]) { font(FONT_TINY); print(str("%c", BLBL[b]), x + w / 2 - 1, y + h - 9, down ? CLR_BROWNISH_BLACK : CLR_MEDIUM_GREY); font(FONT_NORMAL); }
     }
 
     // preset row

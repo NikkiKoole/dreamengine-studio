@@ -87,6 +87,8 @@ static void keybed_config(int slot, int base_octave, int nwhite) {
 }
 static void keybed_layout(int x, int y, int w, int h) { kb_x = x; kb_y = y; kb_w = w; kb_h = h; }
 static void keybed_velocity(int v) { kb_vel = v < 0 ? 0 : v > 7 ? 7 : v; }
+static bool kb_gliss = true;
+static void keybed_glissando(bool on) { kb_gliss = on; }   // off = a touch holds its key until lift (organs/anything non-portamento)
 
 static int keybed_white_count(void) { return kb_nwhite; }
 static int keybed_base_midi(void)   { return (kb_base_oct + 1) * 12; }
@@ -99,25 +101,47 @@ static float keybed_glow(int midi) { return (midi >= 0 && midi < 128) ? kb_glow[
 static int  keybed_handle(int midi) { return (midi >= 0 && midi < 128) ? kb_handle[midi] : -1; }  // live voice handle, or -1 — for per-note modulation
 static int  keybed_finger(int midi) { for (int i = 0; i < KB_NPTR; i++) if (kb_ptr[i].midi == midi) return kb_ptr[i].id; return -1; }  // touch id holding this note (-1 if QWERTY/MIDI/none) — for per-finger colouring
 
-// optional hook fired just BEFORE each fresh note_on — for synths whose wave/ADSR
-// are snapshot at note time (push the current patch into the slot here). moog uses it.
+// Voice callbacks. By default keybed OWNS the voice: on a fresh press it fires
+// note_on(midi, slot, vel) and note_off on release. Two ways to customise:
+//   keybed_on_note(cb)  — fired just before each fresh note-on. In managed mode
+//                         that's a PREP hook (snapshot wave/ADSR, fire a transient).
+//   keybed_on_off(cb)   — fired when a note fully releases (all sources up).
+//   keybed_manage_voices(false) — keybed does NOT call note_on/note_off itself; it
+//                         only tracks held-state + glissando and fires the two
+//                         callbacks. The CART owns voicing — for struck notes (hit),
+//                         multi-voice-per-key, or any non-(one-held-note) instrument.
 static void (*kb_note_cb)(int midi, int vel) = 0;
+static void (*kb_off_cb)(int midi) = 0;
+static bool kb_manage = true;
 static void keybed_on_note(void (*cb)(int midi, int vel)) { kb_note_cb = cb; }
+static void keybed_on_off(void (*cb)(int midi)) { kb_off_cb = cb; }
+static void keybed_manage_voices(bool on) { kb_manage = on; }
 
 // ── voice management (refcounted across sources so they never stomp) ──
 static void kb_press(int midi, int src, int vel) {
     if (midi < 0 || midi > 127) return;
-    if (kb_src[midi] == 0) { if (kb_note_cb) kb_note_cb(midi, vel); kb_handle[midi] = note_on(midi, kb_slot, vel); kb_glow[midi] = 1.0f; }
+    if (kb_src[midi] == 0) {
+        if (kb_note_cb) kb_note_cb(midi, vel);
+        if (kb_manage) kb_handle[midi] = note_on(midi, kb_slot, vel);
+        kb_glow[midi] = 1.0f;
+    }
     kb_src[midi] |= src;
 }
 static void kb_release(int midi, int src) {
     if (midi < 0 || midi > 127 || !(kb_src[midi] & src)) return;
     kb_src[midi] &= ~src;
-    if (kb_src[midi] == 0 && kb_handle[midi] >= 0) { note_off(kb_handle[midi]); kb_handle[midi] = -1; }
+    if (kb_src[midi] == 0) {
+        if (kb_manage && kb_handle[midi] >= 0) { note_off(kb_handle[midi]); kb_handle[midi] = -1; }
+        if (kb_off_cb) kb_off_cb(midi);
+    }
 }
-// release everything (octave shift / panic) — keeps sources consistent
+// release everything (octave shift / panic) — keeps sources consistent + notifies the cart
 static void keybed_all_off(void) {
-    for (int m = 0; m < 128; m++) if (kb_src[m]) { if (kb_handle[m] >= 0) note_off(kb_handle[m]); kb_handle[m] = -1; kb_src[m] = 0; }
+    for (int m = 0; m < 128; m++) if (kb_src[m]) {
+        if (kb_manage && kb_handle[m] >= 0) note_off(kb_handle[m]);
+        kb_handle[m] = -1; kb_src[m] = 0;
+        if (kb_off_cb) kb_off_cb(m);
+    }
     for (int i = 0; i < KB_NPTR; i++) kb_ptr[i].midi = -1;
 }
 static void keybed_octave_shift(int d) {
@@ -199,7 +223,7 @@ static void keybed_update(void) {
         int id = touch_id(i), midi = keybed_midi_at(touch_x(i), touch_y(i));
         KbPtr *p = kb_find_ptr(id);
         if (p) {
-            if (midi != p->midi) {
+            if (kb_gliss && midi != p->midi) {              // glissando: slide retriggers (off = key held till lift)
                 if (p->midi >= 0) kb_release(p->midi, KB_TOUCH);
                 if (midi >= 0 && kb_note_touch_free(midi)) { kb_press(midi, KB_TOUCH, kb_vel); p->midi = midi; }
                 else p->midi = -1;

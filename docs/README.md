@@ -21,6 +21,7 @@ docs/
 ├── decisions/         frozen, dated decisions (ADR-lite) — the "why we (didn't) do X"
 ├── design/            exploratory design notes (scratchpads) — rationale + proposals
 │   ├── api-notes.md     engine API: classics survey, signatures, naming, cart-patterns
+│   ├── cpu-shaders.md   CPU "fragment shaders" (pset_rgb/pget_rgb): the shipped teaching trilogy (shadelab → caustics → raymarch) + shadermath.h, and the parked ideas (#3 make per-pixel cost visible, #5 a true offscreen buffer for multipass)
 │   ├── cart-as-script.md  EXPLORATION: run cart C without an external compiler via libtcc (in-memory compile + hot-reload); the 3-symbol host↔cart boundary, why Wasmer clang/WASIX won't do graphics, native goal vs. browser goal
 │   ├── audio-notes.md   sound HUB: current surface map (§2), parameter placement (§4), §12 instrument gaps, §13 SCWs-vs-engines, §14 Roland machine readiness — tops with the audio-family index ("where does an audio idea go?")
 │   ├── instrument-engines.md  the navkit rich-instrument port program (was audio-notes §8 — numbering preserved): 3-macro discipline §8.1.1, phase ordering §8.5, shipping playbook §8.8.2, §8.9 candidate engine catalog, §8.10 effects layer (+ §8.10.1 PARKED interim items)

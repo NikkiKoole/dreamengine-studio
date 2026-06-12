@@ -764,6 +764,14 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     inside `line()` to draw as a filled rect (`DrawRectangle`) — fixes every cart drawing vlines/hlines,
     but touches the hot shared `studio.c` so it needs a compile-gate + a look at any cart relying on
     the current 1px GL behavior. Deferred deliberately (cart fix unblocked the regression).
+35. **CPU-shader demo polish** *(new 2026-06-12, after the shadelab → caustics → raymarch trilogy
+    + `shadermath.h` shipped)*. Two parked ideas, both fully spec'd in
+    [`design/cpu-shaders.md`](design/cpu-shaders.md): **#3 make the per-pixel cost visible** — a
+    live evals/ms/FPS HUD line on the shader carts so dropping `ps` 3→1 viscerally shows why GPUs
+    exist (cheap; profiler data already exists); **#5 a true offscreen buffer** for proper
+    multipass/ping-pong (blur, bloom, clean previous-state sampling) — lower priority and an
+    *engine* change (a `RenderTexture2D` carts can draw into + sample), since the feedback shader
+    already fakes ~80% of the intuition on the live canvas.
 
 ---
 

@@ -2848,6 +2848,14 @@
     ]
   },
   {
+    "title": "reverb spaces",
+    "description": "The showcase for the reverb SEND-BUSES - two independent reverbs ringing at the same time, which the single shared reverb (cathedral) can't do. A bright MALLET sits in a small, tight, bright ROOM (tank 1) while a soft ORGAN blooms in a vast, dark, endless PLATE (tank 2): same note family, two completely different spaces, one mix. Built on reverb_bus(tank, size, damp) to carve each space on its own bus and instrument_reverb_bus(slot, tank, mix) to send a slot into it. The screen splits into the two rooms; each rings its own colour of light when struck (tight yellow rings on the left, slow indigo swells on the right). Drag ROOM / PLATE to resize each space live; press 1..4 to ring the room and 5..8 the plate; SPACE toggles AUTO (the two spaces trade phrases so you can just listen); H for help. Part of the effects-bus / pedalboard family.",
+    "file": "reverbspace.cart.png",
+    "kind": [
+      "instrument"
+    ]
+  },
+  {
     "title": "juno-6",
     "description": "Roland Juno-6 (1982) - the showcase for chorus(), the engines master BBD chorus. On paper a plain 6-voice poly synth (one saw + sub oscillator, one resonant lowpass) - sh101 with more voices. What makes it a JUNO is the bucket-brigade CHORUS: flip the famous OFF/I/II switch and the dry mono synth smears into a lush, wide, shimmering stereo wash (a centered mono chord literally fans out across the stereo field - the Junos two amps). Tap the CHORUS strip (or press C) to A/B it; the WIDTH meter opens as the chorus widens the signal. RATE/DEPTH/MIX ride the chorus live, CUTOFF/RES shape the resonant lowpass. Tap a chord pad or press 1..4 (Cmaj7/Am7/Fmaj7/G7); SPACE toggles AUTO, a slow self-playing progression; H help.",
     "file": "juno.cart.png",

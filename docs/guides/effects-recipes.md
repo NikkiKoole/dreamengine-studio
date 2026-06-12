@@ -28,6 +28,11 @@ and leave the rest dry. `drive` is the exception — it's a **per-voice** insert
 > `spacecho` (echo) · `cathedral` (reverb) · `juno`/`solina` (chorus) · `mistress` (flanger) ·
 > `tapeloop` (tape) · `clavinet` (wah) · `drivemodes` (drive modes) · `bitcrush` (bitcrush) · `eq` (EQ) ·
 > `epiano` (tremolo + phaser) · `organ` (leslie).
+>
+> **The two bus-effect *homes* (effects on a whole mix, not one voice):** `pedalboard` is the
+> SERIAL-insert showcase (`fx_order` — one guitar → a reorderable chain); **`groovebox`** is the
+> SUMMED-BUS showcase (six looping voices → one master → live CRUSH/EQ/TAPE/reverb + the master
+> `fx_order` toggle + a faked sidechain PUMP). Crib the live-knob master rack from `groovebox`.
 
 ---
 
@@ -54,11 +59,29 @@ dark tail). Bus-only configure; per-slot `send`. **Showcase: `cathedral`** (orga
 | recipe | call | character | used by |
 |---|---|---|---|
 | stone hall | `reverb(0.94f, 0.32f)` + sends 0.5–0.9 | vast bright cathedral bloom; the chord becomes the instrument | `cathedral`, `deeper` (hall) |
-| lush plate | `reverb(0.62f, 0.38f)` | a roomy, slightly-dark pop verb that doesn't drown the mix | `air` |
+| lush plate | `reverb(0.62f, 0.38f)` | a roomy, slightly-dark pop verb that doesn't drown the mix | `air`, `groovebox` (SPACE knob, pad + stab sends) |
 | small warm room | `reverb(0.30f, 0.55f)` | tight dark ambience — upright bass, close jazz | `upright` |
 | worn-tape ensemble | `reverb(0.55f, 0.45f)` | mid room under chorus+tape = the Mellotron "recording" | `mellotron` |
 | dynamic openness | `reverb(0.12f+open*0.82f, 0.50f-open*0.18f)` | corridor→hall on one knob; sends 0.08→0.92 (10× range) | `deeper` |
 | dry bus, wet parts | bass/kick send `0.0f`, mallet/pad `0.32–0.40f` | keep the low end tight + punchy while melody hangs in the hall | `polopan` |
+
+### reverb send-buses — `reverb_bus(tank, size, damp)` · `instrument_reverb_bus(slot, tank, mix)`
+
+**Two reverbs at once.** `reverb()` above is one shared room (tank 0); these carve **independent**
+spaces on tanks 1–2, each on its own bus, so different instruments bloom into different rooms in the
+same mix. Configure the space with `reverb_bus(tank, size, damp)`, route a slot in with
+`instrument_reverb_bus(slot, tank, mix)`. (Tank 0 stays `reverb()`'s master send — use 1–2 here.)
+**Showcase: `reverb spaces`** (a tight mallet room + a vast organ plate, ringing together).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| tight bright room | `reverb_bus(1, 0.34f, 0.15f)` + send 0.6–0.8 | small, close, lively — percussion/plucks that need to stay crisp | `reverbspace` (ROOM) |
+| vast dark plate | `reverb_bus(2, 0.95f, 0.55f)` + send 0.8 | endless, warm, swallowing — pads/organ that should drown | `reverbspace` (PLATE) |
+
+> **Effects after the reverb** (reverb→bitcrush/eq/tape) is engine-ready (the bus runs `[FX_REVERB]`
+> as a reorderable insert, wet-replace) but not cart-exposed yet — a cart can't address the auto-allocated
+> bus index for `fx_order`/per-bus params. The tank-keyed addressing API is the fast-follow; until then,
+> reverb-buses are pure spaces. See [`../design/effects-bus-architecture.md`](../design/effects-bus-architecture.md) §5.
 
 ## chorus — `chorus(rate, depth, mix)` · `instrument_chorus(slot, rate, depth, mix)`
 
@@ -92,7 +115,7 @@ rolloff). Master or per-instrument. **Showcase: `tapeloop`.**
 | recipe | call | character | used by |
 |---|---|---|---|
 | worn tape | `tape(0.65f, 0.45f, 0.50f)` | pronounced wobble + warmth — the most degraded setting | `mellotron`, `wowflutter` |
-| warm & drifting | `tape(0.22f, 0.11f, 0.34f)` | gentle vintage glue across the whole mix | `air` |
+| warm & drifting | `tape(0.22f, 0.11f, 0.34f)` | gentle vintage glue across the whole mix | `air`, `groovebox` (TAPE knob) |
 | clean & tight | `tape(0.10f, 0.08f, 0.24f)` | barely-there warmth, no audible pitch drift | `air` |
 | lo-fi just the drums | `instrument_tape(SL_DRUMS, 0.4f, 0.5f, 0.7f)` | wonky tape on the kit, synths stay clean | (per-instrument pattern) |
 
@@ -131,7 +154,7 @@ call (mix 0 = off). **Showcase: `bitcrush`** (its scope doubles as an XY pad —
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| 8-bit master | `crush(6.0f, 8.0f, 1.0f)` | crunchy downsampled whole-mix grit — the retro-console sound | `bitcrush` |
+| 8-bit master | `crush(6.0f, 8.0f, 1.0f)` | crunchy downsampled whole-mix grit — the retro-console sound | `bitcrush`, `groovebox` (CRUSH knob — the summed SP-1200 grit on a full mix) |
 | gnarly destroy | `crush(2.0f, 16.0f, 1.0f)` | barely-recognizable, steppy quantization noise | `bitcrush` |
 | subtle dirt | `crush(10.0f, 2.0f, 0.5f)` | a touch of aliasing whine + step, mostly clean | `bitcrush` |
 | lo-fi just the bass | `instrument_crush(I_BASS, 5.0f, 6.0f, 1.0f)` | crush ONE part (the bass) while the lead stays crystal — the point of the per-instrument bus | `bitcrush` |
@@ -157,6 +180,7 @@ partner to `DRIVE_ASYM`: EQ before/after a clipper = a real **guitar-amp tone**.
 | fat bass | `instrument_eq(I_BASS, 7.0f, 0.0f, 0.0f)` | weight under one part while the mix stays clear (per-instrument bus) | `eq` |
 | guitar-amp tone | `instrument_drive_mode(slot, DRIVE_ASYM); instrument_drive(slot, 0.55f); eq(3.0f, 2.0f, -4.0f)` | asymmetric clip + a mid-forward EQ around it — the cranked-amp move | `eq` |
 | mud cut | `eq(-5.0f, 1.0f, 2.0f)` | thin out a boomy low end, nudge clarity up top | (cut pattern) |
+| tilt control | `float t=(k-0.5f)*2; eq(-t*6.0f, 0.0f, t*6.0f)` | one knob rocks dark↔bright around a flat center (0/0/0 at k=0.5 = off) — the live whole-mix tone knob | `groovebox` (EQ knob) |
 
 ## tremolo — `tremolo(rate, depth, shape)` · `instrument_tremolo(slot, rate, depth, shape)`
 

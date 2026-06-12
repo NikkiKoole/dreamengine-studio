@@ -377,12 +377,19 @@ void echo(int time_ms, float feedback, float tone);  // configure the bus: delay
 void instrument_echo(int slot, float send);    // how much this slot feeds the bus 0.0..1.0 — 0 = dry (default), 0.15 = slapback, 0.8 = dub throw
 void note_echo(int handle, float x);           // sweep a held note's echo send live, slewed — throw a single phrase into the tail
 
-// reverb — THE shared reverb bus (there is exactly one): each slot chooses how much to send
-// into it. A real room/hall (a chord blooms into space), not repeating taps like echo. Bus-only —
-// reverb is never per-voice. instrument_reverb() alone already sounds right (defaults size 0.5).
-void reverb(float size, float damping);        // configure the bus: size 0..1 (small room → endless hall), damping 0..1 (bright → dark tail)
-void instrument_reverb(int slot, float send);  // how much this slot feeds the bus 0.0..1.0 — 0 = dry (default), 0.3 = roomy, 0.8 = drenched
+// reverb — THE master reverb send: each slot chooses how much to send into it. A real room/hall
+// (a chord blooms into space), not repeating taps like echo. instrument_reverb() alone already
+// sounds right (defaults size 0.5). reverb()/instrument_reverb() use TANK 0 (the master send).
+void reverb(float size, float damping);        // configure the master send (tank 0): size 0..1 (small room → endless hall), damping 0..1 (bright → dark tail)
+void instrument_reverb(int slot, float send);  // how much this slot feeds the master send 0.0..1.0 — 0 = dry (default), 0.3 = roomy, 0.8 = drenched
 void note_reverb(int handle, float x);         // sweep a held note's reverb send live, slewed — bloom one phrase into the hall
+
+// reverb SEND-BUSES (tanks 1..2) — independent reverb spaces you can route per instrument AND put
+// effects after. reverb_bus() makes tank N a real space on its own aux bus (chain starts FX_REVERB);
+// fx_order(that bus, {FX_REVERB, FX_CRUSH, …}) then runs pedals on the wet tail. Drums in a tight
+// room + keys in a long plate at once = two tanks. (Tank 0 is reverb()'s master send — use 1..2 here.)
+void reverb_bus(int tank, float size, float damp);          // configure reverb tank 1..2 as a send-bus: size 0..1, damp 0..1 (claims an aux bus on first call)
+void instrument_reverb_bus(int slot, int tank, float mix);  // route this slot's reverb send into tank 1..2 instead of the master send; mix 0..1
 
 // chorus — THE master chorus (there is exactly one), applied to the whole mix: a BBD/Juno-style
 // modulated delay that thickens + widens everything into a lush shimmer. Master-wide (not per-slot).
@@ -451,7 +458,8 @@ void instrument_phaser(int slot, float rate, float depth, float feedback, float 
 #define FX_TAPE     5   // tape
 #define FX_EQ       6   // EQ
 #define FX_CRUSH    7   // bitcrush
-void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 8
+#define FX_REVERB   8   // reverb — ONLY valid on a reverb_bus() send-bus; a no-op on any other bus. Put it first, then FX_* after it for reverb→effect
+void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 9
 
 // leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
 // horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds

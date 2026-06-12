@@ -1,6 +1,7 @@
 # Effects bus architecture — reorderable inserts, multi-reverb, reverb-as-bus
 
-**Status: Increment A SHIPPED 2026-06-12; B/C researched, direction agreed.** A design map for
+**Status: Increment A SHIPPED 2026-06-12; Increment C engine SHIPPED 2026-06-12 (multi-reverb live;
+effects-after-reverb is engine-ready, cart API is the fast-follow — see §5).** A design map for
 three *independent* increments to the master-FX / aux-bus layer. The point of this doc is that the
 engine is already shaped for all three, and to record the exact costs so the build isn't re-derived
 from scratch.
@@ -244,6 +245,19 @@ Drums → tank 0 (tight room), keys → tank 1 (long plate), guitar → tank 2 (
 `reverb()` / `instrument_reverb()` keep working as sugar for tank 0.
 
 ---
+
+> **✅ Increment C engine SHIPPED (2026-06-12).** `SOUND_REVERB_TANKS = 3`: the loose `rvb_*`
+> globals are now a `ReverbTank` pool (tank 0 = legacy `reverb()` master send, **bytes-identical** —
+> verified by a before/after `--wav --det` diff of `cathedral`; tanks 1–2 = send-buses). `FX_REVERB`
+> is the 9th insert kind (the `fx_order` packing widened 3→4 bits across two payload ints). New API:
+> **`reverb_bus(tank, size, damp)`** carves a space on its own aux bus (chain = `[FX_REVERB]`,
+> wet-replace) + **`instrument_reverb_bus(slot, tank, mix)`** routes a slot's send into it. Showcase:
+> the **reverb spaces** cart (a bright mallet in a tight room + a soft organ in a vast plate, ringing
+> at once). **What shipped is the multi-reverb capability** (the §4 Increment B win, subsumed). **What's
+> engine-ready but NOT yet cart-exposed: effects AFTER the reverb** (reverb→bitcrush). The wet-replace +
+> reorderable chain are built and work, but a cart can't yet *address* a reverb-bus's allocated index to
+> call `fx_order`/per-bus effect params on it — that addressing (a tank-keyed order + per-bus effect
+> setters) is a clean small follow-up. See §6 "no committed suite to break" — the bit-repro tax did not bite.
 
 ## 5. Increment C — reverb as an insert on a dedicated bus
 

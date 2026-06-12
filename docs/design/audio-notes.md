@@ -1336,6 +1336,24 @@ v1, document it on the panel.
     Reversal logged in [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md). Showcase:
     `organ` (the `L` footswitch — replaced its old per-voice tremolo+doppler recipe with the real bus rotary).
 
+12. **Multi-reverb / reverb-as-bus** — effects-bus increment C (engine). **✓ SHIPPED 2026-06-12** —
+    the single shared reverberator became a **`ReverbTank` pool** (`SOUND_REVERB_TANKS = 3`): the loose
+    `rvb_*` globals fold into a struct, `reverb_process` takes a tank pointer. Tank 0 = the legacy
+    `reverb()` master parallel send (routing untouched → **bytes-identical**, verified by a before/after
+    `cathedral --wav --det` byte-match); tanks 1–2 = independent **reverb send-buses**. `reverb_bus(tank,
+    size, damp)` lazily claims an aux bus and sets its chain to `[FX_REVERB]` — a new 9th `FX_*` insert
+    kind that **wet-replaces** the bus it runs on (so any inserts after it chew the wet tail), and a
+    safe no-op on any bus whose `bus_tank[b] < 0` (master / a pedalboard bus — never zeroes a real mix).
+    `instrument_reverb_bus(slot, tank, mix)` routes a slot's send into a tank, resolved tank→bus at
+    note-on. The `fx_order` packing **widened 3→4 bits** (across `b` + `e0`) to fit the 9th kind — the
+    gotcha increment A flagged. `SR_REVERB_BUS`=66 / `SR_INSTR_REVERB_BUS`=67; bus-pool exhaustion bumps
+    `sound_dropped` (no silent caps). Two instruments now ring in two different spaces at once (drums in a
+    room + keys in a plate) — the §4 increment-B win, subsumed. Showcase: the **reverb spaces** cart.
+    **Engine-ready but NOT cart-exposed yet: effects AFTER the reverb** (reverb→bitcrush) — the wet-replace
+    + reorderable chain are built, but a cart can't address a reverb-bus's index for `fx_order`/per-bus
+    params; the tank-keyed addressing API is the fast-follow. This is increment C of
+    [`effects-bus-architecture.md`](effects-bus-architecture.md) (its §5 banner + §7 open calls).
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

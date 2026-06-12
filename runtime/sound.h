@@ -71,7 +71,8 @@ typedef struct {
     float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
     int   drive_mode;               // waveshaper flavour DRIVE_SOFT(0)/HARD/FOLD/ASYM; 0 = tanh (default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
-    float reverb;                   // send to THE reverb bus 0..1; 0 = dry (default — old carts unchanged)
+    float reverb;                   // reverb send 0..1; 0 = dry (default — old carts unchanged). Target = rvb_tank below
+    int   rvb_tank;                 // which reverb tank the send feeds: -1 = the master send (default), 1.. = a reverb_bus() send-bus
     int   fx_bus;                   // insert bus for chorus/flanger: 0 = master (default), 1.. = a private aux bus (instrument_chorus/flanger)
     float pan;                      // stereo position -1 L .. 0 center .. +1 R; default 0 = center (linear law, stereo.md)
     float tune_mul;                 // slot detune as a freq factor (2^(semis/12)); read LIVE by every
@@ -126,6 +127,7 @@ typedef struct {
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
     float  rvb, rvb_target;        // reverb-bus send (current + slew target, same machinery — note_reverb)
     int    bus;                    // insert bus for chorus/flanger (snapshot of instr fx_bus at note-on); 0 = master
+    int    rvb_bus;                // reverb SEND target bus: 0 = the master parallel send (legacy), 1.. = a reverb_bus() send-bus
     float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
@@ -436,16 +438,27 @@ static float sound_echo_coef(float t) {
 #define REVERB_FEEDBACK_MIN   0.7f   // comb feedback at size 0 (short decay)
 #define REVERB_FEEDBACK_RANGE 0.25f  // + size → longer decay (max 0.95)
 #define REVERB_DAMP_SCALE     0.4f   // damping → comb-LP cutoff scale
-static float rvb_comb1[REVERB_COMB_1], rvb_comb2[REVERB_COMB_2], rvb_comb3[REVERB_COMB_3], rvb_comb4[REVERB_COMB_4];
-static float rvb_ap1[REVERB_ALLPASS_1], rvb_ap2[REVERB_ALLPASS_2];
-static float rvb_predelay_buf[REVERB_PREDELAY];
-static int   rvb_cp1, rvb_cp2, rvb_cp3, rvb_cp4;        // comb write positions
-static int   rvb_ap_p1, rvb_ap_p2;                      // allpass positions
-static int   rvb_pd_p;                                  // predelay write position
-static float rvb_clp1, rvb_clp2, rvb_clp3, rvb_clp4;    // per-comb damping LP states
-static float reverb_fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;  // from size (default 0.5)
-static float reverb_damp = 0.5f;
-static bool  reverb_used = false;          // flips true on first reverb API call, never back
+
+// THE reverb tank pool (Increment C — effects-bus-architecture.md §5). Was a single shared
+// reverberator; now SOUND_REVERB_TANKS independent tanks of identical DSP. Tank 0 = the legacy
+// reverb() master SEND (routing unchanged → bytes-identical for old carts). Tanks 1..N-1 are
+// reverb SEND-BUSES: reverb_bus() routes a slot's send onto a dedicated aux bus whose insert
+// chain starts with FX_REVERB, so a cart can run effects AFTER the space (reverb→bitcrush). One
+// tank ≈ 24KB of comb/allpass buffers; the whole struct is zero-init .bss (0 bytes of wasm).
+#define SOUND_REVERB_TANKS 3
+typedef struct {
+    float comb1[REVERB_COMB_1], comb2[REVERB_COMB_2], comb3[REVERB_COMB_3], comb4[REVERB_COMB_4];
+    float ap1[REVERB_ALLPASS_1], ap2[REVERB_ALLPASS_2];
+    float predelay[REVERB_PREDELAY];
+    int   cp1, cp2, cp3, cp4;        // comb write positions
+    int   ap_p1, ap_p2;              // allpass positions
+    int   pd_p;                      // predelay write position
+    float clp1, clp2, clp3, clp4;    // per-comb damping LP states
+    float fb, damp;                  // config from size/damping — set by reverb() (tank 0) / reverb_bus()
+    bool  used;                      // per-tank dormancy: a dormant tank is skipped (costs zero)
+} ReverbTank;
+static ReverbTank rvb_tank[SOUND_REVERB_TANKS];
+static bool  reverb_used = false;          // flips true on first reverb() call (tank 0 master send), never back
 
 // one comb filter with lowpass damping (navkit processCombFilter — darker tails as damping rises)
 static float rvb_comb(float input, float *buf, int *pos, int size, float *lp, float fb, float damp) {
@@ -464,20 +477,21 @@ static float rvb_allpass(float input, float *buf, int *pos, int size, float coef
     *pos = (*pos + 1) % size;
     return output;
 }
-// process one sample, returns the WET signal only (navkit _processReverbCore)
-static float reverb_process(float sample) {
-    float pre = rvb_predelay_buf[rvb_pd_p];           // exactly REVERB_PREDELAY samples old
-    rvb_predelay_buf[rvb_pd_p] = sample;
-    rvb_pd_p = (rvb_pd_p + 1) % REVERB_PREDELAY;
+// process one sample on tank t, returns the WET signal only (navkit _processReverbCore).
+// Identical math/summation order to the old single-tank version → tank 0 is bytes-identical.
+static float reverb_process(ReverbTank *t, float sample) {
+    float pre = t->predelay[t->pd_p];                 // exactly REVERB_PREDELAY samples old
+    t->predelay[t->pd_p] = sample;
+    t->pd_p = (t->pd_p + 1) % REVERB_PREDELAY;
     // 4 parallel comb filters build a dense echo pattern
-    float c1 = rvb_comb(pre, rvb_comb1, &rvb_cp1, REVERB_COMB_1, &rvb_clp1, reverb_fb, reverb_damp);
-    float c2 = rvb_comb(pre, rvb_comb2, &rvb_cp2, REVERB_COMB_2, &rvb_clp2, reverb_fb, reverb_damp);
-    float c3 = rvb_comb(pre, rvb_comb3, &rvb_cp3, REVERB_COMB_3, &rvb_clp3, reverb_fb, reverb_damp);
-    float c4 = rvb_comb(pre, rvb_comb4, &rvb_cp4, REVERB_COMB_4, &rvb_clp4, reverb_fb, reverb_damp);
+    float c1 = rvb_comb(pre, t->comb1, &t->cp1, REVERB_COMB_1, &t->clp1, t->fb, t->damp);
+    float c2 = rvb_comb(pre, t->comb2, &t->cp2, REVERB_COMB_2, &t->clp2, t->fb, t->damp);
+    float c3 = rvb_comb(pre, t->comb3, &t->cp3, REVERB_COMB_3, &t->clp3, t->fb, t->damp);
+    float c4 = rvb_comb(pre, t->comb4, &t->cp4, REVERB_COMB_4, &t->clp4, t->fb, t->damp);
     float sum = (c1 + c2 + c3 + c4) * 0.25f;
     // 2 series allpass filters diffuse + smooth the tail
-    float a1 = rvb_allpass(sum, rvb_ap1, &rvb_ap_p1, REVERB_ALLPASS_1, 0.5f);
-    return rvb_allpass(a1, rvb_ap2, &rvb_ap_p2, REVERB_ALLPASS_2, 0.5f);
+    float a1 = rvb_allpass(sum, t->ap1, &t->ap_p1, REVERB_ALLPASS_1, 0.5f);
+    return rvb_allpass(a1, t->ap2, &t->ap_p2, REVERB_ALLPASS_2, 0.5f);
 }
 
 // ── THE shared modulated-delay buffer — chorus (the first use) ─────────────
@@ -502,6 +516,13 @@ static float reverb_process(float sample) {
 #define CHORUS_BASE_DELAY 0.0175f  // (MIN+MAX)/2 — base ± mod stays in range at depth 1
 #define BBD_CHARGE_SAT   0.7f      // charge-well saturation threshold (warm even harmonics)
 static int   fx_next_bus = 1;                  // next free aux bus to hand to instrument_chorus/flanger
+// Increment C — the reverb send-bus indirection (effects-bus-architecture.md §C.1). A reverb-bus
+// is an aux bus fed only by sends, with FX_REVERB as insert slot 0. bus_tank maps that bus to its
+// reverb tank (the expensive 24KB pool above); tank_bus is the inverse, resolved at note-on so
+// reverb_bus()/instrument_reverb_bus() can be called in either order.
+static int8_t bus_tank[SOUND_FX_BUSES];        // bus → reverb tank index, or -1 = not a reverb-bus (default -1)
+static int    tank_bus[SOUND_REVERB_TANKS];    // reverb tank → its dedicated aux bus, or 0 = unallocated
+static int    rvb_bus_overflow = 0;            // count of reverb_bus() requests dropped (aux-bus pool exhausted)
 static float cho_buf[SOUND_FX_BUSES][CHORUS_BUF_LEN];
 static int   cho_widx [SOUND_FX_BUSES];        // per-bus write index
 static float cho_phase[SOUND_FX_BUSES];        // per-bus LFO phase 0..1
@@ -1012,9 +1033,10 @@ static void fx_set_leslie(int b, int speed, float drive, float balance, float do
 // them PER BUS. fx_order[b] is the visit list; default = the canonical order, so an un-reordered
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
-#define N_INSERTS (FX_CRUSH + 1)            // number of insert kinds (FX_* are 0..FX_CRUSH)
+#define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
+#define N_INSERTS (FX_REVERB + 1)           // array size / max chain length: the pedals + FX_REVERB (reverb-bus only)
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
-static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default N_INSERTS)
+static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default N_PEDALS = the 8 pedals; FX_REVERB only on a reverb-bus)
 // dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
 static void apply_insert(int kind, int b, float *L, float *R) {
     switch (kind) {
@@ -1026,6 +1048,16 @@ static void apply_insert(int kind, int b, float *L, float *R) {
         case FX_TAPE:    if (tape_used[b])   tape_process(b, L, R);    break;
         case FX_EQ:      if (eq_used[b])     eq_process(b, L, R);      break;
         case FX_CRUSH:   if (crush_used[b])  crush_process(b, L, R);   break;
+        // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
+        // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
+        // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
+        case FX_REVERB: {
+            int t = bus_tank[b];
+            if (t >= 0 && rvb_tank[t].used) {
+                float wet = reverb_process(&rvb_tank[t], (*L + *R) * 0.5f);   // MONO core, v1
+                *L = wet; *R = wet;
+            }
+        } break;
     }
 }
 
@@ -1109,9 +1141,11 @@ typedef enum {
     SR_INSTR_TREMOLO= 60,   // a=slot, b=rate*1000, c=depth*1000, e0=shape — tremolo on one instrument (auto-bus)
     SR_PHASER       = 61,   // a=rate*1000, b=depth*1000, c=fb*1000(signed), e0=mix*1000, e1=stages — THE master phaser (bus 0, navkit processPhaser)
     SR_INSTR_PHASER = 62,   // a=slot, b=rate*1000, c=depth*1000, e0=fb*1000(signed), e1=mix*1000, e2=stages — phaser on one instrument (auto-bus)
-    SR_FX_ORDER     = 63,   // a=bus, b=packed kinds (3 bits each, FX_*), c=count — set a bus's insert visit order
+    SR_FX_ORDER     = 63,   // a=bus, b=packed lo (slots 0..7, 4 bits each, FX_*), c=count, e0=packed hi (slots 8..) — set a bus's insert visit order
     SR_LESLIE       = 64,   // a=speed, b=drive*1000, c=balance*1000, e0=doppler*1000, e1=mix*1000 — THE master Leslie (bus 0, navkit processLeslie)
     SR_INSTR_LESLIE = 65,   // a=slot, b=speed, c=drive*1000, e0=balance*1000, e1=doppler*1000, e2=mix*1000 — Leslie on one instrument (auto-bus)
+    SR_REVERB_BUS   = 66,   // a=tank(1..N-1), b=size*1000, c=damp*1000 — configure a reverb send-bus (claims an aux bus, chain = [FX_REVERB])
+    SR_INSTR_REVERB_BUS = 67, // a=slot, b=tank, c=mix*1000 — route a slot's reverb send into tank N's bus instead of the master send
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -3303,6 +3337,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
     v->rvb  = v->rvb_target  = ins->reverb;
+    v->rvb_bus = (ins->rvb_tank >= 1) ? tank_bus[ins->rvb_tank] : 0;   // resolve tank → its send-bus now (0 = master send)
     v->bus  = ins->fx_bus;
     v->pan  = v->pan_target  = ins->pan;
     v->last_outL = v->last_outR = 0.0f;
@@ -3626,14 +3661,14 @@ static void sound_fire_req(SoundReq r) {
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->eko_target = x;
         }
-    } else if (r.kind == SR_REVERB) {       // a=size*1000, b=damping*1000 — configure the bus
+    } else if (r.kind == SR_REVERB) {       // a=size*1000, b=damping*1000 — configure tank 0 (the master send)
         reverb_used = true;
         float size = r.a / 1000.0f;
         if (size < 0.0f) size = 0.0f; if (size > 1.0f) size = 1.0f;
-        reverb_fb = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.7 .. 0.95
+        rvb_tank[0].fb = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.7 .. 0.95
         float damp = r.b / 1000.0f;
         if (damp < 0.0f) damp = 0.0f; if (damp > 1.0f) damp = 1.0f;
-        reverb_damp = damp;
+        rvb_tank[0].damp = damp;
     } else if (r.kind == SR_INSTR_REVERB) { // a=slot, b=send*1000
         int slot = r.a;
         if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
@@ -3649,6 +3684,34 @@ static void sound_fire_req(SoundReq r) {
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->rvb_target = x;
         }
+    } else if (r.kind == SR_REVERB_BUS) {   // a=tank(1..N-1), b=size*1000, c=damp*1000 — make tank N a reverb send-bus
+        int tank = r.a;
+        if (tank < 1 || tank >= SOUND_REVERB_TANKS) return;   // tank 0 is reverb()'s master send — not a bus
+        if (tank_bus[tank] == 0) {            // first call for this tank: claim a dedicated aux bus
+            if (fx_next_bus >= SOUND_FX_BUSES) {   // aux-bus pool exhausted — surface it (no silent caps, §6)
+                rvb_bus_overflow++;
+                atomic_fetch_add_explicit(&sound_dropped, 1, memory_order_relaxed);
+                return;
+            }
+            int bus = fx_next_bus++;
+            tank_bus[tank] = bus;
+            bus_tank[bus]  = (int8_t)tank;
+            insert_order[bus][0] = FX_REVERB;  // the bus's chain starts with the reverb; fx_order() can add pedals after it
+            insert_order_n[bus]  = 1;
+        }
+        float size = r.b / 1000.0f; if (size < 0.0f) size = 0.0f; if (size > 1.0f) size = 1.0f;
+        float damp = r.c / 1000.0f; if (damp < 0.0f) damp = 0.0f; if (damp > 1.0f) damp = 1.0f;
+        rvb_tank[tank].fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;
+        rvb_tank[tank].damp = damp;
+        rvb_tank[tank].used = true;
+    } else if (r.kind == SR_INSTR_REVERB_BUS) { // a=slot, b=tank, c=mix*1000 — route a slot's send into tank N's bus
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        int tank = r.b;
+        if (tank < 1 || tank >= SOUND_REVERB_TANKS) return;
+        float mix = r.c / 1000.0f; if (mix < 0.0f) mix = 0.0f; if (mix > 1.0f) mix = 1.0f;
+        instr_bank[slot].reverb   = mix;
+        instr_bank[slot].rvb_tank = tank;
     } else if (r.kind == SR_CHORUS) {       // master chorus (bus 0): a=rate*1000, b=depth*1000, c=mix*1000
         fx_set_chorus(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_CHORUS) { // per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=mix*1000
@@ -3697,12 +3760,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_leslie(b, r.b, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
-    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, b=packed kinds (3 bits each), c=count
+    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, b=packed lo (slots 0..7, 4 bits each), c=count, e0=packed hi (slots 8..)
         int bus = r.a;
         if (bus < 0 || bus >= SOUND_FX_BUSES) return;
         int n = r.c; if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
         for (int s = 0; s < n; s++) {
-            int kind = (r.b >> (3 * s)) & 7;
+            int kind = (s < 8) ? ((r.b >> (4 * s)) & 15) : ((r.e0 >> (4 * (s - 8))) & 15);
             insert_order[bus][s] = (kind < N_INSERTS) ? kind : FX_TREM;
         }
         insert_order_n[bus] = n;
@@ -3969,7 +4032,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             v->last_outL = cL; v->last_outR = cR;   // panned contributions feed the steal declick
             busL[v->bus] += cL; busR[v->bus] += cR;   // route into this voice's insert bus (0 = master)
             if (v->sfx_idx < 0 && v->eko > 0.0005f) echo_in   += contrib * v->eko;   // echo send   — MONO, pre-pan
-            if (v->sfx_idx < 0 && v->rvb > 0.0005f) reverb_in += contrib * v->rvb;   // reverb send — MONO, pre-pan
+            if (v->sfx_idx < 0 && v->rvb > 0.0005f) {                                // reverb send — MONO, pre-pan
+                if (v->rvb_bus == 0) reverb_in += contrib * v->rvb;                  // tank 0 = master parallel send (legacy, unchanged)
+                else { float rs = contrib * v->rvb; busL[v->rvb_bus] += rs; busR[v->rvb_bus] += rs; }  // into a reverb send-bus (FX_REVERB wet-replaces it)
+            }
 
             v->phase += v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
             if (v->phase >= 1.0f) v->phase -= 1.0f;
@@ -4035,7 +4101,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
 
         // SEND RETURN 2 — THE reverb bus (dormant until the first reverb API call)
         if (reverb_used) {
-            float wet = reverb_process(reverb_in);   // navkit Schroeder core, MONO in v1
+            float wet = reverb_process(&rvb_tank[0], reverb_in);   // tank 0 = the master send; navkit Schroeder core, MONO in v1
             mixL += wet; mixR += wet;                // wet adds to both channels equally (centered)
         }
 
@@ -4506,6 +4572,18 @@ void note_reverb(int handle, float x) {
     sound_push_ctrl(SR_NOTE_REVERB, (int)(x * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
+// reverb SEND-BUSES (Increment C). reverb_bus() turns tank 1..N-1 into a real space on its own aux
+// bus; instrument_reverb_bus() points a slot's send at it. Then fx_order(that bus, {FX_REVERB, …})
+// runs pedals on the wet tail. Tank 0 stays reverb()'s master send.
+void reverb_bus(int tank, float size, float damp) {
+    sound_push_ctrl(SR_REVERB_BUS, tank, (int)(size * 1000.0f), (int)(damp * 1000.0f), 0, 0, 0);
+}
+
+void instrument_reverb_bus(int slot, int tank, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_REVERB_BUS, slot, tank, (int)(mix * 1000.0f), 0, 0, 0);
+}
+
 // ── chorus: THE master mod-delay (BBD) — first use of the shared modulated-delay buffer ──
 
 void chorus(float rate, float depth, float mix) {
@@ -4619,17 +4697,19 @@ void instrument_leslie(int slot, int speed, float drive, float balance, float do
 }
 
 // set a bus's insert visit order (FX_* kinds). bus 0 = master, 1.. = an instrument's private bus.
-// Pack the n kinds into one int (3 bits each, ≤ N_INSERTS slots) — the audio thread unpacks it.
+// Pack the n kinds at 4 bits each (FX_* now reach 8 = FX_REVERB, so 3 bits no longer fit). 9 slots
+// × 4 bits = 36 > 32, so split across two payload ints: slots 0..7 → `b`, slots 8.. → `e0`.
 void fx_order(int bus, const int *kinds, int n) {
     if (bus < 0 || bus >= SOUND_FX_BUSES) return;
     if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
-    int packed = 0;
+    int lo = 0, hi = 0;
     for (int s = 0; s < n; s++) {
         int k = kinds[s];
         if (k < 0 || k >= N_INSERTS) k = 0;
-        packed |= (k & 7) << (3 * s);
+        if (s < 8) lo |= (k & 15) << (4 * s);
+        else       hi |= (k & 15) << (4 * (s - 8));
     }
-    sound_push_ctrl(SR_FX_ORDER, bus, packed, n, 0, 0, 0);
+    sound_push_ctrl(SR_FX_ORDER, bus, lo, n, hi, 0, 0);
 }
 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
@@ -4777,6 +4857,7 @@ static void sound_init(void) {
         instr_bank[i].drive_mode = 0;      // DRIVE_SOFT (tanh) until instrument_drive_mode()
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
+        instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
         instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (eng_tune) — off until set
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (eng_tune) — off until set
@@ -4792,18 +4873,18 @@ static void sound_init(void) {
     echo_lp          = 0.0f;
     echo_used        = false;
 
-    // reverb bus: clean slate (matters for libtcc hot-reload + --det reproducibility)
-    memset(rvb_comb1, 0, sizeof(rvb_comb1)); memset(rvb_comb2, 0, sizeof(rvb_comb2));
-    memset(rvb_comb3, 0, sizeof(rvb_comb3)); memset(rvb_comb4, 0, sizeof(rvb_comb4));
-    memset(rvb_ap1, 0, sizeof(rvb_ap1));     memset(rvb_ap2, 0, sizeof(rvb_ap2));
-    memset(rvb_predelay_buf, 0, sizeof(rvb_predelay_buf));
-    rvb_cp1 = rvb_cp2 = rvb_cp3 = rvb_cp4 = 0;
-    rvb_ap_p1 = rvb_ap_p2 = 0;
-    rvb_pd_p = 0;
-    rvb_clp1 = rvb_clp2 = rvb_clp3 = rvb_clp4 = 0.0f;
-    reverb_fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;   // size 0.5 default
-    reverb_damp = 0.5f;
+    // reverb tank pool: clean slate (matters for libtcc hot-reload + --det reproducibility).
+    // Every tank zeroed; each defaults to size-0.5 feedback / 0.5 damping so a reverb()-before-
+    // config render matches the old single-tank default exactly (byte-identical).
+    memset(rvb_tank, 0, sizeof(rvb_tank));
+    for (int t = 0; t < SOUND_REVERB_TANKS; t++) {
+        rvb_tank[t].fb   = REVERB_FEEDBACK_MIN + 0.5f * REVERB_FEEDBACK_RANGE;
+        rvb_tank[t].damp = 0.5f;
+        rvb_tank[t].used = false;
+    }
     reverb_used = false;
+    for (int i = 0; i < SOUND_REVERB_TANKS; i++) tank_bus[i] = 0;   // tank → aux bus, 0 = unallocated
+    for (int b = 0; b < SOUND_FX_BUSES; b++)     bus_tank[b] = -1;  // bus → tank, -1 = not a reverb-bus
 
     // per-bus chorus + flanger + tape inserts (bus 0 master + aux): clean slate (libtcc hot-reload + --det)
     memset(cho_buf, 0, sizeof(cho_buf));
@@ -4812,6 +4893,7 @@ static void sound_init(void) {
     memset(tape_bufR, 0, sizeof(tape_bufR));
     fx_next_bus = 1;
     fx_bus_overflow = 0;
+    rvb_bus_overflow = 0;
     for (int b = 0; b < SOUND_FX_BUSES; b++) {
         cho_widx[b] = 0; cho_phase[b] = 0.0f;
         cho_rate[b] = 1.5f; cho_depth[b] = 0.4f; cho_mix[b] = 0.5f; cho_used[b] = false;
@@ -4826,8 +4908,8 @@ static void sound_init(void) {
         crush_holdL[b] = 0.0f; crush_holdR[b] = 0.0f; crush_cnt[b] = 0; crush_used[b] = false;
         eq_low_g[b] = 1.0f; eq_mid_g[b] = 1.0f; eq_high_g[b] = 1.0f;
         eq_loL[b] = 0.0f; eq_loR[b] = 0.0f; eq_hiL[b] = 0.0f; eq_hiR[b] = 0.0f; eq_used[b] = false;
-        for (int s = 0; s < N_INSERTS; s++) insert_order[b][s] = s;   // default insert order = canonical (identity)
-        insert_order_n[b] = N_INSERTS;
+        for (int s = 0; s < N_PEDALS; s++) insert_order[b][s] = s;   // default insert order = the 8 pedals, canonical (identity)
+        insert_order_n[b] = N_PEDALS;                                // FX_REVERB is never in the default chain — reverb_bus() places it
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

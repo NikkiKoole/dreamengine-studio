@@ -5,8 +5,16 @@ _Everything below is committed AND pushed to `master` — on a fresh machine, `g
 
 ## TL;DR
 
-**Effects-bus Increment A is shipped, documented, and live on the web.** Latest commit of mine: `64edd41`.
-Other agents are mid-flight in `sound.h` / `studio.*` (Leslie + fonts) — **stay out of those files until they land.**
+**Effects-bus Increment A + the Increment C engine are shipped.** Increment A (reorderable inserts +
+the pedalboard builder) is live on the web. **Increment C engine landed 2026-06-12**: a `ReverbTank`
+pool (3 tanks), `FX_REVERB` as a reorderable insert (wet-replace on a send-bus), and the
+`reverb_bus()` / `instrument_reverb_bus()` API — **multi-reverb works** (two spaces at once; showcase =
+the **reverb spaces** cart). Legacy `reverb()` is bytes-identical (verified). Leslie + fonts have
+landed, the tree is clean.
+
+**What's still open on C:** *effects-after-reverb* (reverb→bitcrush) is engine-ready but not cart-
+exposed — a cart can't yet address a reverb-bus's index for `fx_order`/per-bus effect params. That
+addressing API is the immediate fast-follow (see below + effects-bus-architecture.md §5 banner).
 
 ## What shipped this session (all pushed)
 
@@ -35,7 +43,16 @@ Working tree is dirty with **other agents'** in-flight work (none mine — all m
 
 ## Next chapters (parked, not started)
 
-- **Effects-bus Increment C** — reverb as a bus *insert* + a sparse **reverb tank pool** (multiple rooms at once). This is what makes reverb's pedalboard position *real* instead of cosmetic. Full sketch + cost ledger: [`design/effects-bus-architecture.md`](design/effects-bus-architecture.md) §5/§6. **Engine work on `sound.h`** → wait for a quiet tree.
+- **Increment C cart API — effects AFTER the reverb (the fast-follow).** The engine path is built
+  (`FX_REVERB` wet-replace on a reverb-bus + the reorderable `insert_order` chain). What's missing is
+  cart-side *addressing*: a reverb-bus gets a private aux-bus index allocated lazily inside `reverb_bus()`,
+  and a cart has no way to name it to call `fx_order(thatBus, …)` or set a downstream insert's params
+  on it. Design a small, clean addition — likely **tank-keyed** wrappers: `reverb_bus_order(tank, kinds, n)`
+  + tank-keyed per-bus effect setters (or a generic `reverb_bus_fx(tank, FX_*, p0,p1,p2)`). Then the
+  **reverb spaces** cart can grow a `reverb→bitcrush` toggle (the signature C demo). Bounded afternoon's work,
+  no engine change (the `apply_insert` `FX_REVERB` case already does the right thing).
+- **Migrate `reverb()` onto the bus path** (effects-bus-architecture.md §7 open call #3) — optional cleanup
+  so there's *one* reverb mechanism. Today tank 0 stays a master parallel send (deliberate, kept bytes-identical).
 - **Pedalboard AMP block** — a pinned "AMP/CAB" at the *end* of the chain (drive + cab-shaped EQ: roll off <80 Hz & >5 kHz + a presence bump). Likely a pure **cart-side recipe** (no engine change, no collision) per decision 0015. Maybe two voicings (Fender-clean / Vox-Marshall-crunch). Contained afternoon's work.
 - **The "pinned output stage" concept** — Leslie + amp/cab + soft-clip are forming a **4th bus zone**: parallel sends → reorderable inserts → **pinned output**. Worth a doc note once Leslie lands.
 

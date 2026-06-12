@@ -49,8 +49,13 @@ Working tree is dirty with **other agents'** in-flight work (none mine — all m
   `FX_REVERB`. The **reverb spaces** CRUSH toggle is the signature demo. Left here as a record, not a TODO.
 - **Migrate `reverb()` onto the bus path** (effects-bus-architecture.md §7 open call #3) — optional cleanup
   so there's *one* reverb mechanism. Today tank 0 stays a master parallel send (deliberate, kept bytes-identical).
-- **Pedalboard AMP block** — a pinned "AMP/CAB" at the *end* of the chain (drive + cab-shaped EQ: roll off <80 Hz & >5 kHz + a presence bump). Likely a pure **cart-side recipe** (no engine change, no collision) per decision 0015. Maybe two voicings (Fender-clean / Vox-Marshall-crunch). Contained afternoon's work.
-- **The "pinned output stage" concept** — Leslie + amp/cab + soft-clip are forming a **4th bus zone**: parallel sends → reorderable inserts → **pinned output**. Worth a doc note once Leslie lands.
+- **The output stage (4th zone): cabinets — amp/cab · Leslie** — now a full design section,
+  [`effects-bus-architecture.md` → "Increment E"](../design/effects-bus-architecture.md). Leslie shipped
+  (the one tenant that exists); E generalizes it to a pinned **"pick your cabinet" slot** where a guitar
+  amp is the obvious next tenant. An amp = a **cart-side recipe** (drive + cab-shaped EQ + `glue` power-sag
+  + soft-clip; 0015's "amp/cab = drive + lowpass") — likely **no engine change**. ~5 named voicings sketched
+  (clean/chime/crunch/high-gain/lo-fi). Also the **gain-staging cure** for long chains that clip. Build after
+  Increment D's `glue()` lands + the tree is quiet.
 
 ## Gotchas
 

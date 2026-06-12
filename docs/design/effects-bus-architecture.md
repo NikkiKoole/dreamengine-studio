@@ -456,6 +456,90 @@ gets simpler *and* more correct.** Showcase + acceptance test ready on day one.
 
 ---
 
+## Increment E — the output stage (4th zone): cabinets — amp/cab · Leslie
+
+**Status: design only (2026-06-12). Not built. Leslie is the one tenant that exists; this section
+generalizes it.** This is a *routing-shape* increment like A/C — it adds a fourth bus zone, not a new
+effect primitive (amps are recipes; see below). Prompted by the pedalboard growing into a real signal
+chain: once a chain gets long, players hit **gain-staging / clipping** ("reverb→bitcrush→vowel clips a
+little"), and a real rig solves that with the thing this zone models — the amp/cab.
+
+### E.1 The four zones, and why the output stage is its own
+
+§1 traced three zones; the output stage is the fourth, and it's where Leslie already lives:
+
+```
+1. SENDS (parallel)              echo, reverb           — the room the sound goes into
+2. INSERTS (series, reorderable) the fx_order chain     — your pedals
+3. OUTPUT STAGE (pinned, last)   amp/cab, Leslie, glue  — the SPEAKER/cabinet (turns volts → air)
+   └ master soft-clip            always the very last   — the final safety
+```
+
+The load-bearing intuition: **you can't put a fuzz pedal *after* your speaker.** The cabinet is
+physically last, so it's *pinned*, not a reorderable `FX_*` insert — exactly why Leslie was pinned
+(the handoff's "pinned output stage" note). It also runs *per-bus after the `insert_order` loop,
+before the master soft-clip* (the existing pinned-stage slot Leslie uses).
+
+### E.2 Leslie and a guitar amp are the SAME slot ("pick your cabinet")
+
+A Leslie is the *organ's* cabinet; a 4×12 is the *guitar's*. They're interchangeable tenants of one
+**output-cabinet slot** — `CABINET: none · guitar amp · Leslie · …` — chosen to suit the instrument.
+That unifies two one-offs (a "Leslie pedal" and an "amp pedal") into one pinned slot with a model
+selector. Honest signal flow, and one mechanism instead of two.
+
+### E.3 An amp sim is a RECIPE, not a primitive (0015-faithful)
+
+[Decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md) already pre-ruled it:
+"amp/cab sim = drive + lowpass." A guitar amp is a bundle of primitives we already have — **no IR
+convolution, no new DSP** (and the EQ-curve cab approximation is the right fidelity for this console):
+
+| amp component | our primitive | role |
+|---|---|---|
+| preamp / gain | `drive` + `DRIVE_*` modes (SOFT/ASYM tube, HARD fuzz, FOLD weird) | the dirt character |
+| tone stack + **cab voicing** | `eq` (3-band) — kill <~90 Hz + >~5 kHz, shape the mids | **the secret sauce**: a cab is a big bandpass; the amp's "voice" is its midrange shape |
+| power-amp sag | `glue` (Increment D bus compressor) | squash/breathe as it's pushed |
+| output clip | the master soft-clip (already there) | the final saturation |
+
+So an amp **model = a preset bundle** `(drive mode, drive amount, EQ curve, glue amount)`. The cab
+roll-off (lows + fizz) is common to all models — it's what makes a DI'd amp sound like a *speaker*
+instead of buzz. **This zone is also the gain-staging cure**: the cab EQ removes sub/fizz energy and
+the amp LEVEL + glue tame the hot chain — a real amp *is* the chain's level management.
+
+### E.4 A few voicings (name by character — dodges trademarks)
+
+| voicing | recipe sketch | character |
+|---|---|---|
+| **Black-panel clean** | `DRIVE_SOFT` low · tight lows, scooped-ish mids, bright top · light glue | sparkly Fender clean — a pedal platform |
+| **British chime** | `DRIVE_ASYM` med · mid-forward, chimey high bump · some glue | Vox AC30 jangle, breaks up sweetly |
+| **Crunch (Plexi)** | `DRIVE_ASYM` higher · mid bump, highs rolled · medium glue | classic rock crunch |
+| **Hot-rodded high-gain** | `DRIVE_HARD` high · scooped mids, tight + bright · heavy glue | metal/Mesa, compressed + saturated |
+| **Lo-fi / broken** | `DRIVE_FOLD` or `HARD` extreme · narrow EQ | fuzzy, boxy — on-brand for the console |
+
+### E.5 UI shape + open forks (for the pedalboard cart)
+
+A **pinned AMP slot at the far right** of the chain — "the chain plugs into the amp," always last, not
+draggable. One selector picks the **model** (the MOD-knob/cycle trick), plus **GAIN** and **LEVEL**
+(LEVEL = the "amp volume" = the gain-staging fix). Leslie is the same slot's alternate cabinet for
+organ patches.
+
+Open forks worth deciding when built:
+- **Always-on amp vs selectable "none"?** A real electric guitar is *always* amped — defaulting to a
+  clean amp (not raw DI) would make the board's default tone better out of the box.
+- **Pedal-drive stacks into amp-drive?** Yes, like a real boost-into-preamp — keep them separate
+  (pedal dirt vs amp gain) so stacking is a feature.
+- **One cab curve or several?** (1×12 vs 4×12 = different EQ.) One good curve + the voicings is plenty;
+  multiple cabs is DAW-tier.
+
+### E.6 Cost & placement
+
+Mostly a **cart-side preset table** (drive+eq+glue per voicing) + a pinned slot in the board — likely
+**no engine change at all** (everything's a rostered primitive), so it doesn't touch the hot files and
+can't break bit-repro. The one dependency is `glue` (Increment D, `sound.h`) for the power-sag feel —
+so build it *after* D lands and the tree is quiet. A contained afternoon. When it ships, add the amp
+voicings to [`effects-recipes.md`](../guides/effects-recipes.md) (they're recipes) and a STATUS note.
+
+---
+
 ## 6. Cost ledger
 
 | Concern | A: reorder | B: multi-reverb | C: reverb-as-bus |

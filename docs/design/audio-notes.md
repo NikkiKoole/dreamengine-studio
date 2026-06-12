@@ -1389,6 +1389,16 @@ v1, document it on the panel.
     **groovebox** (PUMP kick-keyed + GLUE self-keyed, sharing the master comp). Detail: effects-bus-architecture
     Increment D.
 
+15. **Resonant filter (the DJ filter)** — a sweepable master filter, the build-up/breakdown gesture.
+    **✓ SHIPPED 2026-06-12.** `filter(mode, cutoff_hz, resonance)` — a TPT state-variable filter (the SAME
+    core as wah/formant, just a plain swept filter in a selectable mode `FILTER_LOW`/`HIGH`/`BAND`/`NOTCH`),
+    per-channel (preserves stereo). A reorderable insert (`FX_FILTER`=10, in every bus's default chain,
+    `filt_used`-gated → dormant carts byte-identical). `SR_FILTER`=75; `filter()` configures the master.
+    Cheap to re-call every frame, so the cart RIDES the cutoff live (the house "filter ride"). 0015 angle:
+    filter-reuse (like wah was the SVF's 4th use), not a new primitive shape. Replaces the per-voice fake
+    `house` carries. Verified: compile-gate + tripwire clean, byte-identical when off, LP-200-on-noise drops
+    RMS −20→−40 dBFS. Showcase + house-radio retrofit pending.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

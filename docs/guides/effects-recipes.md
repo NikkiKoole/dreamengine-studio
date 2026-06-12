@@ -300,6 +300,21 @@ cabinet output stage, not a reorderable pedal). **Showcase: `organ`** (the `L` f
 
 ---
 
+## filter — `filter(int mode, float cutoff_hz, float resonance)`
+
+THE master resonant filter — the **DJ-filter / build-up sweep**. A state-variable filter on the whole
+mix in a selectable mode; **RIDE the cutoff live** (cheap to re-call every frame, unlike the buffer
+effects). A reorderable insert (`FX_FILTER`), so its chain position matters (filter→crush vs crush→filter).
+mode = `FILTER_LOW`/`HIGH`/`BAND`/`NOTCH` (`FILTER_OFF` = bypass), cutoff 20..~20000 Hz, resonance 0..1.
+Same SVF as wah/formant, reused as a plain swept filter (0015: filter-reuse, not a new primitive).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| breakdown muffle | `filter(FILTER_LOW, cut, 0.5f)` ride cut 300→8000 | close to a thumping muffle, open for the build/drop — the four-floor breakdown | — |
+| screaming build | `filter(FILTER_LOW, cut, 0.9f)` sweep cut up | high resonance = an acid scream riding up into the drop | — |
+| thin it out | `filter(FILTER_HIGH, 800.0f, 0.3f)` | roll off the lows — a radio/telephone thinning, or a transition | — |
+| the filter ride | `filter(FILTER_LOW, ride_hz(songpos), res)` per frame | a master cutoff curve AS the arrangement (the house "filter ride IS the song", for real) | — |
+
 ## sidechain & bus compression — `sidechain(victim_bus, key, amount, atk, rel)` · `sidechain_key(slot, key, send)` · `glue(victim_bus, amount, atk, rel)`
 
 DYNAMICS on the SUMMED signal (a gain stage, **not** a chain insert — not in `fx_order`). `sidechain`

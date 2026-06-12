@@ -210,14 +210,16 @@ static void apply_trem(void) {
     instrument_tremolo(I_EP, 5.0f + amt * 1.5f, amt * 0.85f, TREM_SINE);
 }
 
-// THE PHASER — the 70s phased-Rhodes / Small Stone swirl (P toggles). navkit's processPhaser ported
-// VERBATIM (a 4-stage allpass chain swept by a slow LFO, A/B-matched sample-for-sample on a sine).
-// A fixed tasteful Phase-90 setting: slow 0.5 Hz sweep, deep, mild resonance, 50/50 mix (the deepest-
-// notch point — an all-wet allpass has no notches). Slot-level so every strike inherits it. mix 0 =
-// bypass. Off on the clav/Wurli (a real clav has wah, a Wurli has tremolo); the suitcase preset boots
-// it on — the classic phased suitcase Rhodes.
+// THE PHASER — the 70s phased-Rhodes swirl, cranked (P toggles). navkit's processPhaser ported
+// VERBATIM (an allpass chain swept by an LFO, A/B-matched sample-for-sample on a sine). A bold,
+// resonant 6-stage setting: 0.9 Hz sweep (faster, obvious movement), full depth, high feedback 0.75
+// (pronounced "vocal" resonance around the notches), 6 stages (more notches = thicker than a stock
+// 4-stage Phase-90). mix stays 0.5 — the DEEPEST-notch point: the notches form in the dry+wet sum,
+// so pushing mix past 0.5 toward all-wet (a magnitude-flat allpass) shrinks them, not grows them.
+// Slot-level so every strike inherits it. mix 0 = bypass. Off on the clav/Wurli (a real clav has wah,
+// a Wurli has tremolo); the suitcase preset boots it on — the classic phased suitcase Rhodes.
 static void apply_phaser(void) {
-    instrument_phaser(I_EP, 0.5f, 0.8f, 0.4f, phasermode ? 0.5f : 0.0f, 4);
+    instrument_phaser(I_EP, 0.9f, 1.0f, 0.75f, phasermode ? 0.5f : 0.0f, 6);
 }
 
 static void key_down(int b) {

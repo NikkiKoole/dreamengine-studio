@@ -159,10 +159,13 @@ void init() {
     instrument_filter(SL_PAD, FILTER_LOW, 2400, 3);
     instrument_tune(SL_PAD, 0.12f);                          // wider unison detune = the analog shimmer
 
-    // master insert chain: tape → eq → crush → reverb. Reverb is a REAL insert now
-    // (reverb_insert), so the ORDER toggle can move it before/after crush — audible.
-    int order[4] = { FX_TAPE, FX_EQ, FX_CRUSH, FX_REVERB };
-    fx_order(0, order, 4);
+    // master insert chain: tape → eq → crush → reverb → filter. Reverb is a REAL insert
+    // now (reverb_insert), so the ORDER toggle can move it before/after crush — audible.
+    // FILTER is LAST so the DJ filter sculpts the whole summed mix (incl. the wet tail).
+    // NB: fx_order REPLACES the bus chain, so FX_FILTER MUST be listed or the knob is dead
+    // (it's the default chain's 10th pedal — omitting it here silently bypasses filter()).
+    int order[5] = { FX_TAPE, FX_EQ, FX_CRUSH, FX_REVERB, FX_FILTER };
+    fx_order(0, order, 5);
 
     for (int r = 0; r < ROWS; r++)
         for (int c = 0; c < STEPS; c++)
@@ -352,9 +355,9 @@ void draw() {
         orderSwapped = !orderSwapped;
         // tape→eq stay first; toggle the CRUSH/REVERB tail. CRUSH→VERB = clean space on a
         // gritty mix; VERB→CRUSH = the wet reverb tail gets crushed (grainy/vaporwave space).
-        int kinds[4] = { FX_TAPE, FX_EQ, FX_CRUSH, FX_REVERB };
+        int kinds[5] = { FX_TAPE, FX_EQ, FX_CRUSH, FX_REVERB, FX_FILTER };
         if (orderSwapped) { kinds[2] = FX_REVERB; kinds[3] = FX_CRUSH; }
-        fx_order(0, kinds, 4);                               // master bus insert order
+        fx_order(0, kinds, 5);                               // master bus insert order (FILTER stays last)
     }
     ui_end();
 }

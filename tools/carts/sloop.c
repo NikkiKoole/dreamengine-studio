@@ -577,6 +577,9 @@ static float lead_x, lead_y;      // low-passed camera lead (smooth, no curb jit
 static float cam_zoom = 1.0f;     // QUANTIZED speed-zoom actually rendered (snapped to steps so thin
                                   // world lines don't re-rasterize every frame — kills the "breathing")
 static float cam_zoom_smooth = 1.0f;  // the continuously-eased accumulator (quantized into cam_zoom)
+static int   smooth_mode = 1;  //TT  // A/B (V key): 0 off (quantized zoom-out, today) · 1 smooth zoom-out
+                                  // (1:1 render + bilinear downscale, no crawl). TEMP scaffolding for the test.
+static int   toast_t = 0;         // frames left to show the mode toast (set on V press)
 // ── sense-of-speed camera (eased so it never jitters) ─────────────────────────
 #define CAM_ZOOM_PULL 0.16f       // how far the camera pulls BACK (zooms out) at full speed
 #define CAM_ZOOM_REF  260.0f      // speed (px/s) at which the pull-back maxes out
@@ -1066,6 +1069,11 @@ static void handle_input(void) {
     if (keyp(KEY_TAB) || keyp('B')) {          // flip between BUILD and DRIVE (TAB or B)
         mode = (mode == MODE_DRIVE) ? MODE_BUILD : MODE_DRIVE;
         if (mode == MODE_DRIVE) reset_vehicle();   // drive your current build, fresh
+    }
+    if (keyp('V')) {                           // A/B the scaling: OFF <-> SMOOTH zoom-out (V; G is gears)
+        smooth_mode = (smooth_mode + 1) % 2;
+        smooth_zoom(smooth_mode != 0);
+        toast_t = 150;                         // ~2.5s toast so you can see it registered
     }
     // templates (1-5) load an editable starting rig in either mode
     if (keyp('1')) load_design(0);
@@ -1621,10 +1629,15 @@ void update(void) {
     float camspd = fsqrt(vx * vx + vy * vy);
     float zoomTarget = 1.0f - CAM_ZOOM_PULL * clamp(camspd / CAM_ZOOM_REF, 0, 1);
     cam_zoom_smooth = lerp(cam_zoom_smooth, zoomTarget, 0.05f);
-    // snap to the step grid (no roundf — studio has no math.h): the rendered zoom holds steady
-    // between levels, so thin world lines stop shimmering as it eases. Position is already
-    // pixel-snapped ((int)cam_x/cam_y). Fractional zoom leaves only a mild, even scroll-crawl.
-    cam_zoom = ((int)(cam_zoom_smooth / CAM_ZOOM_STEP + 0.5f)) * CAM_ZOOM_STEP;
+    if (smooth_mode) {
+        // smooth_zoom handles the resample at 1:1, so a continuous fractional zoom no longer
+        // crawls — drop the quantization (and its stepping pops) and ease freely.
+        cam_zoom = cam_zoom_smooth;
+    } else {
+        // OFF (baseline): snap to the step grid so thin world lines hold steady between levels.
+        // Position is already pixel-snapped ((int)cam_x/cam_y). Mild even scroll-crawl remains.
+        cam_zoom = ((int)(cam_zoom_smooth / CAM_ZOOM_STEP + 0.5f)) * CAM_ZOOM_STEP;
+    }
 
     world_sync();                  // §9: stream chunks (load/evict) for the new camera
     obstacles_integrate(dt_);      // knocked obstacles tumble away and settle
@@ -2796,6 +2809,20 @@ void draw(void) {
         }
     camera(0, 0);
     hud();
+    // TEMP A/B scaffolding (press V to toggle) — remove once we lock the winner in
+    static const char *SM[2] = { "[V] SCALING: OFF (default)", "[V] SCALING: SMOOTH (no crawl)" };
+    rectfill(2, 2, 248, 11, CLR_BLACK);
+    print(SM[smooth_mode], 4, 4, smooth_mode ? CLR_LIME_GREEN : CLR_YELLOW);
+    // toast on toggle — big centred banner, so you can't miss that V did something
+    if (toast_t > 0) {
+        int col = smooth_mode ? CLR_LIME_GREEN : CLR_ORANGE;
+        int bw = 200, bx = SCREEN_W / 2 - bw / 2, by = 26;
+        rectfill(bx, by, bw, 26, CLR_BLACK);
+        rect(bx, by, bw, 26, col);
+        print_centered(smooth_mode ? "SMOOTH SCALING: ON" : "SMOOTH SCALING: OFF", SCREEN_W / 2, by + 5, col);
+        print_centered("(drive fast to see it)", SCREEN_W / 2, by + 15, CLR_LIGHT_GREY);
+        toast_t--;
+    }
 }
 
 void init(void) {
@@ -2866,4 +2893,5 @@ void init(void) {
     world_reset();                        // §9: clean world; first DRIVE frame streams chunks in
     cam_x = sx - SCREEN_W / 2.0f;
     cam_y = sy - SCREEN_H / 2.0f;
+    smooth_zoom(true); //TT
 }

@@ -122,6 +122,15 @@ so a `tap()`/`tapp()` button is clickable for free — do **not** *also* handle 
 `mouse_pressed()`, or every edge double-fires (an even number of toggles reads as a dead
 button — it bit `martenot`).
 
+**Held voices + per-slot effects — use the `note_*` live setters (cross-cutting):** a voice
+snapshots its slot's reverb/echo send and chorus/flanger *bus* at `note_on` (`sound.h`), so for
+a **persistent held voice** (`note_on` once, driven live — theremins, drones, the Ondes) changing
+`instrument_reverb()`/`instrument_echo()` afterward does **nothing** to the sounding note. Drive
+the send live with **`note_reverb()` / `note_echo()`** instead, and set **`instrument_chorus()`
+*before* the `note_on`** (the fx-bus routing is snapshotted, only its params are live). The master
+`reverb(size,damping)` is global and always live. (This is why `martenot`'s diffuseur switches were
+silent at first — it set the slot send, not the live per-voice send.)
+
 ---
 
 ## Playable synths

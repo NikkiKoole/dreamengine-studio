@@ -83,7 +83,36 @@
     })();
   }
 
-  navigator.requestMIDIAccess({ sysex: false }).then(wire, function (e) {
-    console.warn('[web-midi] access denied/failed:', e && e.message);
-  });
+  function start() {
+    navigator.requestMIDIAccess({ sysex: false }).then(wire, function (e) {
+      // denied or auto-blocked — DON'T fail silently; tell the user how to allow it
+      console.warn('[web-midi] access denied/failed:', e && e.message);
+      toast('🎹 MIDI is blocked — click the site icon left of the URL → MIDI → Allow, then reload');
+    });
+  }
+
+  // Asking on page LOAD is what gets MIDI auto-blocked: an unexpected prompt
+  // dismissed a few times makes Chrome block the permission. So if it's already
+  // granted, connect now; if already denied, explain; otherwise wait for the first
+  // user interaction (a music cart needs a gesture to start audio anyway) so the
+  // prompt is intentional.
+  function onGesture() {
+    window.removeEventListener('pointerdown', onGesture, true);
+    window.removeEventListener('keydown', onGesture, true);
+    start();
+  }
+  function armGesture() {
+    window.addEventListener('pointerdown', onGesture, true);
+    window.addEventListener('keydown', onGesture, true);
+  }
+
+  if (navigator.permissions && navigator.permissions.query) {
+    navigator.permissions.query({ name: 'midi' }).then(function (st) {
+      if (st.state === 'granted')     start();        // already allowed → connect instantly
+      else if (st.state === 'denied') toast('🎹 MIDI is blocked — click the site icon left of the URL → MIDI → Allow, then reload');
+      else                            armGesture();   // 'prompt' → ask on first interaction
+    }, armGesture);   // browser can't query 'midi' (e.g. Firefox) → gesture path
+  } else {
+    armGesture();
+  }
 })();

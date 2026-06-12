@@ -1,7 +1,7 @@
 #include "studio.h"
 #include "ui.h"
-#define KEYBED_WHITE_KEYS "ZXCVBNMQWERTYU"   // tracker layout: Z=C X=D C=E V=F B=G N=A M=B, then Q..U
-#define KEYBED_BLACK_KEYS "SD GHJ 23 567"     // S=C# D=D# (gap) G=F# H=G# J=A# (gap) 2=C# 3=D# (gap) 5 6 7
+#define KEYBED_WHITE_KEYS "ASDFGHJKL;'"   // GarageBand musical-typing — the house layout (top 3 whites: touch/MIDI)
+#define KEYBED_BLACK_KEYS "WE TYU OP"
 #include "keybed.h"
 #include <math.h>
 #include <string.h>
@@ -21,7 +21,7 @@
 //
 //   TABS     six voice tabs - tap to toggle. Strings (blue) 16'/8'/8'/4',
 //            brass (orange) 8'/4'. Enabled tabs all sound = the divide-down mix.
-//   PLAY     bottom 2 octaves - touch, or QWERTY (Z..M lower, Q..U upper).
+//   PLAY     bottom 2 octaves - touch, or QWERTY (A S D F.. + W E T Y U..).
 //            HOLD a key: it swells in (CRESCENDO) and rings out slowly on lift.
 //   CRESCENDO  the swell-in (attack)      SUSTAIN  the ring-out (release)
 //   BRIGHT     master tone (all footages) ENSEMBLE off / I / II   [E]
@@ -129,7 +129,7 @@ void update(void) {
     if (keyp(KEY_SPACE)) { autop = !autop; last_step = -1; if (!autop) note_off_all(); }
     if (keyp(KEY_TAB) || keyp('/')) show_help = !show_help;
 
-    keybed_update();    // keys: touch + glissando + QWERTY (tracker map) + MIDI + Z/X octave → voice_start/stop
+    keybed_update();    // keys: touch + glissando + QWERTY (ASDF../WETYU) + MIDI + Z/X octave → voice_start/stop
 
     // AUTO — a slow I–vi–IV–V string progression (Am: Am F C G), fully sustained
     if (autop) {
@@ -161,7 +161,7 @@ static void draw_help(void) {
         "Flip it OFF then I/II - that is the Solina.",
         "",
         "TABS    tap to mix the footages",
-        "PLAY    touch / QWERTY (Z..M, Q..U); HOLD",
+        "PLAY    touch / QWERTY (A S D F.. row); HOLD",
         "        a key to hear it swell in + ring out",
         "ENSEMBLE off/I/II [E]   SPACE  AUTO",
     };

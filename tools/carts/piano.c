@@ -20,15 +20,16 @@
 // with another. The desktop mouse is one synthetic finger, same path.
 
 #include "studio.h"
+#define KEYBED_WHITE_KEYS "ASDFGHJK"   // one octave + the top C
+#define KEYBED_BLACK_KEYS "WE TYU"
+#include "keybed.h"
 #include <math.h>
 
-#define I_PNO 5
-#define NKEY  13                    // one octave, C..C
-
-// keyboard layout: 8 white keys + 5 black keys, computer-key mapped like a tracker octave
-static const int  SEMI[NKEY]   = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-static const char KEYK[NKEY]   = { 'A','W','S','E','D','F','T','G','Y','H','U','J','K' };
-static const bool BLACK[NKEY]  = { 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0 };
+#define I_PNO  5
+#define NKEY   13                   // one octave of semitones, C..C (glow index)
+#define NWHITE 8
+static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // white-key QWERTY labels
+static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
 // row 1 = the 3 engine macros; row 2 = TUNING controls (weight/attack via eng_tune(), width via
 // per-note instrument_pan()) — scaffolding to dial the sound in by ear, baked to constants after.
@@ -47,8 +48,7 @@ static const float PRESET[NPRESET][3] = {
     { 0.92f, 0.50f, 0.60f },   // celesta
 };
 
-static int   root = 60;        // middle C
-static float amp[NKEY];        // visual key-press glow, decays each frame
+static float amp[NKEY];        // visual key-press glow (per semitone 0..12), decays each frame
 static int   sel = 0;
 static int   preset = 0;
 static bool  autoplay = true;
@@ -71,10 +71,6 @@ static Ptr   ptr[NPTR];
 #define KNOB_X(k) (14 + ((k) % 3) * 102)
 #define KNOB_Y(k) (KNOB_TOP + ((k) < 3 ? 0 : 26))
 
-// white-key index (0..7) → its NKEY slot; and x of white key i
-static int white_slot(int wi) { int c = 0; for (int i = 0; i < NKEY; i++) if (!BLACK[i]) { if (c == wi) return i; c++; } return 0; }
-static int white_x(int wi)    { return 10 + wi * WW; }
-
 static float knob[6] = { 0.08f, 0.50f, 0.62f, 0.0f, 0.3f, 0.0f };   // grand voicing + a little hammer thump (attack)
 
 static void push_knobs(void) {
@@ -88,11 +84,16 @@ static void push_knobs(void) {
 // gate scales with pedal (morph): dry staccato lets go fast, a held pedal rings long
 static int gate_ms(void) { return 500 + (int)(knob[2] * knob[2] * 16000.0f); }
 
-static void play_key(int slot, int vol) {
-    instrument_pan(I_PNO, (SEMI[slot] / 12.0f - 0.5f) * 1.8f * knob[5]);   // TUNING: width = pan by pitch
-    hit(root + SEMI[slot], I_PNO, vol, gate_ms());
-    amp[slot] = 1.0f;
+// strike one note at an absolute MIDI pitch (struck — rings down on its own via gate_ms)
+static void play_midi(int midi, int vol) {
+    int slot = midi - keybed_base_midi();                                  // 0..12 within the octave
+    instrument_pan(I_PNO, (slot / 12.0f - 0.5f) * 1.8f * knob[5]);         // TUNING: width = pan by pitch
+    hit(midi, I_PNO, vol, gate_ms());
+    if (slot >= 0 && slot < NKEY) amp[slot] = 1.0f;
 }
+static void play_key(int slot, int vol) { play_midi(keybed_base_midi() + slot, vol); }   // by octave-relative slot
+// keybed.h fires this on each key press (manual-voice mode); a piano key is struck, not held
+void kb_strike(int midi, int vel) { (void)vel; play_midi(midi, 6); }
 
 static void load_preset(int p) {
     preset  = p;
@@ -103,12 +104,17 @@ static void load_preset(int p) {
 void init(void) {
     instrument(I_PNO, INSTR_PIANO, 1, 0, 7, 2000);   // long release — never chop a ringing note
     push_knobs();
+    keybed_config(I_PNO, 4, NWHITE);                 // one octave, base C4
+    keybed_layout(10, KB_Y, NWHITE * WW, KB_H);
+    keybed_manage_voices(false);                     // struck (hit()), not held — WE play the note
+    keybed_glissando(false);                         // a finger slide shouldn't retrigger
+    keybed_on_note(kb_strike);
     for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
     bpm(96);
 }
 
 void update(void) {
-    for (int i = 0; i < NKEY; i++) if (keyp(KEYK[i])) play_key(i, 6);
+    keybed_update();    // keys: touch + QWERTY (ASDF../WETYU) + MIDI + Z/X octave → kb_strike
 
     for (int p = 0; p < NPRESET; p++)
         if (keyp('1' + p)) { load_preset(p); play_key(0, 6); play_key(4, 5); play_key(7, 5); }
@@ -123,10 +129,8 @@ void update(void) {
 
     if (keyp(KEY_SPACE)) { play_key(0, 6); play_key(4, 5); play_key(7, 5); }   // a triad
     if (keyp('M')) autoplay = !autoplay;
-    if (keyp('Z') && root > 24) root -= 12;   // octave down
-    if (keyp('X') && root < 96) root += 12;   // octave up
 
-    // touch: each finger plays a key or drags a slider, independently
+    // touch: the keys are keybed's; this pool handles the autoplay toggle + slider drags
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
         Ptr *p = 0, *freeP = 0;
@@ -140,21 +144,6 @@ void update(void) {
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) { autoplay = !autoplay; continue; }
             for (int k = 0; k < 6; k++)
                 if (point_in_box(tx, ty, KNOB_X(k) - 2, KNOB_Y(k) - 6, KNOB_W + 4, 18)) { p->mode = PTR_DRAG; p->k = sel = k; }
-            if (p->mode == PTR_IDLE && ty >= KB_Y && ty < KB_Y + KB_H) {
-                // black keys sit on top (upper 60% of the keybed) — test them first
-                int hitk = -1;
-                for (int wi = 0; wi < WKEYS && hitk < 0; wi++) {
-                    int slot = white_slot(wi);
-                    if (slot + 1 < NKEY && BLACK[slot + 1] && ty < KB_Y + KB_H * 6 / 10) {
-                        int bx = white_x(wi) + WW - WW / 4;
-                        if (tx >= bx && tx < bx + WW / 2) hitk = slot + 1;
-                    }
-                }
-                if (hitk < 0)                                   // else a white key
-                    for (int wi = 0; wi < WKEYS; wi++)
-                        if (tx >= white_x(wi) && tx < white_x(wi) + WW) hitk = white_slot(wi);
-                if (hitk >= 0) { p->mode = PTR_KEY; p->key = hitk; play_key(hitk, 6); }
-            }
         } else if (p->mode == PTR_DRAG) {
             knob[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
             push_knobs();
@@ -169,7 +158,7 @@ void update(void) {
     if (autoplay && every(1)) {
         static const int seq[16] = { 0,4,7,4, 9,7,4,0, 2,5,9,5, 7,4,2,0 };
         play_key(seq[apos % 16], 5);
-        if (chance(30)) schedule_hit(280, root + SEMI[(seq[apos % 16] + 7) % NKEY] + 12, I_PNO, 3, 1500);
+        if (chance(30)) schedule_hit(280, keybed_base_midi() + ((seq[apos % 16] + 7) % NKEY) + 12, I_PNO, 3, 1500);
         apos++;
     }
 
@@ -188,26 +177,25 @@ void draw(void) {
     print_right(autoplay ? "M autoplay: on" : "M autoplay: off", SCREEN_W - 10, 8, autoplay ? CLR_LIME_GREEN : CLR_DARK_GREY);
     font(FONT_NORMAL);
 
-    // white keys
-    for (int wi = 0; wi < WKEYS; wi++) {
-        int slot = white_slot(wi), x = white_x(wi);
-        amp[slot] *= 0.90f;
-        int c = amp[slot] > 0.1f ? CLR_LIGHT_YELLOW : CLR_WHITE;
-        rectfill(x + 1, KB_Y, WW - 2, KB_H, c);
-        rect(x, KB_Y, WW, KB_H, CLR_DARK_GREY);
-        print(str("%c", KEYK[slot]), x + WW / 2 - 3, KB_Y + KB_H - 12, CLR_DARK_GREY);
+    for (int s = 0; s < NKEY; s++) amp[s] *= 0.90f;   // decay the strike glow (per semitone)
+    int nw = keybed_white_count();
+    // white keys (keybed.h geometry; glow from our own amp[], indexed by semitone)
+    for (int wi = 0; wi < nw; wi++) {
+        int x, y, w, h; keybed_white_rect(wi, &x, &y, &w, &h);
+        int slot = keybed_white_midi(wi) - keybed_base_midi();
+        int c = (slot >= 0 && slot < NKEY && amp[slot] > 0.1f) ? CLR_LIGHT_YELLOW : CLR_WHITE;
+        rectfill(x + 1, y, w - 2, h, c);
+        rect(x, y, w, h, CLR_DARK_GREY);
+        print(str("%c", WKEY[wi]), x + w / 2 - 3, y + h - 12, CLR_DARK_GREY);
     }
     // black keys on top
-    for (int wi = 0; wi < WKEYS; wi++) {
-        int slot = white_slot(wi);
-        if (slot + 1 < NKEY && BLACK[slot + 1]) {
-            int bx = white_x(wi) + WW - WW / 4, bs = slot + 1;
-            amp[bs] *= 0.90f;
-            int c = amp[bs] > 0.1f ? CLR_ORANGE : CLR_BLACK;
-            rectfill(bx, KB_Y, WW / 2, KB_H * 6 / 10, c);
-            rect(bx, KB_Y, WW / 2, KB_H * 6 / 10, CLR_DARKER_GREY);
-            print(str("%c", KEYK[bs]), bx + 1, KB_Y + 3, CLR_LIGHT_GREY);
-        }
+    for (int wi = 0; wi < nw; wi++) {
+        int x, y, w, h, midi; if (!keybed_black_rect(wi, &x, &y, &w, &h, &midi)) continue;
+        int slot = midi - keybed_base_midi();
+        int c = (slot >= 0 && slot < NKEY && amp[slot] > 0.1f) ? CLR_ORANGE : CLR_BLACK;
+        rectfill(x, y, w, h, c);
+        rect(x, y, w, h, CLR_DARKER_GREY);
+        if (BLBL[wi]) print(str("%c", BLBL[wi]), x + 1, y + 3, CLR_LIGHT_GREY);
     }
 
     // two rows of knobs: row 1 = macros, row 2 = weight / attack / width (tuning)
@@ -227,7 +215,7 @@ void draw(void) {
     for (int p = 0; p < NPRESET; p++)
         prx = print(str("%d %s  ", p + 1, PRESET_NAME[p]), prx, KB_Y + KB_H + 6,
                     p == preset ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
-    print(str("A..K play   Z/X octave (C%d)   1..6 preset   drag slider   SPACE chord", root / 12 - 1),
+    print(str("A..K play   Z/X octave (C%d)   1..6 preset   drag slider   SPACE chord", keybed_octave()),
           10, SCREEN_H - 9, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 // ============================================================================
-// ROADNET  —  a SPLINE arterial network over an infinite heightmap.   (rung 1)
+// ROADNET  —  a SPLINE arterial network over an infinite heightmap.   (rungs 1-2)
 //
 //   intro panel      drag the SLIDERS (world re-rolls live behind the panel),
 //                    ROLL = fresh seed, EXPLORE / ENTER = dismiss the panel
@@ -40,10 +40,10 @@
 // Borrowed VERBATIM from worldgen.c (the gtascii port): height_at / biome_col /
 // passable / hash2 / ifloor. New here: the node tangents + the Hermite ribbon.
 //
-// Rung 1 milestone = THE SEAM TEST: pan across a cell border (toggle G to see the
-// grid) and the same curve must draw from either side. Terrain reaction is the
-// cheap honest version — a link whose straight LOS isn't passable is DROPPED.
-// Valley-following / bridges / tunnels are v2 with seams left (roadnet.md).
+// Rung 1 = THE SEAM TEST (pan across a cell border, toggle G; the same curve draws
+// from either side). Rung 2 = TERRAIN-AWARE ROUTING: link_path() BENDS a link around
+// water/peaks and verifies every sample sits on passable land (so a road never crosses
+// water); only a boxed-in link drops. Bridges / tunnels / valley-following stay v2.
 // ============================================================================
 
 #define TILE 4                                  // screen px per world tile at zoom 1
@@ -165,11 +165,8 @@ static int get_hub(int cx, int cy, float *wx, float *wy) {
 static int sxp(float wx) { return (int)((wx - camX) * P + P * 0.5f); }
 static int syp(float wy) { return (int)((wy - camY) * P + P * 0.5f); }
 
-static int road_clear(float ax, float ay, float bx, float by);   // defined below
-
-// ── the SEAM: all link geometry comes out of here. v2 (valley-following, bridges)
-// inserts/tags control points HERE so render + future road_at() can't disagree. ──
-// Catmull-Rom through (p0,p1,p2,p3); p1->p2 is the drawn span. t in [0,1].
+// Catmull-Rom basis through (p0,p1,p2,p3); p1->p2 is the drawn span, t in [0,1].
+// (The geometry SEAM is link_path() below — this is just its base-curve helper.)
 static void catmull(float p0,float p1,float p2,float p3,float t,float *out){
     float t2=t*t, t3=t2*t;
     *out = 0.5f*( (2*p1) + (-p0+p2)*t
@@ -181,17 +178,82 @@ static void catmull(float p0,float p1,float p2,float p3,float t,float *out){
 // each physical link is enumerated exactly once → no double-draw, no seam fight).
 static const int DIR[4][2] = {{1,0},{0,1},{1,1},{1,-1}};
 
-// Stroke one Catmull-Rom span (p1->p2, shaped by p0/p3) as overlapping circles.
-static void stroke_catmull(float p0x, float p0y, float p1x, float p1y,
-                           float p2x, float p2y, float p3x, float p3y, int r, int col) {
-    float ddx = p2x - p1x, ddy = p2y - p1y;
-    float len_px = fsqrt(ddx*ddx + ddy*ddy) * P;         // on-screen length (zoom-aware)
-    int steps = (int)(len_px / (r > 0 ? r : 1)); if (steps < 6) steps = 6;
-    for (int s = 0; s <= steps; s++) {
-        float t = (float)s / steps, wx, wy;
-        catmull(p0x, p1x, p2x, p3x, t, &wx);
-        catmull(p0y, p1y, p2y, p3y, t, &wy);
-        circfill(sxp(wx), syp(wy), r, col);
+#define LINK_SAMPLES 20             // world-space samples per link (collision-ready)
+#define MAXBEND      26.0f          // furthest a road will detour sideways (tiles)
+static float lp_x[LINK_SAMPLES + 1], lp_y[LINK_SAMPLES + 1];   // last link_path() result
+
+static int passable_at(float x, float y) { return passable(height_at(x, y)); }
+
+// Sample the base Catmull-Rom (c0,a,b,c3) into lp_, plus a perpendicular BOW of size
+// `bend` that peaks at the middle (sin window) — the terrain detour. Returns 1 only if
+// EVERY sample sits on passable land (so a road is never drawn over water/peak).
+static int build_path(float c0x, float c0y, float ax, float ay, float bx, float by,
+                      float c3x, float c3y, float bend, float perpx, float perpy) {
+    for (int i = 0; i <= LINK_SAMPLES; i++) {
+        float t = (float)i / LINK_SAMPLES, bxv, byv;
+        catmull(c0x, ax, bx, c3x, t, &bxv);
+        catmull(c0y, ay, by, c3y, t, &byv);
+        float w = sin_deg(t * 180.0f);               // 0 at ends, 1 at the middle
+        lp_x[i] = bxv + perpx * bend * w;
+        lp_y[i] = byv + perpy * bend * w;
+    }
+    for (int i = 0; i <= LINK_SAMPLES; i++)
+        if (!passable_at(lp_x[i], lp_y[i])) return 0;
+    return 1;
+}
+
+// THE SEAM — the ONE place road geometry is produced. Fills lp_ with the drivable
+// path A→B (shaped by c0/c3), BENT around impassable terrain; returns the sample
+// count, or 0 if no passable route exists (caller drops it — bridges are v2). Both
+// the renderer and the future sloop road_at() read lp_, so they can never disagree.
+static int link_path(float c0x, float c0y, float ax, float ay,
+                     float bx, float by, float c3x, float c3y) {
+    float dx = bx - ax, dy = by - ay, len = fsqrt(dx*dx + dy*dy);
+    if (len < 0.5f) return 0;
+    float ux = dx/len, uy = dy/len, perpx = -uy, perpy = ux;
+
+    // 1. straight-ish base curve already clear? (most links)
+    if (build_path(c0x, c0y, ax, ay, bx, by, c3x, c3y, 0, perpx, perpy)) return LINK_SAMPLES + 1;
+
+    // 2. find the obstacle's centre along the straight line
+    int steps = (int)(len / 1.5f); if (steps < 2) steps = 2;
+    float sumt = 0; int blocked = 0;
+    for (int s = 1; s < steps; s++) {
+        float t = (float)s / steps;
+        if (!passable_at(ax + dx*t, ay + dy*t)) { sumt += t; blocked++; }
+    }
+    if (!blocked) return 0;                          // base bowed into terrain but line clear → drop (rare)
+    float tc = sumt / blocked, ox = ax + dx*tc, oy = ay + dy*tc;
+
+    // 3. which side has the nearer passable land?
+    float clr = 0; int sgn = 0;
+    for (float off = 1.5f; off <= MAXBEND; off += 1.5f) {
+        if (passable_at(ox + perpx*off, oy + perpy*off)) { clr = off; sgn =  1; break; }
+        if (passable_at(ox - perpx*off, oy - perpy*off)) { clr = off; sgn = -1; break; }
+    }
+    if (!sgn) return 0;                              // boxed in (wide water) → drop; v2 bridge
+
+    // 4. grow the bow until the WHOLE path clears
+    for (float k = 1.0f; k <= 3.0f; k += 0.5f) {
+        float bend = sgn * (clr * k + 2.0f);
+        float ab = bend < 0 ? -bend : bend; if (ab > MAXBEND * 1.5f) break;
+        if (build_path(c0x, c0y, ax, ay, bx, by, c3x, c3y, bend, perpx, perpy)) return LINK_SAMPLES + 1;
+    }
+    return 0;
+}
+
+// Stroke the path in lp_ as overlapping circles, fine enough at any zoom (steps each
+// segment in screen space by the ribbon radius).
+static void stroke_path(int n, int r, int col) {
+    for (int i = 0; i + 1 < n; i++) {
+        int x0 = sxp(lp_x[i]), y0 = syp(lp_y[i]), x1 = sxp(lp_x[i+1]), y1 = syp(lp_y[i+1]);
+        int dx = x1 - x0, dy = y1 - y0;
+        int seg = (int)fsqrt((float)(dx*dx + dy*dy));
+        int steps = seg / (r > 0 ? r : 1); if (steps < 1) steps = 1;
+        for (int s = 0; s <= steps; s++) {
+            float t = (float)s / steps;
+            circfill(x0 + (int)(dx*t), y0 + (int)(dy*t), r, col);
+        }
     }
 }
 
@@ -215,11 +277,11 @@ static void draw_highways(int phase) {
                 }
                 float p2x, p2y;
                 if (!get_hub(cx + dx, cy + dy, &p2x, &p2y)) continue;
-                if (!road_clear(p1x, p1y, p2x, p2y)) continue;          // water breaks the spine (v2 bridge)
                 float p0x, p0y, p3x, p3y;
                 if (!get_hub(cx - dx, cy - dy, &p0x, &p0y)) { p0x = 2*p1x - p2x; p0y = 2*p1y - p2y; }
                 if (!get_hub(cx + 2*dx, cy + 2*dy, &p3x, &p3y)) { p3x = 2*p2x - p1x; p3y = 2*p2y - p1y; }
-                stroke_catmull(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y, r, col);
+                int np = link_path(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y);  // bends around terrain
+                if (np) stroke_path(np, r, col);                            // 0 = no route (v2 bridge)
             }
         }
 }
@@ -266,26 +328,17 @@ static void draw_feeders(int phase) {
     for (int cx = c0; cx <= c1; cx++)
         for (int cy = r0; cy <= r1; cy++) {
             float tx, ty; if (!get_node(cx, cy, &tx, &ty)) continue;
-            float hx, hy;
-            if (nearest_hub(tx, ty, &hx, &hy) && road_clear(tx, ty, hx, hy))
-                stroke_catmull(2*tx - hx, 2*ty - hy, tx, ty, hx, hy, 2*hx - tx, 2*hy - ty, r, col);
+            float hx, hy; int np;
+            if (nearest_hub(tx, ty, &hx, &hy)) {
+                np = link_path(2*tx - hx, 2*ty - hy, tx, ty, hx, hy, 2*hx - tx, 2*hy - ty);
+                if (np) stroke_path(np, r, col);
+            }
             float nx, ny;
-            if (nearest_town(tx, ty, &nx, &ny) && road_clear(tx, ty, nx, ny))
-                stroke_catmull(2*tx - nx, 2*ty - ny, tx, ty, nx, ny, 2*nx - tx, 2*ny - ty, r, col);
+            if (nearest_town(tx, ty, &nx, &ny)) {
+                np = link_path(2*tx - nx, 2*ty - ny, tx, ty, nx, ny, 2*nx - tx, 2*ny - ty);
+                if (np) stroke_path(np, r, col);
+            }
         }
-}
-
-// straight LOS passability between two nodes (worldgen's road_clear)
-static int road_clear(float ax, float ay, float bx, float by) {
-    float dx = bx - ax, dy = by - ay;
-    float len = fsqrt(dx * dx + dy * dy);
-    if (len < 0.5f) return 0;
-    int steps = (int)len;
-    for (int s = 1; s < steps; s++) {
-        float t = (float)s / steps;
-        if (!passable(height_at(ax + dx * t, ay + dy * t))) return 0;
-    }
-    return 1;
 }
 
 static void draw_nodes(int detail) {

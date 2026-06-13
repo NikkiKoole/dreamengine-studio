@@ -1,6 +1,6 @@
 # roadnet — a spline arterial network over the heightmap (design)
 
-**Status: rung 1 in progress (2026-06-13).** A fresh testbed cart
+**Status: rungs 1–2 done (2026-06-14).** A fresh testbed cart
 ([`tools/carts/roadnet.c`](../../tools/carts/roadnet.c)) for the one thing
 [`procgen-places.md`](procgen-places.md) explicitly parked as **"the wall"**:
 **arced / non-axis-aligned roads in a deterministic, infinite world.** This doc is
@@ -154,9 +154,16 @@ panel it's gated to `mouse_x > PANEL_W` so it doesn't fight the sliders.
    border overlay) and the *same* curve draws from either side — held by
    construction (curve points are world-space, camera applied last). The wall is
    down.
-2. **Terrain-aware routing** — a dropped/blocked link reroutes instead of vanishing:
-   displace an intermediate control point toward passable land, or follow a valley.
-   Lives **inside `link_path()`** so render (and future collision) can't disagree.
+2. **Terrain-aware routing** *(done)* — the real `link_path()` seam now exists: it
+   samples the base Catmull-Rom plus a **perpendicular bow that bends the road around
+   impassable terrain**, and **verifies every sample sits on passable land** before
+   returning (so a road is never drawn over water/peak — strictly better than rung 1,
+   which checked only the straight line then drew a curve that could clip water). The
+   bend grows until the whole path clears; a genuinely **boxed-in** link returns 0 and
+   drops (bridges are v2). One function, world-space samples → render *and* future
+   `road_at()` read the identical geometry. *(Drivability corner-clamp — trackgen's
+   relax — folds into the same function when sloop starts driving; deferred till then,
+   it's meaningless without a car.)*
 3. **POI typing** — nodes get a kind (town / fuel / landmark…), Poisson-ish minimum
    spacing so they're not uniformly one-per-cell; **road class** (path → local →
    avenue → arterial → highway, per procgen-places' table) chosen by the rank of the
@@ -174,7 +181,8 @@ leaves the **hooks** so v2 is an extension, not a rewrite:
 
 | v2 feature | the seam left for it | rule |
 |---|---|---|
-| **valley-following / obstacle avoidance** | `link_path()` owns *all* geometry; rung 1 emits a 2-point Hermite, v2 inserts intermediate control points | callers (render + future `road_at()`) never change — **one path function, both paths call it** (procgen-places' "one wrong turn to avoid") |
+| **obstacle avoidance** | ✅ *done in rung 2* — `link_path()` bows the curve around impassable terrain and verifies passability | callers (render + future `road_at()`) never change — **one path function, both paths call it** (procgen-places' "one wrong turn to avoid") |
+| **valley-following** (roads *prefer* low/flat ground, not just avoid water) | a cost term inside `link_path()`'s bend search | extends the existing bend logic, doesn't change the seam |
 | **bridges** | the per-sample loop already queries `height_at` at each sample; tag a sample whose height < water level as `bridge`, render differently | a link over water becomes a bridge instead of being dropped |
 | **tunnels / carving / embankments / Z-slope** | same per-sample height tag | **deferred hard** — likely doesn't map to top-down 2D; do not let it shape rung-1/2 structure |
 | **sloop collision (`road_at`)** | sloop calls `link_path()` for the *same* geometry it sees | the locality contract guarantees screen == collision |

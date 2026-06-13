@@ -589,51 +589,91 @@ static void render_roads(int detail) {
     draw_nodes(detail);
 }
 
-// ── STREET LEVEL (the "next level down", seen only through the magnifier) — a STUB:
-// each city/town grows a built-up footprint (size by rank) of RCI-zoned blocks split
-// by a local street grid. Deterministic + drawn in the SAME world coords as the map,
-// so it aligns with the highways running through it. THIS is the canvas for the real
-// L2 algorithms (zones / blocks / parks / parking / lots) we design next. ──────────
-static const int ZONE_COL[4] = { CLR_PEACH, CLR_LIGHT_GREY, CLR_BROWN, CLR_DARK_GREEN }; // R/C/I/G
+// ── STREET LEVEL — the "next level down", seen only through the magnifier. ─────────
+// The L2 ZONE MODEL (RCI, anchored to roadnet's cities):
+//   • URBANITY U(p) ∈ 0..1 — "how built-up". A field of bumps: U = max over nearby
+//     city nodes of weight(rank)·falloff(dist/radius(rank)). Highest downtown, fading
+//     to countryside at the edge. Metros = tall/wide bumps, hamlets = small ones.
+//   • LAND USE from U, in concentric rings (real-city layout), jittered by noise:
+//     wild(terrain) → FARM (cultivated ring) → RES (suburb) → COM (downtown core),
+//     with INDUSTRIAL on the fringe / drawn to WATER (= HARBOR), and PARK pockets
+//     carved out of any built-up zone. All pure fns of world coords → aligns with the
+//     highways running through. (Block contents — lots/buildings/fields — come next.)
+enum { Z_FARM, Z_RES, Z_COM, Z_IND, Z_HARBOR, Z_PARK };
+static const int ZONE_COL[6] = {
+    CLR_YELLOW,      // FARM   — golden fields
+    CLR_PEACH,       // RES    — warm rooftops
+    CLR_LIGHT_GREY,  // COM    — downtown concrete/glass
+    CLR_BROWN,       // IND    — factories
+    CLR_DARK_GREY,   // HARBOR — docks on the water
+    CLR_DARK_GREEN,  // PARK   — green space (the football field lives here, block stage)
+};
 #define STREET_SP 3                  // interior-street spacing (world tiles) — a city block
+#define U_FARM  0.12f                // U thresholds: below = wild countryside (terrain)
+#define U_LIGHT 0.30f                // farm ring ends / suburb begins
+#define U_MED   0.55f                // industrial-fringe ceiling
+#define U_COM   0.75f                // downtown commercial core
 
-static int ft_radius(int rank) {     // built-up footprint radius (world tiles) by rank
-    return rank == RK_METRO ? 9 : rank == RK_CITY ? 6 : rank == RK_TOWN ? 4 : 2;
+static float rank_weight(int r) { return r==RK_METRO?1.0f : r==RK_CITY?0.78f : r==RK_TOWN?0.52f : 0.34f; }
+static float rank_cityR(int r)  { return r==RK_METRO?22.f : r==RK_CITY?14.f  : r==RK_TOWN?8.f   : 4.f;   }
+
+// nearby city nodes gathered once per loupe frame (so urbanity() is a short loop)
+#define MAXCITY 160
+static float gnx[MAXCITY], gny[MAXCITY], gnw[MAXCITY], gnr[MAXCITY]; static int gn;
+static void gather_cities(void) {
+    gn = 0;
+    int m = 6;                                       // margin in cells to catch big bumps
+    int hc0 = ifloor(camX/HUB_CS)-m, hc1 = ifloor((camX+vcols)/HUB_CS)+m;
+    int hr0 = ifloor(camY/HUB_CS)-m, hr1 = ifloor((camY+vrows)/HUB_CS)+m;
+    for (int cx=hc0; cx<=hc1 && gn<MAXCITY; cx++) for (int cy=hr0; cy<=hr1 && gn<MAXCITY; cy++) {
+        float wx,wy; if (!get_hub(cx,cy,&wx,&wy)) continue;
+        gnx[gn]=wx; gny[gn]=wy; gnw[gn]=rank_weight(hub_rank(cx,cy)); gnr[gn]=rank_cityR(hub_rank(cx,cy)); gn++;
+    }
+    int tc0 = ifloor(camX/NODE_CS)-m, tc1 = ifloor((camX+vcols)/NODE_CS)+m;
+    int tr0 = ifloor(camY/NODE_CS)-m, tr1 = ifloor((camY+vrows)/NODE_CS)+m;
+    for (int cx=tc0; cx<=tc1 && gn<MAXCITY; cx++) for (int cy=tr0; cy<=tr1 && gn<MAXCITY; cy++) {
+        float wx,wy; if (!get_node(cx,cy,&wx,&wy)) continue;
+        gnx[gn]=wx; gny[gn]=wy; gnw[gn]=rank_weight(town_rank(cx,cy)); gnr[gn]=rank_cityR(town_rank(cx,cy)); gn++;
+    }
 }
-static void zone_footprint(float nx, float ny, int radius) {
-    int x0 = (int)nx - radius, x1 = (int)nx + radius, y0 = (int)ny - radius, y1 = (int)ny + radius;
-    int t = (int)P + 1, half = (int)(P * 0.5f);
-    for (int wy = y0; wy <= y1; wy++)
-        for (int wx = x0; wx <= x1; wx++) {
-            float ddx = wx - nx, ddy = wy - ny;
-            if (ddx*ddx + ddy*ddy > radius*radius) continue;             // round footprint
-            if (!passable(height_at((float)wx, (float)wy))) continue;    // not on water/peak
-            int street = (((wx % STREET_SP) + STREET_SP) % STREET_SP == 0)
-                      || (((wy % STREET_SP) + STREET_SP) % STREET_SP == 0);
-            int col;
-            if (street) col = CLR_DARK_GREY;                             // interior street
-            else {                                                       // a block → RCI zone
-                int lu = (int)(noise2(wx * 0.18f + seedZ * 7, wy * 0.18f + seedZ * 7) * 3.99f);
-                if (lu > 3) lu = 3; if (lu < 0) lu = 0;
-                col = ZONE_COL[lu];
-            }
-            rectfill(sxp((float)wx) - half, syp((float)wy) - half, t, t, col);
-        }
+static float urbanity(float wx, float wy) {          // 0..1, max bump over nearby cities
+    float u = 0;
+    for (int i=0; i<gn; i++) {
+        float dx=wx-gnx[i], dy=wy-gny[i], d=fsqrt(dx*dx+dy*dy)/gnr[i];
+        if (d < 1.0f) { float f=(1.0f-d); f=f*f*gnw[i]; if (f>u) u=f; }
+    }
+    return u;
+}
+static int water_near(float wx, float wy) {          // any water within ~2 tiles (harbor test)
+    return height_at(wx+2,wy)<0 || height_at(wx-2,wy)<0 || height_at(wx,wy+2)<0 || height_at(wx,wy-2)<0;
+}
+static int zone_of(float wx, float wy, float U) {    // assumes U >= U_FARM (built/cultivated)
+    if (U >= U_LIGHT && noise2(wx*0.5f+seedZ*3, wy*0.5f+seedZ*3) > 0.80f) return Z_PARK;
+    if (noise2(wx*0.12f+seedZ*5, wy*0.12f+seedZ*5) > 0.62f) {     // industrial noise
+        int nw = water_near(wx, wy);
+        if (U < U_MED || nw) return nw ? Z_HARBOR : Z_IND;        // fringe industry / harbour
+    }
+    if (U < U_LIGHT) return Z_FARM;                               // cultivated ring
+    float j = (noise2(wx*0.08f-seedZ, wy*0.08f-seedZ) - 0.5f) * 0.18f;   // jitter the core edge
+    return (U + j >= U_COM) ? Z_COM : Z_RES;
 }
 static void render_streetlevel(void) {
-    int hc0 = ifloor(camX / HUB_CS) - 1, hc1 = ifloor((camX + vcols) / HUB_CS) + 1;
-    int hr0 = ifloor(camY / HUB_CS) - 1, hr1 = ifloor((camY + vrows) / HUB_CS) + 1;
-    for (int cx = hc0; cx <= hc1; cx++)
-        for (int cy = hr0; cy <= hr1; cy++) {
-            float wx, wy; if (!get_hub(cx, cy, &wx, &wy)) continue;
-            zone_footprint(wx, wy, ft_radius(hub_rank(cx, cy)));
-        }
-    int tc0 = ifloor(camX / NODE_CS) - 1, tc1 = ifloor((camX + vcols) / NODE_CS) + 1;
-    int tr0 = ifloor(camY / NODE_CS) - 1, tr1 = ifloor((camY + vrows) / NODE_CS) + 1;
-    for (int cx = tc0; cx <= tc1; cx++)
-        for (int cy = tr0; cy <= tr1; cy++) {
-            float wx, wy; if (!get_node(cx, cy, &wx, &wy)) continue;
-            zone_footprint(wx, wy, ft_radius(town_rank(cx, cy)));
+    gather_cities();
+    int step = 2;
+    for (int sy=0; sy<SCREEN_H; sy+=step)
+        for (int sx=0; sx<SCREEN_W; sx+=step) {
+            float wx = camX + sx/P, wy = camY + sy/P;
+            float U = urbanity(wx, wy);
+            if (U < U_FARM) continue;                            // wild → leave terrain showing
+            if (!passable(height_at(wx, wy))) continue;          // never pave water/peak
+            int z = zone_of(wx, wy, U);
+            int col = ZONE_COL[z];
+            if (z==Z_RES || z==Z_COM || z==Z_IND || z==Z_HARBOR) {   // built-up → cut streets in
+                float fx = wx - STREET_SP*ifloor(wx/STREET_SP);
+                float fy = wy - STREET_SP*ifloor(wy/STREET_SP);
+                if (fx < 0.5f || fy < 0.5f) col = CLR_DARKER_GREY;
+            }
+            rectfill(sx, sy, step, step, col);
         }
 }
 
@@ -648,7 +688,7 @@ static void draw_world(void) {
 // terrain + the very same highways (aligned) + the interior streets/zones the map is
 // too coarse to show. The harness for building L2. ─────────────────────────────────
 #define LOUPE_SZ   116
-#define LOUPE_ZOOM 7.0f
+#define LOUPE_ZOOM 4.0f             // ~7 world tiles across the box — a district close-up
 static void draw_loupe(void) {
     float ocamX = camX, ocamY = camY, oz = zoom;      // save the map transform
     float cw = camX + SCREEN_W * 0.5f / P;            // inspected point = screen centre

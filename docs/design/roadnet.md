@@ -1,6 +1,6 @@
 # roadnet — a spline arterial network over the heightmap (design)
 
-**Status: rungs 1–3 + bridges + magnifier done (2026-06-14).** A fresh testbed cart
+**Status: rungs 1–3 + bridges + magnifier + L2 zones done (2026-06-14).** A fresh testbed cart
 ([`tools/carts/roadnet.c`](../../tools/carts/roadnet.c)) for the one thing
 [`procgen-places.md`](procgen-places.md) explicitly parked as **"the wall"**:
 **arced / non-axis-aligned roads in a deterministic, infinite world.** This doc is
@@ -164,14 +164,34 @@ deep zoom centred in the box, `clip()`s to the box, and composes
 transform. So you see terrain + the **same highways** (aligned) + the interior
 streets/zones the map is too coarse to show.
 
-`render_streetlevel()` is today a **stub** and the canvas for the real work: each
-city/town grows a round built-up footprint (radius by rank) of RCI-zoned blocks
-(`ZONE_COL` R/C/I/G from a land-use noise) split by an interior street grid
-(`STREET_SP`). It's drawn in the *same world coords* as the map, so it aligns with the
-arterials running through it. **This is where L2 gets designed** — real block/lot
-layout, parks, parking, the procplaces RCI model fed by roadnet's rank, building
-footprints for collision, etc. — all iterated live under the lens before any
-street-scale play mode exists.
+## L2 zone model (done — the RCI layer, anchored to roadnet)
+
+`render_streetlevel()` now generates the real **zone field** — the SimCity RCI idea,
+but with the intensity axis *anchored to roadnet's cities* instead of a free noise
+(the convergence). Two axes, both pure functions of world coords:
+
+- **Urbanity `U(p)` ∈ 0..1 — "how built-up".** A field of bumps:
+  `U = max over nearby city nodes of weight(rank)·falloff(dist/radius(rank))`. Highest
+  downtown, fading to countryside at the edge; metros are tall/wide bumps, hamlets
+  small ones; overlapping cities merge into a conurbation (`max`). Nearby nodes are
+  gathered once per loupe frame (`gather_cities`) so `urbanity()` is a short loop.
+- **Land use from `U`, concentric + jittered** (`zone_of`): wild (terrain shows) →
+  **FARM** (cultivated ring, `U_FARM..U_LIGHT`) → **RES** (suburb) → **COM** (downtown
+  core, `U_COM`), with **IND** on the fringe (low-`U` band) gated by an industrial
+  noise, becoming **HARBOR** where water is within ~2 tiles (`water_near`), and **PARK**
+  pockets carved from any built-up zone by a high-freq noise. Built-up zones get an
+  interior street grid (`STREET_SP`) cut in. Colours in `ZONE_COL`.
+
+It's drawn in the *same world coords* as the map, so it aligns with the arterials
+running through it (pan the crosshair across a city → downtown → suburb → farm in the
+lens). **Decisions:** concentric (not patchy) — the mix knob is a later add; industrial
+fringe + water harbours; farm ring between suburb and wild.
+
+**Next (L2 blocks):** turn a zone *tile* into actual contents — lots, building
+footprints (collision-ready), parks/football field, parking, farm fields — each a
+function of `(block coords, zone)`. Street grid should align to the arterials. Then
+landmarks (gas/hospital/gun shop) as point POIs, and finally sloop's car at street
+scale.
 
 ## Rungs
 

@@ -24,6 +24,7 @@
 // one synthetic finger, so the same code path covers it.
 
 #include "studio.h"
+#include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include <math.h>
 
 #define I_BAR 5
@@ -57,11 +58,9 @@ static float motor_ph = 0;     // the spinning fan, drawn when the motor is on
 
 // per-finger pointer table — each finger independently drags a slider or
 // sweeps the bars (the desktop mouse = one synthetic finger)
-#define NPTR 10
-#define NOID (-999)
 enum { PTR_IDLE, PTR_DRAG, PTR_SWEEP };
-typedef struct { int id, mode, k, prevX; } Ptr;
-static Ptr ptr[NPTR];          // .id == NOID → slot free
+typedef struct { int id, mode, k, prevX; } Ptr;   // id MUST be first (pointer.h)
+static Ptr ptr[PTR_MAX];       // .id == PTR_NONE → slot free
 static int gliss_rx = -1;      // footer "SPACE gliss" tap zone, recorded by draw()
 
 // bar geometry — a mallet keyboard: low long bars left, high short bars right
@@ -109,7 +108,7 @@ void init(void) {
     // long release: the gate ending should never chop a ringing bar
     instrument(I_BAR, INSTR_MALLET, 1, 0, 7, 1200);
     apply_knobs();
-    for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
+    PTR_CLEAR(ptr);
     for (int b = 0; b < NBAR; b++) midi_of[b] = degree(SCALE_PENTA, 4, b + 1);
     bpm(92);
     glow[2] = 0.6f; glow[5] = 0.9f;            // a lively first frame
@@ -140,14 +139,11 @@ void update(void) {
     // or strike/sweep the bars, all independently and at the same time
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
-        Ptr *p = 0, *freeP = 0;
-        for (int j = 0; j < NPTR; j++) {
-            if (ptr[j].id == id) { p = &ptr[j]; break; }
-            if (ptr[j].id == NOID && !freeP) freeP = &ptr[j];
-        }
-        if (!p) {                                  // finger just landed
-            if (!freeP) continue;
-            p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, tx };
+        bool fresh;
+        Ptr *p = PTR_ACQUIRE(ptr, id, &fresh);
+        if (!p) continue;                          // pool full (>PTR_MAX fingers)
+        if (fresh) {                               // finger just landed
+            *p = (Ptr){ id, PTR_IDLE, -1, tx };
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) {
                 autoplay = !autoplay;              // the top-right label is a button
                 continue;
@@ -181,9 +177,10 @@ void update(void) {
             p->prevX = tx;
         }
     }
-    for (int i = 0; i < touch_ended_count(); i++)  // lifted fingers free their slot
-        for (int j = 0; j < NPTR; j++)
-            if (ptr[j].id == touch_ended_id(i)) ptr[j].id = NOID;
+    for (int i = 0; i < touch_ended_count(); i++) {  // lifted fingers free their slot
+        Ptr *p = PTR_FIND(ptr, touch_ended_id(i));
+        if (p) p->id = PTR_NONE;
+    }
 
     // autoplay: a music-box noodle; a glissando at the top of every 16 beats,
     // and now and then a ROLL (the mallet tremolo — rapid repeated strikes)

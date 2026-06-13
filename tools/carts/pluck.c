@@ -24,6 +24,7 @@
 // as one synthetic finger, so the same code path covers it.
 
 #include "studio.h"
+#include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include <math.h>
 
 #define I_STR 5
@@ -48,11 +49,9 @@ static int   apos = 0;
 //                                the fractional KS read tap bending live)
 //   press in OPEN space        = a pick → sweeping past strings STRUMS them, each string
 //                                plucked the moment the finger crosses it
-#define NPTR 10
-#define NOID (-999)
 enum { PTR_IDLE, PTR_DRAG, PTR_BEND, PTR_PICK };
-typedef struct { int id, mode, k, s, h, y0, x, y, prevY; } Ptr;
-static Ptr   ptr[NPTR];        // .id == NOID → slot free
+typedef struct { int id, mode, k, s, h, y0, x, y, prevY; } Ptr;   // id MUST be first (pointer.h)
+static Ptr   ptr[PTR_MAX];     // .id == PTR_NONE → slot free
 static float bowSt[NSTR];      // live bend per string, semitones (bows the drawn string)
 static int   warble_rx = -1;   // footer "V warble" tap zone, recorded by draw()
 
@@ -88,7 +87,7 @@ void init(void) {
     // long release: the gate ending should never chop a ringing string
     instrument(I_STR, INSTR_PLUCK, 1, 0, 7, 1200);
     apply_knobs();
-    for (int i = 0; i < NPTR; i++) ptr[i].id = NOID;
+    PTR_CLEAR(ptr);
     for (int s = 0; s < NSTR; s++) midi_of[s] = degree(SCALE_PENTA, 3, s + 2);
     bpm(96);
     amp[1] = 0.7f; amp[4] = 0.9f; amp[6] = 0.5f;   // a lively first frame
@@ -121,14 +120,11 @@ void update(void) {
     // (bend), or pick open space (strum), all independently and at once
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i);
-        Ptr *p = 0, *freeP = 0;
-        for (int j = 0; j < NPTR; j++) {
-            if (ptr[j].id == id) { p = &ptr[j]; break; }
-            if (ptr[j].id == NOID && !freeP) freeP = &ptr[j];
-        }
-        if (!p) {                                              // finger just landed
-            if (!freeP) continue;
-            p = freeP; *p = (Ptr){ id, PTR_IDLE, -1, -1, -1, ty, tx, ty, ty };
+        bool fresh;
+        Ptr *p = PTR_ACQUIRE(ptr, id, &fresh);
+        if (!p) continue;                                      // pool full (>PTR_MAX fingers)
+        if (fresh) {                                           // finger just landed
+            *p = (Ptr){ id, PTR_IDLE, -1, -1, -1, ty, tx, ty, ty };
             if (point_in_box(tx, ty, SCREEN_W - 112, 2, 108, 12)) {
                 autoplay = !autoplay;                          // the top-right label is a button
                 continue;
@@ -142,8 +138,8 @@ void update(void) {
                 int grabbed = -1;
                 for (int s = 0; s < NSTR; s++)
                     if (ty >= 42 + s * 13 - 4 && ty <= 42 + s * 13 + 4) grabbed = s;
-                for (int j = 0; j < NPTR; j++)                 // one bending finger per string
-                    if (ptr[j].id != NOID && ptr[j].mode == PTR_BEND && ptr[j].s == grabbed) grabbed = -1;
+                for (int j = 0; j < PTR_MAX; j++)              // one bending finger per string
+                    if (ptr[j].id != PTR_NONE && ptr[j].mode == PTR_BEND && ptr[j].s == grabbed) grabbed = -1;
                 if (grabbed >= 0) {
                     p->mode = PTR_BEND; p->s = grabbed;
                     p->h = note_on(midi_of[grabbed], I_STR, 6);   // held → pitch is drivable
@@ -170,15 +166,15 @@ void update(void) {
         }
         p->x = tx; p->y = ty;                                  // draw() reads these for the picks
     }
-    for (int i = 0; i < touch_ended_count(); i++)              // lifted fingers
-        for (int j = 0; j < NPTR; j++)
-            if (ptr[j].id == touch_ended_id(i)) {
-                if (ptr[j].mode == PTR_BEND) {
-                    note_off(ptr[j].h);                        // ring out through the release
-                    bowSt[ptr[j].s] = 0;
-                }
-                ptr[j].id = NOID;
-            }
+    for (int i = 0; i < touch_ended_count(); i++) {           // lifted fingers free their slot
+        Ptr *p = PTR_FIND(ptr, touch_ended_id(i));
+        if (!p) continue;
+        if (p->mode == PTR_BEND) {
+            note_off(p->h);                                    // ring out through the release
+            bowSt[p->s] = 0;
+        }
+        p->id = PTR_NONE;
+    }
 
     // autoplay: a wandering pentatonic noodle, strum at the top of every 16 beats
     if (autoplay && every(1)) {
@@ -246,8 +242,8 @@ void draw(void) {
     }
 
     // a pick under every strumming finger
-    for (int j = 0; j < NPTR; j++)
-        if (ptr[j].id != NOID && ptr[j].mode == PTR_PICK)
+    for (int j = 0; j < PTR_MAX; j++)
+        if (ptr[j].id != PTR_NONE && ptr[j].mode == PTR_PICK)
             trifill(ptr[j].x - 3, ptr[j].y - 4, ptr[j].x + 3, ptr[j].y - 4,
                     ptr[j].x, ptr[j].y + 4, CLR_LIGHT_PEACH);
 

@@ -81,7 +81,10 @@ multiple carts, ranked by how strong the de-duplication case is:
 
 ### Strong cases (many carts, near-identical code)
 
-**1. A multi-touch pointer pool — `runtime/pointer.h` — the biggest win.**
+**1. A multi-touch pointer pool — `runtime/pointer.h` — the biggest win. ✅ SHIPPED 2026-06-13**
+(header built; `pluck` + `mallet` adopted as the first two customers — `PTR_CLEAR`/`PTR_ACQUIRE`/
+`PTR_FIND` over a cart-defined struct whose first field is `int id`. Remaining ~13 carts below are
+follow-on adopters.)
 The same construct appears verbatim across **15+ carts**: a `Ptr` struct (`id`/`mode`/…),
 `NPTR=10`, and a per-frame loop over `touch_count()`. Records call it out as identical or
 near-identical in: **pluck, mallet** ("identical pattern to pluck.c"), **tabla** ("nearly

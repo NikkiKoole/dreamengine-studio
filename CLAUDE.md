@@ -87,6 +87,12 @@ eventually2/
 │       ├── gestures.h  #   per-finger swipes judged at lift + pinch_scale
 │       │               #   (the mobile whole-view ZOOM for swept grids/keybeds:
 │       │               #   pinch_scale × camera_ex — modrack is the example)
+│       ├── pointer.h   #   a multi-finger POINTER POOL: PTR_CLEAR/PTR_ACQUIRE/
+│       │               #   PTR_FIND over a cart's own per-finger struct (first
+│       │               #   field int id). The layer BELOW ui.h — for carts whose
+│       │               #   fingers drive bespoke targets (grab a string to bend,
+│       │               #   sweep bars/keys, pick open space), NOT widgets. Never
+│       │               #   re-copy the Ptr/NPTR/NOID loop again (pluck, mallet)
 │       ├── improv.h    #   melodic improvisation for the radio stations (auto-solo)
 │       ├── radio.h     #   radio-station chrome (chassis, seeded-song plumbing,
 │       │               #   draggable rad_knob_int/_sel/_float control knobs)

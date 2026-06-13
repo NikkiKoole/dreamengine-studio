@@ -72,6 +72,16 @@
 </div>
 <div class="grid">
 
+    <a class="card" href="monochord/" data-title="monochord" data-search="monochord monochord instrument toy probe one string, no frets — your fingers are the bridges, and the length of each segment is its pitch (a string halved sounds an octave higher). the gesture behind the đàn bầu, the diddley bow, slide guitar, and pythagoras's monochord. drag on the string to place/move a bridge; with two fingers the segment between them sounds — spread apart = lower, squeeze together = higher. flick across the string (from above/below) to pluck the segment you cross — pluck outside the bridges for the short 'wrong-side' overtone, pluck several segments for a chord on one string. a pd oscillator, so a ringing note glides as you slide a bridge (the đàn bầu bend). faint ticks mark the just-intonation points (1/2 octave, 2/3 fifth, 3/4 fourth). space plucks the open string. two bridges at once needs a touchscreen/multitouch trackpad; the desktop mouse is one finger. an experiment in fretting-by-finger-position (built on pointer.h)." data-added="2026-06-14" data-tier="1">
+      <img src="monochord/cart.png" alt="monochord" loading="lazy">
+      <div class="body">
+        <h2>monochord <span class="dual" title="Ships two audio backends — a dedicated-thread AudioWorklet build and a plain ScriptProcessor build. Responds to the Audio toggle above.">⚡2×audio</span></h2>
+        <div class="badge b-mostly">🟡 Mostly Playable — works, with rough edges</div>
+        <p>One string, no frets — your FINGERS are the bridges, and the LENGTH of each segment IS its pitch (a string halved sounds an octave higher). The gesture behind the đàn bầu, the diddley bow, slide guitar, and Pythagoras's monochord. DRAG on the string to place/move a bridge; with two fingers the segment BETWEEN them sounds — spread apart = lower, squeeze together = higher. FLICK across the string (from above/below) to PLUCK the segment you cross — pluck outside the bridges for the short 'wrong-side' overtone, pluck several segments for a chord on one string. A PD oscillator, so a ringing note GLIDES as you slide a bridge (the đàn bầu bend). Faint ticks mark the just-intonation points (1/2 octave, 2/3 fifth, 3/4 fourth). SPACE plucks the open string. Two bridges at once needs a touchscreen/multitouch trackpad; the desktop mouse is one finger. An experiment in fretting-by-finger-position (built on pointer.h).</p>
+        <div class="added">added 2026-06-14</div>
+      </div>
+    </a>
+
     <a class="card" href="caustics/" data-title="caustics" data-search="caustics caustics tech-demo toy water light effects and a two-part lesson in displacement mapping: warp where you read a colour and the picture appears to ripple. press tab to flip between the same idea done two ways. faked (the n64 way): the displacement is a few scrolling sine waves computed on the fly over a procedural pool floor - no memory, no physics, basically free, exactly how mario 64 and ocarina of time faked moving water on a gpu that could not run a shader. real (displacement mapping proper): the displacement now comes from a real height-field water simulation - two ping-pong buffers holding the surface height, each cell becoming the average of its neighbours minus its previous value times a little damping (the wave equation, the previous frame feeding the next is the feedback), and the surface slope steers where each pixel looks up a real captured image (src[]); drop a stone and the rings expand, reflect off the walls, cross and interfere, and fade - the classic demoscene 2d water (hugo elias). same umbrella technique, two ways to make the map: a formula, or a simulation you can poke. everything painted in 24-bit true colour through pset_rgb / rectfill_rgb. three floor textures / source images: pool tiles, a sandy tropical bottom, and a high-contrast checkerboard whose straight lines visibly bend so you see the distortion itself. tab switch faked/real, drag the mouse to push the water, click to drop a stone, c toggles caustics (the light web), w toggles waves (faked), up/down strength, [ ] pixel size, space freezes, 1/2/3 or left/right switch floor. companion to shadelab." data-added="2026-06-12" data-tier="1">
       <img src="caustics/cart.png" alt="caustics" loading="lazy">
       <div class="body">
@@ -3472,7 +3482,7 @@
       </div>
     </a>
 </div>
-<footer>340 carts · arrows + Z/X to play (most carts)</footer>
+<footer>341 carts · arrows + Z/X to play (most carts)</footer>
 <script>
 (function () {
   var grid = document.querySelector('.grid')

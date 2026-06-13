@@ -306,6 +306,11 @@ the cleaner fix; the API already says so.)*
 
 ### Tappable key labels — "keycaps"
 
+> **Worklist:** [`keycap-audit.md`](keycap-audit.md) — a swarm read all 348 carts and
+> bucketed which need a keycap (100, with the exact chips extracted), which just need the
+> `touchControls` flag (114), which need a real redesign, and which are desktop-only. Start
+> there to pick what to retrofit. **Not built yet** — `runtime/keycap.h` is still a proposal.
+
 The unsynthesizable keys are almost always already *on screen as text*: every
 radio prints `SPACE next · R again · [ ] history` in its help line. The idea:
 make that label **be** the button. One call draws a keycap-styled chip and

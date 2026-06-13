@@ -262,6 +262,14 @@ keyboard) is met without migration. What stays deferred is full keybed.h adoptio
   space (one sound). So it needs neither two instances nor a split. Full keybed.h
   adoption is only blocked on a **multi-row drawn layout** (keybed.h renders one
   horizontal row; sh101 wants two stacked) — a rendering option, not a structural change.
+  - **Mono-sounding, poly-HELD (important for the keybed.h migration).** sh101 is
+    monophonic in what you *hear*, but it tracks the **whole held-note set** (`phys[]` +
+    `latch[]`) because the **arpeggiator and HOLD** run over *all* the keys you're holding,
+    not one. The cart-side MIDI path handles this for free — `key_down`/`key_up` push/pop
+    that stack, so **holding a MIDI chord arpeggiates correctly** (verified: `arp_running()`
+    keys off `nlatch`). The lesson for when sh101 (and any arp/hold instrument) folds onto
+    keybed.h: the voice layer must expose **every held note**, NOT collapse to the single
+    sounding voice — "monophonic" is about output, not about how many keys are down.
 
 **The split-keyboard feature, reframed (better than instances).** A real split synth is
 **1 keybed → 2 sounds**: one keyboard with a split point, low notes → slot A, high notes

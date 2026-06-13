@@ -637,6 +637,8 @@ void update(void) {
     // Full keybed.h adoption is deferred — see docs/design/midi-and-keybed.md →
     // "Deferred — exceptional cases". MIDI plays absolute pitches, independent of the
     // on-screen octave, like a real keyboard. (No velocity yet.)
+    // Mono-sounding, but key_down/key_up push/pop the held stack (phys/latch), so holding
+    // a MIDI CHORD feeds the ARPEGGIATOR + HOLD — poly-held even though it's mono-voiced.
     int mn, mv, mt;
     while ((mt = midi_get(&mn, &mv)) != 0) { if (mt > 0) key_down(mn); else key_up(mn); }
 

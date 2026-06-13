@@ -1,0 +1,111 @@
+# roadnet — session handoff (2026-06-14)
+
+Where the `roadnet` work stands, and how it maps to the original goal. Full design
+detail lives in [`roadnet.md`](roadnet.md); this is the orientation + "what's next"
+for whoever picks it up.
+
+## The original question
+
+Build a fresh cart to experiment with **procedural terrain / world / city generation**
+for a **GTA1-style + cataclysm-DDA-flavoured driving/adventure game**: ideally
+**infinite**, deterministic, good for **driving around a city** and roaming. Do it in
+**phases**, starting from the simplest sensible thing. (Kicked off from a long chat
+about procgen algorithms — alternatives to Perlin, curvy non-axis roads, determinism,
+rivers/biomes, RCI zoning, tile-vs-spline.)
+
+## What got built
+
+One new cart — **`tools/carts/roadnet.c`** — a deterministic, infinite, top-down
+**world map** with a **magnifier into a zoned street level** beneath it. Free-fly
+testbed (pan/zoom/drag), not a game yet. Commit trail (oldest → newest):
+
+| commit | what |
+|---|---|
+| `8bdda57` | **rung 1** — node-lattice Catmull-Rom spline network; cracks the "curved roads can't be infinite/deterministic" wall (control points are pure fns of cell coords → seam-true) |
+| `de8631a` | left-drag pan + mousewheel zoom out to a continental overview (screen-space terrain sampling, no buffer ceiling) |
+| `fc78d42` | **rung 2** — terrain-aware routing via `link_path()`: roads bend around water/peaks, verify every sample is passable |
+| `f23df0c` | **rung 2.5** — bridges across short water gaps (rivers/straits); wide water stays a barrier |
+| `e432fa2` | **rung 3** — node **rank** (hamlet/town/city/metro) + road **class** (motorway→dirt) styling + dashed centre-lines |
+| `c16c9a2` | rung 3 refinements — blue-noise **node spacing** (priority suppression) + **valley-following** |
+| `9799866` | **magnifier** (toggle **L**) — inset window into the street level (the L2 harness) |
+| `08bd284` | **L2 zone model** — RCI **anchored to roadnet cities** (urbanity field + concentric land use) |
+| `9ddc45e` | de-circle the zones — domain-warp + patchy farms (no more bullseye) |
+| `51fdc57` | **L2 city sliders** — city size / downtown / farms / blocks, live |
+
+Earlier in the session there's also an unrelated tiny commit (`be105f8`, an sh101 doc
+note) that has nothing to do with roadnet.
+
+### Feature inventory (what the cart does today)
+- **Infinite + deterministic** world: every feature is a pure function of world
+  coords, streamed around the camera, no global pass. Same seed → same world.
+- **Terrain**: layered-noise heightmap + rivers (borrowed from `worldgen.c`).
+- **Road network**: connected hierarchy — **highways** (hub lattice) + **feeders**
+  (town→nearest hub) + **minor roads** (town→nearest town). Curvy (Catmull-Rom),
+  terrain-aware (bend/bridge/drop), **classed** by endpoint rank (width/colour/dashes).
+- **Spacing**: rare high ranks + priority suppression → cities feel distributed.
+- **Navigation**: intro panel (live sliders + ROLL/EXPLORE over a live preview),
+  mousewheel zoom (continental ↔ close), left-drag pan, cell-grid seam overlay.
+- **Magnifier (L)**: a lens showing the **street level** at the crosshair — the same
+  highways (aligned) **plus** an RCI-zoned city the map is too coarse to draw.
+- **L2 zones**: urbanity bumps around cities → concentric, domain-warped land use:
+  wild → **farm** (patchy) → **res** → **com** core, with **industrial** fringe,
+  **harbours** on water, **parks** carved in, interior street grid. Four live knobs.
+
+## Where we arrived vs. the goal
+
+**Mental model (LOD stack):**
+- **L0 region map** — ✅ done (roadnet: highways, cities, terrain).
+- **L1 city layout** — ✅ zones done (RCI land-use field); street *grid* is a stub.
+- **L2 block contents** — ⛔ **not built** (buildings, parks, the football field,
+  parking, farm fields as real, collidable content). Only previewed as flat zone tint.
+- **L3 car + collision + play** — ⛔ not built (sloop has the car; not wired in).
+
+**So: we built the *world/map* thoroughly and prototyped the *street zoning* in a
+lens. We did NOT build the part you actually drive.** GTA1 itself was one dense city;
+the playable substance is street-level blocks + a car, and that's the remaining arc.
+roadnet is the map and the world-structure; it is not yet "a GTA1 you can play."
+
+Against the original phases: terrain ✅, splined infinite/deterministic roads ✅ (the
+hard one), rivers+bridges ✅, RCI zones ✅. Deferred: driving (sloop), street-level
+blocks, landmarks-as-gameplay, the map↔street mode transition, tunnels/carving (parked,
+may not fit 2D top-down).
+
+## How the pieces relate (cousin carts)
+- **`sloop.c`** — the **car physics** (already solved). The eventual consumer; will
+  drive the street level via a `road_at()` query.
+- **`worldgen.c`** — gtascii port; roadnet borrowed its heightmap/rivers/hash verbatim.
+- **`procplaces.c`** — the **tile-city RCI** model. At rung 4 it becomes the *interior
+  painter* fed by roadnet's rank (it stops generating its own "where are the cities").
+- **`trackgen.c`** — finite single-track cousin; its corner-relax = a future
+  drivability clamp.
+
+## Key invariants (don't break these)
+- **Locality contract**: road/zone geometry must be a pure function of the integer
+  coords of the cells it touches — no accumulated state, no draw-order or
+  view-dependence. This is what makes infinite + deterministic + seam-true work.
+- **`link_path()` is the one geometry seam**: render *and* the future sloop `road_at()`
+  must both read it, so the screen and collision can never disagree. Reroute/bridge/
+  bend all live inside it.
+- The street level is drawn in the **same world coords** as the map, so it aligns with
+  the arterials by construction.
+
+## How to run / see it
+- Editor: open the **roadnet** cart (tutorials panel). Opens on the setup panel —
+  drag sliders, **EXPLORE** to roam, **L** for the magnifier, pan over a city to see
+  its zones in the lens.
+- Headless screenshot (for agents): build then `--run`, read
+  `build/.bake/roadnet/screenshot.png` (it opens in panel mode; to inspect explore
+  mode, temporarily flip `static int mode = 0 → 1`, bake, revert).
+
+## Next steps (in recommended order)
+1. **L2 blocks** — turn a zone *tile* into real contents: building footprints
+   (collision-ready), parks / the football field, parking lots, farm fields — each a
+   function of `(block coords, zone)`. Align the street grid to the arterials.
+   Iterate live under the magnifier.
+2. **Landmarks** — gas / hospital / gun-shop point POIs (deferred from rung 3; they
+   want gameplay context).
+3. **Rung 4 — drive it** — wire `road_at()` into `sloop`, drop the L2 city into hub
+   footprints, and add a **map↔street mode** (two-mode is fine; seamless LOD is a
+   someday). This is where it becomes a playable prototype.
+4. Optional polish: true min-distance node spacing, the zone "mix" knob (patchy vs
+   concentric), promote lower-bang L2 knobs (industry/park density) to sliders.

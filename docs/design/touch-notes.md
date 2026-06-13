@@ -10,7 +10,9 @@
 > (2-finger pan vs pinch, id-keyed pinch pair) → §8.
 >
 > Status of shipped/open items → [`../STATUS.md`](../STATUS.md). Probe verdicts →
-> [`probe-carts.md`](probe-carts.md).
+> [`probe-carts.md`](probe-carts.md). Which carts **under-use multitouch** (read one touch
+> but shouldn't) + the `runtime/pointer.h` extraction (the 10-finger `Ptr` pool copied into
+> 15+ carts) → [`multitouch-and-generalization-audit.md`](multitouch-and-generalization-audit.md).
 
 ---
 

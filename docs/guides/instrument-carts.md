@@ -33,7 +33,10 @@ engine-port program is [`design/instrument-engines.md`](../design/instrument-eng
 per-station timbre swaps are
 [`design/radio-instrument-options.md`](../design/radio-instrument-options.md); unbuilt
 stations are [`design/future-stations.md`](../design/future-stations.md); the
-generative-soundtrack how-to is [`game-music.md`](game-music.md).
+generative-soundtrack how-to is [`game-music.md`](game-music.md); the cross-shelf audit of
+**mono-vs-poly, untapped multitouch, and shared-code/header opportunities** (what plumbing
+to factor out next, the `keybed.h` move again) is
+[`design/multitouch-and-generalization-audit.md`](../design/multitouch-and-generalization-audit.md).
 
 ---
 

@@ -112,6 +112,24 @@ static float run_started = 0;
 #define HELP_BX (SCREEN_W - HELP_BW - 4)
 #define HELP_BY (SCREEN_H - HELP_BH - 4)
 
+// scream mute button, top-right (under the g-ball)
+#define MUTE_BW 26
+#define MUTE_BH 11
+#define MUTE_BX (SCREEN_W - MUTE_BW - 6)
+#define MUTE_BY 38
+static bool scream_mute = false;
+
+// left paint sidebar — pick a rail type, then draw with it (no keyboard needed).
+// Selecting a brush is the same as holding its B/S/H/F key while drawing.
+#define SB_X   4
+#define SB_Y   58
+#define SB_SZ  20
+#define SB_GAP 4
+enum { PAINT_RAIL, PAINT_BOOST, PAINT_BRAKE, PAINT_HOIST, PAINT_FLIP, PAINT_N };
+static int paint_sel = PAINT_RAIL;
+static const char *PAINT_LAB[PAINT_N] = { "RAIL", "BOOST", "BRAKE", "HOIST", "FLIP" };
+static const int   PAINT_COL[PAINT_N] = { CLR_LIGHT_GREY, CLR_GREEN, CLR_RED, CLR_YELLOW, CLR_PINK };
+
 // POV ride-cam — smoothed camera state, eased toward its target every frame
 static int   ride = 0;
 static float cam_x, cam_y, cam_zoom = 1, cam_angle;
@@ -530,6 +548,7 @@ static void scream_vowel_roll(int i) {
 // so after the scare they tail off raggedly, some quick yelps, some long wails,
 // instead of all cutting together. A fresh, bigger jolt re-energises an ongoing one.
 static void update_scream(float sp, float pan) {
+    if (scream_mute) { silence_scream(); return; }   // master off (SCR button, top-right)
     // TEST mode: drive excite with a slow 0→full→0 sweep so you hear the whole
     // dynamic (quiet yelp → full scream) hands-free while tuning, with no ride needed.
     if (scream_test) {
@@ -673,9 +692,12 @@ static void update_slide(float dt) {
 
 // ── drawing ─────────────────────────────────────────────────────────────────
 static unsigned char held_zone(void) {
-    if (key('B')) return Z_BOOST;
+    if (key('B')) return Z_BOOST;               // a held key always wins…
     if (key('S')) return Z_BRAKE;
     if (key('H')) return Z_HOIST;
+    if (paint_sel == PAINT_BOOST) return Z_BOOST;   // …otherwise the sidebar brush
+    if (paint_sel == PAINT_BRAKE) return Z_BRAKE;
+    if (paint_sel == PAINT_HOIST) return Z_HOIST;
     return Z_NONE;
 }
 
@@ -683,7 +705,7 @@ static void add_point(float x, float y) {
     if (n_pts >= MAX_PTS) return;
     pts[n_pts].x = x; pts[n_pts].y = y;
     pts[n_pts].zone = held_zone();
-    pts[n_pts].flip = key('F') ? 1 : 0;        // flip is orthogonal to the zone
+    pts[n_pts].flip = (key('F') || paint_sel == PAINT_FLIP) ? 1 : 0;  // flip is orthogonal to the zone
     n_pts++;
 }
 
@@ -711,6 +733,22 @@ static void handle_input(void) {
         point_in_box(mx, my, HELP_BX - 3, HELP_BY - 3, HELP_BW + 6, HELP_BH + 6)) {
         show_help = !show_help;
         return;
+    }
+
+    // scream mute (top-right) — consume the click
+    if (mouse_pressed(MOUSE_LEFT) &&
+        point_in_box(mx, my, MUTE_BX - 3, MUTE_BY - 3, MUTE_BW + 6, MUTE_BH + 6)) {
+        scream_mute = !scream_mute; if (scream_mute) silence_scream();
+        return;
+    }
+
+    // left paint sidebar — pick a rail brush; consume so it doesn't start a track
+    if (mouse_pressed(MOUSE_LEFT)) {
+        for (int i = 0; i < PAINT_N; i++)
+            if (point_in_box(mx, my, SB_X, SB_Y + i * (SB_SZ + SB_GAP), SB_SZ, SB_SZ)) {
+                paint_sel = i;
+                return;
+            }
     }
 
     // the knob panel owns the bottom strip — don't start a track under it
@@ -1111,7 +1149,7 @@ void draw(void) {
         int x = 4, y = SCREEN_H - 76;
         rectfill(x - 2, y - 2, 244, 74, CLR_BROWNISH_BLACK);
         print("drag empty=draw  drag pt=move", x, y, CLR_LIGHT_GREY);          y += 9;
-        print("hold B/S/H/F while drawing:", x, y, CLR_LIGHT_GREY);            y += 9;
+        print("left bar OR hold B/S/H/F: pick", x, y, CLR_LIGHT_GREY);         y += 9;
         print(" boost / slow / hoist / flip", x, y, CLR_LIGHT_GREY);           y += 9;
         print("C ride  M mode  K wood/steel", x, y, CLR_LIGHT_GREY);           y += 9;
         print("V knobs  T test  W voice wave", x, y, CLR_LIGHT_GREY);           y += 9;
@@ -1125,6 +1163,28 @@ void draw(void) {
     rectfill(HELP_BX, HELP_BY, HELP_BW, HELP_BH, show_help ? CLR_YELLOW : CLR_BROWNISH_BLACK);
     rect(HELP_BX, HELP_BY, HELP_BW, HELP_BH, CLR_LIGHT_GREY);
     print("?", HELP_BX + 4, HELP_BY + 3, show_help ? CLR_BROWNISH_BLACK : CLR_WHITE);
+
+    // scream mute toggle (top-right, under the g-ball): green = on, red = muted
+    rectfill(MUTE_BX, MUTE_BY, MUTE_BW, MUTE_BH, CLR_BROWNISH_BLACK);
+    rect    (MUTE_BX, MUTE_BY, MUTE_BW, MUTE_BH, scream_mute ? CLR_RED : CLR_GREEN);
+    font(FONT_SMALL);
+    print(scream_mute ? "SCRx" : "SCR", MUTE_BX + 3, MUTE_BY + 3, scream_mute ? CLR_RED : CLR_GREEN);
+    font(FONT_NORMAL);
+
+    // left paint sidebar — pick a rail type, then draw with it (same as a held key)
+    for (int i = 0; i < PAINT_N; i++) {
+        int by = SB_Y + i * (SB_SZ + SB_GAP);
+        bool sel = (paint_sel == i);
+        rectfill(SB_X, by, SB_SZ, SB_SZ, CLR_BROWNISH_BLACK);
+        rectfill(SB_X + 3, by + 3, SB_SZ - 6, SB_SZ - 6, PAINT_COL[i]);  // type swatch
+        rect    (SB_X, by, SB_SZ, SB_SZ, sel ? CLR_WHITE : CLR_DARK_GREY);
+        if (sel) {
+            rect(SB_X - 1, by - 1, SB_SZ + 2, SB_SZ + 2, CLR_WHITE);     // selected ring
+            font(FONT_SMALL);
+            print(PAINT_LAB[i], SB_X + SB_SZ + 3, by + SB_SZ / 2 - 3, CLR_WHITE);  // name the active brush
+            font(FONT_NORMAL);
+        }
+    }
 
     // ── live scream-tuning knob panel (toggle V) ──────────────────────────────
     if (show_knobs) {

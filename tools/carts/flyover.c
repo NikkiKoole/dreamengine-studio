@@ -875,6 +875,12 @@ void draw(void) {
     print(str("HDG %03d %s", hdg, dir[((hdg + 22) / 45) % 8]), 6, 26, CLR_LIGHT_GREY);
     if (fly_state == ST_LANDED) print("LANDED", 6, 36, CLR_LIME_GREEN);
 
+    // --- TEMP touch-stick probe (remove once diagnosed): does the engine see the stick? ---
+    print(str("sx %+.2f sy %+.2f", stick_x(), stick_y()), 6, 50, CLR_YELLOW);
+    print(str("touch %d  L%d R%d U%d D%d A%d", touch_count(),
+              btn(0, BTN_LEFT), btn(0, BTN_RIGHT), btn(0, BTN_UP),
+              btn(0, BTN_DOWN), btn(0, BTN_A)), 6, 60, CLR_YELLOW);
+
     draw_minimap();
 
     // --- contextual flight prompt (centred) ---

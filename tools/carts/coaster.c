@@ -431,6 +431,18 @@ static void update_gforce(Body *lead, float dt) {
     if (pump > excite) excite = pump;
 }
 
+static float scream_base[SCREAM_VOICES];   // rolled vowel floor per voice (the relaxed mouth shape)
+static float scream_q[SCREAM_VOICES];      // rolled peak sharpness per voice
+
+// roll a fresh vowel for a scream voice on its onset: a per-voice base (a U/O→A→E→I
+// spread so the crowd isn't unison) jittered a little so no two screams match, plus a
+// random peak sharpness. Stored — the vowel then OPENS with excitement in update_scream.
+static void scream_vowel_roll(int i) {
+    static const float base[SCREAM_VOICES] = { 0.30f, 0.45f, 0.60f };
+    scream_base[i] = clamp(base[i] + rnd_float_between(-0.12f, 0.12f), 0.0f, 1.0f);
+    scream_q[i]    = rnd_float_between(0.55f, 0.78f);
+}
+
 // the crowd scream rides the EXCITEMENT (driven by jerk): it kicks in on a jolt,
 // glides its pitch with the intensity, and fades as `excite` decays. More voices
 // join on bigger jolts — a little bump is one yelp, a big plunge is the whole car.
@@ -443,8 +455,12 @@ static void update_scream(float sp, float pan) {
     for (int i = 0; i < SCREAM_VOICES; i++) {
         if (i < want) {
             float m = midi + SCREAM_OFF[i];
-            if (scream_h[i] < 0) { scream_h[i] = note_on((int)m, 5 + i, vol); note_glide(scream_h[i], 130); }
+            if (scream_h[i] < 0) { scream_vowel_roll(i); scream_h[i] = note_on((int)m, 5 + i, vol); note_glide(scream_h[i], 130); }
             else { note_pitch(scream_h[i], m); note_vol(scream_h[i], vol); }
+            // the vowel OPENS as excitement climbs — a rider goes "ah… AAAH/eee" the
+            // scarier it gets. Safe to re-push per frame: formant is a coefficient update.
+            float vowel = clamp(scream_base[i] + excite * 0.45f, 0.0f, 1.0f);
+            instrument_formant(5 + i, vowel, scream_q[i], 0.9f);
             note_pan(scream_h[i], pan);                  // the crowd screams from the train's screen position
         } else if (scream_h[i] >= 0) {
             note_off(scream_h[i]); scream_h[i] = -1;
@@ -652,14 +668,16 @@ static void handle_input(void) {
 void init(void) {
     pan_law(PAN_POWER);   // even loudness as clacks/screams sweep the stereo field (positional audio)
 
-    // three faked scream voices (slots 5..7) — each a different vowel (band-pass
-    // centre), wobble rate and detune, so together they read as a few different
-    // people rather than one. Kept soft; layering does the rest.
-    instrument(5, INSTR_SAW,    20, 140, 6, 200); instrument_filter(5, FILTER_BAND,  900, 10);
+    // three faked scream voices (slots 5..7) — each routed through the real
+    // 4-bandpass formant (vowel) filter so they read as open "aah/eee" voices,
+    // each a different default vowel, wobble rate and detune so together they're
+    // a few people not one. The vowel is re-rolled per scream onset (scream_vowel_roll).
+    // Kept soft; layering does the rest.
+    instrument(5, INSTR_SAW,    20, 140, 6, 200); instrument_formant(5, 0.45f, 0.65f, 0.9f);
     instrument_lfo(5, 0, LFO_PITCH, 5.5f, 0.45f); instrument_drive(5, 0.18f); instrument_tune(5, -0.08f);
-    instrument(6, INSTR_SAW,    18, 140, 6, 200); instrument_filter(6, FILTER_BAND, 1300, 11);
+    instrument(6, INSTR_SAW,    18, 140, 6, 200); instrument_formant(6, 0.65f, 0.65f, 0.9f);
     instrument_lfo(6, 0, LFO_PITCH, 6.4f, 0.50f); instrument_drive(6, 0.22f);
-    instrument(7, INSTR_SQUARE, 22, 130, 6, 190); instrument_filter(7, FILTER_BAND, 1750, 10);
+    instrument(7, INSTR_SQUARE, 22, 130, 6, 190); instrument_formant(7, 0.85f, 0.65f, 0.9f);
     instrument_lfo(7, 0, LFO_PITCH, 7.2f, 0.42f); instrument_drive(7, 0.12f); instrument_tune(7, 0.10f);
 
     int N = 64;

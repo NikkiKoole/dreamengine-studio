@@ -1,6 +1,6 @@
 # roadnet — a spline arterial network over the heightmap (design)
 
-**Status: rungs 1–2 + bridges done (2026-06-14).** A fresh testbed cart
+**Status: rungs 1–3 + bridges done (2026-06-14).** A fresh testbed cart
 ([`tools/carts/roadnet.c`](../../tools/carts/roadnet.c)) for the one thing
 [`procgen-places.md`](procgen-places.md) explicitly parked as **"the wall"**:
 **arced / non-axis-aligned roads in a deterministic, infinite world.** This doc is
@@ -168,10 +168,17 @@ panel it's gated to `mouse_x > PANEL_W` so it doesn't fight the sliders.
    world-space samples → render *and* future `road_at()` read the identical geometry.
    *(Drivability corner-clamp — trackgen's relax — folds into the same function when
    sloop starts driving; deferred till then, it's meaningless without a car.)*
-3. **POI typing** — nodes get a kind (town / fuel / landmark…), Poisson-ish minimum
-   spacing so they're not uniformly one-per-cell; **road class** (path → local →
-   avenue → arterial → highway, per procgen-places' table) chosen by the rank of the
-   POIs a link joins. Class drives width / colour / markings of the ribbon.
+3. **Rank + road class** *(done)* — each node hashes to a **rank** (`hub_rank` →
+   city/metro, `town_rank` → town/hamlet; high ranks rare, so cities feel spaced out
+   without a Poisson pass — rarity ≈ spacing). A link's **class** is then a pure
+   `f(endpoint ranks)` — motorway / highway / arterial / street / dirt (`RS[]` style
+   table: radius, casing+centre colour, centre-line flag). Both endpoints compute the
+   same class → still seam-true. `draw_link()` strokes casing (phase 0) then centre +
+   a dashed yellow **centre-line** on big roads (phase 1, only when zoomed in). Node
+   markers size by rank (metro > city > town > hamlet). **Landmarks (gas / hospital /
+   gun shop) deferred to rung 4** — they're gameplay destinations, not map character,
+   so they want sloop's context. *(True min-distance spacing & valley-following are
+   still-open refinements that pair naturally with this rung.)*
 4. **Fill the node** — drop procplaces' tile city into a POI footprint where the
    arterials enter. The two carts meet; `road_at()` becomes the shared query seam
    for sloop.
@@ -201,6 +208,7 @@ collision read it. Set up cheap now (rung 1), painful to retrofit later.
   that will later *consume* both.
 - ✓ **Node-lattice spline**, not grown/agent splines — preserves the locality
   contract (the whole reason the wall looked unclimbable).
-- ✓ **Cheap terrain reaction first** (drop non-passable links); valley-following,
-  bridges, tunnels are v2 with seams left, per the 2026-06-13 call.
-- ⏸ **road class, POI typing, tile-city fill, sloop `road_at()`** — rungs 3–4.
+- ✓ **Cheap terrain reaction first** (drop non-passable links); then rung 2 bends
+  around terrain + bridges short water; valley-following / tunnels stay v2.
+- ✓ **Rank → road class** (rung 3) — rarity for spacing, class = `f(endpoint ranks)`.
+- ⏸ **landmarks, tile-city fill, sloop `road_at()`** — rung 4 (the drive-it leap).

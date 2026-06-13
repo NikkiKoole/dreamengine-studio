@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 // ============================================================================
-// ROADNET  —  a SPLINE arterial network over an infinite heightmap.   (rungs 1-2)
+// ROADNET  —  a SPLINE arterial network over an infinite heightmap.   (rungs 1-3)
 //
 //   intro panel      drag the SLIDERS (world re-rolls live behind the panel),
 //                    ROLL = fresh seed, EXPLORE / ENTER = dismiss the panel
@@ -45,6 +45,10 @@
 // BRIDGE a short water gap (river/strait, ≤ MAX_BRIDGE; drawn as a distinct deck) →
 // BEND around the obstacle on land; drops only if none works. Roads never draw over
 // water *except* a tagged bridge span. Tunnels / valley-following stay v2.
+// Rung 3 = RANK + ROAD CLASS: each node hashes to a rank (hamlet/town/city/metro,
+// high ranks rare → cities feel spaced out), and a link's class is f(its endpoints'
+// ranks) — motorway/highway/arterial/street/dirt — driving width, colour, and a
+// dashed centre-line on the big roads. Markers size by rank too. (Landmarks = later.)
 // ============================================================================
 
 #define TILE 4                                  // screen px per world tile at zoom 1
@@ -161,6 +165,32 @@ static int get_hub(int cx, int cy, float *wx, float *wy) {
     *wx = x; *wy = y;
     return 1;
 }
+
+// ── RANK (rung 3) — every node gets a deterministic rank; the rare high ranks are
+// what make big cities feel spaced out (rarity ≈ spacing, no Poisson pass needed).
+// A road's CLASS is then just f(its endpoints' ranks) — pure functions both ends, so
+// the class is identical from either chunk → still seam-true. ─────────────────────
+enum { RK_HAMLET, RK_TOWN, RK_CITY, RK_METRO };
+enum { CL_MOTORWAY, CL_HIGHWAY, CL_ARTERIAL, CL_STREET, CL_DIRT };
+
+static int hub_rank(int cx, int cy) {                    // backbone node: city / metro
+    unsigned h = hash2(cx * 915488749u + 31, cy * 147645773u + 7);
+    return (h % 100u < 15u) ? RK_METRO : RK_CITY;        // metros are rare
+}
+static int town_rank(int cx, int cy) {                   // feeder node: town / hamlet
+    unsigned h = hash2(cx * 1900385059u + 61, cy * 2120969693u + 17);
+    return (h % 100u < 35u) ? RK_TOWN : RK_HAMLET;
+}
+
+// style per road class: ribbon radius, casing colour, centre colour, has centre-line
+typedef struct { int r, casing, centre, mark; } RStyle;
+static const RStyle RS[5] = {
+    /* MOTORWAY */ { 4, CLR_DARKER_GREY, CLR_LIGHT_GREY,  1 },
+    /* HIGHWAY  */ { 3, CLR_DARKER_GREY, CLR_LIGHT_GREY,  1 },
+    /* ARTERIAL */ { 2, CLR_DARK_GREY,   CLR_LIGHT_GREY,  0 },
+    /* STREET   */ { 2, CLR_DARK_GREY,   CLR_MEDIUM_GREY, 0 },
+    /* DIRT     */ { 1, CLR_BROWN,       CLR_BROWN,       0 },
+};
 
 // world tile → screen px (centre of tile) — P = TILE*zoom, set per frame
 static int sxp(float wx) { return (int)((wx - camX) * P + P * 0.5f); }
@@ -286,12 +316,40 @@ static void stroke_path(int n, int r, int col, int bcol) {
     }
 }
 
+// Dashed yellow centre-line along lp_ (highways/motorways). Walks the path in screen
+// pixels so the dash period is constant at any zoom; skipped over bridge spans.
+static void stroke_dashes(int n) {
+    int acc = 0;
+    for (int i = 0; i + 1 < n; i++) {
+        int x0 = sxp(lp_x[i]), y0 = syp(lp_y[i]), x1 = sxp(lp_x[i+1]), y1 = syp(lp_y[i+1]);
+        int dx = x1 - x0, dy = y1 - y0;
+        int seg = (int)fsqrt((float)(dx*dx + dy*dy));
+        int bridge = lp_br[i] || lp_br[i+1];
+        for (int s = 0; s <= seg; s++) {
+            if (!bridge && acc % 7 < 2) {                // 2 on / 5 off
+                float t = seg ? (float)s / seg : 0;
+                pset(x0 + (int)(dx*t), y0 + (int)(dy*t), CLR_YELLOW);
+            }
+            acc++;
+        }
+    }
+}
+
+// Draw one classified link for a phase: 0 = casing, 1 = centre (+ centre-line markings).
+static void draw_link(int n, int cls, int phase) {
+    const RStyle *s = &RS[cls];
+    if (phase == 0) {
+        stroke_path(n, s->r, s->casing, CLR_BROWN);      // bridge deck casing = brown
+    } else {
+        int cr = s->r - 1;
+        if (cr >= 1) stroke_path(n, cr, s->centre, CLR_WHITE);   // bridge deck = white
+        if (s->mark && zoom >= 0.7f) stroke_dashes(n);
+    }
+}
+
 // HIGHWAYS — the connected backbone. Hub lattice, forward-only links, Catmull-Rom
 // shaped by the hubs beyond each span (reflect when absent). phase 0=casing, 1=centre.
 static void draw_highways(int phase) {
-    int col  = phase ? CLR_LIGHT_GREY : CLR_DARKER_GREY;
-    int bcol = phase ? CLR_WHITE : CLR_BROWN;        // bridge deck: brown casing, white span
-    int r    = phase ? 2 : 3;
     int c0 = ifloor(camX / HUB_CS) - 2, c1 = ifloor((camX + vcols) / HUB_CS) + 2;
     int r0 = ifloor(camY / HUB_CS) - 2, r1 = ifloor((camY + vrows) / HUB_CS) + 2;
     for (int cx = c0; cx <= c1; cx++)
@@ -310,8 +368,11 @@ static void draw_highways(int phase) {
                 float p0x, p0y, p3x, p3y;
                 if (!get_hub(cx - dx, cy - dy, &p0x, &p0y)) { p0x = 2*p1x - p2x; p0y = 2*p1y - p2y; }
                 if (!get_hub(cx + 2*dx, cy + 2*dy, &p3x, &p3y)) { p3x = 2*p2x - p1x; p3y = 2*p2y - p1y; }
+                // class from the two hubs' ranks: a metro endpoint makes it a motorway
+                int cls = (hub_rank(cx, cy) == RK_METRO || hub_rank(cx + dx, cy + dy) == RK_METRO)
+                          ? CL_MOTORWAY : CL_HIGHWAY;
                 int np = link_path(p0x, p0y, p1x, p1y, p2x, p2y, p3x, p3y);  // bends/bridges terrain
-                if (np) stroke_path(np, r, col, bcol);                       // 0 = no route
+                if (np) draw_link(np, cls, phase);                           // 0 = no route
             }
         }
 }
@@ -350,30 +411,33 @@ static int nearest_town(float tx, float ty, float *nx, float *ny) {
 // highway. Degree ~1 each, so no criss-cross. Owned by the town; mutual nearest pairs
 // double-draw harmlessly (identical pixels).
 static void draw_feeders(int phase) {
-    int col  = phase ? CLR_LIGHT_GREY : CLR_DARK_GREY;
-    int bcol = phase ? CLR_WHITE : CLR_BROWN;        // bridge deck
-    int r    = phase ? ROAD_R - 1 : ROAD_R;
     int m = 5;
     int c0 = ifloor(camX / NODE_CS) - m, c1 = ifloor((camX + vcols) / NODE_CS) + m;
     int r0 = ifloor(camY / NODE_CS) - m, r1 = ifloor((camY + vrows) / NODE_CS) + m;
     for (int cx = c0; cx <= c1; cx++)
         for (int cy = r0; cy <= r1; cy++) {
             float tx, ty; if (!get_node(cx, cy, &tx, &ty)) continue;
+            int tr = town_rank(cx, cy);
+            // feeder onto the backbone: a TOWN gets an arterial, a hamlet a street
             float hx, hy; int np;
             if (nearest_hub(tx, ty, &hx, &hy)) {
+                int cls = (tr == RK_TOWN) ? CL_ARTERIAL : CL_STREET;
                 np = link_path(2*tx - hx, 2*ty - hy, tx, ty, hx, hy, 2*hx - tx, 2*hy - ty);
-                if (np) stroke_path(np, r, col, bcol);
+                if (np) draw_link(np, cls, phase);
             }
+            // local road to the nearest town: street if a town is involved, else a dirt track
             float nx, ny;
             if (nearest_town(tx, ty, &nx, &ny)) {
+                int nr = town_rank(ifloor(nx / NODE_CS), ifloor(ny / NODE_CS));
+                int cls = (tr == RK_TOWN || nr == RK_TOWN) ? CL_STREET : CL_DIRT;
                 np = link_path(2*tx - nx, 2*ty - ny, tx, ty, nx, ny, 2*nx - tx, 2*ny - ty);
-                if (np) stroke_path(np, r, col, bcol);
+                if (np) draw_link(np, cls, phase);
             }
         }
 }
 
 static void draw_nodes(int detail) {
-    // towns (feeder tier) — small red/orange dots; hidden when zoomed far out (LOD)
+    // towns (feeder tier) — orange = town, small red = hamlet; hidden far out (LOD)
     if (detail) {
         int c0 = ifloor(camX / NODE_CS) - 2, c1 = ifloor((camX + vcols) / NODE_CS) + 2;
         int r0 = ifloor(camY / NODE_CS) - 2, r1 = ifloor((camY + vrows) / NODE_CS) + 2;
@@ -381,21 +445,26 @@ static void draw_nodes(int detail) {
             for (int cy = r0; cy <= r1; cy++) {
                 float wx, wy; if (!get_node(cx, cy, &wx, &wy)) continue;
                 int px = sxp(wx), py = syp(wy);
-                circfill(px, py, 3, CLR_BLACK);
-                circfill(px, py, 2, (hash2(cx, cy) & 1) ? CLR_RED : CLR_ORANGE);
+                int town = town_rank(cx, cy) == RK_TOWN;
+                circfill(px, py, town ? 3 : 2, CLR_BLACK);
+                circfill(px, py, town ? 2 : 1, town ? CLR_ORANGE : CLR_RED);
             }
     }
-    // hubs (backbone tier) — white markers, the cities on the spine. Shrink them as
-    // we zoom out so they don't swarm into a polka-dot field that buries the highways.
-    int hr = zoom >= 0.45f ? 3 : (zoom >= 0.22f ? 2 : 1);
+    // hubs (backbone tier) — metros bigger than cities. Shrink with zoom so they don't
+    // swarm into a polka-dot field that buries the highways when far out.
     int h0 = ifloor(camX / HUB_CS) - 2, h1 = ifloor((camX + vcols) / HUB_CS) + 2;
     int v0 = ifloor(camY / HUB_CS) - 2, v1 = ifloor((camY + vrows) / HUB_CS) + 2;
     for (int cx = h0; cx <= h1; cx++)
         for (int cy = v0; cy <= v1; cy++) {
             float wx, wy; if (!get_hub(cx, cy, &wx, &wy)) continue;
+            int metro = hub_rank(cx, cy) == RK_METRO;
+            int rr = (metro ? 4 : 3);
+            if (zoom < 0.45f) rr = metro ? 2 : 1;        // LOD: tiny dots far out
+            else if (zoom < 0.22f) rr = 1;
             int px = sxp(wx), py = syp(wy);
-            circfill(px, py, hr + 1, CLR_BLACK);
-            circfill(px, py, hr, CLR_WHITE);
+            circfill(px, py, rr + 1, CLR_BLACK);
+            circfill(px, py, rr, CLR_WHITE);
+            if (metro && rr >= 3) circfill(px, py, 1, CLR_RED);   // metro pip
         }
 }
 

@@ -117,16 +117,24 @@ static void start(void) {
 
 // ─── update ──────────────────────────────────────────────────────────────────
 
+// The engine feeds the mouse in as a synthetic touch, so on a touch device we
+// drive everything off the keyboard + screen zones, and on desktop off the
+// keyboard + mouse buttons — never both, or a low left-click hits the duck zone.
+static bool on_touch_device(void) { return touch_ceiling() > 0; }
+
 static bool press_jump(void) {
-    return btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(0, BTN_UP)
-        || btnp(1, BTN_A) || btnp(1, BTN_UP)
-        || mouse_pressed(MOUSE_LEFT)
-        || tapp(0, 0, SCREEN_W, GY - 28);   // tap the upper screen = jump
+    bool keys = btnp(0, BTN_A) || btnp(0, BTN_B) || btnp(0, BTN_UP)
+             || btnp(1, BTN_A) || btnp(1, BTN_UP);
+    if (on_touch_device())
+        return keys || tapp(0, 0, SCREEN_W, GY - 28);   // tap upper screen = jump
+    return keys || mouse_pressed(MOUSE_LEFT);            // left-click anywhere = jump
 }
 
 static bool hold_duck(void) {
-    return btn(0, BTN_DOWN) || btn(1, BTN_DOWN) || mouse_down(MOUSE_RIGHT)
-        || tap(0, GY - 28, SCREEN_W, SCREEN_H - (GY - 28));  // hold near the ground = duck
+    bool keys = btn(0, BTN_DOWN) || btn(1, BTN_DOWN);
+    if (on_touch_device())
+        return keys || tap(0, GY - 28, SCREEN_W, SCREEN_H - (GY - 28));  // hold low = duck
+    return keys || mouse_down(MOUSE_RIGHT);              // right-click = duck
 }
 
 void update(void) {

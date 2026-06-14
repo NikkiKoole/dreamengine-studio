@@ -198,12 +198,14 @@ countryside gaps via `Z_NONE`) rather than a solid ring. **Decisions:** concentr
 gradient (the patchy "mix" knob is a later add); industrial fringe + water harbours;
 farm patches between suburb and wild.
 
-**Live knobs:** the setup panel has a **CITY (loupe)** group of five L2 sliders —
-*city size* (`citysize_mul`, scales the urbanity radius), *downtown* (`u_com`, core
-size), *farms* (`farm_gate`, farmland vs countryside), *blocks* (`block_sp`, block
-size), and *align* (`P_align`, the artery-vs-axis district blend — see "Aligned to the
-arterials"). Like the map sliders they're `P_*` floats read live, so the loupe re-zones
-as you drag. (Lower-bang knobs — industry/park density, warp strength — left hardcoded.)
+**Live knobs:** the setup panel has a **CITY (loupe)** group of seven L2 sliders —
+*city size* (`citysize_mul`, urbanity radius), *downtown* (`u_com`, core size), *farms*
+(`farm_frac`, fraction of fields cultivated vs fallow), *blocks* (`block_sp`, block size),
+*align* (`P_align`, artery-vs-axis district blend), *road w* (`road_w_mul`, arterial carve
+width — so *blocks* + *road w* set the **highway-vs-block ratio**), and *field* (`field_sp`,
+Voronoi farm-field size). All `P_*` floats read live, so the loupe re-renders as you drag.
+(Lower-bang knobs — industry/park density, warp strength, the `U_CORE` gradient handoff —
+left hardcoded.)
 
 ## L2 block contents — street grid + building lots (done — 2026-06-14)
 
@@ -295,11 +297,34 @@ styled by class:
 strokes the spline, so an in-city bridge currently shows as a break — rare, fix later by
 carving the bridge span.)
 
-**Next:** farm *fields* and park *contents* (the football field) as real block content
-(today FARM/PARK keep flat tint); building *footprints* drawn as collidable rects (not
-just colour, using `road_at`'s lot info); then landmarks (gas/hospital/gun shop) as point
-POIs, and finally **sloop's car at street scale (rung 4) — wire its driving into
-`road_at()`**, now that the seam exists.
+### Outskirts gradient + Voronoi fields (done — 2026-06-14)
+
+The old city→country edge was a hard **blob**: RES filled uniformly to `U_LIGHT` then
+became a flat patchy-yellow farm *ring*. Replaced with a gradient (the "middle path":
+keep the concentric core, gradient only the outskirts):
+
+- **Occupancy gradient** — `occupancy(U, road_dist)`: above `U_CORE` the suburb is fully
+  built (the dense core, unchanged); below it, lot occupancy ramps down so the suburb
+  **thins toward the edge**. `lot_built()` hashes each lot against `occupancy` → a building
+  or open land. COM/IND stay dense (the core reads as a city); only RES/FARM thin.
+- **Ribbon development** — `occupancy` gets a boost within `RIBBON_REACH` of an arterial
+  (`road_dist` over the segment cache), so **houses string along the roads out of town**
+  while the land behind them opens to fields. The single biggest "real town edge" cue.
+- **Voronoi fields** — unbuilt cultivable land becomes discrete parcels. `field_at()` is a
+  jittered-grid (Worley) partition: each field-cell hashes to one seed, the nearest seed's
+  cell is the field (its hash → crop: wheat/pasture/plough/fallow), and where the two
+  nearest seeds are ~equidistant we're on a **hedgerow** (`F2−F1` test). `field` slider =
+  field size; `farms` slider (now `farm_frac`) = fraction cultivated vs fallow meadow.
+
+So it now reads: downtown → dense suburb → thinning houses among fields, denser along the
+roads → open countryside of hedged fields → wild. `road_at` gained a **`built`** flag (a
+building stands here vs open field) — the seam sloop needs for building collision.
+`U_CORE` (the concentric→gradient handoff) is hardcoded for now; easy to promote to a slider.
+
+**Next:** park *contents* (the football field) as real block content (PARK still flat
+tint); building *footprints* drawn as collidable rects (not just colour, using `built`);
+then landmarks (gas/hospital/gun shop) as point POIs, and finally **sloop's car at street
+scale (rung 4) — wire its driving into `road_at()`**, now that the seam exists.
 
 ## Rungs
 

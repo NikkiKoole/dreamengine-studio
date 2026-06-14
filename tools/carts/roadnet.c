@@ -81,6 +81,8 @@ static float P_downtown   = 0.375f;  // downtown core size
 static float P_farms      = 0.5f;    // farmland density
 static float P_blocks     = 0.25f;   // city-block size (street spacing)
 static float P_align      = 0.6f;    // districts aligned to the artery vs world-axis (0=all axis, 1=all aligned)
+static float P_roadw      = 0.25f;   // arterial road width vs blocks (street level) → 0.35..1.5×
+static float P_field      = 0.4f;    // farm field size (Voronoi cell pitch)
 
 static int   hub_cs(void)   { return 12 + (int)(P_hub_space  * 48); }   // 12..60
 static int   node_cs(void)  { return 6  + (int)(P_town_space * 24); }   // 6..30
@@ -565,16 +567,16 @@ static void draw_setup_panel(void) {
     float *pp[7] = { &P_hub_space, &P_town_space, &P_hub_dens, &P_town_dens,
                      &P_jitter, &P_diag, &P_sea };
     for (int i = 0; i < 7; i++) ui_slider(pp[i], 4, 16 + i * 11, 88, L[i]);
-    print("CITY (loupe)", 4, 95, CLR_MEDIUM_GREY);             // L2 knobs (street level)
-    static const char *L2[5] = { "city size", "downtown", "farms", "blocks", "align" };
-    float *pp2[5] = { &P_citysize, &P_downtown, &P_farms, &P_blocks, &P_align };
-    for (int i = 0; i < 5; i++) ui_slider(pp2[i], 4, 102 + i * 11, 88, L2[i]);
-    int roll = ui_button(4, 159, 88, 13, "ROLL");
-    int go   = ui_button(4, 174, 88, 14, "EXPLORE \x10");
+    print("CITY (loupe)", 4, 92, CLR_MEDIUM_GREY);             // L2 knobs (street level)
+    static const char *L2[7] = { "city size", "downtown", "farms", "blocks", "align", "road w", "field" };
+    float *pp2[7] = { &P_citysize, &P_downtown, &P_farms, &P_blocks, &P_align, &P_roadw, &P_field };
+    for (int i = 0; i < 7; i++) ui_slider(pp2[i], 4, 99 + i * 10, 88, L2[i]);
+    int roll = ui_button(4,  172, 42, 13, "ROLL");
+    int go   = ui_button(50, 172, 42, 13, "GO \x10");
     ui_end();
 
     snprintf(buf, sizeof buf, "seed #%u", (unsigned)(seedZ * 1000) % 100000u);
-    print(buf, 4, 191, CLR_MEDIUM_GREY);
+    print(buf, 4, 189, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
     if (roll) seedZ += 0.37f;                    // fresh world, same params
@@ -628,8 +630,10 @@ static const int ZONE_COL[6] = {
 // L2 panel knobs (defaults reproduce the tuned look):
 static float citysize_mul(void) { return 0.5f + P_citysize * 1.5f; }   // 0.5..2.0× radius
 static float u_com(void)        { return 0.90f - P_downtown * 0.40f; } // downtown core size (low = big)
-static float farm_gate(void)    { return 0.15f + P_farms * 0.60f; }    // farmland vs countryside
+static float farm_frac(void)    { return 0.30f + P_farms * 0.55f; }    // fraction of fields cultivated (vs fallow)
+static float field_sp(void)     { return 1.0f + P_field * 2.0f; }      // 1..3 world tiles per farm field
 static float block_sp(void)     { return 0.7f + P_blocks * 1.6f; }     // 0.7..2.3 world tiles per city block
+static float road_w_mul(void)   { return 0.35f + P_roadw * 1.15f; }    // 0.35..1.5× arterial carve width
 
 static float rank_weight(int r) { return r==RK_METRO?1.0f : r==RK_CITY?0.78f : r==RK_TOWN?0.52f : 0.34f; }
 static float rank_cityR(int r)  { float b = r==RK_METRO?22.f : r==RK_CITY?14.f : r==RK_TOWN?8.f : 4.f; return b * citysize_mul(); }
@@ -700,10 +704,8 @@ static int zone_of(float wx, float wy, float U) {    // assumes U >= U_FARM (bui
         int nw = water_near(wx, wy);
         if (U < U_MED || nw) return nw ? Z_HARBOR : Z_IND;        // fringe industry / harbour
     }
-    if (U < U_LIGHT) {                                            // peri-urban band → PATCHY farms,
-        return noise2(wx*0.09f+seedZ*9, wy*0.09f+seedZ*9) < farm_gate()  // not a solid ring: gaps stay
-             ? Z_NONE : Z_FARM;                                   // wild countryside (terrain shows)
-    }
+    if (U < U_LIGHT) return Z_FARM;                              // transition band — occupancy + Voronoi
+                                                                 // fields decide its content downstream
     float j = (noise2(wx*0.08f-seedZ, wy*0.08f-seedZ) - 0.5f) * 0.18f;   // jitter the core edge
     return (U + j >= u_com()) ? Z_COM : Z_RES;
 }
@@ -777,14 +779,16 @@ static void city_grid_coords(float wx, float wy, float *gx, float *gy) {
 #define MAXSEG 4096
 static float sgx0[MAXSEG], sgy0[MAXSEG], sgx1[MAXSEG], sgy1[MAXSEG];
 static int   sgcls[MAXSEG]; static int nseg;
-static float road_hw(int cls) {              // arterial road HALF-width, in world tiles
+static float road_hw(int cls) {              // arterial road HALF-width (world tiles), scaled live
+    float w;
     switch (cls) {
-        case CL_MOTORWAY: return 0.75f;
-        case CL_HIGHWAY:  return 0.60f;
-        case CL_ARTERIAL: return 0.45f;
-        case CL_STREET:   return 0.32f;
-        default:          return 0.22f;      // dirt
+        case CL_MOTORWAY: w = 0.75f; break;
+        case CL_HIGHWAY:  w = 0.60f; break;
+        case CL_ARTERIAL: w = 0.45f; break;
+        case CL_STREET:   w = 0.32f; break;
+        default:          w = 0.22f; break;  // dirt
     }
+    return w * road_w_mul();
 }
 static void push_link(int np, int cls) {
     for (int i = 0; i + 1 < np && nseg < MAXSEG; i++) {
@@ -857,22 +861,85 @@ static int arterial_at(float wx, float wy, int *outcls, float *outoff) {
     return 0;
 }
 
+// distance (tiles) to the nearest cached arterial — for ribbon development (houses string
+// along the roads out of town). Uncapped; the occupancy ramp clamps it.
+static float road_dist(float wx, float wy) {
+    float best = 1e18f;
+    for (int i=0; i<nseg; i++) {
+        float d2 = seg_dist2(wx,wy, sgx0[i],sgy0[i],sgx1[i],sgy1[i]);
+        if (d2 < best) best = d2;
+    }
+    return fsqrt(best);
+}
+
+// ── THE OUTSKIRTS GRADIENT — the concentric core (COM/IND, high U) stays fully built;
+// below U_CORE, lot OCCUPANCY ramps down so the suburb THINS toward the edge, with a
+// RIBBON boost near roads (houses follow the arterials out of town). Unbuilt land becomes
+// a Voronoi FIELD. So city → thinning houses → fields + ribbon → countryside, no blob edge.
+#define U_CORE       0.55f           // at/above this U the suburb is fully built
+#define RIBBON_REACH 3.0f            // tiles; houses string this far either side of a road
+static float occupancy(float U, float rd) {
+    float base = (U - U_FARM) / (U_CORE - U_FARM);   // 0 at the farm edge .. 1 at the dense core
+    if (base < 0) base = 0; if (base > 1) base = 1;
+    float ribbon = 1.0f - rd / RIBBON_REACH; if (ribbon < 0) ribbon = 0;
+    float occ = base + (1.0f - base) * ribbon * 0.9f;   // ribbon fills lots in along the roads
+    return occ > 1 ? 1 : occ;
+}
+static int lot_built(float gx, float gy, float occ) {    // is this lot developed? (per-lot hash vs occ)
+    float lp = block_sp() * 0.5f;
+    unsigned h = hash2(ifloor(gx/lp)*5 + 1, ifloor(gy/lp)*7 - 3);
+    return (h % 1000u) < (unsigned)(occ * 1000.0f);
+}
+
+// ── VORONOI FARM FIELDS — a jittered-grid (Worley) partition into discrete parcels: each
+// cell hashes to one seed; the nearest seed's cell is the FIELD (its hash → crop), and where
+// the two nearest seeds are ~equidistant we're on a HEDGEROW. Local + pure fn → seam-true.
+static unsigned field_at(float wx, float wy, int *edge) {
+    float fp = field_sp();
+    int cx = ifloor(wx/fp), cy = ifloor(wy/fp);
+    float best = 1e18f, best2 = 1e18f; unsigned bid = 0;
+    for (int a=cx-1; a<=cx+1; a++) for (int b=cy-1; b<=cy+1; b++) {
+        unsigned h = hash2(a + (int)(seedZ*71.0f), b*3 - (int)(seedZ*29.0f));
+        float sx = (a + (h & 255u)/255.0f) * fp;             // jittered seed inside the cell
+        float sy = (b + ((h>>8) & 255u)/255.0f) * fp;
+        float dx = wx-sx, dy = wy-sy, d = dx*dx + dy*dy;
+        if (d < best) { best2 = best; best = d; bid = hash2(a*131+7, b*197+3); }
+        else if (d < best2) best2 = d;
+    }
+    *edge = (fsqrt(best2) - fsqrt(best)) < fp*0.10f;         // near-equidistant → hedgerow/track
+    return bid;
+}
+static int field_color(unsigned fid, int edge) {
+    if (edge) return CLR_DARK_GREEN;                          // hedgerow / treeline between fields
+    if ((fid % 100u) >= (unsigned)(farm_frac()*100.0f)) return CLR_MEDIUM_GREEN;   // fallow meadow
+    static const int crop[4] = { CLR_YELLOW, CLR_LIME_GREEN, CLR_BROWN, CLR_MEDIUM_GREEN };
+    return crop[fid % 4u];
+}
+
 // THE WORLD QUERY SEAM (for the drop-in consumer, e.g. sloop). Assumes gather_cities() +
 // gather_arterials() have run for a region covering (wx,wy) this frame (the renderer does
-// this). on_road = drivable surface; cls = its road class; zone = the L2 land use;
-// coff = distance to the arterial centre-line (tiles, -1 if not on an arterial).
-typedef struct { int on_road, cls, zone; float urb, coff; } RoadHit;
+// this). on_road = drivable surface; cls = its class; zone = land use; built = a building
+// stands here (vs open field); coff = arterial centre-line distance (-1 if not on one).
+typedef struct { int on_road, cls, zone, built; float urb, coff; } RoadHit;
 static RoadHit road_at(float wx, float wy) {
-    RoadHit r = { 0, CL_STREET, Z_NONE, 0, -1 };
+    RoadHit r = { 0, CL_STREET, Z_NONE, 0, 0, -1 };
     r.urb = urbanity(wx, wy);                                    // sets dom_i
     if (!passable(height_at(wx, wy))) return r;                  // water/peak
     int acls; float aoff;
     if (arterial_at(wx, wy, &acls, &aoff)) { r.on_road = 1; r.cls = acls; r.coff = aoff; }
     if (r.urb < U_FARM) return r;                                // wild countryside
     r.zone = zone_of(wx, wy, r.urb);
+    // local street grid (built-up zones only)
     if (!r.on_road && (r.zone==Z_RES||r.zone==Z_COM||r.zone==Z_IND||r.zone==Z_HARBOR)) {
         float gx, gy; city_grid_coords(wx, wy, &gx, &gy);
         if (grid_at(gx, gy, r.urb) == GR_ROAD) { r.on_road = 1; r.cls = CL_STREET; }
+    }
+    if (r.on_road) return r;
+    // built vs open: COM/IND are the dense core (always built); RES/FARM thin via occupancy
+    if (r.zone==Z_COM || r.zone==Z_IND || r.zone==Z_HARBOR) r.built = 1;
+    else if (r.zone==Z_RES || r.zone==Z_FARM) {
+        float gx, gy; city_grid_coords(wx, wy, &gx, &gy);
+        r.built = lot_built(gx, gy, occupancy(r.urb, road_dist(wx, wy)));
     }
     return r;
 }
@@ -891,12 +958,19 @@ static void render_streetlevel(int bx, int by, int sz) {        // bounds = the 
                 if (h.cls <= CL_ARTERIAL && h.coff >= 0 && h.coff < 0.08f)  // big roads get a centre-line
                     col = CLR_YELLOW;
             }
-            else if (h.zone == Z_NONE) continue;                // water / wild / countryside gap → terrain
-            else if (h.zone==Z_RES || h.zone==Z_COM || h.zone==Z_IND || h.zone==Z_HARBOR) {
-                float gx, gy; city_grid_coords(wx, wy, &gx, &gy);   // dom_i set by road_at
+            else if (h.zone == Z_NONE) continue;                // water / wild → terrain
+            else if (h.zone==Z_COM || h.zone==Z_IND || h.zone==Z_HARBOR) {  // dense core, unchanged
+                float gx, gy; city_grid_coords(wx, wy, &gx, &gy);
                 col = (grid_at(gx, gy, h.urb) == GR_WALK) ? CLR_MEDIUM_GREY  // sidewalk vs building lot
                                                           : lot_color(gx, gy, h.zone);
-            } else col = ZONE_COL[h.zone];                       // FARM / PARK tint
+            }
+            else if (h.zone==Z_RES || h.zone==Z_FARM) {          // THE GRADIENT: houses thin into fields
+                float gx, gy; city_grid_coords(wx, wy, &gx, &gy);
+                if (h.zone==Z_RES && grid_at(gx, gy, h.urb) == GR_WALK) col = CLR_MEDIUM_GREY;  // sidewalk
+                else if (h.built) col = lot_color(gx, gy, Z_RES);            // a house
+                else { int e; unsigned fid = field_at(wx, wy, &e); col = field_color(fid, e); }  // a field
+            }
+            else col = ZONE_COL[h.zone];                         // PARK tint
             rectfill(sx, sy, step, step, col);
         }
 }

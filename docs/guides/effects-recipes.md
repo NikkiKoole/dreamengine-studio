@@ -150,15 +150,21 @@ rolloff). Master or per-instrument. **Showcase: `tapeloop`.**
 | clean & tight | `tape(0.10f, 0.08f, 0.24f)` | barely-there warmth, no audible pitch drift | `air` |
 | lo-fi just the drums | `instrument_tape(SL_DRUMS, 0.4f, 0.5f, 0.7f)` | wonky tape on the kit, synths stay clean | (per-instrument pattern) |
 
-## auto-wah — `wah(sensitivity, resonance, mix)` · `instrument_wah(slot, …)`
+## auto-wah — `wah(sensitivity, resonance, mix)` · `instrument_wah(slot, …)` · LFO: `wah_lfo(rate, resonance, mix)` · `instrument_wah_lfo(slot, …)`
 
-A resonant bandpass swept by an envelope follower on the bus — opens with how hard you play (the
-funk quack). Best on ONE rich/percussive part. **Showcase: `clavinet`.**
+A resonant bandpass swept on the bus — two flavors of the same insert. **Envelope** (`wah`): the band
+opens with how hard you play (the funk quack, dynamics-driven). **LFO** (`wah_lfo`): a sine rocks the
+band on its own at `rate` Hz — the hands-free rhythmic "wah-wah", ignores dynamics. Both share the one
+`FX_WAH` bus bandpass (so a bus is in *one* mode at a time — calling `wah` switches to envelope,
+`wah_lfo` to LFO); both are set-and-hold (the LFO runs inside the engine). Best on ONE rich/percussive
+part. **Showcase: `clavinet`** (envelope); **`pedalboard`** WAH pedal exposes both via its MOD knob.
 
 | recipe | call | character | used by |
 |---|---|---|---|
 | talking clav | `instrument_wah(SL_CLAV, 0.6f, 0.7f, 0.85f)` | the Hohner D6 quack — opens on the stab, shuts between | `clavinet` |
 | wah-bar sweep | `instrument_wah(slot, 0.4+amt*0.6, 0.45+amt*0.4, 0.75+amt*0.25)` | one knob `amt` 0→1 ramps the whole effect in | `epiano` |
+| envelope auto-wah | `wah(0.5f, 0.55f, 0.7f)` | dynamics-driven funk quack on the whole bus — dig in and it opens | `pedalboard` (WAH, MOD→ENV) |
+| LFO auto-wah | `wah_lfo(0.5f+rate*9.5f, 0.55f, 0.7f)` | hands-free rhythmic wah rocking on its own at the set rate | `pedalboard` (WAH, MOD→LFO) |
 
 ## formant — `formant(vowel, q, mix)` · `instrument_formant(slot, vowel, q, mix)`
 

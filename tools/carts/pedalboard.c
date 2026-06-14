@@ -51,7 +51,7 @@ static const FxDef CAT[NCAT] = {
     { "FLANGER",  CLR_BLUE_GREEN,    CLR_MEDIUM_GREEN, FX_FLANGER, 4, { "RT","DP","FB","MX" }, { 0.20f, 0.70f, 0.60f, 0.50f } },
     { "TAPE",     CLR_DARK_RED,      CLR_PEACH,        FX_TAPE,    3, { "WOW","FLT","SAT" },   { 0.35f, 0.25f, 0.45f } },
     { "TREMOLO",  CLR_DARKER_GREY,   CLR_LIGHT_YELLOW, FX_TREM,    3, { "SPD","DEP","WAV" },   { 0.45f, 0.60f, 0.0f } },
-    { "WAH",      CLR_DARK_PURPLE,   CLR_MAUVE,        FX_WAH,     3, { "SNS","RES","MIX" },   { 0.50f, 0.55f, 0.70f } },
+    { "WAH",      CLR_DARK_PURPLE,   CLR_MAUVE,        FX_WAH,     4, { "SNS","RES","MIX","MOD" },{ 0.50f, 0.55f, 0.70f, 0.0f } },
     { "REVERB",   CLR_DARK_BLUE,     CLR_INDIGO,       FX_REVERB,  3, { "SIZ","DMP","MIX" },   { 0.70f, 0.40f, 0.45f } },
     { "VOWEL",    CLR_BROWN,         CLR_LIGHT_PEACH,  FX_FORMANT, 4, { "VWL","Q","MIX","MOD" },{ 0.50f, 0.60f, 0.90f, 0.0f } },
     { "AUTOPAN",  CLR_DARK_GREY,     CLR_LIGHT_YELLOW, FX_PAN,     3, { "SPD","DEP","WAV" },   { 0.35f, 0.70f, 0.0f } },
@@ -219,7 +219,9 @@ static void apply_fx(void) {
             case C_FLG: flanger(0.05f + k[0] * 4.95f, k[1], k[2] * 0.95f, act ? k[3] : 0.0f); break;
             case C_TAP: tape(act ? k[0] : 0.0f, act ? k[1] : 0.0f, act ? k[2] : 0.0f); break;
             case C_TRM: tremolo(0.5f + k[0] * 11.5f, act ? k[1] : 0.0f, (int)(k[2] * 2.99f)); break;
-            case C_WAH: wah(k[0], k[1], act ? k[2] : 0.0f); break;
+            case C_WAH: if ((int)(k[3] * 1.99f)) wah_lfo(0.5f + k[0] * 9.5f, k[1], act ? k[2] : 0.0f);  // LFO: SNS knob = rate 0.5..10 Hz
+                        else                     wah(k[0], k[1], act ? k[2] : 0.0f);                    // ENV: dynamics-driven follower
+                        break;
             case C_RVB: reverb_insert(0.2f + k[0] * 0.78f, k[1], act ? k[2] : 0.0f); break;   // a real in-line dry/wet reverb pedal
             case C_FMT: { float v = (idx >= 0) ? fmt_live_vowel(&chain[idx]) : k[0]; formant(v, k[1], act ? k[2] : 0.0f); fmt_last_v = v; } break;
             case C_PAN: autopan(0.5f + k[0] * 11.5f, act ? k[1] : 0.0f, (int)(k[2] * 2.99f)); break;
@@ -454,6 +456,11 @@ static void draw_chain_pedal(int i, int x) {
         if (d->kind == FX_FORMANT && j == 3) {                    // the MOD knob shows its mode, like TREM's WAV
             static const char *MN[4] = { "MAN", "ENV", "STP", "LFO" };
             lbl = MN[fmt_mode_of(sl)];
+        }
+        if (d->kind == FX_WAH) {                                  // WAH MOD knob: ENV (follower) vs LFO; knob 0 = SNS or RATE
+            int wm = (int)(sl->k[3] * 1.99f);
+            if (j == 3)      lbl = wm ? "LFO" : "ENV";
+            else if (j == 0) lbl = wm ? "RTE" : "SNS";
         }
         font(FONT_TINY);                                          // label tucked beside the knob (the empty column)
         if (j & 1) print_right(lbl, kx - kr - 2, ky - 2, lblcol);   // right-column knob → label on its left

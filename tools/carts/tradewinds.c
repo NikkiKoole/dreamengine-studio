@@ -486,7 +486,7 @@ static void draw_market_panel(void) {
     }
 
     const char *qlab = qtyMode == 3 ? "MAX" : str("x%d", qtyAmt());
-    const char *lab[NBTN] = { "BUY", "SELL", qlab, "SHIPYARD", "SET SAIL" };
+    const char *lab[NBTN] = { "BUY", "SELL", qlab, "YARD", "SAIL" };   // short enough for a 58px button at standard font
     int col[NBTN] = { CLR_GREEN, CLR_RED, CLR_YELLOW, CLR_ORANGE, CLR_LIGHT_YELLOW };
     for (int i = 0; i < NBTN; i++) {
         int x = BX(i); bool hv = hover(x, BY, BW, BH);

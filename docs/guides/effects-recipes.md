@@ -72,6 +72,33 @@ Per-slot `send` 0–1 chooses how much each instrument throws into it. **Showcas
 > (a delay pedal's blend), `feedback` >1 self-oscillates into tape saturation. Put `FX_ECHO` in your
 > `fx_order(0, …)` list to place it. **Showcase: `pedalboard`** (the DELAY pedal: TIM/FB/TON/MIX).
 
+## grains — `grains(grain_ms, density, position, scatter, feedback, mix)` · `instrument_grains(slot, …)` · `grains_freeze(on)` · insert: `FX_GRAINS`
+
+GRANULAR DELAY (navkit `processGranularDelay`, verbatim). Captures the live signal into a buffer,
+then on a `density` schedule spawns overlapping Hanning-windowed GRAINS that read scattered slices of
+the recent past — an evolving "Cosmos" cloud. `grain_ms` 5–1000 (short = shimmer, long = smear),
+`density` 1–100 grains/sec (sparse → wash), `position` 0–1 (0 = deep past, 1 = live edge), `scatter`
+0–1 (random spread — the *evolving* knob), `feedback` 0–0.95 (output re-fed → self-sustaining cloud),
+`mix` 0–1. **`grains_freeze(1)` stops the capture so the buffer loops forever** — the headline move.
+A reorderable insert (`FX_GRAINS`), auto-placed on first call; a small pool means master + one
+instrument bus at once. Reads through the shared `moddel_hermite` (= navkit's `hermiteInterpolate`,
+already in-tree). 3 s buffer (navkit's is 5 s). **Showcase: `grains`** (the freeze/cloud toy).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| classic shimmer cloud | `grains(120, 12, 0.8f, 0.3f, 0.2f, 0.5f)` | mid-size grains near the live edge — a gentle ambient haze over a pad | `grains` |
+| freeze pad | hold a chord → `grains_freeze(1)` | the captured moment loops into an infinite drone; solo over your frozen self | `grains` |
+| dense glass wash | `grains(40, 40, 0.7f, 0.5f, 0.4f, 0.7f)` | tiny grains, high density + scatter = a sparkling glassy texture | `grains` |
+| smeared time-stretch | `grains(400, 8, 0.5f, 0.2f, 0.0f, 0.6f)` | long grains deep in the past = a slow, blurred slow-motion smear | `grains` |
+| self-feeding cloud | `grains(150, 16, 0.85f, 0.4f, 0.85f, 0.6f)` | high feedback re-grains the cloud → an ever-thickening evolving drone | `grains` |
+| pads-only grain (per-instrument) | `instrument_grains(SL_PAD, 200, 20, 0.6f, 0.5f, 0.4f, 0.6f)` | grain the pads while drums/bass stay dry — its own bus | — |
+
+> **Stochastic, so A/B by character not samples.** `grains` scatters reads via a seeded LCG and
+> spawns on a timer; with the intentional 3 s (vs navkit 5 s) buffer the `position` math diverges, so
+> sample-identity isn't the target. Verified against navkit's genuine `processGranularDelay` (via
+> `tools/navkit-fx-render.c grains …` + `tools/carts/grainstest.c`): crest factor matches within
+> ~0.3 dB (7.29 navkit / 7.59 ours) — the level-independent texture fingerprint lines up.
+
 ## reverb — `reverb(size, damping)` · `instrument_reverb(slot, send)` · `note_reverb`
 
 THE shared room/hall (Schroeder). `size` 0–1 (small room → endless hall), `damping` 0–1 (bright →

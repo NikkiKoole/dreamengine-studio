@@ -1244,13 +1244,132 @@ static void fx_set_leslie(int b, int speed, float drive, float balance, float do
     leslie_used[b] = (mix > 0.0f);   // mix 0 = off, like the other inserts
 }
 
+// ── granular delay (grains) — capture live audio, replay overlapping windowed grains ────────────
+// A VERBATIM port of navkit's granular_delay.h: incoming audio (+ feedback) writes into a capture
+// ring buffer; on a density schedule we spawn grains that read scattered windowed slices of the
+// recent past and sum them with a Hanning envelope — a "Cosmos" evolving cloud. FREEZE stops the
+// write so the captured buffer loops forever (held chord → infinite shimmer). Reads through the
+// shared moddel_hermite (which IS navkit's hermiteInterpolate — already ported for chorus/flanger/
+// tape; "write the technique once"). Big-buffer + many-grain, so it lives in a small POOL of tanks
+// (like the reverb tanks) mapped per-bus on demand, NOT one buffer per bus. Dormant until grains()/
+// instrument_grains() (mix>0) → byte-identical. Mono core (v1), like echo_insert / the reverb insert.
+#define SOUND_GRAIN_TANKS  2                          // pool size: master + one instrument bus at once (~1MB total)
+#define GRAIN_BUF_LEN      (SOUND_SAMPLE_RATE * 3)    // 3 s capture (navkit uses 5 s; 3 s is plenty of lookback, half the RAM)
+#define GRAIN_MAX_GRAINS   24                         // max simultaneous grains (navkit GRAN_DELAY_MAX_GRAINS)
+typedef struct {
+    float readPos, posInc, envPhase, envInc, amp;   // navkit GranDelayGrain: read cursor, speed, Hanning phase+inc, level
+    bool  active;
+} GrainVoice;
+typedef struct {
+    float buf[GRAIN_BUF_LEN];
+    GrainVoice grains[GRAIN_MAX_GRAINS];
+    int    writePos;
+    float  spawnTimer, lastOut;
+    unsigned int noiseSeed;
+    float  mix, feedback, grainSize, density, position, scatter;   // grainSize ms · density /s · position/scatter 0..1 · feedback 0..0.9
+    bool   freeze, used;
+} GrainTank;
+static GrainTank grain_pool[SOUND_GRAIN_TANKS];
+static int8_t    grain_tank_of[SOUND_FX_BUSES];   // bus → pool tank index, or -1 = none (default -1)
+static int       grain_next     = 0;              // next free pool tank to hand out
+static int       grain_overflow = 0;              // count of grains() requests dropped (pool exhausted)
+
+// assign a pool tank to bus b on first use; -1 = pool exhausted (caller bails → that bus stays dry)
+static int grain_tank_for_bus(int b) {
+    if (grain_tank_of[b] >= 0) return grain_tank_of[b];
+    if (grain_next >= SOUND_GRAIN_TANKS) { grain_overflow++; return -1; }
+    int t = grain_next++;
+    grain_tank_of[b] = (int8_t)t;
+    return t;
+}
+
+static void _grain_spawn(GrainTank *gt) {
+    int slot = -1;
+    for (int i = 0; i < GRAIN_MAX_GRAINS; i++) if (!gt->grains[i].active) { slot = i; break; }
+    if (slot < 0) return;
+    GrainVoice *g = &gt->grains[slot];
+    float grainSamples = (gt->grainSize / 1000.0f) * (float)SOUND_SAMPLE_RATE;
+    if (grainSamples < 2.0f) grainSamples = 2.0f;
+    float minLookback = grainSamples;                                  // position=1 → near live edge, 0 → deep past
+    float maxLookback = (float)(GRAIN_BUF_LEN - 1) - minLookback;
+    if (maxLookback < minLookback) maxLookback = minLookback;
+    float lookback = minLookback + (1.0f - gt->position) * maxLookback;
+    gt->noiseSeed = gt->noiseSeed * 1103515245u + 12345u;             // navkit LCG scatter
+    float rnd = (float)((int)((gt->noiseSeed >> 16) & 0xFFFF)) / 32767.5f - 1.0f;
+    float scatterSamples = rnd * gt->scatter * GRAIN_BUF_LEN * 0.25f;
+    float readStart = (float)gt->writePos - lookback + scatterSamples;
+    while (readStart < 0)              readStart += GRAIN_BUF_LEN;
+    while (readStart >= GRAIN_BUF_LEN) readStart -= GRAIN_BUF_LEN;
+    g->readPos = readStart; g->posInc = 1.0f; g->envPhase = 0.0f;
+    g->envInc = 1.0f / grainSamples; g->amp = 1.0f; g->active = true;
+}
+
+// process one stereo sample on tank gt IN PLACE (mono core), navkit processGranularDelay
+static void grains_process(GrainTank *gt, float *mixL, float *mixR) {
+    const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    float input = (*mixL + *mixR) * 0.5f;
+    if (!gt->freeze) {                                                 // write incoming + feedback into the capture ring
+        float toWrite = input + gt->lastOut * gt->feedback;
+        if (toWrite >  1.5f) toWrite =  1.5f;
+        if (toWrite < -1.5f) toWrite = -1.5f;
+        gt->buf[gt->writePos] = toWrite;
+        gt->writePos = (gt->writePos + 1) % GRAIN_BUF_LEN;
+    }
+    gt->spawnTimer += dt;                                              // spawn grains on the density schedule
+    float spawnInterval = 1.0f / gt->density;
+    while (gt->spawnTimer >= spawnInterval) { gt->spawnTimer -= spawnInterval; _grain_spawn(gt); }
+    float wet = 0.0f;                                                  // sum active grains, Hanning-windowed
+    for (int i = 0; i < GRAIN_MAX_GRAINS; i++) {
+        GrainVoice *g = &gt->grains[i];
+        if (!g->active) continue;
+        float env = 0.5f * (1.0f - cosf(g->envPhase * 6.2831853f));
+        wet += moddel_hermite(gt->buf, GRAIN_BUF_LEN, g->readPos) * env * g->amp;
+        g->readPos += g->posInc;
+        if (g->readPos >= GRAIN_BUF_LEN) g->readPos -= GRAIN_BUF_LEN;
+        g->envPhase += g->envInc;
+        if (g->envPhase >= 1.0f) g->active = false;
+    }
+    float expectedOverlap = gt->density * (gt->grainSize / 1000.0f);   // normalize by expected overlap → steady level
+    if (expectedOverlap > 1.0f) wet /= sqrtf(expectedOverlap);
+    gt->lastOut = wet;
+    *mixL = *mixL * (1.0f - gt->mix) + wet * gt->mix;
+    *mixR = *mixR * (1.0f - gt->mix) + wet * gt->mix;
+}
+
+static void grains_reset(GrainTank *gt) {   // empty the capture buffer + kill grains (no pop on first enable / hot-reload)
+    memset(gt->buf, 0, sizeof(gt->buf));
+    memset(gt->grains, 0, sizeof(gt->grains));
+    gt->writePos = 0; gt->spawnTimer = 0.0f; gt->lastOut = 0.0f;
+}
+
+static void fx_set_grains(int b, float grain_ms, float density, float position, float scatter, float feedback, float mix) {
+    int t = grain_tank_for_bus(b);
+    if (t < 0) return;                                                 // pool exhausted → bus stays dry
+    GrainTank *gt = &grain_pool[t];
+    if (grain_ms < 5.0f)   grain_ms = 5.0f;   if (grain_ms > 1000.0f) grain_ms = 1000.0f;
+    if (density  < 1.0f)   density  = 1.0f;    if (density  > 100.0f)  density  = 100.0f;
+    if (position < 0.0f)   position = 0.0f;    if (position > 1.0f)    position = 1.0f;
+    if (scatter  < 0.0f)   scatter  = 0.0f;    if (scatter  > 1.0f)    scatter  = 1.0f;
+    if (feedback < 0.0f)   feedback = 0.0f;    if (feedback > 0.95f)   feedback = 0.95f;
+    if (mix      < 0.0f)   mix      = 0.0f;    if (mix      > 1.0f)    mix      = 1.0f;
+    if (!gt->used && mix > 0.0f) grains_reset(gt);                     // first enable: clean buffer, no startup pop
+    gt->grainSize = grain_ms; gt->density = density; gt->position = position;
+    gt->scatter = scatter; gt->feedback = feedback; gt->mix = mix;
+    gt->used = (mix > 0.0f);                                           // mix 0 = off, like the other inserts
+}
+
+static void fx_set_grains_freeze(int b, bool on) {   // live toggle — does NOT reconfigure DSP (set-and-hold safe)
+    int t = grain_tank_of[b];
+    if (t >= 0) grain_pool[t].freeze = on;
+}
+
 // ── reorderable insert chain (fx_order) ──────────────────────────────────────────────────────
 // The inserts above (FX_* in studio.h) run in a default order; fx_order() lets a cart rearrange
 // them PER BUS. fx_order[b] is the visit list; default = the canonical order, so an un-reordered
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_ECHO + 1)             // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (default chain) + FX_REVERB (reverb-bus) + FX_ECHO (placed via fx_order)
+#define N_INSERTS (FX_GRAINS + 1)           // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (default chain) + FX_REVERB (reverb-bus) + FX_ECHO + FX_GRAINS (placed via fx_order)
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
 static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
 // dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
@@ -1269,6 +1388,7 @@ static void apply_insert(int kind, int b, float *L, float *R) {
         case FX_PAN:     if (pan_used[b])    pan_process(b, L, R);     break;
         case FX_RINGMOD: if (rm_used[b])     rm_process(b, L, R);      break;
         case FX_ECHO:    if (echo_ins_used && b == 0) echo_ins_process(L, R); break;  // in-line delay, master-only (single buffer)
+        case FX_GRAINS: { int t = grain_tank_of[b]; if (t >= 0 && grain_pool[t].used) grains_process(&grain_pool[t], L, R); } break;
         // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
         // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
         // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
@@ -1382,6 +1502,10 @@ typedef enum {
     SR_RINGMOD      = 78,   // a=freq_hz, b=mix*1000 — THE master ring modulator (bus 0)
     SR_INSTR_RINGMOD= 79,   // a=slot, b=freq_hz, c=mix*1000 — ring mod on one instrument (auto-bus)
     SR_ECHO_INSERT  = 80,   // a=time_ms, b=fb*1000, c=tone*1000, e0=mix*1000 — echo as a dry/wet INSERT on the master bus (in the fx_order chain)
+    SR_GRAINS       = 81,   // a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000 — THE master granular delay (bus 0)
+    SR_INSTR_GRAINS = 82,   // a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback*100·*1001 + mix*1000) — granular on one instrument (auto-bus)
+    SR_GRAINS_FREEZE       = 83,   // a=on (0/1) — freeze the master granular capture buffer (live toggle, no DSP reconfigure)
+    SR_INSTR_GRAINS_FREEZE = 84,   // a=slot, b=on (0/1) — freeze one instrument's granular buffer
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -4032,6 +4156,28 @@ static void sound_fire_req(SoundReq r) {
         echo_ins_mix  = mix;
         echo_ins_used = (mix > 0.0f);   // mix 0 = off (dormant → byte-identical), like the other inserts
         // the cart places FX_ECHO in its fx_order(0, …) list to set the delay's position in the master chain
+    } else if (r.kind == SR_GRAINS) {       // master granular delay (bus 0): a=grain_ms, b=density*100, c=position*1000, e0=scatter*1000, e1=feedback*1000, e2=mix*1000
+        fx_set_grains(0, (float)r.a, r.b / 100.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
+        bool present = false;   // auto-place FX_GRAINS in bus 0's chain (not in the default ladder, like FX_ECHO)
+        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_GRAINS) present = true;
+        if (!present && insert_order_n[0] < N_INSERTS) insert_order[0][insert_order_n[0]++] = FX_GRAINS;
+    } else if (r.kind == SR_INSTR_GRAINS) { // per-instrument: a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback,mix)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) {
+            float feedback = (r.e2 / 1001) / 100.0f;   // unpack: e2 = feedback*100 *1001 + mix*1000
+            float mix      = (r.e2 % 1001) / 1000.0f;
+            fx_set_grains(b, (float)r.b, r.c / 100.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, feedback, mix);
+            bool present = false;
+            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_GRAINS) present = true;
+            if (!present && insert_order_n[b] < N_INSERTS) insert_order[b][insert_order_n[b]++] = FX_GRAINS;
+        }
+    } else if (r.kind == SR_GRAINS_FREEZE) {        // a=on
+        fx_set_grains_freeze(0, r.a != 0);
+    } else if (r.kind == SR_INSTR_GRAINS_FREEZE) {  // a=slot, b=on
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) fx_set_grains_freeze(b, r.b != 0);
     } else if (r.kind == SR_CHORUS) {       // master chorus (bus 0): a=rate*1000, b=depth*1000, c=mix*1000
         fx_set_chorus(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_CHORUS) { // per-instrument: a=slot, b=rate*1000, c=depth*1000, e0=mix*1000
@@ -4931,6 +5077,25 @@ void echo_insert(int time_ms, float feedback, float tone, float mix) {
     sound_push_ctrl(SR_ECHO_INSERT, time_ms, (int)(feedback * 1000.0f), (int)(tone * 1000.0f), (int)(mix * 1000.0f), 0, 0);
 }
 
+// ── grains: granular delay — a capture-and-scatter texture/freeze cloud (navkit port) ──
+void grains(float grain_ms, float density, float position, float scatter, float feedback, float mix) {
+    sound_push_ctrl(SR_GRAINS, (int)grain_ms, (int)(density * 100.0f), (int)(position * 1000.0f),
+                    (int)(scatter * 1000.0f), (int)(feedback * 1000.0f), (int)(mix * 1000.0f));
+}
+void instrument_grains(int slot, float grain_ms, float density, float position, float scatter, float feedback, float mix) {
+    if (feedback < 0.0f) feedback = 0.0f; if (feedback > 0.95f) feedback = 0.95f;
+    if (mix < 0.0f) mix = 0.0f; if (mix > 1.0f) mix = 1.0f;
+    int packed = (int)(feedback * 100.0f) * 1001 + (int)(mix * 1000.0f);   // e2 = PACK(feedback, mix) — 6-int request budget
+    sound_push_ctrl(SR_INSTR_GRAINS, slot, (int)grain_ms, (int)(density * 100.0f),
+                    (int)(position * 1000.0f), (int)(scatter * 1000.0f), packed);
+}
+void grains_freeze(int on) {
+    sound_push_ctrl(SR_GRAINS_FREEZE, on ? 1 : 0, 0, 0, 0, 0, 0);
+}
+void instrument_grains_freeze(int slot, int on) {
+    sound_push_ctrl(SR_INSTR_GRAINS_FREEZE, slot, on ? 1 : 0, 0, 0, 0, 0);
+}
+
 // ── reverb: ONE shared bus with per-slot sends (the first §8.10 effect; decisions/0015) ──
 
 void reverb(float size, float damping) {
@@ -5335,6 +5500,9 @@ static void sound_init(void) {
     reverb_used = false;
     for (int i = 0; i < SOUND_REVERB_TANKS; i++) tank_bus[i] = 0;   // tank → aux bus, 0 = unallocated
     for (int b = 0; b < SOUND_FX_BUSES; b++)     bus_tank[b] = -1;  // bus → tank, -1 = not a reverb-bus
+    for (int b = 0; b < SOUND_FX_BUSES; b++)     grain_tank_of[b] = -1;   // bus → grain tank, -1 = none
+    for (int t = 0; t < SOUND_GRAIN_TANKS; t++) { grains_reset(&grain_pool[t]); grain_pool[t].used = false; grain_pool[t].freeze = false; grain_pool[t].noiseSeed = 55555u; }
+    grain_next = 0; grain_overflow = 0;
 
     // per-bus chorus + flanger + tape inserts (bus 0 master + aux): clean slate (libtcc hot-reload + --det)
     memset(cho_buf, 0, sizeof(cho_buf));

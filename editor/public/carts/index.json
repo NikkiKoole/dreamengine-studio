@@ -2893,6 +2893,14 @@
     ]
   },
   {
+    "title": "grain clouds",
+    "description": "The showcase for grains() - a GRANULAR DELAY ported from navkit. It captures the live signal into a buffer, then sprays scattered, overlapping windowed GRAINS of the recent past back out as an evolving cloud (a Cosmos-style ambient texture). A soft pad chord feeds the cloud the whole time; the headline move is FREEZE (F or SPACE) - stop capturing and loop what's there forever, so you play a chord, freeze it into an infinite shimmering pad, then solo OVER your own frozen self. Six sliders ride the cloud live: SIZE (grain length), DENSITY (grains/sec, sparse to dense wash), POSITION (deep past to live edge), SCATTER (the random-spread 'evolving' knob), FEEDBACK (self-feeding cloud), MIX. Each dot on screen is a grain reading the buffer; the green bar is the capture head, which halts when frozen. Press 1..4 for chords (Cmaj7/Am7/Fmaj7/G), H for help. Built on grains() / grains_freeze() - reorderable as FX_GRAINS in the pedalboard. Part of the effects-bus / pedalboard family.",
+    "file": "grains.cart.png",
+    "kind": [
+      "instrument"
+    ]
+  },
+  {
     "title": "juno-6",
     "description": "Roland Juno-6 (1982) - the showcase for chorus(), the engines master BBD chorus. On paper a plain 6-voice poly synth (one saw + sub oscillator, one resonant lowpass) - sh101 with more voices. What makes it a JUNO is the bucket-brigade CHORUS: flip the famous OFF/I/II switch and the dry mono synth smears into a lush, wide, shimmering stereo wash (a centered mono chord literally fans out across the stereo field - the Junos two amps). Tap the CHORUS strip (or press C) to A/B it; the WIDTH meter opens as the chorus widens the signal. RATE/DEPTH/MIX ride the chorus live, CUTOFF/RES shape the resonant lowpass. Tap a chord pad or press 1..4 (Cmaj7/Am7/Fmaj7/G7); SPACE toggles AUTO, a slow self-playing progression; H help.",
     "file": "juno.cart.png",

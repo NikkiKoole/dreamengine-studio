@@ -22,6 +22,8 @@
 #include <math.h>
 #include "/Users/nikkikoole/Projects/navkit/soundsystem/engines/synth.h"
 #include "/Users/nikkikoole/Projects/navkit/soundsystem/engines/effects.h"
+#include "/Users/nikkikoole/Projects/navkit/soundsystem/engines/dub_loop.h"        // hermiteInterpolate (granular_delay.h needs it)
+#include "/Users/nikkikoole/Projects/navkit/soundsystem/engines/granular_delay.h"  // processGranularDelay — its own path, not processBusEffects
 
 static void writeWavMono(const char *path, const short *buf, int n) {
     FILE *f = fopen(path, "wb");
@@ -58,6 +60,13 @@ int main(int argc, char **argv) {
         float drive = atof(argv[3]), balance = atof(argv[4]), doppler = atof(argv[5]), mix = atof(argv[6]);
         setBusLeslie(0, true, speed, drive, balance, doppler, mix);
         next = 7;
+    } else if (!strcmp(effect, "grains")) {   // granular delay — its OWN path (processGranularDelay), not processBusEffects
+        _ensureFxCtx();
+        granDelay.grainSize = atof(argv[2]); granDelay.density = atof(argv[3]);
+        granDelay.position  = atof(argv[4]); granDelay.scatter = atof(argv[5]);
+        granDelay.feedback  = atof(argv[6]); granDelay.mix     = atof(argv[7]);
+        granDelay.freeze = false; granDelay.enabled = true;
+        next = 8;
     } else {
         fprintf(stderr, "unknown effect '%s' (add an else-if calling its setBus*)\n", effect);
         return 1;
@@ -68,12 +77,14 @@ int main(int argc, char **argv) {
 
     int n = (int)(SAMPLE_RATE * dur);
     float dt = 1.0f / (float)SAMPLE_RATE;
+    int is_grains = !strcmp(effect, "grains");
     short *buf = malloc(sizeof(short) * n);
     double ph = 0.0, inc = (double)hz / (double)SAMPLE_RATE;
     for (int i = 0; i < n; i++) {
         float s = (float)sin(ph * 2.0 * M_PI) * 0.5f;   // 0.5-amplitude sine
         ph += inc; if (ph >= 1.0) ph -= 1.0;
-        float y = processBusEffects(s, 0, dt);          // navkit's genuine bus DSP
+        float y = is_grains ? processGranularDelay(s, dt)   // navkit's genuine granular DSP
+                            : processBusEffects(s, 0, dt);  // navkit's genuine bus DSP
         int v = (int)(y * 32767.0f);
         if (v > 32767) v = 32767; if (v < -32768) v = -32768;
         buf[i] = (short)v;

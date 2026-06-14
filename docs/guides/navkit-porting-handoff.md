@@ -138,6 +138,15 @@ links navkit's *genuine* functions; that's the only real reference.
 
 ## The queue — what's left worth porting
 
+**Shipped since this handoff:**
+- **Granular delay** (`granular_delay.h` → `grains()`/`instrument_grains()`/`grains_freeze()`, `FX_GRAINS`).
+  Ported 2026-06-14 — it was an unlisted gap (not in the queue below). Verbatim `processGranularDelay`;
+  reuses the in-tree `moddel_hermite` (= navkit `hermiteInterpolate`); a 2-tank pool, 3 s buffers. The
+  capture-and-scatter texture/freeze cloud the pedalboard wanted. Full ledger: `audio-notes §17` #19.
+  (Still untouched in navkit's `granular_delay.h` neighbourhood: the granular *synth* `playGranular` — a
+  wavetable VOICE, not an effect — and the DJ-FX family `beat_repeat`/`djfx_loop`/`half_speed`/`rewind`/
+  `tape_stop`/`vinyl_sim`/`sample_chop`, which are transport/turntable tricks, not bus effects.)
+
 **From navkit (it has a real implementation to copy):**
 - **Compressor** (`processMasterCompressor`) — the genuine dynamics gap (we have only a soft-clip
   limiter). The **sidechain pump** would transform the dance stations (house/italo). Clears the gate

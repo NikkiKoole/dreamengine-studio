@@ -163,6 +163,7 @@ void pset_rgb(int x, int y, int hex);                   // set a single pixel to
 void rect(int x, int y, int w, int h, int color);       // rectangle border
 void rectfill(int x, int y, int w, int h, int color);   // filled rectangle
 void rectfill_rgb(int x, int y, int w, int h, int hex);  // filled rectangle in a raw 0xRRGGBB colour, bypassing the palette — true-colour blocks (CPU shaders, gradients)
+void rectfill_rot(int cx, int cy, int w, int h, float deg, int color);  // filled rect CENTRED at (cx,cy), rotated `deg`° — GPU geometry, so it stays HOLE-FREE under a rotated camera_ex() (unlike trifill/polyfill, which fill in software and gap when the view spins). oriented sprites-of-one-colour: cars, debris, blades
 void bar(int x, int y, int w, int h, float pct, int fill, int bg); // progress/health bar: bg box + left-to-right fill, pct 0..1 (clamped)
 // fill patterns — 16-bit 4×4 bitmasks for fillp(). bits read top-left→bottom-right (bit 15 = top-left).
 // 0-bits take the draw color, 1-bits take fillp's hole_color. compatible with PICO-8 fillp hex values.
@@ -390,6 +391,15 @@ void instrument_echo(int slot, float send);    // how much this slot feeds the b
 void note_echo(int handle, float x);           // sweep a held note's echo send live, slewed — throw a single phrase into the tail
 void echo_insert(int time_ms, float feedback, float tone, float mix);  // echo as a dry/wet INSERT on the master bus — a REAL reorderable DELAY pedal (put FX_ECHO in fx_order(0,…) to place it). Unlike echo() (a send), its chain position is audible (delay→drive vs drive→delay). time 1..2000ms, feedback 0..1.1, tone 0..1, mix 0..1 (0 = bypass)
 
+// grains — granular delay: captures the live signal then replays scattered overlapping windowed
+// grains of the recent past into an evolving cloud. FREEZE loops what's captured forever (hold a
+// chord → infinite shimmer). The texture pedal — feed it a rich source (pads/chords) to shine.
+// Reorderable insert (FX_GRAINS); a small pool means master + one instrument bus can run it at once.
+void grains(float grain_ms, float density, float position, float scatter, float feedback, float mix);  // master granular cloud. grain_ms 5..1000 (size), density 1..100 grains/sec, position 0..1 (0=deep past, 1=live edge), scatter 0..1 (random spread), feedback 0..0.95 (self-feeding cloud), mix 0..1 (0=off). defaults try 120/12/0.8/0.3/0.2/0.5
+void instrument_grains(int slot, float grain_ms, float density, float position, float scatter, float feedback, float mix);  // granular cloud on just one instrument (its own bus) — grain the pads while the drums stay dry. Same args + a slot
+void grains_freeze(int on);             // freeze the master granular buffer: stop capturing, loop what's there (1 = frozen, 0 = live). The performance toggle — hold a chord, freeze, play over the cloud
+void instrument_grains_freeze(int slot, int on);  // freeze one instrument's granular buffer (1/0)
+
 // reverb — THE master reverb send: each slot chooses how much to send into it. A real room/hall
 // (a chord blooms into space), not repeating taps like echo. instrument_reverb() alone already
 // sounds right (defaults size 0.5). reverb()/instrument_reverb() use TANK 0 (the master send).
@@ -514,7 +524,8 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_PAN      11  // auto-pan — antiphase tremolo (a reorderable pedal, in every bus's default chain)
 #define FX_RINGMOD  12  // ring modulator — signal × sine carrier (a reorderable pedal, in every bus's default chain)
 #define FX_ECHO     13  // delay/echo INSERT — in-line dry/wet delay (master only, via echo_insert(); place in fx_order(0,…))
-void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 14
+#define FX_GRAINS   14  // granular delay INSERT — capture-and-scatter texture/freeze cloud (via grains()/instrument_grains(); auto-placed, reorderable via fx_order)
+void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 15
 
 // leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
 // horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds

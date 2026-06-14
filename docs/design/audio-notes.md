@@ -1451,6 +1451,23 @@ v1, document it on the panel.
     blip leaves a decaying echo train (RMS 0.007 in the 1 s window after the note) where dry is 0.000.
     **Showcase: `pedalboard`** (the DELAY pedal — TIM 20..1500 ms / FB / TON / MIX). With it the board now
     carries every rostered `FX_*` insert.
+19. **Granular delay (`grains`)** — navkit's `processGranularDelay` (`engines/granular_delay.h`) ported
+    VERBATIM. **✓ SHIPPED 2026-06-14.** `grains(grain_ms, density, position, scatter, feedback, mix)` +
+    `instrument_grains(slot,…)` + `grains_freeze(on)`/`instrument_grains_freeze`. Captures the live signal
+    into a ring buffer; on a `density` schedule spawns Hanning-windowed grains reading scattered slices of
+    the recent past (seeded-LCG scatter), summed + overlap-normalized; FREEZE stops the write so the buffer
+    loops forever. Reads through the existing `moddel_hermite` — which already IS navkit's `hermiteInterpolate`
+    (ported for chorus/flanger/tape), so no second copy. `FX_GRAINS`=14, auto-placed in the bus chain on
+    first call (like FX_ECHO but auto-added). `SR_GRAINS`=81/`SR_INSTR_GRAINS`=82/`SR_GRAINS_FREEZE`=83/
+    `SR_INSTR_GRAINS_FREEZE`=84; the instrument variant PACKs feedback+mix into one int (`e2 = fb*100·*1001 +
+    mix*1000`) to fit the 6-int request budget. Big buffer (3 s, NOT navkit's 5 s — half the RAM, plenty of
+    lookback) → a 2-tank POOL mapped per-bus on demand (mirrors the reverb tanks), NOT one buffer per bus:
+    cost ≈ 2 × 3 s = ~1 MB static `.bss` (master + one instrument bus at once; pool-exhaust logs to
+    `grain_overflow`). `mix 0` → dormant/byte-identical. Full 4-place wiring + tcc. Verified: soundcheck
+    compile-gate `ok` + 900-frame tripwire silent; A/B vs navkit's genuine `processGranularDelay`
+    (`tools/navkit-fx-render.c grains` + `grainstest.c`) — crest 7.29 (navkit) / 7.59 (ours) dB, the
+    level-independent texture fingerprint matching despite the intentional buffer-size divergence (stochastic
+    effect → character match, not sample-identity). **Showcase: `grains`** (the freeze/cloud toy).
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

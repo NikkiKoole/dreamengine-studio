@@ -2497,6 +2497,15 @@
     ]
   },
   {
+    "title": "combo",
+    "description": "A vintage combo amp you plug a guitar straight into - the 'cab story' made playable. An amp/cab isn't new DSP: each VOICING is a preset BUNDLE of effects we already ship - instrument_drive() + a DRIVE_* waveshaper, instrument_eq(), and glue() (power-amp sag) - pinned as the output stage that colours whatever the strings play. Five voicings sweep the canon: CLEAN (black-panel sparkle, soft clip), CHIME (British asym warmth + airy top), CRUNCH (the Plexi-style rock tone = the effects-recipes 'guitar-amp' anchor: ASYM 0.55 + mid-forward EQ), HI-GAIN (hot-rodded, scooped mids, hard clip + heavy sag), LO-FI (broken/boxy wavefolder honk). GAIN scales the voicing's drive, BASS/MID/TREBLE bend its EQ curve (+/-12dB), MASTER = how hard you pick in (keybed velocity), SAG = the glue compressor. The tube glow brightens and reddens with gain, the VU needle tracks, the grille shudders on loud chords - all from a cart-side level proxy (the engine exposes no output meter). Plays INSTR_GUITAR through the shared keybed: white A S D F G H J K L, black W E T Y U O P, Z/X octave, 1-5 pick the voicing (or drag the VOICING knob), drag the tone knobs, M demo on/off. Multitouch + USB MIDI.",
+    "file": "combo.cart.png",
+    "kind": [
+      "instrument",
+      "tech-demo"
+    ]
+  },
+  {
     "title": "handpan",
     "description": "A steel hang drum: one ding, eight tone fields, every strike a gesture. The mallet cart is INSTR_MALLET's tuning rig - this is the same engine as an INSTRUMENT, no knobs at all. Real handpans zigzag the scale across the circle (ascending notes alternate right/left climbing to 12 o'clock) so physical neighbors are consonant: two-handed noodling always sounds composed. WHERE you hit matters - the strike's offset from a field's center drives the timbre macro per hit (center = soft palm thump, edge = bright ping), and taps on the bare steel between fields are the shoulder tok. Four tunings to pick from the rack: kurd, celtic, hijaz, pygmy. Multitouch: every finger is its own pointer - both hands play, like the real thing. Tap/click fields (offset = tone), drag = roll, SPACE ding, A S D F G H J K ring notes ascending, 1..4 pick a pan, M autoplay.",
     "file": "handpan.cart.png",

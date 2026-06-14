@@ -498,9 +498,14 @@ gets simpler *and* more correct.** Showcase + acceptance test ready on day one.
 
 ## Increment E — the output stage (4th zone): cabinets — amp/cab · Leslie
 
-**Status: design only (2026-06-12). Not built. Leslie is the one tenant that exists; this section
-generalizes it.** This is a *routing-shape* increment like A/C — it adds a fourth bus zone, not a new
-effect primitive (amps are recipes; see below). Prompted by the pedalboard growing into a real signal
+**Status: the amp/cab recipe SHIPPED as a playable cart (2026-06-14, `combo`); the pinned
+pedalboard SLOT + COMP unification remain follow-ups. Leslie is the other tenant.** The recipe
+half (E.3 — drive + EQ-cab + glue, bundled into VOICINGs and pinned like leslie) is proven by
+`tools/carts/combo.c`: a standalone combo amp you play `INSTR_GUITAR` through, five voicings
+(clean→chime→crunch→hi-gain→lo-fi). What's still design-only is the *routing-shape* part below —
+folding amp/cab + Leslie + glue into ONE pinned output-cabinet slot inside `pedalboard.c` (E.2),
+plus a RIG-recall layer. This is a *routing-shape* increment like A/C — it adds a fourth bus zone,
+not a new effect primitive (amps are recipes; see below). Prompted by the pedalboard growing into a real signal
 chain: once a chain gets long, players hit **gain-staging / clipping** ("reverb→bitcrush→vowel clips a
 little"), and a real rig solves that with the thing this zone models — the amp/cab.
 
@@ -577,6 +582,46 @@ Mostly a **cart-side preset table** (drive+eq+glue per voicing) + a pinned slot 
 can't break bit-repro. The one dependency is `glue` (Increment D, `sound.h`) for the power-sag feel —
 so build it *after* D lands and the tree is quiet. A contained afternoon. When it ships, add the amp
 voicings to [`effects-recipes.md`](../guides/effects-recipes.md) (they're recipes) and a STATUS note.
+
+### E.7 Phase 2 build plan — the unified CABINET slot in `pedalboard.c`
+
+**Phase 1 (shipped 2026-06-14):** the recipe half is proven and playable as the standalone `combo`
+cart (`tools/carts/combo.c`) — `INSTR_GUITAR` + keybed, the five E.4 voicings as `(drive mode, drive
+amount, EQ curve, glue amount)` bundles, pinned like leslie. The voicing table + `apply_amp()`
+set-and-hold there is the reference to lift from.
+
+**Phase 2** folds amp/cab **and** Leslie into ONE pinned output-cabinet slot inside `pedalboard.c`,
+making concrete the "pick your cabinet" idea from E.2:
+
+```
+[ pedal chain (reorderable inserts) ] → CABINET → master soft-clip
+                                          └ selector: none · guitar amp · Leslie
+```
+
+1. **Share the voicing bundle, don't fork it.** Factor `combo`'s voicing table (the 5 bundles +
+   the GAIN→drive / tone→EQ / SAG→glue mapping) into a small shared header (e.g. `runtime/ampcab.h`,
+   cart-land like `fxicons.h`) so `combo` and `pedalboard` apply the *same* recipe — one source of
+   truth, no drift. (If a header feels heavy for ~30 lines, copy the table with a pointer comment back
+   to combo; but the header is the clean move since two carts now use it.)
+2. **The CABINET selector** is the pinned far-right slot (not a draggable `FX_*` pedal). Three tenants:
+   - **none** — dry out (current behaviour).
+   - **guitar amp** — the 5 voicings + GAIN + LEVEL knobs (E.5).
+   - **Leslie** — the existing `leslie()` call (STOP/SLOW/FAST + its spin-up inertia), the same
+     pinned stage it already uses for the organ.
+   The selector cycles the tenant; only the active tenant's knobs show.
+3. **Placement is already correct** — both run per-bus *after* the `insert_order` loop, *before* the
+   master soft-clip (the slot Leslie occupies today). No routing change; the slot just gains a model
+   selector.
+4. **Pick-one, by default.** It's one physical speaker, so the tenants are alternates, not a stack.
+   *Optional deliberate move:* an "amp → Leslie" toggle (run the amp bundle, then `leslie()` after it)
+   for the cranked-organ-cabinet-on-a-guitar sound — a small extra flag, not the default.
+5. **RIG recall = the "legendary setups" layer** (the other deferred Phase-2 piece): a named-chain
+   knob that dials pedals + cabinet + EQ to a signature character (clean twang / Vox chime / Plexi /
+   hi-gain / lo-fi). Build it *on top of* the cabinet slot — the slot is the centerpiece a rig recalls.
+
+Still **no engine change** — Leslie and the amp bundle are both already-rostered primitives; this is
+pure pedalboard cart work. Update [`effects-recipes.md`](../guides/effects-recipes.md) "amp / cab"
+**used by** + this status note when it ships.
 
 ---
 

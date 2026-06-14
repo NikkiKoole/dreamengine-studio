@@ -65,6 +65,7 @@ macros. Gate is dynamic: `600ms + (1−morph)² · 14000ms`.
 | guitar/pizz | guitar.c | h0.20 t0.60 m0.85 · gate~0.97s | Tight muted pizzicato, minimal body, heavy mute, quick stop. |
 | guitar/oud | guitar.c | h0.50 t0.20 m0.55 · gate~4.4s | Dark resonant Middle-Eastern oud, warm timbre, short decay. |
 | guitar/mistress | mistress.c | h0.55 t0.70 · A2 R600 · **through `flanger()`** | Bright steel-string strummed into the master flanger — the source isn't the point, the swept comb is. mistress.c exists to show `flanger()`; the guitar is a clean broadband source for it. |
+| guitar/combo | combo.c | h0.55 t0.30–0.75 m0.20 · A1 R1200 · **into the amp bundle** | A steel-ish string feeding the combo amp's pinned output stage; `timbre` shifts per voicing (steel 0.75 → nylon 0.30). The character lives in the amp recipe (`drive`+`DRIVE_*`+`eq`+`glue`), not the string — see [`effects-recipes.md` → "amp / cab"](effects-recipes.md). |
 
 > The body-resonance macro (`harmonics`: open/harp→banjo) is what `INSTR_GUITAR` adds over
 > `INSTR_PLUCK`. No longer an untapped shelf: `afrobeat` (interlocking rhythm guitars), `air`

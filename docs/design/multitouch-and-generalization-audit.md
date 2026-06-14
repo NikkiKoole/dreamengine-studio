@@ -192,10 +192,10 @@ The multitouch-strings thread (ranks 1/8, upright/pdbass) opened a broader idea:
 string *for real* instead of abstracting chords behind buttons (the way `pedalboard` does). The
 atomic test shipped as **`monochord`** (2026-06-14, a `pointer.h` probe): one string, fingers
 are movable bridges, segment length = pitch — the đàn bầu / diddley bow / monochord gesture, on a
-PD oscillator so a held note glides as a bridge slides. **If the gesture proves fun** (the open
-by-ear question — see [`probe-carts.md`](probe-carts.md)), the payoff is a **string fretboard**:
-N strings of it side by side + a strum rake, where a chord is *emergent finger geometry*, not a
-lookup. Touch-ceiling caveat: a full 6-finger chord + strum exceeds the iPhone 5-touch cap, so
+PD oscillator so a held note glides as a bridge slides. The gesture proved fun (early
+desktop verdict — see [`probe-carts.md`](probe-carts.md)), so the payoff shipped as **`fretboard`**
+(2026-06-14): six fretless strings of the monochord side by side, finger position = pitch, a chord
+is *emergent finger geometry* (not a lookup), a drag is a strum. Touch-ceiling caveat: a full 6-finger chord + strum exceeds the iPhone 5-touch cap, so
 the fretboard leans desktop/iPad; the probe itself stays ≤3 fingers (testable everywhere).
 
 ---

@@ -82,7 +82,7 @@ docs/
 │   ├── porting-from-navkit.md    how to faithfully port an instrument/effect from the navkit sibling synth: port the oscillator VERBATIM (oscillator-first, not piecemeal), the gotchas (velocity×2, the ratio blend, amp normalize, always-on filter, drive-scale mismatch), macro mapping, the clav worked example + a checklist
 │   ├── radio-voices.md           per-station voice charts (slot → role → preset name) + the findings summary (reuse clusters by idiom, the synth-kit/bass extract candidates, the 5 showcase-cart preset lineages, upgrade candidates); the reading view over instrument-presets.md
 │   ├── sharing.md                ways to publish finished carts
-│   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect + WAV capture/analysis (tools/play.js, tools/wav-analyze.js)
+│   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect + WAV capture/analysis + UI audit, off-screen text/overlap/hidden-panel finder (tools/play.js, tools/wav-analyze.js, tools/ui-audit.js)
 │   ├── profiler.md               one-click CPU profiler (⏱ profile button): hot functions + call paths, frame budget, draw-call counts
 │   ├── live-coding.md            how-to for the live (libtcc) run mode: edit-while-running, hot reload, STATE/S state that survives reloads
 │   └── game-music.md             generative soundtrack recipes: step clock, chord brain, voice leading, time feel, seeds, brain catalog, radio.h; worked example = bossa.c (station candidates live in design/future-stations.md)

@@ -416,6 +416,10 @@ static void ui_begin(void) {
     }
 }
 
+#ifdef DE_TRACE
+extern void de_ui_audit(int x, int y, int w, int h, int focusable);  // harness sink (studio.c)
+#endif
+
 // call LAST in draw(): routes this frame's presses to widgets, prunes captures
 static void ui_end(void) {
     ui_grab_n = 0; ui_rel_n = 0;   // cart has read this frame's events by now
@@ -460,9 +464,20 @@ static void ui_end(void) {
 
     ui_foc_count = ui_foc_n;     // next frame's traversal range
     ui_loupe_render();           // lens + handle overlay, on top of the cart
+
+#ifdef DE_TRACE
+    for (int w = 0; w < ui_wid_n; w++)   // hand this frame's widget rects to the auditor
+        de_ui_audit(ui_wids[w].x, ui_wids[w].y, ui_wids[w].w, ui_wids[w].h, ui_wids[w].focusable);
+#endif
 }
 
 // ── cart-facing state queries ────────────────────────────────────────────
+
+// the widgets registered SO FAR this frame: their visual rects + focusable flag,
+// valid between ui_begin() and ui_end() (read it right before ui_end). Lets debug
+// tooling, layout checks, or a cart's own overlay see the live UI geometry.
+// Returns the count; *out points at the internal array (do not free / keep).
+static int ui_get_widgets(const UiWid **out) { if (out) *out = ui_wids; return ui_wid_n; }
 
 // opt-in keyboard/gamepad focus (sticky; call once or toggle live)
 static void ui_focus(int on) { ui_focus_on = on; if (!on) ui_focus_i = 0; }

@@ -33,6 +33,7 @@ The compiled cart binary accepts:
 | `--replay FILE` | drive input from a recording, deterministically (implies `--det`) |
 | `--script FILE` | drive input from a hand-authored frame script (implies `--det`) |
 | `--trace FILE` | one JSONL line of state per frame (see "Telemetry" below) |
+| `--uiaudit FILE` | one JSONL line of every draw call's bounding box per frame (+ each `ui.h` widget rect). Powers `tools/ui-audit.js` — see "UI audit" below |
 | `--frames N` | stop after N frames (use for batch/headless runs) |
 | `--dump DIR` | export a screenshot filmstrip |
 | `--dump-every N` | … every Nth frame (default 1 with `--dump`) |
@@ -528,3 +529,49 @@ node tools/play.js soundcheck script /dev/null --headless --frames 900 2>&1 | gr
 Run it after touching `runtime/sound.h` (queue sizes, request kinds, new `instrument_*`/
 `wave_set`-style bulk APIs). Ears version: run the cart normally — the 10 waves it plays in
 sequence (the last is the KS pluck engine) must all sound *different*.
+
+## UI audit — off-screen text, overlaps & hidden panels (`tools/ui-audit.js`)
+
+The bugs a screenshot won't tell you about: a label that runs off the screen edge (silently
+clipped to nothing), two labels drawn on the same spot, or a panel that only opens on an
+input you didn't try. `ui-audit.js` finds them by running the cart headless under
+`--uiaudit` — which logs **every primitive's bounding box per frame** (plus each `ui.h`
+widget rect via the `de_ui_audit` hook in `ui_end()`) — and reasoning over the geometry. No
+cart instrumentation needed; the capture lives in the shared draw path in `studio.c`.
+
+```bash
+node tools/ui-audit.js <name>                 # text off-screen + overlapping text, default play
+node tools/ui-audit.js <name> --explore       # ALSO press each key the cart reads + tap each ui.h widget
+node tools/ui-audit.js <name> --overlay [f.svg] [--frame N]   # SVG: screenshot + every box, colour-coded
+node tools/ui-audit.js <name> --json           # machine output; exit 1 if any live finding
+```
+
+- **`--explore`** is how you reach interaction-only UI. It scans the cart `.c` for the keys
+  it reads (`key('x')`, `keyp(KEY_TAB)`, …), scripts a press of each, and harvests `ui.h`
+  widget centres from a baseline pass to tap them — then reports which input made new UI
+  appear (e.g. *`L` → +3 labels "0%" "C" "LOADED"*). The normal audit runs over every
+  revealed state too. Limits: top-level widgets only, one press per key, state can carry
+  between taps — so it complements, not replaces, a hand-authored `--beats` for deep menus.
+- **`--overlay`** writes a self-contained SVG (open in a browser): the cart screenshot with
+  every box on top — widgets yellow, panels blue, sprites grey, text green, **off-screen red,
+  overlap orange**. This is how you *see* the panel/button layout the auditor reasons over.
+- **`ui_get_widgets(const UiWid **out)`** (in `runtime/ui.h`) is the public accessor that
+  exposes the live widget rects; a cart or debug code can read it between `ui_begin()`/`ui_end()`.
+
+### Suppressing a false positive (linter-style, in the cart source)
+
+Intentional bleed or a deliberately stacked label is waived with a comment in the cart `.c`:
+
+```c
+// ui-audit-ignore off "SCOPE" bottom    — scope label deliberately bleeds off the bottom
+// ui-audit-ignore overlap "env" "vb"    — stacked readouts, intentional
+```
+
+Waivers match by **finding identity** (kind + text + side), never pixel position — so they
+survive layout jitter, but a genuinely *new* off-screen string still trips. `off "X"` with no
+side waives any edge. Waived findings drop out of the `✘`/`⚠` lists and the exit code (shown
+as `· N waived`). A waiver that matches nothing is reported as a **stale waiver** (`⚑`) so it
+gets deleted rather than rotting into a hidden regression; malformed directives are flagged too.
+
+> Coverage is only as good as the frames seen — "0 findings" always prints the frame count.
+> The whole `--uiaudit` path is `-DDE_TRACE`-gated, so it adds nothing to editor/web/libtcc builds.

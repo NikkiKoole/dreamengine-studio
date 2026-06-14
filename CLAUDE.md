@@ -83,7 +83,9 @@ eventually2/
 │       │               #   sliders/buttons include this, never hand-roll the
 │       │               #   drag machine (uikit + sfxgen are the references).
 │       │               #   ui_loupe(1) = one-line MAGNIFIER for tiny knobs/
-│       │               #   sliders on a phone (uiloupe; design/loupe-notes.md)
+│       │               #   sliders on a phone (uiloupe; design/loupe-notes.md).
+│       │               #   ui_get_widgets() exposes this frame's live widget rects
+│       │               #   (used by tools/ui-audit.js to find overlapping/hidden UI)
 │       ├── gestures.h  #   per-finger swipes judged at lift + pinch_scale
 │       │               #   (the mobile whole-view ZOOM for swept grids/keybeds:
 │       │               #   pinch_scale × camera_ex — modrack is the example)
@@ -146,6 +148,13 @@ eventually2/
 │   ├── make-cart.js    #   build/bake .cart.png from tools/carts/<name>.c
 │   │                   #   also a library module: play.js requires it for buildSpriteSheet/buildMap/etc.
 │   ├── play.js         #   debug harness driver (record/replay/script + trace + --wav audio render)
+│   ├── ui-audit.js     #   UI bug finder: text that runs off the screen edge, overlapping
+│   │                   #   labels, and panels that only open on input. Runs the cart headless
+│   │                   #   under studio.c's --uiaudit draw-box log; --explore presses each key
+│   │                   #   the cart reads + taps each ui.h widget to reveal hidden panels;
+│   │                   #   --overlay writes an SVG of the boxes on the screenshot. False
+│   │                   #   positives are waived in the cart .c, linter-style:
+│   │                   #   `// ui-audit-ignore off "TEXT" bottom` (see guides/debug-harness.md)
 │   ├── build-site.js   #   build playable wasm carts + gallery into site/ for GitHub Pages
 │   │                   #   (https://nikkikoole.github.io/dreamengine/); per-cart workdirs in
 │   │                   #   build/.site/; gallery lists every cart with a built site/<name>/

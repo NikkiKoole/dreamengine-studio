@@ -27,7 +27,7 @@
 #define NSTR  8
 
 static const char STRKEY[NSTR] = { 'A','S','D','F','G','H','J','K' };
-// row 1 = the 3 engine macros; row 2 = TUNING controls (weight/attack via eng_tune(), width via
+// row 1 = the 3 engine macros; row 2 = TUNING controls (weight/attack via instrument_mode(), width via
 // per-note instrument_pan()) — scaffolding to dial the sound in by ear, baked to constants after.
 static const char *KNOB_NAME[6] = { "body", "string", "mute", "weight", "attack", "width" };
 
@@ -75,8 +75,8 @@ static void apply_knobs(void) {
     instrument_harmonics(I_STR, knob[0]);
     instrument_timbre(I_STR, knob[1]);
     instrument_morph(I_STR, knob[2]);
-    eng_tune(I_STR, 0, knob[3]);   // TUNING: fundamental weight
-    eng_tune(I_STR, 1, knob[4]);   // TUNING: attack click
+    instrument_mode(I_STR, MODE_STRING_WEIGHT, knob[3]);   // TUNING: fundamental weight
+    instrument_mode(I_STR, MODE_STRING_CLICK, knob[4]);   // TUNING: attack click
 }
 
 // gate scales with mute (morph): a tight pizz lets go fast, an open ring holds the voice long

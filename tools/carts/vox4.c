@@ -2,7 +2,7 @@
 #include "ui.h"
 #include <math.h>
 
-// VOX4 — the voice on its LOCKED public API (no experimental voice_param here). The 3 standard
+// VOX4 — the voice on its LOCKED public API (no experimental note_aux here). The 3 standard
 // engine macros ARE the voice, plus the one earned 4th knob:
 //
 //   harmonics = VOWEL  — what's said (U → O → A → E → I)

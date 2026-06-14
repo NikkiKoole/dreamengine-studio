@@ -31,7 +31,7 @@
 static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // white-key QWERTY labels
 static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
-// row 1 = the 3 engine macros; row 2 = TUNING controls (weight/attack via eng_tune(), width via
+// row 1 = the 3 engine macros; row 2 = TUNING controls (weight/attack via instrument_mode(), width via
 // per-note instrument_pan()) — scaffolding to dial the sound in by ear, baked to constants after.
 static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "weight", "attack", "width" };
 
@@ -77,8 +77,8 @@ static void push_knobs(void) {
     instrument_harmonics(I_PNO, knob[0]);
     instrument_timbre(I_PNO, knob[1]);
     instrument_morph(I_PNO, knob[2]);
-    eng_tune(I_PNO, 0, knob[3]);   // TUNING: fundamental weight
-    eng_tune(I_PNO, 1, knob[4]);   // TUNING: attack click
+    instrument_mode(I_PNO, MODE_STRING_WEIGHT, knob[3]);   // TUNING: fundamental weight
+    instrument_mode(I_PNO, MODE_STRING_CLICK, knob[4]);   // TUNING: attack click
 }
 
 // gate scales with pedal (morph): dry staccato lets go fast, a held pedal rings long

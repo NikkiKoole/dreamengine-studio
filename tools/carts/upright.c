@@ -14,7 +14,7 @@
 // on a string = grab/fret; press in open space = pick). Mono, last-note-wins.
 //
 // The right hand is an ARTICULATION switch, and pizz + arco are the SAME string
-// model (INSTR_BOWED) — eng_tune(slot,0,1) plucks it, =0 bows it, just like the
+// model (INSTR_BOWED) — instrument_mode(slot,0,1) plucks it, =0 bows it, just like the
 // real instrument where the only difference is fingers vs a bow:
 //   PIZZ  the jazz sound — a woody finger pluck that rings and thumps (default)
 //   ARCO  drawn with the bow — slow attack, sings while held, left-hand vibrato
@@ -25,7 +25,7 @@
 // keyboard (GarageBand map, A = E1; Z / X shift the octave). TONE = mic darkness,
 // RING = how long a pizz note rings after you lift.
 
-#define BASS  5                            // INSTR_BOWED, pizzicato (eng_tune pluck)
+#define BASS  5                            // INSTR_BOWED, pizzicato (instrument_mode pluck)
 #define ARCOS 6                            // INSTR_BOWED, bowed
 #define CLICK 7                            // INSTR_NOISE — the slap / knuckle transient
 #define BODY  8                            // INSTR_MEMBRANE — slapping the bass body
@@ -88,7 +88,7 @@ static const char *NOTES[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#
 
 static void setup_pizz(void) {             // RING knob re-tunes the pizz release live
     instrument(BASS, INSTR_BOWED, 4, 0, 7, ring_ms());
-    eng_tune(BASS, 0, 1.0f);               // PIZZICATO: pluck the string instead of bowing
+    instrument_mode(BASS, MODE_BOW_PIZZ, 1.0f);               // PIZZICATO: pluck the string instead of bowing
     instrument_filter(BASS, FILTER_LOW, tone_hz(), 3);
     instrument_harmonics(BASS, 0.30f);     // dark bow position (round, woody)
     instrument_timbre(BASS, 0.30f);        // warm string
@@ -104,7 +104,7 @@ void init(void) {
 
     // ARCO — the bow: slow speak, sustains while held, gentle left-hand vibrato
     instrument(ARCOS, INSTR_BOWED, 110, 0, 7, 260);
-    eng_tune(ARCOS, 0, 0.0f);              // bowed (self-oscillating, holds)
+    instrument_mode(ARCOS, MODE_BOW_PIZZ, 0.0f);              // bowed (self-oscillating, holds)
     instrument_filter(ARCOS, FILTER_LOW, tone_hz() + 400, 4);
     instrument_harmonics(ARCOS, 0.40f);
     instrument_timbre(ARCOS, 0.45f);       // a little bow grain

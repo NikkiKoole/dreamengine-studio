@@ -18,7 +18,7 @@
 //   • LOOP (L) — auto-repeats the current syllable: say it, pause, re-say it, over and over (it
 //     'sings' the phoneme). Change the vowel/consonant while it loops and the next pass picks it up.
 //
-// All still via the experimental voice_param()/voice_consonant()/voice_coda() path.
+// All still via the experimental note_aux()/voice_consonant()/voice_coda() path.
 //
 // CONTROLS: click a VOWEL · click a CONSONANT to say it · SPACE hold/release a drone · L loop
 // (auto re-say) · V coda-mode (consonant closes the note instead of opening it) · Z/X pitch · drag SIZE/EFFORT.
@@ -50,16 +50,16 @@ static int   loop_gap = 0;      // frames of silence between loop repeats
 #define LOOP_GAP 22
 
 static void push_effort(int v) {
-    voice_param(v, VP_BREATH, lerp(0.55f, 0.00f, effort));
-    voice_param(v, VP_OPENQ,  lerp(0.95f, 0.05f, effort));
-    voice_param(v, VP_TILT,   lerp(0.80f, 0.00f, effort));
+    note_aux(v, VP_BREATH, lerp(0.55f, 0.00f, effort));
+    note_aux(v, VP_OPENQ,  lerp(0.95f, 0.05f, effort));
+    note_aux(v, VP_TILT,   lerp(0.80f, 0.00f, effort));
 }
 
 // apply the held vowel + character to a voice (vowel via the diphthong path so all 10 reach)
 static void apply_voice(int v) {
-    voice_param(v, VP_VOW2, cur_vowel / 9.0f);
-    voice_param(v, VP_GLIDE, 1.0f);
-    voice_param(v, VP_SIZE, size_v);
+    note_aux(v, VP_VOW2, cur_vowel / 9.0f);
+    note_aux(v, VP_GLIDE, 1.0f);
+    note_aux(v, VP_SIZE, size_v);
     push_effort(v);
 }
 

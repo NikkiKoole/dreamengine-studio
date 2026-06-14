@@ -9,7 +9,7 @@
 // committing the API. The preset buttons (gen / mouth / creat / sing) are candidate
 // 3-axis LAYOUTS — press one, sweep what it leans on, judge if it's expressive.
 //
-// Throwaway scaffolding: voice_param(handle, idx, value) is EXPERIMENTAL, not the
+// Throwaway scaffolding: note_aux(handle, idx, value) is EXPERIMENTAL, not the
 // final API. Once we pick the axes they get a clean mapping and this cart retires.
 //
 // CONTROLS: SPACE / PLAY toggles a note · Z / X pitch · drag the sliders · drag the
@@ -86,7 +86,7 @@ void update(void) {
 
     if (voice >= 0) {
         note_pitch(voice, vpitch);
-        for (int i = 0; i < P_N; i++) voice_param(voice, i, param[i]);
+        for (int i = 0; i < P_N; i++) note_aux(voice, i, param[i]);
     }
 }
 

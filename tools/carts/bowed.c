@@ -13,7 +13,7 @@
 // across a string and it speaks; the harder/faster you rub, the louder and fuller it sings.
 // Stop moving and the bow rests on the string (silent). It's friction, like rubbing a drumhead.
 // A quick TAP (no rub) instead PLUCKS the string — pizzicato. This is the SAME bowed string: a
-// second INSTR_BOWED slot flagged pizz (eng_tune(slot,0,1)), where the engine seeds the waveguide
+// second INSTR_BOWED slot flagged pizz (instrument_mode(slot,0,1)), where the engine seeds the waveguide
 // with a pluck and switches the bow friction off, so the very same string + body rings down. Arco
 // and pizz differ only in how energy enters — exactly as on a real violin.
 //
@@ -121,7 +121,7 @@ void init(void) {
     instrument(I_PIZ, INSTR_BOWED, 1, 0, 7, 300);
     instrument_harmonics(I_PIZ, 0.30f);               // pluck position (sets the pluck's spectrum)
     instrument_timbre(I_PIZ, 0.42f);                  // pluck brightness — warm finger, not a bright pick
-    eng_tune(I_PIZ, 0, 1.0f);                         // FLAG this slot pizzicato
+    instrument_mode(I_PIZ, MODE_BOW_PIZZ, 1.0f);                         // FLAG this slot pizzicato
     for (int s = 0; s < NSTR; s++) hnd[s] = -1;
     PTR_CLEAR(ptr);
     build_strings();

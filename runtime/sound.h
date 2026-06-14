@@ -4723,7 +4723,7 @@ void instrument_duty(int slot, float duty) {
     sound_push_ctrl(SR_INSTR_DUTY, slot, (int)(duty * 1000.0f), 0, 0, 0, 0);
 }
 
-void eng_tune(int slot, int idx, float value) {
+void instrument_mode(int slot, int idx, float value) {   // per-engine aux channel, note-on face (was eng_tune; decision 0017)
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 2) return;
     if (value < 0.0f) value = 0.0f; if (value > 1.0f) value = 1.0f;
     sound_push_ctrl(SR_ENG_TUNE, slot, idx, (int)(value * 1000.0f), 0, 0, 0);
@@ -4810,7 +4810,7 @@ void voice_nasal(int handle, float amount) {
 // LOW-LEVEL / EXPERIMENTAL — poke a raw INSTR_VOICE param by index on a held note. The public
 // surface is the 3 macros + voice_nasal(); this raw poke is the probe carts' fat control surface
 // (voxlab/voxab/voxpad/say). idx 0..18 (see VOX_NPARAM), value 0..1. Not advertised in the docs.
-void voice_param(int handle, int idx, float value) {
+void note_aux(int handle, int idx, float value) {   // per-engine aux channel, live face (was voice_param; decision 0017)
     if (handle <= 0 || idx < 0 || idx >= VOX_NPARAM) return;
     sound_push_ctrl(SR_VOICE_PARAM, idx, (int)(value * 1000.0f), 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }

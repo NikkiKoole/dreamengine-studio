@@ -140,11 +140,11 @@
     X(note_harmonics) \
     X(note_timbre) \
     X(note_morph) \
-    X(eng_tune) \
+    X(instrument_mode) \
     X(voice_nasal) \
     X(voice_consonant) \
     X(voice_coda) \
-    X(voice_param) \
+    X(note_aux) \
     X(instrument_tune) \
     X(instrument_drive) \
     X(instrument_drive_mode) \

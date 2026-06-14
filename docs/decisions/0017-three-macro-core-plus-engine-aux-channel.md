@@ -160,3 +160,34 @@ dead knob on the engines that don't want it); keeps the 3-macro core pristine; p
 mean the same index means different things on different slots (the "meaning shifts across the dial" sin
 the macro discipline forbids — accepted **only** because it's quarantined to this lane). Shape A adds
 the silent wrong-face no-op above; Shape B is the mitigation.
+
+### Implementation checklist (Shape B) — ✅ IMPLEMENTED 2026-06-14
+The full caller set is bounded and known, so a clean rename (no back-compat alias) was feasible —
+this is a self-contained corpus, no carts in the wild. All steps below are done.
+
+1. **Rename the two entry points** — `eng_tune` → `instrument_mode` (note-on), `voice_param` →
+   `note_aux` (live). Identical behavior; the existing two functions already split exactly along the
+   note-on/live line, so this is a pure rename, no logic moves. Touch the `studio.h` decls + the
+   `sound.h` defs (targeted `Edit`s — both are hot shared files).
+2. **Add named indices to `studio.h`** (the `MODE_*` enum for `instrument_mode`):
+   `MODE_STRING_WEIGHT 0` / `MODE_STRING_CLICK 1` (GUITAR/PIANO) · `MODE_BOW_PIZZ 0` (BOWED, ≥0.5 = pizz).
+   `note_aux` indices are **not** frozen into `studio.h` — the VOICE axis map is the voice workstream's
+   `vox_p` set (cart-side `VP_*`), still evolving; `note_aux`'s doc just says "idx per-engine; VOICE = the probe carts' `VP_*`".
+3. **Regenerate `studio_tcc_symbols.h`** (`node tools/gen-tcc-symbols.js`) so the libtcc live backend
+   resolves the renamed symbols; land it in the same commit.
+4. **Four-place wiring** — `studioDocs.js` + `shell.js` entries for `instrument_mode` / `note_aux` /
+   the `MODE_*` constants, in an advanced "engine aux" grouping (discoverable, not pushed on beginners).
+   Clears the standing `api-usage` "missing from studioDocs/shell" nag.
+5. **Migrate callers** (rename + use the `MODE_*` names): note-on → `instrument_mode`: `guitar`,
+   `piano`, `bowed`, `upright`, `polopan`; live → `note_aux`: `say`, `vox`, `voxab`, `voxpad`, `voxlab`.
+6. **Rebake all 10 thumbnails** — the editor compiles each cart's *embedded* source, so a stale
+   `de:source` calling the old name would fail to compile once it's gone. Mandatory, not optional.
+7. **Gate**: soundcheck compile-gate (`node tools/play.js soundcheck script /dev/null --headless
+   --frames 2`). Not a pitched change → no tune-check needed.
+
+This resolved the "final shape" open question in favor of **Shape B** — shipped as `instrument_mode`
+(note-on, `MODE_*`) + `note_aux` (live). The old `eng_tune`/`voice_param` names are gone (no alias);
+all 11 carts migrated and rebaked. The dual-face hinge stays the documented trigger to revisit
+(collapse to Shape A only if a real both-faces param ever appears). Remaining tidy-up (non-blocking):
+a handful of internal `sound.h` implementation comments still say `eng_tune`/`voice_param` by their
+old names, and the storage fields stay `eng_p[]`/`vox_p[]` — the sound workstream's call to rename.

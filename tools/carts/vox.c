@@ -17,7 +17,7 @@
 //
 // EFFORT is one macro (breath + open-q + tilt). Vibrato is the external pitch LFO (V), not an
 // axis. Consonants are timed onsets/codas, not an axis. All still via the experimental
-// voice_param()/voice_consonant()/voice_coda() path pending the final wiring.
+// note_aux()/voice_consonant()/voice_coda() path pending the final wiring.
 //
 // CONTROLS: drag the JAM PAD to sing · SPACE = drone · Z/X shift the scale root · V vibrato ·
 // S toggles syllable shape (CV/VC) · drag the three sliders for the base voice.
@@ -56,9 +56,9 @@ static const int CODA_CONS[] = { 3, 4, 5, 3, 4, 5, 0, 1, 2 };   // m n l (weight
 #define CODA_NCONS ((int)(sizeof(CODA_CONS) / sizeof(CODA_CONS[0])))
 
 static void push_effort(int v, float e) {   // the locked EFFORT curve (matches vox_apply_macros)
-    voice_param(v, VP_BREATH, lerp(0.22f, 0.00f, e));   // light breath — not the old whispery 0.55
-    voice_param(v, VP_OPENQ,  lerp(0.85f, 0.20f, e));
-    voice_param(v, VP_TILT,   lerp(0.70f, 0.05f, e));
+    note_aux(v, VP_BREATH, lerp(0.22f, 0.00f, e));   // light breath — not the old whispery 0.55
+    note_aux(v, VP_OPENQ,  lerp(0.85f, 0.20f, e));
+    note_aux(v, VP_TILT,   lerp(0.70f, 0.05f, e));
 }
 
 static void apply_vibrato(int v) {
@@ -70,7 +70,7 @@ static void start_note(int midi, int c) {
     if (voice >= 0) note_off(voice);
     voice = note_on(midi, SLOT, 6);
     note_glide(voice, 25);
-    voice_param(voice, VP_VIBD, 0.0f);   // engine vibrato off — the LFO owns it
+    note_aux(voice, VP_VIBD, 0.0f);   // engine vibrato off — the LFO owns it
     apply_vibrato(voice);
     voice_consonant(voice, c);
 }
@@ -103,8 +103,8 @@ void update(void) {
             start_note((int)(vpitch + 0.5f) + PENT[step], jcons);
         }
         if (voice >= 0) {
-            voice_param(voice, VP_VOWEL, jvowel);
-            voice_param(voice, VP_SIZE, size);
+            note_aux(voice, VP_VOWEL, jvowel);
+            note_aux(voice, VP_SIZE, size);
             push_effort(voice, jeff);
         }
     } else if (jam) {                                   // released the pad → close the note (coda in VC)
@@ -120,8 +120,8 @@ void update(void) {
         }
         if (voice >= 0) {
             note_pitch(voice, vpitch);
-            voice_param(voice, VP_VOWEL, vowel);
-            voice_param(voice, VP_SIZE, size);
+            note_aux(voice, VP_VOWEL, vowel);
+            note_aux(voice, VP_SIZE, size);
             push_effort(voice, effort);
         }
     }

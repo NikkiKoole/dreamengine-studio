@@ -493,7 +493,7 @@ static void setup_instruments(void) {
     instrument_filter(I_MAL, FILTER_LOW, 3000, 1);
 
     instrument(I_PIZZ, INSTR_BOWED, 1, 0, 7, 400);           // pizzicato strings
-    eng_tune(I_PIZZ, 0, 1.0f);                               // BOWED idx0>=0.5 = PIZZICATO mode
+    instrument_mode(I_PIZZ, MODE_BOW_PIZZ, 1.0f);                               // BOWED idx0>=0.5 = PIZZICATO mode
     instrument_harmonics(I_PIZZ, 0.30f);
     instrument_timbre(I_PIZZ, 0.42f);
     instrument_morph(I_PIZZ, 0.30f);

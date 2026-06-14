@@ -38,7 +38,7 @@
 
 #define SLOT 5
 
-// voice_param indices (mirror vox.c / sound.h param order)
+// note_aux indices (mirror vox.c / sound.h param order)
 enum { VP_VOWEL, VP_SIZE, VP_BREATH, VP_OPENQ, VP_TILT, VP_VIBD, VP_VIBR };
 
 // per-syllable pitch shapes
@@ -146,7 +146,7 @@ static void trigger_syllable(int i) {              // fire the i-th syllable on 
     plan(i, &ca, &cb, &cpk, &csh, &sdur);
     voice_coda(voice, -1);                         // clear the previous syllable's coda, if any
     voice_consonant(voice, phrase[i].cons);        // re-articulate mid-note (resets vox_cons_t)
-    voice_param(voice, VP_VOWEL, phrase[i].vowel * 0.25f);
+    note_aux(voice, VP_VOWEL, phrase[i].vowel * 0.25f);
     coda_fired = 0;
     coda_at = (int)(sdur * 0.62f);                 // close on the coda in the syllable's back third
     stimer = 0;
@@ -159,12 +159,12 @@ static void start_say(void) {
     if (voice >= 0) note_off(voice);
     voice = note_on((int)(p0 + 0.5f), SLOT, ch->vol);
     note_glide(voice, ch->glide);
-    voice_param(voice, VP_SIZE,   ch->size);
-    voice_param(voice, VP_BREATH, ch->breath);
-    voice_param(voice, VP_OPENQ,  ch->openq);
-    voice_param(voice, VP_TILT,   ch->tilt);
-    voice_param(voice, VP_VIBD,   0.0f);
-    voice_param(voice, VP_VOWEL,  phrase[0].vowel * 0.25f);
+    note_aux(voice, VP_SIZE,   ch->size);
+    note_aux(voice, VP_BREATH, ch->breath);
+    note_aux(voice, VP_OPENQ,  ch->openq);
+    note_aux(voice, VP_TILT,   ch->tilt);
+    note_aux(voice, VP_VIBD,   0.0f);
+    note_aux(voice, VP_VOWEL,  phrase[0].vowel * 0.25f);
     voice_coda(voice, -1);
     voice_consonant(voice, phrase[0].cons);
     note_pitch(voice, p0);
@@ -233,7 +233,7 @@ void update(void) {
         float vt = (phrase[si].vow2 >= 0)
                  ? lerp((float)phrase[si].vowel, (float)phrase[si].vow2, p)
                  : (float)phrase[si].vowel;
-        voice_param(voice, VP_VOWEL, vt * 0.25f);
+        note_aux(voice, VP_VOWEL, vt * 0.25f);
         // coda: close the syllable on a consonant in its back third
         if (phrase[si].coda >= 0 && !coda_fired && stimer >= coda_at) {
             voice_coda(voice, phrase[si].coda);

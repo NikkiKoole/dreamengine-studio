@@ -15,7 +15,7 @@
 //   • HANDS-FREE TONE — a sustained drone (optional auto-RETRIG so you also hear attacks),
 //     so you just sit and listen.
 //
-// All still via the experimental voice_param() path (indices 0..16, mirrors sound.h) — no
+// All still via the experimental note_aux() path (indices 0..16, mirrors sound.h) — no
 // API commitment. The new levers are the navkit completeness-audit finds
 // (docs/design/voice-engine.md): buzz / jitter / shimmer / creak / anti-formant nasality /
 // schwa-reduce / measured-bandwidth toggle.
@@ -96,7 +96,7 @@ static void apply_live(void) {
     note_pitch(voice, pitch);
     float *s = live();
     for (int i = 0; i < NP; i++)
-        voice_param(voice, i, (sweep && i == sel) ? sweepval : s[i]);
+        note_aux(voice, i, (sweep && i == sel) ? sweepval : s[i]);
 }
 
 void init(void) {

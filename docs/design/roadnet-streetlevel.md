@@ -167,10 +167,14 @@ as buildings-to-be) — the access streets + footprints are what we build into i
 4. **Graph tidy-ups**: ✅ degree-2 collapse (straight lanes = single edges). Remaining (when
    routing needs it): **stitch** the grid graph onto the arterial backbone at city entries, so a
    route can leave town. A post-pass over `gedge[]`/`gnode[]`; doesn't block driving.
-5. **Footprints** + `building_at()` (the collision seam) — *the next build move*. Lots are still
-   flat colour; turn each into a footprint rect (setback/yard + outline + driveway toward its
-   fronting access lane), exposed as `building_at(wx,wy) → {solid, lot id}` (screen == collision,
-   like `road_at`).
+5. **Footprints + `building_at()`** — 🔨 *prototyped 2026-06-14* (buildings-follow-the-graph):
+   `building_at(wx,wy) → {solid,zone}` + `draw_buildings()`. Parcels are strung along each
+   residential grid edge, set back from the kerb, as axis-aligned world squares — so each
+   building fronts a road **by construction** (reachability is a theorem, no orphan interiors)
+   and the drawn footprint *is* the collision rect (screen == collision). Deterministic (hash on
+   the parcel's world centre), LOD-gated (`GRAPH_BUILD_PX`), **RES only** so far. Remaining:
+   COM/IND/park buildings, edge-aligned (rotated) footprints + driveways, corner-overlap rules,
+   and replacing the old `lot_*` field render in the loupes with this graph-driven placement.
 6. **Park contents** (the football field) — PARK is the last flat-tint zone (small win).
 7. **Rung 4** — sloop at L3: drives the graph (route/lane-keep via `gedge[]`/`gnode[]` + `coff`),
    stays on the surface via `road_at()`, collides with `building_at()`. The GRAPH view is its camera.

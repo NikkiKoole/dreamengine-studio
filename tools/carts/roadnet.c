@@ -1084,6 +1084,7 @@ static void graph_collapse_grid(void) {
 // that you see just the clean arterial skeleton (like a map app revealing streets as you zoom).
 #define GRAPH_STREET_PX 16.0f
 #define GRAPH_ACCESS_PX 34.0f
+#define GRAPH_BUILD_PX  44.0f      // footprints only when a block is this wide (they're small)
 // ── VECTORISE THE INTRA-CITY GRID into gedge[]/gnode[] over the VISIBLE region (LOD: street
 // zoom only; far out the grid is sub-pixel and meaningless). The grid is rotated PER DISTRICT
 // (city_grid_coords), so we can't lay one global lattice — we go per gathered city, per
@@ -1148,6 +1149,79 @@ static void graph_add_grid(void) {
     }
     want_access = saved;
     graph_collapse_grid();                                       // merge straight runs → clean edges
+}
+
+// ── BUILDINGS FOLLOW THE GRAPH (prototype) — parcels strung along each residential street edge,
+// set back from the kerb, so every building fronts a road BY CONSTRUCTION (always reachable —
+// no orphan interior lots). A parcel is an axis-aligned world SQUARE, so the drawn footprint IS
+// the building_at() collision rect (screen == collision, like road_at). Deterministic: existence
+// hashes on the parcel's quantised world centre (a pure fn of the edge geometry, which is stable
+// since the gid fix). RES zones only for now — COM/IND/parks follow. The car will read
+// building_at() for collision exactly as the renderer reads it for drawing.
+#define PARCEL_FOOT    0.10f       // footprint square side (world tiles)
+#define PARCEL_SET     0.02f       // setback from the kerb
+#define PARCEL_HW      0.13f       // assumed grid-road half-width
+#define PARCEL_PITCH_F 0.42f       // frontage per house = block_sp() * this
+#define PARCEL_MAX     400         // per-edge parcel cap (runaway guard on long edges)
+// world centre of parcel i (on `side` ±1) of grid edge e; 0 if i is past the edge end.
+static int parcel_center(int e, int i, int side, float *cx, float *cy) {
+    float x0=gedge[e].x0,y0=gedge[e].y0, dx=gedge[e].x1-x0, dy=gedge[e].y1-y0;
+    float L=fsqrt(dx*dx+dy*dy); if (L<1e-3f) return 0;
+    float ux=dx/L, uy=dy/L;                                  // along; perp = (-uy,ux)
+    float pitch=block_sp()*PARCEL_PITCH_F, gap=pitch;        // gap = corner clearance at junctions
+    float along=gap + (i+0.5f)*pitch; if (along > L-gap) return 0;
+    float off=PARCEL_HW + PARCEL_SET + PARCEL_FOOT*0.5f;
+    *cx = x0 + ux*along - uy*off*side;
+    *cy = y0 + uy*along + ux*off*side;
+    return 1;
+}
+// does a building stand on this parcel? (residential frontage, ~88% occupancy) → its zone.
+static int parcel_built(float cx, float cy, int *zone) {
+    RoadHit h = road_at(cx, cy);
+    if (h.zone != Z_RES) return 0;                           // residential tier only (prototype)
+    *zone = h.zone;
+    return (hash2(ifloor(cx*8.0f), ifloor(cy*8.0f)) % 100u) < 88u;
+}
+// THE BUILDING COLLISION SEAM (for sloop): is (wx,wy) inside a building footprint? Tests the
+// parcels of the few grid edges near the point — same parcels the renderer draws.
+typedef struct { int solid; int zone; } BuildHit;
+static BuildHit building_at(float wx, float wy) {
+    BuildHit b = { 0, Z_NONE };
+    float half = PARCEL_FOOT*0.5f;
+    for (int e=0; e<nedge && !b.solid; e++) {
+        if (gedge[e].n0 < 0) continue;                       // arterial — no parcels
+        if (gedge[e].cls!=CL_STREET && gedge[e].cls!=CL_ACCESS) continue;
+        float x0=gedge[e].x0,y0=gedge[e].y0, dx=gedge[e].x1-x0, dy=gedge[e].y1-y0;
+        float L2=dx*dx+dy*dy; if (L2<1e-6f) continue;
+        float t=((wx-x0)*dx+(wy-y0)*dy)/L2; if (t<-0.1f||t>1.1f) continue;
+        float L=fsqrt(L2), pitch=block_sp()*PARCEL_PITCH_F;
+        int ic=(int)((t*L-pitch)/pitch - 0.5f);              // candidate parcel index near the point
+        for (int i=ic-1; i<=ic+1; i++) {
+            if (i<0) continue;
+            for (int s=-1; s<=1; s+=2) {
+                float cx,cy; if (!parcel_center(e,i,s,&cx,&cy)) continue;
+                if (wx>cx-half && wx<cx+half && wy>cy-half && wy<cy+half) {
+                    int z; if (parcel_built(cx,cy,&z)) { b.solid=1; b.zone=z; break; }
+                }
+            }
+        }
+    }
+    return b;
+}
+static void draw_buildings(void) {                           // footprints in the GRAPH view (LOD-gated)
+    for (int e=0; e<nedge; e++) {
+        if (gedge[e].n0 < 0) continue;
+        if (gedge[e].cls!=CL_STREET && gedge[e].cls!=CL_ACCESS) continue;
+        for (int i=0; i<PARCEL_MAX; i++) {
+            float cx,cy; if (!parcel_center(e,i,1,&cx,&cy)) break;   // past the edge end
+            for (int s=-1; s<=1; s+=2) {
+                parcel_center(e,i,s,&cx,&cy);
+                int z; if (!parcel_built(cx,cy,&z)) continue;
+                int w=(int)(PARCEL_FOOT*P); if (w<2) w=2;
+                rectfill(sxp(cx)-w/2, syp(cy)-w/2, w, w, CLR_PEACH);
+            }
+        }
+    }
 }
 static void render_streetlevel(int bx, int by, int sz) {        // bounds = the loupe box (cheap)
     gather_cities();
@@ -1219,6 +1293,7 @@ static void draw_graph_view(void) {
         line(x0, y0, x1, y1, col);
         if (gedge[i].cls <= CL_HIGHWAY) line(x0, y0 + 1, x1, y1 + 1, col);   // fatten the big roads
     }
+    if (bpx >= GRAPH_BUILD_PX) draw_buildings();          // parcels fronting the residential edges
     for (int i = 0; i < nnode; i++)                      // NODES — only real junctions/dead-ends
         if (g_deg[i] != 2 && g_deg[i] != 0)              // (deg-2 mid-lane nodes were collapsed away)
             pset(sxp(gnode[i].x), syp(gnode[i].y), CLR_WHITE);

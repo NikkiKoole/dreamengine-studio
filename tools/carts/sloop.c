@@ -1,6 +1,7 @@
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>
+#include <math.h>
 
 // ============================================================================
 // SLOOP  —  build a vehicle from parts, drive it across a procedural world.
@@ -595,6 +596,15 @@ static float t_skid_snd, t_scrape_snd, t_spin_snd;
 static int   is_paused;
 static float wheel_ang;           // eased steering-wheel angle (deg) for the cockpit dial
 static float steer_pos;           // ramped steer angle (-1..+1) — analog feel from digital keys
+// --- grab-the-wheel steering (touch + mouse): sweep a finger around the hub and the
+// rotation IS the steer angle. WHEEL_LOCK of sweep = full lock; release self-centres.
+#define WHEEL_NO_GRAB (-999)
+#define WHEEL_MOUSE   (-1000)
+#define WHEEL_LOCK    90.0f       // finger sweep (deg) for full steering lock — a quarter-turn each way
+static int   wheel_grab = WHEEL_NO_GRAB;  // finger id (or WHEEL_MOUSE) turning the wheel; else released
+static float wheel_prev_ang;      // pointer angle (deg) last frame — for the incremental sweep
+static float wheel_turn;          // accumulated wheel rotation (deg), clamped ±WHEEL_LOCK → steer
+static int   steer_grab;          // 1 while the wheel is being turned → drives steer_pos directly
 static float gas_pos, brake_pos;  // ramped throttle/brake (0..1) — analog feel from digital keys
 
 // ── modes: BUILD (paused grid editor) ↔ DRIVE (the rig loose in the world) ───
@@ -872,6 +882,7 @@ static void reset_vehicle(void) {
     drift_loose = 0;                            // no lingering slide
     wheel_spin = 0;
     steer_pos = 0;                              // wheel centred
+    wheel_grab = WHEEL_NO_GRAB; wheel_turn = 0; steer_grab = 0;   // wheel released
     gas_pos = 0; brake_pos = 0;                 // pedals released
 
     engine_on = 1; stalled = 0; restart_grace = 0;   // fresh rig starts cranked
@@ -1113,12 +1124,57 @@ static void handle_input(void) {
     if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
     if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
 
-    int steer_l = key(KEY_LEFT)  || btn(0, BTN_LEFT)  || ctl_held(WHL_X, WHL_Y, WHL_W / 2, WHL_H);
-    int steer_r = key(KEY_RIGHT) || btn(0, BTN_RIGHT) || ctl_held(WHL_X + WHL_W / 2, WHL_Y, WHL_W / 2, WHL_H);
+    // --- steering: keyboard / gamepad stay digital; the on-screen WHEEL is now GRABBED
+    // and turned (touch + mouse). Grab anywhere on the wheel and sweep around the hub —
+    // the rotation maps straight to the steer angle (a quarter-turn = full lock); release
+    // and it self-centres. (Replaces the old left/right tap-halves.) -------------------
+    int key_l = key(KEY_LEFT)  || btn(0, BTN_LEFT);
+    int key_r = key(KEY_RIGHT) || btn(0, BTN_RIGHT);
+
+    // locate the pointer on the wheel: a tracked finger, a new finger landing in the
+    // hit-circle, or the mouse pressed/held there (WHEEL_MOUSE marks a mouse grab).
+    float wpx = 0, wpy = 0; int have_ptr = 0;
+    float grab_r2 = (WHEEL_R + 9) * (WHEEL_R + 9);
+    if (wheel_grab == WHEEL_MOUSE) {
+        if (mouse_down(MOUSE_LEFT)) { wpx = mouse_x(); wpy = mouse_y(); have_ptr = 1; }
+    } else if (wheel_grab != WHEEL_NO_GRAB) {
+        for (int i = 0; i < touch_count(); i++)
+            if (touch_id(i) == wheel_grab) { wpx = touch_x(i); wpy = touch_y(i); have_ptr = 1; break; }
+    }
+    if (wheel_grab == WHEEL_NO_GRAB) {                 // not holding it yet → try to claim a grab
+        for (int i = 0; i < touch_count(); i++) {
+            float tx = touch_x(i), ty = touch_y(i), dx = tx - WHEEL_CX, dy = ty - WHEEL_CY;
+            if (dx * dx + dy * dy <= grab_r2) {
+                wheel_grab = touch_id(i); wpx = tx; wpy = ty; have_ptr = 1;
+                wheel_turn = steer_pos * WHEEL_LOCK; wheel_prev_ang = atan2f(dy, dx) * 57.29578f;
+                break;
+            }
+        }
+        if (!have_ptr && mouse_pressed(MOUSE_LEFT)) {
+            float dx = mouse_x() - WHEEL_CX, dy = mouse_y() - WHEEL_CY;
+            if (dx * dx + dy * dy <= grab_r2) {
+                wheel_grab = WHEEL_MOUSE; wpx = mouse_x(); wpy = mouse_y(); have_ptr = 1;
+                wheel_turn = steer_pos * WHEEL_LOCK; wheel_prev_ang = atan2f(dy, dx) * 57.29578f;
+            }
+        }
+    }
+    steer_grab = 0;
+    if (have_ptr) {                                    // accumulate the finger's sweep around the hub
+        float pa = atan2f(wpy - WHEEL_CY, wpx - WHEEL_CX) * 57.29578f;
+        float d = pa - wheel_prev_ang;
+        while (d >  180.0f) d -= 360.0f;               // shortest signed step (no wrap glitch)
+        while (d < -180.0f) d += 360.0f;
+        wheel_prev_ang = pa;
+        wheel_turn = clamp(wheel_turn + d, -WHEEL_LOCK, WHEEL_LOCK);
+        steer_grab = 1;
+    } else {
+        wheel_grab = WHEEL_NO_GRAB;                    // finger lifted / mouse released → let it re-centre
+    }
+
     in_gas   = key('Z') || key(KEY_UP)   || btn(0, BTN_A) || btn(0, BTN_UP)   || ctl_held(PED_X, GAS_Y, PED_W, PED_H);
     in_brk   = key('X') || key(KEY_DOWN) || btn(0, BTN_B) || btn(0, BTN_DOWN) || ctl_held(PED_X, BRK_Y, PED_W, PED_H);
     in_hand  = key(KEY_SPACE) || ctl_held(PED_X, DRF_Y, PED_W, PED_H);
-    in_steer = steer_r - steer_l;
+    in_steer = key_r - key_l;                          // digital (keyboard / gamepad) only
     in_up    = keyp('E');             // keyboard up/down still step the gears sequentially
     in_down  = keyp('Q');
     // direct gear selection — tap any slot in the gate (mode-aware). Recorded here,
@@ -1237,7 +1293,7 @@ static void update_drive(float dt_) {
             else if (gear_req == 0)  { gear = 0; shift_snd = 1; }
             else if (gear_req == -1 && af(vf) < REV_ENGAGE_SPD) { gear = -1; vf = 0; shift_snd = 1; }
         } else {                                     // AUTO / 1-GEAR: DRIVE / NEUTRAL / REVERSE
-            if (gear_req == 1)       { if (gear < 1) vf = 0; gear = 1; shift_snd = 1; }   // D
+            if (gear_req == 1)       { if (gear < 0) vf = 0; gear = 1; shift_snd = 1; }   // D (only zero vf when leaving REVERSE — N→D keeps momentum)
             else if (gear_req == 0)  { gear = 0; shift_snd = 1; }                          // N
             else if (gear_req == -1 && af(vf) < REV_ENGAGE_SPD) { gear = -1; vf = 0; shift_snd = 1; }
         }
@@ -1247,7 +1303,7 @@ static void update_drive(float dt_) {
         if (trans_mode == TR_MANUAL) {
             if (gear < NGEAR) { if (gear < 0) vf = 0; gear++; shift_snd = 1; }   // R→N→1→…→5
         } else if (gear < 1) {                       // AUTO/1: R → N → D
-            gear++; if (gear == 1) vf = 0; shift_snd = 1;
+            if (gear < 0) vf = 0; gear++; shift_snd = 1;   // only R→N zeroes vf; N→D keeps momentum (coast in N, re-couple in D)
         }
     }
     if (in_down) {                                   // Q / keyboard down
@@ -1496,10 +1552,14 @@ static void update_drive(float dt_) {
     // ramp the binary key (-1/0/+1) into an analog steer angle: wind toward the held
     // direction at STEER_RATE, ease back to centre at STEER_RETURN when released. A quick
     // opposite tap backs the lock off a notch — the fine counter-steer a drift needs.
-    float starg = (float)in_steer;
-    float srate = (in_steer != 0 ? STEER_RATE : STEER_RETURN) * dt_;
-    if (steer_pos < starg) { steer_pos += srate; if (steer_pos > starg) steer_pos = starg; }
-    else if (steer_pos > starg) { steer_pos -= srate; if (steer_pos < starg) steer_pos = starg; }
+    if (steer_grab) {                                // wheel grabbed: its rotation IS the steer angle
+        steer_pos = clamp(wheel_turn / WHEEL_LOCK, -1.0f, 1.0f);
+    } else {
+        float starg = (float)in_steer;
+        float srate = (in_steer != 0 ? STEER_RATE : STEER_RETURN) * dt_;
+        if (steer_pos < starg) { steer_pos += srate; if (steer_pos > starg) steer_pos = starg; }
+        else if (steer_pos > starg) { steer_pos -= srate; if (steer_pos < starg) steer_pos = starg; }
+    }
     float speed_factor = clamp(af(vf) / 50.0f, 0, 1);
     float dir = vf >= 0 ? 1.0f : -1.0f;
     float gyro = I / M;                              // radius of gyration squared
@@ -1536,8 +1596,10 @@ static void update_drive(float dt_) {
     ang += angVel * dt_;
     if (ang < 0) ang += 360; else if (ang >= 360) ang -= 360;
 
-    // steering-wheel visual: mirror the ramped steer position (±~26° lock)
-    wheel_ang = lerp(wheel_ang, steer_pos * 26.0f, 0.3f);
+    // steering-wheel visual: the rim rotates with the steer angle — full lock = a quarter
+    // turn, so a grabbed finger drags the wheel ~1:1 (negative so it follows the finger /
+    // turns the way you steer). Snappier while grabbed so it tracks the hand tightly.
+    wheel_ang = lerp(wheel_ang, -steer_pos * WHEEL_LOCK, steer_grab ? 0.6f : 0.3f);
 
     // --- sound -----------------------------------------------------------------
     // The engine itself is ONE sustained voice driven live (see engine_sound() in
@@ -2545,10 +2607,12 @@ static void hud(void) {
     rectfill(0, DASH_Y, SCREEN_W, SCREEN_H - DASH_Y, CLR_BLACK);
     line(0, DASH_Y, SCREEN_W - 1, DASH_Y, CLR_DARK_GREY);
 
-    // STEERING WHEEL — left half steers left, right half right (arrows light up)
-    int hl = ctl_held(WHL_X, WHL_Y, WHL_W / 2, WHL_H);
-    int hr = ctl_held(WHL_X + WHL_W / 2, WHL_Y, WHL_W / 2, WHL_H);
-    circ(WHEEL_CX, WHEEL_CY, WHEEL_R, CLR_LIGHT_GREY);
+    // STEERING WHEEL — grab the rim and turn it (touch / mouse); the arrows show the
+    // steer direction, and the rim lights up while you're holding it.
+    int hl = steer_pos < -0.05f;
+    int hr = steer_pos >  0.05f;
+    int rim = (steer_grab ? CLR_WHITE : CLR_LIGHT_GREY);
+    circ(WHEEL_CX, WHEEL_CY, WHEEL_R, rim);
     circ(WHEEL_CX, WHEEL_CY, WHEEL_R - 1, CLR_MEDIUM_GREY);
     for (int k = 0; k < 3; k++) {            // three spokes, rotated by the eased wheel angle
         float sa = wheel_ang + 90.0f + k * 120.0f;

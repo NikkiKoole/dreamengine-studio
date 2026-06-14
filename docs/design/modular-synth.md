@@ -168,9 +168,10 @@ Cables draw as a drooping bezier curve. A small bright dot pulses down the cable
 
 ## FX modules + per-part routing (2026-06-14)
 
-VERB / ECHO / DRIVE / CRUSH / SAT effect the sound. They don't sit in a CV patch — they configure
-the engine's FX. Each (except SAT) has a **pink audio-in** jack, and VOICE / MACRO / DRUM each grew
-a **pink audio-out**. The pink cable carries no value; it just says *which part feeds which effect*:
+The FX modules — **VERB, ECHO, DRIVE, CRUSH, WAH, VOWEL, EQ** (dual-mode) and **SAT, FILT**
+(master-only) — effect the sound. They don't sit in a CV patch; they configure the engine's FX.
+The dual-mode ones each have a **pink audio-in** jack, and VOICE / MACRO / DRUM each grew a **pink
+audio-out**. The pink cable carries no value; it just says *which part feeds which effect*:
 
 - **Audio-in unpatched → the effect is GLOBAL** (master bus): `reverb_insert` / `echo_insert` /
   `crush` / `drive_insert` on the whole mix. Only the first unpatched module of a kind drives it;
@@ -182,11 +183,19 @@ a **pink audio-out**. The pink cable carries no value; it just says *which part 
   the drums, reverb on the voice" is two pink cables (the "Split FX" preset).
 
 Constraint worth knowing: VERB/ECHO are **sends to shared buses**, so two patched reverbs share one
-room *size* (the last-changed wins); DRIVE/CRUSH get **private per-slot buses** (fully independent).
-SAT stays master-only — it's the whole-mix saturator, the deliberate counterpart to per-part DRIVE.
+room *size* (the last-changed wins); DRIVE/CRUSH/WAH/VOWEL/EQ get **private per-slot buses** (fully
+independent per part). The cv inlet does the most musical thing per kind: wet/amount for most,
+**vowel** for VOWEL (LFO it = "wow-wee-wow"), **high band** for EQ (brightness).
+
+Two stay master-only: **SAT** (the whole-mix saturator, counterpart to per-part DRIVE) and **FILT**
+(the DJ filter — its only per-instrument form is the *voice's own* filter, which VOICE already drives,
+so a per-part version would fight it). FILT's cv inlet **sweeps the cutoff** — patch an LFO/ENV for the
+classic filter sweep on the whole mix ("Filter jam" preset).
+
 All of this is cart-side (the per-instrument FX functions already existed); applied in
 `apply_master_fx()`, set-and-hold + change-gated, with a sweep that turns a part's effect off when its
-cable is pulled or its module deleted.
+cable is pulled or its module deleted. WAH/VOWEL/EQ/FILT/FORMANT are added to the master `fx_order`
+chain in `init()` so their unpatched/master mode has a slot in the chain.
 
 ## Default patch (wired on first open — instant sound)
 

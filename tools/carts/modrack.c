@@ -35,7 +35,7 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, MOD_TURING, MOD_GRIDS, MOD_MARBLES, MOD_MATHS,
        MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, MOD_CMP, MOD_DIV, MOD_ADSR,
-       MOD_RVB, MOD_ECHO, MOD_DRIVE, MOD_CRUSH, MOD_SAT, NTYPE };   // RVB/ECHO/DRIVE/CRUSH/SAT = master-bus FX (see apply_master_fx). SAT = whole-mix drive_insert (drums too)
+       MOD_RVB, MOD_ECHO, MOD_DRIVE, MOD_CRUSH, MOD_SAT, MOD_WAH, MOD_VOWEL, MOD_EQ, MOD_FILT, NTYPE };   // RVB..FILT = FX (see apply_master_fx). WAH/VOWEL/EQ dual-mode; SAT/FILT master-only
 enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT, FMT_DIV, FMT_PCT, FMT_DRIVE };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
@@ -135,6 +135,20 @@ ModType TYPES[NTYPE] = {
     // wall high. amt + mode + dry/wet mix; cv adds to amt.
     [MOD_SAT]   = { "SAT", CLR_ORANGE, 5, 6, 1, {{2,false,30,60,"cv"}},
                     3, {{"amt",0,1,0.4f,12,30,FMT_F1},{"mode",0,3.99f,3,30,30,FMT_DRIVE},{"mix",0,1,0.8f,48,30,FMT_F1}} },
+    // WAH = LFO auto-wah (rhythmic "wah-wah"). VOWEL = formant/vowel filter. Both dual-mode:
+    // unpatched = whole mix; pink ~ in = just that part (private bus). cv → mix (WAH) / vowel (VOWEL).
+    [MOD_WAH]   = { "WAH", CLR_LIME_GREEN, 5, 6, 2, {{2,false,30,60,"cv"},{3,false,4,16,"in"}},
+                    3, {{"rate",0.5f,10,4,12,30,FMT_F1},{"res",0,1,0.6f,30,30,FMT_F1},{"mix",0,1,0.7f,48,30,FMT_F1}} },
+    [MOD_VOWEL] = { "VOWL", CLR_DARK_PEACH, 5, 6, 2, {{2,false,30,60,"cv"},{3,false,4,16,"in"}},
+                    3, {{"vow",0,1,0.3f,12,30,FMT_F1},{"q",0,1,0.6f,30,30,FMT_F1},{"mix",0,1,0.7f,48,30,FMT_F1}} },
+    // EQ = 3-band tone (the only BOOST in the rack), gains in dB ±12, 0/0/0 = flat. Dual-mode; cv→hi
+    // (brightness automation). Patch a source ~ into 'in' to EQ just that part.
+    [MOD_EQ]    = { "EQ", CLR_LIGHT_GREY, 5, 6, 2, {{2,false,30,60,"cv"},{3,false,4,16,"in"}},
+                    3, {{"lo",-12,12,0,12,30,FMT_INT},{"mid",-12,12,0,30,30,FMT_INT},{"hi",-12,12,0,48,30,FMT_INT}} },
+    // FILT = the DJ filter (master-only — its per-part form would fight VOICE's own filter). The cv
+    // inlet SWEEPS the cutoff, so patch an LFO/ENV → a filter sweep on the whole mix. mode lp/hp/bp/nt.
+    [MOD_FILT]  = { "FILT", CLR_TRUE_BLUE, 5, 6, 1, {{2,false,30,60,"cv"}},
+                    3, {{"mode",0,3.99f,0,12,30,FMT_FILTER},{"cut",100,12000,1200,30,30,FMT_INT},{"res",0,1,0.3f,48,30,FMT_F1}} },
 };
 // knob-index names for the multi-knob sound modules — MUST stay in the same order as the
 // knob arrays in TYPES[] above. Use these instead of raw numbers in eval/presets: a
@@ -151,6 +165,10 @@ enum { ECK_TIME, ECK_FB, ECK_MIX };                                 // MOD_ECHO 
 enum { DRK_AMT, DRK_MODE };                                         // MOD_DRIVE knobs
 enum { CRK_BITS, CRK_MIX };                                         // MOD_CRUSH knobs
 enum { SATK_AMT, SATK_MODE, SATK_MIX };                            // MOD_SAT knobs
+enum { WHK_RATE, WHK_RES, WHK_MIX };                               // MOD_WAH knobs
+enum { VWK_VOW, VWK_Q, VWK_MIX };                                  // MOD_VOWEL knobs
+enum { EQK_LO, EQK_MID, EQK_HI };                                  // MOD_EQ knobs
+enum { FLK_MODE, FLK_CUT, FLK_RES };                               // MOD_FILT knobs
 
 int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
 int th(int type) { return TYPES[type].ch * CELL; }
@@ -188,6 +206,10 @@ const char *HELP[NTYPE][3] = {
     [MOD_DRIVE]  = { "Overdrive (post-filter acid scream). amt=grit,", "mode=sft/hrd/fld/asy. Patch a source ~ into 'in'", "= drive that part; unpatched = all synth voices." },
     [MOD_CRUSH]  = { "Bitcrush lo-fi grunge. bits=res, mix=blend.", "Patch a source's ~ into 'in' = crush just that", "part; unpatched = the whole mix. cv adds to mix." },
     [MOD_SAT]    = { "Mix-bus SATURATION: drives the WHOLE mix", "(drums + MACRO too, unlike DRIVE). amt=grit,", "mode=sft/hrd/fld/asy, mix=dry/wet. cv->amt." },
+    [MOD_WAH]    = { "Auto-wah: an LFO rocks a resonant band", "(rhythmic wah-wah). rate=Hz, res=quack, mix=wet.", "Patch a source ~ into 'in' = wah just that part." },
+    [MOD_VOWEL]  = { "Vowel/formant filter: makes it 'talk'. vow", "morphs a->e->i->o->u, q=sharpness, mix=wet.", "cv->vow (LFO it = wow-wee-wow). ~ in = per part." },
+    [MOD_EQ]     = { "3-band EQ (tone). lo/mid/hi = boost or cut", "in dB (the only BOOST in the rack). cv->hi", "(brightness). Patch a ~ in = EQ just that part." },
+    [MOD_FILT]   = { "DJ filter: sweep the WHOLE mix. mode=lp/hp/", "bp/nt, cut=cutoff, res=peak. Patch an LFO/ENV", "into cv to SWEEP the cutoff (the build/drop)." },
 };
 
 // ── module instances + cables ──
@@ -662,9 +684,25 @@ void preset_splitfx(void) {      // PINK AUDIO CABLES: bitcrush on JUST the drum
     add_cable(dr, 3, cr, 1);
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub", "Sat bus", "Split FX" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub, preset_satbus, preset_splitfx };
-#define NPRESET 29
+void preset_filterjam(void) {    // the DJ FILTER swept by an LFO over the whole mix (the build/drop)
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,  bayx(0), bayy(0)), eu = spawn(MOD_EUCLID, bayx(1), bayy(1));
+    int tm = spawn(MOD_TURING, bayx(2), bayy(2)), qt = spawn(MOD_QUANT,  bayx(3), bayy(3));
+    int vo = spawn(MOD_VOICE,  bayx(4), bayy(4)), dr = spawn(MOD_DRUM,   bayx(5), bayy(5));
+    int lf = spawn(MOD_LFO,    bayx(6), bayy(6)), fl = spawn(MOD_FILT,   bayx(7), bayy(7));
+    mod[ck].param[0] = 120; mod[eu].param[0] = 4; mod[eu].param[1] = 8;
+    mod[tm].param[0] = 0.3f; mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[vo].param[VK_CUT] = 2000; mod[vo].param[VK_WAV] = 0;   // bright source so the master filter has something to cut
+    mod[lf].param[0] = 0.2f;                                   // slow sweep
+    mod[fl].param[FLK_MODE] = 0; mod[fl].param[FLK_CUT] = 350; mod[fl].param[FLK_RES] = 0.5f;   // low-pass, resonant
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, vo, 1); add_cable(ck, 0, vo, 0);
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
+    add_cable(lf, 0, fl, 0);   // LFO → FILT cv = the cutoff sweep on the whole mix
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub", "Sat bus", "Split FX", "Filter jam" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub, preset_satbus, preset_splitfx, preset_filterjam };
+#define NPRESET 30
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;
@@ -772,8 +810,8 @@ void init(void) {
     // master FX chain: the SAT/CRUSH/ECHO/VERB modules drive these master inserts (in this order
     // — saturate → bitcrush → delay → space). All idle at mix 0 until a module is present, so a
     // rack with no FX module is byte-identical clean. (Per-voice DRIVE isn't a bus insert.)
-    int mfx[] = { FX_DRIVE, FX_CRUSH, FX_ECHO, FX_REVERB };
-    fx_order(0, mfx, 4);
+    int mfx[] = { FX_FILTER, FX_FORMANT, FX_WAH, FX_EQ, FX_DRIVE, FX_CRUSH, FX_ECHO, FX_REVERB };
+    fx_order(0, mfx, 8);
 
     preset_generative();
 }
@@ -1092,7 +1130,9 @@ static int q64(float v) { return (int)(clamp(v, 0, 1) * 64 + 0.5f); }
 static int primary_of(int type) { for (int i = 0; i < nmod; i++) if (mod[i].type == type) return i; return -1; }
 
 #define FX_AUDIO_IN 1   // FX modules: jack 0 = cv, jack 1 = audio-in (pink)
-static int kind_index(int t) { return t == MOD_RVB ? 0 : t == MOD_ECHO ? 1 : t == MOD_DRIVE ? 2 : t == MOD_CRUSH ? 3 : -1; }
+static int kind_index(int t) { return t == MOD_RVB ? 0 : t == MOD_ECHO ? 1 : t == MOD_DRIVE ? 2 : t == MOD_CRUSH ? 3
+                                     : t == MOD_WAH ? 4 : t == MOD_VOWEL ? 5 : t == MOD_EQ ? 6 : -1; }   // FILT/SAT master-only
+#define NPFX 7   // per-part-capable FX kinds (0..6)
 // first module of `type` whose audio-in is NOT patched — that one drives the MASTER bus
 static int primary_master(int type) {
     for (int i = 0; i < nmod; i++) if (mod[i].type == type && cable_into(i, FX_AUDIO_IN) < 0) return i;
@@ -1115,7 +1155,10 @@ static void pfx_apply(int ki, int slot, float a, float b, float c) {
         case 0: reverb(a, 0.42f);      instrument_reverb(slot, c); break;   // a=size (shared room), c=send
         case 1: echo((int)a, b, 0.5f); instrument_echo(slot, c);   break;   // a=time (shared), b=fb, c=send
         case 2: instrument_drive_mode(slot, (int)b); instrument_drive(slot, a); break;  // a=amt, b=mode
-        default:instrument_crush(slot, a, 6.0f, c); break;                  // a=bits, c=mix (private bus)
+        case 3: instrument_crush(slot, a, 6.0f, c); break;                  // a=bits, c=mix (private bus)
+        case 4: instrument_wah_lfo(slot, a, b, c); break;                   // a=rate, b=res, c=mix
+        case 5: instrument_formant(slot, a, b, c); break;                   // a=vowel, b=q, c=mix
+        default:instrument_eq(slot, a, b, c); break;                        // a=lo, b=mid, c=hi (dB)
     }
 }
 static void pfx_off(int ki, int slot) {
@@ -1123,7 +1166,10 @@ static void pfx_off(int ki, int slot) {
         case 0: instrument_reverb(slot, 0); break;
         case 1: instrument_echo(slot, 0);   break;
         case 2: instrument_drive(slot, 0);  break;
-        default:instrument_crush(slot, 8, 1, 0); break;
+        case 3: instrument_crush(slot, 8, 1, 0); break;
+        case 4: instrument_wah_lfo(slot, 2, 0, 0); break;
+        case 5: instrument_formant(slot, 0.3f, 0.5f, 0); break;
+        default:instrument_eq(slot, 0, 0, 0); break;
     }
 }
 
@@ -1133,10 +1179,14 @@ void apply_master_fx(void) {
     static int ap_dr_amt = -1, ap_dr_mode = -1;
     static int ap_cr_bits = -1, ap_cr_mix = -1;
     static int ap_sat_amt = -1, ap_sat_mode = -1, ap_sat_mix = -1;
+    static int ap_wah_rate = -1, ap_wah_res = -1, ap_wah_mix = -1;
+    static int ap_vow_v = -1, ap_vow_q = -1, ap_vow_mix = -1;
+    static int ap_eq_lo = -999, ap_eq_mid = -999, ap_eq_hi = -999;
+    static int ap_fl_mode = -1, ap_fl_cut = -1, ap_fl_res = -1;
     // per-part (pink-cable) state: applied last frame? + last quantized a/b/c, per (kind, slot)
-    static unsigned char fx_on[4][32];
-    static int fx_qa[4][32], fx_qb[4][32], fx_qc[4][32];
-    unsigned char now[4][32]; for (int k = 0; k < 4; k++) for (int s = 0; s < 32; s++) now[k][s] = 0;
+    static unsigned char fx_on[NPFX][32];
+    static int fx_qa[NPFX][32], fx_qb[NPFX][32], fx_qc[NPFX][32];
+    unsigned char now[NPFX][32]; for (int k = 0; k < NPFX; k++) for (int s = 0; s < 32; s++) now[k][s] = 0;
     int mi;
 
     // ===== PER-PART: every FX module whose audio-in is patched effects that source's slot(s) =====
@@ -1150,7 +1200,10 @@ void apply_master_fx(void) {
             case 0:  a = mod[i].param[RVK_SIZE]; b = 0; c = clamp(mod[i].param[RVK_MIX] + cv, 0, 1); break;
             case 1:  a = mod[i].param[ECK_TIME]; b = mod[i].param[ECK_FB]; c = clamp(mod[i].param[ECK_MIX] + cv, 0, 1); break;
             case 2:  a = clamp(mod[i].param[DRK_AMT] + cv, 0, 1); b = (int)clamp(mod[i].param[DRK_MODE], 0, 3); c = 0; break;
-            default: a = mod[i].param[CRK_BITS]; b = 0; c = clamp(mod[i].param[CRK_MIX] + cv, 0, 1); break;
+            case 3:  a = mod[i].param[CRK_BITS]; b = 0; c = clamp(mod[i].param[CRK_MIX] + cv, 0, 1); break;
+            case 4:  a = mod[i].param[WHK_RATE]; b = mod[i].param[WHK_RES]; c = clamp(mod[i].param[WHK_MIX] + cv, 0, 1); break;  // WAH
+            case 5:  a = clamp(mod[i].param[VWK_VOW] + cv, 0, 1); b = mod[i].param[VWK_Q]; c = mod[i].param[VWK_MIX]; break;     // VOWEL: cv→vowel
+            default: a = mod[i].param[EQK_LO]; b = mod[i].param[EQK_MID]; c = clamp(mod[i].param[EQK_HI] + cv * 6.0f, -12, 12); break;  // EQ: cv→hi (brightness)
         }
         int qa = (int)(a * 100), qb = (int)(b * 100), qc = (int)(c * 100);
         for (int j = 0; j < ns; j++) {
@@ -1164,7 +1217,7 @@ void apply_master_fx(void) {
     }
     // sweep: a (kind, slot) on last frame but not now (cable pulled / module deleted / re-pointed)
     // gets turned OFF once, so a part never keeps an orphaned effect.
-    for (int k = 0; k < 4; k++) for (int s = 0; s < 32; s++) {
+    for (int k = 0; k < NPFX; k++) for (int s = 0; s < 32; s++) {
         if (fx_on[k][s] && !now[k][s]) { pfx_off(k, s); fx_qa[k][s] = fx_qb[k][s] = fx_qc[k][s] = -99999; }
         fx_on[k][s] = now[k][s];
     }
@@ -1219,6 +1272,40 @@ void apply_master_fx(void) {
         int aq = q64(amt), mq = q64(mix);
         if (aq != ap_sat_amt || mode != ap_sat_mode || mq != ap_sat_mix) { drive_insert(amt, mode, mix); ap_sat_amt = aq; ap_sat_mode = mode; ap_sat_mix = mq; }
     } else if (ap_sat_amt != -1) { drive_insert(0, 0, 0); ap_sat_amt = ap_sat_mode = ap_sat_mix = -1; }
+
+    // WAH — master LFO auto-wah on the whole mix. cv adds to mix.
+    if ((mi = primary_master(MOD_WAH)) >= 0) {
+        float rate = mod[mi].param[WHK_RATE], res = mod[mi].param[WHK_RES];
+        float mix = clamp(mod[mi].param[WHK_MIX] + read_in(mi, 0), 0, 1);
+        int rq = (int)(rate * 10), sq = q64(res), mq = q64(mix);
+        if (rq != ap_wah_rate || sq != ap_wah_res || mq != ap_wah_mix) { wah_lfo(rate, res, mix); ap_wah_rate = rq; ap_wah_res = sq; ap_wah_mix = mq; }
+    } else if (ap_wah_mix != -1) { wah_lfo(2, 0, 0); ap_wah_rate = ap_wah_res = ap_wah_mix = -1; }
+
+    // VOWEL — master formant/vowel filter on the whole mix. cv sweeps the vowel (the talking filter).
+    if ((mi = primary_master(MOD_VOWEL)) >= 0) {
+        float vow = clamp(mod[mi].param[VWK_VOW] + read_in(mi, 0), 0, 1);
+        float q = mod[mi].param[VWK_Q], mix = mod[mi].param[VWK_MIX];
+        int vq = q64(vow), qq = q64(q), mq = q64(mix);
+        if (vq != ap_vow_v || qq != ap_vow_q || mq != ap_vow_mix) { formant(vow, q, mix); ap_vow_v = vq; ap_vow_q = qq; ap_vow_mix = mq; }
+    } else if (ap_vow_mix != -1) { formant(0.3f, 0.5f, 0); ap_vow_v = ap_vow_q = ap_vow_mix = -1; }
+
+    // EQ — master 3-band tone on the whole mix (the only BOOST). cv adds to the high band (brightness).
+    if ((mi = primary_master(MOD_EQ)) >= 0) {
+        float lo = mod[mi].param[EQK_LO], mid = mod[mi].param[EQK_MID];
+        float hi = clamp(mod[mi].param[EQK_HI] + read_in(mi, 0) * 6.0f, -12, 12);
+        int lq = (int)lo, mq = (int)mid, hq = (int)hi;
+        if (lq != ap_eq_lo || mq != ap_eq_mid || hq != ap_eq_hi) { eq(lo, mid, hi); ap_eq_lo = lq; ap_eq_mid = mq; ap_eq_hi = hq; }
+    } else if (ap_eq_lo != -999) { eq(0, 0, 0); ap_eq_lo = ap_eq_mid = ap_eq_hi = -999; }
+
+    // FILT — the DJ filter on the whole mix (master-only; cheap to sweep live). The cv inlet SWEEPS
+    // the cutoff (patch an LFO/ENV). mode knob 0..3 = lp/hp/bp/nt → filter() wants 1..4 (+1).
+    if ((mi = primary_of(MOD_FILT)) >= 0) {
+        int mode = (int)clamp(mod[mi].param[FLK_MODE], 0, 3) + 1;   // FILTER_LOW..NOTCH (1..4)
+        float cut = clamp(mod[mi].param[FLK_CUT] + read_in(mi, 0) * 8000.0f, 20, 13000);
+        float res = mod[mi].param[FLK_RES];
+        int cq = (int)(cut / 80), rq = q64(res);   // cutoff quantized to ~80Hz steps
+        if (mode != ap_fl_mode || cq != ap_fl_cut || rq != ap_fl_res) { filter(mode, cut, res); ap_fl_mode = mode; ap_fl_cut = cq; ap_fl_res = rq; }
+    } else if (ap_fl_mode != -1) { filter(0, 1000, 0); ap_fl_mode = ap_fl_cut = ap_fl_res = -1; }   // FILTER_OFF
 }
 
 void update(void) {
@@ -1457,6 +1544,12 @@ void draw_extras(int mi) {
                           rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_MAUVE); break; }
         case MOD_SAT:   { float w = clamp(m->param[SATK_AMT] + read_in(mi, 0), 0, 1);
                           rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_ORANGE); break; }
+        case MOD_WAH:   { float w = clamp(m->param[WHK_MIX] + read_in(mi, 0), 0, 1);
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_LIME_GREEN); break; }
+        case MOD_VOWEL: { float v = clamp(m->param[VWK_VOW] + read_in(mi, 0), 0, 1);   // bar tracks the vowel (cv sweep)
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(v * (W - 16)), 3, CLR_DARK_PEACH); break; }
+        case MOD_FILT:  { float c = clamp((m->param[FLK_CUT] + read_in(mi, 0) * 8000.0f) / 13000.0f, 0, 1);   // bar tracks the cutoff sweep
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(c * (W - 16)), 3, CLR_TRUE_BLUE); break; }
     }
 }
 

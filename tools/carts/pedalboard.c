@@ -182,9 +182,10 @@ static bool pedal_on(int cat) { int i = chain_index(cat); return i >= 0 && chain
 // just LOCKED (can't switch on, drawn dimmed) while a conflicting pedal is currently on; turn that
 // one off and this frees up. The conflict is on-state, not chain membership (no dead pedals).
 static bool pedal_locked(int cat) {
-    // LO-FI vs BITCRUSH/TAPE/FILTER no longer lock — Increment F gives LO-FI its own crush/tape/filter
-    // INSTANCE (1), so it coexists with the standalone pedals (instance 0).
-    if (cat == C_FUZZ) return cab_tenant == CAB_AMP;   // FUZZ still locks: the amp cabinet owns the one per-voice drive stage (needs FX_DRIVE, a separate step)
+    // No pedal locks any more. LO-FI vs BITCRUSH/TAPE/FILTER → Increment F instances; FUZZ vs the amp
+    // cabinet → fuzz is per-voice (pre-chain), the amp drives the bus (FX_DRIVE, end of chain), so they
+    // stack. Kept as a no-op so the chain/draw call sites don't need touching.
+    (void)cat;
     return false;
 }
 static int  content_w(void)      { return chain_n * PITCH; }
@@ -334,38 +335,48 @@ static void apply_fx(void) {
                 break;
         }
     }
-    int kinds[NCAT + 2], n = 0;   // +2: the LO-FI macro can add up to 3 kinds from its 1 slot
+    int kinds[NCAT + 3], n = 0;   // +2 LO-FI macro (3 kinds from 1 slot) +1 the amp cabinet's FX_DRIVE
     for (int i = 0; i < chain_n; i++) {
         int cat = chain[i].cat;
         if (cat == C_LOFI) { kinds_add(kinds, &n, FX_INST(FX_CRUSH, 1)); kinds_add(kinds, &n, FX_INST(FX_TAPE, 1)); kinds_add(kinds, &n, FX_INST(FX_FILTER, 1)); }   // instance 1: coexists with standalone
         else if (cat == C_EQ2) kinds_add(kinds, &n, FX_INST(FX_EQ, 1));   // 2nd EQ instance, distinct from FX_EQ
         else { int kd = CAT[cat].kind; if (kd >= 0) kinds_add(kinds, &n, kd); }
     }
+    if (cab_tenant == CAB_AMP) kinds_add(kinds, &n, FX_DRIVE);   // the amp cabinet's drive = a bus insert at the END (output stage), so FUZZ (per-voice) sits BEFORE it
     fx_order(0, kinds, n);   // the chain order IS the insert order (Increment A)
 
-    // ── the per-voice DRIVE + pinned CABINET output stage — runs AFTER the inserts, on the guitar
-    // SLOT's private bus (drive/eq) + master glue/leslie, none of which the pedals touch. The slot has
-    // ONE drive stage: the FUZZ pedal owns it, EXCEPT under the amp cabinet (the amp owns it too, so
-    // FUZZ locks off — pedal_locked). Increment F is what will let them STACK instead of lock.
+    // ── FUZZ (per-voice, pre-chain) + the pinned CABINET output stage. Two SEPARATE drive stages now:
+    // FUZZ is the per-voice instrument_drive (before the chain); the amp cabinet's drive is the bus
+    // FX_DRIVE insert at the chain END (drive_insert, appended above). So fuzz feeds the amp — they
+    // STACK, no lock (that's what the master/bus drive unlocked). EQ stays on the slot bus, glue/leslie master.
     int fi = chain_index(C_FUZZ);
-    bool fuzz_on = (fi >= 0 && chain[fi].on && cab_tenant != CAB_AMP);   // amp owns the drive → fuzz suppressed
+    bool fuzz_on = (fi >= 0 && chain[fi].on);                           // fuzz works under ANY cabinet now
     bool engaged = (cab_tenant != CAB_NONE) || fuzz_on;
-    if (engaged || cabfuzz_applied) {                                    // skip entirely while nothing's engaged (byte-identical)
-        if (cab_tenant == CAB_AMP) {                                     // the amp cabinet: drive + EQ + glue
-            leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);
+    if (engaged || cabfuzz_applied) {                                   // skip entirely while nothing's engaged (byte-identical)
+        if (cab_tenant == CAB_AMP) {                                    // amp cabinet: EQ + glue (slot/master) + drive on the BUS
             const AmpVoicing *a = &AMP_VC[cab_voicing];
-            ampcab_apply(I_GTR, cab_voicing, cab_k[0], a->lo, a->mid, a->hi, cab_k[1]);
+            leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);
+            instrument_timbre(I_GTR, a->timbre);
+            instrument_eq(I_GTR, a->lo, a->mid, a->hi);
+            glue(0, a->glue * cab_k[1], 8, 120);
+            drive_insert(a->drive * (0.30f + 1.4f * cab_k[0]), a->mode, 1.0f);   // FX_DRIVE: amp drive on the summed bus
         } else if (cab_tenant == CAB_LESLIE) {                          // Leslie cabinet: clean slot + rotary
             cab_reset_guitar();
+            drive_insert(0.0f, 0, 0.0f);                                // amp bus-drive off
             leslie(cab_speed, cab_k[0], cab_k[1], 0.5f, 1.0f);
         } else {                                                        // none: clean baseline
             cab_reset_guitar();
+            drive_insert(0.0f, 0, 0.0f);
             leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);
         }
-        if (fuzz_on) {                                                  // FUZZ owns the drive (cab none/Leslie only)
+        // the PER-VOICE drive = FUZZ (it precedes the amp). When the amp's on but fuzz isn't, keep the
+        // voice clean into the amp (the amp drives on the bus); cab none/Leslie baseline is set above.
+        if (fuzz_on) {
             float *fk = chain[fi].k;
             instrument_drive_mode(I_GTR, fk[1] < 0.5f ? DRIVE_ASYM : DRIVE_HARD);   // MODE: germanium ↔ silicon
             instrument_drive(I_GTR, 0.45f + fk[0] * 0.55f);                          // FUZZ amount → always saturated
+        } else if (cab_tenant == CAB_AMP) {
+            instrument_drive(I_GTR, 0.0f);                              // clean voice into the amp's bus drive
         }
         cabfuzz_applied = engaged;
     }

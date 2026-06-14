@@ -640,7 +640,9 @@ pure pedalboard cart work. Update [`effects-recipes.md`](../guides/effects-recip
 **Status: SHIPPED for EQ + crush + tape + filter (2026-06-14). The general mechanism is in; EQ was
 first, then crush/tape/filter — which retired the LO-FI bus lock** (the LO-FI macro now drives crush/
 tape/filter INSTANCE 1, the standalone BITCRUSH/TAPE/FILTER pedals stay on instance 0, so they coexist;
-`pedal_locked`'s LO-FI branch is gone — only the FUZZ↔amp lock remains, pending an `FX_DRIVE` insert).
+`pedal_locked`'s LO-FI branch is gone. The **FUZZ↔amp lock is also gone** (2026-06-14): once the
+mix-bus `drive_insert`/`FX_DRIVE` landed, pedalboard's amp cabinet drives the BUS (FX_DRIVE at chain
+end) while FUZZ stays per-voice (pre-chain), so fuzz → amp stacks — `pedal_locked` now always false).
 Each kind has `*_INST=2`; `crush_inst`/`tape_inst`/`filter_inst` set the 2nd instance (mirroring
 `eq_inst`). Tape's 2nd instance carries its own buffer (~64 KB). Below: how the general mechanism works
 (EQ is the worked example). A per-slot INSTANCE rides in `SR_FX_ORDER`'s spare `e1`/`e2` ints (4 bits/slot, parallel to the

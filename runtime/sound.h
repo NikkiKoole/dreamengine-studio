@@ -207,9 +207,9 @@ typedef struct {
     bool   pp_on;                    // note-on init guard
     // formant-voice state (INSTR_VOICE): navkit VoicForm port — a glottal pulse through four SVF
     // formants with a continuous vowel morph. EXPERIMENTAL: the raw params live FLAT in vox_p[]
-    // (poked by voice_param() — the voxlab fat prototype) instead of riding the 3 macro knobs,
+    // (poked by note_aux() — the voxlab fat prototype) instead of riding the 3 macro knobs,
     // so we can audition which three deserve to become harmonics/timbre/morph. vowels-only for now.
-    float  vox_p[20];                // raw param TARGETS 0..1 (voice_param idx, must hold VOX_NPARAM): vowel/size/breath/openQ/tilt/vibDepth/vibRate/nasality/openness/frontness + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW
+    float  vox_p[20];                // raw param TARGETS 0..1 (note_aux idx, must hold VOX_NPARAM): vowel/size/breath/openQ/tilt/vibDepth/vibRate/nasality/openness/frontness + EXPERIMENTAL 10 buzz·11 jitter·12 shimmer·13 creak·14 nasalAF·15 reduce·16 measBW
     float  vox_s[20];                // slewed copies (per-sample one-pole → no zipper on slider moves)
     float  vox_glot_ph;              // glottal pulse phase
     float  vox_tilt_lp;              // spectral-tilt 1-pole state
@@ -282,7 +282,7 @@ typedef struct {
     // fundamental reinforcement (guitar + piano): a sub-oscillator at the note's pitch, envelope-
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
-    // eng_p[] (eng_tune, live while we dial it in; then baked to constants).
+    // eng_p[] (set via instrument_mode, note-on — the permanent per-engine aux channel, decision 0017; NOT baked to constants).
     float  eng_p[2];                    // copied from the instrument at note-on (0 weight · 1 attack)
     float  eng_subph, eng_env;          // sub-osc phase + envelope follower
     int    eng_click;                   // onset-click samples remaining
@@ -2668,7 +2668,7 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
 // ── INSTR_VOICE: formant voice (navkit VoicForm port; vowels-only for the voxlab prototype) ──
 // A glottal source (Rosenberg polynomial pulse + aspiration breath) through four parallel SVF
 // formant filters whose centre frequencies trace a continuous vowel path. The raw params
-// (voice_param idx 0..6) are exposed FLAT so the voxlab cart can audition which three deserve
+// (note_aux idx 0..6) are exposed FLAT so the voxlab cart can audition which three deserve
 // to become the public harmonics/timbre/morph macros. navkit crib: processVoicFormOscillator /
 // vfPhonemeTable (navkit/soundsystem/engines/synth_oscillators.h). The formant SVF here is the
 // same Chamberlin topology as navkit's processFormantFilter and dreamengine's own filter().
@@ -2820,8 +2820,8 @@ static const int   vox_cons_plos[VC_COUNT]   = { 1, 1, 1, 0, 0, 0, 0, 0,
 // PUBLIC API mapping — the 3 macros → the voice's raw params (the locked lean API):
 //   harmonics = VOWEL · timbre = SIZE · morph = EFFORT (one clean knob → breath + open-q + tilt).
 // Written from the macro TARGETS whenever they change (note-on + note_harmonics/timbre/morph), so a
-// macro-driven cart needs no voice_param(). The probe carts instead poke vox_p directly via
-// voice_param() and leave the macros at default, so the two surfaces don't fight.
+// macro-driven cart needs no note_aux(). The probe carts instead poke vox_p directly via
+// note_aux() and leave the macros at default, so the two surfaces don't fight.
 static void vox_apply_macros(Voice *v) {
     float e = v->mor_target;                            // EFFORT 0..1
     v->vox_p[0] = v->harm_target;                       // VOWEL  ← harmonics
@@ -2831,7 +2831,7 @@ static void vox_apply_macros(Voice *v) {
     v->vox_p[4] = 0.70f - 0.65f * e;                    // tilt    0.70 → 0.05
 }
 
-// note-on: seed a neutral "ah" so a bare note(60, INSTR_VOICE, …) speaks; voice_param overrides live
+// note-on: seed a neutral "ah" so a bare note(60, INSTR_VOICE, …) speaks; note_aux overrides live
 static void sound_voice_start(Voice *v) {
     const float def[VOX_NPARAM] = { 0.5f, 0.33f, 0.10f, 0.5f, 0.30f, 0.0f, 0.5f,
                                     0.0f, 0.5f, 0.5f,                              // nasality off · open/front neutral (×1.0)
@@ -3373,7 +3373,7 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     float dc = out - v->pn_dc_prev + 0.995f * v->pn_dc_state;        // gentle DC safety
     v->pn_dc_prev  = out;
     v->pn_dc_state = dc;
-    // optional fundamental weight + attack (eng_tune; default 0 = off, so this A/Bs against navkit)
+    // optional fundamental weight + attack (instrument_mode; default 0 = off, so this A/Bs against navkit)
     float aenv = fabsf(out);
     v->eng_env = aenv > v->eng_env ? aenv : v->eng_env * 0.9997f;
     v->eng_subph += f / (float)SOUND_SAMPLE_RATE;
@@ -5246,8 +5246,8 @@ static void sound_init(void) {
         instr_bank[i].sc_key     = 0;      // sidechain trigger routing — off until sidechain_key()
         instr_bank[i].sc_send    = 0.0f;
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
-        instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (eng_tune) — off until set
-        instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (eng_tune) — off until set
+        instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (instrument_mode) — off until set
+        instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (instrument_mode) — off until set
     }
 
     // echo bus: clean slate (matters for libtcc hot-reload + --det reproducibility)

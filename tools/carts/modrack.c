@@ -1957,7 +1957,8 @@ void draw(void) {
     print("PRESETS", pbx + 5, 4, CLR_WHITE);
     if (pbh && mouse_pressed(MOUSE_LEFT)) preset_open = !preset_open;
     if (preset_open) {
-        int rows = (NPRESET + 1) / 2;
+        int ncol = 3;                          // 3 columns so the (growing) list fits on screen
+        int rows = (NPRESET + ncol - 1) / ncol;
         for (int i = 0; i < NPRESET; i++) {
             int col = i / rows, row = i % rows;
             int ix = pbx + col * pbw, iy = 14 + row * 12;
@@ -1967,7 +1968,7 @@ void draw(void) {
             print(PRESET_NAMES[i], ix + 4, iy + 4, CLR_LIGHT_GREY);
             if (ih && mouse_pressed(MOUSE_LEFT)) { PRESET_FN[i](); preset_open = 0; }
         }
-        bool inside = mouse_x() >= pbx && mouse_x() < pbx + pbw * 2 && mouse_y() < 14 + rows * 12;
+        bool inside = mouse_x() >= pbx && mouse_x() < pbx + pbw * ncol && mouse_y() < 14 + rows * 12;
         if (mouse_pressed(MOUSE_LEFT) && !inside) preset_open = 0;
     }
     if (msg_flash > 0) print(msg, pbx + pbw + 8, 5, CLR_LIGHT_PEACH);

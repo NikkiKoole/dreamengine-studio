@@ -39,7 +39,7 @@
 // ── the effect catalog: every pedal you can drag into the chain ──────────────────────────────
 // kind = the engine FX_* insert kind (its slot in the reorderable chain). Every pedal — REVERB
 // included now (FX_REVERB via reverb_insert) — is a real insert, so chain order is audible.
-enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, C_FUZZ, NCAT };
+enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, C_FUZZ, C_GRN, NCAT };
 typedef struct {
     const char *name; int body, accent, kind, nk;
     const char *klabel[MAXK]; float kdef[MAXK];
@@ -66,6 +66,10 @@ static const FxDef CAT[NCAT] = {
     // slot. Like LO-FI it's a recipe, not an FX_* insert — and it OWNS the slot's one drive stage, so
     // it LOCKS while the cabinet's on AMP (the amp owns that drive too). MODE: germanium ↔ silicon.
     { "FUZZ",     CLR_DARK_RED,      CLR_ORANGE,       -2,         2, { "FUZZ","MODE" },       { 0.65f, 0.0f } },
+    // GRAINS is the granular-delay INSERT (FX_GRAINS): a capture-and-scatter texture cloud. 6 engine
+    // params but only 4 knobs — SIZE/DENS/MIX are continuous, FRZ is a discrete FREEZE toggle (like
+    // FUZZ's MODE / WAH's MOD). position/scatter/feedback are fixed to a good "shimmer cloud" voicing.
+    { "GRAINS",   CLR_INDIGO,        CLR_MAUVE,        FX_GRAINS,  4, { "SIZE","DENS","MIX","FRZ" }, { 0.30f, 0.30f, 0.50f, 0.0f } },
 };
 
 // ── the chain: an ordered list of DISTINCT catalog ids, each with its own knobs + on-state ──
@@ -309,6 +313,8 @@ static void apply_fx(void) {
                           filter(act ? FM[(int)(k[2] * 3.99f)] : FILTER_OFF, 40.0f * powf(450.0f, k[0]), k[1]); } break;
             case C_RNG: ringmod(20.0f * powf(150.0f, k[0]), act ? k[1] : 0.0f); break;  // FRQ exp 20..3000 Hz
             case C_DLY: echo_insert((int)(20.0f + k[0] * 1480.0f), k[1], k[2], act ? k[3] : 0.0f); break;  // TIM 20..1500ms, FB, TON, MIX (off = bypass)
+            case C_GRN: grains(20.0f + k[0] * 480.0f, 2.0f + k[1] * 48.0f, 0.8f, 0.4f, 0.3f, act ? k[2] : 0.0f);  // SIZE 20..500ms, DENS 2..50/s, MIX (off = bypass); pos/scatter/fb fixed
+                        grains_freeze(act && k[3] > 0.5f); break;                                            // FRZ knob = freeze toggle (loop the captured buffer)
             case C_LOFI:  // the macro: AMT crunches bits + adds sample-rate + tape sat; WOW warbles; TON darkens. Drives 3 shared inserts — only when ON (the standalone categories reassert OFF otherwise), so it OVERRIDES a stacked BITCRUSH/TAPE/FILTER rather than fighting it (runs last in this loop).
                 if (act) {
                     crush(16.0f - k[0] * 9.0f, 1.0f + k[0] * 5.0f, 0.45f + k[0] * 0.45f);   // 16→7 bits, gentle downsample, blended in
@@ -642,6 +648,7 @@ static void draw_chain_pedal(int i, int x) {
             lbl = FN[(int)(sl->k[2] * 3.99f)];
         }
         if (d->kind == -2 && j == 1) lbl = sl->k[1] < 0.5f ? "GER" : "SIL";   // FUZZ MODE: germanium ↔ silicon
+        if (d->kind == FX_GRAINS && j == 3) lbl = sl->k[3] > 0.5f ? "FRZN" : "LIVE";   // GRAINS FRZ: freeze toggle
         font(FONT_TINY);                                          // label tucked beside the knob (the empty column)
         if (j & 1) print_right(lbl, kx - kr - 2, ky - 2, lblcol);   // right-column knob → label on its left
         else       print(lbl,       kx + kr + 2, ky - 2, lblcol);   // left-column knob  → label on its right

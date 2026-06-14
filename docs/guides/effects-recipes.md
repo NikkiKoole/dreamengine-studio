@@ -92,6 +92,7 @@ already in-tree). 3 s buffer (navkit's is 5 s). **Showcase: `grains`** (the free
 | smeared time-stretch | `grains(400, 8, 0.5f, 0.2f, 0.0f, 0.6f)` | long grains deep in the past = a slow, blurred slow-motion smear | `grains` |
 | self-feeding cloud | `grains(150, 16, 0.85f, 0.4f, 0.85f, 0.6f)` | high feedback re-grains the cloud → an ever-thickening evolving drone | `grains` |
 | pads-only grain (per-instrument) | `instrument_grains(SL_PAD, 200, 20, 0.6f, 0.5f, 0.4f, 0.6f)` | grain the pads while drums/bass stay dry — its own bus | — |
+| reorderable GRAINS pedal | `FX_GRAINS` in `fx_order(0,…)` + `grains(size, dens, 0.8, 0.4, 0.3, mix)` from knobs + `grains_freeze(frz)` | a texture/freeze stompbox whose chain position is audible (grain a fuzzed signal vs fuzz a grained one); FRZ knob loops the buffer | `pedalboard` (GRAINS: SIZE/DENS/MIX/FRZ) |
 
 > **Stochastic, so A/B by character not samples.** `grains` scatters reads via a seeded LCG and
 > spawns on a timer; with the intentional 3 s (vs navkit 5 s) buffer the `position` math diverges, so

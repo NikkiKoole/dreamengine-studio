@@ -28,6 +28,7 @@ static int fx_body(int kind) {
         case FX_FILTER:  return CLR_TRUE_BLUE;
         case FX_RINGMOD: return CLR_INDIGO;
         case FX_ECHO:    return CLR_DARK_PEACH;
+        case FX_GRAINS:  return CLR_INDIGO;
         default:         return CLR_DARKER_GREY;
     }
 }
@@ -47,6 +48,7 @@ static int fx_accent(int kind) {
         case FX_FILTER:  return CLR_BLUE;
         case FX_RINGMOD: return CLR_GREEN;
         case FX_ECHO:    return CLR_ORANGE;
+        case FX_GRAINS:  return CLR_MAUVE;
         default:         return CLR_LIGHT_GREY;
     }
 }
@@ -66,6 +68,7 @@ static const char *fx_name(int kind) {
         case FX_FILTER:  return "FILTER";
         case FX_RINGMOD: return "RINGMOD";
         case FX_ECHO:    return "DELAY";
+        case FX_GRAINS:  return "GRAINS";
         default:         return "FX";
     }
 }
@@ -135,6 +138,16 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         circfill(cx - 3, cy, 2, col);                        // repeat 1
         circfill(cx + 3, cy, 1, col);                        // repeat 2 (smaller)
         pset(cx + 8, cy, col);                               // repeat 3 (a faint dot)
+    } else if (kind == FX_GRAINS) {                          // a scattered cloud of grains
+        circfill(cx - 8, cy + 1, 1, col);
+        circfill(cx - 4, cy - 4, 2, col);
+        circfill(cx,     cy + 3, 1, col);
+        circfill(cx + 2, cy - 2, 2, col);
+        circfill(cx + 7, cy + 1, 1, col);
+        circfill(cx + 9, cy - 3, 1, col);
+        circfill(cx - 2, cy + 5, 1, col);
+        pset(cx + 5, cy + 5, col);
+        pset(cx - 6, cy - 3, col);
     } else {                                                 // REVERB — expanding rings (the bloom)
         for (int i = 1; i <= 3; i++) circ(cx, cy, i * 3, col);
         pset(cx, cy, col);

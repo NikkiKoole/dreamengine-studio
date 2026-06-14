@@ -1467,7 +1467,9 @@ v1, document it on the panel.
     compile-gate `ok` + 900-frame tripwire silent; A/B vs navkit's genuine `processGranularDelay`
     (`tools/navkit-fx-render.c grains` + `grainstest.c`) — crest 7.29 (navkit) / 7.59 (ours) dB, the
     level-independent texture fingerprint matching despite the intentional buffer-size divergence (stochastic
-    effect → character match, not sample-identity). **Showcase: `grains`** (the freeze/cloud toy).
+    effect → character match, not sample-identity). **Showcases: `grains`** (the freeze/cloud toy) +
+    the **`pedalboard`** GRAINS pedal (`FX_GRAINS` insert: SIZE/DENS/MIX + a discrete FRZ freeze knob;
+    position/scatter/feedback fixed to a shimmer-cloud voicing since the pedal has only 4 knobs).
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

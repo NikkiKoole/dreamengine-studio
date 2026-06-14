@@ -49,6 +49,12 @@ field-sampled loupe was the bottleneck, not the zoom number):
   - The access tier was moved off the render-zoom gate onto a **`want_access` flag** so the graph
     extracts access lanes regardless of view zoom (generation ≠ draw — the renderer still gates
     drawing on zoom). Default 0; the renderer sets it from zoom, the extractor sets it 1.
+  - **Locality-contract fix (2026-06-14):** district orientation (rotate-to-artery vs world-axis)
+    is now keyed on a **stable per-city id `gid[]`** (hash of the city's origin cell), NOT the
+    `dom_i` gather-array index. The index renumbers as cities scroll in/out of `gather_cities()`,
+    so the old code re-rolled the whole grid **while panning** ("the graph flips on drag") — and
+    it wasn't actually a pure fn of world pos. `gid[]` makes the orientation position-stable.
+    `city_grid_coords()` and `graph_add_grid()` use the **identical** hash (they must agree).
   - **Not yet:** stitching the grid graph onto the arterials at city entries, and collapsing
     degree-2 node chains (the grid is finely noded — fine for routing, just verbose).
   - *Perf note:* `graph_add_grid()` re-runs each frame in GRAPH view (~10–15k `road_at()` at

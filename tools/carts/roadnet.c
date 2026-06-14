@@ -656,6 +656,10 @@ static float rank_cityR(int r)  { float b = r==RK_METRO?22.f : r==RK_CITY?14.f :
 #define MAXCITY 160
 static float gnx[MAXCITY], gny[MAXCITY], gnw[MAXCITY], gnr[MAXCITY]; static int gn;
 static float gux[MAXCITY], guy[MAXCITY];   // each city's primary axis (unit dir of the road that enters it)
+static unsigned gid[MAXCITY];              // STABLE per-city id (hash of its origin cell) — NOT the
+                                           // array index, which renumbers as cities scroll in/out of
+                                           // gather_cities(). District orientation must key off this so
+                                           // the grid is a pure fn of world pos (else it re-rolls on pan).
 static int   dom_i = -1;                   // index of the city that dominates the last urbanity() query
 
 // The road that ENTERS a city → the axis its street grid aligns to. Town: toward its
@@ -686,6 +690,7 @@ static void gather_cities(void) {
     for (int cx=hc0; cx<=hc1 && gn<MAXCITY; cx++) for (int cy=hr0; cy<=hr1 && gn<MAXCITY; cy++) {
         float wx,wy; if (!get_hub(cx,cy,&wx,&wy)) continue;
         gnx[gn]=wx; gny[gn]=wy; gnw[gn]=rank_weight(hub_rank(cx,cy)); gnr[gn]=rank_cityR(hub_rank(cx,cy));
+        gid[gn]=hash2(cx*131+1, cy*131+1);          // stable id from the hub's cell (salt 1)
         city_dir(wx,wy,1,&gux[gn],&guy[gn]); gn++;
     }
     int tc0 = ifloor(camX/NODE_CS)-m, tc1 = ifloor((camX+vcols)/NODE_CS)+m;
@@ -693,6 +698,7 @@ static void gather_cities(void) {
     for (int cx=tc0; cx<=tc1 && gn<MAXCITY; cx++) for (int cy=tr0; cy<=tr1 && gn<MAXCITY; cy++) {
         float wx,wy; if (!get_node(cx,cy,&wx,&wy)) continue;
         gnx[gn]=wx; gny[gn]=wy; gnw[gn]=rank_weight(town_rank(cx,cy)); gnr[gn]=rank_cityR(town_rank(cx,cy));
+        gid[gn]=hash2(cx*131+2, cy*131+2);          // stable id from the town's cell (salt 2)
         city_dir(wx,wy,0,&gux[gn],&guy[gn]); gn++;
     }
 }
@@ -787,12 +793,15 @@ static int lot_color(float wx, float wy, int z) {
 // ── DISTRICT ORIENTATION — a city is a PATCHWORK, not one monolithic grid. A fraction
 // P_align of a city's districts rotate into its artery frame (main street follows the
 // road in); the rest grid to the world axes ("bigger roads connect however"). Both
-// frames anchored at the node, so it stays one coherent city. Pure fn → seam-true.
+// frames anchored at the node, so it stays one coherent city. Keyed on gid[] (the STABLE
+// per-city id), NOT dom_i — so the orientation is a pure fn of world pos and doesn't
+// re-roll as cities renumber in gather_cities() (the drag-flip bug).
 #define DISTRICT_BLK 5               // district size in blocks (orientation constant within one)
 static void city_grid_coords(float wx, float wy, float *gx, float *gy) {
     float ex = wx - gnx[dom_i], ey = wy - gny[dom_i];        // node-local, world-axis frame
     float dsp = block_sp() * DISTRICT_BLK;
-    unsigned hd = hash2(ifloor(ex/dsp) + dom_i*101, ifloor(ey/dsp)*7 - dom_i*53);
+    unsigned g = gid[dom_i];
+    unsigned hd = hash2(ifloor(ex/dsp) + (int)(g & 0xffffu), ifloor(ey/dsp)*7 - (int)((g>>8) & 0xffffu));
     if ((hd % 1000u) < (unsigned)(P_align * 1000.0f)) {      // this district aligns to the artery
         float ux = gux[dom_i], uy = guy[dom_i];
         *gx =  ex*ux + ey*uy;                                // along the entering road
@@ -1038,7 +1047,8 @@ static void graph_add_grid(void) {
         int dj0 = ifloor((wy0 - ny)/dsp), dj1 = ifloor((wy1 - ny)/dsp);
         for (int di = di0; di <= di1 && nedge < MAXGEDGE; di++)
         for (int dj = dj0; dj <= dj1 && nedge < MAXGEDGE; dj++) {
-            unsigned hd = hash2(di + ci*101, dj*7 - ci*53);                          // == city_grid_coords
+            unsigned g = gid[ci];                                                    // == city_grid_coords
+            unsigned hd = hash2(di + (int)(g & 0xffffu), dj*7 - (int)((g>>8) & 0xffffu));
             int aligned = ((hd % 1000u) < (unsigned)(P_align * 1000.0f));
             float ux = aligned ? gux[ci] : 1.0f, uy = aligned ? guy[ci] : 0.0f;
             float ex0 = di*dsp, ex1 = ex0 + dsp, ey0 = dj*dsp, ey1 = ey0 + dsp;      // node-local box

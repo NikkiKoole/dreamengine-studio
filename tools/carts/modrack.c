@@ -34,8 +34,9 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 // ── module type registry ──
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, MOD_TURING, MOD_GRIDS, MOD_MARBLES, MOD_MATHS,
-       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, MOD_CMP, MOD_DIV, MOD_ADSR, NTYPE };
-enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT, FMT_DIV, FMT_PCT };
+       MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, MOD_CMP, MOD_DIV, MOD_ADSR,
+       MOD_RVB, MOD_ECHO, MOD_DRIVE, MOD_CRUSH, NTYPE };   // RVB/ECHO/DRIVE/CRUSH = master-bus FX (see apply_master_fx)
+enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT, FMT_DIV, FMT_PCT, FMT_DRIVE };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
@@ -117,6 +118,18 @@ ModType TYPES[NTYPE] = {
     [MOD_ADSR]    = { "ADSR", CLR_DARK_RED, 5, 7, 2, {{0,false,14,72,"g"},{2,true,40,72,"cv"}},
                      4, {{"atk",0.005f,1,0.05f,15,28,FMT_MS},{"dec",0.02f,1,0.2f,43,28,FMT_MS},
                          {"sus",0,1,0.7f,15,50,FMT_F1},{"rel",0.02f,2,0.5f,43,50,FMT_MS}} },
+    // ── master-bus FX (no output jack — they're SINKS that dirty up the whole rack). The cv
+    // inlet ADDS to the wet/amount knob, so an LFO/ENV/MATHS can sweep a pedal. Applied
+    // globally in apply_master_fx() (NOT eval_mod): only the first module of a kind drives
+    // the bus; the rest sit dormant. drive is per-voice (slots 5..22), the rest are whole-mix.
+    [MOD_RVB]   = { "VERB", CLR_INDIGO, 4, 6, 1, {{2,false,24,60,"cv"}},
+                    2, {{"size",0.1f,0.95f,0.6f,14,30,FMT_F1},{"mix",0,1,0.35f,34,30,FMT_F1}} },
+    [MOD_ECHO]  = { "ECHO", CLR_BLUE_GREEN, 5, 6, 1, {{2,false,30,60,"cv"}},
+                    3, {{"time",40,800,300,12,30,FMT_INT},{"fb",0,0.85f,0.4f,30,30,FMT_F1},{"mix",0,1,0.35f,48,30,FMT_F1}} },
+    [MOD_DRIVE] = { "DRIVE", CLR_BROWN, 4, 6, 1, {{2,false,24,60,"cv"}},
+                    2, {{"amt",0,1,0.4f,14,30,FMT_F1},{"mode",0,3.99f,0,34,30,FMT_DRIVE}} },
+    [MOD_CRUSH] = { "CRUSH", CLR_MAUVE, 4, 6, 1, {{2,false,24,60,"cv"}},
+                    2, {{"bits",2,16,8,14,30,FMT_INT},{"mix",0,1,0.5f,34,30,FMT_F1}} },
 };
 // knob-index names for the multi-knob sound modules — MUST stay in the same order as the
 // knob arrays in TYPES[] above. Use these instead of raw numbers in eval/presets: a
@@ -128,6 +141,10 @@ enum { BK_RATE, BK_DEPTH, BK_DEST };                                // MOD_VIBRA
 enum { MK_ENG, MK_HARM, MK_TIMB, MK_MORPH, MK_DRV, MK_EKO, MK_TUN };  // MOD_MACRO knobs
 enum { MX_A, MX_B, MX_OFF };                                        // MOD_MIX knobs
 enum { AK_ATK, AK_DEC, AK_SUS, AK_REL };                            // MOD_ADSR knobs
+enum { RVK_SIZE, RVK_MIX };                                         // MOD_RVB knobs
+enum { ECK_TIME, ECK_FB, ECK_MIX };                                 // MOD_ECHO knobs
+enum { DRK_AMT, DRK_MODE };                                         // MOD_DRIVE knobs
+enum { CRK_BITS, CRK_MIX };                                         // MOD_CRUSH knobs
 
 int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
 int th(int type) { return TYPES[type].ch * CELL; }
@@ -160,6 +177,10 @@ const char *HELP[NTYPE][3] = {
     [MOD_CMP]    = { "Comparator: gate high while cv in > thr.", "An LFO through it becomes a clock -- thr", "sets the pulse width. CV -> rhythm, no CLOCK." },
     [MOD_DIV]    = { "Clock divider: passes every Nth gate.", "CLOCK only speaks /1 /2 /4 -- DIV adds /3,", "/8, /16... two DIVs = instant polymeter." },
     [MOD_ADSR]   = { "Envelope with SUSTAIN: gate up -> attack,", "decay, then HOLD at sus; gate down ->", "release. Into VOICE 'a' = pads that breathe." },
+    [MOD_RVB]    = { "Master reverb. Adds SPACE to the whole rack.", "size = room, mix = wet. Patch a cv (LFO/ENV)", "into it to swell the wash in and out." },
+    [MOD_ECHO]   = { "Master delay. time = repeat gap, fb = how", "many echoes, mix = wet. Patch a cv -> dub", "throws that bloom and fade. (cv adds to mix.)" },
+    [MOD_DRIVE]  = { "Overdrive on the VOICE synths (not drums/", "MACRO). amt = grit, mode = sft/hrd/fld/asy.", "cv adds to amt -- an ENV makes a dirt pluck." },
+    [MOD_CRUSH]  = { "Master bitcrush: lo-fi digital grunge on the", "whole mix. bits = resolution, mix = blend.", "cv adds to mix -- gate the grit rhythmically." },
 };
 
 // ── module instances + cables ──
@@ -226,6 +247,8 @@ void preset_generative(void) {   // the default: in-key melody over a euclidean 
     note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
     for (int i = 0; i < 8; i++) spawn(i, bayx(i), bayy(i));
     wire_default();
+    int rv = spawn(MOD_RVB, bayx(8), bayy(8));               // a touch of space so the default isn't bone-dry
+    mod[rv].param[RVK_SIZE] = 0.55f; mod[rv].param[RVK_MIX] = 0.24f;
 }
 void preset_acid(void) {         // euclid-gated squelch bass, slewed pitch + LFO wah — XPOSE -1 puts it in the bass register
     note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
@@ -575,9 +598,29 @@ void preset_organ(void) {        // ORGAN engine: harmonics = drawbar registrati
     add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ };
-#define NPRESET 26
+void preset_spacedub(void) {     // FX showcase: a sparse generative line drenched in delay + reverb,
+                                 // an LFO sweeping the echo MIX so the repeats throw in and out (dub)
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,  bayx(0), bayy(0)), tm = spawn(MOD_TURING, bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT,  bayx(2), bayy(2)), vo = spawn(MOD_VOICE,  bayx(3), bayy(3));
+    int eu = spawn(MOD_EUCLID, bayx(4), bayy(4)), dr = spawn(MOD_DRUM,   bayx(5), bayy(5));
+    int ec = spawn(MOD_ECHO,   bayx(6), bayy(6)), rv = spawn(MOD_RVB,    bayx(7), bayy(7));
+    int lf = spawn(MOD_LFO,    bayx(8), bayy(8));
+    mod[ck].param[0] = 92;
+    mod[tm].param[0] = 0.25f;   mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[vo].param[VK_CUT] = 950; mod[vo].param[VK_RES] = 5; mod[vo].param[VK_WAV] = 2; mod[vo].param[VK_FENV] = 700;
+    mod[eu].param[0] = 3; mod[eu].param[1] = 8;
+    mod[ec].param[ECK_TIME] = 375; mod[ec].param[ECK_FB] = 0.5f; mod[ec].param[ECK_MIX] = 0.30f;
+    mod[rv].param[RVK_SIZE] = 0.72f; mod[rv].param[RVK_MIX] = 0.42f;
+    mod[lf].param[0] = 0.12f;                            // slow swell
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, vo, 1); add_cable(ck, 0, vo, 0);
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, dr, 0); add_cable(ck, 0, dr, 2);
+    add_cable(lf, 0, ec, 0);                             // LFO -> ECHO cv: dub throws bloom and fade
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub };
+#define NPRESET 27
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;
@@ -681,6 +724,13 @@ void init(void) {
         if (TYPES[t].njack > 8 || TYPES[t].nknob > 8) {
             msg = "BAD ModType registry: >8 jacks/knobs"; msg_flash = 99999;
         }
+
+    // master FX chain: the CRUSH/ECHO/VERB modules drive these three master inserts (in this
+    // order — crush → delay → space). All idle at mix 0 until a module is present, so a rack
+    // with no FX module is byte-identical clean. drive is per-voice, so it isn't in this list.
+    int mfx[] = { FX_CRUSH, FX_ECHO, FX_REVERB };
+    fx_order(0, mfx, 3);
+
     preset_generative();
 }
 
@@ -986,6 +1036,64 @@ void eval_mod(int mi) {
     }
 }
 
+// ── master-bus FX modules — applied once per frame (after the eval loop, so cv jacks are
+// fresh). The bus is GLOBAL: only the FIRST module of a kind drives it; an absent kind gets
+// pushed OFF once (mix 0 = byte-identical clean). SET-AND-HOLD: re-apply ONLY when the value
+// moves, quantized so a cv-swept knob can't flood the request queue (the groovebox apply_fx()
+// pattern). Each module's cv inlet (jack 0) ADDS to its wet/amount knob.
+static int q64(float v) { return (int)(clamp(v, 0, 1) * 64 + 0.5f); }
+static int primary_of(int type) { for (int i = 0; i < nmod; i++) if (mod[i].type == type) return i; return -1; }
+
+void apply_master_fx(void) {
+    static int ap_rvb_sz = -1, ap_rvb_mix = -1;
+    static int ap_ec_t = -1, ap_ec_fb = -1, ap_ec_mix = -1;
+    static int ap_dr_amt = -1, ap_dr_mode = -1;
+    static int ap_cr_bits = -1, ap_cr_mix = -1;
+    int mi;
+
+    // VERB — master reverb insert (FX_REVERB in the init() chain; mix 0 = bypass dry)
+    if ((mi = primary_of(MOD_RVB)) >= 0) {
+        float size = mod[mi].param[RVK_SIZE];
+        float mix  = clamp(mod[mi].param[RVK_MIX] + read_in(mi, 0), 0, 1);
+        int sq = q64(size), mq = q64(mix);
+        if (sq != ap_rvb_sz || mq != ap_rvb_mix) { reverb_insert(size, 0.42f, mix); ap_rvb_sz = sq; ap_rvb_mix = mq; }
+    } else if (ap_rvb_mix != -1) { reverb_insert(0.5f, 0.42f, 0); ap_rvb_sz = ap_rvb_mix = -1; }
+
+    // ECHO — master delay insert (FX_ECHO in the chain). tone fixed 0.5; cv adds to mix.
+    if ((mi = primary_of(MOD_ECHO)) >= 0) {
+        int   tms = (int)mod[mi].param[ECK_TIME];
+        float fb  = mod[mi].param[ECK_FB];
+        float mix = clamp(mod[mi].param[ECK_MIX] + read_in(mi, 0), 0, 1);
+        int tq = tms / 8, fq = q64(fb), mq = q64(mix);   // time quantized to 8ms steps
+        if (tq != ap_ec_t || fq != ap_ec_fb || mq != ap_ec_mix) { echo_insert(tms, fb, 0.5f, mix); ap_ec_t = tq; ap_ec_fb = fq; ap_ec_mix = mq; }
+    } else if (ap_ec_mix != -1) { echo_insert(200, 0, 0.5f, 0); ap_ec_t = ap_ec_fb = ap_ec_mix = -1; }
+
+    // DRIVE — PER-VOICE overdrive on the subtractive synth slots (5..22), post-filter so the
+    // resonance screams into it (the 303/acid interaction). NOT drums (26-28) or MACRO engines
+    // (23-25/29-31, which MACRO drives itself every frame — co-driving would fight). Looped +
+    // change-gated (cheap, correct); amt coarse-quantized to 16 so a cv sweep over 18 slots
+    // stays easy on the queue. Held VOICE notes pick the change up live via note_drive.
+    if ((mi = primary_of(MOD_DRIVE)) >= 0) {
+        float amt = clamp(mod[mi].param[DRK_AMT] + read_in(mi, 0), 0, 1);
+        int mode = (int)clamp(mod[mi].param[DRK_MODE], 0, 3);
+        int aq = (int)(amt * 16 + 0.5f);
+        if (aq != ap_dr_amt || mode != ap_dr_mode) {
+            for (int s = 5; s <= 22; s++) { instrument_drive(s, amt); instrument_drive_mode(s, mode); }
+            for (int v = 0; v < nmod; v++)
+                if (mod[v].type == MOD_VOICE) { int h = (int)mod[v].state[1]; if (h > 0) { note_drive(h, amt); note_drive_mode(h, mode); } }
+            ap_dr_amt = aq; ap_dr_mode = mode;
+        }
+    } else if (ap_dr_amt != -1) { for (int s = 5; s <= 22; s++) instrument_drive(s, 0); ap_dr_amt = ap_dr_mode = -1; }
+
+    // CRUSH — master bitcrush on the whole mix. rate fixed 6 (lo-fi downsample); cv adds to mix.
+    if ((mi = primary_of(MOD_CRUSH)) >= 0) {
+        float bits = mod[mi].param[CRK_BITS];
+        float mix  = clamp(mod[mi].param[CRK_MIX] + read_in(mi, 0), 0, 1);
+        int bq = (int)bits, mq = q64(mix);
+        if (bq != ap_cr_bits || mq != ap_cr_mix) { crush(bits, 6.0f, mix); ap_cr_bits = bq; ap_cr_mix = mq; }
+    } else if (ap_cr_mix != -1) { crush(8, 6, 0); ap_cr_bits = ap_cr_mix = -1; }
+}
+
 void update(void) {
     if (keyp('S')) save_patch();
     if (keyp('L')) load_patch();
@@ -998,6 +1106,7 @@ void update(void) {
     g_step = step8;
 
     for (int i = 0; i < nmod; i++) eval_mod(i);
+    apply_master_fx();   // configure the master bus / drive from any FX modules (set-and-hold)
 
 #ifdef DE_TRACE
     watch("nmod", "%d", nmod);
@@ -1024,6 +1133,7 @@ const char *knob_str(int fmt, float v) {
     if (fmt == FMT_FILTER){ const char *F[4] = { "lp",  "hp",  "bp",  "nt"  }; return F[(int)clamp(v, 0, 3)]; }
     if (fmt == FMT_DEST)  { const char *D[7] = { "pit", "cut", "pw", "vol", "har", "tmb", "mor" }; return D[(int)clamp(v, 0, 6)]; }   // har/tmb/mor = engine macros (MACRO voice only)
     if (fmt == FMT_ENGINE){ const char *E[6] = { "plk", "mlt", "fm", "org", "ep", "pd" }; return E[(int)clamp(v, 0, 5)]; }   // pluck/mallet/fm/organ/epiano/pd modeled engines
+    if (fmt == FMT_DRIVE) { const char *D[4] = { "sft", "hrd", "fld", "asy" }; return D[(int)clamp(v, 0, 3)]; }   // DRIVE_SOFT/HARD/FOLD/ASYM waveshaper
     if (fmt == FMT_OCT)   { int o = (int)floorf(v + 0.5f); return o == 0 ? "0" : str("%+d", o); }          // snapped whole octaves
     if (fmt == FMT_DIV)   return str("/%d", (int)v);                                                       // clock division
     if (fmt == FMT_SCALE) return SCALES[(int)v];
@@ -1209,6 +1319,15 @@ void draw_extras(int mi) {
                 print(str("%c", KK[i]), kx + 2, y + 42, CLR_DARK_GREY);
             }
             break; }
+        // FX modules: a wet/amount bar (knob + live cv) so modulation is visible at a glance
+        case MOD_RVB:   { float w = clamp(m->param[RVK_MIX] + read_in(mi, 0), 0, 1);
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_INDIGO); break; }
+        case MOD_ECHO:  { float w = clamp(m->param[ECK_MIX] + read_in(mi, 0), 0, 1);
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_BLUE_GREEN); break; }
+        case MOD_DRIVE: { float w = clamp(m->param[DRK_AMT] + read_in(mi, 0), 0, 1);
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_DARK_ORANGE); break; }
+        case MOD_CRUSH: { float w = clamp(m->param[CRK_MIX] + read_in(mi, 0), 0, 1);
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_MAUVE); break; }
     }
 }
 

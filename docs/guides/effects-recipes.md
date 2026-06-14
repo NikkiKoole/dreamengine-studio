@@ -62,7 +62,7 @@ Per-slot `send` 0–1 chooses how much each instrument throws into it. **Showcas
 | dynamic room echo | `echo(90+open*300, 0.10f+open*0.30f, 0.35f+open*0.25f)` | echo that opens with the space: corridor→hall driven by one `open` 0..1 | `deeper` |
 | hard feed into a loop | `instrument_echo(PAD, 0.7f)` | a pad fed heavily into a long echo = an evolving wash (the tape-loop trick) | `tapeloop`, `wowflutter` |
 | live delay pedal | `echo(rate_ms(), fb_x(), tone_x())` from knobs | the effect played as the instrument; feedback into the red = self-osc drone | `spacecho`, `tb303` |
-| delay as an in-line INSERT | `echo_insert(time_ms, fb, tone, mix)` + `FX_ECHO` in `fx_order(0,…)` | a real reorderable DELAY pedal whose chain POSITION is audible — `delay→drive` distorts the repeats, `drive→delay` makes clean echoes of a dirty signal | `pedalboard` (DELAY) |
+| delay as an in-line INSERT | `echo_insert(time_ms, fb, tone, mix)` + `FX_ECHO` in `fx_order(0,…)` | a real reorderable DELAY pedal whose chain POSITION is audible — `delay→drive` distorts the repeats, `drive→delay` makes clean echoes of a dirty signal | `pedalboard` (DELAY), `modrack` (ECHO module — cv inlet sweeps the mix for dub throws) |
 
 > **`echo()` (send) vs `echo_insert()` (insert).** `echo()` is the shared parallel send — its wet
 > always returns clean to master, so its position in a pedal chain is cosmetic (the same reason
@@ -149,7 +149,7 @@ The third reverb shape: a dry/wet-MIX insert **on the master bus**, so it's a re
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| honest pedalboard reverb | `reverb_insert(0.7f, 0.3f, 0.45f)` + `FX_REVERB` in `fx_order(0,…)` | a guitar-pedal reverb whose position matters: before crush = crush the wet tail; after = reverb the crushed guitar | `pedalboard` (REVERB pedal), `groovebox` (SPACE knob — the ORDER toggle IS reverb↔crush on the summed mix) |
+| honest pedalboard reverb | `reverb_insert(0.7f, 0.3f, 0.45f)` + `FX_REVERB` in `fx_order(0,…)` | a guitar-pedal reverb whose position matters: before crush = crush the wet tail; after = reverb the crushed guitar | `pedalboard` (REVERB pedal), `groovebox` (SPACE knob — the ORDER toggle IS reverb↔crush on the summed mix), `modrack` (VERB module — on by default for a touch of space; cv inlet swells the mix) |
 
 ## chorus — `chorus(rate, depth, mix)` · `instrument_chorus(slot, rate, depth, mix)`
 
@@ -232,7 +232,7 @@ full-scale loudness (character, not volume). **Showcase: `drivemodes`.**
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| acid squelch | `FILTER_LOW` + high res + `instrument_drive(slot, 0.3–0.5f)`, live `note_drive` | the 303: resonant peak driven into saturation; ride DRV with RES | `tb303`, `moog`, `spacecho` |
+| acid squelch | `FILTER_LOW` + high res + `instrument_drive(slot, 0.3–0.5f)`, live `note_drive` | the 303: resonant peak driven into saturation; ride DRV with RES | `tb303`, `moog`, `spacecho`, `modrack` (DRIVE module — drives the VOICE slots post-filter; mode knob = soft/hard/fold/asym) |
 | distorted house lead | `instrument_drive(I_LEAD, 0.45f)` [SOFT] | the genre hook — a hard, present saw lead | `house` |
 | warehouse kick | `instrument_drive(SL_KICK, 0.30–0.35f)` | saturated kick weight, the French-house pump | `tr909`, `tr808`, `italo`, `house` |
 | bass grind | `instrument_drive(I_BASS, 0.40f + fuzz*0.0055f)` (0.40–0.95) | a fuzz knob mapped onto a bass, clean→wall | `air` |
@@ -250,7 +250,7 @@ call (mix 0 = off). **Showcase: `bitcrush`** (its scope doubles as an XY pad —
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| 8-bit master | `crush(6.0f, 8.0f, 1.0f)` | crunchy downsampled whole-mix grit — the retro-console sound | `bitcrush`, `groovebox` (CRUSH knob — the summed SP-1200 grit on a full mix) |
+| 8-bit master | `crush(6.0f, 8.0f, 1.0f)` | crunchy downsampled whole-mix grit — the retro-console sound | `bitcrush`, `groovebox` (CRUSH knob — the summed SP-1200 grit on a full mix), `modrack` (CRUSH module — cv inlet gates the grit rhythmically) |
 | gnarly destroy | `crush(2.0f, 16.0f, 1.0f)` | barely-recognizable, steppy quantization noise | `bitcrush` |
 | subtle dirt | `crush(10.0f, 2.0f, 0.5f)` | a touch of aliasing whine + step, mostly clean | `bitcrush` |
 | lo-fi just the bass | `instrument_crush(I_BASS, 5.0f, 6.0f, 1.0f)` | crush ONE part (the bass) while the lead stays crystal — the point of the per-instrument bus | `bitcrush` |

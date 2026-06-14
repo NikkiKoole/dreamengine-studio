@@ -545,10 +545,17 @@ fully covers is dropped before the off-screen/overlap checks run. A widget's own
 drawn *after* its fill, so it survives; only background text painted over by something on top
 is silenced. This is what stops modal-over-content screens from crying wolf.
 
+**Animation transients are filtered too.** A real layout bug sits still; text on screen
+for only a frame or two is mid-motion (a card dealing in, a number sliding into place). A
+finding must persist `--min-frames` frames (default 3) to be reported — off-screen findings
+are keyed by position, so a moving element makes many 1-frame entries that all fall below the
+bar, while a static clip keeps one high-count entry. `--min-frames 1` shows everything.
+
 ```bash
 node tools/ui-audit.js <name>                 # text off-screen + overlapping text, default play
 node tools/ui-audit.js <name> --explore       # ALSO press each key the cart reads + tap each ui.h widget
 node tools/ui-audit.js <name> --overlay [f.svg] [--frame N]   # SVG: screenshot + every box, colour-coded
+node tools/ui-audit.js <name> --min-frames N    # a finding must persist >= N frames (default 3)
 node tools/ui-audit.js <name> --json           # machine output; exit 1 if any live finding
 ```
 

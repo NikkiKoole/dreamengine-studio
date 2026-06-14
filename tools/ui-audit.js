@@ -253,21 +253,31 @@ if (wantOverlay) {
   try { for (const fn of fs.readdirSync(dumpDir)) fs.unlinkSync(path.join(dumpDir, fn)); fs.rmdirSync(dumpDir) } catch {}
 }
 
+// ── transient filter: a real layout bug sits still; something on screen for
+// only a frame or two is mid-animation (a card dealing in, a number sliding).
+// Require a finding to persist >= minFrames. Off-screen findings are keyed by
+// position, so a moving element makes many 1-frame entries that all fall here;
+// a static clip keeps one entry with a high count. --min-frames 1 shows everything.
+const minFrames = Math.max(1, Math.min(+opt('--min-frames', 3), framesSeen))
+const persists = (f) => f.n >= minFrames
+
 // ── waivers: partition findings into live vs suppressed ─────────────────────
 const waivers = parseWaivers()
 const badWaivers = waivers.filter(w => w.kind === 'bad')
 const isWaived = (f, pred) => { const w = waivers.find(w => pred(f, w)); if (w) { w.used = true; return true } return false }
 const allOff = [...offscreen.values()], allCol = [...collide.values()]
-const offList = allOff.filter(f => !isWaived(f, waiveOff))
-const colList = allCol.filter(f => !isWaived(f, waiveOver))
-const waivedN = (allOff.length - offList.length) + (allCol.length - colList.length)
+const offSteady = allOff.filter(persists), colSteady = allCol.filter(persists)
+const transientN = (allOff.length - offSteady.length) + (allCol.length - colSteady.length)
+const offList = offSteady.filter(f => !isWaived(f, waiveOff))
+const colList = colSteady.filter(f => !isWaived(f, waiveOver))
+const waivedN = (offSteady.length - offList.length) + (colSteady.length - colList.length)
 const stale   = waivers.filter(w => w.kind !== 'bad' && !w.used)
 
 // ── report ──────────────────────────────────────────────────────────────────
 if (asJson) {
-  console.log(JSON.stringify({ cart: name, framesSeen, screen: { w: SW, h: SH },
+  console.log(JSON.stringify({ cart: name, framesSeen, minFrames, screen: { w: SW, h: SH },
     offscreenText: offList, textOverlap: colList,
-    waived: waivedN, staleWaivers: stale.map(w => w.raw), badWaivers: badWaivers.map(w => w.raw),
+    waived: waivedN, transient: transientN, staleWaivers: stale.map(w => w.raw), badWaivers: badWaivers.map(w => w.raw),
     explored: wantExplore ? { keys: exploreKeys.map(k => k.label), taps: exploreTaps.length, discovered } : undefined },
     null, 2))
   process.exit(offList.length || colList.length ? 1 : 0)
@@ -289,6 +299,7 @@ if (colList.length) {
 }
 if (!offList.length && !colList.length) console.log('  ✓ no off-screen or overlapping text found.')
 
+if (transientN)     console.log(`  · ${transientN} transient finding(s) hidden (< ${minFrames} frames — likely mid-animation; --min-frames 1 to show)`)
 if (waivedN)        console.log(`  · ${waivedN} finding(s) waived by // ui-audit-ignore`)
 if (stale.length) {
   console.log(`  ⚑ ${stale.length} stale waiver(s) — matched nothing this run, delete or fix:`)
@@ -298,7 +309,7 @@ if (badWaivers.length) {
   console.log(`  ⚑ ${badWaivers.length} malformed waiver(s) (expected: off "TEXT" [side] | overlap "A" "B"):`)
   for (const w of badWaivers) console.log(`      // ui-audit-ignore ${w.raw}`)
 }
-if (waivedN || stale.length || badWaivers.length) console.log('')
+if (transientN || waivedN || stale.length || badWaivers.length) console.log('')
 
 if (wantExplore) {
   console.log(`  ⌨ explored ${exploreKeys.length} key(s)${exploreTaps.length ? ` + ${exploreTaps.length} widget tap(s)` : ''}` +

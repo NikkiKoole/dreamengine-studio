@@ -447,7 +447,7 @@ static int   clip_cx = 0, clip_cy = 0, clip_cw = 0, clip_ch = 0;  // active scis
 // truncation inside a clip panel, and overlapping text. Off → zero cost (the
 // UIAUDIT macro compiles to nothing in web/release builds).
 #define UIAUDIT_MAX 4096
-typedef struct { char kind; short x, y, w, h; unsigned char clip; char text[28]; } UiAuditRec;
+typedef struct { char kind; short x, y, w, h; unsigned char clip; char text[64]; } UiAuditRec;
 static UiAuditRec uiaudit_recs[UIAUDIT_MAX];
 static int        uiaudit_n = 0;
 

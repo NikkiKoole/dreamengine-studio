@@ -132,10 +132,19 @@ verbatim, same playbook as `grains`. The "always listening" half is just `grains
 Master drive took `FX_DRIVE = 15`, closing the `fx_order` 4-bit packing (0..15). The follow-on
 `drive_insert_inst(instance, amount, mode, mix)` + `FX_INST(FX_DRIVE, instance)` in `fx_order`
 (Increment F) is the escape valve: a 2nd/3rd **instance** of an *existing* insert at different chain
-spots, no new kind. It generalises — a second crush, filter, EQ, etc. **Rule going forward: when the
-kind ceiling bites, reach for "instance it" (`FX_INST`), not "mint a new `FX_*`."** (Caveat: if the
-kind field is still 4 bits, a genuinely *new* effect type beyond 15 still needs a packing widen —
-instancing only reuses kinds 0..15.)
+spots, no new kind. It generalises — a second crush, filter, EQ, etc. Both moves coexist: instance an
+existing effect, OR mint a new kind (there's now room — see below).
+
+### `fx_order` packing widened — 16 → 32 kinds  ⭐ done 2026-06-15
+`FX_DRIVE = 15` had filled the old 4-bit-per-slot packing, and the FX_INST work spent the spare
+request ints (kind-lo/hi + instance-lo/hi). Repacked each chain slot as **one byte: 5 bits kind +
+3 bits instance** (4 slots per int, across the same 4 payload ints) → **kinds 0..31 (16 new), 8
+instances/kind, 16 chain slots**. Pure repack of `fx_order()` + the `SR_FX_ORDER` handler + the
+`FX_INST` macro (`inst << 5` now); no `SoundReq` growth. Verified transparent: `pedalboard`,
+`groovebox`, `epiano` render byte-identical, and an `FX_INST(FX_DRIVE,1)` A/B confirms instances
+still route. **This unblocks Shallow Water, the noise gate, and any future insert as a real
+reorderable pedal.** `FX_ORDER_SLOTS` (16) caps one chain; bump it (needs `SoundReq` growth) only if
+a chain ever needs >16 pedals.
 
 ### Overdrive / Klon as a reorderable BUS insert  ⭐ now buildable (was "do not rebuild")
 Per-voice drive covers the Klon *tone* but can't be a reorderable **stompbox** whose position vs the

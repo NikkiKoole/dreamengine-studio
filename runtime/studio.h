@@ -544,9 +544,9 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_RINGMOD  12  // ring modulator — signal × sine carrier (a reorderable pedal, in every bus's default chain)
 #define FX_ECHO     13  // delay/echo INSERT — in-line dry/wet delay (master only, via echo_insert(); place in fx_order(0,…))
 #define FX_GRAINS   14  // granular delay INSERT — capture-and-scatter texture/freeze cloud (via grains()/instrument_grains(); auto-placed, reorderable via fx_order)
-#define FX_DRIVE    15  // mix-bus saturation INSERT — drive the summed mix (via drive_insert(); place in fx_order(0,…)). LAST kind that fits fx_order's 4-bit-per-slot packing (0..15)
-#define FX_INST(kind, inst) ((kind) | ((inst) << 4))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0.
-void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 15
+#define FX_DRIVE    15  // mix-bus saturation INSERT — drive the summed mix (via drive_insert(); place in fx_order(0,…)). Kinds 16..31 are free (fx_order packs 5 bits of kind per slot)
+#define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..7.
+void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 16 slots
 
 // leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
 // horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds

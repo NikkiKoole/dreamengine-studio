@@ -1525,6 +1525,16 @@ v1, document it on the panel.
     byte-identical. **Showcase: `genloss`** (crush→tape→dropout; VHS transport tears its tracking on a
     catch). Pitch-dip on a catch deferred to the bus pitch-shifter (Primitive 2).
 
+23. **`fx_order` packing widened (16 → 32 insert kinds).** **✓ 2026-06-15.** `FX_DRIVE=15` had filled
+    the old 4-bit-per-slot `SR_FX_ORDER` packing, and the FX_INST work spent the spare request ints.
+    Repacked each chain slot as one BYTE — **5 bits kind | 3 bits instance** — 4 slots per int across
+    the same 4 payload ints (b/e0/e1/e2): **kinds 0..31** (16 new), **8 instances/kind**, **16 chain
+    slots** (`FX_ORDER_SLOTS`). Pure repack of `fx_order()` + the `SR_FX_ORDER` handler + the `FX_INST`
+    macro (`inst << 5`); no `SoundReq` growth. Verified TRANSPARENT — `pedalboard`/`groovebox`/`epiano`
+    render byte-identical (kinds 0..15 + existing instances unchanged) — and an `FX_INST(FX_DRIVE,1)`
+    sine A/B confirms instances still route (driven crest 0.65 dB vs clean 3.01 dB). Unblocks new
+    reorderable inserts (Shallow Water, noise gate, …) that the full table had blocked.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

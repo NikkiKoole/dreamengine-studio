@@ -1500,7 +1500,8 @@ static void fx_set_grains_pitch(int b, float semitones, float spread, bool rever
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_DRIVE + 1)            // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (default chain) + FX_REVERB (reverb-bus) + FX_ECHO + FX_GRAINS + FX_DRIVE (placed via fx_order). FX_DRIVE=15 is the LAST kind that fits the 4-bit-per-slot SR_FX_ORDER packing.
+#define N_INSERTS (FX_DRIVE + 1)            // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (default chain) + FX_REVERB (reverb-bus) + FX_ECHO + FX_GRAINS + FX_DRIVE (placed via fx_order).
+#define FX_ORDER_SLOTS 16                   // fx_order packs 16 slots (4 ints × 4 bytes, 1 byte/slot: kind 5 bits | instance 3 bits). Kinds 0..31, instances 0..7. A chain longer than 16 is truncated.
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
 static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
 static int insert_inst   [SOUND_FX_BUSES][N_INSERTS];   // Increment F: per-slot INSTANCE (which copy of the kind). 0 = the only/first instance = byte-identical to before.
@@ -4440,13 +4441,14 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_leslie(b, r.b, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
-    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, b=packed kind lo (slots 0..7, 4 bits each), c=count, e0=packed kind hi (slots 8..), e1/e2=packed INSTANCE lo/hi (Increment F)
+    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, c=count; b/e0/e1/e2 = 4 slots each, 1 byte/slot (kind 5 bits | instance 3 bits)
         int bus = r.a;
         if (bus < 0 || bus >= SOUND_FX_BUSES) return;
-        int n = r.c; if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
+        int n = r.c; if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS; if (n > FX_ORDER_SLOTS) n = FX_ORDER_SLOTS;
+        unsigned int w[4] = { (unsigned)r.b, (unsigned)r.e0, (unsigned)r.e1, (unsigned)r.e2 };
         for (int s = 0; s < n; s++) {
-            int kind = (s < 8) ? ((r.b >> (4 * s)) & 15) : ((r.e0 >> (4 * (s - 8))) & 15);
-            int inst = (s < 8) ? ((r.e1 >> (4 * s)) & 15) : ((r.e2 >> (4 * (s - 8))) & 15);
+            int byte = (w[s >> 2] >> (8 * (s & 3))) & 0xFF;
+            int kind = byte & 31, inst = (byte >> 5) & 7;   // FX_INST(kind, inst) = kind | inst<<5
             insert_order[bus][s] = (kind < N_INSERTS) ? kind : FX_TREM;
             insert_inst[bus][s]  = inst;   // 0 unless the cart tagged the kind with FX_INST(kind, n)
         }
@@ -5558,16 +5560,15 @@ void instrument_leslie(int slot, int speed, float drive, float balance, float do
 // × 4 bits = 36 > 32, so split across two payload ints: slots 0..7 → `b`, slots 8.. → `e0`.
 void fx_order(int bus, const int *kinds, int n) {
     if (bus < 0 || bus >= SOUND_FX_BUSES) return;
-    if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
-    int lo = 0, hi = 0, ilo = 0, ihi = 0;   // ilo/ihi: per-slot INSTANCE (Increment F), 0 unless FX_INST-tagged
+    if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS; if (n > FX_ORDER_SLOTS) n = FX_ORDER_SLOTS;
+    unsigned int w[4] = { 0, 0, 0, 0 };      // 4 ints × 4 slots × 1 byte = 16 slots; byte = kind(5b) | inst(3b)
     for (int s = 0; s < n; s++) {
-        int k    = kinds[s] & 15;            // FX_INST(kind, inst) packs the instance in bits 4+
-        int inst = (kinds[s] >> 4) & 15;
+        int k    = kinds[s] & 31;            // FX_INST(kind, inst) packs the instance in bits 5+
+        int inst = (kinds[s] >> 5) & 7;
         if (k < 0 || k >= N_INSERTS) k = 0;
-        if (s < 8) { lo  |= (k    & 15) << (4 * s);       ilo |= (inst & 15) << (4 * s); }
-        else       { hi  |= (k    & 15) << (4 * (s - 8)); ihi |= (inst & 15) << (4 * (s - 8)); }
+        w[s >> 2] |= (unsigned)((k & 31) | ((inst & 7) << 5)) << (8 * (s & 3));
     }
-    sound_push_ctrl(SR_FX_ORDER, bus, lo, n, hi, ilo, ihi);
+    sound_push_ctrl(SR_FX_ORDER, bus, (int)w[0], n, (int)w[1], (int)w[2], (int)w[3]);
 }
 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {

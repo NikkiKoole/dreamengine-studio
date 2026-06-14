@@ -242,6 +242,18 @@ full-scale loudness (character, not volume). **Showcase: `drivemodes`.**
 | bark → drive | `note_drive(h, bark)` live, slewed | an EP/organ that digs in when you lean on a knob | `epiano`, `organ`, `modrack` |
 | fuzz pedal | per-voice drive on the guitar slot: `DRIVE_ASYM` (germanium, warm) / `DRIVE_HARD` (silicon, bite), amount ~0.45–1.0 | the Fuzz Face — a stompbox dirt source into the amp/cab. Per-voice drive is ONE stage, so it LOCKS while the AMP cabinet owns it (stacking awaits Increment F) | `pedalboard` (FUZZ) |
 
+### mix-bus saturation — `drive_insert(amount, mode, mix)` · `FX_DRIVE`
+
+The whole-MIX sibling of per-voice drive: it saturates the summed master bus, so the **drums grit up too**
+(per-voice drive only touches the one voice it lives in). Reuses the same `DRIVE_*` shapers; place `FX_DRIVE`
+in `fx_order(0,…)` (before crush/echo vs after is audible). `mix` 0 = bypass → byte-identical. Use it for
+glue/cohesion, NOT as a substitute for per-voice tone-shaping (which keeps the post-filter acid scream).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| tube glue | `drive_insert(0.25f, DRIVE_ASYM, 0.5f)` | gentle even-harmonic warmth that fuses a busy mix — the "everything through one amp" cohesion | `modrack` (SAT module) |
+| lo-fi wall | `drive_insert(0.7f+, DRIVE_HARD, 0.85f)` | cranked square-edged crush on the whole bus, drums and all — noise-rock / breakbeat grit | `modrack` (SAT, "Sat bus" preset) |
+
 ## bitcrush — `crush(bits, rate, mix)` · `instrument_crush(slot, bits, rate, mix)`
 
 Lo-fi quantization: drop the **bit depth** (`bits` 1–16, floor to 2^bits levels) and the **sample

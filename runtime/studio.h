@@ -382,6 +382,7 @@ void instrument_drive(int slot, float x);      // overdrive a slot 0.0..1.0 — 
 void instrument_drive_mode(int slot, int mode); // pick the waveshaper: DRIVE_SOFT (default) / DRIVE_HARD / DRIVE_FOLD / DRIVE_ASYM. amount stays instrument_drive()
 void note_drive(int handle, float x);          // sweep a held note's drive live, slewed — ride it up mid-phrase for the acid scream
 void note_drive_mode(int handle, int mode);    // switch a held note's drive waveshaper live (DRIVE_*) — not slewed, snaps
+void drive_insert(float amount, int mode, float mix);  // MIX-BUS SATURATION: drive the whole summed mix as a reorderable INSERT (put FX_DRIVE in fx_order(0,…)). The bus sibling of instrument_drive — tube/tape glue low, a lo-fi wall cranked, grit on drums too. amount 0..1, mode DRIVE_*, mix 0..1 (0 = bypass → byte-identical)
 
 // echo — THE shared echo bus (there is exactly one): each slot chooses how much to send
 // into it. Repeats get darker every pass (tone), and feedback past 1.0 self-oscillates
@@ -529,6 +530,7 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_RINGMOD  12  // ring modulator — signal × sine carrier (a reorderable pedal, in every bus's default chain)
 #define FX_ECHO     13  // delay/echo INSERT — in-line dry/wet delay (master only, via echo_insert(); place in fx_order(0,…))
 #define FX_GRAINS   14  // granular delay INSERT — capture-and-scatter texture/freeze cloud (via grains()/instrument_grains(); auto-placed, reorderable via fx_order)
+#define FX_DRIVE    15  // mix-bus saturation INSERT — drive the summed mix (via drive_insert(); place in fx_order(0,…)). LAST kind that fits fx_order's 4-bit-per-slot packing (0..15)
 #define FX_INST(kind, inst) ((kind) | ((inst) << 4))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0.
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 15
 

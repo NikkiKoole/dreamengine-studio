@@ -35,7 +35,7 @@ const char *SCALES[6] = { "maj","min","pen","pnm","blu","chr" };
 enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MOD_DRUM,
        MOD_SLEW, MOD_ATTN, MOD_LOGIC, MOD_SCOPE, MOD_KEYS, MOD_TURING, MOD_GRIDS, MOD_MARBLES, MOD_MATHS,
        MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, MOD_CMP, MOD_DIV, MOD_ADSR,
-       MOD_RVB, MOD_ECHO, MOD_DRIVE, MOD_CRUSH, NTYPE };   // RVB/ECHO/DRIVE/CRUSH = master-bus FX (see apply_master_fx)
+       MOD_RVB, MOD_ECHO, MOD_DRIVE, MOD_CRUSH, MOD_SAT, NTYPE };   // RVB/ECHO/DRIVE/CRUSH/SAT = master-bus FX (see apply_master_fx). SAT = whole-mix drive_insert (drums too)
 enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT, FMT_DIV, FMT_PCT, FMT_DRIVE };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
@@ -130,6 +130,11 @@ ModType TYPES[NTYPE] = {
                     2, {{"amt",0,1,0.4f,14,30,FMT_F1},{"mode",0,3.99f,0,34,30,FMT_DRIVE}} },
     [MOD_CRUSH] = { "CRUSH", CLR_MAUVE, 4, 6, 1, {{2,false,24,60,"cv"}},
                     2, {{"bits",2,16,8,14,30,FMT_INT},{"mix",0,1,0.5f,34,30,FMT_F1}} },
+    // SAT = whole-MIX saturation (drive_insert / FX_DRIVE) — unlike DRIVE (per-VOICE, post-filter
+    // acid scream), this drives the SUMMED bus so drums + MACRO grit up too: tube glue low, lo-fi
+    // wall high. amt + mode + dry/wet mix; cv adds to amt.
+    [MOD_SAT]   = { "SAT", CLR_ORANGE, 5, 6, 1, {{2,false,30,60,"cv"}},
+                    3, {{"amt",0,1,0.4f,12,30,FMT_F1},{"mode",0,3.99f,3,30,30,FMT_DRIVE},{"mix",0,1,0.8f,48,30,FMT_F1}} },
 };
 // knob-index names for the multi-knob sound modules — MUST stay in the same order as the
 // knob arrays in TYPES[] above. Use these instead of raw numbers in eval/presets: a
@@ -145,6 +150,7 @@ enum { RVK_SIZE, RVK_MIX };                                         // MOD_RVB k
 enum { ECK_TIME, ECK_FB, ECK_MIX };                                 // MOD_ECHO knobs
 enum { DRK_AMT, DRK_MODE };                                         // MOD_DRIVE knobs
 enum { CRK_BITS, CRK_MIX };                                         // MOD_CRUSH knobs
+enum { SATK_AMT, SATK_MODE, SATK_MIX };                            // MOD_SAT knobs
 
 int tw(int type) { return TYPES[type].cw * CELL; }   // module pixel width/height
 int th(int type) { return TYPES[type].ch * CELL; }
@@ -181,6 +187,7 @@ const char *HELP[NTYPE][3] = {
     [MOD_ECHO]   = { "Master delay. time = repeat gap, fb = how", "many echoes, mix = wet. Patch a cv -> dub", "throws that bloom and fade. (cv adds to mix.)" },
     [MOD_DRIVE]  = { "Overdrive on the VOICE synths (not drums/", "MACRO). amt = grit, mode = sft/hrd/fld/asy.", "cv adds to amt -- an ENV makes a dirt pluck." },
     [MOD_CRUSH]  = { "Master bitcrush: lo-fi digital grunge on the", "whole mix. bits = resolution, mix = blend.", "cv adds to mix -- gate the grit rhythmically." },
+    [MOD_SAT]    = { "Mix-bus SATURATION: drives the WHOLE mix", "(drums + MACRO too, unlike DRIVE). amt=grit,", "mode=sft/hrd/fld/asy, mix=dry/wet. cv->amt." },
 };
 
 // ── module instances + cables ──
@@ -618,9 +625,26 @@ void preset_spacedub(void) {     // FX showcase: a sparse generative line drench
     add_cable(lf, 0, ec, 0);                             // LFO -> ECHO cv: dub throws bloom and fade
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub };
-#define NPRESET 27
+void preset_satbus(void) {       // FX showcase: a full beat + acid bass run through the mix-bus
+                                 // SATURATOR (SAT) — the DRUMS grit up too, what per-voice DRIVE can't do
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,  bayx(0), bayy(0)), eu = spawn(MOD_EUCLID, bayx(1), bayy(1));
+    int tm = spawn(MOD_TURING, bayx(2), bayy(2)), qt = spawn(MOD_QUANT,  bayx(3), bayy(3));
+    int vo = spawn(MOD_VOICE,  bayx(4), bayy(4)), dr = spawn(MOD_DRUM,   bayx(5), bayy(5));
+    int sa = spawn(MOD_SAT,    bayx(6), bayy(6));
+    mod[ck].param[0] = 124;
+    mod[eu].param[0] = 4; mod[eu].param[1] = 8;
+    mod[tm].param[0] = 0.3f; mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[vo].param[VK_CUT] = 500; mod[vo].param[VK_RES] = 8; mod[vo].param[VK_WAV] = 0; mod[vo].param[VK_FENV] = 1000;
+    mod[sa].param[SATK_AMT] = 0.5f; mod[sa].param[SATK_MODE] = 3; mod[sa].param[SATK_MIX] = 0.85f;   // asym tube glue on the whole bus
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, vo, 0);
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, vo, 1);
+    add_cable(ck, 0, dr, 0); add_cable(ck, 2, dr, 2);
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub", "Sat bus" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub, preset_satbus };
+#define NPRESET 28
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;
@@ -725,11 +749,11 @@ void init(void) {
             msg = "BAD ModType registry: >8 jacks/knobs"; msg_flash = 99999;
         }
 
-    // master FX chain: the CRUSH/ECHO/VERB modules drive these three master inserts (in this
-    // order — crush → delay → space). All idle at mix 0 until a module is present, so a rack
-    // with no FX module is byte-identical clean. drive is per-voice, so it isn't in this list.
-    int mfx[] = { FX_CRUSH, FX_ECHO, FX_REVERB };
-    fx_order(0, mfx, 3);
+    // master FX chain: the SAT/CRUSH/ECHO/VERB modules drive these master inserts (in this order
+    // — saturate → bitcrush → delay → space). All idle at mix 0 until a module is present, so a
+    // rack with no FX module is byte-identical clean. (Per-voice DRIVE isn't a bus insert.)
+    int mfx[] = { FX_DRIVE, FX_CRUSH, FX_ECHO, FX_REVERB };
+    fx_order(0, mfx, 4);
 
     preset_generative();
 }
@@ -1049,6 +1073,7 @@ void apply_master_fx(void) {
     static int ap_ec_t = -1, ap_ec_fb = -1, ap_ec_mix = -1;
     static int ap_dr_amt = -1, ap_dr_mode = -1;
     static int ap_cr_bits = -1, ap_cr_mix = -1;
+    static int ap_sat_amt = -1, ap_sat_mode = -1, ap_sat_mix = -1;
     int mi;
 
     // VERB — master reverb insert (FX_REVERB in the init() chain; mix 0 = bypass dry)
@@ -1092,6 +1117,16 @@ void apply_master_fx(void) {
         int bq = (int)bits, mq = q64(mix);
         if (bq != ap_cr_bits || mq != ap_cr_mix) { crush(bits, 6.0f, mix); ap_cr_bits = bq; ap_cr_mix = mq; }
     } else if (ap_cr_mix != -1) { crush(8, 6, 0); ap_cr_bits = ap_cr_mix = -1; }
+
+    // SAT — whole-mix saturation insert (drive_insert / FX_DRIVE). Drives the SUMMED bus, so the
+    // drums grit up too — the difference from the per-voice DRIVE module. cv adds to amt.
+    if ((mi = primary_of(MOD_SAT)) >= 0) {
+        float amt = clamp(mod[mi].param[SATK_AMT] + read_in(mi, 0), 0, 1);
+        int mode  = (int)clamp(mod[mi].param[SATK_MODE], 0, 3);
+        float mix = mod[mi].param[SATK_MIX];
+        int aq = q64(amt), mq = q64(mix);
+        if (aq != ap_sat_amt || mode != ap_sat_mode || mq != ap_sat_mix) { drive_insert(amt, mode, mix); ap_sat_amt = aq; ap_sat_mode = mode; ap_sat_mix = mq; }
+    } else if (ap_sat_amt != -1) { drive_insert(0, 0, 0); ap_sat_amt = ap_sat_mode = ap_sat_mix = -1; }
 }
 
 void update(void) {
@@ -1328,6 +1363,8 @@ void draw_extras(int mi) {
                           rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_DARK_ORANGE); break; }
         case MOD_CRUSH: { float w = clamp(m->param[CRK_MIX] + read_in(mi, 0), 0, 1);
                           rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_MAUVE); break; }
+        case MOD_SAT:   { float w = clamp(m->param[SATK_AMT] + read_in(mi, 0), 0, 1);
+                          rectfill(x + 8, y + 46, W - 16, 3, CLR_BLACK); rectfill(x + 8, y + 46, (int)(w * (W - 16)), 3, CLR_ORANGE); break; }
     }
 }
 

@@ -1474,6 +1474,21 @@ v1, document it on the panel.
     the **`pedalboard`** GRAINS pedal (`FX_GRAINS` insert: SIZE/DENS/MIX + a discrete FRZ freeze knob;
     position/scatter/feedback fixed to a shimmer-cloud voicing since the pedal has only 4 knobs).
 
+20. **Mix-bus saturation (`drive_insert`)** — the per-voice `instrument_drive` (post-filter, §17)
+    given a whole-BUS sibling: `drive_insert(amount, mode, mix)` drives the SUMMED master mix as a
+    reorderable insert, so the drums + the modeled MACRO engines grit up too (per-voice drive only
+    touches the one voice it sits inside). The trigger was **`modrack` asking** — exactly the bar §17
+    set ("a `master_*` API only if carts ask"). Stateless waveshaping (no buffer), so it's the cheapest
+    insert: `drive_shape()` is a **verbatim copy** of the per-voice `DRIVE_*` switch (HARD/FOLD/ASYM/SOFT)
+    so the bus version A/Bs against per-voice character, + a one-pole DC blocker on the wet path (ASYM is
+    one-sided, like the voice path). `FX_DRIVE`=15 — the **last** kind that fits `fx_order`'s 4-bit-per-slot
+    packing (a 16th `FX_*` needs a packing change). `SR_DRIVE_INSERT`=89; master-only, NOT in the default
+    chain (the cart places `FX_DRIVE` via `fx_order(0,…)`, like FX_ECHO/REVERB). `mix 0` (or `amount 0`) →
+    dormant/byte-identical. Full 4-place wiring + tcc. Verified: soundcheck compile-gate `ok` + 900-frame
+    tripwire silent; a clean→hard-drive switch mid-render jumps RMS 0.18→0.89 (the wall-of-fuzz fills the
+    waveform). **Showcase: `modrack`'s SAT module** (whole-mix saturator; + the "Sat bus" preset that grits
+    a whole beat). Per-voice drive stays the separate tool for the 303/acid post-filter scream.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

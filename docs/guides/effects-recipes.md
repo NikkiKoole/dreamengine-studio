@@ -347,8 +347,9 @@ Same SVF as wah/formant, reused as a plain swept filter (0015: filter-reuse, not
 | thin it out | `filter(FILTER_HIGH, 800.0f, 0.3f)` | roll off the lows — a radio/telephone thinning, or a transition | `djfilter` (CW = high-pass) |
 | bipolar DJ filter | one knob: center = `FILTER_OFF`, CCW → `FILTER_LOW` 18k→150 Hz, CW → `FILTER_HIGH` 20→6k (resonance rises as you close) | the mixer one-knob filter — muffle on the breakdown, thin on a transition | `djfilter` (THE knob), `groovebox` (the FILTER knob) |
 | the filter ride | `filter(FILTER_LOW, ride_hz(songpos), res)` per frame | a master cutoff curve AS the arrangement (the house "filter ride IS the song", for real) | — |
+| filter pedal | `filter(act ? FM[mode] : FILTER_OFF, 40·450^cut, res)` — CUT exp 40..18k Hz, MOD picks LP/HP/BP/NCH | a stompbox resonant filter you set (or ride) and reorder against the other pedals | `pedalboard` (FILTER, MOD knob) |
 
-**Showcase: `djfilter`** (the bipolar one-knob mixer filter over a self-playing house loop, with a live response curve and a breakdown→riser→DROP BUILD).
+**Showcases: `djfilter`** (the bipolar one-knob mixer filter over a self-playing house loop, with a live response curve and a breakdown→riser→DROP BUILD) and **`pedalboard`** (the FILTER pedal — LP/HP/BP/notch via its MOD knob, reorderable in the chain).
 
 ## sidechain & bus compression — `sidechain(victim_bus, key, amount, atk, rel)` · `sidechain_key(slot, key, send)` · `glue(victim_bus, amount, atk, rel)`
 

@@ -25,6 +25,7 @@ static int fx_body(int kind) {
         case FX_REVERB:  return CLR_DARK_BLUE;
         case FX_FORMANT: return CLR_BROWN;
         case FX_PAN:     return CLR_DARK_GREY;
+        case FX_FILTER:  return CLR_TRUE_BLUE;
         default:         return CLR_DARKER_GREY;
     }
 }
@@ -41,6 +42,7 @@ static int fx_accent(int kind) {
         case FX_REVERB:  return CLR_INDIGO;
         case FX_FORMANT: return CLR_LIGHT_PEACH;
         case FX_PAN:     return CLR_LIGHT_YELLOW;
+        case FX_FILTER:  return CLR_BLUE;
         default:         return CLR_LIGHT_GREY;
     }
 }
@@ -57,6 +59,7 @@ static const char *fx_name(int kind) {
         case FX_REVERB:  return "REVERB";
         case FX_FORMANT: return "VOWEL";
         case FX_PAN:     return "AUTOPAN";
+        case FX_FILTER:  return "FILTER";
         default:         return "FX";
     }
 }
@@ -112,6 +115,11 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         line(cx - 13, cy, cx - 8, cy - 4, col); line(cx - 13, cy, cx - 8, cy + 4, col);   // ◄ left head
         line(cx + 13, cy, cx + 8, cy - 4, col); line(cx + 13, cy, cx + 8, cy + 4, col);   // ► right head
         circfill(cx, cy, 2, col);                            // the sound, sweeping along it
+    } else if (kind == FX_FILTER) {                          // a lowpass curve with a resonant corner bump
+        line(cx - 13, cy - 3, cx - 3, cy - 3, col);          // flat passband
+        line(cx - 3,  cy - 3, cx,     cy - 8, col);          // up to the resonant peak
+        line(cx,      cy - 8, cx + 5, cy + 6, col);          // steep rolloff past the corner
+        line(cx + 5,  cy + 6, cx + 13, cy + 6, col);         // settled stopband
     } else {                                                 // REVERB — expanding rings (the bloom)
         for (int i = 1; i <= 3; i++) circ(cx, cy, i * 3, col);
         pset(cx, cy, col);

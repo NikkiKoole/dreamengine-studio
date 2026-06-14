@@ -730,6 +730,11 @@ static int zone_of(float wx, float wy, float U) {    // assumes U >= U_FARM (bui
 // only its avenues — block size emerges, it isn't a flag.
 // Tier order = priority (ACCESS narrowest .. AVENUE widest); ST_NONE=0 < ST_ACCESS.
 enum { ST_NONE, ST_ACCESS, ST_LOCAL, ST_AVENUE };
+// want_access separates GENERATION from the DRAW gate: callers set it to admit the L3 access
+// tier. The renderer sets it from zoom (a draw gate — access only at L3 detail); the road
+// GRAPH extractor sets it 1 always (the access lanes EXIST regardless of view zoom — the
+// car must route on them). Default 0, so a bare road_at() is conservative.
+static int want_access = 0;
 static int street_axis(float coord, float U, float *adist) {
     float sp = block_sp();
     int k = ifloor(coord / sp + 0.5f);                    // nearest line index
@@ -738,10 +743,8 @@ static int street_axis(float coord, float U, float *adist) {
     if (U >= U_MED) return ST_LOCAL;                               // locals only in the dense core
     // L3 ACCESS tier — where locals are suppressed (the suburb) the blocks are huge and
     // interior lots have no frontage. Bisect them with half-pitch residential lanes so every
-    // lot fronts a street. Draw-gated to the BLOCK lens (zoom>=LOUPE2_ZOOM): the lens sets
-    // `zoom` to its value, so "generate at this zoom" == "what this lens draws" (no determinism
-    // risk — see roadnet-streetlevel.md, the tier-by-zoom-is-a-draw-gate rule).
-    if (zoom >= LOUPE2_ZOOM && U >= U_LIGHT) {
+    // lot fronts a street. Gated on want_access (set from zoom for the render, =1 for the graph).
+    if (want_access && U >= U_LIGHT) {
         float sp2 = sp * 0.5f;
         int k2 = ifloor(coord / sp2 + 0.5f);
         float d2 = coord - k2 * sp2; if (d2 < 0) d2 = -d2;
@@ -952,22 +955,30 @@ static int field_color(unsigned fid, int edge) {
 // ── THE ROAD GRAPH (the background data layer the car sim will navigate) ─────────────
 // road_at()/arterial_at() answer "is this point on tarmac" — a FIELD, enough for keeping a
 // car on the surface + building collision. The car ALSO wants the network as STRUCTURE:
-// edges with endpoints + class, to snap to a road, route A→B, and spawn traffic that
-// follows lanes. build_graph() packs the visible network into that edge list, from the
-// SAME link_path geometry the field reads (so graph == field == screen, by construction).
-//   v1 = the ARTERIAL backbone (the segment cache, exact). The intra-city grid/access
-//   streets are still a field (road_at); turning them into edges + adding explicit
-//   intersection NODES/adjacency (for routing) is the next step — see roadnet-streetlevel.md.
-typedef struct { float x0,y0,x1,y1; int cls; } RoadEdge;
-#define MAXGEDGE MAXSEG
+// NODES (intersections) + EDGES (segments with class + endpoint node ids = adjacency), to
+// snap to a road, route A→B, and spawn traffic that follows lanes. The graph is built from
+// the SAME geometry the field reads (graph == field == screen, by construction):
+//   • ARTERIALS — the link_path segment cache, exact (no nodes yet → n0=n1=-1).
+//   • GRID + ACCESS streets — vectorised by graph_add_grid() (below road_at), per city /
+//     per district / in the district's own (rotated) frame, every candidate validated
+//     against road_at() so graph ⊆ field. Edges carry n0/n1 → routable adjacency.
+// Still ⛔: stitching the grid graph onto the arterial backbone at city entries, and
+// collapsing degree-2 chains (the grid is finely noded). See roadnet-streetlevel.md.
+typedef struct { float x0,y0,x1,y1; int cls; int n0,n1; } RoadEdge;  // n0,n1 = node ids (-1 = none)
+typedef struct { float x,y; } RoadNode;
+#define MAXGEDGE 12000
+#define MAXGNODE 6000
 static RoadEdge gedge[MAXGEDGE]; static int nedge;
+static RoadNode gnode[MAXGNODE]; static int nnode;
+static void push_gedge(float x0,float y0,float x1,float y1,int cls,int n0,int n1) {
+    if (nedge >= MAXGEDGE) return;
+    gedge[nedge].x0=x0; gedge[nedge].y0=y0; gedge[nedge].x1=x1; gedge[nedge].y1=y1;
+    gedge[nedge].cls=cls; gedge[nedge].n0=n0; gedge[nedge].n1=n1; nedge++;
+}
 static void build_graph(void) {        // call AFTER gather_arterials() (it fills the sg* cache)
-    nedge = 0;
-    for (int i=0; i<nseg && nedge<MAXGEDGE; i++) {
-        gedge[nedge].x0=sgx0[i]; gedge[nedge].y0=sgy0[i];
-        gedge[nedge].x1=sgx1[i]; gedge[nedge].y1=sgy1[i];
-        gedge[nedge].cls=sgcls[i]; nedge++;
-    }
+    nedge = 0; nnode = 0;
+    for (int i=0; i<nseg && nedge<MAXGEDGE; i++)
+        push_gedge(sgx0[i],sgy0[i],sgx1[i],sgy1[i], sgcls[i], -1,-1);   // arterials: no nodes yet
 }
 
 // THE WORLD QUERY SEAM (for the drop-in consumer, e.g. sloop). Assumes gather_cities() +
@@ -999,9 +1010,80 @@ static RoadHit road_at(float wx, float wy) {
     }
     return r;
 }
+
+// is this world point on a GRID/ACCESS street (not an arterial, not open lot)? → its class.
+static int is_grid_road(float wx, float wy, int *cls) {
+    RoadHit h = road_at(wx, wy);
+    if (h.on_road && (h.cls == CL_STREET || h.cls == CL_ACCESS)) { *cls = h.cls; return 1; }
+    return 0;
+}
+// ── VECTORISE THE INTRA-CITY GRID into gedge[]/gnode[] over the VISIBLE region (LOD: street
+// zoom only; far out the grid is sub-pixel and meaningless). The grid is rotated PER DISTRICT
+// (city_grid_coords), so we can't lay one global lattice — we go per gathered city, per
+// district, in that district's own frame. At each grid-line crossing we place a NODE if it
+// validates as road; adjacent crossings joined by a road span become an EDGE carrying both
+// node ids (= adjacency). road_at() validates every candidate, so the graph is a strict
+// subset of the field AND the per-district frame auto-clips at boundaries (a candidate that
+// strays into a neighbour district's territory simply fails to validate). want_access=1 so
+// the access tier is part of the graph regardless of the view zoom.
+#define GRID_DI 24                       // max grid-line indices per district axis (incl. access half-pitch)
+static void graph_add_grid(void) {
+    float sp = block_sp(), dsp = sp * DISTRICT_BLK, hp = sp * 0.5f;   // hp = access half-pitch
+    int saved = want_access; want_access = 1;
+    float wx0 = camX, wy0 = camY, wx1 = camX + vcols, wy1 = camY + vrows;
+    for (int ci = 0; ci < gn && nedge < MAXGEDGE; ci++) {
+        float nx = gnx[ci], ny = gny[ci], R = gnr[ci] * 1.4f;
+        if (nx + R < wx0 || nx - R > wx1 || ny + R < wy0 || ny - R > wy1) continue;  // can't reach view
+        int di0 = ifloor((wx0 - nx)/dsp), di1 = ifloor((wx1 - nx)/dsp);              // districts over view
+        int dj0 = ifloor((wy0 - ny)/dsp), dj1 = ifloor((wy1 - ny)/dsp);
+        for (int di = di0; di <= di1 && nedge < MAXGEDGE; di++)
+        for (int dj = dj0; dj <= dj1 && nedge < MAXGEDGE; dj++) {
+            unsigned hd = hash2(di + ci*101, dj*7 - ci*53);                          // == city_grid_coords
+            int aligned = ((hd % 1000u) < (unsigned)(P_align * 1000.0f));
+            float ux = aligned ? gux[ci] : 1.0f, uy = aligned ? guy[ci] : 0.0f;
+            float ex0 = di*dsp, ex1 = ex0 + dsp, ey0 = dj*dsp, ey1 = ey0 + dsp;      // node-local box
+            float cxx[4] = { ex0,ex1,ex0,ex1 }, cyy[4] = { ey0,ey0,ey1,ey1 };        // grid coords at corners
+            float gxmin=1e9f,gxmax=-1e9f,gymin=1e9f,gymax=-1e9f;
+            for (int c=0;c<4;c++) {
+                float gx =  cxx[c]*ux + cyy[c]*uy, gy = -cxx[c]*uy + cyy[c]*ux;
+                if (gx<gxmin)gxmin=gx; if (gx>gxmax)gxmax=gx;
+                if (gy<gymin)gymin=gy; if (gy>gymax)gymax=gy;
+            }
+            int ka = ifloor(gxmin/hp), ma = ifloor(gymin/hp);
+            int nk = ifloor(gxmax/hp) - ka + 1, nm = ifloor(gymax/hp) - ma + 1;
+            if (nk > GRID_DI) nk = GRID_DI; if (nm > GRID_DI) nm = GRID_DI;
+            static int nid[GRID_DI][GRID_DI];
+            // pass 1: node at each (k,m) crossing inside the box that validates as grid road
+            for (int a=0;a<nk;a++) for (int b=0;b<nm;b++) {
+                nid[a][b] = -1;
+                float gx = (ka+a)*hp, gy = (ma+b)*hp;
+                float ex = gx*ux - gy*uy, ey = gx*uy + gy*ux;        // inverse rotate → node-local
+                if (ex<ex0||ex>ex1||ey<ey0||ey>ey1) continue;        // belongs to a neighbour district
+                float wx = nx+ex, wy = ny+ey; int cls;
+                if (!is_grid_road(wx, wy, &cls)) continue;
+                if (nnode < MAXGNODE) { gnode[nnode].x=wx; gnode[nnode].y=wy; nid[a][b]=nnode++; }
+            }
+            // pass 2: join adjacent nodes whose connecting span is road → edge (with adjacency)
+            for (int a=0;a<nk;a++) for (int b=0;b<nm && nedge<MAXGEDGE;b++) {
+                if (nid[a][b] < 0) continue;
+                float x0 = gnode[nid[a][b]].x, y0 = gnode[nid[a][b]].y;
+                if (a+1<nk && nid[a+1][b] >= 0) {                    // neighbour along +gx
+                    float x1 = gnode[nid[a+1][b]].x, y1 = gnode[nid[a+1][b]].y; int cm;
+                    if (is_grid_road((x0+x1)*0.5f,(y0+y1)*0.5f,&cm)) push_gedge(x0,y0,x1,y1,cm,nid[a][b],nid[a+1][b]);
+                }
+                if (b+1<nm && nid[a][b+1] >= 0) {                    // neighbour along +gy
+                    float x1 = gnode[nid[a][b+1]].x, y1 = gnode[nid[a][b+1]].y; int cm;
+                    if (is_grid_road((x0+x1)*0.5f,(y0+y1)*0.5f,&cm)) push_gedge(x0,y0,x1,y1,cm,nid[a][b],nid[a][b+1]);
+                }
+            }
+        }
+    }
+    want_access = saved;
+}
 static void render_streetlevel(int bx, int by, int sz) {        // bounds = the loupe box (cheap)
     gather_cities();
     gather_arterials();                                          // the road point-query cache
+    want_access = (zoom >= LOUPE2_ZOOM);                         // access tier = a DRAW gate here
     int step = 2;
     int x0 = bx - (bx % step), y0 = by - (by % step);
     for (int sy=y0; sy<by+sz; sy+=step)
@@ -1039,39 +1121,38 @@ static void draw_world(void) {
     render_roads(zoom >= 0.45f);                       // LOD: drop minor tier far out
 }
 
-// ── GRAPH (debug) VIEW — the road network as crisp VECTOR centre-lines at ANY zoom (so the
-// small roads finally read, unlike the per-pixel field paint), over dimmed terrain, with the
-// city-interior street FIELD layered in once you zoom past the regional scale. TAB toggles
-// it; the main camera now zooms all the way down (ZMAX raised), so this doubles as the
-// eventual sloop street-camera. Consumes the build_graph() edge list = "use the graph now".
+// ── GRAPH (debug) VIEW — the road network as the pure VECTOR graph: crisp class-coloured
+// centre-lines + intersection-node dots at ANY zoom (so the small roads finally read — a
+// field paint aliases away when small), over dimmed terrain. TAB toggles it; the main camera
+// now zooms all the way down (ZMAX raised), so this doubles as the eventual sloop street-
+// camera. It renders the SAME gedge[]/gnode[] the car sim navigates ("use the graph now").
 static const int GEDGE_COL[6] = {
     CLR_RED,          // MOTORWAY
     CLR_ORANGE,       // HIGHWAY
     CLR_YELLOW,       // ARTERIAL
-    CLR_LIME_GREEN,   // STREET (minor connector)
+    CLR_LIME_GREEN,   // STREET  (collector / city local)
     CLR_DARK_ORANGE,  // DIRT
-    CLR_PINK,         // ACCESS (grid streets — drawn when vectorised; field for now)
+    CLR_PINK,         // ACCESS  (residential lane)
 };
-#define GRAPH_STREET_ZOOM 3.0f         // at/above this the city street FIELD draws full-screen too
+#define GRAPH_STREET_ZOOM 3.0f         // at/above this the intra-city grid is vectorised in too (LOD)
 static void draw_graph_view(void) {
     view_metrics();
     gather_cities();
     gather_arterials();                                  // fills the sg* cache...
-    build_graph();                                       // ...packed into the edge list we render
+    build_graph();                                       // ...arterials packed into gedge[]
+    if (zoom >= GRAPH_STREET_ZOOM) graph_add_grid();     // + the intra-city grid (nodes + edges)
     render_terrain();
     fillp(FILL_CHECKER, -1); rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK); fillp_reset();  // dim
-    if (zoom >= GRAPH_STREET_ZOOM) {                     // the city fabric (grid + access streets)
-        int sz = SCREEN_W > SCREEN_H ? SCREEN_W : SCREEN_H;
-        render_streetlevel(0, 0, sz);                    // full-screen field — sharp at this zoom
-    }
-    for (int i = 0; i < nedge; i++) {                    // the GRAPH: bright vector centre-lines
+    for (int i = 0; i < nedge; i++) {                    // EDGES — vector centre-lines, class-coloured
         int x0 = sxp(gedge[i].x0), y0 = syp(gedge[i].y0);
         int x1 = sxp(gedge[i].x1), y1 = syp(gedge[i].y1);
         int col = GEDGE_COL[gedge[i].cls];
         line(x0, y0, x1, y1, col);
         if (gedge[i].cls <= CL_HIGHWAY) line(x0, y0 + 1, x1, y1 + 1, col);   // fatten the big roads
     }
-    for (int i = 0; i < gn; i++) {                       // NODES = city anchors (hubs + towns)
+    for (int i = 0; i < nnode; i++)                      // NODES — grid intersections (white dots)
+        pset(sxp(gnode[i].x), syp(gnode[i].y), CLR_WHITE);
+    for (int i = 0; i < gn; i++) {                       // city anchors (the macro nodes)
         int x = sxp(gnx[i]), y = syp(gny[i]);
         circfill(x, y, 2, CLR_WHITE); circ(x, y, 2, CLR_BLACK);
     }

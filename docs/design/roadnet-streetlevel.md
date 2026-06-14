@@ -1,12 +1,13 @@
 # roadnet L3 — the on-the-street level (design seed, 2026-06-14)
 
-**Status: access tier + view-switcher + road-graph layer BUILT (2026-06-14); grid
-vectorisation + footprints next.** The deeper **"BLOCK" loupe** is in as the build harness.
+**Status: access tier + view-switcher + full road-graph (incl. grid nodes/adjacency) BUILT
+(2026-06-14); footprints next.** The deeper **"BLOCK" loupe** is in as the build harness.
 The **access / residential street tier** (`CL_ACCESS`), a **TAB view-switcher** (MAP ↔
-GRAPH), and the **road-graph data layer** (`build_graph()` → `RoadEdge gedge[]`) are now
-built (see "What's built"). Still **not built**: vectorising the intra-city grid/access
-streets into graph edges + explicit intersection **nodes/adjacency** (the routing graph),
-building **footprints + `building_at()`**, and park contents.
+GRAPH), and the **road-graph data layer** — arterials *and* the vectorised intra-city grid
+with intersection **nodes + adjacency** (`gedge[]`/`gnode[]`) — are now built (see "What's
+built"). Still **not built**: stitching the grid graph onto the arterial backbone at city
+entries + degree-2 node simplification (graph tidy-ups), building **footprints +
+`building_at()`**, and park contents.
 
 ## What's built (2026-06-14) — the access-street tier
 The suburb ring (`U_LIGHT ≤ U < U_MED`) had its local streets suppressed, so its blocks
@@ -34,13 +35,24 @@ field-sampled loupe was the bottleneck, not the zoom number):
   "see the small roads", since a field paint aliases away when small. Over **dimmed terrain**,
   with the city-interior **street FIELD layered full-screen** once `zoom ≥ GRAPH_STREET_ZOOM`
   (so you see the grid/access streets big), and **white node dots at the city anchors**.
-- **The road graph** — `build_graph()` packs the visible network into **`RoadEdge gedge[]`**
-  (`{x0,y0,x1,y1,cls}`), from the *same* `link_path` geometry the field reads (graph == field
-  == screen). This is the **background data layer the car sim navigates** (snap-to-road, route,
-  traffic). v1 = the **arterial backbone** (the `sg*` segment cache, exact). **Not yet:** the
-  intra-city grid/access streets as edges, and explicit **nodes + adjacency** for routing —
-  those are the next step (the grid is per-district-rotated, so extraction is per-city/per-
-  district, validated against `road_at()` so graph ⊆ field).
+- **The road graph** — the **background data layer the car sim navigates** (snap-to-road,
+  route, traffic), built from the *same* geometry the field reads (graph == field == screen):
+  - **Edges** `RoadEdge gedge[] {x0,y0,x1,y1,cls,n0,n1}` and **nodes** `RoadNode gnode[] {x,y}`.
+  - `build_graph()` packs the **arterial backbone** (the `sg*` segment cache, exact; `n0=n1=-1`).
+  - `graph_add_grid()` **vectorises the intra-city grid + access streets** (LOD: street zoom +
+    visible region only). The grid is **rotated per district**, so it goes *per gathered city /
+    per district / in that district's own frame*: at each grid-line crossing it places a **node**
+    if it validates as road, and joins adjacent road-connected crossings into **edges carrying
+    both node ids** (`n0`/`n1` = routable adjacency). Every candidate is checked with `road_at()`,
+    so the graph is a strict **subset of the field** *and* the per-district frame **auto-clips at
+    boundaries** (a candidate that strays into a neighbour district just fails to validate).
+  - The access tier was moved off the render-zoom gate onto a **`want_access` flag** so the graph
+    extracts access lanes regardless of view zoom (generation ≠ draw — the renderer still gates
+    drawing on zoom). Default 0; the renderer sets it from zoom, the extractor sets it 1.
+  - **Not yet:** stitching the grid graph onto the arterials at city entries, and collapsing
+    degree-2 node chains (the grid is finely noded — fine for routing, just verbose).
+  - *Perf note:* `graph_add_grid()` re-runs each frame in GRAPH view (~10–15k `road_at()` at
+    street zoom — fine for a debug view); the car sim will build it per chunk + cache.
 
 Related: [`roadnet.md`](roadnet.md) (L0–L2: the map + district street level),
 [`roadnet-handoff.md`](roadnet-handoff.md) (where the work stands),
@@ -74,7 +86,7 @@ would be backwards.
 |---|---|---|---|
 | **L0** | region map / GRAPH view | terrain, cities, the arterial network | `road_at()` + `gedge[]` (graph) |
 | **L1/L2** | district loupe ("STREET") | arterials + avenue/local grid, zones, Voronoi fields, building lots | `road_at()` |
-| **L3** | block loupe ("BLOCK") — *new* | **access streets** subdividing blocks, **individual footprints**, driveways, parking, the football field | `road_at()` (more tiers) + `building_at()` *(to build)* |
+| **L3** | block loupe ("BLOCK") / GRAPH view | **access streets** subdividing blocks (✅), **individual footprints**, driveways, parking, the football field | `road_at()` + `gedge[]`/`gnode[]` (grid graph ✅) + `building_at()` *(to build)* |
 
 Generation is **zoom-independent** (every feature a pure function of world coords); only
 **which tiers draw** is gated by zoom (LOD). So zoom changes what you *see*, never what
@@ -135,20 +147,21 @@ as buildings-to-be) — the access streets + footprints are what we build into i
   question, deferred. (Today: a separate fixed BLOCK inset.)
 
 ## Next
-1. ✅ **Access-street tier** (`ST_ACCESS`/`CL_ACCESS`, draw-gated on `zoom >= LOUPE2_ZOOM`).
-2. ✅ **View-switcher + road-graph layer** — TAB MAP↔GRAPH, `ZMAX→12`, `build_graph()`→
-   `gedge[]`, vector debug render. See "What's built (cont.)".
-3. **Grid/access streets → graph edges + nodes/adjacency** — *the next move for the car sim*.
-   Vectorise the intra-city grid (per-city/per-district, since the grid is rotated per
-   district; validate each candidate edge against `road_at()` so graph ⊆ field), append to
-   `gedge[]`, and add explicit intersection **nodes + adjacency** so the car can route/snap/
-   spawn traffic. This is what turns "a drivable surface" into "a navigable city".
-4. **Footprints** + `building_at()` (the collision seam). Lots are still flat colour; turn
-   each into a footprint rect (setback/yard + outline + driveway toward its fronting access
-   lane), exposed as `building_at(wx,wy) → {solid, lot id}` (screen == collision, like `road_at`).
-5. **Park contents** (the football field) — PARK is the last flat-tint zone (small win).
-6. **Rung 4** — sloop at L3: drives the graph (route/lane-keep via `gedge[]`/`coff`), stays on
-   the surface via `road_at()`, collides with `building_at()`. The GRAPH view is its camera.
+1. ✅ **Access-street tier** (`ST_ACCESS`/`CL_ACCESS`).
+2. ✅ **View-switcher** (TAB MAP↔GRAPH, `ZMAX→12`) + **vector GRAPH debug render**.
+3. ✅ **Full road graph** — arterials + vectorised intra-city grid with intersection
+   **nodes + adjacency** (`gedge[]`/`gnode[]`, `want_access` flag). See "What's built (cont.)".
+4. **Graph tidy-ups** (when routing needs them, not before): **stitch** the grid graph onto the
+   arterial backbone at city entries (so a route can leave town), and **collapse degree-2 node
+   chains** into single edges (the grid is finely noded). Both are post-passes over `gedge[]`/
+   `gnode[]`; neither blocks driving.
+5. **Footprints** + `building_at()` (the collision seam) — *the next build move*. Lots are still
+   flat colour; turn each into a footprint rect (setback/yard + outline + driveway toward its
+   fronting access lane), exposed as `building_at(wx,wy) → {solid, lot id}` (screen == collision,
+   like `road_at`).
+6. **Park contents** (the football field) — PARK is the last flat-tint zone (small win).
+7. **Rung 4** — sloop at L3: drives the graph (route/lane-keep via `gedge[]`/`gnode[]` + `coff`),
+   stays on the surface via `road_at()`, collides with `building_at()`. The GRAPH view is its camera.
 
 ## Starting point for next session (the concrete first move + two hooks)
 

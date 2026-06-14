@@ -115,11 +115,14 @@ streets + footprints get built *into* it next, same playbook as the L2 lens.
    and `build_graph()` packs the visible network into `RoadEdge gedge[]` (arterials, exact;
    grid/access streets still field). `VIEW_GRAPH` debug-renders the graph as crisp vector
    centre-lines + node dots over dimmed terrain. *(roadnet-streetlevel.md → "What's built (cont.)".)*
-2. **Grid/access streets → graph edges + nodes/adjacency** — *next move for the car sim*.
-   Vectorise the intra-city grid (per-city/per-district; validate vs `road_at()`), append to
-   `gedge[]`, add intersection nodes + adjacency → routing/snap/traffic. Then **footprints +
-   `building_at()`** — lots → real footprint rects (inset/outline/driveway toward the fronting
-   access lane), exposed as a collision seam (the precise version of `road_at`'s `built`).
+1c. ✅ **Grid/access streets → graph** (DONE 2026-06-14) — `graph_add_grid()` vectorises the
+   intra-city grid per-city/per-district (rotated frames), placing intersection **nodes** +
+   **edges with adjacency** (`gedge[]`/`gnode[]`), every candidate validated vs `road_at()`
+   (graph ⊆ field); access tier moved onto a `want_access` flag (generation ≠ draw). Routing
+   tidy-ups (stitch grid↔arterials, collapse degree-2 chains) deferred — don't block driving.
+2. **Footprints + `building_at()`** — *next move*. Lots → real footprint rects (inset/outline/
+   driveway toward the fronting access lane), exposed as a collision seam (the precise version
+   of `road_at`'s `built`).
 3. **Park contents + the football field** — PARK is the last flat-tint zone (small win).
 4. **Rung 4 — drive it** — wire `road_at()` + `building_at()` into **sloop** at L3; the
    BLOCK lens becomes the car's camera. The leap from viewer to playable.

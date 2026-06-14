@@ -239,6 +239,7 @@ full-scale loudness (character, not volume). **Showcase: `drivemodes`.**
 | **digital fuzz** (mode) | `DRIVE_HARD` + amount 0.6+ | buzzy, square-edged, harsh — chiptune lead bite | `drivemodes`, `combo` (HI-GAIN) |
 | **metallic / ring-ish** (mode) | `DRIVE_FOLD` + amount swept up | sine wavefolder — glassy, clangy as you push it | `drivemodes`, `combo` (LO-FI) |
 | bark → drive | `note_drive(h, bark)` live, slewed | an EP/organ that digs in when you lean on a knob | `epiano`, `organ`, `modrack` |
+| fuzz pedal | per-voice drive on the guitar slot: `DRIVE_ASYM` (germanium, warm) / `DRIVE_HARD` (silicon, bite), amount ~0.45–1.0 | the Fuzz Face — a stompbox dirt source into the amp/cab. Per-voice drive is ONE stage, so it LOCKS while the AMP cabinet owns it (stacking awaits Increment F) | `pedalboard` (FUZZ) |
 
 ## bitcrush — `crush(bits, rate, mix)` · `instrument_crush(slot, bits, rate, mix)`
 

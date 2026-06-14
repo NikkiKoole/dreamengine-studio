@@ -39,7 +39,7 @@
 // ── the effect catalog: every pedal you can drag into the chain ──────────────────────────────
 // kind = the engine FX_* insert kind (its slot in the reorderable chain). Every pedal — REVERB
 // included now (FX_REVERB via reverb_insert) — is a real insert, so chain order is audible.
-enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, NCAT };
+enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, C_FUZZ, NCAT };
 typedef struct {
     const char *name; int body, accent, kind, nk;
     const char *klabel[MAXK]; float kdef[MAXK];
@@ -62,6 +62,10 @@ static const FxDef CAT[NCAT] = {
     // LO-FI is a MACRO pedal (kind -1, custom icon): one box drives crush+tape+filter together — a
     // recipe of existing inserts (decisions/0015), not a new effect. It OWNS those three when on.
     { "LO-FI",    CLR_DARK_BROWN,    CLR_PEACH,        -1,         3, { "AMT","WOW","TON" },   { 0.50f, 0.40f, 0.45f } },
+    // FUZZ is a per-voice DRIVE pedal (kind -2, custom icon): a germanium/silicon fuzz on the guitar
+    // slot. Like LO-FI it's a recipe, not an FX_* insert — and it OWNS the slot's one drive stage, so
+    // it LOCKS while the cabinet's on AMP (the amp owns that drive too). MODE: germanium ↔ silicon.
+    { "FUZZ",     CLR_DARK_RED,      CLR_ORANGE,       -2,         2, { "FUZZ","MODE" },       { 0.65f, 0.0f } },
 };
 
 // ── the chain: an ordered list of DISTINCT catalog ids, each with its own knobs + on-state ──
@@ -78,7 +82,7 @@ static int   dirty     = 1;
 // = the rotary cabinet (master leslie). Both run AFTER the insert chain, off the shared insert buses.
 enum { CAB_NONE, CAB_AMP, CAB_LESLIE };
 static int   cab_tenant  = CAB_NONE;
-static int   cab_applied = CAB_NONE;     // last tenant pushed — an untouched session never calls amp/leslie
+static bool  cabfuzz_applied = false;    // was the cabinet OR fuzz engaged last apply? (untouched session stays byte-identical)
 static int   cab_voicing = 2;            // AMP_VC index (CRUNCH)
 static int   cab_speed   = LESLIE_SLOW;  // Leslie rotor speed
 static float cab_k[2]    = { 0.5f, 0.5f }; // amp: GAIN, SAG  ·  leslie: DRIVE, BALANCE
@@ -173,6 +177,7 @@ static bool pedal_on(int cat) { int i = chain_index(cat); return i >= 0 && chain
 static bool pedal_locked(int cat) {
     if (cat == C_LOFI) return pedal_on(C_BIT) || pedal_on(C_TAP) || pedal_on(C_FIL);
     if (cat == C_BIT || cat == C_TAP || cat == C_FIL) return pedal_on(C_LOFI);
+    if (cat == C_FUZZ) return cab_tenant == CAB_AMP;   // the amp cabinet owns the slot's one drive stage
     return false;
 }
 static int  content_w(void)      { return chain_n * PITCH; }
@@ -321,21 +326,32 @@ static void apply_fx(void) {
     }
     fx_order(0, kinds, n);   // the chain order IS the insert order (Increment A)
 
-    // ── the pinned CABINET output stage — runs AFTER the inserts, like leslie/soft-clip. It lives on
-    // the guitar SLOT's private bus (instrument_drive/eq) + master glue/leslie, none of which the
-    // pedals touch, so it never collides with the chain (Increment-F is a non-issue here).
-    if (cab_tenant == CAB_AMP) {
-        leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);                                   // leslie off
-        const AmpVoicing *a = &AMP_VC[cab_voicing];
-        ampcab_apply(I_GTR, cab_voicing, cab_k[0], a->lo, a->mid, a->hi, cab_k[1]);     // GAIN→drive, SAG→glue, base EQ curve
-    } else if (cab_tenant == CAB_LESLIE) {
-        cab_reset_guitar();
-        leslie(cab_speed, cab_k[0], cab_k[1], 0.5f, 1.0f);                              // SPEED · DRIVE · BALANCE
-    } else if (cab_applied != CAB_NONE) {                                              // none: tear down a prior amp/leslie
-        cab_reset_guitar();
-        leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);
+    // ── the per-voice DRIVE + pinned CABINET output stage — runs AFTER the inserts, on the guitar
+    // SLOT's private bus (drive/eq) + master glue/leslie, none of which the pedals touch. The slot has
+    // ONE drive stage: the FUZZ pedal owns it, EXCEPT under the amp cabinet (the amp owns it too, so
+    // FUZZ locks off — pedal_locked). Increment F is what will let them STACK instead of lock.
+    int fi = chain_index(C_FUZZ);
+    bool fuzz_on = (fi >= 0 && chain[fi].on && cab_tenant != CAB_AMP);   // amp owns the drive → fuzz suppressed
+    bool engaged = (cab_tenant != CAB_NONE) || fuzz_on;
+    if (engaged || cabfuzz_applied) {                                    // skip entirely while nothing's engaged (byte-identical)
+        if (cab_tenant == CAB_AMP) {                                     // the amp cabinet: drive + EQ + glue
+            leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);
+            const AmpVoicing *a = &AMP_VC[cab_voicing];
+            ampcab_apply(I_GTR, cab_voicing, cab_k[0], a->lo, a->mid, a->hi, cab_k[1]);
+        } else if (cab_tenant == CAB_LESLIE) {                          // Leslie cabinet: clean slot + rotary
+            cab_reset_guitar();
+            leslie(cab_speed, cab_k[0], cab_k[1], 0.5f, 1.0f);
+        } else {                                                        // none: clean baseline
+            cab_reset_guitar();
+            leslie(LESLIE_STOP, 0.0f, 0.5f, 0.0f, 0.0f);
+        }
+        if (fuzz_on) {                                                  // FUZZ owns the drive (cab none/Leslie only)
+            float *fk = chain[fi].k;
+            instrument_drive_mode(I_GTR, fk[1] < 0.5f ? DRIVE_ASYM : DRIVE_HARD);   // MODE: germanium ↔ silicon
+            instrument_drive(I_GTR, 0.45f + fk[0] * 0.55f);                          // FUZZ amount → always saturated
+        }
+        cabfuzz_applied = engaged;
     }
-    cab_applied = cab_tenant;   // a fresh (never-touched) session leaves the guitar exactly as init() set it
 }
 
 // ── per-contact pointer pool ── (declared before init so init() can PTR_CLEAR it)
@@ -579,16 +595,29 @@ static void lofi_icon(int cx, int cy, int col) {
     line(cx - 6, cy + 4, cx + 6, cy + 4, col);       // the label strip
 }
 
+// FUZZ is also a macro (no single FX_* kind) — a spiky distortion burst.
+static void fuzz_icon(int cx, int cy, int col) {
+    for (int a = 0; a < 8; a++) {                    // 8 spikes radiating out
+        float ang = a * 0.7853982f;                  // 45° apart
+        int r = (a & 1) ? 4 : 8;                     // alternating long/short = jagged
+        line(cx, cy, cx + (int)(cosf(ang) * r), cy + (int)(sinf(ang) * r), col);
+    }
+    circfill(cx, cy, 2, col);
+}
+
 static void draw_chain_pedal(int i, int x) {
     Slot *sl = &chain[i]; const FxDef *d = &CAT[sl->cat];
-    bool locked = !sl->on && pedal_locked(sl->cat);   // a conflicting pedal is live → can't switch on
+    // a conflicting pedal is live → can't switch on (drawn dimmed). FUZZ also dims while still ON under
+    // an AMP cabinet — the amp owns the one drive stage, so the fuzz is overridden, not silently lit.
+    bool locked = pedal_locked(sl->cat) && (!sl->on || sl->cat == C_FUZZ);
     int cx = x + PED_W / 2;
     int body = locked ? CLR_BROWNISH_BLACK : d->body;  // dark body = disabled (vs a colored off pedal)
     rrectfill(x, PED_Y, PED_W, PED_H, 4, body);
     rrect(x, PED_Y, PED_W, PED_H, 4, sl->on ? d->accent : CLR_DARKER_GREY);
     font(FONT_SMALL);
     print_centered(d->name, cx, PED_Y + 3, sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
-    if (d->kind < 0) lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
+    if (d->kind == -1)      lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
+    else if (d->kind == -2) fuzz_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else fx_icon(d->kind, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, body);
     int kr = knob_rad(d->nk);
     int lblcol = sl->on ? CLR_LIGHT_PEACH : CLR_DARK_GREY;
@@ -612,6 +641,7 @@ static void draw_chain_pedal(int i, int x) {
             static const char *FN[4] = { "LP", "HP", "BP", "NCH" };
             lbl = FN[(int)(sl->k[2] * 3.99f)];
         }
+        if (d->kind == -2 && j == 1) lbl = sl->k[1] < 0.5f ? "GER" : "SIL";   // FUZZ MODE: germanium ↔ silicon
         font(FONT_TINY);                                          // label tucked beside the knob (the empty column)
         if (j & 1) print_right(lbl, kx - kr - 2, ky - 2, lblcol);   // right-column knob → label on its left
         else       print(lbl,       kx + kr + 2, ky - 2, lblcol);   // left-column knob  → label on its right
@@ -629,7 +659,8 @@ static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
     const FxDef *d = &CAT[cat];
     rrectfill(x, y, w, h, 3, d->body);
     rrect(x, y, w, h, 3, ghost ? CLR_WHITE : d->accent);
-    if (d->kind < 0) lofi_icon(x + w / 2, y + 9, d->accent);
+    if (d->kind == -1)      lofi_icon(x + w / 2, y + 9, d->accent);
+    else if (d->kind == -2) fuzz_icon(x + w / 2, y + 9, d->accent);
     else fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
     font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, CLR_WHITE); font(FONT_NORMAL);
 }

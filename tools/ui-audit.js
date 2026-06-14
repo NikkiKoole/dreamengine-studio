@@ -144,6 +144,21 @@ if (exploreScript) try { fs.unlinkSync(exploreScript) } catch {}
 
 // ── analyse ─────────────────────────────────────────────────────────────────
 const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+const contains = (f, t) => f.x <= t.x && f.y <= t.y && f.x + f.w >= t.x + t.w && f.y + f.h >= t.y + t.h
+// the VISIBLE text in a frame: drop any string that a LATER fill fully covers
+// (a modal/backdrop painted on top of a previous screen). Draw order = array
+// order, so a fill at a higher index sits on top. Kills "text-behind-a-panel"
+// false positives. A widget's own label is drawn AFTER its fill, so it survives.
+function visibleText(d) {
+  const fills = [], out = []
+  d.forEach((e, i) => { if (e.k === 'f') fills.push({ ...e, i }) })
+  d.forEach((e, i) => {
+    if (e.k !== 't' || !e.t) return
+    if (fills.some(fl => fl.i > i && contains(fl, e))) return   // occluded
+    out.push(e)
+  })
+  return out
+}
 const offscreen = new Map(), collide = new Map(), byFrame = new Map(), sigByFrame = new Map()
 let SW = 0, SH = 0, framesSeen = 0
 
@@ -151,7 +166,7 @@ for (const rec of recs) {
   framesSeen++; SW = rec.sw; SH = rec.sh
   const d = rec.d || [], f = rec.f
   byFrame.set(f, rec)
-  const texts = d.filter(e => e.k === 't' && e.t)
+  const texts = visibleText(d)
   sigByFrame.set(f, new Set(texts.map(e => e.t)))
 
   for (const e of texts) {                         // (1) text off the screen edge
@@ -200,7 +215,8 @@ function buildOverlay() {
   const bg = fs.existsSync(shot)
     ? `<image x="0" y="0" width="${SW}" height="${SH}" image-rendering="pixelated" xlink:href="data:image/png;base64,${fs.readFileSync(shot).toString('base64')}"/>`
     : `<rect x="0" y="0" width="${SW}" height="${SH}" fill="#111"/>`
-  const d = rec.d || [], texts = d.filter(e => e.k === 't' && e.t)
+  const d = rec.d || [], texts = visibleText(d)
+  const vis = new Set(texts)                       // occluded text → discounted (drawn dim)
   const isOff  = (e) => !e.c && (e.x < 0 || e.y < 0 || e.x + e.w > SW || e.y + e.h > SH)
   const isOver = (e) => texts.some(o => o !== e && o.t !== e.t && overlaps(e, o))
   const fillCol = { f: '#3a78ff', R: '#22d3ee', s: '#888', c: '#a855f7' }
@@ -209,8 +225,8 @@ function buildOverlay() {
     if (e.k === 'w')
       return `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="#ffd60a" fill-opacity="0.12" stroke="#ffd60a" stroke-width="0.8"><title>widget${e.t === '1' ? ' (focusable)' : ''}</title></rect>`
     if (e.k === 't') {
-      const col = isOff(e) ? '#ff3b3b' : isOver(e) ? '#ff9f1c' : '#39d353'
-      return `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="none" stroke="${col}" stroke-width="0.6"><title>"${esc(e.t)}"</title></rect>`
+      const col = !vis.has(e) ? '#555' : isOff(e) ? '#ff3b3b' : isOver(e) ? '#ff9f1c' : '#39d353'
+      return `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="none" stroke="${col}" stroke-opacity="${vis.has(e) ? 1 : 0.5}" stroke-width="0.6"><title>"${esc(e.t)}"${vis.has(e) ? '' : ' (occluded)'}</title></rect>`
     }
     const col = fillCol[e.k] || '#bbb'
     return `<rect x="${e.x}" y="${e.y}" width="${e.w}" height="${e.h}" fill="${col}" fill-opacity="0.10" stroke="${col}" stroke-opacity="0.7" stroke-width="0.5"/>`

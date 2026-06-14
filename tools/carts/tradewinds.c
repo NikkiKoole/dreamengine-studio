@@ -506,7 +506,7 @@ static void draw_hud(void) {
 
 static void draw_shipyard(void) {
     fillp(FILL_CHECKER, -1); rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK); fillp_reset();
-    int mx = 48, my = 40, mw = 224, mh = 130;
+    int mx = 48, my = 40, mw = 224, mh = 150;   // tall enough for the footer to clear the LEAVE button
     rectfill(mx, my, mw, mh, CLR_BLACK); rect(mx, my, mw, mh, CLR_LIGHT_YELLOW);
     print("THE SHIPYARD", mx + 12, my + 6, CLR_LIGHT_YELLOW);
     print_right(str("gold $%d", gold), mx + mw - 12, my + 6, CLR_YELLOW);

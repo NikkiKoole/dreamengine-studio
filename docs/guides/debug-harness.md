@@ -539,6 +539,12 @@ input you didn't try. `ui-audit.js` finds them by running the cart headless unde
 widget rect via the `de_ui_audit` hook in `ui_end()`) — and reasoning over the geometry. No
 cart instrumentation needed; the capture lives in the shared draw path in `studio.c`.
 
+**Occluded text is discounted.** A panel opening over the buttons behind it is intentional,
+not a bug — so text that a *later* fill (a solid modal panel, or a full-screen `fillp` dim)
+fully covers is dropped before the off-screen/overlap checks run. A widget's own label is
+drawn *after* its fill, so it survives; only background text painted over by something on top
+is silenced. This is what stops modal-over-content screens from crying wolf.
+
 ```bash
 node tools/ui-audit.js <name>                 # text off-screen + overlapping text, default play
 node tools/ui-audit.js <name> --explore       # ALSO press each key the cart reads + tap each ui.h widget

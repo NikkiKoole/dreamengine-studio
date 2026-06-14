@@ -2234,7 +2234,7 @@ void rect(int x, int y, int w, int h, int color) {
 
 void rectfill(int x, int y, int w, int h, int color) {
     PROF("rectfill");
-    if (fp_on) { rectfill_pat(x, y, w, h, fp_global, fp_hole, color); return; }   // 1-bits = holes, 0-bits = color
+    if (fp_on) { rectfill_pat(x, y, w, h, fp_global, fp_hole, color); UIAUDIT('f', x, y, w, h, NULL); return; }   // 1-bits = holes, 0-bits = color
     DrawRectangle(x, y, w, h, palette[color % PALETTE_SIZE]);
     UIAUDIT('f', x, y, w, h, NULL);
 }

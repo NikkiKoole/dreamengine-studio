@@ -412,6 +412,25 @@ each other. (Read live by every sounding voice on the slot — fire-and-forget h
 
 ---
 
+## combination "pedals" — recipes of existing inserts (no new effect)
+
+The biggest beloved pedals aren't new DSP — they're **bundles of inserts we already have**, the
+[0015](../decisions/0015-effects-are-recipes-not-primitives.md) "recipe" idea worn as one box. Build
+these as a macro pedal / preset, not a new `FX_*` kind.
+
+| combo | = | character | used by |
+|---|---|---|---|
+| **LO-FI / cassette** | `crush` + `tape` (wow/flutter/sat) + `filter` (lowpass roll-off) | the lo-fi-hip-hop / vinyl / bedroom sound: one AMT knob crunches bits + downsamples + saturates, WOW warbles the tape, TON darkens | `pedalboard` (the LO-FI macro pedal) |
+| **amp / cab** | `drive` + `eq` (cab voicing) + `glue` (power-amp sag) | a guitar amp's voice — the planned Increment E output stage | (Increment E) |
+| **Dyno Rhodes** | `chorus` + `eq` presence | the bright stereo Rhodes sheen | `epiano` (DYNO) |
+
+> **The macro caveat (`pedalboard` LO-FI):** a macro drives **three shared master-bus inserts** at once.
+> Because there's one crush / tape / filter on bus 0, the macro **owns** them while it's on — it runs
+> last in `apply_fx` so it overrides a separately-stacked BITCRUSH/TAPE/FILTER pedal rather than fighting
+> it, and the `fx_order` list dedupes the kinds. Don't stack a macro over its own components.
+
+---
+
 ## Adding to this book
 
 Shipping or using an engine effect in a cart? Add the recipe here — name it, give the exact call +

@@ -38,7 +38,7 @@
 // ── the effect catalog: every pedal you can drag into the chain ──────────────────────────────
 // kind = the engine FX_* insert kind (its slot in the reorderable chain). Every pedal — REVERB
 // included now (FX_REVERB via reverb_insert) — is a real insert, so chain order is audible.
-enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, NCAT };
+enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, NCAT };
 typedef struct {
     const char *name; int body, accent, kind, nk;
     const char *klabel[MAXK]; float kdef[MAXK];
@@ -58,6 +58,9 @@ static const FxDef CAT[NCAT] = {
     { "FILTER",   CLR_TRUE_BLUE,     CLR_BLUE,         FX_FILTER,  3, { "CUT","RES","MOD" },   { 0.50f, 0.30f, 0.0f } },
     { "RINGMOD",  CLR_INDIGO,        CLR_GREEN,        FX_RINGMOD, 2, { "FRQ","MIX" },         { 0.30f, 0.80f } },
     { "DELAY",    CLR_DARK_PEACH,    CLR_ORANGE,       FX_ECHO,    4, { "TIM","FB","TON","MIX" },{ 0.35f, 0.40f, 0.55f, 0.45f } },
+    // LO-FI is a MACRO pedal (kind -1, custom icon): one box drives crush+tape+filter together — a
+    // recipe of existing inserts (decisions/0015), not a new effect. It OWNS those three when on.
+    { "LO-FI",    CLR_DARK_BROWN,    CLR_PEACH,        -1,         3, { "AMT","WOW","TON" },   { 0.50f, 0.40f, 0.45f } },
 };
 
 // ── the chain: an ordered list of DISTINCT catalog ids, each with its own knobs + on-state ──
@@ -205,6 +208,13 @@ static void formant_tick(void) {    // every frame: ease the moving modes, re-pu
     if (fabsf(v - fmt_last_v) > 0.002f) { formant(v, sl->k[1], sl->k[2]); fmt_last_v = v; }
 }
 
+// add an FX_* kind to the order list, skipping duplicates (the LO-FI macro emits crush/tape/filter,
+// which a standalone BITCRUSH/TAPE/FILTER pedal may also emit — never list a kind twice).
+static void kinds_add(int *kinds, int *n, int kd) {
+    for (int j = 0; j < *n; j++) if (kinds[j] == kd) return;
+    kinds[(*n)++] = kd;
+}
+
 // push every effect's state to the engine, then set the INSERT ORDER from the chain order.
 // An effect not in the chain (or off) is pushed dry. REVERB is now a real dry/wet INSERT
 // (reverb_insert → FX_REVERB in the chain), so its POSITION is audible — drag it before/after
@@ -232,10 +242,21 @@ static void apply_fx(void) {
                           filter(act ? FM[(int)(k[2] * 3.99f)] : FILTER_OFF, 40.0f * powf(450.0f, k[0]), k[1]); } break;
             case C_RNG: ringmod(20.0f * powf(150.0f, k[0]), act ? k[1] : 0.0f); break;  // FRQ exp 20..3000 Hz
             case C_DLY: echo_insert((int)(20.0f + k[0] * 1480.0f), k[1], k[2], act ? k[3] : 0.0f); break;  // TIM 20..1500ms, FB, TON, MIX (off = bypass)
+            case C_LOFI:  // the macro: AMT crunches bits + adds sample-rate + tape sat; WOW warbles; TON darkens. Drives 3 shared inserts — only when ON (the standalone categories reassert OFF otherwise), so it OVERRIDES a stacked BITCRUSH/TAPE/FILTER rather than fighting it (runs last in this loop).
+                if (act) {
+                    crush(16.0f - k[0] * 9.0f, 1.0f + k[0] * 5.0f, 0.45f + k[0] * 0.45f);   // 16→7 bits, gentle downsample, blended in
+                    tape(k[1] * 0.7f, k[1] * 0.5f, 0.2f + k[0] * 0.5f);                      // WOW = warble; AMT = saturation
+                    filter(FILTER_LOW, 700.0f * powf(16.0f, k[2]), 0.2f);                    // TON = cutoff: dark muffle → open
+                }
+                break;
         }
     }
-    int kinds[NCAT], n = 0;
-    for (int i = 0; i < chain_n; i++) { int kd = CAT[chain[i].cat].kind; if (kd >= 0) kinds[n++] = kd; }
+    int kinds[NCAT + 2], n = 0;   // +2: the LO-FI macro can add up to 3 kinds from its 1 slot
+    for (int i = 0; i < chain_n; i++) {
+        int cat = chain[i].cat;
+        if (cat == C_LOFI) { kinds_add(kinds, &n, FX_CRUSH); kinds_add(kinds, &n, FX_TAPE); kinds_add(kinds, &n, FX_FILTER); }
+        else { int kd = CAT[cat].kind; if (kd >= 0) kinds_add(kinds, &n, kd); }
+    }
     fx_order(0, kinds, n);   // the chain order IS the insert order (Increment A)
 }
 
@@ -443,6 +464,15 @@ void update(void) {
 // the effect icons now live in the shared runtime/fxicons.h (fx_icon, keyed by FX_* kind) so the
 // epiano's "pedals" match this board's exactly. CAT[].kind maps each catalog box to its FX_* kind.
 
+// LO-FI is a macro (no single FX_* kind), so it can't use fx_icon() — its own little cassette.
+static void lofi_icon(int cx, int cy, int col) {
+    rrect(cx - 12, cy - 7, 24, 14, 2, col);          // the cassette shell
+    circ(cx - 5, cy - 2, 2, col);                    // left reel
+    circ(cx + 5, cy - 2, 2, col);                    // right reel
+    line(cx - 3, cy - 2, cx + 3, cy - 2, col);       // tape spanning the reels
+    line(cx - 6, cy + 4, cx + 6, cy + 4, col);       // the label strip
+}
+
 static void draw_chain_pedal(int i, int x) {
     Slot *sl = &chain[i]; const FxDef *d = &CAT[sl->cat];
     int cx = x + PED_W / 2;
@@ -450,7 +480,8 @@ static void draw_chain_pedal(int i, int x) {
     rrect(x, PED_Y, PED_W, PED_H, 4, sl->on ? d->accent : CLR_DARKER_GREY);
     font(FONT_SMALL);
     print_centered(d->name, cx, PED_Y + 3, sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
-    fx_icon(d->kind, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, d->body);
+    if (d->kind < 0) lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
+    else fx_icon(d->kind, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, d->body);
     int kr = knob_rad(d->nk);
     int lblcol = sl->on ? CLR_LIGHT_PEACH : CLR_DARK_GREY;
     for (int j = 0; j < d->nk; j++) {
@@ -488,7 +519,8 @@ static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
     const FxDef *d = &CAT[cat];
     rrectfill(x, y, w, h, 3, d->body);
     rrect(x, y, w, h, 3, ghost ? CLR_WHITE : d->accent);
-    fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
+    if (d->kind < 0) lofi_icon(x + w / 2, y + 9, d->accent);
+    else fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
     font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, CLR_WHITE); font(FONT_NORMAL);
 }
 

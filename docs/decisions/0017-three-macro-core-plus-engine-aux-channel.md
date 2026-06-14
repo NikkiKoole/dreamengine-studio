@@ -84,3 +84,79 @@ voice needed the *live* `voice_param`, not `eng_tune`.
   answer (and the four-lane table) instead of re-deriving it.
 - Does not supersede §8.1.1; it **extends** it — the three-macro core is unchanged; this records
   where everything *else* goes.
+
+## Open question — what "locked, non-experimental" looks like
+The principle above is decided. What's still open (gated on the `sound.h` refactor) is the **final
+shape** of the channel. Two candidate shapes, and the test that decides between them.
+
+### Shared across both shapes
+- **Indexed, named, per-engine.** Whatever the function shape, indices are addressed by `AUX_*`/`MODE_*`
+  names, never a bare number (VOICE already does this via `VP_*`; only `eng_tune` still uses bare `0`/`1`).
+- **Non-experimental, concretely:**
+  1. `studio.h` comments drop "EXPERIMENTAL / not a final API" → "the blessed per-engine aux channel (this ADR)".
+  2. The entry points **and** their constants get `studioDocs.js` + `shell.js` entries — in an **advanced
+     "engine aux"** grouping, *discoverable but not pushed on beginners* (the §8.1.1 "not advertised" stays
+     a placement call, not an absence). Clears the standing `api-usage` "missing from studioDocs/shell" nag honestly.
+  3. Migrate the callers — `guitar`/`piano`/`bowed`/`upright`/`polopan` (note-on) and
+     `say`/`vox`/`voxab`/`voxpad`/`voxlab` (live) — to the new names. Mechanical.
+  4. `sound.h` keeps its `eng_p[]`/`vox_p[]` storage; only the public entry points rename.
+  5. The VOICE workstream still owns *which* of its axes graduate to the three standard macros vs. stay
+     on the live channel — this ADR fixes the mechanism, not voice's axis map.
+
+### Shape A — one pair, two timing faces (the macro mirror)
+```c
+void instrument_aux(int slot,   int idx, float value);  // note-on face — replaces eng_tune
+void note_aux      (int handle, int idx, float value);  // live face    — replaces voice_param
+```
+Mirrors how every macro has an `instrument_X` (note-on) and a `note_X` (live) face over **one shared
+per-engine index namespace**.
+
+### Shape B — two distinct channels, split by what the thing IS (recommended)
+```c
+void instrument_mode(int slot,   int idx, float value);  // engine STRUCTURE / mode / config — note-on
+void note_aux       (int handle, int idx, float value);  // engine LIVE EXPRESSION past the 3 macros — live
+```
+| channel | what it is | timing | enum | examples |
+|---|---|---|---|---|
+| `instrument_mode` | engine **structure / mode / config** | note-on | `MODE_*` | pizz vs arco, string weight, attack click, (model select) |
+| `note_aux` | engine **live expression** past the 3 macros | live | `AUX_*` | voice vowel/size/breath/effort |
+
+```c
+// MODE_* — note-on, instrument_mode()
+#define MODE_STRING_WEIGHT 0   // GUITAR/PIANO fundamental reinforcement
+#define MODE_STRING_CLICK  1   // GUITAR/PIANO attack click
+#define MODE_BOW_PIZZ      0   // BOWED: >= 0.5 = pizzicato (pluck) instead of arco (bow)
+// AUX_* — live, note_aux()  (the current VOICE VP_VOWEL/VP_SIZE/VP_BREATH/VP_OPENQ/VP_TILT/… set)
+#define AUX_VOICE_VOWEL    0
+#define AUX_VOICE_SIZE     1
+// … one block per engine that needs it; engines with no aux declare none
+```
+
+### The deciding test — single-face vs dual-face
+Shape A copies the macro pair. But that pattern is honest for macros **only because macros are
+dual-face**: `harmonics` is the *same* param you set at note-on *and* sweep live — two doors into one
+thing. **Aux params are single-face**: pizz is note-on *only* (you can't bow-vs-pluck a ringing
+string), vowel is live *only*. There is **no** aux param today that wants both.
+
+So Shape A's shared namespace advertises a duality that doesn't exist — `instrument_aux(voiceSlot,
+AUX_VOICE_VOWEL,…)` and `note_aux(h, AUX_BOW_PIZZ,…)` would both **silently do nothing**. Shape B's two
+enums make the wrong-face call **unwriteable** (a category error you can't type), turning the worst
+con — an invisible no-op that only surfaces on the next note — into a can't-happen. That is exactly
+what the "name your indices" hazard wants.
+
+**Recommendation: Shape B.** Cost is one extra name + one extra enum; the "O(1), one mechanism"
+elegance frays slightly, but it stays O(1) in the sense that matters (neither enum grows with engine
+count). **The hinge:** Shape A becomes the right call the moment any engine wants the *same* aux param
+on *both* faces (a note-on default you can also sweep live, as macros do). Today **zero** engines do —
+so ship Shape B; collapse to A only when a real dual-face param appears.
+
+### The trade, weighed (applies to either shape)
+**Pros** — `O(1)` API surface forever (a new engine quirk = pick an index, zero four-place wiring, no
+dead knob on the engines that don't want it); keeps the 3-macro core pristine; proven prior art
+(Plaits model-selector / Rings 4th knob).
+
+**Cons** — an indexed channel is inherently expert-only and magic-number-prone (only survivable
+*because* of the named constants — a bare `note_aux(h, 2, 0.7f)` is unreadable); per-engine semantics
+mean the same index means different things on different slots (the "meaning shifts across the dial" sin
+the macro discipline forbids — accepted **only** because it's quarantined to this lane). Shape A adds
+the silent wrong-face no-op above; Shape B is the mitigation.

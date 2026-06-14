@@ -50,7 +50,7 @@ Working tree is dirty with **other agents'** in-flight work (none mine — all m
 - **Migrate `reverb()` onto the bus path** (effects-bus-architecture.md §7 open call #3) — optional cleanup
   so there's *one* reverb mechanism. Today tank 0 stays a master parallel send (deliberate, kept bytes-identical).
 - **The output stage (4th zone): cabinets — amp/cab · Leslie** — now a full design section,
-  [`effects-bus-architecture.md` → "Increment E"](../design/effects-bus-architecture.md). Leslie shipped
+  [`effects-bus-architecture.md` → "Increment E"](design/effects-bus-architecture.md). Leslie shipped
   (the one tenant that exists); E generalizes it to a pinned **"pick your cabinet" slot** where a guitar
   amp is the obvious next tenant. An amp = a **cart-side recipe** (drive + cab-shaped EQ + `glue` power-sag
   + soft-clip; 0015's "amp/cab = drive + lowpass") — likely **no engine change**. ~5 named voicings sketched

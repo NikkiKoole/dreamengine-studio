@@ -45,9 +45,12 @@ roadmap turns to the effects layer. What remains, in order:
    concept, then delay/tape/leslie/wah. (Stereo §9 — now resolved.) The PARKED interim items
    (per-voice wah, envelope follower, epiano tremolo, suitcase auto-pan) all fold in here — see
    [§8.10.1](instrument-engines.md).
-2. **Cleanup, when the values lock:** the `eng_tune()` scaffolding is EXPERIMENTAL on three slots —
-   guitar/piano weight+attack-click, and the **bowed pizz flag** (`eng_tune(slot,0,1)` → `eng_p[0]`).
-   Bake the dialed-in values to constants and retire the live knobs.
+2. **Aux-channel lock-in (supersedes the old "bake-to-constants" plan):** `eng_tune()` is the note-on
+   face of the **blessed per-engine aux channel** — guitar/piano weight+attack-click, and the **bowed
+   pizz flag** (`eng_tune(slot,0,1)` → `eng_p[0]`). [Decision 0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)
+   **reversed** the earlier "bake the values to constants and retire the knobs" plan: the channel is
+   permanent, not scaffolding. What's left is the *final shape* (one pair vs. two channels — 0017's
+   open question) + renaming the public entry points off `eng_tune`/`voice_param`, gated on this refactor.
 
 ### ✅ Done this session — the string family (reference, not remaining work)
 

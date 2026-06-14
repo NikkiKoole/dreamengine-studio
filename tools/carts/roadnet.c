@@ -973,24 +973,40 @@ static int field_color(unsigned fid, int edge) {
 //     against road_at() so graph ⊆ field. Edges carry n0/n1 → routable adjacency.
 // Still ⛔: stitching the grid graph onto the arterial backbone at city entries, and
 // collapsing degree-2 chains (the grid is finely noded). See roadnet-streetlevel.md.
-typedef struct { float x0,y0,x1,y1; int cls; int n0,n1; } RoadEdge;  // n0,n1 = node ids (-1 = none)
+enum { EK_ARTERIAL, EK_GRID, EK_CONNECT };   // edge kind: backbone / intra-city grid / stitch on-ramp
+typedef struct { float x0,y0,x1,y1; int cls,kind,n0,n1; } RoadEdge;  // n0,n1 = node ids
 typedef struct { float x,y; } RoadNode;
 #define MAXGEDGE 12000
 #define MAXGNODE 6000
 static RoadEdge gedge[MAXGEDGE]; static int nedge;
 static RoadNode gnode[MAXGNODE]; static int nnode;
-static int g_deg[MAXGNODE];          // grid-node degree (incident grid edges) — filled by the collapse;
+static int n_art_node;               // arterial nodes occupy gnode[0..n_art_node); grid nodes follow
+static int g_deg[MAXGNODE];          // grid-node degree (incident GRID edges) — filled by the collapse;
 static int g_inc[MAXGNODE][4];       // ...also its incident edge indices (≤4: ±gx, ±gy). Read by the
                                      // node-draw (only deg≠2 nodes are real junctions/dead-ends).
-static void push_gedge(float x0,float y0,float x1,float y1,int cls,int n0,int n1) {
+static void push_gedge(float x0,float y0,float x1,float y1,int cls,int kind,int n0,int n1) {
     if (nedge >= MAXGEDGE) return;
     gedge[nedge].x0=x0; gedge[nedge].y0=y0; gedge[nedge].x1=x1; gedge[nedge].y1=y1;
-    gedge[nedge].cls=cls; gedge[nedge].n0=n0; gedge[nedge].n1=n1; nedge++;
+    gedge[nedge].cls=cls; gedge[nedge].kind=kind; gedge[nedge].n0=n0; gedge[nedge].n1=n1; nedge++;
 }
-static void build_graph(void) {        // call AFTER gather_arterials() (it fills the sg* cache)
-    nedge = 0; nnode = 0;
-    for (int i=0; i<nseg && nedge<MAXGEDGE; i++)
-        push_gedge(sgx0[i],sgy0[i],sgx1[i],sgy1[i], sgcls[i], -1,-1);   // arterials: no nodes yet
+// find/create an ARTERIAL node, deduping shared endpoints (link samples meet exactly at hubs +
+// within a link) so consecutive arterial segments share nodes → the backbone becomes routable.
+static int art_node_at(float x, float y) {
+    for (int i=0;i<n_art_node;i++){ float dx=gnode[i].x-x, dy=gnode[i].y-y; if (dx*dx+dy*dy<1e-4f) return i; }
+    if (n_art_node >= MAXGNODE) return -1;
+    gnode[n_art_node].x=x; gnode[n_art_node].y=y; return n_art_node++;
+}
+// call AFTER gather_arterials(). node_them = dedup endpoints into a routable node graph (needed
+// for the stitch + car routing; only worth it zoomed in — the dedup is O(n²), and far out there
+// are too many arterials). Far out we skip it: arterials still render fine from their endpoints.
+static void build_graph(int node_them) {
+    nedge = 0; n_art_node = 0;
+    for (int i=0; i<nseg && nedge<MAXGEDGE; i++) {
+        int a=-1, b=-1;
+        if (node_them) { a=art_node_at(sgx0[i],sgy0[i]); b=art_node_at(sgx1[i],sgy1[i]); }
+        push_gedge(sgx0[i],sgy0[i],sgx1[i],sgy1[i], sgcls[i], EK_ARTERIAL, a, b);
+    }
+    nnode = n_art_node;                // grid nodes get appended after the arterial nodes
 }
 
 // THE WORLD QUERY SEAM (for the drop-in consumer, e.g. sloop). Assumes gather_cities() +
@@ -1031,22 +1047,22 @@ static int is_grid_road(float wx, float wy, int *cls) {
 }
 // ── DEGREE-2 COLLAPSE — the grid is finely noded (a node at every half-block crossing), so a
 // straight lane is a chain of degree-2 nodes + many tiny edges. Walk each chain from a real
-// junction (degree ≠ 2) through colinear degree-2 nodes and emit ONE merged edge; arterials
-// (n0<0) pass through untouched. Leaves only junctions/dead-ends/corners as nodes and turns
+// junction (degree ≠ 2) through colinear degree-2 nodes and emit ONE merged edge; non-grid edges
+// (arterials) pass through untouched. Leaves only junctions/dead-ends/corners as nodes and turns
 // straight runs into single clean edges. Cleaner to look at AND a tidier graph for the car sim.
 static int collapse_other(int e, int cur) { return gedge[e].n0==cur ? gedge[e].n1 : gedge[e].n0; }
 static void graph_collapse_grid(void) {
     for (int i=0;i<nnode;i++) g_deg[i]=0;
     for (int e=0;e<nedge;e++) {                          // degree + incidence over GRID edges only
-        if (gedge[e].n0 < 0) continue;                   // arterial
+        if (gedge[e].kind != EK_GRID) continue;
         int a=gedge[e].n0, b=gedge[e].n1;
         if (g_deg[a]<4) g_inc[a][g_deg[a]]=e;  g_deg[a]++;
         if (g_deg[b]<4) g_inc[b][g_deg[b]]=e;  g_deg[b]++;
     }
     static int used[MAXGEDGE]; for (int e=0;e<nedge;e++) used[e]=0;
     static RoadEdge out[MAXGEDGE]; int nout=0;
-    for (int e=0;e<nedge && nout<MAXGEDGE;e++)            // arterials verbatim
-        if (gedge[e].n0 < 0) out[nout++]=gedge[e];
+    for (int e=0;e<nedge && nout<MAXGEDGE;e++)            // non-grid edges (arterials) verbatim
+        if (gedge[e].kind != EK_GRID) out[nout++]=gedge[e];
     for (int j=0;j<nnode;j++) {
         if (g_deg[j]==2) continue;                       // chains start at junctions / dead-ends only
         int nd = g_deg[j]<4 ? g_deg[j] : 4;
@@ -1069,12 +1085,12 @@ static void graph_collapse_grid(void) {
             }
             if (nout<MAXGEDGE) {
                 out[nout].x0=sx; out[nout].y0=sy; out[nout].x1=gnode[k].x; out[nout].y1=gnode[k].y;
-                out[nout].cls=cls; out[nout].n0=j; out[nout].n1=k; nout++;
+                out[nout].cls=cls; out[nout].kind=EK_GRID; out[nout].n0=j; out[nout].n1=k; nout++;
             }
         }
     }
     for (int e=0;e<nedge && nout<MAXGEDGE;e++)            // leftover degree-2 loops (no junction) — keep
-        if (gedge[e].n0>=0 && !used[e]) { out[nout++]=gedge[e]; used[e]=1; }
+        if (gedge[e].kind==EK_GRID && !used[e]) { out[nout++]=gedge[e]; used[e]=1; }
     nedge=nout;
     for (int i=0;i<nedge;i++) gedge[i]=out[i];
 }
@@ -1138,17 +1154,37 @@ static void graph_add_grid(void) {
                 float x0 = gnode[nid[a][b]].x, y0 = gnode[nid[a][b]].y;
                 if (a+1<nk && nid[a+1][b] >= 0) {                    // neighbour along +gx
                     float x1 = gnode[nid[a+1][b]].x, y1 = gnode[nid[a+1][b]].y; int cm;
-                    if (is_grid_road((x0+x1)*0.5f,(y0+y1)*0.5f,&cm)) push_gedge(x0,y0,x1,y1,cm,nid[a][b],nid[a+1][b]);
+                    if (is_grid_road((x0+x1)*0.5f,(y0+y1)*0.5f,&cm)) push_gedge(x0,y0,x1,y1,cm,EK_GRID,nid[a][b],nid[a+1][b]);
                 }
                 if (b+1<nm && nid[a][b+1] >= 0) {                    // neighbour along +gy
                     float x1 = gnode[nid[a][b+1]].x, y1 = gnode[nid[a][b+1]].y; int cm;
-                    if (is_grid_road((x0+x1)*0.5f,(y0+y1)*0.5f,&cm)) push_gedge(x0,y0,x1,y1,cm,nid[a][b],nid[a][b+1]);
+                    if (is_grid_road((x0+x1)*0.5f,(y0+y1)*0.5f,&cm)) push_gedge(x0,y0,x1,y1,cm,EK_GRID,nid[a][b],nid[a][b+1]);
                 }
             }
         }
     }
     want_access = saved;
     graph_collapse_grid();                                       // merge straight runs → clean edges
+}
+
+// ── STITCH — connect the local grid onto the arterial backbone so the graph is ONE routable
+// component (a route can leave the neighbourhood → arterial → cross town → another grid).
+// Arterials carve THROUGH the city (road_at gives them priority), so grid streets dead-end at
+// the arterial edge; here each real grid node (junction/dead-end) near an arterial gets an
+// on-ramp connector edge to the nearest arterial NODE. Call AFTER graph_add_grid (needs g_deg
+// + the noded arterials). Cheap: per grid node, a scan over the (few) arterial nodes.
+#define STITCH_DIST 1.1f                  // world tiles: how close a grid node must be to hook on
+static void graph_stitch(void) {
+    for (int g = n_art_node; g < nnode && nedge < MAXGEDGE; g++) {   // grid nodes only
+        if (g_deg[g] != 1) continue;                                // DEAD-ENDS — streets ending at the arterial
+        float gx = gnode[g].x, gy = gnode[g].y;
+        int best = -1; float bd = STITCH_DIST*STITCH_DIST;
+        for (int a = 0; a < n_art_node; a++) {
+            float dx = gnode[a].x-gx, dy = gnode[a].y-gy, d = dx*dx+dy*dy;
+            if (d < bd) { bd = d; best = a; }
+        }
+        if (best >= 0) push_gedge(gx, gy, gnode[best].x, gnode[best].y, CL_STREET, EK_CONNECT, g, best);
+    }
 }
 
 // ── BUILDINGS FOLLOW THE GRAPH (prototype) — parcels strung along each residential street edge,
@@ -1189,7 +1225,7 @@ static BuildHit building_at(float wx, float wy) {
     BuildHit b = { 0, Z_NONE };
     float half = PARCEL_FOOT*0.5f;
     for (int e=0; e<nedge && !b.solid; e++) {
-        if (gedge[e].n0 < 0) continue;                       // arterial — no parcels
+        if (gedge[e].kind != EK_GRID) continue;              // parcels only along grid streets
         if (gedge[e].cls!=CL_STREET && gedge[e].cls!=CL_ACCESS) continue;
         float x0=gedge[e].x0,y0=gedge[e].y0, dx=gedge[e].x1-x0, dy=gedge[e].y1-y0;
         float L2=dx*dx+dy*dy; if (L2<1e-6f) continue;
@@ -1210,7 +1246,7 @@ static BuildHit building_at(float wx, float wy) {
 }
 static void draw_buildings(void) {                           // footprints in the GRAPH view (LOD-gated)
     for (int e=0; e<nedge; e++) {
-        if (gedge[e].n0 < 0) continue;
+        if (gedge[e].kind != EK_GRID) continue;
         if (gedge[e].cls!=CL_STREET && gedge[e].cls!=CL_ACCESS) continue;
         for (int i=0; i<PARCEL_MAX; i++) {
             float cx,cy; if (!parcel_center(e,i,1,&cx,&cy)) break;   // past the edge end
@@ -1281,17 +1317,18 @@ static void draw_graph_view(void) {
     view_metrics();
     gather_cities();
     gather_arterials();                                  // fills the sg* cache...
-    build_graph();                                       // ...arterials packed into gedge[]
     float bpx = block_sp() * P;                          // on-screen size of one city block (px)
-    if (bpx >= GRAPH_STREET_PX) graph_add_grid();        // + the intra-city grid (nodes + edges), LOD'd
+    int street = (bpx >= GRAPH_STREET_PX);
+    build_graph(street);                                  // arterials → gedge[] (noded only at street zoom)
+    if (street) { graph_add_grid(); graph_stitch(); }    // grid + on-ramps onto arterials
     render_terrain();
     fillp(FILL_CHECKER, -1); rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK); fillp_reset();  // dim
     for (int i = 0; i < nedge; i++) {                    // EDGES — vector centre-lines, class-coloured
         int x0 = sxp(gedge[i].x0), y0 = syp(gedge[i].y0);
         int x1 = sxp(gedge[i].x1), y1 = syp(gedge[i].y1);
-        int col = GEDGE_COL[gedge[i].cls];
+        int col = (gedge[i].kind==EK_CONNECT) ? CLR_WHITE : GEDGE_COL[gedge[i].cls];  // on-ramps = white
         line(x0, y0, x1, y1, col);
-        if (gedge[i].cls <= CL_HIGHWAY) line(x0, y0 + 1, x1, y1 + 1, col);   // fatten the big roads
+        if (gedge[i].cls <= CL_HIGHWAY && gedge[i].kind==EK_ARTERIAL) line(x0, y0 + 1, x1, y1 + 1, col);  // fatten big roads
     }
     if (bpx >= GRAPH_BUILD_PX) draw_buildings();          // parcels fronting the residential edges
     for (int i = 0; i < nnode; i++)                      // NODES — only real junctions/dead-ends

@@ -62,8 +62,14 @@ field-sampled loupe was the bottleneck, not the zoom number):
     junction (degree ≠ 2) through colinear degree-2 mid-lane nodes and emits ONE merged edge —
     so a straight lane is a single edge between intersections, not a chain of half-block stubs,
     and only junctions/dead-ends draw as node dots. Arterials pass through untouched.
-  - **Not yet:** stitching the grid graph onto the arterials at city entries (so a route can
-    leave town).
+  - **Stitch (2026-06-15):** edges now carry an explicit `kind` (`EK_ARTERIAL`/`EK_GRID`/
+    `EK_CONNECT`). `build_graph()` **nodes the arterials** (dedups shared link/hub endpoints →
+    a routable backbone; only when zoomed to street level, the dedup is O(n²)). `graph_stitch()`
+    then joins each grid **dead-end** (degree 1) near an arterial to the nearest arterial node
+    with an `EK_CONNECT` on-ramp edge — so the grid + arterials are **one routable component** (a
+    route can leave the neighbourhood → arterial → cross town → another grid). Drawn white in the
+    GRAPH view. *Refinements left:* on-ramp density (it connects every dead-end), and splitting an
+    arterial edge at the exact projection rather than snapping to the nearest sample node.
   - *Perf note:* `graph_add_grid()` re-runs each frame in GRAPH view (~10–15k `road_at()` at
     street zoom — fine for a debug view); the car sim will build it per chunk + cache.
 
@@ -164,9 +170,9 @@ as buildings-to-be) — the access streets + footprints are what we build into i
 2. ✅ **View-switcher** (TAB MAP↔GRAPH, `ZMAX→12`) + **vector GRAPH debug render**.
 3. ✅ **Full road graph** — arterials + vectorised intra-city grid with intersection
    **nodes + adjacency** (`gedge[]`/`gnode[]`, `want_access` flag). See "What's built (cont.)".
-4. **Graph tidy-ups**: ✅ degree-2 collapse (straight lanes = single edges). Remaining (when
-   routing needs it): **stitch** the grid graph onto the arterial backbone at city entries, so a
-   route can leave town. A post-pass over `gedge[]`/`gnode[]`; doesn't block driving.
+4. **Graph tidy-ups**: ✅ degree-2 collapse (straight lanes = single edges); ✅ **stitch** (grid
+   dead-ends → arterial on-ramps via `EK_CONNECT`, arterials noded → one routable component).
+   Polish left: on-ramp density + split-at-projection (see "What's built" → Stitch).
 5. **Footprints + `building_at()`** — 🔨 *prototyped 2026-06-14* (buildings-follow-the-graph):
    `building_at(wx,wy) → {solid,zone}` + `draw_buildings()`. Parcels are strung along each
    residential grid edge, set back from the kerb, as axis-aligned world squares — so each
@@ -178,6 +184,18 @@ as buildings-to-be) — the access streets + footprints are what we build into i
 6. **Park contents** (the football field) — PARK is the last flat-tint zone (small win).
 7. **Rung 4** — sloop at L3: drives the graph (route/lane-keep via `gedge[]`/`gnode[]` + `coff`),
    stays on the surface via `road_at()`, collides with `building_at()`. The GRAPH view is its camera.
+
+## Future direction — a per-district STREET-PATTERN PALETTE
+Now that buildings follow the graph and the stitch connects local roads to the backbone, the
+*layout generator is swappable*: a district can be filled by any pattern that emits **connected
+edges**, and population + reachability come for free. Plan a **palette chosen per district by a
+hash** (the zone field decides which are plausible): **grid** (have it, axis or rotated) →
+**cul-de-sac / loops-and-lollipops** (suburb — the biggest realism win over uniform grid) →
+**organic / warped** (exurb, hardest to keep deterministic). The load-bearing rules each new
+generator must obey: **(1)** pure-fn of its district cell + bounded inside it (no global growth),
+**(2)** connect to the bounding collector/arterial (lean on the stitch), **(3)** own its interior,
+share only boundary roads (so district seams stay clean). Build the stitch's polish first, then
+add cul-de-sacs as pattern #2.
 
 ## Starting point for next session (the concrete first move + two hooks)
 

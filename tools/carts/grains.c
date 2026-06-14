@@ -160,16 +160,16 @@ void draw(void) {
     print("1-4 chords   F/SPACE freeze   H help", 8, SCREEN_H - 8, CLR_DARK_GREY);
 
     if (show_help) {
-        rectfill(20, 24, SCREEN_W - 40, 110, CLR_DARK_BLUE);
-        rect(20, 24, SCREEN_W - 40, 110, CLR_MAUVE);
-        print("grains() = granular delay (navkit port)", 28, 34, CLR_WHITE);
-        print("captures audio, replays scattered grains", 28, 48, CLR_LIGHT_GREY);
-        print("of the recent past as an evolving cloud.", 28, 58, CLR_LIGHT_GREY);
-        print("FREEZE loops what's captured forever:", 28, 74, CLR_YELLOW);
-        print("play a chord, freeze, then solo over it.", 28, 84, CLR_LIGHT_GREY);
-        print("SCATTER = the 'evolving' knob.", 28, 100, CLR_LIGHT_GREY);
-        print("FEEDBACK = self-feeding cloud.", 28, 110, CLR_LIGHT_GREY);
-        print("H to close", 28, 124, CLR_DARK_GREY);
+        rectfill(20, 24, SCREEN_W - 40, 102, CLR_DARK_BLUE);
+        rect(20, 24, SCREEN_W - 40, 102, CLR_MAUVE);
+        print("grains(): granular delay", 28, 32, CLR_WHITE);
+        print("(ported from navkit)", 28, 42, CLR_DARK_GREY);
+        print("captures audio, replays it as", 28, 56, CLR_LIGHT_GREY);
+        print("scattered grains -> a cloud.", 28, 66, CLR_LIGHT_GREY);
+        print("FREEZE = loop it forever:", 28, 80, CLR_YELLOW);
+        print("chord, freeze, solo over it.", 28, 90, CLR_LIGHT_GREY);
+        print("SCATTER = evolving. FEEDBACK", 28, 104, CLR_LIGHT_GREY);
+        print("= self-feeding cloud.", 28, 114, CLR_LIGHT_GREY);
     }
 }
 

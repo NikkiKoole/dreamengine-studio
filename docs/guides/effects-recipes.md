@@ -425,9 +425,12 @@ these as a macro pedal / preset, not a new `FX_*` kind.
 | **Dyno Rhodes** | `chorus` + `eq` presence | the bright stereo Rhodes sheen | `epiano` (DYNO) |
 
 > **The macro caveat (`pedalboard` LO-FI):** a macro drives **three shared master-bus inserts** at once.
-> Because there's one crush / tape / filter on bus 0, the macro **owns** them while it's on — it runs
-> last in `apply_fx` so it overrides a separately-stacked BITCRUSH/TAPE/FILTER pedal rather than fighting
-> it, and the `fx_order` list dedupes the kinds. Don't stack a macro over its own components.
+> Because there's one crush / tape / filter on bus 0, LO-FI and the standalone **BITCRUSH / TAPE / FILTER**
+> pedals would fight over the same insert — so the board **mutually excludes** them: while LO-FI is in the
+> chain those three grey out in the palette (and can't be dragged in), and vice-versa (`cat_blocked()`).
+> That keeps the board honest — no dead pedal silently overridden by the macro. (Internally LO-FI still
+> runs last in `apply_fx` and the `fx_order` list dedupes, as belt-and-suspenders.) This one-instance
+> limit is the same one [Increment F](../design/effects-bus-architecture.md) would lift.
 
 ---
 

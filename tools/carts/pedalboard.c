@@ -136,11 +136,19 @@ static void build_strings(void) {
 
 // ── chain helpers ──
 static int  chain_index(int cat) { for (int i = 0; i < chain_n; i++) if (chain[i].cat == cat) return i; return -1; }
+// LO-FI is a macro over crush+tape+filter (one insert each per bus), so it can't coexist with the
+// standalone BITCRUSH/TAPE/FILTER pedals — they'd fight over the same insert. They mutually exclude:
+// while LO-FI is in the chain those three grey out in the palette, and vice-versa (no dead pedals).
+static bool cat_blocked(int cat) {
+    if (cat == C_LOFI) return chain_index(C_BIT) >= 0 || chain_index(C_TAP) >= 0 || chain_index(C_FIL) >= 0;
+    if (cat == C_BIT || cat == C_TAP || cat == C_FIL) return chain_index(C_LOFI) >= 0;
+    return false;
+}
 static int  content_w(void)      { return chain_n * PITCH; }
 static float max_scroll(void)    { float m = (float)(content_w() - VIEW_W); return m < 0 ? 0 : m; }
 static void clamp_scroll(void)   { float m = max_scroll(); if (scroll_x < 0) scroll_x = 0; if (scroll_x > m) scroll_x = m; }
 static void chain_insert(int cat, int at) {
-    if (chain_n >= NCAT || chain_index(cat) >= 0) return;
+    if (chain_n >= NCAT || chain_index(cat) >= 0 || cat_blocked(cat)) return;
     if (at < 0) at = 0; if (at > chain_n) at = chain_n;
     for (int i = chain_n; i > at; i--) chain[i] = chain[i - 1];
     chain[at].cat = cat; chain[at].on = true;
@@ -414,7 +422,7 @@ void update(void) {
             if (p->mode == PTR_IDLE && palette_open && ty >= PAL_Y) {
                 int avail[NCAT], na = pal_avail(avail);
                 for (int a = 0; a < na; a++) { int cx2, cy2; pal_chip_rect(a, &cx2, &cy2);
-                    if (point_in_box(tx, ty, cx2, cy2, PAL_CW, PAL_CH)) { p->mode = PTR_DRAGPAL; p->cat = avail[a]; } }
+                    if (point_in_box(tx, ty, cx2, cy2, PAL_CW, PAL_CH) && !cat_blocked(avail[a])) { p->mode = PTR_DRAGPAL; p->cat = avail[a]; } }
             }
             // 4. the guitar (only when palette closed)
             if (p->mode == PTR_IDLE && !palette_open) {
@@ -514,14 +522,18 @@ static void draw_chain_pedal(int i, int x) {
     rrect(x + 12, PED_Y + 58, PED_W - 20, 12, 2, CLR_DARK_GREY);
 }
 
-// a small palette chip / drag-ghost: the icon + a name, no knobs.
-static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
+// a small palette chip / drag-ghost: the icon + a name, no knobs. `blocked` = greyed/inert (a macro
+// conflict — e.g. BITCRUSH while LO-FI is in the chain): can't be dragged in, shown dimmed.
+static void draw_chip(int cat, int x, int y, int w, int h, bool ghost, bool blocked) {
     const FxDef *d = &CAT[cat];
-    rrectfill(x, y, w, h, 3, d->body);
-    rrect(x, y, w, h, 3, ghost ? CLR_WHITE : d->accent);
-    if (d->kind < 0) lofi_icon(x + w / 2, y + 9, d->accent);
-    else fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
-    font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, CLR_WHITE); font(FONT_NORMAL);
+    int body = blocked ? CLR_BROWNISH_BLACK : d->body;
+    int edge = blocked ? CLR_DARK_GREY : (ghost ? CLR_WHITE : d->accent);
+    int icon = blocked ? CLR_DARK_GREY : d->accent;
+    rrectfill(x, y, w, h, 3, body);
+    rrect(x, y, w, h, 3, edge);
+    if (d->kind < 0) lofi_icon(x + w / 2, y + 9, icon);
+    else fx_icon(d->kind, x + w / 2, y + 9, icon, body);
+    font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, blocked ? CLR_DARK_GREY : CLR_WHITE); font(FONT_NORMAL);
 }
 
 static void draw_palette(void) {
@@ -531,7 +543,7 @@ static void draw_palette(void) {
     print_centered("drag a pedal UP into the chain  ·  drag a chain pedal DOWN here to remove", SCREEN_W / 2, PAL_Y + 4, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
     int avail[NCAT], na = pal_avail(avail);
-    for (int a = 0; a < na; a++) { int cx2, cy2; pal_chip_rect(a, &cx2, &cy2); draw_chip(avail[a], cx2, cy2, PAL_CW, PAL_CH, false); }
+    for (int a = 0; a < na; a++) { int cx2, cy2; pal_chip_rect(a, &cx2, &cy2); draw_chip(avail[a], cx2, cy2, PAL_CW, PAL_CH, false, cat_blocked(avail[a])); }
 }
 
 static void draw_guitar(void) {
@@ -636,5 +648,5 @@ void draw(void) {
     // drag ghost (on top of everything)
     for (int j = 0; j < PTR_MAX; j++)
         if (ptr[j].id != PTR_NONE && (ptr[j].mode == PTR_DRAGSLOT || ptr[j].mode == PTR_DRAGPAL))
-            draw_chip(ptr[j].cat, ptr[j].x - 22, ptr[j].y - 13, 44, 26, true);
+            draw_chip(ptr[j].cat, ptr[j].x - 22, ptr[j].y - 13, 44, 26, true, false);
 }

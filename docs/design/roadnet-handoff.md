@@ -31,6 +31,9 @@ testbed (pan/zoom/drag), not a game yet. Commit trail (oldest → newest):
 | `08bd284` | **L2 zone model** — RCI **anchored to roadnet cities** (urbanity field + concentric land use) |
 | `9ddc45e` | de-circle the zones — domain-warp + patchy farms (no more bullseye) |
 | `51fdc57` | **L2 city sliders** — city size / downtown / farms / blocks, live |
+| `52a2d97` | **L2 street level** — nested street grid carving **blocks** + building **lots**; grid **aligned to arterials** per city (`city_dir`) with an `align` patchwork slider; **`road_at()`** query seam + arterials **carved through** as real road surface (renderer calls `road_at` → screen == collision) |
+| `8d5b1f5` | **class-aware street roads** — the carve owns the loupe surface; dirt=brown/paved=grey, centre-lines on big roads, sidewalks |
+| `9212a88` | **`road w` slider** + **outskirts gradient** (occupancy thins the suburb) + **ribbon development** along roads + **Voronoi farm fields** (crops + hedgerows); `road_at` gains a `built` flag |
 
 Earlier in the session there's also an unrelated tiny commit (`be105f8`, an sh101 doc
 note) that has nothing to do with roadnet.
@@ -48,8 +51,18 @@ note) that has nothing to do with roadnet.
 - **Magnifier (L)**: a lens showing the **street level** at the crosshair — the same
   highways (aligned) **plus** an RCI-zoned city the map is too coarse to draw.
 - **L2 zones**: urbanity bumps around cities → concentric, domain-warped land use:
-  wild → **farm** (patchy) → **res** → **com** core, with **industrial** fringe,
-  **harbours** on water, **parks** carved in, interior street grid. Four live knobs.
+  wild → **farm** → **res** → **com** core, with **industrial** fringe, **harbours** on
+  water, **parks** carved in.
+- **L2 street level** (in the lens): a nested **street grid** carves built-up zones into
+  **blocks** filled with building **lots**; the grid is **aligned to the arterial** that
+  enters each city, blended per-district by an `align` slider. **Arterials carve through**
+  as real road surface, **class-aware** (dirt/paved, centre-lines on big roads, sidewalks).
+- **L2 outskirts**: the suburb **thins** toward the edge (occupancy gradient), **houses
+  follow the roads out of town** (ribbon development), and open land is **Voronoi farm
+  fields** (crops + hedgerows) — no more hard blob edge or flat farm ring.
+- **`road_at(wx,wy)`**: the world query seam — `{on_road, class, zone, built}` — that the
+  renderer itself calls (so screen == collision), and that **sloop will drive on**.
+- **Seven live L2 knobs**: city size / downtown / farms / blocks / align / road w / field.
 
 ## Where we arrived vs. the goal
 
@@ -58,22 +71,37 @@ note) that has nothing to do with roadnet.
 - **L1 city layout** — ✅ zones done (RCI land-use field) + ✅ **street grid** (nested
   local/avenue lattice carving blocks, density emergent from urbanity).
 - **L2 block contents** — 🔨 **mostly built** (2026-06-14): street grid + building
-  **lots** (`lot_color`), grid aligned to arterials (`city_dir`/`align` slider), and
-  arterials **carved through** as real road surface via the **`road_at()` query seam**.
-  Still ⛔: farm *fields*, park contents (the football field), parking, and footprints as
-  real *collidable* rects (today lots are colour only; FARM/PARK still flat tint).
+  **lots**, grid aligned to arterials (`city_dir`/`align`), arterials **carved through**
+  (class-aware), the **outskirts gradient** (occupancy thinning + ribbon development), and
+  **Voronoi farm fields** (crops + hedgerows). All readable via the **`road_at()` seam**
+  (now with a `built` flag). Still ⛔: **park contents** (the football field — PARK is still
+  flat tint), building **footprints** drawn as *collidable rects* (lots are colour only),
+  parking lots, landmarks.
 - **L3 car + collision + play** — ⛔ not built, **but `road_at()` now exists** — the seam
   sloop will drive on. Wiring it in is rung 4 (the next leap).
 
-**So: we built the *world/map* thoroughly and prototyped the *street zoning* in a
-lens. We did NOT build the part you actually drive.** GTA1 itself was one dense city;
-the playable substance is street-level blocks + a car, and that's the remaining arc.
-roadnet is the map and the world-structure; it is not yet "a GTA1 you can play."
+**So: we built the *world/map* thoroughly and the *street level* is now real content in a
+lens — blocks, lots, class-aware roads, a proper city→country gradient with fields.** What
+we still have NOT built is the part you actually *drive*: a car on those streets, building
+*collision*, and the map↔street mode transition. roadnet is the world; it is not yet "a
+GTA1 you can play" — but the `road_at()` seam to make it one is in place.
 
 Against the original phases: terrain ✅, splined infinite/deterministic roads ✅ (the
-hard one), rivers+bridges ✅, RCI zones ✅. Deferred: driving (sloop), street-level
-blocks, landmarks-as-gameplay, the map↔street mode transition, tunnels/carving (parked,
-may not fit 2D top-down).
+hard one), rivers+bridges ✅, RCI zones ✅, street-level blocks/roads/fields ✅. Deferred:
+driving (sloop), building collision + footprints, landmarks-as-gameplay, the map↔street
+mode transition, tunnels/carving (parked, may not fit 2D top-down).
+
+## Next time — where to pick up (recommended order)
+1. **Park contents + the football field** — PARK is the last flat-tint zone; give it a real
+   park (paths, the pitch with markings). Small, visible, finishes the zone-content set.
+2. **Building footprints as collidable rects** — lots are flat colour; draw real footprints
+   (inset + outline) and expose them through `road_at`'s `built` flag as solid rects, so a
+   car can hit a building. This is the bridge to collision.
+3. **Rung 4 — drive it** — wire `road_at()` into **sloop**: a car at street scale querying
+   road/building/zone, plus a **map↔street mode** flip. The leap from viewer to playable.
+4. **Polish backlog**: the in-city **bridge gap** (road_at doesn't pave water + loupe no
+   longer strokes the spline → a bridge shows as a break); promote `U_CORE` (the gradient
+   handoff) and field/lane widths to sliders; snap the district grid-shear to a road.
 
 ## How the pieces relate (cousin carts)
 - **`sloop.c`** — the **car physics** (already solved). The eventual consumer; will

@@ -82,6 +82,35 @@ So the rule of thumb when an effect idea shows up: **picture it as a stompbox fi
 on the board, build the bus effect (and check it isn't a mode of an existing one); if it only ever
 lives inside one instrument's voice, keep it a recipe.
 
+### The third category: pinned gain/output stages — "wants to be a pedal" but can't be a *reorderable* one
+
+The recipe-vs-insert test above has a blind spot the **COMP pedal exposed (2026-06-14, deferred).**
+Some effects you'd genuinely want on the board are *neither* recipes *nor* reorderable inserts — they're
+**pinned summed-bus stages** that run at a *fixed* point in the master section, after the whole insert
+chain (`sound.h`, the master block: inserts → leslie → sidechain/glue → soft-clip):
+
+- **`glue()` / `sidechain()`** — a bus compressor / the EDM pump. A gain stage applied once, after the
+  inserts, before the soft-clip. No `FX_*` kind, never in `fx_order`.
+- **`leslie()`** — the rotary cabinet, the pinned **output stage** (Increment E), also after the inserts.
+
+A COMP or LESLIE "pedal" on the board would therefore have a **cosmetic chain position** — drag it
+before or after the bitcrusher and *nothing changes*, because the engine always applies it at its pinned
+point. That's the exact dishonesty we removed for reverb (`reverb_insert`) and echo (`echo_insert`); we
+must not silently re-introduce it. So the test sharpens to **three** outcomes, not two:
+
+1. **Reorderable insert** (`FX_*`) — position is audible → a normal draggable pedal (tremolo, wah, filter,
+   ringmod, **delay**, autopan, …; reverb/echo via their `_insert` forms).
+2. **Pinned gain / output stage** (glue, sidechain, leslie) — position is fixed by topology → if it goes
+   on the board it must be **honest about being pinned**: drawn at a fixed slot, *not* draggable (like the
+   planned amp slot in Increment E), never a fake reorderable pedal.
+3. **Recipe** — per-voice, never a pedal at all.
+
+**COMP is parked on this.** `glue()` itself already ships (Increment D) — the open question is purely how
+a comp/glue pedal should *appear* on the pedalboard. The honest home is a **pinned "dynamics" slot**, which
+is the same shape as Increment E's pinned amp/cabinet slot — so COMP is best built *together with the
+output-stage work (Increment E)*, not bolted on now as a draggable lie. (The pedalboard's REVERB pedal is
+*not* this exception — `reverb_insert` makes it a real positioned insert; COMP has no insert form.)
+
 ---
 
 ## 1. The mental model: the engine is already a mixing console

@@ -505,6 +505,11 @@ void instrument_phaser(int slot, float rate, float depth, float feedback, float 
 void univibe(float rate, float depth, float mix);                 // rate 0..10 Hz (throb speed), depth 0..1 (sweep), mix 0..1 (0 = off). THE master univibe. try 4/0.7/0.5
 void instrument_univibe(int slot, float rate, float depth, float mix);  // univibe on just this slot (auto-grabs a private FX bus)
 
+// dropout — the VHS / Generation-Loss "FAILURE" knob: random momentary tape-catches on the whole mix
+// (the signal stumbles — drops in level AND goes dull — then recovers). A master-stage effect; pair
+// with crush()/tape()/filter() for the full degraded-cassette sound. amount 0 = off → byte-identical.
+void dropout(float amount, float depth);   // amount 0..1 = how often the tape catches, depth 0..1 = how hard it drops (level + HF loss). try 0.4/0.7
+
 // filter — a sweepable resonant FILTER on the whole mix: the DJ-filter / build-up sweep. A plain
 // state-variable filter (low/high/band/notch) you RIDE live — close it to a muffled thump on the
 // breakdown, open it back up (crank resonance for the scream) on the build. THE electronic-music

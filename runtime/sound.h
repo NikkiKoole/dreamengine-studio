@@ -1649,6 +1649,7 @@ typedef enum {
     SR_INSTR_GRAINS_PITCH = 92,   // a=slot, b=semitones*100, c=spread*1000, e0=reverse(0/1) — transpose one instrument's granular cloud
     SR_UNIVIBE       = 93,   // a=rate*1000, b=depth*1000, c=mix*1000 — THE master univibe (bus 0): the phaser swept by the optical LFO
     SR_INSTR_UNIVIBE = 94,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — univibe on one instrument (auto-bus)
+    SR_DROPOUT       = 95,   // a=amount*1000, b=depth*1000 — THE master tape-failure dropout (random level dips + HF loss)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1673,6 +1674,45 @@ static int           delayed_count = 0;
 // the silent class of bug that once made every wav-knob position play the default square.
 // sound_tick() screams about it via printh so it shows in the editor log / bake output.
 static atomic_int sound_dropped = 0;   // incremented from BOTH threads → atomic RMW
+
+// ── dropout ("Failure" knob) — random tape-catch level dips + HF loss on the whole mix ──────────
+// The Generation Loss / VHS-failure move: a sample-&-hold clock (mod_sh) randomly TRIGGERS momentary
+// catches where the signal drops in level AND goes dull (oxide-shedding HF loss), then recovers fast.
+// A MASTER-STAGE effect (runs at the sum, before the soft-clip — like leslie/sidechain), NOT a
+// reorderable FX_* insert (the 4-bit fx_order packing is full at FX_DRIVE=15, and a whole-mix tape
+// failure belongs at the master anyway). Dormant at amount 0 → byte-identical. (Pitch-dip on a catch
+// awaits the bus pitch-shifter, Primitive 2; v1 is level + tone, the recognisable core.)
+#define DROP_EVENT_HZ  8.0f     // S&H clock: up to 8 potential catches/sec
+#define DROP_DECAY     0.9991f  // per-sample envelope decay (~25 ms catch) — momentary, not a fade
+static float    drop_amount = 0.0f;   // 0..1: catch frequency (0 = off)
+static float    drop_depth  = 0.7f;   // 0..1: severity (how far level drops + how dull)
+static bool     drop_used   = false;
+static ModState drop_mod;             // the S&H trigger source
+static float    drop_env    = 0.0f;   // current catch envelope (0 = normal, 1 = full drop)
+static float    drop_prev   = 0.0f;   // last S&H value (rising-edge detect)
+static float    drop_lpL = 0.0f, drop_lpR = 0.0f;   // HF-rolloff one-pole state
+static void dropout_process(float *mixL, float *mixR) {
+    const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    float sh = mod_sh(&drop_mod, DROP_EVENT_HZ, dt);   // sample-&-hold: a fresh random each step, held between
+    if (sh != drop_prev) {                             // a NEW step landed (held value changed)
+        drop_prev = sh;
+        if ((sh + 1.0f) * 0.5f < drop_amount) drop_env = 1.0f;   // dice = the step value; P(catch) = amount
+    }
+    drop_env *= DROP_DECAY;                            // decays back fast → a momentary stumble
+    float d = drop_env * drop_depth;                   // 0 normal .. depth at a full catch
+    float cut = 1.0f - d * 0.85f;                      // d high → low cutoff (dull); d 0 → cut 1 (lp == input)
+    drop_lpL += (*mixL - drop_lpL) * cut;
+    drop_lpR += (*mixR - drop_lpR) * cut;
+    float gain = 1.0f - d;                             // duck the level during the catch
+    *mixL = (*mixL + (drop_lpL - *mixL) * d) * gain;   // blend toward the dull copy, then duck
+    *mixR = (*mixR + (drop_lpR - *mixR) * d) * gain;
+}
+static void fx_set_dropout(float amount, float depth) {
+    if (amount < 0.0f) amount = 0.0f; if (amount > 1.0f) amount = 1.0f;
+    if (depth  < 0.0f) depth  = 0.0f; if (depth  > 1.0f) depth  = 1.0f;
+    drop_amount = amount; drop_depth = depth;
+    drop_used = (amount > 0.0f);       // amount 0 → not called → byte-identical
+}
 
 #if defined(PLATFORM_WEB) && defined(DE_AUDIO_WORKLET)
 // Master gain for the worklet mixer. raylib's SetMasterVolume only affects the
@@ -4392,6 +4432,8 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_univibe(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_DROPOUT) {      // master tape-failure dropout: a=amount, b=depth (×1000)
+        fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
     } else if (r.kind == SR_LESLIE) {       // master Leslie (bus 0): a=speed, b=drive, c=balance, e0=doppler, e1=mix (×1000 except speed)
         fx_set_leslie(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
     } else if (r.kind == SR_INSTR_LESLIE) { // per-instrument: a=slot, b=speed, c=drive, e0=balance, e1=doppler, e2=mix
@@ -4795,6 +4837,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // the soft-clip below (pinned last — a safety limiter, not a reorderable pedal).
         for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], insert_inst[0][s], 0, &mixL, &mixR);
         if (leslie_used[0]) leslie_process(0, &mixL, &mixR);   // rotary speaker — pinned after the inserts, before the soft-clip (cabinet output stage)
+        if (drop_used) dropout_process(&mixL, &mixR);          // tape-failure catches — master output stage, before the clip
         if (sc[0].used) { float g = sc_apply(0, mixL, mixR); mixL *= g; mixR *= g; }   // master sidechain/glue duck — the summed-bus pump (before the clip)
 
         // master soft-clip: linear below the ±0.8 knee (quiet mixes stay bit-identical),
@@ -5494,6 +5537,11 @@ void instrument_univibe(int slot, float rate, float depth, float mix) {
     sound_push_ctrl(SR_INSTR_UNIVIBE, slot, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(mix * 1000.0f), 0, 0);
 }
 
+// ── dropout: the "Failure" knob — random tape-catch level dips + HF loss on the whole mix ──
+void dropout(float amount, float depth) {
+    sound_push_ctrl(SR_DROPOUT, (int)(amount * 1000.0f), (int)(depth * 1000.0f), 0, 0, 0, 0);
+}
+
 // ── Leslie: THE master rotary speaker (spinning horn+drum cabinet — the organ's voice) ──
 
 void leslie(int speed, float drive, float balance, float doppler, float mix) {
@@ -5710,6 +5758,8 @@ static void sound_init(void) {
     for (int b = 0; b < SOUND_FX_BUSES; b++)     grain_tank_of[b] = -1;   // bus → grain tank, -1 = none
     for (int t = 0; t < SOUND_GRAIN_TANKS; t++) { grains_reset(&grain_pool[t]); grain_pool[t].used = false; grain_pool[t].freeze = false; grain_pool[t].noiseSeed = 55555u; grain_pool[t].pitch = 0.0f; grain_pool[t].pitch_spread = 0.0f; grain_pool[t].reverse = false; }
     grain_next = 0; grain_overflow = 0;
+    drop_amount = 0.0f; drop_used = false; drop_env = 0.0f; drop_prev = 0.0f;   // dropout: dormant + deterministic seed
+    drop_lpL = drop_lpR = 0.0f; drop_mod = (ModState){ .seed = 0x1F2E3D4Cu };
 
     // per-bus chorus + flanger + tape inserts (bus 0 master + aux): clean slate (libtcc hot-reload + --det)
     memset(cho_buf, 0, sizeof(cho_buf));

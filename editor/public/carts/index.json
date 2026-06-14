@@ -2909,6 +2909,14 @@
     ]
   },
   {
+    "title": "generation loss",
+    "description": "The showcase for dropout() - the VHS / Generation-Loss FAILURE knob. A self-playing wistful EP loop runs through the full degraded-cassette chain: crush() (bit + sample-rate reduction) into tape() (wow/flutter/saturation) into dropout(). The new piece is dropout: a sample-and-hold clock randomly TRIGGERS momentary tape-catches where the whole mix stumbles - drops in level AND goes dull from HF loss - then recovers fast, exactly like a tape dubbed one too many times. Three sliders: FAILURE (how often the tape catches), DEPTH (how hard each catch drops), DEGRADE (the bit-crush + tape grime baseline). A VHS tape-transport display turns its reels and tears its tracking when a catch fires. SPACE pauses the loop; H for help. Built on dropout() + the modulation kit's sample-and-hold (mod_sh) from the boutique-pedals roadmap. Part of the lo-fi / effects family.",
+    "file": "genloss.cart.png",
+    "kind": [
+      "instrument"
+    ]
+  },
+  {
     "title": "juno-6",
     "description": "Roland Juno-6 (1982) - the showcase for chorus(), the engines master BBD chorus. On paper a plain 6-voice poly synth (one saw + sub oscillator, one resonant lowpass) - sh101 with more voices. What makes it a JUNO is the bucket-brigade CHORUS: flip the famous OFF/I/II switch and the dry mono synth smears into a lush, wide, shimmering stereo wash (a centered mono chord literally fans out across the stereo field - the Junos two amps). Tap the CHORUS strip (or press C) to A/B it; the WIDTH meter opens as the chorus widens the signal. RATE/DEPTH/MIX ride the chorus live, CUTOFF/RES shape the resonant lowpass. Tap a chord pad or press 1..4 (Cmaj7/Am7/Fmaj7/G7); SPACE toggles AUTO, a slow self-playing progression; H help.",
     "file": "juno.cart.png",

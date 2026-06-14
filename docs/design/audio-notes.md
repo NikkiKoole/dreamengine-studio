@@ -1510,6 +1510,21 @@ v1, document it on the panel.
     a throbbing lamp + live LFO-curve that draws the asymmetry). The kit is the multiplier: Shallow Water,
     the Generation Loss dropout, and germanium bias-drift all ride these same three sources next.
 
+22. **Dropout — the VHS "Failure" knob (`dropout`).** **✓ SHIPPED 2026-06-15.** Boutique-pedals
+    roadmap, 2nd consumer of the modulation kit (`mod_sh`). `dropout(amount, depth)` (`SR_DROPOUT`=95):
+    a sample-&-hold clock rolls the dice each step (`P(catch) = amount`, detected by the held value
+    changing — rides `mod_sh` without needing an edge signal), and a catch kicks `drop_env=1` which
+    decays fast (~25 ms) → a momentary stumble that **ducks level + rolls off highs** (lerp toward a
+    one-pole-LP copy). A **master-stage** effect (called at the sum before the soft-clip, like
+    leslie/sidechain) — NOT an `FX_*` insert (packing full at 15; a whole-mix tape-failure belongs at
+    the master). `amount 0` → not called → byte-identical; seeded LCG → `--det` reproducible.
+    **Gotcha caught in verify:** the first trigger (rising-edge across a threshold) fired *rarely* at
+    high amount (the S&H sat above a low threshold, so few crossings) — backwards. Fixed to per-step
+    dice; A/B then showed RMS 0.101→0.087 on a sine at `dropout(0.9,0.95)` (energy actually removed),
+    where the buggy version barely moved it. Verified: soundcheck `ok` + 900-frame tripwire + `--det`
+    byte-identical. **Showcase: `genloss`** (crush→tape→dropout; VHS transport tears its tracking on a
+    catch). Pitch-dip on a catch deferred to the bus pitch-shifter (Primitive 2).
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

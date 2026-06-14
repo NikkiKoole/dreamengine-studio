@@ -276,6 +276,27 @@ call (mix 0 = off). **Showcase: `bitcrush`** (its scope doubles as an XY pad —
 > and a decaying note fades to true silence through the crusher (the old truncating `floorf` held the
 > tail at a constant −1-LSB buzz until the voice gated). See [`audio-notes.md §17`](../design/audio-notes.md).
 
+## dropout — `dropout(amount, depth)`
+
+The VHS / **Generation-Loss "FAILURE" knob**: random momentary **tape-catches** on the whole mix — a
+sample-&-hold clock (`mod_sh`, the modulation kit) rolls the dice each step and, when it hits, the mix
+**stumbles**: drops in level AND goes dull (HF loss), then recovers in ~25 ms. `amount` 0–1 = how
+**often** the tape catches (`P(catch)` per step), `depth` 0–1 = how **hard** (level dip + how dull).
+A **master-stage** effect (runs at the sum, before the soft-clip — *not* a reorderable `FX_*` insert,
+since the packing is full and a whole-mix failure belongs at the master). amount 0 = off (byte-identical).
+**Showcase: `genloss`** (crush→tape→dropout, with a VHS tape-transport that tears its tracking on a catch).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| worn cassette | `crush(6,4,0.4f)` + `tape(0.3f,0.2f,0.4f)` + `dropout(0.4f, 0.7f)` | the full degraded-tape chain: gritty, warbly, stumbling | `genloss` |
+| occasional stumble | `dropout(0.15f, 0.6f)` | a catch every few seconds — subtle "this tape has been played a lot" | `genloss` |
+| broken deck | `dropout(0.8f, 0.95f)` | constant gating/stuttering — the deck is eating the tape | `genloss` |
+
+> **Not dither, not a gate.** Dither (a quantization fix) and a noise gate (cuts the floor *between*
+> notes) are different tools; `dropout` *adds* failure — it removes signal at random. v1 is level + HF
+> loss; the iconic **pitch-dip** on a catch waits for the bus pitch-shifter (Primitive 2). Built on the
+> modulation kit's sample-&-hold — see [`boutique-pedals-roadmap.md`](../design/boutique-pedals-roadmap.md).
+
 ## EQ — `eq(low_gain, mid_gain, high_gain)` · `instrument_eq(slot, low_gain, mid_gain, high_gain)`
 
 3-band tone control, and **the library's only BOOST** — every other tone tool (the SVF filters)

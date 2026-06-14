@@ -155,6 +155,7 @@ void draw(void) {
     ui_slider(&k_scat, 8,           sy + 18, sw, "SCATTER");
     ui_slider(&k_fb,   8 + sw + 8,  sy + 18, sw, "FEEDBACK");
     ui_slider(&k_mix,  8 + (sw+8)*2, sy + 18, sw, "MIX");
+    ui_end();
 
     print("1-4 chords   F/SPACE freeze   H help", 8, SCREEN_H - 8, CLR_DARK_GREY);
 

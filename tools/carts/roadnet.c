@@ -720,12 +720,16 @@ static int street_axis(float coord, float U, float *adist) {
     if (k % 4 == 0) return (U >= U_LIGHT) ? ST_AVENUE : ST_NONE;   // the grid's bigger streets
     return (U >= U_MED) ? ST_LOCAL : ST_NONE;                      // locals only in the dense core
 }
-static int on_street(float wx, float wy, float U) {
+enum { GR_NONE, GR_ROAD, GR_WALK };                       // a built-up tile: lot / street / sidewalk
+static int grid_at(float gx, float gy, float U) {
     float dv, dh;
-    int cv = street_axis(wx, U, &dv), ch = street_axis(wy, U, &dh);
+    int cv = street_axis(gx, U, &dv), ch = street_axis(gy, U, &dh);
     float hwv = (cv == ST_AVENUE) ? 0.22f : 0.13f;        // road half-width, in world tiles
     float hwh = (ch == ST_AVENUE) ? 0.22f : 0.13f;
-    return (cv != ST_NONE && dv < hwv) || (ch != ST_NONE && dh < hwh);
+    float sw = 0.07f;                                     // sidewalk band just outside the kerb
+    if ((cv != ST_NONE && dv < hwv) || (ch != ST_NONE && dh < hwh)) return GR_ROAD;
+    if ((cv != ST_NONE && dv < hwv+sw) || (ch != ST_NONE && dh < hwh+sw)) return GR_WALK;
+    return GR_NONE;
 }
 // roof / ground colour for one building lot inside a block (sub-block hash grid)
 static int lot_color(float wx, float wy, int z) {
@@ -836,33 +840,39 @@ static float seg_dist2(float px,float py, float x0,float y0,float x1,float y1) {
     float c2=vx*vx+vy*vy; if (c2<=c1) { float ex=px-x1,ey=py-y1; return ex*ex+ey*ey; }
     float t=c1/c2, ex=px-(x0+t*vx), ey=py-(y0+t*vy); return ex*ex+ey*ey;
 }
-// nearest road over the cache; returns 1 + the WIDEST (lowest-idx) class we're inside.
-static int arterial_at(float wx, float wy, int *outcls) {
-    int best = 99;
+// nearest road over the cache; returns 1 + the WIDEST (lowest-idx) class we're inside,
+// and *outoff = distance to that road's centre-line (tiles) for street-scale markings.
+static int arterial_at(float wx, float wy, int *outcls, float *outoff) {
+    int best = 99; float bestd2 = 1e18f;
     for (int i=0; i<nseg; i++) {
-        if (sgcls[i] >= best) continue;                          // already have a bigger road here
+        if (sgcls[i] > best) continue;                           // already have a bigger road here
         float hw = road_hw(sgcls[i]);
-        if (seg_dist2(wx,wy, sgx0[i],sgy0[i],sgx1[i],sgy1[i]) < hw*hw) best = sgcls[i];
+        float d2 = seg_dist2(wx,wy, sgx0[i],sgy0[i],sgx1[i],sgy1[i]);
+        if (d2 < hw*hw) {
+            if (sgcls[i] < best) { best = sgcls[i]; bestd2 = d2; }   // wider road wins
+            else if (d2 < bestd2) bestd2 = d2;                       // same class, nearer centre-line
+        }
     }
-    if (best < 99) { *outcls = best; return 1; }
+    if (best < 99) { *outcls = best; *outoff = fsqrt(bestd2); return 1; }
     return 0;
 }
 
 // THE WORLD QUERY SEAM (for the drop-in consumer, e.g. sloop). Assumes gather_cities() +
 // gather_arterials() have run for a region covering (wx,wy) this frame (the renderer does
-// this). on_road = drivable surface; cls = its road class; zone = the L2 land use.
-typedef struct { int on_road, cls, zone; float urb; } RoadHit;
+// this). on_road = drivable surface; cls = its road class; zone = the L2 land use;
+// coff = distance to the arterial centre-line (tiles, -1 if not on an arterial).
+typedef struct { int on_road, cls, zone; float urb, coff; } RoadHit;
 static RoadHit road_at(float wx, float wy) {
-    RoadHit r = { 0, CL_STREET, Z_NONE, 0 };
+    RoadHit r = { 0, CL_STREET, Z_NONE, 0, -1 };
     r.urb = urbanity(wx, wy);                                    // sets dom_i
     if (!passable(height_at(wx, wy))) return r;                  // water/peak
-    int acls;
-    if (arterial_at(wx, wy, &acls)) { r.on_road = 1; r.cls = acls; }
+    int acls; float aoff;
+    if (arterial_at(wx, wy, &acls, &aoff)) { r.on_road = 1; r.cls = acls; r.coff = aoff; }
     if (r.urb < U_FARM) return r;                                // wild countryside
     r.zone = zone_of(wx, wy, r.urb);
     if (!r.on_road && (r.zone==Z_RES||r.zone==Z_COM||r.zone==Z_IND||r.zone==Z_HARBOR)) {
         float gx, gy; city_grid_coords(wx, wy, &gx, &gy);
-        if (on_street(gx, gy, r.urb)) { r.on_road = 1; r.cls = CL_STREET; }
+        if (grid_at(gx, gy, r.urb) == GR_ROAD) { r.on_road = 1; r.cls = CL_STREET; }
     }
     return r;
 }
@@ -876,11 +886,16 @@ static void render_streetlevel(int bx, int by, int sz) {        // bounds = the 
             float wx = camX + sx/P, wy = camY + sy/P;
             RoadHit h = road_at(wx, wy);                          // SAME query the consumer calls
             int col;
-            if (h.on_road) col = CLR_DARK_GREY;                  // arterial carved through OR local street
+            if (h.on_road) {                                     // class-aware road surface
+                col = (h.cls == CL_DIRT) ? CLR_BROWN : CLR_DARK_GREY;       // dirt vs paved
+                if (h.cls <= CL_ARTERIAL && h.coff >= 0 && h.coff < 0.08f)  // big roads get a centre-line
+                    col = CLR_YELLOW;
+            }
             else if (h.zone == Z_NONE) continue;                // water / wild / countryside gap → terrain
             else if (h.zone==Z_RES || h.zone==Z_COM || h.zone==Z_IND || h.zone==Z_HARBOR) {
-                float gx, gy; city_grid_coords(wx, wy, &gx, &gy);   // a building lot (dom_i set by road_at)
-                col = lot_color(gx, gy, h.zone);
+                float gx, gy; city_grid_coords(wx, wy, &gx, &gy);   // dom_i set by road_at
+                col = (grid_at(gx, gy, h.urb) == GR_WALK) ? CLR_MEDIUM_GREY  // sidewalk vs building lot
+                                                          : lot_color(gx, gy, h.zone);
             } else col = ZONE_COL[h.zone];                       // FARM / PARK tint
             rectfill(sx, sy, step, step, col);
         }
@@ -913,8 +928,8 @@ static void draw_loupe(void) {
     rectfill(bx - 1, by - 1, LOUPE_SZ + 2, LOUPE_SZ + 2, CLR_WHITE);   // frame
     clip(bx, by, LOUPE_SZ, LOUPE_SZ);
     render_terrain();
-    render_streetlevel(bx, by, LOUPE_SZ);             // the level below — streets, lots, carved arterials
-    render_roads(1);                                  // the SAME highways, aligned, on top
+    render_streetlevel(bx, by, LOUPE_SZ);             // the level below — owns the road surface here:
+    draw_nodes(1);                                    // streets/lots/carved arterials + just city markers
     clip(0, 0, 0, 0);
 
     camX = ocamX; camY = ocamY; zoom = oz; view_metrics();   // restore the map

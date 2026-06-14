@@ -279,8 +279,21 @@ query are *literally the same function* — `render_streetlevel` calls `road_at(
 
 So arterials cut through the city as dark road surface, the local grid meets them, and a
 highway shows as a road even crossing open farmland. Building lots only appear where
-`road_at` reports no road. (Bridges still come from the over-water spline stroke on top —
-`road_at` doesn't pave water.)
+`road_at` reports no road.
+
+**Class-aware at street scale (done — 2026-06-14).** In the loupe the **carve now owns
+the road surface** (the map-style spline stroke is dropped there; only the city markers,
+`draw_nodes`, draw on top), so roads read at their true street-scale width and can be
+styled by class:
+- **dirt = brown, paved = dark grey** (surface by `road_at`'s `cls`).
+- **centre-line on motorway/highway/arterial** — `arterial_at` returns the distance to the
+  road's centre-line (`coff`); a thin yellow line draws where `coff` is tiny. Local streets
+  get none — that's the class read.
+- **sidewalks** — `grid_at` now returns road / **sidewalk** / lot, so built-up local
+  streets get a light kerb strip beside them.
+(Bridges over water are the one gap: `road_at` doesn't pave water and the loupe no longer
+strokes the spline, so an in-city bridge currently shows as a break — rare, fix later by
+carving the bridge span.)
 
 **Next:** farm *fields* and park *contents* (the football field) as real block content
 (today FARM/PARK keep flat tint); building *footprints* drawn as collidable rects (not

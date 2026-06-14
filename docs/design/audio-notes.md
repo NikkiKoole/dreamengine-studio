@@ -1511,3 +1511,35 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    a jet∝bore re-voicing.
 5. **The measurement is now reusable.** `tune-check.js` is the regression gate for any future
    pitched-engine work (`--quiet` in CI); SINE stays the 0.0¢ proof the rig itself is honest.
+
+## 19. BRASS character — open (2026-06-14)
+
+A recurring ear note: the brass doesn't yet sound *very brassy* — it speaks and holds, but the
+aggressive blat/bite of a real horn section isn't fully there. This was scattered across three
+places; consolidated here so it's tracked as one thing (distinct from the **tuning** residual —
+BRASS −25¢ at A5 — which is §18 item 4, a separate fix). None of this is a regression; it's
+"taste/character not finished." Threads, in priority order:
+
+1. **`INSTR_BRASS` engine — taste-tuning + the deferred mute ([instrument-engines.md](instrument-engines.md) §8.8.10).**
+   The blat is *designed* to come from the dynamics-swept brass-formant bandpass (centre sweeps up
+   with brassiness) + pressure-driven steepening. Its shipped open tail (STEP 6) is **preset
+   taste-tuning by ear**, and crucially a **mute/plunger axis (harmon/cup → a second bandpass) was
+   deferred** — that mute is exactly the source of a horn's most aggressive bite, so its absence is
+   the likeliest reason the engine reads "polite." Re-opening it means either dialing the six presets
+   harder by ear or revisiting the deferred mute (it can't be a 4th macro — bore/brassiness/breath
+   earned the three; it'd be a `note_cutoff`+`note_res` cart recipe per [decision 0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)'s "mute = output filter" lane, or a per-engine `instrument_mode` index).
+
+2. **FM-engine brass *preset* — backwards in-note envelope ([instrument-engines.md](instrument-engines.md) §8.8.3).**
+   A different brass (the `fm` cart's brass preset, not `INSTR_BRASS`). Noted there: brass is "the
+   named stress test" because the mod **index must RISE on attack** — real horns *swell* into
+   brightness, while the DX in-note decay goes the other way. The prepared fix is the follow-amp-env
+   alternative; until then the FM brass preset attacks too bright and dulls, the inverse of a horn.
+
+3. **The radio stations fake brass — a routing/coverage gap, not engine weakness ([radio-genre-fidelity.md](radio-genre-fidelity.md)).**
+   Multiple stations stand in SAW-brass / PD-synth-brass / two-saws for real horn sections and sax
+   (italo, the disco band loop, yacht, etc.). So a lot of "brassless" listening is stations **not
+   routing to `INSTR_BRASS`/`INSTR_REED`**, independent of how good the engine is — re-voicing those
+   horn chairs onto the real engines is its own easy win.
+
+**Verdict / where to start:** #1 (the deferred mute) is the highest-leverage for "make the *engine*
+brassier"; #3 is the highest-leverage for "make the *radio* brassier" and needs no engine work.

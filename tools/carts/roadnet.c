@@ -59,7 +59,9 @@
 
 #define TILE 4                                  // screen px per world tile at zoom 1
 #define ZMIN 0.12f                               // mousewheel zoom range — far out
-#define ZMAX 2.5f                                 // (terrain is sampled per screen
+#define ZMAX 12.0f                                // up from 2.5 → the main camera can now fly
+                                                  // down to street level (the GRAPH/sloop view).
+                                                  // (terrain is sampled per screen
                                                   //  pixel, so there's no buffer ceiling)
 #define SPAWN_X 312.0f
 #define SPAWN_Y 8.0f
@@ -97,6 +99,8 @@ static float sea_sub(void)  { return 0.30f + P_sea * 0.30f; }           // 0.30.
 #define HUB_CS   hub_cs()
 
 static int mode = 0;                 // 0 = intro/setup panel, 1 = explore
+enum { VIEW_MAP, VIEW_GRAPH, VIEW_COUNT };   // TAB cycles these in explore
+static int view = VIEW_MAP;          // MAP = painterly world; GRAPH = vector road-network debug
 
 static float camX, camY;             // top-left of view, in world-tile coords
 static float seedZ;                  // noise z-slice = the world's "seed"
@@ -553,7 +557,9 @@ static void hud(void) {
     snprintf(buf, sizeof buf, "x %d  y %d", (int)cx, (int)cy);
     print(buf, 80, 2, CLR_MEDIUM_GREY);
     if (show_grid) print("[grid]", 160, 2, CLR_DARK_PURPLE);
-    print_centered("drag/\x18\x19\x1a\x1b pan   wheel zoom   SPACE jump   R seed   L loupe   M setup",
+    print(view == VIEW_GRAPH ? "GRAPH" : "MAP",            // current view (TAB cycles)
+          SCREEN_W - 40, 2, view == VIEW_GRAPH ? CLR_ORANGE : CLR_MEDIUM_GREY);
+    print_centered("drag/\x18\x19\x1a\x1b pan   wheel zoom   TAB view   SPACE jump   R seed   L loupe   M setup",
                    SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
 }
 
@@ -943,6 +949,27 @@ static int field_color(unsigned fid, int edge) {
     return crop[fid % 4u];
 }
 
+// ── THE ROAD GRAPH (the background data layer the car sim will navigate) ─────────────
+// road_at()/arterial_at() answer "is this point on tarmac" — a FIELD, enough for keeping a
+// car on the surface + building collision. The car ALSO wants the network as STRUCTURE:
+// edges with endpoints + class, to snap to a road, route A→B, and spawn traffic that
+// follows lanes. build_graph() packs the visible network into that edge list, from the
+// SAME link_path geometry the field reads (so graph == field == screen, by construction).
+//   v1 = the ARTERIAL backbone (the segment cache, exact). The intra-city grid/access
+//   streets are still a field (road_at); turning them into edges + adding explicit
+//   intersection NODES/adjacency (for routing) is the next step — see roadnet-streetlevel.md.
+typedef struct { float x0,y0,x1,y1; int cls; } RoadEdge;
+#define MAXGEDGE MAXSEG
+static RoadEdge gedge[MAXGEDGE]; static int nedge;
+static void build_graph(void) {        // call AFTER gather_arterials() (it fills the sg* cache)
+    nedge = 0;
+    for (int i=0; i<nseg && nedge<MAXGEDGE; i++) {
+        gedge[nedge].x0=sgx0[i]; gedge[nedge].y0=sgy0[i];
+        gedge[nedge].x1=sgx1[i]; gedge[nedge].y1=sgy1[i];
+        gedge[nedge].cls=sgcls[i]; nedge++;
+    }
+}
+
 // THE WORLD QUERY SEAM (for the drop-in consumer, e.g. sloop). Assumes gather_cities() +
 // gather_arterials() have run for a region covering (wx,wy) this frame (the renderer does
 // this). on_road = drivable surface; cls = its class; zone = land use; built = a building
@@ -1010,6 +1037,44 @@ static void draw_world(void) {
     view_metrics();
     render_terrain();
     render_roads(zoom >= 0.45f);                       // LOD: drop minor tier far out
+}
+
+// ── GRAPH (debug) VIEW — the road network as crisp VECTOR centre-lines at ANY zoom (so the
+// small roads finally read, unlike the per-pixel field paint), over dimmed terrain, with the
+// city-interior street FIELD layered in once you zoom past the regional scale. TAB toggles
+// it; the main camera now zooms all the way down (ZMAX raised), so this doubles as the
+// eventual sloop street-camera. Consumes the build_graph() edge list = "use the graph now".
+static const int GEDGE_COL[6] = {
+    CLR_RED,          // MOTORWAY
+    CLR_ORANGE,       // HIGHWAY
+    CLR_YELLOW,       // ARTERIAL
+    CLR_LIME_GREEN,   // STREET (minor connector)
+    CLR_DARK_ORANGE,  // DIRT
+    CLR_PINK,         // ACCESS (grid streets — drawn when vectorised; field for now)
+};
+#define GRAPH_STREET_ZOOM 3.0f         // at/above this the city street FIELD draws full-screen too
+static void draw_graph_view(void) {
+    view_metrics();
+    gather_cities();
+    gather_arterials();                                  // fills the sg* cache...
+    build_graph();                                       // ...packed into the edge list we render
+    render_terrain();
+    fillp(FILL_CHECKER, -1); rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK); fillp_reset();  // dim
+    if (zoom >= GRAPH_STREET_ZOOM) {                     // the city fabric (grid + access streets)
+        int sz = SCREEN_W > SCREEN_H ? SCREEN_W : SCREEN_H;
+        render_streetlevel(0, 0, sz);                    // full-screen field — sharp at this zoom
+    }
+    for (int i = 0; i < nedge; i++) {                    // the GRAPH: bright vector centre-lines
+        int x0 = sxp(gedge[i].x0), y0 = syp(gedge[i].y0);
+        int x1 = sxp(gedge[i].x1), y1 = syp(gedge[i].y1);
+        int col = GEDGE_COL[gedge[i].cls];
+        line(x0, y0, x1, y1, col);
+        if (gedge[i].cls <= CL_HIGHWAY) line(x0, y0 + 1, x1, y1 + 1, col);   // fatten the big roads
+    }
+    for (int i = 0; i < gn; i++) {                       // NODES = city anchors (hubs + towns)
+        int x = sxp(gnx[i]), y = syp(gny[i]);
+        circfill(x, y, 2, CLR_WHITE); circ(x, y, 2, CLR_BLACK);
+    }
 }
 
 // ── MAGNIFIERS — insets that re-render the screen-centre point a few zoom levels deeper,
@@ -1086,6 +1151,7 @@ void update(void) {
         camY += (float)((int)((h >> 11) % 4000u) - 2000) + 800.0f;
     }
     if (keyp('R')) { zoom = 1.0f; view_metrics(); camX = SPAWN_X - vcols / 2.0f; camY = SPAWN_Y - vrows / 2.0f; seedZ += 0.37f; jumpN = 0; }
+    if (keyp(KEY_TAB)) view = (view + 1) % VIEW_COUNT;   // cycle MAP ↔ GRAPH (vector network)
     if (keyp('G')) show_grid = !show_grid;
     if (keyp('H')) show_hud  = !show_hud;
     if (keyp('L')) show_loupe = !show_loupe;     // magnifier into the street level
@@ -1093,8 +1159,9 @@ void update(void) {
 }
 
 void draw(void) {
-    draw_world();                                // the live preview, always
-    if (show_loupe) draw_loupe();                // ...with a window into the level below
+    if (mode == 1 && view == VIEW_GRAPH) draw_graph_view();   // the vector road-network debug view
+    else draw_world();                           // the painterly map (always, incl. setup preview)
+    if (show_loupe && view == VIEW_MAP) draw_loupe();   // lenses only make sense over the map view
     if (mode == 0) draw_setup_panel();
     else if (show_hud) hud();
 }

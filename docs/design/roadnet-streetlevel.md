@@ -1,10 +1,12 @@
 # roadnet L3 — the on-the-street level (design seed, 2026-06-14)
 
-**Status: access-street tier BUILT (2026-06-14); footprints next.** The deeper **"BLOCK"
-loupe** (a second, finer inset) is in as the build harness — UI/placement provisional.
-The first L3 content — the **access / residential street tier** (`CL_ACCESS`) — is now
-built (see "What's built" below). The remaining L3 content (individual building
-footprints + `building_at()`, park contents) is specified here but **not built yet**.
+**Status: access tier + view-switcher + road-graph layer BUILT (2026-06-14); grid
+vectorisation + footprints next.** The deeper **"BLOCK" loupe** is in as the build harness.
+The **access / residential street tier** (`CL_ACCESS`), a **TAB view-switcher** (MAP ↔
+GRAPH), and the **road-graph data layer** (`build_graph()` → `RoadEdge gedge[]`) are now
+built (see "What's built"). Still **not built**: vectorising the intra-city grid/access
+streets into graph edges + explicit intersection **nodes/adjacency** (the routing graph),
+building **footprints + `building_at()`**, and park contents.
 
 ## What's built (2026-06-14) — the access-street tier
 The suburb ring (`U_LIGHT ≤ U < U_MED`) had its local streets suppressed, so its blocks
@@ -18,6 +20,27 @@ lane, no sidewalk). It is **draw-gated to the BLOCK lens** via `zoom >= LOUPE2_Z
 its locals, the suburb shows the access grid, and the STREET lens (zoom 4) shows neither —
 exactly the tier-by-zoom draw-gate rule below, with zero new plumbing. Verified by baking
 the BLOCK lens over a suburb point with `CL_ACCESS` temporarily painted a vivid colour.
+
+## What's built (2026-06-14 cont.) — view-switcher + the road-graph layer
+Two things that came out of the "I can hardly see the small roads" review (the tiny
+field-sampled loupe was the bottleneck, not the zoom number):
+
+- **TAB view-switcher** (`view` ∈ `VIEW_MAP | VIEW_GRAPH`, cycled by `KEY_TAB` in explore;
+  HUD shows the current view). And **`ZMAX` raised 2.5 → 12**, so the *main* camera now flies
+  all the way down to street level — no more squinting at a 78 px inset. This full-screen
+  deep-zoom view **is the eventual sloop street-camera**.
+- **`VIEW_GRAPH`** — a debug view that draws the network as crisp **vector centre-lines**
+  (`line()`, class-coloured: motorway red … dirt orange) at *any* zoom — the proper fix for
+  "see the small roads", since a field paint aliases away when small. Over **dimmed terrain**,
+  with the city-interior **street FIELD layered full-screen** once `zoom ≥ GRAPH_STREET_ZOOM`
+  (so you see the grid/access streets big), and **white node dots at the city anchors**.
+- **The road graph** — `build_graph()` packs the visible network into **`RoadEdge gedge[]`**
+  (`{x0,y0,x1,y1,cls}`), from the *same* `link_path` geometry the field reads (graph == field
+  == screen). This is the **background data layer the car sim navigates** (snap-to-road, route,
+  traffic). v1 = the **arterial backbone** (the `sg*` segment cache, exact). **Not yet:** the
+  intra-city grid/access streets as edges, and explicit **nodes + adjacency** for routing —
+  those are the next step (the grid is per-district-rotated, so extraction is per-city/per-
+  district, validated against `road_at()` so graph ⊆ field).
 
 Related: [`roadnet.md`](roadnet.md) (L0–L2: the map + district street level),
 [`roadnet-handoff.md`](roadnet-handoff.md) (where the work stands),
@@ -49,7 +72,7 @@ would be backwards.
 
 | level | view | shows | the query seam |
 |---|---|---|---|
-| **L0** | region map | terrain, cities, the arterial network | — |
+| **L0** | region map / GRAPH view | terrain, cities, the arterial network | `road_at()` + `gedge[]` (graph) |
 | **L1/L2** | district loupe ("STREET") | arterials + avenue/local grid, zones, Voronoi fields, building lots | `road_at()` |
 | **L3** | block loupe ("BLOCK") — *new* | **access streets** subdividing blocks, **individual footprints**, driveways, parking, the football field | `road_at()` (more tiers) + `building_at()` *(to build)* |
 
@@ -112,14 +135,20 @@ as buildings-to-be) — the access streets + footprints are what we build into i
   question, deferred. (Today: a separate fixed BLOCK inset.)
 
 ## Next
-1. ✅ **Access-street tier** built into the BLOCK loupe (`ST_ACCESS`/`CL_ACCESS`, half-pitch
-   lanes bisecting suburban blocks, draw-gated on `zoom >= LOUPE2_ZOOM`). See "What's built".
-2. **Footprints** + `building_at()` (the collision seam) — *the next move*. Lots are still
-   flat colour; turn each into a footprint rect (setback/yard + outline + driveway toward its
-   fronting access lane), exposed as `building_at(wx,wy) → {solid, lot id}` (the precise
-   version of `road_at`'s `built` flag; screen == collision, same as `road_at`).
-3. **Park contents** (the football field) — PARK is the last flat-tint zone (small win).
-4. **Rung 4** — sloop at L3: the car drives the access streets, collides with footprints.
+1. ✅ **Access-street tier** (`ST_ACCESS`/`CL_ACCESS`, draw-gated on `zoom >= LOUPE2_ZOOM`).
+2. ✅ **View-switcher + road-graph layer** — TAB MAP↔GRAPH, `ZMAX→12`, `build_graph()`→
+   `gedge[]`, vector debug render. See "What's built (cont.)".
+3. **Grid/access streets → graph edges + nodes/adjacency** — *the next move for the car sim*.
+   Vectorise the intra-city grid (per-city/per-district, since the grid is rotated per
+   district; validate each candidate edge against `road_at()` so graph ⊆ field), append to
+   `gedge[]`, and add explicit intersection **nodes + adjacency** so the car can route/snap/
+   spawn traffic. This is what turns "a drivable surface" into "a navigable city".
+4. **Footprints** + `building_at()` (the collision seam). Lots are still flat colour; turn
+   each into a footprint rect (setback/yard + outline + driveway toward its fronting access
+   lane), exposed as `building_at(wx,wy) → {solid, lot id}` (screen == collision, like `road_at`).
+5. **Park contents** (the football field) — PARK is the last flat-tint zone (small win).
+6. **Rung 4** — sloop at L3: drives the graph (route/lane-keep via `gedge[]`/`coff`), stays on
+   the surface via `road_at()`, collides with `building_at()`. The GRAPH view is its camera.
 
 ## Starting point for next session (the concrete first move + two hooks)
 

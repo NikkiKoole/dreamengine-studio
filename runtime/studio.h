@@ -454,6 +454,7 @@ void instrument_crush(int slot, float bits, float rate, float mix);     // bitcr
 // with DRIVE_ASYM (EQ around a clipper) for a guitar-amp tone. Gains in dB, ±12; 0/0/0 = flat (off).
 void eq(float low_gain, float mid_gain, float high_gain);               // THE master 3-band EQ, on the whole mix
 void instrument_eq(int slot, float low_gain, float mid_gain, float high_gain);  // EQ on just this slot (auto-grabs a private FX bus)
+void eq_inst(int instance, float low_gain, float mid_gain, float high_gain);    // master EQ on a 2nd INSTANCE (0..1) — pair with FX_INST(FX_EQ, instance) in fx_order() for two EQs in one chain
 
 // formant — a VOWEL filter: 4 bandpasses at the human formant frequencies make any sound take on
 // an "ooh/aah/eee" vocal colour (the talkbox/vowel-filter; a wah is the one-peak version). vowel
@@ -525,7 +526,8 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_RINGMOD  12  // ring modulator — signal × sine carrier (a reorderable pedal, in every bus's default chain)
 #define FX_ECHO     13  // delay/echo INSERT — in-line dry/wet delay (master only, via echo_insert(); place in fx_order(0,…))
 #define FX_GRAINS   14  // granular delay INSERT — capture-and-scatter texture/freeze cloud (via grains()/instrument_grains(); auto-placed, reorderable via fx_order)
-void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 15
+#define FX_INST(kind, inst) ((kind) | ((inst) << 4))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0.
+void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 15
 
 // leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
 // horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds

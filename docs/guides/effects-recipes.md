@@ -278,6 +278,7 @@ partner to `DRIVE_ASYM`: EQ before/after a clipper = a real **guitar-amp tone**.
 | guitar-amp tone | `instrument_drive_mode(slot, DRIVE_ASYM); instrument_drive(slot, 0.55f); eq(3.0f, 2.0f, -4.0f)` | asymmetric clip + a mid-forward EQ around it — the cranked-amp move | `eq`, `combo` (the CRUNCH voicing) |
 | mud cut | `eq(-5.0f, 1.0f, 2.0f)` | thin out a boomy low end, nudge clarity up top | (cut pattern) |
 | live 3-band | `eq((lo-0.5f)*24, (mid-0.5f)*24, (hi-0.5f)*24)` | three knobs over the whole mix, ±12 dB each (0.5 = flat = off). A *louder* EQ is what makes the `fx_order` crush↔eq order audible (a gentle tilt isn't enough to hear) | `groovebox` (LO/MID/HI) |
+| EQ before AND after dirt (×2) | `eq(...)` (inst 0) + `eq_inst(1, ...)`; chain `{FX_EQ, FX_CRUSH, FX_INST(FX_EQ,1)}` | two INDEPENDENT EQs in one chain (Increment F) — shape what hits the crush/drive vs shape its output. The pre-EQ changes how the nonlinearity bites; the post-EQ tames the result | `pedalboard` (the EQ2 pedal) |
 
 ## tremolo — `tremolo(rate, depth, shape)` · `instrument_tremolo(slot, rate, depth, shape)`
 

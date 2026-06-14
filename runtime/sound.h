@@ -936,39 +936,41 @@ static void formant_process(int b, float *mixL, float *mixR) {
 // call → non-users byte-identical.
 #define EQ_LOW_FREQ   80.0f     // low/mid crossover (Hz) — reaches sub-bass / body
 #define EQ_HIGH_FREQ  6000.0f   // mid/high crossover (Hz) — presence / air
-static float eq_low_g [SOUND_FX_BUSES];   // low-band  linear gain = 10^(dB/20)
-static float eq_mid_g [SOUND_FX_BUSES];   // mid-band  linear gain
-static float eq_high_g[SOUND_FX_BUSES];   // high-band linear gain
-static float eq_loL[SOUND_FX_BUSES];      // low-crossover one-pole state (L)
-static float eq_loR[SOUND_FX_BUSES];      // … (R)
-static float eq_hiL[SOUND_FX_BUSES];      // mid/top-crossover one-pole state (L)
-static float eq_hiR[SOUND_FX_BUSES];      // … (R)
-static bool  eq_used[SOUND_FX_BUSES];
-static void eq_process(int b, float *mixL, float *mixR) {
+#define EQ_INST 2                         // Increment F: EQ instances per bus (EQ before AND after a dirt stage)
+static float eq_low_g [SOUND_FX_BUSES][EQ_INST];   // low-band  linear gain = 10^(dB/20)
+static float eq_mid_g [SOUND_FX_BUSES][EQ_INST];   // mid-band  linear gain
+static float eq_high_g[SOUND_FX_BUSES][EQ_INST];   // high-band linear gain
+static float eq_loL[SOUND_FX_BUSES][EQ_INST];      // low-crossover one-pole state (L)
+static float eq_loR[SOUND_FX_BUSES][EQ_INST];      // … (R)
+static float eq_hiL[SOUND_FX_BUSES][EQ_INST];      // mid/top-crossover one-pole state (L)
+static float eq_hiR[SOUND_FX_BUSES][EQ_INST];      // … (R)
+static bool  eq_used[SOUND_FX_BUSES][EQ_INST];
+static void eq_process(int b, int i, float *mixL, float *mixR) {
     float lowCoeff  = EQ_LOW_FREQ  * 6.2831853f / (float)SOUND_SAMPLE_RATE;  if (lowCoeff  > 0.99f) lowCoeff  = 0.99f;
     float highCoeff = EQ_HIGH_FREQ * 6.2831853f / (float)SOUND_SAMPLE_RATE;  if (highCoeff > 0.99f) highCoeff = 0.99f;
-    float lg = eq_low_g[b], mg = eq_mid_g[b], hg = eq_high_g[b];
+    float lg = eq_low_g[b][i], mg = eq_mid_g[b][i], hg = eq_high_g[b][i];
     // L: low = LP at EQ_LOW_FREQ; remainder split again at EQ_HIGH_FREQ into mid + top
-    eq_loL[b] += lowCoeff * (*mixL - eq_loL[b]);
-    float lowL = eq_loL[b], hiL = *mixL - eq_loL[b];
-    eq_hiL[b] += highCoeff * (hiL - eq_hiL[b]);
-    float midL = eq_hiL[b], topL = hiL - eq_hiL[b];
+    eq_loL[b][i] += lowCoeff * (*mixL - eq_loL[b][i]);
+    float lowL = eq_loL[b][i], hiL = *mixL - eq_loL[b][i];
+    eq_hiL[b][i] += highCoeff * (hiL - eq_hiL[b][i]);
+    float midL = eq_hiL[b][i], topL = hiL - eq_hiL[b][i];
     *mixL = lowL * lg + midL * mg + topL * hg;
     // R
-    eq_loR[b] += lowCoeff * (*mixR - eq_loR[b]);
-    float lowR = eq_loR[b], hiR = *mixR - eq_loR[b];
-    eq_hiR[b] += highCoeff * (hiR - eq_hiR[b]);
-    float midR = eq_hiR[b], topR = hiR - eq_hiR[b];
+    eq_loR[b][i] += lowCoeff * (*mixR - eq_loR[b][i]);
+    float lowR = eq_loR[b][i], hiR = *mixR - eq_loR[b][i];
+    eq_hiR[b][i] += highCoeff * (hiR - eq_hiR[b][i]);
+    float midR = eq_hiR[b][i], topR = hiR - eq_hiR[b][i];
     *mixR = lowR * lg + midR * mg + topR * hg;
 }
-static void fx_set_eq(int b, float low_db, float mid_db, float high_db) {
+static void fx_set_eq(int b, int i, float low_db, float mid_db, float high_db) {
+    if (i < 0 || i >= EQ_INST) return;
     if (low_db  < -12.0f) low_db  = -12.0f; if (low_db  > 12.0f) low_db  = 12.0f;
     if (mid_db  < -12.0f) mid_db  = -12.0f; if (mid_db  > 12.0f) mid_db  = 12.0f;
     if (high_db < -12.0f) high_db = -12.0f; if (high_db > 12.0f) high_db = 12.0f;
-    eq_low_g[b]  = powf(10.0f, low_db  / 20.0f);
-    eq_mid_g[b]  = powf(10.0f, mid_db  / 20.0f);
-    eq_high_g[b] = powf(10.0f, high_db / 20.0f);
-    eq_used[b] = true;
+    eq_low_g[b][i]  = powf(10.0f, low_db  / 20.0f);
+    eq_mid_g[b][i]  = powf(10.0f, mid_db  / 20.0f);
+    eq_high_g[b][i] = powf(10.0f, high_db / 20.0f);
+    eq_used[b][i] = true;
 }
 
 // ── tremolo — volume LFO (Fender/Wurlitzer amp wobble) ───────────────────────────────────
@@ -1372,8 +1374,9 @@ static void fx_set_grains_freeze(int b, bool on) {   // live toggle — does NOT
 #define N_INSERTS (FX_GRAINS + 1)           // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (default chain) + FX_REVERB (reverb-bus) + FX_ECHO + FX_GRAINS (placed via fx_order)
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
 static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
+static int insert_inst   [SOUND_FX_BUSES][N_INSERTS];   // Increment F: per-slot INSTANCE (which copy of the kind). 0 = the only/first instance = byte-identical to before.
 // dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
-static void apply_insert(int kind, int b, float *L, float *R) {
+static void apply_insert(int kind, int inst, int b, float *L, float *R) {
     switch (kind) {
         case FX_TREM:    if (trem_used[b])   trem_process(b, L, R);    break;
         case FX_WAH:     if (wah_used[b])    wah_process(b, L, R);     break;
@@ -1381,7 +1384,7 @@ static void apply_insert(int kind, int b, float *L, float *R) {
         case FX_PHASER:  if (phaser_used[b]) phaser_process(b, L, R);  break;
         case FX_FLANGER: if (flg_used[b])    flanger_process(b, L, R); break;
         case FX_TAPE:    if (tape_used[b])   tape_process(b, L, R);    break;
-        case FX_EQ:      if (eq_used[b])     eq_process(b, L, R);      break;
+        case FX_EQ:      if (eq_used[b][inst]) eq_process(b, inst, L, R); break;   // Increment F: per-instance EQ
         case FX_CRUSH:   if (crush_used[b])  crush_process(b, L, R);   break;
         case FX_FORMANT: if (fmt_used[b])    formant_process(b, L, R); break;
         case FX_FILTER:  if (filt_used[b])   filter_process(b, L, R);  break;
@@ -1506,6 +1509,7 @@ typedef enum {
     SR_INSTR_GRAINS = 82,   // a=slot, b=grain_ms, c=density*100, e0=position*1000, e1=scatter*1000, e2=PACK(feedback*100·*1001 + mix*1000) — granular on one instrument (auto-bus)
     SR_GRAINS_FREEZE       = 83,   // a=on (0/1) — freeze the master granular capture buffer (live toggle, no DSP reconfigure)
     SR_INSTR_GRAINS_FREEZE = 84,   // a=slot, b=on (0/1) — freeze one instrument's granular buffer
+    SR_EQ_INST      = 85,   // a=instance, b=low_db*1000, c=mid_db*1000, e0=high_db*1000 — master EQ on a given INSTANCE (Increment F; instance 0 == SR_EQ)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -4125,7 +4129,7 @@ static void sound_fire_req(SoundReq r) {
         float a = r.c / 1000.0f, b = r.e0 / 1000.0f, c = r.e1 / 1000.0f;
         switch (fx) {                         // configure the insert on this bus (params per effect)
             case FX_CRUSH:  fx_set_crush(bus, a, b, c); break;   // bits, rate, mix (mix 0 = off)
-            case FX_EQ:     fx_set_eq(bus, a, b, c);    break;   // low, mid, high dB
+            case FX_EQ:     fx_set_eq(bus, 0, a, b, c); break;   // low, mid, high dB (instance 0)
             case FX_TAPE:   fx_set_tape(bus, a, b, c);  break;   // wow, flutter, saturation
             case FX_CHORUS: fx_set_chorus(bus, a, b, c); break;  // rate, depth, mix (mix 0 = off)
             default: return;                  // only these 4 make sense (+fit 3 params) on a reverb tail
@@ -4133,7 +4137,7 @@ static void sound_fire_req(SoundReq r) {
         // ensure fx runs AFTER the reverb: append to the bus chain if not already present
         bool present = false;
         for (int s = 0; s < insert_order_n[bus]; s++) if (insert_order[bus][s] == fx) present = true;
-        if (!present && insert_order_n[bus] < N_INSERTS) insert_order[bus][insert_order_n[bus]++] = fx;
+        if (!present && insert_order_n[bus] < N_INSERTS) { insert_inst[bus][insert_order_n[bus]] = 0; insert_order[bus][insert_order_n[bus]++] = fx; }
     } else if (r.kind == SR_REVERB_INSERT) {  // a=size*1000, b=damp*1000, c=mix*1000 — master mix-reverb INSERT (bus 0, tank 1)
         float size = r.a / 1000.0f; if (size < 0.0f) size = 0.0f; if (size > 1.0f) size = 1.0f;
         float damp = r.b / 1000.0f; if (damp < 0.0f) damp = 0.0f; if (damp > 1.0f) damp = 1.0f;
@@ -4238,13 +4242,15 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_leslie(b, r.b, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f, r.e2 / 1000.0f);
-    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, b=packed lo (slots 0..7, 4 bits each), c=count, e0=packed hi (slots 8..)
+    } else if (r.kind == SR_FX_ORDER) {     // set a bus's insert order: a=bus, b=packed kind lo (slots 0..7, 4 bits each), c=count, e0=packed kind hi (slots 8..), e1/e2=packed INSTANCE lo/hi (Increment F)
         int bus = r.a;
         if (bus < 0 || bus >= SOUND_FX_BUSES) return;
         int n = r.c; if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
         for (int s = 0; s < n; s++) {
             int kind = (s < 8) ? ((r.b >> (4 * s)) & 15) : ((r.e0 >> (4 * (s - 8))) & 15);
+            int inst = (s < 8) ? ((r.e1 >> (4 * s)) & 15) : ((r.e2 >> (4 * (s - 8))) & 15);
             insert_order[bus][s] = (kind < N_INSERTS) ? kind : FX_TREM;
+            insert_inst[bus][s]  = inst;   // 0 unless the cart tagged the kind with FX_INST(kind, n)
         }
         insert_order_n[bus] = n;
     } else if (r.kind == SR_BITCRUSH) {     // master bitcrush (bus 0): a=bits*100, b=rate*100, c=mix*1000
@@ -4253,12 +4259,14 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_crush(b, r.b / 100.0f, r.c / 100.0f, r.e0 / 1000.0f);
-    } else if (r.kind == SR_EQ) {           // master EQ (bus 0): a=low_db*1000, b=mid_db*1000, c=high_db*1000
-        fx_set_eq(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
-    } else if (r.kind == SR_INSTR_EQ) {     // per-instrument: a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000
+    } else if (r.kind == SR_EQ) {           // master EQ (bus 0), instance 0: a=low_db*1000, b=mid_db*1000, c=high_db*1000
+        fx_set_eq(0, 0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_EQ_INST) {      // master EQ (bus 0), instance r.a (Increment F): b=low_db*1000, c=mid_db*1000, e0=high_db*1000
+        fx_set_eq(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_INSTR_EQ) {     // per-instrument, instance 0: a=slot, b=low_db*1000, c=mid_db*1000, e0=high_db*1000
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
-        if (b >= 1) fx_set_eq(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+        if (b >= 1) fx_set_eq(b, 0, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_FORMANT) {      // master formant/vowel filter (bus 0): a=vowel, b=q, c=mix (×1000)
         fx_set_formant(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
     } else if (r.kind == SR_INSTR_FORMANT) { // per-instrument: a=slot, b=vowel, c=q, e0=mix (×1000)
@@ -4561,7 +4569,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         for (int b = 1; b < SOUND_FX_BUSES; b++) {
             // run this bus's inserts in its (reorderable) order, then fold to master. Default order
             // = the old fixed ladder (trem→wah→cho→phaser→flg→tape→eq→crush); fx_order() rearranges.
-            for (int s = 0; s < insert_order_n[b]; s++) apply_insert(insert_order[b][s], b, &busL[b], &busR[b]);
+            for (int s = 0; s < insert_order_n[b]; s++) apply_insert(insert_order[b][s], insert_inst[b][s], b, &busL[b], &busR[b]);
             if (leslie_used[b]) leslie_process(b, &busL[b], &busR[b]);   // rotary speaker — pinned LAST (cabinet output stage, not a reorderable pedal)
             if (sc[b].used) { float g = sc_apply(b, busL[b], busR[b]); busL[b] *= g; busR[b] *= g; }   // sidechain/glue duck (pinned after inserts)
             busL[0] += busL[b]; busR[0] += busR[b];
@@ -4623,7 +4631,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // these). Per-instrument inserts already ran on their aux buses above. Run in bus 0's
         // (reorderable) order — default = the old fixed ladder; fx_order(0, …) rearranges. Ends in
         // the soft-clip below (pinned last — a safety limiter, not a reorderable pedal).
-        for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], 0, &mixL, &mixR);
+        for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], insert_inst[0][s], 0, &mixL, &mixR);
         if (leslie_used[0]) leslie_process(0, &mixL, &mixR);   // rotary speaker — pinned after the inserts, before the soft-clip (cabinet output stage)
         if (sc[0].used) { float g = sc_apply(0, mixL, mixR); mixL *= g; mixR *= g; }   // master sidechain/glue duck — the summed-bus pump (before the clip)
 
@@ -5230,6 +5238,10 @@ void eq(float low_gain, float mid_gain, float high_gain) {
     sound_push_ctrl(SR_EQ, (int)(low_gain * 1000.0f), (int)(mid_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0, 0);
 }
 
+void eq_inst(int instance, float low_gain, float mid_gain, float high_gain) {   // master EQ on a 2nd instance (Increment F) — list FX_INST(FX_EQ, instance) in fx_order()
+    sound_push_ctrl(SR_EQ_INST, instance, (int)(low_gain * 1000.0f), (int)(mid_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0);
+}
+
 void instrument_eq(int slot, float low_gain, float mid_gain, float high_gain) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_EQ, slot, (int)(low_gain * 1000.0f), (int)(mid_gain * 1000.0f), (int)(high_gain * 1000.0f), 0, 0);
@@ -5305,14 +5317,15 @@ void instrument_leslie(int slot, int speed, float drive, float balance, float do
 void fx_order(int bus, const int *kinds, int n) {
     if (bus < 0 || bus >= SOUND_FX_BUSES) return;
     if (n < 0) n = 0; if (n > N_INSERTS) n = N_INSERTS;
-    int lo = 0, hi = 0;
+    int lo = 0, hi = 0, ilo = 0, ihi = 0;   // ilo/ihi: per-slot INSTANCE (Increment F), 0 unless FX_INST-tagged
     for (int s = 0; s < n; s++) {
-        int k = kinds[s];
+        int k    = kinds[s] & 15;            // FX_INST(kind, inst) packs the instance in bits 4+
+        int inst = (kinds[s] >> 4) & 15;
         if (k < 0 || k >= N_INSERTS) k = 0;
-        if (s < 8) lo |= (k & 15) << (4 * s);
-        else       hi |= (k & 15) << (4 * (s - 8));
+        if (s < 8) { lo  |= (k    & 15) << (4 * s);       ilo |= (inst & 15) << (4 * s); }
+        else       { hi  |= (k    & 15) << (4 * (s - 8)); ihi |= (inst & 15) << (4 * (s - 8)); }
     }
-    sound_push_ctrl(SR_FX_ORDER, bus, lo, n, hi, 0, 0);
+    sound_push_ctrl(SR_FX_ORDER, bus, lo, n, hi, ilo, ihi);
 }
 
 void note_env(int handle, int which, int dest, int attack_ms, int decay_ms, float amount) {
@@ -5524,8 +5537,10 @@ static void sound_init(void) {
         wah_lfo_rate[b] = 0.0f; wah_lfo_phase[b] = 0.0f;   // follower mode until fx_set_wah_lfo()
         crush_bits[b] = 8.0f; crush_rate[b] = 4.0f; crush_mix[b] = 1.0f;
         crush_holdL[b] = 0.0f; crush_holdR[b] = 0.0f; crush_cnt[b] = 0; crush_used[b] = false;
-        eq_low_g[b] = 1.0f; eq_mid_g[b] = 1.0f; eq_high_g[b] = 1.0f;
-        eq_loL[b] = 0.0f; eq_loR[b] = 0.0f; eq_hiL[b] = 0.0f; eq_hiR[b] = 0.0f; eq_used[b] = false;
+        for (int i = 0; i < EQ_INST; i++) {
+            eq_low_g[b][i] = 1.0f; eq_mid_g[b][i] = 1.0f; eq_high_g[b][i] = 1.0f;
+            eq_loL[b][i] = 0.0f; eq_loR[b][i] = 0.0f; eq_hiL[b][i] = 0.0f; eq_hiR[b][i] = 0.0f; eq_used[b][i] = false;
+        }
         for (int i = 0; i < 4; i++) { fmt_freq[b][i] = 700.0f; fmt_k[b][i] = 0.2f; fmt_amp[b][i] = 0.0f; fmt_ic1[b][i] = 0.0f; fmt_ic2[b][i] = 0.0f; }
         fmt_mix[b] = 0.0f; fmt_used[b] = false;   // dormant; fx_set_formant() fills the bands from the vowel table
         filt_mode[b] = FILTER_LOW; filt_cut[b] = 8000.0f; filt_res[b] = 0.3f;

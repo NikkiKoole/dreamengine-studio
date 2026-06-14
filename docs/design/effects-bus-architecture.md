@@ -637,7 +637,21 @@ pure pedalboard cart work. Update [`effects-recipes.md`](../guides/effects-recip
 
 ## Increment F — multiple INSTANCES of one insert per bus (two EQs, two delays)
 
-**Status: design only (2026-06-14). Not built — parked.** Prompted by a pedalboard question: *can the
+**Status: SHIPPED for EQ (2026-06-14) — the general mechanism is in; EQ is the first kind wired to use
+it.** A per-slot INSTANCE rides in `SR_FX_ORDER`'s spare `e1`/`e2` ints (4 bits/slot, parallel to the
+kind packing in `b`/`e0`); the audio side carries `insert_inst[bus][slot]` alongside `insert_order`,
+and `apply_insert(kind, inst, b, L, R)` dispatches it. Carts tag a slot with the macro
+`FX_INST(kind, inst)` in `fx_order()` (plain `FX_*` = instance 0 = byte-identical to before). EQ state
+became `eq_*[bus][EQ_INST]` (EQ_INST=2); the new `eq_inst(instance, lo, mid, hi)` configures instance
+1 (`eq()`/`instrument_eq` = instance 0). **Showcase: `pedalboard`** — the EQ2 pedal emits
+`FX_INST(FX_EQ,1)`, so you can run EQ → BITCRUSH → EQ2 (shape the input to the crush vs its output).
+Verified: groovebox render byte-identical pre/post-refactor; A/B proof that the two EQ instances hold
+independent state at independent chain positions (+12 then −12 cancels to dry). **Wiring a SECOND kind
+(filter×2, a 2nd delay, fuzz-into-amp-drive) is now just: bump that kind's state to `[bus][N]`, add an
+instance-aware setter, and dispatch `inst` in `apply_insert` — no encoding change.** The original
+design notes (kept below) explain the blockers this resolved.
+
+(Historical — the parked design that this shipped:) Prompted by a pedalboard question: *can the
 same pedal appear twice, at different chain positions?* (An EQ **before and after** the drive; two delays
 at different times; a filter A/B.) Today: **no**, and it's worth recording exactly why and what the fix
 would cost, so a future build isn't re-derived.

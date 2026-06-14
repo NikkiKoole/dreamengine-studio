@@ -731,9 +731,36 @@ void preset_tides(void) {        // TIDES as a SHAPEABLE filter envelope: euclid
     add_cable(ck, 0, dr, 0); add_cable(ck, 2, dr, 2);
 }
 
-const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub", "Sat bus", "Split FX", "Filter jam", "Tides" };
-void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub, preset_satbus, preset_splitfx, preset_filterjam, preset_tides };
-#define NPRESET 31
+void preset_electronium(void) {  // Raymond Scott homage — his Electronium was a SELF-COMPOSING machine
+                                 // you steer, not play. Here: TURING evolves the melody, MARBLES adds
+                                 // shaped randomness, TIDES morphs the filter — never quite repeating —
+                                 // all run dirty through SAT (warm DRIVE_ASYM tube saturation = analog).
+    note_off_all(); nmod = 0; ncable = 0; palette_scroll = 0;
+    int ck = spawn(MOD_CLOCK,   bayx(0), bayy(0)), tm = spawn(MOD_TURING,  bayx(1), bayy(1));
+    int qt = spawn(MOD_QUANT,   bayx(2), bayy(2)), td = spawn(MOD_TIDES,   bayx(3), bayy(3));
+    int vo = spawn(MOD_VOICE,   bayx(4), bayy(4)), eu = spawn(MOD_EUCLID,  bayx(5), bayy(5));
+    int mb = spawn(MOD_MARBLES, bayx(6), bayy(6)), dr = spawn(MOD_DRUM,    bayx(7), bayy(7));
+    int sa = spawn(MOD_SAT,     bayx(8), bayy(8));
+    mod[ck].param[CK_BPM] = 104; mod[ck].param[CK_SWG] = 0.10f;          // motoric, a touch of swing (less machine-rigid)
+    mod[tm].param[0] = 0.35f; mod[tm].param[1] = 12;                     // rnd 0.35 = slowly mutating loop; 12-step
+    mod[qt].param[0] = SCALE_PENTA_MIN;
+    mod[td].param[TDK_FREQ] = 0.13f; mod[td].param[TDK_SLOPE] = 0.5f; mod[td].param[TDK_SHAPE] = 0.5f;   // slow free-run = the morphing filter
+    mod[vo].param[VK_CUT] = 480; mod[vo].param[VK_RES] = 8; mod[vo].param[VK_WAV] = 0; mod[vo].param[VK_FENV] = 900;  // resonant saw
+    mod[eu].param[0] = 5; mod[eu].param[1] = 8;                          // busy motoric gate
+    mod[mb].param[0] = 0.55f; mod[mb].param[1] = 0.6f;                   // dens / spread
+    mod[sa].param[SATK_AMT] = 0.45f; mod[sa].param[SATK_MODE] = 3; mod[sa].param[SATK_MIX] = 0.8f;   // ASYM tube glue on the whole mix
+    // the melody: TURING → QUANT → VOICE, gated by EUCLID
+    add_cable(ck, 0, tm, 0); add_cable(tm, 1, qt, 0); add_cable(qt, 1, vo, 1);
+    add_cable(ck, 0, eu, 0); add_cable(eu, 1, vo, 0);
+    add_cable(td, 1, vo, 2);                                             // TIDES (free-run LFO) → VOICE cutoff = the slow morph
+    // shaped randomness drives variation: MARBLES gate → snare accents, cv → resonance wobble
+    add_cable(ck, 0, mb, 0); add_cable(mb, 1, dr, 1); add_cable(mb, 2, vo, 3);
+    add_cable(ck, 1, dr, 0); add_cable(ck, 0, dr, 2);                    // kick on /2, hat every step
+}
+
+const char *PRESET_NAMES[] = { "Empty", "Generative", "Acid bass", "Beats", "Keys synth", "PWM pad", "Turing", "Grids beat", "Marbles", "Maths sweep", "Env pluck", "Zap lead", "Punch (VCA)", "Glide", "BP acid", "Notch phaser", "Seq melody", "Vibrato", "Chance gates", "Macro voice", "Mix mod", "Clockless", "Polymeter", "ADSR pad", "PD reso", "Organ jam", "Space dub", "Sat bus", "Split FX", "Filter jam", "Tides", "Electronium" };
+void (*PRESET_FN[])(void) = { preset_empty, preset_generative, preset_acid, preset_beats, preset_keys, preset_pwmpad, preset_turing, preset_grids, preset_marbles, preset_maths, preset_envpluck, preset_zaplead, preset_punch, preset_glide, preset_bpacid, preset_notchphaser, preset_seq, preset_vibe, preset_chance, preset_macro, preset_mix, preset_clockless, preset_polymeter, preset_adsrpad, preset_pdreso, preset_organ, preset_spacedub, preset_satbus, preset_splitfx, preset_filterjam, preset_tides, preset_electronium };
+#define NPRESET 32
 
 // ── persistence ──
 typedef struct { int type, x, y; float param[8]; } SaveMod;

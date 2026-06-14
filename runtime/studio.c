@@ -308,6 +308,8 @@ static int         replay_n   = 0;
 static int         replay_i   = 0;       // next event to apply
 
 static FILE   *trace_file     = NULL;    // --trace: one JSONL line of watch() state per frame
+static FILE   *uiaudit_file   = NULL;    // --uiaudit: one JSONL line of draw bounding boxes per frame
+static const char *uiaudit_path = NULL;
 static int     dump_every     = 0;       // --dump-every: 0 = off, else export every Nth frame
 static char    dump_dir[256]  = {0};     // --dump: directory for filmstrip PNGs
 static int     max_frames     = 0;       // --frames: stop after N frames (0 = run until close)
@@ -436,6 +438,41 @@ static Camera2D cam = {
 };
 static bool  cam_active = false;   // true while inside BeginMode2D during draw()
 static bool  clip_active = false;
+static int   clip_cx = 0, clip_cy = 0, clip_cw = 0, clip_ch = 0;  // active scissor rect (valid while clip_active)
+
+// ── --uiaudit: per-frame draw bounding-box log ───────────────────────────
+// When --uiaudit <file> is set, every primitive records its bounds + the
+// active clip rect here; uiaudit_flush() writes one JSONL line per frame after
+// draw(). tools/ui-audit.js reads it to flag text/sprites past the screen edge,
+// truncation inside a clip panel, and overlapping text. Off → zero cost (the
+// UIAUDIT macro compiles to nothing in web/release builds).
+#define UIAUDIT_MAX 4096
+typedef struct { char kind; short x, y, w, h; unsigned char clip; char text[28]; } UiAuditRec;
+static UiAuditRec uiaudit_recs[UIAUDIT_MAX];
+static int        uiaudit_n = 0;
+
+static void uiaudit_box(char kind, int x, int y, int w, int h, const char *text) {
+    if (!uiaudit_file || uiaudit_n >= UIAUDIT_MAX) return;
+    UiAuditRec *r = &uiaudit_recs[uiaudit_n++];
+    r->kind = kind;
+    r->x = (short)x; r->y = (short)y; r->w = (short)w; r->h = (short)h;
+    r->clip = clip_active ? 1 : 0;
+    r->text[0] = '\0';
+    if (text) { strncpy(r->text, text, sizeof r->text - 1); r->text[sizeof r->text - 1] = '\0'; }
+}
+#if !defined(PLATFORM_WEB) && !defined(DE_RELEASE)
+  #define UIAUDIT(k, x, y, w, h, t) uiaudit_box((k), (x), (y), (w), (h), (t))
+#else
+  #define UIAUDIT(k, x, y, w, h, t) ((void)0)
+#endif
+
+// ui.h calls this (only under -DDE_TRACE) once per registered widget in ui_end(),
+// so the auditor knows which boxes are interactive targets — not just decoration.
+// 'w' record; its text field carries the focusable flag ("1"/"0"). No-op when
+// --uiaudit is off, so it's free in a normal harness run too.
+void de_ui_audit(int x, int y, int w, int h, int focusable) {
+    uiaudit_box('w', x, y, w, h, focusable ? "1" : "0");
+}
 
 // pget snapshot — refreshed at the start of every frame, so pget reads
 // the previous frame's canvas (consistent state, no mid-frame RT readback)
@@ -896,6 +933,25 @@ static void harness_trace(int fno) {
     fflush(trace_file);
 }
 
+// --uiaudit: flush this frame's recorded draw boxes as one JSONL line, then
+// reset the buffer. sw/sh = screen bounds (so the reader needs no -D flags);
+// d[] carries {kind, x, y, w, h, clip-active} plus the string for text boxes.
+static void uiaudit_flush(int fno) {
+    if (!uiaudit_file) return;
+    fprintf(uiaudit_file, "{\"f\":%d,\"sw\":%d,\"sh\":%d,\"d\":[", fno, SCREEN_W, SCREEN_H);
+    for (int i = 0; i < uiaudit_n; i++) {
+        UiAuditRec *r = &uiaudit_recs[i];
+        if (i) fputc(',', uiaudit_file);
+        fprintf(uiaudit_file, "{\"k\":\"%c\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"c\":%d",
+                r->kind, r->x, r->y, r->w, r->h, r->clip);
+        if (r->kind == 't' || r->kind == 'w') { fputs(",\"t\":", uiaudit_file); json_str(uiaudit_file, r->text); }
+        fputc('}', uiaudit_file);
+    }
+    fputs("]}\n", uiaudit_file);
+    fflush(uiaudit_file);
+    uiaudit_n = 0;
+}
+
 static void harness_dump(int fno) {
     if (dump_every <= 0 || (fno % dump_every) != 0) return;
     Image shot = LoadImageFromTexture(canvas.texture);
@@ -1323,6 +1379,7 @@ static void loop_step(void) {
 
 #ifndef PLATFORM_WEB
     harness_trace(fno);                    // structured state for this frame (before aging)
+    uiaudit_flush(fno);                    // --uiaudit: this frame's draw bounding boxes
     harness_dump(fno);                     // filmstrip PNG every Nth frame
 #ifndef DE_RELEASE
     harness_inspect(fno);                  // on-demand screenshot + state (trigger-file)
@@ -1346,6 +1403,9 @@ static int key_code(const char *tok) {
     }
     if (!strcmp(tok, "SPACE")) return KEY_SPACE;
     if (!strcmp(tok, "ENTER")) return KEY_ENTER;
+    if (!strcmp(tok, "TAB"))   return KEY_TAB;
+    if (!strcmp(tok, "ESCAPE") || !strcmp(tok, "ESC")) return KEY_ESCAPE;
+    if (!strcmp(tok, "BACKSPACE")) return KEY_BACKSPACE;
     if (!strcmp(tok, "LEFT"))  return KEY_LEFT;
     if (!strcmp(tok, "RIGHT")) return KEY_RIGHT;
     if (!strcmp(tok, "UP"))    return KEY_UP;
@@ -1478,6 +1538,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--replay") == 0 && i + 1 < argc) replay_path = argv[++i];
         else if (strcmp(argv[i], "--script") == 0 && i + 1 < argc) script_path = argv[++i];
         else if (strcmp(argv[i], "--trace")  == 0 && i + 1 < argc) trace_path = argv[++i];
+        else if (strcmp(argv[i], "--uiaudit") == 0 && i + 1 < argc) uiaudit_path = argv[++i];
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) max_frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--dump")   == 0 && i + 1 < argc) { snprintf(dump_dir, sizeof dump_dir, "%s", argv[++i]); if (dump_every <= 0) dump_every = 1; }
         else if (strcmp(argv[i], "--dump-every") == 0 && i + 1 < argc) dump_every = atoi(argv[++i]);
@@ -1492,6 +1553,7 @@ int main(int argc, char **argv) {
     if (script_path) { load_script(script_path); inject_input = true; det_mode = true; }
     if (rec_path)    rec_file   = fopen(rec_path,  "w");
     if (trace_path)  trace_file = fopen(trace_path, "w");
+    if (uiaudit_path) uiaudit_file = fopen(uiaudit_path, "w");
     if (screenshot_mode) hide_window = 1;
     signal(SIGSEGV, crash_handler);   // bad/null pointer
     signal(SIGFPE,  crash_handler);   // divide by zero, etc.
@@ -1612,6 +1674,7 @@ int main(int argc, char **argv) {
 
     if (rec_file)   { fclose(rec_file);   rec_file   = NULL; }
     if (trace_file) { fclose(trace_file); trace_file = NULL; }
+    if (uiaudit_file) { fclose(uiaudit_file); uiaudit_file = NULL; }
     free(replay_ev); replay_ev = NULL;
 
     if (custom_font) UnloadFont(game_font);
@@ -2049,6 +2112,7 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
+    UIAUDIT('s', x, y, SPRITE_SIZE, SPRITE_SIZE, NULL);
 }
 
 void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
@@ -2059,6 +2123,7 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
+    UIAUDIT('s', dx, dy, dw, dh, NULL);
 }
 
 void spr_rot(int index, int x, int y, float deg) {
@@ -2110,7 +2175,9 @@ int print(const char *text, int x, int y, int color) {
     PROF("print");
     DrawTextEx(cur_font(), text, (Vector2){ (float)x, (float)y },
                cur_font_size(), 0, palette[color % PALETTE_SIZE]);
-    return x + text_width(text);
+    int w = text_width(text);
+    UIAUDIT('t', x, y, w, (int)cur_font_size(), text);
+    return x + w;
 }
 
 
@@ -2162,12 +2229,14 @@ void rect(int x, int y, int w, int h, int color) {
     DrawRectangle(rx,     ry+h-1, w,   1,   c);  // bottom
     DrawRectangle(rx,     ry+1,   1,   h-2, c);  // left
     DrawRectangle(rx+w-1, ry+1,   1,   h-2, c);  // right
+    UIAUDIT('R', x, y, w, h, NULL);
 }
 
 void rectfill(int x, int y, int w, int h, int color) {
     PROF("rectfill");
     if (fp_on) { rectfill_pat(x, y, w, h, fp_global, fp_hole, color); return; }   // 1-bits = holes, 0-bits = color
     DrawRectangle(x, y, w, h, palette[color % PALETTE_SIZE]);
+    UIAUDIT('f', x, y, w, h, NULL);
 }
 
 // raw 24-bit filled block: 0xRRGGBB straight to the canvas, no palette. one call
@@ -2283,6 +2352,7 @@ void circ(int cx, int cy, int r, int color) {
                 (!disc_inside(x-1,y,cx,cy,r) || !disc_inside(x+1,y,cx,cy,r) ||
                  !disc_inside(x,y-1,cx,cy,r) || !disc_inside(x,y+1,cx,cy,r)))
                 pset(x, y, color);
+    UIAUDIT('c', cx - r, cy - r, 2 * r + 1, 2 * r + 1, NULL);
 }
 
 void circfill(int cx, int cy, int r, int color) {
@@ -2291,6 +2361,7 @@ void circfill(int cx, int cy, int r, int color) {
     for (int y = cy - r; y <= cy + r; y++)
         for (int x = cx - r; x <= cx + r; x++)
             if (disc_inside(x, y, cx, cy, r)) plot_pat(x, y, color);
+    UIAUDIT('c', cx - r, cy - r, 2 * r + 1, 2 * r + 1, NULL);
 }
 
 // A triangle is just a 3-vertex polygon, so tri/trifill share the same
@@ -2621,6 +2692,7 @@ void clip(int x, int y, int w, int h) {
     if (w <= 0 || h <= 0) return;
     BeginScissorMode(x, y, w, h);
     clip_active = true;
+    clip_cx = x; clip_cy = y; clip_cw = w; clip_ch = h;
 }
 
 int mget(int cx, int cy) {

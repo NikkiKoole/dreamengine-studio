@@ -159,6 +159,7 @@ if (opt('--seed', null))       runArgs.push('--seed', opt('--seed'))
 if (opt('--dump', null))     { runArgs.push('--dump', path.resolve(opt('--dump'))); fs.mkdirSync(opt('--dump'), { recursive: true }) }
 if (opt('--dump-every', null)) runArgs.push('--dump-every', opt('--dump-every'))
 if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // deterministic audio render → WAV
+if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 
 console.log('run:', name, mode, runArgs.join(' '))
 spawnSync(BIN, runArgs, { cwd: mk.BUILD_DIR, stdio: 'inherit' })

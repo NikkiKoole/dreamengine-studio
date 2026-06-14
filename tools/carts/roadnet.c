@@ -979,6 +979,9 @@ typedef struct { float x,y; } RoadNode;
 #define MAXGNODE 6000
 static RoadEdge gedge[MAXGEDGE]; static int nedge;
 static RoadNode gnode[MAXGNODE]; static int nnode;
+static int g_deg[MAXGNODE];          // grid-node degree (incident grid edges) — filled by the collapse;
+static int g_inc[MAXGNODE][4];       // ...also its incident edge indices (≤4: ±gx, ±gy). Read by the
+                                     // node-draw (only deg≠2 nodes are real junctions/dead-ends).
 static void push_gedge(float x0,float y0,float x1,float y1,int cls,int n0,int n1) {
     if (nedge >= MAXGEDGE) return;
     gedge[nedge].x0=x0; gedge[nedge].y0=y0; gedge[nedge].x1=x1; gedge[nedge].y1=y1;
@@ -1025,6 +1028,55 @@ static int is_grid_road(float wx, float wy, int *cls) {
     RoadHit h = road_at(wx, wy);
     if (h.on_road && (h.cls == CL_STREET || h.cls == CL_ACCESS)) { *cls = h.cls; return 1; }
     return 0;
+}
+// ── DEGREE-2 COLLAPSE — the grid is finely noded (a node at every half-block crossing), so a
+// straight lane is a chain of degree-2 nodes + many tiny edges. Walk each chain from a real
+// junction (degree ≠ 2) through colinear degree-2 nodes and emit ONE merged edge; arterials
+// (n0<0) pass through untouched. Leaves only junctions/dead-ends/corners as nodes and turns
+// straight runs into single clean edges. Cleaner to look at AND a tidier graph for the car sim.
+static int collapse_other(int e, int cur) { return gedge[e].n0==cur ? gedge[e].n1 : gedge[e].n0; }
+static void graph_collapse_grid(void) {
+    for (int i=0;i<nnode;i++) g_deg[i]=0;
+    for (int e=0;e<nedge;e++) {                          // degree + incidence over GRID edges only
+        if (gedge[e].n0 < 0) continue;                   // arterial
+        int a=gedge[e].n0, b=gedge[e].n1;
+        if (g_deg[a]<4) g_inc[a][g_deg[a]]=e;  g_deg[a]++;
+        if (g_deg[b]<4) g_inc[b][g_deg[b]]=e;  g_deg[b]++;
+    }
+    static int used[MAXGEDGE]; for (int e=0;e<nedge;e++) used[e]=0;
+    static RoadEdge out[MAXGEDGE]; int nout=0;
+    for (int e=0;e<nedge && nout<MAXGEDGE;e++)            // arterials verbatim
+        if (gedge[e].n0 < 0) out[nout++]=gedge[e];
+    for (int j=0;j<nnode;j++) {
+        if (g_deg[j]==2) continue;                       // chains start at junctions / dead-ends only
+        int nd = g_deg[j]<4 ? g_deg[j] : 4;
+        for (int d=0; d<nd; d++) {
+            int e=g_inc[j][d]; if (used[e]) continue;
+            int cur=j, cls=gedge[e].cls, k;
+            float sx=gnode[j].x, sy=gnode[j].y;
+            for (;;) {
+                used[e]=1; k=collapse_other(e,cur);
+                if (g_deg[k]!=2) break;                   // reached another junction → stop
+                int e2=-1, knd=g_deg[k]<4?g_deg[k]:4;     // the other edge at this degree-2 node
+                for (int t=0;t<knd;t++){ int ee=g_inc[k][t]; if (ee!=e && !used[ee]){ e2=ee; break; } }
+                if (e2<0) break;
+                int nx=collapse_other(e2,k);
+                float d1x=gnode[k].x-gnode[cur].x, d1y=gnode[k].y-gnode[cur].y;
+                float d2x=gnode[nx].x-gnode[k].x,  d2y=gnode[nx].y-gnode[k].y;
+                float cross=d1x*d2y-d1y*d2x, dot=d1x*d2x+d1y*d2y;
+                if (dot<=0 || cross*cross > 1e-4f*(d1x*d1x+d1y*d1y)*(d2x*d2x+d2y*d2y)) break;  // corner
+                cur=k; e=e2;                              // colinear → keep walking
+            }
+            if (nout<MAXGEDGE) {
+                out[nout].x0=sx; out[nout].y0=sy; out[nout].x1=gnode[k].x; out[nout].y1=gnode[k].y;
+                out[nout].cls=cls; out[nout].n0=j; out[nout].n1=k; nout++;
+            }
+        }
+    }
+    for (int e=0;e<nedge && nout<MAXGEDGE;e++)            // leftover degree-2 loops (no junction) — keep
+        if (gedge[e].n0>=0 && !used[e]) { out[nout++]=gedge[e]; used[e]=1; }
+    nedge=nout;
+    for (int i=0;i<nedge;i++) gedge[i]=out[i];
 }
 // ── VECTORISE THE INTRA-CITY GRID into gedge[]/gnode[] over the VISIBLE region (LOD: street
 // zoom only; far out the grid is sub-pixel and meaningless). The grid is rotated PER DISTRICT
@@ -1089,6 +1141,7 @@ static void graph_add_grid(void) {
         }
     }
     want_access = saved;
+    graph_collapse_grid();                                       // merge straight runs → clean edges
 }
 static void render_streetlevel(int bx, int by, int sz) {        // bounds = the loupe box (cheap)
     gather_cities();
@@ -1160,8 +1213,9 @@ static void draw_graph_view(void) {
         line(x0, y0, x1, y1, col);
         if (gedge[i].cls <= CL_HIGHWAY) line(x0, y0 + 1, x1, y1 + 1, col);   // fatten the big roads
     }
-    for (int i = 0; i < nnode; i++)                      // NODES — grid intersections (white dots)
-        pset(sxp(gnode[i].x), syp(gnode[i].y), CLR_WHITE);
+    for (int i = 0; i < nnode; i++)                      // NODES — only real junctions/dead-ends
+        if (g_deg[i] != 2 && g_deg[i] != 0)              // (deg-2 mid-lane nodes were collapsed away)
+            pset(sxp(gnode[i].x), syp(gnode[i].y), CLR_WHITE);
     for (int i = 0; i < gn; i++) {                       // city anchors (the macro nodes)
         int x = sxp(gnx[i]), y = syp(gny[i]);
         circfill(x, y, 2, CLR_WHITE); circ(x, y, 2, CLR_BLACK);

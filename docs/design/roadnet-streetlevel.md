@@ -55,8 +55,12 @@ field-sampled loupe was the bottleneck, not the zoom number):
     so the old code re-rolled the whole grid **while panning** ("the graph flips on drag") — and
     it wasn't actually a pure fn of world pos. `gid[]` makes the orientation position-stable.
     `city_grid_coords()` and `graph_add_grid()` use the **identical** hash (they must agree).
-  - **Not yet:** stitching the grid graph onto the arterials at city entries, and collapsing
-    degree-2 node chains (the grid is finely noded — fine for routing, just verbose).
+  - **Degree-2 collapse (2026-06-14):** `graph_collapse_grid()` walks each chain from a real
+    junction (degree ≠ 2) through colinear degree-2 mid-lane nodes and emits ONE merged edge —
+    so a straight lane is a single edge between intersections, not a chain of half-block stubs,
+    and only junctions/dead-ends draw as node dots. Arterials pass through untouched.
+  - **Not yet:** stitching the grid graph onto the arterials at city entries (so a route can
+    leave town).
   - *Perf note:* `graph_add_grid()` re-runs each frame in GRAPH view (~10–15k `road_at()` at
     street zoom — fine for a debug view); the car sim will build it per chunk + cache.
 
@@ -157,10 +161,9 @@ as buildings-to-be) — the access streets + footprints are what we build into i
 2. ✅ **View-switcher** (TAB MAP↔GRAPH, `ZMAX→12`) + **vector GRAPH debug render**.
 3. ✅ **Full road graph** — arterials + vectorised intra-city grid with intersection
    **nodes + adjacency** (`gedge[]`/`gnode[]`, `want_access` flag). See "What's built (cont.)".
-4. **Graph tidy-ups** (when routing needs them, not before): **stitch** the grid graph onto the
-   arterial backbone at city entries (so a route can leave town), and **collapse degree-2 node
-   chains** into single edges (the grid is finely noded). Both are post-passes over `gedge[]`/
-   `gnode[]`; neither blocks driving.
+4. **Graph tidy-ups**: ✅ degree-2 collapse (straight lanes = single edges). Remaining (when
+   routing needs it): **stitch** the grid graph onto the arterial backbone at city entries, so a
+   route can leave town. A post-pass over `gedge[]`/`gnode[]`; doesn't block driving.
 5. **Footprints** + `building_at()` (the collision seam) — *the next build move*. Lots are still
    flat colour; turn each into a footprint rect (setback/yard + outline + driveway toward its
    fronting access lane), exposed as `building_at(wx,wy) → {solid, lot id}` (screen == collision,

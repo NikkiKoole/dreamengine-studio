@@ -1418,6 +1418,23 @@ v1, document it on the panel.
     balance ±0.56 dB symmetrically. **Showcases: `epiano`** (the RHODES VIBE pedal — replaced its per-voice
     `LFO_PAN` stand-in) **and `pedalboard`** (the AUTOPAN pedal, beside TREMOLO in the palette).
 
+17. **Ring modulator** — multiply the bus by a sine CARRIER → inharmonic sum/difference sidebands (the
+    metallic/robot/bell clang). **✓ SHIPPED 2026-06-14.** `ringmod(freq_hz, mix)` (master) **and**
+    `instrument_ringmod(slot, …)` (per-instrument aux bus). `out = in·((1−mix)+mix·sin(2π·f·t))`. A real
+    new bus effect, `FX_RINGMOD`=12 (a reorderable pedal in every bus's default chain), `rm_used`-gated
+    → dormant carts byte-identical (`N_INSERTS` grew to FX_RINGMOD+1; 4-bit `fx_order` packing still has
+    room — 12/16). `SR_RINGMOD`=78 / `SR_INSTR_RINGMOD`=79, full 4-place wiring + tcc + `fxicons.h` (the
+    ⊗ multiply glyph). **0015 angle — a genuinely NEW primitive, not a recipe:** the carrier is BIPOLAR
+    (−1..1), so it generates frequencies the input didn't contain (sum/difference) — something no
+    combination of the existing roster (drive/filter/the unipolar tremolo LFO) can produce. It cleared
+    the gate the way leslie/sidechain did: it passed the pedalboard test AND proved it can't be a recipe.
+    This was the last unbuilt entry on the [`sound-next-steps.md`](sound-next-steps.md) build-list. Verified:
+    soundcheck compile-gate `ok` + 900-frame tripwire silent + tune-check exit 0 (the carrier is post-mix,
+    pitch of an un-modulated voice untouched); a 440 Hz sine renders dry at conf 1.0, and wet (mix 1,
+    carrier 150 Hz) the 440 fundamental vanishes — pitch conf collapses to 0.4 as the 290/590 Hz sidebands
+    appear, RMS −20→−23 dB (the sin×sin power halving), 0 clipped. **Showcase: `pedalboard`** (the RINGMOD
+    pedal — FRQ 20..3000 Hz exp + MIX). A dedicated robot-voice/bells cart is the optional fast-follow.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

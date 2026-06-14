@@ -361,11 +361,11 @@ void instrument_choke(int slot_a, int slot_b); // declare that a new note on slo
 void note_harmonics(int handle, float x);      // live macro on a held note, slewed — ring/partial/ratio changes reach a sounding voice (PLUCK ring, MALLET partials, FM ratio, BRASS instrument/bore)
 void note_timbre(int handle, float x);         // live macro on a held note, slewed — strike-shaping macros (PLUCK/MALLET timbre) apply at the next note; FM brightness + BRASS brassiness move live
 void note_morph(int handle, float x);          // live macro on a held note, slewed — MALLET ring/motor, FM feedback + BRASS breath move live; PLUCK position applies at the next note
-void eng_tune(int slot, int idx, float value);     // EXPERIMENTAL — tune a string-engine slot: INSTR_GUITAR/PIANO idx 0 = fundamental weight, 1 = attack click. INSTR_BOWED idx 0 >= 0.5 = PIZZICATO mode (pluck the same string instead of bowing it). value 0..1. Read at note-on; values get baked to constants, not a final API
+void eng_tune(int slot, int idx, float value);     // per-engine aux channel, note-on face — a string-engine slot's params past the 3 macros: INSTR_GUITAR/PIANO idx 0 = fundamental weight, 1 = attack click. INSTR_BOWED idx 0 >= 0.5 = PIZZICATO mode (pluck the same string instead of bowing it). value 0..1. Read at note-on. Blessed mechanism (decision 0017); final name pending the sound.h refactor
 void voice_nasal(int handle, float amount);    // INSTR_VOICE nasal color on a held note: 0 = open vowel .. 1 = hummed/nasal (the honk, the chant). The voice's 4th axis, alongside the harmonics/timbre/morph macros (vowel/size/effort)
 void voice_consonant(int handle, int id);      // begin a held INSTR_VOICE note with a consonant onset that morphs into the vowel ("bah"/"mah"/"sss-ah"). Call right after note_on; id 0..21 (b d g m n l s sh ng r w y dh f v z zh th p t k ch), -1 = none. A timed onset
 void voice_coda(int handle, int id);           // close a held INSTR_VOICE note ON a consonant: the vowel morphs into it ("ahh-m"/"oo-d"). Call right before note_off; id 0..21, -1 = none. Mirror of voice_consonant; voiced ids (b d g m n l ng r w y) stay sung
-void voice_param(int handle, int idx, float value); // LOW-LEVEL/experimental — raw INSTR_VOICE param poke by index for the probe carts (voxlab/voxab/voxpad/say). The public surface is the 3 macros + voice_nasal(); not advertised
+void voice_param(int handle, int idx, float value); // per-engine aux channel, live face — raw INSTR_VOICE param poke by index for the probe carts (voxlab/voxab/voxpad/say). Blessed mechanism (decision 0017), kept off the beginner surface by design (the advertised VOICE controls are the 3 macros + voice_nasal()), not removed; final name pending the sound.h refactor
 
 // drive — saturation AFTER the filter, so resonance screams into it. The grit knob.
 // the MODE picks the waveshaper's flavour; instrument_drive() is still the amount (0 = clean bypass).
@@ -464,6 +464,13 @@ void instrument_tremolo(int slot, float rate, float depth, int shape);  // tremo
 void autopan(float rate, float depth, int shape);                       // rate 0.1..20 Hz, depth 0..1 (0 = off, 1 = full L↔R), shape TREM_*. THE master auto-pan
 void instrument_autopan(int slot, float rate, float depth, int shape);  // auto-pan on just this slot (auto-grabs a private FX bus)
 
+// ring modulator — multiply the signal by a sine CARRIER at freq_hz, creating inharmonic sum/
+// difference sidebands: the metallic, clangorous, robotic/bell texture (the Dalek voice, the sci-fi
+// clang). Unlike tremolo (a unipolar gain LFO that only wobbles volume), the carrier is BIPOLAR, so
+// it adds NEW frequencies. Low freq (~2..30 Hz) = a throbby AM; high (~100..2000 Hz) = the atonal clang.
+void ringmod(float freq_hz, float mix);                                 // freq 1..8000 Hz, mix 0..1 (0 = off). THE master ring modulator
+void instrument_ringmod(int slot, float freq_hz, float mix);            // ring mod on just this slot (auto-grabs a private FX bus)
+
 // phaser — a chain of allpass filters swept by an LFO carves moving NOTCHES in the spectrum: the
 // 70s electric-piano / Small Stone swirl (vocal, hollow, "jet-like" but softer than a flanger's
 // metallic comb). stages = how many notches (4 = the classic Phase-90; more = thicker/deeper).
@@ -501,7 +508,8 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_FORMANT  9   // formant/vowel filter (a reorderable pedal, like the others — in every bus's default chain)
 #define FX_FILTER   10  // resonant filter — the DJ filter (a reorderable pedal, in every bus's default chain)
 #define FX_PAN      11  // auto-pan — antiphase tremolo (a reorderable pedal, in every bus's default chain)
-void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 12
+#define FX_RINGMOD  12  // ring modulator — signal × sine carrier (a reorderable pedal, in every bus's default chain)
+void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_*, n ≤ 13
 
 // leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
 // horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds

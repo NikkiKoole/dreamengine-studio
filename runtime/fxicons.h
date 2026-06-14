@@ -26,6 +26,7 @@ static int fx_body(int kind) {
         case FX_FORMANT: return CLR_BROWN;
         case FX_PAN:     return CLR_DARK_GREY;
         case FX_FILTER:  return CLR_TRUE_BLUE;
+        case FX_RINGMOD: return CLR_INDIGO;
         default:         return CLR_DARKER_GREY;
     }
 }
@@ -43,6 +44,7 @@ static int fx_accent(int kind) {
         case FX_FORMANT: return CLR_LIGHT_PEACH;
         case FX_PAN:     return CLR_LIGHT_YELLOW;
         case FX_FILTER:  return CLR_BLUE;
+        case FX_RINGMOD: return CLR_GREEN;
         default:         return CLR_LIGHT_GREY;
     }
 }
@@ -60,6 +62,7 @@ static const char *fx_name(int kind) {
         case FX_FORMANT: return "VOWEL";
         case FX_PAN:     return "AUTOPAN";
         case FX_FILTER:  return "FILTER";
+        case FX_RINGMOD: return "RINGMOD";
         default:         return "FX";
     }
 }
@@ -120,6 +123,10 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         line(cx - 3,  cy - 3, cx,     cy - 8, col);          // up to the resonant peak
         line(cx,      cy - 8, cx + 5, cy + 6, col);          // steep rolloff past the corner
         line(cx + 5,  cy + 6, cx + 13, cy + 6, col);         // settled stopband
+    } else if (kind == FX_RINGMOD) {                         // a ⊗ — the ring-mod / multiply symbol
+        circ(cx, cy, 7, col);
+        line(cx - 5, cy - 5, cx + 5, cy + 5, col);
+        line(cx - 5, cy + 5, cx + 5, cy - 5, col);
     } else {                                                 // REVERB — expanding rings (the bloom)
         for (int i = 1; i <= 3; i++) circ(cx, cy, i * 3, col);
         pset(cx, cy, col);

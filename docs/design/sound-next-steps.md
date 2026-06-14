@@ -198,7 +198,7 @@ upgrade to existing stations:
 | leslie (rotary) | a **Hammond B3 + Leslie** organ (slow/fast footswitch) | roadhouse, yacht |
 | wah / auto-wah ✅ **SHIPPED** | **clavinet** cart (Hohner D6 + auto-wah — the funk wakka-wakka) ✅ built | citypop funk guitar, the clav — now `instrument_wah()` |
 | formant filter | a **vocoder / talkbox** (carrier shaped through vowels) | the vocal gap for non-voice timbres, **air's Kelly-vocoder lead (faked on raw INSTR_VOICE today)** |
-| ring-mod | a **ring-modulator robot-voice toy** (Dalek the VOX) + metallic bells | the Dalek/robot vocal |
+| ring-mod ✅ **SHIPPED** | `ringmod(freq, mix)` / `instrument_ringmod` — `FX_RINGMOD` bus insert; **pedalboard** RINGMOD pedal is the showcase (a dedicated robot-voice/bells cart is the optional fast-follow) | the Dalek/robot vocal, metallic bells |
 | tape (wow/flutter/sat) ✅ **SHIPPED** | **tapeloop** cart (Frippertronics — pad → long echo loop → `tape()` degrades each pass) ✅ built | motorik's Conny-Plank echo, jangle/jingle tape-wow, **air's vintage analog warmth** — now wirable via `tape()`/`instrument_tape()` |
 | bitcrush / decimate *(if rostered)* | a **lo-fi SP-1200 / 8-bit degrader** boombox | lowend's 12-bit grit |
 

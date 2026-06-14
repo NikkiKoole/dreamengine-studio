@@ -285,6 +285,29 @@ with auto-pan, 0.33 / −1.78 dB mono-fold = real width, and a slow sweep swings
 > insert is the honest, composable form — two LFOs, two pedals. See
 > [`../design/effects-bus-architecture.md`](../design/effects-bus-architecture.md) §0.
 
+## ring mod — `ringmod(freq_hz, mix)` · `instrument_ringmod(slot, freq_hz, mix)`
+
+Multiply the signal by a sine **carrier** at `freq_hz` → inharmonic **sum/difference sidebands**: the
+metallic, clangorous, robotic/bell texture (the Dalek voice, the sci-fi clang, Sabbath's "Paranoid"
+solo). `out = in·((1−mix) + mix·carrier)`. The thing that makes it *not* tremolo: the carrier is
+**bipolar** (−1..1), so it adds genuinely NEW frequencies instead of just wobbling the volume — a
+440 Hz sine ring-modded at 150 Hz loses its 440 and becomes 290 + 590 Hz. `freq` 1–8000 Hz (**low**
+~2–30 Hz = a throbby tremolo-ish AM; **mid/high** ~100–2000 Hz = the atonal clang), `mix` 0–1 (0 = off).
+`|out| ≤ |in|`, so no added clip risk. A reorderable insert (`FX_RINGMOD`); master or per-instrument.
+Dormant until mix>0 → non-users byte-identical. (Verified: dry passes a 440 Hz sine at conf 1.0; wet
+moves the fundamental off 440 with confidence collapsing as the sidebands appear, RMS −20→−23 dB.)
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| metallic clang | `ringmod(440.0f, 0.8f)` | bright inharmonic bell/gong tone — atonal, alien | `pedalboard` (RINGMOD) |
+| robot voice / Dalek | `ringmod(30.0f, 1.0f)` on a vocal/lead | the low-carrier buzz that turns any voice robotic | `pedalboard` (FRQ low) |
+| throbby AM | `ringmod(6.0f, 0.7f)` | a very-low carrier = a rough tremolo-like pulse (the AM end of the range) | `pedalboard` (FRQ near 0) |
+
+> **Ring mod vs tremolo:** both modulate amplitude, but tremolo's LFO is *unipolar* (gain 0..1, no new
+> tones — a wobble) while ring mod's carrier is *bipolar* (adds sidebands — a new timbre). That's why
+> it's its own effect, not a tremolo mode (it clears [decision 0015](../decisions/0015-effects-are-recipes-not-primitives.md):
+> a recipe of the existing roster can't make sidebands).
+
 ## phaser — `phaser(rate, depth, feedback, mix, stages)` · `instrument_phaser(slot, …)`
 
 A chain of allpass filters swept by an LFO carves moving NOTCHES in the spectrum — the **70s

@@ -1023,6 +1023,30 @@ static void fx_set_autopan(int b, float rate, float depth, int shape) {
     pan_used[b] = (depth > 0.0f);   // depth 0 = off (identity gain), like tremolo
 }
 
+// ── ring modulator — multiply the bus by a sine CARRIER: metallic/clangorous sidebands ───────────
+// out = in·((1−mix) + mix·carrier), carrier = sin(2π·f·t) in [−1,1]. A BIPOLAR multiply (unlike
+// tremolo's unipolar 0..1 gain), so it generates inharmonic sum/difference tones — the robot/bell/
+// Dalek clang, NOT just a wobble. |carrier|≤1 and the dry/wet blend keep |out|≤|in|, so no added clip
+// risk. Per-bus carrier phase. Dormant until ringmod()/instrument_ringmod() with mix>0 → byte-identical.
+static float rm_freq [SOUND_FX_BUSES];   // carrier frequency Hz
+static float rm_mix  [SOUND_FX_BUSES];   // dry/wet 0..1
+static float rm_phase[SOUND_FX_BUSES];   // carrier phase 0..1
+static bool  rm_used [SOUND_FX_BUSES];
+static void rm_process(int b, float *mixL, float *mixR) {
+    float c = sinf(rm_phase[b] * 6.2831853f);
+    rm_phase[b] += rm_freq[b] * (1.0f / (float)SOUND_SAMPLE_RATE);
+    if (rm_phase[b] >= 1.0f) rm_phase[b] -= 1.0f;
+    float m = rm_mix[b];
+    *mixL = *mixL * (1.0f - m) + (*mixL * c) * m;
+    *mixR = *mixR * (1.0f - m) + (*mixR * c) * m;
+}
+static void fx_set_ringmod(int b, float freq, float mix) {
+    if (freq < 1.0f) freq = 1.0f;  if (freq > 8000.0f) freq = 8000.0f;
+    if (mix  < 0.0f) mix  = 0.0f;  if (mix  > 1.0f)    mix  = 1.0f;
+    rm_freq[b] = freq; rm_mix[b] = mix;
+    rm_used[b] = (mix > 0.0f);   // mix 0 = off (dry), like the other inserts
+}
+
 // ── phaser — cascaded allpass chain swept by an LFO (the 70s Rhodes / Small Stone swirl) ─────────
 // A VERBATIM port of navkit's bus processPhaser: N first-order allpass stages in series, all sharing
 // one LFO-swept coefficient (coeff = 0.5 + lfo·depth·0.4, navkit's 0.1..0.9 range), with feedback
@@ -1193,9 +1217,9 @@ static void fx_set_leslie(int b, int speed, float drive, float balance, float do
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_PAN + 1)              // array size / max chain length: 8 pedals + FX_FORMANT + FX_FILTER + FX_PAN (all pedals) + FX_REVERB (reverb-bus only)
+#define N_INSERTS (FX_RINGMOD + 1)          // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (all pedals) + FX_REVERB (reverb-bus only)
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
-static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan; FX_REVERB only on a reverb-bus)
+static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
 // dispatch ONE insert by kind on bus b, in place. The _used[b] gate keeps dormant inserts free.
 static void apply_insert(int kind, int b, float *L, float *R) {
     switch (kind) {
@@ -1210,6 +1234,7 @@ static void apply_insert(int kind, int b, float *L, float *R) {
         case FX_FORMANT: if (fmt_used[b])    formant_process(b, L, R); break;
         case FX_FILTER:  if (filt_used[b])   filter_process(b, L, R);  break;
         case FX_PAN:     if (pan_used[b])    pan_process(b, L, R);     break;
+        case FX_RINGMOD: if (rm_used[b])     rm_process(b, L, R);      break;
         // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
         // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
         // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
@@ -1320,6 +1345,8 @@ typedef enum {
     SR_FILTER       = 75,   // a=mode, b=cutoff_hz, c=resonance*1000 — THE master resonant filter (DJ filter), bus 0
     SR_AUTOPAN      = 76,   // a=rate*1000, b=depth*1000, c=shape — THE master auto-pan (bus 0, antiphase tremolo)
     SR_INSTR_AUTOPAN= 77,   // a=slot, b=rate*1000, c=depth*1000, e0=shape — auto-pan on one instrument (auto-bus)
+    SR_RINGMOD      = 78,   // a=freq_hz, b=mix*1000 — THE master ring modulator (bus 0)
+    SR_INSTR_RINGMOD= 79,   // a=slot, b=freq_hz, c=mix*1000 — ring mod on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -4000,6 +4027,12 @@ static void sound_fire_req(SoundReq r) {
         if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
         int b = fx_bus_for(r.a);
         if (b >= 1) fx_set_autopan(b, r.b / 1000.0f, r.c / 1000.0f, r.e0);
+    } else if (r.kind == SR_RINGMOD) {      // master ring mod (bus 0): a=freq_hz, b=mix*1000
+        fx_set_ringmod(0, (float)r.a, r.b / 1000.0f);
+    } else if (r.kind == SR_INSTR_RINGMOD) {// per-instrument: a=slot, b=freq_hz, c=mix*1000
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) fx_set_ringmod(b, (float)r.b, r.c / 1000.0f);
     } else if (r.kind == SR_PHASER) {       // master phaser (bus 0): a=rate, b=depth, c=fb(signed), e0=mix (×1000), e1=stages
         fx_set_phaser(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1);
     } else if (r.kind == SR_INSTR_PHASER) { // per-instrument: a=slot, b=rate, c=depth, e0=fb(signed), e1=mix (×1000), e2=stages
@@ -5015,6 +5048,17 @@ void instrument_autopan(int slot, float rate, float depth, int shape) {
     sound_push_ctrl(SR_INSTR_AUTOPAN, slot, (int)(rate * 1000.0f), (int)(depth * 1000.0f), shape, 0, 0);
 }
 
+// ── ring modulator: signal × sine carrier — the metallic/clang sidebands ──
+
+void ringmod(float freq_hz, float mix) {
+    sound_push_ctrl(SR_RINGMOD, (int)freq_hz, (int)(mix * 1000.0f), 0, 0, 0, 0);
+}
+
+void instrument_ringmod(int slot, float freq_hz, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_RINGMOD, slot, (int)freq_hz, (int)(mix * 1000.0f), 0, 0, 0);
+}
+
 // ── phaser: THE master phaser (LFO-swept allpass chain — the 70s Rhodes / Small Stone swirl) ──
 
 void phaser(float rate, float depth, float feedback, float mix, int stages) {
@@ -5260,7 +5304,8 @@ static void sound_init(void) {
         insert_order[b][N_PEDALS]     = FX_FORMANT;                  // + formant as the 9th pedal (dormant until formant() → byte-identical)
         insert_order[b][N_PEDALS + 1] = FX_FILTER;                   // + filter as the 10th pedal (dormant until filter() → byte-identical)
         insert_order[b][N_PEDALS + 2] = FX_PAN;                      // + auto-pan as the 11th pedal (dormant until autopan() → byte-identical)
-        insert_order_n[b] = N_PEDALS + 3;                            // FX_REVERB is never in the default chain — reverb_bus() places it
+        insert_order[b][N_PEDALS + 3] = FX_RINGMOD;                  // + ring mod as the 12th pedal (dormant until ringmod() → byte-identical)
+        insert_order_n[b] = N_PEDALS + 4;                            // FX_REVERB is never in the default chain — reverb_bus() places it
     }
 
     // user waves default to a sine, so playing INSTR_USER* before wave_set isn't silence

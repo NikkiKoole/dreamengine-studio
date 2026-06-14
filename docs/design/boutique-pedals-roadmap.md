@@ -20,7 +20,7 @@ covers MOOD).
 
 | pedal (list) | what we already have |
 |---|---|
-| Klon transparent OD (B1) | `instrument_drive` + `DRIVE_SOFT` + a parallel dry blend (mix) — same topology. *(Their `fast_tanh` Padé approx is a real CPU win but a micro-opt, not a new effect — see "Side quests".)* |
+| Klon transparent OD (B1) | the *tone* via `instrument_drive` + `DRIVE_SOFT` + a parallel dry blend (mix) — same topology. **But the bus-INSERT version (a Klon stompbox you place in the chain) is a real, now-buildable want** — see the update log below. *(Their `fast_tanh` Padé approx is a CPU micro-opt, not a new effect — see "Side quests".)* |
 | Sun Face germanium fuzz (B2) | `DRIVE_ASYM` is asymmetric clipping; it's already the `pedalboard` FUZZ pedal's germanium mode. |
 | Microcosm / Red Panda Particle granular engine (A2, B5) | `grains` — the capture-buffer + Hanning-windowed grain engine, shipped. The lists' own thesis ("a circular buffer + a grain struct = the brain of every $400 digital pedal") is the thing we just built. |
 | Polymoon diffuse delay (A5) | `echo → reverb` approximates it; our reverb is Schroeder (comb + allpass diffusers) already. |
@@ -125,6 +125,36 @@ verbatim, same playbook as `grains`. The "always listening" half is just `grains
 - **Docs**: a row in [`effects-recipes.md`](../guides/effects-recipes.md) + a ledger entry in
   [`audio-notes.md §17`](audio-notes.md); if ported, update
   [`navkit-porting-handoff.md`](../guides/navkit-porting-handoff.md).
+
+## Update log — items unlocked since first draft
+
+### `FX_INST` — instance an existing insert, don't mint a new `FX_*` kind  ⭐ new infrastructure
+Master drive took `FX_DRIVE = 15`, closing the `fx_order` 4-bit packing (0..15). The follow-on
+`drive_insert_inst(instance, amount, mode, mix)` + `FX_INST(FX_DRIVE, instance)` in `fx_order`
+(Increment F) is the escape valve: a 2nd/3rd **instance** of an *existing* insert at different chain
+spots, no new kind. It generalises — a second crush, filter, EQ, etc. **Rule going forward: when the
+kind ceiling bites, reach for "instance it" (`FX_INST`), not "mint a new `FX_*`."** (Caveat: if the
+kind field is still 4 bits, a genuinely *new* effect type beyond 15 still needs a packing widen —
+instancing only reuses kinds 0..15.)
+
+### Overdrive / Klon as a reorderable BUS insert  ⭐ now buildable (was "do not rebuild")
+Per-voice drive covers the Klon *tone* but can't be a reorderable **stompbox** whose position vs the
+amp is audible. `drive_insert_inst` makes it real: an OD pedal = `FX_DRIVE` instance 1, placed
+before/after the amp's own drive — **"OD → amp" vs "amp → OD" now differ.** Add as a *distinct*
+OVERDRIVE pedal in `pedalboard.c` (keep FUZZ per-voice — fuzz-into-amp and OD-into-amp are different
+rigs players both want). Effort: **S**, once Increment F lands. Validates the "instance only when
+demanded" discipline — a cart wanted it, so it got built.
+
+### Amp realism — gain-tracked hiss + 60-cycle hum + a noise gate  · effort: S
+The "an electric guitar is never truly silent" character. It's **three things**: broadband **amp
+hiss** (scales with gain), **mains hum** (50/60 Hz + harmonics — the single-coil buzz humbuckers
+cancel), and interference (ignorable). **NOT dither** — dither is quantization-specific; model hiss +
+hum *directly* (signatures in [`building-blocks-spec.md`](building-blocks-spec.md) Block C). Bake into
+the **AMP cabinet** as an opt-in, **gain-tracked NOISE knob** (default 0 = byte-identical silent,
+seeded LCG for `--det`). Pair with a **NOISE GATE** — the real-world fix that clamps the floor between
+notes (the recognisable "snap to silence when you stop playing"). The hiss rides **Primitive 1**'s
+filtered-noise source; the gate is a small new follower+threshold effect, broadly useful (gated
+reverb, tight drums). Natural sibling to the cab/amp work.
 
 ## Side quests (engineering nits from the lists, not effects)
 - **`fast_tanh` Padé approximation** (B1 tip): if `DRIVE_SOFT`/the soft-clip is ever hot in the

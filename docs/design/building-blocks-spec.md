@@ -144,11 +144,61 @@ Seeding: each `ModState` gets a fixed seed at effect init (e.g. derive from the 
 
 ---
 
+## Block C — amp realism: hiss + 60-cycle hum + a noise gate
+
+The "an electric guitar is never truly silent" character (roadmap update log). Three distinct
+generators — model them directly, **not** via dither (dither is quantization-specific). All
+opt-in, default 0 = byte-identical silent, seeded LCG for `--det`.
+
+### C.1 — the rig-noise generator (rides Primitive 1)
+- **hiss** = broadband filtered noise (the same low-passed LCG as `mod_randwalk`, but audio-rate
+  white → an HF rolloff to taste so it sits like amp/speaker hiss). **Amount scales with the amp
+  GAIN** — that gain-tracking is what sells it as real.
+- **hum** = a 50/60 Hz sine + one or two harmonics (the 120 Hz buzz), low level. `mains_hz` picks
+  region (single-coil buzz; humbuckers would cancel it — we just model the audible result).
+- **Home:** bake into the **AMP cabinet** as a `NOISE` knob (most authentic — the noise *is* the
+  amp), or a standalone `void amp_noise(float hiss, float hum, int mains_hz)`. Either way default
+  0 = silent.
+```c
+// sketch: per-output-sample, added to the cab/amp stage, scaled by gain
+seed = seed*1103515245u + 12345u;
+float white = ((int)((seed>>16)&0xFFFF)/32767.5f - 1.0f);
+hiss_lp += (white - hiss_lp) * HISS_CUT;                 // HF-rolled hiss
+hum_ph  += mains_hz / (float)SOUND_SAMPLE_RATE; if (hum_ph>=1) hum_ph-=1;
+float hum = sinf(hum_ph*6.2831853f)*0.6f + sinf(hum_ph*2*6.2831853f)*0.4f;  // 50/60 + 2nd harmonic
+out += (hiss_lp * hiss_amt + hum * hum_amt) * gain_track;
+```
+
+### C.2 — noise gate (new small effect: follower + threshold)
+The real-world fix that clamps the floor between notes (every high-gain rig has one). Reuses the
+envelope-follower machinery (`sound_follow_coef`) from `wah`/`note_follow`.
+```c
+void gate(float threshold, float attack_ms, float release_ms);   // master/cabinet-stage gate
+// env-follow |signal|; gain → 1 above threshold (attack), → 0 below (release). Fast release =
+// tight metal chop; slow = breathing. threshold 0 = always open (bypass, byte-identical).
+```
+**Slot question (important):** a brand-new `FX_*` insert kind is **blocked** — `FX_DRIVE = 15`
+filled the 4-bit packing, and `FX_INST` only re-instances kinds 0..15, it doesn't add new ones. So
+for v1 make the gate a **fixed master/cabinet-stage effect** (not reorderable, no `FX_*` slot) —
+which is fine, a gate almost always sits last/at the amp, not mid-chain. Only widen the packing if a
+later effect genuinely needs both a new kind *and* chain-position freedom.
+
+### Verify (Block C)
+`soundcheck` + tripwire · `--det` double-render byte-identical with noise on (proves seeding) ·
+the gate's threshold-0 path must be byte-identical to no-gate (dormant discipline) · showcase: the
+NOISE knob + gate fit naturally in `pedalboard`'s AMP cabinet.
+
+---
+
 ## Sequencing (when `sound.h` is clear, one writer at a time)
 1. **Block A — pitched/reversed grains.** Self-contained, immediate payoff, no `FX_*` slot.
 2. **Block B — the modulation kit** (helpers only, no user-facing API yet).
 3. Then the pedals that ride B, cheapest first: **Univibe → Generation Loss dropout → Shallow Water**.
-4. Later, the big one: bus pitch-shifter → **Shimmer reverb** (Primitive 2, its own spec).
+4. **Block C — amp realism** (hiss+hum NOISE knob + noise gate); the hiss reuses B's noise source.
+5. **Overdrive / Klon bus-insert pedal** — once Increment F's `drive_insert_inst` / `FX_INST` lands:
+   a distinct OVERDRIVE pedal = `FX_DRIVE` instance 1 in `pedalboard.c` (keep FUZZ per-voice).
+   No engine work beyond Increment F — it's cart + registry. See roadmap update log.
+6. Later, the big one: bus pitch-shifter → **Shimmer reverb** (Primitive 2, its own spec).
 
 ## Per-step repo checklist (unchanged from the roadmap, restated for convenience)
 4-place API wiring (`studio.h` + `sound.h` + `studioDocs.js` + `shell.js` + `gen-tcc-symbols.js`) ·

@@ -301,6 +301,8 @@ static const int DIR[4][2] = {{1,0},{0,1},{1,1},{1,-1}};
 #define VALLEY_D     (6.0f*WS)      // valley-bias: how far sideways to probe (metres)
 #define VALLEY_K     (40.0f*WS)     // ...how strongly height diff pulls the road
 #define VALLEY_MAX   (5.0f*WS)      // ...capped detour toward lower ground (metres)
+#define BEND_STEP    (1.5f*WS)      // probe step for the bend search (metres) — scales with WS so the
+                                    // loop counts stay constant (else km-long links = millions of iters → hang)
 static float lp_x[LINK_SAMPLES + 1], lp_y[LINK_SAMPLES + 1];   // last link_path() result
 static int   lp_br[LINK_SAMPLES + 1];   // per-sample: 1 = this span is a BRIDGE (over water)
 
@@ -377,7 +379,7 @@ static int link_path(float c0x, float c0y, float ax, float ay,
     }
 
     // 3. peak, or water too wide to bridge → try to BEND around it on land.
-    int steps = (int)(len / 1.5f); if (steps < 2) steps = 2;
+    int steps = (int)(len / BEND_STEP); if (steps < 2) steps = 2; if (steps > 256) steps = 256;
     float sumt = 0; int nb = 0;
     for (int s = 1; s < steps; s++) {
         float t = (float)s / steps;
@@ -386,7 +388,7 @@ static int link_path(float c0x, float c0y, float ax, float ay,
     if (!nb) return 0;
     float tc = sumt / nb, ox = ax + dx*tc, oy = ay + dy*tc;
     float clr = 0; int sgn = 0;
-    for (float off = 1.5f; off <= MAXBEND; off += 1.5f) {
+    for (float off = BEND_STEP; off <= MAXBEND; off += BEND_STEP) {
         if (passable_at(ox + perpx*off, oy + perpy*off)) { clr = off; sgn =  1; break; }
         if (passable_at(ox - perpx*off, oy - perpy*off)) { clr = off; sgn = -1; break; }
     }
@@ -409,6 +411,9 @@ static void stroke_path(int n, int r, int col, int bcol) {
     for (int i = 0; i + 1 < n; i++) {
         int c = (lp_br[i] || lp_br[i+1]) ? bcol : col;     // a span touching water = bridge
         int x0 = sxp(lp_x[i]), y0 = syp(lp_y[i]), x1 = sxp(lp_x[i+1]), y1 = syp(lp_y[i+1]);
+        int M = r + 4;                                     // skip fully off-screen spans (km links are
+        if ((x0<-M&&x1<-M)||(x0>SCREEN_W+M&&x1>SCREEN_W+M)|| // mostly off-screen at drive zoom — else we'd
+            (y0<-M&&y1<-M)||(y0>SCREEN_H+M&&y1>SCREEN_H+M)) continue;  // loop 100k+ px per span)
         int dx = x1 - x0, dy = y1 - y0;
         int seg = (int)fsqrt((float)(dx*dx + dy*dy));
         int steps = seg / (r > 0 ? r : 1); if (steps < 1) steps = 1;
@@ -425,6 +430,8 @@ static void stroke_dashes(int n) {
     int acc = 0;
     for (int i = 0; i + 1 < n; i++) {
         int x0 = sxp(lp_x[i]), y0 = syp(lp_y[i]), x1 = sxp(lp_x[i+1]), y1 = syp(lp_y[i+1]);
+        if ((x0<-4&&x1<-4)||(x0>SCREEN_W+4&&x1>SCREEN_W+4)||   // skip off-screen spans (see stroke_path)
+            (y0<-4&&y1<-4)||(y0>SCREEN_H+4&&y1>SCREEN_H+4)) continue;
         int dx = x1 - x0, dy = y1 - y0;
         int seg = (int)fsqrt((float)(dx*dx + dy*dy));
         int bridge = lp_br[i] || lp_br[i+1];

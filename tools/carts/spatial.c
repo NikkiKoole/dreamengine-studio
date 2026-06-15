@@ -1,21 +1,20 @@
 #include "studio.h"
 #include <math.h>
 
-// SPATIAL — sound that lives in the world (the v1 spatial-audio API).
+// SPATIAL — sound that lives in the world (the spatial-audio API, v1 + v2).
 //
 // You are the EAR. Move with the ARROW KEYS. Around you:
-//   • RADIO (top-right) — a held ORGAN pad washed in SHIMMER reverb. Walk
-//     around it: it pans L/R and rises/falls with distance, glassy tail and all.
+//   • RADIO (top-right) — an ORGAN pad through SHIMMER reverb, positioned as a v2
+//     EMITTER: instrument_pos() places the WHOLE effected bus, so the glassy tail
+//     pans/attenuates/Dopplers WITH the speaker — not just the dry note.
 //   • RHODES (bottom-left) — a positioned EPIANO arpeggio (one hit_at per note).
-//     A second musical source, somewhere else in the world.
-//   • CAR — drives across on a loop. Stand near its lane for the Doppler WHOOSH
-//     + L→R sweep as it blows past.
+//   • CAR — drives across on a loop (v1 per-voice note_motion). Stand near its lane
+//     for the Doppler WHOOSH + L→R sweep as it blows past.
 //   • CLICK / TAP anywhere — a one-shot blip fired AT that spot (positioned SFX).
 //
-// listener() + note_pos() + note_motion() + hit_at() do the spatial work; the
-// engine derives pan, distance-volume and Doppler from the geometry. (NB: the
-// SHIMMER wet tail lives on the master bus, so it doesn't pan with the radio —
-// that's the v1 per-voice limit; moving a whole effected mix is the v2 job.)
+// v1 (note_pos/note_motion/hit_at) positions individual voices; v2 (instrument_pos/
+// instrument_motion) positions a whole instrument's effected bus — wet tail and all.
+// The engine derives pan, distance-volume and Doppler from the geometry either way.
 
 #define SPEAKER_X 252.0f
 #define SPEAKER_Y 50.0f
@@ -44,15 +43,19 @@ void init(void) {
     instrument_harmonics(7, 0.0f);                 // EPIANO voicing 0 = Rhodes
     instrument_timbre(7, 0.45f);                   // a touch of bark/brightness
 
-    shimmer(0.85f, 0.42f, 0.5f, 0.36f);            // dreamy master wash (set ONCE)
-
     spatial_model(18.0f, 250.0f, 1.2f);            // distance falloff (reads on 320px)
     spatial_speed(420.0f);                         // Doppler tuned for a musical whoosh
     listener(px, py);
 
-    speaker_h = note_on(55, 5, 4);                 // held G organ pad
-    note_pos(speaker_h, SPEAKER_X, SPEAKER_Y);
-    car_h = note_on(36, 6, 5);                     // low engine
+    // RADIO = a v2 EMITTER. instrument_shimmer gives slot 5 its OWN bus (organ + shimmer
+    // tail); instrument_pos positions that whole bus, so the produced sound moves as one
+    // object — the wet tail pans/attenuates/Dopplers with the speaker (the thing v1 can't do).
+    // It's stationary, so position it once; it auto-reprojects as the listener moves.
+    instrument_shimmer(5, 0.85f, 0.42f, 0.55f, 0.5f);
+    instrument_pos(5, SPEAKER_X, SPEAKER_Y);
+    speaker_h = note_on(55, 5, 4);                 // held organ pad → onto slot 5's emitter bus
+
+    car_h = note_on(36, 6, 5);                     // low engine (v1 per-voice spatialization)
     note_pos(car_h, carx, CAR_Y);
 }
 

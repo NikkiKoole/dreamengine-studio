@@ -345,6 +345,7 @@ void instrument_motion(int slot, float vx, float vy);     // that bus's velocity
 void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth);  // attach LFO `which` (0..2 — a slot has 3) to a slot. dest: LFO_PITCH/DUTY/VOLUME/CUTOFF or the macro dests LFO_HARMONICS/TIMBRE/MORPH (engine voices). rate 4–8 Hz typical. depth 0 = off. Shape defaults SINE — set via lfo_shape()
 void lfo_shape(int slot, int which, int shape);   // set the WAVEFORM of a slot's LFO `which` (0..2) to an LFO_SHAPE_* (default SINE). Call alongside instrument_lfo(); persists across instrument_lfo() retunes. SH on LFO_PITCH = a random-step arp; SQUARE on LFO_CUTOFF = a stepped filter
 void note_lfo_shape(int handle, int which, int shape);   // same, for a live held note (note_on handle) — set its LFO `which` waveform to LFO_SHAPE_*
+float lfo_value(int shape, float phase);   // evaluate an LFO_SHAPE_* at phase 0..1 → -1..1 (the engine's own dispatcher). For STATELESS shapes (SINE..OPTICAL); S&H/RANDOM need per-instance state so they read as SINE here. Use it to drive your own CV / draw a waveform without re-rolling the math
 
 // resonant filter per instrument — sculpts the tone (the SID-style knob)
 #define FILTER_OFF   0

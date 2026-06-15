@@ -5787,6 +5787,14 @@ void note_lfo_shape(int handle, int which, int shape) {
     if (which < 0 || which >= SOUND_LFOS) return;
     sound_push_ctrl(SR_LFO_SHAPE, which, shape, -1, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);  // c=-1 → live note (handle in e0/e1)
 }
+// public pure helper: the engine's own LFO-shape dispatcher, so carts compute shaped CV / draw a
+// waveform without re-rolling the math (modrack's MOD_LFO, viz mirrors). Stateless shapes only —
+// S&H/RANDOM need per-instance state, so they read as SINE here (lfo_wave's default).
+float lfo_value(int shape, float phase) {
+    if (shape < 0 || shape > LFO_SHAPE_RANDOM) shape = LFO_SHAPE_SINE;
+    phase -= floorf(phase);                 // accept any phase, wrap to 0..1
+    return lfo_wave(shape, phase);
+}
 
 void instrument_filter(int slot, int mode, int cutoff_hz, int resonance) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;

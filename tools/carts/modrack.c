@@ -37,7 +37,7 @@ enum { MOD_CLOCK, MOD_LFO, MOD_SH, MOD_QUANT, MOD_VOICE, MOD_EUCLID, MOD_ENV, MO
        MOD_SEQ, MOD_VIBRATO, MOD_CHANCE, MOD_MACRO, MOD_XPOSE, MOD_MIX, MOD_CMP, MOD_DIV, MOD_ADSR,
        MOD_RVB, MOD_ECHO, MOD_DRIVE, MOD_CRUSH, MOD_SAT, MOD_WAH, MOD_VOWEL, MOD_EQ, MOD_FILT, MOD_GRAINS,
        MOD_TIDES, NTYPE };   // RVB..GRAINS = FX (see apply_master_fx). TIDES = a morphing LFO / function gen (CV)
-enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT, FMT_DIV, FMT_PCT, FMT_DRIVE };
+enum { FMT_INT, FMT_F1, FMT_SCALE, FMT_NOTE, FMT_MS, FMT_LOGIC, FMT_WAVE, FMT_FILTER, FMT_DEST, FMT_ENGINE, FMT_OCT, FMT_DIV, FMT_PCT, FMT_DRIVE, FMT_LFOSHAPE };
 
 typedef struct { int type; bool out; int dx, dy; const char *label; } JackDef;   // type: 0 gate/1 pitch/2 cv
 typedef struct { const char *label; float lo, hi, def; int dx, dy, fmt; } KnobDef;
@@ -52,7 +52,7 @@ ModType TYPES[NTYPE] = {
     [MOD_CLOCK] = { "CLOCK", CLR_ORANGE, 5, 6, 3, {{0,true,12,60,"1"},{0,true,30,60,"2"},{0,true,48,60,"4"}},
                    2, {{"bpm",60,240,112,18,30,FMT_INT},{"swg",0,0.6f,0,44,30,FMT_PCT}} },
     [MOD_LFO]   = { "LFO", CLR_PINK, 4, 6, 1, {{2,true,24,60,"cv"}},
-                   1, {{"rate",0.1f,8,0.37f,24,28,FMT_F1}} },
+                   2, {{"rate",0.1f,8,0.37f,24,26,FMT_F1},{"shp",0,5.99f,0,24,44,FMT_LFOSHAPE}} },
     [MOD_SH]    = { "S&H", CLR_YELLOW, 4, 6, 3, {{2,false,8,60,"in"},{0,false,24,60,"clk"},{2,true,40,60,"cv"}}, 0, {} },
     [MOD_QUANT] = { "QUANT", CLR_GREEN, 5, 6, 2, {{2,false,18,60,"in"},{1,true,42,60,"pit"}},
                    2, {{"scl",0,5.99f,SCALE_PENTA,18,28,FMT_SCALE},{"root",0,11.99f,0,42,28,FMT_NOTE}} },
@@ -189,7 +189,7 @@ int th(int type) { return TYPES[type].ch * CELL; }
 // one-screen help per module kind (click the module's ? to show it)
 const char *HELP[NTYPE][3] = {
     [MOD_CLOCK]  = { "Master clock. bpm sets tempo; swg drags", "every 2nd step (swing). Gate outs: /1", "every step, /2 half, /4 quarter." },
-    [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate sets speed. Patch the cv out into", "any cv input to modulate it." },
+    [MOD_LFO]    = { "Low-freq oscillator: a slow 0..1 wave.", "rate=speed, shp=shape (sin/sqr/tri/saw/", "rmp/opt). Patch cv out -> any cv in. (S&H=MOD_SH.)" },
     [MOD_SH]     = { "Sample & Hold. On each clk pulse it", "grabs the cv at 'in' and holds it until", "the next clk -> a stepped, random-ish cv." },
     [MOD_QUANT]  = { "Quantizer. Snaps any cv to the nearest", "note of a scale (scl/root) so it's always", "in key. cv in -> pitch out." },
     [MOD_VOICE]  = { "Voice. g=gate p=pitch; f/r/w/a CV =", "cutoff/res/pw/amp. Patch an ENV into 'a' for", "a percussive VCA. fenv/penv/denv = flt/pitch/PWM punch." },
@@ -951,7 +951,9 @@ void eval_mod(int mi) {
         case MOD_LFO:
             m->state[0] += m->param[0] * dt();
             if (m->state[0] >= 1.0f) m->state[0] -= 1.0f;
-            m->jackval[0] = (sin_deg(m->state[0] * 360.0f) + 1.0f) * 0.5f;
+            // shp picks the waveform via the engine's own dispatcher (sin/sqr/tri/saw/rmp/opt);
+            // S&H lives in the dedicated MOD_SH module. -1..1 → 0..1 CV.
+            m->jackval[0] = (lfo_value((int)m->param[1], m->state[0]) + 1.0f) * 0.5f;
             break;
         case MOD_SH: {
             float clk = read_in(mi, 1);
@@ -1498,6 +1500,7 @@ const char *knob_str(int fmt, float v) {
     if (fmt == FMT_DEST)  { const char *D[7] = { "pit", "cut", "pw", "vol", "har", "tmb", "mor" }; return D[(int)clamp(v, 0, 6)]; }   // har/tmb/mor = engine macros (MACRO voice only)
     if (fmt == FMT_ENGINE){ const char *E[14] = { "plk", "mlt", "fm", "org", "ep", "pd", "mem", "reed", "pipe", "vox", "gtr", "pno", "bow", "brs" }; return E[(int)clamp(v, 0, 13)]; }   // all 14 modeled engines
     if (fmt == FMT_DRIVE) { const char *D[4] = { "sft", "hrd", "fld", "asy" }; return D[(int)clamp(v, 0, 3)]; }   // DRIVE_SOFT/HARD/FOLD/ASYM waveshaper
+    if (fmt == FMT_LFOSHAPE) { const char *S[6] = { "sin", "sqr", "tri", "saw", "rmp", "opt" }; return S[(int)clamp(v, 0, 5)]; }   // LFO_SHAPE_* (stateless; S&H = the MOD_SH module)
     if (fmt == FMT_OCT)   { int o = (int)floorf(v + 0.5f); return o == 0 ? "0" : str("%+d", o); }          // snapped whole octaves
     if (fmt == FMT_DIV)   return str("/%d", (int)v);                                                       // clock division
     if (fmt == FMT_SCALE) return SCALES[(int)v];

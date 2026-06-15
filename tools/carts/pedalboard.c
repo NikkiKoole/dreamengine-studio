@@ -325,13 +325,13 @@ static void apply_fx(void) {
             case C_PHA: phaser(0.1f + k[0] * 9.9f, k[1], (k[2]-0.5f) * 1.8f, act ? k[3] : 0.0f, 4); break;
             case C_FLG: flanger(0.05f + k[0] * 4.95f, k[1], k[2] * 0.95f, act ? k[3] : 0.0f); break;
             case C_TAP: tape(act ? k[0] : 0.0f, act ? k[1] : 0.0f, act ? k[2] : 0.0f); break;
-            case C_TRM: tremolo(0.5f + k[0] * 11.5f, act ? k[1] : 0.0f, (int)(k[2] * 2.99f)); break;
+            case C_TRM: tremolo(0.5f + k[0] * 11.5f, act ? k[1] : 0.0f, (int)(k[2] * 7.99f)); break;   // WAV picks any LFO_SHAPE_* (8)
             case C_WAH: if ((int)(k[3] * 1.99f)) wah_lfo(0.5f + k[0] * 9.5f, k[1], act ? k[2] : 0.0f);  // LFO: SNS knob = rate 0.5..10 Hz
                         else                     wah(k[0], k[1], act ? k[2] : 0.0f);                    // ENV: dynamics-driven follower
                         break;
             case C_RVB: reverb_insert(0.2f + k[0] * 0.78f, k[1], act ? k[2] : 0.0f); break;   // a real in-line dry/wet reverb pedal
             case C_FMT: { float v = (idx >= 0) ? fmt_live_vowel(&chain[idx]) : k[0]; formant(v, k[1], act ? k[2] : 0.0f); fmt_last_v = v; } break;
-            case C_PAN: autopan(0.5f + k[0] * 11.5f, act ? k[1] : 0.0f, (int)(k[2] * 2.99f)); break;
+            case C_PAN: autopan(0.5f + k[0] * 11.5f, act ? k[1] : 0.0f, (int)(k[2] * 7.99f)); break;   // WAV picks any LFO_SHAPE_* (8)
             case C_FIL: { static const int FM[4] = { FILTER_LOW, FILTER_HIGH, FILTER_BAND, FILTER_NOTCH };  // CUT exp 40..18k Hz, MOD picks the mode, off = bypass
                           filter(act ? FM[(int)(k[2] * 3.99f)] : FILTER_OFF, 40.0f * powf(450.0f, k[0]), k[1]); } break;
             case C_RNG: ringmod(20.0f * powf(150.0f, k[0]), act ? k[1] : 0.0f); break;  // FRQ exp 20..3000 Hz

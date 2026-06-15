@@ -882,6 +882,11 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     filters; and ten game/ambient beds whose cutoff LFO was a mechanical sine now use `LFO_SHAPE_RANDOM`
     for organic drift (`hotline`, `neonrain`, `masseffect`, `podracer`, `dune`, `dwarffort`,
     `dungeonkeeper`, `turfwar`, `wildfire`, `zoo` — wind/fire/cavern/engine-and-animal roars).
+    Round two (2026-06-15): `pedalboard`'s TREMOLO + AUTOPAN pedals expose all 8 shapes on their WAV
+    knob; `modrack`'s `MOD_LFO` gained a `shp` knob (sin/sqr/tri/saw/rmp/opt — S&H stays the `MOD_SH`
+    module). To make "reuse the dispatcher" literal, a public **`lfo_value(shape, phase)`** now exposes
+    the engine's stateless shape math so carts compute shaped CV / draw waveforms without re-rolling it
+    (modrack's `MOD_LFO` uses it; the hand-rolled mirrors in `lfoshapes`/`22-filter` are candidates to DRY).
     Original context (the three disconnected places this unified) below for the record:
     - the main LFO system (`instrument_lfo`/`note_lfo`, driving `LFO_PITCH`/`CUTOFF`/macro dests) is
       **sine-only** — no shape param (`sinf(lfo_phase·2π)` in `sound.h`); the one place shape would be

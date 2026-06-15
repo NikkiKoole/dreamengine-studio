@@ -4,56 +4,55 @@
 // SPATIAL — sound that lives in the world (the spatial-audio API, v1 + v2).
 //
 // You are the EAR. Move with the ARROW KEYS. Around you:
-//   • RADIO (top-right) — an ORGAN pad through SHIMMER reverb, positioned as a v2
-//     EMITTER: instrument_pos() places the WHOLE effected bus, so the glassy tail
-//     pans/attenuates/Dopplers WITH the speaker — not just the dry note.
+//   • UFO (upper lane) — a SUSTAINED tone through SHIMMER reverb, positioned as a v2
+//     EMITTER. Because it's continuous, you hear the Doppler bend the pitch through the
+//     WHOLE pass (a clear rising→falling sweep), and the glassy shimmer tail sweeps with
+//     it — the whole effected source moves as one object (instrument_pos/instrument_motion).
+//   • CAR (lower lane) — a raw engine tone positioned per-voice (v1 note_motion): the
+//     simpler whoosh, for contrast.
 //   • RHODES (bottom-left) — a positioned EPIANO arpeggio (one hit_at per note).
-//   • CAR — drives across on a loop (v1 per-voice note_motion). Stand near its lane
-//     for the Doppler WHOOSH + L→R sweep as it blows past.
 //   • CLICK / TAP anywhere — a one-shot blip fired AT that spot (positioned SFX).
 //
 // v1 (note_pos/note_motion/hit_at) positions individual voices; v2 (instrument_pos/
 // instrument_motion) positions a whole instrument's effected bus — wet tail and all.
-// The engine derives pan, distance-volume and Doppler from the geometry either way.
 
-#define SPEAKER_X 252.0f
-#define SPEAKER_Y 50.0f
-#define RHODES_X  46.0f
-#define RHODES_Y  158.0f
-#define CAR_Y     112.0f
-#define CAR_SPEED 2.6f            // px/frame  (×60 = world units/sec for Doppler)
+#define UFO_Y      58.0f
+#define UFO_SPEED  2.4f          // px/frame  (×60 = world units/sec for Doppler)
+#define CAR_Y      124.0f
+#define CAR_SPEED  2.6f
+#define RHODES_X   46.0f
+#define RHODES_Y   162.0f
 
 static float px, py, ppx, ppy;   // the player == the listener (+ previous, for velocity)
-static float carx;
-static int   speaker_h, car_h;   // held-note handles
+static float ufox, carx;
+static int   ufo_h, car_h;       // held-note handles
 static int   arp_t, arp_i;       // rhodes arpeggio clock
 static int   blip_x = -1, blip_y = -1, blip_t = 0;
 
-// a lush, slightly bluesy rhodes loop (Em9-ish → up and back down)
-static const int ARP[] = { 52, 55, 59, 62, 66, 62, 59, 55 };
+static const int ARP[] = { 52, 55, 59, 62, 66, 62, 59, 55 };   // Em9-ish rhodes
 
 void init(void) {
-    px = SCREEN_W * 0.42f; py = SCREEN_H * 0.52f;
+    px = SCREEN_W * 0.5f; py = SCREEN_H * 0.52f;
     ppx = px; ppy = py;
-    carx = 92.0f;
+    ufox = 70.0f; carx = 150.0f;
 
-    instrument(5, INSTR_ORGAN,  10, 0, 6, 160);   // radio: a held organ pad
-    instrument(6, INSTR_SAW,     4, 0, 6,  40);    // car engine rumble
-    instrument(7, INSTR_EPIANO,  2, 0, 0, 700);    // rhodes (struck, rings down)
+    instrument(5, INSTR_SINE, 120, 0, 7, 400);     // UFO: a pure sustained tone
+    instrument(6, INSTR_SAW,    4, 0, 6,  40);     // car engine rumble
+    instrument(7, INSTR_EPIANO, 2, 0, 0, 700);     // rhodes (struck, rings down)
     instrument_harmonics(7, 0.0f);                 // EPIANO voicing 0 = Rhodes
-    instrument_timbre(7, 0.45f);                   // a touch of bark/brightness
+    instrument_timbre(7, 0.45f);
 
-    spatial_model(18.0f, 250.0f, 1.2f);            // distance falloff (reads on 320px)
+    spatial_model(18.0f, 260.0f, 1.2f);            // distance falloff (reads on 320px)
     spatial_speed(420.0f);                         // Doppler tuned for a musical whoosh
     listener(px, py);
 
-    // RADIO = a v2 EMITTER. instrument_shimmer gives slot 5 its OWN bus (organ + shimmer
-    // tail); instrument_pos positions that whole bus, so the produced sound moves as one
-    // object — the wet tail pans/attenuates/Dopplers with the speaker (the thing v1 can't do).
-    // It's stationary, so position it once; it auto-reprojects as the listener moves.
-    instrument_shimmer(5, 0.85f, 0.42f, 0.55f, 0.5f);
-    instrument_pos(5, SPEAKER_X, SPEAKER_Y);
-    speaker_h = note_on(55, 5, 4);                 // held organ pad → onto slot 5's emitter bus
+    // UFO = a v2 EMITTER carrying SHIMMER. instrument_shimmer gives slot 5 its own bus
+    // (tone + glassy tail); instrument_pos/_motion (in update) fly that whole bus past the
+    // listener, so the produced sound — wet tail included — Dopplers and pans as one object.
+    instrument_shimmer(5, 0.85f, 0.40f, 0.70f, 0.55f);
+    instrument_pos(5, ufox, UFO_Y);                // claim the bus + place it
+    ufo_h = note_on(72, 5, 5);                     // a held tone → into slot 5's shimmer bus
+    note_lfo(ufo_h, 0, LFO_PITCH, 5.5f, 0.4f);     // gentle vibrato — alive, but steady enough to read the Doppler
 
     car_h = note_on(36, 6, 5);                     // low engine (v1 per-voice spatialization)
     note_pos(car_h, carx, CAR_Y);
@@ -72,18 +71,20 @@ void update(void) {
     listener(px, py);
     listener_vel((px - ppx) * 60.0f, (py - ppy) * 60.0f);
 
-    // car loops left→right; position + velocity → it Dopplers as it passes
+    // UFO (v2): fly the whole shimmer bus across — position + velocity each frame
+    ufox += UFO_SPEED;
+    if (ufox > SCREEN_W + 30) ufox = -30.0f;
+    instrument_pos(5, ufox, UFO_Y);
+    instrument_motion(5, UFO_SPEED * 60.0f, 0.0f);
+
+    // CAR (v1): per-voice positioned engine, Dopplers as it passes
     carx += CAR_SPEED;
     if (carx > SCREEN_W + 24) carx = -24.0f;
     note_pos(car_h, carx, CAR_Y);
     note_motion(car_h, CAR_SPEED * 60.0f, 0.0f);
 
-    // rhodes arpeggio — a positioned one-shot per note, at the rhodes emitter
-    if (++arp_t >= 30) {                            // ~0.5s/step
-        arp_t = 0;
-        hit_at(ARP[arp_i & 7], 7, 5, 650, RHODES_X, RHODES_Y);
-        arp_i++;
-    }
+    // RHODES (v1): a positioned one-shot per arp note
+    if (++arp_t >= 30) { arp_t = 0; hit_at(ARP[arp_i & 7], 7, 5, 650, RHODES_X, RHODES_Y); arp_i++; }
 
     // positioned one-shot at the cursor / finger
     int fired = 0, mx = 0, my = 0;
@@ -93,11 +94,8 @@ void update(void) {
     if (blip_t > 0) blip_t--;
 
 #ifdef DE_TRACE
-    float dx = SPEAKER_X - px, dy = SPEAKER_Y - py;
-    float d = sqrtf(dx*dx + dy*dy);
-    watch("radio_dist", "%.0f", d);
-    watch("radio_pan",  "%.2f", d > 0.1f ? dx / d : 0.0f);
-    watch("carx",       "%.0f", carx);
+    watch("ufox", "%.0f", ufox);
+    watch("carx", "%.0f", carx);
 #endif
 }
 
@@ -114,25 +112,27 @@ void draw(void) {
 
     for (int gx = 0; gx <= SCREEN_W; gx += 32) line(gx, 12, gx, SCREEN_H, CLR_DARK_GREY);
     for (int gy = 24; gy <= SCREEN_H; gy += 32) line(0, gy, SCREEN_W, gy, CLR_DARK_GREY);
-
-    // car + lane
+    line(0, (int)UFO_Y, SCREEN_W, (int)UFO_Y, CLR_DARKER_GREY);
     line(0, (int)CAR_Y, SCREEN_W, (int)CAR_Y, CLR_DARKER_GREY);
+
+    // UFO — the shimmer emitter: a saucer (dome + hull) with running lights
+    emitter(ufox, UFO_Y, CLR_PINK, 5);
+    ovalfill((int)ufox, (int)UFO_Y + 1, 11, 3, CLR_INDIGO);   // hull (center, half-extents)
+    ovalfill((int)ufox, (int)UFO_Y - 2, 5, 4, CLR_PINK);      // dome
+    pset((int)ufox - 7, (int)UFO_Y + 1, CLR_WHITE);
+    pset((int)ufox + 7, (int)UFO_Y + 1, CLR_WHITE);
+
+    // CAR — v1 engine (orange)
     emitter(carx, CAR_Y, CLR_ORANGE, 13);
     rectfill((int)carx - 7, (int)CAR_Y - 4, 14, 8, CLR_ORANGE);
     rectfill((int)carx - 4, (int)CAR_Y - 7, 8, 5, CLR_RED);
 
-    // radio speaker (organ + shimmer)
-    emitter(SPEAKER_X, SPEAKER_Y, CLR_GREEN, 0);
-    rectfill((int)SPEAKER_X - 5, (int)SPEAKER_Y - 6, 10, 12, CLR_GREEN);
-    circfill((int)SPEAKER_X, (int)SPEAKER_Y, 3, CLR_DARK_BLUE);
-
-    // rhodes emitter — a little keyboard, flashes on each arp note
+    // RHODES — v1 hit_at arpeggio (green keys, flash on a note)
     int hot = (arp_t < 6);
-    emitter(RHODES_X, RHODES_Y, CLR_INDIGO, 9);
-    rectfill((int)RHODES_X - 8, (int)RHODES_Y - 4, 16, 8, hot ? CLR_PINK : CLR_INDIGO);
+    emitter(RHODES_X, RHODES_Y, CLR_GREEN, 9);
+    rectfill((int)RHODES_X - 8, (int)RHODES_Y - 4, 16, 8, hot ? CLR_WHITE : CLR_GREEN);
     for (int k = -6; k <= 6; k += 3) line((int)RHODES_X + k, (int)RHODES_Y - 4, (int)RHODES_X + k, (int)RHODES_Y + 3, CLR_DARK_BLUE);
 
-    // the one-shot ping
     if (blip_t > 0) circ(blip_x, blip_y, 18 - blip_t, CLR_YELLOW);
 
     // the listener (you): a head with two ears
@@ -141,5 +141,5 @@ void draw(void) {
     circfill((int)px + 5, (int)py, 2, CLR_LIGHT_GREY);
 
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
-    print("SPATIAL  arrows=move  click=blip", 4, 2, CLR_WHITE);
+    print("SPATIAL  arrows=move  UFO=shimmer doppler", 4, 2, CLR_WHITE);
 }

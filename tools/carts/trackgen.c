@@ -462,7 +462,7 @@ void update(void) {
     for (int i = 0; i < MAXSKID; i++) if (S->skid[i].life > 0) S->skid[i].life--;
 
     note_pitch(S->eng, 30.0f + (as / MAX_SPD) * 22.0f - (S->offtrack ? 7.0f : 0.0f));
-    note_vol(S->eng, (int)(as / MAX_SPD * 3.0f + 0.5f));
+    note_vol(S->eng, as / MAX_SPD * 3.0f);
 
 #ifdef DE_TRACE
     watch("c", "style=%d seed=%u nc=%d prog=%d cp=%d lap=%d off=%d a=%.0f s=%.2f",

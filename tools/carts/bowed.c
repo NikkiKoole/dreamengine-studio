@@ -225,7 +225,7 @@ void update(void) {
         rub[s] *= 0.94f;
         if (rub[s] > 1.3f) rub[s] = 1.3f;
         float e = clamp(rub[s], 0.0f, 1.0f);
-        note_vol(hnd[s], (int)(e * 7.0f + 0.5f));
+        note_vol(hnd[s], e * 7.0f);
         float dig = clamp((rub[s] - 0.9f) / 0.4f, 0.0f, 1.0f);   // over-rubbing → over-bowing
         note_timbre(hnd[s], clamp(knob[1] + dig * 0.45f, 0.0f, 1.0f));
         note_morph (hnd[s], clamp(knob[2] + dig * 0.30f, 0.0f, 1.0f));

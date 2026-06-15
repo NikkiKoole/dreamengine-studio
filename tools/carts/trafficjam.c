@@ -560,7 +560,7 @@ void update(void) {
     if (soundOn && engine >= 0) {
         float mv = 0; for (int i = 0; i < ncars; i++) mv += cars[i].v;
         mv = clamp(mv / (ncars * 35.0f + 1), 0, 1);
-        note_vol(engine, 1 + (int)(mv * 3));
+        note_vol(engine, 1.0f + mv * 3.0f);
         note_cutoff(engine, 300 + (int)(mv * 900));
     }
 

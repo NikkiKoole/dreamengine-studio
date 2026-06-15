@@ -153,7 +153,7 @@ static void push_live(void) {
         } else {                                              // closing the bell, swept live (drag it = wah)
             note_filter(h[i], FILTER_LOW);
             note_cutoff(h[i], (int)mute_cut());
-            note_res(h[i], (int)mute_res());
+            note_res(h[i], mute_res());
         }
     }
 }

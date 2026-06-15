@@ -993,9 +993,9 @@ void eval_mod(int mi) {
                 note_pitch(h, pitch < 1 ? 48.0f : pitch);                                     // track pitch CV every frame (enables live vibrato, bends)
                 note_filter(h, 1 + (int)clamp(m->param[VK_FLT], 0, 3));                      // lp/hp/bp/nt
                 note_cutoff(h, (int)m->state[2]);
-                note_res(h, (int)clamp(m->param[VK_RES] + read_in(mi, 3) * 15.0f, 0, 15));
+                note_res(h, clamp(m->param[VK_RES] + read_in(mi, 3) * 15.0f, 0, 15));
                 note_duty(h, clamp(m->param[VK_PW] + read_in(mi, 4) * 0.5f, 0.05f, 0.95f));
-                if (amp_cv) note_vol(h, (int)(clamp(read_in(mi, 5), 0, 1) * 7.0f + 0.5f));
+                if (amp_cv) note_vol(h, clamp(read_in(mi, 5), 0, 1) * 7.0f);
                 // vb jack (6): if patched to a VIBE, read its params and apply audio-rate LFO
                 int vc = cable_into(mi, 6);
                 if (vc >= 0 && mod[cable[vc].sm].type == MOD_VIBRATO && mod[cable[vc].sm].jackval[1] > 0.5f) {

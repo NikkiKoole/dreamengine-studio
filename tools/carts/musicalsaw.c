@@ -55,7 +55,7 @@ void update(void) {
     wobble   = lerp(wobble,   down ? fabsf(vy) : 0, 0.30f);
 
     float vol01 = clamp(bow_spd / 9.0f, 0, 1);
-    note_vol(voice, (int)(vol01 * 7 + 0.5f));
+    note_vol(voice, vol01 * 7.0f);
 
     // up/down flexes the blade; the curvature IS the pitch
     float raw_bend = CY - my;                           // + above centre

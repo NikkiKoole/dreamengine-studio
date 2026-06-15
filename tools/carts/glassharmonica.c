@@ -55,7 +55,7 @@ void update(void) {
         // slow attack, even slower release — the glass-harmonica swell
         float rate = (target > level[i]) ? 0.06f : 0.03f;
         level[i] = lerp(level[i], target, rate);
-        if (handle[i] >= 0) note_vol(handle[i], (int)(level[i] * 7 + 0.5f));
+        if (handle[i] >= 0) note_vol(handle[i], level[i] * 7.0f);
     }
 }
 

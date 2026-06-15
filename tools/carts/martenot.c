@@ -243,7 +243,7 @@ void update(void) {
     note_pitch(twinV, curMidi);   note_vol(twinV, v);   note_cutoff(twinV, cut);
     note_lfo(mainV, 0, LFO_PITCH, 6.2f, vib);
     note_lfo(twinV, 0, LFO_PITCH, 5.6f, vib * 0.9f);              // different rate = richer beating
-    note_vol(souffleV, stop_on[ST_SOUFFLE] ? (int)(intens * 5 + 0.5f) : 0);
+    note_vol(souffleV, stop_on[ST_SOUFFLE] ? intens * 5.0f : 0.0f);
 }
 
 // ---- drawing ------------------------------------------------------------------

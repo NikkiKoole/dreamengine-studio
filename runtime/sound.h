@@ -135,6 +135,12 @@ typedef struct {
     float  pan, pan_target;        // stereo pan (current + slew target, same machinery — note_pan); -1..1, 0 = center
     int    instr_slot;             // instrument slot this voice was started from (for choke matching)
     float  last_outL, last_outR;   // this voice's previous PANNED contribution per channel — feeds the steal-declick tail
+    // spatial audio (spatial.md): world position + velocity → pan/gain/Doppler. sp_on=false →
+    // sp_gain=1 & doppler_mul=1 (true bypass), so a non-positioned voice is byte-identical.
+    bool   sp_on;                  // positioned in the world (note_pos/hit_at)
+    float  sp_x, sp_y, sp_vx, sp_vy;            // world position + velocity (units, units/sec)
+    float  sp_gain, sp_gain_target;             // distance attenuation (current + slew target); 1 = bypass
+    float  doppler_mul, doppler_target;         // Doppler pitch factor (current + slew target); 1 = bypass
     // Karplus-Strong string state (INSTR_PLUCK): a write head + a FRACTIONAL read tap.
     // Pitch = the tap distance, recomputed every sample from freq*pitch_mul — so vibrato,
     // pitch envelopes, note_pitch and note_glide all bend the string live.
@@ -1737,6 +1743,13 @@ typedef enum {
     SR_GATE          = 99,   // a=threshold*1000, b=attack_ms, c=release_ms — THE master noise gate (bus 0)
     SR_INSTR_GATE    = 100,  // a=slot, b=threshold*1000, c=attack_ms, e0=release_ms — noise gate on one instrument (auto-bus)
     SR_SHIMMER       = 101,  // a=size*1000, b=damp*1000, c=shimmer*1000, e0=mix*1000 — THE master shimmer reverb (octave-up feedback)
+    SR_LISTENER      = 102,  // a=x*1000, b=y*1000 — spatial listener (ears) position (spatial.md)
+    SR_LISTENER_VEL  = 103,  // a=vx*1000, b=vy*1000 — listener velocity for Doppler
+    SR_SPATIAL_MODEL = 104,  // a=ref*1000, b=max*1000, c=rolloff*1000 — distance-falloff model
+    SR_SPATIAL_SPEED = 105,  // a=c*1000 — speed of sound (units/sec); 0 = Doppler off
+    SR_NOTE_POS      = 106,  // a=x*1000, b=y*1000, e0/e1=handle — place a held voice in the world
+    SR_NOTE_MOTION   = 107,  // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity (Doppler)
+    SR_HIT_AT        = 108,  // a=midi, b=instr, c=vol, e0=gate_samples, e1=x*1000, e2=y*1000 — positioned one-shot
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -4041,6 +4054,50 @@ static void sound_begin_release(Voice *v) {
     v->held             = false;             // no longer modulatable
 }
 
+// ── spatial audio (spatial.md): listener + per-source geometry → pan, distance-gain, Doppler.
+// Dormant until listener()/note_pos()/hit_at(); a voice with sp_on=false keeps sp_gain=1 and
+// doppler_mul=1 (true bypass), so a cart that never positions a sound is byte-identical. ─────────
+static float g_listener_x  = 0.0f, g_listener_y  = 0.0f;   // ears position (world units)
+static float g_listener_vx = 0.0f, g_listener_vy = 0.0f;   // ears velocity (units/sec) for Doppler
+static float g_spatial_ref     = 24.0f;    // full volume within this distance
+static float g_spatial_max     = 400.0f;   // silent beyond this distance
+static float g_spatial_rolloff = 1.0f;     // falloff steepness
+static float g_spatial_c       = 340.0f;   // speed of sound (units/sec); 0 = Doppler off
+
+// Recompute one positioned voice's pan_target / sp_gain_target / doppler_target from the
+// listener. Pure geometry, called per request (per frame) — never per sample.
+static void spatial_recompute(Voice *v) {
+    if (!v->sp_on) { v->sp_gain_target = 1.0f; v->doppler_target = 1.0f; return; }
+    float dx = v->sp_x - g_listener_x, dy = v->sp_y - g_listener_y;
+    float d  = sqrtf(dx*dx + dy*dy);
+    // distance gain — OpenAL inverse-distance clamped, culled to 0 past max
+    if (d >= g_spatial_max) v->sp_gain_target = 0.0f;
+    else {
+        float dc = d < g_spatial_ref ? g_spatial_ref : d;
+        float g  = g_spatial_ref / (g_spatial_ref + g_spatial_rolloff * (dc - g_spatial_ref));
+        v->sp_gain_target = g < 0.0f ? 0.0f : g > 1.0f ? 1.0f : g;
+    }
+    // pan — sine of the bearing angle: (sx-lx)/distance, naturally in [-1,1]
+    float p = d > 0.0001f ? (dx / d) : 0.0f;
+    v->pan_target = p < -1.0f ? -1.0f : p > 1.0f ? 1.0f : p;
+    // Doppler — radial relative velocity along the listener→source axis (positive = receding)
+    if (g_spatial_c > 0.0f && d > 0.0001f) {
+        float rvx = v->sp_vx - g_listener_vx, rvy = v->sp_vy - g_listener_vy;
+        float vr  = (rvx*dx + rvy*dy) / d;          // dot(relvel, unit(source−listener))
+        float lim = -0.9f * g_spatial_c;            // avoid blow-up as vr → −c
+        if (vr < lim) vr = lim;
+        v->doppler_target = g_spatial_c / (g_spatial_c + vr);
+    } else {
+        v->doppler_target = 1.0f;
+    }
+}
+
+// Re-sweep every positioned voice — called when the listener (pos/vel/model/speed) changes.
+static void spatial_recompute_all(void) {
+    for (int i = 0; i < SOUND_VOICES; i++)
+        if (voices[i].active && voices[i].sp_on) spatial_recompute(&voices[i]);
+}
+
 // Shared note setup for both one-shot note() (kind 2) and held note_on() — copies the
 // instrument's timbre/ADSR/LFO/filter into the voice. gate_samples = the gated length
 // (SOUND_HELD_GATE for a sustained note_on; a finite count for a one-shot).
@@ -4102,6 +4159,10 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->bus  = ins->fx_bus;
     v->pan  = v->pan_target  = ins->pan;
     v->last_outL = v->last_outR = 0.0f;
+    v->sp_on = false;                                  // spatial off until note_pos()/hit_at()
+    v->sp_x = v->sp_y = v->sp_vx = v->sp_vy = 0.0f;
+    v->sp_gain = v->sp_gain_target = 1.0f;             // distance-gain bypass
+    v->doppler_mul = v->doppler_target = 1.0f;         // Doppler bypass
     v->ks_len = 0;
     v->md_on  = false;
     v->org_on = false;
@@ -4727,6 +4788,45 @@ static void sound_fire_req(SoundReq r) {
         }
     } else if (r.kind == SR_PAN_LAW) {      // a=law (PAN_LINEAR/PAN_POWER)
         g_pan_law = (r.a == PAN_POWER) ? PAN_POWER : PAN_LINEAR;
+    } else if (r.kind == SR_LISTENER) {        // a=x*1000, b=y*1000 — the listener (ears) position
+        g_listener_x = r.a / 1000.0f; g_listener_y = r.b / 1000.0f;
+        spatial_recompute_all();
+    } else if (r.kind == SR_LISTENER_VEL) {    // a=vx*1000, b=vy*1000 — listener velocity (Doppler)
+        g_listener_vx = r.a / 1000.0f; g_listener_vy = r.b / 1000.0f;
+        spatial_recompute_all();
+    } else if (r.kind == SR_SPATIAL_MODEL) {   // a=ref*1000, b=max*1000, c=rolloff*1000
+        g_spatial_ref = r.a / 1000.0f; if (g_spatial_ref < 0.0f) g_spatial_ref = 0.0f;
+        g_spatial_max = r.b / 1000.0f; if (g_spatial_max < g_spatial_ref + 0.001f) g_spatial_max = g_spatial_ref + 0.001f;
+        g_spatial_rolloff = r.c / 1000.0f; if (g_spatial_rolloff < 0.0f) g_spatial_rolloff = 0.0f;
+        spatial_recompute_all();
+    } else if (r.kind == SR_SPATIAL_SPEED) {   // a=c*1000 — speed of sound; 0 = Doppler off
+        g_spatial_c = r.a / 1000.0f; if (g_spatial_c < 0.0f) g_spatial_c = 0.0f;
+        spatial_recompute_all();
+    } else if (r.kind == SR_NOTE_POS) {        // a=x*1000, b=y*1000, e0/e1=handle — place a held voice
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) { v->sp_on = true; v->sp_x = r.a / 1000.0f; v->sp_y = r.b / 1000.0f; spatial_recompute(v); }
+    } else if (r.kind == SR_NOTE_MOTION) {     // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) { v->sp_on = true; v->sp_vx = r.a / 1000.0f; v->sp_vy = r.b / 1000.0f; spatial_recompute(v); }
+    } else if (r.kind == SR_HIT_AT) {          // a=midi, b=instr, c=vol, e0=gate, e1=x*1000, e2=y*1000
+        int gate = r.e0 > 0 ? r.e0 : SOUND_SAMPLE_RATE / 4;
+        uint32_t cmask = (r.b >= 0 && r.b < SOUND_INSTR_SLOTS) ? instr_bank[r.b].choke_mask : 0;
+        if (cmask) {
+            for (int i = 0; i < SOUND_VOICES; i++) {
+                if (voices[i].active && ((cmask >> voices[i].instr_slot) & 1)) {
+                    if (voices[i].held && voices[i].owner_slot >= 0) held_voice[voices[i].owner_slot] = -1;
+                    steal_tailL += voices[i].last_outL; steal_tailR += voices[i].last_outR;
+                    voices[i].active = false;
+                }
+            }
+        }
+        Voice *v = &voices[sound_find_voice()];
+        sound_setup_note(v, r.a, r.b, r.c, gate);
+        v->sp_on = true; v->sp_x = r.e1 / 1000.0f; v->sp_y = r.e2 / 1000.0f;
+        spatial_recompute(v);
+        v->pan = v->pan_target;                 // snapshot: snap pan/gain/Doppler (no slew-in for a blip)
+        v->sp_gain = v->sp_gain_target;
+        v->doppler_mul = v->doppler_target;
     }
 }
 
@@ -4795,6 +4895,8 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->eko        += (v->eko_target    - v->eko)        * 0.002f;   // echo send (note_echo)
                 v->rvb        += (v->rvb_target    - v->rvb)        * 0.002f;   // reverb send (note_reverb)
                 v->pan        += (v->pan_target    - v->pan)        * 0.002f;   // stereo pan (note_pan) — anti-zipper slew
+                v->sp_gain     += (v->sp_gain_target - v->sp_gain)    * 0.003f;  // spatial distance-gain — anti-zipper slew (1→1 = no-op)
+                v->doppler_mul += (v->doppler_target - v->doppler_mul)* 0.003f;  // spatial Doppler pitch — anti-zipper slew (1→1 = no-op)
             }
 
             // step advance? (SFX walk their step list; one-shots fall through to ADSR release)
@@ -4877,6 +4979,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 // so ringing voices — scheduled arp/seq hits included — bend with the knob
                 if (v->instr_slot >= 0 && v->instr_slot < SOUND_INSTR_SLOTS)
                     pitch_mul *= instr_bank[v->instr_slot].tune_mul;
+                pitch_mul *= v->doppler_mul;   // spatial Doppler (note_motion/hit_at); 1.0 = bypass
             }
 
             // engine fork: wavetable oscillators below INSTR_ENGINE_BASE, modeled engines at/above
@@ -4943,7 +5046,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->drv_dc_x1 = dcin;
                 v->drv_dc_y1 = s;
             }
-            float contrib = s * v->vol * env * trem * 0.2f;
+            float contrib = s * v->vol * env * trem * v->sp_gain * 0.2f;   // sp_gain = 1.0 = byte-identical bypass
             // stereo pan (stereo.md): clamp the slewed base pan + any LFO_PAN offset to [-1,1],
             // then split into L/R gains by the master pan law.
             float pan = v->pan + pan_mod;
@@ -5353,6 +5456,33 @@ void instrument_pan(int slot, float pan) {
 void note_pan(int handle, float pan) {
     if (handle <= 0) return;
     sound_push_ctrl(SR_NOTE_PAN, (int)(pan * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
+// ── spatial audio (spatial.md): a listener + positioned sources → automatic pan/distance/Doppler ──
+void listener(float x, float y) {
+    sound_push_ctrl(SR_LISTENER, (int)(x * 1000.0f), (int)(y * 1000.0f), 0, 0, 0, 0);
+}
+void listener_vel(float vx, float vy) {
+    sound_push_ctrl(SR_LISTENER_VEL, (int)(vx * 1000.0f), (int)(vy * 1000.0f), 0, 0, 0, 0);
+}
+void spatial_model(float ref_dist, float max_dist, float rolloff) {
+    sound_push_ctrl(SR_SPATIAL_MODEL, (int)(ref_dist * 1000.0f), (int)(max_dist * 1000.0f), (int)(rolloff * 1000.0f), 0, 0, 0);
+}
+void spatial_speed(float c) {
+    sound_push_ctrl(SR_SPATIAL_SPEED, (int)(c * 1000.0f), 0, 0, 0, 0, 0);
+}
+void note_pos(int handle, float x, float y) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_POS, (int)(x * 1000.0f), (int)(y * 1000.0f), 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+void note_motion(int handle, float vx, float vy) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_MOTION, (int)(vx * 1000.0f), (int)(vy * 1000.0f), 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+void hit_at(int midi, int instr, int vol, int dur_ms, float x, float y) {
+    int dur = (dur_ms * SOUND_SAMPLE_RATE) / 1000;
+    if (dur < 1) dur = 1;
+    sound_push_ctrl(SR_HIT_AT, midi, instr, vol, dur, (int)(x * 1000.0f), (int)(y * 1000.0f));
 }
 
 void pan_law(int law) {

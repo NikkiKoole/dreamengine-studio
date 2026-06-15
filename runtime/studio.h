@@ -319,6 +319,16 @@ void instrument_pan(int slot, float pan);                 // stereo position for
 #define PAN_POWER   1   // constant-power — center is -3dB; equal perceived loudness right across the sweep (smoother, more pronounced motion)
 void pan_law(int law);                                    // pick the stereo pan law: PAN_LINEAR (default) or PAN_POWER. only matters when sounds actually pan
 
+// spatial audio — place sounds in the world; pan, distance-volume & Doppler derive automatically.
+// Dormant until you call listener(): a cart that never positions a sound is byte-identical.
+void listener(float x, float y);                          // where the player's ears are (world units); sources position relative to this
+void listener_vel(float vx, float vy);                    // listener velocity (units/sec) for Doppler; 0 = still (default)
+void spatial_model(float ref_dist, float max_dist, float rolloff);  // distance falloff: full volume within ref_dist, silent past max_dist; rolloff = steepness (1 = natural)
+void spatial_speed(float c);                              // speed of sound (world units/sec) — Doppler strength; 0 = Doppler off (default ~340)
+void note_pos(int handle, float x, float y);              // place a held note (note_on handle) in the world → auto pan + distance-volume, slewed
+void note_motion(int handle, float vx, float vy);         // held note's velocity (units/sec) → Doppler pitch as it moves past the listener
+void hit_at(int midi, int instr, int vol, int dur_ms, float x, float y);  // one-shot note positioned in the world (pan+volume+Doppler snapshot at trigger) — no handle needed
+
 // one routable LFO per instrument — a slow sine that wobbles one parameter
 #define LFO_PITCH   0   // vibrato — depth in semitones (0.3 subtle, 2 wide)
 #define LFO_DUTY    1   // PWM / duty sweep — depth 0.0..0.5 (square-wave slots only)

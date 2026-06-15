@@ -112,6 +112,22 @@ the ramps.*
   Roads = subdivided `polyfill` ribbons. Grow shapes here, then bake the chosen slider values as
   constants + port the drawer into roadnet2. Catalog (overpass / on-off ramp / diamond / parclo /
   cloverleaf / trumpet / stack) + the fake-z-vs-real-z decisions are in the convo.
+
+  **The junction matrix** — two axes: TOPOLOGY (the shape) × CLASS-PAIR (decides at-grade vs
+  grade-separated). The rule: *topology = shape; any highway present → grade-separated (bridge +
+  ramps), else at-grade; HW×HW = a heavier "system" interchange vs HW×AR's "service" one.*
+
+  | topology ↓ \ pair → | **AR×AR** (at-grade) | **HW×AR** (service) | **HW×HW** (system) |
+  |---|---|---|---|
+  | **Cross** (4-way, both through) | crossroads / roundabout | diamond / parclo / cloverleaf | stack / cloverleaf |
+  | **T-split** (3-way, one road ends in) | T-intersection | **trumpet** | trumpet |
+  | **Y-split** (3-way, a road forks) | Y / fork | **wye** | wye |
+
+  3-way junctions (T, Y) also need a **flip** toggle — mirror the third leg to either side, so the
+  geometry is verified on both. **Sandbox controls:** `1`/`2` road class · `T` interchange type ·
+  topology toggle (cross/T/Y) · flip · `L` lanes · `←→` angle · ramp-shape sliders.
+  Cell status: ✅ Cross+AR×AR (crossroads), ✅ Cross+HW×AR (diamond), 🔶 Cross+HW×HW (stub),
+  🔶 trumpet (draft), ⛔ T+AR×AR (T-intersection), ⛔ Y/wye, ⛔ stack.
 - **Placement, top-down (parked — it's worldgen-ish)** — towns currently T straight onto highway hubs
   ("driveway onto a freeway"). Fix is *settlement-relationship driven*: tag each town **satellite** (a
   city within region radius → arterial into that city, which holds the interchange) vs **isolated** (no

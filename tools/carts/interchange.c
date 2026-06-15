@@ -30,30 +30,30 @@ static float fsq(float x){ if(x<=0)return 0; float g=x>1?x:1; for(int i=0;i<6;i+
 static float c_deg(float d){ return dx(1.0f, d); }   // engine dx/dy = cos/sin in degrees (0=right,90=down)
 static float s_deg(float d){ return dy(1.0f, d); }
 
-enum { T_OVERPASS, T_DIAMOND, T_CLOVERLEAF, T_COUNT };   // ramp STYLE (grade-separated only)
-static const char *TNAME[T_COUNT] = { "OVERPASS", "DIAMOND", "CLOVERLEAF" };
+enum { T_OVERPASS, T_DIAMOND, T_CLOVERLEAF, T_TRUMPET, T_COUNT };   // ramp STYLE (grade-separated only)
+static const char *TNAME[T_COUNT] = { "OVERPASS", "DIAMOND", "CLOVERLEAF", "TRUMPET" };
 static int   itype = T_DIAMOND;
 enum { TOPO_CROSS, TOPO_TEE, TOPO_WYE, TOPO_COUNT };    // junction TOPOLOGY (the leg layout)
 static const char *PNAME[TOPO_COUNT] = { "CROSS", "T-SPLIT", "Y-SPLIT" };
-// the junction matrix as a clickable grid: rows = topology, cols = class-pair indexed by # of
-// highways (0 = AR×AR, 1 = HW×AR, 2 = HW×HW). One click sets topology + both classes.
-static const char *MTX[TOPO_COUNT][3] = {
-    { "cross", "diamond", "stack"   },   // CROSS   : crossroads / diamond / stack
-    { "tee",   "half",    "trumpet" },   // T-SPLIT : T-intersection / half-diamond / trumpet
-    { "fork",  "wye",     "wye"     },   // Y-SPLIT : fork / wye / wye
+// THE junction matrix: every supported junction is one button. A click sets the WHOLE config
+// (topology + both classes + ramp-style). Laid out as a ragged grid — row = topology, columns =
+// that topology's variants. `built` 0 = stub/draft (marked + flagged in the tooltip).
+typedef struct { const char *name; int topo, ca, cb, it, built; const char *tip; } Junc;
+static const Junc JUNCS[] = {
+    // CROSS
+    { "cross",  TOPO_CROSS, C_ARTERIAL, C_ARTERIAL, T_OVERPASS,   1, "CROSS ARxAR: crossroads (at-grade 4-way)" },
+    { "diamond",TOPO_CROSS, C_HIGHWAY,  C_ARTERIAL, T_DIAMOND,    1, "CROSS HWxAR: diamond - full, both carriageways" },
+    { "clover", TOPO_CROSS, C_HIGHWAY,  C_HIGHWAY,  T_CLOVERLEAF, 0, "CROSS HWxHW: cloverleaf - DRAFT (4 loops, tangled)" },
+    { "stack",  TOPO_CROSS, C_HIGHWAY,  C_HIGHWAY,  T_OVERPASS,   0, "CROSS HWxHW: stack - NOT BUILT (overpass+ramps stub)" },
+    // T-SPLIT
+    { "tee",    TOPO_TEE,   C_ARTERIAL, C_ARTERIAL, T_OVERPASS,   1, "T-SPLIT ARxAR: T-intersection (at-grade)" },
+    { "half",   TOPO_TEE,   C_HIGHWAY,  C_ARTERIAL, T_DIAMOND,    1, "T-SPLIT HWxAR: half-diamond - PARTIAL, near carriageway only" },
+    { "trumpet",TOPO_TEE,   C_HIGHWAY,  C_HIGHWAY,  T_TRUMPET,    1, "T-SPLIT HWxHW: trumpet - loop + flyover, both carriageways" },
+    // Y-SPLIT
+    { "fork",   TOPO_WYE,   C_ARTERIAL, C_ARTERIAL, T_OVERPASS,   1, "Y-SPLIT ARxAR: fork (at-grade diverge)" },
+    { "wye",    TOPO_WYE,   C_HIGHWAY,  C_ARTERIAL, T_OVERPASS,   1, "Y-SPLIT HWxAR: wye - tangent diverge (at-grade)" },
 };
-// hover tooltips — what each cell is EXPECTED to draw (incl. build status, so we spot stale cells)
-static const char *MTXT[TOPO_COUNT][3] = {
-    { "CROSS  ARxAR: crossroads (at-grade 4-way)",
-      "CROSS  HWxAR: diamond - full, both carriageways via 4 ramps",
-      "CROSS  HWxHW: stack - NOT BUILT (shows overpass+ramps stub)" },
-    { "T-SPLIT  ARxAR: T-intersection (at-grade)",
-      "T-SPLIT  HWxAR: half-diamond - PARTIAL, near carriageway only",
-      "T-SPLIT  HWxHW: trumpet - NOT BUILT (shows the half-diamond)" },
-    { "Y-SPLIT  ARxAR: fork (at-grade diverge)",
-      "Y-SPLIT  HWxAR: wye - tangent diverge (at-grade)",
-      "Y-SPLIT  HWxHW: wye - tangent diverge (at-grade)" },
-};
+#define NJUNCS ((int)(sizeof JUNCS / sizeof JUNCS[0]))
 static int   topo = TOPO_CROSS;
 static int   flip = 0;          // 3-way junctions: which side the 3rd leg is on
 static float ang   = 90.0f;     // crossing road angle (deg from highway)
@@ -115,6 +115,15 @@ static void draw_ramp(float ax,float ay,float aA, float bx,float by,float aB, fl
     ribbon(xs, ys, RN+1, 5, CLR_DARKER_GREY);    // ~1-lane ramp (was 2 lanes wide → looked detached)
     ribbon(xs, ys, RN+1, 3, CLR_DARK_GREY);
 }
+// a teardrop LOOP ramp: a near-full circular arc around (cx,cy) of radius `rad`, `sweep`° from `a0`°.
+// (cloverleaf loops + the trumpet loop are this; ~1-lane ribbon like draw_ramp.)
+static void draw_loop(float cx, float cy, float rad, float a0, float sweep) {
+    float xs[40], ys[40]; int n=0, steps=34;
+    for (int i=0;i<=steps;i++){ float a=a0+sweep*(float)i/steps;
+        xs[n]=cx+c_deg(a)*rad; ys[n]=cy+s_deg(a)*rad; n++; }
+    ribbon(xs, ys, n, 5, CLR_DARKER_GREY);
+    ribbon(xs, ys, n, 3, CLR_DARK_GREY);
+}
 // a STRAIGHT road A→B, subdivided into short segments (polyfill fills short quads reliably; one
 // screen-long quad came out empty). Optional `casing<0` → no casing (shadow pass uses one colour).
 static void straight(float ax,float ay,float bx,float by,int hw,int casing,int centre){
@@ -133,9 +142,8 @@ static void hdash(int y, int col) {
 void init(void) {}
 
 void update(void) {
-    // topology + class-pair are now picked from the on-screen matrix (one click). Keys are just the
-    // modifiers that don't fit a grid: F flip, ◄► angle, plus L lanes / T ramp-style / P,H toggles.
-    if (keyp('T') || keyp(KEY_TAB)) itype = (itype + 1) % T_COUNT;   // ramp-style (full↔partial)
+    // the whole junction (topology + classes + ramp-style) is picked from the on-screen matrix (one
+    // click). Keys are just the modifiers that don't fit a grid: F flip, ◄► angle, L lanes, P/H toggles.
     if (keyp('F')) flip = !flip;                 // mirror the 3rd leg (3-way only)
     if (keyp('L')) lanes = lanes % 4 + 1;        // cycle highway lanes 1..4
     if (key(KEY_LEFT))  ang  -= 1.5f;
@@ -187,6 +195,23 @@ void draw(void) {
             road(lp, lq, n, 5, CLR_DARKER_GREY, CLR_DARK_GREY);
         }
     }
+    // TRUMPET — arterial TERMINATES at the highway. A teardrop LOOP + a flyover connector tie it to
+    // BOTH carriageways (the half-diamond couldn't). au = arterial axis (away from hwy); pp ≈ along
+    // the highway. The loop sits in the +pp quadrant; the connector flies OVER to the −pp side.
+    if (graded && tee && itype == T_TRUMPET) {
+        float aux = ss*ux, auy = ss*uy;                    // arterial axis, pointing away from highway
+        float ppx = -auy, ppy = aux;                       // perpendicular (≈ highway dir at ang=90)
+        float thx = CX + aux*(HW+6), thy = CY + auy*(HW+6);// throat: where the trunk ends, off the hwy
+        float Rl  = R*0.55f;                                // loop radius (from reach)
+        float lcx = thx + ppx*Rl, lcy = thy + ppy*Rl;      // loop centre: +pp of the throat (throat on rim)
+        float a0  = angle_to((int)lcx,(int)lcy,(int)thx,(int)thy);  // start at the throat (tangent to trunk)
+        draw_loop(lcx, lcy, Rl, a0, ss<0 ? 300 : -300);    // ~300° teardrop, wound by side
+        // flyover connector: throat → FAR carriageway (across the centreline), drawn OVER the highway,
+        // merging TANGENT to the highway (always horizontal here → end heading 0° or 180°)
+        float fcx = CX - ppx*R*0.7f, fcy = CY - auy*(HW-LANE_W*0.5f);
+        draw_ramp(thx,thy, angle_to((int)thx,(int)thy,(int)fcx,(int)fcy),
+                  fcx,fcy, ppx>0 ? 180 : 0, R*0.5f, R*0.6f);
+    }
 
     // 3. ROAD B / the 3rd leg, drawn OVER A (overpass shadow if grade-separated; at-grade = no shadow)
     int dcol = clsB==C_HIGHWAY ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY;
@@ -209,7 +234,7 @@ void draw(void) {
         // graded T-split: the trunk BEGINS where the ramps merge into it (cd = HW+R, with a small
         // overlap so the join is seamless) — it must NOT punch down to the highway centreline. The
         // at-grade T-intersection (AR×AR) still meets the centreline, where a T should.
-        float n0 = (tee && graded) ? (HW + R - BW) : 0;
+        float n0 = (tee && graded) ? (itype==T_TRUMPET ? (HW + 6) : (HW + R - BW)) : 0;
         float b0x = tee ? CX + ss*ux*n0 : CX - ux*far;
         float b0y = tee ? CY + ss*uy*n0 : CY - uy*far;
         float b1x = CX + (tee?ss:1)*ux*far, b1y = CY + (tee?ss:1)*uy*far;
@@ -219,29 +244,29 @@ void draw(void) {
 
     if (show_panel) {                                  // live tuning: ramp sliders + the junction matrix
         font(FONT_SMALL);
-        fillp(FILL_CHECKER, -1); rectfill(0, 12, 100, 102, CLR_BLACK); fillp_reset();
+        fillp(FILL_CHECKER, -1); rectfill(0, 12, 130, 102, CLR_BLACK); fillp_reset();
         ui_begin();
-        ui_slider(&s_reach, 3, 16, 92, "reach");
-        ui_slider(&s_gore,  3, 28, 92, "gore");
-        ui_slider(&s_taper, 3, 40, 92, "taper");
-        ui_slider(&s_runon, 3, 52, 92, "run-on");
-        // the junction matrix — one click sets topology (row) + class-pair (col = #highways)
+        ui_slider(&s_reach, 3, 16, 122, "reach");
+        ui_slider(&s_gore,  3, 28, 122, "gore");
+        ui_slider(&s_taper, 3, 40, 122, "taper");
+        ui_slider(&s_runon, 3, 52, 122, "run-on");
+        // the matrix — EVERY supported junction is one button. Row = topology, columns = that row's
+        // variants (ragged). One click sets topology + both classes + ramp-style.
         const int BW = 30, BH = 11, MX = 3, MY = 64;
         const char *tip = NULL;
-        for (int r = 0; r < TOPO_COUNT; r++) for (int c = 0; c < 3; c++) {
-            int bx = MX + c*(BW+1), by = MY + r*(BH+1);
-            if (ui_button(bx, by, BW, BH, MTX[r][c])) {
-                topo = r;
-                clsA = (c >= 1) ? C_HIGHWAY : C_ARTERIAL;
-                clsB = (c >= 2) ? C_HIGHWAY : C_ARTERIAL;
+        int abx = -99, aby = -99, col[TOPO_COUNT] = {0};
+        for (int i = 0; i < NJUNCS; i++) {
+            const Junc *j = &JUNCS[i];
+            int bx = MX + col[j->topo]++ * (BW+1), by = MY + j->topo*(BH+1);
+            if (ui_button(bx, by, BW, BH, j->name)) {
+                topo = j->topo; clsA = j->ca; clsB = j->cb; itype = j->it;
             }
-            if (ui_hover(bx, by, BW, BH)) tip = MTXT[r][c];   // what this cell should draw
+            if (ui_hover(bx, by, BW, BH)) tip = j->tip;
+            if (!j->built) pset(bx+BW-2, by+1, CLR_RED);   // stub/draft marker
+            if (topo==j->topo && clsA==j->ca && clsB==j->cb && itype==j->it) { abx=bx; aby=by; }
         }
-        if (ui_button(3, MY+3*(BH+1), 92, 10, TNAME[itype])) itype = (itype+1) % T_COUNT;  // ramp-style
         ui_end();
-        // frame the active cell (topo row × #highways col)
-        int acol = (clsA==C_HIGHWAY) + (clsB==C_HIGHWAY);
-        rect(MX + acol*(BW+1) - 1, MY + topo*(BH+1) - 1, BW+2, BH+2, CLR_YELLOW);
+        if (abx > -99) rect(abx-1, aby-1, BW+2, BH+2, CLR_YELLOW);   // frame the active junction
         if (tip) {                                            // hover tooltip — bottom strip
             rectfill(0, SCREEN_H-18, SCREEN_W, 8, CLR_BLACK);
             print_centered(tip, SCREEN_W/2, SCREEN_H-17, CLR_WHITE);
@@ -253,12 +278,13 @@ void draw(void) {
         rectfill(0,0,SCREEN_W,11,CLR_BLACK);
         const char *jname = (topo==TOPO_WYE) ? "WYE (fork)"
                           : !graded ? "at-grade"
-                          : tee     ? "HALF-DIAMOND"   // the only T ramp-style we have (partial)
+                          : (tee && itype==T_TRUMPET) ? "TRUMPET"
+                          : tee     ? "HALF-DIAMOND"   // the partial T ramp-style
                           : TNAME[itype];
         snprintf(buf,sizeof buf,"%s  %sx%s  %s", PNAME[topo], cn[clsA], cn[clsB], jname);
         print(buf, 4, 2, CLR_LIGHT_GREY);
         font(FONT_SMALL);
-        print_centered("click matrix  \x1a\x1b angle  F flip  L lanes  T style  P panel", SCREEN_W/2, SCREEN_H-8, CLR_DARK_GREY);
+        print_centered("click a junction  \x1a\x1b angle  F flip  L lanes  P panel", SCREEN_W/2, SCREEN_H-8, CLR_DARK_GREY);
         font(FONT_NORMAL);
     }
 }

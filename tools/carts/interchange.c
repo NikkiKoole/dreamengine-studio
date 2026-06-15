@@ -35,6 +35,25 @@ static const char *TNAME[T_COUNT] = { "OVERPASS", "DIAMOND", "CLOVERLEAF" };
 static int   itype = T_DIAMOND;
 enum { TOPO_CROSS, TOPO_TEE, TOPO_WYE, TOPO_COUNT };    // junction TOPOLOGY (the leg layout)
 static const char *PNAME[TOPO_COUNT] = { "CROSS", "T-SPLIT", "Y-SPLIT" };
+// the junction matrix as a clickable grid: rows = topology, cols = class-pair indexed by # of
+// highways (0 = AR×AR, 1 = HW×AR, 2 = HW×HW). One click sets topology + both classes.
+static const char *MTX[TOPO_COUNT][3] = {
+    { "cross", "diamond", "stack"   },   // CROSS   : crossroads / diamond / stack
+    { "tee",   "half",    "trumpet" },   // T-SPLIT : T-intersection / half-diamond / trumpet
+    { "fork",  "wye",     "wye"     },   // Y-SPLIT : fork / wye / wye
+};
+// hover tooltips — what each cell is EXPECTED to draw (incl. build status, so we spot stale cells)
+static const char *MTXT[TOPO_COUNT][3] = {
+    { "CROSS  ARxAR: crossroads (at-grade 4-way)",
+      "CROSS  HWxAR: diamond - full, both carriageways via 4 ramps",
+      "CROSS  HWxHW: stack - NOT BUILT (shows overpass+ramps stub)" },
+    { "T-SPLIT  ARxAR: T-intersection (at-grade)",
+      "T-SPLIT  HWxAR: half-diamond - PARTIAL, near carriageway only",
+      "T-SPLIT  HWxHW: trumpet - NOT BUILT (shows the half-diamond)" },
+    { "Y-SPLIT  ARxAR: fork (at-grade diverge)",
+      "Y-SPLIT  HWxAR: wye - tangent diverge (at-grade)",
+      "Y-SPLIT  HWxHW: wye - tangent diverge (at-grade)" },
+};
 static int   topo = TOPO_CROSS;
 static int   flip = 0;          // 3-way junctions: which side the 3rd leg is on
 static float ang   = 90.0f;     // crossing road angle (deg from highway)
@@ -114,12 +133,11 @@ static void hdash(int y, int col) {
 void init(void) {}
 
 void update(void) {
-    if (keyp('T') || keyp(KEY_TAB)) itype = (itype + 1) % T_COUNT;
-    if (keyp('Y')) topo = (topo + 1) % TOPO_COUNT;   // cross / T-split / Y-split
+    // topology + class-pair are now picked from the on-screen matrix (one click). Keys are just the
+    // modifiers that don't fit a grid: F flip, ◄► angle, plus L lanes / T ramp-style / P,H toggles.
+    if (keyp('T') || keyp(KEY_TAB)) itype = (itype + 1) % T_COUNT;   // ramp-style (full↔partial)
     if (keyp('F')) flip = !flip;                 // mirror the 3rd leg (3-way only)
     if (keyp('L')) lanes = lanes % 4 + 1;        // cycle highway lanes 1..4
-    if (keyp('1')) clsA = !clsA;                 // toggle road A class (highway/arterial)
-    if (keyp('2')) clsB = !clsB;                 // toggle road B class
     if (key(KEY_LEFT))  ang  -= 1.5f;
     if (key(KEY_RIGHT)) ang  += 1.5f;
     if (ang < 25) ang = 25; if (ang > 155) ang = 155;
@@ -199,28 +217,48 @@ void draw(void) {
         straight(b0x,b0y, b1x,b1y, BW, CLR_DARKER_GREY, dcol);
     }
 
-    if (show_panel) {                                  // live tuning: sliders + toggle buttons
+    if (show_panel) {                                  // live tuning: ramp sliders + the junction matrix
         font(FONT_SMALL);
-        fillp(FILL_CHECKER, -1); rectfill(0, 12, 66, 102, CLR_BLACK); fillp_reset();
+        fillp(FILL_CHECKER, -1); rectfill(0, 12, 100, 102, CLR_BLACK); fillp_reset();
         ui_begin();
-        ui_slider(&s_reach, 3, 16, 58, "reach");
-        ui_slider(&s_gore,  3, 28, 58, "gore");
-        ui_slider(&s_taper, 3, 40, 58, "taper");
-        ui_slider(&s_runon, 3, 52, 58, "run-on");
-        if (ui_button(3, 66, 58, 10, PNAME[topo]))            topo = (topo+1) % TOPO_COUNT;
-        if (ui_button(3, 78, 58, 10, flip ? "flip \x1a" : "flip \x1b")) flip = !flip;
-        if (ui_button(3, 90, 27, 10, clsA==C_HIGHWAY?"A:HW":"A:AR")) clsA = !clsA;
-        if (ui_button(34,90, 27, 10, clsB==C_HIGHWAY?"B:HW":"B:AR")) clsB = !clsB;
-        if (ui_button(3,102, 58, 10, TNAME[itype]))           itype = (itype+1) % T_COUNT;
+        ui_slider(&s_reach, 3, 16, 92, "reach");
+        ui_slider(&s_gore,  3, 28, 92, "gore");
+        ui_slider(&s_taper, 3, 40, 92, "taper");
+        ui_slider(&s_runon, 3, 52, 92, "run-on");
+        // the junction matrix — one click sets topology (row) + class-pair (col = #highways)
+        const int BW = 30, BH = 11, MX = 3, MY = 64;
+        const char *tip = NULL;
+        for (int r = 0; r < TOPO_COUNT; r++) for (int c = 0; c < 3; c++) {
+            int bx = MX + c*(BW+1), by = MY + r*(BH+1);
+            if (ui_button(bx, by, BW, BH, MTX[r][c])) {
+                topo = r;
+                clsA = (c >= 1) ? C_HIGHWAY : C_ARTERIAL;
+                clsB = (c >= 2) ? C_HIGHWAY : C_ARTERIAL;
+            }
+            if (ui_hover(bx, by, BW, BH)) tip = MTXT[r][c];   // what this cell should draw
+        }
+        if (ui_button(3, MY+3*(BH+1), 92, 10, TNAME[itype])) itype = (itype+1) % T_COUNT;  // ramp-style
         ui_end();
+        // frame the active cell (topo row × #highways col)
+        int acol = (clsA==C_HIGHWAY) + (clsB==C_HIGHWAY);
+        rect(MX + acol*(BW+1) - 1, MY + topo*(BH+1) - 1, BW+2, BH+2, CLR_YELLOW);
+        if (tip) {                                            // hover tooltip — bottom strip
+            rectfill(0, SCREEN_H-18, SCREEN_W, 8, CLR_BLACK);
+            print_centered(tip, SCREEN_W/2, SCREEN_H-17, CLR_WHITE);
+        }
         font(FONT_NORMAL);
     }
     if (show_hud) {
         char buf[56]; const char *cn[2] = { "HW", "AR" };
         rectfill(0,0,SCREEN_W,11,CLR_BLACK);
-        const char *jname = (topo==TOPO_WYE) ? "WYE (fork)" : (graded ? TNAME[itype] : "at-grade");
+        const char *jname = (topo==TOPO_WYE) ? "WYE (fork)"
+                          : !graded ? "at-grade"
+                          : tee     ? "HALF-DIAMOND"   // the only T ramp-style we have (partial)
+                          : TNAME[itype];
         snprintf(buf,sizeof buf,"%s  %sx%s  %s", PNAME[topo], cn[clsA], cn[clsB], jname);
         print(buf, 4, 2, CLR_LIGHT_GREY);
-        print_centered("click toggles \x10 or: 1/2 Y F T L  \x1a\x1b angle  P panel", SCREEN_W/2, SCREEN_H-9, CLR_DARK_GREY);
+        font(FONT_SMALL);
+        print_centered("click matrix  \x1a\x1b angle  F flip  L lanes  T style  P panel", SCREEN_W/2, SCREEN_H-8, CLR_DARK_GREY);
+        font(FONT_NORMAL);
     }
 }

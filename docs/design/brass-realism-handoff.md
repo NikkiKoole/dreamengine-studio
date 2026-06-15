@@ -1,13 +1,25 @@
-# BRASS realism — handoff (2026-06-12)
+# BRASS realism — handoff (2026-06-12; brightness fix landed 2026-06-16)
 
 Working note for whoever picks up the BRASS engine next. The complaint that started this:
 *"my brass synth isn't really sounding very brassy"* — and, after a first fix, *"it's very
 obviously not real brass, whereas the reed section is a lot closer."* That judgment is correct.
 This documents what was measured, what was changed, and what the **real** fix still needs.
 
-## ⚠️ STATE: there is UNCOMMITTED work in the tree
+## ✅ STATUS UPDATE (2026-06-16): fixes #1+#2 SHIPPED
 
-Nothing below has been committed. If you're starting fresh, `git status` / `git diff` first.
+The asymmetric shaper + DC blocker (below) **and** the level-coupled brightness work
+("What the REAL fix needs" #1 + #2) are now committed — see commit **`8dfd12a`**. On the OUTPUT
+stage (the bore loop destabilizes if touched): a bore-amplitude follower → a 0..1 level, the
+asymmetric shaper steepening with level, and a level+brassiness high-shelf lifting energy past
+~4kHz. Measured (forte trumpet A3): highest harmonic within 20dB **h9→h17** (~2.0→3.7kHz), energy
+>4kHz **0.2%→2.3%**, crest **6.3→14.6dB**. DC-check + tune-check clean (tuning untouched). **Still
+open:** fix #3 (model the bell to fill the harmonic series natively) and the deferred **mute/plunger
+axis** — the most aggressive bite. Tracked in [audio-notes.md](audio-notes.md) §19 + STATUS. The
+diagnosis + remaining-work sections below are kept verbatim as the as-built record.
+
+## ⚠️ ORIGINAL STATE NOTE (2026-06-12): there was UNCOMMITTED work in the tree
+
+(Historical — the items below were committed in `8dfd12a`.) If you're starting fresh, `git status` / `git diff` first.
 Changes made this session, all isolated to these files (do NOT sweep in the other pre-existing
 dirty files — docs/groovebox/etc. belong to other work):
 
@@ -65,17 +77,22 @@ Two findings:
 
 ## What the REAL fix needs (next session's actual work)
 
+> **Update 2026-06-16: #1 and #2 below are SHIPPED (`8dfd12a`); #3 remains.** See the status
+> banner at the top for the as-built approach and measured numbers.
+
 Priority order, biggest perceptual payoff first:
 
-1. **Dynamically-coupled brightness (the shock wave).** The defining brass cue. Brightness must
+1. ✅ **Dynamically-coupled brightness (the shock wave). — DONE 2026-06-16.** The defining brass cue. Brightness must
    RISE with playing level / breath pressure, and extend much higher (to 5–10 kHz at forte). Today
    `timbre` is a mostly-static output drive. Real brass steepens the wave *in the bore* as pressure
    climbs. Cheapest credible approximation: drive the harmonic-generation (and back off the bell LP)
    as a function of instantaneous bore amplitude / `Pm`, not just the static `timbre` macro. Make
    `lpCoeff` open up with level instead of being fixed.
-2. **Stop killing the highs.** Re-examine the bell-radiation LP and the makeup chain — the spectrum
+2. ✅ **Stop killing the highs. — DONE 2026-06-16.** Re-examine the bell-radiation LP and the makeup chain — the spectrum
    shouldn't be ~gone by h12. Reed keeps strong partials past h15; brass should too (more so at ff).
-3. **Bell that fills the series, not a bandpass painted on top.** Longer shot: model the bell as a
+   (Shipped as a level-coupled output high-shelf rather than touching the in-loop bell LP, which
+   destabilizes the oscillator — see the status banner.)
+3. **Bell that fills the series, not a bandpass painted on top. — STILL OPEN.** Longer shot: model the bell as a
    frequency-dependent reflection/radiation at the open end so the bore modes land on a complete
    integer series naturally, rather than synthesizing even harmonics with a downstream shaper. This
    is the "do it right" path; (1)+(2) are the high-ROI path to try first.

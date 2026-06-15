@@ -1743,22 +1743,29 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    open low-E (E1) can't bend (buffer already maxed).** Carts that worked around the old limit (`upright.c`
    fret-walk, `pdbass.c`'s INSTR_PD swap) can be revisited — see STATUS #41.
 
-## 19. BRASS character — open (2026-06-14)
+## 19. BRASS character — partly addressed (2026-06-14; brightness shipped 2026-06-16)
 
 A recurring ear note: the brass doesn't yet sound *very brassy* — it speaks and holds, but the
 aggressive blat/bite of a real horn section isn't fully there. This was scattered across three
 places; consolidated here so it's tracked as one thing (distinct from the **tuning** residual —
-BRASS −25¢ at A5 — which is §18 item 4, a separate fix). None of this is a regression; it's
-"taste/character not finished." Threads, in priority order:
+BRASS −25¢ at A5 — which is §18 item 4, a separate fix, **still open**). None of this is a
+regression; it's "taste/character not finished." Threads, in priority order:
 
-1. **`INSTR_BRASS` engine — taste-tuning + the deferred mute ([instrument-engines.md](instrument-engines.md) §8.8.10).**
-   The blat is *designed* to come from the dynamics-swept brass-formant bandpass (centre sweeps up
-   with brassiness) + pressure-driven steepening. Its shipped open tail (STEP 6) is **preset
-   taste-tuning by ear**, and crucially a **mute/plunger axis (harmon/cup → a second bandpass) was
-   deferred** — that mute is exactly the source of a horn's most aggressive bite, so its absence is
-   the likeliest reason the engine reads "polite." Re-opening it means either dialing the six presets
-   harder by ear or revisiting the deferred mute (it can't be a 4th macro — bore/brassiness/breath
-   earned the three; it'd be a `note_cutoff`+`note_res` cart recipe per [decision 0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)'s "mute = output filter" lane, or a per-engine `instrument_mode` index).
+1. **`INSTR_BRASS` engine — ✓ brightness SHIPPED 2026-06-16 (`8dfd12a`); mute axis still open
+   ([instrument-engines.md](instrument-engines.md) §8.8.10).** The handoff
+   ([brass-realism-handoff.md](brass-realism-handoff.md)) diagnosed the engine as "a clarinet core
+   wearing a brass filter": highs died ~an octave early (dead by ~h12) with no loud→bright coupling.
+   **Done (fixes #1+#2 from the handoff), all on the OUTPUT stage** (the bore loop destabilizes if
+   touched): a bore-amplitude follower → a 0..1 level, the asymmetric shaper steepening with level,
+   and a level+brassiness high-shelf lifting energy past ~4kHz (the shock-wave blat). Measured (forte
+   trumpet A3): highest harmonic within 20dB **h9→h17** (~2.0→3.7kHz), energy >4kHz **0.2%→2.3%**,
+   crest **6.3→14.6dB**. **Still open:** the deferred **mute/plunger axis (harmon/cup → a second
+   bandpass)** — a horn's most aggressive bite, and handoff fix #3 (model the bell to fill the
+   harmonic series natively rather than synthesize evens downstream). The mute can't be a 4th macro
+   (bore/brassiness/breath earned the three); it'd be a `note_cutoff`+`note_res` cart recipe per
+   [decision 0017](../decisions/0017-three-macro-core-plus-engine-aux-channel.md)'s "mute = output
+   filter" lane, or a per-engine `instrument_mode` index. Preset taste-tuning by ear (STEP 6) also
+   still stands now the engine is brighter.
 
 2. **FM-engine brass *preset* — backwards in-note envelope ([instrument-engines.md](instrument-engines.md) §8.8.3).**
    A different brass (the `fm` cart's brass preset, not `INSTR_BRASS`). Noted there: brass is "the
@@ -1772,5 +1779,7 @@ BRASS −25¢ at A5 — which is §18 item 4, a separate fix). None of this is a
    routing to `INSTR_BRASS`/`INSTR_REED`**, independent of how good the engine is — re-voicing those
    horn chairs onto the real engines is its own easy win.
 
-**Verdict / where to start:** #1 (the deferred mute) is the highest-leverage for "make the *engine*
-brassier"; #3 is the highest-leverage for "make the *radio* brassier" and needs no engine work.
+**Verdict / where to start:** #1's level-coupled brightness shipped (the big audible win); the
+**deferred mute** is now the highest-leverage *remaining* engine lever, and **#3 (route the radio
+horn chairs onto the real `INSTR_BRASS`/`INSTR_REED`)** is the highest-leverage for "make the *radio*
+brassier" and needs no engine work.

@@ -17,8 +17,12 @@
 // ============================================================================
 
 #define LANE_W   6          // one lane width (px)
-#define HW_AR    8          // crossing arterial half-width
+#define HW_AR    8          // arterial half-width
 static int   lanes = 2;     // highway lanes PER DIRECTION (variable) → half-width = lanes·LANE_W
+enum { C_HIGHWAY, C_ARTERIAL };          // the only two road classes this cart handles
+static int   clsA = C_HIGHWAY;           // road A = the horizontal road
+static int   clsB = C_ARTERIAL;          // road B = the crossing road
+static int   rwidth(int c){ return c==C_HIGHWAY ? lanes*LANE_W : HW_AR; }   // half-width by class
 static float fsq(float x){ if(x<=0)return 0; float g=x>1?x:1; for(int i=0;i<6;i++) g=0.5f*(g+x/g); return g; }
 static float c_deg(float d){ return dx(1.0f, d); }   // engine dx/dy = cos/sin in degrees (0=right,90=down)
 static float s_deg(float d){ return dy(1.0f, d); }
@@ -105,6 +109,8 @@ void init(void) {}
 void update(void) {
     if (keyp('T') || keyp(KEY_TAB)) itype = (itype + 1) % T_COUNT;
     if (keyp('L')) lanes = lanes % 4 + 1;        // cycle highway lanes 1..4
+    if (keyp('1')) clsA = !clsA;                 // toggle road A class (highway/arterial)
+    if (keyp('2')) clsB = !clsB;                 // toggle road B class
     if (key(KEY_LEFT))  ang  -= 1.5f;
     if (key(KEY_RIGHT)) ang  += 1.5f;
     if (ang < 25) ang = 25; if (ang > 155) ang = 155;
@@ -118,31 +124,32 @@ void draw(void) {
     float ux = c_deg(ang), uy = s_deg(ang);            // crossing-road unit dir
     float R  = 24 + s_reach*66;                        // ramp reach (px), from the slider
     float goreM = 1.0f + s_gore*1.0f, taperM = 0.5f + s_taper*1.3f, runonM = 0.4f + s_runon*1.0f;
-    int HW = lanes * LANE_W;                            // highway carriageway half-width
+    int HW = rwidth(clsA);                             // road A (horizontal) half-width
+    int BW = rwidth(clsB);                             // road B (crossing) half-width
+    int graded = (clsA==C_HIGHWAY || clsB==C_HIGHWAY); // any highway → grade-separated; else at-grade
 
-    // 1. HIGHWAY (horizontal), drawn UNDER everything: carriageway, then markings
-    straight(0, CY, SCREEN_W, CY, HW+2, CLR_DARKER_GREY, CLR_LIGHT_GREY);
-    for (int j = 1; j < lanes; j++) {                  // dashed white lane lines (within each direction)
-        hdash(CY - j*LANE_W, CLR_WHITE);
-        hdash(CY + j*LANE_W, CLR_WHITE);
+    // 1. ROAD A (horizontal), drawn UNDER everything; highway gets a median + lane lines
+    straight(0, CY, SCREEN_W, CY, HW+2, CLR_DARKER_GREY, clsA==C_HIGHWAY?CLR_LIGHT_GREY:CLR_MEDIUM_GREY);
+    if (clsA == C_HIGHWAY) {
+        for (int j = 1; j < lanes; j++) { hdash(CY - j*LANE_W, CLR_WHITE); hdash(CY + j*LANE_W, CLR_WHITE); }
+        rectfill(0, CY-1, SCREEN_W, 2, CLR_DARKER_GREY);   // centre median
     }
-    rectfill(0, CY-1, SCREEN_W, 2, CLR_DARKER_GREY);   // centre median (clean divider between directions)
 
-    // 2. RAMPS at highway level (so the overpass bridge occludes them where they pass under)
-    if (itype == T_DIAMOND || itype == T_CLOVERLEAF) {
+    // 2. RAMPS — only when GRADE-SEPARATED (a highway is involved). AR×AR just crosses at grade.
+    if (graded && (itype == T_DIAMOND || itype == T_CLOVERLEAF)) {
         // four quadrant ramps: highway point (CX±R,CY) ↔ crossing-road point (CX±R·u)
         float px=-uy, py=ux;                                     // perpendicular to the crossing road
         for (int sx=-1; sx<=1; sx+=2) for (int sy=-1; sy<=1; sy+=2) {
             float hx = CX + sx*R*goreM, hy = CY + sy*(HW - LANE_W*0.5f);  // start ON the outer lane (overlaps highway)
             float cd = HW + R;                                   // crossing end: clearance R BEYOND the edge
-            float ax = CX + ux*sy*cd - px*sx*(HW_AR*0.35f);     // end tucked ONTO the crossing carriageway
-            float ay = CY + uy*sy*cd - py*sx*(HW_AR*0.35f);     // (overpass drawn on top → clips it neat)
+            float ax = CX + ux*sy*cd - px*sx*(BW*0.35f);       // end tucked ONTO the crossing carriageway
+            float ay = CY + uy*sy*cd - py*sx*(BW*0.35f);       // (overpass drawn on top → clips it neat)
             // highway tangent points TOWARD the curve (toward centre) so it tapers off parallel,
             // not folding back; kA = the off-ramp taper run, kB = run-on along the overpass
             draw_ramp(hx,hy, (sx>0?180:0), ax,ay, (sy>0?ang:ang+180), R*taperM, R*runonM);
         }
     }
-    if (itype == T_CLOVERLEAF) {
+    if (graded && itype == T_CLOVERLEAF) {
         // loop ramps: a 270° curl in each quadrant (tight inner turn)
         for (int sx=-1; sx<=1; sx+=2) for (int sy=-1; sy<=1; sy+=2) {
             float cx = CX + sx*R*0.6f, cy = CY + sy*R*0.6f;
@@ -152,7 +159,7 @@ void draw(void) {
             road(lp, lq, n, 5, CLR_DARKER_GREY, CLR_DARK_GREY);
         }
     }
-    if (itype == T_TRUMPET) {
+    if (graded && itype == T_TRUMPET) {
         // 3-way: the crossing road only goes ONE side; a loop + a direct ramp
         float ax = CX + ux*R, ay = CY + uy*R;
         draw_ramp(CX+R*1.5f,CY, 0,  ax,ay, ang, R, R);
@@ -162,13 +169,14 @@ void draw(void) {
         road(lp,lq,n,5,CLR_DARKER_GREY,CLR_DARK_GREY);
     }
 
-    // 3. the OVERPASS: crossing road drawn OVER the highway (fake-3D). A dark "underbridge"
-    //    shadow band first, then the road on top → it visibly passes over.
+    // 3. ROAD B (crossing). GRADE-SEPARATED → drawn OVER A with an underbridge shadow (overpass);
+    //    AT-GRADE (AR×AR) → same level, no shadow, so it reads as a plain crossroads.
     float far = (float)(SCREEN_W + SCREEN_H);
-    float a0x = (itype==T_TRUMPET) ? CX : CX - ux*far, a0y = (itype==T_TRUMPET) ? CY : CY - uy*far;
+    int stub = (graded && itype==T_TRUMPET);                      // trumpet: crossing road is one-sided
+    float a0x = stub ? CX : CX - ux*far, a0y = stub ? CY : CY - uy*far;
     float a1x = CX + ux*far, a1y = CY + uy*far;
-    straight(a0x,a0y, a1x,a1y, HW_AR+3, -1, CLR_BROWNISH_BLACK);   // underbridge shadow
-    straight(a0x,a0y, a1x,a1y, HW_AR,   CLR_DARKER_GREY, CLR_MEDIUM_GREY);  // deck (over the highway)
+    if (graded) straight(a0x,a0y, a1x,a1y, BW+3, -1, CLR_BROWNISH_BLACK);   // underbridge shadow (overpass)
+    straight(a0x,a0y, a1x,a1y, BW, CLR_DARKER_GREY, clsB==C_HIGHWAY?CLR_LIGHT_GREY:CLR_MEDIUM_GREY);
 
     if (show_panel) {                                  // live ramp-shape sliders (tune by feel)
         font(FONT_SMALL);
@@ -182,10 +190,10 @@ void draw(void) {
         font(FONT_NORMAL);
     }
     if (show_hud) {
-        char buf[48];
+        char buf[56]; const char *cn[2] = { "HW", "AR" };
         rectfill(0,0,SCREEN_W,11,CLR_BLACK);
-        snprintf(buf,sizeof buf,"INTERCHANGE  %s  %dx2 lanes", TNAME[itype], lanes);
+        snprintf(buf,sizeof buf,"%s x %s   %s", cn[clsA], cn[clsB], graded ? TNAME[itype] : "CROSSROADS (at-grade)");
         print(buf, 4, 2, CLR_LIGHT_GREY);
-        print_centered("T type  L lanes  \x1a\x1b angle  P panel  H hud", SCREEN_W/2, SCREEN_H-9, CLR_DARK_GREY);
+        print_centered("1/2 class  T type  L lanes  \x1a\x1b angle  P panel", SCREEN_W/2, SCREEN_H-9, CLR_DARK_GREY);
     }
 }

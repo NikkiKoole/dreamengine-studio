@@ -3251,5 +3251,23 @@
       "probe",
       "tech-demo"
     ]
+  },
+  {
+    "title": "sightlines",
+    "description": "PROBE (probe-carts.md): is a tilemap line-of-sight / FOV primitive worth owning in the engine? Two candidates on the same occluder grid. SINGLE-RAY LOS — one Bresenham walk answers 'can A see B?' (enemy vision / stealth / aim / audio occlusion); each guard draws a ray to the eye, red when it has line of sight. FIELD OF VIEW — recursive shadowcasting reveals everything the eye can see, walls casting shadows (lighting / fog-of-war). ARROWS move the eye, L/R-drag paint & erase walls, TAB toggles LOS<->FOV, wheel sets FOV radius, C clears, R randomizes. Generalizes the acoustics-probe raycast beyond audio.",
+    "file": "sightlines.cart.png",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ]
+  },
+  {
+    "title": "dijkstra maps",
+    "description": "PROBE (probe-carts.md): 'the incredible power of Dijkstra maps' (RogueBasin) made playable — is a Dijkstra/flow-field map worth owning, the AI companion to astar's single path? One flood-fill (every floor cell = distance to the goal) drives three behaviours, rendered as a live contour-ring heatmap with downhill flow arrows. APPROACH: agents roll downhill to the goal, routing around walls. FLEE: negate the map and re-flood -> agents flee via real escape routes, not into dead ends. HUNT: add a 'seek gold' map to a 'dread the monster' map -> agents grab loot while dodging a monster that itself hunts them by rolling downhill on a distance-to-agents map. ARROWS drive the goal (or the monster in hunt), L/R-drag paint & erase walls, TAB cycles mode, F toggles flow arrows, R/C/G randomize/clear/rescatter.",
+    "file": "dijkstra.cart.png",
+    "kind": [
+      "probe",
+      "tech-demo"
+    ]
   }
 ]

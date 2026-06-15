@@ -195,6 +195,14 @@ eventually2/
 │   │                   #   tools/carts/<name>.c (need rebake), carts with no site/<name>/
 │   │                   #   (need publish), + stale-published (source newer than the site
 │   │                   #   build, git-time). --quiet exits 1 if anything pending; --json
+│   ├── build-all.js    #   COMPILE-CHECK every cart against the current studio.h
+│   │                   #   (clang -fsyntax-only, -I runtime + -DDE_TRACE, parallel; ~5s).
+│   │                   #   Catches cart-vs-API ROT nothing else does: a cart var named
+│   │                   #   after a new API fn (the namespace trap), a changed signature,
+│   │                   #   a stale watch() call. MANUAL/occasional (not a commit hook) —
+│   │                   #   run after editing studio.h / adding API / before a publish.
+│   │                   #   --quiet; exit 1 on any failure. (Found mouthharp/pixelperfect
+│   │                   #   autopan + loderunner's stale watch — all latent, all invisible.)
 │   ├── lint-docs.js    #   validate docs/ cross-references: relative .md links resolve
 │   │                   #   + doc-qualified §-refs ("audio-notes §8.9") hit a real
 │   │                   #   heading (resolving via a split-stub/parent = soft note, not

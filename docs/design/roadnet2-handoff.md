@@ -33,17 +33,29 @@ rung-1..3 baseline (the elegant terrain-aware spline highways), rebuilt upward.
      sliders (reach / gore / taper / run-on). Keys mirror them (Y / F / 1 / 2 / T / L / ←→ / P / H).
 
 ## The junction matrix (the part-B map) — full table in roadnet2-plan.md
-TOPOLOGY × CLASS-PAIR, rule = *topology is the shape; a highway present → grade-separated*.
-- ✅ Cross + AR×AR (crossroads), ✅ Cross + HW×AR (**diamond**), ✅ T-split + AR×AR (**T-intersection**),
-  ✅ T-split + HW×AR (ramps; trunk now begins AT the ramp merge, no centreline spear),
-  ✅ **Y-split / wye** (a tangent diverge off the highway — at-grade, since a fork isn't a crossing;
-  fork angle = the angle slider remapped shallow).
-- 🔶 first-draft / stub: **cloverleaf**, **HW×HW stack** (Cross+HW×HW currently just overpass+ramps).
+THREE axes: TOPOLOGY (cross / T-split / Y-split) × CLASS-PAIR (AR×AR at-grade / HW×AR / HW×HW;
+*any highway → grade-separated*) × **COMPLETENESS** (the ramp-STYLE knob): **full** interchanges
+serve every movement (diamond / cloverleaf / trumpet / stack); **partial / half** ones serve a
+deliberate subset (half-diamond / parclo / half-trumpet) — a *legit* type you pick on purpose, not a
+broken full. So a grade-sep cell is a MENU of ramp-styles, not one junction.
+- ✅ Cross + AR×AR (crossroads), ✅ Cross + HW×AR (**diamond**, full), ✅ T-split + AR×AR (**T-intersection**),
+  ✅ **Y-split / wye** (tangent diverge off the highway — at-grade, since a fork isn't a crossing).
+- ✅ T-split + HW — **HALF-DIAMOND** (the two near-side ramps + trunk-at-merge; serves ONE carriageway —
+  a deliberate *partial*. **Relabeled** from the earlier mistaken "trumpet": it only connects the near
+  side, which is correct *as a half-diamond*).
+- ⛔ T-split + HW — **trumpet** (the FULL version: bridge-over + loop + connectors → both carriageways).
+- 🔶 / ⛔ to build: **cloverleaf** (itype stub), **HW×HW stack** (Cross+HW×HW just overpass+ramps now),
+  parclo / half-trumpet.
+- NOTE: the `itype` enum is still OVERPASS/DIAMOND/CLOVERLEAF — it needs to grow into per-topology
+  ramp-style menus (T-split: HALF-DIAMOND ↔ TRUMPET; Cross+HW×HW: STACK ↔ CLOVERLEAF).
 
 ## What's next (recommended order)
-1. **Nail the remaining cells in the sandbox** — the **cloverleaf** (4 clean loop ramps, reusing the
-   diamond's ramp+taper machinery), then the **stack** (HW×HW system interchange — the showpiece).
-   (Wye ✅ done — tangent diverge.)
+1. **Nail the remaining ramp-styles in the sandbox.** The big one is the **loop ramp** (teardrop) —
+   build it once and it drives both the **trumpet** (T-split, full: 1 loop + connectors + the arterial
+   bridges OVER to reach both carriageways) and the **cloverleaf** (Cross, 4 loops). Then the **stack**
+   (HW×HW system interchange — the showpiece). Lower priority: parclo, half-trumpet.
+   (Wye ✅ done — tangent diverge. T-split half-diamond ✅ — but it's the *partial*; the full trumpet
+   is still to build.)
 2. **Bake the slider values → constants, and PORT the drawer into roadnet2.** Interface:
    *given two crossing roads (positions, dirs, classes) + a topology → draw the junction.* Wire it
    to roadnet2's road graph (where roads meet → choose junction from the matrix).

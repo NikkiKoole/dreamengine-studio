@@ -113,22 +113,46 @@ the ramps.*
   constants + port the drawer into roadnet2. Catalog (overpass / on-off ramp / diamond / parclo /
   cloverleaf / trumpet / stack) + the fake-z-vs-real-z decisions are in the convo.
 
-  **The junction matrix** — two axes: TOPOLOGY (the shape) × CLASS-PAIR (decides at-grade vs
-  grade-separated). The rule: *topology = shape; any highway present → grade-separated (bridge +
-  ramps), else at-grade; HW×HW = a heavier "system" interchange vs HW×AR's "service" one.*
+  **The junction matrix** — THREE axes:
+  - **TOPOLOGY** (the leg layout): Cross (4-way, both through) / T-split (3-way, one road ends in) /
+    Y-split (3-way, a road forks).
+  - **CLASS-PAIR** (decides at-grade vs grade-separated): AR×AR / HW×AR / HW×HW. Rule: *any highway
+    present → grade-separated (bridge + ramps), else at-grade; HW×HW = a heavier "system" interchange
+    vs HW×AR's "service" one.*
+  - **COMPLETENESS** (which movements are served) — carried by the **ramp-STYLE** knob (`itype`).
+    **Full** interchanges serve every movement (diamond, cloverleaf, trumpet, stack); **partial /
+    half** interchanges serve a deliberate SUBSET (half-diamond, parclo, half-trumpet). A partial is
+    *not* a broken full — it's a real type you build on purpose: one-way frontage, space/budget
+    limits, access you don't need in both directions. So a grade-separated cell isn't one junction —
+    it's a **menu** of ramp-styles spanning full↔partial. (This is the axis we were missing: it's why
+    "the T-split only connects one carriageway" was *correct as a half-diamond*, just mislabeled
+    trumpet.)
 
-  | topology ↓ \ pair → | **AR×AR** (at-grade) | **HW×AR** (service) | **HW×HW** (system) |
-  |---|---|---|---|
-  | **Cross** (4-way, both through) | crossroads / roundabout | diamond / parclo / cloverleaf | stack / cloverleaf |
-  | **T-split** (3-way, one road ends in) | T-intersection | **trumpet** | trumpet |
-  | **Y-split** (3-way, a road forks) | Y / fork | **wye** | wye |
+  The grade-separated cells and their ramp-style menus:
 
-  3-way junctions (T, Y) also need a **flip** toggle — mirror the third leg to either side, so the
-  geometry is verified on both. **Sandbox controls:** `1`/`2` road class · `T` interchange type ·
-  topology toggle (cross/T/Y) · flip · `L` lanes · `←→` angle · ramp-shape sliders.
-  Cell status: ✅ Cross+AR×AR (crossroads), ✅ Cross+HW×AR (diamond), ✅ T+AR×AR (T-intersection),
-  ✅ T+HW×AR (ramps; trunk starts at the merge), ✅ Y-split/wye (tangent diverge, at-grade),
-  🔶 Cross+HW×HW (stub), 🔶 trumpet (draft), ⛔ stack.
+  | topology | AR×AR (at-grade) | HW×AR / HW×HW (grade-sep) → ramp-style menu |
+  |---|---|---|
+  | **Cross** | crossroads / roundabout | **full:** diamond · cloverleaf · (HW×HW: stack) — **partial:** half-diamond · parclo |
+  | **T-split** (one road ends in) | T-intersection | **full:** trumpet (bridge-over + loop + connectors → both carriageways) — **partial:** half-trumpet · **half-diamond** (near carriageway only) |
+  | **Y-split** (a road forks) | Y / fork | **wye** (directional diverge — a fork has no "partial") |
+
+  3-way cells (T, Y) also need a **flip** toggle — mirror the 3rd leg to either side. **Sandbox
+  controls:** `1`/`2` road class · `T` ramp-style · topology toggle (cross/T/Y) · flip · `L` lanes ·
+  `←→` angle · ramp-shape sliders. (The `itype` enum still only has OVERPASS/DIAMOND/CLOVERLEAF — it
+  needs to GROW into the menus above, ideally topology-aware: e.g. T-split offers HALF-DIAMOND ↔
+  TRUMPET, Cross+HW×HW offers STACK ↔ CLOVERLEAF.)
+
+  **Slot status** (sandbox):
+  - ✅ Cross+AR×AR — crossroads
+  - ✅ Cross+HW×AR — **diamond** (full)
+  - ⛔ Cross+HW×AR — cloverleaf (itype stub, tangled), half-diamond, parclo
+  - ✅ T+AR×AR — T-intersection
+  - ✅ T+HW — **HALF-DIAMOND** (the two near-side ramps + trunk-at-merge; serves ONE carriageway —
+    a deliberate *partial*, **relabeled** from the earlier mistaken "trumpet" ✅)
+  - ⛔ T+HW — **trumpet** (full; bridge-over + loop + connectors → both carriageways), half-trumpet
+  - ✅ Y+HW — **wye** (tangent diverge, at-grade)
+  - 🔶 Cross+HW×HW — overpass+ramps stub
+  - ⛔ HW×HW — **stack** (the showpiece), cloverleaf (full loops — itype exists but draft)
 - **Placement, top-down (parked — it's worldgen-ish)** — towns currently T straight onto highway hubs
   ("driveway onto a freeway"). Fix is *settlement-relationship driven*: tag each town **satellite** (a
   city within region radius → arterial into that city, which holds the interchange) vs **isolated** (no

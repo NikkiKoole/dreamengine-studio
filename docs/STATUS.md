@@ -877,6 +877,15 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     LFO generator. Square-on-cutoff = stepped filter; S&H-on-pitch = random-step arp; etc. Touches
     `sound.h`; natural sibling to the `fx_mod`/`fx_lfo` work in [0018](decisions/0018-effects-keep-params-but-become-modulatable.md).
 
+40. **Spatial audio v3 — acoustic zones** *(2026-06-15)* — v1 (per-voice) + v2 (emitter buses) SHIPPED;
+    the remaining layer is environment: **inside/outside reverb zones, occlusion (a wall between you and
+    the source → muffled, low-passed), and material absorption (carpet vs tile)**. The encouraging part:
+    the DSP already exists — occlusion = a low-pass driven by "how blocked" (`FILTER_LOW`/`note_cutoff`),
+    zones = reverb size/send by which zone the listener is in, materials = an EQ/decay tweak. So it's
+    mostly **cart-side zone logic feeding existing knobs**, with maybe a thin convenience helper — *more
+    game logic than engine DSP*. Full spec + the v1/v2 build record: [`design/spatial.md`](design/spatial.md)
+    → "v3 — acoustic zones". Free-field (direct path only) until built.
+
 ---
 
 ## Decided-against / deferred ✗

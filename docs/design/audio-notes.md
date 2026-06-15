@@ -28,6 +28,7 @@ left here — that rule is what keeps this doc from regrowing).
 | timing jitter / drift (esp. web "drunk" playback) | [`audio-timing.md`](audio-timing.md) — frame-quantized triggers vs schedule-ahead; the web unclamped-`dt` hitch (latency is product-notes) |
 | the game/audio **thread model**, backends, the AudioWorklet migration | [`audio-threading.md`](audio-threading.md) — the lock-free queue, per-platform audio thread, runtime backend pick, staged build plan |
 | holding + driving notes live (the shipped spec) | [`held-notes.md`](held-notes.md) |
+| placing sound in the WORLD (pan/distance/Doppler, positional audio) | [`spatial.md`](spatial.md) — v1 per-voice + v2 emitter buses SHIPPED; v3 acoustic zones (inside/outside/occlusion) PROPOSED |
 | modrack / patching | [`modular-synth.md`](modular-synth.md) |
 | recording the player, looping it back | [`input-recording-looper.md`](input-recording-looper.md) |
 | a cart to build (instruments, toys) | [`cart-library-direction.md`](cart-library-direction.md) |

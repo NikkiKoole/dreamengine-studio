@@ -2832,14 +2832,22 @@ static inline float sound_membrane_sample(Voice *v, float pitch_mul) {
 // Karplus path on one voice. Self-oscillates from here; the amp ADSR gates it like organ/PD.
 static void sound_reed_start(Voice *v) {
     float f = v->freq; if (f < 20.0f) f = 20.0f;
-    int len = (int)((float)SOUND_SAMPLE_RATE / f / 2.0f);   // half-wavelength, one-way bore
-    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;     // bottoms out ~43Hz, below reed range
+    // Size the bore ~16 semitones BELOW the played note (×2.5), not at it, so the read delay can
+    // LENGTHEN below the note-on pitch — downward note_glide / note_pitch / pitch-env and the lower
+    // half of vibrato (a too-short bore clamps effLen at rd_len, bending only UP). rd_initfreq is
+    // picked so the note-on delay is byte-identical (effLen = d0i·f/curf), so tuning is unchanged;
+    // only the clamp ceiling rises. The bore self-oscillates from breath, so the longer noise seed
+    // is harmless (it just starts the oscillation, like brass/pipe).
+    int d0i = (int)((float)SOUND_SAMPLE_RATE / f / 2.0f);   // the original half-wavelength note-on delay
+    if (d0i < 4) d0i = 4;
+    int len = (int)((float)d0i * 2.5f);                    // longer bore → ~16 semitones of down-bend room
+    if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;     // capped at the buffer; bottoms out ~43Hz
     if (len < 4) len = 4;
     for (int i = 0; i < len; i++) {                         // seed with tiny noise (faster than silence)
         v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
         v->ks_buf[i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.01f;
     }
-    v->rd_len = len; v->rd_idx = 0; v->rd_initfreq = f;
+    v->rd_len = len; v->rd_idx = 0; v->rd_initfreq = (float)d0i * f / (float)len;
     v->rd_lp = v->rd_dc_prev = v->rd_dc_state = v->rd_vib_ph = v->rd_tilt = v->rd_noise_lp = 0.0f;
     v->rd_drift_ph = v->rd_drift = 0.0f;
     v->rd_attack   = (int)(0.028f * (float)SOUND_SAMPLE_RATE);   // ~28ms breathy chiff onset
@@ -2961,7 +2969,12 @@ static void sound_pipe_start(Voice *v) {
     // fractional read SHORTENS the loop back onto the exact pitch — the bowed-string trick. Without
     // it the note-on bore is integer-quantized, and at a ~20-sample bore (A5) one sample is ~80¢, so
     // high notes could never land in tune. The fractional read removes that quantization entirely.
-    int len = (int)targetBore + 2;
+    // Buffer ~16 semitones LONGER than the target (×2.5) so the fractional read can LENGTHEN the bore
+    // below the note-on pitch — downward glide/pitch-env/vibrato (effLen clamps at pp_len, so a bore
+    // sized at the note only bends UP). pp_initfreq below already references targetBore/len, so the
+    // note-on read length stays exactly targetBore whatever len is → tuning byte-identical; only the
+    // clamp ceiling rises. The pipe self-oscillates from the jet, so the longer noise seed is harmless.
+    int len = (int)(targetBore * 2.5f) + 2;
     if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;
     if (len < 4) len = 4;
     for (int i = 0; i < len; i++) {                         // seed with noise (faster oscillation startup)
@@ -3055,11 +3068,20 @@ static void sound_bowed_start(Voice *v) {
     int totalLen = (int)((float)SOUND_SAMPLE_RATE / f) + 1; // full wavelength (bow→nut + bow→bridge)
     if (totalLen > SOUND_KS_MAX - 1) totalLen = SOUND_KS_MAX - 1;
     if (totalLen < 4) totalLen = 4;
+    // Oversize the string (×2.5, capped by the shared buffer) so the fractional read can LENGTHEN it
+    // below the note-on pitch — bowed portamento / glissando DOWN (the read clamps at the buffer, so a
+    // string sized exactly at the note only slides UP). The total effective delay (hence pitch) is
+    // INDEPENDENT of the buffer size — bw_initfreq below folds in (nutLen+brLen), so it stays exactly
+    // (SR−0.5·f)/f at note-on → tuning unchanged; only the clamp ceiling rises. Full wavelength is 2×
+    // a half-wave engine, so the buffer cap bites sooner here: low notes get little down-room.
+    int room = (int)((float)totalLen * 2.5f);
+    if (room > SOUND_KS_MAX - 1) room = SOUND_KS_MAX - 1;
+    if (room < 4) room = 4;
     // harmonics = bow position β (sul ponticello → tasto). STEP-0 wedge: 0.05–0.25 all lock.
     float pos = 0.05f + v->harm * 0.20f;
     if (pos < 0.05f) pos = 0.05f; else if (pos > 0.95f) pos = 0.95f;   // navkit's clamp
-    int nutLen = (int)(totalLen * pos);
-    int brLen  = totalLen - nutLen;
+    int nutLen = (int)(room * pos);
+    int brLen  = room - nutLen;
     if (nutLen < 2) nutLen = 2;
     if (brLen  < 2) brLen  = 2;
     if (nutLen > SOUND_KS_MAX - 3) nutLen = SOUND_KS_MAX - 3;          // leave room for the bridge half
@@ -3135,7 +3157,9 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     // pitch tracking: read length scales by initfreq/curf (arp/glide/pitch-LFO all bend it)
     float curf = v->freq * pitch_mul * (1.0f + vib * 0.009f); if (curf < 20.0f) curf = 20.0f;
     float ratio = curf / (v->bw_initfreq > 20.0f ? v->bw_initfreq : 20.0f);
-    if (ratio < 0.25f) ratio = 0.25f; if (ratio > 4.0f) ratio = 4.0f;
+    // note-on ratio is now ~2.5 (the bore is sized 2.5× for down-bend room), so the old upper bound of
+    // 4 would choke upward bends; the nutEffLen/brEffLen clamps below are the real safety net anyway.
+    if (ratio < 0.25f) ratio = 0.25f; if (ratio > 12.0f) ratio = 12.0f;
     // nut-side fractional read (ks_buf[0..nutlen))
     float nutEffLen = (float)v->bw_nutlen / ratio;
     if (nutEffLen < 2.0f) nutEffLen = 2.0f;

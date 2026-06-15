@@ -16,8 +16,9 @@
 //   H            hide HUD
 // ============================================================================
 
-#define HW_HW   13          // highway carriageway half-width (px)
+#define LANE_W   6          // one lane width (px)
 #define HW_AR    8          // crossing arterial half-width
+static int   lanes = 2;     // highway lanes PER DIRECTION (variable) → half-width = lanes·LANE_W
 static float fsq(float x){ if(x<=0)return 0; float g=x>1?x:1; for(int i=0;i<6;i++) g=0.5f*(g+x/g); return g; }
 static float c_deg(float d){ return dx(1.0f, d); }   // engine dx/dy = cos/sin in degrees (0=right,90=down)
 static float s_deg(float d){ return dy(1.0f, d); }
@@ -31,18 +32,25 @@ static int   show_hud = 1;
 
 // ── ribbon: stroke a polyline as a clean filled road (centre-line + polyfill quads + joint
 //    circles), the same technique roadnet2 uses. casing = a darker outline drawn first/wider.
+// stroke a polyline as ONE offset polygon: each vertex pushed ±hw along its averaged normal,
+// then a single polyfill → smooth mitred edges, no per-joint blobs.
 static void ribbon(const float *xs, const float *ys, int n, int hw, int col) {
-    for (int i = 0; i + 1 < n; i++) {
-        int x0=(int)xs[i], y0=(int)ys[i], x1=(int)xs[i+1], y1=(int)ys[i+1];
-        line(x0, y0, x1, y1, col);
-        float dx=x1-x0, dy=y1-y0, L=fsq(dx*dx+dy*dy);
-        if (hw >= 2 && L >= 1.0f) {
-            int px=(int)(-dy/L*hw), py=(int)(dx/L*hw);
-            int xy[8]={ x0+px,y0+py, x1+px,y1+py, x1-px,y1-py, x0-px,y0-py };
-            polyfill(xy, 4, col);
-            circfill(x1, y1, hw, col);
-        }
+    if (n < 2) return;
+    if (hw < 2) { for (int i=0;i+1<n;i++) line((int)xs[i],(int)ys[i],(int)xs[i+1],(int)ys[i+1], col); return; }
+    if (n > 40) n = 40;
+    float nx[40], ny[40];
+    for (int i=0;i<n;i++) {
+        float tx, ty;                                    // averaged tangent at this vertex
+        if      (i==0)   { tx=xs[1]-xs[0];     ty=ys[1]-ys[0];     }
+        else if (i==n-1) { tx=xs[i]-xs[i-1];   ty=ys[i]-ys[i-1];   }
+        else             { tx=xs[i+1]-xs[i-1]; ty=ys[i+1]-ys[i-1]; }
+        float L=fsq(tx*tx+ty*ty); if (L<0.001f) L=1;
+        nx[i]=-ty/L*hw; ny[i]=tx/L*hw;                   // outward normal × half-width
     }
+    int poly[160], m=0;
+    for (int i=0;i<n;i++)   { poly[m++]=(int)(xs[i]+nx[i]); poly[m++]=(int)(ys[i]+ny[i]); }  // left edge fwd
+    for (int i=n-1;i>=0;i--){ poly[m++]=(int)(xs[i]-nx[i]); poly[m++]=(int)(ys[i]-ny[i]); }  // right edge back
+    polyfill(poly, m/2, col);
 }
 // stroke with a casing (wider darker band under a narrower lighter centre) — a "real road" look
 static void road(const float *xs, const float *ys, int n, int hw, int casing, int centre) {
@@ -78,10 +86,17 @@ static void straight(float ax,float ay,float bx,float by,int hw,int casing,int c
     else             ribbon(xs, ys, 25, hw, centre);
 }
 
+// dashed line along a horizontal scan-line y (the sandbox highway is horizontal)
+static void hdash(int y, int col) {
+    for (int x = 4; x < SCREEN_W; x += 12)
+        for (int d = 0; d < 6; d++) pset(x + d, y, col);
+}
+
 void init(void) {}
 
 void update(void) {
     if (keyp('T') || keyp(KEY_TAB)) itype = (itype + 1) % T_COUNT;
+    if (keyp('L')) lanes = lanes % 4 + 1;        // cycle highway lanes 1..4
     if (key(KEY_LEFT))  ang  -= 1.5f;
     if (key(KEY_RIGHT)) ang  += 1.5f;
     if (ang < 25) ang = 25; if (ang > 155) ang = 155;
@@ -96,15 +111,21 @@ void draw(void) {
     int CX = SCREEN_W/2, CY = SCREEN_H/2;
     float ux = c_deg(ang), uy = s_deg(ang);            // crossing-road unit dir
     float R  = (float)rampsz;
+    int HW = lanes * LANE_W;                            // highway carriageway half-width
 
-    // 1. HIGHWAY (horizontal), drawn UNDER everything
-    straight(0, CY, SCREEN_W, CY, HW_HW, CLR_DARKER_GREY, CLR_LIGHT_GREY);
+    // 1. HIGHWAY (horizontal), drawn UNDER everything: carriageway, then markings
+    straight(0, CY, SCREEN_W, CY, HW+2, CLR_DARKER_GREY, CLR_LIGHT_GREY);
+    for (int j = 1; j < lanes; j++) {                  // dashed white lane lines (within each direction)
+        hdash(CY - j*LANE_W, CLR_WHITE);
+        hdash(CY + j*LANE_W, CLR_WHITE);
+    }
+    rectfill(0, CY-1, SCREEN_W, 2, CLR_DARKER_GREY);   // centre median (clean divider between directions)
 
     // 2. RAMPS at highway level (so the overpass bridge occludes them where they pass under)
     if (itype == T_DIAMOND || itype == T_CLOVERLEAF) {
         // four quadrant ramps: highway point (CX±R,CY) ↔ crossing-road point (CX±R·u)
         for (int sx=-1; sx<=1; sx+=2) for (int sy=-1; sy<=1; sy+=2) {
-            float hx = CX + sx*R*1.5f, hy = CY;                   // on the highway
+            float hx = CX + sx*R*1.5f, hy = CY + sy*HW;          // on the highway LANE EDGE (this side)
             float ax = CX + ux*sy*R,   ay = CY + uy*sy*R;         // on the crossing road
             draw_ramp(hx,hy, (sx>0?0:180), ax,ay, (sy>0?ang:ang+180), R*0.9f);
         }
@@ -140,8 +161,8 @@ void draw(void) {
     if (show_hud) {
         char buf[48];
         rectfill(0,0,SCREEN_W,11,CLR_BLACK);
-        snprintf(buf,sizeof buf,"INTERCHANGE  %s", TNAME[itype]);
+        snprintf(buf,sizeof buf,"INTERCHANGE  %s  %dx2 lanes", TNAME[itype], lanes);
         print(buf, 4, 2, CLR_LIGHT_GREY);
-        print_centered("T type   \x1a\x1b angle   \x18\x19 ramp size", SCREEN_W/2, SCREEN_H-9, CLR_DARK_GREY);
+        print_centered("T type  L lanes  \x1a\x1b angle  \x18\x19 ramp", SCREEN_W/2, SCREEN_H-9, CLR_DARK_GREY);
     }
 }

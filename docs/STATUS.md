@@ -952,6 +952,30 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       (`note`/`hit`/`tone` vol 0..7) stays int — transients don't perceptibly step. **Worth its own STATUS
       item** given it's justified beyond spatial — the cleanest, lowest-risk audio change on the board.
 
+41. **Waveguide engines can now bend pitch DOWN** *(2026-06-16)* — ✓ **SHIPPED** for **BRASS / REED /
+    PIPE / BOWED** (commits `8dfd12a` brass, `d7e6957` reed/pipe/bowed). The bug: each engine sized its
+    delay line exactly at the note-on pitch and clamped the read length to it, so a held note could only
+    bend UP — downward `note_glide`/`note_pitch`/pitch-env and the lower half of vibrato all clamped at
+    the note-on pitch (the trombone SLIDE only slid up; bass lines had to re-trigger lower). Fix: size the
+    bore/string ×2.5 (~16 semitones of down-room, capped by `ks_buf`) and pick the init-freq reference so
+    the note-on read length is unchanged → tuning byte-identical (reed/brass) or within ~1–3¢ (pipe at
+    usable embouchure / bowed's chaotic stick-slip); only the clamp ceiling rises. Verified against the
+    pristine baseline; pizzicato still plucks; dc-check + tune-check clean. **PLUCK/GUITAR already had
+    ~1 octave of down-room (2× headroom); the simple oscillators (SINE/TRI/SAW/SQUARE/FM/PD) bend freely.**
+    - **Caveat — BOWED low register is buffer-capped.** Full wavelength is 2× a half-wave engine, so at
+      the bottom of the range the buffer is already at `SOUND_KS_MAX` (1024) and there's no room to
+      lengthen. Measured on the bass: down-bend works from ~**E2 up**, but **E1 (the open low-E, ~41 Hz)
+      can't bend down at all**. Raising the cap (a bigger `ks_buf`, more RAM/voice) or a coarser low-note
+      bore would extend it — only worth it if a cart needs sub-E2 portamento.
+    - **TODO — revisit the carts built AROUND the old limit:** `upright.c` (the upright bass, `INSTR_BOWED`)
+      hard-codes an **up-only** pull-bend (`fabsf(dpx)` → always `+vbend`) and uses fret-walk
+      re-articulation for downward motion *because the engine couldn't bend down* (its description even
+      says "the waveguide string bends UP cleanly but can't be bent below its pitch (verified)"). Now it
+      can: make the pull-bend **signed** (pull down → smooth flatten) above ~E2, keep the fret-walk as the
+      fallback at the very bottom + as the deliberate walking-bass articulation. `pdbass.c` was spun off
+      *only* to get a two-way slide (`INSTR_PD` oscillator) — still valid as the "buzzy CZ" variant, but
+      the upright itself no longer needs the workaround. Update both carts' descriptions when revisited.
+
 ---
 
 ## Decided-against / deferred ✗

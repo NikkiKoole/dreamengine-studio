@@ -1734,6 +1734,14 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    a jet∝bore re-voicing.
 5. **The measurement is now reusable.** `tune-check.js` is the regression gate for any future
    pitched-engine work (`--quiet` in CI); SINE stays the 0.0¢ proof the rig itself is honest.
+6. **Pitch bend DOWN — fixed across the waveguides (2026-06-16, [STATUS](../STATUS.md) #41).** All four
+   delay-line engines (BRASS/REED/PIPE/BOWED) sized the bore exactly at the note-on pitch and clamped the
+   read length to it, so a held note could only bend UP (downward glide/pitch-env/vibrato + the trombone
+   slide all stuck at the note-on pitch). Fix: oversize the buffer ×2.5 at note-on and reference an
+   init-freq so the note-on read length — hence tuning — is unchanged; only the clamp ceiling rises.
+   **BOWED is full-wavelength so the `ks_buf` cap bites at the bottom: down-bend works from ~E2 up, the
+   open low-E (E1) can't bend (buffer already maxed).** Carts that worked around the old limit (`upright.c`
+   fret-walk, `pdbass.c`'s INSTR_PD swap) can be revisited — see STATUS #41.
 
 ## 19. BRASS character — open (2026-06-14)
 

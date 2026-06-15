@@ -5,6 +5,13 @@ detail lives in [`roadnet.md`](roadnet.md) (L0–L2) and
 [`roadnet-streetlevel.md`](roadnet-streetlevel.md) (L3 + the road GRAPH — the most
 current, blow-by-blow log); this is the orientation + "what's next" for whoever picks it up.
 
+> **2026-06-15 — a v2 rebuild was sketched.** After this session we concluded v1's street
+> level carries a dual field+graph representation that diverged (the mess), and that staying
+> vector-native is cleaner. A fresh cart **`roadnet2`** was scaffolded from v1's clean
+> rung-1..3 baseline, with the full plan in [`roadnet2-plan.md`](roadnet2-plan.md). v1 (this
+> doc / cart) lives on as the reference + testbed. If picking up roadnet, **decide first**:
+> continue v1, or build out v2 per the plan.
+
 ## TL;DR of the 06-14→15 session — the GRAPH milestone
 We turned roadnet from "a world map with a street-level field" into **a navigable road
 GRAPH with buildings hanging off it**, in this arc (each a commit; detail in

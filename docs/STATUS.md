@@ -844,6 +844,20 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     - Same `sound.h` timing as #36 — land both `#define` bumps (+ #32's split if it's ready) in one
       compile-gated + tripwire'd + tune-checked change.
 
+38. **Boutique-effects leftovers (low priority)** *(2026-06-15)* — the boutique-pedal arc is essentially
+    done: **shipped** grains-pitch, the modulation kit (`mod_randwalk`/`mod_sh`/`mod_optical`), Univibe,
+    dropout, the `fx_order` 16→32 packing widen, Shallow Water, amp-noise, the noise gate, and the trophy
+    **Shimmer** (octave-up bus pitch-shifter) — see [`design/boutique-pedals-roadmap.md`](design/boutique-pedals-roadmap.md)
+    + `audio-notes §17` #19–#27. What's left is small/optional:
+    - **MOOD varispeed** — a navkit port (`half_speed`/`tape_stop`/`rewind`): tape slow-down / pitch-dive.
+      The last boutique-list item; shares pitch/time machinery with Shimmer. *Medium.*
+    - **Shimmer in the pedalboard** — currently master-stage only (standalone `shimmer` cart); needs a
+      per-bus `FX_SHIMMER` insert or a cabinet-style ambience slot. *Bigger than a quick win.*
+    - **Engineering nits** (may never matter — measure first): `fast_tanh` Padé approximation for the
+      soft-clip *only if* it shows up hot in the profiler; an **AC128 transfer-curve LUT** for a *named*
+      vintage-germanium fuzz voicing beyond `DRIVE_ASYM`; exposing the Shimmer pitch-shifter as a
+      standalone bus effect. Full detail: the roadmap's "Side quests" + "Follow-ups" sections.
+
 ---
 
 ## Decided-against / deferred ✗

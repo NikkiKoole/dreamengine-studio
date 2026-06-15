@@ -173,10 +173,13 @@ filtered-noise source; the gate is a small new follower+threshold effect, broadl
 reverb, tight drums). Natural sibling to the cab/amp work.
 
 ## Follow-ups (small, deferred)
-- **Wire `amp_noise()` into the `pedalboard` cabinet.** Right now it ships + plays only in the standalone
-  `ampnoise` cart — the pedalboard rig has no way to dial in the floor. It's a master-stage effect (not an
-  `FX_*` insert), so it belongs on the **CABINET** (e.g. a NOISE control / gain-tracked off the amp's GAIN),
-  not as a draggable chain pedal. Small cart-side wiring (no engine work). [noted 2026-06-15]
+- ✅ **Wire `amp_noise()` into the `pedalboard` cabinet.** Done 2026-06-15 — the AMP cabinet now adds a
+  rig-noise floor whose hiss tracks the GAIN knob (clean = silent, hot = hisses) + a touch of mains hum;
+  Leslie/none stay pristine. Cart-side only; default board byte-identical (dormant until AMP is chosen).
+- **Shimmer in the pedalboard.** `shimmer()` is master-stage (a private reverb tank), so it's not a
+  draggable chain pedal — only the standalone `shimmer` cart has it. To add it to the rig: either make a
+  real per-bus `FX_SHIMMER` insert (the tank would need to go per-bus, non-trivial), or a non-reorderable
+  cabinet-style "ambience" slot driving the master `shimmer()`. Deferred — bigger than a quick win.
 
 ## Side quests (engineering nits from the lists, not effects)
 - **`fast_tanh` Padé approximation** (B1 tip): if `DRIVE_SOFT`/the soft-clip is ever hot in the

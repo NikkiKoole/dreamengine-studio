@@ -391,6 +391,9 @@ static void apply_fx(void) {
         } else if (cab_tenant == CAB_AMP) {
             instrument_drive(I_GTR, 0.0f);                              // clean voice into the amp's bus drive
         }
+        // the amp's rig-noise floor: hiss tracks the GAIN knob (a hot amp hisses; clean = silent) + a
+        // touch of mains hum. Only the AMP tenant — Leslie/none are silent (a fantasy console is pristine).
+        amp_noise(cab_tenant == CAB_AMP ? cab_k[0] * 0.45f : 0.0f, cab_tenant == CAB_AMP ? 0.10f : 0.0f, 60);
         cabfuzz_applied = engaged;
     }
 }

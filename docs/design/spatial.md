@@ -367,6 +367,46 @@ that occlude in-room **emitters** (raycast listener→emitter, drive `note_cutof
 dropped out* (expected: a cart-land `acoustics.h` helper + the rideable-reverb gap, maybe a
 line-of-sight primitive).
 
+### Designed solutions for the two engine asks (ready to build when `sound.h` is free)
+
+Both are small, byte-identical-when-dormant, and mirror existing idioms. Append the request
+kinds after the current enum max (re-read the tail first — it drifts under parallel edits).
+
+**(a) `note_gain(int handle, float g)` — a continuous per-voice gain.**
+The problem: `note_vol` quantizes to 0..7, so occlusion attenuation steps audibly. Internally
+`v->vol` is *already* a float (0..1); the fix is a **separate** float multiplier so musical
+velocity (`note_vol`) and continuous attenuation (`note_gain`, e.g. occlusion/ducking) compose
+instead of fighting — exactly how v1's `sp_gain` was layered in.
+- Voice: add `float gain, gain_target;` (init `1.0` in `sound_setup_note`).
+- Per-sample slew next to the others: `v->gain += (v->gain_target - v->gain) * 0.003f;`
+- Fold into the contrib line (now): `contrib = s * v->vol * env * trem * v->sp_gain * v->gain * 0.2f;`
+  (`gain` defaults 1.0 → multiplying by exactly 1.0 is identity → **byte-identical** until used.)
+- `SR_NOTE_GAIN` handler: `v->gain_target = clamp(r.a/1000, 0, 1)` (e0/e1 = handle). Wrapper mirrors
+  `note_vol`. Cost ~2 floats × 32 voices, negligible CPU. 4-place wiring + tcc + a `studioDocs`/`shell`
+  entry. Verify: an occlusion sweep reads smooth where `note_vol` stepped.
+
+**(b) Rideable zone reverb — slew the tank's `fb`/`damp`.**
+Key finding from the probe: `reverb()` is **cheap to re-call** (`SR_REVERB` just sets two floats,
+`rvb_tank[0].fb` + `.damp` — no buffer rebuild), so it is *not* a churn. The abruptness is purely
+that `fb`/`damp` **step instantly** (no slew) → the tail's decay/brightness jumps when you cross a
+zone. So the fix is just a slew, gated so non-users stay byte-identical:
+- `ReverbTank`: add `float fb_target, damp_target, glide;` (`glide` = per-sample slew coef, default 0).
+- **All existing setters snap both** (`fb = fb_target = …; damp = damp_target = …`) → instant, unchanged.
+- In `reverb_process`, gate the slew: `if (t->glide > 0) { t->fb += (t->fb_target - t->fb) * t->glide; t->damp += (t->damp_target - t->damp) * t->glide; }` — non-gliding tanks skip it entirely → **byte-identical + zero overhead**.
+- New **`reverb_glide(int ms)`** sets the master tank's `glide` (0 = snap, the default; >0 = glide over
+  ~ms, reusing `note_glide`'s `k = 1000/(ms·SR)` idiom). When `glide > 0`, `reverb()` sets the *targets
+  only* (doesn't snap), so the tank morphs. Usage: `reverb_glide(250)` once, then `reverb(zonePreset)`
+  on each room change → smooth morph instead of a step.
+- Caveat: this **morphs one tank** (decay/brightness glide), not a true crossfade. Great for adjacent
+  rooms; for an extreme jump (closet → cathedral) the morph reads as a swell. The higher-fidelity
+  fallback is **crossfading two tanks** (we have a 3-tank pool) — note it as the v3.1 option, don't
+  build it unless the morph proves insufficient.
+- Still **listener-centric** (master tank = the listener's room). An emitter carrying *its own* room's
+  reverb through a portal is the deferred rooms+portals refinement, unchanged by this.
+
+The rest of v3 (occlusion raycast, zone/material `(size,damping)` tables) stays a cart-land
+`acoustics.h` helper over these knobs — no further engine API.
+
 ---
 
 ## Cost estimates (guesstimate)

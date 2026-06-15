@@ -900,6 +900,12 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       crossing rooms jumps abruptly. Build plan: a cart-land **`acoustics.h`** helper (raycast occlusion
       + zone/material tables → the knobs) + those two engine conveniences. A tilemap **line-of-sight**
       primitive is an optional bonus (generalizes to vision/stealth). Findings in the cart header.
+    - **Both engine asks now DESIGNED** (ready to build when `sound.h` is free) in
+      [`design/spatial.md`](design/spatial.md) → "Designed solutions": (a) `note_gain` = a separate
+      per-voice float multiplier folded into `contrib` (mirrors v1's `sp_gain`, byte-identical at 1.0);
+      (b) rideable reverb = slew the tank's `fb`/`damp` toward targets, gated on a new `reverb_glide(ms)`
+      (snap by default → byte-identical; `reverb()` re-call is already cheap — just no slew). Two-tank
+      crossfade noted as the v3.1 higher-fidelity fallback.
 
 ---
 

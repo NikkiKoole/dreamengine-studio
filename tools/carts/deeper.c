@@ -191,13 +191,24 @@ static void gen_world(void) {
 static float room_openness(void) {
     int cc = ((int)px + PW / 2) / TILE;
     int cr = ((int)py + PH / 2) / TILE;
-    int left = 0, right = 0, up = 0, down = 0;
-    while (left  < PROBE && !gat(cc - left  - 1, cr)) left++;
-    while (right < PROBE && !gat(cc + right + 1, cr)) right++;
-    while (up    < PROBE && !gat(cc, cr - up   - 1))  up++;
-    while (down  < PROBE && !gat(cc, cr + down + 1))  down++;
-    float horiz = (left + right) / (float)(2 * PROBE);   // halls are wide
-    float vert  = (up + down)    / (float)(2 * PROBE);   // shafts are tall
+    // WIDTH: sample at the player's row AND a couple tiles up, take the WIDER. Near the floor
+    // the horizontal probe gets blocked by low rubble steps (≤2 tiles), so a hall used to read
+    // narrow while standing and only open up mid-jump — but jumps are silent, so footsteps never
+    // heard the hall. Sampling above the rubble fixes it: the room's true width registers whether
+    // you're standing, landing, or hopping.
+    int hbest = 0;
+    for (int dr = 0; dr <= 4; dr += 2) {            // rows: at center, 2-up, 4-up (clears ≤2-tile rubble)
+        int row = cr - dr; if (row < 0) continue;
+        int l = 0, r = 0;
+        while (l < PROBE && !gat(cc - l - 1, row)) l++;
+        while (r < PROBE && !gat(cc + r + 1, row)) r++;
+        if (l + r > hbest) hbest = l + r;
+    }
+    int up = 0, down = 0;
+    while (up   < PROBE && !gat(cc, cr - up   - 1)) up++;
+    while (down < PROBE && !gat(cc, cr + down + 1)) down++;
+    float horiz = hbest / (float)(2 * PROBE);        // halls are wide
+    float vert  = (up + down) / (float)(2 * PROBE);  // shafts are tall
     return clamp(horiz * 0.82f + vert * 0.18f, 0.0f, 1.0f);   // width dominates → tight spaces read truly dry
 }
 

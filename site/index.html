@@ -82,6 +82,16 @@
       </div>
     </a>
 
+    <a class="card" href="fxmod/" data-title="fxmod" data-search="fxmod fxmod instrument the showcase for fx_mod() / fx_lfo() - the modulation layer over effects (the synth-rack 'cv into an effect'). effects keep their own knobs; this rides a curated, sweep-safe one under a control signal, the way lfo_timbre rides an instrument macro. a held saw drone runs through the master effects; 1..3 pick the target param (filter cutoff / drive / shimmer mix), then choose how it's driven: l = engine lfo (fx_lfo(): set once, the engine sweeps it), c = cv by hand (fx_mod(): the cart pushes a value every frame - what modrack does), o = off (the param sits at its static baseline). rate/depth/center shape the sweep; the big bar shows the value being written. two apis, one job: fx_lfo is fire-and-forget, fx_mod is the per-frame sink you drive from your own lfo/envelope/sequencer. only cheap params are exposed, so it can never reconfigure a buffer effect into a stutter. h help. (adr 0018.)" data-added="2026-06-15" data-tier="2">
+      <img src="fxmod/cart.png" alt="fxmod" loading="lazy">
+      <div class="body">
+        <h2>fxmod <span class="dual" title="Ships two audio backends — a dedicated-thread AudioWorklet build and a plain ScriptProcessor build. Responds to the Audio toggle above.">⚡2×audio</span></h2>
+        <div class="badge b-rough">🟠 Rough on Mobile — technically runs, expect pain</div>
+        <p>The showcase for fx_mod() / fx_lfo() - the MODULATION layer over effects (the synth-rack 'CV into an effect'). Effects keep their own knobs; this RIDES a curated, sweep-safe one under a control signal, the way LFO_TIMBRE rides an instrument macro. A held saw drone runs through the master effects; 1..3 pick the TARGET param (filter cutoff / drive / shimmer mix), then choose how it's driven: L = engine LFO (fx_lfo(): set once, the engine sweeps it), C = CV by hand (fx_mod(): the cart pushes a value every frame - what modrack does), O = off (the param sits at its static baseline). RATE/DEPTH/CENTER shape the sweep; the big bar shows the value being written. Two APIs, one job: fx_lfo is fire-and-forget, fx_mod is the per-frame sink you drive from your own LFO/envelope/sequencer. Only cheap params are exposed, so it can never reconfigure a buffer effect into a stutter. H help. (ADR 0018.)</p>
+        <div class="added">added 2026-06-15</div>
+      </div>
+    </a>
+
     <a class="card" href="genloss/" data-title="generation loss" data-search="genloss generation loss instrument the showcase for dropout() - the vhs / generation-loss failure knob. a self-playing wistful ep loop runs through the full degraded-cassette chain: crush() (bit + sample-rate reduction) into tape() (wow/flutter/saturation) into dropout(). the new piece is dropout: a sample-and-hold clock randomly triggers momentary tape-catches where the whole mix stumbles - drops in level and goes dull from hf loss - then recovers fast, exactly like a tape dubbed one too many times. three sliders: failure (how often the tape catches), depth (how hard each catch drops), degrade (the bit-crush + tape grime baseline). a vhs tape-transport display turns its reels and tears its tracking when a catch fires. space pauses the loop; h for help. built on dropout() + the modulation kit's sample-and-hold (mod_sh) from the boutique-pedals roadmap. part of the lo-fi / effects family." data-added="2026-06-15" data-tier="2">
       <img src="genloss/cart.png" alt="generation loss" loading="lazy">
       <div class="body">
@@ -3552,7 +3562,7 @@
       </div>
     </a>
 </div>
-<footer>348 carts · arrows + Z/X to play (most carts)</footer>
+<footer>349 carts · arrows + Z/X to play (most carts)</footer>
 <script>
 (function () {
   var grid = document.querySelector('.grid')

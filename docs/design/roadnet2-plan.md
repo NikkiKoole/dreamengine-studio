@@ -71,6 +71,23 @@ Leaning (not committed): **~500 km bound** is more than enough — no one drives
 this — and it sits comfortably under the float-precision wall, keeping sub-metre detail
 everywhere. Good to know; defer the actual decision until scale is felt.
 
+## Two cameras + GPS — the driving harness
+You can't drive on the overview map; the drive view must be its own camera. The clean model is
+**two cameras over the one (metre) world** — it's the v1 loupe idea *inverted* (main = street/
+drive, inset = map):
+- **DRIVE cam** — tight, follows the car (~4–8 px/m). True-proportion road + car, a faint
+  **reference grid** (e.g. 100 m / 10 m lines) so you *watch the metres go by* — the scale
+  device. A **GPS minimap** inset (corner) shows the car + nearby network.
+- **MAP cam** — the overview (today's view): network + cities, free pan/zoom, schematic.
+
+**Flow:** explore opens in MAP → **click a spot drops/teleports the car there** and enters DRIVE
+→ drive with the GPS → **click the GPS (or M) → MAP fullscreen** → click elsewhere to fast-travel
+→ DRIVE. This also **dissolves the LOD threshold soup**: each camera has ONE fixed detail level
+(DRIVE = fine + near; MAP = network), no per-zoom pop. And it makes the car metre-real so 130 km/h
+*feels* like 130. Click-to-go starts as **teleport/fast-travel** (great for probing scale); the
+**routing** version (a highlighted route on the GPS) is a later layer on the same widget once the
+graph is back. Forks to settle by feel: heading-up vs north-up GPS; teleport vs route.
+
 ## The v2 architecture — one graph, one query
 - **Everything is spline edges in ONE graph.** Highways → collectors → access → cul-de-sacs
   are all `RoadEdge`s (a class + a polyline, sampled from control points). Nodes are real
@@ -119,14 +136,17 @@ edges now), the field↔graph extraction step (graph is generated directly, not 
 
 ## Build order (each a stop-and-look milestone)
 1. **L0 verified** — the cart already runs the clean highways (done; it's the baseline).
-2. **Re-base to metres + LOCK SCALE by driving** — 🔨 *car instrument added* (click the map to
-   drop a car, arrows/WASD drive, camera follows, C drops it; HUD reads **km/h + odometer** via
-   `M_PER_UNIT`, the scale knob). Physics ported from `steer.c`. **Still to do here:** the actual
-   metre re-base — the car is *unit-scaled + fixed-pixel* for now (visible at the map's zoom), so
-   a metre-sized car needs the L0 lattice restated in metres (cities in km) + the zoom range
-   widened so you can sit at ~4 px/m to drive and ~0.001 to see the continent. Then tune
-   `M_PER_UNIT` / car speed / block size until crossing a city *feels* right, and decide **scope**.
-   This is a measuring instrument, not the payoff — don't generate fill-in until it feels right.
+2. **Re-base to metres + LOCK SCALE by driving** — 🔨 in progress.
+   - ✅ *Car* (ported from `steer.c`) + *two-camera harness*: **MAP** overview ⟷ **DRIVE** follow-cam.
+     Click the map to drop/teleport the car (→ DRIVE), arrows/WASD steer, a faint **100m reference
+     grid** gives the scale feel, a **GPS minimap** inset shows you-are-here; click the GPS → back
+     to MAP (fast-travel). HUD reads **km/h + odometer** via `M_PER_UNIT` (the scale knob).
+   - ⛔ *Still the real lock:* the actual **metre re-base** — units → metres, L0 lattice restated in
+     km (`hub_cs`/`node_cs` ×~120 and the bend/bridge/valley constants with them), and **metre-width
+     road rendering** in DRIVE (roads are still px-stroked, so the car looks wider than its lane).
+     The car is *unit-scaled + fixed-pixel* until then. Once re-based, tune `M_PER_UNIT`/car speed/
+     block size by driving until crossing a city *feels* right, and decide **scope** (~500km lean).
+   - This is a measuring instrument, not the payoff — don't generate fill-in until it feels right.
 3. **Unified `road_at` = nearest-edge** over the *highway* edges first (prove the query +
    spatial index on the tier we already have), render as strokes. No field anywhere.
 4. **Collector tier as a warped grid**, generated directly as spline edges into the graph,

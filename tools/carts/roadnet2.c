@@ -70,7 +70,8 @@
 
 #define TILE 4                                  // screen px per world tile at zoom 1
 #define ZMIN 0.12f                               // mousewheel zoom range — far out
-#define ZMAX 2.5f                                 // (terrain is sampled per screen
+#define ZMAX 8.0f                                  // up from 2.5 → allows the tight DRIVE follow-cam
+                                                  // (terrain is sampled per screen
                                                   //  pixel, so there's no buffer ceiling)
 #define SPAWN_X 312.0f
 #define SPAWN_Y 8.0f
@@ -129,6 +130,20 @@ static int   click_px, click_py;     // press anchor — click (tiny move) = pla
 static void car_spawn(float wx, float wy) {
     car_x = wx; car_y = wy; car_vx = car_vy = car_spd = 0; car_ang = -90; car_odo = 0; car_on = 1;
 }
+
+// ── TWO CAMERAS (the driving harness) — DRIVE follows the car at a tight zoom with a metre
+// reference grid + a GPS minimap; MAP is the overview you pop to (click the GPS) and fast-travel
+// from (click a spot → car teleports there → back to DRIVE). One world, two cameras. See
+// roadnet2-plan.md → "Two cameras + GPS".
+enum { V_MAP, V_DRIVE };
+static int   vmode = V_MAP;
+#define DRIVE_ZOOM 6.0f            // tight follow-cam zoom (drive)
+#define MAP_ZOOM   1.0f            // overview zoom when you pop to the map
+#define GRID_M     100.0f         // reference-grid spacing, metres
+#define GPS_SZ     78             // GPS minimap box size (px)
+#define GPS_ZOOM   0.5f           // the minimap's own zoom (overview around the car)
+#define GPS_X      (SCREEN_W - GPS_SZ - 3)
+#define GPS_Y      (SCREEN_H - GPS_SZ - 3)
 static int   vcols, vrows;           // visible world-tile span this frame (road bounds)
 static int   dragging = 0, drag_px, drag_py;  // left-drag-to-pan ("grab the map")
 
@@ -567,17 +582,17 @@ static void hud(void) {
     float cx = camX + vcols / 2.0f, cy = camY + vrows / 2.0f;
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print("ROADNET2", 4, 2, CLR_LIGHT_GREY);
-    if (car_on) {                                // speed readout = the scale instrument
+    if (vmode == V_DRIVE && car_on) {            // DRIVE: speed readout = the scale instrument
         float kmh = (car_spd < 0 ? -car_spd : car_spd) * M_PER_UNIT * 60.0f * 3.6f;
         snprintf(buf, sizeof buf, "%3d km/h   %.2f km", (int)kmh, car_odo / 1000.0f);
         print(buf, 84, 2, CLR_YELLOW);
-        print_centered("\x18\x19\x1a\x1b/WASD drive   C drop car   wheel zoom   R reset",
+        print_centered("\x18\x19\x1a\x1b/WASD drive   click GPS = map   C drop car",
                        SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
-    } else {
+    } else {                                     // MAP overview
         snprintf(buf, sizeof buf, "x %d  y %d", (int)cx, (int)cy);
         print(buf, 84, 2, CLR_MEDIUM_GREY);
         if (show_grid) print("[grid]", 170, 2, CLR_DARK_PURPLE);
-        print_centered("click = drop CAR   drag/\x18\x19\x1a\x1b pan   wheel zoom   SPACE jump   R seed   M setup",
+        print_centered("click = drive there   drag/\x18\x19\x1a\x1b pan   wheel zoom   SPACE jump   M setup",
                        SCREEN_W / 2, SCREEN_H - 9, CLR_DARK_GREY);
     }
 }
@@ -649,12 +664,8 @@ void update(void) {
     }
 
     float pp = TILE * zoom;
-    if (keyp('C')) {                             // toggle the car (spawn at screen centre)
-        if (!car_on) car_spawn(camX + SCREEN_W * 0.5f / pp, camY + SCREEN_H * 0.5f / pp);
-        else car_on = 0;
-    }
 
-    if (car_on) {                                // ── DRIVE (steer.c model) — arrows/WASD ──
+    if (vmode == V_DRIVE && car_on) {            // ══ DRIVE — follow the car, arrows/WASD steer ══
         float turn = (btn(0,BTN_RIGHT)||key('D') ? 1.0f:0) - (btn(0,BTN_LEFT)||key('A') ? 1.0f:0);
         float sc = car_spd / CAR_MAXSPD; if (sc < 0) sc = -sc;
         car_ang += turn * CAR_STEER * sc;        // steering scales with speed (parked can't turn)
@@ -666,40 +677,41 @@ void update(void) {
         car_x += car_vx; car_y += car_vy;
         car_odo += fsqrt(car_vx*car_vx + car_vy*car_vy) * M_PER_UNIT;
         camX = car_x - SCREEN_W * 0.5f / pp; camY = car_y - SCREEN_H * 0.5f / pp;  // camera follows
-    } else {                                     // ── FREE-CAM pan (arrows/WASD) ──
+        if (mouse_pressed(MOUSE_LEFT) && mouse_x() >= GPS_X && mouse_y() >= GPS_Y) {   // click GPS → MAP
+            vmode = V_MAP; zoom = MAP_ZOOM; view_metrics();
+            camX = car_x - SCREEN_W*0.5f/(TILE*zoom); camY = car_y - SCREEN_H*0.5f/(TILE*zoom);
+        }
+    } else {                                     // ══ MAP — overview: pan + click to fast-travel ══
         float pan = 1.3f / zoom;
         if (btn(0, BTN_LEFT)  || key('A')) camX -= pan;
         if (btn(0, BTN_RIGHT) || key('D')) camX += pan;
         if (btn(0, BTN_UP)    || key('W')) camY -= pan;
         if (btn(0, BTN_DOWN)  || key('S')) camY += pan;
+        int pan_ok = (mode == 1) || (mouse_x() > PANEL_W);
+        if (mouse_pressed(MOUSE_LEFT) && pan_ok) { dragging = 1; drag_px = click_px = mouse_x(); drag_py = click_py = mouse_y(); }
+        if (mouse_down(MOUSE_LEFT)) {
+            if (dragging) { camX -= (mouse_x()-drag_px)/pp; camY -= (mouse_y()-drag_py)/pp; drag_px=mouse_x(); drag_py=mouse_y(); }
+        } else {
+            if (dragging && mode == 1) {         // released as a CLICK (tiny move) → drop/teleport car → DRIVE
+                int ddx = mouse_x()-click_px, ddy = mouse_y()-click_py;
+                if (ddx*ddx + ddy*ddy < 16) { car_spawn(camX + mouse_x()/pp, camY + mouse_y()/pp);
+                                              vmode = V_DRIVE; zoom = DRIVE_ZOOM; view_metrics(); }
+            }
+            dragging = 0;
+        }
     }
 
-    // mouse: a CLICK (tiny move) drops/places the car; a DRAG grabs+pans the map (free-cam only)
-    int pan_ok = (mode == 1) || (mouse_x() > PANEL_W);
-    if (mouse_pressed(MOUSE_LEFT) && pan_ok) { dragging = 1; drag_px = click_px = mouse_x(); drag_py = click_py = mouse_y(); }
-    if (mouse_down(MOUSE_LEFT)) {
-        if (dragging && !car_on) {               // grab-pan the map
-            camX -= (mouse_x() - drag_px) / pp; camY -= (mouse_y() - drag_py) / pp;
-            drag_px = mouse_x(); drag_py = mouse_y();
-        }
-    } else {
-        if (dragging && mode == 1) {             // released: was it a click? → (re)place the car
-            int ddx = mouse_x() - click_px, ddy = mouse_y() - click_py;
-            if (ddx*ddx + ddy*ddy < 16) car_spawn(camX + mouse_x()/pp, camY + mouse_y()/pp);
-        }
-        dragging = 0;
-    }
-
-    if (keyp(KEY_SPACE) && !car_on) {            // deterministic jump to fresh scenery
+    if (keyp('C') && car_on) { car_on = 0; vmode = V_MAP; }   // drop the car → free overview
+    if (keyp(KEY_SPACE) && vmode == V_MAP) {     // deterministic jump to fresh scenery
         jumpN += 1.0f;
         unsigned h = hash2((int)(jumpN * 911), 7);
         camX += (float)((int)(h % 4000u) - 2000) + 800.0f;
         camY += (float)((int)((h >> 11) % 4000u) - 2000) + 800.0f;
     }
-    if (keyp('R')) { zoom = 1.0f; view_metrics(); camX = SPAWN_X - vcols / 2.0f; camY = SPAWN_Y - vrows / 2.0f; seedZ += 0.37f; jumpN = 0; car_on = 0; }
+    if (keyp('R')) { zoom = MAP_ZOOM; view_metrics(); camX = SPAWN_X - vcols / 2.0f; camY = SPAWN_Y - vrows / 2.0f; seedZ += 0.37f; jumpN = 0; car_on = 0; vmode = V_MAP; }
     if (keyp('G')) show_grid = !show_grid;
     if (keyp('H')) show_hud  = !show_hud;
-    if (keyp('M')) { mode = 0; car_on = 0; }     // re-open the setup panel
+    if (keyp('M')) { mode = 0; car_on = 0; vmode = V_MAP; }   // re-open the setup panel
 }
 
 static void draw_car(void) {                     // fixed-pixel so it's visible at any zoom
@@ -707,9 +719,41 @@ static void draw_car(void) {                     // fixed-pixel so it's visible 
     circfill(sx, sy, 3, CLR_RED); circ(sx, sy, 3, CLR_BLACK);     // body
     line(sx, sy, sx + (int)dx(7, car_ang), sy + (int)dy(7, car_ang), CLR_WHITE);  // heading
 }
+// faint world-space reference grid every GRID_M metres — the SCALE device (watch the metres go by)
+static void draw_grid_ref(void) {
+    float gm = GRID_M / M_PER_UNIT;              // grid spacing in world units
+    if (gm <= 0.001f) return;
+    for (int i = ifloor(camX/gm); i <= ifloor((camX+vcols)/gm); i++) {
+        int x = sxp(i*gm); line(x, 11, x, SCREEN_H, CLR_DARK_GREY);
+    }
+    for (int j = ifloor(camY/gm); j <= ifloor((camY+vrows)/gm); j++) {
+        int y = syp(j*gm); line(0, y, SCREEN_W, y, CLR_DARK_GREY);
+    }
+}
+// GPS minimap — the same world rendered at an overview zoom into a corner box, car at centre.
+static void draw_gps(void) {
+    float ocamX = camX, ocamY = camY, oz = zoom;
+    rectfill(GPS_X-1, GPS_Y-1, GPS_SZ+2, GPS_SZ+2, CLR_WHITE);    // frame
+    clip(GPS_X, GPS_Y, GPS_SZ, GPS_SZ);
+    zoom = GPS_ZOOM; view_metrics();
+    camX = car_x - (GPS_X + GPS_SZ*0.5f)/(TILE*zoom);            // centre the car in the box
+    camY = car_y - (GPS_Y + GPS_SZ*0.5f)/(TILE*zoom);
+    draw_world();                                               // terrain + roads, clipped to the box
+    circfill(sxp(car_x), syp(car_y), 2, CLR_RED);                // you-are-here
+    clip(0, 0, 0, 0);
+    camX = ocamX; camY = ocamY; zoom = oz; view_metrics();
+    print("GPS", GPS_X+2, GPS_Y+2, CLR_WHITE);
+}
 void draw(void) {
-    draw_world();                                // the live preview, always
-    if (car_on) draw_car();
+    draw_world();                                // terrain + roads at the current camera
+    if (vmode == V_DRIVE && car_on) {
+        draw_grid_ref();                         // metre grid (scale)
+        draw_car();
+        draw_gps();                              // minimap inset
+    } else if (car_on) {                         // MAP: show where the car is parked
+        int x = sxp(car_x), y = syp(car_y);
+        circfill(x, y, 3, CLR_RED); circ(x, y, 3, CLR_WHITE);
+    }
     if (mode == 0) draw_setup_panel();
     else if (show_hud) hud();
 }

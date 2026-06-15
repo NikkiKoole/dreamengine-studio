@@ -82,7 +82,8 @@ static void ramp_pts(float ax, float ay, float aA, float bx, float by, float aB,
 static void draw_ramp(float ax,float ay,float aA, float bx,float by,float aB, float kA, float kB) {
     float xs[RN+1], ys[RN+1];
     ramp_pts(ax,ay,aA, bx,by,aB, kA,kB, xs,ys);
-    road(xs, ys, RN+1, 6, CLR_DARKER_GREY, CLR_DARK_GREY);
+    ribbon(xs, ys, RN+1, 5, CLR_DARKER_GREY);    // ~1-lane ramp (was 2 lanes wide → looked detached)
+    ribbon(xs, ys, RN+1, 3, CLR_DARK_GREY);
 }
 // a STRAIGHT road A→B, subdivided into short segments (polyfill fills short quads reliably; one
 // screen-long quad came out empty). Optional `casing<0` → no casing (shadow pass uses one colour).
@@ -132,10 +133,10 @@ void draw(void) {
         // four quadrant ramps: highway point (CX±R,CY) ↔ crossing-road point (CX±R·u)
         float px=-uy, py=ux;                                     // perpendicular to the crossing road
         for (int sx=-1; sx<=1; sx+=2) for (int sy=-1; sy<=1; sy+=2) {
-            float hx = CX + sx*R*goreM, hy = CY + sy*HW;         // highway end: outer lane EDGE (the gore/nose)
+            float hx = CX + sx*R*goreM, hy = CY + sy*(HW - LANE_W*0.5f);  // start ON the outer lane (overlaps highway)
             float cd = HW + R;                                   // crossing end: clearance R BEYOND the edge
-            float ax = CX + ux*sy*cd - px*sx*HW_AR;              // ...on the crossing road's NEAR side
-            float ay = CY + uy*sy*cd - py*sx*HW_AR;
+            float ax = CX + ux*sy*cd - px*sx*(HW_AR*0.35f);     // end tucked ONTO the crossing carriageway
+            float ay = CY + uy*sy*cd - py*sx*(HW_AR*0.35f);     // (overpass drawn on top → clips it neat)
             // highway tangent points TOWARD the curve (toward centre) so it tapers off parallel,
             // not folding back; kA = the off-ramp taper run, kB = run-on along the overpass
             draw_ramp(hx,hy, (sx>0?180:0), ax,ay, (sy>0?ang:ang+180), R*taperM, R*runonM);

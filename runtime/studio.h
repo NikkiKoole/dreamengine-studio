@@ -510,6 +510,13 @@ void instrument_univibe(int slot, float rate, float depth, float mix);  // univi
 // with crush()/tape()/filter() for the full degraded-cassette sound. amount 0 = off → byte-identical.
 void dropout(float amount, float depth);   // amount 0..1 = how often the tape catches, depth 0..1 = how hard it drops (level + HF loss). try 0.4/0.7
 
+// shallow water — a filtered-random ("K-field") short delay + a Low Pass Gate (Fairfield Shallow
+// Water): a gentle, UNPREDICTABLE pitch wobble (a random walk drifts the delay, not a sine LFO — the
+// warped-tape / reflection-on-water shimmer) that goes dark + soft when quiet and blooms back. A
+// reorderable insert (FX_SHALLOW). Lovely on pads, keys, clean guitar. mix 0 = off.
+void shallow(float rate, float depth, float mix);                 // rate 0.2..8 Hz (drift speed), depth 0..1 (warble amount), mix 0..1. THE master shallow water. try 1/0.6/0.5
+void instrument_shallow(int slot, float rate, float depth, float mix);  // shallow water on just this slot (auto-grabs a private FX bus)
+
 // filter — a sweepable resonant FILTER on the whole mix: the DJ-filter / build-up sweep. A plain
 // state-variable filter (low/high/band/notch) you RIDE live — close it to a muffled thump on the
 // breakdown, open it back up (crank resonance for the scream) on the build. THE electronic-music
@@ -545,6 +552,7 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_ECHO     13  // delay/echo INSERT — in-line dry/wet delay (master only, via echo_insert(); place in fx_order(0,…))
 #define FX_GRAINS   14  // granular delay INSERT — capture-and-scatter texture/freeze cloud (via grains()/instrument_grains(); auto-placed, reorderable via fx_order)
 #define FX_DRIVE    15  // mix-bus saturation INSERT — drive the summed mix (via drive_insert(); place in fx_order(0,…)). Kinds 16..31 are free (fx_order packs 5 bits of kind per slot)
+#define FX_SHALLOW  16  // shallow-water INSERT — a filtered-random short delay + Low Pass Gate (via shallow(); place in fx_order). First kind past the old 16-kind ceiling
 #define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..7.
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 16 slots
 

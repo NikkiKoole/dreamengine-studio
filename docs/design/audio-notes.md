@@ -1535,6 +1535,21 @@ v1, document it on the panel.
     sine A/B confirms instances still route (driven crest 0.65 dB vs clean 3.01 dB). Unblocks new
     reorderable inserts (Shallow Water, noise gate, …) that the full table had blocked.
 
+24. **Shallow Water (`shallow`) — first new insert past the widened ceiling.** **✓ SHIPPED 2026-06-15.**
+    Boutique-pedals roadmap; 3rd consumer of the modulation kit (`mod_randwalk`). `shallow(rate, depth,
+    mix)` + `instrument_shallow` (`SR_SHALLOW`=96/97), `FX_SHALLOW`=16 — the first kind minted past the
+    16→32 packing widen (#23). A filtered-random ("K-field") short delay (`mod_randwalk` drifts the tap
+    via the shared `moddel_hermite` read) for the warped-water warble, then a Buchla **Low Pass Gate**:
+    an envelope follower (`|wet|`×5 sensitivity) opens cutoff + level together — steady signal stays
+    open, quiet/decaying tails go dark+soft and bloom back. Per-bus insert, auto-added to the chain on
+    first call (like grains). **Calibration gotcha caught in verify:** the LPG first followed raw
+    `|wet|`, so normal levels (~0.1–0.2) never opened it → everything came out dark + 13 dB quiet; added
+    the ×5 sensitivity + a 0.5 gain floor → a sustained sine now passes near-unity (RMS 0.107 vs dry
+    0.121) while a pluck tail correctly blooms closed. Verified: soundcheck `ok` + 900-frame tripwire +
+    `--det` byte-identical; `pedalboard`/`groovebox`/`epiano` byte-identical (new kind doesn't perturb
+    default chains). **Showcase: `pedalboard`** (the SHALLOW pedal — a real reorderable insert, which the
+    full 16-kind table had blocked until the widen).
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

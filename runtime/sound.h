@@ -1494,13 +1494,59 @@ static void fx_set_grains_pitch(int b, float semitones, float spread, bool rever
     gt->pitch = semitones; gt->pitch_spread = spread; gt->reverse = reverse;
 }
 
+// ── shallow water — a filtered-random ("K-field") short delay + a Low Pass Gate (Fairfield) ─────
+// The warped-tape / reflection-on-moving-water warble: mod_randwalk (the kit's FILTERED random walk,
+// not a periodic LFO) drifts a short delay tap → unpredictable, gentle pitch wobble no sine LFO can
+// fake. Then a LOW PASS GATE (Buchla-style vactrol): an envelope follower opens the cutoff AND the
+// level together, so quiet passages go dark + soft and bloom back as they swell — the "underwater"
+// close. Mono core (v1), reads through the shared moddel_hermite. Dormant until mix>0 → byte-identical.
+#define SHW_BUF_LEN  (SOUND_SAMPLE_RATE / 16)   // ~62 ms — room for a drifting short delay
+static float    shw_buf[SOUND_FX_BUSES][SHW_BUF_LEN];
+static int      shw_widx [SOUND_FX_BUSES];
+static ModState shw_mod  [SOUND_FX_BUSES];      // the K-field: a filtered random-walk delay-time source
+static float    shw_rate [SOUND_FX_BUSES];      // random-walk drift speed Hz (0.2..8)
+static float    shw_depth[SOUND_FX_BUSES];      // delay-mod depth 0..1 (warble amount)
+static float    shw_mix  [SOUND_FX_BUSES];      // dry/wet 0..1
+static float    shw_env  [SOUND_FX_BUSES];      // LPG envelope follower
+static float    shw_lp   [SOUND_FX_BUSES];      // LPG one-pole lowpass state
+static bool     shw_used [SOUND_FX_BUSES];
+static void shallow_process(int b, float *mixL, float *mixR) {
+    const float dt = 1.0f / (float)SOUND_SAMPLE_RATE;
+    float mono = (*mixL + *mixR) * 0.5f;
+    shw_buf[b][shw_widx[b]] = mono;
+    float k = mod_randwalk(&shw_mod[b], shw_rate[b], dt);            // K-field: filtered random in [-1,1]
+    float delay = SHW_BUF_LEN * 0.45f + k * shw_depth[b] * (SHW_BUF_LEN * 0.30f);   // drift the tap
+    float rp = (float)shw_widx[b] - delay;
+    while (rp < 0.0f) rp += SHW_BUF_LEN;
+    float wet = moddel_hermite(shw_buf[b], SHW_BUF_LEN, rp);
+    shw_widx[b] = (shw_widx[b] + 1) % SHW_BUF_LEN;
+    // Low Pass Gate: env follows the wet level (×sensitivity so normal levels open it); cutoff + gain
+    // track it → quiet passages go dark + soft and bloom back as they swell, loud stays open + full.
+    float a = fabsf(wet) * 5.0f;                                     // sensitivity: ~0.2 signal fully opens the gate
+    shw_env[b] += (a - shw_env[b]) * (a > shw_env[b] ? 0.01f : 0.0006f);   // fast attack, slow release
+    float e = shw_env[b]; if (e > 1.0f) e = 1.0f;
+    float cut = 0.06f + e * 0.9f;                                    // quiet → low cutoff (dark); loud → open
+    shw_lp[b] += (wet - shw_lp[b]) * cut;
+    float gated = shw_lp[b] * (0.5f + e * 0.5f);                     // 0.5..1.0 gain — musical, never crushed
+    float mix = shw_mix[b];
+    *mixL = *mixL * (1.0f - mix) + gated * mix;
+    *mixR = *mixR * (1.0f - mix) + gated * mix;
+}
+static void fx_set_shallow(int b, float rate, float depth, float mix) {
+    if (rate  < 0.2f) rate  = 0.2f; if (rate  > 8.0f) rate  = 8.0f;
+    if (depth < 0.0f) depth = 0.0f; if (depth > 1.0f) depth = 1.0f;
+    if (mix   < 0.0f) mix   = 0.0f; if (mix   > 1.0f) mix   = 1.0f;
+    shw_rate[b] = rate; shw_depth[b] = depth; shw_mix[b] = mix;
+    shw_used[b] = (mix > 0.0f);
+}
+
 // ── reorderable insert chain (fx_order) ──────────────────────────────────────────────────────
 // The inserts above (FX_* in studio.h) run in a default order; fx_order() lets a cart rearrange
 // them PER BUS. fx_order[b] is the visit list; default = the canonical order, so an un-reordered
 // bus is byte-identical to the old hardcoded ladder. Each step still gates on its _used[b] flag,
 // so the default-order case is the same work as before.
 #define N_PEDALS  (FX_CRUSH + 1)            // the 8 reorderable PEDALS (FX_TREM..FX_CRUSH) — the default chain
-#define N_INSERTS (FX_DRIVE + 1)            // array size / max chain length: 8 pedals + FORMANT + FILTER + PAN + RINGMOD (default chain) + FX_REVERB (reverb-bus) + FX_ECHO + FX_GRAINS + FX_DRIVE (placed via fx_order).
+#define N_INSERTS (FX_SHALLOW + 1)          // array size / kind validation cap: pedals + FORMANT/FILTER/PAN/RINGMOD (default) + FX_REVERB/ECHO/GRAINS/DRIVE/SHALLOW (placed via fx_order). Chain length is capped separately by FX_ORDER_SLOTS.
 #define FX_ORDER_SLOTS 16                   // fx_order packs 16 slots (4 ints × 4 bytes, 1 byte/slot: kind 5 bits | instance 3 bits). Kinds 0..31, instances 0..7. A chain longer than 16 is truncated.
 static int insert_order  [SOUND_FX_BUSES][N_INSERTS];   // per-bus visit list (kept distinct from the fx_order() API)
 static int insert_order_n[SOUND_FX_BUSES];  // populated slot count (default = 8 pedals + formant + filter + pan + ringmod; FX_REVERB only on a reverb-bus)
@@ -1523,6 +1569,7 @@ static void apply_insert(int kind, int inst, int b, float *L, float *R) {
         case FX_ECHO:    if (echo_ins_used && b == 0) echo_ins_process(L, R); break;  // in-line delay, master-only (single buffer)
         case FX_GRAINS: { int t = grain_tank_of[b]; if (t >= 0 && grain_pool[t].used) grains_process(&grain_pool[t], L, R); } break;
         case FX_DRIVE:   if (drvins_used[b][inst]) drive_process(b, inst, L, R); break;   // mix-bus saturation insert (per-instance; reuses the DRIVE_* shapers)
+        case FX_SHALLOW: if (shw_used[b])    shallow_process(b, L, R); break;   // K-field short delay + Low Pass Gate
         // FX_REVERB: wet-REPLACE on a reverb-bus (a bus fed only by sends, bus_tank[b] >= 0), so any
         // inserts AFTER it in the chain chew on the wet tail (reverb→bitcrush). On any other bus
         // (master / a pedalboard's bus, bus_tank[b] == -1) it's a no-op pass-through — never zeroes a real mix.
@@ -1651,6 +1698,8 @@ typedef enum {
     SR_UNIVIBE       = 93,   // a=rate*1000, b=depth*1000, c=mix*1000 — THE master univibe (bus 0): the phaser swept by the optical LFO
     SR_INSTR_UNIVIBE = 94,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — univibe on one instrument (auto-bus)
     SR_DROPOUT       = 95,   // a=amount*1000, b=depth*1000 — THE master tape-failure dropout (random level dips + HF loss)
+    SR_SHALLOW       = 96,   // a=rate*1000, b=depth*1000, c=mix*1000 — THE master shallow-water (bus 0): K-field delay + Low Pass Gate
+    SR_INSTR_SHALLOW = 97,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — shallow water on one instrument (auto-bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -4435,6 +4484,20 @@ static void sound_fire_req(SoundReq r) {
         if (b >= 1) fx_set_univibe(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_DROPOUT) {      // master tape-failure dropout: a=amount, b=depth (×1000)
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
+    } else if (r.kind == SR_SHALLOW) {      // master shallow water (bus 0): a=rate, b=depth, c=mix (×1000)
+        fx_set_shallow(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
+        bool present = false;               // auto-place FX_SHALLOW in bus 0's chain (not in the default ladder, like FX_GRAINS)
+        for (int s = 0; s < insert_order_n[0]; s++) if (insert_order[0][s] == FX_SHALLOW) present = true;
+        if (!present && insert_order_n[0] < FX_ORDER_SLOTS) { insert_order[0][insert_order_n[0]] = FX_SHALLOW; insert_inst[0][insert_order_n[0]] = 0; insert_order_n[0]++; }
+    } else if (r.kind == SR_INSTR_SHALLOW) { // per-instrument: a=slot, b=rate, c=depth, e0=mix (×1000)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) {
+            fx_set_shallow(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+            bool present = false;
+            for (int s = 0; s < insert_order_n[b]; s++) if (insert_order[b][s] == FX_SHALLOW) present = true;
+            if (!present && insert_order_n[b] < FX_ORDER_SLOTS) { insert_order[b][insert_order_n[b]] = FX_SHALLOW; insert_inst[b][insert_order_n[b]] = 0; insert_order_n[b]++; }
+        }
     } else if (r.kind == SR_LESLIE) {       // master Leslie (bus 0): a=speed, b=drive, c=balance, e0=doppler, e1=mix (×1000 except speed)
         fx_set_leslie(0, r.a, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
     } else if (r.kind == SR_INSTR_LESLIE) { // per-instrument: a=slot, b=speed, c=drive, e0=balance, e1=doppler, e2=mix
@@ -5544,6 +5607,15 @@ void dropout(float amount, float depth) {
     sound_push_ctrl(SR_DROPOUT, (int)(amount * 1000.0f), (int)(depth * 1000.0f), 0, 0, 0, 0);
 }
 
+// ── shallow water: a filtered-random short delay + a Low Pass Gate (the warped-water warble) ──
+void shallow(float rate, float depth, float mix) {
+    sound_push_ctrl(SR_SHALLOW, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
+}
+void instrument_shallow(int slot, float rate, float depth, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_SHALLOW, slot, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(mix * 1000.0f), 0, 0);
+}
+
 // ── Leslie: THE master rotary speaker (spinning horn+drum cabinet — the organ's voice) ──
 
 void leslie(int speed, float drive, float balance, float doppler, float mix) {
@@ -5767,12 +5839,15 @@ static void sound_init(void) {
     memset(flg_buf, 0, sizeof(flg_buf));
     memset(tape_bufL, 0, sizeof(tape_bufL));
     memset(tape_bufR, 0, sizeof(tape_bufR));
+    memset(shw_buf, 0, sizeof(shw_buf));
     fx_next_bus = 1;
     fx_bus_overflow = 0;
     rvb_bus_overflow = 0;
     for (int b = 0; b < SOUND_FX_BUSES; b++) {
         cho_widx[b] = 0; cho_phase[b] = 0.0f;
         cho_rate[b] = 1.5f; cho_depth[b] = 0.4f; cho_mix[b] = 0.5f; cho_used[b] = false;
+        shw_widx[b] = 0; shw_env[b] = 0.0f; shw_lp[b] = 0.0f; shw_used[b] = false;   // shallow water: dormant + seeded
+        shw_rate[b] = 1.0f; shw_depth[b] = 0.6f; shw_mix[b] = 0.0f; shw_mod[b] = (ModState){ .seed = 0x2B7E1516u + (unsigned)b * 2654435761u };
         flg_widx[b] = 0; flg_phase[b] = 0.0f;
         flg_rate[b] = 0.3f; flg_depth[b] = 0.7f; flg_fb[b] = 0.7f; flg_mix[b] = 0.5f; flg_used[b] = false;
         for (int i = 0; i < TAPE_INST; i++) {

@@ -29,6 +29,7 @@ static int fx_body(int kind) {
         case FX_RINGMOD: return CLR_INDIGO;
         case FX_ECHO:    return CLR_DARK_PEACH;
         case FX_GRAINS:  return CLR_INDIGO;
+        case FX_SHALLOW: return CLR_DARKER_BLUE;
         default:         return CLR_DARKER_GREY;
     }
 }
@@ -49,6 +50,7 @@ static int fx_accent(int kind) {
         case FX_RINGMOD: return CLR_GREEN;
         case FX_ECHO:    return CLR_ORANGE;
         case FX_GRAINS:  return CLR_MAUVE;
+        case FX_SHALLOW: return CLR_BLUE;
         default:         return CLR_LIGHT_GREY;
     }
 }
@@ -69,6 +71,7 @@ static const char *fx_name(int kind) {
         case FX_RINGMOD: return "RINGMOD";
         case FX_ECHO:    return "DELAY";
         case FX_GRAINS:  return "GRAINS";
+        case FX_SHALLOW: return "SHALLOW";
         default:         return "FX";
     }
 }
@@ -138,6 +141,14 @@ static void fx_icon(int kind, int cx, int cy, int col, int bg) {
         circfill(cx - 3, cy, 2, col);                        // repeat 1
         circfill(cx + 3, cy, 1, col);                        // repeat 2 (smaller)
         pset(cx + 8, cy, col);                               // repeat 3 (a faint dot)
+    } else if (kind == FX_SHALLOW) {                         // water ripples (wavy surface lines)
+        for (int o = 0; o < 3; o++) {
+            int base = cy - 5 + o * 5, px = cx - 13, py = base;
+            for (int xx = cx - 13; xx <= cx + 13; xx += 2) {
+                int wy = base + (int)(sinf((xx - cx) * 0.5f + o * 1.3f) * 2.0f);
+                line(px, py, xx, wy, col); px = xx; py = wy;
+            }
+        }
     } else if (kind == FX_GRAINS) {                          // a scattered cloud of grains
         circfill(cx - 8, cy + 1, 1, col);
         circfill(cx - 4, cy - 4, 2, col);

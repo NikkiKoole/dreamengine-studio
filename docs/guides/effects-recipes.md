@@ -431,6 +431,28 @@ vs the sine phaser, and a throbbing lamp + live LFO-curve so you SEE the asymmet
 > *vocal*; the phaser feels *even* and *mechanical*. The `univibe` cart's `P` toggle A/Bs them at
 > matched rate/depth so you hear only the LFO-shape difference.
 
+## shallow — `shallow(rate, depth, mix)` · `instrument_shallow(slot, …)`
+
+Fairfield **Shallow Water**: a filtered-random ("K-field") short delay + a **Low Pass Gate**. A
+random WALK (`mod_randwalk`, the modulation kit — *not* a periodic LFO) drifts the delay time, so the
+pitch wobbles gently and **unpredictably** — the warped-tape / reflection-on-moving-water shimmer that
+a sine LFO can't fake. Then a Buchla-style **LPG** opens cutoff AND level together: a steady signal
+keeps the gate open (full + bright), but a quiet/decaying passage goes **dark + soft and blooms back**
+as it swells — the "underwater" close. A reorderable insert (`FX_SHALLOW` = kind 16, first past the
+old ceiling). `rate` 0.2–8 Hz (drift speed), `depth` 0–1 (warble amount), `mix` 0–1 (0 = off; 0.5
+keeps the dry present with the watery wobble on top). **Showcase: `pedalboard`** (the SHALLOW pedal).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| watery pad drift | `shallow(0.8f, 0.6f, 0.5f)` | slow unpredictable wobble + LPG bloom under a held pad/EP — the ambient default | `pedalboard` |
+| seasick warble | `shallow(3.0f, 0.9f, 0.6f)` | faster, deeper drift — queasy detuned shimmer on clean guitar | `pedalboard` |
+| subtle movement | `shallow(0.4f, 0.3f, 0.35f)` | a touch of organic drift, barely-there — "this isn't a static patch" | — |
+
+> **Shallow vs chorus.** Chorus is a *periodic* swept delay (predictable, even). Shallow's delay is
+> swept by a *random walk*, so it never repeats — and the Low Pass Gate ties brightness+level to the
+> envelope (quiet = dark, the bloom), which chorus has no notion of. First insert built on the
+> modulation kit's filtered-random source — see [`boutique-pedals-roadmap.md`](../design/boutique-pedals-roadmap.md).
+
 ## leslie — `leslie(speed, drive, balance, doppler, mix)` · `instrument_leslie(slot, …)`
 
 THE rotary-speaker cabinet — the organ's voice. A spinning treble **HORN** (pitch wobble via a

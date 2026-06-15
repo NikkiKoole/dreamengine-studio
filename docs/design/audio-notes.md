@@ -1622,6 +1622,25 @@ v1, document it on the panel.
     `varispeed`** (riff + SPACE tape-stop dive + a SPEED bend slider, reels spinning at the live speed).
     That closes the original boutique-pedal lists.
 
+29. **`fx_mod` / `fx_lfo` — the modulation layer over effects (ADR 0018).** **✓ SHIPPED 2026-06-15.**
+    Effects keep their bespoke set-and-hold knobs; this RIDES a *curated, sweep-safe* one under CV
+    (`fx_mod`, the per-frame sink modrack patches into) or a fire-and-forget engine sine (`fx_lfo`).
+    A per-bus×target slew loop (`fxmod_tick`, top of the sample loop, gated by `fxmod_any` → byte-
+    identical until first use) reads the LFO/CV value, slews it (the `note_cutoff` one-pole, CV path
+    only — the sine is already smooth), and writes the natural-unit param into the existing array.
+    `SR_FX_MOD`=113, `SR_FX_LFO`=114. **Modulation rides, it does not enable** — a target writes an
+    *already-configured* effect's param (never its `used` flag), so a stray mod on an un-configured
+    bus is silent (the static/modulated split). **7 targets** (`FXMOD_FILTER_CUT` exp-mapped 40Hz–
+    18kHz, `_FILTER_RES`, `_DRIVE`, `_TREM_DEPTH`, `_PAN_DEPTH`, `_GRAINS_MIX`, `_SHIMMER_MIX`) — each
+    one cheap slewed write. **Deferred (the enum leaves room): reverb/delay *sends* are per-*voice*,
+    not per-bus** (no bus-level return-gain to ride — would need a new knob), and **wah has no manual
+    position** (envelope/LFO-driven — would need a manual-sweep mode). Both need a *new param* before
+    they can be a *target*; see ADR 0018 "Shipped" + STATUS #39. Verified: `fx_lfo` on `SHIMMER_MIX`
+    swings RMS 0.10↔0.15 (the wash blooms in/out), bounded (peak −3.3 dB, 0 clip), soundcheck +
+    tripwire clean, tune-check unaffected. **Showcase: `fxmod`.** **Bug fixed in passing:** `SR_INSTR_POS`
+    collided with `SR_VARISPEED` at request-kind 110 (two parallel agents) — varispeed's handler ran
+    first and shadowed `instrument_pos` (silently broken on master); renumbered `SR_INSTR_POS`→112.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

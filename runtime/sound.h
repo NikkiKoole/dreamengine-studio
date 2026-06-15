@@ -1752,8 +1752,11 @@ typedef enum {
     SR_HIT_AT        = 108,  // a=midi, b=instr, c=vol, e0=gate_samples, e1=x*1000, e2=y*1000 — positioned one-shot
     SR_INSTR_SHIMMER = 109,  // a=slot, b=size*1000, c=damp*1000, e0=shimmer*1000, e1=mix*1000 — shimmer reverb on one instrument (pooled aux bus)
     SR_VARISPEED     = 110,  // a=speed*1000 — THE master tape varispeed (1.0 = bypass; <1 slow/down, >1 fast/up)
-    SR_INSTR_POS     = 110,  // a=slot, b=x*1000, c=y*1000 — position an instrument's whole effected bus (v2 emitter, spatial.md)
     SR_INSTR_MOTION  = 111,  // a=slot, b=vx*1000, c=vy*1000 — that emitter bus's velocity → bus Doppler
+    SR_INSTR_POS     = 112,  // a=slot, b=x*1000, c=y*1000 — position an instrument's whole effected bus (v2 emitter, spatial.md).
+                             // WAS 110 — collided with SR_VARISPEED (its handler ran first → instr_pos was shadowed/dead); renumbered 2026-06-15.
+    SR_FX_MOD        = 113,  // a=target(FXMOD_*), b=value*1000, c=bus — CV sink: ride a sweep-safe effect param (ADR 0018)
+    SR_FX_LFO        = 114,  // a=target(FXMOD_*), b=rate*100, c=bus, e0=depth*1000, e1=center*1000 — engine sine LFO on a target (depth 0 = detach)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1921,6 +1924,63 @@ static void fx_set_shimmer(int t, float size, float damp, float shimmer, float m
     shim[t].fb = shimmer * 0.95f;       // recirculation gain: small-signal loop gain crosses 1 near the top → low/mid bloom-and-fade, high self-sustains; tanh governor + DC block bound the top
     shim[t].mix = mix;
     shim[t].used = (mix > 0.0f);        // mix 0 → not processed → byte-identical
+}
+
+// ── fx_mod / fx_lfo — the continuous MODULATION layer over sweep-safe effect params (ADR 0018) ──
+// Effects keep their bespoke set-and-hold params (filter()/drive_insert()/grains()/…); THIS rides a
+// CURATED set of cheap-to-sweep ones under CV or an engine sine LFO. The filter()-vs-fx_mod split mirrors
+// instrument_timbre() vs LFO_TIMBRE: config-once vs the layer on top. The FXMOD_* enum (studio.h) is the
+// safety boundary — it is *impossible* to name a buffer-reconfiguring param (crush depth, ring buffers),
+// so the API cannot be driven into the SET-AND-HOLD stutter. Each target is one slewed write into an
+// existing param array. fx_mod = per-frame CV sink (modrack); fx_lfo = audio-thread sine, set-and-forget.
+// MODULATION RIDES, IT DOESN'T ENABLE: the cart configures the effect first (filter()/drive_insert()/…);
+// fx_mod only moves the param of an already-live effect (so a stray fx_mod on a silent bus stays silent —
+// matches the static/modulated split). Dormant until first use (fxmod_any gate) → byte-identical otherwise.
+#define FXMOD_N 7                                   // active targets: studio.h FXMOD_FILTER_CUT(0)..FXMOD_SHIMMER_MIX(6)
+static bool  fxmod_any = false;                     // any target ever activated? gate → zero per-sample cost (+ byte-identical) until used
+static bool  fxmod_on   [SOUND_FX_BUSES][FXMOD_N];  // active → writes its param each sample
+static bool  fxmod_prime[SOUND_FX_BUSES][FXMOD_N];  // first CV sample after attach → snap (no slew ramp)
+static float fxmod_cur  [SOUND_FX_BUSES][FXMOD_N];  // slewed current value 0..1
+static float fxmod_tgt  [SOUND_FX_BUSES][FXMOD_N];  // CV target 0..1 (fx_mod sink)
+static float fxlfo_rate [SOUND_FX_BUSES][FXMOD_N];  // Hz; 0 = CV mode (use fxmod_tgt), >0 = engine sine LFO
+static float fxlfo_depth[SOUND_FX_BUSES][FXMOD_N];  // peak deviation 0..1 (0 = detached)
+static float fxlfo_ctr  [SOUND_FX_BUSES][FXMOD_N];  // LFO center 0..1
+static float fxlfo_phase[SOUND_FX_BUSES][FXMOD_N];  // 0..1 running phase
+
+// normalized 0..1 → the target's natural param value, written into the live array (no enable side-effect).
+static void fxmod_apply(int b, int target, float v) {
+    if (v < 0.0f) v = 0.0f; else if (v > 1.0f) v = 1.0f;
+    switch (target) {
+        case 0: filt_cut[b][0] = 40.0f * powf(450.0f, v); break;   // FXMOD_FILTER_CUT — 40Hz..18kHz exponential (the DJ sweep)
+        case 1: filt_res[b][0] = v; break;                         // FXMOD_FILTER_RES
+        case 2: drvins_amt[b][0] = v;                              // FXMOD_DRIVE
+                drvins_used[b][0] = (drvins_mix[b][0] > 0.0f && v > 0.001f); break;
+        case 3: trem_depth[b] = v; break;                          // FXMOD_TREM_DEPTH
+        case 4: pan_depth[b]  = v; break;                          // FXMOD_PAN_DEPTH
+        case 5: { int t = grain_tank_of[b]; if (t >= 0) grain_pool[t].mix = v; } break;        // FXMOD_GRAINS_MIX
+        case 6: { int t = (b == 0) ? 0 : shim_bus_of[b];                                       // FXMOD_SHIMMER_MIX
+                  if (t >= 0) { shim[t].mix = v; shim[t].used = (v > 0.0f); } } break;
+    }
+}
+
+// per-sample: advance LFOs / read CV, slew, write the param. Called once at the top of the sample loop.
+static void fxmod_tick(void) {
+    if (!fxmod_any) return;                          // no modulation anywhere → skip (byte-identical)
+    for (int b = 0; b < SOUND_FX_BUSES; b++)
+        for (int t = 0; t < FXMOD_N; t++) {
+            if (!fxmod_on[b][t]) continue;
+            if (fxlfo_rate[b][t] > 0.0f && fxlfo_depth[b][t] > 0.0f) {   // ENGINE LFO mode — sine is already smooth, no slew
+                float s = sinf(fxlfo_phase[b][t] * 6.2831853f);          // -1..1
+                fxlfo_phase[b][t] += fxlfo_rate[b][t] / (float)SOUND_SAMPLE_RATE;
+                if (fxlfo_phase[b][t] >= 1.0f) fxlfo_phase[b][t] -= 1.0f;
+                fxmod_cur[b][t] = fxlfo_ctr[b][t] + fxlfo_depth[b][t] * s;
+            } else {                                                     // CV mode — slew to de-zipper per-frame fx_mod() pokes
+                float tgt = fxmod_tgt[b][t];
+                if (fxmod_prime[b][t]) { fxmod_cur[b][t] = tgt; fxmod_prime[b][t] = false; }
+                else fxmod_cur[b][t] += (tgt - fxmod_cur[b][t]) * 0.0015f;   // same one-pole as the note_cutoff filter sweep
+            }
+            fxmod_apply(b, t, fxmod_cur[b][t]);
+        }
 }
 
 // ── varispeed — variable tape playback speed (the MOOD "clock" / tape dive; navkit processHalfSpeed) ──
@@ -4976,6 +5036,29 @@ static void sound_fire_req(SoundReq r) {
     } else if (r.kind == SR_INSTR_MOTION) {    // a=slot, b=vx*1000, c=vy*1000 — emitter bus velocity
         int b = fx_bus_for(r.a);
         if (b >= 1) spatial_set_bus(b, emit_x[b], emit_y[b], r.b / 1000.0f, r.c / 1000.0f);
+    } else if (r.kind == SR_FX_MOD) {          // a=target, b=value*1000, c=bus — CV sink (modrack); cancels any LFO on this target
+        int b = r.c, t = r.a;
+        if (b >= 0 && b < SOUND_FX_BUSES && t >= 0 && t < FXMOD_N) {
+            fxmod_tgt[b][t] = r.b / 1000.0f;
+            fxlfo_rate[b][t] = 0.0f; fxlfo_depth[b][t] = 0.0f;     // CV overrides a running LFO
+            if (!fxmod_on[b][t]) { fxmod_on[b][t] = true; fxmod_prime[b][t] = true; }
+            fxmod_any = true;
+        }
+    } else if (r.kind == SR_FX_LFO) {          // a=target, b=rate*100, c=bus, e0=depth*1000, e1=center*1000 — engine sine LFO (depth 0 = detach)
+        int b = r.c, t = r.a;
+        if (b >= 0 && b < SOUND_FX_BUSES && t >= 0 && t < FXMOD_N) {
+            float depth = r.e0 / 1000.0f;
+            if (depth <= 0.0f) {               // detach → stop writing the param (it freezes at its last value)
+                fxmod_on[b][t] = false; fxlfo_depth[b][t] = 0.0f; fxlfo_rate[b][t] = 0.0f;
+            } else {
+                float rate = r.b / 100.0f;
+                fxlfo_rate[b][t]  = rate < 0.01f ? 0.01f : rate;
+                fxlfo_depth[b][t] = depth > 1.0f ? 1.0f : depth;
+                fxlfo_ctr[b][t]   = r.e1 / 1000.0f;
+                if (!fxmod_on[b][t]) { fxmod_on[b][t] = true; fxlfo_phase[b][t] = 0.0f; }
+                fxmod_any = true;
+            }
+        }
     }
 }
 
@@ -5013,6 +5096,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         float echo_in   = 0.0f; // this sample's summed sends into the echo bus   (MONO — centered in v1)
         float reverb_in = 0.0f; // this sample's summed sends into the reverb bus (MONO — centered in v1)
         for (int sk = 0; sk < N_SC_KEYS; sk++) sc_key_lvl[sk] = 0.0f;   // sidechain trigger sums, refilled below
+        fxmod_tick();   // ride sweep-safe effect params from CV / engine LFOs (fx_mod/fx_lfo) — no-op until first use
 
         for (int di = 0; di < delayed_count; ) {
             if (--delayed[di].delay_samples < 0) {
@@ -6049,6 +6133,23 @@ void amp_noise(float hiss, float hum, int mains_hz) {
 // ── varispeed: variable tape playback speed — sweep it for tape dives/stops/spinups ──
 void varispeed(float speed) {
     sound_push_ctrl(SR_VARISPEED, (int)(speed * 1000.0f), 0, 0, 0, 0, 0);
+}
+
+// ── fx_mod / fx_lfo: ride a sweep-safe effect param under CV or an engine LFO (ADR 0018) ──
+// Configure the effect first (filter()/drive_insert()/grains()/shimmer()/tremolo()/autopan()); these
+// move ONE of its FXMOD_* params on top. value/center/depth are normalized 0..1 (mapped per target).
+void fx_mod(int bus, int target, float value) {           // per-frame CV sink (engine slews → no zipper)
+    if (bus < 0 || bus >= SOUND_FX_BUSES || target < 0 || target >= FXMOD_N) return;
+    sound_push_ctrl(SR_FX_MOD, target, (int)(value * 1000.0f), bus, 0, 0, 0);
+}
+void instrument_fx_mod(int slot, int target, float value) {   // resolve slot → its FX bus, then fx_mod
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS || target < 0 || target >= FXMOD_N) return;
+    int b = fx_bus_for(slot); if (b < 0) return;
+    sound_push_ctrl(SR_FX_MOD, target, (int)(value * 1000.0f), b, 0, 0, 0);
+}
+void fx_lfo(int bus, int target, float rate_hz, float depth, float center) {   // engine sine LFO; depth 0 = detach
+    if (bus < 0 || bus >= SOUND_FX_BUSES || target < 0 || target >= FXMOD_N) return;
+    sound_push_ctrl(SR_FX_LFO, target, (int)(rate_hz * 100.0f), bus, (int)(depth * 1000.0f), (int)(center * 1000.0f), 0);
 }
 
 // ── shimmer: a reverb with an octave-up pitch-shifter in the feedback loop (the ascending tail) ──

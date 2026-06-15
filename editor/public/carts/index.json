@@ -2950,6 +2950,14 @@
     ]
   },
   {
+    "title": "fxmod",
+    "description": "The showcase for fx_mod() / fx_lfo() - the MODULATION layer over effects (the synth-rack 'CV into an effect'). Effects keep their own knobs; this RIDES a curated, sweep-safe one under a control signal, the way LFO_TIMBRE rides an instrument macro. A held saw drone runs through the master effects; 1..3 pick the TARGET param (filter cutoff / drive / shimmer mix), then choose how it's driven: L = engine LFO (fx_lfo(): set once, the engine sweeps it), C = CV by hand (fx_mod(): the cart pushes a value every frame - what modrack does), O = off (the param sits at its static baseline). RATE/DEPTH/CENTER shape the sweep; the big bar shows the value being written. Two APIs, one job: fx_lfo is fire-and-forget, fx_mod is the per-frame sink you drive from your own LFO/envelope/sequencer. Only cheap params are exposed, so it can never reconfigure a buffer effect into a stutter. H help. (ADR 0018.)",
+    "file": "fxmod.cart.png",
+    "kind": [
+      "instrument"
+    ]
+  },
+  {
     "title": "juno-6",
     "description": "Roland Juno-6 (1982) - the showcase for chorus(), the engines master BBD chorus. On paper a plain 6-voice poly synth (one saw + sub oscillator, one resonant lowpass) - sh101 with more voices. What makes it a JUNO is the bucket-brigade CHORUS: flip the famous OFF/I/II switch and the dry mono synth smears into a lush, wide, shimmering stereo wash (a centered mono chord literally fans out across the stereo field - the Junos two amps). Tap the CHORUS strip (or press C) to A/B it; the WIDTH meter opens as the chorus widens the signal. RATE/DEPTH/MIX ride the chorus live, CUTOFF/RES shape the resonant lowpass. Tap a chord pad or press 1..4 (Cmaj7/Am7/Fmaj7/G7); SPACE toggles AUTO, a slow self-playing progression; H help.",
     "file": "juno.cart.png",

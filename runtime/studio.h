@@ -547,6 +547,15 @@ void instrument_shimmer(int slot, float size, float damp, float shimmer_amt, flo
 // DOWN + time-stretch — the tape-slowdown dive / turntable brake), >1 = faster (chipmunk). SWEEP it for
 // tape bends; the speed glides (tape inertia). Built for sweeps, not holding a fixed off-speed forever.
 void varispeed(float speed);   // 0.25..4 (2 octaves down..up); 1.0 = bypass. Sweep down to ~0.3 for a tape-stop dive, back to 1 to spin up
+
+// fx_mod / fx_lfo — the MODULATION layer over a curated set of sweep-safe effect params (FXMOD_* below).
+// Configure the effect first (filter()/drive_insert()/grains()/shimmer()/tremolo()/autopan()); these RIDE
+// one of its params on top, like LFO_TIMBRE rides an instrument macro. fx_mod() is the per-frame CV sink
+// (drive it from your own LFO/envelope/sequencer — modrack); fx_lfo() is a fire-and-forget engine sine.
+// Only cheap-to-sweep params are exposed — it is impossible to modulate a buffer effect into a stutter.
+void fx_mod(int bus, int target, float value);                       // bus 0 = master, 1.. = an instrument's bus; target = FXMOD_*; value 0..1 (mapped per target). Call per frame; engine slews → no zipper
+void instrument_fx_mod(int slot, int target, float value);           // same, addressed by instrument slot (resolves to its FX bus)
+void fx_lfo(int bus, int target, float rate_hz, float depth, float center);  // engine sine LFO on a target: rate Hz, depth 0..1 (peak deviation; 0 = DETACH), center 0..1. e.g. fx_lfo(0,FXMOD_FILTER_CUT,0.3,0.4,0.5)
 // gate — a NOISE GATE: clamps the signal shut when it falls below `threshold`, opens above it. The
 // classic rig pedal (tame a noisy/driven part's hiss + tails between notes); place it AFTER reverb in
 // fx_order for the iconic 80s GATED REVERB (the tail chops off). A reorderable insert (FX_GATE).
@@ -592,6 +601,16 @@ void glue(int victim_bus, float amount, int attack_ms, int release_ms);  // bus 
 #define FX_GATE     17  // noise-gate INSERT — clamps the signal shut below a threshold (via gate()). Put AFTER FX_REVERB in fx_order for gated reverb
 #define FX_INST(kind, inst) ((kind) | ((inst) << 5))   // tag a kind with an INSTANCE for fx_order() — two of one effect in a chain (e.g. EQ before AND after a dirt stage). Configure instance n via eq_inst(n,…). Plain FX_* = instance 0. instance 0..7.
 void fx_order(int bus, const int *kinds, int n);   // set a bus's insert order: bus 0 = master, 1.. = an instrument's bus; kinds[] of FX_* (or FX_INST(FX_*, n)), n ≤ 16 slots
+
+// fx_mod()/fx_lfo() targets — the curated, sweep-safe params (the API can only name these, so it can't
+// be driven into the SET-AND-HOLD stutter). 0..6; reverb/delay sends + wah are deferred (need new knobs).
+#define FXMOD_FILTER_CUT   0   // filter() cutoff — 40Hz..18kHz exponential (THE DJ-filter sweep). Call filter() first to engage the filter
+#define FXMOD_FILTER_RES   1   // filter() resonance 0..1
+#define FXMOD_DRIVE        2   // drive_insert() amount 0..1 (great wobbling under a slow LFO). Needs drive_insert() mix>0
+#define FXMOD_TREM_DEPTH   3   // tremolo() depth 0..1
+#define FXMOD_PAN_DEPTH    4   // autopan() depth 0..1
+#define FXMOD_GRAINS_MIX   5   // grains() dry/wet 0..1 (call grains() first to allocate the tank)
+#define FXMOD_SHIMMER_MIX  6   // shimmer() dry/wet 0..1
 
 // leslie — a rotary-speaker cabinet (a spinning treble HORN + bass DRUM): the organ's voice. The
 // horn adds pitch wobble (Doppler) + a swirling volume; the two rotors spin at independent speeds

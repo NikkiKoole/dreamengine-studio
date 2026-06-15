@@ -105,3 +105,39 @@ Notes for whoever builds it:
   set-once config; `fx_mod`/`fx_lfo` = the continuous layer on top (like `instrument_timbre()` vs `LFO_TIMBRE`).
 - Internally each safe target reuses the existing slew (the `note_cutoff`/`note_reverb` one-pole), and is
   applied on the audio thread — no new per-frame request flood for the `fx_lfo` path.
+
+## Shipped — 2026-06-15 (and what we deliberately did NOT ship)
+
+Built as specced: `fx_mod` / `instrument_fx_mod` / `fx_lfo` + a per-bus×target slew loop
+(`fxmod_tick`, gated by `fxmod_any` → byte-identical until first use). Showcase: the `fxmod` cart
+(both entry points × three targets). `fx_lfo` is a plain engine **sine** for now (no waveform arg) —
+the unified `LFO_SHAPE_*` vocabulary is still the STATUS #39 follow-up.
+
+**Modulation RIDES, it does NOT enable.** A target writes the param of an *already-configured* effect;
+it never sets the effect's `used` flag. So `fx_mod(0, FXMOD_FILTER_CUT, …)` on a bus that never called
+`filter()` is silent — the cart configures first, then modulates (the static/modulated split). This was
+the cleanest rule (no surprise "modulation turned an effect on"); documented in the API one-liners.
+
+**Shipped targets (7):** `FILTER_CUT` (exp 40Hz–18kHz, the marquee sweep), `FILTER_RES`, `DRIVE`,
+`TREM_DEPTH`, `PAN_DEPTH`, `GRAINS_MIX`, `SHIMMER_MIX` — every one a single slewed write into an existing
+per-bus param array, all genuinely cheap to sweep.
+
+**Deferred, with reasons** (the enum leaves room — these append as 7+, no renumber):
+- **`FXMOD_REVERB_SEND` / `FXMOD_DELAY_SEND`** — the sketch assumed a per-bus send knob to ride, but in
+  the real engine **reverb/echo sends are per-*voice*** (`v->rvb` / `v->eko`), summed into the master
+  send accumulators (`reverb_in` / `echo_in`). There is no bus-level "return gain" to modulate. Adding
+  these means *first* introducing a new per-bus reverb/echo **return-gain** multiplier on the master
+  send-return (a small, real addition) — out of scope for the first cut, but the obvious next step.
+- **`FXMOD_WAH`** — wah has **no manual position** to ride; it's driven by its own envelope follower or
+  internal LFO (`wah_process`). Modulating "wah position" means adding a third **manual-sweep mode** to
+  the wah first. Deferred for the same reason: it needs a new param, not just a new target.
+
+So the boundary held in practice: a target exists only when there's an existing cheap-to-sweep param to
+point it at. The two send targets and wah were aspirational in the sketch; they each need a *new knob*
+before they can be a *modulation target*. Tracked in STATUS #39 (alongside the LFO-shape unification).
+
+**Incidental fix found while wiring this:** `SR_INSTR_POS` (spatial v2) and `SR_VARISPEED` had both been
+assigned request-kind `110` by two parallel agents — the `SR_VARISPEED` handler ran first and *shadowed*
+`SR_INSTR_POS` (dead code), so `instrument_pos()` was silently broken on master (it hit the varispeed
+handler and set master speed to `slot/1000`). Renumbered `SR_INSTR_POS` → 112 (handlers reference the
+enum *name*, so no logic change). A reminder to keep request-kind numbers unique across agents.

@@ -78,7 +78,7 @@ static int blend4_lin(int c00, int c10, int c01, int c11, float fx, float fy) {
 
 static float scale   = 2.6f;   // deliberately fractional
 static float ox      = 0.0f;   // pan offset in SOURCE pixels (sub-pixel = shimmer)
-static int   autopan = 1;
+static int   subpan = 1;
 static int   breathe = 0;
 static float t       = 0.0f;
 
@@ -117,7 +117,7 @@ static void draw_view(int px, int mode) {
 
 void update(void) {
     t += 1.0f / 60.0f;
-    if (autopan) ox += 0.50f;            // continuous sub-pixel scroll → shimmer
+    if (subpan) ox += 0.50f;            // continuous sub-pixel scroll → shimmer
     if (ox > 100000.0f) ox -= 100000.0f;
     if (breathe) scale = 2.6f + 0.7f * sinf(t * 0.7f);
 
@@ -125,7 +125,7 @@ void update(void) {
     if (keyp(KEY_RIGHT) || btnp(0, BTN_RIGHT)) { scale += 0.05f; breathe = 0; }
     if (scale < 1.2f) scale = 1.2f;
     if (scale > 4.0f) scale = 4.0f;
-    if (keyp('Z') || btnp(0, BTN_A)) autopan = !autopan;
+    if (keyp('Z') || btnp(0, BTN_A)) subpan = !subpan;
     if (keyp('X') || btnp(0, BTN_B)) breathe = !breathe;
 }
 

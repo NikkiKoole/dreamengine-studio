@@ -201,12 +201,12 @@ static void step_actor(float *ax, float *ay, int *adir,
 
 #ifdef DE_TRACE
     if (spd == SPD) {
-        watch("px", *ax); watch("py", *ay);
-        watch("cx", cx);  watch("cy", cy);
-        watch("ax_mod", (int)(*ax) % CELL); watch("ay_mod", (int)(*ay) % CELL);
-        watch("aligned_x", aligned_x); watch("aligned_y", aligned_y);
-        watch("on_ladder", on_ladder);  watch("support", support);
-        watch("wantx", wantx); watch("wanty", wanty);
+        watch("px", "%.1f", *ax); watch("py", "%.1f", *ay);
+        watch("cx", "%d", cx);  watch("cy", "%d", cy);
+        watch("ax_mod", "%d", (int)(*ax) % CELL); watch("ay_mod", "%d", (int)(*ay) % CELL);
+        watch("aligned_x", "%d", aligned_x); watch("aligned_y", "%d", aligned_y);
+        watch("on_ladder", "%d", on_ladder);  watch("support", "%d", support);
+        watch("wantx", "%d", wantx); watch("wanty", "%d", wanty);
     }
 #endif
 

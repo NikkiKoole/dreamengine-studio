@@ -104,10 +104,14 @@ the ramps.*
 - **Geometry, bottom-up (started)** — a self-contained sandbox cart **`interchange.c`**: a highway +
   a hand-placed crossing road, **fake-3D grade separation** (crossing road drawn OVER the highway →
   overpass; no real z-levels — we decided to fake-z first), and a ramp-curve drawer. Types: OVERPASS
-  + DIAMOND (✅ both clean), CLOVERLEAF / TRUMPET (first-draft, tangled — to nail). Roads = subdivided
-  `polyfill` quad ribbons (one screen-long quad rendered empty; short segments fill fine). Grow the
-  shapes here, then port the drawer into roadnet2. Catalog (overpass / on-off ramp / diamond / parclo
-  / cloverleaf / trumpet / stack) + the fake-z-vs-real-z and how-rich decisions are in the convo.
+  + DIAMOND **fully dialed (✅ 2026-06-15)** — smooth single-polygon ribbons (no blobs), ramps off the
+  outer lane EDGE, consistent across lane counts (1–4), near-side overpass connection, off-ramp
+  tapers (no fold), ~1-lane ramps overlapping the road surfaces so they connect cleanly (no taper
+  wedge needed). CLOVERLEAF / TRUMPET still first-draft (tangled — to nail). **Live sliders** for the
+  ramp shape (reach / gore / taper / run-on); lanes (L) + median + dashed lane lines; angle (←→).
+  Roads = subdivided `polyfill` ribbons. Grow shapes here, then bake the chosen slider values as
+  constants + port the drawer into roadnet2. Catalog (overpass / on-off ramp / diamond / parclo /
+  cloverleaf / trumpet / stack) + the fake-z-vs-real-z decisions are in the convo.
 - **Placement, top-down (parked — it's worldgen-ish)** — towns currently T straight onto highway hubs
   ("driveway onto a freeway"). Fix is *settlement-relationship driven*: tag each town **satellite** (a
   city within region radius → arterial into that city, which holds the interchange) vs **isolated** (no

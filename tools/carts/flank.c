@@ -37,9 +37,9 @@ static const int ECOL[5] = { CLR_DARK_GREY, CLR_YELLOW, CLR_ORANGE, CLR_RED, CLR
 enum { TY_RUSH, TY_CAMP, TY_FLANK, NTY };
 typedef struct { char g; int hp, mag, gap; float range, coverW, heatW, speed, strafeW, spread; } EType;
 static const EType TY[NTY] = {
-    { 'R', 26,  6, 16, 26,  0.4f, 2.5f, 1.45f, 0.5f, 18 },   // rusher  — charges in close, sprays, ignores danger
-    { 'C', 34, 10, 26, 96,  3.5f, 7.0f, 0.62f, 0.1f, 8  },   // camper  — holds cover at long range, accurate, slow
-    { 'F', 30,  8, 22, 60,  1.3f, 9.0f, 1.15f, 1.5f, 13 },   // flanker — circles to your sides, dodges the cone
+    { 'R', 26,  6, 22, 26,  0.4f, 2.5f, 1.45f, 0.5f, 24 },   // rusher  — charges in close, sprays, ignores danger
+    { 'C', 34, 10, 34, 96,  3.5f, 7.0f, 0.62f, 0.1f, 12 },   // camper  — holds cover at long range, slow
+    { 'F', 30,  8, 30, 60,  1.3f, 9.0f, 1.15f, 1.5f, 18 },   // flanker — circles to your sides, dodges the cone
 };
 
 static unsigned char cell[GH][GW];  // 0 floor · 1 FULL cover (blocks move+LOS+bullets) · 2 LOW cover (blocks move only)
@@ -48,7 +48,7 @@ static float heat[GH][GW];          // danger projected by the player's aim cone
 
 #define KEY_LSHIFT 340             // raylib left-shift — held to sneak
 #define VIS_R 96                   // player's own vision radius (fog of war)
-typedef struct { float x, y, vx, vy, aim, pinned; int hp, mag, reload, shake, spectate, sneak; } Player;  // pinned 0..1 = suppression
+typedef struct { float x, y, vx, vy, aim, pinned; int hp, mag, reload, shake, spectate, sneak, calm; } Player;  // pinned 0..1; calm = frames since hit (regen)
 typedef struct { float x, y, aim, lsx, lsy, alert; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy; } Enemy;  // alert 0..100; inv = spot to investigate
 typedef struct { float x, y, vx, vy; int alive, foe; } Bullet;
 static Player pl;
@@ -217,7 +217,7 @@ static void enemy_update(int i) {
         if (e->type == TY_CAMP && los_px(e->x,e->y,pl.x,pl.y)) {   // SUPPRESSION: anchor + pour inaccurate fire to PIN you
             e->aim = angle_to(e->x, e->y, pl.x, pl.y);
             e->suppressing = e->mag > 0;
-            if (e->mag > 0 && e->shootcd <= 0) { fire(e->x, e->y, e->aim, 1, 26); e->mag--; e->shootcd = 5; if (e->mag==0) e->reload = 85; }
+            if (e->mag > 0 && e->shootcd <= 0) { fire(e->x, e->y, e->aim, 1, 30); e->mag--; e->shootcd = 7; if (e->mag==0) e->reload = 100; }
             if (e->mag == 0 && --e->reload <= 0) e->mag = T->mag;  // reload = the gap in the pin (your window to move)
             return;
         }
@@ -288,15 +288,15 @@ static void player_update(void) {
         return;
     }
     pl.sneak = key(KEY_LSHIFT);                               // hold Shift = sneak: slower but quiet + low profile
-    float spd = 1.6f * (pl.sneak ? 0.5f : 1.0f) * (1 - 0.6f*pl.pinned);   // sneak + suppression both slow you
+    float spd = 1.6f * (pl.sneak ? 0.5f : 1.0f) * (1 - 0.45f*pl.pinned);   // sneak + suppression both slow you
     float mx=0,my=0;
     if (key('A')||key(KEY_LEFT)) mx=-spd; else if (key('D')||key(KEY_RIGHT)) mx=spd;
     if (key('W')||key(KEY_UP)) my=-spd; else if (key('S')||key(KEY_DOWN)) my=spd;
     if (!wallpx(pl.x+mx, pl.y)) pl.x += mx; if (!wallpx(pl.x, pl.y+my)) pl.y += my;
     pl.aim = angle_to(pl.x, pl.y, mouse_x(), mouse_y());
     if ((mouse_down(0)||key(KEY_SPACE)) && pl.mag>0 && pl.reload<=0) {        // LOUD gun
-        fire(pl.x,pl.y,pl.aim,0,5 + pl.pinned*16); pl.mag--; pl.reload=8; if(pl.mag==0) pl.reload=45;   // suppressed = your aim shakes too
-        noise_at(pl.x, pl.y, 155, 60);                                          // a gunshot carries — the whole room may hear
+        fire(pl.x,pl.y,pl.aim,0,5 + pl.pinned*11); pl.mag--; pl.reload=8; if(pl.mag==0) pl.reload=45;   // suppressed = your aim shakes too
+        noise_at(pl.x, pl.y, 150, 55);                                          // a gunshot carries — the whole room may hear
     }
     if (mouse_pressed(1)) {                                                   // QUIET knife — silent close kill (makes NO noise)
         for (int j=0;j<NE;j++) if (en[j].alive) {
@@ -330,6 +330,8 @@ void update(void) {
     pl.pinned += sup ? 0.05f : -0.035f;
     if (pl.pinned < 0) pl.pinned = 0; if (pl.pinned > 1) pl.pinned = 1;
     if (pl.pinned > 0.3f && tick%3==0) pl.shake = 2;          // pinned = jittery
+    pl.calm++;                                                // out-of-combat HP regen (no hit for ~2.5s)
+    if (pl.calm > 150 && tick%15==0 && pl.hp > 0 && pl.hp < 100) pl.hp++;
 
     // bullets
     for (int i=0;i<NB;i++) {
@@ -340,7 +342,7 @@ void update(void) {
             if (fabsf(bul[i].x-pl.x)<4 && fabsf(bul[i].y-pl.y)<4) {
                 bul[i].alive=0;
                 if (low_facing(pl.x,pl.y,-bul[i].vx,-bul[i].vy) && rnd(2)==0) play_pan(56,INSTR_MEMBRANE,2,panx(pl.x),4);  // crate ate it
-                else { pl.hp -= 8; pl.shake=6; play_pan(34,INSTR_NOISE,4,panx(pl.x),6); if (pl.hp<=0){ pl.hp=0; setmsg("you are down. R to retry."); } }
+                else { pl.hp -= 5; pl.shake=6; pl.calm=0; play_pan(34,INSTR_NOISE,4,panx(pl.x),6); if (pl.hp<=0){ pl.hp=0; setmsg("you are down. R to retry."); } }
             }
         } else for (int j=0;j<NE;j++) if (en[j].alive && fabsf(bul[i].x-en[j].x)<4 && fabsf(bul[i].y-en[j].y)<4) {
             bul[i].alive=0;
@@ -363,13 +365,18 @@ void update(void) {
 void draw(void) {
     cls(CLR_BLACK);
     int sh = pl.shake>0 ? rnd(3)-1 : 0;
-    // heat overlay (danger cone) — debug viz
-    if (show_heat) for (int y=0;y<GH;y++) for (int x=0;x<GW;x++) if (heat[y][x] > 0.05f) {
-        int h = heat[y][x] > 0.6f ? CLR_RED : heat[y][x] > 0.3f ? CLR_ORANGE : CLR_BROWN;
-        rectfill(x*TILE+sh, y*TILE, TILE, TILE, h);
+    rectfill_rgb(0, 0, SCREEN_W, HUD_Y, 0x1a1c26);                                 // a floor tone (so walls read as walls)
+    // heat overlay (danger cone) — dithered so it reads as a translucent zone, not solid
+    if (show_heat) { fillp(FILL_CHECKER, -1);
+        for (int y=0;y<GH;y++) for (int x=0;x<GW;x++) if (heat[y][x] > 0.05f) {
+            int h = heat[y][x] > 0.6f ? CLR_RED : heat[y][x] > 0.3f ? CLR_ORANGE : CLR_BROWN;
+            rectfill(x*TILE+sh, y*TILE, TILE, TILE, h);
+        }
+        fillp_reset();
     }
     for (int y=0;y<GH;y++) for (int x=0;x<GW;x++) {
-        if (cell[y][x]==1) rectfill(x*TILE+sh, y*TILE, TILE, TILE, CLR_DARK_GREY);          // full cover: tall block
+        if (cell[y][x]==1) { rectfill(x*TILE+sh, y*TILE, TILE, TILE, CLR_LIGHT_GREY);        // full cover: bright solid block
+                             rect(x*TILE+sh, y*TILE, TILE, TILE, CLR_DARK_GREY); }
         else if (cell[y][x]==2) { rectfill(x*TILE+sh+1, y*TILE+2, TILE-2, TILE-3, CLR_BROWN); rect(x*TILE+sh+1, y*TILE+2, TILE-2, TILE-3, CLR_ORANGE); }  // low cover: a crate
     }
 
@@ -400,10 +407,11 @@ void draw(void) {
         } else if (en[i].everseen)                                            // last-seen ghost (your memory)
             print(str("%c", TY[en[i].type].g), (int)en[i].lsx-2+sh, (int)en[i].lsy-3, CLR_DARKER_GREY);
     }
-    // your vision ring + you
-    if (!reveal && !pl.spectate) circ((int)pl.x+sh, (int)pl.y, VIS_R, CLR_DARKER_GREY);
+    // your vision ring + you (a blue ring keeps you findable in the chaos)
+    if (!reveal && !pl.spectate) circ((int)pl.x+sh, (int)pl.y, VIS_R, CLR_DARK_GREY);
     int px=(int)pl.x+sh, py=(int)pl.y;
-    circfill(px,py,3, pl.sneak ? CLR_DARK_GREY : (pl.hp>0?CLR_WHITE:CLR_DARK_GREY));
+    circ(px,py,4, pl.sneak ? CLR_DARK_BLUE : CLR_BLUE);
+    circfill(px,py,2, pl.hp>0?CLR_WHITE:CLR_DARK_GREY);
     line(px,py,(int)(pl.x+dx(8,pl.aim))+sh,(int)(pl.y+dy(8,pl.aim)),CLR_YELLOW);
     if (pl.pinned > 0.3f) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print("PINNED", px-11, py-15, blink(6)?CLR_RED:CLR_ORANGE); }
 

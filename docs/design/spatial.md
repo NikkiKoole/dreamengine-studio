@@ -372,25 +372,39 @@ line-of-sight primitive).
 Both are small, byte-identical-when-dormant, and mirror existing idioms. Append the request
 kinds after the current enum max (re-read the tail first — it drifts under parallel edits).
 
-**(a) `note_gain(int handle, float g)` — a continuous per-voice gain.**
-The problem: `note_vol` quantizes to 0..7, so occlusion attenuation steps audibly. Internally
-`v->vol` is *already* a float (0..1); the fix is a **separate** float multiplier so musical
-velocity (`note_vol`) and continuous attenuation (`note_gain`, e.g. occlusion/ducking) compose
-instead of fighting — exactly how v1's `sp_gain` was layered in.
-- Voice: add `float gain, gain_target;` (init `1.0` in `sound_setup_note`).
-- Per-sample slew next to the others: `v->gain += (v->gain_target - v->gain) * 0.003f;`
-- Fold into the contrib line (now): `contrib = s * v->vol * env * trem * v->sp_gain * v->gain * 0.2f;`
-  (`gain` defaults 1.0 → multiplying by exactly 1.0 is identity → **byte-identical** until used.)
-- `SR_NOTE_GAIN` handler: `v->gain_target = clamp(r.a/1000, 0, 1)` (e0/e1 = handle). Wrapper mirrors
-  `note_vol`. Cost ~2 floats × 32 voices, negligible CPU. 4-place wiring + tcc + a `studioDocs`/`shell`
-  entry. Verify: an occlusion sweep reads smooth where `note_vol` stepped.
-- **Existing customers (cart survey 2026-06-15) — `note_gain` is overdue, not speculative.** 8 carts
-  already compute a continuous level and crush it through `note_vol`'s 0..7 via `(int)(level*7+0.5f)`
-  per frame: **`martenot`** (the *touche d'intensité*, quantized to ~6), **`glassharmonica`** (a lerp'd
+**(a) Float `note_vol` + `note_res` — widen the knobs, don't add a function.** *(revised 2026-06-15;
+supersedes the earlier separate-`note_gain` sketch — see "rejected alternative" below.)*
+The problem: occlusion attenuation (and instrument dynamics) step audibly because `note_vol` is 0..7
+and `note_res` is 0..15. The fix is to make those two **live** knobs `float` — **keeping their existing
+ranges**, just removing the input quantization:
+- `void note_vol(int handle, float vol);` — still **0..7**, fractions allowed. The handler already
+  does `vol/7.0f`; just stop `(int)`-truncating the input. Pack `(int)(vol*1000)` in the wrapper,
+  unpack `/1000.0f` then `/7.0f`.
+- `void note_res(int handle, float resonance);` — still **0..15** (mapping `flt_q = 2.0 - res*0.13`
+  unchanged); same float pack/unpack.
+- **CRITICAL — keep the 0..7 / 0..15 ranges, do NOT rescale to 0..1.** Rescaling would silently
+  break the ~20 existing `note_vol(h, 0..7)` callers (a `5` would clamp to full). Keeping the range
+  means `note_vol(h, 5)` → `5.0f/7.0f` = **bit-identical** to today (an int literal promotes to the
+  same float), so **every existing caller is unchanged byte-for-byte** and new code passes `3.7`.
+- C has no overloading, but `int → float` is an implicit safe conversion, so all existing call sites
+  (`note_vol(h, 5)`, `note_vol(h, (int)(…))`) still compile + give identical values. **No forced
+  migration.** Touches `studio.h` sig + the `sound.h` wrapper + the `SR_NOTE_VOL`/`SR_NOTE_RES` pack
+  & handler (the only sound.h change); `studioDocs` text. Verify: an occlusion/dynamics sweep reads
+  smooth where it stepped, and a `--det` render of an existing cart (e.g. `martenot`) is byte-identical.
+- **Existing customers (cart survey 2026-06-15) — this is overdue, not speculative.** 8 carts already
+  compute a continuous level and crush it through `note_vol`'s 0..7 via `(int)(level*7+0.5f)` per
+  frame: **`martenot`** (the *touche d'intensité*, quantized to ~6), **`glassharmonica`** (a lerp'd
   swell), **`bowed`** (bow energy), **`musicalsaw`** (bow speed), **`mouthharp`** (breath), **`modrack`**
-  (AMP CV → an 8-step VCA), and `trafficjam`/`trackgen` (engine-by-speed, modest). Each retrofits to a
-  one-line `note_gain(h, level)`. **Sibling gap: `note_res` float** (0..15 → continuous; `modrack` RES CV
-  + `brass` mute sweep) — smaller win, lower priority. One-shot velocity stays int (transients don't step).
+  (AMP CV → an 8-step VCA), and `trafficjam`/`trackgen` (engine-by-speed, modest). Each *opportunistically*
+  drops `(int)(level*7+0.5f)` → `note_vol(h, level*7)`. `note_res` float customers: `modrack` RES CV +
+  `brass` mute sweep. One-shot velocity (`note`/`hit`/`tone`/`chord` vol 0..7) **stays int** — transients
+  don't audibly step, and floating 6 more signatures is churn for no gain.
+- **Rejected alternative — a separate `note_gain(handle, 0..1)` multiplier.** Composes without knowing
+  the base volume (occlusion layers on top), but it adds a *second* amplitude concept and a new function.
+  Float-`note_vol` is one fewer function and byte-identical-compatible; the acoustics helper owns the
+  emitter's base volume so it just folds occlusion in (`note_vol(h, base*occl*7)`). The slewing/smoothing
+  the voice already applies to `vol_target` (`v->vol += (vol_target-v->vol)*0.003f`) gives the anti-zipper
+  for free — no new per-voice state needed.
 
 **(b) Rideable zone reverb — slew the tank's `fb`/`damp`.**
 Key finding from the probe: `reverb()` is **cheap to re-call** (`SR_REVERB` just sets two floats,

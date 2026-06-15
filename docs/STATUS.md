@@ -920,12 +920,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       + zone/material tables → the knobs) + those two engine conveniences. A tilemap **line-of-sight**
       primitive is an optional bonus (generalizes to vision/stealth). Findings in the cart header.
     - **Both engine asks now DESIGNED** (ready to build when `sound.h` is free) in
-      [`design/spatial.md`](design/spatial.md) → "Designed solutions": (a) `note_gain` = a separate
-      per-voice float multiplier folded into `contrib` (mirrors v1's `sp_gain`, byte-identical at 1.0);
-      (b) rideable reverb = slew the tank's `fb`/`damp` toward targets, gated on a new `reverb_glide(ms)`
-      (snap by default → byte-identical; `reverb()` re-call is already cheap — just no slew). Two-tank
-      crossfade noted as the v3.1 higher-fidelity fallback.
-    - **`note_gain` clears the second-customer bar independent of v3 — it's overdue, not speculative**
+      [`design/spatial.md`](design/spatial.md) → "Designed solutions": (a) **float `note_vol` + `note_res`**
+      (keep their 0..7 / 0..15 ranges, just drop the input quantization → byte-identical for every existing
+      caller, since `int` literals promote to the same float; **supersedes** the earlier separate-`note_gain`
+      sketch — one fewer function); (b) rideable reverb = slew the tank's `fb`/`damp` toward targets, gated
+      on a new `reverb_glide(ms)` (snap by default → byte-identical; `reverb()` re-call is already cheap —
+      just no slew). Two-tank crossfade noted as the v3.1 higher-fidelity fallback.
+    - **Floating `note_vol` clears the second-customer bar independent of v3 — overdue, not speculative**
       (cart survey 2026-06-15). The live per-note surface is float *everywhere* (`note_cutoff` Hz,
       `note_pitch`/`duty`/`pan`/`drive`/sends, the macros) **except two integers: `note_vol` (0..7) and
       `note_res` (0..15)** — the stragglers from before the float-everything convention. **8 carts already
@@ -934,11 +935,11 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       to ~6!), **`glassharmonica`** (a lerp'd swell the code calls "the glass-harmonica swell"), **`bowed`**
       (bow energy), **`musicalsaw`** (bow speed), **`mouthharp`** (breath). Tier 2: **`modrack`** AMP CV (a
       modular VCA on a smooth CV → 8 steps). Tier 3 (modest): `trafficjam`/`trackgen` engine-by-speed.
-      Retrofit = drop the `(int)(…*7)` for a one-line `note_gain(h, level)`. **Sibling gap: `note_res` float**
-      (0..15 → continuous) — smaller (16 steps, subtler), 2 customers (**`modrack`** RES CV + **`brass`** mute
-      sweep); worth noting, lower priority. One-shot velocity (`note`/`hit`/`tone` vol 0..7) stays int —
-      transients don't perceptibly step. **Consider promoting `note_gain` to its own STATUS item** given it's
-      now justified beyond spatial.
+      Retrofit = *opportunistically* drop the `(int)(…*7)` for `note_vol(h, level*7)` (no forced migration —
+      old call sites stay valid). **Sibling: `note_res` float** (0..15 → continuous) — smaller (16 steps,
+      subtler), 2 customers (**`modrack`** RES CV + **`brass`** mute sweep). One-shot velocity
+      (`note`/`hit`/`tone` vol 0..7) stays int — transients don't perceptibly step. **Worth its own STATUS
+      item** given it's justified beyond spatial — the cleanest, lowest-risk audio change on the board.
 
 ---
 

@@ -925,6 +925,20 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       (b) rideable reverb = slew the tank's `fb`/`damp` toward targets, gated on a new `reverb_glide(ms)`
       (snap by default → byte-identical; `reverb()` re-call is already cheap — just no slew). Two-tank
       crossfade noted as the v3.1 higher-fidelity fallback.
+    - **`note_gain` clears the second-customer bar independent of v3 — it's overdue, not speculative**
+      (cart survey 2026-06-15). The live per-note surface is float *everywhere* (`note_cutoff` Hz,
+      `note_pitch`/`duty`/`pan`/`drive`/sends, the macros) **except two integers: `note_vol` (0..7) and
+      `note_res` (0..15)** — the stragglers from before the float-everything convention. **8 carts already
+      compute a continuous level then crush it through `note_vol`** via `(int)(level*7+0.5f)` in a per-frame
+      loop. Tier 1 (the level *is* the gesture): **`martenot`** (the *touche d'intensité* souffle, quantized
+      to ~6!), **`glassharmonica`** (a lerp'd swell the code calls "the glass-harmonica swell"), **`bowed`**
+      (bow energy), **`musicalsaw`** (bow speed), **`mouthharp`** (breath). Tier 2: **`modrack`** AMP CV (a
+      modular VCA on a smooth CV → 8 steps). Tier 3 (modest): `trafficjam`/`trackgen` engine-by-speed.
+      Retrofit = drop the `(int)(…*7)` for a one-line `note_gain(h, level)`. **Sibling gap: `note_res` float**
+      (0..15 → continuous) — smaller (16 steps, subtler), 2 customers (**`modrack`** RES CV + **`brass`** mute
+      sweep); worth noting, lower priority. One-shot velocity (`note`/`hit`/`tone` vol 0..7) stays int —
+      transients don't perceptibly step. **Consider promoting `note_gain` to its own STATUS item** given it's
+      now justified beyond spatial.
 
 ---
 

@@ -384,6 +384,13 @@ instead of fighting — exactly how v1's `sp_gain` was layered in.
 - `SR_NOTE_GAIN` handler: `v->gain_target = clamp(r.a/1000, 0, 1)` (e0/e1 = handle). Wrapper mirrors
   `note_vol`. Cost ~2 floats × 32 voices, negligible CPU. 4-place wiring + tcc + a `studioDocs`/`shell`
   entry. Verify: an occlusion sweep reads smooth where `note_vol` stepped.
+- **Existing customers (cart survey 2026-06-15) — `note_gain` is overdue, not speculative.** 8 carts
+  already compute a continuous level and crush it through `note_vol`'s 0..7 via `(int)(level*7+0.5f)`
+  per frame: **`martenot`** (the *touche d'intensité*, quantized to ~6), **`glassharmonica`** (a lerp'd
+  swell), **`bowed`** (bow energy), **`musicalsaw`** (bow speed), **`mouthharp`** (breath), **`modrack`**
+  (AMP CV → an 8-step VCA), and `trafficjam`/`trackgen` (engine-by-speed, modest). Each retrofits to a
+  one-line `note_gain(h, level)`. **Sibling gap: `note_res` float** (0..15 → continuous; `modrack` RES CV
+  + `brass` mute sweep) — smaller win, lower priority. One-shot velocity stays int (transients don't step).
 
 **(b) Rideable zone reverb — slew the tank's `fb`/`damp`.**
 Key finding from the probe: `reverb()` is **cheap to re-call** (`SR_REVERB` just sets two floats,

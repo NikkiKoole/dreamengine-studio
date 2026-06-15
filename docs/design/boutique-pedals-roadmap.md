@@ -178,9 +178,11 @@ reverb, tight drums). Natural sibling to the cab/amp work.
   Leslie/none stay pristine. Cart-side only; default board byte-identical (dormant until AMP is chosen).
 - ✅ **Shimmer on the bus — `instrument_shimmer` DONE 2026-06-15.** The 2-tank pool shipped: shimmer one
   instrument's bus (pad blooms, drums dry), master = tank 0 (bit-exact md5-verified), tanks 1+ per-aux-bus,
-  ~92 KB. Took the master-stage-not-insert path below (did NOT mint `FX_SHIMMER`). Still open: a *pedalboard*
-  pedal for it (needs the cabinet-ambience slot or accepting non-reorderable), and spatializing the bus = v2.
-  Original analysis ↓
+  ~92 KB. Took the master-stage-not-insert path below (did NOT mint `FX_SHIMMER`).
+  ✅ **Also a SHIMMER pedalboard pedal (DONE 2026-06-15)** — a macro pedal (kind -3) driving master
+  `shimmer()`, accepted as a non-reorderable output-stage ambience (a reverb at the end of the rig). Still
+  open: a *reorderable* `FX_SHIMMER` insert (if chain position ever needs to matter), and spatializing the
+  bus = spatial v2 (now shipped — `instrument_pos`). Original analysis ↓
 - **Shimmer in the pedalboard / on the bus.** `shimmer()` is master-stage (a single private reverb
   tank), so it's not a draggable chain pedal — only the standalone `shimmer` cart has it. Cost is mostly
   **memory**: one instance = a `ReverbTank` (~30 KB) + the octave-up buffer (`SHIM_PBUF` 4096 = ~16 KB) ≈

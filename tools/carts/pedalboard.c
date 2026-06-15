@@ -39,7 +39,7 @@
 // ── the effect catalog: every pedal you can drag into the chain ──────────────────────────────
 // kind = the engine FX_* insert kind (its slot in the reorderable chain). Every pedal — REVERB
 // included now (FX_REVERB via reverb_insert) — is a real insert, so chain order is audible.
-enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, C_FUZZ, C_GRN, C_EQ2, C_OD, C_SHW, C_GATE, NCAT };
+enum { C_BIT, C_EQ, C_CHO, C_PHA, C_FLG, C_TAP, C_TRM, C_WAH, C_RVB, C_FMT, C_PAN, C_FIL, C_RNG, C_DLY, C_LOFI, C_FUZZ, C_GRN, C_EQ2, C_OD, C_SHW, C_GATE, C_SHMR, NCAT };
 typedef struct {
     const char *name; int body, accent, kind, nk;
     const char *klabel[MAXK]; float kdef[MAXK];
@@ -82,6 +82,11 @@ static const FxDef CAT[NCAT] = {
     // GATE is the noise gate INSERT (FX_GATE=17): clamps the signal shut below THRSH. Put it after the
     // REVERB pedal in the chain for gated reverb (the tail chops). THRSH · ATK (fast) · REL (tail cut).
     { "GATE",     CLR_DARK_GREEN,    CLR_GREEN,        FX_GATE,    3, { "THR","ATK","REL" },   { 0.35f, 0.10f, 0.40f } },
+    // SHIMMER is a MACRO pedal (kind -3, custom icon): the master shimmer() — a reverb with an
+    // octave-up pitch-shifter in its feedback loop (the ascending crystalline tail). It's a master
+    // OUTPUT-STAGE effect (runs after the whole chain, like a reverb at the end of a pedalboard), so
+    // its chain position is cosmetic — it always shimmers the finished guitar tone. SIZE/DAMP/SHIM/MIX.
+    { "SHIMMER",  CLR_DARKER_BLUE,   CLR_INDIGO,       -3,         4, { "SIZE","DMP","SHM","MIX" }, { 0.85f, 0.40f, 0.60f, 0.45f } },
 };
 
 // ── the chain: an ordered list of DISTINCT catalog ids, each with its own knobs + on-state ──
@@ -315,6 +320,7 @@ static void apply_fx(void) {
             case C_OD:  drive_insert_inst(1, act ? k[0] : 0.0f, (int)(k[1]*3.99f), act ? k[2] : 0.0f); break;   // 2nd bus drive (FX_DRIVE inst 1); amt/mix 0 = off
             case C_SHW: shallow(0.2f + k[0] * 7.8f, k[1], act ? k[2] : 0.0f); break;   // RATE 0.2..8 Hz, DEP, MIX (off = bypass)
             case C_GATE: gate(act ? k[0] : 0.0f, 1 + (int)(k[1] * 15.0f), 20 + (int)(k[2] * 380.0f)); break;   // THR (off = bypass), ATK 1..16ms, REL 20..400ms
+            case C_SHMR: shimmer(k[0], k[1], k[2], act ? k[3] : 0.0f); break;   // master shimmer (output stage): SIZE/DAMP/SHIM, MIX (off = bypass)
             case C_CHO: chorus(0.1f + k[0] * 4.9f, k[1], act ? k[2] : 0.0f); break;
             case C_PHA: phaser(0.1f + k[0] * 9.9f, k[1], (k[2]-0.5f) * 1.8f, act ? k[3] : 0.0f, 4); break;
             case C_FLG: flanger(0.05f + k[0] * 4.95f, k[1], k[2] * 0.95f, act ? k[3] : 0.0f); break;
@@ -649,6 +655,16 @@ static void fuzz_icon(int cx, int cy, int col) {
     circfill(cx, cy, 2, col);
 }
 
+// SHIMMER is a macro (master shimmer(), no FX_* kind) — rising chevrons + a spark (the ascending tail).
+static void shimmer_icon(int cx, int cy, int col) {
+    for (int i = 0; i < 3; i++) {                    // stacked upward chevrons = the climb
+        int y = cy + 6 - i * 5;
+        line(cx - 7, y, cx, y - 5, col);
+        line(cx, y - 5, cx + 7, y, col);
+    }
+    pset(cx, cy - 9, col); circfill(cx + 5, cy - 8, 1, col);   // a spark at the top
+}
+
 // OD (FX_DRIVE) — a soft-clipped, flat-topped waveform (saturation).
 static void od_icon(int cx, int cy, int col) {
     line(cx - 12, cy + 4, cx - 8, cy - 4, col);   // rise
@@ -671,6 +687,7 @@ static void draw_chain_pedal(int i, int x) {
     print_centered(d->name, cx, PED_Y + 3, sl->on ? CLR_WHITE : CLR_MEDIUM_GREY);
     if (d->kind == -1)      lofi_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == -2) fuzz_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
+    else if (d->kind == -3) shimmer_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else if (d->kind == FX_DRIVE) od_icon(cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY);
     else fx_icon(d->kind, cx, ILLU_CY, sl->on ? d->accent : CLR_DARKER_GREY, body);
     int kr = knob_rad(d->nk);
@@ -717,6 +734,7 @@ static void draw_chip(int cat, int x, int y, int w, int h, bool ghost) {
     rrect(x, y, w, h, 3, ghost ? CLR_WHITE : d->accent);
     if (d->kind == -1)      lofi_icon(x + w / 2, y + 9, d->accent);
     else if (d->kind == -2) fuzz_icon(x + w / 2, y + 9, d->accent);
+    else if (d->kind == -3) shimmer_icon(x + w / 2, y + 9, d->accent);
     else if (d->kind == FX_DRIVE) od_icon(x + w / 2, y + 9, d->accent);
     else fx_icon(d->kind, x + w / 2, y + 9, d->accent, d->body);
     font(FONT_TINY); print_centered(d->name, x + w / 2, y + h - 6, CLR_WHITE); font(FONT_NORMAL);

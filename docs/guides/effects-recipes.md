@@ -162,7 +162,9 @@ the wet tail is tapped, pitched up an octave (a 2-grain overlap-add shifter), an
 held chord **climbs**, rising into a glassy, ascending crystalline pad (Strymon BlueSky / Eno). The
 roadmap **trophy** (Primitive 2 — the engine's first real-time bus pitch-shifter). `size` 0–1 (decay),
 `damp` 0–1 (darker tail), `shimmer_amt` 0–1 (the climb: 0 = a plain reverb, ~0.7 blooms-and-ascends,
-1.0 = a near-infinite rising wall), `mix` 0–1 (0 = off). Master-stage. **Showcase: `shimmer`**.
+1.0 = a near-infinite rising wall), `mix` 0–1 (0 = off). Master-stage. **Showcase: `shimmer`**; also a
+SHIMMER pedal in **`pedalboard`** (a macro pedal driving master `shimmer()` — runs at the output stage,
+like a reverb at the end of the rig, so its chain position is cosmetic).
 
 | recipe | call | character | used by |
 |---|---|---|---|

@@ -851,8 +851,10 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     + `audio-notes §17` #19–#27. What's left is small/optional:
     - **MOOD varispeed** — a navkit port (`half_speed`/`tape_stop`/`rewind`): tape slow-down / pitch-dive.
       The last boutique-list item; shares pitch/time machinery with Shimmer. *Medium.*
-    - **Shimmer in the pedalboard** — currently master-stage only (standalone `shimmer` cart); needs a
-      per-bus `FX_SHIMMER` insert or a cabinet-style ambience slot. *Bigger than a quick win.*
+    - ✅ **Shimmer in the pedalboard — DONE 2026-06-15.** Added as a SHIMMER macro pedal (kind -3) driving
+      master `shimmer()` — an output-stage ambience (like a reverb at the end of the rig; chain position
+      cosmetic). Cart-side only (no engine); default board byte-identical. A *reorderable* per-bus
+      `FX_SHIMMER` insert is still possible later but wasn't needed for "hear it in the rig."
     - **Engineering nits** (may never matter — measure first): `fast_tanh` Padé approximation for the
       soft-clip *only if* it shows up hot in the profiler; an **AC128 transfer-curve LUT** for a *named*
       vintage-germanium fuzz voicing beyond `DRIVE_ASYM`; exposing the Shimmer pitch-shifter as a

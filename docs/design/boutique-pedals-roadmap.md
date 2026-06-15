@@ -176,6 +176,11 @@ reverb, tight drums). Natural sibling to the cab/amp work.
 - ✅ **Wire `amp_noise()` into the `pedalboard` cabinet.** Done 2026-06-15 — the AMP cabinet now adds a
   rig-noise floor whose hiss tracks the GAIN knob (clean = silent, hot = hisses) + a touch of mains hum;
   Leslie/none stay pristine. Cart-side only; default board byte-identical (dormant until AMP is chosen).
+- ✅ **Shimmer on the bus — `instrument_shimmer` DONE 2026-06-15.** The 2-tank pool shipped: shimmer one
+  instrument's bus (pad blooms, drums dry), master = tank 0 (bit-exact md5-verified), tanks 1+ per-aux-bus,
+  ~92 KB. Took the master-stage-not-insert path below (did NOT mint `FX_SHIMMER`). Still open: a *pedalboard*
+  pedal for it (needs the cabinet-ambience slot or accepting non-reorderable), and spatializing the bus = v2.
+  Original analysis ↓
 - **Shimmer in the pedalboard / on the bus.** `shimmer()` is master-stage (a single private reverb
   tank), so it's not a draggable chain pedal — only the standalone `shimmer` cart has it. Cost is mostly
   **memory**: one instance = a `ReverbTank` (~30 KB) + the octave-up buffer (`SHIM_PBUF` 4096 = ~16 KB) ≈

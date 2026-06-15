@@ -155,7 +155,7 @@ The third reverb shape: a dry/wet-MIX insert **on the master bus**, so it's a re
 |---|---|---|---|
 | honest pedalboard reverb | `reverb_insert(0.7f, 0.3f, 0.45f)` + `FX_REVERB` in `fx_order(0,…)` | a guitar-pedal reverb whose position matters: before crush = crush the wet tail; after = reverb the crushed guitar | `pedalboard` (REVERB pedal), `groovebox` (SPACE knob — the ORDER toggle IS reverb↔crush on the summed mix), `modrack` (VERB module — on by default for a touch of space; cv inlet swells the mix) |
 
-### shimmer — `shimmer(size, damp, shimmer_amt, mix)`
+### shimmer — `shimmer(size, damp, shimmer_amt, mix)` · `instrument_shimmer(slot, …)`
 
 A **shimmer reverb**: a reverb with an **octave-up pitch-shifter inside its feedback loop**. Each pass,
 the wet tail is tapped, pitched up an octave (a 2-grain overlap-add shifter), and re-injected — so a
@@ -169,6 +169,7 @@ roadmap **trophy** (Primitive 2 — the engine's first real-time bus pitch-shift
 | classic shimmer pad | `shimmer(0.85f, 0.4f, 0.65f, 0.5f)` | hold a chord → it blooms and climbs an octave halo above — ambient/post-rock | `shimmer` |
 | endless ascent | `shimmer(1.0f, 0.4f, 0.95f, 0.6f)` | near-infinite rising wall of crystal (loop self-sustains, tanh-governed so it can't blow up) | `shimmer` |
 | subtle octave halo | `shimmer(0.7f, 0.5f, 0.35f, 0.4f)` | just a touch of rising sparkle over a normal reverb bloom | — |
+| shimmer pad, dry drums | `instrument_shimmer(SL_PAD, 0.85f, 0.4f, 0.6f, 0.4f)` | shimmer ONE instrument's bus — the pad blooms while the drums/bass stay bone dry (the per-instrument pool: master + 1 instrument). Composes with spatial: the dry source still pans/Dopplers, the wash is an ambient tail | — |
 
 > **Stability built in.** A pitch-shifter in a feedback loop wants to either die or explode (it did
 > both in testing — runaway to full-scale + DC pileup). Tamed with three things: the octave-up output

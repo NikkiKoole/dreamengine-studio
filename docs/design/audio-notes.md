@@ -1595,6 +1595,18 @@ v1, document it on the panel.
     bounded (peak ceiling, ~0.04% soft-clip); soundcheck + 900-frame tripwire + `--det` byte-identical;
     no-shimmer carts byte-identical. **Showcase: `shimmer`** (held chord + rising sparks for the ascent).
     Took the predicted few tuning iterations (die → explode → tame → tune), not first-try like the others.
+    **Addendum 2026-06-15 — `instrument_shimmer` (per-instrument).** The singleton was generalized into a
+    `SOUND_SHIM_TANKS`=2 pool (`ShimVoice` = tank + `OctaveUp` + per-tank scalars incl. the DC-blocker, so
+    two shimmers don't cross-talk) — the spatial showcase exposed that master-only shimmer washed the whole
+    mix. `instrument_shimmer(slot, size, damp, shimmer, mix)` (`SR_INSTR_SHIMMER`=109) claims an aux tank
+    per slot (`shim_tank_for_bus`, copy `instrument_grains`); ~92 KB total; pool-exhaust → `shim_overflow`,
+    bus stays dry. **The trap avoided:** shimmer is master-stage, *not* an `FX_*` insert, so it was NOT
+    converted to `FX_SHIMMER`/`apply_insert` (that would move the master shimmer + break bit-exact). Instead
+    **tank 0 stays the existing master-stage call (math/order untouched → master is bit-exact, verified:
+    `shimmertest` `--det` md5 `9587acf…` identical before/after)** and tanks 1+ run per-aux-bus (after that
+    bus's inserts, before it folds to master). Isolation A/B: a stab on the shimmered slot blooms (tail
+    0.004→0.002→0.001) while the same stab on a dry slot is silent after the transient. Isolation, not
+    spatialization — the wet tail moving with the source is spatial v2 (emitter buses).
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

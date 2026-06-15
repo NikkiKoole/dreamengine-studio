@@ -1750,6 +1750,7 @@ typedef enum {
     SR_NOTE_POS      = 106,  // a=x*1000, b=y*1000, e0/e1=handle — place a held voice in the world
     SR_NOTE_MOTION   = 107,  // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity (Doppler)
     SR_HIT_AT        = 108,  // a=midi, b=instr, c=vol, e0=gate_samples, e1=x*1000, e2=y*1000 — positioned one-shot
+    SR_INSTR_SHIMMER = 109,  // a=slot, b=size*1000, c=damp*1000, e0=shimmer*1000, e1=mix*1000 — shimmer reverb on one instrument (pooled aux bus)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1874,32 +1875,49 @@ static float octaveup_process(OctaveUp *o, float in) {
     }
     return out * 0.7071f;   // the two constant-power grains can sum >1 at the crossfade — normalize to ~unity
 }
-static ReverbTank shim_tank;
-static OctaveUp   shim_oct;
-static float shim_mix = 0.0f, shim_fb = 0.0f, shim_prev = 0.0f;
-static float shim_dcx = 0.0f, shim_dcy = 0.0f;   // DC-blocker state on the recirculating loop
-static bool  shim_used = false;
-static void shimmer_process(float *mixL, float *mixR) {
-    float in = (*mixL + *mixR) * 0.5f;
-    float shifted = octaveup_process(&shim_oct, shim_prev);          // pitch the last (DC-blocked) tail up an octave
-    float fb_sig = tanhf(shifted * shim_fb);                         // GOVERNOR: soft-clip the feedback → bounded, never a runaway (the echo-bus trick)
-    float rev = reverb_process(&shim_tank, in + fb_sig);            // dry + recirculated shimmer
-    float hp = rev - shim_dcx + 0.995f * shim_dcy;                  // DC-BLOCKER: recirculation pumps DC into the combs; high-pass it out
-    shim_dcx = rev; shim_dcy = hp;
-    shim_prev = hp;
-    *mixL = *mixL * (1.0f - shim_mix) + hp * shim_mix;
-    *mixR = *mixR * (1.0f - shim_mix) + hp * shim_mix;
+// Pooled (like the reverb/grain tank pools): tank 0 = master shimmer(); tanks 1+ = per-instrument
+// (instrument_shimmer, claimed per aux bus). All per-tank state lives in ShimVoice so two shimmers
+// don't cross-talk (the DC-blocker state especially). Master (tank 0) is processed by the identical
+// math/order as the old singleton → bit-exact (verified via --det md5).
+#define SOUND_SHIM_TANKS 2          // master + one instrument bus at once (~92KB; CPU is the real cap — a full reverb + octave-up per active tank)
+typedef struct {
+    ReverbTank tank;
+    OctaveUp   oct;
+    float mix, fb, prev, dcx, dcy;  // dcx/dcy = DC-blocker state on the recirculating loop
+    bool  used;
+} ShimVoice;
+static ShimVoice shim[SOUND_SHIM_TANKS];
+static int8_t    shim_bus_of[SOUND_FX_BUSES];   // bus → shim tank (1+), or -1 (tank 0 = master, not bus-mapped)
+static int       shim_next     = 1;             // next free instrument tank (0 reserved for master shimmer())
+static int       shim_overflow = 0;             // instrument_shimmer() requests dropped (pool exhausted → bus stays dry)
+static int shim_tank_for_bus(int b) {
+    if (shim_bus_of[b] >= 1) return shim_bus_of[b];
+    if (shim_next >= SOUND_SHIM_TANKS) { shim_overflow++; return -1; }
+    int t = shim_next++; shim_bus_of[b] = (int8_t)t; return t;
 }
-static void fx_set_shimmer(float size, float damp, float shimmer, float mix) {
+// process one stereo sample on shim tank t IN PLACE (master → mixL/R; instrument → its aux bus L/R)
+static void shimmer_process(int t, float *mixL, float *mixR) {
+    ShimVoice *s = &shim[t];
+    float in = (*mixL + *mixR) * 0.5f;
+    float shifted = octaveup_process(&s->oct, s->prev);              // pitch the last (DC-blocked) tail up an octave
+    float fb_sig = tanhf(shifted * s->fb);                           // GOVERNOR: soft-clip the feedback → bounded, never a runaway (the echo-bus trick)
+    float rev = reverb_process(&s->tank, in + fb_sig);              // dry + recirculated shimmer
+    float hp = rev - s->dcx + 0.995f * s->dcy;                      // DC-BLOCKER: recirculation pumps DC into the combs; high-pass it out
+    s->dcx = rev; s->dcy = hp; s->prev = hp;
+    *mixL = *mixL * (1.0f - s->mix) + hp * s->mix;
+    *mixR = *mixR * (1.0f - s->mix) + hp * s->mix;
+}
+static void fx_set_shimmer(int t, float size, float damp, float shimmer, float mix) {
+    if (t < 0) return;                  // pool exhausted → no tank → silently dry
     if (size    < 0.0f) size    = 0.0f; if (size    > 1.0f) size    = 1.0f;
     if (damp    < 0.0f) damp    = 0.0f; if (damp    > 1.0f) damp    = 1.0f;
     if (shimmer < 0.0f) shimmer = 0.0f; if (shimmer > 1.0f) shimmer = 1.0f;
     if (mix     < 0.0f) mix     = 0.0f; if (mix     > 1.0f) mix     = 1.0f;
-    shim_tank.fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.70..0.95 decay
-    shim_tank.damp = damp;
-    shim_fb = shimmer * 0.95f;          // recirculation gain: small-signal loop gain crosses 1 near the top → low/mid settings bloom-and-fade, high settings self-sustain (the infinite climb). tanh governor + DC block bound the top
-    shim_mix = mix;
-    shim_used = (mix > 0.0f);           // mix 0 → not called → byte-identical
+    shim[t].tank.fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.70..0.95 decay
+    shim[t].tank.damp = damp;
+    shim[t].fb = shimmer * 0.95f;       // recirculation gain: small-signal loop gain crosses 1 near the top → low/mid bloom-and-fade, high self-sustains; tanh governor + DC block bound the top
+    shim[t].mix = mix;
+    shim[t].used = (mix > 0.0f);        // mix 0 → not processed → byte-identical
 }
 
 #if defined(PLATFORM_WEB) && defined(DE_AUDIO_WORKLET)
@@ -4672,8 +4690,12 @@ static void sound_fire_req(SoundReq r) {
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
     } else if (r.kind == SR_AMP_NOISE) {    // optional rig-noise floor: a=hiss, b=hum (×1000), c=mains_hz
         fx_set_amp_noise(r.a / 1000.0f, r.b / 1000.0f, r.c);
-    } else if (r.kind == SR_SHIMMER) {      // master shimmer reverb: a=size, b=damp, c=shimmer, e0=mix (×1000)
-        fx_set_shimmer(r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_SHIMMER) {      // master shimmer reverb (tank 0): a=size, b=damp, c=shimmer, e0=mix (×1000)
+        fx_set_shimmer(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
+    } else if (r.kind == SR_INSTR_SHIMMER) { // per-instrument: a=slot, b=size, c=damp, e0=shimmer, e1=mix (×1000)
+        if (r.a < 0 || r.a >= SOUND_INSTR_SLOTS) return;
+        int b = fx_bus_for(r.a);
+        if (b >= 1) fx_set_shimmer(shim_tank_for_bus(b), r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f, r.e1 / 1000.0f);
     } else if (r.kind == SR_GATE) {         // master noise gate (bus 0): a=threshold(×1000), b=attack_ms, c=release_ms
         fx_set_gate(0, r.a / 1000.0f, r.b, r.c);
         bool present = false;               // auto-place FX_GATE in bus 0's chain (not in the default ladder)
@@ -5087,6 +5109,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             for (int s = 0; s < insert_order_n[b]; s++) apply_insert(insert_order[b][s], insert_inst[b][s], b, &busL[b], &busR[b]);
             if (leslie_used[b]) leslie_process(b, &busL[b], &busR[b]);   // rotary speaker — pinned LAST (cabinet output stage, not a reorderable pedal)
             if (sc[b].used) { float g = sc_apply(b, busL[b], busR[b]); busL[b] *= g; busR[b] *= g; }   // sidechain/glue duck (pinned after inserts)
+            { int st = shim_bus_of[b]; if (st >= 1 && shim[st].used) shimmer_process(st, &busL[b], &busR[b]); }   // per-instrument shimmer (pool tank 1+), pinned after inserts
             busL[0] += busL[b]; busR[0] += busR[b];
         }
 
@@ -5148,7 +5171,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // the soft-clip below (pinned last — a safety limiter, not a reorderable pedal).
         for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], insert_inst[0][s], 0, &mixL, &mixR);
         if (leslie_used[0]) leslie_process(0, &mixL, &mixR);   // rotary speaker — pinned after the inserts, before the soft-clip (cabinet output stage)
-        if (shim_used) shimmer_process(&mixL, &mixR);          // octave-up shimmer reverb — master space, before the clip
+        if (shim[0].used) shimmer_process(0, &mixL, &mixR);    // octave-up shimmer reverb (master tank 0) — master space, before the clip
         if (drop_used) dropout_process(&mixL, &mixR);          // tape-failure catches — master output stage, before the clip
         if (sc[0].used) { float g = sc_apply(0, mixL, mixR); mixL *= g; mixR *= g; }   // master sidechain/glue duck — the summed-bus pump (before the clip)
 
@@ -5891,6 +5914,10 @@ void amp_noise(float hiss, float hum, int mains_hz) {
 void shimmer(float size, float damp, float shimmer_amt, float mix) {
     sound_push_ctrl(SR_SHIMMER, (int)(size * 1000.0f), (int)(damp * 1000.0f), (int)(shimmer_amt * 1000.0f), (int)(mix * 1000.0f), 0, 0);
 }
+void instrument_shimmer(int slot, float size, float damp, float shimmer_amt, float mix) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_SHIMMER, slot, (int)(size * 1000.0f), (int)(damp * 1000.0f), (int)(shimmer_amt * 1000.0f), (int)(mix * 1000.0f), 0);
+}
 
 // ── gate: a noise gate — clamp the signal shut below a threshold (rig gate / gated reverb) ──
 void gate(float threshold, int attack_ms, int release_ms) {
@@ -6129,8 +6156,12 @@ static void sound_init(void) {
     drop_lpL = drop_lpR = 0.0f; drop_mod = (ModState){ .seed = 0x1F2E3D4Cu };
     noise_hiss = 0.0f; noise_hum = 0.0f; noise_used = false; noise_mains = 60;   // amp noise: dormant + deterministic seed
     noise_lpL = noise_lpR = 0.0f; noise_hum_ph = 0.0f; noise_seed = 0x6D2B79F5u;
-    memset(&shim_tank, 0, sizeof shim_tank); memset(&shim_oct, 0, sizeof shim_oct);   // shimmer: clean tank + shifter
-    shim_mix = 0.0f; shim_fb = 0.0f; shim_prev = 0.0f; shim_dcx = 0.0f; shim_dcy = 0.0f; shim_used = false;
+    for (int t = 0; t < SOUND_SHIM_TANKS; t++) {   // shimmer pool: clean tanks + shifters (tank 0 = master, identical to the old singleton init → bit-exact)
+        memset(&shim[t].tank, 0, sizeof shim[t].tank); memset(&shim[t].oct, 0, sizeof shim[t].oct);
+        shim[t].mix = 0.0f; shim[t].fb = 0.0f; shim[t].prev = 0.0f; shim[t].dcx = 0.0f; shim[t].dcy = 0.0f; shim[t].used = false;
+    }
+    for (int b = 0; b < SOUND_FX_BUSES; b++) shim_bus_of[b] = -1;
+    shim_next = 1; shim_overflow = 0;
 
     // per-bus chorus + flanger + tape inserts (bus 0 master + aux): clean slate (libtcc hot-reload + --det)
     memset(cho_buf, 0, sizeof(cho_buf));

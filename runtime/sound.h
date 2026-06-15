@@ -1751,6 +1751,7 @@ typedef enum {
     SR_NOTE_MOTION   = 107,  // a=vx*1000, b=vy*1000, e0/e1=handle — held voice velocity (Doppler)
     SR_HIT_AT        = 108,  // a=midi, b=instr, c=vol, e0=gate_samples, e1=x*1000, e2=y*1000 — positioned one-shot
     SR_INSTR_SHIMMER = 109,  // a=slot, b=size*1000, c=damp*1000, e0=shimmer*1000, e1=mix*1000 — shimmer reverb on one instrument (pooled aux bus)
+    SR_VARISPEED     = 110,  // a=speed*1000 — THE master tape varispeed (1.0 = bypass; <1 slow/down, >1 fast/up)
     SR_INSTR_POS     = 110,  // a=slot, b=x*1000, c=y*1000 — position an instrument's whole effected bus (v2 emitter, spatial.md)
     SR_INSTR_MOTION  = 111,  // a=slot, b=vx*1000, c=vy*1000 — that emitter bus's velocity → bus Doppler
 } SoundReqKind;
@@ -1920,6 +1921,47 @@ static void fx_set_shimmer(int t, float size, float damp, float shimmer, float m
     shim[t].fb = shimmer * 0.95f;       // recirculation gain: small-signal loop gain crosses 1 near the top → low/mid bloom-and-fade, high self-sustains; tanh governor + DC block bound the top
     shim[t].mix = mix;
     shim[t].used = (mix > 0.0f);        // mix 0 → not processed → byte-identical
+}
+
+// ── varispeed — variable tape playback speed (the MOOD "clock" / tape dive; navkit processHalfSpeed) ──
+// Writes the final mix into a ring buffer, reads it back at `speed`: 1.0 = bypass (byte-identical),
+// <1 = slower (pitch DOWN + time-stretch — the tape-slowdown dive), >1 = faster (pitch up, chipmunk).
+// SWEEP it for tape bends/dives/spinups; the applied speed is SLEWED (tape inertia, no zipper). Stereo
+// (shared transport). Built for sweeps — at a HELD off-speed the read eventually laps the write (a
+// ~2 s click), it's not a dwell. Master output stage. Dormant (not called) until off-speed, and it
+// keeps running through a release until the slew settles back to 1.0 → then byte-identical again.
+#define VARI_BUF (SOUND_SAMPLE_RATE * 2)   // 2 s — room for a long dive before the read laps the write
+static float vari_bufL[VARI_BUF], vari_bufR[VARI_BUF];
+static int   vari_wpos   = 0;
+static float vari_rpos   = 0.0f;
+static float vari_target = 1.0f;   // requested speed
+static float vari_speed  = 1.0f;   // slewed applied speed (tape inertia)
+static bool  vari_used   = false;
+static void varispeed_process(float *mixL, float *mixR) {
+    vari_bufL[vari_wpos] = *mixL; vari_bufR[vari_wpos] = *mixR;   // always capture the live mix while active
+    vari_wpos = (vari_wpos + 1) % VARI_BUF;
+    vari_speed += (vari_target - vari_speed) * 0.0015f;          // slew → buttery pitch glide (tape mass)
+    if (vari_speed < 0.999f || vari_speed > 1.001f) {            // off-speed: read the buffer at vari_speed
+        int p0 = (int)vari_rpos % VARI_BUF, p1 = (p0 + 1) % VARI_BUF;
+        float fr = vari_rpos - (float)(int)vari_rpos;
+        *mixL = vari_bufL[p0] * (1.0f - fr) + vari_bufL[p1] * fr;
+        *mixR = vari_bufR[p0] * (1.0f - fr) + vari_bufR[p1] * fr;
+        vari_rpos += vari_speed;
+        if (vari_rpos >= VARI_BUF) vari_rpos -= VARI_BUF;
+    } else {                                                     // settled at ~1: pass dry, track write
+        vari_speed = 1.0f; vari_rpos = (float)vari_wpos;
+        if (vari_target > 0.999f && vari_target < 1.001f) vari_used = false;   // released → dormant/byte-identical
+    }
+}
+static void fx_set_varispeed(float speed) {
+    if (speed < 0.25f) speed = 0.25f; if (speed > 4.0f) speed = 4.0f;   // 2 octaves down .. 2 up
+    bool was = vari_used;
+    vari_target = speed;
+    if (speed < 0.999f || speed > 1.001f) {
+        vari_used = true;
+        if (!was) vari_rpos = (float)vari_wpos;   // engage at the live edge → reads only fresh audio (no stale jump)
+    }
+    // speed ≈ 1 while already active: keep running so the slew glides back to 1 (process() then clears vari_used)
 }
 
 #if defined(PLATFORM_WEB) && defined(DE_AUDIO_WORKLET)
@@ -4767,6 +4809,8 @@ static void sound_fire_req(SoundReq r) {
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
     } else if (r.kind == SR_AMP_NOISE) {    // optional rig-noise floor: a=hiss, b=hum (×1000), c=mains_hz
         fx_set_amp_noise(r.a / 1000.0f, r.b / 1000.0f, r.c);
+    } else if (r.kind == SR_VARISPEED) {    // master tape varispeed: a=speed (×1000)
+        fx_set_varispeed(r.a / 1000.0f);
     } else if (r.kind == SR_SHIMMER) {      // master shimmer reverb (tank 0): a=size, b=damp, c=shimmer, e0=mix (×1000)
         fx_set_shimmer(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_INSTR_SHIMMER) { // per-instrument: a=slot, b=size, c=damp, e0=shimmer, e1=mix (×1000)
@@ -5273,6 +5317,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             mixL *= g; mixR *= g;
         }
         if (noise_used) amp_noise_process(&mixL, &mixR);   // optional rig-noise floor — AFTER the clip (a constant floor, never ducked)
+        if (vari_used)  varispeed_process(&mixL, &mixR);   // tape varispeed — the final output stage (the tape the whole mix is recorded to)
 #ifdef DE_AUDIO_WORKLET
         out[2 * i]     = mixL * master_gain;           // worklet: pause-mute via the mixer
         out[2 * i + 1] = mixR * master_gain;
@@ -6001,6 +6046,11 @@ void amp_noise(float hiss, float hum, int mains_hz) {
     sound_push_ctrl(SR_AMP_NOISE, (int)(hiss * 1000.0f), (int)(hum * 1000.0f), mains_hz, 0, 0, 0);
 }
 
+// ── varispeed: variable tape playback speed — sweep it for tape dives/stops/spinups ──
+void varispeed(float speed) {
+    sound_push_ctrl(SR_VARISPEED, (int)(speed * 1000.0f), 0, 0, 0, 0, 0);
+}
+
 // ── shimmer: a reverb with an octave-up pitch-shifter in the feedback loop (the ascending tail) ──
 void shimmer(float size, float damp, float shimmer_amt, float mix) {
     sound_push_ctrl(SR_SHIMMER, (int)(size * 1000.0f), (int)(damp * 1000.0f), (int)(shimmer_amt * 1000.0f), (int)(mix * 1000.0f), 0, 0);
@@ -6247,6 +6297,8 @@ static void sound_init(void) {
     drop_lpL = drop_lpR = 0.0f; drop_mod = (ModState){ .seed = 0x1F2E3D4Cu };
     noise_hiss = 0.0f; noise_hum = 0.0f; noise_used = false; noise_mains = 60;   // amp noise: dormant + deterministic seed
     noise_lpL = noise_lpR = 0.0f; noise_hum_ph = 0.0f; noise_seed = 0x6D2B79F5u;
+    memset(vari_bufL, 0, sizeof vari_bufL); memset(vari_bufR, 0, sizeof vari_bufR);   // varispeed: clean tape + bypass
+    vari_wpos = 0; vari_rpos = 0.0f; vari_target = 1.0f; vari_speed = 1.0f; vari_used = false;
     for (int t = 0; t < SOUND_SHIM_TANKS; t++) {   // shimmer pool: clean tanks + shifters (tank 0 = master, identical to the old singleton init → bit-exact)
         memset(&shim[t].tank, 0, sizeof shim[t].tank); memset(&shim[t].oct, 0, sizeof shim[t].oct);
         shim[t].mix = 0.0f; shim[t].fb = 0.0f; shim[t].prev = 0.0f; shim[t].dcx = 0.0f; shim[t].dcy = 0.0f; shim[t].used = false;

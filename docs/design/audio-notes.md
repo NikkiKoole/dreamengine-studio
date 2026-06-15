@@ -1608,6 +1608,19 @@ v1, document it on the panel.
     bus's inserts, before it folds to master). Isolation A/B: a stab on the shimmered slot blooms (tail
     0.004→0.002→0.001) while the same stab on a dry slot is silent after the transient. Isolation, not
     spatialization — the wet tail moving with the source is spatial v2 (emitter buses).
+28. **Varispeed (`varispeed`) — tape playback speed (the MOOD clock).** **✓ SHIPPED 2026-06-15.** The
+    last boutique-list item — navkit's `processHalfSpeed` ported (`SR_VARISPEED`=110). Writes the final
+    mix to a 2 s stereo ring buffer, reads it back at `speed` with linear interp: 1.0 = bypass, <1 =
+    slower (pitch down + time-stretch, the tape-stop dive), >1 = faster. The applied speed is **slewed**
+    (tape inertia → buttery dives, no zipper); **engages at the live edge** (`vari_rpos = vari_wpos` on
+    the off→on transition) so the read only ever touches fresh audio — no stale jump. Master output
+    stage, after `amp_noise`. **Built for sweeps, not dwelling**: at a held off-speed the read eventually
+    laps the write (~2 s click) — for a sustained octave use `grains_pitch`/shimmer instead. Dormant at
+    1.0 → not called → byte-identical; keeps running through a release until the slew settles to 1, then
+    clears itself. Verified: A4=440 at `varispeed(0.5)` measures **220 Hz / 0¢** (exact octave down),
+    `--det` byte-reproducible, soundcheck + tripwire, no-varispeed carts byte-identical. **Showcase:
+    `varispeed`** (riff + SPACE tape-stop dive + a SPEED bend slider, reels spinning at the live speed).
+    That closes the original boutique-pedal lists.
 
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**

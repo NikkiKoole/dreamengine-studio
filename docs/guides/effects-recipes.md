@@ -362,6 +362,26 @@ iconic **80s gated reverb** (the Phil Collins snare). A reorderable insert (`FX_
 > sidechain for the pump. Pairs with `amp_noise` — though note the gate (a pre-output insert) clamps the
 > signal path, not the post-limiter `amp_noise` floor; gate a noisy *part*, or use it for gated reverb.
 
+## varispeed — `varispeed(speed)`
+
+Variable **tape playback speed** of the whole mix (the Chase Bliss MOOD "clock" / a turntable brake;
+navkit's `half_speed` ported). Writes the final output to a buffer and re-reads it at `speed`: **1.0 =
+bypass** (byte-identical), **<1 = slower** (pitch DOWN + time-stretch — the tape-slowdown dive), **>1 =
+faster** (chipmunk). 0.25–4 = two octaves down to two up. The applied speed **glides** (tape inertia,
+no zipper), so it's built to be **swept** — not held at a fixed off-speed (a held off-speed eventually
+laps the ~2 s buffer → a click). Master output stage; pitch is exact (A4→A3 at 0.5, measured 0¢).
+**Showcase: `varispeed`** (a riff + SPACE tape-stop dive + a SPEED bend slider).
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| tape-stop divebomb | sweep `varispeed(1.0 → ~0.28)` then back to `1.0` | the whole mix brakes to a crawl + pitch dives, then spins back up — the SP-404 / turntable stop | `varispeed` |
+| chipmunk / fast-forward | `varispeed(2.0f)` (momentary) | everything an octave up + double-time | `varispeed` |
+| seasick bend | sweep `varispeed` ±a little around 1.0 | a wobbly tape warble on the whole mix | `varispeed` |
+
+> **Sweep it, don't hold it.** `varispeed` is a *gesture* (a dive/bend/spin), not a static pitch shift —
+> hold a fixed off-speed and the read laps the write (a periodic click). For a clean *sustained* octave
+> on one part, that's `grains_pitch` / shimmer territory; `varispeed` is the moving-tape effect.
+
 ## EQ — `eq(low_gain, mid_gain, high_gain)` · `instrument_eq(slot, low_gain, mid_gain, high_gain)`
 
 3-band tone control, and **the library's only BOOST** — every other tone tool (the SVF filters)

@@ -144,8 +144,12 @@ links navkit's *genuine* functions; that's the only real reference.
   reuses the in-tree `moddel_hermite` (= navkit `hermiteInterpolate`); a 2-tank pool, 3 s buffers. The
   capture-and-scatter texture/freeze cloud the pedalboard wanted. Full ledger: `audio-notes §17` #19.
   (Still untouched in navkit's `granular_delay.h` neighbourhood: the granular *synth* `playGranular` — a
-  wavetable VOICE, not an effect — and the DJ-FX family `beat_repeat`/`djfx_loop`/`half_speed`/`rewind`/
-  `tape_stop`/`vinyl_sim`/`sample_chop`, which are transport/turntable tricks, not bus effects.)
+  wavetable VOICE, not an effect — and the DJ-FX family `beat_repeat`/`djfx_loop`/`rewind`/
+  `vinyl_sim`/`sample_chop`, transport/turntable tricks.)
+- **Varispeed** (`half_speed.h` → `varispeed(speed)`). Ported 2026-06-15 — verbatim `processHalfSpeed`
+  (variable-rate ring-buffer read), made stereo + slewed (tape inertia) + engage-at-live-edge. The
+  master tape-speed dive / MOOD clock. The last boutique-list item. Full ledger: `audio-notes §17` #28.
+  (`tape_stop`/`rewind` — the triggered-gesture cousins — remain unported; `varispeed` swept covers the dive.)
 
 **From navkit (it has a real implementation to copy):**
 - **Compressor** (`processMasterCompressor`) — the genuine dynamics gap (we have only a soft-clip

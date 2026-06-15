@@ -543,6 +543,10 @@ void amp_noise(float hiss, float hum, int mains_hz);   // hiss 0..1 (broadband f
 void shimmer(float size, float damp, float shimmer_amt, float mix);   // size 0..1 (decay length), damp 0..1 (dark tail), shimmer_amt 0..1 (how much octave-up recirculates — the climb), mix 0..1 (0 = off). try 0.8/0.4/0.6/0.5
 void instrument_shimmer(int slot, float size, float damp, float shimmer_amt, float mix);  // shimmer on just ONE instrument's bus (claims an aux tank) — shimmer the pad, leave the drums dry. master shimmer() = bus 0; up to 1 instrument at once. Same args + a slot
 
+// varispeed — variable TAPE playback speed of the whole mix: 1.0 = normal (bypass), <1 = slower (pitch
+// DOWN + time-stretch — the tape-slowdown dive / turntable brake), >1 = faster (chipmunk). SWEEP it for
+// tape bends; the speed glides (tape inertia). Built for sweeps, not holding a fixed off-speed forever.
+void varispeed(float speed);   // 0.25..4 (2 octaves down..up); 1.0 = bypass. Sweep down to ~0.3 for a tape-stop dive, back to 1 to spin up
 // gate — a NOISE GATE: clamps the signal shut when it falls below `threshold`, opens above it. The
 // classic rig pedal (tame a noisy/driven part's hiss + tails between notes); place it AFTER reverb in
 // fx_order for the iconic 80s GATED REVERB (the tail chops off). A reorderable insert (FX_GATE).

@@ -849,8 +849,10 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     dropout, the `fx_order` 16→32 packing widen, Shallow Water, amp-noise, the noise gate, and the trophy
     **Shimmer** (octave-up bus pitch-shifter) — see [`design/boutique-pedals-roadmap.md`](design/boutique-pedals-roadmap.md)
     + `audio-notes §17` #19–#27. What's left is small/optional:
-    - **MOOD varispeed** — a navkit port (`half_speed`/`tape_stop`/`rewind`): tape slow-down / pitch-dive.
-      The last boutique-list item; shares pitch/time machinery with Shimmer. *Medium.*
+    - ✅ **MOOD varispeed — DONE 2026-06-15.** `varispeed(speed)` (navkit `half_speed` port): tape
+      playback-speed dive/bend of the whole mix, slewed (tape inertia), exact octave at 0.5. Master-stage,
+      byte-identical at 1.0. Showcase `varispeed`. **The original boutique-pedal lists are now done.**
+      (`tape_stop`/`rewind` triggered-gesture cousins remain unported; the swept varispeed covers the dive.)
     - ✅ **Shimmer in the pedalboard — DONE 2026-06-15.** Added as a SHIMMER macro pedal (kind -3) driving
       master `shimmer()` — an output-stage ambience (like a reverb at the end of the rig; chain position
       cosmetic). Cart-side only (no engine); default board byte-identical. A *reorderable* per-bus

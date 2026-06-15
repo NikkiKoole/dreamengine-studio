@@ -98,7 +98,13 @@ Primitive 1's random source) to de-metallic the FDN. This is the one that makes 
 
 ---
 
-## Primitive-free port — MOOD varispeed (A-list #3)  · effort: S
+## Primitive-free port — MOOD varispeed (A-list #3)  · effort: S  ✅ SHIPPED 2026-06-15
+
+**✅ Done:** `varispeed(speed)` — navkit `half_speed` ported (variable-rate ring read), stereo + slewed
+(tape inertia) + engage-at-live-edge, master output stage. Exact octave at 0.5; byte-identical at 1.0.
+Showcase `varispeed` (SPACE tape-stop dive + SPEED bend). The last boutique-list item — **the lists are
+now complete.** `tape_stop`/`rewind` (triggered-gesture cousins) remain unported; swept varispeed covers
+the dive. See `audio-notes §17` #28.
 
 Independent of both primitives. MOOD's "clock" = varispeed buffer playback (pitch + time shift
 together). This maps **directly onto navkit's already-written `half_speed.h` / `tape_stop.h` /

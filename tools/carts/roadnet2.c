@@ -413,11 +413,15 @@ static void stroke_path(int n, int r, int col, int bcol) {
         // draw the span as a CLEAN ribbon: a quad (centre-line ± perpendicular·r) + a joint
         // circle to round the corner. (Was a chain of circles → scalloped "blobs" when wide.)
         float ddx = x1 - x0, ddy = y1 - y0, L = fsqrt(ddx*ddx + ddy*ddy);
-        if (L < 1.0f) { circfill(x0, y0, r, c); continue; }
-        int px = (int)(-ddy / L * r), py = (int)(ddx / L * r);   // perpendicular × half-width
-        int xy[8] = { x0+px, y0+py, x1+px, y1+py, x1-px, y1-py, x0-px, y0-py };
-        polyfill(xy, 4, c);
-        circfill(x1, y1, r, c);                                  // round the joint (flush on straights)
+        line(x0, y0, x1, y1, c);                                 // continuous centre-line — keeps thin
+                                                                 // roads SOLID when zoomed out (else the
+                                                                 // quad's perp rounds to 0 → dotted)
+        if (r >= 2 && L >= 1.0f) {                               // wide enough → fill the ribbon + round joint
+            int px = (int)(-ddy / L * r), py = (int)(ddx / L * r);
+            int xy[8] = { x0+px, y0+py, x1+px, y1+py, x1-px, y1-py, x0-px, y0-py };
+            polyfill(xy, 4, c);
+            circfill(x1, y1, r, c);
+        }
     }
 }
 

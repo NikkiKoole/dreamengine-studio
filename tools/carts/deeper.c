@@ -100,9 +100,9 @@ static void gen_world(void) {
 
     while (y < WORLD_H - 30 && guard++ < 500) {
         int kind = rnd(10), rw, rh;
-        if (kind < 3)      { rw = rnd_between(16, 35); rh = rnd_between(6, 12); }  // great hall
-        else if (kind < 7) { rw = rnd_between(8, 14);  rh = rnd_between(4, 8);  }  // chamber
-        else               { rw = rnd_between(ROOM_MIN_W, 9); rh = rnd_between(5, 10); } // vault
+        if (kind < 4)      { rw = rnd_between(30, 38); rh = rnd_between(10, 16); }  // GREAT HALL — vast + tall (near full width)
+        else if (kind < 6) { rw = rnd_between(12, 18); rh = rnd_between(6, 9);  }   // chamber — mid
+        else               { rw = rnd_between(ROOM_MIN_W, 8); rh = rnd_between(4, 6); } // TIGHT vault — small + low
         if (rw < ROOM_MIN_W)  rw = ROOM_MIN_W;
         if (rw > WORLD_W - 2) rw = WORLD_W - 2;
 
@@ -198,7 +198,7 @@ static float room_openness(void) {
     while (down  < PROBE && !gat(cc, cr + down + 1))  down++;
     float horiz = (left + right) / (float)(2 * PROBE);   // halls are wide
     float vert  = (up + down)    / (float)(2 * PROBE);   // shafts are tall
-    return clamp(horiz * 0.7f + vert * 0.3f, 0.0f, 1.0f);
+    return clamp(horiz * 0.82f + vert * 0.18f, 0.0f, 1.0f);   // width dominates → tight spaces read truly dry
 }
 
 // ═══ ROOM ACOUSTICS — driven once per frame from a smoothed openness, so the
@@ -207,18 +207,19 @@ static float room_openness(void) {
 static float acLast = -1.0f;     // last openness we reconfigured the bus at
 static void apply_acoustics(void) {
 #if ACOUSTICS
-    float o = openShown;
+    float o  = openShown;
+    float oc = o * o;                         // CURVE: tight/mid spaces stay dry, only true halls bloom — exaggerates the contrast
     float d = o - acLast; if (d < 0) d = -d;
-    if (acLast < 0 || d > 0.03f) {            // reconfigure only on a real change
+    if (acLast < 0 || d > 0.02f) {            // reconfigure on a real change (reverb jumps; echo TIME slews itself)
         acLast = o;
-        reverb(0.12f + o * 0.82f, 0.50f - o * 0.18f);     // hall = bigger, brighter tail
-        echo(90 + (int)(o * 300), 0.10f + o * 0.30f, 0.35f + o * 0.25f);
+        reverb(0.05f + oc * 0.93f, 0.62f - oc * 0.34f);            // tight = tiny DEAD room; hall = vast, long, bright tail
+        echo(60 + (int)(oc * 520), oc * 0.55f, 0.20f + oc * 0.50f); // tight = no echo; hall = a long resonant slap-back
     }
-    // sends: corridors nearly dry, halls drenched (cheap to set every frame)
-    instrument_reverb(INSTR_NOISE,    0.08f + o * 0.72f);
-    instrument_reverb(INSTR_MEMBRANE, 0.08f + o * 0.72f);
-    instrument_echo  (INSTR_NOISE,    o * 0.40f);
-    instrument_reverb(INSTR_SINE,     0.30f + o * 0.55f);  // the ambient drip
+    // sends: corridors BONE dry, halls drenched (cheap to set every frame)
+    instrument_reverb(INSTR_NOISE,    0.02f + oc * 0.93f);
+    instrument_reverb(INSTR_MEMBRANE, 0.02f + oc * 0.93f);
+    instrument_echo  (INSTR_NOISE,    oc * 0.55f);
+    instrument_reverb(INSTR_SINE,     0.20f + oc * 0.78f);  // the ambient drip blooms in the halls
 #else
     (void)acLast;
 #endif

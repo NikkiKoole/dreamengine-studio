@@ -818,6 +818,27 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     Engine macro reference (per-engine meaning of each macro) lives in the `INSTR_*` comments in
     [`runtime/studio.h`](../runtime/studio.h) and [`design/instrument-engines.md`](design/instrument-engines.md).
 
+37. **Bump polyphony `SOUND_VOICES` 16 → 32 — batch with #36's slot bump** *(new 2026-06-15)*.
+    16 voices starves on rich patches: the long-ringing modal/Karplus engines (PLUCK/MALLET/PIANO/
+    GUITAR/MEMBRANE) hold voices through their release, so chords + fast passages + sustained tails
+    overrun the pool. Precedent: the 8→16 flip (audio-notes §15).
+    - **Forces a coupled edit:** `SOUND_HANDLE_BITS` 4 → 5. The note-handle's voice-index field is 4
+      bits (holds 0–15); 32 needs 5 (0–31), and a `_Static_assert` refuses to compile until it's
+      bumped. Mechanically safe — handles are opaque ints to carts, and the encoding just splits at a
+      different bit (gen still fits the int after the shift). Grep first for any hardcoded `& 15` /
+      `>> 4` handle math that doesn't go through `SOUND_HANDLE_MASK`/`_BITS`.
+    - **RAM cost ≈ +150 KB `.bss`** — far bigger than the slot bump because `sizeof(Voice) ≈ 9–10 KB`,
+      dominated by **two 1024-float Karplus delay lines** (`ks_buf` + `pn_ks2`, 4 KB each, present in
+      every voice regardless of engine). 16→32 doubles the ~150 KB pool. Still **0 download**
+      (zero-filled at launch; wasm: ~3 extra 64 KB memory pages).
+    - **The real cost is CPU, not RAM:** every *active* voice is processed per-sample, so 32 doubles
+      worst-case audio-thread load — and the hungry engines are exactly the ones you'd max out. Idle
+      voices cost nothing (pay-for-use), so it raises the ceiling rather than the floor; watch the
+      audio budget on wasm / weak hardware. 24 is a CPU-cautious middle ground, but **32 is clean**
+      (fits the 5-bit handle field exactly).
+    - Same `sound.h` timing as #36 — land both `#define` bumps (+ #32's split if it's ready) in one
+      compile-gated + tripwire'd + tune-checked change.
+
 ---
 
 ## Decided-against / deferred ✗

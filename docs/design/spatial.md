@@ -1,15 +1,16 @@
 # Spatial / positional audio — design plan
 
-> **Status: v1 SHIPPED (2026-06-15).** Per-voice spatialization — `listener`,
-> `listener_vel`, `spatial_model`, `spatial_speed`, `note_pos`, `note_motion`,
-> `hit_at` — is live; showcase cart `spatial`. **v2 (emitter buses) and v3
-> (acoustic zones) remain PROPOSED.** The v1 sections below are kept as the
-> record of what was built (math + defaults); see also the [STATUS.md](../STATUS.md)
-> ledger. v2/v3 are design plans, not built behaviour.
+> **Status: v1 + v2 SHIPPED (2026-06-15).** v1 = per-voice spatialization
+> (`listener`, `listener_vel`, `spatial_model`, `spatial_speed`, `note_pos`,
+> `note_motion`, `hit_at`). v2 = **emitter buses** (`instrument_pos`,
+> `instrument_motion`): position an instrument's whole effected bus so its FX tail
+> (shimmer/reverb) moves *with* it. Showcase cart `spatial` (radio = a v2 emitter,
+> car = v1 per-voice). **v3 (acoustic zones) remains PROPOSED.** The v1/v2 sections
+> below are the record of what was built; see also the [STATUS.md](../STATUS.md) ledger.
 >
 > Verified at ship: soundcheck compile-gate ok, 900-frame tripwire silent,
-> tune-check exit 0 (non-positioned note reads 0¢ → bypass is byte-identical),
-> and an isolated moving source measured +101.8¢ approaching / −96.2¢ receding.
+> tune-check exit 0 (non-positioned note reads 0¢ → bypass byte-identical). Isolated
+> moving source: v1 per-voice +101.8¢ approaching; v2 emitter bus +99.8¢ / −94.1¢.
 
 ## The dream (what we're aiming at)
 
@@ -176,7 +177,17 @@ as a confusion magnet. Adjustable if you'd rather match OpenAL's "velocity."
 
 ---
 
-## v2 — emitter buses (the radio-driving-past dream)
+## v2 — emitter buses (SHIPPED 2026-06-15) — the radio-driving-past dream
+
+> **Built as specced.** `instrument_pos(slot,x,y)` / `instrument_motion(slot,vx,vy)`
+> position an instrument's whole effected aux bus at the fold (after the per-instrument
+> shimmer line, order `inserts → FX → shimmer → spatial → fold`). Shared geometry:
+> `spatial_geom()` extracted from v1 (v1 stayed byte-identical). Bus Doppler = a 2-grain
+> variable-ratio pitch shifter (the generalized octave-up) — sustained shift, bounded
+> ~70 ms buffer, crossfaded to dry near unity so a still emitter is transparent. Dormant
+> until `instrument_pos()` (`emit_on[b]=false` → fold untouched). ~192 KB `.bss`
+> (grain buffers × 8 buses), 0 download. `bus_pos`/`bus_motion` stayed internal as planned
+> (no shared-bus routing yet). The design notes below are the build record.
 
 **The problem v1 can't solve.** A radio groove is many voices (kick + bass +
 lead) summed into an FX bus with its own echo/reverb/drive. v1 spatializes

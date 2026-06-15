@@ -14,7 +14,9 @@ int   active = 0, target = NV, eng = 0;
 
 const int   ENG[]  = { INSTR_BOWED, INSTR_BRASS, INSTR_REED, INSTR_PIPE, INSTR_PIANO, INSTR_GUITAR };
 const char *ENGN[] = { "BOWED", "BRASS", "REED", "PIPE", "PIANO", "GUITAR" };
-#define NENG 6
+const int   DECAYS[] = { 0, 0, 0, 0, 1, 1 };   // 1 = struck/plucked: rings out & goes silent, so it must
+#define NENG 6                                  // be RE-struck to stay audible (the self-osc ones just hold)
+int   frames = 0;
 
 void setup_engine(void) { instrument(5, ENG[eng], 4, 0, 7, 400); }   // sustaining; holds while gated
 
@@ -39,6 +41,13 @@ void update(void) {
     // ~4 octaves) so all NV are genuinely sounding at once, not folded onto one note.
     while (active < target) { handle[active] = note_on(36 + (active * 5) % 48, 5, 2); active++; }
     while (active > target) { active--; if (handle[active] > 0) note_off(handle[active]); handle[active] = 0; }
+
+    // plucked/struck engines ring out & fall silent — re-strike all held voices ~twice a second so
+    // the test stays AUDIBLE and keeps ~target voices genuinely ringing (the self-osc engines hold,
+    // so they're left alone). This is why PIANO/GUITAR looked "silent": they only got one pluck.
+    frames++;
+    if (DECAYS[eng] && active > 0 && frames % 30 == 0)
+        for (int i = 0; i < active; i++) { if (handle[i] > 0) note_off(handle[i]); handle[i] = note_on(36 + (i * 5) % 48, 5, 2); }
 
 #ifdef DE_TRACE
     watch("voices", "%d", active);

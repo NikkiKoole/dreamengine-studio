@@ -19,9 +19,10 @@
 // FINDINGS (from building + walking this, 2026-06-15):
 //   1. Core works with EXISTING knobs — occlusion = note_cutoff (Hz, fine + slewed: great) +
 //      attenuation; zones = reverb(size,damp). v3's mechanic is genuinely cart-side. ✓
-//   2. **note_vol(0..7) is too COARSE for occlusion attenuation** — mapping occ→vol gives ~4
-//      audible steps. The thing that'd "drop out": a float `note_gain(handle, 0..1)`. note_cutoff
-//      is fine (Hz). [the muffle reads smooth; the level steps]
+//   2. **RESOLVED 2026-06-15 — note_vol/note_res are now FLOAT** (kept their 0..7/0..15 ranges, just
+//      dropped the input quantization → byte-identical for old int callers). The occlusion below used
+//      to step on note_vol's old 0..7; it now rides smooth. The fix was widening the existing knob,
+//      not a separate note_gain — one fewer function. (note_cutoff was already fine, Hz.)
 //   3. **Zone reverb switches ABRUPTLY** — set-and-hold means you can't ride reverb() per frame,
 //      so crossing rooms is an instant jump, not a crossfade. THE #1 engine gap: a rideable /
 //      crossfadable zone reverb (slewed target, or crossfade two tanks).
@@ -30,8 +31,9 @@
 //      not required.
 //   5. Reverb is LISTENER-centric here (an emitter carries YOUR room, not its own) — the
 //      rooms+portals refinement (hear a source's room through the doorway) is deferred.
-// Verdict: ship a cart-land `acoustics.h` helper over existing knobs; the only real ENGINE
-// asks are #2 (note_gain float) and #3 (rideable reverb). See STATUS open item + spatial.md v3.
+// Verdict: ship a cart-land `acoustics.h` helper over existing knobs; the engine asks are #2
+// (DONE — note_vol/note_res made float, ranges kept) and #3 (rideable reverb, still open).
+// See STATUS open item + spatial.md v3.
 
 #define CELL 16
 #define COLS 20
@@ -153,13 +155,13 @@ void update(void) {
     float orr = occlusion(px, py, rx, ry);
     if (fabsf(orr - occ_r) > 0.02f) {
         note_cutoff(radio_h, (int)(6000.0f - orr * 5400.0f));   // 6000 open → 600 muffled
-        note_vol(radio_h, (int)(5.0f - orr * 3.0f + 0.5f));     // 5 → 2 (note: 0..7 is COARSE — a finding)
+        note_vol(radio_h, 5.0f - orr * 3.0f);   // smooth now that note_vol is float (was the COARSE finding)
         occ_r = orr;
     }
     float omm = occlusion(px, py, mx, my);
     if (fabsf(omm - occ_m) > 0.02f) {
         note_cutoff(machine_h, (int)(6000.0f - omm * 5400.0f));
-        note_vol(machine_h, (int)(5.0f - omm * 3.0f + 0.5f));
+        note_vol(machine_h, 5.0f - omm * 3.0f);
         occ_m = omm;
     }
 

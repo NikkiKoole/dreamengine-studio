@@ -150,10 +150,12 @@ edges now), the field↔graph extraction step (graph is generated directly, not 
      `hw·P` px, floored to 1px so they stay visible on the map. The car now sits *on* a real-width
      road. (Also fixed the post-rebase **hang**: the bend-search + road strokers had loops that step
      in world units — scaled them so loop counts stay constant; `BEND_STEP`, off-screen-span skip.)
+   - ✅ **Clean road ribbons** — strokers now draw each span as a `polyfill` quad (centre-line ±
+     perpendicular·r) + a joint `circfill`, instead of a chain of circles that scalloped into
+     "blobs" when wide. Straight crisp edges; also fewer ops than the per-pixel circle chain.
    - ⛔ *Polish still open:* the reference **grid is faint** (and too dense at mid-zooms); road
-     **density** wants a tuning pass (towns sparse in spots); hub **junctions look blobby** at drive
-     zoom (overlapping wide roads + node marker); widths may be a touch wide; **scope** (~500 km) to
-     commit. None block driving.
+     **density** wants a tuning pass (towns sparse in spots); **node markers** (hub/town dots) are
+     big at drive zoom; widths may be a touch wide; **scope** (~500 km) to commit. None block driving.
 3. **Unified `road_at` = nearest-edge** over the *highway* edges first (prove the query +
    spatial index on the tier we already have), render as strokes. No field anywhere.
 4. **Collector tier as a warped grid**, generated directly as spline edges into the graph,

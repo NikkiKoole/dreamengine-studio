@@ -411,16 +411,17 @@ static void stroke_path(int n, int r, int col, int bcol) {
     for (int i = 0; i + 1 < n; i++) {
         int c = (lp_br[i] || lp_br[i+1]) ? bcol : col;     // a span touching water = bridge
         int x0 = sxp(lp_x[i]), y0 = syp(lp_y[i]), x1 = sxp(lp_x[i+1]), y1 = syp(lp_y[i+1]);
-        int M = r + 4;                                     // skip fully off-screen spans (km links are
-        if ((x0<-M&&x1<-M)||(x0>SCREEN_W+M&&x1>SCREEN_W+M)|| // mostly off-screen at drive zoom — else we'd
-            (y0<-M&&y1<-M)||(y0>SCREEN_H+M&&y1>SCREEN_H+M)) continue;  // loop 100k+ px per span)
-        int dx = x1 - x0, dy = y1 - y0;
-        int seg = (int)fsqrt((float)(dx*dx + dy*dy));
-        int steps = seg / (r > 0 ? r : 1); if (steps < 1) steps = 1;
-        for (int s = 0; s <= steps; s++) {
-            float t = (float)s / steps;
-            circfill(x0 + (int)(dx*t), y0 + (int)(dy*t), r, c);
-        }
+        int M = r + 4;                                     // skip fully off-screen spans
+        if ((x0<-M&&x1<-M)||(x0>SCREEN_W+M&&x1>SCREEN_W+M)||
+            (y0<-M&&y1<-M)||(y0>SCREEN_H+M&&y1>SCREEN_H+M)) continue;
+        // draw the span as a CLEAN ribbon: a quad (centre-line ± perpendicular·r) + a joint
+        // circle to round the corner. (Was a chain of circles → scalloped "blobs" when wide.)
+        float ddx = x1 - x0, ddy = y1 - y0, L = fsqrt(ddx*ddx + ddy*ddy);
+        if (L < 1.0f) { circfill(x0, y0, r, c); continue; }
+        int px = (int)(-ddy / L * r), py = (int)(ddx / L * r);   // perpendicular × half-width
+        int xy[8] = { x0+px, y0+py, x1+px, y1+py, x1-px, y1-py, x0-px, y0-py };
+        polyfill(xy, 4, c);
+        circfill(x1, y1, r, c);                                  // round the joint (flush on straights)
     }
 }
 

@@ -16,7 +16,9 @@
 //   * COVER + SPREAD — they favour cells beside walls and away from each other,
 //     so they peek from cover and don't bunch into one kill-funnel.
 //
-// WASD move · mouse aim · click/SPACE shoot · H heat · L comms · TAB spectate · R reset
+// WASD move · Shift sneak · mouse aim · L-click gun (loud) · R-click knife (quiet)
+// · H heat · L comms · V reveal · TAB spectate · R reset
+// Design notes + behaviour menu + sloop porting: docs/design/flank-tactical-ai.md
 
 #define GW 40
 #define GH 23
@@ -27,8 +29,8 @@
 #define INF 1e9f
 #define DIAG 1.41421356f
 
-enum { E_PATROL, E_HUNT, E_ENGAGE, E_SEARCH, E_DOWN };
-static const int ECOL[5] = { CLR_DARK_GREY, CLR_ORANGE, CLR_RED, CLR_YELLOW, CLR_BLACK };
+enum { E_PATROL, E_SUSPECT, E_HUNT, E_ENGAGE, E_DOWN };   // graded alertness drives the state
+static const int ECOL[5] = { CLR_DARK_GREY, CLR_YELLOW, CLR_ORANGE, CLR_RED, CLR_BLACK };
 
 // enemy types — distinct tactics. range = preferred firing distance; coverW/heatW
 // = how much it values cover / fears your aim cone; strafeW = how much it circles.
@@ -47,7 +49,7 @@ static float heat[GH][GW];          // danger projected by the player's aim cone
 #define KEY_LSHIFT 340             // raylib left-shift — held to sneak
 #define VIS_R 96                   // player's own vision radius (fog of war)
 typedef struct { float x, y, vx, vy, aim, pinned; int hp, mag, reload, shake, spectate, sneak; } Player;  // pinned 0..1 = suppression
-typedef struct { float x, y, aim, lsx, lsy; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen; } Enemy;
+typedef struct { float x, y, aim, lsx, lsy, alert; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy; } Enemy;  // alert 0..100; inv = spot to investigate
 typedef struct { float x, y, vx, vy; int alive, foe; } Bullet;
 static Player pl;
 static Enemy en[NE];
@@ -170,6 +172,15 @@ static void move_enemy(Enemy *e, float ax, float ay, float spd) {
     if (!wallpx(e->x, ny) && enemy_at_px(e->x, ny, (int)(e-en)) < 0) e->y = ny;
 }
 
+// a NOISE at (x,y): every enemy within radius gets more alert and turns to investigate it.
+// loud gunfire is a big noise; a silent knife makes none — this is the heart of stealth.
+static void noise_at(float x, float y, float radius, float amount) {
+    for (int i=0;i<NE;i++) if (en[i].alive) {
+        float d = fsqrt((en[i].x-x)*(en[i].x-x)+(en[i].y-y)*(en[i].y-y));
+        if (d < radius) { en[i].alert += amount * (1 - d/radius); if (en[i].alert>100) en[i].alert=100; en[i].invx=(int)x; en[i].invy=(int)y; }
+    }
+}
+
 static void enemy_update(int i) {
     Enemy *e = &en[i];
     if (!e->alive) return;
@@ -184,16 +195,19 @@ static void enemy_update(int i) {
     bool heard = pd <= 48 * sh;                               // or heard moving nearby
     if (canlos && pd <= VIS_R) { e->everseen = 1; e->lsx = e->x; e->lsy = e->y; }   // YOUR last-seen memory of this enemy
 
-    // --- sense + communicate ---
-    if (see || heard) {
+    // --- graded alertness: stimuli RAISE it, time cools it down ---
+    if (see)        { e->alert = 100;                                   e->invx=(int)pl.x; e->invy=(int)pl.y; }   // direct sight = instant alarm
+    else if (heard) { e->alert = e->alert<55 ? 55 : (e->alert<100?e->alert+3:100); e->invx=(int)pl.x; e->invy=(int)pl.y; }  // a noise nearby = suspicious, rising
+    e->alert -= 0.22f; if (e->alert < 0) e->alert = 0;
+
+    if ((see || heard) && e->alert >= 70) {                   // fully alarmed AND fresh contact -> tell the squad
         if (!known && e->callcd <= 0) { play_pan(72, INSTR_REED, 3, panx(e->x), 16); setmsg("enemy: \"contact!\""); e->callcd = 120; }
-        known = 1; kx = pl.x; ky = pl.y; kage = 0;            // broadcast your position to the squad
-        for (int j=0;j<NE;j++) if (en[j].alive && en[j].state == E_PATROL) en[j].state = E_HUNT;
-        e->state = canlos ? E_ENGAGE : E_HUNT;                // engage only with real LOS; else move in to investigate
-    } else if (known) {
-        e->state = (pd < 24 && canlos) ? E_ENGAGE : E_HUNT;
-        if (kage > 200) { known = 0; e->state = E_SEARCH; }   // knowledge went stale -> go to last-seen
-    } else if (e->state != E_SEARCH) e->state = E_PATROL;
+        known = 1; kx = pl.x; ky = pl.y; kage = 0;
+    }
+    // alert level -> behaviour
+    if (e->alert >= 70)      e->state = canlos ? E_ENGAGE : E_HUNT;     // alarmed: engage if you can see me, else close in
+    else if (e->alert >= 30) e->state = E_SUSPECT;                      // suspicious: go check the disturbance
+    else                     e->state = E_PATROL;                       // calm: back to wandering ("gave up")
 
     int kcx = (int)(kx/TILE), kcy = (int)(ky/TILE);
     if (known && (kcx != flow_cx || kcy != flow_cy)) reflow(kcx, kcy);
@@ -237,14 +251,17 @@ static void enemy_update(int i) {
             if (e->mag == 0) e->reload = 70;
         }
         if (e->mag == 0) { if (--e->reload <= 0) e->mag = T->mag; }   // reload window = vulnerable
-    } else if (e->state == E_HUNT) {                          // approach around cover via the flow field
-        float bestf = flow[(int)(e->y/TILE)][(int)(e->x/TILE)], tx = e->x, ty = e->y;
-        for (int a=0;a<8;a++) { float ox=e->x+dx(7,a*45), oy=e->y+dy(7,a*45); int cx=(int)(ox/TILE),cy=(int)(oy/TILE);
-            if (wcell(cx,cy)||enemy_at_px(ox,oy,i)>=0) continue; if (flow[cy][cx] < bestf) { bestf=flow[cy][cx]; tx=ox; ty=oy; } }
-        move_enemy(e, tx, ty, T->speed * 0.92f);
-    } else if (e->state == E_SEARCH) {
-        move_enemy(e, kx, ky, T->speed * 0.7f);
-        if (fsqrt((kx-e->x)*(kx-e->x)+(ky-e->y)*(ky-e->y)) < 10) e->state = E_PATROL;
+    } else if (e->state == E_HUNT) {                          // alarmed, no LOS: close in
+        if (known) {                                          // squad knows where you are -> flow around cover
+            float bestf = flow[(int)(e->y/TILE)][(int)(e->x/TILE)], tx = e->x, ty = e->y;
+            for (int a=0;a<8;a++) { float ox=e->x+dx(7,a*45), oy=e->y+dy(7,a*45); int cx=(int)(ox/TILE),cy=(int)(oy/TILE);
+                if (wcell(cx,cy)||enemy_at_px(ox,oy,i)>=0) continue; if (flow[cy][cx] < bestf) { bestf=flow[cy][cx]; tx=ox; ty=oy; } }
+            move_enemy(e, tx, ty, T->speed * 0.92f);
+        } else move_enemy(e, e->invx, e->invy, T->speed * 0.9f);   // alarmed only by a noise -> head to it
+        e->aim = angle_to(e->x, e->y, pl.x, pl.y);
+    } else if (e->state == E_SUSPECT) {                       // investigate the disturbance, then give up
+        move_enemy(e, e->invx, e->invy, T->speed * 0.55f);    // cautious
+        e->aim = (rnd(28)==0) ? rnd(360) : angle_to(e->x, e->y, e->invx, e->invy);   // glance around
     } else {                                                  // PATROL: small idle drift
         if (rnd(40)==0) e->aim = rnd(360);
         move_enemy(e, e->x+dx(8,e->aim), e->y+dy(8,e->aim), 0.25f);
@@ -259,7 +276,7 @@ static void player_update(void) {
         if (t>=0) { pl.aim = angle_to(pl.x,pl.y,en[t].x,en[t].y);   // visible: kite + fire
             float perp = pl.aim+90, mx = dx(1.4f,perp)+dx(0.6f,pl.aim+180), my = dy(1.4f,perp)+dy(0.6f,pl.aim+180);
             if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my;
-            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; } }
+            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,155,60); } }
         else {                                                      // none visible: advance to make contact
             int n=-1; float nd=1e9f;
             for (int i=0;i<NE;i++) if (en[i].alive) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<nd){nd=d;n=i;} }
@@ -277,7 +294,16 @@ static void player_update(void) {
     if (key('W')||key(KEY_UP)) my=-spd; else if (key('S')||key(KEY_DOWN)) my=spd;
     if (!wallpx(pl.x+mx, pl.y)) pl.x += mx; if (!wallpx(pl.x, pl.y+my)) pl.y += my;
     pl.aim = angle_to(pl.x, pl.y, mouse_x(), mouse_y());
-    if ((mouse_down(0)||key(KEY_SPACE)) && pl.mag>0 && pl.reload<=0) { fire(pl.x,pl.y,pl.aim,0,5 + pl.pinned*16); pl.mag--; pl.reload=8; if(pl.mag==0) pl.reload=45; }   // suppressed = your aim shakes too
+    if ((mouse_down(0)||key(KEY_SPACE)) && pl.mag>0 && pl.reload<=0) {        // LOUD gun
+        fire(pl.x,pl.y,pl.aim,0,5 + pl.pinned*16); pl.mag--; pl.reload=8; if(pl.mag==0) pl.reload=45;   // suppressed = your aim shakes too
+        noise_at(pl.x, pl.y, 155, 60);                                          // a gunshot carries — the whole room may hear
+    }
+    if (mouse_pressed(1)) {                                                   // QUIET knife — silent close kill (makes NO noise)
+        for (int j=0;j<NE;j++) if (en[j].alive) {
+            float d = fsqrt((en[j].x-pl.x)*(en[j].x-pl.x)+(en[j].y-pl.y)*(en[j].y-pl.y));
+            if (d < 13) { en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4); break; }
+        }
+    }
     if (pl.reload>0) pl.reload--;
     if (pl.mag==0 && pl.reload<=0) pl.mag=12;
 }
@@ -369,6 +395,8 @@ void draw(void) {
             if (en[i].suppressing) circ(x,y,5,blink(4)?CLR_RED:CLR_ORANGE);    // muzzle bloom of a suppressor
             line(x,y,(int)(en[i].x+dx(6,en[i].aim))+sh,(int)(en[i].y+dy(6,en[i].aim)),CLR_LIGHT_GREY);
             print(str("%c", TY[en[i].type].g), x-2, y-3, ECOL[en[i].state]);
+            if (en[i].state==E_SUSPECT) print("?", x-1, y-9, CLR_YELLOW);                    // investigating
+            else if (en[i].state>=E_HUNT && en[i].state<=E_ENGAGE) print("!", x-1, y-9, CLR_RED);  // alarmed
         } else if (en[i].everseen)                                            // last-seen ghost (your memory)
             print(str("%c", TY[en[i].type].g), (int)en[i].lsx-2+sh, (int)en[i].lsy-3, CLR_DARKER_GREY);
     }
@@ -390,6 +418,6 @@ void draw(void) {
                 pl.pinned>0.3f?CLR_RED:(known?CLR_ORANGE:CLR_GREEN));
     font(FONT_SMALL);
     if (msg_t>0) print(msg, 4, HUD_Y+12, CLR_LIGHT_PEACH);
-    else print("WASD move  Shift sneak  mouse+click shoot   H/L/V debug  TAB spectate  R reset   R/C/F=rusher/camper/flanker", 4, HUD_Y+12, CLR_MEDIUM_GREY);
+    else print("WASD+Shift(sneak)   L-click gun (loud!)   R-click knife (quiet)   H/L/V debug  TAB spectate  R reset", 4, HUD_Y+12, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }

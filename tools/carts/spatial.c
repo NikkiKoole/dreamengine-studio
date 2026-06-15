@@ -10,7 +10,8 @@
 //     it — the whole effected source moves as one object (instrument_pos/instrument_motion).
 //   • CAR (lower lane) — a raw engine tone positioned per-voice (v1 note_motion): the
 //     simpler whoosh, for contrast.
-//   • RHODES (bottom-left) — a positioned EPIANO arpeggio (one hit_at per note).
+//   • SUITCASE RHODES (bottom-left) — a positioned EPIANO arpeggio (one hit_at per note),
+//     voiced as a mellow Fender Rhodes suitcase with a tremolo wobble.
 //   • CLICK / TAP anywhere — a one-shot blip fired AT that spot (positioned SFX).
 //
 // v1 (note_pos/note_motion/hit_at) positions individual voices; v2 (instrument_pos/
@@ -38,9 +39,14 @@ void init(void) {
 
     instrument(5, INSTR_SINE, 120, 0, 7, 400);     // UFO: a pure sustained tone
     instrument(6, INSTR_SAW,    4, 0, 6,  40);     // car engine rumble
-    instrument(7, INSTR_EPIANO, 2, 0, 0, 700);     // rhodes (struck, rings down)
-    instrument_harmonics(7, 0.0f);                 // EPIANO voicing 0 = Rhodes
-    instrument_timbre(7, 0.45f);
+    // SUITCASE RHODES (per the epiano cart's "suitcase" preset): Rhodes tine voicing, mellow,
+    // gentle bark, rings down. The real Suitcase's stereo vibrato is auto-pan — but that fights
+    // the positional pan here, so a mono amplitude tremolo gives the wobble, spatial-safe.
+    instrument(7, INSTR_EPIANO, 1, 0, 7, 450);     // struck, rings down
+    instrument_harmonics(7, 0.0f);                 // voicing 0 = Rhodes tine
+    instrument_timbre(7, 0.20f);                   // mellow suitcase brightness
+    instrument_morph(7, 0.12f);                    // gentle dig-in bark
+    instrument_tremolo(7, 5.0f, 0.35f, TREM_SINE); // the Suitcase wobble (amplitude, not stereo pan)
 
     spatial_model(18.0f, 260.0f, 1.2f);            // distance falloff (reads on 320px)
     spatial_speed(420.0f);                         // Doppler tuned for a musical whoosh

@@ -346,7 +346,16 @@ reverb-target that glides, or crossfading two tanks — the tank pool helps), **
 about walls. A second candidate that *generalizes beyond audio*: a **tilemap line-of-sight /
 raycast** primitive (occlusion *and* enemy vision/stealth/lighting want exactly "can A see B").
 
-### The probe (do this BEFORE any engine work)
+> **PROBE DONE (2026-06-15) — `acoustics` cart.** Built the walker below; the trace confirms
+> zone (TILE→WOOD→GRASS) and occlusion (radio↔machine) both track the player. **Findings:** the
+> mechanic *is* cart-side over existing knobs (`note_cutoff` Hz+slewed = great for the muffle);
+> two real engine asks dropped out — **(a) `note_gain(handle, float)`** (note_vol's 0..7 steps
+> audibly under occlusion) and **(b) a rideable/crossfadable zone reverb** (set-and-hold blocks
+> per-frame `reverb()` → rooms jump, don't crossfade). Plan: a cart-land **`acoustics.h`** helper
+> (raycast occlusion + zone/material `(size,damping)` tables → the knobs) + those two conveniences;
+> a tilemap line-of-sight primitive is an optional generalizing bonus.
+
+### The probe (DONE — `acoustics` cart, findings above)
 
 A `"probe"`-tagged top-down cart — a little guy walking rooms — to *hear* where it hurts and
 let the API drop out: **different floor materials** (footstep tone/reverb per ground: tile/

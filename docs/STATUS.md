@@ -891,6 +891,15 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     mostly **cart-side zone logic feeding existing knobs**, with maybe a thin convenience helper — *more
     game logic than engine DSP*. Full spec + the v1/v2 build record: [`design/spatial.md`](design/spatial.md)
     → "v3 — acoustic zones". Free-field (direct path only) until built.
+    - **PROBE SHIPPED 2026-06-15 — `acoustics` cart** (`"probe"` kind): a top-down walker over
+      tile/carpet/wood/grass rooms + a wall/doorway, occluding two emitters via a listener→source
+      raycast. Confirmed the mechanic is cart-side over existing knobs (`note_cutoff` for the muffle
+      is great — Hz + slewed). **Two real engine asks dropped out:** (a) **`note_gain(handle, float)`** —
+      `note_vol`'s 0..7 is too coarse for smooth occlusion attenuation (audible level steps); (b) **a
+      rideable / crossfadable zone reverb** — set-and-hold means you can't slew `reverb()` per frame, so
+      crossing rooms jumps abruptly. Build plan: a cart-land **`acoustics.h`** helper (raycast occlusion
+      + zone/material tables → the knobs) + those two engine conveniences. A tilemap **line-of-sight**
+      primitive is an optional bonus (generalizes to vision/stealth). Findings in the cart header.
 
 ---
 

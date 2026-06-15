@@ -25,6 +25,49 @@ Evidence it works: `arterial_at()` already answers "am I on a road, which class"
 `road_at`. v1's error was inventing a *second* mechanism for the deeper tiers instead of
 reusing this one.
 
+## Scale — the base unit (do this FIRST)
+v1 had **no anchoring unit** — `block_sp` was "world tiles," footprints "0.10 tiles," LOD
+thresholds "16px," and the car didn't exist. Every quantity was tuned in its own units against
+nothing, which is *why* the road:building ratio felt off and the LOD thresholds were a soup.
+v2 fixes this before generating anything:
+
+**1 world unit = 1 metre.** Everything below is a real-world figure you can sanity-check against
+intuition, and changing one (e.g. block size) rescales the rest *coherently*. Starting anchor
+table (tune in-motion; not gospel):
+
+| thing | metres | note |
+|---|---|---|
+| car | 4.5 × 1.8 | the moving reference (a *derived* size, not the unit) |
+| lane | ~3.5 | right-of-way = lanes + verge |
+| access / residential street | ~6 | 1 lane each way, tight — the finest tier |
+| collector | ~10 | |
+| arterial | ~16 | |
+| highway | ~25–30 | multi-lane |
+| house footprint | ~10 × 10 | |
+| lot frontage | ~15–20 | → 4–6 houses on an 80 m block side |
+| **city block** | **~80–110 / side** | the key feel unit |
+| city (downtown → edge) | ~0.5–3 km | scope decision (see below) |
+| inter-city gap | ~3–30 km | |
+
+Two quantities fall straight out of metres and are the ones that matter:
+- **px/m replaces arbitrary pixel thresholds.** Driving ≈ **4–5 px/m** (car ≈ 20 px); city
+  overview ≈ 0.1 px/m; continental ≈ 0.001. LOD becomes principled: *draw a tier when its
+  width ≥ ~2 px* (so streets appear at px/m ≥ ~0.3). No more magic 16/34/44.
+- **m/s is the feel knob.** City driving ~14 m/s (50 km/h) → an 80 m block takes **~6 s to
+  cross**. That single number — speed vs. block — is the core driving feel; you tune it live on
+  the bare highways (build step 2). If 6 s feels long for the arcade feel, shrink blocks or raise
+  speed — now a defensible decision, not a blind slider.
+
+**Road half-widths, footprints, lattice spacings, and LOD are all expressed in metres / px/m
+from here** — never re-tuned independently.
+
+**Caveat → scope.** float32 holds ~7 digits, so a chunk ~10⁶ m (1000 km) from origin keeps only
+~0.1 m precision (worse further out). Camera-relative rendering hides it on screen and the
+generation hashes use integer cell indices (exact), but footprint geometry *far* out would
+jitter. Fine for any realistically-explored region — but it's a reason to lean **bounded-city**
+(one characterful place you roam, GTA1-style) over truly-infinite if you ever want sub-metre
+detail everywhere. **Decide scope when you lock scale**; it sets the top of the ladder.
+
 ## The v2 architecture — one graph, one query
 - **Everything is spline edges in ONE graph.** Highways → collectors → access → cul-de-sacs
   are all `RoadEdge`s (a class + a polyline, sampled from control points). Nodes are real
@@ -73,13 +116,19 @@ edges now), the field↔graph extraction step (graph is generated directly, not 
 
 ## Build order (each a stop-and-look milestone)
 1. **L0 verified** — the cart already runs the clean highways (done; it's the baseline).
-2. **Unified `road_at` = nearest-edge** over the *highway* edges first (prove the query +
+2. **Re-base to metres + LOCK SCALE by driving** — restate the L0 lattice/road widths in metres,
+   then drop a **car (or car-speed camera) on the bare highways** and tune speed vs. distances
+   until crossing a city / the inter-city gap *feels* right. **This is a measuring instrument, not
+   the payoff** — it sets the metric every later tier is generated against. Also decide **scope**
+   (bounded city vs infinite) here. Don't generate fill-in until this feels right.
+3. **Unified `road_at` = nearest-edge** over the *highway* edges first (prove the query +
    spatial index on the tier we already have), render as strokes. No field anywhere.
-3. **Collector tier as a warped grid**, generated directly as spline edges into the graph,
-   connected to the highways. Per-district straight-vs-warped by the zone field.
-4. **Access + cul-de-sacs** as the finest spline tier; the palette per district.
-5. **Buildings on edges** (port v1's `building_at` + parcels).
-6. **Drive it** — wire sloop: `road_at` (surface), `building_at` (collision), graph (routing).
+4. **Collector tier as a warped grid**, generated directly as spline edges into the graph,
+   connected to the highways, sized in metres to the locked scale. Per-district straight-vs-warped.
+5. **Access + cul-de-sacs** as the finest spline tier; the palette per district.
+6. **Buildings on edges** (port v1's `building_at` + parcels), footprints in metres.
+7. **Drive it for real** — full sloop: `road_at` (surface), `building_at` (collision), graph
+   (routing). The car from step 2 graduates from measuring stick to gameplay.
 
 ## Honest caveats (so v2 doesn't repeat v1)
 - **Empty looked clean.** Any fill-in is busier than blank terrain; "clean" comes from

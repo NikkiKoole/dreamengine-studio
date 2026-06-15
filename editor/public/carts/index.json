@@ -2917,6 +2917,14 @@
     ]
   },
   {
+    "title": "amp noise",
+    "description": "The showcase for amp_noise() - the OPTIONAL rig-noise floor. An electric guitar through a tube amp is never truly silent: a bed of HISS (tube/thermal noise) plus a 50/60 Hz mains HUM (the single-coil buzz) sits under everything, even with no note playing. amp_noise() models that floor - but it is entirely opt-in (a fantasy console is pristine by default), so the headline is the A/B: press N (or SPACE) to toggle the FLOOR on/off and hear the rig breathe versus dead-silent. The HISS and HUM sliders dial the floor (0,0 = off); M switches mains 50 Hz (EU) / 60 Hz (US); 1..4 play chords that sit ON the floor. A tube-amp face glows its 12AX7 power tube and dusts hiss speckle over the grille while the floor is on. Some tracks want this grime, some want the silence - that is the point, it is a choice not a default. Built on the boutique-pedals roadmap; pairs with a noise gate (next) to clamp the floor between notes.",
+    "file": "ampnoise.cart.png",
+    "kind": [
+      "instrument"
+    ]
+  },
+  {
     "title": "juno-6",
     "description": "Roland Juno-6 (1982) - the showcase for chorus(), the engines master BBD chorus. On paper a plain 6-voice poly synth (one saw + sub oscillator, one resonant lowpass) - sh101 with more voices. What makes it a JUNO is the bucket-brigade CHORUS: flip the famous OFF/I/II switch and the dry mono synth smears into a lush, wide, shimmering stereo wash (a centered mono chord literally fans out across the stereo field - the Junos two amps). Tap the CHORUS strip (or press C) to A/B it; the WIDTH meter opens as the chorus widens the signal. RATE/DEPTH/MIX ride the chorus live, CUTOFF/RES shape the resonant lowpass. Tap a chord pad or press 1..4 (Cmaj7/Am7/Fmaj7/G7); SPACE toggles AUTO, a slow self-playing progression; H help.",
     "file": "juno.cart.png",

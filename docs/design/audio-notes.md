@@ -1550,6 +1550,18 @@ v1, document it on the panel.
     default chains). **Showcase: `pedalboard`** (the SHALLOW pedal — a real reorderable insert, which the
     full 16-kind table had blocked until the widen).
 
+25. **Amp noise — the optional rig-noise floor (`amp_noise`).** **✓ SHIPPED 2026-06-15.** Boutique-pedals
+    roadmap (Block C, part 1). `amp_noise(hiss, hum, mains_hz)` (`SR_AMP_NOISE`=98): a constant
+    master-output floor — broadband hiss (two decorrelated white→one-pole-LP draws for stereo width) +
+    a centered 50/60 Hz mains hum (fundamental + 2nd harmonic). Added AFTER the soft-clip so it's a true
+    constant floor (never ducked/clipped by the mix), present even in dead silence. **Opt-in by design:**
+    `hiss 0 && hum 0` → not called → byte-identical (verified: a no-note render is RMS 0 exactly when
+    off, RMS 0.0092 when on; deterministic re-render). Master-only, seeded LCG. NOT an `FX_*` insert (a
+    whole-rig floor belongs at the master, like dropout). The user's framing drove the design — "might be
+    great, might not always be desirable" → a choice, not a default. **Showcase: `ampnoise`** (an `N`
+    toggle A/Bs floor-on vs dead-silent; a glowing 12AX7 + hiss speckle on the amp grille). Companion
+    noise GATE (clamps the floor between notes) is the next pedal — now mintable as a real `FX_*` kind.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

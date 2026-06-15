@@ -517,6 +517,12 @@ void dropout(float amount, float depth);   // amount 0..1 = how often the tape c
 void shallow(float rate, float depth, float mix);                 // rate 0.2..8 Hz (drift speed), depth 0..1 (warble amount), mix 0..1. THE master shallow water. try 1/0.6/0.5
 void instrument_shallow(int slot, float rate, float depth, float mix);  // shallow water on just this slot (auto-grabs a private FX bus)
 
+// amp_noise — an OPTIONAL rig-noise floor: broadband hiss + 50/60 Hz mains hum, the "an electric
+// guitar is never truly silent" character. Entirely opt-in — hiss 0 AND hum 0 = off (the console is
+// pristine by default). A constant master-output floor (never ducked by the mix). Pair with a noise
+// gate to clamp it between notes. For realism, drive `hiss` up with your amp's gain.
+void amp_noise(float hiss, float hum, int mains_hz);   // hiss 0..1 (broadband floor), hum 0..1 (mains buzz), mains_hz 50 (EU) or 60 (US). 0,0 = silent. try 0.3/0.2/60
+
 // filter — a sweepable resonant FILTER on the whole mix: the DJ-filter / build-up sweep. A plain
 // state-variable filter (low/high/band/notch) you RIDE live — close it to a muffled thump on the
 // breakdown, open it back up (crank resonance for the scream) on the build. THE electronic-music

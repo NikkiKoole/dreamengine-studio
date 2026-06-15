@@ -1700,6 +1700,7 @@ typedef enum {
     SR_DROPOUT       = 95,   // a=amount*1000, b=depth*1000 — THE master tape-failure dropout (random level dips + HF loss)
     SR_SHALLOW       = 96,   // a=rate*1000, b=depth*1000, c=mix*1000 — THE master shallow-water (bus 0): K-field delay + Low Pass Gate
     SR_INSTR_SHALLOW = 97,   // a=slot, b=rate*1000, c=depth*1000, e0=mix*1000 — shallow water on one instrument (auto-bus)
+    SR_AMP_NOISE     = 98,   // a=hiss*1000, b=hum*1000, c=mains_hz — THE optional rig-noise floor (hiss + 50/60Hz hum)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1762,6 +1763,40 @@ static void fx_set_dropout(float amount, float depth) {
     if (depth  < 0.0f) depth  = 0.0f; if (depth  > 1.0f) depth  = 1.0f;
     drop_amount = amount; drop_depth = depth;
     drop_used = (amount > 0.0f);       // amount 0 → not called → byte-identical
+}
+
+// ── amp noise — an OPTIONAL rig-noise floor: broadband hiss + 50/60 Hz mains hum ────────────────
+// "An electric guitar is never truly silent" — but a fantasy console IS, so this is entirely opt-in:
+// hiss 0 && hum 0 → not called → byte-identical (pristine by default; you dial the floor in only when
+// you want it). Added AFTER the master soft-clip as a CONSTANT output floor (never ducked or clipped
+// by the mix). Stereo-decorrelated hiss (width) + mono hum (a centered ground-loop). Seeded LCG →
+// --det reproducible. NOT dither (that's a quantization fix) — the hiss + 50/60 Hz hum are modelled
+// directly. (The companion noise GATE that clamps this between notes is the next pedal.)
+static float    noise_hiss = 0.0f, noise_hum = 0.0f;   // 0..1 levels
+static int      noise_mains = 60;                       // 50 (EU) / 60 (US) Hz
+static bool     noise_used = false;
+static unsigned int noise_seed = 0x6D2B79F5u;
+static float    noise_lpL, noise_lpR, noise_hum_ph;
+static void amp_noise_process(float *L, float *R) {
+    noise_seed = noise_seed * 1103515245u + 12345u;     // hiss: two white draws → one-pole LP each
+    float wl = (float)((int)((noise_seed >> 16) & 0xFFFF)) / 32767.5f - 1.0f;
+    noise_seed = noise_seed * 1103515245u + 12345u;
+    float wr = (float)((int)((noise_seed >> 16) & 0xFFFF)) / 32767.5f - 1.0f;
+    noise_lpL += (wl - noise_lpL) * 0.30f;              // speaker-ish HF rolloff; L/R decorrelated = wide
+    noise_lpR += (wr - noise_lpR) * 0.30f;
+    float hg = noise_hiss * 0.05f;                       // tasteful floor ceiling
+    noise_hum_ph += (float)noise_mains / (float)SOUND_SAMPLE_RATE;   // hum: fundamental + 2nd harmonic, centered
+    if (noise_hum_ph >= 1.0f) noise_hum_ph -= 1.0f;
+    float hum = (sinf(noise_hum_ph * 6.2831853f) * 0.7f + sinf(noise_hum_ph * 2.0f * 6.2831853f) * 0.3f) * noise_hum * 0.035f;
+    *L += noise_lpL * hg + hum;
+    *R += noise_lpR * hg + hum;
+}
+static void fx_set_amp_noise(float hiss, float hum, int mains_hz) {
+    if (hiss < 0.0f) hiss = 0.0f; if (hiss > 1.0f) hiss = 1.0f;
+    if (hum  < 0.0f) hum  = 0.0f; if (hum  > 1.0f) hum  = 1.0f;
+    noise_hiss = hiss; noise_hum = hum;
+    noise_mains = (mains_hz == 50) ? 50 : 60;
+    noise_used = (hiss > 0.0f || hum > 0.0f);            // both 0 → dormant → byte-identical
 }
 
 #if defined(PLATFORM_WEB) && defined(DE_AUDIO_WORKLET)
@@ -4484,6 +4519,8 @@ static void sound_fire_req(SoundReq r) {
         if (b >= 1) fx_set_univibe(b, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_DROPOUT) {      // master tape-failure dropout: a=amount, b=depth (×1000)
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
+    } else if (r.kind == SR_AMP_NOISE) {    // optional rig-noise floor: a=hiss, b=hum (×1000), c=mains_hz
+        fx_set_amp_noise(r.a / 1000.0f, r.b / 1000.0f, r.c);
     } else if (r.kind == SR_SHALLOW) {      // master shallow water (bus 0): a=rate, b=depth, c=mix (×1000)
         fx_set_shallow(0, r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f);
         bool present = false;               // auto-place FX_SHALLOW in bus 0's chain (not in the default ladder, like FX_GRAINS)
@@ -4918,6 +4955,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             float g = clamped / pk;
             mixL *= g; mixR *= g;
         }
+        if (noise_used) amp_noise_process(&mixL, &mixR);   // optional rig-noise floor — AFTER the clip (a constant floor, never ducked)
 #ifdef DE_AUDIO_WORKLET
         out[2 * i]     = mixL * master_gain;           // worklet: pause-mute via the mixer
         out[2 * i + 1] = mixR * master_gain;
@@ -5607,6 +5645,11 @@ void dropout(float amount, float depth) {
     sound_push_ctrl(SR_DROPOUT, (int)(amount * 1000.0f), (int)(depth * 1000.0f), 0, 0, 0, 0);
 }
 
+// ── amp noise: an optional rig-noise floor — broadband hiss + 50/60 Hz mains hum ──
+void amp_noise(float hiss, float hum, int mains_hz) {
+    sound_push_ctrl(SR_AMP_NOISE, (int)(hiss * 1000.0f), (int)(hum * 1000.0f), mains_hz, 0, 0, 0);
+}
+
 // ── shallow water: a filtered-random short delay + a Low Pass Gate (the warped-water warble) ──
 void shallow(float rate, float depth, float mix) {
     sound_push_ctrl(SR_SHALLOW, (int)(rate * 1000.0f), (int)(depth * 1000.0f), (int)(mix * 1000.0f), 0, 0, 0);
@@ -5833,6 +5876,8 @@ static void sound_init(void) {
     grain_next = 0; grain_overflow = 0;
     drop_amount = 0.0f; drop_used = false; drop_env = 0.0f; drop_prev = 0.0f;   // dropout: dormant + deterministic seed
     drop_lpL = drop_lpR = 0.0f; drop_mod = (ModState){ .seed = 0x1F2E3D4Cu };
+    noise_hiss = 0.0f; noise_hum = 0.0f; noise_used = false; noise_mains = 60;   // amp noise: dormant + deterministic seed
+    noise_lpL = noise_lpR = 0.0f; noise_hum_ph = 0.0f; noise_seed = 0x6D2B79F5u;
 
     // per-bus chorus + flanger + tape inserts (bus 0 master + aux): clean slate (libtcc hot-reload + --det)
     memset(cho_buf, 0, sizeof(cho_buf));

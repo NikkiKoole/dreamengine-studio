@@ -297,6 +297,28 @@ since the packing is full and a whole-mix failure belongs at the master). amount
 > loss; the iconic **pitch-dip** on a catch waits for the bus pitch-shifter (Primitive 2). Built on the
 > modulation kit's sample-&-hold — see [`boutique-pedals-roadmap.md`](../design/boutique-pedals-roadmap.md).
 
+## amp_noise — `amp_noise(hiss, hum, mains_hz)`
+
+The **optional rig-noise floor**: broadband **hiss** (tube/thermal) + a **50/60 Hz mains hum** (the
+single-coil buzz) sitting under the whole mix — the "an electric guitar is never truly silent"
+character. **Entirely opt-in** — `hiss 0 && hum 0` = silent and byte-identical (a fantasy console is
+pristine by default; you add the grime only when a track wants it). A *constant* master-output floor:
+added **after** the limiter so it never ducks or clips with the mix, present even in dead silence.
+Stereo-decorrelated hiss (width) + centered mono hum. For realism, scale `hiss` with your amp's gain.
+**Showcase: `ampnoise`** (an `N` toggle A/Bs the floor on/off — the whole point). Pairs with a noise
+gate (next) to clamp the floor between notes.
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| humming tube amp | `amp_noise(0.3f, 0.2f, 60)` | a quiet, alive floor under a clean amp — lo-fi authenticity | `ampnoise` |
+| noisy single-coil | `amp_noise(0.4f, 0.6f, 60)` | strong 60-cycle buzz (a Strat near a monitor) — switch `60→50` for EU | `ampnoise` |
+| gentle tape-room air | `amp_noise(0.5f, 0.0f, 60)` | hiss only, no hum — a bed of "air" under ambient/lo-fi without the electrical buzz | `ampnoise` |
+| pristine (off) | `amp_noise(0.0f, 0.0f, 60)` | the default — dead silent, byte-identical. The point: it's a choice | — |
+
+> **Optional by design.** Unlike most effects this is a *floor*, not a transform — it's most musical
+> as a quiet bed (`hiss`/`hum` ~0.2–0.4). Reach for it on lo-fi, ambient, and amp-sim tracks; leave it
+> at 0 everywhere else. The companion **noise gate** clamps it (and real signal) between notes.
+
 ## EQ — `eq(low_gain, mid_gain, high_gain)` · `instrument_eq(slot, low_gain, mid_gain, high_gain)`
 
 3-band tone control, and **the library's only BOOST** — every other tone tool (the SVF filters)

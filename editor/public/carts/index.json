@@ -3213,7 +3213,7 @@
   },
   {
     "title": "spatial",
-    "description": "Sound that lives in the world — the spatial-audio API (a listener + positioned sources). You are the EAR: move with the ARROW KEYS around a fixed RADIO speaker (top-right) and hear it pan L/R and rise/fall with distance; a CAR loops past on its lane — stand near it for the Doppler WHOOSH + L→R sweep as it passes; CLICK/TAP anywhere fires a one-shot blip AT that spot (a positioned SFX). It's the four calls listener() + note_pos() + note_motion() + hit_at(); the engine derives pan, distance-volume and Doppler from the geometry, dormant and byte-identical until you call listener().",
+    "description": "Sound that lives in the world — the spatial-audio API (a listener + positioned sources). You are the EAR: move with the ARROW KEYS around a RADIO speaker (a held organ pad washed in SHIMMER reverb, top-right) and hear it pan L/R and rise/fall with distance; a RHODES emitter (bottom-left) arpeggiates EPIANO from its own spot; a CAR loops past its lane — stand near it for the Doppler WHOOSH + L→R sweep; CLICK/TAP anywhere fires a one-shot blip AT that spot (a positioned SFX). It's the four calls listener() + note_pos() + note_motion() + hit_at(); the engine derives pan, distance-volume and Doppler from the geometry, dormant and byte-identical until you call listener().",
     "file": "spatial.cart.png",
     "kind": [
       "tech-demo"

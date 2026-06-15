@@ -132,7 +132,10 @@ exactly the failure mode it guards (it injected −0.02 DC until the output bloc
 
 ## One-line summary for the impatient
 
-Asymmetric shaper fixed the missing even harmonics (committed? check `git status`), but brass still
-reads as "clarinet + filter": it needs **level-coupled brightness extending to ~8kHz (the shock-wave
-blat)** and to **stop lowpassing away its highs** — that's the real job. Reed sounds right because its
-simple core is genuinely correct clarinet physics; brass is faking the bell downstream.
+Asymmetric shaper fixed the missing even harmonics, then level-coupled brightness + an output
+high-shelf extended the highs (both shipped, `8dfd12a`) — much brassier. **But the owner still hears
+room for more (2026-06-16): keep pushing.** The brightness was tuned conservatively (stops ~2.3%
+energy >4kHz to dodge fizz; realistic forte is ~8–10kHz), so the coefficients can go harder; and the
+**deferred mute axis** + modelling the bell to fill the series natively (fix #3) are the bigger,
+unshipped levers. Reed sounds right because its simple core is genuinely correct clarinet physics;
+brass is still faking the bell downstream.

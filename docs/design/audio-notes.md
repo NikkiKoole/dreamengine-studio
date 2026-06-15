@@ -1783,3 +1783,12 @@ regression; it's "taste/character not finished." Threads, in priority order:
 **deferred mute** is now the highest-leverage *remaining* engine lever, and **#3 (route the radio
 horn chairs onto the real `INSTR_BRASS`/`INSTR_REED`)** is the highest-leverage for "make the *radio*
 brassier" and needs no engine work.
+
+> **Owner ear note (2026-06-16): there's still more "brassy" to get — keep going.** Even after the
+> brightness fix, it can be pushed further. Levers, easiest first: (a) the brightness was tuned
+> conservatively — it stops at ~2.3% energy >4kHz to avoid tipping into fizz, but the realistic-forte
+> target is ~8–10kHz, so the high-shelf/drive coefficients (`br_hp` amount, `brite`, the level-coupled
+> `driveOut`) have room to go harder, A/B by ear with `tools/harmonic-spec.js`; (b) the **deferred
+> mute/plunger axis** (the harmon-cup bite, thread #1); (c) handoff fix #3 — model the bell so the
+> harmonic series fills natively instead of being synthesized downstream. This is a standing TODO, not
+> "done."

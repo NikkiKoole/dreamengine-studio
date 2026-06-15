@@ -68,9 +68,16 @@ FUZZ pedal — do it only if 1.1 is already in.
 
 ---
 
-## Primitive 2 — a bus pitch-shifter  ⭐ the trophy
+## Primitive 2 — a bus pitch-shifter  ⭐ the trophy  ✅ SHIPPED 2026-06-15
 
-**The gap:** we can retune a *voice* (`instrument_tune`), but can't pitch-shift an arbitrary
+**✅ Done:** `shimmer(size, damp, shimmer_amt, mix)` — an octave-up granular pitch-shifter
+(`octaveup_process`, 2-grain overlap-add) recirculated in a private reverb's feedback loop → the
+ascending crystalline tail. Stability was the hard part (tanh-governed feedback + DC blocker +
+gain-normalized shifter; see `audio-notes §17` #27). Showcase: the `shimmer` cart. The pitch-shifter
+is currently internal to shimmer — exposing it as a standalone bus effect / per-instrument is a future
+extension if a cart wants it.
+
+**The gap (original):** we can retune a *voice* (`instrument_tune`), but can't pitch-shift an arbitrary
 *bus signal*. That's the one genuinely new engine on these lists, and it's the prize.
 
 ### Step 2.1 — pitched + reversed grains  · effort: XS  *(independent — can ship anytime)*

@@ -155,7 +155,27 @@ The third reverb shape: a dry/wet-MIX insert **on the master bus**, so it's a re
 |---|---|---|---|
 | honest pedalboard reverb | `reverb_insert(0.7f, 0.3f, 0.45f)` + `FX_REVERB` in `fx_order(0,…)` | a guitar-pedal reverb whose position matters: before crush = crush the wet tail; after = reverb the crushed guitar | `pedalboard` (REVERB pedal), `groovebox` (SPACE knob — the ORDER toggle IS reverb↔crush on the summed mix), `modrack` (VERB module — on by default for a touch of space; cv inlet swells the mix) |
 
-## chorus — `chorus(rate, depth, mix)` · `instrument_chorus(slot, rate, depth, mix)`
+### shimmer — `shimmer(size, damp, shimmer_amt, mix)`
+
+A **shimmer reverb**: a reverb with an **octave-up pitch-shifter inside its feedback loop**. Each pass,
+the wet tail is tapped, pitched up an octave (a 2-grain overlap-add shifter), and re-injected — so a
+held chord **climbs**, rising into a glassy, ascending crystalline pad (Strymon BlueSky / Eno). The
+roadmap **trophy** (Primitive 2 — the engine's first real-time bus pitch-shifter). `size` 0–1 (decay),
+`damp` 0–1 (darker tail), `shimmer_amt` 0–1 (the climb: 0 = a plain reverb, ~0.7 blooms-and-ascends,
+1.0 = a near-infinite rising wall), `mix` 0–1 (0 = off). Master-stage. **Showcase: `shimmer`**.
+
+| recipe | call | character | used by |
+|---|---|---|---|
+| classic shimmer pad | `shimmer(0.85f, 0.4f, 0.65f, 0.5f)` | hold a chord → it blooms and climbs an octave halo above — ambient/post-rock | `shimmer` |
+| endless ascent | `shimmer(1.0f, 0.4f, 0.95f, 0.6f)` | near-infinite rising wall of crystal (loop self-sustains, tanh-governed so it can't blow up) | `shimmer` |
+| subtle octave halo | `shimmer(0.7f, 0.5f, 0.35f, 0.4f)` | just a touch of rising sparkle over a normal reverb bloom | — |
+
+> **Stability built in.** A pitch-shifter in a feedback loop wants to either die or explode (it did
+> both in testing — runaway to full-scale + DC pileup). Tamed with three things: the octave-up output
+> normalized to ~unity, the recirculated feedback **soft-clipped through `tanh`** (a governor — high
+> settings plateau into the infinite climb instead of exploding, the echo-bus trick), and a **DC
+> blocker** in the loop (the combs pump DC under recirculation). Verified: octave-up confirmed (a 110 Hz
+> stab's tail climbs to ~500 Hz), and max settings stay bounded (~0.04% soft-clip at the absolute ceiling).
 
 BBD/Juno ensemble widening. `rate` 0.1–5 Hz, `depth` 0–1, `mix` 0–1 (0 = off). Master (whole mix) or
 per-instrument. **Showcase: `juno` (master) + `solina` (per-part ensemble).**

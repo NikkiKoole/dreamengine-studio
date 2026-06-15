@@ -523,6 +523,11 @@ void instrument_shallow(int slot, float rate, float depth, float mix);  // shall
 // gate to clamp it between notes. For realism, drive `hiss` up with your amp's gain.
 void amp_noise(float hiss, float hum, int mains_hz);   // hiss 0..1 (broadband floor), hum 0..1 (mains buzz), mains_hz 50 (EU) or 60 (US). 0,0 = silent. try 0.3/0.2/60
 
+// shimmer — a reverb with an OCTAVE-UP pitch-shifter in its feedback loop: the tail keeps climbing
+// into a glassy, ascending crystalline pad (the Strymon/Eno shimmer). Hold a chord and it blooms
+// upward forever. Master-stage whole-mix space. mix 0 = off. Gorgeous on pads, organ, bowed strings.
+void shimmer(float size, float damp, float shimmer_amt, float mix);   // size 0..1 (decay length), damp 0..1 (dark tail), shimmer_amt 0..1 (how much octave-up recirculates — the climb), mix 0..1 (0 = off). try 0.8/0.4/0.6/0.5
+
 // gate — a NOISE GATE: clamps the signal shut when it falls below `threshold`, opens above it. The
 // classic rig pedal (tame a noisy/driven part's hiss + tails between notes); place it AFTER reverb in
 // fx_order for the iconic 80s GATED REVERB (the tail chops off). A reorderable insert (FX_GATE).

@@ -1736,6 +1736,7 @@ typedef enum {
     SR_AMP_NOISE     = 98,   // a=hiss*1000, b=hum*1000, c=mains_hz — THE optional rig-noise floor (hiss + 50/60Hz hum)
     SR_GATE          = 99,   // a=threshold*1000, b=attack_ms, c=release_ms — THE master noise gate (bus 0)
     SR_INSTR_GATE    = 100,  // a=slot, b=threshold*1000, c=attack_ms, e0=release_ms — noise gate on one instrument (auto-bus)
+    SR_SHIMMER       = 101,  // a=size*1000, b=damp*1000, c=shimmer*1000, e0=mix*1000 — THE master shimmer reverb (octave-up feedback)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1832,6 +1833,60 @@ static void fx_set_amp_noise(float hiss, float hum, int mains_hz) {
     noise_hiss = hiss; noise_hum = hum;
     noise_mains = (mains_hz == 50) ? 50 : 60;
     noise_used = (hiss > 0.0f || hum > 0.0f);            // both 0 → dormant → byte-identical
+}
+
+// ── shimmer — a reverb with an OCTAVE-UP pitch-shifter in its feedback loop (the crystalline tail) ──
+// The trophy (boutique-pedals roadmap, Primitive 2). A private reverb tank, but each pass its output
+// is tapped, pitch-shifted UP AN OCTAVE, and re-injected into the input → the tail keeps climbing into
+// a glassy, ascending pad (Strymon/Eno shimmer). The pitch-shifter is a 2-grain overlap-add octave-up
+// (the granular delay-line method): a read tap sweeps at 2× toward the write head, restarting each
+// grain; two grains a half-window apart with a constant-power sine crossfade hide the restart. Reads
+// through the shared moddel_hermite. Master-stage (a whole-mix space, like the reverb sends). Dormant
+// until mix>0 → byte-identical. The granular shimmer's gentle warble IS the sound.
+#define SHIM_PBUF   4096        // pitch-shift delay buffer (~93 ms)
+#define SHIM_GRAIN  2048.0f     // grain/window length in samples (~46 ms) — the crossfade period
+typedef struct { float buf[SHIM_PBUF]; int wpos; float ph; } OctaveUp;
+static float octaveup_process(OctaveUp *o, float in) {
+    o->buf[o->wpos] = in;
+    int wp = o->wpos;
+    o->wpos = (o->wpos + 1) % SHIM_PBUF;
+    o->ph += 1.0f / SHIM_GRAIN;                          // (ratio-1)/grain; ratio 2 (octave) → 1/grain
+    if (o->ph >= 1.0f) o->ph -= 1.0f;
+    float out = 0.0f;
+    for (int g = 0; g < 2; g++) {                        // two grains, a half-window apart
+        float p = o->ph + g * 0.5f; if (p >= 1.0f) p -= 1.0f;
+        float rp = (float)wp - (1.0f - p) * SHIM_GRAIN;  // delay ramps grain→0 as p 0→1 → read sweeps at 2×
+        while (rp < 0.0f) rp += SHIM_PBUF;
+        out += moddel_hermite(o->buf, SHIM_PBUF, rp) * sinf(3.14159265f * p);   // sine window: win0²+win1²=1
+    }
+    return out * 0.7071f;   // the two constant-power grains can sum >1 at the crossfade — normalize to ~unity
+}
+static ReverbTank shim_tank;
+static OctaveUp   shim_oct;
+static float shim_mix = 0.0f, shim_fb = 0.0f, shim_prev = 0.0f;
+static float shim_dcx = 0.0f, shim_dcy = 0.0f;   // DC-blocker state on the recirculating loop
+static bool  shim_used = false;
+static void shimmer_process(float *mixL, float *mixR) {
+    float in = (*mixL + *mixR) * 0.5f;
+    float shifted = octaveup_process(&shim_oct, shim_prev);          // pitch the last (DC-blocked) tail up an octave
+    float fb_sig = tanhf(shifted * shim_fb);                         // GOVERNOR: soft-clip the feedback → bounded, never a runaway (the echo-bus trick)
+    float rev = reverb_process(&shim_tank, in + fb_sig);            // dry + recirculated shimmer
+    float hp = rev - shim_dcx + 0.995f * shim_dcy;                  // DC-BLOCKER: recirculation pumps DC into the combs; high-pass it out
+    shim_dcx = rev; shim_dcy = hp;
+    shim_prev = hp;
+    *mixL = *mixL * (1.0f - shim_mix) + hp * shim_mix;
+    *mixR = *mixR * (1.0f - shim_mix) + hp * shim_mix;
+}
+static void fx_set_shimmer(float size, float damp, float shimmer, float mix) {
+    if (size    < 0.0f) size    = 0.0f; if (size    > 1.0f) size    = 1.0f;
+    if (damp    < 0.0f) damp    = 0.0f; if (damp    > 1.0f) damp    = 1.0f;
+    if (shimmer < 0.0f) shimmer = 0.0f; if (shimmer > 1.0f) shimmer = 1.0f;
+    if (mix     < 0.0f) mix     = 0.0f; if (mix     > 1.0f) mix     = 1.0f;
+    shim_tank.fb   = REVERB_FEEDBACK_MIN + size * REVERB_FEEDBACK_RANGE;   // 0.70..0.95 decay
+    shim_tank.damp = damp;
+    shim_fb = shimmer * 0.95f;          // recirculation gain: small-signal loop gain crosses 1 near the top → low/mid settings bloom-and-fade, high settings self-sustain (the infinite climb). tanh governor + DC block bound the top
+    shim_mix = mix;
+    shim_used = (mix > 0.0f);           // mix 0 → not called → byte-identical
 }
 
 #if defined(PLATFORM_WEB) && defined(DE_AUDIO_WORKLET)
@@ -4556,6 +4611,8 @@ static void sound_fire_req(SoundReq r) {
         fx_set_dropout(r.a / 1000.0f, r.b / 1000.0f);
     } else if (r.kind == SR_AMP_NOISE) {    // optional rig-noise floor: a=hiss, b=hum (×1000), c=mains_hz
         fx_set_amp_noise(r.a / 1000.0f, r.b / 1000.0f, r.c);
+    } else if (r.kind == SR_SHIMMER) {      // master shimmer reverb: a=size, b=damp, c=shimmer, e0=mix (×1000)
+        fx_set_shimmer(r.a / 1000.0f, r.b / 1000.0f, r.c / 1000.0f, r.e0 / 1000.0f);
     } else if (r.kind == SR_GATE) {         // master noise gate (bus 0): a=threshold(×1000), b=attack_ms, c=release_ms
         fx_set_gate(0, r.a / 1000.0f, r.b, r.c);
         bool present = false;               // auto-place FX_GATE in bus 0's chain (not in the default ladder)
@@ -4988,6 +5045,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         // the soft-clip below (pinned last — a safety limiter, not a reorderable pedal).
         for (int s = 0; s < insert_order_n[0]; s++) apply_insert(insert_order[0][s], insert_inst[0][s], 0, &mixL, &mixR);
         if (leslie_used[0]) leslie_process(0, &mixL, &mixR);   // rotary speaker — pinned after the inserts, before the soft-clip (cabinet output stage)
+        if (shim_used) shimmer_process(&mixL, &mixR);          // octave-up shimmer reverb — master space, before the clip
         if (drop_used) dropout_process(&mixL, &mixR);          // tape-failure catches — master output stage, before the clip
         if (sc[0].used) { float g = sc_apply(0, mixL, mixR); mixL *= g; mixR *= g; }   // master sidechain/glue duck — the summed-bus pump (before the clip)
 
@@ -5699,6 +5757,11 @@ void amp_noise(float hiss, float hum, int mains_hz) {
     sound_push_ctrl(SR_AMP_NOISE, (int)(hiss * 1000.0f), (int)(hum * 1000.0f), mains_hz, 0, 0, 0);
 }
 
+// ── shimmer: a reverb with an octave-up pitch-shifter in the feedback loop (the ascending tail) ──
+void shimmer(float size, float damp, float shimmer_amt, float mix) {
+    sound_push_ctrl(SR_SHIMMER, (int)(size * 1000.0f), (int)(damp * 1000.0f), (int)(shimmer_amt * 1000.0f), (int)(mix * 1000.0f), 0, 0);
+}
+
 // ── gate: a noise gate — clamp the signal shut below a threshold (rig gate / gated reverb) ──
 void gate(float threshold, int attack_ms, int release_ms) {
     sound_push_ctrl(SR_GATE, (int)(threshold * 1000.0f), attack_ms, release_ms, 0, 0, 0);
@@ -5936,6 +5999,8 @@ static void sound_init(void) {
     drop_lpL = drop_lpR = 0.0f; drop_mod = (ModState){ .seed = 0x1F2E3D4Cu };
     noise_hiss = 0.0f; noise_hum = 0.0f; noise_used = false; noise_mains = 60;   // amp noise: dormant + deterministic seed
     noise_lpL = noise_lpR = 0.0f; noise_hum_ph = 0.0f; noise_seed = 0x6D2B79F5u;
+    memset(&shim_tank, 0, sizeof shim_tank); memset(&shim_oct, 0, sizeof shim_oct);   // shimmer: clean tank + shifter
+    shim_mix = 0.0f; shim_fb = 0.0f; shim_prev = 0.0f; shim_dcx = 0.0f; shim_dcy = 0.0f; shim_used = false;
 
     // per-bus chorus + flanger + tape inserts (bus 0 master + aux): clean slate (libtcc hot-reload + --det)
     memset(cho_buf, 0, sizeof(cho_buf));

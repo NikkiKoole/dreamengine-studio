@@ -1576,6 +1576,26 @@ v1, document it on the panel.
     for gated verb) — NOT the post-limiter `amp_noise` floor (#25), which sits after everything. That
     completes Block C (amp realism = the optional floor + the gate that tames signal noise).
 
+27. **Shimmer reverb (`shimmer`) — the trophy: a bus pitch-shifter in a reverb loop.** **✓ SHIPPED
+    2026-06-15.** Boutique-pedals roadmap Primitive 2 — the one genuinely-new engine left, and the
+    hardest DSP of the set. `shimmer(size, damp, shimmer_amt, mix)` (`SR_SHIMMER`=101): a private
+    `ReverbTank` whose wet output is tapped each sample, pitched **up an octave**, and recirculated into
+    the input → a held chord climbs into an ascending crystalline pad. The pitch-shifter (`octaveup_process`)
+    is the textbook granular delay-line octave-up: a read tap sweeps at 2× toward the write head, two
+    grains a half-window apart with a constant-power sine crossfade hiding the restart (the same
+    `moddel_hermite` resample that `grains_pitch` proved is an exact octave). Master-stage; `mix 0` →
+    byte-identical. **The hard part was stability** — a pitch-shifter in a feedback loop wants to die or
+    explode, and the first build did both (RMS pinned to 1.0, 72% clipped, DC −0.87). Three fixes:
+    octave-up output normalized ×0.707 (the two constant-power grains can sum >1 at the crossfade); the
+    recirculated feedback **soft-clipped through `tanh`** (a governor — `shimmer_amt` high plateaus into
+    the infinite climb instead of exploding, the echo-bus trick); and a **DC blocker** in the loop (the
+    combs pump DC under recirculation). `shim_fb = shimmer_amt × 0.95`, reverb fb 0.70..0.95 — small-signal
+    loop gain crosses 1 near the top, so low/mid settings bloom-and-fade and high settings self-sustain.
+    Verified: octave-up confirmed (a 110 Hz stab's tail climbs to ~500 Hz, ~2 octaves); max settings stay
+    bounded (peak ceiling, ~0.04% soft-clip); soundcheck + 900-frame tripwire + `--det` byte-identical;
+    no-shimmer carts byte-identical. **Showcase: `shimmer`** (held chord + rising sparks for the ascent).
+    Took the predicted few tuning iterations (die → explode → tame → tune), not first-try like the others.
+
 One-line version: **we built a very good modular synth and forgot to build the
 broken speaker it should play through.**
 

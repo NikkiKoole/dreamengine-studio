@@ -68,6 +68,15 @@ To make a cart's internals legible, wrap `watch()` calls in `#ifdef DE_TRACE`:
 They cost nothing in a normal build (the macro isn't defined) and feed the trace
 in a harness build. `runtime/studio.c`'s `watch()` already drives the on-screen F1
 overlay and the crash dump; this just tees it to a file. See `tools/carts/smooch.c`
+
+> **⚠️ `watch()` is printf-style: `watch(name, fmt, ...)` — NEVER `watch(name, value)`.**
+> A bare-value call (`watch("x", x)`, no format string) is the old, dead signature and is a
+> **compile error**. The trap that makes this recur (it's bitten loderunner, galerijflat, …):
+> watch calls live under `#ifdef DE_TRACE`, so the **normal editor build never compiles them** —
+> a wrong call sails through the editor and only fails under `play.js`/trace, *silently shipping a
+> cart that can't be debugged.* Catch them across the whole catalog with **`node tools/build-all.js`**
+> (it compiles every cart with `-DDE_TRACE`). Format like printf: `%d` int, `%.1f`/`%.3f` float,
+> `%s` string — e.g. `watch("px", "%.1f", px)`.
 for a worked example.
 
 ---

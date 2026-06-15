@@ -141,12 +141,15 @@ edges now), the field↔graph extraction step (graph is generated directly, not 
      Click the map to drop/teleport the car (→ DRIVE), arrows/WASD steer, a faint **100m reference
      grid** gives the scale feel, a **GPS minimap** inset shows you-are-here; click the GPS → back
      to MAP (fast-travel). HUD reads **km/h + odometer** via `M_PER_UNIT` (the scale knob).
-   - ⛔ *Still the real lock:* the actual **metre re-base** — units → metres, L0 lattice restated in
-     km (`hub_cs`/`node_cs` ×~120 and the bend/bridge/valley constants with them), and **metre-width
-     road rendering** in DRIVE (roads are still px-stroked, so the car looks wider than its lane).
-     The car is *unit-scaled + fixed-pixel* until then. Once re-based, tune `M_PER_UNIT`/car speed/
-     block size by driving until crossing a city *feels* right, and decide **scope** (~500km lean).
-   - This is a measuring instrument, not the payoff — don't generate fill-in until it feels right.
+   - ✅ **Metre re-base done.** `1 unit = 1 metre`; `WS=300` stretches terrain features + the
+     bend/bridge/valley distances; lattice in km (towns 3–8 km via `node_cs`, cities 25–60 km via
+     `hub_cs`); zoom range re-spanned (`ZMIN 0.0008` continental … `OVERVIEW_ZOOM 0.012` town net …
+     `DRIVE_ZOOM 1.5`); car speed real (`CAR_MAXSPD 0.6` → **~130 km/h, verified the HUD reads ~118
+     not 10,000**); car + 20 m grid metre-sized; spawn moved to land. Terrain rescaled cleanly.
+   - ⛔ *Polish still open:* **metre-width road rendering** (roads are still px-stroked → thin lines,
+     so the car doesn't visibly sit in a lane); the reference **grid is faint** (bump contrast);
+     road **density/visibility** at this scale wants a tuning pass (towns can be sparse in a given
+     spot); and **scope** (~500 km) still to commit. None block driving — these are feel-tuning.
 3. **Unified `road_at` = nearest-edge** over the *highway* edges first (prove the query +
    spatial index on the tier we already have), render as strokes. No field anywhere.
 4. **Collector tier as a warped grid**, generated directly as spline edges into the graph,

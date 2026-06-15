@@ -68,13 +68,17 @@
 // roads sag into valleys / hug coasts (reverts if it would hit water). (Landmarks = later.)
 // ============================================================================
 
-#define TILE 4                                  // screen px per world tile at zoom 1
-#define ZMIN 0.12f                               // mousewheel zoom range — far out
-#define ZMAX 8.0f                                  // up from 2.5 → allows the tight DRIVE follow-cam
-                                                  // (terrain is sampled per screen
-                                                  //  pixel, so there's no buffer ceiling)
-#define SPAWN_X 312.0f
-#define SPAWN_Y 8.0f
+// ── METRE RE-BASE: 1 world unit = 1 METRE. TILE = px per metre at zoom 1 (so zoom 1 ≈ 4 px/m
+// is a drive zoom; zoom ~0.012 is a town overview; ~0.0008 is continental). WS = the world
+// scale applied to the OLD tile-based design — terrain feature sizes and the bend/bridge/valley
+// distances all stretch by WS so the look is preserved while the lattice moves to real km.
+#define WS   300.0f
+#define TILE 4                                   // screen px per metre at zoom 1
+#define ZMIN 0.0008f                             // far out — see a continent of cities
+#define ZMAX 3.0f                                // tight — the DRIVE follow-cam
+#define OVERVIEW_ZOOM 0.012f                     // town-network overview (setup preview / MAP default)
+#define SPAWN_X 40000.0f                         // a land spot at metre scale (old 312,8 was ocean now)
+#define SPAWN_Y 30000.0f
 
 #define ROAD_R    2                  // road ribbon radius (px) at this zoom
 #define PANEL_W   96                 // intro-panel width (px); left-drag pans only right of it
@@ -90,8 +94,8 @@ static float P_jitter     = 0.6f;    // node wiggle off-grid → 0..~0.45·cell
 static float P_diag       = 0.25f;   // diagonal shortcuts   → 0..100% of quads (no X)
 static float P_sea        = 0.5f;    // sea level            → subtract 0.30..0.60
 
-static int   hub_cs(void)   { return 12 + (int)(P_hub_space  * 48); }   // 12..60
-static int   node_cs(void)  { return 6  + (int)(P_town_space * 24); }   // 6..30
+static int   hub_cs(void)   { return 25000 + (int)(P_hub_space  * 35000); }  // 25..60 km (cities)
+static int   node_cs(void)  { return 3000  + (int)(P_town_space * 5000);  }  // 3..8 km (towns)
 static int   hub_pct(void)  { return 40 + (int)(P_hub_dens   * 60); }   // 40..100
 static int   town_pct(void) { return (int)(P_town_dens * 90); }         // 0..90
 static int   jit(int cs)    { int j = (int)(P_jitter * cs * 0.45f); return j < 1 ? 1 : j; }
@@ -116,14 +120,12 @@ static float P    = TILE;            // pixels per tile = TILE * zoom (set per f
 // SCALE KNOB you tune by feel. NOTE: the car is unit-scaled + fixed-pixel for now so it's
 // visible at the map's zoom; a metre-sized, metre-accurate car wants the L0 metre re-base
 // (lattice in km + wider zoom) — the deliberate next step. See roadnet2-plan.md.
-#define M_PER_UNIT  60.0f    // metres per world unit — THE scale knob (drive, then tune this)
-// PLACEHOLDER speeds — calmed down so it's drivable at the current (uncalibrated) scale; the
-// metre re-base will replace these with real m/s (e.g. 130 km/h → ~0.6 units/frame at 1u=1m).
-#define CAR_ACCEL   0.010f   // gas, units/frame² along the heading
-#define CAR_BRAKE   0.022f
-#define CAR_REVMAX -0.14f
-#define CAR_FRIC    0.96f    // engine speed kept per frame
-#define CAR_MAXSPD  0.34f    // units/frame
+#define M_PER_UNIT  1.0f     // 1 world unit = 1 METRE (the re-base) — km/h now reads true
+#define CAR_ACCEL   0.020f   // gas, m/frame² along the heading
+#define CAR_BRAKE   0.040f
+#define CAR_REVMAX -0.15f    // ~32 km/h reverse
+#define CAR_FRIC    0.97f    // engine speed kept per frame
+#define CAR_MAXSPD  0.60f    // m/frame → ~130 km/h (0.6·60·3.6)
 #define CAR_STEER   3.0f     // deg/frame at full speed (scales down with speed)
 #define CAR_GRIP    0.22f    // velocity→heading lerp
 static int   car_on = 0;
@@ -139,11 +141,11 @@ static void car_spawn(float wx, float wy) {
 // roadnet2-plan.md → "Two cameras + GPS".
 enum { V_MAP, V_DRIVE };
 static int   vmode = V_MAP;
-#define DRIVE_ZOOM 6.0f            // tight follow-cam zoom (drive)
-#define MAP_ZOOM   1.0f            // overview zoom when you pop to the map
-#define GRID_M     100.0f         // reference-grid spacing, metres
+#define DRIVE_ZOOM 1.5f            // tight follow-cam (~6 px/m → ~53 m view, car ≈ 27 px)
+#define MAP_ZOOM   OVERVIEW_ZOOM   // overview zoom when you pop to the map
+#define GRID_M     20.0f          // reference-grid spacing, metres
 #define GPS_SZ     78             // GPS minimap box size (px)
-#define GPS_ZOOM   0.5f           // the minimap's own zoom (overview around the car)
+#define GPS_ZOOM   0.004f         // the minimap's own zoom (~5 km box — shows the local town network)
 #define GPS_X      (SCREEN_W - GPS_SZ - 3)
 #define GPS_Y      (SCREEN_H - GPS_SZ - 3)
 static int   vcols, vrows;           // visible world-tile span this frame (road bounds)
@@ -165,6 +167,7 @@ static int ifloor(float v) { int i = (int)v; return (v < 0 && (float)i != v) ? i
 
 // ── HEIGHTMAP + RIVERS — worldgen's createZoomedinWorld(), verbatim (scalein 1) ─
 static float height_at(float i, float j) {
+    i /= WS; j /= WS;                                   // metre re-base: stretch terrain features ×WS
     float x1 = noise3(i / 100.0f, j / 100.0f, seedZ);   // big continents
     float x2 = noise3(i / 10.0f,  j / 10.0f,  seedZ);   // fine roughness
     float x3 = noise3(i / 30.0f,  j / 30.0f,  seedZ);   // medium hills
@@ -291,13 +294,13 @@ static void catmull(float p0,float p1,float p2,float p3,float t,float *out){
 // each physical link is enumerated exactly once → no double-draw, no seam fight).
 static const int DIR[4][2] = {{1,0},{0,1},{1,1},{1,-1}};
 
-#define LINK_SAMPLES 20             // world-space samples per link (collision-ready)
-#define MAXBEND      26.0f          // furthest a road will detour sideways (tiles)
-#define MAX_BRIDGE   10.0f          // longest WATER span a road will bridge (tiles);
+#define LINK_SAMPLES 40             // world-space samples per link (km-long now → sample denser)
+#define MAXBEND      (26.0f*WS)     // furthest a road will detour sideways (metres)
+#define MAX_BRIDGE   (10.0f*WS)     // longest WATER span a road will bridge (metres);
                                     // wider water = a real barrier (road drops)
-#define VALLEY_D     6.0f           // valley-bias: how far sideways to probe (tiles)
-#define VALLEY_K     40.0f          // ...how strongly height diff pulls the road
-#define VALLEY_MAX   5.0f           // ...capped detour toward lower ground (tiles)
+#define VALLEY_D     (6.0f*WS)      // valley-bias: how far sideways to probe (metres)
+#define VALLEY_K     (40.0f*WS)     // ...how strongly height diff pulls the road
+#define VALLEY_MAX   (5.0f*WS)      // ...capped detour toward lower ground (metres)
 static float lp_x[LINK_SAMPLES + 1], lp_y[LINK_SAMPLES + 1];   // last link_path() result
 static int   lp_br[LINK_SAMPLES + 1];   // per-sample: 1 = this span is a BRIDGE (over water)
 
@@ -641,14 +644,14 @@ static void draw_world(void) {
     if (show_grid) draw_grid_overlay();
     // LOD: zoomed far out, drop the minor-road/town tier — show only the highway
     // skeleton (keeps it legible + the road counts sane across a huge view span).
-    int detail = (zoom >= 0.45f);
+    int detail = (zoom >= 0.0035f);              // metre scale: towns/feeders from the overview up; only highways continental
     draw_highways(0); if (detail) draw_feeders(0);    // casings first...
     draw_highways(1); if (detail) draw_feeders(1);    // ...then centres
     draw_nodes(detail);
 }
 
 void init(void) {
-    zoom = 1.0f; view_metrics();
+    zoom = OVERVIEW_ZOOM; view_metrics();        // open zoomed to the town network (metre scale)
     camX = SPAWN_X - vcols / 2.0f; camY = SPAWN_Y - vrows / 2.0f;
 }
 
@@ -714,13 +717,14 @@ void update(void) {
     if (keyp('R')) { zoom = MAP_ZOOM; view_metrics(); camX = SPAWN_X - vcols / 2.0f; camY = SPAWN_Y - vrows / 2.0f; seedZ += 0.37f; jumpN = 0; car_on = 0; vmode = V_MAP; }
     if (keyp('G')) show_grid = !show_grid;
     if (keyp('H')) show_hud  = !show_hud;
-    if (keyp('M')) { mode = 0; car_on = 0; vmode = V_MAP; }   // re-open the setup panel
+    if (keyp('M')) { mode = 0; car_on = 0; vmode = V_MAP; zoom = OVERVIEW_ZOOM; view_metrics(); }  // setup panel
 }
 
-static void draw_car(void) {                     // fixed-pixel so it's visible at any zoom
+static void draw_car(void) {                     // metre-sized now (1u = 1m)
     int sx = sxp(car_x), sy = syp(car_y);
-    circfill(sx, sy, 3, CLR_RED); circ(sx, sy, 3, CLR_BLACK);     // body
-    line(sx, sy, sx + (int)dx(7, car_ang), sy + (int)dy(7, car_ang), CLR_WHITE);  // heading
+    int r = (int)(0.9f * P); if (r < 2) r = 2;   // ~1.8 m body
+    circfill(sx, sy, r, CLR_RED); circ(sx, sy, r, CLR_BLACK);
+    line(sx, sy, sx + (int)dx(3.0f*P, car_ang), sy + (int)dy(3.0f*P, car_ang), CLR_WHITE);  // ~3 m nose
 }
 // faint world-space reference grid every GRID_M metres — the SCALE device (watch the metres go by)
 static void draw_grid_ref(void) {

@@ -126,8 +126,9 @@ the ramps.*
   3-way junctions (T, Y) also need a **flip** toggle — mirror the third leg to either side, so the
   geometry is verified on both. **Sandbox controls:** `1`/`2` road class · `T` interchange type ·
   topology toggle (cross/T/Y) · flip · `L` lanes · `←→` angle · ramp-shape sliders.
-  Cell status: ✅ Cross+AR×AR (crossroads), ✅ Cross+HW×AR (diamond), 🔶 Cross+HW×HW (stub),
-  🔶 trumpet (draft), ⛔ T+AR×AR (T-intersection), ⛔ Y/wye, ⛔ stack.
+  Cell status: ✅ Cross+AR×AR (crossroads), ✅ Cross+HW×AR (diamond), ✅ T+AR×AR (T-intersection),
+  ✅ T+HW×AR (ramps; trunk starts at the merge), ✅ Y-split/wye (tangent diverge, at-grade),
+  🔶 Cross+HW×HW (stub), 🔶 trumpet (draft), ⛔ stack.
 - **Placement, top-down (parked — it's worldgen-ish)** — towns currently T straight onto highway hubs
   ("driveway onto a freeway"). Fix is *settlement-relationship driven*: tag each town **satellite** (a
   city within region radius → arterial into that city, which holds the interchange) vs **isolated** (no

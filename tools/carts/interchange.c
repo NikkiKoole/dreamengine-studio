@@ -172,13 +172,28 @@ void draw(void) {
 
     // 3. ROAD B / the 3rd leg, drawn OVER A (overpass shadow if grade-separated; at-grade = no shadow)
     int dcol = clsB==C_HIGHWAY ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY;
-    if (wye) {                                           // Y-split: a branch forks off A toward one side
-        float bd = ss > 0 ? 35.0f : -35.0f;              // (fixed fork angle for now; flip mirrors it)
-        float ex = CX + c_deg(bd)*far, ey = CY + s_deg(bd)*far;
-        if (graded) straight(CX,CY, ex,ey, BW+3, -1, CLR_BROWNISH_BLACK);
-        straight(CX,CY, ex,ey, BW, CLR_DARKER_GREY, dcol);
+    if (wye) {                                           // Y-SPLIT: road A forks — a branch peels off.
+        // The branch DIVERGES from the highway: it starts tangent on the road surface, curves out to
+        // the fork angle, then runs straight. A fork is not a crossing, so it stays at-grade (no
+        // overpass) even for HW×AR — and it must never spear the centreline (the old bug). The grass
+        // wedge left between the highway and the branch reads as the gore.
+        float bd  = ss * ang * 0.45f;                    // fork angle on the ss side — shallow (a fork,
+                                                         // not a T); the shared angle slider remapped
+        float fux = c_deg(bd), fuy = s_deg(bd);
+        float ax  = CX - R*goreM*0.5f, ay = CY + ss*(HW*0.4f);   // split point, on the road surface
+        float bx  = CX + fux*R,        by = CY + fuy*R;          // where the curve reaches full fork dir
+        float xs[RN+1], ys[RN+1];
+        ramp_pts(ax,ay,0, bx,by,bd, R*runonM, R*taperM, xs,ys);  // tangent-to-highway → fork direction
+        float ex = CX + fux*far, ey = CY + fuy*far;              // straight continuation out
+        road(xs, ys, RN+1, BW, CLR_DARKER_GREY, dcol);
+        straight(bx,by, ex,ey, BW, CLR_DARKER_GREY, dcol);
     } else {                                             // CROSS (full) or T-SPLIT (stub on ss side)
-        float b0x = tee ? CX : CX - ux*far, b0y = tee ? CY : CY - uy*far;
+        // graded T-split: the trunk BEGINS where the ramps merge into it (cd = HW+R, with a small
+        // overlap so the join is seamless) — it must NOT punch down to the highway centreline. The
+        // at-grade T-intersection (AR×AR) still meets the centreline, where a T should.
+        float n0 = (tee && graded) ? (HW + R - BW) : 0;
+        float b0x = tee ? CX + ss*ux*n0 : CX - ux*far;
+        float b0y = tee ? CY + ss*uy*n0 : CY - uy*far;
         float b1x = CX + (tee?ss:1)*ux*far, b1y = CY + (tee?ss:1)*uy*far;
         if (graded) straight(b0x,b0y, b1x,b1y, BW+3, -1, CLR_BROWNISH_BLACK);
         straight(b0x,b0y, b1x,b1y, BW, CLR_DARKER_GREY, dcol);
@@ -203,8 +218,8 @@ void draw(void) {
     if (show_hud) {
         char buf[56]; const char *cn[2] = { "HW", "AR" };
         rectfill(0,0,SCREEN_W,11,CLR_BLACK);
-        snprintf(buf,sizeof buf,"%s  %sx%s  %s", PNAME[topo], cn[clsA], cn[clsB],
-                 graded ? TNAME[itype] : "at-grade");
+        const char *jname = (topo==TOPO_WYE) ? "WYE (fork)" : (graded ? TNAME[itype] : "at-grade");
+        snprintf(buf,sizeof buf,"%s  %sx%s  %s", PNAME[topo], cn[clsA], cn[clsB], jname);
         print(buf, 4, 2, CLR_LIGHT_GREY);
         print_centered("click toggles \x10 or: 1/2 Y F T L  \x1a\x1b angle  P panel", SCREEN_W/2, SCREEN_H-9, CLR_DARK_GREY);
     }

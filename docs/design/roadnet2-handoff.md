@@ -35,14 +35,15 @@ rung-1..3 baseline (the elegant terrain-aware spline highways), rebuilt upward.
 ## The junction matrix (the part-B map) — full table in roadnet2-plan.md
 TOPOLOGY × CLASS-PAIR, rule = *topology is the shape; a highway present → grade-separated*.
 - ✅ Cross + AR×AR (crossroads), ✅ Cross + HW×AR (**diamond**), ✅ T-split + AR×AR (**T-intersection**),
-  ✅ T-split + HW×AR (stub + ramps).
-- 🔶 first-draft / stub: **cloverleaf**, **Y-split / wye**, **HW×HW stack** (Cross+HW×HW currently
-  just overpass+ramps).
+  ✅ T-split + HW×AR (ramps; trunk now begins AT the ramp merge, no centreline spear),
+  ✅ **Y-split / wye** (a tangent diverge off the highway — at-grade, since a fork isn't a crossing;
+  fork angle = the angle slider remapped shallow).
+- 🔶 first-draft / stub: **cloverleaf**, **HW×HW stack** (Cross+HW×HW currently just overpass+ramps).
 
 ## What's next (recommended order)
 1. **Nail the remaining cells in the sandbox** — the **cloverleaf** (4 clean loop ramps, reusing the
-   diamond's ramp+taper machinery), then **Y-split / wye** (the fork is basic now), then the
-   **stack** (HW×HW system interchange — the showpiece).
+   diamond's ramp+taper machinery), then the **stack** (HW×HW system interchange — the showpiece).
+   (Wye ✅ done — tangent diverge.)
 2. **Bake the slider values → constants, and PORT the drawer into roadnet2.** Interface:
    *given two crossing roads (positions, dirs, classes) + a topology → draw the junction.* Wire it
    to roadnet2's road graph (where roads meet → choose junction from the matrix).

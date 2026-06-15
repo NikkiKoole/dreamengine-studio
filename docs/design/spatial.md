@@ -222,11 +222,20 @@ and all — moves as one object.
 > `instrument_chorus` are the emitters-in-waiting: one part's whole effected signal already
 > lives on its own bus. Note master shimmer is bit-exact-locked (`shimmertest --det` md5
 > `9587acf…`) — it runs master-stage (tank 0), *not* in this loop, so it's independent of v2.
-- **API** mirrors v1, addressing a bus instead of a note handle:
+- **API — prefer the slot-facing form** (decided 2026-06-15): expose
+  `instrument_pos`/`instrument_motion`, **not** raw `bus_pos`/`bus_motion`:
   ```c
-  void bus_pos(int bus, float x, float y);      // place an aux bus (an "emitter") in the world
-  void bus_motion(int bus, float vx, float vy); // emitter velocity → bus Doppler
+  void instrument_pos(int slot, float x, float y);      // place an instrument's bus (emitter) in the world
+  void instrument_motion(int slot, float vx, float vy); // its velocity → bus Doppler
   ```
+  **Why slot-facing:** symmetrical with the whole `instrument_*` family (`instrument_shimmer`/
+  `instrument_reverb`/`instrument_chorus` — all take a slot, resolve to a bus via `fx_bus_for`);
+  carts never touch a bus index, so it's just another `instrument_*` member, no new concept. Make
+  it a thin wrapper over an internal **by-bus** function (`spatial_set_bus(busIdx, …)`) so the
+  plumbing is bus-addressed under the hood. A *public* `bus_pos(bus, …)` waits until there's a way
+  to route *multiple* instruments onto *one* shared emitter bus (the "whole radio mix moves as one
+  object" case) — until then it's just `instrument_pos` with the internal bus index leaked. So:
+  `instrument_pos` now; `bus_pos` when shared-emitter-bus routing exists.
   Same `listener()` / `spatial_model()` / `spatial_speed()` globals drive both
   layers — set once.
 

@@ -407,7 +407,7 @@ static void drive_live(void) {
     for (int s = 0; s < NSRC; s++) {
         if (v[s] < 0) continue;
         note_cutoff(v[s], (int)fcut);
-        note_res(v[s], f_res(res_v));
+        note_res(v[s], res_v * 15.0f);   // smooth live resonance (f_res stays int for instrument_filter)
         note_vol(v[s], vol_of(s));
         if (eng) {                                         // retune engine LFOs live (sine/square/S&H)
             note_lfo(v[s], 0, LFO_PITCH,  rate, (s != 3) ? f_vmod(vmod_v) : 0.0f);

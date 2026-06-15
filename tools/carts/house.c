@@ -294,12 +294,12 @@ static float ride_at(double sp) {
     default:       return 0.50f - 0.42f * t;         // outro: close it down
     }
 }
-static int ride_res(double sp) {                     // resonance climbs the build
+static float ride_res(double sp) {                     // resonance climbs the build
     long bar = (long)(sp / 16.0);
-    if (sp < 0 || sect_of(bar) != S_BUILD) return 2;
+    if (sp < 0 || sect_of(bar) != S_BUILD) return 2.0f;
     long phraseBar = (bar / 8) * 8;
     float t = (float)((sp / 16.0 - (double)phraseBar) / 8.0);
-    return 2 + (int)(t * 7);
+    return 2.0f + t * 7.0f;
 }
 
 // ── the tone knob (T cycles) — scales the ride's reach, live ──────────────
@@ -560,7 +560,7 @@ void update(void) {
         float ride = ride_at(sp) + 0.04f * sinf(timer() * 0.31f);   // perf wobble
         if (ride < 0.10f) ride = 0.10f;
         if (ride > 1.0f)  ride = 1.0f;
-        int res = ride_res(sp);
+        float res = ride_res(sp);
         float tm = 0.7f + 0.3f * RAD_TONEMUL[toneSel];
         curCut = (int)((240.0f + ride * ride * 4800.0f) * tm);
 

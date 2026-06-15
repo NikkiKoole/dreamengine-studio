@@ -773,8 +773,8 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     *engine* change (a `RenderTexture2D` carts can draw into + sample), since the feedback shader
     already fakes ~80% of the intuition on the live canvas.
 
-36. **modrack MACRO exposes only 6 of the engine's 14 macro-engines — blocked by a full slot table**
-    *(new 2026-06-15, investigation)*. The engine ships **14 modeled instruments all on the same
+36. **modrack MACRO exposes only 6 of the engine's 14 macro-engines — DEFERRED until `sound.h` is clean, then bump the slot count**
+    *(new 2026-06-15, investigation + decision)*. The engine ships **14 modeled instruments all on the same
     Mutable-style harmonics/timbre/morph 3-macro interface** (`INSTR_PLUCK/MALLET/FM/ORGAN/EPIANO/PD`
     — the 6 modrack's MACRO `eng` knob already offers — plus **8 not reachable from modrack**:
     `MEMBRANE` (tabla/conga/**bongo**/djembe), `REED` (clarinet/sax), `PIPE` (flute), `VOICE`
@@ -795,15 +795,25 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     - **26–28** — DRUM kick/snare/hat.
     - **29–31** — MACRO engines ORGAN/EPIANO/PD.
 
+    **DECISION (2026-06-15): wait until `sound.h` is clean, then do Option B (bump the slot count).**
+    Option B is the cleaner fix and its only real cost is trivial — it was the hot-file timing, not
+    memory, that made us hesitate. Park the whole expansion until `sound.h` is quiet (and ideally
+    until the per-engine split #32 lands, so we bump the count once, in the right place).
+
     Two paths to the other 8 engines:
-    - **A — reconfigure-on-change (cart-only, unblocked now):** make the six MACRO slots a *pool*;
-      re-init a MACRO's slot to the chosen engine when its `eng` knob changes (set-and-hold — a rare
-      deliberate action). All 14 selectable, ≤6 sounding at once across the patch (generous). Needs a
-      per-engine config table (engine + sustain/release), pool assignment by MACRO-module order,
-      `FMT_ENGINE` grown to 14 labels, `eng` range 0..13. **Recommended.**
+    - **A — reconfigure-on-change (cart-only):** make the six MACRO slots a *pool*; re-init a MACRO's
+      slot to the chosen engine when its `eng` knob changes (set-and-hold — a rare deliberate action).
+      All 14 selectable, ≤6 sounding at once across the patch (generous). Needs a per-engine config
+      table (engine + sustain/release), pool assignment by MACRO-module order, `FMT_ENGINE` grown to
+      14 labels, `eng` range 0..13. Fully unblocked *now* — the fallback if we want it before B.
     - **B — bump `SOUND_INSTR_SLOTS`** (e.g. 32→44) so each engine gets a permanent slot (all 14
-      simultaneous). Cleaner, but a `sound.h` memory-layout change (grows every cart's `.bss`) — and
-      it collides with the per-engine `sound.h` split (#32). Deferred unless A proves too limiting.
+      simultaneous). **The chosen path, deferred until `sound.h` is clean.** The `.bss` cost is
+      negligible: `instr_bank[SOUND_INSTR_SLOTS]` is the *only* slot-sized array and `sizeof(Instrument)
+      ≈ 200 bytes` (a flat ~50-field struct, no buffers), so 32→44 adds **~2.4 KB** (32 slots = 6.4 KB
+      total) — and `.bss` is **0 download** (zero-filled at launch; wasm: a hair more initial memory).
+      No per-cart buffers, no extra voice state. The genuine blockers are timing, not size: it's a
+      `sound.h` edit (hot file — clobber risk while another agent's in there) and it collides with the
+      per-engine `sound.h` split (#32). Both dissolve once `sound.h` is quiet.
 
     Engine macro reference (per-engine meaning of each macro) lives in the `INSTR_*` comments in
     [`runtime/studio.h`](../runtime/studio.h) and [`design/instrument-engines.md`](design/instrument-engines.md).

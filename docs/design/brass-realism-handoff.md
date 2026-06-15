@@ -1,5 +1,8 @@
 # BRASS realism — handoff (2026-06-12; brightness fix landed 2026-06-16)
 
+> Session map for the whole waveguide-engine arc (down-bend + brass + the open tuning thread):
+> [`waveguide-bend-handoff.md`](waveguide-bend-handoff.md).
+
 Working note for whoever picks up the BRASS engine next. The complaint that started this:
 *"my brass synth isn't really sounding very brassy"* — and, after a first fix, *"it's very
 obviously not real brass, whereas the reed section is a lot closer."* That judgment is correct.

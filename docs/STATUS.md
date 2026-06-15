@@ -952,7 +952,9 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       (`note`/`hit`/`tone` vol 0..7) stays int — transients don't perceptibly step. **Worth its own STATUS
       item** given it's justified beyond spatial — the cleanest, lowest-risk audio change on the board.
 
-41. **Waveguide engines can now bend pitch DOWN** *(2026-06-16)* — ✓ **SHIPPED** for **BRASS / REED /
+41. **Waveguide engines can now bend pitch DOWN** *(2026-06-16)* — full orientation +
+    resume steps + measurement workflow: [`design/waveguide-bend-handoff.md`](design/waveguide-bend-handoff.md).
+    ✓ **SHIPPED** for **BRASS / REED /
     PIPE / BOWED** (commits `8dfd12a` brass, `d7e6957` reed/pipe/bowed). The bug: each engine sized its
     delay line exactly at the note-on pitch and clamped the read length to it, so a held note could only
     bend UP — downward `note_glide`/`note_pitch`/pitch-env and the lower half of vibrato all clamped at

@@ -545,6 +545,23 @@ wobble; no `instrument()` ADSR. Volume fades over the last 25%.
 > PWM-square lead family, etc.). The drum machines above (808/909/CR-78/drummachine) are the
 > *machine* sources those station kits echo.
 
+### modrack (modular patcher — presets are module graphs, from modrack.c)
+
+modrack's presets wire `MOD_*` modules (CLOCK/TURING/GRIDS/MARBLES/TIDES/VOICE/MACRO/SAT…)
+into self-running patches, so most are **module wiring, not timbres** and carry no nameable
+voice recipe (see "By cart" below). The two **Raymond Scott homages** are the exception —
+each builds a distinctive voice worth naming. Both run dirty through `MOD_SAT` (`DRIVE_ASYM`
+tube glue, mix 0.8) for the analog character.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| modrack/electronium-voice | VOICE (resonant saw) | cut 480 · res 8 · saw · fenv +900 · free-running TIDES (0.13Hz) → cutoff · over a penta-min TURING melody (rnd 0.35, 12-step) · 104 BPM swing 0.10 | The self-composing-machine lead: a resonant saw whose filter slowly morphs under a free-run TIDES LFO so it never quite repeats. MARBLES adds shaped randomness (dens 0.55 / spread 0.6). |
+| modrack/bandito-bongos | MEMBRANE (MACRO eng 6) | h0.5 t0.6 m0.1 drive0.2 — struck head between tabla/djembe, edge slap, ~flat | "Bandito the Bongo Artist" — *real* struck-membrane bongos (replacing an earlier MALLET stand-in) fired off the GRIDS snare pattern, over a VOICE pluck bass (cut 350 / res 6 / saw / fenv +1000, an octave down via XPOSE). 100 BPM swing 0.12. |
+
+> **Cross-ref:** the patches themselves (and the rest of the 30+ presets, which are pure
+> module wiring) are logged in [`STATUS.md`](../STATUS.md); only these two carry a timbre
+> recipe reusable outside modrack.
+
 ---
 
 ## By cart
@@ -595,7 +612,7 @@ The alternate view — each cart and the recipe names it stocks. Carts with no f
 - **heldnotes.c** → saw/theremin
 - **sh101.c** → no fixed recipes (one unified 4-source mixer instrument; live faders)
 - **moog.c** → no fixed recipes (live patch-building playground; its *signal path* is lifted into carlos's `saw/fat-moog` — see [`instrument-presets.md`](instrument-presets.md))
-- **modrack.c** → no fixed recipes (sequencer/patcher; PRESETS are module wiring, not timbres)
+- **modrack.c** → mostly no fixed recipes (sequencer/patcher; PRESETS are module wiring, not timbres) — except the two Raymond Scott homages `modrack/electronium-voice` · `modrack/bandito-bongos`, which name a reusable voice (see the modrack entry above)
 
 **Whimsical instruments:**
 

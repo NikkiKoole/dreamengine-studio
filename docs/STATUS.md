@@ -858,6 +858,23 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       vintage-germanium fuzz voicing beyond `DRIVE_ASYM`; exposing the Shimmer pitch-shifter as a
       standalone bus effect. Full detail: the roadmap's "Side quests" + "Follow-ups" sections.
 
+39. **Unify LFO shape (it's a patchwork)** *(2026-06-15)* — "LFO shape" = the modulator's waveform
+    (sine/tri/square/saw/ramp/S&H/random/…). Right now it lives in three disconnected places:
+    - the main LFO system (`instrument_lfo`/`note_lfo`, driving `LFO_PITCH`/`CUTOFF`/macro dests) is
+      **sine-only** — no shape param (`sinf(lfo_phase·2π)` in `sound.h`); the one place shape would be
+      most expressive has none.
+    - `tremolo`/`autopan` have an **ad-hoc** `shape` arg (`TREM_SINE`/`SQUARE`/`TRI`) — 3 shapes, only
+      those two effects, behind a tremolo-named enum.
+    - the modulation kit (#item B) already has **more** shapes as internal helpers — `mod_optical`
+      (asymmetric bulb ramp), `mod_randwalk` (filtered random), `mod_sh` (sample-&-hold) — baked into
+      specific effects (univibe = optical), not selectable anywhere.
+    **The fix:** a unified `LFO_SHAPE_*` enum (SINE/TRI/SQUARE/SAW/RAMP/S&H/RANDOM/OPTICAL) accepted by
+    `instrument_lfo`/`note_lfo` (and the future `fx_lfo`, ADR 0018), folding the `TREM_*` shapes into one
+    vocabulary. **Most of the DSP already exists** (`mod_sh`/`mod_randwalk`/`mod_optical`; tri/square/saw
+    are trivial) — it's a small `lfo_shape(phase, shape)` dispatcher + threading a `shape` arg through the
+    LFO generator. Square-on-cutoff = stepped filter; S&H-on-pitch = random-step arp; etc. Touches
+    `sound.h`; natural sibling to the `fx_mod`/`fx_lfo` work in [0018](decisions/0018-effects-keep-params-but-become-modulatable.md).
+
 ---
 
 ## Decided-against / deferred ✗

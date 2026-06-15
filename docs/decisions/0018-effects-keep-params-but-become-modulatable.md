@@ -88,6 +88,10 @@ void instrument_fx_mod(int slot, int target, float value);  // resolve slot → 
 void fx_lfo(int bus, int target, float rate_hz, float depth, float center);   // depth 0 = detach
 ```
 
+> `fx_lfo`'s waveform should come from the unified **`LFO_SHAPE_*`** enum proposed in STATUS #39
+> (sine/tri/square/saw/S&H/random/optical — DSP mostly already in the modulation kit). Same shape
+> vocabulary for `instrument_lfo`/`note_lfo` and `fx_lfo`.
+
 modrack usage (a FILTER module patched from a CV node):
 ```c
 fx_mod(0, FXMOD_FILTER_CUT, cv_value);   // per frame; engine slews → smooth sweep, no stutter

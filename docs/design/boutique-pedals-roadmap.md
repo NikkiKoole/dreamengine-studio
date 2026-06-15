@@ -165,6 +165,12 @@ notes (the recognisable "snap to silence when you stop playing"). The hiss rides
 filtered-noise source; the gate is a small new follower+threshold effect, broadly useful (gated
 reverb, tight drums). Natural sibling to the cab/amp work.
 
+## Follow-ups (small, deferred)
+- **Wire `amp_noise()` into the `pedalboard` cabinet.** Right now it ships + plays only in the standalone
+  `ampnoise` cart — the pedalboard rig has no way to dial in the floor. It's a master-stage effect (not an
+  `FX_*` insert), so it belongs on the **CABINET** (e.g. a NOISE control / gain-tracked off the amp's GAIN),
+  not as a draggable chain pedal. Small cart-side wiring (no engine work). [noted 2026-06-15]
+
 ## Side quests (engineering nits from the lists, not effects)
 - **`fast_tanh` Padé approximation** (B1 tip): if `DRIVE_SOFT`/the soft-clip is ever hot in the
   profiler, swap `tanhf` for the rational approx. Measure first — only worth it if it shows up.

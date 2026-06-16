@@ -2965,6 +2965,14 @@ static void sound_pipe_start(Voice *v) {
     // sharp by up to a semitone. (jetLen0 must mirror the sample-loop jetLen below.)
     int   jetLen0 = 3 + (int)((1.0f - v->mor) * 8.0f);
     float loopDelay = 1.69f + 0.308f * (float)jetLen0;
+    // the jet sub-loop's group delay is under-compensated at long jets (hollow embouchure,
+    // morph ≲ 0.5): the 0.308/sample slope is right up to jetLen ~5, but past it the hollow presets
+    // (pan-pipe/recorder/breathy, jetLen 7–8) ran flat (a ramp to ~-56¢ by G5). Measured: they need
+    // a near-CONSTANT ~+0.8 extra (it SATURATES — jetLen 7 and 8 want the same), so a clamped-linear
+    // ramp from jetLen 5. ZERO at jetLen ≤ 5 keeps the in-tune short-jet voices (flute/piccolo)
+    // byte-identical. (Top-octave mode-flip on hollow voices is separate — needs jet∝bore.)
+    float jetOver = (float)jetLen0 - 5.0f;
+    if (jetOver > 0.0f) { float ex = 0.40f * jetOver; if (ex > 0.80f) ex = 0.80f; loopDelay += ex; }
     float targetBore = (float)SOUND_SAMPLE_RATE / (2.0f * f) - loopDelay;   // exact bore (float)
     if (targetBore < 3.0f) targetBore = 3.0f;
     // Buffer a hair LONGER than the target, then reference an effective init freq so the per-sample

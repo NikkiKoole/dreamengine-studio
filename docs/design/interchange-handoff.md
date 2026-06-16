@@ -5,6 +5,48 @@ and what's next. This is roadnet2's **part-B** (how roads cross/connect a highwa
 picture + the junction matrix live in [`roadnet2-plan.md`](roadnet2-plan.md) and
 [`roadnet2-handoff.md`](roadnet2-handoff.md). Cart: [`tools/carts/interchange.c`](../../tools/carts/interchange.c).
 
+## ⭐ Reference: roads.org.uk/interchanges
+**THE reference for interchange geometry: <https://www.roads.org.uk/interchanges>** — clean,
+colour-coded-by-movement diagrams of every junction type. Far better than tracing fuzzy GIFs.
+**Caveat: it's British → drive-on-LEFT.** The *shapes/topology are identical* to ours; only the
+handedness is mirrored. So: read the British diagram, **mirror left↔right** for our drive-on-right.
+The planned `DRIVE` constant (see below) makes that mirroring a one-place flip, so we can consume
+these diagrams directly without re-deriving chirality by eye.
+
+## Update 2026-06-16 (pass 2): trumpet loop rebuilt + a second loop started
+Worked the trumpet's far-side loops with the owner via annotated screenshots (red = ideal path,
+X = the broken spot — now the standard way to drive this geometry work; see the
+`annotated-screenshots-collab` memory). State at this commit:
+- **`loop_ramp` (OUTER loop, trunk → far carriageway-west) — DONE & good.** Rebuilt from the old
+  tangle into: trunk runs up tall and *becomes* the loop's straight side (**candy-cane**); **tangent
+  entry** off the rightmost lane; **180° bell** over the top on the far side; **reverse-curve exit**
+  (bend one way round, then bend the OTHER way to flatten tangent into the carriageway — no cusp).
+  Widened to the **whole northbound carriageway** so every trunk lane can get on it.
+- **Draw order fixed:** the trumpet ramps now draw AFTER road B, so the loop sits ON TOP of the
+  trunk bridge and reads clearly (was buried under it).
+- **Trunk poke:** for the trumpet the trunk now crosses the highway and pokes past the far edge up
+  to the loop entry (`n0` in `draw()` keyed to the loop reach) — forms the candy-cane straight side.
+- **New "loop end" slider** (`s_loopend` → `Geo.endk`): live-tunes how long the loop exit runs along
+  the carriageway as it merges. 5th slider; matrix shifted down to fit.
+- **`loop_inner` (INNER loop, far carriageway-west → trunk-south) — WIP / first pass.** The second,
+  tighter loop that nests inside the outer so the two read as **one big circular form** (owner's
+  priority). 270° bell, tangent entry off the westbound carriageway, exit down the southbound trunk.
+  Geometry roughed in & nesting not yet dialed — refine next pass against the (mirrored) British ref.
+
+### Next pass (the agreed plan)
+1. **Introduce `DRIVE` (+1 = right, −1 = left)** as the single source of truth for handedness; have
+   the ramp atoms derive "which side is the driving side" from it (a `right_of(dir)` helper). Kills
+   chirality guesswork and lets us mirror British refs in one place.
+2. **Extract reusable patterns** the loop work surfaced — `diverge(road,dir)` (peel off the
+   driving-side outer lane, tangent) and `merge_curve(fromPt,fromDir → road)` (the reverse-curve
+   align-and-merge). Then `loop_ramp`/`loop_inner`/`flyover`/cloverleaf are all compositions of the
+   same vocabulary = the roadnet2 drawer interface.
+3. **Finish the inner-loop nesting** against the mirrored roads.org.uk trumpet diagram.
+4. **Support both far-side variants** — loop+flyover (classic) vs loop+loop (the owner's ref) — as a
+   per-junction choice, same as the matrix already selects configs.
+5. The parked **half-diamond draw-order** fix (near ramps should merge at-grade, not duck under the
+   highway).
+
 ## The big idea this session: junctions = composed ATOMS
 Instead of each junction type being bespoke code, an interchange is now a **composition of reusable
 ramp atoms**, each a small helper reading a shared `Geo` context (so no long param lists):
@@ -82,6 +124,8 @@ loop/flyover geometry is a **first cut**:
    *given two crossing roads + a topology → draw the junction*).
 
 ## Reference images (the trumpet target)
+- **<https://www.roads.org.uk/interchanges> — the gold reference** (clean colour-coded movement
+  diagrams of every junction type; British/drive-on-left → mirror for ours). See the ⭐ section up top.
 - [`refs/trumpet.gif`](refs/trumpet.gif) — single trumpet. Trunk fans into the near carriageway
   (= the half-diamond), loop + semi-direct serve the far carriageway.
 - [`refs/double-trumpet.png`](refs/double-trumpet.png) — two trumpets back-to-back = HW×HW 4-way.

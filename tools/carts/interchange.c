@@ -65,6 +65,7 @@ static float s_reach = 0.33f;   //  R       reach  24..90 px
 static float s_gore  = 0.40f;   //  gore    divergence point along highway, ×R 1.0..2.0
 static float s_taper = 0.46f;   //  kA      off-ramp taper run, ×R 0.5..1.8
 static float s_runon = 0.45f;   //  kB      run-on along the overpass, ×R 0.4..1.4
+static float s_loopend = 0.5f;  //  endk    trumpet LOOP exit: how long the merge runs along the lane
 
 // ── ribbon: stroke a polyline as a clean filled road (centre-line + polyfill quads + joint
 //    circles), the same technique roadnet2 uses. casing = a darker outline drawn first/wider.
@@ -118,12 +119,12 @@ static void draw_ramp(float ax,float ay,float aA, float bx,float by,float aB, fl
 }
 // a teardrop LOOP ramp: a near-full circular arc around (cx,cy) of radius `rad`, `sweep`° from `a0`°.
 // (cloverleaf loops + the trumpet loop are this; ~1-lane ribbon like draw_ramp.)
-static void draw_loop(float cx, float cy, float rad, float a0, float sweep) {
+static void draw_loop(float cx, float cy, float rad, float a0, float sweep, int hw) {
     float xs[40], ys[40]; int n=0, steps=34;
     for (int i=0;i<=steps;i++){ float a=a0+sweep*(float)i/steps;
         xs[n]=cx+c_deg(a)*rad; ys[n]=cy+s_deg(a)*rad; n++; }
-    ribbon(xs, ys, n, 5, CLR_DARKER_GREY);
-    ribbon(xs, ys, n, 3, CLR_DARK_GREY);
+    ribbon(xs, ys, n, hw+2, CLR_DARKER_GREY);
+    ribbon(xs, ys, n, hw,   CLR_DARK_GREY);
 }
 
 // ── junction geometry context — the derived values every ramp ATOM reads, so atoms take no long
@@ -133,8 +134,11 @@ typedef struct {
     float ux, uy;            // trunk/crossing-road unit dir (the `ang` direction)
     int   hw, bw;            // road A half-width (highway), road B half-width (trunk)
     float reach, spread, gore, taper, runon;   // mapped slider values (px / ×reach)
+    float endk;              // trumpet loop-exit tuning (merge run length, ×reach)
     float ang;               // trunk angle (deg)
 } Geo;
+
+static void straight(float ax,float ay,float bx,float by,int hw,int casing,int centre);  // fwd (defined below)
 
 // ATOM — the half-diamond fan: two ramps tying the trunk to ONE carriageway (sy = which side,
 // ±1). Highway-ends sit ±spread along the highway; trunk-ends sit ±gore off the trunk axis (gore
@@ -155,19 +159,63 @@ static void near_pair(const Geo *g, int sy) {
 // move the half-diamond can't do (it reaches the OTHER carriageway). A short tangent stub at the
 // loop's exit kisses the far carriageway instead of just touching it.
 static void loop_ramp(const Geo *g, int ss) {
-    float aux = ss*g->ux, auy = ss*g->uy;             // trunk axis (away from the highway)
-    float ppx = -auy, ppy = aux;                      // along the highway (+pp = the loop's side)
-    float rl  = g->reach*0.55f;
-    float thx = g->cx + aux*(g->hw+6), thy = g->cy + auy*(g->hw+6);   // throat (just off the near edge)
-    float lcx = thx + ppx*rl, lcy = thy + ppy*rl;     // loop centre: +pp of the throat (throat on rim)
-    float a0  = angle_to((int)lcx,(int)lcy,(int)thx,(int)thy);        // start tangent to the trunk
-    float sweep = ss<0 ? 300.f : -300.f;
-    draw_loop(lcx, lcy, rl, a0, sweep);
-    float ae = a0 + sweep;                                            // exit stub: loop end → far carriageway
-    float ex = lcx + c_deg(ae)*rl, ey = lcy + s_deg(ae)*rl;
-    float te = ae + (sweep>0 ? 90.f : -90.f);                         // travel tangent at the loop end
-    float mx = g->cx + ppx*g->spread, my = g->cy - auy*(g->hw - LANE_W*0.5f);   // far carriageway merge (+pp)
-    draw_ramp(ex,ey, te, mx,my, (ppx>0?0.f:180.f), g->reach*0.35f, g->reach*0.35f);
+    float aux = ss*g->ux, auy = ss*g->uy;             // trunk axis toward the approach side
+    float fx = -aux, fy = -auy;                       // toward the FAR side (trunk pokes over to here)
+    float ppx = -auy, ppy = aux;                      // along the highway = the bell's side
+    float rl   = g->reach*0.8f;
+    float moff = g->hw - LANE_W*0.5f;                 // far-carriageway lane offset from the centreline
+    // The loop bends ONE way (over the top, ~180°), then the EXIT REVERSES the bend (the other way) to
+    // flatten out ALONG the horizontal carriageway — a reverse curve that aligns with the road and merges
+    // with no cusp. (A single 270° circle can't do this; that was the cusp.) Entry E sits at the top of
+    // the trunk poke so the trunk forms the loop's straight side; the bell bulges to the +pp side.
+    int   lw = g->bw/2; if (lw<3) lw=3;                     // loop width = the whole NORTHBOUND carriageway,
+                                                            // so every trunk lane can get onto it
+    float cwoff = g->bw*0.5f;                               // entry centred on the northbound (right) carriageway
+    float Ex = g->cx - ppx*cwoff, Ey = g->cy + fy*(moff + rl);  // entry — northbound carriageway, not the centreline
+    float Cx = Ex + ppx*rl,  Cy = Ey + ppy*rl;              // loop centre, rl to the +pp (bell) side
+    float a0 = angle_to((int)Cx,(int)Cy,(int)Ex,(int)Ey);   // start angle (centre → entry)
+    float af = angle_to(0,0,(int)(fx*100),(int)(fy*100));    // far-side bearing — the bell bulges this way
+    float dd = af - a0; while (dd>180) dd-=360; while (dd<-180) dd+=360;
+    float sweep = (dd>0) ? 180.f : -180.f;                  // 180° over the top, bulging to the far side
+    draw_loop(Cx, Cy, rl, a0, sweep, lw);
+    // exit reverse-curve: loop ends heading back toward the highway (aux); bend the OTHER way round to
+    // heading pp (downstream along the far carriageway) and merge onto the lane. `endk` (slider) sets how
+    // long the merge runs along the carriageway.
+    float ae = a0 + sweep;
+    float Wx = Cx + c_deg(ae)*rl, Wy = Cy + s_deg(ae)*rl;   // loop end (the bell-side point)
+    float aAUX = angle_to(0,0,(int)(aux*100),(int)(auy*100)); // heading down toward the highway
+    float aPP  = angle_to(0,0,(int)(ppx*100),(int)(ppy*100)); // heading downstream along the carriageway
+    float Mx = Wx + ppx*rl*g->endk, My = g->cy + fy*(moff - LANE_W*0.5f);  // merge, on the far carriageway lane
+    float xs[RN+1], ys[RN+1];
+    ramp_pts(Wx,Wy, aAUX, Mx,My, aPP, rl*0.45f, rl*0.7f*g->endk, xs,ys);   // reverse curve, width = the loop
+    ribbon(xs,ys, RN+1, lw+2, CLR_DARKER_GREY);
+    ribbon(xs,ys, RN+1, lw,   CLR_DARK_GREY);
+    straight(Mx,My, Mx + ppx*rl*0.6f*g->endk, My + ppy*rl*0.6f*g->endk, lw, CLR_DARKER_GREY, CLR_DARK_GREY);  // run on
+}
+
+// SECOND loop (the "pink" one) — nests INSIDE loop_ramp so the two read as ONE big circular interchange.
+// Tighter radius, tucked toward the trunk, bell bulging to the far side. FIRST PASS: getting the FIT next
+// to the outer loop right (the stated priority) — entry/exit lanes + direction to refine from annotations.
+static void loop_inner(const Geo *g, int ss) {
+    float aux = ss*g->ux, auy = ss*g->uy;             // trunk axis toward the approach side
+    float fx = -aux, fy = -auy;                       // toward the far side
+    float ppx = -auy, ppy = aux;                      // along the highway = the bell's side
+    float ri   = g->reach*0.5f;                       // tighter than the outer loop → nests inside it
+    int   lw = g->bw/2; if (lw<3) lw=3;
+    float moff = g->hw - LANE_W*0.5f;
+    // highway-westbound → trunk-southbound (a left turn → 270° loop, bell to the far side). Entry is
+    // tangent to the carriageway (heading +pp = west); exit is tangent to the trunk's SOUTHBOUND (+pp)
+    // lane (heading aux = down). Centre sits just inside the outer loop's centre → the two read as one.
+    float Cx = g->cx + ppx*(g->bw*0.5f + ri), Cy = g->cy + fy*(moff + ri);   // centre — nests inside the outer
+    float Epx = Cx,           Epy = Cy - fy*ri;               // entry, on the far carriageway
+    float Xpx = Cx - ppx*ri,  Xpy = Cy;                       // exit, on the trunk's southbound lane
+    float a0 = angle_to((int)Cx,(int)Cy,(int)Epx,(int)Epy);
+    float sweep = (ss>0) ? 270.f : -270.f;                    // round the long way, bell to the far side
+    draw_loop(Cx, Cy, ri, a0, sweep, lw);
+    // entry tail along the carriageway (upstream/east, where the westbound car comes from)
+    straight(Epx,Epy, Epx - ppx*ri*0.8f, Epy - ppy*ri*0.8f, lw, CLR_DARKER_GREY, CLR_DARK_GREY);
+    // exit tail down the southbound trunk lane
+    straight(Xpx,Xpy, Xpx + aux*ri*0.8f, Xpy + auy*ri*0.8f, lw, CLR_DARKER_GREY, CLR_DARK_GREY);
 }
 
 // ATOM — the semi-direct FLYOVER: trunk → far carriageway, climbing straight across the highway
@@ -268,7 +316,7 @@ void draw(void) {
     float far = (float)(SCREEN_W + SCREEN_H);
     // atom context — `spread` (highway-end ramp offset) = R·goreM, `gore` (trunk-end offset) = BW·0.35,
     // i.e. the `gore` slider drives the side-spacing as before (the spread/gore split was reverted).
-    Geo g = { CX, CY, ux, uy, HW, BW, R, R*goreM, BW*0.35f, taperM, runonM, ang };
+    Geo g = { CX, CY, ux, uy, HW, BW, R, R*goreM, BW*0.35f, taperM, runonM, 0.4f + s_loopend*1.4f, ang };
 
     // 1. ROAD A (horizontal through road), under everything; highway gets median + lane lines
     straight(0, CY, SCREEN_W, CY, HW+2, CLR_DARKER_GREY, clsA==C_HIGHWAY?CLR_LIGHT_GREY:CLR_MEDIUM_GREY);
@@ -291,14 +339,8 @@ void draw(void) {
             road(lp, lq, n, 5, CLR_DARKER_GREY, CLR_DARK_GREY);
         }
     }
-    // TRUMPET = the half-diamond base (near carriageway) + a teardrop LOOP and a semi-direct FLYOVER
-    // that reach the FAR carriageway. Composed straight from the atoms — exactly "half-diamond plus
-    // the loop on the other side."
-    if (graded && tee && itype == T_TRUMPET) {
-        if (show_near) near_pair(&g, ss);                  // base: trunk ↔ near carriageway
-        if (show_fly)  flyover(&g, ss);                    // semi-direct: trunk → far carriageway
-        if (show_loop) loop_ramp(&g, ss);                  // teardrop loop: the other far movement
-    }
+    // (TRUMPET ramps now drawn AFTER road B — see below — so the loop/fan read on top of the trunk
+    //  bridge instead of being buried under it.)
 
     // 3. ROAD B / the 3rd leg, drawn OVER A (overpass shadow if grade-separated; at-grade = no shadow)
     int dcol = clsB==C_HIGHWAY ? CLR_LIGHT_GREY : CLR_MEDIUM_GREY;
@@ -321,7 +363,9 @@ void draw(void) {
         // graded T-split: the trunk BEGINS where the ramps merge into it (cd = HW+R, with a small
         // overlap so the join is seamless) — it must NOT punch down to the highway centreline. The
         // at-grade T-intersection (AR×AR) still meets the centreline, where a T should.
-        float n0 = (tee && graded) ? (itype==T_TRUMPET ? (HW + 6) : (HW + R - BW)) : 0;
+        // trumpet: the trunk runs up to the LOOP ENTRY so it forms the loop's straight side (candy-cane).
+        // Must match loop_ramp's entry height: moff + rl = (HW - LANE_W/2) + reach·0.8, on the far side.
+        float n0 = (tee && graded) ? (itype==T_TRUMPET ? -((HW - LANE_W*0.5f) + R*0.8f) : (HW + R - BW)) : 0;
         float b0x = tee ? CX + ss*ux*n0 : CX - ux*far;
         float b0y = tee ? CY + ss*uy*n0 : CY - uy*far;
         float b1x = CX + (tee?ss:1)*ux*far, b1y = CY + (tee?ss:1)*uy*far;
@@ -331,12 +375,21 @@ void draw(void) {
         seg_arrows(b0x,b0y, b1x,b1y, clsB==C_HIGHWAY?lanes:1, CLR_YELLOW);
     }
 
+    // TRUMPET ramps — drawn LAST so the loop/fan sit ON TOP of the trunk bridge (legible). Composed
+    // from the atoms: half-diamond base + teardrop LOOP + semi-direct FLYOVER reaching the far carriageway.
+    if (graded && tee && itype == T_TRUMPET) {
+        if (show_near) near_pair(&g, ss);                  // base: trunk ↔ near carriageway
+        if (show_fly)  flyover(&g, ss);                    // semi-direct: trunk → far carriageway
+        if (show_loop) loop_ramp(&g, ss);                  // OUTER loop: trunk → far carriageway (west)
+        if (show_loop) loop_inner(&g, ss);                 // INNER loop: far carriageway (west) → trunk (south)
+    }
+
     {                                                  // live tuning: ramp sliders + the junction matrix
-        const int MBW = 30, BH = 11, MX = 3, MY = 77;  // matrix button width/height/origin
+        const int MBW = 30, BH = 11, MX = 3, MY = 89;  // matrix button width/height/origin (below the sliders)
         const char *tip = NULL;
         int abx = -99, aby = -99;
         font(FONT_SMALL);
-        if (show_panel) { fillp(FILL_CHECKER, -1); rectfill(0, 12, 130, 104, CLR_BLACK); fillp_reset(); }
+        if (show_panel) { fillp(FILL_CHECKER, -1); rectfill(0, 12, 130, 118, CLR_BLACK); fillp_reset(); }
         ui_begin();
         // always-visible toggle (left, in the panel area): hide the panel for a clean screenshot, click to restore
         if (ui_button(3, 14, 28, 10, show_panel ? "UI -" : "UI +")) show_panel = !show_panel;
@@ -348,10 +401,11 @@ void draw(void) {
                 if (ui_button(bx, 14, 30, 10, al[k])) *av[k] = !*av[k];
                 if (*av[k]) rect(bx-1, 13, 32, 12, CLR_GREEN);
             }
-            ui_slider(&s_reach, 3, 27, 122, "reach");
-            ui_slider(&s_gore,  3, 39, 122, "gore");
-            ui_slider(&s_taper, 3, 51, 122, "taper");
-            ui_slider(&s_runon, 3, 63, 122, "run-on");
+            ui_slider(&s_reach,   3, 27, 122, "reach");
+            ui_slider(&s_gore,    3, 39, 122, "gore");
+            ui_slider(&s_taper,   3, 51, 122, "taper");
+            ui_slider(&s_runon,   3, 63, 122, "run-on");
+            ui_slider(&s_loopend, 3, 75, 122, "loop end");
             // the matrix — EVERY supported junction is one button. Row = topology, columns = that row's
             // variants (ragged). One click sets topology + both classes + ramp-style.
             int col[TOPO_COUNT] = {0};

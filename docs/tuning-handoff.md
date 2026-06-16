@@ -68,10 +68,13 @@ session added it), so "add a fractional read tap" was a no-op. The real causes, 
       end was *too* high — scratchy (>4kHz noise 3.6% vs 0.5% at the sweet spot). Recompressed
       the timbre→pressure map [0.12,0.32]→[0.10,0.26] so even full timbre stays musical; typical
       voices sit in the clean 0.15–0.20 singing zone. Pitch unchanged. Heard via the engine tuner.
-- [ ] **PIPE presets still off.** recorder/breathy/pan-pipe drift flat up high (hollow
-      embouchure, morph ≲ 0.4) — the engine is in tune at morph ≳ 0.5 but these voices
-      aren't. Either re-voice them toward morph ≳ 0.5 or finish the jet∝bore re-voicing that
-      fully closes the morph≈0 top octave (see the morph residual below + audio-notes §18).
+- [x] ~~**PIPE presets still off.**~~ **MOSTLY DONE 2026-06-16 (commit 97a794e).** The jet
+      loop-delay was under-compensated at long jets (hollow embouchure); the recorder/breathy/
+      pan-pipe ran flat to ~−56¢ by G5. Fix: a clamped-linear jet-delay correction past jetLen 5
+      (measured ~+0.8 sample, SATURATING — not the quadratic I first tried), ZERO at jetLen ≤ 5 so
+      flute/piccolo stay byte-identical. **All 5 presets now in tune through A5**; morph-0 extreme
+      improved too (A5 −84¢→−32¢). **Still open:** the morph≈0 / hollow top octave (above ~A5) still
+      mode-flips — that's the jet∝bore re-voicing (residual below), a separate bigger fix.
 
 ## ☐ Open engine residuals (tracked, not urgent — [STATUS #31](STATUS.md))
 - [ ] **PIPE at morph ≲ 0.4** (hollow/low embouchure, e.g. pipe.c's `recorder`/`breathy`

@@ -1758,9 +1758,18 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    the tap (exact at every frequency, predicted the −17¢→0¢ result precisely). Verified by
    `tune-check.js`: all three in tune at representative macros, macro-0 worst cases improved, SINE
    control 0.0¢, dc-check 0. **Lesson (reinforces #3): sweep DENSELY — the A-only sweep's "smooth
-   flat ramp" hid an erratic sharp quantization that pointed at the wrong fix.** Two follow-ups left
-   (tuning-handoff.md → NEXT): BOWED wants more default bow pressure; PIPE's hollow presets still
-   drift (the morph≈0 re-voicing, residual #4 below).
+   flat ramp" hid an erratic sharp quantization that pointed at the wrong fix.**
+
+8. **PIPE hollow presets + BOWED pressure — both addressed (2026-06-16).** *PIPE* (commit 97a794e):
+   the jet loop-delay `1.69 + 0.308·jetLen` under-compensated at long jets (hollow embouchure,
+   morph ≲ 0.5), so recorder/breathy/pan-pipe ran flat (ramp to ~−56¢ by G5). Measured the needed
+   extra and it **SATURATES** (~+0.8 sample at jetLen 7 *and* 8 — not a growing quadratic, which
+   overshot jetLen 8 sharp on the first try) → a clamped-linear correction past jetLen 5, zero at
+   jetLen ≤ 5 (flute/piccolo byte-identical). All 5 presets in tune through A5; morph-0 extreme
+   improved (A5 −84¢→−32¢). *Still open:* the morph≈0 / hollow **top octave** (above ~A5) mode-flips
+   — the jet∝bore re-voicing (residual #4), a separate fix. *BOWED* (commit d90f2a3): bow-pressure
+   range recompressed [0.12,0.32]→[0.10,0.26] — the bright end bowed scratchy (>4kHz noise 3.6% vs
+   0.5% at the sweet spot); pitch unchanged.
 
 ## 19. BRASS character — partly addressed (2026-06-14; brightness shipped 2026-06-16)
 

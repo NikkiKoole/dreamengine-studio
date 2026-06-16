@@ -699,11 +699,15 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       across the whole embouchure range. **Now in tune within ~±3¢ from C4 up to ~E6 at typical
       embouchure** (verified at morph 0.70, the showcase recipe; robust across seeds). First
       customer: `air.c`'s Cherry flute register reopened 67–83 → 64–86.
-    - **Residual (minor): the extreme morph≈0 default voice (longest jet, ~11 samples) is
-      seed-unstable at the top** — at a ~20-sample bore the jet ≈ the bore, so the oscillator sits
-      on the overblow edge and the top octave can flip mode (the `tune-check.js` default sweep, which
-      tests overblow/morph 0, still flags PIPE A5). Any real recipe uses morph ≳ 0.3 (shorter jet),
-      where it's stable. Fully closing the morph-0 corner needs a jet-length re-voicing (jet ∝ bore).
+    - **Hollow presets (recorder/breathy/pan-pipe) — FIXED through A5, 2026-06-16 (commit 97a794e).**
+      The jet loop-delay `1.69+0.308·jetLen` under-compensated at long jets (morph ≲ 0.5) → flat to
+      ~−56¢ by G5. Added a clamped-linear jet-delay correction past jetLen 5 (measured need
+      SATURATES at ~+0.8 sample), zero at jetLen ≤ 5 so flute/piccolo are byte-identical. All 5
+      presets in tune through A5; morph-0 extreme improved (A5 −84¢→−32¢). audio-notes §18 #8.
+    - **Residual (minor): the morph≈0 / hollow TOP OCTAVE (above ~A5) still mode-flips** — at a
+      ~20-sample bore the jet ≈ the bore, so the oscillator sits on the overblow edge and flips mode
+      (the `tune-check.js` default sweep, morph 0, still flags PIPE A5 — now −32¢, was −84¢). Any
+      real recipe stays ≤ A5 here. Fully closing it needs a jet-length re-voicing (jet ∝ bore).
     - ~~**`INSTR_PLUCK` / `INSTR_REED` / `INSTR_BRASS` — flatten at the top** (A5 −17 to −25¢).~~
       **FIXED 2026-06-16 (commit e458af1).** The "integer-sample delay-length quantization, fix =
       fractional read tap" diagnosis was **wrong** — the reads already interpolate. Real fix:

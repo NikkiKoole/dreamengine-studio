@@ -37,6 +37,26 @@ smell: it's a recipe. (`jungle` = `scatter` cranked dense + palm/fern art; `wast
 sparse dead shrubs + grey palette; `beachfront` = sand + `scatter(palms)` + a selector rule
 "adjacent to water". All existing verbs.)
 
+### The kinds at a glance — what's an atom, and what's "the rest"
+
+The vocabulary grew past three. Here's the **complete set of kinds** and, crucially, **which are atoms
+and which aren't** — the thing to be unambiguous about. Only the first two rows are atoms; everything
+else is a field, a param, a pass, or plumbing:
+
+| kind | one-liner | atom? | examples |
+|---|---|---|---|
+| **atom** (fill verb) | pure `fill(region, hash, params) → geometry`; *how* you fill | ✅ **the atom** | `scatter` `rows` `footprint` `pave` `border` `stamp`; `ribbon`/`line` `contour`/`cliff` (flow verbs) |
+| **process atom** | an atom that *simulates a force* (iterative, **bounded**, fixed-step, deterministic) | ✅ a *kind of* atom | `erode` `crack` `flow` `spread` |
+| **partition generator** | produces/splits **bounded regions** (+ holes) for atoms to fill | ⚙️ plumbing, not a fill | `subdivide` `blob` `carve` `plat` |
+| **field (infra)** | a read-only **surface** every atom reads; not a tab | ❌ | `relief` `cover` `density` `zone` `fertility` `taint` |
+| **modifier** | reads *already-placed* state and **transforms** it (pipeline phase 5) | ❌ a pass | `age` `collapse` `overgrow` `dress` |
+| **composition** | a bounded **mini-driver** recursing into atoms | ~ atom-shaped | `cluster` `square` `quay` `conurbation` |
+| **flavor / recipe** | **params** for an atom — what to place, how dense; *never* a new atom | ❌ | woodland/desert/jungle (scatter), house/shop/tower (footprint), `massing` `grove` `relic` `ring` `pool` `hedgerow` |
+| **biome** | a **noun** — a value of the fields, realised as a recipe | ❌ | forest, desert, jungle, wasteland, beachfront |
+
+The litmus test, in one line: **if it has its own `fill(region,seed)` it's an atom; if it's a surface
+others read it's a field; if it's params it's a flavor; if it reads placed output it's a modifier.**
+
 ### Flavors — one atom, many parameter sets
 
 A recipe is realised as a **flavor**: the atom's *params*, not a copy of the atom. You never have
@@ -130,6 +150,55 @@ output of earlier phases in fixed order. **Phase 5 is the new concept** and the 
 addition — it's what turns a tidy map into a lived-in, weathered one. (Everything built so far is phase
 4 only.) The new *categories* this reveals: **flow verbs** (meander/line/cliff), **partition generators**
 (blob/carve), **composition** (cluster), **modifiers** (age), **infra** (relief).
+
+## The wilds — process atoms, fertility/taint, and ruins
+
+The land *outside* cities and roads adds the **third kind of atom** (the first new kind since
+modifiers): a **process atom** generates form by *simulating a force* rather than stamping a shape —
+erosion, cracking, viscous flow, creeping growth. They're iterative (CA / downhill-flow /
+reaction-diffusion) yet deterministic: pure-fn-of-`(region, seed, input-field)` run for a **fixed** step
+count. This is what makes a wasteland read as *weathered* instead of *designed*.
+
+> **The seam rule for process atoms (the one real wrinkle): bounded only.** An iterative sim is *grown*
+> — exactly what the open/streamed regime forbids. So `erode`/`flow` over the **open global relief** is
+> illegal (you can't iteratively rewrite an infinite shared field seam-free). A process atom **fills a
+> bounded region by simulating *within* it**, iterating on its own *local* buffer, reading only phases
+> strictly earlier than its own — never the world mid-build. Want erosion everywhere? That's a one-time
+> **bake** into the relief field, not a streamed atom. "process" is a *capability*, not a phase slot:
+> `erode`/`crack`/`flow` act early (on terrain), `spread`/`overgrow` act late (on placed features).
+
+Two new **fields** carry the whole wilds spectrum (same payoff as `density` for cities — a dial, not a
+generator):
+
+- **`fertility`** — the vitality surface. lush ↔ scrub ↔ dead-waste is just *where you sit on it*;
+  makers read it for both *density and health* (stunted, sparse, sickly in the troughs). You don't
+  build a "wasteland generator" — you dig a trough in `fertility`.
+- **`taint`** — an uncanny **overlay** that *warps the content/params* of makers you already have:
+  a normal `grove` read through `taint` becomes petrified / bioluminescent / fungal / blighted. Weird
+  nature for near-zero cost — pure reuse, no dedicated "weird" atom.
+
+New **modifiers**, and why ruins need them:
+
+- **`collapse`** — partially destroys a `footprint`: removes walls, exposes foundation, spills rubble.
+  Genuinely new because **`age` weathers surfaces but can't invent *absence*** — a ruin is a structure
+  with pieces *missing*, and only a modifier reading the *original massing* knows what's gone.
+- **`overgrow`** — a `spread` aimed at *built* features: ivy-choked walls, roots buckling pavement,
+  fields reclaimed by scrub.
+
+> **Ruins = `footprint → collapse → overgrow`, in that order** — the cleanest proof of why the ordered
+> pipeline matters. `collapse` reads intact massing to decide removals; `overgrow` reads the *wreckage*
+> to creep growth into the gaps. Neither works without phases, and `era`-zoning makes a fresh ruin in
+> one ring and a fully-reclaimed one in another from the same atoms.
+
+Reclassified (not new atoms): **`grove`** = a clustered-`scatter` flavor / small `cluster`;
+**`hedgerow`** = `border` over a partition's shared edges (the "network" is free from adjacency — `rows`
+already emits it); **`relic`** (lone chimney, rotting fence, old well) = a `stamp`/`scatter` flavor,
+hinted by a faded `density`.
+
+**Buildable now — the wilds are lotfill's home turf.** Unlike the city set (mostly upstream), almost all
+of this needs *no* roadnet/worldgen: `fertility`/`taint` are local fbm fields; `collapse`/`overgrow`
+read `footprint` (exists); `grove`/`relic` are flavors; bounded `erode`/`spread` need nothing upstream.
+The ruin pair is the highest-value first build — fully local, and it proves phase 5 end-to-end.
 
 ## Connectivity: read seams, not generation
 

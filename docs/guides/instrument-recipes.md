@@ -458,14 +458,15 @@ The harp is the only explicit `instrument()`; the 6 drum rows use `hit()` conven
 | drum/clap | NOISE | D60ms · pitch 64 | Noise handclap. |
 | drum/bass | SQUARE | D110ms · pitch 36+root | Square bass following the selected chord root. |
 
-### fingerdrums (whimsical — play-by-hand kit, two views, from fingerdrums.c)
+### fingerdrums (whimsical — play-by-hand kit, FIVE kits, from fingerdrums.c)
 
-Two kits, one per view (TAB switches). The ACOUSTIC kit is raw-wave + one modeled
-`INSTR_MEMBRANE` voice (the toms — see `membrane/tom-kit` above). The MPC-PADS kit is
-808-style and mostly reuses the **tr808** recipes above (boom kick, sine+noise snare,
-retrigger clap, square cowbell) — the only divergence is its hats, which are a simpler
-NOISE-highpass tick rather than tr808's 3-oscillator square bank. Fired via `schedule_hit`
-so each voice picks its own gate length; velocity (1..7) comes from vertical hit position.
+Five kits cycled with TAB, each a matched look + sound. A shared 12-slot pool is
+re-voiced per kit on switch; voices fire via `schedule_hit` (each role gets its own gate)
+and velocity (1..7) comes from vertical hit position. The two ACOUSTIC-style kits share a
+perspective layout, the two DIGITAL kits share a pad grid, PIKUNIKU has its own canvas.
+
+**ACOUSTIC** — raw-wave + one modeled `INSTR_MEMBRANE` voice (the toms, `membrane/tom-kit`
+above):
 
 | name | engine | recipe | character |
 |---|---|---|---|
@@ -476,6 +477,32 @@ so each voice picks its own gate length; velocity (1..7) comes from vertical hit
 | acoustic/hat-open | NOISE | A0 D60 S2 R220 · HP8200/2 | Sustain>0 so it washes; killed by a closed-hat hit. |
 | acoustic/crash | NOISE | A0 D220 S0 R600 · HP5000/1 | Long bright noise wash — the crash cymbal. |
 | acoustic/ride | NOISE | A0 D90 S0 R300 · BP7000/3 | Bandpassed noise ping — a ride bell, shorter than the crash. |
+
+**MPC PADS** — 808-style; reuses the **tr808** recipes above (boom kick, sine+noise snare,
+retrigger clap, square cowbell). The only divergence is its hats/cymbals, a simpler
+NOISE-highpass tick rather than tr808's 3-oscillator square bank.
+
+**PIKUNIKU** — bouncy toy/chiptune voices (genuinely new):
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| piku/boop-kick | SINE | A0 D190 S0 R70 · LP600/1 · pitch-env →+10 (0/70) | Soft round low "boop" — a cushioned, bouncy kick. |
+| piku/bop-snare | TRI | A0 D80 S0 R50 · LP2200/2 · pitch-env →+8 (0/30) | A pitched triangle "bop" — single-layer toy snare. |
+| piku/tik-hat | NOISE | A0 D28 S0 R18 · HP7000/1 | A tiny soft tick. |
+| piku/boop-tom | TRI | A0 D170 S0 R90 · LP2600/1 · pitch-env →+4 (0/55) | Melodic bouncy boops, played at pitches so you can plink a tune. |
+| piku/pop | NOISE | A0 D80 S0 R50 · BP1500/4 | A soft round "pop" clap. |
+| piku/ding-sparkle | MALLET | h0.92 t0.6 m0.42 · ring~400ms | An `INSTR_MALLET` glockenspiel chime — the cute melodic accent. |
+
+Master FX: a gentle `chorus(1.3, 0.25, 0.22)` for playful width.
+
+**MAC DEMARCO** (acoustic) — the perspective kit voiced soft & dead (towel kick LP150,
+mellow snare, dark HP6500 hats, warm `membrane/tom-kit` at +0.06 semitone detune), then the
+whole mix through the woze: `tape(0.45, 0.30, 0.45)` + `chorus(0.8, 0.35, 0.30)` — the
+bedroom-tape wow/flutter/warble that IS the sound.
+
+**MAC - TAPE** (digital) — a lo-fi drum-machine version (warm pitched-down SINE kick, soft
+synth snare/clap, gentle hats, pitched SINE toms), same woze plus cassette grit:
+`tape(0.50, 0.35, 0.50)` + `chorus(0.9, 0.40, 0.35)` + `crush(7.5, 0.6, 0.35)`.
 
 ### mariopaint (whimsical — 6 melodic voice stamps, from mariopaint.c)
 

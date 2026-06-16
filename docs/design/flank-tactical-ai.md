@@ -62,8 +62,9 @@ firing stance, or camper suppression). Glyph = type (`R`/`C`/`F`), colour = stat
 - ☐ **More archetypes** — melee dasher (dog), shotgunner, sniper (laser telegraph), shielded heavy, grenadier, leader/officer
 - ☐ **Morale / panic** — squad breaks when decimated / leader dies; surrender/retreat
 - ☐ **Coordinated search** — fan out to sweep rooms instead of converging on one cell
+- ☐ **Player squad** — you control one operative, 1–2 AI teammates support. Same brain, target flipped (a friendly = an enemy that targets enemies + anchors on you); the one new structure is a `team` field. See "Player squad (the direction)" below.
 - ✓ **Peacetime → combat posture** — the room starts unaware. Global `combat` flag (0 peacetime / 1 combat time), a **one-way latch** on top of per-enemy `alert`. In peacetime, senses are dialled down (`peace = 0.5` multiplies the `see`/`heard` ranges) and everyone patrols. Three triggers flip the whole squad via `go_combat(tx,ty)` — which jumps every enemy's alert floor to 45 (snap to searching) and points them at the trigger: **(1)** a loud gunshot (both player fire paths), **(2)** a confirmed sighting that sticks (the existing alert≥70 "contact!" branch), **(3)** a comrade's **corpse found** (a living enemy within 30px LOS of an `E_DOWN` body — so leaving bodies on patrol routes is risky). Once in combat, an alert floor of 30 holds the squad at least searching. Player-facing: a `! ALARM !` flash + the existing "contact!" callout on the flip; the HUD status word reads `hidden` (peacetime stealth, green) → `ALERT` (combat, lost you, orange) → `SPOTTED` (they see you, red); corpses draw as slumped bodies. The knife stays **silent** (no `go_combat`), so the opening is a real stealth phase — and reaction time means a startled patroller you *do* trip gives the full ~½s window. Trace: `watch("combat")`; verified peacetime holds idle (400f) and a gunshot latches it (frame 35). **The starting posture is a *scenario* property, not a difficulty slider** — see the scenario layer below.
-- ☐ **Evidence discovery** — spotting a corpse raises the alarm (a primary trigger for the peacetime→combat flip above)
+- ✓ **Evidence discovery** — spotting a comrade's corpse raises the alarm (built as a peacetime→combat trigger above: living enemy within 30px LOS of an `E_DOWN` body)
 - ☐ **Reinforcements / alarm** — an alerted enemy triggers more
 
 > Explicit "backpedal/kite" was **declined** — it already emerges from range-keeping.
@@ -128,6 +129,42 @@ params row. That keeps it one engine, not twelve scripts — which is the whole 
 **Build path** (when wanted): (1) a **weapon abstraction** (gun / melee / grenade /
 sniper-shot) since several scenarios need melee, then (2) a **scenario preset** layer on
 top of the difficulty panel. Both are small because the engine's already doing the thinking.
+
+## Player squad (the direction)
+
+Right now it's *you* vs a squad. The next big lever is giving the **player a squad**: you
+control one operative directly, 1–2 AI teammates support. The payoff is that it's **the same
+brain we already built, pointed the other way** — a friendly teammate is an enemy unit with its
+*target flipped*. The whole engage scorer (cover-seeking, range-holding, flanking the danger
+cone, suppression, spread-from-squadmates) and the flow-field approach run unchanged; just make
+the target *the nearest enemy* instead of the player, and the anchor *the player* instead of a
+last-known cell. "Your guys lay down fire and flank while you push" then **emerges from code that
+already exists** — and it doubles as the best showcase of the brain (you watch the flanking/
+suppression from the friendly side).
+
+**The one new structure: teams.** Generalize player-vs-enemies into a `team` field on a unified
+unit; target selection = nearest *other-team* unit; the player is simply the one unit you
+input-drive. The AI transfers wholesale — the rest is plumbing + a leash/command layer.
+
+**Reuses, as-is:**
+- **engage scorer** → teammates fight smart (cover, flank, hold range), no new AI
+- **flow field** → teammates regroup / approach around cover
+- **comms blackboard** → shared sightings = the squad's known-map
+- **weapon × persona** → a shotgun point-man, a marksman on overwatch, a green recruit vs a veteran
+- **peacetime / stealth** → a teammate's gunshot flips `go_combat` too, so **hold-fire matters**
+  (an undisciplined teammate blows your stealth opening)
+
+**MVP (smallest first):** teammates auto-engage what they see, **leash** to the player (stay
+within a radius, spread, take nearby cover), regroup when no contact; one **hold / advance**
+toggle (hold implies hold-fire for stealth).
+
+**Open forks (decide when building):**
+- **Command depth** — pure-autonomous + leash ↔ light orders (hold here / focus that / move-to a marker).
+- **Stealth discipline** — teammates hold fire until *you* engage? (probably yes.)
+- **Down / revive vs permadeath · friendly fire on/off · squad size (1–2).**
+
+Ties into **morale** (a squad that loses a man wavers) and is the natural home for the **persona**
+seam (your teammates get personalities too). Biggest lift is the teams refactor; the tactics are free.
 
 ## Tuning knobs
 - **Difficulty (live)** — the `O` panel; `recompute_difficulty()` maps the `sl_*` sliders to

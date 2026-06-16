@@ -1033,12 +1033,14 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       the same one-pole idiom (flanger −0.046→−0.002). So **all three feedback combs (phaser/echo/
       flanger) are now DC-blocked.** Verified: compile-gate + tripwire + dc/level/fx all green,
       build-all 390/390.
-    - **The web/wasm audio path is verified only by ear.** Every gate above runs the NATIVE build.
-      69 carts are "engine-stale" on the web (audio predates a `sound.h` change), but the deeper gap:
-      nothing checks whether the emscripten/AudioWorklet build emits the *same samples* as native
-      (SR, worklet buffering, float determinism). A tuning/level fix verified native could be wrong on
-      web and no tool would know. ([`audio-timing.md`](design/audio-timing.md) covers the *timing* side,
-      not sample parity.)
+    - **The web/wasm audio path is verified only by ear — SCOPED, not built.** Every gate above runs the
+      NATIVE build; nothing checks the emscripten/AudioWorklet build emits the *same samples*. Scoping +
+      phasing in [`design/web-audio-parity.md`](design/web-audio-parity.md). **Key finding from scoping:
+      the web `AudioContext` sample rate is set NOWHERE in our shells/stub** — it inherits the browser
+      default (commonly 48000) while the synth hardcodes 44100, so unless something resamples, web audio
+      may play **~+147 cents sharp**. *Phase 0 (read the live `AudioContext.sampleRate`, hours) is the
+      cheapest highest-leverage next step — it may be a shipped web-wide pitch bug.* Then a Phase 1
+      offline emcc-render byte-diff vs native `--wav` (the codegen/float-determinism gate, ~½ day).
     - ✅ **Set-and-hold footgun — now lintable: SHIPPED `tools/lint-fx-frame.js`.** Static check (no
       render) that flags an UNCONDITIONAL per-frame call to a buffer-rebuilding effect
       (`crush`/`tape`/`eq`/`chorus`/`reverb`/`flanger`/`phaser`/…) in `update()`/`draw()` — the silent-

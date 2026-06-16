@@ -1892,11 +1892,13 @@ up with the §18 note that "whatever is off about BOWED, it is not pitch" — pa
    This is the lesson of stacking: a bug that hides as a wobble in isolation can settle into DC when an
    effect runs into another's input. Untested still: stacking on the per-instrument aux buses (only
    master bus 0 is swept).
-2. **The web/wasm audio path is verified only by ear.** Every gate above runs the NATIVE build.
-   69 carts are "engine-stale" on the web, but the deeper gap is that nothing checks whether the
-   emscripten / AudioWorklet build emits the SAME SAMPLES as native (sample rate, worklet buffering,
-   float determinism). A fix verified native could be wrong on web with no signal. `audio-timing.md`
-   covers the timing ("drunk playback") side, not sample-level parity.
+2. **The web/wasm audio path is verified only by ear — SCOPED (not built).** Full scoping + phasing:
+   [`web-audio-parity.md`](web-audio-parity.md). Three axes of divergence (codegen/float determinism;
+   sample-rate & block-size; real browser runtime). **Scoping surfaced the likely-biggest issue: the web
+   `AudioContext` SR is set nowhere — it inherits the browser default (often 48000) while the synth is
+   hardcoded 44100**, so web audio may be ~+147¢ sharp unless something resamples. Phase 0 = read the
+   live SR (hours, possibly a shipped pitch bug); Phase 1 = an offline emcc render byte-diffed against
+   native `--wav` (the codegen-determinism gate, ~½ day). `audio-timing.md` covers timing, not samples.
 3. **Set-and-hold footgun — SHIPPED `tools/lint-fx-frame.js`.** The set-and-hold rule
    ([effects-recipes.md](../guides/effects-recipes.md) intro) was documented but unenforced. Now a
    static lint flags an unconditional per-frame call to a buffer-rebuilding effect in

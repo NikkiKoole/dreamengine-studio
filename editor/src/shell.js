@@ -631,8 +631,8 @@ const CART_KIND_ORDER  = ['tutorial', 'game', 'tech-demo', 'instrument', 'toy', 
 const CART_GENRE_ORDER = ['arcade', 'shooter', 'platformer', 'fighting', 'puzzle', 'racing',
                           'sports', 'strategy', 'rpg', 'adventure', 'simulation', 'sandbox', 'tabletop']
 let cartFilter = null   // null = all; else { axis: 'kind'|'genre', value } — flat single-select
-let cartSort = localStorage.getItem('cartSort') || 'featured'   // 'featured' (index.json order) | 'title' | 'newest' | 'oldest'
-let cartDates = null        // { file: ISO-date } from /carts/dates.json, fetched once
+let cartSort = localStorage.getItem('cartSort') || 'featured'   // 'featured' (index.json order) | 'title' | 'newest' | 'oldest' | 'updated'
+let cartDates = null        // { file: { added, updated } } ISO dates from /carts/dates.json (git), fetched once
 
 async function buildTutorialsPanel() {
   const body = tutorialsPanel.querySelector('#tutorials-body')
@@ -651,10 +651,10 @@ async function buildTutorialsPanel() {
     return
   }
 
-  // cart add-dates (git history, served by vite) — fetched once, powers Newest/Oldest sort
-  if (cartDates == null) {
-    try { cartDates = await (await fetch('/carts/dates.json')).json() } catch { cartDates = {} }
-  }
+  // cart dates (git history, served by vite) — re-fetched each panel open so a freshly
+  // committed rebake shows up without restarting; powers Newest/Oldest + Recently-updated.
+  // keep the last good map so a transient fetch failure doesn't blank the dates.
+  try { cartDates = await (await fetch('/carts/dates.json')).json() } catch { cartDates = cartDates || {} }
 
   const search = document.createElement('input')
   search.id = 'tutorials-search'
@@ -664,12 +664,13 @@ async function buildTutorialsPanel() {
   search.autocomplete = 'off'
   body.appendChild(search)
 
-  // ── sort control: curated order, title, or git add-date ──
+  // ── sort control: curated order, title, or git date (added / last-updated) ──
   const sortSel = document.createElement('select')
   sortSel.className = 'tutorials-sort'
   sortSel.title = 'sort carts'
   for (const [value, label] of [
-    ['featured', 'featured'], ['title', 'title A–Z'], ['newest', 'newest'], ['oldest', 'oldest'],
+    ['featured', 'featured'], ['title', 'title A–Z'], ['updated', 'recently updated'],
+    ['newest', 'newest'], ['oldest', 'oldest'],
   ]) {
     const opt = document.createElement('option')
     opt.value = value; opt.textContent = label
@@ -764,16 +765,18 @@ async function buildTutorialsPanel() {
     card.addEventListener('click', () => { setCartName(title); currentCartFile = String(file).replace(/\.cart\.png$/i, ''); loadCartFromUrl(url) })
 
     grid.appendChild(card)
+    const d = (cartDates && cartDates[file]) || {}
     return { card, titleEl, descEl, idx, title: title || '', desc: description || '',
              name: String(file).replace(/\.cart\.png$/i, ''), kind: kind || [], genre: genre || null,
-             date: (cartDates && cartDates[file]) || '' }
+             added: d.added || '', updated: d.updated || d.added || '' }
   })
 
   // sort comparators for the no-search branch ('featured' keeps index.json order)
   function sortPool(pool) {
     if (cartSort === 'title') return pool.slice().sort((a, b) => a.title.localeCompare(b.title))
-    if (cartSort === 'newest') return pool.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-    if (cartSort === 'oldest') return pool.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    if (cartSort === 'newest') return pool.slice().sort((a, b) => (b.added || '').localeCompare(a.added || ''))
+    if (cartSort === 'oldest') return pool.slice().sort((a, b) => (a.added || '').localeCompare(b.added || ''))
+    if (cartSort === 'updated') return pool.slice().sort((a, b) => (b.updated || '').localeCompare(a.updated || ''))
     return pool   // featured
   }
 

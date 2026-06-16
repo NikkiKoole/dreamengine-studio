@@ -9,25 +9,37 @@ const DOCS = path.resolve(here, '../docs')       // repo docs/ lives one level u
 const RUNTIME = path.resolve(here, '../runtime') // engine sources, for the read-only viewer
 const REPO = path.resolve(here, '..')            // repo root, for git queries
 
-// Map each cart .cart.png to the commit date it was first added (git --diff-filter=A).
-// Powers the carts tab "Newest/Oldest" sort. Cached for the dev-server lifetime
-// (cheap to recompute on restart; new carts during a session need a restart to date).
-let cartDatesCache = null
-function cartAddedDates() {
-  if (cartDatesCache) return cartDatesCache
-  const dates = {}
-  try {
-    const out = execFileSync('git', [
-      'log', '--diff-filter=A', '--format=C%cI', '--name-only', '--', 'editor/public/carts/',
-    ], { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
-    let cur = null
-    for (const line of out.split('\n')) {
-      if (/^C\d{4}-/.test(line)) { cur = line.slice(1); continue }
-      const m = line.match(/([^/\s]+\.cart\.png)$/)
-      if (m && cur && !dates[m[1]]) dates[m[1]] = cur   // log is newest-first; keep most recent A event
-    }
-  } catch {}
+// Map each cart .cart.png to two git-history dates: when it was first ADDED
+// (--diff-filter=A) and when it was last touched (most recent commit, = a rebake).
+// Powers the carts tab "Newest/Oldest" (added) and "Recently updated" sorts. All
+// derived from git, so nothing is stored in index.json — no shared-file contention
+// when several agents rebake carts in parallel. Cached with a short TTL (the two
+// git-log scans cost ~300ms total): live enough that a freshly-committed rebake
+// shows up on the next carts-tab open, without re-shelling on every request.
+let cartDatesCache = null, cartDatesAt = 0
+const CART_DATES_TTL_MS = 3000
+function cartDates() {
+  if (cartDatesCache && Date.now() - cartDatesAt < CART_DATES_TTL_MS) return cartDatesCache
+  const dates = {}   // file -> { added, updated } (ISO commit dates)
+  const scan = (args, field) => {
+    try {
+      const out = execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+      let cur = null
+      for (const line of out.split('\n')) {
+        if (/^C\d{4}-/.test(line)) { cur = line.slice(1); continue }
+        const m = line.match(/([^/\s]+\.cart\.png)$/)
+        if (!m || !cur) continue
+        const f = m[1]
+        if (!dates[f]) dates[f] = {}
+        if (!dates[f][field]) dates[f][field] = cur   // log is newest-first; keep the first (= most recent) hit
+      }
+    } catch {}
+  }
+  // added: first time each .cart.png entered the tree; updated: most recent commit touching it
+  scan(['log', '--diff-filter=A', '--format=C%cI', '--name-only', '--', 'editor/public/carts/'], 'added')
+  scan(['log', '--format=C%cI', '--name-only', '--', 'editor/public/carts/'], 'updated')
   cartDatesCache = dates
+  cartDatesAt = Date.now()
   return dates
 }
 
@@ -60,7 +72,7 @@ function serveDocs() {
 
         if (url === '/carts/dates.json') {
           res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify(cartAddedDates()))
+          res.end(JSON.stringify(cartDates()))
           return
         }
 

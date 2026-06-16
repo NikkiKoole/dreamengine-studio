@@ -28,7 +28,9 @@ yet — it's all sandboxes + design docs, all committed.
    **before** the research, so it's on Béziers + hand-placed ports.
 5. **`roadlab.c`** — the **foundation**, rebuilt on the research: lane-accurate roads (drive-on-right
    via `DRIVE`), ports anchored to real lanes, ramps as **arc-splines**. **Supersedes `rampkit`**
-   (which stays as the bezier proof). M1 (arc-spline) + **M2 (clothoid joints)** done; M3 (nesting) ahead.
+   (which stays as the bezier proof). M1 (arc-spline) + **M2 (clothoid joints)** + **M3 (multi-lane via
+   lateral offsets)** all done — and M3 *empirically confirmed arcs nest for free*, which likely retires
+   the rampkit relaxation solver for the common case (see "How to continue").
 
 ## What we're solving
 - **The concrete goal:** roadnet2 must draw ~12 junction types × topologies × angles × lane-counts
@@ -84,8 +86,22 @@ Investigated OpenDRIVE, clothoids, SUMO/CommonRoad, Cities: Skylines, curve offs
   `Ts=(R+p)·tan(Δ/2)+k`, then the real curve is integrated forward. Reduces exactly to `arc_spline` as
   Ls→0. `C` toggles it for A/B; `,`/`.` set the transition length Ls. Verified by A/B bake (the clothoid
   path sweeps wider + eases in/out; both close cleanly at the ports, no run-out kink).
-- **`roadlab` M3 — nesting** (port `rampkit`'s relaxation onto `roadlab`'s arcs; concentric arcs nest
-  for free). **This is now the next step.**
+- **`roadlab` M3 — multi-lane + nesting** ✅ **DONE, and it changed the plan.** Lanes are **lateral
+  offsets of the one reference line** (OpenDRIVE's "same s, shifted in t", refs §1/§5): `offset_poly()`
+  shifts each sample ⊥ to the local tangent; `draw_multilane()` strokes casing + asphalt + white interior
+  dividers; `1`–`4` set lane count. **Key finding:** on arc ref-lines the offset lanes are concentric, so
+  their gap is *constant by construction* — they **nest for free, no solver** (verified by a 4-lane bake:
+  dividers stay parallel through the bend, no inner-edge pinch). Multi-lane lanes and nesting *separate*
+  ramps are the **same operation** (concentric offsets at a spacing).
+- **⇒ The `rampkit` relaxation solver is likely unnecessary** for the common case (cloverleaf loops,
+  parallel lanes) — arcs dissolve the problem it was built (on Béziers) to solve. **Don't port it
+  reflexively.** Reach for relaxation *only* if we hit a case arcs can't close-form: dense packing in a
+  bounded footprint (a tight stack), or competing clearance from several neighbours. Until then, `rampkit`
+  stays parked as the bezier-era proof.
+- **Next on `roadlab`: lane add/drop tapers** — a lane peeling off at a diverge / merging in (OpenDRIVE's
+  lane-*width* cubic that tapers a lane to zero). M3 gives *parallel* lanes; this is the genuinely harder
+  bit, and it's what makes a diverge look real. The other open shape is the **ring/circulate primitive**
+  for the British roundabout family (see `interchange-dsl.md` — out of the ramp grammar).
 - **Then** `roadlab` becomes the drawer that `interchange.c` / roadnet2 call (bake constants, port in).
 - **Parked:** `interchange.c` task — the **half-diamond draw-order** (near ramps should merge at-grade,
   not duck under the highway); the **inner-loop nesting** in `interchange.c`; the **loop+loop vs

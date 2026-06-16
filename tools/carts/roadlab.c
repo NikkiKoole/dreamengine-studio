@@ -1,5 +1,6 @@
 #include "studio.h"
 #include <stdio.h>
+#include <math.h>
 
 // roadlab — the FOUNDATION cart for the interchange geometry DSL, built on the research findings
 // (docs/design/road-geometry-refs.md): LANE-ACCURATE roads (drive-on-right via DRIVE) + ports anchored
@@ -9,8 +10,11 @@
 //   MILESTONE 1: roads w/ lanes+arrows, ports on lanes, one arc-spline ramp between two ports.
 //   MILESTONE 2: clothoid joints (LINE→CLOTHOID→ARC→CLOTHOID→LINE) — κ ramps 0→1/R→0 so steering is
 //                continuous (G2); the §2 forward-integration loop, no Fresnel. C toggles it for A/B.
-//   ←/→ port A   ↑/↓ port B   [ / ] arc radius   ,/. clothoid length   C clothoid on/off
-// Next: M3 nesting (port rampkit's relaxation onto concentric arcs; arcs nest for free).
+//   MILESTONE 3: MULTI-LANE ramps via lateral offsets of the one reference line (OpenDRIVE s/t shift).
+//                Lanes = concentric offset polylines ⇒ constant gap ⇒ they NEST FOR FREE on arc ref-lines
+//                — the empirical test of "do arcs nest without a solver?" (answer: yes). 1-4 set lanes.
+//   ←/→ port A   ↑/↓ port B   [ / ] arc radius   ,/. clothoid length   C clothoid   1-4 lane count
+// Next: lane add/drop tapers (a lane peeling off at a diverge — OpenDRIVE width cubic); then port into roadnet2.
 
 #define DRIVE  1     // +1 = drive on the right — the single source of truth for handedness
 #define LANEW  7     // one lane width (px)
@@ -18,20 +22,39 @@
 static float ux(float d){ return cos_deg(d); }
 static float uy(float d){ return sin_deg(d); }
 
-// stroke a polyline as a road ribbon (casing + centre) via polyfill quads + joint discs
-static void ribbon(const float *xs,const float *ys,int n,int hw,int cas,int cen){
-    for (int pass=0; pass<2; pass++){
-        if (pass==0 && cas<0) continue;
-        int w=(pass==0)?hw+1:hw, col=(pass==0)?cas:cen;
-        for (int i=0;i<n-1;i++){
-            float a=angle_to((int)xs[i],(int)ys[i],(int)xs[i+1],(int)ys[i+1]);
-            float px=ux(a+90)*w, py=uy(a+90)*w;
-            int xy[8]={ (int)(xs[i]-px),(int)(ys[i]-py),(int)(xs[i]+px),(int)(ys[i]+py),
-                        (int)(xs[i+1]+px),(int)(ys[i+1]+py),(int)(xs[i+1]-px),(int)(ys[i+1]-py) };
-            polyfill(xy,4,col); circfill((int)xs[i],(int)ys[i],w,col);
-        }
-        circfill((int)xs[n-1],(int)ys[n-1],w,col);
+// ── LANES = lateral offsets of ONE reference line (OpenDRIVE's "same s, shifted in t", §1/§5). We never
+//    offset per-curve; we shift each sample ⊥ to the local tangent. On ARC ref-lines the offsets are
+//    concentric arcs ⇒ constant gap ⇒ they NEST for free (the whole reason we chose arcs over Béziers). ──
+// offset a polyline by d px along the local LEFT normal (averaged tangent; exact gap for dense samples)
+static void offset_poly(const float *xs,const float *ys,int n,float d,float *ox,float *oy){
+    for (int i=0;i<n;i++){
+        float ax,ay;
+        if      (i==0)   { ax=xs[1]-xs[0];       ay=ys[1]-ys[0]; }
+        else if (i==n-1) { ax=xs[n-1]-xs[n-2];   ay=ys[n-1]-ys[n-2]; }
+        else             { ax=xs[i+1]-xs[i-1];   ay=ys[i+1]-ys[i-1]; }   // averaged tangent at the vertex
+        float L=sqrtf(ax*ax+ay*ay); if(L<0.001f)L=1;
+        float nx=-ay/L, ny=ax/L;                                         // ⊥ (left) unit normal
+        ox[i]=xs[i]+nx*d; oy[i]=ys[i]+ny*d;
     }
+}
+static void fill_strip(const float*lx,const float*ly,const float*rx,const float*ry,int n,int col){
+    for (int i=0;i<n-1;i++){
+        int xy[8]={(int)lx[i],(int)ly[i],(int)rx[i],(int)ry[i],(int)rx[i+1],(int)ry[i+1],(int)lx[i+1],(int)ly[i+1]};
+        polyfill(xy,4,col);
+    }
+}
+static void stroke_poly(const float*xs,const float*ys,int n,int col){
+    for (int i=0;i<n-1;i++) line((int)xs[i],(int)ys[i],(int)xs[i+1],(int)ys[i+1],col);
+}
+// draw an nl-lane ramp from a reference centreline: casing + asphalt fill + white interior dividers.
+// The dividers staying parallel at constant gap IS the nesting proof — concentric offsets, no solver.
+static void draw_multilane(const float*xs,const float*ys,int n,int nl){
+    float HW=nl*LANEW*0.5f, lx[128],ly[128],rx[128],ry[128];
+    offset_poly(xs,ys,n,+(HW+1),lx,ly); offset_poly(xs,ys,n,-(HW+1),rx,ry);
+    fill_strip(lx,ly,rx,ry,n,CLR_BROWNISH_BLACK);                         // casing
+    offset_poly(xs,ys,n,+HW,lx,ly);     offset_poly(xs,ys,n,-HW,rx,ry);
+    fill_strip(lx,ly,rx,ry,n,CLR_DARK_GREY);                             // asphalt surface
+    for (int b=1;b<nl;b++){ float off=-HW+b*LANEW; offset_poly(xs,ys,n,off,lx,ly); stroke_poly(lx,ly,n,CLR_WHITE); }
 }
 
 static void arrow(float x,float y,float dir,int col){      // a small travel-direction chevron
@@ -123,7 +146,7 @@ static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *
 }
 
 // ── state ──
-static int selA=2, selB=0; static float radius=22.f, spiral=12.f; static int use_cloth=1;
+static int selA=2, selB=0; static float radius=28.f, spiral=14.f; static int use_cloth=1, nlanes=2;
 
 static void setup(void){
     if (nport) return;
@@ -148,6 +171,7 @@ void update(void){
     if (keyp('.'))       spiral+=2;
     if (spiral<0) spiral=0;
     if (keyp('c')||keyp('C')) use_cloth=!use_cloth;
+    if (keyp('1')) nlanes=1; if (keyp('2')) nlanes=2; if (keyp('3')) nlanes=3; if (keyp('4')) nlanes=4;
 }
 
 void draw(void){
@@ -160,20 +184,20 @@ void draw(void){
     line(0,CY,SCREEN_W,CY,CLR_YELLOW);  line(CX,0,CX,SCREEN_H,CLR_YELLOW);
     for (int x=12;x<SCREEN_W;x+=40){ arrow(x, CY-LANEW/2.0f, 180, CLR_YELLOW); arrow(x, CY+LANEW/2.0f, 0, CLR_YELLOW); }
     for (int y=12;y<SCREEN_H;y+=40){ arrow(CX+LANEW/2.0f, y, 270, CLR_YELLOW); arrow(CX-LANEW/2.0f, y, 90, CLR_YELLOW); }
-    // the ramp between the two selected ports — arc-spline, optionally with clothoid joints (M2)
+    // the ramp between the two selected ports — arc-spline (M1) + clothoid joints (M2), drawn as an
+    // nl-lane ribbon via lateral offsets of the one reference line (M3: lanes/nesting via concentric arcs)
     if (selA!=selB){
         float xs[128],ys[128];
         int n = use_cloth ? clothoid_spline(ports[selA],ports[selB],radius,spiral,xs,ys)
                           : arc_spline(ports[selA],ports[selB],radius,xs,ys);
-        ribbon(xs,ys,n, 4, CLR_BROWNISH_BLACK, CLR_ORANGE);
+        draw_multilane(xs,ys,n,nlanes);
     }
     for (int i=0;i<nport;i++) if (i!=selA&&i!=selB) draw_port(ports[i], CLR_MEDIUM_GREY);
     draw_port(ports[selA], CLR_GREEN);  draw_port(ports[selB], CLR_RED);
     char b[80];
-    snprintf(b,sizeof b,"A:%s -> B:%s   R:%d  %s", ports[selA].name, ports[selB].name, (int)radius,
-             use_cloth ? "[LINE->CLOTHOID->ARC->CLOTHOID->LINE]" : "[LINE->ARC->LINE]");
+    snprintf(b,sizeof b,"A:%s -> B:%s   R:%d   lanes:%d", ports[selA].name, ports[selB].name, (int)radius, nlanes);
     print(b,4,4,CLR_WHITE);
-    if (use_cloth){ snprintf(b,sizeof b,"clothoid Ls:%d  (C off)", (int)spiral); print(b,4,13,CLR_ORANGE); }
-    else print("clothoid OFF  (C on)", 4,13, CLR_MEDIUM_GREY);
-    print("</> portA  ^v portB  [ ] radius  ,/. spiral  C clothoid", 4, SCREEN_H-9, CLR_LIGHT_GREY);
+    if (use_cloth){ snprintf(b,sizeof b,"clothoid Ls:%d  (C off)  [LINE>CLOTH>ARC>CLOTH>LINE]", (int)spiral); print(b,4,13,CLR_ORANGE); }
+    else print("clothoid OFF  (C on)  [LINE>ARC>LINE]", 4,13, CLR_MEDIUM_GREY);
+    print("</> A  ^v B  [ ] radius  ,/. spiral  C clothoid  1-4 lanes", 4, SCREEN_H-9, CLR_LIGHT_GREY);
 }

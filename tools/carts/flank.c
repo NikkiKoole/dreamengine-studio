@@ -61,11 +61,12 @@ static const int ECOL[5] = { CLR_DARK_GREY, CLR_YELLOW, CLR_ORANGE, CLR_RED, CLR
 // enemy types — distinct tactics. range = preferred firing distance; coverW/heatW
 // = how much it values cover / fears your aim cone; strafeW = how much it circles.
 enum { TY_RUSH, TY_CAMP, TY_FLANK, NTY };
-typedef struct { char g; int hp, mag, gap; float range, coverW, heatW, speed, strafeW, spread; } EType;
+// react = base reaction frames: the beat between spotting you and firing (scaled by surprise at runtime).
+typedef struct { char g; int hp, mag, gap; float range, coverW, heatW, speed, strafeW, spread; int react; } EType;
 static const EType TY[NTY] = {
-    { 'R', 26,  6, 22, 26,  0.4f, 2.5f, 1.45f, 0.5f, 24 },   // rusher  — charges in close, sprays, ignores danger
-    { 'C', 34, 10, 34, 96,  3.5f, 7.0f, 0.62f, 0.1f, 12 },   // camper  — holds cover at long range, slow
-    { 'F', 30,  8, 30, 60,  1.3f, 9.0f, 1.15f, 1.5f, 18 },   // flanker — circles to your sides, dodges the cone
+    { 'R', 26,  6, 22, 26,  0.4f, 2.5f, 1.45f, 0.5f, 24, 18 },   // rusher  — charges in close, sprays, ignores danger; reckless, fires soon
+    { 'C', 34, 10, 34, 96,  3.5f, 7.0f, 0.62f, 0.1f, 12, 26 },   // camper  — holds cover at long range, slow; deliberate, lines up the shot
+    { 'F', 30,  8, 30, 60,  1.3f, 9.0f, 1.15f, 1.5f, 18, 20 },   // flanker — circles to your sides, dodges the cone; quick to commit
 };
 
 static unsigned char cell[GH][GW];  // 0 floor · 1 FULL cover (blocks move+LOS+bullets) · 2 LOW cover (blocks move only)
@@ -75,7 +76,7 @@ static float heat[GH][GW];          // danger projected by the player's aim cone
 #define KEY_LSHIFT 340             // raylib left-shift — held to sneak
 #define VIS_R 96                   // player's own vision radius (fog of war)
 typedef struct { float x, y, vx, vy, aim, pinned, bob, ox, oy; int hp, mag, reload, shake, spectate, sneak, calm; } Player;  // pinned 0..1; calm = frames since hit (regen); bob = walk-hop phase, ox/oy = prev pos
-typedef struct { float x, y, aim, lsx, lsy, alert, bob, ox, oy; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy; } Enemy;  // alert 0..100; inv = spot to investigate; bob = walk-hop phase, ox/oy = prev pos
+typedef struct { float x, y, aim, lsx, lsy, alert, bob, ox, oy; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy, react, losgap; } Enemy;  // alert 0..100; inv = spot to investigate; bob = walk-hop phase, ox/oy = prev pos; react = frames left before this enemy fires after spotting you; losgap = frames since it last had a sightline (a real loss re-arms react; brief flicker doesn't)
 typedef struct { float x, y, vx, vy; int alive, foe; } Bullet;
 typedef struct { int x, y, active, cd; } Pack;     // health pickup (px coords)
 typedef struct { float x, y, vx, vy; int life; } Splat;   // blood: sprays along the shot, decelerates, fades & stains
@@ -192,7 +193,7 @@ static void reset(void) {
         int x,y,tr=0; do { x=GW/2+rnd(GW/2-2); y=2+rnd(GH-4); tr++; } while (wcell(x,y) && tr<80);
         int t = i % NTY;                                   // even spread across the 3 types
         en[i] = (Enemy){ .x = x*TILE+4, .y = y*TILE+4, .aim = 180, .hp = TY[t].hp, .alive = 1,
-                         .state = E_PATROL, .mag = TY[t].mag, .type = t,
+                         .state = E_PATROL, .mag = TY[t].mag, .type = t, .losgap = 999,
                          .strafe = rnd(2) ? 1 : -1, .strafeT = rnd(120) };
     }
     for (int i=0;i<NB;i++) bul[i].alive = 0;
@@ -204,7 +205,7 @@ static void reset(void) {
     }
     known = 0; kage = 999; flow_cx = -1; kills = 0; msg_t = 0;
 }
-void init(void) { reverb(0.25f, 0.5f); reset(); }
+void init(void) { reverb(0.25f, 0.5f); reset(); phase = PH_PLAYING; }   // boot straight into the fight (normal preset); the menu/panel only appears on the win/lose end screen, or via R
 
 static void setmsg(const char *s) { snprintf(msg,sizeof msg,"%s",s); msg_t=90; }
 
@@ -234,6 +235,7 @@ static void enemy_update(int i) {
     Enemy *e = &en[i];
     if (!e->alive) return;
     const EType *T = &TY[e->type];
+    float prev_alert = e->alert;          // alertness BEFORE this frame's stimuli — drives reaction surprise
     if (e->shootcd > 0) e->shootcd--;
     if (e->callcd > 0) e->callcd--;
     e->suppressing = 0;
@@ -248,6 +250,16 @@ static void enemy_update(int i) {
     if (see)        { e->alert = 100;                                   e->invx=(int)pl.x; e->invy=(int)pl.y; }   // direct sight = instant alarm
     else if (heard) { e->alert = e->alert<55 ? 55 : (e->alert<100?e->alert+3:100); e->invx=(int)pl.x; e->invy=(int)pl.y; }  // a noise nearby = suspicious, rising
     e->alert -= 0.22f; if (e->alert < 0) e->alert = 0;
+
+    // --- reaction time: a beat between getting a SIGHTLINE on you and opening fire ---
+    // Re-armed on every fresh LOS acquisition (so quick-peek / break-contact works), and
+    // shorter the more alarmed the enemy already was: a startled patroller gives you ~half a
+    // second, a hunter who's been tracking you snaps to the shot. The headline player-skill lever.
+    if (canlos) {
+        if (e->losgap > 10) e->react = (int)(T->react * (0.25f + 0.75f*(1 - prev_alert/100.0f)));  // genuinely fresh sightline → draw a new bead
+        else if (e->react > 0) e->react--;                                                         // kept the bead (brief flicker is forgiven) → count down
+        e->losgap = 0;
+    } else e->losgap++;
 
     if ((see || heard) && e->alert >= 70) {                   // fully alarmed AND fresh contact -> tell the squad
         if (!known && e->callcd <= 0) { play_pan(72, INSTR_REED, 3, panx(e->x), 16); setmsg("enemy: \"contact!\""); e->callcd = 120; }
@@ -265,8 +277,8 @@ static void enemy_update(int i) {
     if (e->state == E_ENGAGE) {
         if (e->type == TY_CAMP && los_px(e->x,e->y,pl.x,pl.y)) {   // SUPPRESSION: anchor + pour inaccurate fire to PIN you
             e->aim = angle_to(e->x, e->y, pl.x, pl.y);
-            e->suppressing = e->mag > 0;
-            if (e->mag > 0 && e->shootcd <= 0) { fire(e->x, e->y, e->aim, 1, 30*d_spread); e->mag--; e->shootcd = (int)(7*d_gap); if (e->mag==0) e->reload = 100; }
+            e->suppressing = e->mag > 0 && e->react <= 0;     // not pinning you until the reaction beat is up
+            if (e->mag > 0 && e->shootcd <= 0 && e->react <= 0) { fire(e->x, e->y, e->aim, 1, 30*d_spread); e->mag--; e->shootcd = (int)(7*d_gap); if (e->mag==0) e->reload = 100; }
             if (e->mag == 0 && --e->reload <= 0) e->mag = T->mag;  // reload = the gap in the pin (your window to move)
             return;
         }
@@ -295,7 +307,7 @@ static void enemy_update(int i) {
         bool safe = heat_at(e->x,e->y) < 0.12f && near_cover(ecx,ecy) && los_px(e->x,e->y,pl.x,pl.y);
         if (!safe) move_enemy(e, bx, by, T->speed);
         e->aim = angle_to(e->x, e->y, pl.x, pl.y);
-        if (los_px(e->x,e->y,pl.x,pl.y) && e->shootcd <= 0 && e->mag > 0) {
+        if (los_px(e->x,e->y,pl.x,pl.y) && e->shootcd <= 0 && e->mag > 0 && e->react <= 0) {
             fire(e->x, e->y, e->aim, 1, T->spread * d_spread); e->mag--; e->shootcd = (int)(T->gap * d_gap);
             if (e->mag == 0) e->reload = 70;
         }
@@ -432,9 +444,9 @@ void update(void) {
     { int a=0; for(int i=0;i<NE;i++) if(en[i].alive) a++; if(a==0){ phase=PH_OVER; won=1; } }
 
 #ifdef DE_TRACE
-    int alive=0,eng=0; for(int i=0;i<NE;i++) if(en[i].alive){alive++; if(en[i].state==E_ENGAGE)eng++;}
+    int alive=0,eng=0,reacting=0; for(int i=0;i<NE;i++) if(en[i].alive){alive++; if(en[i].state==E_ENGAGE){eng++; if(en[i].react>0)reacting++;}}
     watch("hp","%d",pl.hp); watch("alive","%d",alive); watch("engaging","%d",eng);
-    watch("known","%d",known); watch("kills","%d",kills);
+    watch("reacting","%d",reacting); watch("known","%d",known); watch("kills","%d",kills);
 #endif
 }
 
@@ -521,6 +533,8 @@ void draw(void) {
         bool vis = reveal || pl.spectate || (ed <= VIS_R && los_px(pl.x,pl.y,en[i].x,en[i].y));
         if (vis) { int x=(int)en[i].x+sh, y=(int)en[i].y, hop=HOPS[((int)en[i].bob)&3];
             if (en[i].suppressing) circ(x,y-4,5,blink(4)?CLR_RED:CLR_ORANGE);    // muzzle bloom of a suppressor
+            if (en[i].state==E_ENGAGE && en[i].react>0 && blink(4))              // drawing a bead — your window to break LOS / duck behind cover
+                line(x, y-4, (int)(en[i].x+dx(11,en[i].aim))+sh, (y-4)+(int)dy(11,en[i].aim), CLR_ORANGE);
             draw_man(x, y, en[i].aim, ECOL[en[i].state], TYHAT[en[i].type], hop, 0, en[i].type);  // shirt = state, cap+build = type
             if (en[i].state==E_SUSPECT) print("?", x-1, y-13, CLR_YELLOW);                    // investigating
             else if (en[i].state>=E_HUNT && en[i].state<=E_ENGAGE) print("!", x-1, y-13, CLR_RED);  // alarmed

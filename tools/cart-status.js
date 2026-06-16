@@ -19,7 +19,18 @@
 //                       AFTER the last commit that touched its site/ build (git-time compare).
 //                       Fix: re-run publish-cart.sh <name>.
 //
-// Exit code: 0 if nothing pending (or no --quiet), 1 under --quiet when any cart is pending.
+// Plus one ADVISORY note (does NOT gate --quiet/CI — engine edits are frequent, you don't
+// republish on each one):
+//   ENGINE-STALE      — the cart uses an INSTR_ engine AND runtime/sound.h (the synth engine,
+//                       where tuning/voice changes live) got a commit NEWER than the cart's
+//                       site/ build. The cart's .c is unchanged so checks 1–3 stay silent, but
+//                       its PUBLISHED web AUDIO predates the engine change → it sounds outdated
+//                       online. Coarse by design (flags every INSTR_ cart when sound.h moves,
+//                       even if the specific voice it uses didn't change — over-reporting is
+//                       safe here). Fix: republish it, or do a site-wide rebuild (build-site.js).
+//
+// Exit code: 0 if nothing pending (or no --quiet), 1 under --quiet when any cart is pending
+// (checks 1–3 only; ENGINE-STALE is advisory and never sets the exit code).
 
 const fs = require("fs");
 const path = require("path");
@@ -61,7 +72,7 @@ function gitTimeMap() {
   let out;
   try {
     out = execSync(
-      "git log --pretty=format:'C%ct' --name-only -- tools/carts editor/public/carts site",
+      "git log --pretty=format:'C%ct' --name-only -- tools/carts editor/public/carts site runtime",
       { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }
     );
   } catch (e) { return map; } // not a git repo / no history → skip stale check
@@ -82,10 +93,19 @@ function siteTime(timeMap, name) {
   return t;
 }
 
-const needRebake = [], notPublished = [], stalePublished = [], noEmbed = [], orphanSite = [];
+const needRebake = [], notPublished = [], stalePublished = [], noEmbed = [], orphanSite = [], engineStale = [];
 
 const pngs = fs.readdirSync(CARTS_DIR).filter(f => f.endsWith(".cart.png")).sort();
 const timeMap = gitTimeMap();
+
+// the synth engine: newest commit touching any of these = the "engine version" a cart's
+// published audio is measured against (sound.h is where the INSTR_ voices + tuning live).
+const ENGINE_FILES = ["runtime/sound.h"];
+const engineT = ENGINE_FILES.reduce((m, f) => Math.max(m, timeMap.get(f) || 0), 0);
+// the MODELED voices (ids 16–29) carry the synth/tuning work in sound.h; raw oscillators
+// (SQUARE/SAW/TRI/NOISE/SINE, ids 0–4) are sfx blips, so a cart using only those isn't an
+// "instrument" for republish purposes.
+const INSTRUMENT_RE = /INSTR_(PLUCK|MALLET|FM|ORGAN|EPIANO|PD|MEMBRANE|REED|VOICE|PIPE|GUITAR|PIANO|BOWED|BRASS)/;
 
 for (const png of pngs) {
   const name = png.replace(".cart.png", "");
@@ -93,11 +113,13 @@ for (const png of pngs) {
   const hasSrc = fs.existsSync(srcPath);
   const published = fs.existsSync(path.join(SITE_DIR, name));
 
+  const srcText = hasSrc ? fs.readFileSync(srcPath, "utf8") : null;
+
   // 1. rebake check (only meaningful when there's a .c to compare against)
   if (hasSrc) {
     const emb = embeddedSource(path.join(CARTS_DIR, png));
     if (emb === null) noEmbed.push(name);
-    else if (emb.trim() !== fs.readFileSync(srcPath, "utf8").trim()) needRebake.push(name);
+    else if (emb.trim() !== srcText.trim()) needRebake.push(name);
   }
 
   // 2. publish check
@@ -111,6 +133,14 @@ for (const png of pngs) {
   );
   const siteT = siteTime(timeMap, name);
   if (srcT > 0 && siteT > 0 && srcT > siteT) stalePublished.push(name);
+
+  // 4. engine-stale (advisory): an INSTRUMENT cart whose site build predates the latest sound.h
+  // commit → its published audio is older than the engine. Skip if already stale-published
+  // (a republish fixes both). Scoped to the MODELED engines (ids 16–29) — the raw oscillators
+  // (SQUARE/SAW/TRI/SINE/NOISE) are games' sfx blips, not instruments, and don't carry the
+  // voice/tuning work that lands in sound.h.
+  else if (engineT > 0 && siteT > 0 && engineT > siteT && srcText && INSTRUMENT_RE.test(srcText))
+    engineStale.push(name);
 }
 
 // site dirs with no matching .cart.png (a removed/renamed cart left behind)
@@ -122,7 +152,7 @@ if (fs.existsSync(SITE_DIR)) {
 }
 
 if (JSON_OUT) {
-  console.log(JSON.stringify({ needRebake, notPublished, stalePublished, noEmbed, orphanSite }, null, 2));
+  console.log(JSON.stringify({ needRebake, notPublished, stalePublished, engineStale, noEmbed, orphanSite }, null, 2));
   process.exit(0);
 }
 
@@ -135,13 +165,18 @@ if (!QUIET || notPublished.length)
   console.log(`\nNOT PUBLISHED — no site/<name>/ build  (${notPublished.length})\n${list(notPublished)}`);
 if (!QUIET || stalePublished.length)
   console.log(`\nSTALE PUBLISHED — source changed after the site build  (${stalePublished.length})\n${list(stalePublished)}`);
+if (engineStale.length) {
+  const shown = engineStale.slice(0, 12);
+  const more = engineStale.length - shown.length;
+  console.log(`\nENGINE-STALE (advisory) — instrument cart published before the latest runtime/sound.h commit  (${engineStale.length})\n${list(shown)}${more > 0 ? `\n  …and ${more} more (--json for the full list)` : ""}\n  → republish individually, or site-wide: node tools/build-site.js`);
+}
 if (noEmbed.length)
   console.log(`\nNOTE — .cart.png with no de:source chunk  (${noEmbed.length})\n${list(noEmbed)}`);
 if (orphanSite.length)
   console.log(`\nNOTE — site/<name>/ with no matching cart (renamed/removed?)  (${orphanSite.length})\n${list(orphanSite)}`);
 
 if (!QUIET) {
-  console.log(`\n${pngs.length} carts · ${needRebake.length} need rebake · ${notPublished.length} unpublished · ${stalePublished.length} stale-published`);
+  console.log(`\n${pngs.length} carts · ${needRebake.length} need rebake · ${notPublished.length} unpublished · ${stalePublished.length} stale-published · ${engineStale.length} engine-stale`);
   if (pending === 0) console.log("all carts baked and published — nothing pending.");
 }
 process.exit(QUIET && pending ? 1 : 0);

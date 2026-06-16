@@ -196,7 +196,10 @@ eventually2/
 │   ├── cart-status.js  #   what's out of date: thumbnails whose EMBEDDED de:source !=
 │   │                   #   tools/carts/<name>.c (need rebake), carts with no site/<name>/
 │   │                   #   (need publish), + stale-published (source newer than the site
-│   │                   #   build, git-time). --quiet exits 1 if anything pending; --json
+│   │                   #   build, git-time), + ENGINE-STALE (advisory: an instrument cart
+│   │                   #   published BEFORE the latest runtime/sound.h commit → its web
+│   │                   #   audio predates an engine/tuning change; doesn't gate --quiet).
+│   │                   #   --quiet exits 1 if anything pending; --json
 │   ├── build-all.js    #   COMPILE-CHECK every cart against the current studio.h
 │   │                   #   (clang -fsyntax-only, -I runtime + -DDE_TRACE, parallel; ~5s).
 │   │                   #   Catches cart-vs-API ROT nothing else does: a cart var named

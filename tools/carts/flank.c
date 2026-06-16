@@ -32,11 +32,13 @@
 #define NE 8                        // array size / max squad
 #define NB 96
 #define NPK 3                       // health packs
+#define ND 8                        // ammo drops (one per fallen enemy, reused)
+#define MAG_CAP 12                  // player magazine size
 
 // ---- difficulty (live via the panel; sliders are 0..1, mapped to these) ----
-static float sl_count=0.66f, sl_dmg=0.30f, sl_rate=0.50f, sl_acc=0.50f, sl_sight=0.45f, sl_supp=0.50f, sl_heal=0.5f;
+static float sl_count=0.66f, sl_dmg=0.30f, sl_rate=0.50f, sl_acc=0.50f, sl_sight=0.45f, sl_supp=0.50f, sl_heal=0.5f, sl_ammo=0.5f;
 static float d_dmg, d_gap, d_spread, d_sight, d_supp, d_regen, d_packs;   // derived each frame
-static int   ecount = 6, show_panel;
+static int   ecount = 6, show_panel, d_unlimited;   // d_unlimited: easy ammo tier → magazine never runs dry
 // game flow: a slim menu (presets + start) bookends the fight; the full slider
 // panel is the "tweak" sub-screen (also reachable mid-fight via O).
 enum { PH_START, PH_PLAYING, PH_OVER };
@@ -49,11 +51,12 @@ static void recompute_difficulty(void) {
     d_supp   = sl_supp * 1.6f;           // suppression strength: 0 .. 1.6
     d_packs  = sl_heal >= 0.33f ? 1 : 0; // healing tiers: none (<.33, hard) / packs (.33-.66, normal) / packs+regen (>.66, easy)
     d_regen  = sl_heal >= 0.66f ? 1 : 0;
+    d_unlimited = sl_ammo >= 0.66f ? 1 : 0;   // ammo tiers: scarce (<.33, hard) / reserve+drops (.33-.66) / unlimited (>.66, easy)
 }
 static void set_preset(int p) {          // 0 easy · 1 normal · 2 hard — LETHALITY only (count is the scenario's job)
-    if      (p==0) { sl_dmg=.10f; sl_rate=.20f; sl_acc=.12f; sl_sight=.18f; sl_supp=.30f; sl_heal=1.0f; }
-    else if (p==1) { sl_dmg=.30f; sl_rate=.50f; sl_acc=.50f; sl_sight=.45f; sl_supp=.50f; sl_heal=0.5f; }
-    else           { sl_dmg=.60f; sl_rate=.85f; sl_acc=.90f; sl_sight=.85f; sl_supp=1.0f; sl_heal=0.0f; }
+    if      (p==0) { sl_dmg=.10f; sl_rate=.20f; sl_acc=.12f; sl_sight=.18f; sl_supp=.30f; sl_heal=1.0f; sl_ammo=1.0f; }
+    else if (p==1) { sl_dmg=.30f; sl_rate=.50f; sl_acc=.50f; sl_sight=.45f; sl_supp=.50f; sl_heal=0.5f; sl_ammo=0.5f; }
+    else           { sl_dmg=.60f; sl_rate=.85f; sl_acc=.90f; sl_sight=.85f; sl_supp=1.0f; sl_heal=0.0f; sl_ammo=0.15f; }
     cur_preset = p;
 }
 // ---- scenarios: WHAT KIND of fight (orthogonal to difficulty's HOW HARD) ----
@@ -94,17 +97,19 @@ static float heat[GH][GW];          // danger projected by the player's aim cone
 
 #define KEY_LSHIFT 340             // raylib left-shift — held to sneak
 #define VIS_R 96                   // player's own vision radius (fog of war)
-typedef struct { float x, y, vx, vy, aim, pinned, bob, ox, oy; int hp, mag, reload, shake, spectate, sneak, calm; } Player;  // pinned 0..1; calm = frames since hit (regen); bob = walk-hop phase, ox/oy = prev pos
+typedef struct { float x, y, vx, vy, aim, pinned, bob, ox, oy; int hp, mag, reload, reserve, shake, spectate, sneak, calm; } Player;  // pinned 0..1; calm = frames since hit (regen); bob = walk-hop phase, ox/oy = prev pos; reserve = spare rounds (reload pulls from here; 0+empty mag = knife only)
 typedef struct { float x, y, aim, lsx, lsy, alert, bob, ox, oy; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy, react, losgap; } Enemy;  // alert 0..100; inv = spot to investigate; bob = walk-hop phase, ox/oy = prev pos; react = frames left before this enemy fires after spotting you; losgap = frames since it last had a sightline (a real loss re-arms react; brief flicker doesn't)
 typedef struct { float x, y, vx, vy; int alive, foe; } Bullet;
 typedef struct { int x, y, active, cd; } Pack;     // health pickup (px coords)
 typedef struct { float x, y, vx, vy; int life; } Splat;   // blood: sprays along the shot, decelerates, fades & stains
+typedef struct { float x, y; int amt, alive, life; } Drop; // ammo a fallen enemy dropped — walk over to add to your reserve
 #define NSP 60
 static Player pl;
 static Enemy en[NE];
 static Bullet bul[NB];
 static Pack pack[NPK];
 static Splat splat[NSP];
+static Drop drops[ND];
 // spray n blood specks from (x,y) along a hit direction (dx,dy), with scatter
 static void spawn_blood(float x, float y, float dx, float dy, int n) {
     float m = sqrtf(dx*dx+dy*dy); if (m<0.01f) m=1; dx/=m; dy/=m;
@@ -114,6 +119,12 @@ static void spawn_blood(float x, float y, float dx, float dy, int n) {
         splat[i] = (Splat){ x, y, (dx+jx)*sp, (dy+jy)*sp, 26 + rnd(22) };
         break;
     }
+}
+// a fallen enemy drops their leftover rounds (caught full = a fat resupply; caught mid-reload = little).
+// Skipped when ammo is unlimited (easy) — nothing to scavenge.
+static void spawn_drop(float x, float y, int amt) {
+    if (d_unlimited || amt <= 0) return;
+    for (int k=0;k<ND;k++) if (!drops[k].alive) { drops[k] = (Drop){ x, y, amt, 1, 480 }; return; }
 }
 
 // shared blackboard (the squad's collective knowledge of you)
@@ -210,7 +221,8 @@ static void reset(void) {
     // LOW cover (crates you shoot OVER) scattered in the open midfield
     int lx[]={12,16,22,26,11,21,31,35,15,27,7,34}, ly[]={6,14,4,19,18,10,8,15,8,17,12,4};
     for (int b=0;b<12;b++) if (!cell[ly[b]][lx[b]]) cell[ly[b]][lx[b]] = 2;
-    pl = (Player){ .x = TILE*3, .y = TILE*(GH/2), .hp = 100, .mag = 12, .spectate = pl.spectate };
+    pl = (Player){ .x = TILE*3, .y = TILE*(GH/2), .hp = 100, .mag = MAG_CAP, .spectate = pl.spectate };
+    pl.reserve = sl_ammo >= 0.66f ? 0 : sl_ammo >= 0.33f ? 36 : MAG_CAP;   // unlimited / 3 spare mags / 1 spare mag
     ecount = 2 + (int)(sl_count * 6 + 0.5f);               // 2..8 enemies (the count slider)
     for (int i=0;i<NE;i++) {
         if (i >= ecount) { en[i].alive = 0; continue; }
@@ -222,6 +234,7 @@ static void reset(void) {
     }
     for (int i=0;i<NB;i++) bul[i].alive = 0;
     for (int i=0;i<NSP;i++) splat[i].life = 0;
+    for (int i=0;i<ND;i++) drops[i].alive = 0;
     int packs_on = sl_heal >= 0.33f;                      // no packs on hard
     for (int i=0;i<NPK;i++) {                              // health packs on open floor
         int x,y,tr=0; do { x=4+rnd(GW-8); y=2+rnd(GH-4); tr++; } while (wcell(x,y) && tr<60);
@@ -391,20 +404,30 @@ static void enemy_update(int i) {
 // ---- player ----------------------------------------------------------------
 static void player_update(void) {
     if (pl.spectate) {                                        // autopilot: kite the nearest visible enemy
-        int t=-1; float bd=1e9f;
-        for (int i=0;i<NE;i++) if (en[i].alive && los_px(pl.x,pl.y,en[i].x,en[i].y)) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<bd){bd=d;t=i;} }
-        if (t>=0) { pl.aim = angle_to(pl.x,pl.y,en[t].x,en[t].y);   // visible: kite + fire
-            float perp = pl.aim+90, mx = dx(1.4f,perp)+dx(0.6f,pl.aim+180), my = dy(1.4f,perp)+dy(0.6f,pl.aim+180);
+        // ammo-aware: when running low, break off to scavenge the nearest dropped clip (pickup happens in update())
+        int dr=-1; float dd=1e9f; for (int k=0;k<ND;k++) if (drops[k].alive) { float d=(drops[k].x-pl.x)*(drops[k].x-pl.x)+(drops[k].y-pl.y)*(drops[k].y-pl.y); if (d<dd){dd=d;dr=k;} }
+        bool low = !d_unlimited && (pl.mag + pl.reserve) < 6;
+        if (low && dr>=0) {                                   // go get ammo
+            pl.aim = angle_to(pl.x,pl.y,drops[dr].x,drops[dr].y);
+            float mx=dx(1.5f,pl.aim), my=dy(1.5f,pl.aim);
             if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my;
-            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,260,70); go_combat(pl.x,pl.y); } }
-        else {                                                      // none visible: advance to make contact
-            int n=-1; float nd=1e9f;
-            for (int i=0;i<NE;i++) if (en[i].alive) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<nd){nd=d;n=i;} }
-            if (n>=0) { pl.aim = angle_to(pl.x,pl.y,en[n].x,en[n].y);
-                float mx=dx(1.5f,pl.aim), my=dy(1.5f,pl.aim);
-                if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my; }
+        } else {
+            int t=-1; float bd=1e9f;
+            for (int i=0;i<NE;i++) if (en[i].alive && los_px(pl.x,pl.y,en[i].x,en[i].y)) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<bd){bd=d;t=i;} }
+            if (t>=0) { pl.aim = angle_to(pl.x,pl.y,en[t].x,en[t].y);   // visible: kite + fire
+                float perp = pl.aim+90, mx = dx(1.4f,perp)+dx(0.6f,pl.aim+180), my = dy(1.4f,perp)+dy(0.6f,pl.aim+180);
+                if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my;
+                if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,260,70); go_combat(pl.x,pl.y); } }
+            else {                                                  // none visible: advance to make contact
+                int n=-1; float nd=1e9f;
+                for (int i=0;i<NE;i++) if (en[i].alive) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<nd){nd=d;n=i;} }
+                if (n>=0) { pl.aim = angle_to(pl.x,pl.y,en[n].x,en[n].y);
+                    float mx=dx(1.5f,pl.aim), my=dy(1.5f,pl.aim);
+                    if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my; }
+            }
         }
-        if (pl.mag==0 && --pl.reload<=0) pl.mag=12;
+        if (pl.reload>0) pl.reload--;                         // honour the reserve, same as the player (no more infinite mag)
+        if (pl.mag==0 && pl.reload<=0) { if (d_unlimited) pl.mag=MAG_CAP; else if (pl.reserve>0) { int load=pl.reserve<MAG_CAP?pl.reserve:MAG_CAP; pl.mag=load; pl.reserve-=load; } }
         return;
     }
     pl.sneak = key(KEY_LSHIFT);                               // hold Shift = sneak: slower but quiet + low profile
@@ -422,11 +445,15 @@ static void player_update(void) {
     if (mouse_pressed(1)) {                                                   // QUIET knife — silent close kill (makes NO noise)
         for (int j=0;j<NE;j++) if (en[j].alive) {
             float d = fsqrt((en[j].x-pl.x)*(en[j].x-pl.x)+(en[j].y-pl.y)*(en[j].y-pl.y));
-            if (d < 13) { spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 10); en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4); break; }
+            if (d < 13) { spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 10); spawn_drop(en[j].x, en[j].y, en[j].mag); en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4); break; }
         }
     }
     if (pl.reload>0) pl.reload--;
-    if (pl.mag==0 && pl.reload<=0) pl.mag=12;
+    if (pl.mag==0 && pl.reload<=0) {                          // reload: pull a fresh magazine from reserve
+        if (d_unlimited) pl.mag = MAG_CAP;
+        else if (pl.reserve > 0) { int load = pl.reserve < MAG_CAP ? pl.reserve : MAG_CAP; pl.mag = load; pl.reserve -= load; }
+        // else dry: mag stays 0 → gun is silent, knife only until you scavenge a drop
+    }
 }
 
 void update(void) {
@@ -472,6 +499,15 @@ void update(void) {
     pl.calm++;                                                // EASY only: slow auto-heal out of combat
     if (d_regen > 0.5f && pl.calm > 120 && pl.hp > 0 && pl.hp < 100 && tick%14==0) pl.hp++;
 
+    // ammo drops — walk over a fallen enemy's rounds to top up your reserve (they blink out before expiring)
+    for (int k=0;k<ND;k++) if (drops[k].alive) {
+        if (--drops[k].life <= 0) { drops[k].alive = 0; continue; }
+        if (fabsf(drops[k].x-pl.x) < 7 && fabsf(drops[k].y-pl.y) < 7) {
+            pl.reserve += drops[k].amt; if (pl.reserve > 96) pl.reserve = 96; drops[k].alive = 0;
+            setmsg(str("+%d ammo", drops[k].amt)); play_pan(76, INSTR_MALLET, 3, panx(pl.x), 8);
+        }
+    }
+
     // bullets
     for (int i=0;i<NB;i++) {
         if (!bul[i].alive) continue;
@@ -487,7 +523,7 @@ void update(void) {
             bul[i].alive=0;
             if (low_facing(en[j].x,en[j].y,-bul[i].vx,-bul[i].vy) && rnd(2)==0) { play_pan(56,INSTR_MEMBRANE,2,panx(en[j].x),4); break; }  // covered
             en[j].hp -= 12; spawn_blood(en[j].x, en[j].y, bul[i].vx, bul[i].vy, 5); play_pan(60,INSTR_MEMBRANE,3,panx(en[j].x),5);
-            if (en[j].hp<=0) { spawn_blood(en[j].x, en[j].y, bul[i].vx, bul[i].vy, 12); en[j].alive=0; en[j].state=E_DOWN; kills++; play_pan(40,INSTR_REED,3,panx(en[j].x),18); }
+            if (en[j].hp<=0) { spawn_blood(en[j].x, en[j].y, bul[i].vx, bul[i].vy, 12); spawn_drop(en[j].x, en[j].y, en[j].mag); en[j].alive=0; en[j].state=E_DOWN; kills++; play_pan(40,INSTR_REED,3,panx(en[j].x),18); }
             break;
         }
     }
@@ -509,6 +545,8 @@ void update(void) {
     watch("hp","%d",pl.hp); watch("alive","%d",alive); watch("engaging","%d",eng);
     watch("reacting","%d",reacting); watch("known","%d",known); watch("kills","%d",kills);
     watch("combat","%d",combat); watch("searching","%d",searching);
+    watch("mag","%d",pl.mag); watch("reserve","%d",pl.reserve);
+    { int nd=0; for(int k=0;k<ND;k++) if(drops[k].alive) nd++; watch("drops","%d",nd); }
 #endif
 }
 
@@ -594,6 +632,11 @@ void draw(void) {
         int x=(int)en[i].x+sh, y=(int)en[i].y;
         rectfill(x-3, y, 7, 2, CLR_DARK_PURPLE); rectfill(x-2, y-1, 3, 1, CLR_PEACH);   // body + a pale head
     }
+    // ammo drops — a little clip of rounds (blinks as it nears expiry, so you know to grab it)
+    for (int k=0;k<ND;k++) if (drops[k].alive && (drops[k].life > 90 || blink(4))) {
+        int x=(int)drops[k].x+sh, y=(int)drops[k].y;
+        rectfill(x-2, y-1, 5, 3, CLR_YELLOW); rectfill(x-2, y-1, 5, 1, CLR_LIGHT_PEACH);
+    }
 
     // enemies — FOG OF WAR: draw those you can see; a dim ghost where you last saw the rest
     for (int i=0;i<NE;i++) {
@@ -617,15 +660,18 @@ void draw(void) {
     line(px, py-2-phop, (int)(pl.x+dx(8,pl.aim))+sh, (py-2-phop)+(int)dy(8,pl.aim), CLR_YELLOW);  // your aim line (longer, so "you" reads)
     if (pl.pinned > 0.3f) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print("PINNED", px-11, py-15, blink(6)?CLR_RED:CLR_ORANGE); }
     if (combat && combat_t < 50 && blink(5)) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print_centered("! ALARM !", SCREEN_W/2, 5, CLR_RED); }  // the moment the room goes loud
+    if (!d_unlimited && pl.mag==0 && pl.reserve==0 && pl.hp>0 && !pl.spectate)   // dry → forced knife play
+        print("OUT-KNIFE!", px-18, py-15, blink(8)?CLR_RED:CLR_YELLOW);
 
     // HUD
     rectfill(0,HUD_Y,SCREEN_W,SCREEN_H-HUD_Y,CLR_DARKER_BLUE);
     rect(4,HUD_Y+3,42,6,CLR_DARK_GREY); rectfill(5,HUD_Y+4,40*(pl.hp>0?pl.hp:0)/100,4,pl.hp>30?CLR_GREEN:CLR_RED);
     font(FONT_SMALL);                                                   // compact so the row never collides
     print(str("HP %d", pl.hp>0?pl.hp:0), 50, HUD_Y+3, CLR_WHITE);
-    print(str("ammo %d", pl.mag), 80, HUD_Y+3, pl.mag?CLR_YELLOW:CLR_RED);
-    print(str("down %d/%d", kills, ecount), 120, HUD_Y+3, CLR_ORANGE);
-    if (pl.sneak) print("SNEAK", 162, HUD_Y+3, CLR_INDIGO);
+    if (d_unlimited) print(str("ammo %d", pl.mag), 80, HUD_Y+3, pl.mag?CLR_YELLOW:CLR_RED);
+    else             print(str("ammo %d|%d", pl.mag, pl.reserve), 80, HUD_Y+3, (pl.mag||pl.reserve)?CLR_YELLOW:CLR_RED);
+    print(str("down %d/%d", kills, ecount), 132, HUD_Y+3, CLR_ORANGE);
+    if (pl.sneak) print("SNEAK", 178, HUD_Y+3, CLR_INDIGO);
     print_right(pl.spectate?"SPECTATE":(pl.pinned>0.3f?"PINNED":(!combat?"hidden":(known?"SPOTTED":"ALERT"))), SCREEN_W-4, HUD_Y+3,
                 pl.pinned>0.3f?CLR_RED:(!combat?CLR_GREEN:(known?CLR_RED:CLR_ORANGE)));
     font(FONT_TINY);                                                    // controls line: tiny so it fits in one row
@@ -636,28 +682,29 @@ void draw(void) {
     // ---- difficulty panel (from the menu's "tweak difficulty") — widgets are immediate-mode ui.h ----
     if (show_panel) {
         fillp(FILL_CHECKER, -1); rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK); fillp_reset();   // dim
-        int X=46, Y=8, W=228;
-        rrectfill(X-6, Y-6, W+12, 180, 4, CLR_DARKER_BLUE); rect(X-6, Y-6, W+12, 180, CLR_LIGHT_GREY);
+        int X=46, Y=6, W=228;
+        rrectfill(X-6, 0, W+12, 184, 4, CLR_DARKER_BLUE); rect(X-6, 0, W+12, 184, CLR_LIGHT_GREY);
         ui_begin();
         // row 1 — SCENARIO (what kind of fight): sets starting posture + headcount
         print("SCENARIO", X, Y, CLR_WHITE);
-        int sxw = (W - (NSCEN-1)*6) / NSCEN;                 // 3 buttons across, 6px gaps
+        int sxw = (W - (NSCEN-1)*6) / NSCEN;                 // buttons across, 6px gaps
         for (int s=0;s<NSCEN;s++) { int bx = X + s*(sxw+6);
-            if (ui_button(bx, Y+10, sxw, 14, SCEN[s].name)) set_scenario(s);
-            if (scenario==s) rect(bx-1, Y+9, sxw+2, 16, CLR_YELLOW);   // active scenario framed
+            if (ui_button(bx, Y+9, sxw, 13, SCEN[s].name)) set_scenario(s);
+            if (scenario==s) rect(bx-1, Y+8, sxw+2, 15, CLR_YELLOW);   // active scenario framed
         }
         // row 2 — DIFFICULTY (how hard): lethality presets + sliders
-        print("DIFFICULTY", X, Y+30, CLR_WHITE);
+        print("DIFFICULTY", X, Y+27, CLR_WHITE);
         int pxs[3]={X,X+62,X+132}, pw[3]={56,64,56}; const char *pn[3]={"easy","normal","hard"};
-        for (int p=0;p<3;p++) { if (ui_button(pxs[p], Y+42, pw[p], 14, pn[p])) set_preset(p);
-            if (cur_preset==p) rect(pxs[p]-1, Y+41, pw[p]+2, 16, CLR_YELLOW); }
-        int sy = Y+62;                                       // any slider drag → "custom" (no preset highlighted)
-        if (ui_slider(&sl_dmg,   X, sy, W, "damage"))     cur_preset=-1;  sy += 14;
-        if (ui_slider(&sl_rate,  X, sy, W, "fire rate"))  cur_preset=-1;  sy += 14;
-        if (ui_slider(&sl_acc,   X, sy, W, "accuracy"))   cur_preset=-1;  sy += 14;
-        if (ui_slider(&sl_sight, X, sy, W, "sight"))      cur_preset=-1;  sy += 14;
-        if (ui_slider(&sl_supp,  X, sy, W, "suppression"))cur_preset=-1;  sy += 14;
-        if (ui_slider(&sl_heal,  X, sy, W, "healing (hard/normal/easy)")) cur_preset=-1;  sy += 17;
+        for (int p=0;p<3;p++) { if (ui_button(pxs[p], Y+38, pw[p], 13, pn[p])) set_preset(p);
+            if (cur_preset==p) rect(pxs[p]-1, Y+37, pw[p]+2, 15, CLR_YELLOW); }
+        int sy = Y+57;                                       // any slider drag → "custom" (no preset highlighted)
+        if (ui_slider(&sl_dmg,   X, sy, W, "damage"))      cur_preset=-1;  sy += 14;
+        if (ui_slider(&sl_rate,  X, sy, W, "fire rate"))   cur_preset=-1;  sy += 14;
+        if (ui_slider(&sl_acc,   X, sy, W, "accuracy"))    cur_preset=-1;  sy += 14;
+        if (ui_slider(&sl_sight, X, sy, W, "sight"))       cur_preset=-1;  sy += 14;
+        if (ui_slider(&sl_supp,  X, sy, W, "suppression")) cur_preset=-1;  sy += 14;
+        if (ui_slider(&sl_ammo,  X, sy, W, "ammo (scarce/reserve/unlimited)")) cur_preset=-1;  sy += 14;
+        if (ui_slider(&sl_heal,  X, sy, W, "healing (none/packs/+regen)")) cur_preset=-1;  sy += 16;
         if (ui_button(X,     sy, 116, 16, phase==PH_OVER ? "apply + restart" : "apply + start")) { reset(); phase=PH_PLAYING; show_panel=0; }
         if (ui_button(X+126, sy, 62,  16, "back"))                                                 show_panel=0;
         ui_end();                                            // resolve presses → clicks (without this, only hover works)

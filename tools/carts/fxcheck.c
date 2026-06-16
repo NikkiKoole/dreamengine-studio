@@ -27,7 +27,7 @@
 
 // the master effects worth fuzzing at extremes. INSERTS process the whole mix (just call
 // the config fn); SENDS (reverb/echo) also need a per-slot send level to be fed anything.
-#define NTESTS 13   // 0=DRY, 1..12 = one effect each (keep in sync with fx-check.js FX_NAMES)
+#define NTESTS 19   // 0=DRY, 1..12 = one effect each, 13..18 = STACKS (keep in sync with fx-check.js FX_NAMES)
 
 static int fnum = -1;
 static int h0 = -1, h1 = -1, h2 = -1;
@@ -46,7 +46,19 @@ static void fx_all_off(void) {
     tremolo(4, 0, LFO_SHAPE_SINE);
     phaser(1, 0, 0, 0, 4);
     filter(FILTER_OFF, 1000, 0);
+    echo_insert(1, 0, 0, 0);            // the reorderable INSERT versions (stacks use these)
+    reverb_insert(0, 0, 0);
+    drive_insert(0, DRIVE_SOFT, 0);
 }
+
+// STACK chains (indices 13+): fx_order(0,…) sets the master insert chain to EXACTLY these kinds
+// (omitted effects drop out), so each stack fully controls its own chain + order.
+static const int STK_MASTER[]  = { FX_DRIVE, FX_EQ, FX_CRUSH, FX_TAPE };   // lo-fi mastering chain (gain compounding)
+static const int STK_COMBS[]   = { FX_FLANGER, FX_PHASER };                // two resonant combs in series (worst-case stability)
+static const int STK_DELAYS[]  = { FX_ECHO, FX_REVERB };                   // two long feedback tails stacked
+static const int STK_DRY_REV[] = { FX_DRIVE, FX_REVERB };                  // drive → space (order A)
+static const int STK_REV_DRY[] = { FX_REVERB, FX_DRIVE };                  // space → drive (order B — same effects, reversed)
+static const int STK_KITCHEN[] = { FX_DRIVE, FX_CHORUS, FX_FLANGER, FX_EQ, FX_CRUSH, FX_TAPE, FX_ECHO, FX_REVERB };
 
 // enable exactly ONE effect at its documented EXTREME (the worst case for stability).
 static void fx_enable(int t) {
@@ -63,6 +75,20 @@ static void fx_enable(int t) {
         case 10: tremolo(20.0f, 1.0f, LFO_SHAPE_SQUARE);              break; // max-rate hard chop
         case 11: phaser(10.0f, 1.0f, 0.95f, 1.0f, 8);                 break; // max feedback, 8 stages
         case 12: filter(FILTER_BAND, 300.0f, 0.99f);                  break; // near self-oscillation (resonant scream)
+        // ── STACKS — multiple effects chained; each sets its own fx_order ──
+        case 13: eq(10, 6, 10); crush(6, 1, 0.6f); tape(0.4f, 0.3f, 0.7f); drive_insert(0.6f, DRIVE_SOFT, 1.0f);
+                 fx_order(0, STK_MASTER, 4);                          break; // drive→eq→crush→tape (gain + tone compound)
+        case 14: flanger(0.3f, 0.8f, 0.9f, 1.0f); phaser(0.5f, 0.9f, 0.9f, 1.0f, 6);
+                 fx_order(0, STK_COMBS, 2);                           break; // two resonant combs in series
+        case 15: echo_insert(400, 0.85f, 0.6f, 0.7f); reverb_insert(0.9f, 0.3f, 0.6f);
+                 fx_order(0, STK_DELAYS, 2);                          break; // two long feedback tails
+        case 16: drive_insert(0.8f, DRIVE_HARD, 1.0f); reverb_insert(0.8f, 0.4f, 0.7f);
+                 fx_order(0, STK_DRY_REV, 2);                         break; // drive → reverb (order A)
+        case 17: drive_insert(0.8f, DRIVE_HARD, 1.0f); reverb_insert(0.8f, 0.4f, 0.7f);
+                 fx_order(0, STK_REV_DRY, 2);                         break; // reverb → drive (order B — must also stay bounded)
+        case 18: drive_insert(0.5f, DRIVE_SOFT, 0.8f); chorus(2, 0.5f, 0.5f); flanger(0.3f, 0.5f, 0.5f, 0.5f);
+                 eq(4, 2, 4); crush(8, 1, 0.4f); tape(0.3f, 0.2f, 0.5f); echo_insert(300, 0.5f, 0.5f, 0.5f);
+                 reverb_insert(0.6f, 0.4f, 0.5f); fx_order(0, STK_KITCHEN, 8); break; // kitchen sink (deep chain)
         default: break;                                                      // 0 = DRY (reference)
     }
 }

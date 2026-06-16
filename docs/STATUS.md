@@ -1022,9 +1022,17 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       the `drive` effect already uses, `drv_dc_*`): phaser −0.13→−0.007, echo −0.04→+0.002, audio
       untouched (corner is sub-sonic). Verified compile-gate + tripwire + dc/tune/level/fx all green,
       build-all 390/390.
-    - **Still open: effect STACKING.** `fx-check` fuzzes each effect ALONE; `fx_order()` chains them
-      in any order on the master bus, each is tuned in isolation, and the limiter protects the ceiling
-      but not the stability of two feedback effects in series. No coverage yet.
+    - ✅ **Effect STACKING — now covered** (fxcheck.c tests 13–18). Six master-bus chains via
+      `fx_order()`: a lo-fi mastering chain (drive→eq→crush→tape), two resonant combs in series
+      (flanger→phaser), two feedback delays (echo+reverb), an A/B order swap (drive→reverb vs
+      reverb→drive — proves ordering is audible *and* both stay bounded), and an 8-deep kitchen sink.
+      All stay bounded (the worst is "limiter pinned" at the deliberate extreme — expected, baselined).
+      **Incidental find + fix:** the two-combs stack exposed that the **flanger** also accumulated DC
+      at high feedback (−0.03) — the single-effect test had masked it (at fb 0.95 its DC *oscillated* →
+      classed as wobble; in series it settled). Same missing-DC-blocker bug as phaser/echo; fixed with
+      the same one-pole idiom (flanger −0.046→−0.002). So **all three feedback combs (phaser/echo/
+      flanger) are now DC-blocked.** Verified: compile-gate + tripwire + dc/level/fx all green,
+      build-all 390/390.
     - **The web/wasm audio path is verified only by ear.** Every gate above runs the NATIVE build.
       69 carts are "engine-stale" on the web (audio predates a `sound.h` change), but the deeper gap:
       nothing checks whether the emscripten/AudioWorklet build emits the *same samples* as native

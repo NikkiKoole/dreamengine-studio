@@ -1878,9 +1878,20 @@ up with the §18 note that "whatever is off about BOWED, it is not pitch" — pa
    untouched) on each feedback tap, the same idiom the `drive` effect already uses (`drv_dc_*`).
    Result: phaser −0.13→−0.007, echo −0.04→+0.002; the phaser now reads only "limiter pinned" at the
    extreme (the bounded self-oscillation, expected). Verified: compile-gate + 900-frame tripwire +
-   dc/tune/level/fx-check all green, build-all 390/390. **Still untested: effect STACKING** —
-   `fx_order()` chains effects any order on the master bus; each is fuzzed alone; the limiter protects
-   the ceiling, not two feedback effects in series.
+   dc/tune/level/fx-check all green, build-all 390/390.
+
+   **Effect STACKING — covered (fxcheck.c tests 13–18).** Six master chains via `fx_order()`: lo-fi
+   master (drive→eq→crush→tape), two combs in series (flanger→phaser), two feedback delays
+   (echo+reverb), an A/B order swap (drive→reverb vs reverb→drive — ordering is audible *and* both
+   bounded), and an 8-deep kitchen sink. All bounded (worst = "limiter pinned" at the extreme, as
+   expected). **The stacking caught a third DC bug the single-effect tests had masked:** the
+   **flanger** also accumulated DC at high feedback (the two-combs stack read −0.03 once the phaser was
+   clean). At fb 0.95 alone its DC *oscillated* (classed wobble); in series it settled into a steady
+   offset. Same feedback-comb-without-a-DC-blocker bug; fixed with the same one-pole idiom (single
+   flanger −0.046→−0.002). **All three feedback combs — phaser, echo, flanger — are now DC-blocked.**
+   This is the lesson of stacking: a bug that hides as a wobble in isolation can settle into DC when an
+   effect runs into another's input. Untested still: stacking on the per-instrument aux buses (only
+   master bus 0 is swept).
 2. **The web/wasm audio path is verified only by ear.** Every gate above runs the NATIVE build.
    69 carts are "engine-stale" on the web, but the deeper gap is that nothing checks whether the
    emscripten / AudioWorklet build emits the SAME SAMPLES as native (sample rate, worklet buffering,

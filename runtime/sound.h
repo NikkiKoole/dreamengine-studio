@@ -710,6 +710,7 @@ static float flg_rate [SOUND_FX_BUSES];        // LFO Hz (0.05..5)
 static float flg_depth[SOUND_FX_BUSES];        // sweep amount 0..1
 static float flg_fb   [SOUND_FX_BUSES];        // feedback −0.95..0.95 (the jet/metallic knob)
 static float flg_mix  [SOUND_FX_BUSES];        // dry/wet 0..1
+static float flg_dc_x1[SOUND_FX_BUSES], flg_dc_y1[SOUND_FX_BUSES];  // DC blocker on the feedback (mono): the delay line passes DC at unity, so fb (±0.95) accumulates it (fx-check stack found −0.03)
 static bool  flg_used [SOUND_FX_BUSES];        // per-bus: flips true when that bus's flanger is configured
 
 // process one stereo sample on bus b IN PLACE: mono sum → swept short delay + feedback → wet, dry kept
@@ -725,13 +726,17 @@ static void flanger_process(int b, float *mixL, float *mixR) {
     if (ds < 1.0f) ds = 1.0f; if (ds > FLANGER_BUF_LEN - 1) ds = FLANGER_BUF_LEN - 1;
     float rp = (float)flg_widx[b] - ds; if (rp < 0.0f) rp += FLANGER_BUF_LEN;
     float wet = moddel_hermite(buf, FLANGER_BUF_LEN, rp);
-    float fb = mono + wet * flg_fb[b];         // feedback into the line = the resonant comb
+    // DC blocker: the delay line passes DC at unity, so feedback (±0.95) accumulates any DC into
+    // a thump (one-pole HP, R=0.999 / ~7Hz, inaudible). Same idiom as the phaser/echo loops.
+    float wethp = wet - flg_dc_x1[b] + 0.999f * flg_dc_y1[b];
+    flg_dc_x1[b] = wet; flg_dc_y1[b] = wethp;
+    float fb = mono + wethp * flg_fb[b];       // feedback into the line = the resonant comb
     if (fb >  1.5f) fb =  1.5f;                // navkit's runaway guard
     if (fb < -1.5f) fb = -1.5f;
     buf[flg_widx[b]] = fb;
     flg_widx[b] = (flg_widx[b] + 1) % FLANGER_BUF_LEN;
-    *mixL = *mixL * (1.0f - flg_mix[b]) + wet * flg_mix[b];   // mono wet, both channels
-    *mixR = *mixR * (1.0f - flg_mix[b]) + wet * flg_mix[b];
+    *mixL = *mixL * (1.0f - flg_mix[b]) + wethp * flg_mix[b];   // mono wet, both channels
+    *mixR = *mixR * (1.0f - flg_mix[b]) + wethp * flg_mix[b];
 }
 
 // ── tape — the THIRD use of the modulated-delay technique (wow / flutter / saturation) ──

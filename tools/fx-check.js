@@ -41,6 +41,13 @@ const FX_NAMES = {
   10: 'tremolo 20Hz square (hard chop)',
   11: 'phaser  fb 0.95, 8 stages',
   12: 'filter  BP cutoff 300 res 0.99 (self-osc)',
+  // stacks — multiple effects chained via fx_order() (the compounding / ordering surface)
+  13: 'STACK   drive→eq→crush→tape (lo-fi master)',
+  14: 'STACK   flanger→phaser (two combs in series)',
+  15: 'STACK   echo+reverb (two feedback tails)',
+  16: 'STACK   drive→reverb (order A)',
+  17: 'STACK   reverb→drive (order B, reversed)',
+  18: 'STACK   kitchen sink (8-deep chain)',
 }
 
 // thresholds
@@ -134,7 +141,7 @@ function renderSweep(keep) {
   const dir = path.join(ROOT, 'build', '.fx')
   fs.mkdirSync(dir, { recursive: true })
   const wav = path.join(dir, 'fx.wav'), trace = path.join(dir, 'fx.trace.jsonl')
-  runPlay('fxcheck', 13 * 84 + 200, wav, trace)   // 13 tests × (56+28) frames + slack
+  runPlay('fxcheck', 19 * 84 + 200, wav, trace)   // 19 tests × (56+28) frames + slack
   return { wav, trace, dir }
 }
 

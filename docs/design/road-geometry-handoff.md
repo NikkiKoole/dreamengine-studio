@@ -4,6 +4,11 @@
 map: how we got here, what we're solving, the research, what failed, and how to continue. The other
 docs are the detail; this ties them together.
 
+> **▶ Next session jumps to → the "★ NEXT SESSION — decided direction: `junction` + `laneLink`" section
+> below.** `roadlab` now has the full vertical stack (geometry → clothoid → lanes → width → elevation,
+> M1–M5, all committed). OpenDRIVE feature tracker: [`road-geometry-refs.md`](road-geometry-refs.md) →
+> "OpenDRIVE adoption inventory".
+
 ## The 30-second version
 roadnet2 needs to draw road junctions automatically (given crossing roads + a type → draw the ramps).
 We hand-tuned one trumpet loop in `interchange.c`, realized **junctions can be described
@@ -113,10 +118,27 @@ Investigated OpenDRIVE, clothoids, SUMO/CommonRoad, Cities: Skylines, curve offs
   `lift=0` ⇒ at grade. (We chose plan+shadow over oblique-lift to keep the flat-road identity + glued ports;
   draw-order-by-`z` is the rule that generalises to ramp-over-ramp.) *Open polish:* piers/supports under
   the deck; a real ramp-over-ramp crossing (needs two ramps + per-segment z-sort).
-- **Next on `roadlab`: nothing structural — port it into roadnet2** (bake the constants, call it as the
-  junction drawer). The other open shape is the **ring/circulate primitive** for the British roundabout
-  family (see `interchange-dsl.md` — out of the ramp grammar). Full OpenDRIVE feature roadmap (what we've
-  taken, what's left): `road-geometry-refs.md` → "OpenDRIVE adoption inventory".
+  - **Gotcha fixed (don't re-walk):** a ramp's **port A is the ENTRY** — its tangent must point *into* the
+    junction (`a.dir+180` in the splines), because the ports store the lane's *outward* travel direction.
+    Using A's raw outward heading made the lead-in leave the wrong way and the curve loop back (a hook);
+    offsetting that hook by ±14px (4 lanes) + a long spiral spiked into stray casing — the "spiral+multilane
+    artifacts" bug. Also a tangent-room clamp fits R / trims the spiral / falls back to straight on
+    degenerate (loop-needing) pairs.
+
+## ★ NEXT SESSION — decided direction: **`junction` + `laneLink`** (OpenDRIVE)
+The owner picked this as the next focus. It's the **formal data model of a junction**: a `junction` groups
+connecting roads and, per connection, a `laneLink` records *which incoming lane maps to which outgoing lane*
+— i.e. **exactly our DSL's movement layer** (`legs × {movement → primitive}` in
+[`interchange-dsl.md`](interchange-dsl.md)). Why it's the right next step: it costs little code (it's a
+schema/representation, not new geometry), it **validates the junction DSL against the standard**, and it's
+the structure roadnet2 would serialise junctions into. Start by reading the OpenDRIVE junction/laneLink
+spec, then reconcile it with `interchange-dsl.md` (note matches + gaps), then sketch the roadlab/roadnet2
+data types. **Full OpenDRIVE roadmap — what we've taken (M1–M5) and what's left:**
+[`road-geometry-refs.md`](road-geometry-refs.md) → **"OpenDRIVE adoption inventory"** (the gold-mine tracker).
+
+Other roadlab continuations (not the chosen next, but queued):
+- **Port `roadlab` into roadnet2** — bake the constants, call it as the junction drawer.
+- **`ring`/`circulate` primitive** for the British roundabout family (out of the ramp grammar; see interchange-dsl).
 - **Then** `roadlab` becomes the drawer that `interchange.c` / roadnet2 call (bake constants, port in).
 - **Parked:** `interchange.c` task — the **half-diamond draw-order** (near ramps should merge at-grade,
   not duck under the highway); the **inner-loop nesting** in `interchange.c`; the **loop+loop vs

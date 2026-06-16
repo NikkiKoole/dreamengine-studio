@@ -1645,6 +1645,14 @@
     ]
   },
   {
+    "title": "roadlab",
+    "description": "The FOUNDATION sandbox for the interchange geometry DSL, built on the road-geometry research (docs/design/road-geometry-refs.md). Lane-accurate roads (drive-on-right via a DRIVE constant) with per-lane direction arrows; ports anchored to REAL lanes (a port = a lane + its travel direction); and ramps built as ARC-SPLINES (LINE->ARC->LINE — the OpenDRIVE reference-line model, minus the XML) instead of free Beziers, so they offset and nest cleanly. Supersedes rampkit (which proved the port->ramp abstraction on Beziers). Milestone 1: pick two ports, watch the arc-spline ramp round the corner between their lanes. Controls: LEFT/RIGHT cycle port A, UP/DOWN cycle port B, [ / ] arc radius, F flips DRIVE. Next: clothoid joints (drivable feel) and concentric-arc nesting. See docs/design/interchange-dsl.md.",
+    "file": "roadlab.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
+  },
+  {
     "title": "Football Manager",
     "description": "An FC-Mobile-style manager mode: run a club's starting XI on a drag-to-arrange formation pitch, with a bench of spares, switchable 4-4-2 / 4-3-3 shapes, and an out-of-position penalty that makes your shape matter. Wheel and deal in a transfer market against a cash budget — sign a face, sell the deadwood — then hit PLAY MATCH and the engine auto-sims a scoreline from your XI's strength versus the opponent's, ticking the goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT. Other clubs play their own fixtures and the 6-team league table re-sorts live on points and goal difference across a 10-round season; finish top to be champions. Drag players between the pitch and the bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL in the market, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays).",
     "file": "soccermgr.cart.png",

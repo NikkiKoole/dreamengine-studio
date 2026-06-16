@@ -206,35 +206,40 @@ void draw(void){
     for (int i=0;i<nport;i++) if (i!=selA&&i!=selB) draw_port(ports[i], CLR_MEDIUM_GREY);
     draw_port(ports[selA], CLR_GREEN);  draw_port(ports[selB], CLR_RED);
 
-    // ── status (short — fits 320px) ──
-    char b[48];
-    snprintf(b,sizeof b,"%s -> %s", ports[selA].name, ports[selB].name);  print(b,4,4,CLR_WHITE);
-    print(use_cloth ? "arc + clothoid joints (G2)" : "arc only (G1 corner)", 4,13, use_cloth?CLR_ORANGE:CLR_MEDIUM_GREY);
+    // ── HUD — small 4×6 font so labels can be spelled out in full and still fit 320px ──
+    font(FONT_SMALL);
+    char b[64];
+    snprintf(b,sizeof b,"Port A: %s    to    Port B: %s", ports[selA].name, ports[selB].name);
+    print(b,4,5,CLR_WHITE);
+    print(use_cloth ? "arc-spline + clothoid joints  -  continuous curvature (G2)"
+                    : "arc-spline only  -  curvature steps at the corner (G1)",
+          4,13, use_cloth?CLR_ORANGE:CLR_MEDIUM_GREY);
 
     // ── on-screen control toolbar (clickable; keyboard still works) ──
     rectfill(0, SCREEN_H-36, SCREEN_W, 36, CLR_BLACK);
     int d;
-    // row 1 — port pickers (green A / red B), each "</>" + the live name
-    print("A", 4, SCREEN_H-31, CLR_GREEN);
-    d=step_btn(12, SCREEN_H-34, 14, "<", ">"); if (d) selA=(selA+nport+d)%nport;
-    print(ports[selA].name, 46, SCREEN_H-31, CLR_GREEN);
-    print("B", 100, SCREEN_H-31, CLR_RED);
-    d=step_btn(108, SCREEN_H-34, 14, "<", ">"); if (d) selB=(selB+nport+d)%nport;
-    print(ports[selB].name, 142, SCREEN_H-31, CLR_RED);
+    // row 1 — port pickers (green A / red B): prev/next + the live lane name
+    print("Port A", 4, SCREEN_H-31, CLR_GREEN);
+    d=step_btn(36, SCREEN_H-34, 14, "<", ">"); if (d) selA=(selA+nport+d)%nport;
+    print(ports[selA].name, 70, SCREEN_H-31, CLR_GREEN);
+    print("Port B", 128, SCREEN_H-31, CLR_RED);
+    d=step_btn(160, SCREEN_H-34, 14, "<", ">"); if (d) selB=(selB+nport+d)%nport;
+    print(ports[selB].name, 194, SCREEN_H-31, CLR_RED);
     // row 2 — geometry params (− / +) with live values + clothoid toggle
-    print("R", 4, SCREEN_H-15, CLR_WHITE);
-    d=step_btn(12, SCREEN_H-18, 14, "-", "+"); if (d) radius+=2*d;
-    snprintf(b,sizeof b,"%d",(int)radius); print(b, 44, SCREEN_H-15, CLR_LIGHT_GREY);
-    print("Ls", 64, SCREEN_H-15, CLR_ORANGE);
-    d=step_btn(80, SCREEN_H-18, 14, "-", "+"); if (d) spiral+=2*d;
-    snprintf(b,sizeof b,"%d",(int)spiral); print(b, 112, SCREEN_H-15, CLR_LIGHT_GREY);
-    if (ui_button(132, SCREEN_H-18, 44, 13, use_cloth?"CL on":"CL off")) use_cloth=!use_cloth;
-    print("ln", 184, SCREEN_H-15, CLR_WHITE);
-    d=step_btn(200, SCREEN_H-18, 14, "-", "+"); if (d) nlanes+=d;
-    snprintf(b,sizeof b,"%d",nlanes); print(b, 232, SCREEN_H-15, CLR_LIGHT_GREY);
+    print("radius", 4, SCREEN_H-15, CLR_WHITE);
+    d=step_btn(36, SCREEN_H-18, 14, "-", "+"); if (d) radius+=2*d;
+    snprintf(b,sizeof b,"%d",(int)radius); print(b, 70, SCREEN_H-15, CLR_LIGHT_GREY);
+    print("spiral", 88, SCREEN_H-15, CLR_ORANGE);
+    d=step_btn(120, SCREEN_H-18, 14, "-", "+"); if (d) spiral+=2*d;
+    snprintf(b,sizeof b,"%d",(int)spiral); print(b, 152, SCREEN_H-15, CLR_LIGHT_GREY);
+    print("lanes", 170, SCREEN_H-15, CLR_WHITE);
+    d=step_btn(198, SCREEN_H-18, 14, "-", "+"); if (d) nlanes+=d;
+    snprintf(b,sizeof b,"%d",nlanes); print(b, 230, SCREEN_H-15, CLR_LIGHT_GREY);
+    if (ui_button(246, SCREEN_H-18, 66, 13, use_cloth?"clothoid: on":"clothoid: off")) use_cloth=!use_cloth;
     // clamps (apply to both button + keyboard edits)
     if (radius<6) radius=6;  if (spiral<0) spiral=0;
     if (nlanes<1) nlanes=1;  if (nlanes>6) nlanes=6;
 
     ui_end();
+    font(FONT_NORMAL);
 }

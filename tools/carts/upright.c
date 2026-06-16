@@ -5,30 +5,37 @@
 
 // ── UPRIGHT BASS ─────────────────────────────────────────────────────────────
 // The jazz double bass, played the way you actually play one: the FINGERBOARD is
-// the instrument. Four strings (E A D G). Press to sound a note; slide LEFT/RIGHT
-// to walk the frets (each semitone re-articulates — clean up AND down); PULL the
-// string off its line (either way) to bend the pitch continuously UP — displacing a
-// string raises its tension, and the waveguide can only bend up anyway (down-bends
-// stick — verified — so the fret walk covers descending notes); lift to damp.
-// Or start a drag in the GAP next to a string and sweep THROUGH it to PICK it (press
-// on a string = grab/fret; press in open space = pick). Mono, last-note-wins.
+// the instrument, and it's FRETLESS. Four strings (E A D G). Press to sound a note;
+// slide LEFT/RIGHT to glide the pitch CONTINUOUSLY (a real fretless gliss — no fret
+// steps, no re-pluck, both directions); PULL the string off its line to bend the
+// pitch continuously, UP or DOWN; lift to damp. Or start a drag in the GAP next to a
+// string and sweep THROUGH it to PICK it (press on a string = grab/fret; press in
+// open space = pick). Mono, last-note-wins.
+//
+// (The smooth two-way glide is new: the INSTR_BOWED waveguide used to only bend UP,
+// so slides had to re-articulate each semitone — the sound layer now oversizes the
+// string delay line for ~16 semitones of down-room, so the modeled string itself
+// slides. That removes the limitation that pdbass.c was built to dodge.)
 //
 // The right hand is an ARTICULATION switch, and pizz + arco are the SAME string
 // model (INSTR_BOWED) — instrument_mode(slot,0,1) plucks it, =0 bows it, just like the
 // real instrument where the only difference is fingers vs a bow:
 //   PIZZ  the jazz sound — a woody finger pluck that rings and thumps (default)
 //   ARCO  drawn with the bow — slow attack, sings while held, left-hand vibrato
-//   SLAP  pizz + the string slapping the fingerboard (rockabilly thump)
+//   SLAP  pizz + a hard board-thump and a bright crack on the attack, then a pull-pop
+//         an octave up a beat later — the galloping rockabilly slap, not just a tick
 //
-// Taps snap to a clean semitone (fretless is unforgiving); drags stay continuous
-// so slides are smooth. Play the fingerboard with mouse / touch, or the computer
-// keyboard (GarageBand map, A = E1; Z / X shift the octave). TONE = mic darkness,
-// RING = how long a pizz note rings after you lift.
+// It's fully fretless on the mouse/touch fingerboard: a press lands EXACTLY where your
+// finger is (no semitone snap — intonation is on you, the faint guide ticks help your
+// eye) and slides/bends are continuous, both directions. The computer keyboard plays
+// clean discrete notes (GarageBand map, A = E1; Z / X shift the octave). TONE = mic
+// darkness, RING = how long a pizz note rings after you lift.
 
 #define BASS  5                            // INSTR_BOWED, pizzicato (instrument_mode pluck)
 #define ARCOS 6                            // INSTR_BOWED, bowed
-#define CLICK 7                            // INSTR_NOISE — the slap / knuckle transient
+#define CLICK 7                            // INSTR_NOISE — the low board-thump / knuckle transient
 #define BODY  8                            // INSTR_MEMBRANE — slapping the bass body
+#define SNAP  9                            // INSTR_NOISE — the bright crack of the string on the board (slap)
 
 enum { PIZZ, ARCO, SLAP };
 static const char *MNAME[3] = { "PIZZ", "ARCO", "SLAP" };
@@ -60,7 +67,7 @@ static int   b_press_x, b_press_y;         // where the finger landed (snap-unti
 static bool  b_sliding;                    // has the finger moved enough to play live?
 enum { GRAB, PICK };                       // press ON a string = grab/fret; press in OPEN space = pick
 static int   b_gesture;
-static float b_fret_midi;                  // the stopped pitch currently sounding (re-articulated on change)
+static float b_slide;                      // the continuous slide-position pitch (frozen while pulling)
 static int   b_prevy;                      // last frame's finger y (for pick string-crossing)
 static int   b_fx, b_fy;                   // finger screen position (drives the string-bend visual)
 #define BEND_K   0.05f                      // semitones of pitch bend per pixel pulled
@@ -115,6 +122,12 @@ void init(void) {
     instrument(CLICK, INSTR_NOISE, 0, 28, 0, 16);
     instrument_filter(CLICK, FILTER_LOW, 2000, 2);
 
+    // SNAP — the bright top-end crack of the slap (the string biting the board): a short,
+    // hard, high-passed tick. Layered over CLICK's low thump it reads as a real slap, not a
+    // dull pluck; re-used (an octave up) for the rockabilly pull-pop.
+    instrument(SNAP, INSTR_NOISE, 0, 16, 0, 8);
+    instrument_filter(SNAP, FILTER_HIGH, 3800, 3);
+
     // BODY — slapping the wood: a struck drumhead standing in for the body cavity
     instrument(BODY, INSTR_MEMBRANE, 0, 170, 0, 60);
     instrument_harmonics(BODY, 0.45f);     // woody, a touch inharmonic
@@ -159,24 +172,18 @@ static void body_hit(int x, int y) {
 static void play(int owner, int lane, float pos) {
     if (b_handle >= 0) note_off(b_handle);          // stop the old note (last-note-wins)
     b_owner = owner; b_lane = lane; b_midi = midi_of(lane, pos); b_wob = 0;
-    if (b_mode == SLAP) hit((int)(b_midi + 0.5f), CLICK, 5, 22);
+    if (b_mode == SLAP) {
+        int m = (int)(b_midi + 0.5f);
+        hit(m, CLICK, 7, 20);                       // the low board thump (harder than a pizz tick)
+        hit(m, SNAP,  6, 12);                       // a bright crack on the attack — the slap bite
+        schedule_hit(90, m + 12, SNAP, 5, 12);      // the pull-pop an octave up, a beat later (the gallop)
+    }
     b_handle = note_on((int)(b_midi + 0.5f), slot_for(b_mode), b_mode == ARCO ? 4 : 7);
     note_pitch(b_handle, b_midi);
-    note_glide(b_handle, 70);                        // up-bends/slides slur, don't step
-    b_fret_midi = b_midi;
+    note_glide(b_handle, 70);                        // slides/bends slur smoothly, both ways
+    b_slide = b_midi;
     b_fx = NECK_X0 + (int)((NECK_X1 - NECK_X0) * pos / SPAN);
     b_fy = cy_of(lane);
-}
-
-// move to a new fret (left/right): re-articulate at the new semitone. Clean in BOTH
-// directions because each fret is a fresh attack — a waveguide string can only bend UP,
-// never below its pluck pitch (verified), so a continuous DOWN-slide isn't possible.
-static void fret_to(float fmidi) {
-    if (fmidi == b_fret_midi) return;
-    note_off(b_handle);
-    b_handle = note_on((int)(fmidi + 0.5f), slot_for(b_mode), b_mode == ARCO ? 4 : 7);
-    note_glide(b_handle, 60);
-    b_fret_midi = fmidi;
 }
 
 void update(void) {
@@ -190,9 +197,9 @@ void update(void) {
         } else {
             int near = 0, nd = 9999;                   // nearest string to the press
             for (int l = 0; l < NLANE; l++) { int d = abs(my - cy_of(l)); if (d < nd) { nd = d; near = l; } }
-            if (nd <= GRAB_PX) {                       // pressed ON a string → GRAB it (fret + bend)
-                play(MOUSE, near, roundf(pos_at(mx)));
-                b_gesture = GRAB; b_fx = mx; b_fy = my;
+            if (nd <= GRAB_PX) {                       // pressed ON a string → GRAB it (stop + bend)
+                play(MOUSE, near, pos_at(mx));         // fretless: land EXACTLY where the finger is —
+                b_gesture = GRAB; b_fx = mx; b_fy = my;//   no semitone rounding, so the bend has no fret to snap to
             } else {                                   // pressed in OPEN space → a PICK (sweep to pluck)
                 b_owner = MOUSE; b_gesture = PICK;
             }
@@ -203,18 +210,16 @@ void update(void) {
         if (!b_sliding && (abs(mx - b_press_x) > 4 || abs(my - b_press_y) > 4)) b_sliding = true;
         if (b_sliding) {
             int dpx = b_press_y - my;                            // vertical pull (+up / -down)
-            // While you're actively PULLING, freeze the fret — only the up/down bend matters,
-            // so a little sideways drift won't re-pluck and interrupt the bend. Near the rest
-            // line (not pulling) the finger is free to walk the frets left/right.
-            if (abs(dpx) <= 6) {
-                float fret = clamp(roundf(pos_at(mx)), 0, SPAN);
-                fret_to(SBASE[b_lane] + fret);
-            }
-            float vbend = clamp(fabsf((float)dpx) * BEND_K, 0, BEND_MAX);
-            b_midi = b_fret_midi + vbend;                        // pull bends UP from the held fret
+            // Fretless: sliding LEFT/RIGHT glides the pitch CONTINUOUSLY (note_pitch + glide,
+            // no re-pluck — the waveguide bends both ways now). While you're actively PULLING
+            // (a big vertical displacement) freeze the slide position so sideways drift doesn't
+            // move it — only the bend does; near the rest line the finger walks freely.
+            if (abs(dpx) <= 6) b_slide = SBASE[b_lane] + clamp(pos_at(mx), 0, SPAN);
+            float vbend = clamp((float)dpx * BEND_K, -BEND_MAX, BEND_MAX);   // signed — bend UP or DOWN
+            b_midi = b_slide + vbend;
             note_pitch(b_handle, b_midi);
             int maxpx = (int)(BEND_MAX / BEND_K);
-            b_fx = NECK_X0 + (int)((NECK_X1 - NECK_X0) * (b_fret_midi - SBASE[b_lane]) / SPAN);  // dot stays on the fret
+            b_fx = NECK_X0 + (int)((NECK_X1 - NECK_X0) * (b_slide - SBASE[b_lane]) / SPAN);  // dot follows the slide
             b_fy = cy_of(b_lane) - (int)clamp((float)dpx, -(float)maxpx, (float)maxpx);
         }
     }
@@ -229,7 +234,11 @@ void update(void) {
         }
         b_fx = mx; b_fy = my; b_prevy = my;
     }
-    if (mouse_released(MOUSE_LEFT) && b_owner == MOUSE) {
+    // Release / safety net: key off !mouse_down, NOT the one-frame mouse_released event.
+    // mouse_released can be missed — a big PULL that drags the pointer out of the play area,
+    // or window focus loss mid-gesture — leaving a grabbed note stuck sounding. Checking the
+    // held state every frame the button is up resolves a missed release the next frame.
+    if (!mouse_down(MOUSE_LEFT) && b_owner == MOUSE) {
         if (b_gesture == GRAB) damp();                 // grabbed note: lift = damp
         else b_owner = NONE;                           // picked notes ring out on their own
     }
@@ -279,6 +288,31 @@ static void draw_string(int lane) {
     }
 }
 
+// the learning aid: a live tuner. Shows the NEAREST note, how many cents sharp/flat the
+// sounding pitch is, and a needle that snaps green in the ±5-cent "in tune" zone — so on a
+// fretless you can watch where the notes actually are and let your fingers learn them.
+static void draw_tuner(void) {
+    int   m     = (int)(b_midi + 0.5f);                 // nearest semitone
+    float cents = (b_midi - m) * 100.0f;                // -50..+50 from it
+    int   ac    = fabsf(cents) <= 5 ? CLR_GREEN : (fabsf(cents) <= 15 ? CLR_YELLOW : CLR_ORANGE);
+
+    char nn[8]; snprintf(nn, sizeof nn, "%s%d", NOTES[m % 12], m / 12 - 1);
+    print(nn, 150, 4, CLR_LIGHT_YELLOW);                // nearest note name
+    char cs[8]; snprintf(cs, sizeof cs, "%+dc", (int)roundf(cents));
+    font(FONT_SMALL);
+    print(cs, 180, 5, ac);                              // ± cents readout
+    font(FONT_NORMAL);
+
+    int bx = 150, by = 14, bw = 86, half = bw / 2, cx = bx + half;   // the tuner bar
+    rectfill(bx, by, bw, 4, CLR_BROWNISH_BLACK);        // track
+    int tol = (int)(5.0f / 50.0f * half);               // the ±5c "in tune" band
+    rectfill(cx - tol, by, tol * 2, 4, CLR_DARK_GREEN);
+    line(cx, by - 2, cx, by + 5, CLR_LIGHT_PEACH);      // dead-center = perfectly in tune
+    int nx = cx + (int)(cents / 50.0f * half);
+    nx = nx < bx ? bx : (nx > bx + bw ? bx + bw : nx);
+    rectfill(nx - 1, by - 1, 3, 6, ac);                 // the needle
+}
+
 void draw(void) {
     cls(CLR_DARK_BROWN);
 
@@ -324,12 +358,8 @@ void draw(void) {
     line(0, STRIP_H - 1, SCREEN_W, STRIP_H - 1, CLR_BROWNISH_BLACK);
     print("UPRIGHT BASS", 6, 4, CLR_LIGHT_PEACH);
 
-    // big note-name readout
-    if (b_handle >= 0) {
-        int m = (int)(b_midi + 0.5f);
-        char nn[8]; snprintf(nn, sizeof nn, "%s%d", NOTES[m % 12], m / 12 - 1);
-        print(nn, 150, 4, CLR_LIGHT_YELLOW);
-    }
+    // live tuner: nearest note + cents off + a needle — learn the fretless by eye
+    if (b_handle >= 0) draw_tuner();
 
     ui_begin();
     for (int i = 0; i < 3; i++) {                    // PIZZ / ARCO / SLAP
@@ -340,7 +370,7 @@ void draw(void) {
     font(FONT_SMALL);
     if (ui_knob(&k_tone, 248, 16, "TONE")) retune();
     if (ui_knob(&k_ring, 286, 16, "RING")) retune();
-    print("sweep=pluck   pull=bend", 144, 24, CLR_DARK_PEACH);
+    print("slide=pitch  pull=bend  sweep=pluck", 144, 24, CLR_DARK_PEACH);
     font(FONT_NORMAL);
     ui_end();
 

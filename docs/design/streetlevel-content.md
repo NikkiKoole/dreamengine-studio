@@ -15,6 +15,57 @@
 That's the existing `screen == collision` + locality contracts pushed one tier finer than
 `building_at()`. Hold it and infinite + deterministic + zoomable come free, exactly as for roads.
 
+## Atoms vs. biomes vs. recipes — the distinction that decides everything
+
+Three different things, constantly conflated. Keep them separate and the library grows cheaply:
+
+- **Atom = a VERB. *How* you fill a region.** A pure function `fill(region, hash, params) → geometry`.
+  The set is small and nearly closed: `scatter / rows / footprint / border / pave / stamp /
+  subdivide`. You add one *only* when a fundamentally new fill-verb is missing (see below) — almost
+  never.
+- **Biome = a NOUN. *What* a place is.** forest, meadow, desert, jungle, dunes, wasteland,
+  beachfront, tundra, swamp, urban. A biome is a **value of the terrain/climate fields** (elevation,
+  moisture, temperature, urbanization) — the *input* the selector reads. Adding biomes = enriching
+  those fields, not the engine.
+- **Recipe = the BINDING. Which verbs fill this noun, with which palette/params.** e.g.
+  `desert = scatter(cacti, very sparse) + sand base + rare stamp(ruin)`. This is a row in a table.
+  **This is where nearly all variety lives**, and it's cheap — params + instance art, no new code-shape.
+
+So **desert / jungle / dunes / wasteland / beachfront are biomes, realised as recipes over the
+atoms you already have** — not atoms. If you ever catch yourself writing a "desert atom," that's the
+smell: it's a recipe. (`jungle` = `scatter` cranked dense + palm/fern art; `wasteland` = `scatter`
+sparse dead shrubs + grey palette; `beachfront` = sand + `scatter(palms)` + a selector rule
+"adjacent to water". All existing verbs.)
+
+### When something genuinely IS a new atom — the bounded-vs-open rule
+
+An atom must fill a region as a **pure function of `(region, seed)`**. There are two regimes, and the
+rule that separates "atom" from "not an atom" is **bounded vs. open**:
+
+1. **Open / streamed** (forest, fields tiled across an infinite world): must be *pure-fn-of-cell,
+   NO growth* — a lattice/scatter. A grown, order-dependent, history-carrying process **tears at
+   chunk seams** (the node-lattice lesson: *lattice instances are local; grown sets are not*).
+2. **Bounded region** (a building interior, one dungeon level, a single maze plot): generated
+   **wholesale from that region's single hash-seed**. Inside a bounded region, **growth / recursion /
+   backtracking / random-walk are all fine** — the region is self-contained, never spans a seam, and
+   one seed makes it deterministic. This is the same footing as `footprint` filling a lot.
+
+So, the worked examples (this is the test to apply to any new idea):
+
+| idea | atom? | why |
+|---|---|---|
+| **maze** | ✅ atom (bounded-fill) | fills a region with a labyrinth, pure fn of `(rect, seed)` — like `rows` fills with crop rows |
+| **room + corridor dungeon** (roguelike) | ✅ atom (bounded-fill) | exactly what fills a *building interior* or a dungeon-level region; generate the whole level from its seed |
+| **drunken-walk carver** | ⚠️ a *technique*, not an atom | legal *inside* a bounded atom (the level is computed all at once); **illegal as an open-world cover fill** — it's the canonical grown/seam-tearing process |
+
+The lesson: maze / dungeon are atoms because they're **bounded**. The drunken walk is the *algorithm
+inside* such an atom — fine when the region is the unit, fatal when streamed across the open plane.
+(A building's floor-plan is literally a bounded room+corridor atom filling the `footprint` rect.)
+
+The only genuinely-missing area-fill *verbs* on the horizon: **`ribbon`** (fill *along a line/spline* —
+rivers, trails, a hedge beside a road; dunes' wind-ridges) and maybe **`contour`** (bands following an
+iso-elevation — terraces, strata). Everything else tends to be a biome or a recipe.
+
 ## Two fill-modes (seeing them as different keeps each simple)
 
 The features split cleanly — don't unify them in code, only in vocabulary:

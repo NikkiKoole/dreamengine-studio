@@ -2838,16 +2838,16 @@ static void sound_reed_start(Voice *v) {
     // picked so the note-on delay is byte-identical (effLen = d0i·f/curf), so tuning is unchanged;
     // only the clamp ceiling rises. The bore self-oscillates from breath, so the longer noise seed
     // is harmless (it just starts the oscillation, like brass/pipe).
-    int d0i = (int)((float)SOUND_SAMPLE_RATE / f / 2.0f);   // the original half-wavelength note-on delay
-    if (d0i < 4) d0i = 4;
-    int len = (int)((float)d0i * 2.5f);                    // longer bore → ~16 semitones of down-bend room
+    float d0 = (float)SOUND_SAMPLE_RATE / f / 2.0f;         // TRUE fractional half-wavelength note-on delay (the
+    if (d0 < 4.0f) d0 = 4.0f;                               // interpolated read honours it; truncating to int
+    int len = (int)(d0 * 2.5f);                            // sharpened high notes — see audio-notes §18 / brass)
     if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;     // capped at the buffer; bottoms out ~43Hz
     if (len < 4) len = 4;
     for (int i = 0; i < len; i++) {                         // seed with tiny noise (faster than silence)
         v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
         v->ks_buf[i] = (((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f) * 0.01f;
     }
-    v->rd_len = len; v->rd_idx = 0; v->rd_initfreq = (float)d0i * f / (float)len;
+    v->rd_len = len; v->rd_idx = 0; v->rd_initfreq = d0 * f / (float)len;
     v->rd_lp = v->rd_dc_prev = v->rd_dc_state = v->rd_vib_ph = v->rd_tilt = v->rd_noise_lp = 0.0f;
     v->rd_drift_ph = v->rd_drift = 0.0f;
     v->rd_attack   = (int)(0.028f * (float)SOUND_SAMPLE_RATE);   // ~28ms breathy chiff onset
@@ -2900,6 +2900,8 @@ static inline float sound_reed_sample(Voice *v, float pitch_mul) {
     // real wind vibrato mostly lives), the lip drift, and any cart LFO/glide/pitch-env (§8.8.1)
     float curf = v->freq * pitch_mul * (1.0f + vib * 0.011f); if (curf < 20.0f) curf = 20.0f;
     float effLen = (float)v->rd_len * v->rd_initfreq / curf;
+    float rlpc = 0.55f + bore * 0.37f;                     // = the bell-LP coeff (line below); hoisted for delay comp
+    effLen -= (1.0f - rlpc) / rlpc;                        // subtract the bell-LP loop group delay — else flat up top (§18)
     if (effLen < 2.0f) effLen = 2.0f;
     if (effLen > (float)v->rd_len) effLen = (float)v->rd_len;
     float readPos = (float)v->rd_idx - effLen;
@@ -3232,9 +3234,10 @@ static void sound_brass_start(Voice *v) {
     // buffer; effLen clamps at br_len, so a too-short bore can only bend UP). effLen still reads the
     // TRUE delay for the live pitch, and br_initfreq is set to the freq the full bore represents, so
     // the note-on delay is exactly SR/(2·f) — tuning is unchanged, this only opens room beneath it.
-    int d0i = (int)((float)SOUND_SAMPLE_RATE / f / 2.0f);  // the ORIGINAL integer note-on delay — keep it
-    if (d0i < 4) d0i = 4;                                   // EXACTLY so brass tuning is byte-identical
-    int len = (int)((float)d0i * 2.5f);                    // longer bore → ~16 semitones of down-bend room
+    float d0 = (float)SOUND_SAMPLE_RATE / f / 2.0f;        // TRUE fractional note-on delay (the interpolated read
+    if (d0 < 4.0f) d0 = 4.0f;                              // honours it) — truncating to int sized the bore short,
+    int len = (int)(d0 * 2.5f);                            // sharpening high notes (C#6 +64¢); see audio-notes §18
+    // longer bore → ~16 semitones of down-bend room
     if (len > SOUND_KS_MAX - 1) len = SOUND_KS_MAX - 1;     // capped at the buffer; bottoms out ~43Hz
     if (len < 4) len = 4;
     for (int i = 0; i < len; i++) {                         // seed with tiny noise (faster than silence)
@@ -3244,7 +3247,7 @@ static void sound_brass_start(Voice *v) {
     // br_initfreq chosen so effLen == d0i at note-on (the formula effLen = br_len·br_initfreq/curf gives
     // d0i·f/curf — IDENTICAL to the old line, so every pitch/tuning value is unchanged); the only
     // difference is the clamp ceiling is now br_len (longer) instead of d0i, which opens the down-bend.
-    v->br_len = len; v->br_idx = 0; v->br_initfreq = (float)d0i * f / (float)len;
+    v->br_len = len; v->br_idx = 0; v->br_initfreq = d0 * f / (float)len;
     v->br_lip_y1 = v->br_lip_y2 = v->br_lip_x1 = v->br_lip_x2 = 0.0f;   // lip biquad state
     v->br_lp = v->br_dc_prev = v->br_dc_state = 0.0f;
     v->br_out_prev = v->br_out_state = 0.0f;
@@ -3304,6 +3307,8 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     // bore delay: fractional read length tracks live pitch + pitch vibrato + cart glide/LFO (§8.8.1)
     float curf = v->freq * pitch_mul * (1.0f + vib * 0.010f); if (curf < 20.0f) curf = 20.0f;
     float effLen = (float)v->br_len * v->br_initfreq / curf;
+    effLen -= 0.5f * (1.0f - lpCoeff) / lpCoeff;           // subtract the bell-LP loop group delay (one-pole, once
+                                                           // per round trip) — else high notes ramp flat (§18)
     if (effLen < 2.0f) effLen = 2.0f;
     if (effLen > (float)v->br_len) effLen = (float)v->br_len;
     float readPos = (float)v->br_idx - effLen;
@@ -4134,7 +4139,8 @@ static inline float sound_engine_sample(Voice *v, float pitch_mul) {
     if (alloc < 4) return 0.0f;   // engine id without a note-on init (e.g. an sfx step) — stay silent
     float f = v->freq * pitch_mul;
     if (f < 20.0f) f = 20.0f;
-    float len_f = (float)SOUND_SAMPLE_RATE / f;          // the tap distance IS the pitch
+    float len_f = (float)SOUND_SAMPLE_RATE / f - 0.5f;   // the tap distance IS the pitch; −0.5 compensates the
+                                                         // damping average's exact half-sample delay (else flat up top)
     if (len_f > (float)alloc - 2.0f) len_f = (float)alloc - 2.0f;
     if (len_f < 2.0f)                len_f = 2.0f;
     // harmonics = ring time, mapped PERCEPTUALLY: the knob sets a target decay time

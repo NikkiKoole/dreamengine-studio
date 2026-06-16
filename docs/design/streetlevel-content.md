@@ -135,8 +135,13 @@ reach. The selector (the C tables) stays per-cart; the atoms are the universal u
    three domains; `G` draws the **selector map** (wild green / farm yellow / city red). *This is the
    bridge to the real thing:* swap `world_kind_at` for worldgen's terrain + roadnet's cities and
    `building_at()` for sloop collision, and the same atoms populate the actual game world.
-5. **`border` / `pave` / `stamp`** — hedgerows (rows has a basic one), parking, plazas, the football
-   field, set-pieces.
+5. ✅ **`border` / `pave` / `stamp` + `subdivide`** *(built 2026-06-17)* — the atom set is complete.
+   `border` strokes a region edge (hedge/fence/wall), `pave` flat-fills a surface (asphalt with
+   parking stalls / plaza tiles / gravel / sports court), `stamp` drops one authored composite
+   (fountain/statue/well/obelisk) at the anchor. Each is a `*_fill(rect, hash, show[])` tiled by a
+   shared `demo_grid()` helper — which **is** `subdivide` (splitting the plane into bounded plots),
+   so the 7th atom is realised as that helper rather than a separate visual tab. All seven now live
+   as workbench tabs (border/pave/stamp) or in-place primitives (subdivide).
 
 ## Open decisions (for build time)
 - **Scatter distribution:** jittered grid (simplest, seam-safe) vs a relaxed Poisson — lean jittered.

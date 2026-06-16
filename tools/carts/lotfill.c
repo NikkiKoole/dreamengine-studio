@@ -31,6 +31,9 @@
 //   rows of a crop + a hedgerow. rows_fill() fills ONE region; the driver tiles it.
 // • footprint — buildings: a block grid carves streets, perimeter lots front them
 //   by construction, and one footprint_fill() makes house/shop/tower from a ZONE.
+// • border / pave / stamp — the small bounded atoms: edge a region (hedge/fence/
+//   wall), flat-fill a surface (asphalt/plaza/gravel/court), or drop a composite
+//   (fountain/statue/well/obelisk). All tiled by demo_grid() — which IS subdivide.
 //
 // Two field layers + two scatter layers make it "interesting" with no special cases:
 //   • biome field (warped fbm) → cover KIND (bare/grass/meadow/forest)
@@ -584,6 +587,120 @@ static const char *world_probe(float x, float y) {
     return buf;
 }
 
+// ── the bounded-atom demo driver (also realises `subdivide`) ──────────────────
+// border/pave/stamp all fill ONE bounded region. This tiles a plot grid over the
+// view and calls the atom's fill per plot — the grid IS the subdivide primitive.
+#define BORDER_P 28
+#define PAVE_P   30
+#define STAMP_P  34
+typedef void (*FillFn)(Rect r, unsigned h, const bool show[3]);
+static unsigned plot_hash(int fx, int fy) { return hash2(fx + lf_seed * 149, fy * 131 + 5); }
+
+static void demo_grid(float cam_x, float cam_y, float zoom, int P, FillFn fn, const char *label) {
+    if (zoom < 0.01f) zoom = 0.01f;
+    float cx = cam_x + SCREEN_W / 2.0f, cy = cam_y + SCREEN_H / 2.0f;
+    float hwv = (SCREEN_W / 2.0f) / zoom, hhv = (SCREEN_H / 2.0f) / zoom;
+    int Lpx = (int)(cx - hwv) - P, Rpx = (int)(cx + hwv) + P, Tpx = (int)(cy - hhv) - P, Bpx = (int)(cy + hhv) + P;
+    bool show[3] = { layer_on[0], layer_on[1], layer_on[2] };
+    int n = 0;
+    for (int fy = ifloordiv(Tpx, P); fy <= ifloordiv(Bpx, P); fy++)
+        for (int fx = ifloordiv(Lpx, P); fx <= ifloordiv(Rpx, P); fx++) {
+            Rect r = { fx * P, fy * P, P, P };
+            fn(r, plot_hash(fx, fy), show);
+            n++;
+        }
+    if (dbg) {
+        for (int fx = ifloordiv(Lpx, P); fx <= ifloordiv(Rpx, P) + 1; fx++) line(fx * P, Tpx, fx * P, Bpx, CLR_DARK_RED);
+        for (int fy = ifloordiv(Tpx, P); fy <= ifloordiv(Bpx, P) + 1; fy++) line(Lpx, fy * P, Rpx, fy * P, CLR_DARK_RED);
+        rect(ifloordiv((int)cx, P) * P, ifloordiv((int)cy, P) * P, P, P, CLR_YELLOW);
+    }
+    cnt[0] = n; cnt_lbl[0] = label; cnt_lbl[1] = NULL; cnt_lbl[2] = NULL;
+}
+
+// ── ATOM: border — stroke a region edge with a hedge / fence / wall ───────────
+// Layers: 0 plot (interior) · 1 edge (the stroke). (Promoted from rows' hedgerow.)
+static void border_fill(Rect r, unsigned h, const bool show[3]) {
+    int style = h % 3;                                          // 0 hedge · 1 fence · 2 wall
+    if (show[0])
+        rectfill(r.x, r.y, r.w, r.h, style == 0 ? CLR_DARK_GREEN : style == 1 ? CLR_MEDIUM_GREEN : CLR_DARK_BROWN);
+    if (!show[1]) return;
+    int x1 = r.x + r.w - 1, y1 = r.y + r.h - 1;
+    if (style == 0) {                                          // hedge: bushy 2px ring
+        for (int x = r.x; x <= x1; x++) {
+            int c = ((x + r.y) & 1) ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN;
+            pset(x, r.y, c); pset(x, r.y + 1, CLR_LIME_GREEN); pset(x, y1, c); pset(x, y1 - 1, CLR_LIME_GREEN);
+        }
+        for (int y = r.y; y <= y1; y++) {
+            int c = ((r.x + y) & 1) ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN;
+            pset(r.x, y, c); pset(r.x + 1, y, CLR_LIME_GREEN); pset(x1, y, c); pset(x1 - 1, y, CLR_LIME_GREEN);
+        }
+    } else if (style == 1) {                                   // fence: rail + posts
+        rect(r.x, r.y, r.w, r.h, CLR_BROWN);
+        for (int x = r.x; x <= x1; x += 4) { pset(x, r.y, CLR_DARK_BROWN); pset(x, y1, CLR_DARK_BROWN); }
+        for (int y = r.y; y <= y1; y += 4) { pset(r.x, y, CLR_DARK_BROWN); pset(x1, y, CLR_DARK_BROWN); }
+    } else {                                                   // wall: dithered stone
+        for (int x = r.x; x <= x1; x++) { int c = ((x >> 1) & 1) ? CLR_LIGHT_GREY : CLR_DARK_GREY; pset(x, r.y, c); pset(x, y1, c); }
+        for (int y = r.y; y <= y1; y++) { int c = ((y >> 1) & 1) ? CLR_LIGHT_GREY : CLR_DARK_GREY; pset(r.x, y, c); pset(x1, y, c); }
+    }
+}
+static void border_draw(float cx, float cy, float z) { demo_grid(cx, cy, z, BORDER_P, border_fill, "plots"); }
+static const char *border_probe(float x, float y) {
+    static char b[28]; static const char *S[3] = { "hedge", "fence", "wall" };
+    snprintf(b, sizeof b, "border: %s", S[plot_hash(ifloordiv((int)x, BORDER_P), ifloordiv((int)y, BORDER_P)) % 3]);
+    return b;
+}
+
+// ── ATOM: pave — flat surface fill (asphalt / plaza / gravel / court) ─────────
+// Layers: 0 surface · 1 markings · 2 curb.
+static void pave_fill(Rect r, unsigned h, const bool show[3]) {
+    int surf = h % 4;                                          // 0 asphalt · 1 plaza · 2 gravel · 3 court
+    int m = 2, ix = r.x + m, iy = r.y + m, iw = r.w - 2 * m, ih = r.h - 2 * m;
+    if (show[0]) {
+        rectfill(r.x, r.y, r.w, r.h, surf == 0 ? CLR_DARKER_GREY : surf == 1 ? CLR_LIGHT_GREY : surf == 2 ? CLR_DARK_BROWN : CLR_BLUE_GREEN);
+        if (surf == 2)                                         // gravel speckle
+            for (int y = r.y; y < r.y + r.h; y += 2)
+                for (int x = r.x + (y & 1); x < r.x + r.w; x += 2)
+                    if ((hash2(x, y + lf_seed) & 3) == 0) pset(x, y, CLR_MEDIUM_GREY);
+    }
+    if (show[1] && iw > 1 && ih > 1) {
+        if (surf == 0) for (int x = ix; x < ix + iw; x += 6) line(x, iy, x, iy + ih - 1, CLR_LIGHT_YELLOW);  // stalls
+        else if (surf == 1) {                                  // plaza tile grid
+            for (int x = r.x; x < r.x + r.w; x += 4) line(x, r.y, x, r.y + r.h - 1, CLR_MEDIUM_GREY);
+            for (int y = r.y; y < r.y + r.h; y += 4) line(r.x, y, r.x + r.w - 1, y, CLR_MEDIUM_GREY);
+        } else if (surf == 3) { rect(ix, iy, iw, ih, CLR_WHITE); line(ix, iy + ih / 2, ix + iw - 1, iy + ih / 2, CLR_WHITE); }
+    }
+    if (show[2]) rect(r.x, r.y, r.w, r.h, CLR_LIGHT_GREY);     // curb
+}
+static void pave_draw(float cx, float cy, float z) { demo_grid(cx, cy, z, PAVE_P, pave_fill, "plots"); }
+static const char *pave_probe(float x, float y) {
+    static char b[28]; static const char *S[4] = { "asphalt", "plaza", "gravel", "court" };
+    snprintf(b, sizeof b, "pave: %s", S[plot_hash(ifloordiv((int)x, PAVE_P), ifloordiv((int)y, PAVE_P)) % 4]);
+    return b;
+}
+
+// ── ATOM: stamp — drop one authored composite at the region's anchor ──────────
+// Layers: 0 ground · 1 shadow · 2 prop.
+static void stamp_fill(Rect r, unsigned h, const bool show[3]) {
+    int kind = h % 4;                                          // 0 fountain · 1 statue · 2 well · 3 obelisk
+    int cx = r.x + r.w / 2, cy = r.y + r.h / 2, R = (r.w < r.h ? r.w : r.h) / 2 - 3;
+    if (R < 2) return;
+    if (show[0]) rectfill(r.x, r.y, r.w, r.h, CLR_LIGHT_GREY); // plaza ground
+    if (show[1]) circfill(cx + 1, cy + 2, R - 1, CLR_MEDIUM_GREY);  // shadow
+    if (!show[2]) return;
+    switch (kind) {
+        case 0: circfill(cx, cy, R, CLR_LIGHT_GREY); circfill(cx, cy, R - 2, CLR_BLUE); circfill(cx, cy, 1, CLR_WHITE); break;
+        case 1: rectfill(cx - 2, cy - 1, 4, R + 1, CLR_DARK_GREY); circfill(cx, cy - R + 2, 2, CLR_LIGHT_GREY); break;
+        case 2: circ(cx, cy, R, CLR_DARK_BROWN); circfill(cx, cy, R - 1, CLR_DARKER_GREY); line(cx - R, cy - R, cx + R, cy - R, CLR_BROWN); break;
+        case 3: rectfill(cx - 1, cy - R, 3, 2 * R, CLR_MEDIUM_GREY); pset(cx, cy - R - 1, CLR_WHITE); break;
+    }
+}
+static void stamp_draw(float cx, float cy, float z) { demo_grid(cx, cy, z, STAMP_P, stamp_fill, "props"); }
+static const char *stamp_probe(float x, float y) {
+    static char b[28]; static const char *S[4] = { "fountain", "statue", "well", "obelisk" };
+    snprintf(b, sizeof b, "stamp: %s", S[plot_hash(ifloordiv((int)x, STAMP_P), ifloordiv((int)y, STAMP_P)) % 4]);
+    return b;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  THE ATOM REGISTRY — each atom is a tab
 // ════════════════════════════════════════════════════════════════════════════
@@ -600,6 +717,9 @@ static Atom atoms[] = {
     { "SCATTER",   3, { "base", "ground", "canopy" }, scat_draw,      scat_probe },
     { "ROWS",      3, { "soil", "crop",   "border" }, rows_draw,      rows_probe },
     { "FOOTPRINT", 3, { "ground", "build", "detail" }, footprint_draw, footprint_probe },
+    { "BORDER",    2, { "plot", "edge" },             border_draw,    border_probe },
+    { "PAVE",      3, { "surface", "marks", "curb" }, pave_draw,      pave_probe },
+    { "STAMP",     3, { "ground", "shadow", "prop" }, stamp_draw,     stamp_probe },
 };
 #define N_ATOMS ((int)(sizeof atoms / sizeof atoms[0]))
 

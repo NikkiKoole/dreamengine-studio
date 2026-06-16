@@ -28,7 +28,7 @@ yet — it's all sandboxes + design docs, all committed.
    **before** the research, so it's on Béziers + hand-placed ports.
 5. **`roadlab.c`** — the **foundation**, rebuilt on the research: lane-accurate roads (drive-on-right
    via `DRIVE`), ports anchored to real lanes, ramps as **arc-splines**. **Supersedes `rampkit`**
-   (which stays as the bezier proof). Milestone 1 done; M2 (clothoids) + M3 (nesting) ahead.
+   (which stays as the bezier proof). M1 (arc-spline) + **M2 (clothoid joints)** done; M3 (nesting) ahead.
 
 ## What we're solving
 - **The concrete goal:** roadnet2 must draw ~12 junction types × topologies × angles × lane-counts
@@ -77,10 +77,15 @@ Investigated OpenDRIVE, clothoids, SUMO/CommonRoad, Cities: Skylines, curve offs
   cleaner `roadlab` foundation.
 
 ## How to continue
-- **`roadlab` M2 — clothoid joints** (the §2 forward-integration loop in `road-geometry-refs.md`) for
-  drivable feel.
+- **`roadlab` M2 — clothoid joints** ✅ **DONE.** `clothoid_spline()` splices a spiral on each side of
+  the arc (LINE→CLOTHOID→ARC→CLOTHOID→LINE) so κ ramps 0→1/R→0 — G2, "drives easily." Built on the §2
+  forward-integration loop (no Fresnel): one local arm is integrated to measure the spiral **shift** `p`
+  and **back-distance** `k`, the equivalent circle is offset inward by `p`, tangent dist
+  `Ts=(R+p)·tan(Δ/2)+k`, then the real curve is integrated forward. Reduces exactly to `arc_spline` as
+  Ls→0. `C` toggles it for A/B; `,`/`.` set the transition length Ls. Verified by A/B bake (the clothoid
+  path sweeps wider + eases in/out; both close cleanly at the ports, no run-out kink).
 - **`roadlab` M3 — nesting** (port `rampkit`'s relaxation onto `roadlab`'s arcs; concentric arcs nest
-  for free).
+  for free). **This is now the next step.**
 - **Then** `roadlab` becomes the drawer that `interchange.c` / roadnet2 call (bake constants, port in).
 - **Parked:** `interchange.c` task — the **half-diamond draw-order** (near ramps should merge at-grade,
   not duck under the highway); the **inner-loop nesting** in `interchange.c`; the **loop+loop vs

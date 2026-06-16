@@ -281,7 +281,7 @@ typedef struct {
     // = ks_buf[bw_nutlen..bw_nutlen+bw_brlen). A hyperbolic stick-slip friction re-excites the
     // string → self-oscillation; held like reed/pipe. STEP-0 (navkit-bowsweep.c) found the Helmholtz
     // wedge — the macros are pinned inside it: harmonics = bow position β (note-on split), timbre =
-    // bow pressure (0.15–0.42, the narrow axis), morph = bow velocity/swell (wider wedge as it grows).
+    // bow pressure (0.10–0.26, the narrow axis), morph = bow velocity/swell (wider wedge as it grows).
     int    bw_nutlen, bw_brlen;         // delay-line split lengths (sum = full wavelength, ≤ KS_MAX-1)
     int    bw_nutidx, bw_bridx;         // write indices within each half (bridge offset by bw_nutlen)
     float  bw_nutrefl, bw_brrefl;       // reflection-filter states (nut end / bridge end)
@@ -3138,7 +3138,8 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     const float TWO_PI = 6.2831853f;
     const float SR = (float)SOUND_SAMPLE_RATE;
     // macros → physical params, pinned inside the wedge
-    float pressure = 0.12f + v->timb * 0.20f;              // timbre = bow pressure [0.12,0.32] (lowered: less scratch)
+    float pressure = 0.10f + v->timb * 0.16f;              // timbre = bow pressure [0.10,0.26] (recompressed 2026-06-16:
+                                                           // the old top (0.32) bowed scratchy — >4kHz noise jumped 0.5%→3.6%)
     float bowSpeed = 0.30f + v->mor  * 0.60f;              // morph = bow speed [0.30,0.90]
     float velocity = bowSpeed * 0.2f;                      // navkit's physical-range scale
     // HUMANIZED pitch vibrato — wandering rate/depth, lives in PITCH (like a real bowed string)

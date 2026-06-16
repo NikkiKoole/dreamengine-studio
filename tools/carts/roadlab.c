@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "ui.h"        // on-screen buttons (per-finger capture, fat-finger hit pads) — never hand-roll
 #include <stdio.h>
 #include <math.h>
 
@@ -13,7 +14,8 @@
 //   MILESTONE 3: MULTI-LANE ramps via lateral offsets of the one reference line (OpenDRIVE s/t shift).
 //                Lanes = concentric offset polylines ⇒ constant gap ⇒ they NEST FOR FREE on arc ref-lines
 //                — the empirical test of "do arcs nest without a solver?" (answer: yes). 1-4 set lanes.
-//   ←/→ port A   ↑/↓ port B   [ / ] arc radius   ,/. clothoid length   C clothoid   1-4 lane count
+//   Controls: an on-screen ui.h toolbar (A/B port pickers, R/Ls/lanes steppers, clothoid toggle) — every
+//   control is a clickable button. Keyboard still works: ←/→ A · ↑/↓ B · [ ] radius · ,/. Ls · C · 1-4 lanes.
 // Next: lane add/drop tapers (a lane peeling off at a diverge — OpenDRIVE width cubic); then port into roadnet2.
 
 #define DRIVE  1     // +1 = drive on the right — the single source of truth for handedness
@@ -148,6 +150,14 @@ static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *
 // ── state ──
 static int selA=2, selB=0; static float radius=28.f, spiral=14.f; static int use_cloth=1, nlanes=2;
 
+// a "−/+" (or "</>") stepper: two ui buttons; returns -1, 0 or +1
+static int step_btn(int x,int y,int w,const char*lm,const char*rm){
+    int d=0;
+    if (ui_button(x,       y, w, 13, lm)) d=-1;
+    if (ui_button(x+w+1,   y, w, 13, rm)) d=+1;
+    return d;
+}
+
 static void setup(void){
     if (nport) return;
     int CX=SCREEN_W/2, CY=SCREEN_H/2;
@@ -176,6 +186,7 @@ void update(void){
 
 void draw(void){
     setup();
+    ui_begin();
     cls(CLR_DARK_GREEN);
     int CX=SCREEN_W/2, CY=SCREEN_H/2;
     // lane-accurate roads: slabs + yellow median + per-lane direction arrows
@@ -194,10 +205,36 @@ void draw(void){
     }
     for (int i=0;i<nport;i++) if (i!=selA&&i!=selB) draw_port(ports[i], CLR_MEDIUM_GREY);
     draw_port(ports[selA], CLR_GREEN);  draw_port(ports[selB], CLR_RED);
-    char b[80];
-    snprintf(b,sizeof b,"A:%s -> B:%s   R:%d   lanes:%d", ports[selA].name, ports[selB].name, (int)radius, nlanes);
-    print(b,4,4,CLR_WHITE);
-    if (use_cloth){ snprintf(b,sizeof b,"clothoid Ls:%d  (C off)  [LINE>CLOTH>ARC>CLOTH>LINE]", (int)spiral); print(b,4,13,CLR_ORANGE); }
-    else print("clothoid OFF  (C on)  [LINE>ARC>LINE]", 4,13, CLR_MEDIUM_GREY);
-    print("</> A  ^v B  [ ] radius  ,/. spiral  C clothoid  1-4 lanes", 4, SCREEN_H-9, CLR_LIGHT_GREY);
+
+    // ── status (short — fits 320px) ──
+    char b[48];
+    snprintf(b,sizeof b,"%s -> %s", ports[selA].name, ports[selB].name);  print(b,4,4,CLR_WHITE);
+    print(use_cloth ? "arc + clothoid joints (G2)" : "arc only (G1 corner)", 4,13, use_cloth?CLR_ORANGE:CLR_MEDIUM_GREY);
+
+    // ── on-screen control toolbar (clickable; keyboard still works) ──
+    rectfill(0, SCREEN_H-36, SCREEN_W, 36, CLR_BLACK);
+    int d;
+    // row 1 — port pickers (green A / red B), each "</>" + the live name
+    print("A", 4, SCREEN_H-31, CLR_GREEN);
+    d=step_btn(12, SCREEN_H-34, 14, "<", ">"); if (d) selA=(selA+nport+d)%nport;
+    print(ports[selA].name, 46, SCREEN_H-31, CLR_GREEN);
+    print("B", 100, SCREEN_H-31, CLR_RED);
+    d=step_btn(108, SCREEN_H-34, 14, "<", ">"); if (d) selB=(selB+nport+d)%nport;
+    print(ports[selB].name, 142, SCREEN_H-31, CLR_RED);
+    // row 2 — geometry params (− / +) with live values + clothoid toggle
+    print("R", 4, SCREEN_H-15, CLR_WHITE);
+    d=step_btn(12, SCREEN_H-18, 14, "-", "+"); if (d) radius+=2*d;
+    snprintf(b,sizeof b,"%d",(int)radius); print(b, 44, SCREEN_H-15, CLR_LIGHT_GREY);
+    print("Ls", 64, SCREEN_H-15, CLR_ORANGE);
+    d=step_btn(80, SCREEN_H-18, 14, "-", "+"); if (d) spiral+=2*d;
+    snprintf(b,sizeof b,"%d",(int)spiral); print(b, 112, SCREEN_H-15, CLR_LIGHT_GREY);
+    if (ui_button(132, SCREEN_H-18, 44, 13, use_cloth?"CL on":"CL off")) use_cloth=!use_cloth;
+    print("ln", 184, SCREEN_H-15, CLR_WHITE);
+    d=step_btn(200, SCREEN_H-18, 14, "-", "+"); if (d) nlanes+=d;
+    snprintf(b,sizeof b,"%d",nlanes); print(b, 232, SCREEN_H-15, CLR_LIGHT_GREY);
+    // clamps (apply to both button + keyboard edits)
+    if (radius<6) radius=6;  if (spiral<0) spiral=0;
+    if (nlanes<1) nlanes=1;  if (nlanes>6) nlanes=6;
+
+    ui_end();
 }

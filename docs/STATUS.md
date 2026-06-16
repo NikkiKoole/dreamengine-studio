@@ -704,12 +704,17 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       on the overblow edge and the top octave can flip mode (the `tune-check.js` default sweep, which
       tests overblow/morph 0, still flags PIPE A5). Any real recipe uses morph ≳ 0.3 (shorter jet),
       where it's stable. Fully closing the morph-0 corner needs a jet-length re-voicing (jet ∝ bore).
-    - **`INSTR_PLUCK` / `INSTR_REED` / `INSTR_BRASS` — flatten at the top** (A5 −17 to −25¢),
-      ~0¢ low down. Classic integer-sample delay-length quantization in the waveguides; the
-      fix is a fractional (interpolated) delay read tap, or a per-note tuning correction.
+    - ~~**`INSTR_PLUCK` / `INSTR_REED` / `INSTR_BRASS` — flatten at the top** (A5 −17 to −25¢).~~
+      **FIXED 2026-06-16 (commit e458af1).** The "integer-sample delay-length quantization, fix =
+      fractional read tap" diagnosis was **wrong** — the reads already interpolate. Real fix:
+      REED/BRASS sized the note-on bore from a truncated integer delay (→ sharp high notes, dense
+      sweep showed BRASS C#6 +64.5¢) → use the true fractional delay as init reference; plus subtract
+      the bell-LP loop group delay `(1−lpCoeff)/lpCoeff` (BRASS ×0.5, REED ×1.0). PLUCK: −0.5 on the
+      tap for the Karplus averaging's exact half-sample delay. All in tune now — audio-notes §18 #7.
     - **In tune, no action:** SINE/MALLET/EPIANO/PD/PIANO/GUITAR/FM, and **BOWED** (≤ +3¢ —
-      whatever's off about the bowed voice, it is *not* pitch). **`INSTR_ORGAN`** reads an
-      octave low but is in tune (+3–7¢) — that's the 16′ sub-octave drawbar, expected.
+      whatever's off about the bowed voice, it is *not* pitch; though its default bow PRESSURE
+      wants a bump — tuning-handoff.md → NEXT). **`INSTR_ORGAN`** reads an octave low but is in
+      tune (+3–7¢) — that's the 16′ sub-octave drawbar, expected.
 
 32. **Split `runtime/sound.h` per-engine to cut the parallel-agent collision surface** *(new
     2026-06-11, surfaced when a parallel commit silently clobbered a PIPE tuning fix)*. `sound.h`

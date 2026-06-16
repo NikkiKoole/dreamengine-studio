@@ -83,13 +83,14 @@ harmon-cup bite — a `note_cutoff`+`note_res` cart recipe or an `instrument_mod
 macro) and handoff fix #3 (model the bell to fill the harmonic series natively). Full context:
 [`brass-realism-handoff.md`](brass-realism-handoff.md) + [`audio-notes.md`](audio-notes.md) §19.
 
-### B. Waveguide tuning — flatten at the top (STILL OPEN, untouched this session)
-BRASS A5 −25.7¢, REED −18.9¢, PLUCK −17.2¢ flatten at the very top (integer-sample delay
-quantization); PIPE's morph≈0 top octave is seed-unstable. The down-bend work **preserved** tuning,
-it did not fix this. Fix = a fractional (interpolated) read tap on the engines that lack it, or a
-per-note tuning correction. PIPE and BOWED already use the fractional-read trick (and are the cleanest
-references for how to add it). Verify with `node tools/tune-check.js` (per-engine cents) /
-`--quiet` (CI gate). Tracked: [STATUS](../STATUS.md) #31, audio-notes §18.
+### B. Waveguide tuning — flatten at the top (✅ FIXED 2026-06-16, commit e458af1)
+BRASS/REED/PLUCK top-octave flatness is fixed. The diagnosis here ("a fractional read tap on the
+engines that lack it") was **wrong** — all three reads already interpolate. The real fix: REED/BRASS
+sized the note-on bore from an integer-truncated delay (→ sharp high notes); use the true fractional
+delay as the init reference. The residual smooth ramp was the bell-LP loop group delay → subtract
+`(1−lpCoeff)/lpCoeff` from `effLen` (BRASS ×0.5, REED ×1.0). PLUCK: −0.5 on the tap for the Karplus
+averaging's exact half-sample delay. Full writeup: audio-notes §18 conclusion 7. **Still open:** PIPE's
+morph≈0 top octave (the hollow presets) — needs the jet∝bore re-voicing (tuning-handoff.md → NEXT).
 
 ### C. Revisit the carts built around the old "can't bend down" limit (STATUS #41)
 `tools/carts/upright.c` (upright bass, `INSTR_BOWED`) hard-codes an **up-only** pull-bend

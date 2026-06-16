@@ -1743,6 +1743,25 @@ sub-octave drawbar — it's in tune (+3 to +7¢), it just sounds an octave down.
    open low-E (E1) can't bend (buffer already maxed).** Carts that worked around the old limit (`upright.c`
    fret-walk, `pdbass.c`'s INSTR_PD swap) can be revisited — see STATUS #41.
 
+7. **Top-octave flatness — FIXED for PLUCK/REED/BRASS (2026-06-16, commit e458af1); the old §18.4
+   diagnosis was wrong.** §18.4/STATUS #31 blamed "integer-sample delay quantization, fix = a
+   fractional read tap." But the reads already interpolate (the down-bend session, #6, added that) —
+   so re-applying it was a no-op. The dense per-note sweep (not the A-only one) showed the truth: an
+   **erratic, mostly-SHARP** error (BRASS C#6 +64.5¢), not the smooth flat ramp the A-sweep implied.
+   Two real causes: (a) REED/BRASS sized the note-on bore from an **integer-truncated** delay `d0i`
+   (`(int)(SR/2f)`) — truncation always shortens the bore → sharp, worst where the delay is small
+   (high notes). Fix: use the TRUE fractional `d0` as the init-freq reference; the interpolated read
+   honours it. (b) The remaining smooth flat ramp is the **bell-LP loop group delay** (a one-pole,
+   once per round trip): subtract `(1−lpCoeff)/lpCoeff` from `effLen`, scaled per engine (BRASS ×0.5,
+   REED ×1.0 — REED carries ~2× the one-pole's DC estimate, tuned by meter). **PLUCK** was already
+   fractional; its flatness was the Karplus damping average's **exact** half-sample delay → −0.5 on
+   the tap (exact at every frequency, predicted the −17¢→0¢ result precisely). Verified by
+   `tune-check.js`: all three in tune at representative macros, macro-0 worst cases improved, SINE
+   control 0.0¢, dc-check 0. **Lesson (reinforces #3): sweep DENSELY — the A-only sweep's "smooth
+   flat ramp" hid an erratic sharp quantization that pointed at the wrong fix.** Two follow-ups left
+   (tuning-handoff.md → NEXT): BOWED wants more default bow pressure; PIPE's hollow presets still
+   drift (the morph≈0 re-voicing, residual #4 below).
+
 ## 19. BRASS character — partly addressed (2026-06-14; brightness shipped 2026-06-16)
 
 A recurring ear note: the brass doesn't yet sound *very brassy* — it speaks and holds, but the

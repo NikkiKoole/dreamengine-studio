@@ -51,10 +51,28 @@ index + the decisions that are **yours** to make.
       pizz/fundamental/nasal. Full spec + locked decisions in the plan doc. *(The "radio voices
       missing from the docs" side-task was a false positive — resolved on inspection, plan doc §6.)*
 
-## ☐ Open engine residuals (tracked, not urgent — [STATUS #31](STATUS.md))
+## ✅ Engine residuals — PLUCK / REED / BRASS top-octave (FIXED 2026-06-16, commit e458af1)
 
-- [ ] **PLUCK / REED / BRASS go flat at the very top** (A5 −17…−25¢) — integer-sample delay
-      quantization; fix is a fractional-read tap like PIPE/BOWED got. Fine in normal registers.
+The old diagnosis below was **wrong**: all three reads already interpolate (the down-bend
+session added it), so "add a fractional read tap" was a no-op. The real causes, now fixed:
+- **REED/BRASS** sized the note-on bore from an INTEGER-truncated delay → high notes sharp &
+  erratic (BRASS C#6 was +64.5¢). Now use the TRUE fractional delay as the init reference.
+- The residual smooth flat ramp was the **bell-LP loop group delay** → subtract
+  `(1−lpCoeff)/lpCoeff` from `effLen`, scaled per engine (BRASS ×0.5, REED ×1.0).
+- **PLUCK**'s flatness was the Karplus damping average's exact half-sample delay → −0.5 on the
+  tap (exact at all freqs). Verified: all three in tune at real macros; SINE control 0.0¢.
+
+## ☐ NEXT — follow-ups from the 2026-06-16 ear test (engine-tuner cart)
+
+- [ ] **BOWED wants more bow PRESSURE by default.** The default violin voice sounds
+      under-pressured — bump the default `timbre` (bow pressure, 0.20+timbre·0.62 in
+      `sound_bowed_sample`) in the stock voice / starter recipes. Character, not tuning.
+- [ ] **PIPE presets still off.** recorder/breathy/pan-pipe drift flat up high (hollow
+      embouchure, morph ≲ 0.4) — the engine is in tune at morph ≳ 0.5 but these voices
+      aren't. Either re-voice them toward morph ≳ 0.5 or finish the jet∝bore re-voicing that
+      fully closes the morph≈0 top octave (see the morph residual below + audio-notes §18).
+
+## ☐ Open engine residuals (tracked, not urgent — [STATUS #31](STATUS.md))
 - [ ] **PIPE at morph ≲ 0.4** (hollow/low embouchure, e.g. pipe.c's `recorder`/`breathy`
       presets) drifts flat up high, and **morph ≈ 0** is seed-unstable in its top octave.
       Real recipes use morph ≳ 0.5, so this is mostly a "don't voice a flute hollow + high"

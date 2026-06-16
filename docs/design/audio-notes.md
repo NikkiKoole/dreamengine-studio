@@ -1820,3 +1820,68 @@ brassier" and needs no engine work.
 > mute/plunger axis** (the harmon-cup bite, thread #1); (c) handoff fix #3 — model the bell so the
 > harmonic series fills natively instead of being synthesized downstream. This is a standing TODO, not
 > "done."
+
+
+## 20. Test coverage — the audio blind spots (2026-06-16)
+
+A "what is NOT tested?" audit. The synth ENGINES are well-covered — `tune-check.js` (pitch),
+`dc-check.js` (DC offset), the soundcheck queue tripwire (dropped requests), and `build-all.js`
+(cart-vs-API rot) each gate a real failure mode. What surfaced is that whole *categories* of audio
+behaviour have no automated gate at all. Tracked in [STATUS](../STATUS.md) Open #42; ranked by leverage.
+
+### 20.1 Loudness regression — SHIPPED `tools/level-check.js`
+
+The highest-value gap and the one we closed. `tune-check.js` proves an engine is in TUNE; nothing
+proved it plays at the right LEVEL. That is exactly the regression a week of `sound.h` edits hides:
+an engine that gets 6 dB louder still compiles, reads 0¢ on tune-check, and passes the DC check — it
+just lives inside the master soft-clip now (`sound.h:5503`), dynamics squashed, "sounds crushed."
+
+`level-check.js` is the twin of tune-check: it renders the SAME `tunecheck` sweep (every pitched
+engine × four octaves of A, gated, `watch()`-driven ground truth), `--det` for byte-reproducibility,
+and measures each note window peak / RMS / crest in dBFS. **Why a baseline (tune-check needs none):**
+pitch has a mathematically exact target (A440); level has no absolute truth, so the gate compares
+against a committed golden render (`tools/level-baseline.json`, re-bless with `--save`). `--quiet`
+exits 1 on > 4 dB drift (or new silence/clip) — a CI gate. Three absolute checks need no baseline
+(a brand-new engine still gets them): SILENT (broken voice), HOT (a single note near full-scale —
+two would clip), and loudness-outlier-vs-library-median. The squash check is gated on a HOT peak: a
+low crest on a *quiet* tone is just a dense waveform (REED reads crest ~2.5 dB, below a sine's 3.0 dB
+— its harmonics, not clipping), so it only flags when the peak is also near the limiter knee.
+
+**First-run finding (advisory — a taste/balance issue, not a code regression):** the library is
+*uneven in level*. Most engines sit at −14 to −18 dBFS peak for a single note; **BOWED is ~10–13 dB
+hotter** (A2 peaks −1.2 dBFS — two sustained bowed notes clip the master soft-clip), and **BRASS A2
+is +9 dB**. This is the level analogue of the §18 tuning audit: the modeled/physical engines are the
+outliers. A per-engine output-trim pass to roughly peak-match the palette would make chords *across*
+instruments balance without every cart riding `note_vol` — tracked, not yet acted on. (It also lines
+up with the §18 note that "whatever is off about BOWED, it is not pitch" — partly, it is level.)
+
+### 20.2 Still open (no gate yet)
+
+1. **Effects have almost no tooling coverage.** ~15 bus effects; nothing renders them to assert
+   finite / bounded / actually-changes-the-signal. The sharp edge is the **feedback paths at their
+   documented extremes** (echo fb 1.1, flanger/phaser ±0.95, filter/wah resonance →1.0): stability
+   there rests on internal `tanh` guards asserted by COMMENT, not test. Wanted: an `fx-check.js` fuzz
+   harness (each effect × extreme params × impulse/noise → assert no NaN, peak ≤ ceiling) — the DSP
+   twin of `build-all`. **Effect STACKING is also untested:** `fx_order()` chains effects in any order
+   on the master bus, each is tuned in isolation, and the limiter protects the ceiling but not the
+   stability of two feedback effects in series.
+2. **The web/wasm audio path is verified only by ear.** Every gate above runs the NATIVE build.
+   69 carts are "engine-stale" on the web, but the deeper gap is that nothing checks whether the
+   emscripten / AudioWorklet build emits the SAME SAMPLES as native (sample rate, worklet buffering,
+   float determinism). A fix verified native could be wrong on web with no signal. `audio-timing.md`
+   covers the timing ("drunk playback") side, not sample-level parity.
+3. **The "reconfigure an effect every frame" footgun is not lintable.** The set-and-hold rule
+   ([effects-recipes.md](../guides/effects-recipes.md) intro) is documented but unenforced; ~43 carts
+   call effect-config fns and the symptom (stutter) is easy to misattribute. Wanted: a static check
+   for an unguarded effect-config call reachable from `update()`/`draw()`.
+4. **No long-session soak / denormal guard.** §15 measured the voice/handle budget at a point in time;
+   nothing soaks for minutes asserting no voice leak or slow drift, and there is no flush-to-zero — a
+   long reverb/echo feedback tail can drift into denormal range → audio-thread CPU spikes (stutter) on
+   some CPUs, invisible on the dev machine.
+
+### 20.3 Micro-bug spotted in the same pass
+
+`amp_noise_process` + `varispeed_process` run AFTER the master soft-clip (`sound.h:5509-5510`), and
+the device output path has no final clamp (only the WAV writer clamps, `sound.h:372`). So varispeed's
+interpolation can push the device signal slightly past ±1.0 → a hard driver clip. Tiny, but a real
+seam — a final clamp on the device write (or running those two before the soft-clip) closes it.

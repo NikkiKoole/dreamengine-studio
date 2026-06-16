@@ -987,6 +987,51 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       *only* to get a two-way slide (`INSTR_PD` oscillator) — still valid as the "buzzy CZ" variant, but
       the upright itself no longer needs the workaround. Update both carts' descriptions when revisited.
 
+42. **Audio TEST-COVERAGE blind spots** *(2026-06-16, found in a "what isn't tested?" audit)* — the
+    engines are well-covered (`tune-check.js` = pitch, `dc-check.js` = DC, the soundcheck tripwire =
+    dropped requests, `build-all.js` = cart-vs-API rot) but whole *categories* have no automated gate.
+    Ranked by leverage; full reasoning in [`design/audio-notes.md`](design/audio-notes.md) §20.
+    - ✅ **Loudness regression gate — SHIPPED `tools/level-check.js`.** The twin of tune-check for
+      *level*: renders the same `tunecheck` sweep (`--det`, deterministic) and measures each note's
+      peak/RMS/crest in dBFS against a committed golden baseline (`tools/level-baseline.json`,
+      re-bless with `--save`). `--quiet` = CI gate (exit 1 on > **4 dB** drift, or new silence/clip).
+      Catches the silent regression a compile + tune-check + dc-check all miss — an engine that got
+      louder/quieter, or one now slamming the master limiter (crest collapse, dynamics squashed).
+      Also flags absolutes with no baseline (SILENT / HOT-on-its-own / loudness-outlier-vs-library).
+      **First-run finding (advisory, not a regression — flagged for taste):** the library is uneven —
+      **BOWED is ~10–13 dB hotter than the library median** (A2 peaks −1.2 dBFS, so *two* sustained
+      bowed notes clip the master soft-clip), and **BRASS A2 is +9 dB**. Most engines sit at −14 to
+      −18 dBFS peak; a per-engine output-trim pass to roughly match peaks would make chords across
+      instruments balance without riding `note_vol`. Tracked, not yet acted on.
+    - **Effects have almost no tooling coverage.** ~15 bus effects (reverb/echo/chorus/flanger/tape/
+      wah/phaser/crush/eq/drive/leslie/shimmer/shallow…) — nothing renders them to assert *finite,
+      bounded, actually-changes-the-signal*. Scariest sub-case: the **feedback paths at their
+      documented extremes** (echo fb `1.1`, flanger/phaser `±0.95`, filter/wah resonance →1.0) rest on
+      internal `tanh` guards asserted by *comment*, not test. Wanted: an `fx-check.js` fuzz harness
+      (each effect × extreme params × impulse/noise → assert no NaN, peak ≤ ceiling) — the DSP twin of
+      `build-all`. **Also untested: effect STACKING** — `fx_order()` chains them any order on the
+      master bus; each is tuned alone; the limiter protects the ceiling but not stability of two
+      feedback effects in series.
+    - **The web/wasm audio path is verified only by ear.** Every gate above runs the NATIVE build.
+      69 carts are "engine-stale" on the web (audio predates a `sound.h` change), but the deeper gap:
+      nothing checks whether the emscripten/AudioWorklet build emits the *same samples* as native
+      (SR, worklet buffering, float determinism). A tuning/level fix verified native could be wrong on
+      web and no tool would know. ([`audio-timing.md`](design/audio-timing.md) covers the *timing* side,
+      not sample parity.)
+    - **The "reconfigure an effect every frame" footgun is not lintable.** CLAUDE.md warns wiring a knob
+      straight into `crush()`/`tape()`/`eq()` every frame churns the bus DSP → silent stutter; ~43 carts
+      call effect-config fns. We lint UI/mobile/tags/DC/tuning but nothing flags an unguarded
+      effect-config call reachable from `update()`/`draw()`. Wanted: a static check (the
+      `effects-recipes.md` set-and-hold rule, enforced).
+    - **No long-session soak / denormal guard.** §15 measured the voice/handle budget at a point in time;
+      nothing soaks for minutes asserting no voice leak or slow drift, and there's **no flush-to-zero** —
+      long reverb/echo feedback tails can fall into denormal range → audio-thread CPU spikes (stutter) on
+      some CPUs, invisible on the dev machine.
+    - **Micro-bug spotted in the same pass:** `amp_noise_process` + `varispeed_process` run *after* the
+      master soft-clip (`sound.h:5509–5510`), and the device output has no final clamp (only the WAV
+      writer does, `sound.h:372`) — so varispeed's interpolation can push the device signal slightly
+      past ±1.0 → a hard driver clip. Tiny, but a real seam.
+
 ---
 
 ## Decided-against / deferred ✗

@@ -1,0 +1,322 @@
+{
+  "note": "golden engine levels from tools/carts/tunecheck.c — regenerate with `node tools/level-check.js --save`",
+  "generated": "commit this file; level-check --quiet diffs against it (the regression gate)",
+  "thresholdDb": {
+    "warn": 1.5,
+    "bad": 4
+  },
+  "notes": [
+    {
+      "eng": 4,
+      "midi": 45,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 4,
+      "midi": 57,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 4,
+      "midi": 69,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 4,
+      "midi": 81,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 16,
+      "midi": 45,
+      "peakDb": -16.22,
+      "rmsDb": -36.93
+    },
+    {
+      "eng": 16,
+      "midi": 57,
+      "peakDb": -15.46,
+      "rmsDb": -37.24
+    },
+    {
+      "eng": 16,
+      "midi": 69,
+      "peakDb": -18.68,
+      "rmsDb": -36.46
+    },
+    {
+      "eng": 16,
+      "midi": 81,
+      "peakDb": -18.04,
+      "rmsDb": -45.21
+    },
+    {
+      "eng": 17,
+      "midi": 45,
+      "peakDb": -16.68,
+      "rmsDb": -36.74
+    },
+    {
+      "eng": 17,
+      "midi": 57,
+      "peakDb": -16.27,
+      "rmsDb": -36.68
+    },
+    {
+      "eng": 17,
+      "midi": 69,
+      "peakDb": -16.28,
+      "rmsDb": -36.71
+    },
+    {
+      "eng": 17,
+      "midi": 81,
+      "peakDb": -15.9,
+      "rmsDb": -36.69
+    },
+    {
+      "eng": 18,
+      "midi": 45,
+      "peakDb": -13.98,
+      "rmsDb": -17
+    },
+    {
+      "eng": 18,
+      "midi": 57,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 18,
+      "midi": 69,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 18,
+      "midi": 81,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 19,
+      "midi": 45,
+      "peakDb": -17.68,
+      "rmsDb": -23.03
+    },
+    {
+      "eng": 19,
+      "midi": 57,
+      "peakDb": -18.03,
+      "rmsDb": -23.98
+    },
+    {
+      "eng": 19,
+      "midi": 69,
+      "peakDb": -19.14,
+      "rmsDb": -26.21
+    },
+    {
+      "eng": 19,
+      "midi": 81,
+      "peakDb": -18.53,
+      "rmsDb": -26.89
+    },
+    {
+      "eng": 20,
+      "midi": 45,
+      "peakDb": -17.96,
+      "rmsDb": -25.52
+    },
+    {
+      "eng": 20,
+      "midi": 57,
+      "peakDb": -17.65,
+      "rmsDb": -24.79
+    },
+    {
+      "eng": 20,
+      "midi": 69,
+      "peakDb": -18.3,
+      "rmsDb": -23.77
+    },
+    {
+      "eng": 20,
+      "midi": 81,
+      "peakDb": -18.39,
+      "rmsDb": -22.91
+    },
+    {
+      "eng": 21,
+      "midi": 45,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 21,
+      "midi": 57,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 21,
+      "midi": 69,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 21,
+      "midi": 81,
+      "peakDb": -13.98,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 23,
+      "midi": 45,
+      "peakDb": -10.71,
+      "rmsDb": -14.86
+    },
+    {
+      "eng": 23,
+      "midi": 57,
+      "peakDb": -11.87,
+      "rmsDb": -14.63
+    },
+    {
+      "eng": 23,
+      "midi": 69,
+      "peakDb": -12.03,
+      "rmsDb": -14.52
+    },
+    {
+      "eng": 23,
+      "midi": 81,
+      "peakDb": -12.52,
+      "rmsDb": -14.62
+    },
+    {
+      "eng": 25,
+      "midi": 45,
+      "peakDb": -7.04,
+      "rmsDb": -15.4
+    },
+    {
+      "eng": 25,
+      "midi": 57,
+      "peakDb": -7.78,
+      "rmsDb": -15.21
+    },
+    {
+      "eng": 25,
+      "midi": 69,
+      "peakDb": -8.23,
+      "rmsDb": -15.16
+    },
+    {
+      "eng": 25,
+      "midi": 81,
+      "peakDb": -8.14,
+      "rmsDb": -15.25
+    },
+    {
+      "eng": 26,
+      "midi": 45,
+      "peakDb": -17.27,
+      "rmsDb": -46.22
+    },
+    {
+      "eng": 26,
+      "midi": 57,
+      "peakDb": -17.66,
+      "rmsDb": -47.61
+    },
+    {
+      "eng": 26,
+      "midi": 69,
+      "peakDb": -17.88,
+      "rmsDb": -49.39
+    },
+    {
+      "eng": 26,
+      "midi": 81,
+      "peakDb": -17.4,
+      "rmsDb": -46.08
+    },
+    {
+      "eng": 27,
+      "midi": 45,
+      "peakDb": -17.76,
+      "rmsDb": -31.81
+    },
+    {
+      "eng": 27,
+      "midi": 57,
+      "peakDb": -15.97,
+      "rmsDb": -35.13
+    },
+    {
+      "eng": 27,
+      "midi": 69,
+      "peakDb": -19.92,
+      "rmsDb": -39.14
+    },
+    {
+      "eng": 27,
+      "midi": 81,
+      "peakDb": -18.99,
+      "rmsDb": -44.57
+    },
+    {
+      "eng": 28,
+      "midi": 45,
+      "peakDb": -1.18,
+      "rmsDb": -10.09
+    },
+    {
+      "eng": 28,
+      "midi": 57,
+      "peakDb": -2.42,
+      "rmsDb": -10.7
+    },
+    {
+      "eng": 28,
+      "midi": 69,
+      "peakDb": -4.45,
+      "rmsDb": -12.74
+    },
+    {
+      "eng": 28,
+      "midi": 81,
+      "peakDb": -7.4,
+      "rmsDb": -16.34
+    },
+    {
+      "eng": 29,
+      "midi": 45,
+      "peakDb": -4.72,
+      "rmsDb": -16.99
+    },
+    {
+      "eng": 29,
+      "midi": 57,
+      "peakDb": -5.1,
+      "rmsDb": -15.81
+    },
+    {
+      "eng": 29,
+      "midi": 69,
+      "peakDb": -5.09,
+      "rmsDb": -13.95
+    },
+    {
+      "eng": 29,
+      "midi": 81,
+      "peakDb": -6.45,
+      "rmsDb": -14.16
+    }
+  ]
+}

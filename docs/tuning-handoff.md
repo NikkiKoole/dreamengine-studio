@@ -64,9 +64,10 @@ session added it), so "add a fractional read tap" was a no-op. The real causes, 
 
 ## ☐ NEXT — follow-ups from the 2026-06-16 ear test (engine-tuner cart)
 
-- [ ] **BOWED wants more bow PRESSURE by default.** The default violin voice sounds
-      under-pressured — bump the default `timbre` (bow pressure, 0.20+timbre·0.62 in
-      `sound_bowed_sample`) in the stock voice / starter recipes. Character, not tuning.
+- [x] ~~**BOWED bow PRESSURE.**~~ **DONE 2026-06-16 (commit d90f2a3).** Turned out the bright
+      end was *too* high — scratchy (>4kHz noise 3.6% vs 0.5% at the sweet spot). Recompressed
+      the timbre→pressure map [0.12,0.32]→[0.10,0.26] so even full timbre stays musical; typical
+      voices sit in the clean 0.15–0.20 singing zone. Pitch unchanged. Heard via the engine tuner.
 - [ ] **PIPE presets still off.** recorder/breathy/pan-pipe drift flat up high (hollow
       embouchure, morph ≲ 0.4) — the engine is in tune at morph ≳ 0.5 but these voices
       aren't. Either re-voice them toward morph ≳ 0.5 or finish the jet∝bore re-voicing that

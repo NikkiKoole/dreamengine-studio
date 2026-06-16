@@ -60,10 +60,11 @@ static float ang   = 90.0f;     // crossing road angle (deg from highway)
 static int   show_hud = 1, show_panel = 1;
 // tunable ramp shape — slider-normalised 0..1, mapped to real values in draw() (tune by feel,
 // then bake the chosen values as constants when porting the drawer into roadnet2):
-static float s_reach = 0.33f;   //  R       reach  24..90 px
-static float s_gore  = 0.40f;   //  gore    divergence point along highway, ×R 1.0..2.0
-static float s_taper = 0.46f;   //  kA      off-ramp taper run, ×R 0.5..1.8
-static float s_runon = 0.45f;   //  kB      run-on along the overpass, ×R 0.4..1.4
+static float s_reach  = 0.33f;  //  reach   ramp length 24..90 px
+static float s_spread = 0.47f;  //  spread  how far apart the two ramps land along the highway (the "to the side" knob)
+static float s_gore   = 0.15f;  //  gore    trunk-end divergence / nose tightness (0 = sharp, both ramps from one point)
+static float s_taper  = 0.46f;  //  kA      off-ramp taper run, ×reach 0.5..1.8
+static float s_runon  = 0.45f;  //  kB      run-on along the overpass, ×reach 0.4..1.4
 
 // ── ribbon: stroke a polyline as a clean filled road (centre-line + polyfill quads + joint
 //    circles), the same technique roadnet2 uses. casing = a darker outline drawn first/wider.
@@ -124,6 +125,32 @@ static void draw_loop(float cx, float cy, float rad, float a0, float sweep) {
     ribbon(xs, ys, n, 5, CLR_DARKER_GREY);
     ribbon(xs, ys, n, 3, CLR_DARK_GREY);
 }
+
+// ── junction geometry context — the derived values every ramp ATOM reads, so atoms take no long
+//    param list and the same `near_pair`/`loop`/`flyover` compose into every junction type.
+typedef struct {
+    int   cx, cy;            // junction centre (highway × trunk)
+    float ux, uy;            // trunk/crossing-road unit dir (the `ang` direction)
+    int   hw, bw;            // road A half-width (highway), road B half-width (trunk)
+    float reach, spread, gore, taper, runon;   // mapped slider values (px / ×reach)
+    float ang;               // trunk angle (deg)
+} Geo;
+
+// ATOM — the half-diamond fan: two ramps tying the trunk to ONE carriageway (sy = which side,
+// ±1). Highway-ends sit ±spread along the highway; trunk-ends sit ±gore off the trunk axis (gore
+// 0 = a sharp single-point nose). This is the shared base of half-diamond / diamond / trumpet.
+static void near_pair(const Geo *g, int sy) {
+    float perpx = -g->uy, perpy = g->ux;             // perpendicular to the trunk
+    float cd = g->hw + g->reach;                     // trunk-end distance out along the trunk axis
+    for (int sx=-1; sx<=1; sx+=2) {                  // the two ramps (left / right along the highway)
+        float hx = g->cx + sx*g->spread,  hy = g->cy + sy*(g->hw - LANE_W*0.5f);
+        float ax = g->cx + g->ux*sy*cd - perpx*sx*g->gore;
+        float ay = g->cy + g->uy*sy*cd - perpy*sx*g->gore;
+        draw_ramp(hx,hy, (sx>0?180.f:0.f), ax,ay, (sy>0?g->ang:g->ang+180.f),
+                  g->reach*g->taper, g->reach*g->runon);
+    }
+}
+
 // a STRAIGHT road A→B, subdivided into short segments (polyfill fills short quads reliably; one
 // screen-long quad came out empty). Optional `casing<0` → no casing (shadow pass uses one colour).
 static void straight(float ax,float ay,float bx,float by,int hw,int casing,int centre){
@@ -137,6 +164,50 @@ static void straight(float ax,float ay,float bx,float by,int hw,int casing,int c
 static void hdash(int y, int col) {
     for (int x = 4; x < SCREEN_W; x += 12)
         for (int d = 0; d < 6; d++) pset(x + d, y, col);
+}
+
+// ── direction arrows: a tiny FILLED triangle centred at (x,y), tip pointing along `dir`°.
+static void arrowhead(int x, int y, float dir, int sz, int col) {
+    int tx = x+(int)(c_deg(dir)*sz),        ty = y+(int)(s_deg(dir)*sz);          // tip
+    int lx = x+(int)(c_deg(dir+140)*sz),    ly = y+(int)(s_deg(dir+140)*sz);      // back-left
+    int rx = x+(int)(c_deg(dir-140)*sz),    ry = y+(int)(s_deg(dir-140)*sz);      // back-right
+    trifill(tx,ty, lx,ly, rx,ry, col);
+}
+// travel-direction chevrons down each lane of a STRAIGHT two-way road A→B with `nl` lanes per
+// direction. Drive-on-right: the carriageway on the right of A→B (the +perp side) flows A→B, the
+// other flows B→A. Lets you read which way each lane goes (so trumpet ramp merges make sense).
+static void seg_arrows(float ax, float ay, float bx, float by, int nl, int col) {
+    float fdir = angle_to((int)ax,(int)ay,(int)bx,(int)by);
+    float dxu=c_deg(fdir), dyu=s_deg(fdir), perpx=-dyu, perpy=dxu;
+    float len = fsq((bx-ax)*(bx-ax)+(by-ay)*(by-ay));
+    for (int side=-1; side<=1; side+=2) {
+        float td = side>0 ? fdir : fdir+180;              // +perp (right of A→B) flows A→B, −perp flows B→A
+        for (int j=0; j<nl; j++) {
+            float off = side*(j+0.5f)*LANE_W;
+            for (float d=12; d<len-6; d+=22) {
+                float x=ax+dxu*d+perpx*off, y=ay+dyu*d+perpy*off;
+                if (x<3||x>SCREEN_W-3||y<3||y>SCREEN_H-3) continue;
+                arrowhead((int)x,(int)y, td, 3, col);
+            }
+        }
+    }
+}
+// highway markings along a STRAIGHT road A→B: a dark centre median + dashed white lane lines at
+// each ±j·LANE_W offset (nl lanes per direction). The angled-road version of hdash+median.
+static void lane_marks(float ax, float ay, float bx, float by, int nl) {
+    float fdir=angle_to((int)ax,(int)ay,(int)bx,(int)by);
+    float dxu=c_deg(fdir), dyu=s_deg(fdir), perpx=-dyu, perpy=dxu;
+    float len=fsq((bx-ax)*(bx-ax)+(by-ay)*(by-ay));
+    for (int j=1; j<nl; j++)                              // dashed lane separators
+        for (int s=-1; s<=1; s+=2) {
+            float off=s*j*LANE_W;
+            for (float d=4; d<len-4; d+=12) {
+                float x0=ax+dxu*d+perpx*off, y0=ay+dyu*d+perpy*off;
+                float x1=ax+dxu*(d+6)+perpx*off, y1=ay+dyu*(d+6)+perpy*off;
+                line((int)x0,(int)y0,(int)x1,(int)y1, CLR_WHITE);
+            }
+        }
+    straight(ax,ay, bx,by, 1, -1, CLR_DARKER_GREY);       // centre median (thin dark ribbon)
 }
 
 void init(void) {}
@@ -158,32 +229,26 @@ void draw(void) {
     int CX = SCREEN_W/2, CY = SCREEN_H/2;
     float ux = c_deg(ang), uy = s_deg(ang);            // crossing-road unit dir
     float R  = 24 + s_reach*66;                        // ramp reach (px), from the slider
-    float goreM = 1.0f + s_gore*1.0f, taperM = 0.5f + s_taper*1.3f, runonM = 0.4f + s_runon*1.0f;
+    float spreadPx = 24 + s_spread*86, goreSep = s_gore*30;   // highway-end / trunk-end ramp separations
+    float taperM = 0.5f + s_taper*1.3f, runonM = 0.4f + s_runon*1.0f;
     int HW = rwidth(clsA);                             // road A (the through road) half-width
     int BW = rwidth(clsB);                             // road B (crossing / branch) half-width
     int graded = (clsA==C_HIGHWAY || clsB==C_HIGHWAY); // any highway → grade-separated; else at-grade
     int tee = (topo==TOPO_TEE), wye = (topo==TOPO_WYE);
     int ss  = flip ? 1 : -1;                           // 3-way: which side the 3rd leg sits on
     float far = (float)(SCREEN_W + SCREEN_H);
+    Geo g = { CX, CY, ux, uy, HW, BW, R, spreadPx, goreSep, taperM, runonM, ang };  // atom context
 
     // 1. ROAD A (horizontal through road), under everything; highway gets median + lane lines
     straight(0, CY, SCREEN_W, CY, HW+2, CLR_DARKER_GREY, clsA==C_HIGHWAY?CLR_LIGHT_GREY:CLR_MEDIUM_GREY);
-    if (clsA == C_HIGHWAY) {
-        for (int j = 1; j < lanes; j++) { hdash(CY - j*LANE_W, CLR_WHITE); hdash(CY + j*LANE_W, CLR_WHITE); }
-        rectfill(0, CY-1, SCREEN_W, 2, CLR_DARKER_GREY);   // centre median
-    }
+    if (clsA == C_HIGHWAY) lane_marks(0, CY, SCREEN_W, CY, lanes);
+    seg_arrows(0, CY, SCREEN_W, CY, clsA==C_HIGHWAY?lanes:1, CLR_YELLOW);   // travel direction
 
-    // 2. RAMPS — grade-separated cross/T only (AR×AR crosses at grade; WYE has none yet)
+    // 2. RAMPS — composed from atoms. `near_pair` = the half-diamond fan; the diamond is just it on
+    //    both carriageways. (AR×AR crosses at grade; WYE has none yet.)
     if (graded && !wye && (itype == T_DIAMOND || itype == T_CLOVERLEAF)) {
-        float px=-uy, py=ux;
-        for (int sx=-1; sx<=1; sx+=2) for (int sy=-1; sy<=1; sy+=2) {
-            if (tee && sy != ss) continue;                   // T-split: ramps only on the 3rd-leg side
-            float hx = CX + sx*R*goreM, hy = CY + sy*(HW - LANE_W*0.5f);
-            float cd = HW + R;
-            float ax = CX + ux*sy*cd - px*sx*(BW*0.35f);
-            float ay = CY + uy*sy*cd - py*sx*(BW*0.35f);
-            draw_ramp(hx,hy, (sx>0?180:0), ax,ay, (sy>0?ang:ang+180), R*taperM, R*runonM);
-        }
+        if (tee) near_pair(&g, ss);                          // half-diamond — near carriageway only
+        else { near_pair(&g, -1); near_pair(&g, +1); }       // full diamond — both carriageways
     }
     if (graded && !wye && itype == T_CLOVERLEAF) {
         for (int sx=-1; sx<=1; sx+=2) for (int sy=-1; sy<=1; sy+=2) {
@@ -223,7 +288,7 @@ void draw(void) {
         float bd  = ss * ang * 0.45f;                    // fork angle on the ss side — shallow (a fork,
                                                          // not a T); the shared angle slider remapped
         float fux = c_deg(bd), fuy = s_deg(bd);
-        float ax  = CX - R*goreM*0.5f, ay = CY + ss*(HW*0.4f);   // split point, on the road surface
+        float ax  = CX - R*0.7f, ay = CY + ss*(HW*0.4f);   // split point, on the road surface
         float bx  = CX + fux*R,        by = CY + fuy*R;          // where the curve reaches full fork dir
         float xs[RN+1], ys[RN+1];
         ramp_pts(ax,ay,0, bx,by,bd, R*runonM, R*taperM, xs,ys);  // tangent-to-highway → fork direction
@@ -240,36 +305,46 @@ void draw(void) {
         float b1x = CX + (tee?ss:1)*ux*far, b1y = CY + (tee?ss:1)*uy*far;
         if (graded) straight(b0x,b0y, b1x,b1y, BW+3, -1, CLR_BROWNISH_BLACK);
         straight(b0x,b0y, b1x,b1y, BW, CLR_DARKER_GREY, dcol);
+        if (clsB == C_HIGHWAY) lane_marks(b0x,b0y, b1x,b1y, lanes);   // crossing highway gets lanes too
+        seg_arrows(b0x,b0y, b1x,b1y, clsB==C_HIGHWAY?lanes:1, CLR_YELLOW);
     }
 
-    if (show_panel) {                                  // live tuning: ramp sliders + the junction matrix
-        font(FONT_SMALL);
-        fillp(FILL_CHECKER, -1); rectfill(0, 12, 130, 102, CLR_BLACK); fillp_reset();
-        ui_begin();
-        ui_slider(&s_reach, 3, 16, 122, "reach");
-        ui_slider(&s_gore,  3, 28, 122, "gore");
-        ui_slider(&s_taper, 3, 40, 122, "taper");
-        ui_slider(&s_runon, 3, 52, 122, "run-on");
-        // the matrix — EVERY supported junction is one button. Row = topology, columns = that row's
-        // variants (ragged). One click sets topology + both classes + ramp-style.
-        const int BW = 30, BH = 11, MX = 3, MY = 64;
+    {                                                  // live tuning: ramp sliders + the junction matrix
+        const int MBW = 30, BH = 11, MX = 3, MY = 78;  // matrix button width/height/origin
         const char *tip = NULL;
-        int abx = -99, aby = -99, col[TOPO_COUNT] = {0};
-        for (int i = 0; i < NJUNCS; i++) {
-            const Junc *j = &JUNCS[i];
-            int bx = MX + col[j->topo]++ * (BW+1), by = MY + j->topo*(BH+1);
-            if (ui_button(bx, by, BW, BH, j->name)) {
-                topo = j->topo; clsA = j->ca; clsB = j->cb; itype = j->it;
+        int abx = -99, aby = -99;
+        font(FONT_SMALL);
+        ui_begin();
+        // always-visible toggle: hide the panel for a clean screenshot, click again to bring it back
+        if (ui_button(SCREEN_W-16, 13, 14, 9, show_panel ? "UI-" : "UI+")) show_panel = !show_panel;
+        if (show_panel) {
+            fillp(FILL_CHECKER, -1); rectfill(0, 12, 130, 116, CLR_BLACK); fillp_reset();
+            ui_slider(&s_reach,  3, 16, 122, "reach");
+            ui_slider(&s_spread, 3, 28, 122, "spread");
+            ui_slider(&s_gore,   3, 40, 122, "gore");
+            ui_slider(&s_taper,  3, 52, 122, "taper");
+            ui_slider(&s_runon,  3, 64, 122, "run-on");
+            // the matrix — EVERY supported junction is one button. Row = topology, columns = that row's
+            // variants (ragged). One click sets topology + both classes + ramp-style.
+            int col[TOPO_COUNT] = {0};
+            for (int i = 0; i < NJUNCS; i++) {
+                const Junc *j = &JUNCS[i];
+                int bx = MX + col[j->topo]++ * (MBW+1), by = MY + j->topo*(BH+1);
+                if (ui_button(bx, by, MBW, BH, j->name)) {
+                    topo = j->topo; clsA = j->ca; clsB = j->cb; itype = j->it;
+                }
+                if (ui_hover(bx, by, MBW, BH)) tip = j->tip;
+                if (!j->built) pset(bx+MBW-2, by+1, CLR_RED);   // stub/draft marker
+                if (topo==j->topo && clsA==j->ca && clsB==j->cb && itype==j->it) { abx=bx; aby=by; }
             }
-            if (ui_hover(bx, by, BW, BH)) tip = j->tip;
-            if (!j->built) pset(bx+BW-2, by+1, CLR_RED);   // stub/draft marker
-            if (topo==j->topo && clsA==j->ca && clsB==j->cb && itype==j->it) { abx=bx; aby=by; }
         }
         ui_end();
-        if (abx > -99) rect(abx-1, aby-1, BW+2, BH+2, CLR_YELLOW);   // frame the active junction
-        if (tip) {                                            // hover tooltip — bottom strip
-            rectfill(0, SCREEN_H-18, SCREEN_W, 8, CLR_BLACK);
-            print_centered(tip, SCREEN_W/2, SCREEN_H-17, CLR_WHITE);
+        if (show_panel) {
+            if (abx > -99) rect(abx-1, aby-1, MBW+2, BH+2, CLR_YELLOW);   // frame the active junction
+            if (tip) {                                            // hover tooltip — bottom strip
+                rectfill(0, SCREEN_H-18, SCREEN_W, 8, CLR_BLACK);
+                print_centered(tip, SCREEN_W/2, SCREEN_H-17, CLR_WHITE);
+            }
         }
         font(FONT_NORMAL);
     }

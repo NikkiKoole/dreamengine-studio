@@ -172,6 +172,90 @@ static int flower_col(int cx, int cy) {                        // one colour per
                        ifloordiv(cy * CANOPY_P, CLUMP_P));
     return FC[h % 6];
 }
+static void draw_palm(int x, int y, unsigned h) {              // beach palm
+    rectfill(x, y - 6, 1, 7, CLR_DARK_BROWN);                  // trunk
+    int c = (h & 1) ? CLR_MEDIUM_GREEN : CLR_DARK_GREEN;
+    for (int a = -2; a <= 2; a++) line(x, y - 6, x + a * 2, y - 6 - (2 - (a < 0 ? -a : a)), c);  // fronds
+    pset(x, y - 7, CLR_LIME_GREEN);
+}
+static void draw_cactus(int x, int y, unsigned h) {           // desert/arid
+    int hh = 4 + (int)((h >> 4) & 3);
+    rectfill(x, y - hh, 2, hh, CLR_DARK_GREEN);
+    if (h & 1) { rectfill(x - 2, y - hh + 1, 2, 2, CLR_DARK_GREEN); rectfill(x - 2, y - hh - 1, 1, 3, CLR_DARK_GREEN); }
+    pset(x, y - hh, CLR_MEDIUM_GREEN);
+}
+static void draw_deadtree(int x, int y, unsigned h) {         // wasteland
+    line(x, y, x, y - 6, CLR_DARK_BROWN);
+    line(x, y - 4, x - 2, y - 6, CLR_DARK_BROWN); line(x, y - 5, x + 2, y - 7, CLR_DARK_BROWN);
+    pset(x, y - 6, CLR_MEDIUM_GREY);
+}
+static void draw_rock(int x, int y, unsigned h) {             // scree/upland
+    int r = 2 + (int)((h >> 5) & 1);
+    circfill(x, y, r, CLR_DARK_GREY);
+    pset(x - 1, y - 1, CLR_LIGHT_GREY);
+}
+
+// ── SCATTER FLAVORS — one atom, MANY params (docs/design/streetlevel-content.md:
+// "atoms vs biomes vs recipes"). A flavor is the scatter atom's params — WHAT to
+// place + how dense — not a new atom. The same scatter loop, pointed at a different
+// flavor per cover kind, gives woodland / meadow / beach / scree / wasteland; a new
+// biome costs ONE row here + (maybe) one instance art, never a new function.
+enum { I_NONE, I_TREE, I_PALM, I_CACTUS, I_DEADTREE, I_ROCK, I_BUSH, I_TUFT, I_FLOWER };
+static void draw_inst(int type, int x, int y, unsigned h, int big) {
+    switch (type) {
+        case I_TREE:     draw_tree(x, y, h, big); break;
+        case I_PALM:     draw_palm(x, y, h);      break;
+        case I_CACTUS:   draw_cactus(x, y, h);    break;
+        case I_DEADTREE: draw_deadtree(x, y, h);  break;
+        case I_ROCK:     draw_rock(x, y, h);      break;
+        case I_BUSH:     draw_bush(x, y, h);      break;
+        case I_TUFT:     draw_tuft(x, y, h);      break;
+    }
+}
+typedef struct {                 // the scatter atom's params for one cover kind
+    int   canopy;                // coarse-layer instance (I_*)
+    float c_base, c_dens;        // canopy prob = c_base + density * c_dens
+    int   ground;                // fine-layer instance (I_FLOWER handled specially)
+    float g_base, g_dens;        // ground prob
+    float big_at;                // density above which canopy draws "big" (< 0 = never)
+} Flavor;
+enum { FV_NONE, FV_WOODLAND, FV_MEADOW, FV_GRASS, FV_BEACH, FV_SCREE, FV_WASTE, FV_N };
+static const Flavor FLAVORS[FV_N] = {
+    [FV_NONE]     = { I_NONE,     0,0,        I_NONE,   0,0,        -1 },
+    [FV_WOODLAND] = { I_TREE,     0.25f,0.70f, I_BUSH,  0.12f,0.25f, 0.55f },
+    [FV_MEADOW]   = { I_TREE,     0.04f,0,     I_FLOWER,0.10f,0.55f, -1 },
+    [FV_GRASS]    = { I_NONE,     0,0,         I_TUFT,  0.18f,0,     -1 },
+    [FV_BEACH]    = { I_PALM,     0.03f,0,     I_TUFT,  0.05f,0,     -1 },
+    [FV_SCREE]    = { I_ROCK,     0.10f,0,     I_ROCK,  0.06f,0,     -1 },
+    [FV_WASTE]    = { I_DEADTREE, 0.05f,0,     I_BUSH,  0.05f,0,     -1 },
+};
+static int flavor_for(int cover_kind) {          // the per-cover recipe (scatter-level selector)
+    switch (cover_kind) {
+        case CV_FOREST: return FV_WOODLAND;
+        case CV_MEADOW: return FV_MEADOW;
+        case CV_GRASS:  return FV_GRASS;
+        case CV_SAND:   return FV_BEACH;
+        case CV_ROCK:   return FV_SCREE;
+        case CV_BARE:   return FV_WASTE;
+        default:        return FV_NONE;          // water — nothing scatters
+    }
+}
+// place one jittered instance — shared by the SCATTER tab and the WORLD driver
+static int scatter_canopy(int wx, int wy, unsigned h) {
+    Cover cv = cover_at(wx, wy);
+    const Flavor *f = &FLAVORS[flavor_for(cv.kind)];
+    if (f->canopy == I_NONE || frac01(h >> 20) >= f->c_base + cv.dens * f->c_dens) return 0;
+    draw_inst(f->canopy, wx, wy, h, f->big_at >= 0 && cv.dens > f->big_at);
+    return 1;
+}
+static int scatter_ground(int cxi, int cyi, int wx, int wy, unsigned h) {
+    Cover cv = cover_at(wx, wy);
+    const Flavor *f = &FLAVORS[flavor_for(cv.kind)];
+    if (f->ground == I_NONE || frac01(h >> 20) >= f->g_base + cv.dens * f->g_dens) return 0;
+    if (f->ground == I_FLOWER) draw_flower(wx, wy, flower_col(cxi, cyi));
+    else draw_inst(f->ground, wx, wy, h, 0);
+    return 1;
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  THE WORKBENCH — shared inspection state every atom reads
@@ -232,7 +316,7 @@ static void scat_draw(float cam_x, float cam_y, float zoom) {
 
     bool zg = zoom >= 0.7f, zc = zoom >= 0.30f;   // LOD draw-gates (real behaviour kept)
 
-    // layer 1 — GROUND scatter (flowers / bushes / tufts), one jittered item per cell
+    // layer 1 — GROUND scatter (per-flavor: flowers / bushes / tufts / rocks)
     if (layer_on[SL_GROUND] && zg) {
         int c0x = ifloordiv(Lpx, GROUND_P), c1x = ifloordiv(Rpx, GROUND_P);
         int c0y = ifloordiv(Tpx, GROUND_P), c1y = ifloordiv(Bpx, GROUND_P);
@@ -241,18 +325,12 @@ static void scat_draw(float cam_x, float cam_y, float zoom) {
                 unsigned h = hash2(cxi + lf_seed * 101, cyi * 3 + 7);
                 int wx = cxi * GROUND_P + (int)(frac01(h) * GROUND_P);
                 int wy = cyi * GROUND_P + (int)(frac01(h >> 12) * GROUND_P);
-                Cover cv = cover_at(wx, wy);
-                float roll = frac01(h >> 20);
-                bool hit = true;
-                if      (cv.kind == CV_MEADOW && roll < 0.10f + cv.dens * 0.55f) draw_flower(wx, wy, flower_col(cxi, cyi));
-                else if (cv.kind == CV_FOREST && roll < 0.12f + cv.dens * 0.25f) draw_bush(wx, wy, h);
-                else if (cv.kind == CV_GRASS  && roll < 0.18f)                   draw_tuft(wx, wy, h);
-                else hit = false;
-                if (hit) n_ground++;
+                n_ground += scatter_ground(cxi, cyi, wx, wy, h);
             }
     }
 
-    // layer 2 — CANOPY scatter (trees). cy ascending = north→south painter's sort.
+    // layer 2 — CANOPY scatter (per-flavor: trees / palms / cacti / dead trees / rocks).
+    // cy ascending = north→south painter's sort.
     if (layer_on[SL_CANOPY] && zc) {
         int c0x = ifloordiv(Lpx, CANOPY_P), c1x = ifloordiv(Rpx, CANOPY_P);
         int c0y = ifloordiv(Tpx, CANOPY_P), c1y = ifloordiv(Bpx, CANOPY_P);
@@ -261,13 +339,11 @@ static void scat_draw(float cam_x, float cam_y, float zoom) {
                 unsigned h = hash2(cxi * 5 + lf_seed * 17, cyi + 3);
                 int wx = cxi * CANOPY_P + (int)(frac01(h) * CANOPY_P);
                 int wy = cyi * CANOPY_P + (int)(frac01(h >> 12) * CANOPY_P);
-                Cover cv = cover_at(wx, wy);
-                float roll = frac01(h >> 20);
-                float prob = cv.kind == CV_FOREST ? 0.25f + cv.dens * 0.70f   // clearings emerge
-                           : cv.kind == CV_MEADOW ? 0.04f                     // lone meadow trees
-                           : 0.0f;
-                if (roll < prob) { draw_tree(wx, wy, h, cv.kind == CV_FOREST && cv.dens > 0.55f); n_tree++; }
-                else if (dbg && prob > 0.0f) { circ(wx, wy, 1, CLR_DARK_RED); n_reject++; }  // culled candidate
+                int placed = scatter_canopy(wx, wy, h);
+                n_tree += placed;
+                if (!placed && dbg && FLAVORS[flavor_for(cover_at(wx, wy).kind)].canopy != I_NONE) {
+                    circ(wx, wy, 1, CLR_DARK_RED); n_reject++;   // culled candidate (a flavor exists here)
+                }
             }
     }
 
@@ -523,16 +599,13 @@ static void world_draw(float cam_x, float cam_y, float zoom) {
             rectfill(px, py, cs, cs, ground_col(gx, gy, &cv));
         }
 
-    // NATURE — trees on wild forest/meadow (reuses scatter's canopy + draw_tree)
+    // NATURE — the flavor-driven scatter on wild land (woodland/beach/scree/waste/…)
     if (layer_on[0] && zoom >= 0.30f)
         for (int cyi = ifloordiv(Tpx, CANOPY_P); cyi <= ifloordiv(Bpx, CANOPY_P); cyi++)
             for (int cxi = ifloordiv(Lpx, CANOPY_P); cxi <= ifloordiv(Rpx, CANOPY_P); cxi++) {
                 unsigned h = hash2(cxi * 5 + lf_seed * 17, cyi + 3);
                 int wx = cxi * CANOPY_P + (int)(frac01(h) * CANOPY_P), wy = cyi * CANOPY_P + (int)(frac01(h >> 12) * CANOPY_P);
-                if (world_kind_at(wx, wy) != WK_NATURE) continue;
-                Cover cv = cover_at(wx, wy); float roll = frac01(h >> 20);
-                float prob = cv.kind == CV_FOREST ? 0.25f + cv.dens * 0.70f : cv.kind == CV_MEADOW ? 0.04f : 0.0f;
-                if (roll < prob) { draw_tree(wx, wy, h, cv.kind == CV_FOREST && cv.dens > 0.55f); n_nat++; }
+                if (world_kind_at(wx, wy) == WK_NATURE) n_nat += scatter_canopy(wx, wy, h);
             }
 
     // FARM — fields on farmland parcels (reuses rows_fill)
@@ -726,7 +799,7 @@ static Atom atoms[] = {
 // ════════════════════════════════════════════════════════════════════════════
 //  THE SHELL — free-fly explorer over the current atom
 // ════════════════════════════════════════════════════════════════════════════
-static float cam_x = 250, cam_y = 18;     // open zoomed on a forest↔meadow boundary (seed 1)
+static float cam_x = 250, cam_y = 18;      // open on a forest/farm/town world (seed 1)
 static float zoom  = 0.70f;
 static int   seed  = 1;
 static int   cur   = 0;                   // current atom

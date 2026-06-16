@@ -37,6 +37,27 @@ smell: it's a recipe. (`jungle` = `scatter` cranked dense + palm/fern art; `wast
 sparse dead shrubs + grey palette; `beachfront` = sand + `scatter(palms)` + a selector rule
 "adjacent to water". All existing verbs.)
 
+### Flavors — one atom, many parameter sets
+
+A recipe is realised as a **flavor**: the atom's *params*, not a copy of the atom. You never have
+"multiple scatter atoms" — you have ONE `scatter`, pointed at different `(instance palette, density,
+clustering)` per biome. Built in `lotfill` (2026-06-17) as a `Flavor` table + a `flavor_for(cover)`
+recipe; the one scatter loop reads it:
+
+| flavor | = scatter(params) | cover kind |
+|---|---|---|
+| woodland | trees, density from forest mask, big in old growth | forest |
+| meadow | lone trees + flowers (clumped by colour) | meadow |
+| grass | grass tufts, no canopy | grass |
+| beach | palms + tufts, sparse | sand |
+| scree | rocks, sparse | rock (upland) |
+| wasteland | dead trees + scrub, sparse | bare |
+
+Adding desert (cacti) or jungle (dense palms/ferns) = **one row** + maybe one instance art — never a
+new function. The rule that keeps it honest: if two "atoms" differ only in a palette and a number,
+they're **one atom + two flavors**. (Same shape as `footprint`: house/shop/tower are flavors of one
+atom, keyed by zone instead of cover.)
+
 ### When something genuinely IS a new atom — the bounded-vs-open rule
 
 An atom must fill a region as a **pure function of `(region, seed)`**. There are two regimes, and the

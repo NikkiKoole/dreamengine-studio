@@ -1029,11 +1029,15 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       (SR, worklet buffering, float determinism). A tuning/level fix verified native could be wrong on
       web and no tool would know. ([`audio-timing.md`](design/audio-timing.md) covers the *timing* side,
       not sample parity.)
-    - **The "reconfigure an effect every frame" footgun is not lintable.** CLAUDE.md warns wiring a knob
-      straight into `crush()`/`tape()`/`eq()` every frame churns the bus DSP → silent stutter; ~43 carts
-      call effect-config fns. We lint UI/mobile/tags/DC/tuning but nothing flags an unguarded
-      effect-config call reachable from `update()`/`draw()`. Wanted: a static check (the
-      `effects-recipes.md` set-and-hold rule, enforced).
+    - ✅ **Set-and-hold footgun — now lintable: SHIPPED `tools/lint-fx-frame.js`.** Static check (no
+      render) that flags an UNCONDITIONAL per-frame call to a buffer-rebuilding effect
+      (`crush`/`tape`/`eq`/`chorus`/`reverb`/`flanger`/`phaser`/…) in `update()`/`draw()` — the silent-
+      stutter footgun. Calls inside an `if`/`?:` guard pass; `filter()`/`varispeed()`/`note_*` are
+      excluded (built to ride live); waive with `// fx-lint-ignore`; `--quiet` = CI gate. **Audit came
+      back CLEAN across 390 carts** — the codebase is disciplined here (the lesson stuck), so this is a
+      forward regression guard, not a cleanup. Limitation: only inspects `update()`/`draw()` directly,
+      not helper-routed calls (the groovebox `apply_fx()` pattern — which is the correct structure
+      anyway).
     - **No long-session soak / denormal guard.** §15 measured the voice/handle budget at a point in time;
       nothing soaks for minutes asserting no voice leak or slow drift, and there's **no flush-to-zero** —
       long reverb/echo feedback tails can fall into denormal range → audio-thread CPU spikes (stutter) on

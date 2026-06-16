@@ -1882,10 +1882,13 @@ up with the §18 note that "whatever is off about BOWED, it is not pitch" — pa
    emscripten / AudioWorklet build emits the SAME SAMPLES as native (sample rate, worklet buffering,
    float determinism). A fix verified native could be wrong on web with no signal. `audio-timing.md`
    covers the timing ("drunk playback") side, not sample-level parity.
-3. **The "reconfigure an effect every frame" footgun is not lintable.** The set-and-hold rule
-   ([effects-recipes.md](../guides/effects-recipes.md) intro) is documented but unenforced; ~43 carts
-   call effect-config fns and the symptom (stutter) is easy to misattribute. Wanted: a static check
-   for an unguarded effect-config call reachable from `update()`/`draw()`.
+3. **Set-and-hold footgun — SHIPPED `tools/lint-fx-frame.js`.** The set-and-hold rule
+   ([effects-recipes.md](../guides/effects-recipes.md) intro) was documented but unenforced. Now a
+   static lint flags an unconditional per-frame call to a buffer-rebuilding effect in
+   `update()`/`draw()` (guarded calls / `filter()`/`varispeed()`/`note_*` excluded; waivable;
+   `--quiet` CI gate). **The one-time audit came back clean across 390 carts** — the codebase already
+   follows the rule — so it's a forward regression guard. Heuristic limit: it doesn't follow
+   helper-routed calls (the `apply_fx()` pattern), which is the correct structure regardless.
 4. **No long-session soak / denormal guard.** §15 measured the voice/handle budget at a point in time;
    nothing soaks for minutes asserting no voice leak or slow drift, and there is no flush-to-zero — a
    long reverb/echo feedback tail can drift into denormal range → audio-thread CPU spikes (stutter) on

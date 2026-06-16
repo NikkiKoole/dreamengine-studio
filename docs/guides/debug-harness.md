@@ -403,6 +403,23 @@ It's a STABILITY gate, not a character gate (whether the reverb is *beautiful* i
 **Run after any `sound.h` effect edit.** First-run findings (the phaser/echo missing a DC blocker
 in their feedback loops): [`audio-notes.md` §20](../design/audio-notes.md).
 
+### Set-and-hold lint — an effect reconfigured every frame
+
+**`tools/lint-fx-frame.js`** is a static check (no render) for the silent-stutter footgun: a
+buffer-rebuilding effect (`crush`/`tape`/`eq`/`chorus`/`reverb`/`flanger`/`phaser`/…) called
+UNCONDITIONALLY every frame in `update()`/`draw()`, which rebuilds the bus DSP 60×/s. Calls inside
+an `if`/`?:` guard pass; `filter()`/`varispeed()`/`note_*` are excluded (built to ride live).
+
+```bash
+node tools/lint-fx-frame.js            # report every unconditional per-frame effect call
+node tools/lint-fx-frame.js --quiet    # exit 1 if any (CI gate)
+```
+
+Waive a confirmed-safe line with `// fx-lint-ignore` (on it, or a standalone comment line above).
+It inspects `update()`/`draw()` directly, not helper-routed calls (the `apply_fx()` pattern — the
+right structure anyway). Fix a real hit by moving the call to `init()` or gating it on the value
+changing (copy `groovebox`'s `apply_fx()`).
+
 ### Before/after diff
 
 ```bash

@@ -90,6 +90,7 @@ static int arc_spline(Port a, Port b, float R, float *xs, float *ys){
 //    the equivalent circle inward by p, take tangent dist Ts=(R+p)·tan(Δ/2)+k, then integrate the real
 //    curve forward. Reduces EXACTLY to arc_spline as Ls→0. ──
 static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *ys){
+    if (Ls < 0.5f) return arc_spline(a,b,R,xs,ys);          // Ls→0 IS the plain arc (avoids 1/(R·Ls) blow-up)
     float uax=ux(a.dir),uay=uy(a.dir), ubx=ux(b.dir),uby=uy(b.dir);
     float den=uax*uby-uay*ubx;
     float dA=b.dir-a.dir; while(dA>180)dA-=360; while(dA<-180)dA+=360;

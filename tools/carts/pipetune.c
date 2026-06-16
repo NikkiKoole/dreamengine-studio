@@ -2,21 +2,21 @@
 #include <stdio.h>
 #include <math.h>
 
-// PIPE TUNER — an EAR test for the modeled flute (and friends). Sweeps a chromatic
-// scale very low → very high and sounds the modeled voice TOGETHER with a pure SINE
-// at the same pitch. If the voice is in tune the two lock and sit still; if it drifts
-// you hear BEATING / a wobble that speeds up the further out it goes. The classic
+// ENGINE TUNER — an EAR test for every pitched engine. Sweeps a chromatic scale very
+// low → very high and sounds the selected voice TOGETHER with a pure SINE at the same
+// pitch. If the voice is in tune the two lock and sit still; if it drifts you hear
+// BEATING / a wobble that speeds up the further out it goes. The classic
 // tune-against-a-reference trick — your ears are the meter here (tune-check.js is the
-// headless number version).
+// headless number version). TAB through the whole library to hear each one vs the sine.
 //
-//   PIPE is the point. Its pitch EMERGES from a feedback loop, so the MACROS retune it:
-//   the morph (embouchure) macro sets the air-jet length, harmonics (overblow) pushes the
-//   octave mode. So each named flute PRESET has its own tuning — flip 1..5 and hear where
-//   it goes wrong (recorder/breathy go flat up high; piccolo overblows). docs §18.
+//   PIPE leads the list (this cart's origin): its pitch EMERGES from a feedback loop, so
+//   the MACROS retune it — morph (embouchure) sets the air-jet length, harmonics (overblow)
+//   pushes the octave mode. Each named flute PRESET tunes differently — flip 1..5 and hear
+//   where it goes wrong (recorder/breathy flat up high; piccolo overblows). docs §18.
 //
 // CONTROLS
 //   1..5         jump to a PIPE preset (flute · pan-pipe · recorder · breathy · piccolo)
-//   TAB / E      cycle every voice (the 5 pipes, then REED · BRASS · BOWED · PLUCK)
+//   TAB / E      cycle every engine (5 pipes, then reed·brass·pluck·bowed·guitar·piano·…)
 //   UP / DOWN    nudge embouchure (morph) live off the preset — ±0.05
 //   LEFT / RIGHT  play: sweep speed   ·   paused: step ±1 semitone
 //   SPACE        play / pause (pause HOLDS the current note so you can judge the beat)
@@ -32,18 +32,29 @@ static const char *NOTE_NAMES[12] =
 
 typedef struct { int id; const char *name; float h, t, m; const char *note; int bad; } Voice;
 static const Voice VOICES[] = {
-    // the five PIPE presets — the point of the cart. `note` = measured tuning (tune-check.js),
-    // `bad` = out of tune (drawn orange). The hollow-embouchure ones (morph <= 0.5) go flat.
-    { INSTR_PIPE,  "PIPE flute",    0.00f, 0.38f, 0.70f, "in tune to ~C6",       0 },
+    // ── the five PIPE presets (the cart's origin — PIPE's pitch EMERGES from a feedback loop,
+    // so each embouchure/overblow voicing tunes differently). Keys 1..5 jump straight here.
+    // `note` = measured tuning (tune-check.js); `bad` = out of tune (drawn orange).
+    { INSTR_PIPE,  "PIPE flute",    0.00f, 0.38f, 0.70f, "in tune to ~C6",        0 },
     { INSTR_PIPE,  "PIPE pan-pipe", 0.08f, 0.78f, 0.50f, "flat low, 8ve up high", 1 },
-    { INSTR_PIPE,  "PIPE recorder", 0.00f, 0.55f, 0.30f, "FLAT ~-20c (m0.30)",   1 },
-    { INSTR_PIPE,  "PIPE breathy",  0.00f, 0.90f, 0.42f, "FLAT ~-20c (m0.42)",   1 },
+    { INSTR_PIPE,  "PIPE recorder", 0.00f, 0.55f, 0.30f, "FLAT ~-20c (m0.30)",    1 },
+    { INSTR_PIPE,  "PIPE breathy",  0.00f, 0.90f, 0.42f, "FLAT ~-20c (m0.42)",    1 },
     { INSTR_PIPE,  "PIPE piccolo",  0.55f, 0.28f, 0.82f, "overblows +8ve, in tune", 0 },
-    // other engines, vanilla voices — for comparison
-    { INSTR_REED,  "REED clarinet", 0.00f, 0.30f, 0.40f, "", 0 },
-    { INSTR_BRASS, "BRASS trumpet", 0.15f, 0.60f, 0.42f, "", 0 },
-    { INSTR_BOWED, "BOWED violin",  0.45f, 0.30f, 0.70f, "", 0 },
-    { INSTR_PLUCK, "PLUCK string",  0.50f, 0.55f, 0.35f, "", 0 },
+    // ── every other pitched engine, one vanilla voice each — TAB/E cycles the whole list,
+    // so this is the lib-wide ear check: each modeled voice sounded against the pure SINE.
+    { INSTR_REED,  "REED clarinet",  0.00f, 0.30f, 0.40f, "in tune (fixed 6/16)",   0 },
+    { INSTR_BRASS, "BRASS trumpet",  0.15f, 0.60f, 0.42f, "in tune (fixed 6/16)",   0 },
+    { INSTR_PLUCK, "PLUCK string",   0.50f, 0.55f, 0.35f, "in tune (fixed 6/16)",   0 },
+    { INSTR_BOWED, "BOWED violin",   0.45f, 0.30f, 0.70f, "in tune",                0 },
+    { INSTR_GUITAR,"GUITAR nylon",   0.30f, 0.50f, 0.30f, "in tune",                0 },
+    { INSTR_PIANO, "PIANO grand",    0.00f, 0.30f, 0.70f, "in tune",                0 },
+    { INSTR_EPIANO,"EPIANO rhodes",  0.00f, 0.40f, 0.20f, "in tune",                0 },
+    { INSTR_MALLET,"MALLET marimba", 0.20f, 0.50f, 0.40f, "in tune",                0 },
+    { INSTR_FM,    "FM 2-op",        0.00f, 0.50f, 0.20f, "in tune (can read 8ve)", 0 },
+    { INSTR_PD,    "PD casio-CZ",    0.00f, 0.50f, 0.30f, "in tune",                0 },
+    { INSTR_ORGAN, "ORGAN combo",    0.30f, 0.40f, 0.00f, "16' drawbar = 8ve low",  0 },
+    { INSTR_VOICE, "VOICE vowel",    0.40f, 0.50f, 0.50f, "in tune",                0 },
+    { INSTR_SAW,   "SAW raw osc",    0.00f, 0.00f, 0.00f, "ref osc (should lock)",  0 },
 };
 #define NVOX ((int)(sizeof(VOICES) / sizeof(VOICES[0])))
 
@@ -139,7 +150,7 @@ static void note_name(int m, char *out, int n) {
 void draw(void) {
     cls(CLR_DARK_BLUE);
     const Voice *v = &VOICES[vIdx];
-    print("PIPE TUNER  -  hear it drift", 8, 6, CLR_WHITE);
+    print("ENGINE TUNER  -  hear it drift vs sine", 8, 6, CLR_WHITE);
     print(refOn ? "voice + SINE ref" : "voice ALONE (ref off)", 8, 16,
           refOn ? CLR_LIGHT_GREY : CLR_ORANGE);
 

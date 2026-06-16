@@ -35,10 +35,10 @@ static const Voice VOICES[] = {
     // ── the five PIPE presets (the cart's origin — PIPE's pitch EMERGES from a feedback loop,
     // so each embouchure/overblow voicing tunes differently). Keys 1..5 jump straight here.
     // `note` = measured tuning (tune-check.js); `bad` = out of tune (drawn orange).
-    { INSTR_PIPE,  "PIPE flute",    0.00f, 0.38f, 0.70f, "in tune to ~C6",        0 },
-    { INSTR_PIPE,  "PIPE pan-pipe", 0.08f, 0.78f, 0.50f, "flat low, 8ve up high", 1 },
-    { INSTR_PIPE,  "PIPE recorder", 0.00f, 0.55f, 0.30f, "FLAT ~-20c (m0.30)",    1 },
-    { INSTR_PIPE,  "PIPE breathy",  0.00f, 0.90f, 0.42f, "FLAT ~-20c (m0.42)",    1 },
+    { INSTR_PIPE,  "PIPE flute",    0.00f, 0.38f, 0.70f, "in tune to ~C6",         0 },
+    { INSTR_PIPE,  "PIPE pan-pipe", 0.08f, 0.78f, 0.50f, "in tune (fixed 6/16)",   0 },
+    { INSTR_PIPE,  "PIPE recorder", 0.00f, 0.55f, 0.30f, "in tune to ~A5 (fix 6/16)", 0 },
+    { INSTR_PIPE,  "PIPE breathy",  0.00f, 0.90f, 0.42f, "in tune to ~A5 (fix 6/16)", 0 },
     { INSTR_PIPE,  "PIPE piccolo",  0.55f, 0.28f, 0.82f, "overblows +8ve, in tune", 0 },
     // ── every other pitched engine, one vanilla voice each — TAB/E cycles the whole list,
     // so this is the lib-wide ear check: each modeled voice sounded against the pure SINE.

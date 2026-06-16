@@ -16,6 +16,10 @@
 //     sides and behind. Toggle H to see the heat.
 //   * COVER + SPREAD — they favour cells beside walls and away from each other,
 //     so they peek from cover and don't bunch into one kill-funnel.
+//   * PEACETIME → COMBAT — the room STARTS unaware: patrols with dulled senses.
+//     A shot, a confirmed sighting, or a found corpse flips the WHOLE squad to
+//     combat time (one-way). So the opening is a stealth phase — slip in, knife
+//     the isolated one quietly (no noise), and don't leave bodies on patrol routes.
 //
 // WASD move · Shift sneak · mouse aim · L-click gun (loud) · R-click knife (quiet)
 // · H heat · L comms · V reveal · TAB spectate · R back to menu
@@ -100,6 +104,11 @@ static void spawn_blood(float x, float y, float dx, float dy, int n) {
 // shared blackboard (the squad's collective knowledge of you)
 static float kx, ky; static int known, kage, flow_cx = -1, flow_cy = -1;
 static int show_heat = 1, show_comms = 0, reveal, kills, msg_t, tick; static char msg[40];
+// squad posture: the room STARTS in peacetime (unaware you're a threat). The first hard
+// stimulus — a shot heard, a confirmed sighting, or a comrade's corpse found — flips the
+// WHOLE squad to combat time (a one-way latch on top of per-enemy alert). Peacetime = the
+// stealth phase: dulled senses, you can slip around and knife the isolated one quietly.
+static int combat, combat_t;   // 0 = peacetime · 1 = combat time; combat_t = frames since the flip
 
 // ---- voices ----------------------------------------------------------------
 typedef struct { int h, ttl; } Voice; static Voice voices[16];
@@ -203,7 +212,7 @@ static void reset(void) {
         int x,y,tr=0; do { x=4+rnd(GW-8); y=2+rnd(GH-4); tr++; } while (wcell(x,y) && tr<60);
         pack[i] = (Pack){ x*TILE+4, y*TILE+4, packs_on, 0 };
     }
-    known = 0; kage = 999; flow_cx = -1; kills = 0; msg_t = 0;
+    known = 0; kage = 999; flow_cx = -1; kills = 0; msg_t = 0; combat = 0; combat_t = 0;
 }
 void init(void) { reverb(0.25f, 0.5f); reset(); phase = PH_PLAYING; }   // boot straight into the fight (normal preset); the menu/panel only appears on the win/lose end screen, or via R
 
@@ -220,6 +229,19 @@ static void move_enemy(Enemy *e, float ax, float ay, float spd) {
     float nx = e->x + dx/d*spd, ny = e->y + dy/d*spd;
     if (!wallpx(nx, e->y) && enemy_at_px(nx, e->y, (int)(e-en)) < 0) e->x = nx;   // slide on walls/peers (no jam)
     if (!wallpx(e->x, ny) && enemy_at_px(e->x, ny, (int)(e-en)) < 0) e->y = ny;
+}
+
+// flip the whole squad from peacetime to combat time (one-way). The room "goes loud":
+// alert floor jumps so everyone draws and searches, all pointed at what tripped the alarm.
+static void go_combat(float tx, float ty) {
+    if (combat) return;
+    combat = 1; combat_t = 0;
+    setmsg("ALARM - the squad goes loud!");
+    play_pan(48, INSTR_REED, 4, panx(tx), 28);                 // alarm horn
+    for (int i=0;i<NE;i++) if (en[i].alive) {
+        if (en[i].alert < 45) en[i].alert = 45;                // snap everyone to at-least-searching
+        en[i].invx = (int)tx; en[i].invy = (int)ty;            // converge on the trigger
+    }
 }
 
 // a NOISE at (x,y): every enemy within radius gets more alert and turns to investigate it.
@@ -242,14 +264,22 @@ static void enemy_update(int i) {
     float pd = fsqrt((pl.x-e->x)*(pl.x-e->x) + (pl.y-e->y)*(pl.y-e->y));
     bool canlos = los_px(e->x, e->y, pl.x, pl.y);
     float ss = pl.sneak ? 0.5f : 1.0f, sh = pl.sneak ? 0.3f : 1.0f;
-    bool see   = canlos && pd <= 132 * d_sight * ss;          // spotted by sight (difficulty + sneak scale it)
-    bool heard = pd <= 48 * sh;                               // or heard moving nearby
+    float peace = combat ? 1.0f : 0.5f;                       // peacetime: senses dialled down — they aren't looking for a threat yet
+    bool see   = canlos && pd <= 132 * d_sight * ss * peace;  // spotted by sight (difficulty + sneak + posture scale it)
+    bool heard = pd <= 48 * sh * peace;                       // or heard moving nearby
     if (canlos && pd <= VIS_R) { e->everseen = 1; e->lsx = e->x; e->lsy = e->y; }   // YOUR last-seen memory of this enemy
 
     // --- graded alertness: stimuli RAISE it, time cools it down ---
     if (see)        { e->alert = 100;                                   e->invx=(int)pl.x; e->invy=(int)pl.y; }   // direct sight = instant alarm
     else if (heard) { e->alert = e->alert<55 ? 55 : (e->alert<100?e->alert+3:100); e->invx=(int)pl.x; e->invy=(int)pl.y; }  // a noise nearby = suspicious, rising
     e->alert -= 0.22f; if (e->alert < 0) e->alert = 0;
+    if (combat && e->alert < 30) e->alert = 30;               // combat time: the squad stays at least searching (the latch holds)
+
+    // in peacetime, stumbling within sight of a comrade's corpse trips the alarm (hide the bodies!)
+    if (!combat) for (int j=0;j<NE;j++) if (!en[j].alive && en[j].state==E_DOWN) {
+        float bd = fsqrt((en[j].x-e->x)*(en[j].x-e->x)+(en[j].y-e->y)*(en[j].y-e->y));
+        if (bd < 30 && los_px(e->x,e->y,en[j].x,en[j].y)) { go_combat(en[j].x, en[j].y); break; }
+    }
 
     // --- reaction time: a beat between getting a SIGHTLINE on you and opening fire ---
     // Re-armed on every fresh LOS acquisition (so quick-peek / break-contact works), and
@@ -264,6 +294,7 @@ static void enemy_update(int i) {
     if ((see || heard) && e->alert >= 70) {                   // fully alarmed AND fresh contact -> tell the squad
         if (!known && e->callcd <= 0) { play_pan(72, INSTR_REED, 3, panx(e->x), 16); setmsg("enemy: \"contact!\""); e->callcd = 120; }
         known = 1; kx = pl.x; ky = pl.y; kage = 0;
+        go_combat(pl.x, pl.y);                                 // a confirmed sighting that sticks = combat time
     }
     // alert level -> behaviour
     if (e->alert >= 70)      e->state = canlos ? E_ENGAGE : E_HUNT;     // alarmed: engage if you can see me, else close in
@@ -337,7 +368,7 @@ static void player_update(void) {
         if (t>=0) { pl.aim = angle_to(pl.x,pl.y,en[t].x,en[t].y);   // visible: kite + fire
             float perp = pl.aim+90, mx = dx(1.4f,perp)+dx(0.6f,pl.aim+180), my = dy(1.4f,perp)+dy(0.6f,pl.aim+180);
             if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my;
-            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,260,70); } }
+            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,260,70); go_combat(pl.x,pl.y); } }
         else {                                                      // none visible: advance to make contact
             int n=-1; float nd=1e9f;
             for (int i=0;i<NE;i++) if (en[i].alive) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<nd){nd=d;n=i;} }
@@ -358,6 +389,7 @@ static void player_update(void) {
     if ((mouse_down(0)||key(KEY_SPACE)) && pl.mag>0 && pl.reload<=0) {        // LOUD gun
         fire(pl.x,pl.y,pl.aim,0,5 + pl.pinned*11); pl.mag--; pl.reload=8; if(pl.mag==0) pl.reload=45;   // suppressed = your aim shakes too
         noise_at(pl.x, pl.y, 260, 70);                                          // a gunshot carries across most of the room — nearby enemies come look on one shot, farther ones after a few
+        go_combat(pl.x, pl.y);                                                  // going loud ends the stealth phase for the whole room
     }
     if (mouse_pressed(1)) {                                                   // QUIET knife — silent close kill (makes NO noise)
         for (int j=0;j<NE;j++) if (en[j].alive) {
@@ -384,6 +416,7 @@ void update(void) {
     if (pl.hp <= 0) { phase = PH_OVER; won = 0; return; }     // you died → end screen
 
     if (known) kage++;
+    if (combat) combat_t++;
     compute_heat();
     player_update();
     for (int i=0;i<NE;i++) enemy_update(i);
@@ -447,6 +480,7 @@ void update(void) {
     int alive=0,eng=0,reacting=0; for(int i=0;i<NE;i++) if(en[i].alive){alive++; if(en[i].state==E_ENGAGE){eng++; if(en[i].react>0)reacting++;}}
     watch("hp","%d",pl.hp); watch("alive","%d",alive); watch("engaging","%d",eng);
     watch("reacting","%d",reacting); watch("known","%d",known); watch("kills","%d",kills);
+    watch("combat","%d",combat);
 #endif
 }
 
@@ -526,6 +560,13 @@ void draw(void) {
     for (int i=0;i<NB;i++) if (bul[i].alive)
         line((int)bul[i].x+sh,(int)bul[i].y,(int)(bul[i].x-bul[i].vx)+sh,(int)(bul[i].y-bul[i].vy), bul[i].foe?CLR_RED:CLR_YELLOW);
 
+    // corpses — a slumped body where each kill fell (in peacetime, a patroller who sees one
+    // trips the alarm, so leaving bodies in patrol routes is risky; drawn under the living)
+    for (int i=0;i<NE;i++) if (!en[i].alive && en[i].state==E_DOWN) {
+        int x=(int)en[i].x+sh, y=(int)en[i].y;
+        rectfill(x-3, y, 7, 2, CLR_DARK_PURPLE); rectfill(x-2, y-1, 3, 1, CLR_PEACH);   // body + a pale head
+    }
+
     // enemies — FOG OF WAR: draw those you can see; a dim ghost where you last saw the rest
     for (int i=0;i<NE;i++) {
         if (!en[i].alive) continue;
@@ -547,6 +588,7 @@ void draw(void) {
     draw_man(px, py, pl.aim, pl.hp>0 ? (pl.sneak?CLR_DARK_BLUE:CLR_BLUE) : CLR_DARK_GREY, CLR_WHITE, phop, 0, -1);
     line(px, py-2-phop, (int)(pl.x+dx(8,pl.aim))+sh, (py-2-phop)+(int)dy(8,pl.aim), CLR_YELLOW);  // your aim line (longer, so "you" reads)
     if (pl.pinned > 0.3f) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print("PINNED", px-11, py-15, blink(6)?CLR_RED:CLR_ORANGE); }
+    if (combat && combat_t < 50 && blink(5)) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print_centered("! ALARM !", SCREEN_W/2, 5, CLR_RED); }  // the moment the room goes loud
 
     // HUD
     rectfill(0,HUD_Y,SCREEN_W,SCREEN_H-HUD_Y,CLR_DARKER_BLUE);
@@ -556,8 +598,8 @@ void draw(void) {
     print(str("ammo %d", pl.mag), 80, HUD_Y+3, pl.mag?CLR_YELLOW:CLR_RED);
     print(str("down %d/%d", kills, ecount), 120, HUD_Y+3, CLR_ORANGE);
     if (pl.sneak) print("SNEAK", 162, HUD_Y+3, CLR_INDIGO);
-    print_right(pl.spectate?"SPECTATE":(pl.pinned>0.3f?"PINNED":(known?"SPOTTED":"hidden")), SCREEN_W-4, HUD_Y+3,
-                pl.pinned>0.3f?CLR_RED:(known?CLR_ORANGE:CLR_GREEN));
+    print_right(pl.spectate?"SPECTATE":(pl.pinned>0.3f?"PINNED":(!combat?"hidden":(known?"SPOTTED":"ALERT"))), SCREEN_W-4, HUD_Y+3,
+                pl.pinned>0.3f?CLR_RED:(!combat?CLR_GREEN:(known?CLR_RED:CLR_ORANGE)));
     font(FONT_TINY);                                                    // controls line: tiny so it fits in one row
     if (msg_t>0) print(msg, 4, HUD_Y+10, CLR_LIGHT_PEACH);
     else print("WASD move  Shift sneak  LMB gun  RMB knife  HLV dbg  TAB spec  R menu", 4, HUD_Y+10, CLR_MEDIUM_GREY);

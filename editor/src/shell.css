@@ -1080,6 +1080,23 @@ mark.docs-find-hit.current {
   color: var(--fg-dim);
 }
 
+/* sort dropdown — compact, right-aligned under the search box */
+.tutorials-sort {
+  display: block;
+  margin: -14px 0 18px auto;   /* pull up under the search's bottom margin, sit at the right */
+  padding: 4px 8px;
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--fg-dim);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  outline: none;
+  cursor: pointer;
+}
+.tutorials-sort:focus {
+  border-color: var(--accent);
+}
+
 /* filter chips: one flat list of kinds + genres */
 .tutorials-filters {
   margin-bottom: 22px;

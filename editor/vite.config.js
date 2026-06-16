@@ -1,11 +1,35 @@
 import { defineConfig } from 'vite'
 import fs from 'node:fs'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const DOCS = path.resolve(here, '../docs')       // repo docs/ lives one level up from editor/
 const RUNTIME = path.resolve(here, '../runtime') // engine sources, for the read-only viewer
+const REPO = path.resolve(here, '..')            // repo root, for git queries
+
+// Map each cart .cart.png to the commit date it was first added (git --diff-filter=A).
+// Powers the carts tab "Newest/Oldest" sort. Cached for the dev-server lifetime
+// (cheap to recompute on restart; new carts during a session need a restart to date).
+let cartDatesCache = null
+function cartAddedDates() {
+  if (cartDatesCache) return cartDatesCache
+  const dates = {}
+  try {
+    const out = execFileSync('git', [
+      'log', '--diff-filter=A', '--format=C%cI', '--name-only', '--', 'editor/public/carts/',
+    ], { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+    let cur = null
+    for (const line of out.split('\n')) {
+      if (/^C\d{4}-/.test(line)) { cur = line.slice(1); continue }
+      const m = line.match(/([^/\s]+\.cart\.png)$/)
+      if (m && cur && !dates[m[1]]) dates[m[1]] = cur   // log is newest-first; keep most recent A event
+    }
+  } catch {}
+  cartDatesCache = dates
+  return dates
+}
 
 // Serve the repo's docs/ over the dev server so the in-editor "Docs" wiki view can
 // fetch and render them live (no copy step, always fresh). Three routes:
@@ -33,6 +57,12 @@ function serveDocs() {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = decodeURIComponent((req.url || '').split('?')[0])
+
+        if (url === '/carts/dates.json') {
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(cartAddedDates()))
+          return
+        }
 
         if (url === '/docs-list.json') {
           let files = []

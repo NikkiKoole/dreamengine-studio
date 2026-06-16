@@ -21,7 +21,8 @@
 //     combat time (one-way). So the opening is a stealth phase — slip in, knife
 //     the isolated one quietly (no noise), and don't leave bodies on patrol routes.
 //
-// WASD move · Shift sneak · mouse aim · L-click gun (loud) · R-click knife (quiet)
+// WASD move · Shift sneak · mouse aim · L-click gun (loud) · R-click knife (quiet:
+//   instant takedown on an UNAWARE target; against an alarmed one it only wounds)
 // · H heat · L comms · V reveal · TAB spectate · R back to menu
 // Design notes + behaviour menu + sloop porting: docs/design/flank-tactical-ai.md
 
@@ -34,6 +35,7 @@
 #define NPK 3                       // health packs
 #define ND 8                        // ammo drops (one per fallen enemy, reused)
 #define MAG_CAP 12                  // player magazine size
+#define KNIFE_BACKSTAB 70           // knife instakills a target whose alert is BELOW this (unaware); aware = damage only
 
 // ---- difficulty (live via the panel; sliders are 0..1, mapped to these) ----
 static float sl_count=0.66f, sl_dmg=0.30f, sl_rate=0.50f, sl_acc=0.50f, sl_sight=0.45f, sl_supp=0.50f, sl_heal=0.5f, sl_ammo=0.5f;
@@ -61,15 +63,17 @@ static void set_preset(int p) {          // 0 easy · 1 normal · 2 hard — LET
 }
 // ---- scenarios: WHAT KIND of fight (orthogonal to difficulty's HOW HARD) ----
 // A scenario sets the squad's STARTING POSTURE + the headcount. The posture is the
-// keystone: you can only stealth-open a fight the room starts unaware of. (Composition
-// /loadout/arena are future scenario knobs; melee scenarios wait on weapon abstraction.)
+// keystone: you can only stealth-open a fight the room starts unaware of. A scenario also sets
+// the LOADOUT (which weapons the squad carries) — so it sets both posture AND what kind of fight.
 enum { ST_ASLEEP, ST_ALERTED, ST_HOT };  // start posture: unaware patrol · searching (knows something's up) · hunting you from frame 0
-typedef struct { const char *name; int posture; float count; } Scen;
+enum { LD_GUNS, LD_MELEE };              // loadout: bullet weapons · knife/brawl
+typedef struct { const char *name; int posture; float count; int loadout; } Scen;
 static const Scen SCEN[] = {
-    { "fight",  ST_ASLEEP,  0.66f },    // full squad, unaware — open it loud OR stealth, your call
-    { "sneaky", ST_ASLEEP,  0.35f },    // sparse patrol, unaware — slip in, knife the isolated one
-    { "alarm",  ST_ALERTED, 0.66f },    // alarm's up: full squad SEARCHING the area, but they don't know where you are yet
-    { "ambush", ST_HOT,     0.66f },    // they already know — no stealth, gunfight from the first frame
+    { "fight",  ST_ASLEEP,  0.66f, LD_GUNS  },   // full squad, unaware — open it loud OR stealth, your call
+    { "sneak",  ST_ASLEEP,  0.35f, LD_GUNS  },   // sparse patrol, unaware — slip in, knife the isolated one
+    { "alarm",  ST_ALERTED, 0.66f, LD_GUNS  },   // alarm's up: full squad SEARCHING the area, but they don't know where you are yet
+    { "ambush", ST_HOT,     0.66f, LD_GUNS  },   // they already know — no stealth, gunfight from the first frame
+    { "brawl",  ST_HOT,     0.66f, LD_MELEE },   // knife + brawl rush, already on you — a close-quarters melee
 };
 #define NSCEN ((int)(sizeof SCEN / sizeof SCEN[0]))
 static int scenario = 0;
@@ -86,14 +90,17 @@ static const int ECOL[5] = { CLR_DARK_GREY, CLR_YELLOW, CLR_ORANGE, CLR_RED, CLR
 //   strafeW = circling · flip = strafe-flip interval (low = jumpy) · pellets = bullets per shot
 //   suppress = anchors and sprays to PIN you · react = spot→fire reaction beat
 // (melee weapons — knife/brawl — land in the next slice.)
-enum { W_SMG, W_SHOTGUN, W_MARKSMAN, NWEAP };
-typedef struct { char g; int hp, mag, gap; float range, coverW, heatW, strafeW; int flip; float speed, spread;
-                 int pellets, react, suppress, hat, build; } Weapon;
+enum { WK_BULLET, WK_MELEE };            // delivery mechanic
+enum { W_SMG, W_SHOTGUN, W_MARKSMAN, W_KNIFE, W_BRAWL, NWEAP };
+typedef struct { char g; int kind, hp, mag, gap; float range, coverW, heatW, strafeW; int flip; float speed, spread;
+                 int pellets, dmg, reach, react, suppress, hat, build; } Weapon;   // dmg/reach: melee only
 static const Weapon WEAP[NWEAP] = {
-    //  g  hp mag gap range coverW heatW strafeW flip speed spread pel react sup  hat        build
-    { 's', 30, 20, 22,  58,  1.3f,  9.0f, 1.5f,   70, 1.15f, 18,  1, 20, 1, CLR_INDIGO, 3 },  // SMG      — run-and-gun, circles, suppresses to pin
-    { 'g', 28,  6, 30,  20,  0.5f,  2.0f, 0.6f,   90, 1.45f, 30,  3, 18, 0, CLR_PINK,   7 },  // shotgun  — charges to point-blank, 3 pellets
-    { 'm', 24, 10, 42, 112,  4.0f,  8.0f, 0.1f,  150, 0.60f, 10,  1, 26, 0, CLR_WHITE,  5 },  // marksman — holds a vantage, still, precise
+    //  g  kind        hp mag gap range coverW heatW strafeW flip speed spread pel dmg reach react sup  hat            build
+    { 's', WK_BULLET,  30, 20, 22,  58,  1.3f,  9.0f, 1.5f,   70, 1.15f, 18,  1,  0,  0, 20, 1, CLR_INDIGO,     3 },  // SMG      — run-and-gun, circles, suppresses
+    { 'g', WK_BULLET,  28,  6, 30,  20,  0.5f,  2.0f, 0.6f,   90, 1.45f, 30,  3,  0,  0, 18, 0, CLR_PINK,       7 },  // shotgun  — charges to point-blank, 3 pellets
+    { 'm', WK_BULLET,  24, 10, 42, 112,  4.0f,  8.0f, 0.1f,  150, 0.60f, 10,  1,  0,  0, 26, 0, CLR_WHITE,      5 },  // marksman — holds a vantage, still, precise
+    { 'k', WK_MELEE,   22, 99, 16,  10,  0.4f,  1.0f, 2.2f,   18, 1.72f,  0,  0, 12, 14, 16, 0, CLR_RED,        3 },  // knife    — jumpy assassin, silent, fast light swings (outruns a fleeing player)
+    { 'b', WK_MELEE,   40, 99, 30,  10,  0.3f,  0.8f, 0.4f,   80, 1.10f,  0,  0, 22, 14, 22, 0, CLR_DARK_GREEN, 7 },  // brawl    — steady bruiser, tanky, heavy slow swings
 };
 
 // SEAM — a PERSONALITY layer composes on top of the weapon ("we might want both"): the weapon
@@ -241,7 +248,8 @@ static void reset(void) {
     for (int i=0;i<NE;i++) {
         if (i >= ecount) { en[i].alive = 0; continue; }
         int x,y,tr=0; do { x=GW/2+rnd(GW/2-2); y=2+rnd(GH-4); tr++; } while (wcell(x,y) && tr<80);
-        int w = i % NWEAP;                                 // default loadout: even spread of the bullet weapons
+        int w = SCEN[scenario].loadout==LD_MELEE ? (W_KNIFE + (i&1))   // melee: alternate knife / brawl
+                                                 : (i % 3);            // guns: SMG / shotgun / marksman
         en[i] = (Enemy){ .x = x*TILE+4, .y = y*TILE+4, .aim = 180, .hp = WEAP[w].hp, .alive = 1,
                          .state = E_PATROL, .mag = WEAP[w].mag, .weapon = w, .persona = rnd(NPERS), .losgap = 999,
                          .strafe = rnd(2) ? 1 : -1, .strafeT = rnd(120) };
@@ -347,9 +355,10 @@ static void enemy_update(int i) {
         go_combat(pl.x, pl.y);                                 // a confirmed sighting that sticks = combat time
     }
     // alert level -> behaviour
-    if (e->alert >= 70)      e->state = canlos ? E_ENGAGE : E_HUNT;     // alarmed: engage if you can see me, else close in
-    else if (e->alert >= 30) e->state = E_SUSPECT;                      // suspicious: go check the disturbance
-    else                     e->state = E_PATROL;                       // calm: back to wandering ("gave up")
+    if (e->alert >= 70)            e->state = canlos ? E_ENGAGE : E_HUNT;  // alarmed: engage if you can see me, else close in
+    else if (known && kage < 300)  e->state = E_HUNT;                      // squad has a FRESH fix on you → keep pursuing (don't lapse to a local search)
+    else if (e->alert >= 30)       e->state = E_SUSPECT;                   // suspicious: go check the disturbance
+    else                           e->state = E_PATROL;                    // calm: back to wandering ("gave up")
 
     int kcx = (int)(kx/TILE), kcy = (int)(ky/TILE);
     if (known && (kcx != flow_cx || kcy != flow_cy)) reflow(kcx, kcy);
@@ -385,21 +394,33 @@ static void enemy_update(int i) {
         // hold position ONLY when already safe in cover (campers settle; rushers/
         // flankers stay in motion because they're rarely "safe") — fixes the freeze
         int ecx=(int)(e->x/TILE), ecy=(int)(e->y/TILE);
-        bool safe = heat_at(e->x,e->y) < 0.12f && near_cover(ecx,ecy) && los_px(e->x,e->y,pl.x,pl.y);
+        bool safe = heat_at(e->x,e->y) < 0.12f && near_cover(ecx,ecy) && los_px(e->x,e->y,pl.x,pl.y) && W->kind==WK_BULLET;  // melee never settles — always closes
         if (!safe) move_enemy(e, bx, by, W->speed);
         e->aim = angle_to(e->x, e->y, pl.x, pl.y);
-        if (los_px(e->x,e->y,pl.x,pl.y) && e->shootcd <= 0 && e->mag > 0 && e->react <= 0) {
+        if (W->kind == WK_MELEE) {                                    // SWING when in reach (no projectile)
+            if (pd < W->reach && e->shootcd <= 0 && e->react <= 0) {
+                int dmg = (int)(W->dmg * d_dmg / 8.0f); if (dmg < 1) dmg = 1;   // scales with the difficulty damage knob
+                pl.hp -= dmg; pl.shake = 6; pl.calm = 0;
+                spawn_blood(pl.x, pl.y, pl.x-e->x, pl.y-e->y, 4);
+                play_pan(58, INSTR_MEMBRANE, 3, panx(pl.x), 4); e->shootcd = (int)(W->gap * d_gap);
+                if (pl.hp <= 0) { pl.hp = 0; setmsg("cut down. R to retry."); }
+            }
+        } else if (los_px(e->x,e->y,pl.x,pl.y) && e->shootcd <= 0 && e->mag > 0 && e->react <= 0) {
             for (int p=0;p<W->pellets;p++) fire(e->x, e->y, e->aim, 1, W->spread * d_spread);   // shotgun = a spray of pellets
             e->mag--; e->shootcd = (int)(W->gap * d_gap);
             if (e->mag == 0) e->reload = 70;
         }
         if (e->mag == 0) { if (--e->reload <= 0) e->mag = W->mag; }   // reload window = vulnerable
     } else if (e->state == E_HUNT) {                          // alarmed, no LOS: close in
-        if (known) {                                          // squad knows where you are -> flow around cover
-            float bestf = flow[(int)(e->y/TILE)][(int)(e->x/TILE)], tx = e->x, ty = e->y;
-            for (int a=0;a<8;a++) { float ox=e->x+dx(7,a*45), oy=e->y+dy(7,a*45); int cx=(int)(ox/TILE),cy=(int)(oy/TILE);
-                if (wcell(cx,cy)||enemy_at_px(ox,oy,i)>=0) continue; if (flow[cy][cx] < bestf) { bestf=flow[cy][cx]; tx=ox; ty=oy; } }
-            move_enemy(e, tx, ty, W->speed * 0.92f);
+        if (known) {                                          // squad knows where you are -> follow the flow gradient by CELL (around cover)
+            int ex=(int)(e->x/TILE), ey=(int)(e->y/TILE);
+            float bestf = flow[ey][ex]; int btx = ex, bty = ey;
+            for (int dy=-1;dy<=1;dy++) for (int dx2=-1;dx2<=1;dx2++) {
+                if ((!dx2 && !dy) || wcell(ex+dx2, ey+dy)) continue;
+                if (dx2 && dy && (wcell(ex+dx2,ey) || wcell(ex,ey+dy))) continue;   // no corner-cutting through walls
+                if (flow[ey+dy][ex+dx2] < bestf) { bestf = flow[ey+dy][ex+dx2]; btx = ex+dx2; bty = ey+dy; }
+            }
+            move_enemy(e, btx*TILE+4, bty*TILE+4, W->speed * 0.92f);   // head to the lowest-flow neighbour cell's centre
         } else move_enemy(e, e->invx, e->invy, W->speed * 0.9f);   // alarmed only by a noise -> head to it
         e->aim = angle_to(e->x, e->y, pl.x, pl.y);
     } else if (e->state == E_SUSPECT) {                       // SEARCH: sweep to a point of interest, then pick another — actively investigating
@@ -458,10 +479,19 @@ static void player_update(void) {
         noise_at(pl.x, pl.y, 260, 70);                                          // a gunshot carries across most of the room — nearby enemies come look on one shot, farther ones after a few
         go_combat(pl.x, pl.y);                                                  // going loud ends the stealth phase for the whole room
     }
-    if (mouse_pressed(1)) {                                                   // QUIET knife — silent close kill (makes NO noise)
+    if (mouse_pressed(1)) {                                                   // QUIET knife — silent, no noise
         for (int j=0;j<NE;j++) if (en[j].alive) {
             float d = fsqrt((en[j].x-pl.x)*(en[j].x-pl.x)+(en[j].y-pl.y)*(en[j].y-pl.y));
-            if (d < 13) { spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 10); spawn_drop(en[j].x, en[j].y, en[j].mag); en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4); break; }
+            if (d < 13) {
+                if (en[j].alert < KNIFE_BACKSTAB) {                          // UNAWARE → silent takedown (the stealth kill)
+                    spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 10); spawn_drop(en[j].x, en[j].y, en[j].mag);
+                    en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4);
+                } else {                                                     // ALARMED → it's a knife FIGHT: damage, not a free kill
+                    en[j].hp -= WEAP[W_KNIFE].dmg; spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 5); pl.shake=3; play_pan(60,INSTR_MEMBRANE,2,panx(en[j].x),4);
+                    if (en[j].hp <= 0) { spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 12); spawn_drop(en[j].x, en[j].y, en[j].mag); en[j].alive=0; en[j].state=E_DOWN; kills++; play_pan(40,INSTR_REED,3,panx(en[j].x),18); }
+                }
+                break;
+            }
         }
     }
     if (pl.reload>0) pl.reload--;

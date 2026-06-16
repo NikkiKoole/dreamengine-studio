@@ -42,7 +42,7 @@ firing stance, or camper suppression). Glyph = type (`R`/`C`/`F`), colour = stat
 - ✓ Communication (shared blackboard, "contact!" callout)
 - ✓ Flow-field approach around cover
 - ✓ Three types: rusher / camper / flanker → **refactored into weapons** (the type *was* a weapon-archetype); see below
-- ◐ **Weapon abstraction** — `WEAP[]` carries the tactical posture (range/coverW/heatW/strafeW/flip/speed/spread/pellets/suppress); the enemy's weapon drives its play via the existing scorer. Slice 1 shipped: **SMG** (run-and-gun, suppresses) · **shotgun** (charges, 3 pellets) · **marksman** (holds a vantage). A neutral **`PERS[]` persona seam** is wired (skill → reaction) so a personality layer can compose later. **Next:** melee (knife jumpy / brawl steady — the swing mechanic), then sniper-telegraph + grenade.
+- ◐ **Weapon abstraction** — `WEAP[]` carries the tactical posture (range/coverW/heatW/strafeW/flip/speed/spread/pellets/suppress/kind/dmg/reach); the enemy's weapon drives its play via the existing scorer. Shipped: **SMG** (run-and-gun, suppresses) · **shotgun** (charges, 3 pellets) · **marksman** (holds a vantage) · **knife** (`WK_MELEE`, jumpy/silent, swings when in reach) · **brawl** (melee, steady bruiser, tanky/heavy). **Melee damage model:** the knife **instakills only an UNAWARE target** (`alert < KNIFE_BACKSTAB` — the silent takedown); against an alarmed one it *wounds* (`WEAP[W_KNIFE].dmg`), so an open knife fight is a real HP scrap. Brawl is damage-only; enemy melee swings damage you (no instakill). A neutral **`PERS[]` persona seam** is wired (skill → reaction) so a personality layer can compose later. Also fixed a latent **flow-pursuit bug** (HUNT followed the gradient by 7px sample < tile, so a distant idle target was never closed — now it follows by cell; melee *and* gun squads pursue properly). **Next:** sniper-telegraph + grenade, then player weapon pickup.
 - ✓ Full + low (XCOM-style) cover, with absorb
 - ✓ Suppression → emergent fire-and-maneuver (camper pins, others move)
 - ✓ Graded alertness (calm/suspicious/alarmed) + investigate-then-give-up
@@ -50,7 +50,7 @@ firing stance, or camper suppression). Glyph = type (`R`/`C`/`F`), colour = stat
 - ✓ Stealth: sneak, player fog-of-war, last-seen ghosts, last-known investigation
 - ✓ Difficulty panel (`ui.h`): presets + live sliders for all the knobs
 - ✓ Healing tiers: hard none / normal packs / easy packs+regen
-- ◐ **Weapon abstraction** (gun / melee / grenade / sniper-shot) — bullet weapons shipped (see the ✓ line above); melee/sniper/grenade still to come, the prerequisite for brawl/knife/dasher scenarios
+- ◐ **Weapon abstraction** (gun / melee / grenade / sniper-shot) — bullet + melee shipped (see the line above); sniper-telegraph & grenade still to come
 - ☐ **Scenario presets** — composition + loadout + arena, on top of the difficulty panel (see below)
 - ✓ **Ammo economy** — finite player magazine (`MAG_CAP=12`) + `pl.reserve`. Reload pulls a fresh mag from reserve; **out of both → knife-only** (the emergent stealth pressure: save rounds, knife the isolated one). Resupply is **dropped by kills**, not crates: a fallen enemy drops their *leftover* rounds (`spawn_drop`, a `Drop[]` entity — caught full = fat resupply, caught mid-reload = scraps), walk over to scavenge. Tiered **`sl_ammo`** slider in the difficulty panel, mirroring healing: hard scarce (1 spare mag) / normal reserve+drops (3) / easy unlimited; set by the easy/normal/hard presets. The **spectate autopilot honours it too** (no more infinite mag) and breaks off to grab a drop when low. HUD shows `mag|reserve`; an `OUT-KNIFE!` tell when dry. `watch("mag"/"reserve"/"drops")`. Verified: reserve drains and runs dry; kills spawn drops (frame 120); autopilot depletes + enters scavenge. *Pickup itself is the same proximity check as health packs (verified by analogy, not yet observed on-camera).* **Still open:** enemy finite ammo ("generalize the camper's reload to every type → staggered reloads open push windows"), and a small reload noise.
 - ☐ **Per-enemy skill rating** — one `skill` float (per enemy, or per type + jitter) scaling things already in the engine: reaction lag on first LOS, aim spread, `alert` climb rate, how well they read your last-seen route. Green conscripts panic-spray and lose you; veterans pre-aim your cover exit. No new systems — a multiplier on existing detection/spread/alert rates → a whole "green vs veteran" squad from one number. Pairs with morale (low-skill breaks first) and slots into the difficulty panel as a slider.
@@ -98,8 +98,8 @@ combat numbers:
 | **Alarm raised** ✓ (as "alarm") | alerted | full squad SEARCHING the area, `known=0` — avoid LOS, no free first kill |
 | **Ambush** ✓ | hot | full squad already converging on your spawn — gunfight from frame 0 |
 | **Stealth** | asleep | sparse guards, long patrol routes, alarm/reinforcements matter |
-| **Street brawl** | hot/alerted | everyone melee, no guns, tight arena, fast (needs weapon flag) |
-| **Knife fight** | varies | both sides melee-only, open floor, no ranged (needs weapon flag) |
+| **Street brawl** ✓ (as "brawl") | hot | everyone melee (knife + brawl), already on you — close-quarters |
+| **Knife fight** | varies | both sides melee-only, open floor, no ranged (player melee is the next step) |
 
 Crucially — the **"emergent is king"** part — **none of those are new AI.** They're the
 *same* alertness + flow-field + flank-scoring engine with different **parameters and a

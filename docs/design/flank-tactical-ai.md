@@ -19,7 +19,8 @@ enemy-AI prototype for sloop's v2** ([`sloop.md`](sloop.md) — combat is cut fr
 | **Flow field** | `reflow()` / `relax()` / `flow[][]` | Dijkstra flood from your last-known cell; alarmed enemies roll downhill to approach **around** cover. |
 | **Danger heatmap** | `compute_heat()` / `heat[][]` | Your aim projects a ~55° **danger cone**; enemies score firing spots to AVOID it → they flank. (Toggle `H`.) |
 | **Comms blackboard** | `known`, `kx/ky`, `kage` | One sighting broadcasts your position to the whole squad; decays (`kage`) so contact goes stale. |
-| **Enemy types** | `TY[]` table, `EType` | Per-type range / cover-weight / heat-fear / speed / strafe / spread. One row = one archetype's feel. |
+| **Weapons** | `WEAP[]` table, `Weapon` | Per-weapon range / cover-weight / heat-fear / strafe / flip-cadence / speed / spread / pellets / suppress. The weapon drives the *play style* — the engage scorer reads these, so a shotgunner closes, a marksman holds, an SMG circles, all from one scorer (no per-weapon AI). |
+| **Persona (seam)** | `PERS[]` table, `Enemy.persona` | A personality layer that *composes* on top of the weapon (who carries it: skill/nerve). Currently one neutral `regular`; the old rusher/camper "types" can return here as personas, orthogonal to weapon — "we might want both". |
 | **Cover model** | `cell[][]` (0/1/2), `opaquepx` vs `wallpx`, `low_facing()` | FULL (blocks move+LOS+bullets) vs LOW/crate (blocks move only; shoot over; ~50% to absorb a shot from the side it faces). |
 | **Suppression** | camper branch in `E_ENGAGE`, `pl.pinned` | Campers anchor + spray to PIN you (slows you, shakes your aim). Their reload is your window. |
 | **Graded alertness** | `e->alert` (0..100), `e->invx/invy`, states | calm→suspicious→alarmed. Stimuli raise it, time decays it. Suspicious = investigate + give up. |
@@ -40,7 +41,8 @@ firing stance, or camper suppression). Glyph = type (`R`/`C`/`F`), colour = stat
 - ✓ Flanking (avoid the aim cone) · cover-seeking · spread (no kill-funnel)
 - ✓ Communication (shared blackboard, "contact!" callout)
 - ✓ Flow-field approach around cover
-- ✓ Three types: rusher / camper / flanker
+- ✓ Three types: rusher / camper / flanker → **refactored into weapons** (the type *was* a weapon-archetype); see below
+- ◐ **Weapon abstraction** — `WEAP[]` carries the tactical posture (range/coverW/heatW/strafeW/flip/speed/spread/pellets/suppress); the enemy's weapon drives its play via the existing scorer. Slice 1 shipped: **SMG** (run-and-gun, suppresses) · **shotgun** (charges, 3 pellets) · **marksman** (holds a vantage). A neutral **`PERS[]` persona seam** is wired (skill → reaction) so a personality layer can compose later. **Next:** melee (knife jumpy / brawl steady — the swing mechanic), then sniper-telegraph + grenade.
 - ✓ Full + low (XCOM-style) cover, with absorb
 - ✓ Suppression → emergent fire-and-maneuver (camper pins, others move)
 - ✓ Graded alertness (calm/suspicious/alarmed) + investigate-then-give-up
@@ -48,7 +50,7 @@ firing stance, or camper suppression). Glyph = type (`R`/`C`/`F`), colour = stat
 - ✓ Stealth: sneak, player fog-of-war, last-seen ghosts, last-known investigation
 - ✓ Difficulty panel (`ui.h`): presets + live sliders for all the knobs
 - ✓ Healing tiers: hard none / normal packs / easy packs+regen
-- ☐ **Weapon abstraction** (gun / melee / grenade / sniper-shot) — prerequisite for brawl/knife/dasher scenarios
+- ◐ **Weapon abstraction** (gun / melee / grenade / sniper-shot) — bullet weapons shipped (see the ✓ line above); melee/sniper/grenade still to come, the prerequisite for brawl/knife/dasher scenarios
 - ☐ **Scenario presets** — composition + loadout + arena, on top of the difficulty panel (see below)
 - ✓ **Ammo economy** — finite player magazine (`MAG_CAP=12`) + `pl.reserve`. Reload pulls a fresh mag from reserve; **out of both → knife-only** (the emergent stealth pressure: save rounds, knife the isolated one). Resupply is **dropped by kills**, not crates: a fallen enemy drops their *leftover* rounds (`spawn_drop`, a `Drop[]` entity — caught full = fat resupply, caught mid-reload = scraps), walk over to scavenge. Tiered **`sl_ammo`** slider in the difficulty panel, mirroring healing: hard scarce (1 spare mag) / normal reserve+drops (3) / easy unlimited; set by the easy/normal/hard presets. The **spectate autopilot honours it too** (no more infinite mag) and breaks off to grab a drop when low. HUD shows `mag|reserve`; an `OUT-KNIFE!` tell when dry. `watch("mag"/"reserve"/"drops")`. Verified: reserve drains and runs dry; kills spawn drops (frame 120); autopilot depletes + enters scavenge. *Pickup itself is the same proximity check as health packs (verified by analogy, not yet observed on-camera).* **Still open:** enemy finite ammo ("generalize the camper's reload to every type → staggered reloads open push windows"), and a small reload noise.
 - ☐ **Per-enemy skill rating** — one `skill` float (per enemy, or per type + jitter) scaling things already in the engine: reaction lag on first LOS, aim spread, `alert` climb rate, how well they read your last-seen route. Green conscripts panic-spray and lose you; veterans pre-aim your cover exit. No new systems — a multiplier on existing detection/spread/alert rates → a whole "green vs veteran" squad from one number. Pairs with morale (low-skill breaks first) and slots into the difficulty panel as a slider.

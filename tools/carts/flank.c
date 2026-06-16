@@ -80,16 +80,30 @@ static void set_scenario(int s) { scenario = s; sl_count = SCEN[s].count; }   //
 enum { E_PATROL, E_SUSPECT, E_HUNT, E_ENGAGE, E_DOWN };   // graded alertness drives the state
 static const int ECOL[5] = { CLR_DARK_GREY, CLR_YELLOW, CLR_ORANGE, CLR_RED, CLR_BLACK };
 
-// enemy types — distinct tactics. range = preferred firing distance; coverW/heatW
-// = how much it values cover / fears your aim cone; strafeW = how much it circles.
-enum { TY_RUSH, TY_CAMP, TY_FLANK, NTY };
-// react = base reaction frames: the beat between spotting you and firing (scaled by surprise at runtime).
-typedef struct { char g; int hp, mag, gap; float range, coverW, heatW, speed, strafeW, spread; int react; } EType;
-static const EType TY[NTY] = {
-    { 'R', 26,  6, 22, 26,  0.4f, 2.5f, 1.45f, 0.5f, 24, 18 },   // rusher  — charges in close, sprays, ignores danger; reckless, fires soon
-    { 'C', 34, 10, 34, 96,  3.5f, 7.0f, 0.62f, 0.1f, 12, 26 },   // camper  — holds cover at long range, slow; deliberate, lines up the shot
-    { 'F', 30,  8, 30, 60,  1.3f, 9.0f, 1.15f, 1.5f, 18, 20 },   // flanker — circles to your sides, dodges the cone; quick to commit
+// WEAPONS — the enemy's weapon drives HOW it fights. The same engage scorer reads these
+// numbers and produces a different play style per weapon, no per-weapon AI:
+//   range = preferred firing distance (the big lever) · coverW/heatW = cover-pref / cone-fear
+//   strafeW = circling · flip = strafe-flip interval (low = jumpy) · pellets = bullets per shot
+//   suppress = anchors and sprays to PIN you · react = spot→fire reaction beat
+// (melee weapons — knife/brawl — land in the next slice.)
+enum { W_SMG, W_SHOTGUN, W_MARKSMAN, NWEAP };
+typedef struct { char g; int hp, mag, gap; float range, coverW, heatW, strafeW; int flip; float speed, spread;
+                 int pellets, react, suppress, hat, build; } Weapon;
+static const Weapon WEAP[NWEAP] = {
+    //  g  hp mag gap range coverW heatW strafeW flip speed spread pel react sup  hat        build
+    { 's', 30, 20, 22,  58,  1.3f,  9.0f, 1.5f,   70, 1.15f, 18,  1, 20, 1, CLR_INDIGO, 3 },  // SMG      — run-and-gun, circles, suppresses to pin
+    { 'g', 28,  6, 30,  20,  0.5f,  2.0f, 0.6f,   90, 1.45f, 30,  3, 18, 0, CLR_PINK,   7 },  // shotgun  — charges to point-blank, 3 pellets
+    { 'm', 24, 10, 42, 112,  4.0f,  8.0f, 0.1f,  150, 0.60f, 10,  1, 26, 0, CLR_WHITE,  5 },  // marksman — holds a vantage, still, precise
 };
+
+// SEAM — a PERSONALITY layer composes on top of the weapon ("we might want both"): the weapon
+// says HOW it fights, a persona says WHO carries it (skill/nerve), scaling the weapon's numbers
+// with NO new AI. Today there's one neutral 'regular'; future rows — green conscript (slow react,
+// loose), veteran (snappy), zealot (pushes past range), coward (hangs back) — just plug in here
+// and modulate. The old rusher/camper/flanker "types" can return as personas, orthogonal to weapon.
+typedef struct { const char *name; float skill; float aggro; } Persona;  // skill: faster reaction · aggro: pushes inside its weapon's range (wired later)
+static const Persona PERS[] = { { "regular", 1.0f, 1.0f } };
+#define NPERS ((int)(sizeof PERS / sizeof PERS[0]))
 
 static unsigned char cell[GH][GW];  // 0 floor · 1 FULL cover (blocks move+LOS+bullets) · 2 LOW cover (blocks move only)
 static float flow[GH][GW];          // Dijkstra from last-known player cell
@@ -98,7 +112,7 @@ static float heat[GH][GW];          // danger projected by the player's aim cone
 #define KEY_LSHIFT 340             // raylib left-shift — held to sneak
 #define VIS_R 96                   // player's own vision radius (fog of war)
 typedef struct { float x, y, vx, vy, aim, pinned, bob, ox, oy; int hp, mag, reload, reserve, shake, spectate, sneak, calm; } Player;  // pinned 0..1; calm = frames since hit (regen); bob = walk-hop phase, ox/oy = prev pos; reserve = spare rounds (reload pulls from here; 0+empty mag = knife only)
-typedef struct { float x, y, aim, lsx, lsy, alert, bob, ox, oy; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy, react, losgap; } Enemy;  // alert 0..100; inv = spot to investigate; bob = walk-hop phase, ox/oy = prev pos; react = frames left before this enemy fires after spotting you; losgap = frames since it last had a sightline (a real loss re-arms react; brief flicker doesn't)
+typedef struct { float x, y, aim, lsx, lsy, alert, bob, ox, oy; int hp, alive, state, shootcd, mag, reload, callcd, weapon, persona, strafe, strafeT, suppressing, everseen, invx, invy, react, losgap; } Enemy;  // alert 0..100; inv = spot to investigate; bob = walk-hop phase, ox/oy = prev pos; react = frames left before this enemy fires after spotting you; losgap = frames since it last had a sightline (a real loss re-arms react; brief flicker doesn't)
 typedef struct { float x, y, vx, vy; int alive, foe; } Bullet;
 typedef struct { int x, y, active, cd; } Pack;     // health pickup (px coords)
 typedef struct { float x, y, vx, vy; int life; } Splat;   // blood: sprays along the shot, decelerates, fades & stains
@@ -227,9 +241,9 @@ static void reset(void) {
     for (int i=0;i<NE;i++) {
         if (i >= ecount) { en[i].alive = 0; continue; }
         int x,y,tr=0; do { x=GW/2+rnd(GW/2-2); y=2+rnd(GH-4); tr++; } while (wcell(x,y) && tr<80);
-        int t = i % NTY;                                   // even spread across the 3 types
-        en[i] = (Enemy){ .x = x*TILE+4, .y = y*TILE+4, .aim = 180, .hp = TY[t].hp, .alive = 1,
-                         .state = E_PATROL, .mag = TY[t].mag, .type = t, .losgap = 999,
+        int w = i % NWEAP;                                 // default loadout: even spread of the bullet weapons
+        en[i] = (Enemy){ .x = x*TILE+4, .y = y*TILE+4, .aim = 180, .hp = WEAP[w].hp, .alive = 1,
+                         .state = E_PATROL, .mag = WEAP[w].mag, .weapon = w, .persona = rnd(NPERS), .losgap = 999,
                          .strafe = rnd(2) ? 1 : -1, .strafeT = rnd(120) };
     }
     for (int i=0;i<NB;i++) bul[i].alive = 0;
@@ -291,7 +305,8 @@ static void noise_at(float x, float y, float radius, float amount) {
 static void enemy_update(int i) {
     Enemy *e = &en[i];
     if (!e->alive) return;
-    const EType *T = &TY[e->type];
+    const Weapon *W = &WEAP[e->weapon];
+    const Persona *P = &PERS[e->persona];  // SEAM: persona composes on top of the weapon (neutral today)
     float prev_alert = e->alert;          // alertness BEFORE this frame's stimuli — drives reaction surprise
     if (e->shootcd > 0) e->shootcd--;
     if (e->callcd > 0) e->callcd--;
@@ -321,7 +336,7 @@ static void enemy_update(int i) {
     // shorter the more alarmed the enemy already was: a startled patroller gives you ~half a
     // second, a hunter who's been tracking you snaps to the shot. The headline player-skill lever.
     if (canlos) {
-        if (e->losgap > 10) e->react = (int)(T->react * (0.25f + 0.75f*(1 - prev_alert/100.0f)));  // genuinely fresh sightline → draw a new bead
+        if (e->losgap > 10) e->react = (int)(W->react * (0.25f + 0.75f*(1 - prev_alert/100.0f)) / P->skill);  // fresh sightline → draw a bead (skill = faster; neutral now)
         else if (e->react > 0) e->react--;                                                         // kept the bead (brief flicker is forgiven) → count down
         e->losgap = 0;
     } else e->losgap++;
@@ -341,16 +356,16 @@ static void enemy_update(int i) {
 
     // --- act per state ---
     if (e->state == E_ENGAGE) {
-        if (e->type == TY_CAMP && los_px(e->x,e->y,pl.x,pl.y)) {   // SUPPRESSION: anchor + pour inaccurate fire to PIN you
+        if (W->suppress && los_px(e->x,e->y,pl.x,pl.y)) {   // SUPPRESSION (auto weapons): anchor + pour inaccurate fire to PIN you
             e->aim = angle_to(e->x, e->y, pl.x, pl.y);
             e->suppressing = e->mag > 0 && e->react <= 0;     // not pinning you until the reaction beat is up
             if (e->mag > 0 && e->shootcd <= 0 && e->react <= 0) { fire(e->x, e->y, e->aim, 1, 30*d_spread); e->mag--; e->shootcd = (int)(7*d_gap); if (e->mag==0) e->reload = 100; }
-            if (e->mag == 0 && --e->reload <= 0) e->mag = T->mag;  // reload = the gap in the pin (your window to move)
+            if (e->mag == 0 && --e->reload <= 0) e->mag = W->mag;  // reload = the gap in the pin (your window to move)
             return;
         }
         // pick a firing stance per type: keep LOS, dodge the heat cone, hold the
         // type's range, hug cover, circle (strafe), spread from squadmates.
-        if (--e->strafeT <= 0) { e->strafe = -e->strafe; e->strafeT = 60 + rnd(90); }
+        if (--e->strafeT <= 0) { e->strafe = -e->strafe; e->strafeT = W->flip + rnd(W->flip); }   // flip cadence = the weapon's jumpiness
         float perp = angle_to(pl.x, pl.y, e->x, e->y) + 90 * e->strafe;   // lateral-around-player dir
         float best = -1e9f, bx = e->x, by = e->y;
         for (int a=0;a<8;a++) {
@@ -359,11 +374,11 @@ static void enemy_update(int i) {
             int cx=(int)(ox/TILE), cy=(int)(oy/TILE);
             float od = fsqrt((pl.x-ox)*(pl.x-ox)+(pl.y-oy)*(pl.y-oy));
             float sc = los_px(ox,oy,pl.x,pl.y) ? 4 : -7;     // must be able to shoot
-            sc -= heat_at(ox,oy) * T->heatW;                 // AVOID the aim cone -> flank
-            sc -= fabsf(od - T->range) * 0.05f;              // hold this type's range
-            if (near_cover(cx,cy)) sc += T->coverW;          // peek from any cover
-            if (low_facing(ox,oy, pl.x-ox, pl.y-oy)) sc += T->coverW + 1.5f;   // LOW cover facing you = protected firing spot
-            sc += T->strafeW * cos_deg(angnorm(ang - perp)); // circle the player
+            sc -= heat_at(ox,oy) * W->heatW;                 // AVOID the aim cone -> flank
+            sc -= fabsf(od - W->range) * 0.05f;              // hold this type's range
+            if (near_cover(cx,cy)) sc += W->coverW;          // peek from any cover
+            if (low_facing(ox,oy, pl.x-ox, pl.y-oy)) sc += W->coverW + 1.5f;   // LOW cover facing you = protected firing spot
+            sc += W->strafeW * cos_deg(angnorm(ang - perp)); // circle the player
             for (int j=0;j<NE;j++) if (j!=i && en[j].alive) { float dd=fsqrt((en[j].x-ox)*(en[j].x-ox)+(en[j].y-oy)*(en[j].y-oy)); if (dd<26) sc -= (26-dd)*0.12f; }
             if (sc > best) { best = sc; bx = ox; by = oy; }
         }
@@ -371,20 +386,21 @@ static void enemy_update(int i) {
         // flankers stay in motion because they're rarely "safe") — fixes the freeze
         int ecx=(int)(e->x/TILE), ecy=(int)(e->y/TILE);
         bool safe = heat_at(e->x,e->y) < 0.12f && near_cover(ecx,ecy) && los_px(e->x,e->y,pl.x,pl.y);
-        if (!safe) move_enemy(e, bx, by, T->speed);
+        if (!safe) move_enemy(e, bx, by, W->speed);
         e->aim = angle_to(e->x, e->y, pl.x, pl.y);
         if (los_px(e->x,e->y,pl.x,pl.y) && e->shootcd <= 0 && e->mag > 0 && e->react <= 0) {
-            fire(e->x, e->y, e->aim, 1, T->spread * d_spread); e->mag--; e->shootcd = (int)(T->gap * d_gap);
+            for (int p=0;p<W->pellets;p++) fire(e->x, e->y, e->aim, 1, W->spread * d_spread);   // shotgun = a spray of pellets
+            e->mag--; e->shootcd = (int)(W->gap * d_gap);
             if (e->mag == 0) e->reload = 70;
         }
-        if (e->mag == 0) { if (--e->reload <= 0) e->mag = T->mag; }   // reload window = vulnerable
+        if (e->mag == 0) { if (--e->reload <= 0) e->mag = W->mag; }   // reload window = vulnerable
     } else if (e->state == E_HUNT) {                          // alarmed, no LOS: close in
         if (known) {                                          // squad knows where you are -> flow around cover
             float bestf = flow[(int)(e->y/TILE)][(int)(e->x/TILE)], tx = e->x, ty = e->y;
             for (int a=0;a<8;a++) { float ox=e->x+dx(7,a*45), oy=e->y+dy(7,a*45); int cx=(int)(ox/TILE),cy=(int)(oy/TILE);
                 if (wcell(cx,cy)||enemy_at_px(ox,oy,i)>=0) continue; if (flow[cy][cx] < bestf) { bestf=flow[cy][cx]; tx=ox; ty=oy; } }
-            move_enemy(e, tx, ty, T->speed * 0.92f);
-        } else move_enemy(e, e->invx, e->invy, T->speed * 0.9f);   // alarmed only by a noise -> head to it
+            move_enemy(e, tx, ty, W->speed * 0.92f);
+        } else move_enemy(e, e->invx, e->invy, W->speed * 0.9f);   // alarmed only by a noise -> head to it
         e->aim = angle_to(e->x, e->y, pl.x, pl.y);
     } else if (e->state == E_SUSPECT) {                       // SEARCH: sweep to a point of interest, then pick another — actively investigating
         float id = fsqrt((e->invx-e->x)*(e->invx-e->x)+(e->invy-e->y)*(e->invy-e->y));
@@ -393,7 +409,7 @@ static void enemy_update(int i) {
                 rx=rx<2?2:rx>GW-2?GW-2:rx; ry=ry<2?2:ry>GH-2?GH-2:ry; tr++; } while (wcell(rx,ry) && tr<40);
             e->invx = rx*TILE+4; e->invy = ry*TILE+4;
         }
-        move_enemy(e, e->invx, e->invy, T->speed * 0.55f);    // cautious
+        move_enemy(e, e->invx, e->invy, W->speed * 0.55f);    // cautious
         e->aim = (rnd(28)==0) ? rnd(360) : angle_to(e->x, e->y, e->invx, e->invy);   // glance around as they go
     } else {                                                  // PATROL: small idle drift
         if (rnd(40)==0) e->aim = rnd(360);
@@ -553,17 +569,14 @@ void update(void) {
 // ---- draw ------------------------------------------------------------------
 // a hop curve (rest → up → peak → down) sampled by the walk-bob phase
 static const int HOPS[4] = { 0, 1, 2, 1 };
-// per-type cap colour, so role still reads at a glance (shirt = state, cap = type)
-static const int TYHAT[NTY] = { CLR_PINK, CLR_WHITE, CLR_INDIGO };   // rusher / camper / flanker (visible caps)
-
 // a little upright pixel-man (druglord-style), feet planted at (x,y) screen px.
-// shirt = role/state colour, cap+build = type marker, hop lifts the body, ghost = dim last-seen.
-// type: TY_RUSH/CAMP/FLANK varies the build (bulky camper · lean flanker), or -1 for the player.
-static void draw_man(int x, int y, float aim, int shirt, int hat, int hop, int ghost, int type) {
+// shirt = role/state colour, cap + build = weapon marker, hop lifts the body, ghost = dim last-seen.
+// build = body width (the weapon's WEAP.build; 5 for the player); hat = cap colour, -1 = none.
+static void draw_man(int x, int y, float aim, int shirt, int hat, int hop, int ghost, int build) {
     int skin = ghost ? CLR_DARKER_GREY : CLR_PEACH;
     int pant = ghost ? CLR_DARKER_GREY : CLR_DARK_BLUE;
     if (ghost) { shirt = CLR_DARKER_GREY; hat = -1; }
-    int tw = type==TY_CAMP ? 7 : type==TY_FLANK ? 3 : 5;        // build: camper bulky · flanker lean · rusher/player normal
+    int tw = build;                                            // body width = weapon build (bulky shotgunner · lean SMG)
     rectfill(x-2, y+2, 5, 2, CLR_BLACK);                       // planted ground shadow (stays put as he hops)
     int t = y - 5 - hop;                                        // crown of the head, lifted by the hop
     int stride = (hop >= 2);                                     // legs split at the top of the bounce
@@ -571,7 +584,7 @@ static void draw_man(int x, int y, float aim, int shirt, int hat, int hop, int g
     rectfill(x+1, t+5, 2, 2 - !stride, pant);                   // right leg
     rectfill(x-tw/2, t+2, tw, 3, shirt);                        // torso (role/state colour; width = type build)
     rectfill(x-1, t,   3, 2, skin);                             // head
-    if (hat >= 0) { int cw = type==TY_CAMP ? 5 : 3; rectfill(x-cw/2, t-1, cw, 1, hat); }   // cap (camper = wide helmet)
+    if (hat >= 0) { int cw = build>=7 ? 5 : 3; rectfill(x-cw/2, t-1, cw, 1, hat); }   // cap (wide build = wide helmet)
     if (!ghost) line(x, t+3, x + (int)dx(5, aim), (t+3) + (int)dy(5, aim), CLR_LIGHT_GREY);  // gun arm toward aim
 }
 
@@ -647,16 +660,16 @@ void draw(void) {
             if (en[i].suppressing) circ(x,y-4,5,blink(4)?CLR_RED:CLR_ORANGE);    // muzzle bloom of a suppressor
             if (en[i].state==E_ENGAGE && en[i].react>0 && blink(4))              // drawing a bead — your window to break LOS / duck behind cover
                 line(x, y-4, (int)(en[i].x+dx(11,en[i].aim))+sh, (y-4)+(int)dy(11,en[i].aim), CLR_ORANGE);
-            draw_man(x, y, en[i].aim, ECOL[en[i].state], TYHAT[en[i].type], hop, 0, en[i].type);  // shirt = state, cap+build = type
+            draw_man(x, y, en[i].aim, ECOL[en[i].state], WEAP[en[i].weapon].hat, hop, 0, WEAP[en[i].weapon].build);  // shirt = state, cap+build = weapon
             if (en[i].state==E_SUSPECT) print("?", x-1, y-13, CLR_YELLOW);                    // investigating
             else if (en[i].state>=E_HUNT && en[i].state<=E_ENGAGE) print("!", x-1, y-13, CLR_RED);  // alarmed
         } else if (en[i].everseen)                                            // last-seen ghost (your memory)
-            draw_man((int)en[i].lsx+sh, (int)en[i].lsy, en[i].aim, CLR_DARKER_GREY, -1, 0, 1, en[i].type);
+            draw_man((int)en[i].lsx+sh, (int)en[i].lsy, en[i].aim, CLR_DARKER_GREY, -1, 0, 1, WEAP[en[i].weapon].build);
     }
     // your vision ring + you (a blue ring keeps you findable in the chaos)
     if (!reveal && !pl.spectate) circ((int)pl.x+sh, (int)pl.y, VIS_R, CLR_DARK_GREY);
     int px=(int)pl.x+sh, py=(int)pl.y, phop=HOPS[((int)pl.bob)&3];
-    draw_man(px, py, pl.aim, pl.hp>0 ? (pl.sneak?CLR_DARK_BLUE:CLR_BLUE) : CLR_DARK_GREY, CLR_WHITE, phop, 0, -1);
+    draw_man(px, py, pl.aim, pl.hp>0 ? (pl.sneak?CLR_DARK_BLUE:CLR_BLUE) : CLR_DARK_GREY, CLR_WHITE, phop, 0, 5);   // player = normal build
     line(px, py-2-phop, (int)(pl.x+dx(8,pl.aim))+sh, (py-2-phop)+(int)dy(8,pl.aim), CLR_YELLOW);  // your aim line (longer, so "you" reads)
     if (pl.pinned > 0.3f) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print("PINNED", px-11, py-15, blink(6)?CLR_RED:CLR_ORANGE); }
     if (combat && combat_t < 50 && blink(5)) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print_centered("! ALARM !", SCREEN_W/2, 5, CLR_RED); }  // the moment the room goes loud

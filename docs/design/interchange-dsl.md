@@ -41,22 +41,41 @@ This is the formalization of the "reusable patterns" + `DRIVE` direction in
 
 ### The payoff: every named interchange is one assignment
 
-The entire roads.org.uk catalog collapses to **`legs × { movement → primitive }`**, with `DRIVE`
-deciding handedness. The named types differ *only* in how they serve the **hard (left-equivalent)**
-turns:
+The **ramp-per-movement** family of the roads.org.uk catalog collapses to
+**`legs × { movement → primitive }`**, with `DRIVE` deciding handedness. The named types differ *only*
+in how they serve the **hard (left-equivalent)** turns:
 
 | type | legs | hard turns served by |
 |---|---|---|
 | diamond | 2 (cross) | `diverge`+`merge` (at-grade / signal) |
 | cloverleaf | 2 (cross) | 4× `loop` |
+| partially-unrolled cloverleaf | 2 (cross) | mix: some `loop`, some `flyover` |
 | (four-level) stack | 2 (cross) | 4× `flyover` |
 | trumpet | T (one ends) | `loop` + (`loop` or `flyover`) + 2 direct |
+| triangle | T/Y (3-way free-flow) | 3× `flyover` (trumpet's no-loop cousin) |
 | wye / fork | Y (forks) | pure `diverge` |
+| LILO | any | partial, all at-grade (no loop/flyover) |
 | parclo / half-X | any | *same menu, subset of movements* |
 
 So diamond / cloverleaf / stack are the **same legs and same movement set** — they differ only in the
 primitive on the left turns (signal vs loop vs flyover). That is the "completeness × ramp-style menu"
 axis already in the roadnet2 matrix.
+
+### What this grammar does NOT cover — the ring family (verified against roads.org.uk, 2026-06-16)
+
+Fetching the [roads.org.uk catalog](https://www.roads.org.uk/interchanges) (12 types, grouped by leg
+count) confirms the table above covers **8 of 12** — the ramp-per-movement types — cleanly (the three
+unnamed ones, *triangle / partially-unrolled cloverleaf / LILO*, are just unlisted assignments over the
+same menu, so they're free). But **4 of 12 are a category this grammar can't express**: the
+**roundabout / ring family** — *Roundabout Interchange* (the page calls it "the true British
+interchange"), *Dumbbell*, *Three-Level Stacked Roundabout*, *Whirlpool* (turbine). These route
+**multiple movements through one shared circulating carriageway**, not a dedicated ramp per movement —
+so `{ movement → primitive }` doesn't decompose them. Covering them needs a new top-level primitive, a
+**`ring` / `circulate`** (a closed loop the legs tap on/off, with the grade-separation living in how the
+legs cross the ring), as a *peer* of the ramp grammar rather than an extension of it. **Parked** — the
+ramp family is the priority; the ring family is a deliberately British shape we can add later. (Aside:
+this is the over-claim correction — the earlier "*entire* catalog collapses to legs × {movement →
+primitive}" was true only for the ramp family.)
 
 ### Sketch syntax
 ```

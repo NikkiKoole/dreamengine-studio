@@ -137,15 +137,21 @@ static float tan_deg(float d){ return sin_deg(d)/cos_deg(d); }
 // ── ARC-SPLINE ramp: LINE → ARC → LINE between two ports (a "simple curve": round the corner where
 //    A's heading-line meets B's heading-line with an arc of radius R). Returns the polyline length. ──
 static int arc_spline(Port a, Port b, float R, float *xs, float *ys){
-    float uax=ux(a.dir),uay=uy(a.dir), ubx=ux(b.dir),uby=uy(b.dir);
+    float ad=a.dir+180;                                     // A is the ENTRY: ramp leaves A heading INTO the junction
+    float uax=ux(ad),uay=uy(ad), ubx=ux(b.dir),uby=uy(b.dir);
     float den=uax*uby-uay*ubx;                              // cross(uA,uB); ~0 ⇒ parallel
-    float dA=b.dir-a.dir; while(dA>180)dA-=360; while(dA<-180)dA+=360;
+    float dA=b.dir-ad; while(dA>180)dA-=360; while(dA<-180)dA+=360;
     float fa=dA<0?-dA:dA;
     int n=0;
     if (fa<1.f || (den<0.02f&&den>-0.02f)){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // ~straight
-    float s=((b.x-a.x)*uby-(b.y-a.y)*ubx)/den;              // distance along A's line to the corner P
+    float s=((b.x-a.x)*uby-(b.y-a.y)*ubx)/den;              // dist A→P along uA (the tangent room on A's side)
     float Px=a.x+uax*s, Py=a.y+uay*s;
-    float T=R*(sin_deg(fa*0.5f)/cos_deg(fa*0.5f));          // tangent length = R·tan(Δ/2)
+    float distB=(b.x-Px)*ubx+(b.y-Py)*uby;                  // dist P→B along uB (tangent room on B's side)
+    float avail=(s<distB?s:distB);                          // tightest tangent room
+    if (avail<2.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // corner behind a port ⇒ needs a LOOP; straight stand-in
+    float tanH=sin_deg(fa*0.5f)/cos_deg(fa*0.5f);
+    if (R>avail*0.95f/tanH) R=avail*0.95f/tanH;             // clamp R so the curve FITS the corner (no overshoot/cusp)
+    float T=R*tanH;                                         // tangent length = R·tan(Δ/2)
     float t1x=Px-uax*T,t1y=Py-uay*T, t2x=Px+ubx*T,t2y=Py+uby*T;
     float nx=-uay,ny=uax;                                   // ⊥ to uA; pick the centre that's also R from T2
     float caX=t1x+nx*R,caY=t1y+ny*R, cbX=t1x-nx*R,cbY=t1y-ny*R, cx,cy;
@@ -168,14 +174,25 @@ static int arc_spline(Port a, Port b, float R, float *xs, float *ys){
 //    curve forward. Reduces EXACTLY to arc_spline as Ls→0. ──
 static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *ys){
     if (Ls < 0.5f) return arc_spline(a,b,R,xs,ys);          // Ls→0 IS the plain arc (avoids 1/(R·Ls) blow-up)
-    float uax=ux(a.dir),uay=uy(a.dir), ubx=ux(b.dir),uby=uy(b.dir);
+    float ad=a.dir+180;                                     // A is the ENTRY: ramp leaves A heading INTO the junction
+    float uax=ux(ad),uay=uy(ad), ubx=ux(b.dir),uby=uy(b.dir);
     float den=uax*uby-uay*ubx;
-    float dA=b.dir-a.dir; while(dA>180)dA-=360; while(dA<-180)dA+=360;
+    float dA=b.dir-ad; while(dA>180)dA-=360; while(dA<-180)dA+=360;
     float fa=dA<0?-dA:dA, turn=dA<0?-1.f:1.f;               // |Δ| and turn sign
     int n=0;
     if (fa<1.f || (den<0.02f&&den>-0.02f)){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }
-    float P_s=((b.x-a.x)*uby-(b.y-a.y)*ubx)/den;            // dist along A's line to the apex P
+    float P_s=((b.x-a.x)*uby-(b.y-a.y)*ubx)/den;            // dist A→P along uA (tangent room on A's side)
     float Px=a.x+uax*P_s, Py=a.y+uay*P_s;
+    float distB=(b.x-Px)*ubx+(b.y-Py)*uby;                  // dist P→B along uB (tangent room on B's side)
+    float avail=(P_s<distB?P_s:distB);                      // tightest tangent room
+    if (avail<2.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }  // corner behind a port ⇒ needs a LOOP; straight stand-in
+    float tanH=tan_deg(fa*0.5f);
+    float T=R*tanH;                                         // bare-arc tangent — KEEP R (and the corner) if it fits
+    if (T>avail*0.95f){ R=avail*0.95f/tanH; T=avail*0.95f; }//   only shrink R if even the plain arc overshoots (rare)
+    float room=avail-T;                                     // leftover tangent room for the spiral back-distance k≈Ls/2
+    if (Ls>room*1.8f) Ls=room*1.8f;                         // trim ONLY the spiral so the lead-in can't overshoot/cusp
+    if (Ls<0.5f) return arc_spline(a,b,R,xs,ys);            //   no spiral room ⇒ the fitted plain arc keeps the corner
+    if (R<2) R=2;
     // spiral angle θs = Ls/2R; clamp so two spirals fit the deflection (spiral-spiral limit → arc=0)
     float thS=(Ls/(2*R))*R2D;                               // spiral angle (deg)
     if (thS > fa*0.5f){ thS=fa*0.5f; Ls=2*R*(thS/R2D); }
@@ -188,7 +205,7 @@ static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *
     float TSx=Px-uax*Ts, TSy=Py-uay*Ts;                     // start of entry spiral (after the lead-in line)
     // emit: LINE a → TS, then forward-integrate spiral / arc / spiral; append exact port b for the run-out
     xs[n]=a.x; ys[n++]=a.y; xs[n]=TSx; ys[n++]=TSy;
-    float x=TSx,y=TSy,hd=a.dir,kc=0,sg=turn/(R*Ls);         // entry CLOTHOID: κ 0 → turn/R
+    float x=TSx,y=TSy,hd=ad,kc=0,sg=turn/(R*Ls);            // entry CLOTHOID: κ 0 → turn/R
     for(int i=0;i<NC;i++){ float tm=hd+(kc*ds*0.5f)*R2D; x+=ux(tm)*ds; y+=uy(tm)*ds; hd+=(kc+sg*ds*0.5f)*ds*R2D; kc+=sg*ds; xs[n]=x;ys[n++]=y; }
     float arcDeg=fa-2*thS;                                  // ARC: constant κ over the residual deflection
     if (arcDeg>0.5f){ int NA=(int)(arcDeg/6)+1; float ads=(R*arcDeg/R2D)/NA;
@@ -200,7 +217,7 @@ static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *
 }
 
 // ── state ──
-static int selA=2, selB=0; static float radius=30.f, spiral=14.f; static int use_cloth=1, nlanes=2, taperPct=0, lift=12;
+static int selA=2, selB=0; static float radius=30.f, spiral=14.f; static int use_cloth=1, nlanes=3, taperPct=60, lift=0;
 
 // a "−/+" (or "</>") stepper: two ui buttons; returns -1, 0 or +1
 static int step_btn(int x,int y,int w,const char*lm,const char*rm){

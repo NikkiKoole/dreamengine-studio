@@ -126,7 +126,16 @@ reach. The selector (the C tables) stays per-cart; the atoms are the universal u
    city everywhere; WHERE cities sit is the world selector's job, fed by roadnet), irregular/rotated
    lots along curved arterials, `building_at()` as the collision seam for sloop, and merging the RES
    `building_at` prototype from `roadnet-streetlevel.md` item 5.
-4. **`border` / `pave` / `stamp`** — hedgerows (rows has a basic one), parking, plazas, the football
+4. ✅ **`world` driver — composing the atoms** *(built 2026-06-17)*. Not a new atom — the first
+   **driver**. A self-contained local worldgen in the `lotfill` workbench: a **selector**
+   (`world_kind_at`) reads terrain (the elevation/biome `cover_at`) + an urbanization fbm and picks,
+   per region, which atom fills it — **wild → scatter, farmland → rows, town → footprint**. The atoms
+   are unchanged (`rows_fill`/`footprint_fill`/`draw_tree` run gated by the selector), proving the
+   workbench↔world reuse end-to-end with **no roadnet/worldgen dependency**. Layer-peel toggles the
+   three domains; `G` draws the **selector map** (wild green / farm yellow / city red). *This is the
+   bridge to the real thing:* swap `world_kind_at` for worldgen's terrain + roadnet's cities and
+   `building_at()` for sloop collision, and the same atoms populate the actual game world.
+5. **`border` / `pave` / `stamp`** — hedgerows (rows has a basic one), parking, plazas, the football
    field, set-pieces.
 
 ## Open decisions (for build time)

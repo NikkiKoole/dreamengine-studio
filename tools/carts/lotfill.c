@@ -14,10 +14,14 @@
 // The thesis there: every street-level feature is a BOUNDED REGION + a SEEDED
 // FILL-RULE, expressed as a pure fn of (region, hash, zone) that answers draw()
 // AND the collision/query call from the SAME code. Each fill-rule is an ATOM; this
-// cart is the workbench where each atom is a TAB you inspect in isolation, and the
-// SAME atom fn will run in the future world cart (driver changes, atom doesn't).
+// cart is the workbench where each atom is a TAB you inspect in isolation — and the
+// WORLD tab is the DRIVER that composes them all (same fns, the driver changes).
 //
-// ── the atoms (TAB to switch) ─────────────────────────────────────────────────
+// ── the tabs (TAB to switch) ──────────────────────────────────────────────────
+// • world   — the DRIVER (default): a tiny self-contained worldgen. A SELECTOR
+//   (world_kind_at) reads terrain + an urbanization field and picks an atom per
+//   region — wild→scatter, farmland→rows, town→footprint. "Fill a whole world",
+//   no roadnet/worldgen dependency. Layers peel the three domains; G = selector map.
 // • scatter — CONTINUOUS-COVER fill-mode (no parcel/identity): forest, meadow. We
 //   DON'T enumerate trees; cover_at(x,y) is a field, and the renderer scatters
 //   instances per visible JITTERED-GRID cell, each a pure fn of its own cell + seed
@@ -479,6 +483,107 @@ static const char *footprint_probe(float x, float y) {
     return buf;
 }
 
+// ── ATOM: world ──────────────────────────────────────────────────────────────
+// Not a new fill-rule — the DRIVER. A dead-simple local worldgen that COMPOSES the
+// three atoms: a SELECTOR (world_kind_at) reads the terrain + an urbanization field
+// and picks, per region, which atom fills it — wild land → scatter, farmland →
+// rows, town → footprint. This is the "fill a whole world" half, self-contained
+// (no roadnet/worldgen dependency yet): the same scatter/rows_fill/footprint_fill
+// run here, gated by the selector. Layers peel the three DOMAINS (nature/farm/city).
+#define URB_FREQ 0.0045f         // urbanization frequency (smaller = bigger regions)
+enum { WK_NATURE, WK_FARM, WK_CITY };
+static const char *WK_NAME[3] = { "wild", "farmland", "city" };
+
+static int world_kind_at(float x, float y) {
+    int t = cover_at(x, y).kind;
+    if (t == CV_WATER || t == CV_SAND || t == CV_ROCK) return WK_NATURE;   // terrain stays wild
+    float u = noise3(x * URB_FREQ, y * URB_FREQ, (float)lf_seed + 200.0f);
+    if (u > 0.66f) return WK_CITY;
+    if (u > 0.44f) return WK_FARM;
+    return WK_NATURE;
+}
+
+static void world_draw(float cam_x, float cam_y, float zoom) {
+    if (zoom < 0.01f) zoom = 0.01f;
+    float cx = cam_x + SCREEN_W / 2.0f, cy = cam_y + SCREEN_H / 2.0f;
+    float hwv = (SCREEN_W / 2.0f) / zoom, hhv = (SCREEN_H / 2.0f) / zoom;
+    int Lpx = (int)(cx - hwv) - BLK_P, Rpx = (int)(cx + hwv) + BLK_P;
+    int Tpx = (int)(cy - hhv) - BLK_P, Bpx = (int)(cy + hhv) + BLK_P;
+    int n_nat = 0, n_farm = 0, n_city = 0;
+
+    // base terrain tint everywhere (coarse cells that grow when zoomed out)
+    int gc = 6, step = 1; while ((float)gc * step * zoom < 3.0f && step < 8) step++;
+    int cs = gc * step;
+    for (int gy = ifloordiv(Tpx, cs); gy <= ifloordiv(Bpx, cs); gy++)
+        for (int gx = ifloordiv(Lpx, cs); gx <= ifloordiv(Rpx, cs); gx++) {
+            int px = gx * cs, py = gy * cs; Cover cv = cover_at(px + cs / 2.0f, py + cs / 2.0f);
+            rectfill(px, py, cs, cs, ground_col(gx, gy, &cv));
+        }
+
+    // NATURE — trees on wild forest/meadow (reuses scatter's canopy + draw_tree)
+    if (layer_on[0] && zoom >= 0.30f)
+        for (int cyi = ifloordiv(Tpx, CANOPY_P); cyi <= ifloordiv(Bpx, CANOPY_P); cyi++)
+            for (int cxi = ifloordiv(Lpx, CANOPY_P); cxi <= ifloordiv(Rpx, CANOPY_P); cxi++) {
+                unsigned h = hash2(cxi * 5 + lf_seed * 17, cyi + 3);
+                int wx = cxi * CANOPY_P + (int)(frac01(h) * CANOPY_P), wy = cyi * CANOPY_P + (int)(frac01(h >> 12) * CANOPY_P);
+                if (world_kind_at(wx, wy) != WK_NATURE) continue;
+                Cover cv = cover_at(wx, wy); float roll = frac01(h >> 20);
+                float prob = cv.kind == CV_FOREST ? 0.25f + cv.dens * 0.70f : cv.kind == CV_MEADOW ? 0.04f : 0.0f;
+                if (roll < prob) { draw_tree(wx, wy, h, cv.kind == CV_FOREST && cv.dens > 0.55f); n_nat++; }
+            }
+
+    // FARM — fields on farmland parcels (reuses rows_fill)
+    if (layer_on[1]) {
+        bool show[3] = { true, zoom >= 0.45f, true };
+        for (int fy = ifloordiv(Tpx, FIELD_P); fy <= ifloordiv(Bpx, FIELD_P); fy++)
+            for (int fx = ifloordiv(Lpx, FIELD_P); fx <= ifloordiv(Rpx, FIELD_P); fx++) {
+                if (world_kind_at(fx * FIELD_P + FIELD_P / 2.0f, fy * FIELD_P + FIELD_P / 2.0f) != WK_FARM) continue;
+                Rect r = { fx * FIELD_P, fy * FIELD_P, FIELD_P, FIELD_P };
+                rows_fill(r, hash2(fx + lf_seed * 257, fy * 7 + 13), show); n_farm++;
+            }
+    }
+
+    // CITY — buildings on town blocks (reuses footprint_fill)
+    if (layer_on[2]) {
+        bool show[3] = { true, zoom >= 0.45f, zoom >= 0.9f };
+        int IN = BLK_P - ST_W, nlot = 3, ls = IN / nlot;
+        for (int by = ifloordiv(Tpx, BLK_P); by <= ifloordiv(Bpx, BLK_P); by++)
+            for (int bx = ifloordiv(Lpx, BLK_P); bx <= ifloordiv(Rpx, BLK_P); bx++) {
+                int ox = bx * BLK_P, oy = by * BLK_P, inx = ox + ST_W, iny = oy + ST_W;
+                if (world_kind_at(inx + IN / 2.0f, iny + IN / 2.0f) != WK_CITY) continue;
+                int zone = zone_at(inx + IN / 2.0f, iny + IN / 2.0f);
+                rectfill(ox, oy, BLK_P, BLK_P, CLR_DARK_GREY);
+                rectfill(inx, iny, IN, IN, zone == ZN_RES ? CLR_DARK_GREEN : CLR_MEDIUM_GREY);
+                for (int lj = 0; lj < nlot; lj++)
+                    for (int li = 0; li < nlot; li++) {
+                        if (li == 1 && lj == 1) { if (zone != ZN_RES) rectfill(inx + li * ls, iny + lj * ls, ls, ls, CLR_DARKER_GREY); continue; }
+                        Rect lot = { inx + li * ls, iny + lj * ls, ls, ls };
+                        int outward = (lj == 0) ? 0 : (lj == 2) ? 2 : (li == 0) ? 3 : 1;
+                        footprint_fill(lot, outward, zone, hash2(bx * 97 + li + lf_seed * 7, by * 89 + lj), show);
+                    }
+                n_city++;
+            }
+    }
+
+    if (dbg) {                                            // the SELECTOR map: tint each region by kind
+        static const int WC[3] = { CLR_DARK_GREEN, CLR_YELLOW, CLR_RED };
+        int OV = 12; fillp(0xA5A5, -1);
+        for (int wy = ifloordiv(Tpx, OV) * OV; wy <= Bpx; wy += OV)
+            for (int wx = ifloordiv(Lpx, OV) * OV; wx <= Rpx; wx += OV)
+                rectfill(wx, wy, OV, OV, WC[world_kind_at(wx + OV / 2.0f, wy + OV / 2.0f)]);
+        fillp_reset();
+    }
+    cnt[0] = n_nat;  cnt_lbl[0] = "trees";
+    cnt[1] = n_farm; cnt_lbl[1] = "fields";
+    cnt[2] = n_city; cnt_lbl[2] = "blocks";
+}
+
+static const char *world_probe(float x, float y) {
+    static char buf[40];
+    snprintf(buf, sizeof buf, "%s / %s", WK_NAME[world_kind_at(x, y)], CV_NAME[cover_at(x, y).kind]);
+    return buf;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  THE ATOM REGISTRY — each atom is a tab
 // ════════════════════════════════════════════════════════════════════════════
@@ -491,6 +596,7 @@ typedef struct {
 } Atom;
 
 static Atom atoms[] = {
+    { "WORLD",     3, { "nature", "farms", "cities" }, world_draw,     world_probe },
     { "SCATTER",   3, { "base", "ground", "canopy" }, scat_draw,      scat_probe },
     { "ROWS",      3, { "soil", "crop",   "border" }, rows_draw,      rows_probe },
     { "FOOTPRINT", 3, { "ground", "build", "detail" }, footprint_draw, footprint_probe },
@@ -501,7 +607,7 @@ static Atom atoms[] = {
 //  THE SHELL — free-fly explorer over the current atom
 // ════════════════════════════════════════════════════════════════════════════
 static float cam_x = 250, cam_y = 18;     // open zoomed on a forest↔meadow boundary (seed 1)
-static float zoom  = 2.8f;
+static float zoom  = 0.70f;
 static int   seed  = 1;
 static int   cur   = 0;                   // current atom
 

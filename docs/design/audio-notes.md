@@ -1904,10 +1904,21 @@ up with the §18 note that "whatever is off about BOWED, it is not pitch" — pa
    `--quiet` CI gate). **The one-time audit came back clean across 390 carts** — the codebase already
    follows the rule — so it's a forward regression guard. Heuristic limit: it doesn't follow
    helper-routed calls (the `apply_fx()` pattern), which is the correct structure regardless.
-4. **No long-session soak / denormal guard.** §15 measured the voice/handle budget at a point in time;
-   nothing soaks for minutes asserting no voice leak or slow drift, and there is no flush-to-zero — a
-   long reverb/echo feedback tail can drift into denormal range → audio-thread CPU spikes (stutter) on
-   some CPUs, invisible on the dev machine.
+4. **Soak gate + denormal guard — SHIPPED.** `tools/soak-check.js` (harness `soak.c`) renders ~64s of
+   stress/idle cycles — dense notes through a big reverb+echo tail, then silence — and asserts the
+   long-run failures a few-second test can't see: stress level STABLE across all cycles (no gain drift,
+   no progressive voice-pool starvation from a leak), idle tails DECAY ≥12 dB below stress (no stuck /
+   leaked voice ringing — healthy decays 15–18 dB, a leak ~0–5), the idle floor doesn't CLIMB run-long
+   (no energy/DC accumulation), and nothing blows up. Decay-RELATIVE thresholds (not an absolute silence
+   floor, so it doesn't depend on exactly how long an aggressive tail takes to die). First run clean: 24
+   cycles within ~1.5 dB, every tail decaying 15–18 dB. **Denormal flush-to-zero** added in `sound.h`
+   (`sound_set_denormal_ftz()`, called at the top of `sound_callback` — the one point every audio path
+   funnels through): a long reverb/echo feedback tail decays below ~1e-38 into the denormal range, where
+   FP ops run 10–100× slower → audio-thread CPU spikes (stutter) on some CPUs, invisible in the output
+   (denormals are far below 16-bit). FTZ+DAZ on x86 (`_mm_setcsr 0x8040`), FPCR FZ bit on arm64, no-op on
+   wasm (no denormal control). Output byte-unchanged → level/fx/dc baselines untouched. The soak proves
+   the tails decay (correctness); FTZ handles the CPU side — quantifying the latter needs audio-thread
+   timing (the profiler only sees the main thread), a follow-up.
 
 ### 20.3 Micro-bug spotted in the same pass
 

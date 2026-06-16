@@ -420,6 +420,24 @@ It inspects `update()`/`draw()` directly, not helper-routed calls (the `apply_fx
 right structure anyway). Fix a real hit by moving the call to `init()` or gating it on the value
 changing (copy `groovebox`'s `apply_fx()`).
 
+### Soak — long-run stability (leak / drift / denormals)
+
+**`tools/soak-check.js`** (harness `soak.c`) renders ~64s of stress/idle cycles — dense notes through
+a big reverb+echo tail, then silence — and asserts what a few-second test can't: stress level STABLE
+across all cycles (no gain drift, no progressive voice-pool starvation from a leak), idle tails DECAY
+well below stress (no stuck/leaked voice ringing), the idle floor doesn't CLIMB run-long (no energy/DC
+accumulation), and nothing blows up. Thresholds are decay-relative, not an absolute silence floor.
+
+```bash
+node tools/soak-check.js              # render the long run + per-cycle stability table
+node tools/soak-check.js --quiet      # CI gate: exit 1 on drift / leak / accumulation / blowup
+```
+
+Pairs with the **denormal flush-to-zero** in `sound.h` (`sound_set_denormal_ftz()` at the top of
+`sound_callback`): a long feedback tail decays into the denormal range where FP ops are 10–100× slower
+→ audio-thread CPU stutter on some CPUs, invisible in the output. The soak proves the tails decay (the
+audible side); FTZ handles the CPU side. **Run after any feedback-effect or voice-lifetime edit.**
+
 ### Before/after diff
 
 ```bash

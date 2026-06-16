@@ -17,6 +17,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdatomic.h>   // lock-free SPSC request queue: main (producer) ↔ audio (consumer) thread
+#if defined(__SSE__) || defined(__x86_64__) || defined(__i386__)
+#include <xmmintrin.h>   // _mm_setcsr/_mm_getcsr — denormal flush-to-zero (FTZ/DAZ) on x86
+#endif
 
 #define SOUND_SAMPLE_RATE  44100
 #define SOUND_VOICES       32   // polyphony (8→16→32; needs SOUND_HANDLE_BITS≥5). ~9-10KB/voice .bss; CPU is the real cost (every active voice runs per-sample) — long-ringing modal/Karplus engines + chords starved 16
@@ -5181,7 +5184,23 @@ static void sound_fire_req(SoundReq r) {
 
 // ───────── audio callback (runs on audio thread) ─────────
 
+// Flush denormals to zero on the audio thread. A long reverb/echo feedback tail decays below
+// ~1e-38 into the denormal range, where FP ops run 10-100× slower → audio-thread CPU spikes
+// (stutter) on some CPUs — invisible in the output (denormals are far below 16-bit). FTZ/DAZ snap
+// those underflows to 0. Per-thread state, so set it at the top of the callback (every path funnels
+// here); cheap (a couple of instructions per block). No-op where unsupported (wasm: no denormal mode).
+static inline void sound_set_denormal_ftz(void) {
+#if defined(__SSE__) || defined(__x86_64__) || defined(__i386__)
+    _mm_setcsr(_mm_getcsr() | 0x8040u);            // FTZ (bit 15) | DAZ (bit 6)
+#elif defined(__aarch64__)
+    uint64_t fpcr;
+    __asm__ volatile("mrs %0, fpcr" : "=r"(fpcr));
+    __asm__ volatile("msr fpcr, %0" :: "r"(fpcr | (1ULL << 24)));   // FZ (bit 24)
+#endif
+}
+
 static void sound_callback(void *buffer_data, unsigned int frames) {
+    sound_set_denormal_ftz();   // denormal flush-to-zero — guards the reverb/echo tails (see above)
     float *out = (float*)buffer_data;
 #ifdef DE_AUDIO_WORKLET
     const float master_gain = atomic_load_explicit(&sound_master_gain, memory_order_relaxed);  // pause-mute (worklet)

@@ -1048,10 +1048,19 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       forward regression guard, not a cleanup. Limitation: only inspects `update()`/`draw()` directly,
       not helper-routed calls (the groovebox `apply_fx()` pattern — which is the correct structure
       anyway).
-    - **No long-session soak / denormal guard.** §15 measured the voice/handle budget at a point in time;
-      nothing soaks for minutes asserting no voice leak or slow drift, and there's **no flush-to-zero** —
-      long reverb/echo feedback tails can fall into denormal range → audio-thread CPU spikes (stutter) on
-      some CPUs, invisible on the dev machine.
+    - ✅ **Soak gate + denormal guard — SHIPPED.** `tools/soak-check.js` (+ harness `soak.c`) renders
+      ~64s of stress/idle cycles (dense notes through a big reverb+echo tail, then silence) and asserts
+      the long-run failures a short test can't see: stress level STABLE across all 24 cycles (no slow
+      drift, no progressive voice-pool starvation from a leak), idle tails DECAY ≥12 dB below stress (no
+      stuck/leaked voice ringing), the idle floor doesn't CLIMB run-long (no energy/DC accumulation), and
+      nothing blows up. Decay-relative thresholds (not an absolute silence floor), `--quiet` CI gate.
+      First run clean (24 cycles within ~1.5 dB). **Denormal flush-to-zero** added to `sound.h`
+      (`sound_set_denormal_ftz()` at the top of `sound_callback`): a long reverb/echo feedback tail
+      decays into the denormal range where FP ops run 10–100× slower → audio-thread CPU spikes (stutter)
+      on some CPUs, invisible in the output. FTZ+DAZ on x86, FPCR FZ on arm64, no-op on wasm. Output is
+      byte-unchanged (denormals are far below 16-bit), so the level/fx/dc baselines are untouched. The
+      soak proves the tails decay (the audible side); FTZ covers the CPU side (quantifying *that* needs
+      audio-thread timing — a follow-up, the profiler only sees the main thread).
     - **Micro-bug spotted in the same pass:** `amp_noise_process` + `varispeed_process` run *after* the
       master soft-clip (`sound.h:5509–5510`), and the device output has no final clamp (only the WAV
       writer does, `sound.h:372`) — so varispeed's interpolation can push the device signal slightly

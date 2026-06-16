@@ -40,6 +40,40 @@ shift is the trick that sidesteps true curve-offsetting (see §5).
 Sources: ASAM OpenDRIVE spec §9 (geometries), §8 (coord systems), §11 (lanes) —
 <https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/>
 
+### OpenDRIVE adoption inventory — what we've taken, what's left (the "goodies")
+OpenDRIVE is the gold mine: the standardized data model for everything a road network needs. The whole
+roadlab arc IS a progressive port of it. Tracked here so we know what's mined and what's still in the seam.
+
+**Adopted (in `roadlab`):**
+| feature | what it is | where |
+|---|---|---|
+| reference line `LINE\|ARC\|CLOTHOID` | the `<planView>` geometry list (minus XML) | M1 + M2 |
+| lanes = s/t lateral shift | "same s, shifted in t" — offset the one ref-line, don't re-curve | M3 |
+| lane `width(s)` cubic | per-lane width along s → add/drop tapers, gores | M4 |
+| elevation `z(s)` | height profile along s → grade separation / flyovers | M5 |
+
+**Worth taking next (ranked):**
+- **`junction` + `laneLink`** — OpenDRIVE's junction element groups connecting roads and records, per
+  connection, *which incoming lane maps to which outgoing lane*. This is **literally our junction DSL's
+  movement layer** (`legs × {movement → primitive}` in [`interchange-dsl.md`](interchange-dsl.md)) — the
+  formal schema roadnet2 would serialise into. Reading/aligning to it costs no code and validates the DSL.
+- **`roadMark`** — per-boundary lane markings: type (solid / broken / solid-solid / solid-broken), colour
+  (white vs yellow), width, lane-change rule. We hardcode white dividers + a yellow median; this is the
+  principled version (double-yellow = no crossing). Cheap, big believability gain.
+- **lane *types*** — every lane tagged `driving / shoulder / median / sidewalk / biking / parking / curb`.
+  Slots into our per-lane loop; lets us draw shoulders/medians/sidewalks differently.
+- **`junctionGroup` (type `roundabout`)** — groups the junctions around a roundabout into one logical
+  interchange. **This is OpenDRIVE's answer to the ring/roundabout family our ramp grammar can't express**
+  (see interchange-dsl). The model to copy when we build the `ring`/`circulate` primitive.
+- **lane predecessor/successor links** — lane continuity across road segments (routing). Matters once
+  roadnet2 needs through-routing, not before.
+
+**Flavour / later:** `objects` & `signals` (traffic lights, signs, poles, barriers, crosswalks, trees —
+world dressing); road `type`/speed limits (only if we simulate driving).
+
+**Skip for a 2D top-down fantasy console:** superelevation / crossfall / lateral `shape` (banking — invisible
+top-down), CRG surface (friction/bumps), georeference/datum/projection, rail switches.
+
 ## 2. Clothoids — why, and the implementable recipe
 Line κ=0 butted to arc κ=1/R = a **step** in curvature → lateral accel (v²κ) jumps → jerk. That join
 is G1 (heading continuous) but not G2 (curvature continuous). A **clothoid** has κ **linear in arc

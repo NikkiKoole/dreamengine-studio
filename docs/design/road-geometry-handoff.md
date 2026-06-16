@@ -106,9 +106,17 @@ Investigated OpenDRIVE, clothoids, SUMO/CommonRoad, Cities: Skylines, curve offs
   cycles); `taperFrac=0` is exactly the M3 parallel lanes. (Fixes the "4-lane off-ramps look weird" slab.)
   *Open polish:* `keep` is hardwired to 1 (always fans to a single lane) — trivial to expose if we want
   N→2; and the taper is a lane *drop* at the tail (a lane *add* at the head is the mirror, not yet wired).
+- **`roadlab` M5 — elevation `z(s)`** ✅ **DONE.** A ramp can **fly over** the junction: `z` rises from 0
+  at port A, holds a deck height across the middle, falls to 0 at port B (rise/hold/fall hump, `smoothstep`).
+  Depicted top-down via **option (a)**: the deck stays in plan position and draws on top; a **drop-shadow**
+  offset ∝ `z` is cast on the ground first → reads as grade separation. `lift` px scrubs it (`e` cycles);
+  `lift=0` ⇒ at grade. (We chose plan+shadow over oblique-lift to keep the flat-road identity + glued ports;
+  draw-order-by-`z` is the rule that generalises to ramp-over-ramp.) *Open polish:* piers/supports under
+  the deck; a real ramp-over-ramp crossing (needs two ramps + per-segment z-sort).
 - **Next on `roadlab`: nothing structural — port it into roadnet2** (bake the constants, call it as the
   junction drawer). The other open shape is the **ring/circulate primitive** for the British roundabout
-  family (see `interchange-dsl.md` — out of the ramp grammar).
+  family (see `interchange-dsl.md` — out of the ramp grammar). Full OpenDRIVE feature roadmap (what we've
+  taken, what's left): `road-geometry-refs.md` → "OpenDRIVE adoption inventory".
 - **Then** `roadlab` becomes the drawer that `interchange.c` / roadnet2 call (bake constants, port in).
 - **Parked:** `interchange.c` task — the **half-diamond draw-order** (near ramps should merge at-grade,
   not duck under the highway); the **inner-loop nesting** in `interchange.c`; the **loop+loop vs

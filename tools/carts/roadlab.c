@@ -17,8 +17,11 @@
 //   MILESTONE 4: lane ADD/DROP via width(s) (OpenDRIVE lane-width model) — outer lanes taper full→0 over
 //                the ramp's tail, staggered, so a fat ramp FANS DOWN to one lane (a real diverge + gore)
 //                instead of a peeling slab. `taper` 0-100% scrubs it; t cycles. taper=0 ⇒ M3 parallel lanes.
+//   MILESTONE 5: ELEVATION z(s) (OpenDRIVE elevation profile) — a ramp FLIES OVER the junction: z rises,
+//                holds a deck height, falls (hump). Top-down depiction: deck in plan + drop-shadow ∝ z +
+//                draws on top = grade separation. `lift` px scrubs it; e cycles. lift=0 ⇒ at grade.
 //   Controls: an on-screen ui.h toolbar — every control a clickable button. Keyboard: ←/→ A · ↑/↓ B ·
-//             [ ] radius · ,/. Ls · C clothoid · 1-4 lanes · t taper.
+//             [ ] radius · ,/. Ls · C clothoid · 1-4 lanes · t taper · e lift.
 // Next: port roadlab into roadnet2 (bake the constants, call it as the junction drawer).
 
 #define DRIVE  1     // +1 = drive on the right — the single source of truth for handedness
@@ -69,10 +72,15 @@ static float smoothstep01(float t){ if(t<0)t=0; if(t>1)t=1; return t*t*(3-2*t); 
 //    the ramp. Outer lanes DROP full→0 over the last `taperFrac` of the ramp, STAGGERED (outermost first)
 //    so a fat ramp FANS DOWN to one lane — a real off-ramp diverge with its gore — instead of a slab. The
 //    width profile is a smooth cubic (smoothstep). taperFrac=0 ⇒ constant width (the M3 parallel lanes). ──
-static void draw_multilane(const float*xs,const float*ys,int n,int nl,float taperFrac){
+// ── M5: ELEVATION z(s) (OpenDRIVE elevation profile). A ramp can FLY OVER the junction: z rises from 0
+//    at port A, holds a deck height across the middle, falls back to 0 at port B (rise/hold/fall hump).
+//    Depicted top-down (option a): the deck stays in PLAN position and draws on top; a drop-shadow,
+//    offset ∝ z, is cast onto the ground first — so the higher road reads as grade-separated. liftPx=0
+//    ⇒ at grade. (Draw-order by z is what resolves over/under; here: ground roads → shadow → deck.) ──
+static void draw_multilane(const float*xs,const float*ys,int n,int nl,float taperFrac,float liftPx){
     int keep=1, nd=nl-keep;                              // 1 lane survives; outer nd lanes taper away
     float HW=nl*LANEW*0.5f;
-    static float bnd[8][128];                            // per-sample offset of each lane boundary 0..nl
+    static float bnd[8][128], z[128];                    // per-sample lane-boundary offsets + height z(s)
     for (int i=0;i<n;i++){
         float f=(n>1)?(float)i/(n-1):0;
         float u=(f-(1.f-taperFrac))/(taperFrac>0.001f?taperFrac:1.f);   // 0 at taper start … 1 at ramp end
@@ -85,8 +93,16 @@ static void draw_multilane(const float*xs,const float*ys,int n,int nl,float tape
             }
             off+=w; bnd[k+1][i]=off;
         }
+        float zt = f<0.3f? smoothstep01(f/0.3f) : f>0.7f? smoothstep01((1.f-f)/0.3f) : 1.f;  // rise/hold/fall
+        z[i]=liftPx*zt;
     }
     float ix[128],iy[128],ox[128],oy[128],e[128];
+    if (liftPx>0.5f){                                    // SHADOW pass — deck footprint dropped onto ground
+        for(int i=0;i<n;i++) e[i]=bnd[0][i]-1;  offset_var(xs,ys,n,e,ix,iy);
+        for(int i=0;i<n;i++) e[i]=bnd[nl][i]+1; offset_var(xs,ys,n,e,ox,oy);
+        for(int i=0;i<n;i++){ ix[i]+=z[i]*0.45f; iy[i]+=z[i]*0.85f; ox[i]+=z[i]*0.45f; oy[i]+=z[i]*0.85f; }
+        fill_strip(ix,iy,ox,oy,n,CLR_BLACK);
+    }
     for(int i=0;i<n;i++) e[i]=bnd[0][i]-1;   offset_var(xs,ys,n,e,ix,iy);   // casing inner edge
     for(int i=0;i<n;i++) e[i]=bnd[nl][i]+1;  offset_var(xs,ys,n,e,ox,oy);   // casing outer edge
     fill_strip(ix,iy,ox,oy,n,CLR_BROWNISH_BLACK);
@@ -184,7 +200,7 @@ static int clothoid_spline(Port a, Port b, float R, float Ls, float *xs, float *
 }
 
 // ── state ──
-static int selA=2, selB=0; static float radius=32.f, spiral=14.f; static int use_cloth=1, nlanes=3, taperPct=60;
+static int selA=2, selB=0; static float radius=30.f, spiral=14.f; static int use_cloth=1, nlanes=2, taperPct=0, lift=12;
 
 // a "−/+" (or "</>") stepper: two ui buttons; returns -1, 0 or +1
 static int step_btn(int x,int y,int w,const char*lm,const char*rm){
@@ -219,6 +235,7 @@ void update(void){
     if (keyp('c')||keyp('C')) use_cloth=!use_cloth;
     if (keyp('1')) nlanes=1; if (keyp('2')) nlanes=2; if (keyp('3')) nlanes=3; if (keyp('4')) nlanes=4;
     if (keyp('t')||keyp('T')){ taperPct+=20; if(taperPct>100)taperPct=0; }   // cycle lane-drop taper
+    if (keyp('e')||keyp('E')){ lift+=6; if(lift>18)lift=0; }                  // cycle flyover deck height
 }
 
 void draw(void){
@@ -238,7 +255,7 @@ void draw(void){
         float xs[128],ys[128];
         int n = use_cloth ? clothoid_spline(ports[selA],ports[selB],radius,spiral,xs,ys)
                           : arc_spline(ports[selA],ports[selB],radius,xs,ys);
-        draw_multilane(xs,ys,n,nlanes, taperPct/100.f);
+        draw_multilane(xs,ys,n,nlanes, taperPct/100.f, (float)lift);
     }
     for (int i=0;i<nport;i++) if (i!=selA&&i!=selB) draw_port(ports[i], CLR_MEDIUM_GREY);
     draw_port(ports[selA], CLR_GREEN);  draw_port(ports[selB], CLR_RED);
@@ -252,34 +269,39 @@ void draw(void){
                     : "arc-spline only  -  curvature steps at the corner (G1)",
           4,13, use_cloth?CLR_ORANGE:CLR_MEDIUM_GREY);
 
-    // ── on-screen control toolbar (clickable; keyboard still works) ──
-    rectfill(0, SCREEN_H-36, SCREEN_W, 36, CLR_BLACK);
+    // ── on-screen control toolbar (clickable; keyboard still works) — 3 rows ──
+    rectfill(0, SCREEN_H-52, SCREEN_W, 52, CLR_BLACK);
     int d;
     // row 1 — port pickers (green A / red B): prev/next + the live lane name
-    print("Port A", 4, SCREEN_H-31, CLR_GREEN);
-    d=step_btn(36, SCREEN_H-34, 14, "<", ">"); if (d) selA=(selA+nport+d)%nport;
-    print(ports[selA].name, 70, SCREEN_H-31, CLR_GREEN);
-    print("Port B", 128, SCREEN_H-31, CLR_RED);
-    d=step_btn(160, SCREEN_H-34, 14, "<", ">"); if (d) selB=(selB+nport+d)%nport;
-    print(ports[selB].name, 194, SCREEN_H-31, CLR_RED);
-    print("taper", 224, SCREEN_H-31, CLR_BLUE);
-    d=step_btn(250, SCREEN_H-34, 14, "-", "+"); if (d) taperPct+=10*d;
-    snprintf(b,sizeof b,"%d%%",taperPct); print(b, 282, SCREEN_H-31, CLR_LIGHT_GREY);
-    // row 2 — geometry params (− / +) with live values + clothoid toggle
-    print("radius", 4, SCREEN_H-15, CLR_WHITE);
-    d=step_btn(36, SCREEN_H-18, 14, "-", "+"); if (d) radius+=2*d;
-    snprintf(b,sizeof b,"%d",(int)radius); print(b, 70, SCREEN_H-15, CLR_LIGHT_GREY);
-    print("spiral", 88, SCREEN_H-15, CLR_ORANGE);
-    d=step_btn(120, SCREEN_H-18, 14, "-", "+"); if (d) spiral+=2*d;
-    snprintf(b,sizeof b,"%d",(int)spiral); print(b, 152, SCREEN_H-15, CLR_LIGHT_GREY);
-    print("lanes", 170, SCREEN_H-15, CLR_WHITE);
-    d=step_btn(198, SCREEN_H-18, 14, "-", "+"); if (d) nlanes+=d;
-    snprintf(b,sizeof b,"%d",nlanes); print(b, 230, SCREEN_H-15, CLR_LIGHT_GREY);
-    if (ui_button(246, SCREEN_H-18, 66, 13, use_cloth?"clothoid: on":"clothoid: off")) use_cloth=!use_cloth;
+    print("Port A", 4, SCREEN_H-47, CLR_GREEN);
+    d=step_btn(36, SCREEN_H-50, 14, "<", ">"); if (d) selA=(selA+nport+d)%nport;
+    print(ports[selA].name, 70, SCREEN_H-47, CLR_GREEN);
+    print("Port B", 128, SCREEN_H-47, CLR_RED);
+    d=step_btn(160, SCREEN_H-50, 14, "<", ">"); if (d) selB=(selB+nport+d)%nport;
+    print(ports[selB].name, 194, SCREEN_H-47, CLR_RED);
+    // row 2 — geometry params (− / +) with live values
+    print("radius", 4, SCREEN_H-31, CLR_WHITE);
+    d=step_btn(36, SCREEN_H-34, 14, "-", "+"); if (d) radius+=2*d;
+    snprintf(b,sizeof b,"%d",(int)radius); print(b, 70, SCREEN_H-31, CLR_LIGHT_GREY);
+    print("spiral", 88, SCREEN_H-31, CLR_ORANGE);
+    d=step_btn(120, SCREEN_H-34, 14, "-", "+"); if (d) spiral+=2*d;
+    snprintf(b,sizeof b,"%d",(int)spiral); print(b, 152, SCREEN_H-31, CLR_LIGHT_GREY);
+    print("lanes", 170, SCREEN_H-31, CLR_WHITE);
+    d=step_btn(198, SCREEN_H-34, 14, "-", "+"); if (d) nlanes+=d;
+    snprintf(b,sizeof b,"%d",nlanes); print(b, 230, SCREEN_H-31, CLR_LIGHT_GREY);
+    // row 3 — cross-section: clothoid toggle, lane taper, flyover elevation
+    if (ui_button(4, SCREEN_H-18, 66, 13, use_cloth?"clothoid: on":"clothoid: off")) use_cloth=!use_cloth;
+    print("taper", 80, SCREEN_H-15, CLR_BLUE);
+    d=step_btn(112, SCREEN_H-18, 14, "-", "+"); if (d) taperPct+=10*d;
+    snprintf(b,sizeof b,"%d%%",taperPct); print(b, 144, SCREEN_H-15, CLR_LIGHT_GREY);
+    print("lift", 176, SCREEN_H-15, CLR_INDIGO);
+    d=step_btn(204, SCREEN_H-18, 14, "-", "+"); if (d) lift+=3*d;
+    snprintf(b,sizeof b,"%dpx",lift); print(b, 236, SCREEN_H-15, CLR_LIGHT_GREY);
     // clamps (apply to both button + keyboard edits)
     if (radius<6) radius=6;  if (spiral<0) spiral=0;
     if (nlanes<1) nlanes=1;  if (nlanes>6) nlanes=6;
     if (taperPct<0) taperPct=0;  if (taperPct>100) taperPct=100;
+    if (lift<0) lift=0;  if (lift>24) lift=24;
 
     ui_end();
     font(FONT_NORMAL);

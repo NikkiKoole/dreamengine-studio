@@ -119,7 +119,7 @@ top of the difficulty panel. Both are small because the engine's already doing t
 - **Archetype feel** — the `TY[]` table (one row per type): hp/mag/gap/range/coverW/heatW/speed/strafe/spread.
 - **Detection** — `132 * d_sight * ss` (sight) and `48 * sh` (hearing) in `enemy_update`; sneak factors `ss/sh`.
 - **Alertness** — thresholds 30 (suspect) / 70 (alarm), decay `0.22`/frame, `see=100` / `heard+=3` rates.
-- **Noise** — gun `noise_at(...,150,55)`; knife makes none.
+- **Noise** — gun `noise_at(...,260,70)` (carries across most of the room; nearby enemies investigate on one shot, farther ones after a few); knife makes none.
 - **Suppression** — camper `gap=7*d_gap`, spread `30*d_spread`, reload `100`; player pin accrues `*d_supp`,
   slow `1-0.45*pinned`, aim spread `+pinned*11`.
 - **Healing** — `sl_heal` tiers (`d_packs`/`d_regen`); pack heal `+35`, respawn cd `720`; regen `tick%14` after `calm>120`.

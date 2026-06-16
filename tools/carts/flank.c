@@ -18,7 +18,7 @@
 //     so they peek from cover and don't bunch into one kill-funnel.
 //
 // WASD move · Shift sneak · mouse aim · L-click gun (loud) · R-click knife (quiet)
-// · H heat · L comms · V reveal · TAB spectate · R reset
+// · H heat · L comms · V reveal · TAB spectate · R back to menu
 // Design notes + behaviour menu + sloop porting: docs/design/flank-tactical-ai.md
 
 #define GW 40
@@ -78,10 +78,23 @@ typedef struct { float x, y, vx, vy, aim, pinned, bob, ox, oy; int hp, mag, relo
 typedef struct { float x, y, aim, lsx, lsy, alert, bob, ox, oy; int hp, alive, state, shootcd, mag, reload, callcd, type, strafe, strafeT, suppressing, everseen, invx, invy; } Enemy;  // alert 0..100; inv = spot to investigate; bob = walk-hop phase, ox/oy = prev pos
 typedef struct { float x, y, vx, vy; int alive, foe; } Bullet;
 typedef struct { int x, y, active, cd; } Pack;     // health pickup (px coords)
+typedef struct { float x, y, vx, vy; int life; } Splat;   // blood: sprays along the shot, decelerates, fades & stains
+#define NSP 60
 static Player pl;
 static Enemy en[NE];
 static Bullet bul[NB];
 static Pack pack[NPK];
+static Splat splat[NSP];
+// spray n blood specks from (x,y) along a hit direction (dx,dy), with scatter
+static void spawn_blood(float x, float y, float dx, float dy, int n) {
+    float m = sqrtf(dx*dx+dy*dy); if (m<0.01f) m=1; dx/=m; dy/=m;
+    for (int k=0; k<n; k++) for (int i=0;i<NSP;i++) if (splat[i].life<=0) {
+        float sp = 0.6f + (rnd(100)/100.0f)*1.6f;                 // speck speed
+        float jx = (rnd(100)-50)/90.0f, jy = (rnd(100)-50)/90.0f; // sideways scatter
+        splat[i] = (Splat){ x, y, (dx+jx)*sp, (dy+jy)*sp, 26 + rnd(22) };
+        break;
+    }
+}
 
 // shared blackboard (the squad's collective knowledge of you)
 static float kx, ky; static int known, kage, flow_cx = -1, flow_cy = -1;
@@ -183,6 +196,7 @@ static void reset(void) {
                          .strafe = rnd(2) ? 1 : -1, .strafeT = rnd(120) };
     }
     for (int i=0;i<NB;i++) bul[i].alive = 0;
+    for (int i=0;i<NSP;i++) splat[i].life = 0;
     int packs_on = sl_heal >= 0.33f;                      // no packs on hard
     for (int i=0;i<NPK;i++) {                              // health packs on open floor
         int x,y,tr=0; do { x=4+rnd(GW-8); y=2+rnd(GH-4); tr++; } while (wcell(x,y) && tr<60);
@@ -311,7 +325,7 @@ static void player_update(void) {
         if (t>=0) { pl.aim = angle_to(pl.x,pl.y,en[t].x,en[t].y);   // visible: kite + fire
             float perp = pl.aim+90, mx = dx(1.4f,perp)+dx(0.6f,pl.aim+180), my = dy(1.4f,perp)+dy(0.6f,pl.aim+180);
             if (!wallpx(pl.x+mx,pl.y)) pl.x+=mx; if (!wallpx(pl.x,pl.y+my)) pl.y+=my;
-            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,155,60); } }
+            if (pl.mag>0 && (tick%9==0)) { fire(pl.x,pl.y,pl.aim,0,6); pl.mag--; if(pl.mag==0) pl.reload=40; noise_at(pl.x,pl.y,260,70); } }
         else {                                                      // none visible: advance to make contact
             int n=-1; float nd=1e9f;
             for (int i=0;i<NE;i++) if (en[i].alive) { float d=(en[i].x-pl.x)*(en[i].x-pl.x)+(en[i].y-pl.y)*(en[i].y-pl.y); if (d<nd){nd=d;n=i;} }
@@ -331,12 +345,12 @@ static void player_update(void) {
     pl.aim = angle_to(pl.x, pl.y, mouse_x(), mouse_y());
     if ((mouse_down(0)||key(KEY_SPACE)) && pl.mag>0 && pl.reload<=0) {        // LOUD gun
         fire(pl.x,pl.y,pl.aim,0,5 + pl.pinned*11); pl.mag--; pl.reload=8; if(pl.mag==0) pl.reload=45;   // suppressed = your aim shakes too
-        noise_at(pl.x, pl.y, 150, 55);                                          // a gunshot carries — the whole room may hear
+        noise_at(pl.x, pl.y, 260, 70);                                          // a gunshot carries across most of the room — nearby enemies come look on one shot, farther ones after a few
     }
     if (mouse_pressed(1)) {                                                   // QUIET knife — silent close kill (makes NO noise)
         for (int j=0;j<NE;j++) if (en[j].alive) {
             float d = fsqrt((en[j].x-pl.x)*(en[j].x-pl.x)+(en[j].y-pl.y)*(en[j].y-pl.y));
-            if (d < 13) { en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4); break; }
+            if (d < 13) { spawn_blood(en[j].x, en[j].y, en[j].x-pl.x, en[j].y-pl.y, 10); en[j].alive=0; en[j].state=E_DOWN; kills++; pl.shake=3; play_pan(64,INSTR_MEMBRANE,1,panx(en[j].x),4); break; }
         }
     }
     if (pl.reload>0) pl.reload--;
@@ -347,11 +361,10 @@ void update(void) {
     voices_tick();
     tick++;
     if (msg_t>0) msg_t--;
-    if (keyp('R')) { reset(); phase = PH_PLAYING; return; }   // R = quick restart into the fight
+    if (keyp('R')) { phase = PH_START; return; }              // R = back to the main menu (re-pick difficulty there)
     if (keyp('H')) show_heat = !show_heat;
     if (keyp('L')) show_comms = !show_comms;
     if (keyp('V')) reveal = !reveal;
-    if (keyp('O')) show_panel = !show_panel;
     if (keyp(KEY_TAB)) { pl.spectate = !pl.spectate; }
     recompute_difficulty();
     if (show_panel) return;                                   // sim paused while you tune (widgets live in draw)
@@ -395,17 +408,25 @@ void update(void) {
             if (fabsf(bul[i].x-pl.x)<4 && fabsf(bul[i].y-pl.y)<4) {
                 bul[i].alive=0;
                 if (low_facing(pl.x,pl.y,-bul[i].vx,-bul[i].vy) && rnd(2)==0) play_pan(56,INSTR_MEMBRANE,2,panx(pl.x),4);  // crate ate it
-                else { pl.hp -= (int)d_dmg; pl.shake=6; pl.calm=0; play_pan(34,INSTR_NOISE,4,panx(pl.x),6); if (pl.hp<=0){ pl.hp=0; setmsg("you are down. R to retry."); } }
+                else { pl.hp -= (int)d_dmg; spawn_blood(pl.x, pl.y, bul[i].vx, bul[i].vy, 4); pl.shake=6; pl.calm=0; play_pan(34,INSTR_NOISE,4,panx(pl.x),6); if (pl.hp<=0){ pl.hp=0; setmsg("you are down. R to retry."); } }
             }
         } else for (int j=0;j<NE;j++) if (en[j].alive && fabsf(bul[i].x-en[j].x)<4 && fabsf(bul[i].y-en[j].y)<4) {
             bul[i].alive=0;
             if (low_facing(en[j].x,en[j].y,-bul[i].vx,-bul[i].vy) && rnd(2)==0) { play_pan(56,INSTR_MEMBRANE,2,panx(en[j].x),4); break; }  // covered
-            en[j].hp -= 12; play_pan(60,INSTR_MEMBRANE,3,panx(en[j].x),5);
-            if (en[j].hp<=0) { en[j].alive=0; en[j].state=E_DOWN; kills++; play_pan(40,INSTR_REED,3,panx(en[j].x),18); }
+            en[j].hp -= 12; spawn_blood(en[j].x, en[j].y, bul[i].vx, bul[i].vy, 5); play_pan(60,INSTR_MEMBRANE,3,panx(en[j].x),5);
+            if (en[j].hp<=0) { spawn_blood(en[j].x, en[j].y, bul[i].vx, bul[i].vy, 12); en[j].alive=0; en[j].state=E_DOWN; kills++; play_pan(40,INSTR_REED,3,panx(en[j].x),18); }
             break;
         }
     }
     if (pl.shake>0) pl.shake--;
+
+    // blood specks: drift along the shot, decelerate to a stain, fade out
+    for (int i=0;i<NSP;i++) if (splat[i].life>0) {
+        splat[i].x += splat[i].vx; splat[i].y += splat[i].vy;
+        splat[i].vx *= 0.82f; splat[i].vy *= 0.82f;
+        if (opaquepx(splat[i].x, splat[i].y)) { splat[i].vx = splat[i].vy = 0; }  // stops at a wall
+        splat[i].life--;
+    }
 
     // win: the whole squad is down → end screen
     { int a=0; for(int i=0;i<NE;i++) if(en[i].alive) a++; if(a==0){ phase=PH_OVER; won=1; } }
@@ -421,22 +442,24 @@ void update(void) {
 // a hop curve (rest → up → peak → down) sampled by the walk-bob phase
 static const int HOPS[4] = { 0, 1, 2, 1 };
 // per-type cap colour, so role still reads at a glance (shirt = state, cap = type)
-static const int TYHAT[NTY] = { CLR_BLACK, CLR_WHITE, CLR_INDIGO };   // rusher / camper / flanker
+static const int TYHAT[NTY] = { CLR_PINK, CLR_WHITE, CLR_INDIGO };   // rusher / camper / flanker (visible caps)
 
 // a little upright pixel-man (druglord-style), feet planted at (x,y) screen px.
-// shirt = role/state colour, cap = type marker, hop lifts the body, ghost = dim last-seen.
-static void draw_man(int x, int y, float aim, int shirt, int hat, int hop, int ghost) {
+// shirt = role/state colour, cap+build = type marker, hop lifts the body, ghost = dim last-seen.
+// type: TY_RUSH/CAMP/FLANK varies the build (bulky camper · lean flanker), or -1 for the player.
+static void draw_man(int x, int y, float aim, int shirt, int hat, int hop, int ghost, int type) {
     int skin = ghost ? CLR_DARKER_GREY : CLR_PEACH;
     int pant = ghost ? CLR_DARKER_GREY : CLR_DARK_BLUE;
     if (ghost) { shirt = CLR_DARKER_GREY; hat = -1; }
+    int tw = type==TY_CAMP ? 7 : type==TY_FLANK ? 3 : 5;        // build: camper bulky · flanker lean · rusher/player normal
     rectfill(x-2, y+2, 5, 2, CLR_BLACK);                       // planted ground shadow (stays put as he hops)
     int t = y - 5 - hop;                                        // crown of the head, lifted by the hop
     int stride = (hop >= 2);                                     // legs split at the top of the bounce
     rectfill(x-2, t+5, 2, 2 - stride, pant);                    // left leg
     rectfill(x+1, t+5, 2, 2 - !stride, pant);                   // right leg
-    rectfill(x-2, t+2, 5, 3, shirt);                            // torso (role/state colour)
+    rectfill(x-tw/2, t+2, tw, 3, shirt);                        // torso (role/state colour; width = type build)
     rectfill(x-1, t,   3, 2, skin);                             // head
-    if (hat >= 0) rectfill(x-1, t-1, 3, 1, hat);               // type cap
+    if (hat >= 0) { int cw = type==TY_CAMP ? 5 : 3; rectfill(x-cw/2, t-1, cw, 1, hat); }   // cap (camper = wide helmet)
     if (!ghost) line(x, t+3, x + (int)dx(5, aim), (t+3) + (int)dy(5, aim), CLR_LIGHT_GREY);  // gun arm toward aim
 }
 
@@ -468,6 +491,12 @@ void draw(void) {
             rectfill_rgb(px0 + (x*3 + y) % TILE, py0 + (y*2 + x*7) % TILE, 1, 1, 0x24283a);
         }
     }
+    // blood on the floor (drawn under the men): fresh = red, fading to a dark stain
+    for (int i=0;i<NSP;i++) if (splat[i].life>0) {
+        int c = splat[i].life>34 ? CLR_RED : splat[i].life>16 ? CLR_DARK_PURPLE : CLR_BROWN;
+        pset((int)splat[i].x+sh, (int)splat[i].y, c);
+    }
+
     // health packs (a green + cross) — always visible so you can run for one
     for (int i=0;i<NPK;i++) if (d_packs && pack[i].active) { int x=pack[i].x+sh, y=pack[i].y;
         rectfill(x-3,y-1,7,3,CLR_GREEN); rectfill(x-1,y-3,3,7,CLR_GREEN); pset(x,y,CLR_WHITE); }
@@ -492,16 +521,16 @@ void draw(void) {
         bool vis = reveal || pl.spectate || (ed <= VIS_R && los_px(pl.x,pl.y,en[i].x,en[i].y));
         if (vis) { int x=(int)en[i].x+sh, y=(int)en[i].y, hop=HOPS[((int)en[i].bob)&3];
             if (en[i].suppressing) circ(x,y-4,5,blink(4)?CLR_RED:CLR_ORANGE);    // muzzle bloom of a suppressor
-            draw_man(x, y, en[i].aim, ECOL[en[i].state], TYHAT[en[i].type], hop, 0);  // shirt = state, cap = type
+            draw_man(x, y, en[i].aim, ECOL[en[i].state], TYHAT[en[i].type], hop, 0, en[i].type);  // shirt = state, cap+build = type
             if (en[i].state==E_SUSPECT) print("?", x-1, y-13, CLR_YELLOW);                    // investigating
             else if (en[i].state>=E_HUNT && en[i].state<=E_ENGAGE) print("!", x-1, y-13, CLR_RED);  // alarmed
         } else if (en[i].everseen)                                            // last-seen ghost (your memory)
-            draw_man((int)en[i].lsx+sh, (int)en[i].lsy, en[i].aim, CLR_DARKER_GREY, -1, 0, 1);
+            draw_man((int)en[i].lsx+sh, (int)en[i].lsy, en[i].aim, CLR_DARKER_GREY, -1, 0, 1, en[i].type);
     }
     // your vision ring + you (a blue ring keeps you findable in the chaos)
     if (!reveal && !pl.spectate) circ((int)pl.x+sh, (int)pl.y, VIS_R, CLR_DARK_GREY);
     int px=(int)pl.x+sh, py=(int)pl.y, phop=HOPS[((int)pl.bob)&3];
-    draw_man(px, py, pl.aim, pl.hp>0 ? (pl.sneak?CLR_DARK_BLUE:CLR_BLUE) : CLR_DARK_GREY, CLR_WHITE, phop, 0);
+    draw_man(px, py, pl.aim, pl.hp>0 ? (pl.sneak?CLR_DARK_BLUE:CLR_BLUE) : CLR_DARK_GREY, CLR_WHITE, phop, 0, -1);
     line(px, py-2-phop, (int)(pl.x+dx(8,pl.aim))+sh, (py-2-phop)+(int)dy(8,pl.aim), CLR_YELLOW);  // your aim line (longer, so "you" reads)
     if (pl.pinned > 0.3f) { rect(0,0,SCREEN_W,HUD_Y,CLR_RED); print("PINNED", px-11, py-15, blink(6)?CLR_RED:CLR_ORANGE); }
 
@@ -517,16 +546,15 @@ void draw(void) {
                 pl.pinned>0.3f?CLR_RED:(known?CLR_ORANGE:CLR_GREEN));
     font(FONT_TINY);                                                    // controls line: tiny so it fits in one row
     if (msg_t>0) print(msg, 4, HUD_Y+10, CLR_LIGHT_PEACH);
-    else print("WASD move  Shift sneak  LMB gun  RMB knife  O diff  HLV dbg  TAB spec  R reset", 4, HUD_Y+10, CLR_MEDIUM_GREY);
+    else print("WASD move  Shift sneak  LMB gun  RMB knife  HLV dbg  TAB spec  R menu", 4, HUD_Y+10, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 
-    // ---- difficulty panel (O) — sim is paused; widgets are immediate-mode ui.h ----
+    // ---- difficulty panel (from the menu's "tweak difficulty") — widgets are immediate-mode ui.h ----
     if (show_panel) {
         fillp(FILL_CHECKER, -1); rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK); fillp_reset();   // dim
         int X=46, Y=12, W=228;
         rrectfill(X-6, Y-6, W+12, 168, 4, CLR_DARKER_BLUE); rect(X-6, Y-6, W+12, 168, CLR_LIGHT_GREY);
         print("DIFFICULTY", X, Y, CLR_WHITE);
-        print("O closes", X+W-44, Y, CLR_DARK_GREY);
         ui_begin();
         if (ui_button(X,      Y+12, 56, 14, "easy"))   set_preset(0);
         if (ui_button(X+62,   Y+12, 64, 14, "normal")) set_preset(1);
@@ -539,8 +567,8 @@ void draw(void) {
         if (ui_slider(&sl_sight, X, sy, W, "sight"))      cur_preset=-1;  sy += 14;
         if (ui_slider(&sl_supp,  X, sy, W, "suppression"))cur_preset=-1;  sy += 14;
         if (ui_slider(&sl_heal,  X, sy, W, "healing (hard/normal/easy)")) cur_preset=-1;  sy += 17;
-        if (ui_button(X,     sy, 116, 16, phase==PH_PLAYING ? "apply + restart" : "apply + start")) { reset(); phase=PH_PLAYING; show_panel=0; }
-        if (ui_button(X+126, sy, 62,  16, phase==PH_PLAYING ? "resume" : "back"))                    show_panel=0;
+        if (ui_button(X,     sy, 116, 16, phase==PH_OVER ? "apply + restart" : "apply + start")) { reset(); phase=PH_PLAYING; show_panel=0; }
+        if (ui_button(X+126, sy, 62,  16, "back"))                                                 show_panel=0;
         ui_end();                                            // resolve presses → clicks (without this, only hover works)
     } else if (phase != PH_PLAYING) {
         // ---- slim bookend menu: presets + start; "tweak" opens the full panel above ----

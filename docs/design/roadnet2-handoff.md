@@ -24,6 +24,10 @@ rung-1..3 baseline (the elegant terrain-aware spline highways), rebuilt upward.
    - Lattice: towns 3–8 km apart, cities 25–60 km (slider ranges).
 2. **`tools/carts/interchange.c`** — the junction-geometry sandbox (part B). Hand-placed roads,
    **fake-3D grade separation** (one road drawn over the other = overpass; no real z-levels).
+   > **2026-06-16: refactored into composed ATOMS** (`near_pair` / `loop_ramp` / `flyover`), added a
+   > `spread` slider, atom-isolation toggles, lane direction arrows, and rebuilt the trumpet from the
+   > atoms (geometry still rough). **Dedicated, current handoff:
+   > [`interchange-handoff.md`](interchange-handoff.md) — read that for interchange work.**
    - **Diamond fully dialed** (✅): smooth ramps off the lane edge, lane-count consistent,
      near-side overpass connection, off-ramp tapers, clean connections.
    - **Live UI = THE junction matrix** (data-driven `JUNCS[]`): every supported junction is one

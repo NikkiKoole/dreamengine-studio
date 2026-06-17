@@ -31,6 +31,10 @@
 //   rows of a crop + a hedgerow. rows_fill() fills ONE region; the driver tiles it.
 // • footprint — buildings: a block grid carves streets, perimeter lots front them
 //   by construction, and one footprint_fill() makes house/shop/tower from a ZONE.
+// • ruins   — the first MODIFIER PIPELINE (phase 5): footprint → collapse → overgrow.
+//   A DECAY field drives two modifiers that READ the maker's output and transform it
+//   (collapse invents absence; overgrow creeps growth, scaled by a fertility field).
+//   Layers peel the three pipeline stages; G = the decay heatmap. Proves phase 4→5.
 // • border / pave / stamp — the small bounded atoms: edge a region (hedge/fence/
 //   wall), flat-fill a surface (asphalt/plaza/gravel/court), or drop a composite
 //   (fountain/statue/well/obelisk). All tiled by demo_grid() — which IS subdivide.
@@ -472,12 +476,11 @@ static int zone_at(float x, float y) {
     return i < 0.46f ? ZN_RES : i < 0.72f ? ZN_COM : ZN_TOWN;
 }
 
-// fill ONE building lot. outward ∈ {0 up,1 right,2 down,3 left} = the street side.
-static void footprint_fill(Rect lot, int outward, int zone, unsigned h, const bool show[3]) {
-    static const int ROOF_RES [5] = { CLR_RED, CLR_DARK_RED, CLR_BROWN, CLR_PEACH, CLR_DARK_PURPLE };
-    static const int ROOF_COM [4] = { CLR_DARK_GREY, CLR_TRUE_BLUE, CLR_BLUE_GREEN, CLR_INDIGO };
-    static const int ROOF_TOWN[3] = { CLR_DARKER_BLUE, CLR_DARKER_GREY, CLR_INDIGO };
-
+// The INTACT building rect inside a lot — the massing footprint_fill draws. Factored
+// out so the ruin MODIFIERS (collapse/overgrow) operate on the SAME rect: phase 5
+// RE-DERIVES phase 4's pure output (no retained buffer needed — it's all pure-fn-of-
+// (lot,outward,zone)). Returns 0 if the setback leaves nothing buildable.
+static int footprint_body(Rect lot, int outward, int zone, Rect *out) {
     int m  = (zone == ZN_TOWN) ? 1 : 2;                                  // side/back margin
     int fs = (zone == ZN_RES)  ? 5 : (zone == ZN_COM) ? 3 : 1;           // front setback (yard)
     int ix = lot.x + m, iy = lot.y + m, iw = lot.w - 2 * m, ih = lot.h - 2 * m;
@@ -487,7 +490,19 @@ static void footprint_fill(Rect lot, int outward, int zone, unsigned h, const bo
         case 1: iw -= fs;           break;
         case 3: ix += fs; iw -= fs; break;
     }
-    if (iw < 2 || ih < 2) return;
+    if (iw < 2 || ih < 2) return 0;
+    *out = (Rect){ ix, iy, iw, ih };
+    return 1;
+}
+
+// fill ONE building lot. outward ∈ {0 up,1 right,2 down,3 left} = the street side.
+static void footprint_fill(Rect lot, int outward, int zone, unsigned h, const bool show[3]) {
+    static const int ROOF_RES [5] = { CLR_RED, CLR_DARK_RED, CLR_BROWN, CLR_PEACH, CLR_DARK_PURPLE };
+    static const int ROOF_COM [4] = { CLR_DARK_GREY, CLR_TRUE_BLUE, CLR_BLUE_GREEN, CLR_INDIGO };
+    static const int ROOF_TOWN[3] = { CLR_DARKER_BLUE, CLR_DARKER_GREY, CLR_INDIGO };
+
+    Rect b; if (!footprint_body(lot, outward, zone, &b)) return;
+    int ix = b.x, iy = b.y, iw = b.w, ih = b.h;
 
     if (show[FL_BUILD]) {
         int col = zone == ZN_RES ? ROOF_RES[h % 5] : zone == ZN_COM ? ROOF_COM[h % 4] : ROOF_TOWN[h % 3];
@@ -559,6 +574,137 @@ static const char *footprint_probe(float x, float y) {
     int zone = zone_at(bx * BLK_P + ST_W + IN / 2.0f, by * BLK_P + ST_W + IN / 2.0f);
     bool street = posmod((int)x, BLK_P) < ST_W || posmod((int)y, BLK_P) < ST_W;
     snprintf(buf, sizeof buf, "%s  %s", ZN_NAME[zone], street ? "street" : "lot");
+    return buf;
+}
+
+// ── FIELDS: decay (the era/age dial) + fertility (vitality) ───────────────────
+// Two read-only surfaces (docs/design/streetlevel-content.md → "The wilds": a field
+// is a dial, not a generator). decay 0→1 = pristine→razed; fertility 0→1 = barren→
+// lush. The ruin modifiers read BOTH: decay says how broken, fertility how reclaimed.
+#define DECAY_FREQ 0.0052f
+#define FERT_FREQ  0.0034f
+static float decay_at(float x, float y) {
+    float z = (float)lf_seed;
+    float a = noise3(x * DECAY_FREQ,        y * DECAY_FREQ,        z + 300.0f);
+    float b = noise3(x * DECAY_FREQ * 2.6f, y * DECAY_FREQ * 2.6f, z + 311.0f);
+    return clamp(a * 0.7f + b * 0.3f, 0.0f, 1.0f);
+}
+static float fertility_at(float x, float y) {
+    return clamp(noise3(x * FERT_FREQ, y * FERT_FREQ, (float)lf_seed + 400.0f), 0.0f, 1.0f);
+}
+
+// ── MODIFIER: collapse — partially destroy a footprint (phase 5) ──────────────
+// The first MODIFIER: it reads the maker's INTACT massing (the body rect, re-derived
+// by footprint_body) and TRANSFORMS it — punching the roof open to bare foundation
+// and spilling rubble around the shell, scaled by decay. Genuinely new because age
+// weathers a surface but can't invent ABSENCE: only a modifier that knows the
+// original massing knows what's gone. Pure fn of (body, hash, decay) — no globals.
+static void collapse_fill(Rect body, unsigned h, float decay) {
+    if (decay < 0.30f) return;                                  // intact below the threshold
+    float d = (decay - 0.30f) / 0.70f;                          // 0..1 within the ruined band
+    int bites = 1 + (int)(d * 5.0f);                            // roof openings (grow with decay)
+    for (int i = 0; i < bites; i++) {
+        unsigned bh = hash2((int)h + i * 131, (int)(h >> 7) + i * 977);
+        int bw = 1 + (int)(frac01(bh)        * (body.w * 0.5f));
+        int bhh= 1 + (int)(frac01(bh >> 8)   * (body.h * 0.5f));
+        int bx = body.x + (int)(frac01(bh >> 16) * (body.w - bw));
+        int by = body.y + (int)(frac01(bh >> 22) * (body.h - bhh));
+        rectfill(bx, by, bw, bhh, CLR_BROWNISH_BLACK);          // exposed foundation/interior
+    }
+    int rub = (int)(d * 16.0f);                                 // rubble spilled around the shell
+    for (int i = 0; i < rub; i++) {
+        unsigned rh = hash2((int)h * 7 + i, (int)(h >> 3) - i * 53);
+        int rx = body.x - 2 + (int)(frac01(rh)       * (body.w + 4));
+        int ry = body.y - 2 + (int)(frac01(rh >> 11) * (body.h + 4));
+        pset(rx, ry, (rh & 1) ? CLR_MEDIUM_GREY : CLR_DARK_GREY);
+    }
+}
+
+// ── MODIFIER: overgrow — creep growth into the wreckage (phase 5) ─────────────
+// A `spread` aimed at BUILT features (ivy / moss / scrub), not open cover. Density
+// scales with decay × the fertility field: a ruin in a fertile trough is swallowed
+// green, one on barren scree stays bare. Runs AFTER collapse, so growth lands in the
+// holes it opened — the ordered pipeline (footprint → collapse → overgrow) in one fn.
+static void overgrow_fill(Rect body, unsigned h, float decay, float fert) {
+    float g = decay * (0.30f + 0.70f * fert);
+    if (g < 0.08f) return;
+    int n = (int)(g * body.w * body.h * 0.09f);
+    if (n > 64) n = 64;                                         // cull (perf + readability)
+    for (int i = 0; i < n; i++) {
+        unsigned gh = hash2((int)h * 13 + i * 31, (int)(h >> 5) + i * 17);
+        int gx = body.x + (int)(frac01(gh)       * body.w);
+        int gy = body.y + (int)(frac01(gh >> 11) * body.h);
+        pset(gx, gy, (gh & 3) ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN);
+        if ((gh & 7) == 0) pset(gx, gy - 1, CLR_LIME_GREEN);    // a sprig poking up
+    }
+}
+
+// ── PIPELINE: ruins — footprint → collapse → overgrow (the phase 4→5 proof) ───
+// Not a new atom — the first MODIFIER PIPELINE (docs/design/streetlevel-content.md →
+// "The wilds": "Ruins = footprint → collapse → overgrow, in that order"). The same
+// footprint_fill makes each building; a DECAY field then drives two modifiers that
+// transform that output. era-zoning falls out for free — a fresh block in one region,
+// a fully-reclaimed one in another, from the same atoms. Layers peel the three STAGES.
+enum { RU_BUILD, RU_COLLAPSE, RU_OVERGROW };
+
+static void ruins_draw(float cam_x, float cam_y, float zoom) {
+    if (zoom < 0.01f) zoom = 0.01f;
+    float cx = cam_x + SCREEN_W / 2.0f, cy = cam_y + SCREEN_H / 2.0f;
+    float hwv = (SCREEN_W / 2.0f) / zoom, hhv = (SCREEN_H / 2.0f) / zoom;
+    int Lpx = (int)(cx - hwv) - BLK_P, Rpx = (int)(cx + hwv) + BLK_P;
+    int Tpx = (int)(cy - hhv) - BLK_P, Bpx = (int)(cy + hhv) + BLK_P;
+
+    bool zc   = zoom >= 0.5f;
+    bool build = layer_on[RU_BUILD]    && zc;
+    bool coll  = layer_on[RU_COLLAPSE] && zc;
+    bool over  = layer_on[RU_OVERGROW] && zc;
+    bool show[3] = { false, build, false };                    // footprint_fill: build layer only
+    int b0x = ifloordiv(Lpx, BLK_P), b1x = ifloordiv(Rpx, BLK_P);
+    int b0y = ifloordiv(Tpx, BLK_P), b1y = ifloordiv(Bpx, BLK_P);
+    int IN = BLK_P - ST_W, nlot = 3, ls = IN / nlot, n_ruin = 0, n_gone = 0;
+    for (int by = b0y; by <= b1y; by++)
+        for (int bx = b0x; bx <= b1x; bx++) {
+            int ox = bx * BLK_P, oy = by * BLK_P, inx = ox + ST_W, iny = oy + ST_W;
+            int zone = zone_at(inx + IN / 2.0f, iny + IN / 2.0f);
+            rectfill(ox, oy, BLK_P, BLK_P, CLR_DARK_GREY);                       // street band
+            rectfill(inx, iny, IN, IN, zone == ZN_RES ? CLR_DARK_GREEN : CLR_MEDIUM_GREY);
+            for (int lj = 0; lj < nlot; lj++)
+                for (int li = 0; li < nlot; li++) {
+                    if (li == 1 && lj == 1) {                                    // centre courtyard
+                        if (zone != ZN_RES) rectfill(inx + li * ls, iny + lj * ls, ls, ls, CLR_DARKER_GREY);
+                        continue;
+                    }
+                    Rect lot = { inx + li * ls, iny + lj * ls, ls, ls };
+                    int outward = (lj == 0) ? 0 : (lj == 2) ? 2 : (li == 0) ? 3 : 1;
+                    unsigned hh = hash2(bx * 97 + li + lf_seed * 7, by * 89 + lj);
+                    Rect body; if (!footprint_body(lot, outward, zone, &body)) continue;
+                    float fx = body.x + body.w / 2.0f, fy = body.y + body.h / 2.0f;
+                    float dec = decay_at(fx, fy), fert = fertility_at(fx, fy);
+                    footprint_fill(lot, outward, zone, hh, show);               // stage 1: maker
+                    if (coll) collapse_fill(body, hh, dec);                     // stage 2: modifier
+                    if (over) overgrow_fill(body, hh, dec, fert);              // stage 3: modifier
+                    if (dec >= 0.30f) n_ruin++;
+                    if (dec >= 0.85f) n_gone++;
+                }
+        }
+
+    if (dbg) {                                                                  // the DECAY field heatmap
+        int OV = 12; fillp(0xA5A5, -1);
+        for (int wy = ifloordiv(Tpx, OV) * OV; wy <= Bpx; wy += OV)
+            for (int wx = ifloordiv(Lpx, OV) * OV; wx <= Rpx; wx += OV)
+                rectfill(wx, wy, OV, OV, dens_ramp(decay_at(wx + OV / 2.0f, wy + OV / 2.0f)));
+        fillp_reset();
+    }
+    cnt[0] = n_ruin; cnt_lbl[0] = "ruined";
+    cnt[1] = n_gone; cnt_lbl[1] = "razed";
+    cnt_lbl[2] = NULL;
+}
+
+static const char *ruins_probe(float x, float y) {
+    static char buf[44];
+    float dec = decay_at(x, y), fert = fertility_at(x, y);
+    const char *s = dec < 0.30f ? "intact" : dec < 0.60f ? "damaged" : dec < 0.85f ? "ruined" : "razed";
+    snprintf(buf, sizeof buf, "%s  decay %.2f  fert %.2f", s, (double)dec, (double)fert);
     return buf;
 }
 
@@ -790,6 +936,7 @@ static Atom atoms[] = {
     { "SCATTER",   3, { "base", "ground", "canopy" }, scat_draw,      scat_probe },
     { "ROWS",      3, { "soil", "crop",   "border" }, rows_draw,      rows_probe },
     { "FOOTPRINT", 3, { "ground", "build", "detail" }, footprint_draw, footprint_probe },
+    { "RUINS",     3, { "build", "collapse", "overgrow" }, ruins_draw, ruins_probe },
     { "BORDER",    2, { "plot", "edge" },             border_draw,    border_probe },
     { "PAVE",      3, { "surface", "marks", "curb" }, pave_draw,      pave_probe },
     { "STAMP",     3, { "ground", "shadow", "prop" }, stamp_draw,     stamp_probe },

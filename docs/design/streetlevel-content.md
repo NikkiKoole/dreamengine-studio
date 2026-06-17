@@ -15,7 +15,7 @@
 · [The seams](#the-seams-load-bearing--restated-for-content) · [Workbench vs world](#the-workbench-vs-the-world-reusability--built-2026-06-16)
 · [Build plan](#build-plan-lens-first-same-playbook-as-l2l3) · [Open decisions](#open-decisions-for-build-time)
 >
-> *Built so far (cart `lotfill.c`): 6 fill atoms — `scatter` `rows` `footprint` `border` `pave` `stamp` (+ `subdivide`, the `world` driver, local fields). Everything else here is documented-not-built.*
+> *Built so far (cart `lotfill.c`): 6 fill atoms — `scatter` `rows` `footprint` `border` `pave` `stamp` (+ `subdivide`, the `world` driver, local fields) — **and now the first phase-5 MODIFIER PIPELINE: `ruins` = `footprint → collapse → overgrow`** (the `RUINS` tab, driven by `decay`/`fertility` fields). Everything else here is documented-not-built.*
 
 ## The one idea
 
@@ -188,18 +188,24 @@ generator):
   a normal `grove` read through `taint` becomes petrified / bioluminescent / fungal / blighted. Weird
   nature for near-zero cost — pure reuse, no dedicated "weird" atom.
 
-New **modifiers**, and why ruins need them:
+New **modifiers**, and why ruins need them (**both built 2026-06-17**, `lotfill`'s `RUINS` tab):
 
-- **`collapse`** — partially destroys a `footprint`: removes walls, exposes foundation, spills rubble.
+- **`collapse`** ✅ — partially destroys a `footprint`: removes walls, exposes foundation, spills rubble.
   Genuinely new because **`age` weathers surfaces but can't invent *absence*** — a ruin is a structure
-  with pieces *missing*, and only a modifier reading the *original massing* knows what's gone.
-- **`overgrow`** — a `spread` aimed at *built* features: ivy-choked walls, roots buckling pavement,
-  fields reclaimed by scrub.
+  with pieces *missing*, and only a modifier reading the *original massing* knows what's gone. Built as
+  `collapse_fill(body, hash, decay)` — it re-derives the intact massing via `footprint_body()` (phase 5
+  reads phase 4's *pure output*, no retained buffer) and punches decay-scaled bites + rubble.
+- **`overgrow`** ✅ — a `spread` aimed at *built* features: ivy-choked walls, roots buckling pavement,
+  fields reclaimed by scrub. Built as `overgrow_fill(body, hash, decay, fert)`; growth scales with
+  `decay × fertility`, so a ruin in a fertile trough is swallowed green and one on barren scree stays bare.
 
 > **Ruins = `footprint → collapse → overgrow`, in that order** — the cleanest proof of why the ordered
 > pipeline matters. `collapse` reads intact massing to decide removals; `overgrow` reads the *wreckage*
 > to creep growth into the gaps. Neither works without phases, and `era`-zoning makes a fresh ruin in
-> one ring and a fully-reclaimed one in another from the same atoms.
+> one ring and a fully-reclaimed one in another from the same atoms. **Built end-to-end in `lotfill`'s
+> `RUINS` tab (2026-06-17):** one `decay` field + one `fertility` field drive the two modifiers over the
+> `footprint` block grid; layer-peel toggles the three pipeline stages (build / collapse / overgrow), `G`
+> draws the decay heatmap. This is the first **phase-5** content in the cart — proof that phases 4→5 work.
 
 Reclassified (not new atoms): **`grove`** = a clustered-`scatter` flavor / small `cluster`;
 **`hedgerow`** = `border` over a partition's shared edges (the "network" is free from adjacency — `rows`
@@ -256,7 +262,10 @@ upstream**, so the proposal is really the *integration spec*, not new lotfill at
 The subset that needs **no** roadnet/worldgen — it runs on the local stubs lotfill already has (`cover_at`,
 `elev_raw`, `zone_at`, the block grid). This is the actionable backlog:
 
-- **the phased pipeline + a modifier** (`dress`/`age`) — proves phases 4→5; the lived-in look. *Highest leverage.*
+- ~~**the phased pipeline + a modifier** — proves phases 4→5; the lived-in look. *Highest leverage.*~~
+  ✅ **done 2026-06-17** as the `ruins` pipeline (`collapse` + `overgrow`, the `RUINS` tab). Still open:
+  the *surface* modifiers `age` (weather/stain) and `dress` (finishing scatter), which transform without
+  inventing absence — lighter than the ruin pair and a natural next pass on the same phase-5 footing.
 - **`relief` as readable slope** — promote `elev_raw` to a slope the makers read (footprints avoid steep, water pools low, rows terrace).
 - **`massing`** — `footprint` reads a local `density` stub → cottage/midrise/tower height. A flavor, not a maker.
 - **`square` / `quay`** — composite recipes (carve+pave+ring; water-edge using `cover_at`'s water). Content.

@@ -72,6 +72,26 @@
 </div>
 <div class="grid">
 
+    <a class="card" href="clampstress/" data-title="clampstress" data-search="clampstress clampstress tech-demo a deterministic torture test for the per-call clamp cost shared by every software fill. each circfill/ovalfill/polyfill/trifill calls poly_clamp_scan, which does 4 getscreentoworld2d (camera-matrix inverses) to find the on-screen scan box — but that box is constant for the whole frame unless the camera moves. this cart issues ~1500 tiny fills/frame (377 each of all four primitives, near-zero fill area), so the per-call clamp dominates — the rig to measure the ceiling of a per-frame clamp-box cache. scene 0 static (key 1, no camera: box identical every call). scene 1 pan (key 2: camera() pans each frame, so the cache must recompute once/frame and stay correct). pure function of the frame counter — byte-reproducible. baseline (per-call clamp, current): static 1.90ms avg / 3.36ms max. not a game; a profiling + regression rig." data-added="2026-06-17" data-tier="3">
+      <img src="clampstress/cart.png" alt="clampstress" loading="lazy">
+      <div class="body">
+        <h2>clampstress</h2>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
+        <p>A deterministic torture test for the PER-CALL clamp cost shared by every software fill. Each circfill/ovalfill/polyfill/trifill calls poly_clamp_scan, which does 4 GetScreenToWorld2D (camera-matrix inverses) to find the on-screen scan box — but that box is constant for the whole frame unless the camera moves. This cart issues ~1500 TINY fills/frame (377 each of all four primitives, near-zero fill AREA), so the per-CALL clamp dominates — the rig to measure the ceiling of a per-frame clamp-box cache. Scene 0 STATIC (key 1, no camera: box identical every call). Scene 1 PAN (key 2: camera() pans each frame, so the cache must recompute once/frame and stay correct). Pure function of the frame counter — byte-reproducible. Baseline (per-call clamp, current): STATIC 1.90ms avg / 3.36ms max. Not a game; a profiling + regression rig.</p>
+        <div class="added">added 2026-06-17</div>
+      </div>
+    </a>
+
+    <a class="card" href="discstress/" data-title="discstress" data-search="discstress discstress tech-demo a deterministic torture test for the software disc/ellipse fills (circfill -&gt; disc_inside -&gt; plot_pat, ovalfill -&gt; ellipse_inside -&gt; plot_pat) — the circfill/ovalfill sibling of polystress. scene 0 solid (key 1, the span-fill optimization target): three big pulsing circles (large fill area), a 60-cell grid of small circles (fill count + per-call bbox setup), wide/tall/round ovals (ellipse_inside across aspect ratios), a big circle running off-screen (there's no scan clamp on the disc path today), and r=0/1 degenerate radii. scene 1 dither (key 2): big circles + ovals through every fill_* pattern (the plot_pat fallback). scene 2 zoom (key 3): planet-style big fills under a zooming camera_ex (rotation 0) — the byte-identity test for the span fast-path under zoom (orbit's case). pure function of the frame counter — byte-reproducible — so it pins the disc rasterizer for a clean profile and validates the span-fill optimization pixel-identical. not a game; a profiling + regression rig." data-added="2026-06-17" data-tier="3">
+      <img src="discstress/cart.png" alt="discstress" loading="lazy">
+      <div class="body">
+        <h2>discstress</h2>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
+        <p>A deterministic torture test for the SOFTWARE disc/ellipse fills (circfill -&gt; disc_inside -&gt; plot_pat, ovalfill -&gt; ellipse_inside -&gt; plot_pat) — the circfill/ovalfill sibling of polystress. Scene 0 SOLID (key 1, the span-fill optimization target): three big pulsing circles (large fill AREA), a 60-cell grid of small circles (fill COUNT + per-call bbox setup), wide/tall/round ovals (ellipse_inside across aspect ratios), a big circle running OFF-SCREEN (there's no scan clamp on the disc path today), and r=0/1 degenerate radii. Scene 1 DITHER (key 2): big circles + ovals through every FILL_* pattern (the plot_pat fallback). Scene 2 ZOOM (key 3): planet-style big fills under a zooming camera_ex (rotation 0) — the byte-identity test for the span fast-path under zoom (orbit's case). Pure function of the frame counter — byte-reproducible — so it pins the disc rasterizer for a clean profile AND validates the span-fill optimization pixel-identical. Not a game; a profiling + regression rig.</p>
+        <div class="added">added 2026-06-17</div>
+      </div>
+    </a>
+
     <a class="card" href="handwork/" data-title="handwork" data-search="handwork handwork simulation toy probe the embodied half of sloop's production subsystem (docs/design/sloop-handwork.md) — the cdda body-in-the-world handling loop the cut skipped. you walk a workroom, harvest plants into a carried basket, then turn raw stalks into trimmed flowers two ways: by hand at the bench you stand there locked and time each cut on a bouncing meter — a clean cut makes a fine flower (premium-grade); or load the machine and walk away while it trims on its own at a fixed, always-coarse quality. a machine is your first delegate (one pure transform, run by your timed hands or the machine's fixed stamp; followers later slot into the machine's seat). the hook is the opportunity cost: buyers arrive at the door and wait — a premium buyer wants a few fine flowers and pays by quality, a bulk buyer wants a cheap pile of anything — and they leave if you don't serve them in time. so standing locked at the bench costs you sales; the machine earns its keep by trimming the bulk while your hands chase the premium order. one body can't be in two places — that live choice is the game. skill rises as you hand-trim, making fine easier. wasd/arrows walk; z harvest a ripe plant / pick up the basket / cut at the bench / load the machine / serve the buyer at the door; x drop the basket / collect the machine's output / leave the bench." data-added="2026-06-17" data-tier="3">
       <img src="handwork/cart.png" alt="Handwork" loading="lazy">
       <div class="body">
@@ -118,6 +138,16 @@
         <h2>Transitions</h2>
         <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
         <p>The screen wipes that bridge two scenes, side by side over a live world. Eight classics: IRIS (a circle closes onto the hero, SNES Mario / Looney Tunes), CLOCK WIPE (a radial sweep, Star Wars), WIPE (a hard edge slides across), CURTAIN (top + bottom slabs meet), BLINDS (venetian slats snap shut), DISSOLVE (an ordered-dither pixel fade, Genesis/Sonic), FADE (dim to black), and SLIDE PUSH (the new scene shoves the old one off-screen). The mask-based seven each play OUT, swap a sunny hilltop for a starlit cave at full black, then play back IN — the trick is one black mask whose shape encodes how-covered-are-we (iris=ring(), clock=arcfill(), dissolve=fillp() Bayer dither, fade=fade()); SLIDE instead camera-shifts both scenes in one motion. A tour of the masking primitives, with a selectable easing curve (linear / in / out / in-out / back) — ease-back's overshoot is visible on the slide. Left/right pick, Z play, up/down speed, X cycle easing.</p>
+        <div class="added">added 2026-06-17</div>
+      </div>
+    </a>
+
+    <a class="card" href="tristress/" data-title="tristress" data-search="tristress tristress tech-demo a deterministic torture test for trifill — which is poly_fill_cov with n=3, so it already inherits the polygon scanline span fill (one drawrectangle per row). the measurement seam for a possible dedicated triangle rasterizer (sorted-vertex incremental edge walk, no per-row division): scene 0 big (key 1) = 8 large rotating triangles (per-row math over large area), scene 1 many (key 2) = a 26x16 grid of tiny triangles (per-call setup, where poly_clamp_scan's 4 matrix-inverts dominate). pure function of the frame counter. verdict so far: a tri-specific path isn't worth it (big 0.33ms / many 0.97ms, no real cart trifill-bound); the per-call overhead it would cut is shared by all software fills and better solved by a per-frame clamp-box cache. kept as the rig + seam. see guides/engine-optimization.md." data-added="2026-06-17" data-tier="3">
+      <img src="tristress/cart.png" alt="tristress" loading="lazy">
+      <div class="body">
+        <h2>tristress</h2>
+        <div class="badge b-desktop">🔴 Desktop Only — good luck past the title screen</div>
+        <p>A deterministic torture test for trifill — which is poly_fill_cov with n=3, so it already inherits the polygon scanline span fill (one DrawRectangle per row). The measurement seam for a possible DEDICATED triangle rasterizer (sorted-vertex incremental edge walk, no per-row division): scene 0 BIG (key 1) = 8 large rotating triangles (per-row math over large area), scene 1 MANY (key 2) = a 26x16 grid of tiny triangles (per-CALL setup, where poly_clamp_scan's 4 matrix-inverts dominate). Pure function of the frame counter. Verdict so far: a tri-specific path isn't worth it (BIG 0.33ms / MANY 0.97ms, no real cart trifill-bound); the per-call overhead it would cut is shared by all software fills and better solved by a per-frame clamp-box cache. Kept as the rig + seam. See guides/engine-optimization.md.</p>
         <div class="added">added 2026-06-17</div>
       </div>
     </a>
@@ -3812,7 +3842,7 @@
       </div>
     </a>
 </div>
-<footer>374 carts · arrows + Z/X to play (most carts)</footer>
+<footer>377 carts · arrows + Z/X to play (most carts)</footer>
 <script>
 (function () {
   var grid = document.querySelector('.grid')

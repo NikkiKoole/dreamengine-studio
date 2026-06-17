@@ -217,6 +217,16 @@ eventually2/
 │   │                   #   the editor's live-host build re-runs it automatically; after
 │   │                   #   editing studio.h, also run it manually so the regenerated
 │   │                   #   file lands in the same commit (libtcc live backend)
+│   ├── build-history.js  # generate docs/history.html — the week-by-week PROJECT HISTORY
+│   │                   #   page (editor Docs tab → ★ history). Structure-first: derives
+│   │                   #   dates/commits/carts/ADRs/heroes from git + index.json, over the
+│   │                   #   hand-authored docs/history-spine.json (weeks/eras/subsystems/
+│   │                   #   milestones/marked-days + editorial seam). How it works + the
+│   │                   #   ADD-A-WEEK runbook: docs/guides/history-page.md. Re-run after
+│   │                   #   editing the spine. (Idea parked, NOT built: a weekly scheduled
+│   │                   #   agent that reconstructs the just-closed week from git and DRAFTS
+│   │                   #   its spine entries for review — eras/blurbs still need judgment;
+│   │                   #   see history-page.md "Possible automation".)
 │   └── carts/          #   <name>.c (+ optional <name>.cart.js) — cart source of truth
 │                       #   .cart.js exports { sprites, map, charMap, mapW, mapH }
 │                       #   Three use patterns:

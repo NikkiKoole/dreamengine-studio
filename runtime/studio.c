@@ -2386,9 +2386,11 @@ void circfill(int cx, int cy, int r, int color) {
     // drawn as ONE DrawRectangle instead of per-pixel pset — same villain we span-filled
     // for polygons. Byte-identical to the per-pixel disc_inside scan: candidate span is
     // generous (floor/ceil) then trimmed inward by the exact disc_inside predicate (a disc
-    // row is a single contiguous interval, so no cross-span bleed). Gated on an axis-aligned
-    // camera + solid fill; a rotated/zoomed camera or fillp() dither falls back to per-pixel.
-    if (disc_fill_fast && r >= 1 && cam.rotation == 0.0f && cam.zoom == 1.0f && !fp_on) {
+    // row is a single contiguous interval, so no cross-span bleed). Gated on rotation==0 +
+    // solid fill; ZOOM is fine (rotation-0 camera is axis-aligned affine → the run of 1×1
+    // world quads tiles to exactly the same screen pixels as one w×1 quad; only rotation
+    // breaks that). A rotated camera or fillp() dither falls back to per-pixel.
+    if (disc_fill_fast && r >= 1 && cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
         poly_clamp_scan(&x0, &y0, &x1, &y1);            // skip off-screen rows/cols (the poly-path win)
         Color col = palette[color % PALETTE_SIZE];
@@ -3506,7 +3508,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
     // SPAN fast path — per row, hx = rx·√(1-(dy/ry)²) → one DrawRectangle (see circfill).
-    if (disc_fill_fast && cam.rotation == 0.0f && cam.zoom == 1.0f && !fp_on) {
+    if (disc_fill_fast && cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - rx, y0 = cy - ry, x1 = cx + rx, y1 = cy + ry;
         poly_clamp_scan(&x0, &y0, &x1, &y1);
         Color col = palette[color % PALETTE_SIZE];

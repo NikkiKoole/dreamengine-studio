@@ -27,11 +27,31 @@
 #define TAU 6.28318530718f
 
 static int F = 0;
-static int scene = 0;                       // 0=SOLID (opening), 1=DITHER
+static int scene = 0;                       // 0=SOLID (opening), 1=DITHER, 2=ZOOM
 void update(void) {
     F++;
     if (keyp('1')) scene = 0;
     if (keyp('2')) scene = 1;
+    if (keyp('3')) scene = 2;
+}
+
+// SCENE 2 — big circles/ovals under a ZOOMING camera_ex (rotation 0). The span fast-path
+// is now gated on rotation==0 (zoom allowed), so this is the byte-identity test for that:
+// the planet-style big fills (orbit's case) must come out pixel-identical to the per-pixel
+// path (DE_DISC_FILL=legacy) under zoom. The big circle exceeds the screen at high zoom, so
+// it also exercises poly_clamp_scan's clamp-under-zoom (fast clamps, legacy doesn't → same canvas).
+static int draw_zoom(float ph) {
+    int cx = SCREEN_W / 2, cy = SCREEN_H / 2;
+    float z = 1.7f + 0.7f * sinf(ph);                  // zoom varies, rotation 0
+    camera_ex(cx, cy, z, 0);
+    int fills = 0;
+    circfill(cx, cy, 58, CLR_DARK_GREEN);   fills++;   // a big "planet" (overspills the screen at high zoom)
+    circfill(cx - 16, cy - 12, 26, CLR_MEDIUM_GREEN); fills++;
+    circfill(cx + 18, cy + 10, 18, CLR_GREEN); fills++;
+    ovalfill(cx, cy - 34, 28, 15, CLR_BLUE); fills++;
+    circ(cx, cy, 58, CLR_LIME_GREEN);                  // outline (per-pixel disc_inside, unaffected)
+    camera(0, 0);                                      // reset for HUD
+    return fills;
 }
 
 static const struct { int pat; const char *name; } DITHERS[6] = {
@@ -89,9 +109,9 @@ static int draw_dither(float ph) {
 void draw(void) {
     cls(CLR_BLACK);
     float ph = F * 0.04f;
-    int fills = (scene == 0) ? draw_solid(ph) : draw_dither(ph);
+    int fills = (scene == 0) ? draw_solid(ph) : (scene == 1) ? draw_dither(ph) : draw_zoom(ph);
 
-    print(scene == 0 ? "discstress  SOLID (1)" : "discstress  DITHER (2)", 4, 4, CLR_WHITE);
+    print(scene == 0 ? "discstress  SOLID (1)" : scene == 1 ? "discstress  DITHER (2)" : "discstress  ZOOM (3)", 4, 4, CLR_WHITE);
     char buf[40];
     snprintf(buf, sizeof buf, "F=%d fills=%d", F, fills);
     print(buf, 4, 12, CLR_LIGHT_GREY);

@@ -197,11 +197,13 @@ static int             fp_hole    = -1;               // fillp() 1-bit color (-1
 static int             fp_anc_x   = 0;                // fillp() lattice origin (world coords)
 static int             fp_anc_y   = 0;                // — shifts the pattern phase; anchor to a
 static bool            poly_fill_fast = true;        // false → legacy per-pixel polygon fill (A/B; env DE_POLY_FILL=legacy)
+static bool            disc_fill_fast = true;        // false → legacy per-pixel circle/oval fill (A/B; env DE_DISC_FILL=legacy)
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
 static void circfill_pat(int x, int y, int radius, int pattern, int c1, int c0);
 static void ovalfill_pat(int cx, int cy, int rx, int ry, int pattern, int c1, int c0);
 static void plot_pat(int x, int y, int color);
+static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1);   // fwd: circfill (below) clamps like the poly path
 static void poly_fill_cov(const int *xy, int n, int color);
 static void poly_stroke_cov(const int *xy, int n, int color);
 // pal()-on-sprites helpers (defined in the graphics section, used earlier in main/pal)
@@ -1523,6 +1525,8 @@ static void save_dir_set(const char *dir) {
 int main(int argc, char **argv) {
     { const char *pf = getenv("DE_POLY_FILL");          // A/B the polygon fill without recompiling:
       if (pf && strcmp(pf, "legacy") == 0) poly_fill_fast = false; }   // DE_POLY_FILL=legacy → old per-pixel path
+    { const char *df = getenv("DE_DISC_FILL");          // A/B the circle/oval fill:
+      if (df && strcmp(df, "legacy") == 0) disc_fill_fast = false; }   // DE_DISC_FILL=legacy → old per-pixel path
     const char *window_title           = "dreamengine";
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
@@ -2375,10 +2379,35 @@ void circ(int cx, int cy, int r, int color) {
 
 void circfill(int cx, int cy, int r, int color) {
     PROF("circfill");
-    // fill = all pixels inside the disc; plot_pat handles both solid and fillp dither
-    for (int y = cy - r; y <= cy + r; y++)
-        for (int x = cx - r; x <= cx + r; x++)
-            if (disc_inside(x, y, cx, cy, r)) plot_pat(x, y, color);
+    // SPAN fast path: each row is one contiguous disc span [cx-dx, cx+dx], dx=√(r²-dy²),
+    // drawn as ONE DrawRectangle instead of per-pixel pset — same villain we span-filled
+    // for polygons. Byte-identical to the per-pixel disc_inside scan: candidate span is
+    // generous (floor/ceil) then trimmed inward by the exact disc_inside predicate (a disc
+    // row is a single contiguous interval, so no cross-span bleed). Gated on an axis-aligned
+    // camera + solid fill; a rotated/zoomed camera or fillp() dither falls back to per-pixel.
+    if (disc_fill_fast && r >= 1 && cam.rotation == 0.0f && cam.zoom == 1.0f && !fp_on) {
+        int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
+        poly_clamp_scan(&x0, &y0, &x1, &y1);            // skip off-screen rows/cols (the poly-path win)
+        Color col = palette[color % PALETTE_SIZE];
+        float r2 = (float)r * r;
+        for (int y = y0; y <= y1; y++) {
+            float dy = y + 0.5f - cy;
+            float h2 = r2 - dy * dy;
+            if (h2 < 0) continue;
+            float hx = sqrtf(h2);
+            int a = (int)floorf(cx - hx - 0.5f);        // generous, then trim to the exact predicate
+            int b = (int)ceilf (cx + hx - 0.5f);
+            while (a <= b && !disc_inside(a, y, cx, cy, r)) a++;
+            while (b >= a && !disc_inside(b, y, cx, cy, r)) b--;
+            if (a < x0) a = x0;  if (b > x1) b = x1;
+            if (a <= b) DrawRectangle(a, y, b - a + 1, 1, col);
+        }
+    } else {
+        // legacy / fallback — all pixels inside the disc; plot_pat handles solid + fillp dither
+        for (int y = cy - r; y <= cy + r; y++)
+            for (int x = cx - r; x <= cx + r; x++)
+                if (disc_inside(x, y, cx, cy, r)) plot_pat(x, y, color);
+    }
     UIAUDIT('c', cx - r, cy - r, 2 * r + 1, 2 * r + 1, NULL);
 }
 
@@ -3445,9 +3474,28 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
     PROF("ovalfill");
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
-    for (int y = cy - ry; y <= cy + ry; y++)
-        for (int x = cx - rx; x <= cx + rx; x++)
-            if (ellipse_inside(x, y, cx, cy, rx, ry)) plot_pat(x, y, color);
+    // SPAN fast path — per row, hx = rx·√(1-(dy/ry)²) → one DrawRectangle (see circfill).
+    if (disc_fill_fast && cam.rotation == 0.0f && cam.zoom == 1.0f && !fp_on) {
+        int x0 = cx - rx, y0 = cy - ry, x1 = cx + rx, y1 = cy + ry;
+        poly_clamp_scan(&x0, &y0, &x1, &y1);
+        Color col = palette[color % PALETTE_SIZE];
+        for (int y = y0; y <= y1; y++) {
+            float dyn = (y + 0.5f - cy) / (float)ry;
+            float t = 1.0f - dyn * dyn;
+            if (t < 0) continue;
+            float hx = rx * sqrtf(t);
+            int a = (int)floorf(cx - hx - 0.5f);
+            int b = (int)ceilf (cx + hx - 0.5f);
+            while (a <= b && !ellipse_inside(a, y, cx, cy, rx, ry)) a++;
+            while (b >= a && !ellipse_inside(b, y, cx, cy, rx, ry)) b--;
+            if (a < x0) a = x0;  if (b > x1) b = x1;
+            if (a <= b) DrawRectangle(a, y, b - a + 1, 1, col);
+        }
+    } else {
+        for (int y = cy - ry; y <= cy + ry; y++)
+            for (int x = cx - rx; x <= cx + rx; x++)
+                if (ellipse_inside(x, y, cx, cy, rx, ry)) plot_pat(x, y, color);
+    }
 }
 
 void oval(int cx, int cy, int rx, int ry, int color) {

@@ -289,6 +289,57 @@ int make_junction(Leg legs[], int n, JuncType type, Connection out[]){
   proof of type → table → drawer. This is also the function the new "junction field" world (or roadnet2)
   calls per crossing.
 
+## 9. After the generator — the `(topology × policy)` plan (skew · trumpet/topology · ring)
+The generator (§8.2) finished the **policy axis**: *how the hard turn is served* — direct / loop / flyover =
+diamond / cloverleaf / stack. Mapping the full **roads.org.uk interchange catalogue**
+(<https://www.roads.org.uk/interchanges> — our reference, re-read 2026-06-17) against what roadlab generates
+shows the catalogue is organised by **leg count** — i.e. a *second* axis we haven't built: **topology**. A
+junction recipe is then **`(topology × policy)`**, exactly how the catalogue is laid out.
+
+| legs | type | turns served by | roadlab today |
+|---|---|---|---|
+| 2 / cross | diamond | direct ramps | ✅ generates |
+| 2 / cross | cloverleaf | 4 loops | ✅ generates |
+| 2 / cross | four-level stack | 4 flyovers | ✅ generates |
+| 2 / cross | partial cloverleaf | mix loop + direct | ⚠️ needs per-movement policy |
+| 3 / T | **trumpet** | one loop + one semi-direct + 2 direct | ❌ needs **topology** |
+| 3 / T,Y | fork | pure diverge | ❌ needs topology |
+| 3 / T,Y | triangle | 3 flyovers | ❌ needs topology |
+| 2 / ring | dumbbell · roundabout · 3-level stacked roundabout · whirlpool | a circulating carriageway | ❌ the parked **ring** family |
+
+So the 4-leg ramp family is done (it's just the policy axis); the entire **3-leg family is locked behind one
+missing thing: topology.**
+
+### The skew finding — the ramp layer is ALREADY angle-agnostic (verified 2026-06-17)
+Nothing in the spline drawers assumes 90°: `arc_spline` rounds with the *actual* deflection `fa=|b.dir−a.dir|`
+and `T=R·tan(fa/2)`; `loop_spline`/`scurve_spline` are relational; `classify_turn` uses *relative* bearing.
+The **only** thing hardcoded to perpendicular is the **stage** — `setup()`'s fixed `+`-cross port placement and
+`draw()`'s axis-aligned road rectangles/centrelines/arrows. So an angled crossing is *free for the ramps*;
+the work is only rotating a leg's ports (position + dir) and drawing its slab tilted. (This is the exact case
+worldgen imposes — graph edges meet at arbitrary bearings — so skew is the rehearsal for the world port.)
+Rough edges at *extreme* skew: acute corners shrink tangent room (`arc_spline` clamps R / falls back to
+straight — graceful); the through/turn threshold (±30°) may want widening for very oblique "straights."
+
+### The unifying refactor — the `Leg` layer (reflection #3, made real)
+**Skew and topology are the same change.** Describe a junction as a **list of legs, each `{bearing, present}`**,
+and lay the 8 ports out from that (`rebuild_ports()`). Then: vary a leg's **bearing → skew**; vary **presence /
+count → topology** (trumpet / fork / triangle). This is reflection #3 (the `Leg`/`Road` layer) — and the
+abstraction the world port needs anyway (legs arrive as graph edges with bearings), so it's the keystone, not
+a detour.
+
+### Decided sequence (2026-06-17)
+1. **`Leg` layer + skew** — smallest proof; validates the whole ramp layer under arbitrary angles (the
+   worldgen condition). Replace the hardcoded ports with `Leg{bearing,present}` + `rebuild_ports()`; a skew
+   slider on one leg; confirm ramps + generated junction re-solve.
+2. **Topology** on the same machinery → **trumpet / fork / triangle** (the 3-leg column). Trumpet additionally
+   needs an **asymmetric** hard-turn assignment — *one loop + one semi-direct flyover*, not the uniform
+   per-class policy (the **loop+loop vs loop+flyover trumpet variant** parked in the handoff). Fork/triangle
+   are uniform (pure diverge / all flyover).
+3. **Ring / roundabout family LAST** — a deliberate *peer* construct (a circulating carriageway the legs tap
+   on/off), not the `diverge → [...] → merge` grammar; needs the parked `ring`/`circulate` primitive (→
+   OpenDRIVE `junctionGroup type=roundabout`), shares nothing with the Leg refactor. See
+   [`interchange-dsl.md`](interchange-dsl.md) "the ring family."
+
 Sources: ASAM OpenDRIVE Specification v1.8.1 §12 (Junctions), §11 (Lanes) —
 <https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/12_junctions/12_01_introduction.html>,
-§12.4 Connecting roads.
+§12.4 Connecting roads. · Interchange taxonomy: <https://www.roads.org.uk/interchanges>.

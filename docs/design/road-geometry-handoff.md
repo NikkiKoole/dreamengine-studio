@@ -162,12 +162,20 @@ enumerate movements, `classify_turn()` (relative bearing, DRIVE-folded), assign 
 view now draws the *generated* junction (`g` cycles the type); the hand `DEMO` is gone. A 4-way generates 12
 movements; `through` is emitted but not drawn (it's the road). roadlab is now a junction **factory**.
 
-**▶ Next:** port into a world that **emits `(legs, type)` per crossing from the seed** and calls
-`make_junction()` + `draw_junction()` — a **new junction-first world** vs retrofitting roadnet2 (the fork +
-take in [`junction-lanelink.md`](junction-lanelink.md) §7). Smaller open items: `laneLink` with teeth
-(`from≠to` driving the M4 gore), per-segment z-sort for real ramp-over-ramp in a stack. **Full OpenDRIVE
-roadmap — taken (M1–M6) vs left:** [`road-geometry-refs.md`](road-geometry-refs.md) → **"OpenDRIVE adoption
-inventory"**.
+**▶ Next — decided sequence (2026-06-17, full plan in [`junction-lanelink.md`](junction-lanelink.md) §9):**
+A junction recipe is `(topology × policy)`; the generator finished the **policy** axis, so the **topology**
+axis is next, and it's the same refactor as **skew** — the **`Leg` layer** (a junction = a list of legs each
+`{bearing, present}`; `rebuild_ports()` lays ports out from it). Key finding: the **ramp geometry is already
+angle-agnostic** — only the *stage* (`setup()` port placement + `draw()` road rectangles) is hardcoded to 90°.
+1. **`Leg` layer + skew** — vary a leg's bearing; validates the ramp layer under arbitrary angles (the
+   worldgen condition).
+2. **Topology** on top → **trumpet / fork / triangle** (the 3-leg family). Trumpet needs an *asymmetric*
+   hard-turn assignment (one loop + one flyover — the parked variant), not the uniform policy.
+3. **Ring / roundabout family LAST** — the parked `ring`/`circulate` peer primitive.
+Then port into a world that **emits `(legs, type)` per crossing from the seed** (new junction-first world vs
+retrofit roadnet2 — fork + take in §7). Smaller open items: `laneLink` teeth (`from≠to` → the M4 gore),
+per-segment z-sort for real ramp-over-ramp in a stack. **Full OpenDRIVE roadmap — taken (M1–M6) vs left:**
+[`road-geometry-refs.md`](road-geometry-refs.md) → **"OpenDRIVE adoption inventory"**.
 
 Other roadlab continuations (not the chosen next, but queued):
 - **Port `roadlab` into roadnet2** — bake the constants, call it as the junction drawer.

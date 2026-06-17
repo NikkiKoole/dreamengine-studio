@@ -1899,10 +1899,11 @@ up with the §18 note that "whatever is off about BOWED, it is not pitch" — pa
    uses `emscripten_create_audio_context(0)` (NULL opts → device-default SR, usually 48000) and fills the
    128-sample output with NO resampler from 44100-synthesized audio. The **plain** backend resamples via
    miniaudio (`LoadAudioStream(44100)`) and is correct. Device-dependent (macOS built-in is often 44.1k →
-   fine on the owner's Mac; 48k devices are sharp), so it shipped unnoticed. One-line fix: force the
-   worklet context to 44.1k (`EmscriptenWebAudioCreateAttributes.sampleRate`). Not yet applied (wants an
-   on-device confirm). Phase 1 next = offline emcc render byte-diffed vs native `--wav`. `audio-timing.md`
-   covers timing, not samples.
+   fine on the owner's Mac; 48k devices are sharp), so it shipped unnoticed. **Fix APPLIED** (`sound.h`
+   `sound_worklet_init` forces the worklet context to `SOUND_SAMPLE_RATE` via
+   `EmscriptenWebAudioCreateAttributes`; compiles native + emcc-worklet). Follow-ups: on-device confirm +
+   republish (shipped `site/` carts keep the old context until rebuilt). Phase 1 next = offline emcc render
+   byte-diffed vs native `--wav`. `audio-timing.md` covers timing, not samples.
 3. **Set-and-hold footgun — SHIPPED `tools/lint-fx-frame.js`.** The set-and-hold rule
    ([effects-recipes.md](../guides/effects-recipes.md) intro) was documented but unenforced. Now a
    static lint flags an unconditional per-frame call to a buffer-rebuilding effect in

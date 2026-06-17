@@ -1042,11 +1042,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       128-sample output with NO resampler from 44100-synthesized audio → 48000/44100 = +146.7¢ + 8.8%
       fast. The **plain** backend resamples (`LoadAudioStream(44100)` via miniaudio) and is correct.
       Device-dependent, so it ships unnoticed: macOS built-in output is often 44.1k (sounds fine on the
-      owner's Mac), most 48k devices (Windows/Linux/DACs/Bluetooth) are sharp. **One-line fix:** pass
-      `EmscriptenWebAudioCreateAttributes{.sampleRate=SOUND_SAMPLE_RATE}` to `emscripten_create_audio_context`
-      so the context is forced to 44.1k (browser resamples to hardware). NOT yet applied — wants an
-      on-device confirm (Phase 0) + a listen to the forced-context resample quality. Then Phase 1 = an
-      offline emcc-render byte-diff vs native `--wav` (codegen/float-determinism gate, ~½ day).
+      owner's Mac), most 48k devices (Windows/Linux/DACs/Bluetooth) are sharp. **✅ FIX APPLIED** (`sound.h`
+      `sound_worklet_init`): the worklet context is now forced to `SOUND_SAMPLE_RATE` via
+      `EmscriptenWebAudioCreateAttributes` (browser resamples to hardware → matches native + the plain
+      backend). Compiles clean native + emcc-worklet. **Two follow-ups:** (1) on-device confirm (verified by
+      source reading, not yet a browser) + a listen to the resample quality; (2) **republish** — shipped
+      `site/` carts keep the old `(0)` worklet until a web rebuild. Phase 1 (offline emcc-render byte-diff vs
+      native `--wav`, the codegen-determinism gate, ~½ day) is still open as the durable web CI gate.
     - ✅ **Set-and-hold footgun — now lintable: SHIPPED `tools/lint-fx-frame.js`.** Static check (no
       render) that flags an UNCONDITIONAL per-frame call to a buffer-rebuilding effect
       (`crush`/`tape`/`eq`/`chorus`/`reverb`/`flanger`/`phaser`/…) in `update()`/`draw()` — the silent-

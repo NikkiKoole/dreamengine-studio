@@ -37,10 +37,16 @@ sound_aw_ctx = emscripten_create_audio_context(&attrs);   // was emscripten_crea
 
 The alternative — making the synth sample-rate-agnostic (read the context rate, drop the `SOUND_SAMPLE_RATE`
 `#define`) — is a huge change (it sizes constant arrays and hundreds of coefficients) and unnecessary: a
-fantasy console synth at a fixed 44.1k that the browser resamples is correct and simplest. **Caveat:** this
-is verified by *source reading*, not yet by a browser. The fix is correct regardless of the actual default
-(it makes the rate deterministic), but it should still be confirmed empirically (Phase 0 below) — and the
-resample-to-hardware quality / latency of a forced-44.1k context wants an on-device listen.
+fantasy console synth at a fixed 44.1k that the browser resamples is correct and simplest.
+
+**✅ FIX APPLIED 2026-06-17** (`sound.h` `sound_worklet_init`): the context is now created with
+`EmscriptenWebAudioCreateAttributes{ .latencyHint="interactive", .sampleRate=SOUND_SAMPLE_RATE }`. Compiles
+clean native + emcc-worklet (validated by building `epiano --worklet`). **Two follow-ups before it reaches
+players:** (1) **on-device confirm** — the bug + fix are verified by *source reading*, not a browser; open a
+worklet cart and listen (and ideally read `AudioContext.sampleRate`, see Phase 0). Safari accepts an explicit
+44100 (a universal rate), but the resample-to-hardware quality/latency wants an ear. (2) **republish** — the
+fix only reaches shipped carts after a web rebuild (`tools/publish-cart.sh` / build-site.js); the committed
+`site/` carts still have the old `(0)` worklet until then.
 
 ## Why it matters
 

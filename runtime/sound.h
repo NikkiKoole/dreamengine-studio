@@ -6462,7 +6462,14 @@ static void sound_aw_thread_ready(EMSCRIPTEN_WEBAUDIO_T ctx, bool ok, void *u) {
 // create node → connect. Audio flows once the node connects (a few ms later); the
 // req_queue buffers any pushes in the meantime.
 static void sound_worklet_init(void) {
-    sound_aw_ctx = emscripten_create_audio_context(0);
+    // Force the context to OUR sample rate. A bare emscripten_create_audio_context(0) does
+    // `new AudioContext()` = the device's default rate (often 48000), but sound_aw_process feeds
+    // 128-sample blocks synthesized at SOUND_SAMPLE_RATE with NO resampler → on a 48k device the
+    // whole mix plays 48000/44100 = +147¢ sharp + 8.8% fast. Pinning the context to 44100 lets the
+    // browser resample to the hardware, so the worklet matches native on every device. (The plain
+    // raylib backend already resamples via miniaudio; this aligns the worklet with it.)
+    EmscriptenWebAudioCreateAttributes attrs = { .latencyHint = "interactive", .sampleRate = SOUND_SAMPLE_RATE };
+    sound_aw_ctx = emscripten_create_audio_context(&attrs);
     emscripten_start_wasm_audio_worklet_thread_async(
         sound_aw_ctx, sound_aw_stack, sizeof sound_aw_stack, sound_aw_thread_ready, 0);
 }

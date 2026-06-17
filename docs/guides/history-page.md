@@ -123,9 +123,12 @@ Two more derived surfaces, both zero-authoring:
   `toolname —` stripped) — so keep that line good and the page follows. Chips aren't
   clickable (no in-editor route serves `tools/`).
 - **Milestone hover** — every milestone card resolves to its first matching commit; hover
-  now shows that commit's **exact subject, body, and short hash** ("a tiny bit more of
-  each"). Commit bodies are captured with a record-separator git format so their newlines
-  survive, and the `Co-Authored-By:` trailer is stripped. All from git, so it self-refreshes.
+  shows a **friendly blurb** about what landed: the commit's own subject as the headline,
+  plus a cleaned-up summary of its body (the `- filename.ext:` file-scaffolding and the hash
+  are stripped, bullets flowed into one line). Commit bodies are captured with a
+  record-separator git format so their newlines survive. A true prose summary needs a human,
+  so each milestone takes an optional authored **`note`** (voiced, follows [`voice.md`](voice.md))
+  that replaces the derived blurb — no note = the derived fallback, which self-refreshes from git.
 
 ## The retrospect — cross-week observations
 

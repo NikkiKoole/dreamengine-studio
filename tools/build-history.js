@@ -47,6 +47,13 @@ const SEP = '\x1f', RS = '\x1e'
 const cleanBody = (b) => (b || '')
   .replace(/^\s*Co-Authored-By:.*$/gim, '')        // drop the trailer
   .replace(/\r/g, '').replace(/\n{2,}/g, '\n').trim()
+// turn a raw commit body into a friendlier blurb: drop the bullet markers and
+// the "filename.ext:" file-scaffolding, flow it into one line, cap it. (A real
+// prose summary needs a human — that's the optional authored `note`; this is the
+// derived fallback so the hover reads like a sentence, not a git log.)
+const summarizeBody = (b) => (b || '').split('\n')
+  .map((l) => l.replace(/^[-*]\s*/, '').replace(/^[A-Za-z0-9_.\/-]+\.(?:c|h|js|cjs|json|html|css|md|sh):\s*/i, ''))
+  .filter(Boolean).join(' · ').replace(/`/g, '').replace(/\s+/g, ' ').trim().slice(0, 240)
 const rawCommits = git([
   'log', '--reverse', `--format=%H${SEP}%cI${SEP}%s${SEP}%b${RS}`,
   '--since', SINCE, '--until', UNTIL,
@@ -257,10 +264,12 @@ for (const c of rawCommits) { const e = eraOf(c.day); c.era = e ? e.id : null }
 const milestones = spine.milestones.map((m) => {
   const needle = m.match.toLowerCase()
   const hit = rawCommits.find((c) => c.subject.toLowerCase().includes(needle))
-  // the real commit behind the card — its exact words + body + short hash feed
-  // the hover ("a tiny bit more of each"); all from git, so it self-refreshes.
-  return { ...m, day: hit ? hit.day : null, hash: hit ? hit.hash.slice(0, 9) : null,
-           matched: !!hit, subject: hit ? hit.subject : '', body: hit ? hit.body.slice(0, 400) : '' }
+  // the hover blurb: an authored `note` (voiced) wins; else the commit's own
+  // subject as the friendly headline + a cleaned-up summary of its body. All
+  // self-refreshing from git unless a note is written.
+  const gist = m.note || (hit ? hit.subject : '')
+  const detail = m.note ? '' : (hit ? summarizeBody(hit.body) : '')
+  return { ...m, day: hit ? hit.day : null, matched: !!hit, gist, detail }
 })
 const missing = milestones.filter((m) => !m.matched)
 if (missing.length) {
@@ -534,18 +543,15 @@ figure.hero .hc{font-family:var(--mono);color:var(--dim);font-size:10.5px}
 .ms .sx{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.7}
 .ms.foundational .sx{opacity:.85}
 .ms .nomatch{color:var(--orange);font-size:11px;font-weight:700}
-.ms[data-subject]{cursor:help}
+.ms[data-gist]{cursor:help}
 @media(max-width:560px){.ms.foundational{grid-column:span 1}}
 
-/* milestone hover popup — the real commit behind the card */
+/* milestone hover popup — a friendly blurb about what landed */
 .ms-pop{position:fixed;left:0;top:0;z-index:55;pointer-events:none;display:none;max-width:340px;
   background:var(--panel);border:3px solid var(--edge);box-shadow:var(--sh);padding:10px 12px;transform:rotate(-1deg)}
 .ms-pop.show{display:block}
-.ms-pop .msp-s{font-weight:700;font-size:12.5px;line-height:1.35;color:var(--ink)}
-.ms-pop .msp-b{margin-top:7px;font-family:var(--mono);font-size:10.5px;line-height:1.45;color:var(--dim);
-  white-space:pre-wrap;max-height:160px;overflow:hidden}
-.ms-pop .msp-h{margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--on);background:var(--orange);
-  border:2px solid var(--edge);display:inline-block;padding:0 6px}
+.ms-pop .msp-s{font-weight:700;font-size:12.5px;line-height:1.4;color:var(--ink)}
+.ms-pop .msp-b{margin-top:7px;font-size:11px;line-height:1.5;color:var(--dim)}
 
 .row{margin:18px 0}
 .row > .h{font-family:var(--disp);font-size:13px;text-transform:uppercase;letter-spacing:0;
@@ -859,22 +865,21 @@ function render(){
     prev.style.left = x + 'px'; prev.style.top = Math.max(8, y) + 'px'
   })
 
-  // hover a milestone card → a popup with the REAL commit behind it: its exact
-  // words, body, and short hash ("a tiny bit more of each"). All from git.
+  // hover a milestone card → a friendly blurb (an authored note, or the commit's
+  // own words cleaned into a sentence). Reads like prose, not a git log.
   const pop = $('div','ms-pop')
-  pop.innerHTML = '<div class="msp-s"></div><div class="msp-b"></div><div class="msp-h"></div>'
+  pop.innerHTML = '<div class="msp-s"></div><div class="msp-b"></div>'
   document.body.appendChild(pop)
-  const pS = pop.querySelector('.msp-s'), pB = pop.querySelector('.msp-b'), pH = pop.querySelector('.msp-h')
+  const pS = pop.querySelector('.msp-s'), pB = pop.querySelector('.msp-b')
   document.addEventListener('mouseover', ev => {
-    const c = ev.target.closest('.ms[data-subject]'); if (!c) return
-    pS.textContent = c.dataset.subject
-    pB.textContent = c.dataset.body || ''; pB.style.display = c.dataset.body ? '' : 'none'
-    pH.textContent = c.dataset.hash ? 'commit ' + c.dataset.hash : ''
+    const c = ev.target.closest('.ms[data-gist]'); if (!c) return
+    pS.textContent = c.dataset.gist
+    pB.textContent = c.dataset.detail || ''; pB.style.display = c.dataset.detail ? '' : 'none'
     pop.classList.add('show')
   })
   document.addEventListener('mouseout', ev => {
-    const c = ev.target.closest('.ms[data-subject]'); if (!c) return
-    const to = ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('.ms[data-subject]')
+    const c = ev.target.closest('.ms[data-gist]'); if (!c) return
+    const to = ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('.ms[data-gist]')
     if (to !== c) pop.classList.remove('show')
   })
   document.addEventListener('mousemove', ev => {
@@ -975,8 +980,8 @@ function renderEra(e, i){
       c.appendChild($('div','t', esc(m.title)))
       c.appendChild($('div','sx', m.subsystem ? esc(subTitle[m.subsystem]||m.subsystem) : ''))
       if (!m.matched) c.appendChild($('div','nomatch','⚠ no matching commit found'))
-      // hover → the real commit behind the card (exact words + body + hash)
-      if (m.subject){ c.dataset.subject = m.subject; c.dataset.body = m.body || ''; c.dataset.hash = m.hash || '' }
+      // hover → a friendly blurb (authored note, or the commit's own words cleaned up)
+      if (m.gist){ c.dataset.gist = m.gist; c.dataset.detail = m.detail || '' }
       grid.appendChild(c)
     })
     s.appendChild(grid)

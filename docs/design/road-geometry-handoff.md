@@ -173,8 +173,19 @@ angle-agnostic** — only the *stage* (`setup()` port placement + `draw()` road 
 2. **Topology — DONE (2026-06-17).** `JuncType` → 6 (4-leg + 3-leg); `topo_present()` drops the north arm for
    the 3-leg family → a T. **Trumpet / fork / triangle** generate; the trumpet gets its asymmetric one-loop +
    one-flyover assignment. `g` cycles all 6. The whole **ramp family now generates** — only ring remains.
-3. **Ring / roundabout family — NEXT (and last)** — the parked `ring`/`circulate` peer primitive (a
-   circulating carriageway, → OpenDRIVE `junctionGroup type=roundabout`), not the ramp grammar.
+3. **Ring / roundabout — DONE (basic, 2026-06-17).** `draw_roundabout()` (the peer construct): a closed-circle
+   ref-line through `draw_multilane` = the circulating carriageway + open island; each leg taps on/off with a
+   merge + diverge slip. `JT_ROUNDABOUT`, `g` cycles it. **Every roads.org.uk family now draws.** Polish:
+   slip-tangency / circulation handedness; the dumbbell/stacked/whirlpool variants reuse this machinery.
+
+**The ramp+junction study is complete** — every catalogue family generates, at any skew/lanes,
+deterministically from `(legs, type)`. **▶ Next frontier:** the **world** that emits `(legs, type)` per
+crossing from the seed — a new junction-first world vs retrofit roadnet2 (fork + take in
+[`junction-lanelink.md`](junction-lanelink.md) §7).
+
+**Parked (do after the world step):** a **spec + lightweight test harness for cart logic, built on roadlab**
+(chosen as the testbed — pure, deterministic, clean seams: `make_junction` is a pure fn, geometry is
+relational, no audio/RNG/timing). Breadcrumb only — not started.
 Then port into a world that **emits `(legs, type)` per crossing from the seed** (new junction-first world vs
 retrofit roadnet2 — fork + take in §7). Smaller open items: `laneLink` teeth (`from≠to` → the M4 gore),
 per-segment z-sort for real ramp-over-ramp in a stack. **Full OpenDRIVE roadmap — taken (M1–M6) vs left:**

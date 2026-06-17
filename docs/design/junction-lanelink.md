@@ -305,10 +305,11 @@ junction recipe is then **`(topology × policy)`**, exactly how the catalogue is
 | 3 / T | **trumpet** | one loop + one semi-direct + 2 direct | ✅ generates |
 | 3 / T,Y | fork | pure diverge | ✅ generates (all-direct T) |
 | 3 / T,Y | triangle | 3 flyovers | ✅ generates |
-| 2 / ring | dumbbell · roundabout · 3-level stacked roundabout · whirlpool | a circulating carriageway | ❌ the parked **ring** family |
+| 2 / ring | **roundabout** (+ dumbbell · 3-level stacked · whirlpool variants) | a circulating carriageway | ✅ generates (basic) |
 
-So the **entire ramp family — 4-leg and 3-leg — now generates.** Only the **ring/roundabout family** remains
-(the parked peer construct).
+So **every family in the catalogue now draws** — the full ramp grid (4-leg + 3-leg) plus a basic
+**roundabout** (the peer construct). The remaining ring *variants* (dumbbell / stacked / whirlpool) are
+elaborations on the same `draw_roundabout` machinery.
 
 ### The skew finding — the ramp layer is ALREADY angle-agnostic (verified 2026-06-17)
 Nothing in the spline drawers assumes 90°: `arc_spline` rounds with the *actual* deflection `fa=|b.dir−a.dir|`
@@ -340,10 +341,20 @@ a detour.
    (first hard left → `RP_LOOP`, second → `RP_FLYOVER` — the loop+flyover variant); fork = all-direct,
    triangle = all-flyover (uniform policy). `g` cycles all 6; the sandbox stays a full-cross bench. Verified
    by bake (trumpet drops the north arm; 6 movements: 2 through + 2 direct + 1 loop + 1 flyover).
-3. **Ring / roundabout family — NEXT and last** — a deliberate *peer* construct (a circulating carriageway the
-   legs tap on/off), not the `diverge → [...] → merge` grammar; needs the parked `ring`/`circulate` primitive
-   (→ OpenDRIVE `junctionGroup type=roundabout`), shares nothing with the Leg refactor. See
-   [`interchange-dsl.md`](interchange-dsl.md) "the ring family."
+3. **Ring / roundabout — DONE (basic, 2026-06-17).** `draw_roundabout()` is the peer construct: a closed-circle
+   reference line through `draw_multilane` (concentric lanes nest on a circle — the M3 insight) = the
+   circulating carriageway with an open central island; each present leg taps on/off with a **merge** slip
+   (inbound → ring, tangential) and a **diverge** slip (ring → outbound), circulation sense from `DRIVE`.
+   `JT_ROUNDABOUT` (`g` cycles it); drawn separately from the ramp generator (`is_ring`). The whole
+   roads.org.uk catalogue now draws. *Open polish:* tune the slip tangency / circulation handedness; the
+   dumbbell / stacked-roundabout / whirlpool variants reuse this machinery (→ OpenDRIVE `junctionGroup`).
+
+**The ramp+junction study is now complete** — every catalogue family generates, at any skew/lanes,
+deterministically from `(legs, type)`. Next frontier: the **world** that emits `(legs, type)` per crossing
+from the seed (§7 fork: new junction-first world vs retrofit roadnet2).
+
+**Parked (do after):** a **spec + lightweight test harness for cart logic, to be built on roadlab** (it's the
+chosen testbed — pure, deterministic, clean seams). Breadcrumb only; not started.
 
 Sources: ASAM OpenDRIVE Specification v1.8.1 §12 (Junctions), §11 (Lanes) —
 <https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/12_junctions/12_01_introduction.html>,

@@ -42,8 +42,11 @@
 //                road (the trunk) and the ramps + generated junction re-solve.
 //   TOPOLOGY: a junction recipe = topology × policy. Per-leg `present` gives the 3-leg family on a T (drop
 //                the north arm): TRUMPET (1 loop + 1 flyover — asymmetric), FORK (all direct), TRIANGLE (3
-//                flyovers). `g` now cycles all 6 (diamond/cloverleaf/stack + trumpet/fork/triangle). The
-//                ring/roundabout family is the remaining peer construct. See docs/design/junction-lanelink.md §9.
+//                flyovers).
+//   RING (spec §9): ROUNDABOUT is the PEER construct — not a ramp per movement but ONE circulating
+//                carriageway (a closed-circle ref-line through draw_multilane — concentric lanes nest on a
+//                circle) the legs tap on/off via merge + diverge slips. draw_roundabout(), separate from the
+//                ramp generator. `g` now cycles all 7 — the WHOLE roads.org.uk catalogue. See junction-lanelink §9.
 //   Controls: an on-screen ui.h toolbar — every control a clickable button. Keyboard: ←/→ A · ↑/↓ B ·
 //             [ ] radius · ,/. Ls · C clothoid · 1-4 lanes · t taper · e lift · j sandbox/junction · l primitive · g type.
 //             (skew has a toolbar stepper.)
@@ -384,9 +387,10 @@ typedef struct { const char* name; Connection conns[16]; int nConns; } Junction;
 // JUNCTION TYPE = topology (how many legs) × policy (how the hard turn is served). The 4-leg family sits on
 // the full CROSS; the 3-leg family (trumpet/fork/triangle) on a T — see topo_present. (roads.org.uk taxonomy,
 // junction-lanelink §9: a recipe is `topology × policy`.)
-typedef enum { JT_DIAMOND, JT_CLOVERLEAF, JT_STACK, JT_TRUMPET, JT_FORK, JT_TRIANGLE } JuncType;
-#define NJTYPE 6
-static const char* JT_NAME[NJTYPE] = { "diamond", "cloverleaf", "stack", "trumpet", "fork", "triangle" };
+typedef enum { JT_DIAMOND, JT_CLOVERLEAF, JT_STACK, JT_TRUMPET, JT_FORK, JT_TRIANGLE, JT_ROUNDABOUT } JuncType;
+#define NJTYPE 7
+static const char* JT_NAME[NJTYPE] = { "diamond", "cloverleaf", "stack", "trumpet", "fork", "triangle", "roundabout" };
+static int is_ring(JuncType t){ return t==JT_ROUNDABOUT; }   // the PEER family: a circulating carriageway, not the ramp grammar
 typedef enum { T_THROUGH, T_RIGHT, T_LEFT, T_UTURN } Turn;
 typedef struct { RampPrim through, right, left; int serveUturn; } JuncPolicy;
 static const JuncPolicy POLICY[NJTYPE] = {                  // 4-leg types differ ONLY in the LEFT column
@@ -396,10 +400,11 @@ static const JuncPolicy POLICY[NJTYPE] = {                  // 4-leg types diffe
     /* trumpet    */ { RP_THROUGH, RP_DIRECT, RP_LOOP,    0 },   // 3-leg T: lefts ASYMMETRIC — 1 loop + 1 flyover (below)
     /* fork       */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // 3-leg T: all at-grade direct (a simple Y)
     /* triangle   */ { RP_THROUGH, RP_DIRECT, RP_FLYOVER, 0 },   // 3-leg T: 3 flyovers (the loopless free-flow cousin)
+    /* roundabout */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // PEER family — not used (drawn by draw_roundabout)
 };
-// topology — which legs are present for a type. 4-leg = full cross; 3-leg (trumpet/fork/triangle) = a T with
-// the NORTH trunk arm (leg 2) dropped, so the trunk terminates at the highway from the south.
-static int topo_present(JuncType t, int L){ return !(t>=JT_TRUMPET && L==2); }
+// topology — which legs are present for a type. 4-leg (incl. roundabout) = full cross; the 3-leg ramp family
+// (trumpet/fork/triangle) = a T with the NORTH trunk arm (leg 2) dropped — the trunk terminates from the south.
+static int topo_present(JuncType t, int L){ return !((t==JT_TRUMPET||t==JT_FORK||t==JT_TRIANGLE) && L==2); }
 // the 4 legs are encoded in the port layout (setup order = in,out per leg) — leg L: 0=W 1=E 2=N 3=S
 static int leg_in (int L){ return L*2;   }                  // inbound (entry) port of leg L
 static int leg_out(int L){ return L*2+1; }                  // outbound (exit) port of leg L
@@ -447,6 +452,29 @@ static void draw_junction(const Junction* j, int useCloth, float R, float Ls, fl
     for (int i = 0; i < j->nConns; i++)
         if (j->conns[i].prim != RP_THROUGH)                 // the through movement IS the road itself, not a ramp
             draw_connection(j->conns[i], useCloth, R, Ls, taperFrac, liftPx, 0);
+}
+
+// ── RING / ROUNDABOUT (spec §9, the PEER construct): not a ramp per movement but ONE circulating carriageway
+//    the legs tap on/off. The ring is a closed-circle reference line fed to draw_multilane (concentric lanes
+//    nest for free — the M3 insight on a circle); each present leg gets a MERGE slip (inbound lane → ring,
+//    tangential, just before its angle in flow order) and a DIVERGE slip (ring → outbound lane, just after).
+//    Circulation sense follows DRIVE. This is OpenDRIVE's junctionGroup type=roundabout, drawn directly. ──
+static void draw_roundabout(int lanes){
+    if (lanes<1) lanes=1;
+    float cx=SCREEN_W/2.0f, cy=SCREEN_H/2.0f;
+    float Rring = 22.f + lanes*2.f;                         // grows a little with lane count (island stays open)
+    int   circ  = -DRIVE;                                   // circulation sense (drive-on-right); flip if backwards
+    float xs[130], ys[130]; int n=0;
+    for (int i=0;i<=48;i++){ float a=360.f*i/48.0f; xs[n]=cx+ux(a)*Rring; ys[n++]=cy+uy(a)*Rring; }  // closed circle
+    draw_multilane(xs,ys,n, lanes, 0.f, 0.f);               // the circulating carriageway (open centre = the island)
+    for (int L=0; L<NLEG; L++){ if(!legs[L].present) continue;
+        float b=leg_bearing(L);
+        float ea=b - circ*24.f, xa=b + circ*24.f;           // entry just BEFORE the leg angle, exit just AFTER (flow order)
+        Port ein  = { cx+ux(ea)*Rring, cy+uy(ea)*Rring, ea + circ*90.f, "ring" };   // dir = ring tangent in flow
+        Port eout = { cx+ux(xa)*Rring, cy+uy(xa)*Rring, xa + circ*90.f, "ring" };
+        int m = arc_spline(ports[leg_in(L)], ein, 10.f, xs, ys);  draw_multilane(xs,ys,m, 1, 0.f, 0.f);  // MERGE slip
+        m     = arc_spline(eout, ports[leg_out(L)], 10.f, xs, ys); draw_multilane(xs,ys,m, 1, 0.f, 0.f);  // DIVERGE slip
+    }
 }
 
 // ── state ──
@@ -518,11 +546,12 @@ void draw(void){
     // lane-accurate roads, drawn from the LEGS (so a skewed leg draws tilted)
     for (int L=0; L<NLEG; L++) if (legs[L].present) draw_arm(L);
     const char* sand_problem = (selA!=selB) ? movement_problem(selA, selB) : 0;
-    make_junction(4, (JuncType)juncType, nlanes, &gen_junc);  // GENERATE the table from the type (pure fn of ports+type+lanes)
+    if (!is_ring((JuncType)juncType)) make_junction(4, (JuncType)juncType, nlanes, &gen_junc);  // ramp family: GENERATE the table
     if (view){
-        // JUNCTION view (M6 + §8.2) — the WHOLE junction GENERATED from the type, then drawn from the
-        // connection table. This is the table-driven drawer roadnet2 will call (worldgen picks the type).
-        draw_junction(&gen_junc, use_cloth, radius, spiral, taperPct/100.f, (float)lift);
+        // JUNCTION view — the WHOLE junction from the type. RAMP family (M6 + §8.2): the generated connection
+        // table. RING family (§9): a circulating carriageway the legs tap on/off (the peer construct).
+        if (is_ring((JuncType)juncType)) draw_roundabout(nlanes);
+        else draw_junction(&gen_junc, use_cloth, radius, spiral, taperPct/100.f, (float)lift);
         for (int i=0;i<nport;i++) if (legs[i/2].present) draw_port(ports[i], CLR_MEDIUM_GREY);
     } else {
         // RAMP sandbox — one ramp between the two selected ports, as a transient Connection so it runs the
@@ -539,7 +568,12 @@ void draw(void){
     // ── HUD — small 4×6 font so labels can be spelled out in full and still fit 320px ──
     font(FONT_SMALL);
     char b[64];
-    if (view){
+    if (view && is_ring((JuncType)juncType)){
+        snprintf(b,sizeof b,"Junction: %s  (g=type)", JT_NAME[juncType]);
+        print(b,4,5,CLR_WHITE);
+        print("a PEER construct: legs tap one circulating carriageway", 4,13, CLR_PINK);
+        print("(merge on + diverge off) - not a ramp per movement", 4,20, CLR_MEDIUM_GREY);
+    } else if (view){
         snprintf(b,sizeof b,"Junction: %s  -  %d movements (g=type)", gen_junc.name, gen_junc.nConns);
         print(b,4,5,CLR_WHITE);
         int yy=13;

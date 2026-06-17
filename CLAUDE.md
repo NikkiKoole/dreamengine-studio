@@ -220,6 +220,13 @@ eventually2/
 │   │                   #   run after editing studio.h / adding API / before a publish.
 │   │                   #   --quiet; exit 1 on any failure. (Found mouthharp/pixelperfect
 │   │                   #   autopan + loderunner's stale watch — all latent, all invisible.)
+│   ├── cart-analyze.js #   static COMPLEXITY + GLOBAL-STATE report across all carts:
+│   │                   #   per cart loc/funcs/file-scope-statics/arrays/update-vs-draw
+│   │                   #   logic split + a verdict (stateful / procedural / reactive /
+│   │                   #   simple), ranked by spec-worthiness. Answers "which carts have
+│   │                   #   gotten complex / carry real mutable state" — and which warrant a
+│   │                   #   spec() and which KIND. Heuristic (fuzzy on instrument carts).
+│   │                   #   --top N / --json. Design: docs/design/spec-harness.md
 │   ├── lint-docs.js    #   validate docs/ cross-references: relative .md links resolve
 │   │                   #   + doc-qualified §-refs ("audio-notes §8.9") hit a real
 │   │                   #   heading (resolving via a split-stub/parent = soft note, not

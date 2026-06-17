@@ -41,13 +41,18 @@ const dayOf = (iso) => iso.slice(0, 10)
 const inWindow = (day) => day >= from && day <= to
 
 // ---- gather commits in window (oldest first) ----
-const SEP = '\x1f'
+// record-separated (RS between commits, SEP between fields) so commit BODIES —
+// which contain newlines — survive the parse. The body feeds milestone hovers.
+const SEP = '\x1f', RS = '\x1e'
+const cleanBody = (b) => (b || '')
+  .replace(/^\s*Co-Authored-By:.*$/gim, '')        // drop the trailer
+  .replace(/\r/g, '').replace(/\n{2,}/g, '\n').trim()
 const rawCommits = git([
-  'log', '--reverse', `--format=%H${SEP}%cI${SEP}%s`,
+  'log', '--reverse', `--format=%H${SEP}%cI${SEP}%s${SEP}%b${RS}`,
   '--since', SINCE, '--until', UNTIL,
-]).split('\n').filter(Boolean).map((l) => {
-  const [hash, iso, subject] = l.split(SEP)
-  return { hash, iso, day: dayOf(iso), subject }
+]).split(RS).map((r) => r.replace(/^\n/, '')).filter(Boolean).map((rec) => {
+  const [hash, iso, subject, ...rest] = rec.split(SEP)
+  return { hash, iso, day: dayOf(iso), subject, body: cleanBody(rest.join(SEP)) }
 })
 
 // ---- ADRs added in window ----
@@ -138,6 +143,99 @@ function heroByEra() {
 }
 const heroes = heroByEra()
 
+// ---- doc-content mining --------------------------------------------------
+// The page used to read docs as names+dates only; this mines their CONTENT so
+// design notes can enrich the story automatically. Two sources:
+//  · docs/README.md — the curated map: every design/guide doc has a hand-written
+//    one-liner (often STATUS-tagged). We reuse those as friendly summaries so
+//    nothing is re-authored — keep README current and the page follows.
+//  · each doc's body — scanned for the carts that reference it (≈ "carts that
+//    grew from this note"), whitelisted against real cart names (backtick refs
+//    in docs are mostly API symbols, not carts).
+const readDoc = (rel) => { try { return fs.readFileSync(path.join(REPO, rel), 'utf8') } catch (e) { return '' } }
+
+function parseDocMap() {
+  const map = {}
+  const txt = readDoc('docs/README.md')
+  // tree lines like:  │   ├── second-north-star.md  REFLECTION (...): ...
+  const re = /^[│\s]*[├└]──\s+([A-Za-z0-9_.-]+\.md)\s{2,}(.+?)\s*$/
+  for (const line of txt.split('\n')) {
+    const m = line.match(re)
+    if (!m) continue
+    const desc = m[2].trim()
+    // leading status tag = ALL-CAPS word(s) (or a ★) before the first :/(/—
+    let status = null
+    const sm = desc.replace(/^★\s*/, '').match(/^([A-Z][A-Z0-9 ]{2,}?)(?=[:(—-]|\s|$)/)
+    if (sm && sm[1].trim().length >= 3) status = sm[1].trim()
+    map[m[1]] = { desc, status }
+  }
+  return map
+}
+const docMap = parseDocMap()
+
+// cart-name index — match doc text against REAL cart names only
+const cartNameToFile = {}
+for (const f of Object.keys(cartTitle)) cartNameToFile[f.replace(/\.cart\.png$/, '')] = f
+const cartNames = Object.keys(cartNameToFile)
+const cartNameRe = cartNames.length
+  ? new RegExp('(`?)\\b(' + cartNames.slice().sort((a, b) => b.length - a.length)
+      .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(\\.c)?\\b(`?)', 'g')
+  : null
+const hasThumb = (name) => fs.existsSync(path.join(CARTS_DIR, name + '.cart.png'))
+
+// carts a blob references — counted ONLY on a strong signal: a `.c` suffix or a
+// `backtick`-wrapped name (how docs actually cite carts). Bare prose words are
+// ignored, so common-word cart names (needs/house/patterns/effects…) don't
+// false-fire. Returns names ranked by weight, only carts that have a thumbnail.
+function cartsReferencedIn(text, selfName) {
+  if (!cartNameRe || !text) return []
+  const counts = {}
+  let m; cartNameRe.lastIndex = 0
+  while ((m = cartNameRe.exec(text))) {
+    const tick = m[1] === '`' || m[4] === '`', name = m[2], dotC = !!m[3]
+    if (name === selfName || !(dotC || tick)) continue
+    if (!hasThumb(name)) continue
+    counts[name] = (counts[name] || 0) + (dotC ? 2 : 1) + (tick ? 1 : 0)
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([n]) => n)
+}
+
+// enrich ADRs: real H1 title + a friendly first-paragraph, and flag the CUT ones
+// (the "roads not taken" — deliberate negative space the page otherwise omits)
+for (const a of adrs) {
+  const txt = readDoc('docs/' + a.rel)
+  const h1 = txt.match(/^#\s+(.+)$/m)
+  a.title = h1 ? h1[1].replace(/^\d+\s*[—-]\s*/, '').replace(/`/g, '').trim() : a.label
+  const ctx = (txt.split(/^##\s+/m)[1] || '').replace(/^[^\n]*\n/, '')   // body after "## Context"
+  a.summary = (ctx.split(/\n\s*\n/)[0] || '').replace(/\s+/g, ' ').replace(/[`*\[\]]/g, '').trim().slice(0, 240)
+  a.cut = /\bcut\b/i.test(a.name) || /^cut\b/i.test(a.title)
+  a.voiced = (spine.decisionNotes || {})[a.name.replace(/\.md$/, '')] || ''
+}
+
+// enrich docs-born: README one-liner + the carts that grew from each
+for (const d of docsBorn) {
+  const meta = docMap[d.name + '.md'] || {}
+  d.desc = meta.desc || ''
+  d.status = meta.status || ''
+  d.relatedCarts = cartsReferencedIn((d.desc || '') + '\n' + readDoc('docs/' + d.rel), d.name).slice(0, 8)
+}
+
+// tools built in window — the toolsmith trail (make-cart → the linters → the web
+// build → the audio-analysis suite). Description = the file's first header comment
+// after any shebang. Excludes *.cart.js configs and tools/carts/. All from git, so
+// the row self-refreshes as tools land.
+const toolDesc = (rel) => {
+  for (const line of readDoc(rel).split('\n').slice(0, 8)) {
+    const m = line.match(/^\s*(?:\/\/|#)\s?(.+)$/)
+    if (!m || m[1].startsWith('!')) continue          // skip the shebang (#!)
+    return m[1].replace(/^[a-z0-9_.-]+\.(?:js|sh)\s*[—-]\s*/i, '').replace(/`/g, '').trim().slice(0, 130)
+  }
+  return ''
+}
+const toolsBorn = addedInWindow('tools/*.js').concat(addedInWindow('tools/*.sh'))
+  .filter((t) => /^tools\/[^/]+\.(js|sh)$/.test(t.file) && !/\.cart\.js$/.test(t.file))
+  .map((t) => ({ day: t.day, name: path.basename(t.file), desc: toolDesc(t.file) }))
+
 // ---- subsystem tagging ----
 const subMatch = spine.subsystems.map((s) => ({
   id: s.id,
@@ -159,8 +257,10 @@ for (const c of rawCommits) { const e = eraOf(c.day); c.era = e ? e.id : null }
 const milestones = spine.milestones.map((m) => {
   const needle = m.match.toLowerCase()
   const hit = rawCommits.find((c) => c.subject.toLowerCase().includes(needle))
-  return { ...m, day: hit ? hit.day : null, hash: hit ? hit.hash : null,
-           matched: !!hit }
+  // the real commit behind the card — its exact words + body + short hash feed
+  // the hover ("a tiny bit more of each"); all from git, so it self-refreshes.
+  return { ...m, day: hit ? hit.day : null, hash: hit ? hit.hash.slice(0, 9) : null,
+           matched: !!hit, subject: hit ? hit.subject : '', body: hit ? hit.body.slice(0, 400) : '' }
 })
 const missing = milestones.filter((m) => !m.matched)
 if (missing.length) {
@@ -181,15 +281,40 @@ const eras = spine.eras.map((e) => {
       commits: rawCommits.filter((c) => c.day === day),
     })
   }
+  const eraDocs = docsBorn.filter((d) => eraOf(d.day) && eraOf(d.day).id === e.id)
+
+  // spotlight: a design note to feature beside the hero cart — spine override
+  // (e.spotlightDoc), else the era's doc that grew the most carts. Inline up to
+  // 4 related cart thumbs (data URIs, like the hero) so the page stays self-contained.
+  let pick = null
+  if (e.spotlightDoc) pick = eraDocs.find((d) => d.name === e.spotlightDoc.replace(/\.md$/, ''))
+  if (!pick) {
+    pick = eraDocs.filter((d) => d.relatedCarts.length)
+      .sort((a, b) => b.relatedCarts.length - a.relatedCarts.length || b.desc.length - a.desc.length)[0] || null
+  }
+  let spotlight = null
+  if (pick) {
+    const carts = pick.relatedCarts.slice(0, 4).map((name) => {
+      const file = name + '.cart.png'
+      if (!hasThumb(name)) return null
+      return { name, file, title: cartTitle[file] || name,
+        dataUri: 'data:image/png;base64,' + fs.readFileSync(path.join(CARTS_DIR, file)).toString('base64') }
+    }).filter(Boolean)
+    spotlight = { rel: pick.rel, name: pick.name, status: pick.status, desc: pick.desc,
+      carts, relatedCount: pick.relatedCarts.length }
+  }
+
   return {
     ...e,
     days,
     commitCount: rawCommits.filter((c) => c.era === e.id).length,
     milestones: milestones.filter((m) => m.era === e.id),
     adrs: adrs.filter((a) => inWindow(a.day) && eraOf(a.day) && eraOf(a.day).id === e.id),
-    docs: docsBorn.filter((d) => eraOf(d.day) && eraOf(d.day).id === e.id),
+    docs: eraDocs,
     cartsBorn: cartsBorn.filter((c) => eraOf(c.day) && eraOf(c.day).id === e.id),
+    toolsBorn: toolsBorn.filter((t) => eraOf(t.day) && eraOf(t.day).id === e.id),
     hero: heroes[e.id] || null,
+    spotlight,
   }
 })
 
@@ -197,6 +322,38 @@ const eras = spine.eras.map((e) => {
 // the hover card on the "carts born" lists
 const cartMeta = {}
 for (const c of cartsBorn) if (!cartMeta[c.file]) cartMeta[c.file] = { title: c.title, desc: cartDesc[c.file] || '' }
+
+// ---- research threads: topics that spawned a trail of docs/handoffs/carts ----
+// declared by topic in the spine (like subsystems); members are auto-collected
+// by filename match, the carts unioned from the per-doc strong-signal scan.
+const inlineThumb = (name) => {
+  const file = name + '.cart.png'
+  if (!hasThumb(name)) return null
+  return { name, file, title: cartTitle[file] || name,
+    dataUri: 'data:image/png;base64,' + fs.readFileSync(path.join(CARTS_DIR, file)).toString('base64') }
+}
+const threads = ((spine.threads && spine.threads.items) || []).map((t) => {
+  const terms = (t.match || []).map((s) => s.toLowerCase())
+  const matches = (name) => terms.some((term) => name.toLowerCase().includes(term))
+  const memDocs = docsBorn.filter((d) => matches(d.name))
+  const memAdrs = adrs.filter((a) => matches(a.name))
+  const notes = memDocs.filter((d) => !/handoff/i.test(d.name))
+  const handoffs = memDocs.filter((d) => /handoff/i.test(d.name))
+  // carts: union of each member doc's related carts, ranked by how many docs cite each
+  const cc = {}
+  memDocs.forEach((d) => (d.relatedCarts || []).forEach((n) => { cc[n] = (cc[n] || 0) + 1 }))
+  const ranked = Object.entries(cc).sort((a, b) => b[1] - a[1]).map(([n]) => n)
+  const carts = ranked.slice(0, 6).map(inlineThumb).filter(Boolean)
+  const days = [...memDocs.map((d) => d.day), ...memAdrs.map((a) => a.day)].filter(Boolean).sort()
+  const lite = (d) => ({ name: d.name, rel: d.rel, desc: d.desc || '' })
+  return {
+    id: t.id, title: t.title, blurb: t.blurb || '', seed: t.seed || null,
+    notes: notes.map(lite), handoffs: handoffs.map(lite),
+    decisions: memAdrs.map((a) => ({ name: a.name, rel: a.rel, title: a.title, cut: a.cut })),
+    carts, from: days[0] || null, to: days[days.length - 1] || null,
+    docCount: memDocs.length + memAdrs.length, cartCount: ranked.length,
+  }
+}).filter((t) => t.docCount)
 
 // group eras into weeks (by date) + per-week growth stats — the TOC reads off this
 const weeks = (spine.weeks || []).map((w) => ({
@@ -214,6 +371,8 @@ const data = {
   subsystems: spine.subsystems,
   cartMeta,
   weeks,
+  threads,
+  observations: spine.observations || null,
 }
 
 // ---- render HTML (CSS/JS consts are defined below; write at end of module) ----
@@ -375,7 +534,18 @@ figure.hero .hc{font-family:var(--mono);color:var(--dim);font-size:10.5px}
 .ms .sx{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;opacity:.7}
 .ms.foundational .sx{opacity:.85}
 .ms .nomatch{color:var(--orange);font-size:11px;font-weight:700}
+.ms[data-subject]{cursor:help}
 @media(max-width:560px){.ms.foundational{grid-column:span 1}}
+
+/* milestone hover popup — the real commit behind the card */
+.ms-pop{position:fixed;left:0;top:0;z-index:55;pointer-events:none;display:none;max-width:340px;
+  background:var(--panel);border:3px solid var(--edge);box-shadow:var(--sh);padding:10px 12px;transform:rotate(-1deg)}
+.ms-pop.show{display:block}
+.ms-pop .msp-s{font-weight:700;font-size:12.5px;line-height:1.35;color:var(--ink)}
+.ms-pop .msp-b{margin-top:7px;font-family:var(--mono);font-size:10.5px;line-height:1.45;color:var(--dim);
+  white-space:pre-wrap;max-height:160px;overflow:hidden}
+.ms-pop .msp-h{margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--on);background:var(--orange);
+  border:2px solid var(--edge);display:inline-block;padding:0 6px}
 
 .row{margin:18px 0}
 .row > .h{font-family:var(--disp);font-size:13px;text-transform:uppercase;letter-spacing:0;
@@ -438,6 +608,82 @@ ul.carts li .f{color:var(--dim);font-family:var(--mono);font-size:11px}
 .totop.show{display:block}
 .totop:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--edge)}
 .totop:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--edge)}
+/* design-note spotlight — a foldout sibling to the hero: yellow accent edge,
+   a STATUS badge, and the carts that grew from the note as little thumbnails. */
+details.docspot{border-left-width:10px;border-left-color:var(--yellow);max-width:840px}
+details.docspot > summary{gap:9px;flex-wrap:wrap}
+.docspot .dsb{background:var(--yellow);color:var(--on);border:2px solid var(--edge);
+  font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px}
+.docspot .dst{font-family:var(--disp);font-weight:400;text-transform:uppercase;letter-spacing:-.2px;font-size:15px}
+.ds-desc{color:var(--ink);font-size:13px;line-height:1.5;margin:4px 0 12px}
+.ds-carts{display:flex;flex-wrap:wrap;gap:12px;margin:8px 0 14px}
+figure.ds-cart{margin:0;width:120px;background:var(--bg);border:3px solid var(--edge);box-shadow:var(--sh-sm);
+  padding:6px;cursor:pointer;transition:transform .1s,box-shadow .1s}
+figure.ds-cart:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--pink)}
+figure.ds-cart img{display:block;width:100%;height:74px;object-fit:cover;image-rendering:pixelated;border:2px solid var(--edge);background:#000}
+figure.ds-cart figcaption{margin-top:6px;font-size:10.5px;font-weight:700;line-height:1.2;text-align:center}
+a.ds-open{display:inline-block;font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--on);
+  background:var(--pink);border:2px solid var(--edge);box-shadow:2px 2px 0 var(--edge);padding:3px 10px;
+  transition:transform .08s,box-shadow .08s}
+a.ds-open:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--edge)}
+
+/* roads not taken — the cut decisions, dashed + struck */
+.row.roads > .h{color:var(--orange)}
+.tag.cut{border-style:dashed;border-color:var(--orange)}
+.tag.cut .x{color:var(--orange);font-weight:700;margin-right:5px}
+.tag.grew{border-color:var(--yellow)}
+
+/* tools built — the toolsmith trail (green accent; hover a chip for its purpose) */
+.row.tools > .h{color:#9ee37d}
+.tag.tool{border-color:#9ee37d;font-family:var(--mono);font-size:11px;cursor:help}
+.tag.tool:hover{box-shadow:3px 3px 0 #9ee37d}
+
+/* open threads — handoff docs, work parked mid-thread (blue accent) */
+.row.threads > .h{color:#7ee0ff}
+.tag.handoff{border-color:#7ee0ff;border-style:dashed}
+.tag.handoff:hover{box-shadow:3px 3px 0 #7ee0ff}
+
+/* roads not taken — the cut decisions as cards, with a voiced line */
+.roadcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.roadcard{background:var(--panel);border:3px solid var(--edge);border-top:9px solid var(--orange);
+  box-shadow:var(--sh-sm);padding:12px 14px;cursor:pointer;transition:transform .1s,box-shadow .1s}
+.roadcard:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--edge)}
+.roadcard .rc-t{font-weight:700;font-size:13.5px;line-height:1.2;color:var(--orange)}
+.roadcard .rc-v{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.roadcard .rc-v.dim{color:var(--dim);font-family:var(--mono);font-size:11px}
+.roadcard .rc-d{margin-top:9px;font-family:var(--mono);font-size:10.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+/* research threads — a band of long investigations (blue capstone) */
+section.threadsband{margin:64px 0 0;padding-top:36px;border-top:6px solid var(--edge);scroll-margin-top:16px}
+section.threadsband .rs-head h2{background:#7ee0ff}
+details.thread{border-left-width:10px;border-left-color:#7ee0ff;max-width:920px;scroll-margin-top:16px}
+details.thread > summary .dst{font-family:var(--disp);font-weight:400;text-transform:uppercase;letter-spacing:-.2px;font-size:17px}
+.thread-blurb{color:var(--ink);font-size:14px;line-height:1.6;max-width:760px;margin:6px 0 10px}
+.thread-span{font-family:var(--mono);font-size:11px;color:var(--dim);margin:0 0 14px;
+  border-bottom:2px dashed var(--panel2);padding-bottom:12px}
+
+/* retrospect — the cross-week capstone. Pink-band heading like an era, but a
+   numbered card grid for the observations + a foldout for the refresh recipe. */
+section.retrospect{margin:64px 0 0;padding-top:36px;border-top:6px solid var(--edge);scroll-margin-top:16px}
+.rs-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.rs-head h2{font-family:var(--disp);margin:0;font-size:30px;text-transform:uppercase;letter-spacing:-.5px;
+  background:var(--pink);color:var(--on);border:3px solid var(--edge);box-shadow:var(--sh);padding:6px 14px;line-height:1.05}
+.rs-head .dates{font-family:var(--mono);color:var(--ink);font-size:13px;font-weight:700}
+.rs-lede{color:var(--ink);margin:16px 0 4px;max-width:780px;font-size:14.5px;font-weight:500}
+.rs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin:22px 0}
+.rs{position:relative;background:var(--panel);border:3px solid var(--edge);box-shadow:var(--sh);
+  padding:16px 16px 14px;transform:rotate(var(--rot,0deg));transition:transform .1s,box-shadow .1s}
+.rs:hover{transform:rotate(0deg) translate(-2px,-2px);box-shadow:8px 8px 0 var(--edge)}
+.rs-n{position:absolute;top:-14px;right:-10px;font-family:var(--disp);font-size:26px;color:var(--on);
+  background:var(--yellow);border:3px solid var(--edge);box-shadow:2px 2px 0 var(--edge);padding:1px 9px;line-height:1.1}
+.rs h3{font-family:var(--disp);font-weight:400;text-transform:uppercase;letter-spacing:-.3px;
+  font-size:16px;margin:0 40px 8px 0;line-height:1.12}
+.rs-body{color:var(--ink);font-size:13px;line-height:1.5;margin:0}
+.rs-ev{margin-top:11px;padding-top:9px;border-top:2px dashed var(--panel2);font-family:var(--mono);
+  font-size:11px;color:var(--dim);line-height:1.45}
+.rs-ev b{color:var(--orange);text-transform:uppercase;letter-spacing:.4px;margin-right:5px}
+details.rs-recipe{margin-top:8px}
+details.rs-recipe .rs-body{font-style:italic;max-width:820px}
 footer{color:var(--dim);font-size:12px;margin-top:60px;border-top:3px solid var(--edge);padding-top:18px}
 footer a{color:var(--pink);font-weight:700}
 `
@@ -517,6 +763,29 @@ function render(){
     tw.appendChild(eras)
     toc.appendChild(tw)
   })
+  if (DATA.threads && DATA.threads.length){
+    const tw = $('div','toc-week')
+    const head = $('a','tw-head'); head.href = '#threads'
+    const lab = $('span','tw-label', '⛓'); lab.style.background = '#7ee0ff'
+    head.appendChild(lab)
+    head.appendChild($('span','tw-tag', 'Research threads'))
+    tw.appendChild(head)
+    tw.appendChild($('div','tw-stats', '<b>'+DATA.threads.length+'</b> long investigations · docs, handoffs & the carts they grew'))
+    const links = $('div','tw-eras')
+    DATA.threads.forEach(t => { const a = $('a', null, esc(t.title)+' <span class="ec">'+t.cartCount+'</span>'); a.href = '#thread-'+t.id; links.appendChild(a) })
+    tw.appendChild(links)
+    toc.appendChild(tw)
+  }
+  if (DATA.observations && (DATA.observations.items || []).length){
+    const tw = $('div','toc-week')
+    const head = $('a','tw-head'); head.href = '#retrospect'
+    const lab = $('span','tw-label', '★'); lab.style.background = 'var(--pink)'
+    head.appendChild(lab)
+    head.appendChild($('span','tw-tag', esc(DATA.observations.title || 'Retrospect')))
+    tw.appendChild(head)
+    tw.appendChild($('div','tw-stats', '<b>'+DATA.observations.items.length+'</b> cross-week observations · read off the finished arc'))
+    toc.appendChild(tw)
+  }
   root.appendChild(toc)
 
   // body — a week band, then that week's eras (era colours cycle continuously)
@@ -525,6 +794,12 @@ function render(){
     root.appendChild(renderWeekBand(w, maxC, wi))
     w.eras.forEach(e => root.appendChild(renderEra(e, ei++)))
   })
+
+  // research threads — topics that spawned a trail of docs/handoffs/carts
+  if (DATA.threads && DATA.threads.length) root.appendChild(renderThreads(DATA.threads))
+
+  // the retrospect capstone — cross-week observations, read off the finished arc
+  if (DATA.observations && (DATA.observations.items || []).length) root.appendChild(renderObservations(DATA.observations))
 
   const f = $('footer', null,
     'Generated by <code>tools/build-history.js</code> from <code>docs/history-spine.json</code> + git. '+
@@ -543,7 +818,7 @@ function render(){
   // give the panels a small, STABLE, hand-placed tilt (deterministic per index,
   // so the look doesn't churn between regenerations / reloads)
   let ti = 0
-  document.querySelectorAll('.ms, details, .editorial, header.top .meta').forEach(el => {
+  document.querySelectorAll('.ms, details, .editorial, .rs, header.top .meta').forEach(el => {
     const r = Math.sin((ti + 1) * 99.13) * 1e4, f = r - Math.floor(r)  // 0..1
     el.style.setProperty('--rot', ((f - 0.5) * 2.2).toFixed(2) + 'deg') // ~±1.1°
     ti++
@@ -582,6 +857,33 @@ function render(){
     if (x + w > innerWidth)  x = ev.clientX - w - pad
     if (y + h > innerHeight) y = ev.clientY - h - pad
     prev.style.left = x + 'px'; prev.style.top = Math.max(8, y) + 'px'
+  })
+
+  // hover a milestone card → a popup with the REAL commit behind it: its exact
+  // words, body, and short hash ("a tiny bit more of each"). All from git.
+  const pop = $('div','ms-pop')
+  pop.innerHTML = '<div class="msp-s"></div><div class="msp-b"></div><div class="msp-h"></div>'
+  document.body.appendChild(pop)
+  const pS = pop.querySelector('.msp-s'), pB = pop.querySelector('.msp-b'), pH = pop.querySelector('.msp-h')
+  document.addEventListener('mouseover', ev => {
+    const c = ev.target.closest('.ms[data-subject]'); if (!c) return
+    pS.textContent = c.dataset.subject
+    pB.textContent = c.dataset.body || ''; pB.style.display = c.dataset.body ? '' : 'none'
+    pH.textContent = c.dataset.hash ? 'commit ' + c.dataset.hash : ''
+    pop.classList.add('show')
+  })
+  document.addEventListener('mouseout', ev => {
+    const c = ev.target.closest('.ms[data-subject]'); if (!c) return
+    const to = ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('.ms[data-subject]')
+    if (to !== c) pop.classList.remove('show')
+  })
+  document.addEventListener('mousemove', ev => {
+    if (!pop.classList.contains('show')) return
+    const pad = 18, w = pop.offsetWidth || 300, h = pop.offsetHeight || 120
+    let x = ev.clientX + pad, y = ev.clientY + pad
+    if (x + w > innerWidth)  x = ev.clientX - w - pad
+    if (y + h > innerHeight) y = ev.clientY - h - pad
+    pop.style.left = x + 'px'; pop.style.top = Math.max(8, y) + 'px'
   })
 
   // a tiny fixed "back to top" button, shown once you've scrolled down a bit
@@ -661,6 +963,9 @@ function renderEra(e, i){
   }
   s.appendChild(intro)
 
+  // design-note spotlight — the era's most cart-spawning design doc, foldout
+  if (e.spotlight) s.appendChild(renderSpotlight(e.spotlight))
+
   // milestones
   if (e.milestones.length){
     const grid = $('div','mstones')
@@ -670,32 +975,73 @@ function renderEra(e, i){
       c.appendChild($('div','t', esc(m.title)))
       c.appendChild($('div','sx', m.subsystem ? esc(subTitle[m.subsystem]||m.subsystem) : ''))
       if (!m.matched) c.appendChild($('div','nomatch','⚠ no matching commit found'))
+      // hover → the real commit behind the card (exact words + body + hash)
+      if (m.subject){ c.dataset.subject = m.subject; c.dataset.body = m.body || ''; c.dataset.hash = m.hash || '' }
       grid.appendChild(c)
     })
     s.appendChild(grid)
   }
 
-  // ADRs
-  if (e.adrs.length){
+  // ADRs — kept decisions, then the CUT ones as a distinct "roads not taken" row
+  const kept = e.adrs.filter(a => !a.cut), cut = e.adrs.filter(a => a.cut)
+  if (kept.length){
     const r = $('div','row'); r.appendChild($('div','h','Decisions landed'))
     const tags = $('div','tags')
-    e.adrs.forEach(a => {
+    kept.forEach(a => {
       const t = $('span','tag', esc(a.label))
       t.setAttribute('data-doc', a.rel)
+      if (a.summary) t.title = a.summary
       tags.appendChild(t)
     })
     r.appendChild(tags); s.appendChild(r)
   }
-
-  // design docs written
-  if (e.docs.length){
-    const r = $('div','row'); r.appendChild($('div','h','Design notes written ('+e.docs.length+')'))
-    const tags = $('div','tags')
-    e.docs.sort((a,b)=>a.name.localeCompare(b.name)).forEach(dd => {
-      const t = $('span','tag', esc(dd.name))
-      t.setAttribute('data-doc', dd.rel)
-      tags.appendChild(t)
+  if (cut.length){
+    const r = $('div','row roads'); r.appendChild($('div','h','✗ Roads not taken'))
+    const grid = $('div','roadcards')
+    cut.forEach(a => {
+      const c = $('article','roadcard'); c.setAttribute('data-doc', a.rel); c.title = 'open ' + a.label
+      c.appendChild($('div','rc-t', '✗ '+esc(a.title || a.label)))
+      if (a.voiced) c.appendChild($('p','rc-v', esc(a.voiced)))
+      else if (a.summary) c.appendChild($('p','rc-v dim', esc(a.summary)))
+      if (a.day) c.appendChild($('div','rc-d', a.day))
+      grid.appendChild(c)
     })
+    r.appendChild(grid); s.appendChild(r)
+  }
+
+  // design docs written — split handoffs out as their own "open threads" row
+  // (handoffs = work parked mid-thread; the concrete form of a long thread)
+  const handoffs = e.docs.filter(d => /handoff/i.test(d.name))
+  const notes = e.docs.filter(d => !/handoff/i.test(d.name))
+  const docTag = (dd, cls) => {
+    const t = $('span', cls, esc(dd.name))
+    t.setAttribute('data-doc', dd.rel)
+    if (dd.desc) t.title = dd.desc
+    return t
+  }
+  if (notes.length){
+    const r = $('div','row'); r.appendChild($('div','h','Design notes written ('+notes.length+')'))
+    const tags = $('div','tags')
+    notes.sort((a,b)=>a.name.localeCompare(b.name)).forEach(dd =>
+      tags.appendChild(docTag(dd, 'tag'+(dd.relatedCarts && dd.relatedCarts.length ? ' grew' : ''))))
+    r.appendChild(tags); s.appendChild(r)
+  }
+  // tools built — the toolsmith trail (hover a chip for what it does)
+  if (e.toolsBorn && e.toolsBorn.length){
+    const r = $('div','row tools'); r.appendChild($('div','h','🔧 Tools built ('+e.toolsBorn.length+')'))
+    const tags = $('div','tags')
+    e.toolsBorn.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(t => {
+      const tag = $('span','tag tool', esc(t.name))
+      if (t.desc) tag.title = t.desc
+      tags.appendChild(tag)
+    })
+    r.appendChild(tags); s.appendChild(r)
+  }
+  if (handoffs.length){
+    const r = $('div','row threads'); r.appendChild($('div','h','⛏ Open threads — handoffs ('+handoffs.length+')'))
+    const tags = $('div','tags')
+    handoffs.sort((a,b)=>a.name.localeCompare(b.name)).forEach(dd =>
+      tags.appendChild(docTag(dd, 'tag handoff')))
     r.appendChild(tags); s.appendChild(r)
   }
 
@@ -743,6 +1089,128 @@ function renderEra(e, i){
   })
   det.appendChild(body); s.appendChild(det)
 
+  return s
+}
+
+const prettyName = s => String(s).replace(/-/g, ' ')
+
+// the design-note spotlight — a foldout sibling to the hero cart: the era's
+// most cart-spawning design doc, its friendly one-liner + the carts that grew
+// from it (click a thumb to load the cart, or open the full note).
+function renderSpotlight(sp){
+  const det = $('details','docspot')
+  const badge = '<span class="dsb">'+esc(sp.status || 'design note')+'</span>'
+  const grew = sp.relatedCount ? '<span class="grow">'+sp.relatedCount+' cart'+(sp.relatedCount===1?'':'s')+' grew from this</span>' : ''
+  det.appendChild($('summary', null,
+    '<span class="caret">▸</span>'+badge+'<b class="dst">'+esc(prettyName(sp.name))+'</b>'+grew))
+  const body = $('div','detail-body')
+  if (sp.desc) body.appendChild($('p','ds-desc', esc(sp.desc)))
+  if (sp.carts && sp.carts.length){
+    const row = $('div','ds-carts')
+    sp.carts.forEach(c => {
+      const fig = $('figure','ds-cart')
+      fig.dataset.cart = c.file; fig.dataset.title = c.title; fig.title = 'open ' + c.title
+      fig.innerHTML = '<img src="'+c.dataUri+'" alt="'+esc(c.title)+'"><figcaption>'+esc(c.title)+'</figcaption>'
+      row.appendChild(fig)
+    })
+    body.appendChild(row)
+  }
+  const a = $('a','ds-open','open the full note →'); a.href = '#'; a.setAttribute('data-doc', sp.rel)
+  body.appendChild(a)
+  det.appendChild(body)
+  return det
+}
+
+// research threads — a band of long investigations. Each is a foldout: voiced
+// blurb, the cross-referenced docs (notes / handoffs / decisions) as chips, and
+// the carts that grew from the thread as thumbnails.
+function renderThreads(threads){
+  const sec = $('section','threadsband'); sec.id = 'threads'
+  sec.appendChild($('div','rs-head', '<h2>Research threads</h2>'))
+  sec.appendChild($('div','rs-lede',
+    'Topics that spawned a trail of docs, handoffs and carts — the long investigations. '+
+    'Each links back to its notes; the carts are what grew from the thinking.'))
+  threads.forEach(t => sec.appendChild(renderThread(t)))
+  return sec
+}
+
+function renderThread(t){
+  const det = $('details','thread'); det.id = 'thread-'+t.id
+  const span = t.from ? (t.from + (t.to && t.to !== t.from ? ' → '+t.to : '')) : ''
+  det.appendChild($('summary', null,
+    '<span class="caret">▸</span><b class="dst">'+esc(t.title)+'</b>'+
+    '<span class="grow">'+t.docCount+' docs · '+t.cartCount+' carts</span>'))
+  const body = $('div','detail-body')
+  if (t.blurb) body.appendChild($('p','thread-blurb', esc(t.blurb)))
+  if (span) body.appendChild($('div','thread-span', span + (t.seed ? ' · seeded by '+esc(t.seed) : '')))
+
+  const chips = (label, arr, cls) => {
+    if (!arr.length) return
+    const r = $('div','row'+(cls ? ' '+cls : '')); r.appendChild($('div','h', label+' ('+arr.length+')'))
+    const tags = $('div','tags')
+    arr.forEach(d => {
+      const tag = $('span','tag'+(cls === 'threads' ? ' handoff' : ''), esc(d.name || d.title))
+      tag.setAttribute('data-doc', d.rel)
+      if (d.desc) tag.title = d.desc
+      tags.appendChild(tag)
+    })
+    r.appendChild(tags); body.appendChild(r)
+  }
+  chips('Notes', t.notes)
+  chips('Handoffs', t.handoffs, 'threads')
+  if (t.decisions.length){
+    const r = $('div','row'); r.appendChild($('div','h','Decisions'))
+    const tags = $('div','tags')
+    t.decisions.forEach(d => {
+      const tag = $('span','tag'+(d.cut ? ' cut' : ''), (d.cut ? '<span class="x">✗</span>' : '')+esc(d.title))
+      tag.setAttribute('data-doc', d.rel)
+      tags.appendChild(tag)
+    })
+    r.appendChild(tags); body.appendChild(r)
+  }
+  if (t.carts.length){
+    const r = $('div','row'); r.appendChild($('div','h','Carts that grew from it'))
+    const row = $('div','ds-carts')
+    t.carts.forEach(c => {
+      const fig = $('figure','ds-cart')
+      fig.dataset.cart = c.file; fig.dataset.title = c.title; fig.title = 'open ' + c.title
+      fig.innerHTML = '<img src="'+c.dataUri+'" alt="'+esc(c.title)+'"><figcaption>'+esc(c.title)+'</figcaption>'
+      row.appendChild(fig)
+    })
+    r.appendChild(row); body.appendChild(r)
+  }
+  det.appendChild(body)
+  return det
+}
+
+function renderObservations(o){
+  const s = $('section','retrospect'); s.id = 'retrospect'
+  const h = $('div','rs-head')
+  h.appendChild($('h2', null, esc(o.title || 'Retrospect')))
+  if (o.asOf) h.appendChild($('span','dates', 'as of ' + o.asOf))
+  s.appendChild(h)
+  s.appendChild($('div','rs-lede',
+    'Conclusions that only surface from reading the whole window back at once — not legible commit-by-commit. '+
+    'Each is grounded in a number the page can re-derive.'))
+
+  const grid = $('div','rs-grid')
+  o.items.forEach((it, i) => {
+    const c = $('article','rs')
+    c.appendChild($('div','rs-n', String(i + 1).padStart(2, '0')))
+    c.appendChild($('h3', null, esc(it.title)))
+    if (it.body) c.appendChild($('p','rs-body', esc(it.body)))
+    if (it.evidence) c.appendChild($('div','rs-ev', '<b>evidence</b> ' + esc(it.evidence)))
+    grid.appendChild(c)
+  })
+  s.appendChild(grid)
+
+  if (o.recipe){
+    const det = $('details','rs-recipe')
+    det.appendChild($('summary', null, '<span class="caret">▸</span> How these were got — the recipe, to run again in due time'))
+    const body = $('div','detail-body')
+    body.appendChild($('p','rs-body', esc(o.recipe)))
+    det.appendChild(body); s.appendChild(det)
+  }
   return s
 }
 

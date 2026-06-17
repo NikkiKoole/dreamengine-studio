@@ -170,10 +170,11 @@ angle-agnostic** — only the *stage* (`setup()` port placement + `draw()` road 
 1. **`Leg` layer + skew — DONE (2026-06-17).** `Leg{bearing,present}` + `rebuild_ports()` + `draw_arm()`; a
    `skew` stepper angles the trunk and the ramps + generated junction re-solve with no spline changes (the
    ramp layer was already angle-agnostic). `make_junction` skips absent legs — ready for topology.
-2. **Topology** (NEXT) on the same machinery → **trumpet / fork / triangle** (the 3-leg family): flip leg
-   `present` + draw the matching layout. Trumpet needs an *asymmetric* hard-turn assignment (one loop + one
-   flyover — the parked variant), not the uniform policy.
-3. **Ring / roundabout family LAST** — the parked `ring`/`circulate` peer primitive.
+2. **Topology — DONE (2026-06-17).** `JuncType` → 6 (4-leg + 3-leg); `topo_present()` drops the north arm for
+   the 3-leg family → a T. **Trumpet / fork / triangle** generate; the trumpet gets its asymmetric one-loop +
+   one-flyover assignment. `g` cycles all 6. The whole **ramp family now generates** — only ring remains.
+3. **Ring / roundabout family — NEXT (and last)** — the parked `ring`/`circulate` peer primitive (a
+   circulating carriageway, → OpenDRIVE `junctionGroup type=roundabout`), not the ramp grammar.
 Then port into a world that **emits `(legs, type)` per crossing from the seed** (new junction-first world vs
 retrofit roadnet2 — fork + take in §7). Smaller open items: `laneLink` teeth (`from≠to` → the M4 gore),
 per-segment z-sort for real ramp-over-ramp in a stack. **Full OpenDRIVE roadmap — taken (M1–M6) vs left:**

@@ -302,13 +302,13 @@ junction recipe is then **`(topology × policy)`**, exactly how the catalogue is
 | 2 / cross | cloverleaf | 4 loops | ✅ generates |
 | 2 / cross | four-level stack | 4 flyovers | ✅ generates |
 | 2 / cross | partial cloverleaf | mix loop + direct | ⚠️ needs per-movement policy |
-| 3 / T | **trumpet** | one loop + one semi-direct + 2 direct | ❌ needs **topology** |
-| 3 / T,Y | fork | pure diverge | ❌ needs topology |
-| 3 / T,Y | triangle | 3 flyovers | ❌ needs topology |
+| 3 / T | **trumpet** | one loop + one semi-direct + 2 direct | ✅ generates |
+| 3 / T,Y | fork | pure diverge | ✅ generates (all-direct T) |
+| 3 / T,Y | triangle | 3 flyovers | ✅ generates |
 | 2 / ring | dumbbell · roundabout · 3-level stacked roundabout · whirlpool | a circulating carriageway | ❌ the parked **ring** family |
 
-So the 4-leg ramp family is done (it's just the policy axis); the entire **3-leg family is locked behind one
-missing thing: topology.**
+So the **entire ramp family — 4-leg and 3-leg — now generates.** Only the **ring/roundabout family** remains
+(the parked peer construct).
 
 ### The skew finding — the ramp layer is ALREADY angle-agnostic (verified 2026-06-17)
 Nothing in the spline drawers assumes 90°: `arc_spline` rounds with the *actual* deflection `fa=|b.dir−a.dir|`
@@ -334,13 +334,15 @@ a detour.
    2,3); the ramps **and** the generated junction re-solve with **zero changes to the spline code** —
    confirming the ramp layer was already angle-agnostic. (`leg_in/leg_out` = `L*2`/`L*2+1`; `make_junction`
    now skips absent legs, ready for topology.)
-2. **Topology** on the same machinery → **trumpet / fork / triangle** (the 3-leg column). Trumpet additionally
-   needs an **asymmetric** hard-turn assignment — *one loop + one semi-direct flyover*, not the uniform
-   per-class policy (the **loop+loop vs loop+flyover trumpet variant** parked in the handoff). Fork/triangle
-   are uniform (pure diverge / all flyover).
-3. **Ring / roundabout family LAST** — a deliberate *peer* construct (a circulating carriageway the legs tap
-   on/off), not the `diverge → [...] → merge` grammar; needs the parked `ring`/`circulate` primitive (→
-   OpenDRIVE `junctionGroup type=roundabout`), shares nothing with the Leg refactor. See
+2. **Topology — DONE (2026-06-17).** `JuncType` extended to 6 (4-leg `diamond/cloverleaf/stack` + 3-leg
+   `trumpet/fork/triangle`); `topo_present(type, L)` drops the north trunk arm (leg 2) for the 3-leg family,
+   so the same `make_junction` enumeration produces a **T**. The **trumpet** gets its asymmetric assignment
+   (first hard left → `RP_LOOP`, second → `RP_FLYOVER` — the loop+flyover variant); fork = all-direct,
+   triangle = all-flyover (uniform policy). `g` cycles all 6; the sandbox stays a full-cross bench. Verified
+   by bake (trumpet drops the north arm; 6 movements: 2 through + 2 direct + 1 loop + 1 flyover).
+3. **Ring / roundabout family — NEXT and last** — a deliberate *peer* construct (a circulating carriageway the
+   legs tap on/off), not the `diverge → [...] → merge` grammar; needs the parked `ring`/`circulate` primitive
+   (→ OpenDRIVE `junctionGroup type=roundabout`), shares nothing with the Leg refactor. See
    [`interchange-dsl.md`](interchange-dsl.md) "the ring family."
 
 Sources: ASAM OpenDRIVE Specification v1.8.1 §12 (Junctions), §11 (Lanes) —

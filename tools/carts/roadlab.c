@@ -39,8 +39,11 @@
 //   LEG LAYER (skew): a junction is a list of LEGS, each a road arm at a `bearing`; rebuild_ports() lays the
 //                ports out from the legs, so NOTHING is hardcoded to 90° — the ramp drawers were already
 //                angle-agnostic, only the stage was perpendicular. The `skew` control angles the crossing
-//                road (the trunk) and the ramps + generated junction re-solve. Varying leg `present` is the
-//                next axis (topology → trumpet/fork/triangle). See docs/design/junction-lanelink.md §9.
+//                road (the trunk) and the ramps + generated junction re-solve.
+//   TOPOLOGY: a junction recipe = topology × policy. Per-leg `present` gives the 3-leg family on a T (drop
+//                the north arm): TRUMPET (1 loop + 1 flyover — asymmetric), FORK (all direct), TRIANGLE (3
+//                flyovers). `g` now cycles all 6 (diamond/cloverleaf/stack + trumpet/fork/triangle). The
+//                ring/roundabout family is the remaining peer construct. See docs/design/junction-lanelink.md §9.
 //   Controls: an on-screen ui.h toolbar — every control a clickable button. Keyboard: ←/→ A · ↑/↓ B ·
 //             [ ] radius · ,/. Ls · C clothoid · 1-4 lanes · t taper · e lift · j sandbox/junction · l primitive · g type.
 //             (skew has a toolbar stepper.)
@@ -378,15 +381,25 @@ typedef struct { const char* name; Connection conns[16]; int nConns; } Junction;
 //    "right" is always the easy side), and assign the primitive. PURE function of (legs, type) ⇒ the same
 //    seed grows the same junction. The SHAPE is still the M1–M5 splines; this only decides who connects to
 //    whom, with which primitive. (Supersedes the old hand-authored DEMO table.) ──
-typedef enum { JT_DIAMOND, JT_CLOVERLEAF, JT_STACK } JuncType;
-static const char* JT_NAME[] = { "diamond", "cloverleaf", "stack" };
+// JUNCTION TYPE = topology (how many legs) × policy (how the hard turn is served). The 4-leg family sits on
+// the full CROSS; the 3-leg family (trumpet/fork/triangle) on a T — see topo_present. (roads.org.uk taxonomy,
+// junction-lanelink §9: a recipe is `topology × policy`.)
+typedef enum { JT_DIAMOND, JT_CLOVERLEAF, JT_STACK, JT_TRUMPET, JT_FORK, JT_TRIANGLE } JuncType;
+#define NJTYPE 6
+static const char* JT_NAME[NJTYPE] = { "diamond", "cloverleaf", "stack", "trumpet", "fork", "triangle" };
 typedef enum { T_THROUGH, T_RIGHT, T_LEFT, T_UTURN } Turn;
 typedef struct { RampPrim through, right, left; int serveUturn; } JuncPolicy;
-static const JuncPolicy POLICY[] = {                        // the named types differ ONLY in the LEFT column
-    /* diamond    */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // hard left = at-grade direct (signalised)
-    /* cloverleaf */ { RP_THROUGH, RP_DIRECT, RP_LOOP,    0 },   // hard left = loop (≈270°, no crossing)
-    /* stack      */ { RP_THROUGH, RP_DIRECT, RP_FLYOVER, 0 },   // hard left = flyover (semi-direct, over)
+static const JuncPolicy POLICY[NJTYPE] = {                  // 4-leg types differ ONLY in the LEFT column
+    /* diamond    */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // 4-leg: hard left = at-grade direct (signalised)
+    /* cloverleaf */ { RP_THROUGH, RP_DIRECT, RP_LOOP,    0 },   // 4-leg: hard left = loop (≈270°, no crossing)
+    /* stack      */ { RP_THROUGH, RP_DIRECT, RP_FLYOVER, 0 },   // 4-leg: hard left = flyover (semi-direct, over)
+    /* trumpet    */ { RP_THROUGH, RP_DIRECT, RP_LOOP,    0 },   // 3-leg T: lefts ASYMMETRIC — 1 loop + 1 flyover (below)
+    /* fork       */ { RP_THROUGH, RP_DIRECT, RP_DIRECT,  0 },   // 3-leg T: all at-grade direct (a simple Y)
+    /* triangle   */ { RP_THROUGH, RP_DIRECT, RP_FLYOVER, 0 },   // 3-leg T: 3 flyovers (the loopless free-flow cousin)
 };
+// topology — which legs are present for a type. 4-leg = full cross; 3-leg (trumpet/fork/triangle) = a T with
+// the NORTH trunk arm (leg 2) dropped, so the trunk terminates at the highway from the south.
+static int topo_present(JuncType t, int L){ return !(t>=JT_TRUMPET && L==2); }
 // the 4 legs are encoded in the port layout (setup order = in,out per leg) — leg L: 0=W 1=E 2=N 3=S
 static int leg_in (int L){ return L*2;   }                  // inbound (entry) port of leg L
 static int leg_out(int L){ return L*2+1; }                  // outbound (exit) port of leg L
@@ -403,11 +416,13 @@ static Turn classify_turn(float inDir, float outDir){       // by the change in 
 static int make_junction(int nleg, JuncType type, int lanes, Junction *out){
     if (lanes<1) lanes=1;
     JuncPolicy p = POLICY[type]; out->name = JT_NAME[type]; out->nConns = 0;
+    int leftSeen = 0;                                       // for the trumpet's ASYMMETRIC hard turns
     for (int o=0;o<nleg;o++) for (int d=0;d<nleg;d++){
         if (o==d || !legs[o].present || !legs[d].present) continue;   // only served between PRESENT legs (topology)
         Turn t = classify_turn(ports[leg_in(o)].dir, ports[leg_out(d)].dir);
         if (t==T_UTURN && !p.serveUturn) continue;
         RampPrim prim = (t==T_THROUGH)?p.through : (t==T_RIGHT)?p.right : p.left;
+        if (type==JT_TRUMPET && t==T_LEFT) prim = (leftSeen++ == 0) ? RP_LOOP : RP_FLYOVER;  // trumpet: 1 loop + 1 flyover
         float r = (prim==RP_LOOP)?(lanes*4.f>12.f?lanes*4.f:12.f):0.f;   // loops: R scales with lanes; direct uses global
         out->conns[out->nConns++] = (Connection){ leg_in(o), leg_out(d), prim, {{-1,-1},{-2,-2}}, lanes, r, 0 };
     }
@@ -490,13 +505,16 @@ void update(void){
     if (keyp('e')||keyp('E')){ lift+=6; if(lift>18)lift=0; }                  // cycle flyover deck height
     if (keyp('j')||keyp('J')) view=!view;                                     // sandbox ↔ junction view
     if (keyp('l')||keyp('L')) sandPrim=(sandPrim+1)%3;                         // sandbox ramp primitive: direct/loop/flyover
-    if (keyp('g')||keyp('G')) juncType=(juncType+1)%3;                         // junction type: diamond/cloverleaf/stack
+    if (keyp('g')||keyp('G')) juncType=(juncType+1)%NJTYPE;                    // junction type (diamond…triangle)
 }
 
 void draw(void){
     rebuild_ports();
     ui_begin();
     cls(CLR_DARK_GREEN);
+    // topology: in the JUNCTION view the type decides which legs exist (4-leg cross vs 3-leg T); the sandbox
+    // is always the full cross (a freeform bench). Set presence before drawing roads / generating.
+    for (int L=0; L<NLEG; L++) legs[L].present = view ? topo_present((JuncType)juncType, L) : 1;
     // lane-accurate roads, drawn from the LEGS (so a skewed leg draws tilted)
     for (int L=0; L<NLEG; L++) if (legs[L].present) draw_arm(L);
     const char* sand_problem = (selA!=selB) ? movement_problem(selA, selB) : 0;
@@ -505,7 +523,7 @@ void draw(void){
         // JUNCTION view (M6 + §8.2) — the WHOLE junction GENERATED from the type, then drawn from the
         // connection table. This is the table-driven drawer roadnet2 will call (worldgen picks the type).
         draw_junction(&gen_junc, use_cloth, radius, spiral, taperPct/100.f, (float)lift);
-        for (int i=0;i<nport;i++) draw_port(ports[i], CLR_MEDIUM_GREY);
+        for (int i=0;i<nport;i++) if (legs[i/2].present) draw_port(ports[i], CLR_MEDIUM_GREY);
     } else {
         // RAMP sandbox — one ramp between the two selected ports, as a transient Connection so it runs the
         // SAME drawer as the junction: direct = arc-spline (M1) + clothoid joints (M2), loop = loop_spline
@@ -574,7 +592,7 @@ void draw(void){
     d=step_btn(204, SCREEN_H-18, 14, "-", "+"); if (d) lift+=3*d;
     snprintf(b,sizeof b,"%dpx",lift); print(b, 236, SCREEN_H-15, CLR_LIGHT_GREY);
     // junction view: cycle the junction TYPE (regenerates the table) · sandbox: cycle the ramp primitive
-    if (view){ if (ui_button(250, SCREEN_H-18, 66, 13, JT_NAME[juncType])) juncType=(juncType+1)%3; }
+    if (view){ if (ui_button(250, SCREEN_H-18, 66, 13, JT_NAME[juncType])) juncType=(juncType+1)%NJTYPE; }
     else { char pb[16]; snprintf(pb,sizeof pb,"ramp:%s",RP_NAME[sandPrim]);
         if (ui_button(264, SCREEN_H-18, 52, 13, pb)) sandPrim=(sandPrim+1)%3; }
     // clamps (apply to both button + keyboard edits)

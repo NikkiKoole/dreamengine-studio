@@ -177,7 +177,8 @@ First run, 32 carts (calls/frame summed across the fleet):
 | `ovalfill` | 117 | 9 | software per-pixel (disc) |
 
 Slowest carts: `galerijflat` 12.8ms (rectfill 1194 + pset 364), `orbit` 11.0ms (few large
-discs — count hides the cost), `lotfill` 4.7ms (pset 9271 + rectfill 7664), `dpaint` 3.6ms
+discs — count hides the cost; **now 1.3ms** after the zoom-gate fix below), `lotfill` 4.7ms
+(pset 9271 + rectfill 7664), `dpaint` 3.6ms
 (**pset 30,535**), `flyover` 3.4ms (rectfill 11,330), `interiors` 3.0ms (pset 18,036).
 
 **Two engine targets fall out of this, in priority order:**
@@ -196,9 +197,19 @@ discs — count hides the cost), `lotfill` 4.7ms (pset 9271 + rectfill 7664), `d
    one contiguous span → one `DrawRectangle`; `disc_inside` was only 3.2% of `circfill`, so the
    win is almost entirely the per-pixel-write batching (+ a scan clamp the disc path lacked).
    `discstress` 8.4×; real carts that are *circfill-bound* (oersoep 2.5×, pinball 2.2×) win,
-   others don't. **Correction to the hypothesis above:** `orbit`'s 11ms is NOT discs — it has
-   only 7 circfill/frame; the span fill left it unchanged, so its cost is the 92 `pset`/frame or
-   compute (a §3-count read, not a §2, misled me — the low count was right, my guess wasn't).
+   others don't.
+   - **Then extended to allow ZOOM (`00dd3f6`):** the original gate was `cam.zoom==1 &&
+     rotation==0`, which forced every fill under a *zoomed* `camera_ex` onto the per-pixel
+     fallback. But a rotation-0 camera is axis-aligned affine, so the span tiling is byte-safe
+     under zoom too — only rotation breaks it. Relaxed the gate to `rotation==0`; validated
+     byte-identical with `discstress`'s ZOOM scene. **This is what finally fixed `orbit`.**
+   - **The `orbit` saga (I was wrong twice, here's the truth):** `orbit`'s 11ms IS discs — the big
+     planet (`R_PLANET=120`, ~5 circfills, §2 = 74.7% in `draw_planet › circfill › pset →
+     rlVertex3f`). The §3 count (7 circfill) is *low but huge-area*, which fooled a count-only read.
+     And it didn't benefit from the first span-fill commit because `orbit` draws under a *zoomed*
+     `camera_ex` → it was stuck on the per-pixel fallback by the `zoom==1` gate. The zoom relaxation
+     above batches it: **`orbit` 11.46 → 1.28ms (9×)**. Lesson: a low draw-COUNT can still be the
+     hot spot (large fills); confirm with §2, and check the camera before blaming the primitive.
 
 `rectfill` (24k/frame, GPU) is high *volume* but cheap *per call*; batching it is a bigger lift
 for a less certain gain — lower priority.
@@ -233,6 +244,7 @@ compare/call) and never regresses, so it ships; it's a tail/many-small-fills win
 | 2026-06-02 | software polys | clamp scan box to on-screen region (off-screen bbox no longer scanned) | `raster_test` 0 | `trifill_stress` 46.7→2.7ms | (in rasterization-consistency.md) |
 | 2026-06 | software polys | `poly_fill_cov` scanline span fill (solid → one `DrawRectangle`) | `polystress` byte-identical, `raster_test` 0 | `roadlab` 2.7×, `polystress` 1.6× | `DE_POLY_FILL=legacy` · `8f201c5` |
 | 2026-06 | software discs | `circfill`/`ovalfill` scanline span fill + scan clamp | `discstress` byte-identical, `raster_test` 0 | `discstress` 8.4×; oersoep 2.5×, pinball 2.2× (circfill-bound only) | `DE_DISC_FILL=legacy` · `40c38d5` |
+| 2026-06 | software discs | relax span gate `zoom==1 && rot==0` → `rot==0` (zoom is byte-safe; only rotation breaks span tiling) | `discstress` ZOOM scene byte-identical, `raster_test` 0 | **`orbit` 11.46→1.28ms (9×)**, discstress ZOOM 2.46→0.52ms | `DE_DISC_FILL=legacy` · `00dd3f6` |
 | 2026-06 | all software fills | per-frame clamp-box cache (4 matrix inverts → per camera-change) | `clampstress` STATIC+PAN byte-identical, `raster_test` 0 | `clampstress` 28%; qbert 9%, oersoep 10%; neutral on large-fill carts | `DE_CLAMP_CACHE=off` · `13fdeca` |
 
 ---

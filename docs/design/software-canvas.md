@@ -99,19 +99,28 @@ with killers:
   use the GPU path **per frame**.
 
 **Recommend C — and it's aimed, not a compromise.** The carts that need this are the `pset`-heavy
-ones: `dpaint`, `interiors`, the CPU-shaders, `orbit` — **none use `camera_ex`**. `camera_ex` is
-rare, and a `camera_ex` cart that's *also* per-pixel-bound may not exist. So C ships the win exactly
-where the survey points, sidesteps both killers, and defers rotation-in-software until there's
-measured demand. (The "translation-camera-only prototype" below *is* committing to C.)
+ones: `dpaint`, `interiors`, the CPU-shaders — **none use `camera_ex`**. `camera_ex` is rare, and
+C ships the win exactly where the survey points, sidesteps both killers, and defers
+rotation-in-software until there's measured demand. (The "translation-camera-only prototype" below
+*is* committing to C.)
 
-> **Concrete example of the bifurcation: `sloop`** (the spline road world). Profiled 3.5ms mean /
-> 4.2ms p95 — but it's **GPU-draw-call-bound, not pset-bound** (984 `rectfill_rot` + 528 `line` ≈
-> 1500 GPU calls/frame; `pset` only 41) **and it uses `camera_ex`** (rotating/zooming view). So
-> under C it stays entirely on the GPU path and gets *nothing* from the software canvas. It's the
-> proof that (a) a real, different profile shape exists (GPU draw-call count, not per-pixel writes),
-> and (b) the `camera_ex` set is real — so "two renderers coexist" (risk below) is a fact, not a
-> hypothetical. Making the software canvas help `sloop` is precisely the deferred hard part
-> (rotation/zoom in software).
+> **Note (2026-06) — `camera_ex` ≠ "needs the software canvas".** `camera_ex` splits into ZOOM and
+> ROTATION, and they're very different for fills. A rotation-0 camera (zoom only) is **axis-aligned
+> affine**, so the disc/poly span fast-paths are byte-safe under it — and the disc gate was relaxed
+> to `rotation==0` (`00dd3f6`), which **fixed `orbit` (a zoomed planet-circfill cart) 9× without any
+> software canvas.** Only **rotation** (`rotation != 0`) actually forces fills onto the per-pixel
+> path. So the software canvas's fill win is for the *rotating-camera* subset, which is rarer still —
+> and a rotating cart that's *also* per-pixel-bound is the genuinely-open "may not exist" question
+> (`orbit` was NOT it; it was zoom-only).
+
+> **Concrete example of a different profile shape: `sloop`** (the spline road world). Profiled
+> 3.5ms mean / 4.2ms p95, but **GPU-draw-call-bound, not pset-bound** (984 `rectfill_rot` + 528
+> `line` ≈ 1500 GPU calls/frame; `pset` only 41). Its cost isn't *any* software fill — `rectfill_rot`
+> and `line` are GPU primitives — so neither the disc/poly span fills, the zoom-gate relaxation, nor
+> the software-canvas v0 (which is about the `pset` path) touch it. A software canvas would only help
+> `sloop` via the *full* option-1 path (port `rectfill_rot`/`line` to CPU writes), and only then.
+> It's the proof that a real non-`pset`, non-fill profile shape exists — GPU draw-call *count* — and
+> that "the software canvas isn't a universal speedup" is a fact, not a hedge.
 
 ### Fork 3 — compositing (falls out of Fork 2)
 

@@ -143,6 +143,21 @@ static void draw_port(Port p,int col){
     line((int)tx,(int)ty,(int)(tx+ux(p.dir-150)*5),(int)(ty+uy(p.dir-150)*5),col);
 }
 
+// classify a port GEOMETRICALLY (no extra fields): INBOUND = its travel dir points toward the junction
+// centre (entries live here); leg = which side it sits on. Used only to FLAG nonsense sandbox movements —
+// the picker stays free (handy for probing odd pairs), it just marks what isn't a real movement.
+static int port_inbound(Port p){ float cx=SCREEN_W/2.0f, cy=SCREEN_H/2.0f;
+    return (cx-p.x)*ux(p.dir) + (cy-p.y)*uy(p.dir) > 0; }
+static int port_leg(Port p){ float dx=p.x-SCREEN_W/2.0f, dy=p.y-SCREEN_H/2.0f;
+    if (fabsf(dx)>fabsf(dy)) return dx>0?1:0; return dy>0?3:2; }   // 0=W 1=E 2=N 3=S
+// why a sandbox A→B pair isn't a real movement (NULL = valid). entries must be inbound, exits outbound, diff legs.
+static const char* movement_problem(Port a, Port b){
+    if (!port_inbound(a))            return "Port A (EXIT lane) - entry against traffic";
+    if ( port_inbound(b))            return "Port B (ENTRY lane) - merge against traffic";
+    if (port_leg(a)==port_leg(b))    return "same leg - a U-turn";
+    return 0;
+}
+
 #define R2D 57.29578f                                  // radians → degrees
 static float tan_deg(float d){ return sin_deg(d)/cos_deg(d); }
 
@@ -343,7 +358,7 @@ static const Junction DEMO = { "4-way right-turn slips", {
 }, 4 };
 
 // draw ONE connection: pick the spline by the PRIMITIVE, stroke its laneLink count as a multilane ribbon
-static void draw_connection(Connection c, int useCloth, float R, float Ls, float taperFrac, float liftPx){
+static void draw_connection(Connection c, int useCloth, float R, float Ls, float taperFrac, float liftPx, int warn){
     float xs[128], ys[128];
     float r    = c.R > 0.5f   ? c.R         : R;            // per-connection overrides, else the global
     float lift = c.lift > 0   ? (float)c.lift : liftPx;
@@ -354,9 +369,10 @@ static void draw_connection(Connection c, int useCloth, float R, float Ls, float
     else                           n = arc_spline     (ports[c.inPort], ports[c.outPort], r, xs, ys);
     if (c.prim == RP_FLYOVER && lift < 6) lift = 12;        // a flyover is a semi-direct S-curve on a raised deck
     draw_multilane(xs, ys, n, c.nLinks < 1 ? 1 : c.nLinks, taperFrac, lift);     // lanes = laneLink count
+    if (warn) stroke_poly(xs, ys, n, CLR_RED);              // FLAG: not a real movement — red spine on the ramp
 }
 static void draw_junction(const Junction* j, int useCloth, float R, float Ls, float taperFrac, float liftPx){
-    for (int i = 0; i < j->nConns; i++) draw_connection(j->conns[i], useCloth, R, Ls, taperFrac, liftPx);
+    for (int i = 0; i < j->nConns; i++) draw_connection(j->conns[i], useCloth, R, Ls, taperFrac, liftPx, 0);
 }
 
 // ── state ──
@@ -419,6 +435,7 @@ void draw(void){
     line(0,CY,SCREEN_W,CY,CLR_YELLOW);  line(CX,0,CX,SCREEN_H,CLR_YELLOW);
     for (int x=12;x<SCREEN_W;x+=40){ arrow(x, CY-LANEW/2.0f, 180, CLR_YELLOW); arrow(x, CY+LANEW/2.0f, 0, CLR_YELLOW); }
     for (int y=12;y<SCREEN_H;y+=40){ arrow(CX+LANEW/2.0f, y, 270, CLR_YELLOW); arrow(CX-LANEW/2.0f, y, 90, CLR_YELLOW); }
+    const char* sand_problem = (selA!=selB) ? movement_problem(ports[selA], ports[selB]) : 0;
     if (view){
         // JUNCTION view (M6) — the WHOLE junction drawn from the connection TABLE, each connection an
         // arc/clothoid spline ribbon. This is the table-driven drawer roadnet2 will call.
@@ -430,7 +447,7 @@ void draw(void){
         // (§8.1), flyover = direct + deck. Drawn as an nl-lane ribbon (M3 lateral offsets / nesting via arcs).
         if (selA!=selB){
             Connection c = { selA, selB, (RampPrim)sandPrim, {{-1,-1},{-2,-2}}, nlanes, 0, 0 };
-            draw_connection(c, use_cloth, radius, spiral, taperPct/100.f, (float)lift);
+            draw_connection(c, use_cloth, radius, spiral, taperPct/100.f, (float)lift, sand_problem!=0);
         }
         for (int i=0;i<nport;i++) if (i!=selA&&i!=selB) draw_port(ports[i], CLR_MEDIUM_GREY);
         draw_port(ports[selA], CLR_GREEN);  draw_port(ports[selB], CLR_RED);
@@ -454,6 +471,7 @@ void draw(void){
                          : use_cloth            ? "arc-spline + clothoid joints  -  continuous curvature (G2)"
                                                 : "arc-spline only  -  curvature steps at the corner (G1)";
         print(note,4,13, sandPrim?CLR_GREEN:(use_cloth?CLR_ORANGE:CLR_MEDIUM_GREY));
+        if (sand_problem){ snprintf(b,sizeof b,"x not a real movement: %s", sand_problem); print(b,4,21,CLR_RED); }
     }
 
     // ── on-screen control toolbar (clickable; keyboard still works) — 3 rows ──
@@ -463,6 +481,8 @@ void draw(void){
     print("Port A", 4, SCREEN_H-47, CLR_GREEN);
     d=step_btn(36, SCREEN_H-50, 14, "<", ">"); if (d) selA=(selA+nport+d)%nport;
     print(ports[selA].name, 70, SCREEN_H-47, CLR_GREEN);
+    { int ok=(selA!=selB)&&!sand_problem;                  // between A and B: the live movement-validity flag
+      print(ok?"-->":"-x>", 102, SCREEN_H-47, ok?CLR_GREEN:CLR_RED); }
     print("Port B", 128, SCREEN_H-47, CLR_RED);
     d=step_btn(160, SCREEN_H-50, 14, "<", ">"); if (d) selB=(selB+nport+d)%nport;
     print(ports[selB].name, 194, SCREEN_H-47, CLR_RED);

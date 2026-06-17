@@ -145,15 +145,20 @@ and a ramp is `ramp(portA → portB, type)`. In this model that becomes one `Con
   gives lane-level routing (which lane reaches which) **for free** — the thing the standard exists for.
 
 ## 6. What this unlocks / next
-- **roadlab** can grow a `Junction`/`Connection` table (this sketch) and drive its existing
-  `ramp(portA→portB, type)` drawer from it — i.e. re-express ad-hoc ramps as `Connection`s. This is the
-  "re-express `JUNCS[]` as declarations" migration step (interchange-dsl §"Migration path" #4) made
-  concrete with a standard-aligned schema.
-- **roadnet2** gains the serialisation/routing target: store `Junction[]`, route on `laneLink`.
-- Then the queued items (port roadlab into roadnet2 as the junction drawer; `ring`/`circulate` →
-  `junctionGroup`) have a data model to attach to.
-- **OpenDRIVE adoption inventory** ([`road-geometry-refs.md`](road-geometry-refs.md)) — move
-  `junction`+`laneLink` from "worth taking next" to **adopted** once the schema lands in roadlab.
+- **roadlab — DONE (M6, 2026-06-17).** The sketch above is now in `tools/carts/roadlab.c`:
+  `RampPrim`/`LaneLink`/`Connection`/`Junction` types + a table-driven `draw_junction()` that strokes each
+  connection with the M1–M5 splines, and a `j` toggle between the single-ramp sandbox and the whole
+  junction. A `DEMO` connection table (a 4-way pinwheel of direct-curve slip turns over the 4 ports) drives
+  it. This is the "re-express `JUNCS[]` as declarations" migration step (interchange-dsl §"Migration path"
+  #4) made concrete with a standard-aligned schema. (`prim` is wired but only `RP_DIRECT` has a real drawer;
+  `RP_LOOP`/`RP_FLYOVER` fall back to the spline — the natural next geometry work.)
+- **roadnet2** gains the serialisation/routing target: store `Junction[]`, route on `laneLink`. The next
+  port is to have worldgen *emit* `Junction[]` deterministically (from the seed) and call roadlab's
+  `draw_junction()` as the drawer.
+- Then the queued items (`ring`/`circulate` → `junctionGroup`; real `RP_LOOP`/`RP_FLYOVER` drawers) have a
+  data model to attach to.
+- **OpenDRIVE adoption inventory** ([`road-geometry-refs.md`](road-geometry-refs.md)) — `junction`+`laneLink`
+  moved from "worth taking next" to **adopted (M6)**. ✅
 
 Sources: ASAM OpenDRIVE Specification v1.8.1 §12 (Junctions), §11 (Lanes) —
 <https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/12_junctions/12_01_introduction.html>,

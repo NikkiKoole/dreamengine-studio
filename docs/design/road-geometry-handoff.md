@@ -138,10 +138,16 @@ types — all in **[`junction-lanelink.md`](junction-lanelink.md)**. Headlines:
 - **Ring family** → OpenDRIVE's `junctionGroup type=roundabout`, a peer construct — confirms it's parked
   correctly outside the ramp grammar.
 
-**▶ Next after this:** wire the `Junction`/`Connection` sketch into roadlab (re-express ad-hoc ramps as
-`Connection`s — the interchange-dsl "migration path" #4 made concrete), then port into roadnet2 as the
-junction drawer + routing store. **Full OpenDRIVE roadmap — taken (M1–M5) vs left:**
-[`road-geometry-refs.md`](road-geometry-refs.md) → **"OpenDRIVE adoption inventory"**.
+**Adopted in code — roadlab M6 (2026-06-17).** The `Junction`/`Connection`/`LaneLink`/`RampPrim` schema is
+now in `roadlab.c`: a table-driven `draw_junction()` strokes each connection with the M1–M5 splines, with a
+`j` toggle between the single-ramp sandbox and the whole junction (a `DEMO` 4-way slip-turn table drives it).
+This is the interchange-dsl "migration path" #4 made concrete. `prim` is wired but only `RP_DIRECT` has a
+real drawer (LOOP/FLYOVER fall back to the spline).
+
+**▶ Next after this:** (1) port into roadnet2 — have worldgen *emit* `Junction[]` deterministically from the
+seed and call `draw_junction()` as the drawer; (2) give `RP_LOOP`/`RP_FLYOVER` real geometry. **Full
+OpenDRIVE roadmap — taken (M1–M6) vs left:** [`road-geometry-refs.md`](road-geometry-refs.md) →
+**"OpenDRIVE adoption inventory"**.
 
 Other roadlab continuations (not the chosen next, but queued):
 - **Port `roadlab` into roadnet2** — bake the constants, call it as the junction drawer.

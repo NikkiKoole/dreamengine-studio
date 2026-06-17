@@ -51,15 +51,16 @@ roadlab arc IS a progressive port of it. Tracked here so we know what's mined an
 | lanes = s/t lateral shift | "same s, shifted in t" — offset the one ref-line, don't re-curve | M3 |
 | lane `width(s)` cubic | per-lane width along s → add/drop tapers, gores | M4 |
 | elevation `z(s)` | height profile along s → grade separation / flyovers | M5 |
+| `junction` + `laneLink` | connectivity: a junction = a TABLE of connections, each a movement (entry→exit port) + laneLinks; the SHAPE stays in M1–M5 | M6 |
 
-**Reconciled (design pass done — 2026-06-17 → [`junction-lanelink.md`](junction-lanelink.md)):**
-- **`junction` + `laneLink`** — OpenDRIVE's junction element groups connecting roads and records, per
-  connection, *which incoming lane maps to which outgoing lane*. This is **literally our junction DSL's
-  movement layer** (`legs × {movement → primitive}` in [`interchange-dsl.md`](interchange-dsl.md)) — the
-  formal schema roadnet2 would serialise into. **Reconciled against the spec + C data types sketched** in
-  [`junction-lanelink.md`](junction-lanelink.md): the standard validates our Layer 1 / Layer 2 split,
-  `laneLink` = a roadlab port pair, and we keep the ramp *primitive* (the generative field OpenDRIVE
-  drops). Not yet *adopted in code* — move it to the "Adopted" table when the schema lands in roadlab.
+**`junction` + `laneLink` — reconciled + adopted (2026-06-17 → [`junction-lanelink.md`](junction-lanelink.md)):**
+OpenDRIVE's junction element groups connecting roads and records, per connection, *which incoming lane
+maps to which outgoing lane* — **literally our junction DSL's movement layer** (`legs × {movement →
+primitive}` in [`interchange-dsl.md`](interchange-dsl.md)). Reconciled against the spec, sketched the C
+types, then **adopted in `roadlab` (M6)**: `Junction`/`Connection`/`LaneLink`/`RampPrim` types + a
+table-driven `draw_junction()` (the `j` toggle). The standard validates our Layer 1 / Layer 2 split,
+`laneLink` = a roadlab port pair, and we keep the ramp *primitive* (the generative field OpenDRIVE drops).
+The `Junction[]` table is now the junction representation roadnet2 will serialise/route on.
 
 **Worth taking next (ranked):**
 - **`roadMark`** — per-boundary lane markings: type (solid / broken / solid-solid / solid-broken), colour

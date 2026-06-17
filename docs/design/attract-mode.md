@@ -58,7 +58,8 @@ The handoff, concretely: while in ATTRACT, each frame poll the *raw* hardware (`
 true `IsKeyDown` / touch) alongside the injected replay. On the first genuine press: stop
 advancing `replay_ev`, set `inject_input = false`, and let the cart run live from the current
 state. Optionally a "DEMO — PRESS START" overlay that clears on takeover. True arcade
-behaviour also re-enters ATTRACT after the player goes idle again (LIVE → idle → ATTRACT).
+behaviour also re-enters ATTRACT after the player goes idle again (LIVE → idle → ATTRACT) —
+and that re-entry is where the reset-to-boot wiring is needed (see the hard parts).
 
 ## Where the demo track lives — two homes, one source
 
@@ -99,6 +100,15 @@ the cart.
   enter/replay/handoff/re-idle loop is the actual change. Everything else is plumbing.
 - **Determinism needs a seed pin.** A track recorded at seed S only replays faithfully at
   seed S — procedural carts (sloop's world, roadnet) especially. The demo must pin its seed.
+- **The entry point: reset to a clean boot, then replay (later).** A demo recorded from the
+  cart's start only makes sense replayed from the start — you can't drop a from-the-title
+  track over a half-played game. So entering attract should re-init the cart to its
+  boot/title state (fresh `init()`, cleared `de_state`, pinned seed) and replay `de:demo`
+  from frame 0. For a cart that boots to a title screen, that *is* "attract plays from the
+  title." Needs an engine-triggerable clean re-init + carts being re-init-safe. **Parked:**
+  the native spike can replay once from boot (it's already clean on launch); the
+  reset-on-loop / re-enter-attract-after-a-play-session wiring is the next rung up, not part
+  of the first handoff prototype.
 - **Where the track lives in the web build — resolved: embedded.** The attract track rides in
   the cart data (a `de:demo` zTXt chunk, compiled into the web build), so the cart is
   self-contained and there's nothing to fetch. The new work is the bake-step embed +

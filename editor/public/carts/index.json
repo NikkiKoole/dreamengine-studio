@@ -3396,5 +3396,14 @@
       "tech-demo",
       "generative"
     ]
+  },
+  {
+    "title": "Transitions",
+    "description": "The screen wipes that bridge two scenes, side by side over a live world. Eight classics: IRIS (a circle closes onto the hero, SNES Mario / Looney Tunes), CLOCK WIPE (a radial sweep, Star Wars), WIPE (a hard edge slides across), CURTAIN (top + bottom slabs meet), BLINDS (venetian slats snap shut), DISSOLVE (an ordered-dither pixel fade, Genesis/Sonic), FADE (dim to black), and SLIDE PUSH (the new scene shoves the old one off-screen). The mask-based seven each play OUT, swap a sunny hilltop for a starlit cave at full black, then play back IN — the trick is one black mask whose shape encodes how-covered-are-we (iris=ring(), clock=arcfill(), dissolve=fillp() Bayer dither, fade=fade()); SLIDE instead camera-shifts both scenes in one motion. A tour of the masking primitives, with a selectable easing curve (linear / in / out / in-out / back) — ease-back's overshoot is visible on the slide. Left/right pick, Z play, up/down speed, X cycle easing.",
+    "file": "transitions.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ]
   }
 ]

@@ -219,4 +219,5 @@ Other roadlab continuations (not the chosen next, but queued):
 - [`interchange-dsl.md`](interchange-dsl.md) — the DSL: topology layer + geometry relation-language/solver.
 - [`road-geometry-refs.md`](road-geometry-refs.md) — the research: OpenDRIVE / clothoids / offsetting + recommendation.
 - [`junction-lanelink.md`](junction-lanelink.md) — OpenDRIVE junction/laneLink ↔ our DSL: matches, gaps, the C data-type sketch.
+- [`road-hierarchy-notes.md`](road-hierarchy-notes.md) — research: where roadlab sits in the whole functional road hierarchy; the at-grade + network-topology frontiers we have NOT modeled.
 - carts: `tools/carts/{interchange,rampkit,roadlab}.c`.

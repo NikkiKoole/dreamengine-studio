@@ -51,79 +51,182 @@ static uint32_t cbuf[SCREEN_W*SCREEN_H];   // RGBA — see fork 1
 
 ## The design forks — decide these first
 
-1. **Index buffer (`uint8`) vs RGBA (`uint32`).** Index keeps the palette model native:
-   `pal()` recolor and palette cycling are free (swap the lookup at upload), `pset(x,color)` is a
-   byte write, the buffer is 64KB not 256KB. **But `pset_rgb`/`pget_rgb` (the CPU-shader true-color
-   path) needs 24-bit.** Options: (a) RGBA buffer throughout (simplest, true-color native, 256KB,
-   palette ops do the lookup on write); (b) index buffer + a separate RGBA path only when a cart
-   uses `pset_rgb` (dual buffers/compositing — complex); (c) index buffer, and `pset_rgb` writes a
-   packed value into a parallel plane. **Lean (a) RGBA** — 256KB is nothing, it's the most general,
-   and the upload is one `UpdateTexture` either way.
+**These forks are not equally hard.** Fork 2 (`camera_ex`) genuinely *gates* the design; the
+other three have clear answers once Fork 2 is committed. Read in that order.
 
-2. **`camera_ex()` zoom/rotation — the hard one.** Today the GPU `Camera2D` gives zoom/rotation
-   for free. In software, the options are: (a) **software-transform every primitive** (rotate/scale
-   coordinates before rasterizing — correct, but every primitive needs the transform and rotation
-   reintroduces the gap/seam problems `rasterization-consistency.md` fought); (b) **render the world
-   un-transformed into `cbuf`, then GPU-sample it transformed at upload** (one textured quad with
-   rotation/zoom — keeps camera GPU-cheap, but breaks if the cart mixes camera and screen-space draws
-   in one frame); (c) **keep a thin GPU path only for `camera_ex`** and software-canvas everything
-   else (hybrid — compositing-order pain). `camera()` (plain translation) is trivial in all cases
-   (offset the writes / the upload quad). **This fork gates the whole thing** — most carts use
-   `camera()` or no camera; `camera_ex` (rotation/zoom) is rarer. A staged answer: software-canvas
-   the no/translation-camera case first, leave `camera_ex` carts on the GPU path initially.
+### Fork 1 — RGBA (`uint32`) vs index (`uint8`) buffer
 
-3. **Compositing / does anything *stay* GPU?** If the whole frame is one CPU buffer, painter's
-   order is automatic (writes happen in call order) — no compositing problem *as long as every
-   primitive writes to the same buffer*. The danger is a half-migration where some primitives are
-   GPU and some CPU: then z-order across the two needs flush points. **Cleanest is all-or-nothing
-   per frame.** Text (`print` → `DrawTextEx` from a font texture) and `tritex` (textured triangle)
-   must become CPU blits too — both straightforward (glyph blit, affine texture map).
+There's an elegant index option worth naming first: **`uint8` index buffer + a palette-LUT shader
+at the final upload** — upload the byte buffer as an R8 texture, and the existing `DrawTexturePro`
+runs a tiny fragment shader mapping `index → palette[index]`. That makes `pset`/`spr`/fills byte
+writes (cheapest, native to the 0–63 model), `pal()` a remap, and — the real prize — **full-screen
+palette *cycling* free** (animate the LUT uniform: the classic water/fire trick).
 
-4. **`clip()`** → a bounds check on every write (cheaper than the GPU scissor). **`fade`/blend
-   tables** → read-modify-write on `cbuf` (strictly easier than the GPU shader approach). These get
-   *simpler*, not harder.
+**The dealbreaker is `pset_rgb`.** The CPU-shader trilogy (shadelab/caustics/raymarch) and any
+true-color gradient paint arbitrary 24-bit, which can't live in a `uint8`. You'd need a parallel
+RGBA plane only-when-`pset_rgb`-is-used → two planes to composite per pixel → true-color becomes a
+second-class citizen when it's actually a first-class teaching feature.
 
-5. **`pget`/`zoom_rect`/screenshot/snapshot** read the canvas back today (GPU readback, slow). With
-   a CPU buffer they're **free** (`cbuf` is already in RAM) — this also fixes the `pget`-per-frame
-   allocation churn noted in profiler.md. A real win, not just a cost.
+**Recommend RGBA.** 256KB is nothing, `pset_rgb` is native, `pal()` recolor applies cheaply at the
+write (LUT lookup before the store), one uniform path, no dual-plane compositing. Name the two real
+losses so the choice is informed:
+- **Cheap full-screen palette *cycling*** — RGBA bakes the colour at write, so cycling means
+  redrawing. No evidence carts use screen-wide cycling today (`pal()` is per-draw sprite recolor,
+  ADR-0007), so this is a hypothetical loss, recoverable later as an opt-in paletted mode.
+- **Index-based blend tables** (parked STATUS-18, `blend-tables.md`) are inherently index-space
+  LUTs; an RGBA canvas would blend in RGB instead — arguably more flexible, but it changes how that
+  future feature would be built.
 
-6. **Web (emscripten).** A CPU buffer + one `UpdateTexture` works the same on web and removes the
-   `rlVertex3f`-on-WebGL cost (which is *worse* than native). And `pget` is currently disabled on
-   web — a CPU buffer would enable it. Net positive for the web build.
+### Fork 2 — `camera_ex()` zoom/rotation (the one that gates)
 
-## Migration — stage it, don't big-bang
+Today `BeginMode2D(cam)` gives zoom/rotation free on the GPU. Three ways to do it in software, two
+with killers:
 
-1. **Prototype behind a flag** (`DE_SOFTWARE_CANVAS=on`), RGBA buffer, no/translation camera only.
-   Route `pset`/`pset_rgb` + the fills + `rectfill`/`spr`/`line`/`print` to `cbuf`; `camera_ex`
-   carts fall back to the GPU path. One `UpdateTexture`+`DrawTexturePro` at frame end.
-2. **Validate byte-identical** on the stress carts (the dump+shasum oracle) and `raster_test`, and
-   **A/B on the fleet** (`profile-fleet.js`): expect `dpaint`/`interiors`/`orbit`/CPU-shaders to
-   drop hard, everything else neutral-or-better.
-3. **Decide `camera_ex`** (fork 2) with data in hand — software-transform vs GPU-sample-at-upload.
-4. If it wins broadly, **make it the default**; keep the GPU path behind the flag for one cycle,
-   then retire it (and the span-fill `DrawRectangle` fast paths fold into the buffer writers).
+- **(A) Software-transform every primitive** (rotate/scale coords before rasterizing). **Killer:**
+  rotation re-opens *exactly* the gap/seam class `rasterization-consistency.md` spent four sessions
+  killing — a rotated software fill staircases into holes — and now *every* primitive (even `pset`,
+  even `spr`) has it, plus sprites become affine texture-maps. Re-fighting solved bugs across the
+  whole draw layer.
+- **(B) Render un-transformed into `cbuf`, GPU-sample it transformed at upload** (one rotated/zoomed
+  quad). Keeps camera cheap and primitives axis-aligned (no gaps). **Killer:** a cart that draws
+  world-space *then a screen-space HUD* in one frame — most carts — can't be one flat buffer + one
+  transform; the HUD rotates too. Fixing it means flush points at every `camera()` toggle, and the
+  compositing complexity creeps back.
+- **(C) Software-canvas the no/translation-camera case; `camera_ex` frames fall back to today's GPU
+  path.** Plain `camera()` (translation) is *trivial* in software — offset the write coords
+  (`pset → px-camx, py-camy`); reset to (0,0) and writes hit literal coords, so **world + HUD both
+  work** with no upload-time transform. Only zoom/rotation can't be offset-written, and those carts
+  use the GPU path **per frame**.
+
+**Recommend C — and it's aimed, not a compromise.** The carts that need this are the `pset`-heavy
+ones: `dpaint`, `interiors`, the CPU-shaders, `orbit` — **none use `camera_ex`**. `camera_ex` is
+rare, and a `camera_ex` cart that's *also* per-pixel-bound may not exist. So C ships the win exactly
+where the survey points, sidesteps both killers, and defers rotation-in-software until there's
+measured demand. (The "translation-camera-only prototype" below *is* committing to C.)
+
+### Fork 3 — compositing (falls out of Fork 2)
+
+A compositing problem only exists if some primitives draw GPU and some CPU **in the same frame**
+(then cross-path z-order needs flush/interleave). The rule that dissolves it: **in software-canvas
+mode, *everything* writes to `cbuf`** — painter's order is automatic (call order == pixel order).
+And because Fork-2/C's fallback is **per-frame** (a frame is wholly software or wholly the GPU path,
+never mixed), there's no within-frame mixing to reconcile. So "all-or-nothing per frame" isn't a
+safety rule you impose — it's what C already gives you. The price it implies is Fork 4.
+
+### Fork 4 — text / `tritex` / `spr` as CPU blits
+
+Graduated labour:
+- **`spr`** — blit a 16×16 sheet region with colorkey/`pal`/flip. Nested loop, 256 px. Easy.
+- **`print`** — glyph blits from the bitmap font atlas; same shape as `spr`, 8×8/char (all `FONT_*`
+  are just different source images). Easy.
+- **`tritex`** — affine texture-mapped triangle (scanline fill, interpolated u,v). The one real
+  rasterizer — more code, but textbook (2D affine, no perspective). Used by the 3D carts.
+
+**Wiring requirement this surfaces:** the spritesheet + font must be kept as CPU `Image`s in RAM
+(not just GPU `Texture`s), and the sprite editor's live edits must update the CPU copy. Mostly
+"don't `UnloadImage` after upload," but it's a real dependency.
+
+### The free wins (these retire existing pain, not just "also nice")
+
+- **`clip()`** → an `if` per write, cheaper than GPU scissor. **`fade`/blend** → read-modify-write
+  on `cbuf`, *easier* than the shader path.
+- **`pget`/`pget_rgb`** → direct array read. Today that's a GPU readback **plus a 256KB `Image`
+  alloc every frame** (the churn `profiler.md` flagged) — gone. And `pget` is **disabled on web**
+  today; a CPU buffer enables it.
+- **Web** → `UpdateTexture` works identically and removes `rlVertex3f`-on-WebGL (worse than native).
+- The scale-up to the window stays GPU (`UpdateTexture` RGBA + `DrawTexturePro` nearest-neighbour),
+  so crisp pixel scaling is untouched.
+
+## The cleanest v1 (what the forks point to)
+
+> **RGBA `cbuf`; software-canvas for no/translation-camera frames with `camera_ex` falling back to
+> today's GPU path per-frame; everything (incl. `spr`/`print`/`tritex`) writes to `cbuf`; one
+> `UpdateTexture` + `DrawTexturePro` at frame end.**
+
+Not the scary version — a well-trodden fantasy-console architecture, with Fork-2/C carving off the
+genuinely-hard part (rotation) cleanly.
+
+## Migration — and the honest catch about a partial slice
+
+The tempting cheap first step is "route only `pset`/`pset_rgb` + fills to `cbuf`, leave
+`spr`/`print` on the GPU." **It doesn't validate** — per Fork 3, mixing CPU `cbuf` writes and GPU
+`spr`/`print` in one frame breaks z-order (a sprite drawn between two `pset`s would composite
+wrong). So the first *validatable* prototype is either:
+
+1. **Full draw-layer in `cbuf`** (port `spr`/`print`/`tritex` too) for no/translation-camera frames,
+   `camera_ex` → GPU fallback. This is the real v1; bigger first step but it's the only honest one.
+2. **Scope to carts that don't mix** — i.e. pure per-pixel carts (the CPU-shaders, a `dpaint`-like)
+   that only use `pset`/fills/`rectfill` and no `spr`/`print` mid-scene. A narrower opt-in mode that
+   proves the buffer + upload mechanism and the `dpaint`/CPU-shader win without porting the blits.
+
+Then: **validate byte-identical** (dump+shasum oracle + `raster_test`) and **A/B on the fleet**
+(`profile-fleet.js`) — expect `dpaint`/`interiors`/`orbit`/CPU-shaders to drop hard, everything else
+neutral-or-better. If it lands, make software-canvas the default for non-`camera_ex` frames and keep
+the GPU path behind `DE_SOFTWARE_CANVAS=off` for a cycle; the span-fill `DrawRectangle` fast paths
+fold into the `cbuf` writers.
+
+## Minimal slice (v0) — the smallest thing that shows a real, validatable result
+
+The naive "route `pset`+fills to `cbuf`, leave `spr`/`print` on GPU" slice fails (Fork 3
+z-mixing). But two observations collapse it into something small **and** byte-identical-checkable:
+
+- **Target only the carts that need it and don't mix**: the CPU-shaders (caustics/shadelab/raymarch
+  = `cls` + `pset_rgb` + HUD `print`) and `dpaint` (`cls` + `pset` + `rectfill`/`rect` + HUD
+  `print`). No `spr`, no `tritex`, no `camera_ex`. These are exactly the survey's pset-heavy carts.
+- **HUD text is the top layer, so defer it.** Keep `print` on the GPU but **record its calls during
+  `draw()` and replay them AFTER the `cbuf` upload** (a tiny text-command list). Text lands on top
+  (where it already was, drawn last) and stays the *same GPU `DrawTextEx`* → byte-identical, and you
+  **don't port `print`**.
+
+**v0 surface (behind `DE_SOFTWARE_CANVAS`, opt-in):**
+- `uint32 cbuf[SCREEN_W*SCREEN_H]` + a `sw_canvas_active` flag.
+- `cls` → clear `cbuf`. `pset`/`pset_rgb` → `cbuf` write (+ `clip` bounds, + `camera()` translation
+  as a write offset). `rectfill`/`rect` → `cbuf` row writes.
+- **Fills come for free**: `circfill`/`polyfill`/etc. already fall to `plot_pat → pset` for their
+  pixels — once `pset` writes `cbuf`, they route automatically. (Just disable the `DrawRectangle`
+  span fast-path while `sw_canvas_active` — use the per-pixel `plot_pat` path; still no `rlVertex3f`.)
+- `print` → deferred GPU overlay (above). `spr`/`tritex`/`line`/`camera_ex` → **unsupported in v0**:
+  if a cart in this mode calls one, log a warning and skip (the target carts don't use them).
+- Frame end: `UpdateTexture(canvas.texture, cbuf)` → replay deferred text into `canvas` → the
+  existing `DrawTexturePro` scale-up. (One upload, one quad, plus the few text calls.)
+
+**Why it validates cleanly:** `cls`/`pset`/`pset_rgb`/`rectfill` are integer-coordinate writes, so
+`cbuf[y*W+x]=c` produces the *same pixels* as the GPU `DrawPixel`/`DrawRectanglePro` they replace;
+deferred `print` is the same GPU call. So a CPU-shader cart should be **byte-identical** software-vs-
+GPU on the dump+shasum oracle — a real pass/fail, not "looks right." (The fills are also already CPU
+coverage, so they match too.)
+
+**The result you'd see:** A/B `caustics`/`shadelab`/`raymarch`/`dpaint` with `profile-fleet.js`,
+`DE_SOFTWARE_CANVAS=on` vs off. These are ~pure `pset_rgb`/`pset` carts, so this is where the survey
+predicted the biggest drop — v0 confirms (or refutes) the whole thesis on the carts that matter,
+for a fraction of the full-rewrite cost, and without touching `camera_ex` or the blits.
+
+**What v0 deliberately leaves for later:** `spr`/`print`/`tritex` as real CPU blits (the option-1
+full draw layer), and `camera_ex` (Fork 2). v0 only proves the buffer+upload mechanism and the
+headline win; it is *not* the path to making software-canvas the default (that needs the blits).
 
 ## Risks / why it might *not* be worth it
 
-- **`camera_ex` rotation correctness** (fork 2) is real work and re-opens the rotated-fill seam.
-- **It's a big-bang-ish rewrite** of the draw layer — high blast radius, many carts to re-validate
-  (the byte-identical oracle + `raster_test` + fleet A/B are the safety net, but it's a lot).
-- **Most carts are already at 60fps** — this buys *headroom* (bigger canvases, more ambitious
-  per-pixel carts, the CPU-shader trilogy, web) more than it rescues anything shipping today. The
-  honest framing: it removes the *ceiling*, it doesn't fix a present fire.
-- **raylib is built around GPU draw** — fighting the grain in a few spots (though `UpdateTexture` +
-  a textured quad is a well-trodden raylib path).
+- **It's a rewrite of the draw layer**, and the partial-slice catch above means the first honest
+  prototype is option-1-sized (port the blits) unless you take the narrow option-2 opt-in. High
+  blast radius; the byte-identical oracle + `raster_test` + fleet A/B are the net, but it's a lot of
+  carts to re-validate.
+- **`camera_ex` carts bifurcate** — they stay on the GPU path, so two renderers coexist until/unless
+  rotation-in-software is solved. Acceptable because that set is small and disjoint from the
+  pset-heavy set, but it's real maintenance surface.
+- **Most carts are already at 60fps** — this buys *headroom* (bigger canvases, the CPU-shader work,
+  web), it doesn't fix a present fire. The decision isn't "is it correct" (the design is sound) —
+  it's "is removing the `rlVertex3f` ceiling worth a draw-layer rewrite *now*."
 
 ## Recommendation
 
-Worth prototyping (step 1) **because the data keeps pointing here** — every profile in this arc
-ends at `rlVertex3f`, and the span fills only routed *around* it for fills. A software canvas is
-the move that removes it for the whole engine, and at 64k px the precedent (every fantasy console)
-says it should win. But it's gated on fork 2 (`camera_ex`) and it's a rewrite, so: **prototype
-behind `DE_SOFTWARE_CANVAS`, RGBA, translation-camera-only, A/B on the fleet, then decide.** If the
-prototype shows `dpaint`/`interiors`/CPU-shaders dropping the way the survey predicts, commit to the
-staged migration; if `camera_ex` proves too costly to match, keep it as an opt-in mode for the
-per-pixel-heavy carts (which is still a big win for exactly the carts the survey flagged).
+**Park the decision, not the design** — the data keeps pointing here (every profile in this arc ends
+at `rlVertex3f`; the span fills only routed *around* it for fills), so a software canvas is the move
+that removes it engine-wide, and at 64k px the precedent (every fantasy console) says it should win.
+When picked up: prototype Fork-2/C behind `DE_SOFTWARE_CANVAS`, choose option 2 (narrow per-pixel
+opt-in) to prove the mechanism + the `dpaint`/CPU-shader win cheaply, A/B on the fleet, and only
+commit to option 1 (porting `spr`/`print`/`tritex`) if those numbers land the way the survey
+predicts. Earn the rewrite with data at each step — same discipline as the rest of the ledger.
 
 ## See also
 - [../guides/engine-optimization.md](../guides/engine-optimization.md) — the fleet survey that

@@ -119,11 +119,32 @@ network-topology + procedural-generation frontiers. Listed from confident recall
   evolution of street layouts (grid → cul-de-sac), the grid-vs-suburban debate.
 - **Fanis Grammenos / CMHC — the *Fused Grid*** — the pedestrian-permeable / vehicle-discontinuous hybrid.
 
-## Key sources (primary unless noted)
-- FHWA Functional Classification — [§2](https://www.fhwa.dot.gov/planning/processes/statewide/related/highway_functional_classifications/section02.cfm),
-  [§3](https://www.fhwa.dot.gov/planning/processes/statewide/related/highway_functional_classifications/section03.cfm)
-- FHWA Road Diet Informational Guide §4 — <https://highways.dot.gov/safety/other/road-diets/road-diet-informational-guide/4-designing-road-diet>
-- OSM — [Key:highway](https://wiki.openstreetmap.org/wiki/Key:highway), [US 2021 Classification Guidance](https://wiki.openstreetmap.org/wiki/United_States/2021_Highway_Classification_Guidance), [US roads tagging](https://wiki.openstreetmap.org/wiki/United_States_roads_tagging)
-- OpenDRIVE — [§11 Lanes](https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/11_lanes/11_01_introduction.html), [§12 Junctions](https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/12_junctions/12_01_introduction.html)
-- SUMO — [Road Networks](https://sumo.dlr.de/docs/Networks/SUMO_Road_Networks.html) · [Network Building](https://sumo.dlr.de/docs/Developer/Network_Building_Process.html)
-- Network patterns (secondary) — [transportgeography.org street-network-types](https://transportgeography.org/contents/chapter8/transportation-urban-form/street-network-types/), [Fused grid](https://en.wikipedia.org/wiki/Fused_grid), [Road hierarchy](https://en.wikipedia.org/wiki/Road_hierarchy)
+## Key sources — verified in the first deep-dive (primary unless noted)
+The sources behind the verified findings above, grouped by topic. Quality tier per the research pass.
+
+**Functional classification (the spine) — primary**
+- FHWA Functional Classification — [§2 concepts](https://www.fhwa.dot.gov/planning/processes/statewide/related/highway_functional_classifications/section02.cfm)
+  · [§3 the classes + access](https://www.fhwa.dot.gov/planning/processes/statewide/related/highway_functional_classifications/section03.cfm)
+- [MnDOT — FHWA Functional Classification Guidelines (PDF)](https://www.dot.state.mn.us/planning/program/pdf/FHWA%20Guidelines.pdf)
+  · [PennDOT — 2023 FHWA Functional Classification Guidelines (PDF)](https://gis.penndot.pa.gov/BPR_pdf_files/Documents/Traffic/Highway_Statistics/2023_FHWA_Functional_Classification_Guidelines.pdf)
+
+**At-grade junction geometry (facet A) — primary** (the standout: MoDOT's stop/yield chapter)
+- [FHWA Road Diet Informational Guide §4](https://highways.dot.gov/safety/other/road-diets/road-diet-informational-guide/4-designing-road-diet) — turn lanes, TWLTL, curb radii, access mgmt, lane widths
+- [MoDOT EPG 233.2 — At-Grade Intersections with Stop & Yield Control](https://epg.modot.org/index.php/233.2_At-Grade_Intersections_with_Stop_and_Yield_Control) — the at-grade geometry reference
+- [FHWA — Human Factors of intersection design (01103)](https://www.fhwa.dot.gov/publications/research/safety/humanfac/01103/ch1.cfm)
+- *Attempted but didn't fetch cleanly (get directly next time):* NACTO Urban Street Design Guide (intersection elements), AASHTO Green Book intersection chapter, Louisiana DOTD Ch.6 At-Grade Intersections.
+
+**OSM taxonomy — primary**
+- [Key:highway](https://wiki.openstreetmap.org/wiki/Key:highway) · [Highway classes](https://wiki.openstreetmap.org/wiki/Highway_classes)
+  · [US 2021 Classification Guidance](https://wiki.openstreetmap.org/wiki/United_States/2021_Highway_Classification_Guidance) · [US roads tagging](https://wiki.openstreetmap.org/wiki/United_States_roads_tagging)
+
+**Cross-section / lanes + sim precedent — primary**
+- OpenDRIVE — [§11 Lanes](https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/11_lanes/11_01_introduction.html)
+  · [§12 Junctions](https://publications.pages.asam.net/standards/ASAM_OpenDRIVE/ASAM_OpenDRIVE_Specification/latest/specification/12_junctions/12_01_introduction.html)
+- SUMO — [Road Networks](https://sumo.dlr.de/docs/Networks/SUMO_Road_Networks.html) · [Network Building Process](https://sumo.dlr.de/docs/Developer/Network_Building_Process.html)
+
+**Network topology + interconnection (facet B — thin, mostly secondary; the B-dive is fetching the academic core)**
+- [Wharton working paper #389 (PDF)](https://realestate.wharton.upenn.edu/wp-content/uploads/2017/03/389.pdf) — *primary, network-form academic; confirm exact title via the B-dive*
+- [transportgeography.org — street-network types](https://transportgeography.org/contents/chapter8/transportation-urban-form/street-network-types/) (secondary)
+- [Wikipedia — Fused grid](https://en.wikipedia.org/wiki/Fused_grid) · [Road hierarchy](https://en.wikipedia.org/wiki/Road_hierarchy) · [Access management](https://en.wikipedia.org/wiki/Access_management) (secondary)
+- [thediscourse.ca — the Fused Grid](https://thediscourse.ca/scarborough/the-fused-grid) (secondary)

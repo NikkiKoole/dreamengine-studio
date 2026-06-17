@@ -3241,7 +3241,7 @@ static inline float sound_bowed_sample(Voice *v, float pitch_mul) {
     float out = toBridge * 0.8f;
     float dc  = out - v->bw_dc_prev + 0.995f * v->bw_dc_state;
     v->bw_dc_prev = out; v->bw_dc_state = dc;
-    return dc * 3.0f;
+    return dc * 0.7f;   // makeup gain — trimmed 3.0→0.7 (−12.6 dB) to sit with the palette: BOWED was +13 dB over the library median (level-check), so two notes clipped the limiter
 }
 
 // ── INSTR_BRASS: lip-reed brass (STK BrassInstrument, Cook/Scavone) ─────────────
@@ -3416,8 +3416,10 @@ static inline float sound_brass_sample(Voice *v, float pitch_mul) {
     // the brightness lift adds energy → normalize it back out so pushing TIMBRE changes TIMBRE, not
     // loudness (and the engine doesn't slam the master soft-clip). Self-balancing: more brite, more trim.
     blaat *= 1.0f / (1.0f + 0.19f * brite);
-    // makeup: keep loudness roughly even across the BORE axis (trumpet↔tuba) — §8.8.1 for harmonics
-    return blaat * comp * (2.7f + dark * 0.7f);
+    // makeup: keep loudness roughly even across the BORE axis (trumpet↔tuba) — §8.8.1 for harmonics.
+    // Trimmed ~9 dB (×0.34: 2.7→0.93, 0.7→0.24) to sit with the palette — BRASS A2 was +9 dB over the
+    // library median (level-check); the trumpet↔tuba ratio is preserved (uniform scale).
+    return blaat * comp * (0.93f + dark * 0.24f);
 }
 
 // ── INSTR_VOICE: formant voice (navkit VoicForm port; vowels-only for the voxlab prototype) ──

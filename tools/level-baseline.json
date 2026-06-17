@@ -273,50 +273,50 @@
     {
       "eng": 28,
       "midi": 45,
-      "peakDb": -1.18,
-      "rmsDb": -10.09
+      "peakDb": -13.79,
+      "rmsDb": -22.73
     },
     {
       "eng": 28,
       "midi": 57,
-      "peakDb": -2.42,
-      "rmsDb": -10.7
+      "peakDb": -15.07,
+      "rmsDb": -23.34
     },
     {
       "eng": 28,
       "midi": 69,
-      "peakDb": -4.45,
-      "rmsDb": -12.74
+      "peakDb": -17.09,
+      "rmsDb": -25.38
     },
     {
       "eng": 28,
       "midi": 81,
-      "peakDb": -7.4,
-      "rmsDb": -16.34
+      "peakDb": -20.04,
+      "rmsDb": -28.99
     },
     {
       "eng": 29,
       "midi": 45,
-      "peakDb": -4.72,
-      "rmsDb": -16.99
+      "peakDb": -13.98,
+      "rmsDb": -26.26
     },
     {
       "eng": 29,
       "midi": 57,
-      "peakDb": -5.1,
-      "rmsDb": -15.81
+      "peakDb": -14.36,
+      "rmsDb": -25.08
     },
     {
       "eng": 29,
       "midi": 69,
-      "peakDb": -5.09,
-      "rmsDb": -13.95
+      "peakDb": -14.35,
+      "rmsDb": -23.22
     },
     {
       "eng": 29,
       "midi": 81,
-      "peakDb": -6.45,
-      "rmsDb": -14.16
+      "peakDb": -15.71,
+      "rmsDb": -23.42
     }
   ]
 }

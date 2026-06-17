@@ -1847,13 +1847,15 @@ two would clip), and loudness-outlier-vs-library-median. The squash check is gat
 low crest on a *quiet* tone is just a dense waveform (REED reads crest ~2.5 dB, below a sine's 3.0 dB
 — its harmonics, not clipping), so it only flags when the peak is also near the limiter knee.
 
-**First-run finding (advisory — a taste/balance issue, not a code regression):** the library is
-*uneven in level*. Most engines sit at −14 to −18 dBFS peak for a single note; **BOWED is ~10–13 dB
-hotter** (A2 peaks −1.2 dBFS — two sustained bowed notes clip the master soft-clip), and **BRASS A2
-is +9 dB**. This is the level analogue of the §18 tuning audit: the modeled/physical engines are the
-outliers. A per-engine output-trim pass to roughly peak-match the palette would make chords *across*
-instruments balance without every cart riding `note_vol` — tracked, not yet acted on. (It also lines
-up with the §18 note that "whatever is off about BOWED, it is not pitch" — partly, it is level.)
+**First-run finding (now FIXED 2026-06-17):** the library was *uneven in level*. Most engines sit at
+−14 to −18 dBFS peak; **BOWED was ~10–13 dB hotter** (A2 −1.2 dBFS — two sustained notes clipped the
+master soft-clip) and **BRASS A2 +9 dB** — the level analogue of the §18 tuning audit (the modeled
+engines are the outliers; "whatever's off about BOWED, it's not pitch" — partly it was level). Fix: a
+per-engine **output-makeup trim** in `sound.h` — BOWED `dc*3.0f → 0.7f` (−12.6 dB), BRASS
+`(2.7f+dark*0.7f) → (0.93f+dark*0.24f)` (−9.3 dB, uniform scale so the trumpet↔tuba balance is kept).
+Now BOWED −13.8…−20, BRASS −14…−15.7 — both at the ~−15.5 median, no HOT/outlier flags. Amplitude-only,
+so pitch is unchanged (tune/dc-check stayed clean); `level-baseline.json` re-blessed. This is exactly
+the regression `level-check` exists to catch — and to verify the fix.
 
 ### 20.2 Still open (no gate yet)
 

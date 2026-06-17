@@ -998,11 +998,12 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       Catches the silent regression a compile + tune-check + dc-check all miss — an engine that got
       louder/quieter, or one now slamming the master limiter (crest collapse, dynamics squashed).
       Also flags absolutes with no baseline (SILENT / HOT-on-its-own / loudness-outlier-vs-library).
-      **First-run finding (advisory, not a regression — flagged for taste):** the library is uneven —
-      **BOWED is ~10–13 dB hotter than the library median** (A2 peaks −1.2 dBFS, so *two* sustained
-      bowed notes clip the master soft-clip), and **BRASS A2 is +9 dB**. Most engines sit at −14 to
-      −18 dBFS peak; a per-engine output-trim pass to roughly match peaks would make chords across
-      instruments balance without riding `note_vol`. Tracked, not yet acted on.
+      **First-run finding (now FIXED):** the library was uneven — BOWED peaked −1.2 dBFS (+12.8 dB over
+      the median; two sustained bowed notes clipped the limiter) and BRASS A2 +9 dB, while most engines
+      sit −14 to −18. **Trimmed the per-engine output makeup** (`sound.h`: BOWED `dc*3.0→0.7`, −12.6 dB;
+      BRASS `(2.7+dark*0.7)→(0.93+dark*0.24)`, −9.3 dB). Now BOWED −13.8…−20, BRASS −14…−15.7, both at
+      the ~−15.5 median; no HOT/outlier flags. Pitch unchanged (gain is amplitude-only — dc/tune clean),
+      trumpet↔tuba ratio preserved. Baseline re-blessed (`level-baseline.json`); `--quiet` green.
     - ✅ **Effect STABILITY gate — SHIPPED `tools/fx-check.js`** (+ harness cart `fxcheck.c`,
       baseline `tools/fx-baseline.json`). Renders a loud sustained chord into the master bus and, one
       effect at a time, sets THAT effect at its documented EXTREME (echo fb `1.1`, flanger/phaser

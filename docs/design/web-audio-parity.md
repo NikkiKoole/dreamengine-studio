@@ -48,6 +48,33 @@ worklet cart and listen (and ideally read `AudioContext.sampleRate`, see Phase 0
 fix only reaches shipped carts after a web rebuild (`tools/publish-cart.sh` / build-site.js); the committed
 `site/` carts still have the old `(0)` worklet until then.
 
+## ✅ Phase 1 DONE — codegen parity measured + gated (2026-06-17, `tools/web-audio-check.js`)
+
+The Axis-1 offline gate is built (`web-audio-host.c` + a raylib shim + `web-audio-check.js`): it compiles
+the engine BOTH ways (clang `-O2` native / emcc `-O2` → Node) and renders each engine solo with identical
+deterministic input, then compares the two WAVs. **The finding: emcc reproduces native DSP faithfully.**
+
+- **15 of 16 engines are sample-faithful** — the native↔wasm difference sits **75–120 dB below the signal**
+  (SINE/SAW/ORGAN/PLUCK/VOICE max **1 LSB**; **TRI is byte-identical**). The residual is exactly the expected
+  libm/FMA ULP noise (e.g. FM/EPIANO/PIANO at ~−76 dB). **Inaudible.** So an emcc codegen/fast-math change
+  that altered the math would scream here (a jump from −95 dB to audible).
+- **BOWED is the one exception, and it's not a bug: it's CHAOS.** The bowed-string stick-slip friction is a
+  nonlinear feedback oscillator with sensitive dependence on initial conditions — a single-ULP libm/FMA
+  difference at the excitation diverges to a completely different micro-waveform (−3.9 dB below signal, 94%
+  of samples differ). But it's the **same note**: the two renders' RMS **levels match to 0.06 dB** (same
+  pitch, same loudness, same timbre — only the micro-phase of the stochastic stick-slip differs). The other
+  waveguides (brass/reed/pipe) are *not* chaotic in steady state and stay at −94…−96 dB. Anything BOWED feeds
+  (reverb/echo tails) inherits the divergence — which is why an all-engines+effects mix reads ~−16 dB.
+- **The gate is two-tier**, which is the lesson: **sample-diff is the wrong metric for a chaotic engine.**
+  Tier 1 = diff must sit ≥60 dB below signal (catches a real codegen regression on the 15 stable engines);
+  Tier 2 = for an engine that fails Tier 1, the two renders' RMS levels must still match (≤1.5 dB) — chaotic
+  micro-divergence with matching level/pitch is perceptual parity, not a bug. Only failing BOTH is a real
+  divergence. `--quiet` is the CI gate; deterministic per compiler.
+
+**Net web-audio verdict (combining this + the SR fix):** the wasm build's *math* is faithful to native; the
+only real web bug was the worklet sample RATE (fixed above). Phases 2–3 (real-browser spectral check, the
+worklet runtime) remain optional — Phase 1 + the SR fix cover the likely failure modes.
+
 ## Why it matters
 
 The web build is a whole platform with zero automated audio coverage. 69 carts are "engine-stale" on

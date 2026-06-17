@@ -1902,8 +1902,13 @@ up with the §18 note that "whatever is off about BOWED, it is not pitch" — pa
    fine on the owner's Mac; 48k devices are sharp), so it shipped unnoticed. **Fix APPLIED** (`sound.h`
    `sound_worklet_init` forces the worklet context to `SOUND_SAMPLE_RATE` via
    `EmscriptenWebAudioCreateAttributes`; compiles native + emcc-worklet). Follow-ups: on-device confirm +
-   republish (shipped `site/` carts keep the old context until rebuilt). Phase 1 next = offline emcc render
-   byte-diffed vs native `--wav`. `audio-timing.md` covers timing, not samples.
+   republish (shipped `site/` carts keep the old context until rebuilt). **Phase 1 codegen gate SHIPPED
+   (`tools/web-audio-check.js`, clang-native vs emcc-wasm per engine): 15/16 engines sample-identical (diff
+   75–120 dB below signal — inaudible libm/FMA ULP noise; TRI byte-exact). Only BOWED sample-diverges —
+   chaotic stick-slip friction, sensitive to 1-ULP differences — yet its two renders match in RMS level to
+   0.06 dB (same note, micro-phase only).** So the wasm math is faithful; the only real web bug was the SR.
+   Lesson baked into the gate: sample-diff is the wrong metric for a chaotic engine → two-tier (sample parity,
+   else perceptual-level fallback). `audio-timing.md` covers timing, not samples.
 3. **Set-and-hold footgun — SHIPPED `tools/lint-fx-frame.js`.** The set-and-hold rule
    ([effects-recipes.md](../guides/effects-recipes.md) intro) was documented but unenforced. Now a
    static lint flags an unconditional per-frame call to a buffer-rebuilding effect in

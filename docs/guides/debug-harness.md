@@ -438,6 +438,24 @@ Pairs with the **denormal flush-to-zero** in `sound.h` (`sound_set_denormal_ftz(
 → audio-thread CPU stutter on some CPUs, invisible in the output. The soak proves the tails decay (the
 audible side); FTZ handles the CPU side. **Run after any feedback-effect or voice-lifetime edit.**
 
+### Web parity — does the wasm build's audio match native?
+
+**`tools/web-audio-check.js`** compiles the engine BOTH ways (clang `-O2` native vs emcc `-O2` → Node, via
+the audio-only `web-audio-host.c` + a raylib shim — no graphics), renders each engine solo with identical
+input, and compares the WAVs. Isolates one variable: does emscripten's compiled DSP math match native?
+
+```bash
+node tools/web-audio-check.js              # per-engine parity report
+node tools/web-audio-check.js --quiet      # CI gate: exit 1 if any engine diverges audibly
+```
+
+Two-tier verdict (the lesson: sample-diff is wrong for a *chaotic* engine): an engine passes if its
+native↔wasm diff sits ≥60 dB below the signal (sample-parity), OR — for a chaotic engine like BOWED, whose
+stick-slip friction diverges from a 1-ULP difference — if the two renders still match in RMS level (same
+note, micro-phase only). Finding (2026-06-17): 15/16 engines are sample-faithful; BOWED is perceptual-only;
+the wasm math is faithful — the one real web bug was the worklet sample rate (see web-audio-parity.md).
+**Run after engine-math edits that an optimizer/fast-math/libm change could compile differently.**
+
 ### Before/after diff
 
 ```bash

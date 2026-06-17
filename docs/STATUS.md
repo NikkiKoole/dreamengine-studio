@@ -1047,8 +1047,14 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       `EmscriptenWebAudioCreateAttributes` (browser resamples to hardware → matches native + the plain
       backend). Compiles clean native + emcc-worklet. **Two follow-ups:** (1) on-device confirm (verified by
       source reading, not yet a browser) + a listen to the resample quality; (2) **republish** — shipped
-      `site/` carts keep the old `(0)` worklet until a web rebuild. Phase 1 (offline emcc-render byte-diff vs
-      native `--wav`, the codegen-determinism gate, ~½ day) is still open as the durable web CI gate.
+      `site/` carts keep the old `(0)` worklet until a web rebuild.
+      **✅ Phase 1 codegen-parity gate SHIPPED — `tools/web-audio-check.js`** (+ `web-audio-host.c` + a
+      raylib shim): compiles the engine clang-native vs emcc-wasm, renders each engine solo, compares. **The
+      math is faithful: 15/16 engines sample-identical (native↔wasm diff 75–120 dB below signal; TRI
+      byte-exact; the rest libm/FMA ULP noise — inaudible).** Lone exception **BOWED** — chaotic stick-slip
+      friction, so a 1-ULP diff diverges to a different micro-waveform, but the two renders' RMS **levels match
+      to 0.06 dB** (same note, just micro-phase). Two-tier gate (sample parity, perceptual-level fallback for
+      chaotic engines); `--quiet` CI. Net: the only real web bug was the SR (fixed); the codegen is clean.
     - ✅ **Set-and-hold footgun — now lintable: SHIPPED `tools/lint-fx-frame.js`.** Static check (no
       render) that flags an UNCONDITIONAL per-frame call to a buffer-rebuilding effect
       (`crush`/`tape`/`eq`/`chorus`/`reverb`/`flanger`/`phaser`/…) in `update()`/`draw()` — the silent-

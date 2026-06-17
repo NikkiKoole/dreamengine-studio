@@ -5,18 +5,21 @@
 //
 // Everything is a pure function of the frame counter F — no time, no random — so
 // `play.js polystress --dump` produces the same PNGs on every run and on every build.
-//   stress:    node tools/play.js polystress run                       (watch it churn)
-//   profile:   editor ▶ run, then trigger profiler_request  (or play.js, headless)
+// Default-with-no-input stays on scene 0, so headless dumps are deterministic.
+//   keys:  1 = DITHER scene (default/opening)   2 = MIXED scene
+//   stress:    node tools/play.js polystress run
+//   profile:   editor ▶ run, then ⏱ profile  (or play.js headless + perf.json)
 //   validate:  node tools/play.js polystress script /dev/null --headless --frames 90 \
 //                   --dump /tmp/poly_before --dump-every 15 ; shasum /tmp/poly_before/*.png
-//   …optimize polyfill, rebuild, dump to /tmp/poly_after, diff the two shasum lists.
+//   A/B:       prefix DE_POLY_FILL=legacy to use the old per-pixel fill (guides/engine-optimization.md)
 //
-// Coverage — each block targets a distinct path through the rasterizer:
-//   1 BIG CONCAVE stars  — large fill AREA × even-odd test: the per-pixel poly_inside cost
-//   2 GRID of stars      — high polyfill COUNT: per-call setup (bbox, clamp) overhead
-//   3 ROAD strips        — convex tapering quads, exactly roadlab's fill_strip case
-//   4 DITHER poly        — fillp() active → plot_pat's patterned branch (not plain pset)
-//   5 OFFSCREEN giant    — bbox runs way off-canvas → exercises poly_clamp_scan
+// SCENE 0 — DITHER: six big concave stars, each filled with a different FILL_* pattern
+//   (CHECKER/DOTS/HLINES/VLINES/DIAG/GRID), so one profile captures every dither
+//   run-length — CHECKER alternates every pixel (worst case for span batching), DOTS/
+//   HLINES have long runs (best case). This is the target for measuring draw_span_pat.
+// SCENE 1 — MIXED: solid big stars (large-area even-odd) + a 70-cell star grid (fill
+//   COUNT) + roadlab-style convex strips + one dithered star + a giant off-screen quad
+//   (poly_clamp_scan). The all-round rasterizer stress.
 
 #include "studio.h"
 #include <math.h>
@@ -25,7 +28,12 @@
 #define TAU 6.28318530718f
 
 static int F = 0;
-void update(void) { F++; }
+static int scene = 0;                       // 0=DITHER (opening), 1=MIXED
+void update(void) {
+    F++;
+    if (keyp('1')) scene = 0;
+    if (keyp('2')) scene = 1;
+}
 
 // concave n-point star into xy[], returns vertex count (2*points)
 static int mkstar(float cx, float cy, float rOut, float rIn, int points, float rot, int *xy) {
@@ -55,64 +63,73 @@ static void strip(float x0, float y0, float x1, float y1, float halfw, int segs,
     }
 }
 
-void draw(void) {
-    cls(CLR_BLACK);
-    float ph = F * 0.04f;                       // global rotation phase, deterministic
-    int xy[64];
+static const struct { int pat; const char *name; } DITHERS[6] = {
+    { FILL_CHECKER, "CHECKER" }, { FILL_DOTS,   "DOTS"   }, { FILL_HLINES, "HLINES" },
+    { FILL_VLINES,  "VLINES"  }, { FILL_DIAG,   "DIAG"   }, { FILL_GRID,   "GRID"   },
+};
 
-    // ── 1 · big concave stars: maximum fill area through the even-odd test ──
-    for (int s = 0; s < 3; s++) {
-        float cx = SCREEN_W * (0.25f + 0.25f*s);
-        float cy = SCREEN_H * 0.5f;
+// SCENE 0 — six big DITHERED stars, one pattern each (the draw_span_pat target)
+static int draw_dither(float ph) {
+    int xy[64], fills = 0, GX = 3, GY = 2;
+    for (int i = 0; i < 6; i++) {
+        int gx = i % GX, gy = i / GX;
+        float cx = (gx + 0.5f) * SCREEN_W / GX;
+        float cy = (gy + 0.5f) * SCREEN_H / GY;
+        float r  = 46 + 6 * sinf(ph + i);
+        int n = mkstar(cx, cy, r, r*0.45f, 8, ph*0.5f + i, xy);
+        fillp(DITHERS[i].pat, -1);
+        polyfill(xy, n, 8 + i);             // 0-bits = colour, 1-bits = transparent
+        fillp_reset();
+        fills++;
+        print(DITHERS[i].name, (int)cx - 14, (int)cy - 2, CLR_WHITE);
+    }
+    return fills;
+}
+
+// SCENE 1 — the all-round mixed rasterizer stress
+static int draw_mixed(float ph) {
+    int xy[64], fills = 0;
+    for (int s = 0; s < 3; s++) {           // big concave stars: large fill area
+        float cx = SCREEN_W * (0.25f + 0.25f*s), cy = SCREEN_H * 0.5f;
         float r  = 46 + 8 * sinf(ph + s);
         int n = mkstar(cx, cy, r, r*0.45f, 9, ph * (s+1) * 0.5f, xy);
-        polyfill(xy, n, 8 + (s + F/20) % 8);
+        polyfill(xy, n, 8 + (s + F/20) % 8); fills++;
     }
-
-    // ── 2 · a dense grid of small spinning stars: polyfill COUNT stress ──
-    int GX = 10, GY = 7;
+    int GX = 10, GY = 7;                     // dense grid: polyfill COUNT
     for (int gy = 0; gy < GY; gy++)
         for (int gx = 0; gx < GX; gx++) {
-            float cx = (gx + 0.5f) * SCREEN_W / GX;
-            float cy = (gy + 0.5f) * SCREEN_H / GY;
-            float rot = ph * 2 + (gx + gy);
-            int n = mkstar(cx, cy, 11, 4.5f, 5, rot, xy);
-            polyfill(xy, n, 16 + (gx + gy + F/10) % 16);
+            float cx = (gx + 0.5f) * SCREEN_W / GX, cy = (gy + 0.5f) * SCREEN_H / GY;
+            int n = mkstar(cx, cy, 11, 4.5f, 5, ph*2 + (gx+gy), xy);
+            polyfill(xy, n, 16 + (gx + gy + F/10) % 16); fills++;
         }
-
-    // ── 3 · sweeping road strips: convex quads, the roadlab fill_strip case ──
-    for (int k = 0; k < 6; k++) {
+    for (int k = 0; k < 6; k++) {            // sweeping convex road strips
         float a = ph * 0.7f + k * (TAU / 6);
         float cx = SCREEN_W * 0.5f, cy = SCREEN_H * 0.5f;
-        strip(cx, cy, cx + cosf(a)*140, cy + sinf(a)*100, 6.f, 14, CLR_DARK_GREY);
+        strip(cx, cy, cx + cosf(a)*140, cy + sinf(a)*100, 6.f, 14, CLR_DARK_GREY); fills += 14;
     }
-
-    // ── 4 · a dithered concave poly: drives plot_pat's fillp() patterned branch ──
-    fillp(FILL_CHECKER, -1);
+    fillp(FILL_CHECKER, -1);                 // one dithered concave poly
     int n = mkstar(SCREEN_W*0.5f, SCREEN_H*0.5f, 70, 26, 7, -ph, xy);
-    polyfill(xy, n, CLR_WHITE);
+    polyfill(xy, n, CLR_WHITE); fills++;
     fillp_reset();
+    int g[8] = { (int)(-200 + cosf(ph*0.3f)*40), -150, (int)(SCREEN_W+200), (int)(-80 + sinf(ph*0.3f)*40),
+                 (int)(SCREEN_W+150), SCREEN_H+200, -180, SCREEN_H+120 };   // giant off-screen quad
+    fillp(FILL_DOTS, -1);
+    polyfill(g, 4, CLR_DARK_BLUE); fills++;
+    fillp_reset();
+    return fills;
+}
 
-    // ── 5 · a giant mostly-offscreen poly: exercises poly_clamp_scan ──
-    {
-        float a = ph * 0.3f;
-        int g[8] = { (int)(-200 + cosf(a)*40), -150,
-                     (int)(SCREEN_W+200),        (int)(-80 + sinf(a)*40),
-                     (int)(SCREEN_W+150),        SCREEN_H+200,
-                     -180,                        SCREEN_H+120 };
-        // draw it faint by dithering so it doesn't wipe the scene, but still fills
-        fillp(FILL_DOTS, -1);
-        polyfill(g, 4, CLR_DARK_BLUE);
-        fillp_reset();
-    }
+void draw(void) {
+    cls(CLR_BLACK);
+    float ph = F * 0.04f;
+    int fills = (scene == 0) ? draw_dither(ph) : draw_mixed(ph);
 
-    // readout
-    print("polystress", 4, 4, CLR_WHITE);
-    char buf[32];
-    int polys = 3 + GX*GY + 6*14 + 1 + 1;       // fills issued this frame
-    snprintf(buf, sizeof buf, "F=%d polyfills=%d", F, polys);
+    print(scene == 0 ? "polystress  DITHER (1)" : "polystress  MIXED (2)", 4, 4, CLR_WHITE);
+    char buf[40];
+    snprintf(buf, sizeof buf, "F=%d fills=%d", F, fills);
     print(buf, 4, 12, CLR_LIGHT_GREY);
 #ifdef DE_TRACE
-    watch("polyfills", "%d", polys);
+    watch("fills", "%d", fills);
+    watch("scene", "%d", scene);
 #endif
 }

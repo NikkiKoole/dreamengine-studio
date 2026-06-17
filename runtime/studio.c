@@ -2370,7 +2370,16 @@ static bool rrect_inside(int px, int py, int x, int y, int w, int h, int r) {
 
 void circ(int cx, int cy, int r, int color) {
     PROF("circ");
-    // outline = pixels inside the disc that have at least one outside 4-neighbour
+    // outline = pixels inside the disc that have at least one outside 4-neighbour.
+    // SEAM for an O(perimeter) outline (the fills got the span treatment; the STROKES
+    // didn't). This scans the whole O(r²) bbox testing disc_inside 5×/pixel for an O(r)
+    // ring — a span version would, per row, emit just the endpoints [a,b] of the disc
+    // span (from dx=√(r²-dy²), like circfill) plus the extra cap pixels where the row
+    // above/below is narrower. Same idea fits `oval` and `poly_stroke_cov` below. PARKED —
+    // measured low-leverage: it was 74% of `orbit` (R=120 planet ring) but orbit is now
+    // 1.6ms/9% budget after the fill fix, and outlines are small/rare fleet-wide (survey:
+    // circ ~109/frame across 9 carts). Finish-the-set tidiness, not a fleet win. See
+    // docs/guides/engine-optimization.md → "Outline strokes (parked)".
     for (int y = cy - r; y <= cy + r; y++)
         for (int x = cx - r; x <= cx + r; x++)
             if (disc_inside(x,y,cx,cy,r) &&
@@ -3070,6 +3079,9 @@ static void poly_fill_cov(const int *xy, int n, int color) {
         }
     }
 }
+// poly/ngon/star OUTLINE = boundary ring of the even-odd fill. Same O(r²)-bbox-scan /
+// O(perimeter)-result seam as `circ` (see its note) — a span version would emit the
+// per-row span endpoints + cap pixels. PARKED, same low-leverage rationale.
 static void poly_stroke_cov(const int *xy, int n, int color) {
     if (n < 3) return;
     int x0, y0, x1, y1; poly_bbox(xy, n, &x0, &y0, &x1, &y1);
@@ -3533,6 +3545,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
 
 void oval(int cx, int cy, int rx, int ry, int color) {
     PROF("oval");
+    // Same O(perimeter)-outline seam as `circ` (see its note); PARKED, low-leverage.
     if (rx < 0) rx = -rx; if (ry < 0) ry = -ry;
     if (rx == 0 || ry == 0) return;
     for (int y = cy - ry; y <= cy + ry; y++)

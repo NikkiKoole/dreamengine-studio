@@ -222,6 +222,21 @@ no per-row division) was considered and parked: `tristress` BIG (8 large) 0.33ms
 clamp cost — is sub-millisecond even in torture. A documented **seam** is left in `trifill`
 (`studio.c`) and the rig is `tools/carts/tristress.c` (BIG/MANY scenes).
 
+### Outline strokes (`circ`/`oval`/`poly`/`ngon`/`star`) — PARKED (seams left)
+The span work optimized the *fills*; the *outlines* are still the old per-pixel path, and it's the
+last unoptimized software-coverage shape. They're **O(r²)**: scan the whole bounding box, test
+`disc_inside`/`ellipse_inside`/`poly_inside` **5× per pixel** (the pixel + 4 neighbours, "inside
+with an outside neighbour") — to produce an **O(r) ring**. A span version would, per row, emit just
+the disc/ellipse span endpoints `[a,b]` (from `dx=√(r²-dy²)`, like the fills) plus the cap pixels
+where the neighbouring row is narrower → O(perimeter), same byte-identical validation, covers
+`circ`/`oval` + `poly_stroke_cov` (poly/ngon/star/tri outlines).
+**Surfaced by `orbit`:** after the fill fix it's 1.6ms/9% budget, and **74% of that is now `circ`**
+(the R=120 planet ring) doing the O(r²) scan. So the cost is real *where outlines are big* — but
+**low-leverage fleet-wide**: outlines are usually thin/small (survey: `circ` ~109/frame across 9
+carts), and orbit, the one cart that made it visible, is already fine. **Finish-the-set tidiness,
+not a fleet win** — pursue only if an outline-bound cart shows up. Seams left in `circ` (the full
+note), `oval`, and `poly_stroke_cov` (`studio.c`).
+
 ### Per-frame clamp-box cache — SHIPPED (`13fdeca`)
 `poly_clamp_scan` called `GetScreenToWorld2D` **4× per fill call** (a camera-matrix inverse ×4),
 yet the visible-region box is **constant for the whole frame** unless the cart calls `camera()`.

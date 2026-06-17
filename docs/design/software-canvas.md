@@ -104,6 +104,15 @@ rare, and a `camera_ex` cart that's *also* per-pixel-bound may not exist. So C s
 where the survey points, sidesteps both killers, and defers rotation-in-software until there's
 measured demand. (The "translation-camera-only prototype" below *is* committing to C.)
 
+> **Concrete example of the bifurcation: `sloop`** (the spline road world). Profiled 3.5ms mean /
+> 4.2ms p95 — but it's **GPU-draw-call-bound, not pset-bound** (984 `rectfill_rot` + 528 `line` ≈
+> 1500 GPU calls/frame; `pset` only 41) **and it uses `camera_ex`** (rotating/zooming view). So
+> under C it stays entirely on the GPU path and gets *nothing* from the software canvas. It's the
+> proof that (a) a real, different profile shape exists (GPU draw-call count, not per-pixel writes),
+> and (b) the `camera_ex` set is real — so "two renderers coexist" (risk below) is a fact, not a
+> hypothetical. Making the software canvas help `sloop` is precisely the deferred hard part
+> (rotation/zoom in software).
+
 ### Fork 3 — compositing (falls out of Fork 2)
 
 A compositing problem only exists if some primitives draw GPU and some CPU **in the same frame**

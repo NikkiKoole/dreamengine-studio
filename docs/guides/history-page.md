@@ -112,6 +112,12 @@ move it under `design/` if it should.
 > Still untapped when refreshing the retrospect: `STATUS.md`'s "Decided-against / deferred"
 > ledger (a fuller list than the cut-ADRs).
 
+> **Coming: moving thumbnails.** A video exporter is in the works; when it lands, cart
+> clips (webm/gif) will upgrade the still thumbnails in the hero / spotlight / thread-carts
+> slots, PNG as poster. The path + naming convention is fixed in
+> [`../design/cart-clips.md`](../design/cart-clips.md) so the auto-detection drops straight
+> in (glob `carts/clips/<cart>/*`, first of webm > mp4 > gif, caption from the filename).
+
 ## Tools built + milestone commit detail (automatic)
 
 Two more derived surfaces, both zero-authoring:

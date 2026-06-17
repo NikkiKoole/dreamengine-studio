@@ -181,6 +181,68 @@ All three work simultaneously. The game creates `build/.bake/` on startup, so th
 directory always exists. `profiler_request` works in any native build — you do not
 need `-DDE_PROFILE` or the `⏱ profile` button; the counters run in every normal run.
 
+## Clip capture — an animated GIF / WebM of a cart (`tools/make-gif.js`)
+
+The visual twin of `--wav`: render a cart's *motion* to a file. It's a thin wrapper over
+`play.js --dump` (which exports the **native-resolution canvas** as one PNG per frame —
+the real pixels, *before* the on-screen window scale) followed by an ffmpeg assemble. So a
+clip costs no new runtime code, and because the harness is deterministic, **a clip is a
+reproducible build artifact** of a committed input file — re-run it after an engine change
+and get the identical animation.
+
+```bash
+node tools/make-gif.js boids                      # self-animating cart — no input needed
+node tools/make-gif.js dinorun --from you.rec      # replay a recording (a human playing)
+node tools/make-gif.js epiano  --from solo.beats   # scripted showcase (authored inputs)
+```
+
+The `--from` file's extension picks the harness mode (`.rec`→replay, `.beats`→beats,
+`.script`→script); with no `--from` it does a headless `run`, which is all a self-animating
+cart needs. Options: `--frames N`, `--fps` (default 30; carts run at 60, so it dumps every
+2nd frame), `--scale` (integer upscale, **default 1 = native**), `--crf` (webm/mp4 quality,
+default 30), `--start N` (drop boot/title frames), `--format webm|webp|gif|mp4|apng`,
+`--seed/--bpm/--screen` (passthrough), `--keep` (keep `build/.gif/<name>/` for inspection).
+
+**Capture native, scale at the consumer.** Capture is always native res; the file stays
+native unless you ask for `--scale`. The web page upscales crisply with
+`image-rendering:pixelated`, so a per-game loop wants `--scale 1` (smallest). Bump to `2–3`
+only for a **standalone** GIF/README where nothing else does the scaling — that upscale is
+**nearest-neighbour**, so edges stay hard. **Never capture the 4× window**: 16× the pixels,
+already upscaled, re-scaling fights the grid.
+
+**Crisp by construction.** GIF uses a single global palette with `dither=none` (dithering
+would shimmer our flat ≤32-colour fills); WebM is VP9 at `yuv444p` (full chroma — no colour
+bleed on pixel edges); mp4 is `yuv420p` for reach. The weight levers, in order, are
+**duration → `--crf` → scale** — *not* resolution. Native + crf 30, a sloop city-drive
+(8s, full-screen scroll = worst case): **webm 556 KB**; trim to 3–4 s and it's ~200 KB. Use
+`--crf 16` for a near-lossless hero clip, `--crf 40` for max-tiny grid loops.
+
+**Reproducible clips — the `tools/clips/` recipe home.** A clip's input track is the
+*source of truth*; commit it under `tools/clips/<cart>/NN-label.{script,beats,rec}` and bake
+with `--recipe`:
+
+```bash
+node tools/make-gif.js sloop --recipe 01-autodrive   # reads tools/clips/sloop/01-autodrive.script
+  → editor/public/clips/sloop/01-autodrive.webm       # the history-page convention, verbatim name
+node tools/make-gif.js --all                          # rebuild EVERY committed clip from its recipe
+```
+
+A recipe is **self-describing**: `# frames N`, `# fps N`, `# scale N`, `# crf N` comment
+lines (ignored by the runtime script parser) travel with the track, so each clip rebuilds at
+its own length — a CLI flag still overrides. Without `# frames`, a `.script`'s length is
+derived from its last event + a tail. `--all` is what makes the whole `clips/` tree
+regenerable from committed sources, the same way carts rebuild from `tools/carts/`.
+
+**The output convention.** `--clip <label>` (or `--recipe`, verbatim) writes to
+`editor/public/clips/<name>/NN-label.<ext>` — a **sibling of `carts/`**, not nested:
+`carts/` stays a flat store of cart data, `clips/` is the media root (a peer of `palettes/`
+under `editor/public/`). One cart = one folder, any number of clips; the `NN-label`
+filename carries order + caption with no sidecar metadata (strip `NN-`, dash→space). The
+history generator globs `clips/<name>/*.{webm,gif}` and uses the `.cart.png` as the
+poster/fallback — so a clip needs zero per-cart wiring. (`--clip` without a leading `NN-`
+auto-assigns the next number; `--from` ad-hoc with no `--clip`/`--out` lands in
+`docs/media/<name>.<ext>`.)
+
 ## WAV capture — hear what the engine actually rendered
 
 Two ways to get the engine's audio output as a WAV (16-bit mono 44.1 kHz), one

@@ -50,8 +50,24 @@ filename, and derives the caption from `NN-label`. No per-cart registration — 
 the still thumbnails. First consumer: **the history page** (`tools/build-history.js`) — the
 hero cart, the design-note spotlight, and the research-thread carts are the natural slots
 (they already show a still `.cart.png`); a clip, when present, upgrades the still in place,
-PNG as poster. `make-cart.js --clip <label>` files straight into the path, auto-numbering
-`NN`.
+PNG as poster.
+
+## Reproducibility — the `tools/clips/` recipe home
+
+The baked `.webm` under `editor/public/clips/` is an *artifact*; its **input track is the
+source of truth**, committed under `tools/clips/<cart>/NN-label.{script,beats,rec}` (mirrors
+the output tree, same `NN-label`). Bake with `node tools/make-gif.js <cart> --recipe
+<NN-label>`; `--all` rebuilds every clip from its recipe — so `clips/` regenerates from
+committed sources the same way carts rebuild from `tools/carts/`. A recipe is
+self-describing (`# frames N`, `# fps N`, `# scale N`, `# crf N` comment lines travel with
+the track), so each clip rebuilds at its own length. Default bake is **native res** (the
+page upscales crisply via `image-rendering:pixelated`); the weight levers are
+duration → `--crf` → scale, not resolution — see
+[`../guides/debug-harness.md`](../guides/debug-harness.md) → "Clip capture".
+
+> This same demo track is a candidate seed for more than the webm — a self-recorded `.rec`
+> (`play.js record`), and potentially an in-cart **attract mode** (the cart plays itself
+> until you touch a control). Parked, thinking in progress; the track is the shared primitive.
 
 ## Open decisions (don't change the layout, just the plumbing)
 

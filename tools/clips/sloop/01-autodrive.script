@@ -1,0 +1,18 @@
+# sloop — auto-drive the default rig: accelerate through the city grid, carve a few
+# turns, then handbrake-drift the bend and straighten out. 60fps.
+# Controls: gas=UP, steer=LEFT/RIGHT, handbrake=SPACE.
+# frames 490
+down 15 UP
+down 75 RIGHT
+up 130 RIGHT
+down 175 LEFT
+up 240 LEFT
+down 280 RIGHT
+up 325 RIGHT
+# a handbrake drift through the next bend
+down 350 SPACE
+down 356 LEFT
+up 400 SPACE
+up 415 LEFT
+down 430 RIGHT
+up 470 RIGHT

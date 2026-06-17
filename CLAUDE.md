@@ -148,6 +148,18 @@ eventually2/
 │   ├── make-cart.js    #   build/bake .cart.png from tools/carts/<name>.c
 │   │                   #   also a library module: play.js requires it for buildSpriteSheet/buildMap/etc.
 │   ├── play.js         #   debug harness driver (record/replay/script + trace + --wav audio render)
+│   ├── make-gif.js     #   capture an animated CLIP of a cart (webm/webp/gif/mp4/apng).
+│   │                   #   wraps play.js --dump (NATIVE-res canvas frames) + ffmpeg; stays
+│   │                   #   native by default (--scale upscales nearest-neighbour for a
+│   │                   #   standalone gif; the web page scales crisp via image-rendering:
+│   │                   #   pixelated). crisp: gif=global palette no-dither, webm=vp9 yuv444p,
+│   │                   #   never the 4× window. --crf knob; weight levers = duration→crf→scale.
+│   │                   #   deterministic → a clip is a reproducible artifact of its input track.
+│   │                   #   REPRO HOME: commit the track at tools/clips/<cart>/NN-label.{script,
+│   │                   #   beats,rec} (self-describing: # frames/fps/scale/crf), bake with
+│   │                   #   --recipe <label> → editor/public/clips/<cart>/NN-label.webm (the
+│   │                   #   history-page convention, a SIBLING of carts/); --all rebuilds every
+│   │                   #   committed clip. --from/--clip for ad-hoc. See guides/debug-harness.md
 │   ├── ui-audit.js     #   UI bug finder: text that runs off the screen edge, overlapping
 │   │                   #   labels, widgets that draw but never respond to clicks (a missing
 │   │                   #   ui_end() — from ui.h's DE_TRACE tripwire), and panels that only
@@ -455,6 +467,11 @@ node tools/make-cart.js --update <cart.png> <screenshot.png>  # swap in a thumbn
 
 Note: `make-cart.js` is run with plain `node` (it's CommonJS via `require`, not affected by `editor/package.json`'s `"type": "module"` since it lives in the repo root `tools/`, which has no `package.json`).
 
+> **Got a good demo run of the cart? Save the input track to `tools/clips/<cart>/NN-label.script`**
+> (or `.beats`/`.rec`). It's a committed, deterministic seed that mints a webm/gif on demand
+> (`node tools/make-gif.js <cart> --recipe <NN-label>`) and the history page auto-detects the
+> baked clip — see the harness section below + `docs/guides/debug-harness.md` → "Clip capture".
+
 ## Game feel — feedback
 
 Make every player action **noticeable** — the player should feel a hit land, a jump take
@@ -484,6 +501,16 @@ node tools/play.js <name> script <in.script>  # run a raw frame-script
 # options: --trace <f> --frames <n> --dump <dir> --dump-every <n> --headless --seed <n> --bpm <n>
 #          --wav <f>  render audio to WAV (byte-reproducible under --det) → analyze with tools/wav-analyze.js
 ```
+
+> **Made a `.rec`/`.script`/`.beats` for a cart? Park it — cheapest win in the repo.**
+> Any input track that shows the cart well (a debug repro, a showcase run, you just
+> playing) → save it to **`tools/clips/<cart>/NN-label.script`** (or `.beats`/`.rec`). It
+> costs nothing extra and becomes a committed, deterministic **demo track**: from it,
+> `node tools/make-gif.js <cart> --recipe <NN-label>` mints a webm/gif/mp4 of that run (any
+> size, any time), and `--all` rebuilds every clip. The history page auto-detects the baked
+> clip. So the moment you author inputs for a cart, drop them there — collecting the tracks
+> is the asset; the videos regenerate for free. See `docs/guides/debug-harness.md` →
+> "Clip capture".
 
 `play.js` compiles `tools/carts/<name>.c` **with `-DDE_TRACE`** and runs the native
 runtime (`runtime/studio.c`) under harness flags (`--det --record --replay --script

@@ -190,6 +190,8 @@ discs — count hides the cost), `lotfill` 4.7ms (pset 9271 + rectfill 7664), `d
    `UpdateTexture` once per frame → `rlVertex3f` gone from *every* per-pixel path (incl. the
    CPU-shader carts). **This is an architecture change** (hybrid GPU+CPU compositing, camera,
    clip) — wants a **design doc before code**, not a patch. Highest leverage the data supports.
+   → **Design doc written:** [../design/software-canvas.md](../design/software-canvas.md)
+   (rasterize the whole 64k-px frame on the CPU, `UpdateTexture` once/frame; forks + staged plan).
 2. **`circfill`/`ovalfill` span fill** — SHIPPED (`40c38d5`, see ledger). Disc/ellipse rows are
    one contiguous span → one `DrawRectangle`; `disc_inside` was only 3.2% of `circfill`, so the
    win is almost entirely the per-pixel-write batching (+ a scan clamp the disc path lacked).

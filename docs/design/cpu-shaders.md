@@ -64,6 +64,11 @@ the four-place wiring), not cart-land like everything else here. Only worth it i
 specifically want to teach post-processing / multi-pass as a topic. Until then the
 single-canvas read-back is the pragmatic stand-in.
 
+> **See also [software-canvas.md](software-canvas.md)** — a proposed CPU framebuffer for
+> the whole 64k-px canvas (to kill `rlVertex3f`, the fleet's #1 cost) would be a *superset*
+> of this: with the canvas already in RAM, a second offscreen buffer and clean ping-pong
+> multipass fall out for free, and `pset_rgb`/`pget_rgb` become plain array access.
+
 ## Related
 
 - True-colour primitives: `pset_rgb`/`rectfill_rgb`/`pget_rgb`/`enable_pget`/`palette_hex`

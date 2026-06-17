@@ -153,6 +153,8 @@ language is the constraint declaration; the solver makes it concrete.
    `loop(portA→portB)`, `flyover(portA→portB)` — generalising today's `loop_ramp`/`flyover`/`near_pair`.
 3. **Tier-1 closed-form** inside each (the tangent constructions we already wrote).
 4. **Re-express `JUNCS[]` as declarations** (`{movement → primitive}`) instead of per-style geometry.
+   The concrete, standard-aligned schema for this — `Junction`/`Connection`/`LaneLink` C types reconciled
+   against OpenDRIVE — is in [`junction-lanelink.md`](junction-lanelink.md).
 5. **Add Tier-2 relations** only where needed first — the trumpet's two **nested loops** (`nest` +
    `clear`) is the natural first solver test.
 

@@ -125,16 +125,23 @@ Investigated OpenDRIVE, clothoids, SUMO/CommonRoad, Cities: Skylines, curve offs
     artifacts" bug. Also a tangent-room clamp fits R / trims the spiral / falls back to straight on
     degenerate (loop-needing) pairs.
 
-## ★ NEXT SESSION — decided direction: **`junction` + `laneLink`** (OpenDRIVE)
-The owner picked this as the next focus. It's the **formal data model of a junction**: a `junction` groups
-connecting roads and, per connection, a `laneLink` records *which incoming lane maps to which outgoing lane*
-— i.e. **exactly our DSL's movement layer** (`legs × {movement → primitive}` in
-[`interchange-dsl.md`](interchange-dsl.md)). Why it's the right next step: it costs little code (it's a
-schema/representation, not new geometry), it **validates the junction DSL against the standard**, and it's
-the structure roadnet2 would serialise junctions into. Start by reading the OpenDRIVE junction/laneLink
-spec, then reconcile it with `interchange-dsl.md` (note matches + gaps), then sketch the roadlab/roadnet2
-data types. **Full OpenDRIVE roadmap — what we've taken (M1–M5) and what's left:**
-[`road-geometry-refs.md`](road-geometry-refs.md) → **"OpenDRIVE adoption inventory"** (the gold-mine tracker).
+## `junction` + `laneLink` (OpenDRIVE) ✅ DONE — reconciled 2026-06-17 → [`junction-lanelink.md`](junction-lanelink.md)
+The decided next focus is **done as a design pass.** Read the OpenDRIVE §12 junction/laneLink spec
+firsthand, reconciled it against the DSL (matches + gaps), and sketched the roadlab/roadnet2 C data
+types — all in **[`junction-lanelink.md`](junction-lanelink.md)**. Headlines:
+- **The standard validates our two-layer split:** OpenDRIVE puts *connectivity* in `junction` and *shape*
+  in each ramp's own road `planView` — i.e. Layer 1 (topology DSL) vs Layer 2 (roadlab geometry M1–M5).
+- **`laneLink` = our movement layer at lane grain**; a `laneLink` endpoint `(road, lane id)` **is** a
+  roadlab port ("a port is a lane + its travel direction"). Adopt `connection`+`laneLink` near-verbatim.
+- **One field we keep that the standard drops:** the ramp **primitive** (`loop`/`flyover`/…) — our
+  *generative* input that produces the connecting-road geometry. OpenDRIVE is the lowered/baked form.
+- **Ring family** → OpenDRIVE's `junctionGroup type=roundabout`, a peer construct — confirms it's parked
+  correctly outside the ramp grammar.
+
+**▶ Next after this:** wire the `Junction`/`Connection` sketch into roadlab (re-express ad-hoc ramps as
+`Connection`s — the interchange-dsl "migration path" #4 made concrete), then port into roadnet2 as the
+junction drawer + routing store. **Full OpenDRIVE roadmap — taken (M1–M5) vs left:**
+[`road-geometry-refs.md`](road-geometry-refs.md) → **"OpenDRIVE adoption inventory"**.
 
 Other roadlab continuations (not the chosen next, but queued):
 - **Port `roadlab` into roadnet2** — bake the constants, call it as the junction drawer.
@@ -163,4 +170,5 @@ Other roadlab continuations (not the chosen next, but queued):
 - [`interchange-handoff.md`](interchange-handoff.md) — `interchange.c` cart state (the trumpet work).
 - [`interchange-dsl.md`](interchange-dsl.md) — the DSL: topology layer + geometry relation-language/solver.
 - [`road-geometry-refs.md`](road-geometry-refs.md) — the research: OpenDRIVE / clothoids / offsetting + recommendation.
+- [`junction-lanelink.md`](junction-lanelink.md) — OpenDRIVE junction/laneLink ↔ our DSL: matches, gaps, the C data-type sketch.
 - carts: `tools/carts/{interchange,rampkit,roadlab}.c`.

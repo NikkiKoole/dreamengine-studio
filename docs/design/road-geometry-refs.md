@@ -52,11 +52,16 @@ roadlab arc IS a progressive port of it. Tracked here so we know what's mined an
 | lane `width(s)` cubic | per-lane width along s → add/drop tapers, gores | M4 |
 | elevation `z(s)` | height profile along s → grade separation / flyovers | M5 |
 
-**Worth taking next (ranked):**
+**Reconciled (design pass done — 2026-06-17 → [`junction-lanelink.md`](junction-lanelink.md)):**
 - **`junction` + `laneLink`** — OpenDRIVE's junction element groups connecting roads and records, per
   connection, *which incoming lane maps to which outgoing lane*. This is **literally our junction DSL's
   movement layer** (`legs × {movement → primitive}` in [`interchange-dsl.md`](interchange-dsl.md)) — the
-  formal schema roadnet2 would serialise into. Reading/aligning to it costs no code and validates the DSL.
+  formal schema roadnet2 would serialise into. **Reconciled against the spec + C data types sketched** in
+  [`junction-lanelink.md`](junction-lanelink.md): the standard validates our Layer 1 / Layer 2 split,
+  `laneLink` = a roadlab port pair, and we keep the ramp *primitive* (the generative field OpenDRIVE
+  drops). Not yet *adopted in code* — move it to the "Adopted" table when the schema lands in roadlab.
+
+**Worth taking next (ranked):**
 - **`roadMark`** — per-boundary lane markings: type (solid / broken / solid-solid / solid-broken), colour
   (white vs yellow), width, lane-change rule. We hardcode white dividers + a yellow median; this is the
   principled version (double-yellow = no crossing). Cheap, big believability gain.

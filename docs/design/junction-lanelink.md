@@ -164,10 +164,10 @@ and a ramp is `ramp(portA → portB, type)`. In this model that becomes one `Con
 Landing M6 (the schema + table-driven drawer) surfaced five things worth a deliberate decision, plus the
 "which world consumes this" fork. Ranked by how much each shapes direction:
 
-1. **`RP_LOOP` drawer — DONE (2026-06-17, §8.1); `RP_FLYOVER` S-curve still open.** `loop_spline()` now
-   draws the hard turn the long way (≈270°); `l` cycles the sandbox primitive so any port pair draws as a
-   loop. `RP_FLYOVER` currently reuses the direct spline on a raised deck — its own reverse-curve (S)
-   geometry that's *allowed* to cross the conflict point is the remaining piece. → spec **§8.1**.
+1. **`RP_LOOP` + `RP_FLYOVER` drawers — DONE (2026-06-17, §8.1).** `loop_spline()` draws the hard turn the
+   long way (≈270°); `scurve_spline()` draws the flyover as an equal-tangent **biarc** (semi-direct reverse
+   curve) that crosses the conflict on a raised deck. `l` cycles the sandbox primitive so any port pair
+   draws as direct / loop / flyover. → spec **§8.1**.
 2. **The schema has no generator.** `DEMO` is hand-authored. The DSL payoff — *given crossing legs + a type
    → emit the `Connection[]`* (interchange-dsl Layer 1) — is still unbuilt. That generator is what lets
    worldgen produce junctions from a seed-hash. → spec **§8.2**.
@@ -201,10 +201,14 @@ a seed with junctions first-class," grow the new one (the read of this whole san
 ## 8. Next-milestone specs
 
 ### 8.1 — `loop_spline()` + flyover (the hard-turn geometry)
-> **✅ loop DONE (2026-06-17)** — `loop_spline()` is in `roadlab.c` exactly as specced below (the 2×2
-> stub/merge solve lands a fixed-R loop on B), wired into `draw_connection()` for `RP_LOOP` and the sandbox
-> (`l` cycles direct/loop/flyover). **flyover** still leans on the direct spline + a forced deck (`RP_FLYOVER`,
-> `lift`); its own reverse-curve (S) geometry is the open remainder. The `Connection` gained `float R; int lift;`.
+> **✅ loop + flyover DONE (2026-06-17)** — both in `roadlab.c`. `loop_spline()` is exactly as specced below
+> (the 2×2 stub/merge solve lands a fixed-R loop on B). **flyover** is `scurve_spline()`: an equal-tangent
+> **biarc** (two circular arcs joined with a continuous tangent at a midpoint `J`) — the semi-direct reverse
+> curve that crosses the conflict on a raised deck (forced `lift`). Both wired into `draw_connection()`
+> (`RP_LOOP`/`RP_FLYOVER`) and the sandbox (`l` cycles direct/loop/flyover). The `Connection` gained
+> `float R; int lift;`. The biarc determines its own radii from the geometry, so flyover ignores the `radius`
+> slider. *Open polish:* on near-symmetric pairs the biarc is ~a single arc (correct, minimal curvature);
+> the S inflection only shows on asymmetric pairs.
 
 **Why the current splines can't.** `arc_spline` rounds the convex corner where A's and B's heading-lines
 meet; for a hard (left-equivalent) turn that corner sits *behind* a port (`avail < 2` ⇒ it bails to a

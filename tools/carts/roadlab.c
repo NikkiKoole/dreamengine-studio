@@ -26,11 +26,11 @@
 //                each connection with the M1–M5 splines. The single ramp becomes one Connection; `j`
 //                toggles the sandbox ↔ the whole-junction view. This is the topology layer (the SHAPE
 //                still lives in M1–M5) — the step that makes roadlab the table-driven roadnet2 drawer.
-//   LOOP drawer (spec §8.1): RP_LOOP now has REAL geometry — loop_spline() draws the HARD (left-equiv)
-//                turn the LONG way (≈270°) so it never crosses opposing traffic (the cloverleaf trick);
-//                LINE→ARC→LINE with the two line lengths solved so a fixed-R loop lands on B. RP_FLYOVER =
-//                direct spline on a raised deck (its own S-curve geometry is the next step). `l` cycles the
-//                sandbox ramp primitive (direct/loop/flyover) so any port pair can be drawn as a loop.
+//   HARD-TURN drawers (spec §8.1): RP_LOOP — loop_spline() goes the LONG way (≈270°) so it never crosses
+//                opposing traffic (the cloverleaf trick): LINE→ARC→LINE, the two line lengths solved so a
+//                fixed-R loop lands on B. RP_FLYOVER — scurve_spline() is a SEMI-DIRECT reverse curve (an
+//                equal-tangent BIARC: two tangent arcs joined at a midpoint) that crosses the conflict on a
+//                raised deck. `l` cycles the sandbox ramp primitive (direct/loop/flyover) for any port pair.
 //   Controls: an on-screen ui.h toolbar — every control a clickable button. Keyboard: ←/→ A · ↑/↓ B ·
 //             [ ] radius · ,/. Ls · C clothoid · 1-4 lanes · t taper · e lift · j sandbox/junction · l primitive.
 // Next: port roadlab into roadnet2 — the Junction[] table is the junction representation worldgen emits
@@ -260,6 +260,57 @@ static int loop_spline(Port a, Port b, float R, float *xs, float *ys){
     return n;
 }
 
+// append a circular ARC from P (unit-ish tangent T) to endpoint Q. The centre is the point on P's normal
+// equidistant from P and Q; the sweep direction is whichever matches T. (The biarc primitive below.)
+static int emit_arc_to(float px,float py,float tx,float ty,float qx,float qy,float *xs,float *ys,int n,int steps){
+    float tl=sqrtf(tx*tx+ty*ty); if(tl<0.0001f)tl=1; tx/=tl; ty/=tl;     // unit tangent
+    float nx=-ty, ny=tx;                                                 // left normal
+    float wx=px-qx, wy=py-qy, wn=wx*nx+wy*ny;
+    if (wn>-0.01f && wn<0.01f){ xs[n]=qx; ys[n++]=qy; return n; }         // P,Q,T ~collinear ⇒ straight
+    float s=-(wx*wx+wy*wy)/(2*wn);                                        // signed dist along normal → centre
+    float cx=px+nx*s, cy=py+ny*s, R=(s<0?-s:s);
+    float a0=angle_to((int)cx,(int)cy,(int)px,(int)py);
+    float a1=angle_to((int)cx,(int)cy,(int)qx,(int)qy);
+    float rpx=px-cx, rpy=py-cy;                                          // radial at P; CCW tangent = (−rpy,rpx)
+    int ccw = (-rpy*tx + rpx*ty) >= 0;
+    float sw=a1-a0;
+    if (ccw){ while(sw<=0)sw+=360; while(sw>360)sw-=360; }                // sweep the way T points
+    else    { while(sw>=0)sw-=360; while(sw<-360)sw+=360; }
+    for(int i=1;i<=steps;i++){ float ang=a0+sw*(float)i/steps; xs[n]=cx+ux(ang)*R; ys[n++]=cy+uy(ang)*R; }
+    return n;
+}
+
+// ── FLYOVER ramp (spec §8.1): a SEMI-DIRECT turn that's ALLOWED to cross the conflict point because it's
+//    grade-separated — the characteristic reverse-curve (S) shape (diverge one way, arc back the other),
+//    NOT the 270° loop and NOT the corner-rounder. Built as an equal-tangent BIARC: two circular arcs that
+//    join with a continuous tangent at a midpoint J, connecting A(tangent uA) → B(tangent uB) exactly. The
+//    joint distance d solves a quadratic (equal tangent lengths); the deck (lift) is forced by the caller. ──
+static int scurve_spline(Port a, Port b, float *xs, float *ys){
+    float t0x=ux(a.dir), t0y=uy(a.dir);                     // leave A along the inbound lane's travel dir
+    float t1x=ux(b.dir), t1y=uy(b.dir);                     // arrive B along the outbound lane's travel dir
+    float vx=b.x-a.x, vy=b.y-a.y, vv=vx*vx+vy*vy;
+    float tx=t0x+t1x, ty=t0y+t1y, vt=vx*tx+vy*ty;
+    float dot=t0x*t1x+t0y*t1y, A=2*(dot-1);                 // A→0 as the tangents become parallel
+    int n=0;
+    float d;
+    if (A>-0.0008f){                                        // parallel tangents ⇒ linear (or degenerate)
+        if (vt>-0.5f&&vt<0.5f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; }
+        d=vv/(2*vt);
+    } else {
+        float disc=vt*vt-A*vv; if(disc<0)disc=0; disc=sqrtf(disc);
+        float r1=(vt+disc)/A, r2=(vt-disc)/A;
+        d = (r1>0)?r1:r2; if(d<=0)d=(r1>r2?r1:r2);
+    }
+    if (d<1.f){ xs[n]=a.x;ys[n++]=a.y; xs[n]=b.x;ys[n++]=b.y; return n; } // degenerate ⇒ stand-in
+    float q1x=a.x+d*t0x, q1y=a.y+d*t0y;                     // ends of the two equal tangents
+    float q2x=b.x-d*t1x, q2y=b.y-d*t1y;
+    float jx=(q1x+q2x)*0.5f, jy=(q1y+q2y)*0.5f;             // joint J (shared tangent = q1→q2)
+    xs[n]=a.x; ys[n++]=a.y;
+    n=emit_arc_to(a.x,a.y, t0x,t0y, jx,jy, xs,ys,n,16);     // arc 1: A → J  (tangent uA at A)
+    n=emit_arc_to(jx,jy, q2x-q1x,q2y-q1y, b.x,b.y, xs,ys,n,16);  // arc 2: J → B  (tangent uB at B)
+    return n;
+}
+
 // ── M6: JUNCTION SCHEMA (OpenDRIVE junction/laneLink, baked to C — docs/design/junction-lanelink.md) ──
 //    The TOPOLOGY layer (interchange-dsl Layer 1): a junction is a TABLE of connections; each connection
 //    is one movement (entry port → exit port) drawn by a ramp PRIMITIVE. The SHAPE lives in the spline
@@ -297,10 +348,11 @@ static void draw_connection(Connection c, int useCloth, float R, float Ls, float
     float r    = c.R > 0.5f   ? c.R         : R;            // per-connection overrides, else the global
     float lift = c.lift > 0   ? (float)c.lift : liftPx;
     int n;
-    if      (c.prim == RP_LOOP) n = loop_spline    (ports[c.inPort], ports[c.outPort], r,     xs, ys);
-    else if (useCloth)          n = clothoid_spline(ports[c.inPort], ports[c.outPort], r, Ls, xs, ys);
-    else                        n = arc_spline     (ports[c.inPort], ports[c.outPort], r,     xs, ys);
-    if (c.prim == RP_FLYOVER && lift < 6) lift = 12;        // a flyover is a semi-direct turn on a raised deck
+    if      (c.prim == RP_LOOP)    n = loop_spline    (ports[c.inPort], ports[c.outPort], r, xs, ys);
+    else if (c.prim == RP_FLYOVER) n = scurve_spline  (ports[c.inPort], ports[c.outPort],    xs, ys);
+    else if (useCloth)             n = clothoid_spline(ports[c.inPort], ports[c.outPort], r, Ls, xs, ys);
+    else                           n = arc_spline     (ports[c.inPort], ports[c.outPort], r, xs, ys);
+    if (c.prim == RP_FLYOVER && lift < 6) lift = 12;        // a flyover is a semi-direct S-curve on a raised deck
     draw_multilane(xs, ys, n, c.nLinks < 1 ? 1 : c.nLinks, taperFrac, lift);     // lanes = laneLink count
 }
 static void draw_junction(const Junction* j, int useCloth, float R, float Ls, float taperFrac, float liftPx){
@@ -398,7 +450,7 @@ void draw(void){
         snprintf(b,sizeof b,"Port A: %s   to   Port B: %s    [%s]", ports[selA].name, ports[selB].name, RP_NAME[sandPrim]);
         print(b,4,5,CLR_WHITE);
         const char* note = sandPrim==RP_LOOP    ? "loop  -  the hard turn, ~270 the long way (no crossing)"
-                         : sandPrim==RP_FLYOVER ? "flyover  -  semi-direct turn on a raised deck"
+                         : sandPrim==RP_FLYOVER ? "flyover  -  semi-direct S-curve on a raised deck"
                          : use_cloth            ? "arc-spline + clothoid joints  -  continuous curvature (G2)"
                                                 : "arc-spline only  -  curvature steps at the corner (G1)";
         print(note,4,13, sandPrim?CLR_GREEN:(use_cloth?CLR_ORANGE:CLR_MEDIUM_GREY));

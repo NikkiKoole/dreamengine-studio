@@ -171,8 +171,13 @@ The naive "route `pset`+fills to `cbuf`, leave `spr`/`print` on GPU" slice fails
 z-mixing). But two observations collapse it into something small **and** byte-identical-checkable:
 
 - **Target only the carts that need it and don't mix**: the CPU-shaders (caustics/shadelab/raymarch
-  = `cls` + `pset_rgb` + HUD `print`) and `dpaint` (`cls` + `pset` + `rectfill`/`rect` + HUD
-  `print`). No `spr`, no `tritex`, no `camera_ex`. These are exactly the survey's pset-heavy carts.
+  = `cls` + `pset_rgb` + HUD `print`), `dpaint` (`cls` + `pset` + `rectfill`/`rect` + HUD `print`),
+  and `pixelperfect` (`pset_rgb` per-pixel world view + HUD `print` + 2 `line`s). No `spr`, no
+  `tritex`, no `camera_ex`. These are exactly the survey's pset-heavy carts.
+  > Independently confirmed three+ times: the survey's aggregate, plus standalone `⏱ profile` runs
+  > on `lotfill`/`orbit`/`dpaint`/`pixelperfect` all bottom out in `… → pset[_rgb] → DrawPixelV →
+  > rlVertex3f` (≈60–75% of frame), with `rlSetTexture` churn alongside (the white-texture RLGL
+  > state the per-pixel path re-touches). The diagnosis isn't in doubt; only the build-it decision is.
 - **HUD text is the top layer, so defer it.** Keep `print` on the GPU but **record its calls during
   `draw()` and replay them AFTER the `cbuf` upload** (a tiny text-command list). Text lands on top
   (where it already was, drawn last) and stays the *same GPU `DrawTextEx`* → byte-identical, and you
@@ -185,8 +190,11 @@ z-mixing). But two observations collapse it into something small **and** byte-id
 - **Fills come for free**: `circfill`/`polyfill`/etc. already fall to `plot_pat → pset` for their
   pixels — once `pset` writes `cbuf`, they route automatically. (Just disable the `DrawRectangle`
   span fast-path while `sw_canvas_active` — use the per-pixel `plot_pat` path; still no `rlVertex3f`.)
-- `print` → deferred GPU overlay (above). `spr`/`tritex`/`line`/`camera_ex` → **unsupported in v0**:
-  if a cart in this mode calls one, log a warning and skip (the target carts don't use them).
+- `print` (and any HUD `line`, e.g. `pixelperfect`'s 2) → deferred GPU overlay: record the call,
+  replay after the upload so it lands on top, same GPU call → byte-identical, no port. `spr`/
+  `tritex`/`camera_ex` → **unsupported in v0**: warn and skip (the target carts don't use them).
+  (The deferred-overlay trick only holds while those calls are genuinely the top layer — true for
+  HUDs; it is NOT a general `line` solution, just a v0 convenience for the target carts.)
 - Frame end: `UpdateTexture(canvas.texture, cbuf)` → replay deferred text into `canvas` → the
   existing `DrawTexturePro` scale-up. (One upload, one quad, plus the few text calls.)
 

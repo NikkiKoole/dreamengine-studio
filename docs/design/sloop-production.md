@@ -5,6 +5,12 @@ street-level game where you're a person who makes money from products you sell) 
 "tickles the optimize-a-process-for-best-quality/most-output thing" — the Factorio /
 Schedule 1 / Farming Sim / Free Enterprise itch.
 
+> This note designs the **mix half** (the recipe/quality number, shipped as `thecut.c`). Its
+> companion [`sloop-handwork.md`](sloop-handwork.md) designs the **embodied half** thecut
+> skipped — the CDDA body-in-the-world handling loop (gather → carry → work-that-takes-time →
+> load a machine and walk away → grow/wait), where a **machine is your first delegate** (one
+> pure transform, three front-ends: you / machine / follower).
+
 ## The core arc: "first you do it yourself, then you manage"
 
 The organizing principle of the whole subsystem. Execution → optimization → management:
@@ -67,12 +73,16 @@ bench* you graduate from.
   clash + the SOLVENT-cleans-the-next-thing rule make order matter; a hand STIR is the DIY focus
   bonus; a pizzatycoon-style demand curve matches the batch to clients; skill levels up with
   crafting and unlocks recipe slots. Isolates *"is the mix loop satisfying."*
-- **v2 — extend `thecut` IN PLACE (the manage half, next probe).** Smallest thing that proves
-  delegation is fun: hire a worker (skill + wage); hand them a **standing order** (the recipe you've
-  been making by hand becomes a card they follow); **resolve-on-return** time-skip that computes
-  what they produced + a ledger (batches, avg quality vs your hand-made avg, a spoiled one, "wants a
-  raise"); the **quality gap** as the live choice (train / replace / hand-make the premium runs).
-  Still a bench cart, no world. Isolates *"is the manage loop satisfying."*
+- **v2 — extend `thecut` IN PLACE (the manage half). BUILT.** Hire from a candidate pool (skill +
+  wage + hire fee); hand the worker a **standing order** (the current bench recipe, copied to a card
+  they follow); a **resolve-on-return** time-skip (1–7 days) runs the SAME `brew_eval` at *their*
+  skill with `focus=0`, auto-sells each day, and returns a ledger (batches, spoilage, avg quality vs
+  your hand-made, gross − wages = net); morale decays with the grind → "wants a raise" (give one or
+  FIRE); workers learn by doing (skill creeps up). Confirms the manage loop is satisfying — and
+  surfaced a nice wrinkle: a skilled hire **out-classes your novice hands early** (the quality gap
+  *inverts* until your skill+stir overtakes theirs), so the arc is "hire up while learning → surpass
+  them as a master." The counterweights (hire fee, wage, spoilage, morale/raises) keep it from being
+  free money. Still a bench cart, no world.
 - **v3 — sloop integration (NOT a cart).** The fullest "systems run while I drive the infinite
   world doing other things," plus heat/risk/busts. The bench becomes a rentable room, selling
   becomes driving to clients, "do other things" becomes the actual game. Stops being a prototype

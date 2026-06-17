@@ -79,8 +79,25 @@ static int   batched;        // is there a stirred batch ready for market?
 static float stir_t;         // 0..1 bouncing marker
 static int   stir_dir = 1;
 
+// ---- crew (v2: delegation — the "then you manage" half) --------------------
+// A worker runs the SAME bench via the SAME pure function, at THEIR skill with
+// focus=0 (no stir). You hand off a standing order, leave, and resolve on return.
+#define NCAND 3
+static const char *CAND_NAMES[] = { "PIP", "MARLO", "DUTCH", "REE", "SAPI", "NOOR", "VOSS", "KAZ" };
+typedef struct { const char *name; int skill, wage; } Cand;
+static Cand        cand[NCAND];           // current hire pool
+static int         w_hired;
+static const char *w_name;
+static int         w_skill, w_wage, w_morale;
+static int         w_order[MAXSEQ], w_ordern;   // the standing order (a saved recipe)
+static int         leave_days = 3;
+
+// ---- away report (resolve-on-return ledger) --------------------------------
+static int   rp_days, rp_batches, rp_spoiled, rp_gross, rp_wages, rp_qsum, rp_qyou, rp_levelup, rp_raise;
+static float rp_t;
+
 // ---- ui --------------------------------------------------------------------
-enum { TITLE, BENCH, MARKET, SOLD };
+enum { TITLE, BENCH, MARKET, SOLD, MANAGE, REPORT };
 static int   state, sold_cli, sold_profit, sold_units;
 static float sold_t, swing;
 
@@ -151,11 +168,13 @@ static int client_profit(Brew b, int cli, int cost, float sw) {
 }
 
 // ===========================================================================
+static void roll_candidates(void);   // defined with the crew logic below
 static void new_swing(void) { swing = 0.82f + noise(day * 0.47f + 3.1f) * 0.40f; }
 
 static void new_game(void) {
     seqn = 0; focus = 0; batched = 0;
     skill = 1; xp = 0; cash = 40; day = 1; showCash = 40;
+    w_hired = 0; w_ordern = 0; leave_days = 3; roll_candidates();
     new_swing();
 }
 
@@ -206,6 +225,55 @@ static int best_client(Brew b, int cost) {
     return bd;
 }
 
+// ---- crew ------------------------------------------------------------------
+static void roll_candidates(void) {
+    int used[8] = { 0 };
+    for (int i = 0; i < NCAND; i++) {
+        int n; do { n = rnd(8); } while (used[n]); used[n] = 1;
+        cand[i].name  = CAND_NAMES[n];
+        cand[i].skill = 2 + rnd(4);              // 2..5 (you start at 1 and outpace them)
+        cand[i].wage  = cand[i].skill * 2 + 1;   // 5..11 / day
+    }
+}
+static void hire(int i) {
+    int fee = cand[i].wage * 4;
+    if (cash < fee) { nope(); return; }
+    cash -= fee;
+    w_hired = 1; w_name = cand[i].name; w_skill = cand[i].skill; w_wage = cand[i].wage; w_morale = 70;
+    w_ordern = 0;
+    ching();
+}
+static void assign_order(void) {
+    if (seqn == 0) { nope(); return; }
+    for (int i = 0; i < seqn; i++) w_order[i] = seq[i];
+    w_ordern = seqn; blip(74);
+}
+static void give_raise(void) { w_wage += 2; w_morale = mid(0, w_morale + 30, 100); blip(76); }
+static void fire_worker(void) { w_hired = 0; roll_candidates(); blip(40); }
+
+// the line runs without you: closed-form resolve over N days at the worker's skill
+static void simulate_away(int N) {
+    rp_days = N; rp_batches = rp_spoiled = rp_gross = rp_wages = rp_qsum = rp_levelup = rp_raise = 0;
+    int start_skill = w_skill;
+    int cost = seq_cost(w_order, w_ordern);
+    for (int d = 0; d < N; d++) {
+        day++; new_swing();
+        rp_wages += w_wage;
+        Brew wb = brew_eval(w_order, w_ordern, w_skill, 0);    // focus 0 — no stir bonus
+        int spoil = mid(2, 22 - w_skill * 2 + (w_morale < 40 ? 14 : 0), 45);
+        if (chance(spoil)) rp_spoiled++;
+        else { rp_gross += client_profit(wb, best_client(wb, cost), cost, swing); rp_batches++; rp_qsum += wb.quality; }
+        if (w_skill < 10 && chance(22)) w_skill++;             // learn by doing
+        w_morale = mid(0, w_morale - 4, 100);                  // the grind wears them down
+    }
+    cash += rp_gross - rp_wages;
+    rp_levelup = w_skill - start_skill;
+    rp_qyou = brew_eval(w_order, w_ordern, skill, 11).quality; // your own hand-made version, for the gap
+    rp_raise = (w_morale < 40);
+    if (cash > best) { best = cash; save(0, best); }
+    rp_t = 0; state = REPORT;
+}
+
 // ===========================================================================
 void update(void) {
     showCash = lerp(showCash, (float)cash, 0.2f);
@@ -245,6 +313,30 @@ void update(void) {
             if (seqn == 0) nope();
             else { if (!batched) do_stir(); state = MARKET; }
         }
+        if (clicked(244, 50, 72, 16) || keyp('C')) state = MANAGE;   // crew / delegation
+        return;
+    }
+
+    if (state == MANAGE) {
+        if (!w_hired) {
+            for (int i = 0; i < NCAND; i++)
+                if (clicked(8, 40 + i * 30, 304, 26)) { hire(i); return; }
+        } else {
+            if (clicked(8, 150, 120, 16)) assign_order();
+            if (clicked(134, 150, 80, 16)) give_raise();
+            if (clicked(220, 150, 50, 16)) fire_worker();
+            if (clicked(120, 172, 16, 16)) leave_days = mid(1, leave_days - 1, 7);
+            if (clicked(160, 172, 16, 16)) leave_days = mid(1, leave_days + 1, 7);
+            if (clicked(190, 170, 122, 20)) { if (w_ordern > 0) simulate_away(leave_days); else nope(); }
+        }
+        if (clicked(6, 14, 56, 12) || keyp(KEY_ESCAPE) || keyp(KEY_TAB) || keyp('C')) state = BENCH;
+        return;
+    }
+
+    if (state == REPORT) {
+        rp_t = clamp(rp_t + dt() * 1.6f, 0, 2);
+        if (rp_t > 0.4f && (mouse_pressed(MOUSE_LEFT) || keyp(KEY_ENTER) || keyp(KEY_SPACE)))
+            state = BENCH;
         return;
     }
 
@@ -307,7 +399,13 @@ static void draw_bench(void) {
     print_scaled(en, 316 - text_width(en) * 2, 26, seqn ? ECOL[b.dom] : CLR_DARK_GREY, 2);
     print("PURITY", 70, 48, CLR_LIGHT_GREY);
     bar(120, 49, 84, 6, b.purity / 100.0f, CLR_PINK, CLR_BROWNISH_BLACK);
-    print(str("cost $%d/unit  best client $%d", cost, client_profit(b, best_client(b, cost), cost, swing)), 70, 60, CLR_LIGHT_GREY);
+    print(str("cost $%d  best $%d", cost, client_profit(b, best_client(b, cost), cost, swing)), 70, 60, CLR_LIGHT_GREY);
+
+    // CREW button — the door to delegation (v2)
+    bool hcr = hover(244, 50, 72, 16);
+    rectfill(244, 50, 72, 16, hcr ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK); rect(244, 50, 72, 16, CLR_LIME_GREEN);
+    print("CREW", 248, 52, CLR_LIME_GREEN);
+    print(w_hired ? w_name : "hire help", 248, 60, w_hired ? CLR_WHITE : CLR_DARK_GREY);
 
     // ---- the recipe sequence (chips) ----
     print(str("RECIPE  (%d/%d)", seqn, max_slots()), 8, 84, CLR_LIGHT_YELLOW);
@@ -419,10 +517,107 @@ static void draw_title(void) {
     print_centered("click / ENTER to open the bench", SCREEN_W / 2, 184, blink(22) ? CLR_WHITE : CLR_DARK_GREY);
 }
 
+// ---- a compact chip row (the standing order) -------------------------------
+static void draw_chips(const int *s, int n, int x0, int y) {
+    for (int i = 0; i < n; i++) {
+        int x = x0 + i * 38, r = s[i];
+        rectfill(x, y, 34, 16, RCOL[r]); rect(x, y, 34, 16, CLR_BLACK);
+        print(RSHORT[r], x + (34 - text_width(RSHORT[r])) / 2, y + 5, CLR_BLACK);
+    }
+}
+
+// ---- crew / standing-orders screen -----------------------------------------
+static void draw_manage(void) {
+    cls(CLR_DARKER_BLUE);
+    bool hb = hover(6, 14, 56, 12);
+    rectfill(6, 14, 56, 12, hb ? CLR_DARK_GREY : CLR_BROWNISH_BLACK); rect(6, 14, 56, 12, CLR_LIGHT_YELLOW);
+    print("< BENCH", 10, 16, CLR_LIGHT_YELLOW);
+    print_centered("CREW & STANDING ORDERS", SCREEN_W / 2, 16, CLR_LIGHT_YELLOW);
+
+    if (!w_hired) {
+        print("Hire someone to run the bench while you're away:", 8, 30, CLR_LIGHT_GREY);
+        for (int i = 0; i < NCAND; i++) {
+            int y = 40 + i * 30; bool hv = hover(8, y, 304, 26);
+            int fee = cand[i].wage * 4; bool afford = cash >= fee;
+            rectfill(8, y, 304, 26, hv ? CLR_DARK_GREY : CLR_BLACK); rect(8, y, 304, 26, afford ? CLR_LIME_GREEN : CLR_DARKER_GREY);
+            print(cand[i].name, 14, y + 3, CLR_WHITE);
+            print(str("skill %d", cand[i].skill), 14, y + 14, CLR_LIME_GREEN);
+            print_right(str("$%d/day", cand[i].wage), 210, y + 3, CLR_LIGHT_GREY);
+            print_right(afford ? str("hire $%d", fee) : str("need $%d", fee), 306, y + 9, afford ? CLR_YELLOW : CLR_RED);
+        }
+        print("higher skill = cleaner, but costs more", 8, 138, CLR_DARK_GREY);
+        print("they work at their skill, no stir bonus", 8, 152, CLR_DARK_GREY);
+        return;
+    }
+
+    // hired worker card
+    rectfill(8, 30, 304, 64, CLR_BLACK); rect(8, 30, 304, 64, CLR_LIME_GREEN);
+    print(w_name, 14, 34, CLR_WHITE);
+    print(str("skill %d", w_skill), 14, 46, CLR_LIME_GREEN);
+    print(str("wage $%d/day", w_wage), 90, 46, CLR_LIGHT_GREY);
+    print("morale", 200, 34, CLR_DARK_GREY);
+    bar(200, 44, 100, 7, w_morale / 100.0f, w_morale < 40 ? CLR_RED : CLR_LIME_GREEN, CLR_BROWNISH_BLACK);
+    if (w_morale < 40 && blink(20)) print_right("wants a raise!", 306, 56, CLR_RED);
+    print("ORDER:", 14, 64, CLR_LIGHT_YELLOW);
+    if (w_ordern > 0) {
+        draw_chips(w_order, w_ordern, 70, 62);
+        print(str("they'd make ~quality %d", brew_eval(w_order, w_ordern, w_skill, 0).quality), 14, 80, CLR_LIGHT_GREY);
+    } else print("none yet - tap ASSIGN below", 70, 66, CLR_DARK_GREY);
+
+    print("while you're gone they run the order,", 8, 100, CLR_DARK_GREY);
+    print("auto-sell daily; you keep value - wage.", 8, 112, CLR_DARK_GREY);
+
+    // buttons
+    bool ha = hover(8, 150, 120, 16);
+    rectfill(8, 150, 120, 16, ha ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK); rect(8, 150, 120, 16, CLR_GREEN);
+    print("ASSIGN RECIPE", 12, 154, CLR_WHITE);
+    bool hr = hover(134, 150, 80, 16);
+    rectfill(134, 150, 80, 16, hr ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK); rect(134, 150, 80, 16, CLR_LIME_GREEN);
+    print("RAISE +$2", 138, 154, CLR_WHITE);
+    bool hf = hover(220, 150, 50, 16);
+    rectfill(220, 150, 50, 16, hf ? CLR_DARK_RED : CLR_BROWNISH_BLACK); rect(220, 150, 50, 16, CLR_RED);
+    print("FIRE", 232, 154, CLR_WHITE);
+
+    // leave control
+    print("LEAVE FOR", 8, 175, CLR_LIGHT_GREY);
+    bool hm = hover(120, 172, 16, 16), hp = hover(160, 172, 16, 16);
+    rectfill(120, 172, 16, 16, hm ? CLR_DARK_GREY : CLR_DARKER_GREY); rect(120, 172, 16, 16, CLR_RED);   print("-", 126, 175, CLR_WHITE);
+    print_scaled(str("%d", leave_days), 142, 172, CLR_YELLOW, 2);
+    rectfill(160, 172, 16, 16, hp ? CLR_DARK_GREY : CLR_DARKER_GREY); rect(160, 172, 16, 16, CLR_GREEN); print("+", 165, 175, CLR_WHITE);
+    bool can = w_ordern > 0, hl = hover(190, 170, 122, 20);
+    rectfill(190, 170, 122, 20, hl && can ? CLR_DARK_PURPLE : CLR_DARKER_GREY); rect(190, 170, 122, 20, can ? CLR_LIGHT_YELLOW : CLR_DARKER_GREY);
+    const char *ll = can ? "LEAVE & WORK" : "assign first";
+    print(ll, 190 + (122 - text_width(ll)) / 2, 176, can ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+}
+
+// ---- resolve-on-return ledger ----------------------------------------------
+static void draw_report(void) {
+    cls(CLR_DARKER_BLUE);
+    int x = 30, y = 26, w = 260, h = 150, net = rp_gross - rp_wages;
+    rectfill(x, y, w, h, CLR_BLACK); rect(x, y, w, h, net >= 0 ? CLR_LIME_GREEN : CLR_RED);
+    print_centered(str("BACK AFTER %d DAYS", rp_days), SCREEN_W / 2, y + 8, CLR_LIGHT_YELLOW);
+    int avgq = rp_batches ? rp_qsum / rp_batches : 0;
+    print(str("%s made %d batches", w_name, rp_batches), x + 12, y + 26, CLR_WHITE);
+    if (rp_spoiled) print_right(str("%d spoiled", rp_spoiled), x + w - 12, y + 26, CLR_ORANGE);
+    print(str("avg quality %d", avgq), x + 12, y + 40, CLR_LIGHT_GREY);
+    print(str("your hand: %d", rp_qyou), x + 150, y + 40, CLR_DARK_GREY);
+    print(str("gross   $%d", rp_gross), x + 12, y + 60, CLR_LIME_GREEN);
+    print(str("wages  -$%d", rp_wages), x + 12, y + 72, CLR_RED);
+    line(x + 12, y + 86, x + 140, y + 86, CLR_DARK_GREY);
+    int tally = (int)lerp(0, (float)net, ease_out(clamp(rp_t, 0, 1)));
+    print(str("net     $%d", tally), x + 12, y + 92, net >= 0 ? CLR_YELLOW : CLR_RED);
+    if (rp_levelup) print(str("%s reached skill %d!", w_name, w_skill), x + 12, y + 114, CLR_LIME_GREEN);
+    else if (rp_raise) print(str("%s wants a raise", w_name), x + 12, y + 114, CLR_ORANGE);
+    if (avgq && avgq < rp_qyou - 8) print("the quality gap: your hands still beat theirs", x + 12, y + 128, CLR_DARK_GREY);
+    if (rp_t > 0.4f && blink(20)) print_centered("click to continue", SCREEN_W / 2, y + h - 12, CLR_DARK_GREY);
+}
+
 // ===========================================================================
 void draw(void) {
     if (state == TITLE)  { draw_title(); return; }
     if (state == BENCH)  { draw_bench();  draw_hud(); return; }
     if (state == MARKET) { draw_market(); draw_hud(); return; }
     if (state == SOLD)   { draw_sold();   draw_hud(); return; }
+    if (state == MANAGE) { draw_manage(); draw_hud(); return; }
+    if (state == REPORT) { draw_report(); draw_hud(); return; }
 }

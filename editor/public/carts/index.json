@@ -1484,6 +1484,14 @@
     ]
   },
   {
+    "title": "clampstress",
+    "description": "A deterministic torture test for the PER-CALL clamp cost shared by every software fill. Each circfill/ovalfill/polyfill/trifill calls poly_clamp_scan, which does 4 GetScreenToWorld2D (camera-matrix inverses) to find the on-screen scan box — but that box is constant for the whole frame unless the camera moves. This cart issues ~1500 TINY fills/frame (377 each of all four primitives, near-zero fill AREA), so the per-CALL clamp dominates — the rig to measure the ceiling of a per-frame clamp-box cache. Scene 0 STATIC (key 1, no camera: box identical every call). Scene 1 PAN (key 2: camera() pans each frame, so the cache must recompute once/frame and stay correct). Pure function of the frame counter — byte-reproducible. Baseline (per-call clamp, current): STATIC 1.90ms avg / 3.36ms max. Not a game; a profiling + regression rig.",
+    "file": "clampstress.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
+  },
+  {
     "title": "excitebike",
     "description": "Side-view NES motocross with the famous landing-angle skill, an overheat meter, and a track editor. Hit a ramp and you launch into the air with the nose drifting down on its own — hold Up/Down to control the tilt and touch down within a hair of LEVEL to keep your speed; nose-down or tail-down and you wipe out. Hold turbo for more top speed but the temp gauge climbs to a flashing-red redline and a stall, so mud (slow but cooling) becomes a real choice. Race one track against three pal()-recolored CPU rivals you bump past, chasing your best lap (saved). Then switch to BUILD: a mouse editor paints ramps, jumps, whoops and mud onto the lane grid, persisted with save_bytes — save it and test-ride instantly. RACE: Right/Z throttle, X turbo, Up/Down tilt in the air, Left brake. BUILD: 1-5 or click the palette, left-click paint / right-click erase, arrows scroll, S save, Z ride, B title.",
     "file": "excitebike.cart.png",

@@ -550,10 +550,11 @@ mark.docs-find-hit.current {
   border-left-color: var(--accent);
 }
 
-/* ★ history gets the history page's own treatment: a tilted Archivo-Black
-   sticker on the cyan accent, hard black border + drop shadow — a little
-   neo-brutalist preview of where the button goes. */
-.docs-nav-item[data-docnav="history"] {
+/* ★ history reads as a plain nav item until you touch it — then it pops into
+   the history page's own treatment: a tilted Archivo-Black sticker with a hard
+   black border + drop shadow (pink on hover, yellow when active). */
+.docs-nav-item[data-docnav="history"]:hover,
+.docs-nav-item[data-docnav="history"].active {
   display: inline-block;
   width: auto;
   margin: 3px 0 7px 18px;
@@ -561,25 +562,19 @@ mark.docs-find-hit.current {
   border: 2px solid #111;
   border-left: 2px solid #111;          /* override the 2px-transparent left rail */
   border-radius: 2px;
-  background: #7ee0ff;                   /* history --accent cyan */
   color: #111;
   font-family: "Archivo Black", Impact, system-ui, sans-serif;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  transform: rotate(-1.6deg);            /* the masthead tilt */
   box-shadow: 2px 2px 0 #111;
-  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease;
 }
 .docs-nav-item[data-docnav="history"]:hover {
-  color: #111;
   background: #ff6fb5;                   /* history --accent2 pink */
-  transform: rotate(-1.6deg) translate(-1px, -1px);
-  box-shadow: 3px 3px 0 #111;
+  transform: rotate(-1.6deg);            /* the masthead tilt */
 }
 .docs-nav-item[data-docnav="history"].active {
   background: #ffd23f;                   /* history yellow — "you're here" */
-  color: #111;
   transform: rotate(1.4deg);
   box-shadow: 1px 1px 0 #111;
 }

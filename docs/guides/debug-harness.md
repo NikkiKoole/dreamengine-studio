@@ -518,6 +518,82 @@ note, micro-phase only). Finding (2026-06-17): 15/16 engines are sample-faithful
 the wasm math is faithful — the one real web bug was the worklet sample rate (see web-audio-parity.md).
 **Run after engine-math edits that an optimizer/fast-math/libm change could compile differently.**
 
+### Web perf A/B — does a graphics change help on WebGL? (browser GPU)
+
+The native profiler (`perf.json`, `profile-fleet.js`) can't answer "is this faster *in the browser*"
+— wasm runs under a different GL backend (ANGLE→Metal on a Mac). To A/B a draw-path change on real
+WebGL you work around three things, none obvious:
+
+1. **No env vars in a browser** → the native `DE_*=on` A/B toggles are unreachable. Add a
+   **compile-time** mirror (`#ifndef DE_FOO_DEFAULT … -DDE_FOO_DEFAULT=1`) and build the cart twice.
+2. **The file profiler is compiled out on web** (`#if !defined(PLATFORM_WEB)`). Measure frame time in
+   JS instead: the delta between consecutive `requestAnimationFrame` callbacks ≈ the full frame period
+   (it stretches above the refresh interval once the wasm frame work exceeds it). Median delta = frame
+   time; lower = faster.
+3. **Headless Chrome on macOS silently falls back to software GL (SwiftShader)** — *not* representative.
+   Drive the **system Chrome headful** (real GPU) and assert the renderer string
+   (`WEBGL_debug_renderer_info` → `UNMASKED_RENDERER_WEBGL`) is your GPU, not "SwiftShader".
+
+> **The cap gotcha that wasted a run:** rAF is vsync-capped (~16.7ms / 60fps, or 8.3ms on 120Hz
+> ProMotion). If *both* builds finish a frame under the cap, both read ~16.7ms and you measure the
+> **cap, not the work** — a false "0% / identical". Make the workload clearly **exceed** the budget
+> (crank a `-DSTRESS_PASSES`-style knob until fps drops well below 60) so you're comparing real work.
+
+**The flow** (one-time `npm i puppeteer-core` — it drives the *system* Chrome, no Chromium download):
+
+```bash
+# 1. build both variants with emcc (mirror tools/build-site.js's baseArgs), e.g. the pset A/B:
+WORK=/tmp/ab; mkdir -p $WORK; printf 'static const unsigned char SPRITES_DATA[1]={0};\nstatic const unsigned int SPRITES_DATA_LEN=0;\n' >$WORK/sprites_data.h; cp $WORK/sprites_data.h $WORK/map_data.h  # (rename symbols to MAP_DATA)
+BASE="tools/carts/psetstress.c runtime/studio.c -I runtime -I $WORK -I runtime/raylib-web/include \
+  -DPLATFORM_WEB -DSCREEN_W=320 -DSCREEN_H=200 -DSCALE=4 -DMAP_W=128 -DMAP_H=64 -DCELL_W=16 -DCELL_H=16 \
+  -DTOUCH_CONTROLS_DEFAULT=0 -DRENDER_EVERY=1 -Os -fno-delete-null-pointer-checks \
+  runtime/raylib-web/lib/libraylib.a -s USE_GLFW=3 -s TOTAL_MEMORY=67108864 \
+  -s EXPORTED_RUNTIME_METHODS=ccall,HEAPF32 --post-js runtime/web_midi.js -DSTRESS_PASSES=12"
+emcc $BASE                          -o web/off/index.js     # baseline
+emcc $BASE -DDE_BATCH_PSET_DEFAULT=1 -o web/on/index.js     # the change
+# 2. drop the measurement page (below) in each dir as index.html, serve, drive headful Chrome:
+python3 -m http.server 8099 &       # serve web/
+node drive.js                       # → "OFF median=…ms  ON median=…ms  delta %"  + renderer string
+```
+
+The **measurement page** (`index.html` next to each `index.js`) — rAF timer publishing `window.__result`:
+
+```html
+<canvas id="canvas"></canvas><script>
+  var Module = { canvas: document.getElementById('canvas'), print:function(){}, printErr:function(){} };
+  var d=[], last=0, WARMUP=120, KEEP=500;
+  (function tick(t){ if(last) d.push(t-last); last=t;
+    if(d.length<WARMUP+KEEP){ requestAnimationFrame(tick); return; }
+    var s=d.slice(WARMUP).sort((a,b)=>a-b);
+    window.__result={ medianMs:+s[s.length>>1].toFixed(2), p90:+s[Math.floor(s.length*0.9)].toFixed(2), fps:+(1000/s[s.length>>1]).toFixed(1) };
+    document.title="DONE"; })(requestAnimationFrame(arguments.callee));
+</script><script src="index.js"></script>
+```
+
+The **driver** (`drive.js`, puppeteer-core → system Chrome, headful for real GPU):
+
+```js
+const P=require('puppeteer-core'), CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+(async()=>{ const b=await P.launch({executablePath:CHROME, headless:false,
+    args:['--ignore-gpu-blocklist','--use-angle=metal','--window-position=2000,2000']});
+  async function m(url){ const p=await b.newPage(); await p.goto(url,{waitUntil:'load'});
+    await p.waitForFunction('window.__result!==undefined',{timeout:120000,polling:200});
+    const r=await p.evaluate('window.__result');
+    const gl=await p.evaluate(()=>{const g=document.createElement('canvas').getContext('webgl');
+      const e=g.getExtension('WEBGL_debug_renderer_info'); return e?g.getParameter(e.UNMASKED_RENDERER_WEBGL):'?';});
+    await p.close(); return {...r, gl}; }
+  const off=await m('http://localhost:8099/off/'), on=await m('http://localhost:8099/on/');
+  console.log('renderer:', off.gl);
+  console.log('OFF', off.medianMs, 'ms   ON', on.medianMs, 'ms   delta',
+    (((on.medianMs-off.medianMs)/off.medianMs)*100).toFixed(1)+'%');
+  await b.close(); })();
+```
+
+First use of this flow (2026-06): the pset draw-call-batching A/B — **0% on M1 WebGL** (off=on=50ms at
+768k psets), matching native and falsifying "WebGL draw-call overhead is the bottleneck" for ANGLE-Metal.
+Full result + interpretation: [`../design/software-canvas.md`](../design/software-canvas.md) → "Cheaper
+alternatives → Measured".
+
 ### Before/after diff
 
 ```bash

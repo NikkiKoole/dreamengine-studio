@@ -122,6 +122,25 @@ rotation-in-software until there's measured demand. (The "translation-camera-onl
 > It's the proof that a real non-`pset`, non-fill profile shape exists — GPU draw-call *count* — and
 > that "the software canvas isn't a universal speedup" is a fact, not a hedge.
 
+> **Note — *inverse* mapping is the third software option for the rotated case (and the one
+> option A missed).** Option A above is *forward* mapping (transform each primitive's coords, then
+> rasterize) — that's what staircases into holes. The Mode-7/SNES trick is the other direction:
+> iterate the *screen-space* pixels in the shape's transformed bounding box, and for each one apply
+> the **inverse** camera transform to get its shape-local coordinate, then test inside (`x²+y²≤r²`
+> etc.). Because you visit every output pixel exactly once, it is **gap-free by construction** — no
+> seam class to re-fight. The inner loop is cheap (two adds per pixel for a rotated step; one
+> multiply for zoom), and at 64k px the math is in the noise. Two honest bounds on this:
+> - It applies cleanly to **fills and source-sampling blits** (the disc/poly fill, a rotated `spr`,
+>   a Mode-7 background) — i.e. *exactly* the case the 2026-06 note isolated as the only thing
+>   rotation actually forces onto the per-pixel path. So if Fork-2/C ever needs to grow a
+>   rotating-fill path, inverse mapping is how, without a GPU fallback.
+> - It does **not** rescue rotated *stroked* primitives (a 1px `line`/`circ` outline). Those are
+>   still rasterized forward in screen space, so they re-inherit the consistency/aliasing problem
+>   (`rasterization-consistency.md`) and need a sub-pixel line drawer (Xiaolin-Wu-class) to look
+>   stable while rotating. So "kill Fork 2, do *all* rotation in software" overclaims; inverse
+>   mapping shrinks the hard part to stroked outlines, it doesn't erase it. Fork-2/C stays the
+>   recommendation; inverse mapping is the tool *inside* C if the rotating-fill demand ever shows up.
+
 ### Fork 3 — compositing (falls out of Fork 2)
 
 A compositing problem only exists if some primitives draw GPU and some CPU **in the same frame**
@@ -152,6 +171,13 @@ Graduated labour:
   alloc every frame** (the churn `profiler.md` flagged) — gone. And `pget` is **disabled on web**
   today; a CPU buffer enables it.
 - **Web** → `UpdateTexture` works identically and removes `rlVertex3f`-on-WebGL (worse than native).
+- **Determinism across devices — a *feature*, not just the migration oracle.** The byte-identical
+  check below is framed as a pass/fail test, but it's also a capability: a frame computed entirely
+  in C is bit-identical on every machine (native/web, Apple/Intel/ARM), where the GPU path can
+  round/AA 1px differently per driver. That's the precondition for replays, ghost runs, and
+  lockstep netcode — and it plugs straight into infrastructure we already have (`play.js --det`,
+  the dump+shasum oracle, byte-reproducible `--wav`). Worth naming as a reason this architecture is
+  *right* for a fantasy console, beyond the perf win.
 - The scale-up to the window stays GPU (`UpdateTexture` RGBA + `DrawTexturePro` nearest-neighbour),
   so crisp pixel scaling is untouched.
 
@@ -231,6 +257,85 @@ for a fraction of the full-rewrite cost, and without touching `camera_ex` or the
 full draw layer), and `camera_ex` (Fork 2). v0 only proves the buffer+upload mechanism and the
 headline win; it is *not* the path to making software-canvas the default (that needs the blits).
 
+## Cheaper alternatives — try these *before* committing to the rewrite
+
+If the goal is narrowly "**lower `pset` time**" (not "earn the whole architecture"), there's a much
+smaller move that the rewrite framing skips over — and it's worth measuring first, because it
+de-risks the big decision either way.
+
+**The mechanism, precisely (raylib 5.5).** `pset → DrawPixel → DrawPixelV` draws each pixel with
+the shapes-texture and toggles `rlSetTexture` around it. rlgl *already* batches immediate-mode
+vertices into an 8192-element buffer and only flushes on buffer-full / draw-mode change / **texture
+change** / `EndDrawing`. So the popular "you pay 60,000 GPU handshakes" story is *not* generically
+true for raylib — **except** that `DrawPixel`'s per-pixel texture toggling is itself a per-pixel
+texture-state change, which is exactly the `rlSetTexture` churn the survey already measured
+alongside `rlVertex3f`. In other words: the per-pixel path *defeats* the batcher that would
+otherwise coalesce it.
+
+**That implies a cheap, reversible experiment (no `cbuf`, no draw-layer rewrite):**
+
+1. **Batch the `pset` runs yourself.** Within a frame, emit all per-pixel writes inside *one*
+   `rlSetTexture` + `rlBegin(RL_QUADS)`/`rlEnd()` block (or accumulate `{x,y,color}` into a CPU
+   array and flush once with the rlgl vertex API), instead of one `DrawPixel` call each. This stops
+   re-touching texture state per pixel, so rlgl's existing batch coalesces the lot. The change is
+   local to `studio.c`'s `pset`/`pset_rgb` (and the `plot_pat` per-pixel fill path), behind a flag,
+   A/B-able with `profile-fleet.js` in an afternoon.
+
+**What it tells you — the real value is the measurement.** The experiment splits `pset` cost into
+its two components: *state churn* (which batching removes) vs. *raw per-vertex transform/append*
+(which only a software canvas removes, by not emitting vertices at all). If batching alone recovers
+most of the frame on `dpaint`/the CPU-shaders, **you may not need the software canvas at all** —
+you have a 20-line fix for a problem you "don't really have." If it recovers only part, you've
+*quantified* exactly what the rewrite buys, and the v0 below becomes a much better-informed bet.
+
+**What it does *not* give** (so it's a perf patch, not the architecture): the pixels stay
+GPU-resident, so `pget`/`pget_rgb` still need the readback + the 256KB `Image` alloc, `fade`/blend
+stay shader-side, web `pget` stays disabled, and there's no cross-device determinism win. Those are
+all software-canvas-only. Batching lowers the `pset` ceiling; it doesn't move the floor up to the
+free wins.
+
+**Order of operations, then:** run the batching experiment first (cheap, reversible, and it
+*measures* the thing the whole rewrite decision turns on) → only if the residual per-vertex cost is
+big enough to matter does v0 below earn its keep.
+
+> **Measured (2026-06) — the batching experiment was run, and it does *not* lower `pset` time on
+> Apple Silicon.** The path is implemented behind `DE_BATCH_PSET=on` (`studio.c` `px_emit` — same 1px
+> quad as `DrawPixel`, same winding, but it leaves the white texture bound instead of toggling
+> `rlSetTexture(0)` per pixel, so a run of psets coalesces into one draw call; flushes correctly when
+> any other primitive changes texture/mode). Two results:
+> - **Correctness: byte-identical.** dump+shasum oracle matches off-vs-on on `dpaint`, `interiors`,
+>   `pixelperfect`, `lotfill` (the last two *interleave* pset with rectfill/line/circfill, so they
+>   exercise the order-flush path). The technique is sound and reusable.
+> - **Perf (native, Apple M1): no measurable gain at real-cart densities.** Drift-cancelling
+>   interleaved A/B on `dpaint` (pset=30k/frame, ~pure pset runs): off ≈ 3.53ms vs on ≈ 3.58ms, with
+>   per-run variance (±0.9ms) an order of magnitude larger than the difference. `interiors` +2%,
+>   `pixelperfect` +1%, `lotfill` −2% — all inside noise. (A first single-shot fleet run *looked*
+>   like −20–28%, but `raymarch`/`caustics` — which have **pset≈0** — "improved" the same amount,
+>   proving that pass was lighter system load, a global offset, not a pset win. Always drift-cancel.)
+>   The win only emerges far past any real cart: a synthetic `psetstress` probe at **128k psets/frame**
+>   shows a small *repeatable* −6% (9.33 → 8.76ms), so the churn does start to matter at extreme
+>   density — but 128k is 4× the heaviest real cart.
+> - **Perf (WebGL, M1 / ANGLE-Metal): also no gain.** Tested for real — two emcc builds of `psetstress`
+>   (`-DDE_BATCH_PSET_DEFAULT=0/1`) driven through the *system Chrome, headful* (real GPU, renderer =
+>   "ANGLE Metal Renderer: Apple M1") via puppeteer-core, frame time read from a `requestAnimationFrame`
+>   interval timer (the file profiler is compiled out on web). Reusable recipe (scripts + the gotchas):
+>   [`../guides/debug-harness.md`](../guides/debug-harness.md) → "Web perf A/B". At 768k psets/frame (well past the
+>   vsync cap, ~20fps): **off median 50ms vs on median 50ms = 0%** (reproduced). Batching gave a
+>   slightly *tighter tail* (p90 50.9 vs 66.6ms) but identical throughput.
+>
+> **What it proves:** on this hardware — native *and* WebGL — the `pset` cost is the **per-vertex CPU
+> emission** (4× `rlVertex2f`/pixel, *identical* in both paths), **not** the draw-call/texture-state
+> churn batching removes. Crucially, rlgl *already* coalesces those vertices into its 8192-element
+> batch buffer regardless of the per-pixel `rlSetTexture` toggle (768k psets in 50ms = ~thousands of
+> pixels per real GPU draw, not one draw each), so the "60,000 GPU handshakes" story doesn't hold on
+> ANGLE-Metal — and the WebGL-is-different hypothesis was **falsified** for M1. So **there is no cheap
+> off-ramp here**: only the software canvas (which replaces those 4 `rlVertex2f`/pixel with a single
+> `cbuf` store) can move `pset` time, which *raises* the bar for the rewrite rather than dodging it.
+> Door still open only for **weak/old GPU drivers** (Intel iGPU, low-end Android, Pi-class) where
+> small-draw submission is genuinely expensive — untested; the `DE_BATCH_PSET` flag + the
+> `psetstress` cart (`-DSTRESS_PASSES`, `-DDE_BATCH_PSET_DEFAULT`) stay in as the committed reproducer
+> for that day.
+
 ## Risks / why it might *not* be worth it
 
 - **It's a rewrite of the draw layer**, and the partial-slice catch above means the first honest
@@ -249,10 +354,23 @@ headline win; it is *not* the path to making software-canvas the default (that n
 **Park the decision, not the design** — the data keeps pointing here (every profile in this arc ends
 at `rlVertex3f`; the span fills only routed *around* it for fills), so a software canvas is the move
 that removes it engine-wide, and at 64k px the precedent (every fantasy console) says it should win.
-When picked up: prototype Fork-2/C behind `DE_SOFTWARE_CANVAS`, choose option 2 (narrow per-pixel
-opt-in) to prove the mechanism + the `dpaint`/CPU-shader win cheaply, A/B on the fleet, and only
-commit to option 1 (porting `spr`/`print`/`tritex`) if those numbers land the way the survey
-predicts. Earn the rewrite with data at each step — same discipline as the rest of the ledger.
+
+But keep the perspective honest: **this buys headroom, not relief from a present fire** — most
+carts already hit 60fps, and the one rotating-*and*-pset-bound cart the rewrite's hardest part would
+serve may not even exist in the fleet (`sloop`, the one off-shape profile, is draw-call-bound, not
+`pset`-bound). The cheap off-ramp — draw-call batching (`DE_BATCH_PSET`) — **was tried and measured
+null on Apple Silicon** ("Cheaper alternatives" → Measured 2026-06): `pset` cost is per-vertex CPU
+emission, which batching doesn't touch. So on *this* hardware there's no shortcut: the software
+canvas is the only thing that moves `pset` time, and it's a draw-layer rewrite for headroom. That's
+a *strong reason to wait* until either (a) a cart is actually `pset`-bound below 60fps, or (b) web/
+low-end becomes a target (where the batching probe should be re-run first — it may pay there even
+though it didn't here).
+
+When the canvas *is* picked up: prototype Fork-2/C behind `DE_SOFTWARE_CANVAS`, choose option 2
+(narrow per-pixel opt-in) to prove the mechanism + the `dpaint`/CPU-shader win cheaply, A/B on the
+fleet, and only commit to option 1 (porting `spr`/`print`/`tritex`) if those numbers land the way
+the survey predicts. Earn the rewrite with data at each step — same discipline as the rest of the
+ledger.
 
 ## See also
 - [../guides/engine-optimization.md](../guides/engine-optimization.md) — the fleet survey that

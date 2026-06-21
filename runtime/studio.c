@@ -199,6 +199,10 @@ static int             fp_anc_y   = 0;                // — shifts the pattern 
 static bool            poly_fill_fast = true;        // false → legacy per-pixel polygon fill (A/B; env DE_POLY_FILL=legacy)
 static bool            disc_fill_fast = true;        // false → legacy per-pixel circle/oval fill (A/B; env DE_DISC_FILL=legacy)
 static bool            clamp_cache_on = true;        // false → recompute the fill scan-box every call (A/B; env DE_CLAMP_CACHE=off)
+#ifndef DE_BATCH_PSET_DEFAULT
+#define DE_BATCH_PSET_DEFAULT 0                        // web has no env vars → compile-time toggle (-DDE_BATCH_PSET_DEFAULT=1)
+#endif
+static bool            pset_batch     = DE_BATCH_PSET_DEFAULT; // true → batched pset (skip DrawPixel's per-pixel rlSetTexture toggle) (A/B; env DE_BATCH_PSET=on, or -DDE_BATCH_PSET_DEFAULT=1 for web)
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
 static void circfill_pat(int x, int y, int radius, int pattern, int c1, int c0);
@@ -1530,6 +1534,8 @@ int main(int argc, char **argv) {
       if (df && strcmp(df, "legacy") == 0) disc_fill_fast = false; }   // DE_DISC_FILL=legacy → old per-pixel path
     { const char *cc = getenv("DE_CLAMP_CACHE");        // A/B the per-frame clamp-box cache:
       if (cc && strcmp(cc, "off") == 0) clamp_cache_on = false; }      // DE_CLAMP_CACHE=off → recompute every call
+    { const char *bp = getenv("DE_BATCH_PSET");         // A/B the batched-pset path:
+      if (bp && strcmp(bp, "on") == 0) pset_batch = true; }            // DE_BATCH_PSET=on → coalesce psets into one draw call
     const char *window_title           = "dreamengine";
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
@@ -2582,16 +2588,40 @@ void bezier(int x0, int y0, int cx, int cy, int x1, int y1, int color) {
         px = nx; py = ny;
     }
 }
+// Batched pixel (env DE_BATCH_PSET=on). raylib's DrawPixel binds the shapes (white)
+// texture, emits a 1px quad, then resets the texture to 0 *per pixel* — that trailing
+// rlSetTexture(0) forces a draw-call flush for every single pixel, defeating rlgl's
+// vertex batcher (the rlSetTexture churn the fleet survey measured next to rlVertex3f).
+// px_emit draws the same 1px quad (same TL,BL,BR,TR winding → byte-identical pixels) but
+// leaves the white texture bound, so a run of consecutive psets coalesces into one draw
+// call. Order-safe: any other primitive that changes texture/mode flushes our pending
+// pixels first, exactly like normal rlgl batching. docs/design/software-canvas.md →
+// "Cheaper alternatives".
+static inline void px_emit(int x, int y, Color c) {
+    rlSetTexture(rlGetTextureIdDefault());   // 1x1 white; rlgl no-ops when already bound
+    rlBegin(RL_QUADS);
+        rlColor4ub(c.r, c.g, c.b, c.a);
+        rlTexCoord2f(0, 0); rlVertex2f((float)x,       (float)y);
+        rlTexCoord2f(0, 1); rlVertex2f((float)x,       (float)y + 1);
+        rlTexCoord2f(1, 1); rlVertex2f((float)x + 1,   (float)y + 1);
+        rlTexCoord2f(1, 0); rlVertex2f((float)x + 1,   (float)y);
+    rlEnd();
+}
+
 void pset(int x, int y, int color) {
     PROF("pset");
-    DrawPixel(x, y, palette[color % PALETTE_SIZE]);
+    Color c = palette[color % PALETTE_SIZE];
+    if (pset_batch) px_emit(x, y, c);
+    else            DrawPixel(x, y, c);
 }
 
 // raw 24-bit pixel: 0xRRGGBB straight to the canvas, bypassing the palette. the
 // canvas is RGBA, so this is the same cost as pset — it's how a CPU shader paints.
 void pset_rgb(int x, int y, int hex) {
     PROF("pset");
-    DrawPixel(x, y, (Color){ (hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF, 255 });
+    Color c = { (hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF, 255 };
+    if (pset_batch) px_emit(x, y, c);
+    else            DrawPixel(x, y, c);
 }
 
 // enable_pget(true) keeps the canvas read-back warm so pget/pget_rgb/touching_color can

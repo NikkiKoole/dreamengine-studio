@@ -1,20 +1,32 @@
 # Cart library direction — what to build next
 
-> **Exploratory.** A snapshot analysis (2026-06-03) of the ~201-cart library and an
-> opinionated take on where the *next* carts should go. Not a committed backlog — it's
-> the "stop and look at the whole shelf" memo. Re-run the counts before acting; the
-> library moves.
+> **Exploratory.** A snapshot analysis (originally **2026-06-03**; **counts refreshed
+> 2026-06-22**) of the library and an opinionated take on where the *next* carts should
+> go. Not a committed backlog — it's the "stop and look at the whole shelf" memo. Re-run
+> the counts before acting; the library moves — it has **roughly doubled** since the
+> original memo (see the note under the table).
 
-## The shelf today (201 registered carts)
+## The shelf today (379 registered carts — counts refreshed 2026-06-22)
+
+Per-kind tag counts (a cart can carry several kinds, so these sum past the total):
 
 | Kind | Count | Read |
 |---|---|---|
-| **game** | 122 | **Saturated.** Essentially the entire retro arcade/console/strategy canon + many modern indies. |
-| tech-demo | 37 | Strong, broad. |
-| tutorial | 28 | **Thin for a *learning* tool** — see gap #1. |
-| instrument | 12 | Distinctive, deep — a real identity. |
-| toy | 7 | **Underweight vs. the brand** — see gap #2. |
-| tool | 4 | Niche, fine. |
+| **game** | 132 | **Saturated.** Essentially the entire retro arcade/console/strategy canon + many modern indies. |
+| tech-demo | 120 | Broad and deep. |
+| **instrument** | 99 | **A real identity now** — the deepest, most distinctive shelf (synths, machines, radios, sound toys). Was *the* gap on 2026-06-03 (only 12); filled hard since. |
+| toy | 67 | Healthy now (was 7 — the "underweight" gap is closed). |
+| tutorial | 46 | Still the thinnest shelf *relative to the learning mission* — see gap #1. |
+| probe | 35 | Engine/interaction probes ([`probe-carts.md`](probe-carts.md)). A kind that didn't exist at the original memo. |
+| generative | 8 | Generative / worldgen demos. Also new since the memo. |
+| tool | 5 | Niche, fine. |
+
+> **Note (2026-06-22):** the library has ~doubled since the 2026-06-03 memo (instruments
+> 12→99, toys 7→67, tech-demos 37→120, + the new `probe` / `generative` kinds). The thesis
+> below — *game shelf saturated; build instruments/toys/tutorials, not more games* — has
+> largely **played out**: instruments and toys are now strong shelves. So the live priority
+> is **tutorials (gap #1)** plus the creative veins in §2b/§2c (whimsical instruments and the
+> new liveset playthings), rather than the per-kind gaps as originally framed.
 
 The headline: **the game shelf is essentially done.** Pac-Man, Doom, Civ, XCOM, Elite,
 Lemmings, Transport Tycoon, Football Manager, *three* rhythm games (smooch lounge,
@@ -189,6 +201,33 @@ The pattern worth noticing: the blocked ones are all *continuous-gesture*
 instruments — exactly why instrument-engines §8.9 says the wind/bowed group "pairs with held notes
 and live macros." The touch work on the instrument shelf is the other half of
 that pairing.
+
+### 2c. Liveset playthings — performance machines (2026-06-22)
+
+A vein distinct from §2b's single-voice instruments: **player-driven electronic
+performance toys** — one big gesture, a real hardware/genre lineage, built **cart-side
+only (no new engine DSP)**. The line started from a BeatCraft Studio "magic of one note"
+short → **`onenote`** (one-note funk groovebox — kick/snare + a single-pitch bass you
+transpose live on an in-scale keybed; *shipped 2026-06-21*) → **`grenadier`** (the Grendel
+RA-99 triple filterbank — three held voices on one root swept in a 2D Alpha/Beta space;
+*shipped 2026-06-22*). The recurring, proven gestures these two share — a **scale-locked
+keybed** for the root and a **big XY pad** for the live sweep — are the kit the rest reuse.
+
+These five are the queued siblings, ranked by how "liveset" they feel. All are cart-only;
+the engine-DSP routes they each gesture at (a true single-source filterbank, granular,
+etc.) are deliberately deferred.
+
+| appeal | name | lineage | the live gesture | build (cart-only) |
+|---|---|---|---|---|
+| ★★★★★ | **kaoss** ✅*shipped 2026-06-22* | Korg Kaoss Pad / Kaossilator | an XY pad mangles a running techno loop; pick a PROGRAM (FILTER / ECHO / GATE / TAPE), the two axes drive its params, touch to engage + HOLD to latch | shipped using only the **ride-safe** master FX (`filter`/`varispeed`/`echo`/`tremolo` — the buffer-rebuilders stutter if swept). ECHO needs the loop routed into its send; GATE re-applies `tremolo()` only on change (per-frame calls reset its LFO = glitch). **Parked enhancement:** make all four *stack* (per-program latch) — they're independent bus slots, so it's doable; deferred 2026-06-22 |
+| ★★★★★ | **euclid** | Mutable Instruments Grids / Euclidean rhythm | 4–5 drum rings; dial **density (k hits in n)** + **rotation** live per track → grooves morph in and out generatively | `euclid()` is already in-engine (afrobeat/games use it) but **no cart lets the *player* drive it**; drum recipes from `drummachine`. The rhythm companion to the others' voices |
+| ★★★★☆ | **turing** | Music Thing Modular Turing Machine | one **CHAOS** knob slides a shift-register from locked-loop ↔ pure-random, feeding a synth voice + a drum → a self-evolving riff you sculpt by hand | a cart-side shift register + any `INSTR_*` voice; pairs naturally with `grenadier` as the voice |
+| ★★★★☆ | **dubsiren** | King Tubby / a dub mixing desk | a wobbling siren oscillator into a huge feedback delay you **throw** (fire bursts) + detune; spring-reverb crash | `echo()` feedback + `note_pitch` wobble + `reverb()`. The hands-on twin of the `dub` auto-radio |
+| ★★★☆☆ | **lpg** | Buchla / Make Noise (west-coast) | tap → the voice decays in volume **and** brightness *together* (the lowpass-gate signature) + a wavefolder bonk→bright morph | `INSTR_MALLET`/`USER0` + coupled `note_vol`/`note_cutoff` + waveshaping. The one with the most genuinely *new timbre* |
+
+Recommended order: **kaoss** first (most liveset, reuses the FX bus, and it mangles
+everything else you build), **euclid** as its rhythm partner; **turing** / **dubsiren** /
+**lpg** follow. Each should reuse the keybed + XY-pad chassis from `onenote.c` / `grenadier.c`.
 
 ### 3. The few genuinely-missing, *teachable* game types
 

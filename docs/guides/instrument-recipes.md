@@ -439,6 +439,29 @@ All raw waves; some voices fired multiple times detuned for beating/layering.
 | onenote/snare | NOISE | A0 D130 S0 R50 · BP1400/3 | The `drummachine/snare` recipe — bandpassed bark. |
 | onenote/bass | SAW | A0 D210 S2 R140 · drive0.22 · LADDER (cutoff 120Hz–5kHz / res 0–12 = the XY pad, live) | The one-note funk bass: plucky driven saw through the Moog 4-pole ladder, tone shaped live by the XY pad (right = brighter, up = quackier). Plays a single pitch; the keybed transposes the whole loop. |
 
+### grenadier (machine — 3 filterbank voices, from grenadier.c)
+
+The Grendel RA-99 triple filterbank, cart-side: three held drone voices on one root, each
+through its own resonant filter, summed; the cutoffs are ridden live from an Alpha/Beta XY pad.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| grenadier/bank | USER0 (trapezoid) | A8 D0 S7 R240 · drive0.35 · ×3 voices, same root, held | three voices summed; the trapezoid VCO morphs triangle→square via `wave_set` (MORPH). The oscillator feeding the bank. |
+| grenadier/filter-LP | — | `FILTER_LOW`, cutoff = `base·2^((α−.5)·4)`, res = 1..14 (Q) | voice 1 in RA-99 layout: the lowpass leg of the bank, swept by Alpha. |
+| grenadier/filter-BP×2 | — | `FILTER_BAND` at `base·space` and `base·space²`, res = Q | voices 2 & 3: the two bandpass legs; Beta opens the spacing tight→wide. RA-9 layout flips voice 1 to BP too. |
+
+### onenote — bass tone (the v2 XY pad), see the row above
+
+> `onenote/bass` (above) is a `SAW` through `FILTER_LADDER`, cutoff 120 Hz–5 kHz / res 0–12 ridden
+> live from the cart's XY pad. The kick/snare reuse the `drummachine` recipes.
+
+### kaoss (machine — reuses the groovebox loop, from kaoss.c)
+
+> Kaoss has **no new voice recipes** — its built-in loop reuses the `groovebox`/`drummachine` kit
+> (kick/clap/chat/ohat `INSTR_NOISE`+`INSTR_SINE`, bass + arp `INSTR_SAW`). The cart's whole point
+> is the **master effects** the XY pad rides (filter / varispeed / echo / tremolo) — see those rows in
+> [`effects-recipes.md`](effects-recipes.md).
+
 ### loopstation (synth — 7 fixed tracks, from loopstation.c)
 
 | name | engine | recipe | character |

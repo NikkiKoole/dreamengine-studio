@@ -70,7 +70,7 @@ Per-slot `send` 0–1 chooses how much each instrument throws into it. **Showcas
 | slapback | `instrument_echo(slot, 0.10f–0.16f)` | tight doubling on a lead/EP/guitar, no wash | `air` (lead/EP/gtr), `sh101` |
 | dynamic room echo | `echo(90+open*300, 0.10f+open*0.30f, 0.35f+open*0.25f)` | echo that opens with the space: corridor→hall driven by one `open` 0..1 | `deeper` |
 | hard feed into a loop | `instrument_echo(PAD, 0.7f)` | a pad fed heavily into a long echo = an evolving wash (the tape-loop trick) | `tapeloop`, `wowflutter` |
-| live delay pedal | `echo(rate_ms(), fb_x(), tone_x())` from knobs | the effect played as the instrument; feedback into the red = self-osc drone | `spacecho`, `tb303` |
+| live delay pedal | `echo(rate_ms(), fb_x(), tone_x())` from knobs | the effect played as the instrument; feedback into the red = self-osc drone | `spacecho`, `tb303`, `kaoss` (ECHO program; sends opened on the loop only while ECHO is selected) |
 | delay as an in-line INSERT | `echo_insert(time_ms, fb, tone, mix)` + `FX_ECHO` in `fx_order(0,…)` | a real reorderable DELAY pedal whose chain POSITION is audible — `delay→drive` distorts the repeats, `drive→delay` makes clean echoes of a dirty signal | `pedalboard` (DELAY), `modrack` (ECHO module — cv inlet sweeps the mix for dub throws) |
 
 > **`echo()` (send) vs `echo_insert()` (insert).** `echo()` is the shared parallel send — its wet
@@ -383,7 +383,7 @@ laps the ~2 s buffer → a click). Master output stage; pitch is exact (A4→A3 
 
 | recipe | call | character | used by |
 |---|---|---|---|
-| tape-stop divebomb | sweep `varispeed(1.0 → ~0.28)` then back to `1.0` | the whole mix brakes to a crawl + pitch dives, then spins back up — the SP-404 / turntable stop | `varispeed` |
+| tape-stop divebomb | sweep `varispeed(1.0 → ~0.28)` then back to `1.0` | the whole mix brakes to a crawl + pitch dives, then spins back up — the SP-404 / turntable stop | `varispeed`, `kaoss` (TAPE program — pad x = `pow(4,(x−.5)·2)`, drag left to dive) |
 | chipmunk / fast-forward | `varispeed(2.0f)` (momentary) | everything an octave up + double-time | `varispeed` |
 | seasick bend | sweep `varispeed` ±a little around 1.0 | a wobbly tape warble on the whole mix | `varispeed` |
 
@@ -469,7 +469,7 @@ instrument's WHOLE output in unison — the coherent amp wobble a per-voice `LFO
 |---|---|---|---|
 | Wurlitzer 200A throb | `instrument_tremolo(I_EP, 5.0f+amt*1.5f, amt*0.85f, TREM_SINE)` | the soul-ballad EP wobble — deeper than the Rhodes; the tremolo slider rides rate+depth together | `epiano` |
 | suitcase Rhodes wobble | `instrument_tremolo(I_EP, 5.4f, 0.38f, TREM_SINE)` | the classic gentle ~5 Hz suitcase pulse | `epiano` |
-| helicopter chop | `tremolo(8.0f, 0.9f, TREM_SQUARE)` | hard on/off gate on the whole mix — stutter/strobe | (square pattern) |
+| helicopter chop | `tremolo(8.0f, 0.9f, TREM_SQUARE)` | hard on/off gate on the whole mix — stutter/strobe | `kaoss` (GATE program — quantized rate 2..16 Hz, depth on y; re-applied only on change since `tremolo()` resets its LFO phase per call) |
 
 > A real clav has **no** tremolo — the `epiano` clav preset sets depth 0 (bypass). Tremolo is the
 > Rhodes/Wurli signature, not a universal EP effect.
@@ -628,7 +628,7 @@ Same SVF as wah/formant, reused as a plain swept filter (0015: filter-reuse, not
 | breakdown muffle | `filter(FILTER_LOW, cut, 0.5f)` ride cut 300→8000 | close to a thumping muffle, open for the build/drop — the four-floor breakdown | `djfilter` (the BUILD breakdown) |
 | screaming build | `filter(FILTER_LOW, cut, 0.9f)` sweep cut up | high resonance = an acid scream riding up into the drop | `djfilter` (the BUILD riser) |
 | thin it out | `filter(FILTER_HIGH, 800.0f, 0.3f)` | roll off the lows — a radio/telephone thinning, or a transition | `djfilter` (CW = high-pass) |
-| bipolar DJ filter | one knob: center = `FILTER_OFF`, CCW → `FILTER_LOW` 18k→150 Hz, CW → `FILTER_HIGH` 20→6k (resonance rises as you close) | the mixer one-knob filter — muffle on the breakdown, thin on a transition | `djfilter` (THE knob), `groovebox` (the FILTER knob) |
+| bipolar DJ filter | one knob: center = `FILTER_OFF`, CCW → `FILTER_LOW` 18k→150 Hz, CW → `FILTER_HIGH` 20→6k (resonance rises as you close) | the mixer one-knob filter — muffle on the breakdown, thin on a transition | `djfilter` (THE knob), `groovebox` (the FILTER knob), `kaoss` (FILTER program — pad x bipolar, y = resonance) |
 | the filter ride | `filter(FILTER_LOW, ride_hz(songpos), res)` per frame | a master cutoff curve AS the arrangement (the house "filter ride IS the song", for real) | — |
 | filter pedal | `filter(act ? FM[mode] : FILTER_OFF, 40·450^cut, res)` — CUT exp 40..18k Hz, MOD picks LP/HP/BP/NCH | a stompbox resonant filter you set (or ride) and reorder against the other pedals | `pedalboard` (FILTER, MOD knob) |
 

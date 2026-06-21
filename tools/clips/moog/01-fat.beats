@@ -1,0 +1,19 @@
+# Model D 3-oscillator demo — a fat bass riff + a held chord, default patch.
+# frames 600  fps 60  scale 2
+bpm 120
+start 2
+# a chord stab (A=C, D=E, G=G held together) — hear the 3 osc + detune beat
+beat 0  tap A 4
+beat 0  tap D 4
+beat 0  tap G 4
+# walking bass line, each note a quick hold
+beat 4  tap A 1
+beat 5  tap F 1
+beat 6  tap D 1
+beat 7  tap S 1
+beat 8  tap A 2
+beat 10 tap G 2
+# big sustained chord to close
+beat 12 tap A 6
+beat 12 tap F 6
+beat 12 tap K 6

@@ -126,6 +126,7 @@ typedef struct {
     int    flt_mode;
     float  flt_cutoff, flt_q;
     float  flt_low, flt_band;   // SVF running state
+    float  lad_s[4];            // FILTER_LADDER: the 4 ladder-stage integrator states (ZDF)
     // held-note (note_on) state + per-param slew (the live voice glides toward these targets)
     bool   held;                   // sustained note_on voice — infinite gate until note_off
     int    owner_slot, owner_gen;  // which handle owns this voice (for stale-handle rejection)
@@ -4232,6 +4233,37 @@ static inline float sound_svf(Voice *v, float in, float cutoff_hz) {
     return in;
 }
 
+// Zavalishin TPT (zero-delay-feedback) 4-pole transistor-LADDER lowpass — one sample.
+// The Moog VCF: four cascaded one-pole stages with a global feedback k (0..4). It's
+// steeper than the 12dB SVF (24dB/oct), the feedback drains the passband bass as it
+// climbs (the ladder's signature), and near k=4 it self-oscillates into a pure tone.
+// Reuses v->flt_q (the SVF damping, 2.0=open .. 0.05=peak) so the resonance knob maps
+// the same way. Lowpass-only, like the real circuit. ±8 state clamp = NaN/runaway net.
+static inline float sound_ladder(Voice *v, float in, float cutoff_hz) {
+    float g  = tanf(3.14159265f * cutoff_hz / (float)SOUND_SAMPLE_RATE);
+    float G  = g / (1.0f + g);                          // one-pole TPT integrator gain
+    float res = (2.0f - v->flt_q) * (1.0f / 0.13f);     // recover res 0..15 from the damping
+    if (res < 0.0f) res = 0.0f; else if (res > 15.0f) res = 15.0f;
+    float k  = res * (4.0f / 15.0f);                    // feedback 0..4 (≈4 self-oscillates)
+
+    float oG = 1.0f - G;
+    float S1 = oG * v->lad_s[0], S2 = oG * v->lad_s[1], S3 = oG * v->lad_s[2], S4 = oG * v->lad_s[3];
+    float G2 = G * G, G3 = G2 * G, G4 = G3 * G;
+    float B  = G3 * S1 + G2 * S2 + G * S3 + S4;         // the ladder's instantaneous feedback term
+    float u  = (in - k * B) / (1.0f + k * G4);          // resolve the zero-delay input (1+k*G4 > 1, safe)
+
+    float y1 = G * u  + S1; v->lad_s[0] = 2.0f * y1 - v->lad_s[0];
+    float y2 = G * y1 + S2; v->lad_s[1] = 2.0f * y2 - v->lad_s[1];
+    float y3 = G * y2 + S3; v->lad_s[2] = 2.0f * y3 - v->lad_s[2];
+    float y4 = G * y3 + S4; v->lad_s[3] = 2.0f * y4 - v->lad_s[3];
+
+    for (int i = 0; i < 4; i++) {                        // belt-and-braces, like the SVF clamp
+        if      (v->lad_s[i] >  8.0f) v->lad_s[i] =  8.0f;
+        else if (v->lad_s[i] < -8.0f) v->lad_s[i] = -8.0f;
+    }
+    return y4;
+}
+
 // Drop any held-note ownership a voice carries (it's about to be reused or has finished),
 // so the handle that owned it goes stale and its setters start no-op'ing.
 static void sound_unclaim_held(int vi) {
@@ -4450,6 +4482,7 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->flt_q          = v->flt_q_target  = ins->flt_q;
     v->flt_low        = 0.0f;
     v->flt_band       = 0.0f;
+    v->lad_s[0] = v->lad_s[1] = v->lad_s[2] = v->lad_s[3] = 0.0f;
     v->freq_slew        = 0.006f;   // ~snappy by default; note_glide() slows it for portamento
     // engine macros ride the same current/target slew pattern as cutoff/duty
     v->harm = v->harm_target = ins->harmonics;
@@ -5379,7 +5412,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             if (v->sfx_idx < 0 && v->flt_mode != FILTER_OFF) {
                 if (cutoff < 20.0f) cutoff = 20.0f;
                 if (cutoff > SOUND_SAMPLE_RATE * 0.45f) cutoff = SOUND_SAMPLE_RATE * 0.45f;
-                s = sound_svf(v, s, cutoff);
+                s = (v->flt_mode == FILTER_LADDER) ? sound_ladder(v, s, cutoff) : sound_svf(v, s, cutoff);
             }
             // drive: post-filter saturation — osc → SVF → drive → VCA, so resonance
             // screams INTO the saturation and quiet envelope tails don't pump it. The

@@ -1940,3 +1940,31 @@ the regression `level-check` exists to catch — and to verify the fix.
 the device output path has no final clamp (only the WAV writer clamps, `sound.h:372`). So varispeed's
 interpolation can push the device signal slightly past ±1.0 → a hard driver clip. Tiny, but a real
 seam — a final clamp on the device write (or running those two before the soft-clip) closes it.
+
+## 21. The Moog ladder filter — `FILTER_LADDER` (2026-06-21)
+
+The per-voice filter was a Chamberlin SVF (2-pole, 12 dB/oct, the one structure that
+gives LP/HP/BP/notch — §5.5, §17). Authentic *enough* for most carts, but on a slow
+resonant sweep it reads brighter and buzzier than the real thing: a Minimoog's voice is
+the **4-pole transistor ladder** (24 dB/oct, lowpass-only) Bob Moog patented in 1965.
+`moog.c` (the Model D rebuild) wanted the genuine article, so `FILTER_LADDER` (mode 5)
+joins the `FILTER_*` family.
+
+Implementation (`sound_ladder`, beside `sound_svf`): a **Zavalishin TPT / zero-delay-
+feedback** ladder — four one-pole TPT stages with a global feedback `k` (0..4). Chosen
+over the musicdsp "naïve Moog" (Stilson/Smith) because the ZDF form is unconditionally
+stable and tunes correctly without oversampling — the existing engine is strictly
+per-sample, so an oversampled model didn't fit. The closed-form ZDF solve is
+`u = (in − k·B)/(1 + k·G⁴)`; the denominator is always > 1, so no division hazard, and a
+±8 clamp on the 4 integrator states (`lad_s[4]`) is the NaN/runaway net. Resonance reuses
+`flt_q` (recovered back to 0..15) so the knob maps identically to the SVF; `k = res·4/15`,
+so res 15 ≈ self-oscillation. The 24 dB slope and the **passband-bass drain as resonance
+climbs** (the ladder's signature) both fall out of the topology for free.
+
+Validated: 30 s at max resonance with a sweeping cutoff (self-oscillating) → 0 clipped
+samples, DC ≈ 6e-5 (no runaway), no NaN. `level-check`/`fx-check` unchanged — the SVF
+path and all existing baselines are byte-for-byte untouched; the ladder only runs when a
+voice explicitly selects mode 5. **Open / deferred:** no per-stage `tanh` saturation
+(the linear ZDF is what's shipped — clean, the drive stage after the filter supplies the
+grit per §17); and oscillator **hard sync** is still the remaining un-modeled Minimoog
+trait (see `moog.c` header).

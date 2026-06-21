@@ -1,2 +1,2 @@
-// moog.c runs on a wide, low canvas — room for the patch panel + a keyboard.
-module.exports = { screenW: 460, screenH: 300, scale: 2 }
+// moog.c runs on a wide canvas — room for the 3-oscillator mixer + patch panel + a keyboard.
+module.exports = { screenW: 460, screenH: 348, scale: 2 }

@@ -431,6 +431,14 @@ All raw waves; some voices fired multiple times detuned for beating/layering.
 | drummachine/clap | NOISE | A0 D60 S0 R30 · BP1100/5 · 3× @12/24ms | Bursting handclap from three echoed noise bursts. |
 | drummachine/bass | SQUARE | A1 D100 S3 R60 · LP900/4 | Rounded square bass, warm lowpass color. |
 
+### onenote (machine — 3 voices, from onenote.c)
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| onenote/kick | SINE | A0 D280 S0 R60 · pitch-env →+30 (0/55) | The `drummachine/kick` recipe — 909-style boom. |
+| onenote/snare | NOISE | A0 D130 S0 R50 · BP1400/3 | The `drummachine/snare` recipe — bandpassed bark. |
+| onenote/bass | SAW | A0 D210 S2 R140 · drive0.22 · LADDER (cutoff 120Hz–5kHz / res 0–12 = the XY pad, live) | The one-note funk bass: plucky driven saw through the Moog 4-pole ladder, tone shaped live by the XY pad (right = brighter, up = quackier). Plays a single pitch; the keybed transposes the whole loop. |
+
 ### loopstation (synth — 7 fixed tracks, from loopstation.c)
 
 | name | engine | recipe | character |

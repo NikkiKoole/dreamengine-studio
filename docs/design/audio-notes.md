@@ -1980,8 +1980,10 @@ our three "oscillators" in `moog.c` are independent voices that only meet at the
 `phase*2−1`, etc.). So naive hard sync is *consistent* with the engine — no PolyBLEP
 rabbit hole. (If they'd been band-limited we'd have needed a BLEP at the reset point,
 scaled by the sweeping discontinuity height — a much bigger job, and even then sync is
-the hardest thing to anti-alias. We chose naive deliberately, A/B by ear; see the
-PolyBLEP discussion. The aliased grit reads as analog-aggressive, fitting.)
+the hardest thing to anti-alias. We chose naive deliberately, A/B by ear. The aliased grit
+reads as analog-aggressive, fitting.) **The full naive-vs-band-limited rationale — when it's
+audible, why we keep it, and the revisit triggers — is frozen in
+[decision 0019](../decisions/0019-oscillators-are-naive-antialiasing-deferred.md).**
 
 Implementation: each voice gets a second **slave** phase (`sync_ph`) and a slewed
 `sync_ratio` (riding the same machinery as cutoff/drive). The master (`v->phase`) runs

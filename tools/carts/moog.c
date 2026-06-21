@@ -32,9 +32,10 @@
 // screaming/tearing sync lead). The FILTER offers the
 // real 4-pole Moog LADder plus LP/HP/BP/NF; a filter-contour + pitch ENVELOPE give
 // the classic "wow"; three LFOs are the modulation. The PRESET bank (top right) loads
-// factory patches; SAVE stores your own, USER recalls it. Filter, drive, tracking and
-// the LFOs follow their controls LIVE under a ringing chord; wave/octave/detune/ADSR
-// snapshot at the next note.
+// factory patches; SAVE stores your own, USER recalls it. Filter, drive, tracking, sync,
+// DETUNE and LEVEL all follow their knobs LIVE under a ringing chord (sweep the detune and
+// hear the beating shift in real time); only WAVE, OCTAVE and the ADSR snapshot at the next
+// note (they need a fresh attack).
 //
 // Play it on the on-screen keyboard, the mouse, your computer keys (A row = white,
 // W E T Y U O P = black), or a plugged-in MIDI keyboard. Z/X octave, C/V velocity.
@@ -134,6 +135,8 @@ static const Patch FACTORY[6] = {
 // ---- live voice handles: one per oscillator (+ noise) per MIDI note ----
 static int   h_osc[3][128];        // -1 = silent
 static int   h_nz[128];
+static float basep[3][128];        // per-voice note-on pitch WITHOUT detune (octave + drift latched) — so detune can ride LIVE without erasing drift
+static int   vnote[128];           // per-note velocity (0..7) — so LEVEL can ride live and keep velocity dynamics
 static float osc_last[3];          // last target pitch per oscillator — for portamento
 static int   have_last = 0;
 static float shark[64];            // the SHRK single-cycle wave (baked at init)
@@ -231,11 +234,13 @@ int vel07(void) { return CLI(vel * 7 / 127, 1, 7); }
 // every voice. Each press stacks the three oscillators + noise; each release gates them off.
 void note_start(int midi, int v) {
     apply_synth();                              // snapshot wave + ADSR for this strike
+    vnote[midi] = v;
     for (int i = 0; i < 3; i++) {
         if (osc[i].level <= 0) { h_osc[i][midi] = -1; continue; }
         int   base   = midi + osc[i].oct * 12;
         float dr     = (i == 0) ? 0.0f : rnd_float_between(-drift, drift);   // osc1 = pitch anchor
-        float target = (float)base + osc[i].detune + dr;
+        basep[i][midi] = (float)base + dr;          // octave + drift latched; detune rides on top, live
+        float target = basep[i][midi] + osc[i].detune;
         int   vol    = CLI((osc[i].level * v + 3) / 7, 1, 7);               // mixer level × velocity
         int   h = note_on(base, SLOT_OF[i], vol);
         if (glide_ms > 0 && have_last) {        // portamento: start at the last note, slide to this one
@@ -547,9 +552,16 @@ void draw() {
     float sr = sync_ratio_eng(sync_now());               // OSC2's swept hard-sync ratio this frame
     for (int m = 0; m < 128; m++) if (keybed_held(m)) {
         int tc = tracked_cutoff(m);
-        for (int i = 0; i < 3; i++) drive_live(h_osc[i][m], tc);
+        for (int i = 0; i < 3; i++) {
+            int h = h_osc[i][m];
+            if (h < 0) continue;
+            drive_live(h, tc);
+            note_pitch(h, basep[i][m] + osc[i].detune);                       // LIVE detune (keeps glide + drift)
+            note_vol(h, clamp(osc[i].level * vnote[m] / 7.0f, 0.0f, 7.0f));   // LIVE mixer level (× velocity)
+        }
         if (h_osc[1][m] >= 0) note_sync(h_osc[1][m], sr);   // ride the sync sweep under your fingers
         if (h_nz[m] >= 0) {
+            note_vol(h_nz[m], clamp(noise_l * vnote[m] / 7.0f, 0.0f, 7.0f));  // LIVE noise level
             if (pink) { note_filter(h_nz[m], FILTER_LOW); note_cutoff(h_nz[m], 900); note_res(h_nz[m], 1); note_drive(h_nz[m], drive_now()); }
             else        drive_live(h_nz[m], tc);
         }

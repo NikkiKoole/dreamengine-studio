@@ -16,7 +16,20 @@ engine cost by 2.5×** — 59,593 calls/frame across 21 carts (`dpaint` 30k, `in
 rlVertex3f`). Every profile in this whole optimization arc has the same shape: **`rlVertex3f`
 on top.** The span-fill work (polyfill, circfill/ovalfill) killed it for *fills* by replacing N
 `DrawPixel` with one `DrawRectangle` — but raw `pset(x,y)` calls are arbitrary points; they can't
-be coalesced. The CPU-shader carts (`pset_rgb`: shadelab/caustics/raymarch) are 100% this path.
+be coalesced.
+
+> **Correction (2026-06) — the "CPU-shader trilogy is `pset_rgb`" claim throughout this doc is
+> stale; re-profiling found them rectfill-bound.** `raymarch` uses **zero** `pset`/`pset_rgb`;
+> `caustics`/`shadelab` use it negligibly (pset ≈ 0–3/frame). They actually paint the screen as
+> **rectfill spans** (`caustics` rectfill ≈ 16k/frame, `raymarch`/`shadelab` ≈ 7k) — a manual span
+> optimisation, which is a draw-call-**count** shape (the `sloop` profile), *not* the per-pixel
+> `rlVertex3f` path. So wherever this doc lists caustics/shadelab/raymarch as the pset target set,
+> read it as: **the genuinely pset-per-pixel-bound carts are `dpaint` (30k), `pixelperfect` (26k),
+> `interiors` (18k), `lotfill` (9k)** — those are v0's real win. The CPU-shaders are still valid v0
+> targets (v0 routes `rectfill` → `cbuf` too), but via the draw-call-count win — and the
+> `DE_BATCH_PSET` result warns that win may be small on M1, where the driver is cheap on draw-call
+> count (see "Cheaper alternatives → Measured"). They drop hard only where small-draw submission is
+> expensive (weak GPU / WebGL-on-old-hardware).
 
 ## The thesis
 
@@ -76,6 +89,17 @@ losses so the choice is informed:
 - **Index-based blend tables** (parked STATUS-18, `blend-tables.md`) are inherently index-space
   LUTs; an RGBA canvas would blend in RGB instead — arguably more flexible, but it changes how that
   future feature would be built.
+
+> **But "Recommend RGBA" is M1/desktop-correct, NOT universal — it's hardware-conditional.** On a
+> small-cache / narrow-bus target the `uint8` index buffer flips straight back into contention, for
+> two reasons RGBA can't answer: (1) **cache fit** — 64KB (indexed) lives in a small L2 where 256KB
+> (RGBA) spills to main RAM every frame; (2) **smaller memory passing** — the per-frame
+> `UpdateTexture` is an R8 upload, **4× less data**, which on a narrow bus is real budget (≈15–25% of
+> a frame on a Pi Zero, vs <1% on M1 unified memory). That can outweigh the `pset_rgb` dealbreaker
+> (handle true-color via the parallel RGBA plane *only when `pset_rgb` is used*, or simply don't
+> offer true-color in the low-end profile). So **`uint8` is the low-end build profile**, not a dead
+> option — same `DE_SOFTWARE_CANVAS` machinery, selected by a buffer-format compile flag. See
+> "Low-end / small-memory targets" in the build runbook below.
 
 ### Fork 2 — `camera_ex()` zoom/rotation (the one that gates)
 
@@ -335,6 +359,80 @@ big enough to matter does v0 below earn its keep.
 > small-draw submission is genuinely expensive — untested; the `DE_BATCH_PSET` flag + the
 > `psetstress` cart (`-DSTRESS_PASSES`, `-DDE_BATCH_PSET_DEFAULT`) stay in as the committed reproducer
 > for that day.
+
+## Build runbook — the phased order, if we bite the bullet
+
+The forks are decided (RGBA buffer on desktop, Fork-2/C, defer the blits), so this is the *build*
+order, not a redesign. Every phase passes the same validation spine — the **dump+shasum byte-identical
+oracle** (`play.js --dump` + `shasum`), the `raster_test` cart, `profile-fleet.js` for the A/B, and
+the **web-perf flow** ([`../guides/debug-harness.md`](../guides/debug-harness.md) → "Web perf A/B").
+Build it behind `DE_SOFTWARE_CANVAS` (off by default), reusing the `DE_BATCH_PSET` flag pattern.
+
+**Phase 0 — Mechanism (½ day).** In the frame loop (`studio.c` ~`BeginTextureMode(canvas)`), branch on
+`sw_canvas_active`: clear `cbuf`, run `draw()`, then `UpdateTexture(canvas.texture, cbuf)` → the
+existing `DrawTexturePro` scale-up (untouched — crisp scaling stays GPU). Wire `cls` only.
+*Gate:* a `cls`-only cart is byte-identical on/off.
+
+**Phase 1 — v0: the headline win on the narrow set (~2–3 days) ⟵ GO/NO-GO.** This is the detailed
+[Minimal slice (v0)](#minimal-slice-v0--the-smallest-thing-that-shows-a-real-validatable-result)
+above: route `pset`/`pset_rgb`/`rectfill`/`rect`/fills to `cbuf` (disable the `DrawRectangle` span
+fast-path so fills fall through `plot_pat → pset → cbuf`); **defer HUD `print`/`line` as a GPU overlay
+replayed after the upload** (byte-identical, no port); `spr`/`tritex`/`camera_ex` warn-and-skip.
+Targets: `caustics`/`shadelab`/`raymarch`/`dpaint`/`pixelperfect`/`interiors`/`lotfill`.
+*Gates:* byte-identical on all targets **+** fleet A/B drops the pset carts hard **+** web A/B.
+*Kill criterion:* if v0 does **not** drop the pset carts, stop — the thesis is wrong, and we've spent
+days not the rewrite. (Unlike the batching probe, v0 eliminates the per-vertex `rlVertex2f` emission
+that *is* the cost, so this is the honest test of the thesis.)
+
+**Phase 2 — v1: port the blits (~1 week, the bulk).** `spr`/`print`(all `FONT_*`)/`tritex` → CPU
+blits, retiring the deferred-overlay hack. **New dependency:** keep the spritesheet + font atlases as
+CPU `Image`s in RAM (don't `UnloadImage` after upload) and make the sprite editor's live edits update
+the CPU copy. `tritex` is the one real new rasterizer (affine scanline, textbook).
+*Gate:* `build-all` compile sweep, then byte-identical on a broad set incl. 3D/`tritex` carts; fleet
+A/B neutral-or-better everywhere. High blast radius — the oracle is the net.
+
+**Phase 3 — `camera_ex` fallback wiring.** You only learn a cart uses `camera_ex` mid-`draw()`.
+Resolution: on first non-identity `camera_ex`, set a **sticky per-cart flag** → that cart runs today's
+GPU path for the rest of the session (one transitional frame). *Optional, only if a rotating-**fill**-
+bound cart actually surfaces:* the inverse-mapping fill path (Fork 2 note) instead of GPU fallback —
+defer until measured demand.
+*Gate:* a zoom+rotation cart renders identically to today; a translation-camera cart stays on the
+fast software path.
+
+**Phase 4 — default + free wins.** Flip software-canvas to default for non-`camera_ex` frames
+(`DE_SOFTWARE_CANVAS=off` escape hatch for one cycle); fold the span-fill fast paths into the `cbuf`
+writers; cash the free wins (`pget`/`pget_rgb` → array read, **enables `pget` on web**; `fade`/blend →
+read-modify-write; determinism → wire into the `--det` harness for replays/ghosts); write the
+`decisions/` ADR.
+
+**Shape of the bet:** Phase 0–1 is cheap (~3–4 days) and decisive on the exact carts. Phases 2–4 are
+the real cost (~1.5–2 weeks) and start **only** on a trigger beyond "Phase 1 worked" — a cart actually
+pset-bound below 60fps, or a committed web/low-end target. Feasibility ≠ need.
+
+### Low-end / small-memory targets (Pi-class) — the options to keep, not lose
+
+The whole calculus changes on weak hardware, and these are the levers that make a software canvas not
+just viable but *mandatory* there (GPU immediate-mode is 2–5fps on a Pi Zero). None are needed on M1;
+all are real if low-end ever becomes a target — captured here so they're not lost:
+
+- **`uint8` paletted buffer = "smaller memory passing."** The Fork-1 reopener: 64KB fits a small L2
+  (256KB RGBA spills), and the per-frame upload is **4× smaller** (R8 vs RGBA) — 15–25% of a Pi Zero
+  frame, not <1%. This is the low-end build profile; `pset_rgb` either goes through a parallel
+  RGBA plane (only when used) or isn't offered on that profile. Free bonus the index buffer brings
+  back: full-screen **palette cycling** (animate the LUT — water/fire) that RGBA forfeits.
+- **Fixed-point, never float, in the inner loops.** The ARMv6 FPU is slow; the camera/inverse-mapping
+  math (and any per-pixel step) should be integer fixed-point on that profile.
+- **Overdraw is the bandwidth ceiling.** memset/blend bandwidth, not math, is the Pi limit — skip
+  `cls` when the background is opaque, minimise full-screen blend layers.
+- **SIMD as a later lever** — NEON (Pi 2+, and M1) can do `cls`/blits 4–8× faster; the Pi Zero (ARMv6)
+  has none, so keep inner loops tight and branch-free there. Something GPU immediate-mode could never
+  exploit.
+- **Triple-buffer the `cbuf`** to dodge a CPU/GPU contention stall on the upload (matters once the
+  bus is the bottleneck).
+
+All untested — the committed web-perf flow plus a Pi test rig would validate. The `uint8`-vs-RGBA
+choice is the one that must be made at Phase 0 if a low-end profile is in scope (it's a buffer-format
+fork, awkward to retrofit), so decide that *before* Phase 0 if Pi is a real target.
 
 ## Risks / why it might *not* be worth it
 

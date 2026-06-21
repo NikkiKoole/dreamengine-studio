@@ -1968,3 +1968,35 @@ voice explicitly selects mode 5. **Open / deferred:** no per-stage `tanh` satura
 (the linear ZDF is what's shipped — clean, the drive stage after the filter supplies the
 grit per §17); and oscillator **hard sync** is still the remaining un-modeled Minimoog
 trait (see `moog.c` header).
+
+## 22. Oscillator hard sync — `instrument_sync` / `note_sync` (2026-06-22)
+
+The marquee Minimoog/Behringer-Model-D voice we couldn't make: **hard sync** — the
+screaming, tearing lead where one oscillator force-resets another. It had to live
+INSIDE a voice (sample-accurate phase reset), which the engine had no mechanism for —
+our three "oscillators" in `moog.c` are independent voices that only meet at the mixer.
+
+**The enabling find:** the wavetable oscillators are NAIVE (`sound_osc`: a saw is just
+`phase*2−1`, etc.). So naive hard sync is *consistent* with the engine — no PolyBLEP
+rabbit hole. (If they'd been band-limited we'd have needed a BLEP at the reset point,
+scaled by the sweeping discontinuity height — a much bigger job, and even then sync is
+the hardest thing to anti-alias. We chose naive deliberately, A/B by ear; see the
+PolyBLEP discussion. The aliased grit reads as analog-aggressive, fitting.)
+
+Implementation: each voice gets a second **slave** phase (`sync_ph`) and a slewed
+`sync_ratio` (riding the same machinery as cutoff/drive). The master (`v->phase`) runs
+at the note pitch as before; the slave advances at `ratio×` and is **reset to 0 every
+time the master wraps**; the audible sample reads the slave when sync is on. Ratio 1 =
+transparent, higher = the bright tearing; sweeping it is the sound. Gated entirely on
+`sync_ratio > 0` in the wavetable-only branch, so engines and every existing cart are
+**byte-identical** (verified: tune/level/fx all unchanged). API mirrors `drive` exactly
+(`instrument_sync` note-on snapshot + slewed live `note_sync`), four-place wired.
+
+In `moog.c`: OSC1 stays the clean master pitch, **OSC2 is the synced oscillator** (a SYNC
+slider sets the ratio, a SYNC-targeted LFO sweeps it cart-side like DRIVE), and a factory
+**SYNC** preset showcases it. Validated: 30 s at swept max ratio → 0 clipped, no NaN, DC
+bounded ≈ −46 dBFS (the small offset a chopped asymmetric wave inherently carries — not a
+runaway). **Open/deferred:** no per-voice DC blocker on the raw sync output (inaudible at
+−46 dB, left raw for character); PolyBLEP/oversampling if the aliasing ever bothers anyone
+(it's the naive-on-purpose call). The Steiner-Parker filter (the Neutron's voice) and a
+patchable modular UI remain the only un-modeled Behringer-clone ideas.

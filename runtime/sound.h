@@ -79,6 +79,7 @@ typedef struct {
     float harmonics, timbre, morph; // engine macros 0..1 (INSTR_PLUCK+) — meaning is per-engine; default 0.5
     float drive;                    // post-filter saturation 0..1; 0 = clean bypass (default — old carts unchanged)
     int   drive_mode;               // waveshaper flavour DRIVE_SOFT(0)/HARD/FOLD/ASYM; 0 = tanh (default — old carts unchanged)
+    float sync_ratio;               // oscillator hard sync: slave:master freq ratio (0 = off, default — old carts unchanged)
     float echo;                     // send to THE echo bus 0..1; 0 = dry (default — old carts unchanged)
     float reverb;                   // reverb send 0..1; 0 = dry (default — old carts unchanged). Target = rvb_tank below
     int   rvb_tank;                 // which reverb tank the send feeds: -1 = the master send (default), 1.. = a reverb_bus() send-bus
@@ -136,6 +137,8 @@ typedef struct {
     float  harm, timb, mor;
     float  harm_target, timb_target, mor_target;
     float  drv, drv_target;        // post-filter drive (current + slew target, same machinery)
+    float  sync_ph;                // hard-sync SLAVE oscillator phase (reset when v->phase wraps)
+    float  sync_ratio, sync_ratio_target;  // oscillator hard sync: slave:master freq ratio (0 = off; current + slew target)
     int    drv_mode;               // waveshaper flavour (DRIVE_*), copied from the instrument at note-on
     float  drv_dc_x1, drv_dc_y1;   // DC blocker on the drive output (tanh of an asymmetric wave = DC = a thump)
     float  eko, eko_target;        // echo-bus send (current + slew target, same machinery — note_echo)
@@ -1787,6 +1790,8 @@ typedef enum {
     SR_FX_MOD        = 113,  // a=target(FXMOD_*), b=value*1000, c=bus — CV sink: ride a sweep-safe effect param (ADR 0018)
     SR_FX_LFO        = 114,  // a=target(FXMOD_*), b=rate*100, c=bus, e0=depth*1000, e1=center*1000, e2=shape — engine LFO on a target (depth 0 = detach)
     SR_LFO_SHAPE     = 115,  // a=which, b=shape(LFO_SHAPE_*), c=slot (>=0 → instrument) ; e0/e1=handle (c<0 → live held note) — set a voice LFO's waveform
+    SR_INSTR_SYNC    = 116,  // a=slot, b=ratio*1000 — oscillator hard-sync slave:master ratio (0 = off)
+    SR_NOTE_SYNC     = 117,  // a=ratio*1000 (live, slewed), e0/e1=handle — sweep a held note's hard-sync ratio
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -4490,6 +4495,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->mor  = v->mor_target  = ins->morph;
     if (v->wave == INSTR_VOICE) vox_apply_macros(v);   // seed VOWEL/SIZE/EFFORT from the macros
     v->drv  = v->drv_target  = ins->drive;
+    v->sync_ph = 0.0f;
+    v->sync_ratio = v->sync_ratio_target = ins->sync_ratio;
     v->drv_mode = ins->drive_mode;
     v->eng_p[0] = ins->eng_p[0];
     v->eng_p[1] = ins->eng_p[1];
@@ -4539,6 +4546,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
 // Configure a voice to play one SFX step. Does not touch active / sfx_idx / step.
 static void sound_set_step(Voice *v, SfxStep step, int step_dur_units) {
     v->phase            = 0.0f;
+    v->sync_ph          = 0.0f;
+    v->sync_ratio       = v->sync_ratio_target = 0.0f;   // SFX never syncs; clear any stale ratio from a reused voice
     v->step_samples     = 0;
     v->step_len_samples = (step_dur_units * SOUND_SAMPLE_RATE) / 100;
     if (v->step_len_samples < 1) v->step_len_samples = 1;
@@ -4765,6 +4774,19 @@ static void sound_fire_req(SoundReq r) {
             float x = r.a / 1000.0f;
             if (x < 0.0f) x = 0.0f; if (x > 1.0f) x = 1.0f;
             v->drv_target = x;
+        }
+    } else if (r.kind == SR_INSTR_SYNC) {   // a=slot, b=ratio*1000
+        int slot = r.a;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+        float x = r.b / 1000.0f;
+        if (x < 0.0f) x = 0.0f; if (x > 16.0f) x = 16.0f;
+        instr_bank[slot].sync_ratio = x;
+    } else if (r.kind == SR_NOTE_SYNC) {    // a=ratio*1000 (live, slewed)
+        Voice *v = sound_held_voice(r.e0, r.e1);
+        if (v) {
+            float x = r.a / 1000.0f;
+            if (x < 0.0f) x = 0.0f; if (x > 16.0f) x = 16.0f;
+            v->sync_ratio_target = x;
         }
     } else if (r.kind == SR_INSTR_DRIVE_MODE) {  // a=slot, b=mode (DRIVE_*)
         int slot = r.a;
@@ -5296,6 +5318,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 v->timb       += (v->timb_target   - v->timb)       * 0.002f;
                 v->mor        += (v->mor_target    - v->mor)        * 0.002f;
                 v->drv        += (v->drv_target    - v->drv)        * 0.002f;   // drive (note_drive)
+                v->sync_ratio += (v->sync_ratio_target - v->sync_ratio) * 0.002f; // hard sync ratio (note_sync) — slewed for zipper-free sweeps
                 v->eko        += (v->eko_target    - v->eko)        * 0.002f;   // echo send (note_echo)
                 v->rvb        += (v->rvb_target    - v->rvb)        * 0.002f;   // reverb send (note_reverb)
                 v->pan        += (v->pan_target    - v->pan)        * 0.002f;   // stereo pan (note_pan) — anti-zipper slew
@@ -5400,7 +5423,10 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
                 s = sound_engine_sample(v, pitch_mul);
                 v->harm = h0; v->timb = t0; v->mor = m0;
             } else {
-                s = sound_osc(v->wave, v->phase, duty, &v->noise_state);
+                // hard sync: when on, the audible waveform reads the SLAVE phase (reset by the
+                // master below); ratio 1 = transparent, higher = the bright tearing sweep.
+                float osc_ph = (v->sync_ratio > 0.0f) ? v->sync_ph : v->phase;
+                s = sound_osc(v->wave, osc_ph, duty, &v->noise_state);
             }
             // envelope follower: track the PRE-filter amplitude (|s| scaled by velocity) with a
             // fast-attack/slow-release peak detector. Used by next sample's modulation above —
@@ -5478,8 +5504,16 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             }
             if (v->sfx_idx < 0 && v->sc_send > 0.0005f) sc_key_lvl[v->sc_key] += contrib * v->sc_send;  // sidechain trigger send (MONO, pre-pan)
 
-            v->phase += v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
-            if (v->phase >= 1.0f) v->phase -= 1.0f;
+            float ph_inc = v->freq * pitch_mul / (float)SOUND_SAMPLE_RATE;
+            v->phase += ph_inc;
+            if (v->sync_ratio > 0.0f) {                    // advance the slave at ratio × master
+                v->sync_ph += ph_inc * v->sync_ratio;
+                v->sync_ph -= floorf(v->sync_ph);          // may wrap >once per sample at high ratio
+            }
+            if (v->phase >= 1.0f) {
+                v->phase -= 1.0f;
+                if (v->sync_ratio > 0.0f) v->sync_ph = 0.0f;   // HARD SYNC: master wrap resets the slave
+            }
             v->step_samples++;
         }
 
@@ -6042,6 +6076,16 @@ void note_drive(int handle, float x) {
     sound_push_ctrl(SR_NOTE_DRIVE, (int)(x * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
 }
 
+void instrument_sync(int slot, float ratio) {
+    if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
+    sound_push_ctrl(SR_INSTR_SYNC, slot, (int)(ratio * 1000.0f), 0, 0, 0, 0);
+}
+
+void note_sync(int handle, float ratio) {
+    if (handle <= 0) return;
+    sound_push_ctrl(SR_NOTE_SYNC, (int)(ratio * 1000.0f), 0, 0, handle & SOUND_HANDLE_MASK, handle >> SOUND_HANDLE_BITS, 0);
+}
+
 void instrument_drive_mode(int slot, int mode) {
     if (slot < 0 || slot >= SOUND_INSTR_SLOTS) return;
     sound_push_ctrl(SR_INSTR_DRIVE_MODE, slot, mode, 0, 0, 0, 0);
@@ -6558,6 +6602,7 @@ static void sound_init(void) {
         instr_bank[i].tune_mul   = 1.0f;   // no detune (instrument_tune 0)
         instr_bank[i].drive      = 0.0f;   // clean until instrument_drive() — old carts unchanged
         instr_bank[i].drive_mode = 0;      // DRIVE_SOFT (tanh) until instrument_drive_mode()
+        instr_bank[i].sync_ratio = 0.0f;   // hard sync off until instrument_sync() — old carts unchanged
         instr_bank[i].echo       = 0.0f;   // dry until instrument_echo() — old carts unchanged
         instr_bank[i].reverb     = 0.0f;   // dry until instrument_reverb() — old carts unchanged
         instr_bank[i].rvb_tank   = -1;     // -1 = the master send; instrument_reverb_bus() points it at a tank

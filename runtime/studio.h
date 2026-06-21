@@ -399,6 +399,8 @@ void instrument_tune(int slot, float semitones); // detune a slot ±24 semitones
 void instrument_drive(int slot, float x);      // overdrive a slot 0.0..1.0 — 0 = clean (default), 0.3 = warm, 1 = fuzz. loudness stays put; character changes
 void instrument_drive_mode(int slot, int mode); // pick the waveshaper: DRIVE_SOFT (default) / DRIVE_HARD / DRIVE_FOLD / DRIVE_ASYM. amount stays instrument_drive()
 void note_drive(int handle, float x);          // sweep a held note's drive live, slewed — ride it up mid-phrase for the acid scream
+void instrument_sync(int slot, float ratio);   // oscillator HARD SYNC on a wavetable slot: a slave osc runs at ratio×pitch, reset every cycle. 0 = off (default), 1 = unison, 1.5–4 = the bright tearing sweep. Sweep it for the classic sync lead
+void note_sync(int handle, float ratio);       // sweep a held note's hard-sync ratio live, slewed — the screaming sync sweep under your fingers
 void note_drive_mode(int handle, int mode);    // switch a held note's drive waveshaper live (DRIVE_*) — not slewed, snaps
 void drive_insert(float amount, int mode, float mix);  // MIX-BUS SATURATION: drive the whole summed mix as a reorderable INSERT (put FX_DRIVE in fx_order(0,…)). The bus sibling of instrument_drive — tube/tape glue low, a lo-fi wall cranked, grit on drums too. amount 0..1, mode DRIVE_*, mix 0..1 (0 = bypass → byte-identical)
 void drive_insert_inst(int instance, float amount, int mode, float mix);  // a 2nd mix-bus drive INSTANCE (0..1) — pair with FX_INST(FX_DRIVE, instance) for two bus drives in one chain (e.g. an overdrive pedal INTO the amp's drive)

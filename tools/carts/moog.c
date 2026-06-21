@@ -27,7 +27,9 @@
 // GLIDE (portamento — note_glide, the mono lead slide), DRIFT (a touch of per-voice
 // random detune = analog VCO instability), DRIVE (the Minimoog warmth — its mixer
 // overdriving the filter), and KEYBOARD TRACK (the filter cutoff follows the pitch,
-// the 1/3·2/3 tracking switches — so high notes stay bright). The FILTER offers the
+// the 1/3·2/3 tracking switches — so high notes stay bright), and hard SYNC (OSC2 is
+// synced to OSC1 — sweep the ratio, by hand or with a SYNC-targeted LFO, for the
+// screaming/tearing sync lead). The FILTER offers the
 // real 4-pole Moog LADder plus LP/HP/BP/NF; a filter-contour + pitch ENVELOPE give
 // the classic "wow"; three LFOs are the modulation. The PRESET bank (top right) loads
 // factory patches; SAVE stores your own, USER recalls it. Filter, drive, tracking and
@@ -71,6 +73,7 @@ int   pink    = 0;                 // noise colour: 0 = white (follows the filte
 float glide_ms = 0;                // portamento time (note_glide); 0 = snap
 float drift   = 0.04f;             // analog VCO instability: ± semitones of per-voice random detune
 float ktrack  = 0.5f;              // keyboard tracking: how much the filter cutoff follows pitch (0..1)
+float sync_amt = 1.0f;             // oscillator HARD SYNC ratio on OSC2 (1 = off/unison, up to 5 = bright tearing)
 
 Lfo   lfos[3] = { {1, 5.0f, 0.25f}, {0, 3.0f, 0.3f}, {0, 0.4f, 0.6f} };
 
@@ -91,35 +94,41 @@ typedef struct {
     float fenv_amt, fenv_atk, fenv_dec, penv_amt, penv_atk, penv_dec;
     int   lt[3];
     float lr[3], ld[3];
+    float sync_amt;
 } Patch;
 
-static const char *PNAME[5] = { "INIT", "BASS", "LEAD", "BRASS", "ACID" };
-static const Patch FACTORY[5] = {
+static const char *PNAME[6] = { "INIT", "BASS", "LEAD", "BRASS", "ACID", "SYNC" };
+static const Patch FACTORY[6] = {
   // INIT — the fat default
   { {OW_SAW,OW_SAW,OW_SQR}, {0,0,-1}, {7,5,4}, {0.0f,0.08f,-0.11f},
     FILTER_LADDER, 0, 700, 7, 0.25f, 0, 0, 0.04f, 0.5f,
     6,140,5,320, 1500,4,220, 0,0,120,
-    {1,0,0}, {5.0f,3.0f,0.4f}, {0.25f,0.3f,0.6f} },
+    {1,0,0}, {5.0f,3.0f,0.4f}, {0.25f,0.3f,0.6f}, 1.0f },
   // BASS — two saws an octave down + a square, snappy filter contour
   { {OW_SAW,OW_SAW,OW_SQR}, {0,-1,-1}, {7,6,5}, {0.0f,0.10f,-0.08f},
     FILTER_LADDER, 0, 520, 8, 0.40f, 0, 0, 0.05f, 0.35f,
     2,180,3,180, 1900,2,150, 0,0,120,
-    {0,0,0}, {5.0f,3.0f,0.4f}, {0.0f,0.0f,0.0f} },
+    {0,0,0}, {5.0f,3.0f,0.4f}, {0.0f,0.0f,0.0f}, 1.0f },
   // LEAD — three detuned saws, gliding, singing
   { {OW_SAW,OW_SAW,OW_SAW}, {0,0,0}, {7,6,6}, {0.0f,0.12f,-0.10f},
     FILTER_LADDER, 0, 1600, 9, 0.45f, 0, 60, 0.06f, 0.7f,
     4,220,6,300, 1200,6,260, 0,0,120,
-    {1,0,0}, {5.5f,3.0f,0.4f}, {0.30f,0.0f,0.0f} },
+    {1,0,0}, {5.5f,3.0f,0.4f}, {0.30f,0.0f,0.0f}, 1.0f },
   // BRASS — slow filter swell (the contour IS the brass), gentle detune
   { {OW_SAW,OW_SAW,OW_SAW}, {0,0,0}, {7,5,5}, {0.0f,0.06f,-0.06f},
     FILTER_LADDER, 0, 700, 4, 0.25f, 0, 0, 0.04f, 0.6f,
     50,300,6,400, 2400,120,520, 0,0,120,
-    {0,0,0}, {5.0f,3.0f,0.4f}, {0.0f,0.0f,0.0f} },
+    {0,0,0}, {5.0f,3.0f,0.4f}, {0.0f,0.0f,0.0f}, 1.0f },
   // ACID — one saw, screaming resonance, fast snap (303-ish)
   { {OW_SAW,OW_SAW,OW_SQR}, {0,0,-1}, {7,0,0}, {0.0f,0.08f,-0.11f},
     FILTER_LADDER, 0, 480, 14, 0.50f, 0, 40, 0.04f, 0.5f,
     2,120,0,120, 2600,0,170, 0,0,120,
-    {0,0,0}, {5.0f,3.0f,0.4f}, {0.0f,0.0f,0.0f} },
+    {0,0,0}, {5.0f,3.0f,0.4f}, {0.0f,0.0f,0.0f}, 1.0f },
+  // SYNC — OSC2 hard-synced to OSC1, swept slowly by LFO1: the screaming sync lead
+  { {OW_SAW,OW_SAW,OW_SAW}, {0,0,-1}, {7,6,0}, {0.0f,0.0f,0.0f},
+    FILTER_LADDER, 0, 2200, 5, 0.35f, 0, 30, 0.03f, 0.6f,
+    4,300,6,300, 800,4,200, 0,0,120,
+    {6,0,0}, {0.3f,3.0f,0.4f}, {0.6f,0.0f,0.0f}, 2.6f },
 };
 
 // ---- live voice handles: one per oscillator (+ noise) per MIDI note ----
@@ -160,7 +169,7 @@ void program_slot(int slot, int instr, float duty) {
     instrument(slot, instr, (int)attack, (int)decay, CLI(sustain + 0.5f, 0, 7), (int)release);
     if (instr == INSTR_SQUARE) instrument_duty(slot, duty);
     for (int L = 0; L < 3; L++) {
-        if (lfos[L].target == 0 || lfos[L].target == 5)   // OFF — and DRV, which is cart-side
+        if (lfos[L].target == 0 || lfos[L].target >= 5)   // OFF — and DRV, which is cart-side
             { instrument_lfo(slot, L, LFO_PITCH, 0, 0); continue; }
         int dest = lfos[L].target - 1;
         instrument_lfo(slot, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
@@ -171,10 +180,24 @@ void program_slot(int slot, int instr, float duty) {
     instrument_env(slot, 1, ENV_PITCH,  (int)penv_atk, (int)penv_dec, penv_amt);
 }
 
+// hard sync on OSC2: LFO target 6 (SYNC) sweeps the ratio cart-side, just like DRIVE.
+float sync_now(void) {
+    float r = sync_amt;
+    for (int L = 0; L < 3; L++)
+        if (lfos[L].target == 6)
+            r += sin_deg(now() * lfos[L].rate * 360.0f) * lfos[L].depth * 2.0f;
+    return r;
+}
+// engine ratio: a slider at/under 1.0 = true OFF (bypass), else the sync ratio
+float sync_ratio_eng(float r) { return r > 1.02f ? clamp(r, 1.0f, 6.0f) : 0.0f; }
+
 void apply_synth(void) {
     for (int i = 0; i < 3; i++)
         program_slot(SLOT_OF[i], wave_instr(osc[i].wave), wave_duty(osc[i].wave));
     program_slot(SLN, INSTR_NOISE, 0.5f);
+    instrument_sync(SL1, 0);                              // OSC1 = the clean master pitch (the fundamental)
+    instrument_sync(SL2, sync_ratio_eng(sync_amt));      // OSC2 = the synced oscillator (the tearing)
+    instrument_sync(SL3, 0);
 }
 
 // the drive LFO has no engine dest — it runs cart-side, slewed through note_drive
@@ -195,7 +218,7 @@ void drive_live(int h, int cut) {
     note_res(h, CLI(res + 0.5f, 0, 15));
     note_drive(h, drive_now());
     for (int L = 0; L < 3; L++) {
-        if (lfos[L].target == 0 || lfos[L].target == 5)
+        if (lfos[L].target == 0 || lfos[L].target >= 5)
             { note_lfo(h, L, LFO_PITCH, 0, 0); continue; }
         int dest = lfos[L].target - 1;
         note_lfo(h, L, dest, lfos[L].rate, lfo_scaled(dest, lfos[L].depth));
@@ -241,7 +264,7 @@ void capture_patch(Patch *p) {
         p->lt[i] = lfos[i].target; p->lr[i] = lfos[i].rate; p->ld[i] = lfos[i].depth;
     }
     p->fmode = fmode; p->pink = pink; p->cutoff = cutoff; p->res = res; p->drive_v = drive_v;
-    p->noise_l = noise_l; p->glide_ms = glide_ms; p->drift = drift; p->ktrack = ktrack;
+    p->noise_l = noise_l; p->glide_ms = glide_ms; p->drift = drift; p->ktrack = ktrack; p->sync_amt = sync_amt;
     p->attack = attack; p->decay = decay; p->sustain = sustain; p->release = release;
     p->fenv_amt = fenv_amt; p->fenv_atk = fenv_atk; p->fenv_dec = fenv_dec;
     p->penv_amt = penv_amt; p->penv_atk = penv_atk; p->penv_dec = penv_dec;
@@ -252,7 +275,7 @@ void apply_patch(const Patch *p) {
         lfos[i].target = p->lt[i]; lfos[i].rate = p->lr[i]; lfos[i].depth = p->ld[i];
     }
     fmode = p->fmode; pink = p->pink; cutoff = p->cutoff; res = p->res; drive_v = p->drive_v;
-    noise_l = p->noise_l; glide_ms = p->glide_ms; drift = p->drift; ktrack = p->ktrack;
+    noise_l = p->noise_l; glide_ms = p->glide_ms; drift = p->drift; ktrack = p->ktrack; sync_amt = p->sync_amt;
     attack = p->attack; decay = p->decay; sustain = p->sustain; release = p->release;
     fenv_amt = p->fenv_amt; fenv_atk = p->fenv_atk; fenv_dec = p->fenv_dec;
     penv_amt = p->penv_amt; penv_atk = p->penv_atk; penv_dec = p->penv_dec;
@@ -429,10 +452,10 @@ void draw() {
     font(FONT_SMALL); print("MODEL D", 96, 5, CLR_ORANGE);
 
     // ---- PRESET bank (header, top right) ----
-    for (int i = 0; i < 5; i++)
-        if (ui_btn(150 + i * 30, 2, 28, 11, PNAME[i], 1, CLR_INDIGO)) apply_patch(&FACTORY[i]);
-    if (ui_btn(302, 2, 32, 11, "SAVE", 1, CLR_GREEN)) { Patch p; capture_patch(&p); save_bytes(&p, sizeof p); }
-    if (ui_btn(336, 2, 32, 11, "USER", 1, CLR_YELLOW)) { Patch p; if (load_bytes(&p, sizeof p) == (int)sizeof p) apply_patch(&p); }
+    for (int i = 0; i < 6; i++)
+        if (ui_btn(146 + i * 29, 2, 27, 11, PNAME[i], 1, CLR_INDIGO)) apply_patch(&FACTORY[i]);
+    if (ui_btn(324, 2, 31, 11, "SAVE", 1, CLR_GREEN)) { Patch p; capture_patch(&p); save_bytes(&p, sizeof p); }
+    if (ui_btn(357, 2, 31, 11, "USER", 1, CLR_YELLOW)) { Patch p; if (load_bytes(&p, sizeof p) == (int)sizeof p) apply_patch(&p); }
     font(FONT_NORMAL);
 
     // ---- OSCILLATORS (the three VCOs + mixer) ----
@@ -449,11 +472,12 @@ void draw() {
     panel(310, 16, 144, 96, "MIX / GLIDE", CLR_ORANGE);
     if (ui_btn(404, 17, 46, 11, pink ? "PINK" : "WHITE", 1, pink ? CLR_MAUVE : CLR_LIGHT_GREY)) pink = !pink;
     font(FONT_TINY);
-    print("NOISE", 316, 32, CLR_MEDIUM_GREY);   noise_l  = ui_slider(60, 356, 32, 92, noise_l,  0, 7,    CLR_LIGHT_GREY);
-    print("GLIDE", 316, 48, CLR_MEDIUM_GREY);   glide_ms = ui_slider(61, 356, 48, 92, glide_ms, 0, 1000, CLR_YELLOW);
-    print("DRIFT", 316, 64, CLR_MEDIUM_GREY);   drift    = ui_slider(62, 356, 64, 92, drift,    0, 0.3f, CLR_PINK);
-    print("DRIVE", 316, 80, CLR_MEDIUM_GREY);   drive_v  = ui_slider(63, 356, 80, 92, drive_v,  0, 1,    CLR_ORANGE);
-    print("TRACK", 316, 96, CLR_MEDIUM_GREY);   ktrack   = ui_slider(64, 356, 96, 92, ktrack,   0, 1,    CLR_GREEN);
+    print("NOISE", 316, 30, CLR_MEDIUM_GREY);   noise_l  = ui_slider(60, 356, 30,  92, noise_l,  0, 7,    CLR_LIGHT_GREY);
+    print("GLIDE", 316, 44, CLR_MEDIUM_GREY);   glide_ms = ui_slider(61, 356, 44,  92, glide_ms, 0, 1000, CLR_YELLOW);
+    print("DRIFT", 316, 58, CLR_MEDIUM_GREY);   drift    = ui_slider(62, 356, 58,  92, drift,    0, 0.3f, CLR_PINK);
+    print("DRIVE", 316, 72, CLR_MEDIUM_GREY);   drive_v  = ui_slider(63, 356, 72,  92, drive_v,  0, 1,    CLR_ORANGE);
+    print("TRACK", 316, 86, CLR_MEDIUM_GREY);   ktrack   = ui_slider(64, 356, 86,  92, ktrack,   0, 1,    CLR_GREEN);
+    print("SYNC",  316, 100, CLR_MEDIUM_GREY);  sync_amt = ui_slider(65, 356, 100, 92, sync_amt, 1, 5,    CLR_MAUVE);
     font(FONT_NORMAL);
 
     // ---- ENVELOPE (AMP ADSR / FILTER contour / PITCH env) ----
@@ -477,13 +501,13 @@ void draw() {
     print(str("cut %dhz  res %d", (int)cutoff, (int)(res + 0.5f)), 312, 196, CLR_MEDIUM_GREY);
 
     // ---- 3 LFOs ----
-    const char *tn[6] = { "OFF", "PITCH", "DUTY", "VOL", "CUT", "DRIVE" };
+    const char *tn[7] = { "OFF", "PITCH", "DUTY", "VOL", "CUT", "DRIVE", "SYNC" };
     int lcol[3] = { CLR_PINK, CLR_YELLOW, CLR_INDIGO };
     for (int L = 0; L < 3; L++) {
         int x = 6 + L * 151, y = 212, w = 146;
         panel(x, y, w, 62, str("LFO %d", L + 1), lcol[L]);
         if (ui_btn(x + 6, y + 14, 64, 12, tn[lfos[L].target], lfos[L].target != 0, lcol[L]))
-            lfos[L].target = (lfos[L].target + 1) % 6;
+            lfos[L].target = (lfos[L].target + 1) % 7;
         if (lfos[L].target != 0) {
             int dotx = x + w - 16 + (int)(sin_deg(now() * lfos[L].rate * 360.0f) * 7);
             circfill(dotx, y + 20, 3, lcol[L]);
@@ -520,9 +544,11 @@ void draw() {
     // LIVE: every ringing voice follows the filter, drive, tracking and LFO knobs this frame.
     // WHITE noise rides the main filter with the oscillators; PINK noise stays dark (a fixed
     // lowpass) so it reads as a separate rumble instead of sweeping with the cutoff.
+    float sr = sync_ratio_eng(sync_now());               // OSC2's swept hard-sync ratio this frame
     for (int m = 0; m < 128; m++) if (keybed_held(m)) {
         int tc = tracked_cutoff(m);
         for (int i = 0; i < 3; i++) drive_live(h_osc[i][m], tc);
+        if (h_osc[1][m] >= 0) note_sync(h_osc[1][m], sr);   // ride the sync sweep under your fingers
         if (h_nz[m] >= 0) {
             if (pink) { note_filter(h_nz[m], FILTER_LOW); note_cutoff(h_nz[m], 900); note_res(h_nz[m], 1); note_drive(h_nz[m], drive_now()); }
             else        drive_live(h_nz[m], tc);

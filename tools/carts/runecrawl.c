@@ -2,35 +2,47 @@
 #include <stdio.h>
 
 // RUNECRAWL
-// A logic-puzzle roguelike. Explore a dungeon by torchlight (turn-based, with a
-// fog-of-war you reveal as you go) and reach the stairs. The catch: the way is
-// barred by a portcullis wired to ancient runes — a glyph-gate fed by two
-// levers. Throw BOTH and the AND-rune powers the line, the bars grind open.
-// The signal layer from the `logic` cart, made diegetic: one circuit tick per
-// step you take, so the dungeon and the machine share a turn.
+// A logic-puzzle roguelike. Each floor is a chain of vaults, every door a
+// portcullis wired to a RUNE-GATE you must satisfy to pass: an AND needs both
+// its levers, an OR either, an XOR exactly one, a NOT-trap starts thrown (turn
+// it OFF), and a CLOCK-rune blinks the door open — dash through before it shuts.
+// Wraiths prowl the deeper vaults; bump one to cut it down, but let it reach you
+// and it bites. Reach the stairs to escape. Floors are generated fresh each run.
+// The signal sim from the `logic` cart, made diegetic: one circuit tick a step.
 //
-// Arrows / WASD: move (walk into a lever to throw it).  Z or .: wait a turn.
-// This is a hand-authored single floor — the vertical slice of the planned
-// circuit-dungeon (procedural floors, more gates, monsters come later).
+// Arrows / WASD: move (into a lever = throw it; into a wraith = strike).
+// Z or .: wait a turn.  R: descend anew (after escaping or dying).
 
 #define GW    26
 #define GH    15
 #define TILE  12
 #define FOV_R 6
 
-enum { T_WALL, T_FLOOR, T_STAIRS };
-enum { D_NONE, D_WIRE, D_LEVER, D_AND, D_NOT, D_DOOR, D_OR };
-enum { DN, DE, DS, DW };
+#define NR    4          // rooms per floor (linear chain)
+#define RW    5          // room interior width
+#define RH    7          // room interior height
+#define RY    3          // top row of the room band
+#define DR    (RY + 3)   // door row (band mid)
+#define CLOCKP 3         // clock gate: moves per phase
+#define MAXMON 4
+#define HPMAX  3
 
-static unsigned char terr[GH][GW];
-static unsigned char dev[GH][GW];
-static unsigned char face[GH][GW];
-static unsigned char on[GH][GW];      // lever thrown / door open
+enum { T_WALL, T_FLOOR, T_STAIRS };
+enum { D_NONE, D_WIRE, D_LEVER, D_AND, D_NOT, D_DOOR, D_OR, D_XOR, D_CLOCK };
+enum { DN, DE, DS, DW };
+enum { ST_PLAY, ST_WIN, ST_DEAD };
+
+static unsigned char terr[GH][GW], dev[GH][GW], face[GH][GW], on[GH][GW];
+static int  ctimer[GH][GW];                     // clock-gate countdown (in moves)
 static int  sig[2][GH][GW], sread;
 static int  qx[GW*GH], qy[GW*GH], seedv[GH][GW];
 static unsigned char seen[GH][GW], vis[GH][GW];
 
-static int px, py, won, turns;
+typedef struct { int x, y, alive; } Mon;
+static Mon mon[MAXMON];
+static int nmon;
+
+static int px, py, hp, turns, state;
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -42,10 +54,12 @@ static void doff(int d, int *dx, int *dy) {
 }
 static int  opp(int d) { return (d + 2) & 3; }
 static void gins(int f, int *a, int *b) { *a = (f + 1) & 3; *b = (f + 3) & 3; }
+static int  room_x0(int i) { return 1 + i * (RW + 1); }   // rooms tiled with a 1-wall gap
 
 // ---------------------------------------------------------------------------
-// signal sim — the logic cart's MechUpdateSignals, trimmed to lever/wire/AND/NOT
-// + a door sink. One settle() per player turn.
+// signal sim (logic cart's MechUpdateSignals, trimmed): levers + clocks are
+// sources, AND/OR/XOR/NOT are gates, wires flood, doors are sinks. Clocks are
+// advanced once per MOVE by clock_step(), NOT inside the combinational settle.
 // ---------------------------------------------------------------------------
 static int rsig(int x, int y) { return in_grid(x, y) ? sig[sread][y][x] : 0; }
 static void seedw(int ns[GH][GW], int x, int y, int v, int *qt) {
@@ -63,15 +77,16 @@ static void sim_tick(void) {
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) { ns[y][x] = 0; seedv[y][x] = 0; }
     int qh = 0, qt = 0;
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) {
-        if (dev[y][x] == D_LEVER) { if (on[y][x]) seed_adj(ns, x, y, 1, &qt); }
-        else if (dev[y][x] == D_NOT) {
+        int d = dev[y][x];
+        if (d == D_LEVER || d == D_CLOCK) { if (on[y][x]) seed_adj(ns, x, y, 1, &qt); }
+        else if (d == D_NOT) {
             int dx, dy; doff(opp(face[y][x]), &dx, &dy);
             if (!rsig(x + dx, y + dy)) seed_face(ns, x, y, face[y][x], 1, &qt);
-        } else if (dev[y][x] == D_AND || dev[y][x] == D_OR) {
+        } else if (d == D_AND || d == D_OR || d == D_XOR) {
             int a, b; gins(face[y][x], &a, &b);
             int dx, dy; doff(a, &dx, &dy); int ia = rsig(x + dx, y + dy);
             doff(b, &dx, &dy); int ib = rsig(x + dx, y + dy);
-            int o = dev[y][x] == D_AND ? (ia && ib) : (ia || ib);
+            int o = d == D_AND ? (ia && ib) : d == D_XOR ? (ia != ib) : (ia || ib);
             if (o) seed_face(ns, x, y, face[y][x], 1, &qt);
         }
     }
@@ -95,50 +110,73 @@ static void sim_tick(void) {
     }
 }
 static void settle(void) { for (int i = 0; i < 8; i++) sim_tick(); }
+static void clock_step(void) {   // advance clock-gates once per move
+    for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++)
+        if (dev[y][x] == D_CLOCK && --ctimer[y][x] <= 0) { on[y][x] ^= 1; ctimer[y][x] = CLOCKP; }
+}
 
 // ---------------------------------------------------------------------------
-// map
+// generation
 // ---------------------------------------------------------------------------
 static void fill(int x0, int y0, int x1, int y1, int t) {
     for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) if (in_grid(x, y)) terr[y][x] = t;
 }
-static void setdev(int x, int y, int d, int f) { terr[y][x] = T_FLOOR; dev[y][x] = d; face[y][x] = f; on[y][x] = 0; }
+static void setdev(int x, int y, int d, int f) { terr[y][x] = T_FLOOR; dev[y][x] = d; face[y][x] = f; on[y][x] = 0; ctimer[y][x] = 0; }
+
+// stamp a gate puzzle at gate cell (gx,gy); the door it opens sits at (gx+2,gy).
+static void stamp_gate(int gx, int gy, int type) {
+    setdev(gx + 2, gy, D_DOOR, DN);
+    setdev(gx + 1, gy, D_WIRE, 0);                 // output wire -> door
+    if (type == D_AND || type == D_OR || type == D_XOR) {
+        setdev(gx, gy, type, DE);                  // gate faces E; inputs N & S
+        setdev(gx, gy - 1, D_WIRE, 0); setdev(gx, gy + 1, D_WIRE, 0);
+        setdev(gx, gy - 2, D_LEVER, 0); setdev(gx, gy + 2, D_LEVER, 0);
+    } else if (type == D_NOT) {
+        setdev(gx, gy, D_NOT, DE);                 // input from the W; lever pre-thrown
+        setdev(gx - 1, gy, D_WIRE, 0);
+        setdev(gx - 2, gy, D_LEVER, 0); on[gy][gx - 2] = 1;
+    } else { // D_CLOCK
+        setdev(gx, gy, D_CLOCK, DN); ctimer[gy][gx] = CLOCKP;
+    }
+}
+
+static int mon_at(int x, int y) {
+    for (int i = 0; i < nmon; i++) if (mon[i].alive && mon[i].x == x && mon[i].y == y) return i;
+    return -1;
+}
 
 static void build(void) {
-    for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) { terr[y][x] = T_WALL; dev[y][x] = D_NONE; face[y][x] = 0; on[y][x] = 0; }
+    for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) {
+        terr[y][x] = T_WALL; dev[y][x] = D_NONE; face[y][x] = 0; on[y][x] = 0; ctimer[y][x] = 0;
+        seen[y][x] = vis[y][x] = 0;
+    }
     for (int b = 0; b < 2; b++) for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) sig[b][y][x] = 0;
-    for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) seen[y][x] = vis[y][x] = 0;
     sread = 0;
 
-    fill(1, 5, 6, 9, T_FLOOR);     // start room
-    fill(6, 7, 24, 7, T_FLOOR);    // spine corridor (row 7)
-    fill(6, 2, 10, 5, T_FLOOR);    // AND chamber (above-left, links to start room at col6)
-    fill(15, 8, 17, 12, T_FLOOR);  // NOT chamber (below, all WEST of door B — no bypass)
-    fill(21, 5, 24, 9, T_FLOOR);   // goal room
-    terr[7][22] = T_STAIRS;
+    for (int i = 0; i < NR; i++) fill(room_x0(i), RY, room_x0(i) + RW - 1, RY + RH - 1, T_FLOOR);
 
-    // Puzzle 1 — AND: both levers ON. gate (8,4) faces S; inputs W(7,4) & E(9,4); out S(8,5).
-    setdev(8, 4, D_AND, DS);
-    setdev(7, 4, D_WIRE, 0); setdev(9, 4, D_WIRE, 0);
-    setdev(6, 4, D_LEVER, 0); setdev(10, 4, D_LEVER, 0);
-    setdev(8, 5, D_WIRE, 0); setdev(8, 6, D_WIRE, 0);     // output down to door A
-    setdev(8, 7, D_DOOR, DN);                              // door A on the spine
+    int types[] = { D_AND, D_OR, D_XOR, D_NOT, D_CLOCK };
+    for (int i = 0; i < NR - 1; i++)
+        stamp_gate(room_x0(i) + 3, DR, types[rnd(5)]);
 
-    // Puzzle 2 — NOT (the trap): lever starts THROWN, so the door is shut. Turn it OFF to open.
-    setdev(15, 9, D_NOT, DN);                              // NOT faces N; input S(15,10), out N(15,8)
-    setdev(15, 10, D_WIRE, 0);
-    setdev(15, 11, D_LEVER, 0); on[11][15] = 1;            // pre-thrown ON  -> NOT -> door shut
-    setdev(15, 8, D_WIRE, 0); setdev(16, 8, D_WIRE, 0);    // output run east to the door
-    setdev(17, 8, D_WIRE, 0); setdev(18, 8, D_WIRE, 0);
-    setdev(18, 7, D_DOOR, DN);                              // door B on the spine
+    terr[DR][room_x0(NR - 1) + 2] = T_STAIRS;
 
-    px = 3; py = 7; won = 0; turns = 0;
+    px = room_x0(0) + 1; py = DR; hp = HPMAX; turns = 0; state = ST_PLAY;
+
+    nmon = 0;
+    int want = 2 + rnd(2);
+    for (int tries = 0; tries < 200 && nmon < want; tries++) {
+        int r = 1 + rnd(NR - 1);                                   // never the start room
+        int x = room_x0(r) + rnd(RW), y = RY + rnd(RH);
+        if (terr[y][x] != T_FLOOR || dev[y][x] != D_NONE || mon_at(x, y) >= 0) continue;
+        mon[nmon].x = x; mon[nmon].y = y; mon[nmon].alive = 1; nmon++;
+    }
 }
 
 // ---------------------------------------------------------------------------
 // movement + fov
 // ---------------------------------------------------------------------------
-static int solid_dev(int d) { return d == D_LEVER || d == D_AND || d == D_NOT || d == D_OR; }
+static int solid_dev(int d) { return d == D_LEVER || d == D_AND || d == D_NOT || d == D_OR || d == D_XOR || d == D_CLOCK; }
 static int walkable(int x, int y) {
     if (!in_grid(x, y) || terr[y][x] == T_WALL) return 0;
     int d = dev[y][x];
@@ -152,7 +190,7 @@ static void trace_fov(int tx, int ty) {
     int sx = x0 < tx ? 1 : -1, sy = y0 < ty ? 1 : -1, err = dx + dy, x = x0, y = y0;
     while (1) {
         if (x == tx && y == ty) break;
-        if (!(x == x0 && y == y0) && opaque(x, y)) return;   // a wall blocks sight past it
+        if (!(x == x0 && y == y0) && opaque(x, y)) return;
         int e2 = 2 * err;
         if (e2 >= dy) { err += dy; x += sx; }
         if (e2 <= dx) { err += dx; y += sy; }
@@ -166,92 +204,113 @@ static void compute_fov(void) {
     vis[py][px] = seen[py][px] = 1;
 }
 
+static void monsters_act(void) {
+    for (int i = 0; i < nmon; i++) {
+        Mon *m = &mon[i];
+        if (!m->alive) continue;
+        int dxp = px - m->x, dyp = py - m->y, adist = abs(dxp) + abs(dyp);
+        if (adist == 1) {                                  // adjacent -> bite
+            hp--; shake(2); note(46, INSTR_SAW, 3);
+            if (hp <= 0) { hp = 0; state = ST_DEAD; }
+            continue;
+        }
+        int nx = m->x, ny = m->y;
+        if (vis[m->y][m->x] && adist <= FOV_R + 1) {       // hunt the player
+            if (abs(dxp) >= abs(dyp)) nx += sgn(dxp); else ny += sgn(dyp);
+            if (!(walkable(nx, ny) && mon_at(nx, ny) < 0 && !(nx == px && ny == py))) {
+                nx = m->x; ny = m->y;
+                if (abs(dxp) >= abs(dyp)) ny += sgn(dyp); else nx += sgn(dxp);
+            }
+        } else {                                           // idle wander
+            int d = rnd(4); int wx, wy; doff(d, &wx, &wy); nx += wx; ny += wy;
+        }
+        if (walkable(nx, ny) && mon_at(nx, ny) < 0 && !(nx == px && ny == py)) { m->x = nx; m->y = ny; }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // drawing
 // ---------------------------------------------------------------------------
 static int powered(int x, int y) { return sig[sread][y][x] > 0; }
 
 static void draw_wire(int X, int Y, int x, int y, int lit) {
-    int cx = X + 6, cy = Y + 6;
-    int p = powered(x, y);
+    int cx = X + 6, cy = Y + 6, p = powered(x, y);
     int col = !lit ? CLR_DARKER_BLUE : p ? CLR_LIGHT_YELLOW : CLR_TRUE_BLUE;
     for (int d = 0; d < 4; d++) {
         int dx, dy; doff(d, &dx, &dy);
-        if (in_grid(x + dx, y + dy) && dev[y + dy][x + dx] != D_NONE)
-            line(cx, cy, cx + dx * 6, cy + dy * 6, col);
+        if (in_grid(x + dx, y + dy) && dev[y + dy][x + dx] != D_NONE) line(cx, cy, cx + dx * 6, cy + dy * 6, col);
     }
-    if (p && lit) { pset(cx, cy, CLR_WHITE); pset(cx + 1, cy, CLR_WHITE); }
-    else pset(cx, cy, col);
+    pset(cx, cy, (p && lit) ? CLR_WHITE : col);
 }
 
 static void draw_cell(int x, int y) {
     if (!seen[y][x]) return;
-    int lit = vis[y][x];
-    int X = x * TILE, Y = y * TILE, cx = X + 6, cy = Y + 6;
-
+    int lit = vis[y][x], X = x * TILE, Y = y * TILE, cx = X + 6, cy = Y + 6;
     if (terr[y][x] == T_WALL) {
         rectfill(X, Y, TILE, TILE, lit ? CLR_DARK_GREY : CLR_DARKER_GREY);
         rect(X, Y, TILE, TILE, lit ? CLR_MEDIUM_GREY : CLR_BROWNISH_BLACK);
         return;
     }
-    // floor / stairs base
     rectfill(X, Y, TILE, TILE, lit ? CLR_BROWNISH_BLACK : CLR_BLACK);
     if (terr[y][x] == T_STAIRS) { font(FONT_NORMAL); print(">", cx - 3, cy - 3, lit ? CLR_YELLOW : CLR_DARK_GREY); }
 
     switch (dev[y][x]) {
         case D_WIRE: draw_wire(X, Y, x, y, lit); break;
         case D_LEVER: {
-            int o = on[y][x];
-            int col = !lit ? CLR_DARK_GREY : o ? CLR_ORANGE : CLR_LIGHT_GREY;
-            rectfill(cx - 2, Y + 8, 4, 3, lit ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);  // base
-            line(cx, Y + 9, cx + (o ? 3 : -3), Y + 3, col);                              // handle
-            pset(cx + (o ? 3 : -3), Y + 3, col);
+            int o = on[y][x], col = !lit ? CLR_DARK_GREY : o ? CLR_ORANGE : CLR_LIGHT_GREY;
+            rectfill(cx - 2, Y + 8, 4, 3, lit ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);
+            line(cx, Y + 9, cx + (o ? 3 : -3), Y + 3, col); pset(cx + (o ? 3 : -3), Y + 3, col);
             break;
         }
-        case D_AND: case D_NOT: case D_OR: {
-            int hot = 0;   // the rune glows when its output wire carries signal
-            int dx, dy; doff(face[y][x], &dx, &dy);
+        case D_CLOCK: {
+            int o = on[y][x], col = !lit ? CLR_DARKER_PURPLE : o ? CLR_LIGHT_YELLOW : CLR_INDIGO;
+            circ(cx, cy, 3, col); line(cx, cy, cx, cy - 2, col); line(cx, cy, cx + 2, cy, col);
+            break;
+        }
+        case D_AND: case D_NOT: case D_OR: case D_XOR: {
+            int hot = 0, dx, dy; doff(face[y][x], &dx, &dy);
             if (in_grid(x + dx, y + dy)) hot = powered(x + dx, y + dy);
             int col = !lit ? CLR_DARKER_PURPLE : hot ? CLR_PINK : CLR_INDIGO;
             rectfill(X + 1, Y + 1, TILE - 2, TILE - 2, lit ? CLR_DARKER_PURPLE : CLR_BLACK);
             rect(X + 1, Y + 1, TILE - 2, TILE - 2, col);
-            font(FONT_SMALL); print(dev[y][x] == D_AND ? "&" : dev[y][x] == D_OR ? "|" : "!", cx - 1, cy - 2, col);
+            const char *g = dev[y][x] == D_AND ? "&" : dev[y][x] == D_OR ? "|" : dev[y][x] == D_XOR ? "^" : "!";
+            font(FONT_SMALL); print(g, cx - 1, cy - 2, col);
             break;
         }
         case D_DOOR: {
-            int open = on[y][x];
             int col = !lit ? CLR_DARK_GREY : CLR_MEDIUM_GREY;
-            if (open) { for (int i = 0; i < 3; i++) rectfill(X + 2 + i * 4, Y, 2, 3, col); }   // retracted stubs
-            else      { for (int i = 0; i < 3; i++) rectfill(X + 2 + i * 4, Y, 2, TILE, col); } // bars down
+            for (int i = 0; i < 3; i++) rectfill(X + 2 + i * 4, Y, 2, on[y][x] ? 3 : TILE, col);
             break;
         }
     }
+}
+
+static void draw_mon(int i) {
+    Mon *m = &mon[i];
+    if (!m->alive || !vis[m->y][m->x]) return;
+    int cx = m->x * TILE + 6, cy = m->y * TILE + 6;
+    circfill(cx, cy, 4, CLR_DARK_PURPLE);
+    rectfill(cx - 3, cy + 1, 6, 4, CLR_DARK_PURPLE);
+    pset(cx - 2, cy - 1, CLR_RED); pset(cx + 2, cy - 1, CLR_RED);
 }
 
 static void draw_hud(void) {
     rectfill(0, GH * TILE, SCREEN_W, SCREEN_H - GH * TILE, CLR_BLACK);
     font(FONT_SMALL);
-    if (won) {
-        print("YOU ESCAPED THE VAULT", 6, GH * TILE + 4, CLR_LIME_GREEN);
-        print("R: again", 6, GH * TILE + 13, CLR_LIGHT_GREY);
-    } else {
-        int da = on[7][8], db = on[7][18];   // gate A (AND), gate B (NOT)
-        const char *msg = (da && db) ? "both gates yield - the stairs lie open"
-                        : da          ? "the AND-gate opens - now the NOT-rune ahead"
-                        :               "two levers feed the AND-rune that bars the way";
-        print(msg, 6, GH * TILE + 4, (da && db) ? CLR_LIME_GREEN : da ? CLR_YELLOW : CLR_LIGHT_GREY);
-        char t[24]; snprintf(t, sizeof t, "turn %d", turns);
-        print(t, SCREEN_W - 48, GH * TILE + 4, CLR_DARK_GREY);
-        print("arrows move - walk into a lever to throw it", 6, GH * TILE + 13, CLR_DARK_GREY);
-    }
+    if (state == ST_WIN) { print("YOU ESCAPED THE VAULT", 6, GH*TILE+4, CLR_LIME_GREEN); print("R: descend anew", 6, GH*TILE+13, CLR_LIGHT_GREY); return; }
+    if (state == ST_DEAD) { print("THE WRAITHS TAKE YOU", 6, GH*TILE+4, CLR_RED); print("R: descend anew", 6, GH*TILE+13, CLR_LIGHT_GREY); return; }
+    for (int i = 0; i < HPMAX; i++) circfill(8 + i * 9, GH*TILE+7, 3, i < hp ? CLR_RED : CLR_DARKER_GREY);
+    print("satisfy each rune-gate - reach the stairs", 38, GH*TILE+4, CLR_LIGHT_GREY);
+    char t[16]; snprintf(t, sizeof t, "turn %d", turns);
+    print(t, SCREEN_W - 48, GH*TILE+4, CLR_DARK_GREY);
+    print("arrows move - bump levers/wraiths - Z wait", 38, GH*TILE+12, CLR_DARK_GREY);
 }
 
 void draw(void) {
     cls(CLR_BLACK);
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) draw_cell(x, y);
-    // player
-    int X = px * TILE, Y = py * TILE;
-    font(FONT_NORMAL); print("@", X + 3, Y + 3, CLR_WHITE);
+    for (int i = 0; i < nmon; i++) draw_mon(i);
+    font(FONT_NORMAL); print("@", px * TILE + 3, py * TILE + 3, state == ST_DEAD ? CLR_DARK_RED : CLR_WHITE);
     draw_hud();
 }
 
@@ -261,7 +320,7 @@ void draw(void) {
 void init(void) { build(); compute_fov(); }
 
 void update(void) {
-    if (won) { if (keyp('R')) { build(); compute_fov(); } return; }
+    if (state != ST_PLAY) { if (keyp('R')) { build(); compute_fov(); } return; }
 
     int mvx = 0, mvy = 0, wait = 0, act = 0;
     if (btnp(0, BTN_LEFT)  || keyp(KEY_LEFT)  || keyp('A')) mvx = -1;
@@ -271,15 +330,83 @@ void update(void) {
     else if (keyp('Z') || keyp('.')) wait = 1;
 
     if (mvx || mvy) {
-        int tx = px + mvx, ty = py + mvy;
-        if (in_grid(tx, ty) && dev[ty][tx] == D_LEVER) { on[ty][tx] ^= 1; act = 1; }   // bump = throw
+        int tx = px + mvx, ty = py + mvy, mi = mon_at(tx, ty);
+        if (mi >= 0) { mon[mi].alive = 0; shake(3); note(60, INSTR_SQUARE, 2); act = 1; }   // strike
+        else if (in_grid(tx, ty) && dev[ty][tx] == D_LEVER) { on[ty][tx] ^= 1; act = 1; }     // throw
         else if (walkable(tx, ty)) { px = tx; py = ty; act = 1; }
     } else if (wait) act = 1;
 
     if (act) {
+        clock_step();
         settle();
+        monsters_act();
         turns++;
         compute_fov();
-        if (terr[py][px] == T_STAIRS) won = 1;
+        if (state == ST_PLAY && terr[py][px] == T_STAIRS) state = ST_WIN;
     }
 }
+
+// ---------------------------------------------------------------------------
+// spec() — headless correctness gate (node tools/spec.js). Pins each rune-gate's
+// truth table and the two generation invariants that keep every floor fair:
+// stairs UNREACHABLE with all gates shut (no bypass) and REACHABLE with all open.
+// ---------------------------------------------------------------------------
+#ifdef DE_SPEC
+#include "spec.h"
+
+// settle one gate of `type` placed at (10,7) with its levers set, return door state.
+static int sp_gate(int type, int la, int lb) {
+    for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) { terr[y][x] = T_FLOOR; dev[y][x] = D_NONE; face[y][x] = 0; on[y][x] = 0; ctimer[y][x] = 0; }
+    for (int b = 0; b < 2; b++) for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) sig[b][y][x] = 0;
+    sread = 0;
+    int gx = 10, gy = 7;
+    stamp_gate(gx, gy, type);
+    if (type == D_AND || type == D_OR || type == D_XOR) { on[gy-2][gx] = la; on[gy+2][gx] = lb; }
+    else if (type == D_NOT) on[gy][gx-2] = la;           // lever (pre-thrown by stamp; override)
+    else if (type == D_CLOCK) on[gy][gx] = la;           // la = clock phase
+    settle();
+    return on[gy][gx+2];
+}
+
+static int sp_pass(int x, int y, int doors_open) {
+    if (terr[y][x] == T_WALL) return 0;
+    int d = dev[y][x];
+    if (d == D_DOOR) return doors_open;
+    return !solid_dev(d);
+}
+static int sp_reach_stairs(int doors_open) {              // BFS from player; can we touch the stairs?
+    unsigned char vd[GH][GW]; for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) vd[y][x] = 0;
+    int hx[GW*GH], hy[GW*GH], h = 0, t = 0;
+    vd[py][px] = 1; hx[t] = px; hy[t] = py; t++;
+    while (h < t) {
+        int x = hx[h], y = hy[h]; h++;
+        if (terr[y][x] == T_STAIRS) return 1;
+        for (int d = 0; d < 4; d++) {
+            int dx, dy; doff(d, &dx, &dy); int nx = x + dx, ny = y + dy;
+            if (in_grid(nx, ny) && !vd[ny][nx] && sp_pass(nx, ny, doors_open)) { vd[ny][nx] = 1; hx[t] = nx; hy[t] = ny; t++; }
+        }
+    }
+    return 0;
+}
+
+void spec(void) {
+    expect(sp_gate(D_AND, 1, 1) == 1, "AND opens with both levers");
+    expect(sp_gate(D_AND, 1, 0) == 0, "AND stays shut with one lever");
+    expect(sp_gate(D_AND, 0, 0) == 0, "AND stays shut with none");
+    expect(sp_gate(D_OR,  1, 0) == 1, "OR opens with either lever");
+    expect(sp_gate(D_OR,  0, 0) == 0, "OR stays shut with none");
+    expect(sp_gate(D_XOR, 1, 0) == 1, "XOR opens with exactly one");
+    expect(sp_gate(D_XOR, 1, 1) == 0, "XOR stays shut with both");
+    expect(sp_gate(D_XOR, 0, 0) == 0, "XOR stays shut with none");
+    expect(sp_gate(D_NOT, 0, 0) == 1, "NOT-trap opens when its lever is OFF");
+    expect(sp_gate(D_NOT, 1, 0) == 0, "NOT-trap shut while its lever is thrown");
+    expect(sp_gate(D_CLOCK, 1, 0) == 1, "CLOCK door open on its high phase");
+    expect(sp_gate(D_CLOCK, 0, 0) == 0, "CLOCK door shut on its low phase");
+
+    for (int i = 0; i < 8; i++) {            // every generated floor: gates mandatory + completable
+        build();
+        expect(!sp_reach_stairs(0), "no bypass: stairs unreachable with every gate shut");
+        expect(sp_reach_stairs(1),  "solvable: stairs reachable with every gate open");
+    }
+}
+#endif

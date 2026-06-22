@@ -21,10 +21,18 @@
 //                re-solves for free — only the STAGE generalised (rotated bands; corners = where adjacent
 //                inner edges cross). `skew` tilts the crossing street; `T` drops the north arm → 3 legs, 2
 //                corners (the straight "back" of the through road has no corner). count_corners() is pure.
-// Next milestones (mirror roadlab's arc): M3 turn lanes / pockets + channelizing islands · M4 the street
-//                WEB (network topology — grid/cul-de-sac/radial, the Parish-Müller / tensor-field generators
-//                from §8). Then a seed-driven world emits it.
-//   Controls: on-screen ui.h toolbar (clickable; keyboard too). [ ] curb radius · -/= lanes · ,/. skew · t = T · p = turn lanes.
+//   MILESTONE 3: TURN LANES + channelizing islands. A left-turn lane is marked INSIDE the carriageway
+//                (no outer widening — that detached into tabs under skew): a raised MEDIAN splitter on the
+//                centreline + a solid delineation of the inner inbound lane + a left-turn arrow. All in the
+//                arm's local frame ⇒ skew-safe like the curb returns.
+//   MILESTONE 4: the street WEB (network topology — road-hierarchy-notes §8). A second VIEW ('v'): a GRAPH
+//                of intersections (nodes) + street segments (edges) generated deterministically from a seed.
+//                gen_network() is a PURE fn of (pattern, seed) — the spec asserts on the graph (node/edge
+//                counts, mean degree, dead-ends = the SNDi measures §8.2). M4a: grid + organic (a jitter
+//                morph on one lattice). M4b (next): radial + cul-de-sac (real topology changes) + the §8.4
+//                two-tier major→minor generator. Then a seed-driven WORLD emits (pattern, region) per place.
+//   Controls: ui.h toolbar (clickable; keyboard too). v = junction↔network view. JUNCTION: [ ] curb radius ·
+//             -/= lanes · ,/. skew · t = T · p = turn lanes. NETWORK: [ ] seed · b = pattern.
 
 #define LANEW    8     // one lane width (px)
 #define TOOLBAR  44    // bottom control strip height (two rows)
@@ -107,6 +115,10 @@ static int   lanesPer = 2;    // lanes PER DIRECTION (street width = 2 * lanesPe
 static int   skew     = 0;    // degrees added to the crossing street (the N–S pair)
 static int   isT      = 0;    // drop the north arm → a T-junction
 static int   turnLanes= 0;    // M3: per-approach left-turn bay + raised median splitter
+enum { PAT_GRID, PAT_ORGANIC, NPAT };          // M4: street-web patterns (more in M4b)
+static int   netview  = 0;    // M4: 0 = junction detail (M1–M3), 1 = the street-web network
+static int   pattern  = PAT_GRID;
+static int   netseed  = 1;
 
 static float leg_bearing(int i){ float b=legs[i].base + (legs[i].crossing?(float)skew:0.f); return fmodf(b+3600,360); }
 static int   leg_present(int i){ return !(isT && i==3); }              // T drops North (leg 3)
@@ -189,6 +201,13 @@ static void draw_median(float cx,float cy,float b,float df){
 }
 
 void update(void){
+    if (keyp('v')||keyp('V')) netview = !netview;            // M4: junction-detail ↔ street-web view
+    if (netview){
+        if (keyp('[')) { netseed--; if(netseed<0) netseed=0; }
+        if (keyp(']')) netseed++;
+        if (keyp('b')||keyp('B')) pattern=(pattern+1)%NPAT;
+        return;
+    }
     if (keyp('['))  cornerR -= 2;
     if (keyp(']'))  cornerR += 2;
     if (keyp('-'))  lanesPer--;
@@ -213,9 +232,85 @@ static int step_btn(int x,int y,int w,const char*lm,const char*rm){
     return d;
 }
 
+// ── M4: the street WEB (network topology) ── one tier ABOVE the single junction: a GRAPH of intersections
+//    (nodes) + street segments (edges), generated deterministically from a seed. The canonical planning
+//    patterns (grid / organic / radial / cul-de-sac — road-hierarchy-notes §8) are real archetypes; here
+//    they're a morph over one generator. gen_network() is a PURE fn of (pattern, seed) — the spec asserts
+//    on the graph directly (node/edge counts, mean degree, dead-ends — the SNDi measures, §8.2). M4a does
+//    grid + organic (a jitter morph on one lattice); radial + cul-de-sac (real topology changes) are M4b.
+#define GW 9                       // node columns
+#define GH 6                       // node rows
+#define MAXNODE (GW*GH)
+#define MAXEDGE (MAXNODE*2)
+static const char* PAT_NAME[NPAT] = { "grid", "organic" };
+typedef struct { float x,y; } NetNode;
+typedef struct { int a,b; } NetEdge;
+static NetNode nnodes[MAXNODE]; static NetEdge nedges[MAXEDGE];
+static int nn=0, ne=0;
+
+// a hash → [0,1): deterministic noise from integer coords + seed (NOT engine rnd, so it's frame-independent
+// and spec-stable — the network is a pure function of (pattern, seed), reproducible anywhere).
+static float hash01(int x,int y,int s){
+    unsigned int h=(unsigned)(x*374761393 + y*668265263 + s*1274126177 + 0x9e3779b9);
+    h=(h^(h>>15))*2246822519u; h=(h^(h>>13))*3266489917u; h^=h>>16;
+    return (h & 0xffffff) / (float)0x1000000;
+}
+static void gen_network(int pat,int seed){
+    nn=0; ne=0;
+    float x0=18, y0=22, x1=SCREEN_W-18, y1=SCREEN_H-TOOLBAR-10;
+    float cw=(x1-x0)/(GW-1), ch=(y1-y0)/(GH-1);
+    float jit = (pat==PAT_ORGANIC) ? 0.42f : 0.f;          // organic = jitter the lattice; grid = none
+    int id[GH][GW];
+    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){
+        float jx=(hash01(c,r,seed)    -0.5f)*cw*jit;
+        float jy=(hash01(c,r,seed+97) -0.5f)*ch*jit;
+        id[r][c]=nn; nnodes[nn++]=(NetNode){ x0+c*cw+jx, y0+r*ch+jy };
+    }
+    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){          // grid edges: east + south neighbour
+        if (c+1<GW) nedges[ne++]=(NetEdge){ id[r][c], id[r][c+1] };
+        if (r+1<GH) nedges[ne++]=(NetEdge){ id[r][c], id[r+1][c] };
+    }
+}
+static int   node_degree(int i){ int d=0; for(int e=0;e<ne;e++) if(nedges[e].a==i||nedges[e].b==i) d++; return d; }
+static float mean_degree(void){ if(!nn)return 0; int s=0; for(int i=0;i<nn;i++) s+=node_degree(i); return (float)s/nn; }
+static int   dead_ends(void){ int c=0; for(int i=0;i<nn;i++) if(node_degree(i)==1) c++; return c; }
+
+// draw one street segment as a road quad (perpendicular extrusion of the centreline)
+static void road_segment(float ax,float ay,float bx,float by,float hw,int col){
+    float dx=bx-ax, dy=by-ay, L=sqrtf(dx*dx+dy*dy); if(L<0.5f) return; dx/=L; dy/=L;
+    float nx=-dy*hw, ny=dx*hw;
+    int q[8]={ (int)(ax+nx),(int)(ay+ny),(int)(ax-nx),(int)(ay-ny),
+               (int)(bx-nx),(int)(by-ny),(int)(bx+nx),(int)(by+ny) };
+    polyfill(q,4,col);
+}
+
+static void draw_network_view(void){
+    gen_network(pattern, netseed);
+    for (int i=0;i<ne;i++){ NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b]; road_segment(a.x,a.y,b.x,b.y,2.5f,CLR_BROWNISH_BLACK); }
+    for (int i=0;i<ne;i++){ NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b]; road_segment(a.x,a.y,b.x,b.y,1.5f,CLR_DARK_GREY); }
+    for (int i=0;i<nn;i++) circfill((int)nnodes[i].x,(int)nnodes[i].y,1,CLR_DARK_GREY);
+
+    font(FONT_SMALL);
+    char bb[72];
+    print("streetlab - the street WEB (M4: network topology)", 4,5, CLR_WHITE);
+    snprintf(bb,sizeof bb,"%s   -   %d nodes   -   mean degree %.1f   -   %d dead-ends",
+             PAT_NAME[pattern], nn, mean_degree(), dead_ends());
+    print(bb, 4,13, CLR_ORANGE);
+
+    rectfill(0, SCREEN_H-TOOLBAR, SCREEN_W, TOOLBAR, CLR_BLACK);
+    int d;
+    print("seed", 4, SCREEN_H-37, CLR_WHITE);
+    d=step_btn(36, SCREEN_H-40, 14, "-", "+"); if (d){ netseed+=d; if(netseed<0)netseed=0; }
+    snprintf(bb,sizeof bb,"%d",netseed); print(bb, 70, SCREEN_H-37, CLR_LIGHT_GREY);
+    if (ui_button(92, SCREEN_H-40, 90, 13, PAT_NAME[pattern])) pattern=(pattern+1)%NPAT;
+    if (ui_button(220, SCREEN_H-22, 96, 13, "view: junction")) netview=0;
+    font(FONT_NORMAL);
+}
+
 void draw(void){
     ui_begin();
     cls(CLR_DARK_GREEN);
+    if (netview){ draw_network_view(); ui_end(); return; }     // M4: the street-web view
     float cx=SCREEN_W/2.f, cy=(SCREEN_H-TOOLBAR)/2.f;
     float HW=lanesPer*LANEW;                               // carriageway half-width (both directions)
     float REACH=SCREEN_W+SCREEN_H;                         // run each arm well past the screen edge
@@ -288,6 +383,7 @@ void draw(void){
     print("lanes/dir", 124, SCREEN_H-37, CLR_WHITE);
     d=step_btn(180, SCREEN_H-40, 14, "-", "+"); if (d) lanesPer+=d;
     snprintf(bb,sizeof bb,"%d",lanesPer); print(bb, 214, SCREEN_H-37, CLR_LIGHT_GREY);
+    if (ui_button(232, SCREEN_H-40, 84, 13, "view: network")) netview=1;
     print("skew", 4, SCREEN_H-19, CLR_PINK);
     d=step_btn(64, SCREEN_H-22, 14, "-", "+"); if (d) skew+=5*d;
     snprintf(bb,sizeof bb,"%d",skew); print(bb, 98, SCREEN_H-19, CLR_LIGHT_GREY);
@@ -345,6 +441,16 @@ void spec(void){
     //    corner projects to HW on the arm axis, so the face = HW. PURE (geometry of the leg layout). ──
     { int ix[NLEG]; float br[NLEG]; int m=present_legs(ix,br);
       expect(sp_near(arm_face(br,m,0,16.f), 16.f), "4-way arm face = HW (corner projects to HW on the axis)"); }
+
+    // ── M4: the street web — gen_network() is pure over (pattern, seed); assert on the GRAPH (SNDi §8.2) ──
+    gen_network(PAT_GRID, 1);
+    expect_eq(nn, GW*GH, "grid network: GW*GH nodes");
+    expect_eq(ne, GW*(GH-1)+GH*(GW-1), "grid network: edges = horizontals + verticals");
+    expect_eq(dead_ends(), 0, "a full grid has no dead-ends");
+    expect(mean_degree() > 2.5f && mean_degree() < 4.0f, "grid mean degree in (2.5, 4)");
+    gen_network(PAT_ORGANIC, 7); float gx=nnodes[5].x;
+    gen_network(PAT_ORGANIC, 7); expect(sp_near(nnodes[5].x, gx), "gen_network is deterministic for a fixed seed");
+    gen_network(PAT_ORGANIC, 8); expect(!sp_near(nnodes[5].x, gx), "a different seed moves the nodes");
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
     for (int i=0;i<40;i++) sp_tap(']');                                    // hammer the + key past the cap

@@ -668,7 +668,7 @@ the ensemble spread). Built on `euclid()` polyrhythm + a held modal vamp.
 | `SL_SNR` | backbeat + ghost notes (Tony Allen feel) | `noise/afro-snare` | NOISE |
 | `SL_CONGA`| open conga | `membrane/conga` ↗addis | MEMBRANE |
 | `SL_SHK` | shekere 16ths | `noise/afro-shekere` (kin: `noise/caxixi`) | NOISE |
-| `SL_BELL`| gankogui timeline (euclid 7-in-16, hi/lo) | `fm/gankogui-bell` | FM |
+| `SL_BELL`| gankogui timeline (euclid 7-in-16, hi/lo) | `mallet/gankogui-lpg` (soft struck bar + a low-pass GATE; was a harsh FM bell) | MALLET |
 
 **Borrowing at a glance:** almost all afrobeat-original, because most of its band lives on
 engines nothing else uses. Its **one verbatim copy** is the conga (↗addis — now a *shared*

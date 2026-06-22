@@ -212,7 +212,7 @@ static void mask(int tr, float p) {
             // tooth wave), monotonic in x so each row is ONE span: fill 0..edge.
             // The tooth WAVEFORM is the only knob: triangle here; sawtooth would be
             // s = (float)(y % teeth) / teeth.
-            float amp = 0.12f; int teeth = 16;            // tooth depth (frac W), rows/tooth
+            float amp = 0.10f; int teeth = 40;            // tooth depth (frac W), rows/tooth
             for (int y = 0; y < SCREEN_H; y++) {
                 float ph = (float)(y % teeth) / teeth;    // 0..1 within a tooth
                 float s = 1.0f - fabsf(2.0f * ph - 1.0f); // triangle: 0 → 1 → 0

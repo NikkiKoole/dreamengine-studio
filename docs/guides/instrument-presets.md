@@ -283,11 +283,15 @@ The bongo / edge-slap accents — bright, short, high-tuned hard mallet.
 - origin: addis
 - used by: addis (`SL_BONGO`)
 
-### fm/gankogui-bell
-`INSTR_FM` · A8 D160 S2 R180 · h0.55 t0.60 m0.12 · pan +0.35
-The forged-iron double bell — the Afrobeat *timeline*. Short bright FM bell struck on two
-pitches (hi 86 / lo 79) by a euclid 7-in-16 pattern; the whole groove hangs off it.
-- tier: unique
+### mallet/gankogui-lpg
+`INSTR_MALLET` · h0.60 t0.32 m0.30 · LP 2000/2 · `ENV_CUTOFF` 0/170/+3200 · pan +0.35
+The Afrobeat *timeline* double bell (hi 86 / lo 79, euclid 7-in-16). **Was a bright FM bell
+(`fm/gankogui-bell`) — it read harsh/clangy; re-voiced** to a soft struck-bar agogo (MALLET
+sine modes) through a **LOW-PASS GATE**: the cutoff snaps open on the strike and closes as
+the note rings (the `ENV_CUTOFF` decays to base) while the MALLET amp decays — brightness +
+level fall together, the vactrol bonk (the easel/dubdesk west-coast voicing, per struck hit
+so the euclid timeline stays sample-tight).
+- tier: unique (kin: `mallet/celesta`; LPG technique kin `easel`/`dubdesk`)
 - origin: afrobeat
 - used by: afrobeat (`SL_BELL`)
 

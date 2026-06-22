@@ -500,11 +500,20 @@ static void setup_instruments(void) {
     // SHEKERE — high filtered noise
     instrument(SL_SHK, INSTR_NOISE, 1, 30, 0, 22);
     instrument_filter(SL_SHK, FILTER_HIGH, 6000, 3);
-    // GANKOGUI / AGOGO bell — short bright FM bell, two pitches
-    instrument(SL_BELL, INSTR_FM, 8, 160, 2, 180);
-    instrument_harmonics(SL_BELL, 0.55f);
-    instrument_timbre(SL_BELL, 0.60f);
-    instrument_morph(SL_BELL, 0.12f);
+    // GANKOGUI / AGOGO bell — a SOFT struck-bar metallic (was a harsh bright FM bell:
+    // high mod-index FM clang on a piercing register). INSTR_MALLET's decaying sine
+    // modes are far mellower; a gentle mallet + a rolled-off top = a warm agogo.
+    instrument(SL_BELL, INSTR_MALLET, 1, 0, 7, 220);
+    instrument_harmonics(SL_BELL, 0.60f);            // bell-ish bar material, rounded
+    instrument_timbre(SL_BELL, 0.32f);               // soft mallet — gentle attack, no clang
+    instrument_morph(SL_BELL, 0.30f);                // a short, contained ring
+    // THE LOW-PASS GATE — base cutoff nearly shut; the strike snaps it open then it
+    // CLOSES as the note rings down (ENV_CUTOFF decays back to base), while the MALLET's
+    // own amp decay drops the level: brightness + volume fall together = the vactrol
+    // LPG bonk (the easel/dubdesk west-coast voicing), here per struck hit so the
+    // euclid timeline stays sample-tight.
+    instrument_filter(SL_BELL, FILTER_LOW, 2000, 2);
+    instrument_env(SL_BELL, 0, ENV_CUTOFF, 0, 170, 3200);
     instrument_pan(SL_BELL, 0.35f);
     instrument_pan(SL_CONGA, -0.30f);
     instrument_pan(SL_SHK, 0.45f);

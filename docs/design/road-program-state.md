@@ -96,17 +96,46 @@ Cheap + high-value at the top. (✓ = shipped since.)
 **Phase 2 — the world (§8.4), beyond a single screen:**
 - [ ] **The two-tier major→minor generator** — major arterials first, then fill local streets per region
       (Parish-Müller / tensor fields). The bridge from "one pattern fills the screen" to a seed-driven world.
+- [ ] **One-way streets** — directionality is a *network* property: a one-way is a DIRECTED edge (the graph is
+      undirected today), and a junction inherits "this arm is entry-/exit-only" from it. Phase-2 territory, not a
+      cross-section shape — but it breaks the symmetric two-way mirror (no centreline, single flow), so the M7
+      lane-section models the HALF-section as the unit (mirror at the draw site) ⇒ one-way is later a flag, not a rewrite.
 - [ ] **Integrate** `streetlab` × `roadnet2` × `roadlab` into one seed-driven map (the seams below).
 - [ ] **Open research Qs** — per-pattern numeric metric table, Marshall route-structure mapping, learned
       generative models. See [`road-hierarchy-notes.md`](road-hierarchy-notes.md) → "Open questions".
 
+## Cross-section composition — known issues + the next-pass plan (2026-06-22)
+
+M7 added typed lanes, but the EARLIER milestones (M3 turn lanes, M6 roundabout, M5 peds) still compute lane
+offsets their own way — they predate the lane model. Collected issues:
+
+1. **Turn-lane markings ignore the median offset** — the left-turn delineation + arrow are hardcoded at
+   `LANEW` from the centre, not at the inner *driving* lane, so with a median they land on/in the median.
+2. **Two medians stack** — the M3 turn splitter draws on top of the M7 continuous median. A turn bay should be
+   the *gap in* the median, not a splitter laid over it.
+3. **Stop bar spans the full HW** — including the bike + parking lanes (should stop at the driving lanes).
+4. **Roundabout draws no lanes** — `cross_markings` runs only in the non-roundabout branch, so median/bike/
+   parking widen the arms but paint nothing.
+5. **Bike lane drops at the junction** — (5a) it should WRAP THE CORNER (a terracotta arc concentric with the
+   curb return, one band inboard of the sidewalk ring — same construction as M5); (5b) the straight-through
+   crossing (elephant's feet) is contextual → optional/deferred.
+6. **Pavement bundled with crosswalks** under `k` — the sidewalk is a lane type; it wants its own toggle.
+7/8. Cosmetic: markings start abruptly at the mouth; parking should end back from the junction (a clear zone) —
+   the same cleanup the corner-wrap (5a) needs.
+
+**The through-line: there's no single shared lane model.** The fix is one refactor + a follow-up:
+- **Pass 1 — the lane-section as the single source of truth.** Extract a typed lane list (centre→out, each with
+  type/width/`[inner,outer]` offsets; carriageway lanes sum to HW at the kerb, sidewalk lives beyond it) and
+  have turn lanes (#1,#2), the stop bar (#3), the roundabout approaches (#4) and pavement (#6) all read from it.
+  Model the HALF-section as the unit (one-way readiness, above). Spec the offset helpers.
+- **Pass 2 — bike corner-wrap (#5a) + parking clear-zone (#8)** — the concentric arc band, parking ends back.
+- **Pass 3 (optional)** — straight-through crossing (#5b), transition-zone polish (#7).
+
 ## Known deferrals (pick up when convenient)
 
-- **`streetlab`'s `index.json` gallery description is ~2 milestones behind** (still M4-era prose — doesn't
-  mention M4b radial/cul-de-sac, M4c curve, or M5 sidewalks/crosswalks). Deferred because `index.json` is
-  often mid-churn with other agents' carts (committing it risks sweeping their broken refs). Update it in a
-  quiet moment via the splice dance (checkout HEAD index → edit only the streetlab entry → commit → restore).
-  The cart's own header comment + HUD are current; only the registry blurb lags.
+- *(resolved 2026-06-22)* `streetlab`'s `index.json` gallery description is now current through M7 (committed in
+  a quiet moment when the registry was clean). Left here as a note: when it lags again, update only the streetlab
+  entry; if the file is dirty with foreign edits, prefer "just ship it" for a ref-safe description change.
 
 ## Shared code & seams
 

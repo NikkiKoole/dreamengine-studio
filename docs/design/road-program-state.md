@@ -129,8 +129,12 @@ offsets their own way — they predate the lane model. Collected issues:
   splitter only when there's no median — the bay is the median's gap), the stop bar (#3 spans the driving lanes
   only), the roundabout approaches (#4 `cross_markings` now runs there) and pavement (#6 its own lane-type
   toggle on the cross-section row) all read from it. Half-section is the unit (one-way readiness). Spec'd (53).
-- **Pass 2 — bike corner-wrap (#5a) + parking clear-zone (#8)** — the concentric arc band, parking ends back.
-- **Pass 3 (optional)** — straight-through crossing (#5b), transition-zone polish (#7).
+- ✓ **Pass 2 — bike corner-wrap (#5a) + parking clear-zone (#8)** (shipped 2026-06-22). Reordered the section so
+  the bike lane is OUTERMOST (kerb-side), parking inboard — the Dutch protected arrangement. The bike lane now
+  WRAPS each corner: `corner_bike()` fills a terracotta annular band just inside the curb-return arc (radii
+  R..R+BIKEW about the return centre), meeting each arm's kerb-side lane at the tangent points. Parking markings
+  end `PCLEAR` back from the junction (a clear zone). Spec'd the lane order (58).
+- **Pass 3 (optional)** — straight-through bike crossing (#5b), transition-zone polish (#7).
 
 ## Known deferrals (pick up when convenient)
 

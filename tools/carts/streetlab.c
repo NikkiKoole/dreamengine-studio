@@ -67,6 +67,7 @@
 #define BIKEW    5     // M7: bike-lane width (a tinted lane outside the driving lanes)
 #define PARKW    7     // M7: parking-lane width (at the kerb, marked with bay ticks)
 #define MEDHW    4     // M7: continuous centre-median half-width (the median IS a cross-section lane type)
+#define PCLEAR   16    // Pass 2: parking CLEAR ZONE — markings end this far back from the junction (no parking near it)
 #define DEG2RAD  0.01745329252f
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -121,6 +122,21 @@ static void stroke_corner(CurbReturn c, float R, int col){
     enum { N=10 }; float px=c.t1x, py=c.t1y;
     for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+cosf(a)*R, y=c.oy+sinf(a)*R;
         line((int)px,(int)py,(int)x,(int)y,col); px=x; py=y; }
+}
+// Pass 2 (#5a): the bike lane WRAPS the corner — a terracotta annular band JUST INSIDE the curb-return arc
+// (radii R..R+BIKEW about the return centre O), sweeping the same t1→t2 the kerb does. The carriageway sits on
+// the far (K) side of the arc, so radii > R are inside it ⇒ the band hugs the kerb and meets each arm's
+// outer (kerb-side) bike lane at the tangent points. Reuses the CurbReturn the curb returns already computed.
+static void corner_bike(CurbReturn c, float R){
+    float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
+    float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
+    enum { N=10 }; int xy[4*(N+1)]; int k=0;
+    for (int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=(int)(c.ox+cosf(a)*R);         xy[k++]=(int)(c.oy+sinf(a)*R); }
+    for (int i=N;i>=0;i--){ float a=a0+d*i/N; xy[k++]=(int)(c.ox+cosf(a)*(R+BIKEW)); xy[k++]=(int)(c.oy+sinf(a)*(R+BIKEW)); }
+    polyfill(xy, 2*(N+1), CLR_BROWN);
+    float px=c.ox+cosf(a0)*(R+BIKEW), py=c.oy+sinf(a0)*(R+BIKEW);   // the carriageway-side edge line (white)
+    for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+cosf(a)*(R+BIKEW), y=c.oy+sinf(a)*(R+BIKEW);
+        line((int)px,(int)py,(int)x,(int)y,CLR_WHITE); px=x; py=y; }
 }
 static void dashed(float x0,float y0,float x1,float y1,int col){       // a dashed lane/centre line
     float dx=x1-x0, dy=y1-y0, L=sqrtf(dx*dx+dy*dy); if(L<1)return; dx/=L; dy/=L;
@@ -199,7 +215,11 @@ static float cross_hw(void){
 //    approaches ALL read these instead of hardcoding centre-relative offsets — so the section drives every
 //    junction primitive. The HALF-section is the unit (mirrored at the draw site) ⇒ one-way is later a flag. ──
 static float drive_inner(void){ return medOn?MEDHW:0; }                  // where the driving lanes begin
-static float drive_outer(void){ return drive_inner()+lanesPer*LANEW; }   // where they end (bike/parking begin)
+static float drive_outer(void){ return drive_inner()+lanesPer*LANEW; }   // where they end (parking begins)
+// Pass 2: the bike lane is OUTERMOST (at the kerb), parking INBOARD of it (the Dutch protected arrangement) —
+// so the bike lane can follow the curb-return arc around the corner, and parking ends in the clear zone.
+static float park_inner(void){ return drive_outer(); }                   // parking sits just outside the driving lanes
+static float bike_inner(void){ return drive_outer()+(parkOn?PARKW:0); }  // bike is outermost (kerb-side) = HW-BIKEW
 // a solid lane line along the arm (offset o from centre, on side s = +1/-1), from startd to reach
 static void edge_line(float cx,float cy,float b,float o,int s,float startd,float reach,int col){
     float dx=ux(b),dy=uy(b), nx=ux(b+90)*s*o, ny=uy(b+90)*s*o;
@@ -231,24 +251,27 @@ static void cross_markings(float cx,float cy,float b,float startd,float reach){
         dashed(x0+nx*o,y0+ny*o, x1+nx*o,y1+ny*o, CLR_WHITE);
         dashed(x0-nx*o,y0-ny*o, x1-nx*o,y1-ny*o, CLR_WHITE);
     }
-    float edge = drive_outer();
-    if (bikeOn){                                            // bike lane: tinted surface + a solid inner line
-        lane_band(cx,cy,b, edge, edge+BIKEW, +1, startd,reach, CLR_BROWN);
-        lane_band(cx,cy,b, edge, edge+BIKEW, -1, startd,reach, CLR_BROWN);
-        edge_line(cx,cy,b, edge,+1, startd,reach, CLR_WHITE);
-        edge_line(cx,cy,b, edge,-1, startd,reach, CLR_WHITE);
-        edge += BIKEW;
-    }
-    if (parkOn){                                            // parking lane: a solid inner line + bay ticks
-        edge_line(cx,cy,b, edge,+1, startd,reach, CLR_WHITE);
-        edge_line(cx,cy,b, edge,-1, startd,reach, CLR_WHITE);
-        float L=sqrtf((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0));
-        for (float t=14; t<L; t+=16)                        // bay-delimiter ticks across the parking lane
+    // PARKING (inboard of the bike lane) — #8: ends in a CLEAR ZONE back from the junction (no parking near it)
+    if (parkOn){
+        float pi=park_inner(); float ps=startd+PCLEAR;
+        float px0=cx+dx*ps, py0=cy+dy*ps;
+        edge_line(cx,cy,b, pi,+1, ps,reach, CLR_WHITE);     // inner solid line, only past the clear zone
+        edge_line(cx,cy,b, pi,-1, ps,reach, CLR_WHITE);
+        float L=sqrtf((x1-px0)*(x1-px0)+(y1-py0)*(y1-py0));
+        for (float t=2; t<L; t+=16)                         // bay-delimiter ticks across the parking lane
             for (int s=-1;s<=1;s+=2){
-                float px=cx+dx*(startd+t), py=cy+dy*(startd+t);
-                line((int)(px+nx*s*edge),(int)(py+ny*s*edge),
-                     (int)(px+nx*s*(edge+PARKW)),(int)(py+ny*s*(edge+PARKW)),CLR_WHITE);
+                float qx=cx+dx*(ps+t), qy=cy+dy*(ps+t);
+                line((int)(qx+nx*s*pi),(int)(qy+ny*s*pi),
+                     (int)(qx+nx*s*(pi+PARKW)),(int)(qy+ny*s*(pi+PARKW)),CLR_WHITE);
             }
+    }
+    // BIKE lane (outermost, at the kerb) — runs the full arm; it WRAPS the corner via corner_bike() (drawn there)
+    if (bikeOn){
+        float bi=bike_inner();
+        lane_band(cx,cy,b, bi, bi+BIKEW, +1, startd,reach, CLR_BROWN);
+        lane_band(cx,cy,b, bi, bi+BIKEW, -1, startd,reach, CLR_BROWN);
+        edge_line(cx,cy,b, bi,+1, startd,reach, CLR_WHITE); // inner (carriageway-side) edge line
+        edge_line(cx,cy,b, bi,-1, startd,reach, CLR_WHITE);
     }
 }
 
@@ -634,6 +657,7 @@ void draw(void){
         edge_corner(cx,cy,HW, bA,bB,bm, &kx,&ky);
         CurbReturn c=curb_return(kx,ky, bA, bB, cornerR);
         fill_corner(kx,ky, c, cornerR, CLR_DARK_GREY);
+        if (bikeOn) corner_bike(c, cornerR);               // #5a: the bike lane wraps the corner (just inside the kerb)
         stroke_corner(c, cornerR, CLR_BROWNISH_BLACK);
     }
 
@@ -832,6 +856,13 @@ void spec(void){
     medOn=1; expect(spec_near(drive_inner(), MEDHW), "median: driving lanes start outside it (drive_inner == MEDHW)");
     expect(spec_near(drive_outer(), MEDHW+lanesPer*LANEW), "drive_outer = drive_inner + the driving lanes");
     medOn=0; bikeOn=0; parkOn=0;
+    // Pass 2: the bike lane is OUTERMOST (kerb-side) so it can wrap the corner; parking sits inboard of it
+    parkOn=1; bikeOn=1; lanesPer=2;
+    expect(spec_near(park_inner(), drive_outer()),               "parking sits just outside the driving lanes");
+    expect(spec_near(bike_inner(), drive_outer()+PARKW),         "bike is outboard of parking (at the kerb)");
+    expect(spec_near(bike_inner()+BIKEW, cross_hw()),            "the bike lane is the OUTERMOST lane (its outer edge = HW)");
+    parkOn=0; expect(spec_near(bike_inner(), drive_outer()),     "no parking: the bike lane is still outermost (at the kerb)");
+    bikeOn=0; parkOn=0;
     // the roundabout circulatory tracks the FULL cross-section (so parking can't undersize the disc/pavement)
     islandR=8; parkOn=1; expect(spec_near(round_icr(), 8 + lanesPer*LANEW + PARKW),
         "roundabout ICR includes parking (circulatory = full approach half-width)");

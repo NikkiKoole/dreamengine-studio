@@ -163,6 +163,28 @@ feature would fight the game, leave it out.
   after recoloring an entity.
 - Keep movement framerate-independent with `dt()`. Angles are **degrees**.
 
+## The cart header — write a docblock, then tag it
+Open the `.c` with the docblock every cart already has: a title rule, then 2–4 lines
+of player-facing prose (the hook + controls). Then add **two machine-readable lines**
+the library tooling harvests (`tools/cart-index.js`):
+
+    // ── TRAFFIC JAM ──────────────────────────────────────────
+    // A generative cars toy… LEFT-click honks, L flips the light, SPACE re-rolls.
+    //
+    // TEACHES: gene-based-procgen, car-following, no-sprite-vehicles
+    // LINEAGE: rectangular-vehicle style after boulderdash; first traffic-sim toy
+
+- **`TEACHES:`** — the *conceptual* techniques a reader would come here to learn, as
+  comma-separated kebab tags. The mechanical API usage (which primitives, which input,
+  which effects) is detected from your calls automatically, so **don't list the
+  obvious** ("draws-rectangles") — list what the calls *don't* reveal:
+  `car-following`, `marching-squares`, `title-play-gameover-loop`, `granular-synth`.
+  Reuse an existing tag where one fits (the seed vocabulary lives at the top of
+  `tools/cart-index.js`); coin a new kebab tag only when nothing fits.
+- **`LINEAGE:`** — one prose line: what this descends from and what's genuinely new
+  here. Name the cart whose chassis you copied, if any. This is the thread the
+  "what can be learned from what" index and the history page pull on.
+
 ## Authoring & ship pipeline (state these steps in your output)
 For the game produce: (a) `tools/carts/<name>.c`, (b) an optional
 `tools/carts/<name>.cart.js` for sprites/map, (c) the build + screenshot commands

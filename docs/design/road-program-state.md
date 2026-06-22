@@ -104,6 +104,45 @@ Cheap + high-value at the top. (✓ = shipped since.)
 - [ ] **Open research Qs** — per-pattern numeric metric table, Marshall route-structure mapping, learned
       generative models. See [`road-hierarchy-notes.md`](road-hierarchy-notes.md) → "Open questions".
 
+## Roadmap — the ordered execution plan (set 2026-06-22)
+
+**Guiding principle:** finish each tier's grammar IN ISOLATION (spec-locked) before composing tiers — the
+sandboxes pay off most when each is complete. Three stages, bottom-up. Do NOT jump to the Phase-2 "bridge"
+early; exhaust what can be built in isolation first.
+
+**Stage 1 — finish the at-grade JUNCTION (Facet A).** Close out `streetlab`'s junction view, increasing effort:
+1. **Bulb-outs / curb extensions** *(small)* — fill the parking clear-zone (the gap #8 already leaves) with a
+   kerb extension; auto when pavement+parking; shortens the crossing. Reuses the existing lane offsets. ← NEXT
+2. **Corner free-right slip + triangular channelizing island** *(medium)* — the corner treatment deferred in
+   M3; reuses the island primitive (median/splitter/roundabout-island lineage). The one notable item left.
+3. **Minor markings pass** *(low, batched)* — TWLTL (two-way centre left-turn) + right-turn pockets + driveways.
+4. *Parked:* staggered junctions + signalised-vs-priority CONTROL (the latter is a signals/phasing layer, not
+   at-grade geometry — its own thing). Revisit only on request.
+   → Facet A complete + spec-locked; the junction cart is done.
+
+**Stage 2 — finish the NETWORK sandbox (Facet B).**
+5. **Fused-grid / superblock pattern** *(high value)* — perimeter arterial loop + calmed/discontinuous interior.
+   The one original bit (no algorithm in the 2001/2008 pillars) AND a single-region prototype of the two-tier
+   world, so it de-risks Stage 3 rather than being throwaway.
+6. *Deferred:* dendricity + circuity metrics (circuity needs shortest-path) — add only if needed to separate
+   the superblock from the other patterns numerically.
+   → Network sandbox complete; the superblock teaches the region model.
+
+**Stage 3 — Phase 2: compose the WORLD (the frontier; needs all sandboxes done).**
+7. **Directed network → one-way streets** — directionality is a network property; the junction inherits
+   entry/exit arms. The M7 half-section groundwork makes the one-way cross-section a flag.
+8. **Two-tier major→minor generator** — major arterials first, fill local streets per region; the superblock
+   (step 5) generalises straight into this.
+9. **Network→junction zoom** — each network node renders in detail via the `streetlab` junction layer (the
+   `gen_network` seam already marked in code).
+10. **Integrate** `streetlab` × `roadnet2` × `roadlab` into one seed-driven map (grade-separated crossings call
+    roadlab's `make_junction`).
+11. *Ongoing/optional:* the open research questions (per-pattern metric table, learned generative models).
+   → A seed-driven world that emits `(pattern, region)` per place and `(legs, type)` per crossing.
+
+**Natural stopping points:** end of Stage 1 (junction done), end of Stage 2 (both sandboxes done — the clean
+"stop and combine later" line), and each Stage-3 step is its own deliverable.
+
 ## Cross-section composition — known issues + the next-pass plan (2026-06-22)
 
 M7 added typed lanes, but the EARLIER milestones (M3 turn lanes, M6 roundabout, M5 peds) still compute lane

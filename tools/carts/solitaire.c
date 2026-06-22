@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cards.h"
 #include <stddef.h>
 
 // ── Klondike Solitaire ────────────────────────────────────────
@@ -252,28 +253,7 @@ void update(void) {
 }
 
 // ── drawing ───────────────────────────────────────────────────
-static void draw_suit(int suit, int cx, int cy, int col) {
-    if (suit == 0) {                                   // heart
-        circfill(cx - 2, cy - 1, 3, col);
-        circfill(cx + 2, cy - 1, 3, col);
-        trifill(cx - 5, cy, cx + 5, cy, cx, cy + 6, col);
-    } else if (suit == 1) {                            // diamond
-        trifill(cx, cy - 6, cx - 4, cy, cx + 4, cy, col);
-        trifill(cx, cy + 6, cx - 4, cy, cx + 4, cy, col);
-    } else if (suit == 2) {                            // club
-        circfill(cx, cy - 3, 3, col);
-        circfill(cx - 3, cy + 1, 3, col);
-        circfill(cx + 3, cy + 1, 3, col);
-        rectfill(cx - 1, cy, 2, 6, col);
-        trifill(cx - 3, cy + 6, cx + 4, cy + 6, cx + 1, cy + 3, col);
-    } else {                                           // spade
-        trifill(cx, cy - 6, cx - 5, cy + 2, cx + 5, cy + 2, col);
-        circfill(cx - 2, cy + 2, 3, col);
-        circfill(cx + 2, cy + 2, 3, col);
-        rectfill(cx - 1, cy + 2, 2, 5, col);
-        trifill(cx - 3, cy + 8, cx + 4, cy + 8, cx + 1, cy + 4, col);
-    }
-}
+static void draw_suit(int suit, int cx, int cy, int col) { card_suit(suit, cx, cy, col, 0.75f); }
 
 static void draw_card(Card c, int x, int y) {
     if (!c.face) {

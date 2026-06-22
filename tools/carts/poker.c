@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cards.h"
 
 // ── video poker — Jacks or Better ─────────────────────────────
 // The arcade classic. You're dealt 5 cards; click the ones you
@@ -152,28 +153,7 @@ void update(void) {
 }
 
 // ── drawing ───────────────────────────────────────────────────
-static void draw_suit(int suit, int cx, int cy, int col) {
-    if (suit == 0) {                                   // heart
-        circfill(cx - 3, cy - 2, 4, col);
-        circfill(cx + 3, cy - 2, 4, col);
-        trifill(cx - 7, cy, cx + 7, cy, cx, cy + 9, col);
-    } else if (suit == 1) {                            // diamond
-        trifill(cx, cy - 8, cx - 6, cy, cx + 6, cy, col);
-        trifill(cx, cy + 8, cx - 6, cy, cx + 6, cy, col);
-    } else if (suit == 2) {                            // club
-        circfill(cx, cy - 4, 4, col);
-        circfill(cx - 4, cy + 1, 4, col);
-        circfill(cx + 4, cy + 1, 4, col);
-        rectfill(cx - 1, cy, 3, 8, col);
-        trifill(cx - 4, cy + 9, cx + 5, cy + 9, cx + 1, cy + 4, col);
-    } else {                                           // spade
-        trifill(cx, cy - 8, cx - 7, cy + 3, cx + 7, cy + 3, col);
-        circfill(cx - 3, cy + 3, 4, col);
-        circfill(cx + 3, cy + 3, 4, col);
-        rectfill(cx - 1, cy + 3, 3, 7, col);
-        trifill(cx - 4, cy + 11, cx + 5, cy + 11, cx + 1, cy + 6, col);
-    }
-}
+static void draw_suit(int suit, int cx, int cy, int col) { card_suit(suit, cx, cy, col, 1.0f); }
 
 static void draw_card(int i) {
     int x = CARD_X + i * (CW + GAP), y = CARD_Y;

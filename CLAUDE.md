@@ -107,9 +107,15 @@ eventually2/
 │       │               #   keyboard plays it for free (engine midi_get(); macOS).
 │       │               #   NOT for ribbons (martenot/heldnotes) or the radio
 │       │               #   scale strip (solo.h) — design/midi-and-keybed.md
-│       └── solo.h      #   the jam layer — a scale-locked solo strip the PLAYER
-│                       #   drives over a radio (pairs with radio.h; built on ui.h
-│                       #   capture). NOT for soloist-less stations (ambient/satie)
+│       ├── solo.h      #   the jam layer — a scale-locked solo strip the PLAYER
+│       │               #   drives over a radio (pairs with radio.h; built on ui.h
+│       │               #   capture). NOT for soloist-less stations (ambient/satie)
+│       └── cards.h     #   shared playing-card rendering for the card games
+│                       #   (blackjack/poker/solitaire/strippoker): card_suit(suit,
+│                       #   cx,cy,col,s) draws a suit pip; geometry SCALES from the
+│                       #   canonical large pip (s=1.0 = blackjack/poker, pixel-exact).
+│                       #   A cart wraps it as its own draw_suit() at its scale —
+│                       #   never hand-roll the heart/diamond/club/spade geometry again.
 │       full table + contract: docs/guides/cart-authoring.md → "Cart-land
 │       library headers". Building a SOUND/instrument cart? The shelf —
 │       docs/guides/instrument-carts.md — indexes every existing one by which

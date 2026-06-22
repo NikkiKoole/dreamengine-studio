@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cards.h"
 #include <stddef.h>
 
 // ── STRIP POKER (PG-13) — a velvet-lounge card flirtation ─────────
@@ -362,28 +363,7 @@ void update(void) {
 }
 
 // ── drawing ───────────────────────────────────────────────────────
-static void draw_suit(int suit, int cx, int cy, int col) {
-    if (suit == 0) {                                   // heart
-        circfill(cx - 3, cy - 2, 3, col);
-        circfill(cx + 3, cy - 2, 3, col);
-        trifill(cx - 6, cy, cx + 6, cy, cx, cy + 8, col);
-    } else if (suit == 1) {                            // diamond
-        trifill(cx, cy - 7, cx - 5, cy, cx + 5, cy, col);
-        trifill(cx, cy + 7, cx - 5, cy, cx + 5, cy, col);
-    } else if (suit == 2) {                            // club
-        circfill(cx, cy - 3, 3, col);
-        circfill(cx - 4, cy + 1, 3, col);
-        circfill(cx + 4, cy + 1, 3, col);
-        rectfill(cx - 1, cy, 2, 7, col);
-        trifill(cx - 4, cy + 8, cx + 4, cy + 8, cx, cy + 4, col);
-    } else {                                           // spade
-        trifill(cx, cy - 7, cx - 6, cy + 2, cx + 6, cy + 2, col);
-        circfill(cx - 3, cy + 2, 3, col);
-        circfill(cx + 3, cy + 2, 3, col);
-        rectfill(cx - 1, cy + 2, 2, 6, col);
-        trifill(cx - 4, cy + 9, cx + 4, cy + 9, cx, cy + 5, col);
-    }
-}
+static void draw_suit(int suit, int cx, int cy, int col) { card_suit(suit, cx, cy, col, 0.85f); }
 
 // draw a card with a flip envelope (0 = back, 1 = face). squashes in x.
 static void draw_card(Card c, int x, int y, float flip, bool gold, bool selring) {

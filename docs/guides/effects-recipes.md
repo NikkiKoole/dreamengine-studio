@@ -71,6 +71,7 @@ Per-slot `send` 0–1 chooses how much each instrument throws into it. **Showcas
 | dynamic room echo | `echo(90+open*300, 0.10f+open*0.30f, 0.35f+open*0.25f)` | echo that opens with the space: corridor→hall driven by one `open` 0..1 | `deeper` |
 | hard feed into a loop | `instrument_echo(PAD, 0.7f)` | a pad fed heavily into a long echo = an evolving wash (the tape-loop trick) | `tapeloop`, `wowflutter` |
 | live delay pedal | `echo(rate_ms(), fb_x(), tone_x())` from knobs | the effect played as the instrument; feedback into the red = self-osc drone | `spacecho`, `tb303`, `kaoss` (ECHO program; sends opened on the loop only while ECHO is selected) |
+| dub-siren throw | held voices at `instrument_echo(slot, 0.7f)`; ride `echo(t, fb, .55)` with `fb` past 1.0 | stab the siren, lift, the echo throws the tail; past the red it self-oscillates and HOWLS forever — pull `fb` back to dub it out | `dubsiren` (the FIRE PAD X axis IS the feedback) |
 | delay as an in-line INSERT | `echo_insert(time_ms, fb, tone, mix)` + `FX_ECHO` in `fx_order(0,…)` | a real reorderable DELAY pedal whose chain POSITION is audible — `delay→drive` distorts the repeats, `drive→delay` makes clean echoes of a dirty signal | `pedalboard` (DELAY), `modrack` (ECHO module — cv inlet sweeps the mix for dub throws) |
 
 > **`echo()` (send) vs `echo_insert()` (insert).** `echo()` is the shared parallel send — its wet
@@ -126,6 +127,7 @@ dark tail). Bus-only configure; per-slot `send`. **Showcase: `cathedral`** (orga
 | worn-tape ensemble | `reverb(0.55f, 0.45f)` | mid room under chorus+tape = the Mellotron "recording" | `mellotron` |
 | dynamic openness | `reverb(0.12f+open*0.82f, 0.50f-open*0.18f)` | corridor→hall on one knob; sends 0.08→0.92 (10× range) | `deeper` |
 | dry bus, wet parts | bass/kick send `0.0f`, mallet/pad `0.32–0.40f` | keep the low end tight + punchy while melody hangs in the hall | `polopan` |
+| dub splash | `reverb(0.2f+verb*0.8f, 0.45f)` + held-siren sends ~0.4 | the spring-tank wash under a sound-system siren (set the send BEFORE `note_on` or a held voice never reaches the tank) | `dubsiren` |
 
 ### reverb send-buses — `reverb_bus(tank, size, damp)` · `instrument_reverb_bus(slot, tank, mix)`
 

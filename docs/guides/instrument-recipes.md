@@ -488,6 +488,19 @@ through its own resonant filter, summed; the cutoffs are ridden live from an Alp
 > recirculated bit with a probability = the CHAOS knob), read out as a scale degree. The voices are
 > the standard sequence/drum kit; the generativity is all in the register, not the patch.
 
+### dubsiren (machine — a 2-voice siren, from dubsiren.c)
+
+| recipe | engine | params | notes |
+|---|---|---|---|
+| dubsiren/siren | SQUARE | A1 D0 S9 R220 · drive0.12 · held, `note_lfo(LFO_PITCH)` 0.5–20Hz × 0–12st | The siren tone — a sustaining square warbled by the pitch LFO (shape = whoop/two-tone/ramp/zigzag); pitch ridden live from the FIRE PAD's Y. |
+| dubsiren/body | SAW | A1 D0 S9 R220 · held, detuned +0.09st, same LFO | A detuned saw under the square for beating/fatness. |
+
+> Both voices are `note_on`-held and start at vol 0 (silent until the pad fires). Their character is
+> mostly the **effects**, not the patch: `echo()` feedback throw (ride past 1.0 = self-osc howl) +
+> `reverb()` splash — see [`effects-recipes.md`](effects-recipes.md). **Set `instrument_echo`/
+> `instrument_reverb` BEFORE `note_on`** — the sends are sampled at trigger, so a held voice set after
+> never feeds the buses.
+
 ### loopstation (synth — 7 fixed tracks, from loopstation.c)
 
 | name | engine | recipe | character |

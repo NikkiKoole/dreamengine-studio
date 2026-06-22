@@ -482,24 +482,28 @@ void draw(void){
     // further down the arm) — and, with turn lanes, the median nose too (no centreline over the island).
     for (int i=0;i<n;i++){
         float b=brg[i], df=arm_face(brg,n,i,HW);
-        float startd = df + cornerR + 3;
-        if (turnLanes && df+POCKET+PTAPER+3 > startd) startd = df+POCKET+PTAPER+3;
+        // the cleared THROAT of the arm is at the curb-return TANGENT, ~cornerR beyond the bare corner K
+        // (arm_face). Every mouth marking — stop bar, crosswalk, median, turn bay, arrow — keys off this
+        // `mouth` datum, NOT df, so they sit at the rounded mouth instead of poking back into the fillet.
+        float mouth = df + cornerR;
+        float startd = mouth + 3;
+        if (turnLanes && mouth+POCKET+PTAPER+3 > startd) startd = mouth+POCKET+PTAPER+3;
         arm_markings(cx,cy,b,HW,startd,REACH);
         float dx=ux(b),dy=uy(b), ix=ux(b-90),iy=uy(b-90);
         if (turnLanes){
-            draw_median(cx,cy,b,df);                       // the channelizing island on the centreline
+            draw_median(cx,cy,b,mouth);                    // the channelizing island on the centreline
             // mark the inner inbound lane (next to the median) as the LEFT-TURN lane: a SOLID white
             // delineation from the stop bar back over the bay, where the dashed dividers leave off. No
             // carriageway widening — the lane lives inside the existing road, so it's skew-safe.
             if (lanesPer>=2)
-                line((int)(cx+dx*df+ix*LANEW),(int)(cy+dy*df+iy*LANEW),
-                     (int)(cx+dx*(df+POCKET)+ix*LANEW),(int)(cy+dy*(df+POCKET)+iy*LANEW),CLR_WHITE);
-            turn_arrow(cx,cy,b,df,CLR_WHITE);
+                line((int)(cx+dx*mouth+ix*LANEW),(int)(cy+dy*mouth+iy*LANEW),
+                     (int)(cx+dx*(mouth+POCKET)+ix*LANEW),(int)(cy+dy*(mouth+POCKET)+iy*LANEW),CLR_WHITE);
+            turn_arrow(cx,cy,b,mouth,CLR_WHITE);
         }
         // M5: zebra crosswalk at the mouth (peds cross here); the stop bar sits BEHIND it (cars stop short).
-        if (peds) draw_crosswalk(cx,cy,b,HW,df);
+        if (peds) draw_crosswalk(cx,cy,b,HW,mouth);
         // stop bar across the inbound lanes (drive-on-right: inbound sits on the b-90 side)
-        float sb = peds ? df+1+CWDEP+1 : df+1;
+        float sb = peds ? mouth+1+CWDEP+1 : mouth+1;
         float mx=cx+dx*sb, my=cy+dy*sb;
         line((int)mx,(int)my,(int)(mx+ix*HW),(int)(my+iy*HW),CLR_WHITE);
     }

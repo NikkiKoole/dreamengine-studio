@@ -1685,6 +1685,14 @@
     ]
   },
   {
+    "title": "streetlab",
+    "description": "The FOUNDATION sandbox for the AT-GRADE world, one tier BELOW roadlab. roadlab draws the grade-separated INTERCHANGE family (loop/flyover ramps that ELIMINATE the crossing); streetlab draws the streets that cross AT GRADE — a different geometry grammar (curb returns, small radii, turn lanes) flagged as unmodeled in docs/design/road-hierarchy-notes.md. The seam between the tiers is access control: freeway = ramp-only = roadlab, everything below = at grade = streetlab. Milestone 1: a perpendicular 4-way crossing with CURB-RETURN corner fillets — the headline at-grade primitive, an arc tangent to both curb lines whose radius is kept SMALL (it slows turns and shortens the pedestrian crossing, the opposite goal of a high-speed ramp). curb_return() is the closed-form tangent-arc construction and the first spec() target. Controls: [ / ] curb radius, - / = lanes per direction. Next: skew + the T family, turn lanes, then the street WEB (network topology). See docs/design/road-hierarchy-notes.md.",
+    "file": "streetlab.cart.png",
+    "kind": [
+      "tech-demo"
+    ]
+  },
+  {
     "title": "Football Manager",
     "description": "An FC-Mobile-style manager mode: run a club's starting XI on a drag-to-arrange formation pitch, with a bench of spares, switchable 4-4-2 / 4-3-3 shapes, and an out-of-position penalty that makes your shape matter. Wheel and deal in a transfer market against a cash budget — sign a face, sell the deadwood — then hit PLAY MATCH and the engine auto-sims a scoreline from your XI's strength versus the opponent's, ticking the goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT. Other clubs play their own fixtures and the 6-team league table re-sorts live on points and goal difference across a 10-round season; finish top to be champions. Drag players between the pitch and the bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL in the market, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays).",
     "file": "soccermgr.cart.png",

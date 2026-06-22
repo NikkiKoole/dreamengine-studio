@@ -1,0 +1,24 @@
+# transitions — tab right from IRIS to the LUMA transition, then play it:
+# a 3-arm swirl thresholds in PIXEL-PERFECT (per-row spans over a precomputed
+# grayscale field) — the luma-mask generalization: the shape is data, not code.
+# Controls: <>/arrows pick · Z play · ^v speed · X easing.
+# frames 110
+# fps 60
+# scale 2
+# crf 30
+down 5 RIGHT
+up 7 RIGHT
+down 12 RIGHT
+up 14 RIGHT
+down 19 RIGHT
+up 21 RIGHT
+down 26 RIGHT
+up 28 RIGHT
+down 33 RIGHT
+up 35 RIGHT
+down 40 RIGHT
+up 42 RIGHT
+down 47 RIGHT
+up 49 RIGHT
+down 56 Z
+up 58 Z

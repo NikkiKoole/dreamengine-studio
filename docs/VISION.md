@@ -24,7 +24,12 @@ That north star still holds — it's the on-ramp. But a **second pursuit has gro
 
 ## Target
 
-- **Audience:** teens and hobbyists. Some prior exposure to code helpful but not required.
+- **Audience:** primarily **in-house** — the maker, Claude, and the maker's children, making
+  carts together (the learn-to-code on-ramp still frames the design, but the day-to-day user
+  is us). The *public* is an audience that **views and plays** a curated showcase, not a user
+  base that makes carts. ✓ Settled — [decision 0020](decisions/0020-in-house-tool-curated-showcase.md).
+  (The original "teens and hobbyists" framing remains the design lens; it's no longer a
+  platform we open to outside *authors*.)
 - **Platform:** native desktop done (Electron + clang). Browser sharing target and iPad runtime are still future work — the editor renders in a browser tab but ▶ run currently needs Electron because it spawns the compiler. Touch input (`stick_x/y`, `tap`, on-screen stick + A/B) is already wired in the runtime to make the iPad path easier later.
 - **Constraints:** fantasy console style — fixed resolution, 32-color palette, 8 sound voices. Constraints as a feature, not a limitation. ✓ Settled.
 
@@ -176,6 +181,12 @@ The first arc — getting a usable PICO-8-style fantasy console with a code edit
 **Roadmap lives in [`STATUS.md`](STATUS.md)** — the single ledger of what's shipped, open, and cut. This file stays about the *why*, not the *what's-next*. The vision-level questions still genuinely open are below; everything else is tracked there.
 
 ### Vision-level open questions
-- **Sharing the work** — the web build ships, but the "send your friend a URL" loop needs a host. What's the right shape — itch.io, a one-click publish, or a dreamengine-hosted gallery? (See [`guides/sharing.md`](guides/sharing.md).)
+- ~~**Sharing the work**~~ — **resolved** ([decision 0020](decisions/0020-in-house-tool-curated-showcase.md)).
+  The shape is a **curated public showcase**: a hand-picked subset of carts people *view*
+  (clips) and *play* (the shipped GH Pages wasm gallery), hosted where the repo already lives.
+  Not a cart-making platform — no outside authors, accounts, or upload. The remaining work is
+  *showcase* work, not *platform* work: a "featured" subset distinct from the full published
+  index, and making the gallery come alive with [clips](design/cart-clips.md) →
+  [attract-mode](design/attract-mode.md) embeds. (See [`guides/sharing.md`](guides/sharing.md).)
 - **Sound: code-only or also a tracker?** The code-as-music primitives work; whether visual editing is ever needed depends on who ends up using this. (Design in [`design/audio-notes.md`](design/audio-notes.md).)
 - **The sprite-editor "frames" question** (above) — still the central unresolved design tension in the tools.

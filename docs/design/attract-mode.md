@@ -136,6 +136,21 @@ attract loop) is valuable on its own, the native prototype isn't a throwaway spi
 something real, and tells you whether the *feel* justifies the web build before you commit to
 that ladder.
 
+## Update (2026-06-22): the venue is now decided — the embed payoff is real
+
+When this was written, payoff 3 (live web embeds) was the "expensive, last" rung partly
+because there was no agreed venue to embed *into*. [Decision 0020](../decisions/0020-in-house-tool-curated-showcase.md)
+settles that: the public surface is a **curated showcase** people both *watch* and *play*.
+That makes the embed payoff concrete rather than speculative — the showcase dream is exactly
+the attract handoff on the web: the gallery shows a looping **clip** → you click → it becomes
+**playable** ("press start"). So attract mode is now the natural *top* of the showcase ladder,
+above clips.
+
+The sequencing below is unchanged and still right: prove the **feel** with the native
+flag-gated prototype in one cart (`sloop`) first, and bake [clips](cart-clips.md) (the cheap
+win) before the embed. What changed is only that the top rung is no longer a "maybe" — it has
+a destination.
+
 ## Honest take + sequencing
 
 Worth doing, but the next rung, not the urgent one. The cheapest win — collecting demo tracks

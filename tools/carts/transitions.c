@@ -13,6 +13,15 @@
 //   BLINDS   — venetian slats snap closed
 //   DISSOLVE — an ordered-dither pixel dissolve (Genesis / Sonic)
 //   FADE     — the whole screen dims to black and back
+//   LUMA     — a grayscale "image" thresholded by coverage: ANY shape becomes a
+//              transition (here a swirl). the GENERALIZATION of every mask above —
+//              the shape is DATA, not code (could be a grayscale sprite). drawn
+//              PIXEL-PERFECT: scan each row for covered runs (gray < p) and fill
+//              them — 64k cheap compares + ~1k spans, never 64k psets.
+//   TRIANGLE — a wipe whose advancing edge is triangle teeth (symmetric points).
+//              ALSO a luma field (ramp + a vertical TOOTH wave — triangle here,
+//              sawtooth by swapping one line), monotonic in x so each row is ONE
+//              span solved directly — the cheap analytic face of luma.
 //   SLIDE    — the new scene shoves the old one off-screen (no black middle).
 //              this is the one where ease-back's overshoot is VISIBLE — the
 //              incoming scene slides a touch too far, then springs back to rest.
@@ -27,9 +36,9 @@
 // ramps p 0→1, we swap scenes at black, IN ramps p 1→0. Every transition is
 // just a different black mask — see mask() below; most are a single primitive.
 
-typedef enum { T_IRIS, T_CLOCK, T_WIPE, T_CURTAIN, T_BLINDS, T_DISSOLVE, T_FADE, T_SLIDE, T_COUNT } Trans;
+typedef enum { T_IRIS, T_CLOCK, T_WIPE, T_CURTAIN, T_BLINDS, T_DISSOLVE, T_FADE, T_LUMA, T_TRI, T_SLIDE, T_COUNT } Trans;
 static const char *NAMES[T_COUNT] = {
-    "IRIS", "CLOCK WIPE", "WIPE", "CURTAIN", "BLINDS", "DISSOLVE", "FADE", "SLIDE PUSH"
+    "IRIS", "CLOCK WIPE", "WIPE", "CURTAIN", "BLINDS", "DISSOLVE", "FADE", "LUMA", "TRIANGLE", "SLIDE PUSH"
 };
 
 typedef enum { PH_IDLE, PH_OUT, PH_IN } Phase;
@@ -59,6 +68,13 @@ static int   ease = E_INOUT; // easing curve applied to coverage
 static float fx, fy;         // hero focal point (iris / clock centre)
 static int   star_x[NSTARS], star_y[NSTARS], star_b[NSTARS];
 
+// ── LUMA: a grayscale field thresholded by coverage — THE generalization (any
+//    grayscale "image" is a transition: a pixel goes black when its gray < p).
+//    Computed once at full resolution into lumapx[] (a swirl); the LUMA transition
+//    renders it PIXEL-PERFECT via per-row spans (scan each row for covered runs).
+//    (An A/B against a chunky cell version chose pixel — see design/transitions.md.)
+static unsigned char lumapx[SCREEN_H][SCREEN_W]; // 0..255 grayscale; the SHAPE, as data
+
 // ── farthest-corner radius from a focal point: how big the mask must grow ──
 static float corner_radius(float cx, float cy) {
     float best = 0;
@@ -78,6 +94,15 @@ void init(void) {
         star_x[i] = rnd_between(0, SCREEN_W);
         star_y[i] = rnd_between(0, SCREEN_H - 50);
         star_b[i] = rnd_between(0, 3);   // twinkle phase
+    }
+    // bake the luma field once at full res (a 3-arm swirl). This IS the "image" —
+    // swap the formula (or read a sprite) for a different transition, free.
+    for (int y = 0; y < SCREEN_H; y++) for (int x = 0; x < SCREEN_W; x++) {
+        float dx = x - SCREEN_W / 2.0f, dy = y - SCREEN_H / 2.0f;
+        float r = sqrtf(dx * dx + dy * dy);
+        float a = atan2f(dy, dx);
+        float v = 0.5f + 0.5f * sinf(a * 3.0f + r * 0.06f);   // swirl arms
+        lumapx[y][x] = (unsigned char)(clamp(v, 0.0f, 0.98f) * 255.0f); // <255 so p≈1 covers all
     }
 }
 
@@ -165,6 +190,36 @@ static void mask(int tr, float p) {
         } break;
         case T_FADE: {
             fade(p);
+        } break;
+        case T_LUMA: {
+            // PIXEL-PERFECT: scan each row of the precomputed field for covered runs
+            // (gray < p) and fill each run — 64k cheap compares + ~1k fills, NOT
+            // 64k psets. ANY grayscale "image" becomes a smooth transition this way.
+            int thr = (int)(p * 255.0f);
+            for (int y = 0; y < SCREEN_H; y++) {
+                int x = 0;
+                while (x < SCREEN_W) {
+                    if (lumapx[y][x] < thr) {
+                        int x0 = x;
+                        while (x < SCREEN_W && lumapx[y][x] < thr) x++;
+                        rectfill(x0, y, x - x0, 1, BLACK);
+                    } else x++;
+                }
+            }
+        } break;
+        case T_TRI: {
+            // a TRIANGLE-tooth wipe — same luma field idea (ramp x/W + a vertical
+            // tooth wave), monotonic in x so each row is ONE span: fill 0..edge.
+            // The tooth WAVEFORM is the only knob: triangle here; sawtooth would be
+            // s = (float)(y % teeth) / teeth.
+            float amp = 0.12f; int teeth = 16;            // tooth depth (frac W), rows/tooth
+            for (int y = 0; y < SCREEN_H; y++) {
+                float ph = (float)(y % teeth) / teeth;    // 0..1 within a tooth
+                float s = 1.0f - fabsf(2.0f * ph - 1.0f); // triangle: 0 → 1 → 0
+                float cov = clamp(p * (1.0f + amp) - amp * s, 0.0f, 1.0f);
+                int edge = (int)(cov * SCREEN_W);
+                if (edge > 0) rectfill(0, y, edge, 1, BLACK);
+            }
         } break;
     }
 }

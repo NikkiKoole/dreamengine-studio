@@ -1090,6 +1090,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
 These were considered and **cut** — kept here so the decision isn't relitigated.
 Rationale lives in [`design/api-notes.md`](design/api-notes.md)'s "What to defer or skip" and the 2026-05-30 review.
 
+- **A cart-making PLATFORM (outside authors)** — creator accounts, cart upload/sharing from
+  strangers, a browser IDE for others, a public compile-strangers'-C server. **Cut**
+  (2026-06-22, [decision 0020](decisions/0020-in-house-tool-curated-showcase.md)): dreamengine
+  is an in-house tool; the public surface is a **curated showcase** people view (clips) and
+  play (wasm), not contribute to. Resolves the old "Sharing the work" open question. The
+  tinydaws *product* line ([`design/product-notes.md`](design/product-notes.md)) is a separate
+  question, unaffected.
 - **Process / coroutine model (DIV-style)** — the would-be "Level-2" learning model.
   Every shipped cart works cleanly with plain typed static pools, so it's weeks
   of coroutine/transformer machinery for a model we don't need. [`VISION.md`](VISION.md).

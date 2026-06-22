@@ -56,6 +56,7 @@ What this implies elsewhere (docs to update, things now out of scope).
 | [0017](0017-three-macro-core-plus-engine-aux-channel.md) | Keep the 3-macro core; a blessed per-engine aux channel for the exceptions (not a 4th macro) | accepted |
 | [0018](0018-effects-keep-params-but-become-modulatable.md) | Effects keep bespoke params (no instrument-style macros) — but make the sweep-safe ones LFO/CV-able (esp. in modrack) | accepted |
 | [0019](0019-oscillators-are-naive-antialiasing-deferred.md) | Oscillators stay naive (non-band-limited); anti-aliasing deferred + would be opt-in | accepted |
+| [0020](0020-in-house-tool-curated-showcase.md) | In-house tool + curated public showcase — not a cart-making platform | accepted |
 
 > Back-fill candidates (decisions made but not yet written up): C as the language /
 > no-heap globals+stack; the `.cart.png` zTXt format; carts-carry-their-own-settings

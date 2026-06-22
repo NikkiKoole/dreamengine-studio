@@ -82,3 +82,46 @@ duration → `--crf` → scale, not resolution — see
 > Status: exporter landed (`tools/make-gif.js`). Next: wire auto-detection into
 > `tools/build-history.js` (see [`../guides/history-page.md`](../guides/history-page.md) →
 > "Moving thumbnails — clip support") and, later, the editor cart picker.
+
+## Sound — clips must carry audio (gap; the hard half is already done)
+
+Today every baked clip is **silent**: `tools/make-gif.js` passes ffmpeg `-an` (no audio) and
+only ever calls `play.js --dump` (frames), never `--wav`. For a fantasy console where a large
+share of the headline carts are **instruments, radios, and synths**, a silent clip of `easel`
+or `moog` shows almost nothing — the sound *is* the cart. A real showreel needs audio.
+
+The good news: it's a one-tool gap, not a missing capability. **`play.js --wav` already
+renders a cart's audio to WAV, byte-reproducible under `--det`** (it's the audio-analysis
+path — see [`../guides/debug-harness.md`](../guides/debug-harness.md) → "WAV"). So the same
+deterministic track that dumps the frames can render bit-identical audio. What's missing is
+only the wiring in `make-gif.js`: also run the track with `--wav`, then ffmpeg-mux the WAV
+into the video (drop `-an`, add the audio input + `-shortest`).
+
+Things to get right when it's built (parked, for the decision later):
+
+- **Sync = same deterministic track.** Frames (`--dump`) and audio (`--wav`) must come from
+  the *same* input + seed + `--det`, so their timelines correspond. Mind `--dump-every` /
+  `fps`: the video must play back at real-time (engine is 60 fps) for the audio to line up;
+  `-shortest` trims trailing mismatch.
+- **Format carries audio per container.** webm → Opus, mp4 → AAC; **gif can't carry audio at
+  all**, so it stays the silent lo-fi fallback (consistent with webm-primary / gif-fallback).
+- **Autoplay vs. showreel are different audio policies.** A clip *autoplaying as a moving
+  thumbnail* in the gallery must be **muted** (browser autoplay policy; many carts at once) —
+  audio on tap/hover or on the playable embed. A deliberate *"press play" showreel video*
+  plays with sound by default. Same baked file, two presentation rules — see
+  [attract-mode.md](attract-mode.md) "Web manners".
+
+This applies to all three showreel layers in [transitions.md](transitions.md): an in-cart
+transition clip (A), a stitched reel (B), and the live cross-cart player (C) all want sound.
+
+## Why this is now the priority (the venue is decided)
+
+The clip system stalled not on the tool — which is done — but on the absence of a venue to
+show clips in. That's resolved: [decision 0020](../decisions/0020-in-house-tool-curated-showcase.md)
+makes the public surface a **curated showcase** people view and play. Clips are the cheapest,
+lowest-risk way to make the gallery we *already publish* stop reading as a 400-item file
+listing — a wall of moving images reads as "look what we made," a wall of stills reads as a
+directory. Concretely: only `sloop/01-autodrive.webm` is baked of ~10 committed recipe
+tracks; the cheap win is a `make-gif.js --all` pass + wiring the gallery/history page to
+glob `clips/<cart>/`. Note the showcase is **curated** (a featured subset, not all ~400), so
+clips are worth baking first for the carts that would headline.

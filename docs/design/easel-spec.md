@@ -103,9 +103,13 @@ sequencer is deferred to v2; v1's self-play is pulser + random.)
 (rise/fall, one-shot/cycle, → gate/timbre); the pressure ribbon (X-pitch snap/free, Y-pressure) +
 A–K keys; PRESS/PLUCK modes; a pulser + random-pitch self-play (RUN); the signal-flow + slope visuals.
 
-**Deferred (v2):** the 5-step *pitch* sequencer (real Easel pulser/sequencer); a second (modulation)
-oscillator with its own controls (true dual-osc complex); a dual LPG (two gates); preset/patch save;
-MIDI/pressure from a real controller.
+**v2 (shipped 2026-06-22):** **polyphony** (4 voices — chords on A–K, overlapping plucks, sequence
+notes ring over each other) + the **5-step sequencer** (RUN steps a 5-note pitch sequence you set by
+tapping the step cells; a **SEQ/RND** toggle picks sequence vs random). PRESS still grabs one voice;
+the rest of the pool is poly.
+
+**Deferred (v3):** a second (modulation) oscillator with its own controls (true dual-osc complex); a
+dual LPG (two gates); preset/patch save; MIDI/pressure from a real controller.
 
 ## Risks / open questions
 

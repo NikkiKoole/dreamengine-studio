@@ -13,12 +13,14 @@
 // • FUNCTION GENERATOR: a RISE/FALL slope. PLUCK = tap fires it → a bonk; PRESS = ribbon pressure
 //   rides the gate live; CYCLE = it free-runs as an LFO → GATE (tremolo) or TIMBRE (auto sweep).
 // • RIBBON: X = pitch (SNAP to scale, or FREE/microtonal), Y = pressure. A–K keys play it too.
-// • PULSER: RUN auto-fires the function generator at random scale pitches → it plays itself.
+// • 5-STEP SEQUENCER + PULSER: RUN steps a 5-note sequence (tap a step to set its pitch) — or RND
+//   for random pitches. POLYPHONIC (4 voices) so notes ring and chords/sequences overlap.
 //
 //   Drag the ribbon (X pitch, Y pressure). Knobs RATIO/TIMBRE/FOLD/RISE/FALL/RATE. Buttons pick
-//   PLUCK/PRESS · CYCLE off/gate/timbre · RUN · SNAP/FREE. Spec: docs/design/easel-spec.md.
+//   PLUCK/PRESS · CYCLE off/gate/timbre · RUN · SNAP/FREE · SEQ/RND. Spec: docs/design/easel-spec.md.
 
 #define SL 5
+#define NV 4                             // polyphony
 
 // ── scale / pitch ──
 static const int PENTA[5] = { 0, 2, 4, 7, 9 };
@@ -27,23 +29,30 @@ static const int PENTA[5] = { 0, 2, 4, 7, 9 };
 static const int LKEY[8] = { 'A','S','D','F','G','H','J','K' };
 static int step_pitch(int s) { return BASE + 12 * (s / 5) + PENTA[s % 5]; }
 
-// ── the one voice + the gate ──
-static int   hV = -1;
-static float glvl = 0;                   // LPG level (0..1) — drives vol + cutoff + fold ('gate' is a built-in)
-static int   gph = 0;                    // function-gen phase: 0 idle, 1 rising, 2 falling (PLUCK)
-static float peak = 1.0f;                // pluck velocity (target of the rise)
-static float vpitch = BASE;              // current (glided) pitch
+// ── the voice pool + per-voice gate ──
+static int   h[NV];
+static float glvl[NV];                   // LPG level 0..1 per voice ('gate' is a built-in)
+static int   gph[NV];                    // function-gen phase: 0 idle, 1 rising, 2 falling
+static float peak[NV];                   // pluck velocity (rise target)
+static float vp[NV];                     // each voice's (glided) pitch
+static int   press_v = -1, press_fid = -1;   // voice + finger held in PRESS mode
+static float press_y = 0;
 static int   gflash = -100;
 
 // ── function-generator free-run LFO (CYCLE) ──
 static float lfo = 0; static int lfodir = 1;
+
+// ── 5-step sequencer ──
+static int   seq[5] = { 0, 2, 4, 2, 5 };     // scale steps
+static int   seqi = 0;
+static int   useseq = 1;                     // 1 = SEQ, 0 = RND
 
 // ── knobs / toggles ──
 static float k_ratio = 0.30f, k_timbre = 0.45f, k_fold = 0.35f;
 static float k_rise = 0.12f, k_fall = 0.45f, k_rate = 0.4f;
 static int   mode = 0;        // 0 = PLUCK, 1 = PRESS
 static int   cyc  = 0;        // 0 = off, 1 = →GATE, 2 = →TIMBRE
-static int   run  = 0;        // pulser
+static int   run  = 0;
 static int   freetune = 0;    // 0 = SNAP, 1 = FREE
 static float puls_t = 0;
 
@@ -57,30 +66,45 @@ static void unown(int id){ for(int i=0;i<own_n;i++) if(own_ids[i]==id){own_ids[i
 #define RIB_Y 128
 #define RIB_W 308
 #define RIB_H 64
+// 5-step sequencer cells (top-right)
+#define SQ_X 168
+#define SQ_Y 16
+#define SQ_W 29
+#define SQ_H 26
 
 static float rise_per(void) { return (1.0f/60.0f) / (0.01f + k_rise * k_rise * 2.0f); }   // 0.01..2.0s
 static float fall_per(void) { return (1.0f/60.0f) / (0.03f + k_fall * k_fall * 3.0f); }   // 0.03..3.0s
 
-static void pluck(int pitch, float vel) { vpitch = pitch; note_pitch(hV, pitch); gph = 1; peak = vel; gflash = frame(); }
+// grab the quietest voice (steal) and start a pluck
+static int pluck(int pitch, float vel) {
+    int v = 0; float lo = glvl[0];
+    for (int i = 1; i < NV; i++) if (glvl[i] < lo) { lo = glvl[i]; v = i; }
+    vp[v] = pitch; note_pitch(h[v], pitch); gph[v] = 1; peak[v] = vel; gflash = frame();
+    return v;
+}
 
 void init(void) {
     instrument(SL, INSTR_FM, 2, 0, 9, 120);        // sustaining FM voice — our gate articulates it
-    instrument_filter(SL, FILTER_LOW, 8000, 3);    // the gate's lowpass
-    instrument_drive_mode(SL, DRIVE_FOLD);         // wavefolder
+    instrument_filter(SL, FILTER_LOW, 8000, 3);
+    instrument_drive_mode(SL, DRIVE_FOLD);
     instrument_drive(SL, 0.0f);
-    hV = note_on(BASE, SL, 0);
-    note_glide(hV, 22);                            // legato ribbon slides
-    note_harmonics(hV, k_ratio);
-    note_timbre(hV, k_timbre);
+    for (int v = 0; v < NV; v++) {
+        h[v] = note_on(BASE, SL, 0);
+        note_glide(h[v], 22);
+        glvl[v] = 0; gph[v] = 0; peak[v] = 1; vp[v] = BASE;
+    }
 }
 
 void update(void) {
-    // keys: A-K play, SPACE = RUN, number/letter toggles
-    for (int i = 0; i < 8; i++) if (keyp(LKEY[i])) pluck(step_pitch(i), 1.0f);   // keys always pluck
+    for (int i = 0; i < 8; i++) if (keyp(LKEY[i])) pluck(step_pitch(i), 1.0f);   // keys → chords (poly)
     if (keyp(KEY_SPACE)) run = !run;
     if (keyp('Z')) mode = !mode;
     if (keyp('X')) cyc = (cyc + 1) % 3;
     if (keyp('C')) freetune = !freetune;
+    if (keyp('V')) useseq = !useseq;
+
+    // sequencer step editing: tap a cell to bump its pitch up the scale
+    for (int i = 0; i < 5; i++) if (tapp(SQ_X + i * SQ_W, SQ_Y, SQ_W - 2, SQ_H)) seq[i] = (seq[i] + 1) % NSTEP;
 
     // ribbon — skip fingers that own a knob (sticky)
     for (int i = 0; i < touch_count(); i++) if (ui_captured(touch_id(i))) own(touch_id(i));
@@ -96,55 +120,63 @@ void update(void) {
             ry = clamp(1.0f - (ty - RIB_Y) / (float)RIB_H, 0, 1);
         }
     }
-    // ribbon pitch
-    float rpitch = vpitch;
-    if (rib_finger != -1) {
-        if (freetune) rpitch = BASE + rx * (NSTEP - 1) * 2.0f;          // continuous-ish (microtonal)
-        else          rpitch = step_pitch((int)(rx * (NSTEP - 0.001f)));
+    float rpitch = BASE;
+    if (rib_finger != -1)
+        rpitch = freetune ? BASE + rx * (NSTEP - 1) * 2.0f : step_pitch((int)(rx * (NSTEP - 0.001f)));
+
+    if (mode == 0) {                                   // PLUCK: new ribbon touch fires a voice; slide repitches it
+        static int last_rib = -1, last_v = -1;
+        if (rib_finger != -1 && rib_finger != last_rib) last_v = pluck((int)(rpitch + 0.5f), 0.7f + ry * 0.3f);
+        else if (rib_finger != -1 && last_v >= 0) { vp[last_v] = rpitch; note_pitch(h[last_v], (int)(rpitch + 0.5f)); }
+        last_rib = rib_finger;
+    } else {                                           // PRESS: a finger grabs one voice; pressure rides its gate
+        if (rib_finger != -1) {
+            if (rib_finger != press_fid) { press_v = pluck((int)(rpitch + 0.5f), 0.01f); gph[press_v] = 0; press_fid = rib_finger; }
+            press_y = ry; vp[press_v] = rpitch; note_pitch(h[press_v], (int)(rpitch + 0.5f));
+        } else if (press_fid != -1) { if (press_v >= 0) gph[press_v] = 2; press_v = -1; press_fid = -1; }   // released → fall
     }
 
-    // ── ribbon: both modes track pitch by X; PLUCK fires the FG on a NEW touch ──
-    static int last_rib = -1;
-    if (rib_finger != -1) {
-        vpitch = rpitch; note_pitch(hV, (int)(rpitch + 0.5f));
-        if (mode == 0 && rib_finger != last_rib) pluck((int)(rpitch + 0.5f), 0.5f + ry * 0.5f);
-    }
-    last_rib = rib_finger;
-
-    // pulser self-play (fires plucks)
+    // pulser self-play → SEQ steps the 5-note sequence, or RND
     if (run) {
         puls_t += 1.0f / 60.0f;
-        float iv = 0.12f + (1.0f - k_rate) * 0.6f;     // RATE → 0.12..0.72s
-        if (puls_t >= iv) { puls_t -= iv; pluck(step_pitch(rnd(NSTEP)), 0.6f + 0.4f * (rnd(100) / 100.0f)); }
+        float iv = 0.12f + (1.0f - k_rate) * 0.6f;
+        if (puls_t >= iv) {
+            puls_t -= iv;
+            if (useseq) { pluck(step_pitch(seq[seqi]), 0.85f); seqi = (seqi + 1) % 5; }
+            else        pluck(step_pitch(rnd(NSTEP)), 0.6f + 0.4f * (rnd(100) / 100.0f));
+        }
     }
 
-    // ── the function generator → gate ──
-    if (mode == 1 && rib_finger != -1) {               // PRESS: slew the gate to finger pressure
-        float rate = (ry > glvl) ? rise_per() : fall_per();
-        glvl += clamp(ry - glvl, -rate, rate); gph = 0;
-    } else if (gph == 1) { glvl += rise_per(); if (glvl >= peak) { glvl = peak; gph = 2; } }   // pluck rise
-    else if (gph == 2) { glvl -= fall_per(); if (glvl <= 0) { glvl = 0; gph = 0; } }            // pluck fall
-    else if (mode == 1) { glvl -= fall_per(); if (glvl < 0) glvl = 0; }                          // press released
+    // ── per-voice gate (function generator) ──
+    for (int v = 0; v < NV; v++) {
+        if (v == press_v) {                            // PRESS-controlled: slew to finger pressure
+            float rate = (press_y > glvl[v]) ? rise_per() : fall_per();
+            glvl[v] += clamp(press_y - glvl[v], -rate, rate);
+        } else if (gph[v] == 1) { glvl[v] += rise_per(); if (glvl[v] >= peak[v]) { glvl[v] = peak[v]; gph[v] = 2; } }
+        else if (gph[v] == 2) { glvl[v] -= fall_per(); if (glvl[v] <= 0) { glvl[v] = 0; gph[v] = 0; } }
+    }
 
-    // CYCLE: the FG free-runs as an LFO (rise/fall), routed to GATE or TIMBRE
+    // CYCLE: the FG free-runs as an LFO, routed to GATE (tremolo) or TIMBRE (auto sweep)
     lfo += lfodir * ((lfodir > 0) ? rise_per() : fall_per());
     if (lfo >= 1) { lfo = 1; lfodir = -1; } else if (lfo <= 0) { lfo = 0; lfodir = 1; }
-    float gout = glvl, tmod = 0;
-    if (cyc == 1) gout = glvl * (0.25f + 0.75f * lfo);   // tremolo
-    if (cyc == 2) tmod = lfo * 0.5f;                      // auto cross-mod sweep
+    float trem = (cyc == 1) ? (0.25f + 0.75f * lfo) : 1.0f;
+    float tmod = (cyc == 2) ? lfo * 0.5f : 0.0f;
 
-    // ── apply to the voice: complex-osc macros + fold + low-pass gate ──
-    note_harmonics(hV, k_ratio);
-    note_timbre(hV, clamp(k_timbre + tmod, 0, 1));
-    note_vol(hV, gout * 6.0f);
-    note_cutoff(hV, (int)(300.0f + 7700.0f * powf(clamp(gout, 0, 1), 1.6f)));   // highs die with the gate
-    note_drive(hV, k_fold * gout);
+    // ── apply to every voice: complex-osc macros + fold + low-pass gate ──
+    for (int v = 0; v < NV; v++) {
+        note_harmonics(h[v], k_ratio);
+        note_timbre(h[v], clamp(k_timbre + tmod, 0, 1));
+        float g = glvl[v] * trem;
+        note_vol(h[v], g * 5.0f);
+        note_cutoff(h[v], (int)(300.0f + 7700.0f * powf(clamp(g, 0, 1), 1.6f)));
+        note_drive(h[v], k_fold * g);
+    }
 
 #ifdef DE_TRACE
-    watch("gate", "%.2f", glvl);
     watch("mode", "%s", mode ? "PRESS" : "PLUCK");
-    watch("cyc",  "%d", cyc);
-    watch("pitch", "%.1f", vpitch);
+    watch("seq", "%d", useseq ? seqi : -1);
+    watch("v0", "%.2f", glvl[0]);
+    watch("cyc", "%d", cyc);
 #endif
 }
 
@@ -153,22 +185,31 @@ static const char *NN[12] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
     print("EASEL", 2, 3, CLR_LIGHT_YELLOW);
-    int n = (int)(vpitch + 0.5f);
-    print(str("%s%d", NN[n % 12], n / 12 - 1), 52, 3, CLR_LIGHT_GREY);
     print_right("west-coast voice", 318, 3, CLR_DARK_GREY);
 
     // signal-flow tag + the function-generator slope scope
     font(FONT_SMALL);
     print("OSC>FOLD>LPG", 2, 14, CLR_MEDIUM_GREY);
-    int sx = 96, sy = 14, sw = 66, sh = 22;
+    int sx = 80, sy = 16, sw = 64, sh = 22;
     rect(sx, sy, sw, sh, CLR_DARKER_GREY);
-    int rw = (int)(sw * k_rise / (k_rise + k_fall + 0.001f));    // rise portion width
-    line(sx, sy + sh, sx + rw, sy + 2, CLR_DARK_BLUE);           // rise ramp
-    line(sx + rw, sy + 2, sx + sw, sy + sh, CLR_DARK_BLUE);      // fall ramp
-    int gy = sy + sh - (int)(glvl * (sh - 3));                    // current gate level dot
-    circfill(sx + rw, gy, 2, glvl > 0.02f ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
-    print("FUNC GEN", sx, sy - 1 + sh + 1, CLR_DARK_GREY);
-    print(cyc == 1 ? "CYCLE>GATE" : cyc == 2 ? "CYCLE>TIMBRE" : "", 168, 16, CLR_INDIGO);
+    int rw = (int)(sw * k_rise / (k_rise + k_fall + 0.001f));
+    line(sx, sy + sh, sx + rw, sy + 2, CLR_DARK_BLUE);
+    line(sx + rw, sy + 2, sx + sw, sy + sh, CLR_DARK_BLUE);
+    float g0 = glvl[0]; int gy = sy + sh - (int)(g0 * (sh - 3));
+    circfill(sx + rw, gy, 2, g0 > 0.02f ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    print("FUNC GEN", sx, sy + sh + 1, CLR_DARK_GREY);
+    print(cyc == 1 ? "CYC>GATE" : cyc == 2 ? "CYC>TMBR" : "", sx + 2, sy - 1, CLR_INDIGO);
+
+    // ── the 5-step sequencer ──
+    for (int i = 0; i < 5; i++) {
+        int x = SQ_X + i * SQ_W;
+        bool cur = (run && useseq && i == seqi);
+        rectfill(x, SQ_Y, SQ_W - 2, SQ_H, cur ? CLR_DARKER_BLUE : CLR_DARKER_GREY);
+        rect(x, SQ_Y, SQ_W - 2, SQ_H, cur ? CLR_WHITE : CLR_DARK_GREY);
+        int bh = 2 + seq[i] * (SQ_H - 4) / (NSTEP - 1);     // pitch as bar height
+        rectfill(x + 2, SQ_Y + SQ_H - bh, SQ_W - 6, bh, useseq ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+    }
+    print("SEQ (tap a step)", SQ_X, SQ_Y + SQ_H + 1, CLR_DARK_GREY);
     font(FONT_NORMAL);
 
     // ── knob row ──
@@ -184,33 +225,32 @@ void draw(void) {
 
     // ── toggle buttons ──
     int by = 96;
-    if (ui_button(6,   by, 56, 14, mode ? "PRESS" : "PLUCK")) mode = !mode;
-    if (ui_button(66,  by, 70, 14, cyc == 1 ? "CYCLE GATE" : cyc == 2 ? "CYCLE TMBR" : "CYCLE OFF")) cyc = (cyc + 1) % 3;
-    if (ui_button(140, by, 50, 14, run ? "RUN *" : "RUN")) run = !run;
-    if (ui_button(194, by, 60, 14, freetune ? "FREE" : "SNAP")) freetune = !freetune;
+    if (ui_button(4,   by, 50, 14, mode ? "PRESS" : "PLUCK")) mode = !mode;
+    if (ui_button(58,  by, 66, 14, cyc == 1 ? "CYCLE GATE" : cyc == 2 ? "CYCLE TMBR" : "CYCLE OFF")) cyc = (cyc + 1) % 3;
+    if (ui_button(128, by, 44, 14, run ? "RUN *" : "RUN")) run = !run;
+    if (ui_button(176, by, 54, 14, freetune ? "FREE" : "SNAP")) freetune = !freetune;
+    if (ui_button(234, by, 60, 14, useseq ? "SEQ" : "RANDOM")) useseq = !useseq;
     font(FONT_NORMAL);
     ui_end();
 
     // ── the pressure ribbon ──
-    bool playing = glvl > 0.02f;
+    bool playing = false; for (int v = 0; v < NV; v++) if (glvl[v] > 0.02f) playing = true;
     rectfill(RIB_X, RIB_Y, RIB_W, RIB_H, playing ? CLR_DARKER_BLUE : CLR_DARKER_GREY);
-    // scale guide marks + note labels
     font(FONT_SMALL);
     for (int s = 0; s < NSTEP; s++) {
         int x = RIB_X + (int)((s + 0.5f) / NSTEP * RIB_W);
         line(x, RIB_Y, x, RIB_Y + 4, CLR_DARK_GREY);
-        int p = step_pitch(s);
-        if (p % 12 == 0) print(NN[0], x - 2, RIB_Y + RIB_H - 7, CLR_DARK_GREY);
+        if (step_pitch(s) % 12 == 0) print(NN[0], x - 2, RIB_Y + RIB_H - 7, CLR_DARK_GREY);
     }
     font(FONT_NORMAL);
     rect(RIB_X, RIB_Y, RIB_W, RIB_H, playing ? CLR_WHITE : CLR_MEDIUM_GREY);
-    // the playing marker: x = pitch, height = gate (pressure/level)
-    int mx = RIB_X + (int)((vpitch - BASE) / ((NSTEP - 1) * 2.0f) * RIB_W);
-    mx = mx < RIB_X ? RIB_X : mx > RIB_X + RIB_W ? RIB_X + RIB_W : mx;
-    if (playing) {
-        int h = (int)(glvl * RIB_H);
-        rectfill(mx - 2, RIB_Y + RIB_H - h, 5, h, CLR_LIGHT_YELLOW);
-        line(mx, RIB_Y, mx, RIB_Y + RIB_H, CLR_BLUE);
+    // a marker per sounding voice: x = pitch, height = level
+    for (int v = 0; v < NV; v++) {
+        if (glvl[v] <= 0.02f) continue;
+        int mx = RIB_X + (int)((vp[v] - BASE) / ((NSTEP - 1) * 2.0f) * RIB_W);
+        mx = mx < RIB_X ? RIB_X : mx > RIB_X + RIB_W - 1 ? RIB_X + RIB_W - 1 : mx;
+        int hh = (int)(glvl[v] * RIB_H);
+        rectfill(mx - 1, RIB_Y + RIB_H - hh, 3, hh, CLR_LIGHT_YELLOW);
     }
     font(FONT_SMALL);
     print("x = pitch    y = pressure    A-K play", RIB_X + 2, RIB_Y + 1, CLR_DARK_GREY);

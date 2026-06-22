@@ -217,6 +217,12 @@ bleed on pixel edges); mp4 is `yuv420p` for reach. The weight levers, in order, 
 (8s, full-screen scroll = worst case): **webm 556 KB**; trim to 3–4 s and it's ~200 KB. Use
 `--crf 16` for a near-lossless hero clip, `--crf 40` for max-tiny grid loops.
 
+**With sound.** webm/mp4 clips carry **audio by default** — the cart's sound is rendered to
+WAV in the *same deterministic `play.js` pass* as the frames (one run → picture and sound
+share a timeline, no drift) and muxed in (webm→Opus, mp4→AAC). `gif`/`webp`/`apng` can't
+carry audio and stay silent; `--mute` opts any clip out. `--start` shifts the audio to match
+dropped boot frames; `-shortest` trims the tail.
+
 **Reproducible clips — the `tools/clips/` recipe home.** A clip's input track is the
 *source of truth*; commit it under `tools/clips/<cart>/NN-label.{script,beats,rec}` and bake
 with `--recipe`:
@@ -242,6 +248,74 @@ history generator globs `clips/<name>/*.{webm,gif}` and uses the `.cart.png` as 
 poster/fallback — so a clip needs zero per-cart wiring. (`--clip` without a leading `NN-`
 auto-assigns the next number; `--from` ad-hoc with no `--clip`/`--out` lands in
 `docs/media/<name>.<ext>`.)
+
+## Making a reel — stitching clips into a teaser (`tools/compose-clips.js`)
+
+A **reel** glues several baked clips into one video with transitions between cuts (the
+showreel / teaser). Like a clip, it's a committed reproducible recipe: a `.reel` manifest →
+one `.webm`. Runbook for making a new one:
+
+**1. Author a shot track per cart.** Write `tools/clips/<cart>/NN-label.script` (or
+`.beats`/`.rec`). Read the cart's docblock for its controls, then drive it with frame events:
+
+```
+# frames 220            ← self-describing meta (also # fps # crf # scale)
+# fps 30
+down 18 1               ← press key '1' at frame 18 …
+up   20 1               ← … release at 20  (a keyp/btnp needs a down→up PULSE with a gap)
+down 90 SPACE
+up   98 SPACE
+```
+
+Key tokens: **named** = `UP DOWN LEFT RIGHT SPACE ENTER TAB ESC BACKSPACE COMMA PERIOD`;
+**any single char** = itself (`Z`, `X`, digits `1`–`9`, letters `a`–`z` → uppercased to the
+raylib code). So `Z` is the A-button, `1`–`6` are the number row, `W A S D` move, etc.
+**GOTCHA — title screens:** a cart that opens on a TITLE/menu eats your gameplay keys until
+you dismiss it. Press its advance key FIRST (usually `ENTER`/`Z`/click), *then* the gameplay
+keys (this bit `thecut`: reagent keys did nothing until an `ENTER` dismissed the title).
+
+**2. Bake each track (with audio).** `node tools/make-gif.js <cart> --recipe <NN-label>` →
+`editor/public/clips/<cart>/<NN-label>.webm`. **Verify it before trusting it** — pull a frame
+and look: `ffmpeg -ss <secs> -i <clip>.webm -frames:v 1 /tmp/f.png` then read the PNG.
+(Scripting blind, the first take is often wrong — a wrong key, a title not dismissed.)
+
+**3. Write the reel manifest** at `tools/reels/<name>.reel` — one clip per line, with
+defaults up top:
+
+```
+# the teaser
+# fps 30
+# crf 28
+# scale 3                ← integer NEAREST upscale (crispness — see below)
+# xfade fade 0.5         ← default transition + seconds between cuts
+sloop/01-autodrive
+interiors/01-plans  | fade 0.5
+dialogue/01-chat    | wipeleft 0.5      ← the `| type secs` overrides the cut INTO this clip
+thecut/01-craft     | circleopen 0.5
+moog/01-fat         | dissolve 0.6
+```
+
+A clip ref is `<cart>/<label>` (→ `editor/public/clips/<cart>/<label>.webm`) or a path.
+Transition types are ffmpeg xfade names: `fade · dissolve · wipeleft/right/up/down ·
+slideleft/… · circleopen · circleclose · pixelize · radial · smoothleft/…` (our iris ≈
+`circleopen`, wipe ≈ `wipeleft`).
+
+**4. Compose.** `node tools/compose-clips.js <name>` → `editor/public/reels/<name>.webm`.
+Clips must be baked first (it consumes the `.webm`s). Mixed-size clips are letterboxed
+nearest-neighbour; a silent clip gets generated silence so the crossfade still lines up.
+
+**5. Crispness (don't skip).** A reel is a *standalone* file watched in a player, which
+bilinear-blurs native 320×200 — so `compose-clips` NEAREST-upscales (default `3×` → 960×600,
+`--scale`/`# scale N`) and encodes `yuv444p`. (The individual clips stay native because the
+gallery applies CSS `image-rendering:pixelated`; a raw reel can't rely on that.)
+
+**6. Commit by pathspec** — the tracks (`tools/clips/<cart>/*.script`), the baked clips
+(`editor/public/clips/<cart>/*.webm`), the manifest (`tools/reels/<name>.reel`), and the reel
+(`editor/public/reels/<name>.webm`). Worked example: `tools/reels/teaser.reel`.
+
+> Mouse-driven carts (aim, drag) are awkward to script blind — author them as a hand-recorded
+> `.rec` (`node tools/play.js <cart> record out.rec`) instead of a `.script`. `flank`'s combat
+> is the standing example (deferred from the first teaser for this reason).
 
 ## WAV capture — hear what the engine actually rendered
 

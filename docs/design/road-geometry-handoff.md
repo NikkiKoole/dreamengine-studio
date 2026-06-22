@@ -4,6 +4,9 @@
 map: how we got here, what we're solving, the research, what failed, and how to continue. The other
 docs are the detail; this ties them together.
 
+> **Want the whole-program status (interchanges + at-grade + the street web + the frontier) on one
+> screen?** → [`road-program-state.md`](road-program-state.md). This doc is the *interchange-tier* detail.
+
 > **▶ Next session jumps to → the "★ NEXT SESSION — decided direction: `junction` + `laneLink`" section
 > below.** `roadlab` now has the full vertical stack (geometry → clothoid → lanes → width → elevation,
 > M1–M5, all committed). OpenDRIVE feature tracker: [`road-geometry-refs.md`](road-geometry-refs.md) →

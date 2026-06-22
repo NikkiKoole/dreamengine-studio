@@ -1,7 +1,10 @@
 # Road hierarchy — research notes (2026-06-17)
 
-> Research-only notes to situate the road/junction work. **Nothing here is built.** Map of where roadlab
-> sits in the whole functional road hierarchy and what's still unmodeled. Pairs with the interchange work:
+> Research-only notes to situate the road/junction work. **Nothing here was built _when written_** —
+> but the build has since moved: `streetlab` now models **both** unmodeled frontiers (Facet A at-grade
+> junctions, Facet B network topology). For the live build status see
+> [`road-program-state.md`](road-program-state.md); this doc remains the research/map underneath it.
+> Map of where roadlab sits in the whole functional road hierarchy. Pairs with the interchange work:
 > [`road-geometry-handoff.md`](road-geometry-handoff.md) (the ★ map), [`junction-lanelink.md`](junction-lanelink.md) §9.
 >
 > Source: a deep-research pass (28 sources, 120 claims, 25 adversarially verified — 24 confirmed, 1 killed).

@@ -128,7 +128,7 @@ static const char *TW2[] = { "Rhomb", "Spokes", "Recall", "Maker", "Locus", "Air
 
 static void gen_arps(void) {
     static const int LSET[6]  = { 5, 6, 7, 8, 9, 11 };
-    static const int OCT[NARP] = { 72, 60, 48, 84 };          // bells/mallet/pluck/sparkle
+    static const int OCT[NARP] = { 72, 60, 48, 79 };          // bells/mallet/pluck/sparkle
     static const int SLOT[NARP] = { I_ARP1, I_ARP2, I_ARP3, I_ARP4 };
     int used = 0, cstart = srnd(8);
     for (int i = 0; i < NARP; i++) {
@@ -240,7 +240,8 @@ static void apply_chair(int idx) {
         // arp 1 — glassy FM bell
         instrument(I_ARP1, INSTR_FM, 1, 360, 0, 500);
         instrument_harmonics(I_ARP1, sel == 0 ? 0.62f : 0.5f);   // bell ratio
-        instrument_timbre(I_ARP1, 0.55f); instrument_morph(I_ARP1, 0.12f);
+        instrument_timbre(I_ARP1, 0.38f); instrument_morph(I_ARP1, 0.12f);
+        instrument_filter(I_ARP1, FILTER_LOW, 2900, 1);   // tame the glassy top
         // arp 2 — MALLET marimba/celesta
         instrument(I_ARP2, INSTR_MALLET, 1, 0, 7, 520);
         instrument_harmonics(I_ARP2, sel == 0 ? 0.35f : 0.7f);   // wood -> bell
@@ -251,7 +252,8 @@ static void apply_chair(int idx) {
         instrument_filter(I_ARP3, FILTER_LOW, 2400, 1);
         // arp 4 — high FM sparkle
         instrument(I_ARP4, INSTR_FM, 0, 300, 0, 420);
-        instrument_harmonics(I_ARP4, 0.7f); instrument_timbre(I_ARP4, 0.65f); instrument_morph(I_ARP4, 0.1f);
+        instrument_harmonics(I_ARP4, 0.7f); instrument_timbre(I_ARP4, 0.40f); instrument_morph(I_ARP4, 0.1f);
+        instrument_filter(I_ARP4, FILTER_LOW, 3300, 1);   // the harsh sparkle, rolled off
         instrument_tune(I_ARP1, 0.04f); instrument_tune(I_ARP4, -0.04f);   // a hair of warmth
     } else if (idx == chKit) {
         if (sel == 0) {                                          // soft broken-beat
@@ -263,7 +265,7 @@ static void apply_chair(int idx) {
             instrument_env(I_KICK, 0, ENV_PITCH, 0, 50, 10);
             instrument(I_SNARE, INSTR_NOISE, 2, 90, 0, 70); instrument_filter(I_SNARE, FILTER_BAND, 1300, 3);
         }
-        instrument(I_HAT, INSTR_NOISE, 0, 16, 0, 12); instrument_filter(I_HAT, FILTER_HIGH, 8200, 3);
+        instrument(I_HAT, INSTR_NOISE, 0, 16, 0, 12); instrument_filter(I_HAT, FILTER_HIGH, 6000, 2);
         instrument(I_WOOD, INSTR_SINE, 0, 50, 0, 36); instrument_filter(I_WOOD, FILTER_BAND, 1500, 6);
         instrument_env(I_WOOD, 0, ENV_PITCH, 0, 22, 5);
     }
@@ -280,13 +282,14 @@ static void setup_instruments(void) {
     instrument_filter(I_BASS, FILTER_LOW, 600, 1);
     for (int i = 0; i < band.n; i++) apply_chair(i);
     reverb(0.6f, 0.4f);                                          // a gentle, spacious room
+    tape(0.26f, 0.14f, 0.16f);                                  // warm drift — wow/flutter for the tape wobble, light sat (no squash)
 }
 
 static void apply_tone(void) {
     float tm = RAD_TONEMUL[toneSel];
     instrument_filter(I_PAD,  FILTER_LOW, (int)(1500 * tm), 2);
     instrument_filter(I_ARP3, FILTER_LOW, (int)(2400 * tm), 1);
-    instrument_filter(I_HAT,  FILTER_HIGH, (int)(8200 * tm), 3);
+    instrument_filter(I_HAT,  FILTER_HIGH, (int)(6000 * tm), 2);
 }
 
 // ── update ────────────────────────────────────────────────────────────────

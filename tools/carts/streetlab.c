@@ -370,6 +370,10 @@ static float round_circ_w(void){ return cross_hw(); }            // circulatory 
                                                                  // consistent islandR past the arms + the sidewalk ring
                                                                  // meets the arm sidewalks (else parking undersizes it)
 static float round_icr(void){ return islandR + round_circ_w(); } // inscribed-circle radius (island + ring)
+// where an approach bike lane STARTS so its kerb-side edge (lateral HW from the arm centreline) lands exactly on
+// the ring (radius ICR): the axial distance d with sqrt(d^2 + HW^2) == ICR. Straight lanes are laterally offset,
+// so this FLARE point — not ICR itself — is where they meet the concentric ring. PURE (ICR>HW always). ──
+static float round_flare(float icr,float hw){ float d=icr*icr-hw*hw; return d>1.f ? sqrtf(d) : 1.f; }
 
 // the traversable central ISLAND: a low domed/painted disc — the mini tell. Apron (mountable) + white dome.
 static void draw_island(float cx,float cy){
@@ -688,7 +692,7 @@ void draw(void){
         // the approach lanes are laterally offset, so a straight bike lane's nearest point to the hub is
         // sqrt(ICR^2+HW^2) > ICR — it never reaches the ring, leaving a grey wedge. Start it at sqrt(ICR^2-HW^2),
         // the axial distance where its kerb-side edge actually crosses the ring radius ⇒ it FLARES in and meets it.
-        float din = sqrtf(ICR*ICR - HW*HW); if (din < 1.f) din = 1.f;
+        float din = round_flare(ICR, HW);
         cross_markings(cx,cy,b, din, din, ICR+3, REACH);              // #4: kerb lanes flare to the ring (symmetric — the ring handles skew)
         draw_splitter(cx,cy,b, ICR, 16);                               // teardrop splitter (deflect + ped refuge)
         give_way(cx,cy,b, ICR+1.5f, HW);                               // yield line at the circulatory edge
@@ -920,6 +924,10 @@ void spec(void){
     islandR=8; parkOn=1; expect(spec_near(round_icr(), 8 + lanesPer*LANEW + PARKW),
         "roundabout ICR includes parking (circulatory = full approach half-width)");
     parkOn=0;
+    // round_flare — the approach bike lane starts here so its kerb-side edge LANDS on the ring (the connection fix)
+    { float icr=40.f, hw=21.f, d=round_flare(icr,hw);
+      expect(spec_near(sqrtf(d*d+hw*hw), icr), "flare: the kerb-edge at the flare point sits exactly on the ring (sqrt(d^2+HW^2)==ICR)");
+      expect(d < icr, "the flare point is inside the inscribed circle (so the lane reaches in to the ring)"); }
     // kerb_start — the PER-SIDE kerb-lane start (bike/parking) that meets the corner-wrap arc. The skew fix: a
     // skewed arm's two sides face different gaps, so each starts at its own corner's TANGENT = (HW+R)/tan(half),
     // NOT HW/tan(half)+R (equal only at 90°; the latter gapped on obtuse corners at a big radius).

@@ -53,7 +53,8 @@
 //                section re-solves the whole junction for free. cross_hw() is the pure, spec'd datum.
 //   Controls: ui.h toolbar (clickable; keyboard too). v = junction↔network view. JUNCTION: [ ] curb radius
 //             (island R in roundabout mode) · -/= lanes · ,/. skew · t = T · p = turn lanes · r = roundabout ·
-//             k = pavement (sidewalk+crossings) · m = median · b = bike lane · ; = parking lane. NETWORK: [ ] seed ·
+//             k = pavement (sidewalk+crossings) · m = median · b = bike lane (off/lanes/+crossing) · ; = parking.
+//             NETWORK: [ ] seed ·
 //             b = pattern · c = curve (M4c: the §8.5 curvature knob bows each edge ⇒ sinuosity goes live).
 
 #define LANEW    8     // one lane width (px)
@@ -163,7 +164,7 @@ static int   peds     = 0;    // M5: sidewalks (a strip outside each kerb) + zeb
 static int   roundabout=0;    // M6: a MINI-ROUNDABOUT (traversable island + give-way entries) — excl. turnLanes
 static float islandR  = 8.f;  // M6: central-island radius (the headline roundabout knob; reuses [ ] in this mode)
 static int   medOn    = 0;    // M7: continuous raised centre median (a cross-section lane type, not the turn splitter)
-static int   bikeOn   = 0;    // M7: a bike lane outside the driving lanes
+static int   bikeOn   = 0;    // M7/Pass3: 0 off · 1 lanes (+corner-wrap, the default) · 2 +straight-through crossing
 static int   parkOn   = 0;    // M7: a parking lane at the kerb
 enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, NPAT };   // M4: street-web patterns
 static int   netview  = 0;    // M4: 0 = junction detail (M1–M3), 1 = the street-web network
@@ -273,6 +274,16 @@ static void cross_markings(float cx,float cy,float b,float startd,float reach){
         edge_line(cx,cy,b, bi,+1, startd,reach, CLR_WHITE); // inner (carriageway-side) edge line
         edge_line(cx,cy,b, bi,-1, startd,reach, CLR_WHITE);
     }
+}
+// Pass 3 (#5b, OPTIONAL): the straight-through bike CROSSING — "elephant's feet", a dashed row of terracotta
+// squares continuing the (outermost) bike lane across the junction box from the mouth in to the hub. Contextual
+// (signalised vs priority, mixing zones), so it's opt-in (bike level 2). Drawn per arm ⇒ collinear arms meet.
+static void bike_thru(float cx,float cy,float b,float mouth){
+    float dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90);
+    float off=(bike_inner()+cross_hw())*0.5f;               // centre of the kerb-side bike lane
+    for (float d=mouth; d>1.f; d-=5.f)                       // a square every ~5px (dashed), both kerb sides
+        for (int s=-1;s<=1;s+=2)
+            rectfill((int)(cx+dx*d+nx*s*off)-1,(int)(cy+dy*d+ny*s*off)-1, 3,3, CLR_BROWN);
 }
 
 // ── M3: turn lanes + channelizing islands ──
@@ -393,7 +404,7 @@ void update(void){
     if (keyp('r')||keyp('R')) { roundabout = !roundabout; if (roundabout) turnLanes=0; } // M6: excl. turn lanes
     if (keyp('k')||keyp('K')) peds = !peds;                  // M5: sidewalks + crosswalks
     if (keyp('m')||keyp('M')) medOn  = !medOn;               // M7: cross-section — centre median
-    if (keyp('b')||keyp('B')) bikeOn = !bikeOn;              // M7: bike lane
+    if (keyp('b')||keyp('B')) bikeOn = (bikeOn+1)%3;         // M7/Pass3: off → lanes → +straight-through crossing
     if (keyp(';'))            parkOn = !parkOn;              // M7: parking lane
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;   // M6: stays MINI (small, traversable)
@@ -693,6 +704,7 @@ void draw(void){
         float sb = peds ? mouth+1+CWDEP+1 : mouth+1;
         float mx=cx+dx*sb, my=cy+dy*sb, si=drive_inner(), so=drive_outer();
         line((int)(mx+ix*si),(int)(my+iy*si),(int)(mx+ix*so),(int)(my+iy*so),CLR_WHITE);
+        if (bikeOn>=2) bike_thru(cx,cy,b,mouth);           // #5b (opt-in): the straight-through bike crossing
     }
   }
 
@@ -715,7 +727,7 @@ void draw(void){
     rectfill(0, SCREEN_H-TOOLBAR, SCREEN_W, TOOLBAR, CLR_BLACK);
     int d;
     if (ui_button(4,   SCREEN_H-58, 72, 13, medOn ?"median: on" :"median: off"))   medOn =!medOn;
-    if (ui_button(80,  SCREEN_H-58, 56, 13, bikeOn?"bike: on"   :"bike: off"))      bikeOn=!bikeOn;
+    if (ui_button(80,  SCREEN_H-58, 56, 13, bikeOn==2?"bike:+xing":bikeOn?"bike: on":"bike: off")) bikeOn=(bikeOn+1)%3;
     if (ui_button(140, SCREEN_H-58, 76, 13, parkOn?"parking: on":"parking: off"))   parkOn=!parkOn;
     if (ui_button(220, SCREEN_H-58, 92, 13, peds  ?"pavement: on":"pavement: off")) peds  =!peds;  // #6: pavement = its own lane-type toggle
     print(roundabout?"island R":"curb radius", 4, SCREEN_H-37, roundabout?CLR_BLUE:CLR_ORANGE);
@@ -868,8 +880,11 @@ void spec(void){
         "roundabout ICR includes parking (circulatory = full approach half-width)");
     parkOn=0;
     int m0=medOn;  spec_tap('m'); expect(medOn!=m0,  "the 'm' key toggles the centre median");
-    int bk0=bikeOn; spec_tap('b'); expect(bikeOn!=bk0,"the 'b' key toggles the bike lane");
     int pk0=parkOn; spec_tap(';'); expect(parkOn!=pk0,"the ';' key toggles the parking lane");
+    // Pass 3: 'b' cycles the bike lane through 3 states — off → lanes(+corner-wrap) → +straight-through crossing
+    bikeOn=0; spec_tap('b'); expect_eq(bikeOn,1, "'b' #1: bike lanes on (corner-wrap default)");
+    spec_tap('b');           expect_eq(bikeOn,2, "'b' #2: + the straight-through crossing (opt-in)");
+    spec_tap('b');           expect_eq(bikeOn,0, "'b' #3: back to off (3-state cycle)");
     medOn=0; bikeOn=0; parkOn=0;                                            // restore
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──

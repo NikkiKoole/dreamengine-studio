@@ -134,7 +134,12 @@ offsets their own way — they predate the lane model. Collected issues:
   WRAPS each corner: `corner_bike()` fills a terracotta annular band just inside the curb-return arc (radii
   R..R+BIKEW about the return centre), meeting each arm's kerb-side lane at the tangent points. Parking markings
   end `PCLEAR` back from the junction (a clear zone). Spec'd the lane order (58).
-- **Pass 3 (optional)** — straight-through bike crossing (#5b), transition-zone polish (#7).
+- ✓ **Pass 3 — the straight-through bike crossing, made OPTIONAL (#5b)** (shipped 2026-06-22). The bike toggle is
+  now a 3-state cycle: off → on (lanes + the always-on corner-wrap) → +crossing. At level 2, `bike_thru()` draws
+  elephant's-feet (a dashed row of terracotta squares) continuing each bike lane straight across the box — opt-in
+  because it's contextual (signalised vs priority), exactly "some junctions want it, others don't". Spec'd the
+  3-state cycle (60). (#7 transition-zone polish left as acceptable — the unmarked junction box is normal, and the
+  bike crossing now optionally carries the lane through.)
 
 ## Known deferrals (pick up when convenient)
 

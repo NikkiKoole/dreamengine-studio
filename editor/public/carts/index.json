@@ -5375,7 +5375,7 @@
   },
   {
     "title": "runecrawl",
-    "description": "A logic-puzzle roguelike. Explore a dungeon by torchlight — turn-based, with a fog-of-war you reveal as you move — and reach the stairs past portcullises wired to ancient runes. The first gate is an AND-rune: throw BOTH its levers and the line powers up, the bars grind open. The second is a NOT-rune trap — its lever starts THROWN, so the gate is shut; you must turn it OFF to pass (the inverse of the first room). The signal sim from the `logic` cart made diegetic — one circuit tick per step, so the dungeon and the machine share a turn. Hand-authored floor (the vertical slice of a planned circuit-dungeon; OR/clock gates and monsters come next). Arrows/WASD move (walk into a lever to throw it), Z/. wait, R restart after escaping.",
+    "description": "A logic-puzzle roguelike where the dungeon and the machine share a turn. Each floor is a procedurally-generated chain of vaults, every door a portcullis wired to a RUNE-GATE you must satisfy to pass — AND needs both its levers, OR either, XOR exactly one, a NOT-trap starts thrown (turn it OFF), and a CLOCK-rune blinks the door open so you dash through before it shuts. Wraiths prowl the deeper vaults — bump one to cut it down, but let it reach you and it bites (you have 3 hearts). Explore by torchlight (raycast fog-of-war), satisfy each gate and reach the stairs to escape; floors regenerate fresh every run and on death. The signal sim from the `logic` cart made diegetic — one circuit tick per step. Arrows/WASD move (into a lever to throw it, into a wraith to strike), Z/. wait, R descend anew.",
     "file": "runecrawl.cart.png",
     "kind": [
       "game"
@@ -5385,9 +5385,11 @@
       "turn-based-loop",
       "raycasting",
       "grid-movement",
-      "combinational-logic"
+      "combinational-logic",
+      "dungeon-generation",
+      "finite-state-ai"
     ],
-    "lineage": "rogue.c's FOV + turn loop fused with the logic cart's signal sim (a MechUpdateSignals subset) — mechanisms as dungeon locks; the circuit-dungeon vertical slice."
+    "lineage": "rogue.c's FOV + turn loop fused with the logic cart's signal sim (a MechUpdateSignals subset) — mechanisms as diegetic dungeon locks; grown into a procedural circuit-roguelike with five rune-gate types (AND/OR/XOR/NOT/CLOCK) and chasing wraiths."
   },
   {
     "title": "facegen",

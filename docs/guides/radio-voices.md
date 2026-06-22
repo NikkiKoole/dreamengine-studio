@@ -756,6 +756,25 @@ minimal station: dark-minor, nocturnal, reverb-and-space. Five archetypes (Cryst
 structure. Plus **space-as-structure** (low density, reverb + rests). Big nocturnal `reverb(0.82,
 0.30)`. Blind brief: [`../design/thexx-blind-brief.md`](../design/thexx-blind-brief.md).
 
+## vapor — vaporwave (the first EFFECTS-FORWARD station)
+
+Solo layer: **none** — the PROCESSING is the band. A generative lounge loop, *drowned*.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_EP`   | lounge Rhodes comp | `epiano/rhodes` + per-part chorus | EPIANO |
+| `I_PAD`  | lush wash bed | `saw/vapor-pad` (`instrument_tune` .06) | SAW |
+| `I_LEAD` | smooth sax / soft lead dab | `reed/sax` (chair → soft sine) | REED |
+| `I_BELL` | mall-PA chime sparkle | `mallet/chime` | MALLET |
+| `I_BASS` | smooth slow bass | `sine/round-bass` | SINE |
+| `I_VINYL`| held vinyl-crackle / tape-hiss bed | `noise/vinyl-hiss` (BP3200, held) | NOISE |
+| kit (opt)| slow gated reverbed kick/snare/hat | (mallsoft = none) | SINE/NOISE |
+
+**THE DRENCH (set-and-hold):** `reverb` big + `chorus` + `tape` heavy wow/flutter + `echo` +
+light `crush` — configured per song/mode, never per frame. **THE WOBBLE (live):** `varispeed`
+ridden each frame, the slowed-tape sag. Sub-styles: classic / mallsoft / utopian / future-funk.
+Blind brief: [`../design/vaporwave-blind-brief.md`](../design/vaporwave-blind-brief.md).
+
 ## napoleon — *Napoleon Dynamite* (an ARTIST station, 5 song archetypes)
 
 Solo layer: **`solo.h`** — and the jam ribbon's *voice + behavior change per archetype* (the

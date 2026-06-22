@@ -388,7 +388,7 @@ laps the ~2 s buffer → a click). Master output stage; pitch is exact (A4→A3 
 |---|---|---|---|
 | tape-stop divebomb | sweep `varispeed(1.0 → ~0.28)` then back to `1.0` | the whole mix brakes to a crawl + pitch dives, then spins back up — the SP-404 / turntable stop | `varispeed`, `kaoss` (TAPE program — pad x = `pow(4,(x−.5)·2)`, drag left to dive) |
 | chipmunk / fast-forward | `varispeed(2.0f)` (momentary) | everything an octave up + double-time | `varispeed` |
-| seasick bend | sweep `varispeed` ±a little around 1.0 | a wobbly tape warble on the whole mix | `varispeed` |
+| seasick bend | sweep `varispeed` ±a little around 1.0 | a wobbly tape warble on the whole mix | `varispeed`, `vapor` (the slowed-tape WOBBLE, ridden live every frame) |
 
 > **Sweep it, don't hold it.** `varispeed` is a *gesture* (a dive/bend/spin), not a static pitch shift —
 > hold a fixed off-speed and the read laps the write (a periodic click). For a clean *sustained* octave

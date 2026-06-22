@@ -52,7 +52,7 @@ const CATEGORIES = {
     tags: [
       'title-play-gameover-loop', 'tilemap-collision', 'inventory-system', 'dialogue-tree', 'turn-based-loop',
       'grid-movement', 'save-load-persistence', 'screen-shake-juice', 'genetic-crossover', 'algorithm-visualization',
-      'collision-detection',
+      'collision-detection', 'factory-automation',
     ],
   },
   audio: {

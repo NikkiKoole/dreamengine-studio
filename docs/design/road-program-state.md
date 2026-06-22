@@ -58,6 +58,56 @@ crossing from the seed").
   algorithm, and state-of-the-art beyond the 2001/2008 pillars (learned generative models). See
   [`road-hierarchy-notes.md`](road-hierarchy-notes.md) → "Open questions".
 
+## Backlog — loose ends scattered through the research (ranked, addable now)
+
+Pulled from `road-hierarchy-notes` §2 / §5 / §8 — named in the research, in-scope for the sandbox, unbuilt.
+Cheap + high-value at the top. (✓ = shipped since.)
+
+**At-grade junction (Facet A — §2/§5), in `streetlab`'s junction view:**
+- [ ] **Sidewalks + crosswalks** — the *pedestrian layer*. §2's whole rationale for small curb radii is "shorten
+      the ped crossing", yet there are no sidewalks/crosswalks at all. Cheapest way to make the view say what
+      it's about. **Top pick.**
+- [ ] **Degree-1/3/4 share metric** (network view) — §8.2's real discriminator ("mean degree ALONE is not
+      enough"). Nearly free (we have `node_degree`); completes the SNDi readout next to degree/dead-ends/sinuosity.
+- [ ] **Real cross-section / lane types** — §5 OpenDRIVE lane types (`driving/parking/biking/sidewalk/median`),
+      flagged "worth taking, never built". Today every lane is identical asphalt.
+- [ ] **Mini-roundabout** (at-grade, §2) — a junction toggle, distinct from roadlab's grade-separated one.
+- [ ] **Corner free-right slip + triangular channelizing island** (§2) — the corner treatment deferred in M3.
+- [ ] **Curb extensions / bulb-outs + pedestrian refuge islands** (§2) — small ped-safety geometry.
+- [ ] **TWLTL** (two-way centre left-turn lane) + **right-turn pockets** + **driveways as low-volume junctions** (§2).
+
+**Network topology (Facet B — §8), in the network view:**
+- [ ] **Fused-grid / superblock** pattern (§8.3) — perimeter arterial loop + calmed/discontinuous interior;
+      the §8 open questions note *no algorithm exists in the 2001/2008 pillars*, so a small original bit.
+- [ ] **Dendricity + circuity** metrics (§8.2) — the rest of the four-measure SNDi. Circuity needs shortest-path
+      (heavier); defer until there's a reason.
+- ✓ M4a–c: grid/organic/radial/cul-de-sac patterns + the curvature knob (winding, live sinuosity).
+
+**Phase 2 — the world (§8.4), beyond a single screen:**
+- [ ] **The two-tier major→minor generator** — major arterials first, then fill local streets per region
+      (Parish-Müller / tensor fields). The bridge from "one pattern fills the screen" to a seed-driven world.
+- [ ] **Integrate** `streetlab` × `roadnet2` × `roadlab` into one seed-driven map (the seams below).
+- [ ] **Open research Qs** — per-pattern numeric metric table, Marshall route-structure mapping, learned
+      generative models. See [`road-hierarchy-notes.md`](road-hierarchy-notes.md) → "Open questions".
+
+## Shared code & seams
+
+**Duplication today is minimal — and that's correct.** roadlab and streetlab share only 6 function names, and
+the only real overlap is trivial (`ux`/`uy` trig wrappers, `step_btn`, and the generic spec helpers). All the
+*geometry* is deliberately distinct (interchange ramps vs at-grade curb-returns/network) — a shared geometry
+file now would be over-abstraction. **No `roadkit.h` yet.**
+
+- **Done:** the generic spec helpers (`spec_near`, `spec_close`, `spec_tap`) now live in
+  [`runtime/spec.h`](../../runtime/spec.h), so every spec cart shares them instead of redefining them.
+- **Specs on an includeable:** a shared header can't define `spec()` (one per cart), but it can expose a
+  `void <lib>_selfcheck(void)` of `expect()`s that the cart's `spec()` calls — the pattern a future `roadkit.h`
+  would use to carry its own tests. (Documented at the bottom of `spec.h`.)
+- **The seams (marked `// SEAM (Phase 2)` in code):**
+  - `roadlab.c` → `make_junction(legs, type)` is the interchange drawer a world calls per grade-separated crossing.
+  - `streetlab.c` → `gen_network(pattern, seed)` is the per-region local-street generator a two-tier world calls;
+    each network **node is a crossing the junction layer (M1–M3) can render in detail** (the network→junction zoom).
+  - A `roadkit.h` becomes worthwhile **only if** Phase 2 makes both carts share primitives — extract then, not now.
+
 ## Pointers
 
 - **Carts:** `tools/carts/{roadlab,streetlab,roadnet,roadnet2,interchange,rampkit}.c`

@@ -23,4 +23,14 @@ void expect_eq(long got, long want, const char *msg);  // like expect(), with a 
 void key_down(int k);                                  // hold a raw key (studio KEY_* or a char) from the next step on
 void key_up(int k);                                    // release it
 
+// ── shared spec helpers (every cart's spec() reinvented these — they live here now) ──
+static inline int  spec_near(float a, float b)  { float d=a-b; return (d<0?-d:d) < 0.5f; }   // float ≈ (0.5px)
+static inline int  spec_close(float a,float b,float tol){ float d=a-b; return (d<0?-d:d) < tol; }
+static inline void spec_tap(int k){ key_down(k); step(1); key_up(k); step(1); }   // one clean press→release edge
+
+// SPECS ON AN INCLUDEABLE: a shared header can't define spec() (one per cart), but it CAN expose a
+// `void <lib>_selfcheck(void)` that runs its own expect() assertions on the header's pure functions —
+// the including cart's spec() just calls it. That's how a future shared roadkit.h would carry its own
+// tests (see docs/design/road-program-state.md → "Shared code & seams").
+
 #endif

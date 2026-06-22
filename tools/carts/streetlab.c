@@ -299,6 +299,10 @@ static void gen_culdesac(int id[GH][GW], int seed){
         else if (hash01(e.a,e.b,seed+999) < 0.12f) nedges[ne++]=e;                           // a sparse loop
     }
 }
+// SEAM (Phase 2 → docs/design/road-program-state.md): gen_network() is the PER-REGION generator a two-tier
+// (major→minor, §8.4) world calls — it fills one region's local streets given a (pattern, seed). The world
+// owns the major arterials + the region partition and stitches these graphs at the boundaries. Each node is
+// a crossing the JUNCTION layer (M1–M3) can render in detail — the network→junction zoom.
 static void gen_network(int pat,int seed){
     nn=0; ne=0;
     if (pat==PAT_RADIAL){ gen_radial(seed); return; }
@@ -494,16 +498,15 @@ static float sp_dist(float ax,float ay,float bx,float by){ return sqrtf((ax-bx)*
 static float sp_dline(float kx,float ky,float dir,float px,float py){     // ⊥ distance from (px,py) to the line through K along dir
     return fabsf((px-kx)*uy(dir) - (py-ky)*ux(dir));                       // dir is a unit vector (ux,uy)
 }
-static int   sp_near(float a,float b){ float d=a-b; return (d<0?-d:d) < 0.2f; }
-static void  sp_tap(int k){ key_down(k); step(1); key_up(k); step(1); }    // one clean press→release edge
+// sp_dist/sp_dline are cart-specific; the generic spec_near/spec_tap come from spec.h.
 
 void spec(void){
     // ── curb_return() geometry — the M1 primitive, pinned (perpendicular) ──
     CurbReturn c = curb_return(100,100, 270, 0, 10.f);                     // perpendicular corner, edges up + east, R=10
-    expect(sp_near(sp_dline(100,100,270, c.ox,c.oy), 10.f), "fillet centre is R from curb edge 1 (tangent)");
-    expect(sp_near(sp_dline(100,100,  0, c.ox,c.oy), 10.f), "fillet centre is R from curb edge 2 (tangent)");
-    expect(sp_near(sp_dist(c.ox,c.oy,c.t1x,c.t1y), 10.f),   "tangent point 1 sits R from the centre");
-    expect(sp_near(sp_dist(c.ox,c.oy,c.t2x,c.t2y), 10.f),   "tangent point 2 sits R from the centre");
+    expect(spec_near(sp_dline(100,100,270, c.ox,c.oy), 10.f), "fillet centre is R from curb edge 1 (tangent)");
+    expect(spec_near(sp_dline(100,100,  0, c.ox,c.oy), 10.f), "fillet centre is R from curb edge 2 (tangent)");
+    expect(spec_near(sp_dist(c.ox,c.oy,c.t1x,c.t1y), 10.f),   "tangent point 1 sits R from the centre");
+    expect(spec_near(sp_dist(c.ox,c.oy,c.t2x,c.t2y), 10.f),   "tangent point 2 sits R from the centre");
     expect(c.ox > 100 && c.oy < 100,                        "centre is on the sidewalk side (NE for up+east)");
 
     CurbReturn small = curb_return(100,100,270,0, 5.f);
@@ -512,12 +515,12 @@ void spec(void){
            "bigger radius pushes the centre further from the corner");
 
     CurbReturn zero = curb_return(100,100,270,0, 0.f);
-    expect(sp_near(zero.ox,100) && sp_near(zero.oy,100),    "R=0 collapses to a sharp corner (no fillet)");
+    expect(spec_near(zero.ox,100) && spec_near(zero.oy,100),    "R=0 collapses to a sharp corner (no fillet)");
 
     // ── M2: tangency holds at a SKEWED (non-90°) corner — proves the grammar is angle-agnostic ──
     CurbReturn sk = curb_return(100,100, 270, 40, 10.f);                   // a 70° corner
-    expect(sp_near(sp_dline(100,100,270, sk.ox,sk.oy), 10.f), "skew: centre is R from edge 1 (tangent at 70deg)");
-    expect(sp_near(sp_dline(100,100, 40, sk.ox,sk.oy), 10.f), "skew: centre is R from edge 2 (tangent at 70deg)");
+    expect(spec_near(sp_dline(100,100,270, sk.ox,sk.oy), 10.f), "skew: centre is R from edge 1 (tangent at 70deg)");
+    expect(spec_near(sp_dline(100,100, 40, sk.ox,sk.oy), 10.f), "skew: centre is R from edge 2 (tangent at 70deg)");
 
     // ── M2: topology — count_corners() is pure over (skew, isT) ──
     skew=0;  isT=0;  expect_eq(count_corners(), 4, "4-way crossing has 4 corners");
@@ -528,7 +531,7 @@ void spec(void){
     // ── M3: arm_face() — the mouth distance the turn bay + median key off. On a perpendicular 4-way the
     //    corner projects to HW on the arm axis, so the face = HW. PURE (geometry of the leg layout). ──
     { int ix[NLEG]; float br[NLEG]; int m=present_legs(ix,br);
-      expect(sp_near(arm_face(br,m,0,16.f), 16.f), "4-way arm face = HW (corner projects to HW on the axis)"); }
+      expect(spec_near(arm_face(br,m,0,16.f), 16.f), "4-way arm face = HW (corner projects to HW on the axis)"); }
 
     // ── M4: the street web — gen_network() is pure over (pattern, seed); assert on the GRAPH (SNDi §8.2) ──
     gen_network(PAT_GRID, 1);
@@ -537,8 +540,8 @@ void spec(void){
     expect_eq(dead_ends(), 0, "a full grid has no dead-ends");
     expect(mean_degree() > 2.5f && mean_degree() < 4.0f, "grid mean degree in (2.5, 4)");
     gen_network(PAT_ORGANIC, 7); float gx=nnodes[5].x;
-    gen_network(PAT_ORGANIC, 7); expect(sp_near(nnodes[5].x, gx), "gen_network is deterministic for a fixed seed");
-    gen_network(PAT_ORGANIC, 8); expect(!sp_near(nnodes[5].x, gx), "a different seed moves the nodes");
+    gen_network(PAT_ORGANIC, 7); expect(spec_near(nnodes[5].x, gx), "gen_network is deterministic for a fixed seed");
+    gen_network(PAT_ORGANIC, 8); expect(!spec_near(nnodes[5].x, gx), "a different seed moves the nodes");
     // M4b topology changes — the patterns now differ structurally (the SNDi point: metrics separate them)
     gen_network(PAT_RADIAL, 1);
     expect_eq(nn, 1+R_RINGS*R_SECTORS, "radial: hub + rings*sectors nodes");
@@ -549,15 +552,15 @@ void spec(void){
     expect(mean_degree() < 3.0f, "cul-de-sac mean degree < a full grid's (dendritic, not gridded)");
     // M4c: the curvature knob — straight chords pin sinuosity at 1; winding pushes it above 1 (a live SNDi measure)
     gen_network(PAT_GRID, 1);
-    curveAmt=0; expect(sp_near(mean_sinuosity(), 1.0f), "curve=0: straight chords, sinuosity == 1");
+    curveAmt=0; expect(spec_near(mean_sinuosity(), 1.0f), "curve=0: straight chords, sinuosity == 1");
     curveAmt=3; expect(mean_sinuosity() > 1.0f,         "curve>0: roads wind, sinuosity > 1");
     curveAmt=0;                                                            // restore
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
-    for (int i=0;i<40;i++) sp_tap(']');                                    // hammer the + key past the cap
+    for (int i=0;i<40;i++) spec_tap(']');                                    // hammer the + key past the cap
     expect(cornerR <= 28.f, "curb radius caps at 28");
-    for (int i=0;i<40;i++) sp_tap('[');                                    // hammer the - key past the floor
+    for (int i=0;i<40;i++) spec_tap('[');                                    // hammer the - key past the floor
     expect(cornerR >= 0.f,  "curb radius floors at 0");
-    int t0=turnLanes; sp_tap('p'); expect(turnLanes!=t0, "the 'p' key toggles turn lanes");
+    int t0=turnLanes; spec_tap('p'); expect(turnLanes!=t0, "the 'p' key toggles turn lanes");
 }
 #endif

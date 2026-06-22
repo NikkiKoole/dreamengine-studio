@@ -418,6 +418,8 @@ static Turn classify_turn(float inDir, float outDir){       // by the change in 
 // GENERATE: enumerate every movement over `nleg` legs → one Connection per served movement, per the policy.
 // `lanes` = how many lanes each ramp carries (from the lanes control). Loops get a radius scaled to the lane
 // count so the inner edge can't pinch past the centre (a tight loop can't fit a fat ribbon).
+// SEAM (Phase 2 → docs/design/road-program-state.md): this pure fn is the interchange drawer a seed-driven
+// WORLD calls per grade-separated crossing — (legs, type) in, a drawable connection table out, unchanged.
 static int make_junction(int nleg, JuncType type, int lanes, Junction *out){
     if (lanes<1) lanes=1;
     JuncPolicy p = POLICY[type]; out->name = JT_NAME[type]; out->nConns = 0;
@@ -647,9 +649,8 @@ void draw(void){
 //    cusp" / "nests clean") — those stay with the annotated-screenshot method. Run: node tools/spec.js roadlab ──
 #ifdef DE_SPEC
 #include "spec.h"
-static int  sp_near(float a,float b){ float d=a-b; return (d<0?-d:d) < 0.5f; }
 static int  sp_count(const Junction*j, RampPrim p){ int c=0; for(int i=0;i<j->nConns;i++) if(j->conns[i].prim==p) c++; return c; }
-static void sp_tap(int k){ key_down(k); step(1); key_up(k); step(1); }
+// sp geometry/edge helpers are cart-specific; the generic spec_near/spec_tap come from spec.h.
 
 void spec(void){
     // ── classify_turn: the DRIVE-folded handedness (the chirality that kept biting) ──
@@ -684,15 +685,15 @@ void spec(void){
     Port a={100,100,0,"a"}, b={150,150,90,"b"};            // east → south, a right-angle turn
     int n = arc_spline(a,b,20.f,xs,ys);
     expect(n>2, "arc_spline builds a real curve (line-arc-line)");
-    expect(sp_near(xs[0],100)&&sp_near(ys[0],100),         "arc_spline starts exactly on port A");
-    expect(sp_near(xs[n-1],150)&&sp_near(ys[n-1],150),     "arc_spline ends exactly on port B");
-    expect(sp_near(ys[1],100), "arc_spline leaves A along A's travel dir (east) — lead-in points INTO the junction");
+    expect(spec_near(xs[0],100)&&spec_near(ys[0],100),         "arc_spline starts exactly on port A");
+    expect(spec_near(xs[n-1],150)&&spec_near(ys[n-1],150),     "arc_spline ends exactly on port B");
+    expect(spec_near(ys[1],100), "arc_spline leaves A along A's travel dir (east) — lead-in points INTO the junction");
 
     // ── clothoid_spline reduces EXACTLY to arc_spline as Ls→0 ──
     float cxs[200], cys[200];
     int cn = clothoid_spline(a,b,20.f,0.f,cxs,cys);
     expect_eq(cn, n, "clothoid_spline(Ls=0) returns the same sample count as arc_spline");
-    expect(sp_near(cxs[cn-1],xs[n-1])&&sp_near(cys[cn-1],ys[n-1]), "clothoid(Ls=0) == arc_spline (reduces exactly)");
+    expect(spec_near(cxs[cn-1],xs[n-1])&&spec_near(cys[cn-1],ys[n-1]), "clothoid(Ls=0) == arc_spline (reduces exactly)");
 
     // ── loop_spline lands on B (the cloverleaf hard turn) — using the generated junction's real ports ──
     for (int L=0;L<NLEG;L++) legs[L].present=1;  rebuild_ports();
@@ -702,9 +703,9 @@ void spec(void){
     if (li>=0){ Connection c=jc.conns[li];
         int ln = loop_spline(ports[c.inPort], ports[c.outPort], c.R, xs, ys);
         expect(ln>2, "loop_spline builds a real ~270deg loop (not the degenerate stand-in)");
-        expect(sp_near(xs[ln-1],ports[c.outPort].x)&&sp_near(ys[ln-1],ports[c.outPort].y), "loop_spline lands on port B"); }
+        expect(spec_near(xs[ln-1],ports[c.outPort].x)&&spec_near(ys[ln-1],ports[c.outPort].y), "loop_spline lands on port B"); }
 
     // ── the harness drives roadlab too: 'g' cycles the junction type (proves step() + key injection) ──
-    int g0=juncType; sp_tap('g'); expect(juncType!=g0, "the 'g' key cycles the junction type");
+    int g0=juncType; spec_tap('g'); expect(juncType!=g0, "the 'g' key cycles the junction type");
 }
 #endif

@@ -2022,10 +2022,11 @@ static void fxmod_tick(void) {
 }
 
 // ── varispeed — variable tape playback speed (the MOOD "clock" / tape dive; navkit processHalfSpeed) ──
-// ⚠️ OPEN BUG (2026-06-22): moderate speeds (~0.3..2x) reportedly DON'T pitch-shift audibly —
-//    only the extremes (<0.3 / >2) clearly do. Suspect the read-vs-write pointer drift / lap /
-//    re-sync below (or the rpos=wpos engage reset at small |speed-1|). NOT yet diagnosed/fixed;
-//    a measurement attempt failed (harness invalid). Full writeup + next steps: audio-notes.md §24.
+// FIXED (2026-06-22): moderate speeds (~0.33..1.67x) used to NOT pitch-shift — the deadband dry/reset
+//    branch slammed vari_speed back to 1.0 every sample, so the slew could never accumulate out of the
+//    band for a moderate target (its per-sample step was smaller than the band). Only the extremes
+//    escaped in one step. Fix: gate the dry/reset on the TARGET being ~1 too (see `settled` below).
+//    Full writeup: audio-notes.md §24.
 // Writes the final mix into a ring buffer, reads it back at `speed`: 1.0 = bypass (byte-identical),
 // <1 = slower (pitch DOWN + time-stretch — the tape-slowdown dive), >1 = faster (pitch up, chipmunk).
 // SWEEP it for tape bends/dives/spinups; the applied speed is SLEWED (tape inertia, no zipper). Stereo
@@ -2039,25 +2040,40 @@ static float vari_rpos   = 0.0f;
 static float vari_target = 1.0f;   // requested speed
 static float vari_speed  = 1.0f;   // slewed applied speed (tape inertia)
 static bool  vari_used   = false;
+static bool  vari_ever   = false;  // has the cart ever called varispeed()? gates the rolling record (zero cost otherwise)
 static void varispeed_process(float *mixL, float *mixR) {
-    vari_bufL[vari_wpos] = *mixL; vari_bufR[vari_wpos] = *mixR;   // always capture the live mix while active
-    vari_wpos = (vari_wpos + 1) % VARI_BUF;
+    if (!vari_ever) return;                                      // cart never used varispeed → full bypass, no record cost
+    vari_bufL[vari_wpos] = *mixL; vari_bufR[vari_wpos] = *mixR;   // ROLLING record: always capture the live mix once the
+    vari_wpos = (vari_wpos + 1) % VARI_BUF;                       //   cart uses varispeed, even while settled at 1.0 — so the
+                                                                 //   2 s tape always holds REAL recent audio. Without it, a
+                                                                 //   speed-UP read runs ahead of the write head into the
+                                                                 //   un-recorded region → ~1 s of SILENCE until it laps back.
+    if (!vari_used) return;                                      // settled/dormant: recorded only, output dry (byte-identical)
     vari_speed += (vari_target - vari_speed) * 0.0015f;          // slew → buttery pitch glide (tape mass)
-    if (vari_speed < 0.999f || vari_speed > 1.001f) {            // off-speed: read the buffer at vari_speed
+    // "settled" = BOTH the slewed speed AND the target are at unity. We must gate the dry/reset
+    // branch on the *target* too, not just the slewed speed: the slew step is (target-speed)*0.0015,
+    // so for a moderate target (|target-1| < ~0.667) the per-sample step is < the deadband half-width
+    // (0.001). If we reset speed→1 whenever speed is in the band, the slew can never ACCUMULATE out of
+    // it — it's slammed back to 1.0 every sample and stays at bypass. That locked all moderate speeds
+    // (~0.33..1.67x) to no pitch shift; only the extremes escaped in one step (audio-notes §24).
+    bool settled = vari_speed > 0.999f && vari_speed < 1.001f &&
+                   vari_target > 0.999f && vari_target < 1.001f;
+    if (!settled) {                                             // off-speed (or slewing): read at vari_speed
         int p0 = (int)vari_rpos % VARI_BUF, p1 = (p0 + 1) % VARI_BUF;
         float fr = vari_rpos - (float)(int)vari_rpos;
         *mixL = vari_bufL[p0] * (1.0f - fr) + vari_bufL[p1] * fr;
         *mixR = vari_bufR[p0] * (1.0f - fr) + vari_bufR[p1] * fr;
         vari_rpos += vari_speed;
         if (vari_rpos >= VARI_BUF) vari_rpos -= VARI_BUF;
-    } else {                                                     // settled at ~1: pass dry, track write
+    } else {                                                     // settled at 1 AND target 1: dry, dormant
         vari_speed = 1.0f; vari_rpos = (float)vari_wpos;
-        if (vari_target > 0.999f && vari_target < 1.001f) vari_used = false;   // released → dormant/byte-identical
+        vari_used = false;                                       // released → dormant/byte-identical
     }
 }
 static void fx_set_varispeed(float speed) {
     if (speed < 0.25f) speed = 0.25f; if (speed > 4.0f) speed = 4.0f;   // 2 octaves down .. 2 up
     bool was = vari_used;
+    vari_ever = true;   // start the rolling record now (even at 1.0) so a later speed-UP finds real audio, not silence
     vari_target = speed;
     if (speed < 0.999f || speed > 1.001f) {
         vari_used = true;
@@ -5640,7 +5656,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             mixL *= g; mixR *= g;
         }
         if (noise_used) amp_noise_process(&mixL, &mixR);   // optional rig-noise floor — AFTER the clip (a constant floor, never ducked)
-        if (vari_used)  varispeed_process(&mixL, &mixR);   // tape varispeed — the final output stage (the tape the whole mix is recorded to)
+        if (vari_ever)  varispeed_process(&mixL, &mixR);   // tape varispeed — final output stage; self-gates: rolls the tape while used, pitch-shifts only while engaged
 #ifdef DE_AUDIO_WORKLET
         out[2 * i]     = mixL * master_gain;           // worklet: pause-mute via the mixer
         out[2 * i + 1] = mixR * master_gain;
@@ -6691,7 +6707,7 @@ static void sound_init(void) {
     noise_hiss = 0.0f; noise_hum = 0.0f; noise_used = false; noise_mains = 60;   // amp noise: dormant + deterministic seed
     noise_lpL = noise_lpR = 0.0f; noise_hum_ph = 0.0f; noise_seed = 0x6D2B79F5u;
     memset(vari_bufL, 0, sizeof vari_bufL); memset(vari_bufR, 0, sizeof vari_bufR);   // varispeed: clean tape + bypass
-    vari_wpos = 0; vari_rpos = 0.0f; vari_target = 1.0f; vari_speed = 1.0f; vari_used = false;
+    vari_wpos = 0; vari_rpos = 0.0f; vari_target = 1.0f; vari_speed = 1.0f; vari_used = false; vari_ever = false;
     for (int t = 0; t < SOUND_SHIM_TANKS; t++) {   // shimmer pool: clean tanks + shifters (tank 0 = master, identical to the old singleton init → bit-exact)
         memset(&shim[t].tank, 0, sizeof shim[t].tank); memset(&shim[t].oct, 0, sizeof shim[t].oct);
         shim[t].mix = 0.0f; shim[t].fb = 0.0f; shim[t].prev = 0.0f; shim[t].dcx = 0.0f; shim[t].dcy = 0.0f; shim[t].used = false;

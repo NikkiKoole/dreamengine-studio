@@ -2033,29 +2033,47 @@ The cart maps the pair to the engine constant via `filter_mode()`; the preset `P
 stores `ftype`+`fresp` instead of a raw mode. The clearer model is the right surface for any
 future filter type, too.
 
-## 24. ⚠️ OPEN BUG — `varispeed` moderate speeds may not pitch-shift (2026-06-22)
+## 24. ✅ FIXED — `varispeed` moderate-speed lock + speed-up silence (2026-06-22)
 
-**Status: OPEN — needs investigation next, not yet diagnosed or fixed.** Reported by the
-owner playing the `varispeed` cart: sweeping the SPEED slider seems to do **nothing audible
-in the moderate range (~0.3×–2×)** — the pitch only clearly changes at the extremes (`<0.3×`
-or `>2×`), and even then it's inconsistent. `kaoss`'s TAPE program rides the same `varispeed()`
-call, so it's likely affected too.
+**Status: FIXED + measured.** Two distinct bugs, both in `varispeed_process` (`sound.h`).
+Reported by the owner: (a) sweeping the SPEED slider did **nothing audible in the moderate
+range (~0.3×–2×)** — pitch only changed at the extremes; (b) **increasing speed went silent
+for a while.** `kaoss`'s TAPE program rides the same `varispeed()` and was affected too.
 
-What's known so far (2026-06-22):
-- The **cart mapping is correct** — `varispeed.c`'s `speed_of(k)=0.25·16^k` and the
-  set-on-change call are fine; this is engine-side (`varispeed_process`, `sound.h:~2038`).
-- The read-pointer/slew math *reads* like it should pitch-shift at every speed (write at
-  rate 1, read at `vari_speed`), so if the moderate range genuinely does nothing it's a
-  **subtle bug — suspect the read-vs-write pointer drift / lap / re-sync logic**, or the
-  `vari_rpos = vari_wpos` engage reset interacting with small `|speed−1|`.
-- **An attempt to measure it failed: the test harness was invalid.** A minimal cart playing
-  a steady tone, rendered headless via `play.js --wav`, came out **crest-0 dB / wrong pitch
-  even for a plain control tone with `varispeed` never called** — so the WAV wasn't capturing
-  clean tonal audio and *none* of those numbers can be trusted. (Whatever the cause — note not
-  sustaining cleanly headless, or the render path — that itself may be worth a look.)
+### Bug 1 — moderate speeds didn't pitch-shift (the deadband-reset lock)
+The applied speed is slewed toward the target: `vari_speed += (target − vari_speed) * 0.0015`.
+The old code took a dry/passthrough branch whenever the *slewed speed* sat inside the deadband
+`[0.999, 1.001]`, and in that branch **hard-reset `vari_speed = 1.0` every sample**. But the
+per-sample slew step is `(target − 1)·0.0015`. For it to clear the deadband in a *single* step
+(before the reset slams it back) you need `(target − 1)·0.0015 > 0.001` → **`target > 1.667`**
+(or `< 0.333`). For any moderate target the step is smaller than the band, so the reset put it
+back to 1.0 every sample and it never escaped → bypass forever. Only the extremes jumped clear
+in one step, exactly matching the report.
+**Fix:** gate the dry/reset branch on the **target** being ~1 too, not just the slewed speed
+(`bool settled = speed≈1 && target≈1`). Now the slew accumulates out of the band for any target.
 
-Next session (awake, with sound): **first get a VALIDATED measurement** — confirm a 1.0×
-control reads its true pitch before trusting anything — or just **listen** in the editor while
-sweeping. Only then touch `sound.h` (the hot shared file), and re-run `tune-check` /
-`level-check` / `fx-check` after. The `effects-recipes.md` varispeed note + the marker comment
-at `varispeed_process` in `sound.h` both point here.
+### Bug 2 — speeding up was silent for ~1 s (read ran into un-recorded buffer)
+The ring buffer only held the *past*, and only recorded *while engaged*. Slowing down reads
+*behind* the write head (into recorded past) — fine. Speeding up reads *ahead* of the write
+head into the not-yet-recorded region (zeros) and stays there until it laps the 2 s buffer
+(~1 s at 1.5×) → silence.
+**Fix:** the ring now **rolls continuously** once the cart has ever called `varispeed()`
+(`vari_ever` flag; gated so carts that never use it pay zero cost), even while settled at 1.0.
+So a later speed-up finds real recent audio instead of silence. Output stays byte-identical
+when not engaged (the record writes a side buffer; it doesn't touch the output). Residual: a
+*cold-start* speed-up (the cart's very first `varispeed()` call is itself a speed-up, with no
+prior unity pre-roll) can still gap briefly — inherent (you can't pitch-up audio that hasn't
+played yet). The `varispeed` cart calls `varispeed(1.0)` on frame 0, so it's covered.
+
+### Validation (the earlier "harness invalid" was a non-sustaining test note)
+- **Standalone sim** of the exact `varispeed_process` math: OLD locks at ratio 1.005 for
+  0.5/0.7/0.9/1.1/1.3/1.5×; NEW gives 0.505/0.700/0.900/1.105/1.305/1.500 — every speed correct.
+  A second sim showed ~1 s of `-120 dB` silence on speed-up under the old record-only-when-engaged
+  path, gone with the rolling record.
+- **End-to-end in the real engine** (a sustained A4 sine via `note_on`, `play.js --wav`, pitch
+  measured per window): control 1.0× → 440.0 Hz; after `varispeed(1.3)` → **571.8 Hz** (= 440 ×
+  1.30) at the **same −18.3 dB** level (no dropout). The key to a valid measurement was a properly
+  *sustained* held note (not a short `hit`) plus a unity pre-roll before the speed step — the
+  earlier "crest-0 dB / wrong pitch" was the test note not sustaining, not an engine fault.
+- Gates re-run after the edit: compile-gate clean, `tune-check` / `level-check` / `fx-check` all
+  pass with zero deltas (byte-identical at rest — varispeed isn't engaged in those sweeps).

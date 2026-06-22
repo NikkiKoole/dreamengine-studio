@@ -391,9 +391,13 @@ laps the ~2 s buffer → a click). Master output stage; pitch is exact (A4→A3 
 > hold a fixed off-speed and the read laps the write (a periodic click). For a clean *sustained* octave
 > on one part, that's `grains_pitch` / shimmer territory; `varispeed` is the moving-tape effect.
 >
-> ⚠️ **OPEN BUG (2026-06-22):** moderate speeds (~0.3×–2×) reportedly don't pitch-shift audibly — only
-> the extremes (`<0.3×` / `>2×`) clearly do, and inconsistently. Not yet diagnosed/fixed; affects
-> `kaoss`'s TAPE program too. Full writeup + next steps: [`../design/audio-notes.md`](../design/audio-notes.md) §24.
+> ✅ **FIXED (2026-06-22):** two bugs, both diagnosed + fixed + measured. (1) Moderate speeds
+> (~0.33×–1.67×) didn't pitch-shift — the deadband dry/reset branch slammed the slewed speed back to
+> 1.0 every sample, so the slew never accumulated out of the band for a moderate target; only the
+> extremes escaped in one step. (2) Speeding up was silent for ~1 s — the read head ran ahead of the
+> write head into the un-recorded region; the ring now rolls continuously once the cart uses varispeed,
+> so a speed-up reads real recent audio. Validated end-to-end: 1.3× on A4 → 571.8 Hz, full level. Full
+> writeup: [`../design/audio-notes.md`](../design/audio-notes.md) §24.
 
 ## modulating effects — `fx_mod(bus, target, value)` · `instrument_fx_mod(slot, …)` · `fx_lfo(bus, target, rate, depth, center, shape)`
 

@@ -390,6 +390,10 @@ laps the ~2 s buffer → a click). Master output stage; pitch is exact (A4→A3 
 > **Sweep it, don't hold it.** `varispeed` is a *gesture* (a dive/bend/spin), not a static pitch shift —
 > hold a fixed off-speed and the read laps the write (a periodic click). For a clean *sustained* octave
 > on one part, that's `grains_pitch` / shimmer territory; `varispeed` is the moving-tape effect.
+>
+> ⚠️ **OPEN BUG (2026-06-22):** moderate speeds (~0.3×–2×) reportedly don't pitch-shift audibly — only
+> the extremes (`<0.3×` / `>2×`) clearly do, and inconsistently. Not yet diagnosed/fixed; affects
+> `kaoss`'s TAPE program too. Full writeup + next steps: [`../design/audio-notes.md`](../design/audio-notes.md) §24.
 
 ## modulating effects — `fx_mod(bus, target, value)` · `instrument_fx_mod(slot, …)` · `fx_lfo(bus, target, rate, depth, center, shape)`
 

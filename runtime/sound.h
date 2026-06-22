@@ -2022,6 +2022,10 @@ static void fxmod_tick(void) {
 }
 
 // ── varispeed — variable tape playback speed (the MOOD "clock" / tape dive; navkit processHalfSpeed) ──
+// ⚠️ OPEN BUG (2026-06-22): moderate speeds (~0.3..2x) reportedly DON'T pitch-shift audibly —
+//    only the extremes (<0.3 / >2) clearly do. Suspect the read-vs-write pointer drift / lap /
+//    re-sync below (or the rpos=wpos engage reset at small |speed-1|). NOT yet diagnosed/fixed;
+//    a measurement attempt failed (harness invalid). Full writeup + next steps: audio-notes.md §24.
 // Writes the final mix into a ring buffer, reads it back at `speed`: 1.0 = bypass (byte-identical),
 // <1 = slower (pitch DOWN + time-stretch — the tape-slowdown dive), >1 = faster (pitch up, chipmunk).
 // SWEEP it for tape bends/dives/spinups; the applied speed is SLEWED (tape inertia, no zipper). Stereo
@@ -5736,6 +5740,16 @@ void strum(int root, int type, int instr, int vol, int delay_ms) {
         int idx   = (dir > 0) ? i : (n - 1 - i);
         int delay = (i * abs_ms * SOUND_SAMPLE_RATE) / 1000;
         sound_push_req(SR_NOTE, root + ivl[idx], instr, vol, delay, 0);
+    }
+}
+
+void strum_notes(const int *midis, int n, int instr, int vol, int delay_ms) {
+    int dir = delay_ms < 0 ? -1 : 1;            // negative = down-strum (high → low)
+    int abs_ms = delay_ms < 0 ? -delay_ms : delay_ms;
+    for (int i = 0; i < n; i++) {
+        int idx   = (dir > 0) ? i : (n - 1 - i);
+        int delay = (i * abs_ms * SOUND_SAMPLE_RATE) / 1000;
+        sound_push_req(SR_NOTE, midis[idx], instr, vol, delay, 0);
     }
 }
 

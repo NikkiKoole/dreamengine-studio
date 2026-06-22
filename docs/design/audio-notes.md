@@ -2032,3 +2032,30 @@ The multimode prompted restructuring `moog.c`'s filter panel from one flat 7-but
 The cart maps the pair to the engine constant via `filter_mode()`; the preset `Patch` now
 stores `ftype`+`fresp` instead of a raw mode. The clearer model is the right surface for any
 future filter type, too.
+
+## 24. ⚠️ OPEN BUG — `varispeed` moderate speeds may not pitch-shift (2026-06-22)
+
+**Status: OPEN — needs investigation next, not yet diagnosed or fixed.** Reported by the
+owner playing the `varispeed` cart: sweeping the SPEED slider seems to do **nothing audible
+in the moderate range (~0.3×–2×)** — the pitch only clearly changes at the extremes (`<0.3×`
+or `>2×`), and even then it's inconsistent. `kaoss`'s TAPE program rides the same `varispeed()`
+call, so it's likely affected too.
+
+What's known so far (2026-06-22):
+- The **cart mapping is correct** — `varispeed.c`'s `speed_of(k)=0.25·16^k` and the
+  set-on-change call are fine; this is engine-side (`varispeed_process`, `sound.h:~2038`).
+- The read-pointer/slew math *reads* like it should pitch-shift at every speed (write at
+  rate 1, read at `vari_speed`), so if the moderate range genuinely does nothing it's a
+  **subtle bug — suspect the read-vs-write pointer drift / lap / re-sync logic**, or the
+  `vari_rpos = vari_wpos` engage reset interacting with small `|speed−1|`.
+- **An attempt to measure it failed: the test harness was invalid.** A minimal cart playing
+  a steady tone, rendered headless via `play.js --wav`, came out **crest-0 dB / wrong pitch
+  even for a plain control tone with `varispeed` never called** — so the WAV wasn't capturing
+  clean tonal audio and *none* of those numbers can be trusted. (Whatever the cause — note not
+  sustaining cleanly headless, or the render path — that itself may be worth a look.)
+
+Next session (awake, with sound): **first get a VALIDATED measurement** — confirm a 1.0×
+control reads its true pitch before trusting anything — or just **listen** in the editor while
+sweeping. Only then touch `sound.h` (the hot shared file), and re-run `tune-check` /
+`level-check` / `fx-check` after. The `effects-recipes.md` varispeed note + the marker comment
+at `varispeed_process` in `sound.h` both point here.

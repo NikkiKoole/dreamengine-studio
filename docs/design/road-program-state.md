@@ -90,6 +90,14 @@ Cheap + high-value at the top. (✓ = shipped since.)
 - [ ] **Open research Qs** — per-pattern numeric metric table, Marshall route-structure mapping, learned
       generative models. See [`road-hierarchy-notes.md`](road-hierarchy-notes.md) → "Open questions".
 
+## Known deferrals (pick up when convenient)
+
+- **`streetlab`'s `index.json` gallery description is ~2 milestones behind** (still M4-era prose — doesn't
+  mention M4b radial/cul-de-sac, M4c curve, or M5 sidewalks/crosswalks). Deferred because `index.json` is
+  often mid-churn with other agents' carts (committing it risks sweeping their broken refs). Update it in a
+  quiet moment via the splice dance (checkout HEAD index → edit only the streetlab entry → commit → restore).
+  The cart's own header comment + HUD are current; only the registry blurb lags.
+
 ## Shared code & seams
 
 **Duplication today is minimal — and that's correct.** roadlab and streetlab share only 6 function names, and

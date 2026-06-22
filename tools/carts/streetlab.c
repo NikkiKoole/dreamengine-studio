@@ -54,14 +54,16 @@ static CurbReturn curb_return(float kx, float ky, float e1, float e2, float R){
     return c;
 }
 
-// fill the fillet: the disc sector centred at O facing K (a convex pie slice ⇒ polyfill fans cleanly)
-static void fill_corner(CurbReturn c, float R, int col){
+// fill the fillet: the curvy triangle bounded by the two curb edges (meeting at the SHARP corner K) and
+// the arc. PAVEMENT sits on the K side of the arc (rounding the re-entrant corner inward); the block keeps
+// its square outer shape. Apex = K (NOT the arc centre O — that fills the block side, the inverted bug).
+static void fill_corner(float kx, float ky, CurbReturn c, float R, int col){
     float a0 = atan2f(c.t1y-c.oy, c.t1x-c.ox);
     float a1 = atan2f(c.t2y-c.oy, c.t2x-c.ox);
     float d  = a1-a0; while(d> M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;   // shorter sweep (the ≤90° arc)
     enum { N=10 };
     int xy[2*(N+2)]; int k=0;
-    xy[k++]=(int)c.ox; xy[k++]=(int)c.oy;                  // apex of the pie
+    xy[k++]=(int)kx; xy[k++]=(int)ky;                      // apex = the sharp corner (pavement side)
     for (int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=(int)(c.ox+cosf(a)*R); xy[k++]=(int)(c.oy+sinf(a)*R); }
     polyfill(xy, N+2, col);
 }
@@ -81,7 +83,7 @@ static void dashed(float x0,float y0,float x1,float y1,int col){       // a dash
 }
 
 // ── state ──
-static float cornerR = 10.f;   // curb-return radius (the headline at-grade knob)
+static float cornerR = 8.f;   // curb-return radius (the headline at-grade knob)
 static int   lanesPer = 2;     // lanes PER DIRECTION (street width = 2 * lanesPer)
 
 void update(void){
@@ -125,19 +127,31 @@ void draw(void){
     CurbReturn se=curb_return(cx+HW,cy+HW, 90,  0,cornerR);   // down + east
     CurbReturn sw=curb_return(cx-HW,cy+HW, 90,180,cornerR);   // down + west
     CurbReturn nw=curb_return(cx-HW,cy-HW,270,180,cornerR);   // up + west
-    fill_corner(ne,cornerR,CLR_DARK_GREY); fill_corner(se,cornerR,CLR_DARK_GREY);
-    fill_corner(sw,cornerR,CLR_DARK_GREY); fill_corner(nw,cornerR,CLR_DARK_GREY);
+    fill_corner(cx+HW,cy-HW, ne,cornerR,CLR_DARK_GREY); fill_corner(cx+HW,cy+HW, se,cornerR,CLR_DARK_GREY);
+    fill_corner(cx-HW,cy+HW, sw,cornerR,CLR_DARK_GREY); fill_corner(cx-HW,cy-HW, nw,cornerR,CLR_DARK_GREY);
     stroke_corner(ne,cornerR,CLR_BROWNISH_BLACK); stroke_corner(se,cornerR,CLR_BROWNISH_BLACK);
     stroke_corner(sw,cornerR,CLR_BROWNISH_BLACK); stroke_corner(nw,cornerR,CLR_BROWNISH_BLACK);
 
-    // yellow centrelines — dashed, only OUTSIDE the intersection box (a street has no centreline crossing it)
-    dashed(0,cy, cx-HW,cy, CLR_YELLOW);  dashed(cx+HW,cy, SCREEN_W,cy, CLR_YELLOW);
-    dashed(cx,0, cx,cy-HW, CLR_YELLOW);  dashed(cx,cy+HW, cx,top,     CLR_YELLOW);
-    // white stop bars — one per approach, at the box face on the inbound (right-hand) half (drive-on-right)
-    line((int)(cx-HW),(int)(cy-HW),(int)(cx),   (int)(cy-HW),CLR_WHITE);  // N face, west half (S-bound stops)
-    line((int)(cx),   (int)(cy+HW),(int)(cx+HW),(int)(cy+HW),CLR_WHITE);  // S face, east half (N-bound stops)
-    line((int)(cx-HW),(int)(cy),   (int)(cx-HW),(int)(cy+HW),CLR_WHITE);  // W face, south half (E-bound stops)
-    line((int)(cx+HW),(int)(cy-HW),(int)(cx+HW),(int)(cy),   CLR_WHITE);  // E face, north half (W-bound stops)
+    // ── road markings (only OUTSIDE the intersection box) ──
+    // yellow centre line separates opposing directions; white dashed dividers separate same-direction lanes,
+    // so `lanes/dir` reads as actual lanes (the road also widens per lane, like a real road).
+    for (int s=0;s<2;s++){                                 // horizontal street, the two arms (W then E)
+        float x0=s?cx+HW:0, x1=s?SCREEN_W:cx-HW;
+        dashed(x0,cy, x1,cy, CLR_YELLOW);
+        for (int k=1;k<lanesPer;k++){ dashed(x0,cy-k*LANEW,x1,cy-k*LANEW,CLR_WHITE);
+                                      dashed(x0,cy+k*LANEW,x1,cy+k*LANEW,CLR_WHITE); }
+    }
+    for (int s=0;s<2;s++){                                 // vertical street, the two arms (N then S)
+        float y0=s?cy+HW:0, y1=s?top:cy-HW;
+        dashed(cx,y0, cx,y1, CLR_YELLOW);
+        for (int k=1;k<lanesPer;k++){ dashed(cx-k*LANEW,y0,cx-k*LANEW,y1,CLR_WHITE);
+                                      dashed(cx+k*LANEW,y0,cx+k*LANEW,y1,CLR_WHITE); }
+    }
+    // white stop bars — at each box face, across the inbound (right-hand) lanes only (drive-on-right)
+    line((int)(cx-HW),(int)(cy-HW),(int)(cx),   (int)(cy-HW),CLR_WHITE);  // N face (S-bound stops, west half)
+    line((int)(cx),   (int)(cy+HW),(int)(cx+HW),(int)(cy+HW),CLR_WHITE);  // S face (N-bound stops, east half)
+    line((int)(cx-HW),(int)(cy),   (int)(cx-HW),(int)(cy+HW),CLR_WHITE);  // W face (E-bound stops, south half)
+    line((int)(cx+HW),(int)(cy-HW),(int)(cx+HW),(int)(cy),   CLR_WHITE);  // E face (W-bound stops, north half)
 
     // ── HUD ──
     font(FONT_SMALL);

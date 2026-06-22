@@ -28,9 +28,11 @@
 //   MILESTONE 4: the street WEB (network topology — road-hierarchy-notes §8). A second VIEW ('v'): a GRAPH
 //                of intersections (nodes) + street segments (edges) generated deterministically from a seed.
 //                gen_network() is a PURE fn of (pattern, seed) — the spec asserts on the graph (node/edge
-//                counts, mean degree, dead-ends = the SNDi measures §8.2). M4a: grid + organic (a jitter
-//                morph on one lattice). M4b (next): radial + cul-de-sac (real topology changes) + the §8.4
-//                two-tier major→minor generator. Then a seed-driven WORLD emits (pattern, region) per place.
+//                counts, mean degree, dead-ends = the SNDi measures §8.2). Four patterns, and the metrics
+//                SEPARATE them (the §8.2 point): grid/organic (degree ~3.4, 0 dead-ends) · radial (a hub +
+//                rings, degree ~3.9) · cul-de-sac (a random spanning tree + sparse loops ⇒ dendritic, degree
+//                ~2.2, many dead-ends). Next: the §8.4 two-tier major→minor generator, then a seed-driven
+//                WORLD that emits (pattern, region) per place.
 //   Controls: ui.h toolbar (clickable; keyboard too). v = junction↔network view. JUNCTION: [ ] curb radius ·
 //             -/= lanes · ,/. skew · t = T · p = turn lanes. NETWORK: [ ] seed · b = pattern.
 
@@ -115,7 +117,7 @@ static int   lanesPer = 2;    // lanes PER DIRECTION (street width = 2 * lanesPe
 static int   skew     = 0;    // degrees added to the crossing street (the N–S pair)
 static int   isT      = 0;    // drop the north arm → a T-junction
 static int   turnLanes= 0;    // M3: per-approach left-turn bay + raised median splitter
-enum { PAT_GRID, PAT_ORGANIC, NPAT };          // M4: street-web patterns (more in M4b)
+enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, NPAT };   // M4: street-web patterns
 static int   netview  = 0;    // M4: 0 = junction detail (M1–M3), 1 = the street-web network
 static int   pattern  = PAT_GRID;
 static int   netseed  = 1;
@@ -240,9 +242,11 @@ static int step_btn(int x,int y,int w,const char*lm,const char*rm){
 //    grid + organic (a jitter morph on one lattice); radial + cul-de-sac (real topology changes) are M4b.
 #define GW 9                       // node columns
 #define GH 6                       // node rows
+#define R_RINGS   5                // radial: concentric rings
+#define R_SECTORS 8                // radial: spokes
 #define MAXNODE (GW*GH)
-#define MAXEDGE (MAXNODE*2)
-static const char* PAT_NAME[NPAT] = { "grid", "organic" };
+#define MAXEDGE (MAXNODE*3)
+static const char* PAT_NAME[NPAT] = { "grid", "organic", "radial", "cul-de-sac" };
 typedef struct { float x,y; } NetNode;
 typedef struct { int a,b; } NetEdge;
 static NetNode nnodes[MAXNODE]; static NetEdge nedges[MAXEDGE];
@@ -255,18 +259,57 @@ static float hash01(int x,int y,int s){
     h=(h^(h>>15))*2246822519u; h=(h^(h>>13))*3266489917u; h^=h>>16;
     return (h & 0xffffff) / (float)0x1000000;
 }
+static int uf[MAXNODE];
+static int ufind(int x){ while(uf[x]!=x){ uf[x]=uf[uf[x]]; x=uf[x]; } return x; }
+
+// RADIAL: a hub + concentric rings of sectors, joined by spokes (hub→ring0, then ring→ring) and ring
+// cycles. The hub is the high-degree node (degree = R_SECTORS) — a radial-concentric signature.
+static void gen_radial(int seed){
+    float cx=SCREEN_W/2.f, cy=(22 + (SCREEN_H-TOOLBAR-10))/2.f;
+    float maxR=((SCREEN_H-TOOLBAR-10)-22)/2.f - 2;
+    nnodes[nn++]=(NetNode){ cx, cy };                                  // node 0 = hub
+    int ring0=1;
+    for (int r=0;r<R_RINGS;r++){ float rad=maxR*(r+1)/R_RINGS;
+        for (int s=0;s<R_SECTORS;s++){ float a=360.f*s/R_SECTORS + (hash01(r,s,seed)-0.5f)*8.f;
+            nnodes[nn++]=(NetNode){ cx+ux(a)*rad, cy+uy(a)*rad }; }
+    }
+    for (int s=0;s<R_SECTORS;s++) nedges[ne++]=(NetEdge){ 0, ring0+s };                       // hub spokes
+    for (int r=0;r<R_RINGS-1;r++) for (int s=0;s<R_SECTORS;s++)                                // inter-ring spokes
+        nedges[ne++]=(NetEdge){ ring0+r*R_SECTORS+s, ring0+(r+1)*R_SECTORS+s };
+    for (int r=0;r<R_RINGS;r++) for (int s=0;s<R_SECTORS;s++)                                  // ring cycles
+        nedges[ne++]=(NetEdge){ ring0+r*R_SECTORS+s, ring0+r*R_SECTORS+(s+1)%R_SECTORS };
+}
+// CUL-DE-SAC / dendritic: a random SPANNING TREE over the grid (connected + tree-like ⇒ many dead-ends)
+// plus a sparse fraction of extra edges (loops) — the loops-and-lollipops pattern. Kruskal over hash weights.
+static void gen_culdesac(int id[GH][GW], int seed){
+    NetEdge cand[MAXEDGE]; float wt[MAXEDGE]; int nc=0;
+    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){
+        if (c+1<GW){ cand[nc]=(NetEdge){id[r][c],id[r][c+1]}; wt[nc]=hash01(c,r,seed);     nc++; }
+        if (r+1<GH){ cand[nc]=(NetEdge){id[r][c],id[r+1][c]}; wt[nc]=hash01(c,r,seed+555); nc++; }
+    }
+    int ord[MAXEDGE]; for(int i=0;i<nc;i++) ord[i]=i;                  // order candidates by weight (selection sort, small n)
+    for(int i=0;i<nc;i++){ int m=i; for(int j=i+1;j<nc;j++) if(wt[ord[j]]<wt[ord[m]]) m=j;
+        int t=ord[i]; ord[i]=ord[m]; ord[m]=t; }
+    for(int i=0;i<nn;i++) uf[i]=i;
+    for(int i=0;i<nc;i++){ NetEdge e=cand[ord[i]]; int ra=ufind(e.a), rb=ufind(e.b);
+        if (ra!=rb){ uf[ra]=rb; nedges[ne++]=e; }                                            // tree edge (connectivity)
+        else if (hash01(e.a,e.b,seed+999) < 0.12f) nedges[ne++]=e;                           // a sparse loop
+    }
+}
 static void gen_network(int pat,int seed){
     nn=0; ne=0;
+    if (pat==PAT_RADIAL){ gen_radial(seed); return; }
     float x0=18, y0=22, x1=SCREEN_W-18, y1=SCREEN_H-TOOLBAR-10;
     float cw=(x1-x0)/(GW-1), ch=(y1-y0)/(GH-1);
-    float jit = (pat==PAT_ORGANIC) ? 0.42f : 0.f;          // organic = jitter the lattice; grid = none
+    float jit = (pat==PAT_ORGANIC) ? 0.42f : (pat==PAT_CULDESAC ? 0.22f : 0.f);
     int id[GH][GW];
     for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){
         float jx=(hash01(c,r,seed)    -0.5f)*cw*jit;
         float jy=(hash01(c,r,seed+97) -0.5f)*ch*jit;
         id[r][c]=nn; nnodes[nn++]=(NetNode){ x0+c*cw+jx, y0+r*ch+jy };
     }
-    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){          // grid edges: east + south neighbour
+    if (pat==PAT_CULDESAC){ gen_culdesac(id, seed); return; }
+    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){          // grid / organic: full grid edges
         if (c+1<GW) nedges[ne++]=(NetEdge){ id[r][c], id[r][c+1] };
         if (r+1<GH) nedges[ne++]=(NetEdge){ id[r][c], id[r+1][c] };
     }
@@ -451,6 +494,14 @@ void spec(void){
     gen_network(PAT_ORGANIC, 7); float gx=nnodes[5].x;
     gen_network(PAT_ORGANIC, 7); expect(sp_near(nnodes[5].x, gx), "gen_network is deterministic for a fixed seed");
     gen_network(PAT_ORGANIC, 8); expect(!sp_near(nnodes[5].x, gx), "a different seed moves the nodes");
+    // M4b topology changes — the patterns now differ structurally (the SNDi point: metrics separate them)
+    gen_network(PAT_RADIAL, 1);
+    expect_eq(nn, 1+R_RINGS*R_SECTORS, "radial: hub + rings*sectors nodes");
+    expect_eq(node_degree(0), R_SECTORS, "radial: the hub is the high-degree node (degree = spokes)");
+    gen_network(PAT_CULDESAC, 3);
+    expect(ne >= nn-1, "cul-de-sac is connected (>= n-1 edges — a spanning tree + sparse loops)");
+    expect(dead_ends() > 0, "cul-de-sac has dead-ends (grid has none — the topology differs)");
+    expect(mean_degree() < 3.0f, "cul-de-sac mean degree < a full grid's (dendritic, not gridded)");
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
     for (int i=0;i<40;i++) sp_tap(']');                                    // hammer the + key past the cap

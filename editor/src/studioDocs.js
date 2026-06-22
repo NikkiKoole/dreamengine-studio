@@ -38,6 +38,8 @@ export const studioDocs = {
   CURSOR_MOVE:    { sig: '#define CURSOR_MOVE 3',                                       doc: 'Four-way move/resize pointer, for dragging or panning — pass to mouse_cursor().' },
   CURSOR_TEXT:    { sig: '#define CURSOR_TEXT 4',                                       doc: 'I-beam pointer, for text-entry fields — pass to mouse_cursor().' },
   CURSOR_NO:      { sig: '#define CURSOR_NO 5',                                         doc: 'Not-allowed pointer, for an illegal action — pass to mouse_cursor().' },
+  mouse_hide:     { sig: 'void mouse_hide()',                                           doc: 'Hide the OS pointer — typically so you can draw your own cursor sprite at (mouse_x, mouse_y) for a pixel-perfect, screenshot-able cursor. Scoped to the cart window.\nmouse_hide();' },
+  mouse_show:     { sig: 'void mouse_show()',                                           doc: 'Show the OS pointer again after mouse_hide().\nmouse_show();' },
   key:            { sig: 'bool key(int k)',                                             doc: "True while a key is held. For letters/digits pass the character: key('A'), key('5'). For special keys use KEY_SPACE, KEY_LEFT, etc." },
   keyp:           { sig: 'bool keyp(int k)',                                            doc: "True only on the frame the key was pressed (edge-triggered). key('A') or KEY_ENTER." },
   keyr:           { sig: 'bool keyr(int k)',                                            doc: "True only on the frame the key was released (the falling edge). Pair with keyp() for hold gestures — note_on() on keyp, note_off() on keyr for hold-to-sustain." },

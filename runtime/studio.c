@@ -1981,6 +1981,8 @@ void mouse_cursor(int kind) {
     }
     SetMouseCursor(rl);
 }
+void mouse_hide(void) { HideCursor(); }
+void mouse_show(void) { ShowCursor(); }
 
 static int last_cls_color = 0;   // remembered so smooth_zoom's offscreen clears to the same bg
 void cls(int color) {

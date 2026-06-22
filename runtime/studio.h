@@ -124,6 +124,8 @@ int   mouse_world_y(void);           // mouse y in world space — undoes the ac
 #define CURSOR_TEXT      4   // I-beam — for text-entry fields
 #define CURSOR_NO        5   // not-allowed — for an illegal action
 void  mouse_cursor(int kind);        // set the pointer shape (CURSOR_*); persists until you change it
+void  mouse_hide(void);              // hide the OS pointer — e.g. to draw your own cursor sprite. scoped to the cart window
+void  mouse_show(void);              // show the OS pointer again
 
 // keyboard (desktop) — for letters/digits just pass the character: key('A'), key('0')
 #ifndef STUDIO_INTERNAL              // these match raylib's KeyboardKey values; hidden from studio.c to avoid clashing with them

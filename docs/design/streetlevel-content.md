@@ -405,6 +405,36 @@ reach. The selector (the C tables) stays per-cart; the atoms are the universal u
    so the 7th atom is realised as that helper rather than a separate visual tab. All seven now live
    as workbench tabs (border/pave/stamp) or in-place primitives (subdivide).
 
+## Round 2 — the gameplay layer (TBD — fermenting, 2026-06-22)
+
+The atom set fills *believable* land. The unbuilt half is the **gameplay layer** — what makes the
+street worth crossing — the outdoor parallel to interiors' Round 2 (loot / cover / role + the player
+base; see [`interiors-brief.md`](interiors-brief.md)). **Deliberately not decided yet** — captured
+so it isn't lost and so the interiors symmetry stays visible.
+
+The honest asymmetry with interiors: a room is a **container** (be in / steal from / fight in / own),
+but a street is **traversal — the connective tissue between destinations.** You don't *occupy* it,
+you move through it. So lotfill's layer is probably less "places full of loot" and more **tagging
+what's already placed with roles in driving, encounters, and chases.** Candidate directions (seeds,
+not a spec — each *emerges* from atoms lotfill already places):
+
+- **Stealables & scavenge** — parked cars (→ sloop), market stalls, dumpsters (→ scrap economy),
+  ATMs / vending. `scatter`/`footprint` already drop the objects; tag which are grabbable.
+- **Cover & chase terrain** — outdoor cover (cars, planters, dumpsters, `border` fences) + alleys /
+  chokepoints that shape a foot chase or a cop pursuit. The outdoor twin of interiors' `cover_at`.
+- **Breakables** — the street furniture sloop crashes through ("alles kan kapot": lotfill places,
+  sloop breaks).
+- **Encounters / spawns by zone** — lotfill *knows* the zone (R/C/I), which drives *where* things
+  happen: gangs holding turf (→ turfwar), back-lot deals, cops patrolling commercial, peds in a plaza.
+- **Destinations** — the "want to be here" outdoors = landmarks / parks / plazas worth driving to,
+  vs. anonymous filler blocks.
+
+Unifying read: indoors the layer is **loot / cover / role** (containers); outdoors it's more
+**interactables / cover-terrain / spawn-zones / destinations** (a field you move through). Different
+verbs, **same discipline** — emergent (a selector, not hand-placed), seam-true (a query mirroring the
+existing `*_at`), pure-fn of (region, hash, zone). **Decide the verbs before building** — that
+deciding *is* the fermenting step.
+
 ## Open decisions (for build time)
 - **Scatter distribution:** jittered grid (simplest, seam-safe) vs a relaxed Poisson — lean jittered.
 - **Rural partition:** coarse square grid (simplest) vs Voronoi fields (more organic farm shapes).

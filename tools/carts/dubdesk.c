@@ -105,7 +105,7 @@ void init(void) {
     // siren (sends BEFORE note_on)
     instrument(SL_SIR_A, INSTR_SQUARE, 1, 0, 9, 200); instrument_drive(SL_SIR_A, 0.12f);
     instrument(SL_SIR_B, INSTR_SAW, 1, 0, 9, 200);
-    instrument_echo(SL_SIR_A, 0.7f); instrument_echo(SL_SIR_B, 0.6f);
+    instrument_echo(SL_SIR_A, 0.5f); instrument_echo(SL_SIR_B, 0.45f);   // moderate send — a plain tap shouldn't smear
     instrument_reverb(SL_SIR_A, 0.4f); instrument_reverb(SL_SIR_B, 0.35f);
     hA = note_on(60, SL_SIR_A, 0); hB = note_on(60, SL_SIR_B, 0);
     note_glide(hA, 35); note_glide(hB, 35);
@@ -189,7 +189,7 @@ void update(void) {
     // ── master dub bus: the siren's X throws the WHOLE mix ──
     static int aet = -1; static float afb = -1, averb = -1;
     int etime = 60 + (int)(kecho * 540);
-    float dubfb = sir_fire ? clamp(px * 1.1f, 0, 1.1f) : 0.3f;
+    float dubfb = sir_fire ? clamp(px * 1.1f, 0, 1.1f) : 0.12f;   // base: a light slap, not a 1s tail; the X-throw is the smear
     if (etime != aet || dubfb != afb) { echo(etime, dubfb, 0.5f); aet = etime; afb = dubfb; }
     if (kverb != averb) { reverb(0.25f + kverb * 0.7f, 0.45f); averb = kverb; }
 
@@ -207,7 +207,7 @@ static const char *PART_LBL[3][3] = {
 
 void draw(void) {
     cls(CLR_BROWNISH_BLACK);
-    float dubfb = sir_fire ? clamp(px * 1.1f, 0, 1.1f) : 0.3f;
+    float dubfb = sir_fire ? clamp(px * 1.1f, 0, 1.1f) : 0.12f;   // base: a light slap, not a 1s tail; the X-throw is the smear
 
     // top bar
     print("DUBDESK", 2, 3, CLR_LIGHT_YELLOW);

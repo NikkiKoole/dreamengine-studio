@@ -48,7 +48,7 @@ nothing after it — like:
 
 teaches/lineage feed the ★ techniques compendium. teaches is a CONTROLLED vocabulary
 (tools/teaches-vocab.js) — reuse existing tags; lint-carts.js rejects an off-vocabulary
-tag. Omit teaches or use [] if the cart teaches nothing conceptually distinctive. Do NOT
-put these as // TEACHES: comments in the .c — the index.json entry is the only home.
+tag. teaches is REQUIRED — use [] if the cart teaches nothing conceptually distinctive. Do
+NOT put these as // TEACHES: comments in the .c — the index.json entry is the only home.
 The coordinator will merge that entry into index.json (your thumbnail is already baked).
 ```

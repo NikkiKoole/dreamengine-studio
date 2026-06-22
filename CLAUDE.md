@@ -465,9 +465,9 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
    ```
    `kind[]` is required; games also need a `genre`; optional `homage` credits the
    original ("Space Invaders (1978)"). `teaches`/`lineage` feed the ★ techniques
-   compendium — `teaches` is a **controlled vocabulary** (`tools/teaches-vocab.js`),
-   hard-validated like `kind` (reuse a tag; adding one is a deliberate edit to that
-   file); omit or `[]` if nothing's conceptually distinctive. Then validate:
+   compendium — `teaches` is a **required, controlled vocabulary** (`tools/teaches-vocab.js`),
+   hard-validated like `kind` (reuse a tag; adding one is a deliberate edit to that file);
+   every entry must have it — use `[]` if nothing's conceptually distinctive. Then validate:
    ```bash
    node tools/lint-carts.js
    ```

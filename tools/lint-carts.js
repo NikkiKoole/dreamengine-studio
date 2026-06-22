@@ -76,11 +76,10 @@ for (const e of index) {
   if ("homage" in e && (typeof e.homage !== "string" || !e.homage))
     errors.push(`${f}: homage must be a non-empty string`);
 
-  if ("teaches" in e) {
-    if (!Array.isArray(e.teaches)) errors.push(`${f}: teaches must be an array`);
-    else for (const t of e.teaches)
-      if (!TEACHES.has(t)) errors.push(`${f}: teaches '${t}' not in the vocabulary — reuse an existing tag, or add it deliberately to tools/teaches-vocab.js`);
-  }
+  if (!Array.isArray(e.teaches))
+    errors.push(`${f}: missing teaches[] — every cart must declare it (use [] if nothing conceptually distinctive)`);
+  else for (const t of e.teaches)
+    if (!TEACHES.has(t)) errors.push(`${f}: teaches '${t}' not in the vocabulary — reuse an existing tag, or add it deliberately to tools/teaches-vocab.js`);
   if ("lineage" in e && typeof e.lineage !== "string")
     errors.push(`${f}: lineage must be a string`);
 

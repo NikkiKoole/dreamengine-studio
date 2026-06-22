@@ -76,7 +76,8 @@
     "file": "01-hello.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "2. shapes and colors",
@@ -84,7 +85,8 @@
     "file": "02-shapes.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "3. things that move",
@@ -92,7 +94,8 @@
     "file": "03-move.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "4. press a button",
@@ -100,7 +103,8 @@
     "file": "04-buttons.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "5. draw your character",
@@ -108,7 +112,8 @@
     "file": "05-sprite.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "5b. colorkey",
@@ -116,7 +121,8 @@
     "file": "05b-colorkey.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "6. sounds and music",
@@ -124,7 +130,8 @@
     "file": "06-sound.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "7. keeping score",
@@ -132,7 +139,8 @@
     "file": "07-score.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "8. catch the star",
@@ -140,7 +148,8 @@
     "file": "08-catchstar.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "9. enemies!",
@@ -148,7 +157,8 @@
     "file": "09-enemies.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "10. build a world",
@@ -156,7 +166,8 @@
     "file": "10-world.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "11. noise",
@@ -164,7 +175,8 @@
     "file": "11-noise.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "12. high score",
@@ -172,7 +184,8 @@
     "file": "12-hiscore.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "13. easing",
@@ -180,7 +193,8 @@
     "file": "13-easing.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "14. hud layout",
@@ -188,7 +202,8 @@
     "file": "14-hud.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "15. animation phase",
@@ -196,7 +211,8 @@
     "file": "15-anim.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "16. spirograph",
@@ -205,7 +221,8 @@
     "kind": [
       "tutorial",
       "probe"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "17. hypotrochoid",
@@ -213,7 +230,8 @@
     "file": "17-hypotrochoid.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "18. particles",
@@ -247,7 +265,8 @@
     "file": "effects.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "21. type & save",
@@ -255,7 +274,8 @@
     "file": "typesave.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "22. fill patterns",
@@ -263,7 +283,8 @@
     "file": "patterns.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "23. holes & colors",
@@ -271,7 +292,8 @@
     "file": "holes.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "24. moving patterns",
@@ -443,7 +465,8 @@
     "file": "20-instruments.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "lfo",
@@ -451,7 +474,8 @@
     "file": "21-lfo.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "filter",
@@ -459,7 +483,8 @@
     "file": "22-filter.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "dream synth",
@@ -498,7 +523,8 @@
     "file": "heldnotes.cart.png",
     "kind": [
       "instrument"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "monochord",
@@ -547,7 +573,8 @@
     "kind": [
       "instrument",
       "probe"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "vox",
@@ -633,7 +660,8 @@
     "file": "glassharmonica.cart.png",
     "kind": [
       "instrument"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "hurdy-gurdy",
@@ -824,7 +852,8 @@
     "kind": [
       "tutorial"
     ],
-    "genre": "platformer"
+    "genre": "platformer",
+    "teaches": []
   },
   {
     "title": "grid move",
@@ -903,7 +932,8 @@
     "kind": [
       "tutorial"
     ],
-    "genre": "lab"
+    "genre": "lab",
+    "teaches": []
   },
   {
     "title": "collision lab 2: circles + distance",
@@ -912,7 +942,8 @@
     "kind": [
       "tutorial"
     ],
-    "genre": "lab"
+    "genre": "lab",
+    "teaches": []
   },
   {
     "title": "collision lab 3: the world",
@@ -934,7 +965,8 @@
     "kind": [
       "tutorial"
     ],
-    "genre": "lab"
+    "genre": "lab",
+    "teaches": []
   },
   {
     "title": "collision lab 5: lines",
@@ -943,7 +975,8 @@
     "kind": [
       "tutorial"
     ],
-    "genre": "lab"
+    "genre": "lab",
+    "teaches": []
   },
   {
     "title": "text fx",
@@ -952,7 +985,8 @@
     "kind": [
       "tutorial"
     ],
-    "genre": "lab"
+    "genre": "lab",
+    "teaches": []
   },
   {
     "title": "ink runner",
@@ -1170,7 +1204,8 @@
     "file": "binaryhand.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "burger time",
@@ -1462,7 +1497,8 @@
     "file": "doomfire.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "double pendulum",
@@ -1470,7 +1506,8 @@
     "file": "pendulum.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "3D wireframe",
@@ -1516,7 +1553,8 @@
     "file": "insult.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "one-armed bandit",
@@ -1525,7 +1563,8 @@
     "kind": [
       "game"
     ],
-    "genre": "tabletop"
+    "genre": "tabletop",
+    "teaches": []
   },
   {
     "title": "lil life (the sims)",
@@ -1609,7 +1648,8 @@
     "kind": [
       "tech-demo",
       "probe"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "ripple tank",
@@ -1617,7 +1657,8 @@
     "file": "ripple.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "verlet rope",
@@ -1625,7 +1666,8 @@
     "file": "rope.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "boids",
@@ -1634,7 +1676,8 @@
     "kind": [
       "tech-demo",
       "probe"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "lil hero (zelda)",
@@ -1658,7 +1701,8 @@
     "file": "sand.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "papers, please",
@@ -1803,7 +1847,8 @@
     "file": "classic-starter.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "the crowd",
@@ -1811,7 +1856,8 @@
     "file": "crowd.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "sensible soccer",
@@ -2073,7 +2119,8 @@
     "file": "polystress.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "discstress",
@@ -2081,7 +2128,8 @@
     "file": "discstress.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "tristress",
@@ -2089,7 +2137,8 @@
     "file": "tristress.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "clampstress",
@@ -2097,7 +2146,8 @@
     "file": "clampstress.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "excitebike",
@@ -2235,7 +2285,8 @@
     "file": "worldpointer.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "sky strike",
@@ -2301,7 +2352,8 @@
     "file": "arcs.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "flyover",
@@ -2404,7 +2456,8 @@
     "file": "streetlab.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "Football Manager",
@@ -2833,7 +2886,8 @@
     "kind": [
       "game"
     ],
-    "genre": "puzzle"
+    "genre": "puzzle",
+    "teaches": []
   },
   {
     "title": "Minesweeper",
@@ -3159,7 +3213,8 @@
     "file": "shapes.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "Fonts",
@@ -3167,7 +3222,8 @@
     "file": "fonts.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "Ragdoll",
@@ -3368,7 +3424,8 @@
     "kind": [
       "toy",
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "line rider",
@@ -3446,7 +3503,8 @@
     "file": "fontbake.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "high noon",
@@ -3456,7 +3514,8 @@
       "game",
       "tech-demo"
     ],
-    "genre": "arcade"
+    "genre": "arcade",
+    "teaches": []
   },
   {
     "title": "engine tuner",
@@ -3813,7 +3872,8 @@
     "file": "whatiscode.cart.png",
     "kind": [
       "tutorial"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "flappy",
@@ -4126,7 +4186,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "touchlab",
@@ -4134,7 +4195,8 @@
     "file": "touchlab.cart.png",
     "kind": [
       "probe"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "touch piano",
@@ -4142,7 +4204,8 @@
     "file": "touchpiano.cart.png",
     "kind": [
       "instrument"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "ui kit",
@@ -4151,7 +4214,8 @@
     "kind": [
       "probe",
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "coaster & slide",
@@ -4273,7 +4337,8 @@
     "file": "loupe.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "ui.h loupe",
@@ -4281,7 +4346,8 @@
     "file": "uiloupe.cart.png",
     "kind": [
       "tech-demo"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "Gnome Hide & Eek",
@@ -4436,7 +4502,8 @@
     "file": "varispeed.cart.png",
     "kind": [
       "instrument"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "fxmod",
@@ -4444,7 +4511,8 @@
     "file": "fxmod.cart.png",
     "kind": [
       "instrument"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "lfoshapes",
@@ -4580,7 +4648,8 @@
       "toy",
       "instrument"
     ],
-    "homage": "Squarepusher (Tom Jenkinson) - bass-virtuoso drill'n'bass"
+    "homage": "Squarepusher (Tom Jenkinson) - bass-virtuoso drill'n'bass",
+    "teaches": []
   },
   {
     "title": "clavinet",
@@ -4646,7 +4715,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "drivemodes",
@@ -4655,7 +4725,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "bitcrush",
@@ -4664,7 +4735,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "floorwalker",
@@ -4699,7 +4771,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "vowel",
@@ -4763,7 +4836,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "caustics",
@@ -4800,7 +4874,8 @@
     "kind": [
       "tech-demo",
       "toy"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "DJ Filter",
@@ -4850,7 +4925,8 @@
     "kind": [
       "probe",
       "tool"
-    ]
+    ],
+    "teaches": []
   },
   {
     "title": "spatial",

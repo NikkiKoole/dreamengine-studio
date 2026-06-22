@@ -179,8 +179,9 @@ beyond title/description/file/kind, which feed the ★ techniques compendium:
   It's a **controlled vocabulary** (`tools/teaches-vocab.js`), hard-validated by
   `lint-carts.js` exactly like `kind`: **reuse an existing tag.** A genuinely new
   technique can be added to that file, but that's a deliberate, reviewable choice — not a
-  casual coinage (an off-vocabulary tag fails the lint). Omit `teaches` (or use `[]`) if
-  the cart teaches nothing conceptually distinctive — many simple carts legitimately do.
+  casual coinage (an off-vocabulary tag fails the lint). `teaches` is **required** on every
+  entry — use `[]` if the cart teaches nothing conceptually distinctive (many simple carts
+  legitimately do); the empty array is the explicit "nothing here," not an oversight.
 - **`lineage`** — one prose line: what this descends from and what's genuinely new here.
   Name the cart whose chassis you copied, if any. (Free prose; the history page pulls on it.)
 - Do **not** put these in the `.c` as `// TEACHES:` comments — the index.json entry is the

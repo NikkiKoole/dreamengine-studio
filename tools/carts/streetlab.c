@@ -279,12 +279,14 @@ static void cross_markings(float cx,float cy,float b,float kstdP,float kstdM,flo
     }
 }
 // Pass 3 (#5b, OPTIONAL): the straight-through bike CROSSING — "elephant's feet", a dashed row of terracotta
-// squares continuing the (outermost) bike lane across the junction box from the mouth in to the hub. Contextual
-// (signalised vs priority, mixing zones), so it's opt-in (bike level 2). Drawn per arm ⇒ collinear arms meet.
+// squares continuing the (outermost) bike lane across the junction box to the hub. Contextual (signalised vs
+// priority), so it's opt-in (bike level 2). The dash phase is anchored at the HUB (squares at fixed multiples of
+// the step) — NOT the mouth — so collinear arms align and the gaps stay EVEN across the box at any skew.
+#define BTSTEP 5    // elephant's-feet pitch (px)
 static void bike_thru(float cx,float cy,float b,float mouth){
     float dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90);
     float off=(bike_inner()+cross_hw())*0.5f;               // centre of the kerb-side bike lane
-    for (float d=mouth; d>1.f; d-=5.f)                       // a square every ~5px (dashed), both kerb sides
+    for (float d=BTSTEP; d<mouth; d+=BTSTEP)                 // hub-anchored ⇒ even + symmetric across the box
         for (int s=-1;s<=1;s+=2)
             rectfill((int)(cx+dx*d+nx*s*off)-1,(int)(cy+dy*d+ny*s*off)-1, 3,3, CLR_BROWN);
 }
@@ -752,7 +754,7 @@ void draw(void){
         float sb = peds ? mouth+1+CWDEP+1 : mouth+1;
         float mx=cx+dx*sb, my=cy+dy*sb, si=drive_inner(), so=drive_outer();
         line((int)(mx+ix*si),(int)(my+iy*si),(int)(mx+ix*so),(int)(my+iy*so),CLR_WHITE);
-        if (bikeOn>=2) bike_thru(cx,cy,b,mouth);           // #5b (opt-in): the straight-through bike crossing
+        if (bikeOn>=2 && !isT) bike_thru(cx,cy,b,mouth);   // #5b (opt-in): straight-through crossing — not on a T (no through movement)
     }
   }
 

@@ -497,10 +497,11 @@ non-dance stations build the session upright **near-identically** (a real cross-
 | roadhouse (`I_PBASS`, session-bassist night)  | TRI A3 D300 S5 R110 · pitch-env →2 (0/16) · LP 480/1 |
 | tango (`I_BASS`, marcato)                     | TRI A3 D280 S5 R100 · pitch-env →2 (0/16) |
 | exotica (`I_BASS`, two-feel)                  | TRI A4 D260 S4 R140 · pitch-env →2 (0/18) — looser/longer |
+| afrobeat (`I_BASS`, the ostinato)             | TRI A3 D280 S5 R130 · pitch-env →3 (0/18) · LP 700/1 — warm, replaced a farty FM |
 
-- tier: **variant** (4 stations — the session upright; the first three near-byte-identical)
+- tier: **variant** (5 stations — the session upright; the first three near-byte-identical)
 - origin: cocktail (or earlier)
-- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`) · tango (`I_BASS`) · exotica (`I_BASS`)
+- used by: cocktail (`I_BASS`) · roadhouse (`I_PBASS`) · tango (`I_BASS`) · exotica (`I_BASS`) · afrobeat (`I_BASS`)
 - kin: the TRI-bass pile (`tri/disco-bass`, `tri/fingered-bass`). This one is the **acoustic
   jazz/classical** cluster's shared bass (vs the dance stations' disco-bass).
 
@@ -582,13 +583,13 @@ cut-env is the slap, where the disco basses use a small pitch-env pluck.
 - used by: napoleon (`I_BASS`, DANCE)
 - kin: the disco/funk low end (`tri/disco-bass`) — same role, a slapped SAW vs a plucked TRI.
 
-### fm/afro-bass
+### fm/afro-bass — RETIRED
 `INSTR_FM` · A2 D240 S5 R160 · h0.25 t0.32 · pitch-env →2 (0/16)
-A round electric bass for the syncopated ostinato — fundamental-heavy FM with a short pitch
-blip on the attack (the finger snap). kin: addis `fm/ostinato-bass` (same FM-bass idea).
-- tier: unique (kin `fm/ostinato-bass`)
-- origin: afrobeat
-- used by: afrobeat (`I_BASS`)
+Was afrobeat's syncopated bass ostinato — but the FM ratio/mod-index read **farty** (buzzy
+low-mid sidebands). Re-voiced to an **upright** (`tri/upright-bass`, below). No current users;
+kept as a cautionary note: a low-register FM voice with a non-fundamental ratio + audible
+mod-index buzzes. kin: addis `fm/ostinato-bass`.
+- tier: retired · origin: afrobeat (now on `tri/upright-bass`)
 
 ### guitar/guitarron
 `INSTR_GUITAR` · A1 D0 S7 R400 · h0.35 t0.18 m0.50 · LP 1400/1

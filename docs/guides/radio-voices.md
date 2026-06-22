@@ -660,7 +660,7 @@ the ensemble spread). Built on `euclid()` polyrhythm + a held modal vamp.
 |---|---|---|---|
 | `I_GTR1` | muted "tenor" interlock guitar (panned L) | `guitar/afro-tenor` *(first radio GUITAR)* | GUITAR |
 | `I_GTR2` | brighter rhythm guitar (panned R) | `guitar/afro-rhythm` | GUITAR |
-| `I_BASS` | syncopated electric ostinato | `fm/afro-bass` (kin: `fm/ostinato-bass`) | FM |
+| `I_BASS` | syncopated upright ostinato (was a farty FM electric — re-voiced) | `tri/upright-bass` (kin: cocktail) | TRI |
 | `I_ORG`  | combo-organ comp | `organ/afro-comp` (kin: `organ/jimmy`) · `epiano` (chair) | ORGAN / EPIANO |
 | `I_SAX`  | horn-section top + the solo (improv.h) | `reed/afro-tenor-sax` (kin: reed.c `tenor_sax`) | REED |
 | `I_TPT`  | horn-section trumpet + stabs | `brass/afro-trumpet` *(first radio BRASS)* | BRASS |

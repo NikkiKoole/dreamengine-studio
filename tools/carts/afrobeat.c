@@ -52,7 +52,7 @@
 // ── instrument slots (5..15 — the full custom range) ──────────────────────
 #define I_GTR1   5   // tenor guitar — muted interlock chuck (GUITAR, panned L)
 #define I_GTR2   6   // rhythm guitar — the counter-pattern (GUITAR, panned R)
-#define I_BASS   7   // electric bass ostinato (INSTR_FM, round)
+#define I_BASS   7   // upright bass ostinato (INSTR_TRI, woody — was a farty FM electric)
 #define I_ORG    8   // combo organ comp (INSTR_ORGAN, jazz B3)
 #define I_SAX    9   // tenor sax — section top + the solo (INSTR_REED)
 #define I_TPT   10   // trumpet — section + stabs (INSTR_BRASS)  *plays oct +1*
@@ -480,10 +480,11 @@ static void setup_instruments(void) {
     for (int i = 0; i < band.n; i++) apply_chair(i);     // base sounds (sel 0)
 
     // the bass — INSTR_FM, a round electric with a short pitch-blip attack
-    instrument(I_BASS, INSTR_FM, 2, 240, 5, 160);
-    instrument_harmonics(I_BASS, 0.25f);
-    instrument_timbre(I_BASS, 0.32f);
-    instrument_env(I_BASS, 0, ENV_PITCH, 0, 16, 2);
+    // an UPRIGHT bass — was a farty FM electric; now a round INSTR_TRI with a
+    // finger-pluck thump (ENV_PITCH) and a warm lowpass: woody, deep, no buzz.
+    instrument(I_BASS, INSTR_TRI, 3, 280, 5, 130);
+    instrument_filter(I_BASS, FILTER_LOW, 700, 1);
+    instrument_env(I_BASS, 0, ENV_PITCH, 0, 18, 3);
 
     // KICK — bespoke punchy synth kick (sine + fast pitch drop)
     instrument(SL_KICK, INSTR_SINE, 1, 60, 0, 90);

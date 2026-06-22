@@ -1,7 +1,18 @@
 # `spec()` — a per-cart logic safety net
 
-Status: **design / not built.** This captures the shape we agreed on so building it
-later is a transcription job, not a re-litigation.
+Status: **v1 BUILT (2026-06-22).** The core slice shipped — `step()` + `expect()` +
+`key_down()`/`key_up()` + a weak `spec()` stub + the `--spec` headless run path in
+`runtime/studio.c` (all under `-DDE_SPEC`, zero footprint in a normal build), the
+cart-facing API in [`runtime/spec.h`](../../runtime/spec.h), and the runner
+[`tools/spec.js`](../../tools/spec.js). **`streetlab` is the first cart with a `spec()`**
+(it pins `curb_return()` tangency + the radius clamp — 9 assertions). Built lazily,
+"when we needed it," the moment streetlab had a pure deterministic fn worth pinning.
+
+**Still deferred** (add when a cart first needs them, same lazy rule): `frame(int)` (update
++ headless draw, for probe asserts on procedural generators), `btn_down`/`btn_up` (press via
+the default binding — `step()` reads `key_inject[]` raw for now), and `--golden` (framebuffer
+hash). The rest of this doc is the original design; the sections below are accurate for what's
+built and flag what isn't.
 
 ## The gap
 

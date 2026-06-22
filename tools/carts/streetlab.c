@@ -93,8 +93,8 @@ void update(void){
     if (lanesPer<1) lanesPer=1; if (lanesPer>3) lanesPer=3;
 #ifdef DE_TRACE
     { CurbReturn c=curb_return(100,100,270,0,cornerR);     // NE-shaped corner, for the trace/spec
-      watch("cornerR", cornerR);
-      watch("fillet_ox", c.ox); watch("fillet_oy", c.oy); }
+      watch("cornerR", "%.1f", cornerR);
+      watch("fillet_ox", "%.1f", c.ox); watch("fillet_oy", "%.1f", c.oy); }
 #endif
 }
 
@@ -161,3 +161,40 @@ void draw(void){
     ui_end();
     font(FONT_NORMAL);
 }
+
+// ── spec() — the cart-logic safety net (docs/design/spec-harness.md). streetlab is the FIRST cart to
+//    carry one: curb_return() is a pure, deterministic geometry fn (clean seam), so it pins exactly the
+//    M1 primitive. Run: `node tools/spec.js streetlab` (or all carts: `node tools/spec.js`). ──
+#ifdef DE_SPEC
+#include "spec.h"
+static float sp_dist(float ax,float ay,float bx,float by){ return sqrtf((ax-bx)*(ax-bx)+(ay-by)*(ay-by)); }
+static float sp_dline(float kx,float ky,float dir,float px,float py){     // ⊥ distance from (px,py) to the line through K along dir
+    return fabsf((px-kx)*uy(dir) - (py-ky)*ux(dir));                       // dir is a unit vector (ux,uy)
+}
+static int   sp_near(float a,float b){ float d=a-b; return (d<0?-d:d) < 0.2f; }
+static void  sp_tap(int k){ key_down(k); step(1); key_up(k); step(1); }    // one clean press→release edge
+
+void spec(void){
+    // ── curb_return() geometry — the M1 primitive, pinned ──
+    CurbReturn c = curb_return(100,100, 270, 0, 10.f);                     // perpendicular corner, edges up + east, R=10
+    expect(sp_near(sp_dline(100,100,270, c.ox,c.oy), 10.f), "fillet centre is R from curb edge 1 (tangent)");
+    expect(sp_near(sp_dline(100,100,  0, c.ox,c.oy), 10.f), "fillet centre is R from curb edge 2 (tangent)");
+    expect(sp_near(sp_dist(c.ox,c.oy,c.t1x,c.t1y), 10.f),   "tangent point 1 sits R from the centre");
+    expect(sp_near(sp_dist(c.ox,c.oy,c.t2x,c.t2y), 10.f),   "tangent point 2 sits R from the centre");
+    expect(c.ox > 100 && c.oy < 100,                        "centre is on the sidewalk side (NE for up+east)");
+
+    CurbReturn small = curb_return(100,100,270,0, 5.f);
+    CurbReturn big   = curb_return(100,100,270,0,20.f);
+    expect(sp_dist(100,100,big.ox,big.oy) > sp_dist(100,100,small.ox,small.oy),
+           "bigger radius pushes the centre further from the corner");
+
+    CurbReturn zero = curb_return(100,100,270,0, 0.f);
+    expect(sp_near(zero.ox,100) && sp_near(zero.oy,100),    "R=0 collapses to a sharp corner (no fillet)");
+
+    // ── update() loop — the radius knob clamps (proves step() + key injection drive the cart) ──
+    for (int i=0;i<40;i++) sp_tap(']');                                    // hammer the + key past the cap
+    expect(cornerR <= 28.f, "curb radius caps at 28");
+    for (int i=0;i<40;i++) sp_tap('[');                                    // hammer the - key past the floor
+    expect(cornerR >= 0.f,  "curb radius floors at 0");
+}
+#endif

@@ -878,6 +878,42 @@ static void crash_handler(int sig) {
 __attribute__((weak)) void init(void)   {}
 __attribute__((weak)) void update(void) {}
 
+#ifdef DE_SPEC
+// ── spec() — the cart-LOGIC safety net (docs/design/spec-harness.md, runtime/spec.h). Built ONLY under
+//    -DDE_SPEC (the `node tools/spec.js` runner); a normal build compiles none of this. The cart defines
+//    spec() and drives the headless loop with step()/expect(); we reuse the existing inject-input buffers
+//    (the same machinery behind --replay/--script), so keyp()/keyr() edges fire correctly. ──
+#include "spec.h"
+__attribute__((weak)) void spec(void) {}             // no spec() in this cart ⇒ the runner skips it
+static int  spec_mode = 0;                           // --spec: run spec() headless instead of the game loop
+static int  spec_pass = 0, spec_fail = 0, spec_inited = 0;
+static unsigned char key_pending[KEYSTATE_N];        // desired key state; applied at each step's frame start
+
+void key_down(int k){ if (k >= 0 && k < KEYSTATE_N) key_pending[k] = 1; }
+void key_up  (int k){ if (k >= 0 && k < KEYSTATE_N) key_pending[k] = 0; }
+
+void step(int n){
+    if (!spec_inited) { init(); spec_inited = 1; }
+    for (int i = 0; i < n; i++){
+        memcpy(key_inject_prev, key_inject, sizeof key_inject);   // prev = last frame's state (for keyp/keyr edges)
+        memcpy(key_inject,      key_pending, sizeof key_inject);  // cur  = desired (a fresh key_down ⇒ a press edge)
+        update();
+        frame_count++;
+    }
+}
+void expect(int cond, const char *msg){
+    if (cond) spec_pass++; else spec_fail++;
+    printf("{\"pass\":%d,\"msg\":\"%s\"}\n", cond ? 1 : 0, msg ? msg : "");
+    fflush(stdout);
+}
+void expect_eq(long got, long want, const char *msg){
+    int ok = (got == want);
+    if (ok) spec_pass++; else spec_fail++;
+    printf("{\"pass\":%d,\"msg\":\"%s\",\"got\":%ld,\"want\":%ld}\n", ok ? 1 : 0, msg ? msg : "", got, want);
+    fflush(stdout);
+}
+#endif
+
 // ------------------------------------------------------------
 // main + runtime loop
 // ------------------------------------------------------------
@@ -1563,6 +1599,9 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--dump-every") == 0 && i + 1 < argc) dump_every = atoi(argv[++i]);
         else if (strcmp(argv[i], "--save-dir") == 0 && i + 1 < argc) save_dir_set(argv[++i]);
         else if (strcmp(argv[i], "--wav")    == 0 && i + 1 < argc) wav_path = argv[++i];
+#ifdef DE_SPEC
+        else if (strcmp(argv[i], "--spec")   == 0) spec_mode = 1;
+#endif
 #ifdef DE_TCC
         else if (strcmp(argv[i], "--cart") == 0 && i + 1 < argc) cart_path = argv[++i];
 #endif
@@ -1570,6 +1609,9 @@ int main(int argc, char **argv) {
     // replay/script drive input deterministically; both imply --det
     if (replay_path) { load_replay(replay_path); inject_input = true; det_mode = true; }
     if (script_path) { load_script(script_path); inject_input = true; det_mode = true; }
+#ifdef DE_SPEC
+    if (spec_mode) { inject_input = true; det_mode = true; hide_window = 1; }   // headless, deterministic
+#endif
     if (rec_path)    rec_file   = fopen(rec_path,  "w");
     if (trace_path)  trace_file = fopen(trace_path, "w");
     if (uiaudit_path) uiaudit_file = fopen(uiaudit_path, "w");
@@ -1679,6 +1721,16 @@ int main(int argc, char **argv) {
 #ifdef PLATFORM_WEB
     emscripten_set_main_loop(loop_step, 0, 1);
 #else
+#ifdef DE_SPEC
+    if (spec_mode) {                              // run the cart's spec() headless, then report + exit
+        spec_inited = 1;                          // init() already ran above; don't re-init in step()
+        frame_count = 0;
+        spec();
+        printf("{\"done\":1,\"pass\":%d,\"fail\":%d}\n", spec_pass, spec_fail);
+        fflush(stdout);
+        return spec_fail > 0 ? 1 : 0;
+    }
+#endif
     while (!WindowShouldClose()) {
         loop_step();
         if (screenshot_mode && ++screenshot_frames_done >= 3) break;

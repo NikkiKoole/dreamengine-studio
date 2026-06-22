@@ -163,27 +163,28 @@ feature would fight the game, leave it out.
   after recoloring an entity.
 - Keep movement framerate-independent with `dt()`. Angles are **degrees**.
 
-## The cart header — write a docblock, then tag it
-Open the `.c` with the docblock every cart already has: a title rule, then 2–4 lines
-of player-facing prose (the hook + controls). Then add **two machine-readable lines**
-the library tooling harvests (`tools/cart-index.js`):
+## Tag the cart — `teaches` + `lineage` in its index.json entry
+Your `index.json` entry (the one you write in the ship step below) carries two fields
+beyond title/description/file/kind, which feed the ★ techniques compendium:
 
-    // ── TRAFFIC JAM ──────────────────────────────────────────
-    // A generative cars toy… LEFT-click honks, L flips the light, SPACE re-rolls.
-    //
-    // TEACHES: gene-based-procgen, car-following, no-sprite-vehicles
-    // LINEAGE: rectangular-vehicle style after boulderdash; first traffic-sim toy
+    { "title": "traffic jam", "description": "…", "file": "trafficjam.cart.png",
+      "kind": ["toy"],
+      "teaches": ["gene-based-procgen", "car-following", "no-sprite-vehicles"],
+      "lineage": "rectangular-vehicle style after boulderdash; first traffic-sim toy" }
 
-- **`TEACHES:`** — the *conceptual* techniques a reader would come here to learn, as
-  comma-separated kebab tags. The mechanical API usage (which primitives, which input,
-  which effects) is detected from your calls automatically, so **don't list the
-  obvious** ("draws-rectangles") — list what the calls *don't* reveal:
+- **`teaches`** — the *conceptual* techniques a reader would come to this cart to learn.
+  The mechanical API usage (which primitives, input, effects) is detected from your calls
+  automatically, so **don't list the obvious** — list what the calls *don't* reveal:
   `car-following`, `marching-squares`, `title-play-gameover-loop`, `granular-synth`.
-  Reuse an existing tag where one fits (the seed vocabulary lives at the top of
-  `tools/cart-index.js`); coin a new kebab tag only when nothing fits.
-- **`LINEAGE:`** — one prose line: what this descends from and what's genuinely new
-  here. Name the cart whose chassis you copied, if any. This is the thread the
-  "what can be learned from what" index and the history page pull on.
+  It's a **controlled vocabulary** (`tools/teaches-vocab.js`), hard-validated by
+  `lint-carts.js` exactly like `kind`: **reuse an existing tag.** A genuinely new
+  technique can be added to that file, but that's a deliberate, reviewable choice — not a
+  casual coinage (an off-vocabulary tag fails the lint). Omit `teaches` (or use `[]`) if
+  the cart teaches nothing conceptually distinctive — many simple carts legitimately do.
+- **`lineage`** — one prose line: what this descends from and what's genuinely new here.
+  Name the cart whose chassis you copied, if any. (Free prose; the history page pulls on it.)
+- Do **not** put these in the `.c` as `// TEACHES:` comments — the index.json entry is the
+  one home, so the tags can't drift from the registry.
 
 ## Authoring & ship pipeline (state these steps in your output)
 For the game produce: (a) `tools/carts/<name>.c`, (b) an optional

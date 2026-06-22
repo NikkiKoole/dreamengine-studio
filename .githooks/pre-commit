@@ -13,22 +13,16 @@
 
 staged=$(git diff --cached --name-only)
 
-# Cart technique compendium: keep docs/cart-compendium.html (the ★ techniques page)
-# in sync with the tag data, and nudge new carts to declare a // TEACHES: line so none
-# slip in untagged. Runs whenever a cart source or the tag sidecar is staged.
-if echo "$staged" | grep -qE '^tools/carts/'; then
+# Cart technique compendium: keep docs/cart-compendium.html (the ★ techniques page) in
+# sync with the tag data. teaches[]/lineage live in editor/public/carts/index.json, so a
+# tag change shows up there (or in a cart source build). The vocabulary itself is gated by
+# lint-carts.js (an off-vocabulary teaches tag is a hard error — run it after registering).
+if echo "$staged" | grep -qE '^(editor/public/carts/index\.json|tools/carts/)'; then
   if ! node tools/build-compendium.js --check >/dev/null 2>&1; then
-    echo "[pre-commit] ✗ docs/cart-compendium.html is STALE (a cart tag changed)."
+    echo "[pre-commit] ✗ docs/cart-compendium.html is STALE (a cart's teaches/lineage changed)."
     echo "             Fix: node tools/build-compendium.js && git add docs/cart-compendium.html"
     exit 1
   fi
-  for f in $(echo "$staged" | grep -E '^tools/carts/.*\.c$'); do
-    [ -f "$f" ] || continue
-    if ! grep -q '^//[[:space:]]*TEACHES:' "$f"; then
-      echo "[pre-commit] ⚠ $f has no '// TEACHES:' line — add one (empty is fine) so the cart"
-      echo "             is a deliberate entry in the technique compendium. (warning, not blocking)"
-    fi
-  done
 fi
 
 echo "$staged" | grep -qE 'runtime/(sound|studio)\.h' || exit 0

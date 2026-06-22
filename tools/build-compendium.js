@@ -19,20 +19,11 @@ const CARTS = path.join(ROOT, 'tools/carts');
 const idx = require(path.join(ROOT, 'editor/public/carts/index.json'));
 const REG = Array.isArray(idx) ? idx : Object.values(idx)[0];
 const meta = Object.fromEntries(REG.map(c => [c.file.replace('.cart.png', ''), c]));
-let sidecar = {};
-try { sidecar = JSON.parse(fs.readFileSync(path.join(CARTS, 'teaches.json'), 'utf8')); } catch {}
 
-// per cart: .c header (source of truth) → else sidecar (same precedence as cart-index.js)
+// teaches[] + lineage live IN the index.json entry (one home, can't drift from the registry)
 function tagsFor(name) {
-  let hdrTeaches = [], hdrLineage = '';
-  try {
-    const src = fs.readFileSync(path.join(CARTS, name + '.c'), 'utf8');
-    hdrTeaches = ((src.match(/^\/\/\s*TEACHES:\s*(.+)$/m) || [, ''])[1]).split(',').map(s => s.trim()).filter(Boolean);
-    hdrLineage = (src.match(/^\/\/\s*LINEAGE:\s*(.+)$/m) || [, ''])[1].trim();
-  } catch {}
-  if (hdrTeaches.length || hdrLineage) return { teaches: hdrTeaches, lineage: hdrLineage };
-  const sc = sidecar[name] || {};
-  return { teaches: sc.teaches || [], lineage: sc.lineage || '' };
+  const m = meta[name] || {};
+  return { teaches: Array.isArray(m.teaches) ? m.teaches : [], lineage: m.lineage || '' };
 }
 
 // concept → category (mirrors the vocab grouping in cart-index.js)

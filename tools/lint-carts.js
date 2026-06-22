@@ -41,6 +41,12 @@ const GENRES = [
   "tabletop", "maze", "space", "lab", "dating",
 ];
 
+// teaches[] (the conceptual techniques a cart shows off — the ★ techniques compendium)
+// is a CONTROLLED vocabulary, like kind/genre: an off-list tag is a hard error here, so
+// adding a new tag is a deliberate, reviewable edit to tools/teaches-vocab.js — not a
+// casual side effect of tagging a cart. lineage is free prose. Both optional per entry.
+const TEACHES = new Set(require("./teaches-vocab.js").TEACHES_VOCAB);
+
 const ROOT = path.join(__dirname, "..");
 const CARTS_DIR = path.join(ROOT, "editor", "public", "carts");
 const INDEX = path.join(CARTS_DIR, "index.json");
@@ -69,6 +75,14 @@ for (const e of index) {
     errors.push(`${f}: kind 'game' requires a genre — pick from: ${GENRES.join(", ")}`);
   if ("homage" in e && (typeof e.homage !== "string" || !e.homage))
     errors.push(`${f}: homage must be a non-empty string`);
+
+  if ("teaches" in e) {
+    if (!Array.isArray(e.teaches)) errors.push(`${f}: teaches must be an array`);
+    else for (const t of e.teaches)
+      if (!TEACHES.has(t)) errors.push(`${f}: teaches '${t}' not in the vocabulary — reuse an existing tag, or add it deliberately to tools/teaches-vocab.js`);
+  }
+  if ("lineage" in e && typeof e.lineage !== "string")
+    errors.push(`${f}: lineage must be a string`);
 
   if (!fs.existsSync(path.join(CARTS_DIR, f)))
     errors.push(`${f}: registered but no such file in editor/public/carts/`);

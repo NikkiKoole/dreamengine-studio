@@ -94,40 +94,11 @@ function familyOf(call) {
 }
 
 // ── TEACHES vocabulary (CONCEPTUAL techniques the API calls can't reveal) ────
-// The mechanical axis (which primitives/input/effects) is computed from calls; this
-// is the other axis — the named idea a reader comes to a cart to learn. SEED list,
-// grown like lint-carts.js's KINDS: add a tag here when a cart genuinely needs one
-// (a tag not listed is a soft --lint warning, catching typos + prompting a real add).
-const TEACHES_VOCAB = new Set([
-  // procgen / world
-  'gene-based-procgen', 'wave-function-collapse', 'marching-squares', 'autotiling',
-  'noise-terrain', 'maze-generation', 'dungeon-generation', 'l-system', 'cellular-automata',
-  // agents / ai
-  'state-machine', 'finite-state-ai', 'pathfinding', 'flocking', 'car-following',
-  'steering-behaviors', 'traffic-sim',
-  // physics
-  'verlet-integration', 'spring-damper', 'rigid-body', 'particle-system', 'fluid-sim', 'soft-body',
-  // rendering
-  'raycasting', 'mode7', 'parallax', 'camera-follow', 'dithering-gradient', 'palette-cycling',
-  'software-rasterizer', 'procedural-mesh', 'sprite-stacking', 'no-sprite-vehicles',
-  // game structure
-  'title-play-gameover-loop', 'tilemap-collision', 'inventory-system', 'dialogue-tree',
-  'turn-based-loop', 'grid-movement', 'save-load-persistence', 'screen-shake-juice',
-  // audio
-  'subtractive-synth', 'granular-synth', 'waveguide-synth', 'fm-synth', 'additive-synth',
-  'step-sequencer', 'euclidean-rhythm', 'adsr-envelope', 'generative-melody', 'chord-voicing',
-  // adopted from the backfill pilot (recurring / signature techniques)
-  'drum-synthesis', 'analog-voice-modeling', 'swing-timing', 'radial-symmetry', 'genetic-crossover',
-  'algorithm-visualization', 'sonification', 'audio-occlusion', 'schedule-driven-agents',
-  // adopted from the full backfill (recurring across the library)
-  'isometric-projection', 'positional-audio', 'wavetable-drawing', 'segment-collision',
-]);
-
-// ── sidecar (backfilled tags for carts whose .c has no header yet) ───────────
-// The .c docblock is the source of truth; this fills the gap for the back catalogue
-// without editing 382 files. Header tags WIN; the sidecar shrinks as headers accrue.
-let SIDECAR = {};
-try { SIDECAR = JSON.parse(fs.readFileSync(path.join(CARTS, 'teaches.json'), 'utf8')); } catch {}
+// The mechanical axis (which primitives/input/effects) is computed from calls; this is
+// the other axis — the named idea a reader comes to a cart to learn. teaches[]/lineage
+// live IN index.json per cart (alongside kind/genre); the vocabulary is shared with
+// lint-carts.js, which hard-rejects an off-vocabulary tag (adding one is deliberate).
+const TEACHES_VOCAB = new Set(require('./teaches-vocab.js').TEACHES_VOCAB);
 
 // ── classification ────────────────────────────────────────────────────────────
 const PROBE_RE = /verification cart|throwaway|source-only|not registered|unregistered|stress probe|\bprobe\b.{0,40}not a game/i;
@@ -163,16 +134,12 @@ function analyze(name) {
   const flags = [...new Set([...src.matchAll(/#if(?:n?def)\s+([A-Z_][A-Z0-9_]*)/g)].map(m => m[1]))]
     .filter(f => f !== '__cplusplus');
   const purpose = (src.match(/^\/\/\s*(.+)$/m) || [, ''])[1].replace(/^\S+\s*[—-]\s*/, '');
-  // author-tagged conceptual techniques + lineage: .c docblock header (source of truth),
-  // falling back to the sidecar for carts not yet annotated in-source.
-  const hdrTeaches = ((src.match(/^\/\/\s*TEACHES:\s*(.+)$/m) || [, ''])[1])
-    .split(',').map(s => s.trim()).filter(Boolean);
-  const hdrLineage = (src.match(/^\/\/\s*LINEAGE:\s*(.+)$/m) || [, ''])[1].trim();
-  const sc = SIDECAR[name] || {};
-  const teaches = hdrTeaches.length ? hdrTeaches : (sc.teaches || []);
-  const lineage = hdrLineage || sc.lineage || '';
-  const tagSrc = hdrTeaches.length || hdrLineage ? 'header' : (sc.teaches || sc.lineage ? 'sidecar' : null);
-  return { headers: [...headers], fams, klass: classify(name, head), flags, purpose, head, teaches, lineage, tagSrc };
+  // author-tagged conceptual techniques + lineage now live IN the index.json entry
+  // (one home, can't drift from the registry) — read straight from meta.
+  const m = meta[name] || {};
+  const teaches = Array.isArray(m.teaches) ? m.teaches : [];
+  const lineage = m.lineage || '';
+  return { headers: [...headers], fams, klass: classify(name, head), flags, purpose, head, teaches, lineage };
 }
 
 // ── gather all carts ────────────────────────────────────────────────────────
@@ -288,21 +255,21 @@ if (has('--lineage')) {
   return;
 }
 
-// ── --lint (soft; for CI as a WARNING, never blocks) ────────────────────────
+// ── --lint (informational coverage view; the HARD vocab gate is in lint-carts.js) ──
 if (has('--lint')) {
   const missing = learnable.filter(n => !data[n].teaches.length);
   const bad = [];
   for (const n of learnable)
     for (const t of data[n].teaches)
       if (!TEACHES_VOCAB.has(t)) bad.push([n, t]);
-  console.log(`\nTEACHES LINT — ${taggedCount}/${NL} registered carts tagged\n`);
+  console.log(`\nTEACHES coverage — ${taggedCount}/${NL} registered carts tagged (teaches[] in index.json)\n`);
   if (bad.length) {
-    console.log('⚠ tags not in the seed vocabulary (typo, or add to TEACHES_VOCAB):');
+    console.log('⚠ off-vocabulary tags (lint-carts.js rejects these — fix the tag or add it to tools/teaches-vocab.js):');
     bad.forEach(([n, t]) => console.log(`   ${n}: ${t}`));
-  } else console.log('✓ all TEACHES tags are in the vocabulary');
-  console.log(`\nℹ ${missing.length} registered carts have no TEACHES: line yet` +
+  } else console.log('✓ all teaches tags are in the vocabulary');
+  console.log(`\nℹ ${missing.length} registered carts have no teaches yet` +
     (missing.length ? ` (first 10: ${missing.slice(0, 10).join(', ')}…)` : ''));
-  console.log('  (soft — the back catalogue fills in over time; new carts add it at authoring)\n');
+  console.log('  (back catalogue fills in over time; new carts add teaches[] in their index.json entry)\n');
   return;
 }
 

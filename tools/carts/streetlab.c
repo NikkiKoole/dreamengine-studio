@@ -34,7 +34,8 @@
 //                ~2.2, many dead-ends). Next: the §8.4 two-tier major→minor generator, then a seed-driven
 //                WORLD that emits (pattern, region) per place.
 //   Controls: ui.h toolbar (clickable; keyboard too). v = junction↔network view. JUNCTION: [ ] curb radius ·
-//             -/= lanes · ,/. skew · t = T · p = turn lanes. NETWORK: [ ] seed · b = pattern.
+//             -/= lanes · ,/. skew · t = T · p = turn lanes. NETWORK: [ ] seed · b = pattern · c = curve
+//             (M4c: the §8.5 curvature knob bows each edge into a winding road ⇒ sinuosity becomes a live SNDi measure).
 
 #define LANEW    8     // one lane width (px)
 #define TOOLBAR  44    // bottom control strip height (two rows)
@@ -121,6 +122,7 @@ enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, NPAT };   // M4: street-
 static int   netview  = 0;    // M4: 0 = junction detail (M1–M3), 1 = the street-web network
 static int   pattern  = PAT_GRID;
 static int   netseed  = 1;
+static int   curveAmt = 0;    // M4c: 0 = straight chords … 3 = winding (the §8.5 curvature knob; bows each edge)
 
 static float leg_bearing(int i){ float b=legs[i].base + (legs[i].crossing?(float)skew:0.f); return fmodf(b+3600,360); }
 static int   leg_present(int i){ return !(isT && i==3); }              // T drops North (leg 3)
@@ -208,6 +210,7 @@ void update(void){
         if (keyp('[')) { netseed--; if(netseed<0) netseed=0; }
         if (keyp(']')) netseed++;
         if (keyp('b')||keyp('B')) pattern=(pattern+1)%NPAT;
+        if (keyp('c')||keyp('C')) curveAmt=(curveAmt+1)%4;   // M4c: cycle the winding knob 0..3
         return;
     }
     if (keyp('['))  cornerR -= 2;
@@ -327,17 +330,56 @@ static void road_segment(float ax,float ay,float bx,float by,float hw,int col){
     polyfill(q,4,col);
 }
 
+// ── M4c: the curvature knob (§8.5 #4 — warped vs straight). Each EDGE bows into a quadratic curve; the
+//    graph/topology is untouched (degree, dead-ends unchanged) but the drawn roads WIND — and sinuosity
+//    (edge arc-length ÷ chord) becomes a live SNDi measure (it's pinned at 1 by straight chords otherwise). ──
+static float edge_bow(int i){            // signed ⊥ bow (px) for edge i — seeded per edge, scaled by the knob
+    if (curveAmt<=0) return 0;
+    NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b];
+    float L=sqrtf((b.x-a.x)*(b.x-a.x)+(b.y-a.y)*(b.y-a.y));
+    return (hash01(nedges[i].a, nedges[i].b, netseed+313)-0.5f) * 2.f * (curveAmt/3.f) * 0.40f * L;
+}
+// sample edge i's curve into `out` (pairs); returns point count. bow=0 ⇒ the straight chord (2 points).
+static int edge_curve(int i,float *out){
+    NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b];
+    float bow=edge_bow(i);
+    if (bow>-0.5f && bow<0.5f){ out[0]=a.x;out[1]=a.y;out[2]=b.x;out[3]=b.y; return 2; }
+    float dx=b.x-a.x, dy=b.y-a.y, L=sqrtf(dx*dx+dy*dy);
+    float nx=-dy/L, ny=dx/L;
+    float cx=(a.x+b.x)*0.5f+nx*bow, cy=(a.y+b.y)*0.5f+ny*bow;     // quadratic control = bowed midpoint
+    int k=0; for (int s=0;s<=6;s++){ float t=s/6.f, it=1-t;
+        out[k++]=it*it*a.x + 2*it*t*cx + t*t*b.x;
+        out[k++]=it*it*a.y + 2*it*t*cy + t*t*b.y; }
+    return 7;
+}
+static void draw_edge(int i,float hw,int col){
+    float p[16]; int m=edge_curve(i,p);
+    for (int s=0;s<m-1;s++) road_segment(p[s*2],p[s*2+1],p[s*2+2],p[s*2+3],hw,col);
+}
+static float mean_sinuosity(void){       // arc-length ÷ chord, averaged over edges (1.0 = straight)
+    if (!ne) return 1;
+    float tot=0; int cnt=0; float p[16];
+    for (int i=0;i<ne;i++){
+        NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b];
+        float chord=sqrtf((b.x-a.x)*(b.x-a.x)+(b.y-a.y)*(b.y-a.y)); if(chord<0.5f) continue;
+        int m=edge_curve(i,p); float arc=0;
+        for (int s=0;s<m-1;s++) arc+=sqrtf((p[s*2+2]-p[s*2])*(p[s*2+2]-p[s*2])+(p[s*2+3]-p[s*2+1])*(p[s*2+3]-p[s*2+1]));
+        tot+=arc/chord; cnt++;
+    }
+    return cnt ? tot/cnt : 1;
+}
+
 static void draw_network_view(void){
     gen_network(pattern, netseed);
-    for (int i=0;i<ne;i++){ NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b]; road_segment(a.x,a.y,b.x,b.y,2.5f,CLR_BROWNISH_BLACK); }
-    for (int i=0;i<ne;i++){ NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b]; road_segment(a.x,a.y,b.x,b.y,1.5f,CLR_DARK_GREY); }
+    for (int i=0;i<ne;i++) draw_edge(i, 2.5f, CLR_BROWNISH_BLACK);    // casing
+    for (int i=0;i<ne;i++) draw_edge(i, 1.5f, CLR_DARK_GREY);         // asphalt
     for (int i=0;i<nn;i++) circfill((int)nnodes[i].x,(int)nnodes[i].y,1,CLR_DARK_GREY);
 
     font(FONT_SMALL);
-    char bb[72];
+    char bb[80];
     print("streetlab - the street WEB (M4: network topology)", 4,5, CLR_WHITE);
-    snprintf(bb,sizeof bb,"%s   -   %d nodes   -   mean degree %.1f   -   %d dead-ends",
-             PAT_NAME[pattern], nn, mean_degree(), dead_ends());
+    snprintf(bb,sizeof bb,"%s  -  %d nodes  -  deg %.1f  -  %d dead-ends  -  sinuosity %.2f",
+             PAT_NAME[pattern], nn, mean_degree(), dead_ends(), mean_sinuosity());
     print(bb, 4,13, CLR_ORANGE);
 
     rectfill(0, SCREEN_H-TOOLBAR, SCREEN_W, TOOLBAR, CLR_BLACK);
@@ -346,6 +388,9 @@ static void draw_network_view(void){
     d=step_btn(36, SCREEN_H-40, 14, "-", "+"); if (d){ netseed+=d; if(netseed<0)netseed=0; }
     snprintf(bb,sizeof bb,"%d",netseed); print(bb, 70, SCREEN_H-37, CLR_LIGHT_GREY);
     if (ui_button(92, SCREEN_H-40, 90, 13, PAT_NAME[pattern])) pattern=(pattern+1)%NPAT;
+    print("curve", 192, SCREEN_H-37, CLR_BLUE);                       // M4c: winding knob
+    d=step_btn(228, SCREEN_H-40, 14, "-", "+"); if (d){ curveAmt+=d; if(curveAmt<0)curveAmt=0; if(curveAmt>3)curveAmt=3; }
+    snprintf(bb,sizeof bb,"%d",curveAmt); print(bb, 262, SCREEN_H-37, CLR_LIGHT_GREY);
     if (ui_button(220, SCREEN_H-22, 96, 13, "view: junction")) netview=0;
     font(FONT_NORMAL);
 }
@@ -502,6 +547,11 @@ void spec(void){
     expect(ne >= nn-1, "cul-de-sac is connected (>= n-1 edges — a spanning tree + sparse loops)");
     expect(dead_ends() > 0, "cul-de-sac has dead-ends (grid has none — the topology differs)");
     expect(mean_degree() < 3.0f, "cul-de-sac mean degree < a full grid's (dendritic, not gridded)");
+    // M4c: the curvature knob — straight chords pin sinuosity at 1; winding pushes it above 1 (a live SNDi measure)
+    gen_network(PAT_GRID, 1);
+    curveAmt=0; expect(sp_near(mean_sinuosity(), 1.0f), "curve=0: straight chords, sinuosity == 1");
+    curveAmt=3; expect(mean_sinuosity() > 1.0f,         "curve>0: roads wind, sinuosity > 1");
+    curveAmt=0;                                                            // restore
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
     for (int i=0;i<40;i++) sp_tap(']');                                    // hammer the + key past the cap

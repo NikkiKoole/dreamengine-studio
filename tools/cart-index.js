@@ -116,7 +116,18 @@ const TEACHES_VOCAB = new Set([
   // audio
   'subtractive-synth', 'granular-synth', 'waveguide-synth', 'fm-synth', 'additive-synth',
   'step-sequencer', 'euclidean-rhythm', 'adsr-envelope', 'generative-melody', 'chord-voicing',
+  // adopted from the backfill pilot (recurring / signature techniques)
+  'drum-synthesis', 'analog-voice-modeling', 'swing-timing', 'radial-symmetry', 'genetic-crossover',
+  'algorithm-visualization', 'sonification', 'audio-occlusion', 'schedule-driven-agents',
+  // adopted from the full backfill (recurring across the library)
+  'isometric-projection', 'positional-audio',
 ]);
+
+// ── sidecar (backfilled tags for carts whose .c has no header yet) ───────────
+// The .c docblock is the source of truth; this fills the gap for the back catalogue
+// without editing 382 files. Header tags WIN; the sidecar shrinks as headers accrue.
+let SIDECAR = {};
+try { SIDECAR = JSON.parse(fs.readFileSync(path.join(CARTS, 'teaches.json'), 'utf8')); } catch {}
 
 // ── classification ────────────────────────────────────────────────────────────
 const PROBE_RE = /verification cart|throwaway|source-only|not registered|unregistered|stress probe|\bprobe\b.{0,40}not a game/i;
@@ -152,11 +163,16 @@ function analyze(name) {
   const flags = [...new Set([...src.matchAll(/#if(?:n?def)\s+([A-Z_][A-Z0-9_]*)/g)].map(m => m[1]))]
     .filter(f => f !== '__cplusplus');
   const purpose = (src.match(/^\/\/\s*(.+)$/m) || [, ''])[1].replace(/^\S+\s*[—-]\s*/, '');
-  // author-tagged conceptual techniques + lineage (the cart-header convention)
-  const teaches = ((src.match(/^\/\/\s*TEACHES:\s*(.+)$/m) || [, ''])[1])
+  // author-tagged conceptual techniques + lineage: .c docblock header (source of truth),
+  // falling back to the sidecar for carts not yet annotated in-source.
+  const hdrTeaches = ((src.match(/^\/\/\s*TEACHES:\s*(.+)$/m) || [, ''])[1])
     .split(',').map(s => s.trim()).filter(Boolean);
-  const lineage = (src.match(/^\/\/\s*LINEAGE:\s*(.+)$/m) || [, ''])[1].trim();
-  return { headers: [...headers], fams, klass: classify(name, head), flags, purpose, head, teaches, lineage };
+  const hdrLineage = (src.match(/^\/\/\s*LINEAGE:\s*(.+)$/m) || [, ''])[1].trim();
+  const sc = SIDECAR[name] || {};
+  const teaches = hdrTeaches.length ? hdrTeaches : (sc.teaches || []);
+  const lineage = hdrLineage || sc.lineage || '';
+  const tagSrc = hdrTeaches.length || hdrLineage ? 'header' : (sc.teaches || sc.lineage ? 'sidecar' : null);
+  return { headers: [...headers], fams, klass: classify(name, head), flags, purpose, head, teaches, lineage, tagSrc };
 }
 
 // ── gather all carts ────────────────────────────────────────────────────────

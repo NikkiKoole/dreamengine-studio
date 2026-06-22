@@ -639,3 +639,72 @@ void draw(void){
     ui_end();
     font(FONT_NORMAL);
 }
+
+// ── spec() — the cart-logic safety net (docs/design/spec-harness.md). roadlab is FEATURE-COMPLETE, so
+//    this is a regression lock + a GOLDEN REFERENCE for the Phase-2 port into a seed-driven world: it pins
+//    the pure invariants that bakes used to check by eye (and that bit us — the DRIVE chirality, the
+//    port-A-entry tangent, the splines landing on their ports). NOT the aesthetics ("drives easily" / "no
+//    cusp" / "nests clean") — those stay with the annotated-screenshot method. Run: node tools/spec.js roadlab ──
+#ifdef DE_SPEC
+#include "spec.h"
+static int  sp_near(float a,float b){ float d=a-b; return (d<0?-d:d) < 0.5f; }
+static int  sp_count(const Junction*j, RampPrim p){ int c=0; for(int i=0;i<j->nConns;i++) if(j->conns[i].prim==p) c++; return c; }
+static void sp_tap(int k){ key_down(k); step(1); key_up(k); step(1); }
+
+void spec(void){
+    // ── classify_turn: the DRIVE-folded handedness (the chirality that kept biting) ──
+    expect(classify_turn(0,  0) == T_THROUGH, "straight-through: heading unchanged");
+    expect(classify_turn(0,180) == T_UTURN,   "reversed heading is a U-turn");
+    expect(classify_turn(0, 90) == T_RIGHT,   "drive-on-right: +90 heading change = the easy RIGHT turn");
+    expect(classify_turn(0,-90) == T_LEFT,    "drive-on-right: -90 heading change = the hard LEFT turn");
+
+    // ── make_junction: pure generator over (legs, type). 4-leg cross, lay ports, generate. ──
+    for (int L=0;L<NLEG;L++) legs[L].present=1;  skew=0;  rebuild_ports();
+    Junction j;  make_junction(4, JT_DIAMOND, 2, &j);
+    expect_eq(j.nConns, 12, "a 4-way serves 12 movements");
+    expect_eq(sp_count(&j,RP_THROUGH), 4, "4-way: 4 through movements (the two mainlines)");
+    expect_eq(sp_count(&j,RP_LOOP),    0, "diamond: hard lefts are at-grade direct (no loops)");
+    Junction jc; make_junction(4, JT_CLOVERLEAF, 2, &jc);
+    expect_eq(jc.nConns, 12, "cloverleaf has the same 12 movements as the diamond...");
+    expect_eq(sp_count(&jc,RP_LOOP), 4, "...differing ONLY in the LEFT column: the 4 hard lefts become loops");
+    Junction js; make_junction(4, JT_STACK, 2, &js);
+    expect_eq(sp_count(&js,RP_FLYOVER), 4, "stack: the 4 hard lefts become flyovers");
+
+    // ── topology: the 3-leg family drops the north arm (leg 2) → a T ──
+    expect(!topo_present(JT_TRUMPET,2), "trumpet (3-leg) drops the north arm");
+    expect( topo_present(JT_DIAMOND,2), "diamond (4-leg) keeps all arms");
+    for (int L=0;L<NLEG;L++) legs[L].present = topo_present(JT_TRUMPET,L);  rebuild_ports();
+    Junction jt; make_junction(4, JT_TRUMPET, 2, &jt);
+    expect_eq(jt.nConns, 6, "trumpet T: 6 movements among 3 legs");
+    expect_eq(sp_count(&jt,RP_LOOP),    1, "trumpet: asymmetric hard lefts — exactly one loop...");
+    expect_eq(sp_count(&jt,RP_FLYOVER), 1, "...and one flyover");
+
+    // ── arc_spline (M1): lands on both ports + leaves A along A's travel dir (the port-A-entry fix) ──
+    float xs[200], ys[200];
+    Port a={100,100,0,"a"}, b={150,150,90,"b"};            // east → south, a right-angle turn
+    int n = arc_spline(a,b,20.f,xs,ys);
+    expect(n>2, "arc_spline builds a real curve (line-arc-line)");
+    expect(sp_near(xs[0],100)&&sp_near(ys[0],100),         "arc_spline starts exactly on port A");
+    expect(sp_near(xs[n-1],150)&&sp_near(ys[n-1],150),     "arc_spline ends exactly on port B");
+    expect(sp_near(ys[1],100), "arc_spline leaves A along A's travel dir (east) — lead-in points INTO the junction");
+
+    // ── clothoid_spline reduces EXACTLY to arc_spline as Ls→0 ──
+    float cxs[200], cys[200];
+    int cn = clothoid_spline(a,b,20.f,0.f,cxs,cys);
+    expect_eq(cn, n, "clothoid_spline(Ls=0) returns the same sample count as arc_spline");
+    expect(sp_near(cxs[cn-1],xs[n-1])&&sp_near(cys[cn-1],ys[n-1]), "clothoid(Ls=0) == arc_spline (reduces exactly)");
+
+    // ── loop_spline lands on B (the cloverleaf hard turn) — using the generated junction's real ports ──
+    for (int L=0;L<NLEG;L++) legs[L].present=1;  rebuild_ports();
+    make_junction(4, JT_CLOVERLEAF, 2, &jc);
+    int li=-1; for(int i=0;i<jc.nConns;i++) if(jc.conns[i].prim==RP_LOOP){ li=i; break; }
+    expect(li>=0, "the cloverleaf has a loop connection to test");
+    if (li>=0){ Connection c=jc.conns[li];
+        int ln = loop_spline(ports[c.inPort], ports[c.outPort], c.R, xs, ys);
+        expect(ln>2, "loop_spline builds a real ~270deg loop (not the degenerate stand-in)");
+        expect(sp_near(xs[ln-1],ports[c.outPort].x)&&sp_near(ys[ln-1],ports[c.outPort].y), "loop_spline lands on port B"); }
+
+    // ── the harness drives roadlab too: 'g' cycles the junction type (proves step() + key injection) ──
+    int g0=juncType; sp_tap('g'); expect(juncType!=g0, "the 'g' key cycles the junction type");
+}
+#endif

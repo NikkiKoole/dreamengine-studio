@@ -64,15 +64,18 @@ static const char *const cursor__hand[] = {   // pointing hand, index extended
     ".XXXXXXX",
     "..XXXXX.",
 };
-static const char *const cursor__grab[] = {    // closed/grabbing hand: knuckle bumps on top + a thumb-crease band (the gaps
-    ".X.X.X.X.",                               // become black via the halo, giving the silhouette a hand reads as)
-    "XXXXXXXXX",
-    "XXXXXXXXX",
-    "XX.....XX",   // thumb curled across — a dark crease
-    "XXXXXXXXX",
-    "XXXXXXXXX",
-    ".XXXXXXX.",
-    "..XXXXX..",
+static const char *const cursor__grab[] = {    // closed/grabbing hand — SAME grid + hotspot + palm rows as cursor__hand, so
+    "........",                                // the hover→drag swap reads as the finger curling into a fist IN PLACE (no jump).
+    "........",                                // knuckle bumps on top + a thumb-crease band (gaps go black via the halo).
+    "........",
+    ".X.X.X.X",   // knuckles
+    "XXXXXXXX",
+    "XX....XX",   // thumb curled across — a dark crease
+    "XXXXXXXX",
+    ".XXXXXXX",
+    ".XXXXXXX",
+    ".XXXXXXX",
+    "..XXXXX.",
 };
 static const char *const cursor__cross[] = {   // crosshair, open centre on the target
     "....X....", "....X....", "....X....", ".........", "XXX...XXX",
@@ -87,7 +90,7 @@ typedef struct { const char *const *rows; short n, w, hotx, hoty; } Cursor__Shap
 static const Cursor__Shape cursor__shapes[CUR__COUNT] = {
     [CUR_ARROW] = { cursor__arrow, 12, 8, 0, 0 },
     [CUR_HAND]  = { cursor__hand,  11, 8, 3, 0 },
-    [CUR_GRAB]  = { cursor__grab,   8, 9, 4, 4 },
+    [CUR_GRAB]  = { cursor__grab,  11, 8, 3, 0 },   // same hotspot/size as CUR_HAND → no jump on the swap
     [CUR_CROSS] = { cursor__cross,  9, 9, 4, 4 },
     [CUR_MOVE]  = { cursor__move,   9, 9, 4, 4 },
 };

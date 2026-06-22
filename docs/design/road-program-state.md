@@ -29,9 +29,10 @@ The *grammar* of roads — interchange → at-grade junction → street web — 
 
 - **`streetlab`** (new cart) — the at-grade sibling of roadlab. M1 curb returns · M2 skew + the T ·
   M3 turn lanes + channelizing islands · M4 the street web (grid/organic/radial/cul-de-sac) · M5 sidewalks +
-  crosswalks · M6 the mini-roundabout (traversable island, give-way entries, splitters — the at-grade ring).
+  crosswalks · M6 the mini-roundabout (traversable island, give-way entries, splitters — the at-grade ring) ·
+  M7 the typed cross-section (median/bike/parking lane types; HW = sum of lanes, so the junction re-solves).
 - **`spec()` harness** (new infrastructure, [`spec-harness.md`](spec-harness.md)) — the gameplay twin
-  of `tune-check`; `streetlab` is the first/reference cart (42 assertions). **`roadlab` is now spec-locked
+  of `tune-check`; `streetlab` is the first/reference cart (50 assertions). **`roadlab` is now spec-locked
   too** (25 assertions: the `classify_turn` chirality, the `make_junction` generator counts, the splines
   landing on their ports) — a regression lock and a **golden reference for the Phase-2 port**. Both road
   sandboxes are pinned before the world step.
@@ -72,8 +73,11 @@ Cheap + high-value at the top. (✓ = shipped since.)
       enough"). A "node mix" readout under the metrics line: `cul(1) % · T(3) % · X(4+) %` (Marshall's node
       taxonomy), spec-locked to actually SEPARATE the patterns (grid = 0 cul-de-sacs + a big X share; cul-de-sac
       = a real degree-1 share + far fewer Xs). Completes the SNDi readout next to degree/dead-ends/sinuosity.
-- [ ] **Real cross-section / lane types** — §5 OpenDRIVE lane types (`driving/parking/biking/sidewalk/median`),
-      flagged "worth taking, never built". Today every lane is identical asphalt.
+- ✓ **Real cross-section / lane types** (M7) — §5 OpenDRIVE lane types: a lane-section from the centre out,
+      `[median] · driving×N · [bike] · [parking]`, toggled per element (m/b/;). The median is the same island
+      primitive as M3's splitter / M6's central island, run continuously. Key trick: HW = `cross_hw()` = the
+      SUM of the lanes present, and every junction primitive keys off HW ⇒ widening the section re-solves the
+      whole junction (curb returns, mouth, roundabout, sidewalks) for free. Spec'd. (Sidewalk = the M5 layer.)
 - ✓ **Mini-roundabout** (M6, at-grade, §2) — a junction "treatment" (`r`, mutually exclusive with turn lanes):
       a circulatory disc + a MINI, TRAVERSABLE (mountable/domed) central island, flush teardrop SPLITTER
       islands, GIVE-WAY (yield) entry lines + CCW circulating arrows. Leg-model based ⇒ composes with skew/T/

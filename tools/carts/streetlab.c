@@ -44,19 +44,29 @@
 //                mutually exclusive with turn lanes (both are "treatments" of the crossing). island radius is
 //                the headline knob — it reuses the [ ] slot in this mode. round_icr() (island + circulatory)
 //                is pure ⇒ spec'd: the island sits strictly inside the inscribed circle and stays "mini".
+//   MILESTONE 7: the typed CROSS-SECTION (OpenDRIVE lane types, §5). The carriageway stops being uniform
+//                asphalt: a lane-section from the centre out — [median] · driving×N · [bike] · [parking] —
+//                toggled per element (m/b/;). The MEDIAN is itself a lane type (the same island primitive as
+//                M3's splitter / M6's central island, now run continuously down the centre). The key trick:
+//                the half-width HW = cross_hw() = the SUM of the lanes present, and EVERY junction primitive
+//                (curb returns, the mouth datum, the roundabout, sidewalks) keys off HW ⇒ widening the
+//                section re-solves the whole junction for free. cross_hw() is the pure, spec'd datum.
 //   Controls: ui.h toolbar (clickable; keyboard too). v = junction↔network view. JUNCTION: [ ] curb radius
 //             (island R in roundabout mode) · -/= lanes · ,/. skew · t = T · p = turn lanes · r = roundabout ·
-//             k = sidewalks+crosswalks. NETWORK: [ ] seed · b = pattern · c = curve (M4c: the §8.5 curvature
-//             knob bows each edge ⇒ sinuosity goes live).
+//             k = sidewalks+crosswalks · m = median · b = bike lane · ; = parking lane. NETWORK: [ ] seed ·
+//             b = pattern · c = curve (M4c: the §8.5 curvature knob bows each edge ⇒ sinuosity goes live).
 
 #define LANEW    8     // one lane width (px)
-#define TOOLBAR  44    // bottom control strip height (two rows)
+#define TOOLBAR  62    // bottom control strip height (three rows; M7 added the cross-section row)
 #define POCKET   22    // M3: turn-bay length at the stop bar
 #define PTAPER   14    // M3: upstream taper of the turn bay
 #define MEDW     2     // M3: raised median splitter half-width
 #define SW       4     // M5: sidewalk width (the strip outside each kerb)
 #define CWDEP    6     // M5: crosswalk depth (how far the zebra band reaches out from the box)
 #define NETTOP   28    // M4: network-view top edge (leaves room for 3 header lines: title/metrics/degree mix)
+#define BIKEW    5     // M7: bike-lane width (a tinted lane outside the driving lanes)
+#define PARKW    7     // M7: parking-lane width (at the kerb, marked with bay ticks)
+#define MEDHW    4     // M7: continuous centre-median half-width (the median IS a cross-section lane type)
 #define DEG2RAD  0.01745329252f
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -136,6 +146,9 @@ static int   turnLanes= 0;    // M3: per-approach left-turn bay + raised median 
 static int   peds     = 0;    // M5: sidewalks (a strip outside each kerb) + zebra crosswalks at the mouths
 static int   roundabout=0;    // M6: a MINI-ROUNDABOUT (traversable island + give-way entries) — excl. turnLanes
 static float islandR  = 8.f;  // M6: central-island radius (the headline roundabout knob; reuses [ ] in this mode)
+static int   medOn    = 0;    // M7: continuous raised centre median (a cross-section lane type, not the turn splitter)
+static int   bikeOn   = 0;    // M7: a bike lane outside the driving lanes
+static int   parkOn   = 0;    // M7: a parking lane at the kerb
 enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, NPAT };   // M4: street-web patterns
 static int   netview  = 0;    // M4: 0 = junction detail (M1–M3), 1 = the street-web network
 static int   pattern  = PAT_GRID;
@@ -174,14 +187,62 @@ static void edge_corner(float cx,float cy,float HW,float bA,float bB,float bm,fl
     float t = ((PBx-PAx)*(-dBy) - (-dBx)*(PBy-PAy)) / det;
     *kx=PAx+dAx*t; *ky=PAy+dAy*t;
 }
-// markings along one arm (centre line + lane dividers), from startd out to the screen
-static void arm_markings(float cx,float cy,float b,float HW,float startd,float reach){
+// ── M7: the typed CROSS-SECTION (OpenDRIVE lane types §5). A lane-section, centre→out: [median] · driving×N ·
+//    [bike] · [parking] · (sidewalk = the M5 peds layer). The carriageway half-width is the SUM of the lanes
+//    present — and because every junction primitive (curb returns, the mouth datum, the roundabout, sidewalks)
+//    keys off HW, widening the section re-solves the whole junction for free. cross_hw() is the pure datum. ──
+static float cross_hw(void){
+    return (medOn?MEDHW:0) + lanesPer*LANEW + (bikeOn?BIKEW:0) + (parkOn?PARKW:0);
+}
+// a solid lane line along the arm (offset o from centre, on side s = +1/-1), from startd to reach
+static void edge_line(float cx,float cy,float b,float o,int s,float startd,float reach,int col){
+    float dx=ux(b),dy=uy(b), nx=ux(b+90)*s*o, ny=uy(b+90)*s*o;
+    line((int)(cx+dx*startd+nx),(int)(cy+dy*startd+ny),(int)(cx+dx*reach+nx),(int)(cy+dy*reach+ny),col);
+}
+// fill the band [a,c] from centre on side s along the arm (a tinted lane surface)
+static void lane_band(float cx,float cy,float b,float a,float c,int s,float startd,float reach,int col){
     float dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90);
     float x0=cx+dx*startd, y0=cy+dy*startd, x1=cx+dx*reach, y1=cy+dy*reach;
-    dashed(x0,y0,x1,y1,CLR_YELLOW);
-    for (int k=1;k<lanesPer;k++){
-        dashed(x0+nx*k*LANEW,y0+ny*k*LANEW, x1+nx*k*LANEW,y1+ny*k*LANEW, CLR_WHITE);
-        dashed(x0-nx*k*LANEW,y0-ny*k*LANEW, x1-nx*k*LANEW,y1-ny*k*LANEW, CLR_WHITE);
+    int q[8]={(int)(x0+nx*s*a),(int)(y0+ny*s*a),(int)(x0+nx*s*c),(int)(y0+ny*s*c),
+              (int)(x1+nx*s*c),(int)(y1+ny*s*c),(int)(x1+nx*s*a),(int)(y1+ny*s*a)};
+    polyfill(q,4,col);
+}
+// markings along one arm: the typed cross-section (centre line / median, lane dividers, bike + parking lanes)
+static void cross_markings(float cx,float cy,float b,float startd,float reach){
+    float dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90);
+    float x0=cx+dx*startd, y0=cy+dy*startd, x1=cx+dx*reach, y1=cy+dy*reach;
+    float inner = medOn?MEDHW:0;                            // driving lanes start here (outside the median)
+    if (medOn){                                             // a raised centre median (light-grey + kerbs)
+        lane_band(cx,cy,b, 0, MEDHW, +1, startd,reach, CLR_LIGHT_GREY);
+        lane_band(cx,cy,b, 0, MEDHW, -1, startd,reach, CLR_LIGHT_GREY);
+        edge_line(cx,cy,b, MEDHW,+1, startd,reach, CLR_BROWNISH_BLACK);
+        edge_line(cx,cy,b, MEDHW,-1, startd,reach, CLR_BROWNISH_BLACK);
+    } else {
+        dashed(x0,y0,x1,y1,CLR_YELLOW);                     // the centreline (no median)
+    }
+    for (int k=1;k<lanesPer;k++){                           // dashed driving-lane dividers
+        float o=inner+k*LANEW;
+        dashed(x0+nx*o,y0+ny*o, x1+nx*o,y1+ny*o, CLR_WHITE);
+        dashed(x0-nx*o,y0-ny*o, x1-nx*o,y1-ny*o, CLR_WHITE);
+    }
+    float edge = inner + lanesPer*LANEW;
+    if (bikeOn){                                            // bike lane: tinted surface + a solid inner line
+        lane_band(cx,cy,b, edge, edge+BIKEW, +1, startd,reach, CLR_BROWN);
+        lane_band(cx,cy,b, edge, edge+BIKEW, -1, startd,reach, CLR_BROWN);
+        edge_line(cx,cy,b, edge,+1, startd,reach, CLR_WHITE);
+        edge_line(cx,cy,b, edge,-1, startd,reach, CLR_WHITE);
+        edge += BIKEW;
+    }
+    if (parkOn){                                            // parking lane: a solid inner line + bay ticks
+        edge_line(cx,cy,b, edge,+1, startd,reach, CLR_WHITE);
+        edge_line(cx,cy,b, edge,-1, startd,reach, CLR_WHITE);
+        float L=sqrtf((x1-x0)*(x1-x0)+(y1-y0)*(y1-y0));
+        for (float t=14; t<L; t+=16)                        // bay-delimiter ticks across the parking lane
+            for (int s=-1;s<=1;s+=2){
+                float px=cx+dx*(startd+t), py=cy+dy*(startd+t);
+                line((int)(px+nx*s*edge),(int)(py+ny*s*edge),
+                     (int)(px+nx*s*(edge+PARKW)),(int)(py+ny*s*(edge+PARKW)),CLR_WHITE);
+            }
     }
 }
 
@@ -298,6 +359,9 @@ void update(void){
     if (keyp('p')||keyp('P')) { turnLanes = !turnLanes; if (turnLanes) roundabout=0; }   // excl. roundabout
     if (keyp('r')||keyp('R')) { roundabout = !roundabout; if (roundabout) turnLanes=0; } // M6: excl. turn lanes
     if (keyp('k')||keyp('K')) peds = !peds;                  // M5: sidewalks + crosswalks
+    if (keyp('m')||keyp('M')) medOn  = !medOn;               // M7: cross-section — centre median
+    if (keyp('b')||keyp('B')) bikeOn = !bikeOn;              // M7: bike lane
+    if (keyp(';'))            parkOn = !parkOn;              // M7: parking lane
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;   // M6: stays MINI (small, traversable)
     if (lanesPer<1) lanesPer=1; if (lanesPer>3) lanesPer=3;
@@ -492,7 +556,7 @@ void draw(void){
     cls(CLR_DARK_GREEN);
     if (netview){ draw_network_view(); ui_end(); return; }     // M4: the street-web view
     float cx=SCREEN_W/2.f, cy=(SCREEN_H-TOOLBAR)/2.f;
-    float HW=lanesPer*LANEW;                               // carriageway half-width (both directions)
+    float HW=cross_hw();                                   // M7: half-width = the sum of the typed lanes present
     float REACH=SCREEN_W+SCREEN_H;                         // run each arm well past the screen edge
     int idx[NLEG]; float brg[NLEG]; int n=present_legs(idx,brg);
 
@@ -572,7 +636,7 @@ void draw(void){
         float mouth = df + cornerR;
         float startd = mouth + 3;
         if (turnLanes && mouth+POCKET+PTAPER+3 > startd) startd = mouth+POCKET+PTAPER+3;
-        arm_markings(cx,cy,b,HW,startd,REACH);
+        cross_markings(cx,cy,b,startd,REACH);
         float dx=ux(b),dy=uy(b), ix=ux(b-90),iy=uy(b-90);
         if (turnLanes){
             draw_median(cx,cy,b,mouth);                    // the channelizing island on the centreline
@@ -596,19 +660,25 @@ void draw(void){
     // ── HUD ──
     font(FONT_SMALL);
     char bb[64];
-    print(roundabout?"streetlab - at-grade junction (M6: mini-roundabout)"
-                    :"streetlab - at-grade junction (M5: sidewalks + crosswalks)", 4,5, CLR_WHITE);
+    int xs = medOn||bikeOn||parkOn;                        // M7: any typed cross-section element active?
+    print(xs        ? "streetlab - at-grade junction (M7: typed cross-section)"
+         : roundabout ? "streetlab - at-grade junction (M6: mini-roundabout)"
+                      : "streetlab - at-grade junction (M5: sidewalks + crosswalks)", 4,5, CLR_WHITE);
     if (roundabout)
         snprintf(bb,sizeof bb,"mini-roundabout (traversable island)  -  %d arms  -  give-way entries%s",
                  n, peds?"  -  sidewalks + crossings":"");
     else
         snprintf(bb,sizeof bb,"%s  -  %d corners%s%s", isT?"T-junction":"4-way crossing", count_corners(),
-                 turnLanes?"  -  turn bays":"", peds?"  -  sidewalks + crosswalks (k)":"  -  k = peds");
+                 turnLanes?"  -  turn bays":"", peds?"  -  sidewalks + crosswalks":"");
     print(bb, 4,13, CLR_ORANGE);
 
-    // ── toolbar (two rows) ── the first knob is dual-purpose: island radius in roundabout mode, else curb radius
+    // ── toolbar (three rows) ── row1 = M7 cross-section · row2 = curb/lanes/view · row3 = skew/topology/treatment
     rectfill(0, SCREEN_H-TOOLBAR, SCREEN_W, TOOLBAR, CLR_BLACK);
-    int d;
+    int d; char wbuf[12];
+    if (ui_button(4,   SCREEN_H-58, 78, 13, medOn ?"median: on" :"median: off")) medOn =!medOn;
+    if (ui_button(86,  SCREEN_H-58, 62, 13, bikeOn?"bike: on"   :"bike: off"))    bikeOn=!bikeOn;
+    if (ui_button(152, SCREEN_H-58, 82, 13, parkOn?"parking: on":"parking: off")) parkOn=!parkOn;
+    snprintf(wbuf,sizeof wbuf,"HW %d",(int)cross_hw()); print(wbuf, 244, SCREEN_H-55, CLR_LIGHT_GREY);
     print(roundabout?"island R":"curb radius", 4, SCREEN_H-37, roundabout?CLR_BLUE:CLR_ORANGE);
     d=step_btn(64, SCREEN_H-40, 14, "-", "+"); if (d){ if(roundabout) islandR+=2*d; else cornerR+=2*d; }
     snprintf(bb,sizeof bb,"%d",(int)(roundabout?islandR:cornerR)); print(bb, 98, SCREEN_H-37, CLR_LIGHT_GREY);
@@ -731,6 +801,22 @@ void spec(void){
     for (int i=0;i<40;i++) spec_tap(']'); expect(islandR <= 20.f, "roundabout: island radius caps at 20 (stays mini)");
     for (int i=0;i<40;i++) spec_tap('['); expect(islandR >= 3.f,  "roundabout: island radius floors at 3");
     roundabout=0;                                                          // restore before the curb-radius clamps
+
+    // ── M7: typed cross-section — cross_hw() is pure over the lane toggles; each element adds its width, and
+    //    every junction primitive keys off the sum. The median is the same island primitive as M3/M6. ──
+    medOn=0; bikeOn=0; parkOn=0; lanesPer=2;
+    expect(spec_near(cross_hw(), 2*LANEW),                 "cross-section: plain = lanesPer driving lanes wide");
+    bikeOn=1; expect(spec_near(cross_hw(), 2*LANEW+BIKEW), "a bike lane adds its width to the carriageway");
+    parkOn=1; expect(spec_near(cross_hw(), 2*LANEW+BIKEW+PARKW), "parking adds its width too");
+    medOn=1;  expect(spec_near(cross_hw(), MEDHW+2*LANEW+BIKEW+PARKW), "HW = median + driving + bike + parking");
+    { float fb[4]={0,90,180,270};                                          // the junction geometry keys off HW:
+      expect(arm_face(fb,4,0, cross_hw()) > arm_face(fb,4,0, 2*LANEW),
+             "a wider cross-section pushes the mouth further out (arm_face scales with HW)"); }
+    medOn=0; bikeOn=0; parkOn=0;
+    int m0=medOn;  spec_tap('m'); expect(medOn!=m0,  "the 'm' key toggles the centre median");
+    int bk0=bikeOn; spec_tap('b'); expect(bikeOn!=bk0,"the 'b' key toggles the bike lane");
+    int pk0=parkOn; spec_tap(';'); expect(parkOn!=pk0,"the ';' key toggles the parking lane");
+    medOn=0; bikeOn=0; parkOn=0;                                            // restore
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
     for (int i=0;i<40;i++) spec_tap(']');                                    // hammer the + key past the cap

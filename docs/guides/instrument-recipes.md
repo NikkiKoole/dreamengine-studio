@@ -476,6 +476,18 @@ through its own resonant filter, summed; the cutoffs are ridden live from an Alp
 > call per ring per step, with a per-track step count (polymeter). The voices are the standard
 > synth-drum kit; only the clave perc is bespoke.
 
+### turing (machine — 1 sequence voice + 2 drums, from turing.c)
+
+| recipe | engine | params | notes |
+|---|---|---|---|
+| turing/seq | SAW | A0 D150 S0 R~eighth · LP1700/6 · drive0.15 | The Berlin-school sequence bleep — a resonant lowpass saw, staccato; pitch is the shift-register readout (scale-locked, 1–3 octaves via RANGE). |
+| turing/kick | SINE | A0 D250 S0 R60 · pitch-env →+30 (0/55) · drive0.26 | The `drummachine/kick` boom, fired when register bit 0 is set. |
+| turing/hat | NOISE | A0 D28 S0 R16 · HP7000/2 | Closed-hat tick, fired when register bit 2 is set. |
+
+> No new *engine* work: the rhythm/melody is a cart-side 16-bit shift register (rotate + flip the
+> recirculated bit with a probability = the CHAOS knob), read out as a scale degree. The voices are
+> the standard sequence/drum kit; the generativity is all in the register, not the patch.
+
 ### loopstation (synth — 7 fixed tracks, from loopstation.c)
 
 | name | engine | recipe | character |

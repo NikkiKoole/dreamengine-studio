@@ -620,6 +620,33 @@ identity is the **bass-as-lead** brain (Hosono cranked to virtuoso + slap transi
 
 ---
 
+## plaid — warm melodic IDM (Andy Turner & Ed Handley)
+
+Solo layer: **none** — the melody is the *weave*, not a soloist. The GENTLE pole of the IDM
+wing (the anti-`braindance`/`squarepusher`): intricate but tender, never aggressive.
+
+The headline is **THE INTERLOCKING ARPS** — 3–4 cells, each cycling at its own length
+(5/7/8/9/11 steps) against the bar, weaving an emergent tune; all in one lush mode so every
+overlap is consonant. Over a slow modal-root drift, in a rolled odd meter, on the `radio.h` clock.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_ARP1` | the glassy bell arp (anchor) | `fm/glass-bell` (h0.62 t0.55 m0.12) | FM |
+| `I_ARP2` | the marimba/celesta arp | `mallet/marimba` (h0.35 t0.5 m0.3) | MALLET |
+| `I_ARP3` | the soft pluck arp | `pluck/soft` (h0.5 LP2400) | PLUCK |
+| `I_ARP4` | the high FM sparkle arp | `fm/sparkle` (h0.7 t0.65) | FM |
+| `I_PAD`  | lush detuned chord bed (bittersweet maj7/9) | `saw/lush-pad` (A240 LP1500, `instrument_tune` .05) | SAW |
+| `I_BASS` | round gentle bass (follows the modal drift) | `sine/round-bass` (LP600) | SINE |
+| kit | soft broken-beat (kick/rim/hat/woodblock) | `kit/soft-broken` | SINE/NOISE |
+
+**Borrowing at a glance:** reuses the bell/mallet/pluck/FM timbres and the metered `radio.h`
+chassis (the IDM-wing wiring). Its identity is the **interlocking-arp brain** (different cycle
+lengths → emergent melody, the melodic cousin of gamelan's kotekan + eno's coprime loops) and
+**odd meters that flow**. Blind brief + palette shop:
+[`../design/plaid-blind-brief.md`](../design/plaid-blind-brief.md).
+
+---
+
 ## afrobeat — Afrobeat (Fela Kuti & Africa 70 / Tony Allen)
 
 Solo layer: **`improv.h`** (the tenor sax takes the solo over the vamp).

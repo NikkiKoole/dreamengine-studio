@@ -1599,6 +1599,29 @@ tender-interlude bed; `saw/acid-303` (`INSTR_SAW` LP900/12 · `ENV_CUTOFF` 0/110
 
 ---
 
+## plaid (warm melodic IDM) — new recipes
+
+The gentle IDM station: 3–4 interlocking arps (each a different cycle length) woven over a
+modal drift. All existing timbres — the new work is the **interlocking-arp brain**, not the
+voices. The four arps are deliberately *different* engines so the weave reads.
+
+### fm/glass-bell · mallet/marimba · pluck/soft · fm/sparkle
+The four interlocking arp voices: `fm/glass-bell` (`INSTR_FM` h0.62 t0.55 m0.12 D360 — the
+glassy anchor); `mallet/marimba` (`INSTR_MALLET` h0.35 t0.5 m0.3 — wood→bell); `pluck/soft`
+(`INSTR_PLUCK` h0.5 t0.35 LP2400); `fm/sparkle` (`INSTR_FM` h0.7 t0.65 D300 — the high octave).
+Each on its own cycle length (5/7/8/9/11) + register; `instrument_tune` ±.04 on the two FM
+voices for warmth.
+- tier: unique (kin: braindance's `I_BELL` MALLET music-box; FM bells across the FM carts) · origin: plaid · used by: plaid (`I_ARP1..4`)
+
+### saw/lush-pad · sine/round-bass · kit/soft-broken
+`saw/lush-pad` (`INSTR_SAW` A240 D400 S6 R900 · LP1500 · `instrument_tune` .05) is the
+bittersweet maj7/9 bed; `sine/round-bass` (`INSTR_SINE` A4 D260 S4 · LP600) follows the modal
+drift, gentle; `kit/soft-broken` is a low-velocity broken-beat (SINE kick · NOISE rim/hat ·
+woodblock) that *smooths* the odd meter so it lilts.
+- tier: unique (pad kin `saw/ambient-pad`/`saw/string-machine`) · origin: plaid · used by: plaid (`I_PAD`/`I_BASS`/kit)
+
+---
+
 ## Notes for growing this file
 
 - One station at a time. Add its voices, and for any recipe that **matches** one already

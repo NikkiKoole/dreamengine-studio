@@ -357,7 +357,11 @@ mistuning. The other half of the engine's expressiveness, mostly unexplored.
 - **Autechre (Tri Repetae era)** — pattern mutation applied to TIMBRE:
   percussion params (pitch, cutoff, decay) drift per hit; the drum machine as
   a slowly-decaying organism. Needs the rotating-slot trick (audio-notes §2.2).
-- **Plaid / B12** — melodic IDM, arps in odd meters, bells. Gentlest entry.
+- ~~**Plaid**~~ — ✅ shipped as `plaid.c`. The gentle pole of Warp; the new brain is
+  **INTERLOCKING ARPEGGIOS (melody brain #4)** — 3–4 cells at different cycle lengths
+  weaving an emergent tune (a *polymeter* of melodies, the pitched cousin of gamelan's
+  kotekan + eno's coprime loops) — in **odd meters that flow**, drawn as a woven plaid.
+  **B12** (the Detroit-techno cousin — deeper/spacier) is still open as a sibling/mode.
 - ~~**Eno "Music for Airports"**~~ — ✅ shipped as `eno.c`: held single notes (not
   melody cells) on coprime-length loops in *seconds*, phasing against each other,
   emergent harmony, the four-setup variety roll. Reich (melody cells of prime

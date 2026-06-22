@@ -5448,5 +5448,20 @@
       "state-machine"
     ],
     "lineage": "The belt layer of navkit's mechanisms experiment (one-item-per-cell conveyors with backpressure) made into a Factorio-lite: miners + a five-machine crafting tree (smelter/assembler/charger/fabricator + hub) plumbed with belts, on the logic cart's editor + cursor.h. Sibling of the `logic` signal sandbox and `runecrawl` (the signal layer); this is the transport/production layer."
+  },
+  {
+    "title": "boom",
+    "description": "An explosion & fire sandbox — click to detonate and watch the blast ignite the world. Two honest layers: the ground is a grid of materials (road / grass / wood / oil / water) with fuel and a fire level that spreads cell-to-cell by probability (navkit's fire model flattened to 2D — ignition resistance, wind bias, water chokes it, fuel burns down to ash); everything airborne (fireball, sparks, ballistic debris, smoke plume) is a particle that cools along a blackbody ramp. Oil that catches hot pops a secondary blast, so a slick chains across itself. TAB toggles BOOM/BUILD; in BOOM click or SPACE detonates and the wheel sets charge size; in BUILD 1-6 paint a material and T is a torch. C clears fire & smoke, R resets the scene. The sandbox seed for a roam-and-burn city game.",
+    "file": "boom.cart.png",
+    "kind": [
+      "toy",
+      "tech-demo"
+    ],
+    "teaches": [
+      "cellular-automata",
+      "particle-system",
+      "screen-shake-juice"
+    ],
+    "lineage": "Ports navkit's voxel fire/smoke cellular automaton (level 1-7, per-cell fuel, probabilistic spread biased by wind and choked by water) down to a 2D material grid, paired with the airborne particle layer from `particles` and the blackbody heat ramp from `doomfire`/`wildfire`. Where `wildfire` is the spread rule as a chasing hazard, this is the spread rule as a tunable sandbox with a real detonation on top."
   }
 ]

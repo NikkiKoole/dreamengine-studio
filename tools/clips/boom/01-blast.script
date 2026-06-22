@@ -1,0 +1,5 @@
+# boom — detonate over a building and the oil slick, let it spread
+# frames: 200  fps: 30  scale: 3  crf: 30
+click 12 212 52
+click 36 224 100
+click 64 90 28

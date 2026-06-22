@@ -23,7 +23,10 @@ enum { SL_KICK = 5, SL_SNARE, SL_HAT, SL_LPG, SL_SIR_A, SL_SIR_B };
 
 // ── pattern brain ──
 static int   gstep = -1, last_16 = -1, tempo = 124;
+static float kswing = 0.0f;        // swing: drag the odd 16ths late (0..0.6)
 static unsigned mreg = 0xB4;       // melody shift register (8-bit)
+static float kmorph = 0.10f;       // melody lock↔evolve (flip prob = kmorph*0.5)
+static bool  mute[3] = { false, false, false };   // DRUMS / MELODY / SIREN
 
 // ── rhythm: 4 rings (0..2 drums, 3 melody), params normalized 0..1 ──
 static float hits_n[4] = { 0.25f, 0.125f, 0.50f, 0.375f };  // 4 / 2 / 8 / 6  of 16
@@ -60,13 +63,14 @@ static float g0, g1, g2;
 #define PAD_W 164
 #define PAD_H 140
 
+// RHYTHM's 3rd knob is TEMPO for the drum rings, but MORPH for the MELODY ring (ring 3).
 static void load_knobs(void) {
-    if (part == 0)      { g0 = hits_n[selring]; g1 = rot_n[selring]; g2 = (tempo - 80) / 100.0f; }
+    if (part == 0)      { g0 = hits_n[selring]; g1 = rot_n[selring]; g2 = (selring == 3) ? kmorph : (tempo - 80) / 100.0f; }
     else if (part == 1) { g0 = kdecay; g1 = kfold; g2 = kcouple; }
     else                { g0 = kwob; g1 = kecho; g2 = kverb; }
 }
 static void store_knobs(void) {
-    if (part == 0)      { hits_n[selring] = g0; rot_n[selring] = g1; tempo = 80 + (int)(g2 * 100 + 0.5f); }
+    if (part == 0)      { hits_n[selring] = g0; rot_n[selring] = g1; if (selring == 3) kmorph = g2; else tempo = 80 + (int)(g2 * 100 + 0.5f); }
     else if (part == 1) { kdecay = g0; kfold = g1; kcouple = g2; }
     else                { kwob = g0; kecho = g1; kverb = g2; }
 }
@@ -118,6 +122,11 @@ void update(void) {
     if (keyp('C')) { part = 2; load_knobs(); }
     if (part == 0) for (int i = 0; i < 4; i++) if (keyp('1' + i)) { selring = i; load_knobs(); }
     if (keyp('M')) mreg = (unsigned)(rnd(256));
+    if (keyp('Q')) mute[0] = !mute[0];   // mute DRUMS
+    if (keyp('W')) mute[1] = !mute[1];   // mute MELODY (A-K hand-play still sounds)
+    if (keyp('E')) mute[2] = !mute[2];   // mute SIREN voice (the pad still throws the mix)
+    if (btnp(0, BTN_UP))   kswing = clamp(kswing + 0.05f, 0, 0.6f);
+    if (btnp(0, BTN_DOWN)) kswing = clamp(kswing - 0.05f, 0, 0.6f);
 
     // LPG hand-play (always live)
     for (int b = 0; b < 8; b++) if (keyp(LKEY[b])) fire_lpg(penta_pitch(b));
@@ -137,17 +146,18 @@ void update(void) {
 
     bpm(tempo);
 
-    // ── transport: one 16th clock for everything ──
+    // ── transport: one 16th clock; SWING drags the odd 16ths late ──
     float pos16 = beat() * 4 + beat_pos() * 4.0f;
-    int sixteenth = (int)pos16;
+    int n16 = (int)pos16;
+    int sixteenth = (n16 % 2 == 1 && (pos16 - n16) < kswing) ? n16 - 1 : n16;
     if (sixteenth != last_16) {
         last_16 = sixteenth; gstep++;
-        // melody register clocks every step, slowly drifts
-        int fb = (mreg >> 7) & 1; if (rnd(100) < 5) fb ^= 1;
+        // melody register clocks every step; MORPH = flip probability (lock ↔ evolve)
+        int fb = (mreg >> 7) & 1; if (rnd(1000) < (int)(kmorph * 0.5f * 1000)) fb ^= 1;
         mreg = ((mreg << 1) | fb) & 0xFF;
-        for (int r = 0; r < 3; r++)
+        if (!mute[0]) for (int r = 0; r < 3; r++)
             if (euclid(HITS(r), 16, (gstep + ROT(r)) % 16)) play_drum(r);
-        if (euclid(HITS(3), 16, (gstep + ROT(3)) % 16)) {
+        if (!mute[1] && euclid(HITS(3), 16, (gstep + ROT(3)) % 16)) {
             int d = (int)(mreg / 255.0f * 10); if (d > 9) d = 9;
             fire_lpg(penta_pitch(d)); melflash = frame();
         }
@@ -168,9 +178,10 @@ void update(void) {
 
     // ── siren ──
     float pitch = 42.0f + py * 42.0f;
+    bool sfire = sir_fire && !mute[2];          // siren VOICE (muteable); the pad still throws the mix
     static bool wasfire = false;
-    if (sir_fire) { note_pitch(hA, pitch); note_pitch(hB, pitch + 0.09f); beacon += (0.5f + kwob * 19.5f) * 0.02f; }
-    if (sir_fire != wasfire) { note_vol(hA, sir_fire ? 5.0f : 0.0f); note_vol(hB, sir_fire ? 3.6f : 0.0f); wasfire = sir_fire; }
+    if (sfire) { note_pitch(hA, pitch); note_pitch(hB, pitch + 0.09f); beacon += (0.5f + kwob * 19.5f) * 0.02f; }
+    if (sfire != wasfire) { note_vol(hA, sfire ? 5.0f : 0.0f); note_vol(hB, sfire ? 3.6f : 0.0f); wasfire = sfire; }
     static float awob = -1;
     float rate = 0.5f + kwob * 19.5f;
     if (rate != awob) { note_lfo(hA, 0, LFO_PITCH, rate, 5.0f); note_lfo(hB, 0, LFO_PITCH, rate, 5.0f); awob = rate; }
@@ -200,7 +211,7 @@ void draw(void) {
 
     // top bar
     print("DUBDESK", 2, 3, CLR_LIGHT_YELLOW);
-    print_right(str("%d BPM", tempo), 318, 3, CLR_LIGHT_GREY);
+    print_right(str("%d BPM  sw%d", tempo, (int)(kswing * 100 + 0.5f)), 318, 3, CLR_LIGHT_GREY);
     for (int b = 0; b < 4; b++) circfill(64 + b * 7, 6, 2, (gstep >= 0 && (gstep / 4) % 4 == b) ? CLR_WHITE : CLR_DARK_GREY);
     // master-throw meter
     print("DUB", 120, 3, dubfb > 1.0f ? CLR_RED : CLR_DARK_GREY);
@@ -248,22 +259,26 @@ void draw(void) {
     const char *PT[3] = { "RHYTHM", "VOICE", "SIREN" };
     for (int p = 0; p < 3; p++) {
         int bx = 6 + p * 46, by = 162;
-        if (tapp(bx, by, 44, 13)) { part = p; load_knobs(); }
-        bool s = (p == part);
+        if (tapp(bx, by, 44, 13)) { if (part == p) mute[p] = !mute[p]; else { part = p; load_knobs(); } }  // tap = select; re-tap = mute
+        bool s = (p == part), m = mute[p];
         rectfill(bx, by, 44, 13, s ? CLR_INDIGO : CLR_DARK_GREY);
         rect(bx, by, 44, 13, CLR_MEDIUM_GREY);
-        font(FONT_SMALL); print(PT[p], bx + 4, by + 4, s ? CLR_WHITE : CLR_LIGHT_GREY); font(FONT_NORMAL);
+        font(FONT_SMALL);
+        print(PT[p], bx + 3, by + 4, m ? CLR_DARK_GREY : (s ? CLR_WHITE : CLR_LIGHT_GREY));
+        if (m) print("M", bx + 37, by + 4, CLR_RED);
+        font(FONT_NORMAL);
     }
     font(FONT_SMALL);
     if (part == 0) print(str("ring: %s  %d/16   (1-4 pick ring)", RNAME[selring], HITS(selring)), 6, 180, CLR_MEDIUM_GREY);
     else if (part == 1) print("LPG voice  -  A..K play live", 6, 180, CLR_MEDIUM_GREY);
     else print("dub siren  -  X = throw whole mix", 6, 180, CLR_MEDIUM_GREY);
-    print("Z/X/C part  M reroll  SPACE siren", 6, 190, CLR_DARK_GREY);
+    print("ZXC part  QWE mute  M roll  ^v swing", 6, 190, CLR_DARK_GREY);
 
     ui_begin();
+    const char *l2 = (part == 0 && selring == 3) ? "MORPH" : PART_LBL[part][2];
     ui_knob(&g0, 200, 178, PART_LBL[part][0]);
     ui_knob(&g1, 250, 178, PART_LBL[part][1]);
-    ui_knob(&g2, 300, 178, PART_LBL[part][2]);
+    ui_knob(&g2, 300, 178, l2);
     store_knobs();
     font(FONT_NORMAL);
     ui_end();

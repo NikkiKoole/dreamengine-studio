@@ -110,9 +110,15 @@ LPG), and **tapping a drum/melody ring** selects it for the RHYTHM knobs. Within
 pitch); LPG voice pool auto-fired + A–K hand-play; dub siren fire pad with the master echo throw +
 reverb; PART-selected 3-knob row; tempo; transport + throw meter.
 
-**Deferred:** kaoss-style multi-FX programs on the pad; pattern/song save; swing; multiple melody
-voices or a second siren; per-mobile tappable LPG bars (v1 hand-play is A–K keys; auto covers
-touch-only).
+**v2 (shipped 2026-06-22):** **MORPH** knob on the melody ring (the RHYTHM 3rd knob becomes MORPH
+when the melody ring is selected) — lock ↔ evolve the shift register, restoring turing's gesture;
+**per-part MUTE** (Q/W/E, or re-tap a PART tab) — DRUMS / MELODY / SIREN, where a muted MELODY still
+lets A–K hand-play through and a muted SIREN still lets the pad throw the mix; **SWING** (↑/↓) drags
+the odd 16ths late.
+
+**Deferred (v3):** kaoss-style multi-FX programs on the pad; pattern/song save; multiple melody
+voices or a second siren; tempo-synced echo time; drum accent/velocity; per-mobile tappable LPG
+bars (hand-play is A–K keys; auto covers touch-only).
 
 ## Risks / open questions
 

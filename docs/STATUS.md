@@ -1083,6 +1083,24 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       writer does, `sound.h:372`) — so varispeed's interpolation can push the device signal slightly
       past ±1.0 → a hard driver clip. Tiny, but a real seam.
 
+43. **VISUAL test-coverage blind spot — a golden-pixel-diff harness** *(2026-06-23, from the streetlab corner work)*.
+    The `spec()` harness (`tools/spec.js`) tests **pure functions and state** — it pinned every geometric *quantity*
+    in streetlab (`curb_return` tangency, `kerb_start`, `round_flare`, lane offsets; 70 assertions). But it can't
+    test the **rendered pixels**: those are the output of `polyfill`/`line` scan-converting onto the framebuffer —
+    engine-level rasterisation, not a pure function of the cart's inputs. The concrete case that exposed this: on a
+    symmetric 4-way the four corner kerbs can land ≤1px apart in *staircase arrangement* (arc rasterisation on an
+    even-width grid). Geometry is symmetric and spec'd; the difference is pure quantisation. To actually catch/fix
+    that at the pixel level you'd need a **golden-image / pixel-diff** test — render a cart headless (the `--dump`
+    path already exists, used for clips), compare regions (e.g. the four corner quadrants) pixel-for-pixel against a
+    committed golden, or assert a symmetry invariant (corner A == rot180(corner B)). Visual-regression style, the
+    twin of the audio `level-check`/`fx-check` baselines but for the framebuffer. We have `ui-audit.js` (draw-box
+    *bounds* analysis from the DE_TRACE box log) but **no pixel-level diff**. Note we already keep some pixel-exact
+    test/probe carts + deterministic `--dump`, so the rendering side is the missing piece, not the capture.
+    **Verdict for now: parked.** For the *accepted* 1px corner floor it'd mostly assert "still 1px off" (decided
+    fine). Worth building only if/when we want a true visual-regression gate — and *then* it could also drive a
+    pixel-perfect symmetric-corner rasteriser (compute one corner, blit it rotated/mirrored for symmetric
+    junctions; skew keeps the per-corner path). Until then: **spec the geometry, eyeball the pixels.**
+
 ---
 
 ## Decided-against / deferred ✗

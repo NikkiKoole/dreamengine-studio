@@ -149,6 +149,25 @@ early; exhaust what can be built in isolation first.
 **Natural stopping points:** end of Stage 1 (junction done), end of Stage 2 (both sandboxes done — the clean
 "stop and combine later" line), and each Stage-3 step is its own deliverable.
 
+### ► Resume here (2026-06-23)
+**Stage 1, step 1 (bulb-outs) is done.** Since then, an extensive playtest-driven ROBUSTNESS pass on the
+cross-section — the bike treatment + corners now hold across every combination. Fixed this session:
+- per-side `kerb_start` at the curb-return TANGENT `(HW+R)/tan(half)` — kerb lanes meet the corner-wrap on
+  skewed/obtuse corners at any radius (was `HW/tan+R`, only right at 90°);
+- straight (T-back) side starts at the hub so the bike lane runs continuously through;
+- `bike_thru` (+xing): skipped on a T, and hub-anchored so the elephant's-feet stay even/symmetric;
+- `round_flare` extracted + spec-locked (approach bike lane meets the roundabout ring);
+- `ux`/`uy` snap near-zero trig → 0 (killed a 1px drift on long axis-aligned arms);
+- `ri()` round-to-nearest on curved kerbs (fixed the truncation-bias left/right corner asymmetry).
+- **Accepted floor (do NOT re-chase):** the four corners can still differ by ≤1px in *staircase arrangement*
+  — that's arc rasterisation on an even-width grid, not a logic bug (counts/geometry are symmetric, pure
+  quantities all spec'd). Verdict: leave it; spec the geometry, eyeball the pixels.
+
+**Spec: 70 assertions, all green.** `node tools/spec.js streetlab`.
+
+**NEXT: Stage 1, step 2 — the corner free-right slip + triangular channelizing island** (reuses the island
+primitive). Then step 3 (minor markings), then Stage 2 (superblock). Don't jump to the world.
+
 ## Cross-section composition — known issues + the next-pass plan (2026-06-22)
 
 M7 added typed lanes, but the EARLIER milestones (M3 turn lanes, M6 roundabout, M5 peds) still compute lane

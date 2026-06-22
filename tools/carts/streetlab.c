@@ -82,6 +82,13 @@ static float uy(float d){ float s=sin_deg(d); return (s>-1e-4f&&s<1e-4f)?0.f:s; 
 // round-to-nearest pixel — symmetric about 0, unlike a plain (int) cast which truncates TOWARD zero and so
 // breaks left/right mirror on fractional coords (cx+12.7→172 but cx-12.7→147 = 13 away). Use on curved kerbs.
 static int ri(float v){ return (int)roundf(v); }
+// SEAM — accepted ~1px CORNER FLOOR: with ri() the four corner kerbs are mirror-symmetric about the canvas
+// centre, but on an even-width grid they can still differ by ≤1px in *staircase arrangement* (each corner is an
+// independently-rasterised arc; the sample points quantise differently per orientation). This is NOT a logic
+// bug — the geometry is symmetric and every pure quantity is spec'd; it's scan-conversion, which spec() can't
+// see. A true fix = an engine-level symmetric-corner rasteriser (compute one corner, blit it rotated/mirrored
+// for non-skew junctions) verified by a GOLDEN-PIXEL-DIFF harness, NOT unit spec. Parked — see docs/STATUS.md
+// §43 "Visual test-coverage blind spot". Rule of thumb: spec the geometry, eyeball the pixels. Don't re-chase here.
 
 // ── CURB RETURN = the at-grade corner primitive. Two curb edges leave the corner K in directions e1,e2
 //    (degrees, pointing AWAY from K along each curb). The return is the arc of radius R TANGENT to both

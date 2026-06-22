@@ -865,6 +865,11 @@ static void draw_portrait(Npc *n, int talking, int mouth_open) {
     if (n->babe) irc = eh + 1;                        // big doe eyes for the babes
     int pup = n->babe ? 3 : 2;
     int ley = ey + eldy, rey = ey + erdy;   // eyes sit at slightly different heights
+    // per-eye ROTATION — outer corner lifted by a few px; the two eyes tilt by
+    // DIFFERENT amounts so the face isn't mirror-symmetric
+    int tl = 1 + (int)((seed >> 8) & 1);    // left eye tilt 1-2px
+    int tr = (int)((seed >> 9) % 3);        // right eye tilt 0-2px
+    if (blink || idle_squint) { tl = 0; tr = 0; }
     if (!(n->acc & A_SHADES)) {
         // sunken sockets — a darker recess under the brow ridge (HM intensity)
         ovalfill(lx, ley - 1, ew + 3, eh + 3, skd);
@@ -879,6 +884,12 @@ static void draw_portrait(Npc *n, int talking, int mouth_open) {
         } else {
             ovalfill(lx, ley, ew, eh, CLR_WHITE);
             ovalfill(rx, rey, ew, eh, CLR_WHITE);
+            // shave the white into a slanted almond (socket-tone masks): for each
+            // eye, cut the inner-top and outer-bottom corners along the tilt
+            trifill(lx - 1, ley - eh - 1, lx + ew + 1, ley - eh - 1, lx + ew + 1, ley - eh + tl, skd);
+            trifill(lx + 1, ley + eh + 1, lx - ew - 1, ley + eh + 1, lx - ew - 1, ley + eh - tl, skd);
+            trifill(rx + 1, rey - eh - 1, rx - ew - 1, rey - eh - 1, rx - ew - 1, rey - eh + tr, skd);
+            trifill(rx - 1, rey + eh + 1, rx + ew + 1, rey + eh + 1, rx + ew + 1, rey + eh - tr, skd);
             int look = (n->expr==X_WARY) ? 2 : 0;   // shifty eyes glance aside
             // iris fills the eye (almond), with a glowing inner ring + bright catchlight
             circfill(lx + 1 + look, ley, irc, n->eyecol);
@@ -888,18 +899,18 @@ static void draw_portrait(Npc *n, int talking, int mouth_open) {
             pset(lx + look - 1, ley - 1, CLR_WHITE); pset(lx + look, ley - 1, CLR_WHITE);
             pset(rx + look - 1, rey - 1, CLR_WHITE); pset(rx + look, rey - 1, CLR_WHITE);
         }
-        // heavy dark upper lid (2px) — the strongest eye line in the HM look
-        line(lx - ew - 1, ley - eh, lx + ew, ley - eh, FACE_OL);
-        line(lx - ew,     ley - eh + 1, lx + ew, ley - eh + 1, FACE_OL);
-        line(rx + ew + 1, rey - eh, rx - ew, rey - eh, FACE_OL);
-        line(rx + ew,     rey - eh + 1, rx - ew, rey - eh + 1, FACE_OL);
-        // tired lower-lid / bag line
-        line(lx - ew + 1, ley + eh + 1, lx + ew - 1, ley + eh + 1, skd);
-        line(rx - ew + 1, rey + eh + 1, rx + ew - 1, rey + eh + 1, skd);
-        // mascara lashes — outer-corner flick (women)
+        // heavy dark upper lid (2px), slanted by the per-eye tilt (outer up)
+        line(lx - ew - 1, ley - eh - tl, lx + ew, ley - eh + tl, FACE_OL);
+        line(lx - ew,     ley - eh + 1 - tl, lx + ew, ley - eh + 1 + tl, FACE_OL);
+        line(rx + ew + 1, rey - eh - tr, rx - ew, rey - eh + tr, FACE_OL);
+        line(rx + ew,     rey - eh + 1 - tr, rx - ew, rey - eh + 1 + tr, FACE_OL);
+        // tired lower-lid / bag line — slanted to match
+        line(lx - ew + 1, ley + eh + 1 - tl, lx + ew - 1, ley + eh + 1 + tl, skd);
+        line(rx - ew + 1, rey + eh + 1 + tr, rx + ew - 1, rey + eh + 1 - tr, skd);
+        // mascara lashes — outer-corner flick (women), lifted with the tilt
         if (n->sex) {
-            line(lx - ew, ley - eh + 1, lx - ew - 3, ley - eh - 2, CLR_BLACK);
-            line(rx + ew, rey - eh + 1, rx + ew + 3, rey - eh - 2, CLR_BLACK);
+            line(lx - ew, ley - eh - tl + 1, lx - ew - 3, ley - eh - tl - 2, CLR_BLACK);
+            line(rx + ew, rey - eh - tr + 1, rx + ew + 3, rey - eh - tr - 2, CLR_BLACK);
         }
     }
 

@@ -2457,7 +2457,11 @@
     "kind": [
       "tech-demo"
     ],
-    "teaches": []
+    "teaches": [
+      "road-network",
+      "at-grade-junction"
+    ],
+    "lineage": "The at-grade sibling of roadlab, one tier down: roadlab draws grade-separated interchange ramps, streetlab draws the streets that cross AT GRADE — curb returns built as tangent-arc fillets (an arc tangent to both kerb lines), a leg-based junction layout that re-solves under skew and the T for free, and left-turn bays with channelizing median islands. First cart to carry a spec() (pins the curb-return tangency + topology counts)."
   },
   {
     "title": "Football Manager",

@@ -14,6 +14,8 @@ module.exports = {
     // procgen / world
     'gene-based-procgen', 'wave-function-collapse', 'marching-squares', 'autotiling', 'noise-terrain',
     'maze-generation', 'dungeon-generation', 'l-system', 'cellular-automata',
+    // roads / civil geometry
+    'road-network', 'at-grade-junction',
     // agents / ai
     'state-machine', 'finite-state-ai', 'pathfinding', 'flocking', 'car-following', 'steering-behaviors',
     'traffic-sim', 'schedule-driven-agents',

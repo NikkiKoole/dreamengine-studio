@@ -20,9 +20,31 @@
 // or older. Then a role-appropriate NAME and BARK get drawn in a comic speech
 // box with a typewriter + a tick.
 // Lift the Npc struct + roll_npc() + draw_portrait() straight into the game.
+// Rendered in a Hotline-Miami-inked style (heavy outlines, hard planar
+// light/shadow under a GTA warm upper-left key, sunken glowing eyes, gritted
+// teeth) with per-face asymmetry (jaw/eyes/brows/nose nudged, eyes slanted).
 //
 //   SPACE / click — new person      Z — same person, another line
-//   1-8 — force a role               X — typewriter tick on/off
+//   1-9 then A-H — force a role      X — typewriter tick on/off
+//
+// ── PARKED IDEAS (for another time — not yet done) ──────────────────────────
+//   • Extract facegen.h — pull Npc + roll_npc() + draw_portrait()/draw_avatar()
+//     into a reusable header so the actual game #includes it. HIGHEST VALUE next
+//     step (the whole point is to lift this into the GTA-style game).
+//   • Phase-2 PAPER-DOLL: bake hand-pixeled feature parts (sprite-draw.js →
+//     .cart.js) and composite by gene, for true HM/GTA sprite quality. Bigger
+//     than a DSL and more useful — a textual DSL was considered and rejected
+//     (the drawing is procedural geometry, not declarative content; keep content
+//     in the existing data tables instead: SKINS[]/HAIRS[]/TAT_*/role loadouts).
+//   • Forehead highlight is a plain oval ("the big circle") — reshape it to a
+//     less obviously-round catch-light.
+//   • Olive/tan skin (skin idx 2, CLR_MEDIUM_GREY base) reads a touch ashen — tune.
+//   • Hair / caps aren't OUTLINED yet, so they sit slightly pasted-on against
+//     the inked face — give them the FACE_OL treatment.
+//   • More asymmetry dials available: a subtle whole-head tilt, mouth-corner
+//     asymmetry. (Done so far: jaw shift, eye height + slant, brow raise, nose.)
+//   • Archetype polish: a real apron collar for barista, a jersey number for the
+//     baller, light face-tats option for non-"excessive" street roles.
 // ───────────────────────────────────────────────────────────────────────────
 
 // ── roles ──────────────────────────────────────────────────────────────────

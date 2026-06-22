@@ -74,8 +74,11 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static float ux(float d){ return cos_deg(d); }
-static float uy(float d){ return sin_deg(d); }
+// SNAP near-zero to exactly 0: at cardinal angles cos/sin return ~1e-7, not 0, and over a long arm (×REACH)
+// that sub-pixel error tips an (int) truncation by 1px — a horizontal/vertical arm would drift 1px down its
+// length (the two halves of a through road then mismatch by 1px at the hub). 1e-4 is far below any real bearing.
+static float ux(float d){ float c=cos_deg(d); return (c>-1e-4f&&c<1e-4f)?0.f:c; }
+static float uy(float d){ float s=sin_deg(d); return (s>-1e-4f&&s<1e-4f)?0.f:s; }
 
 // ── CURB RETURN = the at-grade corner primitive. Two curb edges leave the corner K in directions e1,e2
 //    (degrees, pointing AWAY from K along each curb). The return is the arc of radius R TANGENT to both

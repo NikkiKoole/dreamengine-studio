@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cursor.h"
 #include <stdio.h>
 
 // LOGIC
@@ -476,8 +477,6 @@ static void wire_run(int x, int y, int dx, int dy, int n) {
 }
 
 void init(void) {
-    mouse_hide();   // we draw our own pixel cursor (see draw_cursor)
-
     // 1. switch -> wire -> light
     place_cell(2, 2, CT_SWITCH, DIR_N); grid[2][2].state = 1;
     wire_run(3, 2, 1, 0, 2);
@@ -578,74 +577,15 @@ void update(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Custom drawn cursor — we hide the OS pointer (init) and blit our own pixel
-// cursor last, so it scales chunky with the canvas AND shows up in screenshots
-// (the OS cursor never appears in the render-texture capture). Shape reflects
-// the active tool. Bitmaps use 'X' = pixel; an auto black halo gives contrast.
+// Cursor — cursor.h draws a pixel pointer (hidden OS cursor, shows in captures).
+// Shape reflects the active tool; placement crosshairs tint to the tool colour.
 // ---------------------------------------------------------------------------
-static const char *CUR_ARROW[] = {   // hotspot (0,0) at the tip
-    "X.......",
-    "XX......",
-    "XXX.....",
-    "XXXX....",
-    "XXXXX...",
-    "XXXXXX..",
-    "XXXXXXX.",
-    "XXXXXXXX",
-    "XXXX....",
-    "X..XX...",
-    "...XX...",
-    "....XX..",
-};
-static const char *CUR_HAND[] = {    // pointing hand, hotspot ~ (2,0) at fingertip
-    "..XX....",
-    "..XX....",
-    "..XX....",
-    "..XXXXX.",
-    "..XXX.XX",
-    "XXXXXXXX",
-    "XXXXXXXX",
-    ".XXXXXXX",
-    ".XXXXXXX",
-    "..XXXXX.",
-    "..XXXXX.",
-};
-static const char *CUR_CROSS[] = {   // crosshair, hotspot center (4,4), open middle
-    "....X....",
-    "....X....",
-    "....X....",
-    ".........",
-    "XXX...XXX",
-    ".........",
-    "....X....",
-    "....X....",
-    "....X....",
-};
-
-static void blit_cursor(const char **rows, int n, int w, int px, int py, int fill) {
-    for (int r = 0; r < n; r++)          // black halo (outline) pass
-        for (int c = 0; c < w; c++)
-            if (rows[r][c] == 'X')
-                for (int dy = -1; dy <= 1; dy++)
-                    for (int dx = -1; dx <= 1; dx++)
-                        pset(px + c + dx, py + r + dy, CLR_BLACK);
-    for (int r = 0; r < n; r++)          // fill pass
-        for (int c = 0; c < w; c++)
-            if (rows[r][c] == 'X')
-                pset(px + c, py + r, fill);
-}
-
 static void draw_cursor(void) {
     int mx = mouse_x(), my = mouse_y();
-    if (mx >= PANEL_X || my >= STRIP_Y) {                 // over palette / strip: plain arrow
-        blit_cursor(CUR_ARROW, 12, 8, mx, my, CLR_WHITE);
-    } else if (brush == CT_HAND) {                        // grid + hand: pointing hand
-        blit_cursor(CUR_HAND, 11, 8, mx - 2, my, CLR_WHITE);
-    } else if (brush == CT_EMPTY) {                       // grid + eraser: red crosshair
-        blit_cursor(CUR_CROSS, 9, 9, mx - 4, my - 4, CLR_RED);
-    } else {                                              // grid + a tool: crosshair tinted to the tool
-        blit_cursor(CUR_CROSS, 9, 9, mx - 4, my - 4, META[brush].acol);
-    }
+    if (mx >= PANEL_X || my >= STRIP_Y) cursor_draw(CUR_ARROW);          // palette / strip
+    else if (brush == CT_HAND)          cursor_draw(CUR_HAND);           // grid + hand: press things
+    else if (brush == CT_EMPTY)         cursor_draw_tint(CUR_CROSS, CLR_RED);          // eraser
+    else                                cursor_draw_tint(CUR_CROSS, META[brush].acol); // placement
 }
 
 void draw(void) {

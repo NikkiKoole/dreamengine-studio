@@ -1,0 +1,20 @@
+# epiano — a little Rhodes riff on the QWERTY keybed (A S D F G H J K = white keys).
+# frames 300
+# fps 30
+# crf 28
+down 28 A
+up 52 A
+down 60 S
+up 84 S
+down 92 D
+up 116 D
+down 124 F
+up 168 F
+down 130 J
+up 168 J
+down 184 G
+up 240 G
+down 192 D
+up 240 D
+down 256 A
+up 296 A

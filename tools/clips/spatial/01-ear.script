@@ -1,0 +1,10 @@
+# spatial — you are the EAR; move (arrows) as a UFO passes + the car loops by (Doppler/pan).
+# frames 320
+# fps 30
+# crf 28
+down 30 RIGHT
+up 130 RIGHT
+down 140 UP
+up 190 UP
+down 200 LEFT
+up 290 LEFT

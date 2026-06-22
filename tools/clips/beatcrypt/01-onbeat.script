@@ -1,0 +1,18 @@
+# beatcrypt — the synth bed loops; step on the beat (WASD).
+# frames 260
+# fps 30
+# crf 28
+down 30 D
+up 40 D
+down 64 D
+up 74 D
+down 98 W
+up 108 W
+down 132 A
+up 142 A
+down 166 S
+up 176 S
+down 200 D
+up 210 D
+down 234 W
+up 244 W

@@ -1,0 +1,14 @@
+# turfwar — lead your crew across the block, gang up (Z) on rivals.
+# frames 300
+# fps 30
+# crf 28
+down 22 W
+up 120 W
+down 130 Z
+up 132 Z
+down 150 D
+up 230 D
+down 240 Z
+up 242 Z
+down 250 W
+up 295 W

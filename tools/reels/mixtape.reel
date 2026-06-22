@@ -1,0 +1,10 @@
+# mixtape — action + sound: flank · turfwar · beatcrypt · epiano · spatial
+# fps 30
+# crf 28
+# scale 3
+# xfade fade 0.5
+flank/01-firefight
+turfwar/01-brawl    | wipeleft 0.5
+beatcrypt/01-onbeat | fade 0.5
+epiano/01-riff      | circleopen 0.5
+spatial/01-ear      | dissolve 0.6

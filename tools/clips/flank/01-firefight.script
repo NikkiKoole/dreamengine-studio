@@ -1,0 +1,10 @@
+# flank — walk into the room; the unaware squad spots you and flanks/fires (tactical AI).
+# frames 320
+# fps 30
+# crf 28
+down 18 W
+up 150 W
+down 160 D
+up 210 D
+down 220 W
+up 300 W

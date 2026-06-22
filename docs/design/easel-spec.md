@@ -1,6 +1,8 @@
 # easel — a Buchla Music Easel (complete west-coast voice) — spec
 
-**Status: SPEC — not yet built (2026-06-22).** A *complete* west-coast synthesis voice built around
+**Status: ✅ BUILT 2026-06-22** (`tools/carts/easel.c`) — v1 shipped per this spec (mono voice;
+poly is deferred). Verified: the low-pass gate collapses brightness 1.86 → 0.02 as it closes (the
+FM complex-osc + folder give it rich harmonics to gate — far stronger than `lpg`'s triangle). A *complete* west-coast synthesis voice built around
 the low-pass gate from [`lpg.c`](../../tools/carts/lpg.c) (shipped 2026-06-22). Where `lpg` showed
 the gate in isolation, `easel` is the whole instrument the gate belongs to — complex oscillator →
 wavefolder → low-pass gate, played by a pressure ribbon, modulated by a function generator. Lineage:

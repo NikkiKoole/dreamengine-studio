@@ -511,6 +511,16 @@ through its own resonant filter, summed; the cutoffs are ridden live from an Alp
 > (a plain VCA — tone stays bright as it fades) to "tracks the envelope" (the organic plonk). All
 > per-voice (`note_vol`/`note_cutoff`/`note_drive` on `note_on` handles), so it's polyphonic on one slot.
 
+### easel (machine — a west-coast voice, from easel.c)
+
+| recipe | engine | params | notes |
+|---|---|---|---|
+| easel/voice | FM | A2 D0 S9 R120 · FILTER_LOW 300–8000 (gate) · DRIVE_FOLD 0–`fold`×gate · held · `note_harmonics`=RATIO, `note_timbre`=cross-mod | The Buchla complex-osc voice: an FM tone (ratio + index = west-coast cross-mod, ridden live) through a wavefolder, gated by a low-pass gate (note_vol + note_cutoff coupled, `cut = 300 + 7700·g^1.6`). The function generator (rise/fall, one-shot/cycle) or finger pressure drives the gate level `g`. |
+
+> Like `lpg`, the instrument is the **gate coupling** + the additive timbre, not a fixed patch — RATIO/
+> TIMBRE/FOLD and the function generator are all played live. Far brighter to gate than lpg's triangle
+> because the FM osc + folder make rich harmonics for the lowpass to remove.
+
 ### loopstation (synth — 7 fixed tracks, from loopstation.c)
 
 | name | engine | recipe | character |

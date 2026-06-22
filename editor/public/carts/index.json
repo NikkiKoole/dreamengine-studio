@@ -5326,5 +5326,21 @@
       "drum-synthesis"
     ],
     "lineage": "Jam station fusing three shipped chassis — euclid rhythm, a turing shift-register melody driving an LPG voice, and a dubsiren — over one clock; novel: the siren's throw rides a MASTER echo so it dubs the whole mix, and one pattern brain drives drums and melody together."
+  },
+  {
+    "title": "Easel",
+    "description": "A complete west-coast synthesis voice, after the Buchla Music Easel (1973) — where the `lpg` cart showed the low-pass gate alone, this is the whole instrument it belongs to. The chain makes brightness ADDITIVELY (the opposite of every subtractive cart): a COMPLEX OSCILLATOR (INSTR_FM — RATIO sets carrier:mod, TIMBRE the cross-mod depth from sine to clang, both live) → a WAVEFOLDER (FOLD, glassy/metallic harmonics) → a LOW-PASS GATE that closes volume AND brightness together (the highs die first — the organic plonk). A FUNCTION GENERATOR (RISE/FALL slope) shapes it: PLUCK fires it on each tap (a bonk), PRESS rides the gate from finger pressure, and CYCLE free-runs it as an LFO routed to the GATE (tremolo) or TIMBRE (auto cross-mod sweep). Played on a pressure RIBBON — x = pitch (SNAP to a pentatonic scale, or FREE/microtonal like the real Easel's capacitive keys), y = pressure (harder = louder + brighter + more folded); A-K play it from the keyboard too. RUN starts a PULSER that auto-fires the function generator at random scale pitches, so it plays itself. Drag the ribbon; knobs RATIO/TIMBRE/FOLD/RISE/FALL/RATE; buttons pick PLUCK/PRESS, CYCLE off/gate/timbre, RUN, SNAP/FREE (Z/X/C/SPACE keys mirror them). Spec: docs/design/easel-spec.md.",
+    "file": "easel.cart.png",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "west-coast-synthesis",
+      "fm-synth",
+      "wavefolder",
+      "lowpass-gate",
+      "adsr-envelope"
+    ],
+    "lineage": "Homage to the Buchla Music Easel (1973); the complete west-coast voice around lpg.c's gate — novel: a complex oscillator (FM cross-mod) + wavefolder feeding a low-pass gate, a triggerable/cycling function generator, and a pressure ribbon (x=pitch, y=pressure), all cart-side."
   }
 ]

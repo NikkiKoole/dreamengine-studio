@@ -1,0 +1,3 @@
+# easel — RUN the pulser so it self-plays the west-coast voice (generative)
+# frames 480  fps 60  scale 3  crf 30
+tap 6 SPACE

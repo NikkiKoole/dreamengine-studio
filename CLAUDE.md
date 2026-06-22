@@ -244,6 +244,17 @@ eventually2/
 │   │                   #   hard-gated by lint-carts.js. Also classifies sources registered/
 │   │                   #   harness/probe/orphan (--classify), lists the verification-probe
 │   │                   #   shelf (--probes), shows teaches coverage (--lint). --lineage / --json
+│   ├── cart-dupes.js   #   cross-cart DUPLICATION finder → refactor candidates. Two reports:
+│   │                   #   EXTRACTION (maximal normalized blocks shared across ≥2 carts,
+│   │                   #   ranked tokens×cart-spread — i.e. the next library header) + DRIFT
+│   │                   #   (same-named helpers that diverged, ranked by pairs in the 0.6–0.99
+│   │                   #   band — the silent-revert hazard). Idents canonicalize to V but the
+│   │                   #   engine/library vocab (every ident in runtime/*.h) + C keywords stay
+│   │                   #   literal, so studio.h/header API calls are the structural fingerprint,
+│   │                   #   not noise. Zero-dep, no LLM, ~7s. --top/--min-tokens/--drift/
+│   │                   #   --extract/--json. MANUAL/occasional. NOTE: most cart drift is
+│   │                   #   INTENTIONAL (copy-the-chassis authoring) — judge before extracting;
+│   │                   #   the radio-station helper suite is a deliberate non-goal.
 │   ├── build-compendium.js # generate docs/cart-compendium.html — the browsable CART
 │   │                   #   TECHNIQUE COMPENDIUM (editor Docs tab → ★ techniques), "what
 │   │                   #   teaches what" + lineage, from the same tag data as cart-index.js.

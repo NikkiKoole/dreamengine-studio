@@ -28,6 +28,9 @@
 
 #define LANEW    8     // one lane width (px)
 #define TOOLBAR  44    // bottom control strip height (two rows)
+#define POCKET   22    // M3: turn-bay length at the stop bar
+#define PTAPER   14    // M3: upstream taper of the turn bay
+#define MEDW     2     // M3: raised median splitter half-width
 #define DEG2RAD  0.01745329252f
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -103,6 +106,7 @@ static float cornerR = 8.f;   // curb-return radius (the headline at-grade knob)
 static int   lanesPer = 2;    // lanes PER DIRECTION (street width = 2 * lanesPer)
 static int   skew     = 0;    // degrees added to the crossing street (the N–S pair)
 static int   isT      = 0;    // drop the north arm → a T-junction
+static int   turnLanes= 0;    // M3: per-approach left-turn bay + raised median splitter
 
 static float leg_bearing(int i){ float b=legs[i].base + (legs[i].crossing?(float)skew:0.f); return fmodf(b+3600,360); }
 static int   leg_present(int i){ return !(isT && i==3); }              // T drops North (leg 3)
@@ -147,6 +151,51 @@ static void arm_markings(float cx,float cy,float b,float HW,float startd,float r
     }
 }
 
+// ── M3: turn lanes + channelizing islands ──
+// arm_face = axial distance from the hub to where this arm's curb returns sit (its "mouth"). It's the
+// largest corner distance over the arm's two convex gaps (an acute gap reaches further down the arm). PURE.
+static float arm_face(const float *brg,int n,int i,float HW){
+    float gP=fmodf(brg[i]-brg[(i-1+n)%n]+3600,360), gN=fmodf(brg[(i+1)%n]-brg[i]+3600,360);
+    float m=0;
+    if (gP>0.5f&&gP<179.5f){ float d=HW/tanf(gP*0.5f*DEG2RAD); if(d>m)m=d; }
+    if (gN>0.5f&&gN<179.5f){ float d=HW/tanf(gN*0.5f*DEG2RAD); if(d>m)m=d; }
+    return m;
+}
+static void chevron(float x,float y,float dir,float L,int col){       // a small arrowhead pointing `dir`
+    float tx=x+ux(dir)*L, ty=y+uy(dir)*L;
+    line((int)x,(int)y,(int)tx,(int)ty,col);
+    line((int)tx,(int)ty,(int)(tx+ux(dir+150)*3),(int)(ty+uy(dir+150)*3),col);
+    line((int)tx,(int)ty,(int)(tx+ux(dir-150)*3),(int)(ty+uy(dir-150)*3),col);
+}
+// LEFT-TURN BAY: widen the inbound side (drive-on-right ⇒ the b-90 side) by one lane over [df,df+POCKET],
+// tapering back over PTAPER. The turn lane is the inbound lane next to the centreline; the widening makes
+// room for it. Drawn as asphalt + a kerb on the new outer edge.
+static void draw_turnbay(float cx,float cy,float b,float HW,float df){
+    float ax=ux(b),ay=uy(b), ix=ux(b-90),iy=uy(b-90);     // axis + inbound-side normal
+    float s0=df, s1=df+POCKET, s2=df+POCKET+PTAPER;
+    int q[8]={ (int)(cx+ax*s0+ix*HW),         (int)(cy+ay*s0+iy*HW),
+               (int)(cx+ax*s0+ix*(HW+LANEW)), (int)(cy+ay*s0+iy*(HW+LANEW)),
+               (int)(cx+ax*s1+ix*(HW+LANEW)), (int)(cy+ay*s1+iy*(HW+LANEW)),
+               (int)(cx+ax*s2+ix*HW),         (int)(cy+ay*s2+iy*HW) };
+    polyfill(q,4,CLR_DARK_GREY);
+    line(q[2],q[3],q[4],q[5],CLR_BROWNISH_BLACK);          // kerb: pocket outer edge
+    line(q[4],q[5],q[6],q[7],CLR_BROWNISH_BLACK);          // kerb: taper back to the carriageway
+}
+// RAISED MEDIAN SPLITTER (the channelizing island): a thin island on the centreline from df out to
+// df+POCKET+PTAPER with a rounded nose upstream — separates opposing traffic and frames the left-turn bay.
+static void draw_median(float cx,float cy,float b,float df){
+    float ax=ux(b),ay=uy(b), nx=ux(b+90),ny=uy(b+90);
+    float s0=df+2, s1=df+POCKET+PTAPER;
+    int q[8]={ (int)(cx+ax*s0+nx*MEDW),(int)(cy+ay*s0+ny*MEDW),
+               (int)(cx+ax*s0-nx*MEDW),(int)(cy+ay*s0-ny*MEDW),
+               (int)(cx+ax*s1-nx*MEDW),(int)(cy+ay*s1-ny*MEDW),
+               (int)(cx+ax*s1+nx*MEDW),(int)(cy+ay*s1+ny*MEDW) };
+    polyfill(q,4,CLR_LIGHT_GREY);
+    circfill((int)(cx+ax*s1),(int)(cy+ay*s1),MEDW,CLR_LIGHT_GREY);   // rounded nose
+    line(q[0],q[1],q[6],q[7],CLR_BROWNISH_BLACK);          // kerb edges
+    line(q[2],q[3],q[4],q[5],CLR_BROWNISH_BLACK);
+}
+
 void update(void){
     if (keyp('['))  cornerR -= 2;
     if (keyp(']'))  cornerR += 2;
@@ -155,6 +204,7 @@ void update(void){
     if (keyp(','))  skew -= 5;
     if (keyp('.'))  skew += 5;
     if (keyp('t')||keyp('T')) isT = !isT;
+    if (keyp('p')||keyp('P')) turnLanes = !turnLanes;
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (lanesPer<1) lanesPer=1; if (lanesPer>3) lanesPer=3;
     if (skew<-60) skew=-60;    if (skew>60) skew=60;
@@ -194,6 +244,10 @@ void draw(void){
         }
     }
 
+    // M3: turn-bay asphalt (widen the inbound side near each mouth) — laid before the curb returns so the
+    // corner fillets/kerbs draw on top where they meet.
+    if (turnLanes) for (int i=0;i<n;i++) draw_turnbay(cx,cy, brg[i], HW, arm_face(brg,n,i,HW));
+
     // curb returns: one per CONVEX gap between adjacent arms (skip the 180° straight back of a T)
     for (int i=0;i<n;i++){
         float bA=brg[i], bB=brg[(i+1)%n];
@@ -206,28 +260,33 @@ void draw(void){
         stroke_corner(c, cornerR, CLR_BROWNISH_BLACK);
     }
 
-    // markings + stop bar per arm. startd clears the arm's corners (acute corners reach further down the arm).
+    // markings, median islands + stop bar per arm. startd clears the arm's corners (acute corners reach
+    // further down the arm) — and, with turn lanes, the median nose too (no centreline over the island).
     for (int i=0;i<n;i++){
-        float b=brg[i];
-        float gPrev=fmodf(brg[i]-brg[(i-1+n)%n]+3600,360);
-        float gNext=fmodf(brg[(i+1)%n]-brg[i]+3600,360);
-        float maxdc=0;
-        if (gPrev>0.5f && gPrev<179.5f){ float dc=HW/tanf(gPrev*0.5f*DEG2RAD); if(dc>maxdc)maxdc=dc; }
-        if (gNext>0.5f && gNext<179.5f){ float dc=HW/tanf(gNext*0.5f*DEG2RAD); if(dc>maxdc)maxdc=dc; }
-        float startd = maxdc + cornerR + 3;
+        float b=brg[i], df=arm_face(brg,n,i,HW);
+        float startd = df + cornerR + 3;
+        if (turnLanes && df+POCKET+PTAPER+3 > startd) startd = df+POCKET+PTAPER+3;
         arm_markings(cx,cy,b,HW,startd,REACH);
-        // stop bar across the inbound half (drive-on-right: inbound lanes sit on the b-90 side)
-        float dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90);
-        float mx=cx+dx*(startd-1), my=cy+dy*(startd-1);
-        line((int)mx,(int)my,(int)(mx-nx*HW),(int)(my-ny*HW),CLR_WHITE);
+        float dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90), ix=ux(b-90),iy=uy(b-90);
+        if (turnLanes){
+            draw_median(cx,cy,b,df);                       // the channelizing island on the centreline
+            // left-turn arrowhead in the bay (inbound lane next to the median), pointing toward the hub
+            float qx=cx+dx*(df+6)+ix*(LANEW*0.5f), qy=cy+dy*(df+6)+iy*(LANEW*0.5f);
+            chevron(qx,qy, b+180, 6, CLR_WHITE);
+        }
+        // stop bar across the inbound half (drive-on-right: inbound lanes sit on the b-90 side); the turn
+        // bay adds a lane, so the bar spans HW+LANEW there.
+        float bar = turnLanes ? HW+LANEW : HW;
+        float mx=cx+dx*(df+1), my=cy+dy*(df+1);
+        line((int)mx,(int)my,(int)(mx+ix*bar),(int)(my+iy*bar),CLR_WHITE);
     }
 
     // ── HUD ──
     font(FONT_SMALL);
     char bb[64];
-    print("streetlab - at-grade junction (M2: skew + the T)", 4,5, CLR_WHITE);
-    snprintf(bb,sizeof bb,"%s   -   %d corners   -   curb radius %dpx", isT?"T-junction":"4-way crossing",
-             count_corners(), (int)cornerR);
+    print("streetlab - at-grade junction (M3: turn lanes + islands)", 4,5, CLR_WHITE);
+    snprintf(bb,sizeof bb,"%s   -   %d corners%s", isT?"T-junction":"4-way crossing",
+             count_corners(), turnLanes?"   -   left-turn bays + raised median":"");
     print(bb, 4,13, CLR_ORANGE);
 
     // ── toolbar (two rows) ──
@@ -243,6 +302,7 @@ void draw(void){
     d=step_btn(64, SCREEN_H-22, 14, "-", "+"); if (d) skew+=5*d;
     snprintf(bb,sizeof bb,"%d",skew); print(bb, 98, SCREEN_H-19, CLR_LIGHT_GREY);
     if (ui_button(124, SCREEN_H-22, 90, 13, isT?"topology: T":"topology: 4-way")) isT=!isT;
+    if (ui_button(220, SCREEN_H-22, 96, 13, turnLanes?"turn lanes: on":"turn lanes: off")) turnLanes=!turnLanes;
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (lanesPer<1) lanesPer=1; if (lanesPer>3) lanesPer=3;
     if (skew<-60) skew=-60;    if (skew>60) skew=60;
@@ -291,10 +351,16 @@ void spec(void){
     skew=0;  isT=1;  expect_eq(count_corners(), 2, "a T-junction has 2 corners (straight back, no corner)");
     skew=0;  isT=0;                                                        // restore for the loop test
 
-    // ── update() loop — the radius knob clamps (proves step() + key injection drive the cart) ──
+    // ── M3: arm_face() — the mouth distance the turn bay + median key off. On a perpendicular 4-way the
+    //    corner projects to HW on the arm axis, so the face = HW. PURE (geometry of the leg layout). ──
+    { int ix[NLEG]; float br[NLEG]; int m=present_legs(ix,br);
+      expect(sp_near(arm_face(br,m,0,16.f), 16.f), "4-way arm face = HW (corner projects to HW on the axis)"); }
+
+    // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
     for (int i=0;i<40;i++) sp_tap(']');                                    // hammer the + key past the cap
     expect(cornerR <= 28.f, "curb radius caps at 28");
     for (int i=0;i<40;i++) sp_tap('[');                                    // hammer the - key past the floor
     expect(cornerR >= 0.f,  "curb radius floors at 0");
+    int t0=turnLanes; sp_tap('p'); expect(turnLanes!=t0, "the 'p' key toggles turn lanes");
 }
 #endif

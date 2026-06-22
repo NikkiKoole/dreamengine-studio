@@ -19,7 +19,7 @@
 #define FOV_R 6
 
 enum { T_WALL, T_FLOOR, T_STAIRS };
-enum { D_NONE, D_WIRE, D_LEVER, D_AND, D_NOT, D_DOOR };
+enum { D_NONE, D_WIRE, D_LEVER, D_AND, D_NOT, D_DOOR, D_OR };
 enum { DN, DE, DS, DW };
 
 static unsigned char terr[GH][GW];
@@ -30,7 +30,7 @@ static int  sig[2][GH][GW], sread;
 static int  qx[GW*GH], qy[GW*GH], seedv[GH][GW];
 static unsigned char seen[GH][GW], vis[GH][GW];
 
-static int px, py, won, turns, door_was_open;
+static int px, py, won, turns;
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -67,11 +67,12 @@ static void sim_tick(void) {
         else if (dev[y][x] == D_NOT) {
             int dx, dy; doff(opp(face[y][x]), &dx, &dy);
             if (!rsig(x + dx, y + dy)) seed_face(ns, x, y, face[y][x], 1, &qt);
-        } else if (dev[y][x] == D_AND) {
+        } else if (dev[y][x] == D_AND || dev[y][x] == D_OR) {
             int a, b; gins(face[y][x], &a, &b);
             int dx, dy; doff(a, &dx, &dy); int ia = rsig(x + dx, y + dy);
             doff(b, &dx, &dy); int ib = rsig(x + dx, y + dy);
-            if (ia && ib) seed_face(ns, x, y, face[y][x], 1, &qt);
+            int o = dev[y][x] == D_AND ? (ia && ib) : (ia || ib);
+            if (o) seed_face(ns, x, y, face[y][x], 1, &qt);
         }
     }
     while (qh < qt) {
@@ -101,7 +102,7 @@ static void settle(void) { for (int i = 0; i < 8; i++) sim_tick(); }
 static void fill(int x0, int y0, int x1, int y1, int t) {
     for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) if (in_grid(x, y)) terr[y][x] = t;
 }
-static void setdev(int x, int y, int d, int f) { dev[y][x] = d; face[y][x] = f; on[y][x] = 0; }
+static void setdev(int x, int y, int d, int f) { terr[y][x] = T_FLOOR; dev[y][x] = d; face[y][x] = f; on[y][x] = 0; }
 
 static void build(void) {
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) { terr[y][x] = T_WALL; dev[y][x] = D_NONE; face[y][x] = 0; on[y][x] = 0; }
@@ -109,26 +110,35 @@ static void build(void) {
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) seen[y][x] = vis[y][x] = 0;
     sread = 0;
 
-    fill(1, 5, 7, 9, T_FLOOR);     // start room
-    fill(7, 7, 18, 7, T_FLOOR);    // main corridor
-    fill(9, 2, 16, 6, T_FLOOR);    // puzzle chamber (above the corridor)
-    fill(18, 4, 24, 10, T_FLOOR);  // goal room
+    fill(1, 5, 6, 9, T_FLOOR);     // start room
+    fill(6, 7, 24, 7, T_FLOOR);    // spine corridor (row 7)
+    fill(6, 2, 10, 5, T_FLOOR);    // AND chamber (above-left, links to start room at col6)
+    fill(15, 8, 17, 12, T_FLOOR);  // NOT chamber (below, all WEST of door B — no bypass)
+    fill(21, 5, 24, 9, T_FLOOR);   // goal room
     terr[7][22] = T_STAIRS;
 
-    setdev(15, 7, D_DOOR, DN);                          // portcullis on the corridor
-    setdev(12, 4, D_AND, DS);                           // AND faces S: inputs W(11,4) & E(13,4), out S(12,5)
-    setdev(11, 4, D_WIRE, 0); setdev(13, 4, D_WIRE, 0); // gate inputs
-    setdev(10, 4, D_LEVER, 0); setdev(14, 4, D_LEVER, 0);
-    setdev(12, 5, D_WIRE, 0); setdev(12, 6, D_WIRE, 0); // output run, L-shaped, down to the door
-    setdev(13, 6, D_WIRE, 0); setdev(14, 6, D_WIRE, 0); setdev(15, 6, D_WIRE, 0);
+    // Puzzle 1 — AND: both levers ON. gate (8,4) faces S; inputs W(7,4) & E(9,4); out S(8,5).
+    setdev(8, 4, D_AND, DS);
+    setdev(7, 4, D_WIRE, 0); setdev(9, 4, D_WIRE, 0);
+    setdev(6, 4, D_LEVER, 0); setdev(10, 4, D_LEVER, 0);
+    setdev(8, 5, D_WIRE, 0); setdev(8, 6, D_WIRE, 0);     // output down to door A
+    setdev(8, 7, D_DOOR, DN);                              // door A on the spine
 
-    px = 3; py = 7; won = 0; turns = 0; door_was_open = 0;
+    // Puzzle 2 — NOT (the trap): lever starts THROWN, so the door is shut. Turn it OFF to open.
+    setdev(15, 9, D_NOT, DN);                              // NOT faces N; input S(15,10), out N(15,8)
+    setdev(15, 10, D_WIRE, 0);
+    setdev(15, 11, D_LEVER, 0); on[11][15] = 1;            // pre-thrown ON  -> NOT -> door shut
+    setdev(15, 8, D_WIRE, 0); setdev(16, 8, D_WIRE, 0);    // output run east to the door
+    setdev(17, 8, D_WIRE, 0); setdev(18, 8, D_WIRE, 0);
+    setdev(18, 7, D_DOOR, DN);                              // door B on the spine
+
+    px = 3; py = 7; won = 0; turns = 0;
 }
 
 // ---------------------------------------------------------------------------
 // movement + fov
 // ---------------------------------------------------------------------------
-static int solid_dev(int d) { return d == D_LEVER || d == D_AND || d == D_NOT; }
+static int solid_dev(int d) { return d == D_LEVER || d == D_AND || d == D_NOT || d == D_OR; }
 static int walkable(int x, int y) {
     if (!in_grid(x, y) || terr[y][x] == T_WALL) return 0;
     int d = dev[y][x];
@@ -198,14 +208,14 @@ static void draw_cell(int x, int y) {
             pset(cx + (o ? 3 : -3), Y + 3, col);
             break;
         }
-        case D_AND: case D_NOT: {
+        case D_AND: case D_NOT: case D_OR: {
             int hot = 0;   // the rune glows when its output wire carries signal
             int dx, dy; doff(face[y][x], &dx, &dy);
             if (in_grid(x + dx, y + dy)) hot = powered(x + dx, y + dy);
             int col = !lit ? CLR_DARKER_PURPLE : hot ? CLR_PINK : CLR_INDIGO;
             rectfill(X + 1, Y + 1, TILE - 2, TILE - 2, lit ? CLR_DARKER_PURPLE : CLR_BLACK);
             rect(X + 1, Y + 1, TILE - 2, TILE - 2, col);
-            font(FONT_SMALL); print(dev[y][x] == D_AND ? "&" : "!", cx - 1, cy - 2, col);
+            font(FONT_SMALL); print(dev[y][x] == D_AND ? "&" : dev[y][x] == D_OR ? "|" : "!", cx - 1, cy - 2, col);
             break;
         }
         case D_DOOR: {
@@ -225,9 +235,11 @@ static void draw_hud(void) {
         print("YOU ESCAPED THE VAULT", 6, GH * TILE + 4, CLR_LIME_GREEN);
         print("R: again", 6, GH * TILE + 13, CLR_LIGHT_GREY);
     } else {
-        int open = on[7][15];
-        print(open ? "the rune-gate stands open" : "two levers feed the AND-rune that bars the gate",
-              6, GH * TILE + 4, open ? CLR_LIME_GREEN : CLR_LIGHT_GREY);
+        int da = on[7][8], db = on[7][18];   // gate A (AND), gate B (NOT)
+        const char *msg = (da && db) ? "both gates yield - the stairs lie open"
+                        : da          ? "the AND-gate opens - now the NOT-rune ahead"
+                        :               "two levers feed the AND-rune that bars the way";
+        print(msg, 6, GH * TILE + 4, (da && db) ? CLR_LIME_GREEN : da ? CLR_YELLOW : CLR_LIGHT_GREY);
         char t[24]; snprintf(t, sizeof t, "turn %d", turns);
         print(t, SCREEN_W - 48, GH * TILE + 4, CLR_DARK_GREY);
         print("arrows move - walk into a lever to throw it", 6, GH * TILE + 13, CLR_DARK_GREY);

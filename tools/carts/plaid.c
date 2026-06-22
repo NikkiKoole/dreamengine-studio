@@ -213,22 +213,24 @@ static void play_step(long abs, double pos) {
         vu += 0.7f;
     }
 
-    // ── GENTLE BASS — root at the bar, a soft fifth mid-bar ──
+    // ── THE BASS — roots the downbeat (locks with the kick), a fifth mid-bar ──
     if (step == 0) {
         bassMidi = 28 + croot; while (bassMidi < 28) bassMidi += 12;
-        schedule_hit(dly + 4, bassMidi, I_BASS, 4, (int)(stepMs * (bs > 12 ? 5 : 4)));
-        vu += 0.8f;
+        schedule_hit(dly + 2, bassMidi, I_BASS, 5, (int)(stepMs * (bs > 12 ? 5 : 4)));
+        vu += 1.0f;
     } else if (step == bs / 2 && layer >= 2 && !breakdown(bar)) {
         schedule_hit(dly + 4, bassMidi + 7, I_BASS, 3, (int)(stepMs * 3));
     }
 
-    // ── SOFT BROKEN-BEAT KIT — smooths the odd meter; comes in with the weave ──
-    if (layer >= 2 && !breakdown(bar)) {
-        if (step == 0) { schedule_hit(dly, 36, I_KICK, 4, 90); vu += 0.8f; }
-        if (step == (bs * 3) / 5 && layer >= 3) schedule_hit(dly, 36, I_KICK, 3, 80);   // syncopated 2nd
-        if (step == bs / 2) { schedule_hit(dly, 60, I_SNARE, 3, 60); vu += 0.6f; }      // off-centre backbeat
-        if (step % 2 == 0) schedule_hit(dly + rnd(3), 90, I_HAT, (step % 4 == 0) ? 2 : 1, 18);
-        if ((step == bs - 3 || step == bs - 1) && chance(35))
+    // ── THE BROKEN-BEAT KIT + the kick/bass pocket — present almost throughout
+    // (Plaid is beat-driven; only the breakdown strips back to arps-only) ──────
+    if (layer >= 1 && !breakdown(bar)) {
+        if (step == 0) { schedule_hit(dly, 36, I_KICK, 5, 90); vu += 1.0f; }            // the downbeat, with the bass
+        if (step == (bs * 3) / 5) schedule_hit(dly, 36, I_KICK, 4, 80);                 // the broken 2nd kick
+        if (step == bs / 2) { schedule_hit(dly, 60, I_SNARE, 4, 60); vu += 0.7f; }      // off-centre backbeat
+        if (layer >= 2 && step % 2 == 0)                                               // hats fill in with the weave
+            schedule_hit(dly + rnd(3), 90, I_HAT, (step % 4 == 0) ? 2 : 1, 18);
+        if (layer >= 2 && (step == bs - 3 || step == bs - 1) && chance(35))
             schedule_hit(dly, 74, I_WOOD, 2, 40);
     }
 }
@@ -257,8 +259,8 @@ static void apply_chair(int idx) {
         instrument_tune(I_ARP1, 0.04f); instrument_tune(I_ARP4, -0.04f);   // a hair of warmth
     } else if (idx == chKit) {
         if (sel == 0) {                                          // soft broken-beat
-            instrument(I_KICK, INSTR_SINE, 0, 120, 0, 50); instrument_filter(I_KICK, FILTER_LOW, 260, 2);
-            instrument_env(I_KICK, 0, ENV_PITCH, 0, 45, 14);
+            instrument(I_KICK, INSTR_SINE, 0, 150, 0, 55); instrument_filter(I_KICK, FILTER_LOW, 280, 2);
+            instrument_env(I_KICK, 0, ENV_PITCH, 0, 48, 17);
             instrument(I_SNARE, INSTR_NOISE, 0, 60, 0, 50); instrument_filter(I_SNARE, FILTER_BAND, 1700, 4);
         } else {                                                 // brushed / softer
             instrument(I_KICK, INSTR_SINE, 0, 150, 0, 60); instrument_filter(I_KICK, FILTER_LOW, 220, 1);

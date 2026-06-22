@@ -296,15 +296,16 @@ static float arm_face(const float *brg,int n,int i,float HW){
     if (gN>0.5f&&gN<179.5f){ float d=HW/tanf(gN*0.5f*DEG2RAD); if(d>m)m=d; }
     return m;
 }
-// PER-SIDE corner clearance — a SKEWED arm's two sides face DIFFERENT gaps (one acute, one obtuse), so the
-// kerb-side lanes (bike/parking) must start per side, not at the arm's worst corner (arm_face = the max), or the
-// gentler side leaves a gap to the corner-wrap. For convex gaps the +90 side faces the NEXT arm's gap, the -90
-// side the PREV arm's. Returns that gap's axial corner distance (HW/tan(half)); 0 for a straight/180 gap. PURE.
-static float side_clearance(const float *brg,int n,int i,float HW,int side){
+// PER-SIDE kerb-lane START — a SKEWED arm's two sides face DIFFERENT gaps (one acute, one obtuse), so the
+// kerb-side lanes (bike/parking) must start per side, else the gentler side gaps from the corner-wrap. For convex
+// gaps the +90 side faces the NEXT arm's gap, the -90 side the PREV. The lane must start at the curb-return
+// TANGENT, which sits at (HW+R)/tan(half) from the hub along the arm — NOT HW/tan(half) + R (equal only at 90°,
+// so on obtuse corners with a big R the lane would start PAST the tangent and gap). A 2px overlap onto the arc. PURE.
+static float kerb_start(const float *brg,int n,int i,float HW,float R,int side){
     float g = (side>0) ? fmodf(brg[(i+1)%n]-brg[i]+3600,360)
                        : fmodf(brg[i]-brg[(i-1+n)%n]+3600,360);
-    if (g<=0.5f || g>=179.5f) return 0;                     // straight (T back) — no corner on this side
-    return HW/tanf(g*0.5f*DEG2RAD);
+    if (g<=0.5f || g>=179.5f) return R+3;                   // straight (T back) — no corner; minimal clearance
+    return (HW+R)/tanf(g*0.5f*DEG2RAD) - 2.f;
 }
 // LEFT-TURN ARROW: shaft pointing into the junction (inbound) with a head hooking LEFT (across the
 // centreline) — the glyph that marks a lane as turn-only. Lives in the arm's local frame ⇒ skew-safe.
@@ -714,8 +715,8 @@ void draw(void){
         // (arm_face). Every mouth marking — stop bar, crosswalk, median, turn bay, arrow — keys off this
         // `mouth` datum, NOT df, so they sit at the rounded mouth instead of poking back into the fillet.
         float mouth = df + cornerR;
-        float kstdP = side_clearance(brg,n,i,HW,+1) + cornerR + 3;   // PER SIDE: +90 faces the next gap...
-        float kstdM = side_clearance(brg,n,i,HW,-1) + cornerR + 3;   // ...-90 faces the prev gap (skew-correct)
+        float kstdP = kerb_start(brg,n,i,HW,cornerR,+1);   // PER SIDE, at the curb-return TANGENT: +90 faces the
+        float kstdM = kerb_start(brg,n,i,HW,cornerR,-1);   // next gap, -90 the prev — meets the arc even on obtuse corners
         float cstd = (turnLanes && mouth+POCKET+PTAPER+3 > mouth+3) ? mouth+POCKET+PTAPER+3 : mouth+3;  // centre: past the turn bay
         cross_markings(cx,cy,b,kstdP,kstdM,cstd,REACH);
         float dx=ux(b),dy=uy(b), ix=ux(b-90),iy=uy(b-90);
@@ -918,18 +919,19 @@ void spec(void){
     islandR=8; parkOn=1; expect(spec_near(round_icr(), 8 + lanesPer*LANEW + PARKW),
         "roundabout ICR includes parking (circulatory = full approach half-width)");
     parkOn=0;
-    // per-SIDE corner clearance — the skew fix: a skewed arm's two sides face different gaps, so the kerb-side
-    // lanes (bike/parking) must start per side (else the gentler side gaps from the corner-wrap).
-    { float fb[4]={0,90,180,270};                                          // a perpendicular 4-way
-      expect(spec_near(side_clearance(fb,4,0,16.f,+1), side_clearance(fb,4,0,16.f,-1)),
-             "perpendicular 4-way: an arm's two sides have equal corner clearance");
-      expect(spec_near(side_clearance(fb,4,0,16.f,+1), 16.f), "perpendicular: side clearance = HW"); }
-    { float fs[4]={0,120,180,300};                                         // a SKEWED 4-way (the N-S pair tilted 30deg)
-      float p=side_clearance(fs,4,0,16.f,+1), m=side_clearance(fs,4,0,16.f,-1);
-      expect(!spec_near(p,m),  "skew: an arm's two sides have DIFFERENT clearances (acute vs obtuse corner)");
-      expect(m > p,            "the acute-corner side reaches further down the arm than the obtuse side");
-      expect(spec_near(arm_face(fs,4,0,16.f), m),
-             "arm_face is the MAX of the two sides — using it for BOTH was the skew gap"); }
+    // kerb_start — the PER-SIDE kerb-lane start (bike/parking) that meets the corner-wrap arc. The skew fix: a
+    // skewed arm's two sides face different gaps, so each starts at its own corner's TANGENT = (HW+R)/tan(half),
+    // NOT HW/tan(half)+R (equal only at 90°; the latter gapped on obtuse corners at a big radius).
+    { float fb[4]={0,90,180,270};                                          // perpendicular: both sides equal, tangent = HW+R-2
+      expect(spec_near(kerb_start(fb,4,0,16.f,8.f,+1), kerb_start(fb,4,0,16.f,8.f,-1)), "perpendicular: an arm's two sides start equal");
+      expect(spec_near(kerb_start(fb,4,0,16.f,8.f,+1), 16.f+8.f-2.f),     "90deg start = (HW+R)/tan45 - 2");
+      expect(kerb_start(fb,4,0,16.f,24.f,+1) > kerb_start(fb,4,0,16.f,8.f,+1), "a bigger curb radius pushes the start out"); }
+    { float fs[4]={0,120,180,300};                                         // SKEW: obtuse(+side,120) vs acute(-side,60)
+      float kp=kerb_start(fs,4,0,16.f,24.f,+1), km=kerb_start(fs,4,0,16.f,24.f,-1);
+      expect(!spec_near(kp,km), "skew: an arm's two sides start at DIFFERENT distances (acute vs obtuse corner)");
+      expect(km > kp,           "the acute side starts further out than the obtuse side");
+      expect(!spec_near(kp, 16.f/tanf(60*DEG2RAD)+24.f),
+             "obtuse start uses (HW+R)/tan(half), NOT HW/tan(half)+R — the big-radius skew fix"); }
     int m0=medOn;  spec_tap('m'); expect(medOn!=m0,  "the 'm' key toggles the centre median");
     int pk0=parkOn; spec_tap(';'); expect(parkOn!=pk0,"the ';' key toggles the parking lane");
     // Pass 3: 'b' cycles the bike lane through 3 states — off → lanes(+corner-wrap) → +straight-through crossing

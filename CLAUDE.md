@@ -227,6 +227,15 @@ eventually2/
 │   │                   #   gotten complex / carry real mutable state" — and which warrant a
 │   │                   #   spec() and which KIND. Heuristic (fuzzy on instrument carts).
 │   │                   #   --top N / --json. Design: docs/design/spec-harness.md
+│   ├── cart-index.js   #   COMPUTED technique index over every cart source (never rots):
+│   │                   #   "what cart teaches X" (--exemplars, intensity-ranked) + whole-
+│   │                   #   shelf coverage clusters (--coverage). Derives techniques from
+│   │                   #   each .c (library headers + studio.h API calls → families) PLUS
+│   │                   #   the author-written cart-header tags // TEACHES: (conceptual) and
+│   │                   #   // LINEAGE: (descent) — see "Adding a new cart" step 1. Also
+│   │                   #   classifies sources registered/harness/probe/orphan (--classify),
+│   │                   #   lists the verification-probe shelf (--probes), soft-lints TEACHES
+│   │                   #   coverage + vocabulary (--lint). --lineage / --cart <n> / --json
 │   ├── lint-docs.js    #   validate docs/ cross-references: relative .md links resolve
 │   │                   #   + doc-qualified §-refs ("audio-notes §8.9") hit a real
 │   │                   #   heading (resolving via a split-stub/parent = soft note, not
@@ -420,7 +429,13 @@ Source-of-truth files live in `tools/carts/`; the build tool sits beside that fo
 >   (studio.h / studio.c|sound.h / studioDocs.js / shell.js) + the §17 ledger note in
 >   [`docs/design/audio-notes.md`](docs/design/audio-notes.md).
 
-1. Write the C source → `tools/carts/<name>.c`
+1. Write the C source → `tools/carts/<name>.c`. **Open it with a docblock** (title rule +
+   player-facing prose) and tag it with two machine-readable lines the library tooling
+   harvests: `// TEACHES: <conceptual-techniques, kebab>` (the *idea* a reader comes to
+   learn — the mechanical API usage is auto-detected, so list what the calls don't reveal:
+   `car-following`, `marching-squares`, `granular-synth`) and `// LINEAGE: <descent/novelty>`
+   (what it copied a chassis from, what's new). Vocabulary + tooling: `node tools/cart-index.js`
+   (`--exemplars` "what teaches X", `--lineage`, `--lint`, `--classify`).
 2. *(Optional)* Add sprites/map → `tools/<name>.cart.js`. Exports `{ sprites, map, charMap, mapW, mapH }`:
    - `sprites`: `{ slotIndex: asciiArt }` — 16×16 strings, chars map to palette indices via the `DEFAULT_CHAR_MAP` in `make-cart.js` (`R`=red, `W`=white, `b`=bright blue, `.`=transparent/black, etc.)
    - `map`: `{ layout: ["####", "#..#"], tiles: { '#': 1 } }`

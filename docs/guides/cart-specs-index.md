@@ -33,8 +33,11 @@ dir and `index.json`.
 - **Orchestrated (recommended — what built batch 2):** drive it from a single
   **Workflow** instead. One agent per game, fanned out with `parallel()`, each doing the
   exact `AGENT-MESSAGE.md` job — except the "end with a JSON blob" convention becomes a
-  **structured-output schema** (`{name, title, description, file, ...}`) the workflow
-  validates, so there's no parsing. The script body holds the game list (name + scope +
+  **structured-output schema** (`{name, title, description, file, kind, genre?, teaches[],
+  lineage}`) the workflow validates, so there's no parsing. Include `teaches`/`lineage`
+  in the schema (teaches from the controlled vocab in `tools/teaches-vocab.js`) so the
+  ★ techniques compendium is populated at build time, not backfilled later. The script
+  body holds the game list (name + scope +
   locked slice + which exemplar carts to read) and assembles each agent's prompt from the
   brief. When the fan-out returns, the **main loop becomes the coordinator**: bake each
   `--run` thumbnail serially (fixing any compile error — this is where they surface, since

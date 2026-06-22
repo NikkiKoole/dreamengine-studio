@@ -41,7 +41,14 @@ DO NOT:
 FINISH by ending your final message with ONLY your index.json entry as a JSON object —
 nothing after it — like:
 
-  { "title": "your title", "description": "what it is + the controls", "file": "<name>.cart.png" }
+  { "title": "your title", "description": "what it is + the controls", "file": "<name>.cart.png",
+    "kind": ["game"], "genre": "arcade",
+    "teaches": ["<conceptual techniques from tools/teaches-vocab.js>"],
+    "lineage": "what it descends from / what's new (one line)" }
 
+teaches/lineage feed the ★ techniques compendium. teaches is a CONTROLLED vocabulary
+(tools/teaches-vocab.js) — reuse existing tags; lint-carts.js rejects an off-vocabulary
+tag. Omit teaches or use [] if the cart teaches nothing conceptually distinctive. Do NOT
+put these as // TEACHES: comments in the .c — the index.json entry is the only home.
 The coordinator will merge that entry into index.json (your thumbnail is already baked).
 ```

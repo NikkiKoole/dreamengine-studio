@@ -190,13 +190,15 @@ beyond title/description/file/kind, which feed the ★ techniques compendium:
 For the game produce: (a) `tools/carts/<name>.c`, (b) an optional
 `tools/carts/<name>.cart.js` for sprites/map, (c) the build + screenshot commands
 (`node tools/make-cart.js tools/carts/<name>.c editor/public/carts/<name>.cart.png`
-then `node tools/make-cart.js --run …`), (d) a one-line `index.json` entry with a
-vivid description + controls.
+then `node tools/make-cart.js --run …`), (d) the full `index.json` entry — `title`,
+`description` (+ controls), `file`, `kind`, `genre` if a game, **plus `teaches` (from
+the controlled vocabulary) and `lineage`** per "Tag the cart" above.
 
 ## Output format
 Give: a 2–3 line **design pitch** (the hook + which engine features it leans into and
-why), then the **complete C**, then the **`.cart.js`** if used, then the
-**`index.json` description string**. Code must be self-contained and compile as-is.
+why), then the **complete C**, then the **`.cart.js`** if used, then the **full
+`index.json` entry** (including `teaches`/`lineage`, not just the description string).
+Code must be self-contained and compile as-is.
 
 ---
 

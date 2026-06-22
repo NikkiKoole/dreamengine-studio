@@ -19,6 +19,7 @@
 //   Built on the engine's euclid() Bjorklund helper. The rhythm companion to kaoss/onenote;
 //   the loop it makes is exactly what kaoss is built to mangle.
 
+// TEACHES: euclidean-rhythm, generative-sequencer, polymeter, drum-synthesis, nested-ring-ui
 #define NT 5                         // tracks / rings
 enum { SL_KICK = 5, SL_SNARE, SL_CHAT, SL_OHAT, SL_PERC };
 

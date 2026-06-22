@@ -22,6 +22,7 @@
 //   new engine DSP. The last of the liveset playthings (cart-library-direction §2c); the
 //   one with a genuinely new timbre.
 
+// TEACHES: lowpass-gate, vactrol-envelope, coupled-vol-cutoff, wavefolder, west-coast-synthesis, polyphonic-voice-pool
 #define NB 8
 #define SL 5
 static int   h[NB];                 // one held voice per bar

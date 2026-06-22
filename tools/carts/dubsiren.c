@@ -19,6 +19,7 @@
 //   Built on echo() feedback + note_lfo(LFO_PITCH) + reverb() — no new engine DSP. The
 //   hands-on twin of the `dub` auto-radio; a liveset plaything (cart-library-direction §2c).
 
+// TEACHES: feedback-throw, self-oscillation, pitch-lfo, held-voice-fx-sends, gesture-instrument
 enum { SL_A = 5, SL_B };
 static int hA = -1, hB = -1;
 

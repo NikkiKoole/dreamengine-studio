@@ -20,6 +20,7 @@
 //   Built on a cart-side shift register + INSTR_SAW sequence voice. A liveset plaything;
 //   pairs naturally with grenadier as the voice (cart-library-direction §2c).
 
+// TEACHES: shift-register, generative-sequencer, probability, scale-quantize, no-engine-dsp
 enum { SL_LEAD = 5, SL_KICK, SL_HAT };
 
 // ── scales (semitones from root) — all consonant so the random walk never sours ──

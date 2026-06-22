@@ -107,6 +107,16 @@
     "teaches": []
   },
   {
+    "title": "4b. the mouse",
+    "description": "Read the pointer — the keyboard's sibling. mouse_x()/mouse_y() track the cursor, mouse_pressed() is a click, mouse_down() is a drag, mouse_wheel() scrolls. LEFT-drag the box, wheel to resize it, LEFT-click empty space drops a dot, RIGHT-click clears.",
+    "file": "04b-mouse.cart.png",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [],
+    "lineage": "the mouse counterpart of 04-buttons (keyboard input)"
+  },
+  {
     "title": "5. draw your character",
     "description": "Open the sprites tab, draw a 16×16 character in slot 1, then see it move.",
     "file": "05-sprite.cart.png",

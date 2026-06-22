@@ -59,8 +59,9 @@ cart shows them off. Each is either *undersold* (wants one showcase cart) or *de
 
 Mission is the teaching on-ramp (VISION.md), so **Gap type 1 first.** Suggested carts:
 
-1. **`04b-mouse`** — click / drag / hover with `mouse_*` (+ `mouse_world_*` under a camera). *The single
-   highest-leverage gap: 32% usage, 0 teaching.*
+1. ~~**`04b-mouse`** — click / drag / hover with `mouse_*`.~~ ✅ **SHIPPED** (2026-06-22) — the
+   highest-leverage gap (32% usage, 0 teaching) is now an on-ramp. `mouse_world_*` under a camera
+   is deferred to the camera tutorial (#2).
 2. **A camera/follow tutorial** — a world bigger than the screen, `follow()` the player, `clip()` a HUD.
    Every platformer needs it; nothing teaches it. (Retire or demo the dead `zoom_rect`/`map_scale`.)
 3. **`23-effects`** — the sequel to the `20–22` synth trilogy: send a voice through `reverb`/`echo`/`crush`,

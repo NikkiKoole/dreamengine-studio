@@ -72,6 +72,7 @@ Per-slot `send` 0–1 chooses how much each instrument throws into it. **Showcas
 | hard feed into a loop | `instrument_echo(PAD, 0.7f)` | a pad fed heavily into a long echo = an evolving wash (the tape-loop trick) | `tapeloop`, `wowflutter` |
 | live delay pedal | `echo(rate_ms(), fb_x(), tone_x())` from knobs | the effect played as the instrument; feedback into the red = self-osc drone | `spacecho`, `tb303`, `kaoss` (ECHO program; sends opened on the loop only while ECHO is selected) |
 | dub-siren throw | held voices at `instrument_echo(slot, 0.7f)`; ride `echo(t, fb, .55)` with `fb` past 1.0 | stab the siren, lift, the echo throws the tail; past the red it self-oscillates and HOWLS forever — pull `fb` back to dub it out | `dubsiren` (the FIRE PAD X axis IS the feedback) |
+| master dub throw | ALL parts send into one `echo()`; the siren pad's X rides its feedback (base 0.3 → past 1.0) | the throw smears the WHOLE groove (drums + melody + siren) into the dub, not just the siren — a sound-system desk move | `dubdesk` (rhythm + LPG + siren all feed the one master echo) |
 | delay as an in-line INSERT | `echo_insert(time_ms, fb, tone, mix)` + `FX_ECHO` in `fx_order(0,…)` | a real reorderable DELAY pedal whose chain POSITION is audible — `delay→drive` distorts the repeats, `drive→delay` makes clean echoes of a dirty signal | `pedalboard` (DELAY), `modrack` (ECHO module — cv inlet sweeps the mix for dub throws) |
 
 > **`echo()` (send) vs `echo_insert()` (insert).** `echo()` is the shared parallel send — its wet

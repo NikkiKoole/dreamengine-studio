@@ -1,6 +1,8 @@
 # dubdesk — a generative dub groovebox (jam-station spec)
 
-**Status: SPEC — not yet built (2026-06-22).** Working name `dubdesk` (alts: `riddim`,
+**Status: ✅ BUILT 2026-06-22** (`tools/carts/dubdesk.c`) — shipped per this spec, all three
+locked decisions intact (LPG auto + A–K hand-play; siren throw = master echo; shared knob row).
+Working name `dubdesk` (alts: `riddim`,
 `selector`, `soundclash`). The "jam station" that composes three shipped liveset chassis into
 one instrument: the **euclid** rhythm maker, the **lpg** melodic voice, and the **dubsiren**
 live lead. Parent design: [`cart-library-direction.md`](cart-library-direction.md) §2c

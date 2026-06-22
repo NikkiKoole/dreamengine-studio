@@ -1184,11 +1184,14 @@ void draw(void) {
     if (!uv_mode) draw_statusbar();
     if (show_help) draw_help();
 
-    // pixel cursor: grab while dragging, crosshair for precise picking in the
-    // viewport, plain arrow over the side/top/status UI panels.
+    // pixel cursor: a fist while dragging; a finger when hovering something
+    // grabbable (a vertex/face, or a UV corner); a crosshair for precise picking
+    // elsewhere in the viewport; a plain arrow over the side/top/status panels.
     int mx = mouse_x(), my = mouse_y();
     int over_vp = mx >= VP_X && my >= VP_Y && my < SCREEN_H - BOT_H;
+    int hover_grab = uv_mode ? (uv_hover_corner >= 0) : (hover_vert >= 0 || hover_face >= 0);
     if (dragging || vdragging || obj_dragging) cursor_draw(CUR_GRAB);
-    else if (over_vp)                          cursor_draw(CUR_CROSS);
-    else                                       cursor_draw(CUR_ARROW);
+    else if (hover_grab)                        cursor_draw(CUR_HAND);
+    else if (over_vp)                           cursor_draw(CUR_CROSS);
+    else                                        cursor_draw(CUR_ARROW);
 }

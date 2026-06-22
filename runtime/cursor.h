@@ -51,13 +51,28 @@ static const char *const cursor__arrow[] = {
     "X.......", "XX......", "XXX.....", "XXXX....", "XXXXX...", "XXXXXX..",
     "XXXXXXX.", "XXXXXXXX", "XXXX....", "X..XX...", "...XX...", "....XX..",
 };
-static const char *const cursor__hand[] = {   // pointing hand, index up
-    "...XX...", "...XX...", "...XX...", "...XX...", "...XXXX.", "XX.XXXXX",
-    "XXXXXXXX", ".XXXXXXX", ".XXXXXXX", ".XXXXXXX", "..XXXXX.",
+static const char *const cursor__hand[] = {   // pointing hand, index extended
+    "..XX....",
+    "..XX....",
+    "..XX....",
+    "..XXX.X.",   // index + folded-finger bumps (1px gaps → black separators via the halo)
+    "..XXXXXX",
+    "XX.XXXXX",   // thumb on the left, gap separates it from the palm
+    "XXXXXXXX",
+    ".XXXXXXX",
+    ".XXXXXXX",
+    ".XXXXXXX",
+    "..XXXXX.",
 };
-static const char *const cursor__grab[] = {    // closed fist, for dragging
-    ".XX.XX..", "XXXXXXX.", "XXXXXXXX", "XXXXXXXX", ".XXXXXXX", ".XXXXXX.",
-    "..XXXX..",
+static const char *const cursor__grab[] = {    // closed/grabbing hand: knuckle bumps on top + a thumb-crease band (the gaps
+    ".X.X.X.X.",                               // become black via the halo, giving the silhouette a hand reads as)
+    "XXXXXXXXX",
+    "XXXXXXXXX",
+    "XX.....XX",   // thumb curled across — a dark crease
+    "XXXXXXXXX",
+    "XXXXXXXXX",
+    ".XXXXXXX.",
+    "..XXXXX..",
 };
 static const char *const cursor__cross[] = {   // crosshair, open centre on the target
     "....X....", "....X....", "....X....", ".........", "XXX...XXX",
@@ -72,7 +87,7 @@ typedef struct { const char *const *rows; short n, w, hotx, hoty; } Cursor__Shap
 static const Cursor__Shape cursor__shapes[CUR__COUNT] = {
     [CUR_ARROW] = { cursor__arrow, 12, 8, 0, 0 },
     [CUR_HAND]  = { cursor__hand,  11, 8, 3, 0 },
-    [CUR_GRAB]  = { cursor__grab,   7, 8, 4, 3 },
+    [CUR_GRAB]  = { cursor__grab,   8, 9, 4, 4 },
     [CUR_CROSS] = { cursor__cross,  9, 9, 4, 4 },
     [CUR_MOVE]  = { cursor__move,   9, 9, 4, 4 },
 };

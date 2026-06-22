@@ -2050,8 +2050,10 @@ void draw(void) {
 
     font(FONT_NORMAL);
 
-    // pixel cursor (screen space — camera was reset above). Grab shape whenever
-    // something is being dragged: a knob, a cable end, a module, or the canvas.
+    // pixel cursor (screen space — camera was reset above): a closed fist while
+    // dragging (knob / cable / module / canvas), a pointing finger when hovering
+    // something grabbable (knob, jack, module handle), else the plain arrow.
     int grabbing = held_knob || drag_jack >= 0 || drag_mod >= 0 || panning || palette_drag >= 0;
-    cursor_draw(grabbing ? CUR_GRAB : CUR_ARROW);
+    int hover_grab = !over_side && (knob_at(wmx, wmy) >= 0 || jack_at(wmx, wmy) >= 0 || handle_at(wmx, wmy) >= 0);
+    cursor_draw(grabbing ? CUR_GRAB : hover_grab ? CUR_HAND : CUR_ARROW);
 }

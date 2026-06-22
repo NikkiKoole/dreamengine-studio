@@ -498,10 +498,8 @@ static void draw_portrait(Npc *n, int talking, int mouth_open) {
     // tapered chin point for the lean/feminine faces
     if (n->sex || n->face == FS_SLIM || n->face == FS_GAUNT)
         trifill(FCX - jw + 2, FCY + 22, FCX + jw - 2, FCY + 22, FCX, FCY + jh + 24, sk);
-    // soft form shadow on the right cheek — kept well INSIDE the silhouette
-    // (a small oval, never reaching the head edge, so it can't bulge the outline)
-    ovalfill(FCX + HW/3, FCY + 18, HW/4, VH/3, skd);
-    // gaunt: sunken hollows under the cheekbones
+    // (no one-sided cheek shading — a solid darker oval reads as a blob, not form)
+    // gaunt: sunken hollows under the cheekbones (symmetric — reads as gaunt)
     if (n->face == FS_GAUNT) {
         ovalfill(FCX - HW + 10, FCY + 16, 7, 12, skd);
         ovalfill(FCX + HW - 10, FCY + 16, 7, 12, skd);

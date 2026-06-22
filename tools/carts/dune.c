@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cursor.h"
 
 // ── ARRAKIS — Spice & Steel ───────────────────────────────────────────────
 // A tiny Dune/C&C base-builder. Harvesters crawl to the orange spice fields,
@@ -913,4 +914,5 @@ void draw(void) {
         print_centered(str("%02d:%02d on the clock", (int)game_t / 60, (int)game_t % 60), SCREEN_W/2, SCREEN_H / 2 - 1, CLR_YELLOW);
         print_centered("Z or click for a new map", SCREEN_W/2, SCREEN_H / 2 + 12, CLR_LIGHT_GREY);
     }
+    cursor_draw(placing >= 0 ? CUR_CROSS : CUR_ARROW);
 }

@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cursor.h"
 
 // ── FIELD COMMANDER — turn-based tactics (an Advance Wars demake) ─────────────
 // You (RED) vs the CPU (BLUE) on one hand-made tile map. Move units, capture
@@ -737,4 +738,5 @@ void draw(void) {
         print_centered(winner==0 ? "the enemy HQ has fallen" : "your forces are routed", SCREEN_W/2, 100, CLR_LIGHT_GREY);
         print_centered("click for a new battle", SCREEN_W/2, 110, CLR_YELLOW);
     }
+    cursor_draw(CUR_ARROW);
 }

@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "cursor.h"
 
 // ── HEROES OF MIGHT & MAGIC — a tiny HoMM demake ──────────────────────────────
 // Three modes, one loop:  explore → recruit → build → DO BATTLE.
@@ -1032,4 +1033,5 @@ void draw(void) {
     else if (mode == M_TOWN)   draw_town();
     else if (mode == M_BATTLE) draw_battle();
     else if (mode == M_OVER)   draw_over();
+    cursor_draw(CUR_ARROW);
 }

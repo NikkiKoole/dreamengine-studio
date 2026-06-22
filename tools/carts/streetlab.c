@@ -304,7 +304,8 @@ static float arm_face(const float *brg,int n,int i,float HW){
 static float kerb_start(const float *brg,int n,int i,float HW,float R,int side){
     float g = (side>0) ? fmodf(brg[(i+1)%n]-brg[i]+3600,360)
                        : fmodf(brg[i]-brg[(i-1+n)%n]+3600,360);
-    if (g<=0.5f || g>=179.5f) return R+3;                   // straight (T back) — no corner; minimal clearance
+    if (g<=0.5f || g>=179.5f) return 0;                     // straight (a T's back / through side) — NO corner, so the
+                                                            // lane runs continuously to the hub (both halves meet there)
     return (HW+R)/tanf(g*0.5f*DEG2RAD) - 2.f;
 }
 // LEFT-TURN ARROW: shaft pointing into the junction (inbound) with a head hooking LEFT (across the
@@ -932,6 +933,9 @@ void spec(void){
       expect(km > kp,           "the acute side starts further out than the obtuse side");
       expect(!spec_near(kp, 16.f/tanf(60*DEG2RAD)+24.f),
              "obtuse start uses (HW+R)/tan(half), NOT HW/tan(half)+R — the big-radius skew fix"); }
+    { float ft[3]={0,90,180};                                              // a T (north dropped): arm 0's back is a 180 gap
+      expect(spec_near(kerb_start(ft,3,0,16.f,8.f,-1), 0), "T back (straight 180 gap): the lane runs through to the hub (start 0)");
+      expect(kerb_start(ft,3,0,16.f,8.f,+1) > 0,           "the cornered side of the same arm still starts at its tangent"); }
     int m0=medOn;  spec_tap('m'); expect(medOn!=m0,  "the 'm' key toggles the centre median");
     int pk0=parkOn; spec_tap(';'); expect(parkOn!=pk0,"the ';' key toggles the parking lane");
     // Pass 3: 'b' cycles the bike lane through 3 states — off → lanes(+corner-wrap) → +straight-through crossing

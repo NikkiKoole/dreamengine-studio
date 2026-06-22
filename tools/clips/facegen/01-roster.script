@@ -1,0 +1,20 @@
+# facegen — a roster parade: force each role in turn (keys 1-8) so the clip
+# walks the whole cast (made man / gangster / corner boy / dealer / pimp /
+# working girl / fiend / civilian), each holding long enough to read the line.
+# frames 600  fps 60  scale 3  crf 30
+down 8 1
+up 10 1
+down 78 2
+up 80 2
+down 148 3
+up 150 3
+down 218 4
+up 220 4
+down 288 5
+up 290 5
+down 358 6
+up 360 6
+down 428 7
+up 430 7
+down 498 8
+up 500 8

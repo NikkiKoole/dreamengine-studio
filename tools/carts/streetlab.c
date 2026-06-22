@@ -25,6 +25,7 @@
 //                WEB (network topology — grid/cul-de-sac/radial, the Parish-Müller / tensor-field generators
 //                from §8). Then a seed-driven world emits it.
 //   Controls: on-screen ui.h toolbar (clickable; keyboard too). [ ] curb radius · -/= lanes · ,/. skew · t = T.
+// TEACHES: curb-return-fillet, at-grade-junction, tangent-arc-geometry, leg-layout-topology, turn-lane-channelization, spec-harness
 
 #define LANEW    8     // one lane width (px)
 #define TOOLBAR  44    // bottom control strip height (two rows)

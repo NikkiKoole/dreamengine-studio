@@ -10,12 +10,12 @@
 //   • THE DRENCH — a SET-AND-HOLD vaporwave FX chain (reverb + chorus + tape + echo +
 //     a touch of bitcrush), configured once per song/mode (never per frame — that
 //     churns the bus; copy groovebox's apply_fx gate).
-//   • THE SLOW WOBBLE — varispeed ridden LIVE (it's sweep-safe): a gentle drift so the
+//   • THE SLOW WOBBLE — the cassette wow/flutter in tape() + a draggy tempo: the slowed/
 //     whole mix wavers like a tape running slow / a dying battery (the "screwed" sag).
 //   • A HAZY-LOOP CHORD BRAIN — a short 2-4 chord lush-extended loop, static, repeated.
 //   • Sub-style roll: CLASSIC / MALLSOFT (beatless) / UTOPIAN / FUTURE-FUNK.
 //
-// Window: the sunset + striped sun + wireframe grid, wobbling with the varispeed drift.
+// Window: the sunset + striped sun + wireframe grid, gently wobbling.
 //
 //   SPACE next   R replay   [ ] history   LEFT/RIGHT haze   UP/DOWN tempo   T tone   B band   M power
 
@@ -67,11 +67,13 @@ typedef struct {
     float wobBase, wobDepth;
 } ModeDef;
 static const ModeDef MODE[NM] = {
+    // tlo lowered (the "slowed" feel now comes from a genuinely draggy tempo, not held varispeed);
+    // wow bumped (the cassette warble now lives in tape()'s wow/flutter). wbase unused; wdep = VISUAL sag only.
     //  name        tlo tsp bt  rev   wow   flut  sat   chor  efb  ems  cb  cmix  wbase  wdep
-    { "classic",    76, 12, 1, 0.80f,0.28f,0.14f,0.40f,0.55f,0.30f,380, 12,0.10f, 0.965f,0.018f },
-    { "mallsoft",   64, 10, 0, 0.92f,0.36f,0.18f,0.46f,0.62f,0.44f,540, 11,0.15f, 0.930f,0.028f },
-    { "utopian",    84, 12, 1, 0.72f,0.18f,0.10f,0.28f,0.45f,0.22f,320, 14,0.04f, 0.985f,0.010f },
-    { "future funk",92, 14, 2, 0.60f,0.16f,0.10f,0.34f,0.42f,0.20f,280, 13,0.06f, 0.992f,0.008f },
+    { "classic",    70, 12, 1, 0.80f,0.36f,0.20f,0.40f,0.55f,0.30f,380, 12,0.10f, 1.0f, 0.018f },
+    { "mallsoft",   58, 10, 0, 0.92f,0.44f,0.24f,0.46f,0.62f,0.44f,540, 11,0.15f, 1.0f, 0.028f },
+    { "utopian",    78, 12, 1, 0.72f,0.26f,0.14f,0.28f,0.45f,0.22f,320, 14,0.04f, 1.0f, 0.012f },
+    { "future funk",86, 14, 2, 0.60f,0.22f,0.12f,0.34f,0.42f,0.20f,280, 13,0.06f, 1.0f, 0.010f },
 };
 
 // ── the generated tune ───────────────────────────────────────────────────────
@@ -134,7 +136,7 @@ static void new_song(double pos, unsigned seed) {
     tempo = MODE[sng.mode].tlo + srnd(MODE[sng.mode].tspan);
     bpm(tempo);
     apply_fx();                          // SET-AND-HOLD — once, on the song change
-    songBase = (long)pos + 8;
+    songBase = (long)pos + 4;
     epInit = padInit = false; melP = 76; bassLast = 40;
     songCount++;
 }
@@ -310,7 +312,7 @@ void update(void) {
     if (ev & RAD_EV_REPLAY) new_song(pos, sng.seed);
     if (ev & RAD_EV_BACK)   { unsigned s = rad_hist_back(&rs); if (s) new_song(pos, s); }
     if (ev & RAD_EV_FWD)    { unsigned s = rad_hist_fwd(&rs);  if (s) new_song(pos, s); }
-    if (ev & RAD_EV_POWER)  { if (!radioOn) { note_off_all(); sfx(-1); varispeed(1.0f); vinylH = -1; }
+    if (ev & RAD_EV_POWER)  { if (!radioOn) { note_off_all(); sfx(-1); vinylH = -1; }
                               else { scheduled = (long)pos; apply_fx(); if (vinylH < 0) vinylH = note_on(60, I_VINYL, 1); } }
     if (ev & RAD_EV_TONE)   apply_tone();
 
@@ -326,11 +328,10 @@ void update(void) {
         long st; while (rad_clock_step(&clk, pos, &st)) play_step(st, pos);
         if (scheduled - songBase >= 64L * 16) fresh_song(pos);   // loop forever (re-roll every 64 bars)
         for (int i = 0; i < 4; i++) chord_label(nowChord[i], 8, LOOPS[sng.loop].c[i % loop_len()]);
-        // THE SLOW WOBBLE — varispeed drift (sweep-safe; the slowed-tape sag)
-        const ModeDef *m = &MODE[sng.mode];
-        float wob = m->wobBase + m->wobDepth * (0.4f + 0.6f * hazeSel / 3.0f) * sinf((float)now() * 0.55f);
-        varispeed(wob);
-    } else varispeed(1.0f);
+    }
+    // (the slowed/warbly feel now comes from the draggy tempo + tape()'s wow/flutter — NOT a
+    //  held varispeed, which kept the resample ring engaged, drifted the timing, and eventually
+    //  lapped its 2s buffer. varispeed is a sweep tool, not a hold.)
 
     vu *= 0.90f; if (vu > 12) vu = 12;
 
@@ -433,7 +434,7 @@ void draw(void) {
         };
         static const char *NOTES[3] = {
             "a lush lounge loop, DROWNED: reverb + chorus +",
-            "tape + echo + crush, and a slow varispeed WOBBLE",
+            "tape + echo + crush, and a tape WOBBLE (wow + flutter)",
             "(the slowed-tape sag). classic/mallsoft/utopian/funk.",
         };
         rad_help_panel("VAPOR FM", HELP, 8, NOTES, 3, ACC);

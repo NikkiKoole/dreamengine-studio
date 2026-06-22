@@ -1,4 +1,7 @@
-# flank — walk into the room; the unaware squad spots you and flanks/fires (tactical AI).
+# flank — walk into the room; the unaware squad spots you and goes loud (the tactical AI:
+# flanking, cover, suppression). Keyboard-only: flank boots straight into the fight, so just
+# moving (WASD) into view trips it — no mouse needed. (Mouse CAN drive the gun via `click`,
+# but aiming moving enemies blind misses; a .rec is better if you want the player to score.)
 # frames 320
 # fps 30
 # crf 28

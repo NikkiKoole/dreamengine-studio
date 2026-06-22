@@ -270,6 +270,13 @@ up   98 SPACE
 Key tokens: **named** = `UP DOWN LEFT RIGHT SPACE ENTER TAB ESC BACKSPACE COMMA PERIOD`;
 **any single char** = itself (`Z`, `X`, digits `1`–`9`, letters `a`–`z` → uppercased to the
 raylib code). So `Z` is the A-button, `1`–`6` are the number row, `W A S D` move, etc.
+
+**Mouse is scriptable too:** `move <frame> <x> <y>` (pointer to a canvas pixel) and
+`click <frame> <x> <y> [btn]` (move there + click; `btn` 1=right, 2=mid, default left). Great
+for carts driven by clicks at *known* spots — menu buttons, `thecut`'s clients, a fixed target.
+The catch is **live-aiming a *moving* target blind misses** (a flank firefight scripted to
+fire emptied the mag but scored 0 kills) — for accurate live aim, hand-record a `.rec` instead.
+
 **GOTCHA — title screens:** a cart that opens on a TITLE/menu eats your gameplay keys until
 you dismiss it. Press its advance key FIRST (usually `ENTER`/`Z`/click), *then* the gameplay
 keys (this bit `thecut`: reagent keys did nothing until an `ENTER` dismissed the title).
@@ -313,12 +320,12 @@ gallery applies CSS `image-rendering:pixelated`; a raw reel can't rely on that.)
 (`editor/public/clips/<cart>/*.webm`), the manifest (`tools/reels/<name>.reel`), and the reel
 (`editor/public/reels/<name>.webm`). Worked example: `tools/reels/teaser.reel`.
 
-> Mouse-driven carts (aim, drag) are awkward to script blind — for a clip that needs the
-> *player* to aim/drag, hand-record a `.rec` (`node tools/play.js <cart> record out.rec`)
-> instead of a `.script`. But often you don't need the mouse: `flank` looks like a mouse cart,
-> yet a great combat shot is pure keyboard — it boots straight into the fight, so walking in
-> (`W`/`A`/`S`/`D`) gets the unaware squad to spot you and go loud (the tactical-AI showcase);
-> the mouse is only for the player's own shooting (`tools/clips/flank/01-firefight.script`).
+> Scripts drive the mouse (`move`/`click`, above), but *continuous live-aim at a moving
+> target* is the one thing better hand-recorded as a `.rec`. Often you don't need it anyway:
+> `flank` looks like a mouse cart, yet a great combat shot is pure keyboard — it boots straight
+> into the fight, so walking in (`W`/`A`/`S`/`D`) trips the unaware squad's tactical AI (the
+> showcase). The mouse only fires the *player's* gun, and scripted blind it misses, so the
+> keyboard "squad goes loud" cut reads cleaner (`tools/clips/flank/01-firefight.script`).
 
 ## WAV capture — hear what the engine actually rendered
 

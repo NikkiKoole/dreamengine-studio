@@ -493,8 +493,10 @@ static void draw_portrait(Npc *n, int talking, int mouth_open) {
     if (n->sex) jw -= 3;                            // softer feminine chin
     int jh = VH - (n->face==FS_LONG ? 8 : 16);
     ovalfill(FCX, FCY + 24, jw, jh, sk);
+    // fuller lower face for square/heavy — a wider ROUNDED jaw mass (an oval, so
+    // it never makes the hard rectangular corners that poke past the silhouette)
     if (n->face == FS_SQUARE || n->face == FS_HEAVY)
-        rectfill(FCX - jw, FCY + 18, jw*2, 30, sk); // squared jaw
+        ovalfill(FCX, FCY + 22, jw + 2, jh - 4, sk);
     // tapered chin point for the lean/feminine faces
     if (n->sex || n->face == FS_SLIM || n->face == FS_GAUNT)
         trifill(FCX - jw + 2, FCY + 22, FCX + jw - 2, FCY + 22, FCX, FCY + jh + 24, sk);
@@ -725,11 +727,16 @@ static void draw_portrait(Npc *n, int talking, int mouth_open) {
     if (n->acc & A_BEAUTY)
         circfill(FCX - mw - 1, my - 4, 1, CLR_BROWNISH_BLACK);
 
-    // sweat beads for fiends / nervous
+    // a single bead of sweat trickling down one temple (fiends / nervous) —
+    // a pale droplet that slides smoothly and resets, NOT bright blue dots
     if (n->role == R_FIEND || n->expr == X_NERVOUS) {
-        int sf = (frame()/30) % 3;
-        ovalfill(FCX - HW + 14, FCY - 18 + sf*6, 2, 3, CLR_BLUE);
-        if (sf==2) ovalfill(FCX + HW - 16, FCY - 22 + (frame()/24)%3*5, 2, 3, CLR_BLUE);
+        int phase = frame() % 150;                 // ~2.5s cycle, mostly dry
+        if (phase < 70) {
+            int bx = FCX - HW + 15;
+            int by = FCY - 14 + phase/2;           // slides down the temple
+            ovalfill(bx, by, 2, 3, CLR_LIGHT_GREY);
+            pset(bx - 1, by - 1, CLR_WHITE);       // highlight makes it read as a wet bead
+        }
     }
 
     // ── shades (over the eyes, late) ──────────────────────────────────

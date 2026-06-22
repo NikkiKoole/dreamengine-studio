@@ -1,6 +1,6 @@
 #include "studio.h"
 
-// 4b — THE MOUSE. The pointer is the keyboard's sibling (04-buttons). Six calls:
+// 4b — THE MOUSE. The pointer is the keyboard's sibling (04-buttons). The calls:
 //   mouse_x() / mouse_y()    where the cursor is (canvas pixels)
 //   mouse_pressed(button)    true only on the frame a button goes down — a "click"
 //   mouse_down(button)       true the whole time it's held — that's how you DRAG
@@ -8,8 +8,8 @@
 //   mouse_wheel()            scroll this frame: + up, - down, 0 if no scroll
 //   buttons: MOUSE_LEFT, MOUSE_RIGHT, MOUSE_MIDDLE
 //
-// Try it: LEFT-drag the box · wheel to resize it · LEFT-click empty space drops a dot
-//         · RIGHT-click clears the dots.
+// Try it: LEFT-drag the box · wheel ZOOMS it toward the cursor · LEFT-click empty space
+//         drops a dot · RIGHT-click clears the dots · MIDDLE-click resets the box.
 
 int  bx = 140, by = 84, bsize = 40;   // the draggable box
 bool dragging = false;
@@ -30,9 +30,21 @@ void update() {
     if (mouse_released(MOUSE_LEFT)) dragging = false;
     if (dragging) { bx = mx - grabx; by = my - graby; }   // HELD = drag: follow the mouse
 
-    if (mouse_pressed(MOUSE_RIGHT)) ndot = 0;             // right-click clears
+    if (mouse_pressed(MOUSE_RIGHT))  ndot = 0;                            // right-click clears
+    if (mouse_pressed(MOUSE_MIDDLE)) { bx = 140; by = 84; bsize = 40; }  // middle-click resets
 
-    bsize = (int)clamp(bsize + mouse_wheel() * 4, 12, 120);  // wheel resizes
+    // wheel ZOOMS the box TOWARD THE CURSOR: scale it, then re-place it so the point that
+    // was under the pointer stays under the pointer (the classic "zoom to cursor" trick).
+    // (modrack does the same trick on the whole VIEW with camera_ex — see the camera tutorial.)
+    float w = mouse_wheel();
+    if (w != 0) {
+        int old = bsize;
+        bsize = (int)clamp(bsize + w * 4, 12, 120);
+        float fx = (mx - bx) / (float)old;   // how far across the box the cursor sits (0..1)
+        float fy = (my - by) / (float)old;
+        bx = (int)(mx - fx * bsize);         // keep that same fraction under the cursor
+        by = (int)(my - fy * bsize);
+    }
 }
 
 void draw() {
@@ -49,14 +61,16 @@ void draw() {
 
     print("THE MOUSE", 4, 4, CLR_WHITE);
     print("LEFT-drag the box", 4, 16, CLR_LIGHT_GREY);
-    print("wheel: resize it", 4, 24, CLR_LIGHT_GREY);
+    print("wheel: zoom box toward cursor", 4, 24, CLR_LIGHT_GREY);
     print("LEFT-click empty: drop a dot", 4, 32, CLR_LIGHT_GREY);
-    print("RIGHT-click: clear", 4, 40, CLR_LIGHT_GREY);
+    print("RIGHT: clear    MIDDLE: reset", 4, 40, CLR_LIGHT_GREY);
 
     // the live API values, so you can watch them change
     print(str("mouse_x %d   mouse_y %d", mx, my), 4, SCREEN_H - 22, CLR_PEACH);
-    print(str("LEFT %s   RIGHT %s   dots %d",
-              mouse_down(MOUSE_LEFT) ? "down" : "up", mouse_down(MOUSE_RIGHT) ? "down" : "up", ndot),
+    print(str("L %s  M %s  R %s  dots %d",
+              mouse_down(MOUSE_LEFT)   ? "down" : "up",
+              mouse_down(MOUSE_MIDDLE) ? "down" : "up",
+              mouse_down(MOUSE_RIGHT)  ? "down" : "up", ndot),
           4, SCREEN_H - 12, CLR_PEACH);
 
     // draw our own crosshair cursor at the pointer

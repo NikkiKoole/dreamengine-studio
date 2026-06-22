@@ -24,13 +24,14 @@
 #define RY    3          // top row of the room band
 #define DR    (RY + 3)   // door row (band mid)
 #define CLOCKP 3         // clock gate: moves per phase
-#define MAXMON 4
+#define PLATEH 5         // pressure plate: moves it stays powered after you step off
+#define MAXMON 5
 #define HPMAX  3
 
 enum { T_WALL, T_FLOOR, T_STAIRS };
-enum { D_NONE, D_WIRE, D_LEVER, D_AND, D_NOT, D_DOOR, D_OR, D_XOR, D_CLOCK };
+enum { D_NONE, D_WIRE, D_LEVER, D_AND, D_NOT, D_DOOR, D_OR, D_XOR, D_CLOCK, D_PLATE };
 enum { DN, DE, DS, DW };
-enum { ST_PLAY, ST_WIN, ST_DEAD };
+enum { ST_PLAY, ST_DEAD };
 
 static unsigned char terr[GH][GW], dev[GH][GW], face[GH][GW], on[GH][GW];
 static int  ctimer[GH][GW];                     // clock-gate countdown (in moves)
@@ -42,7 +43,7 @@ typedef struct { int x, y, alive; } Mon;
 static Mon mon[MAXMON];
 static int nmon;
 
-static int px, py, hp, turns, state;
+static int px, py, hp, turns, state, depth, best;
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -78,7 +79,7 @@ static void sim_tick(void) {
     int qh = 0, qt = 0;
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) {
         int d = dev[y][x];
-        if (d == D_LEVER || d == D_CLOCK) { if (on[y][x]) seed_adj(ns, x, y, 1, &qt); }
+        if (d == D_LEVER || d == D_CLOCK || d == D_PLATE) { if (on[y][x]) seed_adj(ns, x, y, 1, &qt); }
         else if (d == D_NOT) {
             int dx, dy; doff(opp(face[y][x]), &dx, &dy);
             if (!rsig(x + dx, y + dy)) seed_face(ns, x, y, face[y][x], 1, &qt);
@@ -114,6 +115,14 @@ static void clock_step(void) {   // advance clock-gates once per move
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++)
         if (dev[y][x] == D_CLOCK && --ctimer[y][x] <= 0) { on[y][x] ^= 1; ctimer[y][x] = CLOCKP; }
 }
+static int occupied(int x, int y);   // fwd
+static void plate_step(void) {   // a plate is powered while a creature stands on it, then lingers PLATEH moves
+    for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) {
+        if (dev[y][x] != D_PLATE) continue;
+        if (occupied(x, y)) { on[y][x] = 1; ctimer[y][x] = PLATEH; }
+        else if (ctimer[y][x] > 0 && --ctimer[y][x] <= 0) on[y][x] = 0;
+    }
+}
 
 // ---------------------------------------------------------------------------
 // generation
@@ -135,8 +144,11 @@ static void stamp_gate(int gx, int gy, int type) {
         setdev(gx, gy, D_NOT, DE);                 // input from the W; lever pre-thrown
         setdev(gx - 1, gy, D_WIRE, 0);
         setdev(gx - 2, gy, D_LEVER, 0); on[gy][gx - 2] = 1;
-    } else { // D_CLOCK
+    } else if (type == D_CLOCK) {
         setdev(gx, gy, D_CLOCK, DN); ctimer[gy][gx] = CLOCKP;
+    } else { // D_PLATE: stand on it (or lure a wraith on); it lingers while you dash the wire to the door
+        setdev(gx, gy, D_WIRE, 0); setdev(gx - 1, gy, D_WIRE, 0);
+        setdev(gx - 2, gy, D_PLATE, 0);
     }
 }
 
@@ -144,8 +156,12 @@ static int mon_at(int x, int y) {
     for (int i = 0; i < nmon; i++) if (mon[i].alive && mon[i].x == x && mon[i].y == y) return i;
     return -1;
 }
+static int occupied(int x, int y) { return (px == x && py == y) || mon_at(x, y) >= 0; }
 
-static void build(void) {
+static void compute_fov(void);   // defined in the fov section below
+
+// generate ONE floor's layout (uses `depth` for difficulty). Does NOT touch hp/state.
+static void gen_floor(void) {
     for (int y = 0; y < GH; y++) for (int x = 0; x < GW; x++) {
         terr[y][x] = T_WALL; dev[y][x] = D_NONE; face[y][x] = 0; on[y][x] = 0; ctimer[y][x] = 0;
         seen[y][x] = vis[y][x] = 0;
@@ -155,23 +171,26 @@ static void build(void) {
 
     for (int i = 0; i < NR; i++) fill(room_x0(i), RY, room_x0(i) + RW - 1, RY + RH - 1, T_FLOOR);
 
-    int types[] = { D_AND, D_OR, D_XOR, D_NOT, D_CLOCK };
+    int types[] = { D_AND, D_OR, D_XOR, D_NOT, D_CLOCK, D_PLATE };
     for (int i = 0; i < NR - 1; i++)
-        stamp_gate(room_x0(i) + 3, DR, types[rnd(5)]);
+        stamp_gate(room_x0(i) + 3, DR, types[rnd(6)]);
 
     terr[DR][room_x0(NR - 1) + 2] = T_STAIRS;
-
-    px = room_x0(0) + 1; py = DR; hp = HPMAX; turns = 0; state = ST_PLAY;
+    px = room_x0(0) + 1; py = DR;
 
     nmon = 0;
-    int want = 2 + rnd(2);
-    for (int tries = 0; tries < 200 && nmon < want; tries++) {
+    int want = depth + rnd(2); if (want < 1) want = 1; if (want > MAXMON) want = MAXMON;  // scales with depth
+    for (int tries = 0; tries < 300 && nmon < want; tries++) {
         int r = 1 + rnd(NR - 1);                                   // never the start room
         int x = room_x0(r) + rnd(RW), y = RY + rnd(RH);
         if (terr[y][x] != T_FLOOR || dev[y][x] != D_NONE || mon_at(x, y) >= 0) continue;
         mon[nmon].x = x; mon[nmon].y = y; mon[nmon].alive = 1; nmon++;
     }
+    plate_step(); settle();   // charge a plate the player spawns on, and settle doors for frame 1
 }
+
+static void new_run(void) { depth = 1; hp = HPMAX; turns = 0; state = ST_PLAY; gen_floor(); compute_fov(); }
+static void descend(void) { depth++; if (hp < HPMAX) hp++; gen_floor(); compute_fov(); shake(2); note(72, INSTR_SQUARE, 3); }
 
 // ---------------------------------------------------------------------------
 // movement + fov
@@ -277,6 +296,13 @@ static void draw_cell(int x, int y) {
             font(FONT_SMALL); print(g, cx - 1, cy - 2, col);
             break;
         }
+        case D_PLATE: {
+            int p = on[y][x];
+            int col = !lit ? CLR_DARKER_GREY : p ? CLR_LIGHT_YELLOW : CLR_DARK_GREY;
+            rect(X + 2, Y + 2, TILE - 4, TILE - 4, col);
+            if (p && lit) { rect(X + 3, Y + 3, TILE - 6, TILE - 6, CLR_YELLOW); }
+            break;
+        }
         case D_DOOR: {
             int col = !lit ? CLR_DARK_GREY : CLR_MEDIUM_GREY;
             for (int i = 0; i < 3; i++) rectfill(X + 2 + i * 4, Y, 2, on[y][x] ? 3 : TILE, col);
@@ -297,12 +323,17 @@ static void draw_mon(int i) {
 static void draw_hud(void) {
     rectfill(0, GH * TILE, SCREEN_W, SCREEN_H - GH * TILE, CLR_BLACK);
     font(FONT_SMALL);
-    if (state == ST_WIN) { print("YOU ESCAPED THE VAULT", 6, GH*TILE+4, CLR_LIME_GREEN); print("R: descend anew", 6, GH*TILE+13, CLR_LIGHT_GREY); return; }
-    if (state == ST_DEAD) { print("THE WRAITHS TAKE YOU", 6, GH*TILE+4, CLR_RED); print("R: descend anew", 6, GH*TILE+13, CLR_LIGHT_GREY); return; }
+    char t[32];
+    if (state == ST_DEAD) {
+        snprintf(t, sizeof t, "THE WRAITHS TAKE YOU - depth %d (best %d)", depth, best);
+        print(t, 6, GH*TILE+4, CLR_RED);
+        print("R: descend anew", 6, GH*TILE+13, CLR_LIGHT_GREY);
+        return;
+    }
     for (int i = 0; i < HPMAX; i++) circfill(8 + i * 9, GH*TILE+7, 3, i < hp ? CLR_RED : CLR_DARKER_GREY);
-    print("satisfy each rune-gate - reach the stairs", 38, GH*TILE+4, CLR_LIGHT_GREY);
-    char t[16]; snprintf(t, sizeof t, "turn %d", turns);
-    print(t, SCREEN_W - 48, GH*TILE+4, CLR_DARK_GREY);
+    snprintf(t, sizeof t, "depth %d   best %d", depth, best);
+    print(t, SCREEN_W - 80, GH*TILE+4, CLR_LIGHT_GREY);
+    print("satisfy each rune-gate, take the stairs down", 38, GH*TILE+4, CLR_LIGHT_GREY);
     print("arrows move - bump levers/wraiths - Z wait", 38, GH*TILE+12, CLR_DARK_GREY);
 }
 
@@ -317,10 +348,10 @@ void draw(void) {
 // ---------------------------------------------------------------------------
 // turn loop
 // ---------------------------------------------------------------------------
-void init(void) { build(); compute_fov(); }
+void init(void) { best = load_int("best", 0); new_run(); }
 
 void update(void) {
-    if (state != ST_PLAY) { if (keyp('R')) { build(); compute_fov(); } return; }
+    if (state != ST_PLAY) { if (keyp('R')) new_run(); return; }
 
     int mvx = 0, mvy = 0, wait = 0, act = 0;
     if (btnp(0, BTN_LEFT)  || keyp(KEY_LEFT)  || keyp('A')) mvx = -1;
@@ -338,11 +369,13 @@ void update(void) {
 
     if (act) {
         clock_step();
-        settle();
-        monsters_act();
+        monsters_act();            // creatures move first...
+        plate_step();              // ...then plates read who's standing where
+        settle();                  // ...then signals propagate to the doors
         turns++;
+        if (state == ST_DEAD) { if (depth > best) { best = depth; save_int("best", best); } }
+        else if (terr[py][px] == T_STAIRS) descend();   // down to a deeper floor
         compute_fov();
-        if (state == ST_PLAY && terr[py][px] == T_STAIRS) state = ST_WIN;
     }
 }
 
@@ -364,6 +397,7 @@ static int sp_gate(int type, int la, int lb) {
     if (type == D_AND || type == D_OR || type == D_XOR) { on[gy-2][gx] = la; on[gy+2][gx] = lb; }
     else if (type == D_NOT) on[gy][gx-2] = la;           // lever (pre-thrown by stamp; override)
     else if (type == D_CLOCK) on[gy][gx] = la;           // la = clock phase
+    else if (type == D_PLATE) on[gy][gx-2] = la;         // la = plate occupied
     settle();
     return on[gy][gx+2];
 }
@@ -402,9 +436,12 @@ void spec(void) {
     expect(sp_gate(D_NOT, 1, 0) == 0, "NOT-trap shut while its lever is thrown");
     expect(sp_gate(D_CLOCK, 1, 0) == 1, "CLOCK door open on its high phase");
     expect(sp_gate(D_CLOCK, 0, 0) == 0, "CLOCK door shut on its low phase");
+    expect(sp_gate(D_PLATE, 1, 0) == 1, "PLATE door open while it is pressed");
+    expect(sp_gate(D_PLATE, 0, 0) == 0, "PLATE door shut when nothing stands on it");
 
+    depth = 1;
     for (int i = 0; i < 8; i++) {            // every generated floor: gates mandatory + completable
-        build();
+        gen_floor();
         expect(!sp_reach_stairs(0), "no bypass: stairs unreachable with every gate shut");
         expect(sp_reach_stairs(1),  "solvable: stairs reachable with every gate open");
     }

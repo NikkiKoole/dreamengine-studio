@@ -594,6 +594,32 @@ the growing-plant face — is new. Blind brief + palette shop:
 
 ---
 
+## squarepusher — bass-virtuoso drill'n'bass (Tom Jenkinson)
+
+Solo layer: **the bass IS the soloist** — `improv.h` drives it in the SOLO sections (the
+first station to put the improviser in the *bass* chair as the lead, not a sub).
+
+The sibling of `braindance` but the BASS is the protagonist, over **moving** jazz-fusion
+changes (not braindance's frozen pool). Reuses braindance's rhythm brains + ymo's Hosono
+walker + cocktail's harmony tables; the new work is bass-as-lead + slap + the mode-lurch.
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_BASS` | the lead/slap fusion bass (Hosono walker + improv solos) | `saw/slap-bass` (LADDER 700·sel/6, fast `ENV_CUTOFF` 2/130/1900, drive; sel1 = fuzz) | SAW/SQUARE |
+| `I_SLAP` | the slap-pop transient (on accents) | `noise/slap-pop` (NOISE BP2600, 22ms) | NOISE |
+| `I_RHODES` | fusion comping (extended voicings) | `epiano/fusion-rhodes` (h0/0.5 Rhodes/Wurli) | EPIANO |
+| `I_PAD` | lush string bed (the tender interlude) | `saw/string-pad` (A220 LP1700, `instrument_tune` .05) | SAW |
+| `I_ACID` | 303 squelch (manic/solo) | `saw/acid-303` (LP900/12, `ENV_CUTOFF` 0/110/2300, drive) | SAW |
+| kit | amen/808 break kit + shred tom | (braindance's `kit/amen` / `808`) | SINE/NOISE |
+
+**Borrowing at a glance:** the most reuse-dense station yet — braindance's `ratchet()` + drum
+grammar, ymo's Hosono bass walker, cocktail's jazz harmony tables + `improv.h` bass solo. Its
+identity is the **bass-as-lead** brain (Hosono cranked to virtuoso + slap transient) + the
+**tender↔manic lurch** form. Blind brief + palette shop:
+[`../design/squarepusher-blind-brief.md`](../design/squarepusher-blind-brief.md).
+
+---
+
 ## afrobeat — Afrobeat (Fela Kuti & Africa 70 / Tony Allen)
 
 Solo layer: **`improv.h`** (the tenor sax takes the solo over the vamp).

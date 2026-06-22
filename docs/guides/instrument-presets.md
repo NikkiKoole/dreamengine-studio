@@ -1574,6 +1574,31 @@ is the percolating sequencer arp; `saw/moog-bed` (`INSTR_SAW` A60 D300 S5 R360 �
 
 ---
 
+## squarepusher (bass-virtuoso drill'n'bass) — new recipes
+
+The most reuse-dense station: it borrows braindance's `ratchet()`+drum grammar, ymo's Hosono
+bass walker, and cocktail's jazz harmony tables + `improv.h` bass solo. The genuinely new
+voice is the **lead/slap bass** — the protagonist.
+
+### saw/slap-bass
+`INSTR_SAW` (or `INSTR_SQUARE` = fuzz) · A2 D150 S4 R150 · `FILTER_LADDER` 700·sel/6 (sel1
+fuzz: 1100/9) · drive .40 (.62 fuzz) · `ENV_CUTOFF` 2/130/1900 (the slap/pluck snap) · paired
+with `noise/slap-pop`
+The lead fretless/slap fusion bass — moog-ish resonant path with a fast cutoff env for the
+pluck. Played by the Hosono walker (groove/shred) and `improv.h` (solos).
+- tier: unique · origin: squarepusher · used by: squarepusher (`I_BASS`)
+- kin: `moog.c`'s BASS path (LADDER + cutoff env), here as a generative lead.
+
+### noise/slap-pop · epiano/fusion-rhodes · saw/string-pad · saw/acid-303
+`noise/slap-pop` (`INSTR_NOISE` BP2600, 22ms) is the slap transient layered on accented bass
+notes; `epiano/fusion-rhodes` (`INSTR_EPIANO` h0/0.5 Rhodes/Wurli, LP2400) comps the extended
+voicings; `saw/string-pad` (`INSTR_SAW` A220 D400 S6 LP1700 · `instrument_tune` .05) is the
+tender-interlude bed; `saw/acid-303` (`INSTR_SAW` LP900/12 · `ENV_CUTOFF` 0/110/2300 · drive
+.35) is the manic/solo squelch.
+- tier: unique (acid kin braindance's `I_ACID`) · origin: squarepusher · used by: squarepusher (`I_SLAP`/`I_RHODES`/`I_PAD`/`I_ACID`)
+
+---
+
 ## Notes for growing this file
 
 - One station at a time. Add its voices, and for any recipe that **matches** one already

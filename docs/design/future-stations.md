@@ -349,8 +349,11 @@ mistuning. The other half of the engine's expressiveness, mostly unexplored.
 - **Burial** — 2-step garage swing (new groove template: shuffled kicks,
   off-grid woodblock snares), vinyl + rain, "vocal" sighs = filtered saw with
   heavy note_glide on wordless pentatonics. Sits next to lowend and ambient.
-- **Squarepusher** — the ratchet engine at maximum + the Hosono bassline
-  generator (ymo.c) turned virtuoso slap. Two existing blocks, pushed to 11.
+- ~~**Squarepusher**~~ — ✅ shipped as `squarepusher.c`. The prediction held — the ratchet
+  engine + the Hosono bass generator (ymo.c) turned virtuoso slap — but the cart's spine
+  turned out bigger: the **BASS AS LEAD** (Hosono cranked + `improv.h` in the bass chair +
+  a slap transient) over **moving jazz-fusion changes** (cocktail's tables, not braindance's
+  frozen pool), and the **tender↔manic LURCH** form. Design: [`squarepusher-blind-brief.md`](squarepusher-blind-brief.md).
 - **Autechre (Tri Repetae era)** — pattern mutation applied to TIMBRE:
   percussion params (pitch, cutoff, decay) drift per hit; the drum machine as
   a slowly-decaying organism. Needs the rotating-slot trick (audio-notes §2.2).

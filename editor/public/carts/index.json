@@ -976,7 +976,9 @@
       "tutorial"
     ],
     "genre": "lab",
-    "teaches": []
+    "teaches": [
+      "segment-collision"
+    ]
   },
   {
     "title": "text fx",
@@ -1498,7 +1500,9 @@
     "kind": [
       "tech-demo"
     ],
-    "teaches": []
+    "teaches": [
+      "cellular-automata"
+    ]
   },
   {
     "title": "double pendulum",
@@ -1649,7 +1653,9 @@
       "tech-demo",
       "probe"
     ],
-    "teaches": []
+    "teaches": [
+      "pathfinding"
+    ]
   },
   {
     "title": "ripple tank",
@@ -1667,7 +1673,9 @@
     "kind": [
       "tech-demo"
     ],
-    "teaches": []
+    "teaches": [
+      "verlet-integration"
+    ]
   },
   {
     "title": "boids",
@@ -1677,7 +1685,9 @@
       "tech-demo",
       "probe"
     ],
-    "teaches": []
+    "teaches": [
+      "flocking"
+    ]
   },
   {
     "title": "lil hero (zelda)",
@@ -1702,7 +1712,9 @@
     "kind": [
       "tech-demo"
     ],
-    "teaches": []
+    "teaches": [
+      "cellular-automata"
+    ]
   },
   {
     "title": "papers, please",
@@ -4653,7 +4665,12 @@
       "instrument"
     ],
     "homage": "Squarepusher (Tom Jenkinson) - bass-virtuoso drill'n'bass",
-    "teaches": []
+    "teaches": [
+      "generative-melody",
+      "chord-voicing",
+      "fm-synth",
+      "swing-timing"
+    ]
   },
   {
     "title": "clavinet",

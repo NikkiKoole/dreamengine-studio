@@ -736,6 +736,26 @@ the Rhodes-width chorus (≈ air), the slapback echo, the small-warm-room verb. 
 **clean `INSTR_GUITAR` through `ampcab.h`** (no station had used the amp/cab) and the **negative-space
 guitar↔bass duet**. Blind brief: [`../design/wba-blind-brief.md`](../design/wba-blind-brief.md).
 
+## thexx — The xx (an ARTIST station, 5 song archetypes) — the dark twin of wba
+
+Solo layer: **none** — the structure IS the two voices trading + the silence between. The most
+minimal station: dark-minor, nocturnal, reverb-and-space. Five archetypes (Crystalised / Islands
+/ VCR / Angels / On Hold).
+
+| slot | role | preset | engine |
+|---|---|---|---|
+| `I_VOXA` | Oliver — low male voice (one half of the trade) | `voice/oliver` (dark vowel h0.30, large tract t0.72, soft) | VOICE |
+| `I_VOXB` | Romy — higher female voice (the other half) | `voice/romy` (A vowel h0.55, small tract t0.38, breathy) | VOICE |
+| `I_GTR`  | icy single-note guitar, drenched | `guitar/icy` (clean steel + echo .22 + big reverb) | GUITAR |
+| `I_SUB`  | deep dub sub bass (the anchor) | `sine/dub-sub` (SINE LP500) | SINE |
+| `I_PAN`  | steel-pan / marimba dabs (Jamie) | `mallet/steelpan` (h0.55 t0.40) | MALLET |
+| kit | pointillistic clicky kick + snap/clap + a tick | `sine/click-kick` · `noise/snap` | SINE/NOISE |
+
+**THE NEW BRAIN — the boy/girl CALL-AND-RESPONSE:** the two `INSTR_VOICE`s **trade by phrase**
+(A states, B answers) and meet in unison on the chorus; who-sings-when + the silence is the
+structure. Plus **space-as-structure** (low density, reverb + rests). Big nocturnal `reverb(0.82,
+0.30)`. Blind brief: [`../design/thexx-blind-brief.md`](../design/thexx-blind-brief.md).
+
 ## napoleon — *Napoleon Dynamite* (an ARTIST station, 5 song archetypes)
 
 Solo layer: **`solo.h`** — and the jam ribbon's *voice + behavior change per archetype* (the

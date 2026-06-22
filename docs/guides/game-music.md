@@ -846,6 +846,19 @@ strum it," a Juno comp-stab over the changes. **Mode 4 (Strum / piano)** is stil
 parked: Y stops being a preset and your finger's travel *is* the strum, so you rake
 a chord slow or snap it tight by hand.
 
+> **⚠ OPEN — the strum doesn't sound great yet (2026-06-22).** The mechanic works
+> (triad fires, spread responds to Y) but the *voicing/timbre* is unsatisfying as
+> shipped. Things to try when we come back to it: (a) the triad is always
+> root-position root/3rd/5th from the pressed cell — drop-2 or spread voicings, or
+> grabbing the 7th, would sound less blocky; (b) `strum_notes` rides `note()`'s
+> fixed 250ms one-shot, so every stab is the same length regardless of `I_SOLO`'s
+> envelope — a held/release-able version (the mode-4 voice pool) would let the comp
+> breathe; (c) `SOLO_VOL=5` × 3 simultaneous notes may be slamming the bus — try a
+> lower per-note vol for chords; (d) the spread range (~38ms) and direction (up vs
+> down) want tuning by ear; (e) `citypop`'s `I_SOLO` is a glossy `INSTR_SQUARE`
+> lead — a dedicated comp patch (softer attack, less duty-buzz) may sit better than
+> reusing the lead voice. Not blocking; the feature is live, just not polished.
+
 All four are **lenses on one ribbon** — lead, mallet, chord-button, strum-plate —
 which between them cover the whole Omnichord (melody + chord buttons + strum
 plate) plus the mallet toy.

@@ -590,7 +590,8 @@ mark.docs-find-hit.current {
 
 /* the generated history page fills the pane as its own styled document */
 #docs-content.docs-history { padding: 0; overflow: hidden; }
-#docs-content.docs-history > .history-frame { width: 100%; height: 100%; border: 0; display: block; background: #1b1d24; }
+#docs-content.docs-history > .history-frame,
+#docs-content.docs-history > .compendium-frame { width: 100%; height: 100%; border: 0; display: block; background: #1b1d24; }
 
 /* rendered markdown */
 .docs-md { max-width: 760px; line-height: 1.6; color: var(--fg); }

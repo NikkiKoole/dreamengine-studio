@@ -387,6 +387,17 @@ function showHistory() {
   docsContent.scrollTop = 0
 }
 
+// — the generated cart technique compendium (docs/cart-compendium.html) in an
+// iframe — what each cart teaches + its lineage. Clicking a cart name inside it
+// postMessages back here (the 'message' listener below) to load that cart.
+function showCompendium() {
+  currentDocPath = 'compendium'
+  setActiveNav('compendium')
+  docsContent.classList.add('docs-history')
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/cart-compendium.html" title="cart technique compendium"></iframe>`
+  docsContent.scrollTop = 0
+}
+
 // the history iframe asks us to open a docs/ markdown file, or load a cart, when
 // something inside it is clicked
 window.addEventListener('message', (e) => {
@@ -449,6 +460,7 @@ async function buildDocsSidebar() {
   docsSidebar.innerHTML = ''
   docsSidebar.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
   docsSidebar.appendChild(docNavItem('★ history', 'history', () => showHistory()))
+  docsSidebar.appendChild(docNavItem('★ techniques', 'compendium', () => showCompendium()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land

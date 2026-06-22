@@ -31,6 +31,18 @@
 //   beat 4  tap A         at beat 4 tap A briefly (default 0.12 beat)
 //   frame 900 down L      raw frame events still work and pass straight through
 //   # comments and blank lines are ignored
+//
+// `script` directives (raw frame events; the runtime's load_script — see studio.c):
+//   down/up <frame> <key>          key press / release
+//   tap     <frame> <key> [dur]    press, release dur frames later (default 6)
+//   move    <frame> <x> <y>        move the pointer to a canvas pixel
+//   click   <frame> <x> <y> [btn]  move there + click  (btn 1=right, 2=mid; default left)
+//   <key> = a single char (a, z, 1) or a name (SPACE ENTER LEFT RIGHT UP DOWN TAB BACKSPACE)
+//   self-describing meta as `# frames/fps/scale/crf N` lines (make-gif reads these).
+//   MOUSE IS SCRIPTABLE (move/click) — clicks at KNOWN spots (menu buttons, a fixed
+//   target) are reliable; live-aiming a MOVING target blind misses, so use `record`
+//   (a .rec) for that. GOTCHA: dismiss a cart's TITLE screen (ENTER/Z) before its
+//   gameplay keys register. Full reel-making runbook: docs/guides/debug-harness.md.
 
 const fs   = require('fs')
 const path = require('path')

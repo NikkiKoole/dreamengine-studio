@@ -95,11 +95,13 @@ typedef struct {
 } FeelDef;
 static const FeelDef FEEL[NFEEL] = {
     // name        anchor                       tmin tmax spb swg kit arp pad base glide
-    { "sprightly", "Spider Plant",               124, 140, 16, 50, 1, 1, 0, 2, 26 },
-    { "swing",     "Swingin' Spathiphyllums",    112, 130, 16, 62, 2, 0, 1, 1, 50 },
-    { "waltz",     "Mellow Maranta",             100, 116, 12, 50, 3, 0, 1, 1, 60 },
-    { "rubato",    "African Violet",              72,  86, 16, 50, 0, 0, 1, 0, 130 },
-    { "green",     "Rhapsody in Green",           96, 112, 16, 54, 4, 1, 1, 1, 70 },
+    // glide = portamento ms, applied ONLY to connect consecutive close notes (see drive_lead):
+    // leaps and phrase re-entries snap, so this is a gentle slur, not a constant swoop.
+    { "sprightly", "Spider Plant",               124, 140, 16, 50, 1, 1, 0, 2, 14 },
+    { "swing",     "Swingin' Spathiphyllums",    112, 130, 16, 62, 2, 0, 1, 1, 22 },
+    { "waltz",     "Mellow Maranta",             100, 116, 12, 50, 3, 0, 1, 1, 28 },
+    { "rubato",    "African Violet",              72,  86, 16, 50, 0, 0, 1, 0, 55 },
+    { "green",     "Rhapsody in Green",           96, 112, 16, 54, 4, 1, 1, 1, 34 },
 };
 
 // ── plants (the window) ─────────────────────────────────────────────────────
@@ -144,6 +146,7 @@ static int   gvPad[3]  = { 60, 64, 67 };
 static bool  padInit   = false;
 static int   leadH     = -1;     // the held mono lead
 static int   leadEvt   = -2;     // last melody event the lead was on
+static bool  leadGap   = true;   // was the lead silent (a rest) right before this note?
 static int   bassLast  = 33;
 
 static RadBand band;
@@ -489,14 +492,21 @@ static void drive_lead(double pos) {
     // are we still inside that note, or in the gap after it?
     double endAt = sng.evStep[e] + sng.evDur[e];
     bool sounding = sp < endAt;
-    if (e != leadEvt && sounding) {                      // a new note — glide into it
-        note_glide(leadH, FEEL[sng.feel].glide);
+    if (e != leadEvt && sounding) {                      // a new note
+        // GLIDE ONLY TO CONNECT CLOSE, LEGATO NOTES — snap on a leap (>4 semis) or
+        // when re-entering after a rest (don't swoop across the silence). This is the
+        // gentle Moog slur, not the seasick constant-portamento it was.
+        int prev = (leadEvt >= 0 && leadEvt < sng.evN) ? sng.evMidi[leadEvt] : sng.evMidi[e];
+        int leap = prev - sng.evMidi[e]; if (leap < 0) leap = -leap;
+        note_glide(leadH, (leadGap || leap > 4) ? 0 : FEEL[sng.feel].glide);
         note_pitch(leadH, (float)sng.evMidi[e]);
         note_vol(leadH, 5);
         leadEvt = e;
+        leadGap = false;
         vu += 1.6f;
     } else if (!sounding) {
         note_vol(leadH, 0);                              // the gap between phrases
+        leadGap = true;
     }
 }
 

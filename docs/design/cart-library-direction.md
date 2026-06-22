@@ -220,14 +220,14 @@ etc.) are deliberately deferred.
 | appeal | name | lineage | the live gesture | build (cart-only) |
 |---|---|---|---|---|
 | ★★★★★ | **kaoss** ✅*shipped 2026-06-22* | Korg Kaoss Pad / Kaossilator | an XY pad mangles a running techno loop; pick a PROGRAM (FILTER / ECHO / GATE / TAPE), the two axes drive its params, touch to engage + HOLD to latch | shipped using only the **ride-safe** master FX (`filter`/`varispeed`/`echo`/`tremolo` — the buffer-rebuilders stutter if swept). ECHO needs the loop routed into its send; GATE re-applies `tremolo()` only on change (per-frame calls reset its LFO = glitch). **Parked enhancement:** make all four *stack* (per-program latch) — they're independent bus slots, so it's doable; deferred 2026-06-22 |
-| ★★★★★ | **euclid** | Mutable Instruments Grids / Euclidean rhythm | 4–5 drum rings; dial **density (k hits in n)** + **rotation** live per track → grooves morph in and out generatively | `euclid()` is already in-engine (afrobeat/games use it) but **no cart lets the *player* drive it**; drum recipes from `drummachine`. The rhythm companion to the others' voices |
+| ★★★★★ | **euclid** ✅*shipped 2026-06-22* | Mutable Instruments Grids / Euclidean rhythm | 5 nested drum rings (KICK/SNARE/HAT/OHAT/PERC); dial **density (k hits in n)** + **rotation** live per track → grooves morph in and out generatively | shipped on the `euclid()` Bjorklund helper + the onenote/kaoss drum recipes; **per-track step counts differ → polymeter** (rings drift against each other). SPACE = MUTATE (nudge every density). Selector strip + HITS/STEPS/ROT knobs; arrow keys drive the selected track. The rhythm companion to the others' voices — its loop is exactly what `kaoss` is built to mangle (kept a *separate* cart, not merged, per the one-gesture rule) |
 | ★★★★☆ | **turing** | Music Thing Modular Turing Machine | one **CHAOS** knob slides a shift-register from locked-loop ↔ pure-random, feeding a synth voice + a drum → a self-evolving riff you sculpt by hand | a cart-side shift register + any `INSTR_*` voice; pairs naturally with `grenadier` as the voice |
 | ★★★★☆ | **dubsiren** | King Tubby / a dub mixing desk | a wobbling siren oscillator into a huge feedback delay you **throw** (fire bursts) + detune; spring-reverb crash | `echo()` feedback + `note_pitch` wobble + `reverb()`. The hands-on twin of the `dub` auto-radio |
 | ★★★☆☆ | **lpg** | Buchla / Make Noise (west-coast) | tap → the voice decays in volume **and** brightness *together* (the lowpass-gate signature) + a wavefolder bonk→bright morph | `INSTR_MALLET`/`USER0` + coupled `note_vol`/`note_cutoff` + waveshaping. The one with the most genuinely *new timbre* |
 
-Recommended order: **kaoss** first (most liveset, reuses the FX bus, and it mangles
-everything else you build), **euclid** as its rhythm partner; **turing** / **dubsiren** /
-**lpg** follow. Each should reuse the keybed + XY-pad chassis from `onenote.c` / `grenadier.c`.
+Recommended order: ~~**kaoss** first~~ ✅, ~~**euclid** as its rhythm partner~~ ✅ *(both
+shipped 2026-06-22)*; **turing** / **dubsiren** / **lpg** follow. Each should reuse the keybed
++ XY-pad chassis from `onenote.c` / `grenadier.c` (and now the ring-sequencer chassis in `euclid.c`).
 
 ### 3. The few genuinely-missing, *teachable* game types
 

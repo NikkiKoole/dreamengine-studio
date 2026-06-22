@@ -462,6 +462,20 @@ through its own resonant filter, summed; the cutoffs are ridden live from an Alp
 > is the **master effects** the XY pad rides (filter / varispeed / echo / tremolo) — see those rows in
 > [`effects-recipes.md`](effects-recipes.md).
 
+### euclid (machine — 5 Euclidean drum rings, from euclid.c)
+
+| recipe | engine | params | notes |
+|---|---|---|---|
+| euclid/kick | SINE | A0 D280 S0 R60 · pitch-env →+30 (0/55) · drive0.26 | The `drummachine/kick` boom (as `onenote/kick`), a touch of drive. |
+| euclid/snare | NOISE | A0 D130 S0 R50 · BP1400/3 | The `onenote/snare` bandpassed bark + an `INSTR_TRI` body blip. |
+| euclid/chat | NOISE | A0 D24 S0 R14 · HP7000/2 | Closed-hat tick (the `kaoss`/groovebox closed hat). |
+| euclid/ohat | NOISE | A0 D180 S0 R90 · HP6500/2 | Open-hat sizzle (the `kaoss`/groovebox open hat). |
+| euclid/perc | TRI | A0 D55 S0 R30 · BP2200/4 @ MIDI79 | A bright wooden clave "tok" — the one new voice; gives the inner 3-in-8 tresillo ring its woodblock. |
+
+> No new *engine* work: the rhythm comes from the `euclid(hits, steps, b)` Bjorklund helper, one
+> call per ring per step, with a per-track step count (polymeter). The voices are the standard
+> synth-drum kit; only the clave perc is bespoke.
+
 ### loopstation (synth — 7 fixed tracks, from loopstation.c)
 
 | name | engine | recipe | character |

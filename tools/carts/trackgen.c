@@ -36,7 +36,9 @@
 // Cars also COLLIDE (resolve_collisions): overlapping bodies are pushed apart and
 // trade momentum along the contact normal, so you can shove a rival wide into a
 // corner — and get shoved. A hard hit bleeds speed and (if you're in it) clacks
-// and kicks the camera.
+// and kicks the camera. Contact is MASS-weighted per personality (PERS[].mass):
+// HUNTER leans in (heavy, barely budges and flings you), SUNDAY/ROOKIE yield
+// (light, get knocked away) — so collisions express character too.
 //   LEFT/RIGHT steer · UP gas · DOWN brake · X drift · Z new track · R restart
 //   M: back to the setup panel.  Live standings on the right; finish for results.
 
@@ -110,6 +112,7 @@ typedef struct {
     int   prog, cp, lap;       // prog = nearest cl[] sample; cp = last checkpoint 0..3
     int   pers;                // personality index into PERS[] (AI only)
     float wob;                 // rookie wobble phase
+    float mass;                // collision weight (player 1.0; AI from PERS[].mass)
     int   place;               // live race position (1 = leading), recomputed each frame
 } Car;
 
@@ -128,17 +131,18 @@ typedef struct {
     float drift_corner;// engage drift when bend exceeds this (0 = never)
     float aggro;       // tailgater: pull target toward the player when close
     float rubber;      // blocker: speed-cap boost when behind the player on track
+    float mass;        // contact weight (player = 1.0): heavy leans in, light yields
 } Pers;
 
 enum { AI_PRO, AI_HUNTER, AI_DRIFT, AI_SUNDAY, AI_ROOKIE, AI_RUBBER, AI_COUNT };
 static const Pers PERS[AI_COUNT] = {
-    /*           name      color           la  cLA brk  cap  off  wob  drft aggr rub  */
-    /* PRO    */{"PRO",    CLR_WHITE,      22, 26, 0.55,1.00,0.00,0.00,0.85,0.00,0.00},
-    /* HUNTER */{"HUNTER", CLR_ORANGE,     12, 16, 0.30,0.98,0.00,0.00,0.70,0.55,0.00},
-    /* DRIFT  */{"DRIFT",  CLR_PINK,       18, 22, 0.40,0.95,0.40,0.05,0.45,0.00,0.00},
-    /* SUNDAY */{"SUNDAY", CLR_BLUE,       24, 30, 0.70,0.72,0.00,0.00,0.00,0.00,0.00},
-    /* ROOKIE */{"ROOKIE", CLR_LIME_GREEN, 14, 14, 0.25,0.90,0.00,0.55,0.00,0.00,0.00},
-    /* RUBBER */{"RUBBER", CLR_YELLOW,     20, 24, 0.50,0.86,0.00,0.00,0.00,0.00,0.50},
+    /*           name      color           la  cLA brk  cap  off  wob  drft aggr rub  mass */
+    /* PRO    */{"PRO",    CLR_WHITE,      22, 26, 0.55,1.00,0.00,0.00,0.85,0.00,0.00,1.00},
+    /* HUNTER */{"HUNTER", CLR_ORANGE,     12, 16, 0.30,0.98,0.00,0.00,0.70,0.55,0.00,1.60},
+    /* DRIFT  */{"DRIFT",  CLR_PINK,       18, 22, 0.40,0.95,0.40,0.05,0.45,0.00,0.00,0.95},
+    /* SUNDAY */{"SUNDAY", CLR_BLUE,       24, 30, 0.70,0.72,0.00,0.00,0.00,0.00,0.00,0.70},
+    /* ROOKIE */{"ROOKIE", CLR_LIME_GREEN, 14, 14, 0.25,0.90,0.00,0.55,0.00,0.00,0.00,0.80},
+    /* RUBBER */{"RUBBER", CLR_YELLOW,     20, 24, 0.50,0.86,0.00,0.00,0.00,0.00,0.50,1.25},
 };
 
 STATE {
@@ -394,6 +398,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->vx = 0; c->vy = 0; c->spd = 0;
     c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
+    c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
 }
 
 static void put_all_at_start(void) {
@@ -618,14 +623,18 @@ static void resolve_collisions(void) {
             if (d < 1e-3f) { nx = 1.0f; ny = 0.0f; d = 0.0f; }  // exactly stacked → pick an axis
             else           { nx = dx/d; ny = dy/d; }
             float pen = MIN - d;
-            A->px -= nx*pen*0.5f; A->py -= ny*pen*0.5f;      // separate (split the overlap)
-            B->px += nx*pen*0.5f; B->py += ny*pen*0.5f;
+
+            // distribute by MASS: each car yields in proportion to the OTHER's weight,
+            // so HUNTER (heavy) barely budges and SUNDAY (light) gets flung.
+            float imA = 1.0f / A->mass, imB = 1.0f / B->mass, inv = imA + imB;
+            A->px -= nx*pen*(imA/inv); A->py -= ny*pen*(imA/inv);
+            B->px += nx*pen*(imB/inv); B->py += ny*pen*(imB/inv);
 
             float vn = (B->vx - A->vx)*nx + (B->vy - A->vy)*ny;
             if (vn < 0) {                                    // closing → trade momentum
-                float j = -(1.0f + BUMP_REST) * vn * 0.5f;
-                A->vx -= j*nx; A->vy -= j*ny;
-                B->vx += j*nx; B->vy += j*ny;
+                float j = -(1.0f + BUMP_REST) * vn / inv;    // impulse magnitude
+                A->vx -= j*imA*nx; A->vy -= j*imA*ny;        // lighter car gets the bigger kick
+                B->vx += j*imB*nx; B->vy += j*imB*ny;
                 if (-vn > 0.8f) {                            // a real bump, not a graze
                     A->spd *= BUMP_BLEED; B->spd *= BUMP_BLEED;
                     if (a == 0 || b == 0) {                  // player involved → feel it
@@ -917,5 +926,21 @@ void spec(void) {
     step(2);
     float sx = S->car[1].px - S->car[2].px, sy = S->car[1].py - S->car[2].py;
     expect(sx*sx + sy*sy > 16.0f, "collision pushes overlapping cars apart");
+
+    // per-personality mass: in the SAME contact, heavy HUNTER yields less ground
+    // than light SUNDAY. Isolate the pair (park everyone else far apart) and call
+    // the resolver directly — no AI, fully deterministic.
+    put_all_at_start();
+    for (int i = 0; i < NCARS; i++) {
+        S->car[i].px = -9000.0f - i * 100.0f; S->car[i].py = -9000.0f;
+        S->car[i].vx = S->car[i].vy = 0;
+    }
+    Car *hv = &S->car[2], *lt = &S->car[4];          // HUNTER (heavy) vs SUNDAY (light)
+    hv->px = 100.0f; hv->py = 100.0f;
+    lt->px = 105.0f; lt->py = 100.0f;                // overlapping along +x
+    float hx0 = hv->px, lx0 = lt->px;
+    resolve_collisions();
+    expect(hv->mass > lt->mass, "HUNTER outweighs SUNDAY");
+    expect((hx0 - hv->px) < (lt->px - lx0), "heavy HUNTER yields less ground than light SUNDAY");
 }
 #endif

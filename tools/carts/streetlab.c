@@ -68,6 +68,8 @@
 #define BIKEW    5     // M7: bike-lane width (a tinted lane outside the driving lanes)
 #define PARKW    7     // M7: parking-lane width (at the kerb, marked with bay ticks)
 #define MEDHW    4     // M7: continuous centre-median half-width (the median IS a cross-section lane type)
+#define SLIPW    6     // Stage-1 #2: free-right slip-lane width (the gap between the kerb and the floating island)
+#define FR_NOSE  2.f   // Stage-1 #2: nose offset — the island is set back this far from the box corner (traveled way)
 #define PCLEAR   16    // Pass 2: parking CLEAR ZONE — markings end this far back from the junction (no parking near it)
 #define DEG2RAD  0.01745329252f
 #ifndef M_PI
@@ -175,7 +177,9 @@ static int   isT      = 0;    // drop the north arm → a T-junction
 static int   turnLanes= 0;    // M3: per-approach left-turn bay + raised median splitter
 static int   peds     = 0;    // M5: sidewalks (a strip outside each kerb) + zebra crosswalks at the mouths
 static int   roundabout=0;    // M6: a MINI-ROUNDABOUT (traversable island + give-way entries) — excl. turnLanes
+static int   freeRight = 0;   // Stage-1 #2: CHANNELIZED RIGHT-TURN slip + pork-chop island — excl. turn lanes/roundabout
 static float islandR  = 8.f;  // M6: central-island radius (the headline roundabout knob; reuses [ ] in this mode)
+static float frR      = 14.f; // Stage-1 #2: free-right TURN radius (the slip centreline; reuses [ ] in free-right mode)
 static int   medOn    = 0;    // M7: continuous raised centre median (a cross-section lane type, not the turn splitter)
 static int   bikeOn   = 0;    // M7/Pass3: 0 off · 1 lanes (+corner-wrap, the default) · 2 +straight-through crossing
 static int   parkOn   = 0;    // M7: a parking lane at the kerb
@@ -430,6 +434,52 @@ static void draw_splitter(float cx,float cy,float b,float inner,float len){
     line(t[2],t[3],t[4],t[5],CLR_BROWNISH_BLACK);
 }
 
+// ── Stage-1 #2: the CHANNELIZED RIGHT-TURN (free-right) slip + triangular "pork-chop" channelizing island.
+//    The kerb-side lane peels onto a wider corner arc that bypasses the junction box; the wedge left between the
+//    slip and the box corner K becomes a raised, YIELD-controlled island (a ped refuge too). Grounded in the
+//    AASHTO Green Book / NCHRP "Design Guidance for Channelized Right-Turn Lanes": a SMALL turning radius (slow,
+//    ped-friendly — research §2/§6), island min side ~15ft, yield at the exit, crosswalk across the slip centre.
+//    Built from two curb returns sharing the corner K: the slip's outer kerb is the corner BULGED OUT by SLIPW
+//    (Ro = cornerR+SLIPW, tangent to both arms ⇒ the slip merges with each arm's kerb lane); the island is the
+//    normal cornerR fillet (the tight turning radius), painted ON TOP, so the slip survives as the SLIPW-wide
+//    ring hugging its building side. Drive-on-right ⇒ one per convex corner; the exit (yield) is the bA arm. ──
+// fill a constant-width ANNULAR ring [r0,r1] about a fillet centre, swept over t1→t2 — the slip lane band.
+static void fill_ring(CurbReturn c, float r0, float r1, int col){
+    float a0=atan2f(c.t1y-c.oy,c.t1x-c.ox), a1=atan2f(c.t2y-c.oy,c.t2x-c.ox);
+    float d=a1-a0; while(d>M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
+    enum{N=12}; int xy[4*(N+1)]; int k=0;
+    for(int i=0;i<=N;i++){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*r1); xy[k++]=ri(c.oy+sinf(a)*r1); }
+    for(int i=N;i>=0;i--){ float a=a0+d*i/N; xy[k++]=ri(c.ox+cosf(a)*r0); xy[k++]=ri(c.oy+sinf(a)*r0); }
+    polyfill(xy,2*(N+1),col);
+}
+// a free-right serves a roughly-perpendicular right turn — drawn only for a sensible turn-angle window. PURE.
+static int fr_fits(float gap){ return gap > 40.f && gap < 145.f; }
+// ── the free-right slip = the KERB-SIDE LANE turned into a curve that cuts the corner; the raised pork-chop
+//    island is the wedge it leaves between itself and the junction box. Anchored on the kerb-side-lane CENTRELINE
+//    (lc inboard of the kerb), so the slip occupies only the OUTER lane — the inner through lanes stay clear (the
+//    fix for the island overlapping the straight-ahead lanes). Slip = the centreline ±SLIPW/2 (concentric ⇒
+//    constant width). Drive-on-right ⇒ the right turn exits onto the bA arm (the yield is there). ──
+static void draw_freeright(float cx,float cy,float bA,float bB,float bm){
+    float HW=cross_hw(), lc=HW-SLIPW*0.5f;            // lc = kerb-side lane centre (half a slip-width in from the kerb)
+    float kcx,kcy; edge_corner(cx,cy, lc, bA,bB,bm, &kcx,&kcy);
+    CurbReturn cc=curb_return(kcx,kcy, bA,bB, frR);   // the slip CENTRELINE fillet (turn radius frR), about cc.o
+    float ri=frR-SLIPW*0.5f, ro=frR+SLIPW*0.5f;       // slip lane = centreline ± half-width (concentric ⇒ constant)
+    fill_corner(kcx,kcy, cc, ro, CLR_LIGHT_GREY);     // the pork-chop ISLAND — inboard of the slip (apex at the lane corner)
+    fill_ring(cc, ri, ro, CLR_DARK_GREY);             // the SLIP lane (curved kerb-side lane), over the island's inner edge
+    stroke_corner(cc, ro, CLR_BROWNISH_BLACK);        // island kerb = the slip's inner edge
+    stroke_corner(cc, ri, CLR_WHITE);                 // the slip's outer (kerb-side) lane line ⇒ reads as a lane
+    // YIELD where the slip merges onto the EXIT arm (bA = the cc.t1 side). The radius to cc.t1 is ⊥ the arm, so a
+    // dashed bar along that radial (across the slip band ri..ro) crosses the slip throat square-on.
+    float a0=atan2f(cc.t1y-cc.oy, cc.t1x-cc.ox), dx=cosf(a0), dy=sinf(a0);
+    for (float r=ri+0.5f; r<ro; r+=2.f)               // transverse dashes across the slip = give-way
+        line((int)(cc.ox+dx*r),(int)(cc.oy+dy*r),(int)(cc.ox+dx*(r+1)),(int)(cc.oy+dy*(r+1)),CLR_WHITE);
+}
+
+// the junction TREATMENT is exactly one of {0 plain, 1 turn lanes, 2 free-right, 3 roundabout} — mutually
+// exclusive (each is a whole-corner channelization scheme that re-draws the corners differently).
+static void set_treatment(int t){ turnLanes=(t==1); freeRight=(t==2); roundabout=(t==3); }
+static int  cur_treatment(void){ return roundabout?3 : freeRight?2 : turnLanes?1 : 0; }
+
 void update(void){
     if (keyp('v')||keyp('V')) netview = !netview;            // M4: junction-detail ↔ street-web view
     if (netview){
@@ -439,21 +489,23 @@ void update(void){
         if (keyp('c')||keyp('C')) curveAmt=(curveAmt+1)%4;   // M4c: cycle the winding knob 0..3
         return;
     }
-    if (keyp('['))  { if (roundabout) islandR -= 2; else cornerR -= 2; }   // M6: [ ] = island R in roundabout mode
-    if (keyp(']'))  { if (roundabout) islandR += 2; else cornerR += 2; }
+    if (keyp('['))  { if (roundabout) islandR-=2; else if (freeRight) frR-=2; else cornerR-=2; }  // [ ] = the active radius
+    if (keyp(']'))  { if (roundabout) islandR+=2; else if (freeRight) frR+=2; else cornerR+=2; }
     if (keyp('-'))  lanesPer--;
     if (keyp('='))  lanesPer++;
     if (keyp(','))  skew -= 5;
     if (keyp('.'))  skew += 5;
     if (keyp('t')||keyp('T')) isT = !isT;
-    if (keyp('p')||keyp('P')) { turnLanes = !turnLanes; if (turnLanes) roundabout=0; }   // excl. roundabout
-    if (keyp('r')||keyp('R')) { roundabout = !roundabout; if (roundabout) turnLanes=0; } // M6: excl. turn lanes
+    if (keyp('p')||keyp('P')) set_treatment(cur_treatment()==1 ? 0 : 1);   // turn lanes (mutually excl.)
+    if (keyp('f')||keyp('F')) set_treatment(cur_treatment()==2 ? 0 : 2);   // Stage-1 #2: free-right slip (excl.)
+    if (keyp('r')||keyp('R')) set_treatment(cur_treatment()==3 ? 0 : 3);   // M6: mini-roundabout (excl.)
     if (keyp('k')||keyp('K')) peds = !peds;                  // M5: sidewalks + crosswalks
     if (keyp('m')||keyp('M')) medOn  = !medOn;               // M7: cross-section — centre median
     if (keyp('b')||keyp('B')) bikeOn = (bikeOn+1)%3;         // M7/Pass3: off → lanes → +straight-through crossing
     if (keyp(';'))            parkOn = !parkOn;              // M7: parking lane
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;   // M6: stays MINI (small, traversable)
+    if (frR<8) frR=8;       if (frR>24) frR=24;           // Stage-1 #2: free-right turning radius
     if (lanesPer<1) lanesPer=1; if (lanesPer>3) lanesPer=3;
     if (skew<-60) skew=-60;    if (skew>60) skew=60;
 #ifdef DE_TRACE
@@ -720,6 +772,9 @@ void draw(void){
         float gap=fmodf(bB-bA+3600,360);
         if (gap<=0.5f || gap>=179.5f) continue;
         float bm=bA+gap*0.5f, kx,ky;
+        // Stage-1 #2: slip + pork-chop island — only where it FITS (deep enough corner: acute / generous radius).
+        // Shallow obtuse corners have no room and fall through to a plain curb return.
+        if (freeRight && fr_fits(gap)){ draw_freeright(cx,cy, bA,bB, bm); continue; }
         edge_corner(cx,cy,HW, bA,bB,bm, &kx,&ky);
         CurbReturn c=curb_return(kx,ky, bA, bB, cornerR);
         fill_corner(kx,ky, c, cornerR, CLR_DARK_GREY);
@@ -780,7 +835,7 @@ void draw(void){
                  n, peds?"  -  pavement + crossings":"");
     else
         snprintf(bb,sizeof bb,"%s  -  %d corners%s%s", isT?"T-junction":"4-way crossing", count_corners(),
-                 turnLanes?"  -  turn bays":"", peds?"  -  pavement + crossings":"");
+                 turnLanes?"  -  turn bays":freeRight?"  -  free-right slips":"", peds?"  -  pavement + crossings":"");
     print(bb, 4,13, CLR_ORANGE);
 
     // ── toolbar (three rows) ── row1 = cross-section lane types (incl. pavement) · row2 = curb/lanes/view · row3 = skew/topology/treatment
@@ -790,9 +845,9 @@ void draw(void){
     if (ui_button(80,  SCREEN_H-58, 56, 13, bikeOn==2?"bike:+xing":bikeOn?"bike: on":"bike: off")) bikeOn=(bikeOn+1)%3;
     if (ui_button(140, SCREEN_H-58, 76, 13, parkOn?"parking: on":"parking: off"))   parkOn=!parkOn;
     if (ui_button(220, SCREEN_H-58, 92, 13, peds  ?"pavement: on":"pavement: off")) peds  =!peds;  // #6: pavement = its own lane-type toggle
-    print(roundabout?"island R":"curb radius", 4, SCREEN_H-37, roundabout?CLR_BLUE:CLR_ORANGE);
-    d=step_btn(64, SCREEN_H-40, 14, "-", "+"); if (d){ if(roundabout) islandR+=2*d; else cornerR+=2*d; }
-    snprintf(bb,sizeof bb,"%d",(int)(roundabout?islandR:cornerR)); print(bb, 98, SCREEN_H-37, CLR_LIGHT_GREY);
+    print(roundabout?"island R":freeRight?"slip R":"curb radius", 4, SCREEN_H-37, (roundabout||freeRight)?CLR_BLUE:CLR_ORANGE);
+    d=step_btn(64, SCREEN_H-40, 14, "-", "+"); if (d){ if(roundabout) islandR+=2*d; else if(freeRight) frR+=2*d; else cornerR+=2*d; }
+    snprintf(bb,sizeof bb,"%d",(int)(roundabout?islandR:freeRight?frR:cornerR)); print(bb, 98, SCREEN_H-37, CLR_LIGHT_GREY);
     print("lanes/dir", 124, SCREEN_H-37, CLR_WHITE);
     d=step_btn(180, SCREEN_H-40, 14, "-", "+"); if (d) lanesPer+=d;
     snprintf(bb,sizeof bb,"%d",lanesPer); print(bb, 214, SCREEN_H-37, CLR_LIGHT_GREY);
@@ -801,15 +856,12 @@ void draw(void){
     d=step_btn(64, SCREEN_H-22, 14, "-", "+"); if (d) skew+=5*d;
     snprintf(bb,sizeof bb,"%d",skew); print(bb, 98, SCREEN_H-19, CLR_LIGHT_GREY);
     if (ui_button(124, SCREEN_H-22, 90, 13, isT?"topology: T":"topology: 4-way")) isT=!isT;
-    // one button cycles the junction TREATMENT: plain → turn lanes → roundabout (the last two are exclusive)
-    const char *trt = roundabout?"junction: roundabout" : turnLanes?"junction: turn lanes":"junction: plain";
-    if (ui_button(220, SCREEN_H-22, 96, 13, trt)){
-        if (!turnLanes && !roundabout) turnLanes=1;
-        else if (turnLanes){ turnLanes=0; roundabout=1; }
-        else roundabout=0;
-    }
+    // one button cycles the junction TREATMENT: plain → turn lanes → free-right → roundabout (all exclusive)
+    static const char *TRT[4]={"junction: plain","junction: turn lanes","junction: free-right","junction: roundabout"};
+    if (ui_button(220, SCREEN_H-22, 96, 13, TRT[cur_treatment()])) set_treatment((cur_treatment()+1)%4);
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;
+    if (frR<8) frR=8;       if (frR>24) frR=24;
     if (lanesPer<1) lanesPer=1; if (lanesPer>3) lanesPer=3;
     if (skew<-60) skew=-60;    if (skew>60) skew=60;
 

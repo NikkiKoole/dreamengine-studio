@@ -4,26 +4,32 @@
 #include "spec.h"
 #endif
 
-// ── GRIDCITY — the data layer behind SimCity (v1, bare) ─────────────
+// ── GRIDCITY — the data layer behind SimCity (v1.5) ─────────────────
 // Not road geometry, not a generator — the AGGREGATE TILE-DATA SIM that
 // SimCity 2000 runs behind its map overlays. Paint terrain, roads, and
 // R/C/I zones; the engine then COMPUTES emergent layers from them and
-// from each other, every sim tick. v1 proves the core feedback loop:
+// from each other, every sim tick. The core feedback loop:
 //
 //     crime ↑  →  land value ↓  →  crime ↑      (the slum spiral)
 //
 // …broken only by POLICE coverage. Drop a station on a slum and watch
 // crime fall and land value climb back.
 //
-// It's all two mechanisms (docs/design/data-layers.md):
-//   1. cross-layer formulas — each field is f(the other fields)
-//   2. smooth() — a 4-neighbour blur so influence SPREADS across tiles.
-//      One primitive; police radius, water-value, density all reuse it.
+// It's all cross-layer formulas + two spreading primitives (data-layers.md):
+//   • smooth()  — a 4-neighbour blur (DIFFUSION): pollution, density, water-value
+//   • spread()  — a decaying distance falloff: service coverage (police radius)
+//
+// v1.5 adds the LIVING half: zones aren't instantly full — each carries a
+// development LEVEL (empty lot → built up) that GROWS or DECLINES every few
+// ticks based on local land value / crime / pollution / road access AND a
+// global RCI DEMAND meter (R wants jobs, C wants residents, I wants workers).
+// Paint a zone and it fills in on its own; choke it with pollution or crime
+// and it empties out. The city you open is pre-grown from these rules.
 //
 //   LEFT-drag   paint the current brush      RIGHT-drag  erase to land
 //   R C I       zone Residential/Commercial/Industrial
 //   O           road        W  water        P  police station   E  erase
-//   1..5        overlay: City / Land value / Crime / Police / Density
+//   1..6        overlay: City / Land value / Crime / Police / Density / Pollution
 //   SPACE       reseed the sample city
 
 #define GW 64
@@ -42,6 +48,7 @@ enum { V_CITY, V_LANDVAL, V_CRIME, V_POLICE, V_DENSITY, V_POLLUTION, V_COUNT };
 
 // ── state ──
 static int  kind[MAXC];
+static int  level[MAXC];      // development level of a zoned cell: 0 = empty lot … LMAX = full
 static int  landvalue[MAXC], crime[MAXC], police[MAXC], popden[MAXC], pollution[MAXC];
 static int  terrainv[MAXC];   // static water-proximity value (recomputed on edit)
 static int  roadacc[MAXC];    // static road-access field — a service radius, not strict adjacency
@@ -50,20 +57,26 @@ static int  view = V_CITY;
 static int  brush = K_R;
 static long ticks = 0;        // sim ticks since reseed
 static int  fcount = 0;
+static int  demR, demC, demI; // global RCI demand meter (drives growth/decline)
+static int  growth_on = 1;    // gate the develop/abandon pass (spec freezes it for formula tests)
 
 #define TICK_EVERY 8          // frames between sim ticks (slow enough to watch converge)
 
 // tuning knobs (first-guess; see data-layers.md "constants are tuned")
 #define CP_MAX   100          // land value from being near the city centre
-#define CP_FALL    2
-#define POP_BASE 200          // a developed cell's population contribution
+#define CP_FALL    1          // gentle falloff so the whole map is buildable (crime/pollution make the variation)
 #define CRIME_BASE 30
+#define LMAX        4         // max development level
+#define GROW_EVERY  4         // sim ticks between growth/decline passes
+#define GROW_THRESH 30        // desirability a lot needs (above) to build up
+#define DECL_THRESH 10        // …and (below) to start emptying out
+#define R_BASE     30         // baseline residential pull (people want in)
+#define C_BASE     20         // baseline commercial pull
+#define I_BASE     20         // baseline industrial pull (external market)
 
 static inline int idx(int x, int y){ return y*GW + x; }
-static inline int developed(int i){
-    int k = kind[i];
-    return (k==K_R||k==K_C||k==K_I);
-}
+static inline int is_zone(int k){ return k==K_R||k==K_C||k==K_I; }
+static inline int developed(int i){ return is_zone(kind[i]) && level[i]>0; }
 
 // SERVICE-COVERAGE spread: each cell takes the strongest neighbour minus a
 // per-step decay — a cheap distance falloff (strong at the source, fading with
@@ -108,7 +121,7 @@ static void recompute_static(void){
     for(int i=0;i<MAXC;i++) terrainv[i] = (kind[i]==K_WATER) ? 250 : 0;
     smooth(terrainv, 3);
     for(int i=0;i<MAXC;i++) roadacc[i]  = (kind[i]==K_ROAD)  ? 250 : 0;
-    smooth(roadacc, 2);
+    smooth(roadacc, 3);
 }
 
 // ── one simulation tick: the dependency DAG ──
@@ -120,10 +133,11 @@ static void sim_step(void){
     int cx = nz ? (int)(sx/nz) : GW/2;
     int cy = nz ? (int)(sy/nz) : GH/2;
 
-    // 1. population density — developed + road-served cells emit population, then spread
-    for(int y=0;y<GH;y++) for(int x=0;x<GW;x++){
-        int i=idx(x,y);
-        popden[i] = (developed(i) && roadacc[i]>40) ? POP_BASE : 0;
+    // 1. population density — a built, road-served zone emits people scaled by its
+    //    development level (R/C bustle most, I a bit less), then it spreads
+    for(int i=0;i<MAXC;i++){
+        int k=kind[i], per = (k==K_R||k==K_C)?55 : k==K_I?35 : 0;
+        popden[i] = (level[i]>0 && roadacc[i]>40) ? per*level[i] : 0;
     }
     smooth(popden, 2);
 
@@ -132,10 +146,10 @@ static void sim_step(void){
     for(int i=0;i<MAXC;i++) police[i] = (kind[i]==K_POLICE) ? 250 : 0;
     spread(police, 14, 18);
 
-    // 3. pollution — industry is the heavy emitter, commerce a little; it then
-    //    diffuses onto neighbours (the wind-agnostic v1.5 model) and drags land value down
+    // 3. pollution — industry is the heavy emitter, commerce a little (both scaled by
+    //    level); it then diffuses onto neighbours (wind-agnostic v1.5) and drags land value down
     for(int i=0;i<MAXC;i++)
-        pollution[i] = kind[i]==K_I ? 220 : kind[i]==K_C ? 40 : 0;
+        pollution[i] = kind[i]==K_I ? 55*level[i] : kind[i]==K_C ? 10*level[i] : 0;
     smooth(pollution, 3);
 
     // 4. land value — reads LAST tick's crime (so this tick's crime feeds the NEXT
@@ -158,12 +172,43 @@ static void sim_step(void){
         if(cr<0) cr=0; if(cr>250) cr=250;
         crime[i]=cr;
     }
+
+    // 6. RCI demand — the global meter. Supply = built levels; the city pulls each
+    //    zone type toward balance: R wants jobs, C wants residents, I wants workers.
+    long totR=0,totC=0,totI=0;
+    for(int i=0;i<MAXC;i++){
+        if(kind[i]==K_R) totR+=level[i];
+        else if(kind[i]==K_C) totC+=level[i];
+        else if(kind[i]==K_I) totI+=level[i];
+    }
+    long pop=totR, jobs=totC+totI;
+    // gentle balance: a roughly-balanced city sits mildly POSITIVE (so it grows and
+    // holds); demand only goes negative under real oversupply. WHICH lots build up is
+    // then decided locally by land value / crime / pollution, not by demand whiplash.
+    demR = R_BASE + (int)(jobs - pop)/6;       // homes wanted to fill the jobs
+    demC = C_BASE + (int)(pop - 2*totC)/6;     // shops wanted per resident
+    demI = I_BASE + (int)(pop - 2*totI)/6;     // factories: external base + workforce
+
+    // 7. the develop/abandon valve — every GROW_EVERY ticks each zoned lot nudges its
+    //    level up (good local desirability AND its type is in demand) or down (starved
+    //    of road access, choked by crime/pollution, or its type is oversupplied)
+    if(growth_on && ticks % GROW_EVERY == 0){
+        for(int i=0;i<MAXC;i++){
+            if(!is_zone(kind[i])) continue;
+            int dem = kind[i]==K_R?demR : kind[i]==K_C?demC : demI;
+            int des = landvalue[i] - crime[i]/2 - pollution[i]/4;
+            int served = roadacc[i]>40;
+            if(served && dem>0 && des>GROW_THRESH){ if(level[i]<LMAX) level[i]++; }
+            else if(!served || dem<0 || des<DECL_THRESH){ if(level[i]>0) level[i]--; }
+        }
+    }
     ticks++;
 }
 
 // ── the seeded sample city: a town with one unpoliced slum corner ──
 static void seed_city(void){
     memset(kind,0,sizeof kind);
+    memset(level,0,sizeof level);
     memset(landvalue,0,sizeof landvalue);
     memset(crime,0,sizeof crime);
     memset(police,0,sizeof police);
@@ -171,22 +216,29 @@ static void seed_city(void){
     memset(pollution,0,sizeof pollution);
 
     // a lake along the top-left (raises nearby land value)
-    for(int y=2;y<12;y++) for(int x=2;x<16;x++)
-        if((x-9)*(x-9)+(y-7)*(y-7)*2 < 60) kind[idx(x,y)]=K_WATER;
+    for(int y=2;y<13;y++) for(int x=2;x<17;x++)
+        if((x-9)*(x-9)+(y-7)*(y-7)*2 < 70) kind[idx(x,y)]=K_WATER;
 
-    // a road grid
-    for(int x=4;x<60;x++){ kind[idx(x,16)]=K_ROAD; kind[idx(x,30)]=K_ROAD; kind[idx(x,42)]=K_ROAD; }
-    for(int y=16;y<43;y++){ kind[idx(18,y)]=K_ROAD; kind[idx(34,y)]=K_ROAD; kind[idx(50,y)]=K_ROAD; }
+    // a DENSE street grid (every 6 cells) so every block is road-served — zones a
+    // couple cells from a street still develop
+    for(int x=6;x<=58;x+=6) for(int y=6;y<46;y++) if(kind[idx(x,y)]==K_LAND) kind[idx(x,y)]=K_ROAD;
+    for(int y=6;y<46;y+=6) for(int x=4;x<60;x++) if(kind[idx(x,y)]==K_LAND) kind[idx(x,y)]=K_ROAD;
 
-    // commercial core near the lake + centre, residential around, industry to the right
-    for(int y=18;y<29;y++) for(int x=20;x<33;x++) if(kind[idx(x,y)]!=K_ROAD) kind[idx(x,y)]=K_C;
-    for(int y=18;y<41;y++) for(int x=4;x<17;x++)  if(kind[idx(x,y)]==K_LAND) kind[idx(x,y)]=K_R;
-    for(int y=18;y<29;y++) for(int x=36;x<49;x++) if(kind[idx(x,y)]!=K_ROAD) kind[idx(x,y)]=K_I;
-    // the slum: a dense residential block far from centre, NO police
-    for(int y=32;y<41;y++) for(int x=36;x<49;x++) if(kind[idx(x,y)]!=K_ROAD) kind[idx(x,y)]=K_R;
-    for(int y=32;y<41;y++) for(int x=52;x<60;x++) if(kind[idx(x,y)]!=K_ROAD) kind[idx(x,y)]=K_R;
+    // zone the blocks by region: commercial core in the centre, industry top-right,
+    // residential everywhere else. Levels start at 0 — the growth valve fills them in.
+    for(int y=6;y<46;y++) for(int x=4;x<60;x++){
+        int i=idx(x,y);
+        if(kind[i]!=K_LAND) continue;                 // skip roads + water
+        if(x>=22 && x<=40 && y>=14 && y<=30)      kind[i]=K_C;   // downtown
+        else if(x>=44 && y<=28)                    kind[i]=K_I;  // industrial quarter
+        else                                       kind[i]=K_R;  // residential
+    }
 
     recompute_static();
+    // pre-warm: let the zones grow from empty to a settled city before the player
+    // ever sees it (so we open on a living town, not a grid of empty lots)
+    growth_on=1;
+    for(int i=0;i<80;i++) sim_step();
     ticks=0;
 }
 
@@ -199,7 +251,8 @@ static void paint_at(int mx,int my,int k){
     int i=idx(x,y);
     if(kind[i]==k) return;
     kind[i]=k;
-    if(k==K_WATER || /*was water*/ 1) recompute_static();  // cheap; keep terrain field fresh
+    level[i]=0;            // a freshly painted lot starts empty; it grows on its own
+    recompute_static();    // cheap; keep terrain + road-access fields fresh
 }
 
 void update(void){
@@ -246,7 +299,10 @@ void draw(void){
 
     for(int y=0;y<GH;y++) for(int x=0;x<GW;x++){
         int i=idx(x,y), col;
-        if(view==V_CITY) col=city_color(kind[i]);
+        if(view==V_CITY){
+            col=city_color(kind[i]);
+            if(is_zone(kind[i]) && level[i]==0) col=CLR_DARKER_GREY;  // unbuilt empty lot
+        }
         else if(kind[i]==K_WATER) col=CLR_DARKER_BLUE;
         else switch(view){
             case V_LANDVAL: col=ramp(RAMP_LV,landvalue[i]); break;
@@ -279,6 +335,22 @@ void draw(void){
         for(int s=0;s<6;s++) rectfill(HUDX+s*18, hy, 17, 8, r[s]);
         hy+=14;
     }
+    // RCI demand meter — a bar each side of a centre baseline (green = wants more of
+    // that zone, red = oversupplied). This is what drives the city to grow or empty.
+    hy+=2;
+    print("RCI DEMAND", HUDX, hy, CLR_DARK_GREY); hy+=8;
+    { const char *dl[3]={"R","C","I"}; int dv[3]={demR,demC,demI};
+      int dc[3]={CLR_GREEN,CLR_BLUE,CLR_YELLOW};
+      for(int k=0;k<3;k++){
+        int by=hy+k*8, mid=HUDX+60, v=dv[k];
+        if(v>45)v=45; if(v<-45)v=-45;
+        print(dl[k], HUDX, by, dc[k]);
+        rectfill(mid,by,1,6,CLR_DARK_GREY);              // centre baseline
+        if(v>=0) rectfill(mid+1, by+1, v, 4, CLR_GREEN);
+        else     rectfill(mid+v, by+1, -v, 4, CLR_RED);
+      }
+      hy+=3*8+3;
+    }
     print(str("ticks %ld", ticks), HUDX, hy, CLR_LIGHT_GREY);
 
     // bottom help
@@ -305,11 +377,13 @@ static int avg_pd_block(int x0,int y0,int x1,int y1){
 }
 static void clear_to_test_slum(void){
     memset(kind,0,sizeof kind);
+    memset(level,0,sizeof level);
     memset(landvalue,0,sizeof landvalue);
     memset(crime,0,sizeof crime);
-    // a dense R block (x10..21, y10..21) with a road grid THROUGH it so the
-    // whole block is road-served, far from centre, NO police
-    for(int y=10;y<22;y++) for(int x=10;x<22;x++) kind[idx(x,y)]=K_R;
+    growth_on=0;   // freeze the valve: this test isolates the crime↔land-value formulas
+    // a dense, fully-BUILT R block (x10..21, y10..21) with a road grid THROUGH it so
+    // the whole block is road-served, far from centre, NO police
+    for(int y=10;y<22;y++) for(int x=10;x<22;x++){ kind[idx(x,y)]=K_R; level[idx(x,y)]=3; }
     for(int x=9;x<23;x++){ kind[idx(x,9)]=K_ROAD; kind[idx(x,15)]=K_ROAD; kind[idx(x,21)]=K_ROAD; }
     for(int y=9;y<22;y++){ kind[idx(9,y)]=K_ROAD; kind[idx(15,y)]=K_ROAD; kind[idx(21,y)]=K_ROAD; }
     recompute_static();
@@ -342,8 +416,10 @@ void spec(void){
     // small industrial block beside it (too small to move the centroid) and
     // confirm pollution reaches it and depresses its land value.
     memset(kind,0,sizeof kind);
+    memset(level,0,sizeof level);
     memset(crime,0,sizeof crime);
-    for(int y=8;y<32;y++) for(int x=8;x<32;x++) kind[idx(x,y)]=K_R;   // 24x24 district
+    growth_on=0;   // frozen: isolate the pollution → land-value formula
+    for(int y=8;y<32;y++) for(int x=8;x<32;x++){ kind[idx(x,y)]=K_R; level[idx(x,y)]=3; } // built district
     for(int x=7;x<33;x++){ kind[idx(x,8)]=K_ROAD; kind[idx(x,20)]=K_ROAD; kind[idx(x,31)]=K_ROAD; }
     for(int y=8;y<32;y++){ kind[idx(8,y)]=K_ROAD; kind[idx(20,y)]=K_ROAD; kind[idx(31,y)]=K_ROAD; }
     recompute_static();
@@ -351,7 +427,7 @@ void spec(void){
     int lv_before   = landvalue[idx(15,15)];
     int poll_before = pollution[idx(15,15)];
 
-    for(int y=14;y<18;y++) for(int x=16;x<20;x++) kind[idx(x,y)]=K_I; // industry next door
+    for(int y=14;y<18;y++) for(int x=16;x<20;x++){ kind[idx(x,y)]=K_I; level[idx(x,y)]=4; } // heavy industry next door
     recompute_static();
     step(20*TICK_EVERY);
     int poll_here = pollution[idx(17,15)];   // inside the industry
@@ -362,5 +438,29 @@ void spec(void){
     expect(poll_here > 100, "industry emits heavy pollution");
     expect(poll_at > poll_before, "pollution diffuses to nearby cells");
     expect(lv_after < lv_before, "pollution depresses nearby land value");
+
+    // ── the growth valve: zones build up from empty when demand + conditions allow,
+    //    and a road-starved zone never develops ──
+    memset(kind,0,sizeof kind);
+    memset(level,0,sizeof level);
+    memset(crime,0,sizeof crime);
+    growth_on=1;
+    // a served R district + an I block (jobs → residential demand), near the grid
+    // centre so land value is high enough to build; all starting at level 0
+    for(int y=20;y<30;y++) for(int x=26;x<40;x++) kind[idx(x,y)]=K_R;
+    for(int y=20;y<26;y++) for(int x=42;x<48;x++) kind[idx(x,y)]=K_I;
+    for(int x=24;x<50;x++){ kind[idx(x,19)]=K_ROAD; kind[idx(x,25)]=K_ROAD; kind[idx(x,30)]=K_ROAD; }
+    for(int y=19;y<31;y++){ kind[idx(26,y)]=K_ROAD; kind[idx(33,y)]=K_ROAD; kind[idx(40,y)]=K_ROAD; }
+    // an UNREACHABLE R block — zoned, but no road anywhere near it
+    for(int y=40;y<46;y++) for(int x=4;x<10;x++) kind[idx(x,y)]=K_R;
+    recompute_static();
+    long built0=0; for(int i=0;i<MAXC;i++) if(kind[i]==K_R) built0+=level[i];
+    step(80*TICK_EVERY);                 // ~80 ticks → ~20 growth passes
+    long builtR=0; for(int y=20;y<30;y++) for(int x=26;x<40;x++) builtR+=level[idx(x,y)];
+    int starved = level[idx(6,42)];      // the road-starved lot
+    expect_eq(built0, 0, "the city starts as empty lots (level 0)");
+    expect(builtR > 0, "served zones in demand grow from empty into a built district");
+    expect(demR != 0 || demC != 0 || demI != 0, "the RCI demand meter is live");
+    expect_eq(starved, 0, "a road-starved zone never develops");
 }
 #endif

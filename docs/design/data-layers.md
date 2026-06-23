@@ -154,10 +154,19 @@ Tuning found: `CP_MAX 100`, `CRIME_BASE 30`, police `spread(14, 18)`. Constants 
   diffuses (`smooth ×3`) and subtracts from land value (`−pollution/3`). Overlay 6.
   `spec()` pins it: industry source ~180, diffuses to 64 two cells off, drops that cell's
   land value 84→63. Density was already in v1.
-- ⬜ **The develop/abandon growth valve** driven by a global **RCI demand** meter — zones
-  gain/lose a development *level* over time instead of being instantly full, so the map
-  starts moving on its own. (Next; will change the seed + spec, since painted zones will
-  grow from empty rather than start dense.)
+- ✅ **The develop/abandon growth valve** + **RCI demand** meter (2026-06-23): every zoned
+  cell carries a development `level` (0=empty lot … `LMAX`). Every `GROW_EVERY` ticks it
+  builds up when local desirability (`landvalue − crime/2 − pollution/4`) clears a threshold
+  AND its type is in demand, or empties out when road-starved / choked by crime+pollution /
+  oversupplied. The global RCI meter is gentle by design (`base + (jobs−pop)/6` etc.) so a
+  balanced city sits mildly positive and *local* conditions decide which lots grow — no
+  whiplash. Painted lots start empty and fill in; the seeded city is **pre-warmed 80 ticks**
+  so it opens already grown. `spec()` (now 13 assertions) proves growth from empty, that a
+  road-starved zone never develops, and the meter is live — while the crime/pollution formula
+  tests freeze the valve (`growth_on=0`) to stay isolated.
+  Two tuning lessons: the street grid must be **dense** (every 6 cells) or most zones aren't
+  road-served and never grow; and the centre-proximity falloff had to soften (`CP_FALL 1`)
+  so the whole map is buildable and crime/pollution — not distance — make the variation.
 - ⬜ **Positive land-value drivers** (answers "nothing pushes values *really* high yet"):
   parks/amenity bonus, a direct lift from police/fire coverage, commercial-core premium —
   so land value isn't capped by centre-proximity (100) + a local water bonus.

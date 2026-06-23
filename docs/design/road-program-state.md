@@ -82,7 +82,12 @@ Cheap + high-value at the top. (✓ = shipped since.)
       a circulatory disc + a MINI, TRAVERSABLE (mountable/domed) central island, flush teardrop SPLITTER
       islands, GIVE-WAY (yield) entry lines + CCW circulating arrows. Leg-model based ⇒ composes with skew/T/
       lanes/sidewalks. Distinct from roadlab's grade-separated ring. Spec'd: island ⊂ inscribed circle, stays mini.
-- [ ] **Corner free-right slip + triangular channelizing island** (§2) — the corner treatment deferred in M3.
+- ✓ **Corner free-right slip + triangular channelizing island** (§2) — the corner treatment deferred in M3.
+      `f` cycles it in (plain → turn lanes → free-right → roundabout). The slip = the kerb-side lane turned into a
+      constant-width curve (concentric arcs about one fillet); the pork-chop island lives ONLY in the corner zone
+      beyond the through roads' kerb lines — fill-then-reopen the gap-side carriageway, so it's a near-nothing
+      sliver at 90° (a perpendicular free-right shouldn't block the through movement) and a clean triangle at skew,
+      never crossing a travel lane. Spec'd (81): fr_fits window, constant-width band, exclusive toggle, knob clamp.
 - ✓ **Curb extensions / bulb-outs** (§2) — `draw_bulb()` fills the parking clear-zone at each mouth, shortening
       the crossing (auto with pavement+parking). Pedestrian refuge islands are already covered (the turn median +
       the roundabout splitter both serve as refuges).
@@ -119,8 +124,10 @@ early; exhaust what can be built in isolation first.
    works under skew. NOT drawn with a bike lane on: a classic bulb (parking→sidewalk) and a protected bike-lane
    corner (bike-wrap + corner island) are different treatments — the bike-wrap is the corner treatment there, and
    stacking a straight bulb under the wrapping lane frays at skewed corners. (Protected-corner island = future.)
-2. ⏳ **Corner free-right slip + triangular channelizing island** *(IN PROGRESS, 2026-06-23)* — the corner
-   treatment deferred in M3. Geometry works; tuning + spec + commit still open (see "Resume here" below).
+2. ✓ **Corner free-right slip + triangular channelizing island** *(done 2026-06-23)* — the corner treatment
+   deferred in M3. `f` cycles it in. Constant-width slip (concentric arcs about one fillet); the pork-chop island
+   is carved to the corner zone OUTSIDE the through kerb lines (fill-then-reopen-gap-side) ⇒ a near-nothing sliver
+   at 90°, a clean triangle at skew, never over a lane (owner-approved). Spec'd (81). fr_fits window kept at 40–145°.
 3. **Minor markings pass** *(low, batched)* — TWLTL (two-way centre left-turn) + right-turn pockets + driveways.
 4. *Parked:* staggered junctions + signalised-vs-priority CONTROL (the latter is a signals/phasing layer, not
    at-grade geometry — its own thing). Revisit only on request.
@@ -149,50 +156,39 @@ early; exhaust what can be built in isolation first.
 **Natural stopping points:** end of Stage 1 (junction done), end of Stage 2 (both sandboxes done — the clean
 "stop and combine later" line), and each Stage-3 step is its own deliverable.
 
-### ► Resume here (2026-06-23) — Stage 1 step 2 (free-right slip) is WIP, NOT done
+### ► Resume here (2026-06-23) — Stage 1 step 2 (free-right slip) DONE; next is step 3 (minor markings)
 
-**State:** the free-right slip + pork-chop channelizing island is implemented in `streetlab.c` and **committed
-WIP** (compiles; existing 70 spec assertions still green; NOT yet spec'd for the new geometry). Toggle it with
-`f` / the "junction:" toolbar cycle (plain → turn lanes → **free-right** → roundabout, all mutually exclusive
-via `set_treatment`/`cur_treatment`). `[`/`]` is its turn-radius knob `frR` ("slip R") in this mode.
+**State:** the free-right slip + pork-chop channelizing island is **done and owner-approved**. Toggle with `f`
+/ the "junction:" toolbar cycle (plain → turn lanes → **free-right** → roundabout, mutually exclusive via
+`set_treatment`/`cur_treatment`). `[`/`]` is its turn-radius knob `frR` ("slip R"). Spec'd (81 assertions);
+build-all + ui-audit clean; baked. (Site publish is stale — a separate `publish-cart.sh` step, not done here.)
 
-**Research first (the method) — the gap is now filled.** The free-right was a *named-but-unverified* primitive
-(`road-hierarchy-notes.md` §6/§10 → AASHTO Green Book). Confirmed drawable parameters (TxDOT Ch.13.9, NCHRP
-*Design Guidance for Channelized Right-Turn Lanes* 22238, AASHTO Green Book): channelizing island **min side
-~15 ft** (12 ft constrained); island **offset from the edge of the traveled way** (no offset when a bike lane
-separates it); exit control **defaults to YIELD/give-way** (free-flow accel lane only for high-speed); ped
-**crosswalk across the slip near its centre** + island as a **refuge**; **small radii preferred** / free-rights
-**discouraged in ped-heavy contexts** (NACTO). → add these to `road-hierarchy-notes.md` §6 when convenient.
+**The geometry that shipped (`draw_freeright`):**
+- The slip is the **kerb-side LANE turned into a curve** that cuts the corner, anchored on that lane's
+  **centreline** (`lc = HW − SLIPW/2`) via a `curb_return` fillet; the slip = centreline **± SLIPW/2** — two
+  CONCENTRIC arcs about ONE fillet centre ⇒ **constant width** at any angle (`fill_ring`). Give-way = a radial
+  dash bar at the **bA-arm** exit (drive-on-right). Gated to `fr_fits` (gap 40–145°).
+- **The island rule (owner-specified):** the pork-chop lives ENTIRELY in the corner zone OUTSIDE both through
+  roads' kerb lines — it must never sit in a travel lane (a straight-ahead driver would have to swerve round it).
+  Recipe: `fill_corner` generously from the **kerb corner** to the slip's inner edge, THEN **re-lay each road's
+  gap-side carriageway (centre→kerb) as asphalt**, carving the island back to just the wedge beyond the kerb
+  lines. ⇒ a near-nothing sliver at 90° (correct — a perpendicular free-right barely needs one), a clean triangle
+  at skew, verified by pixel-scan to never cross a kerb line. (Re-lay the *gap-side half only*, so a neighbouring
+  corner's slip is untouched.)
+- **Dead ends NOT to retry** (each baked-and-rejected): (a) two separate tangent fillets → slip **tapers/pinches**
+  at the waist, mismatched at skew; (b) island as a concentric arc about the *outer* kerb centre → **sheared
+  triangles** at skew; (c) island = the carriageway `fill_corner` → **paints over the through lanes**; (d) island
+  apex anchored INSIDE the carriageway (lane-centreline or through-edge offset) → at acute/skewed corners the
+  `fill_corner` cap fans a **long tail back over the lanes** (the bug the owner flagged). **The fix that worked:
+  anchor at the kerb corner + reopen the gap-side carriageway** (island = only the bit beyond the kerb lines).
 
-**The geometry — what we landed on (after several dead ends, recorded so we don't repeat them):**
-- The slip is the **kerb-side LANE turned into a curve** that cuts the corner. It's anchored on that lane's
-  **centreline** (`lc = HW − SLIPW/2`, inboard of the kerb), via a `curb_return` fillet there; the slip = the
-  centreline **± SLIPW/2** (two CONCENTRIC arcs about the one fillet centre ⇒ **constant width** at any angle —
-  `fill_ring`). The pork-chop **island** is the wedge inboard of the slip (`fill_corner` at the slip's inner
-  radius). Give-way = a radial dash bar at the **bA-arm** exit (drive-on-right). Gated to a turn-angle window
-  (`fr_fits`, gap 40–145°) so it only appears at roughly-perpendicular corners.
-- **Dead ends NOT to retry** (each baked-and-rejected this session): (a) two separate tangent fillets (outer
-  kerb + island) → slip **tapers/pinches** at the corner waist, and the taper differs per corner so widths
-  mismatch at skew; (b) concentric arcs about the *outer* kerb centre with the island as a concentric *inner*
-  arc → island isn't tangent to the arms → **sheared "funny" triangles** at skew; (c) island = the carriageway
-  `fill_corner` (the rounded road corner) → island **paints over the through lanes** ("crosses the road");
-  (d) a band concentric about the *kerb* centre → at the arm it's *either* inside the kerb (pokes into the
-  through lanes) *or* outside (in the green, disconnected). **Anchoring on the kerb-side-LANE centreline is the
-  one that straddles correctly** (slip occupies only the outer lane; inner through lanes stay clear).
+**Confirmed free-right parameters** (TxDOT Ch.13.9, NCHRP *Design Guidance for Channelized Right-Turn Lanes*
+22238, AASHTO Green Book; closes the §6/§10 "named-but-unverified" gap): channelizing island min side ~15 ft
+(12 ft constrained); island offset from the traveled way; exit defaults to YIELD/give-way; ped crosswalk across
+the slip centre + island as refuge; small radii preferred; free-rights discouraged in ped-heavy contexts (NACTO).
 
-**Open / TODO to finish step 2:**
-1. **Thin 90° island.** At a straight 4-way (all 90°) the island is a sliver — inherent (90° is the tightest
-   fit); reads fine at skew/acute corners. Decide: accept it, or nudge `frR`/`SLIPW` so it reads better at 90°.
-2. **The window** (`fr_fits`, now gap 40–145°) — confirm/tune the range with the owner.
-3. **`spec()`** the new pure quantities (slip ring constant-width; `fr_fits`; give-way placement) — currently
-   unspec'd; the gate is still at 70 (the old assertions).
-4. **Research-doc note** — fold the §6/§10 findings above into `road-hierarchy-notes.md` (close the gap).
-5. **Bake a real thumbnail** (`make-cart.js --run`) + re-run `cart-status`/`ui-audit`/`build-all`, then the
-   *milestone* commit (this one is WIP).
-
-Then step 3 (minor markings), then Stage 2 (superblock). Don't jump to the world.
-
-**Owner verdict pending** on the geometry read (esp. the straight-90° case) before locking spec + window.
+**Next: step 3 — minor markings pass** (TWLTL + right-turn pockets + driveways), then Stage 2 (superblock).
+Don't jump to the world.
 
 ## Cross-section composition — known issues + the next-pass plan (2026-06-22)
 

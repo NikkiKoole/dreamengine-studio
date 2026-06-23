@@ -464,8 +464,23 @@ static void draw_freeright(float cx,float cy,float bA,float bB,float bm){
     float kcx,kcy; edge_corner(cx,cy, lc, bA,bB,bm, &kcx,&kcy);
     CurbReturn cc=curb_return(kcx,kcy, bA,bB, frR);   // the slip CENTRELINE fillet (turn radius frR), about cc.o
     float ri=frR-SLIPW*0.5f, ro=frR+SLIPW*0.5f;       // slip lane = centreline ± half-width (concentric ⇒ constant)
-    fill_corner(kcx,kcy, cc, ro, CLR_LIGHT_GREY);     // the pork-chop ISLAND — inboard of the slip (apex at the lane corner)
-    fill_ring(cc, ri, ro, CLR_DARK_GREY);             // the SLIP lane (curved kerb-side lane), over the island's inner edge
+    // ISLAND: the pork-chop lives ENTIRELY in the corner zone OUTSIDE both through roads' kerb lines — it must
+    // never sit in a travel lane (a straight-ahead driver would have to swerve round it). Recipe: fill the corner
+    // generously from the kerb corner out to the slip's inner edge, THEN re-lay each road's gap-side carriageway
+    // (centre→kerb) as asphalt, carving the island back to just the wedge beyond the kerb lines. At 90° that wedge
+    // is almost nothing (correct — a perpendicular free-right barely needs an island, and a fat one only blocks the
+    // through movement); as the corner skews acute it opens into a real triangle that's clear of every lane.
+    float kkx,kky; edge_corner(cx,cy, HW, bA,bB,bm, &kkx,&kky);   // the kerb corner (where the two outer kerb lines meet)
+    fill_corner(kkx,kky, cc, ro, CLR_LIGHT_GREY);
+    float REACH=SCREEN_W+SCREEN_H;
+    for (int s=0;s<2;s++){                            // reopen ONLY the gap-facing half of each arm (centre→kerb),
+        float b=s?bB:bA, dx=ux(b),dy=uy(b), nx=ux(b+90),ny=uy(b+90);   // so a neighbouring corner's slip is untouched
+        float sg=(nx*ux(bm)+ny*uy(bm))>0?1.f:-1.f, ox=cx+dx*REACH, oy=cy+dy*REACH;
+        int q[8]={(int)cx,(int)cy,(int)(cx+nx*sg*HW),(int)(cy+ny*sg*HW),
+                  (int)(ox+nx*sg*HW),(int)(oy+ny*sg*HW),(int)ox,(int)oy};
+        polyfill(q,4,CLR_DARK_GREY);
+    }
+    fill_ring(cc, ri, ro, CLR_DARK_GREY);             // the SLIP lane, re-laid over the reopened kerb lane
     stroke_corner(cc, ro, CLR_BROWNISH_BLACK);        // island kerb = the slip's inner edge
     stroke_corner(cc, ri, CLR_WHITE);                 // the slip's outer (kerb-side) lane line ⇒ reads as a lane
     // YIELD where the slip merges onto the EXIT arm (bA = the cc.t1 side). The radius to cc.t1 is ⊥ the arm, so a
@@ -1018,6 +1033,27 @@ void spec(void){
     spec_tap('b');           expect_eq(bikeOn,2, "'b' #2: + the straight-through crossing (opt-in)");
     spec_tap('b');           expect_eq(bikeOn,0, "'b' #3: back to off (3-state cycle)");
     medOn=0; bikeOn=0; parkOn=0;                                            // restore
+
+    // ── Stage-1 #2: the free-right slip + pork-chop island. The PIXEL invariant (the island never crosses a
+    //    kerb line into a travel lane) is enforced by the gap-side re-lay, not pure math — eyeball it. Spec the
+    //    geometry that underpins it: the fr_fits corner window, the constant-width slip band, and the toggle. ──
+    expect(fr_fits(90.f),   "free-right fits a ~perpendicular corner (90deg gap)");
+    expect(fr_fits(120.f),  "free-right fits a moderately obtuse corner");
+    expect(!fr_fits(30.f),  "free-right skipped on a too-acute corner (< 40deg gap — no room)");
+    expect(!fr_fits(160.f), "free-right skipped on a near-straight corner (> 145deg gap)");
+    // the slip = the lane-centreline fillet ± SLIPW/2: two CONCENTRIC arcs (one centre) ⇒ width == SLIPW at any
+    // angle. Pin the fillet tangency (the basis) at 90° and at skew, like curb_return above.
+    CurbReturn fr90 = curb_return(100,100, 270, 0, 14.f);
+    expect(spec_near(sp_dist(fr90.ox,fr90.oy, fr90.t1x,fr90.t1y), 14.f), "free-right: slip fillet is frR from its tangent (90deg)");
+    expect(spec_near((14.f+SLIPW*0.5f) - (14.f-SLIPW*0.5f), (float)SLIPW), "free-right: slip band is constant width (ro - ri == SLIPW)");
+    CurbReturn frSk = curb_return(100,100, 270, 40, 14.f);                   // a 70° corner
+    expect(spec_near(sp_dist(frSk.ox,frSk.oy, frSk.t1x,frSk.t1y), 14.f), "free-right: slip fillet holds frR at skew (angle-agnostic)");
+    turnLanes=1; roundabout=0; spec_tap('f');
+    expect(freeRight==1 && turnLanes==0, "'f' selects the free-right and clears turn lanes (exclusive treatment)");
+    spec_tap('f'); expect(freeRight==0,  "'f' again clears the free-right");
+    freeRight=1; for (int i=0;i<40;i++) spec_tap(']'); expect(frR <= 24.f, "free-right: slip radius caps at 24");
+    for (int i=0;i<40;i++) spec_tap('['); expect(frR >= 8.f,              "free-right: slip radius floors at 8");
+    freeRight=0;                                                            // restore
 
     // ── update() loop — the radius knob clamps + the turn-lanes toggle (proves step() + key injection) ──
     for (int i=0;i<40;i++) spec_tap(']');                                    // hammer the + key past the cap

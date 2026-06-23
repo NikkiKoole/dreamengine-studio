@@ -247,6 +247,10 @@ music cart, **imagine the ideal band from the genre BEFORE reading any existing 
    `genre`; `teaches` is a required controlled vocabulary in `tools/teaches-vocab.js`; `lineage`
    one-liner). Then `node tools/lint-carts.js`.
 
+> **When the owner should eyeball or play-test a cart, BAKE IT FIRST** (step 3 re-embed + step 4
+> `--run`) so they can just load it in the editor — that's the preferred way to hand something over
+> for a look, over dumped frames or screenshots. (Use `play.js --dump` yourself for diagnosis; bake
+> for the owner to check.)
 > **`--run` updates only the thumbnail, NOT the embedded source.** Iterating on logic: always
 > re-run step 3 (re-embeds the C source the editor actually loads) *then* step 4. Skip step 3 and
 > the editor keeps loading old code from `de:source` — "the cart ignores my changes."

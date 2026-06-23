@@ -23,10 +23,18 @@
 // lemniscate so it crosses itself).
 //
 // SETUP PANEL — cycle the STYLE, drag the levers, watch the preview, then DRIVE.
-// DRIVING — the steer.c car model in a world up to ~3 screens wide, with a
-// LOOK-AHEAD camera that leads the car by its velocity.
+// DRIVING — a RACE against six AI rivals over RACE_LAPS laps. Every car (you +
+// rivals) runs ONE shared physics step (step_car); the rivals just feed it a
+// turn/throttle from drive_ai() instead of the keys. drive_ai is the whole brain:
+// look a few samples ahead on the centre line, steer at that point, and brake for
+// the bend it reads further ahead. The six personalities are NOT six code paths —
+// they are rows in PERS[] (look-ahead, braking margin, speed cap, line offset,
+// wobble, drift threshold, aggro, rubber-band): PRO hugs the line, HUNTER chases
+// you, DRIFT slides wide, SUNDAY pootles, ROOKIE wanders and spins, RUBBER catches
+// up when behind. This brain ports straight to sloop — only the line it follows
+// changes (cl[] here, road_at() in the open world later).
 //   LEFT/RIGHT steer · UP gas · DOWN brake · X drift · Z new track · R restart
-//   M: back to the setup panel
+//   M: back to the setup panel.  Live standings on the right; finish for results.
 
 #define STATE struct GameState
 #define S     ((STATE *)de_state(sizeof(STATE)))
@@ -44,7 +52,6 @@
 
 #define GRASS_DRAG 0.965f
 #define GRASS_MAX  1.8f
-#define GATE_R     26
 
 #define CAM_LEAD   16.0f
 #define CAM_LERP   0.09f
@@ -79,24 +86,72 @@ static const float PRESET[ST_COUNT][NLEV] = {
 typedef struct { float x, y; } V2;
 typedef struct { int x, y; int life; } Skid;
 
+// ── racers ───────────────────────────────────────────────────────────────────
+// One Car struct, one array. Car 0 is the player (reads btn()); cars 1..N are AI
+// rivals (read drive_ai()). EVERY car runs the SAME physics (step_car) — the only
+// difference between player and AI is who supplies turn_in/throttle each frame.
+// That is the whole point: the brain built here ports to sloop unchanged; only the
+// *line to follow* changes (cl[] here, road_at() in the open world later).
+#define NCARS     7            // 1 player + 6 AI, one per personality
+#define RACE_LAPS 3
+#define COLL_R    16.0f        // car-to-car avoidance radius (world px)
+
+typedef struct {
+    float px, py, vx, vy, spd, ang;
+    bool  drift, offtrack;
+    int   prog, cp, lap;       // prog = nearest cl[] sample; cp = last checkpoint 0..3
+    int   pers;                // personality index into PERS[] (AI only)
+    float wob;                 // rookie wobble phase
+    int   place;               // live race position (1 = leading), recomputed each frame
+} Car;
+
+// A personality is JUST a bag of numbers fed to the same follow-controller. No
+// per-car code paths — "same brain, different soul." Reorder at your peril; the
+// PERS[] rows below line up with these fields by position.
+typedef struct {
+    const char *name;
+    int   color;
+    float la;          // steer look-ahead (samples along cl[])
+    float corner_la;   // braking look-ahead (samples) — how far it reads the bend
+    float brake_g;     // 0..1 how much an upcoming bend cuts target speed
+    float spd_cap;     // fraction of MAX_SPD it is willing to use
+    float line_off;    // lateral bias on the line (+ = outside), in half-widths
+    float wobble;      // random target jitter (half-widths) — rookie sloppiness
+    float drift_corner;// engage drift when bend exceeds this (0 = never)
+    float aggro;       // tailgater: pull target toward the player when close
+    float rubber;      // blocker: speed-cap boost when behind the player on track
+} Pers;
+
+enum { AI_PRO, AI_HUNTER, AI_DRIFT, AI_SUNDAY, AI_ROOKIE, AI_RUBBER, AI_COUNT };
+static const Pers PERS[AI_COUNT] = {
+    /*           name      color           la  cLA brk  cap  off  wob  drft aggr rub  */
+    /* PRO    */{"PRO",    CLR_WHITE,      22, 26, 0.55,1.00,0.00,0.00,0.85,0.00,0.00},
+    /* HUNTER */{"HUNTER", CLR_ORANGE,     12, 16, 0.30,0.98,0.00,0.00,0.70,0.55,0.00},
+    /* DRIFT  */{"DRIFT",  CLR_PINK,       18, 22, 0.40,0.95,0.40,0.05,0.45,0.00,0.00},
+    /* SUNDAY */{"SUNDAY", CLR_BLUE,       24, 30, 0.70,0.72,0.00,0.00,0.00,0.00,0.00},
+    /* ROOKIE */{"ROOKIE", CLR_LIME_GREEN, 14, 14, 0.25,0.90,0.00,0.55,0.00,0.00,0.00},
+    /* RUBBER */{"RUBBER", CLR_YELLOW,     20, 24, 0.50,0.86,0.00,0.00,0.00,0.00,0.50},
+};
+
 STATE {
-    int   mode;                // 0 = setup panel, 1 = driving
+    int   mode;                // 0 = setup panel, 1 = driving, 2 = race results
     int   style;
     float lev[NLEV];
     unsigned int seed;
     int   nctrl, half;
     V2    cl[NSAMP];           // centre line (world)
     V2    nl[NSAMP];           // unit normals
-    float px, py, vx, vy, spd, ang;
-    bool  drift;
+    Car   car[NCARS];          // car[0] = player, car[1..] = AI rivals
     float camx, camy;
-    int   prog, cp, lap;
-    float best, last;
-    bool  offtrack;
+    float best, last;          // player lap times
+    bool  finished;            // player has completed RACE_LAPS
+    int   result_place;        // player's finishing position (snapshot)
     Skid  skid[MAXSKID];
     int   skid_head;
     int   eng;
 };
+
+#define P (S->car[0])          // the player car
 
 // ── seeded RNG so a seed reproduces its track ───────────────────────────────
 static unsigned int g_rng;
@@ -120,6 +175,10 @@ static float adiff(float a, float b) {                 // smallest |angle a-b|, 
     float d = a - b;
     while (d > 180) d -= 360; while (d < -180) d += 360;
     return d < 0 ? -d : d;
+}
+static float awrap(float d) {                          // wrap to signed [-180,180]
+    while (d > 180) d -= 360; while (d < -180) d += 360;
+    return d;
 }
 
 // cardinal spline value on p1→p2; tension c (0.5 = Catmull-Rom, →0 = straighter)
@@ -313,14 +372,28 @@ static void relax_drivability(V2 *ctrl, int nc) {
         }
 }
 
-static const int GATES[4] = { 0, NSAMP/4, NSAMP/2, 3*NSAMP/4 };
 
-static void put_at_start(void) {
-    S->px = S->cl[0].x; S->py = S->cl[0].y;
-    S->vx = 0; S->vy = 0; S->spd = 0;
-    S->ang = atan2_deg(S->cl[1].y - S->cl[NSAMP-1].y, S->cl[1].x - S->cl[NSAMP-1].x);
-    S->camx = S->px; S->camy = S->py;
-    S->prog = 0; S->cp = 0; S->lap = 0; S->offtrack = false;
+// place car `slot` on the starting grid: slot 0 (player) on the line, the rest
+// staggered behind it, alternating sides — a real grid, so nobody starts stacked.
+static void put_car_at_start(Car *c, int slot) {
+    int s  = (NSAMP - slot * 5) % NSAMP;               // further back per slot
+    float lateral = ((slot & 1) ? 1.0f : -1.0f) * S->half * 0.45f;
+    c->px = S->cl[s].x + S->nl[s].x * lateral;
+    c->py = S->cl[s].y + S->nl[s].y * lateral;
+    c->ang = atan2_deg(S->cl[(s+1)%NSAMP].y - S->cl[(s-1+NSAMP)%NSAMP].y,
+                       S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
+    c->vx = 0; c->vy = 0; c->spd = 0;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false;
+    c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
+}
+
+static void put_all_at_start(void) {
+    for (int i = 0; i < NCARS; i++) {
+        if (i > 0) S->car[i].pers = (i - 1) % AI_COUNT;  // one rival per personality
+        put_car_at_start(&S->car[i], i);
+    }
+    S->camx = P.px; S->camy = P.py;
+    S->finished = false; S->result_place = 0;
     for (int i = 0; i < MAXSKID; i++) S->skid[i].life = 0;
     timer_reset();
 }
@@ -375,8 +448,8 @@ static void gen_track(unsigned int seed) {
         S->nl[s].x = -ty / l; S->nl[s].y = tx / l;
     }
 
-    S->drift = false; S->best = 0; S->last = 0;
-    put_at_start();
+    S->best = 0; S->last = 0;
+    put_all_at_start();
 }
 
 static void apply_style(int style) {
@@ -398,75 +471,182 @@ static void lay_skid(float x, float y) {
     S->skid_head++;
 }
 
-void update(void) {
-    if (S->mode == 0) { note_vol(S->eng, 0); return; }   // panel handled in draw()
+// ── the shared physics — player and AI both run this; only turn_in/throttle
+//    differ. throttle in [-1,1]: +gas, -brake/reverse. ────────────────────────
+static void step_car(Car *c, float turn_in, float throttle, bool drift) {
+    float sc = c->spd / MAX_SPD; if (sc < 0) sc = -sc;
+    c->ang += turn_in * STEER * sc;
 
-    if (keyp('M'))                   { S->mode = 0; return; }
-    if (keyp('Z') || btnp(0, BTN_A)) { gen_track(S->seed + 0x9E37u); return; }
-    if (keyp('R'))                   { put_at_start(); return; }
-    if (btnp(0, BTN_B)) S->drift = !S->drift;
+    if (throttle > 0) c->spd += ACCEL * throttle;
+    else              c->spd += BRAKE * throttle;        // throttle<0 brakes
+    c->spd *= FRICTION;
+    if (c->offtrack) { c->spd *= GRASS_DRAG; c->spd = clamp(c->spd, -GRASS_MAX, GRASS_MAX); }
+    c->spd = clamp(c->spd, REV_MAX, MAX_SPD);
 
-    float turn_in = (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
-    float sc = S->spd / MAX_SPD; if (sc < 0) sc = -sc;
-    S->ang += turn_in * STEER * sc;
+    float g = drift ? GRIP_DRIFT : GRIP_RACE;
+    c->vx = lerp(c->vx, dx(c->spd, c->ang), g);
+    c->vy = lerp(c->vy, dy(c->spd, c->ang), g);
+    c->px += c->vx; c->py += c->vy;
+    c->drift = drift;
 
-    if (btn(0, BTN_UP))   S->spd += ACCEL;
-    if (btn(0, BTN_DOWN)) S->spd -= BRAKE;
-    S->spd *= FRICTION;
-    if (S->offtrack) { S->spd *= GRASS_DRAG; S->spd = clamp(S->spd, -GRASS_MAX, GRASS_MAX); }
-    S->spd = clamp(S->spd, REV_MAX, MAX_SPD);
-
-    float g = S->drift ? GRIP_DRIFT : GRIP_RACE;
-    S->vx = lerp(S->vx, dx(S->spd, S->ang), g);
-    S->vy = lerp(S->vy, dy(S->spd, S->ang), g);
-    S->px += S->vx; S->py += S->vy;
-
-    S->camx = lerp(S->camx, S->px + S->vx * CAM_LEAD, CAM_LERP);
-    S->camy = lerp(S->camy, S->py + S->vy * CAM_LEAD, CAM_LERP);
-
-    int bi = S->prog; float bd = 1e9f;
+    int bi = c->prog; float bd = 1e9f;                   // nearest sample = progress
     for (int o = -18; o <= 18; o++) {
-        int i = (S->prog + o + NSAMP) % NSAMP;
-        float ex = S->px - S->cl[i].x, ey = S->py - S->cl[i].y;
+        int i = (c->prog + o + NSAMP) % NSAMP;
+        float ex = c->px - S->cl[i].x, ey = c->py - S->cl[i].y;
         float d = ex*ex + ey*ey;
         if (d < bd) { bd = d; bi = i; }
     }
-    S->prog = bi;
-    S->offtrack = fsqrt(bd) > (float)S->half;
+    c->prog = bi;
+    c->offtrack = fsqrt(bd) > (float)S->half;
 
-    int ng = (S->cp + 1) % 4, gs = GATES[ng];
-    if (near((int)S->px, (int)S->py, (int)S->cl[gs].x, (int)S->cl[gs].y, GATE_R)) {
-        S->cp = ng;
-        if (ng == 0) {
-            float t = timer();
-            if (S->lap > 0) { S->last = t; if (S->best == 0 || t < S->best) S->best = t; }
-            S->lap++; timer_reset();
-            note(72 + (S->lap % 5) * 2, INSTR_TRI, 4);
+    // checkpoints & laps — by QUADRANT of prog (not a spatial gate point): a car
+    // must pass through the four quarter-arcs in order, so an offset racing line
+    // or a clipped apex can't miss the count the way a point-radius gate does.
+    int q = (c->prog * 4) / NSAMP;                       // 0..3, which quarter-arc
+    int want = (c->cp + 1) % 4;
+    if (q == want) {
+        c->cp = want;
+        if (want == 0) {                                 // completed a lap
+            if (c == &P) {
+                float t = timer();
+                if (c->lap > 0) { S->last = t; if (S->best == 0 || t < S->best) S->best = t; }
+                timer_reset();
+            }
+            c->lap++;
+            if (c == &P) note(72 + (c->lap % 5) * 2, INSTR_TRI, 4);
         }
     }
 
-    float lat = S->vx * dx(1, S->ang + 90) + S->vy * dy(1, S->ang + 90);
-    float as = S->spd < 0 ? -S->spd : S->spd;
-    if ((lat > SLIDE_MIN || lat < -SLIDE_MIN) && as > 1.0f) {
-        float rx = S->px + dx(-5, S->ang), ry = S->py + dy(-5, S->ang);
-        lay_skid(rx + dx(3, S->ang + 90), ry + dy(3, S->ang + 90));
-        lay_skid(rx + dx(3, S->ang - 90), ry + dy(3, S->ang - 90));
+    float lat = c->vx * dx(1, c->ang + 90) + c->vy * dy(1, c->ang + 90);
+    float as = c->spd < 0 ? -c->spd : c->spd;
+    if ((lat > SLIDE_MIN || lat < -SLIDE_MIN) && as > 1.0f) {    // any car that slides
+        float rx = c->px + dx(-5, c->ang), ry = c->py + dy(-5, c->ang);
+        lay_skid(rx + dx(3, c->ang + 90), ry + dy(3, c->ang + 90));
+        lay_skid(rx + dx(3, c->ang - 90), ry + dy(3, c->ang - 90));
     }
+}
+
+// ── the entire AI: read the line ahead, steer at it, brake for the bend. The
+//    six personalities are PERS[] rows — same code, different numbers. ─────────
+static void drive_ai(Car *c, int idx, float *out_turn, float *out_thr, bool *out_drift) {
+    const Pers *p = &PERS[c->pers];
+
+    // 1. steering target — a point look-ahead on the line, biased across the track
+    int ti = (c->prog + (int)p->la) % NSAMP;
+    float tx = S->cl[ti].x + S->nl[ti].x * p->line_off * S->half;
+    float ty = S->cl[ti].y + S->nl[ti].y * p->line_off * S->half;
+    if (p->wobble > 0) {                                 // rookie: a wandering target
+        c->wob += 4.7f;
+        float w = sin_deg(c->wob) * p->wobble * S->half;
+        tx += S->nl[ti].x * w; ty += S->nl[ti].y * w;
+    }
+    if (p->aggro > 0) {                                  // hunter: chase the player when near
+        float rx = P.px - c->px, ry = P.py - c->py, d = fsqrt(rx*rx + ry*ry);
+        if (d < 130.0f) { float k = p->aggro * (1.0f - d / 130.0f);
+            tx = lerp(tx, P.px, k); ty = lerp(ty, P.py, k); }
+    }
+    float desired = atan2_deg(ty - c->py, tx - c->px);
+    float turn = clamp(awrap(desired - c->ang) / 8.0f, -1.0f, 1.0f);
+
+    // 2. braking — read the bend `corner_la` samples ahead → a target speed
+    int ca = (c->prog + (int)p->corner_la) % NSAMP;
+    float h0 = atan2_deg(S->cl[(c->prog+4)%NSAMP].y - S->cl[c->prog].y,
+                         S->cl[(c->prog+4)%NSAMP].x - S->cl[c->prog].x);
+    float h1 = atan2_deg(S->cl[(ca+4)%NSAMP].y - S->cl[ca].y,
+                         S->cl[(ca+4)%NSAMP].x - S->cl[ca].x);
+    float bendn = fabsf_(awrap(h1 - h0)) / 90.0f; if (bendn > 1) bendn = 1;
+    float cap = MAX_SPD * p->spd_cap * (1.0f - p->brake_g * bendn);
+    if (p->rubber > 0) {                                 // rubber-band: catch up when behind
+        long mine = (long)c->lap * NSAMP + c->prog, pl = (long)P.lap * NSAMP + P.prog;
+        if (mine < pl) cap *= (1.0f + p->rubber);
+    }
+    if (cap < 0.7f) cap = 0.7f;
+    float thr = (c->spd < cap) ? 1.0f : -0.55f;
+
+    // 3. car-to-car avoidance — veer off a car just ahead so they overtake, not stack
+    for (int j = 0; j < NCARS; j++) {
+        if (j == idx) continue;
+        Car *o = &S->car[j];
+        float rx = o->px - c->px, ry = o->py - c->py;
+        if (rx*rx + ry*ry > COLL_R*COLL_R) continue;
+        if (rx * dx(1, c->ang) + ry * dy(1, c->ang) <= 0) continue;   // only what's ahead
+        float side = rx * dx(1, c->ang + 90) + ry * dy(1, c->ang + 90);
+        turn += (side > 0 ? -0.7f : 0.7f);
+    }
+
+    *out_turn  = clamp(turn, -1.0f, 1.0f);
+    *out_thr   = thr;
+    *out_drift = (p->drift_corner > 0 && bendn > p->drift_corner);
+}
+
+// live race order: place 1 = furthest along (laps then progress)
+static void update_standings(void) {
+    for (int i = 0; i < NCARS; i++) {
+        long pi = (long)S->car[i].lap * NSAMP + S->car[i].prog;
+        int place = 1;
+        for (int j = 0; j < NCARS; j++) {
+            if (j == i) continue;
+            long pj = (long)S->car[j].lap * NSAMP + S->car[j].prog;
+            if (pj > pi) place++;
+        }
+        S->car[i].place = place;
+    }
+}
+
+void update(void) {
+    if (S->mode == 0) { note_vol(S->eng, 0); return; }   // panel handled in draw()
+    if (S->mode == 2) {                                  // race results — frozen
+        if (keyp('R') || btnp(0, BTN_A)) { put_all_at_start(); S->mode = 1; }
+        if (keyp('M'))                   { S->mode = 0; }
+        note_vol(S->eng, 0);
+        return;
+    }
+
+    if (keyp('M'))                   { S->mode = 0; return; }
+    if (keyp('Z') || btnp(0, BTN_A)) { gen_track(S->seed + 0x9E37u); return; }
+    if (keyp('R'))                   { put_all_at_start(); return; }
+    if (btnp(0, BTN_B)) P.drift = !P.drift;
+
+    float p_turn = (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
+    float p_thr  = (btn(0, BTN_UP)    ? 1.0f : 0.0f) - (btn(0, BTN_DOWN) ? 1.0f : 0.0f);
+    step_car(&P, p_turn, p_thr, P.drift);
+
+    for (int i = 1; i < NCARS; i++) {                    // the rivals
+        float turn, thr; bool dr;
+        drive_ai(&S->car[i], i, &turn, &thr, &dr);
+        step_car(&S->car[i], turn, thr, dr);
+    }
+    update_standings();
+
+    S->camx = lerp(S->camx, P.px + P.vx * CAM_LEAD, CAM_LERP);
+    S->camy = lerp(S->camy, P.py + P.vy * CAM_LEAD, CAM_LERP);
+
+    float as = P.spd < 0 ? -P.spd : P.spd;
     static int gravel_t = 0;
-    if (S->offtrack && as > 0.5f) {
-        float rx = S->px + dx(-5, S->ang), ry = S->py + dy(-5, S->ang);
-        lay_skid(rx + dx(rnd_float_between(-3, 3), S->ang + 90),
-                 ry + dy(rnd_float_between(-3, 3), S->ang + 90));
+    if (P.offtrack && as > 0.5f) {
+        float rx = P.px + dx(-5, P.ang), ry = P.py + dy(-5, P.ang);
+        lay_skid(rx + dx(rnd_float_between(-3, 3), P.ang + 90),
+                 ry + dy(rnd_float_between(-3, 3), P.ang + 90));
         if (--gravel_t <= 0) { hit(rnd_between(26, 34), INSTR_NOISE, 2, 70); gravel_t = 4; }
     } else gravel_t = 0;
     for (int i = 0; i < MAXSKID; i++) if (S->skid[i].life > 0) S->skid[i].life--;
 
-    note_pitch(S->eng, 30.0f + (as / MAX_SPD) * 22.0f - (S->offtrack ? 7.0f : 0.0f));
+    note_pitch(S->eng, 30.0f + (as / MAX_SPD) * 22.0f - (P.offtrack ? 7.0f : 0.0f));
     note_vol(S->eng, as / MAX_SPD * 3.0f);
 
+    if (!S->finished && P.lap >= RACE_LAPS) {            // chequered flag
+        S->finished = true;
+        S->result_place = P.place;
+        S->mode = 2;
+        note(72 - clamp(S->result_place - 1, 0, 4) * 3, INSTR_TRI, 30);
+    }
+
 #ifdef DE_TRACE
-    watch("c", "style=%d seed=%u nc=%d prog=%d cp=%d lap=%d off=%d a=%.0f s=%.2f",
-          S->style, S->seed, S->nctrl, S->prog, S->cp, S->lap, S->offtrack, S->ang, S->spd);
+    watch("laps", "%d %d %d %d %d %d %d", S->car[0].lap, S->car[1].lap,
+          S->car[2].lap, S->car[3].lap, S->car[4].lap, S->car[5].lap, S->car[6].lap);
+    watch("prog", "%d %d %d %d %d %d %d", S->car[0].prog, S->car[1].prog,
+          S->car[2].prog, S->car[3].prog, S->car[4].prog, S->car[5].prog, S->car[6].prog);
+    watch("pl_off", "place=%d off=%d", P.place, P.offtrack);
 #endif
 }
 
@@ -478,6 +658,23 @@ static void draw_grass(int ox, int oy) {
             h = (h ^ (h >> 13)) * 1274126177u;
             if ((h & 31u) == 0) pset(x, y, (h & 64u) ? CLR_MEDIUM_GREEN : CLR_GREEN);
         }
+}
+
+// one car, in world space. Player gets its red body + blue cockpit + a tag dot;
+// rivals get their personality colour + a dark cockpit.
+static void draw_car(Car *c, bool is_player) {
+    int body = is_player ? (c->offtrack ? CLR_DARK_RED : CLR_RED) : PERS[c->pers].color;
+    float fx = dx(6, c->ang),         fy = dy(6, c->ang);
+    float sx = dx(3.5f, c->ang + 90), sy = dy(3.5f, c->ang + 90);
+    quadfill((int)(c->px+fx+sx),(int)(c->py+fy+sy), (int)(c->px+fx-sx),(int)(c->py+fy-sy),
+             (int)(c->px-fx-sx),(int)(c->py-fy-sy), (int)(c->px-fx+sx),(int)(c->py-fy+sy), body);
+    float cx = dx(1, c->ang), cy = dy(1, c->ang);
+    float kx = dx(2.2f, c->ang + 90), ky = dy(2.2f, c->ang + 90);
+    quadfill((int)(c->px+cx*3+kx),(int)(c->py+cy*3+ky), (int)(c->px+cx*3-kx),(int)(c->py+cy*3-ky),
+             (int)(c->px-cx*2-kx),(int)(c->py-cy*2-ky), (int)(c->px-cx*2+kx),(int)(c->py-cy*2+ky),
+             is_player ? CLR_TRUE_BLUE : CLR_BLACK);
+    if (is_player)                                       // a beacon so you find yourself
+        circ((int)c->px, (int)c->py, 9, CLR_WHITE);
 }
 
 static void draw_track_world(void) {
@@ -513,16 +710,8 @@ static void draw_track_world(void) {
             pset(S->skid[i].x, S->skid[i].y,
                  S->skid[i].life > 60 ? CLR_BROWNISH_BLACK : CLR_DARKER_GREY);
 
-    float fx = dx(6, S->ang),         fy = dy(6, S->ang);
-    float sx = dx(3.5f, S->ang + 90), sy = dy(3.5f, S->ang + 90);
-    quadfill((int)(S->px+fx+sx),(int)(S->py+fy+sy), (int)(S->px+fx-sx),(int)(S->py+fy-sy),
-             (int)(S->px-fx-sx),(int)(S->py-fy-sy), (int)(S->px-fx+sx),(int)(S->py-fy+sy),
-             S->offtrack ? CLR_DARK_RED : CLR_RED);
-    float cx = dx(1, S->ang), cy = dy(1, S->ang);
-    float kx = dx(2.2f, S->ang + 90), ky = dy(2.2f, S->ang + 90);
-    quadfill((int)(S->px+cx*3+kx),(int)(S->py+cy*3+ky), (int)(S->px+cx*3-kx),(int)(S->py+cy*3-ky),
-             (int)(S->px-cx*2-kx),(int)(S->py-cy*2-ky), (int)(S->px-cx*2+kx),(int)(S->py-cy*2+ky),
-             CLR_TRUE_BLUE);
+    for (int i = 1; i < NCARS; i++) draw_car(&S->car[i], false);   // rivals first
+    draw_car(&P, true);                                            // player on top
 }
 
 // fixed-scale ribbon sketch so SIZE grows/shrinks and WIDTH shows as thickness
@@ -583,14 +772,91 @@ void draw(void) {
     draw_track_world();
     camera(0, 0);
 
+    // top bar
     rectfill(0, 0, SCREEN_W, 10, CLR_DARKER_BLUE);
-    print("trackgen", 4, 2, CLR_WHITE);
-    print(STYLE_NAME[S->style], 58, 2, CLR_LIGHT_PEACH);
-    print(str("lap %d", S->lap), 132, 2, CLR_YELLOW);
-    print(str("%.1fs", timer()), 174, 2, CLR_LIGHT_YELLOW);
-    if (S->best > 0) print(str("best %.1f", S->best), 224, 2, CLR_GREEN);
-    print(str("#%u", S->seed % 100000u), SCREEN_W - 40, 2,
-          S->drift ? CLR_ORANGE : CLR_MEDIUM_GREY);
+    print(str("P%d/%d", P.place, NCARS), 4, 2,
+          P.place == 1 ? CLR_LIGHT_YELLOW : CLR_WHITE);
+    print(str("lap %d/%d", P.lap < RACE_LAPS ? P.lap + 1 : RACE_LAPS, RACE_LAPS),
+          44, 2, CLR_YELLOW);
+    print(str("%.1fs", timer()), 102, 2, CLR_LIGHT_YELLOW);
+    if (S->best > 0) print(str("best %.1f", S->best), 148, 2, CLR_GREEN);
+    print(str("#%u", S->seed % 100000u), 210, 2,
+          P.drift ? CLR_ORANGE : CLR_MEDIUM_GREY);
+
+    // standings sidebar (live order, one row per car)
+    font(FONT_SMALL);
+    for (int slot = 1; slot <= NCARS; slot++)
+        for (int i = 0; i < NCARS; i++)
+            if (S->car[i].place == slot) {
+                bool me = (i == 0);
+                int y = 12 + (slot - 1) * 7;
+                print(str("%d", slot), SCREEN_W - 56, y, CLR_MEDIUM_GREY);
+                print(me ? "YOU" : PERS[S->car[i].pers].name, SCREEN_W - 46, y,
+                      me ? CLR_WHITE : PERS[S->car[i].pers].color);
+                break;
+            }
+    font(FONT_NORMAL);
+
     print("M: generator   Z: new track   R: restart   X: drift", 4, SCREEN_H - 9,
-          S->offtrack ? CLR_ORANGE : CLR_LIGHT_GREY);
+          P.offtrack ? CLR_ORANGE : CLR_LIGHT_GREY);
+
+    // ── race results overlay ──
+    if (S->mode == 2) {
+        rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK);   // (drawn opaque over the frozen frame)
+        int pl = S->result_place;
+        const char *head = pl == 1 ? "YOU WIN!" : pl <= 3 ? "PODIUM!" : "FINISHED";
+        print_outline(head, SCREEN_W/2 - 28, 28, pl == 1 ? CLR_LIGHT_YELLOW : CLR_WHITE, CLR_BLACK);
+        print_centered(str("%d%s of %d", pl,
+                       pl==1?"st":pl==2?"nd":pl==3?"rd":"th", NCARS),
+                       SCREEN_W/2, 44, CLR_LIGHT_PEACH);
+        int y = 64;
+        for (int slot = 1; slot <= NCARS; slot++)
+            for (int i = 0; i < NCARS; i++)
+                if (S->car[i].place == slot) {
+                    bool me = (i == 0);
+                    print_centered(str("%d.  %s", slot, me ? "YOU" : PERS[S->car[i].pers].name),
+                                   SCREEN_W/2, y, me ? CLR_WHITE : PERS[S->car[i].pers].color);
+                    y += 11; break;
+                }
+        print_centered("R: race again    M: generator", SCREEN_W/2, y + 8, CLR_MEDIUM_GREY);
+    }
 }
+
+#ifdef DE_SPEC
+#include "spec.h"
+// The gameplay gate: the AI rivals must actually navigate the loop, and the
+// personality knobs must produce the intended speed order. Deterministic — the
+// default track (seed 0x1234) and the fixed PERS[] table mean the same outcome
+// every run. spec() shares this translation unit, so it drives the race straight
+// (mode/grid normally come from draw(), which step() skips).
+void spec(void) {
+    step(1);                               // triggers init(): track built, mode 0
+    put_all_at_start();
+    S->mode = 1;                           // start the race
+    step(1800);
+
+    Car *pro = &S->car[1], *hunter = &S->car[2], *rookie = &S->car[5];
+    Car *sunday = &S->car[4];              // the cautious one (pers AI_SUNDAY)
+
+    expect(pro->lap    >= 1, "PRO completes at least one lap");
+    expect(hunter->lap >= 1, "HUNTER completes at least one lap");
+    expect(rookie->lap >= 1, "ROOKIE completes at least one lap");
+
+    // every rival makes real forward progress — even cautious SUNDAY is moving,
+    // not stuck (half a lap's distance is a generous floor for the slowest car)
+    for (int i = 1; i < NCARS; i++) {
+        long adv = (long)S->car[i].lap * NSAMP + S->car[i].prog;
+        expect(adv > NSAMP / 2, "rival advances at least half a lap of distance");
+    }
+
+    // the speed-cap knob bites: PRO out-distances the cautious SUNDAY
+    long pro_d = (long)pro->lap * NSAMP + pro->prog;
+    long sun_d = (long)sunday->lap * NSAMP + sunday->prog;
+    expect(pro_d > sun_d, "PRO out-distances SUNDAY (speed cap differentiates)");
+
+    // standings are a permutation 1..NCARS (no duplicate or missing places)
+    int seen = 0;
+    for (int i = 0; i < NCARS; i++) seen |= 1 << (S->car[i].place - 1);
+    expect_eq(seen, (1 << NCARS) - 1, "places form a clean 1..N ranking");
+}
+#endif

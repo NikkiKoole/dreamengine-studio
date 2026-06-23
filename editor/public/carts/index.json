@@ -5451,7 +5451,7 @@
   },
   {
     "title": "boom",
-    "description": "An explosion & fire sandbox — click to detonate and watch the blast ignite the world. Two honest layers: the ground is a grid of materials (road / grass / wood / oil / water) with fuel and a fire level that spreads cell-to-cell by probability (navkit's fire model flattened to 2D — ignition resistance, wind bias, water chokes it, fuel burns down to ash); everything airborne (fireball, sparks, ballistic debris, smoke plume) is a particle that cools along a blackbody ramp. Oil that catches hot pops a secondary blast, so a slick chains across itself. TAB toggles BOOM/BUILD; in BOOM click or SPACE detonates and the wheel sets charge size; in BUILD 1-6 paint a material and T is a torch. C clears fire & smoke, R resets the scene. The sandbox seed for a roam-and-burn city game.",
+    "description": "A destruction sandbox for a criminal city — a petri dish of five blast effects over an honest fire + material world. Two honest layers crossed by two causes: the ground is a grid of materials with FUEL + a fire level that spreads cell-to-cell by probability (navkit's fire model flattened to 2D — ignition resistance, wind bias, water chokes it, fuel burns to ash) and a PRESSURE layer with structural HP; everything airborne (fireball, sparks, shrapnel, ballistic debris, glass shards, smoke plume) is a particle that cools along a blackbody ramp. FIVE detonation archetypes (1-5), each a recipe over the same systems: BLAST (the all-rounder), GRENADE (small, sharp, all shrapnel), MOLOTOV (no shockwave — a flame splash that paints fire), CAR BOMB (debris-heavy, throws chunks), and GAS MAIN (a hiss, then a column of fire erupts upward). The world is a city block of concrete buildings with glass shopfronts, wood shacks, cars, and a barrel cluster by an oil slick: barrels and cars cook off into their own blasts (a yard of barrels chains, a torched car car-bombs itself); glass shatters and concrete walls collapse to rubble under blast PRESSURE, not heat. TAB toggles BOOM/BUILD; in BOOM pick 1-5 and click/SPACE to detonate, wheel sets charge; in BUILD 1-0 paint a material (ground/road/grass/wood/oil/water/barrel/car/glass/concrete) and T is a torch. C clears fire & smoke, R resets. The sandbox seed for a roam-and-burn city game.",
     "file": "boom.cart.png",
     "kind": [
       "toy",
@@ -5462,7 +5462,7 @@
       "particle-system",
       "screen-shake-juice"
     ],
-    "lineage": "Ports navkit's voxel fire/smoke cellular automaton (level 1-7, per-cell fuel, probabilistic spread biased by wind and choked by water) down to a 2D material grid, paired with the airborne particle layer from `particles` and the blackbody heat ramp from `doomfire`/`wildfire`. Where `wildfire` is the spread rule as a chasing hazard, this is the spread rule as a tunable sandbox with a real detonation on top."
+    "lineage": "Ports navkit's voxel fire/smoke cellular automaton (level 1-7, per-cell fuel, probabilistic spread biased by wind and choked by water) down to a 2D material grid, paired with the airborne particle layer from `particles` and the blackbody heat ramp from `doomfire`/`wildfire`. Where `wildfire` is the spread rule as a chasing hazard, this is the spread rule as a tunable sandbox with five real detonation archetypes on top, a second PRESSURE layer (glass shatters, concrete collapses) parallel to the heat layer, and chain-reacting city props (barrels, cars) — the petri dish for a roam-and-burn city game."
   },
   {
     "title": "arcsym",

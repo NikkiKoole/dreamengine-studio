@@ -125,11 +125,13 @@ typedef struct { int x, y; int life; } Skid;
 // That is the whole point: the brain built here ports to sloop unchanged; only the
 // *line to follow* changes (cl[] here, road_at() in the open world later).
 #define RACE_CARS    7         // RACE: 1 player + 6 AI, one per personality
-#define TRAFFIC_CARS 18        // TRAFFIC: a crowd — enough density for queues & jams
-#define CARS_MAX     28        // array bound (>= both of the above)
+#define TRAFFIC_CARS 32        // TRAFFIC: a big crowd — long queues behind a red
+#define CARS_MAX     40        // array bound (>= both of the above)
 #define RACE_LAPS 3
 #define COLL_R    16.0f        // car-to-car avoidance radius (world px)
 #define REACT_N   5            // car-following reaction lag (frames) — seeds phantom jams
+#define LIGHT_RED 480          // red phase (frames) — long, so a real line of cars builds
+#define LIGHT_GRN 300          // green phase (frames)
 
 typedef struct {
     float px, py, vx, vy, spd, ang;
@@ -736,7 +738,7 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
     // OVERTAKE: blocked by a slower CAR (not a light) and not mid-bend? pull into a
     // clear lane. Decided on the real leader — you can't lane-change around a red.
     float ssafe0 = TG_GAP0 + v * TG_HEAD;
-    if (S->nlanes > 1 && bendn < 0.4f && s < ssafe0 * 1.4f && vlead < v0 * 0.85f) {
+    if (S->nlanes > 1 && v > 0.5f && bendn < 0.4f && s < ssafe0 * 1.4f && vlead < v0 * 0.85f) {
         for (int dl = -1; dl <= 1; dl += 2) {
             int nl = c->want_lane + dl;
             if (nl >= 0 && nl < S->nlanes && lane_clear(c, idx, nl)) { c->want_lane = nl; break; }
@@ -867,8 +869,8 @@ void update(void) {
     if (keyp('R'))                   { put_all_at_start(); return; }
     if (btnp(0, BTN_B)) P.drift = !P.drift;
 
-    if (S->traffic && S->light >= 0) {                   // cycle the light (green longer than red)
-        if (++S->light_t >= (S->light_red ? 200 : 360)) { S->light_t = 0; S->light_red = !S->light_red; }
+    if (S->traffic && S->light >= 0) {                   // cycle the light
+        if (++S->light_t >= (S->light_red ? LIGHT_RED : LIGHT_GRN)) { S->light_t = 0; S->light_red = !S->light_red; }
     }
 
     float p_turn = (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
@@ -922,6 +924,15 @@ void update(void) {
           S->car[2].lane, S->car[3].lane, S->car[4].lane, S->car[5].lane, S->car[6].lane);
     watch("lat", "%.0f %.0f %.0f %.0f %.0f %.0f %.0f h=%d",
           latd(0), latd(1), latd(2), latd(3), latd(4), latd(5), latd(6), S->half);
+    if (S->light >= 0) {                                 // length of the queue stopped behind the light
+        int q = 0;
+        for (int i = 0; i < S->ncars; i++) {
+            int d = (S->light - S->car[i].prog + NSAMP) % NSAMP;
+            float v = S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd;
+            if (d < 60 && v < 0.4f) q++;
+        }
+        watch("queue", "%d red=%d", q, S->light_red);
+    }
 #endif
 }
 
@@ -1224,16 +1235,16 @@ void spec(void) {
     // ── traffic light: a RED forms a queue of stopped cars just behind the line ──
     put_all_at_start();
     S->mode = 1;
-    S->light_red = true; S->light_t = 0;     // force red (red phase = 200f; we step < that)
-    step(180);
+    S->light_red = true; S->light_t = 0;     // force red and hold it (we step < LIGHT_RED)
+    step(300);
     int queued = 0; float worst = 1e9f;
     for (int i = 0; i < S->ncars; i++) {
         int d = (S->light - S->car[i].prog + NSAMP) % NSAMP;   // samples until the light
         float v = S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd;
-        if (d < 16 && v < 0.4f) queued++;     // stopped, just short of the line
+        if (d < 60 && v < 0.4f) queued++;     // stopped, within range of the line
         if (S->car[i].spd < worst) worst = S->car[i].spd;
     }
-    expect(queued >= 1, "traffic light: a red builds a queue of stopped cars");
+    expect(queued >= 3, "traffic light: a red builds a LINE of stopped cars");
     expect(worst > -0.05f, "no reversing: cars stop at the light, never roll backward");
 
     // ── phantom jam: density + reaction lag → stop-and-go (speeds spread out), not

@@ -173,6 +173,18 @@ early; exhaust what can be built in isolation first.
     lane type + setback sidewalk). Build the independent edge in the network view; revisit the verge variant then.
    → Pairs with / extends Stage 2; the two-tier world (Stage 3) then carries TWO overlaid networks, not one.
 
+**► Suggested sequence for Stages 2–2.5 (set 2026-06-23)** — do them as ONE coherent "network + active-travel"
+stretch, all still inside `streetlab`, before the Stage-3 world leap:
+1. **Superblock + circuity together** — build the fused-grid pattern (step 5) and the circuity metric (step 6) in
+   the same pass: circuity (cars-go-around / bikes-cut-through) is what *proves* the superblock is a distinct
+   pattern, so they're one unit, not two.
+2. **Modal active-travel layer** (step 6b / Facet C) — paths-as-edges. The superblock's cut-throughs ARE these
+   edges, so it lands naturally right after.
+3. **Crossings & priority markings pass** (the deferred markings item) — now there are real path×road conflicts
+   to mark, so it has something to bite on.
+→ That completes the network sandbox *with* bikes/peds. THEN take the breath (end-of-Stage-2 stopping point)
+   before Stage 3. Don't pull Stage-3 (two-tier world / integration) forward — exhaust the sandbox first.
+
 **Stage 3 — Phase 2: compose the WORLD (the frontier; needs all sandboxes done).**
 7. **Directed network → one-way streets** — directionality is a network property; the junction inherits
    entry/exit arms. The M7 half-section groundwork makes the one-way cross-section a flag.

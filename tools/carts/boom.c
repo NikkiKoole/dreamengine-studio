@@ -149,6 +149,22 @@ static Ring rings[12];
 typedef struct { float x, y; int chg, type, t, on; } Pending;
 static Pending pend[8];
 
+// ── physics blocks: chunks of a destroyed wall, knocked loose as real bodies ──
+// This is the prototype of sloop's deferred "demolition rung" (sloop.c:527 — its
+// obstacles already carry per-cell mass/strength + a knocked vx,vy,vr, but a wall
+// is still ONE rigid body; here we detach per-cell). A destroyed wall cell flies
+// off as a Block carrying that material's colour, tumbles, slides to rest under
+// top-down friction (the same law PK_DEBRIS settles by), then DEPOSITS rubble
+// where it lands — terrain → physical object → terrain again.
+typedef struct {
+    float x, y, vx, vy, ang, spin;
+    int   settle;                 // frames at rest before it deposits its rubble
+    unsigned char on, col, mat;
+} Block;
+#define MAXBLK 500
+static Block blk[MAXBLK];
+static int blkcur = 0;
+
 // ── global state ───────────────────────────────────────────────────────────
 static int   mode;            // 0 = BOOM, 1 = BUILD
 static int   blast = BL_BLAST;// selected detonation archetype
@@ -188,6 +204,28 @@ static void ignite(int gx, int gy) {
     if (MAT_FUEL[c->mat] == 0 || c->fire > 0) return;
     if (c->fuel == 0) c->fuel = (unsigned char)MAT_FUEL[c->mat];
     c->fire = MIN_SPREAD;
+}
+
+// knock a wall chunk loose: launch it radially away from the blast centre (ox,oy),
+// carrying its material's colour, with a random tumble. Drops if the pool is full.
+static void eject_block(float x, float y, float ox, float oy, int col, int mat) {
+    for (int n = 0; n < MAXBLK; n++) {
+        int i = (blkcur + n) % MAXBLK;
+        if (!blk[i].on) {
+            float dx = x - ox, dy = y - oy;
+            float d  = sqrtf(dx * dx + dy * dy) + 0.01f;
+            float spd = 1.2f + frand() * 2.6f;
+            blk[i] = (Block){
+                x, y,
+                dx / d * spd + (frand() - 0.5f) * 1.2f,
+                dy / d * spd + (frand() - 0.5f) * 1.2f,
+                frand() * 6.2832f, (frand() - 0.5f) * 0.6f,
+                0, 1, (unsigned char)col, (unsigned char)mat
+            };
+            blkcur = (i + 1) % MAXBLK;
+            return;
+        }
+    }
 }
 
 // blast radius in cells before the per-archetype scale — charge 1 is small and
@@ -312,9 +350,8 @@ static void detonate_now(float cx, float cy, int chg, int type) {
                             psp(px, py, frand() * 3 - 1.5f, frand() * 3 - 1.5f, PK_SPARK,
                                 10 + frand() * 10, 1, 1,
                                 frand() < 0.5f ? CLR_BLUE_GREEN : CLR_WHITE);
-                        if (frand() < 0.5f)
-                            psp(px, py, frand() * 2 - 1, frand() * 2 - 1, PK_DEBRIS,
-                                18 + frand() * 14, 1, 0, CLR_BLUE_GREEN);
+                        if (frand() < 0.4f)                  // a pane chunk cartwheels out
+                            eject_block(px, py, cx, cy, CLR_BLUE_GREEN, MAT_GLASS);
                     }
                 } else if (c->mat == MAT_CONCRETE) {
                     int dmg = (int)(press * t * 11.0f);
@@ -322,13 +359,22 @@ static void detonate_now(float cx, float cy, int chg, int type) {
                     if (c->hp > dmg) {
                         c->hp -= (unsigned char)dmg;
                     } else {                                  // the wall comes down
-                        c->mat = MAT_RUBBLE; c->hp = 0; c->fuel = 0; c->fire = 0;
-                        for (int s = 0; s < 2; s++)
-                            psp(px, py, frand() * 2.4f - 1.2f, -frand() * 1.5f, PK_DEBRIS,
-                                20 + frand() * 20, 1 + frand() * 2, 0,
-                                frand() < 0.5f ? CLR_MEDIUM_GREY : CLR_DARK_GREY);
+                        c->hp = 0; c->fuel = 0; c->fire = 0;
+                        if (frand() < 0.7f) {                 // most of the wall flies off as blocks
+                            c->mat = MAT_GROUND;              // a hole punched clean through
+                            eject_block(px, py, cx, cy, MAT_COL[MAT_CONCRETE], MAT_CONCRETE);
+                        } else {
+                            c->mat = MAT_RUBBLE;              // the rest crumbles where it stood
+                        }
                         psp(px, py, frand() * 0.6f - 0.3f, -0.3f, PK_SMOKE,
                             50 + frand() * 40, 2 + frand() * 2, 0, 0);
+                    }
+                } else if (c->mat == MAT_WOOD) {
+                    // a strong wave splinters a wood wall into flying planks (the rest
+                    // is left to CATCH instead, in the heat pass below)
+                    if (press * t > 0.6f && frand() < 0.5f) {
+                        c->mat = MAT_GROUND; c->fuel = 0; c->fire = 0;
+                        eject_block(px, py, cx, cy, MAT_COL[MAT_WOOD], MAT_WOOD);
                     }
                 }
             }
@@ -475,6 +521,7 @@ void update(void) {
         for (int i = 0; i < MAXP; i++) ps[i].kind = PK_FREE;
         for (int i = 0; i < 12; i++) rings[i].on = 0;
         for (int i = 0; i < 8; i++) pend[i].on = 0;
+        for (int i = 0; i < MAXBLK; i++) blk[i].on = 0;
     }
     if (mode == 0) {                                          // BOOM: pick blast
         for (int i = 0; i < BL_KINDS; i++) if (keyp('1' + i)) blast = i;
@@ -584,6 +631,32 @@ void update(void) {
         rings[i].r += 4.5f;
         if (rings[i].r > rings[i].maxr) rings[i].on = 0;
     }
+
+    // physics blocks: slide + tumble, settle by friction, deposit rubble at rest
+    for (int i = 0; i < MAXBLK; i++) {
+        Block *bk = &blk[i];
+        if (!bk->on) continue;
+        bk->x += bk->vx; bk->y += bk->vy;
+        bk->vx *= 0.90f; bk->vy *= 0.90f;          // same top-down settle as PK_DEBRIS
+        bk->ang += bk->spin; bk->spin *= 0.94f;
+        if (bk->x < -4 || bk->y < -4 || bk->x > SCREEN_W + 4 || bk->y > SCREEN_H + 4) {
+            bk->on = 0; continue;                  // slid off the world
+        }
+        if (bk->vx * bk->vx + bk->vy * bk->vy < 0.02f) {       // come to rest
+            if (++bk->settle > 6) {
+                int gx = (int)(bk->x / CELL), gy = (int)(bk->y / CELL);
+                if (gx >= 0 && gy >= 0 && gx < GW && gy < GH) {
+                    Cell *c = &W[IDX(gx, gy)];
+                    // pile up as rubble on open ground — never bury water or a live wall
+                    if (c->mat == MAT_GROUND || c->mat == MAT_ROAD || c->mat == MAT_GRASS ||
+                        c->mat == MAT_ASH || c->mat == MAT_RUBBLE) {
+                        c->mat = MAT_RUBBLE; c->fuel = 0; c->fire = 0;
+                    }
+                }
+                bk->on = 0;
+            }
+        } else bk->settle = 0;
+    }
 }
 
 // ── default scene: a block of the criminal city to set alight ───────────────
@@ -647,6 +720,7 @@ void reset_world(void) {
     for (int i = 0; i < MAXP; i++) ps[i].kind = PK_FREE;
     for (int i = 0; i < 12; i++) rings[i].on = 0;
     for (int i = 0; i < 8; i++) pend[i].on = 0;
+    for (int i = 0; i < MAXBLK; i++) blk[i].on = 0;
 }
 
 static int inited = 0;
@@ -691,6 +765,14 @@ void draw(void) {
         P *p = &ps[i];
         if (p->kind != PK_DEBRIS) continue;
         rectfill((int)p->x, (int)p->y, (int)p->size + 1, (int)p->size + 1, p->col);
+    }
+    // physics blocks — knocked wall chunks, a facet pixel orbiting to read the tumble
+    for (int i = 0; i < MAXBLK; i++) {
+        Block *bk = &blk[i];
+        if (!bk->on) continue;
+        int bx = (int)bk->x, by = (int)bk->y;
+        rectfill(bx - 1, by - 1, 3, 3, bk->col);
+        pset(bx + (int)(cosf(bk->ang) * 1.5f), by + (int)(sinf(bk->ang) * 1.5f), CLR_WHITE);
     }
     for (int i = 0; i < MAXP; i++) {
         P *p = &ps[i];

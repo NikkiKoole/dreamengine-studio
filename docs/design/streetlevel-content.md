@@ -16,6 +16,8 @@
 · [Build plan](#build-plan-lens-first-same-playbook-as-l2l3) · [Open decisions](#open-decisions-for-build-time)
 >
 > *Built so far (cart `lotfill.c`): 6 fill atoms — `scatter` `rows` `footprint` `border` `pave` `stamp` (+ `subdivide`, the `world` driver, local fields) — **and now the first phase-5 MODIFIER PIPELINE: `ruins` = `footprint → collapse → overgrow`** (the `RUINS` tab, driven by `decay`/`fertility` fields). Everything else here is documented-not-built.*
+>
+> *Merged forward (2026-06-23): these atoms now also live in **`cityplan.c`** — lotfill stacked onto [interiors](interiors-brief.md) into one world you LIFT THE ROOF off by zooming. Design + staged plan: **[cityplan.md](cityplan.md)**. That is the cart developed forward; `lotfill` stays the atom workbench.*
 
 ## The one idea
 

@@ -93,7 +93,8 @@ Cheap + high-value at the top. (✓ = shipped since.)
       the roundabout splitter both serve as refuges).
 - ◑ **Minor markings pass** (§2): ✓ **TWLTL** (two-way centre left-turn lane — a painted CENTRE lane type, `m`
       cycles none→median→TWLTL; routes through `centre_hw()`/`drive_inner()` so it composes with every primitive)
-      · [ ] **right-turn pockets** · [ ] **driveways as low-volume junctions**.
+      · ✓ **right-turn pockets** (bundled into the `turn lanes` treatment — peels the OUTER driving lane via
+      `drive_outer()-LANEW` + a right arrow, mirror of the left bay) · [ ] **driveways as low-volume junctions**.
 
 **Network topology (Facet B — §8), in the network view:**
 - [ ] **Fused-grid / superblock** pattern (§8.3) — perimeter arterial loop + calmed/discontinuous interior;
@@ -131,7 +132,8 @@ early; exhaust what can be built in isolation first.
    is carved to the corner zone OUTSIDE the through kerb lines (fill-then-reopen-gap-side) ⇒ a near-nothing sliver
    at 90°, a clean triangle at skew, never over a lane (owner-approved). Spec'd (81). fr_fits window kept at 40–145°.
 3. ◑ **Minor markings pass** *(low, batched)* — ✓ TWLTL (centre lane type, `m` cycle, owner-approved; routes
-   through `centre_hw()`/`drive_inner()` ⇒ composes, no M7 regression) · [ ] right-turn pockets · [ ] driveways.
+   through `centre_hw()`/`drive_inner()` ⇒ composes, no M7 regression) · ✓ right-turn pockets (bundled into the
+   `turn lanes` treatment, off `drive_outer()`) · [ ] driveways.
 4. *Parked:* staggered junctions + signalised-vs-priority CONTROL (the latter is a signals/phasing layer, not
    at-grade geometry — its own thing). Revisit only on request.
    → Facet A complete + spec-locked; the junction cart is done.
@@ -190,8 +192,8 @@ build-all + ui-audit clean; baked. (Site publish is stale — a separate `publis
 (12 ft constrained); island offset from the traveled way; exit defaults to YIELD/give-way; ped crosswalk across
 the slip centre + island as refuge; small radii preferred; free-rights discouraged in ped-heavy contexts (NACTO).
 
-**Next: step 3 cont'd** — ✓ TWLTL done (centre lane type, `m` cycle). Remaining: right-turn pockets (mirror the
-M3 left-turn bay to the kerb side, off `drive_outer()`), then driveways (a kerb-cut apron = a low-volume junction).
+**Next: step 3 cont'd** — ✓ TWLTL, ✓ right-turn pockets (bundled into `turn lanes`, off `drive_outer()`). Remaining:
+**driveways** (a kerb-cut apron mid-block = a low-volume junction — the one bit of new GEOMETRY, not just paint).
 Then Stage 2 (superblock). Don't jump to the world.
 
 ## Cross-section composition — known issues + the next-pass plan (2026-06-22)

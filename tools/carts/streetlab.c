@@ -350,16 +350,20 @@ static float kerb_start(const float *brg,int n,int i,float HW,float R,int side){
 }
 // LEFT-TURN ARROW: shaft pointing into the junction (inbound) with a head hooking LEFT (across the
 // centreline) — the glyph that marks a lane as turn-only. Lives in the arm's local frame ⇒ skew-safe.
-static void turn_arrow(float cx,float cy,float b,float df,int col){
+// a turn arrow in the inbound (b-90 side) lane centred at offset `lc`, hooking LEFT (h=+1, across the centreline =
+// a left-turn bay) or RIGHT (h=-1, toward the kerb = a right-turn pocket). The h sign mirrors the whole arrowhead.
+static void turn_arrow_at(float cx,float cy,float b,float df,float lc,int h,int col){
     float ax=ux(b),ay=uy(b), ix=ux(b-90),iy=uy(b-90);     // axis + inbound-side normal
-    float lc=drive_inner()+LANEW*0.5f;                    // centre of the inner DRIVING lane (median-aware)
-    float bx=cx+ax*(df+9)+ix*lc, by=cy+ay*(df+9)+iy*lc;   // base, in the inner inbound lane
+    float bx=cx+ax*(df+9)+ix*lc, by=cy+ay*(df+9)+iy*lc;   // base, in the inbound lane
     float tx=cx+ax*(df+2)+ix*lc, ty=cy+ay*(df+2)+iy*lc;   // tip, nearer the stop bar
-    line((int)bx,(int)by,(int)tx,(int)ty,col);                                // shaft (inbound)
-    float hx=tx+ux(b+90)*3, hy=ty+uy(b+90)*3;                                 // hook LEFT across the centreline
+    line((int)bx,(int)by,(int)tx,(int)ty,col);                                       // shaft (inbound)
+    float hx=tx+ux(b+90*h)*3, hy=ty+uy(b+90*h)*3;                                     // hook (left across centre / right to kerb)
     line((int)tx,(int)ty,(int)hx,(int)hy,col);
-    line((int)hx,(int)hy,(int)(hx+ux(b-30)*3),(int)(hy+uy(b-30)*3),col);      // arrowhead on the hook
-    line((int)hx,(int)hy,(int)(hx+ux(b+150)*3),(int)(hy+uy(b+150)*3),col);
+    line((int)hx,(int)hy,(int)(hx+ux(b-30*h)*3),(int)(hy+uy(b-30*h)*3),col);          // arrowhead on the hook
+    line((int)hx,(int)hy,(int)(hx+ux(b+150*h)*3),(int)(hy+uy(b+150*h)*3),col);
+}
+static void turn_arrow(float cx,float cy,float b,float df,int col){                  // left-turn bay arrow (inner lane)
+    turn_arrow_at(cx,cy,b,df, drive_inner()+LANEW*0.5f, +1, col);
 }
 // RAISED MEDIAN SPLITTER (the channelizing island): a thin island on the centreline from df out to
 // df+POCKET+PTAPER with a rounded nose upstream — separates opposing traffic and frames the left-turn bay.
@@ -846,6 +850,16 @@ void draw(void){
                      (int)(cx+dx*(mouth+POCKET)+ix*o),(int)(cy+dy*(mouth+POCKET)+iy*o),CLR_WHITE);
             }
             turn_arrow(cx,cy,b,mouth,CLR_WHITE);
+            // step 3b: the RIGHT-TURN POCKET (kerb side) — the mirror of the left bay. Peel the OUTER driving lane
+            // as right-turn-only: a solid white line at its INNER edge (drive_outer()-LANEW) + a right-hooking arrow.
+            // Off drive_outer() ⇒ median/bike/parking/TWLTL-aware. (The signalised cousin of the free-right slip,
+            // which is a mutually-exclusive treatment, so the two never collide.)
+            if (lanesPer>=2){
+                float ro = drive_outer()-LANEW;
+                line((int)(cx+dx*mouth+ix*ro),(int)(cy+dy*mouth+iy*ro),
+                     (int)(cx+dx*(mouth+POCKET)+ix*ro),(int)(cy+dy*(mouth+POCKET)+iy*ro),CLR_WHITE);
+                turn_arrow_at(cx,cy,b,mouth, drive_outer()-LANEW*0.5f, -1, CLR_WHITE);
+            }
         }
         // Stage-1 #1: bulb-out — the kerb extends into the parking clear-zone, narrowing the crossing. Only when
         // there's NO kerb-side bike lane: a classic bulb (parking→sidewalk) and a protected bike-lane corner are
@@ -1029,6 +1043,14 @@ void spec(void){
     cycle_centre(); expect(medOn==1 && twltlOn==0, "centre cycle: none → raised median");
     cycle_centre(); expect(medOn==0 && twltlOn==1, "centre cycle: median → TWLTL (median cleared — mutually exclusive)");
     cycle_centre(); expect(medOn==0 && twltlOn==0, "centre cycle: TWLTL → none (full cycle)");
+    // ── step 3b: the RIGHT-TURN POCKET peels the OUTER driving lane (delineation at drive_outer()-LANEW), the
+    //    mirror of the left bay at drive_inner()+LANEW. Both read the shared datums ⇒ centre-treatment-aware. ──
+    medOn=0; twltlOn=0; lanesPer=2;
+    expect(spec_near(drive_outer()-LANEW, drive_inner()+LANEW), "2 lanes: right pocket meets the left bay at the shared divider");
+    lanesPer=3;
+    expect(drive_outer()-LANEW > drive_inner()+LANEW,           "3 lanes: right pocket (outer) sits outboard of the left bay (a through lane between)");
+    medOn=1; expect(spec_near(drive_outer()-LANEW, MEDHW+lanesPer*LANEW-LANEW), "right pocket edge tracks drive_outer (median-aware, no hardcoded offset)");
+    medOn=0; lanesPer=2;
     // Pass 2: the bike lane is OUTERMOST (kerb-side) so it can wrap the corner; parking sits inboard of it
     parkOn=1; bikeOn=1; lanesPer=2;
     expect(spec_near(park_inner(), drive_outer()),               "parking sits just outside the driving lanes");

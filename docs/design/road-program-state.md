@@ -94,7 +94,9 @@ Cheap + high-value at the top. (✓ = shipped since.)
 - ◑ **Minor markings pass** (§2): ✓ **TWLTL** (two-way centre left-turn lane — a painted CENTRE lane type, `m`
       cycles none→median→TWLTL; routes through `centre_hw()`/`drive_inner()` so it composes with every primitive)
       · ✓ **right-turn pockets** (bundled into the `turn lanes` treatment — peels the OUTER driving lane via
-      `drive_outer()-LANEW` + a right arrow, mirror of the left bay) · [ ] **driveways as low-volume junctions**.
+      `drive_outer()-LANEW` + a right arrow, mirror of the left bay) · ✓ **driveways** (`d` cycles a per-side
+      bitmask off→+→−→both; a flared kerb-cut apron crosses the kerb + sidewalk into the grass = a low-volume
+      access point, FHWA access management). **→ Facet A's marking vocabulary is complete.**
 
 **Network topology (Facet B — §8), in the network view:**
 - [ ] **Fused-grid / superblock** pattern (§8.3) — perimeter arterial loop + calmed/discontinuous interior;
@@ -133,7 +135,7 @@ early; exhaust what can be built in isolation first.
    at 90°, a clean triangle at skew, never over a lane (owner-approved). Spec'd (81). fr_fits window kept at 40–145°.
 3. ◑ **Minor markings pass** *(low, batched)* — ✓ TWLTL (centre lane type, `m` cycle, owner-approved; routes
    through `centre_hw()`/`drive_inner()` ⇒ composes, no M7 regression) · ✓ right-turn pockets (bundled into the
-   `turn lanes` treatment, off `drive_outer()`) · [ ] driveways.
+   `turn lanes` treatment, off `drive_outer()`) · ✓ driveways (`d` per-side cycle, kerb-cut apron). **Step 3 DONE.**
 4. *Parked:* staggered junctions + signalised-vs-priority CONTROL (the latter is a signals/phasing layer, not
    at-grade geometry — its own thing). Revisit only on request.
    → Facet A complete + spec-locked; the junction cart is done.
@@ -161,7 +163,7 @@ early; exhaust what can be built in isolation first.
 **Natural stopping points:** end of Stage 1 (junction done), end of Stage 2 (both sandboxes done — the clean
 "stop and combine later" line), and each Stage-3 step is its own deliverable.
 
-### ► Resume here (2026-06-23) — Stage 1 step 2 (free-right slip) DONE; next is step 3 (minor markings)
+### ► Resume here (2026-06-23) — Stage 1 (Facet A) COMPLETE; next is Stage 2 (the network superblock)
 
 **State:** the free-right slip + pork-chop channelizing island is **done and owner-approved**. Toggle with `f`
 / the "junction:" toolbar cycle (plain → turn lanes → **free-right** → roundabout, mutually exclusive via
@@ -192,9 +194,11 @@ build-all + ui-audit clean; baked. (Site publish is stale — a separate `publis
 (12 ft constrained); island offset from the traveled way; exit defaults to YIELD/give-way; ped crosswalk across
 the slip centre + island as refuge; small radii preferred; free-rights discouraged in ped-heavy contexts (NACTO).
 
-**Next: step 3 cont'd** — ✓ TWLTL, ✓ right-turn pockets (bundled into `turn lanes`, off `drive_outer()`). Remaining:
-**driveways** (a kerb-cut apron mid-block = a low-volume junction — the one bit of new GEOMETRY, not just paint).
-Then Stage 2 (superblock). Don't jump to the world.
+**Stage 1 (Facet A) COMPLETE** — ✓ free-right slip, ✓ TWLTL, ✓ right-turn pockets, ✓ driveways; the at-grade
+junction's geometry + marking vocabulary is built and spec-locked (94 assertions). The junction cart is done.
+**Next: Stage 2 — the NETWORK superblock** (the fused-grid: a perimeter arterial loop + a calmed/discontinuous
+interior; the one original bit with no algorithm in the 2001/2008 pillars, and a single-region prototype of the
+two-tier world, so it de-risks Stage 3). Don't jump to the world.
 
 ## Cross-section composition — known issues + the next-pass plan (2026-06-22)
 

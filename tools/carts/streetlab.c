@@ -69,6 +69,8 @@
 #define PARKW    7     // M7: parking-lane width (at the kerb, marked with bay ticks)
 #define MEDHW    4     // M7: continuous centre-median half-width (the median IS a cross-section lane type)
 #define TWLTLHW  5     // Stage-1 #3: two-way left-turn lane half-width (a painted centre lane, ~10px ⇒ one lane)
+#define DWAY_W   10    // Stage-1 #3c: driveway width along the arm (the kerb-cut opening)
+#define DWAY_FL  3     // Stage-1 #3c: apron flare — the kerb-cut wings splay this much wider at the road edge
 #define SLIPW    6     // Stage-1 #2: free-right slip-lane width (the gap between the kerb and the floating island)
 #define FR_NOSE  2.f   // Stage-1 #2: nose offset — the island is set back this far from the box corner (traveled way)
 #define PCLEAR   16    // Pass 2: parking CLEAR ZONE — markings end this far back from the junction (no parking near it)
@@ -183,6 +185,7 @@ static float islandR  = 8.f;  // M6: central-island radius (the headline roundab
 static float frR      = 14.f; // Stage-1 #2: free-right TURN radius (the slip centreline; reuses [ ] in free-right mode)
 static int   medOn    = 0;    // M7: continuous raised centre median (a cross-section lane type, not the turn splitter)
 static int   twltlOn  = 0;    // Stage-1 #3: two-way left-turn lane (painted centre lane) — excl. with the median (both centre)
+static int   driveways = 0;   // Stage-1 #3c: mid-block driveways, a per-side BITMASK — 1 = +90 side, 2 = -90 side ('d' cycles off→+→−→both)
 static int   bikeOn   = 0;    // M7/Pass3: 0 off · 1 lanes (+corner-wrap, the default) · 2 +straight-through crossing
 static int   parkOn   = 0;    // M7: a parking lane at the kerb
 enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, NPAT };   // M4: street-web patterns
@@ -324,6 +327,25 @@ static void bike_thru(float cx,float cy,float b,float mouth){
     for (float d=BTSTEP; d<mouth; d+=BTSTEP)                 // hub-anchored ⇒ even + symmetric across the box
         for (int s=-1;s<=1;s+=2)
             rectfill((int)(cx+dx*d+nx*s*off)-1,(int)(cy+dy*d+ny*s*off)-1, 3,3, CLR_BROWN);
+}
+
+// ── Stage-1 #3c: DRIVEWAY — a mid-block low-volume access point (FHWA access management §3). A flared kerb-cut
+//    apron crosses the kerb (and the sidewalk, if peds) out into the grass toward an implied off-screen property:
+//    the asphalt apron covers the kerb casing at the mouth (= the cut), brownish-black kerb "wings" splay the
+//    flare. Drawn AFTER the junction so it composes with any treatment. d = distance along arm b, side s = ±1. ──
+static void draw_driveway(float cx,float cy,float b,float d,int s){
+    float dx=ux(b),dy=uy(b), nx=ux(b+90)*s, ny=uy(b+90)*s;   // along-arm + the chosen side's outward normal
+    float in=cross_hw(), out=cross_hw() + (peds?SW:0) + 8;   // road edge → past the footway into the grass
+    float w=DWAY_W*0.5f, fl=DWAY_FL;
+    float ax=cx+dx*(d-w-fl), ay=cy+dy*(d-w-fl);              // kerb-side wings (wider), upstream + downstream
+    float bx=cx+dx*(d+w+fl), by=cy+dy*(d+w+fl);
+    float pdx=cx+dx*(d-w), pdy=cy+dy*(d-w);                  // property-side (narrower)
+    float pex=cx+dx*(d+w), pey=cy+dy*(d+w);
+    int q[8]={(int)(ax+nx*in),(int)(ay+ny*in),(int)(bx+nx*in),(int)(by+ny*in),
+              (int)(pex+nx*out),(int)(pey+ny*out),(int)(pdx+nx*out),(int)(pdy+ny*out)};
+    polyfill(q,4,CLR_DARK_GREY);                             // apron asphalt (covers the kerb casing ⇒ the cut)
+    line((int)(ax+nx*in),(int)(ay+ny*in),(int)(pdx+nx*out),(int)(pdy+ny*out),CLR_BROWNISH_BLACK);   // kerb wings
+    line((int)(bx+nx*in),(int)(by+ny*in),(int)(pex+nx*out),(int)(pey+ny*out),CLR_BROWNISH_BLACK);
 }
 
 // ── M3: turn lanes + channelizing islands ──
@@ -546,6 +568,7 @@ void update(void){
     if (keyp('m')||keyp('M')) cycle_centre();                // M7/#3: centre cross-section — none → median → TWLTL
     if (keyp('b')||keyp('B')) bikeOn = (bikeOn+1)%3;         // M7/Pass3: off → lanes → +straight-through crossing
     if (keyp(';'))            parkOn = !parkOn;              // M7: parking lane
+    if (keyp('d')||keyp('D')) driveways = (driveways+1)&3;   // Stage-1 #3c: driveways per-side cycle off→+→−→both
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;   // M6: stays MINI (small, traversable)
     if (frR<8) frR=8;       if (frR>24) frR=24;           // Stage-1 #2: free-right turning radius
@@ -876,19 +899,31 @@ void draw(void){
     }
   }
 
+    // ── Stage-1 #3c: DRIVEWAYS — mid-block low-volume access, per-side bitmask (1=+90, 2=-90). Drawn for every
+    //    present arm AFTER the junction so they compose with any treatment; set back past the corner clearance. ──
+    if (driveways) for (int i=0;i<n;i++){
+        float b=brg[i];
+        for (int s=-1;s<=1;s+=2){
+            if (!(driveways & (s>0?1:2))) continue;
+            draw_driveway(cx,cy,b, 46, s);
+            draw_driveway(cx,cy,b, 72, s);
+        }
+    }
+
     // ── HUD ──
     font(FONT_SMALL);
-    char bb[64];
-    int xs = medOn||bikeOn||parkOn;                        // M7: any typed cross-section element active?
+    char bb[96];                                            // wide enough for the feature subtitle + driveways suffix
+    int xs = medOn||bikeOn||parkOn||twltlOn;               // M7: any typed cross-section element active?
     print(xs        ? "streetlab - at-grade junction (M7: typed cross-section)"
          : roundabout ? "streetlab - at-grade junction (M6: mini-roundabout)"
                       : "streetlab - at-grade junction (M5: sidewalks + crosswalks)", 4,5, CLR_WHITE);
+    const char *dwy = (driveways && !peds) ? "  -  driveways" : "";  // omit when peds (the subtitle would overrun); always visible in the render anyway
     if (roundabout)
-        snprintf(bb,sizeof bb,"mini-roundabout (traversable island)  -  %d arms  -  give-way entries%s",
-                 n, peds?"  -  pavement + crossings":"");
+        snprintf(bb,sizeof bb,"mini-roundabout (traversable island)  -  %d arms  -  give-way entries%s%s",
+                 n, peds?"  -  pavement + crossings":"", dwy);
     else
-        snprintf(bb,sizeof bb,"%s  -  %d corners%s%s", isT?"T-junction":"4-way crossing", count_corners(),
-                 turnLanes?"  -  turn bays":freeRight?"  -  free-right slips":"", peds?"  -  pavement + crossings":"");
+        snprintf(bb,sizeof bb,"%s  -  %d corners%s%s%s", isT?"T-junction":"4-way crossing", count_corners(),
+                 turnLanes?"  -  turn bays":freeRight?"  -  free-right slips":"", peds?"  -  pavement + crossings":"", dwy);
     print(bb, 4,13, CLR_ORANGE);
 
     // ── toolbar (three rows) ── row1 = cross-section lane types (incl. pavement) · row2 = curb/lanes/view · row3 = skew/topology/treatment
@@ -1119,5 +1154,11 @@ void spec(void){
     expect(cornerR >= 0.f,  "curb radius floors at 0");
     int t0=turnLanes; spec_tap('p'); expect(turnLanes!=t0, "the 'p' key toggles turn lanes");
     int k0=peds;      spec_tap('k'); expect(peds!=k0,      "the 'k' key toggles sidewalks + crosswalks");
+    // step 3c: driveways cycle the per-side bitmask off → +90 (1) → -90 (2) → both (3) → off
+    driveways=0;
+    spec_tap('d'); expect_eq(driveways,1, "'d' #1: driveways on the +90 side");
+    spec_tap('d'); expect_eq(driveways,2, "'d' #2: driveways on the -90 side");
+    spec_tap('d'); expect_eq(driveways,3, "'d' #3: driveways on both sides");
+    spec_tap('d'); expect_eq(driveways,0, "'d' #4: driveways off (full cycle)");
 }
 #endif

@@ -44,6 +44,9 @@ particle/body that cools along a blackbody ramp and settles under top-down frict
   tumble and settle (splintering if a blast lands close or they burn). A packed
   parking lot + crate stacks are the chain-reaction showpieces. And settled debris
   is kinetic too: a fresh blast re-scatters blocks/crates already on the ground.
+- **Pedestrians**: little people wander the open streets, flee the nearest fire or
+  blast, and go down — killed by a blast, by standing in fire, or run over by a
+  ram car — leaving a body. The scene reacts to you.
 - Demo clips: `tools/clips/boom/{01-blast,02-ramcar}.script`.
 
 ## Wishlist (next, roughly in order)
@@ -51,12 +54,10 @@ particle/body that cools along a blackbody ramp and settles under top-down frict
 1. **Feed demolition back into sloop** — the literal purpose of this prototype
    (`sloop.c:527`). Port the Block model onto sloop's per-cell mass/strength
    obstacles so a rammed/shot house sheds tiles. Closes the loop.
-2. **City life — pedestrians** — NPCs that walk the block and flee/panic from fire
-   and blasts. Turns the petri dish into a *scene*. Reuses the particle/body pool.
-3. **Player presence** — make the ram car *drivable* (arrow keys): the bridge from
+2. **Player presence** — make the ram car *drivable* (arrow keys): the bridge from
    sandbox toward the "roam-and-burn city game" boom's header promises. Pulls
    sloop's drive core toward boom.
-4. **Counter-tools** — water/hose to fight fire, controllable wind — so it's build
+3. **Counter-tools** — water/hose to fight fire, controllable wind — so it's build
    *and* destroy *and* save, a fuller sandbox.
 
 ## North star

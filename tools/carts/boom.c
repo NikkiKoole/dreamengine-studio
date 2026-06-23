@@ -34,6 +34,8 @@
 //   (wooden boxes that sit until something hits them, then tumble and settle,
 //   splintering if a blast lands close or they catch fire). A ram car bowls crates
 //   over too. Set off a blast near a lot or a crate stack and it all scatters.
+//   PEDESTRIANS: little people wander the open streets, FLEE from fire and blasts,
+//   and go down (killed by a blast, by standing in fire, or run over) leaving a body.
 //
 // ── what's honest here (two layers, each doing one real job) ─────────────────
 //
@@ -204,6 +206,22 @@ static void place_crate(float x, float y) {
     }
 }
 
+// ── pedestrians: the city's little lives. They wander the open streets, FLEE
+// from fire and blasts (run away from the nearest threat), and go DOWN — killed
+// by a blast, by standing in fire, or run over by a ram car — leaving a body.
+// What turns the destruction sandbox into a scene that reacts to you.
+enum { PED_CALM, PED_FLEE, PED_DOWN };
+typedef struct {
+    float x, y, vx, vy, wx, wy;   // pos, knockback vel, heading unit-vector
+    int   panic, hdg_t, state;
+    unsigned char on, col;
+} Ped;
+#define MAXPED 40
+static Ped peds[MAXPED];
+static const int PED_CLOTHES[] = {
+    CLR_BLUE, CLR_RED, CLR_DARK_GREEN, CLR_INDIGO, CLR_DARK_PURPLE, CLR_PINK, CLR_TRUE_BLUE
+};
+
 // ── global state ───────────────────────────────────────────────────────────
 static int   mode;            // 0 = BOOM, 1 = BUILD
 static int   blast = BL_BLAST;// selected detonation archetype
@@ -352,6 +370,23 @@ static void collapse_concrete(float ox, float oy) {
         psp(px, py, frand() * 0.5f - 0.25f, -0.2f - frand() * 0.3f, PK_SMOKE,
             40 + frand() * 40, 2 + frand() * 2, 0, 0);
     }
+}
+
+// a cell a pedestrian can stand/walk on (open ground; not water, walls, or props)
+static int ped_walkable(int gx, int gy) {
+    if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) return 0;
+    int m = W[IDX(gx, gy)].mat;
+    return !(m == MAT_WATER || m == MAT_CONCRETE || m == MAT_GLASS ||
+             m == MAT_WOOD || m == MAT_CAR || m == MAT_BARREL);
+}
+
+// drop a pedestrian: a body, a little dark-red splatter (a lick of flame if fiery)
+static void ped_kill(Ped *p, int fiery) {
+    if (p->state == PED_DOWN) return;
+    p->state = PED_DOWN; p->vx = p->vy = 0; p->panic = 0;
+    for (int s = 0; s < 4; s++)
+        psp(p->x, p->y, frand() * 2 - 1, frand() * 2 - 1, PK_SPARK, 8 + frand() * 6, 1, 1, CLR_DARK_RED);
+    if (fiery) psp(p->x, p->y, 0, -0.5f, PK_FLAME, 14, 1.6f, 0.6f, 0);
 }
 
 // ── the detonation (immediate) ─────────────────────────────────────────────
@@ -564,6 +599,25 @@ static void detonate_now(float cx, float cy, int chg, int type) {
                 frand() * 0.4f - 0.2f, -0.2f - frand() * 0.4f,
                 PK_FLAME, 20 + frand() * 30, 1.5f + frand() * 2,
                 0.55f + frand() * 0.25f, 0);
+        }
+    }
+
+    // pedestrians: the close ones go down, the rest panic and flee the blast
+    // (panic fires for ANY blast — even the shockless molotov is terrifying)
+    for (int i = 0; i < MAXPED; i++) {
+        Ped *p = &peds[i];
+        if (!p->on || p->state == PED_DOWN) continue;
+        float dx = p->x - cx, dy = p->y - cy;
+        float d = sqrtf(dx * dx + dy * dy) + 0.01f;
+        if (d < R * 0.55f) {
+            ped_kill(p, 1);
+        } else if (d < R * 2.4f) {
+            p->state = PED_FLEE; p->panic = 100;
+            p->wx = dx / d; p->wy = dy / d;                // flee straight away
+            if (b->shock > 0) {                            // and get physically shoved
+                float push = (R * 2.4f - d) / (R * 2.4f) * (2.0f + chg) * b->shock;
+                p->vx += dx / d * push; p->vy += dy / d * push;
+            }
         }
     }
 }
@@ -840,6 +894,11 @@ void update(void) {
                 crate[q].spin += (frand() - 0.5f) * 0.6f;
             }
         }
+        for (int q = 0; q < MAXPED; q++) {                     // run down anyone in the way
+            if (!peds[q].on || peds[q].state == PED_DOWN) continue;
+            float ddx = peds[q].x - r->x, ddy = peds[q].y - r->y;
+            if (ddx * ddx + ddy * ddy < 36) ped_kill(&peds[q], 0);
+        }
 
         int gx = (int)(r->x / CELL), gy = (int)(r->y / CELL);
         float dtx = r->tx - r->x, dty = r->ty - r->y;
@@ -883,6 +942,37 @@ void update(void) {
             psp(cr->x, cr->y, 0, -0.3f, PK_SMOKE, 30 + frand() * 20, 2 + frand() * 2, 0, 0);
             cr->on = 0;
         }
+    }
+
+    // pedestrians: wander → flee fire/blasts → die in fire; bodies stay
+    for (int i = 0; i < MAXPED; i++) {
+        Ped *p = &peds[i];
+        if (!p->on || p->state == PED_DOWN) continue;
+        int gx = (int)(p->x / CELL), gy = (int)(p->y / CELL);
+        if (gx >= 0 && gy >= 0 && gx < GW && gy < GH && W[IDX(gx, gy)].fire > 0) { ped_kill(p, 1); continue; }
+        // sense the nearest fire within ~4 cells → run away from it
+        float nfx = 0, nfy = 0; int nfd = 999;
+        for (int oy = -4; oy <= 4; oy++)
+        for (int ox = -4; ox <= 4; ox++) {
+            int cx2 = gx + ox, cy2 = gy + oy;
+            if (cx2 < 0 || cy2 < 0 || cx2 >= GW || cy2 >= GH) continue;
+            if (W[IDX(cx2, cy2)].fire > 0) { int dd = ox*ox + oy*oy; if (dd < nfd) { nfd = dd; nfx = ox; nfy = oy; } }
+        }
+        if (nfd < 999) {
+            float l = sqrtf(nfx*nfx + nfy*nfy) + 0.01f;
+            p->wx = -nfx / l; p->wy = -nfy / l; p->state = PED_FLEE; if (p->panic < 60) p->panic = 60;
+        }
+        if (p->state == PED_CALM && --p->hdg_t <= 0) {   // pick a new stroll heading
+            float a = frand() * 6.2832f; p->wx = cosf(a); p->wy = sinf(a); p->hdg_t = 60 + rnd(120);
+        }
+        if (p->state == PED_FLEE && --p->panic <= 0) p->state = PED_CALM;
+        float spd = (p->state == PED_FLEE) ? 1.3f : 0.32f;
+        float nx = p->x + p->wx * spd + p->vx, ny = p->y + p->wy * spd + p->vy;
+        if (ped_walkable((int)nx / CELL, gy)) p->x = nx; else p->wx = -p->wx;   // bounce off walls/water
+        if (ped_walkable(gx, (int)ny / CELL)) p->y = ny; else p->wy = -p->wy;
+        p->vx *= 0.85f; p->vy *= 0.85f;                  // knockback decays
+        if (p->x < 1) p->x = 1; if (p->x > SCREEN_W - 1) p->x = SCREEN_W - 1;
+        if (p->y < 10) p->y = 10; if (p->y > SCREEN_H - 1) p->y = SCREEN_H - 1;
     }
 }
 
@@ -967,6 +1057,17 @@ void reset_world(void) {
             crate[kn++] = (Crate){ kbx[cl] + c * 7.0f, kby[cl] + r * 7.0f, 0, 0, 0, 0, 28, 1 };
     for (; kn < MAXCRATE; kn++) crate[kn].on = 0;
 
+    // pedestrians wandering the open streets (skip walls/water)
+    int pn = 0;
+    for (int tries = 0; tries < 600 && pn < 26; tries++) {
+        int gx = rnd(GW), gy = rnd(GH);
+        if (!ped_walkable(gx, gy)) continue;
+        float a = frand() * 6.2832f;
+        peds[pn++] = (Ped){ gx * CELL + 2.0f, gy * CELL + 2.0f, 0, 0, cosf(a), sinf(a),
+                            0, rnd(120), PED_CALM, 1, (unsigned char)PED_CLOTHES[rnd(7)] };
+    }
+    for (; pn < MAXPED; pn++) peds[pn].on = 0;
+
     for (int i = 0; i < MAXP; i++) ps[i].kind = PK_FREE;
     for (int i = 0; i < 12; i++) rings[i].on = 0;
     for (int i = 0; i < 8; i++) pend[i].on = 0;
@@ -1016,6 +1117,18 @@ void draw(void) {
         P *p = &ps[i];
         if (p->kind != PK_DEBRIS) continue;
         rectfill((int)p->x, (int)p->y, (int)p->size + 1, (int)p->size + 1, p->col);
+    }
+    // pedestrians — a 2px figure (body + head); a downed one is a dark-red splat
+    for (int i = 0; i < MAXPED; i++) {
+        Ped *p = &peds[i];
+        if (!p->on) continue;
+        int px = (int)p->x, py = (int)p->y;
+        if (p->state == PED_DOWN) {
+            pset(px - 1, py, CLR_DARK_RED); pset(px, py, CLR_DARK_RED); pset(px + 1, py, CLR_DARK_RED);
+        } else {
+            pset(px, py, p->col);                                       // body (clothing)
+            pset(px, py - 1, p->state == PED_FLEE ? CLR_LIGHT_PEACH : CLR_PEACH);  // head
+        }
     }
     // crates — wooden boxes (drawn under the debris so chunks land on top)
     for (int i = 0; i < MAXCRATE; i++) {

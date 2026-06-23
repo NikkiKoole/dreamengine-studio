@@ -33,6 +33,10 @@
 // you, DRIFT slides wide, SUNDAY pootles, ROOKIE wanders and spins, RUBBER catches
 // up when behind. This brain ports straight to sloop — only the line it follows
 // changes (cl[] here, road_at() in the open world later).
+// Cars also COLLIDE (resolve_collisions): overlapping bodies are pushed apart and
+// trade momentum along the contact normal, so you can shove a rival wide into a
+// corner — and get shoved. A hard hit bleeds speed and (if you're in it) clacks
+// and kicks the camera.
 //   LEFT/RIGHT steer · UP gas · DOWN brake · X drift · Z new track · R restart
 //   M: back to the setup panel.  Live standings on the right; finish for results.
 
@@ -52,6 +56,10 @@
 
 #define GRASS_DRAG 0.965f
 #define GRASS_MAX  1.8f
+
+#define CAR_R      5.0f        // car body radius for car-to-car collision (world px)
+#define BUMP_REST  0.35f       // restitution: 0 = dead thud, 1 = fully elastic bounce
+#define BUMP_BLEED 0.90f       // speed retained by both cars after a hard contact
 
 #define CAM_LEAD   16.0f
 #define CAM_LERP   0.09f
@@ -143,6 +151,7 @@ STATE {
     V2    nl[NSAMP];           // unit normals
     Car   car[NCARS];          // car[0] = player, car[1..] = AI rivals
     float camx, camy;
+    float shake;               // screen-shake impulse (decays), set on a hard player hit
     float best, last;          // player lap times
     bool  finished;            // player has completed RACE_LAPS
     int   result_place;        // player's finishing position (snapshot)
@@ -593,6 +602,41 @@ static void update_standings(void) {
     }
 }
 
+// car-to-car collision: after everyone has moved, push overlapping cars apart and
+// trade momentum along the contact normal. Equal masses, so each takes half. A
+// hard hit bleeds a little speed (and shakes/clacks if the player is in it) — you
+// can shove a rival wide into a corner, and they can do it to you.
+static void resolve_collisions(void) {
+    const float MIN = 2.0f * CAR_R;
+    for (int a = 0; a < NCARS; a++)
+        for (int b = a + 1; b < NCARS; b++) {
+            Car *A = &S->car[a], *B = &S->car[b];
+            float dx = B->px - A->px, dy = B->py - A->py;
+            float d2 = dx*dx + dy*dy;
+            if (d2 >= MIN*MIN) continue;                     // not touching
+            float d = fsqrt(d2), nx, ny;
+            if (d < 1e-3f) { nx = 1.0f; ny = 0.0f; d = 0.0f; }  // exactly stacked → pick an axis
+            else           { nx = dx/d; ny = dy/d; }
+            float pen = MIN - d;
+            A->px -= nx*pen*0.5f; A->py -= ny*pen*0.5f;      // separate (split the overlap)
+            B->px += nx*pen*0.5f; B->py += ny*pen*0.5f;
+
+            float vn = (B->vx - A->vx)*nx + (B->vy - A->vy)*ny;
+            if (vn < 0) {                                    // closing → trade momentum
+                float j = -(1.0f + BUMP_REST) * vn * 0.5f;
+                A->vx -= j*nx; A->vy -= j*ny;
+                B->vx += j*nx; B->vy += j*ny;
+                if (-vn > 0.8f) {                            // a real bump, not a graze
+                    A->spd *= BUMP_BLEED; B->spd *= BUMP_BLEED;
+                    if (a == 0 || b == 0) {                  // player involved → feel it
+                        S->shake = clamp(-vn * 1.6f, S->shake, 4.0f);
+                        hit(rnd_between(20, 28), INSTR_NOISE, 3, 90);
+                    }
+                }
+            }
+        }
+}
+
 void update(void) {
     if (S->mode == 0) { note_vol(S->eng, 0); return; }   // panel handled in draw()
     if (S->mode == 2) {                                  // race results — frozen
@@ -616,6 +660,8 @@ void update(void) {
         drive_ai(&S->car[i], i, &turn, &thr, &dr);
         step_car(&S->car[i], turn, thr, dr);
     }
+    resolve_collisions();
+    S->shake *= 0.82f;
     update_standings();
 
     S->camx = lerp(S->camx, P.px + P.vx * CAM_LEAD, CAM_LERP);
@@ -766,6 +812,10 @@ void draw(void) {
     if (S->mode == 0) { draw_setup(); return; }
 
     int ox = (int)(S->camx - SCREEN_W/2.0f), oy = (int)(S->camy - SCREEN_H/2.0f);
+    if (S->shake > 0.2f) {                               // collision kick
+        ox += (int)rnd_float_between(-S->shake, S->shake);
+        oy += (int)rnd_float_between(-S->shake, S->shake);
+    }
     camera(0, 0);
     draw_grass(ox, oy);
     camera(ox, oy);
@@ -858,5 +908,14 @@ void spec(void) {
     int seen = 0;
     for (int i = 0; i < NCARS; i++) seen |= 1 << (S->car[i].place - 1);
     expect_eq(seen, (1 << NCARS) - 1, "places form a clean 1..N ranking");
+
+    // collision: stack two cars on the same spot, step, and they must separate
+    put_all_at_start();
+    S->mode = 1;
+    S->car[1].px = S->car[2].px; S->car[1].py = S->car[2].py;
+    S->car[1].vx = S->car[1].vy = S->car[2].vx = S->car[2].vy = 0;
+    step(2);
+    float sx = S->car[1].px - S->car[2].px, sy = S->car[1].py - S->car[2].py;
+    expect(sx*sx + sy*sy > 16.0f, "collision pushes overlapping cars apart");
 }
 #endif

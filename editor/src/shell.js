@@ -14,6 +14,10 @@ let currentCartName = ''  // set when a cart is loaded; used as the game window 
 // (dock / Mission Control / browser tab). Glance up to see what you're editing.
 let currentCartFile = ''   // the cart's FILE slug (zoo, loveparade) — publish uses
                            // this, never the display title ("pixel zoo" ≠ zoo.cart.png)
+let currentCartPath = ''   // absolute on-disk ORIGIN path, only for carts loaded
+                           // from a real file (dialog / drag-drop). '' for gallery
+                           // carts + fresh carts → Cmd-S falls through to Save As.
+                           // Set this ONLY from a load/save handler's `origin`.
 function setCartName(name) {
   currentCartName = name || ''
   document.title = currentCartName ? `dreamengine — ${currentCartName}` : 'dreamengine'
@@ -411,6 +415,7 @@ window.addEventListener('message', (e) => {
   } else if (m.type === 'load-cart' && typeof m.file === 'string' && /^[\w-]+\.cart\.png$/.test(m.file)) {
     if (m.title) setCartName(m.title)
     currentCartFile = m.file.replace(/\.cart\.png$/i, '')
+    currentCartPath = ''   // gallery cart — no save-in-place origin
     loadCartFromUrl('/carts/' + m.file)   // applies the cart + switches to the code tab
   }
 })
@@ -853,7 +858,7 @@ async function buildTutorialsPanel() {
     card.appendChild(img)
     card.appendChild(info)
 
-    card.addEventListener('click', () => { setCartName(title); currentCartFile = String(file).replace(/\.cart\.png$/i, ''); loadCartFromUrl(url) })
+    card.addEventListener('click', () => { setCartName(title); currentCartFile = String(file).replace(/\.cart\.png$/i, ''); currentCartPath = ''; loadCartFromUrl(url) })
 
     grid.appendChild(card)
     const d = (cartDates && cartDates[file]) || {}
@@ -1070,7 +1075,10 @@ if (profileBtn) {
 const saveCartBtn = document.getElementById('save-cart-btn')
 const loadCartBtn = document.getElementById('load-cart-btn')
 
-saveCartBtn.addEventListener('click', async () => {
+// Save the open cart. `forceDialog` (Save As) always prompts; otherwise we
+// save-in-place when we have a real on-disk origin, else fall through to the
+// dialog (fresh / gallery carts have no origin to overwrite).
+async function saveCart(forceDialog) {
   if (!window.studio) return
   const tilemapCanvas = document.querySelector('#tilemap-canvas')
   const spritesDataUrl = tilemapCanvas ? tilemapCanvas.toDataURL('image/png') : null
@@ -1085,19 +1093,30 @@ saveCartBtn.addEventListener('click', async () => {
     screenW: settings.screenW, screenH: settings.screenH, scale: settings.scale,
     cellW: settings.cellW, cellH: settings.cellH, mapW: settings.mapW, mapH: settings.mapH,
   }
-  const saved = await window.studio.saveCart({ source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings })
+  const targetPath = (!forceDialog && currentCartPath) ? currentCartPath : undefined
+  const saved = await window.studio.saveCart({ source: view.state.doc.toString(), spritesDataUrl, mapBase64, settings: cartSettings, targetPath })
+  if (!saved || !saved.ok) {
+    if (saved && saved.error) showToast(`save failed: ${saved.error}`)
+    return
+  }
+  // remember the origin for next time (null when saved into the gallery dir)
+  currentCartPath = saved.origin || ''
   // adopt the saved filename as the cart name (shown in the window title)
-  if (saved && saved.ok && saved.filePath) {
+  if (saved.filePath) {
     const base = saved.filePath.split('/').pop().replace(/\.cart\.png$/, '').replace(/\.png$/, '')
     if (base) { setCartName(base); currentCartFile = base }
   }
-})
+  showToast(saved.inPlace ? `saved → ${currentCartFile}.cart.png` : 'cart saved')
+}
 
-// Cmd/Ctrl+S → save cart, from anywhere (capture phase, so CodeMirror doesn't eat it)
+saveCartBtn.addEventListener('click', () => saveCart(false))
+
+// Cmd/Ctrl+S → save (in-place if we have an origin); Shift adds → Save As.
+// Capture phase, so CodeMirror doesn't eat it.
 window.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
     e.preventDefault()
-    saveCartBtn.click()
+    saveCart(e.shiftKey)
   }
   // Cmd/Ctrl+F → find-in-docs, but only while the Docs tab is showing
   if ((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F') && helpPanel.classList.contains('active')) {
@@ -1139,7 +1158,7 @@ function applyCart(cart) {
 loadCartBtn.addEventListener('click', async () => {
   if (!window.studio) return
   const cart = await window.studio.loadCart()
-  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } applyCart(cart) }
+  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } currentCartPath = cart.origin || ''; applyCart(cart) }
 })
 
 // ── build for web ─────────────────────────────────────────────
@@ -1222,7 +1241,7 @@ document.addEventListener('drop', async e => {
   if (!file || !file.name.endsWith('.png')) return
   const filePath = window.studio.getFilePath(file)
   const cart = await window.studio.loadCartFile(filePath)
-  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } applyCart(cart) }
+  if (cart && cart.ok) { if (cart.name) { setCartName(cart.name); currentCartFile = cart.name } currentCartPath = cart.origin || ''; applyCart(cart) }
 })
 
 let hideTimer = null
@@ -1506,6 +1525,7 @@ window.addEventListener('load', () => {
   } else {
     setCartName('pixel zoo')
     currentCartFile = 'zoo'
+    currentCartPath = ''   // default gallery cart — no save-in-place origin
     loadCartFromUrl('/carts/zoo.cart.png').catch(() => {})
   }
 })

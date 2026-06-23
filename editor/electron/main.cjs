@@ -48,7 +48,15 @@ function embedCartChunks(pngBuf, data) {
     const type = pngBuf.slice(offset + 4, offset + 8).toString('ascii')
     const chunk = pngBuf.slice(offset, offset + 12 + len)
     if (type === 'IEND') { iend = chunk; break }
-    parts.push(chunk)
+    // skip any pre-existing de:* zTXt chunks so a re-embed (save-in-place onto
+    // an existing cart PNG) replaces them instead of appending duplicates
+    let isDeChunk = false
+    if (type === 'zTXt') {
+      const body = pngBuf.slice(offset + 8, offset + 8 + len)
+      const nullIdx = body.indexOf(0)
+      if (nullIdx !== -1 && body.slice(0, nullIdx).toString('latin1').startsWith('de:')) isDeChunk = true
+    }
+    if (!isDeChunk) parts.push(chunk)
     offset += 12 + len
   }
   for (const [key, val] of Object.entries(data)) parts.push(makeZtxtChunk(`de:${key}`, val))
@@ -86,6 +94,14 @@ function parseCartSettings(raw) {
 
 const RUNTIME_DIR = path.join(__dirname, '../../runtime')
 const BUILD_DIR   = path.join(__dirname, '../../build')
+// the shared gallery registry directory — carts loaded from here have NO
+// save-in-place origin (they're build products of tools/carts/ AND the
+// multi-agent-hazard registry the editor never writes; see CLAUDE.md hazard #2)
+const GALLERY_DIR = path.join(__dirname, '../public/carts')
+function inGallery(p) {
+  const rel = path.relative(GALLERY_DIR, path.resolve(p))
+  return rel && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
 const RAYLIB      = fs.existsSync('/opt/homebrew/opt/raylib') ? '/opt/homebrew/opt/raylib' : '/usr/local/opt/raylib'
 const RAYLIB_WIN  = fs.existsSync('/opt/homebrew/opt/raylib-win64/raylib-5.5_win64_mingw-w64')
   ? '/opt/homebrew/opt/raylib-win64/raylib-5.5_win64_mingw-w64'
@@ -579,27 +595,39 @@ app.on('window-all-closed', () => {
 
 
 // ── cart save ─────────────────────────────────────────────────
-ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64, settings }) => {
-  const { filePath } = await dialog.showSaveDialog({
-    title: 'Save Cart',
-    defaultPath: 'mycart.cart.png',
-    filters: [{ name: 'Dreamengine Cart', extensions: ['png'] }],
-  })
-  if (!filePath) return { ok: false }
-
-  const screenshotPng = path.join(BUILD_DIR, 'screenshot.png')
-  const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
-  const basePng = fs.existsSync(screenshotPng)
-    ? fs.readFileSync(screenshotPng)
-    : fs.existsSync(spritesPng)
-      ? fs.readFileSync(spritesPng)
-      : Buffer.from(spritesDataUrl.replace(/^data:image\/png;base64,/, ''), 'base64')
+// `targetPath` set → save-in-place (no dialog, keep the origin's baked
+// thumbnail); absent → Save As (dialog, fresh thumbnail from the last run).
+ipcMain.handle('cart:save', async (_event, { source, spritesDataUrl, mapBase64, settings, targetPath }) => {
+  let filePath = targetPath
+  let basePng
+  if (filePath) {
+    // save-in-place: re-embed chunks onto the EXISTING file, preserving its
+    // visible (baked) thumbnail — a quick text edit must not swap the screenshot
+    if (!fs.existsSync(filePath)) return { ok: false, error: 'origin file is gone' }
+    basePng = fs.readFileSync(filePath)
+  } else {
+    const res = await dialog.showSaveDialog({
+      title: 'Save Cart As',
+      defaultPath: 'mycart.cart.png',
+      filters: [{ name: 'Dreamengine Cart', extensions: ['png'] }],
+    })
+    if (!res.filePath) return { ok: false }
+    filePath = res.filePath
+    const screenshotPng = path.join(BUILD_DIR, 'screenshot.png')
+    const spritesPng    = path.join(BUILD_DIR, 'sprites.png')
+    basePng = fs.existsSync(screenshotPng)
+      ? fs.readFileSync(screenshotPng)
+      : fs.existsSync(spritesPng)
+        ? fs.readFileSync(spritesPng)
+        : Buffer.from(spritesDataUrl.replace(/^data:image\/png;base64,/, ''), 'base64')
+  }
 
   const chunkData = { source, sprites: spritesDataUrl, map: mapBase64 }
   if (settings) chunkData.settings = JSON.stringify(settings)
   const cartPng = embedCartChunks(basePng, chunkData)
   fs.writeFileSync(filePath, cartPng)
-  return { ok: true, filePath }
+  // a Save As into the gallery dir still confers no in-place origin
+  return { ok: true, filePath, origin: inGallery(filePath) ? null : filePath, inPlace: !!targetPath }
 })
 
 // ── cart load ─────────────────────────────────────────────────
@@ -614,7 +642,7 @@ ipcMain.handle('cart:load', async () => {
   const chunks = extractCartChunks(fs.readFileSync(filePaths[0]))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
   const name = path.basename(filePaths[0]).replace(/\.cart\.png$/i, '')
-  return { ok: true, name, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
+  return { ok: true, name, origin: inGallery(filePaths[0]) ? null : filePaths[0], source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
 })
 
 ipcMain.handle('cart:load-buffer', async (_event, bytes) => {
@@ -627,7 +655,7 @@ ipcMain.handle('cart:load-file', async (_event, filePath) => {
   const chunks = extractCartChunks(fs.readFileSync(filePath))
   if (!chunks.source) return { ok: false, error: 'Not a dreamengine cart' }
   const name = path.basename(filePath).replace(/\.cart\.png$/i, '')
-  return { ok: true, name, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
+  return { ok: true, name, origin: inGallery(filePath) ? null : filePath, source: chunks.source, spritesDataUrl: chunks.sprites || null, mapBase64: chunks.map || null, settings: parseCartSettings(chunks.settings) }
 })
 
 // ── sprites handler ───────────────────────────────────────────

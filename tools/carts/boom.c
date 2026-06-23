@@ -153,7 +153,7 @@ static Pending pend[8];
 static int   mode;            // 0 = BOOM, 1 = BUILD
 static int   blast = BL_BLAST;// selected detonation archetype
 static int   brush = MAT_WOOD;
-static int   charge = 3;      // 1..5
+static int   charge = 1;      // 1..5 (starts small; wheel up)
 static float windx, windy;    // current wind vector
 static float wtx, wty;        // wind target (lerped toward)
 static int   wind_t;
@@ -190,12 +190,17 @@ static void ignite(int gx, int gy) {
     c->fire = MIN_SPREAD;
 }
 
+// blast radius in cells before the per-archetype scale — charge 1 is small and
+// punchy, climbing to a city-block crater at charge 5. (debris COUNT below keeps
+// its own chg curve; this is only the footprint.)
+#define BASE_RADC(c) (2 + (c) * 2)
+
 // ── the detonation (immediate) ─────────────────────────────────────────────
 static void detonate_now(float cx, float cy, int chg, int type) {
     const BlastSpec *b = &BSPEC[type];
     if (chg < 1) chg = 1;
-    float R    = (4 + chg * 4) * CELL * b->rad;       // effect radius in pixels
-    int   radc = (int)((4 + chg * 4) * b->rad);        // and in cells
+    float R    = BASE_RADC(chg) * CELL * b->rad;       // effect radius in pixels
+    int   radc = (int)(BASE_RADC(chg) * b->rad);        // and in cells
     if (radc < 1) radc = 1;
 
     shake((2.0f + chg * 2.2f) * b->shake);
@@ -724,7 +729,7 @@ void draw(void) {
     // cursor: blast radius (BOOM) or brush footprint (BUILD)
     int mx = mouse_x(), my = mouse_y();
     if (mode == 0) {
-        int R = (int)((4 + charge * 4) * CELL * BSPEC[blast].rad);
+        int R = (int)(BASE_RADC(charge) * CELL * BSPEC[blast].rad);
         int col = blast == BL_MOLOTOV ? CLR_ORANGE : blast == BL_GASMAIN ? CLR_YELLOW : CLR_RED;
         circ(mx, my, R, col);
         circ(mx, my, 2, CLR_WHITE);

@@ -124,6 +124,7 @@ docs/
 
 | Genre | File(s) | Changes… | Never holds |
 |---|---|---|---|
+| **Rules + pointers** | `../CLAUDE.md` | when a rule or tool changes | reference prose or runbooks (→ docs/ + file headers) |
 | **Why/what** | `VISION.md` | rarely (direction shifts) | a roadmap or status (→ STATUS) |
 | **State** | `STATUS.md` | constantly | design rationale (→ design/ or decisions/) |
 | **Work list** | `POLISH_TODO.md` | as carts get polished | engine/API status (→ STATUS) |
@@ -139,6 +140,15 @@ prose — link to those. (This is why the old "~100 functions" counts kept going
 
 ## When you change something
 
+This mirrors **`CLAUDE.md` → "Making new things discoverable"**: each new thing goes to its
+*home* and gets a one-line pointer from the index — `CLAUDE.md` itself stays rules + pointers,
+never reference prose.
+
+- New **CLI tool** (`tools/x.js`)? → full contract in the file's **header comment**, plus ONE line
+  in `CLAUDE.md`'s tools list. Tools are **not** documented in `docs/` — the header is the source
+  of truth.
+- New **design / idea**? → a `design/*.md` file, linked from this README's layout tree (a one-line
+  blurb). Don't append it to a grown doc; a one-line pointer here is the index.
 - Shipped / cut / deferred a feature? → update **`STATUS.md`**, then the relevant design note.
 - A choice is now *settled* (especially a "no")? → write a **`decisions/`** ADR-lite and link to it.
 - Proposing new API? → **`design/api-notes.md`** (sound → **`design/audio-notes.md`**).

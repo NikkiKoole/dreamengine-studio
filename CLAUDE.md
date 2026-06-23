@@ -11,9 +11,9 @@ right home and linking from the index — NOT by expanding this file.** CLAUDE.m
 one-line pointers only*; it loads into every conversation, so prose here is the most expensive place
 to put anything.
 
-- **Tool** (`tools/x.js`) → full contract in the file's header comment; add ONE line to the tools
-  list below + `docs/README.md`.
-- **Design / idea** → `docs/design/<topic>.md`, linked from `docs/README.md`.
+- **Tool** (`tools/x.js`) → full contract in the file's header comment + ONE line in the tools list
+  below (the header is the source of truth; tools aren't documented in `docs/`).
+- **Design / idea** → `docs/design/<topic>.md`, linked from `docs/README.md`'s layout tree.
 - **Decision** ("why we did/didn't X") → an ADR in `docs/decisions/`.
 - **Shipped / open / cut** → the `docs/STATUS.md` ledger.
 - **How-to / workflow** → `docs/guides/*.md`.

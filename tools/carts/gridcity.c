@@ -32,7 +32,8 @@
 // downtown can finally reach the high end (centre-proximity alone capped it before).
 //
 //   LEFT-drag   paint the current brush      RIGHT-drag  erase to land
-//   R C I       zone Residential/Commercial/Industrial
+//   R C I       zone Residential/Commercial/Industrial (D toggles light↔dense zoning:
+//               light caps low = suburbs, dense rises tall = downtown)
 //   O road  W water  P police  G park  S school  H hospital  E erase
 //   1..7        overlay: City / Land value / Crime / Police / Density / Pollution / Services
 //   SPACE       reseed the sample city
@@ -54,6 +55,7 @@ enum { V_CITY, V_LANDVAL, V_CRIME, V_POLICE, V_DENSITY, V_POLLUTION, V_SERVICES,
 // ── state ──
 static int  kind[MAXC];
 static int  level[MAXC];      // development level of a zoned cell: 0 = empty lot … LMAX = full
+static int  zdense[MAXC];     // zoning density: 0 = light (caps low, suburbs), 1 = dense (allows tall)
 static int  landvalue[MAXC], crime[MAXC], police[MAXC], popden[MAXC], pollution[MAXC];
 static int  school[MAXC], health[MAXC];   // education / health coverage (spread from schools/hospitals)
 static int  terrainv[MAXC];   // static water-proximity value (recomputed on edit)
@@ -63,6 +65,7 @@ static int  roadacc[MAXC];    // static road-access field — a service radius, 
 static int  tmp[MAXC];
 static int  view = V_CITY;
 static int  brush = K_R;
+static int  brush_dense = 0;  // paint zones as dense (D toggles) — only meaningful for R/C/I
 static long ticks = 0;        // sim ticks since reseed
 static int  fcount = 0;
 static int  demR, demC, demI; // global RCI demand meter (drives growth/decline)
@@ -75,7 +78,8 @@ static int  growth_on = 1;    // gate the develop/abandon pass (spec freezes it 
 #define CP_MAX   100          // land value from being near the city centre
 #define CP_FALL    1          // gentle falloff so the whole map is buildable (crime/pollution make the variation)
 #define CRIME_BASE 30
-#define LMAX        4         // max development level
+#define LMAX        4         // max development level (dense zoning)
+#define LIGHT_CAP   2         // light zoning tops out here (suburbs / low-rise)
 #define GROW_EVERY  4         // sim ticks between growth/decline passes
 #define GROW_THRESH 30        // desirability a lot needs (above) to build up
 #define DECL_THRESH 10        // …and (below) to start emptying out
@@ -240,7 +244,8 @@ static void sim_step(void){
             int dem = kind[i]==K_R?demR : kind[i]==K_C?demC : demI;
             int des = landvalue[i] - crime[i]/2 - pollution[i]/4;
             int served = roadacc[i]>40;
-            if(served && dem>DEM_DEAD && des>GROW_THRESH){ if(level[i]<LMAX) level[i]++; }
+            int cap = zdense[i] ? LMAX : LIGHT_CAP;   // light zoning tops out low
+            if(served && dem>DEM_DEAD && des>GROW_THRESH){ if(level[i]<cap) level[i]++; }
             else if(!served || dem<-DEM_DEAD || des<DECL_THRESH){ if(level[i]>0) level[i]--; }
         }
     }
@@ -251,6 +256,7 @@ static void sim_step(void){
 static void seed_city(void){
     memset(kind,0,sizeof kind);
     memset(level,0,sizeof level);
+    memset(zdense,0,sizeof zdense);
     memset(landvalue,0,sizeof landvalue);
     memset(crime,0,sizeof crime);
     memset(police,0,sizeof police);
@@ -274,6 +280,9 @@ static void seed_city(void){
         if(x>=22 && x<=40 && y>=14 && y<=30)      kind[i]=K_C;   // downtown
         else if(x>=44 && y<=28)                    kind[i]=K_I;  // industrial quarter
         else                                       kind[i]=K_R;  // residential
+        // dense zoning in the inner city (rises tall); light suburbs on the outskirts
+        int dx=x-32, dy=y-24;
+        zdense[i] = ((dx<0?-dx:dx) <= 14 && (dy<0?-dy:dy) <= 11);
     }
 
     // civic buildings — parks lift value, schools/hospitals add coverage + EQ/LE,
@@ -298,9 +307,11 @@ static void paint_at(int mx,int my,int k){
     int x=(mx-OX)/TS, y=(my-OY)/TS;
     if(x<0||x>=GW||y<0||y>=GH) return;
     int i=idx(x,y);
-    if(kind[i]==k) return;
+    int redense = is_zone(k) && kind[i]==k && zdense[i]!=brush_dense;  // re-zone same tile light↔dense
+    if(kind[i]==k && !redense) return;
     kind[i]=k;
-    level[i]=0;            // a freshly painted lot starts empty; it grows on its own
+    level[i]=0;                              // a freshly painted lot starts empty; it grows on its own
+    zdense[i] = is_zone(k) ? brush_dense : 0;
     recompute_static();    // cheap; keep terrain + road-access fields fresh
 }
 
@@ -310,6 +321,7 @@ void update(void){
     if(keyp('O')) brush=K_ROAD;if(keyp('W')) brush=K_WATER;if(keyp('P')) brush=K_POLICE;
     if(keyp('G')) brush=K_PARK;if(keyp('S')) brush=K_SCHOOL;if(keyp('H')) brush=K_HOSPITAL;
     if(keyp('E')) brush=K_LAND;
+    if(keyp('D')) brush_dense=!brush_dense;   // toggle light/dense zoning for the zone brushes
     // overlay select
     if(keyp('1')) view=V_CITY;    if(keyp('2')) view=V_LANDVAL; if(keyp('3')) view=V_CRIME;
     if(keyp('4')) view=V_POLICE;  if(keyp('5')) view=V_DENSITY; if(keyp('6')) view=V_POLLUTION;
@@ -331,6 +343,19 @@ static const int RAMP_PL[6] = {CLR_BLACK, CLR_DARKER_PURPLE, CLR_DARK_PURPLE, CL
 static const int RAMP_SV[6] = {CLR_BLACK, CLR_DARKER_GREY, CLR_BLUE_GREEN, CLR_MEDIUM_GREEN, CLR_LIME_GREEN, CLR_WHITE};
 
 static int ramp(const int *r,int v){ int s=v*6/251; if(s<0)s=0; if(s>5)s=5; return r[s]; }
+
+// a zone cell's colour in city view: empty lot is dim; a built lot brightens with its
+// development level, so you can read the city's "height" (and dense vs light) at a glance
+static int zone_shade(int k, int lv){
+    if(lv<=0) return CLR_DARKER_GREY;            // empty lot
+    int hi = lv>=3;                              // tall (only dense zoning reaches here)
+    switch(k){
+        case K_R: return hi?CLR_GREEN  : CLR_DARK_GREEN;
+        case K_C: return hi?CLR_BLUE   : CLR_TRUE_BLUE;
+        case K_I: return hi?CLR_YELLOW : CLR_DARK_ORANGE;
+    }
+    return CLR_DARK_GREEN;
+}
 
 static int city_color(int k){
     switch(k){
@@ -355,8 +380,7 @@ void draw(void){
     for(int y=0;y<GH;y++) for(int x=0;x<GW;x++){
         int i=idx(x,y), col;
         if(view==V_CITY){
-            col=city_color(kind[i]);
-            if(is_zone(kind[i]) && level[i]==0) col=CLR_DARKER_GREY;  // unbuilt empty lot
+            col = is_zone(kind[i]) ? zone_shade(kind[i], level[i]) : city_color(kind[i]);
         }
         else if(kind[i]==K_WATER) col=CLR_DARKER_BLUE;
         else switch(view){
@@ -382,7 +406,8 @@ void draw(void){
     for(int v=0;v<V_COUNT;v++){ print(VNAME[v], HUDX, hy, v==view?CLR_WHITE:CLR_DARK_GREY); hy+=8; }
     hy+=4;
     print("BRUSH", HUDX, hy, CLR_DARK_GREY); hy+=8;
-    print(str("> %s", BNAME[brush]), HUDX, hy, CLR_YELLOW); hy+=10;
+    print(str("> %s%s", BNAME[brush], (is_zone(brush)&&brush_dense)?" (dense)":""),
+          HUDX, hy, CLR_YELLOW); hy+=10;
     // legend ramp for the active data overlay
     if(view!=V_CITY){
         const int *r = view==V_LANDVAL?RAMP_LV : view==V_CRIME?RAMP_CR : view==V_POLICE?RAMP_PO
@@ -412,7 +437,7 @@ void draw(void){
     print(str("ticks %ld", ticks), HUDX, hy, CLR_LIGHT_GREY);
 
     // bottom help
-    print("RCI/O/W/P/G park/S school/H hosp/E erase   1-7 view   SPACE reseed",
+    print("RCI/O/W/P/G/S/H/E brush  D light<>dense  1-7 view  SPACE reseed",
           OX, OY+GH*TS+4, CLR_DARK_GREY);
 }
 
@@ -539,5 +564,24 @@ void spec(void){
     expect(landvalue[idx(15,15)] > lv0, "parks + service coverage raise land value");
     expect(eduQ  > eq0, "a school raises the Education Quotient");
     expect(lifeE > le0, "a hospital raises Life Expectancy");
+
+    // ── zoning: two identical served R blocks (jobs nearby), one LIGHT one DENSE.
+    //    Light tops out at LIGHT_CAP; dense rises taller. ──
+    memset(kind,0,sizeof kind); memset(level,0,sizeof level);
+    memset(zdense,0,sizeof zdense); memset(crime,0,sizeof crime);
+    growth_on=1;
+    for(int y=20;y<28;y++) for(int x=28;x<36;x++) kind[idx(x,y)]=K_I;          // jobs, downtown
+    for(int y=20;y<26;y++) for(int x=10;x<16;x++){ kind[idx(x,y)]=K_R; zdense[idx(x,y)]=0; } // LIGHT
+    for(int y=20;y<26;y++) for(int x=48;x<54;x++){ kind[idx(x,y)]=K_R; zdense[idx(x,y)]=1; } // DENSE
+    for(int x=9;x<55;x++){ kind[idx(x,19)]=K_ROAD; kind[idx(x,23)]=K_ROAD; kind[idx(x,27)]=K_ROAD; }
+    for(int y=19;y<28;y++) for(int x=9;x<55;x+=4) kind[idx(x,y)]=K_ROAD;
+    recompute_static();
+    step(80*TICK_EVERY);
+    int maxL=0,maxD=0;
+    for(int y=20;y<26;y++) for(int x=10;x<16;x++){ int v=level[idx(x,y)]; if(v>maxL)maxL=v; }
+    for(int y=20;y<26;y++) for(int x=48;x<54;x++){ int v=level[idx(x,y)]; if(v>maxD)maxD=v; }
+    expect(1, str("DBG zoning: light max=%d  dense max=%d  (LIGHT_CAP=%d)", maxL, maxD, LIGHT_CAP));
+    expect(maxL <= LIGHT_CAP, "light zoning caps development low");
+    expect(maxD >  LIGHT_CAP, "dense zoning lets development rise taller");
 }
 #endif

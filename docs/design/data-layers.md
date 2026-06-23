@@ -182,9 +182,19 @@ Tuning found: `CP_MAX 100`, `CRIME_BASE 30`, police `spread(14, 18)`. Constants 
   out in a real city it grades nicely (verified: land-value overlay now ranges green↔red).
 
 ### v2 — full
-Remaining after the services phase pulled education/health/EQ/LE forward: densities
-(light/dense zoning), power grid flood, water pipes, traffic (trip generation along roads —
-the one non-blur layer), and **fire** coverage (+ fire spread the coverage suppresses).
+- ✅ **Light/dense zoning** (2026-06-23): each zoned cell carries a density (`D` toggles the
+  brush light↔dense). Light caps development at `LIGHT_CAP` (2 = suburbs/low-rise); dense
+  allows up to `LMAX` (4 = downtown towers). The growth valve respects the per-cell cap.
+  City view now shades zones by development level, so the skyline is legible (dim suburbs →
+  bright tall core). Seed: dense inner city, light outskirts. `spec()` (20): two identical
+  served blocks, light tops out at 2, dense rises past it.
+- ⬜ **Traffic** — deterministic trip generation: each developed zone BFS-walks the road
+  network to the nearest *compatible* zone within a step budget and deposits traffic on the
+  path; aggregate = a road-traffic field that adds to pollution, lowers land value, and
+  (when congested) caps growth. The one layer needing road *connectivity*, not a blur.
+- ⬜ **Power grid** — boolean flood-fill from plants along conductive tiles; unpowered zones
+  can't develop (gates growth like roads do). Clean next piece.
+- ⬜ **Water pipes**, and **fire** coverage (+ fire spread the coverage suppresses).
 
 ### Open questions to resolve while building
 - Field resolution: full-res vs Micropolis-style half/quarter — decide by profiling, not upfront.

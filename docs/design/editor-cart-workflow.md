@@ -133,3 +133,21 @@ feasible, not needed).
 | 4 | Metadata form → paste-ready index.json entry | M | none (no registry writes) |
 | 5 | Pixels→`.cart.js` exporter (option A, hand-drawn carts) | M | low |
 | 6 | `de:meta` self-describing carts + generated index | L | the transition |
+
+## Implementation status (as of 2026-06-23)
+
+Verified against the code; nothing here has fully shipped, and the one piece of
+movement is mis-wired.
+
+| # | Fix | Status | Evidence |
+|---|---|---|---|
+| 1 | Save-in-place + Cmd-S | **Partial** | Cmd-S is bound (`editor/src/shell.js` ~line 1096, capture-phase → `saveCartBtn.click()`) and `currentCartFile` is tracked (`shell.js` line 15, populated on load) — but `cart:save` (`editor/electron/main.cjs` ~line 582) still *unconditionally* opens `dialog.showSaveDialog` with `defaultPath: 'mycart.cart.png'`. No origin-path save-back, no gallery-cart guard. Net effect: Cmd-S just triggers the old "Save As" dialog. |
+| 2 | Full-description detail view | **Not started** | Description is plain `textContent` (`shell.js` ~line 848) clamped to 3 lines (`shell.css` ~line 1240, `-webkit-line-clamp: 3`); clicking a card loads it directly — no ⓘ / overlay / expand. |
+| 3 | Sprite ownership marker (`spriteSource`) | **Not started** | Zero occurrences of `spriteSource` anywhere; `make-cart.js` has no editor-vs-generator branch; no sprite-tab warning. |
+| 4 | Metadata form → paste-ready JSON | **Not started** | No cart-info form; no clipboard/build-log export of an `index.json` entry. (The sfx editor's "export as C" is the pattern this would copy, but it's unbuilt for metadata.) |
+| 5 | Pixels→`.cart.js` exporter (option A) | **Not started** | No `--extract-sprites` flag in `make-cart.js`, no editor export button. `saveSprites()` only writes the PNG sheet to `build/` for compilation. |
+| 6 | `de:meta` chunk + generated index | **Not started** | No `de:meta` chunk anywhere; `make-cart.js` still embeds only `de:source`/`de:sprites`/`de:map`/`de:settings`; `lint-carts.js` has no `--regen`. |
+
+**Cheapest wins still open:** fix #1 properly (make Cmd-S save back to the
+origin path, gallery carts excluded) and slice 1 of #2 (the read-it-all detail
+view — the doc above calls this *"honestly half of the pain"*, zero-risk).

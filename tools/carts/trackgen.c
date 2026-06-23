@@ -772,13 +772,22 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
     } else if (s < ssafe * 1.8f && v >= v0) {
         thr = -0.1f;
     }
-    if (c->spd <= 0.05f && thr < 0.0f) thr = 0.0f;       // brake to a STOP, never reverse
 
     // REACTION LAG: act on the command from REACT_N frames ago. This delay is what
     // makes dense following UNSTABLE — tiny gaps amplify backward into phantom jams.
     c->thist[c->thead % REACT_N] = thr;
     c->thead++;
-    *out_thr   = c->thist[c->thead % REACT_N];           // oldest entry = REACT_N frames old
+    float out = c->thist[c->thead % REACT_N];            // oldest entry = REACT_N frames old
+
+    // NEVER REVERSE. The clamp must use the speed RIGHT NOW (not when the command was
+    // decided), or a stale brake from before the car stopped would back it up — the
+    // light/queue oscillation. Allow braking only down to a dead stop this frame.
+    if (out < 0.0f) {
+        float min_thr = -c->spd / BRAKE;                 // brake that lands exactly at spd 0
+        if (out < min_thr) out = min_thr;
+    }
+
+    *out_thr   = out;
     *out_turn  = turn;
     *out_drift = false;
 }
@@ -1217,13 +1226,15 @@ void spec(void) {
     S->mode = 1;
     S->light_red = true; S->light_t = 0;     // force red (red phase = 200f; we step < that)
     step(180);
-    int queued = 0;
+    int queued = 0; float worst = 1e9f;
     for (int i = 0; i < S->ncars; i++) {
         int d = (S->light - S->car[i].prog + NSAMP) % NSAMP;   // samples until the light
         float v = S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd;
         if (d < 16 && v < 0.4f) queued++;     // stopped, just short of the line
+        if (S->car[i].spd < worst) worst = S->car[i].spd;
     }
     expect(queued >= 1, "traffic light: a red builds a queue of stopped cars");
+    expect(worst > -0.05f, "no reversing: cars stop at the light, never roll backward");
 
     // ── phantom jam: density + reaction lag → stop-and-go (speeds spread out), not
     //    a uniform convoy. Measure the speed spread across the fleet after settling. ──

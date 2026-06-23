@@ -10,17 +10,23 @@
 //          fire crawl, chain, and smoke on the wind.
 //
 //   MODES (TAB toggles)
-//     BOOM    pick a blast with 1-5; click anywhere (or SPACE) → detonate.
+//     BOOM    pick a blast with 1-6; click anywhere (or SPACE) → detonate.
 //             mouse WHEEL = charge size.
 //                1 BLAST    the all-rounder: shockwave, fireball, crater
 //                2 GRENADE  small + sharp, all shrapnel, tiny fireball
 //                3 MOLOTOV  no shockwave — a flame splash that paints fire
 //                4 CAR BOMB medium, debris-heavy, throws chunks far
 //                5 GAS MAIN a hiss, then a column of fire ERUPTS upward
+//                6 RAM CAR  a car screams in from off-screen at your click and
+//                           crashes (car-bomb) into the first wall it meets
 //     BUILD   click / drag to paint the world. 1-0 pick a material;
 //             T = torch: light a fire by hand.
 //
 //   ALWAYS    C clear all fire & smoke      R reset the scene
+//
+//   DESTRUCTIBLE WALLS: a blast knocks concrete/glass/wood cells loose as real
+//   physics blocks that fly, tumble, slide to rest, and settle back into rubble
+//   (the prototype of sloop's deferred per-tile demolition rung).
 //
 // ── what's honest here (two layers, each doing one real job) ─────────────────
 //
@@ -165,6 +171,13 @@ typedef struct {
 static Block blk[MAXBLK];
 static int blkcur = 0;
 
+// ── ram car: a kamikaze vehicle that screams in from off-screen at the click,
+// crashes into the first wall (or the target) and goes up as a car bomb. Not a
+// car SIM — a directed projectile with a heading, dust, and an impact. ─────────
+typedef struct { float x, y, vx, vy, tx, ty; int chg; unsigned char on, col; } Ramcar;
+#define MAXCAR 4
+static Ramcar rcar[MAXCAR];
+
 // ── global state ───────────────────────────────────────────────────────────
 static int   mode;            // 0 = BOOM, 1 = BUILD
 static int   blast = BL_BLAST;// selected detonation archetype
@@ -226,6 +239,35 @@ static void eject_block(float x, float y, float ox, float oy, int col, int mat) 
             return;
         }
     }
+}
+
+// the ram car is selectable as a 6th BOOM "blast" past the real archetypes
+#define RAMCAR BL_KINDS
+
+// launch a car from the far horizontal edge, aimed straight at (tx,ty) — it
+// crosses the screen so it reads as "screaming in", then crashes on arrival.
+static void launch_car(float tx, float ty, int chg) {
+    for (int i = 0; i < MAXCAR; i++) if (!rcar[i].on) {
+        // come from the NEAR horizontal edge so it converges on the click (and
+        // crashes into the wall THERE, not one it meets crossing the whole map)
+        float sx = (tx < SCREEN_W * 0.5f) ? -8.0f : SCREEN_W + 8.0f;
+        float sy = ty + (frand() - 0.5f) * 8.0f;
+        float dx = tx - sx, dy = ty - sy;
+        float d  = sqrtf(dx * dx + dy * dy) + 0.01f;
+        float spd = 4.5f + chg * 0.4f;
+        rcar[i] = (Ramcar){ sx, sy, dx / d * spd, dy / d * spd, tx, ty, chg, 1,
+                            (unsigned char)(frand() < 0.5f ? CLR_TRUE_BLUE : CLR_RED) };
+        hit(58, INSTR_NOISE, 32, 240);   // tyre screech as it launches
+        return;
+    }
+}
+
+// is this cell something a speeding car would crash INTO (a wall/prop, not road)?
+static int car_blocks(int gx, int gy) {
+    if (gx < 0 || gy < 0 || gx >= GW || gy >= GH) return 0;
+    int m = W[IDX(gx, gy)].mat;
+    return m == MAT_CONCRETE || m == MAT_GLASS || m == MAT_WOOD ||
+           m == MAT_CAR || m == MAT_BARREL || m == MAT_RUBBLE;
 }
 
 // blast radius in cells before the per-archetype scale — charge 1 is small and
@@ -522,9 +564,10 @@ void update(void) {
         for (int i = 0; i < 12; i++) rings[i].on = 0;
         for (int i = 0; i < 8; i++) pend[i].on = 0;
         for (int i = 0; i < MAXBLK; i++) blk[i].on = 0;
+        for (int i = 0; i < MAXCAR; i++) rcar[i].on = 0;
     }
     if (mode == 0) {                                          // BOOM: pick blast
-        for (int i = 0; i < BL_KINDS; i++) if (keyp('1' + i)) blast = i;
+        for (int i = 0; i <= BL_KINDS; i++) if (keyp('1' + i)) blast = i;  // 6 = ram car
     } else {                                                  // BUILD: pick brush
         for (int i = 0; i < 9; i++) if (keyp('1' + i)) brush = BRUSH_MAT[i];
         if (keyp('0')) brush = BRUSH_MAT[9];
@@ -536,7 +579,10 @@ void update(void) {
 
     int mx = mouse_x(), my = mouse_y();
     if (mode == 0) {                                  // BOOM
-        if (mouse_pressed(0) || keyp(KEY_SPACE)) detonate(mx, my, charge, blast);
+        if (mouse_pressed(0) || keyp(KEY_SPACE)) {
+            if (blast == RAMCAR) launch_car(mx, my, charge);
+            else                 detonate(mx, my, charge, blast);
+        }
     } else {                                          // BUILD
         if (mouse_down(0)) {
             int gx = mx / CELL, gy = my / CELL;
@@ -657,6 +703,37 @@ void update(void) {
             }
         } else bk->settle = 0;
     }
+
+    // ram cars: drive toward the target, trail dust + sparks, crash on contact
+    for (int i = 0; i < MAXCAR; i++) {
+        Ramcar *r = &rcar[i];
+        if (!r->on) continue;
+        r->x += r->vx; r->y += r->vy;
+        // tyre dust + friction sparks streaming off the back
+        float bx = r->x - r->vx, by = r->y - r->vy;
+        psp(bx, by, -r->vx * 0.1f + frand() * 0.3f - 0.15f, -r->vy * 0.1f - 0.2f,
+            PK_SMOKE, 18 + frand() * 16, 1.5f + frand() * 1.5f, 0, 0);
+        if ((int)(frand() * 100) < 40)
+            psp(bx, by, -r->vx * 0.2f, -r->vy * 0.2f, PK_SPARK,
+                6 + frand() * 6, 1, 1, CLR_LIGHT_YELLOW);
+
+        int gx = (int)(r->x / CELL), gy = (int)(r->y / CELL);
+        float dtx = r->tx - r->x, dty = r->ty - r->y;
+        int reached = (dtx * r->vx + dty * r->vy) <= 0;        // passed the target point
+        int offmap  = r->x < -12 || r->x > SCREEN_W + 12 || r->y < -12 || r->y > SCREEN_H + 12;
+        if (car_blocks(gx, gy) || reached) {                   // CRASH
+            hit(34, INSTR_NOISE, 70, 90);                      // metal bang
+            detonate_now(r->x, r->y, r->chg + 1, BL_CARBOMB);
+            // a forward spray of wreckage in the travel direction
+            float d = sqrtf(r->vx * r->vx + r->vy * r->vy) + 0.01f;
+            for (int s = 0; s < 6; s++)
+                psp(r->x, r->y, r->vx / d * (1 + frand() * 2) + frand() - 0.5f,
+                    r->vy / d * (1 + frand() * 2) + frand() - 0.5f, PK_DEBRIS,
+                    20 + frand() * 20, 1 + frand() * 2, 0,
+                    frand() < 0.5f ? CLR_DARK_GREY : r->col);
+            r->on = 0;
+        } else if (offmap) r->on = 0;                          // missed entirely, despawn quietly
+    }
 }
 
 // ── default scene: a block of the criminal city to set alight ───────────────
@@ -721,6 +798,7 @@ void reset_world(void) {
     for (int i = 0; i < 12; i++) rings[i].on = 0;
     for (int i = 0; i < 8; i++) pend[i].on = 0;
     for (int i = 0; i < MAXBLK; i++) blk[i].on = 0;
+    for (int i = 0; i < MAXCAR; i++) rcar[i].on = 0;
 }
 
 static int inited = 0;
@@ -774,6 +852,18 @@ void draw(void) {
         rectfill(bx - 1, by - 1, 3, 3, bk->col);
         pset(bx + (int)(cosf(bk->ang) * 1.5f), by + (int)(sinf(bk->ang) * 1.5f), CLR_WHITE);
     }
+
+    // ram cars — body long-axis along travel, a bright headlight pixel up front
+    for (int i = 0; i < MAXCAR; i++) {
+        Ramcar *r = &rcar[i];
+        if (!r->on) continue;
+        int horiz = fabsf(r->vx) >= fabsf(r->vy);
+        int cxp = (int)r->x, cyp = (int)r->y;
+        if (horiz) rectfill(cxp - 3, cyp - 1, 7, 3, r->col);
+        else       rectfill(cxp - 1, cyp - 3, 3, 7, r->col);
+        float d = sqrtf(r->vx * r->vx + r->vy * r->vy) + 0.01f;
+        pset(cxp + (int)(r->vx / d * 3), cyp + (int)(r->vy / d * 3), CLR_WHITE);  // headlight
+    }
     for (int i = 0; i < MAXP; i++) {
         P *p = &ps[i];
         if (p->kind == PK_FLAME) {
@@ -810,7 +900,12 @@ void draw(void) {
 
     // cursor: blast radius (BOOM) or brush footprint (BUILD)
     int mx = mouse_x(), my = mouse_y();
-    if (mode == 0) {
+    if (mode == 0 && blast == RAMCAR) {
+        // target reticle — the car comes to this spot from the far edge
+        circ(mx, my, 5, CLR_RED);
+        line(mx - 8, my, mx + 8, my, CLR_RED);
+        line(mx, my - 8, mx, my + 8, CLR_RED);
+    } else if (mode == 0) {
         int R = (int)(BASE_RADC(charge) * CELL * BSPEC[blast].rad);
         int col = blast == BL_MOLOTOV ? CLR_ORANGE : blast == BL_GASMAIN ? CLR_YELLOW : CLR_RED;
         circ(mx, my, R, col);
@@ -825,7 +920,8 @@ void draw(void) {
     rectfill(0, 0, SCREEN_W, 9, CLR_BLACK);
     char buf[64];
     if (mode == 0) {
-        snprintf(buf, sizeof buf, "BOOM  %s  charge %d", BSPEC[blast].name, charge);
+        const char *bn = (blast == RAMCAR) ? "ram car" : BSPEC[blast].name;
+        snprintf(buf, sizeof buf, "BOOM  %s  charge %d", bn, charge);
     } else {
         const char *bn = brush == TORCH ? "torch" : MAT_NAME[brush];
         snprintf(buf, sizeof buf, "BUILD  brush: %s", bn);
@@ -836,8 +932,9 @@ void draw(void) {
     font(FONT_SMALL);
     int sx = 3, sy = 11;
     if (mode == 0) {
-        for (int i = 0; i < BL_KINDS; i++) {
-            char t[24]; snprintf(t, sizeof t, "%d %s", i + 1, BSPEC[i].name);
+        for (int i = 0; i <= BL_KINDS; i++) {
+            const char *nm = (i == BL_KINDS) ? "ram car" : BSPEC[i].name;
+            char t[24]; snprintf(t, sizeof t, "%d %s", i + 1, nm);
             print(t, sx, sy, i == blast ? CLR_WHITE : CLR_MEDIUM_GREY);
             sx += (int)strlen(t) * 4 + 5;
         }

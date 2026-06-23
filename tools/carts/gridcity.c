@@ -38,11 +38,11 @@
 enum { K_LAND, K_WATER, K_ROAD, K_R, K_C, K_I, K_POLICE };
 
 // overlays
-enum { V_CITY, V_LANDVAL, V_CRIME, V_POLICE, V_DENSITY, V_COUNT };
+enum { V_CITY, V_LANDVAL, V_CRIME, V_POLICE, V_DENSITY, V_POLLUTION, V_COUNT };
 
 // ── state ──
 static int  kind[MAXC];
-static int  landvalue[MAXC], crime[MAXC], police[MAXC], popden[MAXC];
+static int  landvalue[MAXC], crime[MAXC], police[MAXC], popden[MAXC], pollution[MAXC];
 static int  terrainv[MAXC];   // static water-proximity value (recomputed on edit)
 static int  roadacc[MAXC];    // static road-access field — a service radius, not strict adjacency
 static int  tmp[MAXC];
@@ -132,20 +132,26 @@ static void sim_step(void){
     for(int i=0;i<MAXC;i++) police[i] = (kind[i]==K_POLICE) ? 250 : 0;
     spread(police, 14, 18);
 
-    // 3. land value — reads LAST tick's crime (so this tick's crime feeds the NEXT
-    //    land value = the slum spiral). ↑centre-proximity ↑near-water ↓crime
+    // 3. pollution — industry is the heavy emitter, commerce a little; it then
+    //    diffuses onto neighbours (the wind-agnostic v1.5 model) and drags land value down
+    for(int i=0;i<MAXC;i++)
+        pollution[i] = kind[i]==K_I ? 220 : kind[i]==K_C ? 40 : 0;
+    smooth(pollution, 3);
+
+    // 4. land value — reads LAST tick's crime (so this tick's crime feeds the NEXT
+    //    land value = the slum spiral). ↑centre-proximity ↑near-water ↓pollution ↓crime
     for(int y=0;y<GH;y++) for(int x=0;x<GW;x++){
         int i=idx(x,y);
         if(kind[i]==K_WATER){ landvalue[i]=0; continue; }
         int dx=x-cx, dy=y-cy;
         int dist=(dx<0?-dx:dx)+(dy<0?-dy:dy);          // manhattan, cheap
         int prox=CP_MAX - dist*CP_FALL; if(prox<0) prox=0;
-        int lv = prox + terrainv[i]/2 - crime[i]/2;
+        int lv = prox + terrainv[i]/2 - pollution[i]/3 - crime[i]/2;
         if(lv<0) lv=0; if(lv>250) lv=250;
         landvalue[i]=lv;
     }
 
-    // 4. crime — ↑population density ↓land value ↓police. only where people are.
+    // 5. crime — ↑population density ↓land value ↓police. only where people are.
     for(int i=0;i<MAXC;i++){
         if(popden[i]<=0){ crime[i]=0; continue; }
         int cr = CRIME_BASE + popden[i] - landvalue[i]/2 - police[i];
@@ -162,6 +168,7 @@ static void seed_city(void){
     memset(crime,0,sizeof crime);
     memset(police,0,sizeof police);
     memset(popden,0,sizeof popden);
+    memset(pollution,0,sizeof pollution);
 
     // a lake along the top-left (raises nearby land value)
     for(int y=2;y<12;y++) for(int x=2;x<16;x++)
@@ -202,7 +209,7 @@ void update(void){
     if(keyp('E')) brush=K_LAND;
     // overlay select
     if(keyp('1')) view=V_CITY;    if(keyp('2')) view=V_LANDVAL; if(keyp('3')) view=V_CRIME;
-    if(keyp('4')) view=V_POLICE;  if(keyp('5')) view=V_DENSITY;
+    if(keyp('4')) view=V_POLICE;  if(keyp('5')) view=V_DENSITY; if(keyp('6')) view=V_POLLUTION;
     if(keyp(KEY_SPACE)) seed_city();
 
     if(mouse_down(0)) paint_at(mouse_x(),mouse_y(),brush);
@@ -216,6 +223,7 @@ static const int RAMP_LV[6] = {CLR_DARK_RED, CLR_RED, CLR_ORANGE, CLR_YELLOW, CL
 static const int RAMP_CR[6] = {CLR_DARK_BLUE, CLR_DARK_PURPLE, CLR_DARK_RED, CLR_RED, CLR_ORANGE, CLR_YELLOW};
 static const int RAMP_PO[6] = {CLR_BLACK, CLR_DARKER_BLUE, CLR_BLUE_GREEN, CLR_TRUE_BLUE, CLR_BLUE, CLR_WHITE};
 static const int RAMP_PD[6] = {CLR_DARK_GREEN, CLR_MEDIUM_GREEN, CLR_GREEN, CLR_LIME_GREEN, CLR_YELLOW, CLR_WHITE};
+static const int RAMP_PL[6] = {CLR_BLACK, CLR_DARKER_PURPLE, CLR_DARK_PURPLE, CLR_MAUVE, CLR_DARK_ORANGE, CLR_ORANGE};
 
 static int ramp(const int *r,int v){ int s=v*6/251; if(s<0)s=0; if(s>5)s=5; return r[s]; }
 
@@ -245,6 +253,7 @@ void draw(void){
             case V_CRIME:   col=(popden[i]<=0)?CLR_BROWNISH_BLACK:ramp(RAMP_CR,crime[i]); break;
             case V_POLICE:  col=ramp(RAMP_PO,police[i]); break;
             case V_DENSITY: col=(popden[i]<=0)?CLR_BROWNISH_BLACK:ramp(RAMP_PD,popden[i]); break;
+            case V_POLLUTION: col=(pollution[i]<=4)?CLR_BROWNISH_BLACK:ramp(RAMP_PL,pollution[i]); break;
             default: col=CLR_BLACK;
         }
         // in data overlays, keep roads readable as a faint grid
@@ -253,7 +262,7 @@ void draw(void){
     }
 
     // ── HUD ──
-    static const char *VNAME[V_COUNT]={"1 CITY","2 LAND VALUE","3 CRIME","4 POLICE","5 DENSITY"};
+    static const char *VNAME[V_COUNT]={"1 CITY","2 LAND VALUE","3 CRIME","4 POLICE","5 DENSITY","6 POLLUTION"};
     static const char *BNAME[]={"land","water","road","R zone","C zone","I zone","POLICE"};
     int hy=22;
     print("OVERLAY", HUDX, hy, CLR_DARK_GREY); hy+=8;
@@ -263,7 +272,8 @@ void draw(void){
     print(str("> %s", BNAME[brush]), HUDX, hy, CLR_YELLOW); hy+=10;
     // legend ramp for the active data overlay
     if(view!=V_CITY){
-        const int *r = view==V_LANDVAL?RAMP_LV : view==V_CRIME?RAMP_CR : view==V_POLICE?RAMP_PO : RAMP_PD;
+        const int *r = view==V_LANDVAL?RAMP_LV : view==V_CRIME?RAMP_CR : view==V_POLICE?RAMP_PO
+                     : view==V_POLLUTION?RAMP_PL : RAMP_PD;
         print("low", HUDX, hy, CLR_DARK_GREY);
         print("high", HUDX+86, hy, CLR_DARK_GREY); hy+=8;
         for(int s=0;s<6;s++) rectfill(HUDX+s*18, hy, 17, 8, r[s]);
@@ -272,7 +282,7 @@ void draw(void){
     print(str("ticks %ld", ticks), HUDX, hy, CLR_LIGHT_GREY);
 
     // bottom help
-    print("RCI/O road/W water/P police/E erase  1-5 view  SPACE reseed",
+    print("RCI/O road/W water/P police/E erase  1-6 view  SPACE reseed",
           OX, OY+GH*TS+4, CLR_DARK_GREY);
 }
 
@@ -326,5 +336,31 @@ void spec(void){
 
     expect(c2 < c1, "police coverage lowers crime in the block");
     expect(l2 > l1, "lower crime lifts land value (the spiral, reversed)");
+
+    // ── pollution: industry emits, it diffuses, and it drags land value down ──
+    // a big R district fixes the city centre; we measure one cell, then drop a
+    // small industrial block beside it (too small to move the centroid) and
+    // confirm pollution reaches it and depresses its land value.
+    memset(kind,0,sizeof kind);
+    memset(crime,0,sizeof crime);
+    for(int y=8;y<32;y++) for(int x=8;x<32;x++) kind[idx(x,y)]=K_R;   // 24x24 district
+    for(int x=7;x<33;x++){ kind[idx(x,8)]=K_ROAD; kind[idx(x,20)]=K_ROAD; kind[idx(x,31)]=K_ROAD; }
+    for(int y=8;y<32;y++){ kind[idx(8,y)]=K_ROAD; kind[idx(20,y)]=K_ROAD; kind[idx(31,y)]=K_ROAD; }
+    recompute_static();
+    step(20*TICK_EVERY);
+    int lv_before   = landvalue[idx(15,15)];
+    int poll_before = pollution[idx(15,15)];
+
+    for(int y=14;y<18;y++) for(int x=16;x<20;x++) kind[idx(x,y)]=K_I; // industry next door
+    recompute_static();
+    step(20*TICK_EVERY);
+    int poll_here = pollution[idx(17,15)];   // inside the industry
+    int poll_at   = pollution[idx(15,15)];   // our measured cell, two off
+    int lv_after  = landvalue[idx(15,15)];
+    expect(1, str("DBG pollution: src=%d at-cell %d->%d   landval %d->%d",
+                  poll_here, poll_before, poll_at, lv_before, lv_after));
+    expect(poll_here > 100, "industry emits heavy pollution");
+    expect(poll_at > poll_before, "pollution diffuses to nearby cells");
+    expect(lv_after < lv_before, "pollution depresses nearby land value");
 }
 #endif

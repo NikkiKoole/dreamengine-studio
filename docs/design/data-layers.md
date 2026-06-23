@@ -150,9 +150,17 @@ dense core pulled down by its own crime; crime localizes to the peripheral slum.
 Tuning found: `CP_MAX 100`, `CRIME_BASE 30`, police `spread(14, 18)`. Constants still loose.
 
 ### v1.5 — pollution + density + the growth valve
-Add population density, pollution (with emitters), and the develop/abandon valve driven by
-a simple global RCI demand meter. Now land value depends on pollution and zones actually
-grow — the map starts moving on its own.
+- ✅ **Pollution** (2026-06-23): industry emits heavy (220), commerce light (40); it
+  diffuses (`smooth ×3`) and subtracts from land value (`−pollution/3`). Overlay 6.
+  `spec()` pins it: industry source ~180, diffuses to 64 two cells off, drops that cell's
+  land value 84→63. Density was already in v1.
+- ⬜ **The develop/abandon growth valve** driven by a global **RCI demand** meter — zones
+  gain/lose a development *level* over time instead of being instantly full, so the map
+  starts moving on its own. (Next; will change the seed + spec, since painted zones will
+  grow from empty rather than start dense.)
+- ⬜ **Positive land-value drivers** (answers "nothing pushes values *really* high yet"):
+  parks/amenity bonus, a direct lift from police/fire coverage, commercial-core premium —
+  so land value isn't capped by centre-proximity (100) + a local water bonus.
 
 ### v2 — full
 Densities (light/dense), power grid flood, water pipes, traffic (trip generation along

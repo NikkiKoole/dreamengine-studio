@@ -1,0 +1,8 @@
+# gridcity — cycle the data overlays as the sim converges on the seeded city
+# frames: 520  fps: 30  scale: 3
+down 5 2
+up 7 2
+down 200 3
+up 202 3
+down 380 5
+up 382 5

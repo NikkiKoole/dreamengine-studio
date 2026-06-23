@@ -109,10 +109,14 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              mirror-diff.js  golden-pixel-diff harness: assert a render's symmetry invariant headless
              build-site.js / publish-cart.sh   build wasm carts + gallery → site/; publish + push
              mobile-lint.js  static report card: can a phone play this cart?
-             wav-analyze.js / tune-check.js / level-check.js / fx-check.js / soak-check.js /
-                             web-audio-check.js   audio gates (see "Key things to know")
+             wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
+                             soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
+             wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B
+                             analysis (sample correlation / amp+brightness envelope / LFO rate+depth /
+                             harmonic series) — for A/B-ing a render against navkit
              sprite-draw.js  reusable 2D pixel-canvas API for programmatic .cart.js sprites
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
+             gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
              lint-carts.js   validate index.json (tags + registration); owns the tag vocabulary
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
              cart-status.js  what's out of date (rebake / publish / stale / compendium)
@@ -121,6 +125,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              cart-dupes.js   cross-cart duplication finder → refactor / drift candidates
              build-compendium.js  generate docs/cart-compendium.html (--check gates staleness)
              build-all.js    compile-check every cart vs current studio.h (catches API rot)
+             profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
              lint-docs.js    validate docs/ cross-references
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
              build-history.js     generate docs/history.html from git + the spine

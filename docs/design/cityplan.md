@@ -62,10 +62,12 @@ widths from urban-density, terraced rows (shared party walls), massing classes, 
 - 🔄 **Stage B — ruins modifier** (in progress). `decay`/`fertility` fields + `collapse`/`overgrow`,
   applied per city building over the roof OR the floor-plan; gated by `RUIN_TH` (≈0.58) so ruins are
   **derelict districts**, not universal weathering. HUD `ruin N` tally.
-- ⬜ **Stage C — border/pave/stamp + polish.** Bring lotfill's last three atoms in *contextually*
-  (not as tabs): `border` = hedge/fence/wall around detached RES lots; `pave` = asphalt/parking in
-  COM/IND block courtyards; `stamp` = fountain/statue centrepiece in some courtyards/parks. Then
-  re-bake + register refresh.
+- ✅ **Stage C — border/pave/stamp** (2026-06-23). lotfill's last three atoms, brought in
+  *contextually* (not as tabs): `border_edge` = hedge/fence/wall around detached RES lots (per-lot
+  style); `pave_interior` = asphalt/plaza/gravel + faint markings on COM/IND block interiors
+  (parking lots / squares); `stamp_prop` = fountain/statue/well/obelisk centrepiece in ~1 of 5 block
+  courtyards (a plaza or village green). All gated to the outdoor-detail zoom so the far city stays
+  clean. **cityplan now carries everything both parents had.**
 
 ### Open follow-ups (lowest priority)
 

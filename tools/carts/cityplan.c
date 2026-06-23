@@ -559,6 +559,7 @@ static void draw_roof(Rect b, int zone, int massing, unsigned h) {
         else            line(b.x + b.w / 2, b.y + 1, b.x + b.w / 2, b.y + b.h - 2, CLR_LIGHT_PEACH);
     }
 }
+static void border_edge(Rect r, int style);                  // defined with pave/stamp below
 static void draw_outdoor(Rect lot, Rect b, int outward, int zone, int attached, unsigned h, bool detail) {
     int dc = CLR_MEDIUM_GREY, dx = b.x + b.w / 2, dy = b.y + b.h / 2;
     switch (outward) {
@@ -568,6 +569,7 @@ static void draw_outdoor(Rect lot, Rect b, int outward, int zone, int attached, 
         case 3: line(lot.x, dy, b.x, dy, dc);                       break;
     }
     if (detail && zone == ZN_RES && !attached) {
+        border_edge(lot, h % 3);                              // fenced/hedged/walled yard boundary
         int yx, yy;
         switch (outward) {
             case 0:  yx = lot.x + 3 + (int)(frac01(h) * (lot.w > 6 ? lot.w - 6 : 1)); yy = lot.y + 5; break;
@@ -576,6 +578,46 @@ static void draw_outdoor(Rect lot, Rect b, int outward, int zone, int attached, 
             default: yx = lot.x + 3;         yy = lot.y + 3 + (int)(frac01(h) * (lot.h > 6 ? lot.h - 6 : 1)); break;
         }
         draw_tree(yx, yy, h, 0);
+    }
+}
+
+// ── lotfill's last three atoms, brought in CONTEXTUALLY (not as tabs) ────────────
+// border — stroke a lot edge: hedge / fence / wall (around detached RES lots).
+static void border_edge(Rect r, int style) {
+    int x1 = r.x + r.w - 1, y1 = r.y + r.h - 1;
+    if (style == 0) {                                          // hedge
+        for (int x = r.x; x <= x1; x++) { int c = ((x + r.y) & 1) ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN; pset(x, r.y, c); pset(x, y1, c); }
+        for (int y = r.y; y <= y1; y++) { int c = ((r.x + y) & 1) ? CLR_DARK_GREEN : CLR_MEDIUM_GREEN; pset(r.x, y, c); pset(x1, y, c); }
+    } else if (style == 1) {                                   // picket fence
+        rect(r.x, r.y, r.w, r.h, CLR_BROWN);
+        for (int x = r.x; x <= x1; x += 4) { pset(x, r.y, CLR_DARK_BROWN); pset(x, y1, CLR_DARK_BROWN); }
+        for (int y = r.y; y <= y1; y += 4) { pset(r.x, y, CLR_DARK_BROWN); pset(x1, y, CLR_DARK_BROWN); }
+    } else {                                                   // stone wall
+        for (int x = r.x; x <= x1; x++) { int c = ((x >> 1) & 1) ? CLR_LIGHT_GREY : CLR_DARK_GREY; pset(x, r.y, c); pset(x, y1, c); }
+        for (int y = r.y; y <= y1; y++) { int c = ((y >> 1) & 1) ? CLR_LIGHT_GREY : CLR_DARK_GREY; pset(r.x, y, c); pset(x1, y, c); }
+    }
+}
+// pave — flat surface fill for a COM/IND block interior: asphalt / plaza / gravel.
+static void pave_interior(Rect r, int surf, bool marks) {
+    int base = surf == 0 ? CLR_DARKER_GREY : surf == 1 ? CLR_LIGHT_GREY : CLR_DARK_BROWN;
+    rectfill(r.x, r.y, r.w, r.h, base);
+    if (!marks) return;
+    if (surf == 0) for (int x = r.x + 8; x < r.x + r.w; x += 11) line(x, r.y, x, r.y + r.h - 1, CLR_MEDIUM_GREY);  // faint parking stalls
+    else if (surf == 1) {                                                                                          // plaza tiles
+        for (int x = r.x; x < r.x + r.w; x += 8) line(x, r.y, x, r.y + r.h - 1, CLR_MEDIUM_GREY);
+        for (int y = r.y; y < r.y + r.h; y += 8) line(r.x, y, r.x + r.w - 1, y, CLR_MEDIUM_GREY);
+    } else for (int y = r.y; y < r.y + r.h; y += 2)                                                               // gravel speckle
+        for (int x = r.x + (y & 1); x < r.x + r.w; x += 2) if ((hash2(x, y + lf_seed) & 3) == 0) pset(x, y, CLR_MEDIUM_GREY);
+}
+// stamp — one authored composite at a plaza/green anchor: fountain / statue / well / obelisk.
+static void stamp_prop(int cx, int cy, int R, int kind) {
+    if (R < 2) return;
+    circfill(cx + 1, cy + 2, R - 1, CLR_MEDIUM_GREY);          // shadow
+    switch (kind) {
+        case 0: circfill(cx, cy, R, CLR_LIGHT_GREY); circfill(cx, cy, R - 2, CLR_BLUE); circfill(cx, cy, 1, CLR_WHITE); break;       // fountain
+        case 1: rectfill(cx - 2, cy - 1, 4, R + 1, CLR_DARK_GREY); circfill(cx, cy - R + 2, 2, CLR_LIGHT_GREY); break;               // statue
+        case 2: circ(cx, cy, R, CLR_DARK_BROWN); circfill(cx, cy, R - 1, CLR_DARKER_GREY); line(cx - R, cy - R, cx + R, cy - R, CLR_BROWN); break;  // well
+        default:rectfill(cx - 1, cy - R, 3, 2 * R, CLR_MEDIUM_GREY); pset(cx, cy - R - 1, CLR_WHITE); break;                          // obelisk
     }
 }
 
@@ -593,8 +635,14 @@ static int  n_bld, n_open, n_ruin;  // HUD tallies
 static void draw_city_block(int bx, int by, float zoom, bool want_peel, bool outdoor_detail) {
     int ox = bx * BLK_P, oy = by * BLK_P, inx = ox + ST_W, iny = oy + ST_W, IN = BLK_P - ST_W;
     int zone = zone_at(inx + IN / 2.0f, iny + IN / 2.0f);
-    rectfill(ox, oy, BLK_P, BLK_P, CLR_DARK_GREY);
-    rectfill(inx, iny, IN, IN, zone == ZN_RES ? CLR_DARK_GREEN : CLR_MEDIUM_GREY);
+    unsigned bhash = hash2(bx * 131 + lf_seed * 7, by * 89 + 5);
+    rectfill(ox, oy, BLK_P, BLK_P, CLR_DARK_GREY);                                 // street band
+    if (zone == ZN_RES) rectfill(inx, iny, IN, IN, CLR_DARK_GREEN);                // gardens/greens
+    else {                                                                         // commercial/industrial: paved
+        int surf = (zone == ZN_COM) ? (int)(bhash & 1)        // asphalt / plaza
+                                    : ((bhash & 1) ? 2 : 0);  // gravel / asphalt
+        pave_interior((Rect){ inx, iny, IN, IN }, surf, zoom >= 0.5f);
+    }
     LotSlot slots[40]; int nl = block_lots(bx, by, zone, slots, 40);
     for (int i = 0; i < nl; i++) {
         Rect lot = slots[i].lot, b; int outward = slots[i].outward, att = slots[i].attached;
@@ -618,6 +666,9 @@ static void draw_city_block(int bx, int by, float zoom, bool want_peel, bool out
             n_ruin++;
         }
     }
+    if (outdoor_detail && bhash % 5 == 0)                    // ~1 in 5 blocks: a courtyard/green centrepiece
+        stamp_prop(inx + IN / 2, iny + IN / 2, 7, (int)((bhash >> 8) % 4));
+
     if (dbg) { rect(ox, oy, BLK_P, BLK_P, CLR_DARK_RED);
         for (int i = 0; i < nl; i++) rect(slots[i].lot.x, slots[i].lot.y, slots[i].lot.w, slots[i].lot.h, CLR_YELLOW); }
 }

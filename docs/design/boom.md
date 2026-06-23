@@ -37,9 +37,11 @@ particle/body that cools along a blackbody ramp and settles under top-down frict
   piece off its largest connected lump drops that piece (per-building, so blowing
   one building in half doesn't fell its neighbour). Player-painted concrete is
   ungrouped (a piece falls below COLLAPSE_MIN cells).
-- **Blasts shove loose objects**: the shockwave flings a blast-adjacent parked car
-  as a physics body and pushes blocks/cars already lying on the ground; a packed
-  parking lot is the chain-reaction showpiece.
+- **Blasts shove loose objects** (the blast as a *pushing force*): the shockwave
+  flings a blast-adjacent parked car, pushes blocks already on the ground, and
+  slides **crates** — persistent wooden boxes that sit until a blast or ram car
+  hits them, then tumble and settle (splintering if a blast lands close or they
+  burn). A packed parking lot + crate stacks are the chain-reaction showpieces.
 - Demo clips: `tools/clips/boom/{01-blast,02-ramcar}.script`.
 
 ## Wishlist (next, roughly in order)

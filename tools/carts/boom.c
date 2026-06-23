@@ -29,8 +29,11 @@
 //   (the prototype of sloop's deferred per-tile demolition rung).
 //   STRUCTURAL COLLAPSE: each building is one connected mass; sever a piece off
 //   its main lump and that piece can't stand — it collapses (blow a wall, drop
-//   the wing). LOOSE OBJECTS: the blast wave flings nearby parked cars and shoves
-//   debris/blocks already on the ground — set off a blast near a lot and it scatters.
+//   the wing). LOOSE OBJECTS: the blast wave is a PUSHING FORCE — it flings nearby
+//   parked cars, shoves debris/blocks already on the ground, and slides CRATES
+//   (wooden boxes that sit until something hits them, then tumble and settle,
+//   splintering if a blast lands close or they catch fire). A ram car bowls crates
+//   over too. Set off a blast near a lot or a crate stack and it all scatters.
 //
 // ── what's honest here (two layers, each doing one real job) ─────────────────
 //
@@ -183,6 +186,15 @@ static int blkcur = 0;
 typedef struct { float x, y, vx, vy, tx, ty; int chg; unsigned char on, col; } Ramcar;
 #define MAXCAR 4
 static Ramcar rcar[MAXCAR];
+
+// ── crates: loose wooden boxes the blast wave SHOVES around. Unlike a wall cell
+// (fixed) or a Block (transient debris that settles to rubble), a crate is a
+// persistent body that sits until a force hits it — a blast push, a ram car —
+// then slides, tumbles, and settles, pushable again. A close blast smashes it to
+// planks; fire eats it. The toy that makes "a blast is a pushing force" legible.
+typedef struct { float x, y, vx, vy, ang, spin; int hp; unsigned char on; } Crate;
+#define MAXCRATE 48
+static Crate crate[MAXCRATE];
 
 // ── global state ───────────────────────────────────────────────────────────
 static int   mode;            // 0 = BOOM, 1 = BUILD
@@ -435,6 +447,17 @@ static void detonate_now(float cx, float cy, int chg, int type) {
                 float push = (R2 - d) / R2 * (2.0f + chg) * b->shock;
                 blk[i].vx += dx / d * push; blk[i].vy += dy / d * push;
                 blk[i].spin += (frand() - 0.5f) * 0.4f; blk[i].settle = 0;
+            }
+        }
+        for (int i = 0; i < MAXCRATE; i++) {           // shove crates; smash the close ones
+            if (!crate[i].on) continue;
+            float dx = crate[i].x - cx, dy = crate[i].y - cy;
+            float d = sqrtf(dx * dx + dy * dy) + 0.01f;
+            if (d < R2) {
+                float push = (R2 - d) / R2 * (2.5f + chg) * b->shock;
+                crate[i].vx += dx / d * push; crate[i].vy += dy / d * push;
+                crate[i].spin += (frand() - 0.5f) * 0.6f;
+                if (d < R * 0.7f) crate[i].hp -= (int)(22 * (1.0f - d / (R * 0.7f)));
             }
         }
     }
@@ -798,6 +821,14 @@ void update(void) {
         if ((int)(frand() * 100) < 40)
             psp(bx, by, -r->vx * 0.2f, -r->vy * 0.2f, PK_SPARK,
                 6 + frand() * 6, 1, 1, CLR_LIGHT_YELLOW);
+        for (int q = 0; q < MAXCRATE; q++) {                   // bowl over crates in its path
+            if (!crate[q].on) continue;
+            float ddx = crate[q].x - r->x, ddy = crate[q].y - r->y;
+            if (ddx * ddx + ddy * ddy < 49) {                  // within ~7px
+                crate[q].vx += r->vx * 0.6f; crate[q].vy += r->vy * 0.6f;
+                crate[q].spin += (frand() - 0.5f) * 0.6f;
+            }
+        }
 
         int gx = (int)(r->x / CELL), gy = (int)(r->y / CELL);
         float dtx = r->tx - r->x, dty = r->ty - r->y;
@@ -815,6 +846,32 @@ void update(void) {
                     frand() < 0.5f ? CLR_DARK_GREY : r->col);
             r->on = 0;
         } else if (offmap) r->on = 0;                          // missed entirely, despawn quietly
+    }
+
+    // crates: slide + tumble from a push, settle (persist, pushable again),
+    // splinter into planks once smashed (close blast) or burnt (sitting in fire)
+    for (int i = 0; i < MAXCRATE; i++) {
+        Crate *cr = &crate[i];
+        if (!cr->on) continue;
+        cr->x += cr->vx; cr->y += cr->vy;
+        cr->vx *= 0.90f; cr->vy *= 0.90f;
+        cr->ang += cr->spin; cr->spin *= 0.92f;
+        if (cr->x < -6 || cr->y < -6 || cr->x > SCREEN_W + 6 || cr->y > SCREEN_H + 6) { cr->on = 0; continue; }
+        int gx = (int)(cr->x / CELL), gy = (int)(cr->y / CELL);
+        if (gx >= 0 && gy >= 0 && gx < GW && gy < GH && W[IDX(gx, gy)].fire > 0) {   // burning
+            cr->hp -= 2;
+            if ((int)(frand() * 100) < 25)
+                psp(cr->x, cr->y, frand() * 0.4f - 0.2f, -0.5f - frand() * 0.4f, PK_FLAME,
+                    10 + frand() * 8, 1.5f + frand(), 0.6f, 0);
+        }
+        if (cr->hp <= 0) {                           // splinter into wood blocks
+            for (int s = 0; s < 4; s++) {
+                float a = frand() * 6.2832f;
+                eject_block(cr->x, cr->y, cr->x - cosf(a), cr->y - sinf(a), MAT_COL[MAT_WOOD], MAT_WOOD);
+            }
+            psp(cr->x, cr->y, 0, -0.3f, PK_SMOKE, 30 + frand() * 20, 2 + frand() * 2, 0, 0);
+            cr->on = 0;
+        }
     }
 }
 
@@ -888,6 +945,17 @@ void reset_world(void) {
         if (x >= 0 && y < GH) { W[IDX(x, y)].mat = MAT_CAR; W[IDX(x, y)].fuel = (unsigned char)MAT_FUEL[MAT_CAR]; }
     }
 
+    // crate stacks on open ground — loose boxes for the blast wave to shove + smash
+    int kn = 0;
+    static const int kbx[]   = { 72, 150, 160 }, kby[]   = { 64, 152, 92 };
+    static const int kcols[] = {  4,   3,   2 }, krows[] = {  2,   2,  2 };
+    for (int cl = 0; cl < 3; cl++)
+    for (int r = 0; r < krows[cl]; r++)
+    for (int c = 0; c < kcols[cl]; c++)
+        if (kn < MAXCRATE)
+            crate[kn++] = (Crate){ kbx[cl] + c * 7.0f, kby[cl] + r * 7.0f, 0, 0, 0, 0, 28, 1 };
+    for (; kn < MAXCRATE; kn++) crate[kn].on = 0;
+
     for (int i = 0; i < MAXP; i++) ps[i].kind = PK_FREE;
     for (int i = 0; i < 12; i++) rings[i].on = 0;
     for (int i = 0; i < 8; i++) pend[i].on = 0;
@@ -938,12 +1006,22 @@ void draw(void) {
         if (p->kind != PK_DEBRIS) continue;
         rectfill((int)p->x, (int)p->y, (int)p->size + 1, (int)p->size + 1, p->col);
     }
-    // physics blocks — knocked wall chunks, a facet pixel orbiting to read the tumble
+    // crates — wooden boxes (drawn under the debris so chunks land on top)
+    for (int i = 0; i < MAXCRATE; i++) {
+        Crate *cr = &crate[i];
+        if (!cr->on) continue;
+        int bx = (int)cr->x, by = (int)cr->y;
+        rectfill(bx - 2, by - 2, 5, 5, CLR_BROWN);
+        rect(bx - 2, by - 2, 5, 5, CLR_DARK_BROWN);                 // slats
+        pset(bx + (int)(cosf(cr->ang) * 1.5f), by + (int)(sinf(cr->ang) * 1.5f), CLR_DARK_PEACH);
+    }
+    // physics blocks — knocked wall chunks (car chunks read bigger), a facet pixel for the tumble
     for (int i = 0; i < MAXBLK; i++) {
         Block *bk = &blk[i];
         if (!bk->on) continue;
         int bx = (int)bk->x, by = (int)bk->y;
-        rectfill(bx - 1, by - 1, 3, 3, bk->col);
+        int h = (bk->mat == MAT_CAR) ? 2 : 1;                       // flung cars read as chunks, not specks
+        rectfill(bx - h, by - h, h * 2 + 1, h * 2 + 1, bk->col);
         pset(bx + (int)(cosf(bk->ang) * 1.5f), by + (int)(sinf(bk->ang) * 1.5f), CLR_WHITE);
     }
 

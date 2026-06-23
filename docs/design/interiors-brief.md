@@ -11,6 +11,15 @@
 > program driver). This brief was then **extended with [Round 2 — the gameplay layers](#round-2--gameplay-layers-interiors-with-a-purpose-extends-this-brief-2026-06-22)**:
 > making interiors *worth entering* — places you want to **be in, steal from, fight in, and OWN.**
 
+> **Merged (2026-06-23):** `tools/carts/cityplan.c` STACKS this workbench onto lotfill's city —
+> lotfill and interiors were always the same fill-language at two scales, so cityplan reads both by
+> ZOOM: out → a city of ROOFS (lotfill's block→varied-lot subdivision, terraces, yards); in → each
+> roof LIFTS to its floor-plan (this brief's BSP rooms); in further → the furniture. Pure level-of-
+> detail: a roof lifts only once its building is big enough on screen to read, and the floor-plan is
+> generated LAZILY (far buildings cost a roof rect). `F` force-lifts all roofs (dollhouse). The
+> footprint scale is bumped to ~55–80px so a lot is room-capable. `lotfill`/`interiors` stay as the
+> standalone workbenches; `cityplan` is the unified read.
+
 ## Your mission, in one sentence
 
 Build `tools/carts/interiors.c` — a workbench cart that, given a building footprint rect + a

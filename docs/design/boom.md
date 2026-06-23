@@ -33,28 +33,26 @@ particle/body that cools along a blackbody ramp and settles under top-down frict
   detaches as a Block, flies, tumbles, settles back into rubble. (sloop demolition
   rung, prototyped.)
 - Charge starts small (1); BUILD mode paints 10 materials.
+- **Structural collapse**: each building is a bid group; a blast that severs a
+  piece off its largest connected lump drops that piece (per-building, so blowing
+  one building in half doesn't fell its neighbour). Player-painted concrete is
+  ungrouped (a piece falls below COLLAPSE_MIN cells).
+- **Blasts shove loose objects**: the shockwave flings a blast-adjacent parked car
+  as a physics body and pushes blocks/cars already lying on the ground; a packed
+  parking lot is the chain-reaction showpiece.
 - Demo clips: `tools/clips/boom/{01-blast,02-ramcar}.script`.
 
 ## Wishlist (next, roughly in order)
 
-1. **Structural collapse** — *next up.* Walls fragment per-cell today; make a
-   building *connected structure* so knocking out a base leaves the cells above
-   **unsupported → they fall** (a flood-fill from a "ground/anchor" set; cells that
-   lose their support path drop as blocks). A tower should come *down*, not just
-   gain a hole. Stays in boom.
-2. **Blasts shove loose objects** — *with #3 below.* The shockwave already pushes
-   particles; extend it to push the Block bodies and cars on the ground, and make a
-   blast-adjacent car launch as a body. "Set off a blast near loose stuff and
-   watch it all get thrown." (First slice ships alongside the parked-cars work.)
-3. **Feed demolition back into sloop** — the literal purpose of this prototype
+1. **Feed demolition back into sloop** — the literal purpose of this prototype
    (`sloop.c:527`). Port the Block model onto sloop's per-cell mass/strength
    obstacles so a rammed/shot house sheds tiles. Closes the loop.
-4. **City life — pedestrians** — NPCs that walk the block and flee/panic from fire
+2. **City life — pedestrians** — NPCs that walk the block and flee/panic from fire
    and blasts. Turns the petri dish into a *scene*. Reuses the particle/body pool.
-5. **Player presence** — make the ram car *drivable* (arrow keys): the bridge from
+3. **Player presence** — make the ram car *drivable* (arrow keys): the bridge from
    sandbox toward the "roam-and-burn city game" boom's header promises. Pulls
    sloop's drive core toward boom.
-6. **Counter-tools** — water/hose to fight fire, controllable wind — so it's build
+4. **Counter-tools** — water/hose to fight fire, controllable wind — so it's build
    *and* destroy *and* save, a fuller sandbox.
 
 ## North star

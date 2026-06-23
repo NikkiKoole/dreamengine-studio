@@ -27,6 +27,10 @@
 //   DESTRUCTIBLE WALLS: a blast knocks concrete/glass/wood cells loose as real
 //   physics blocks that fly, tumble, slide to rest, and settle back into rubble
 //   (the prototype of sloop's deferred per-tile demolition rung).
+//   STRUCTURAL COLLAPSE: each building is one connected mass; sever a piece off
+//   its main lump and that piece can't stand — it collapses (blow a wall, drop
+//   the wing). LOOSE OBJECTS: the blast wave flings nearby parked cars and shoves
+//   debris/blocks already on the ground — set off a blast near a lot and it scatters.
 //
 // ── what's honest here (two layers, each doing one real job) ─────────────────
 //
@@ -88,7 +92,9 @@ static const int BRUSH_MAT[] = { MAT_GROUND, MAT_ROAD, MAT_GRASS, MAT_WOOD, MAT_
 #define NBRUSH 10
 
 // ── the world grid ────────────────────────────────────────────────────────────
-typedef struct { unsigned char mat, fuel, fire, hp; } Cell;
+// bid = building id (1+) for concrete, so structural collapse knows which cells
+// belong to the same building; 0 = ungrouped (ground, props, player-painted wall).
+typedef struct { unsigned char mat, fuel, fire, hp, bid; } Cell;
 static Cell W[NCELL];
 static unsigned char prevfire[NCELL];   // snapshot so spread reads a stable frame
 
@@ -275,6 +281,59 @@ static int car_blocks(int gx, int gy) {
 // its own chg curve; this is only the footprint.)
 #define BASE_RADC(c) (2 + (c) * 2)
 
+// ── structural collapse ──────────────────────────────────────────────────────
+// Top-down, "support" = connectivity. A building (a bid group) STANDS as its
+// largest connected lump of concrete; once a blast severs a smaller piece off
+// that lump, the piece can't hold itself up and COLLAPSES to rubble + sheds
+// blocks. So blowing a wall out drops the wing beyond it — blow a building in
+// half and the smaller half comes down. Player-painted concrete is bid 0
+// (ungrouped): there a piece just needs < COLLAPSE_MIN cells to fall. Runs once
+// per blast (after the pressure pass) — a flood-fill over concrete, never per-frame.
+#define COLLAPSE_MIN 5
+static int ccomp[NCELL];      // component id per cell (-1 = not concrete)
+static int csize[NCELL];      // cell count of each component
+static int cbidv[NCELL];      // building id of each component
+static int cstack[NCELL];
+static int cbig[256];         // largest standing component size, per building id
+
+static void collapse_concrete(float ox, float oy) {
+    for (int i = 0; i < NCELL; i++) ccomp[i] = -1;
+    int nc = 0;
+    for (int s = 0; s < NCELL; s++) {                  // label connected concrete lumps
+        if (W[s].mat != MAT_CONCRETE || ccomp[s] >= 0) continue;
+        int top = 0, n = 0;
+        cstack[top++] = s; ccomp[s] = nc;
+        while (top) {
+            int idx = cstack[--top];
+            n++;
+            int x = idx % GW, y = idx / GW;
+            int nb[4] = { x > 0 ? idx-1 : -1, x < GW-1 ? idx+1 : -1,
+                          y > 0 ? idx-GW : -1, y < GH-1 ? idx+GW : -1 };
+            for (int k = 0; k < 4; k++) {
+                int j = nb[k];
+                if (j >= 0 && ccomp[j] < 0 && W[j].mat == MAT_CONCRETE) { ccomp[j] = nc; cstack[top++] = j; }
+            }
+        }
+        csize[nc] = n; cbidv[nc] = W[s].bid; nc++;
+    }
+    // the biggest lump of each building is its standing core
+    for (int b = 0; b < 256; b++) cbig[b] = 0;
+    for (int c = 0; c < nc; c++) if (csize[c] > cbig[cbidv[c]]) cbig[cbidv[c]] = csize[c];
+
+    for (int s = 0; s < NCELL; s++) {                  // collapse the severed pieces
+        if (W[s].mat != MAT_CONCRETE) continue;
+        int c = ccomp[s], b = cbidv[c];
+        int fall = b > 0 ? (csize[c] < cbig[b]) : (csize[c] < COLLAPSE_MIN);
+        if (!fall) continue;
+        int x = s % GW, y = s / GW;
+        float px = x * CELL + 2, py = y * CELL + 2;
+        W[s].mat = MAT_RUBBLE; W[s].hp = 0; W[s].fuel = 0; W[s].fire = 0; W[s].bid = 0;
+        if (frand() < 0.5f) eject_block(px, py, ox, oy, MAT_COL[MAT_CONCRETE], MAT_CONCRETE);
+        psp(px, py, frand() * 0.5f - 0.25f, -0.2f - frand() * 0.3f, PK_SMOKE,
+            40 + frand() * 40, 2 + frand() * 2, 0, 0);
+    }
+}
+
 // ── the detonation (immediate) ─────────────────────────────────────────────
 static void detonate_now(float cx, float cy, int chg, int type) {
     const BlastSpec *b = &BSPEC[type];
@@ -354,7 +413,8 @@ static void detonate_now(float cx, float cy, int chg, int type) {
             60 + frand() * 80, 3 + frand() * 4, 0, 0);
     }
 
-    // shove existing particles outward (the blast wave)
+    // shove everything LOOSE outward (the blast wave) — particles AND the physics
+    // blocks/cars already lying on the ground, so a blast scatters nearby debris
     if (b->shock > 0) {
         float R2 = R * 1.6f;
         for (int i = 0; i < MAXP; i++) {
@@ -365,6 +425,16 @@ static void detonate_now(float cx, float cy, int chg, int type) {
                 float push = (R2 - d) / R2 * (3.0f + chg) * b->shock;
                 ps[i].vx += dx / d * push;
                 ps[i].vy += dy / d * push;
+            }
+        }
+        for (int i = 0; i < MAXBLK; i++) {
+            if (!blk[i].on) continue;
+            float dx = blk[i].x - cx, dy = blk[i].y - cy;
+            float d = sqrtf(dx * dx + dy * dy) + 0.01f;
+            if (d < R2) {
+                float push = (R2 - d) / R2 * (2.0f + chg) * b->shock;
+                blk[i].vx += dx / d * push; blk[i].vy += dy / d * push;
+                blk[i].spin += (frand() - 0.5f) * 0.4f; blk[i].settle = 0;
             }
         }
     }
@@ -418,9 +488,21 @@ static void detonate_now(float cx, float cy, int chg, int type) {
                         c->mat = MAT_GROUND; c->fuel = 0; c->fire = 0;
                         eject_block(px, py, cx, cy, MAT_COL[MAT_WOOD], MAT_WOOD);
                     }
+                } else if (c->mat == MAT_CAR) {
+                    // the blast wave flips a nearby car — it's flung as a loose body
+                    // (cars farther out stay put and CATCH FIRE in the heat pass)
+                    if (press * t > 0.55f) {
+                        c->mat = MAT_GROUND; c->fuel = 0; c->fire = 0;
+                        eject_block(px, py, cx, cy, MAT_COL[MAT_CAR], MAT_CAR);
+                        if (frand() < 0.4f)
+                            psp(px, py, frand() * 2 - 1, frand() * 2 - 1, PK_SPARK,
+                                8 + frand() * 8, 1, 1, CLR_LIGHT_YELLOW);
+                    }
                 }
             }
         }
+        // a severed chunk of a building can no longer stand → bring it down
+        collapse_concrete(cx, cy);
     }
 
     // ── heat pass: crater the core to ash, ignite fuel in the radius ─────────
@@ -593,7 +675,7 @@ void update(void) {
                 if (brush == TORCH) { ignite(x, y); }
                 else { Cell *c = &W[IDX(x, y)]; c->mat = (unsigned char)brush;
                        c->fire = 0; c->fuel = (unsigned char)MAT_FUEL[brush];
-                       c->hp = (unsigned char)MAT_HP[brush]; }
+                       c->hp = (unsigned char)MAT_HP[brush]; c->bid = 0; }   // player wall = ungrouped
             }
         }
     }
@@ -737,7 +819,7 @@ void update(void) {
 }
 
 // ── default scene: a block of the criminal city to set alight ───────────────
-static void stamp_building(int bx, int by, int bw, int bh, int mat, int glassfront) {
+static void stamp_building(int bx, int by, int bw, int bh, int mat, int glassfront, int bid) {
     for (int y = by; y < by + bh && y < GH; y++)
     for (int x = bx; x < bx + bw && x < GW; x++) {
         if (x < 0 || y < 0) continue;
@@ -749,11 +831,12 @@ static void stamp_building(int bx, int by, int bw, int bh, int mat, int glassfro
         c->fire = 0;
         c->fuel = (unsigned char)MAT_FUEL[m];
         c->hp   = (unsigned char)MAT_HP[m];
+        c->bid  = (m == MAT_CONCRETE) ? (unsigned char)bid : 0;   // group for collapse
     }
 }
 
 void reset_world(void) {
-    for (int i = 0; i < NCELL; i++) { W[i].mat = MAT_GROUND; W[i].fire = 0; W[i].fuel = 0; W[i].hp = 0; }
+    for (int i = 0; i < NCELL; i++) { W[i].mat = MAT_GROUND; W[i].fire = 0; W[i].fuel = 0; W[i].hp = 0; W[i].bid = 0; }
     // grass everywhere as a base, then carve roads through it
     for (int i = 0; i < NCELL; i++) { W[i].mat = MAT_GRASS; W[i].fuel = (unsigned char)MAT_FUEL[MAT_GRASS]; }
     for (int x = 0; x < GW; x++) for (int dy = 0; dy < 2; dy++) {
@@ -763,12 +846,12 @@ void reset_world(void) {
         W[IDX(GW/3 + dx, y)].mat = MAT_ROAD; W[IDX(GW/3 + dx, y)].fuel = 0;
     }
 
-    // concrete blocks with glass shopfronts, plus a couple of wood shacks
-    stamp_building( 6,  6, 12,  9, MAT_CONCRETE, 1);
-    stamp_building(50,  6, 16, 11, MAT_CONCRETE, 1);
-    stamp_building(55, 33, 14, 10, MAT_CONCRETE, 1);
-    stamp_building(10, 34,  9,  7, MAT_WOOD,     0);
-    stamp_building(34, 35,  8,  6, MAT_WOOD,     0);
+    // concrete blocks with glass shopfronts (each its own bid for collapse), plus wood shacks
+    stamp_building( 6,  6, 12,  9, MAT_CONCRETE, 1, 1);
+    stamp_building(50,  6, 16, 11, MAT_CONCRETE, 1, 2);
+    stamp_building(55, 33, 14, 10, MAT_CONCRETE, 1, 3);
+    stamp_building(10, 34,  9,  7, MAT_WOOD,     0, 0);
+    stamp_building(34, 35,  8,  6, MAT_WOOD,     0, 0);
 
     // an oil slick, a barrel cluster feeding it, and a pond to fight it
     for (int y = 22; y < 28; y++) for (int x = 50; x < 62; x++) {
@@ -781,12 +864,23 @@ void reset_world(void) {
         W[IDX(x, y)].mat = MAT_WATER; W[IDX(x, y)].fuel = 0;
     }
 
-    // cars parked along the roads
-    int cx[] = { 10, 40, 62, 8 }, cy[] = { GH/2 - 1, GH/2 + 2, GH/2 - 1, 18 };
-    for (int i = 0; i < 4; i++) for (int dx = 0; dx < 3; dx++) {
+    // cars parked all over — fodder for the blast wave. each car is 3 cells long.
+    static const int cx[] = { 10, 24, 40, 54, 62, 8, 30, 4, 70 };
+    static const int cy[] = { GH/2 - 1, GH/2 + 2, GH/2 + 2, GH/2 - 1, GH/2 - 1, 18, 18, 30, 30 };
+    for (int i = 0; i < (int)(sizeof cx / sizeof *cx); i++)
+    for (int dx = 0; dx < 3; dx++) {
         int x = cx[i] + dx, y = cy[i];
         if (x < 0 || x >= GW || y < 0 || y >= GH) continue;
         W[IDX(x, y)].mat = MAT_CAR; W[IDX(x, y)].fuel = (unsigned char)MAT_FUEL[MAT_CAR];
+    }
+    // a packed parking lot on open ground — rows of cars, the chain-reaction showpiece
+    for (int row = 0; row < 3; row++)
+    for (int car = 0; car < 4; car++) {
+        int bx0 = 30 + car * 4, y = 30 + row * 2;
+        for (int dx = 0; dx < 3; dx++) {
+            int x = bx0 + dx;
+            if (x < GW && y < GH) { W[IDX(x, y)].mat = MAT_CAR; W[IDX(x, y)].fuel = (unsigned char)MAT_FUEL[MAT_CAR]; }
+        }
     }
     // a couple parked on the vertical road
     for (int dy = 0; dy < 3; dy++) {

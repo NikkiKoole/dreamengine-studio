@@ -86,7 +86,7 @@ returned **zero verified claims**:
 | **Freeway / motorway** (Interstate, Other Freeways & Expressways) | grade-separated interchanges (diamond/cloverleaf/stack/trumpet/fork/triangle/roundabout-interchange), ramp-only, no at-grade conflict | free-flow corridors | ✅ **modeled** |
 | **Arterial** (principal / minor) | at-grade signalized crossroads & T, channelized, turn lanes/pockets, TWLTL/median, free-right slips, access-managed driveways | arterial grid backbone | ❌ unmodeled |
 | **Collector** (major / minor) | at-grade priority/signal, single-lane & mini-roundabouts, staggered junctions, curb extensions, refuge islands, small curb-return radii | gathers locals → arterials | ❌ unmodeled |
-| **Local / residential / service / living_street** | priority/yield/stop T & cross-junctions, driveways, shared space | grid · cul-de-sac trees · loop-and-lollipop · fused-grid · radial-concentric · organic · superblock | ❌ unmodeled (roadnet2 dabbles in patterns) |
+| **Local / residential / service / living_street** | priority/yield/stop T & cross-junctions, driveways, shared space | grid · cul-de-sac trees · loop-and-lollipop · fused-grid · radial-concentric · organic · superblock | ◑ modeled in `streetlab` (grid · organic · radial · cul-de-sac · superblock + SNDi metrics; build status → [`road-program-state.md`](road-program-state.md)) |
 
 **Bottom line:** roadlab built the *top* of the hierarchy precisely. The two unmodeled frontiers are
 **(A) at-grade intersection primitives** (a different geometry grammar) and **(B) local/collector network
@@ -213,8 +213,11 @@ OR an edge; the *goes-its-own-way* path must be an edge.
 - How Marshall's route-structure characteristic types + the transportgeography.org taxonomy **map onto** the
   SNDi 8-type / the 3-type clustering — and whether they add patterns (tributary vs distributor) the empirical
   clusterings miss.
-- A concrete **superblock / fused-grid generation algorithm** (perimeter arterial loop + calmed/discontinuous
-  interior) — neither Parish & Müller nor Chen directly model the deliberate permeable-but-discontinuous topology.
+- ✓ **A concrete superblock / fused-grid generation algorithm** (perimeter arterial loop + calmed/discontinuous
+  interior) — neither Parish & Müller nor Chen model the deliberate permeable-but-discontinuous topology, so an
+  original bit: BUILT in `streetlab` (2026-06-23) as a continuous arterial grid + a Kruskal spanning forest of
+  cul-de-sac stems inside each cell, proven distinct by **circuity** (the heavier 3rd SNDi measure, also built).
+  See [`road-program-state.md`](road-program-state.md). *Still open below:* the per-pattern numeric table + SOTA.
 - **State of the art beyond the 2001/2008 pillars** — OSM/example-driven synthesis, learned generative models —
   and whether any give better control over the grid↔organic↔cul-de-sac morph than greyscale-blend / tensor fields.
 

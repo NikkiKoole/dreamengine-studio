@@ -28,11 +28,19 @@
 //   MILESTONE 4: the street WEB (network topology — road-hierarchy-notes §8). A second VIEW ('v'): a GRAPH
 //                of intersections (nodes) + street segments (edges) generated deterministically from a seed.
 //                gen_network() is a PURE fn of (pattern, seed) — the spec asserts on the graph (node/edge
-//                counts, mean degree, dead-ends = the SNDi measures §8.2). Four patterns, and the metrics
+//                counts, mean degree, dead-ends = the SNDi measures §8.2). FIVE patterns, and the metrics
 //                SEPARATE them (the §8.2 point): grid/organic (degree ~3.4, 0 dead-ends) · radial (a hub +
 //                rings, degree ~3.9) · cul-de-sac (a random spanning tree + sparse loops ⇒ dendritic, degree
-//                ~2.2, many dead-ends). Next: the §8.4 two-tier major→minor generator, then a seed-driven
-//                WORLD that emits (pattern, region) per place.
+//                ~2.2, many dead-ends).
+//   STAGE 2:     the SUPERBLOCK / FUSED-GRID pattern (§8.3) — a continuous arterial grid wrapping a vehicle-
+//                DISCONTINUOUS interior (local cul-de-sac stems off the perimeter). The one pattern with no
+//                algorithm in the 2001/2008 pillars (an original bit). Ships with CIRCUITY (§8.2 #3, the 4th
+//                SNDi measure: network path ÷ straight-line, Floyd–Warshall) — §8.2's thesis in action: the
+//                superblock and the cul-de-sac read NEARLY IDENTICAL on degree/node-mix (both ~dendritic), and
+//                only circuity tells them apart — it orders GRID < SUPERBLOCK < CUL-DE-SAC (the arterial frame
+//                gives through-routes a pure dendritic net lacks, but the sealed interior still detours cars).
+//                Next: the modal active-travel layer (its cut-throughs ARE the superblock's permeable edges),
+//                then the §8.4 two-tier world.
 //   MILESTONE 5: the PEDESTRIAN layer (§2 — the reason at-grade exists: small radii are "to shorten the ped
 //                crossing"). 'k' toggles SIDEWALKS (the whole junction footprint inflated by SW, drawn under
 //                the road ⇒ an SW-wide kerbside ring that wraps the corners for free) + ZEBRA CROSSWALKS at
@@ -188,7 +196,7 @@ static int   twltlOn  = 0;    // Stage-1 #3: two-way left-turn lane (painted cen
 static int   driveways = 0;   // Stage-1 #3c: mid-block driveways, a per-side BITMASK — 1 = +90 side, 2 = -90 side ('d' cycles off→+→−→both)
 static int   bikeOn   = 0;    // M7/Pass3: 0 off · 1 lanes (+corner-wrap, the default) · 2 +straight-through crossing
 static int   parkOn   = 0;    // M7: a parking lane at the kerb
-enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, NPAT };   // M4: street-web patterns
+enum { PAT_GRID, PAT_ORGANIC, PAT_RADIAL, PAT_CULDESAC, PAT_SUPERBLOCK, NPAT };   // M4 + Stage-2: street-web patterns
 static int   netview  = 0;    // M4: 0 = junction detail (M1–M3), 1 = the street-web network
 static int   pattern  = PAT_GRID;
 static int   netseed  = 1;
@@ -596,15 +604,16 @@ static int step_btn(int x,int y,int w,const char*lm,const char*rm){
 //    they're a morph over one generator. gen_network() is a PURE fn of (pattern, seed) — the spec asserts
 //    on the graph directly (node/edge counts, mean degree, dead-ends — the SNDi measures, §8.2). M4a does
 //    grid + organic (a jitter morph on one lattice); radial + cul-de-sac (real topology changes) are M4b.
-#define GW 9                       // node columns
-#define GH 6                       // node rows
+#define GW 10                      // node columns (10 ⇒ arterial cols {0,3,6,9} divide cleanly by SB)
+#define GH 7                       // node rows    (7  ⇒ arterial rows {0,3,6} divide cleanly by SB)
+#define SB 3                       // Stage-2 superblock: an arterial on every SB-th lattice line ⇒ 3×3 cells
 #define R_RINGS   5                // radial: concentric rings
 #define R_SECTORS 8                // radial: spokes
 #define MAXNODE (GW*GH)
 #define MAXEDGE (MAXNODE*3)
-static const char* PAT_NAME[NPAT] = { "grid", "organic", "radial", "cul-de-sac" };
+static const char* PAT_NAME[NPAT] = { "grid", "organic", "radial", "cul-de-sac", "superblock" };
 typedef struct { float x,y; } NetNode;
-typedef struct { int a,b; } NetEdge;
+typedef struct { int a,b,arterial; } NetEdge;   // arterial=1 ⇒ engineered through-route: drawn STRAIGHT (the curve knob skips it). Default 0 (C zero-init) ⇒ every other pattern bows as before.
 static NetNode nnodes[MAXNODE]; static NetEdge nedges[MAXEDGE];
 static int nn=0, ne=0;
 
@@ -652,6 +661,36 @@ static void gen_culdesac(int id[GH][GW], int seed){
         else if (hash01(e.a,e.b,seed+999) < 0.12f) nedges[ne++]=e;                           // a sparse loop
     }
 }
+// SUPERBLOCK / FUSED-GRID (§8.3, Stage 2) — the ONE pattern with no algorithm in the 2001/2008 pillars, so
+// an original construction. A CONTINUOUS arterial grid (every SB-th lattice line) carries all through-traffic
+// and wraps cells whose INTERIOR is vehicle-DISCONTINUOUS: interior local streets attach to the perimeter as
+// a spanning forest (cul-de-sac stems, no cross-cell shortcut) + a sparse loop fraction. The defining pair —
+// pedestrian-permeable / vehicle-discontinuous. Distinct from cul-de-sac: the FRAME stays a full grid (a real
+// degree-4 / X-crossroads share survives) while CIRCUITY climbs (cars must detour the sealed interior). That
+// circuity gap is what PROVES it's a separate pattern when degree/node-mix alone read like a grid.
+static void gen_superblock(int id[GH][GW], int seed){
+    for (int i=0;i<nn;i++) uf[i]=i;
+    // 1) the arterial frame — every SB-th row/col, fully connected (the continuous loop network)
+    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){
+        if (c+1<GW && (r%SB)==0){ nedges[ne++]=(NetEdge){id[r][c],id[r][c+1],1}; uf[ufind(id[r][c])]=ufind(id[r][c+1]); }
+        if (r+1<GH && (c%SB)==0){ nedges[ne++]=(NetEdge){id[r][c],id[r+1][c],1}; uf[ufind(id[r][c])]=ufind(id[r+1][c]); }
+    }
+    // 2) interior local streets — Kruskal over the REMAINING (non-arterial) edges: a tree edge only attaches
+    //    an interior node to the frame (never closes a cross-cell through-route); a rare loop fraction adds
+    //    the occasional interior link without making the interior permeable to cars.
+    NetEdge cand[MAXEDGE]; float wt[MAXEDGE]; int nc=0;
+    for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){
+        if (c+1<GW && (r%SB)!=0){ cand[nc]=(NetEdge){id[r][c],id[r][c+1]}; wt[nc]=hash01(c,r,seed);     nc++; }
+        if (r+1<GH && (c%SB)!=0){ cand[nc]=(NetEdge){id[r][c],id[r+1][c]}; wt[nc]=hash01(c,r,seed+555); nc++; }
+    }
+    int ord[MAXEDGE]; for(int i=0;i<nc;i++) ord[i]=i;
+    for(int i=0;i<nc;i++){ int m=i; for(int j=i+1;j<nc;j++) if(wt[ord[j]]<wt[ord[m]]) m=j;
+        int t=ord[i]; ord[i]=ord[m]; ord[m]=t; }
+    for(int i=0;i<nc;i++){ NetEdge e=cand[ord[i]]; int ra=ufind(e.a), rb=ufind(e.b);
+        if (ra!=rb){ uf[ra]=rb; nedges[ne++]=e; }
+        else if (hash01(e.a,e.b,seed+999) < 0.06f) nedges[ne++]=e;   // a rare interior loop (kept low ⇒ stays discontinuous)
+    }
+}
 // SEAM (Phase 2 → docs/design/road-program-state.md): gen_network() is the PER-REGION generator a two-tier
 // (major→minor, §8.4) world calls — it fills one region's local streets given a (pattern, seed). The world
 // owns the major arterials + the region partition and stitches these graphs at the boundaries. Each node is
@@ -669,6 +708,7 @@ static void gen_network(int pat,int seed){
         id[r][c]=nn; nnodes[nn++]=(NetNode){ x0+c*cw+jx, y0+r*ch+jy };
     }
     if (pat==PAT_CULDESAC){ gen_culdesac(id, seed); return; }
+    if (pat==PAT_SUPERBLOCK){ gen_superblock(id, seed); return; }
     for (int r=0;r<GH;r++) for (int c=0;c<GW;c++){          // grid / organic: full grid edges
         if (c+1<GW) nedges[ne++]=(NetEdge){ id[r][c], id[r][c+1] };
         if (r+1<GH) nedges[ne++]=(NetEdge){ id[r][c], id[r+1][c] };
@@ -684,6 +724,42 @@ static int   deg_count(int d){    int c=0; for(int i=0;i<nn;i++) if(node_degree(
 static int   deg_count_ge(int d){ int c=0; for(int i=0;i<nn;i++) if(node_degree(i)>=d) c++; return c; }
 static int   deg_pct(int c){ return nn ? (100*c + nn/2)/nn : 0; }   // rounded share of all nodes (%)
 
+// CIRCUITY (§8.2 #3) — network shortest-path distance ÷ straight-line distance, averaged over every
+// connected node pair. 1.0 = every trip a straight shot; higher = more detour. The discriminator the
+// SUPERBLOCK needs: a fused grid can read the same degree/node-mix as a plain grid, but its vehicle-
+// discontinuous interior forces cars around ⇒ circuity climbs. PURE. Floyd–Warshall over nn≤MAXNODE
+// nodes (edge weight = Euclidean length) — O(n^3), trivial at sandbox scale (won't survive a real world;
+// that's a Stage-3 concern). See docs/design/road-program-state.md.
+static float mean_circuity(void){
+    if (nn<2) return 1;
+    static float D[MAXNODE][MAXNODE];
+    const float INF=1e9f;
+    for (int i=0;i<nn;i++) for(int j=0;j<nn;j++) D[i][j]=(i==j)?0.f:INF;
+    for (int e=0;e<ne;e++){
+        int a=nedges[e].a, b=nedges[e].b;
+        float w=sqrtf((nnodes[b].x-nnodes[a].x)*(nnodes[b].x-nnodes[a].x)+(nnodes[b].y-nnodes[a].y)*(nnodes[b].y-nnodes[a].y));
+        if (w<D[a][b]){ D[a][b]=w; D[b][a]=w; }
+    }
+    for (int k=0;k<nn;k++) for(int i=0;i<nn;i++){ if(D[i][k]>=INF) continue;
+        for(int j=0;j<nn;j++){ float v=D[i][k]+D[k][j]; if(v<D[i][j]) D[i][j]=v; } }
+    float tot=0; int cnt=0;
+    for (int i=0;i<nn;i++) for(int j=i+1;j<nn;j++){
+        if (D[i][j]>=INF) continue;
+        float e=sqrtf((nnodes[j].x-nnodes[i].x)*(nnodes[j].x-nnodes[i].x)+(nnodes[j].y-nnodes[i].y)*(nnodes[j].y-nnodes[i].y));
+        if (e<0.5f) continue;
+        tot += D[i][j]/e; cnt++;
+    }
+    return cnt ? tot/cnt : 1;
+}
+// is the network one connected component? (re-inits uf — call AFTER generation). spec/diagnostic helper.
+static int net_connected(void){
+    if (!nn) return 1;
+    for (int i=0;i<nn;i++) uf[i]=i;
+    for (int e=0;e<ne;e++){ int ra=ufind(nedges[e].a), rb=ufind(nedges[e].b); if(ra!=rb) uf[ra]=rb; }
+    int root=ufind(0); for(int i=1;i<nn;i++) if(ufind(i)!=root) return 0;
+    return 1;
+}
+
 // draw one street segment as a road quad (perpendicular extrusion of the centreline)
 static void road_segment(float ax,float ay,float bx,float by,float hw,int col){
     float dx=bx-ax, dy=by-ay, L=sqrtf(dx*dx+dy*dy); if(L<0.5f) return; dx/=L; dy/=L;
@@ -695,9 +771,14 @@ static void road_segment(float ax,float ay,float bx,float by,float hw,int col){
 
 // ── M4c: the curvature knob (§8.5 #4 — warped vs straight). Each EDGE bows into a quadratic curve; the
 //    graph/topology is untouched (degree, dead-ends unchanged) but the drawn roads WIND — and sinuosity
-//    (edge arc-length ÷ chord) becomes a live SNDi measure (it's pinned at 1 by straight chords otherwise). ──
+//    (edge arc-length ÷ chord) becomes a live SNDi measure (it's pinned at 1 by straight chords otherwise).
+//    Stage-2 refinement: an ARTERIAL edge never bows (the superblock's frame stays straight; only its calmed
+//    interior local streets wind) — the real fused-grid look: engineered through-routes straight, residential
+//    interior curved. Other patterns mark no edge arterial, so they bow uniformly as before. ──
 static float edge_bow(int i){            // signed ⊥ bow (px) for edge i — seeded per edge, scaled by the knob
     if (curveAmt<=0) return 0;
+    if (nedges[i].arterial) return 0;    // engineered through-routes stay STRAIGHT — only the calmed interior winds
+                                         // (the superblock marks its frame arterial; other patterns mark nothing ⇒ all bow)
     NetNode a=nnodes[nedges[i].a], b=nnodes[nedges[i].b];
     float L=sqrtf((b.x-a.x)*(b.x-a.x)+(b.y-a.y)*(b.y-a.y));
     return (hash01(nedges[i].a, nedges[i].b, netseed+313)-0.5f) * 2.f * (curveAmt/3.f) * 0.40f * L;
@@ -745,8 +826,8 @@ static void draw_network_view(void){
              PAT_NAME[pattern], nn, mean_degree(), dead_ends(), mean_sinuosity());
     print(bb, 4,13, CLR_ORANGE);
     // §8.2 degree distribution — the SNDi discriminator mean degree hides (Marshall node taxonomy)
-    snprintf(bb,sizeof bb,"node mix:  cul(1) %d%%   T(3) %d%%   X(4+) %d%%",
-             deg_pct(deg_count(1)), deg_pct(deg_count(3)), deg_pct(deg_count_ge(4)));
+    snprintf(bb,sizeof bb,"node mix:  cul(1) %d%%  T(3) %d%%  X(4+) %d%%    circuity %.2f",
+             deg_pct(deg_count(1)), deg_pct(deg_count(3)), deg_pct(deg_count_ge(4)), mean_circuity());
     print(bb, 4,21, CLR_LIGHT_GREY);
 
     rectfill(0, SCREEN_H-TOOLBAR, SCREEN_W, TOOLBAR, CLR_BLACK);
@@ -1049,6 +1130,37 @@ void spec(void){
     gen_network(PAT_GRID, 1);
     curveAmt=0; expect(spec_near(mean_sinuosity(), 1.0f), "curve=0: straight chords, sinuosity == 1");
     curveAmt=3; expect(mean_sinuosity() > 1.0f,         "curve>0: roads wind, sinuosity > 1");
+    curveAmt=0;                                                            // restore
+
+    // ── Stage 2: the SUPERBLOCK + CIRCUITY (§8.2 #3 / §8.3). CIRCUITY is what PROVES the superblock is a
+    //    distinct pattern — and this is §8.2's thesis in action ("node degree ALONE is not enough"): the
+    //    superblock and the cul-de-sac read NEARLY IDENTICAL on degree/dead-ends/node-mix (both ~dendritic),
+    //    yet circuity orders all three GRID < SUPERBLOCK < CUL-DE-SAC. The superblock sits between because its
+    //    continuous arterial FRAME gives through-routes a pure dendritic net lacks (circuity below cul-de-sac),
+    //    while its sealed interior still forces detours (circuity above the grid). The metric + the pattern
+    //    ship as one unit — the discriminator and the thing only it can discriminate. ──
+    gen_network(PAT_GRID, 1);       float circ_grid = mean_circuity();
+    expect(circ_grid > 1.0f && circ_grid < 1.6f,  "grid circuity is low (near-straight trips)");
+    expect(net_connected(),                       "grid is one connected component");
+    gen_network(PAT_CULDESAC, 3);   float circ_cds = mean_circuity();
+    gen_network(PAT_SUPERBLOCK, 1); float circ_sb  = mean_circuity();
+    expect(circ_sb > circ_grid,                   "superblock circuity > grid (cars detour the sealed interior)");
+    expect(circ_sb < circ_cds,                    "superblock circuity < cul-de-sac (the arterial frame gives through-routes)");
+    expect(net_connected(),                       "superblock is one connected component (interior reaches the frame)");
+    expect(deg_count_ge(4) > 0,                   "superblock keeps degree-4 arterial crossings (the continuous frame)");
+    expect(dead_ends() > 0,                       "superblock has interior cul-de-sacs (the permeable-edge stubs)");
+    // determinism (same contract as the other patterns)
+    gen_network(PAT_SUPERBLOCK, 4); float sbx = nnodes[12].x;
+    gen_network(PAT_SUPERBLOCK, 4); expect(spec_near(nnodes[12].x, sbx), "superblock is deterministic for a fixed seed");
+    // the curve knob curves ONLY the calmed interior — the arterial frame stays straight (engineered through-routes)
+    netseed=1; gen_network(PAT_SUPERBLOCK, netseed); curveAmt=3;
+    int art_straight=1, local_winds=0;
+    for (int i=0;i<ne;i++){
+        if (nedges[i].arterial){ if (edge_bow(i)!=0.f) art_straight=0; }
+        else if (edge_bow(i)>1.f || edge_bow(i)<-1.f) local_winds=1;
+    }
+    expect(art_straight, "superblock: the arterial frame stays straight under the curve knob");
+    expect(local_winds,  "superblock: the curve knob DOES wind the interior local streets");
     curveAmt=0;                                                            // restore
 
     // ── M6: mini-roundabout — round_icr() is pure over (islandR, lanesPer); the island sits strictly inside

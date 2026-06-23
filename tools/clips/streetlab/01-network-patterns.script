@@ -1,0 +1,15 @@
+# streetlab — switch to the network view (v), then cycle the 5 street-web patterns
+# with b: grid -> organic -> radial -> cul-de-sac -> SUPERBLOCK (the Stage-2 fused grid).
+# Watch the readout line: circuity climbs grid 1.21 -> superblock 1.59 -> cul-de-sac 2.18.
+# frames 220
+# fps 30
+down 8 V
+up 11 V
+down 40 B
+up 43 B
+down 80 B
+up 83 B
+down 120 B
+up 123 B
+down 160 B
+up 163 B

@@ -19,7 +19,7 @@ the whole hierarchy and flagged what was unmodeled; this is the build status aga
 | **Freeway / interchange** (grade-separated) | `roadlab` | ✅ done | the whole roads.org.uk catalogue (diamond/cloverleaf/stack/trumpet/fork/triangle/roundabout) generates from `(legs, type)` at any skew/lane-count — arc-spline ramps, clothoid joints, lane tapers, flyover elevation |
 | **The seam** (access control / continuity tenet) | — | understood, not code | the line between the ramp world (above) and the at-grade world (below) — §1/§3 of the research |
 | **At-grade junction** (Facet A) | `streetlab` M1–M3 | ✅ done | curb-return fillets (tangent arc), the leg layer (skew + the T), turn lanes + raised median channelizing islands — all angle-agnostic |
-| **Local/collector network** (Facet B) | `streetlab` M4 | ✅ done | a seed-driven graph in 4 canonical patterns — grid / organic / radial / cul-de-sac — that the SNDi metrics (mean degree, dead-ends) actually separate (§8.2) |
+| **Local/collector network** (Facet B) | `streetlab` M4 + Stage 2 | ✅ done | a seed-driven graph in 5 canonical patterns — grid / organic / radial / cul-de-sac / **superblock** (fused-grid) — that the SNDi metrics separate (§8.2): mean degree, dead-ends, node-mix, sinuosity, and **circuity** (the measure that proves the superblock distinct) |
 | **(prior) spline road-world** | `roadnet` / `roadnet2` | partial | the deterministic highway-tier spline network; roadnet2 already dabbles in street patterns + cul-de-sacs |
 
 **Headline:** every tier the research flagged as unmodeled now has a working, spec-locked sandbox.
@@ -109,10 +109,20 @@ Cheap + high-value at the top. (✓ = shipped since.)
       modal-network layer (Facet C, §9) — best done once paths-as-edges exist so there's a real thing to mark.
 
 **Network topology (Facet B — §8), in the network view:**
-- [ ] **Fused-grid / superblock** pattern (§8.3) — perimeter arterial loop + calmed/discontinuous interior;
-      the §8 open questions note *no algorithm exists in the 2001/2008 pillars*, so a small original bit.
-- [ ] **Dendricity + circuity** metrics (§8.2) — the rest of the four-measure SNDi. Circuity needs shortest-path
-      (heavier); defer until there's a reason.
+- ✓ **Fused-grid / superblock** pattern (§8.3, shipped 2026-06-23) — a continuous arterial GRID (every SB-th
+      lattice line) wrapping a vehicle-DISCONTINUOUS interior (local cul-de-sac stems off the perimeter via a
+      Kruskal spanning forest + a rare loop fraction). The one original bit (no algorithm in the 2001/2008
+      pillars). 5th pattern in `gen_network`; lattice bumped to 10×7 so `SB=3` cells divide cleanly. Spec'd.
+      ✓ **Interior-only curve** (2026-06-23, owner request): the curve knob now winds ONLY the calmed interior
+      local streets — the arterial frame stays dead straight (an `arterial` flag on the edge; `edge_bow` skips
+      it). The real fused-grid look: engineered through-routes straight, residential interior curved. Other
+      patterns mark no edge arterial, so they still bow uniformly. (Curve is visual/sinuosity only — topology,
+      degree, circuity unchanged.)
+- ◑ **Dendricity + circuity** metrics (§8.2) — ✓ **circuity** (shipped 2026-06-23): network shortest-path ÷
+      straight-line, Floyd–Warshall over the graph (the heavier measure, fine at sandbox scale — O(n³) is a
+      Stage-3 concern). It's the discriminator that PROVES the superblock: grid 1.21 < superblock 1.59 <
+      cul-de-sac 2.18, even though superblock & cul-de-sac read near-identical on degree/node-mix — §8.2's
+      "node degree alone is not enough" thesis, demonstrated. **Dendricity still deferred** (add if needed).
 - ✓ M4a–c: grid/organic/radial/cul-de-sac patterns + the curvature knob (winding, live sinuosity).
 - [ ] **Modal (active-travel) network layer** (Facet C, §9) — independent bike/foot paths as their OWN edges (not
       a road cross-section): parallel-at-offset / divergent / own crossings. The superblock's permeable-but-
@@ -154,12 +164,12 @@ early; exhaust what can be built in isolation first.
    → Facet A complete + spec-locked; the junction cart is done.
 
 **Stage 2 — finish the NETWORK sandbox (Facet B).**
-5. **Fused-grid / superblock pattern** *(high value)* — perimeter arterial loop + calmed/discontinuous interior.
-   The one original bit (no algorithm in the 2001/2008 pillars) AND a single-region prototype of the two-tier
-   world, so it de-risks Stage 3 rather than being throwaway.
-6. *Deferred:* dendricity + circuity metrics (circuity needs shortest-path) — add only if needed to separate
-   the superblock from the other patterns numerically.
-   → Network sandbox complete; the superblock teaches the region model.
+5. ✓ **Fused-grid / superblock pattern** *(done 2026-06-23)* — a continuous arterial grid wrapping a vehicle-
+   discontinuous interior. The one original bit AND a single-region prototype of the two-tier world. Shipped
+   WITH circuity (step 6) as one unit, since circuity is what proves it's distinct.
+6. ✓ **Circuity metric** *(done 2026-06-23)* — Floyd–Warshall network/straight-line ratio; orders grid <
+   superblock < cul-de-sac. *Dendricity still deferred* (add only if needed).
+   → Network sandbox complete; the superblock teaches the region model. **Next: step 6b (the modal layer).**
 
 **Stage 2.5 — the MODAL (active-travel) network layer (Facet C, §9 of the research).** *(new, scoped 2026-06-23)*
 6b. **Independent bike/foot paths as their own network edges** — NOT a road cross-section (that's built), but a
@@ -175,11 +185,11 @@ early; exhaust what can be built in isolation first.
 
 **► Suggested sequence for Stages 2–2.5 (set 2026-06-23)** — do them as ONE coherent "network + active-travel"
 stretch, all still inside `streetlab`, before the Stage-3 world leap:
-1. **Superblock + circuity together** — build the fused-grid pattern (step 5) and the circuity metric (step 6) in
-   the same pass: circuity (cars-go-around / bikes-cut-through) is what *proves* the superblock is a distinct
-   pattern, so they're one unit, not two.
+1. ✓ **Superblock + circuity together** *(done 2026-06-23)* — built the fused-grid pattern (step 5) and the
+   circuity metric (step 6) in one pass. Circuity proves it: grid 1.21 < superblock 1.59 < cul-de-sac 2.18,
+   where degree/node-mix can't tell the superblock from a cul-de-sac. Spec-locked (102 assertions), baked.
 2. **Modal active-travel layer** (step 6b / Facet C) — paths-as-edges. The superblock's cut-throughs ARE these
-   edges, so it lands naturally right after.
+   edges, so it lands naturally right after. **← NEXT.**
 3. **Crossings & priority markings pass** (the deferred markings item) — now there are real path×road conflicts
    to mark, so it has something to bite on.
 → That completes the network sandbox *with* bikes/peds. THEN take the breath (end-of-Stage-2 stopping point)
@@ -200,7 +210,20 @@ stretch, all still inside `streetlab`, before the Stage-3 world leap:
 **Natural stopping points:** end of Stage 1 (junction done), end of Stage 2 (both sandboxes done — the clean
 "stop and combine later" line), and each Stage-3 step is its own deliverable.
 
-### ► Resume here (2026-06-23) — Stage 1 (Facet A) COMPLETE; next is Stage 2 (the network superblock)
+### ► Resume here (2026-06-23) — Stage 2 superblock + circuity COMPLETE; next is the MODAL layer (step 6b)
+
+**State (latest):** the **superblock / fused-grid pattern + circuity metric** shipped (suggested-sequence step 1).
+`PAT_SUPERBLOCK` is the 5th pattern in `gen_network` (cycle with `b` in the network view): a continuous arterial
+grid (`SB=3`, every 3rd lattice line) wrapping a vehicle-discontinuous interior (Kruskal spanning forest of
+cul-de-sac stems off the perimeter + a rare loop). Lattice bumped 9×6 → **10×7** so the cells divide cleanly.
+`mean_circuity()` (Floyd–Warshall, in the node-mix readout line) orders **grid 1.21 < superblock 1.59 <
+cul-de-sac 2.18** — and that's the only measure that separates the superblock from a cul-de-sac (they match on
+degree/node-mix), the §8.2 thesis demonstrated. **The curve knob winds only the interior** (arterial frame stays
+straight via an `arterial` edge flag) — the fused-grid look. Spec'd (**104 assertions**); build-all + ui-audit clean; baked.
+**Next: step 6b — the modal active-travel layer** (paths-as-edges; the superblock's sealed interior is exactly
+where the pedestrian/bike cut-throughs go). Then step 3 (crossings/priority markings), then the Stage-2 breather.
+
+<details><summary>Earlier resume note — Stage 1 (Facet A, the free-right slip) COMPLETE</summary>
 
 **State:** the free-right slip + pork-chop channelizing island is **done and owner-approved**. Toggle with `f`
 / the "junction:" toolbar cycle (plain → turn lanes → **free-right** → roundabout, mutually exclusive via
@@ -239,6 +262,7 @@ markings pass** (bike-vs-car give-way, path×road crossings) — best paired wit
 **Next: Stage 2 — the NETWORK superblock** (the fused-grid: a perimeter arterial loop + a calmed/discontinuous
 interior; the one original bit with no algorithm in the 2001/2008 pillars, and a single-region prototype of the
 two-tier world, so it de-risks Stage 3). Don't jump to the world.
+</details>
 
 ## Cross-section composition — known issues + the next-pass plan (2026-06-22)
 

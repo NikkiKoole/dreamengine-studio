@@ -5478,5 +5478,18 @@
       "algorithm-visualization"
     ],
     "lineage": "Isolates the <=1px corner-staircase floor accepted in streetlab (docs/design/road-program-state.md, streetlab.c SEAM note, STATUS.md 43) into a pixel-precise sandbox. Sibling to pixelperfect (also a software-rasterizer tech-demo) but about rasterisation SYMMETRY under a flip rather than fractional scaling: shows ri-snap double-rounding break a mirror, and the compute-one-corner-then-blit-mirrored fix the docs propose, proven exact by a spec()."
+  },
+  {
+    "title": "gridcity",
+    "description": "EXPERIMENT (v1, bare): the AGGREGATE TILE-DATA SIMULATION behind SimCity 2000 — not road geometry (roadlab/streetlab) and not a top-down generator (procplaces), but the consequence side: paint terrain, tile roads, and R/C/I zones, and the engine COMPUTES the emergent data layers from them and from each other every sim tick. v1 proves the core feedback loop crime↑ → land value↓ → crime↑ (the slum spiral), broken only by POLICE coverage. It is all two spreading primitives over a 64x48 grid: a DIFFUSION blur (4-neighbour average, mass-conserving) for population density + near-water land-value, and a DECAYING SPREAD (strongest-neighbour minus a per-step decay = a distance falloff) for service coverage — because an averaging blur thins a single police station to nothing and never suppresses crime (the one non-obvious v1 finding). Cross-layer formulas wire them: land value = centre-proximity + near-water − crime; crime = base + density − land value − police. Opens on a seeded sample city with one unpoliced slum. Number keys 1-5 toggle overlays (City / Land value / Crime / Police / Density); LEFT-drag paints the current brush, RIGHT-drag erases; R/C/I zone, O road, W water, P police station, E erase; SPACE reseeds. Carries a spec() that pins the loop: an unpoliced dense block reaches crime 87 / land value 44, and dropping a station collapses crime to 0 and rebounds land value to 87. Design + roadmap (v1 bare → v1.5 pollution + the develop/abandon growth valve driven by an RCI demand meter → v2 full: densities, power, water, traffic, fire/education/health coverage) in docs/design/data-layers.md.",
+    "file": "gridcity.cart.png",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "cellular-automata",
+      "algorithm-visualization"
+    ],
+    "lineage": "The consequence-side mirror of procplaces: procplaces paints R/C/I top-down from noise; gridcity DERIVES the data layers bottom-up from placed zones + feedback, the way SimCity 2000 runs its map. One smooth() diffusion primitive (pollution/density/water-value) plus one spread() distance-falloff primitive (service coverage), wired by cross-layer formulas into the crime↔land-value slum spiral. v1 carries a spec() proving the loop and the police-coverage reversal."
   }
 ]

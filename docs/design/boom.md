@@ -39,9 +39,11 @@ particle/body that cools along a blackbody ramp and settles under top-down frict
   ungrouped (a piece falls below COLLAPSE_MIN cells).
 - **Blasts shove loose objects** (the blast as a *pushing force*): the shockwave
   flings a blast-adjacent parked car, pushes blocks already on the ground, and
-  slides **crates** — persistent wooden boxes that sit until a blast or ram car
-  hits them, then tumble and settle (splintering if a blast lands close or they
-  burn). A packed parking lot + crate stacks are the chain-reaction showpieces.
+  slides **crates** — persistent wooden boxes (seeded in stacks, or paint your own
+  with the **B** brush in BUILD) that sit until a blast or ram car hits them, then
+  tumble and settle (splintering if a blast lands close or they burn). A packed
+  parking lot + crate stacks are the chain-reaction showpieces. And settled debris
+  is kinetic too: a fresh blast re-scatters blocks/crates already on the ground.
 - Demo clips: `tools/clips/boom/{01-blast,02-ramcar}.script`.
 
 ## Wishlist (next, roughly in order)

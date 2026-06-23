@@ -20,7 +20,7 @@
 //                6 RAM CAR  a car screams in from off-screen at your click and
 //                           crashes (car-bomb) into the first wall it meets
 //     BUILD   click / drag to paint the world. 1-0 pick a material;
-//             T = torch: light a fire by hand.
+//             T = torch: light a fire by hand;  B = drop a loose crate to blow around.
 //
 //   ALWAYS    C clear all fire & smoke      R reset the scene
 //
@@ -76,6 +76,7 @@
 enum { MAT_GROUND, MAT_ROAD, MAT_GRASS, MAT_WOOD, MAT_OIL, MAT_WATER, MAT_ASH,
        MAT_BARREL, MAT_CAR, MAT_GLASS, MAT_CONCRETE, MAT_RUBBLE, MAT_KINDS };
 #define TORCH MAT_KINDS                  // brush sentinel: light a fire by hand
+#define CRATE_BRUSH (MAT_KINDS + 1)      // brush sentinel: drop a loose crate (a body, not a cell)
 static const int MAT_FUEL[MAT_KINDS]   = {  0,  0, 20, 90, 45,  0,  0,  30, 60,  0,  0,  0 };
 static const int MAT_RESIST[MAT_KINDS] = {  0,  0,  0, 20,-40,  0,  0, -20, 40,  0,  0,  0 };
 static const int MAT_HP[MAT_KINDS]     = {  0,  0,  0,  0,  0,  0,  0,   0,  0,  4, 16,  0 };
@@ -195,6 +196,13 @@ static Ramcar rcar[MAXCAR];
 typedef struct { float x, y, vx, vy, ang, spin; int hp; unsigned char on; } Crate;
 #define MAXCRATE 48
 static Crate crate[MAXCRATE];
+
+static void place_crate(float x, float y) {
+    for (int i = 0; i < MAXCRATE; i++) if (!crate[i].on) {
+        crate[i] = (Crate){ x, y, 0, 0, 0, 0, 28, 1 };
+        return;
+    }
+}
 
 // ── global state ───────────────────────────────────────────────────────────
 static int   mode;            // 0 = BOOM, 1 = BUILD
@@ -677,6 +685,7 @@ void update(void) {
         for (int i = 0; i < 9; i++) if (keyp('1' + i)) brush = BRUSH_MAT[i];
         if (keyp('0')) brush = BRUSH_MAT[9];
         if (keyp('T')) brush = TORCH;
+        if (keyp('B')) brush = CRATE_BRUSH;
     }
 
     float w = mouse_wheel();
@@ -688,7 +697,9 @@ void update(void) {
             if (blast == RAMCAR) launch_car(mx, my, charge);
             else                 detonate(mx, my, charge, blast);
         }
-    } else {                                          // BUILD
+    } else if (brush == CRATE_BRUSH) {                // BUILD: drop a crate per click
+        if (mouse_pressed(0)) place_crate(mx, my);
+    } else {                                          // BUILD: paint cells
         if (mouse_down(0)) {
             int gx = mx / CELL, gy = my / CELL;
             for (int oy = -1; oy <= 1; oy++)
@@ -1084,8 +1095,9 @@ void draw(void) {
         circ(mx, my, 2, CLR_WHITE);
     } else {
         int gx = mx / CELL, gy = my / CELL;
-        int bc = brush == TORCH ? CLR_ORANGE : MAT_COL[brush];
-        rect((gx - 1) * CELL, (gy - 1) * CELL, CELL * 3, CELL * 3, bc);
+        int bc = brush == TORCH ? CLR_ORANGE : brush == CRATE_BRUSH ? CLR_BROWN : MAT_COL[brush];
+        if (brush == CRATE_BRUSH) rect(mx - 2, my - 2, 5, 5, bc);   // a box footprint
+        else rect((gx - 1) * CELL, (gy - 1) * CELL, CELL * 3, CELL * 3, bc);
     }
 
     // HUD ---------------------------------------------------------------------
@@ -1095,7 +1107,7 @@ void draw(void) {
         const char *bn = (blast == RAMCAR) ? "ram car" : BSPEC[blast].name;
         snprintf(buf, sizeof buf, "BOOM  %s  charge %d", bn, charge);
     } else {
-        const char *bn = brush == TORCH ? "torch" : MAT_NAME[brush];
+        const char *bn = brush == TORCH ? "torch" : brush == CRATE_BRUSH ? "crate" : MAT_NAME[brush];
         snprintf(buf, sizeof buf, "BUILD  brush: %s", bn);
     }
     print(buf, 3, 1, CLR_WHITE);
@@ -1118,6 +1130,8 @@ void draw(void) {
             sx += (int)strlen(t) * 4 + 4;
         }
         print("T torch", sx, sy, brush == TORCH ? CLR_WHITE : CLR_MEDIUM_GREY);
+        sx += (int)strlen("T torch") * 4 + 5;
+        print("B crate", sx, sy, brush == CRATE_BRUSH ? CLR_WHITE : CLR_MEDIUM_GREY);
     }
     font(FONT_NORMAL);
 

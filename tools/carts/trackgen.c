@@ -57,14 +57,17 @@
 // the SAME drive_ai_traffic brain — the only generalization is one Car.road field + a
 // road_*() accessor (both wrap), the whole portability thesis. Crossings (xpt[], two loops
 // cross an even number of times) are found by segment intersection (find_crossings), each
-// recording its sample index on BOTH tracks. RIGHT-OF-WAY (priority road): track 1 has
-// priority; track 2 GIVES WAY — a track-2 car enters a junction only when it can clear
-// before any track-1 car arrives (gap acceptance, crossing_yield_gap), reusing the
-// red-light stop-line trick; a whole platoon streams through one gap (only a perpendicular
-// car blocks the box). A priority car keeps its right of way but brakes if a give-way car
-// has mis-committed into the box (a crash-avoidance net). Junctions draw as a ring (red
-// while a priority car holds it). Design + remaining systems (speed zones, hazards, peds,
-// green-wave): docs/design/traffic-ai.md.
+// recording its sample index on BOTH tracks. RIGHT-OF-WAY is a JUNCTION RESERVATION
+// (update_reservations): each crossing is owned by at most ONE car at a time, so two cars
+// can NEVER share a junction — no T-bones, by construction, not by tuning. A car claims a
+// free crossing once within XAPPROACH (and only if its exit is clear, so it won't stall IN
+// the box); the owner holds it until it has driven through, then frees it (a timeout breaks
+// any stall). Everyone else stops short (crossing_yield_gap). The grant uses a CLAIM SCORE
+// (soonest-to-arrive, biased by aggression = priority track + PERS.aggro) — the hook for
+// "crazy vs careful" drivers. Junctions draw as a ring (orange = reserved); debug overlay
+// (key D) draws a line from each owner to its junction, and pink "stuck" cars to their
+// blocker. Design + remaining systems (speed zones, hazards, peds, green-wave):
+// docs/design/traffic-ai.md.
 // (Known rough edge: on the tightest procedural corner a fast car can still clip the
 // apex and recover.)
 //   LEFT/RIGHT steer · UP gas · DOWN brake · X drift · Z new track · R restart
@@ -112,10 +115,12 @@
 // ── second track (a closed loop crossing the first; cars on it have road = 1) ──
 #define NSAMP2       240        // samples around the second track's loop
 #define MAXX         16         // max track×track crossings stored (two loops can cross many times)
-// ── right-of-way at the crossings (Phase C — priority-road rule) ──
-#define XBOX_LOOK    300.0f     // how far ahead a give-way car looks for a crossing (px)
-#define XPRI_LOOK    420.0f     // pre-filter: ignore priority cars past this (the time test does the real work)
-#define XCLEAR_MGN   20.0f      // safety margin (frames) added to my time-to-clear the box
+// ── right-of-way at the crossings (junction RESERVATION — one car owns a crossing
+//    at a time, so two cars can never share it: crash-proof, not tuning-dependent) ──
+#define XBOX_LOOK    300.0f     // how far ahead a car cares about a crossing (px)
+#define XAPPROACH    120.0f     // a car claims a free crossing once this close (≥ its stopping distance,
+                                // so a car that loses the claim still has room to halt at the line)
+#define XHOLD_MAX    300        // frames an owner may hold a crossing before a forced release (anti-stall)
 
 // levers — NAME the indices (CLAUDE.md): a reorder must fail at the compiler,
 // not silently cross-wire sliders ↔ presets
@@ -230,6 +235,8 @@ STATE {
     float seg_len2;            // avg world distance between adjacent cl2[] samples (px)
     Xing  xpt[MAXX];           // loop×cross crossings (computed in gen_track)
     int   nx;                  // number of crossings found
+    int   xowner[MAXX];        // car index that currently OWNS each crossing (-1 = free) — the reservation
+    int   xtimer[MAXX];        // frames the current owner has held it (anti-stall timeout)
     int   ncross;              // active cross-road cars, in car[ncars .. ncars+ncross) (Phase B)
     bool  dbg;                 // debug overlay: show why each car is braking (key D)
     Car   car[CARS_MAX];       // car[0] = player, car[1..] = AI
@@ -574,6 +581,8 @@ static void put_all_at_start(void) {
         put_car_on_cross(&S->car[i], (k * NSAMP2) / S->ncross, k % S->nlanes);   // spread round the loop
     }
 
+    for (int k = 0; k < MAXX; k++) { S->xowner[k] = -1; S->xtimer[k] = 0; }   // clear junction reservations
+
     // TRAFFIC: a single traffic light half a lap from the start (a clean bottleneck),
     // starting green. RACE: no light.
     S->light = S->traffic ? (NSAMP / 2) : -1;
@@ -626,6 +635,7 @@ static float spline_road(const V2 *ctrl, int nc, V2 *cl, V2 *nl, int nsamp, floa
 // cross an even number of times; nearby duplicates (adjacent segments) are merged.
 static void find_crossings(void) {
     S->nx = 0;
+    for (int k = 0; k < MAXX; k++) { S->xowner[k] = -1; S->xtimer[k] = 0; }
     for (int a = 0; a < NSAMP && S->nx < MAXX; a++) {
         V2 p1 = S->cl[a], p2 = S->cl[(a+1)%NSAMP];
         float d1x = p2.x-p1.x, d1y = p2.y-p1.y;
@@ -911,70 +921,75 @@ static bool lane_clear(Car *c, int idx, int lane) {
     return true;
 }
 
-// PHASE C — right-of-way at the crossings. Priority-road rule: the loop (road 0)
-// has right of way; the cross-road (road 1) GIVES WAY. For a give-way car, find the
-// crossing it is approaching and ask "can I clear the intersection box before any
-// priority car reaches it?" (gap acceptance). If not — a priority car is in the box
-// or arrives within my crossing window — the crossing becomes a temporary stop-line
-// leader (the same trick the red light uses): return the distance to stop short of.
-// Returns 1e9 (proceed) for priority cars, an empty road, or an acceptable gap. A car
-// already committed (inside the box) is let through so it never stalls in the junction.
-static float crossing_yield_gap(Car *c, int idx) {
-    if (S->nx == 0) return 1e9f;
+// distance (px) a car is from a crossing along its OWN track: + ahead, − past it.
+static float xing_dist(Car *c, int k) {
+    int xprog = c->road ? S->xpt[k].prog2 : S->xpt[k].prog1;
+    return prog_ahead(c->road, c->prog, xprog) * road_seg(c->road);
+}
+
+// JUNCTION RESERVATIONS — run once per frame, before the AI. Each crossing is owned by
+// at most ONE car; only the owner may enter it, so two cars never share a junction (no
+// T-bones, by construction — no tuning). A car claims a free crossing once it's within
+// XAPPROACH (and only if its exit is clear, so it won't stall IN the box); the owner
+// holds it until it has driven through, then it frees. A timeout breaks any stall.
+//
+// PERSONALITY HOOK (the "crazy vs careful" knob, ready to grow): the winner of a free
+// crossing is the car with the best CLAIM SCORE = how soon it reaches the box, biased by
+// aggression (an aggressive driver effectively arrives "sooner" and wins ties / noses in;
+// a careful one defers). Today aggression = the priority track (road 0) + PERS.aggro; per
+// driver you can later widen the bias, shorten a bold driver's stop gap, etc.
+static void update_reservations(void) {
     int total = S->ncars + S->ncross;
-    float Rocc  = (float)S->half;                         // the physical junction (a T-bone happens here)
-    float Rstop = Rocc + 2.0f * CAR_HALF_L + 2.0f;        // I halt this far back, clear of the junction
-    float occ   = Rocc + CAR_HALF_L;                      // a car centre within this is "in the box"
+    float Rocc = (float)S->half, occ = Rocc + CAR_HALF_L;
+    for (int k = 0; k < S->nx; k++) {
+        int o = S->xowner[k];
+        if (o >= 0) {                                    // ── currently owned: release when cleared/stale
+            if (o >= total) { S->xowner[k] = -1; continue; }
+            float d = xing_dist(&S->car[o], k);
+            S->xtimer[k]++;
+            if (d < -(Rocc + CAR_HALF_L) || d > XBOX_LOOK || S->xtimer[k] > XHOLD_MAX) S->xowner[k] = -1;
+            else continue;                               // still held
+        }
+        // ── free: grant to the best approaching candidate (claim score), if its exit is clear
+        int best = -1; float bestscore = -1e9f;
+        for (int i = 0; i < total; i++) {
+            Car *c = &S->car[i];
+            float d = xing_dist(c, k);
+            if (d <= 0 || d > XAPPROACH) continue;       // not approaching / not close enough yet
+            // exit-clear: don't grant if a stopped car sits just past the junction (would stall in box)
+            int xprog = c->road ? S->xpt[k].prog2 : S->xpt[k].prog1;
+            V2 ep = road_cl(c->road, xprog + (int)((Rocc + 2.0f*CAR_HALF_L)/road_seg(c->road)) + 2);
+            bool exit_blocked = false;
+            for (int j = 0; j < total; j++) {
+                if (j == i) continue;
+                float sv = S->car[j].spd < 0 ? -S->car[j].spd : S->car[j].spd;
+                if (sv > 0.6f) continue;
+                float rx = S->car[j].px - ep.x, ry = S->car[j].py - ep.y;
+                if (rx*rx + ry*ry < Rocc*Rocc) { exit_blocked = true; break; }
+            }
+            if (exit_blocked) continue;
+            // claim score: nearer = higher; aggression (priority track + PERS.aggro) adds a bias
+            float aggr = (c->road == 0 ? 30.0f : 0.0f) + (i > 0 ? PERS[c->pers].aggro * 20.0f : 0.0f);
+            float score = -d + aggr;
+            if (score > bestscore) { bestscore = score; best = i; }
+        }
+        if (best >= 0) { S->xowner[k] = best; S->xtimer[k] = 0; }
+    }
+}
+
+// the crossing as a stop-line for the brain: if I'm approaching a crossing I do NOT own,
+// stop short of it (return the gap). The owner gets 1e9 (proceed). This + the reservation
+// above is the whole crash-proof junction: only the owner is ever inside the box.
+static float crossing_yield_gap(Car *c, int idx) {
+    if (!S->cross || S->nx == 0) return 1e9f;             // no second track → no junctions to yield at
+    float Rstop = (float)S->half + 2.0f * CAR_HALF_L + 2.0f;
     float best = 1e9f;
     for (int i = 0; i < S->nx; i++) {
-        int xprog = c->road ? S->xpt[i].prog2 : S->xpt[i].prog1;
-        int dme_s = prog_ahead(c->road, c->prog, xprog);
-        if (dme_s <= 0) continue;                        // this crossing is behind me
-        float dme = dme_s * road_seg(c->road);
-        if (dme > XBOX_LOOK || dme <= Rstop) continue;    // too far yet, or already committed (clear it)
-
-        bool conflict = false;
-        if (c->road == 1) {
-            // GIVE-WAY road: full gap acceptance. Time for ME to clear the junction,
-            // measured from the stop line (not from however far out I spot it). Assume
-            // I reach ~half cruise from a standstill so a waiting car still takes a gap.
-            float vref = c->spd < 0 ? -c->spd : c->spd;
-            float vmin = MAX_SPD * PERS[c->pers].spd_cap * 0.7f;
-            if (vref < vmin) vref = vmin;
-            float t_clear = (Rstop + Rocc + CAR_HALF_L) / vref;
-            // (a) never drive into a box a PRIORITY car is in — but a same-road car ahead
-            //     does NOT block (it's crossing my way, car-following keeps us spaced), so
-            //     a whole platoon of give-way cars can stream through one open gap.
-            for (int j = 0; j < S->ncars && !conflict; j++) {
-                float rx = S->car[j].px - S->xpt[i].p.x, ry = S->car[j].py - S->xpt[i].p.y;
-                if (rx*rx + ry*ry < occ*occ) conflict = true;
-            }
-            // (b) will a priority car reach the junction while I'm crossing? Assume it
-            //     can speed up to city pace, so a car idling at the light still counts.
-            for (int j = 0; j < total && !conflict; j++) {
-                Car *p = &S->car[j];
-                if (p->road != 0) continue;
-                int dp_s = prog_ahead(0, p->prog, S->xpt[i].prog1);
-                float dp = dp_s * S->seg_len;
-                if (dp < -Rocc || dp > XPRI_LOOK) continue;
-                float vp = p->spd < 0 ? -p->spd : p->spd;
-                float vassume = MAX_SPD * 0.55f; if (vp < vassume) vp = vassume;
-                float t_p = dp < 0 ? 0.0f : dp / vp;
-                if (t_p < t_clear + XCLEAR_MGN) conflict = true;
-            }
-        } else {
-            // PRIORITY road: don't yield on principle — but DO brake to avoid a crash
-            // if a give-way car has (mis)committed toward the junction ahead. Catch it
-            // out to Rstop (its commit point), not just dead-centre, so a fast priority
-            // car has room to stop. A safety net for the rare gap-acceptance error; a
-            // clear junction never brakes a priority car.
-            float pdef = Rstop + CAR_HALF_L;
-            for (int j = S->ncars; j < total && !conflict; j++) {
-                float rx = S->car[j].px - S->xpt[i].p.x, ry = S->car[j].py - S->xpt[i].p.y;
-                if (rx*rx + ry*ry < pdef*pdef) conflict = true;
-            }
-        }
-        if (conflict) { float gap = dme - Rstop; if (gap < best) best = gap; }
+        if (S->xowner[i] == idx) continue;               // I own it → go
+        float dme = xing_dist(c, i);
+        if (dme <= Rstop || dme > XBOX_LOOK) continue;    // behind/committed, or too far to matter
+        float gap = dme - Rstop;
+        if (gap < best) best = gap;
     }
     return best;
 }
@@ -1168,6 +1183,8 @@ void update(void) {
         if (++S->light_t >= (S->light_red ? LIGHT_RED : LIGHT_GRN)) { S->light_t = 0; S->light_red = !S->light_red; }
     }
 
+    if (S->cross) update_reservations();                 // assign junction ownership before anyone drives
+
     float p_turn = (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
     float p_thr  = (btn(0, BTN_UP)    ? 1.0f : 0.0f) - (btn(0, BTN_DOWN) ? 1.0f : 0.0f);
     step_car(&P, p_turn, p_thr, P.drift);
@@ -1327,17 +1344,15 @@ static void draw_track_world(void) {
         for (int s = 0; s < NSAMP2; s += 6)                 // centre dashes
             line((int)S->cl2[s].x, (int)S->cl2[s].y,
                  (int)S->cl2[(s+3)%NSAMP2].x, (int)S->cl2[(s+3)%NSAMP2].y, CLR_BLUE_GREEN);
-        int rbox = S->half;                                 // junction radius (matches Phase C Rocc)
+        int rbox = S->half;                                 // junction radius (= reservation Rocc)
         for (int i = 0; i < S->nx; i++) {
             int mx = (int)S->xpt[i].p.x, my = (int)S->xpt[i].p.y;
-            bool busy = false;                              // is a priority (loop) car in the box right now?
-            for (int j = 0; j < S->ncars; j++) {
-                float rx = S->car[j].px - S->xpt[i].p.x, ry = S->car[j].py - S->xpt[i].p.y;
-                if (rx*rx + ry*ry < (float)(rbox*rbox)) { busy = true; break; }
-            }
-            circ(mx, my, rbox, busy ? CLR_RED : CLR_DARKER_GREY);   // the junction box (red = priority holds it)
+            int owner = S->xowner[i];
+            circ(mx, my, rbox, owner >= 0 ? CLR_ORANGE : CLR_DARKER_GREY);   // ring: orange = reserved, grey = free
             circfill(mx, my, 5, CLR_INDIGO);
             circ(mx, my, 5, CLR_LIGHT_YELLOW);
+            if (S->dbg && owner >= 0)                        // a line from the car that holds this junction
+                line(mx, my, (int)S->car[owner].px, (int)S->car[owner].py, CLR_ORANGE);
         }
     }
 
@@ -1686,7 +1701,7 @@ void spec(void) {
     // ── the controller, tested directly (no track noise). Reaction lag delays the
     //    output, so prime the pipeline (REACT_N+1 calls) before reading the command. ──
     S->traffic = true; put_all_at_start();
-    S->light = -1;                           // isolate from the light
+    S->light = -1; S->nx = 0;                 // isolate from the light AND the junctions
     Car *F = &S->car[1], *L = &S->car[2];
     float turn, thr; bool dr;
 
@@ -1788,5 +1803,30 @@ void spec(void) {
     expect(vloop  > 0.5f, "right-of-way: the priority track keeps flowing");
     expect(vcross > 0.5f, "right-of-way: the give-way track still flows (not starved to a stop)");
     expect(totprog >= (long)S->ncross * NSAMP2 / 4, "right-of-way: second-track cars get round the junctions (gaps accepted, not timid)");
+
+    // ── no sustained gridlock, across SEEDS (the deadlock was seed-specific): for a
+    //    handful of reseeds, run a while and assert the junctions never wedge the world
+    //    to a standstill — several cars are still moving AND no two cars from different
+    //    tracks are overlapped at the end. The reservation makes this hold by design. ──
+    unsigned int seeds[4] = { 0x1234u, 0xBEEFu, 0x51A7u, 0x0C0Fu };
+    for (int t = 0; t < 4; t++) {
+        gen_track(seeds[t]);
+        S->traffic = true; S->cross = true;
+        put_all_at_start();
+        step(900);
+        int moving = 0, wedged = 0;
+        for (int i = 0; i < S->ncars + S->ncross; i++)
+            if ((S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd) > 0.5f) moving++;
+        for (int a = 0; a < S->ncars; a++)
+            for (int b = S->ncars; b < S->ncars + S->ncross; b++) {
+                float rx = S->car[b].px - S->car[a].px, ry = S->car[b].py - S->car[a].py;
+                if (rx*rx + ry*ry >= (2.0f*CAR_HALF_L)*(2.0f*CAR_HALF_L)) continue;
+                float fwd = rx*dx(1,S->car[a].ang) + ry*dy(1,S->car[a].ang);
+                float lat = rx*dx(1,S->car[a].ang+90) + ry*dy(1,S->car[a].ang+90);
+                if ((fwd<0?-fwd:fwd) < 2.0f*CAR_HALF_L && (lat<0?-lat:lat) < 2.0f*CAR_HALF_W) wedged++;
+            }
+        expect(moving >= 4, "reservation: no gridlock — cars still moving after a long run (every seed)");
+        expect_eq(wedged, 0, "reservation: no cross-track wedge at the end (every seed)");
+    }
 }
 #endif

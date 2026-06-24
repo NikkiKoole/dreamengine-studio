@@ -7,10 +7,11 @@ a cycling TRAFFIC LIGHT (red = a stop-line all lanes queue behind), and a reacti
 that makes dense following unstable → PHANTOM JAMS emerge with no cause (the ring-road experiment).
 Lanes are emergent from lateral position, so the player participates (stop in a lane → traffic
 passes you). Collision is an ORIENTED box (long-along-heading, narrow-across), so adjacent-lane cars
-never falsely touch. Spec (42 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
+never falsely touch. Spec (50 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
 flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spread, and the
 **second-track crossing** (geometry/crossings; second-track stream spawns + flows + stays on its
-track; right-of-way — no T-bones via real body-overlap, both tracks flow, cars get round). **Rough
+track; right-of-way reservation — no T-bones by construction, no gridlock, both tracks flow, across
+4 seeds). **Rough
 edge:** on the tightest procedural corner a fast car can still clip the apex (localized, recovers).
 
 > **DESIGN PIVOT (2026-06-24):** the "cross-road" started as a straight road cutting the loop
@@ -162,12 +163,21 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
   cause legible at a glance (yielding vs. a car-following cascade). A **`WHY_BLOCKED` (pink "stuck")**
   state answers the follow-up "they want to go but can't — show *that* too": a car commanding throttle
   yet not moving is physically wedged by another car, drawn pink with a line to the car blocking it.
-  Density balancing (`TRAFFIC_CARS_X`) and the junction ring (red = priority holds it) also landed here.
-  **Known issue (next):** on some reseeded tracks two streams can WEDGE at a junction into a sustained
-  standstill (the pink overlay surfaces it). Gap-acceptance tuning only shuffles which frames the rare
-  cross-track contact lands on — the robust fix is a **crash-proof junction reservation** (one car holds
-  a crossing at a time; ≈ a 4-way-stop), which also makes the no-T-bone guarantee deterministic instead
-  of tuning-dependent. Remaining: that reservation + the rule toggle.
+  Density balancing (`TRAFFIC_CARS_X`) and the junction ring also landed here.
+  **RIGHT-OF-WAY is now a JUNCTION RESERVATION (2026-06-24), replacing gap-acceptance.** The earlier
+  gap-acceptance approach couldn't *guarantee* no crash — tuning (margins, look-ahead, crash-brake)
+  only shuffled which frame the rare cross-track contact landed on, and on some reseeded tracks two
+  streams WEDGED into a sustained standstill (the pink overlay surfaced it). The fix: each crossing is
+  owned by at most **one car at a time** (`xowner[]`, `update_reservations`). A car claims a free
+  crossing once within `XAPPROACH` *and* only if its exit is clear (so it never stalls in the box); the
+  owner holds it until it drives through, then frees it; a timeout (`XHOLD_MAX`) breaks any stall.
+  Everyone else stops short (`crossing_yield_gap` now just "do I own it? else stop"). Two cars can
+  never share a junction → **no T-bones by construction, not by tuning**, and no wedge-deadlock. Spec
+  proves it across **4 seeds** (no collision, no gridlock, both tracks still moving after a long run).
+  The grant uses a **claim score** (soonest-to-arrive, biased by aggression = priority track + `PERS.aggro`)
+  — the hook for **"crazy vs careful" drivers** (widen the bias, shorten a bold driver's stop gap, etc).
+  The ring shows orange = reserved; the `D` overlay draws a line from each owner to its junction.
+  Remaining: per-driver personality on the claim, and a rule toggle (priority / 4-way / signal).
 
 **Watch out for:** deadlock (two priority rules that both yield → everyone stops); pick an asymmetric
 rule first. And the existing TRAFFIC light is on the loop — decide whether it stays, moves to the

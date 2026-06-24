@@ -1622,8 +1622,8 @@ static void draw_setup(void) {
 
     ui_begin();
     if (ui_button(238, 3, 74, 12, S->cross ? "TRACKS:2" : "TRACKS:1")) S->cross = !S->cross;
-    if (S->cross && ui_button(238, 16, 74, 12, S->roundabout ? "JCT:RING" : "JCT:SIG"))
-        S->roundabout = !S->roundabout;                  // junction type: roundabout vs signal
+    if (S->cross && ui_button(160, 3, 74, 12, S->roundabout ? "JCT:RING" : "JCT:SIG"))
+        S->roundabout = !S->roundabout;                  // junction type: roundabout vs signal (left of TRACKS, above the preview)
     // style selector: ◀  NAME  ▶
     if (ui_button(8, 16, 14, 12, "\x11")) apply_style((S->style + ST_COUNT - 1) % ST_COUNT);
     if (ui_button(146, 16, 14, 12, "\x10")) apply_style((S->style + 1) % ST_COUNT);

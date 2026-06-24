@@ -65,8 +65,14 @@
 // any stall). Everyone else stops short (crossing_yield_gap). The grant uses a CLAIM SCORE
 // (soonest-to-arrive, biased by aggression = priority track + PERS.aggro) — the hook for
 // "crazy vs careful" drivers. Junctions draw as a ring (orange = reserved); debug overlay
-// (key D) draws a line from each owner to its junction, and pink "stuck" cars to their
-// blocker. Design + remaining systems (speed zones, hazards, peds, green-wave):
+// (key D) draws a line from each owner to its junction, and pink "stuck" cars to their blocker.
+// JUNCTION TYPE is selectable (setup "JCT:" toggle): SIGNAL (the reservation above) or
+// ROUNDABOUT — both tracks merge onto a one-way ring (gen via ring_angle/ringin/ringout) and
+// circulate the same way, so there's no perpendicular conflict (crash-safe by construction).
+// A car yields to enter (ring_entry_gap: wait outside the ring, "look" before merging — the
+// real-driver glance), circulates (ring_move, car-following by arc), and exits onto its track.
+// Crash-free across seeds in spec; smooth continuous flow (no stop-and-go), the right junction
+// for a road network. Design + remaining systems (speed zones, hazards, peds, green-wave):
 // docs/design/traffic-ai.md.
 // (Known rough edge: on the tightest procedural corner a fast car can still clip the
 // apex and recover.)
@@ -121,6 +127,13 @@
 #define XAPPROACH    120.0f     // a car claims a free crossing once this close (≥ its stopping distance,
                                 // so a car that loses the claim still has room to halt at the line)
 #define XHOLD_MAX    300        // frames an owner may hold a crossing before a forced release (anti-stall)
+// ── ROUNDABOUT junction (the other type): both tracks feed a one-way ring; cars merge in,
+//    circulate the SAME way, and exit — so there's no perpendicular conflict (crash-safe) ──
+#define RING_MULT    2.4f       // ring radius as a multiple of the road half-width
+#define RING_SPD     1.6f       // cruising speed on the ring (px/frame)
+#define RING_MERGE   55.0f      // an entering car yields to a circulating car within this arc-gap behind the entry (deg)
+#define RING_FOLLOW  26.0f      // car-following arc-gap on the ring (deg): slow if the car ahead is within this
+#define RING_LOOK    16.0f      // "look before you merge": brake if a car is physically this close to my entry point (px)
 
 // levers — NAME the indices (CLAUDE.md): a reorder must fail at the compiler,
 // not silently cross-wire sliders ↔ presets
@@ -159,8 +172,10 @@ typedef struct { V2 p; int prog1, prog2; } Xing;
 // *line to follow* changes (cl[] here, road_at() in the open world later).
 #define RACE_CARS    7         // RACE: 1 player + 6 AI, one per personality
 #define TRAFFIC_CARS 32        // TRAFFIC: a big crowd on the loop — long queues behind a red
-#define TRAFFIC_CARS_X 13      // TRAFFIC + CROSS: a thin loop crowd so arrivals don't outpace one-at-a-time junctions
-#define TRAFFIC_CROSS 10       // TRAFFIC + CROSS: the second track's stream (kept light for the same reason)
+#define TRAFFIC_CARS_X 13      // TRAFFIC + CROSS, SIGNAL junction: a thin loop crowd (one-at-a-time junctions)
+#define TRAFFIC_CROSS 10       // …and a light second-track stream to match
+#define TRAFFIC_CARS_R 13      // TRAFFIC + CROSS, ROUNDABOUT: the ring is crash-free at this density; pushing
+#define TRAFFIC_CROSS_R 10     // …higher grazes on degenerate shallow crossings. Win is smooth flow, not raw count.
 #define CARS_MAX     48        // array bound (>= loop crowd + cross stream)
 #define RACE_LAPS 3
 #define COLL_R    16.0f        // car-to-car avoidance radius (world px)
@@ -173,6 +188,8 @@ typedef struct {
     bool  drift, offtrack;
     int   prog, cp, lap;       // prog = nearest sample on THIS car's road; cp = last checkpoint 0..3
     int   road;                // 0 = the loop (cl[]), 1 = the cross-road (cl2[]) — Phase B
+    int   ring;                // ROUNDABOUT: crossing index whose ring I'm circling (-1 = on my track)
+    float rang;                // ROUNDABOUT: my current angle (deg) around that ring
     int   pers;                // personality index into PERS[] (AI only)
     float wob;                 // rookie wobble phase
     float mass;                // collision weight (player 1.0; AI from PERS[].mass)
@@ -238,6 +255,10 @@ STATE {
     int   xowner[MAXX];        // car index that currently OWNS each crossing (-1 = free) — the reservation
     int   xtimer[MAXX];        // frames the current owner has held it (anti-stall timeout)
     int   ncross;              // active cross-road cars, in car[ncars .. ncars+ncross) (Phase B)
+    bool  roundabout;          // junction type: false = reservation (signal), true = ROUNDABOUT (one-way ring)
+    float ringr[MAXX];         // each junction's roundabout radius (px)
+    float ringin[MAXX][2];     // ring entry angle (deg) per track (0/1) — where that track meets the ring
+    float ringout[MAXX][2];    // ring exit angle (deg) per track — where it rejoins past the crossing
     bool  dbg;                 // debug overlay: show why each car is braking (key D)
     Car   car[CARS_MAX];       // car[0] = player, car[1..] = AI
     int   ncars;               // active cars this mode (RACE_CARS or TRAFFIC_CARS)
@@ -516,7 +537,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->ang = atan2_deg(S->cl[(s+1)%NSAMP].y - S->cl[(s-1+NSAMP)%NSAMP].y,
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     c->vx = 0; c->vy = 0; c->spd = 0;
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->ring = -1;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
     c->lane = c->want_lane = lane_at(lateral);
@@ -534,7 +555,7 @@ static void put_car_in_traffic(Car *c, int slot) {
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     float v0 = (slot == 0) ? 0.0f : MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->ring = -1;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -550,7 +571,7 @@ static void put_car_on_cross(Car *c, int prog0, int lane) {
     c->ang = atan2_deg(ahead.y - behind.y, ahead.x - behind.x);   // tangent along the loop
     float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1;
+    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1; c->ring = -1;
     c->drift = false; c->wob = (float)lane * 7.0f; c->place = 0;
     c->mass = PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -559,10 +580,11 @@ static void put_car_on_cross(Car *c, int prog0, int lane) {
 }
 
 static void put_all_at_start(void) {
+    // junction CAPACITY sets density: a signal/reservation passes one car at a time (keep it
+    // thin or it congests); a ROUNDABOUT filters platoons continuously, so it carries far more.
+    int loopcap = S->roundabout ? TRAFFIC_CARS_R : TRAFFIC_CARS_X;
     S->ncars = S->traffic ? TRAFFIC_CARS : RACE_CARS;
-    // With a cross-road active, thin the loop crowd so real gaps open for the give-way
-    // road to take — otherwise a bumper-to-bumper priority road starves the crossing.
-    if (S->traffic && S->cross && S->nx > 0 && S->ncars > TRAFFIC_CARS_X) S->ncars = TRAFFIC_CARS_X;
+    if (S->traffic && S->cross && S->nx > 0 && S->ncars > loopcap) S->ncars = loopcap;
     if (S->ncars > CARS_MAX) S->ncars = CARS_MAX;
     for (int i = 0; i < S->ncars; i++) {
         if (i > 0) S->car[i].pers = (i - 1) % AI_COUNT;  // cycle personalities for the crowd
@@ -573,7 +595,7 @@ static void put_all_at_start(void) {
     }
     // PHASE B: a second stream of cars on the cross-road (TRAFFIC + CROSS only),
     // packed into car[ncars .. ncars+ncross). They follow cl2[] via the same brain.
-    S->ncross = (S->traffic && S->cross && S->nx > 0) ? TRAFFIC_CROSS : 0;
+    S->ncross = (S->traffic && S->cross && S->nx > 0) ? (S->roundabout ? TRAFFIC_CROSS_R : TRAFFIC_CROSS) : 0;
     if (S->ncars + S->ncross > CARS_MAX) S->ncross = CARS_MAX - S->ncars;
     for (int k = 0; k < S->ncross; k++) {
         int i = S->ncars + k;
@@ -630,6 +652,18 @@ static float spline_road(const V2 *ctrl, int nc, V2 *cl, V2 *nl, int nsamp, floa
     return per / nsamp;
 }
 
+// the angle (deg, from centre c) at which track `road` reaches radius R from c, walking
+// `dir` (+1/-1) from sample `prog` — i.e. where that track meets a roundabout ring.
+static float ring_angle(int road, int prog, int dir, V2 c, float R) {
+    int n = road_n(road);
+    for (int s = 1; s < n/2; s++) {
+        V2 q = road_cl(road, prog + dir*s);
+        float dx = q.x - c.x, dy = q.y - c.y;
+        if (dx*dx + dy*dy >= R*R) return atan2_deg(dy, dx);
+    }
+    return 0.0f;
+}
+
 // all loop×loop intersections of cl[] and cl2[] (segment-segment), recording each
 // crossing's world point + nearest sample index on BOTH tracks. Two closed loops
 // cross an even number of times; nearby duplicates (adjacent segments) are merged.
@@ -655,8 +689,18 @@ static void find_crossings(void) {
                 if (rx*rx + ry*ry < 100.0f) { dup = true; break; }
             }
             if (dup) continue;
-            S->xpt[S->nx].p.x = xx; S->xpt[S->nx].p.y = yy;
-            S->xpt[S->nx].prog1 = a; S->xpt[S->nx].prog2 = b;
+            int k = S->nx;
+            S->xpt[k].p.x = xx; S->xpt[k].p.y = yy;
+            S->xpt[k].prog1 = a; S->xpt[k].prog2 = b;
+            // roundabout geometry: a ring of radius R, and where each track meets it (entry
+            // walking back along the track, exit walking forward).
+            V2 c = (V2){ xx, yy };
+            float R = S->half * RING_MULT;
+            S->ringr[k] = R;
+            S->ringin[k][0]  = ring_angle(0, a, -1, c, R);
+            S->ringout[k][0] = ring_angle(0, a, +1, c, R);
+            S->ringin[k][1]  = ring_angle(1, b, -1, c, R);
+            S->ringout[k][1] = ring_angle(1, b, +1, c, R);
             S->nx++;
         }
     }
@@ -896,6 +940,7 @@ static float lead_gap(Car *c, int idx, float *vlead) {
     for (int j = 0; j < total; j++) {
         if (j == idx) continue;
         Car *o = &S->car[j];
+        if (o->ring >= 0) continue;                          // a car circling a roundabout isn't on the track
         if (o->road != rd || o->lane != c->lane) continue;   // only a leader on MY road, MY lane
         int d;
         if (road_loops(rd)) d = (o->prog - c->prog + n) % n; // forward index distance (wraps)
@@ -913,6 +958,7 @@ static bool lane_clear(Car *c, int idx, int lane) {
     for (int j = 0; j < total; j++) {
         if (j == idx) continue;
         Car *o = &S->car[j];
+        if (o->ring >= 0) continue;                      // a car circling a roundabout isn't on the track
         if (o->road != rd) continue;                     // a car on the other road isn't in my lanes
         if (o->lane != lane && o->want_lane != lane) continue;
         int d = prog_ahead(rd, c->prog, o->prog);        // signed: + ahead, − behind
@@ -925,6 +971,112 @@ static bool lane_clear(Car *c, int idx, int lane) {
 static float xing_dist(Car *c, int k) {
     int xprog = c->road ? S->xpt[k].prog2 : S->xpt[k].prog1;
     return prog_ahead(c->road, c->prog, xprog) * road_seg(c->road);
+}
+
+// ── ROUNDABOUT ─────────────────────────────────────────────────────────────────
+static float ccw_dist(float a, float b) { float d = b - a; while (d < 0) d += 360.0f; while (d >= 360.0f) d -= 360.0f; return d; }
+
+// approaching a roundabout I must give way at? An entering car yields to a car already
+// circulating that's about to sweep past my entry point. Returns the gap to the ring edge
+// to stop at, or 1e9 to proceed. (Yield-on-entry is the whole crash-safety of a roundabout:
+// the ring is one-way, so a merge gone wrong is a same-direction graze, never a T-bone.)
+static float ring_entry_gap(Car *c, int idx) {
+    if (!S->cross || S->nx == 0) return 1e9f;
+    int total = S->ncars + S->ncross;
+    float best = 1e9f;
+    for (int i = 0; i < S->nx; i++) {
+        float dme = xing_dist(c, i), R = S->ringr[i];
+        if (dme <= R || dme > XBOX_LOOK) continue;       // already on the ring, or too far to matter
+        float ent = S->ringin[i][c->road];               // where my track joins this ring
+        float epx = S->xpt[i].p.x + dx(R, ent), epy = S->xpt[i].p.y + dy(R, ent);  // my entry POINT (world)
+        bool blocked = false;
+        for (int j = 0; j < total && !blocked; j++) {
+            if (j == idx) continue;
+            Car *o = &S->car[j];
+            // LOOK BEFORE YOU MERGE: is anyone physically right at my entry point? (geometry-agnostic
+            // safety net — a real driver glances at the spot they're about to pull into). This catches
+            // what the arc/phase logic can miss on odd crossing geometry.
+            float lx = o->px - epx, ly = o->py - epy;
+            if (lx*lx + ly*ly < RING_LOOK*RING_LOOK) { blocked = true; break; }
+            if (o->ring == i) {                          // a car already circulating, just behind my entry
+                if (ccw_dist(o->rang, ent) < RING_MERGE) blocked = true;
+            } else if (o->ring < 0 && o->road != c->road) {  // a car on the OTHER track also about to merge here…
+                float odme = xing_dist(o, i);
+                float oent = S->ringin[i][o->road];
+                float sep = ccw_dist(oent, ent); if (sep > 180.0f) sep = 360.0f - sep;   // angular sep of entries
+                // …at a nearby entry point and closer in (tie-break by index) → I yield, it merges first
+                if (odme > 0 && odme < S->ringr[i] + S->half && sep < RING_MERGE &&
+                    (odme < dme || (odme < dme + 4.0f && j < idx)))
+                    blocked = true;
+            }
+        }
+        // wait OUTSIDE the ring tarmac (not on the circulating path) until the gap is clear.
+        // gap measured PHYSICALLY (distance to centre), so a curved approach still stops clear.
+        if (blocked) {
+            float rx = c->px - S->xpt[i].p.x, ry = c->py - S->xpt[i].p.y;
+            float gap = fsqrt(rx*rx + ry*ry) - (R + S->half + CAR_HALF_L + 2.0f);
+            if (gap < best) best = gap;
+        }
+    }
+    return best;
+}
+
+// a car on its track that has reached the ring's outer edge merges onto the ring. The
+// give-way brake (ring_entry_gap) has already held it OUTSIDE the ring until the gap was
+// clear, so by the time it reaches the edge it's merging into a clear slot.
+static void try_enter_ring(Car *c, int idx) {
+    (void)idx;
+    for (int i = 0; i < S->nx; i++) {
+        float dme = xing_dist(c, i), R = S->ringr[i];
+        if (dme <= 0 || dme > R + S->half) continue;     // not yet at the ring's outer edge
+        V2 cen = S->xpt[i].p;
+        c->ring = i; c->rang = atan2_deg(c->py - cen.y, c->px - cen.x);   // join where I physically am
+        return;
+    }
+}
+
+// one frame for a car circling a roundabout: advance CCW (car-following the one ahead on the
+// ring), then exit onto its track when it sweeps past that track's exit angle.
+static void ring_move(Car *c, int idx) {
+    int k = c->ring, rd = c->road;
+    V2 cen = S->xpt[k].p;
+    float R = S->ringr[k];
+    int total = S->ncars + S->ncross;
+
+    float v = RING_SPD;                                   // slow for the nearest car ahead on the ring (CCW)
+    for (int j = 0; j < total; j++) {
+        if (j == idx || S->car[j].ring != k) continue;
+        float gap = ccw_dist(c->rang, S->car[j].rang);
+        if (gap > 0.5f && gap < RING_FOLLOW) { float vv = RING_SPD * gap / RING_FOLLOW; if (vv < v) v = vv; }
+    }
+    if (c->spd < v) c->spd += ACCEL * 2.0f; else c->spd -= BRAKE;
+    if (c->spd < 0) c->spd = 0;
+
+    float dang = (c->spd / R) * (180.0f / 3.14159265f);  // arc travelled → degrees, CCW
+    float prev = c->rang;
+    c->rang += dang; while (c->rang >= 360.0f) c->rang -= 360.0f;
+
+    float exang = S->ringout[k][rd];
+    if (ccw_dist(prev, exang) <= dang + 0.5f) {          // swept past my exit → leave the ring onto my track
+        int xprog = rd ? S->xpt[k].prog2 : S->xpt[k].prog1;
+        int n = road_n(rd), p = xprog;
+        for (int s = 1; s < n/2; s++) {                  // first track sample forward of the ring edge
+            int pp = road_idx(rd, xprog + s);
+            V2 q = road_cl(rd, pp);
+            float ex = q.x - cen.x, ey = q.y - cen.y;
+            if (ex*ex + ey*ey >= R*R) { p = pp; break; }
+        }
+        V2 q = road_cl(rd, p), nq = road_cl(rd, p + 1);
+        c->ring = -1; c->prog = p;
+        c->px = q.x; c->py = q.y;
+        c->ang = atan2_deg(nq.y - q.y, nq.x - q.x);
+        c->vx = dx(c->spd, c->ang); c->vy = dy(c->spd, c->ang);
+        c->offtrack = false; c->lane = c->want_lane = lane_at(0);
+        return;
+    }
+    c->px = cen.x + dx(R, c->rang); c->py = cen.y + dy(R, c->rang);   // position on the ring
+    c->ang = c->rang + 90.0f;                            // CCW tangent
+    c->vx = dx(c->spd, c->ang); c->vy = dy(c->spd, c->ang);
 }
 
 // JUNCTION RESERVATIONS — run once per frame, before the AI. Each crossing is owned by
@@ -1048,8 +1200,9 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
         }
     }
 
-    // PHASE C: a crossing I must give way at is also a temporary stop-line leader.
-    float ygap = crossing_yield_gap(c, idx);
+    // junction give-way: a roundabout I must yield to enter, or a reserved crossing I don't
+    // own — both act as a temporary stop-line leader.
+    float ygap = S->roundabout ? ring_entry_gap(c, idx) : crossing_yield_gap(c, idx);
     if (ygap < s) { s = ygap; vlead = 0.0f; why = WHY_YIELD; }
 
     float ssafe = TG_GAP0 + v * TG_HEAD;
@@ -1190,22 +1343,26 @@ void update(void) {
         if (++S->light_t >= (S->light_red ? LIGHT_RED : LIGHT_GRN)) { S->light_t = 0; S->light_red = !S->light_red; }
     }
 
-    if (S->cross) update_reservations();                 // assign junction ownership before anyone drives
+    bool rings = S->cross && S->roundabout;
+    if (S->cross && !S->roundabout) update_reservations();   // signal junctions: assign ownership before driving
 
-    float p_turn = (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
-    float p_thr  = (btn(0, BTN_UP)    ? 1.0f : 0.0f) - (btn(0, BTN_DOWN) ? 1.0f : 0.0f);
-    step_car(&P, p_turn, p_thr, P.drift);
+    // player: auto-circulate if on a roundabout ring, else drive by input + maybe merge on
+    if (rings && P.ring >= 0) ring_move(&P, 0);
+    else {
+        float p_turn = (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
+        float p_thr  = (btn(0, BTN_UP)    ? 1.0f : 0.0f) - (btn(0, BTN_DOWN) ? 1.0f : 0.0f);
+        step_car(&P, p_turn, p_thr, P.drift);
+        if (rings) try_enter_ring(&P, 0);
+    }
 
-    for (int i = 1; i < S->ncars; i++) {                    // the AI — race rivals or traffic
+    for (int i = 1; i < S->ncars + S->ncross; i++) {        // all AI — loop rivals + both traffic streams
+        if (i >= S->ncars && !S->traffic) break;            // cross stream only exists in traffic
+        if (rings && S->car[i].ring >= 0) { ring_move(&S->car[i], i); continue; }   // circling a roundabout
         float turn, thr; bool dr;
         if (S->traffic) drive_ai_traffic(&S->car[i], i, &turn, &thr, &dr);
         else            drive_ai(&S->car[i], i, &turn, &thr, &dr);
         step_car(&S->car[i], turn, thr, dr);
-    }
-    for (int i = S->ncars; i < S->ncars + S->ncross; i++) { // the second track's stream (loops, like track 1)
-        float turn, thr; bool dr;
-        drive_ai_traffic(&S->car[i], i, &turn, &thr, &dr);
-        step_car(&S->car[i], turn, thr, dr);
+        if (rings) try_enter_ring(&S->car[i], i);
     }
     resolve_collisions();
     S->shake *= 0.82f;
@@ -1351,15 +1508,26 @@ static void draw_track_world(void) {
         for (int s = 0; s < NSAMP2; s += 6)                 // centre dashes
             line((int)S->cl2[s].x, (int)S->cl2[s].y,
                  (int)S->cl2[(s+3)%NSAMP2].x, (int)S->cl2[(s+3)%NSAMP2].y, CLR_BLUE_GREEN);
-        int rbox = S->half;                                 // junction radius (= reservation Rocc)
-        for (int i = 0; i < S->nx; i++) {
-            int mx = (int)S->xpt[i].p.x, my = (int)S->xpt[i].p.y;
-            int owner = S->xowner[i];
-            circ(mx, my, rbox, owner >= 0 ? CLR_ORANGE : CLR_DARKER_GREY);   // ring: orange = reserved, grey = free
-            circfill(mx, my, 5, CLR_INDIGO);
-            circ(mx, my, 5, CLR_LIGHT_YELLOW);
-            if (S->dbg && owner >= 0)                        // a line from the car that holds this junction
-                line(mx, my, (int)S->car[owner].px, (int)S->car[owner].py, CLR_ORANGE);
+        if (S->roundabout) {                                // ROUNDABOUT: a tarmac ring + a grass island per crossing
+            for (int i = 0; i < S->nx; i++) {
+                int mx = (int)S->xpt[i].p.x, my = (int)S->xpt[i].p.y;
+                int R = (int)S->ringr[i];
+                circfill(mx, my, R + S->half, CLR_DARK_GREY);          // ring tarmac (outer)
+                circfill(mx, my, R - S->half, CLR_DARK_GREEN);         // central island (grass)
+                circ(mx, my, R + S->half, CLR_WHITE);                  // outer curb
+                circ(mx, my, R - S->half, CLR_WHITE);                  // island curb
+            }
+        } else {                                            // SIGNAL junction: the reservation box marker
+            int rbox = S->half;
+            for (int i = 0; i < S->nx; i++) {
+                int mx = (int)S->xpt[i].p.x, my = (int)S->xpt[i].p.y;
+                int owner = S->xowner[i];
+                circ(mx, my, rbox, owner >= 0 ? CLR_ORANGE : CLR_DARKER_GREY);   // orange = reserved, grey = free
+                circfill(mx, my, 5, CLR_INDIGO);
+                circ(mx, my, 5, CLR_LIGHT_YELLOW);
+                if (S->dbg && owner >= 0)
+                    line(mx, my, (int)S->car[owner].px, (int)S->car[owner].py, CLR_ORANGE);
+            }
         }
     }
 
@@ -1454,6 +1622,8 @@ static void draw_setup(void) {
 
     ui_begin();
     if (ui_button(238, 3, 74, 12, S->cross ? "TRACKS:2" : "TRACKS:1")) S->cross = !S->cross;
+    if (S->cross && ui_button(238, 16, 74, 12, S->roundabout ? "JCT:RING" : "JCT:SIG"))
+        S->roundabout = !S->roundabout;                  // junction type: roundabout vs signal
     // style selector: ◀  NAME  ▶
     if (ui_button(8, 16, 14, 12, "\x11")) apply_style((S->style + ST_COUNT - 1) % ST_COUNT);
     if (ui_button(146, 16, 14, 12, "\x10")) apply_style((S->style + 1) % ST_COUNT);
@@ -1838,5 +2008,43 @@ void spec(void) {
         expect_eq(collisions, 0, "reservation: no cross-track collision over a long run (every seed)");
         expect(moving >= 4, "reservation: no gridlock — cars still moving after a long run (every seed)");
     }
+
+    // ── ROUNDABOUT junction type: both tracks merge onto a one-way ring and circulate the
+    //    same way, so there is no perpendicular conflict. Across seeds: no cross-track
+    //    collision over a long run, traffic keeps flowing, and cars actually get round the
+    //    ring (some complete laps), i.e. it isn't a standstill. ──
+    for (int t = 0; t < 4; t++) {
+        gen_track(seeds[t]);
+        S->traffic = true; S->cross = true; S->roundabout = true;
+        put_all_at_start();
+        int collisions = 0, oncircle = 0; long prog_adv = 0;
+        int prev[CARS_MAX];
+        for (int i = 0; i < S->ncars + S->ncross; i++) prev[i] = S->car[i].prog;
+        for (int chunk = 0; chunk < 150; chunk++) {       // 900 frames
+            step(6);
+            for (int a = 0; a < S->ncars; a++)
+                for (int b = S->ncars; b < S->ncars + S->ncross; b++) {
+                    float rx = S->car[b].px - S->car[a].px, ry = S->car[b].py - S->car[a].py;
+                    if (rx*rx + ry*ry >= (2.0f*CAR_HALF_L)*(2.0f*CAR_HALF_L)) continue;
+                    float fwd = rx*dx(1,S->car[a].ang) + ry*dy(1,S->car[a].ang);
+                    float lat = rx*dx(1,S->car[a].ang+90) + ry*dy(1,S->car[a].ang+90);
+                    if ((fwd<0?-fwd:fwd) < 2.0f*CAR_HALF_L && (lat<0?-lat:lat) < 2.0f*CAR_HALF_W) collisions++;
+                }
+            for (int i = 0; i < S->ncars + S->ncross; i++) {
+                if (S->car[i].ring >= 0) { oncircle++; prev[i] = S->car[i].prog; continue; }
+                int d = prog_ahead(S->car[i].road, prev[i], S->car[i].prog);
+                if (d > 0 && d < 50) prog_adv += d;       // track progress (ignore the jump on ring exit)
+                prev[i] = S->car[i].prog;
+            }
+        }
+        int moving = 0;
+        for (int i = 0; i < S->ncars + S->ncross; i++)
+            if ((S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd) > 0.5f) moving++;
+        expect_eq(collisions, 0, "roundabout: no cross-track collision over a long run (every seed)");
+        expect(moving >= 4, "roundabout: traffic keeps flowing (every seed)");
+        expect(oncircle > 0, "roundabout: cars actually use the ring (every seed)");
+        expect(prog_adv > 2000, "roundabout: real throughput — cars get round, not gridlocked (every seed)");
+    }
+    S->roundabout = false;
 }
 #endif

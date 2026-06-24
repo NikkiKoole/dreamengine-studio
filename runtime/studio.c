@@ -497,6 +497,12 @@ static void sw_fillrect(int x, int y, int w, int h, Color c) {
     uint32_t p = sw_pack(c);
     for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_cbuf[(SCREEN_H-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
+// one fill-scanline span: cbuf row write under the software canvas, else the GPU DrawRectangle.
+// Lets the circ/oval/poly span fast-paths stay span-based (not per-pixel) on the canvas.
+static inline void sw_span(int x, int y, int w, Color c) {
+    if (sw_canvas_active) sw_fillrect(x, y, w, 1, c);
+    else DrawRectangle(x, y, w, 1, c);
+}
 // software sprite blit: nearest-sample spritesheet_img → cbuf via sw_pset (camera+clip), with
 // optional flip and nearest scaling (src wxh → dst wxh). Alpha<128 = transparent (PNG colorkey).
 // NB Phase-2 v1: does NOT yet apply pal() recolor or the runtime colorkey() — TODO before default.
@@ -2640,7 +2646,7 @@ void circfill(int cx, int cy, int r, int color) {
     // solid fill; ZOOM is fine (rotation-0 camera is axis-aligned affine → the run of 1×1
     // world quads tiles to exactly the same screen pixels as one w×1 quad; only rotation
     // breaks that). A rotated camera or fillp() dither falls back to per-pixel.
-    if (disc_fill_fast && r >= 1 && cam.rotation == 0.0f && !fp_on && !sw_canvas_active) {
+    if (disc_fill_fast && r >= 1 && cam.rotation == 0.0f && !fp_on) {
         int x0 = cx - r, y0 = cy - r, x1 = cx + r, y1 = cy + r;
         poly_clamp_scan(&x0, &y0, &x1, &y1);            // skip off-screen rows/cols (the poly-path win)
         Color col = palette[color % PALETTE_SIZE];
@@ -2655,7 +2661,7 @@ void circfill(int cx, int cy, int r, int color) {
             while (a <= b && !disc_inside(a, y, cx, cy, r)) a++;
             while (b >= a && !disc_inside(b, y, cx, cy, r)) b--;
             if (a < x0) a = x0;  if (b > x1) b = x1;
-            if (a <= b) DrawRectangle(a, y, b - a + 1, 1, col);
+            if (a <= b) sw_span(a, y, b - a + 1, col);
         }
     } else {
         // legacy / fallback — all pixels inside the disc; plot_pat handles solid + fillp dither
@@ -3313,7 +3319,7 @@ static void poly_fill_cov(const int *xy, int n, int color) {
                 if (poly_inside(x + 0.5f, y + 0.5f, xy, n)) plot_pat(x, y, color);
         return;
     }
-    bool fast = (cam.rotation == 0.0f) && (cam.zoom == 1.0f) && !fp_on && !sw_canvas_active;
+    bool fast = (cam.rotation == 0.0f) && (cam.zoom == 1.0f) && !fp_on;
     Color col = palette[color % PALETTE_SIZE];
     float cross[MAXCROSS];
     for (int y = y0; y <= y1; y++) {
@@ -3343,7 +3349,7 @@ static void poly_fill_cov(const int *xy, int n, int color) {
             int b = (int)ceilf(cross[t+1] - 0.5f) - 1;    // last  centre <  cross[t+1]
             if (a < x0) a = x0;  if (b > x1) b = x1;
             if (a > b) continue;
-            if (fast) DrawRectangle(a, y, b - a + 1, 1, col);
+            if (fast) sw_span(a, y, b - a + 1, col);
             else for (int x = a; x <= b; x++) plot_pat(x, y, color);
         }
     }
@@ -3803,7 +3809,7 @@ void ovalfill(int cx, int cy, int rx, int ry, int color) {
             while (a <= b && !ellipse_inside(a, y, cx, cy, rx, ry)) a++;
             while (b >= a && !ellipse_inside(b, y, cx, cy, rx, ry)) b--;
             if (a < x0) a = x0;  if (b > x1) b = x1;
-            if (a <= b) DrawRectangle(a, y, b - a + 1, 1, col);
+            if (a <= b) sw_span(a, y, b - a + 1, col);
         }
     } else {
         for (int y = cy - ry; y <= cy + ry; y++)

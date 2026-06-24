@@ -31,6 +31,22 @@ be coalesced.
 > count (see "Cheaper alternatives → Measured"). They drop hard only where small-draw submission is
 > expensive (weak GPU / WebGL-on-old-hardware).
 
+> **First cart to cross trigger (a) — `cityplan`, measured 2026-06-23.** The Recommendation parks the
+> build until "a cart is actually `pset`-bound below 60fps." `cityplan` is the first one that is:
+> **19.9ms/frame typical, 22.0ms p95 — 119% of the 16.6ms budget, dropping to ~47fps.** The profile is
+> textbook for this doc — **~73% of wall is the removable `pset → DrawPixelV → rlVertex3f` path**
+> (62.1% `rlVertex3f` + 5.4% `DrawPixelV` + 3.2% `rlSetTexture` + 1.9% `pset`), against only ~15% real
+> work (`noise_*`/`cover_at`) and ~4% `prof_bump` (profiler artifact, gone in a normal build). At
+> **213,916 `pset`/frame** it draws ~3.3× the 64k-px canvas — heavy overdraw (roofs over `rows_fill`),
+> which is precisely the worst shape for GPU immediate-mode (each overdrawn pixel = another vertex
+> submit) and cheap on a `cbuf` (repeated stores). Back-of-envelope removing the GPU path: ~20ms →
+> ~6–8ms, back under budget with headroom. **Caveat on v0 fit:** it's mostly `pset`+`rectfill`+~4
+> `print` (clean), but it also issues **~485 `line`/frame** — if those are world-space block outlines
+> interleaved with fills (not a top HUD layer), the v0 deferred-`line`-overlay trick doesn't preserve
+> z-order for them, so cityplan may need `sline`/CPU-line (Phase 2) rather than being a pure v0 target.
+> Verify before treating it as the Phase-1 proof cart. **This is evidence, not a go** — logged so the
+> trigger condition is captured whenever the decision is revisited.
+
 ## The thesis
 
 **At this resolution, a software framebuffer uploaded once per frame beats GPU immediate-mode.**
@@ -61,6 +77,59 @@ static uint32_t cbuf[SCREEN_W*SCREEN_H];   // RGBA — see fork 1
 // fade/blend:  read-modify-write on cbuf               (EASIER on CPU than GPU)
 // end of frame: UpdateTexture(canvas.texture, cbuf); DrawTexturePro(canvas→window)  // one upload, one quad
 ```
+
+> **Note (2026-06-23) — the sketch's one false assumption: there is NO CPU `line` today.** The line
+> "the CPU rasterizers we already have" is true for circ/poly/oval (the `poly_fill_cov`/coverage
+> family decides pixels on the CPU) but **`line()` is the sole GL holdout** — it's raylib GPU
+> `DrawLine`, which *chooses* the staircase on the GPU. An audit while chasing streetlab's corner
+> floor confirmed it's the only *axis-aligned* cart-facing primitive that lets GL pick pixels — the
+> rest of the GL-picks-pixels surface is the rotation family (`rectfill_rot`, `spr_rot`/`sspr_ex`,
+> `tritex`, rotating `camera_ex`), audited in full below. So the canvas has a hole exactly there. The missing piece is
+> **`sline`** — a reflection-symmetric CPU per-axis DDA, prototyped in the probe carts
+> `tools/carts/{linesym,axissym}.c` and banked (unused) in `tools/carts/streetlab.c`; recipe +
+> proof in [`streetlab-corner-symmetry-plan.md`](streetlab-corner-symmetry-plan.md). It is the line
+> rasteriser this architecture needs.
+>
+> **This sharpens the determinism case (the "free win" below), and the perf coupling.** GPU
+> `DrawLine` is not just non-deterministic across drivers — it isn't even reflection-self-consistent
+> (a line and its exact mirror rasterise to *different* pixels: 88 mismatches in the `linesym`
+> probe). A CPU line (`sline`) is required for the bit-identical-across-devices property — it's a
+> *prerequisite* for replays/ghosts/lockstep, not just a perf detail. And the coupling runs the
+> other way too: a symmetric line is **unavoidably per-pixel** (a 1px line has no horizontal run to
+> coalesce, unlike a span fill), so globally swapping `line() → sline` on *today's* GL renderer turns
+> each line into N `pset`s — *raising* total `pset`/frame (e.g. `sloop`'s 528 lines/frame) and thus
+> the priority of the very `pset` optimisation this doc is about. On the canvas, those per-pixel
+> writes are cheap `cbuf` stores. So **global `sline` and the software canvas are one bet, pulling
+> the same way** — and the canvas *needs* `sline` regardless. (Caveat learned the hard way: a
+> symmetric line alone does **not** make symmetric *art* — fills are point-mirrored, 1px strokes are
+> cell-mirrored, and on an even grid those snap conventions conflict; the canvas must pick one. See
+> the plan doc's "`sline` negative result.")
+
+> **Audit (2026-06-24) — the complete GL-picks-pixels surface is FOUR primitives, and they're all
+> rotation.** Read against the current `runtime/studio.c`, the holdouts where GL's own rasterizer
+> *chooses which pixels light up* (the non-deterministic, can't-just-blit cases) are exactly:
+> 1. **`line()`** — raylib `DrawLine` (line ~2636). Being closed by **`sline`** (above); the only
+>    *axis-aligned* one, so `sline` fully solves it for unrotated use.
+> 2. **`rectfill_rot()`** — `DrawRectanglePro()` rotated quad (line ~2342).
+> 3. **`spr_rot()` / `sspr_ex()`** — `DrawTexturePro(…, deg, …)` rotated sprite blit (line ~2214+):
+>    GL rasterizes the tilted footprint.
+> 4. **`tritex()`** — `rlBegin(RL_QUADS)` + `rlVertex2f` affine textured triangle (line ~2607, the 3D
+>    carts). **The one genuinely-hard new rasterizer** — no "skip rotation" fallback freebie; it must
+>    be CPU-scanline-rasterized (affine u,v interp) to live on the canvas. Phase 2's biggest item.
+> 5. *(whole-block)* **rotating `camera_ex(angle≠0)`** — `BeginMode2D(cam)` with `cam.rotation` (line
+>    ~2813) transforms *everything* drawn inside the block on the GPU. This is the case Fork-2/C
+>    quarantines (per-frame GPU fallback), not a single primitive.
+>
+> Everything else is **not** GL picking pixels and is canvas-native: `pset`/`rectfill`/`rect` are
+> integer-coord axis-aligned writes (→ `cbuf` stores); `circ`/`circfill`/`oval`/`poly`/`ngon`/`star`/
+> `thick` are already **full CPU coverage** (span fills / per-pixel predicates) that just reroute
+> their `pset`/`DrawRectangle` into `cbuf`; unrotated `spr`/`sspr` are blits (Phase-2 CPU blit loop);
+> HUD `print` is the orthogonal **deferred-GPU-overlay** trick, never a pixel-picking holdout.
+> **Net:** the whole remaining GL pixel-selection surface collapses to the single concept *rotation*
+> — `sline` removes the axis-aligned line hole, and Fork-2/C leaves the four rotation cases on the
+> GPU per-frame. `tritex` is the only one that isn't covered by either move (needs a real CPU
+> rasterizer) if the 3D carts are ever to run on the canvas. The rotated-*stroke* sub-case
+> (a rotated 1px `line`/outline) still needs the Xiaolin-Wu-class drawer flagged in Fork 2.
 
 ## The design forks — decide these first
 

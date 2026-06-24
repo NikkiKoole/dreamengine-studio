@@ -63,7 +63,7 @@ crossing from the seed").
 
 ## Audit (2026-06-24) — the genuine misses, consolidated
 
-A pass over `road-hierarchy-notes.md` (§2/§7/§8/§9/§10) against what `streetlab` actually ships, to
+A pass over `road-hierarchy-notes.md` (§2/§7/§8/§9) against what `streetlab` actually ships, to
 surface gaps that were real but scattered/buried below (some framed as "already covered" or "add if
 needed", so invisible). Split by kind — **a miss is designed-in-the-notes + in-scope + not built AND
 not deliberately deferred.** Deferred-by-plan items are NOT misses; they're in the Roadmap below.

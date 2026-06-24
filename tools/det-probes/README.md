@@ -12,8 +12,16 @@ output is plain text that compares identically native-vs-wasm. The whole point i
 source*, compiled three ways, prints the *same hash*.
 
 ```
-bash tools/det-probes/run.sh      # build+run all three on arm64 / x86-64 (Rosetta) / wasm; exit 0 = all match
+bash tools/det-probes/run.sh      # build+run the determinism oracles on arm64 / x86-64 (Rosetta) / wasm; exit 0 = all match
 ```
+
+**Two design-exploration probes** also live here — *not* determinism oracles (not in `run.sh`), but the
+headless rasterizer studies that settled conventions before the canvas was built (each dumps a `.ppm`
+you convert with `sips -s format png x.ppm --out x.png`):
+- `probe2.c` — **fill-vs-bounding-outline coherence**: does `sfill`'s filled region line up with `sline`'s
+  outline? (Found the half-open-fill vs closed-stroke 1px offset + the diagonal staircase mismatch.)
+- `onerule.c` — **one coverage rule**: outline = boundary-of-fill vs the two-rule (`sfill`+`sline`) split,
+  side by side. (The "what if there were one rounding rule" study.)
 
 | probe | rasterizer under test | the bar it proves |
 |---|---|---|

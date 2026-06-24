@@ -1,0 +1,12 @@
+*.ppm
+*.png
+# compiled probe binaries (run.sh builds to /tmp, but guard local builds)
+detstress
+stritex
+rotstroke
+rotfill
+rotline
+rotspr
+textrot
+probe2
+onerule

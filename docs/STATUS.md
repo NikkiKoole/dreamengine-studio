@@ -1096,10 +1096,21 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     twin of the audio `level-check`/`fx-check` baselines but for the framebuffer. We have `ui-audit.js` (draw-box
     *bounds* analysis from the DE_TRACE box log) but **no pixel-level diff**. Note we already keep some pixel-exact
     test/probe carts + deterministic `--dump`, so the rendering side is the missing piece, not the capture.
-    **Verdict for now: parked.** For the *accepted* 1px corner floor it'd mostly assert "still 1px off" (decided
-    fine). Worth building only if/when we want a true visual-regression gate — and *then* it could also drive a
-    pixel-perfect symmetric-corner rasteriser (compute one corner, blit it rotated/mirrored for symmetric
-    junctions; skew keeps the per-corner path). Until then: **spec the geometry, eyeball the pixels.**
+    **RESOLVED (2026-06-23) — harness built + the floor fixed.** The harness shipped as
+    `tools/mirror-diff.js` (renders headless, reflects the framebuffer about cx/cy, counts mismatched
+    mirror-pairs — the symmetry-invariant flavour; a committed-golden flavour is still future, see
+    [`design/software-canvas.md`](design/software-canvas.md)'s determinism note). Using it, the streetlab
+    floor was diagnosed and FIXED: the corner **fill** (`polyfill`) was *already* mirror-symmetric (it's
+    CPU-decided); the whole floor was the kerb **stroke** (`line()` → GPU `DrawLine`, direction-dependent).
+    A symmetric software line (`sline`) does NOT fix it — it *regresses* the kerb 7→27 because fills are
+    point-mirrored (about cx=160) and 1px strokes are cell-mirrored (sum 319 vs 320) — an even-grid snap
+    conflict. The fix that shipped is **`mirror_blit`** in `streetlab.c` (reflect the rendered junction-core
+    pixels; guarded to the symmetric 4-way): kerb **7→0**. Full writeup +`sline` recipe:
+    [`design/streetlab-corner-symmetry-plan.md`](design/streetlab-corner-symmetry-plan.md). Probes: `arcsym`
+    (blit principle), `linesym`/`axissym` (primitive symmetry, any axis). **API candidates (not yet
+    promoted):** `sline` is the reflection-symmetric CPU line the software canvas needs (the only cart-facing
+    primitive still letting GL pick pixels); `mirror_blit` could become a reusable engine helper. Rule of
+    thumb still holds for the un-fixed cases (skew/T/free-right): **spec the geometry, eyeball the pixels.**
 
 ---
 

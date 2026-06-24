@@ -95,13 +95,52 @@ static float uy(float d){ float s=sin_deg(d); return (s>-1e-4f&&s<1e-4f)?0.f:s; 
 // round-to-nearest pixel — symmetric about 0, unlike a plain (int) cast which truncates TOWARD zero and so
 // breaks left/right mirror on fractional coords (cx+12.7→172 but cx-12.7→147 = 13 away). Use on curved kerbs.
 static int ri(float v){ return (int)roundf(v); }
-// SEAM — accepted ~1px CORNER FLOOR: with ri() the four corner kerbs are mirror-symmetric about the canvas
-// centre, but on an even-width grid they can still differ by ≤1px in *staircase arrangement* (each corner is an
-// independently-rasterised arc; the sample points quantise differently per orientation). This is NOT a logic
-// bug — the geometry is symmetric and every pure quantity is spec'd; it's scan-conversion, which spec() can't
-// see. A true fix = an engine-level symmetric-corner rasteriser (compute one corner, blit it rotated/mirrored
-// for non-skew junctions) verified by a GOLDEN-PIXEL-DIFF harness, NOT unit spec. Parked — see docs/STATUS.md
-// §43 "Visual test-coverage blind spot". Rule of thumb: spec the geometry, eyeball the pixels. Don't re-chase here.
+
+// ── SEAM (2026-06-23): the ≤1px CORNER FLOOR is the kerb STROKE, not the fill. ─────────────────
+// Investigation (linesym probe + mirror-diff colour-classify; full writeup in docs/design/
+// streetlab-corner-symmetry-plan.md) pinned it: the corner FILL (fill_corner → polyfill) is ALREADY
+// mirror-symmetric — polyfill decides its pixels on the CPU (float edge-crossings → integer span),
+// so it reflects exactly. The whole floor is the kerb LINE: stroke_corner → line() → raylib's GPU
+// DrawLine, whose staircase is direction-dependent and not reflection-symmetric.
+//
+// IMPORTANT NEGATIVE RESULT: a symmetric software line (sline, below) does NOT fix it — wiring it
+// into stroke_corner REGRESSES the kerb 7->27 (measured). Why: the fill is point-mirrored about the
+// true centre cx=160 (ri-snapped arc verts land cells summing to 320), but a 1px stroke is a CELL,
+// and mirror-diff pairs cells x<->319-x (sum 319). sline is exact only for CELL-mirror endpoints, so
+// fed the fill's point-mirror endpoints it lands 1px off. Fills and 1px strokes want OPPOSITE snap
+// conventions on an even grid. THE FIX SHIPPED: (a) MIRROR-BLIT — see mirror_blit() + its call in
+// draw(); it reflects the rendered junction-core PIXELS, sidestepping snapping entirely, and takes
+// the kerb floor to 0 (verified: node tools/mirror-diff.js streetlab --band 20,110 → 0 BROWNISH_BLACK
+// pairs). Alternatives not taken: (b) draw the kerb as the fill's coverage-boundary so it inherits the
+// fill's symmetry; (c) the SOFTWARE CANVAS (docs/design/software-canvas.md), where line() becomes a
+// CPU rasteriser engine-wide with one convention + bit-identical determinism (sline, below, is its
+// missing piece — kept banked here for that day, NOT wired given the negative result above).
+// Rule of thumb still holds: spec the geometry, eyeball the pixels.
+
+// sline — reflection-symmetric software line. Iterate the MAJOR axis per integer step, round the
+// MINOR coord; ties break toward the segment midpoint (reflection-invariant), and the lone
+// degenerate (tie AT the midpoint) plots BOTH candidates. No direction-dependent error term ⇒ a line
+// and its mirror rasterise to mirror-identical pixels — PROVEN 0-mismatch in the linesym petri-dish
+// WHEN endpoints are true cell-mirrors. Kept here as the canvas's missing CPU-line piece (SEAM:
+// promote to runtime/studio.c line() under the software canvas); deliberately NOT wired into
+// stroke_corner (see the negative result above). __attribute__((unused)) until then.
+__attribute__((unused))
+static void sl_plot(int maj, float v, float mid, int horiz, int c){
+    float f=floorf(v); int fi=(int)f, m; float r=v-f;
+    if (r!=0.5f) m=(r<0.5f)?fi:fi+1;
+    else if (v==mid){ if(horiz){pset(maj,fi,c);pset(maj,fi+1,c);} else {pset(fi,maj,c);pset(fi+1,maj,c);} return; }
+    else m=(mid>v)?fi+1:fi;
+    if (horiz) pset(maj,m,c); else pset(m,maj,c);
+}
+__attribute__((unused))
+static void sline(int x0,int y0,int x1,int y1,int c){
+    int dx=x1-x0, dy=y1-y0, adx=dx<0?-dx:dx, ady=dy<0?-dy:dy;
+    if (adx==0&&ady==0){ pset(x0,y0,c); return; }
+    if (adx>=ady){ int lo=x0<x1?x0:x1, hi=x0<x1?x1:x0; float ym=(y0+y1)*0.5f;
+        for (int x=lo;x<=hi;x++) sl_plot(x, y0+(float)(x-x0)*dy/(float)dx, ym, 1, c); }
+    else { int lo=y0<y1?y0:y1, hi=y0<y1?y1:y0; float xm=(x0+x1)*0.5f;
+        for (int y=lo;y<=hi;y++) sl_plot(y, x0+(float)(y-y0)*dx/(float)dy, xm, 0, c); }
+}
 
 // ── CURB RETURN = the at-grade corner primitive. Two curb edges leave the corner K in directions e1,e2
 //    (degrees, pointing AWAY from K along each curb). The return is the arc of radius R TANGENT to both
@@ -148,6 +187,10 @@ static void stroke_corner(CurbReturn c, float R, int col){
     float d  = a1-a0; while(d> M_PI)d-=2*M_PI; while(d<-M_PI)d+=2*M_PI;
     enum { N=10 }; float px=c.t1x, py=c.t1y;
     for (int i=1;i<=N;i++){ float a=a0+d*i/N, x=c.ox+cosf(a)*R, y=c.oy+sinf(a)*R;
+        // SEAM: sline() (above) is the symmetric line, but a NAIVE swap here REGRESSES the kerb
+        // 7->27 (measured): the fill is point-mirrored about cx=160 (cells sum 320) while sline is
+        // exact only for CELL-mirror endpoints (sum 319). Fixing the kerb needs the stroke snapped
+        // cell-consistently with the fill, or drawn as a coverage-boundary, or mirror-blit. NOT here.
         line(ri(px),ri(py),ri(x),ri(y),col); px=x; py=y; }
 }
 // Pass 2 (#5a): the bike lane WRAPS the corner — a terracotta annular band JUST INSIDE the curb-return arc
@@ -843,7 +886,26 @@ static void draw_network_view(void){
     font(FONT_NORMAL);
 }
 
+// MIRROR-BLIT — the corner-symmetry fix (docs/design/streetlab-corner-symmetry-plan.md, Option A).
+// Reflect the rendered junction-core PIXELS so the four kerbs are mirror-identical by construction —
+// this sidesteps the fill(point-mirror)/stroke(cell-mirror) snap conflict that defeats a symmetric
+// line (see the ri() SEAM). Reads the canonical (top-left) quadrant via pget (LAST frame: steady-
+// state exact; one transient frame after a parameter change) and writes the other three mirrored.
+// Called AFTER corners, BEFORE markings — and the directional markings (arrows/dashes), drawn after,
+// over-stamp anything this wrongly mirrors, so only the symmetric kerb/asphalt core is reflected.
+static void mirror_blit(int cxr,int cyr,int rad){
+    int mx=2*cxr-1, my=2*cyr-1;                          // even-grid pixel mirror: x->mx-x, y->my-y
+    for (int y=cyr-rad; y<cyr; y++)
+        for (int x=cxr-rad; x<cxr; x++){
+            int p=pget(x,y), rx=mx-x, ry=my-y;
+            pset(rx,y ,p);                               // → top-right    (mirror x)
+            pset(x ,ry,p);                               // → bottom-left  (mirror y)
+            pset(rx,ry,p);                               // → bottom-right (mirror both)
+        }
+}
+
 void draw(void){
+    static bool pget_on=false; if(!pget_on){ enable_pget(true); pget_on=true; }   // for mirror_blit read-back
     ui_begin();
     cls(CLR_DARK_GREEN);
     if (netview){ draw_network_view(); ui_end(); return; }     // M4: the street-web view
@@ -941,9 +1003,32 @@ void draw(void){
         }
         edge_corner(cx,cy,HW, bA,bB,bm, &kx,&ky);
         CurbReturn c=curb_return(kx,ky, bA, bB, cornerR);
-        fill_corner(kx,ky, c, cornerR, CLR_DARK_GREY);
+        // KERB EDGE. Orthogonal (~90°) corners suffered a ~2px dark notch: the straight arms' 1px-proud
+        // BROWNISH_BLACK casing (the asphalt pass insets it) pokes past an HW-tangent kerb. Fix = round the
+        // casing too — a fillet at HW+1 UNDER the HW asphalt ⇒ a 1px casing ring that meets the straight
+        // casing. BUT that ring's width is ~1/sin(half-angle), so on SKEW corners it fattens to 2–3px — so
+        // only orthogonal gets the casing fillet; skew keeps the uniform-1px stroke (it never had the notch).
+        // The casing fillet uses the HW+1 corner (centre O′); corner_bike and skew strokes use the HW
+        // corner (centre O). So restrict it to the case it was made for — orthogonal, NON-bike corners:
+        //   • skew → the ring fattens ~1/sin(half-angle); keep the uniform-1px stroke.
+        //   • bike → corner_bike hugs the O arc, but the casing kerb sits on the O′ arc 1px out, leaving a
+        //     grey band between bike and kerb; keep the stroke (the terracotta band defines that corner).
+        int casing = (fabsf(gap-90.f) < 0.5f) && !bikeOn;
+        if (casing){                                       // casing fillet first (outermost dark)
+            float kxc,kyc; edge_corner(cx,cy,HW+1, bA,bB,bm, &kxc,&kyc);
+            fill_corner(kxc,kyc, curb_return(kxc,kyc, bA,bB, cornerR), cornerR, CLR_BROWNISH_BLACK);
+        }
+        fill_corner(kx,ky, c, cornerR, CLR_DARK_GREY);     // asphalt insets ⇒ leaves the 1px casing kerb
         if (bikeOn) corner_bike(c, cornerR);               // #5a: the bike lane wraps the corner (just inside the kerb)
-        stroke_corner(c, cornerR, CLR_BROWNISH_BLACK);
+        if (!casing) stroke_corner(c, cornerR, CLR_BROWNISH_BLACK);   // skew/bike: uniform 1px kerb edge
+    }
+
+    // MIRROR-BLIT the symmetric orthogonal 4-way: reflect the junction-core pixels so the four kerbs
+    // are pixel-identical (the kerb floor → 0 by construction; a symmetric line couldn't — snap
+    // conflict, see the ri() SEAM). Skew/T/free-right keep the per-corner path (no symmetry there).
+    if (!isT && skew==0 && !freeRight){
+        int rad=(int)(HW+cornerR+(peds?SW:0))+2;
+        mirror_blit(ri(cx),ri(cy),rad);
     }
 
     // markings, median islands + stop bar per arm. startd clears the arm's corners (acute corners reach

@@ -85,6 +85,20 @@ even-odd `poly_inside`, and `sector_fill`'s distance test), measured from the pi
 goes through raylib GPU coverage anymore (`DrawTriangle`/`DrawCircle`/`DrawLine` outlines all
 gone). The whole `fillp` `*_pat` scanline family is collapsed into one `plot_pat` per pixel.
 
+> **Correction/clarification (2026-06-23): the standalone `line()` primitive is the ONE exception
+> — still GPU `DrawLine`.** "`DrawLine` outlines all gone" above means shape *outlines*
+> (`circ`/`trifill` boundary rings) are now CPU coverage. But `line()` itself — and `bezier`/2-pt
+> `poly`, which call it — still hands rasterisation to GL `DrawLine`, which *chooses* the staircase
+> on the GPU. An audit chasing streetlab's corner-symmetry floor confirmed it's the only cart-facing
+> primitive that still lets GL pick pixels (besides the deliberate rotated `rectfill_rot`).
+> Consequence: GL `DrawLine` is direction-dependent → not reflection-symmetric and not bit-identical
+> across drivers — it breaks both the symmetry invariant *and* the cross-device determinism this
+> doc's CPU-coverage direction otherwise buys. The reflection-symmetric CPU line that closes the hole
+> is **`sline`** (prototyped in `tools/carts/{linesym,axissym}.c`, banked in `streetlab.c`); promoting
+> it to `line()` is the last step of "direction 1 everywhere," and is the line rasteriser
+> [`software-canvas.md`](software-canvas.md) needs. See
+> [`streetlab-corner-symmetry-plan.md`](streetlab-corner-symmetry-plan.md).
+
 ### Why not the other directions
 - **Direction 2 (keep GPU as truth, match the CPU paths to it):** rejected — "match raylib's
   exact coverage" is brittle and differs desktop GL vs web GL ES, the very thing we wanted to

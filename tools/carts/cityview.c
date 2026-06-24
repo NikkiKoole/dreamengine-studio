@@ -1,49 +1,35 @@
 #include "studio.h"
 #include <math.h>
+#include <stdio.h>
 
-// CITYVIEW — pseudo-3D top-down city: GTA1 meets Zelda. A test bench for the
+// CITYVIEW — pseudo-3D top-down city: GTA1 meets Zelda. A bench for the
 // "see the FRONTS, height goes straight UP the screen, no needless diagonals"
-// look. Drive around a seeded city; press M to cycle FOUR view modes and feel
-// the difference between them on the same streets:
+// look — now with DRIVABLE RAISED HIGHWAYS folded in (was overpass.c).
 //
-//   1 NORTH-UP    camera locked to north; you always see the south-facing
-//                 fronts. The purest Zelda look — zero diagonals, ever.
-//   2 HEADING-UP  camera rotates to your heading; you see whichever 1-2 walls
-//                 you're driving toward. Footprint edges go diagonal (fine — so
-//                 does the road grid) but every wall's UP is still screen-up.
-//   3 BILLBOARD   heading-up, but each building turns its front to face you
-//                 (a flat card). Cheap; lovely for trees/props, odd for boxes.
-//   4 LEAN-OUT    heading-up, roofs pushed AWAY from screen centre instead of
-//                 straight up — the classic "diagonal walls everywhere" GTA
-//                 extrusion, here for contrast.
+// Press M to cycle FOUR building view modes:
+//   1 NORTH-UP    camera locked north; you always see the south-facing fronts.
+//   2 HEADING-UP  camera rotates to heading; you see the 1-2 walls you drive
+//                 toward, every wall's UP still screen-up. (the keeper)
+//   3 BILLBOARD   heading-up, buildings face you as flat cards (props, not boxes).
+//   4 LEAN-OUT    roofs pushed away from screen centre — the melty contrast.
 //
-// The whole renderer is flat quadfill: a lot footprint, 1-2 shaded walls, a
-// roof cap. Modes 1/2/4 share ONE geometric extruder; only the roof-offset
-// vector and the camera angle change. Mode 3 is the odd one (screen-aligned
-// card). Drawn back-to-front (painter's) so near blocks overlap far ones.
+// Press F to lay a FLYOVER over the city (off/straight/s-curve/spiral/stack).
+// A flyover is just a road whose nodes carry a Z: because height extrudes
+// straight up the screen, a deck that ramps up reads as an elevated structure
+// (running surface + dashed centre line + fascia + pillars + ground shadow).
+// Drive UP the ramp and the camera rises with you (camz) so the city sinks
+// below; the car's Z snaps to the nearest REACHABLE deck, so you board via a
+// ramp and drive UNDER high decks without popping onto them.
 //
-// CONTROLS — arrows drive · M cycle view · [ ] zoom out/in · R reseed city
+// THE PROJECTED-PRIMITIVE HELPERS (ADR 0021 — these graduate to a runtime
+// header once a second 3D front-end wants them; proven here first):
+//   project()  the one adapter — world (x,y,z) → screen, rotated+scaled, z up.
+//   pdisc()    a ground circle is an ELLIPSE once rotated — fill a projected
+//              N-gon, never circfill. (ponds, car shadow, roundabout islands)
+//   pline()/pdash()  projected (dashed) line — project the endpoints, draw.
+//   pproj_poly()     project-then-polyfill — corners/islands/deck shadows.
 //
-// VERDICT (same corner, same heading, headless A/B): mode 2 (HEADING-UP) is the
-// keeper — real-reading blocks, walls straight up, diagonals only on footprints
-// and the road grid. Mode 1 is the calm no-rotation map view; mode 3 is for
-// props not boxes; mode 4 shows the melty diagonal-walls cost we're avoiding.
-//
-// WHERE THIS GOES NEXT (ideas, roughest → most load-bearing):
-//   - THE HYBRID (the real test): mode 2 for buildings + mode 3 billboards for
-//     trees / people / lamp-posts / signs in the SAME scene. Boxes get walls,
-//     thin props face you as cards — that's the "Zelda town you can drive" look.
-//   - NORTH-UP READABILITY: mode 1 reads flat. Taller/more-shaded front walls or
-//     a thin roof-edge outline gives it pop without introducing any diagonals.
-//   - BUILDING COLLISION: today the car drives onto/through buildings. Footprint
-//     collision makes it a street, not a diorama (feeds the sloop drive feel).
-//   - WIRE TO THE WORLD: this is big-game-backlog seam #2 (the cityscape
-//     renderer). Swap the seeded grid for the composer's road_at()/lotfill atoms
-//     so it draws the REAL world instead of a demo grid.
-//   - DEPTH POLISH: per-building drop shadow on the ground, window rows on tall
-//     walls (cheap dithered bands), night palette + lit windows, a horizon tint.
-//   - Capture the "UP stays screen-up" rule + this 4-mode finding in a
-//     docs/design/ note so it outlives this header.
+// CONTROLS — arrows drive · M view · F flyover · T textures · [ ] zoom · R city
 
 #define PITCH   42          // block centre-to-centre, world units
 #define ROADH   7.0f        // half road width
@@ -53,10 +39,19 @@
 #define TILE_W  6.0f        // world units per 16px texture tile (keeps bricks crisp)
 #define QUARTER 0x7BDE      // ~25% black dither (1-bits transparent)
 #define MAXREP  6           // cap texture repeats per wall (stress-test ceiling)
+#define PN      48          // nodes per flyover deck
+#define DECKW   20.0f       // deck width (world)
+#define DECKT   4.0f        // deck thickness (fascia depth)
+#define BARRIER 3.0f        // side-barrier height
+#define PHALF   3.5f        // pillar half-width
+#define PEVERY  5           // a pillar every N nodes
+#define REACH   12.0f       // max z step to board/stay on a deck (drive-under gate)
 
 // material → wall texture slot (sprites in cityview.cart.js): 0 brick 1 block 2 glass 3 stucco
 static const int MATSLOT[NMAT] = { 1, 0, 3, 2, 1, 3 };
-static int clampi(int v, int lo, int hi) { return v<lo?lo:(v>hi?hi:v); }
+static int   clampi(int v, int lo, int hi) { return v<lo?lo:(v>hi?hi:v); }
+static float clampf(float v,float lo,float hi){ return v<lo?lo:(v>hi?hi:v); }
+static float smooth01(float u){ u=clampf(u,0,1); return u*u*(3-2*u); }
 
 typedef struct { int roof, lit, shade; } Mat;
 static const Mat MAT[NMAT] = {
@@ -68,18 +63,23 @@ static const Mat MAT[NMAT] = {
   { CLR_LIGHT_YELLOW,CLR_DARK_ORANGE, CLR_DARK_BROWN   },  // sand
 };
 
-// view-mode ids
 enum { M_NORTH, M_HEADING, M_BILLBOARD, M_LEANOUT, M_COUNT };
 static const char *MODE_NAME[M_COUNT] = {
   "1 NORTH-UP (zelda)", "2 HEADING-UP (fronts)", "3 BILLBOARD", "4 LEAN-OUT"
 };
+enum { F_OFF, F_STRAIGHT, F_CURVE, F_SPIRAL, F_STACK, F_COUNT };
+static const char *FNAME[F_COUNT] = { "off", "straight", "s-curve", "spiral", "stack" };
+
+typedef struct { float x, y, z; } Node;
+typedef struct { Node n[PN]; int cnt; float w; } Deck;
 
 typedef struct {
-  float px, py, ang, spd;     // car: pos, heading(deg), speed
-  float camx, camy, rot;      // camera: eased pos + eased rotation(deg applied to world)
+  float px, py, ang, spd, carz;   // car: pos, heading(deg), speed, deck height
+  float camx, camy, camz, rot;    // camera: eased pos + height + rotation(deg)
   float zoom;
-  int   mode, seed;
+  int   mode, fly, seed, ndeck;
   bool  started, tex;
+  Deck  deck[2];
 } State;
 static State S;
 
@@ -110,34 +110,145 @@ static Bldg cell_bldg(int gx, int gy) {
   return b;
 }
 
-// project a world point at height h to screen, applying camera pos + rotation.
-static void project(float wx, float wy, float h, float *sx, float *sy) {
+// ── flyover layout for the current F mode ───────────────────────────────────
+static float ramp(float t){ float rf=0.30f;
+  float u=(t<rf)?t/rf:(t>1-rf)?(1-t)/rf:1.0f; return smooth01(u); }
+
+static void build_flyover(void){
+  S.ndeck=0;
+  if (S.fly==F_OFF) return;
+  Deck *d=&S.deck[0]; d->cnt=PN; d->w=DECKW;
+  if (S.fly==F_STRAIGHT){
+    for(int i=0;i<PN;i++){ float t=(float)i/(PN-1); d->n[i]=(Node){ -200+400*t, 0, ramp(t)*28.0f }; }
+    S.ndeck=1;
+  } else if (S.fly==F_CURVE){
+    for(int i=0;i<PN;i++){ float t=(float)i/(PN-1); d->n[i]=(Node){ -200+400*t, sin_deg(t*360)*56.0f, ramp(t)*30.0f }; }
+    S.ndeck=1;
+  } else if (S.fly==F_SPIRAL){
+    int sp=30; float R=55, H=38;
+    for(int i=0;i<sp;i++){ float t=(float)i/(sp-1); float a=-90+270*t;
+      d->n[i]=(Node){ cos_deg(a)*R, sin_deg(a)*R+R, smooth01(t)*H }; }
+    float dx=d->n[sp-1].x-d->n[sp-2].x, dy=d->n[sp-1].y-d->n[sp-2].y, L=sqrtf(dx*dx+dy*dy)+1e-4f; dx/=L; dy/=L;
+    for(int i=sp;i<PN;i++){ int k=i-sp+1; d->n[i]=(Node){ d->n[sp-1].x+dx*9*k, d->n[sp-1].y+dy*9*k, H }; }
+    d->cnt=PN; S.ndeck=1;
+  } else { // F_STACK
+    for(int i=0;i<PN;i++){ float t=(float)i/(PN-1); d->n[i]=(Node){ -190+380*t, 0, ramp(t)*20.0f }; }
+    Deck *e=&S.deck[1]; e->cnt=PN; e->w=DECKW;
+    for(int i=0;i<PN;i++){ float t=(float)i/(PN-1); e->n[i]=(Node){ 0, -190+380*t, ramp(t)*38.0f }; }
+    S.ndeck=2;
+  }
+}
+
+// project a world point (x,y,z) to screen — height AND camera-height go up-screen
+static void project(float wx, float wy, float wz, float *sx, float *sy) {
   float dx = wx - S.camx, dy = wy - S.camy;
   float c = cos_deg(S.rot), s = sin_deg(S.rot);
   float rx = dx*c - dy*s, ry = dx*s + dy*c;     // rotate world by S.rot
   *sx = SCREEN_W*0.5f + rx*S.zoom;
-  *sy = SCREEN_H*0.5f + ry*S.zoom - h*S.zoom*HSCALE;
+  *sy = SCREEN_H*0.5f + ry*S.zoom - (wz - S.camz)*S.zoom*HSCALE;
+}
+static void wpt(float x,float y,float z,int*ix,int*iy){ float a,b; project(x,y,z,&a,&b); *ix=(int)a; *iy=(int)b; }
+
+// ── projected-primitive helpers (ADR 0021) ──────────────────────────────────
+// a circle on the GROUND is an ellipse once the camera rotates → fill an N-gon.
+static void pdisc(float cx,float cy,float r,float z,int color){
+  enum { N=14 }; int xy[2*N];
+  for(int i=0;i<N;i++){ float a=i*(360.0f/N); wpt(cx+cos_deg(a)*r, cy+sin_deg(a)*r, z, &xy[2*i], &xy[2*i+1]); }
+  polyfill(xy,N,color);
+}
+// project a polygon's world corners (all at height z) and fill — respects fillp().
+static void pproj_poly(const float*wx,const float*wy,int n,float z,int color){
+  int xy[2*8]; if(n>8) n=8;
+  for(int i=0;i<n;i++) wpt(wx[i],wy[i],z,&xy[2*i],&xy[2*i+1]);
+  polyfill(xy,n,color);
+}
+// projected line / dashed line — project both endpoints, draw at any height.
+static void pline(float x0,float y0,float z0,float x1,float y1,float z1,int color){
+  int ax,ay,bx,by; wpt(x0,y0,z0,&ax,&ay); wpt(x1,y1,z1,&bx,&by); line(ax,ay,bx,by,color);
+}
+static void pdash(float x0,float y0,float z0,float x1,float y1,float z1,float dash,int color){
+  float dx=x1-x0,dy=y1-y0,dz=z1-z0; float L=sqrtf(dx*dx+dy*dy)+1e-4f;
+  int seg=(int)(L/dash); if(seg<1) seg=1;
+  for(int i=0;i<seg;i+=2){ float t0=(float)i/seg,t1=(float)(i+1)/seg;
+    pline(x0+dx*t0,y0+dy*t0,z0+dz*t0, x0+dx*t1,y0+dy*t1,z0+dz*t1, color); }
+}
+
+// ── flyover geometry ────────────────────────────────────────────────────────
+// deck height at (wx,wy) REACHABLE from curz — board via ramps, drive under high decks.
+static bool deck_height(float wx,float wy,float curz,float*z){
+  float best=1e9f; bool on=false;
+  for(int d=0;d<S.ndeck;d++) for(int i=0;i<S.deck[d].cnt;i++){
+    Node *p=&S.deck[d].n[i];
+    float dx=p->x-wx, dy=p->y-wy, dd=dx*dx+dy*dy, hw=S.deck[d].w*0.5f;
+    if(dd<hw*hw && fabsf(p->z-curz)<REACH && dd<best){ best=dd; *z=p->z; on=true; }
+  }
+  return on;
+}
+
+// a vertical box (pillars): footprint cx,cy ± half, z0..z1
+static void draw_box(float cx,float cy,float hx,float hy,float z0,float z1,int lit,int sh,int roof){
+  float wx[4]={cx-hx,cx+hx,cx+hx,cx-hx}, wy[4]={cy-hy,cy-hy,cy+hy,cy+hy};
+  int bx[4],by[4],tx[4],ty[4];
+  for(int i=0;i<4;i++){ wpt(wx[i],wy[i],z0,&bx[i],&by[i]); wpt(wx[i],wy[i],z1,&tx[i],&ty[i]); }
+  float c=cos_deg(S.rot), s=sin_deg(S.rot);
+  float nwx[4]={0,1,0,-1}, nwy[4]={-1,0,1,0};
+  int order[4],n=0; float key_[4];
+  for(int e=0;e<4;e++){ float nsy=nwx[e]*s+nwy[e]*c; if(nsy>0.001f){ order[n]=e; key_[n]=nsy; n++; } }
+  for(int i=0;i<n;i++) for(int j=i+1;j<n;j++) if(key_[j]<key_[i]){
+    float t=key_[i];key_[i]=key_[j];key_[j]=t; int o=order[i];order[i]=order[j];order[j]=o; }
+  for(int k=0;k<n;k++){ int e=order[k], a=e, bb=(e+1)&3;
+    quadfill(bx[a],by[a],bx[bb],by[bb],tx[bb],ty[bb],tx[a],ty[a], key_[k]>0.6f?lit:sh); }
+  quadfill(tx[0],ty[0],tx[1],ty[1],tx[2],ty[2],tx[3],ty[3], roof);
+}
+
+static void deck_edge(Deck*d,int i,float zoff,int*lx,int*ly,int*rx,int*ry){
+  int j=(i+1<d->cnt)?i+1:i, k=(i>0)?i-1:i;
+  float dx=d->n[j].x-d->n[k].x, dy=d->n[j].y-d->n[k].y, L=sqrtf(dx*dx+dy*dy)+1e-4f;
+  float px=-dy/L, py=dx/L, hw=d->w*0.5f; Node*nd=&d->n[i];
+  wpt(nd->x+px*hw, nd->y+py*hw, nd->z+zoff, lx, ly);
+  wpt(nd->x-px*hw, nd->y-py*hw, nd->z+zoff, rx, ry);
+}
+
+static void draw_deck_seg(Deck*d,int i){
+  int la,lay,ra,ray, lb,lby,rb,rby;
+  deck_edge(d,i,0,&la,&lay,&ra,&ray); deck_edge(d,i+1,0,&lb,&lby,&rb,&rby);
+  int la2,lay2,ra2,ray2, lb2,lby2,rb2,rby2;
+  deck_edge(d,i,-DECKT,&la2,&lay2,&ra2,&ray2); deck_edge(d,i+1,-DECKT,&lb2,&lby2,&rb2,&rby2);
+  quadfill(la,lay,lb,lby,lb2,lby2,la2,lay2, CLR_BROWNISH_BLACK);   // fascia (thickness)
+  quadfill(ra,ray,rb,rby,rb2,rby2,ra2,ray2, CLR_BROWNISH_BLACK);
+  quadfill(la,lay,ra,ray,rb,rby,lb,lby, CLR_DARK_GREY);            // running surface
+  pdash(d->n[i].x,d->n[i].y,d->n[i].z+0.3f, d->n[i+1].x,d->n[i+1].y,d->n[i+1].z+0.3f, 4.0f, CLR_YELLOW);
+  int lat,layt,rat,rayt, lbt,lbyt,rbt,rbyt;
+  deck_edge(d,i,BARRIER,&lat,&layt,&rat,&rayt); deck_edge(d,i+1,BARRIER,&lbt,&lbyt,&rbt,&rbyt);
+  quadfill(la,lay,lb,lby,lbt,lbyt,lat,layt, CLR_LIGHT_GREY);       // barriers
+  quadfill(ra,ray,rb,rby,rbt,rbyt,rat,rayt, CLR_LIGHT_GREY);
 }
 
 // ── lifecycle ──────────────────────────────────────────────────────────────
 static void reset(void) {
-  S.px = 6; S.py = ROADH+2; S.ang = 0; S.spd = 0;
-  S.camx = S.px; S.camy = S.py; S.rot = 0;
-  S.zoom = 2.2f;
-  if (!S.started) { S.mode = M_NORTH; S.zoom = 2.2f; S.tex = true; }
+  build_flyover();
+  if (S.ndeck>0) {
+    Node a=S.deck[0].n[0], b=S.deck[0].n[1];
+    S.px=a.x; S.py=a.y; S.ang=atan2f(b.y-a.y,b.x-a.x)*57.2957795f;
+  } else {
+    S.px=6; S.py=ROADH+2; S.ang=0;
+  }
+  S.spd=0; S.carz=0; S.camx=S.px; S.camy=S.py; S.camz=0;
+  if (!S.started) { S.mode = M_HEADING; S.zoom = 2.0f; S.tex = true; }
+  S.rot = (S.mode==M_NORTH) ? 0.0f : (-90.0f - S.ang);
   S.started = true;
 }
 
-void init(void) { S.seed = 1; reset(); }
+void init(void) { S.seed = 1; S.fly = F_SPIRAL; reset(); S.zoom = 1.5f; }  // open on the showpiece
 
 void update(void) {
-  // mode + zoom + reseed
   if (keyp('M')) S.mode = (S.mode+1) % M_COUNT;
   if (keyp('1')) S.mode = M_NORTH;
   if (keyp('2')) S.mode = M_HEADING;
   if (keyp('3')) S.mode = M_BILLBOARD;
   if (keyp('4')) S.mode = M_LEANOUT;
   if (keyp('T')) S.tex = !S.tex;
+  if (keyp('F')) { S.fly = (S.fly+1) % F_COUNT; reset(); }
   if (key('[')) S.zoom = fmaxf(0.9f, S.zoom*0.97f);
   if (key(']')) S.zoom = fminf(6.0f, S.zoom*1.03f);
   if (keyp('R')) { S.seed++; reset(); }
@@ -152,13 +263,15 @@ void update(void) {
   S.px += cos_deg(S.ang)*S.spd;
   S.py += sin_deg(S.ang)*S.spd;
 
-  // camera eases to the car
+  // drive UP onto a reachable deck; camera rises so the city sinks below
+  float tz=0; deck_height(S.px,S.py,S.carz,&tz);
+  S.carz += (tz - S.carz)*0.25f;
   S.camx += (S.px - S.camx)*0.18f;
   S.camy += (S.py - S.camy)*0.18f;
+  S.camz += (S.carz - S.camz)*0.12f;
 
   // camera rotation: locked north, or eased toward heading-up
   float target = (S.mode == M_NORTH) ? 0.0f : (-90.0f - S.ang);
-  // shortest-arc ease (handle wrap)
   float d = fmodf(target - S.rot + 540.0f, 360.0f) - 180.0f;
   S.rot += d * 0.16f;
 }
@@ -282,20 +395,37 @@ static void draw_ground(int cgx, int cgy) {
     float cx = gx*(float)PITCH, cy = gy*(float)PITCH;
     float h2 = PITCH*0.5f - ROADH;
     float lx0=cx-h2, ly0=cy-h2, lx1=cx+h2, ly1=cy+h2;
-    int lot = (hf(gx,gy,9) < 0.12f) ? CLR_DARK_GREEN : CLR_BROWNISH_BLACK;
-    float ax,ay,bx,by,ccx,ccy,dx2,dy2;
-    project(lx0,ly0,0,&ax,&ay); project(lx1,ly0,0,&bx,&by);
-    project(lx1,ly1,0,&ccx,&ccy); project(lx0,ly1,0,&dx2,&dy2);
-    quadfill((int)ax,(int)ay,(int)bx,(int)by,(int)ccx,(int)ccy,(int)dx2,(int)dy2, lot);
+    bool park = hf(gx,gy,9) < 0.12f;
+    float wxq[4]={lx0,lx1,lx1,lx0}, wyq[4]={ly0,ly0,ly1,ly1};
+    pproj_poly(wxq,wyq,4,0, park?CLR_DARK_GREEN:CLR_BROWNISH_BLACK);
+    if (park && hf(gx,gy,7) < 0.5f) {           // a round pond — the disc→ellipse helper
+      pdisc(cx,cy, h2*0.66f, 0, CLR_BLUE_GREEN);
+      pdisc(cx,cy, h2*0.52f, 0, CLR_TRUE_BLUE);
+    }
   }
 }
 
 void draw(void) {
   cls(CLR_DARK_GREY);                            // asphalt = road grid shows through
-  int cgx = (int)floorf(S.px/PITCH + 0.5f);
-  int cgy = (int)floorf(S.py/PITCH + 0.5f);
+  int cgx = (int)floorf(S.camx/PITCH + 0.5f);
+  int cgy = (int)floorf(S.camy/PITCH + 0.5f);
 
   draw_ground(cgx, cgy);
+
+  // flyover ground shadows (dithered) — ground the structure under the deck
+  if (S.ndeck) {
+    fillp(QUARTER,-1);
+    for (int d=0; d<S.ndeck; d++) for (int i=0; i+1<S.deck[d].cnt; i++) {
+      Deck*dk=&S.deck[d];
+      int j=(i+1<dk->cnt)?i+1:i, k=(i>0)?i-1:i;
+      float dx=dk->n[j].x-dk->n[k].x, dy=dk->n[j].y-dk->n[k].y, L=sqrtf(dx*dx+dy*dy)+1e-4f;
+      float pxn=-dy/L, pyn=dx/L, hw=dk->w*0.5f;
+      float wxq[4]={dk->n[i].x+pxn*hw, dk->n[i].x-pxn*hw, dk->n[i+1].x-pxn*hw, dk->n[i+1].x+pxn*hw};
+      float wyq[4]={dk->n[i].y+pyn*hw, dk->n[i].y-pyn*hw, dk->n[i+1].y-pyn*hw, dk->n[i+1].y+pyn*hw};
+      pproj_poly(wxq,wyq,4,0,CLR_BLACK);
+    }
+    fillp_reset();
+  }
 
   // collect visible buildings, sort back-to-front by ground-centre screen-y
   static Bldg list[(2*RANGE+1)*(2*RANGE+1)];
@@ -317,13 +447,35 @@ void draw(void) {
     else                     draw_bldg_geo(&list[i], S.mode==M_LEANOUT);
   }
 
-  // the car at screen centre — long axis along its screen heading
-  float screenAng = S.ang + S.rot;
-  rectfill_rot(SCREEN_W/2, SCREEN_H/2, 10, 6, screenAng, CLR_WHITE);
-  rectfill_rot(SCREEN_W/2 + (int)(cos_deg(screenAng)*3), SCREEN_H/2 + (int)(sin_deg(screenAng)*3), 4, 5, screenAng, CLR_RED);
+  // flyover deck segments across all decks — depth-sort, draw far→near (pillar then deck)
+  if (S.ndeck) {
+    static int sd[2*PN], si[2*PN]; static float sdep[2*PN]; int ns=0;
+    for (int d=0; d<S.ndeck; d++) for (int i=0; i+1<S.deck[d].cnt; i++) {
+      int mx,my; wpt((S.deck[d].n[i].x+S.deck[d].n[i+1].x)*0.5f,
+                     (S.deck[d].n[i].y+S.deck[d].n[i+1].y)*0.5f, 0, &mx,&my);
+      sd[ns]=d; si[ns]=i; sdep[ns]=my; ns++;
+    }
+    for (int i=0;i<ns;i++) for (int j=i+1;j<ns;j++) if (sdep[j]<sdep[i]) {
+      float t=sdep[i];sdep[i]=sdep[j];sdep[j]=t; int a=sd[i];sd[i]=sd[j];sd[j]=a; int b=si[i];si[i]=si[j];si[j]=b; }
+    for (int q=0;q<ns;q++) { int d=sd[q], i=si[q]; Deck*dk=&S.deck[d];
+      if (i%PEVERY==0 && dk->n[i].z>3) draw_box(dk->n[i].x,dk->n[i].y,PHALF,PHALF,0,dk->n[i].z-DECKT,
+                                                CLR_MEDIUM_GREY,CLR_DARK_GREY,CLR_LIGHT_GREY);
+      draw_deck_seg(dk,i);
+    }
+  }
+
+  // car — ground shadow (ellipse), then the body at its height
+  fillp(QUARTER,-1); pdisc(S.px,S.py,4.0f,0,CLR_BLACK); fillp_reset();
+  int cxp,cyp; wpt(S.px,S.py,S.carz,&cxp,&cyp);
+  float sa = S.ang + S.rot;
+  rectfill_rot(cxp, cyp, 10, 6, sa, CLR_WHITE);
+  rectfill_rot(cxp + (int)(cos_deg(sa)*3), cyp + (int)(sin_deg(sa)*3), 4, 5, sa, CLR_RED);
 
   // HUD
   rectfill(0,0,SCREEN_W,9, CLR_BLACK);
   print(MODE_NAME[S.mode], 3, 2, CLR_YELLOW);
-  print(S.tex?"M:view T:tex* [ ]:zoom":"M:view T:tex [ ]:zoom", SCREEN_W-150, 2, CLR_LIGHT_GREY);
+  char hud[40]; snprintf(hud,sizeof hud,"F:fly=%s  T:tex%s", FNAME[S.fly], S.tex?"*":"");
+  print(hud, SCREEN_W-150, 2, CLR_LIGHT_GREY);
+  if (S.carz>2) { char b[24]; snprintf(b,sizeof b,"ELEVATED  z=%d",(int)S.carz);
+    print(b, SCREEN_W/2-40, SCREEN_H-12, CLR_LIME_GREEN); }
 }

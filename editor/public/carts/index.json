@@ -5534,7 +5534,7 @@
   },
   {
     "title": "cityview",
-    "description": "RENDER TEST: pseudo-3D top-down city, GTA1 meets Zelda. Drive a flat seeded city and see the FRONTS of buildings, keeping the pixel look of sloop/cityplan. One test bench, FOUR switchable projections (press M, or 1-4): (1) NORTH-UP — camera locked north, always the south fronts, zero diagonals, the calm Zelda map view; (2) HEADING-UP — camera rotates to your heading, you see the 1-2 walls you drive toward, each extruding STRAIGHT UP the screen while footprints go diagonal (like the road grid) — the keeper look; (3) BILLBOARD — flat cards that always face you, weak for boxes but right for trees/props/people; (4) LEAN-OUT — roofs pushed away from screen centre (the literal GTA1 extrusion), here for contrast because the walls shear diagonally and the city looks melty. The one rule across all keepers: a wall footprint edge may go diagonal under a rotated camera, but its UP must point straight up the screen. Whole renderer is flat quadfill (lot footprint + 1-2 shaded walls + roof cap), painter-sorted back-to-front; modes 1/2/4 share one extruder and differ only in roof-offset vector + camera angle. Arrows drive, M cycles views, [ ] zoom, R reseeds. Research bench for the big-game cityscape renderer (docs/design/big-game-backlog.md seam #2).",
+    "description": "RENDER TEST: pseudo-3D top-down city (GTA1 meets Zelda) WITH drivable raised highways folded in (was the separate overpass experiment). Drive a seeded, brick/window/block/stucco-TEXTURED city. M cycles four building view modes: (1) NORTH-UP camera-locked, always the south fronts, zero diagonals; (2) HEADING-UP camera rotates to heading, you see the 1-2 walls you drive toward, every wall UP still screen-up (the keeper); (3) BILLBOARD flat cards (props not boxes); (4) LEAN-OUT roofs pushed off-centre (the melty contrast). F lays a FLYOVER over the city: off / straight overpass / s-curve / spiral on-ramp / two-level stack interchange. A flyover is a road whose nodes carry a z; because height extrudes straight up the screen it reads as an elevated deck (running surface + dashed centre line + fascia thickness + pillars + dithered ground shadow). Drive UP a ramp and the camera rises (camz) so the city sinks below; the car z snaps to the nearest REACHABLE deck so you board via ramps and drive UNDER high decks. T toggles wall textures. Proves the ADR-0021 projected-primitive vocabulary in one place: project() (world x,y,z -> screen), pdisc (a ground circle is an ELLIPSE once rotated -> projected N-gon: ponds, car shadow, future roundabout islands), pline/pdash (projected dashed line: the deck centre line), pproj_poly (project-then-polyfill: lots + deck shadows). Whole renderer is flat quadfill + tritex-textured walls. Arrows drive, M view, F flyover, T textures, [ ] zoom, R reseed. The cityscape-renderer bench for big-game seam #2.",
     "file": "cityview.cart.png",
     "kind": [
       "tech-demo"
@@ -5544,19 +5544,5 @@
       "camera-follow"
     ],
     "lineage": "The missing height layer for the flat top-down lineage (sloop/cityplan/streetlab render footprints only). Takes their quadfill house style and grafts on screen-up wall extrusion to get a drivable Zelda/GTA1 cityscape; a four-mode bench to pick the projection before wiring it into the world composer."
-  },
-  {
-    "title": "overpass",
-    "description": "EXPERIMENT: raised highways / flyovers in the cityview pseudo-3D look. A road is a strip of (x,y,z) nodes; because the projection extrudes height STRAIGHT UP the screen, a deck whose z ramps up reads as an elevated structure — held up by concrete pillars, with the city passing underneath. Drive UP the ramp and the camera rises with you (camz eases to the car z) so the city sinks below, GTA-style; the car z snaps to the nearest deck within its width, so you board at a ramp end (z~0) and climb. Press V to cycle FOUR layouts: 1 STRAIGHT overpass (ramp/span/ramp), 2 S-CURVE flyover (deck curves in plan while climbing), 3 SPIRAL on-ramp (a 3/4-loop that spirals up to a high straight), 4 STACK interchange (two decks crossing at different heights — stress-tests depth sorting between elevated decks). Each deck shows a grey running surface + dashed centre line, dark side-beams (fascia) for thickness, pillars to the ground, and a dithered ground shadow; the car carries a ground shadow too so the height gap reads. Built on the same projection + heading-up camera as cityview. Arrows drive, V layout, [ ] zoom, R reseed city. Companion bench to cityview for the big-game cityscape renderer (docs/design/big-game-backlog.md): raised highway flyovers.",
-    "file": "overpass.cart.png",
-    "kind": [
-      "tech-demo",
-      "toy"
-    ],
-    "teaches": [
-      "isometric-projection",
-      "camera-follow"
-    ],
-    "lineage": "The elevation layer for the cityview top-down pseudo-3D bench: cityview proved buildings (footprint + screen-up walls); overpass proves ROADS with a z-profile — ramps, curved/spiral flyovers, and a two-level stack interchange — plus driving up onto them with a camera that rises so the city sinks below. Same projection and heading-up camera; adds deck geometry (running surface + fascia + pillars + ground shadow) and depth-sorting across elevated decks."
   }
 ]

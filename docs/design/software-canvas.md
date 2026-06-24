@@ -190,6 +190,28 @@ be coalesced.
 > demand-gated whole-view case — stays a correct GPU fallback). Quality knobs (RotSprite ≥16px,
 > Xiaolin-Wu smooth strokes) remain opt-in futures, not needed for correctness.
 >
+> **Cross-device determinism (goal B) — verified for the algorithms, two gaps left open (2026-06-25).**
+> The drift this guards against is real: raw libm `cosf`/`sinf` differ ~1 ULP across arm64 / x86-64 /
+> wasm, which flips a per-pixel `floor`/compare → different pixels per device. The fix — quantizing the
+> rotation matrix to 1/4096 (`roundf(cosf(a)*4096)/4096`) — is in every rotated primitive, and
+> `bash tools/det-probes/run.sh` confirms all 7 rotation probes (`rotfill`/`rotspr`/`rotline`/
+> `rotstroke`/`textrot`/`stritex`/`detstress`) are **bit-identical across arm64 / x86-64 / wasm**. The
+> engine ports copy those algorithms verbatim and otherwise use only IEEE-deterministic ops, so the
+> property transfers. **Two honest gaps, deferred (not worth the cost yet):**
+> 1. **No engine-level cross-arch gate.** The probes test the *standalone* algorithm, not `studio.c`
+>    end-to-end; the port is faithful by inspection only. A true gate would have to hash a cart's
+>    framebuffer on all three targets — but the full engine can't be cheaply built here (brew ships
+>    only an **arm** `libraylib.a`; wasm needs a GL context, so it can't run headless in `node` like a
+>    probe). The achievable route is a **raylib-free headless shim** for the `studio.h` surface the SW
+>    path touches (route `pset`/blits → `sw_cbuf`, hash it), which builds clean on arm/x86/wasm like
+>    the probes — real work, deferred. Interim discipline: when a rotated rasterizer changes, keep its
+>    mirror probe in `det-probes/` in sync and re-run `run.sh`.
+> 2. **Quantization proven for integer-degree angles only.** `run.sh` sweeps 0–359° (integer). An
+>    arbitrary float angle could, very rarely, hit a knife-edge where `cosf(a)*4096` lands within ~1
+>    ULP of a half-integer and two libms round differently → a 1-px / 1-frame divergence. Negligible
+>    per frame, but non-zero over a long lockstep replay. The fix when rigour demands it: **quantize
+>    the angle too** (or a table/CORDIC trig) so the `roundf` input can't straddle a boundary.
+>
 > **`sw_force_gpu` makes naive A/Bs lie.** A cart that calls `spr_rot`/`sspr_ex(deg)`/`rectfill_rot`/
 > `camera_ex(angle)` trips the sticky GPU fallback **on the frame it first hits the call** — so frame
 > 0 is a partial canvas render and frames 1+ run entirely on GPU. An A/B on such a cart (e.g.

@@ -71,10 +71,35 @@ be coalesced.
 > (`sw_fillrect` = cbuf row-memset). A first cut that routed `rectfill` per-pixel through `plot_pat`
 > was **2.4× *slower* than GPU**; the memset flipped it to 2.3× faster. **Deployment:** per-cart /
 > opt-in (default on for pset-bound carts; leave rectfill-bound on GPU) — which is why it's
-> flag-gated, not a blanket default. Caveats in the probe (Phase 2 cleans up): `print` skipped,
-> `camera_ex` zoom translation-only, `spr`/`tritex` skipped (so `spr`-using carts like `gridcity`
-> can't be validly A/B'd yet). Full write-up:
+> flag-gated, not a blanket default. (Phase 2 has since ported `spr`/`print`/`tritex` + `camera_ex`
+> zoom; rotation falls back to GPU.) Full write-up:
 > [`software-canvas-phase0-plan.md`](software-canvas-phase0-plan.md).
+
+## When to enable it — HW vs SW (the per-cart rule)
+
+The canvas is **opt-in per cart**, because it's not a universal win. The trade is simple: it replaces
+**per-pixel GPU submission (`pset → rlVertex3f`)** with **CPU writes + one `UpdateTexture`/frame**. So:
+
+| enable SW (`DE_SOFTWARE_CANVAS`) | leave on GPU (default / auto-fallback) |
+|---|---|
+| **pset/fill-bound** — top-down pixel-art, heavy `pset`/fills, CPU-shaders' per-pixel paint, **software mode-7** (scanline fills), the coverage-field road | **geometry / draw-call-bound** — `rectfill_rot`, line-heavy spline roads (`sloop`) |
+| these *had* the `rlVertex3f` cost → **1.4–3.5× faster** | **3D / `tritex`** — the GPU's hardware texture-triangle rasterizer wins |
+| measured: cityplan 2.3×, interiors 3.5×, dpaint 2.8×, mode7 2.7×, streetlab-field recovers ~60% | **rotation** (camera *or* primitive) — GPU transforms geometry per-vertex for free → auto GPU-fallback |
+|  | **already-trivial** carts (sub-~0.5ms) — the ~0.4ms `UpdateTexture` upload isn't repaid (`dutchsky` 0.35→0.84) |
+
+**The one-line principle:** SW wins when there's a lot of per-pixel `rlVertex3f` submission to *remove*;
+HW wins when the GPU does the work better (geometry/texture/rotation via vertex transforms) or there
+was little to remove (trivial carts pay only the upload tax). Rotation and rotated primitives
+auto-select HW via the sticky `sw_force_gpu`; everything else is the env/`-DSW_CANVAS_DEFAULT` opt-in.
+
+**The ideal cart to test Option 3** (software-raster + GPU-rotate-at-present, for *rotation* that keeps
+the SW win): a cart that is **rotation-bound *and* pset/fill-bound at once** — e.g. a **heading-up
+top-down pixel-art world** (GTA-1-style) whose ground is *pixel fills* (not `rectfill_rot` geometry) and
+that rotates the whole view via `camera_ex(angle)`. None exist yet: `mode7` does its rotation *inside*
+the fill loop (scanline `rectfill`, wins on the canvas with no Option 3); `sloop`/`cityview` rotate via
+`camera_ex` but draw their roads as `rectfill_rot`/`tritex` *geometry* (GPU's turf). So the trigger is a
+deliberate one — a pixel-fill rotating world (the direction the `sloop`/streetlab "big game" is heading,
+*if* its ground becomes fills) — and it'd also want the HUD-layer compositing.
 
 ## The thesis
 

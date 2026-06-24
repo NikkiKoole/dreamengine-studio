@@ -59,9 +59,16 @@
 //                the half-width HW = cross_hw() = the SUM of the lanes present, and EVERY junction primitive
 //                (curb returns, the mouth datum, the roundabout, sidewalks) keys off HW ⇒ widening the
 //                section re-solves the whole junction for free. cross_hw() is the pure, spec'd datum.
+//   FIELD-BASED ROADS (docs/design/field-based-road-rendering.md): the junction can render from ONE coverage
+//   field (uniform 1px kerb, symmetric, at any skew/curve) instead of per-arm casing + mirror_blit. SHIPPED
+//   as OPT-IN — the 'g' key (or build -DDE_FIELD_ROADS) toggles it; DEFAULT OFF, the per-arm route still ships.
+//   See fr_render() below. Gate: `node tools/road-check.js streetlab --all` (the correctness oracle). When the
+//   software canvas (docs/design/software-canvas.md) makes the per-pixel fill cheap, the field becomes default
+//   and the old route (mirror_blit/casing-fillet/stroke_corner) is deleted. 'n' = toggle painted markings.
 //   Controls: ui.h toolbar (clickable; keyboard too). v = junction↔network view. JUNCTION: [ ] curb radius
 //             (island R in roundabout mode) · -/= lanes · ,/. skew · t = T · p = turn lanes · r = roundabout ·
-//             k = pavement (sidewalk+crossings) · m = median · b = bike lane (off/lanes/+crossing) · ; = parking.
+//             k = pavement (sidewalk+crossings) · m = median · b = bike lane (off/lanes/+crossing) · ; = parking ·
+//             g = field rendering A/B · n = painted markings on/off.
 //             NETWORK: [ ] seed ·
 //             b = pattern · c = curve (M4c: the §8.5 curvature knob bows each edge ⇒ sinuosity goes live).
 

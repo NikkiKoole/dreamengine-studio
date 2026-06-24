@@ -25,6 +25,8 @@
 //   <>  skew angle (skew mode) / wiggle amplitude (curve mode)
 //   ^v  road half-width
 //   T   kerb thickness 1->2->3px (union method) — uniform at any angle via the coverage-diff
+//   K   full CROSS-SECTION: asphalt -> kerb -> SIDEWALK -> grass, all nested coverage bands —
+//       a "curb-like thing" that stays uniform-width + gap-free at any skew or curve
 //   R   reset
 
 static int   method = 1;     // 0 = per-piece casing ; 1 = union outline
@@ -33,6 +35,7 @@ static float skew   = 35.f;  // crossing-arm angle off 90 (skew mode)
 static float amp    = 22.f;  // centreline wiggle amplitude (curve mode)
 static int   HW     = 13;    // road half-width
 static int   kerbW  = 1;      // kerb (outline) thickness in px — uniform at ANY angle via coverage-diff
+static int   xsec   = 0;      // K: full cross-section (asphalt -> kerb -> SIDEWALK -> grass), nested bands
 
 static float CX, CY;
 static int   strays, edgeMax;
@@ -81,7 +84,8 @@ void update(void){
     if (keyp(KEY_UP))    { if(HW<30)HW++; }
     if (keyp(KEY_DOWN))  { if(HW> 4)HW--; }
     if (keyp('T')) kerbW = kerbW%3 + 1;     // cycle kerb thickness 1->2->3px (union method)
-    if (keyp('R')) { method=1; mode=0; skew=35; amp=22; HW=13; kerbW=1; }
+    if (keyp('K')) xsec ^= 1;               // toggle the kerb+sidewalk cross-section (union method)
+    if (keyp('R')) { method=1; mode=0; skew=35; amp=22; HW=13; kerbW=1; xsec=0; }
 }
 
 void draw(void){
@@ -99,7 +103,7 @@ void draw(void){
             for (int y=24;y<SCREEN_H;y++) for (int x=0;x<SCREEN_W;x++)
                 if (dseg(x,y,i) <= HW)   pset(x,y,CLR_DARK_GREY);
         }
-    } else {
+    } else if (!xsec) {
         // UNION OUTLINE: a pixel inside HW is kerb if it's NOT inside (HW-kerbW) — i.e. the
         // perpendicular band [HW-kerbW, HW]. A difference of two coverage tests ⇒ a UNIFORM
         // kerbW-px border at ANY angle or curvature (set kerbW=2 for a 2px kerb). Per-arm casing
@@ -107,6 +111,19 @@ void draw(void){
         for (int y=24;y<SCREEN_H;y++) for (int x=0;x<SCREEN_W;x++)
             if (inRoad(x,y,HW))
                 pset(x,y, inRoad(x,y,(float)(HW-kerbW)) ? CLR_DARK_GREY : CLR_BROWNISH_BLACK);
+    } else {
+        // FULL CROSS-SECTION from nested coverage tests (asphalt -> kerb -> sidewalk -> grass).
+        // Each band is just inRoad() at a different half-width — so a kerb AND a sidewalk both stay
+        // uniform-width and gap-free at any skew or curve, the same way the 1px kerb did.
+        const int SW = 6;                               // sidewalk width (outside the kerb)
+        for (int y=24;y<SCREEN_H;y++) for (int x=0;x<SCREEN_W;x++){
+            if (!inRoad(x,y,(float)(HW+SW))) continue;          // grass beyond
+            int col;
+            if      (!inRoad(x,y,(float)HW))          col = CLR_LIGHT_GREY;       // [HW, HW+SW] sidewalk
+            else if (!inRoad(x,y,(float)(HW-kerbW)))  col = CLR_BROWNISH_BLACK;   // [HW-kerbW, HW] kerb
+            else                                      col = CLR_DARK_GREY;        // [0, HW-kerbW] asphalt
+            pset(x,y,col);
+        }
     }
 
     // readouts (read the framebuffer): interior dark = a dark pixel with NO grass 4-neighbour
@@ -125,12 +142,13 @@ void draw(void){
     char buf[96];
     print("SKEWLAB - 1px road edges at skew/curve", 4, 4, CLR_WHITE);
     snprintf(buf,sizeof buf,"%s  |  %s",
-        method? "UNION outline (fix)":"PER-PIECE casing", mode? "CURVE":"SKEW");
+        method? (xsec? "UNION x-section (kerb+walk)":"UNION outline (fix)") : "PER-PIECE casing",
+        mode? "CURVE":"SKEW");
     print(buf, 4, 14, method? CLR_GREEN : CLR_ORANGE);
     snprintf(buf,sizeof buf, mode? "amp %d  HW %d  segs %d":"skew %+d  HW %d  segs %d",
         mode?(int)amp:(int)skew, HW, nSeg);
     print(buf, 210, 4, CLR_LIGHT_GREY);
     snprintf(buf,sizeof buf,"strays:%d  edge:%dpx  kerb:%dpx", strays, edgeMax, kerbW);
     print(buf, 210, 14, strays? CLR_RED : CLR_GREEN);
-    print("Z method  C skew/curve  <> angle/amp  ^v width  T kerb 1-3px  R reset", 4, SCREEN_H-8, CLR_DARK_GREY);
+    print("Z method  C skew/curve  <>ang/amp  ^v width  T kerb1-3  K kerb+walk  R reset", 4, SCREEN_H-8, CLR_DARK_GREY);
 }

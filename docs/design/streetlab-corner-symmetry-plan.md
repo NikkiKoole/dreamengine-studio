@@ -90,6 +90,20 @@ centred segments). No direction-dependent error term ⇒ a line and its mirror r
 Progression measured in `linesym` (line-only mismatch): GPU `DrawLine` 88 → round-half-even 30 →
 toward-midpoint 2 → +plot-both **0**. `axissym` confirms 0 about axes 64/100/137/200.
 
+### Banked next — the union-outline edge refactor (proven in `skewlab`, NOT done here)
+
+The deeper fix for the *skew/curve* edge issues (missing outline, stray pixels at the crossing,
+doubled edges — all pre-existing, byte-identical to before this work) is to stop drawing road edges
+**per-arm** (casing bands) and draw the **union outline** instead: fill the whole road union, then a
+coverage border = "an asphalt pixel with a grass neighbour" (the engine's own `circ`/`poly` rule).
+The `skewlab` cart proves this is generator-agnostic — clean 1px (or N-px, uniform) kerb at any
+skew, and at any **curve/Perlin** path — and that the same nested-coverage idea gives a full
+cross-section (asphalt → kerb → **sidewalk** → grass) cleanly at any angle. That refactor would
+*delete* the per-arm casing + `mirror_blit` + casing-fillet special-cases (the union fill is already
+symmetric; the outline is uniform at any angle), so it's a net removal of ad-hoc code. **Deliberately
+deferred** — it's a core rewrite of streetlab's road drawing that interacts with sidewalks/bike/
+roundabout/free-right, so it wants its own focused run. Basis cart: `skewlab` (registered).
+
 ---
 
 ## The bug (confirmed)

@@ -5518,5 +5518,18 @@
       "algorithm-visualization"
     ],
     "lineage": "The skew/curve sequel to arcsym/linesym/axissym: where those isolate rasterisation SYMMETRY (mirror) and 1px LINES, skewlab isolates road-EDGE rendering - showing streetlab's per-arm casing breaks at skews and curves (strays, missing outline) and that a single coverage UNION-OUTLINE (the engine's circ/poly boundary rule applied to the road union) is the generator-agnostic 1px fix that also handles Perlin/curved roads. The basis for replacing streetlab's per-arm casing + mirror-blit/casing-fillet special-cases with one union outline, and a building block for the software canvas."
+  },
+  {
+    "title": "linecompare",
+    "description": "LINECOMPARE - watch two rounding rules pick pixels for the SAME line, magnified so every cell is visible. A line on a grid has to choose which cells to light: DDA (blue) walks the long axis one step at a time and rounds the other coord, so it lights exactly one cell per column/row - crisp, but it rounds on its own terms; COVERAGE (orange) asks, for every cell, whether its CENTRE is within half a pixel of the line - the same rule fills/outlines use. Cells both rules agree on are WHITE; the blue and orange cells ARE the 'two rounding rules' the software-canvas notes describe. The yellow line is the ideal geometric path; green boxes mark the integer endpoints the DDA uses. The disagreement vanishes near 0/90 degrees and blooms near 45. Controls: LEFT/RIGHT rotate, A toggle auto-spin, UP/DOWN change the coverage width (radius).",
+    "file": "linecompare.cart.png",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "software-rasterizer",
+      "algorithm-visualization"
+    ],
+    "lineage": "The line-level companion to linesym/axissym/arcsym/skewlab: where those isolate rasterisation SYMMETRY and road-EDGE unification, linecompare isolates the single question underneath them - that a DDA stroke and a coverage test round a diagonal to DIFFERENT pixels. Built to make the 'two rounding rules' tension in the software-canvas design visible and playable (why some road stripes look crisp and others fatter/stairier), and to frame the open fork: should a 1px line stay a DDA or come from the shared coverage rule like every fill/outline."
   }
 ]

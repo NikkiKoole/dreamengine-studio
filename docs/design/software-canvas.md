@@ -131,6 +131,22 @@ static uint32_t cbuf[SCREEN_W*SCREEN_H];   // RGBA — see fork 1
 > rasterizer) if the 3D carts are ever to run on the canvas. The rotated-*stroke* sub-case
 > (a rotated 1px `line`/outline) still needs the Xiaolin-Wu-class drawer flagged in Fork 2.
 
+> **Findings (2026-06-24) — DDA vs coverage for the line, visualised in `linecompare`.** The "two
+> rounding rules" tension (a DDA stroke and a coverage test pick *different* diagonal pixels) is now
+> a playable magnified demo (`tools/carts/linecompare.c` — `B` cycles five views, `UP` fattens). It
+> made three things concrete for the line primitive. (1) **DDA is intrinsically 1px** — thickness is
+> an add-on. (2) Comparing the three thick-line rasterizers at 45° (the worst case), **none wins on
+> all of {crisp, uniform-width, gap-free}**: *stack-DDA* (stack N cells on the minor axis) is crisp
+> + gap-free but its perpendicular width *shrinks with angle* (≈3÷√2 at 45°); *coverage capsule* is
+> uniform-width + gap-free but raggeder-edged and rounds unlike DDA; *perpendicular-offset DDA* (N
+> parallel 1px passes) is crisp + uniform-width but **gappy** at diagonals (the passes don't
+> 8-connect), and closing the gaps with denser passes just converges back to coverage. (3) **The
+> clean answer is a split by use, not one rasterizer:** **1px strokes → DDA** (`sline`; crisp, and
+> thickness is moot at 1px), **thick bands → coverage** (the only gap-free *and* uniform option) —
+> which is exactly what [`field-based-road-rendering.md`](field-based-road-rendering.md) independently
+> chose (lane lines = coverage thresholds, bands = coverage). So `sline` stays the canvas's 1px line;
+> anything with width comes from the coverage rule, not a thickened DDA.
+
 ## The design forks — decide these first
 
 **These forks are not equally hard.** Fork 2 (`camera_ex`) genuinely *gates* the design; the

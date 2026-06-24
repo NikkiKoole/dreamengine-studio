@@ -128,6 +128,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              compose-clips.js stitch baked clips into one reel (ffmpeg xfade) from a .reel manifest
              ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels)
              mirror-diff.js  golden-pixel-diff harness: assert a render's symmetry invariant headless
+             canvas-diff.js  GPU-vs-software-canvas render oracle: A/Bs a cart in both modes + pixel-diffs;
+                             guards the sw_force_gpu/DE_CPU_LINE gotchas; --bytecheck (sha) / --raw / --max / --heatmap
              road-check.js   correctness oracle for coverage-based roads: framebuffer invariants (no naked
                              edges / strays / floating kerb) at ANY angle; --all = config-matrix gate; --overlay
              build-site.js / publish-cart.sh   build wasm carts + gallery → site/; publish + push

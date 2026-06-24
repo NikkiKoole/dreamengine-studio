@@ -202,6 +202,12 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
   wants **both** junction types. Density note: pushing the ring much past the signal's density grazes on
   degenerate shallow crossings, so its real win is smooth flow + being the right primitive, not raw count.
   Remaining: per-driver personality on the claim/merge; speed zones / hazards / peds / green-wave.
+  **Why the density ceiling is a non-issue in practice (owner, 2026-06-24):** the graze limit only
+  appears at *degenerate shallow crossings*, which exist here because two free loops are overlaid at
+  random. The real simulation places junctions deliberately at sane angles, so cars never pack the way
+  a near-parallel crossing forces — i.e. the crash-free density there is set by the junction, not by
+  this pathological geometry. Treat the two junction types as the deliverable; the density cap is an
+  artifact of the trackgen test bed, not the target use.
 
 **Watch out for:** deadlock (two priority rules that both yield → everyone stops); pick an asymmetric
 rule first. And the existing TRAFFIC light is on the loop — decide whether it stays, moves to the

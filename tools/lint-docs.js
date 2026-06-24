@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 // lint-docs.js — validate cross-references in docs/.
 //
-// Checks two things, both mechanically certain:
+// Checks three things, all mechanically certain:
 //   1. Relative .md links resolve:  [text](path.md) / [text](../dir/path.md#x)
 //      (anchors ignored; http(s)/mailto skipped)
 //   2. Doc-qualified §-references point at a numbered heading that exists:
 //      "audio-notes §8.9", "[...](instrument-engines.md) §8.8.2", "touch-notes.md → §7"
 //      A §-ref binds to the NEAREST doc name BEFORE it on the same line (≤80 chars away).
+//   3. Tool-index discoverability: every tools/*.{js,sh} and every non-data tools/ subdir is
+//      referenced in CLAUDE.md (the always-in-context index). This is the gate for the recurring
+//      "the tool exists but no agent finds it because it's only linked from a deep design doc"
+//      class — swcanvas_test, road-check, det-probes were all index-invisible. A new internal-only
+//      tool either earns a one-line pointer or gets allowlisted in DATA_SUBDIRS below.
 //
 // §-resolution is by PREFIX: if §8.4 has no exact heading but §8 exists (e.g. a
 // "→ moved" stub left by a doc split), that's a SOFT note, not an error — stubs
@@ -130,6 +135,27 @@ for (const f of files) {
   });
 }
 
+// ---------- 3. tool-index discoverability (tools/ ↔ CLAUDE.md) ----------
+// Allowlist: subdirs that are DATA/vendor/assets, not tool-code an agent needs to discover.
+const DATA_SUBDIRS = new Set(['reels', 'vendor', 'web-audio-shim']);
+const TOOLS = path.join(DOCS, '..', 'tools');
+const CLAUDE = path.join(DOCS, '..', 'CLAUDE.md');
+let toolsChecked = 0;
+if (fs.existsSync(CLAUDE) && fs.existsSync(TOOLS)) {
+  const claude = fs.readFileSync(CLAUDE, 'utf8');
+  for (const e of fs.readdirSync(TOOLS, { withFileTypes: true })) {
+    if (e.isFile() && /\.(js|sh)$/.test(e.name)) {
+      toolsChecked++;
+      if (!claude.includes(e.name))                       // full filename incl. extension = unambiguous
+        errors.push(`CLAUDE.md  tool not indexed: tools/${e.name} — add a one-line pointer to the tools list (discoverability gate)`);
+    } else if (e.isDirectory() && !DATA_SUBDIRS.has(e.name)) {
+      toolsChecked++;
+      if (!claude.includes(`${e.name}/`))
+        errors.push(`CLAUDE.md  tool dir not indexed: tools/${e.name}/ — add a pointer (or allowlist it in lint-docs DATA_SUBDIRS if it's data/vendor)`);
+    }
+  }
+}
+
 // ---------- report ----------
 if (errors.length) {
   console.log(`ERRORS (${errors.length}):`);
@@ -139,5 +165,5 @@ if (notes.length) {
   console.log(`\nsoft notes (${notes.length}) — resolve via a parent/stub heading, fine if intentional:`);
   for (const n of notes) console.log('  ' + n);
 }
-console.log(`\n${files.length} files · ${linksChecked} md-links checked · ${refsChecked} doc-qualified §-refs checked · ${bareRefs} bare + ${selfResolved} self-resolved §-refs not checked (by design)`);
+console.log(`\n${files.length} files · ${linksChecked} md-links checked · ${refsChecked} doc-qualified §-refs checked · ${bareRefs} bare + ${selfResolved} self-resolved §-refs not checked (by design) · ${toolsChecked} tools/dirs indexed in CLAUDE.md`);
 process.exit(errors.length ? 1 : 0);

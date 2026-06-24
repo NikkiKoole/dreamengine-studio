@@ -220,6 +220,15 @@ static bool            pset_batch     = DE_BATCH_PSET_DEFAULT; // true → batch
 static bool            sw_canvas_enabled = SW_CANVAS_DEFAULT; // env DE_SOFTWARE_CANVAS=on (the master toggle)
 static bool            sw_canvas_active   = SW_CANVAS_DEFAULT; // PER-FRAME: enabled AND this cart hasn't used a zoom/rotation camera_ex. Primitives check this.
 static bool            sw_force_gpu     = false;            // sticky: cart used camera_ex with zoom!=1 or angle!=0 → that cart falls back to the GPU path (Fork-2/C)
+// DE_CPU_LINE (default off): route line()/bezier/2-pt poly through the reflection-symmetric CPU line
+// even off-canvas (de_cpu_line, via pset). Purpose is A/B hygiene: with it set on BOTH the GPU and
+// software-canvas builds, line() draws the SAME pixels on each, so a canvas A/B isn't tripped up by
+// the GPU-DrawLine-vs-sw_sline diff (gta/combo noise). Interim, NOT a direction-1 commitment — the
+// coverage-vs-DDA line() decision is still open: docs/design/{software-canvas,rasterization-consistency}.md.
+#ifndef CPU_LINE_DEFAULT
+#define CPU_LINE_DEFAULT 0
+#endif
+static bool            cpu_line_enabled = CPU_LINE_DEFAULT;   // env DE_CPU_LINE=on
 static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer (Fork 1: RGBA on desktop)
 static inline uint32_t sw_pack(Color c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
@@ -1730,6 +1739,8 @@ int main(int argc, char **argv) {
       if (bp && strcmp(bp, "on") == 0) pset_batch = true; }            // DE_BATCH_PSET=on → coalesce psets into one draw call
     { const char *sc = getenv("DE_SOFTWARE_CANVAS");    // A/B the software canvas (Phase 0 probe):
       if (sc && strcmp(sc, "on") == 0) { sw_canvas_enabled = true; sw_canvas_active = true; } }  // DE_SOFTWARE_CANVAS=on
+    { const char *cl = getenv("DE_CPU_LINE");           // CPU line off-canvas too (A/B hygiene, see decl):
+      if (cl && strcmp(cl, "on") == 0) cpu_line_enabled = true; }     // DE_CPU_LINE=on → line()→de_cpu_line everywhere
     const char *window_title           = "dreamengine";
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
@@ -2872,9 +2883,33 @@ void tritex(int x1, int y1, float u1, float v1,
     rlSetTexture(0);
 }
 
+// SEAM: de_cpu_line is the pset-dispatched twin of sw_sline (above) — SAME reflection-symmetric
+// per-axis DDA math (ported from tools/carts/{linesym,streetlab}.c's sline), but it plots via the
+// public pset() so it works on BOTH backends: off-canvas pset → DrawPixel (GPU), on-canvas pset →
+// sw_pset → cbuf. sw_sline writes the cbuf directly (the canvas hot path, no per-pixel pset branch),
+// so we keep both: line() stays on sw_sline when the canvas is active, and only falls to de_cpu_line
+// for the off-canvas DE_CPU_LINE case. Why this exists: docs/design/software-canvas.md §"DDA vs
+// coverage for the line" + rasterization-consistency.md. Interim A/B hygiene, not a direction-1 commit.
+static void de_cpu_plot_minor(int maj, float v, float mid, int horiz, int c) {
+    float f = floorf(v); int fi = (int)f; float r = v - f; int m;
+    if (r != 0.5f) m = (r < 0.5f) ? fi : fi + 1;
+    else if (v == mid) { if (horiz) { pset(maj,fi,c); pset(maj,fi+1,c); } else { pset(fi,maj,c); pset(fi+1,maj,c); } return; }
+    else m = (mid > v) ? fi + 1 : fi;
+    if (horiz) pset(maj, m, c); else pset(m, maj, c);
+}
+static void de_cpu_line(int x0, int y0, int x1, int y1, int c) {
+    int dx = x1-x0, dy = y1-y0, adx = dx<0?-dx:dx, ady = dy<0?-dy:dy;
+    if (adx == 0 && ady == 0) { pset(x0, y0, c); return; }
+    if (adx >= ady) { int lo = x0<x1?x0:x1, hi = x0<x1?x1:x0; float ymid = (y0+y1)*0.5f;
+        for (int x = lo; x <= hi; x++) de_cpu_plot_minor(x, y0 + (float)(x-x0)*dy/(float)dx, ymid, 1, c);
+    } else { int lo = y0<y1?y0:y1, hi = y0<y1?y1:y0; float xmid = (x0+x1)*0.5f;
+        for (int y = lo; y <= hi; y++) de_cpu_plot_minor(y, x0 + (float)(y-y0)*dx/(float)dy, xmid, 0, c); }
+}
+
 void line(int x1, int y1, int x2, int y2, int color) {
     PROF("line");
     if (sw_canvas_active) { sw_sline(x1, y1, x2, y2, palette[color % PALETTE_SIZE]); return; }
+    if (cpu_line_enabled) { de_cpu_line(x1, y1, x2, y2, color); return; }   // DE_CPU_LINE: CPU line off-canvas too
     DrawLine(x1, y1, x2, y2, palette[color % PALETTE_SIZE]);
 }
 

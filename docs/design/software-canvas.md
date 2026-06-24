@@ -112,6 +112,15 @@ be coalesced.
 > bounded pixel-diff (`magick compare -metric AE`) + an eyeball, and reserve byte-equality for the
 > pset/fill primitives (the `swcanvas_test` shasum still holds for those).
 >
+> **`DE_CPU_LINE=on` neutralises the line diff for A/B (2026-06-24).** Setting it routes `line()`
+> (and `bezier`/2-pt `poly`) through `de_cpu_line` — the pset-dispatched twin of `sw_sline`, *same*
+> symmetric DDA — even off-canvas, so the GPU reference build and the software-canvas build draw the
+> **same line pixels**. The clean A/B is therefore `DE_CPU_LINE=on` (reference) vs `DE_SOFTWARE_CANVAS=on`
+> (the canvas already uses `sw_sline`). Measured: `gta` **203 → 0 px**, `combo` **16940 → 348 px** (the
+> 348 is its audio-reactive disc, not lines). Default **off** — the shipping look is unchanged; this is
+> A/B hygiene only, **not** the direction-1 promotion of a CPU line (that decision — DDA vs coverage —
+> is still open, see §"DDA vs coverage for the line" below). SEAM in `studio.c` at `de_cpu_line`.
+>
 > **`sw_force_gpu` makes naive A/Bs lie.** A cart that calls `spr_rot`/`sspr_ex(deg)`/`rectfill_rot`/
 > `camera_ex(angle)` trips the sticky GPU fallback **on the frame it first hits the call** — so frame
 > 0 is a partial canvas render and frames 1+ run entirely on GPU. An A/B on such a cart (e.g.

@@ -1108,8 +1108,10 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     pixels; guarded to the symmetric 4-way): kerb **7→0**. Full writeup +`sline` recipe:
     [`design/streetlab-corner-symmetry-plan.md`](design/streetlab-corner-symmetry-plan.md). Probes: `arcsym`
     (blit principle), `linesym`/`axissym` (primitive symmetry, any axis). **API candidates (not yet
-    promoted):** `sline` is the reflection-symmetric CPU line the software canvas needs (the only cart-facing
-    primitive still letting GL pick pixels); `mirror_blit` could become a reusable engine helper. Rule of
+    promoted):** `sline` is the reflection-symmetric CPU line the software canvas needs (the only
+    *axis-aligned* primitive still letting GL pick pixels — the rest of that surface is the rotation/
+    texture family: `rectfill_rot`/`spr_rot`/`sspr_ex`/`tritex`, see `design/software-canvas.md`);
+    `mirror_blit` could become a reusable engine helper. Rule of
     thumb still holds for the un-fixed cases (skew/T/free-right): **spec the geometry, eyeball the pixels.**
 
 ---

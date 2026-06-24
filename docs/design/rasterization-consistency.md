@@ -89,8 +89,11 @@ gone). The whole `fillp` `*_pat` scanline family is collapsed into one `plot_pat
 > — still GPU `DrawLine`.** "`DrawLine` outlines all gone" above means shape *outlines*
 > (`circ`/`trifill` boundary rings) are now CPU coverage. But `line()` itself — and `bezier`/2-pt
 > `poly`, which call it — still hands rasterisation to GL `DrawLine`, which *chooses* the staircase
-> on the GPU. An audit chasing streetlab's corner-symmetry floor confirmed it's the only cart-facing
-> primitive that still lets GL pick pixels (besides the deliberate rotated `rectfill_rot`).
+> on the GPU. An audit chasing streetlab's corner-symmetry floor confirmed it's the only
+> **axis-aligned** cart-facing primitive that still lets GL pick pixels — the rest of the
+> GL-picks-pixels surface is the rotation/texture family (`rectfill_rot`, `spr_rot`/`sspr_ex`,
+> `tritex`, + whole-block rotating `camera_ex`). Full enumeration:
+> [`software-canvas.md`](software-canvas.md)'s "complete GL-picks-pixels surface" audit.
 > Consequence: GL `DrawLine` is direction-dependent → not reflection-symmetric and not bit-identical
 > across drivers — it breaks both the symmetry invariant *and* the cross-device determinism this
 > doc's CPU-coverage direction otherwise buys. The reflection-symmetric CPU line that closes the hole

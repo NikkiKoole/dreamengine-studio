@@ -5531,5 +5531,18 @@
       "algorithm-visualization"
     ],
     "lineage": "The line-level companion to linesym/axissym/arcsym/skewlab: where those isolate rasterisation SYMMETRY and road-EDGE unification, linecompare isolates the single question underneath them - that a DDA stroke and a coverage test round a diagonal to DIFFERENT pixels. Built to make the 'two rounding rules' tension in the software-canvas design visible and playable (why some road stripes look crisp and others fatter/stairier), and it settles the line-primitive fork: 1px strokes stay DDA (sline; crisp), thick bands come from the coverage rule (the only gap-free uniform option) - the same split field-based-road-rendering.md chose. See software-canvas.md Findings (2026-06-24)."
+  },
+  {
+    "title": "cityview",
+    "description": "RENDER TEST: pseudo-3D top-down city, GTA1 meets Zelda. Drive a flat seeded city and see the FRONTS of buildings, keeping the pixel look of sloop/cityplan. One test bench, FOUR switchable projections (press M, or 1-4): (1) NORTH-UP — camera locked north, always the south fronts, zero diagonals, the calm Zelda map view; (2) HEADING-UP — camera rotates to your heading, you see the 1-2 walls you drive toward, each extruding STRAIGHT UP the screen while footprints go diagonal (like the road grid) — the keeper look; (3) BILLBOARD — flat cards that always face you, weak for boxes but right for trees/props/people; (4) LEAN-OUT — roofs pushed away from screen centre (the literal GTA1 extrusion), here for contrast because the walls shear diagonally and the city looks melty. The one rule across all keepers: a wall footprint edge may go diagonal under a rotated camera, but its UP must point straight up the screen. Whole renderer is flat quadfill (lot footprint + 1-2 shaded walls + roof cap), painter-sorted back-to-front; modes 1/2/4 share one extruder and differ only in roof-offset vector + camera angle. Arrows drive, M cycles views, [ ] zoom, R reseeds. Research bench for the big-game cityscape renderer (docs/design/big-game-backlog.md seam #2).",
+    "file": "cityview.cart.png",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "isometric-projection",
+      "camera-follow"
+    ],
+    "lineage": "The missing height layer for the flat top-down lineage (sloop/cityplan/streetlab render footprints only). Takes their quadfill house style and grafts on screen-up wall extrusion to get a drivable Zelda/GTA1 cityscape; a four-mode bench to pick the projection before wiring it into the world composer."
   }
 ]

@@ -70,8 +70,10 @@
 // docs/design/traffic-ai.md.
 // (Known rough edge: on the tightest procedural corner a fast car can still clip the
 // apex and recover.)
-//   LEFT/RIGHT steer · UP gas · DOWN brake · X drift · Z new track · R restart
-//   M: back to the setup panel.  RACE: standings on the right + results on finish.
+//   LEFT/RIGHT steer · UP gas · DOWN brake · Z new track · R restart · M: setup panel.
+//   In-drive: tap the pixel-art HUD buttons (bottom-right) — DEBUG (eye), DRIFT (skid),
+//   CHASE (cop lights, two-tracks only); keys X/D/C still work. Icons live in trackgen.cart.js.
+//   RACE: standings on the right + results on finish.
 
 #define STATE struct GameState
 #define S     ((STATE *)de_state(sizeof(STATE)))
@@ -1665,9 +1667,35 @@ void draw(void) {
         font(FONT_NORMAL);
     }
 
-    print(S->traffic ? "M: generator   Z: new track   R: reset   X: drift   D: debug   C: chase"
-                     : "M: generator   Z: new track   R: restart   X: drift   D: debug",
+    print(S->traffic ? "M:menu  Z:new  R:reset"
+                     : "M:menu  Z:new  R:restart",
           4, SCREEN_H - 9, P.offtrack ? CLR_ORANGE : CLR_LIGHT_GREY);
+
+    // cute pixel-art HUD buttons (icons in trackgen.cart.js) for the in-drive toggles —
+    // tap instead of hunting a key. CHASE only shows with two tracks (it needs the network).
+    {
+        int mx = mouse_x(), my = mouse_y(), bx = SCREEN_W - 19;
+        bool chasing = false;
+        for (int i = 1; i < S->ncars + S->ncross; i++) if (S->car[i].target >= 0) { chasing = true; break; }
+        struct { int slot; bool on; bool show; } btn[3] = {
+            { 2, S->dbg,    true },                          // debug (eye)
+            { 1, P.drift,   true },                          // drift (skid)
+            { 0, chasing,   S->traffic && S->cross },        // chase (cop lights)
+        };
+        for (int b = 0; b < 3; b++) {
+            if (!btn[b].show) continue;
+            int x = bx, y = SCREEN_H - 19;
+            rrectfill(x - 1, y - 1, 18, 18, 3, btn[b].on ? CLR_DARKER_BLUE : CLR_BROWNISH_BLACK);
+            rrect(x - 1, y - 1, 18, 18, 3, btn[b].on ? CLR_LIGHT_YELLOW : CLR_DARK_GREY);
+            spr(btn[b].slot, x, y);
+            if (mouse_pressed(0) && mx >= x-1 && mx < x+17 && my >= y-1 && my < y+17) {
+                if (btn[b].slot == 2) S->dbg = !S->dbg;
+                else if (btn[b].slot == 1) P.drift = !P.drift;
+                else toggle_chase();
+            }
+            bx -= 20;
+        }
+    }
 
     if (S->dbg) {                                       // legend for the why-overlay dots
         font(FONT_SMALL);

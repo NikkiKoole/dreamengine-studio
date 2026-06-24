@@ -174,6 +174,8 @@ typedef struct {
     int   prog, cp, lap;       // prog = nearest sample on THIS car's road; cp = last checkpoint 0..3
     int   road;                // 0 = the loop (cl[]), 1 = the cross-road (cl2[]) — Phase B
     int   lastx;               // last crossing this car made a turn-decision at (-1) — the routing seed
+    int   target;              // CHASE: car index this one is pursuing (-1 = none) — routes toward it
+    bool  reckless;            // CHASE: ignores junction right-of-way and the light (runs them)
     int   pers;                // personality index into PERS[] (AI only)
     float wob;                 // rookie wobble phase
     float mass;                // collision weight (player 1.0; AI from PERS[].mass)
@@ -518,7 +520,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->ang = atan2_deg(S->cl[(s+1)%NSAMP].y - S->cl[(s-1+NSAMP)%NSAMP].y,
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     c->vx = 0; c->vy = 0; c->spd = 0;
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
     c->lane = c->want_lane = lane_at(lateral);
@@ -536,7 +538,7 @@ static void put_car_in_traffic(Car *c, int slot) {
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     float v0 = (slot == 0) ? 0.0f : MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -552,7 +554,7 @@ static void put_car_on_cross(Car *c, int prog0, int lane) {
     c->ang = atan2_deg(ahead.y - behind.y, ahead.x - behind.x);   // tangent along the loop
     float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1; c->lastx = -1;
+    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1; c->lastx = -1; c->target = -1; c->reckless = false;
     c->drift = false; c->wob = (float)lane * 7.0f; c->place = 0;
     c->mass = PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -1004,6 +1006,18 @@ static float crossing_yield_gap(Car *c, int idx) {
     return best;
 }
 
+// nearest squared distance from a world point to a track (coarse scan) — "how close does
+// this loop pass to the target," used by chase routing to pick the target's loop.
+static float road_min_dist2(int road, V2 p) {
+    int n = road_n(road); float best = 1e18f;
+    for (int s = 0; s < n; s += 3) {
+        V2 q = (road ? S->cl2[s] : S->cl[s]);
+        float dx = q.x - p.x, dy = q.y - p.y, d = dx*dx + dy*dy;
+        if (d < best) best = d;
+    }
+    return best;
+}
+
 // ROUTING SEED — the two crossing loops are a tiny 2-edge network: at a crossing an AI car
 // may TURN onto the other track instead of going straight. Called after step_car (so prog is
 // fresh) for AI traffic cars only — the player never auto-switches (keeps control). The
@@ -1017,10 +1031,19 @@ static void maybe_switch_loops(Car *c, int idx) {
         if (d > 0 || d < -2) continue;                   // only right as we pass the crossing sample
         if (c->lastx == k) return;                       // already decided this pass
         c->lastx = k;
-        // ~3/8 of passes turn onto the other track (deterministic per car+crossing+lap → varied,
-        // reproducible). A real road graph replaces this with a route; here it's a coin flip.
-        unsigned h = (unsigned)idx*2654435761u + (unsigned)k*40503u + (unsigned)c->lap*2246822519u;
-        if (((h >> 13) & 7u) < 3u) {
+        bool turn;
+        if (c->target >= 0 && c->target < S->ncars + S->ncross) {
+            // CHASE routing: get onto the loop the target is on, then drive forward to it. A car
+            // only goes forward on a loop, so the only choice at a crossing is WHICH loop — pick
+            // whichever passes nearest the target overall (then forward motion reaches it).
+            V2 tg = (V2){ S->car[c->target].px, S->car[c->target].py };
+            turn = road_min_dist2(!c->road, tg) < road_min_dist2(c->road, tg);
+        } else {
+            // ambient: ~3/8 of passes turn (deterministic per car+crossing+lap → varied, reproducible)
+            unsigned h = (unsigned)idx*2654435761u + (unsigned)k*40503u + (unsigned)c->lap*2246822519u;
+            turn = ((h >> 13) & 7u) < 3u;
+        }
+        if (turn) {
             if (S->xowner[k] == idx) S->xowner[k] = -1;  // release the junction I held (I'm leaving it)
             c->road = !c->road;
             c->prog = c->road ? S->xpt[k].prog2 : S->xpt[k].prog1;   // the crossing sample on the new track
@@ -1038,7 +1061,8 @@ static void maybe_switch_loops(Car *c, int idx) {
 static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, bool *out_drift) {
     int rd = c->road;                                    // read the line via road_*; either road works
     float v  = c->spd < 0 ? -c->spd : c->spd;
-    float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.68f;  // city speed, not race pace
+    // CHASE: a pursuer drives near race pace, not city pace.
+    float v0 = MAX_SPD * PERS[c->pers].spd_cap * (c->target >= 0 ? 1.05f : 0.68f);
 
     // lift for the bend ahead (a car still has to make the corner; a straight reads ~0)
     int ca = c->prog + 22;
@@ -1066,8 +1090,8 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
 
     // a RED light ahead is a stopped "leader" parked at the stop line (it spans all
     // lanes), so cars queue behind it — the bottleneck that breeds stop-and-go waves.
-    // The light lives on the loop, so only loop cars (road 0) see it.
-    if (S->light >= 0 && S->light_red && road_loops(rd)) {
+    // The light lives on the loop, so only loop cars (road 0) see it. A reckless car runs it.
+    if (S->light >= 0 && S->light_red && road_loops(rd) && !c->reckless) {
         int ld = (S->light - c->prog + NSAMP) % NSAMP;   // forward samples to the light
         if (ld > NSAMP - 6) ld = 0;                       // a tiny overshoot pins to the line —
                                                           // WITHOUT this the wrap reads ~a full lap
@@ -1078,9 +1102,11 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
         }
     }
 
-    // PHASE C: a crossing I must give way at is also a temporary stop-line leader.
-    float ygap = crossing_yield_gap(c, idx);
-    if (ygap < s) { s = ygap; vlead = 0.0f; why = WHY_YIELD; }
+    // a crossing I must give way at is a temporary stop-line leader — unless I'm reckless (run it).
+    if (!c->reckless) {
+        float ygap = crossing_yield_gap(c, idx);
+        if (ygap < s) { s = ygap; vlead = 0.0f; why = WHY_YIELD; }
+    }
 
     float ssafe = TG_GAP0 + v * TG_HEAD;
     float dv = v - vlead;                                // closing speed (+ = approaching)
@@ -1201,6 +1227,28 @@ static float latd(int i) {                               // lateral distance fro
 }
 #endif
 
+// CHASE toggle (key C): if no pursuers are active, turn the nearest 2 AI traffic cars into
+// reckless cops chasing the player; otherwise call off the chase. The drama of a getaway with
+// the same brain dialed to "pursuit" — routing toward you, running lights, through the crowd.
+static void toggle_chase(void) {
+    int total = S->ncars + S->ncross, active = 0;
+    for (int i = 1; i < total; i++) if (S->car[i].target >= 0) active++;
+    if (active) {                                         // call it off
+        for (int i = 1; i < total; i++) { S->car[i].target = -1; S->car[i].reckless = false; }
+        return;
+    }
+    for (int n = 0; n < 2; n++) {                         // recruit the 2 nearest AI cars
+        int best = -1; float bd = 1e18f;
+        for (int i = 1; i < total; i++) {
+            if (S->car[i].target >= 0) continue;
+            float rx = S->car[i].px - P.px, ry = S->car[i].py - P.py;
+            float d = rx*rx + ry*ry;
+            if (d < bd) { bd = d; best = i; }
+        }
+        if (best >= 0) { S->car[best].target = 0; S->car[best].reckless = true; }
+    }
+}
+
 void update(void) {
     if (S->mode == 0) { note_vol(S->eng, 0); return; }   // panel handled in draw()
     if (S->mode == 2) {                                  // race results — frozen
@@ -1214,6 +1262,7 @@ void update(void) {
     if (keyp('Z') || btnp(0, BTN_A)) { gen_track(S->seed + 0x9E37u); return; }
     if (keyp('R'))                   { put_all_at_start(); return; }
     if (keyp('D'))                   { S->dbg = !S->dbg; }    // debug overlay: why cars brake
+    if (keyp('C') && S->traffic && S->cross) toggle_chase();  // sic / call off pursuers on the player
     if (btnp(0, BTN_B)) P.drift = !P.drift;
 
     if (S->traffic && S->light >= 0) {                   // cycle the light
@@ -1315,7 +1364,9 @@ static void draw_grass(int ox, int oy) {
 // (red = stopped → green = flowing) so stop-and-go waves are visible at a glance.
 static void draw_car(Car *c, bool is_player) {
     int body;
+    bool cop = c->target >= 0;                            // a pursuer (chase)
     if (is_player)       body = c->offtrack ? CLR_DARK_RED : CLR_RED;
+    else if (cop)        body = CLR_DARKER_BLUE;           // cop car
     else if (S->traffic) {
         float v = c->spd < 0 ? -c->spd : c->spd;
         body = v < 0.3f ? CLR_RED : v < 0.9f ? CLR_ORANGE : v < 1.7f ? CLR_YELLOW : CLR_LIME_GREEN;
@@ -1329,6 +1380,8 @@ static void draw_car(Car *c, bool is_player) {
     quadfill((int)(c->px+cx*3+kx),(int)(c->py+cy*3+ky), (int)(c->px+cx*3-kx),(int)(c->py+cy*3-ky),
              (int)(c->px-cx*2-kx),(int)(c->py-cy*2-ky), (int)(c->px-cx*2+kx),(int)(c->py-cy*2+ky),
              is_player ? CLR_TRUE_BLUE : CLR_BLACK);
+    if (cop)                                             // flashing red/blue roof light
+        circfill((int)c->px, (int)c->py, 2, ((int)(now()*6) & 1) ? CLR_RED : CLR_TRUE_BLUE);
     if (is_player)                                       // a beacon so you find yourself
         circ((int)c->px, (int)c->py, 9, CLR_WHITE);
 }
@@ -1531,7 +1584,10 @@ void draw(void) {
         print("TRAFFIC", 4, 2, CLR_LIGHT_PEACH);
         print(str("%d cars", S->ncars + S->ncross), 64, 2, CLR_WHITE);
         print(str("lane %d/%d", P.lane + 1, S->nlanes), 122, 2, CLR_YELLOW);
-        print(S->light_red ? "RED" : "GRN", 184, 2, S->light_red ? CLR_RED : CLR_LIME_GREEN);
+        bool chasing = false;                            // any pursuer hunting the player?
+        for (int i = 1; i < S->ncars + S->ncross; i++) if (S->car[i].target >= 0) { chasing = true; break; }
+        if (chasing) { if ((int)(now()*4) & 1) print("CHASE!", 182, 2, CLR_RED); }
+        else if (S->light >= 0) print(S->light_red ? "RED" : "GRN", 184, 2, S->light_red ? CLR_RED : CLR_LIME_GREEN);
         print(str("#%u", S->seed % 100000u), 220, 2,
               P.drift ? CLR_ORANGE : CLR_MEDIUM_GREY);
     } else {
@@ -1559,7 +1615,7 @@ void draw(void) {
         font(FONT_NORMAL);
     }
 
-    print(S->traffic ? "M: generator   Z: new track   R: reset   X: drift   D: debug"
+    print(S->traffic ? "M: generator   Z: new track   R: reset   X: drift   D: debug   C: chase"
                      : "M: generator   Z: new track   R: restart   X: drift   D: debug",
           4, SCREEN_H - 9, P.offtrack ? CLR_ORANGE : CLR_LIGHT_GREY);
 
@@ -1896,5 +1952,25 @@ void spec(void) {
     for (int i = 0; i < S->ncars + S->ncross; i++) if (S->car[i].road != spawn_road[i]) switched++;
     expect(switched >= 3, "routing: cars turn onto the other track at crossings (the 2 loops route)");
     expect_eq(rcollisions, 0, "routing: still no cross-track collision with re-routing on");
+
+    // ── chase: a pursuer (target = the player) routes toward it and closes the distance.
+    //    Park the player still, mark one AI car a reckless pursuer, and check it gets closer. ──
+    gen_track(0x1234u);
+    S->traffic = true; S->cross = true;
+    put_all_at_start();
+    S->ncars = 2; S->ncross = 0;                      // isolate the pursuit: just the player + one cop
+    P.spd = 0; P.vx = P.vy = 0;                       // player sits still (no input in spec)
+    float ppx = P.px, ppy = P.py;
+    Car *cop = &S->car[1];
+    cop->target = 0; cop->reckless = true;
+    float rx0 = cop->px - ppx, ry0 = cop->py - ppy;
+    float d0 = fsqrt(rx0*rx0 + ry0*ry0), dmin = d0;
+    for (int f = 0; f < 2000; f++) {                 // keep the player pinned while the cop hunts it down
+        P.px = ppx; P.py = ppy; P.spd = 0; P.vx = P.vy = 0;
+        step(1);
+        float rx = cop->px - ppx, ry = cop->py - ppy, d = fsqrt(rx*rx + ry*ry);
+        if (d < dmin) dmin = d;
+    }
+    expect(dmin < 30.0f, "chase: a pursuer routes to and reaches its target (closes the distance)");
 }
 #endif

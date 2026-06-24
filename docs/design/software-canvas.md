@@ -47,6 +47,35 @@ be coalesced.
 > Verify before treating it as the Phase-1 proof cart. **This is evidence, not a go** — logged so the
 > trigger condition is captured whenever the decision is revisited.
 
+> **RAN — Phase 0 result GO + fleet A/B (2026-06-24).** Built behind `DE_SOFTWARE_CANVAS` (env, off
+> by default; `studio.c`, commits `133b9d0e`/`ec1b855c`). Mechanism is **byte-identical** GPU vs
+> software for the integer primitives (`swcanvas_test`: same shasum). Fleet A/B (native M1,
+> `workMsAvg`, same harness) confirms the thesis is **targeted, not universal** — it wins exactly the
+> `pset`/fill-bound carts and is a wash on the already-span-based CPU-shaders:
+>
+> | cart | GPU | SW | | kind |
+> |---|---|---|---|---|
+> | `interiors` | 3.05 | **0.87** | **3.5×** | fill/pset-bound ✅ |
+> | `dpaint` | 3.29 | **1.16** | **2.8×** | pset-bound ✅ |
+> | `pixelperfect` | 3.63 | **1.55** | **2.3×** | pset_rgb ✅ |
+> | `cityplan` | 11.4 | **5.0** | **2.3×** | pset-bound ✅ |
+> | `lotfill` | 4.43 | **3.23** | **1.4×** | fill-bound ✅ |
+> | `shadelab` | 1.43 | 1.28 | ~1× | rectfill-bound |
+> | `caustics` | 3.88 | 4.13 | **0.94×** | rectfill-bound ⚠️ |
+> | `raymarch` | 4.71 | 4.97 | **0.95×** | rectfill-bound ⚠️ |
+>
+> **The split is the whole point:** the canvas removes `rlVertex3f` (the per-pixel `pset` cost), so it
+> helps only carts that *had* that cost. The CPU-shaders already paint via `rectfill` spans (no
+> `rlVertex3f` to remove), so the per-frame 256KB `UpdateTexture` is a small *added* tax — `caustics`
+> +0.25ms ≈ exactly the upload. **The key implementation lesson:** fills must stay **span-based**
+> (`sw_fillrect` = cbuf row-memset). A first cut that routed `rectfill` per-pixel through `plot_pat`
+> was **2.4× *slower* than GPU**; the memset flipped it to 2.3× faster. **Deployment:** per-cart /
+> opt-in (default on for pset-bound carts; leave rectfill-bound on GPU) — which is why it's
+> flag-gated, not a blanket default. Caveats in the probe (Phase 2 cleans up): `print` skipped,
+> `camera_ex` zoom translation-only, `spr`/`tritex` skipped (so `spr`-using carts like `gridcity`
+> can't be validly A/B'd yet). Full write-up:
+> [`software-canvas-phase0-plan.md`](software-canvas-phase0-plan.md).
+
 ## The thesis
 
 **At this resolution, a software framebuffer uploaded once per frame beats GPU immediate-mode.**

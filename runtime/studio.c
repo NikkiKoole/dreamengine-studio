@@ -212,7 +212,9 @@ static bool            pset_batch     = DE_BATCH_PSET_DEFAULT; // true → batch
 #ifndef SW_CANVAS_DEFAULT
 #define SW_CANVAS_DEFAULT 0
 #endif
-static bool            sw_canvas_active = SW_CANVAS_DEFAULT;
+static bool            sw_canvas_enabled = SW_CANVAS_DEFAULT; // env DE_SOFTWARE_CANVAS=on (the master toggle)
+static bool            sw_canvas_active   = SW_CANVAS_DEFAULT; // PER-FRAME: enabled AND this cart hasn't used a zoom/rotation camera_ex. Primitives check this.
+static bool            sw_cam_ex_seen     = false;            // sticky: cart used camera_ex with zoom!=1 or angle!=0 → that cart falls back to the GPU path (Fork-2/C)
 static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer (Fork 1: RGBA on desktop)
 static inline uint32_t sw_pack(Color c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
@@ -458,16 +460,29 @@ static bool  cam_active = false;   // true while inside BeginMode2D during draw(
 static bool  clip_active = false;
 static int   clip_cx = 0, clip_cy = 0, clip_cw = 0, clip_ch = 0;  // active scissor rect (valid while clip_active)
 
-// software-canvas pixel write: apply camera() translation (zoom==1/rotation==0 in Phase 0) + clip,
-// then store one RGBA texel. The hot path of the whole probe.
+// world→screen under the active camera (rotation is always 0 on the software path — a rotation
+// camera_ex makes the cart fall back to GPU, see sw_cam_ex_seen). zoom==1 is the fast translation
+// case; zoom!=1 is an axis-aligned scale about the camera offset (Option 2 — no staircase).
+static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
+    if (cam.zoom == 1.0f) { *sx = wx - (int)(cam.target.x - cam.offset.x); *sy = wy - (int)(cam.target.y - cam.offset.y); }
+    else { *sx = (int)floorf((wx - cam.target.x) * cam.zoom + cam.offset.x);
+           *sy = (int)floorf((wy - cam.target.y) * cam.zoom + cam.offset.y); }
+}
+// raw screen-pixel write: clip (screen space, like GPU scissor) + bottom-up store (matches the FBO
+// layout, so the present's -SCREEN_H flip + the screenshot path treat sw and GPU canvases the same).
+static inline void sw_plot1(int sx, int sy, uint32_t p) {
+    if (clip_active && (sx < clip_cx || sx >= clip_cx + clip_cw || sy < clip_cy || sy >= clip_cy + clip_ch)) return;
+    if ((unsigned)sx < (unsigned)SCREEN_W && (unsigned)sy < (unsigned)SCREEN_H)
+        sw_cbuf[(SCREEN_H - 1 - sy) * SCREEN_W + sx] = p;
+}
+// software-canvas pixel write. zoom==1: one texel (the hot path). zoom!=1: fill the world pixel's
+// screen footprint (a zoom×zoom block) so a zoomed pset/blit/line stays gap-free.
 static inline void sw_pset(int x, int y, Color c) {
-    x -= (int)(cam.target.x - cam.offset.x);
-    y -= (int)(cam.target.y - cam.offset.y);
-    if (clip_active && (x < clip_cx || x >= clip_cx + clip_cw || y < clip_cy || y >= clip_cy + clip_ch)) return;
-    // store bottom-up to match the GPU RenderTexture's FBO layout, so the existing present (-SCREEN_H)
-    // and the screenshot path treat the software canvas identically to the GPU one.
-    if ((unsigned)x < (unsigned)SCREEN_W && (unsigned)y < (unsigned)SCREEN_H)
-        sw_cbuf[(SCREEN_H - 1 - y) * SCREEN_W + x] = sw_pack(c);
+    uint32_t p = sw_pack(c);
+    if (cam.zoom == 1.0f) { int sx, sy; sw_w2s(x, y, &sx, &sy); sw_plot1(sx, sy, p); return; }
+    int sx0, sy0, sx1, sy1; sw_w2s(x, y, &sx0, &sy0); sw_w2s(x + 1, y + 1, &sx1, &sy1);
+    if (sx1 <= sx0) sx1 = sx0 + 1; if (sy1 <= sy0) sy1 = sy0 + 1;
+    for (int yy = sy0; yy < sy1; yy++) for (int xx = sx0; xx < sx1; xx++) sw_plot1(xx, yy, p);
 }
 // software line: the validated reflection-symmetric per-axis DDA (sline), writing sw_pset.
 static void sw_plot_minor(int maj, float v, float mid, int horiz, Color c) {
@@ -488,9 +503,8 @@ static void sw_sline(int x0, int y0, int x1, int y1, Color c) {
 // software filled rect: clip+camera-offset once, then memset cbuf rows (keeps the span speedup —
 // per-pixel plot_pat here would be far slower than the GPU DrawRectangle it replaces).
 static void sw_fillrect(int x, int y, int w, int h, Color c) {
-    x -= (int)(cam.target.x - cam.offset.x);
-    y -= (int)(cam.target.y - cam.offset.y);
-    int x0 = x, y0 = y, x1 = x + w, y1 = y + h;
+    int x0, y0, x1, y1;
+    sw_w2s(x, y, &x0, &y0); sw_w2s(x + w, y + h, &x1, &y1);   // camera translate + zoom-scale the rect
     if (clip_active) { if (x0<clip_cx) x0=clip_cx; if (y0<clip_cy) y0=clip_cy;
                        if (x1>clip_cx+clip_cw) x1=clip_cx+clip_cw; if (y1>clip_cy+clip_ch) y1=clip_cy+clip_ch; }
     if (x0<0) x0=0; if (y0<0) y0=0; if (x1>SCREEN_W) x1=SCREEN_W; if (y1>SCREEN_H) y1=SCREEN_H;
@@ -1445,6 +1459,11 @@ static void loop_step(void) {
     update();
 #endif
 
+    // per-frame software-canvas decision: enabled, AND this cart hasn't used a rotation camera_ex
+    // (which falls back to the GPU path — Fork-2/C). Recomputed each frame after update() so a
+    // camera_ex in update() is seen; a rotation in THIS frame's draw() flips it next frame.
+    sw_canvas_active = sw_canvas_enabled && !sw_cam_ex_seen;
+
     // draw into the low-res canvas, under the camera matrix (handles scroll + zoom +
     // rotation on the GPU). camera()/camera_ex() called inside draw() re-apply via
     // cam_reapply() while cam_active is true.
@@ -1685,7 +1704,7 @@ int main(int argc, char **argv) {
     { const char *bp = getenv("DE_BATCH_PSET");         // A/B the batched-pset path:
       if (bp && strcmp(bp, "on") == 0) pset_batch = true; }            // DE_BATCH_PSET=on → coalesce psets into one draw call
     { const char *sc = getenv("DE_SOFTWARE_CANVAS");    // A/B the software canvas (Phase 0 probe):
-      if (sc && strcmp(sc, "on") == 0) sw_canvas_active = true; }       // DE_SOFTWARE_CANVAS=on → CPU framebuffer + one UpdateTexture/frame
+      if (sc && strcmp(sc, "on") == 0) { sw_canvas_enabled = true; sw_canvas_active = true; } }  // DE_SOFTWARE_CANVAS=on
     const char *window_title           = "dreamengine";
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
@@ -2974,6 +2993,11 @@ void camera(int x, int y) {
 
 void camera_ex(int x, int y, float zoom, float angle) {
     if (zoom < 0.01f) zoom = 0.01f;   // guard a degenerate / inverted matrix
+    // software canvas handles translation + zoom (axis-aligned scale); only ROTATION makes this cart
+    // fall back to the GPU path (Fork-2/C) — rotation breaks the span fast-paths. Sticky: clean
+    // switch after one transitional frame. (TODO Option 3: render world 1:1 → GPU-transform at
+    // present would keep rotation on the canvas too, but breaks world-then-HUD frames.)
+    if (angle != 0.0f) sw_cam_ex_seen = true;
     float zd = zoom > 1.0f ? zoom - 1.0f : 1.0f - zoom;
 #ifndef PLATFORM_WEB
     if (smooth_on && smooth_rt_ok && zd > 0.002f) {       // fractional zoom → capture at 1:1

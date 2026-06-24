@@ -5544,5 +5544,19 @@
       "camera-follow"
     ],
     "lineage": "The missing height layer for the flat top-down lineage (sloop/cityplan/streetlab render footprints only). Takes their quadfill house style and grafts on screen-up wall extrusion to get a drivable Zelda/GTA1 cityscape; a four-mode bench to pick the projection before wiring it into the world composer."
+  },
+  {
+    "title": "overpass",
+    "description": "EXPERIMENT: raised highways / flyovers in the cityview pseudo-3D look. A road is a strip of (x,y,z) nodes; because the projection extrudes height STRAIGHT UP the screen, a deck whose z ramps up reads as an elevated structure — held up by concrete pillars, with the city passing underneath. Drive UP the ramp and the camera rises with you (camz eases to the car z) so the city sinks below, GTA-style; the car z snaps to the nearest deck within its width, so you board at a ramp end (z~0) and climb. Press V to cycle FOUR layouts: 1 STRAIGHT overpass (ramp/span/ramp), 2 S-CURVE flyover (deck curves in plan while climbing), 3 SPIRAL on-ramp (a 3/4-loop that spirals up to a high straight), 4 STACK interchange (two decks crossing at different heights — stress-tests depth sorting between elevated decks). Each deck shows a grey running surface + dashed centre line, dark side-beams (fascia) for thickness, pillars to the ground, and a dithered ground shadow; the car carries a ground shadow too so the height gap reads. Built on the same projection + heading-up camera as cityview. Arrows drive, V layout, [ ] zoom, R reseed city. Companion bench to cityview for the big-game cityscape renderer (docs/design/big-game-backlog.md): raised highway flyovers.",
+    "file": "overpass.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [
+      "isometric-projection",
+      "camera-follow"
+    ],
+    "lineage": "The elevation layer for the cityview top-down pseudo-3D bench: cityview proved buildings (footprint + screen-up walls); overpass proves ROADS with a z-profile — ramps, curved/spiral flyovers, and a two-level stack interchange — plus driving up onto them with a camera that rises so the city sinks below. Same projection and heading-up camera; adds deck geometry (running surface + fascia + pillars + ground shadow) and depth-sorting across elevated decks."
   }
 ]

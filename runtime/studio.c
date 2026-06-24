@@ -494,6 +494,20 @@ static void sw_fillrect(int x, int y, int w, int h, Color c) {
     uint32_t p = sw_pack(c);
     for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_cbuf[(SCREEN_H-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
+// software sprite blit: nearest-sample spritesheet_img → cbuf via sw_pset (camera+clip), with
+// optional flip and nearest scaling (src wxh → dst wxh). Alpha<128 = transparent (PNG colorkey).
+// NB Phase-2 v1: does NOT yet apply pal() recolor or the runtime colorkey() — TODO before default.
+static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, bool fx, bool fy) {
+    if (!spritesheet_img.data || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+    for (int j = 0; j < dh; j++) {
+        int syy = fy ? (sy + sh - 1 - j * sh / dh) : (sy + j * sh / dh);
+        for (int i = 0; i < dw; i++) {
+            int sxx = fx ? (sx + sw - 1 - i * sw / dw) : (sx + i * sw / dw);
+            Color c = GetImageColor(spritesheet_img, sxx, syy);
+            if (c.a >= 128) sw_pset(dx + i, dy + j, c);
+        }
+    }
+}
 
 // ── --uiaudit: per-frame draw bounding-box log ───────────────────────────
 // When --uiaudit <file> is set, every primitive records its bounds + the
@@ -2264,6 +2278,11 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
         .height = flip_y ? -SPRITE_SIZE : SPRITE_SIZE,
     };
     Rectangle dst = { x, y, SPRITE_SIZE, SPRITE_SIZE };
+    if (sw_canvas_active) {
+        sw_blit((int)(index % cols) * SPRITE_SIZE, (int)(index / cols) * SPRITE_SIZE,
+                SPRITE_SIZE, SPRITE_SIZE, x, y, SPRITE_SIZE, SPRITE_SIZE, flip_x, flip_y);
+        UIAUDIT('s', x, y, SPRITE_SIZE, SPRITE_SIZE, NULL); return;
+    }
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
@@ -2275,6 +2294,7 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     if (spritesheet.width == 0) return;
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx, dy, dw, dh };
+    if (sw_canvas_active) { sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false); UIAUDIT('s', dx, dy, dw, dh, NULL); return; }
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
@@ -2284,6 +2304,7 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
 void spr_rot(int index, int x, int y, float deg) {
     PROF("spr_rot");
     if (spritesheet.width == 0) return;
+    if (sw_canvas_active) return;   // TODO Phase 2: rotated sprite blit (inverse-map; see rotspr probe)
     int cols = spritesheet.width / SPRITE_SIZE;
     Rectangle src = { (index % cols) * SPRITE_SIZE, (index / cols) * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE };
     float h = SPRITE_SIZE / 2.0f;
@@ -2296,6 +2317,7 @@ void spr_rot(int index, int x, int y, float deg) {
 void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, float deg, int ox, int oy) {
     PROF("sspr_ex");
     if (spritesheet.width == 0) return;
+    if (sw_canvas_active) { sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false); return; }  // TODO Phase 2: honor deg (rotated blit)
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx + ox, dy + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
     pal_begin();

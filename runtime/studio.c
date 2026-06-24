@@ -2416,13 +2416,18 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
 // Reuses the sheet sampling + colorkey + pal() recolor from sw_blit; plots via pset_rgb so ONE impl
 // serves canvas (→ sw_pset → cbuf) and the off-canvas DE_CPU_RASTER reference (→ DrawPixel). Pivot is
 // world (dx+ox, dy+oy); rotation matrix [[c,-s],[s,c]] matches raylib DrawTexturePro's direction.
-static void de_cpu_sspr_rot(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh,
-                            float deg, int ox, int oy, bool use_pal) {
-    if (!spritesheet_img.data || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+// generalized inverse-map rotated blit from any CPU Image. fonttint < 0 = SPRITE mode (sample the
+// texel colour; honour colorkey + pal() recolor). fonttint >= 0 = FONT mode (sample the atlas alpha,
+// write palette[fonttint] — a tinted glyph mask). Shared by spr_rot/sspr_ex (spritesheet) and
+// print_rot (font atlas, per glyph). Pivot world (dx+ox, dy+oy); matrix [[c,-s],[s,c]] = raylib's.
+static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh,
+                           float deg, int ox, int oy, bool use_pal, int fonttint) {
+    if (!img->data || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
     float a = deg * DEG2RAD;
     float c = roundf(cosf(a) * 4096.f) / 4096.f, s = roundf(sinf(a) * 4096.f) / 4096.f;
     float px0 = dx + ox, py0 = dy + oy;                       // pivot (world)
     bool recolor = use_pal && pal_active;
+    Color tint = fonttint >= 0 ? palette[fonttint % PALETTE_SIZE] : (Color){0,0,0,0};
     // screen bbox = the 4 dest corners rotated forward about the pivot
     float cxx[4] = { dx - px0, dx + dw - px0, dx + dw - px0, dx - px0 };
     float cyy[4] = { dy - py0, dy - py0, dy + dh - py0, dy + dh - py0 };
@@ -2439,11 +2444,16 @@ static void de_cpu_sspr_rot(int sx, int sy, int sw, int sh, int dx, int dy, int 
         float fxu = lx + ox, fyu = ly + oy;                        // dest-local (0..dw, 0..dh)
         if (fxu < 0 || fxu >= dw || fyu < 0 || fyu >= dh) continue;
         int ssx = sx + (int)(fxu * sw / dw), ssy = sy + (int)(fyu * sh / dh);   // nearest source texel
-        Color cc = GetImageColor(spritesheet_img, ssx, ssy);
-        if (cc.a < 128 || sw_keyed(cc)) continue;
-        if (recolor) cc = sw_recolor(cc);
-        pset_rgb(px, py, (cc.r << 16) | (cc.g << 8) | cc.b);
+        Color cc = GetImageColor(*img, ssx, ssy);
+        if (fonttint >= 0) { if (cc.a < 128) continue; pset_rgb(px, py, (tint.r << 16) | (tint.g << 8) | tint.b); }
+        else { if (cc.a < 128 || sw_keyed(cc)) continue; if (recolor) cc = sw_recolor(cc);
+               pset_rgb(px, py, (cc.r << 16) | (cc.g << 8) | cc.b); }
     }
+}
+// sprite wrapper (spritesheet, sprite mode)
+static void de_cpu_sspr_rot(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh,
+                            float deg, int ox, int oy, bool use_pal) {
+    de_cpu_img_rot(&spritesheet_img, sx, sy, sw, sh, dx, dy, dw, dh, deg, ox, oy, use_pal, -1);
 }
 
 void spr_rot(int index, int x, int y, float deg) {
@@ -2554,17 +2564,39 @@ int print_outline(const char *text, int x, int y, int color, int outline_color) 
     return print(text, x, y, color);
 }
 
+// CPU rotated text: a glyph is a tiny sprite (det-probes/textrot.c), so lay the string out in scaled
+// text-local space and inverse-map-rotate each glyph about the shared pivot (x,y) via de_cpu_img_rot
+// in FONT mode. Mirrors DrawTextPro: screen = (x,y) + R·(local − org). No GPU fallback; also the
+// DE_CPU_RASTER reference path. (RotSprite is the future ≥16px opt-in; tiny glyphs ship nearest.)
+static void de_cpu_print_rot(const char *text, int x, int y, float deg, int scale, int color, int pivot) {
+    Font f = cur_font(); Image *img = cur_font_img();
+    if (!img->data) return;
+    int ox0 = 0, oy0 = 0;                                       // pivot offset (org), scaled
+    if (pivot) { ox0 = (text_width(text) * scale) / 2; oy0 = ((int)cur_font_size() * scale) / 2; }
+    int penx = 0, peny = 0;                                     // scaled-local pen, text origin (0,0)
+    for (int i = 0; text[i]; ) {
+        int sz; int cp = GetCodepointNext(&text[i], &sz); i += sz;
+        if (cp == '\n') { peny += f.baseSize * scale; penx = 0; continue; }
+        int gi = GetGlyphIndex(f, cp);
+        Rectangle r = f.recs[gi];
+        int gw = (int)r.width, gh = (int)r.height;
+        int dstTLx = x + penx + f.glyphs[gi].offsetX * scale - ox0;   // unrotated (deg 0) glyph TL
+        int dstTLy = y + peny + f.glyphs[gi].offsetY * scale - oy0;
+        de_cpu_img_rot(img, (int)r.x, (int)r.y, gw, gh, dstTLx, dstTLy, gw * scale, gh * scale,
+                       deg, x - dstTLx, y - dstTLy, false, color);   // pivot = (x,y); font mode
+        int adv = f.glyphs[gi].advanceX; if (adv == 0) adv = gw;
+        penx += adv * scale;
+    }
+}
+
 int print_rot(const char *text, int x, int y, float deg, int color, int pivot) {
     PROF("print_rot");
-    Vector2 org = { 0, 0 };   // pivot 0 = rotate around (x,y) = top-left of the text
-    if (pivot) {              // pivot 1 = rotate around the text's center; (x,y) is that center
-        org.x = text_width(text) / 2.0f;
-        org.y = cur_font_size() / 2.0f;
+    if (deg != 0.0f && (sw_canvas_active || cpu_raster_enabled)) {   // SW rotated text + A/B reference
+        de_cpu_print_rot(text, x, y, deg, 1, color, pivot); return x + text_width(text);
     }
-    if (sw_canvas_active) {   // deg 0 = a normal blit; any rotation → whole-cart GPU fallback (Fork-2/C)
-        if (deg == 0.0f) return sw_print(text, x, y, palette[color % PALETTE_SIZE]);
-        sw_force_gpu = true; return x + text_width(text);
-    }
+    if (sw_canvas_active) return sw_print(text, x, y, palette[color % PALETTE_SIZE]);   // deg==0 on canvas
+    Vector2 org = { 0, 0 };
+    if (pivot) { org.x = text_width(text) / 2.0f; org.y = cur_font_size() / 2.0f; }
     DrawTextPro(cur_font(), text, (Vector2){ (float)x, (float)y }, org,
                 deg, cur_font_size(), 0, palette[color % PALETTE_SIZE]);
     return x + text_width(text);
@@ -2573,16 +2605,13 @@ int print_rot(const char *text, int x, int y, float deg, int color, int pivot) {
 int print_rot_scaled(const char *text, int x, int y, float deg, int scale, int color, int pivot) {
     PROF("print_rot_scaled");
     if (scale < 1) scale = 1;
+    if ((deg != 0.0f || scale != 1) && (sw_canvas_active || cpu_raster_enabled)) {   // SW rotated/scaled + A/B reference
+        de_cpu_print_rot(text, x, y, deg, scale, color, pivot); return x + text_width(text) * scale;
+    }
+    if (sw_canvas_active) return sw_print(text, x, y, palette[color % PALETTE_SIZE]);   // deg==0 & scale==1 on canvas
     float sz = cur_font_size() * scale;        // DrawTextPro scales by fontSize; POINT filter keeps it crisp
-    Vector2 org = { 0, 0 };                    // pivot 0 = rotate around (x,y) = top-left
-    if (pivot) {                               // pivot 1 = rotate around the (scaled) text center
-        org.x = (text_width(text) * scale) / 2.0f;
-        org.y = sz / 2.0f;
-    }
-    if (sw_canvas_active) {   // unscaled + unrotated = a normal blit; scaling or rotation → GPU fallback
-        if (deg == 0.0f && scale == 1) return sw_print(text, x, y, palette[color % PALETTE_SIZE]);
-        sw_force_gpu = true; return x + text_width(text) * scale;
-    }
+    Vector2 org = { 0, 0 };
+    if (pivot) { org.x = (text_width(text) * scale) / 2.0f; org.y = sz / 2.0f; }
     DrawTextPro(cur_font(), text, (Vector2){ (float)x, (float)y }, org,
                 deg, sz, 0, palette[color % PALETTE_SIZE]);
     return x + text_width(text) * scale;

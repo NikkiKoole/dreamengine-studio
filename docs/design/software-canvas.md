@@ -126,10 +126,9 @@ be coalesced.
 >   CPU-shader bars disappeared. Now a `sw_fillrect` row-memset (memset path → byte-exact).
 > - **`print_outline()`** — only the inner `print()` was sw-aware; the 8 outline passes went to GPU,
 >   so the outline/shadow was missing. Outline passes now use `sw_print` (the outlines now appear).
-> - **`print_rot()` / `print_rot_scaled()`** — rotated text silently dropped (no branch). Now `deg==0`
->   (+ `scale==1`) blits via `sw_print`; any rotation/scale still falls the whole cart back to GPU. As
->   of the 2026-06-25 rotation port this is the **last rotated primitive still on `sw_force_gpu`**
->   (`rectfill_rot`/`spr_rot`/`sspr_ex` now render in SW — see the rotation note below).
+> - **`print_rot()` / `print_rot_scaled()`** — rotated text now renders in SW too (`de_cpu_print_rot`,
+>   inverse-map per glyph). `deg==0` (+ `scale==1`) still uses `sw_print`; the rotated/scaled case no
+>   longer falls back. Verified byte-exact on `sloppytext`/`rottext`/`text-fx`. See the rotation note.
 >
 > *Gate:* `build-all` = 433/433 compile.
 >
@@ -185,10 +184,16 @@ be coalesced.
 > [s,c]]` so rotation direction agrees with GPU. **Milestone:** `cityview` (rectfill_rot + tritex +
 > line) and `masseffect` (spr_rot + sspr_ex) now render **fully on the software canvas with zero GPU
 > fallback** — the first rotated-primitive carts to do so — and A/B byte-exact under `DE_CPU_RASTER`.
-> `build-all` 433/433. **Remaining on `sw_force_gpu`:** `print_rot`/`print_rot_scaled` (rotated text —
-> next Tier-1 item, reuses the glyph-blit path) and rotating `camera_ex(angle)` (Tier 2, the
-> demand-gated whole-view case — stays a correct GPU fallback). Quality knobs (RotSprite ≥16px,
-> Xiaolin-Wu smooth strokes) remain opt-in futures, not needed for correctness.
+> `build-all` 433/433. **Update (2026-06-25): `print_rot`/`print_rot_scaled` ported too**
+> (`de_cpu_print_rot` — a glyph is a tiny sprite, so each glyph inverse-map-rotates about the shared
+> text pivot via `de_cpu_img_rot` in font mode; verified byte-exact on `sloppytext`/`rottext`/`text-fx`).
+> **So Tier-1 is complete — the ONLY primitive left on `sw_force_gpu` is rotating `camera_ex(angle)`**
+> (Tier 2, the demand-gated whole-view case — stays a correct GPU fallback). Quality knobs (RotSprite
+> ≥16px, Xiaolin-Wu smooth strokes) remain opt-in futures, not needed for correctness.
+>
+> **Separately, `facegen` surfaced the still-open `zoom_rect`/`smooth_zoom` gap** — those sample
+> `canvas.texture` mid-`draw()`, which is stale under the canvas (uploaded only at end-of-frame), so
+> the magnified inset garbles. Distinct from rotation; the fix is a cbuf read-magnify-write.
 >
 > **Cross-device determinism (goal B) — verified for the algorithms, two gaps left open (2026-06-25).**
 > The drift this guards against is real: raw libm `cosf`/`sinf` differ ~1 ULP across arm64 / x86-64 /

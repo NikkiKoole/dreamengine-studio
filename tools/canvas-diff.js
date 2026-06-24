@@ -13,6 +13,7 @@
 //                 the reference so the GL-vs-CPU rasterization diffs (line, rotated fill) don't pollute
 //                 the diff (use --raw to MEASURE that divergence on purpose).
 //   --max N       per-frame pixel-diff budget; exit nonzero if any frame exceeds it (default 0).
+//   --seed N      RNG seed for BOTH runs (default 1) — rnd()-driven carts diverge without a fixed seed.
 //   --heatmap     write a difference PNG for the worst frame (needs ImageMagick).
 //   --keep        keep the dumped frames (build/.canvas-diff/<cart>/) for inspection.
 //
@@ -42,6 +43,7 @@ const heatmap   = flag('--heatmap');
 const keep      = flag('--keep');
 const frames    = parseInt(opt('--frames', '10'), 10);
 const maxPx     = parseInt(opt('--max', '0'), 10);
+const seed      = opt('--seed', '1');     // fixed RNG seed for BOTH runs, else rnd()-driven carts diverge
 const cart      = args[0];
 
 if (!cart) { console.error('usage: node tools/canvas-diff.js <cart> [--frames N] [--bytecheck] [--raw] [--max N] [--heatmap] [--keep]'); process.exit(2); }
@@ -53,16 +55,15 @@ if (!fs.existsSync(src)) { console.error(`canvas-diff: no such cart ${src}`); pr
 const source = fs.readFileSync(src, 'utf8');
 // strip // line comments + /* */ blocks so a comment mentioning spr_rot doesn't false-positive
 const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-// rectfill_rot/spr_rot/sspr_ex now render in SOFTWARE (inverse-map), so they no longer force GPU.
-// Only these still trip the sticky sw_force_gpu fallback (not yet ported to SW):
-const ROT = ['print_rot', 'print_rot_scaled', 'camera_ex'];
+// All rotated PRIMITIVES (rectfill_rot/spr_rot/sspr_ex/print_rot) now render in software. The only
+// thing still tripping the sticky sw_force_gpu fallback is a rotating camera (Tier-2, by design):
+const ROT = ['camera_ex'];
 const hits = ROT.filter(p => new RegExp(`\\b${p}\\s*\\(`).test(code));
 if (hits.length) {
-  console.error('\x1b[33m⚠ WARNING: this cart calls ' + hits.join(', ') + '\x1b[0m');
-  console.error('  These can trip sw_force_gpu → the =on build falls back to GPU mid-frame, so frames');
-  console.error('  after the first are GPU-vs-GPU and prove NOTHING about the canvas.');
-  console.error('  print_rot/print_rot_scaled trip it when deg≠0 (or scale≠1); camera_ex when angle≠0.');
-  console.error('  Pick a cart without these for a meaningful A/B, or trust the result only if they are unreached.\n');
+  console.error('\x1b[33m⚠ WARNING: this cart calls camera_ex\x1b[0m');
+  console.error('  camera_ex(angle≠0) trips sw_force_gpu → the =on build falls back to GPU mid-frame, so');
+  console.error('  frames after the first are GPU-vs-GPU and prove NOTHING about the canvas. (zoom-only');
+  console.error('  camera_ex stays on the software path.) Use a non-rotating-camera cart for a real A/B.\n');
 }
 
 // ── magick presence (only needed for AE / heatmap; bytecheck is pure node) ─────────────────────
@@ -78,7 +79,7 @@ fs.rmSync(outRoot, { recursive: true, force: true });
 function run(dir, env, label) {
   fs.mkdirSync(dir, { recursive: true });
   try {
-    execFileSync('node', ['tools/play.js', cart, 'script', '/dev/null', '--headless', '--frames', String(frames), '--dump', dir],
+    execFileSync('node', ['tools/play.js', cart, 'script', '/dev/null', '--headless', '--frames', String(frames), '--seed', seed, '--dump', dir],
                  { stdio: 'ignore', timeout: 120000, env: { ...process.env, ...env } });
   } catch (e) { console.error(`canvas-diff: ${label} run failed — ${(e.message||'').slice(0,80)}`); process.exit(2); }
 }

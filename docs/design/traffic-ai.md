@@ -12,7 +12,7 @@ flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spr
 **second-track crossing** (geometry/crossings; stream spawns + flows; right-of-way reservation —
 no T-bones by construction, no gridlock, both tracks flow, across 4 seeds), a **routing seed**
 (cars turn onto the other track at crossings — the 2 loops become a tiny network), and a **chase**
-(routes to (a pursuer routes to and reaches its target). reaches its target, AND cuts off-road to intercept). **Rough
+(a pursuer routes to + reaches its target, and cuts off-road to intercept). **Rough
 edge:** on the tightest procedural corner a fast car can still clip the apex (localized, recovers).
 
 > **DIRECTION (2026-06-24): criminal-city / car chases.** The game's meat is traffic AI, with

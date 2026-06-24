@@ -78,6 +78,9 @@ function addedInWindow(glob) {
     if (line.startsWith('C')) { day = dayOf(line.slice(1)); continue }
     const f = line.trim()
     if (!f || !day) continue
+    // skip ghosts: a path ADDED in-window but since deleted (e.g. a cart folded
+    // into another, like overpass→cityview) — it has no file to link or thumbnail.
+    if (!fs.existsSync(path.join(REPO, f))) continue
     if (inWindow(day)) res.push({ day, file: f })
   }
   return res

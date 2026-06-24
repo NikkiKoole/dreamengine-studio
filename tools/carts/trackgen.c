@@ -50,9 +50,18 @@
 // so jams are visible. A TRAFFIC LIGHT cycles on the loop — a red is a stop-line all
 // lanes queue behind (the bottleneck that breeds stop-and-go). And a small REACTION
 // LAG (REACT_N) on following makes dense traffic UNSTABLE — phantom jams emerge with no
-// cause, exactly the ring-road experiment. Design + remaining systems (figure-8
-// right-of-way, speed zones, hazards): docs/design/traffic-ai.md. (Known rough edge:
-// on the tightest procedural corner a fast car can still clip the apex and recover.)
+// cause, exactly the ring-road experiment.
+// CROSS-ROAD (setup toggle): a straight road laid L→R across the loop's bbox, through
+// the loop's centroid so it cuts the closed loop at an even number (≥2) of points. Same
+// ribbon model as the loop (a centre line cl2[] + normals); each crossing (xpt[]) records
+// its sample index on BOTH roads. In TRAFFIC mode a SECOND stream (TRAFFIC_CROSS cars)
+// drives the cross-road via the SAME drive_ai_traffic brain — the only generalization is
+// one Car.road field + a road_*() accessor (loop wraps, cross-road clamps), the whole
+// portability thesis. The two streams currently COLLIDE at the crossings; teaching them
+// to yield (right-of-way) is the next phase. Design + remaining systems (right-of-way,
+// speed zones, hazards): docs/design/traffic-ai.md.
+// (Known rough edge: on the tightest procedural corner a fast car can still clip the
+// apex and recover.)
 //   LEFT/RIGHT steer · UP gas · DOWN brake · X drift · Z new track · R restart
 //   M: back to the setup panel.  RACE: standings on the right + results on finish.
 
@@ -95,6 +104,11 @@
 #define MAXSEED 24          // scattered points before the hull
 #define MAXSKID 160
 
+// ── cross-road (traffic-ai Phase A: a straight road L→R cutting the loop) ──
+#define NSAMP2       240        // cross-road samples (straight, non-wrapping)
+#define CROSS_MARGIN 80.0f      // how far the cross-road overhangs the loop bbox into the grass (px)
+#define MAXX         8          // max loop×cross crossings stored
+
 // levers — NAME the indices (CLAUDE.md): a reorder must fail at the compiler,
 // not silently cross-wire sliders ↔ presets
 enum { LV_SIZE, LV_WIDTH, LV_CORNERS, LV_VARIETY, LV_TWIST,
@@ -119,6 +133,10 @@ static const float PRESET[ST_COUNT][NLEV] = {
 
 typedef struct { float x, y; } V2;
 typedef struct { int x, y; int life; } Skid;
+// a loop×cross crossing: the world point + the sample index on each road
+// (prog1 = cl[] on the loop, prog2 = cl2[] on the cross-road). Phase C will read
+// prog1/prog2 to size the yield "stop-line" on each road.
+typedef struct { V2 p; int prog1, prog2; } Xing;
 
 // ── racers ───────────────────────────────────────────────────────────────────
 // One Car struct, one array. Car 0 is the player (reads btn()); cars 1..N are AI
@@ -127,8 +145,9 @@ typedef struct { int x, y; int life; } Skid;
 // That is the whole point: the brain built here ports to sloop unchanged; only the
 // *line to follow* changes (cl[] here, road_at() in the open world later).
 #define RACE_CARS    7         // RACE: 1 player + 6 AI, one per personality
-#define TRAFFIC_CARS 32        // TRAFFIC: a big crowd — long queues behind a red
-#define CARS_MAX     40        // array bound (>= both of the above)
+#define TRAFFIC_CARS 32        // TRAFFIC: a big crowd on the loop — long queues behind a red
+#define TRAFFIC_CROSS 14       // TRAFFIC + CROSS: a second stream on the cross-road (Phase B)
+#define CARS_MAX     48        // array bound (>= loop crowd + cross stream)
 #define RACE_LAPS 3
 #define COLL_R    16.0f        // car-to-car avoidance radius (world px)
 #define REACT_N   3            // car-following reaction lag (frames) — seeds phantom jams
@@ -138,7 +157,8 @@ typedef struct { int x, y; int life; } Skid;
 typedef struct {
     float px, py, vx, vy, spd, ang;
     bool  drift, offtrack;
-    int   prog, cp, lap;       // prog = nearest cl[] sample; cp = last checkpoint 0..3
+    int   prog, cp, lap;       // prog = nearest sample on THIS car's road; cp = last checkpoint 0..3
+    int   road;                // 0 = the loop (cl[]), 1 = the cross-road (cl2[]) — Phase B
     int   pers;                // personality index into PERS[] (AI only)
     float wob;                 // rookie wobble phase
     float mass;                // collision weight (player 1.0; AI from PERS[].mass)
@@ -190,6 +210,13 @@ STATE {
     float seg_len;             // avg world distance between adjacent cl[] samples (px)
     V2    cl[NSAMP];           // centre line (world)
     V2    nl[NSAMP];           // unit normals
+    bool  cross;               // PHASE A: draw a straight cross-road through the loop (geometry only — no cross-traffic yet)
+    V2    cl2[NSAMP2];         // cross-road centre line (straight L→R, world)
+    V2    nl2[NSAMP2];         // cross-road unit normals (constant — straight road)
+    float seg_len2;            // avg world distance between adjacent cl2[] samples (px)
+    Xing  xpt[MAXX];           // loop×cross crossings (computed in gen_track)
+    int   nx;                  // number of crossings found
+    int   ncross;              // active cross-road cars, in car[ncars .. ncars+ncross) (Phase B)
     Car   car[CARS_MAX];       // car[0] = player, car[1..] = AI
     int   ncars;               // active cars this mode (RACE_CARS or TRAFFIC_CARS)
     int   light;               // TRAFFIC: traffic-light sample on the loop (-1 = none)
@@ -436,6 +463,28 @@ static int   lane_at(float lateral) {
     return l;
 }
 
+// ── road accessor (Phase B) — the ONE generalization that lets the same brain
+//    drive either road. A car reads its line ONLY through these, so step_car /
+//    drive_ai_traffic don't care which road they're on (the portability thesis).
+//    The loop (road 0) wraps; the cross-road (road 1) is finite, so its index
+//    clamps at the ends. ───────────────────────────────────────────────────────
+static int   road_n(int road)     { return road ? NSAMP2 : NSAMP; }
+static bool  road_loops(int road) { return road == 0; }
+static int   road_idx(int road, int i) {
+    int n = road_n(road);
+    if (road_loops(road)) { i %= n; if (i < 0) i += n; return i; }
+    return i < 0 ? 0 : (i >= n ? n - 1 : i);
+}
+static V2    road_cl(int road, int i) { int j = road_idx(road, i); return road ? S->cl2[j] : S->cl[j]; }
+static V2    road_nl(int road, int i) { int j = road_idx(road, i); return road ? S->nl2[j] : S->nl[j]; }
+static float road_seg(int road)   { return road ? S->seg_len2 : S->seg_len; }
+// signed forward distance (samples) from `from` to `to`: + ahead, − behind.
+static int   prog_ahead(int road, int from, int to) {
+    int n = road_n(road), d = to - from;
+    if (road_loops(road)) { d %= n; if (d > n/2) d -= n; if (d < -n/2) d += n; }
+    return d;
+}
+
 // place car `slot` on the starting grid: slot 0 (player) on the line, the rest
 // staggered behind it, alternating sides — a real grid, so nobody starts stacked.
 static void put_car_at_start(Car *c, int slot) {
@@ -446,7 +495,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->ang = atan2_deg(S->cl[(s+1)%NSAMP].y - S->cl[(s-1+NSAMP)%NSAMP].y,
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     c->vx = 0; c->vy = 0; c->spd = 0;
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
     c->lane = c->want_lane = lane_at(lateral);
@@ -464,10 +513,29 @@ static void put_car_in_traffic(Car *c, int slot) {
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     float v0 = (slot == 0) ? 0.0f : MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
+}
+
+// PHASE B — place a car on the cross-road at sample `prog0`, in `lane`, already
+// cruising in +x (the road runs L→R). Same shape as put_car_in_traffic but on
+// cl2[] and non-looping; used both to spawn the stream and to respawn a car that
+// has driven off the far end.
+static void put_car_on_cross(Car *c, int prog0, int lane) {
+    float loff = lane_offset(lane);
+    V2 cc = road_cl(1, prog0), nn = road_nl(1, prog0);
+    c->px = cc.x + nn.x * loff; c->py = cc.y + nn.y * loff;
+    c->ang = 0.0f;                                       // cl2[] runs +x, so heading 0
+    float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
+    c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
+    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1;
+    c->drift = false; c->wob = (float)lane * 7.0f; c->place = 0;
+    c->mass = PERS[c->pers].mass;
+    c->lane = c->want_lane = lane;
+    for (int k = 0; k < REACT_N; k++) c->thist[k] = 0.0f;
+    c->thead = 0;
 }
 
 static void put_all_at_start(void) {
@@ -480,6 +548,16 @@ static void put_all_at_start(void) {
         for (int k = 0; k < REACT_N; k++) S->car[i].thist[k] = 0.0f;
         S->car[i].thead = 0;
     }
+    // PHASE B: a second stream of cars on the cross-road (TRAFFIC + CROSS only),
+    // packed into car[ncars .. ncars+ncross). They follow cl2[] via the same brain.
+    S->ncross = (S->traffic && S->cross && S->nx > 0) ? TRAFFIC_CROSS : 0;
+    if (S->ncars + S->ncross > CARS_MAX) S->ncross = CARS_MAX - S->ncars;
+    for (int k = 0; k < S->ncross; k++) {
+        int i = S->ncars + k;
+        S->car[i].pers = k % AI_COUNT;                   // cycle personalities (varied desired speeds)
+        put_car_on_cross(&S->car[i], (k * (NSAMP2 - 1)) / S->ncross, k % S->nlanes);
+    }
+
     // TRAFFIC: a single traffic light half a lap from the start (a clean bottleneck),
     // starting green. RACE: no light.
     S->light = S->traffic ? (NSAMP / 2) : -1;
@@ -488,6 +566,44 @@ static void put_all_at_start(void) {
     S->finished = false; S->result_place = 0;
     for (int i = 0; i < MAXSKID; i++) S->skid[i].life = 0;
     timer_reset();
+}
+
+// PHASE A — the cross-road. Lay one straight road left→right across the loop's
+// bounding box (overhanging into the grass), through the loop's centroid-y so it
+// is guaranteed to cut the closed loop at an even number (≥2) of points. The road
+// is the SAME ribbon model as the loop: a centre line cl2[] + unit normals nl2[]
+// (here constant (0,1), since the road is horizontal). Crossings are found by
+// walking the loop and keeping each segment that straddles the cross-road's y —
+// the loop is closed so the count is even; both ends are within the road's extent
+// because the road spans the full bbox. Each crossing records its sample index on
+// BOTH roads (Phase C reads these to place a yield stop-line). No traffic yet.
+static void gen_cross(void) {
+    float minx = 1e9f, maxx = -1e9f, sumy = 0;
+    for (int s = 0; s < NSAMP; s++) {
+        if (S->cl[s].x < minx) minx = S->cl[s].x;
+        if (S->cl[s].x > maxx) maxx = S->cl[s].x;
+        sumy += S->cl[s].y;
+    }
+    float yc = sumy / NSAMP;                          // centroid y → reliably inside the loop
+    float x0 = minx - CROSS_MARGIN, x1 = maxx + CROSS_MARGIN;
+    for (int j = 0; j < NSAMP2; j++) {
+        float u = (float)j / (NSAMP2 - 1);
+        S->cl2[j].x = x0 + u * (x1 - x0); S->cl2[j].y = yc;
+        S->nl2[j].x = 0.0f;               S->nl2[j].y = 1.0f;
+    }
+
+    S->nx = 0;
+    for (int s = 0; s < NSAMP && S->nx < MAXX; s++) {
+        V2 a = S->cl[s], b = S->cl[(s + 1) % NSAMP];
+        if ((a.y <= yc) == (b.y <= yc)) continue;     // segment doesn't straddle the cross-road
+        float t  = (yc - a.y) / (b.y - a.y);          // b.y != a.y here (they straddle)
+        float xc = a.x + t * (b.x - a.x);
+        if (xc < x0 || xc > x1) continue;             // off the cross-road's drawn extent
+        int j = (int)((xc - x0) / (x1 - x0) * (NSAMP2 - 1) + 0.5f);
+        S->xpt[S->nx].p.x = xc; S->xpt[S->nx].p.y = yc;
+        S->xpt[S->nx].prog1 = s; S->xpt[S->nx].prog2 = j;
+        S->nx++;
+    }
 }
 
 static void gen_track(unsigned int seed) {
@@ -552,6 +668,8 @@ static void gen_track(unsigned int seed) {
     }
     S->seg_len = per / NSAMP;
 
+    gen_cross();                                       // PHASE A: cross-road + crossings (drawn only when S->cross)
+
     S->best = 0; S->last = 0;
     put_all_at_start();
 }
@@ -593,10 +711,12 @@ static void step_car(Car *c, float turn_in, float throttle, bool drift) {
     c->px += c->vx; c->py += c->vy;
     c->drift = drift;
 
-    int bi = c->prog; float bd = 1e9f;                   // nearest sample = progress
+    int rd = c->road;
+    int bi = c->prog; float bd = 1e9f;                   // nearest sample on THIS car's road = progress
     for (int o = -18; o <= 18; o++) {
-        int i = (c->prog + o + NSAMP) % NSAMP;
-        float ex = c->px - S->cl[i].x, ey = c->py - S->cl[i].y;
+        int i = road_idx(rd, c->prog + o);
+        V2 cc = rd ? S->cl2[i] : S->cl[i];
+        float ex = c->px - cc.x, ey = c->py - cc.y;
         float d = ex*ex + ey*ey;
         if (d < bd) { bd = d; bi = i; }
     }
@@ -605,12 +725,15 @@ static void step_car(Car *c, float turn_in, float throttle, bool drift) {
 
     // current lane (from lateral offset) — emergent, so the player participates in
     // traffic too: an AI behind you in your lane will follow and brake for you.
-    float lateral = (c->px - S->cl[bi].x) * S->nl[bi].x + (c->py - S->cl[bi].y) * S->nl[bi].y;
+    V2 bc = road_cl(rd, bi), bn = road_nl(rd, bi);
+    float lateral = (c->px - bc.x) * bn.x + (c->py - bc.y) * bn.y;
     c->lane = lane_at(lateral);
 
     // checkpoints & laps — by QUADRANT of prog (not a spatial gate point): a car
     // must pass through the four quarter-arcs in order, so an offset racing line
-    // or a clipped apex can't miss the count the way a point-radius gate does.
+    // or a clipped apex can't miss the count the way a point-radius gate does. Only
+    // the loop laps; the cross-road is a finite road, not a circuit.
+    if (road_loops(rd)) {
     int q = (c->prog * 4) / NSAMP;                       // 0..3, which quarter-arc
     int want = (c->cp + 1) % 4;
     if (q == want) {
@@ -624,6 +747,7 @@ static void step_car(Car *c, float turn_in, float throttle, bool drift) {
             c->lap++;
             if (c == &P) note(72 + (c->lap % 5) * 2, INSTR_TRI, 4);
         }
+    }
     }
 
     float lat = c->vx * dx(1, c->ang + 90) + c->vy * dy(1, c->ang + 90);
@@ -691,28 +815,32 @@ static void drive_ai(Car *c, int idx, float *out_turn, float *out_thr, bool *out
 // nearest car AHEAD in the same lane: returns the along-track gap (px) and the
 // leader's speed. 1e9 if the lane is clear ahead.
 static float lead_gap(Car *c, int idx, float *vlead) {
-    int best = NSAMP; *vlead = MAX_SPD;
-    for (int j = 0; j < S->ncars; j++) {
+    int rd = c->road, n = road_n(rd), best = n; *vlead = MAX_SPD;
+    int total = S->ncars + S->ncross;
+    for (int j = 0; j < total; j++) {
         if (j == idx) continue;
         Car *o = &S->car[j];
-        if (o->lane != c->lane) continue;
-        int d = (o->prog - c->prog + NSAMP) % NSAMP;     // forward index distance
+        if (o->road != rd || o->lane != c->lane) continue;   // only a leader on MY road, MY lane
+        int d;
+        if (road_loops(rd)) d = (o->prog - c->prog + n) % n; // forward index distance (wraps)
+        else { d = o->prog - c->prog; if (d <= 0) continue; }// finite road: ahead = higher prog
         if (d > 0 && d < best) { best = d; *vlead = o->spd < 0 ? -o->spd : o->spd; }
     }
-    if (best >= NSAMP) return 1e9f;
-    return best * S->seg_len;                            // index distance → world px
+    if (best >= n) return 1e9f;
+    return best * road_seg(rd);                          // index distance → world px
 }
 
 // is `lane` open around this car's position — clear enough ahead AND behind to merge?
 // (looks at where cars are AND where they're heading, so two cars don't pick the same gap)
 static bool lane_clear(Car *c, int idx, int lane) {
-    for (int j = 0; j < S->ncars; j++) {
+    int rd = c->road, total = S->ncars + S->ncross;
+    for (int j = 0; j < total; j++) {
         if (j == idx) continue;
         Car *o = &S->car[j];
+        if (o->road != rd) continue;                     // a car on the other road isn't in my lanes
         if (o->lane != lane && o->want_lane != lane) continue;
-        int fwd  = (o->prog - c->prog + NSAMP) % NSAMP;
-        int back = (c->prog - o->prog + NSAMP) % NSAMP;
-        if (fwd < 22 || back < 10) return false;         // someone too close to merge in front of/behind
+        int d = prog_ahead(rd, c->prog, o->prog);        // signed: + ahead, − behind
+        if (d > -10 && d < 22) return false;             // too close to merge in front of/behind
     }
     return true;
 }
@@ -721,15 +849,16 @@ static bool lane_clear(Car *c, int idx, int lane) {
 // when stuck behind a slower car, pull into an adjacent clear lane to pass. A
 // following car brakes to a stop but never reverses.
 static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, bool *out_drift) {
+    int rd = c->road;                                    // read the line via road_*; either road works
     float v  = c->spd < 0 ? -c->spd : c->spd;
     float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.68f;  // city speed, not race pace
 
-    // lift for the bend ahead (a car still has to make the corner)
-    int ca = (c->prog + 22) % NSAMP;
-    float h0 = atan2_deg(S->cl[(c->prog+4)%NSAMP].y - S->cl[c->prog].y,
-                         S->cl[(c->prog+4)%NSAMP].x - S->cl[c->prog].x);
-    float h1 = atan2_deg(S->cl[(ca+4)%NSAMP].y - S->cl[ca].y,
-                         S->cl[(ca+4)%NSAMP].x - S->cl[ca].x);
+    // lift for the bend ahead (a car still has to make the corner; a straight reads ~0)
+    int ca = c->prog + 22;
+    V2 a0 = road_cl(rd, c->prog), a1 = road_cl(rd, c->prog + 4);
+    V2 b0 = road_cl(rd, ca),      b1 = road_cl(rd, ca + 4);
+    float h0 = atan2_deg(a1.y - a0.y, a1.x - a0.x);
+    float h1 = atan2_deg(b1.y - b0.y, b1.x - b0.x);
     float bendn = fabsf_(awrap(h1 - h0)) / 90.0f; if (bendn > 1) bendn = 1;
     v0 *= 1.0f - 0.6f * bendn;
     if (v0 < 1.2f) v0 = 1.2f;
@@ -749,7 +878,8 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
 
     // a RED light ahead is a stopped "leader" parked at the stop line (it spans all
     // lanes), so cars queue behind it — the bottleneck that breeds stop-and-go waves.
-    if (S->light >= 0 && S->light_red) {
+    // The light lives on the loop, so only loop cars (road 0) see it.
+    if (S->light >= 0 && S->light_red && road_loops(rd)) {
         int ld = (S->light - c->prog + NSAMP) % NSAMP;   // forward samples to the light
         if (ld > NSAMP - 6) ld = 0;                       // a tiny overshoot pins to the line —
                                                           // WITHOUT this the wrap reads ~a full lap
@@ -766,10 +896,11 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
 
     // steer toward the intended lane's centre line (look-ahead). If we've slid off,
     // aim at the nearest bare centre point — a direct pull back onto the road.
-    int ti = (c->prog + (c->offtrack ? 4 : TRAF_LA)) % NSAMP;
     float loff = c->offtrack ? 0.0f : lane_offset(c->want_lane);
-    float tx = S->cl[ti].x + S->nl[ti].x * loff;
-    float ty = S->cl[ti].y + S->nl[ti].y * loff;
+    V2 tc = road_cl(rd, c->prog + (c->offtrack ? 4 : TRAF_LA));
+    V2 tn = road_nl(rd, c->prog + (c->offtrack ? 4 : TRAF_LA));
+    float tx = tc.x + tn.x * loff;
+    float ty = tc.y + tn.y * loff;
     float desired = atan2_deg(ty - c->py, tx - c->px);
     float turn = clamp(awrap(desired - c->ang) / 7.0f, -1.0f, 1.0f);
 
@@ -826,8 +957,9 @@ static void update_standings(void) {
 // Mass-weighted: HUNTER barely budges, SUNDAY gets flung. A hard hit clacks/shakes.
 static void resolve_collisions(void) {
     const float RL = 2.0f * CAR_HALF_L, RW = 2.0f * CAR_HALF_W;   // sum of half-extents
-    for (int a = 0; a < S->ncars; a++)
-        for (int b = a + 1; b < S->ncars; b++) {
+    int total = S->ncars + S->ncross;                    // loop + cross cars: pairs across roads collide too
+    for (int a = 0; a < total; a++)
+        for (int b = a + 1; b < total; b++) {
             Car *A = &S->car[a], *B = &S->car[b];
             float rx = B->px - A->px, ry = B->py - A->py;
             if (rx*rx + ry*ry >= RL*RL) continue;            // far apart (cheap reject)
@@ -899,6 +1031,13 @@ void update(void) {
         if (S->traffic) drive_ai_traffic(&S->car[i], i, &turn, &thr, &dr);
         else            drive_ai(&S->car[i], i, &turn, &thr, &dr);
         step_car(&S->car[i], turn, thr, dr);
+    }
+    for (int i = S->ncars; i < S->ncars + S->ncross; i++) { // PHASE B: the cross-road stream
+        float turn, thr; bool dr;
+        drive_ai_traffic(&S->car[i], i, &turn, &thr, &dr);
+        step_car(&S->car[i], turn, thr, dr);
+        if (S->car[i].prog >= NSAMP2 - 3)                   // drove off the far end → re-enter at the start
+            put_car_on_cross(&S->car[i], 2, S->car[i].lane);
     }
     resolve_collisions();
     S->shake *= 0.82f;
@@ -1027,6 +1166,30 @@ static void draw_track_world(void) {
             pset(S->skid[i].x, S->skid[i].y,
                  S->skid[i].life > 60 ? CLR_BROWNISH_BLACK : CLR_DARKER_GREY);
 
+    if (S->cross) {                                      // PHASE A: the cross-road — same ribbon model, drawn over the loop
+        for (int s = 0; s < NSAMP2 - 1; s++) {
+            int t = s + 1;
+            if ((S->cl2[s].x < L && S->cl2[t].x < L) || (S->cl2[s].x > R && S->cl2[t].x > R) ||
+                (S->cl2[s].y < T && S->cl2[t].y < T) || (S->cl2[s].y > B && S->cl2[t].y > B)) continue;
+            float lx0 = S->cl2[s].x + S->nl2[s].x*hw, ly0 = S->cl2[s].y + S->nl2[s].y*hw;
+            float rx0 = S->cl2[s].x - S->nl2[s].x*hw, ry0 = S->cl2[s].y - S->nl2[s].y*hw;
+            float lx1 = S->cl2[t].x + S->nl2[t].x*hw, ly1 = S->cl2[t].y + S->nl2[t].y*hw;
+            float rx1 = S->cl2[t].x - S->nl2[t].x*hw, ry1 = S->cl2[t].y - S->nl2[t].y*hw;
+            quadfill((int)lx0,(int)ly0,(int)rx0,(int)ry0,(int)rx1,(int)ry1,(int)lx1,(int)ly1, CLR_DARK_GREY);
+            int curb = (s / 3) & 1 ? CLR_BLUE : CLR_WHITE;   // white/blue curbs distinguish it from the loop's red/white
+            line((int)lx0,(int)ly0,(int)lx1,(int)ly1, curb);
+            line((int)rx0,(int)ry0,(int)rx1,(int)ry1, curb);
+        }
+        for (int s = 0; s < NSAMP2 - 3; s += 6)              // centre dashes
+            line((int)S->cl2[s].x, (int)S->cl2[s].y,
+                 (int)S->cl2[s+3].x, (int)S->cl2[s+3].y, CLR_BLUE_GREEN);
+        for (int i = 0; i < S->nx; i++) {                   // a marker sitting on both ribbons at each crossing
+            int mx = (int)S->xpt[i].p.x, my = (int)S->xpt[i].p.y;
+            circfill(mx, my, 5, CLR_INDIGO);
+            circ(mx, my, 5, CLR_LIGHT_YELLOW);
+        }
+    }
+
     if (S->light >= 0) {                                 // traffic light: bold stop-line + signal heads
         int col = S->light_red ? CLR_RED : CLR_LIME_GREEN;
         for (int d = -1; d <= 1; d++) {                  // 3 samples thick = a visible stripe
@@ -1043,7 +1206,8 @@ static void draw_track_world(void) {
         }
     }
 
-    for (int i = 1; i < S->ncars; i++) draw_car(&S->car[i], false);   // rivals first
+    for (int i = 1; i < S->ncars; i++) draw_car(&S->car[i], false);   // loop rivals first
+    for (int i = S->ncars; i < S->ncars + S->ncross; i++) draw_car(&S->car[i], false);  // cross-road stream
     draw_car(&P, true);                                            // player on top
 }
 
@@ -1063,6 +1227,18 @@ static void draw_preview(int bx, int by, int bw, int bh) {
         float dx2= oxp + (S->cl[t].x + S->nl[t].x*hw)*sc, dy2= oyp + (S->cl[t].y + S->nl[t].y*hw)*sc;
         quadfill((int)ax,(int)ay,(int)bx2,(int)by2,(int)cx2,(int)cy2,(int)dx2,(int)dy2, CLR_DARK_GREY);
     }
+    if (S->cross) {                                     // the cross-road + its crossings, to scale
+        for (int s = 0; s < NSAMP2 - 1; s++) {
+            int t = s + 1;
+            float ax = oxp + (S->cl2[s].x + S->nl2[s].x*hw)*sc, ay = oyp + (S->cl2[s].y + S->nl2[s].y*hw)*sc;
+            float bx2= oxp + (S->cl2[s].x - S->nl2[s].x*hw)*sc, by2= oyp + (S->cl2[s].y - S->nl2[s].y*hw)*sc;
+            float cx2= oxp + (S->cl2[t].x - S->nl2[t].x*hw)*sc, cy2= oyp + (S->cl2[t].y - S->nl2[t].y*hw)*sc;
+            float dx2= oxp + (S->cl2[t].x + S->nl2[t].x*hw)*sc, dy2= oyp + (S->cl2[t].y + S->nl2[t].y*hw)*sc;
+            quadfill((int)ax,(int)ay,(int)bx2,(int)by2,(int)cx2,(int)cy2,(int)dx2,(int)dy2, CLR_DARK_GREY);
+        }
+        for (int i = 0; i < S->nx; i++)
+            circfill((int)(oxp + S->xpt[i].p.x*sc), (int)(oyp + S->xpt[i].p.y*sc), 2, CLR_INDIGO);
+    }
     circfill((int)(oxp + S->cl[0].x*sc), (int)(oyp + S->cl[0].y*sc), 2, CLR_YELLOW);
     clip(0, 0, 0, 0);
 }
@@ -1072,6 +1248,7 @@ static void draw_setup(void) {
     print_outline("TRACK GENERATOR", 8, 5, CLR_YELLOW, CLR_BLACK);
 
     ui_begin();
+    if (ui_button(238, 3, 74, 12, S->cross ? "CROSS:ON" : "CROSS:OFF")) S->cross = !S->cross;
     // style selector: ◀  NAME  ▶
     if (ui_button(8, 16, 14, 12, "\x11")) apply_style((S->style + ST_COUNT - 1) % ST_COUNT);
     if (ui_button(146, 16, 14, 12, "\x10")) apply_style((S->style + 1) % ST_COUNT);
@@ -1115,7 +1292,7 @@ void draw(void) {
     rectfill(0, 0, SCREEN_W, 10, CLR_DARKER_BLUE);
     if (S->traffic) {
         print("TRAFFIC", 4, 2, CLR_LIGHT_PEACH);
-        print(str("%d cars", S->ncars), 64, 2, CLR_WHITE);
+        print(str("%d cars", S->ncars + S->ncross), 64, 2, CLR_WHITE);
         print(str("lane %d/%d", P.lane + 1, S->nlanes), 122, 2, CLR_YELLOW);
         print(S->light_red ? "RED" : "GRN", 184, 2, S->light_red ? CLR_RED : CLR_LIME_GREEN);
         print(str("#%u", S->seed % 100000u), 220, 2,
@@ -1338,5 +1515,51 @@ void spec(void) {
         drive_ai_traffic(F, 1, &turn, &thr, &dr);
         expect(F->want_lane != 0, "overtaking: blocked by a slow leader → pull into a clear lane");
     }
+
+    // ── cross-road (Phase A): a straight road L→R cuts the loop at ≥2 points, and
+    //    every crossing point sits on BOTH ribbons (within a half-width of each
+    //    road's centre line at the recorded sample). No cross-traffic yet. ──
+    S->cross = true;
+    gen_cross();
+    expect(S->nx >= 2, "cross-road: the straight road crosses the loop at least twice");
+    expect((S->nx & 1) == 0, "cross-road: a closed loop is cut an even number of times");
+    for (int i = 0; i < S->nx; i++) {
+        Xing *x = &S->xpt[i];
+        // on the loop ribbon: |crossing - cl[prog1]| projected across the road ≤ half + slack
+        float dx1 = x->p.x - S->cl[x->prog1].x, dy1 = x->p.y - S->cl[x->prog1].y;
+        float lat1 = dx1*S->nl[x->prog1].x + dy1*S->nl[x->prog1].y;
+        expect((lat1 < 0 ? -lat1 : lat1) <= S->half + S->seg_len + 1.0f,
+               "cross-road: crossing sits on the loop ribbon");
+        // on the cross-road ribbon: crossing y matches cl2[prog2].y exactly (straight road)
+        float lat2 = x->p.y - S->cl2[x->prog2].y;     // nl2 = (0,1), so lateral = Δy
+        expect((lat2 < 0 ? -lat2 : lat2) <= (float)S->half,
+               "cross-road: crossing sits on the cross-road ribbon");
+    }
+
+    // ── cross-traffic (Phase B): with CROSS on in TRAFFIC mode, a second stream
+    //    spawns on cl2[] and drives L→R via the SAME brain. They make forward
+    //    progress along the road (the fleet's mean x advances) and flow (a car is
+    //    moving). Collisions with loop cars at the crossings are expected here —
+    //    that's what Phase C will resolve. ──
+    S->traffic = true; S->cross = true;
+    put_all_at_start();
+    expect(S->ncross > 0, "cross-traffic: a stream spawns on the cross-road");
+
+    float px0[CARS_MAX];                              // each car's x before stepping
+    for (int i = S->ncars; i < S->ncars + S->ncross; i++) px0[i] = S->car[i].px;
+    step(60);
+    int advanced = 0; float vmaxc = 0;                // a car that re-entered at the far end shows a big −Δx
+    for (int i = S->ncars; i < S->ncars + S->ncross; i++) {
+        if (S->car[i].px > px0[i] + 2.0f) advanced++; // moved L→R (didn't wrap, isn't stalled)
+        float vc = S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd;
+        if (vc > vmaxc) vmaxc = vc;
+    }
+    expect(advanced >= S->ncross - 3, "cross-traffic: the stream makes forward progress along cl2[] (L→R)");
+    expect(vmaxc > 0.5f, "cross-traffic: the cross-road flows (a car is moving)");
+
+    // each cross car holds its road (its road field stays 1, never silently swapped)
+    int on_cross = 0;
+    for (int i = S->ncars; i < S->ncars + S->ncross; i++) if (S->car[i].road == 1) on_cross++;
+    expect_eq(on_cross, S->ncross, "cross-traffic: every cross car stays on the cross-road");
 }
 #endif

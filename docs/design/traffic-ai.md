@@ -7,12 +7,24 @@ a cycling TRAFFIC LIGHT (red = a stop-line all lanes queue behind), and a reacti
 that makes dense following unstable → PHANTOM JAMS emerge with no cause (the ring-road experiment).
 Lanes are emergent from lateral position, so the player participates (stop in a lane → traffic
 passes you). Collision is an ORIENTED box (long-along-heading, narrow-across), so adjacent-lane cars
-never falsely touch. Spec (24 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
-flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, and stop-and-go spread. **Rough
+never falsely touch. Spec (34 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
+flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spread, and the
+cross-road (A: geometry/crossings; B: cross-stream spawns + flows + stays on its road). **Rough
 edge:** on the tightest procedural corner a fast car can still clip the apex (localized, recovers).
 **Next:** the cross-road intersection (#4) — a big L→R road cutting the loop (~twice) with its own
 traffic, built in phases A–D (geometry → cross-traffic → right-of-way → tune); see the sketch below.
-Then speed zones / hazards / the more-ideas list.
+**Phase A is shipped (2026-06-23):** a `CROSS` setup toggle lays a straight cross-road across the
+loop's bbox (overhanging into the grass) through the loop's centroid-y, so it cuts the closed loop
+at an even number (≥2) of points; same ribbon model as the loop (`cl2[]`/`nl2[]`), crossings found
+by straddle-test and stored in `xpt[]` with the sample index on **both** roads (`prog1` loop,
+`prog2` cross). Rendered in-world and to-scale in the setup preview; markers (indigo discs) sit on
+both ribbons. **Phase B is shipped too (2026-06-23):** a `TRAFFIC_CROSS`-car stream now drives the
+cross-road via the SAME `drive_ai_traffic` brain — the only generalization is one `Car.road` field
++ a `road_*()` accessor layer (the loop wraps, the cross-road clamps), exactly the portability
+thesis. Cross cars and loop cars collide at the crossings (expected — Phase C's job). 8 spec
+assertions added across A+B. **Next: Phase C — right-of-way** (yield at the crossings so the two
+streams stop T-boning; reuse the red-light "stop-line leader" trick, priority-road first). Then
+speed zones / hazards / the more-ideas list.
 
 The racing rivals in `trackgen.c` proved the core:
 one shared physics step (`step_car`) + a parameter-driven follow-controller (`drive_ai`) +
@@ -87,14 +99,25 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
 
 ### Phases (build in order, spec each)
 
-- **Phase A — geometry.** Generate `cl2[]` as a straight road L→R across the world bounds + its
-  normals; render it (same ribbon/curb code). Compute the crossing point(s) by segment-intersection
-  vs `cl[]`; store them (`xpt[]`, with the prog index on each road). Draw a marker at each crossing.
-  *No cross-traffic yet.* Spec: ≥1 crossing found; markers sit on both ribbons.
-- **Phase B — cross-traffic, naive.** Spawn a pool of cars on `cl2[]` driven by `drive_ai_traffic`
-  (generalized to follow either line). They drive across and respawn/loop at the ends. They will
-  *collide* with loop cars at the crossings — that's expected; it sets up Phase C. Spec: cross cars
-  make forward progress along `cl2[]`.
+- **Phase A — geometry. ✅ (2026-06-23)** Generate `cl2[]` as a straight road L→R across the world
+  bounds + its normals; render it (same ribbon/curb code). Compute the crossing point(s) by
+  segment-intersection vs `cl[]`; store them (`xpt[]`, with the prog index on each road). Draw a
+  marker at each crossing. *No cross-traffic yet.* Spec: ≥1 crossing found; markers sit on both
+  ribbons. **Done:** `CROSS` setup toggle; `gen_cross()` lays the road through the loop centroid-y
+  (guarantees an even ≥2 crossings); straddle-test finds crossings (cheaper than full segment×segment
+  since the road is horizontal); rendered in-world + to-scale in the preview; white/blue curbs +
+  blue-green centre dashes distinguish it from the loop's red/white. 4 spec assertions.
+- **Phase B — cross-traffic, naive. ✅ (2026-06-23)** Spawn a pool of cars on `cl2[]` driven by
+  `drive_ai_traffic` (generalized to follow either line). They drive across and respawn/loop at the
+  ends. They will *collide* with loop cars at the crossings — that's expected; it sets up Phase C.
+  Spec: cross cars make forward progress along `cl2[]`. **Done:** one new field `Car.road` (0 loop /
+  1 cross) + a `road_*()` accessor layer (`road_cl/road_nl/road_idx/road_seg/prog_ahead`) is the
+  *entire* generalization — `step_car`, `drive_ai_traffic`, `lead_gap`, `lane_clear` now read their
+  line through it and don't care which road they're on (the loop wraps, the cross-road clamps). The
+  cross stream is `TRAFFIC_CROSS` cars packed into `car[ncars .. ncars+ncross)`, spawned/respawned
+  by `put_car_on_cross`; `lead_gap`/`lane_clear` filter to same-road leaders; `resolve_collisions`
+  spans both pools (so crossings collide — Phase C's job). The loop traffic-light only affects road 0.
+  4 spec assertions (stream spawns, makes L→R progress, flows, every car stays on its road).
 - **Phase C — right-of-way (the heart).** At each crossing, a car computes its time-to-cross; if a
   conflicting car (other road) will be inside the **intersection box** within that window, it
   **yields** — reuse the red-light trick: treat the crossing as a temporary stop-line leader

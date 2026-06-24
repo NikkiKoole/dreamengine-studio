@@ -145,7 +145,11 @@ static uint32_t cbuf[SCREEN_W*SCREEN_H];   // RGBA — see fork 1
 > thickness is moot at 1px), **thick bands → coverage** (the only gap-free *and* uniform option) —
 > which is exactly what [`field-based-road-rendering.md`](field-based-road-rendering.md) independently
 > chose (lane lines = coverage thresholds, bands = coverage). So `sline` stays the canvas's 1px line;
-> anything with width comes from the coverage rule, not a thickened DDA.
+> anything with width comes from the coverage rule, not a thickened DDA. (4) A coverage line also
+> needs a **cap-style** parameter (`linecompare`'s `C`): round caps (the capsule) make a thick line
+> grow *longer* — a semicircle of radius = half-thickness past each endpoint — while butt caps cut
+> flush, matching DDA's ends. Structural bands (a road meeting a junction, an edge touching a node)
+> want **butt**; brush strokes want round. Default butt for the canvas, like every 2D API's `lineCap`.
 
 ## The design forks — decide these first
 

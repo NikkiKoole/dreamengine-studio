@@ -7,11 +7,11 @@ a cycling TRAFFIC LIGHT (red = a stop-line all lanes queue behind), and a reacti
 that makes dense following unstable → PHANTOM JAMS emerge with no cause (the ring-road experiment).
 Lanes are emergent from lateral position, so the player participates (stop in a lane → traffic
 passes you). Collision is an ORIENTED box (long-along-heading, narrow-across), so adjacent-lane cars
-never falsely touch. Spec (66 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
+never falsely touch. Spec (50 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
 flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spread, and the
-**second-track crossing** with TWO selectable junction types (geometry/crossings; second-track stream
-spawns + flows + stays on its track; **SIGNAL reservation** and **ROUNDABOUT** — each crash-free with
-no gridlock and both tracks flowing, across 4 seeds). **Rough
+**second-track crossing** (geometry/crossings; second-track stream spawns + flows + stays on its
+track; right-of-way reservation — no T-bones by construction, no gridlock, both tracks flow, across
+4 seeds). **Rough
 edge:** on the tightest procedural corner a fast car can still clip the apex (localized, recovers).
 
 > **DESIGN PIVOT (2026-06-24):** the "cross-road" started as a straight road cutting the loop
@@ -188,26 +188,6 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
   A crash-free per-track would need physical-distance (not prog-distance) box-clear checks at the switch;
   parked as a future option if higher density is wanted. Remaining: per-driver personality on the claim,
   and a rule toggle (priority / 4-way / signal).
-- **ROUNDABOUT junction (2026-06-24) — a selectable second junction type** (setup `JCT:` toggle:
-  SIGNAL = the reservation above, or RING). Both tracks merge onto a **one-way ring** centred on the
-  crossing and circulate the **same direction**, so there is **no perpendicular conflict** — a botched
-  merge is a same-direction graze, never a T-bone. Geometry: `ring_angle` finds where each track meets
-  a radius-`RING_MULT×half` ring (`ringin`/`ringout` per track); a car yields to enter (`ring_entry_gap`:
-  wait *outside* the ring, and — the owner's key insight — **"look before you merge"**, a physical check
-  of the spot you're pulling into, which is what finally made it crash-free where abstract phase logic
-  couldn't), circulates (`ring_move`, car-following by arc), and exits onto its track. **Crash-free
-  across 4 seeds** in spec, with real throughput and continuous flow (no stop-and-go). Lesson learned:
-  a car must wait *outside* the ring, never *on* it (a waiting-on-the-tarmac car got swept by a
-  circulating one — the failing case the debug overlay pinpointed). Why it matters: a road-network cart
-  wants **both** junction types. Density note: pushing the ring much past the signal's density grazes on
-  degenerate shallow crossings, so its real win is smooth flow + being the right primitive, not raw count.
-  Remaining: per-driver personality on the claim/merge; speed zones / hazards / peds / green-wave.
-  **Why the density ceiling is a non-issue in practice (owner, 2026-06-24):** the graze limit only
-  appears at *degenerate shallow crossings*, which exist here because two free loops are overlaid at
-  random. The real simulation places junctions deliberately at sane angles, so cars never pack the way
-  a near-parallel crossing forces — i.e. the crash-free density there is set by the junction, not by
-  this pathological geometry. Treat the two junction types as the deliverable; the density cap is an
-  artifact of the trackgen test bed, not the target use.
 
 **Watch out for:** deadlock (two priority rules that both yield → everyone stops); pick an asymmetric
 rule first. And the existing TRAFFIC light is on the loop — decide whether it stays, moves to the

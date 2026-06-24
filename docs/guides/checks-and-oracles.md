@@ -19,6 +19,14 @@ This page is only the routing layer.
 | a **coverage-based road / field** (streetlab, roadlab) | **`road-check.js [--all] [--overlay]`** | framebuffer invariants (no naked edges/strays/floating kerb) at any angle |
 | `fill`/`outline`/`dither` of a shape | the `raster_test` **cart** (`tools/raster_test.script`) | fill, outline, dither, solid all agree pixel-for-pixel (`rasterization-consistency.md`) |
 | **any** draw API signature / new API fn | **`build-all.js`** | every one of 400+ carts still compiles against `studio.h` (catches API rot) |
+| a software-rasterizer's **float math** (cross-device determinism) | **`bash tools/det-probes/run.sh`** | the rasterizer picks bit-identical pixels on arm64 / x86-64 / wasm (replays/ghosts/lockstep precondition) |
+
+> **Before *researching* a software-rasterizer question, check `tools/det-probes/` first** — its README
+> is the index. Beyond the `run.sh` determinism gate, it holds the **design-exploration probes** that
+> already settled the SW conventions with measured evidence (`rotfill` = inverse-map fills are gap-free;
+> `rotline`/`rotstroke` = crisp rotated strokes are correct, shimmer is the only residual; `rotspr`/
+> `textrot` = nearest == GPU quality, RotSprite is the ≥16px opt-in; `stritex` = SW tritex tiles gap-free).
+> This is where "has someone already studied rotated-X?" is answered — don't re-derive it.
 
 ## Performance (no output change intended)
 

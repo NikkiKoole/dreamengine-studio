@@ -157,6 +157,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
              build-history.js     generate docs/history.html from git + the spine
              api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js
+           det-probes/  standalone cross-compile DETERMINISM oracles + design-exploration probes for the
+                    software canvas (run.sh = bit-identical arm64/x86/wasm gate; rotfill/rotline/rotspr/
+                    stritex/… are the rotated-primitive studies that already settled the SW conventions).
+                    README is the index. CHECK HERE before re-researching a software-rasterizer question.
            carts/   <name>.c (+ optional <name>.cart.js config). .cart.js exports
                     { sprites, map, charMap, mapW, mapH }; three sprite patterns — see
                     docs/guides/cart-authoring.md.

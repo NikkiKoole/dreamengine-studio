@@ -13,8 +13,10 @@
 // Overlay views (0 = stack-DDA vs coverage, 4 = perp-DDA vs coverage) colour agreement WHITE,
 // disagreement blue/orange — the gap between two methods at the same thickness.
 //
-// Coverage cap style (C): ROUND caps (a capsule — the rounded ends make the line grow LONGER as
-// it thickens) vs BUTT caps (flush ends — the line keeps its length, only widens). DDA always
+// Coverage cap style (C cycles three): ROUND (a capsule — rounded ends make the line grow LONGER
+// as it thickens), BUTT (flush — keeps its length, only widens, but can clip the tip pixels of a
+// thick diagonal), and SQUARE (the in-between — a rectangle extended a FIXED ~1px past each end:
+// always covers the endpoints, but never balloons with thickness). DDA always
 // ends flush, so this is the coverage-only knob that makes a thick coverage line stop overshooting.
 //
 // LEFT/RIGHT rotate · A auto-spin · B cycle view · C cap style · UP/DOWN thickness.
@@ -34,7 +36,7 @@ static float angle = 0.6f;
 static int   thick = 1;             // line thickness in cells (1 = 1px); all methods share it
 static int   spin  = 1;
 static int   view  = 0;             // 0 stackDDA|cov  1 stackDDA  2 cov  3 perpDDA  4 perpDDA|cov
-static int   caps  = 0;             // coverage cap style: 0 = round (capsule), 1 = butt (flush)
+static int   caps  = 0;             // coverage cap style: 0 = butt (flush), 1 = round (capsule), 2 = square (bounded)
 
 static void mark(unsigned char *g, int i, int j){ if(i>=0&&i<GW&&j>=0&&j<GH) g[j*GW+i]=1; }
 
@@ -77,21 +79,30 @@ static void dda_perp(int x0,int y0,int x1,int y1){
         dda1(pddag, ax,ay,bx,by);
     }
 }
-// coverage: is a cell centre within `r` of the segment? butt=1 cuts the ends flush (foot must
-// land on the segment, 0<=t<=1); butt=0 clamps t → round caps that extend past the endpoints.
-static int cov_in(float px,float py,float ax,float ay,float bx,float by,float r,int butt){
+#define CAP_MAX 1.0f   // square cap extends at most this many px past each end (bounded, doesn't grow w/ thickness)
+// coverage: is a cell centre within `r` of the segment? cap = 0 butt (flush, foot on segment
+// 0<=t<=1), 1 round (capsule — extends by r, grows with thickness), 2 square (rectangle extended
+// a FIXED min(r,CAP_MAX) past each end — covers the endpoint pixels but never grows far).
+static int cov_in(float px,float py,float ax,float ay,float bx,float by,float r,int cap){
     float dx=bx-ax,dy=by-ay,Lq=dx*dx+dy*dy;
-    float t = Lq>0.f ? ((px-ax)*dx+(py-ay)*dy)/Lq : 0.f;
-    if(butt){ if(t<0.f||t>1.f) return 0; }
-    else    { if(t<0.f)t=0.f; if(t>1.f)t=1.f; }
-    float qx=ax+t*dx, qy=ay+t*dy;
-    return (px-qx)*(px-qx)+(py-qy)*(py-qy) <= r*r;
+    if(Lq<=0.f){ return (px-ax)*(px-ax)+(py-ay)*(py-ay) <= r*r; }
+    float L=sqrtf(Lq);
+    float t = ((px-ax)*dx+(py-ay)*dy)/Lq;                       // 0..1 along the segment
+    if(cap==1){                                                 // round: clamp to a capsule
+        if(t<0.f)t=0.f; if(t>1.f)t=1.f;
+        float qx=ax+t*dx, qy=ay+t*dy;
+        return (px-qx)*(px-qx)+(py-qy)*(py-qy) <= r*r;
+    }
+    float Et = (cap==2) ? (fminf(r,CAP_MAX)/L) : 0.f;           // butt: 0, square: fixed bounded nub
+    if(t < -Et || t > 1.f+Et) return 0;
+    float perp = fabsf((px-ax)*dy-(py-ay)*dx)/L;                // perpendicular distance to the line
+    return perp <= r;
 }
 
 void update(void){
     if(btnp(0,BTN_A)) spin=!spin;
     if(btnp(0,BTN_B)) view=(view+1)%5;
-    if(keyp('C'))     caps=!caps;       // coverage cap style: round <-> butt
+    if(keyp('C'))     caps=(caps+1)%3;  // coverage cap style: butt -> round -> square
     if(spin) angle += 0.012f;
     if(btn(0,BTN_LEFT))  { angle -= 0.03f; spin=0; }
     if(btn(0,BTN_RIGHT)) { angle += 0.03f; spin=0; }
@@ -150,8 +161,8 @@ void draw(void){
     }
     print(str("ang %d", (int)(angle*57.3f)%360), OX, y+18, CLR_LIGHT_GREY);
     print(str("thick %d", thick), OX+62, y+18, CLR_LIGHT_GREY);
-    if(gB) print(str("differ %d", differ), OX+128, y+18, differ?CLR_ORANGE:CLR_GREEN);
+    if(gB) print(str("diff %d", differ), OX+128, y+18, differ?CLR_ORANGE:CLR_GREEN);
     else   print(str("lit %d", lit), OX+128, y+18, CLR_LIGHT_GREY);
-    print(str("caps %s", caps?"butt":"round"), OX+210, y+18, CLR_LIGHT_GREY);
+    print(str("cap:%s", caps==0?"butt":caps==1?"round":"square"), OX+200, y+18, CLR_LIGHT_GREY);
     print("A spin B view C caps </>turn ^vthick", OX, y+27, CLR_MEDIUM_GREY);
 }

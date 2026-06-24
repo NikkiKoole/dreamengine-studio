@@ -146,10 +146,13 @@ static uint32_t cbuf[SCREEN_W*SCREEN_H];   // RGBA — see fork 1
 > which is exactly what [`field-based-road-rendering.md`](field-based-road-rendering.md) independently
 > chose (lane lines = coverage thresholds, bands = coverage). So `sline` stays the canvas's 1px line;
 > anything with width comes from the coverage rule, not a thickened DDA. (4) A coverage line also
-> needs a **cap-style** parameter (`linecompare`'s `C`): round caps (the capsule) make a thick line
-> grow *longer* — a semicircle of radius = half-thickness past each endpoint — while butt caps cut
-> flush, matching DDA's ends. Structural bands (a road meeting a junction, an edge touching a node)
-> want **butt**; brush strokes want round. Default butt for the canvas, like every 2D API's `lineCap`.
+> needs a **cap-style** parameter (`linecompare`'s `C` cycles three). *Round* caps (the capsule) make
+> a thick line grow *longer* — a semicircle of radius = half-thickness past each endpoint. *Butt* caps
+> cut flush (match DDA's ends) but can clip the tip pixels of a thick diagonal. *Square* is the useful
+> in-between: a rectangle extended a **fixed ~1px** past each end — always covers the endpoint pixels,
+> but the extension is *bounded* (doesn't grow with thickness like round does). Structural bands (a
+> road meeting a junction, an edge touching a node) want **butt or square**; brush strokes want round.
+> Default butt/square for the canvas, like every 2D API's `lineCap`.
 
 ## The design forks — decide these first
 
@@ -253,6 +256,19 @@ rotation-in-software until there's measured demand. (The "translation-camera-onl
 >   stable while rotating. So "kill Fork 2, do *all* rotation in software" overclaims; inverse
 >   mapping shrinks the hard part to stroked outlines, it doesn't erase it. Fork-2/C stays the
 >   recommendation; inverse mapping is the tool *inside* C if the rotating-fill demand ever shows up.
+
+> **Note — RotSprite is the quality knob for rotated *sprites* (a future opt-in, captured so it's
+> not lost).** Inverse-mapped nearest-neighbour rotation (above) is correct and gap-free, but on
+> low-res pixel-art sprites it jaggies and drops thin features — the same failure Aseprite's **"Fast"**
+> rotation has. Aseprite's other mode, **RotSprite**, is the known fix: upscale the sprite ~8× with
+> an edge-aware scaler, rotate *that*, then downscale — far cleaner rotated pixel art. For us it'd be
+> a CPU rotated-`spr` path that is also **bit-identical across devices** (the goal-B property GPU
+> rotation can't give). Two caveats keep it opt-in, not default: it **resamples** (invents in-between
+> pixels), which can clash with a crisp fantasy-console look, and it needs an ~8× temp buffer. So:
+> default = inverse-mapped nearest-neighbour (crisp, cheap, deterministic); **RotSprite = an opt-in
+> "smooth rotation" mode** for when a cart wants it. Only relevant once rotation runs in software at
+> all (Fork-2 demand); filed here as the answer for that day. (Algorithm: the "rotsprite" scaler, as
+> used by Aseprite/LibGDX.)
 
 ### Fork 3 — compositing (falls out of Fork 2)
 

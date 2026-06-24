@@ -1,11 +1,25 @@
 # Field-based road rendering — one distance field, every feature a threshold
 
-> **Genre: proven method (in `skewlab`) → queued basis for a streetlab refactor. NOT yet in
-> streetlab.** This is the home for "how we draw roads correctly at skew/curve, and the plan to adopt
-> it." The method is proven and committed in the `skewlab` cart; streetlab still uses the per-arm
-> approach (plus the interim fixes in [`streetlab-corner-symmetry-plan.md`](streetlab-corner-symmetry-plan.md)).
+> **Status: SHIPPED in streetlab as OPT-IN (2026-06-24).** The whole junction renders on the field
+> behind `DE_FIELD_ROADS` / the live `g` key — **default OFF**, so the per-arm `mirror_blit`/casing
+> route stays the shipping path. Covered: plain · skew · T · turn-lanes · typed cross-section
+> (median/bike/parking/sidewalk, incl. continuous bike corner-wrap) · mini-roundabout · free-right
+> (generous corner + concentric slip + pork-chop island). Verified by three gates — `road-check --all`
+> 16/16, `spec` 104/0, `mirror-diff` 0 kerb. Network view alone stays per-arm (its many curved edges
+> are the genuinely canvas-dependent case). **The refactor is essentially done here.**
+>
+> **What remains is deliberately deferred, NOT abandoned:** flipping the default to field-on and
+> deleting the old route (`mirror_blit`, casing pass, casing-fillet, `stroke_corner`/`fill_corner`
+> for plain corners, the banked `sline`) — the doc's "net removal of code" — happens only once the
+> [`software-canvas.md`](software-canvas.md) makes the per-pixel field fill cheap (the per-config A/B
+> baseline below is the number to beat). Decision: keep the old route as the shipping default until
+> then. (The software canvas is already in flight — `studio.c` Phase 0.)
+>
+> The method itself is proven in the `skewlab` cart (the reference); this doc is its home.
 > Companion to [`software-canvas.md`](software-canvas.md) (where per-pixel field rendering belongs)
 > and [`rasterization-consistency.md`](rasterization-consistency.md) (the coverage-outline precedent).
+> The interim fixes this supersedes (when the old route is finally removed) are in
+> [`streetlab-corner-symmetry-plan.md`](streetlab-corner-symmetry-plan.md).
 
 ## Why (the problem this solves)
 

@@ -27,6 +27,8 @@
 //   T   kerb thickness 1->2->3px (union method) — uniform at any angle via the coverage-diff
 //   K   full CROSS-SECTION: asphalt -> kerb -> SIDEWALK -> grass, all nested coverage bands —
 //       a "curb-like thing" that stays uniform-width + gap-free at any skew or curve
+//   L   LANE LINES: markings as offset bands on the same field (yellow centre + white lines),
+//       solid + consistent over the union at any skew/curve (dashing is a separate longitudinal layer)
 //   R   reset
 
 static int   method = 1;     // 0 = per-piece casing ; 1 = union outline
@@ -36,6 +38,7 @@ static float amp    = 22.f;  // centreline wiggle amplitude (curve mode)
 static int   HW     = 13;    // road half-width
 static int   kerbW  = 1;      // kerb (outline) thickness in px — uniform at ANY angle via coverage-diff
 static int   xsec   = 0;      // K: full cross-section (asphalt -> kerb -> SIDEWALK -> grass), nested bands
+static int   lanes  = 0;      // L: overlay LANE LINES as offset bands on the lateral field (markings)
 
 static float CX, CY;
 static int   strays, edgeMax;
@@ -71,10 +74,18 @@ static float dseg(int xx,int yy,int i){
     float t = L2>0 ? ((px-Ax[i])*dx+(py-Ay[i])*dy)/L2 : 0; if(t<0)t=0; if(t>1)t=1;
     float qx=Ax[i]+t*dx, qy=Ay[i]+t*dy; return hypotf(px-qx, py-qy);
 }
-static int inRoad(int xx,int yy,float hw){
-    for (int i=0;i<nSeg;i++) if (dseg(xx,yy,i) <= hw) return 1;
-    return 0;
+// ── THE FIELD (the portable interface). latDist = perpendicular distance to the NEAREST road
+// centreline. EVERY road feature below is a threshold on this one value — asphalt/kerb/sidewalk/
+// lane-lines. THIS is what ports to streetlab: streetlab computes the same field from its arm &
+// curve centrelines, then reuses the exact render rules. Only the field SOURCE differs per cart;
+// the rules don't get redone. (Dashes/stop-bars/arrows are NOT here: they need a LONGITUDINAL
+// coordinate or are per-approach semantics — a deliberately separate layer.) ──
+static float latDist(int xx,int yy){
+    float m = 1e9f;
+    for (int i=0;i<nSeg;i++){ float d=dseg(xx,yy,i); if (d<m) m=d; }
+    return m;
 }
+static int inRoad(int xx,int yy,float hw){ return latDist(xx,yy) <= hw; }
 
 void update(void){
     if (keyp('Z')) method ^= 1;
@@ -85,7 +96,8 @@ void update(void){
     if (keyp(KEY_DOWN))  { if(HW> 4)HW--; }
     if (keyp('T')) kerbW = kerbW%3 + 1;     // cycle kerb thickness 1->2->3px (union method)
     if (keyp('K')) xsec ^= 1;               // toggle the kerb+sidewalk cross-section (union method)
-    if (keyp('R')) { method=1; mode=0; skew=35; amp=22; HW=13; kerbW=1; xsec=0; }
+    if (keyp('L')) lanes ^= 1;              // toggle lane-line markings (offset bands on the field)
+    if (keyp('R')) { method=1; mode=0; skew=35; amp=22; HW=13; kerbW=1; xsec=0; lanes=0; }
 }
 
 void draw(void){
@@ -126,6 +138,19 @@ void draw(void){
         }
     }
 
+    // LANE LINES (markings) = offset bands on the SAME lateral field: a line at perpendicular
+    // distance d from the centreline (|lat-d|<0.5), drawn on asphalt only so it never fights the
+    // kerb. Yellow centre (d=0) + white divider + white kerb-side edge. One consistent set over the
+    // whole union at any skew/curve — this is the half that fixes streetlab's per-arm "double lines".
+    // SOLID by design: dashing needs a LONGITUDINAL coordinate (the deliberately-separate layer).
+    if (lanes && method==1){
+        float off[3] = { 0.f, HW*0.5f, (float)(HW-kerbW)-1.f }; int yel[3] = {1,0,0};
+        for (int y=24;y<SCREEN_H;y++) for (int x=0;x<SCREEN_W;x++){
+            float L = latDist(x,y); if (L > (float)(HW-kerbW)) continue;       // asphalt only
+            for (int k=0;k<3;k++) if (fabsf(L-off[k]) < 0.5f){ pset(x,y, yel[k]?CLR_YELLOW:CLR_WHITE); break; }
+        }
+    }
+
     // readouts (read the framebuffer): interior dark = a dark pixel with NO grass 4-neighbour
     // (a stray, not a real edge); edge thickness = longest vertical dark run sampled near a
     // road edge column.
@@ -150,5 +175,5 @@ void draw(void){
     print(buf, 210, 4, CLR_LIGHT_GREY);
     snprintf(buf,sizeof buf,"strays:%d  edge:%dpx  kerb:%dpx", strays, edgeMax, kerbW);
     print(buf, 210, 14, strays? CLR_RED : CLR_GREEN);
-    print("Z method  C skew/curve  <>ang/amp  ^v width  T kerb1-3  K kerb+walk  R reset", 4, SCREEN_H-8, CLR_DARK_GREY);
+    print("Z method C skew/curve <>ang/amp ^v width T kerb1-3 K kerb+walk L lanes R reset", 4, SCREEN_H-8, CLR_DARK_GREY);
 }

@@ -98,16 +98,52 @@ widths from urban-density, terraced rows (shared party walls), massing classes, 
     renderer** (block-centre test) before probing the room + furniture, so a point inside a
     building near a block edge no longer mis-reads as "farmland".
 
-### Open follow-ups (lowest priority)
+### Open follow-ups — the backlog (grab one)
 
-- **Per-flat front doors to the outside / shared stair**: tenement flats share an interior corridor
-  but the *building* still has one exterior entry; no stairwell between floors (single-storey plans).
-- **Terraced party walls**: adjacent terraced shells currently each draw windows on the shared wall
-  (no neighbour-awareness). Suppress windows on a wall shared with a touching neighbour.
+These are independent enough that a parallel agent can take any single bullet. Roughly ordered by
+depth-of-payoff, not difficulty.
+
+**Interiors / dwellings**
+
+- **Tenement walk-up finish**: flats share an interior corridor, but the *building* still has one
+  exterior entry and the plans are single-storey — no path from each flat to the outside, no
+  stairwell between floors. Give each flat its own route out, or model a stair.
+- **Multi-storey interiors**: massing already implies height on the *roof*, but peeling always shows
+  one floor. A floor selector / stacked plans (per-storey BSP) would be a big depth add — the
+  dollhouse becomes a section.
+- **Commercial / industrial interiors are thin**: they have no archetypes — just
+  shop/back-of-house/office/bay/storage with loop-drawn shelving. Extend the home system
+  (`arch_of` + `furnish_items` named pieces + signatures) to COM (boutique / mall / warehouse-store)
+  and IND (workshop / factory / depot) so non-residential buildings get the same character + hover.
+- **Terraced party walls**: adjacent terraced shells each draw windows on the shared wall (no
+  neighbour-awareness). Suppress windows on a wall shared with a touching neighbour.
 - **L/U footprints**: `plan`/roof are still rectangular shells (inherited from both parents).
-- **Water as a hard constraint for cities**: cities currently only avoid water via `world_kind_at`
-  returning wild on water/beach/rock; no quays/bridges (that's roadnet's job per the scope line).
-- A `spec()` once the compose logic is worth locking (cart-analyze ranks it).
+
+**Engineering**
+
+- **A `spec()`** to lock the compose chain (value → archetype → rooms → units → furniture): now
+  worth a deterministic gameplay-logic gate; `cart-analyze` ranks cityplan as a candidate.
+
+**Cross-pollination from `gridcity` / [`data-layers.md`](data-layers.md)** — gridcity is the
+*consequence-side* mirror of this *supply-side* generator: it derives land value bottom-up from
+crime / pollution / services / density with feedback, where cityplan's `value_at` is a static noise
+composite. Porting that causal model is the meatiest set of ideas:
+
+- **Causal value from zone-adjacency** (highest leverage, smallest change): make `value_at` factor
+  *neighbours* — **near industrial → value drops** (a pollution proxy), **near a park / plaza
+  (`stamp_prop`) / water → value rises**. A cheap distance-falloff from IND blocks and from greens.
+  Turns the archetype map from arbitrary noise into a legible story (mansions by the water/parks,
+  tenements by the factories).
+- **Development level / vacancy**: gridcity's "living" trick — lots grow empty → built-up and
+  *decline* under bad conditions. cityplan buildings are always finished; a per-lot development
+  level (driven by value) would add vacant lots, half-built frames, and boarded-up/abandoned
+  buildings in declining districts, so "low value" means more than just smaller/drabber.
+- **Civic & service buildings as a kind**: cityplan has only R/C/I. Add police/school/hospital/park
+  landmarks (gridcity has them with coverage radii) and let proximity to them lift value (per the
+  causal-value bullet) — giving value hotspots a visible cause.
+- **More field overlays**: cityplan computes decay/fertility/density/value but only overlays a few;
+  add a pollution / industrial-proximity overlay so the causal field above is *visible* (gridcity
+  overlays ~11 layers).
 
 ## Where it came from
 

@@ -441,7 +441,7 @@ void init(void){ seed_city(); colorkey(0); }   // index 0 = transparent for the 
 static const int BR_VAL[] = { K_LAND, K_ROAD, K_WATER, K_R, K_C, K_I, K_POLICE,
                               K_PARK, K_SCHOOL, K_HOSPITAL, K_PLANT, K_FIRESTN, K_PUMP, B_IGNITE };
 static const char *BR_TIP[] = { "erase","road","water","R zone","C zone","I zone","police",
-                                "park","school","hospital","power plant","fire stn","water pump","ignite" };
+                                "park","school","hospital","power","fire stn","pump","ignite" };
 #define NBR    14                     // brush buttons
 #define NTOOL  15                     // + the dense toggle (slot 14)
 #define TLBX   4
@@ -631,7 +631,8 @@ void draw(void){
       hy+=3*8+3;
     }
     print(str("EQ %d   LE %d", eduQ, lifeE), HUDX, hy, CLR_LIGHT_GREY); hy+=8;
-    print(str("ticks %ld", ticks), HUDX, hy, CLR_LIGHT_GREY);
+    print(str("ticks %ld", ticks), HUDX, hy, CLR_LIGHT_GREY); hy+=8;
+    font(FONT_SMALL); print("SPACE = reseed city", HUDX, hy, CLR_DARK_GREY); font(FONT_NORMAL);
 
     // ── brush toolbar: cute clickable icons under the grid ──
     // active brush = white frame + yellow halo; dense toggle lights when on; hover = light frame
@@ -644,14 +645,14 @@ void draw(void){
         rect(bx-1,by-1,TLBSZ+2,TLBSZ+2, sel?CLR_WHITE:(i==hov_tool?CLR_LIGHT_GREY:CLR_DARKER_GREY));
         if(sel) rect(bx-2,by-2,TLBSZ+4,TLBSZ+4,CLR_YELLOW);
     }
-    // tooltip (hovered tool) + the reseed hint, in the free space right of the toolbar
-    font(FONT_SMALL);
-    int tx = TLBX + TLBCOLS*TLBP + 6;
-    if(hov_tool>=0)
-        print(hov_tool==NBR ? (brush_dense?"dense: on":"dense: off") : BR_TIP[hov_tool],
-              tx, TLBY+3, CLR_YELLOW);
-    print("SPACE reseed", tx, TLBY+TLBP+3, CLR_DARK_GREY);
-    font(FONT_NORMAL);
+    // hovered-tool name in the gap right of the toolbar (transient — only on hover,
+    // so nothing persistent sits next to the stats column at HUDX)
+    if(hov_tool>=0){
+        font(FONT_SMALL);
+        print(hov_tool==NBR ? (brush_dense?"dense on":"dense off") : BR_TIP[hov_tool],
+              TLBX + TLBCOLS*TLBP + 4, TLBY+4, CLR_YELLOW);
+        font(FONT_NORMAL);
+    }
 }
 
 #ifdef DE_SPEC

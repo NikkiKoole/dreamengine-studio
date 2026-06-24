@@ -302,6 +302,12 @@ rotation-in-software until there's measured demand. (The "translation-camera-onl
 > > sprite rotation to software loses nothing and adds determinism; and **RotSprite is a strict upgrade
 > > for real sprite content** (outlines, connected detail) that the GPU can't easily do — confirming it
 > > as the opt-in quality mode, with the honest caveat that it's about lines/shape, not lone specks.
+> > **Size threshold (`textrot`, 8px "E"):** RotSprite's edge-aware upscale needs material to work with
+> > — at ≤~8px all three methods are about equally rough, and nearest is the better default there
+> > (cheapest, deterministic with quantized trig, and best at lone specks). RotSprite only pays off at
+> > **≥~16px**. So the policy is: **tiny rotated sprites/glyphs → nearest; ≥16px → RotSprite (opt-in)**;
+> > and the real fix for tiny rotated *text* is to draw it bigger (`print_rot_scaled`), not to rotate a
+> > tiny glyph at all.
 
 ### Fork 3 — compositing (falls out of Fork 2)
 
@@ -349,11 +355,22 @@ Graduated labour:
   > gap=0` via the top-left rule), (3) a rotated outline that stays **1 connected component at all
   > 360°** (`rotstroke`). FMA contraction is a non-issue (`-ffp-contract=on/fast/off` all agree —
   > the divides leave nothing to fuse). **So goal B does NOT force a fixed-point rewrite** — the
-  > existing float code is device-stable. The one rule it surfaces: **never `-ffast-math`** (it
-  > shifts the result — consistently across platforms, but a footgun if the native and web builds
-  > disagree on the flag). What's still *un*proven is the hard part — *fill-vs-bounding-outline*
-  > pixel agreement (one coverage convention across all primitives); each probe passes in isolation
-  > by picking its own. See `tools/det-probes/README.md`.
+  > existing float code is device-stable. Two rules it surfaces:
+  > - **Never `-ffast-math`** (it shifts the result — consistently across platforms, but a footgun if
+  >   the native and web builds disagree on the flag).
+  > - **Rotation must use a quantized/shared `sin`/`cos`, not bare libm.** A later probe (`textrot`)
+  >   found raw `cosf`/`sinf` differ ~1 ULP across arm64/x86/wasm; for *integer-endpoint* rotation
+  >   that washes out, but for *per-pixel* rotation (rotated fills/sprites/text) it flips a pixel and
+  >   breaks bit-identity — invisible at large scales, visible on an 8px glyph. Fix: quantize the
+  >   matrix (`c = roundf(cosf(a)*4096)/4096`). The non-rotated Phase-0 path uses no trig, so it's
+  >   unaffected; this only constrains the Fork-2 rotation work.
+  >
+  > Subsequent probes extended the result to the full rotation family — `rotfill` (inverse-mapped
+  > fills gap-free), `rotline` (crisp rotated strokes uniform+connected), `rotspr`/`textrot` (rotated
+  > sprites/text; RotSprite for quality) — all bit-identical (with quantized trig). What's still
+  > *un*proven is the hard part — *fill-vs-bounding-outline* pixel agreement (one coverage convention
+  > across all primitives); each probe passes in isolation by picking its own. See
+  > `tools/det-probes/README.md`.
 - The scale-up to the window stays GPU (`UpdateTexture` RGBA + `DrawTexturePro` nearest-neighbour),
   so crisp pixel scaling is untouched.
 

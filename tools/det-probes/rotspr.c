@@ -68,7 +68,9 @@ static int components(unsigned char *g){
     return comps;
 }
 static void render(float a){
-    float c=cosf(a),s=sinf(a),cx=DW*0.5f,cy=DH*0.5f,ox=SS*0.5f,oy=SS*0.5f;
+    // quantize rotation matrix (see textrot.c): raw libm cosf/sinf diverge ~1 ULP across arches.
+    float c=roundf(cosf(a)*4096.f)/4096.f, s=roundf(sinf(a)*4096.f)/4096.f;
+    float cx=DW*0.5f,cy=DH*0.5f,ox=SS*0.5f,oy=SS*0.5f;
     for(int i=0;i<DW*DH;i++){ dN[i]=0; dS[i]=0; dR[i]=0; }
     for(int i=0;i<SS*SS;i++) hit[i]=0;
     for(int py=0;py<DH;py++) for(int px=0;px<DW;px++){

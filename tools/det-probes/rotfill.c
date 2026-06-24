@@ -30,7 +30,10 @@ int main(void){
     uint64_t h=1469598103934665603ULL;
     for(int deg=0; deg<360; deg++){
         for(int i=0;i<W*H;i++){ inv[i]=0; fwd[i]=0; }
-        float a=deg*3.14159265f/180.f, c=cosf(a), s=sinf(a);
+        // quantize the rotation matrix to 1/4096 — libm cosf/sinf differ ~1 ULP across arm64/x86/wasm,
+        // which flips per-pixel floor/compare and breaks determinism (see textrot.c). Round c/s to fix.
+        float a=deg*3.14159265f/180.f;
+        float c=roundf(cosf(a)*4096.f)/4096.f, s=roundf(sinf(a)*4096.f)/4096.f;
         // INVERSE: each dest pixel -> rotate back -> inside test (gap-free by construction).
         for(int py=0;py<H;py++) for(int px=0;px<W;px++){
             float dx=px+0.5f-cx, dy=py+0.5f-cy;

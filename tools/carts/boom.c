@@ -1123,15 +1123,17 @@ void reset_world(void) {
 
     // a demo fuse: a gasoline trail running into a little cluster of explosives,
     // down in the open at the bottom — torch the far end and the flame races in
+    // (x30..49 is one unbroken stretch of grass — clear of the vertical road at
+    // x26-27, the pond, and the buildings — so the flame actually reaches the end)
     {
         int fy = GH - 5;
-        for (int x = 22; x < 44 && x < GW; x++)
+        for (int x = 30; x <= 49 && x < GW; x++)
             if (fy >= 0 && fy < GH && W[IDX(x, fy)].mat == MAT_GRASS) {
                 W[IDX(x, fy)].mat = MAT_GAS; W[IDX(x, fy)].fuel = (unsigned char)MAT_FUEL[MAT_GAS];
             }
         for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 3; dx++) {
-            int x = 44 + dx, y = fy - 1 + dy;
-            if (x >= 0 && x < GW && y >= 0 && y < GH) {
+            int x = 50 + dx, y = fy - 1 + dy;
+            if (x >= 0 && x < GW && y >= 0 && y < GH && W[IDX(x, y)].mat == MAT_GRASS) {
                 W[IDX(x, y)].mat = MAT_TNT; W[IDX(x, y)].fuel = (unsigned char)MAT_FUEL[MAT_TNT];
             }
         }

@@ -173,6 +173,7 @@ typedef struct {
     bool  drift, offtrack;
     int   prog, cp, lap;       // prog = nearest sample on THIS car's road; cp = last checkpoint 0..3
     int   road;                // 0 = the loop (cl[]), 1 = the cross-road (cl2[]) — Phase B
+    int   lastx;               // last crossing this car made a turn-decision at (-1) — the routing seed
     int   pers;                // personality index into PERS[] (AI only)
     float wob;                 // rookie wobble phase
     float mass;                // collision weight (player 1.0; AI from PERS[].mass)
@@ -230,6 +231,7 @@ STATE {
     V2    cl[NSAMP];           // centre line (world)
     V2    nl[NSAMP];           // unit normals
     bool  cross;               // PHASE A: draw a straight cross-road through the loop (geometry only — no cross-traffic yet)
+    bool  reroute;             // ROUTING SEED: AI cars may turn onto the other track at a crossing
     V2    cl2[NSAMP2];         // cross-road centre line (straight L→R, world)
     V2    nl2[NSAMP2];         // cross-road unit normals (constant — straight road)
     float seg_len2;            // avg world distance between adjacent cl2[] samples (px)
@@ -516,7 +518,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->ang = atan2_deg(S->cl[(s+1)%NSAMP].y - S->cl[(s-1+NSAMP)%NSAMP].y,
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     c->vx = 0; c->vy = 0; c->spd = 0;
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
     c->lane = c->want_lane = lane_at(lateral);
@@ -534,7 +536,7 @@ static void put_car_in_traffic(Car *c, int slot) {
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     float v0 = (slot == 0) ? 0.0f : MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -550,7 +552,7 @@ static void put_car_on_cross(Car *c, int prog0, int lane) {
     c->ang = atan2_deg(ahead.y - behind.y, ahead.x - behind.x);   // tangent along the loop
     float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1;
+    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1; c->lastx = -1;
     c->drift = false; c->wob = (float)lane * 7.0f; c->place = 0;
     c->mass = PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -571,6 +573,7 @@ static void put_all_at_start(void) {
         for (int k = 0; k < REACT_N; k++) S->car[i].thist[k] = 0.0f;
         S->car[i].thead = 0;
     }
+    S->reroute = S->traffic && S->cross;                 // routing seed on by default with two tracks
     // PHASE B: a second stream of cars on the cross-road (TRAFFIC + CROSS only),
     // packed into car[ncars .. ncars+ncross). They follow cl2[] via the same brain.
     S->ncross = (S->traffic && S->cross && S->nx > 0) ? TRAFFIC_CROSS : 0;
@@ -1001,6 +1004,33 @@ static float crossing_yield_gap(Car *c, int idx) {
     return best;
 }
 
+// ROUTING SEED — the two crossing loops are a tiny 2-edge network: at a crossing an AI car
+// may TURN onto the other track instead of going straight. Called after step_car (so prog is
+// fresh) for AI traffic cars only — the player never auto-switches (keeps control). The
+// reservation already cleared the car to be in the box, so turning on the way out is safe;
+// we just release the reservation we held and snap onto the other track.
+static void maybe_switch_loops(Car *c, int idx) {
+    if (!S->reroute || !S->cross || S->nx == 0) return;
+    for (int k = 0; k < S->nx; k++) {
+        int xprog = c->road ? S->xpt[k].prog2 : S->xpt[k].prog1;
+        int d = prog_ahead(c->road, c->prog, xprog);     // signed samples to this crossing
+        if (d > 0 || d < -2) continue;                   // only right as we pass the crossing sample
+        if (c->lastx == k) return;                       // already decided this pass
+        c->lastx = k;
+        // ~3/8 of passes turn onto the other track (deterministic per car+crossing+lap → varied,
+        // reproducible). A real road graph replaces this with a route; here it's a coin flip.
+        unsigned h = (unsigned)idx*2654435761u + (unsigned)k*40503u + (unsigned)c->lap*2246822519u;
+        if (((h >> 13) & 7u) < 3u) {
+            if (S->xowner[k] == idx) S->xowner[k] = -1;  // release the junction I held (I'm leaving it)
+            c->road = !c->road;
+            c->prog = c->road ? S->xpt[k].prog2 : S->xpt[k].prog1;   // the crossing sample on the new track
+            V2 a = road_cl(c->road, c->prog + 1), b = road_cl(c->road, c->prog - 1);
+            c->ang = atan2_deg(a.y - b.y, a.x - b.x);     // face along the new track
+        }
+        return;
+    }
+}
+
 // TRAFFIC brain: hold your lane, follow the car ahead (IDM-style), and OVERTAKE —
 // when stuck behind a slower car, pull into an adjacent clear lane to pass. A
 // following car brakes to a stop but never reverses. At a crossing, the give-way
@@ -1201,11 +1231,13 @@ void update(void) {
         if (S->traffic) drive_ai_traffic(&S->car[i], i, &turn, &thr, &dr);
         else            drive_ai(&S->car[i], i, &turn, &thr, &dr);
         step_car(&S->car[i], turn, thr, dr);
+        if (S->traffic) maybe_switch_loops(&S->car[i], i);  // routing seed: turn onto the other track at a crossing
     }
     for (int i = S->ncars; i < S->ncars + S->ncross; i++) { // the second track's stream (loops, like track 1)
         float turn, thr; bool dr;
         drive_ai_traffic(&S->car[i], i, &turn, &thr, &dr);
         step_car(&S->car[i], turn, thr, dr);
+        maybe_switch_loops(&S->car[i], i);
     }
     resolve_collisions();
     S->shake *= 0.82f;
@@ -1758,6 +1790,7 @@ void spec(void) {
     //    expected here — that's what the right-of-way phase resolves. ──
     S->traffic = true; S->cross = true;
     put_all_at_start();
+    S->reroute = false;                              // test the basic stream without track-switching
     expect(S->ncross > 0, "two tracks: a stream spawns on the second track");
 
     int prog0b[CARS_MAX];                             // each car's prog before stepping
@@ -1772,10 +1805,10 @@ void spec(void) {
     expect(advanced >= S->ncross - 3, "two tracks: the second-track stream makes forward progress");
     expect(vmaxc > 0.5f, "two tracks: the second track flows (a car is moving)");
 
-    // each second-track car holds its road (its road field stays 1, never swapped)
+    // with re-routing OFF, a second-track car holds its road (never swaps)
     int on_cross = 0;
     for (int i = S->ncars; i < S->ncars + S->ncross; i++) if (S->car[i].road == 1) on_cross++;
-    expect_eq(on_cross, S->ncross, "two tracks: every second-track car stays on its track");
+    expect_eq(on_cross, S->ncross, "two tracks: with reroute off, every second-track car stays on its track");
 
     // ── right-of-way: priority-road rule. Over a long run, a track-1 car and a
     //    track-2 car NEVER collide (no T-bones) — measured as actual car-BODY overlap
@@ -1838,5 +1871,30 @@ void spec(void) {
         expect_eq(collisions, 0, "reservation: no cross-track collision over a long run (every seed)");
         expect(moving >= 4, "reservation: no gridlock — cars still moving after a long run (every seed)");
     }
+
+    // ── routing seed: with reroute ON, cars TURN onto the other track at crossings (the
+    //    two loops become a tiny network), and it stays crash-free. Count how many cars end
+    //    up on a track different from the one they spawned on. ──
+    gen_track(0x1234u);
+    S->traffic = true; S->cross = true;
+    put_all_at_start();                              // sets reroute = true
+    int spawn_road[CARS_MAX];
+    for (int i = 0; i < S->ncars + S->ncross; i++) spawn_road[i] = S->car[i].road;
+    int rcollisions = 0;
+    for (int chunk = 0; chunk < 200; chunk++) {     // 1200 frames
+        step(6);
+        for (int a = 0; a < S->ncars; a++)
+            for (int b = S->ncars; b < S->ncars + S->ncross; b++) {
+                float rx = S->car[b].px - S->car[a].px, ry = S->car[b].py - S->car[a].py;
+                if (rx*rx + ry*ry >= (2.0f*CAR_HALF_L)*(2.0f*CAR_HALF_L)) continue;
+                float fwd = rx*dx(1,S->car[a].ang) + ry*dy(1,S->car[a].ang);
+                float lat = rx*dx(1,S->car[a].ang+90) + ry*dy(1,S->car[a].ang+90);
+                if ((fwd<0?-fwd:fwd) < 2.0f*CAR_HALF_L && (lat<0?-lat:lat) < 2.0f*CAR_HALF_W) rcollisions++;
+            }
+    }
+    int switched = 0;
+    for (int i = 0; i < S->ncars + S->ncross; i++) if (S->car[i].road != spawn_road[i]) switched++;
+    expect(switched >= 3, "routing: cars turn onto the other track at crossings (the 2 loops route)");
+    expect_eq(rcollisions, 0, "routing: still no cross-track collision with re-routing on");
 }
 #endif

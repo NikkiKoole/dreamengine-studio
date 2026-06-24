@@ -25,12 +25,14 @@ function ic_chase() {
 }
 
 // DRIFT — two parallel tyre skid marks (the universal drift/skid symbol).
+// Light grey so they read on the dark button plate (black-on-black vanished).
 function ic_drift() {
   const g = blank()
-  // mark 1 (S-curve, black)
-  line(g, 2, 13, 6, 8, 16); line(g, 6, 8, 10, 10, 16); line(g, 10, 10, 14, 4, 16)
+  const C = 6   // light grey
+  // mark 1 (S-curve)
+  line(g, 2, 13, 6, 8, C); line(g, 6, 8, 10, 10, C); line(g, 10, 10, 14, 4, C)
   // mark 2 (parallel, offset down)
-  line(g, 2, 15, 6, 10, 16); line(g, 6, 10, 10, 12, 16); line(g, 10, 12, 14, 6, 16)
+  line(g, 2, 15, 6, 10, C); line(g, 6, 10, 10, 12, C); line(g, 10, 12, 14, 6, C)
   return flat(g)
 }
 

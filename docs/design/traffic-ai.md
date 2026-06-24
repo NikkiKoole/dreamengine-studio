@@ -13,9 +13,18 @@ with speed, fixed ~49px turn radius), so it shuffles reverse/forward **confined 
 around its pivot (`KT_REACH`), nose rotating toward the road tangent, until realigned — instead of
 sweeping one big forward circle. Gated hard so it never disturbs flow: only when truly stopped +
 wrong-way + wanting to go + the maneuver disk is clear + ≥80px from any junction; it bails to normal
-driving the instant another car intrudes. Spec (59 assertions) covers closing→brake,
+driving the instant another car intrudes. A **stopped player no longer freezes traffic**: cars behind
+GO AROUND a parked/stalled car from a standstill (the normal overtake only fires while rolling — a car
+that came to a full stop behind a blocker could never re-initiate the lane change, so it sat forever).
+Two parts: (1) a car jammed behind the *stopped player* pulls into a clear lane even on a curve, and
+follows the lane it's *entering* (not the blocked one it's leaving) so the blocker stops pinning it;
+(2) a player parked *on a crossing* no longer leaves the junction permanently ungranted — same-road
+cars may still claim it and route around him (cross-road cars keep yielding, or they'd T-bone the
+parked player). Both gated to "the blocker is the stopped player," so dense AI-vs-AI traffic + the
+crash-free reservation are untouched. Spec (62 assertions) covers closing→brake,
 clear→accelerate, blocked→change-lane, flow, no box-overlap, red-builds-a-queue / no-bolt /
-no-reverse, stop-and-go spread, the **K-turn** (reverses, realigns, stays in place not a big circle),
+no-reverse, stop-and-go spread, **flow-around** (a stopped player gets overtaken on open road, and
+isn't a total deadlock parked on a junction), the **K-turn** (reverses, realigns, stays in place not a big circle),
 the **second-track crossing** (geometry/crossings; stream spawns + flows; right-of-way reservation —
 no T-bones by construction, no gridlock, both tracks flow, across 4 seeds), a **routing seed**
 (cars turn onto the other track at crossings — the 2 loops become a tiny network), and a **chase**

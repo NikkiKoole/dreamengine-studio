@@ -573,6 +573,24 @@ static void put_car_on_cross(Car *c, int prog0, int lane) {
     c->thead = 0;
 }
 
+#ifdef DE_SPEC
+// place a car on the LOOP (road 0) at sample `prog0`, in `lane`, stopped — spec helper for
+// the flow-around test (an arbitrary spot/lane, unlike put_car_in_traffic's slot grid).
+static void put_car_on_loop(Car *c, int prog0, int lane) {
+    float loff = lane_offset(lane);
+    V2 cc = road_cl(0, prog0), nn = road_nl(0, prog0);
+    V2 ahead = road_cl(0, prog0 + 1), behind = road_cl(0, prog0 - 1);
+    c->px = cc.x + nn.x * loff; c->py = cc.y + nn.y * loff;
+    c->ang = atan2_deg(ahead.y - behind.y, ahead.x - behind.x);
+    c->spd = 0; c->vx = 0; c->vy = 0;
+    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0;
+    c->lastx = -1; c->target = -1; c->reckless = false; c->kt = 0; c->drift = false;
+    c->lane = c->want_lane = lane;
+    for (int k = 0; k < REACT_N; k++) c->thist[k] = 0.0f;
+    c->thead = 0;
+}
+#endif
+
 static void put_all_at_start(void) {
     S->ncars = S->traffic ? TRAFFIC_CARS : RACE_CARS;
     // With a cross-road active, thin the loop crowd so real gaps open for the give-way
@@ -966,17 +984,20 @@ static void update_reservations(void) {
             if (d < -(Rocc + CAR_HALF_L) || d > XBOX_LOOK || S->xtimer[k] > XHOLD_MAX) S->xowner[k] = -1;
             else continue;                               // still held
         }
-        // the PLAYER is a manually-driven car — it parks, wanders, drives off, so it must
-        // never HOLD a junction (it would starve everyone). Instead AI treat it as a moving
-        // obstacle: while it sits physically in the box, leave the crossing free so every AI
-        // (which only enters a junction it owns) yields to it.
+        // the PLAYER is a manually-driven car — it parks, wanders, drives off, so it must never
+        // HOLD a junction (it would starve everyone). While it sits physically in the box, the AI
+        // treat it as an obstacle to ROUTE AROUND, not a wall: a car on the player's OWN road may
+        // still claim the crossing and go around him in a parallel lane (the standstill go-around);
+        // only CROSS-road cars must keep yielding — driving through would T-bone the parked player.
+        bool player_in_box = false;
         { float prx = S->car[0].px - S->xpt[k].p.x, pry = S->car[0].py - S->xpt[k].p.y;
-          if (prx*prx + pry*pry < occ*occ) continue; }
+          if (prx*prx + pry*pry < occ*occ) player_in_box = true; }
 
         // ── free: grant to the best approaching AI candidate (claim score), if its exit is clear
         int best = -1; float bestscore = -1e9f;
         for (int i = 1; i < total; i++) {                // skip the player (i == 0): AI cars only
             Car *c = &S->car[i];
+            if (player_in_box && c->road != S->car[0].road) continue;  // cross-road yields to the parked player
             float d = xing_dist(c, k);
             if (d <= 0 || d > XAPPROACH) continue;       // not approaching / not close enough yet
             // exit-clear: don't grant if a stopped car sits just past the junction (would stall in box)
@@ -1159,14 +1180,38 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
     float vlead, s = lead_gap(c, idx, &vlead);
     int why = (s < 1e8f) ? WHY_FOLLOW : WHY_CRUISE;      // debug: what's limiting me (tracked as s shrinks)
 
-    // OVERTAKE: blocked by a slower CAR (not a light) and not mid-bend? pull into a
-    // clear lane. Decided on the real leader — you can't lane-change around a red.
+    // OVERTAKE: blocked by a slower CAR (not a light)? pull into a clear lane. Decided on the
+    // real leader — you can't lane-change around a red. Two cases:
+    //   ROLLING — passing a slower car while still moving, only on a straight-ish stretch.
+    //   JAMMED  — stopped dead behind the PARKED PLAYER (he sat down in the lane, maybe on a
+    //             junction): GO AROUND him instead of waiting forever, even on a curve. Gated to
+    //             "blocker IS the stopped player" so dense AI-vs-AI traffic + the junction
+    //             reservation are completely untouched (that's where squeezing causes T-bones).
     float ssafe0 = TG_GAP0 + v * TG_HEAD;
-    if (S->nlanes > 1 && v > 0.5f && bendn < 0.4f && s < ssafe0 * 1.4f && vlead < v0 * 0.85f) {
+    bool blocked_by_car = s < ssafe0 * 1.4f && vlead < v0 * 0.85f;
+    bool player_blocks = false;                          // is the stopped player right in front, my lane?
+    if (idx != 0) {
+        Car *pl = &S->car[0]; float pv = pl->spd < 0 ? -pl->spd : pl->spd;
+        if (pl->road == rd && pl->lane == c->lane && pv < 0.3f) {
+            int dd = prog_ahead(rd, c->prog, pl->prog);
+            if (dd > 0 && dd * road_seg(rd) < ssafe0 * 1.6f) player_blocks = true;
+        }
+    }
+    bool rolling = v > 0.5f && bendn < 0.4f && blocked_by_car;
+    bool jammed  = v < 0.6f && player_blocks;
+    if (S->nlanes > 1 && (rolling || jammed)) {
         for (int dl = -1; dl <= 1; dl += 2) {
             int nl = c->want_lane + dl;
             if (nl >= 0 && nl < S->nlanes && lane_clear(c, idx, nl)) { c->want_lane = nl; break; }
         }
+    }
+    // JAMMED behind the player + committed to a lane change? follow the lane I'm ENTERING, not the
+    // one I'm leaving, so the player dead ahead in my old lane stops pinning me (else I brake for
+    // him forever and can never pull out — steering needs speed). Only this exact case is affected.
+    if (jammed && c->want_lane != c->lane) {
+        int save = c->lane; c->lane = c->want_lane;
+        float vl2, s2 = lead_gap(c, idx, &vl2); c->lane = save;
+        if (s2 > s) { s = s2; vlead = vl2; why = (s < 1e8f) ? WHY_FOLLOW : WHY_CRUISE; }
     }
 
     // a RED light ahead is a stopped "leader" parked at the stop line (it spans all
@@ -2138,6 +2183,65 @@ void spec(void) {
     float rxe = cop->px - ppx, rye = cop->py - ppy;
     float de = fsqrt(rxe*rxe + rye*rye), ve = cop->spd < 0 ? -cop->spd : cop->spd;
     expect(de < 40.0f && ve < 0.6f, "chase: a cop PARKS on the suspect (close and stopped), not circling");
+
+    // ── flow-around: a STOPPED player must not freeze traffic — cars behind go around it
+    //    (overtake from a standstill). Park the player as a dead obstacle in lane 0 and line
+    //    cars up behind it; they should pass, not pile up forever. ──
+    gen_track(0x1234u);
+    S->traffic = true; S->cross = true;
+    put_all_at_start();
+    S->nx = 0; S->light = -1; S->reroute = false;
+    for (int i = 0; i < S->ncars + S->ncross; i++) {  // park everyone far away
+        S->car[i].px = -9000.0f - i*80.0f; S->car[i].py = -9000.0f;
+        S->car[i].prog = 9000; S->car[i].spd = 0; S->car[i].lane = S->car[i].want_lane = 9;
+        S->car[i].reckless = false; S->car[i].target = -1; S->car[i].road = 0; S->car[i].offtrack = false;
+    }
+    { int pprog = 200;
+      put_car_on_loop(&P, pprog, 0); P.spd = 0;        // player: a dead car in lane 0
+      float ppx = P.px, ppy = P.py;
+      int nq = 5;                                       // five cars queued behind, lane 0
+      for (int i = 1; i <= nq; i++) put_car_on_loop(&S->car[i], pprog - 14*i, 0);
+      for (int f = 0; f < 360; f++) {                  // pin the player as a fixed obstacle
+          P.spd = 0; P.px = ppx; P.py = ppy; P.prog = pprog; P.lane = P.want_lane = 0;
+          step(1);
+      }
+      int passed = 0; float vsum = 0;
+      for (int i = 1; i <= nq; i++) {
+          if (prog_ahead(0, pprog, S->car[i].prog) > 5) passed++;       // got past the player
+          vsum += S->car[i].spd < 0 ? -S->car[i].spd : S->car[i].spd;
+      }
+      expect(passed >= 3, "flow-around: a stopped player gets overtaken — cars go around, not pile up");
+      expect(vsum > 1.0f, "flow-around: traffic is still flowing after passing (not deadlocked behind the player)");
+    }
+
+    // ── flow-around AT A JUNCTION: the player parks right on a crossing (the screenshot bug).
+    //    Cars behind on the same loop must still get past — not pile up + spill onto the grass. ──
+    gen_track(0x1234u);
+    S->traffic = true; S->cross = true;
+    put_all_at_start();
+    S->light = -1; S->reroute = false;
+    for (int i = 0; i < S->ncars + S->ncross; i++) {
+        S->car[i].px = -9000.0f - i*80.0f; S->car[i].py = -9000.0f;
+        S->car[i].prog = 9000; S->car[i].spd = 0; S->car[i].lane = S->car[i].want_lane = 9;
+        S->car[i].reckless = false; S->car[i].target = -1; S->car[i].road = 0; S->car[i].offtrack = false;
+    }
+    if (S->nx > 0) {
+      int pprog = S->xpt[0].prog1;                      // park the player ON the crossing
+      put_car_on_loop(&P, pprog, 0); P.spd = 0;
+      float ppx = P.px, ppy = P.py;
+      int nq = 5;
+      for (int i = 1; i <= nq; i++) put_car_on_loop(&S->car[i], pprog - 14*i, 0);
+      for (int f = 0; f < 720; f++) {
+          P.spd = 0; P.px = ppx; P.py = ppy; P.prog = pprog; P.lane = P.want_lane = 0;
+          step(1);
+      }
+      int passed = 0;
+      for (int i = 1; i <= nq; i++)
+          if (prog_ahead(0, pprog, S->car[i].prog) > 5) passed++;
+      // a player parked ON a crossing DOES block it (realistic) — but it must not be a TOTAL
+      // freeze: cars squeeze around him one-by-one, so several get past over time.
+      expect(passed >= 2, "flow-around@junction: cars get past a player parked on a crossing (not a total deadlock)");
+    }
 
     // ── scatter: a civilian yields (brakes) when a reckless car (cop) is right beside it. ──
     gen_track(0x1234u);

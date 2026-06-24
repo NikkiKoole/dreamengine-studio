@@ -560,6 +560,20 @@ static void furnish(const Room *rm, float value) {
     if (iw < 4 || ih < 4) return;
     int cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     bool rich = value > 0.50f, lux = value > 0.78f;        // extra furniture as the home gets nicer
+    // background clutter — small accent props (plants, stools, toys) drawn UNDER the core
+    // furniture; count scales with room area so big rooms fill with MORE pieces, not bigger ones
+    int lb = rm->label;
+    if (lb == RM_LIVING || lb == RM_DINING || lb == RM_STUDY || lb == RM_BED || lb == RM_KIDS) {
+        int dens = rich ? 3 : 5;                            // keep ~1/dens of the grid cells
+        for (int yy = iy + 1; yy < iy + ih - 2; yy += 6)
+            for (int xx = ix + 1; xx < ix + iw - 2; xx += 6) {
+                unsigned g = hash2(xx * 5 + (int)(value * 97), yy * 9 + lf_seed);
+                if (g % dens) continue;
+                int col = (lb == RM_KIDS) ? (int[]){ CLR_RED, CLR_YELLOW, CLR_BLUE }[(g >> 4) % 3]
+                                          : (int[]){ CLR_DARK_BROWN, CLR_DARKER_GREY, CLR_DARK_BROWN, CLR_DARK_GREEN }[(g >> 4) % 4];
+                rectfill(xx, yy, 2, 2, col);
+            }
+    }
     switch (rm->label) {
         case RM_BED: {
             int bw = iw * 3 / 5; rectfill(ix, iy, bw, ih / 2, CLR_INDIGO); rectfill(ix + 1, iy + 1, bw - 2, 2, CLR_LIGHT_PEACH);  // bed + pillow

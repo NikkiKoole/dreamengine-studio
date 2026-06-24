@@ -108,10 +108,29 @@ be coalesced.
 > `profile-fleet.js` runs each cart headless under `play.js` and reads `workMsAvg`/draw-call counts
 > from `perf.json`; it inherits the environment, so `DE_SOFTWARE_CANVAS=on` reaches the cart binary.
 > Gotchas: (1) **zsh doesn't word-split an unquoted `$VAR`** — pass cart names inline or use
-> `${=VAR}`, else the whole list is taken as one cart name and every run "SKIP"s. (2) **Pick
-> rotation-free carts** — anything calling `spr_rot`/`sspr_ex(deg)`/`rectfill_rot`/`camera_ex(angle)`
-> trips `sw_force_gpu` and you'd be timing the GPU path under an `=on` flag. (3) Two runs minimum;
-> `workMsAvg` swings ~20% and `max` is dominated by one-frame startup spikes.
+> `${=VAR}`, else the whole list is taken as one cart name and every run "SKIP"s. (2) **Avoid carts
+> that call `camera_ex(angle≠0)`** — only a rotating *camera* still trips `sw_force_gpu` now (rotated
+> *primitives* render in SW since 2026-06-25), so you'd be timing the GPU path under an `=on` flag.
+> (3) Two runs minimum; `workMsAvg` swings ~20% and `max` is dominated by one-frame startup spikes.
+
+> **Rotation-cart fleet A/B (2026-06-25, after the rotation port).** Now that rotated primitives run
+> in software, the carts that previously force_gpu'd can finally be measured — this is **what software
+> rotation costs vs free GPU geometry transform** (workMsAvg, ~avg of two 120-frame runs):
+>
+> | cart | GPU | canvas | effect | why |
+> |---|---|---|---|---|
+> | `drawall` | ~1.35 | **~0.67** | **2.0×** ✅ | fill/pset/blit-heavy — rotation is a small slice |
+> | `cityview` | ~2.38 | ~2.73 | 1.15× | tritex-bound (1739/frame); CPU edge-raster ≈ GPU + upload |
+> | `masseffect` | ~1.01 | ~1.28 | 1.27× | `spr_rot` inverse-map vs free GPU rotate |
+> | `sloppytext` | ~0.38 | ~0.49 | 1.3× | rotated glyphs |
+> | `rottext` | ~0.32 | ~0.89 | 2.8× | rotated text — per-glyph inverse-map, the priciest relative |
+>
+> **The tradeoff, quantified:** software rotation is *slower* than GPU rotation (15–180%) — expected,
+> the GPU transforms geometry for free while SW inverse-maps per pixel. But (a) absolute times are
+> tiny — worst is `cityview` ~2.7ms vs the 16.6ms/60fps budget; `rottext`'s "2.8×" is 0.32→0.89ms — and
+> (b) the canvas still **wins** when the cart is fill/blit-heavy: `drawall` (every primitive *incl.*
+> all rotation) is **2× faster** on the canvas. So a cart only nets a penalty if it's *rotation-pure*
+> (`rottext`); the per-cart opt-in / auto-fallback model leaves those on GPU.
 
 > **Phase 2 loose-ends sweep (2026-06-24).** "Feature-complete for common carts" was over-claimed —
 > an audit of every `Draw*` call in `studio.c` found four primitives still hitting the GPU with **no

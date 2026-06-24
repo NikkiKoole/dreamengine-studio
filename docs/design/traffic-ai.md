@@ -7,11 +7,20 @@ a cycling TRAFFIC LIGHT (red = a stop-line all lanes queue behind), and a reacti
 that makes dense following unstable → PHANTOM JAMS emerge with no cause (the ring-road experiment).
 Lanes are emergent from lateral position, so the player participates (stop in a lane → traffic
 passes you). Collision is an ORIENTED box (long-along-heading, narrow-across), so adjacent-lane cars
-never falsely touch. Spec (38 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
+never falsely touch. Spec (42 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
 flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spread, and the
-cross-road (A: geometry/crossings; B: cross-stream spawns + flows + stays on its road; C:
-right-of-way — no T-bones, both roads flow, cross cars get through). **Rough
+**second-track crossing** (geometry/crossings; second-track stream spawns + flows + stays on its
+track; right-of-way — no T-bones via real body-overlap, both tracks flow, cars get round). **Rough
 edge:** on the tightest procedural corner a fast car can still clip the apex (localized, recovers).
+
+> **DESIGN PIVOT (2026-06-24):** the "cross-road" started as a straight road cutting the loop
+> (Phases A–C below), but it's now a **second full race track** — an independent loop (`gen_track2`,
+> a derived seed rotated 90°, same centre/size) crossing the first. It "feels more real and has the
+> same situations" (the owner's call). Mechanically it was a *simplification*: both tracks are closed
+> loops, so `road_loops` is true for both and the brain needed no new cases — the second track's cars
+> just go round (no respawn-at-ends). Crossings became loop×loop segment intersection (`find_crossings`,
+> ~4–6 points). Everything below describing a straight "cross-road" now means "the second track"; the
+> right-of-way logic is unchanged (priority track 1, give-way track 2). `TRACKS:2` setup toggle.
 **Next:** the cross-road intersection (#4) — a big L→R road cutting the loop (~twice) with its own
 traffic, built in phases A–D (geometry → cross-traffic → right-of-way → tune); see the sketch below.
 **Phase A is shipped (2026-06-23):** a `CROSS` setup toggle lays a straight cross-road across the

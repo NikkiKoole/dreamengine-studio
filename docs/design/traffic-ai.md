@@ -159,8 +159,15 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
   *why* each car is braking — a coloured dot above it (orange = car-following, red = red light,
   yellow = yielding, green = cruising) and, for a yielding car, a **line to the junction it's giving
   way at**. Built when the owner asked "why do the cars stop?" — the yellow lines make a queue's
-  cause legible at a glance (yielding vs. a car-following cascade). Density balancing (`TRAFFIC_CARS_X`)
-  and the junction ring (red = priority holds it) also landed here. Remaining: the rule toggle.
+  cause legible at a glance (yielding vs. a car-following cascade). A **`WHY_BLOCKED` (pink "stuck")**
+  state answers the follow-up "they want to go but can't — show *that* too": a car commanding throttle
+  yet not moving is physically wedged by another car, drawn pink with a line to the car blocking it.
+  Density balancing (`TRAFFIC_CARS_X`) and the junction ring (red = priority holds it) also landed here.
+  **Known issue (next):** on some reseeded tracks two streams can WEDGE at a junction into a sustained
+  standstill (the pink overlay surfaces it). Gap-acceptance tuning only shuffles which frames the rare
+  cross-track contact lands on — the robust fix is a **crash-proof junction reservation** (one car holds
+  a crossing at a time; ≈ a 4-way-stop), which also makes the no-T-bone guarantee deterministic instead
+  of tuning-dependent. Remaining: that reservation + the rule toggle.
 
 **Watch out for:** deadlock (two priority rules that both yield → everyone stops); pick an asymmetric
 rule first. And the existing TRAFFIC light is on the loop — decide whether it stays, moves to the

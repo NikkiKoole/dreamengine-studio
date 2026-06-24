@@ -155,7 +155,7 @@ typedef struct { V2 p; int prog1, prog2; } Xing;
 #define RACE_CARS    7         // RACE: 1 player + 6 AI, one per personality
 #define TRAFFIC_CARS 32        // TRAFFIC: a big crowd on the loop — long queues behind a red
 #define TRAFFIC_CARS_X 20      // TRAFFIC + CROSS: a thinner loop crowd, so the give-way road finds gaps
-#define TRAFFIC_CROSS 14       // TRAFFIC + CROSS: a second stream on the cross-road (Phase B)
+#define TRAFFIC_CROSS 14       // TRAFFIC + CROSS: the second track's stream
 #define CARS_MAX     48        // array bound (>= loop crowd + cross stream)
 #define RACE_LAPS 3
 #define COLL_R    16.0f        // car-to-car avoidance radius (world px)
@@ -179,8 +179,9 @@ typedef struct {
     int   why;                 // why it's braking this frame (WHY_*) — for the debug overlay
 } Car;
 
-// why a traffic car is slowing — surfaced by the debug overlay (key D)
-enum { WHY_CRUISE, WHY_FOLLOW, WHY_LIGHT, WHY_YIELD };
+// why a traffic car is slowing — surfaced by the debug overlay (key D). WHY_BLOCKED =
+// it WANTS to go (throttle on) but isn't moving → physically wedged by another car.
+enum { WHY_CRUISE, WHY_FOLLOW, WHY_LIGHT, WHY_YIELD, WHY_BLOCKED };
 
 // A personality is JUST a bag of numbers fed to the same follow-controller. No
 // per-car code paths — "same brain, different soul." Reorder at your peril; the
@@ -1070,7 +1071,11 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
         if (out < min_thr) out = min_thr;
     }
 
-    c->why = (out < -0.02f) ? why : WHY_CRUISE;          // only flag a reason when actually braking
+    // classify for the overlay: braking on purpose → that reason; commanding throttle yet
+    // barely moving → WEDGED (physically held by another car, can't go); else cruising.
+    if (out < -0.02f)                            c->why = why;
+    else if (out > 0.05f && v < 0.25f)           c->why = WHY_BLOCKED;
+    else                                         c->why = WHY_CRUISE;
     *out_thr   = out;
     *out_turn  = turn;
     *out_drift = false;
@@ -1356,13 +1361,15 @@ static void draw_track_world(void) {
     for (int i = S->ncars; i < S->ncars + S->ncross; i++) draw_car(&S->car[i], false);  // cross-road stream
     draw_car(&P, true);                                            // player on top
 
-    if (S->dbg) {                                       // WHY each car brakes: a dot above it, a line to the junction it yields for
-        for (int i = 1; i < S->ncars + S->ncross; i++) {
+    if (S->dbg) {                                       // WHY each car is slowed/stuck
+        int tot = S->ncars + S->ncross;
+        for (int i = 1; i < tot; i++) {
             Car *c = &S->car[i];
-            int col = c->why == WHY_FOLLOW ? CLR_ORANGE
-                    : c->why == WHY_LIGHT  ? CLR_RED
-                    : c->why == WHY_YIELD  ? CLR_YELLOW
-                    :                        CLR_LIME_GREEN;   // cruising
+            int col = c->why == WHY_FOLLOW  ? CLR_ORANGE
+                    : c->why == WHY_LIGHT   ? CLR_RED
+                    : c->why == WHY_YIELD   ? CLR_YELLOW
+                    : c->why == WHY_BLOCKED ? CLR_PINK         // wants to go but wedged
+                    :                         CLR_LIME_GREEN;  // cruising
             circfill((int)c->px, (int)c->py - 9, 2, col);
             if (c->why == WHY_YIELD) {                  // draw to the crossing it's waiting on
                 int rd = c->road, bestd = 1 << 30, bi = -1;
@@ -1372,6 +1379,16 @@ static void draw_track_world(void) {
                     if (d > 0 && d < bestd) { bestd = d; bi = k; }
                 }
                 if (bi >= 0) line((int)c->px, (int)c->py, (int)S->xpt[bi].p.x, (int)S->xpt[bi].p.y, CLR_YELLOW);
+            }
+            if (c->why == WHY_BLOCKED) {                // draw to the car physically wedging it (the nearest one touching)
+                float bd = (3.0f*CAR_HALF_L)*(3.0f*CAR_HALF_L); int bj = -1;
+                for (int j = 0; j < tot; j++) {
+                    if (j == i) continue;
+                    float rx = S->car[j].px - c->px, ry = S->car[j].py - c->py;
+                    float d = rx*rx + ry*ry;
+                    if (d < bd) { bd = d; bj = j; }
+                }
+                if (bj >= 0) line((int)c->px, (int)c->py, (int)S->car[bj].px, (int)S->car[bj].py, CLR_PINK);
             }
         }
     }
@@ -1494,11 +1511,12 @@ void draw(void) {
 
     if (S->dbg) {                                       // legend for the why-overlay dots
         font(FONT_SMALL);
-        print("DBG why-brake:", 4, SCREEN_H - 17, CLR_WHITE);
-        print("follow", 60, SCREEN_H - 17, CLR_ORANGE);
-        print("light", 92, SCREEN_H - 17, CLR_RED);
-        print("yield", 118, SCREEN_H - 17, CLR_YELLOW);
-        print("go", 146, SCREEN_H - 17, CLR_LIME_GREEN);
+        print("DBG:", 4, SCREEN_H - 17, CLR_WHITE);
+        print("follow", 26, SCREEN_H - 17, CLR_ORANGE);
+        print("light", 58, SCREEN_H - 17, CLR_RED);
+        print("yield", 84, SCREEN_H - 17, CLR_YELLOW);
+        print("go", 110, SCREEN_H - 17, CLR_LIME_GREEN);
+        print("stuck", 124, SCREEN_H - 17, CLR_PINK);
         font(FONT_NORMAL);
     }
 

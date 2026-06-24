@@ -2464,19 +2464,39 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
         if (ry < miny) miny = ry; if (ry > maxy) maxy = ry;
     }
     int x0 = (int)floorf(minx), x1 = (int)ceilf(maxx), y0 = (int)floorf(miny), y1 = (int)ceilf(maxy);
-    for (int py = y0; py <= y1; py++) for (int px = x0; px <= x1; px++) {
-        float ddx = px + 0.5f - px0, ddy = py + 0.5f - py0;
-        float lx = c * ddx + s * ddy, ly = -s * ddx + c * ddy;     // rotate dest by -a
-        float fxu = lx + ox, fyu = ly + oy;                        // dest-local (0..dw, 0..dh)
-        if (fxu < 0 || fxu >= dw || fyu < 0 || fyu >= dh) continue;
-        int ssx, ssy;                                              // nearest source texel
-        if (sw == dw && sh == dh) { ssx = sx + (int)fxu;          ssy = sy + (int)fyu; }          // no scale (spr_rot) — skip the mul/div
-        else                      { ssx = sx + (int)(fxu*sw/dw);  ssy = sy + (int)(fyu*sh/dh); }  // scaled
-        Color cc = img_texel(img, ssx, ssy);
-        if (fonttint >= 0) { if (cc.a < 128) continue; cc = tint; }
-        else { if (cc.a < 128 || sw_keyed(cc)) continue; if (recolor) cc = sw_recolor(cc); }
-        if (oncanvas) sw_pset(px, py, cc);                                    // straight to cbuf (hot path)
-        else pset_rgb(px, py, (cc.r << 16) | (cc.g << 8) | cc.b);            // off-canvas DE_CPU_RASTER reference
+    // FAST PATH (canvas, zoom 1): the camera is a constant offset and the cbuf row base is constant
+    // per output row — hoist both out of the per-pixel plot, so the inner write is just row[sx]=pack.
+    // Byte-identical to the sw_pset path (same camera + clip + bottom-up store). zoom!=1 keeps sw_pset
+    // (it fills each world pixel's screen footprint); off-canvas keeps pset_rgb (the A/B reference).
+    bool fast = oncanvas && cam.zoom == 1.0f;
+    int camdx = (int)(cam.target.x - cam.offset.x), camdy = (int)(cam.target.y - cam.offset.y);
+    for (int py = y0; py <= y1; py++) {
+        uint32_t *row = NULL;
+        if (fast) {
+            int syc = py - camdy;
+            if ((unsigned)syc >= (unsigned)SCREEN_H) continue;
+            if (clip_active && (syc < clip_cy || syc >= clip_cy + clip_ch)) continue;
+            row = &sw_cbuf[(SCREEN_H - 1 - syc) * SCREEN_W];
+        }
+        for (int px = x0; px <= x1; px++) {
+            float ddx = px + 0.5f - px0, ddy = py + 0.5f - py0;
+            float lx = c * ddx + s * ddy, ly = -s * ddx + c * ddy;     // rotate dest by -a
+            float fxu = lx + ox, fyu = ly + oy;                        // dest-local (0..dw, 0..dh)
+            if (fxu < 0 || fxu >= dw || fyu < 0 || fyu >= dh) continue;
+            int ssx, ssy;                                              // nearest source texel
+            if (sw == dw && sh == dh) { ssx = sx + (int)fxu;          ssy = sy + (int)fyu; }          // no scale (spr_rot)
+            else                      { ssx = sx + (int)(fxu*sw/dw);  ssy = sy + (int)(fyu*sh/dh); }  // scaled
+            Color cc = img_texel(img, ssx, ssy);
+            if (fonttint >= 0) { if (cc.a < 128) continue; cc = tint; }
+            else { if (cc.a < 128 || sw_keyed(cc)) continue; if (recolor) cc = sw_recolor(cc); }
+            if (fast) {
+                int sxc = px - camdx;
+                if ((unsigned)sxc >= (unsigned)SCREEN_W) continue;
+                if (clip_active && (sxc < clip_cx || sxc >= clip_cx + clip_cw)) continue;
+                row[sxc] = sw_pack(cc);                                       // hoisted cbuf write
+            } else if (oncanvas) sw_pset(px, py, cc);                         // canvas zoom!=1 (footprint)
+            else pset_rgb(px, py, (cc.r << 16) | (cc.g << 8) | cc.b);         // off-canvas A/B reference
+        }
     }
 }
 // sprite wrapper (spritesheet, sprite mode)

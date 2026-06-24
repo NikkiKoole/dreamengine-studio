@@ -155,23 +155,30 @@ be coalesced.
 > - **B — no-scale fast path**: `de_cpu_img_rot` skips the per-pixel `(fxu*sw/dw)` mul/div when
 >   `sw==dw && sh==dh` (the `spr_rot` case) → `sx + (int)fxu`. Byte-exact at SPRITE_SIZE=16 (power of
 >   two) and matches the `rotspr` probe's `floor` sampling.
-> - **C — inline the plot** (the biggest): on the canvas path, plot straight to the cbuf via `sw_pset`
+> - **C — inline the plot**: on the canvas path, plot straight to the cbuf via `sw_pset`
 >   instead of the `pset_rgb → pset → sw_pset` dispatch chain (the off-canvas `DE_CPU_RASTER` reference
 >   keeps `pset_rgb`).
+> - **D — hoist camera + row pointer** (the biggest): a `-fno-inline` profile after A–C showed the cost
+>   split between the inverse-map loop and the *plot chain* (`sw_w2s` recomputing the **constant** camera
+>   offset per pixel; `sw_plot1` recomputing the bottom-up row index per pixel). For the canvas zoom-1
+>   case, hoist the camera offset out of the loop and the cbuf row base per output row → the inner write
+>   is just `row[sx] = pack`. (zoom≠1 keeps `sw_pset`'s footprint fill; off-canvas keeps `pset_rgb`.)
 >
 > **Result (`workMsAvg`, 2-run avg):**
 >
-> | sprites | baseline | now (A+B+C) | gain | slowdown vs GPU |
-> |---|---|---|---|---|
-> | 400 | 3.17 | **2.65** | −16% | 9.3× → 8.3× |
-> | 1000 | 4.47 | **3.88** | −13% | 9.4× → 8.6× |
-> | 2000 | 7.39 | **5.51** | −25% | 10.1× → 7.7× |
-> | 4000 | 12.70 | **9.81** | −23% | 11.1× → 8.7× |
+> | sprites | baseline | A+B+C | +D (final) | total gain | slowdown vs GPU |
+> |---|---|---|---|---|---|
+> | 400 | 3.17 | 2.65 | **2.30** | −27% | 9.3× → 7.0× |
+> | 1000 | 4.47 | 3.88 | **3.30** | −26% | 9.4× → 7.0× |
+> | 2000 | 7.39 | 5.51 | **4.73** | −36% | 10.1× → 6.9× |
+> | 4000 | 12.70 | 9.81 | **8.14** | −36% | 11.1× → 7.3× |
 >
-> ~¼ off the rotated-sampling path, byte-identical, no SIMD. **Next levers if needed** (diminishing,
-> higher-effort): SIMD/NEON on the contiguous fills/`cls` (not the random-access rotated gather);
-> the `uint8` paletted buffer (Fork-1, 4× smaller upload) for low-end. `-ffast-math` stays **off**
-> (it reintroduces the cross-arch drift the quantized matrix fixes).
+> ~⅓ off the rotated-sampling path, byte-identical, no SIMD. Post-D the `-fno-inline` profile is
+> `GetImageColor` **gone** (377 → 2; A worked) and the time split between the inverse-map loop math and
+> the now-minimal cbuf write. **Next levers** (diminishing, higher-effort): SIMD/NEON on the *contiguous*
+> fills/`cls` (not the random-access rotated gather); the `uint8` paletted buffer (Fork-1, 4× smaller
+> upload) for low-end. `-ffast-math` stays **off** (it reintroduces the cross-arch drift the quantized
+> matrix fixes).
 > **Phase 2 loose-ends sweep (2026-06-24).** "Feature-complete for common carts" was over-claimed —
 > an audit of every `Draw*` call in `studio.c` found four primitives still hitting the GPU with **no
 > `sw_canvas_active` branch**, so they silently vanished (or half-rendered) under the canvas. Now

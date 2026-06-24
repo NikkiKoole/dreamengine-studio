@@ -438,56 +438,13 @@ static void apply_move(Move m) {
     }
 }
 
-// ── piece drawing (primitives) ─────────────────────────────────────────────────
-// draw a piece of `type` (1..6) for `white` at square center
+// ── piece drawing (pixel-art sprites from chess.cart.js) ─────────────────────────
+// draw a piece of `type` (1..6) for `white` at square center. Sprite slot == type for
+// white, type+8 for black. `alpha` (the capture-fade fx) is conveyed by the caller's
+// blink + timer, so the sprite is the same either way.
 static void draw_piece(int type, int white, int cx, int cy, int alpha) {
-    int body = white ? CLR_LIGHT_PEACH : CLR_DARK_GREY;
-    int trim = white ? CLR_BROWN : CLR_BLACK;
-    if (alpha) { body = white ? CLR_WHITE : CLR_DARKER_GREY; }
-    int base = cy + 7;
-    // common base pedestal
-    rectfill(cx-6, base, 12, 2, trim);
-    rectfill(cx-5, base-1, 10, 1, body);
-    switch (type) {
-        case 1: // pawn — ball + neck
-            circfill(cx, cy-3, 3, body);
-            rectfill(cx-2, cy, 4, base-cy, body);
-            rectfill(cx-3, base-1, 6, 1, trim);
-            break;
-        case 2: // knight — angled head
-            tri(cx-4, base-1, cx-4, cy-4, cx+4, cy, body);
-            trifill(cx-4, base-1, cx-4, cy-4, cx+4, cy, body);
-            trifill(cx+4, cy, cx+4, cy+3, cx-2, base-1, body);
-            pset(cx+2, cy-1, trim);
-            line(cx-3, cy-3, cx+1, cy-1, trim);
-            break;
-        case 3: // bishop — pointed mitre
-            tri(cx, cy-6, cx-4, cy+2, cx+4, cy+2, body);
-            trifill(cx, cy-6, cx-4, cy+2, cx+4, cy+2, body);
-            rectfill(cx-3, cy+2, 6, base-cy-2, body);
-            pset(cx, cy-3, trim);
-            break;
-        case 4: // rook — castle top
-            rectfill(cx-5, cy-5, 10, 4, body);
-            pset(cx-4, cy-5, trim); pset(cx, cy-5, trim); pset(cx+3, cy-5, trim);
-            rectfill(cx-3, cy-1, 6, base-cy+1, body);
-            break;
-        case 5: // queen — crown of points
-            tri(cx-5, cy-1, cx-3, cy-6, cx-1, cy-1, body);
-            trifill(cx-5, cy-1, cx-3, cy-6, cx-1, cy-1, body);
-            trifill(cx-1, cy-1, cx, cy-7, cx+1, cy-1, body);
-            trifill(cx+1, cy-1, cx+3, cy-6, cx+5, cy-1, body);
-            rectfill(cx-4, cy-1, 8, base-cy+1, body);
-            pset(cx-3, cy-6, trim); pset(cx, cy-7, trim); pset(cx+3, cy-6, trim);
-            break;
-        case 6: // king — cross on top
-            rectfill(cx-1, cy-8, 2, 4, body);
-            rectfill(cx-3, cy-7, 6, 2, body);
-            tri(cx-4, cy-1, cx, cy-4, cx+4, cy-1, body);
-            trifill(cx-4, cy-1, cx, cy-4, cx+4, cy-1, body);
-            rectfill(cx-4, cy-1, 8, base-cy+1, body);
-            break;
-    }
+    (void)alpha;
+    spr(white ? type : type + 8, cx - 8, cy - 8);
 }
 
 // ── input → board square (or -1) ───────────────────────────────────────────────
@@ -515,6 +472,7 @@ static int has_target(int from, int to) { return find_move(from,to) >= 0; }
 
 // ── update ───────────────────────────────────────────────────────────────────
 void init(void) {
+    colorkey(0);          // index 0 = transparent, so the piece sprites sit on the squares
     setup();
     refresh_state();
 }

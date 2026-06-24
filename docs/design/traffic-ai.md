@@ -7,9 +7,16 @@ a cycling TRAFFIC LIGHT (red = a stop-line all lanes queue behind), and a reacti
 that makes dense following unstable → PHANTOM JAMS emerge with no cause (the ring-road experiment).
 Lanes are emergent from lateral position, so the player participates (stop in a lane → traffic
 passes you). Collision is an ORIENTED box (long-along-heading, narrow-across), so adjacent-lane cars
-never falsely touch. Spec (53 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
-flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spread, the
-**second-track crossing** (geometry/crossings; stream spawns + flows; right-of-way reservation —
+never falsely touch. A car that ends up *pointed the wrong way and stopped* (not just braking — a
+genuine dead-end angle) does a **K-TURN** (3-point turn): it can't pivot in place (steering scales
+with speed, fixed ~49px turn radius), so it shuffles reverse/forward **confined to a small disk**
+around its pivot (`KT_REACH`), nose rotating toward the road tangent, until realigned — instead of
+sweeping one big forward circle. Gated hard so it never disturbs flow: only when truly stopped +
+wrong-way + wanting to go + the maneuver disk is clear + ≥80px from any junction; it bails to normal
+driving the instant another car intrudes. Spec (59 assertions) covers closing→brake,
+clear→accelerate, blocked→change-lane, flow, no box-overlap, red-builds-a-queue / no-bolt /
+no-reverse, stop-and-go spread, the **K-turn** (reverses, realigns, stays in place not a big circle),
+the **second-track crossing** (geometry/crossings; stream spawns + flows; right-of-way reservation —
 no T-bones by construction, no gridlock, both tracks flow, across 4 seeds), a **routing seed**
 (cars turn onto the other track at crossings — the 2 loops become a tiny network), and a **chase**
 (a pursuer routes to + reaches its target, and cuts off-road to intercept). **Rough

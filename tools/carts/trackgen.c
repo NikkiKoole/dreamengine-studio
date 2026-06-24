@@ -85,6 +85,7 @@
 #define FRICTION   0.985f
 #define MAX_SPD    3.1f
 #define STEER      3.6f
+#define KT_REACH   16.0f   // K-TURN: radius of the disk a 3-point-turning car stays within (keeps it local)
 #define GRIP_RACE  0.25f
 #define GRIP_DRIFT 0.07f
 #define SLIDE_MIN  0.55f
@@ -183,6 +184,9 @@ typedef struct {
     int   lastx;               // last crossing this car made a turn-decision at (-1) — the routing seed
     int   target;              // CHASE: car index this one is pursuing (-1 = none) — routes toward it
     bool  reckless;            // CHASE: ignores junction right-of-way and the light (runs them)
+    signed char kt;            // K-TURN state: 0 none · 1 reversing · 2 forward (get-unstuck maneuver)
+    float ktgoal;              // K-TURN: the heading (deg) it's swinging the nose toward (captured at entry)
+    float ktx, kty;            // K-TURN: the pivot point — it stays within a small disk of this while turning
     int   pers;                // personality index into PERS[] (AI only)
     float wob;                 // rookie wobble phase
     float mass;                // collision weight (player 1.0; AI from PERS[].mass)
@@ -527,7 +531,7 @@ static void put_car_at_start(Car *c, int slot) {
     c->ang = atan2_deg(S->cl[(s+1)%NSAMP].y - S->cl[(s-1+NSAMP)%NSAMP].y,
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     c->vx = 0; c->vy = 0; c->spd = 0;
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false; c->kt = 0;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;   // player baseline; AI by personality
     c->lane = c->want_lane = lane_at(lateral);
@@ -545,7 +549,7 @@ static void put_car_in_traffic(Car *c, int slot) {
                        S->cl[(s+1)%NSAMP].x - S->cl[(s-1+NSAMP)%NSAMP].x);
     float v0 = (slot == 0) ? 0.0f : MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false;
+    c->prog = s; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 0; c->lastx = -1; c->target = -1; c->reckless = false; c->kt = 0;
     c->drift = false; c->wob = (float)slot * 7.0f; c->place = slot + 1;
     c->mass = (slot == 0) ? 1.0f : PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -561,7 +565,7 @@ static void put_car_on_cross(Car *c, int prog0, int lane) {
     c->ang = atan2_deg(ahead.y - behind.y, ahead.x - behind.x);   // tangent along the loop
     float v0 = MAX_SPD * PERS[c->pers].spd_cap * 0.55f;
     c->spd = v0; c->vx = dx(v0, c->ang); c->vy = dy(v0, c->ang);
-    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1; c->lastx = -1; c->target = -1; c->reckless = false;
+    c->prog = prog0; c->cp = 0; c->lap = 0; c->offtrack = false; c->road = 1; c->lastx = -1; c->target = -1; c->reckless = false; c->kt = 0;
     c->drift = false; c->wob = (float)lane * 7.0f; c->place = 0;
     c->mass = PERS[c->pers].mass;
     c->lane = c->want_lane = lane;
@@ -1061,6 +1065,76 @@ static void maybe_switch_loops(Car *c, int idx) {
     }
 }
 
+// clear space in a box just off my nose / tail? (so a K-turn won't ram anyone). dir = +1 ahead, -1 behind.
+static bool room_dir(Car *c, int idx, int dir) {
+    int total = S->ncars + S->ncross;
+    for (int j = 0; j < total; j++) {
+        if (j == idx) continue;
+        float rx = S->car[j].px - c->px, ry = S->car[j].py - c->py;
+        float along = dir * (rx*dx(1, c->ang) + ry*dy(1, c->ang));     // + = in that direction
+        float lat   = rx*dx(1, c->ang + 90) + ry*dy(1, c->ang + 90);
+        if (along > -2.0f && along < 20.0f && (lat < 0 ? -lat : lat) < 11.0f) return false;
+    }
+    return true;
+}
+
+// K-TURN — the get-unstuck maneuver. A car can't turn in place (steering scales with speed) and the
+// turn radius is speed-independent, so a badly-misaligned car would loop forward in a big circle.
+// Instead, when genuinely pointed the wrong way (vs the ROAD TANGENT at its own spot — so a curve
+// doesn't false-trigger), nearly stopped, with the road ahead CLEAR (it wants to go, not stopped
+// for a light/leader), and away from junctions, it does a 3-point turn: alternate reverse/forward
+// (whichever side is clear) while counter-steering toward a CAPTURED goal heading, until aligned.
+// Returns true (and sets turn/thr) while it's k-turning. Never for pursuers or near a junction.
+static bool k_turn(Car *c, int idx, float want_thr, float *out_turn, float *out_thr) {
+    if (c->target >= 0) { c->kt = 0; return false; }            // pursuers don't k-turn
+    for (int k = 0; k < S->nx; k++) {                            // not at/near a junction (would back into cross-traffic)
+        float d = xing_dist(c, k); if (d < 0) d = -d;
+        if (d < 80.0f) { c->kt = 0; return false; }
+    }
+    float v = c->spd < 0 ? -c->spd : c->spd;
+    V2 ta = road_cl(c->road, c->prog + 2), tb = road_cl(c->road, c->prog - 2);
+    float roaddir = atan2_deg(ta.y - tb.y, ta.x - tb.x);
+    float herr = awrap(roaddir - c->ang); float ah = herr < 0 ? -herr : herr;
+
+    // the maneuver sweeps a whole disk, so it needs room: no other car within the swept radius of the
+    // pivot (current spot at entry; the captured pivot mid-turn). If a car's in the way, just WAIT —
+    // never reverse into a crowd. This is what keeps a wrong-angled car from clipping cross-traffic.
+    bool clear = true;
+    { int total = S->ncars + S->ncross;
+      for (int j = 0; j < total; j++) { if (j == idx) continue;
+          float rx = S->car[j].px - c->px, ry = S->car[j].py - c->py;   // from my CURRENT body, not the pivot
+          if (rx*rx + ry*ry < 24.0f * 24.0f) { clear = false; break; } } }
+
+    if (c->kt == 0) {                                            // entry: genuinely wrong-way + clear ahead + slow + room
+        if (ah <= 75.0f || want_thr <= 0.05f || v > 0.4f || !clear) return false;   // only a genuinely stopped, wrong-way car
+        c->kt = 1; c->ktgoal = roaddir; c->ktx = c->px; c->kty = c->py;  // capture goal heading + pivot, start reversing
+    }
+    if (!clear) { c->kt = 0; return false; }   // someone wandered into my space → bail to normal driving (it obeys right-of-way)
+    float gerr = awrap(c->ktgoal - c->ang); float ag = gerr < 0 ? -gerr : gerr;
+    if (ag < 22.0f) { c->kt = 0; return false; }                // aligned → done, hand back to normal driving
+    bool back = room_dir(c, idx, -1), fwd = room_dir(c, idx, +1);
+
+    // CONFINE-TO-A-DISK. step_car rotates the nose by turn*STEER*|speed| — SAME direction whether
+    // reversing or going forward (it uses |sc|) — so to swing the nose toward the goal we hold the
+    // SAME steer sign on both legs. The trick to staying put (a 3-point turn, not a wide arc) is to
+    // keep the car inside a small disk around its pivot: whenever it reaches the rim, pick the leg
+    // (reverse vs forward) that heads back toward the pivot. So it shuffles across the disk diameter
+    // — building enough speed each crossing to actually rotate — while the nose rotates over in place.
+    float ddx = c->px - c->ktx, ddy = c->py - c->kty;
+    float dpiv = fsqrt(ddx*ddx + ddy*ddy);
+    if (dpiv > KT_REACH) {                                       // outside the disk → drive back toward the pivot
+        float toPiv = (-ddx) * dx(1, c->ang) + (-ddy) * dy(1, c->ang);   // pivot ahead of the nose?
+        c->kt = (toPiv > 0) ? 2 : 1;                            // yes → forward · behind → reverse
+    }
+    if (c->kt == 1 && !back) c->kt = fwd ? 2 : 1;               // chosen leg blocked → take the clear one
+    if (c->kt == 2 && !fwd)  c->kt = back ? 1 : 2;
+    float st = (gerr > 0 ? 1.0f : -1.0f);
+    if (c->kt == 1 && back)      { *out_thr = -0.5f; *out_turn = st; }   // reverse leg
+    else if (c->kt == 2 && fwd)  { *out_thr =  0.5f; *out_turn = st; }   // forward leg
+    else                         { *out_thr =  0.0f; *out_turn = 0.0f; } // boxed → hold, wait for room
+    return true;
+}
+
 // TRAFFIC brain: hold your lane, follow the car ahead (IDM-style), and OVERTAKE —
 // when stuck behind a slower car, pull into an adjacent clear lane to pass. A
 // following car brakes to a stop but never reverses. At a crossing, the give-way
@@ -1139,6 +1213,9 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
     }
     if (s < TG_GAP0 && v < 0.8f) thr = -1.0f;            // snug behind the obstacle & slow → settle
                                                           // to a dead stop (no reaction-lag creep)
+
+    // K-TURN: if I'm pointed the wrong way and stuck, do a 3-point turn instead of a big circle.
+    if (k_turn(c, idx, thr, out_turn, out_thr)) { *out_drift = false; c->why = WHY_CRUISE; return; }
 
     // CHASE override: a pursuer that's closed in cuts STRAIGHT at the target (off-road if the road
     // would take the long way — it just eats the grass penalty), and when very close it BOXES the
@@ -1960,6 +2037,9 @@ void spec(void) {
         step(6);
         for (int a = 0; a < S->ncars; a++)                   // track-1 × track-2 body overlaps = real T-bones
             for (int b = S->ncars; b < S->ncars + S->ncross; b++) {
+                if (S->car[a].road == S->car[b].road) continue;  // a T-bone is CROSS-track; a rerouted car can
+                                                                 // share a road with a "track-2" car — that's a
+                                                                 // same-road graze (resolved by the pusher), not a T-bone
                 float rx = S->car[b].px - S->car[a].px, ry = S->car[b].py - S->car[a].py;
                 if (rx*rx + ry*ry >= (2.0f*CAR_HALF_L)*(2.0f*CAR_HALF_L)) continue;   // cheap reject
                 float fwd = rx*dx(1,S->car[a].ang)      + ry*dy(1,S->car[a].ang);
@@ -2079,5 +2159,35 @@ void spec(void) {
     cop2->reckless = true; cop2->px = civ->px + 10.0f; cop2->py = civ->py + 8.0f;
     for (int k = 0; k <= REACT_N; k++) drive_ai_traffic(civ, 1, &turn, &thr, &dr);
     expect(thr < thr_clear - 0.1f, "scatter: a civilian brakes/yields when a reckless car is right beside it");
+
+    // ── K-turn: a wrong-way stopped car does a 3-point turn (reverses) to realign roughly IN
+    //    PLACE, instead of looping forward in a big circle. Isolated on a clear road. ──
+    gen_track(0x1234u);
+    S->traffic = true; S->cross = true;
+    put_all_at_start();
+    S->nx = 0; S->light = -1; S->reroute = false;
+    for (int i = 0; i < S->ncars + S->ncross; i++) {  // clear the road (park everyone far, idle)
+        S->car[i].px = -9000.0f - i*80.0f; S->car[i].py = -9000.0f;
+        S->car[i].prog = 9000; S->car[i].spd = 0; S->car[i].lane = S->car[i].want_lane = 9;
+        S->car[i].reckless = false; S->car[i].target = -1; S->car[i].road = 0;
+        S->car[i].offtrack = false; S->car[i].kt = 0;
+    }
+    Car *m = &S->car[1];
+    m->prog = 120; m->lane = m->want_lane = 0; m->spd = 0; m->offtrack = false; m->kt = 0;
+    { V2 q = road_cl(0, 120), a = road_cl(0, 121), b = road_cl(0, 119);
+      m->px = q.x; m->py = q.y; m->ang = atan2_deg(a.y - b.y, a.x - b.x) + 150.0f; }   // wrong way
+    float kx0 = m->px, ky0 = m->py;
+    bool reversed = false, aligned = false; float maxexc = 0;
+    for (int f = 0; f < 320; f++) {
+        step(1);
+        if (m->spd < -0.1f) reversed = true;
+        V2 a = road_cl(0, m->prog + 2), b = road_cl(0, m->prog - 2);
+        float e = awrap(atan2_deg(a.y - b.y, a.x - b.x) - m->ang); if (e < 0) e = -e;
+        if (e < 30.0f) aligned = true;
+        if (!aligned) { float ex = fsqrt((m->px-kx0)*(m->px-kx0) + (m->py-ky0)*(m->py-ky0)); if (ex > maxexc) maxexc = ex; }
+    }
+    expect(reversed, "k-turn: a wrong-way car reverses (3-point turn), not a forward loop");
+    expect(aligned,  "k-turn: it ends up aligned with the road");
+    expect(maxexc < 50.0f, "k-turn: it realigns roughly in place, not via a big circle");
 }
 #endif

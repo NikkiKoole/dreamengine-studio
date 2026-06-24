@@ -155,7 +155,12 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
   light) are Phase D toggles.
 - **Phase D — feel + tune.** Visualize yields (a car waiting at a crossing), balance densities so it
   doesn't deadlock, and add a setup toggle (cross-road on/off, or which rule). Spec: no deadlock
-  (both roads still moving after N frames).
+  (both roads still moving after N frames). **In progress:** a **debug overlay** (key `D`) shows
+  *why* each car is braking — a coloured dot above it (orange = car-following, red = red light,
+  yellow = yielding, green = cruising) and, for a yielding car, a **line to the junction it's giving
+  way at**. Built when the owner asked "why do the cars stop?" — the yellow lines make a queue's
+  cause legible at a glance (yielding vs. a car-following cascade). Density balancing (`TRAFFIC_CARS_X`)
+  and the junction ring (red = priority holds it) also landed here. Remaining: the rule toggle.
 
 **Watch out for:** deadlock (two priority rules that both yield → everyone stops); pick an asymmetric
 rule first. And the existing TRAFFIC light is on the loop — decide whether it stays, moves to the

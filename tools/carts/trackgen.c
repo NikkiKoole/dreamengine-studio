@@ -176,7 +176,11 @@ typedef struct {
     int   want_lane;           // intended lane (traffic) — overtaking sets this; steering aims at it
     float thist[REACT_N];      // recent throttle commands — applied delayed (reaction lag)
     int   thead;               // ring head into thist[]
+    int   why;                 // why it's braking this frame (WHY_*) — for the debug overlay
 } Car;
+
+// why a traffic car is slowing — surfaced by the debug overlay (key D)
+enum { WHY_CRUISE, WHY_FOLLOW, WHY_LIGHT, WHY_YIELD };
 
 // A personality is JUST a bag of numbers fed to the same follow-controller. No
 // per-car code paths — "same brain, different soul." Reorder at your peril; the
@@ -226,6 +230,7 @@ STATE {
     Xing  xpt[MAXX];           // loop×cross crossings (computed in gen_track)
     int   nx;                  // number of crossings found
     int   ncross;              // active cross-road cars, in car[ncars .. ncars+ncross) (Phase B)
+    bool  dbg;                 // debug overlay: show why each car is braking (key D)
     Car   car[CARS_MAX];       // car[0] = player, car[1..] = AI
     int   ncars;               // active cars this mode (RACE_CARS or TRAFFIC_CARS)
     int   light;               // TRAFFIC: traffic-light sample on the loop (-1 = none)
@@ -869,6 +874,7 @@ static void drive_ai(Car *c, int idx, float *out_turn, float *out_thr, bool *out
     *out_turn  = clamp(turn, -1.0f, 1.0f);
     *out_thr   = thr;
     *out_drift = (p->drift_corner > 0 && bendn > p->drift_corner);
+    c->why = (thr < -0.02f) ? WHY_FOLLOW : WHY_CRUISE;   // race AI: braking ≈ for a bend/car
 }
 
 // nearest car AHEAD in the same lane: returns the along-track gap (px) and the
@@ -993,6 +999,7 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
 
     // car-following: how close is the leader in my current lane, and how fast?
     float vlead, s = lead_gap(c, idx, &vlead);
+    int why = (s < 1e8f) ? WHY_FOLLOW : WHY_CRUISE;      // debug: what's limiting me (tracked as s shrinks)
 
     // OVERTAKE: blocked by a slower CAR (not a light) and not mid-bend? pull into a
     // clear lane. Decided on the real leader — you can't lane-change around a red.
@@ -1014,13 +1021,13 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
                                                           // away and the front car bolts the red
         if (ld <= NSAMP / 2) {                            // only brake when the light is ahead
             float lgap = ld * S->seg_len;
-            if (lgap < s) { s = lgap; vlead = 0.0f; }
+            if (lgap < s) { s = lgap; vlead = 0.0f; why = WHY_LIGHT; }
         }
     }
 
     // PHASE C: a crossing I must give way at is also a temporary stop-line leader.
     float ygap = crossing_yield_gap(c, idx);
-    if (ygap < s) { s = ygap; vlead = 0.0f; }
+    if (ygap < s) { s = ygap; vlead = 0.0f; why = WHY_YIELD; }
 
     float ssafe = TG_GAP0 + v * TG_HEAD;
     float dv = v - vlead;                                // closing speed (+ = approaching)
@@ -1063,6 +1070,7 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
         if (out < min_thr) out = min_thr;
     }
 
+    c->why = (out < -0.02f) ? why : WHY_CRUISE;          // only flag a reason when actually braking
     *out_thr   = out;
     *out_turn  = turn;
     *out_drift = false;
@@ -1148,6 +1156,7 @@ void update(void) {
     if (keyp('M'))                   { S->mode = 0; return; }
     if (keyp('Z') || btnp(0, BTN_A)) { gen_track(S->seed + 0x9E37u); return; }
     if (keyp('R'))                   { put_all_at_start(); return; }
+    if (keyp('D'))                   { S->dbg = !S->dbg; }    // debug overlay: why cars brake
     if (btnp(0, BTN_B)) P.drift = !P.drift;
 
     if (S->traffic && S->light >= 0) {                   // cycle the light
@@ -1346,6 +1355,26 @@ static void draw_track_world(void) {
     for (int i = 1; i < S->ncars; i++) draw_car(&S->car[i], false);   // loop rivals first
     for (int i = S->ncars; i < S->ncars + S->ncross; i++) draw_car(&S->car[i], false);  // cross-road stream
     draw_car(&P, true);                                            // player on top
+
+    if (S->dbg) {                                       // WHY each car brakes: a dot above it, a line to the junction it yields for
+        for (int i = 1; i < S->ncars + S->ncross; i++) {
+            Car *c = &S->car[i];
+            int col = c->why == WHY_FOLLOW ? CLR_ORANGE
+                    : c->why == WHY_LIGHT  ? CLR_RED
+                    : c->why == WHY_YIELD  ? CLR_YELLOW
+                    :                        CLR_LIME_GREEN;   // cruising
+            circfill((int)c->px, (int)c->py - 9, 2, col);
+            if (c->why == WHY_YIELD) {                  // draw to the crossing it's waiting on
+                int rd = c->road, bestd = 1 << 30, bi = -1;
+                for (int k = 0; k < S->nx; k++) {
+                    int xprog = rd ? S->xpt[k].prog2 : S->xpt[k].prog1;
+                    int d = prog_ahead(rd, c->prog, xprog);
+                    if (d > 0 && d < bestd) { bestd = d; bi = k; }
+                }
+                if (bi >= 0) line((int)c->px, (int)c->py, (int)S->xpt[bi].p.x, (int)S->xpt[bi].p.y, CLR_YELLOW);
+            }
+        }
+    }
 }
 
 // fixed-scale ribbon sketch so SIZE grows/shrinks and WIDTH shows as thickness
@@ -1459,9 +1488,19 @@ void draw(void) {
         font(FONT_NORMAL);
     }
 
-    print(S->traffic ? "M: generator   Z: new track   R: reset   X: drift"
-                     : "M: generator   Z: new track   R: restart   X: drift",
+    print(S->traffic ? "M: generator   Z: new track   R: reset   X: drift   D: debug"
+                     : "M: generator   Z: new track   R: restart   X: drift   D: debug",
           4, SCREEN_H - 9, P.offtrack ? CLR_ORANGE : CLR_LIGHT_GREY);
+
+    if (S->dbg) {                                       // legend for the why-overlay dots
+        font(FONT_SMALL);
+        print("DBG why-brake:", 4, SCREEN_H - 17, CLR_WHITE);
+        print("follow", 60, SCREEN_H - 17, CLR_ORANGE);
+        print("light", 92, SCREEN_H - 17, CLR_RED);
+        print("yield", 118, SCREEN_H - 17, CLR_YELLOW);
+        print("go", 146, SCREEN_H - 17, CLR_LIME_GREEN);
+        font(FONT_NORMAL);
+    }
 
     // ── race results overlay ──
     if (S->mode == 2) {

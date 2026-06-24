@@ -14,6 +14,7 @@ This page is only the routing layer.
 | You changed… | Run | What it proves |
 |---|---|---|
 | a software-canvas primitive (`spr`/`map`/fills/`line`/blits) | **`canvas-diff.js <cart>`** | GPU vs `DE_SOFTWARE_CANVAS` render match (handles the `sw_force_gpu` + `DE_CPU_RASTER` gotchas for you) |
+| **any** draw primitive (the everything-cart) | **`canvas-diff.js drawall --max 80`** | `drawall.c` exercises EVERY draw command with per-frame rotation — one run covers the whole draw layer. **Adding a draw command? add a call there too** (CLAUDE.md "Adding a new API function" step 5). |
 | `cls`/`pset`/`pset_rgb`/fills on the canvas (byte-exactness) | the `swcanvas_test` **cart** (`canvas-diff --bytecheck`, or the two-run `shasum` in its header) | byte-identical GPU↔SW for the integer primitives |
 | anything that should be **left/right symmetric** | **`mirror-diff.js <cart>`** | the render mirrors about its centre (catches handed rasterizers) |
 | a **coverage-based road / field** (streetlab, roadlab) | **`road-check.js [--all] [--overlay]`** | framebuffer invariants (no naked edges/strays/floating kerb) at any angle |

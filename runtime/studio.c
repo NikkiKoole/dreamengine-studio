@@ -3207,8 +3207,27 @@ void camera_ex(int x, int y, float zoom, float angle) {
 // ui.h's loupe; also good for picture-in-picture, minimaps, magnifier toys.
 // Snapshots the canvas to a scratch texture first, so reading and writing the
 // same target never collide.
+// software zoom_rect: nearest-magnify a screen region of the cbuf back into the cbuf — the canvas
+// twin of the GPU snapshot+blit. The GPU path's EndTextureMode/BeginTextureMode dance is INVALID
+// under the canvas (the frame loop never opened a render target), and corrupts the whole frame; this
+// is a pure CPU op. Screen space, no camera (a post-effect, like the GPU version). NB: no snapshot —
+// assumes dest doesn't overlap source (the common "magnify a corner elsewhere" use).
+static void sw_zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
+    for (int j = 0; j < dh; j++) {
+        int syy = sy + j * sh / dh;
+        if ((unsigned)syy >= (unsigned)SCREEN_H) continue;
+        const uint32_t *srow = &sw_cbuf[(SCREEN_H - 1 - syy) * SCREEN_W];
+        for (int i = 0; i < dw; i++) {
+            int sxx = sx + i * sw / dw;
+            if ((unsigned)sxx >= (unsigned)SCREEN_W) continue;
+            sw_plot1(dx + i, dy + j, srow[sxx]);
+        }
+    }
+}
+
 void zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+    if (sw_canvas_active) { sw_zoom_rect(sx, sy, sw, sh, dx, dy, dw, dh); return; }   // CPU cbuf magnify (no GL state)
     // Snapshot the frame-so-far into canvas_snap (so we never sample the live
     // target). We're called mid-draw inside BeginTextureMode + BeginMode2D —
     // unwind both, copy, restore.

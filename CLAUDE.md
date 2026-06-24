@@ -201,7 +201,7 @@ signatures: `editor/src/studioDocs.js`** (also drives autocomplete/hover/help) o
 
 ### Adding a new API function (or constant)
 
-Must land in **four** places in the same change, or it won't compile / autocomplete / show in help:
+Must land in **four** places in the same change (a **fifth** for draw commands), or it won't compile / autocomplete / show in help:
 
 1. **Declare in `runtime/studio.h`** with a trailing `//` one-liner (beginner-readable house style).
 2. **Implement in `runtime/studio.c`** with Raylib; respect `camera()`/`clip()` and the 0–31
@@ -211,6 +211,9 @@ Must land in **four** places in the same change, or it won't compile / autocompl
    (`sig` = the `#define`).
 4. **List the key in `editor/src/shell.js`** — add to the right `sections` entry (controls help-tab
    grouping/order). Constants too.
+5. **If it's a DRAW command, add a call to it in `tools/carts/drawall.c`** — the everything-cart that
+   exercises every draw primitive (with per-frame rotation) so a software-canvas regression in any one
+   shows up in a single `canvas-diff` run. New draw command → it must appear there, or it's untested.
 
 API signatures churn during design — re-read the *current* `studio.h` declaration before updating
 the other three. Changing an *existing* signature? `node tools/api-usage.js` first for its blast

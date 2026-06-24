@@ -214,7 +214,7 @@ static bool            pset_batch     = DE_BATCH_PSET_DEFAULT; // true → batch
 #endif
 static bool            sw_canvas_enabled = SW_CANVAS_DEFAULT; // env DE_SOFTWARE_CANVAS=on (the master toggle)
 static bool            sw_canvas_active   = SW_CANVAS_DEFAULT; // PER-FRAME: enabled AND this cart hasn't used a zoom/rotation camera_ex. Primitives check this.
-static bool            sw_cam_ex_seen     = false;            // sticky: cart used camera_ex with zoom!=1 or angle!=0 → that cart falls back to the GPU path (Fork-2/C)
+static bool            sw_force_gpu     = false;            // sticky: cart used camera_ex with zoom!=1 or angle!=0 → that cart falls back to the GPU path (Fork-2/C)
 static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer (Fork 1: RGBA on desktop)
 static inline uint32_t sw_pack(Color c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
@@ -461,7 +461,7 @@ static bool  clip_active = false;
 static int   clip_cx = 0, clip_cy = 0, clip_cw = 0, clip_ch = 0;  // active scissor rect (valid while clip_active)
 
 // world→screen under the active camera (rotation is always 0 on the software path — a rotation
-// camera_ex makes the cart fall back to GPU, see sw_cam_ex_seen). zoom==1 is the fast translation
+// camera_ex makes the cart fall back to GPU, see sw_force_gpu). zoom==1 is the fast translation
 // case; zoom!=1 is an axis-aligned scale about the camera offset (Option 2 — no staircase).
 static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
     if (cam.zoom == 1.0f) { *sx = wx - (int)(cam.target.x - cam.offset.x); *sy = wy - (int)(cam.target.y - cam.offset.y); }
@@ -1462,7 +1462,7 @@ static void loop_step(void) {
     // per-frame software-canvas decision: enabled, AND this cart hasn't used a rotation camera_ex
     // (which falls back to the GPU path — Fork-2/C). Recomputed each frame after update() so a
     // camera_ex in update() is seen; a rotation in THIS frame's draw() flips it next frame.
-    sw_canvas_active = sw_canvas_enabled && !sw_cam_ex_seen;
+    sw_canvas_active = sw_canvas_enabled && !sw_force_gpu;
 
     // draw into the low-res canvas, under the camera matrix (handles scroll + zoom +
     // rotation on the GPU). camera()/camera_ex() called inside draw() re-apply via
@@ -2366,7 +2366,7 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
 void spr_rot(int index, int x, int y, float deg) {
     PROF("spr_rot");
     if (spritesheet.width == 0) return;
-    if (sw_canvas_active) return;   // TODO Phase 2: rotated sprite blit (inverse-map; see rotspr probe)
+    if (sw_canvas_active) { sw_force_gpu = true; return; }   // rotated sprite → GPU fallback (Fork-2/C)
     int cols = spritesheet.width / SPRITE_SIZE;
     Rectangle src = { (index % cols) * SPRITE_SIZE, (index / cols) * SPRITE_SIZE, SPRITE_SIZE, SPRITE_SIZE };
     float h = SPRITE_SIZE / 2.0f;
@@ -2379,7 +2379,10 @@ void spr_rot(int index, int x, int y, float deg) {
 void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, float deg, int ox, int oy) {
     PROF("sspr_ex");
     if (spritesheet.width == 0) return;
-    if (sw_canvas_active) { sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false); return; }  // TODO Phase 2: honor deg (rotated blit)
+    if (sw_canvas_active) {
+        if (deg != 0.0f) { sw_force_gpu = true; return; }     // rotated → GPU fallback (Fork-2/C)
+        sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false); return;
+    }
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx + ox, dy + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
     pal_begin();
@@ -2533,6 +2536,7 @@ void rectfill_rgb(int x, int y, int w, int h, int hex) {
 // angle. The pivot is the rect's own centre, so (cx,cy) holds still as it spins.
 void rectfill_rot(int cx, int cy, int w, int h, float deg, int color) {
     PROF("rectfill_rot");
+    if (sw_canvas_active) { sw_force_gpu = true; return; }   // rotated primitive → GPU fallback (Fork-2/C)
     DrawRectanglePro((Rectangle){ (float)cx, (float)cy, (float)w, (float)h },
                      (Vector2){ w * 0.5f, h * 0.5f }, deg, palette[color % PALETTE_SIZE]);
 }
@@ -2997,7 +3001,7 @@ void camera_ex(int x, int y, float zoom, float angle) {
     // fall back to the GPU path (Fork-2/C) — rotation breaks the span fast-paths. Sticky: clean
     // switch after one transitional frame. (TODO Option 3: render world 1:1 → GPU-transform at
     // present would keep rotation on the canvas too, but breaks world-then-HUD frames.)
-    if (angle != 0.0f) sw_cam_ex_seen = true;
+    if (angle != 0.0f) sw_force_gpu = true;
     float zd = zoom > 1.0f ? zoom - 1.0f : 1.0f - zoom;
 #ifndef PLATFORM_WEB
     if (smooth_on && smooth_rt_ok && zd > 0.002f) {       // fractional zoom → capture at 1:1

@@ -100,7 +100,11 @@ be coalesced.
 > - **`line()`** — the canvas uses `sw_sline` (the reflection-symmetric per-axis DDA), which differs
 >   from GPU `DrawLine` on diagonals *by design* (that's why `sline` exists). So any line-drawing cart
 >   shows a scatter of differing pixels that is correct, not a regression. Measured: `gta` (lines +
->   `map`, no `pal`) = **203/64000 px (0.3%), visually identical**.
+>   `map`, no `pal`) = **203/64000 px (0.3%), visually identical**. *Why a CPU line at all, and DDA
+>   vs coverage:* [`rasterization-consistency.md`](rasterization-consistency.md) (the design decision —
+>   `line()` is the last GL-picks-pixels primitive) + the playable magnified demo
+>   `tools/carts/linecompare.c` (`B` cycles DDA / coverage / perp-offset). The DDA-vs-coverage
+>   trade-off and the "split by use" finding are in the §"DDA vs coverage for the line" note below.
 > - **scaled blits** (`spr`/`sspr`/`map` with scale, `tritex`) — the CPU nearest sampler
 >   (`sx + i*sw/dw`) rounds differently than GPU POINT-filter at footprint boundaries.
 >

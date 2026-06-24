@@ -101,6 +101,15 @@ gone). The whole `fillp` `*_pat` scanline family is collapsed into one `plot_pat
 > it to `line()` is the last step of "direction 1 everywhere," and is the line rasteriser
 > [`software-canvas.md`](software-canvas.md) needs. See
 > [`streetlab-corner-symmetry-plan.md`](streetlab-corner-symmetry-plan.md).
+>
+> **The three line methods, side by side:** `tools/carts/linecompare.c` is a playable magnified demo
+> — **DDA stack** (crisp 1-cell-per-step, the `sline`/canvas line), **coverage** (centre-within-radius,
+> the *same* rule fills/outlines use here — uniform thick width, raggeder 1px edge), and **DDA
+> perp-offset**. It makes the "which pixels does a line own, and does it match a coverage fill at the
+> same edge" question concrete. The open design question — *should `line()` default to coverage (one
+> rule with the fills) with DDA as an explicit call, or stay DDA?* — is tracked in
+> [`software-canvas.md`](software-canvas.md) §"DDA vs coverage for the line" (current lean: split by
+> use — 1px → DDA, thick → coverage).
 
 ### Why not the other directions
 - **Direction 2 (keep GPU as truth, match the CPU paths to it):** rejected — "match raylib's

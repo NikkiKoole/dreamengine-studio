@@ -75,6 +75,43 @@ be coalesced.
 > zoom; rotation falls back to GPU.) Full write-up:
 > [`software-canvas-phase0-plan.md`](software-canvas-phase0-plan.md).
 
+> **Map-cart fleet A/B (2026-06-24, after the `map()` port).** The Phase-0 table above had no
+> tilemap carts — `map()` rendered blank under the canvas until it was ported (raw `DrawTexturePro`,
+> no SW branch), so map carts couldn't be measured on it at all. Re-measured a **map-heavy,
+> rotation-free** set (rotation would trip `sw_force_gpu` and silently measure GPU instead). Numbers
+> are `workMsAvg`, ~average of two 120-frame runs (single runs are noisy — `max` especially):
+>
+> | cart | GPU | canvas | effect | draws |
+> |---|---|---|---|---|
+> | `crowd` | ~6.95 | **~1.82** | **3.8×** ✅ | 45 spr + 23 ovalfill |
+> | `advancewars` | ~3.08 | **~1.55** | **2.0×** ✅ | 23 spr + map + fills |
+> | `sensi` | ~2.2 | ~1.5 | ~wash (noisy) | 40 line + ovalfill + spr |
+> | `heroes` | ~0.94 | ~1.20 | ~0.8× | 66 rectfill |
+> | `opwolf` | ~1.07 | ~2.88 | **0.37×** ❌ | line + circfill |
+> | `gta` | ~0.43 | ~1.56 | **0.28×** ❌ | 93 line |
+> | `pizzatycoon` | ~0.26 | ~0.98 | **0.27×** ❌ | circfill/pset/oval |
+>
+> **Same split as Phase 0, now confirmed on tilemap carts:** the canvas adds a ~constant **~1ms
+> floor** (the 256KB `UpdateTexture` + per-pixel CPU primitive cost), so it wins only where GPU cost
+> is high enough to repay it. **Crossover ≈ 2–2.5ms GPU:** above it the draw-heavy map carts win big
+> (`crowd` 3.8×, `advancewars` 2.0×); below it the light carts go *slower* (`gta` 0.4→1.6ms). So
+> `map()` was **correctness-first** (it was broken), and as a bonus it made the heavy map carts
+> *eligible* for the 2–4× win — it did not change the per-cart opt-in rule.
+>
+> **How to reproduce** (the harness, so the next person doesn't re-derive it):
+> ```
+> # GPU baseline vs software canvas — workMsAvg per cart, from build/perf.json
+> node tools/profile-fleet.js crowd advancewars sensi heroes opwolf gta pizzatycoon --frames 120
+> DE_SOFTWARE_CANVAS=on node tools/profile-fleet.js  …same carts… --frames 120
+> ```
+> `profile-fleet.js` runs each cart headless under `play.js` and reads `workMsAvg`/draw-call counts
+> from `perf.json`; it inherits the environment, so `DE_SOFTWARE_CANVAS=on` reaches the cart binary.
+> Gotchas: (1) **zsh doesn't word-split an unquoted `$VAR`** — pass cart names inline or use
+> `${=VAR}`, else the whole list is taken as one cart name and every run "SKIP"s. (2) **Pick
+> rotation-free carts** — anything calling `spr_rot`/`sspr_ex(deg)`/`rectfill_rot`/`camera_ex(angle)`
+> trips `sw_force_gpu` and you'd be timing the GPU path under an `=on` flag. (3) Two runs minimum;
+> `workMsAvg` swings ~20% and `max` is dominated by one-frame startup spikes.
+
 > **Phase 2 loose-ends sweep (2026-06-24).** "Feature-complete for common carts" was over-claimed —
 > an audit of every `Draw*` call in `studio.c` found four primitives still hitting the GPU with **no
 > `sw_canvas_active` branch**, so they silently vanished (or half-rendered) under the canvas. Now

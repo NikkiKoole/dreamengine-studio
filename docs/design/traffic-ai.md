@@ -7,9 +7,10 @@ a cycling TRAFFIC LIGHT (red = a stop-line all lanes queue behind), and a reacti
 that makes dense following unstable → PHANTOM JAMS emerge with no cause (the ring-road experiment).
 Lanes are emergent from lateral position, so the player participates (stop in a lane → traffic
 passes you). Collision is an ORIENTED box (long-along-heading, narrow-across), so adjacent-lane cars
-never falsely touch. Spec (34 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
+never falsely touch. Spec (38 assertions) covers closing→brake, clear→accelerate, blocked→change-lane,
 flow, no box-overlap, red-builds-a-queue / no-bolt / no-reverse, stop-and-go spread, and the
-cross-road (A: geometry/crossings; B: cross-stream spawns + flows + stays on its road). **Rough
+cross-road (A: geometry/crossings; B: cross-stream spawns + flows + stays on its road; C:
+right-of-way — no T-bones, both roads flow, cross cars get through). **Rough
 edge:** on the tightest procedural corner a fast car can still clip the apex (localized, recovers).
 **Next:** the cross-road intersection (#4) — a big L→R road cutting the loop (~twice) with its own
 traffic, built in phases A–D (geometry → cross-traffic → right-of-way → tune); see the sketch below.
@@ -21,10 +22,11 @@ by straddle-test and stored in `xpt[]` with the sample index on **both** roads (
 both ribbons. **Phase B is shipped too (2026-06-23):** a `TRAFFIC_CROSS`-car stream now drives the
 cross-road via the SAME `drive_ai_traffic` brain — the only generalization is one `Car.road` field
 + a `road_*()` accessor layer (the loop wraps, the cross-road clamps), exactly the portability
-thesis. Cross cars and loop cars collide at the crossings (expected — Phase C's job). 8 spec
-assertions added across A+B. **Next: Phase C — right-of-way** (yield at the crossings so the two
-streams stop T-boning; reuse the red-light "stop-line leader" trick, priority-road first). Then
-speed zones / hazards / the more-ideas list.
+thesis. **Phase C is shipped too (2026-06-24):** priority-road right-of-way — the cross-road gives
+way at each junction via gap acceptance (`crossing_yield_gap`), with a crash-avoidance brake on the
+priority road; tuned to **0 T-bones with both roads flowing** (a thinner loop crowd, `TRAFFIC_CARS_X`,
+opens the gaps). 12 spec assertions now span A+B+C. **Next: Phase D** — feel/tune + setup toggles
+(cross-road on/off, which rule). Then speed zones / hazards / the more-ideas list.
 
 The racing rivals in `trackgen.c` proved the core:
 one shared physics step (`step_car`) + a parameter-driven follow-controller (`drive_ai`) +
@@ -118,13 +120,23 @@ respawn at the cross-road's ends (it's not a loop) or it bends back — decide i
   by `put_car_on_cross`; `lead_gap`/`lane_clear` filter to same-road leaders; `resolve_collisions`
   spans both pools (so crossings collide — Phase C's job). The loop traffic-light only affects road 0.
   4 spec assertions (stream spawns, makes L→R progress, flows, every car stays on its road).
-- **Phase C — right-of-way (the heart).** At each crossing, a car computes its time-to-cross; if a
-  conflicting car (other road) will be inside the **intersection box** within that window, it
-  **yields** — reuse the red-light trick: treat the crossing as a temporary stop-line leader
-  (gap = distance to the crossing, vlead = 0) until the box is clear. Start with **priority road**
-  (the loop has right-of-way; the cross-road gives way); later try give-way / 4-way-stop
-  (first-come) / a light on the cross-road. Spec: **zero box-overlaps at any crossing** over a long
-  run, while both roads keep flowing (not gridlocked).
+- **Phase C — right-of-way (the heart). ✅ (2026-06-24)** At each crossing, a car computes its
+  time-to-cross; if a conflicting car (other road) will be inside the **intersection box** within
+  that window, it **yields** — reuse the red-light trick: treat the crossing as a temporary
+  stop-line leader (gap = distance to the crossing, vlead = 0) until the box is clear. Start with
+  **priority road** (the loop has right-of-way; the cross-road gives way); later try give-way /
+  4-way-stop (first-come) / a light on the cross-road. Spec: **zero box-overlaps at any crossing**
+  over a long run, while both roads keep flowing (not gridlocked). **Done** (`crossing_yield_gap`):
+  the give-way road does proper **gap acceptance** — it enters a junction only when (a) the box is
+  physically empty *and* (b) no priority car will reach it within the car's time-to-clear (predicted
+  at city pace, so a car idling at the light still counts). **A subtlety the build surfaced:** pure
+  priority-road + slow car acceleration (ACCEL 0.07) + a dense loop = the give-way road *starves*
+  (real, but it failed the "both flow" spec). Two fixes, both realistic: **thin the loop crowd**
+  when a cross-road is active (`TRAFFIC_CARS_X` 20 vs 32, so gaps actually open), and give the
+  **priority car a crash-avoidance brake** — it keeps right of way but won't drive *through* a
+  give-way car that has mis-committed into the box. Net: **0 T-bones over ~1440 frames, both roads
+  flow, cross cars get through** (4 spec assertions). Junctions render as a ring (red = a priority
+  car holds it). The remaining rules (give-way / 4-way-stop / cross-road light) are Phase D toggles.
 - **Phase D — feel + tune.** Visualize yields (a car waiting at a crossing), balance densities so it
   doesn't deadlock, and add a setup toggle (cross-road on/off, or which rule). Spec: no deadlock
   (both roads still moving after N frames).

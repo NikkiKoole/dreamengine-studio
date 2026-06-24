@@ -566,3 +566,8 @@ ledger.
   superset (the whole canvas is in RAM, multipass becomes trivial).
 - [rasterization-consistency.md](rasterization-consistency.md) — the CPU per-pixel coverage
   invariant the software rasterizers already satisfy; the rotated-camera seam fork 2 must respect.
+- [field-based-road-rendering.md](field-based-road-rendering.md) — a concrete per-pixel-coverage
+  consumer (draw a road from one distance field; asphalt/kerb/sidewalk/lanes = thresholds). Proven
+  in the `skewlab` cart; the queued streetlab refactor. It's `pset`-per-pixel today, so it's cheap
+  *on* the canvas and a natural thing to land with it — and it's where the symmetric CPU line
+  (`sline`, see the note above) gets used for real.

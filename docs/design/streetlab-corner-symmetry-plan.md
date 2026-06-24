@@ -90,7 +90,11 @@ centred segments). No direction-dependent error term ⇒ a line and its mirror r
 Progression measured in `linesym` (line-only mismatch): GPU `DrawLine` 88 → round-half-even 30 →
 toward-midpoint 2 → +plot-both **0**. `axissym` confirms 0 about axes 64/100/137/200.
 
-### Banked next — the union-outline edge refactor (proven in `skewlab`, NOT done here)
+### Banked next — the field-based road refactor (proven in `skewlab`, NOT done here)
+
+> **Full method + contract + port plan: [`field-based-road-rendering.md`](field-based-road-rendering.md).**
+> Short version below; that doc is the home for the refactor whenever it's picked up.
+
 
 The deeper fix for the *skew/curve* edge issues (missing outline, stray pixels at the crossing,
 doubled edges — all pre-existing, byte-identical to before this work) is to stop drawing road edges

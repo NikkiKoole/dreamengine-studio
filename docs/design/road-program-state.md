@@ -308,6 +308,13 @@ offsets their own way — they predate the lane model. Collected issues:
 
 ## Known deferrals (pick up when convenient)
 
+- **Field-based road rendering refactor (streetlab)** *(queued 2026-06-24, proven in the `skewlab` cart)* —
+  streetlab draws road edges PER-ARM (casing bands), which strays/misses-outline/double-lines at skew &
+  curves. The fix: draw the road from ONE lateral distance field (`latDist`), with asphalt/kerb/sidewalk/
+  lane-lines all thresholds on it — clean + uniform at any skew/curve, and it DELETES `mirror_blit` +
+  the casing-fillet + `stroke_corner`. Proven in `skewlab`; deliberately deferred (core road-drawing
+  rewrite, interacts with all the modes; may want to land with the software canvas). **Full method,
+  boundary contract, and port plan:** [`field-based-road-rendering.md`](field-based-road-rendering.md).
 - *(resolved 2026-06-22)* `streetlab`'s `index.json` gallery description is now current through M7 (committed in
   a quiet moment when the registry was clean). Left here as a note: when it lags again, update only the streetlab
   entry; if the file is dirty with foreign edits, prefer "just ship it" for a ref-safe description change.

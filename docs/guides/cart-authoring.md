@@ -242,7 +242,14 @@ gives a 2D pixel-canvas API whose names match the C drawing API.
 
 Worked showcases: **`foundry.cart.js`** (the step-by-step "watch the code draw"
 cart — every function gets a frame on stage) and **`monstermix.cart.js`**
-(`stamp()` part composition + magic `pal()` indices).
+(`stamp()` part composition + magic `pal()` indices). For a self-contained set of
+16×16 UI button icons, see **`boom.cart.js`**.
+
+**Iterate without baking the cart.** `node tools/sprite-preview.js <cart>` renders
+every slot in the `.cart.js` to one labelled PNG (zoomed, slot numbers, a checker
+background so index-0 transparency reads) — no compile, no run. Tweak the drawing
+code, re-run, look again in seconds; `--slots 0-5,28` limits it, `--scale`/`--cols`
+size it. The output is pixel-identical to the baked sheet (shared palette + encoder).
 
 ### font-bake.js — real TTF text as sprites
 

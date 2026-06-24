@@ -9,18 +9,28 @@
 //          watch the blast ignite, shatter, and collapse the block, and the
 //          fire crawl, chain, and smoke on the wind.
 //
-//   MODES (TAB toggles)
-//     BOOM    pick a blast with 1-6; click anywhere (or SPACE) → detonate.
+//   TOOLS are picked by CLICKING cute pixel-art buttons — TWO rows always on
+//   screen: BLASTS on top, BUILD BRUSHES below (icons live in boom.cart.js).
+//   Clicking any tool also sets its mode, so no keyboard shortcuts are needed
+//   (TAB still flips mode as a shortcut). A label by the cursor names exactly
+//   what cell you're hovering.
+//
+//   THE TWO TOOL ROWS
+//     BLASTS  click a blast, then click anywhere (or SPACE) → detonate.
 //             mouse WHEEL = charge size.
-//                1 BLAST    the all-rounder: shockwave, fireball, crater
-//                2 GRENADE  small + sharp, all shrapnel, tiny fireball
-//                3 MOLOTOV  no shockwave — a flame splash that paints fire
-//                4 CAR BOMB medium, debris-heavy, throws chunks far
-//                5 GAS MAIN a hiss, then a column of fire ERUPTS upward
-//                6 RAM CAR  a car screams in from off-screen at your click and
-//                           crashes (car-bomb) into the first wall it meets
-//     BUILD   click / drag to paint the world. 1-0 pick a material;
-//             T = torch: light a fire by hand;  B = drop a loose crate to blow around.
+//                BLAST    the all-rounder: shockwave, fireball, crater
+//                GRENADE  small + sharp, all shrapnel, tiny fireball
+//                MOLOTOV  no shockwave — a flame splash that paints fire
+//                CAR BOMB medium, debris-heavy, throws chunks far
+//                GAS MAIN a hiss, then a column of fire ERUPTS upward
+//                RAM CAR  a car screams in from off-screen at your click and
+//                         crashes (car-bomb) into the first wall it meets
+//     BRUSHES click a brush, then click / drag to paint the world.
+//                materials: ground/road/grass/wood/oil/water/barrel/car/glass/concrete
+//                TORCH      light a fire by hand
+//                CRATE      drop a loose crate to blow around
+//                GASOLINE   pour a fuse (catches instantly, races along its trail)
+//                EXPLOSIVE  a charge that detonates when the fuse-fire reaches it
 //
 //   ALWAYS    C clear all fire & smoke      R reset the scene
 //
@@ -71,31 +81,52 @@
 #define NCELL (GW * GH)
 #define IDX(x,y) ((y) * GW + (x))
 
+// ── toolbar: a row of cute clickable pixel-art buttons (sprites in boom.cart.js).
+// Picking a tool is CLICK-ONLY now — no keyboard shortcuts. BOOM mode shows the
+// blast icons (slots 0..5); BUILD mode shows the brush icons (slot = 16 + value).
+#define TB_X   2
+#define TB_Y0  11        // row 0: the BOOM blasts
+#define TB_Y1  29        // row 1: the BUILD brushes
+#define TB_SZ  16
+#define TB_GAP 2
+#define TB_PITCH (TB_SZ + TB_GAP)
+#define TB_NBOOM  (BL_KINDS + 1)   // blast buttons (incl. ram car)
+
 // ── materials ────────────────────────────────────────────────────────────────
 // fuel  = how long a cell burns once lit.   resist = % shaved off a neighbour's
 // spread roll (high = hard to catch; oil/barrel negative = eager).   hp =
 // structural integrity for non-flammable props (glass/concrete).   col = tint.
+// GASOLINE is a thin, eager fuse fuel: it catches almost instantly and races
+// along its own trail (very negative resist), then burns out fast (low fuel) —
+// pour a line, light one end, watch the flame run to whatever it reaches.
+// TNT is a placed charge: once fire touches it, it cooks off into a real blast.
+// Together they're the fuse-and-bomb toy — lay gasoline to a TNT, torch the fuse.
 enum { MAT_GROUND, MAT_ROAD, MAT_GRASS, MAT_WOOD, MAT_OIL, MAT_WATER, MAT_ASH,
-       MAT_BARREL, MAT_CAR, MAT_GLASS, MAT_CONCRETE, MAT_RUBBLE, MAT_KINDS };
+       MAT_BARREL, MAT_CAR, MAT_GLASS, MAT_CONCRETE, MAT_RUBBLE,
+       MAT_GAS, MAT_TNT, MAT_KINDS };
 #define TORCH MAT_KINDS                  // brush sentinel: light a fire by hand
 #define CRATE_BRUSH (MAT_KINDS + 1)      // brush sentinel: drop a loose crate (a body, not a cell)
-static const int MAT_FUEL[MAT_KINDS]   = {  0,  0, 20, 90, 45,  0,  0,  30, 60,  0,  0,  0 };
-static const int MAT_RESIST[MAT_KINDS] = {  0,  0,  0, 20,-40,  0,  0, -20, 40,  0,  0,  0 };
-static const int MAT_HP[MAT_KINDS]     = {  0,  0,  0,  0,  0,  0,  0,   0,  0,  4, 16,  0 };
+static const int MAT_FUEL[MAT_KINDS]   = {  0,  0,  8, 90, 45,  0,  0,  30, 60,  0,  0,  0,   6, 10 };
+static const int MAT_RESIST[MAT_KINDS] = {  0,  0, 80, 20,-40,  0,  0, -20, 40,  0,  0,  0, -60,-10 };
+static const int MAT_HP[MAT_KINDS]     = {  0,  0,  0,  0,  0,  0,  0,   0,  0,  4, 16,  0,   0,  0 };
 static const int MAT_COL[MAT_KINDS]    = {
     CLR_BROWNISH_BLACK, CLR_DARK_GREY, CLR_DARK_GREEN, CLR_BROWN,
     CLR_DARKER_GREY,    CLR_DARK_BLUE, CLR_BROWNISH_BLACK,
-    CLR_RED,            CLR_TRUE_BLUE, CLR_BLUE_GREEN, CLR_LIGHT_GREY, CLR_MEDIUM_GREY
+    CLR_RED,            CLR_TRUE_BLUE, CLR_BLUE_GREEN, CLR_LIGHT_GREY, CLR_MEDIUM_GREY,
+    CLR_DARK_PEACH,     CLR_DARK_RED
 };
 static const char *MAT_NAME[MAT_KINDS] = {
     "ground","road","grass","wood","oil","water","ash",
-    "barrel","car","glass","concrete","rubble"
+    "barrel","car","glass","concrete","rubble",
+    "gasoline","explosive"
 };
 
-// brushes you can paint (results like ash/rubble are not paintable)
-static const int BRUSH_MAT[] = { MAT_GROUND, MAT_ROAD, MAT_GRASS, MAT_WOOD, MAT_OIL,
-                                 MAT_WATER, MAT_BARREL, MAT_CAR, MAT_GLASS, MAT_CONCRETE };
-#define NBRUSH 10
+// the BUILD palette, in toolbar order. Each entry maps to icon slot 16 + value
+// (so TORCH/CRATE_BRUSH, being MAT_KINDS / MAT_KINDS+1, get slots 30 / 31).
+static const int BUILD_BRUSHES[] = { MAT_GROUND, MAT_ROAD, MAT_GRASS, MAT_WOOD, MAT_OIL,
+                                     MAT_WATER, MAT_BARREL, MAT_CAR, MAT_GLASS, MAT_CONCRETE,
+                                     MAT_GAS, MAT_TNT, TORCH, CRATE_BRUSH };
+#define NBUILD ((int)(sizeof BUILD_BRUSHES / sizeof *BUILD_BRUSHES))
 
 // ── the world grid ────────────────────────────────────────────────────────────
 // bid = building id (1+) for concrete, so structural collapse knows which cells
@@ -687,6 +718,14 @@ static void fire_tick(void) {
             detonate(x * CELL + CELL * 0.5f, y * CELL + CELL * 0.5f, 1, BL_CARBOMB);
             continue;
         }
+        // a placed charge: the moment the fuse-fire reaches it, it goes off as a
+        // proper blast (eager — fire >= 2 is enough — so the fuse "arrives" and BOOMs)
+        if (c->mat == MAT_TNT && c->fire >= 2 && dets_this_tick < 6 && frand() < 0.6f) {
+            dets_this_tick++;
+            W[IDX(x, y)].mat = MAT_RUBBLE; c->fire = 0; c->fuel = 0;
+            detonate(x * CELL + CELL * 0.5f, y * CELL + CELL * 0.5f, 3, BL_BLAST);
+            continue;
+        }
 
         if (srcfire < MIN_SPREAD) continue;
 
@@ -707,6 +746,13 @@ static void fire_tick(void) {
             if ((int)(frand() * 100) < chance) ignite(nx, ny);
         }
     }
+}
+
+// the player-facing name of a toolbar button (row 0 = blasts, row 1 = brushes)
+static const char *tool_name(int row, int i) {
+    if (row == 0) return (i == RAMCAR) ? "ram car" : BSPEC[i].name;
+    int b = BUILD_BRUSHES[i];
+    return b == TORCH ? "torch" : b == CRATE_BRUSH ? "crate" : MAT_NAME[b];
 }
 
 // ── per-frame update ───────────────────────────────────────────────────────
@@ -733,28 +779,38 @@ void update(void) {
         for (int i = 0; i < MAXBLK; i++) blk[i].on = 0;
         for (int i = 0; i < MAXCAR; i++) rcar[i].on = 0;
     }
-    if (mode == 0) {                                          // BOOM: pick blast
-        for (int i = 0; i <= BL_KINDS; i++) if (keyp('1' + i)) blast = i;  // 6 = ram car
-    } else {                                                  // BUILD: pick brush
-        for (int i = 0; i < 9; i++) if (keyp('1' + i)) brush = BRUSH_MAT[i];
-        if (keyp('0')) brush = BRUSH_MAT[9];
-        if (keyp('T')) brush = TORCH;
-        if (keyp('B')) brush = CRATE_BRUSH;
-    }
-
     float w = mouse_wheel();
     if (w != 0) { charge += (w > 0 ? 1 : -1); if (charge < 1) charge = 1; if (charge > 5) charge = 5; }
 
     int mx = mouse_x(), my = mouse_y();
+
+    // ── toolbar: BOTH rows always on screen (blasts above, brushes below).
+    // Clicking any button picks that tool AND sets the matching mode — so every
+    // tool is one click away, no TAB needed. (TAB still flips mode as a shortcut.)
+    int over_tb = 0, hit_row = -1, hit_i = -1;
+    {
+        int ry[2] = { TB_Y0, TB_Y1 }, rn[2] = { TB_NBOOM, NBUILD };
+        for (int r = 0; r < 2; r++)
+            if (my >= ry[r] && my < ry[r] + TB_SZ && mx >= TB_X) {
+                int i = (mx - TB_X) / TB_PITCH;
+                if (i >= 0 && i < rn[r]) { over_tb = 1; hit_row = r; hit_i = i; }
+            }
+    }
+    if (over_tb && mouse_pressed(0)) {
+        if (hit_row == 0) { mode = 0; blast = hit_i; }     // 0..5, 5 = RAMCAR
+        else              { mode = 1; brush = BUILD_BRUSHES[hit_i]; }
+        hit(74, INSTR_SQUARE, 1, 26);                      // soft UI click
+    }
+
     if (mode == 0) {                                  // BOOM
-        if (mouse_pressed(0) || keyp(KEY_SPACE)) {
+        if (!over_tb && (mouse_pressed(0) || keyp(KEY_SPACE))) {
             if (blast == RAMCAR) launch_car(mx, my, charge);
             else                 detonate(mx, my, charge, blast);
         }
     } else if (brush == CRATE_BRUSH) {                // BUILD: drop a crate per click
-        if (mouse_pressed(0)) place_crate(mx, my);
+        if (!over_tb && mouse_pressed(0)) place_crate(mx, my);
     } else {                                          // BUILD: paint cells
-        if (mouse_down(0)) {
+        if (!over_tb && mouse_down(0)) {
             int gx = mx / CELL, gy = my / CELL;
             for (int oy = -1; oy <= 1; oy++)
             for (int ox = -1; ox <= 1; ox++) {
@@ -1046,6 +1102,22 @@ void reset_world(void) {
         if (x >= 0 && y < GH) { W[IDX(x, y)].mat = MAT_CAR; W[IDX(x, y)].fuel = (unsigned char)MAT_FUEL[MAT_CAR]; }
     }
 
+    // a demo fuse: a gasoline trail running into a little cluster of explosives,
+    // down in the open at the bottom — torch the far end and the flame races in
+    {
+        int fy = GH - 5;
+        for (int x = 22; x < 44 && x < GW; x++)
+            if (fy >= 0 && fy < GH && W[IDX(x, fy)].mat == MAT_GRASS) {
+                W[IDX(x, fy)].mat = MAT_GAS; W[IDX(x, fy)].fuel = (unsigned char)MAT_FUEL[MAT_GAS];
+            }
+        for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 3; dx++) {
+            int x = 44 + dx, y = fy - 1 + dy;
+            if (x >= 0 && x < GW && y >= 0 && y < GH) {
+                W[IDX(x, y)].mat = MAT_TNT; W[IDX(x, y)].fuel = (unsigned char)MAT_FUEL[MAT_TNT];
+            }
+        }
+    }
+
     // crate stacks on open ground — loose boxes for the blast wave to shove + smash
     int kn = 0;
     static const int kbx[]   = { 72, 150, 160 }, kby[]   = { 64, 152, 92 };
@@ -1079,7 +1151,7 @@ static int inited = 0;
 
 // ── render ───────────────────────────────────────────────────────────────
 void draw(void) {
-    if (!inited) { reset_world(); inited = 1; wind_t = 1; }
+    if (!inited) { reset_world(); inited = 1; wind_t = 1; colorkey(0); }   // index 0 = transparent for toolbar icons
 
     cls(MAT_COL[MAT_GROUND]);
 
@@ -1097,6 +1169,11 @@ void draw(void) {
             pset(x * CELL + 2, y * CELL + 2, CLR_ORANGE);       // hazard cap
         } else if (c->mat == MAT_GLASS) {
             pset(x * CELL, y * CELL, CLR_WHITE);                // sheen
+        } else if (c->mat == MAT_GAS) {
+            pset(x * CELL + 1, y * CELL + 2, CLR_PEACH);        // wet gasoline sheen
+        } else if (c->mat == MAT_TNT) {
+            pset(x * CELL + 1, y * CELL + 1, CLR_YELLOW);       // charge marker
+            pset(x * CELL + 2, y * CELL + 2, CLR_BLACK);
         }
         if (c->fire > 0) {
             int idx = c->fire - 1 - (int)(frand() * 2);     // flicker
@@ -1226,6 +1303,40 @@ void draw(void) {
         else rect((gx - 1) * CELL, (gy - 1) * CELL, CELL * 3, CELL * 3, bc);
     }
 
+    // cursor probe: name PRECISELY what's under the pointer (cell + its state),
+    // in a little label that flips side/below so it never runs off-screen
+    {
+        int gx = mx / CELL, gy = my / CELL;
+        int in_tb = 0;
+        {
+            int ry[2] = { TB_Y0, TB_Y1 }, rn[2] = { TB_NBOOM, NBUILD };
+            for (int r = 0; r < 2; r++)
+                if (my >= ry[r] && my < ry[r] + TB_SZ && mx >= TB_X &&
+                    (mx - TB_X) / TB_PITCH < rn[r]) in_tb = 1;
+        }
+        if (!in_tb && gx >= 0 && gy >= 0 && gx < GW && gy < GH) {
+            Cell *c = &W[IDX(gx, gy)];
+            char lbl[48];
+            if (c->fire > 0)
+                snprintf(lbl, sizeof lbl, "%s  burning %d", MAT_NAME[c->mat], c->fire);
+            else if (MAT_FUEL[c->mat] > 0)
+                snprintf(lbl, sizeof lbl, "%s  fuel %d", MAT_NAME[c->mat], c->fuel);
+            else if (MAT_HP[c->mat] > 0)
+                snprintf(lbl, sizeof lbl, "%s  hp %d", MAT_NAME[c->mat], c->hp);
+            else
+                snprintf(lbl, sizeof lbl, "%s", MAT_NAME[c->mat]);
+            font(FONT_SMALL);
+            int tw = (int)strlen(lbl) * 4;
+            int lx = mx + 6, ly = my - 8;
+            if (lx + tw + 1 > SCREEN_W) lx = mx - 6 - tw;          // flip to the left edge
+            if (lx < 1) lx = 1;
+            if (ly < 10) ly = my + 8;                              // drop below if it'd hit the HUD
+            rectfill(lx - 1, ly - 1, tw + 2, 7, CLR_BLACK);
+            print(lbl, lx, ly, CLR_WHITE);
+            font(FONT_NORMAL);
+        }
+    }
+
     // HUD ---------------------------------------------------------------------
     rectfill(0, 0, SCREEN_W, 9, CLR_BLACK);
     char buf[64];
@@ -1238,30 +1349,41 @@ void draw(void) {
     }
     print(buf, 3, 1, CLR_WHITE);
 
-    // a small selectable strip under the bar (the petri-dish menu)
-    font(FONT_SMALL);
-    int sx = 3, sy = 11;
-    if (mode == 0) {
-        for (int i = 0; i <= BL_KINDS; i++) {
-            const char *nm = (i == BL_KINDS) ? "ram car" : BSPEC[i].name;
-            char t[24]; snprintf(t, sizeof t, "%d %s", i + 1, nm);
-            print(t, sx, sy, i == blast ? CLR_WHITE : CLR_MEDIUM_GREY);
-            sx += (int)strlen(t) * 4 + 5;
+    // toolbar: BOTH rows of cute clickable icons, always on screen. The active
+    // tool gets a white frame + yellow halo; the hovered one a light frame.
+    int ry[2] = { TB_Y0, TB_Y1 }, rn[2] = { TB_NBOOM, NBUILD };
+    int hov_row = -1, hov_i = -1;
+    for (int r = 0; r < 2; r++)
+        if (my >= ry[r] && my < ry[r] + TB_SZ && mx >= TB_X) {
+            int i = (mx - TB_X) / TB_PITCH;
+            if (i >= 0 && i < rn[r]) { hov_row = r; hov_i = i; }
         }
-    } else {
-        for (int i = 0; i < NBRUSH; i++) {
-            int m = BRUSH_MAT[i];
-            char t[24]; snprintf(t, sizeof t, "%d%s", (i + 1) % 10, MAT_NAME[m]);
-            print(t, sx, sy, brush == m ? CLR_WHITE : CLR_MEDIUM_GREY);
-            sx += (int)strlen(t) * 4 + 4;
+    for (int r = 0; r < 2; r++)
+        for (int i = 0; i < rn[r]; i++) {
+            int bx = TB_X + i * TB_PITCH, by = ry[r];
+            int slot = (r == 0) ? i : (16 + BUILD_BRUSHES[i]);
+            int sel  = (r == 0) ? (mode == 0 && i == blast)
+                                : (mode == 1 && BUILD_BRUSHES[i] == brush);
+            rectfill(bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2, CLR_BLACK);   // button panel
+            spr(slot, bx, by);
+            rect(bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2,
+                 sel ? CLR_WHITE : (r == hov_row && i == hov_i ? CLR_LIGHT_GREY : CLR_DARKER_GREY));
+            if (sel) rect(bx - 2, by - 2, TB_SZ + 4, TB_SZ + 4, CLR_YELLOW);
         }
-        print("T torch", sx, sy, brush == TORCH ? CLR_WHITE : CLR_MEDIUM_GREY);
-        sx += (int)strlen("T torch") * 4 + 5;
-        print("B crate", sx, sy, brush == CRATE_BRUSH ? CLR_WHITE : CLR_MEDIUM_GREY);
+    // hover tooltip — name the button under the pointer
+    if (hov_row >= 0) {
+        const char *nm = tool_name(hov_row, hov_i);
+        font(FONT_SMALL);
+        int tw = (int)strlen(nm) * 4;
+        int lx = TB_X + hov_i * TB_PITCH;
+        if (lx + tw + 1 > SCREEN_W) lx = SCREEN_W - tw - 1;
+        int ly = TB_Y1 + TB_SZ + 2;
+        rectfill(lx - 1, ly - 1, tw + 2, 7, CLR_BLACK);
+        print(nm, lx, ly, CLR_YELLOW);
+        font(FONT_NORMAL);
     }
-    font(FONT_NORMAL);
 
-    print("TAB mode  wheel size  C clear  R reset", 3, SCREEN_H - 8, CLR_LIGHT_GREY);
+    print("click a tool  wheel charge  C clear  R reset", 3, SCREEN_H - 8, CLR_LIGHT_GREY);
 
     // wind tell-tale (top-right arrow)
     int wx = SCREEN_W - 14, wy = 5;

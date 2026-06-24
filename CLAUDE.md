@@ -136,6 +136,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              analysis (sample correlation / amp+brightness envelope / LFO rate+depth /
                              harmonic series) — for A/B-ing a render against navkit
              sprite-draw.js  reusable 2D pixel-canvas API for programmatic .cart.js sprites
+             sprite-preview.js  render a .cart.js's sprites to one labelled PNG (no compile/run) — the tight loop for code-drawn sprites
              font-bake.js    bake real-TTF text into sprite-draw canvases at build time
              gen-rom-font.js bake the "extra" bitmap fonts (ROM dumps + EPX) into the shared atlas
              lint-carts.js   validate index.json (tags + registration); owns the tag vocabulary
@@ -212,6 +213,14 @@ example) — see "Tutorial carts".
 Ported from `../eventually`. 16×16 sprites, 64 slots (8×8 grid → 128×128 sheet), pico32 palette.
 Tools: pixel/fill/select/stamp/line/circle/rectangle. Animation frame strip (1/2/3/4/d keys). The
 tilemap canvas IS the sprite sheet — click a tile to edit. Auto-exported as `build/sprites.png`.
+
+**Sprites don't have to be hand-drawn here.** Need a sprite *in code* — UI icons/buttons, HUD
+glyphs, procedural tiles, anything using the extended palette 16–31? Author it with
+`tools/sprite-draw.js` from a `<cart>.cart.js` (don't hand-roll flat arrays). Worked examples:
+`boom` (toolbar button icons), `masseffect` (units + tiles). Full API + the three sprite patterns:
+[`docs/guides/cart-authoring.md`](docs/guides/cart-authoring.md). Iterate with
+`node tools/sprite-preview.js <cart>` — renders the slots to one labelled PNG (no compile/run), so
+you tweak the JS and re-look in seconds.
 
 ## Fonts
 

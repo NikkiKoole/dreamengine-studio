@@ -8,21 +8,39 @@
 > through `plot_pat` was *2.4× slower* than GPU; a `sw_fillrect` row-memset is what wins. Commits:
 > Phase 0a `133b9d0e`, Phase 0b `ec1b855c`.
 >
-> **Phase 2 done (2026-06-24): `spr`/`print`/`tritex` + span fills ported** — the renderer is now
-> feature-complete for the common cart. `2a` spr/sspr CPU blit (`e19a479b`), `2b` print all 5 fonts
-> via glyph blit (`bda3d59d`), `2c` tritex via the `stritex` rasterizer (`dd4fd9ab`), `2d` circ/oval/
-> poly fills kept span-based on the canvas (`90611408`). Validated: `gridcity` renders fully in
-> software (sprites+map+text, 1.6×), `interiors` correctly (2.9×), `textured3d` cube correct (but
-> 1.5× *slower* — tritex-bound carts, like the rectfill-bound CPU-shaders, keep the GPU). **Fleet
-> shape holds: pset/fill/sprite-bound carts win 1.4–3.5×; tritex- and rectfill-bound carts stay on
-> GPU** → per-cart opt-in. **Remaining tail (before flipping the default):** `camera_ex` zoom/rotation
-> (translation-only today), rotated `spr_rot`/`sspr_ex`/`print_rot` blits, and `pal()`/runtime
-> `colorkey()` for the sprite blit. Then Phase 3/4 (default for non-`camera_ex` frames + free wins).
+> **Phase 2 done (2026-06-24): the renderer is feature-complete for common carts + the rotation
+> split is wired.** `2a` spr/sspr CPU blit (`e19a479b`), `2b` print all 5 fonts via glyph blit
+> (`bda3d59d`), `2c` tritex via the `stritex` rasterizer (`dd4fd9ab`), `2d` circ/oval/poly fills kept
+> span-based (`90611408`), `2e` **camera_ex zoom in software** + **rotation falls back to GPU**
+> (`30e4ba0b`), and the fix that **rotated *primitives* (`rectfill_rot`/`spr_rot`/`sspr_ex`) also
+> trigger the GPU fallback** (`74dcb8cf`). Mechanism: the flag split into `sw_canvas_enabled` (env)
+> and a per-frame `sw_canvas_active` (= enabled AND `!sw_force_gpu`); any rotation — camera *or*
+> primitive — sets the sticky `sw_force_gpu` so that cart rides the GPU path (Fork-2/C).
 >
-> Caveats in this probe (fine for the GO/NO-GO, to clean up in Phase 1/2): `print` is skipped (HUD
-> text absent), `camera_ex` zoom is approximate (sw applies translation only), and `cityplan` is not
-> byte-identical to GPU (it uses world-space `line`→`sline` + per-pixel fills — different, by design;
-> the byte-identity guarantee is for the integer-primitive set, proven on `swcanvas_test`).
+> **Fleet split confirmed across the whole shape spectrum:**
+> - **pset / fill / sprite-bound** (cityplan 2.1×, interiors 2.9×, dpaint 2.8×, pixelperfect 2.3×,
+>   lotfill 1.7×, gridcity 1.6×) → **win on the canvas**. cityplan renders with correct zoom (z6.34).
+> - **geometry / 3D / rotation-bound** (`sloop`, `cityview`, `textured3d`, `caustics`, `raymarch`) →
+>   stay on GPU (fallback or just faster there). `sloop`/`cityview` are *heading-up rotating* +
+>   `rectfill_rot`/`tritex` + ~0 `pset` — fall back, render correctly, no win and no penalty.
+>
+> **Why Option 3 ("rotate in HW, rasterize in SW") has no cart to justify it yet** — and the cost that
+> decides it: rotating a *pre-rendered image* needs the screen's rotated **corners** filled, so you
+> must render an **oversized buffer** (the screen diagonal ≈ 377² ≈ **~2.2× the pixels**) every frame,
+> then crop. The GPU avoids this entirely by transforming *geometry* per-vertex (only rasterizes
+> visible pixels). So Option 3 only pays off for a cart that is **rotation-heavy AND pset/fill-bound**
+> (big SW win to absorb the over-render). Every rotating cart in the fleet (sloop/cityview) is instead
+> *geometry*-bound (rectfill_rot/tritex, ~0 pset) → GPU is strictly better. **Trigger to build Option
+> 3 (+ HUD-layer compositing): a rotating top-down pixel-art/Mode-7 world with heavy fills + a HUD.**
+>
+> **Remaining tail (small, before flipping the default):** rotated `spr_rot`/`sspr_ex`/`print_rot`
+> as real CPU blits (today they GPU-fall-back), and `pal()` recolor + runtime `colorkey()` for the
+> sprite blit (PNG alpha works). Then Phase 3/4 (flip default for non-rotation frames + free wins:
+> `pget`→array read, cross-device determinism).
+>
+> Caveat: `cityplan`/`gridcity`/etc. are not byte-identical to GPU under the flag (world-space
+> `line`→`sline` + per-pixel fills differ by design — `sline` is the *better*, deterministic one); the
+> byte-identity guarantee is for the integer-primitive set, proven on `swcanvas_test`.
 >
 > **Original plan (below), now executed:** the concrete step for
 > [`software-canvas.md`](software-canvas.md) — its Build-runbook Phase 0→1 made executable. The

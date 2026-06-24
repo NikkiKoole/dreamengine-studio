@@ -249,6 +249,21 @@ C ships the win exactly where the survey points, sidesteps both killers, and def
 rotation-in-software until there's measured demand. (The "translation-camera-only prototype" below
 *is* committing to C.)
 
+> **Built (2026-06-24) — Fork-2/C is live, and refined: zoom stays software.** Implemented in
+> `studio.c` (Phase 2e, `30e4ba0b` + `74dcb8cf`; full status in
+> [`software-canvas-phase0-plan.md`](software-canvas-phase0-plan.md)). The split turned out finer than
+> "translation only vs everything-else GPU": **zoom is axis-aligned, so it stays on the fast software
+> path** (`sw_w2s` scales coords; `sw_pset` fills the zoomed pixel's footprint; cityplan renders with
+> correct zoom and still wins 2.1×). Only **rotation** falls back to GPU — and not just rotated
+> *cameras* but rotated *primitives* (`rectfill_rot`/`spr_rot`/`sspr_ex`) too, via a sticky
+> `sw_force_gpu`. Validated on `sloop`/`cityview` (heading-up rotating + `rectfill_rot`/`tritex`): they
+> fall back and render correctly with no penalty. **Why no software-rotation yet (Option 3):** rotating
+> a pre-rendered image needs the screen's rotated corners filled → an oversized (~diagonal, ~2.2×)
+> render every frame, which the GPU avoids by transforming geometry per-vertex. So Option 3 only pays
+> off for a **rotation-heavy AND pset/fill-bound** cart (none exist yet — every rotating cart is
+> geometry-bound). Trigger to build it (+ HUD-layer compositing): a rotating top-down pixel/Mode-7
+> world with heavy fills + a HUD.
+
 > **Note (2026-06) — `camera_ex` ≠ "needs the software canvas".** `camera_ex` splits into ZOOM and
 > ROTATION, and they're very different for fills. A rotation-0 camera (zoom only) is **axis-aligned
 > affine**, so the disc/poly span fast-paths are byte-safe under it — and the disc gate was relaxed

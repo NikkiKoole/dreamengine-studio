@@ -271,6 +271,20 @@ Graduated labour:
   lockstep netcode — and it plugs straight into infrastructure we already have (`play.js --det`,
   the dump+shasum oracle, byte-reproducible `--wav`). Worth naming as a reason this architecture is
   *right* for a fantasy console, beyond the perf win.
+  > **Measured (2026-06-24) — the determinism claim is no longer a hope; it holds for the float
+  > rasterizers as written.** Three standalone oracles (`tools/det-probes/`, run `bash
+  > tools/det-probes/run.sh`) lift the actual rasterizers into a no-raylib harness, hash the pixel
+  > buffer in-C, and compile the *same source* three ways. Results — **bit-identical across arm64,
+  > x86-64 (Rosetta), and wasm** for: (1) `sline`+`sfill` over a dense slope fan + rotating polys
+  > (`detstress`), (2) software `tritex` (`stritex`, which *also* tiles a quad with `overlap=0
+  > gap=0` via the top-left rule), (3) a rotated outline that stays **1 connected component at all
+  > 360°** (`rotstroke`). FMA contraction is a non-issue (`-ffp-contract=on/fast/off` all agree —
+  > the divides leave nothing to fuse). **So goal B does NOT force a fixed-point rewrite** — the
+  > existing float code is device-stable. The one rule it surfaces: **never `-ffast-math`** (it
+  > shifts the result — consistently across platforms, but a footgun if the native and web builds
+  > disagree on the flag). What's still *un*proven is the hard part — *fill-vs-bounding-outline*
+  > pixel agreement (one coverage convention across all primitives); each probe passes in isolation
+  > by picking its own. See `tools/det-probes/README.md`.
 - The scale-up to the window stays GPU (`UpdateTexture` RGBA + `DrawTexturePro` nearest-neighbour),
   so crisp pixel scaling is untouched.
 
@@ -436,6 +450,12 @@ order, not a redesign. Every phase passes the same validation spine — the **du
 oracle** (`play.js --dump` + `shasum`), the `raster_test` cart, `profile-fleet.js` for the A/B, and
 the **web-perf flow** ([`../guides/debug-harness.md`](../guides/debug-harness.md) → "Web perf A/B").
 Build it behind `DE_SOFTWARE_CANVAS` (off by default), reusing the `DE_BATCH_PSET` flag pattern.
+
+**Build-flag rule (proven by `tools/det-probes/`, applies from Phase 0):** the cross-device
+bit-identity that goal B rests on holds for the float rasterizers **only without `-ffast-math`** —
+audit the native (`main.cjs`) and emcc (`build-site.js`) flags to confirm neither enables it, and
+that both use the *same* FP flags. FMA contraction is safe (verified). Add
+`bash tools/det-probes/run.sh` to the validation spine — it's the regression gate for that property.
 
 **Phase 0 — Mechanism (½ day).** In the frame loop (`studio.c` ~`BeginTextureMode(canvas)`), branch on
 `sw_canvas_active`: clear `cbuf`, run `draw()`, then `UpdateTexture(canvas.texture, cbuf)` → the

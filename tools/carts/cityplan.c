@@ -409,7 +409,7 @@ static const int RM_FLOOR[RM_N] = {
 };
 enum { T_N = 1, T_E = 2, T_S = 4, T_W = 8 };
 typedef struct { Rect r; int label; int touch; } Room;
-typedef struct { int x, y, len, vert, dpos, dlen; } Wall;
+typedef struct { int x, y, len, vert, dpos, dlen, party; } Wall;   // party = solid divider between dwellings (no door)
 #define MAX_ROOMS 32
 #define MAX_WALLS 32
 typedef struct { Rect shell; int type, outward; float value; Room room[MAX_ROOMS]; int nroom; Wall wall[MAX_WALLS]; int nwall; int egx, egy, entry_room; int sig_kind, sig_room; } Plan;
@@ -442,14 +442,14 @@ static void bsp(Plan *p, Rect r, unsigned h, int depth, const SplitP *sp) {
         int lo = r.x + sp->min_w, hi = r.x + r.w - sp->min_w;
         int s = r.x + (int)(bias * r.w); if (s < lo) s = lo; if (s > hi) s = hi;
         int dlen = 9, span = r.h - 2 * 4 - dlen, dpos = r.y + 4 + (span > 0 ? (int)(frac01(hmix(h, 13)) * span) : 0);
-        if (p->nwall < MAX_WALLS) p->wall[p->nwall++] = (Wall){ s, r.y, r.h, 1, dpos, dlen };
+        if (p->nwall < MAX_WALLS) p->wall[p->nwall++] = (Wall){ s, r.y, r.h, 1, dpos, dlen, 0 };
         bsp(p, (Rect){ r.x, r.y, s - r.x, r.h }, hmix(h, 1), depth + 1, sp);
         bsp(p, (Rect){ s, r.y, r.x + r.w - s, r.h }, hmix(h, 2), depth + 1, sp);
     } else {
         int lo = r.y + sp->min_h, hi = r.y + r.h - sp->min_h;
         int s = r.y + (int)(bias * r.h); if (s < lo) s = lo; if (s > hi) s = hi;
         int dlen = 9, span = r.w - 2 * 4 - dlen, dpos = r.x + 4 + (span > 0 ? (int)(frac01(hmix(h, 13)) * span) : 0);
-        if (p->nwall < MAX_WALLS) p->wall[p->nwall++] = (Wall){ r.x, s, r.w, 0, dpos, dlen };
+        if (p->nwall < MAX_WALLS) p->wall[p->nwall++] = (Wall){ r.x, s, r.w, 0, dpos, dlen, 0 };
         bsp(p, (Rect){ r.x, r.y, r.w, s - r.y }, hmix(h, 1), depth + 1, sp);
         bsp(p, (Rect){ r.x, s, r.w, r.y + r.h - s }, hmix(h, 2), depth + 1, sp);
     }
@@ -527,18 +527,55 @@ static void assign_labels(Plan *p, unsigned h) {
         if (n > 1 && small != big) p->room[small].label = RM_OFFICE;
     }
 }
+// ── multi-unit footprints — poor/tenement land packs several small flats behind party walls ──
+static int unit_count(int type, float value, Rect in) {
+    if (type != ZN_RES || value >= 0.35f) return 1;          // only tenement-grade land subdivides into flats
+    long area = (long)in.w * in.h; int u = (int)(area / 1100);   // ~one flat per ~33×33
+    if (u < 2) u = (area > 700) ? 2 : 1;
+    return u > 6 ? 6 : u;
+}
+static void label_dwelling(Plan *p, int s, int e) {         // label rooms [s,e) as one little flat
+    if (e <= s) return;
+    int big = s, small = s;
+    for (int i = s; i < e; i++) { long a = (long)p->room[i].r.w * p->room[i].r.h;
+        if (a > (long)p->room[big].r.w   * p->room[big].r.h)   big = i;
+        if (a < (long)p->room[small].r.w * p->room[small].r.h) small = i; }
+    for (int i = s; i < e; i++) p->room[i].label = RM_BED;
+    p->room[big].label = RM_LIVING;
+    if (e - s >= 3 && small != big) p->room[small].label = RM_BATH;
+}
+static void build_units(Plan *p, Rect in, int units, unsigned h) {
+    Rect cell[8]; int nc = 1; cell[0] = in; if (units > 8) units = 8;
+    SplitP us = { 9, 9, 2, 0.40f, 0.60f };                  // small flats: shallow split, tight rooms
+    while (nc < units) {
+        int bi = 0; for (int i = 1; i < nc; i++) if ((long)cell[i].w * cell[i].h > (long)cell[bi].w * cell[bi].h) bi = i;
+        Rect c = cell[bi]; if (c.w < 18 && c.h < 18) break; // don't split below a liveable flat
+        if (c.w >= c.h) { int sx = c.x + c.w / 2;
+            if (p->nwall < MAX_WALLS) p->wall[p->nwall++] = (Wall){ sx, c.y, c.h, 1, 0, 0, 1 };   // party wall (solid)
+            cell[bi] = (Rect){ c.x, c.y, sx - c.x, c.h }; cell[nc++] = (Rect){ sx, c.y, c.x + c.w - sx, c.h };
+        } else { int sy = c.y + c.h / 2;
+            if (p->nwall < MAX_WALLS) p->wall[p->nwall++] = (Wall){ c.x, sy, c.w, 0, 0, 0, 1 };
+            cell[bi] = (Rect){ c.x, c.y, c.w, sy - c.y }; cell[nc++] = (Rect){ c.x, sy, c.w, c.y + c.h - sy };
+        }
+    }
+    for (int i = 0; i < nc; i++) { int s = p->nroom; bsp(p, cell[i], hmix(h, i + 1), 0, &us); label_dwelling(p, s, p->nroom); }
+}
 static void plan_build(Plan *p, Rect shell, int type, int outward, unsigned h, float value) {
     p->shell = shell; p->type = type; p->outward = outward; p->value = value; p->nroom = p->nwall = 0; p->entry_room = -1;
     p->sig_kind = 0; p->sig_room = -1;
     Rect interior = { shell.x + 1, shell.y + 1, shell.w - 2, shell.h - 2 };
-    SplitP sp = SPLIT[type];
-    if (type == ZN_RES) {                                    // value drives how finely a home subdivides
-        sp.maxdepth += value > 0.66f ? 1 : value < 0.33f ? -1 : 0;
-        int bigger = (int)((1.0f - value) * 5.0f);           // poorer homes: larger min room → fewer, cruder rooms
-        sp.min_w += bigger; sp.min_h += bigger;
+    int units = unit_count(type, value, interior);
+    if (interior.w < 4 || interior.h < 4) { emit_room(p, interior); units = 1; }
+    else if (units > 1) build_units(p, interior, units, h);  // tenement: a row of small flats behind party walls
+    else {
+        SplitP sp = SPLIT[type];
+        if (type == ZN_RES) {                                // value drives how finely a single home subdivides
+            sp.maxdepth += value > 0.66f ? 1 : value < 0.33f ? -1 : 0;
+            int bigger = (int)((1.0f - value) * 5.0f);       // poorer homes: larger min room → fewer, cruder rooms
+            sp.min_w += bigger; sp.min_h += bigger;
+        }
+        bsp(p, interior, h, 0, &sp);
     }
-    if (interior.w < 4 || interior.h < 4) emit_room(p, interior);
-    else bsp(p, interior, h, 0, &sp);
     int cx = shell.x + shell.w / 2, cy = shell.y + shell.h / 2, ix = cx, iy = cy;
     switch (outward) {
         case 0: p->egx = cx; p->egy = shell.y;               ix = cx; iy = shell.y + 2;            break;
@@ -548,7 +585,7 @@ static void plan_build(Plan *p, Rect shell, int type, int outward, unsigned h, f
     }
     for (int i = 0; i < p->nroom; i++) { Rect r = p->room[i].r;
         if (ix >= r.x && ix < r.x + r.w && iy >= r.y && iy < r.y + r.h) { p->entry_room = i; break; } }
-    assign_labels(p, h);
+    if (units <= 1) assign_labels(p, h);                     // multi-unit flats are labelled per-unit in build_units
 }
 static int room_at(const Plan *p, int x, int y) {
     for (int i = 0; i < p->nroom; i++) { Rect r = p->room[i].r;
@@ -674,10 +711,10 @@ static void plan_draw(const Plan *p, Show s) {
     rectfill(sh.x + 1, sh.y + 1, sh.w - 2, sh.h - 2, SLAB_COL);
     if (s.floors) for (int i = 0; i < p->nroom; i++) { Rect r = p->room[i].r; rectfill(r.x, r.y, r.w, r.h, RM_FLOOR[p->room[i].label]); }
     if (s.props) for (int i = 0; i < p->nroom; i++) furnish(&p->room[i], p->value, i == p->sig_room ? p->sig_kind : SIG_NONE);
-    if (s.walls) for (int i = 0; i < p->nwall; i++) { Wall w = p->wall[i];
-        if (w.vert) { for (int y = w.y; y < w.y + w.len; y++) if (!(y >= w.dpos && y < w.dpos + w.dlen)) pset(w.x, y, WALL_INT); }
-        else        { for (int x = w.x; x < w.x + w.len; x++) if (!(x >= w.dpos && x < w.dpos + w.dlen)) pset(x, w.y, WALL_INT); } }
-    if (s.doors) for (int i = 0; i < p->nwall; i++) { Wall w = p->wall[i];
+    if (s.walls) for (int i = 0; i < p->nwall; i++) { Wall w = p->wall[i]; int wc = w.party ? WALL_EXT : WALL_INT;
+        if (w.vert) { for (int y = w.y; y < w.y + w.len; y++) if (!(w.dlen > 0 && y >= w.dpos && y < w.dpos + w.dlen)) pset(w.x, y, wc); }
+        else        { for (int x = w.x; x < w.x + w.len; x++) if (!(w.dlen > 0 && x >= w.dpos && x < w.dpos + w.dlen)) pset(x, w.y, wc); } }
+    if (s.doors) for (int i = 0; i < p->nwall; i++) { Wall w = p->wall[i]; if (w.party || w.dlen <= 0) continue;
         if (w.vert) { pset(w.x, w.dpos, DOOR_COL); pset(w.x, w.dpos + w.dlen - 1, DOOR_COL); }
         else        { pset(w.dpos, w.y, DOOR_COL); pset(w.dpos + w.dlen - 1, w.y, DOOR_COL); } }
     int gx = (p->outward == 0 || p->outward == 2) ? p->egx - 5 : 0;

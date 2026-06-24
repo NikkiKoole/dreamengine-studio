@@ -165,6 +165,11 @@ static int             loc_cur_pal   = -1;
 static bool            pal_active    = false;          // any palette[i] != base_palette[i]?
 static float           cur_pal_rgb[PALETTE_SIZE * 3];  // current palette, normalized — uploaded to the shader
 static bool            cur_pal_dirty = true;
+// runtime colorkey() on the software canvas: the GPU path bakes the keyed colour into the
+// `spritesheet` texture (alpha 0); the canvas samples the pristine `spritesheet_img`, so it
+// must skip the key itself. Snapshot the RGB at colorkey() time (matches when the GPU bakes it).
+static bool            sw_colorkey_on  = false;
+static Color           sw_colorkey_rgb = {0};
 
 // present-scaling filter, picked in settings → "scaling" (machine-local, -D flag):
 //   0 crisp (nearest, default) · 1 bilinear (smooth) · 2 sharp-bilinear · 3 sharp+gamma
@@ -517,17 +522,37 @@ static inline void sw_span(int x, int y, int w, Color c) {
     if (sw_canvas_active) sw_fillrect(x, y, w, 1, c);
     else DrawRectangle(x, y, w, 1, c);
 }
+// CPU twin of PAL_FS: map a texel to the nearest base-palette entry, output the (remapped)
+// current palette colour. Same nearest-by-squared-distance argmin as the shader (integer space
+// is monotonic with the shader's normalized space, so the winner is identical). Sprite texels are
+// exact palette RGBs, so "nearest" is "exact" in practice. Caller gates on pal_active.
+static inline Color sw_recolor(Color c) {
+    int best = 0, bestd = 1 << 30;
+    for (int i = 0; i < PALETTE_SIZE; i++) {
+        int dr = c.r - base_palette[i].r, dg = c.g - base_palette[i].g, db = c.b - base_palette[i].b;
+        int d = dr*dr + dg*dg + db*db;
+        if (d < bestd) { bestd = d; best = i; }   // strict < → first match wins, like the shader
+    }
+    Color o = palette[best]; o.a = c.a; return o;
+}
+// true if this texel is the runtime colorkey (drawn transparent), mirroring colorkey()'s baked hole.
+static inline bool sw_keyed(Color c) {
+    return sw_colorkey_on && c.r == sw_colorkey_rgb.r && c.g == sw_colorkey_rgb.g && c.b == sw_colorkey_rgb.b;
+}
 // software sprite blit: nearest-sample spritesheet_img → cbuf via sw_pset (camera+clip), with
-// optional flip and nearest scaling (src wxh → dst wxh). Alpha<128 = transparent (PNG colorkey).
-// NB Phase-2 v1: does NOT yet apply pal() recolor or the runtime colorkey() — TODO before default.
-static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, bool fx, bool fy) {
+// optional flip and nearest scaling (src wxh → dst wxh). Alpha<128 = transparent (PNG colorkey);
+// the runtime colorkey() colour is skipped too. use_pal applies the pal() swap (spr/sspr — NOT
+// map(), which the GPU draws without the swap shader, so the canvas must match).
+static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, bool fx, bool fy, bool use_pal) {
     if (!spritesheet_img.data || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+    bool recolor = use_pal && pal_active;
     for (int j = 0; j < dh; j++) {
         int syy = fy ? (sy + sh - 1 - j * sh / dh) : (sy + j * sh / dh);
         for (int i = 0; i < dw; i++) {
             int sxx = fx ? (sx + sw - 1 - i * sw / dw) : (sx + i * sw / dw);
             Color c = GetImageColor(spritesheet_img, sxx, syy);
-            if (c.a >= 128) sw_pset(dx + i, dy + j, c);
+            if (c.a < 128 || sw_keyed(c)) continue;
+            sw_pset(dx + i, dy + j, recolor ? sw_recolor(c) : c);
         }
     }
 }
@@ -552,7 +577,7 @@ static void sw_tritex(float x0,float y0,float u0,float v0, float x1,float y1,flo
             int iu=(int)(l0*u0+l1*u1+l2*u2), iv=(int)(l0*v0+l1*v1+l2*v2);
             if ((unsigned)iu<(unsigned)spritesheet_img.width && (unsigned)iv<(unsigned)spritesheet_img.height) {
                 Color cc = GetImageColor(spritesheet_img, iu, iv);
-                if (cc.a >= 128) sw_pset(px, py, cc);
+                if (cc.a >= 128 && !sw_keyed(cc)) sw_pset(px, py, cc);   // tritex uses the keyed sheet; no pal swap (matches GPU)
             }
         }
     }
@@ -2312,6 +2337,11 @@ static void pal_end(void) {
 
 void colorkey(int color) {
     if (!spritesheet_img.data) return;
+    // canvas twin: remember the key (or clear it for an out-of-range colour, matching the
+    // GPU path, which then rebuilds the sheet with no hole). Snapshot the RGB now — the GPU
+    // bakes palette[color] into the texture at this moment, even if pal() changes it later.
+    sw_colorkey_on = (color >= 0 && color < PALETTE_SIZE);
+    if (sw_colorkey_on) sw_colorkey_rgb = palette[color];
     Image tmp = ImageCopy(spritesheet_img);
     if (color >= 0 && color < PALETTE_SIZE) {
         ImageFormat(&tmp, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
@@ -2342,7 +2372,7 @@ void sprf(int index, int x, int y, bool flip_x, bool flip_y) {
     Rectangle dst = { x, y, SPRITE_SIZE, SPRITE_SIZE };
     if (sw_canvas_active) {
         sw_blit((int)(index % cols) * SPRITE_SIZE, (int)(index / cols) * SPRITE_SIZE,
-                SPRITE_SIZE, SPRITE_SIZE, x, y, SPRITE_SIZE, SPRITE_SIZE, flip_x, flip_y);
+                SPRITE_SIZE, SPRITE_SIZE, x, y, SPRITE_SIZE, SPRITE_SIZE, flip_x, flip_y, true);
         UIAUDIT('s', x, y, SPRITE_SIZE, SPRITE_SIZE, NULL); return;
     }
     pal_begin();
@@ -2356,7 +2386,7 @@ void sspr(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     if (spritesheet.width == 0) return;
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx, dy, dw, dh };
-    if (sw_canvas_active) { sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false); UIAUDIT('s', dx, dy, dw, dh, NULL); return; }
+    if (sw_canvas_active) { sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false, true); UIAUDIT('s', dx, dy, dw, dh, NULL); return; }
     pal_begin();
     DrawTexturePro(spritesheet, src, dst, (Vector2){ 0, 0 }, 0.0f, WHITE);
     pal_end();
@@ -2381,7 +2411,7 @@ void sspr_ex(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, flo
     if (spritesheet.width == 0) return;
     if (sw_canvas_active) {
         if (deg != 0.0f) { sw_force_gpu = true; return; }     // rotated → GPU fallback (Fork-2/C)
-        sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false); return;
+        sw_blit(sx, sy, sw, sh, dx, dy, dw, dh, false, false, true); return;
     }
     Rectangle src = { sx, sy, sw, sh };
     Rectangle dst = { dx + ox, dy + oy, dw, dh };               // pivot (ox,oy) is in dest space, relative to (dx,dy)
@@ -3108,7 +3138,7 @@ void map(int cx, int cy, int sx, int sy, int cw, int ch) {
             int srcx = (v % cols) * CELL_W, srcy = (v / cols) * CELL_H;
             int dstx = sx + xi * dw,        dsty = sy + yi * dh;
             if (sw_canvas_active) {   // same tiled blit as spr/sspr, just onto the cbuf
-                sw_blit(srcx, srcy, CELL_W, CELL_H, dstx, dsty, dw, dh, false, false); continue;
+                sw_blit(srcx, srcy, CELL_W, CELL_H, dstx, dsty, dw, dh, false, false, false); continue;
             }
             Rectangle src = { (float)srcx, (float)srcy, (float)CELL_W, (float)CELL_H };
             Rectangle dst = { (float)dstx, (float)dsty, (float)dw, (float)dh };

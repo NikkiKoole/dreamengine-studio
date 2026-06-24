@@ -114,11 +114,17 @@ be coalesced.
 > `masseffect`) is comparing GPU-to-GPU after frame 0 and proves nothing about the canvas. Pick a
 > rotation-free cart to actually exercise the SW path.
 >
+> **`pal()` / `colorkey()` in `sw_blit` — DONE (2026-06-24).** `sw_blit` now takes a `use_pal` flag
+> (true for `spr`/`sspr`, false for `map`/`tritex` — matching which GPU paths wrap the swap shader);
+> `sw_recolor()` is the CPU twin of `PAL_FS` (nearest base-palette entry → current palette, same
+> argmin), and `colorkey()` snapshots the keyed RGB so `sw_blit`/`sw_tritex` skip it (the GPU bakes
+> a transparent hole into the sheet; the canvas samples the pristine `spritesheet_img`, so it skips
+> the key itself). *Verified byte-identical:* `advancewars` 20/20 (was 3897 px wrong), `chess`/`crowd`
+> (pal); `05b-colorkey` 12/12, `boom`/`15-anim` (colorkey). `build-all` 433/433. **The recolor is a
+> 32-entry nearest scan per texel, gated on `pal_active`** (zero cost otherwise) — fine for
+> correctness; a reverse LUT is the obvious speedup if a pal-heavy cart ever profiles hot.
+>
 > **Still open:**
-> - **`pal()` / `colorkey()` in `sw_blit` — a real visible bug, not a footnote.** A `pal()`-recolored
->   sprite renders in raw sheet colours on the canvas. Measured: `advancewars` team-coloured units =
->   **3897 px (6%) wrong**. This blocks flipping the canvas to default for any sprite-recolouring
->   cart and is the highest-priority remaining port.
 > - **`zoom_rect()` / `smooth_zoom()`** — texture-feedback ops that sample `canvas.texture`
 >   mid-`draw()`, stale until the end-of-frame upload. Need a `sw_force_gpu` or a cbuf-readback.
 

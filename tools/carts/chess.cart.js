@@ -61,22 +61,24 @@ function rook(b, o) {
   rectfill(g, 4, 3, 5, 4, b); rectfill(g, 7, 3, 8, 4, b); rectfill(g, 10, 3, 11, 4, b)  // 3 crenellations
   return flat(outlined(g, o))
 }
-function queen(b, o) {
+function queen(b, o) {                 // flared coronet of balled points — not a tower
   const g = blank(); ped(g, b)
-  rectfill(g, 5, 8, 10, 12, b)       // body
-  rectfill(g, 4, 7, 11, 7, b)        // crown band
-  for (const x of [3, 5, 7, 9, 11]) { pixel(g, x, 6, b); pixel(g, x, 5, b) }  // 5 spikes
-  pixel(g, 7, 4, b)                  // centre spike taller
-  pixel(g, 3, 4, b); pixel(g, 11, 4, b)  // outer orbs
+  rectfill(g, 6, 11, 9, 12, b)       // narrow neck
+  rectfill(g, 5, 10, 10, 10, b)      // collar
+  rectfill(g, 3, 8, 12, 9, b)        // coronet band — flares wider than the neck
+  rectfill(g, 3, 6, 4, 7, b);  pixel(g, 3, 5, b)         // left point + ball
+  rectfill(g, 11, 6, 12, 7, b); pixel(g, 12, 5, b)       // right point + ball
+  rectfill(g, 7, 5, 8, 7, b);  rectfill(g, 7, 3, 8, 4, b)// centre point, taller, + ball
   return flat(outlined(g, o))
 }
-function king(b, o) {
+function king(b, o) {                  // crown with a bold cross on top
   const g = blank(); ped(g, b)
-  rectfill(g, 5, 9, 10, 12, b)       // body
-  rectfill(g, 4, 8, 11, 8, b)        // crown band
-  pixel(g, 5, 7, b); pixel(g, 8, 7, b)   // shoulder points
-  rectfill(g, 7, 3, 8, 7, b)         // cross — vertical shaft (down into the crown)
-  rectfill(g, 6, 4, 9, 4, b)         // cross — horizontal arm
+  rectfill(g, 5, 10, 10, 12, b)      // body
+  rectfill(g, 4, 9, 11, 9, b)        // crown band
+  rectfill(g, 4, 7, 5, 8, b); rectfill(g, 10, 7, 11, 8, b)  // two crown side points
+  rectfill(g, 7, 7, 8, 8, b)         // centre mount under the cross
+  rectfill(g, 7, 2, 8, 6, b)         // cross — vertical shaft
+  rectfill(g, 6, 3, 9, 4, b)         // cross — wide arms
   return flat(outlined(g, o))
 }
 

@@ -1142,9 +1142,9 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
     // would take the long way — it just eats the grass penalty), and when very close it BOXES the
     // suspect: aim ahead of it (cut off the escape) and to one flank, so two cops pincer it in.
     // Cops push (no polite gap). Far → beeline straight at the suspect (off-road allowed). Close →
-    // each cop takes a slot RIGHT against the suspect (one in front, one behind) and PARKS there —
-    // brake to a halt at the slot rather than full-throttling past it (which just circles). Two cops
-    // sandwich the suspect so it can't pull away.
+    // PARK on the suspect: each cop parks at a slot on the side it's ALREADY approaching from (so it
+    // never has to loop around — that was the circling), shedding speed first so it can actually stop
+    // instead of overshooting. A small per-cop spread fans the two onto different sides → a box.
     if (c->target >= 0 && c->target < S->ncars + S->ncross) {
         Car *t = &S->car[c->target];
         float rx = t->px - c->px, ry = t->py - c->py;
@@ -1152,15 +1152,17 @@ static void drive_ai_traffic(Car *c, int idx, float *out_turn, float *out_thr, b
         if (dist < BEELINE_RANGE) {
             bool boxing = dist < LOCKIN_RANGE;
             float ax = t->px, ay = t->py;
-            if (boxing) {                                 // park slot: ahead of (idx even) / behind (odd) the suspect
-                float slot = t->ang + ((idx & 1) ? 180.0f : 0.0f);
-                ax += dx(LOCKIN_PARK, slot); ay += dy(LOCKIN_PARK, slot);
+            if (boxing) {                                 // slot = R_park straight out toward where I'm coming
+                float toCop = atan2_deg(c->py - t->py, c->px - t->px);   // from (radial → drive in & stop, no orbit)
+                ax = t->px + dx(LOCKIN_PARK, toCop); ay = t->py + dy(LOCKIN_PARK, toCop);
             }
             float sdx = ax - c->px, sdy = ay - c->py, sdist = fsqrt(sdx*sdx + sdy*sdy);
             float des = atan2_deg(sdy, sdx);
             turn = clamp(awrap(des - c->ang) / 7.0f, -1.0f, 1.0f);
-            // beeline: full throttle. boxing: drive to the slot, then ease & brake to park on it.
-            thr = !boxing ? 1.0f : (sdist > 14.0f ? 1.0f : sdist > 6.0f ? -0.2f : -1.0f);
+            if (!boxing) thr = 1.0f;                      // beeline: full chase
+            else if (v > 1.2f)        thr = -1.0f;        // boxing: shed speed first so I won't overshoot…
+            else if (sdist > 7.0f)    thr =  0.4f;        // …creep to the slot…
+            else                      thr = -1.0f;        // …and park on it
         }
     }
 

@@ -24,8 +24,9 @@ to read (`b.w * zoom >= MIN_OPEN_PX`), so the wide world never shows a mush of b
 floor-plan (the expensive part) is **generated lazily**, only for buildings you're close to. Far
 buildings cost only a roof rect.
 
-Controls: `WASD`/arrows pan · `Z`/`X`/wheel zoom · `R` new seed · `F` lift roofs · `O` field overlay
-(world-kind / cover / density) · `G` debug grid.
+Controls: `WASD`/arrows **or left-drag** pan · `Z`/`X`/wheel zoom · `R` new seed · `F` lift roofs ·
+`O` field overlay (world-kind / cover / density / **value**) · `G` debug grid. A **hover inspector**
+(custom cursor + panel) names what's under the pointer, down to the furniture piece.
 
 ## The one load-bearing decision: scale
 
@@ -59,18 +60,48 @@ widths from urban-density, terraced rows (shared party walls), massing classes, 
   wall-to-wall city to a real world: elevation/biome cover fields, `world_kind_at` (wild/farm/city),
   the full SCATTER wilderness (woodland/meadow/grass/beach/scree/waste + all instance art), ROWS
   farmland, all composed with the city + roof-lift. Field overlays (`O`: world/cover/density).
-- 🔄 **Stage B — ruins modifier** (in progress). `decay`/`fertility` fields + `collapse`/`overgrow`,
-  applied per city building over the roof OR the floor-plan; gated by `RUIN_TH` (≈0.58) so ruins are
-  **derelict districts**, not universal weathering. HUD `ruin N` tally.
+- ✅ **Stage B — ruins modifier** (2026-06-23; refined 06-24 to roof-only). `decay`/`fertility`
+  fields + `collapse`/`overgrow`, applied per city building, gated by `RUIN_TH` so ruins are
+  **derelict districts**, not universal weathering. HUD `ruin N` tally. **The FX draw only on the
+  roof view now** — a peeled, furnished floor-plan with a big black `collapse` void or green
+  `overgrow` confetti read wrong, so a ruin peels open to its intact layout.
 - ✅ **Stage C — border/pave/stamp** (2026-06-23). lotfill's last three atoms, brought in
   *contextually* (not as tabs): `border_edge` = hedge/fence/wall around detached RES lots (per-lot
   style); `pave_interior` = asphalt/plaza/gravel + faint markings on COM/IND block interiors
   (parking lots / squares); `stamp_prop` = fountain/statue/well/obelisk centrepiece in ~1 of 5 block
   courtyards (a plaza or village green). All gated to the outdoor-detail zoom so the far city stays
   clean. **cityplan now carries everything both parents had.**
+- ✅ **Stage D — the dwellings layer** (2026-06-24). A land-VALUE field gives every parcel a
+  character, and that character drives the exterior AND the interior so houses read as different
+  lives:
+  - **`value_at`** — a *composed, emergent* field (no new noise seed): waterfront/elevation amenity
+    + central density + greenery − dereliction, every term centred so it sits ~0.5, then a contrast
+    stretch so districts reach the extremes. Numeric **value overlay** (`O` → "value").
+  - **Exteriors by value** — residential roof colour (drab→warm tiers), a massing bump on prime
+    lots, and yard treatment (stone wall / hedge / picket fence + tree).
+  - **Room vocabulary** — added dining / kids room / study / garage / utility to the
+    hall/living/bed/kitchen/bath set.
+  - **Archetypes** — `arch_of(value, nroom)` → tenement / cottage / family home / mansion. Each has
+    a fill list that assigns the spare rooms its character rooms (biggest-first), plus hash-gated
+    service rooms (garage/laundry) and ONE **signature feature** (fireplace / grand piano / pool
+    table / library) — the thing you remember the house by.
+  - **Furniture as data** — `furnish_items()` produces a named `Furn` list (rect + style) that BOTH
+    draws the room (`draw_furn`) and answers the hover hit-test (`furn_hit`): one source of truth,
+    no parallel geometry to drift. Plus size-scaled, wall-hugging background clutter.
+  - **Multi-unit tenements** — low-value (tenement-grade) footprints subdivide into several small
+    flats sharing a **corridor** (`unit_count`/`build_units`): the corridor (an `RM_HALL` spine)
+    runs in from the entry wall, flats line both sides, each with its own door (wall gap) and solid
+    **party walls** (`Wall.party`); single homes keep the one-dwelling path; falls back to one
+    dwelling when the footprint is too thin.
+  - **Inspector + cursor** — the OS cursor is hidden and a custom arrow drawn; a panel by the
+    pointer names container / room / furniture. `hover_at()` classifies **per-BLOCK like the
+    renderer** (block-centre test) before probing the room + furniture, so a point inside a
+    building near a block edge no longer mis-reads as "farmland".
 
 ### Open follow-ups (lowest priority)
 
+- **Per-flat front doors to the outside / shared stair**: tenement flats share an interior corridor
+  but the *building* still has one exterior entry; no stairwell between floors (single-storey plans).
 - **Terraced party walls**: adjacent terraced shells currently each draw windows on the shared wall
   (no neighbour-awareness). Suppress windows on a wall shared with a touching neighbour.
 - **L/U footprints**: `plan`/roof are still rectangular shells (inherited from both parents).

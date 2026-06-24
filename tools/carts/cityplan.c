@@ -5,8 +5,9 @@
 // ============================================================================
 // CITYPLAN — a whole procedural WORLD you can LIFT THE ROOF off.
 //
-//   ◄ ► ▲ ▼ / WASD  pan     Z / X (or wheel)  zoom     R  new seed
-//   F  force-lift every roof (dollhouse)   O  field overlay   G  debug grid
+//   ◄ ► ▲ ▼ / WASD / left-drag  pan     Z / X (or wheel)  zoom     R  new seed
+//   F  force-lift every roof (dollhouse)   O  field overlay (…/value)   G  debug grid
+//   a custom cursor + hover panel name what's under the pointer (house / room / furniture)
 //
 // ── what this is ──────────────────────────────────────────────────────────────
 // The full MERGE of lotfill + interiors. lotfill builds the world BETWEEN buildings
@@ -24,6 +25,14 @@
 // The reveal is pure LEVEL-OF-DETAIL: a roof lifts only when its building is big
 // enough ON SCREEN to read, and the floor-plan is GENERATED LAZILY — the wide world
 // never shows a mush of beds, and far buildings cost only a roof rect.
+//
+// ── the dwellings layer (a land-VALUE field drives character) ───────────────────
+// value_at() composes amenity/density/decay into a per-parcel value; that picks a RES
+// archetype (tenement/cottage/family/mansion) which fills rooms from a richer vocabulary
+// (dining/kids/study/garage/utility) + one signature feature, and tunes roof/massing/yard
+// + furniture density. A tenement footprint becomes several small flats off a shared
+// corridor. Furniture is DATA (furnish_items → Furn list) so drawing and the hover probe
+// share one definition. Full writeup: docs/design/cityplan.md (Stage D).
 //
 // ── seams (inherited from both parents) ─────────────────────────────────────────
 // 1. Pure fn of a hash-seed: one block → its lots, one footprint → its whole plan;

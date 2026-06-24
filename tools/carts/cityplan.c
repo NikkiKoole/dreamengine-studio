@@ -412,7 +412,7 @@ typedef struct { Rect r; int label; int touch; } Room;
 typedef struct { int x, y, len, vert, dpos, dlen; } Wall;
 #define MAX_ROOMS 32
 #define MAX_WALLS 32
-typedef struct { Rect shell; int type, outward; float value; Room room[MAX_ROOMS]; int nroom; Wall wall[MAX_WALLS]; int nwall; int egx, egy, entry_room; } Plan;
+typedef struct { Rect shell; int type, outward; float value; Room room[MAX_ROOMS]; int nroom; Wall wall[MAX_WALLS]; int nwall; int egx, egy, entry_room; int sig_kind, sig_room; } Plan;
 typedef struct { int min_w, min_h, maxdepth; float bias_lo, bias_hi; } SplitP;
 static const SplitP SPLIT[ZN_N] = {
     [ZN_RES] = { 13, 13, 4, 0.34f, 0.66f },
@@ -471,6 +471,7 @@ static const int ARCH_FILL[ARCH_N][6] = {
     [ARCH_FAMILY]   = { RM_DINING, RM_KIDS,  RM_BED,  RM_STUDY,RM_BED, RM_BED },
     [ARCH_MANSION]  = { RM_DINING, RM_STUDY, RM_BATH, RM_KIDS, RM_BED, RM_BED },
 };
+enum { SIG_NONE, SIG_FIREPLACE, SIG_PIANO, SIG_POOL, SIG_LIBRARY };   // memorable per-home feature
 static void assign_labels(Plan *p, unsigned h) {
     int n = p->nroom; if (n == 0) return;
     int fb = front_bit(p->outward); long tot = 0;
@@ -507,6 +508,15 @@ static void assign_labels(Plan *p, unsigned h) {
             else if (k == ui) p->room[lo[k]].label = RM_UTILITY;
             else              p->room[lo[k]].label = ARCH_FILL[arch][fi < 6 ? fi++ : 5];
         }
+        // one signature feature — the thing you remember the house by (chance rises with wealth)
+        unsigned sg = hmix(h, 53);
+        float chance = arch == ARCH_MANSION ? 0.85f : arch == ARCH_FAMILY ? 0.45f : arch == ARCH_COTTAGE ? 0.20f : 0.0f;
+        if (frac01(sg) < chance) {
+            int studyi = -1; for (int i = 0; i < n; i++) if (p->room[i].label == RM_STUDY) studyi = i;
+            if (studyi >= 0 && (sg & 4)) { p->sig_kind = SIG_LIBRARY; p->sig_room = studyi; }
+            else { int pick = (sg >> 3) % (arch == ARCH_MANSION ? 3 : 2);                 // pool table is mansion-only
+                   p->sig_kind = (int[]){ SIG_FIREPLACE, SIG_PIANO, SIG_POOL }[pick]; p->sig_room = liv; }
+        }
     } else if (p->type == ZN_COM) {
         for (int i = 0; i < n; i++) p->room[i].label = RM_BACK;
         int shop = (front >= 0) ? front : big; p->room[shop].label = RM_SHOP;
@@ -519,6 +529,7 @@ static void assign_labels(Plan *p, unsigned h) {
 }
 static void plan_build(Plan *p, Rect shell, int type, int outward, unsigned h, float value) {
     p->shell = shell; p->type = type; p->outward = outward; p->value = value; p->nroom = p->nwall = 0; p->entry_room = -1;
+    p->sig_kind = 0; p->sig_room = -1;
     Rect interior = { shell.x + 1, shell.y + 1, shell.w - 2, shell.h - 2 };
     SplitP sp = SPLIT[type];
     if (type == ZN_RES) {                                    // value drives how finely a home subdivides
@@ -568,7 +579,9 @@ static void furnish(const Room *rm, float value) {
         for (int yy = iy + 1; yy < iy + ih - 2; yy += 6)
             for (int xx = ix + 1; xx < ix + iw - 2; xx += 6) {
                 unsigned g = hash2(xx * 5 + (int)(value * 97), yy * 9 + lf_seed);
-                if (g % dens) continue;
+                int dx0 = xx - ix, dx1 = (ix + iw) - xx, dy0 = yy - iy, dy1 = (iy + ih) - yy;   // dist to nearest wall
+                int dw = dx0; if (dx1 < dw) dw = dx1; if (dy0 < dw) dw = dy0; if (dy1 < dw) dw = dy1;
+                if (g % (dw <= 3 ? dens : dens * 3)) continue;  // hug the walls; leave the centre walkable
                 int col = (lb == RM_KIDS) ? (int[]){ CLR_RED, CLR_YELLOW, CLR_BLUE }[(g >> 4) % 3]
                                           : (int[]){ CLR_DARK_BROWN, CLR_DARKER_GREY, CLR_DARK_BROWN, CLR_DARK_GREEN }[(g >> 4) % 4];
                 rectfill(xx, yy, 2, 2, col);
@@ -634,11 +647,33 @@ static void furnish(const Room *rm, float value) {
             break;
     }
 }
+// ── signature object — ONE memorable feature per home, drawn over the furniture ──
+static void draw_signature(Rect r, int kind) {
+    int ix = r.x + 2, iy = r.y + 2, iw = r.w - 4, ih = r.h - 4;
+    if (iw < 5 || ih < 5) return;
+    int cx = r.x + r.w / 2;
+    switch (kind) {
+        case SIG_FIREPLACE:                                              // hearth set into the top wall, ember glow
+            rectfill(cx - 3, r.y + 1, 6, 2, CLR_DARKER_GREY); rectfill(cx - 1, r.y + 1, 2, 1, CLR_ORANGE);
+            break;
+        case SIG_PIANO:                                                  // grand piano: black body + key strip
+            rectfill(ix + iw - 6, iy, 5, 4, CLR_BLACK); rectfill(ix + iw - 6, iy, 5, 1, CLR_WHITE);
+            break;
+        case SIG_POOL:                                                   // pool table: felt + dark rail
+            rectfill(cx - 4, r.y + r.h / 2 - 2, 8, 4, CLR_DARK_GREEN); rect(cx - 4, r.y + r.h / 2 - 2, 8, 4, CLR_DARK_BROWN);
+            break;
+        case SIG_LIBRARY:                                                // bookshelves lining every wall
+            rectfill(r.x + 1, r.y + 1, r.w - 2, 1, CLR_DARK_BROWN); rectfill(r.x + 1, r.y + r.h - 2, r.w - 2, 1, CLR_DARK_BROWN);
+            rectfill(r.x + 1, r.y + 1, 1, r.h - 2, CLR_DARK_BROWN); rectfill(r.x + r.w - 2, r.y + 1, 1, r.h - 2, CLR_DARK_BROWN);
+            break;
+    }
+}
 static void plan_draw(const Plan *p, Show s) {
     Rect sh = p->shell;
     rectfill(sh.x + 1, sh.y + 1, sh.w - 2, sh.h - 2, SLAB_COL);
     if (s.floors) for (int i = 0; i < p->nroom; i++) { Rect r = p->room[i].r; rectfill(r.x, r.y, r.w, r.h, RM_FLOOR[p->room[i].label]); }
-    if (s.props) for (int i = 0; i < p->nroom; i++) furnish(&p->room[i], p->value);
+    if (s.props) { for (int i = 0; i < p->nroom; i++) furnish(&p->room[i], p->value);
+        if (p->sig_kind != SIG_NONE && p->sig_room >= 0) draw_signature(p->room[p->sig_room].r, p->sig_kind); }
     if (s.walls) for (int i = 0; i < p->nwall; i++) { Wall w = p->wall[i];
         if (w.vert) { for (int y = w.y; y < w.y + w.len; y++) if (!(y >= w.dpos && y < w.dpos + w.dlen)) pset(w.x, y, WALL_INT); }
         else        { for (int x = w.x; x < w.x + w.len; x++) if (!(x >= w.dpos && x < w.dpos + w.dlen)) pset(x, w.y, WALL_INT); } }

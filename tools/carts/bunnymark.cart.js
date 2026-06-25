@@ -1,40 +1,19 @@
-// config for bunnymark.c — FIVE pre-tinted bunny sprites in slots 0..4, the
-// classic Pixi/Flash bunnymark "wabbit". Each is a flat coloured silhouette that
-// reads fine at 16px among thousands.
+// config for bunnymark.c — uses a REAL true-colour PNG sheet (bunnymark_sheet.png)
+// instead of the palette-indexed sprite builder, because the bunny is a shaded
+// grayscale drawing tinted into 5 arbitrary colours (white/yellow/pink/green/
+// orange) that the 32-colour pico32 palette can't express. spr()/sspr() sample
+// the sheet texture directly, so true-colour + alpha transparency just works.
 //
-// Why five baked sprites instead of one + pal() recolor: bunnymark is a pure
-// SPRITE-BLIT throughput test, and pal() is the opposite of cheap here. On the
-// GPU it forces a BeginShaderMode/EndShaderMode (a batch flush) around EVERY
-// spr(), so 1000+ bunnies become 1000+ unbatched draw calls; on the software
-// canvas it runs a per-pixel sw_recolor on every sprite. Baking the colour in
-// means the draw loop is just spr(tint, x, y) — no pal() — so both backends
-// measure the blit and nothing else. (Measured: pal() made GPU ~5× SLOWER than
-// software; baking the tints fixes both. See docs/design/software-canvas.md.)
+// SOURCE ART: tools/carts/bunnymark_bunny.png (32×32 grayscale, alpha).
+// The sheet is FIVE 32×32 tints of it, each = source × tint colour (multiply),
+// laid out 2×2-slots apart so each is an sspr() of a 32×32 region:
+//   slot-px (0,0) white · (32,0) yellow · (64,0) pink · (96,0) green · (0,32) orange
+// Regenerate (ImageMagick) if the source art changes:
+//   SRC=tools/carts/bunnymark_bunny.png; magick "$SRC" -alpha extract a.png
+//   for HEX in FFF1E8 FFEC27 FF77A8 00E436 FFA300; do
+//     magick "$SRC" -colorspace sRGB -type TrueColor -alpha off \
+//       \( -size 32x32 xc:"#$HEX" \) -compose multiply -composite rgb.png
+//     magick rgb.png a.png -alpha off -compose CopyOpacity -composite PNG32:tint_$HEX.png; done
+//   # then composite the five into a 128×128 xc:none canvas at the px offsets above.
 
-const { blank, pixel, rectfill, circlefill, ovalfill, outlined, flat } =
-  require('../sprite-draw.js')
-
-const EYE = 16   // CLR_BROWNISH_BLACK — matches the outline outlined() adds
-
-// one bunny silhouette in body colour `c` (eye + outline stay dark)
-function bunny(c) {
-  const g = blank()
-  rectfill(g, 4, 1, 5, 8, c)      // left ear
-  rectfill(g, 10, 1, 11, 8, c)    // right ear
-  circlefill(g, 8, 8, 4, c)       // head
-  ovalfill(g, 8, 12, 5, 3, c)     // body
-  pixel(g, 6, 7, EYE)             // eye
-  return flat(outlined(g))
-}
-
-// slots 0..4 — keep in sync with the bunny tint index in bunnymark.c
-//   0 white · 1 yellow · 2 pink · 3 lime-green · 4 orange
-module.exports = {
-  sprites: {
-    0: bunny(7),    // CLR_WHITE
-    1: bunny(10),   // CLR_YELLOW
-    2: bunny(14),   // CLR_PINK
-    3: bunny(26),   // CLR_LIME_GREEN
-    4: bunny(9),    // CLR_ORANGE
-  },
-}
+module.exports = { spritesPng: 'bunnymark_sheet.png' }

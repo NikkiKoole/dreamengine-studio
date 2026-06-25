@@ -3997,6 +3997,20 @@ static const float PIANO_BRIGHT[6] = { 0.55f, 0.70f, 0.85f, 0.65f, 0.35f, 0.60f 
 static const float PIANO_DAMP[6]   = { 0.9992f, 0.9994f, 0.9970f, 0.9988f, 0.9980f, 0.9990f };
 static const float PIANO_BODYB[6]  = { 0.50f, 0.65f, 0.70f, 0.60f, 0.35f, 0.50f };   // bodyBrightness (scales soundboard gains)
 
+// STRETCHED-TUNING SEAM (Feynman / Railsback). A real piano tunes the FUNDAMENTALS stretched — bass
+// flat, treble sharp — so the stiff string's inharmonic (sharp) upper partials AGREE across notes
+// instead of clashing (that clash is what makes plain dispersion read as "sour metal", not piano).
+// Signed-quadratic curve about middle C: cents = K · oct·|oct| → ~±25¢ near the 88-key extremes.
+// Pitch-based (NOT coupled to the stiffness macro — real harpsichords stretch LESS, not more).
+// SEAM: set PIANO_STRETCH_K to 0.0f to disable (back to equal temperament). It intentionally departs
+// from ET, so tune-check flags PIANO by design — that IS the stretch, not a bug.
+#define PIANO_STRETCH_K 2.0f
+static inline float piano_stretch_freq(float freq) {
+    if (PIANO_STRETCH_K == 0.0f) return freq;
+    float soct = log2f(freq / 261.63f);                // octaves from middle C (C4)
+    return freq * powf(2.0f, (PIANO_STRETCH_K * soct * fabsf(soct)) / 1200.0f);
+}
+
 // note-on — navkit playStifKarp verbatim: ONE-period KS buffer + fractional-delay allpass tuning,
 // hammer-shaped excitation, AVERAGING strike comb, per-voicing brightness/damping, dispersion,
 // soundboard, optional detuned 2nd string.
@@ -4005,6 +4019,8 @@ static void sound_piano_start(Voice *v) {
     if (vi < 0) vi = 0; if (vi > 5) vi = 5;
     const PianoVoicing *pv = &PIANO_V[vi];
     float freq = v->freq > 20.0f ? v->freq : 20.0f;
+    freq = piano_stretch_freq(freq);                   // STRETCHED-TUNING SEAM (see piano_stretch_freq; PIANO_STRETCH_K 0 = off)
+    v->freq = freq;                                    // write back so per-sample pitch tracking (ratio = f/pn_initf) stays consistent
 
     float ideal = (float)SOUND_SAMPLE_RATE / freq;     // one period, allpass for the remainder
     int len = (int)ideal;

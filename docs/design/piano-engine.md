@@ -52,16 +52,32 @@ past "nice harp" you have to **add the things STK omits** — none are large.
      https://physicstoday.aip.org/features/stiff-string-theory-richard-feynman-on-piano-tuning
      (canonical derivation of the inharmonicity↔stretched-tuning relationship).
 
-## Fix roadmap (rough order of payoff)
+## Fix roadmap — ALL SHIPPED (2026-06-25)
 
-1. **Two-rate decay envelope** — fast initial + long aftersound (the #1 perceptual flip).
-2. **Hammer-pulse excitation on by default** — replace/augment the pluck comb with a real knock
-   (turn `eng_click` on for the piano voicings, or model a force pulse).
-3. **Velocity → brightness + attack-noise coupling** — drive `timb`/click from note velocity.
-4. **Multi-string unison on more voicings** — beating/phase double-decay for body.
-5. **Stretched tuning** — match the fundamental tuning to the modeled inharmonicity (Feynman).
+The whole roadmap landed. A/B on the same arp: crest 21.6→25.9 dB, onset brightness 0.10→0.25.
+Engine code is in `sound_piano_start` / `piano_stretch_freq` (`runtime/sound.h`); the `piano` cart's
+row-2 knobs (`decay`/`knock`/`velo`) tune it by ear.
 
-#1 + #2 together would likely flip the perception on their own; the rest are polish.
+1. ✅ **Two-rate decay** (`pn_dd`) — extra per-period loss at the strike, relaxes to 0 over ~0.2s →
+   fast initial drop into a long tail. Per-voicing base (`PianoVoicing.dd`). *(#1, commit 9b35af30)*
+2. ✅ **Hammer knock** (`pn_knock`) — broadband onset thump, ON by default, per-voicing base
+   (`PianoVoicing.knock`). *(#2, 9b35af30)*
+3. ✅ **Velocity → timbre** — strike velocity (`v->vol`) drives hammer brightness + knock, not just
+   loudness (soft = dark/mellow, hard = bright/clangy). *(#3, afe623cf)*
+4. ✅ **Per-voicing decay/knock + dulcimer unison** — each voicing its own `dd`/`knock`; dulcimer
+   gets a detuned 2nd string (1.0015). *(#4, e486e95c)*
+5. ✅ **Stretched tuning** (`piano_stretch_freq`) — Railsback curve (bass flat, treble sharp,
+   `cents = K·oct·|oct|`) so the inharmonic partials agree across notes. SEAM: `PIANO_STRETCH_K` →
+   `0.0f` disables (back to ET). Pitch-based, decoupled from the stiffness macro. *(#5)*
+
+**Tunable knobs (eng_p) are still RAW indices** (`MODE_PIANO_DECAY`=2 / `MODE_PIANO_KNOCK`=3 as
+cart-local defines), deliberately not yet promoted to public `MODE_PIANO_*` constants via the
+four-places API ritual. Per-voicing `dd`/`knock` baselines are reasoned defaults, not yet ear-tuned.
+
+### Remaining polish (optional)
+- Ear-tune the per-voicing `dd`/`knock` baselines and `PIANO_STRETCH_K`.
+- Promote the eng_p indices to proper `MODE_PIANO_*` constants (studio.h + studioDocs + shell.js).
+- More voicings could carry a detuned 2nd/3rd string (only grand/bright/dulcimer do now).
 
 ## Verify any change
 

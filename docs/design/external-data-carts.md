@@ -51,7 +51,11 @@ to the screen.
 }
 ```
 
-- `kind` ∈ `highway | arterial | road | track` (the four broad classes; the cart styles each).
+- `kind` ∈ `highway | arterial | road | track` (road classes, drawn as polylines) plus
+  `canal` (a water line) and the **filled-area** kinds `water` and `building` (closed rings,
+  drawn with `polyfill`). The cart styles each; `building` footprints are **LOD-gated** —
+  only filled once you zoom in past `BUILD_GATE_PPM` (sub-pixel at fit = wasted fills + clutter),
+  toggleable with `B`.
 - `pts` is a **flat** `[x0,y0,x1,y1,…]` polyline in the bbox's metre frame.
 - Floorplans would reuse the same shape (walls = polylines, rooms = closed polylines) with a
   different `kind` vocabulary — that's the point of standardizing the IR, not the parser.
@@ -63,7 +67,7 @@ to the screen.
 | `runtime/studio.c` / `studio.h` | `--data <file>` → `de_data_path()` (falls back to `$DE_DATA`); plus `de_dropped_file()` (drag-&-drop a file onto the window) and `de_open_path()` (reveal a folder in Finder/Explorer). All additive. | small, all tagged EXPERIMENTAL |
 | `runtime/json.h` | cart-land JSON reader: vendored **jsmn** (zero-alloc tokenizer, MIT) + walk helpers (`json_slurp` / `json_parse` / `json_get` / `json_num` / `json_span`). A capability the engine deliberately doesn't own (ADR-0006, like `ui.h`). | delete the file |
 | `tools/osm-roads.js` | OSM → schema. `--demo` (synthetic, offline), `--bbox S,W,N,E`, or `--place "name"` (Nominatim geocode). Fetches via Overpass (auto-falls-back across mirrors), projects web-mercator, classes roads + water, radial-distance simplify. Writes **`data/<slug>.json`** by default. | delete the file |
-| `tools/carts/roadview.c` | the one consumer: default-loads `data/demo.json`, fits bbox, draws classed roads + filled water, pan/zoom. **Drag a `.json` onto the window to switch towns**; the `OPEN` button reveals the `data/` folder. | delete the cart |
+| `tools/carts/roadview.c` | the one consumer: default-loads `data/demo.json`, fits bbox, draws classed roads + filled water + **zoom-gated building footprints** (`B` toggles), pan/zoom. **Drag a `.json` onto the window to switch towns**; the `OPEN` button reveals the `data/` folder. | delete the cart |
 | `data/` (git-ignored) | the town library — every fetched `.json` lands here; the cart's `OPEN` button opens it. | `rm -rf data/` |
 
 ## Getting towns into the `data/` folder

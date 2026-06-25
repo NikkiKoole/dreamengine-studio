@@ -18,16 +18,17 @@
 //                     (--data <file> / $DE_DATA still force a specific file.)
 //
 //   ◄▲▼► / WASD   pan  ·  left-drag  grab the map  ·  wheel  zoom  ·  0  reset view
-//   drag a .json onto the window → load it   ·   OPEN ▸ button → reveal the data folder
+//   B  toggle building footprints (filled blocks; auto-shown once you zoom in close)
+//   drag a .json onto the window → load it   ·   OPEN button → reveal the data folder
 //
 #include "studio.h"
 #include "json.h"      // EXPERIMENTAL cart-land JSON reader (vendored jsmn)
 #include <stdlib.h>    // abs
 
-enum { K_HIGHWAY, K_ARTERIAL, K_ROAD, K_TRACK, K_WATER, K_CANAL, K_N };
+enum { K_HIGHWAY, K_ARTERIAL, K_ROAD, K_TRACK, K_WATER, K_CANAL, K_BUILDING, K_N };
 
 // per-class style: colour, casing colour, and real-world half-width in metres.
-// WATER is a filled area (hw_m unused); the rest are polylines.
+// WATER and BUILDING are filled areas (hw_m unused); the rest are polylines.
 typedef struct { int col, casing; float hw_m; const char *label; } Style;
 static const Style ST[K_N] = {
     /* HIGHWAY  */ { CLR_ORANGE,     CLR_BROWN,     7.0f, "highway"  },
@@ -36,10 +37,15 @@ static const Style ST[K_N] = {
     /* TRACK    */ { CLR_BROWN,      CLR_BROWN,     1.5f, "track"    },
     /* WATER    */ { CLR_BLUE,       CLR_BLUE,      0.0f, "water"    },
     /* CANAL    */ { CLR_BLUE,       CLR_BLUE,      4.0f, "canal"    },
+    /* BUILDING */ { CLR_DARK_GREY,  CLR_DARK_GREY, 0.0f, "building" },
 };
 
-#define MAXPTS  300000
-#define MAXPOLY  40000
+// buildings (footprints) are LOD-gated: only filled once you've zoomed in enough that a
+// footprint is a few pixels — keeps the wide view a clean road network, reveals blocks up close.
+#define BUILD_GATE_PPM 0.12f
+
+#define MAXPTS  800000                               // higher than roads alone need — buildings are dense
+#define MAXPOLY  80000
 #define BTN_W       40                               // "OPEN DATA" button width (top-right HUD)
 static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local metres, Y north-up)
 static struct { int kind, start, count; } ways[MAXPOLY];
@@ -54,6 +60,7 @@ static float bbminx, bbminy, bbmaxx, bbmaxy;         // data bounds (metres)
 static float camx, camy;                             // world point at screen centre (metres)
 static float ppm = 0.2f, fitppm = 0.2f;              // pixels per metre (zoom)
 static int   dragging = 0, drag_px, drag_py;
+static int   buildings_on = 1;                       // B toggles footprint fills (still LOD-gated)
 
 // world (metres) → screen pixels; Y flips so north is up
 static int sx(float wx) { return SCREEN_W / 2 + (int)((wx - camx) * ppm); }
@@ -74,6 +81,7 @@ static int kind_of(const char *js, const jsmntok_t *t) {
     if (json_eq(js, t, "track"))    return K_TRACK;
     if (json_eq(js, t, "water"))    return K_WATER;
     if (json_eq(js, t, "canal"))    return K_CANAL;
+    if (json_eq(js, t, "building")) return K_BUILDING;
     return K_ROAD;
 }
 
@@ -157,13 +165,14 @@ static void stroke(int start, int count, int r, int col) {
     }
 }
 
-// WATER areas are filled polygons (not strokes). Project to a scratch int buffer and
-// polyfill (handles concave); cull any area whose screen bbox is fully off-screen.
+// Filled-area kinds (water, buildings) are polygons, not strokes. Project each to a
+// scratch int buffer and polyfill (handles concave); cull any fully off-screen.
 #define MAXAREAPTS 4096
 static int sxy[MAXAREAPTS * 2];
-static void draw_water_areas(void) {
+static void fill_areas(int kind) {
+    int col = ST[kind].col;
     for (int i = 0; i < npoly; i++) {
-        if (ways[i].kind != K_WATER) continue;
+        if (ways[i].kind != kind) continue;
         int c = ways[i].count; if (c < 3) continue; if (c > MAXAREAPTS) c = MAXAREAPTS;
         int st = ways[i].start;
         int minx = 1 << 28, miny = 1 << 28, maxx = -(1 << 28), maxy = -(1 << 28);
@@ -174,7 +183,7 @@ static void draw_water_areas(void) {
             if (Y < miny) miny = Y; if (Y > maxy) maxy = Y;
         }
         if (maxx < 0 || minx > SCREEN_W || maxy < 0 || miny > SCREEN_H) continue;
-        polyfill(sxy, c, ST[K_WATER].col);
+        polyfill(sxy, c, col);
     }
 }
 
@@ -191,15 +200,15 @@ static void draw_class(int kind, int phase) {
 static void legend(void) {
     font(FONT_SMALL);
     rectfill(0, SCREEN_H - 9, SCREEN_W, 9, CLR_BLACK);
+    int build_shown = buildings_on && ppm >= BUILD_GATE_PPM;   // only list what's actually drawn
     int x = 4;
     for (int k = 0; k < K_N; k++) {
         if (!kcount[k]) continue;
+        if (k == K_BUILDING && !build_shown) continue;
         rectfill(x, SCREEN_H - 7, 6, 5, ST[k].col);
         print(ST[k].label, x + 8, SCREEN_H - 7, CLR_MEDIUM_GREY);
         x += 8 + (int)strlen(ST[k].label) * 4 + 8;
     }
-    char buf[40]; snprintf(buf, sizeof buf, "%d ways  %dm/scr", npoly, (int)(SCREEN_W / ppm));
-    print(buf, SCREEN_W - (int)strlen(buf) * 4 - 4, SCREEN_H - 7, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 
@@ -240,6 +249,7 @@ void update(void) {
         drag_px = mouse_x(); drag_py = mouse_y();
     }
     if (keyp('0')) fit();
+    if (keyp('B') || keyp('b')) buildings_on = !buildings_on;
 }
 
 void draw(void) {
@@ -260,8 +270,9 @@ void draw(void) {
         return;
     }
 
-    // painter's order: water at the bottom, then thin roads, big roads + casings on top
-    draw_water_areas();
+    // painter's order: water, then building footprints (LOD-gated), then roads on top
+    fill_areas(K_WATER);
+    if (buildings_on && ppm >= BUILD_GATE_PPM) fill_areas(K_BUILDING);
     draw_class(K_CANAL, 1);
     draw_class(K_TRACK, 1);
     draw_class(K_ROAD,  1);
@@ -272,6 +283,8 @@ void draw(void) {
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print("ROADVIEW", 4, 2, CLR_LIGHT_GREY);
     if (dname[0]) print(dname, 78, 2, CLR_ORANGE);
+    char z[16]; snprintf(z, sizeof z, "%dm", (int)(SCREEN_W / ppm));     // scale: metres across screen
+    font(FONT_SMALL); print(z, SCREEN_W - BTN_W - (int)strlen(z) * 4 - 5, 3, CLR_DARK_GREY); font(FONT_NORMAL);
     open_button();
     legend();
 }

@@ -49,6 +49,7 @@ function merc(lon, lat) {
 function classifyWay(t) {
   if (t.natural === 'water' || t.water || t.waterway === 'riverbank' ||
       t.landuse === 'reservoir' || t.landuse === 'basin') return 'water';   // area, filled
+  if (t.building && t.building !== 'no') return 'building';                  // area, filled (footprint)
   if (/^(river|canal|stream|drain|ditch)$/.test(t.waterway || '')) return 'canal';  // line
   const hw = t.highway || '';
   if (/^(motorway|trunk)(_link)?$/.test(hw)) return 'highway';
@@ -81,7 +82,7 @@ function buildDoc(source, name, ways) {
   const features = [];
   for (const w of ways) {
     let local = w.pts.map(([x, y]) => [x - minx, y - miny]);
-    local = simplify(local, SIMPLIFY);
+    if (w.kind !== 'building') local = simplify(local, SIMPLIFY);  // keep small footprints intact
     if (local.length < 2) continue;
     const flat = [];
     for (const [x, y] of local) flat.push(round(x), round(y));
@@ -159,6 +160,16 @@ function demo() {
     lake.push([1050 + Math.cos(a) * 520, 720 + Math.sin(a) * 360 + (rnd() - 0.5) * 40]);
   }
   ways.push({ kind: 'water', name: 'Vest', pts: lake });
+  // a scatter of building footprints in the downtown blocks (closed rects = areas)
+  for (let bx = 1500; bx < 3200; bx += 240) {
+    for (let by = 1100; by < 2300; by += 200) {
+      if (!inDisc(bx, by) || rnd() < 0.25) continue;        // gaps = streets/yards
+      const w = 70 + rnd() * 90, h = 60 + rnd() * 80;        // 6–16 m footprints
+      const ox = bx + (rnd() - 0.5) * 40, oy = by + (rnd() - 0.5) * 40;
+      ways.push({ kind: 'building', name: '',
+                  pts: [[ox, oy], [ox + w, oy], [ox + w, oy + h], [ox, oy + h], [ox, oy]] });
+    }
+  }
   write(buildDoc('demo', NAME || 'demo', ways));     // → data/demo.json (the cart's default file)
 }
 
@@ -180,6 +191,7 @@ async function overpass(S, W, N, E, name) {
             `way["waterway"~"^(river|canal|stream|drain|ditch|riverbank)$"]${bb};` +
             `way["natural"="water"]${bb};` +
             `way["landuse"~"^(reservoir|basin)$"]${bb};` +
+            `way["building"]${bb};` +
             `);out geom;`;
   console.log(`querying Overpass for bbox ${S},${W},${N},${E} …`);
   // the public instances 504/429 under load — try the mirrors in turn

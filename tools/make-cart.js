@@ -192,9 +192,7 @@ function embedCartChunks(pngBuf, data) {
 
 // ── config loader ─────────────────────────────────────────────
 // looks for a .cart.js file alongside the .c source
-// exports: { sprites, map, charMap, mapW, mapH, spritesPng }
-// spritesPng: path (relative to the cart's dir) to a real PNG used as the sheet verbatim —
-// for true-colour art the palette-indexed `sprites` builder can't express. Wins over `sprites`.
+// exports: { sprites, map, charMap, mapW, mapH }
 function loadConfig(srcFile) {
   const cfgFile = srcFile.replace(/\.c$/, '.cart.js')
   if (!fs.existsSync(cfgFile)) return {}
@@ -356,13 +354,7 @@ if (args[0] === '--update') {
   }
   const source     = fs.readFileSync(srcFile, 'utf8')
   const cfg        = loadConfig(srcFile)
-  // cfg.spritesPng: use a REAL PNG file as the sheet verbatim (path relative to the cart's dir),
-  // bypassing the palette-indexed buildSpriteSheet — for true-colour art (e.g. tinted/shaded
-  // sprites the 32-colour palette can't express). studio.c reformats the sheet to RGBA8 on load
-  // and spr()/sspr() sample it directly, so any RGB + alpha works (transparency via alpha).
-  const spritesBuf = cfg.spritesPng
-    ? fs.readFileSync(path.resolve(path.dirname(srcFile), cfg.spritesPng))
-    : cfg.sprites ? buildSpriteSheet(cfg.sprites, cfg.charMap) : makeBlankSpritePng()
+  const spritesBuf = cfg.sprites ? buildSpriteSheet(cfg.sprites, cfg.charMap) : makeBlankSpritePng()
   const mapBytes   = cfg.map ? buildMap(cfg.map.layout || cfg.map, cfg.map.tiles, cfg.mapW, cfg.mapH) : new Uint8Array(8192)
   const spritesUrl = 'data:image/png;base64,' + spritesBuf.toString('base64')
   const mapB64     = Buffer.from(mapBytes).toString('base64')

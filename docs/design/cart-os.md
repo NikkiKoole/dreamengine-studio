@@ -170,6 +170,30 @@ not a new architecture.
 | **Output convention** | input only | `--data` reads; there is no blessed `--out <file>` for "emit your result." |
 | **Concurrent rendering** | one window/process | Raylib = one window, one GL context, one 8-voice audio device **per process**. The hard one (below). |
 
+### Why you can't open two carts today (and why it's mundane)
+
+It's tempting to read the one-cart-at-a-time reality as the deep Raylib wall above. It mostly
+isn't — today's blocker is three **single-document assumptions** in the editor, not the runtime:
+
+1. **The editor is a single-document IDE.** One source buffer, one Run button, one build
+   target. Loading a cart *replaces* the source — there's no gesture for "two carts open," so
+   the second load overwrites the first.
+2. **The live (libtcc) backend is one cart by design.** Every Run calls `killLiveHost()`
+   (`main.cjs:355`), and a native run kills the host too (`main.cjs:703`). One persistent host,
+   one hot-swapped guest, always. On the live backend that's the direct cause.
+3. **Everything shares one `build/` dir.** Each run compiles to the same `build/cart` and
+   overwrites `build/sprites.png`/font/`cart.c`, so even two runs that *could* coexist fight
+   over on-disk assets.
+
+The tell that this is mundane: **the native run path never kills the previous native process**
+— `proc` at `main.cjs:729` is a local `const`, never tracked, never killed. The OS-level
+machinery for two side-by-side carts already works (two `spawn()`ed binaries; the OS schedules
+both and mixes their audio for free — see the music-sync note). What's missing is just
+**per-run build dirs** (`build/run-<slug>/` instead of one shared `build/`) and **a launcher
+that doesn't assume one loaded document** — which is exactly what a Norton-Commander-style pane
+*is*. So the multi-cart story's first real blocker is a shared build folder and a single-doc
+editor, not the runtime or any kernel/IPC work.
+
 ---
 
 ## The fork: where does the OS live?

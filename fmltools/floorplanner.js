@@ -35,7 +35,7 @@ const CACHE = path.join(__dirname, 'cache');
 
 // ---- args ----
 const argv = process.argv.slice(2);
-const opt = { pid: null, name: null, floor: null, scale: null, maxfurn: null, fetchOnly: false, force: false, baked: false };
+const opt = { pid: null, name: null, floor: null, scale: null, maxfurn: null, fetchOnly: false, force: false, baked: false, play: false };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   let m;
@@ -48,6 +48,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--fetch-only') opt.fetchOnly = true;
   else if (a === '--force') opt.force = true;
   else if (a === '--baked') opt.baked = true;   // old path: bake a per-project cart (make-floor.sh) instead of a runtime data file
+  else if (a === '--play' || a === '--run') opt.play = true;   // after building, launch the cart on this project
   else if (/^\d+$/.test(a) && !opt.pid) opt.pid = a;
   else { console.error('floorplanner: unknown arg', a); process.exit(1); }
 }
@@ -122,6 +123,7 @@ function fetchFml(pid, cred) {
     // OPTION A — bake a self-contained per-project cart (the make-floor.sh pipeline).
     console.log(`▸ pipeline  make-floor.sh -> tools/carts/${name}.c`);
     execFileSync(path.join(__dirname, 'make-floor.sh'), [fml, name, floor, scale, maxfurn], { cwd: ROOT, stdio: 'inherit' });
+    if (opt.play) execFileSync('node', ['tools/play.js', name, 'run'], { cwd: ROOT, stdio: 'inherit' });
     return;
   }
 
@@ -138,8 +140,16 @@ function fetchFml(pid, cred) {
   node('fml-assets.js', [fml, '--out', assets, '--max', '24', '--saturate', '2.2', '--posterize', '5']);
   console.log(`▸ sprites   -> ${dataRel}`);
   node('fml-sprites.js', ['--json', data, '--manifest', path.join(assets, 'manifest.json')]);
+  console.log(`▸ textures  resolve rs-#### floor materials -> ${dataRel}`);
+  node('fml-textures.js', ['--json', data, '--out', `build/.fml-textures-${name}`]);
 
   const sz = (fs.statSync(data).size / 1024).toFixed(0);
   // the cart runs with cwd=build/, so DE_DATA must be absolute (a relative path would miss)
-  console.log(`\n✓ done.  ${dataRel} (${sz}KB)\n   play it:  DE_DATA="${data}" node tools/play.js floorplan run\n   or drag ${dataRel} onto the floorplan cart's window in the editor.`);
+  console.log(`\n✓ done.  ${dataRel} (${sz}KB)`);
+  if (opt.play) {
+    console.log('▸ launch   floorplan cart on this project…');
+    execFileSync('node', ['tools/play.js', 'floorplan', 'run'], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, DE_DATA: data } });
+  } else {
+    console.log(`   play it:  DE_DATA="${data}" node tools/play.js floorplan run\n   or add --play to launch it automatically, or drag ${dataRel} onto the cart's window in the editor.`);
+  }
 })();

@@ -46,6 +46,7 @@ const design = floor.designs[opt.design];
 const walls = design.walls || [];
 const areas = design.areas || [];
 const items = design.items || [];
+const surfaces = design.surfaces || [];   // floor coverings: polygons with a real material (refid rs-####) + tile scale
 
 // ---- floor colour ----
 // Newer FMLs give each area a real hex `color`; older ones a numeric `role`.
@@ -80,6 +81,7 @@ let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 const eat = (x, y) => { if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; };
 for (const w of walls) { eat(w.a.x, w.a.y); eat(w.b.x, w.b.y); }
 for (const a of areas) for (const p of (a.poly || [])) eat(p.x, p.y);
+for (const s of surfaces) for (const p of (s.poly || [])) eat(p.x, p.y);   // floor coverings can extend past the rooms (e.g. carports)
 if (!isFinite(minX)) { console.error('no geometry found'); process.exit(1); }
 
 const MARGIN = 24; // px of empty border around the floor
@@ -146,7 +148,7 @@ for (const a of areas) {
   const off = apts.length / 2;
   for (const p of poly) { apts.push(PX(p.x), PY(p.y)); }
   const color = AREA_COLORS[(ai * 7) % AREA_COLORS.length]; // *7 spreads neighbours apart
-  areaOut.push({ color, n: poly.length, off,
+  areaOut.push({ color, realc: floorColor(a), n: poly.length, off,   // realc = the room's true floor colour (JSON path); color = synthetic rainbow (baked-C path)
                  name: (a.customName || a.name || '').replace(/"/g, "'") });
   ai++;
 }
@@ -197,10 +199,20 @@ if (opt.json) {
     walls:   segs.flatMap(s => [s.ax, s.ay, s.bx, s.by, s.thick]),
     windows: windows.flatMap(s => [s.ax, s.ay, s.bx, s.by, s.thick]),
     doors:   doormarks.flatMap(d => [d.cx, d.cy, d.w, d.rot]),
-    areas:   areaOut.map(a => ({ c: a.color, poly: apts.slice(a.off * 2, (a.off + a.n) * 2) })),
+    areas:   areaOut.map(a => ({ c: a.realc, poly: apts.slice(a.off * 2, (a.off + a.n) * 2) })),
     furn:    furn.flatMap(f => [f.cx, f.cy, f.w, f.h, f.rot, f.ref]),
     refs,                       // refid order; fml-sprites.js --json fills sprites[] to match
     sprites: refs.map(() => ({ w: 0, h: 0, px: [] })),   // placeholder until the bake step
+    // floor coverings: each a polygon with a material (ref rs-#### -> tex idx, filled by
+    // fml-textures.js) and a flat colour fallback. sx = tile-scale % (100 = material's native size).
+    surfaces: surfaces.filter(s => (s.poly || []).length >= 3).map(s => ({
+      ref: /^rs-/.test(s.refid || '') ? s.refid : '',
+      c:   nearestIdx(s.color) ?? FLOOR_FALLBACK,
+      sx:  s.sx || 100,
+      tex: -1, tile: 0,         // filled by fml-textures.js --json
+      poly: s.poly.flatMap(p => [PX(p.x), PY(p.y)]),
+    })),
+    textures: [],               // {w,h,px} per resolved material; surfaces[].tex indexes this
   };
   fs.writeFileSync(path.resolve(opt.json), JSON.stringify(data));
   console.log(`fml2cart: ${summary}\n  -> wrote ${opt.json} (sprites pending — run fml-sprites.js --json)`);

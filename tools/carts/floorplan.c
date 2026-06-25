@@ -46,6 +46,12 @@ static Furn  furn[MAXFURN];   static int n_furn;
 static Spr   sprs[MAXSPR];    static int n_spr;   // 'spr' is a studio.h built-in — don't shadow it
 static unsigned char pool[MAXPOOL]; static int n_pool;
 
+// floor coverings: polygons tiled with a real Roomstyler material texture (or a flat colour)
+static struct { int tex, c, tile, off, n; } surfs[MAXAREA]; static int n_surfs;
+static float spts[MAXAPT];          static int n_spts;       // surface polygon vertices (pairs)
+static Spr   texs[MAXSPR];          static int n_texs;       // floor textures {w,h,off}
+static unsigned char tpool[MAXPOOL]; static int n_tpool;     // floor-texture pixels
+
 static int   world_w = 320, world_h = 200;
 static float spawn_x = 160, spawn_y = 100;
 static char  dname[64] = "";
@@ -70,6 +76,7 @@ static bool outline_on = true;    // O toggles the render-time furniture outline
 // ---- load ----
 static void reset_pools(void) {
     n_walls = n_windows = n_doors = n_areas = n_apts = n_furn = n_spr = n_pool = 0;
+    n_surfs = n_spts = n_texs = n_tpool = 0;
     loaded_ok = truncated = 0; dname[0] = 0; err[0] = 0;
 }
 
@@ -134,6 +141,44 @@ static void load_from(const char *path) {
                 n_areas++;
             }
             fi += json_span(tok, fi);
+        }
+    }
+
+    // floor coverings: [{c, tex, tile, poly:[x,y,...]}] — tex indexes textures[], -1 = flat colour
+    int ua = json_get(js, tok, 0, "surfaces");
+    if (ua >= 0 && tok[ua].type == JSMN_ARRAY) {
+        int fi = ua + 1;
+        for (int a = 0; a < tok[ua].size && n_surfs < MAXAREA; a++) {
+            int ci = json_get(js, tok, fi, "c"), ti = json_get(js, tok, fi, "tex"),
+                tli = json_get(js, tok, fi, "tile"), pi = json_get(js, tok, fi, "poly");
+            int color = (ci >= 0) ? (int)json_num(js, &tok[ci]) : 16;
+            int tex = (ti >= 0) ? (int)json_num(js, &tok[ti]) : -1;
+            int tile = (tli >= 0) ? (int)json_num(js, &tok[tli]) : 0;
+            if (pi >= 0 && tok[pi].type == JSMN_ARRAY && tok[pi].size >= 6) {
+                int nv = tok[pi].size / 2, off = n_spts / 2;
+                for (int k = 0; k < nv * 2 && n_spts < MAXAPT; k++) spts[n_spts++] = (float)json_num(js, &tok[pi + 1 + k]);
+                surfs[n_surfs].tex = tex; surfs[n_surfs].c = color;
+                surfs[n_surfs].tile = tile < 1 ? 1 : tile; surfs[n_surfs].off = off; surfs[n_surfs].n = nv;
+                n_surfs++;
+            }
+            fi += json_span(tok, fi);
+        }
+    }
+
+    // textures: [{w,h,px:[...]}] — surfaces[].tex indexes this; px packs into tpool
+    int xa = json_get(js, tok, 0, "textures");
+    if (xa >= 0 && tok[xa].type == JSMN_ARRAY) {
+        int fi = xa + 1;
+        for (int s = 0; s < tok[xa].size && n_texs < MAXSPR; s++) {
+            int twi = json_get(js, tok, fi, "w"), thi = json_get(js, tok, fi, "h"), pxi = json_get(js, tok, fi, "px");
+            int w = (twi >= 0) ? (int)json_num(js, &tok[twi]) : 0;
+            int h = (thi >= 0) ? (int)json_num(js, &tok[thi]) : 0;
+            int off = n_tpool;
+            if (w > 0 && h > 0 && pxi >= 0 && tok[pxi].type == JSMN_ARRAY)
+                for (int k = 0; k < tok[pxi].size && n_tpool < MAXPOOL; k++)
+                    tpool[n_tpool++] = (unsigned char)json_num(js, &tok[pxi + 1 + k]);
+            texs[n_texs].w = (short)w; texs[n_texs].h = (short)h; texs[n_texs].off = off;
+            n_texs++;
         }
     }
 
@@ -228,6 +273,39 @@ static void poly_fill(int off, int n, int col) {
             line((int)xs[p], y, (int)xs[p + 1], y, col);
     }
 }
+// scanline-fill a floor-covering polygon (spts[]), tiling its material texture in WORLD
+// space (so the pattern is camera-stable). tex < 0 -> flat colour.
+static void surf_fill(int si) {
+    int off = surfs[si].off, n = surfs[si].n, tex = surfs[si].tex, tile = surfs[si].tile;
+    if (tile < 1) tile = 1;
+    int textured = (tex >= 0 && tex < n_texs && texs[tex].w > 0);
+    Spr t = textured ? texs[tex] : (Spr){ 0, 0, 0 };
+    float ymin = 1e9f, ymax = -1e9f;
+    for (int k = 0; k < n; k++) { float y = spts[(off + k) * 2 + 1]; if (y < ymin) ymin = y; if (y > ymax) ymax = y; }
+    for (int y = (int)ymin; y <= (int)ymax; y++) {
+        float xs[16]; int nx = 0;
+        for (int k = 0; k < n && nx < 16; k++) {
+            float x0 = spts[(off + k) * 2], y0 = spts[(off + k) * 2 + 1];
+            int j = (k + 1) % n;
+            float x1 = spts[(off + j) * 2], y1 = spts[(off + j) * 2 + 1];
+            if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y))
+                xs[nx++] = x0 + (y - y0) / (y1 - y0) * (x1 - x0);
+        }
+        for (int a = 0; a < nx - 1; a++)
+            for (int b = a + 1; b < nx; b++)
+                if (xs[b] < xs[a]) { float tt = xs[a]; xs[a] = xs[b]; xs[b] = tt; }
+        for (int p = 0; p + 1 < nx; p += 2) {
+            int xa = (int)xs[p], xb = (int)xs[p + 1];
+            if (!textured) { line(xa, y, xb, y, surfs[si].c); continue; }
+            int v = (((y % tile) + tile) % tile) * t.h / tile;
+            for (int x = xa; x <= xb; x++) {
+                int u = (((x % tile) + tile) % tile) * t.w / tile;
+                pset(x, y, tpool[t.off + v * t.w + u]);
+            }
+        }
+    }
+}
+
 static void draw_furn(const Furn *f) {
     float rad = f->rot * (float)M_PI / 180.0f;
     float c = cosf(rad), s = sinf(rad);
@@ -337,6 +415,14 @@ void draw(void) {
     for (int i = 0; i < n_areas; i++)
         poly_fill(areas[i].off, areas[i].n, areas[i].color);
     int vx0 = cx - 40, vy0 = cy - 40, vx1 = cx + SCREEN_W + 40, vy1 = cy + SCREEN_H + 40;
+    // floor coverings (textured/flat) on top of the room base colours, beneath furniture
+    for (int i = 0; i < n_surfs; i++) {
+        int off = surfs[i].off, n = surfs[i].n;
+        float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
+        for (int k = 0; k < n; k++) { float X = spts[(off + k) * 2], Y = spts[(off + k) * 2 + 1]; if (X < minx) minx = X; if (X > maxx) maxx = X; if (Y < miny) miny = Y; if (Y > maxy) maxy = Y; }
+        if (maxx < vx0 || minx > vx1 || maxy < vy0 || miny > vy1) continue;   // cull off-screen
+        surf_fill(i);
+    }
     for (int i = 0; i < n_furn; i++) {
         const Furn *f = &furn[i];
         if (f->cx < vx0 || f->cx > vx1 || f->cy < vy0 || f->cy > vy1) continue;

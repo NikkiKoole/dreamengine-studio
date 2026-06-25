@@ -241,24 +241,33 @@ Schema (floorplan-specific; engine-pixel coords, palette colour indices):
 { "name", "scale", "w", "h", "spawn":[x,y],
   "walls":[ax,ay,bx,by,thick, ...], "windows":[...same...],
   "doors":[cx,cy,w,rot, ...], "furn":[cx,cy,w,h,rot,ref, ...],
-  "areas":[{"c":colorIdx, "poly":[x,y,...]}, ...],
-  "sprites":[{"w","h","px":[idx, 255=transparent]}, ...] }   // furn.ref indexes sprites[]
+  "areas":[{"c":colorIdx, "poly":[x,y,...]}, ...],                 // c = real floor colour (quantised)
+  "surfaces":[{"c":colorIdx, "tex":idx, "tile":px, "poly":[...]}, ...],  // floor coverings; tex<0 = flat
+  "sprites":[{"w","h","px":[idx, 255=transparent]}, ...],         // furn.ref indexes sprites[]
+  "textures":[{"w","h","px":[idx, ...]}, ...] }                   // surfaces[].tex indexes textures[]
 ```
 
-### Floor materials — what the `.fml` actually carries (open)
+### Floor finishes — how the cart colours/textures floors
 
-The geometry is rich, but **floor finishes are only partly used**:
-- `design.areas[]` carry a flat `color` (usually a grey room-outline tone like `#727272`).
-- `design.surfaces[]` carry the *real* floor finishes: each has a hex `color` (e.g. a kitchen's
-  `#E4DCC5` beige), a `name`/`role`, **and** a `roomstyle_id` / `rs-####` reference to an actual
-  Roomstyler texture (wood, tile, …).
+The `.fml` carries floor finishes in two places, both now used:
+- `design.areas[]` — a hex `color` per room. `fml2cart.js --json` quantises it to the palette
+  (`areas[].c`) for a true-to-plan look. (The baked-C path still uses the synthetic `AREA_COLORS`
+  rainbow for max legibility — that's `areaOut.color` vs `realc`.)
+- `design.surfaces[]` — floor coverings (a polygon + a hex `color` + a `roomstyle_id`/`refid`
+  `rs-####` Roomstyler material + an `sx` tile-scale). These get a flat `c` *and*, when the material
+  resolves, a tiled texture.
 
-Today `fml2cart.js` reads only `areas[]` and assigns each room a *synthetic* distinct palette colour
-(`AREA_COLORS`) for legibility — it ignores `surfaces[]` entirely. Two upgrades available:
-1. **Free, now:** use the `surfaces[]` hex `color` (quantised to the palette) for realistic flat
-   floors instead of the rainbow.
-2. **Blocked (the known gap):** the `rs-####` ids point at real texture photos but don't resolve via
-   the render/texture CDN — needs an `rs-####` → texture-filename resolver to bake tiled floor art.
+**Resolving `rs-####` → a tiled texture** (`fml-textures.js`, no auth):
+1. `POST` the bare id to `https://search.floorplanner.com/materials/ids`
+2. read `_source.texture` (+ `_source.color`, `_source.width` in cm)
+3. fetch `…/cdb/textures/floor_and_wall/original/<texture>` (JPEG)
+4. `sips` → PNG → downscale → quantise → `textures[]`; the cart tiles it across the surface polygon
+   in world space, at a cm-true `tile` px size (material width × `sx` ÷ plan cm/px).
+
+**Caveat (the real limit now):** the 32-colour palette. High-contrast materials (Floor Herringbone,
+coloured tile) tile visibly; low-saturation ones (plain grey tile, concrete, terracotta) collapse to
+1–2 palette entries and read as a flat colour. Options if this matters: a luma-contrast stretch in
+the bake, dithering, or a wider/auto palette.
 
 ### The binary form (`.rvb`) — same IR, packed
 

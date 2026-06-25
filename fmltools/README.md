@@ -11,9 +11,9 @@ renders.
 export FP_AUTH_TOKEN='eyJ...'        # JWT from an authed editor request (~2 weeks). Or:
 # export FP_SESSION='fp_site_session=...'   # session cookie from devtools (~12h)
 
-node fmltools/floorplanner.js -pid=187256440
-#   -> fetches the .fml, emits data/floorplan/187256440.json, prints the play command
-#   (DYNAMIC: one shared `floorplan` cart loads it at runtime — no recompile per project)
+node fmltools/floorplanner.js -pid=187256440 --play
+#   -> fetches the .fml, emits data/floorplan/187256440.json, and LAUNCHES the cart on it.
+#   Drop --play to just build the data file (it prints the run command).
 
 node fmltools/floorplanner.js -pid=187256440 --baked
 #   -> instead bakes a self-contained per-project cart via make-floor.sh (option A)
@@ -21,8 +21,10 @@ node fmltools/floorplanner.js -pid=187256440 --baked
 
 `floorplanner.js` is the front door — it does the fetch and then runs the right pipeline below.
 **Dynamic (default)** = `tools/carts/floorplan.c` + a `data/floorplan/<id>.json` data file (drag the
-JSON onto the cart's window to swap plans). **`--baked`** = the original per-`.fml` cart. Both look
-identical. Design + data schema: `docs/design/external-data-carts.md` → "Floorplanner — implemented".
+JSON onto the cart's window to swap plans). **`--play`** builds *and* opens it; **`--baked`** is the
+original per-`.fml` cart. All look identical. Real floor materials (wood/tile/terracotta) are
+resolved + tiled when the `.fml` has them (`fml-textures.js`). Design + data schema:
+`docs/design/external-data-carts.md` → "Floorplanner — implemented".
 
 ## Pipeline (the baked path, run from repo root, in order)
 
@@ -68,6 +70,11 @@ node tools/play.js floorwalker run
 - **fml-sprites.js** — reads `manifest.json` + the cart's `lv_refs[]`, embeds each
   sprite's palette indices into the cart's `FML_SPRITES` block. With `--json <data>` it instead
   fills `sprites[]` in a `fml2cart.js --json` data file (keyed to its `refs[]`).
+- **fml-textures.js** — `--json <data>` only: resolves each surface's `rs-####` Roomstyler material
+  via `POST search.floorplanner.com/materials/ids` (no auth) → fetches the texture JPEG → `sips` to
+  PNG → downscale/quantise → fills the data file's `textures[]` and sets each `surfaces[].tex`/`.tile`
+  (cm-true tiling). The `floorplan` cart tiles them across the room polygons. Flags: `--out --tile
+  --saturate --posterize`. (Low-contrast materials like plain grey tile can quantise to a flat colour.)
 
 ## Known gaps
 

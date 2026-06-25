@@ -18,12 +18,19 @@ Status of the Floorplanner-`.fml` → top-down cart pipeline and the carts built
       per project. `fml2cart.js --json` + `fml-sprites.js --json` are the data-emit paths.
       See `docs/design/external-data-carts.md` → "Floorplanner — implemented".
 
+- [x] **Real photo floor textures** (dynamic cart) — `fml-textures.js` resolves each surface's
+      `rs-####` via `POST search.floorplanner.com/materials/ids` (no auth) → fetches the texture
+      JPEG → quantises → fills `textures[]`; `floorplan.c` tiles them across the surface polygons
+      (cm-true tile size from material width × `sx`). `surfaces[]` now also carries a flat material
+      colour fallback. Works great on high-contrast materials (wood/herringbone/terracotta).
+
 ## Open / next
-- [ ] **Real photo floor textures** — UNBLOCKED (resolver found): `rs-####` → POST the bare id to
-      `https://search.floorplanner.com/materials/ids` (no auth) → `_source.texture` (+ a real
-      `_source.color`!) → fetch `…/cdb/textures/floor_and_wall/original/<texture>`. Then bake
-      (JPEG → quantize → tile the room polygon). **Free intermediate win:** colour each room by its
-      real material `color` (read `surfaces[]`, not just `areas[]`) instead of the synthetic rainbow.
+- [ ] **Low-contrast materials quantise flat** — e.g. "Hatch Tiles Grey" collapses to one palette
+      grey, so it reads as a flat floor. Could dither, or widen the palette match. Cosmetic.
+- [ ] **Bake textures into the BAKED cart too** — `fml-textures.js` is `--json`-only; `floorwalker`/
+      `seinelaan` (the spliced-C carts) still get flat `AREA_COLORS`. Add a C-splice path if wanted.
+- [ ] **`areas[]` real colours** — still uses the synthetic rainbow for legibility; textures now
+      cover the floors that matter, so this is lower priority.
 - [ ] **Door look tuning** — swing-symbol colour (`C_DOOR`, currently orange) / size; confirm exits are
       easy to spot on every floor colour. Maybe per-floor tint.
 - [ ] **Doorway width feel** — widen the cut slightly if the player clips the frame.

@@ -434,6 +434,9 @@ independently shippable:
    2026-06-09** (KS string + 4 body-formant biquads; design + status §8.8.9), and **`INSTR_PIANO`
    (StifKarp, 27) — SHIPPED 2026-06-09** (KS string + dispersion allpass chain + soundboard;
    single-string v1, double-string `ks2Buffer` deferred; §8.8.9). The buffered pair is shipped.
+   **PIANO is the weak link in the roster** — it reads as a *harp* (faithful port of STK's
+   pluck-in-piano-costume). Diagnosis + fix roadmap (double decay, hammer knock, velocity
+   coupling, stretched tuning): [`piano-engine.md`](piano-engine.md).
    **STEP-0 done 2026-06-09 — green light, two engines not three:**
    - **Harp folds into guitar.** navkit ships harp as `GUITAR_HARP` (preset 216), one of *eight*
      `WAVE_GUITAR` presets (210 Acoustic · 211 Classical · 212 Banjo · 213 Sitar · 214 Oud · 215

@@ -61,7 +61,7 @@ typedef struct {
     int   a_samp, d_samp, r_samp;   // attack / decay / release, in samples
     float sustain;                  // 0..1
     float duty;                     // 0..1 pulse width (only used by INSTR_SQUARE)
-    float eng_p[2];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click
+    float eng_p[4];                 // EXPERIMENTAL guitar/piano tuning: 0 = fundamental weight, 1 = attack click, 2 = piano double-decay scale, 3 = piano hammer-knock scale
     int   lfo_dest[3];              // LFO_PITCH / LFO_DUTY / LFO_VOLUME / LFO_CUTOFF, per LFO
     float lfo_rate[3];              // Hz
     float lfo_depth[3];             // 0 = off; units depend on dest
@@ -277,6 +277,8 @@ typedef struct {
     float  pn_apc, pn_aps;              // fractional-delay allpass coeff + state (pitch tuning)
     float  pn_initf;                    // freq at note-on (pitch-tracking reference)
     float  pn_dampg, pn_damps;          // damper gain (pedal) + slewed state
+    float  pn_dd;                       // DOUBLE-DECAY: extra per-period loss right after the strike, relaxes to 0 (~0.2s). The fast initial drop that says "struck", not "plucked harp"
+    float  pn_knock;                    // HAMMER KNOCK: default onset transient amount (broadband click over eng_click), ON for piano regardless of MODE_STRING_CLICK
     float  pn_ks2[SOUND_KS_MAX];        // detuned 2nd string delay line (own loop)
     int    pn_ks2_widx, pn_ks2_len;
     float  pn_ks2_last, pn_ks2_apc, pn_ks2_aps;
@@ -304,7 +306,7 @@ typedef struct {
     // following the string, mixed under it — adds the low-end WEIGHT a bare KS string lacks (the
     // "thin" cure). Plus an onset noise CLICK (pick/hammer transient). Both amounts come from
     // eng_p[] (set via instrument_mode, note-on — the permanent per-engine aux channel, decision 0017; NOT baked to constants).
-    float  eng_p[2];                    // copied from the instrument at note-on (0 weight · 1 attack)
+    float  eng_p[4];                    // copied from the instrument at note-on (0 weight · 1 attack · 2 piano decay-scale · 3 piano knock-scale)
     float  eng_subph, eng_env;          // sub-osc phase + envelope follower
     int    eng_click;                   // onset-click samples remaining
     // brass state (INSTR_BRASS): STK BrassInstrument (Cook/Scavone) — a bore delay (REUSES ks_buf,
@@ -4019,6 +4021,14 @@ static void sound_piano_start(Voice *v) {
     // excitation: noise burst → hammer lowpass (timbre modulates the voicing's hardness) → normalize
     float hard = pv->hammer + (v->timb - 0.5f) * 0.6f;
     if (hard < 0.02f) hard = 0.02f; if (hard > 0.98f) hard = 0.98f;
+    // DOUBLE DECAY: a strong extra per-period loss at the strike that relaxes away (~0.2s) → the
+    // fast initial drop into a long aftersound (the piano envelope; a single rate = a harp).
+    // eng_p[2] scales it (bank-default 0.5 → 1.0×; cart knob 0..1 → 0..2× via instrument_mode idx 2).
+    v->pn_dd = 0.020f * (v->eng_p[2] * 2.0f);
+    // HAMMER KNOCK: a default broadband onset thump (harder hammer → sharper/louder click), ON for
+    // piano independent of MODE_STRING_CLICK (eng_p[1] still adds the cart-tunable pick noise on top).
+    // eng_p[3] scales it (bank-default 0.5 → 1.0×; cart knob 0..1 → 0..2× via instrument_mode idx 3).
+    v->pn_knock = (0.30f + 0.50f * hard) * (v->eng_p[3] * 2.0f);
     float cut = 0.05f + 0.85f * hard, lp = 0.0f;
     for (int i = 0; i < len; i++) {
         v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
@@ -4089,6 +4099,8 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
     if (effLen < 2.0f) effLen = 2.0f; if (effLen > (float)len) effLen = (float)len;
     v->pn_damps += (v->pn_dampg - v->pn_damps) * 0.0005f;            // damper (pedal) slews in
     float effDamp = v->pn_ksd * (0.992f + 0.008f * v->pn_damps);     // ≈ ksDamping (near-lossless)
+    effDamp *= (1.0f - v->pn_dd);                                    // DOUBLE DECAY: extra loss at the strike…
+    v->pn_dd *= 0.99975f;                                            // …relaxing to 0 (~0.2s) → fast initial drop, long tail
     v->pn_ksb_cur += (v->pn_ksb - v->pn_ksb_cur) * 0.00008f;         // brightness bloom: bright strike → mellow (~0.3s)
     float ksb = v->pn_ksb_cur;
     // ---- string 1 ----
@@ -4167,7 +4179,7 @@ static inline float sound_piano_sample(Voice *v, float pitch_mul) {
         v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;
         float n  = ((v->noise_state >> 16) & 0xff) / 127.5f - 1.0f;
         float ce = (float)v->eng_click / 700.0f;
-        res += v->eng_p[1] * 1.3f * n * ce * ce;
+        res += (v->eng_p[1] * 1.3f + v->pn_knock) * n * ce * ce;     // cart-tunable pick noise + the default HAMMER KNOCK
         v->eng_click--;
     }
     return res;
@@ -4542,6 +4554,8 @@ static void sound_setup_note(Voice *v, int midi, int slot, int vol, int gate_sam
     v->drv_mode = ins->drive_mode;
     v->eng_p[0] = ins->eng_p[0];
     v->eng_p[1] = ins->eng_p[1];
+    v->eng_p[2] = ins->eng_p[2];
+    v->eng_p[3] = ins->eng_p[3];
     v->drv_dc_x1 = v->drv_dc_y1 = 0.0f;
     v->eko  = v->eko_target  = ins->echo;
     v->rvb  = v->rvb_target  = ins->reverb;
@@ -4742,7 +4756,7 @@ static void sound_fire_req(SoundReq r) {
         instr_bank[slot].duty = duty;
     } else if (r.kind == SR_ENG_TUNE) {
         int slot = r.a, idx = r.b;
-        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 2) return;
+        if (slot < 0 || slot >= SOUND_INSTR_SLOTS || idx < 0 || idx >= 4) return;
         instr_bank[slot].eng_p[idx] = r.c / 1000.0f;
     } else if (r.kind == SR_INSTR_LFO) {
         int slot = r.a;
@@ -6665,6 +6679,8 @@ static void sound_init(void) {
         instr_bank[i].fx_bus     = 0;      // master until instrument_chorus/flanger() assigns a private bus
         instr_bank[i].eng_p[0]   = 0.0f;   // guitar/piano fundamental weight (instrument_mode) — off until set
         instr_bank[i].eng_p[1]   = 0.0f;   // guitar/piano attack click (instrument_mode) — off until set
+        instr_bank[i].eng_p[2]   = 0.5f;   // piano double-decay scale (instrument_mode idx 2) — 0.5 = 1.0× the baked default
+        instr_bank[i].eng_p[3]   = 0.5f;   // piano hammer-knock scale  (instrument_mode idx 3) — 0.5 = 1.0× the baked default
     }
 
     // echo bus: clean slate (matters for libtcc hot-reload + --det reproducibility)

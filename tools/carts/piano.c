@@ -26,14 +26,17 @@
 #include <math.h>
 
 #define I_PNO  5
+#define PIANO_DECAY 2               // instrument_mode idx — double-decay scale (0..2×; 0.5 = engine default)
+#define PIANO_KNOCK 3               // instrument_mode idx — hammer-knock scale (0..2×; 0.5 = engine default)
 #define NKEY   13                   // one octave of semitones, C..C (glow index)
 #define NWHITE 8
 static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // white-key QWERTY labels
 static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
-// row 1 = the 3 engine macros; row 2 = TUNING controls (weight/attack via instrument_mode(), width via
-// per-note instrument_pan()) — scaffolding to dial the sound in by ear, baked to constants after.
-static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "weight", "attack", "width" };
+// row 1 = the 3 engine macros; row 2 = TUNING controls (decay/knock via instrument_mode(), width via
+// per-note instrument_pan()) — scaffolding to dial the harp→piano fix in by ear (double-decay depth +
+// hammer-knock amount; each 0..2× the engine default at the 0.5 midpoint), baked to constants after.
+static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "decay", "knock", "width" };
 
 #define NPRESET 6
 static const char *PRESET_NAME[NPRESET] = { "grand","bright","harpsi","dulcimer","clavi","celesta" };
@@ -71,14 +74,14 @@ static Ptr   ptr[NPTR];
 #define KNOB_X(k) (14 + ((k) % 3) * 102)
 #define KNOB_Y(k) (KNOB_TOP + ((k) < 3 ? 0 : 26))
 
-static float knob[6] = { 0.08f, 0.50f, 0.62f, 0.0f, 0.3f, 0.0f };   // grand voicing + a little hammer thump (attack)
+static float knob[6] = { 0.08f, 0.50f, 0.62f, 0.5f, 0.5f, 0.0f };   // grand voicing; decay+knock at 0.5 = engine default (1.0×)
 
 static void push_knobs(void) {
     instrument_harmonics(I_PNO, knob[0]);
     instrument_timbre(I_PNO, knob[1]);
     instrument_morph(I_PNO, knob[2]);
-    instrument_mode(I_PNO, MODE_STRING_WEIGHT, knob[3]);   // TUNING: fundamental weight
-    instrument_mode(I_PNO, MODE_STRING_CLICK, knob[4]);   // TUNING: attack click
+    instrument_mode(I_PNO, PIANO_DECAY, knob[3]);   // TUNING: double-decay depth (harp→piano fix #1)
+    instrument_mode(I_PNO, PIANO_KNOCK, knob[4]);   // TUNING: hammer-knock amount (harp→piano fix #2)
 }
 
 // gate scales with pedal (morph): dry staccato lets go fast, a held pedal rings long

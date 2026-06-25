@@ -8,6 +8,13 @@
 > Closely related and load-bearing: [`external-data-carts.md`](external-data-carts.md)
 > (the `--data` pipe already shipping) and [`cart-as-script.md`](cart-as-script.md) (the
 > persistent libtcc host).
+>
+> **Update — the idea deflated to its honest size (same session, later).** The grand
+> framing collapses to *save a file, load it elsewhere* — which the **real OS already
+> does**, audio-mixing-across-processes included. There is no operating system to build;
+> what remains is a convention, one flag, and a couple of use cases. See **"The honest
+> size of it"** immediately below — read it before the tiers, which describe the full
+> design space but overstate the need.
 
 ---
 
@@ -26,6 +33,93 @@ eventually an Amiga-Workbench-style desktop, where:
 
 This doc separates the cheap, reachable parts from the expensive research parts, and names
 the one decision that determines which it is.
+
+---
+
+## The honest size of it (settled 2026-06-25)
+
+Take the costume off and the whole idea reduces to one sentence: **carts as tools for other
+carts = save a file here, load it there.** And *the real OS already does that* — the
+filesystem is the shared filesystem, and macOS already mixes audio from multiple processes
+at the system level for free. **There is no operating system to build.** Every grand word
+below — kernel, shell, Workbench, IPC — is either something the real OS hands you for
+nothing, or chrome on top of "two carts agree on a file path."
+
+What actually remains, after you delete the OS framing, is three modest things, none of them
+a system:
+
+1. **A convention for where the files land.** Tool outputs are scattered today (`build/.bake/…`,
+   `--dump`, `--trace`, the `*_request` mailbox) with no naming discipline. That's
+   [STATUS open item 44](../STATUS.md), and it's pure tidying — not part of any OS.
+2. **One blessed `--out <file>` flag**, mirroring the `--data` that already ships. A cart
+   writes its result to a path; another reads it. That's the entire "pipe." One runtime flag.
+3. **Use cases actually worth the flag** — chiefly `bones → game` (below).
+
+### Authoring carts vs consumer carts (the "tool for other carts" category)
+
+The framing surfaces a cart taxonomy the repo already has but never named:
+
+- **Authoring carts** produce reusable assets — `bones` (skeletal rigs), the sprite editor,
+  the map editor.
+- **Consumer carts** eat them — a game that plays a rig, draws the sprites, walks the map.
+
+The diagnostic that decides whether the flag *helps* a given tool: **is it stranded or
+unwanted?**
+
+- **`bones` is stranded** — a genuinely useful rigger whose output has *nowhere to go*. You
+  rig once; no channel carries the skeleton + keyframes to a game cart. That's not a flaw in
+  bones, it's the missing `--out`. Fix the channel and a real workflow exists that doesn't
+  today. **This is the use case that justifies the flag, and a better Tier-1 proof pair than
+  `osm-roads → roadview`** — it's the full loop (a human authors in one cart, a game consumes
+  it), not just data processing.
+- **The sprite editor is unwanted** — not unused for lack of a pipe, but because
+  *code-authoring won on the merits* (`sprite-draw.js` / `.cart.js`; CLAUDE.md steers everyone
+  there). A pipe won't revive a tool that lost to a better workflow. The OS framing is a lever
+  for the stranded, a distraction for the unwanted — don't let it talk you into plumbing the
+  sprite editor.
+
+### Authoring-time pipes ≠ runtime pipes
+
+`osm-roads → roadview` is a **runtime** pipe: data fetched, consumed live, hot-swappable
+while the window's open — it wants a live shared directory. `bones → game` is an
+**authoring-time** pipe: you rig once and the game ships with the asset **baked in**. That
+case probably doesn't want a shared dir at all — it wants to **bake into the consumer cart's
+`.cart.png` chunks**, which *already exists* (sprites/map/settings are embedded zTXt chunks
+today). So an authoring cart's natural `--out` target may be "write target-cart's `de:rig`
+chunk," reusing the bake mechanism — not `build/fs/foo.json`. The shared-FS framing below
+quietly assumes the runtime case for everything; the authoring case is a different, cheaper,
+more on-brand channel.
+
+### Music sync — the one primitive the real OS doesn't hand you
+
+The single thread with any real meat. Multiple musical carts playing *in time* (MIDI-clock /
+Ableton-Link style) is the one thing "save a file, load it" doesn't trivially cover — but it's
+close. The realization: **musical sync needs a shared *clock*, not a shared audio device.**
+MIDI clock transmits tempo + transport position + start/stop; it does *not* route audio. Each
+cart makes its own sound on its own process; **the OS mixes the resulting streams for free.**
+So the only new primitive is a tiny **shared transport** — a live file/socket holding
+`{bpm, beat, playing}` that every musical cart reads each frame instead of running its own free
+clock. The substrate is shockingly close: `beat`/`bpos` already exist as trace auto-fields, and
+`play.js` already has `--bpm`.
+
+Caveats that keep this leashed: it won't be **sample-accurate** — separate processes on separate
+audio devices drift between sync points, exactly like a rack of real MIDI gear (which also
+re-aligns on each pulse; for a jam that's the texture, not a bug). The real engineering is
+drift/phase compensation (Link's actually-hard part), not the plumbing — a naive first cut
+(everyone snaps to the shared beat, accept the jitter) is enough to learn whether it's good
+enough. **Only sample-locked sync needs a single host (Tier 3);** loose musical sync is a
+live file. With a corpus of musical carts already here (radio stations, keybeds, groovebox,
+`improv.h`/`solo.h`/`radio.h`), "what if they all played in time" is a real payoff — note this
+pulls the *most exciting* musical use case down from Tier 3 to roughly **Tier 1.5**, correcting
+the tier map below, which files all live concurrent carts under the hard tier.
+
+### So the Workbench and our own terminal…
+
+…stay in this doc as the **someday-maybe cosmetic skin we'd genuinely like** — not as the
+substrate. They're chrome over "agree on a file path," not an operating system, and composition
+*works* without them. Demoted from "the dream" to "the fun version." (We see you, TempleOS.)
+Read Tiers 2–3 below knowing **Tier 1 is the whole functional need**; the rest is for the love
+of the thing, which is a fine reason, just an honest one.
 
 ---
 
@@ -229,13 +323,22 @@ one flag.
 
 - Is the shared FS a flat blob store, or does it carry the typed "vector features" /
   tilemap / audio-buffer schemas so pipes are *typed* (a cart advertises what it eats and
-  emits)? The `index.json` metadata could grow `consumes`/`produces` tags.
+  emits)? The `index.json` metadata could grow `consumes`/`produces` tags. (The
+  authoring-cart taxonomy above — `bones`'s `de:rig`, etc. — is one concrete instance of
+  this typing question.)
 - ~~Terminal-first or Workbench-first as the visible surface?~~ **Settled (this session):
-  kernel-first.** Both are sibling shells over the same kernel API; the terminal is just
-  the cheapest client that forces the substrate to exist. See "Kernel + sibling shells"
-  above.
-- Does "shared processes" ever mean genuinely concurrent live carts (Tier 3), or is
-  sequential file-handoff (Tier 1) actually the whole need — the same question ADR-0001
-  answered "no" to for coroutines?
-- If a Workbench is built, is it a cart (on-brand, fights the runtime) or an IDE panel
-  (cheap, off to the side of the console feel)?
+  kernel-first — and then deflated further: the kernel is the real OS.** Both shells are
+  chrome over "agree on a file path"; build neither to make composition *work* (a flag does
+  that). See "The honest size of it" and "Kernel + sibling shells" above.
+- ~~Does "shared processes" ever mean genuinely concurrent live carts (Tier 3)?~~ **Mostly
+  answered:** sequential file-handoff (Tier 1) is the whole need for data; *loose* musical
+  sync is a shared-clock file (Tier 1.5, no concurrency). The *only* thing that genuinely
+  needs one live multi-cart host is **sample-accurate** musical sync — reach for Tier 3 only
+  if that specific tightness is ever wanted.
+- **The visible surface, when we eventually want one for the love of it:** a file-manager
+  shell to *launch and chain* carts — a **Norton Commander / Midnight Commander clone**
+  (twin-pane: carts on the left, the shared FS / their outputs on the right; Enter runs,
+  a keystroke pipes A→B) is the most on-brand and pleasant fit, and it's a single cart-styled
+  panel, not a windowing system. Strictly Tier-2 chrome over the Tier-1 substrate — wanted,
+  not needed. Is it a cart (on-brand, fights the runtime) or an IDE panel (cheap, off to the
+  side of the console feel)? Same fork as the Workbench.

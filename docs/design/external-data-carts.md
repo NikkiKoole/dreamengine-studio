@@ -4,6 +4,32 @@
 data blob at **runtime** instead of baking the data into its C source? If this proves its
 worth it graduates; if not, the pieces below delete cleanly (they touch almost nothing).
 
+## Session handoff — pick up here
+
+**What's working and committed** (`roadview`, registered as a tech-demo/toy):
+- The whole pipeline: `osm-roads.js` (`--demo` / `--bbox` / `--place`, mirror-fallback) → a
+  `data/<slug>.json` → `roadview` loads it at runtime via `de_data_path()` + `runtime/json.h`.
+- **Load UX:** default-loads `data/demo.json`; **drag a `.json` onto the window** to switch
+  towns (`de_dropped_file()`); **`OPEN` button** reveals the `data/` folder (`de_open_path()`).
+- **Layers** (bottom→top): green (parks/woods) → water → building footprints → canals → roads
+  → tree dots. Footprints (`B`) and tree dots (`T`) are **LOD-gated** (drawn only zoomed in).
+- Commits this session: `379d4d7d` (core experiment), `af0be4bf` (register), `0bde8adb`
+  (buildings + water), `98b653c4` (green areas + trees). Engine hooks are 3 tiny EXPERIMENTAL,
+  additive functions in `studio.c`/`.h`; `data/` is git-ignored.
+
+**Quick resume:**
+```bash
+node tools/osm-roads.js --place "Utrecht, Netherlands"      # → data/utrecht-netherlands.json
+DE_DATA="$(pwd)/data/delft.json" node tools/play.js roadview run   # or just: ... roadview run (loads demo), then drag a file
+```
+
+**Next ideas (not started):** landuse tints (residential/industrial/farmland as muted area
+fills — same `fill_areas` path, gives the map its colour blocks); coastline (`natural=coastline`);
+rail lines (`railway=rail`, a dashed line class). Plus the three "to graduate" items below
+(editor `--data` wiring, web/wasm file loading, whether `fmltools` should retarget this schema).
+Adding any area/line layer is now a ~10-line pattern: classify in `osm-roads.js` → a `K_*` +
+style in `roadview.c` → `fill_areas()` or `draw_class()` in the paint order.
+
 ## The smell this fixes
 
 `floorwalker` and `seinelaan` are the *same cart* — identical movement, rendering, collision —

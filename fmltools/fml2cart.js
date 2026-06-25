@@ -27,7 +27,7 @@ if (!argv.length || argv[0].startsWith('-')) {
   process.exit(1);
 }
 // units are centimetres (wall thickness ~15-30cm in real files); scale = cm/px.
-const opt = { in: argv[0], out: 'tools/carts/floorwalker.c', scale: 8, floor: 0, design: 0, maxfurn: 280, stdout: false };
+const opt = { in: argv[0], out: 'tools/carts/floorwalker.c', scale: 8, floor: 0, design: 0, maxfurn: 280, stdout: false, json: null };
 for (let i = 1; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--out') opt.out = argv[++i];
@@ -35,6 +35,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (a === '--floor') opt.floor = parseInt(argv[++i], 10);
   else if (a === '--design') opt.design = parseInt(argv[++i], 10);
   else if (a === '--maxfurn') opt.maxfurn = parseFloat(argv[++i]); // mm cap: above this an item is a surface/rug, not furniture
+  else if (a === '--json') opt.json = argv[++i];   // emit a runtime data file (for the dynamic `floorplan` cart) instead of splicing C
   else if (a === '--stdout') opt.stdout = true;
   else { console.error('unknown arg', a); process.exit(1); }
 }
@@ -182,6 +183,30 @@ if (areaOut.length) {
   }
 }
 
+const summary = `walls:${segs.length} spans, doors:${doormarks.length}, windows:${windows.length}, areas:${areaOut.length}, furniture:${furn.length} (skipped ${skipped} oversize), refids:${refs.length}, world:${W}x${H}px`;
+
+// ---- emit runtime data JSON (for the dynamic `floorplan` cart) ----
+// Same numbers as the baked C, just serialised: the cart loads this at runtime via
+// --data/$DE_DATA (json.h) instead of recompiling per project. Geometry is flat
+// arrays (compact, few tokens); sprites[] is filled later by fml-sprites.js --json
+// (keyed to refs[]) so furn[].ref indexes it. See docs/design/external-data-carts.md.
+if (opt.json) {
+  const data = {
+    name: (fml.name || path.basename(opt.in)).replace(/\s+/g, ' ').trim(),
+    scale: opt.scale, w: W, h: H, spawn: [spawn.x, spawn.y],
+    walls:   segs.flatMap(s => [s.ax, s.ay, s.bx, s.by, s.thick]),
+    windows: windows.flatMap(s => [s.ax, s.ay, s.bx, s.by, s.thick]),
+    doors:   doormarks.flatMap(d => [d.cx, d.cy, d.w, d.rot]),
+    areas:   areaOut.map(a => ({ c: a.color, poly: apts.slice(a.off * 2, (a.off + a.n) * 2) })),
+    furn:    furn.flatMap(f => [f.cx, f.cy, f.w, f.h, f.rot, f.ref]),
+    refs,                       // refid order; fml-sprites.js --json fills sprites[] to match
+    sprites: refs.map(() => ({ w: 0, h: 0, px: [] })),   // placeholder until the bake step
+  };
+  fs.writeFileSync(path.resolve(opt.json), JSON.stringify(data));
+  console.log(`fml2cart: ${summary}\n  -> wrote ${opt.json} (sprites pending — run fml-sprites.js --json)`);
+  process.exit(0);
+}
+
 // ---- emit C ----
 const segC = (s) => `{${s.ax},${s.ay},${s.bx},${s.by},${s.thick}}`;
 const fmt = (arr, f) => arr.map(f).join(',');
@@ -209,8 +234,6 @@ c += `static const float lv_apts[] = {${apts.length ? apts.join(',') : '0'}};\n`
 c += `static const char* lv_refs[] = {${refs.length ? refs.map(r => `"${r}"`).join(',') : '0'}};\n`;
 c += `#define N_REFS ${refs.length}\n`;
 c += `/* <<<FML_DATA */`;
-
-const summary = `walls:${segs.length} spans, doors:${doormarks.length}, windows:${windows.length}, areas:${areaOut.length}, furniture:${furn.length} (skipped ${skipped} oversize), refids:${refs.length}, world:${W}x${H}px`;
 
 if (opt.stdout) { console.log(c); console.error(summary); process.exit(0); }
 

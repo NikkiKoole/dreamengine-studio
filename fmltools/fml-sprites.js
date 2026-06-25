@@ -15,14 +15,33 @@ const fs = require('fs');
 const path = require('path');
 
 const argv = process.argv.slice(2);
-const opt = { manifest: 'build/.fml-assets/manifest.json', out: 'tools/carts/floorwalker.c' };
+const opt = { manifest: 'build/.fml-assets/manifest.json', out: 'tools/carts/floorwalker.c', json: null };
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--manifest') opt.manifest = argv[++i];
   else if (argv[i] === '--out') opt.out = argv[++i];
+  else if (argv[i] === '--json') opt.json = argv[++i];   // fill sprites[] in a fml2cart --json data file (instead of splicing C)
   else { console.error('unknown arg', argv[i]); process.exit(1); }
 }
 
 const manifest = JSON.parse(fs.readFileSync(opt.manifest, 'utf8'));
+
+// --json mode: write the baked sprites into a runtime data file's sprites[] (aligned
+// to its refs[]), so the dynamic `floorplan` cart can blit them. Mirrors the C path's
+// pool building exactly (255 = transparent), just JSON instead of a spliced array.
+if (opt.json) {
+  const dpath = path.resolve(opt.json);
+  const data = JSON.parse(fs.readFileSync(dpath, 'utf8'));
+  let withSprite = 0, px = 0;
+  data.sprites = (data.refs || []).map((refid) => {
+    const it = manifest.items[refid];
+    if (!it || it.error || !it.w) return { w: 0, h: 0, px: [] };
+    withSprite++; px += it.idx.length;
+    return { w: it.w, h: it.h, px: it.idx.map(v => (v < 0 || v > 31 ? 255 : v)) };
+  });
+  fs.writeFileSync(dpath, JSON.stringify(data));
+  console.log(`fml-sprites: ${withSprite}/${(data.refs || []).length} refids have sprites, ${px} px (${(px / 1024).toFixed(0)}KB)\n  -> wrote ${opt.json}`);
+  process.exit(0);
+}
 const cartPath = path.resolve(opt.out);
 let src = fs.readFileSync(cartPath, 'utf8');
 

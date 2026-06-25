@@ -67,7 +67,7 @@ const fs=require("fs"), p="editor/public/carts/index.json";
 const name=process.argv[1], file=name+".cart.png";
 const idx=JSON.parse(fs.readFileSync(p,"utf8"));
 if(!idx.some(e=>e.file===file)){
-  idx.push({title:name, description:"A Floorplanner .fml walked as a top-down level (built by fmltools/make-floor.sh). Walls with walkable doorways and real door/window sprites, each room a distinct floor colour, furniture as baked top-down pixel sprites. WASD/arrows move, T toggles sprites vs boxes.", file, kind:["tech-demo","toy"]});
+  idx.push({title:name, description:"A Floorplanner .fml walked as a top-down level (built by fmltools/make-floor.sh). Walls with walkable doorways and real door/window sprites, each room a distinct floor colour, furniture as baked top-down pixel sprites. WASD/arrows move, T toggles sprites vs boxes.", file, kind:["tech-demo","toy"], teaches:[]});
   fs.writeFileSync(p, JSON.stringify(idx,null,2)+"\n");
   console.log("  registered "+file);
 } else console.log("  already registered");

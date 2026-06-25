@@ -1,0 +1,361 @@
+#include "studio.h"
+#include "json.h"
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+// floorplan — ONE cart, MANY floorplans. The runtime-loaded twin of floorwalker:
+// the level (walls, doorways, room floors, furniture sprites) is NOT baked into the
+// source — it is loaded at startup from a JSON data file via --data <file> / $DE_DATA
+// (drag a file onto the window to swap it live). The renderer is identical to
+// floorwalker, so a fetched project looks exactly like the baked carts.
+//
+//   node fmltools/floorplanner.js -pid=187256440        # fetch + emit data/floorplan/<pid>.json
+//   DE_DATA=data/floorplan/187256440.json node tools/play.js floorplan run
+//
+// Data schema (emitted by fml2cart.js --json + fml-sprites.js --json):
+//   { name, scale, w, h, spawn:[x,y],
+//     walls:[ax,ay,bx,by,thick, ...], windows:[...same...],
+//     doors:[cx,cy,w,rot, ...], furn:[cx,cy,w,h,rot,ref, ...],
+//     areas:[{c, poly:[x,y,...]}, ...],
+//     sprites:[{w,h,px:[palette idx, 255=transparent]}, ...] }   // furn.ref indexes sprites[]
+// Design: docs/design/external-data-carts.md.
+
+// ---- runtime pools (sized for the largest real plans; floorwalker is ~1k furniture) ----
+#define MAXSEG   4096
+#define MAXDOOR  1024
+#define MAXAREA  1024
+#define MAXAPT  32768          // floats (= 16k polygon vertices)
+#define MAXFURN  8192
+#define MAXSPR   1024
+#define MAXPOOL (1 << 20)      // furniture sprite pixels (palette indices)
+
+typedef struct { float ax, ay, bx, by, thick; } Seg;
+typedef struct { float cx, cy, w, rot; } Door;
+typedef struct { float cx, cy, w, h, rot; int ref; } Furn;
+typedef struct { int color, n, off; } AreaP;   // off/n index into apts[] (vertices)
+typedef struct { short w, h; int off; } Spr;    // off indexes pool[]
+
+static Seg   walls[MAXSEG];   static int n_walls;
+static Seg   windows[MAXSEG]; static int n_windows;
+static Door  doors[MAXDOOR];  static int n_doors;
+static AreaP areas[MAXAREA];  static int n_areas;
+static float apts[MAXAPT];    static int n_apts;     // count of floats (pairs)
+static Furn  furn[MAXFURN];   static int n_furn;
+static Spr   sprs[MAXSPR];    static int n_spr;   // 'spr' is a studio.h built-in — don't shadow it
+static unsigned char pool[MAXPOOL]; static int n_pool;
+
+static int   world_w = 320, world_h = 200;
+static float spawn_x = 160, spawn_y = 100;
+static char  dname[64] = "";
+static char  err[160] = "";
+static int   loaded_ok = 0, tried = 0, truncated = 0;
+
+static struct { float x, y, aim; } pl;
+static bool use_sprites = true;   // T toggles sprites vs placeholder boxes
+static bool outline_on = true;    // O toggles the render-time furniture outline
+
+#define PLAYER_R 4.0f
+#define CAM_ZOOM 1.0f
+#define C_BG     0
+#define C_WALL   6
+#define C_GLASS  12
+#define C_FURN   22
+#define C_FURN_O 16
+#define C_PLAYER 8
+#define C_DOOR   9
+#define DATA_DIR "../data/floorplan"   // cwd is build/, so ../data/floorplan == <project>/data/floorplan
+
+// ---- load ----
+static void reset_pools(void) {
+    n_walls = n_windows = n_doors = n_areas = n_apts = n_furn = n_spr = n_pool = 0;
+    loaded_ok = truncated = 0; dname[0] = 0; err[0] = 0;
+}
+
+// fill an array of fixed-stride records from a flat JSON number array; returns record count
+static int load_flat(const char *js, jsmntok_t *tok, int obj, const char *key, float *out, int maxFloats, int stride) {
+    int a = json_get(js, tok, obj, key);
+    if (a < 0 || tok[a].type != JSMN_ARRAY) return 0;
+    int n = tok[a].size; if (n > maxFloats) { n = (maxFloats / stride) * stride; truncated = 1; }
+    for (int i = 0; i < n; i++) out[i] = (float)json_num(js, &tok[a + 1 + i]);
+    return n / stride;
+}
+
+static void load_from(const char *path) {
+    reset_pools();
+    long len; char *js = json_slurp(path, &len);
+    if (!js) { snprintf(err, sizeof err, "cannot read %s", path); return; }
+    jsmntok_t *tok; int nt = json_parse(js, &tok);
+    if (nt < 1 || tok[0].type != JSMN_OBJECT) { snprintf(err, sizeof err, "bad json in %s (err %d)", path, nt); free(js); free(tok); return; }
+
+    int ni = json_get(js, tok, 0, "name");
+    if (ni >= 0) json_str(dname, sizeof dname, js, &tok[ni]);
+    int wi = json_get(js, tok, 0, "w"); if (wi >= 0) world_w = (int)json_num(js, &tok[wi]);
+    int hi = json_get(js, tok, 0, "h"); if (hi >= 0) world_h = (int)json_num(js, &tok[hi]);
+    int si = json_get(js, tok, 0, "spawn");
+    if (si >= 0 && tok[si].type == JSMN_ARRAY && tok[si].size >= 2) {
+        spawn_x = (float)json_num(js, &tok[si + 1]); spawn_y = (float)json_num(js, &tok[si + 2]);
+    }
+
+    n_walls   = load_flat(js, tok, 0, "walls",   (float *)walls,   MAXSEG  * 5, 5);
+    n_windows = load_flat(js, tok, 0, "windows", (float *)windows, MAXSEG  * 5, 5);
+    n_doors   = load_flat(js, tok, 0, "doors",   (float *)doors,   MAXDOOR * 4, 4);
+
+    // furniture: [cx,cy,w,h,rot,ref] — ref is an int but rides in the float array, round it back
+    int fa = json_get(js, tok, 0, "furn");
+    if (fa >= 0 && tok[fa].type == JSMN_ARRAY) {
+        int cnt = tok[fa].size / 6;
+        for (int i = 0; i < cnt && n_furn < MAXFURN; i++) {
+            int b = fa + 1 + i * 6;
+            furn[n_furn].cx  = (float)json_num(js, &tok[b]);
+            furn[n_furn].cy  = (float)json_num(js, &tok[b + 1]);
+            furn[n_furn].w   = (float)json_num(js, &tok[b + 2]);
+            furn[n_furn].h   = (float)json_num(js, &tok[b + 3]);
+            furn[n_furn].rot = (float)json_num(js, &tok[b + 4]);
+            furn[n_furn].ref = (int)json_num(js, &tok[b + 5]);
+            n_furn++;
+        }
+        if (cnt > MAXFURN) truncated = 1;
+    }
+
+    // areas: [{c, poly:[x,y,...]}] — flatten poly into the shared apts[] pool
+    int aa = json_get(js, tok, 0, "areas");
+    if (aa >= 0 && tok[aa].type == JSMN_ARRAY) {
+        int fi = aa + 1;
+        for (int a = 0; a < tok[aa].size && n_areas < MAXAREA; a++) {
+            int ci = json_get(js, tok, fi, "c");
+            int pi = json_get(js, tok, fi, "poly");
+            int color = (ci >= 0) ? (int)json_num(js, &tok[ci]) : 16;
+            if (pi >= 0 && tok[pi].type == JSMN_ARRAY && tok[pi].size >= 6) {
+                int nv = tok[pi].size / 2, off = n_apts / 2;
+                for (int k = 0; k < nv * 2 && n_apts < MAXAPT; k++) apts[n_apts++] = (float)json_num(js, &tok[pi + 1 + k]);
+                areas[n_areas].color = color; areas[n_areas].n = nv; areas[n_areas].off = off;
+                n_areas++;
+            }
+            fi += json_span(tok, fi);
+        }
+    }
+
+    // sprites: [{w,h,px:[...]}] — furn.ref indexes this; px packs into the byte pool
+    int sa = json_get(js, tok, 0, "sprites");
+    if (sa >= 0 && tok[sa].type == JSMN_ARRAY) {
+        int fi = sa + 1;
+        for (int s = 0; s < tok[sa].size && n_spr < MAXSPR; s++) {
+            int swi = json_get(js, tok, fi, "w"), shi = json_get(js, tok, fi, "h"), pxi = json_get(js, tok, fi, "px");
+            int w = (swi >= 0) ? (int)json_num(js, &tok[swi]) : 0;
+            int h = (shi >= 0) ? (int)json_num(js, &tok[shi]) : 0;
+            int off = n_pool;
+            if (w > 0 && h > 0 && pxi >= 0 && tok[pxi].type == JSMN_ARRAY)
+                for (int k = 0; k < tok[pxi].size && n_pool < MAXPOOL; k++)
+                    pool[n_pool++] = (unsigned char)json_num(js, &tok[pxi + 1 + k]);
+            sprs[n_spr].w = (short)w; sprs[n_spr].h = (short)h; sprs[n_spr].off = off;
+            n_spr++;
+        }
+    }
+
+    free(tok); free(js);
+    if (!n_walls && !n_areas) { snprintf(err, sizeof err, "no floor in %s", path); return; }
+    pl.x = spawn_x; pl.y = spawn_y; pl.aim = 0;
+    loaded_ok = 1;
+}
+
+static void load_data(void) {
+    const char *path = de_data_path();
+    load_from(path ? path : DATA_DIR "/demo.json");
+    if (!loaded_ok && !path)
+        snprintf(err, sizeof err, "no data -- run: node fmltools/floorplanner.js -pid=<id>  (then drop the .json here)");
+}
+
+// ---- geometry helpers (identical to floorwalker) ----
+static bool seg_block(float px, float py, const Seg *s) {
+    float vx = s->bx - s->ax, vy = s->by - s->ay;
+    float L = sqrtf(vx * vx + vy * vy);
+    if (L < 0.001f) return false;
+    vx /= L; vy /= L;
+    float wx = px - s->ax, wy = py - s->ay;
+    float along = wx * vx + wy * vy;
+    float perp  = wx * -vy + wy * vx;
+    return along >= 0 && along <= L && fabsf(perp) <= s->thick * 0.5f + PLAYER_R;
+}
+static bool in_box(float px, float py, const Furn *f, float r) {
+    float rad = -f->rot * (float)M_PI / 180.0f;
+    float dxp = px - f->cx, dyp = py - f->cy;
+    float lx = dxp * cosf(rad) - dyp * sinf(rad);
+    float ly = dxp * sinf(rad) + dyp * cosf(rad);
+    return fabsf(lx) <= f->w * 0.5f + r && fabsf(ly) <= f->h * 0.5f + r;
+}
+static bool passable(float x, float y) {
+    for (int i = 0; i < n_walls; i++)   if (seg_block(x, y, &walls[i]))   return false;
+    for (int i = 0; i < n_windows; i++) if (seg_block(x, y, &windows[i])) return false;
+    for (int i = 0; i < n_furn; i++)    if (in_box(x, y, &furn[i], PLAYER_R)) return false;
+    return true;
+}
+static void move_axis(float nx, float ny) {
+    if (passable(nx, pl.y)) pl.x = nx;
+    if (passable(pl.x, ny)) pl.y = ny;
+}
+
+// ---- drawing (identical to floorwalker) ----
+static void quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3, int col) {
+    trifill((int)x0, (int)y0, (int)x1, (int)y1, (int)x2, (int)y2, col);
+    trifill((int)x0, (int)y0, (int)x2, (int)y2, (int)x3, (int)y3, col);
+}
+static void thick_seg(const Seg *s, int col) {
+    float dx2 = s->bx - s->ax, dy2 = s->by - s->ay;
+    float len = sqrtf(dx2 * dx2 + dy2 * dy2);
+    if (len < 0.001f) { circfill((int)s->ax, (int)s->ay, (int)(s->thick * 0.5f), col); return; }
+    float nx = -dy2 / len * s->thick * 0.5f, ny = dx2 / len * s->thick * 0.5f;
+    quad(s->ax + nx, s->ay + ny, s->bx + nx, s->by + ny,
+         s->bx - nx, s->by - ny, s->ax - nx, s->ay - ny, col);
+}
+static void poly_fill(int off, int n, int col) {
+    float ymin = 1e9f, ymax = -1e9f;
+    for (int k = 0; k < n; k++) { float y = apts[(off + k) * 2 + 1]; if (y < ymin) ymin = y; if (y > ymax) ymax = y; }
+    for (int y = (int)ymin; y <= (int)ymax; y++) {
+        float xs[16]; int nx = 0;
+        for (int k = 0; k < n && nx < 16; k++) {
+            float x0 = apts[(off + k) * 2], y0 = apts[(off + k) * 2 + 1];
+            int j = (k + 1) % n;
+            float x1 = apts[(off + j) * 2], y1 = apts[(off + j) * 2 + 1];
+            if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y))
+                xs[nx++] = x0 + (y - y0) / (y1 - y0) * (x1 - x0);
+        }
+        for (int a = 0; a < nx - 1; a++)
+            for (int b = a + 1; b < nx; b++)
+                if (xs[b] < xs[a]) { float t = xs[a]; xs[a] = xs[b]; xs[b] = t; }
+        for (int p = 0; p + 1 < nx; p += 2)
+            line((int)xs[p], y, (int)xs[p + 1], y, col);
+    }
+}
+static void draw_furn(const Furn *f) {
+    float rad = f->rot * (float)M_PI / 180.0f;
+    float c = cosf(rad), s = sinf(rad);
+    float hw = f->w * 0.5f, hh = f->h * 0.5f;
+    float cx[4], cy[4];
+    float ox[4] = { -hw, hw, hw, -hw }, oy[4] = { -hh, -hh, hh, hh };
+    for (int k = 0; k < 4; k++) {
+        cx[k] = f->cx + ox[k] * c - oy[k] * s;
+        cy[k] = f->cy + ox[k] * s + oy[k] * c;
+    }
+    quad(cx[0], cy[0], cx[1], cy[1], cx[2], cy[2], cx[3], cy[3], C_FURN);
+    for (int k = 0; k < 4; k++)
+        line((int)cx[k], (int)cy[k], (int)cx[(k + 1) % 4], (int)cy[(k + 1) % 4], C_FURN_O);
+}
+static unsigned char spr_at(const Furn *f, Spr s, float c, float sn, int dx, int dy) {
+    float lx =  dx * c + dy * sn;
+    float ly = -dx * sn + dy * c;
+    float hw = f->w * 0.5f, hh = f->h * 0.5f;
+    if (lx < -hw || lx >= hw || ly < -hh || ly >= hh) return 255;
+    int u = (int)((lx + hw) / f->w * s.w);
+    int v = (int)((ly + hh) / f->h * s.h);
+    if (u < 0 || u >= s.w || v < 0 || v >= s.h) return 255;
+    return pool[s.off + v * s.w + u];
+}
+static bool blit_spr(const Furn *f) {
+    if (f->ref < 0 || f->ref >= n_spr || sprs[f->ref].w == 0) return false;
+    Spr s = sprs[f->ref];
+    float rad = f->rot * (float)M_PI / 180.0f, c = cosf(rad), sn = sinf(rad);
+    float hw = f->w * 0.5f, hh = f->h * 0.5f;
+    int ex = (int)(fabsf(hw * c) + fabsf(hh * sn)) + 2;
+    int ey = (int)(fabsf(hw * sn) + fabsf(hh * c)) + 2;
+    int cx = (int)f->cx, cy = (int)f->cy;
+    if (outline_on)
+        for (int dy = -ey; dy <= ey; dy++) for (int dx = -ex; dx <= ex; dx++)
+            if (spr_at(f, s, c, sn, dx, dy) == 255 &&
+                (spr_at(f, s, c, sn, dx - 1, dy) != 255 || spr_at(f, s, c, sn, dx + 1, dy) != 255 ||
+                 spr_at(f, s, c, sn, dx, dy - 1) != 255 || spr_at(f, s, c, sn, dx, dy + 1) != 255))
+                pset(cx + dx, cy + dy, C_FURN_O);
+    for (int dy = -ey; dy <= ey; dy++) for (int dx = -ex; dx <= ex; dx++) {
+        unsigned char idx = spr_at(f, s, c, sn, dx, dy);
+        if (idx != 255) pset(cx + dx, cy + dy, idx);
+    }
+    return true;
+}
+static void blit_furn(const Furn *f) { if (!blit_spr(f)) draw_furn(f); }
+static void draw_door(const Door *d) {
+    float rad = d->rot * (float)M_PI / 180.0f;
+    float ax = cosf(rad), ay = sinf(rad);
+    float px = -ay, py = ax;
+    float hw = d->w * 0.5f;
+    int hx = (int)(d->cx - ax * hw), hy = (int)(d->cy - ay * hw);
+    int ox = (int)(d->cx + ax * hw), oy = (int)(d->cy + ay * hw);
+    line(hx, hy, (int)(hx + px * d->w), (int)(hy + py * d->w), C_DOOR);
+    circfill(hx, hy, 1, C_DOOR);
+    circfill(ox, oy, 1, C_DOOR);
+}
+static int cam_axis(float p, int world, int screen) {
+    if (world <= screen) return -(screen - world) / 2;
+    return (int)clamp(p - screen / 2.0f, 0, world - screen);
+}
+
+void init(void) {
+    pl.x = spawn_x; pl.y = spawn_y; pl.aim = 0;
+}
+
+void update(void) {
+    if (!tried) { tried = 1; load_data(); }
+    const char *dropped = de_dropped_file();   // drag a .json onto the window to swap plans
+    if (dropped) load_from(dropped);
+    if (!loaded_ok) return;
+
+    float d = dt();
+    int mvx = (key('D') || key(KEY_RIGHT) ? 1 : 0) - (key('A') || key(KEY_LEFT) ? 1 : 0);
+    int mvy = (key('S') || key(KEY_DOWN) ? 1 : 0) - (key('W') || key(KEY_UP) ? 1 : 0);
+    if (mvx || mvy) {
+        float a = angle_to(0, 0, mvx * 100, mvy * 100);
+        float step = 70.0f * d;
+        move_axis(pl.x + dx(step, a), pl.y + dy(step, a));
+        pl.aim = a;
+    }
+    if (keyp('T')) use_sprites = !use_sprites;
+    if (keyp('O')) outline_on = !outline_on;
+    int cx = cam_axis(pl.x, world_w, SCREEN_W);
+    int cy = cam_axis(pl.y, world_h, SCREEN_H);
+    camera_ex(cx, cy, CAM_ZOOM, 0);
+    pl.aim = angle_to((int)pl.x, (int)pl.y, mouse_world_x(), mouse_world_y());
+}
+
+void draw(void) {
+    if (!tried) { tried = 1; load_data(); }
+    camera(0, 0);
+    cls(C_BG);
+
+    if (!loaded_ok) {
+        print_centered("FLOORPLAN", SCREEN_W / 2, SCREEN_H / 2 - 12, CLR_LIGHT_GREY);
+        font(FONT_SMALL);
+        print_centered(err, SCREEN_W / 2, SCREEN_H / 2 + 2, CLR_ORANGE);
+        print_centered("drag a floorplan .json onto this window", SCREEN_W / 2, SCREEN_H / 2 + 14, CLR_DARK_GREY);
+        font(FONT_NORMAL);
+        return;
+    }
+
+    int cx = cam_axis(pl.x, world_w, SCREEN_W);
+    int cy = cam_axis(pl.y, world_h, SCREEN_H);
+    camera_ex(cx, cy, CAM_ZOOM, 0);
+
+    for (int i = 0; i < n_areas; i++)
+        poly_fill(areas[i].off, areas[i].n, areas[i].color);
+    int vx0 = cx - 40, vy0 = cy - 40, vx1 = cx + SCREEN_W + 40, vy1 = cy + SCREEN_H + 40;
+    for (int i = 0; i < n_furn; i++) {
+        const Furn *f = &furn[i];
+        if (f->cx < vx0 || f->cx > vx1 || f->cy < vy0 || f->cy > vy1) continue;
+        if (use_sprites) blit_furn(f); else draw_furn(f);
+    }
+    for (int i = 0; i < n_walls; i++) thick_seg(&walls[i], C_WALL);
+    for (int i = 0; i < n_windows; i++) thick_seg(&windows[i], C_GLASS);
+    for (int i = 0; i < n_doors; i++) {
+        const Door *o = &doors[i];
+        if (o->cx < vx0 || o->cx > vx1 || o->cy < vy0 || o->cy > vy1) continue;
+        draw_door(o);
+    }
+    circfill((int)pl.x, (int)pl.y, (int)PLAYER_R, C_PLAYER);
+    line((int)pl.x, (int)pl.y, (int)(pl.x + dx(7, pl.aim)), (int)(pl.y + dy(7, pl.aim)), CLR_WHITE);
+
+    // HUD
+    camera(0, 0);
+    char buf[96];
+    snprintf(buf, sizeof buf, "%s  furn:%d  [T] %s%s", dname[0] ? dname : "FLOORPLAN", n_furn,
+             use_sprites ? "sprites" : "boxes", truncated ? "  (truncated)" : "");
+    print(buf, 4, 4, CLR_WHITE);
+}

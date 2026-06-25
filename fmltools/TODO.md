@@ -13,11 +13,17 @@ Status of the Floorplanner-`.fml` → top-down cart pipeline and the carts built
 - [x] Doors drawn as open-swing symbols; windows as thin in-wall glass.
 - [x] Render-time furniture outlines (crisp at any scale); `O` toggles, `T` toggles sprites/boxes.
 - [x] Each room a distinct floor colour (`AREA_COLORS`).
+- [x] **Runtime-loaded twin** — `floorplanner.js -pid=<id>` fetches the `.fml` and emits a JSON data
+      file; one shared `floorplan.c` cart loads it via `--data`/`$DE_DATA` (drag to swap). No recompile
+      per project. `fml2cart.js --json` + `fml-sprites.js --json` are the data-emit paths.
+      See `docs/design/external-data-carts.md` → "Floorplanner — implemented".
 
 ## Open / next
-- [ ] **Real photo floor textures** — blocked: areas/surfaces use Roomstyler `rs-####` IDs that don't
-      resolve via the render/texture CDN. Need an `rs-####` → texture-filename resolver, then bake
-      (fetch JPEG → `sips` to PNG → quantize → tile the room polygon). Until then: distinct flat colours.
+- [ ] **Real photo floor textures** — UNBLOCKED (resolver found): `rs-####` → POST the bare id to
+      `https://search.floorplanner.com/materials/ids` (no auth) → `_source.texture` (+ a real
+      `_source.color`!) → fetch `…/cdb/textures/floor_and_wall/original/<texture>`. Then bake
+      (JPEG → quantize → tile the room polygon). **Free intermediate win:** colour each room by its
+      real material `color` (read `surfaces[]`, not just `areas[]`) instead of the synthetic rainbow.
 - [ ] **Door look tuning** — swing-symbol colour (`C_DOOR`, currently orange) / size; confirm exits are
       easy to spot on every floor colour. Maybe per-floor tint.
 - [ ] **Doorway width feel** — widen the cut slightly if the player clips the frame.

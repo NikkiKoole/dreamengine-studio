@@ -5,3 +5,6 @@ build/
 
 # experimental: roadview / external-data carts (osm-roads.js output)
 data/
+
+# fetched Floorplanner plans (floorplanner.js)
+fmltools/cache/

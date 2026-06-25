@@ -5606,5 +5606,15 @@
     ],
     "teaches": [],
     "lineage": "The canonical Flash/Pixi.js bunnymark (Iain Lobb / Goodboy Digital), ported as the worked sprite-throughput demonstrator for the DE_SOFTWARE_CANVAS render-backend toggle — GPU immediate-mode vs the CPU software canvas, the same spr() blits each way."
+  },
+  {
+    "title": "floorplan",
+    "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
+    "file": "floorplan.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
   }
 ]

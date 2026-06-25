@@ -217,8 +217,48 @@ to the screen.
   and `tree` dots (`T`) are **LOD-gated** — only drawn once you zoom in past `BUILD_GATE_PPM` /
   `TREE_GATE_PPM`. Everything else draws at every zoom (zoning blocks are the ground layer).
 - `pts` is a **flat** `[x0,y0,x1,y1,…]` polyline in the bbox's metre frame.
-- Floorplans would reuse the same shape (walls = polylines, rooms = closed polylines) with a
-  different `kind` vocabulary — that's the point of standardizing the IR, not the parser.
+- Floorplans (see "Floorplanner — implemented" below) reuse the *pattern* but **not** this exact
+  schema: a top-down floor needs furniture sprites, oriented-box collision, and door-swing markers
+  that a flat polyline IR can't carry, so `floorplan.c` has its own richer schema. The shared idea
+  (one cart + a per-source normalizer emitting runtime data) is what carries over, not the field list.
+
+## Floorplanner — implemented
+
+`floorwalker` + `seinelaan` (the baked duplicates above) now have a runtime twin:
+
+- **`fmltools/floorplanner.js -pid=<projectid>`** — fetches a project's `.fml` from the v2 API
+  (`/projects/<id>/download_json.fml`; auth via `$FP_AUTH_TOKEN` JWT or `$FP_SESSION` cookie),
+  then emits `data/floorplan/<id>.json`. `--baked` instead runs the old `make-floor.sh` per-project
+  bake (option A); the default is the runtime data file (option B).
+- **`tools/carts/floorplan.c`** — the shared cart. Loads the data via `de_data_path()` / `$DE_DATA`
+  (drag a `.json` onto the window to swap plans), renders identically to `floorwalker`. Default
+  (editor, no `--data`) loads `data/floorplan/demo.json` (Seinelaan).
+- The normalizers gained a `--json` path: `fml2cart.js --json` writes geometry; `fml-sprites.js
+  --json` fills `sprites[]` from the CDN furniture bake. Same numbers as the baked C, just serialised.
+
+Schema (floorplan-specific; engine-pixel coords, palette colour indices):
+```json
+{ "name", "scale", "w", "h", "spawn":[x,y],
+  "walls":[ax,ay,bx,by,thick, ...], "windows":[...same...],
+  "doors":[cx,cy,w,rot, ...], "furn":[cx,cy,w,h,rot,ref, ...],
+  "areas":[{"c":colorIdx, "poly":[x,y,...]}, ...],
+  "sprites":[{"w","h","px":[idx, 255=transparent]}, ...] }   // furn.ref indexes sprites[]
+```
+
+### Floor materials — what the `.fml` actually carries (open)
+
+The geometry is rich, but **floor finishes are only partly used**:
+- `design.areas[]` carry a flat `color` (usually a grey room-outline tone like `#727272`).
+- `design.surfaces[]` carry the *real* floor finishes: each has a hex `color` (e.g. a kitchen's
+  `#E4DCC5` beige), a `name`/`role`, **and** a `roomstyle_id` / `rs-####` reference to an actual
+  Roomstyler texture (wood, tile, …).
+
+Today `fml2cart.js` reads only `areas[]` and assigns each room a *synthetic* distinct palette colour
+(`AREA_COLORS`) for legibility — it ignores `surfaces[]` entirely. Two upgrades available:
+1. **Free, now:** use the `surfaces[]` hex `color` (quantised to the palette) for realistic flat
+   floors instead of the rainbow.
+2. **Blocked (the known gap):** the `rs-####` ids point at real texture photos but don't resolve via
+   the render/texture CDN — needs an `rs-####` → texture-filename resolver to bake tiled floor art.
 
 ### The binary form (`.rvb`) — same IR, packed
 

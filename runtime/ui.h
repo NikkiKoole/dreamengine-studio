@@ -628,17 +628,19 @@ static int ui_button(int x, int y, int w, int h, const char *label) {
     return activated;
 }
 
-// ui_spr_button — a sprite-faced button: the same press/capture/focus machinery as
-// ui_button, but its face is a 16×16 sprite `slot` (centred in the rect) instead of a
-// text label. `selected` is the caller's sticky toggle state (e.g. a mode that's on) —
-// when set, the button shows the lit "hot" fill so on/off reads at a glance. Colours
-// come from the shared UI palette (consistent across carts; same as ui_button), keyed
-// off four states: selected > pressed > hover > normal. Returns 1 the frame it's
-// activated (tap/click/focused-A) — toggle your flag on that:
-//   if (ui_spr_button(SPIN_ICON, 110, 3, 18, 18, spin_on)) spin_on = !spin_on;
-// The sprite is drawn with spr(), so set colorkey() for its transparency as usual; tint
-// it per-state with pal() before the call if you want the glyph itself to recolour.
-static int ui_spr_button(int slot, int x, int y, int w, int h, int selected) {
+// Sprite-button style — per-state colours so a cart can keep its own toolbar look
+// while sharing the widget's input handling. Any colour -1 = "skip that draw":
+//   bg/bg_sel  panel fill (normal / when selected; bg_sel -1 → reuse bg)
+//   frame/frame_hot/frame_sel  1px border (normal / hovered-or-pressed / selected; -1 = no border)
+//   halo_sel   an extra 1px ring just OUTSIDE the rect when selected (-1 = none; boom's yellow halo)
+typedef struct { int bg, bg_sel, frame, frame_hot, frame_sel, halo_sel; } UiSprStyle;
+
+// ui_spr_button_styled — the full sprite-faced button: ui_button's press/capture/hit-pad/
+// focus machinery, a 16×16 sprite `slot` centred in (x,y,w,h), coloured by `st` keyed off
+// selected > hover/pressed > normal. `selected` is the caller's sticky toggle/active state.
+// Returns 1 the frame it's activated (tap/click/focused-A). Set colorkey() for the sprite's
+// transparency as usual; pal() before the call to recolour the glyph itself per state.
+static int ui_spr_button_styled(int slot, int x, int y, int w, int h, int selected, UiSprStyle st) {
     void *wid = (void *)(uintptr_t)(0x10000002u + x * 131071 + y * 257 + w * 31 + h + slot * 7);
     int fi = ui_reg(wid, x, y, w, h, 1);
     int focused = ui_focus_on && fi >= 0 && fi == ui_focus_i;
@@ -656,14 +658,23 @@ static int ui_spr_button(int slot, int x, int y, int w, int h, int selected) {
     if (focused && ui_activate) { activated = 1; pressed = 1; }
 
     int hot = c != 0 || ui_hover(x, y, w, h);
-    int fill = selected ? UI_COL_FILL_HOT : (pressed ? UI_COL_FILL : UI_COL_BG);
-    rectfill(x, y, w, h, fill);
-    int ix = x + (w - 16) / 2 + (pressed ? 1 : 0);   // 16 = sprite slot size (spr is 16×16)
-    int iy = y + (h - 16) / 2 + (pressed ? 1 : 0);
-    spr(slot, ix, iy);
-    rect(x, y, w, h, (selected || hot) ? UI_COL_TEXT_HOT : UI_COL_FRAME);
+    int bg = (selected && st.bg_sel >= 0) ? st.bg_sel : st.bg;
+    if (bg >= 0) rectfill(x, y, w, h, bg);
+    spr(slot, x + (w - 16) / 2, y + (h - 16) / 2);   // 16 = sprite slot size (spr is 16×16)
+    int fr = selected ? st.frame_sel : ((hot || pressed) ? st.frame_hot : st.frame);
+    if (fr >= 0) rect(x, y, w, h, fr);
+    if (selected && st.halo_sel >= 0) rect(x - 1, y - 1, w + 2, h + 2, st.halo_sel);
     if (focused) ui_ring(x - 2, y - 2, w + 4, h + 4);
     return activated;
+}
+
+// ui_spr_button — the convenience default: a sprite-faced toggle button in the shared UI
+// palette (selected = lit "hot" fill). For a custom toolbar look pass your own colours via
+// ui_spr_button_styled. Returns 1 the frame it's activated — toggle your flag on that:
+//   if (ui_spr_button(SPIN_ICON, 110, 3, 18, 18, spin_on)) spin_on = !spin_on;
+static int ui_spr_button(int slot, int x, int y, int w, int h, int selected) {
+    UiSprStyle st = { UI_COL_BG, UI_COL_FILL_HOT, UI_COL_FRAME, UI_COL_TEXT_HOT, UI_COL_TEXT_HOT, -1 };
+    return ui_spr_button_styled(slot, x, y, w, h, selected, st);
 }
 
 #endif // UI_H

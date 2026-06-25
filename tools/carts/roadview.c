@@ -355,7 +355,12 @@ void update(void) {
     if (!loaded_ok) return;
 
     float w = mouse_wheel();
-    if (w != 0) { ppm *= (w > 0 ? 1.15f : 1.0f / 1.15f); if (ppm < fitppm * 0.25f) ppm = fitppm * 0.25f; if (ppm > fitppm * 40) ppm = fitppm * 40; }
+    if (w != 0) {
+        ppm *= (w > 0 ? 1.15f : 1.0f / 1.15f);
+        float zmax = fitppm * 40.0f; if (zmax < 16.0f) zmax = 16.0f;   // ABSOLUTE ceiling so a big city
+        if (ppm < fitppm * 0.25f) ppm = fitppm * 0.25f;                // (tiny fitppm) can still zoom to
+        if (ppm > zmax) ppm = zmax;                                    // street/building detail (~16 px/m)
+    }
     float pan = 12.0f / ppm;                                  // metres per frame at this zoom
     if (btn(0, BTN_LEFT)  || key('A')) camx -= pan;
     if (btn(0, BTN_RIGHT) || key('D')) camx += pan;

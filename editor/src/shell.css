@@ -715,7 +715,7 @@ mark.docs-find-hit.current {
 
 .help-entry {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 220px 1fr;
   gap: 16px;
   padding: 7px 0;
   border-bottom: 1px solid var(--border);

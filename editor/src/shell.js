@@ -289,6 +289,27 @@ function setActiveNav(key) {
     el.classList.toggle('active', el.dataset.docnav === key))
 }
 
+// Break a function signature across lines when it takes any params, so the long
+// descriptions get a narrower left column. Zero-param sigs and constants
+// (#define …, which may carry parens in the macro body) stay on one line.
+//   void reverb(float size, float damping)  ->  void reverb(
+//                                                  float size,
+//                                                  float damping
+//                                                )
+function formatSig(sig) {
+  if (sig.startsWith('#define')) return sig        // macro bodies aren't param lists
+  const open = sig.indexOf('(')
+  const close = sig.lastIndexOf(')')
+  if (open < 0 || close < open) return sig
+  const inner = sig.slice(open + 1, close).trim()
+  if (!inner || inner === 'void') return sig
+  const params = inner.split(',').map(p => p.trim())
+  const prefix = sig.slice(0, open + 1)            // "void reverb("
+  const suffix = sig.slice(close)                  // ")" (+ anything trailing)
+  const lines = params.map(p => '&nbsp;&nbsp;' + p).join(',<br>')
+  return `${prefix}<br>${lines}<br>${suffix}`
+}
+
 // — the studioDocs-driven API reference (the function/constant list) —
 function renderApiReference() {
   currentDocPath = ''
@@ -342,7 +363,7 @@ function renderApiReference() {
       const swatch = hexMatch ? `<span class="color-swatch" style="background:${hexMatch[0]}"></span>` : ''
 
       row.innerHTML = `
-        <div class="help-sig">${swatch}${entry.sig}</div>
+        <div class="help-sig">${swatch}${formatSig(entry.sig)}</div>
         <div class="help-doc">${text.replace(/\n/g, '<br>')}</div>
       `
       section.appendChild(row)

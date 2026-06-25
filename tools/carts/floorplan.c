@@ -11,16 +11,38 @@
 // (drag a file onto the window to swap it live). The renderer is identical to
 // floorwalker, so a fetched project looks exactly like the baked carts.
 //
-//   node fmltools/floorplanner.js -pid=187256440        # fetch + emit data/floorplan/<pid>.json
-//   DE_DATA=data/floorplan/187256440.json node tools/play.js floorplan run
+//   node fmltools/floorplanner.js -pid=187256440 --play   # fetch + build + launch, one command
+//   DE_DATA=data/floorplan/187256440.json node tools/play.js floorplan run   # run a built one
 //
-// Data schema (emitted by fml2cart.js --json + fml-sprites.js --json):
+// Data schema (fml2cart.js --json + fml-sprites.js --json + fml-textures.js --json):
 //   { name, scale, w, h, spawn:[x,y],
 //     walls:[ax,ay,bx,by,thick, ...], windows:[...same...],
 //     doors:[cx,cy,w,rot, ...], furn:[cx,cy,w,h,rot,ref, ...],
-//     areas:[{c, poly:[x,y,...]}, ...],
-//     sprites:[{w,h,px:[palette idx, 255=transparent]}, ...] }   // furn.ref indexes sprites[]
-// Design: docs/design/external-data-carts.md.
+//     areas:[{c, poly:[x,y,...]}, ...],                              // c = real room floor colour
+//     surfaces:[{c, tex, tile, poly:[x,y,...]}, ...],                // floor coverings; tex<0 = flat
+//     sprites:[{w,h,px:[palette idx, 255=transparent]}, ...],        // furn.ref indexes sprites[]
+//     textures:[{w,h,px:[palette idx]}, ...] }                       // surfaces[].tex indexes textures[]
+// Design: docs/design/external-data-carts.md → "Floorplanner — implemented".
+//
+// FINDINGS (from the 2026-06 build-out — read before changing the pipeline):
+//   - Furniture refids are 40 chars of [0-9a-f] OR 'x' — the 'x' is part of the id, NOT a
+//     placeholder. The old /^[0-9a-f]{40}$/ filter silently dropped every x-item to a box.
+//   - Coordinates/sizes are in CENTIMETRES; scale is cm/px (default 8). Item 75cm -> 9px. The
+//     scaling IS correct — small items just look small. Don't "fix" it.
+//   - DON'T drop furniture by size (fml2cart --maxfurn 0): real floor coverings are surfaces[]
+//     (rs-#### Roomstyler materials), so items[] are genuine objects; the old 280cm cap dropped
+//     normal sofas/beds and left only tiny decor.
+//   - The 32-colour palette is the real visual limit: low-saturation floor materials (grey tile,
+//     concrete) quantise to ~1 entry (flat); heavy --saturate turns small furniture into rainbow
+//     confetti. Dynamic bake uses gentle --saturate 1.4; textures get a luma-contrast stretch.
+//
+// NEXT / IDEAS (see fmltools/TODO.md):
+//   - Object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid
+//     boxes. Read each item's height/z and skip collision below a threshold.
+//   - Better colour: fall back to TRUE 32-bit RGB (engine supports it) instead of quantising
+//     sprites/textures to the 32-palette — natural furniture + rich floor textures.
+//   - Z-ORDERING: sort draws by (z + z_height) so taller objects layer over shorter and the player
+//     occludes/ is occluded correctly, instead of the current fixed paint order.
 
 // ---- runtime pools (sized for the largest real plans; floorwalker is ~1k furniture) ----
 #define MAXSEG   4096

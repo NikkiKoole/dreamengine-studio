@@ -24,9 +24,27 @@ Status of the Floorplanner-`.fml` → top-down cart pipeline and the carts built
       (cm-true tile size from material width × `sx`). `surfaces[]` now also carries a flat material
       colour fallback. Works great on high-contrast materials (wood/herringbone/terracotta).
 
-## Open / next
+## Open / next — the three big ones (parked 2026-06 at close-of-shop)
+
+- [ ] **Object heights → collision (rugs walkable).** Every furniture item currently collides as a
+      solid oriented box (`in_box` in `floorplan.c`'s `passable()`), so a rug/mat/floor-runner blocks
+      the player. The `.fml` items carry a 3D height / `z` — read it and SKIP collision for low/flat
+      items (below a height threshold, or tagged floor-level). This is the proper version of the
+      "don't drop big flat items" call: keep them, draw them, but walk over them.
+- [ ] **Better colour — true 32-bit RGB fallback.** Sprites + floor textures currently quantise to
+      the 32-colour palette → grey materials go flat, busy furniture goes rainbow. The engine
+      supports 32-bit colour, so explore storing/drawing furniture renders and floor textures in
+      true RGB (a real-colour `pset`/image-blit path) instead of palette indices. Biggest single
+      lever on "it looks muddy". (Check what true-colour draw studio.h already exposes.)
+- [ ] **Z-ordering (`z` + `z_height`).** Draw order is a fixed paint sequence (areas → surfaces →
+      furniture → walls → doors → player) and furniture is drawn in array order. Sort draws by base
+      `z` + object height so taller things layer over shorter, surfaces/rugs sit under furniture,
+      and the player occludes / is occluded correctly. Items carry `z`; pair with the height work above.
+
+### Smaller / cosmetic
 - [ ] **Low-contrast materials quantise flat** — e.g. "Hatch Tiles Grey" collapses to one palette
-      grey, so it reads as a flat floor. Could dither, or widen the palette match. Cosmetic.
+      grey, so it reads as a flat floor. Could dither, or widen the palette match. (Subsumed by the
+      true-32-bit-colour idea above.)
 - [ ] **Bake textures into the BAKED cart too** — `fml-textures.js` is `--json`-only; `floorwalker`/
       `seinelaan` (the spliced-C carts) still get flat `AREA_COLORS`. Add a C-splice path if wanted.
 - [ ] **`areas[]` real colours** — still uses the synthetic rainbow for legibility; textures now

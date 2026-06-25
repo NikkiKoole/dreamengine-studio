@@ -48,7 +48,10 @@ be coalesced.
 > trigger condition is captured whenever the decision is revisited.
 
 > **RAN — Phase 0 result GO + fleet A/B (2026-06-24).** Built behind `DE_SOFTWARE_CANVAS` (env, off
-> by default; `studio.c`, commits `133b9d0e`/`ec1b855c`). Mechanism is **byte-identical** GPU vs
+> by default; `studio.c`, commits `133b9d0e`/`ec1b855c`). **Editor UI:** settings → *rendering* →
+> "render backend" dropdown (hardware GPU / software CPU) sets this env var per ▶ run — no recompile;
+> wired in `editor/src/settings.js` (`renderMode`) → `editor/electron/main.cjs` (`cartEnv()`, also
+> folded into `liveSignature()` so live mode relaunches on a switch). Mechanism is **byte-identical** GPU vs
 > software for the integer primitives (`swcanvas_test`: same shasum). Fleet A/B (native M1,
 > `workMsAvg`, same harness) confirms the thesis is **targeted, not universal** — it wins exactly the
 > `pset`/fill-bound carts and is a wash on the already-span-based CPU-shaders:
@@ -390,6 +393,15 @@ The canvas is **opt-in per cart**, because it's not a universal win. The trade i
 HW wins when the GPU does the work better (geometry/texture/rotation via vertex transforms) or there
 was little to remove (trivial carts pay only the upload tax). Rotation and rotated primitives
 auto-select HW via the sticky `sw_force_gpu`; everything else is the env/`-DSW_CANVAS_DEFAULT` opt-in.
+
+**Backend-consistency gotcha — a cart that never `cls()`es (2026-06-25).** Neither path clears
+per-frame (that's deliberate — it's what lets carts do trail/feedback effects). But the *initial*
+state differed: `sw_cbuf` is a zero-init `static` (black), while the GPU `canvas` came back from
+`LoadRenderTexture` as **uninitialised GPU memory (garbage)**. So a cart that doesn't `cls()` *and*
+doesn't paint every pixel (e.g. `facegen`, whose bg only covers `y<150`) showed black borders on SW
+but garbage on the GPU. Fixed by clearing `canvas` to `palette[0]` **once** at creation in `studio.c`
+(no per-frame clear → trails still work), so both backends start from the same black. Carts should
+still `cls()`; this just makes the two paths agree when one forgets. (`facegen` also got its `cls()`.)
 
 **The ideal cart to test Option 3** (software-raster + GPU-rotate-at-present, for *rotation* that keeps
 the SW win): a cart that is **rotation-bound *and* pset/fill-bound at once** — e.g. a **heading-up

@@ -1853,6 +1853,12 @@ int main(int argc, char **argv) {
     // low-res canvas — all drawing goes here, then scaled up
     canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
+    // One-time clear: LoadRenderTexture leaves the texture as uninitialised GPU memory.
+    // A cart that never cls()es and doesn't paint every pixel would show that garbage on
+    // the GPU path — while the software canvas (zero-init sw_cbuf) shows black there. Clear
+    // once to palette[0] so both backends start from the same black, without per-frame
+    // clearing (which would kill intentional no-cls trail/feedback effects).
+    BeginTextureMode(canvas); ClearBackground(palette[0]); EndTextureMode();
 #if SCALE_FILTER == 1
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);  // mode 1: smooth present
 #endif

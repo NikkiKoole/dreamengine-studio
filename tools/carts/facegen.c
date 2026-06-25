@@ -1509,6 +1509,9 @@ static void draw_avatar(Npc *n) {
 }
 
 void draw(void) {
+    cls(CLR_BLACK);   // draw_bg only paints y<150; clear so the bare bottom corners/edges
+                      // don't show stale framebuffer garbage on the GPU path (black on the
+                      // software canvas) — the two backends must match.
     draw_bg(&me);
     int total = bark_total(&me);
     int talking = shown_chars < total;

@@ -509,6 +509,16 @@ function createWindow() {
 
   win.loadURL('http://localhost:5173')
 
+  // wait-on lets Electron through the instant the port answers, but on a cold
+  // start Vite is still prebundling deps (esbuild) — the page's module requests
+  // 504 mid-optimize and the renderer stays black forever. Retry the load until
+  // Vite is genuinely ready. Bites slow CPUs hardest (wider optimize window).
+  win.webContents.on('did-fail-load', (_e, _code, _desc, url) => {
+    if (url && url.startsWith('http://localhost:5173')) {
+      setTimeout(() => win.loadURL('http://localhost:5173'), 400)
+    }
+  })
+
   win.webContents.on('before-input-event', (event, input) => {
     if (!input.meta && !input.control) return
     switch (input.key.toLowerCase()) {

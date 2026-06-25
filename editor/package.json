@@ -9,7 +9,7 @@
     "electron": "electron .",
     "postinstall": "node scripts/dev-branding.cjs",
     "brand": "node scripts/dev-branding.cjs",
-    "start": "node scripts/dev-branding.cjs && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "start": "node scripts/dev-branding.cjs && vite optimize && concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "build": "vite build",
     "preview": "vite preview"
   },

@@ -352,6 +352,7 @@ static unsigned char key_inject[KEYSTATE_N];       // 1 = key down this frame
 static unsigned char key_inject_prev[KEYSTATE_N];  // previous frame (for press edges)
 static int           mouse_inj_x = 0, mouse_inj_y = 0;   // injected canvas-space pointer
 static unsigned char mbtn_inj[3], mbtn_inj_prev[3];      // injected mouse buttons (L/R/M)
+static float         wheel_inj = 0.0f;                   // injected wheel delta (transient: this frame only)
 
 static FILE   *rec_file       = NULL;    // --record: tagged "<frame> k|m|b ..." per change
 static unsigned char key_rec_prev[KEYSTATE_N];     // last recorded down-state per key
@@ -359,7 +360,7 @@ static int           mouse_rec_px = -1, mouse_rec_py = -1;  // last recorded poi
 static unsigned char mbtn_rec_prev[3];             // last recorded button states
 
 // kind: 0 = key (a=keycode, b=down), 1 = mouse-move (a=x, b=y),
-//       2 = mouse-button (a=button index 0/1/2, b=down)
+//       2 = mouse-button (a=button index 0/1/2, b=down), 3 = mouse-wheel (a=delta ticks)
 typedef struct { int frame; int kind; int a; int b; } InputEvent;
 static InputEvent *replay_ev  = NULL;    // sorted by (frame, kind)
 static int         replay_n   = 0;
@@ -412,6 +413,10 @@ static bool inp_mouse_released(int button) {
     if (inject_input) return !mbtn_inj[b] && mbtn_inj_prev[b];
     return IsMouseButtonReleased(raylib_mouse_button(button));
 }
+static float inp_mouse_wheel(void) {
+    if (inject_input) return wheel_inj;
+    return GetMouseWheelMove();
+}
 #else
 // web build: harness is a no-op. Mouse reads go straight to raylib UNTIL a
 // real touch is seen — from then on the mouse is synthesized from the touch
@@ -441,6 +446,7 @@ static bool inp_mouse_released(int b) {
     if (web_tm_active) return mbtn_index(b) == 0 && !web_tm_down && web_tm_prev;
     return IsMouseButtonReleased(raylib_mouse_button(b));
 }
+static float inp_mouse_wheel(void) { return GetMouseWheelMove(); }
 #endif
 
 // ------------------------------------------------------------
@@ -1145,11 +1151,13 @@ static void harness_input(int fno) {
     if (inject_input) {                                  // replay/script drives keys + mouse
         memcpy(key_inject_prev, key_inject, sizeof key_inject);
         memcpy(mbtn_inj_prev,   mbtn_inj,   sizeof mbtn_inj);
+        wheel_inj = 0.0f;                                // wheel is transient — reset, set only on its frame
         while (replay_i < replay_n && replay_ev[replay_i].frame <= fno) {
             InputEvent e = replay_ev[replay_i++];
             if      (e.kind == 0) { if (e.a >= 0 && e.a < KEYSTATE_N) key_inject[e.a] = (unsigned char)(e.b ? 1 : 0); }
             else if (e.kind == 1) { mouse_inj_x = e.a; mouse_inj_y = e.b; }
             else if (e.kind == 2) { if (e.a >= 0 && e.a < 3) mbtn_inj[e.a] = (unsigned char)(e.b ? 1 : 0); }
+            else if (e.kind == 3) { wheel_inj += (float)e.a; }
         }
     }
     if (rec_file) {                                      // log live key + mouse changes for replay
@@ -1748,6 +1756,7 @@ static void load_replay(const char *path) {
 //   tap     <frame> <key> [dur]    press then release dur frames later (default 6)
 //   move    <frame> <x> <y>        move the pointer to canvas (x,y)
 //   click   <frame> <x> <y> [btn]  move there, then a left-click (btn 1=right,2=mid)
+//   wheel   <frame> <delta>        scroll the mouse wheel <delta> ticks (+up / -down) on that frame
 // <key> is a single char (a,s,k,l) or a name (SPACE, LEFT, ...).
 static void load_script(const char *path) {
     FILE *f = fopen(path, "r");
@@ -1756,6 +1765,7 @@ static void load_script(const char *path) {
     while (fgets(line, sizeof line, f)) {
         char cmd[32], key[32]; int frame, p = 6, q = 0;
         if (line[0] == '#' || line[0] == '\n') continue;
+        { int amt; if (sscanf(line, "%31s %d %d", cmd, &frame, &amt) == 3 && !strcmp(cmd, "wheel")) { ev_push(frame, 3, amt, 0); continue; } }
         if (sscanf(line, "%31s %d %31s %d", cmd, &frame, key, &p) >= 3 &&
             (!strcmp(cmd,"down")||!strcmp(cmd,"up")||!strcmp(cmd,"tap"))) {
             int kc = key_code(key);
@@ -2239,7 +2249,7 @@ int mouse_y(void) { return inp_mouse_y(); }
 bool mouse_down(int button)     { return inp_mouse_down(button); }
 bool mouse_pressed(int button)  { return inp_mouse_pressed(button); }
 bool mouse_released(int button) { return inp_mouse_released(button); }
-float mouse_wheel(void)         { return GetMouseWheelMove(); }
+float mouse_wheel(void)         { return inp_mouse_wheel(); }
 int mouse_world_x(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).x; }
 int mouse_world_y(void)         { return (int)GetScreenToWorld2D((Vector2){ (float)mouse_x(), (float)mouse_y() }, cam).y; }
 void mouse_cursor(int kind) {

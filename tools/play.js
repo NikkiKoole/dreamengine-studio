@@ -42,6 +42,7 @@
 //   tap     <frame> <key> [dur]    press, release dur frames later (default 6)
 //   move    <frame> <x> <y>        move the pointer to a canvas pixel
 //   click   <frame> <x> <y> [btn]  move there + click  (btn 1=right, 2=mid; default left)
+//   wheel   <frame> <delta>        scroll the wheel <delta> ticks on that frame (+up / -down)
 //   <key> = a single char (a, z, 1) or a name (SPACE ENTER LEFT RIGHT UP DOWN TAB BACKSPACE)
 //   self-describing meta as `# frames/fps/scale/crf N` lines (make-gif reads these).
 //   MOUSE IS SCRIPTABLE (move/click) — clicks at KNOWN spots (menu buttons, a fixed

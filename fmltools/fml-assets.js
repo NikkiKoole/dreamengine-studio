@@ -245,7 +245,7 @@ async function fetchRender(refid, cacheDir) {
 function refidsFromFml(file) {
   const d = JSON.parse(fs.readFileSync(file, 'utf8'));
   const set = new Set();
-  const hex = (r) => /^[0-9a-f]{40}$/.test(r || '');
+  const hex = (r) => /^[0-9a-fx]{40}$/.test(r || '');   // refids may contain 'x' (part of the id, not a placeholder)
   for (const fl of (d.floors || [])) for (const de of (fl.designs || [])) {
     for (const it of (de.items || [])) if (hex(it.refid)) set.add(it.refid);
     for (const wl of (de.walls || [])) for (const o of (wl.openings || [])) if (hex(o.refid)) set.add(o.refid); // doors + windows

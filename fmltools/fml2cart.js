@@ -94,7 +94,10 @@ const W = Math.round((maxX - minX) / S) + MARGIN * 2;
 const H = Math.round((maxY - minY) / S) + MARGIN * 2;
 
 // ---- unified asset ref table (furniture + door/window openings) ----
-const HEX40 = /^[0-9a-f]{40}$/;
+// a furniture asset refid is 40 chars of [0-9a-f] OR 'x' (Floorplanner substitutes 'x' for some
+// positions — it is part of the id, NOT a placeholder). rs-#### material ids are excluded (handled
+// as surfaces). Was /^[0-9a-f]{40}$/, which silently dropped every x-containing item to a box.
+const HEX40 = /^[0-9a-fx]{40}$/;
 const refs = [];
 const refIndex = (r) => { if (!HEX40.test(r)) return -1; let i = refs.indexOf(r); if (i < 0) { i = refs.length; refs.push(r); } return i; };
 

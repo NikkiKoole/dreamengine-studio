@@ -69,8 +69,8 @@ static const Style ST[K_N] = {
 #define BUILD_GATE_PPM 0.12f
 #define TREE_GATE_PPM  0.25f
 
-#define MAXPTS  3200000                              // a whole big city: Rotterdam (port included) is ~2.8M pts /
-#define MAXPOLY  450000                              // 420k ways, mostly buildings. ~32MB of static pools — fine.
+#define MAXPTS  5000000                              // a whole big city: Amsterdam is ~4.2M pts / 575k ways
+#define MAXPOLY  650000                              // (mostly buildings). ~48MB of static pools — fine on desktop.
 #define BTN_W       40                               // "OPEN DATA" button width (top-right HUD)
 static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local metres, Y north-up)
 static struct { int kind, start, count; } ways[MAXPOLY];

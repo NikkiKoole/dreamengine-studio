@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "ui.h"      // ui_spr_button — clickable sprite-icon toggle buttons
 #include <stdio.h>   // snprintf for the HUD readouts
 #include <math.h>    // sinf for the scale pulse
 
@@ -41,6 +42,15 @@
 #define GRAVITY  0.30f
 #define BOUNCE   0.85f            // floor restitution
 #define BUNNY_SZ 32
+
+// HUD sprite buttons — ui_spr_button (ui.h): a 16×16 icon centred in the rect, with
+// ui.h's capture/hit-pad/focus + state colouring. Icons in bunnymark.cart.js slots 18/19.
+#define BTN_Y       3
+#define BTN_SZ      18            // 18 = 16px icon + 1px padding each side
+#define BTN_SPIN_X  112
+#define BTN_SCALE_X 132
+#define ICON_SPIN   18
+#define ICON_SCALE  19
 
 // each tint is a 32×32 region of the sheet (laid out in bunnymark.cart.js):
 //   0 white · 1 yellow · 2 pink · 3 green · 4 orange
@@ -86,9 +96,14 @@ void init(void) {
 
 void update(void) {
     if (keyp('R')) init();                                   // reset (keeps spin/scale modes)
-    if (keyp('X')) spin_on  = !spin_on;                      // toggle rotation
-    if (keyp('C')) scale_on = !scale_on;                     // toggle pulse-scale
-    if (btn(0, BTN_A) || mouse_down(0))                      // pour while held
+    if (keyp('X')) spin_on  = !spin_on;                      // keyboard mirrors the buttons
+    if (keyp('C')) scale_on = !scale_on;
+    // pour while held — but not when the pointer is over a HUD button (that press is a
+    // button click, toggled by ui_spr_button in draw()).
+    int mx = mouse_x(), my = mouse_y();
+    int on_btn = (mx >= BTN_SPIN_X  && mx < BTN_SPIN_X  + BTN_SZ && my >= BTN_Y && my < BTN_Y + BTN_SZ) ||
+                 (mx >= BTN_SCALE_X && mx < BTN_SCALE_X + BTN_SZ && my >= BTN_Y && my < BTN_Y + BTN_SZ);
+    if (btn(0, BTN_A) || (mouse_down(0) && !on_btn))
         for (int i = 0; i < ADD_RATE; i++) spawn_one();
 
     const float floor_y = SCREEN_H - BUNNY_SZ;
@@ -114,6 +129,7 @@ void update(void) {
 
 void draw(void) {
     cls(CLR_DARKER_BLUE);
+    ui_begin();                          // ui.h: snapshot contacts/focus before any widgets
 
     // bunnies. Plain (no spin/scale): one sspr() of the pre-tinted 32×32 sheet
     // region — the axis-aligned blit fast path (GPU batches all into ~1 draw call;
@@ -146,9 +162,10 @@ void draw(void) {
     snprintf(buf, sizeof buf, "%d FPS  %d ms", fp, ms);
     print(buf, 4, 12, fp >= 55 ? CLR_LIME_GREEN : (fp >= 30 ? CLR_YELLOW : CLR_RED));
 
-    // active-mode chips (lit when on) — these push sprites OFF the fast path
-    print("SPIN",  108, 12, spin_on  ? CLR_PINK       : CLR_DARK_GREY);
-    print("SCALE", 138, 12, scale_on ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    // SPIN / SCALE as cute clickable sprite buttons (lit when on) — both push the
+    // bunnies OFF the blit fast path. Keyboard X / C mirror them. (ui.h sprite buttons.)
+    if (ui_spr_button(ICON_SPIN,  BTN_SPIN_X,  BTN_Y, BTN_SZ, BTN_SZ, spin_on))  spin_on  = !spin_on;
+    if (ui_spr_button(ICON_SCALE, BTN_SCALE_X, BTN_Y, BTN_SZ, BTN_SZ, scale_on)) scale_on = !scale_on;
 
     snprintf(buf, sizeof buf, "60fps held @ %d", best_held);
     print(buf, SCREEN_W - text_width(buf) - 4, 3, CLR_LIGHT_GREY);
@@ -156,4 +173,6 @@ void draw(void) {
     font(FONT_TINY);
     print("A/mouse pour   X spin   C scale   R reset   settings>rendering: GPU vs software", 4, SCREEN_H - 7, CLR_DARK_GREY);
     font(FONT_NORMAL);
+
+    ui_end();                            // ui.h: resolve clicks against the buttons drawn above
 }

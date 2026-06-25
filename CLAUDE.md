@@ -101,8 +101,8 @@ the **▶ run** button only works inside Electron (it spawns the compiler).
 runtime/   studio.h (public API: constants + declarations), studio.c (Raylib impl + main()),
            + library headers — cart-land capabilities the engine deliberately doesn't own
            (ADR-0006). CHECK HERE before hand-rolling input/UI plumbing in a cart:
-             ui.h        widgets (ui_button/ui_slider/ui_knob) — per-finger capture, fat-finger
-                         hit pads, focus ring; ui_loupe() magnifier; ui_get_widgets() live rects
+             ui.h        widgets (ui_button/ui_spr_button/ui_slider/ui_knob) — per-finger capture,
+                         fat-finger hit pads, focus ring; ui_loupe() magnifier; ui_get_widgets() live rects
              gestures.h  per-finger swipes judged at lift + pinch_scale (whole-view zoom)
              pointer.h   multi-finger pointer pool (PTR_CLEAR/ACQUIRE/FIND) — layer below ui.h,
                          for bespoke per-finger targets, not widgets

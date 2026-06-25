@@ -8,7 +8,7 @@
 // drop them into a contiguous slot block; bunnymark.c draws the 32×32 region with
 // sspr(). The tint index in the cart (0..4) = the row in RAMPS / SLOTS below.
 
-const { split } = require('../sprite-draw.js')
+const { split, blank, pixel, rectfill, circlefill, flat } = require('../sprite-draw.js')
 
 // 32×32 posterised bunny — digit = brightness level (0 = transparent)
 const SHAPE = [
@@ -76,5 +76,32 @@ RAMPS.forEach((ramp, t) => {
   const quads = split(tintGrid(ramp), 16, 16)   // [TL, TR, BL, BR]
   SLOTS[t].forEach((slot, i) => { sprites[slot] = quads[i] })
 })
+
+// ── HUD button icons (16×16, drawn as cute clickable sprite buttons in the cart,
+//    the boom toolbar pattern). White on transparent so the button bg shows. ──
+const ICON = 7   // CLR_WHITE
+
+// slot 18 — SPIN: a circular rotate arrow (¾ ring + arrowhead)
+function ic_spin() {
+  const g = blank()
+  circlefill(g, 8, 8, 6, ICON)
+  circlefill(g, 8, 8, 4, 0)          // hollow it → a 2px ring
+  rectfill(g, 9, 0, 15, 7, 0)        // clear the top-right → an opening (the "C")
+  // arrowhead at the opening, pointing clockwise (down the right side)
+  pixel(g, 9, 2, ICON); pixel(g, 10, 3, ICON); pixel(g, 11, 4, ICON)
+  pixel(g, 13, 4, ICON); pixel(g, 13, 5, ICON); pixel(g, 12, 6, ICON); pixel(g, 11, 5, ICON)
+  return flat(g)
+}
+
+// slot 19 — SCALE: two nested squares (resize/scale)
+function ic_scale() {
+  const g = blank()
+  rectfill(g, 2, 2, 13, 13, ICON); rectfill(g, 4, 4, 11, 11, 0)   // outer frame
+  rectfill(g, 6, 6, 10, 10, ICON); rectfill(g, 8, 8, 8, 8, 0)     // inner frame
+  return flat(g)
+}
+
+sprites[18] = ic_spin()
+sprites[19] = ic_scale()
 
 module.exports = { sprites }

@@ -1,4 +1,4 @@
-// ui.h — cross-input widgets (button · slider · knob), cart-land.
+// ui.h — cross-input widgets (button · sprite-button · slider · knob), cart-land.
 //
 // Why this exists (ui-widgets-notes.md): six carts hand-roll the same
 // claim-on-press / drag-while-held / release state machine (modrack, sh101,
@@ -21,6 +21,7 @@
 //       cls(CLR_BLACK);
 //       ui_begin();                              // FIRST: contacts, focus keys
 //       if (ui_button(10, 180, 52, 16, "play")) toggle_play();
+//       if (ui_spr_button(SPIN_ICON, 110, 3, 18, 18, spin)) spin = !spin;  // sprite face + toggle
 //       if (ui_slider(&vol, 10, 10, 100, "vol")) apply_vol();  // true = changed
 //       ui_knob(&cut, 90, 160, "cut");           // x,y = knob CENTER
 //       ui_end();                                // LAST: resolve presses
@@ -623,6 +624,44 @@ static int ui_button(int x, int y, int w, int h, const char *label) {
     if (label) print(label, x + (w - text_width(label)) / 2 + (pressed ? 1 : 0),
                      y + (h - 6) / 2 + 1 + (pressed ? 1 : 0),
                      pressed ? UI_COL_TEXT_HOT : UI_COL_TEXT);
+    if (focused) ui_ring(x - 2, y - 2, w + 4, h + 4);
+    return activated;
+}
+
+// ui_spr_button — a sprite-faced button: the same press/capture/focus machinery as
+// ui_button, but its face is a 16×16 sprite `slot` (centred in the rect) instead of a
+// text label. `selected` is the caller's sticky toggle state (e.g. a mode that's on) —
+// when set, the button shows the lit "hot" fill so on/off reads at a glance. Colours
+// come from the shared UI palette (consistent across carts; same as ui_button), keyed
+// off four states: selected > pressed > hover > normal. Returns 1 the frame it's
+// activated (tap/click/focused-A) — toggle your flag on that:
+//   if (ui_spr_button(SPIN_ICON, 110, 3, 18, 18, spin_on)) spin_on = !spin_on;
+// The sprite is drawn with spr(), so set colorkey() for its transparency as usual; tint
+// it per-state with pal() before the call if you want the glyph itself to recolour.
+static int ui_spr_button(int slot, int x, int y, int w, int h, int selected) {
+    void *wid = (void *)(uintptr_t)(0x10000002u + x * 131071 + y * 257 + w * 31 + h + slot * 7);
+    int fi = ui_reg(wid, x, y, w, h, 1);
+    int focused = ui_focus_on && fi >= 0 && fi == ui_focus_i;
+    int activated = 0, pressed = 0;
+
+    UiCap *c = ui_cap_for(wid);
+    if (c) {
+        if (c->released)
+            activated = ui_in(c->rx, c->ry, x - UI_HIT_PAD, y - UI_HIT_PAD,
+                              w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
+        else
+            pressed = ui_in(c->cx, c->cy, x - UI_HIT_PAD, y - UI_HIT_PAD,
+                            w + 2 * UI_HIT_PAD, h + 2 * UI_HIT_PAD);
+    }
+    if (focused && ui_activate) { activated = 1; pressed = 1; }
+
+    int hot = c != 0 || ui_hover(x, y, w, h);
+    int fill = selected ? UI_COL_FILL_HOT : (pressed ? UI_COL_FILL : UI_COL_BG);
+    rectfill(x, y, w, h, fill);
+    int ix = x + (w - 16) / 2 + (pressed ? 1 : 0);   // 16 = sprite slot size (spr is 16×16)
+    int iy = y + (h - 16) / 2 + (pressed ? 1 : 0);
+    spr(slot, ix, iy);
+    rect(x, y, w, h, (selected || hot) ? UI_COL_TEXT_HOT : UI_COL_FRAME);
     if (focused) ui_ring(x - 2, y - 2, w + 4, h + 4);
     return activated;
 }

@@ -1,29 +1,32 @@
-# second north star — the honest, adult pursuit that grew alongside "learn C, make things"
+# the north star — the honest, adult pursuit (built by the maker + Claude)
 
-STATUS: REFLECTION (2026-06-09). A philosophy companion to [`../VISION.md`](../VISION.md)
-— not a roadmap, not a spec, not a status. VISION.md carries the principle in a paragraph;
-this note is the longer thinking behind it. Companion reading: the legendary carts'
-build-logs ([`sloop.md`](sloop.md), [`galerijflat.md`](galerijflat.md)), the audio
-direction ([`tinydaws.md`](tinydaws.md), [`product-notes.md`](product-notes.md)).
+STATUS: REFLECTION (2026-06-09; promoted to *the* north star 2026-06-26 by
+[decision 0022](../decisions/0022-collaboration-is-the-north-star.md)). The philosophy doc
+for [`../VISION.md`](../VISION.md) — not a roadmap, not a spec, not a status. VISION.md
+carries the principle in a paragraph; this note is the longer thinking behind it. Companion
+reading: the legendary carts' build-logs ([`sloop.md`](sloop.md), [`galerijflat.md`](galerijflat.md)),
+the audio direction ([`tinydaws.md`](tinydaws.md), [`product-notes.md`](product-notes.md)).
 
-## Two north stars, not a pivot
+## The pursuit (it used to be the *second* star; now it's the only one)
 
-The original is still true and still load-bearing: **a teenager picks this up, makes
-something that moves on screen in under an hour, learns real programming without hitting a
-wall.** That's the on-ramp, and nothing here replaces it.
+> dreamengine is a tool for **building deep, honest simulations hidden behind a humble lo-fi /
+> SNES-ish surface** — built by the maker *and Claude, together,* across many sessions.
 
-But a second pursuit has grown up next to it, and it's worth naming honestly because it now
-drives a lot of the work:
+For a while this ran *alongside* an original learn-to-code star ("a teenager makes something
+that moves in under an hour"). [Decision 0022](../decisions/0022-collaboration-is-the-north-star.md)
+made the honest call: nobody is actually learning C here — the users are the maker and Claude,
+the kids *play* the carts — so the teaching star **retires to lineage.** This isn't a pivot;
+it's dropping a cover story. The console is the same, aimed at a harder target, by an adult who
+knows what they want working with a model that holds the detail across sessions.
 
-> dreamengine has become a tool for **building deep, honest simulations hidden behind a
-> humble lo-fi / SNES-ish surface** — built by the user *and Claude, together,* across many
-> sessions.
-
-It isn't a pivot away from the learning toy. The learning-toy bones are *why* the deep sims
-read clearly (see "the combination is load-bearing" below). It's the same console, aimed at
-a harder target — and the person aiming it is an adult who knows what they want, working
-with a model that can hold the detail across sessions. That's the "honest, adult way" this
-note records.
+**But the beginner is kept as a *critic*, not as an *audience.*** "Could a stranger pick this
+up and want to keep touching it?" is a brutal external test, and it's the cheapest enforcer of
+the two things no `spec`/`tune-check` oracle can check: that a cart stays **legible in six
+months** and stays **fun to a human.** So the bar Fork A leaves us is two-part — **verifiable**
+(focus + correctness, the new strength) **and beginner-legible-and-delightful** (the soul). The
+standing danger is letting "verifiable" quietly become the whole bar; a cart green on every gate
+that delights no one has failed the half that matters most. (This is the same worry as
+"legibility is the standing problem" below, named as a discipline rather than a hope.)
 
 ## The one move, everywhere: set it up, and the system tells you the truth
 
@@ -68,16 +71,21 @@ That tribute impulse is the engine's soul as much as any feature.
 
 ## Why the combination is load-bearing (not a compromise)
 
-"Deep sim behind a humble surface" is the *right* pairing, not a limitation we tolerate:
+"Deep sim behind a humble surface" is the *right* pairing, not a limitation we tolerate — and
+the reasons are about **art and focus**, not teaching (the cross-justification "constraints make
+it teachable, which makes it honest" retired with the teaching star; [0022](../decisions/0022-collaboration-is-the-north-star.md)):
 
 1. **The humble surface leaves the system nowhere to hide.** A photoreal renderer invites
    you to look *at* the picture; 320×200 and 32 colours can only carry a cart if the system
-   underneath is *true*. The lo-fi skin is what lets the simulation be the star. (This is the
-   same instinct as CLAUDE.md's game-feel rule: anti-flash, pro-clarity — "what does the
-   player need to feel?", not "what looks cool?")
-2. **The constraint is a forcing function for legibility.** It makes you render *only what
-   the sim needs you to feel*. The discipline that makes the engine teachable is the same
-   discipline that makes the sims honest.
+   underneath is *true*. The lo-fi skin is what lets the simulation be the star. (Same instinct
+   as CLAUDE.md's game-feel rule: anti-flash, pro-clarity — "what does the player need to feel?",
+   not "what looks cool?")
+2. **The contained cart is a forcing function for focus.** It makes you render *only what the
+   sim needs you to feel*, and it keeps each cart to **one honest core** — a scope small enough
+   to fully build, verify, and grasp cold later. That focus is the value the small cart always
+   had; the beginner was never the reason, just the old excuse. The same smallness is what makes
+   the cart **legible to a stranger** (the kept critic) *and* judgeable by a deterministic oracle
+   (the kept gate) — one property serving both halves of the bar.
 3. **Surface and depth grew up together.** PICO-8 → SNES isn't just nicer pixels — SNES was
    the era of the deep genre game under a charming skin. The graphics ceiling rising tracks
    the simulation ambition rising. A coherent arc, not drift.
@@ -92,10 +100,12 @@ dreamengine has become.
 
 ## Honest tensions and forks (the part that isn't triumphant)
 
-- **Fantasy console vs. deep-sim authoring tool.** Carts are well past beginner size
-  (galerijflat 1440 lines). The "learn to program" framing is becoming a deliberate aesthetic
-  rather than a teaching limit. These two pull different ways — on API surface, cart length,
-  and audience. A choice to make on purpose, not drift into.
+- **Fantasy console vs. deep-sim authoring tool.** ✓ *Chosen on purpose* —
+  [decision 0022](../decisions/0022-collaboration-is-the-north-star.md). Carts are well past
+  beginner size (galerijflat 1440 lines); the "learn to program" framing is now lineage, the
+  fantasy-console *constraints* are kept as deliberate art, and the API/cart-length tension is
+  resolved by letting depth grow while keeping each cart to one contained core. Not a drift — a
+  decision.
 - **The depth is invisible by design.** The best thing about each cart is the thing a
   passerby can't see in a 3-second thumbnail — galerijflat's whole social sim vanishes in a
   screenshot. So **legibility is the standing problem**: making the depth *felt fast*, the

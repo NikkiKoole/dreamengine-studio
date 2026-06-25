@@ -24,6 +24,19 @@
 > what remains is a convention, one flag, and a couple of use cases. See **"The honest
 > size of it"** immediately below — read it before the tiers, which describe the full
 > design space but overstate the need.
+>
+> **Update — un-hedged by the north-star decision ([ADR-0022](../decisions/0022-collaboration-is-the-north-star.md), 2026-06-26).**
+> Three caveats in this doc were beginner-shaped and now relax: (1) the **"NO new public API"**
+> contortion below ("The face") was justified by *"every beginner would see kernel calls that
+> are a category error next to `circfill`"* — with the beginner retired as an audience, the
+> filesystem bridge stays only if it's the cleaner design *on taste*, not as a mandate; a plain
+> `de_out_path()` / `fs_*` accessor is now allowed. (2) The **north-star-fit anxiety** ("an OS
+> is meta-infrastructure, a sideways move… most defensible as showcase/play") softens: composition
+> plumbing is now *core-adjacent* — the same category as the oracle layer (tooling that helps the
+> maker+Claude build well). (3) The **focused-cart reframe strengthens this doc's own demotion of
+> the live Workbench** — "one cart = one honest core, small enough to verify" is the opposite of a
+> sprawling concurrent desktop, so Tier 3 stays demoted *on principle*, not just pragmatically.
+> Nothing here is invalidated; the beginner-shaped caveats that were distorting the conclusions are.
 
 ---
 

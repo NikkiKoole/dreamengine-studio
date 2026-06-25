@@ -1,6 +1,8 @@
 # dreamengine
 
-A fantasy console / learning programming environment. Write C, hit run, get a native game window. Inspired by PICO-8, DIV Game Studio, and BlitzMax.
+A fantasy console for building **deep, honest simulations behind a humble lo-fi surface**, built by the maker and Claude together. Write C, hit run, get a native game window. Inspired by PICO-8, DIV Game Studio, and BlitzMax.
+
+> **North star** ([VISION](docs/VISION.md) · [ADR-0022](docs/decisions/0022-collaboration-is-the-north-star.md)): one cart = one honest core. Learn-to-code is **lineage**, not a goal — but the beginner is kept as a *critic*: every cart must clear a **two-part bar — verifiable** (focused, oracle-judgeable) **AND legible-and-delightful to a stranger** (the soul; no oracle checks it). Don't let "passes the gates" become the whole bar.
 
 > **This file is rules + pointers.** Reference detail lives in `docs/` (start at `docs/README.md`) and in each tool's own file header. Keep this file lean — it loads into every conversation.
 
@@ -203,7 +205,7 @@ signatures: `editor/src/studioDocs.js`** (also drives autocomplete/hover/help) o
 
 Must land in **four** places in the same change (a **fifth** for draw commands), or it won't compile / autocomplete / show in help:
 
-1. **Declare in `runtime/studio.h`** with a trailing `//` one-liner (beginner-readable house style).
+1. **Declare in `runtime/studio.h`** with a trailing `//` one-liner (plain, beginner-legible house style — the kept "would a stranger get it?" critic, per [ADR-0022](docs/decisions/0022-collaboration-is-the-north-star.md)).
 2. **Implement in `runtime/studio.c`** with Raylib; respect `camera()`/`clip()` and the 0–31
    palette-index convention.
 3. **Document in `editor/src/studioDocs.js`** — keyed by bare name, needs `sig` (matches studio.h

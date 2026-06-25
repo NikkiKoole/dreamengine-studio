@@ -6,11 +6,23 @@
 
 ## The Idea
 
-A dream environment for learning programming through making games and interactive things. Inspired by DIV Game Studio, PICO-8, and BlitzMax. The language is C (or close to it), the tools are integrated, and the whole thing feels like a creative toy rather than a professional tool.
+A console for building **deep, honest simulations hidden behind a humble lo-fi / SNES-ish surface** — built by the maker *and Claude, together,* across many sessions. One true core per cart, set up so the system tells you the truth (the "legendary" carts: `orbit`, `coaster`, `galerijflat`, `sloop`). The language is C (or close to it), the tools are integrated, and the whole thing feels like a creative toy rather than a professional tool. Inspired by DIV Game Studio, PICO-8, and BlitzMax.
 
-The north star: a teenager picks this up, makes something that moves on screen in under an hour, and learns real programming concepts without hitting a wall.
+**The north star:** the maker and Claude pick one real, beloved thing, model its honest core in a small contained cart, and let the system judge the result — depth under a humble skin, no faking. The fuller reflection (the thesis, why the combination is load-bearing, the honest tensions and forks) is in [`design/second-north-star.md`](design/second-north-star.md). The decision that made this the *primary* aim is [decision 0022](decisions/0022-collaboration-is-the-north-star.md).
 
-That north star still holds — it's the on-ramp. But a **second pursuit has grown up alongside it**, and it now drives much of the work: dreamengine as a tool for the maker *and Claude, together,* to build **deep, honest simulations hidden behind a humble lo-fi / SNES-ish surface** — one true core per cart, set up so the system tells you the truth (the "legendary" carts: `orbit`, `coaster`, `galerijflat`, `sloop`). It isn't a pivot — the learning-toy constraints are *why* the deep sims read clearly. The fuller reflection (the thesis, why the combination is load-bearing, the honest tensions and forks) is in [`design/second-north-star.md`](design/second-north-star.md).
+> **Where this came from — and the one piece we kept.** dreamengine began as a *learn-to-code*
+> environment ("a teenager makes something that moves in under an hour, learns real programming
+> without hitting a wall"). The learner is no longer who we **ship to** ([0022](decisions/0022-collaboration-is-the-north-star.md):
+> nobody's actually learning C on this; the users are the maker and Claude, and the kids *play*
+> the carts). But the beginner retires as an **audience**, not as a **critic** — and that
+> distinction is load-bearing. *"Could a stranger pick this up and want to keep touching it?"*
+> is a brutal external test, and it's the cheapest enforcer of the two things no `spec`/`tune-check`
+> oracle can check: that a cart stays **legible in six months** and stays **fun to a human**, not
+> merely green to a gate. So the bar is **two-part**: **(1) verifiable** — scoped to one honest
+> core, small enough for an oracle to judge (focus + correctness); **(2) beginner-legible-and-delightful**
+> — would a fresh mind get it and enjoy it (the soul). The small, contained cart serves both, and
+> its value was always *focus*, not the learner. **Don't let "verifiable" quietly become the whole
+> bar** — a cart that passes every gate and delights no one has failed the half that matters most.
 
 ---
 
@@ -24,35 +36,55 @@ That north star still holds — it's the on-ramp. But a **second pursuit has gro
 
 ## Target
 
-- **Audience:** primarily **in-house** — the maker, Claude, and the maker's children, making
-  carts together (the learn-to-code on-ramp still frames the design, but the day-to-day user
-  is us). The *public* is an audience that **views and plays** a curated showcase, not a user
-  base that makes carts. ✓ Settled — [decision 0020](decisions/0020-in-house-tool-curated-showcase.md).
-  (The original "teens and hobbyists" framing remains the design lens; it's no longer a
-  platform we open to outside *authors*.)
+- **Audience:** **in-house** — the maker and Claude make carts together; the maker's children
+  *play* them. The *public* **views and plays** a curated showcase, never a user base that makes
+  carts. ✓ Settled — [decision 0020](decisions/0020-in-house-tool-curated-showcase.md). The
+  beginner is **no longer who we design for, but is kept as a design critic** — "could a stranger
+  pick this up and want to keep touching it?" is the test that guards legibility and delight
+  ([decision 0022](decisions/0022-collaboration-is-the-north-star.md)). Retired as an *audience*,
+  retained as a *yardstick*.
 - **Platform:** native desktop done (Electron + clang). Browser sharing target and iPad runtime are still future work — the editor renders in a browser tab but ▶ run currently needs Electron because it spawns the compiler. Touch input (`stick_x/y`, `tap`, on-screen stick + A/B) is already wired in the runtime to make the iPad path easier later.
-- **Constraints:** fantasy console style — fixed resolution, 32-color palette, 8 sound voices. Constraints as a feature, not a limitation. ✓ Settled.
+- **Constraints — two kinds, justified differently** ([0022](decisions/0022-collaboration-is-the-north-star.md) split a bundle the docs used to cross-justify):
+  - **Aesthetic constraints — KEPT, as deliberate art direction.** Fixed resolution (320×200),
+    32-colour palette, 8 sound voices, the lo-fi SNES skin. Justified by *legibility of the
+    simulation* — "the humble surface leaves the system nowhere to hide" — **not** by
+    teachability. A feature, not a limitation. ✓ Settled.
+  - **Pedagogical constraints — RELAXED to breakable defaults.** No `malloc`, the shielded loop,
+    the small-API ceiling, no `#include`. Kept only as long as they earn their keep for *us*;
+    break them when an honest sim wants to. (The cross-justification — "the constraints serve
+    teaching, which makes the sims honest" — is retired with the teaching star.)
 
 ---
 
 ## The Language
 
-Real C, or very close to it. Not a toy dialect — skills should transfer. A curated `studio.h` provides the game API. The learner never calls `malloc`. Stack and globals only to start.
+Real C, or very close to it. Not a toy dialect. A curated `studio.h` provides the game API.
 
-The API has grown well past the original "~20 functions" sketch — currently ~120 functions plus ~80 constants, organised into sections (graphics, input, touch, sound, map, utility, palette, screen). Help-tab grouping, hover tooltips, autocomplete, and Cmd-click-to-help compensate for the size, but it's worth pruning later if it starts to feel overwhelming.
+**Stack and globals, no heap** — kept as a *default*, not a principle ([0022](decisions/0022-collaboration-is-the-north-star.md)
+demoted the pedagogical constraints from rules to breakable defaults). It's a clean, honest way
+to build a contained cart and almost every cart wants it; break it (`#include`, a heap, a raw-loop
+opt-out) when a specific honest sim genuinely needs to, not out of principle.
+
+The API has grown well past the original "~20 functions" sketch — currently ~120 functions plus
+~80 constants, organised into sections (graphics, input, touch, sound, map, utility, palette,
+screen). **It can grow toward what we actually reach for** — the old "prune it if it gets
+overwhelming" instinct was beginner-protection (now retired as an audience); the size is fine
+because the users (maker + Claude) cmd-click and hold it easily. The real discipline isn't a
+function *ceiling* — it's that **each function earns its place by having a small focused cart
+that exercises it** ("Adding a new API function" in CLAUDE.md), which doubles as spec-by-example.
 
 ### Open questions
-- Whether to allow `#include` of other files
-- Whether strings need to be simplified somehow
-- How much to keep adding to the API vs. teaching learners to write their own helpers
+- ~~Whether to allow `#include`~~ / ~~heap~~ / ~~raw-loop opt-out~~ — **resolved by [0022](decisions/0022-collaboration-is-the-north-star.md):** add when a cart needs it; no longer matters of principle.
+- Whether strings need to be simplified somehow.
 
 ---
 
-## The Learning Model
+## The Runtime Model
 
-Two levels of scaffolding, both running on the same runtime underneath:
+> Was "The Learning Model." Renamed under [0022](decisions/0022-collaboration-is-the-north-star.md):
+> the shielded loop is kept because it's a **good default**, not because it's training wheels.
 
-**Level 1 — Beginner (shielded loop)** ✓ This is what the editor currently produces.
+**The default — shielded loop.** ✓ This is what the editor produces.
 ```c
 void update() {
     if (btn(RIGHT)) x += 2;
@@ -61,12 +93,15 @@ void draw() {
     spr(1, x, y);
 }
 ```
-No visible loop. Just fill in the blanks. Game objects are plain C — a typed
-static array with an `on` flag (`Enemy enemies[64]; bool on;`) and a `for` loop
-that skips inactive slots. Across the whole cart corpus this immediate-mode-over-static-pools
-style has proven to be enough; the algorithm and the data layout *are* the lesson.
+No visible loop; `studio.c` owns `main()` and the cart fills in `update()` / `draw()`. Game
+objects are plain C — a typed static array with an `on` flag (`Enemy enemies[64]; bool on;`)
+and a `for` loop that skips inactive slots. Across the whole cart corpus this
+immediate-mode-over-static-pools style has proven to be enough; it's the right default not as a
+simplification *for* anyone but because it's a clean, contained shape that keeps a cart focused.
 
-**Level 2 — Advanced (raw loop)** — Not done. Currently `studio.c` owns `main()` and the user fills in `update()` / `draw()`. To unlock this we'd need to make `main()` opt-out (e.g., a `#define STUDIO_NO_MAIN` or a separate header that exposes `studio_init/frame/running`).
+**Raw-loop opt-out** — not built; no longer agonized over. If a cart ever genuinely wants the
+loop, make `main()` opt-out (`#define STUDIO_NO_MAIN`, or a header exposing
+`studio_init/frame/running`).
 ```c
 int main() {
     studio_init();
@@ -75,7 +110,7 @@ int main() {
     }
 }
 ```
-The curtain drops. Full control.
+A small mechanical addition when a cart needs it — not a "drop the curtain, graduate the learner" milestone.
 
 > **Dropped: the DIV-style process/coroutine model.** Earlier drafts had a middle
 > "process" level — each game object as a coroutine with its own `loop … frame;`
@@ -87,8 +122,8 @@ The curtain drops. Full control.
 > the cart corpus shows we don't need — cut. (Recorded in [`decisions/0001-cut-coroutine-process-model.md`](decisions/0001-cut-coroutine-process-model.md).)
 
 ### Open questions
-- Whether Level 2 (raw-loop opt-out) is worth building, or whether the shielded
-  loop is the only level this console ever needs.
+- ~~Whether the raw-loop opt-out is worth building~~ — **dissolved by [0022](decisions/0022-collaboration-is-the-north-star.md):**
+  it was a "graduate the learner" question; now it's just "add `STUDIO_NO_MAIN` if a cart needs it." Build on demand.
 
 ---
 
@@ -155,7 +190,7 @@ The sprite editor lets you flip between N "frames" with `[1]/[2]`, where each fr
 - Stamp hover preview shows where the next paste will land
 
 ### Sound Tool — diverged from original vision
-The original plan was a 4-channel tracker/sequencer UI. What got built instead is a **code-first sound API** — an 8-voice synth where making music **is** programming, which fits the learn-to-code mission. Strudel-inspired (`every`, `euclid`, `chance`, `degree`), with chords, strum, schedule, and a bpm/beat clock.
+The original plan was a 4-channel tracker/sequencer UI. What got built instead is a **code-first sound API** — an 8-voice synth where making music **is** programming. Strudel-inspired (`every`, `euclid`, `chance`, `degree`), with chords, strum, schedule, and a bpm/beat clock. (Making-music-is-code fits the collaboration even better than it fit the old teaching frame — it's the same one-honest-engine-many-faces move as the sims.)
 
 The full sound design — current engine, where it sits vs. the SID/NES chips, parameter placement, the gap ledger — lives in **[`design/audio-notes.md`](design/audio-notes.md)** (which also indexes the whole audio doc family); the navkit instrument-port program is **[`design/instrument-engines.md`](design/instrument-engines.md)**. Whether to *also* build a tracker UI later is still genuinely open.
 
@@ -176,7 +211,7 @@ The full sound design — current engine, where it sits vs. the SID/NES chips, p
 
 ## What We're Building First
 
-The first arc — getting a usable PICO-8-style fantasy console with a code editor, sprite editor, map editor, and code-driven sound — is done. A teen can write a cart with movement, sprites, a tile map, and a music loop in one sitting. Cartridge save/load (`.cart.png`), the tutorial gallery (~100 carts), inline error markers, and the emscripten web build all ship.
+The first arc — getting a usable PICO-8-style fantasy console with a code editor, sprite editor, map editor, and code-driven sound — is done. A whole cart (movement, sprites, a tile map, a music loop) goes together in one sitting — the on-ramp works, even though the on-ramp is no longer the point ([0022](decisions/0022-collaboration-is-the-north-star.md)). Cartridge save/load (`.cart.png`), the tutorial gallery (~100 carts), inline error markers, and the emscripten web build all ship.
 
 **Roadmap lives in [`STATUS.md`](STATUS.md)** — the single ledger of what's shipped, open, and cut. This file stays about the *why*, not the *what's-next*. The vision-level questions still genuinely open are below; everything else is tracked there.
 

@@ -250,6 +250,36 @@ modest on real fill-heavy carts (qbert 9%, oersoep 10%), **neutral** on large-fi
 (polystress unchanged — there fill *area* dominates, not the per-call clamp). Cheap (one signature
 compare/call) and never regresses, so it ships; it's a tail/many-small-fills win, not a headline.
 
+### `pal()` recolor breaks GPU sprite batching — CANDIDATE (a sprite-tint cache)
+When a `pal()` remap is active, `sprf()` (`studio.c`) wraps **every** `spr()`/`sspr()` in
+`pal_begin()`/`pal_end()` = `BeginShaderMode`/`EndShaderMode`, and each shader-mode toggle forces an
+`rlDrawRenderBatch` flush. So *N* sprites drawn under an active `pal()` become *N* **unbatched draw
+calls**. Invisible at small *N* (`crowd`'s dozens of agents, `sensi`'s ~12 recoloured kits);
+pathological at scale.
+
+**Surfaced by `bunnymark` (2026-06-25).** 1220 same-sheet sprites recoloured into 5 tints (a 5-pass
+`pal()` loop) → 1220 batch flushes → **GPU 105.7ms (~12fps)**, *slower than the software canvas*
+(21.0ms — where the cost is instead a per-pixel `sw_recolor` on each blit, 75% of frame). The cart
+fix was to **pre-bake the 5 tints into separate slots and drop `pal()` entirely** so the bunnies
+share one texture and batch: **GPU 105.7→0.32ms (~330×), software 21.0→3.95ms (~5×)**, and the
+expected GPU-beats-CPU ordering for a blit test is restored (measured: editor `⏱` for the pal build,
+`profile-fleet` workMsAvg for the pre-tinted build, ~1220 bunnies each).
+
+**Why the cart fix doesn't generalize:** pre-baking only works when the tint set is *fixed and
+known*. The dynamic case — many recolours not known ahead of time (`crowd`'s random clothes,
+`sensi`'s team kits, a GTA-style street of pal()-recoloured NPCs) — can't bake every combo. The
+engine-level fix is a **sprite-tint cache**: the first time a `(sheet-region, current-palette
+signature)` pair is drawn, render `pal()+spr` **once** into an offscreen atlas; thereafter `spr()`
+the cached region with no shader, so they batch again. Byte-identical by construction (same shader
+output, memoised); evict LRU. It kills the cost on **both** backends — the GPU batch flush *and* the
+software-canvas per-pixel `sw_recolor` (cache the recoloured `sw_cbuf` region the same way).
+
+**Leverage: medium, and forward-looking.** No *current* cart is pal()-batch-bound at bunnymark's
+scale (the real pal()-heavy ones run at low *N*), so this is a "build it before the GTA-style game
+puts hundreds of recoloured NPCs on screen" investment, not a today-win. Rig: **`bunnymark`** — crank
+the count and A/B a `pal()` build against the shipped pre-tinted one to expose the cliff. Carts that
+need it today already dodge it by pre-baking tints (`bunnymark`) or staying low-*N* (`crowd`/`sensi`).
+
 ---
 
 ## Ledger

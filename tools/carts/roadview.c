@@ -62,8 +62,8 @@ static const Style ST[K_N] = {
 #define BUILD_GATE_PPM 0.12f
 #define TREE_GATE_PPM  0.25f
 
-#define MAXPTS  800000                               // higher than roads alone need — buildings are dense
-#define MAXPOLY  80000
+#define MAXPTS  2000000                              // a whole city's worth: Delft alone is ~674k pts / 94k ways
+#define MAXPOLY  200000                              // (buildings dominate); landuse + parking push it higher still
 #define BTN_W       40                               // "OPEN DATA" button width (top-right HUD)
 static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local metres, Y north-up)
 static struct { int kind, start, count; } ways[MAXPOLY];
@@ -72,7 +72,7 @@ static int kcount[K_N];
 
 static char dname[64] = "";                          // dataset name from the JSON
 static char err[160]  = "";                          // non-empty = nothing to draw
-static int  loaded_ok = 0, tried = 0;
+static int  loaded_ok = 0, tried = 0, truncated = 0;   // truncated = dataset hit MAXPOLY/MAXPTS
 
 static float bbminx, bbminy, bbmaxx, bbmaxy;         // data bounds (metres)
 static float camx, camy;                             // world point at screen centre (metres)
@@ -119,7 +119,7 @@ static int kind_of(const char *js, const jsmntok_t *t) {
 #define DATA_DIR "../data"
 
 static void reset_pools(void) {
-    npoly = 0; nps = 0; loaded_ok = 0; dname[0] = 0; err[0] = 0;
+    npoly = 0; nps = 0; loaded_ok = 0; truncated = 0; dname[0] = 0; err[0] = 0;
     for (int k = 0; k < K_N; k++) kcount[k] = 0;
 }
 
@@ -164,6 +164,7 @@ static void load_from(const char *path) {
     }
     free(tok); free(js);
     if (!npoly) { snprintf(err, sizeof err, "no roads in %s", path); return; }
+    if (npoly >= MAXPOLY || nps >= MAXPTS) truncated = 1;   // dataset bigger than the pools — flag it, don't hide it
     fit();
     loaded_ok = 1;
 }
@@ -372,6 +373,7 @@ void draw(void) {
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print("ROADVIEW", 4, 2, CLR_LIGHT_GREY);
     if (dname[0]) print(dname, 78, 2, CLR_ORANGE);
+    if (truncated) print("(truncated)", 78 + (int)strlen(dname) * 8 + 6, 2, CLR_RED);
     char z[16]; snprintf(z, sizeof z, "%dm", (int)(SCREEN_W / ppm));     // scale: metres across screen
     font(FONT_SMALL); print(z, SCREEN_W - BTN_W - (int)strlen(z) * 4 - 5, 3, CLR_DARK_GREY); font(FONT_NORMAL);
     open_button();

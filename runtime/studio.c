@@ -207,6 +207,7 @@ static int             fp_anc_y   = 0;                // — shifts the pattern 
 static bool            poly_fill_fast = true;        // false → legacy per-pixel polygon fill (A/B; env DE_POLY_FILL=legacy)
 static bool            disc_fill_fast = true;        // false → legacy per-pixel circle/oval fill (A/B; env DE_DISC_FILL=legacy)
 static bool            clamp_cache_on = true;        // false → recompute the fill scan-box every call (A/B; env DE_CLAMP_CACHE=off)
+static bool            blit_fast_on   = true;        // false → legacy per-pixel sw_blit (A/B; env DE_BLIT_FAST=off). Fast path: direct uint32 row-copy for the axis-aligned, unscaled, unflipped, zoom==1, no-pal blit
 #ifndef DE_BATCH_PSET_DEFAULT
 #define DE_BATCH_PSET_DEFAULT 0                        // web has no env vars → compile-time toggle (-DDE_BATCH_PSET_DEFAULT=1)
 #endif
@@ -575,6 +576,42 @@ static inline Color img_texel(const Image *img, int x, int y) {
 static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, bool fx, bool fy, bool use_pal) {
     if (!spritesheet_img.data || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
     bool recolor = use_pal && pal_active;
+    // FAST PATH — axis-aligned, unscaled, unflipped, zoom==1, no recolor, RGBA8 sheet (the spr()/map()
+    // common case). Read the source row as uint32 (RGBA8 bytes pack to sw_pack()'s layout on LE) and
+    // write straight into cbuf, alpha forced opaque — skipping the per-pixel img_texel/sw_keyed/sw_pset/
+    // sw_w2s/sw_pack call chain + the i*sw/dw divide. Byte-identical to the loop below (same alpha<128
+    // and colorkey skip, same opaque store); A/B via DE_BLIT_FAST=off. This is the sprite hotspot.
+    if (blit_fast_on && !recolor && !fx && !fy && dw == sw && dh == sh
+        && cam.zoom == 1.0f && spritesheet_img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) {
+        int ox, oy; sw_w2s(dx, dy, &ox, &oy);                          // screen origin (one camera translate)
+        int xmin = 0, ymin = 0, xmax = SCREEN_W, ymax = SCREEN_H;
+        if (clip_active) {                                             // intersect the clip rect, screen-space (== sw_plot1)
+            if (clip_cx > xmin) xmin = clip_cx;
+            if (clip_cy > ymin) ymin = clip_cy;
+            if (clip_cx + clip_cw < xmax) xmax = clip_cx + clip_cw;
+            if (clip_cy + clip_ch < ymax) ymax = clip_cy + clip_ch;
+        }
+        int i0 = xmin - ox; if (i0 < 0) i0 = 0;
+        int i1 = xmax - ox; if (i1 > dw) i1 = dw;
+        int j0 = ymin - oy; if (j0 < 0) j0 = 0;
+        int j1 = ymax - oy; if (j1 > dh) j1 = dh;
+        if (i0 >= i1 || j0 >= j1) return;
+        const uint32_t *src = (const uint32_t *)spritesheet_img.data;
+        int srcw = spritesheet_img.width;
+        bool keyon = sw_colorkey_on;
+        uint32_t key = (uint32_t)sw_colorkey_rgb.r | ((uint32_t)sw_colorkey_rgb.g << 8) | ((uint32_t)sw_colorkey_rgb.b << 16);
+        for (int j = j0; j < j1; j++) {
+            const uint32_t *srow = src + (size_t)(sy + j) * srcw + sx;
+            uint32_t *drow = &sw_cbuf[(size_t)(SCREEN_H - 1 - (oy + j)) * SCREEN_W + ox];
+            for (int i = i0; i < i1; i++) {
+                uint32_t s = srow[i];
+                if (!(s & 0x80000000u)) continue;                     // alpha < 128 → transparent
+                if (keyon && (s & 0x00FFFFFFu) == key) continue;      // runtime colorkey hole
+                drow[i] = s | 0xFF000000u;                            // store opaque (matches sw_pack)
+            }
+        }
+        return;
+    }
     for (int j = 0; j < dh; j++) {
         int syy = fy ? (sy + sh - 1 - j * sh / dh) : (sy + j * sh / dh);
         for (int i = 0; i < dw; i++) {
@@ -1760,6 +1797,8 @@ int main(int argc, char **argv) {
       if (cc && strcmp(cc, "off") == 0) clamp_cache_on = false; }      // DE_CLAMP_CACHE=off → recompute every call
     { const char *bp = getenv("DE_BATCH_PSET");         // A/B the batched-pset path:
       if (bp && strcmp(bp, "on") == 0) pset_batch = true; }            // DE_BATCH_PSET=on → coalesce psets into one draw call
+    { const char *bf = getenv("DE_BLIT_FAST");          // A/B the software-canvas sprite-blit fast path:
+      if (bf && strcmp(bf, "off") == 0) blit_fast_on = false; }        // DE_BLIT_FAST=off → legacy per-pixel sw_blit
     { const char *sc = getenv("DE_SOFTWARE_CANVAS");    // A/B the software canvas (Phase 0 probe):
       if (sc && strcmp(sc, "on") == 0) { sw_canvas_enabled = true; sw_canvas_active = true; } }  // DE_SOFTWARE_CANVAS=on
     { const char *cl = getenv("DE_CPU_RASTER");         // CPU rasterizers off-canvas too (A/B hygiene, see decl):

@@ -130,6 +130,45 @@ substrate. They're chrome over "agree on a file path," not an operating system, 
 Read Tiers 2–3 below knowing **Tier 1 is the whole functional need**; the rest is for the love
 of the thing, which is a fine reason, just an honest one.
 
+### The face — amber, MDA font, CRT fuzz (and NO new public API)
+
+The orchestration (launch + pipe) is invisible JS plumbing. The part actually worth fussing over
+is the *look*: a warm **amber-phosphor** monochrome window, a **CGA/DOS bitmap font**, a little
+CRT fuzz — Norton-Commander-in-a-tube. And that look is **native to the engine and foreign to
+HTML**, which is what argues for an *engine-rendered* viewer (a cart) over a plain Electron panel:
+
+- **The fonts are already in the runtime, and they're period-correct.** `dos_8x8.png` is a DOS
+  8×8 ROM font (the in-game default); `FONT_LARGE` is **MDA 9×14** — MDA being the *Monochrome
+  Display Adapter*, the literal text of amber/green IBM monitors; `FONT_BOOT` is VGA 9×16.
+  `gen-rom-font.js` already bakes ROM-dump fonts. You'd be using the era's actual glyphs, not
+  evoking them.
+- **Amber is one palette / a tint** (`pal()` or a shader uniform over a near-1-bit image).
+- **The CRT pass has a natural home** — the engine renders to a `RenderTexture` then scales to
+  the window; that scale step is exactly where scanlines / bloom / phosphor-smear / barrel-curve
+  go. A CRT+amber post pass is the one **genuinely-new cosmetic bit** (no such shader in the repo
+  yet); everything else is already here.
+
+Faking this in an HTML panel (CSS filters + a web font) would be Electron cosplaying as a console,
+reimplementing badly what the engine nails. The feeling is the whole point, and the feeling is a
+render — so the viewer wants to be a cart.
+
+**The API worry, answered.** Making the viewer a cart sounds like it forces *privileged kernel
+verbs* into the public API — `cart_list()` / `cart_launch()` / `fs_write()` — which would be a
+real `studio.h` pollution (the four-places rule pushes them into autocomplete/help/docs, and every
+beginner would see kernel calls that are a category error next to `circfill`). **It doesn't — the
+clean design routes the bridge through the filesystem, adding ZERO new public API:**
+
+- **Catalog in** via the existing `--data` pipe — hand the amber pane `index.json` exactly as
+  `roadview` is handed roads.
+- **Launch intent out** as a tiny dropped file (`save_bytes()` — already exists) that JS watches
+  and acts on — the same `build/.bake/*_request` mailbox pattern already used for live inspection,
+  just reversed. The cart expresses *intent*; the kernel (`main.cjs`) keeps the privileged power.
+
+So the viewer cart needs only what every cart already has: render, read `--data`, write a save
+blob. The privilege stays in JS, `studio.h` stays clean, and it's *more* faithful to the
+"save-a-file, load-a-file" thesis than a C bridge would be. That dissolves the "needless API"
+cost — the bridge is a **convention**, not a function.
+
 ---
 
 ## What already exists (the substrate is further along than it looks)

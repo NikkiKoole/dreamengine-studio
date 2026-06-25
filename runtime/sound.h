@@ -4013,13 +4013,15 @@ static void sound_piano_start(Voice *v) {
     v->pn_apc = (1.0f - frac) / (1.0f + frac); v->pn_aps = 0.0f;
     v->pn_initf = freq;
     v->pn_ksb   = PIANO_BRIGHT[vi];
-    v->pn_ksb_cur = PIANO_BRIGHT[vi] + 0.35f;          // strike bright, then bloom down to pn_ksb
+    float vel = v->vol; if (vel < 0.0f) vel = 0.0f; if (vel > 1.0f) vel = 1.0f;  // strike VELOCITY → TIMBRE, not just loudness (the piano expressiveness)
+    v->pn_ksb_cur = PIANO_BRIGHT[vi] + 0.20f + 0.30f * vel;   // harder strike = brighter onset transient (blooms down to pn_ksb)
     if (v->pn_ksb_cur > 0.97f) v->pn_ksb_cur = 0.97f;
     v->pn_ksd   = PIANO_DAMP[vi];
     v->pn_dampg = v->pn_damps = v->mor;                // pedal
 
     // excitation: noise burst → hammer lowpass (timbre modulates the voicing's hardness) → normalize
     float hard = pv->hammer + (v->timb - 0.5f) * 0.6f;
+    hard += (vel - 0.6f) * 0.45f;                       // VELOCITY → hammer brightness: soft = darker felt, hard = brighter/edgier
     if (hard < 0.02f) hard = 0.02f; if (hard > 0.98f) hard = 0.98f;
     // DOUBLE DECAY: a strong extra per-period loss at the strike that relaxes away (~0.2s) → the
     // fast initial drop into a long aftersound (the piano envelope; a single rate = a harp).
@@ -4028,7 +4030,7 @@ static void sound_piano_start(Voice *v) {
     // HAMMER KNOCK: a default broadband onset thump (harder hammer → sharper/louder click), ON for
     // piano independent of MODE_STRING_CLICK (eng_p[1] still adds the cart-tunable pick noise on top).
     // eng_p[3] scales it (bank-default 0.5 → 1.0×; cart knob 0..1 → 0..2× via instrument_mode idx 3).
-    v->pn_knock = (0.30f + 0.50f * hard) * (v->eng_p[3] * 2.0f);
+    v->pn_knock = (0.30f + 0.50f * hard) * (v->eng_p[3] * 2.0f) * (0.25f + 0.85f * vel);  // VELOCITY → knock: a soft press barely thumps, a hard strike cracks
     float cut = 0.05f + 0.85f * hard, lp = 0.0f;
     for (int i = 0; i < len; i++) {
         v->noise_state = (v->noise_state * 1103515245 + 12345) & 0x7fffffff;

@@ -33,10 +33,10 @@
 static const char WKEY[NWHITE] = { 'A','S','D','F','G','H','J','K' };   // white-key QWERTY labels
 static const char BLBL[NWHITE] = { 'W','E', 0 ,'T','Y','U', 0 , 0 };   // black-key label after white k
 
-// row 1 = the 3 engine macros; row 2 = TUNING controls (decay/knock via instrument_mode(), width via
-// per-note instrument_pan()) — scaffolding to dial the harp→piano fix in by ear (double-decay depth +
-// hammer-knock amount; each 0..2× the engine default at the 0.5 midpoint), baked to constants after.
-static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "decay", "knock", "width" };
+// row 1 = the 3 engine macros; row 2 = TUNING controls — scaffolding to dial the harp→piano fix in by
+// ear: double-decay depth + hammer-knock amount (each 0..2× the engine default at the 0.5 midpoint),
+// plus VELO = strike velocity for the keys (no MIDI here) → drives brightness+knock, not just loudness.
+static const char *KNOB_NAME[6] = { "voicing", "hammer", "pedal", "decay", "knock", "velo" };
 
 #define NPRESET 6
 static const char *PRESET_NAME[NPRESET] = { "grand","bright","harpsi","dulcimer","clavi","celesta" };
@@ -74,7 +74,7 @@ static Ptr   ptr[NPTR];
 #define KNOB_X(k) (14 + ((k) % 3) * 102)
 #define KNOB_Y(k) (KNOB_TOP + ((k) < 3 ? 0 : 26))
 
-static float knob[6] = { 0.08f, 0.50f, 0.62f, 0.5f, 0.5f, 0.0f };   // grand voicing; decay+knock at 0.5 = engine default (1.0×)
+static float knob[6] = { 0.08f, 0.50f, 0.62f, 0.5f, 0.5f, 0.70f };  // grand voicing; decay+knock 0.5 = engine default (1.0×); velo 0.7 = medium-firm
 
 static void push_knobs(void) {
     instrument_harmonics(I_PNO, knob[0]);
@@ -90,13 +90,15 @@ static int gate_ms(void) { return 500 + (int)(knob[2] * knob[2] * 16000.0f); }
 // strike one note at an absolute MIDI pitch (struck — rings down on its own via gate_ms)
 static void play_midi(int midi, int vol) {
     int slot = midi - keybed_base_midi();                                  // 0..12 within the octave
-    instrument_pan(I_PNO, (slot / 12.0f - 0.5f) * 1.8f * knob[5]);         // TUNING: width = pan by pitch
+    instrument_pan(I_PNO, (slot / 12.0f - 0.5f) * 0.9f);                   // gentle fixed pan-by-pitch (knob[5] is now velo)
     hit(midi, I_PNO, vol, gate_ms());
     if (slot >= 0 && slot < NKEY) amp[slot] = 1.0f;
 }
 static void play_key(int slot, int vol) { play_midi(keybed_base_midi() + slot, vol); }   // by octave-relative slot
-// keybed.h fires this on each key press (manual-voice mode); a piano key is struck, not held
-void kb_strike(int midi, int vel) { (void)vel; play_midi(midi, 6); }
+// keybed.h fires this on each key press (manual-voice mode); a piano key is struck, not held.
+// VELOCITY now drives TIMBRE (brightness + knock), not just loudness — play soft vs hard to hear it.
+// No MIDI vel here, so the velo knob (knob[5]) sets it for QWERTY/touch keys (0..1 → vol 1..7).
+void kb_strike(int midi, int vel) { (void)vel; play_midi(midi, 1 + (int)(knob[5] * 6.0f + 0.5f)); }
 
 static void load_preset(int p) {
     preset  = p;
@@ -127,7 +129,6 @@ void update(void) {
     if (key(KEY_UP) || key(KEY_DOWN)) {
         knob[sel] = clamp(knob[sel] + (key(KEY_UP) ? 0.012f : -0.012f), 0.0f, 1.0f);
         push_knobs();
-        if (frame() % 14 == 0) play_key(4, 5);
     }
 
     if (keyp(KEY_SPACE)) { play_key(0, 6); play_key(4, 5); play_key(7, 5); }   // a triad
@@ -150,7 +151,6 @@ void update(void) {
         } else if (p->mode == PTR_DRAG) {
             knob[p->k] = clamp((float)(tx - KNOB_X(p->k)) / (float)KNOB_W, 0.0f, 1.0f);
             push_knobs();
-            if (frame() % 14 == 0) play_key(4, 5);
         }
     }
     for (int i = 0; i < touch_ended_count(); i++)

@@ -90,6 +90,52 @@ Two consequences worth knowing:
 `platform`, plus point-only tags (`crossing`, `traffic_signals`, `street_lamp`, `turning_circle`).
 Non-`highway` ways we *do* show as their own classes: `rail` (dashed), `canal`, `coast`.
 
+## Data we could pull (OSM has much more)
+
+We currently tap a slice of OSM. The rest, organized by how the cart would draw it — each add is
+the same ~10-line pattern (classify in `osm-roads.js` → a `K_*` + style in `roadview.c` →
+`fill_areas()`/`draw_class()` in the paint order), *except* the relation gap at the bottom.
+
+**Area fills** (`fill_areas` path) — *have: water, green, building, sand, residential, commercial,
+industrial, farm, parking*
+- `aeroway=aerodrome / apron / runway` — **airports**, instantly recognisable, currently invisible
+- `natural=wetland / heath / bare_rock / scree / glacier` — terrain beyond water/sand
+- `landuse=quarry / military / landfill / religious / greenhouse_horticulture / plant_nursery`
+- `leisure=stadium / sports_centre / swimming_pool / marina / playground`
+- `amenity=school / hospital / university` grounds (civic land — a campus reads as a block)
+- `boundary=national_park / protected_area`
+
+**Lines** (`draw_class` path) — *have: highway, arterial, road, track, canal, coast, rail*
+- `aeroway=runway / taxiway` — airport strips (very legible)
+- `barrier=city_wall / wall / hedge` — **city walls**, great for historic European towns
+- `boundary=administrative` (dashed) — the **municipal outline** (also helps the Breda framing fix)
+- `power=line` / `man_made=pipeline`; `natural=cliff / tree_row`; `route=ferry`
+
+**Points** (like `tree` — dots or small glyphs; these power the hover panel best) — *have: tree*
+- `railway=station / tram_stop / subway_entrance` — **transit stops**
+- `amenity=*` (hospital/school/place_of_worship/fuel/pharmacy/…) and `shop=*`
+- `man_made=tower / lighthouse / windmill / water_tower` — **landmarks**; `historic=castle / monument / ruins`
+- `natural=peak` (elevation), `tourism=hotel / museum / attraction`
+- `place=city / town / suburb / neighbourhood` — **district name labels**
+
+**Attributes we currently discard** (no new query — they ride on features we already fetch; worth
+keeping in the schema, likely alongside `sub`)
+- **`building:levels` / `height`** — the big one for the *extrude-buildings-downstream* goal: keep
+  real heights, not just footprint + type.
+- Roads: `ref` (road number "A13", for shields/labels), `bridge` / `tunnel` (draw tunnels dashed,
+  bridges with casing), `oneway`, `maxspeed`, `surface`, `lanes`.
+- `name` on waterways (river names), `addr:*` on buildings.
+
+**Structural gap — relations.** `osm-roads.js` reads only **ways + `node[natural=tree]`**, not
+**relations**. Big areas modelled as multipolygon relations (a forest with a clearing, a lake with
+an island, the city boundary itself) are **silently missed**, not just simplified. Assembling
+multipolygons (`out geom` on relations + ring-stitching) is the one non-trivial add here, and it's
+why some large green/water areas can look absent.
+
+**Rough priority for a broad-strokes map:** building heights (serves extrusion) → airports →
+transit stops + POI points (also make the hover panel rich) → place-name labels → city walls /
+admin boundary.
+
 ## The smell this fixes
 
 `floorwalker` and `seinelaan` are the *same cart* — identical movement, rendering, collision —

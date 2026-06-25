@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "ui.h"        // ui_spr_button_styled — the toolbar icon buttons
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -799,27 +800,9 @@ void update(void) {
     // + clear/reset actions. Clicking a tool picks it AND sets its mode — every
     // tool is one click away, no keyboard needed. Any click in the strip is UI,
     // never a detonation/paint into the world hidden behind it.
+    // the toolbar strip eats world clicks; the tool/clear/reset BUTTONS themselves are
+    // ui_spr_button_styled in draw() now (they pick the tool + play the click sound there).
     int over_tb = (my < TB_BOT);
-    int hit_row = -1, hit_i = -1;
-    {
-        int ry[2] = { TB_Y0, TB_Y1 }, rn[2] = { TB_NBOOM, NBUILD };
-        for (int r = 0; r < 2; r++)
-            if (my >= ry[r] && my < ry[r] + TB_SZ && mx >= TB_X) {
-                int i = (mx - TB_X) / TB_PITCH;
-                if (i >= 0 && i < rn[r]) { hit_row = r; hit_i = i; }
-            }
-    }
-    int act = -1;   // 0 = clear, 1 = reset
-    if (my >= ACT_Y && my < ACT_Y + TB_SZ) {
-        if      (mx >= ACT_CLEAR_X && mx < ACT_CLEAR_X + TB_SZ) act = 0;
-        else if (mx >= ACT_RESET_X && mx < ACT_RESET_X + TB_SZ) act = 1;
-    }
-    if (mouse_pressed(0)) {
-        if      (act == 0)     { clear_fx();   hit(60, INSTR_NOISE, 5, 110); }
-        else if (act == 1)     { reset_world(); hit(52, INSTR_SQUARE, 3, 70); }
-        else if (hit_row == 0) { mode = 0; blast = hit_i;                  hit(74, INSTR_SQUARE, 1, 26); }
-        else if (hit_row == 1) { mode = 1; brush = BUILD_BRUSHES[hit_i];   hit(74, INSTR_SQUARE, 1, 26); }
-    }
 
     if (mode == 0) {                                  // BOOM
         if (!over_tb && (mouse_pressed(0) || keyp(KEY_SPACE))) {
@@ -1173,6 +1156,7 @@ static int inited = 0;
 // ── render ───────────────────────────────────────────────────────────────
 void draw(void) {
     if (!inited) { reset_world(); inited = 1; wind_t = 1; colorkey(0); }   // index 0 = transparent for toolbar icons
+    ui_begin();                          // ui.h: snapshot input before the toolbar buttons
 
     cls(MAT_COL[MAT_GROUND]);
 
@@ -1365,10 +1349,12 @@ void draw(void) {
         snprintf(buf, sizeof buf, "BUILD  %s", bn);
     }
 
-    // both tool rows of cute clickable icons. Active tool = white frame + yellow
-    // halo; hovered = light frame.
+    // both tool rows of cute clickable icons — ui_spr_button_styled (ui.h) keeps boom's
+    // look (black panel · grey/white frame · yellow halo on the selected tool) while ui.h
+    // owns the press/capture/hit-pad. A click picks the tool + plays the click right here.
+    UiSprStyle TBS = { CLR_BLACK, CLR_BLACK, CLR_DARKER_GREY, CLR_LIGHT_GREY, CLR_WHITE, CLR_YELLOW };
     int ry[2] = { TB_Y0, TB_Y1 }, rn[2] = { TB_NBOOM, NBUILD };
-    int hov_row = -1, hov_i = -1;
+    int hov_row = -1, hov_i = -1;                 // still hand-tracked, only for the tooltip below
     for (int r = 0; r < 2; r++)
         if (my >= ry[r] && my < ry[r] + TB_SZ && mx >= TB_X) {
             int i = (mx - TB_X) / TB_PITCH;
@@ -1380,11 +1366,11 @@ void draw(void) {
             int slot = (r == 0) ? i : (16 + BUILD_BRUSHES[i]);
             int sel  = (r == 0) ? (mode == 0 && i == blast)
                                 : (mode == 1 && BUILD_BRUSHES[i] == brush);
-            rectfill(bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2, CLR_BLACK);   // button panel
-            spr(slot, bx, by);
-            rect(bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2,
-                 sel ? CLR_WHITE : (r == hov_row && i == hov_i ? CLR_LIGHT_GREY : CLR_DARKER_GREY));
-            if (sel) rect(bx - 2, by - 2, TB_SZ + 4, TB_SZ + 4, CLR_YELLOW);
+            if (ui_spr_button_styled(slot, bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2, sel, TBS)) {
+                if (r == 0) { mode = 0; blast = i; }
+                else        { mode = 1; brush = BUILD_BRUSHES[i]; }
+                hit(74, INSTR_SQUARE, 1, 26);
+            }
         }
 
     // clear (slot 6) + reset (slot 7) action buttons, top-right of the blast row
@@ -1392,11 +1378,11 @@ void draw(void) {
     int hov_act = -1;
     for (int a = 0; a < 2; a++) {
         int bx = act_x[a], by = ACT_Y;
-        int hov = (my >= by && my < by + TB_SZ && mx >= bx && mx < bx + TB_SZ);
-        if (hov) hov_act = a;
-        rectfill(bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2, CLR_BLACK);
-        spr(6 + a, bx, by);
-        rect(bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2, hov ? CLR_LIGHT_GREY : CLR_DARKER_GREY);
+        if (my >= by && my < by + TB_SZ && mx >= bx && mx < bx + TB_SZ) hov_act = a;
+        if (ui_spr_button_styled(6 + a, bx - 1, by - 1, TB_SZ + 2, TB_SZ + 2, 0, TBS)) {
+            if (a == 0) { clear_fx();    hit(60, INSTR_NOISE,  5, 110); }
+            else        { reset_world(); hit(52, INSTR_SQUARE, 3,  70); }
+        }
     }
 
     // title, small, tucked on the blast row to the right of the icons
@@ -1423,4 +1409,6 @@ void draw(void) {
     int wx = ACT_CLEAR_X - 12, wy = TB_Y0 + 8;
     line(wx, wy, wx + (int)(windx * 7), wy + (int)(windy * 7), CLR_BLUE);
     pset(wx + (int)(windx * 7), wy + (int)(windy * 7), CLR_WHITE);
+
+    ui_end();                            // ui.h: resolve clicks against the toolbar buttons drawn above
 }

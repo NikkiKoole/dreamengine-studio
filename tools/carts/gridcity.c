@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "ui.h"          // ui_spr_button_styled — the brush toolbar icons
 #include <string.h>
 #ifdef DE_SPEC
 #include "spec.h"
@@ -495,13 +496,10 @@ void update(void){
     if(keyp(KEY_SPACE)) seed_city();
 
     int mx=mouse_x(), my=mouse_y();
-    // click a brush button (or the dense toggle); click an overlay name to switch view
-    int th = tool_hit(mx,my);
-    if(mouse_pressed(0)){
-        if(th==NBR)      brush_dense=!brush_dense;
-        else if(th>=0)   brush=BR_VAL[th];
-        else if(mx>=HUDX) for(int v=0;v<V_COUNT;v++){ int oy=OVLY+v*8; if(my>=oy&&my<oy+8){ view=v; break; } }
-    }
+    // click an overlay name (right panel) to switch view; the brush buttons themselves are
+    // ui_spr_button_styled in draw() now (they set brush / dense on activation).
+    if(mouse_pressed(0) && mx>=HUDX)
+        for(int v=0;v<V_COUNT;v++){ int oy=OVLY+v*8; if(my>=oy&&my<oy+8){ view=v; break; } }
     // paint — paint_at bounds-checks to the grid, so the toolbar + right panel never paint
     if(mouse_down(0)) paint_at(mx,my,brush);
     if(mouse_down(1)) paint_at(mx,my,K_LAND);
@@ -553,6 +551,7 @@ static int city_color(int k){
 
 void draw(void){
     cls(CLR_BLACK);
+    ui_begin();                 // ui.h: snapshot input before the toolbar buttons
     print("GRIDCITY", OX, 4, CLR_WHITE);
     print("the data layer behind the map", OX+72, 6, CLR_DARK_GREY);
 
@@ -636,14 +635,17 @@ void draw(void){
 
     // ── brush toolbar: cute clickable icons under the grid ──
     // active brush = white frame + yellow halo; dense toggle lights when on; hover = light frame
-    int hov_tool = tool_hit(mx,my);
+    // ui_spr_button_styled keeps gridcity's look (black panel · grey/white frame · yellow
+    // selected-halo) and owns the press/capture/hit-pad; a click sets the brush/dense here.
+    UiSprStyle TBS = { CLR_BLACK, CLR_BLACK, CLR_DARKER_GREY, CLR_LIGHT_GREY, CLR_WHITE, CLR_YELLOW };
+    int hov_tool = tool_hit(mx,my);                  // kept only for the hovered-name tooltip below
     for(int i=0;i<NTOOL;i++){
         int bx=TLBX+(i%TLBCOLS)*TLBP, by=TLBY+(i/TLBCOLS)*TLBP;
         int sel = (i<NBR) ? (brush==BR_VAL[i]) : brush_dense;
-        rectfill(bx-1,by-1,TLBSZ+2,TLBSZ+2,CLR_BLACK);
-        spr(i,bx,by);
-        rect(bx-1,by-1,TLBSZ+2,TLBSZ+2, sel?CLR_WHITE:(i==hov_tool?CLR_LIGHT_GREY:CLR_DARKER_GREY));
-        if(sel) rect(bx-2,by-2,TLBSZ+4,TLBSZ+4,CLR_YELLOW);
+        if(ui_spr_button_styled(i, bx-1, by-1, TLBSZ+2, TLBSZ+2, sel, TBS)){
+            if(i==NBR) brush_dense=!brush_dense;
+            else       brush=BR_VAL[i];
+        }
     }
     // hovered-tool name in the gap right of the toolbar (transient — only on hover,
     // so nothing persistent sits next to the stats column at HUDX)
@@ -653,6 +655,8 @@ void draw(void){
               TLBX + TLBCOLS*TLBP + 4, TLBY+4, CLR_YELLOW);
         font(FONT_NORMAL);
     }
+
+    ui_end();                   // ui.h: resolve clicks against the toolbar buttons drawn above
 }
 
 #ifdef DE_SPEC

@@ -7,14 +7,21 @@
 // swap cities by swapping files, never regenerating a cart. See docs/design/external-data-carts.md.
 //
 // USAGE
-//   node tools/osm-roads.js --bbox S,W,N,E   [--out f.json] [--simplify M] [--name N]
-//   node tools/osm-roads.js --place "Delft"  [--out f.json]            (geocode → bbox via Nominatim)
-//   node tools/osm-roads.js --demo           [--out f.json]            (synthetic, NO network — for testing)
+//   node tools/osm-roads.js --bbox S,W,N,E   [--out f] [--simplify M] [--name N] [--json]
+//   node tools/osm-roads.js --place "Delft"  [--out f] [--json]         (geocode → bbox via Nominatim)
+//   node tools/osm-roads.js --demo           [--out f] [--json]         (synthetic, NO network — for testing)
+//   node tools/osm-roads.js --convert f.json [--out f.rvb]              (pack an existing JSON → .rvb, no network)
 //
 //   --bbox      south,west,north,east in degrees (e.g. 52.00,4.34,52.02,4.38)
 //   --place     a place name; Nominatim resolves it to a bounding box
 //   --simplify  drop points closer than M metres to the last kept one (default 8; broad strokes)
-//   --out       output path (default data/<slug>.json — the folder roadview's OPEN button reveals)
+//   --out       output path (default data/<slug>.rvb — the folder roadview's OPEN button reveals)
+//   --json      ALSO emit a .json sibling (human-readable IR; for inspection / downstream handoff)
+//   --convert   read an existing .json and (re)write its .rvb, without re-querying Overpass
+//
+// Default output is a packed BINARY (.rvb) the cart loads ~instantly — real cities are tens of MB
+// of JSON and tokenising that text (jsmn + strtod per coordinate) is the load bottleneck. The cart
+// auto-detects format by magic bytes, so it still reads .json (drag-drop accepts either).
 //
 // SCHEMA (the shared "vector features" IR — floorplans could emit the same shape):
 //   { "source", "name",
@@ -37,8 +44,15 @@ const fs = require('fs');
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const has = (n) => argv.includes(n);
-let OUT = opt('--out', null);                  // default: data/<slug>.json (computed in write)
+let OUT = opt('--out', null);                  // default: data/<slug>.rvb (computed in write)
+const WANT_JSON = has('--json');               // also emit the human-readable .json sibling
 const slug = (s) => String(s || 'roads').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'roads';
+
+// kind name → numeric index for the binary format. MUST match the K_* enum order in
+// tools/carts/roadview.c (kind_of there is the JSON twin). Append only; never reorder.
+const KIND_IX = { highway: 0, arterial: 1, road: 2, track: 3, water: 4, canal: 5, building: 6,
+                  green: 7, tree: 8, residential: 9, commercial: 10, industrial: 11, farm: 12,
+                  parking: 13, sand: 14, rail: 15, coast: 16 };
 const SIMPLIFY = parseFloat(opt('--simplify', '8'));
 const NAME = opt('--name', null);
 
@@ -124,13 +138,42 @@ function buildDoc(source, name, ways) {
 }
 const round = (v) => Math.round(v * 10) / 10;
 
+// pack a doc into the binary .rvb the cart fast-loads. Layout (all multi-byte LE):
+//   magic "RVB1" | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
+//   per feature: int32 kind | int32 sublen | sub bytes | int32 npts | float32 pts[npts*2]
+function writeBin(doc, outPath) {
+  const nameBuf = Buffer.from(doc.name || '', 'utf8');
+  const subBufs = doc.features.map(f => Buffer.from(f.sub || '', 'utf8'));
+  let size = 4 + 4 + 4 + nameBuf.length + 16;
+  doc.features.forEach((f, i) => { size += 4 + 4 + subBufs[i].length + 4 + f.pts.length * 4; });
+  const buf = Buffer.alloc(size);
+  let o = 0;
+  o += buf.write('RVB1', o, 'latin1');
+  buf.writeInt32LE(doc.features.length, o); o += 4;
+  buf.writeInt32LE(nameBuf.length, o); o += 4;
+  o += nameBuf.copy(buf, o);
+  for (const v of doc.bbox) { buf.writeFloatLE(v, o); o += 4; }
+  doc.features.forEach((f, i) => {
+    buf.writeInt32LE(KIND_IX[f.kind] ?? KIND_IX.road, o); o += 4;
+    buf.writeInt32LE(subBufs[i].length, o); o += 4;
+    o += subBufs[i].copy(buf, o);
+    buf.writeInt32LE(f.pts.length >> 1, o); o += 4;
+    for (let k = 0; k < f.pts.length; k++) { buf.writeFloatLE(f.pts[k], o); o += 4; }
+  });
+  fs.writeFileSync(outPath, buf);
+}
+
 function write(doc) {
-  if (!OUT) { fs.mkdirSync('data', { recursive: true }); OUT = `data/${slug(doc.name)}.json`; }
-  fs.writeFileSync(OUT, JSON.stringify(doc));
+  fs.mkdirSync('data', { recursive: true });
+  const base = (OUT || `data/${slug(doc.name)}`).replace(/\.(rvb|json)$/i, '');
+  const binPath = base + '.rvb';
+  writeBin(doc, binPath);
+  let extra = '';
+  if (WANT_JSON || (OUT && /\.json$/i.test(OUT))) { fs.writeFileSync(base + '.json', JSON.stringify(doc)); extra = `  (+ ${base}.json)`; }
   const npts = doc.features.reduce((a, f) => a + f.pts.length / 2, 0);
   const byKind = {};
   for (const f of doc.features) byKind[f.kind] = (byKind[f.kind] || 0) + 1;
-  console.log(`wrote ${OUT}`);
+  console.log(`wrote ${binPath}${extra}`);
   console.log(`  ${doc.features.length} ways, ${npts} points, bbox ${doc.bbox.join(',')} m`);
   console.log(`  classes: ${Object.entries(byKind).map(([k, n]) => `${k}=${n}`).join('  ')}`);
 }
@@ -297,6 +340,15 @@ async function overpass(S, W, N, E, name) {
 
 (async () => {
   try {
+    if (opt('--convert', null)) {                          // pack an existing .json → .rvb (no network)
+      const inPath = opt('--convert', null);
+      const doc = JSON.parse(fs.readFileSync(inPath, 'utf8'));
+      const outPath = OUT || inPath.replace(/\.json$/i, '.rvb');
+      writeBin(doc, outPath);
+      const npts = doc.features.reduce((a, f) => a + f.pts.length / 2, 0);
+      console.log(`converted ${inPath} -> ${outPath}  (${doc.features.length} ways, ${npts} points)`);
+      return;
+    }
     if (has('--demo')) { demo(); return; }
     if (opt('--place', null)) {
       const place = opt('--place', null);

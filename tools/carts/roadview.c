@@ -12,12 +12,13 @@
 // The experiment: data-driven carts that read a blob at runtime instead of regenerating
 // source per dataset (the floorwalker/seinelaan smell). See docs/design/external-data-carts.md.
 //
-//   make the data:   node tools/osm-roads.js --demo            (writes data/demo.json)
-//                     node tools/osm-roads.js --place "Delft"   (writes data/delft.json)
+//   make the data:   node tools/osm-roads.js --demo            (writes data/demo.rvb)
+//                     node tools/osm-roads.js --place "Delft"   (writes data/delft-*.rvb)
 //                     node tools/osm-roads.js --bbox 52.00,4.34,52.02,4.38
-//   run it:           roadview loads data/demo.json by default. Then just DRAG any .json
-//                     from the data folder onto the window to view it. The OPEN button
-//                     (top-right) reveals that folder in Finder so you can find your files.
+//   run it:           roadview loads data/demo.rvb by default. Then just DRAG any data file
+//                     (.rvb packed-binary, or .json) from the data folder onto the window to
+//                     view it. Real cities are tens of MB of JSON; the .rvb binary loads ~instantly
+//                     (no text parsing). The OPEN button (top-right) reveals that folder in Finder.
 //                     (--data <file> / $DE_DATA still force a specific file.)
 //
 //   ◄▲▼► / WASD   pan  ·  left-drag  grab the map  ·  wheel  zoom  ·  0  reset view
@@ -62,8 +63,8 @@ static const Style ST[K_N] = {
 #define BUILD_GATE_PPM 0.12f
 #define TREE_GATE_PPM  0.25f
 
-#define MAXPTS  2000000                              // a whole city's worth: Delft alone is ~674k pts / 94k ways
-#define MAXPOLY  200000                              // (buildings dominate); landuse + parking push it higher still
+#define MAXPTS  3200000                              // a whole big city: Rotterdam (port included) is ~2.8M pts /
+#define MAXPOLY  450000                              // 420k ways, mostly buildings. ~32MB of static pools — fine.
 #define BTN_W       40                               // "OPEN DATA" button width (top-right HUD)
 static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local metres, Y north-up)
 static struct { int kind, start, count; } ways[MAXPOLY];
@@ -123,10 +124,51 @@ static void reset_pools(void) {
     for (int k = 0; k < K_N; k++) kcount[k] = 0;
 }
 
+// Fast path: a packed binary blob (magic "RVB1") from osm-roads.js — no tokenising, no
+// strtod, just walk the buffer. Layout (all multi-byte ints little-endian):
+//   magic[4] | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
+//   per feature: int32 kind | int32 sublen | sub bytes (ignored) | int32 npts | float32 pts[npts*2]
+// `kind` is the K_* index — MUST match KIND_IX in tools/osm-roads.js.
+static void load_bin(const char *buf, long len) {
+    const char *p = buf + 4, *end = buf + len;             // skip magic
+    int nfeat, namelen;
+    memcpy(&nfeat, p, 4);   p += 4;
+    memcpy(&namelen, p, 4); p += 4;
+    int nl = namelen; if (nl < 0) nl = 0; if (nl > (int)sizeof dname - 1) nl = (int)sizeof dname - 1;
+    memcpy(dname, p, (size_t)nl); dname[nl] = 0; p += namelen;
+    float bb[4]; memcpy(bb, p, 16); p += 16;
+    bbminx = bb[0]; bbminy = bb[1]; bbmaxx = bb[2]; bbmaxy = bb[3];
+    for (int f = 0; f < nfeat && npoly < MAXPOLY && p + 12 <= end; f++) {
+        int kind, sublen, npts;
+        memcpy(&kind, p, 4);   p += 4;
+        memcpy(&sublen, p, 4); p += 4;
+        p += sublen;                                       // cart ignores the building-type `sub`
+        memcpy(&npts, p, 4);   p += 4;
+        if (kind < 0 || kind >= K_N) kind = K_ROAD;
+        int start = nps, got = 0;
+        for (int j = 0; j < npts && p + 8 <= end; j++) {
+            if (nps < MAXPTS) { float xy[2]; memcpy(xy, p, 8); PX[nps] = xy[0]; PY[nps] = xy[1]; nps++; got++; }
+            p += 8;                                        // advance even when the pool is full
+        }
+        if (got >= 2 || (kind == K_TREE && got >= 1)) {
+            ways[npoly].kind = kind; ways[npoly].start = start; ways[npoly].count = got;
+            kcount[kind]++; npoly++;
+        }
+    }
+}
+
 static void load_from(const char *path) {
     reset_pools();
     long len; char *js = json_slurp(path, &len);
     if (!js) { snprintf(err, sizeof err, "cannot read %s", path); return; }
+    if (len >= 4 && memcmp(js, "RVB1", 4) == 0) {          // binary fast path
+        load_bin(js, len);
+        free(js);
+        if (!npoly) { snprintf(err, sizeof err, "no features in %s", path); return; }
+        if (npoly >= MAXPOLY || nps >= MAXPTS) truncated = 1;
+        fit(); loaded_ok = 1;
+        return;
+    }
     jsmntok_t *tok; int nt = json_parse(js, &tok);
     if (nt < 1 || tok[0].type != JSMN_OBJECT) { snprintf(err, sizeof err, "bad json in %s (err %d)", path, nt); free(js); free(tok); return; }
 
@@ -172,9 +214,9 @@ static void load_from(const char *path) {
 // pick the startup file: --data <file> (or $DE_DATA), else the demo in the data folder.
 static void load_data(void) {
     const char *path = de_data_path();
-    load_from(path ? path : DATA_DIR "/demo.json");
+    load_from(path ? path : DATA_DIR "/demo.rvb");
     if (!loaded_ok && !path)
-        snprintf(err, sizeof err, "no data -- run: node tools/osm-roads.js --demo  (then drop a .json here)");
+        snprintf(err, sizeof err, "no data -- run: node tools/osm-roads.js --demo  (then drop a file here)");
 }
 
 // stroke one polyline as overlapping dots (round caps, scales with zoom). r in px.

@@ -444,6 +444,34 @@ are configured **once** and only *triggered* on the beat — never reconfigure F
 (`lint-fx-frame.js`). Want melody later? Same shape: each cart picks a scale degree from a rule
 over the shared beat; harmony emerges from the rules + a shared scale, nobody writes a chart.
 
+### Who owns the clock (and the N=1 case)
+
+**Nobody among the carts — because the clock is *data, not a process*.** MIDI's master-election
+mess exists because the master is a *device that emits clock*. Here nothing emits: the clock is
+three numbers in a file, and every cart *derives* its beat locally. So the only question is *who
+may write the numbers*, and the answer is **whoever owns the session UI** — `jam.js`, later the
+pane, later a transport-control cart. Voice carts only ever *read*. "Boss" isn't a role a voice
+holds; it's write-access to a file, held by the launcher. Controlling tempo and being a voice are
+**decoupled**: a future transport cart with play/stop/tempo doesn't become master — it just writes
+the same file (via the mailbox bridge), and the voices re-read three numbers without caring who
+changed them. No election, ever.
+
+**The transport is *optional input*, which kills the solo/ensemble special case.** A musical cart
+needs no "solo mode" vs "ensemble mode" — one rule covers both:
+
+- **No `--data` clock handed in** → run your own internal beat (`--bpm`/default). A normal cart, as today.
+- **Clock handed in** → derive beat from `{bpm, t0}`.
+
+So a solo cart is just an ensemble of one; launch three and they share `t0` and interlock — same
+code, no branch. Presence of the file *is* the "join the band" signal. Join-in-progress works for
+free: because the launcher owns `t0`, a late joiner reads the *same* origin and phase-locks
+immediately — beat is derived from a shared origin, not from "go now."
+
+**The one real piece of transport math** lives in the single writer, not the voices: changing bpm
+live would make `beat = (now − t0)·bpm/60` jump, so on a tempo change rebase the origin to preserve
+the current beat — `t0' = now − beat·60/bpm_new`. Stop/start is just the `playing` flag. The voice
+carts stay dumb (read three numbers, derive); all the subtlety sits in whoever writes the file.
+
 ### How you actually start them — a CLI spawner, not the editor
 
 The launch question collides head-on with "you can't open two carts today" (single-doc editor +

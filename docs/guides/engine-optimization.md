@@ -280,6 +280,26 @@ puts hundreds of recoloured NPCs on screen" investment, not a today-win. Rig: **
 the count and A/B a `pal()` build against the shipped pre-tinted one to expose the cliff. Carts that
 need it today already dodge it by pre-baking tints (`bunnymark`) or staying low-*N* (`crowd`/`sensi`).
 
+### `sw_blit` axis-aligned fast path — SHIPPED (`DE_BLIT_FAST=off`)
+The software-canvas sprite blit ran the fully-general per-pixel pipeline for *every* pixel —
+`img_texel` (call) → `sw_keyed` (call) → `sw_pset` → `sw_w2s` (a world→screen transform **per
+pixel**, though the camera offset is constant for the whole sprite) → `sw_plot1` (clip+bounds) →
+`sw_pack` — plus an `i*sw/dw` divide per pixel even when unscaled. `bunnymark` (8897 `spr()`/frame)
+exposed it: §2 was 31.6% `sw_blit` + 27.7% `img_texel` + 14.7% `sw_pset` + 10.9% `sw_keyed` + 7.6%
+`sw_w2s` …, all blit overhead.
+
+**Fix:** a fast path in `sw_blit` for the common case — axis-aligned, unscaled (`dw==sw && dh==sh`),
+unflipped, `zoom==1`, no `pal()` recolor, RGBA8 sheet (i.e. plain `spr()`/`map()`). It reads the
+source row as `uint32` (RGBA8 bytes pack to `sw_pack()`'s layout on little-endian) and writes
+straight into `sw_cbuf` with alpha forced opaque, after clipping the dest rect **once**. The inner
+loop is a `uint32` copy with one alpha test + one optional colorkey compare — no per-pixel calls, no
+transform, no divide. Anything outside the common case (scale/flip/zoom/pal) falls through to the
+unchanged loop. **Byte-identical** by construction (same alpha<128 + colorkey skip, same opaque
+store); proven via `canvas-diff bunnymark` frame 0 = 0px vs GPU with the path on *and* off.
+**Result:** software `bunnymark` 3.25→0.59ms @1200 (**5.5×**); narrows the SW-vs-HW sprite gap from
+~12× to ~2×. (HW still wins raw sprite throughput — it batches into ~1 draw call — but SW is now
+competitive, which is the point of the toggle.)
+
 ---
 
 ## Ledger
@@ -292,6 +312,7 @@ need it today already dodge it by pre-baking tints (`bunnymark`) or staying low-
 | 2026-06 | software discs | relax span gate `zoom==1 && rot==0` → `rot==0` (zoom is byte-safe; only rotation breaks span tiling) | `discstress` ZOOM scene byte-identical, `raster_test` 0 | **`orbit` 11.46→1.28ms (9×)**, discstress ZOOM 2.46→0.52ms | `DE_DISC_FILL=legacy` · `00dd3f6` |
 | 2026-06 | all software fills | per-frame clamp-box cache (4 matrix inverts → per camera-change) | `clampstress` STATIC+PAN byte-identical, `raster_test` 0 | `clampstress` 28%; qbert 9%, oersoep 10%; neutral on large-fill carts | `DE_CLAMP_CACHE=off` · `13fdeca` |
 | 2026-06-25 | software canvas (rotated blits) | texel-read (`img_texel`) + no-scale fast path + inline-plot + camera/row-pointer hoist on `de_cpu_img_rot`/`sw_blit`/`sw_tritex` | `canvas-diff` 0px (byte-identical), `build-all` | `rotstress` 12.70→8.14ms @4000 (~36%); slowdown vs GPU ~11×→7×; **flipped `cityview` to a SW win** | full write-up in [software-canvas.md](../design/software-canvas.md) "Rotated-sampling optimization" |
+| 2026-06-25 | software canvas (sprite blit) | `sw_blit` fast path: direct `uint32` row-copy for the axis-aligned/unscaled/unflipped/`zoom==1`/no-pal/RGBA8 case (skips per-pixel `img_texel`/`sw_keyed`/`sw_pset`/`sw_w2s`/`sw_pack` + the `i*sw/dw` divide; clip once) | `canvas-diff bunnymark` frame 0 = 0px (byte-identical to GPU, path on & off), `build-all` 436/436 | `bunnymark` software 3.25→0.59ms @1200 (**5.5×**); SW-vs-HW sprite gap ~12×→~2× | `DE_BLIT_FAST=off` · `aeebfddd` |
 
 ---
 

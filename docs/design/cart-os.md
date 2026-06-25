@@ -381,15 +381,37 @@ data to each other in real time. This is where the one-window/one-process wall i
 
 ---
 
-## What would prove the magic cheapest
+## What would prove the magic cheapest — the first-step ladder
 
-Build Tier 1 against the pair that already half-exists. Concretely: add `build/fs/` + an
-`--out` flag, then make `osm-roads | roadview` run as a *composed pipeline the kernel
-drives* rather than two manual commands — and confirm a second, unrelated pair works too
-(e.g. a generator cart emitting a tilemap that a game cart loads via `--data`). If two
-unrelated carts pipe cleanly, the abstraction is real and the shell/Workbench become
-optional skins over a working substrate. If it's awkward, we learned that for the price of
-one flag.
+**The key realization: only one half is unproven.** A cart *consuming* another's output
+already works — `roadview` reads `--data` today. So the test must exercise the missing half,
+**a cart *emitting* output** (no `--out` flag, no emitting cart exists yet). That makes the
+first test a **cart, not a JS pane** — the launcher/viewer is chrome over a pipe that doesn't
+exist yet, exactly like the amber CRT is chrome over a viewer that doesn't exist yet. Each
+rung below is worthless until the one before it works, and the first two are an afternoon:
+
+1. **`de_out_path()`** — a literal mirror of the existing `de_data_path()`/`--data` in
+   `studio.c`. One accessor giving a cart a path to write to. The cheapest possible runtime
+   change; *this* is the whole "one flag."
+2. **Hello-world pair (proves bytes flow).** A producer cart writes `{"n":42}` to
+   `de_out_path()` on frame 1; a consumer reads it via `--data` and `print`s 42. Run
+   back-to-back by hand. If 42 appears, the entire "save-a-file, load-it-there" substrate is
+   proven in two toy carts + one function.
+3. **Tilemap pair (proves it generalizes).** A trivial generator → a trivial renderer over a
+   **tilemap** payload (first-class engine data — `map()`, `MAP_W/H`, `charMap` — not arbitrary
+   JSON): `gen-maze --out grid.json` → `tilewalk --data grid.json`. The point is they're **two
+   unrelated carts** — clearing the real bar (a second pair that pipes cleanly, *not* a
+   roadview special case). A tilemap is natural at both ends; making some cart emit *roads*
+   would be contrived.
+4. **The JS pane** — only now, as one-button sugar that runs the two commands and shows
+   `grid.json` in the right panel. Not before: a launcher for an unproven pipe is wasted work.
+5. **The amber cart** — last, and for love (see "The face").
+
+If the tilemap pair pipes cleanly, the launcher/piper/viewer stops being a "can we" question
+and becomes pure UI. If it's awkward, we learned that for the price of one accessor and two
+throwaway carts. **Note `bones → game` and the rotation-atlas baker are *later instances* of
+this same proven pipe, not prerequisites** — don't gate the first test on either; prove the
+mechanism with throwaways first.
 
 ## Open questions to sit with
 

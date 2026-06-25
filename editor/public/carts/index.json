@@ -2431,6 +2431,19 @@
     "lineage": "Extends worldgen.c's infinite deterministic heightmap (itself a gtascii port) with a node-lattice Catmull-Rom spline road network; the seam-true pure-function-of-cell-coords crack that solves the 'wall' in procgen-places.md."
   },
   {
+    "title": "roadview",
+    "description": "Drive around REAL road data, loaded at RUNTIME. The network is neither generated nor baked into the cart — it is an OpenStreetMap export (fetched by tools/osm-roads.js, or the synthetic --demo set) read from a JSON file when the cart starts, so the SAME cart shows any town: swap the file, see a different city. This is the data-driven-cart experiment that kills the floorwalker/seinelaan smell of regenerating a cart per dataset (docs/design/external-data-carts.md). Each way is classed HIGHWAY / ARTERIAL / ROAD / TRACK and drawn in its colour at a width sized in real metres (so roads fatten as you zoom in); canals are stroked and water areas filled in blue beneath the roads, and the bounding box auto-fits to the screen. Opens on data/demo.json by default — then just DRAG any .json from the data folder onto the window to load that town, or click OPEN (top-right) to reveal the folder in Finder. Built on three tiny EXPERIMENTAL engine hooks: de_data_path() (--data <file> / $DE_DATA), de_dropped_file() (drag & drop) and de_open_path() (reveal folder); the JSON is parsed by runtime/json.h (vendored jsmn). Controls: arrows / WASD pan, left-drag grabs the map, mouse wheel zooms, 0 resets the view; drag a .json to load it, OPEN reveals the data folder.",
+    "file": "roadview.cart.png",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": [
+      "road-network"
+    ],
+    "lineage": "Sibling of roadnet but DATA-DRIVEN rather than generative: instead of synthesising a network it loads a real OpenStreetMap export at runtime (de_data_path()/de_dropped_file() + runtime/json.h), then classes and draws the real ways. First cart to read an external data blob at runtime instead of baking geometry into source (cf. fmltools/floorwalker)."
+  },
+  {
     "title": "roadnet 2",
     "description": "A VECTOR-NATIVE rebuild of roadnet, started from roadnet's clean rung-1..3 baseline: the same elegant spline-highway core (terrain-aware Catmull-Rom roads between ranked hub/town cities over an infinite deterministic heightmap) with the rest deliberately UNFILLED — the clean foundation. The deeper-road fill-in (collectors / access / cul-de-sacs / buildings) is being redone graph-first this time: ONE representation (spline edges in a graph), ONE query (road_at = nearest edge within its class half-width, generalising arterial_at downward), buildings on edges, warped-grid curvy deeper roads, and NO modular street field — the dual field+graph representation is what made v1 messy. Plan + build order: docs/design/roadnet2-plan.md. Controls (L0 core, same as roadnet): drag the panel sliders, ROLL / EXPLORE; then arrows / WASD pan, mouse wheel zooms, SPACE jumps to fresh scenery, R new seed, M reopens the panel, G cell-border overlay, H hides the HUD.",
     "file": "roadnet2.cart.png",

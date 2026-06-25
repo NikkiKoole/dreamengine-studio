@@ -214,6 +214,33 @@ be coalesced.
 > Both trade the rotated layer's **determinism + free any-z-order** for GPU speed — a per-cart choice,
 > and the natural evolution of Option C (keep the SW base instead of forcing the whole cart to GPU).
 > Demand-gated: no shipped cart is rotation-bound enough in SW to need it yet.
+
+> **Implementation sketch — Case 1 (present-time whole-view rotation).** The MVP is essentially a
+> 2-spot change (line refs as of 2026-06-25):
+> - **State:** a per-frame `static float present_rot = 0;`, reset at the top of each frame.
+> - **`camera_ex()` (~`studio.c:3199`):** today `if (angle != 0.0f) sw_force_gpu = true;`. Instead,
+>   when the canvas is enabled, **stash the angle and DON'T force GPU**: `present_rot = angle;`.
+>   Translation + zoom keep flowing through `sw_w2s` exactly as now — only the *angle* is deferred, so
+>   every primitive still rasterises axis-aligned into the cbuf (no per-pixel rotation, no staircase).
+> - **Present blit (~`studio.c:1594`):** today `origin {0,0}, angle 0`. Rotate the whole frame about
+>   the screen centre — `origin = {W*SCALE/2, H*SCALE/2}` (shift `dst` so centre maps to centre),
+>   `angle = present_rot`. One GPU quad rotates the entire 320×200 canvas for free.
+>
+> That MVP proves the win on a pure rotating-world cart, shipping with two known limits:
+> - **Corners go empty** (rotating a screen-sized image). *Phase 3:* render the world layer oversized
+>   (~the diagonal, ≈377×377) and crop after rotation — a bigger cbuf + an adjusted `sw_w2s` centre.
+> - **A HUD rotates too** (same cbuf). *Phase 2 — the HUD layer split:* route writes to `cbuf_world`
+>   while a rotating camera is active, to `cbuf_hud` once it resets (`camera()`/`angle 0`); at present,
+>   rotate world then blit hud flat on top. (A second cbuf + a "which layer" pointer flipped on the
+>   camera-rotation state.)
+>
+> **Determinism survives where it counts:** the cbuf (the world) is still SW → bit-identical across
+> devices, so cbuf-hashed replays/ghosts are unaffected; only the final GPU present-rotation (the
+> player's view) is device-dependent, which is fine. **Verification wrinkle:** `--dump`/`canvas-diff`
+> read `canvas.texture` (the *un-rotated* cbuf) — great for the deterministic base, but to check the
+> rotation itself you compare the *post-present screen* (a new capture mode, or eyeball). **Effort:**
+> MVP ≈ an afternoon (the 2-spot change + per-frame reset + a `camera_ex(angle)` test cart); Phases 2–3
+> are the real work, needed only once a cart wants a HUD over the rotating world or full-corner fill.
 > **Phase 2 loose-ends sweep (2026-06-24).** "Feature-complete for common carts" was over-claimed —
 > an audit of every `Draw*` call in `studio.c` found four primitives still hitting the GPU with **no
 > `sw_canvas_active` branch**, so they silently vanished (or half-rendered) under the canvas. Now

@@ -1,6 +1,8 @@
 # tinydaws — ReBirth-style genre racks: generate → play → export
 
-STATUS: IDEA / exploration (2026-06). Nothing built yet. Companion reading:
+STATUS: IDEA / exploration (2026-06). Nothing built yet. Follow-up brainstorm (bias knobs, the
+agentic RLHF loop, the Game&Watch dancer, MIDI-in): [`tinydaws-followup.md`](tinydaws-followup.md).
+Companion reading:
 [`../guides/game-music.md`](../guides/game-music.md) (the generation recipes this
 builds on), [`radio-instrument-options.md`](radio-instrument-options.md) (the band
 panel — the first "open the radio up" affordance), [`audio-notes.md`](audio-notes.md)

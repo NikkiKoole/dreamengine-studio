@@ -1,6 +1,8 @@
 # product-notes — the audio line as a (maybe) product
 
 STATUS: IDEA / exploration (2026-06-07). Nothing decided beyond "sketch first."
+Product-stage detail (save/share codec, native-iOS/AUv3 build plan, the pricing model + marketing
+channel that answer the open questions below): [`product-notes-followup.md`](product-notes-followup.md).
 Companion reading: [`tinydaws.md`](tinydaws.md) (the product spec, even though it
 wasn't written as one), [`packaging-distribution.md`](packaging-distribution.md)
 (why native distribution is hard; web is the public path today),

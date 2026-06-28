@@ -32,6 +32,25 @@ The third step is the deep one: the console grows a **built-in soundtrack
 workshop**. A kid making their first game gets a real house track in it without
 writing a note.
 
+### Scope & direction (confirmed by the maker, 2026-06-29)
+
+One app **per radio** — the app's whole job is to *tweak the radio's output*. That makes the
+**radio library the app pipeline**: each radio you already have is a latent rack, turned
+inside-out (radio = genre brain; rack = the editable surface). The radios grow the line two ways at
+once — **breadth** (a new radio ≈ a new app, near-free on the shared chassis) and **depth** (tweaking
+frozen output is also how you debug/improve the generator — the dev loop in
+[`tinydaws-followup.md`](tinydaws-followup.md) §2). Two deliberate limits:
+
+- **A curated *few*, not all radios** — pick the ones that earn a rack; chasing every station is the
+  completeness trap. Pilot ONE end-to-end first (rebirth-house, per Build order below).
+- **The UI adapts to the genre** — not every radio wants a note grid. Editing genres (yacht/drill)
+  get the step sequencer; performance genres (dub) get the mixing-desk / FX-ribbon variant. The radio
+  decides what kind of app it deserves.
+
+(Distribution note: "one app per radio" is the *web/gallery* shape — each rack is its own cart/URL,
+the free funnel. As a paid product the same set bundles into one hub app + an IAP per rack — see
+[`product-notes-followup.md`](product-notes-followup.md) §4. Same content, two packaging shapes.)
+
 ## Why this is cheap here (ground truth from the code)
 
 - **All instruments are recipes over one engine.** The 808 isn't custom DSP — it's

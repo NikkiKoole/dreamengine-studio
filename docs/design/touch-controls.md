@@ -1,6 +1,7 @@
 # Touch controls — a native-resolution on-screen joystick / d-pad / buttons
 
-STATUS: STUDY / proposal (2026-06-29). Research + a recommendation; nothing rebuilt yet. The task is
+STATUS: DESIGN — ready to pick up (2026-06-29). Research, a recommendation, AND a concrete
+implementation plan (see "Implementation plan" below); nothing rebuilt yet. The task is
 pulled from **two ends**: the iOS port ([`ios-plan.md`](ios-plan.md) — raw `key()`/`btn()` carts
 have no touch equivalent on a phone) and the cart-polish backlog
 ([`../../field-notes/cart-polish-punchlist.md`](../../field-notes/cart-polish-punchlist.md) — ~18
@@ -109,11 +110,114 @@ existing `de_key_event` seam so **raw `key()` carts** (WASD movement) also becom
 - **Per-cart config home.** Where the mode + button set live — a `touch_layout(...)` call in the
   cart, or fields in its `.cart.js` metadata. Decide alongside Phase 2.
 
-## First move (when greenlit)
+## Implementation plan
 
-Phase 1: rewrite `draw_touch_overlay()` to native-res engine primitives + palette, no API change.
-Prototype on one of the listed carts (e.g. `vampire-survivors` for floating analog, `columns` for a
-d-pad once Phase 2 lands), bake it, and eyeball that the controls read as pixel-art.
+Read this before starting; line numbers drift, so **grep for the function names**, don't trust the
+~approx hints. All edits are in `runtime/studio.c` (+ `studio.h` for any new API) — a **hot shared
+file**: targeted `Edit`s only, never a full `Write`, re-Read the region first, and after committing
+confirm your change survived (`git show HEAD:runtime/studio.c | grep '<sentinel>'`). See CLAUDE.md
+"Hot shared source files".
+
+### The seam (where things live today)
+
+- `draw_touch_overlay()` (~`studio.c:912`) — draws stick + A/B with **raw Raylib** (`DrawCircle`/
+  `DrawCircleLines`/`DrawTextEx`) in **window pixels**. Called at ~`:1692`, **after** the canvas
+  render-texture is blitted to the window. ← this placement is the whole problem.
+- The canvas is drawn into a `SCREEN_W×SCREEN_H` `RenderTexture2D` between `BeginTextureMode(canvas)`
+  / `EndTextureMode()` (~`:1648`–`:1689`), then blitted ×`SCALE`.
+- `update_stick()` (~`:876`) — per-frame stick math; called ~`:1500`.
+- `btn(0,…)` (~`:2210`) — when `show_touch_ui`, directions read `stick_x()/stick_y()` (~`:2335`) vs
+  `STICK_DEADZONE`; A/B `any_touch_in_circle()`. Else keyboard/gamepad.
+- Constants (~`:484`): `STICK_RADIUS 60`, `STICK_DEADZONE 0.35`, `BTN_RADIUS 44`.
+- `touch_x()/touch_y()` divide window pixels by `SCALE` → canvas space (~`:2257`).
+
+### Phase 1 — native-res render path (no API change, do first)
+
+Move the overlay drawing **inside** `BeginTextureMode(canvas)` (so it rasterizes at native res and
+scales up with the game), and redraw it with **engine primitives + palette indices**:
+
+1. Add a studio-internal `draw_touch_overlay_native()` that runs **after the cart's `draw()` returns
+   but before `EndTextureMode()`**. Reset transform first — `camera(0,0)` (or the internal
+   equivalent) and clear any `clip()` — so the controls sit in fixed screen space regardless of what
+   the cart left set.
+2. Replace every raw Raylib call with the engine equivalent drawing in **canvas coordinates**:
+   `DrawCircle`→`circfill`, `DrawCircleLines`→`circ`, `DrawTextEx`→`print` (or a code-drawn glyph),
+   colours as `CLR_*` indices (pick a legible pair, e.g. `CLR_WHITE` ring on a `CLR_DARK_GREY`
+   translucent pad — see blend-tables for index-only translucency if wanted).
+3. Convert the geometry from window px to **native px**: divide the current `STICK_RADIUS`/
+   `BTN_RADIUS` constants by `SCALE` for the canvas-space sizes (see sizing math below). Hit-testing
+   already works in canvas space via `touch_x/y()`; keep `btn()`/`stick_x/y()` math unchanged.
+4. Delete the old post-blit `draw_touch_overlay()` call (~`:1692`).
+5. Verify (see below), prototype-bake on `vampire-survivors`, confirm the controls read as pixel art
+   (chunky, palette-correct), commit.
+
+### Sizing math (the one subtlety)
+
+A physical thumb target should be ≥ ~44 device px. Native size = `ceil(44 / SCALE)`. At 320×200·4×
+that's an **11 native-px radius**; at 2× it's 22. So derive control sizes from `SCALE` (and bump on
+phones via `touch_ceiling()`), don't hard-code native px. Keep ≥ a few native px of spacing between
+buttons so chunky pixels don't merge.
+
+### Phase 2 — generalize to a real widget (after Phase 1 ships)
+
+Proposed API (new — needs the 4-place dance in CLAUDE.md "Adding a new API function": declare in
+`studio.h` w/ one-liner, implement in `studio.c`, document in `studioDocs.js`, list in `shell.js`):
+
+```c
+// modes
+#define TOUCH_NONE      0
+#define TOUCH_ANALOG    1   // floating analog stick (free 8-way) — default
+#define TOUCH_ANALOG_FIX 2  // fixed analog (base always shown)
+#define TOUCH_DPAD4     3   // 4-way d-pad (grid games)
+#define TOUCH_DPAD8     4   // 8-way d-pad
+
+void touch_layout(int move_mode, int n_buttons);   // configure once (cart opt-in, in code)
+void touch_button_label(int i, const char *txt);    // optional per-button glyph/label
+```
+
+- `move_mode` picks stick vs d-pad; `TOUCH_DPAD*` feeds `btn()` directions as booleans (no dead
+  zone), analog modes keep the −1..1 + dead-zone path.
+- `n_buttons` generalizes the hard-wired 2; lay them out bottom-right in the reachable arc.
+- **Floating analog**: on first touch in the left zone, spawn the base at the touch point; let the
+  knob drag past `STICK_RADIUS` (clamp output, optionally re-center base on big drift); smooth-lerp
+  the drawn knob. Use `pointer.h` (`PTR_ACQUIRE`) to own the moving finger so a second finger on a
+  button doesn't steal it (this is also why raylib rgestures was rejected — see `gestures.h`).
+- Config home: a `touch_layout()` call in the cart's `update()`/init is most in-keeping (carts
+  already opt in via code, per the polish list — *not* settings). A `.cart.js` field is a possible
+  later convenience; decide then.
+
+### Phase 3 — iOS shell
+
+Route the synthesized inputs through the existing `de_key_event` seam (`ios-plan.md` Phase 2) so raw
+`key()` carts (WASD movement) become playable, not just `btn()` carts. Mostly Swift-side wiring; the
+engine side is the same overlay reading touches.
+
+### Verification
+
+- `node tools/canvas-diff.js <cart>` — the overlay now goes through the software canvas like every
+  other primitive; A/B GPU-vs-CPU must match (guards the native-res move).
+- Bake + eyeball: `node tools/make-cart.js <c> <png>` then `--run`; read the thumbnail — controls
+  should be chunky/palette-correct, not smooth white.
+- `node tools/mobile-lint.js <cart>` — sanity on touch-playability.
+- Smoke a `btn()` cart under the harness to confirm directions/buttons still fire.
+
+### Checklist
+
+- [ ] **P1** move overlay draw inside `BeginTextureMode`, reset camera/clip
+- [ ] **P1** swap raw Raylib calls → `circ`/`circfill`/`print` with `CLR_*`
+- [ ] **P1** size from `SCALE` (`ceil(44/SCALE)`), remove post-blit call
+- [ ] **P1** `canvas-diff` + bake on `vampire-survivors`, commit
+- [ ] **P2** `touch_layout(mode, n_buttons)` + d-pad modes (4-place API dance)
+- [ ] **P2** floating-analog base-spawn + `pointer.h` capture + knob lerp
+- [ ] **P2** N buttons + optional labels; per-cart opt-in in code
+- [ ] **P2** prototype `columns`/`puyo` (d-pad) and a free-move cart (analog)
+- [ ] **P3** wire `de_key_event` in the iOS shell for `key()` carts
+
+### First move
+
+Phase 1, step 1 — relocate the overlay draw inside the render-texture pass and reset the transform.
+It's the smallest change that delivers the "same resolution" requirement, and everything else builds
+on it.
 
 ---
 

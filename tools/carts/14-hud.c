@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "14. hud layout",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "A star spawns at a random spot and shrinks — press Z before it disappears to score. Miss it and lose a life. Shows print_centered and print_right for HUD layout."
+}
+de:meta */
 #include "studio.h"
 
 int score = 0;

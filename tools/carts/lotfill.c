@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "Lotfill — a tiny world from content atoms",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "generative"
+  ],
+  "teaches": [
+    "noise-terrain"
+  ],
+  "lineage": "Extends the roadnet/procplaces worldgen pipeline — fills partitioned lots with seeded cover-field atoms (scatter, rows, footprint, ruins) using a shared domain-warped fBm sampler; novel in fusing the draw and collision query into one pure function per atom.",
+  "description": "The WORKBENCH for the street-level CONTENT language (docs/design/streetlevel-content.md): where roadnet/procplaces build the partition (roads, lots, the land between cities), this FILLS it. Each fill-rule is an ATOM you inspect as a tab (TAB to switch); the SAME atom fn runs in an isolated tab AND in the WORLD driver, so what you tune is bit-for-bit what ships. The default WORLD tab is a tiny self-contained worldgen: a SELECTOR (world_kind_at) reads terrain + an urbanization field and picks an atom per region - wild land -> scatter (forests/meadows), farmland -> rows (fields), towns -> footprint (buildings) - composing one coherent world (no roadnet/worldgen dependency; G draws the selector map: wild green / farm yellow / city red). The seven-atom set (TAB through them): SCATTER = the continuous-cover fill-mode (no parcel/identity): cover_at(x,y) is a FIELD (elevation gates water/beach/rock, then a warped fbm biome -> bare/grass/meadow/forest x a density field for clearings & flower clumps), and the renderer SCATTERS trees/bushes/flowers per jittered-grid cell, each a pure fn of its own cell + seed (lattice instances are local; grown sets tear at chunk borders) - infinite, seam-safe, byte-identical for a seed; the same cover_at answers sloop's collision later (screen == collision). ROWS = a BOUNDED fill-mode: a coarse parcel grid of fields, each planted with rows of one crop (plough/corn/wheat/vineyard by per-parcel hash -> crop + orientation + spacing) + a hedgerow; rows_fill() fills ONE region and the driver tiles it. FOOTPRINT = buildings (the GTA street): a block grid carves streets, each block's PERIMETER lots front a street by construction (centre = courtyard/parking, no orphan interiors), and one footprint_fill() makes house/shop/tower from a ZONE field (residential/commercial/downtown) + hash - the types emerge, none enumerated. BORDER strokes a region edge (hedge/fence/wall), PAVE flat-fills a surface (asphalt+parking-stalls/plaza/gravel/sports-court), STAMP drops one authored composite (fountain/statue/well/obelisk); all tiled by a demo_grid() that IS the subdivide primitive. Inspection (every tab): 1/2/3 peel layers with live counts, G shows the lattice/parcel/block grid or selector map, O cycles the driving field overlay (cover-kind / density). WASD/ZX move, R new seed."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

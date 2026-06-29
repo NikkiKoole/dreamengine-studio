@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "palette lab",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "dithering-gradient",
+    "palette-cycling"
+  ],
+  "lineage": "An extension of the sibling blendlab cart: ports its scene-function architecture to run against live swappable candidate palettes (9 candidates, 32- and 64-slot), so AVG/ADD/MUL blend tables and dither scenes are re-evaluated against each candidate — the probe that drives the palette-expansion design decision.",
+  "description": "Try on a new default palette and judge it where it matters most: BLENDING. This is blendlab x palettes — the Layer-1/1b probe from palette-and-color.md with blendlab's scene-function architecture ported in, so every blend runs against the LIVE candidate. Keys 1-9 swap the palette: shipped PICO-8 / ENDESGA 32 / full RESURRECT 64 / E32 + 32 derived in-betweens (sRGB ramp midpoints + hue bridges, computed in-cart) / ENDESGA 64 (the same author's own curated expansion — candidate 4 vs 5 is generate-vs-curate head to head) / AAP-64 (the other canonical long-ramp 64) / FAMICUBE (the opposite philosophy: a fictional console's identity palette, distinct hues over dense ramps — watch its glows ring in the wrong family) / JOURNEY (the painterly school: violet-cast darks, ramps that bend through hue — even its black is a midnight blue) / JEHKOBA64 (the lattice school: hue-family ramps of five, every hue given the same value treatment — does a systematic grid blend more predictably than hand curation?). LEFT/RIGHT walk six scenes: the 64-swatch grid + five dithered corpus ramps, a sunset, a portrait (skin tones are where palettes get cruel), the NIGHT GLOW street with real additive streetlights (D toggles today's fillp fake next to it; carry a glow on the mouse), GLASS+FOG (translucent pane on the mouse, C cycles its color, drifting MUL cloud shadows, an AVG fog band), and the raw BLEND TABLE grid (T cycles AVG/ADD/MUL). The AVG/ADD/MUL tables rebuild from the candidate's RGB on every switch — more/denser colors visibly band less. Note the dither scenes only reference slots 0-31, so candidates 2 and 4 are identical there by construction; the blend scenes are where 32 vs 64 separates. Built on the EXPERIMENTAL palette_hex() + the 64-slot palette."
+}
+de:meta */
 #include "studio.h"
 
 // PALETTE LAB — try on a new default palette without touching anything else,

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "polo & pan radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "generative-melody",
+    "schedule-driven-agents"
+  ],
+  "lineage": "Tenth radio station, building on the radio.h chassis established in jingle.c and lowend.c; novel in the five named song archetypes (stolen-playbook chord brain #4) that each fix groove, tempo and lead voice so the seed varies within a recognizable artist identity rather than across a single texture.",
+  "homage": "Polo & Pan (Caravelle / Cyclorama)",
+  "description": "The Polo & Pan station - their escapist French dream-pop, and an ARTIST station, not a genre: SPACE rolls a new tune and you get 'the Canopee one' or 'the Tunnel one' - a different song every time, but always THAT song. Built on the stolen-playbook chord brain: FIVE SONG ARCHETYPES, each a real Polo & Pan track encoded as a template progression that ALSO fixes its groove, tempo, lead voice, mood and form. CANOPEE (sunny tropical pluck-house ~115bpm: a bouncing pizzicato+marimba riff, vocoder 'ah' accents, the famous stacked-mallet outro); ANI KUNI (driving Balearic chant-house ~122bpm: a hypnotic vocoder chant cell + a bright pluck-arp build, a big terraced drop and break); NANGA (dreamy downtempo exotica ~100bpm: a breathy flute over balafon + congas, a hypnotic wander, no drop); TUNNEL (dark propulsive minimal ~120bpm: the fat resonant Korg MS-10 synth-bass riff IS the song, sparse glassy stabs); COEUR CROISE (warm romantic dream-pop ~108bpm: a sung wordless lead over a lush Solina pad, glockenspiel twinkle, pizzicato comp). The seed varies key / progression / patterns / timbre WITHIN an archetype, so two Canopees differ but both are unmistakably Canopee. The lineup leans on the mallet-and-percussion + barely-used engines: a marimba/balafon/glock/vibe mallet chair, an INSTR_BOWED PIZZICATO bounce, a topline that swaps engine per song (INSTR_PIPE flute / INSTR_VOICE vocoder chant / SINE glass & sung), the Korg MS-10 resonant SAW bass, a Solina string pad, and a breezy Balearic kit (four-floor + clap + swish + congas). The window is a sunny terrace - a palm canopy, a sun over a lagoon, the sky tinting per archetype. SPACE next song, R same tune (a fresh take), [ ] history, LEFT/RIGHT feel (hush/breezy/sunny/aglow), UP/DOWN tempo, T tone, B band (A/B the Nanga flute: INSTR_PIPE model vs a clean in-tune SINE), J jam strip (play along on the pentatonic), M power, H help."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include "solo.h"    // the jam layer — a scale-locked lead over the progression

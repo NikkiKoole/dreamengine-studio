@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "skewlab",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer",
+    "algorithm-visualization"
+  ],
+  "lineage": "The skew/curve sequel to arcsym/linesym/axissym: where those isolate rasterisation SYMMETRY (mirror) and 1px LINES, skewlab isolates road-EDGE rendering - showing streetlab's per-arm casing breaks at skews and curves (strays, missing outline) and that a single coverage UNION-OUTLINE (the engine's circ/poly boundary rule applied to the road union) is the generator-agnostic 1px fix that also handles Perlin/curved roads. The basis for replacing streetlab's per-arm casing + mirror-blit/casing-fillet special-cases with one union outline, and a building block for the software canvas.",
+  "description": "SKEWLAB - clean 1px road edges at any SKEW or CURVE; a petri dish for streetlab's skewed-junction kerb issues (missing outline, stray black pixels at the crossing, doubled edges) and the fix. Models a road as a UNION of capsule segments - two long crossing arms (skew) or many short chords along a fake-Perlin sine centreline (curve). Two draw methods: PER-PIECE casing (what streetlab does - each segment lays a 1px-proud kerb then asphalt, so at any overlap one piece's casing strands inside another's asphalt, giving interior strays + missing edges, worse with skew and far worse on a curve where every joint overlaps); and UNION 1px outline (the fix - fill the whole union once, then one coverage border = an asphalt pixel with a grass 4-neighbour, the same rule circ/poly already use). The union outline is generator-agnostic: it traces the boundary of whatever is filled, so straight, skew and curved/Perlin roads all render as one clean 1px kerb. Readouts: interior strays (0 for the union method) and sampled edge thickness (1px). Controls: Z method, C skew/curve, left/right angle or amplitude, up/down width, R reset."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

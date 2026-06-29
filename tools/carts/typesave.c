@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "21. type & save",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Keyboard + persistence: text_input() reads typed characters, keyp(KEY_BACKSPACE/KEY_ENTER) handles special keys, and save_bytes()/load_bytes() remember a whole struct between runs — type your name, press ENTER, reopen the cart and it greets you. Also shows text_width() for centering and blink() for the cursor."
+}
+de:meta */
 #include "studio.h"
 
 // TYPE & SAVE — the keyboard + blob-persistence API:

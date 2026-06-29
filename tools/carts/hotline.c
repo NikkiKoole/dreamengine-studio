@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "hotline",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "tilemap-collision",
+    "screen-shake-juice",
+    "particle-system"
+  ],
+  "lineage": "Hotline Miami (2012) homage built on the cannonfodder LOS + tilemap idiom; novel in fusing LOS vision cones, sound-investigation, and hit-stop slow-mo into a three-floor neon shooter with a pal()-recolored single sprite.",
+  "genre": "shooter",
+  "homage": "Hotline Miami (2012)",
+  "description": "Top-down, one-hit-kill, instant-retry neon carnage — a Hotline Miami tribute. Storm three building floors of rooms (a real tile map() of walls and kickable doors) and clear every guard: you and every thug die in ONE hit, so it's pure twitch and instant R restarts. Start with a bat, pry pistols/shotguns/uzis off the corpses, and when you run dry THROW the gun to knock a guard down for a free melee finish. Burst a door with SPACE and the guard behind it goes down. Enemies patrol with LOS vision cones, hear your gunshots and come investigate, and telegraph before they fire. Chain kills fast for a popping score multiplier. The juice is the game: hot neon palette (pal()-tinted per floor), screen-shake + white flash + hit-stop on every kill, slow-mo on a room's last kill, blood pools that stain the floor, brass casings and gibs - over a driving synthwave bed (LFO-swept filtered saw bass, square arp, four-on-the-floor drums, bass-drop sting on clear). One body sprite recolored into player/thug/guard via the crowd.c pal() trick. WASD move, mouse aim, LEFT-CLICK attack/fire, RIGHT-CLICK or Q throw your gun, SPACE kick a door, walk over a dropped weapon to grab it, R restart."
+}
+de:meta */
 #include "studio.h"
 
 // HOTLINE — top-down, one-hit-kill, instant-retry neon carnage.

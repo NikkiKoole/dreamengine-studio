@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "sfx generator",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "adsr-envelope",
+    "step-sequencer"
+  ],
+  "lineage": "Dreamengine's take on sfxp/bfxr — three parametric lanes (amp/pitch/wave) each with hold/decay/LFO bake down to a 32-step sound, adding mutation and undo on top of the bfxr model.",
+  "description": "Sliders make the sound — a dreamengine take on sfxp/bfxr. Three lanes (AMP, PITCH, WAVE), each with hold/decay and an LFO: 17 sliders GENERATE a 32-step sound, the colored curves show the result, and every change replays it. RANDOM for instant inspiration, MUTATE to refine what you almost like (the game-jam workflow), arrows undo/redo, Z replays. Press E to export the baked steps as paste-ready C code — the same format as the sfx editor cart, so either feeds your game the same way. S/L save and load."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

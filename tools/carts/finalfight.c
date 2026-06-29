@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "final fight",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "screen-shake-juice",
+    "finite-state-ai",
+    "title-play-gameover-loop",
+    "particle-system"
+  ],
+  "lineage": "Final Fight (Capcom 1989) — belt-scroll brawler chassis with y-sorted depth, wave-locked camera, and a full juice stack (hit-stop, flash, slow-mo, particles).",
+  "genre": "fighting",
+  "homage": "Final Fight (1989)",
+  "description": "A belt-scroll beat-'em-up — and a reusable brawler engine. Walk a chunky 16×32 hero right through a city; the camera LOCKS into scroll arenas of thugs and a GO arrow releases you on clear, street giving way to a warehouse and a boss. Fighters have x, depth (y) and jump height (z) with y-sort overlap. Tap Z for a 3-hit combo (the third launches a knockdown), X to jump, Z in the air to jump-kick; walk into a thug to grab him then push a direction to THROW him into the others, Z+X for a spin special. Break barrels for food, grab dropped pipes & knives. Enemy variety is all pal() shirt/skin recolors of one sprite set (grunt, knife, bruiser, boss). Hit-stop, shake, white flash, POW stars, slow-mo boss kill, combo counter, and a reactive synth groove. WASD move, Z attack, X jump, Z+X special."
+}
+de:meta */
 #include "studio.h"
 
 // FINAL FIGHT — a linear arcade BELT-SCROLL beat-'em-up, and a reusable brawler

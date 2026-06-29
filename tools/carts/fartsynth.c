@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "le petomane",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "adsr-envelope",
+    "subtractive-synth"
+  ],
+  "lineage": "Original sound-design toy; shows how chip-music glissando is built from a rapid stream of short hit() calls with pitch bend and wobble rather than any single sustained voice.",
+  "description": "A fart synthesizer that is secretly a sound-design lesson. Every rich sound is many simple notes over time: hold the trigger and the cart fires a fast stream of short notes whose pitch slides (BEND) and wobbles (WOBBLE) through a chosen WAVEFORM, fading out at the end — exactly how chip music fakes a glissando. Six knobs and six presets. W/S pick a knob, A/D turn it, Z lets it rip, X cycles presets."
+}
+de:meta */
 #include "studio.h"
 
 // LE PÉTOMANE — a fart synthesizer, and a lesson in sound design.

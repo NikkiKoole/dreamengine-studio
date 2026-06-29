@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "platform game",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "camera-follow",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Canonical reference platformer for the engine; straightforward Mario-style stomp loop built to demonstrate tilemap collision and multi-tile scrolling with no notable novel technique.",
+  "genre": "platformer",
+  "description": "Side-scrolling platformer with sprites and a tile map. Stomp red enemies from above, collect coins, watch your lives. Left/right to move, Z or up to jump."
+}
+de:meta */
 #include "studio.h"
 
 // PLATFORM GAME

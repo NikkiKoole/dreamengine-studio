@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "dub radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "schedule-driven-agents",
+    "swing-timing"
+  ],
+  "lineage": "Seventh radio station; King Tubby / Augustus Pablo homage. Novel: echo as scheduled future notes (not an FX bus), and a per-phrase performance-level mixing desk that re-rolls arrangements from engine RNG so the same seed mixes itself differently every listen.",
+  "homage": "King Tubby / Augustus Pablo (dub)",
+  "description": "Endless roots dub - the King Tubby / Augustus Pablo homage, seventh of the radio family, and the one where the engine IS the genre. ECHO AS SCHEDULED NOTES: every skank chop, rim shot and melodica phrase schedules its own decaying repeats (dotted-8th apart) - no FX engine, the delay line is just more notes in the future. THE DESK IS THE INSTRUMENT: every 4-bar phrase a performance-level mixing brain re-rolls which layers are in (bass ~92%, drums ~90%, skank, organ bubble, melodica); when the skank leaves, its ghost gets thrown into a long echo tail. The desk is engine-rnd, so the same seed MIXES ITSELF DIFFERENTLY every listen - exactly how dubplates worked. Seeded 2-bar minor-pentatonic riddim bassline, one-drop/rockers/steppers kits, dub siren at meltdown feel. Seed on display (DUB_SEED / R / [ ] history), T tone, H help. Worked example #7 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include "solo.h"    // the jam layer — a scale-locked melodica over the riddim

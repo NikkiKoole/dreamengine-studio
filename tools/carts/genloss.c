@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "generation loss",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "VHS generation-loss / dubbing degradation chain (crush → tape → dropout); showcases the new dropout() effect from the boutique-pedals roadmap, with a visual VHS tape transport.",
+  "description": "The showcase for dropout() - the VHS / Generation-Loss FAILURE knob. A self-playing wistful EP loop runs through the full degraded-cassette chain: crush() (bit + sample-rate reduction) into tape() (wow/flutter/saturation) into dropout(). The new piece is dropout: a sample-and-hold clock randomly TRIGGERS momentary tape-catches where the whole mix stumbles - drops in level AND goes dull from HF loss - then recovers fast, exactly like a tape dubbed one too many times. Three sliders: FAILURE (how often the tape catches), DEPTH (how hard each catch drops), DEGRADE (the bit-crush + tape grime baseline). A VHS tape-transport display turns its reels and tears its tracking when a catch fires. SPACE pauses the loop; H for help. Built on dropout() + the modulation kit's sample-and-hold (mod_sh) from the boutique-pedals roadmap. Part of the lo-fi / effects family."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

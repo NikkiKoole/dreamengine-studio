@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Centipede",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "state-machine"
+  ],
+  "lineage": "Direct port of Atari's 1980 Centipede; the split-on-hit chain mechanic (killing a mid-body segment spawns two independent chains each with their own head) is faithfully reproduced.",
+  "genre": "shooter",
+  "homage": "Centipede (1981)",
+  "description": "The arcade classic, drawn entirely from chunky primitives. A segmented bug winds down through a field of mushrooms toward your blaster, which is pinned to the bottom band of the screen. Every shot counts: blast a mid-body segment and the centipede splits in two while a fresh mushroom sprouts where it died; pick off the head and the swarm just shortens. A glittering spider darts through the lower third, eating mushrooms and hunting you for a fat 300-point bounty. Clear every segment to march into a faster wave; lose all three lives and your run is over. Lives, score, and a saved high score. Arrows/WASD move (bottom band only), Z/Space fire upward, Z to restart on game over."
+}
+de:meta */
 #include "studio.h"
 
 // CENTIPEDE — the arcade classic. A segmented bug winds down through a field of

@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "rotstress — rotated-sprite stress test",
+  "status": "active",
+  "kind": [
+    "probe"
+  ],
+  "teaches": [
+    "software-rasterizer"
+  ],
+  "lineage": "The profiling target for the software-canvas rotated-blit optimization (de_cpu_img_rot) — a crankable worst case used to find the GetImageColor/sw_pset hotspots and measure each win.",
+  "description": "A deliberate worst case for the software canvas rotated-sampling path: a storm of spinning sprites plus big rotated scaled blits and a textured quad, all opaque, so the per-pixel inverse-map + texel gather dominate. Built to be profiled — crank the sprite count with UP/DOWN to push past the frame budget and see where the time goes."
+}
+de:meta */
 // rotstress — a deliberate WORST CASE for the software-canvas rotated-sampling path, built to be
 // PROFILED. A storm of spinning sprites (spr_rot) + big rotated scaled blits (sspr_ex) + a spinning
 // textured quad (tritex) — all opaque — so GetImageColor + the inverse-map inner loop (de_cpu_img_rot /

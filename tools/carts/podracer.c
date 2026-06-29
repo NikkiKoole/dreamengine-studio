@@ -1,3 +1,23 @@
+/* de:meta
+{
+  "title": "pod racer",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "mode7",
+    "no-sprite-vehicles",
+    "particle-system",
+    "screen-shake-juice"
+  ],
+  "lineage": "Extends the pseudo-3D segment-projection road renderer with tritex-textured canyon walls and ground (affine quads, painter's order far-to-near), adding a boost/heat risk mechanic and CPU pod rivals sharing the spline.",
+  "genre": "racing",
+  "homage": "Star Wars Episode I: Racer (1999)",
+  "description": "Twin-engine pods screaming through a textured rock chasm — and NOT a flat scanline road. It clads the whole canyon in real tritex geometry: the ground is a tech-floor that stretches to the horizon and the walls are rock strata rising on both sides, drawn far→near as a painter's pass (short segments keep the affine warp small, like textured3d's subdivision). The one deep mechanic is BOOST/HEAT — hold A for massive speed while engine heat climbs to a blowout stall; vents cool you off-boost, so it's pure risk/reward. Scrape a wall and you shed speed in a shower of sparks. A layered detuned engine drone pitches with speed, the boost adds a filter-swept roar (FILTER_LOW + LFO_CUTOFF) and a rising overheat alarm, with an FOV-pulse, speed lines, screen-shake and a sonic-boom flash at top speed. Race 3 laps against 4 CPU pods, best lap saved. Up/Z throttle, Down/X air-brake, Left/Right steer, hold A (or Shift) to BOOST."
+}
+de:meta */
 #include "studio.h"
 
 // POD RACER — twin-engine pods screaming through a textured rock chasm.

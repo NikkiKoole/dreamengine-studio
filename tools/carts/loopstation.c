@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "loopstation",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "step-sequencer"
+  ],
+  "lineage": "Original design documented in docs/design/input-recording-looper.md — the project's first self-recording cart; the novel idea is splitting the loop buffer into quantized note events vs. continuous CC gesture streams for the theremin track.",
+  "description": "A live-looper pedal — the first cart that RECORDS ITSELF. Four instruments share one 4-bar loop: arm a track, play, and what you played comes back around; layer the next instrument on top and you're a one-person band. Drums (Z/X/C), pentatonic bass (A-K) and lead (Q-I) record as discrete notes quantized to the 16th grid, so sloppy timing comes back tight. The THEREMIN (drag the pad: y=pitch, x=volume) records as a continuous gesture stream — note_pitch/note_vol sampled only when your hand moves — and replays it verbatim, drawing a ghost crosshair where your hand was. The loop ring shows every event as a dot on its track's circle. 1-4 select a track, SPACE arms record, M mutes, BACKSPACE clears, N toggles the click. The cart-land prototype for docs/design/input-recording-looper.md."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "tr-909 rhythm composer",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "subtractive-synth",
+    "fm-synth",
+    "drum-synthesis"
+  ],
+  "lineage": "Roland TR-909 (1983), completing the cr78/tr808/tb303 family; hybrid kit where analog voices are subtractive but the ROM-sample hats/cymbals are stood in by an FM voice on the 3.5 inharmonic detent through a closing highpass, plus a flam/drag/ratchet stroke family and period-correct shuffle.",
+  "homage": "Roland TR-909 Rhythm Composer (1983)",
+  "description": "The house and techno machine — the TR-909 (1983), fifth box in the classic-machine family (cr-78, tr-808, tb-303, sh-101) and the one that completes the ReBirth RB-338 rack. Same editable grid as the 808 cart, but the 909's hybrid voice architecture: analog kick/snare/toms/rim/clap (the kick is the HOUSE kick — fast +30-semitone sweep over 35ms plus a separate click layer on the famous ATTACK knob, punch where the 808 booms), while the hats, crash and ride — 6-bit ROM samples in the real hardware — are stood in by the FM engine: INSTR_FM parked on the 3.5 inharmonic clang detent with feedback cranked, through a highpass whose cutoff starts 5kHz low and rises via a negative ENV_CUTOFF amount = the fast-closing sizzle of a sampled hat. Closed hat chokes open, like the shared output stage of the hardware. And the swing knob is finally PERIOD CORRECT: the 909 is where Roland actually shipped shuffle (Z/X, even 16ths drag — the cr-78/tr-808 carts wear the same knob as an admitted anachronism). FLAM too — the panel's other humanize trick — and beyond: right-click CYCLES a cell through the stroke family — flam (one quiet grace note 22ms early, the Hardfloor clap signature), drag (two graces, the rudiment), ratchet (four even hits chopped across the step — not on the 1983 panel, but the fill techno lives on; Hardfloor's hat row ends on one). Cells draw their strokes as ticks. And one admitted impurity: a METAL-FILTER XY pad (bottom right) riding the highpass of all five metal slots — X = cutoff (left = darker/fuller), Y = resonance (up = the SVF peak rings) — because the FM stand-ins land bright and hissy without a tone control. 11 voices with up to three 8×8 rotary knobs each (TUNE / DECAY / ATTK-SNPY-CLIK-TONE), red TOTAL ACCENT strip, six presets: Good Life, The Bells, Energy Flash, Hardfloor, Revolution 909, Gabber. Q-A play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click a label to audition, right-click for flams, drag knobs Y=coarse X=fine."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

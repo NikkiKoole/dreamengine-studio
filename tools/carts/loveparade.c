@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "the love parade",
+  "status": "active",
+  "kind": [
+    "toy"
+  ],
+  "teaches": [
+    "gene-based-procgen",
+    "no-sprite-vehicles",
+    "genetic-crossover"
+  ],
+  "lineage": "Sibling of trafficjam's gene-bag rendering, but with player-triggered BREEDING: offspring genes are a Mendelian 50/50 mix plus colour-blend-toward-nearest-palette and occasional mutation, yielding centaurs/hybrids.",
+  "description": "A generative toy in the rectangular style of Donkey Kong and Boulder Dash — every little person and animal is built from rectfill/circfill (no sprite art), from a random bag of GENES: proportions, colours, haircut, clothing pattern (sometimes), head shape, ears, tail, neck, horns, wings, antennae, eyes. Roll endlessly and a parade strolls past across depth lanes, never the same one twice. The hook: PICK ONE UP and drop it on another and they BREED — an offspring pops out (a tiny baby that grows up over ~10s), its genes a 50/50 mix of the two parents plus the odd mutation. Breeding only ever happens when YOU trigger it. Crazy outcomes: person × beast can make a CENTAUR, two humans can make a HUMAN-ON-ALL-FOURS, and giants/cyclops/winged hybrids turn up. Drag a critter onto another to breed; SPACE re-rolls the crowd; right-click adds a newcomer."
+}
+de:meta */
 #include "studio.h"
 
 // ── THE LOVE PARADE ───────────────────────────────────────────────────────

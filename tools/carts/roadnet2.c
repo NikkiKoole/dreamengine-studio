@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "roadnet 2",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "generative"
+  ],
+  "teaches": [
+    "noise-terrain",
+    "generative-melody"
+  ],
+  "lineage": "A graph-first rebuild of roadnet (v1), keeping its Catmull-Rom node-lattice spline highways verbatim but replacing the dual field+graph street representation with a single edge-graph — cleaner foundation for the collector/access/building fill-in to come.",
+  "description": "A VECTOR-NATIVE rebuild of roadnet, started from roadnet's clean rung-1..3 baseline: the same elegant spline-highway core (terrain-aware Catmull-Rom roads between ranked hub/town cities over an infinite deterministic heightmap) with the rest deliberately UNFILLED — the clean foundation. The deeper-road fill-in (collectors / access / cul-de-sacs / buildings) is being redone graph-first this time: ONE representation (spline edges in a graph), ONE query (road_at = nearest edge within its class half-width, generalising arterial_at downward), buildings on edges, warped-grid curvy deeper roads, and NO modular street field — the dual field+graph representation is what made v1 messy. Plan + build order: docs/design/roadnet2-plan.md. Controls (L0 core, same as roadnet): drag the panel sliders, ROLL / EXPLORE; then arrows / WASD pan, mouse wheel zooms, SPACE jumps to fresh scenery, R new seed, M reopens the panel, G cell-border overlay, H hides the HUD."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

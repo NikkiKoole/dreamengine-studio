@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "4b. the mouse",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "lineage": "the mouse counterpart of 04-buttons (keyboard input)",
+  "description": "Read the pointer — the keyboard's sibling. mouse_x()/mouse_y() track the cursor, mouse_pressed() is a click, mouse_down() is a drag, mouse_wheel() zooms toward the cursor, and the three buttons MOUSE_LEFT/RIGHT/MIDDLE. LEFT-drag the box, wheel to zoom it toward the cursor, LEFT-click empty space drops a dot, RIGHT-click clears, MIDDLE-click resets."
+}
+de:meta */
 #include "studio.h"
 
 // 4b — THE MOUSE. The pointer is the keyboard's sibling (04-buttons). The calls:

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "vox",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "generative-melody"
+  ],
+  "lineage": "Playable instrument built on the INSTR_VOICE formant engine; distills voxlab's parameter space to three macro axes (vowel/size/effort) and adds a 2D jam-pad that auto-generates random consonant+vowel syllables while singing pentatonic pitches.",
+  "description": "The formant VOICE engine (INSTR_VOICE — navkit VoicForm port) on the THREE axes the voxlab probe landed on (VOWEL = U→O→A→E→I morph · SIZE = formant shift / vocal-tract length, giant→child · EFFORT = one macro of breath + glottal open-quotient + spectral tilt, breathy/dark/relaxed → pressed/bright/clean), with TWO ways to play. The SLIDERS + SPACE hold a sustained drone you tweak by hand. The JAM PAD is a scale-locked 2D strip (like the radio jam bar): drag across it to sing — X picks the note (major pentatonic, always in tune), Y is the second dimension = effort (up = louder/pressed), and every new note grabs a RANDOM consonant + vowel so dragging auto-scats ('ba-doo-la-see'). The SHAPE toggle (S) flips where the consonant goes: CV 'b·a' = a consonant ONSET (voice_consonant), the note starts on it ('bah'/'mah'); VC 'a·m' = a consonant CODA (voice_coda), the note closes on it ('ahh-m'/'oo-d') as it releases. Consonants are timed onsets/codas, vibrato is the external pitch LFO (V toggle) — neither is an axis. Still drives the engine through the experimental voice_param()/voice_consonant()/voice_coda() path pending the final wiring. Drag the JAM PAD to sing · SPACE = drone · Z/X shift the scale root · V vibrato · S syllable shape (CV/VC) · drag the three sliders for the base voice."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

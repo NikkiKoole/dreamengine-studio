@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "excitebike",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "state-machine",
+    "screen-shake-juice",
+    "save-load-persistence"
+  ],
+  "lineage": "Homage to NES Excitebike (1984); the lander.c air-physics idiom turned sideways, with a mouse-driven tile-grid track editor persisted via save_bytes() and pal()-recolored CPU rivals.",
+  "genre": "racing",
+  "homage": "Excitebike (1984)",
+  "description": "Side-view NES motocross with the famous landing-angle skill, an overheat meter, and a track editor. Hit a ramp and you launch into the air with the nose drifting down on its own — hold Up/Down to control the tilt and touch down within a hair of LEVEL to keep your speed; nose-down or tail-down and you wipe out. Hold turbo for more top speed but the temp gauge climbs to a flashing-red redline and a stall, so mud (slow but cooling) becomes a real choice. Race one track against three pal()-recolored CPU rivals you bump past, chasing your best lap (saved). Then switch to BUILD: a mouse editor paints ramps, jumps, whoops and mud onto the lane grid, persisted with save_bytes — save it and test-ride instantly. RACE: Right/Z throttle, X turbo, Up/Down tilt in the air, Left brake. BUILD: 1-5 or click the palette, left-click paint / right-click erase, arrows scroll, S save, Z ride, B title."
+}
+de:meta */
 #include "studio.h"
 
 // EXCITEBIKE — side-view motocross with the famous LANDING-ANGLE skill,

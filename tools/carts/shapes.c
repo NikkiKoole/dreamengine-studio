@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "Shapes",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Showcases the geometry helpers: ngon/ngonfill (rotating polygons), star/starfill (badges and sparkles), poly/polyfill (custom outlines), thickline, rrect/rrectfill (panels and bubbles), vgradient/hgradient. Includes a fillp-dithered hexagon."
+}
+de:meta */
 #include "studio.h"
 
 void draw(void) {

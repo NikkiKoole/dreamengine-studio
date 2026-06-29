@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Gnome Hide & Eek",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "particle-system"
+  ],
+  "lineage": "Original cart built as the showcase for ui.h's loupe/magnifier primitive; the hidden-object genre is the framing device, the magnifier routing (ui_loupe_over/ui_loupe_map) is the point.",
+  "genre": "puzzle",
+  "description": "A forest hidden-object game that IS the ui.h loupe showcase. Little gnomes (red hat, white beard) are tucked among the trees — you can see them, but they're 3-4px, far too small to tap on a phone. Drag the corner box to summon a 3x magnifier lens, sweep it over the forest, and tap a gnome INSIDE the lens to catch it (it throws its arms up - eek!). A tap only counts through the lens, so the magnifier isn't an aid here, it's the whole game. Catch all 6; R = new forest. The gnomes are cart-drawn game objects (not widgets), so it routes taps via ui_loupe_over/ui_loupe_map while the lens visual comes free from the zoom_rect engine primitive. See docs/design/loupe-notes.md."
+}
+de:meta */
 // gnomeseek.c — "Gnome Hide & Eek": a showcase for the ui.h loupe.
 //
 // A forest of tiny pixels. Hidden in it are little gnomes (red hat, white

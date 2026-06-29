@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "caustics",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "fluid-sim",
+    "dithering-gradient"
+  ],
+  "lineage": "Follows shadelab (CPU shader exploration) and precedes raymarch; adds Hugo Elias's classic demoscene 2D wave-equation height-field sim alongside a sine-only fake mode, teaching both paths to displacement mapping.",
+  "description": "Water light effects and a two-part lesson in DISPLACEMENT MAPPING: warp WHERE you read a colour and the picture appears to ripple. Press TAB to flip between the same idea done two ways. FAKED (the N64 way): the displacement is a few scrolling SINE waves computed on the fly over a procedural pool floor - no memory, no physics, basically free, exactly how Mario 64 and Ocarina of Time faked moving water on a GPU that could not run a shader. REAL (displacement mapping proper): the displacement now comes from a real HEIGHT-FIELD WATER SIMULATION - two ping-pong buffers holding the surface height, each cell becoming the average of its neighbours minus its previous value times a little damping (the wave equation, the previous frame feeding the next is the feedback), and the surface SLOPE steers where each pixel LOOKS UP A REAL CAPTURED IMAGE (src[]); drop a stone and the rings expand, reflect off the walls, cross and interfere, and fade - the classic demoscene 2D water (Hugo Elias). Same umbrella technique, two ways to make the map: a formula, or a simulation you can poke. Everything painted in 24-bit true colour through pset_rgb / rectfill_rgb. Three floor textures / source images: pool tiles, a sandy tropical bottom, and a high-contrast checkerboard whose straight lines visibly BEND so you see the distortion itself. TAB switch FAKED/REAL, drag the mouse to push the water, CLICK to drop a stone, C toggles caustics (the light web), W toggles waves (FAKED), UP/DOWN strength, [ ] pixel size, SPACE freezes, 1/2/3 or LEFT/RIGHT switch floor. Companion to shadelab."
+}
+de:meta */
 #include "studio.h"
 
 // CAUSTICS — "water light effects", and a two-part lesson in DISPLACEMENT MAPPING:

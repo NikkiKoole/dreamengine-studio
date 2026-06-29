@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "voxab",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "A/B comparator tool for the INSTR_VOICE formant engine — adds instant A/B flip, solo parameter sweep, and auto-retrig on top of the voxlab explorer to isolate subtle lever contributions (buzz, creak, nasality, measured-BW).",
+  "description": "The A/B COMPARATOR for the formant VOICE engine (INSTR_VOICE). Where voxlab explores the space, this cart decides BY EAR whether a subtle lever earns its place — the listening voxlab can't do. Holds TWO full param states A and B; TAB snaps the LIVE sustained tone between them INSTANTLY, so the difference lives in the flip, not in slider-hunting. SOLO-SWEEP (W) auto-ramps the SELECTED param 0→1→0 with everything else frozen, so you hear ONLY that param. An optional auto-RETRIG (G) re-articulates the held tone so you also hear attacks. The preset A/B PAIRS load a base differing in ONE lever for a direct flip-test: BW (derived vs navkit measured bandwidths) · NASAL (formant-config morph vs anti-formant notch — the two nasality models) · BUZZ (full glottal pulse vs smooth sine) · CREAK (clean vs vocal fry) · REDUCE (full vowel vs schwa). These exercise the EXPERIMENTAL navkit completeness-audit levers (voice_param indices 10-16: buzz/jitter/shimmer/creak/anti-formant nasality/schwa-reduce/measured-BW). Click a param row or use [ ] to select; drag the bottom slider to edit it in the live slot; C copies live→other. SPACE play · TAB flip A/B · Z/X pitch."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

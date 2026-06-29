@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "DJ Filter",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "chord-voicing"
+  ],
+  "lineage": "Showcase cart for the master filter() bus; the backing loop is cribbed directly from groovebox, making djfilter a focused performance layer over a proven rhythmic canvas rather than a new sequencer design.",
+  "description": "The legendary one-knob mixer filter (Allen & Heath XONE:92, Pioneer DJM) and, at the screaming end, a Sherman Filterbank - the showcase cart for the master filter() bus, where the EFFECT IS THE INSTRUMENT. A bright four-on-the-floor house loop (detuned-saw arp + lush pad + rolling sub, cribbed from groovebox) plays itself so both hands are free to RIDE the filter, exactly like spacecho rides the echo. THE control is one BIPOLAR knob, center = OPEN (bypass): turn LEFT and a lowpass closes 18kHz->150Hz into a muffled thump; turn RIGHT and a highpass opens 20Hz->6kHz into a thin telephone. The RES knob cranks the resonant peak into acid-scream territory. A live filter-RESPONSE CURVE up top is the centerpiece - watch the slope tilt and the peak rise as you sweep, with the cutoff marker sliding along the log-frequency axis and a FULLNESS bar that dims as the mix gets dark. The BUILD button is the money shot: a breakdown into an 8-bar filter-sweep riser with rising resonance and a clap roll, then the DROP snaps wide open with a bang - the genre's signature gesture, the reason the filter exists. Controls: drag the big FILTER knob (or LEFT/RIGHT arrows) and the RES knob (or UP/DOWN); BUILD button or X triggers the riser; BYPASS button or Z A/Bs the filter off vs on."
+}
+de:meta */
 #define UI_KNOB_R 15            // big knobs — this whole cart is two knobs and a curve
 #define UI_KNOB_DRAG_PX 90      // a long, deliberate sweep (you RIDE this, you don't flick it)
 #include "studio.h"

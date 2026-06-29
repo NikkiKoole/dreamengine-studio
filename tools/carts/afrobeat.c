@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "afrobeat fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "euclidean-rhythm",
+    "generative-melody",
+    "chord-voicing",
+    "swing-timing"
+  ],
+  "lineage": "Built intent-first from the Fela Kuti / Tony Allen playbook; first radio station to use INSTR_GUITAR and INSTR_BRASS, and the first to wire euclidean polyrhythm (gankogui 7-in-16, cross-conga 5-in-16) against a generative modal vamp with terraced song form.",
+  "homage": "Fela Kuti & Africa 70 / Tony Allen (Afrobeat)",
+  "description": "Endless Afrobeat, live from the Shrine - the Fela Kuti & Africa 70 / Tony Allen homage, and the station that finally reaches the engines no other one does. THREE radio firsts, all 'untapped shelf' engines: FIRST RADIO INSTR_GUITAR - the two interlocking rhythm guitars (a muted 'tenor' chuck panned left, a brighter rhythm guitar panned right; the Karplus-Strong-plus-body model, and the weave IS the Afrobeat signature); FIRST RADIO INSTR_BRASS - the trumpet of the horn section (only faked brass existed before); and the horn SECTION proper, INSTR_REED tenor sax plus that INSTR_BRASS trumpet voiced a third apart and panned wide to fake the ensemble spread. The brains, all cart-side over radio.h's clock: THE MODAL VAMP (no changes, one mode held - mixolydian I7 or dorian im, sometimes alternating to a second centre i-to-IV); EUCLIDEAN POLYRHYTHM (a gankogui bell timeline on euclid 7-in-16 and a cross-conga on euclid 5-in-16 riding against the straight kit - three cycles of different length, the West-African interlock); THE TONY ALLEN FEEL (a broken-funk kit, backbeat snare with scattered off-grid ghost notes plus a syncopated kick, all pure performance so R replays the song but never the same ghosts); and TERRACED FORM with THE BREAK - the intro layers the band in one part at a time, the BREAK section strips back to drums-and-bass before the horns rip back in. The sax solo is the shared improviser walking the mode. Seeded per song: the mode, key, vamp, bass ostinato, guitar interlock, horn riff, the GROOVE (laidback / driving / heavy halftime) and the FORM (cut / set / jam). The window is the Shrine stage, a saxophone in the sweeping lights. SPACE next song, R same tune (new solo), [ ] history, LEFT/RIGHT feel (cool/warm/hot/fire), UP/DOWN tempo, T tone, M power, B band (guitars/horns/comp - swap chairs live, horns can switch off), H help."
+}
+de:meta */
 // ── AFROBEAT FM ─────────────────────────────────────────────────────────────
 // Live from the Shrine: the Afrobeat station — Fela Kuti & Africa 70, Tony Allen
 // on the kit. A single modal vamp held for minutes, two interlocking guitars, a

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "5b. colorkey",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Make sprite backgrounds transparent with colorkey(). Step-by-step: see the pink box, make it vanish, float over any background."
+}
+de:meta */
 #include "studio.h"
 
 // Tutorial: colorkey()

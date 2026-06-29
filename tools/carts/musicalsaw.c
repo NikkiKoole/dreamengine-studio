@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "musical saw",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Spiritual sibling of theremin — the one cart that drives note_lfo live from gesture (bow speed → volume, wrist wobble → LFO depth+rate), rather than setting it once at init.",
+  "description": "The theremin's spooky cousin, and the one cart that drives note_lfo LIVE — the vibrato is something you PLAY, not a fixed setting. One sustained sine voice (note_on) bowed and bent by hand. BOW it: hold the mouse and saw LEFT-RIGHT — your bow speed is the volume (note_vol), so it dies when you stop, like a real bow leaving the blade. BEND it: up/down flexes the steel blade into a deeper or shallower S-curve and the CURVATURE is the pitch (note_pitch + note_glide for the smear). SING it: wobble your hand vertically while bowing and that wrist-shake feeds a live note_lfo vibrato whose depth AND rate climb with how hard you shake — you hear it shiver and watch the blade shimmer. Ethereal, vocal, haunting."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

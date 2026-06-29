@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "piano",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "waveguide-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "INSTR_PIANO showcase and tuning rig; ported from navkit's StifKarp engine. Novel: exposes the dispersion allpass chain that adds inharmonicity (stretched upper partials) to Karplus-Strong, with six presets spanning grand piano through celesta as acceptance tests.",
+  "description": "INSTR_PIANO showcase + tuning rig - the struck stiff string (StifKarp). A Karplus-Strong string PLUS a dispersion allpass chain that stretches the upper partials sharp - the inharmonic, slightly metallic shimmer your ear reads as a real piano (and as a dulcimer or clavichord) rather than a plain string - run through a grand-piano soundboard. Struck; rings down on its own, so give it a long hit(). One id covers grand / bright piano / harpsichord / dulcimer / clavichord / celesta. The three engine macros: instrument_harmonics = stiffness (0 = pure harmonic tone; 1 = stretched metallic shimmer - the dispersion depth and the number of active allpass stages), instrument_timbre = hammer (0 = soft felt, mellow; 1 = hard, bright plectrum strike - the excitation lowpass, grand to harpsichord), instrument_morph = pedal (0 = dry/damped staccato; 1 = long open sustain with the highs held, like leaning on the sustain pedal). Six HARDWARE PRESETS on the number row are the acceptance tests - if 1 grand / 2 bright / 3 harpsi / 4 dulcimer / 5 clavi / 6 celesta don't each sound like themselves, the macro mapping is wrong. A one-octave keyboard: white keys A S D F G H J K, black keys W E T Y U - play with the computer keys or click/tap. 1..6 preset, drag a slider (live, or LEFT/RIGHT pick a knob + UP/DOWN turn), SPACE chord, M autoplay on/off. Multitouch: hold a chord with one hand, drag a slider with another. Single-string v1 (double-string detune + prepared buzz deferred). Design + STEP-0/1: instrument-engines.md §8.8.9."
+}
+de:meta */
 // piano — INSTR_PIANO showcase + tuning rig: a one-octave keyboard, the three engine macros,
 // and six hardware presets (the acceptance tests).
 //

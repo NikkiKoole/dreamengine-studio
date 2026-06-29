@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "roadlab",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "procedural-mesh"
+  ],
+  "lineage": "Successor to `rampkit` (which proved the port-to-ramp abstraction on Beziers); roadlab replaces free Beziers with arc-spline reference lines (LINE→ARC→LINE, the OpenDRIVE model) so that offset lane polygons nest concentrically without a solver.",
+  "description": "The FOUNDATION sandbox for the interchange geometry DSL, built on the road-geometry research (docs/design/road-geometry-refs.md). Lane-accurate roads (drive-on-right via a DRIVE constant) with per-lane direction arrows; ports anchored to REAL lanes (a port = a lane + its travel direction); and ramps built as ARC-SPLINES (LINE->ARC->LINE — the OpenDRIVE reference-line model, minus the XML) instead of free Beziers, so they offset and nest cleanly. Supersedes rampkit (which proved the port->ramp abstraction on Beziers). Milestone 1: pick two ports, watch the arc-spline ramp round the corner between their lanes. Controls: LEFT/RIGHT cycle port A, UP/DOWN cycle port B, [ / ] arc radius, F flips DRIVE. Next: clothoid joints (drivable feel) and concentric-arc nesting. See docs/design/interchange-dsl.md."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"        // on-screen buttons (per-finger capture, fat-finger hit pads) — never hand-roll
 #include <stdio.h>

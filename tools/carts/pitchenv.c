@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "pitch env",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "adsr-envelope"
+  ],
+  "lineage": "Sibling of filterenv — the same mod-envelope system pointed at pitch instead of cutoff; together they form a matched pair of envelope-target demos.",
+  "description": "Punch & zap — a one-shot envelope (instrument_env + ENV_PITCH) that starts a note some semitones off its real pitch and lets it settle back over the decay. Big amount + fast decay on a low note is the \"donk\" of a kick drum; medium settings are lasers and zaps; a tiny amount adds an attack chiff. The graph shows the pitch blip; drag the five sliders (attack, decay, amount, note, length), W cycles the waveform. Same mod-envelope as filter env, pointed at pitch — still no instrument engine. A-K play, SPACE toggles the auto-pulse."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

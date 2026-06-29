@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "18. particles",
+  "status": "active",
+  "kind": [
+    "tutorial",
+    "probe"
+  ],
+  "teaches": [
+    "particle-system"
+  ],
+  "lineage": "Classic gamedev particle-pool tutorial (fountain / explosion / smoke from the same struct array), positioned as tutorial #18 in the series.",
+  "description": "The gamedev workhorse: a pool of tiny structs, each with a position, velocity, and a life that ticks down. Move them, age them, recycle the dead ones — and the SAME system becomes a fountain, an explosion, or a puff of smoke just by changing the spawn numbers. Z = explosion, hold X = smoke."
+}
+de:meta */
 #include "studio.h"
 
 // PARTICLES — the gamedev workhorse for sparks, smoke, fire, explosions.

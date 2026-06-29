@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "addis radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing"
+  ],
+  "lineage": "Eighteenth radio station; first to leave the major/minor world by encoding Ethiopian qñit pentatonics as data tables fed into the shared improv.h improviser — scale-as-identity replaces chord progressions entirely.",
+  "homage": "Mulatu Astatke / Swinging Addis (ethio-jazz)",
+  "description": "Endless ethio-jazz - the Mulatu Astatke / Swinging Addis homage (the 1969-74 Amha/Kaifa golden age, the Ethiopiques crate), station #17, and the FIRST station to leave the major/minor world: SCALES AS DATA. The seed rolls one of four Ethiopian qenit (modes) - tizita, bati, anchihoye, ambassel - pentatonics whose big intervals sound like nothing else on the dial, and EVERY melodic voice (the vibes head, the bass ostinato, both solos) is built by walking the same qenit table, so the MODE is the song's identity instead of a chord progression (improv.h's mode7 contract eats any scale). THE MODAL VAMP, chord-brain by drone: no ii-V changes, just a tonic pedal (and sometimes a second center, i to iv / i to bII) held for eight bars while a locked bass ostinato hypnotizes - one chord for eleven minutes. FIVE engines in one band: vibraphone lead = INSTR_MALLET, Wurlitzer/organ comp = INSTR_EPIANO/ORGAN, the horn line = INSTR_PD (synth-brass - the engine's nearest thing to a reedy horn, since there's no breath model - doubling the vibes head in unison and taking the second solo), upright/electric bass = INSTR_FM, and the congas / bongos / kebero are all INSTR_MEMBRANE (the struck-drumhead engine). The form is a jam: intro, head, vibes solo, head, horn solo, head, outro - and both solos are PURE PERFORMANCE via the shared improviser, so R replays the song but the vibes and horn never solo it the same way twice. The window is the coffee ceremony - the black jebena pot steaming on a low table at dusk. Seeded per song: the qenit, key, vamp pattern, head cell, bass ostinato, and the band's timbres. SPACE next song, R same tune (new solos), [ ] history, LEFT/RIGHT feel (alem/mellow/swing/fire), UP/DOWN tempo, T tone, M power, B band (vibes/keys/horn - swap chairs live, horn can switch off), H help."
+}
+de:meta */
 // ── ADDIS RADIO ───────────────────────────────────────────────────────────
 // Swinging Addis: the ethio-jazz station — Mulatu Astatke, Mahmoud Ahmed,
 // the 1969-74 Amha/Kaifa golden age. Hypnotic minor vamps, a vibraphone lead

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "micro 4x",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "noise-terrain",
+    "grid-movement",
+    "finite-state-ai"
+  ],
+  "lineage": "A micro Civilization/4X (explore-expand-exploit-exterminate) on a 15x11 fog-of-war tile map with settler/warrior units, city economy, and a greedy AI rival — a minimal complete 4X loop in ~400 lines.",
+  "genre": "strategy",
+  "description": "A tiny turn-based 4X strategy game (eXplore, eXpand, eXploit, eXterminate), you (blue) versus an AI rival (red) on a fogged tile map. Mouse-driven: click your unit then an adjacent tile to move, or onto an enemy to attack. A Settler founds a city on grass or forest; click a city to spend the gold it earns on Warriors or Settlers. END TURN lets the rival act and collects income. Reveal the map, expand your cities, and wipe out the enemy to win. Each map is freshly generated."
+}
+de:meta */
 #include "studio.h"
 
 // ── MICRO 4X — eXplore, eXpand, eXploit, eXterminate ──────────

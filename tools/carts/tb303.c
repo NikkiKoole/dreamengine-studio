@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "tb-303 bass line",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "generative"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "adsr-envelope",
+    "generative-melody",
+    "step-sequencer"
+  ],
+  "lineage": "Roland TB-303 (1981) acid machine; a monosynth-plus-sequencer where the sound is the resonant lowpass — live cutoff/reso/drive modulation on a held voice, authentic non-retriggering slide, and an N-key random root-heavy minor-pentatonic line generator.",
+  "homage": "Roland TB-303 Bass Line (1981)",
+  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass, sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and six draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), and DRV is the new instrument_drive/note_drive saturation: tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite. Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents and slides, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include <stdio.h>

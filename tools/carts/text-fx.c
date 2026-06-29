@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "text fx",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "genre": "lab",
+  "description": "Animated text — the dialogue/title/HUD toolkit, eight effects each a 5-15 line technique you can lift straight into a game: typewriter (with the tick sound that sells it — X toggles), per-char wave, shine sweep, wipe reveal, damage-number shake, rainbow, and an outlined bounce. Two tools do most of the work: print() returns the x after what it drew, so printing one character at a time gives every char its own offset/color; and clip() turns into a reveal machine — a growing window wipes text in, a narrow moving window sweeps a shine across it. All effects loop forever; watch, then steal the one you need."
+}
+de:meta */
 #include "studio.h"
 
 // TEXT FX — animated text, the dialogue/title/HUD toolkit. Plain print() is

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "low end radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "swing-timing",
+    "drum-synthesis"
+  ],
+  "lineage": "A Tribe Called Quest / Low End Theory homage; introduces chord brain #5 (modal-mixture maj7/maj9 pool with crate-digger loop rotation so the tonic drifts), a three-tier groove pocket (tight/swung/drunk ms offsets), and Q-Tip layered snare hits (noise crack + sine thump fired as one).",
+  "homage": "A Tribe Called Quest - The Low End Theory",
+  "description": "Endless jazz-rap boom bap - the A Tribe Called Quest / Low End Theory homage, fifth of the radio family. Chord brain #5, THE SAMPLED LOOP: generates a lush modal-mixture soul progression (borrowed bIII/bVI/bVII voiced maj7/maj9, a 9sus dominant, the bVI as maj9#11 - per the r/musictheory Electric Relaxation analysis), then cuts a 2/3/4-bar loop (3 favoured) and ROTATES it like a crate-digger dropping the needle mid-phrase, so the tonic moves. Upright-ish bass front and center leaning +12ms, full groove template (hats rush -8ms, snare drags +22ms, 16ths swung 57%), Q-Tip layered snare (noise crack + sine thump as one hit), tremolo rhodes stabs, vinyl dust, hook lead narrowed to each chord's tones. No tempo wobble - samplers don't drift. Seed on display (LOWEND_SEED / R / [ ] history), H help. Worked example #5 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include <stdio.h>

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "fm",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "fm-synth",
+    "adsr-envelope",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Port of the navkit FM engine (DX-series two-operator architecture); novel as an interactive modeling rig that exposes the full macro+ADSR patch space and prints the exact instrument() call.",
+  "description": "INSTR_FM showcase - the third modeled ENGINE: two-operator FM, the DX-synth recipe. An inaudible modulator sine bends the carrier's phase; brightness DECAYS within each note like a real DX strike (bright attack, mellow tail), and SWELLS along a slow amp attack so brass can speak. The 1:1 detent carries the built-in DX tine - the E.PIANO attack ping. The three engine macros: instrument_harmonics = carrier:mod ratio (snapped detents - integers sound musical/harmonic, off-integers are bells and metal), instrument_timbre = brightness (FM amount), instrument_morph = modulator feedback (clean to saw-edge growl to noisy clang). Five presets (1 epiano, 2 bell, 3 bass, 4 brass, 5 clang) are knob positions plus an ADSR - a DX patch is both, since this engine deliberately doesn't bake its amp envelope. The modeling rig: seven sliders (three macros + a full ADSR with live ms readouts and a drawn envelope shape - the selected segment lights up), and the panel prints the exact instrument() call to copy into your cart. The scope draws the engine's actual formula live - strike a key and watch the wave mellow (and the tine flicker). A S D F G H J K play a major scale, 1..5 presets, drag any slider (or LEFT/RIGHT + UP/DOWN), SPACE chord, M autoplay on/off."
+}
+de:meta */
 // fm — INSTR_FM showcase: two operators, three macros, four envelope sliders, one scope.
 //
 // The third modeled ENGINE: a carrier sine you hear, and an inaudible modulator sine

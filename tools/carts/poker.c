@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "video poker",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine"
+  ],
+  "lineage": "Standard arcade video poker (Jacks or Better); straightforward card-game implementation with a clean hand-evaluation algorithm and a three-state machine (waiting/holding/showing).",
+  "genre": "tabletop",
+  "description": "Jacks-or-Better video poker, the arcade classic. You are dealt five cards; click the ones to KEEP (or use Left/Right + A), then DRAW to replace the rest. A pair of Jacks or better pays out, with bigger hands paying more — see the schedule up top. The BET button cycles 1-5; max bet earns a Royal Flush bonus. Mouse-driven, B also deals/draws."
+}
+de:meta */
 #include "studio.h"
 #include "cards.h"
 

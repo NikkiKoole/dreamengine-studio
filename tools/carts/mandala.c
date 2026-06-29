@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "mandala pad",
+  "status": "active",
+  "kind": [
+    "toy"
+  ],
+  "teaches": [
+    "radial-symmetry"
+  ],
+  "lineage": "A generative drawing instrument — the visual cousin of the synth carts; one gesture replicated across N radial sectors (with optional reflection) blooms into a kaleidoscope, RAINBOW mode flowing colour along the stroke.",
+  "description": "A generative visual instrument — the drawing cousin of the synth carts. You don't place pixels by hand (that's Deluxe Paint); you make ONE gesture and a kaleidoscope does the rest. Every stroke is mirrored across N radial sectors (and optionally reflected), so a careless squiggle blooms into a symmetric mandala — and in RAINBOW mode the colour flows along the stroke, so it's almost impossible to make something ugly. LEFT-drag paints, RIGHT-drag erases, wheel/[ ] sizes the brush, LEFT/RIGHT change the sector count, M mirror, V colour mode (solid/rainbow/rings), G guides, H hides the UI for a clean screenshot, C clear, N new, S save."
+}
+de:meta */
 #include "studio.h"
 
 // ── MANDALA PAD ───────────────────────────────────────────────────────────

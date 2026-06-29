@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "oil show",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "dithering-gradient"
+  ],
+  "lineage": "No direct cart lineage; the oily iridescent look is novel — a metaball scalar field feeds Bayer ordered-dithering between adjacent palette stops so colour transitions emerge from the field gradient, not special-cased edge logic.",
+  "description": "Liquid light show — five metaballs drift across the screen; the scalar field at each pixel drives Bayer ordered-dithering between adjacent palette colours, giving the oily iridescent edges where blobs merge. The whole colour scheme slowly drifts through the rainbow. A re-rolls the blobs, B pauses the colour drift."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

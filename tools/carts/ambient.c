@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "ambient radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing"
+  ],
+  "lineage": "Night sibling of bossa radio (bossa.c), same seed contract and radio.h chassis; novel in using held note_on voices with note_glide portamento and per-note LFOs instead of plucked events, and replacing cadence-driven harmony with a weighted modal degree walk.",
+  "description": "The night sibling of bossa radio: an endless AM station composing beatless ambient drift. Four held pad voices (note_on) morph between chords via note_glide portamento - the sound never stops; per-note LFOs add tape wow and filter breathing. Harmony is a weighted walk over one mode (lydian/dorian/mixolydian/aeolian), no cadences, just drift; sub bass glides under, wind and sparse bell arps above. Every song is a 32-bit seed on the display. SPACE next, R same dream again, [ ] history, LEFT/RIGHT feel, UP/DOWN pace, M power. Pin a favourite via AMBIENT_SEED. Worked example #2 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // shared station chassis — ambient takes the PRNG + history +
                      // chrome, and skips the step clock (it's beatless)

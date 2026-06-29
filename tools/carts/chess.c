@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Chess",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Full legal chess (castling, en passant, promotion) with a depth-3 negamax CPU opponent; no chess cart existed before — the move-gen + make/unmake + alpha-beta loop is the conceptual contribution.",
+  "genre": "tabletop",
+  "description": "A complete, legal game of chess on one crisp 8x8 board — every piece move, captures, castling, en passant, pawn promotion, and full check / checkmate / stalemate detection, on a primitive-drawn board with readable pixel-art piece sprites (authored in code via sprite-draw.js). Play two-player hotseat or face a depth-3 negamax CPU that weighs material and central control, picking either color. Pick up a piece and its legal squares light up (dots for moves, rings for captures), the last move leaves a trail, a checked king flashes red, and checkmate lands with a fanfare and a screen shake; a tiny win tally persists between sessions. Controls: click your piece to select (legal targets highlight), click a target square to move, click the piece again to deselect; on the title screen click HOTSEAT or VS CPU (white/black); in game R starts a new game and M or ESC returns to the menu."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 #include <string.h>

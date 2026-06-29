@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "lofi fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "swing-timing"
+  ],
+  "lineage": "The lo-fi/Nujabes/Dilla pole of jazzy hip-hop, distinct from lowend's boom-bap; novel in THE DRUNK POCKET - a dialable off-grid time feel (snare-late/lazy-kick/swing + humanize), the loose pocket lowend undersold. Reuses vapor's lo-fi rack.",
+  "homage": "Lo-fi hip-hop (Nujabes / J Dilla)",
+  "description": "Lo-fi jazzy hip-hop - the Nujabes / J Dilla / beats-to-study-to pole, dreamier and hazier than lowend's hard boom-bap (we ship that too). Lush extended Rhodes jazz (maj9/m11/13 loops) over a dusty SWUNG kit, wrapped in vinyl crackle + tape warmth. The headline brain is THE DRUNK POCKET - the off-grid feel: the snare drags LATE, the kick is lazy, the hats swing, with a little seeded humanize wobble - and it is ADJUSTABLE: a POCKET knob (LEFT/RIGHT) from tight (on the grid) -> loose -> behind -> drunk, defaulting to a tasteful moderate drag (never seasick unless you crank it); the loose feel lowend undersold, here done right and under the player's control. The harmony is a slow static 2-4 chord extended-jazz loop; a muted-horn / vibe sampled-feel dab floats over it, filtered + reverbed and laid back. The lo-fi rack (set-and-hold, per mood) is tape wow/flutter + gentle echo + reverb + a held vinyl-crackle bed (reused from vapor). The seed rolls a MOOD: sleepy / dusty / rainy / sunny (each sets tempo, scale, the default pocket and the crackle). The window is a cozy night room: a rainy window, a breathing desk lamp, and a turntable whose platter spins with the tempo. SPACE next, R replay, [ ] history, LEFT/RIGHT pocket (tight..drunk), UP/DOWN tempo, T tone, B band (keys rhodes/wurli, bass upright/round, dab horn/vibe/off), M power, H help. Pin via LOFI_SEED."
+}
+de:meta */
 // ── LOFI FM — lo-fi jazzy hip-hop ─────────────────────────────────────────────
 // The lo-fi / Nujabes / J Dilla pole of jazzy hip-hop — dreamier and hazier than
 // lowend's hard boom-bap (we ship that already). Lush extended Rhodes jazz over a

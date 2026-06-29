@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "plaid fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "polymeter",
+    "generative-sequencer",
+    "fm-synth"
+  ],
+  "homage": "Plaid (Andy Turner & Ed Handley) - warm melodic Warp IDM",
+  "description": "Plaid's warm, melodic IDM, generated forever - the GENTLE pole of Warp, the anti-braindance/squarepusher: intricate but tender, never aggressive. The brains, cart-side over radio.h's clock: INTERLOCKING ARPEGGIOS (the headline) - 3-4 little bell/mallet/pluck cells, each cycling at its OWN length (5/7/8/9/11 steps) against the bar, so they phase and weave and the melody EMERGES from the overlap (the melodic cousin of gamelan's kotekan + eno's coprime loops, but pitched arps over harmony; all in one lush mode so every overlap is consonant). ODD METERS THAT FLOW - the bar is a rolled odd length (5/8, 7/8, 5/4...) and the soft broken-beat kit smooths it so it lilts rather than limps. MODAL DRIFT - a slow root walk under the weave (pad chord + bass) gently re-colours the fixed arps, the Plaid re-harmonisation, bittersweet maj7/9. FORM = ACCRETION - arps enter and recede on an arc, the weave thickening to a peak mid-track and thinning out, with a breakdown. The window WEAVES A PLAID: each arp is a coloured thread (its cycle length sets the stripe spacing), warp crossing weft, brightening where they overlap and when the arp sounds - the interlocking-arp brain drawn as the emerging tartan (the name). SPACE next track, R replay, [ ] history, LEFT/RIGHT weave density (sparse/warm/woven/full), UP/DOWN tempo, T tone, B band (arps bells/softer, kit broken/brushed), M power, H help. Pin via PLAID_SEED."
+}
+de:meta */
 // ── PLAID FM ─────────────────────────────────────────────────────────────────
 // Plaid's warm, melodic IDM, generated forever — the GENTLE pole of Warp, the
 // anti-braindance/squarepusher: intricate but tender, never aggressive. Full

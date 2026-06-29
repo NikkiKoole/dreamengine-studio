@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "cathedral",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "chord-voicing"
+  ],
+  "lineage": "Port of navkit's Schroeder reverberator; teaches reverb-as-space (tail length + damping) vs echo, paired with a slow chord auto-player to let the room speak.",
+  "description": "The showcase for THE reverb bus (the first effect on the new master FX section). A church organ in a vast stone hall: strike a chord and it BLOOMS - the dry attack is brief, but the reverb tail swells and hangs in the air for seconds, the way a chord rings under a vaulted ceiling. Echo repeats taps; reverb is a SPACE, and that difference is the whole point. Drag the three knobs: SIZE = chapel to endless cathedral (tail length), DAMP = bright stone to warm dark stone (tail tone), WET = how drenched the organ is. Tap a chord pad or press 1..6 to ring it into the hall; SPACE toggles AUTO, a slow self-playing processional; H for help. Each chord throws an expanding ring of light that rises through the arches and fades over the length of its own reverb tail. Built on instrument_reverb() sends into a reverb(size,damping) room - a port of navkits Schroeder reverberator."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

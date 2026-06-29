@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "8. catch the star",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "A complete game — move your player, catch the star, hear the sound, beat your score."
+}
+de:meta */
 #include "studio.h"
 
 int px, py, sx, sy, score;

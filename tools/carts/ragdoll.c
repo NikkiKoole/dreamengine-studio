@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Ragdoll",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "spring-damper"
+  ],
+  "lineage": "Classic Verlet stick-figure demo; novel: angular spring (cross-product torque) layered on top of distance constraints for autonomous stand-up recovery, making posture an emergent property rather than a keyframed animation.",
+  "description": "Three tiny Verlet-physics stick figures that struggle to stay upright — connected points, distance constraints, and gravity. Drag any limb to grab and throw: while held a character goes fully limp, and the moment its feet touch the ground again it straightens back up. Z drops a rolling ball at the mouse, X spawns a new character from the sky, R resets the scene."
+}
+de:meta */
 #include "studio.h"
 
 // RAGDOLL — verlet physics stick figures that struggle to stay upright.

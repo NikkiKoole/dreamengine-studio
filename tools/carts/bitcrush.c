@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "bitcrush",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "Lo-fi quantization - the crunchy 8-bit / retro grit - shown master vs per-instrument. A clean PLUCK melody plays over a SAW bass through the new crush() bus: drop the BIT DEPTH (floor to 2^bits levels - low = gnarlier steppy quantization noise) and the SAMPLE RATE (sample-and-hold every Nth sample - the downsampled aliasing whine). Cycle the route MASTER (crush the whole mix) -> BASS ONLY (instrument_crush on just the bass, so the lead stays crystal while the low end goes lo-fi - the point of making it a per-instrument bus, not master-only) -> OFF, and watch the live quantization-staircase preview redraw as you turn the knobs. UP/DOWN sets bit depth, LEFT/RIGHT the sample rate, A (or tap the banner) cycles the route."
+}
+de:meta */
 // bitcrush — lo-fi quantization (bit-depth + sample-rate reduction), master vs per-instrument.
 // A clean PLUCK melody plays over a SAW bass. Crush the WHOLE mix, or just the bass, and hear
 // the difference: per-instrument crush grits the bass while the lead stays crystal.

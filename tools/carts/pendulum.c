@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "double pendulum",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Two rods swinging from each other — and pure chaos. Solving the real equations of motion in tiny steps, the tip traces a glowing trail. The smallest change in the start sends it on a completely different path, which is what chaos means. Z gives a new random start to watch it diverge, X toggles the trail."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

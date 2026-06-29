@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "sloop",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "rigid-body",
+    "verlet-integration",
+    "spring-damper",
+    "noise-terrain"
+  ],
+  "lineage": "Inspired by Cataclysm: DDA's vehicle system; sibling to orbit (same integrator) and coaster (same physics honesty); extends worldgen's infinite chunk-streamed city as its drive world.",
+  "genre": "sandbox",
+  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

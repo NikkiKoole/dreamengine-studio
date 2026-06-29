@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "city pop radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "step-sequencer",
+    "swing-timing"
+  ],
+  "lineage": "Sixth radio-family station built on radio.h/solo.h chassis; novel: genre encoded as a named chord-template vocabulary (Royal Road, JTTOU, descent), truck-driver modulation, and session-tight ±2ms humanization as an explicit anti-groove design.",
+  "homage": "Tatsuro Yamashita / Mariya Takeuchi (city pop)",
+  "description": "Endless Japanese pop-funk - the city pop homage (Tatsuro Yamashita / Mariya Takeuchi / Plastic Love), sixth of the radio family. The canon as data: the ROYAL ROAD progression (IVmaj7-V7-iiim7-vim9, THE J-pop changes), Just-the-Two-of-Us loops (IVmaj7-III7alt-vim9-I9), the bittersweet descent (Imaj9-I9-IVmaj7-ivm6); octave-popping disco bass with double-chromatic 16th runs; two-voice guitar chucks that lay out for the bar turn; saw-brass anticipation hits; session-tight timing (the opposite of low end radio - no groove lag, +-2ms only); and the truck driver's gear change: the last chorus modulates up a whole step. Density = arrangement curve x feel knob; T cycles tone. Seed on display (CITYPOP_SEED / R / [ ] history), H help. Worked example #6 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"
 #include "solo.h"    // the jam layer — a scale-locked solo strip over the changes   // the shared station chassis (PRNG, clock, voice-leading, chrome)

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "street brawler",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Sibling of streetfighter.c; the distinctive addition is the two-player 1v1 frame-data system (startup/active/recovery) and the input-buffer quarter-circle motion recogniser.",
+  "genre": "fighting",
+  "description": "A 2-player 1v1 fighting game. Each fighter is a state machine — walk, jump, crouch, block (hold away), punch, kick — and attacks have startup/active/recovery frames so spacing and timing decide the match. The fireball is a real quarter-circle motion (down, down-forward, forward + punch) read from an input buffer, the trick behind every fighting-game special. Best of 3. P1: WASD + Z/X. P2: arrows + comma/period."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "roadhouse radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "swing-timing"
+  ],
+  "lineage": "Extends the radio.h station family (first station to use wave_set + improv.h) — novel in that its improviser builds phrase-arc solos with tension/release rather than repeating a fixed cell.",
+  "homage": "The Doors (modal psych-rock)",
+  "description": "Endless modal psych-rock - the Doors homage, station #13, built to carry THE IMPROVISER (melody brain #2): the first station whose band can take a SOLO. The jam form is head, organ solo, guitar solo, head out - and each 16-bar solo is improvised phrase by phrase: a 3-4 note motif invented at solo start gets stated, answered (inverted), sequenced up the mode, and doubled at the peak of a tension arc (density rises, register climbs, release comes home long), with breath rests between phrases. The improviser is PURE PERFORMANCE - engine rnd, never the seed - so R replays the song but the solos are new every time. A seeded 'how blue' knob biases b3/b7/b5 intrusions over the major-side vamp (the deliberate clash). The band: Vox-style combo organ - the FIRST station to use wave_set (a drawn drawbar cycle on INSTR_USER0); Rhodes PIANO BASS = the FM epiano detent an octave down playing a seeded swung ostinato; Krieger guitar = INSTR_PLUCK with an open-string drone ringing under the solo line; trio kit rolled shuffle / latin / rock. Mixolydian, dorian, or phrygian two-chord vamps (B-A forever). SPACE next jam, R same song new solos, [ ] history, LEFT/RIGHT feel (seance/lounge/jam/storm), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help."
+}
+de:meta */
 // ── ROADHOUSE RADIO ───────────────────────────────────────────────────────
 // The thirteenth station: endless modal psych-rock — the Doors homage. One
 // vamp, two keyboards played by one man, and a band that JAMS: the form is

@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "oil plate",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "voronoi"
+  ],
+  "description": "Liquid light show, Voronoi style. Three large coloured blobs (orange, blue, red) drift slowly; each pixel is owned by the blob with the highest field — flat colour regions with a bright iridescent seam exactly where two blobs meet. Small dark bubbles float inside the regions and get a bright ring for free from the same seam logic. A re-rolls."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

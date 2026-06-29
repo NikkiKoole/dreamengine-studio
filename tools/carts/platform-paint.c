@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "paint a level",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "tilemap-collision"
+  ],
+  "lineage": "Same rect-mover as platform-rects; the novel element is using a painted sprite slot as level data — sget() reads each pixel's palette index to classify block type at init, so repainting the sprite changes the level without touching code.",
+  "genre": "platformer",
+  "description": "The same pixel-perfect platformer mover as 'platform engine (rects)', but the level is painted, not coded. Edit sprite slot 0: 1 pixel = 1 block, and the color is the type — brown solid, light-peach one-way, red hazard, yellow coin, green spawn. At startup the cart reads the sprite back with sget() and builds the world, so repainting the sprite makes a whole new level with no code change. Collect the coins, avoid the red spikes. Arrows/WASD move, Z or up to jump."
+}
+de:meta */
 #include "studio.h"
 
 // PAINT-A-LEVEL — the same pixel-perfect mover as `platform engine (rects)`,

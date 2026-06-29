@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "touchlab",
+  "status": "active",
+  "kind": [
+    "probe"
+  ],
+  "teaches": [],
+  "description": "Device test card for the touch API - pick it up the day a real touchscreen is available. Build for web, open the LAN url on the iPad/phone, and run down the 7-point checklist on screen: crosshair accuracy under CSS scaling, ten-finger tracking, touch_id stability while other fingers tap, tapp() single-fire drumming, lift detection (cart-side diff - the data a future touch_ended API would return), iOS audio unlock blips, and whether Safari gestures leak (pinch/double-tap/edge-swipe must not move the page). Verdicts go to docs/design/touch-notes.md section 5. On desktop the mouse is one finger (id -2), enough to smoke-test half the card."
+}
+de:meta */
 // touchlab — device test card for the touch API
 //
 // PROBE (see docs/design/touch-notes.md §5 and probe-carts.md): pick this up

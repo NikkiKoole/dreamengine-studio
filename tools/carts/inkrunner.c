@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "ink runner",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "state-machine",
+    "save-load-persistence"
+  ],
+  "lineage": "Original cart; novel in using pget pixel-color as the sole terrain data structure so painted ink and procedural ledges share one collision model, with verlet-integrated limbs producing an emergent walk cycle.",
+  "genre": "platformer",
+  "description": "THE GROUND IS WHEREVER YOU HAVE PAINTED — the touching_color/pget showcase. An endless scroller: a tiny verlet walker trots along procedural ledges while you paint bridges and ramps with the mouse, racing the ever-faster scroll. There is no terrain data for the feet — each step scans the canvas downward for the first solid-colored pixel (ledge brown or your wet peach ink) and really stands on it. The walk cycle is emergent: planted feet are pinned in world space, so the scroll drags them back under the body like a treadmill. And the rescue: a runner that walks off an edge FALLS, but its dangling feet keep scanning — scribble under it and the feet catch the ink mid-air. Ink is metered and regenerates. Hold left mouse to paint, Z restarts, best distance saved."
+}
+de:meta */
 #include "studio.h"
 
 // INK RUNNER — the touching_color/pget showcase: THE GROUND IS WHEREVER YOU

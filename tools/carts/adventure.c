@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "escape the cave",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "dialogue-tree",
+    "inventory-system",
+    "title-play-gameover-loop",
+    "state-machine"
+  ],
+  "lineage": "Sierra On-Line point-and-click (King's Quest / Space Quest style) — hotspot walk-to, narration pop-ups, a pit death, and score; novel in fitting the whole parser-adventure loop into ~230 lines.",
+  "genre": "adventure",
+  "description": "A tiny Sierra-style adventure. Walk with the ARROW KEYS or CLICK where you want to go; stand next to something and press A to look, take or use it. Read the sign, take the rusty key, and open the iron door to escape — three points in all. Watch your step around the pit: this is a Sierra game, after all. Features pop-up narration boxes, an inventory, a score, and a classic death-and-respawn."
+}
+de:meta */
 #include "studio.h"
 
 // ── ESCAPE THE CAVE — a tiny Sierra-style adventure ───────────

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "coaster & slide",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "spring-damper"
+  ],
+  "lineage": "Direct port of an old LOVE2D toy ('achtbaan'); same gravity-along-tangent physics core serves both coaster (closed loop) and slide (open flume) modes.",
+  "description": "Draw a track with the mouse, then watch it run. Flip with M between COASTER - a closed loop where a coupled train circulates forever, fed by a chain-lift (hoist) up the back - and SLIDE - an open water flume where riders flow top-to-bottom, splash at the end, and ride again. Same gravity-along-the-tangent physics core for both. Drag in empty space to lay track, drag a point to reshape it; hold B/S/H/F while drawing to paint boost/slow/hoist zones (green/red/yellow) or flip points (pink) where carts swap to the other rail for corkscrews. Up/down lengthen the train. Support beams drop to the ground automatically. Opens on a ready-made loop. A port of an old LOVE2D toy."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

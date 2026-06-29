@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "needs",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "pathfinding",
+    "sonification"
+  ],
+  "lineage": "Directly cites RogueBasin 'Need-driven AI' and 'Variety in NPC behavior'; implements utility-scoring AI with per-creature personality weights and Dijkstra distance-field pathing, plus positionally panned pentatonic sound as a data readout.",
+  "description": "Need-driven (utility) AI, the @ colony (RogueBasin: Need driven AI + Variety in NPC behavior). Seven creatures each carry four draining needs (hunger, thirst, energy, social); every decision they score each need by urgency = (100-value)*weight and go satisfy the most urgent -- food f, water ~, a bed =, or the nearest friend. No scripts: behaviour falls out of the meters. PERSONALITY (per-creature weights + drain rates) makes a glutton, camel, sloth, loner, socialite live visibly different lives from one rule set. Pathing reuses Dijkstra fields (one per resource). A thought-bubble glyph over each creature shows its current goal; click one to inspect its need bars. SOUND: every satisfied need rings a short pentatonic motif (munch/gulp/snore/chime), pitched per creature and panned by position -> the colony's resolving needs become a generative texture. R reseeds."
+}
+de:meta */
 #include "studio.h"
 
 // NEEDS — need-driven (utility) AI, the @ colony.

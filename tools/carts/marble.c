@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "Marble Madness",
+  "status": "active",
+  "kind": [
+    "game",
+    "probe"
+  ],
+  "teaches": [
+    "save-load-persistence",
+    "verlet-integration",
+    "isometric-projection"
+  ],
+  "lineage": "Marble Madness (Atari 1984) — isometric tile course with slope gravity and wall bounce; novel addition is a position-stream ghost race saved across sessions.",
+  "genre": "arcade",
+  "homage": "Marble Madness (1984)",
+  "description": "Roll a chrome marble down three isometric plateaus to the blinking GOAL before the 30-second clock runs out — then RACE YOUR GHOST: every winning run that sets a new best time is recorded (a position stream, saved between sessions) and replays as a see-through blue marble rolling that exact run alongside you. Real momentum physics: arrows only nudge, gravity does the rest. Ramps are the only way UP a ledge; rolling OFF one gives real airtime — the speedrun tech: a one-unit drop on the east side skips the second ramp, but overshoot it and you fly off the open edge into the void. Acid kills, checkpoints bank progress, a filtered rumble rises with your speed, and a landing thump + screen kick sell every drop. Arrows roll the marble (relative to the iso view); Z or Enter restarts."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

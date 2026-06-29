@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "upright bass",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "waveguide-synth"
+  ],
+  "lineage": "Descends from pdbass.c (which worked around the one-directional bend limit of INSTR_BOWED by re-articulating per semitone); upright is the clean rewrite once the engine grew two-directional continuous glide, adding arco/slap articulation modes and body percussion.",
+  "homage": "Jazz double bass",
+  "description": "The jazz double bass, played the way you actually play one: the FINGERBOARD is the instrument. Four strings (E A D G), pitch running left-to-right. Press a string to sound a note, slide LEFT/RIGHT to WALK THE FRETS (each semitone re-articulates - clean in both directions, like fingering a walking line), PULL the string UP to BEND the pitch continuously (up to +2 semitones, the string visibly deflects toward your finger), lift to damp - monophonic and last-note-wins. You can also PICK: start a drag in the open space NEXT TO a string and sweep THROUGH it, and it plucks the moment your finger crosses it (each string sounds at the fret under your finger) - press right ON a string grabs/frets it, press in the gap picks it. The split is deliberate and matches the engine's physics: a waveguide string bends UP cleanly but can't be bent below its pitch (verified), so downward motion is the fret walk and the up-pull is the smooth continuous bend - horizontal picks the note, vertical is the expression. The right hand is an ARTICULATION switch, and pizz + arco are the SAME string model (INSTR_BOWED - the engine's built-in eng_tune pizzicato mode plucks the very string the bow would otherwise draw, exactly like the real instrument): PIZZ is the jazz sound, a woody finger pluck that rings and thumps (default); ARCO draws the bow - a slow speak, sings while held, with a left-hand vibrato; SLAP adds the string snapping back onto the fingerboard (the rockabilly thump). And the WOOD around the fingerboard is PERCUSSION - slap the belly (right) for a low boom, knock the neck (left) for a drier tick; where you hit maps the pitch but it keeps the woody bass-body character (INSTR_MEMBRANE + a knuckle transient). TONE sets mic/pickup darkness; RING is how long a pizz note rings after you lift. Range E1-G3. Play with mouse or a phone tap, or the computer keyboard (GarageBand musical-typing map, A = E1; Z / X shift the octave). Dressed as an upright laid sideways: scroll + tuning pegs at the left, ebony fingerboard with faint fret guides, bridge + f-holes at the body end, the low E string drawn thickest, and the live string deflecting as you bend it."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

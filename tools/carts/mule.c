@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "M.U.L.E.",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "save-load-persistence"
+  ],
+  "lineage": "Homage to M.U.L.E. (1983, Ozark Softscape); novel in distilling the full economic loop — install, produce, dynamic auction price — into a single-player one-round cart.",
+  "genre": "strategy",
+  "homage": "M.U.L.E. (1983)",
+  "description": "One full round of the 1983 economic classic on planet Irata. The whole loop: buy a MULE at the store, outfit it for food / energy / smithore, then race it out to a land plot before it bolts (a runaway timer). Installed MULEs harvest goods based on their terrain, and then you sell your ore in an auction where every sale floods the market and drops the price — so sell while it is high. Supply and demand, made playable. Left/right choose, Z acts, X skips; net worth is scored and your best is saved."
+}
+de:meta */
 #include "studio.h"
 
 // M.U.L.E. — one full round of the 1983 economic classic, on planet Irata.

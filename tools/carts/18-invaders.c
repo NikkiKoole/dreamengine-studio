@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "space invaders",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Space Invaders (1978) clone; whole-formation grid march with edge-detect descent, speed-up as ranks thin.",
+  "genre": "shooter",
+  "homage": "Space Invaders (1978)",
+  "description": "Classic arcade shooter. 8×3 alien grid that speeds up as you clear it, 3 enemy bullets, lives. Left/right to move, A to shoot."
+}
+de:meta */
 #include "studio.h"
 
 // space invaders

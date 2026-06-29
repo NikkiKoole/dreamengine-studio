@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "racer",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "mode7",
+    "parallax",
+    "no-sprite-vehicles",
+    "save-load-persistence"
+  ],
+  "lineage": "Descends from the Hang-On / OutRun segment-projection family; draws the road as trapezoids projected forward from a 1D segment array rather than any 3D geometry, with sine-built curves and hills — same idea as jammer/loopracer cousins but the first full traffic-and-laptime treatment in the library.",
+  "genre": "racing",
+  "description": "Pseudo-3D arcade racer. A curving road rushes toward you over hills, faked entirely with projected triangles. Dodge traffic, hold the road through the bends, beat your best lap (saved between runs). Up: gas — Down: brake — Left/Right: steer."
+}
+de:meta */
 #include "studio.h"
 
 // PSEUDO-3D RACER

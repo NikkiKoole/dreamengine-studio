@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Q*bert",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "finite-state-ai",
+    "isometric-projection"
+  ],
+  "lineage": "Homage to Q*bert (1982); pyramid drawn entirely from primitives via a simple isometric projection (cellX/cellY formulas), with Coily as a minimal chase AI that hops toward the player each step.",
+  "genre": "arcade",
+  "homage": "Q*bert (1982)",
+  "description": "Hop the pyramid. A 28-cube isometric pyramid floats in a starry void, every cube drawn from pure primitives as a shaded diamond with two side faces. You're a fuzzy orange critter who hops diagonally cube to cube, each landing flipping the top from blue to gold with a square-wave boop — paint all 28 to clear the board and climb to the next pyramid. Miss the edge and you plummet off into black; a purple snake named Coily hatches and bounces down after you, and one touch costs a life. Smooth eased hop arcs, screen shake on death, a victory chord on clear, three lives, and a saved hi-score. Controls: Q/E hop Up-Left/Up-Right, A/D hop Down-Left/Down-Right (arrows mapped diagonally as a fallback), Z or ENTER to restart after game over."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

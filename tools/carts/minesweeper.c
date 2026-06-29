@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Minesweeper",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "save-load-persistence"
+  ],
+  "lineage": "Straight reimplementation of Minesweeper (1990) on the fantasy console; the iterative stack-based flood-fill reveal and the deferred mine placement (safe first click) are the only algorithmic novelties.",
+  "genre": "puzzle",
+  "homage": "Minesweeper (1990)",
+  "description": "The desktop classic, rebuilt from scratch on the fantasy console. A 16x14 field of beveled tiles hides 30 mines; left-click reveals, and uncovering an empty cell triggers a satisfying flood-fill cascade that opens its whole region in one click. Numbers 1-8 glow in the canonical colors to count adjacent mines; right-click plants a flag. The first click is always safe — mines are seeded only after you commit. A live mine counter and a running timer flank a smiley face that grins, dies, or beams depending on your fate; clearing the board logs your best time. Tap a mine and the whole field detonates with a screen-shaking boom. Left-click reveals, right-click flags, click the face or press R for a new game."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 #include <string.h>

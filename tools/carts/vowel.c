@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "vowel",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Talkbox / formant-filter family (not a vocoder); drives a saw-chord drone through four bandpasses tuned to human vowel frequencies, with the mouth morphing visually.",
+  "description": "The FORMANT FILTER as the instrument - the showcase for formant(): four bandpasses parked at the human vowel frequencies, so a plain buzzing synth suddenly SAYS a vowel. A held saw-chord drone runs into the filter; sweep VOWEL and the chord talks OO->OH->AH->EH->EE. This is the single-input vowel filter (the talkbox family, played with a knob instead of your mouth) - NOT a vocoder, which needs a separate carrier x modulator input. The BUS side of the vowel story (colour ANY sound); INSTR_VOICE is the instrument side (a synth that sings on its own). Newest box in the effects family (spacecho/cathedral/juno/mistress/tapeloop/clavinet/eq/bitcrush/organ/vowel). The on-screen MOUTH morphs with the vowel and a ruler tracks OO..EE. VOWEL the talking knob (1..5 jump straight to a vowel), Q how pronounced/nasal, MIX dry..wet; AUTO [A] sweeps it on its own, BYPASS [Z] A/Bs the raw saw chord, H help."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

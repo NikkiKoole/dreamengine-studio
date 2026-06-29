@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "GTA",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "camera-follow",
+    "tilemap-collision",
+    "no-sprite-vehicles"
+  ],
+  "lineage": "Top-down homage to Grand Theft Auto (1997) — combines angular car physics (heading + speed → AABB wall-slide) with a wanted-star escalation loop and pedestrian random-walk AI.",
+  "genre": "sandbox",
+  "homage": "Grand Theft Auto (1997)",
+  "description": "Top-down open world sandbox. Walk and shoot twin-stick, or jack a car and run people over. 5 stars = BUSTED. WASD: move/drive — Arrows: aim+shoot — Z: enter/exit car."
+}
+de:meta */
 #include "studio.h"
 
 // GTA — top-down open world sandbox

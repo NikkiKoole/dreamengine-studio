@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Transport Tycoon",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "grid-movement",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Pocket homage to Transport Tycoon (1994); novel in using a random-walk river generator to ensure a guaranteed-solvable crossing and wiring a simple cargo-accumulation economy onto a player-laid rail path.",
+  "genre": "simulation",
+  "homage": "Transport Tycoon (1994)",
+  "description": "A pocket-sized Transport Tycoon. Two towns sit on a green tile world split by a wandering river; you lay a rail line by hand, one tile at a time, growing track out from town A until it reaches town B. The moment the line connects, town A starts stockpiling cargo and a chuffing little locomotive is yours to dispatch — it rolls A to B hauling goods, pays cash on delivery (the balance rolls up with a cha-ching and a coin pop), then runs back empty to wait for the next run. Build it, then watch it earn until you hit the tycoon goal. Left-click a grass tile next to your rail's end (or town A) to lay rail, left-click a town to dispatch the idle train, R for a new map."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

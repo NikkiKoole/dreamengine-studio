@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "tango radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "schedule-driven-agents",
+    "swing-timing"
+  ],
+  "lineage": "Station 15, descended from the radio.h chassis family (bossa/citypop/house lineage); the novel brain is a per-frame rubato conductor that drives bpm() live — the first station where tempo itself is a seeded, phrase-shaped voice.",
+  "homage": "Juan D'Arienzo / Osvaldo Pugliese / Anibal Troilo (Golden Age tango)",
+  "description": "Endless tango - the Golden Age orquesta tipica homage (D'Arienzo's drive, Pugliese's yumba, Troilo's singing bandoneon), station #15. THE NEW BRAIN: TEMPO AS A VOICE - the first station where the clock itself is an instrument. A per-frame conductor eases a rubato multiplier toward phrase-shaped targets and drives bpm() live: a lean forward through every phrase, a real ritardando into every 8-bar boundary with a hard a-tempo SNAP on the next downbeat, and a long rallentando into the ending. Depth is seeded - every song breathes its own amount, and the bandoneon's bellows in the window breathe WITH the curve. Plus the tango kit nobody else has: MARCATO/SINCOPA alternation rolled per phrase (the accent ON the and-of-2), THE ARRASTRE (three crescendo bass graces dragged into the downbeat), chicharra/golpe percussion from the band itself (no drum kit at all), and THE CHAN-CHAN - every song actually ENDS: rallentando, near-silence, V7b9... home. Harmony: a minor functional walk in the harmonic-minor dialect (iio-V7b9 cadence forced, the Neapolitan bII, an Andalusian-tetrachord flavor roll) with parallel-major cantabile sections where the violin takes the song. Form: intro A B A B A VARIACION (continuous-16th bandoneon runs) final. The bandoneon is wave_set's second station gig: a drawn free-reed cycle with a bellows-tremble LFO. SPACE next tango, [ ] history, LEFT/RIGHT feel (salon/tanda/orquesta/pugliese), UP/DOWN base tempo, T tone, M power, B band (swap chairs live), H help."
+}
+de:meta */
 // ── TANGO RADIO ───────────────────────────────────────────────────────────
 // The fifteenth station: endless tango — the Golden Age orquesta típica
 // homage (D'Arienzo's drive, Pugliese's yumba, Troilo's singing bandoneón).

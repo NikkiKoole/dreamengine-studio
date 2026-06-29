@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "the crowd",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "A plaza full of little 16×32 people walking, colliding and bouncing off each other and the screen edges — a stress test of the sprite system. The headline trick is pal()-recolored \"magic\" clothes: everyone shares just three sprite bodies, but each person's shirt (drawn in palette index 28) and pants (index 29) are swapped to random colors with pal() before drawing, so one tiny sprite set yields a whole varied crowd. Legs animate a 4-frame front-view march, agents are depth-sorted by their feet, and the ground is a real tile map() — grass, a cobbled crossroads, and scattered flowers. Z scatters everyone, X adds another person."
+}
+de:meta */
 #include "studio.h"
 
 // crowd — a plaza full of little 16×32 people walking, colliding and bouncing.

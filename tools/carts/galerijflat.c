@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "galerijflat",
+  "status": "active",
+  "kind": [
+    "generative"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "state-machine",
+    "palette-cycling",
+    "schedule-driven-agents"
+  ],
+  "lineage": "A Dutch gallery-flat at dusk: each resident runs its own leave/return + wake/sleep schedule so departures and returns self-organise into emergent rush hours, served by two coordinated LOOK-algorithm elevator cars (lift + walker FSMs); day/night ambient set by remapping all 32 palette entries through a precomputed average-blend tint table while light-source colours are held vivid.",
+  "description": "A generative Dutch gallery-access apartment block at dusk. Each re-roll randomises the concrete scheme, railing style, and every household's archetype — vitrage + symmetrical plants = elderly, bare glass + TV flicker = student. SPACE re-rolls."
+}
+de:meta */
 #include "studio.h"
 
 // GALERIJFLAT — sys 6 starter: clock + light schedules + global facade tinting.

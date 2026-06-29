@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "enginelab · dyno",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "analog-voice-modeling",
+    "sonification"
+  ],
+  "lineage": "A dyno workbench grown from sloop.c's single-voice engine sound; novel in breaking every synthesis layer (firing-rate tremolo, rasp, intake, drive, lope, burble) onto a live toggle for A/B auditioning.",
+  "description": "A car-engine sound DYNO and synthesis workbench (the next-gen voice for sloop). An engine isn't a note - it's a FIRING RATE: ~15 Hz of distinct thuds at idle climbing to ~150 Hz of buzzing tone at redline, and that sweep is the whole illusion. One master number (chug_hz) drives every layer so they stay harmonically locked: a saw BODY pinging a resonant lowpass (each edge = one combustion puff), a FIRING tremolo at the chug rate that speeds up with the revs (sloop's is stuck at 9 Hz - the #1 thing that reads as 'synth' not 'engine'), a throttle-led exhaust RASP, an INTAKE/turbo-whistle bed, DRIVE saturation that snarls under load, an idle LOPE wobble, and an overrun BURBLE crackle when you lift. Seven engine kinds (electric whine, gas, diesel clatter, steam chuff, screaming race + turbo, nuclear hum, potato-potato tractor), each a distinct recipe. Hold UP/Z/SPACE to rev, LEFT/RIGHT switch kinds, 1-7 toggle each layer live to hear what it adds, I ignition, L free-rev vs under-load, M auto-rev demo."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

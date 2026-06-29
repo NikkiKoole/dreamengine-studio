@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "rotated text (playground)",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "A throwaway sandbox for the experimental print_rot() — does the bitmap font hold up rotated? A fan of the same word radiates from one anchor at 30-degree steps (so you can see the pivot sits at the start of the text), one big word you drag through every angle live, and a column of fixed 0/45/90/135-degree samples for a crispness check (right angles stay pixel-crisp; odd angles go softly GPU-sampled). LEFT/RIGHT nudge the angle, SPACE toggles auto-spin."
+}
+de:meta */
 // rottext — print_rot playground. NOT a shipped cart; a throwaway to eyeball
 // how the bitmap font looks rotated at every angle before we commit the API.
 //   ← / →  nudge the live angle    SPACE  spin    Z  pivot    X  font

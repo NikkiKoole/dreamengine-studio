@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "1. hello screen",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Your very first cart. Clear the screen and print some text."
+}
+de:meta */
 #include "studio.h"
 
 void draw() {

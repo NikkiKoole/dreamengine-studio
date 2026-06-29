@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "ondes martenot",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "additive-synth"
+  ],
+  "lineage": "Models the 1928 Ondes Martenot ribbon synth; novel in summing harmonic stops live into a single-cycle wavetable (wave_set) and combining ribbon glissando, detuned-twin beating, pitch drift, and four diffuseur reverb colours in one instrument.",
+  "description": "The 1928 ribbon synth (Radiohead, film scores, Messiaen) - a two-hand upgrade to the theremin, played MOSTLY on the RIBBON: drag it for continuous pitch (X) while the HEIGHT is the swell (Y) - a real theremin volume hand, the glowing orb rising as it gets louder. ONE eerie voice rings the whole time, plus a DETUNED TWIN that beats against it (the haunting shimmer), a slow analogue pitch-drift, a little drive and an ensemble chorus - deliberately NOT a clean synth. la TOUCHE D'INTENSITE (the left lever) is the dynamics hand: it drives note_vol AND note_cutoff (harder = louder + brighter), rides the swell for the keyboard, and overrides the ribbon's Y when you grab it with a second finger. The CLAVIER (piano) plays tempered notes; drag UP on a held key for VIBRATO (the key-wiggle). The combinable TIMBRE stops O/C/G/N are summed live into one drawn cycle (wave_set) + an S breath layer. The four DIFFUSEURS are the loudspeakers as reverb colour (note_reverb live + the reverb bus): Principal (dry), Resonance (spring), Metallique (a bright gong shimmer, the default) and Palme (a long string-halo). Plays three ways - TOUCH (two hands: touche + ribbon), MOUSE (one pointer), or the computer KEYBOARD: GarageBand note layout (A S D F... whites, W E T Y U... blacks, labelled on the keys), Z/X octave, UP/DOWN ride the touche, and the NUMBER ROW works the buttons (1-5 stops, 6-9 diffuseurs)."
+}
+de:meta */
 #include "studio.h"
 
 // ONDES MARTENOT — the 1928 ribbon synth (Radiohead, film scores, Messiaen's

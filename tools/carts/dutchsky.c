@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "dutch sky",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "dithering-gradient",
+    "palette-cycling"
+  ],
+  "lineage": "Original toy; teaches keyframe-interpolated sky colour with fillp_anchor dither blending between palette entries, plus an altitude axis that compresses the atmosphere and reveals space.",
+  "description": "A day/night sky cycle over a flat Dutch horizon. 10 keyframes — midnight, pre-dawn, dawn, morning, noon, afternoon, golden hour, dusk, twilight — blended with a scanline dither. ← → scrub time of day. ↑ ↓ fly up through the atmosphere into space: sky compresses below, stars fill the black above. A toggles auto-advance."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

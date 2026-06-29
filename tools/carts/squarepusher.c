@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "squarepusher fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "fm-synth",
+    "swing-timing"
+  ],
+  "homage": "Squarepusher (Tom Jenkinson) - bass-virtuoso drill'n'bass",
+  "description": "Tom Jenkinson's bass-virtuoso drill'n'bass, generated forever - the sibling of braindance fm but a different beast: here the BASS is the protagonist. A fretless/slap fusion bass tears melodic lines over MOVING jazz-fusion changes (ii-V-I with secondary dominants + the tritone sub, cadence-pinned per section) while hyper-edited breaks shred underneath - and the track LURCHES between manic drill chaos and tender fusion-ballad (the Tommib calm). The brains, cart-side over radio.h's clock: THE BASS AS LEAD - a Hosono-style counterpoint walker (from ymo) cranked to virtuoso density (fast chord-tone runs with directional inertia, chromatic approaches, octave pops, and a SLAP transient - a noise pop on the accents); in SOLO sections the improviser (improv.h) takes over and shreds over the changes. RATCHETS + a VOLATILITY drum grammar (braindance's rhythm brains, pushed hotter). THE LURCH form - a rolled sequence of MODE blocks (tender / fusion / solo / manic) that detonate into each other; the form is the balance (ballad-burst vs workout vs lurch). Fusion Rhodes comps the changes, a lush string pad carries the tender interludes, a 303 squelches in the manic sections. The window is an oscilloscope the bass drives behind a Squarepusher-style LED mask (eye-slits that flash on the drums), with B (bass) and D (drum) level bars. SPACE next track, R replay (the bass plays it anew), [ ] history, LEFT/RIGHT density (calm/warm/hot/mental), UP/DOWN tempo, T tone, B band (bass fretless/fuzz, kit amen/808, keys rhodes/wurli), M power, H help. Pin via SP_SEED."
+}
+de:meta */
 // ── SQUAREPUSHER FM ──────────────────────────────────────────────────────────
 // Tom Jenkinson's bass-virtuoso drill'n'bass, generated forever. The sibling of
 // braindance.c (the Aphex station) but a DIFFERENT beast: here the BASS is the

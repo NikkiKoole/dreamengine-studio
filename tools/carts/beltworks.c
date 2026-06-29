@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "beltworks",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "factory-automation",
+    "state-machine"
+  ],
+  "lineage": "The belt layer of navkit's mechanisms experiment (one-item-per-cell conveyors with backpressure) made into a Factorio-lite: miners + a five-machine crafting tree (smelter/assembler/charger/fabricator + hub) plumbed with belts, on the logic cart's editor + cursor.h. Sibling of the `logic` signal sandbox and `runecrawl` (the signal layer); this is the transport/production layer.",
+  "genre": "simulation",
+  "homage": "Factorio (2020)",
+  "description": "A factory-builder in miniature, after Factorio. Three raw ores sit in the ground — ORE, COAL, CRYSTAL — and five machines refine them up a tree you plumb together with belts: a SMELTER turns ore+coal into PLATES, an ASSEMBLER presses 2 plates into a GEAR, a CHARGER turns crystal+coal into a CELL, and a FABRICATOR combines a gear+cell into an ENGINE. Belts carry one item per cell and BACK UP when blocked, so throughput is all about the layout — and coal feeds two machines, so you end up splitting that line. Miners only work placed ON a deposit. Deliver engines to the HUB to hit the quota (25), then keep optimizing. Opens with a complete demo factory already running. Real-time — you build while it runs. Mouse: pick a tool, left-click/drag to lay belts and place machines, right-click erases, R rotates; SPACE pause, [ ] speed."
+}
+de:meta */
 #include "studio.h"
 #include "cursor.h"
 #include <stdio.h>

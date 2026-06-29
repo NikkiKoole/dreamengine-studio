@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "cocktail radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "swing-timing"
+  ],
+  "lineage": "Fourteenth radio station; Vince Guaraldi / Oscar Peterson piano-trio homage, cousin of bossa.c. Novel: the walking bass generator (chord-tone on 1, scale motion through the bar, chromatic approach into beat 4) and the bass-takes-a-solo arc via improv.h.",
+  "homage": "Vince Guaraldi / Oscar Peterson (piano trio)",
+  "description": "An endless piano-trio set - the Vince Guaraldi / Oscar Peterson lounge homage, station #14. Two blocks make it: THE WALKING BASS, the long-promised ~20-line generator (chord tone on beat 1, scale/arpeggio motion through the middle, a chromatic approach into the next bar's root on beat 4 - four quarters a bar, forever, never repeating), and THE IMPROVISER's second gig - runtime/improv.h, extracted from roadhouse.c by the second-customer rule: the piano solos over full tension arcs, and then THE BASS TAKES A SOLO (same brain, low register, two-thirds density, the room leans in - brushes drop to a whisper, the piano just nods). Harmony is a weighted ii-V-I functional walk with secondary dominants and the tritone sub, cadences FORCED into the last two bars of every 8 - the set always comes home. Swing at 62%: ride pattern ding ding-ga-ding, hat snapping 2 and 4, feathered kick, brush sweeps. Trio set form: head, piano solo, bass solo, piano trades back, head out. R replays the tune - the solos are always new. SPACE next tune, [ ] history, LEFT/RIGHT feel (last call/set one/set two/burner), UP/DOWN tempo, T tone, M power, B band (swap chairs live), H help."
+}
+de:meta */
 // ── COCKTAIL RADIO ────────────────────────────────────────────────────────
 // The fourteenth station: an endless piano-trio set — the Vince Guaraldi /
 // Oscar Peterson lounge homage. Piano, upright bass, brushes; nobody sings,

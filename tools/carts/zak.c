@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Zak McKracken",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "dialogue-tree",
+    "inventory-system",
+    "state-machine"
+  ],
+  "lineage": "Homage to Zak McKracken (1988) and the SCUMM engine — a from-scratch verb-bar / hotspot / scene-transition adventure engine, the only SCUMM-style point-and-click in the cabinet.",
+  "genre": "adventure",
+  "homage": "Zak McKracken (1988)",
+  "description": "A SCUMM-style point-and-click caper: you're tabloid reporter Zak, woken by a phone tip that your plane ticket is locked in your desk. Three hand-drawn rooms — a moody SF apartment with a ringing phone and a fishbowl, a hallway with a stuck vending machine and a fire-axe, and a night cab to the airport — wired into a real scene engine with a four-verb bar, a hover-labeled hotspot grammar, an inventory strip, and walk-to-floor navigation. Solve the one combination puzzle (take the paperclip, USE it to bend a lockpick, pick the drawer, grab the ticket) to unlock the cab and win. Mouse: click a verb (Look/Use/Take/Talk) then a hotspot; click the floor to walk; click an inventory item to hold it, then a hotspot to use it; SPACE/ESC clears a message."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

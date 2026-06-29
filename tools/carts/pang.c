@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "pang",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "save-load-persistence"
+  ],
+  "lineage": "Faithful demake of Capcom's Pang/Buster Bros (1989); ball-splitting arc with gravity and size-tiered bounce constants, no notable algorithmic novelty beyond the arcade loop.",
+  "genre": "arcade",
+  "homage": "Pang (1989)",
+  "description": "Demake of the 1989 Capcom classic (Buster Bros). Big balls bounce around the arena under gravity. Fire your harpoon-wire straight up and a hit SPLITS a ball into two smaller, faster ones — medium into small, small into tiny, and the tiniest just pop. Clear them all to advance; a ball touching you costs a life. Each size bounces to its own height, so the screen fills with chaos as you break the big ones down. Left/Right move, A or Up fires (up to two wires at once)."
+}
+de:meta */
 #include "studio.h"
 
 // PANG  (Buster Bros)

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "house radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "chord-voicing",
+    "schedule-driven-agents"
+  ],
+  "lineage": "Tenth radio station and pilot migration to the radio.h chassis; novel in making the filter ride the compositional form (arrangement-level cutoff/res curves swept live on held string voices), the sidechain pump as a continuous filter gesture rather than an FX engine, and THE VOID silent beat as a structural device.",
+  "homage": "Daft Punk / Stardust (French house)",
+  "description": "Endless French house / filter disco - the Daft Punk / Stardust homage, tenth of the radio family, and the genre that made one trick a movement: THE FILTER RIDE IS THE SONG. note_cutoff()/note_res() swept live on held string-machine voices from an arrangement-level cutoff curve (intro closed, build sweeps up with resonance climbing, drop wide open, breakdown half-lit) while the stab and bass filters get re-aimed from the same curve - harmony never develops, the filter is the form. The SIDECHAIN PUMP as a filter gesture: the strings' cutoff ducks at every kick and blooms across the beat (beat_pos() drives it). THE VOID: the last beat before every drop the whole band cuts to silence, then slams in from nothing. Harmony is a STOLEN PLAYBOOK of 4-bar loops transcribed from the records French house actually sampled - Modjo's Chic loop (i9-bVImaj7-iv9-bVII9), Stardust's Neapolitan bIImaj7, Braxe/Falke's i-bIII-iv, One More Time's tonic-avoiding IVmaj7-V-iii7 (the unresolved progression IS the longing), Digital Love's slash-chord bass - plus flavor rolls (the Lost in Music iv-to-IV9 dorian flip, the V melting to 9sus) and needle-drop rotation, spun the entire track. A seeded Da Funk riff on a held mono square with note_glide portamento owns the drops, and the 808 drums (kick boom, three-retrigger clap, metal-bank hats) are ON LOAN FROM tr808.c - house was born on that box. Seed on display (HOUSE_SEED / R / [ ] history), T tone, H help. Worked example #10 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis — house.c is the migration PILOT
 #include <stdio.h>

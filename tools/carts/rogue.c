@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "rogue",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "dungeon-generation",
+    "turn-based-loop",
+    "finite-state-ai",
+    "save-load-persistence"
+  ],
+  "lineage": "Rogue (1980) in 350 lines — BSP-free room-in-cell grid generation with L-corridor chains, Bresenham radial FOV, and bump-to-attack turns; the FOV and procedural floor generation are the two learnable cores.",
+  "genre": "rpg",
+  "homage": "Rogue (1980)",
+  "description": "The original dungeon crawl. Every floor is procedurally generated — rooms joined by corridors — and revealed by line-of-sight fog of war as you explore. Turn-based: walk into a monster (rats, kobolds, orcs, trolls) to attack it, and it hunts you back. Grab gold and potions, gain XP and level up, and take the stairs deeper. Find the Amulet of Yendor on floor 8 to win. Death is permanent. Arrows / WASD move + attack, A quaffs a potion, B descends stairs."
+}
+de:meta */
 #include "studio.h"
 
 // ROGUE

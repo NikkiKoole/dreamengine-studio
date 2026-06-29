@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "pedalboard",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "granular-synth"
+  ],
+  "lineage": "Showcase cart for fx_order() (the reorderable effect insert chain); guitar fretboard with moveable barre-chord shapes is new to the library, as is the GRAINS granular-delay pedal.",
+  "description": "An electric guitar you PLAY through a CHAIN of stompboxes you BUILD - the showcase for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving a pedal actually changes the tone (bitcrush BEFORE vs AFTER eq sounds different). Tap '= PEDALS' (top-left) to open the palette - a tray of 9 effects drawn as little icon+name chips (BITCRUSH, EQ, CHORUS, PHASER, FLANGER, TAPE, TREMOLO, WAH, REVERB). Drag a chip UP into the chain to add it, drag a chain pedal by its label sideways to reorder, drag one DOWN out to remove; a scrollbar appears when the chain outgrows the screen. Each pedal has its real knob row (drag to dial) and footswitch (tap, or 1-9 by position). Below: a real six-string guitar (INSTR_GUITAR) - pick a chord on the ROOT (Z X C V B N M) + SHAPE (A S D F G) rows, then sweep the strings to strum (SPACE strums; M-row autoplay). Mouse and touch both work, every finger its own pointer. (Reverb is a send, so its chain position is cosmetic for now - the multiple-reverb-tanks step makes it a true insert.)"
+}
+de:meta */
 // pedalboard — an electric guitar you PLAY, through a CHAIN of stompboxes you BUILD. The showcase
 // for fx_order(): the order pedals sit in the chain is the order the engine runs them, so moving
 // a pedal actually changes the tone.

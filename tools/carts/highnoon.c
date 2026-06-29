@@ -1,3 +1,16 @@
+/* de:meta
+{
+  "title": "high noon",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [],
+  "genre": "arcade",
+  "description": "A quick-draw reaction duel at sunset. Five outlaws, each with a faster trigger finger (SLOW JOE 600ms down to DEATH HIMSELF 215ms) — wait through the standoff, ignore the tumbleweed, and fire the frame you see DRAW!. Shoot early and the EARLY! verdict shames you; hesitate and you're DEAD. Every big word is a sprite baked from the Google Font \"Smokum\" (the wanted-poster slab serif) by tools/font-bake.js — the second font-bake cart, and the one where the words ARE the game: start signal and verdicts all sspr()'d sheet regions over a vgradient sunset. Z to draw."
+}
+de:meta */
 // HIGH NOON — a quick-draw reaction duel. Wait for DRAW!... first trigger wins.
 //
 // Every big word on screen was baked from the Google Font "Smokum" (the

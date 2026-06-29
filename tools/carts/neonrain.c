@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "neon rain",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "dialogue-tree",
+    "inventory-system",
+    "state-machine",
+    "particle-system"
+  ],
+  "lineage": "An original point-and-click adventure in the LucasArts verb-interface tradition; novel in faking all scene lighting, neon tinting, fog, and rain entirely with primitives and pal().",
+  "genre": "adventure",
+  "description": "A noir point-and-click murder case. Work one rain-soaked night across five hand-painted scenes - flat, bar, alley, office - hunting the killer of singer Mara Vance. Hover hotspots to LOOK/TAKE/TALK/GO, collect evidence, grill two suspects through branching dialogue, fill your case notebook, then name the killer. Heavy pal() neon lighting, fillp() fog + wet-street reflections, a rain particle pool, and a slow synth bed (lowpass pad, vibrato sax, a sting on the reveal). MOUSE: act / click a held item onto a hotspot. RIGHT-CLICK: drop item. N: notebook. Z or click: advance text."
+}
+de:meta */
 #include "studio.h"
 
 // ── NEON RAIN ─────────────────────────────────────────────────────────────

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "tristress",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "A deterministic torture test for trifill — which is poly_fill_cov with n=3, so it already inherits the polygon scanline span fill (one DrawRectangle per row). The measurement seam for a possible DEDICATED triangle rasterizer (sorted-vertex incremental edge walk, no per-row division): scene 0 BIG (key 1) = 8 large rotating triangles (per-row math over large area), scene 1 MANY (key 2) = a 26x16 grid of tiny triangles (per-CALL setup, where poly_clamp_scan's 4 matrix-inverts dominate). Pure function of the frame counter. Verdict so far: a tri-specific path isn't worth it (BIG 0.33ms / MANY 0.97ms, no real cart trifill-bound); the per-call overhead it would cut is shared by all software fills and better solved by a per-frame clamp-box cache. Kept as the rig + seam. See guides/engine-optimization.md."
+}
+de:meta */
 // tristress — torture test for trifill (which is poly_fill_cov with n=3). Used to
 // measure whether a DEDICATED triangle rasterizer (precomputed edge slopes + incremental
 // x, no per-row division; cheap bbox clamp instead of poly_clamp_scan's 4 matrix-inverts)

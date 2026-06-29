@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "mellotron",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "additive-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Emulates the 1963 Mellotron M400 without sample playback — reconstructs tape-onset, ensemble shimmer, and the finite-tape quirk via additive wave_set stacking, pitch mod-envelope, chorus, and a per-note tape-drain timer.",
+  "homage": "Mellotron M400 (1970)",
+  "description": "The 1963 tape-replay keyboard, faked in pure synthesis. A real Mellotron has NO oscillators - each key drags a strip of pre-recorded tape (a real strings/choir/flute/brass section) across a playback head. We have no sample playback (code-first synthesis, on purpose), so the cart reconstructs the CUES the ear uses to believe a recording: each VOICE is a drawn single-cycle wave (harmonics stacked via wave_set into INSTR_USER0, the tapeloop trick); every key-press makes a soft airy breath of noise as the tape-head engages and the note settles UP to pitch over ~90ms (the capstan spinning to speed - the real Mellotron onset, modelled with a pitch mod-envelope rather than a synthy click); chorus() turns one wave into an ENSEMBLE; a gentle vibrato + slow filter drift keep the timbre from freezing; then tape() (wow/flutter/saturation) and reverb() add the worn tape and the room. The headline is the signature Mellotron quirk: THE ~8-SECOND TAPE LIMIT - each key's tape is finite, so a held note runs out and stops on its own even with the key still down (lift and re-press to rewind). Each held key shows its tape draining from the top in the voice colour, then goes dark when it runs out. LAYERING - a real Mellotron tape frame holds three tracks, so you can blend them: tap the VOICE buttons (STRINGS / CHOIR / FLUTE / BRASS) to stack timbres into the loaded tape (the drawn single-cycle waves are summed - additive, still one voice per note), or hit a COMBI preset (STR+CH, STR+FL, CHO+FL, FULL). Dressed as an M400 cabinet: wooden end-cheeks, a cream control panel, a logo plate, the voice/combi selectors and TONE + TAPE (loop length 2-8s) knobs. Hold keys to play - computer keyboard uses the GarageBand musical-typing map (white keys on the home row A S D F G H J K L ; ' with A = C, black keys on the row above W E T Y U O P - all labelled on the keys; Z / X shift the octave), or mouse = one finger, or touch = chords up to ~5 fingers and slide for glissando."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #define KEYBED_WHITE_KEYS "ASDFGHJKL;'"   // GarageBand musical-typing: home row = whites (A = C)

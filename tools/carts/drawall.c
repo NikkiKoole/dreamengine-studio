@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "drawall — every draw command",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer"
+  ],
+  "lineage": "The software-canvas everything-cart — one frame calling every studio.h draw primitive with per-frame rotation, so a regression in any one shows up in a single canvas-diff run.",
+  "description": "A reference cart that exercises EVERY studio.h drawing primitive in one frame — pixels, lines (thick/bezier), rects (incl. rotated + fillp dither), circles/ovals/arcs/rings, triangles/ngons/stars/polys, rounded rects, sprites (flipped/scaled/rotated, pal()-recoloured, colorkeyed), a tilemap, a textured triangle (tritex), text (outlined/rotated/scaled), camera/clip/zoom_rect — all spinning per frame. The one cart to throw the whole draw layer at (canvas-diff + build-all hit it), doubling as a visual catalogue of what the engine can draw."
+}
+de:meta */
 // drawall — the EVERYTHING cart: exercises every draw command in studio.h, once per frame, with
 // per-frame rotation + jitter (NOT a rotating camera, so it stays on the software canvas). This is
 // the single cart to throw the whole draw layer at — canvas-diff / build-all / a visual look all

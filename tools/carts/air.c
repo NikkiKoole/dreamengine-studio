@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "air fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing"
+  ],
+  "lineage": "Extends the radio.h station chassis into an artist-station with five song archetypes, each a cited AIR track; novel in using per-archetype template progressions that seed melodic cells, groove, and lead voice together.",
+  "homage": "AIR (Moon Safari)",
+  "description": "The Moon Safari station - the AIR (Nicolas Godin & J.B. Dunckel) homage, and an ARTIST station, not a genre: the dial plays recognizably DIFFERENT songs OF THEIRS, not one texture re-keyed. SPACE rolls a new tune and you get 'the Sexy Boy one' or 'the Cherry Blossom one' - a different song every time, but always THAT song. Built on the stolen-playbook chord brain: FIVE SONG ARCHETYPES, each a cited AIR track encoded as a template progression that ALSO fixes its groove, tempo, lead voice, mood and form. SEXY BOY (i-bVI-bVII vamp, a fuzzy driven Moog bass riff, laid-back four-on-floor); LA FEMME D'ARGENT (sunny dorian jazz loop, THE rolling melodic bassline, Rhodes comp, Moog lead); PLAYGROUND LOVE (a slow minor torch-song fall, smoky tenor sax, brushed kit); CHERRY BLOSSOM GIRL (bright I-V-vi-IV folk-pop, fingerpicked nylon guitar + breathy flute, airy); KELLY WATCH THE STARS (driving electro four-on-floor, a vocoder robotic lead). The seed varies key / melody cell / patterns / timbre WITHIN an archetype, so two Sexy Boys differ but both are unmistakably Sexy Boy. Reaches engines for AIR's real lineup: INSTR_VOICE as a melodic vocoder lead (a radio first), INSTR_PIPE breathy flute, INSTR_REED tenor sax, the Solina string-machine wash on a detuned-SAW pair, INSTR_EPIANO Rhodes/Wurli, INSTR_GUITAR nylon, and a fuzzy instrument_drive Moog bass - everything sitting in the echo bus's tape wash (AIR is always drenched). The window is a moon over the night highway. SPACE next song, R same tune (a fresh take), [ ] history, LEFT/RIGHT feel (hush/dusk/warm/aglow), UP/DOWN tempo, T tone, B band (strings/e-piano/echo), J jam strip (play along), M power, H help."
+}
+de:meta */
 // ── AIR FM ──────────────────────────────────────────────────────────────────
 // The Moon Safari station — AIR (Nicolas Godin & J.B. Dunckel). NOT a genre but
 // an ARTIST: the dial plays recognizably DIFFERENT songs *of theirs*, not one

@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "engine tuner",
+  "status": "active",
+  "kind": [
+    "probe"
+  ],
+  "teaches": [
+    "waveguide-synth"
+  ],
+  "lineage": "Tune-against-a-reference ear test (sine beating); centers on PIPE whose pitch emerges from a feedback waveguide loop retuned by embouchure/overblow macros. Headless twin of tune-check.js.",
+  "description": "An EAR test for EVERY pitched engine. Sweeps a chromatic scale very low to very high and sounds the selected voice TOGETHER with a pure SINE at the same pitch: in tune = the two lock and sit still, drifting = an audible beating/wobble that speeds up the further out it goes (the classic tune-against-a-reference trick; your ears are the meter, tools/tune-check.js is the headless number version). TAB cycles the whole library (the 5 PIPE presets, then reed/brass/pluck/bowed/guitar/piano/epiano/mallet/fm/pd/organ/voice + a raw saw that should lock dead). PIPE leads the list — its pitch emerges from a feedback loop so the macros retune it: in tune at a focused embouchure (morph >= 0.5), flat up high at a hollow one. SPACE pauses and HOLDS the current note so you can judge the beat; UP/DOWN ride the embouchure (PIPE) to hear it pull in and out of tune; R toggles the reference; keys 1-5 jump to the PIPE presets. Companion to docs/instrument-bank-plan.md."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

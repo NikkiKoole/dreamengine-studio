@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "eq",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "A 2-band shelving EQ that can BOOST as well as cut - the library's first effect that can lift a band (the SVF filters only cut). A SAW bass + a bright SQUARE lead loop play; drag the LOW (~80 Hz) and HIGH (~6 kHz) faders +/-12 dB each and watch the response curve bend - up = boost, down = cut. Route the EQ over the WHOLE mix (eq) or just the BASS (instrument_eq), or hit AMP to stack DRIVE_ASYM + a mid-forward EQ for a guitar-amp tone. A cycles the route, B toggles AMP, arrows nudge each band."
+}
+de:meta */
 // eq — a 3-band EQ you play by DRAGGING. A SAW bass + a bright SQUARE lead loop run through the
 // new eq() bus; grab the LOW / MID / HIGH nodes in the grid and pull them up to BOOST or down to
 // cut (±12 dB each — the library's only boost; the filters only cut). The response curve bends to

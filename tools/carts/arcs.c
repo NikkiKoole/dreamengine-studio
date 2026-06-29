@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "arcs",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "A tour of the arc primitives — arc (part of a circle's rim), arcfill (a filled pie wedge / sector), and ring (a thick radial band). Angles are degrees, 0=right and 90=down like dx/dy. Shows a pie chart, an animated radial cooldown that sweeps and counts %, a chomping pacman, a needle gauge, a fillp-dithered half-dome (fills honor the dither pattern), and a little rainbow of concentric rim arcs. No controls — it just animates."
+}
+de:meta */
 #include "studio.h"
 
 // ARCS — the arc / arcfill / ring primitives: part of a circle's rim, a filled

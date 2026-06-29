@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "5. draw your character",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Open the sprites tab, draw a 16×16 character in slot 1, then see it move."
+}
+de:meta */
 #include "studio.h"
 
 int px = 152;

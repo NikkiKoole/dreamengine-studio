@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "re-201 space echo",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Fourth in the classic-machine family (tb303, tr909, sh101); models the Roland RE-201 (1974) tape echo — feedback self-oscillation, Doppler pitch-bend on RATE sweep, darkening loop filter — as an instrument showcase for the echo bus.",
+  "homage": "Roland RE-201 Space Echo (1974)",
+  "description": "Roland's RE-201 (1974) — a free-running tape loop, a record head, and an INTENSITY knob that feeds the tape back into itself; the box that made echo an instrument. Showcase cart for THE echo bus (the engine has exactly one, by design): a guitar string (INSTR_PLUCK) plays into the chamber, and five knobs map straight onto the new API — RATE is echo() time and the headline trick: sweep it while a tail rings and the repeats PITCH-BEND, because the bus's read tap glides like varying tape speed. INT is feedback, and past the red mark (>1.0) the loop genuinely self-oscillates — a tanh inside the feedback path saturates the runaway like tape instead of exploding; crank it and play the machine itself with the RATE knob. TONE is the loop filter (every repeat passes through it once, so tails get darker pass by pass — the thing scheduled-note echo could never do), ECHO is instrument_echo() send, DRV the pushed-tube input. SPACE toggles a sparse dub phrase that THROWS one note per bar into the echo with the send cranked for that single hit — the signature dub move. ZXCVBNM,./ + SDGHJL; play, UP/DOWN octave, knobs drag or wheel, H help."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include <stdio.h>

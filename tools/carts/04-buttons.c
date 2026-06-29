@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "4. press a button",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Read the keyboard with btn() and move a character around the screen."
+}
+de:meta */
 #include "studio.h"
 
 int px = 152;

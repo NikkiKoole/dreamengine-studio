@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Othello",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "finite-state-ai"
+  ],
+  "lineage": "Classic Reversi; the CPU uses a corner-weighted heuristic board (WEIGHT[N][N]) — greedy positional evaluation, not minimax — making it a clean example of table-driven finite-state AI over a turn-based rule engine.",
+  "genre": "tabletop",
+  "description": "Reversi on a felt 8x8 board: you are black, the CPU is white. Drop a disc only where it flanks a straight line of the opponent and every captured line turns over, the flip travelling outward from your new disc as a squashed-oval roll that glints green through the seam. Legal squares pulse, the score rolls live in the HUD, corners trigger a chord and a screen kick, and a side passes when it has no move; the game ends when the board fills or both pass. The CPU plays a greedy, corner-weighted heuristic that hoards corners and shuns the squares beside them. Drawn entirely from primitives, no sprite sheet. Mouse: click a glowing square to place. Keyboard: arrows/WASD move a cursor, Z/ENTER places; click or Z on the banner for a new game."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 #include <string.h>

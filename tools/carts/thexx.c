@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "the xx fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing"
+  ],
+  "lineage": "An artist-station (stolen-playbook archetypes, kin to air/wba); novel in the two-voice CALL-AND-RESPONSE brain (two INSTR_VOICE singers trading phrases, unison on the chorus) and space-as-structure. The dark/intimate twin of wba.",
+  "homage": "The xx",
+  "description": "The xx (Romy, Oliver, Jamie xx) station - an ARTIST station, the dark/intimate twin of wba. The whole identity is INTIMACY + NEGATIVE SPACE: the gaps ARE the song, dark-minor, nocturnal, everything drenched in a big reverb. THE NEW BRAIN is the BOY/GIRL CALL-AND-RESPONSE - two INSTR_VOICE singers, a low male (Oliver) and a higher female (Romy), TRADE sung phrases (one states, the other answers) and meet in unison on the chorus; who-sings-when, and the silence between turns, IS the structure. Each phrase is a moving melodic CONTOUR sung in short, articulated, breathing notes. Plus SPACE AS STRUCTURE - density stays low by design. Built on the stolen-playbook chord brain: five archetypes - CRYSTALISED (the guitar+bass interlock, voices trading), ISLANDS (a gentle UK-garage click), VCR (steel-pan sweet, Coexist), ANGELS (Romy near-solo, almost beatless), ON HOLD (brighter, a steel-pan hook). The band: the two voices, Romy's icy single-note reverbed guitar, Oliver's deep dub SUB bass, Jamie's pointillistic clicky kit + steel-pan/marimba dabs. The window is the stark white X with two glows - Oliver left, Romy right - brightening as each sings, fading on the reverb tail. SPACE next song, R same tune, [ ] history, LEFT/RIGHT space, UP/DOWN tempo, T tone, B band (voices duet/romy/oliver, perc kit/bare, guitar icy/warm), M power, H help. Pin via XX_SEED."
+}
+de:meta */
 // ── THE XX FM ─────────────────────────────────────────────────────────────────
 // The xx (Romy Madley Croft, Oliver Sim, Jamie xx) — xx / Coexist / I See You.
 // An ARTIST station: the dial plays recognizably DIFFERENT songs of theirs. The whole

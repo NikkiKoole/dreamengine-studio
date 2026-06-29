@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "glass harmonica",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [],
+  "description": "Ben Franklin's rubbed-wine-glass contraption, built on the HELD NOTE api. Seven nested glass rings each hold a sustained sine voice (note_on at vol 0 — alive but silent); you never trigger them, you RIDE their volume. HOLD the mouse and slide IN and OUT across the rings: whichever one your finger wets swells in with a slow attack (note_vol), neighbours bleed so sweeping between rings blooms a glassy chord, and it all fades slowly when you let go. Bigger ring = lower note; pitches are a major pentatonic so any combination stays consonant. Pure, ghostly, polyphonic — the opposite of a struck note."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "eno radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody"
+  ],
+  "lineage": "A direct algorithmic recreation of Brian Eno's Ambient 1: Music for Airports (1978), using mutually-coprime loop lengths to produce emergent phase drift — the first radio station with no chord progression and the first to use INSTR_PIANO and a sustained INSTR_VOICE choir.",
+  "homage": "Brian Eno - Ambient 1: Music for Airports (1978)",
+  "description": "A beatless ambient station after Brian Eno's Music for Airports (1978). Each voice is a LOOP of its own length in seconds, the lengths mutually coprime, so they drift in and out of phase and never line up the same way twice - and there is NO chord progression: each loop just holds one note of a rolled pitch-set, so the harmony is whatever loops happen to coincide (emergent, not authored). The window shows it: one lane per loop, a playhead creeping at the loop's own speed, a bloom where two playheads meet - you watch the chord form. Not-samey by design: the album is four SETUPS and the seed rolls one per song - 1/1 piano (real INSTR_PIANO struck), 2/1 voices (sustained INSTR_VOICE choir), 1/2 duet, 2/2 synth drone - plus key + mode (lush, never dark), register, a fresh coprime period set, per-voice detune (ombak), and timbre macros; each loop also waxes/wanes over ~90s. SPACE/tune next, R same seed, [ ] history, drift/tone/density knobs, B picks the movement, M power, H help. Pin a favourite via ENO_SEED. First radio station to use real INSTR_PIANO and a sustained INSTR_VOICE choir, and the first with no chord brain at all."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // shared station chassis — eno takes the PRNG + history + chrome +
                      // the tuner sweep, and (like ambient) skips the step clock: it's beatless

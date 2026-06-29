@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "pan",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "instrument"
+  ],
+  "teaches": [
+    "positional-audio"
+  ],
+  "lineage": "First stereo showcase in the engine; demonstrates three panning APIs (instrument_pan static, note_pan positional, LFO_PAN auto-pan) in one cart, with a bouncing ball as the spatial anchor.",
+  "description": "The STEREO showcase - three ways to place a sound in the left-right field, the engine's first stereo feature. A ball bounces left to right and a held pad note follows it across the field (note_pan = positional audio: map a sound to where its source is on screen). Tap A for a hard-LEFT pluck, B for a hard-RIGHT pluck (instrument_pan, set once per slot, -1 = hard left, +1 = hard right). A low drone at the bottom pans on its own, hands-off, via an LFO routed to LFO_PAN (instrument_lfo with dest LFO_PAN = auto-pan, the declarative rotary/tremolo-pan motion). Pan uses a linear law with center unchanged, so a centered sound is bit-for-bit the old mono mix - nothing moves until you actually pan. Headphones recommended. A = hard-left pluck, B = hard-right pluck; the ball and drone pan themselves."
+}
+de:meta */
 // pan — the stereo showcase (stereo.md step 2). Three ways to place a sound in the
 // field: instrument_pan (static, per slot), note_pan (live, follows the ball — positional
 // audio), and LFO_PAN (a hands-off auto-pan drone). Headphones recommended.

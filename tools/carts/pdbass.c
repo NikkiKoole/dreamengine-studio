@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "pd bass",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "step-sequencer"
+  ],
+  "lineage": "Sibling of `upright` (the bowed-string fingerboard); swaps the modeled string for INSTR_PD (Casio CZ phase-distortion oscillator) to gain bidirectional continuous glide — the one expressive axis the bowed model could not provide.",
+  "homage": "Casio CZ phase distortion",
+  "description": "The upright bass's fingerboard, voiced on the Casio CZ phase-distortion engine (INSTR_PD) instead of a modeled string. The whole point of the swap: INSTR_PD is an OSCILLATOR - it sustains while held and glides BOTH ways - so where the bowed-string upright could only fret-walk downward, this synth bass does a TRUE smooth continuous slide, up and down, no re-pluck, no fret click (verified: it bends a held note down cleanly, +0.9 cents, where the waveguide stuck). Same string interactions as the upright: press a string to pluck a note (snaps to a clean semitone for in-tune starts); slide LEFT/RIGHT to glide the pitch continuously in either direction; PULL the string up or down to bend it (signed - up sharpens, down flattens - and the slide position freezes while you pull, so only the bend moves the pitch); start a drag in the open gap next to a string and sweep THROUGH it to PICK it (press ON a string grabs/frets, press in the gap picks). One pluck articulation (no arco/slap), and ONE TIMBRE slider down the right edge runs the PD distortion macro live from CLEAN (bottom) to BUZZY (top) - the signature CZ resonant edge, sweepable while a note rings. A plucky CZ bass patch on the RESO TRAP wave (fast attack, sustains while held, releases on lift; the morph macro gives the CZ strike sweep). A toggleable backing DRUM LOOP (SPACE, or the DRUMS button) - a bouncy boom-bap kick/snare/hat at 96 bpm - to play the bass over. Range E1-G3. Play with mouse or a phone tap, or the computer keyboard (GarageBand musical-typing map, A = E1; Z / X shift the octave). Dark synth panel with four glowing strings (low E drawn thickest) that deflect as you bend."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

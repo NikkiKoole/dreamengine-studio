@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Grenadier",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "A cart-side port of the Grendel RA-99 Grenadier semi-modular filterbank — three parallel resonant filters on stacked held voices, with CMOS randomization drift modeling the hardware's character.",
+  "homage": "Grendel RA-99 Grenadier (Rare Waves, 2020)",
+  "description": "A triple voltage-controlled FILTERBANK drone/acid synth, after the Grendel RA-99 Grenadier (Rare Waves, 2020) — a CMOS semi-modular box whose whole voice is THREE parallel resonant filters swept together in a 2D space (the TB-303 filter is its tonal cousin). Ported entirely cart-side (no new engine DSP): three held voices on one root, each through its own resonant filter, summed. The XY PAD is the instrument — ALPHA (x) sweeps all three filters ±2 octaves, BETA (y) opens the SPACING from a tight cluster to a wide spread; a live frequency-response strip shows the three peaks move. LAYOUT switches RA-99 (lowpass + 2 bandpass) vs RA-9 (three bandpass). The in-scale KEYBED (A S D F G H J K L) sets the drone ROOT and glides to it. SPACE / Q / MORPH (a trapezoid VCO morphing triangle→square) / RND (per-trigger CMOS drift). GATE pulses the drone in time for the techno chug. Drag the SWEEP pad; ASDFGHJKL = root; ↑/↓ gate rate; ← / → tempo."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

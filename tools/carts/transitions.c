@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Transitions",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "dithering-gradient",
+    "state-machine"
+  ],
+  "lineage": "A standalone showcase of classic screen-wipe patterns (iris, clock, dissolve, slide) drawn as black masks over a live scene; the Bayer ordered-dither dissolve is the conceptual centrepiece, and the OUT/swap/IN phase loop is a minimal state machine.",
+  "description": "The screen wipes that bridge two scenes, side by side over a live world. Ten: IRIS (a circle closes onto the hero, SNES Mario / Looney Tunes), CLOCK WIPE (a radial sweep, Star Wars), WIPE (a hard edge slides across), CURTAIN (top + bottom slabs meet), BLINDS (venetian slats snap shut), DISSOLVE (an ordered-dither pixel fade, Genesis/Sonic), FADE (dim to black), LUMA (a grayscale swirl thresholds in PIXEL-PERFECT via per-row spans — the GENERALIZATION: any grayscale 'image' is a transition, the shape becomes data not code), TRIANGLE (a wipe with symmetric triangle teeth — also a luma field: a ramp + a vertical tooth wave, monotonic so one span per row; saw vs triangle is just the waveform), and SLIDE PUSH (the new scene shoves the old one off-screen). The mask-based nine each play OUT, swap a sunny hilltop for a starlit cave at full black, then play back IN — the trick is one black mask whose shape encodes how-covered-are-we (iris=ring(), clock=arcfill(), dissolve=fillp() Bayer dither, fade=fade(), luma=threshold a grayscale field by coverage); SLIDE instead camera-shifts both scenes in one motion. A tour of the masking primitives, with a selectable easing curve (linear / in / out / in-out / back) — ease-back's overshoot is visible on the slide. Left/right pick, Z play, up/down speed, X cycle easing."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

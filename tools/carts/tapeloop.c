@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "tapeloop",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "additive-synth"
+  ],
+  "lineage": "Fifth in the effects-showcase family (spacecho → cathedral → juno → mistress → tapeloop); models Frippertronics by feeding an additive-synth mellotron source into a long echo loop degraded by the tape() effect.",
+  "homage": "Frippertronics (Fripp/Eno tape loops)",
+  "description": "Frippertronics (Fripp + Eno) meets the Mellotron - and the showcase for tape(). The SOURCE is a faked recording of a real instrument: STRINGS, CHOIR or FLUTE, each a drawn single-cycle wave (a stack of a few harmonics via wave_set into INSTR_USER0). It feeds a LONG echo loop, and the whole circulating wash runs through TAPE, so every pass returns warmer and more warped: wow (slow pitch drift) + flutter (fast warble) + saturation (warm soft-clip + HF rolloff). The tape degradation turns a clean synth into an aging recording - it is what makes a delay sound like a worn tape loop. Fifth box in the effects family (spacecho=echo, cathedral=reverb, juno=chorus, mistress=flanger, tapeloop=tape). Two reels spin and wobble with the flutter; the tape sags and sways with the wow; a LOOP meter shows the wash hanging on. TIMBRE cycles the loaded recording (T, or tap the button); WOW / FLUTTER / SAT drive tape(); FEEDBACK sets how long the loop survives (echo regeneration); SPACE toggles AUTO (a sparse phrase plays itself into the loop); 1..6 drop a note in by hand; H help."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

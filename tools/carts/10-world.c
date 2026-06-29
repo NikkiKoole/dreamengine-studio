@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "10. build a world",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Paint tiles in the map editor. Your player walks through the world and the camera follows."
+}
+de:meta */
 #include "studio.h"
 
 float px = 32;

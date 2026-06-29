@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "ui kit",
+  "status": "active",
+  "kind": [
+    "probe",
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "The ui.h showcase + device probe: button, slider, knob driven by mouse, touch, AND keyboard at once. Knobs play a sound (BLIP fires it, LOOP repeats on the beat), sliders drive the ball pit, so every widget audibly/visibly does something. Every finger is its own pointer - ride PIT and CUT with two fingers at the same time (the per-contact capture table at work). Mouse hover highlights, wheel fine-tunes a hovered knob. Press FOCUS (or F) for pointer-less play: arrows move the marching ring, LEFT/RIGHT adjust the focused value, Z presses a focused button."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

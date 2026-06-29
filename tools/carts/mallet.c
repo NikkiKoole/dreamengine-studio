@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "mallet",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "adsr-envelope"
+  ],
+  "lineage": "The INSTR_MALLET engine showcase — four decaying sine modes model bar vibration (marimba/xylophone/vibraphone/glockenspiel); the cart's job is to be the tuning rig for the macro-to-preset mapping, not to introduce new gameplay.",
+  "description": "INSTR_MALLET showcase - the second modeled ENGINE: every note strikes a bar simulation (four decaying sine modes + the mallet's contact click), so hits ring down and their partials fade at their own rates. Eight pentatonic bars + the same three engine macros every engine answers (instrument_harmonics = bar material, wood to bell; instrument_timbre = mallet hardness, soft yarn to hard brass; instrument_morph = ring length, dry tick to vibraphone sustain - the top third switches the motor tremolo on). The five presets (1 marimba, 2 xylophone, 3 celesta, 4 vibraphone, 5 glockenspiel) are nothing but knob positions - proof that named instruments are baked macro settings. A S D F G H J K strike bars, click or sweep across the keyboard for a glissando, 1..5 presets, drag the sliders (or LEFT/RIGHT + UP/DOWN), SPACE gliss run, M autoplay on/off."
+}
+de:meta */
 // mallet — INSTR_MALLET showcase: eight bars + the three engine macros.
 //
 // The second modeled ENGINE: every note strikes a little bar simulation (four decaying

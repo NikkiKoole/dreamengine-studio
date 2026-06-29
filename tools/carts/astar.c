@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "A* pathfinding",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "pathfinding"
+  ],
+  "description": "How a game finds its way around walls. A* always expands the most promising cell, scoring f = g + h: steps taken plus a guess (Manhattan distance) of steps remaining — that guess steers it toward the goal instead of flooding everywhere. Closed cells are explored, open cells are the frontier, yellow is the shortest path. Arrows move the cursor, A toggles a wall, B runs the search or returns to editing."
+}
+de:meta */
 #include "studio.h"
 
 // A* PATHFINDING — how a game finds its way around walls.

@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "floorplan",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes."
+}
+de:meta */
 #include "studio.h"
 #include "json.h"
 #include <math.h>

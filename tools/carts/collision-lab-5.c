@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "collision lab 5: lines",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "segment-collision"
+  ],
+  "genre": "lab",
+  "description": "Two tests boxes and circles cannot do. POINT vs SEGMENT: project the mouse onto AB with the clamped t trick — the foot of the perpendicular is drawn, the grey band is the thickness, and then it is the distance test again. SEGMENT vs SEGMENT: AB crosses CD exactly when each segment has its endpoints on opposite sides of the other — four cross products, compare signs, no distances at all. This is the anti-tunneling test: a fast bullet path is a segment, so test the path and nothing teleports through walls (see linerider). Mouse is P, drag the four handles, arrows swing B across CD."
+}
+de:meta */
 #include "studio.h"
 
 // COLLISION LAB 5 — lines. Two tests that boxes and circles can't do:

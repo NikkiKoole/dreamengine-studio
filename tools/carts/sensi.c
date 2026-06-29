@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "sensible soccer",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "steering-behaviors",
+    "camera-follow"
+  ],
+  "lineage": "Sensible Soccer (1992) demake on a 320×640 scrolling pitch; the headline mechanic is after-touch ball curl (a post-kick directional impulse), sitting on top of steer-to-nearest-target AI for all ten CPU-driven players and a palette-swap kit trick.",
+  "genre": "sports",
+  "homage": "Sensible Soccer (1992)",
+  "description": "Top-down arcade footy down a vertically-scrolling pitch, 6-a-side. The headline is AFTER-TOUCH: kick the ball, then HOLD a direction while it's in flight and it bends in the air — banana shots that curl round the keeper, just like the Amiga classic. You always control the team-mate nearest the ball (it auto-switches, with a ring to show who); the CPU steers your other five plus the whole opposing team. The mow-striped pitch is a real tile map() with primitive markings and goals, the camera follows the ball, and both kits + keepers come from ONE tiny player sprite recoloured per-team with pal() (the crowd-cart magic-colour trick). Ball shadow that lifts on lobs, net-ripple + screen-shake + a crowd roar on goals, a ref whistle, and a crowd bed that swells as play nears a goal. Two 90s halves with a half-time end-swap, win/lose/draw, best result saved. D-pad run, Z kick/tackle, then hold to bend."
+}
+de:meta */
 #include "studio.h"
 
 // SENSIBLE SOCCER — top-down arcade footy, 6-a-side, one button.

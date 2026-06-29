@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "maze maker",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "maze-generation",
+    "algorithm-visualization"
+  ],
+  "lineage": "Standalone algorithm demo with no direct cart ancestor; shows randomized DFS backtracker and randomized Prim side-by-side with live stack/frontier highlighting.",
+  "description": "Carve a perfect maze, step by step, with two classic algorithms side by side — watch the difference. The BACKTRACKER (randomized depth-first search) dives deep and backtracks off a stack, leaving long winding corridors; PRIM grows outward evenly from a frontier, leaving lots of short dead-ends. Both guarantee exactly one path between any two cells. The current cell glows yellow and the live stack/frontier is highlighted so you can see how each one decides where to go next. Loops forever. A regenerates, B switches algorithm."
+}
+de:meta */
 #include "studio.h"
 
 // MAZE GENERATION  — carve a perfect maze, step by step

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "LPG",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "lowpass-gate",
+    "wavefolder",
+    "west-coast-synthesis"
+  ],
+  "homage": "Buchla low-pass gate",
+  "description": "A low-pass gate — the signature voice of west-coast / Buchla synthesis. When a real struck thing decays it gets quieter AND duller at once (the highs die before the fundamental); a low-pass gate models that by closing a VCA and a lowpass filter together from one springy vactrol envelope. So this isn't a filter you sweep — it's the gate that turns a steady tone into an organic 'bonk'. Eight tuned marimba bars are each a held tone, silent until struck; a strike fires a vactrol envelope that drives note_vol AND note_cutoff AND the wavefolder in lockstep. FOLD adds harmonics (sine→metallic) for the gate to chew on; DECAY is short woody plonk → long ringing marimba; COUPLE is the headline A/B — 0 = a plain VCA (the tone stays bright as it fades), 1 = the full low-pass gate (brightness dies with the volume, the organic plonk). Each bar glows white→yellow→orange→wood as its gate closes, so you SEE the timbre decay. Play it like a marimba: A S D F G H J K, or tap the bars. Built on a pool of held note_on voices + coupled note_vol/note_cutoff/note_drive — the one liveset plaything with a genuinely new timbre."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

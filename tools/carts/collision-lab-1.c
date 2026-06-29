@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "collision lab 1: points + boxes",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "collision-detection"
+  ],
+  "genre": "lab",
+  "description": "An interactive lab that opens up the inside of collision detection. Collision is a YES/NO question asked every frame; this cart makes the question visible. Drag two boxes with the mouse and watch their AXIS SHADOWS on the top and left margins — two boxes overlap exactly when both shadows overlap (the green segments), which is why boxes_touch() is just four comparisons with no math. The four live comparisons are printed with real numbers and flip green/red as you drag. The cursor doubles as the point for point_in_box. Mouse drags the boxes, arrows nudge box A."
+}
+de:meta */
 #include "studio.h"
 
 // COLLISION LAB 1 — points & boxes. Collision is just a YES/NO question asked

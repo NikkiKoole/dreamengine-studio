@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "amp noise",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Boutique-pedals roadmap; models tube-amp hiss + 50/60 Hz mains hum as an opt-in rig noise floor, paired with a visual 12AX7 tube-amp face.",
+  "description": "The showcase for amp_noise() - the OPTIONAL rig-noise floor. An electric guitar through a tube amp is never truly silent: a bed of HISS (tube/thermal noise) plus a 50/60 Hz mains HUM (the single-coil buzz) sits under everything, even with no note playing. amp_noise() models that floor - but it is entirely opt-in (a fantasy console is pristine by default), so the headline is the A/B: press N (or SPACE) to toggle the FLOOR on/off and hear the rig breathe versus dead-silent. The HISS and HUM sliders dial the floor (0,0 = off); M switches mains 50 Hz (EU) / 60 Hz (US); 1..4 play chords that sit ON the floor. A tube-amp face glows its 12AX7 power tube and dusts hiss speckle over the grille while the floor is on. Some tracks want this grime, some want the silence - that is the point, it is a choice not a default. Built on the boutique-pedals roadmap; pairs with a noise gate (next) to clamp the floor between notes."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

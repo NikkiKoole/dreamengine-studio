@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "combo",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Extends the keybed instrument family (epiano, moog) with an amp/cab output stage; the novel contribution is the voicing-as-effect-bundle pattern (drive + eq + glue as a named preset) first codified here and shared with pedalboard's CABINET slot.",
+  "description": "A vintage combo amp you plug a guitar straight into - the 'cab story' made playable. An amp/cab isn't new DSP: each VOICING is a preset BUNDLE of effects we already ship - instrument_drive() + a DRIVE_* waveshaper, instrument_eq(), and glue() (power-amp sag) - pinned as the output stage that colours whatever the strings play. Five voicings sweep the canon: CLEAN (black-panel sparkle, soft clip), CHIME (British asym warmth + airy top), CRUNCH (the Plexi-style rock tone = the effects-recipes 'guitar-amp' anchor: ASYM 0.55 + mid-forward EQ), HI-GAIN (hot-rodded, scooped mids, hard clip + heavy sag), LO-FI (broken/boxy wavefolder honk). GAIN scales the voicing's drive, BASS/MID/TREBLE bend its EQ curve (+/-12dB), MASTER = how hard you pick in (keybed velocity), SAG = the glue compressor. The tube glow brightens and reddens with gain, the VU needle tracks, the grille shudders on loud chords - all from a cart-side level proxy (the engine exposes no output meter). Plays INSTR_GUITAR through the shared keybed: white A S D F G H J K L, black W E T Y U O P, Z/X octave, 1-5 pick the voicing (or drag the VOICING knob), drag the tone knobs, M demo on/off. Multitouch + USB MIDI."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #define KEYBED_WHITE_KEYS "ASDFGHJKL"   // 9 whites = an octave + a bit

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "asteroids",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "save-load-persistence"
+  ],
+  "lineage": "Asteroids (1979) clone; screen-wrap toroidal space, thrust-with-friction inertia, seeded procedural rock polygons, splitting on hit, respawn invincibility.",
+  "genre": "shooter",
+  "homage": "Asteroids (1979)",
+  "description": "Classic vector shooter. Rotate and thrust your ship, blast rocks apart, survive endless waves. Left/right to rotate, up to thrust, Z to fire."
+}
+de:meta */
 #include "studio.h"
 
 // ASTEROIDS

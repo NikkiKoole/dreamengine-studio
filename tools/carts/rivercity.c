@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "river city",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "finite-state-ai",
+    "tilemap-collision",
+    "screen-shake-juice"
+  ],
+  "lineage": "Homage to River City Ransom / Double Dragon belt-scroll brawlers, adapting the crowd.c pal()-recolor trick and a depth-axis hit rule into a four-zone procedural brawler with a light RPG upgrade shop.",
+  "genre": "fighting",
+  "homage": "River City Ransom (1989)",
+  "description": "A procedural belt-scroll brawler-RPG. Fight your way through four re-rolled gangs across downtown, the park, the mall and the docks, scoop the coins they drop, and spend them at the diner on stats (HP/STR/DEF/STAMINA), a heal, and new moves — a spin special and a dash. The whole cast is one 16x32 sprite set recolored per-gang with pal(); floors are tile maps rebuilt per zone; combat has hitstop, shake, flash, combos and a depth-based hit rule. Beat the docks boss to clear the city. Arrows move (up/down = depth), Z attack (tap x3 combo / air = jump kick), X jump, down+Z spin special, double-tap to dash. Diner: up/down pick, Z buy, X leave."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

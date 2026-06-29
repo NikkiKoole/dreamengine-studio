@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "univibe",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Univibe / Shin-ei Uni-Vibe pedal (Machine Gun, Bridge of Sighs); first cart on mod_optical — the asymmetric photocell LFO distinguishing a univibe from a plain phaser.",
+  "description": "The showcase for univibe() - the 60s photocell vibe (Univibe / Shin-ei Uni-Vibe, the Machine Gun / Bridge of Sighs wobble). It's the SAME 4-stage allpass chain as the phaser, but swept by an OPTICAL LFO instead of a sine: a lightbulb glued to a photocell glows slowly bright then snaps dim, so the sweep is asymmetric and liquid where a sine phaser is even and clinical - that asymmetry IS the sound. A slow organ chord loop runs through the vibe; the LAMP in the middle is the live LFO (watch it ease up, then drop fast) and the curve strip draws one cycle of the shape. Press P to A/B OPTICAL (univibe) vs SINE (plain phaser) at the same rate/depth, so you hear only the difference the bulb makes. 1..4 play chords (Am/F/C/G); RATE/DEPTH/MIX sliders ride it live; H for help. The first cart built on the modulation kit (mod_optical) from the boutique-pedals roadmap."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

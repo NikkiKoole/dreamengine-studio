@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "orbit",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "particle-system"
+  ],
+  "lineage": "Kerbal Space Program in miniature; novel in running the live ship and the dotted predicted-trajectory through the exact same symplectic-Euler integrator so the prediction never lies.",
+  "genre": "space",
+  "description": "A gravity sandbox - build a rocket, launch, and watch the dotted PREDICTED PATH curve into orbit (or, far more often, into the ground). One honest physics core: point-mass inverse-square gravity, with the SAME integrator running the live ship AND the prediction, so the dots never lie - they show exactly where you'd coast if you cut the engine now. Burn until the path closes into a loop that clears the surface and you're in orbit; apoapsis (peach) and periapsis (blue) are marked live. Hold Z to thrust (on the pad it only lifts if TWR > 1), LEFT/RIGHT steer, SPACE stages, R resets. Press 1/2/3 to swap rockets and feel each way to fail: FALCON flies a clean gravity turn, finless PENCIL cartwheels, underpowered BRICK never leaves the pad. Crashes scatter the rocket into its own parts. A Kerbal-Space-Program-in-miniature; MVP - the parts-bin builder is next."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 

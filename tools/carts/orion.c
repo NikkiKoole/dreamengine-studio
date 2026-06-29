@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "master of orion",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "finite-state-ai"
+  ],
+  "lineage": "Homage to Master of Orion (1993); distills 4X into a single-file cart — procedural galaxy placement, greedy nearest-target AI that skips fights it can't win, defender-advantage combat math.",
+  "genre": "strategy",
+  "homage": "Master of Orion (1993)",
+  "description": "A tiny 4X space strategy. A galaxy of star systems: your stars (green) build ships each turn based on their planet's production, and you send fleets to colonise neutral stars (grey) or invade the rival's (red) — send enough to overcome the defenders, who get a defensive edge. An AI empire expands against you at the same time. Turn-based: queue your moves, then end the turn and watch the fleets fly. Conquer every enemy star to win the galaxy; lose all of yours and your empire falls. Arrows pick a star, A selects a source then a target to send all its ships, B ends the turn."
+}
+de:meta */
 #include "studio.h"
 
 // MASTER OF ORION  — a tiny 4X

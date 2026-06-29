@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "grow balls",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "collision-detection",
+    "camera-follow",
+    "verlet-integration"
+  ],
+  "lineage": "Built on the platform-rects per-axis mover; the twist is a single growing variable (ball radius from eaten fruit) that drives BOTH the character art and the jump physics — at threshold the jump becomes an auto-pogo whose impulse scales with size, so growth IS progression. The arms, legs, balls and willy are floppy verlet chains anchored to the body, so they ragdoll as he bounces (cosmetic — the collision/pogo still use the box). A gag cart with an emergent difficulty curve (bigger balls reach higher fruit which grow bigger balls).",
+  "genre": "platformer",
+  "description": "A silly pogo-platformer. You're a little naked cartoon guy with visible balls — eat the fruit and veg scattered through the world and your balls GROW. Tiny balls only manage a small hop, but once they get big enough they turn into a spring: land and you POGO, and the bigger your balls, the higher you bounce. Steer in the air to land on the next platform (and the next snack), keep growing, and pogo a tower of one-way platforms all the way to the MOON. Arrows/WASD move, Z or Up to jump / super-bounce (tap on landing), hold Down to rest on a platform, R to restart."
+}
+de:meta */
 #include "studio.h"
 
 // GROW BALLS — a silly side-view pogo-platformer. You are a little naked cartoon

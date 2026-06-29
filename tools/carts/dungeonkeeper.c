@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "dungeon keeper",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "pathfinding",
+    "finite-state-ai",
+    "euclidean-rhythm",
+    "tilemap-collision"
+  ],
+  "lineage": "Dungeon Keeper (1997) homage; novel in compressing the full dig/build/creature-wage/wave-defense RTS loop into one cart with the SLAP-HAND mechanic and A* imps that autonomously mine, claim, haul, and fight.",
+  "genre": "strategy",
+  "homage": "Dungeon Keeper (1997)",
+  "description": "Be the evil Keeper: carve a dungeon out of solid rock, claim the floor, and fend off the heroes who march in to smash your Dungeon Heart. LEFT-DRAG over rock to designate it for DIGGING - imps A*-path in, mine it out (lifting the fog and exposing buried gold seams), then auto-CLAIM the dug floor and HAUL gold back to the treasury. Spend that gold on three rooms built by dragging on claimed floor: a TREASURY to store gold and pay wages, a LAIR that attracts monsters (and where they sleep to heal), and a TRAINING room where they level up. Unpaid monsters sour and leave. The signature is the SLAP-HAND: click-hold any imp or monster to pick it up and release to slap it down somewhere - rush a digger to a fresh seam or hurl a fighter onto an invader. Five escalating hero waves tunnel in from the gate toward your Heart; your monsters auto-fight and you slap in reinforcements or hit RALLY to call them all home. Torch-lit pal()/fillp dungeon mood, a creepy minor-organ bed with euclidean pick-axe taps, dig-dust, gold sparkle + rollup, combat sparks and a red heart-alarm pulse. Survive all 5 waves to win; lose the Heart and the do-gooders take the land. MOUSE: left-drag dig / build / grab+slap, buttons 1-3 pick a room, 4 or CREATE IMP makes a digger, SPACE/RALLY summons the monsters, right-click cancels."
+}
+de:meta */
 #include "studio.h"
 
 // ── THE UNDERLORD — a tiny Dungeon Keeper ──────────────────────────────────

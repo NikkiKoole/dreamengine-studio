@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "tetris",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "save-load-persistence"
+  ],
+  "lineage": "Faithful recreation of Tetris (1984, Pajitnov); notable for wall-kick rotation and delayed auto-shift (DAS) as implementation reference for grid-collision puzzle games.",
+  "genre": "puzzle",
+  "homage": "Tetris (1984)",
+  "description": "The falling-block classic. All 7 tetrominoes with rotation (and wall kicks so they pivot off walls), a ghost piece showing where they'll land, a next-piece preview, soft drop and instant hard drop. Complete a horizontal line to clear it — four at once is a Tetris. Gravity speeds up every 10 lines, scoring rewards multi-line clears, best score saved. Left/Right move, Down soft-drop, Up hard-drop, Z/X rotate."
+}
+de:meta */
 #include "studio.h"
 
 // TETRIS

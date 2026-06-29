@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "alley cat",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Homage to IBM PCjr Alleycat (1984 Synapse); retains the two-phase climb/room loop and escalating difficulty, rebuilt in primitives.",
+  "genre": "platformer",
+  "homage": "Alley Cat (1984)",
+  "description": "Homage to the 1984 classic. Climb the apartment wall on the window ledges, dodge the birds and the sidewalk dog, and leap into a LIT window. Inside: gobble every mouse before the sweeping broom tosses you out. Nine lives, escalating levels, best score saved. Left/Right: move — Z or Up: jump — (in a room: arrows/WASD to prowl)."
+}
+de:meta */
 #include "studio.h"
 
 // ALLEY CAT

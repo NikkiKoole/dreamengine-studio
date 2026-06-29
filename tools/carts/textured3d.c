@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "textured 3D",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer",
+    "dithering-gradient"
+  ],
+  "lineage": "Extends the sibling solid3d cart by adding tritex() affine texture mapping and interactive subdivision to demonstrate — and fix — the PS1-style affine warp artifact.",
+  "description": "The full PS1 / picoCAD look: affine texture-mapped polygons plus dithered shading. Each cube face is mapped from the sprite sheet with tritex(), which smears the texture across the triangle in screen space with no perspective correction — so it warps and swims exactly like a PlayStation 1. A quad is two triangles, so the texture creases along the diagonal; pressing X subdivides each face into an N×N grid (re-projecting every sub-corner) and you watch that affine warp melt away — the trick real consoles used. After the texture, a fillp dither of black darkens faces turned from the light (25%, then 50%). Z toggles shading, X subdivides, up/down zoom, L/R spin."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

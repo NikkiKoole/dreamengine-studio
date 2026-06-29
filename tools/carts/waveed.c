@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "wave editor",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "additive-synth",
+    "wavetable-drawing"
+  ],
+  "lineage": "A live waveform painter built around the engine's INSTR_USER0-3 slots; mellotron's tapeloop trick (wave_set for timbre construction) is its direct downstream.",
+  "description": "Draw the actual waveform. The engine has four custom wave slots (INSTR_USER0-3), each a 64-sample single cycle — paint that cycle with the mouse and hear it instantly. The killer trick: SPACE starts a drone, then redraw the shape while it rings — wave_set() is live, so the timbre morphs under your pen. Seed shapes (sine, square, saw, organ, vocal, wobble) plus SMOOTH and NORM, A-K play notes, P toggles an arp. Press E to export wave_set() code; your drawn wave then works everywhere a wave id does: note(), instruments, the other sound carts."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

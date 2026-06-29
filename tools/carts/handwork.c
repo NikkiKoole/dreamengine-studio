@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Handwork",
+  "status": "active",
+  "kind": [
+    "toy",
+    "probe"
+  ],
+  "teaches": [
+    "state-machine"
+  ],
+  "lineage": "A probe cart for sloop's production subsystem (docs/design/sloop-handwork.md) — isolates the opportunity-cost loop (hand bench vs. delegate machine vs. door buyer) from the CDDA-inspired The Cut, without that game's follower/faction layer.",
+  "genre": "simulation",
+  "description": "The EMBODIED half of sloop's production subsystem (docs/design/sloop-handwork.md) — the CDDA body-in-the-world handling loop The Cut skipped. You walk a workroom, harvest plants into a carried BASKET, then turn raw STALKS into trimmed FLOWERS two ways: by HAND at the BENCH you stand there LOCKED and TIME each cut on a bouncing meter — a clean cut makes a FINE flower (premium-grade); or load the MACHINE and walk away while it trims on its own at a fixed, always-COARSE quality. A machine is your first DELEGATE (one pure transform, run by your timed hands or the machine's fixed stamp; followers later slot into the machine's seat). The hook is the OPPORTUNITY COST: BUYERS arrive at the DOOR and WAIT — a PREMIUM buyer wants a few FINE flowers and pays by quality, a BULK buyer wants a cheap pile of anything — and they leave if you don't serve them in time. So standing locked at the bench COSTS you sales; the machine earns its keep by trimming the bulk while your hands chase the premium order. One body can't be in two places — that live choice is the game. Skill rises as you hand-trim, making FINE easier. WASD/arrows walk; Z harvest a ripe plant / pick up the basket / cut at the bench / load the machine / serve the buyer at the door; X drop the basket / collect the machine's output / leave the bench."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

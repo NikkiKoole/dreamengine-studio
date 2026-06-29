@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "pinball",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "spring-damper",
+    "particle-system"
+  ],
+  "lineage": "Original hand-built table; the flipper surface-velocity transfer (reflect relative to moving surface) and multi-substep segment/circle collision resolution are the teachable physics core.",
+  "genre": "tabletop",
+  "description": "A hand-built physical pinball table — gravity, a steel ball that reflects off line-segment walls, swinging flippers with real tip-snap, pop bumpers, slingshots, a DREAM drop-target bank that arms MULTIBALL, a spinner and an orbit multiplier. Z/←/A = left flipper, X/→/D = right, hold ↓ or SPACE to charge the plunger then release to launch, ↑ to nudge (careful — TILT!), SPACE to play/retry."
+}
+de:meta */
 // PINBALL — one hand-built table. The ball is a vector that reflects off
 // line-segment walls + circle bumpers; the feel comes from honest physics.
 // Plunger launch, two swinging flippers (tip velocity gives the snap),

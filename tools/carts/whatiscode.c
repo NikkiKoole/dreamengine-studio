@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "what is code?",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "The very first lesson, before variables or loops: a program is a LIST of instructions the computer runs top to bottom, doing exactly what each one says. The code sits on the left, 'the screen' on the right - press NEXT (or SPACE) to run ONE line at a time and watch its mark appear. Eight lines of real studio.h calls (cls, rectfill, circfill, trifill, rect, print) build a little house, one step at a time, so you SEE the 1:1 mapping: this line -> this mark, in order, accumulating. The done lines get a green check, the current line a yellow arrow, and each shows its plain-English meaning ('a triangle - the roof'). Runs in a roomy 480x300 canvas so the code is readable at full size. Fully playable by button-tap or keyboard. R / OVER starts over and watches it build again."
+}
+de:meta */
 // what is code? — the very first lesson, before variables or loops.
 //
 // THE ONE IDEA: a program is a list of instructions. The computer runs them

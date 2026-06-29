@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "rocket league",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "no-sprite-vehicles",
+    "verlet-integration"
+  ],
+  "lineage": "2D demake of Rocket League (2015); angle-based boost thrust and circle-vs-circle impulse resolution are the technical core — cars rendered as rotated rects with no sprites.",
+  "genre": "sports",
+  "homage": "Rocket League (2015)",
+  "description": "2D car soccer demake. Drive, jump, and BOOST to fly — boost thrusts along the way you point, so you pull off aerials in the air. Punchy ball physics, cars bump each other. First to 5 wins. P1 blue: A/D drive, W jump, Z boost — P2 orange: </> drive, ^ jump, , boost."
+}
+de:meta */
 #include "studio.h"
 
 // ROCKET LEAGUE — 2D car soccer, couch 2-player

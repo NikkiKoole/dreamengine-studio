@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "raycaster",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "raycasting"
+  ],
+  "lineage": "Wolfenstein-3D-style grid DDA raycaster with cos-correction for fisheye; no sprites, pure column strips.",
+  "description": "A Wolfenstein-style first-person maze with no 3D and no sprites — one DDA ray per screen column, drawn as a vertical wall strip with fisheye correction. Walk through a colored grid world with a live minimap. WASD to move and turn, B toggles the map."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

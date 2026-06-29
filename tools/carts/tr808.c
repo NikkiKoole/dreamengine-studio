@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "tr-808 rhythm composer",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "subtractive-synth",
+    "additive-synth",
+    "drum-synthesis",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Roland TR-808 (1980), sibling of cr78; voices modeled from reverse-engineered MEASURED circuit values — the shared six-oscillator metal bank, bridged-T kick with pitch-drop boom, dual-mode snare — with per-voice tune/decay/character knobs.",
+  "homage": "Roland TR-808 Rhythm Composer (1980)",
+  "description": "The big one — the TR-808 (1980), sibling cart to the cr-78 with the same editable grid, but built from the 808's actual reverse-engineered circuit values: the six-oscillator metal bank (800/540/522.7/369.6/304.4/205.3 Hz squares) shared by hats, cymbal and cowbell; the ~50Hz bridged-T kick with the famous decay-knob boom (+26 semitone pitch drop); the 180+330Hz dual-mode snare under snappy noise; rimshot/claves as one dual bridged-T circuit (1667+455 Hz vs 2500 Hz); and the handclap's three noise retriggers ~10ms apart plus a room tail. 16 voices, the iconic red/orange/yellow/white quarter-colored step buttons, six presets (Planet Rock, Healing, House, Electro, Boom Bap, Cowbell Jam), accents, and the anachronistic Z/X swing knob. Each voice has up to three 8×8 rotary knobs: T (tune ±12 semitones), D (decay 0.25×–4×), and a voice-specific character knob (SNPY noise/tone on snare, THUD on toms, TONE/RING on cowbell/cymbal/open hat). Drag Y=coarse, X=fine. Presets load with tuned knob settings. Closed hat chokes open hat. Q-H play voices, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop, click name to audition, drag knobs to shape."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

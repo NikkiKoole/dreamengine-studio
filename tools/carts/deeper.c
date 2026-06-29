@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "deeper",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "dungeon-generation",
+    "audio-occlusion"
+  ],
+  "lineage": "Original atmospheric platformer; the procedural room-and-shaft generator is custom, and the standout contribution is room_openness() driving live reverb/echo parameters — the acoustic mirrors the space.",
+  "genre": "platformer",
+  "description": "An atmospheric descent that showcases the reverb + echo buses as SPACE, not as an effect knob. A procedurally-built vertical world of rooms and corridors that only ever goes down - wide halls, tight chambers, and the narrow shafts you drop through between them. You hop around (small hops: you descend, you don't climb) and your footsteps make little noises - and those noises REFLECT the room you're in: a boxed-in corridor gives a dry slappy tick, a great hall gives a long lush tail, and the reverb glides open as you walk from one into the other. The acoustic is driven live from room_openness(), a measure of the air around you, shown on a HUD meter (corridor/chamber/hall). Distance-lit stone walls and a lantern-glow follow you down; a slow drip rings out in the open halls to let the tail sing. Glowing motes scattered off the straight drop chime a reverberant mallet when grabbed, and the bottom of every section is a grand treasure hall - a hoard plus a SUPER TREASURE crystal that rings a drenched arpeggio - before the floor gives way into a fresh, deeper section. Move: arrows/WASD. Hop: Z or Up."
+}
+de:meta */
 #include "studio.h"
 #ifdef DE_DUMPGRID
 #include <stdio.h>     // debug: dump the generated grid as ASCII (reachability proof)

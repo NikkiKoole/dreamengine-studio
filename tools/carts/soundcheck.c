@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "sound check",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "algorithm-visualization"
+  ],
+  "lineage": "Internal stress-test and self-test harness for the sound request queue — issues the worst-case init burst (27 slots × 11 calls + 4 wavetables) then walks every wave/engine/setter API, with a pass/fail tripwire on dropped requests.",
+  "description": "The sound engine self-test. init() slams the request queue with the worst-case burst (all 27 instrument slots defined with envs/LFOs/filters + all 4 user wavetables in one frame), then walks the whole API: every wave id audibly in sequence, chords, a 40-shot schedule_hit machine-gun, and a held note driven by every live setter. PASS = no [sound] WARNING in the log and all 9 waves sound different; the engine now counts dropped requests and screams if any sound call was lost. Headless: node tools/play.js soundcheck run."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

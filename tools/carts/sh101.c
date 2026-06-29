@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "sh-101",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "analog-voice-modeling",
+    "adsr-envelope",
+    "step-sequencer"
+  ],
+  "lineage": "Direct model of the Roland SH-101 (1982) monosynth; fourth in the classic-machine family (cr-78, tr-808, tb-303); novel in mixing all four source oscillators simultaneously via live faders and combining sequencer + arpeggiator under a shared LFO/CLK rate slider.",
+  "homage": "Roland SH-101 (1982)",
+  "description": "Roland's SH-101 (1982) — the guitar-strap monosynth, fourth box in the classic-machine family (cr-78, tr-808, tb-303), modeled on the real grey panel section for section: TUNE | MODULATOR | VCO | SOURCE MIXER | VCF | VCA | ENV, all vertical faders with tick scales, plus one mid strip holding the sequencer/arpeggio buttons, volume/porta, the AUTO/OFF/ON portamento switch and TRANSPOSE L/M/H — the finger-sized keybed owns the whole bottom half, with a vertical springy BENDER at its left end like the real lever. The SOURCE MIXER is the heart, like the hardware: pulse + saw + sub-osc + noise mixed SIMULTANEOUSLY on four faders (each source is its own engine voice, riding live on a held note via note_vol), with the 3-position sub switch (-1 oct / -2 oct / -2 oct pulse). MODULATOR: LFO with tri / square / random (S&H) / noise waveforms whose RATE slider is also the seq+arp CLOCK, exactly like the real LFO/CLK slider. VCO: MOD (vibrato), RANGE rotary (16' 8' 4' 2'), PW fader + source switch LFO/MAN/ENV. VCF: FREQ RES ENV MOD KYBD — five faders, all live on the ringing voice, with real keyboard tracking. VCA: ADSR or plain GATE. SEQUENCER: LOAD records key presses, PLAY loops them. ARPEGGIO: DOWN / U&D / UP buttons + HOLD latch. PORTAMENTO with the real AUTO/OFF/ON switch (AUTO glides only when legato), Mono, last-note priority. MULTITOUCH: every finger is its own pointer — hold a chord and ride the filter at once; fader grab zones tile each section so a near-miss grabs the nearest fader; sliding a finger across the keys hands the note over legato (AUTO porta glides). TUNE is live and reaches the running arp (instrument_tune). Two-manual computer keyboard covers all 32 keys: ZXCVBNM,./ + SDGHJL; lower, QWERTYUIOP + 2356790 upper, []= top, arrows = octave, SPACE = arp, ? = help."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include <math.h>

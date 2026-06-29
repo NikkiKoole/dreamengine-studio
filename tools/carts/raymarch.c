@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "raymarch",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "raycasting",
+    "software-rasterizer"
+  ],
+  "lineage": "Third in the shadelab → caustics → raymarch shader-chapter sequence; novel in that it introduces a full signed-distance-field scene (op_smin smooth metaballs, op_sub boolean carve) rendered purely via sphere-marching, using the new shadermath.h GLSL-vocabulary header.",
+  "description": "A 3D scene that is JUST A MATH FUNCTION - the third chapter after shadelab (a pixel is a function of u,v) and caustics (warp where you look up a colour), and the worked showcase for the new shadermath.h GLSL-vocabulary header. There are no triangles, no mesh: the whole world is one function, scene(p), that returns how far the nearest surface is from any point (a SIGNED DISTANCE FIELD). Each pixel shoots a ray and marches it forward in steps of exactly that distance (it can never overshoot) until the distance drops to ~zero - a hit. The surface normal for lighting is just the gradient of that same function, sampled with four taps. scene() is six lines because shadermath.h supplies vec3 + dot/normalize/length, the sd_sphere/box/torus/plane primitives, and the op_smin smooth-minimum that BLENDS two surfaces into a gooey metaball merge - trivial with distance fields, painful with polygons. Three scenes show the vocabulary: melting metaballs (op_smin), a tumbling torus, and a box with a sphere carved out (op_sub); shaded with a sun + blinn specular, an Inigo-Quilez cosine palette() for colour, a checker ground and distance fog. Written so it reads almost exactly like the GLSL you'd find on Shadertoy. MOUSE orbits the camera, UP/DOWN zoom, 1/2/3 or LEFT/RIGHT switch scene, [ ] pixel size (raymarching is heavy - chunkier trades detail for speed), SPACE freezes time."
+}
+de:meta */
 #include "studio.h"
 #include "shadermath.h"
 

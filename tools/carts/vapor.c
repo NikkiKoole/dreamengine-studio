@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "vapor fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "generative-melody"
+  ],
+  "lineage": "The first EFFECTS-FORWARD station - the FX chain (reverb+chorus+tape+echo+crush) IS the genre, applied to a generative lounge loop; novel in riding varispeed live as the slowed-tape WOBBLE. A slow metered/beatless cousin of citypop/ambient.",
+  "homage": "Vaporwave (Macintosh Plus / Floral Shoppe, mallsoft)",
+  "description": "Vaporwave - the first EFFECTS-FORWARD station, where THE PROCESSING IS THE GENRE. Vaporwave is 80s/90s lounge / mall-muzak SLOWED DOWN and drowned in reverb + chorus + tape warble + echo, looped hypnotically. With no sampler we GENERATE the lounge source - lush Rhodes + pad + a sax/bell dab + smooth bass over a short, static extended-jazz loop (maj9/m9/9) - and run the whole mix through that chain; the drench and the slow wobble ARE the band. THE DRENCH is a SET-AND-HOLD vaporwave FX chain (big reverb + chorus + heavy tape wow/flutter + echo + a touch of bitcrush), configured once per song/mode. THE SLOW WOBBLE is varispeed ridden LIVE (sweep-safe): a gentle drift so the whole mix wavers like a tape running slow / a dying battery - the slowed/screwed sag, made visible as the scene wobbles. A held vinyl-crackle bed under it all. The seed rolls a SUB-STYLE: classic (Floral-Shoppe lounge + a slow gated beat), mallsoft (beatless dead-mall, max reverb), utopian (brighter eco pads), future funk (a touch faster + funkier). The window is the iconic scene: a sunset gradient, the striped vaporwave sun, a wireframe grid floor receding to the horizon. SPACE next, R replay, [ ] history, LEFT/RIGHT haze (dry..drowned), UP/DOWN tempo, T tone, B band (keys rhodes/wurli, lead sax/soft, beat as-rolled/beatless), M power, H help. Pin via VAPOR_SEED."
+}
+de:meta */
 // ── VAPOR FM — vaporwave ──────────────────────────────────────────────────────
 // The first EFFECTS-FORWARD station: THE PROCESSING IS THE GENRE. Vaporwave is
 // 80s/90s lounge / mall-muzak SLOWED DOWN and drowned in reverb + chorus + tape

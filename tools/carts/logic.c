@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "logic",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "combinational-logic",
+    "sequential-logic"
+  ],
+  "lineage": "signal layer ported verbatim from navkit experiments/mechanisms",
+  "description": "A redstone-lite logic sandbox. Place switches, wires and gates on a grid and watch signal flow tick by tick. Build a blinker from a NOT gate wired into itself, an SR latch from two NORs, a half-adder from XOR + AND; clocks, repeaters and pulse-stretchers handle timing. Opens with four live demo circuits already running. The digital signal layer ported from navkit's mechanisms experiment — first of a planned family (pipes, belts, gears). Mouse: click a palette tool, left-click the grid to place, right-click to erase; pick the HAND to flip switches / hold buttons / cycle a clock's period. Keyboard: arrows move the cursor, Z place, X erase, C use, R rotates a gate's facing, number/letter keys pick tools, SPACE runs/pauses, . single-steps, [ ] change speed."
+}
+de:meta */
 #include "studio.h"
 #include "cursor.h"
 #include <stdio.h>

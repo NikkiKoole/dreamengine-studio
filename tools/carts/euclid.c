@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Euclid",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "euclidean-rhythm",
+    "generative-sequencer",
+    "polymeter",
+    "drum-synthesis"
+  ],
+  "lineage": "Homage to Mutable Instruments Grids; novel: five independent-step-count rings (polymeter) each driven by Bjorklund spread, so the composite groove never repeats on a fixed period.",
+  "homage": "Mutable Instruments Grids",
+  "description": "A Euclidean rhythm box, after Mutable Instruments Grids / the Euclidean sequencer — the whole magic is ONE idea: spread k hits as EVENLY as possible across n steps and you get tresillo, the clave, the world's drum patterns, for free, just from numbers. So there's no step grid to draw by hand; you DIAL each drum's DENSITY and ROTATION and the groove blooms and dissolves generatively. Five nested rings — KICK, SNARE, HAT, OPEN HAT, PERC — each with its own step count, so the rings drift against each other (polymeter) and the loop never sits still; a playhead sweeps each ring. Pick a track with 1-5 (or tap the strip on the right); ↑/↓ sets its density (hits), ←/→ its rotation, or drag the HITS / STEPS / ROT knobs. M mutes the selected track; SPACE = MUTATE, a one-tap shuffle that nudges every density to morph the whole groove. TEMPO rides it. Built on the engine's euclid() Bjorklund helper — the rhythm companion to kaoss and onenote; the loop it makes is exactly what kaoss is built to mangle."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

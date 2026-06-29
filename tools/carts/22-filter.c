@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "filter",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "A resonant filter sculpts an instrument's tone — instrument_filter(slot, mode, cutoff_hz, resonance). The same buzzy saw through all four modes: FILTER_LOW (warm), FILTER_HIGH (thin), FILTER_BAND (vowel), FILTER_NOTCH (hollow). resonance 0-15 adds a whistly peak at the cutoff, and an LFO on LFO_CUTOFF sweeps the cutoff for a wah. Each panel draws its frequency-response shape with the cutoff line sweeping live, and holds a long note so you hear the filter move. 1-4 select, Z plays the selected one."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "jingle radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "generative-melody"
+  ],
+  "lineage": "Sibling of jangle.c but composed from Mac DeMarco's actual harmonic devices (bVII, bIII, ii-V cells, chromatic bass descents, melodic accommodation over borrowed chords) rather than a dumb vamp loop — the first radio station whose song generation is grounded in a cited theory source.",
+  "homage": "Mac DeMarco (Reverb Machine chord theory)",
+  "description": "The dusk sibling of jangle radio - the delicate side of the same songwriter. Composes from the actual Mac DeMarco harmonic playbook (Reverb Machine's chord-theory breakdown): progression templates from cited songs (Blue Boy, Dreaming, Stars Keep on Calling, Moonlight on the River, Another One, A Heart Like Hers), per-song bVII flavor rolls (maj/7/9) and borrowed bIII (maj7/m6), chromatic bass descents preserved in every key by a voice-led bass, real verse/chorus form, and the article's subtlest rule in code: MELODIC ACCOMMODATION - over a borrowed chord the melody narrows to that chord's own tones. Fingerpicked add9 voicings, gentle 4.6Hz warble, soft rim/hat kit. Seed on display (JINGLE_SEED / R / [ ] history), H help. Worked example #4 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include "solo.h"    // the jam layer — a scale-locked lead over the progression

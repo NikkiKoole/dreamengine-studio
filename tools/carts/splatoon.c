@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "splatoon",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "tilemap-collision"
+  ],
+  "lineage": "Homage to Nintendo Splatoon (2015); novel use of pget() to read live pixel ink color as a gameplay mechanic (ink type gates movement speed), with an owner grid tracking territory coverage for scoring.",
+  "genre": "sandbox",
+  "homage": "Splatoon (2015)",
+  "description": "2-player ink battle showing off pset/pget. Every shot paints pixels onto the canvas (which the engine never clears), and you read the ink ahead with pget to swim fast through your own color and slog through the enemy's. Most floor covered in 40s wins. P1 blue: WASD move, Z shoot — P2 orange: arrows move, , shoot."
+}
+de:meta */
 #include "studio.h"
 
 // SPLAT ARENA — cover the most floor in ink before time runs out.

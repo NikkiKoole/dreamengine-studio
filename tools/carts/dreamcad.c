@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "dreamcad",
+  "status": "active",
+  "kind": [
+    "tool"
+  ],
+  "teaches": [
+    "software-rasterizer"
+  ],
+  "lineage": "Inspired by picoCAD; implements perspective + orthographic projection, painter's-algorithm depth sort, UV mapping, extrusion, and orbit camera entirely in dreamengine's 2D draw API via tritex/trifill.",
+  "homage": "picoCAD (2020)",
+  "description": "A picoCAD-style 3D model editor. Orbit camera in perspective view, three orthographic views (Tab to cycle). Object list in the sidebar. v1: view the default cube, orbit and zoom with mouse. More editing coming soon."
+}
+de:meta */
 // ════════════════════════════════════════════════════════════════════════════
 // dreamcad — picoCAD-style 3D model editor
 // ════════════════════════════════════════════════════════════════════════════

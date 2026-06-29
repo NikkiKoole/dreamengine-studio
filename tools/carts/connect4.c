@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Connect Four",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "save-load-persistence",
+    "finite-state-ai"
+  ],
+  "lineage": "Classic Connect Four against a depth-5 alpha-beta minimax AI; win/loss/draw tally persisted across sessions.",
+  "genre": "tabletop",
+  "description": "The kitchen-table classic against a real opponent. Discs clatter down a blue 7x6 grid — you drop red, a depth-5 alpha-beta minimax AI answers in yellow, each disc accelerating under gravity into the lowest open slot with a rising blip and a tiny screen kick on landing. Line up four in any direction — horizontal, vertical, or diagonal — and the winning run flashes white while a major chord rings out; lose and the board sinks under a low saw growl; fill it with nobody connecting for a draw. Your running win/loss/draw tally is saved between runs. Hover a column and left-click to drop, or use A/D or Left/Right to aim and Space/Z to drop; click or Space/Z to play again."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

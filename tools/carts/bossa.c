@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "bossa radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "step-sequencer",
+    "schedule-driven-agents"
+  ],
+  "lineage": "Extends the radio.h station chassis with a full jazz-harmony engine: Markov chord walks over harmonic functions, rootless 3-voice voice-leading, and a schedule_hit() step sequencer — the worked example for docs/guides/game-music.md.",
+  "description": "An endless radio station that composes bossa nova. Every song is generated from a 32-bit seed shown on the display: key, AABA chord progression (Markov walk over jazz harmony - ii-V-I, tritone subs, backdoor dominants), voice-led guitar comping on the bossa clave, surdo bass, shaker, a One Note Samba-style melody cell, tempo, even the title. SPACE next song, R play the same chart again, [ ] song history, LEFT/RIGHT feel (layers), UP/DOWN tempo, M power. Pin a favourite: put its #seed in BOSSA_SEED at the top of the source. The worked example for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include "solo.h"    // the jam layer — a scale-locked solo strip over the changes

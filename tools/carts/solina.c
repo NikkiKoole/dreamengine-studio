@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "solina",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "additive-synth",
+    "analog-voice-modeling",
+    "chord-voicing"
+  ],
+  "lineage": "Homage to the ARP/Eminent Solina String Ensemble (1974); novel in modeling the divide-down organ architecture (per-footage sawtooth stacks, per-tab detune beating, instrument_lfo wow) and demonstrating that chorus() is the instrument's entire identity rather than a send effect.",
+  "homage": "ARP/Eminent Solina String Ensemble (1974)",
+  "description": "The ARP/Eminent Solina String Ensemble (1974) - THE string machine, and the chorus() companion to JUNO-6: there the chorus widens a synth, HERE the chorus IS the instrument. Not a synth but a divide-down ORGAN - every key you hold sounds (fully polyphonic, paraphonic), each a stack of sawtooths tapped at different FOOTAGES. Six voice tabs you toggle: strings (blue) Contrabass 16', Cello 8', Viola 8', Violin 4', plus brass (orange) Trumpet 8', Horn 4'; enabled tabs all sound = the divide-down mix. Bare, those stacked saws are a buzzy organ - flip the ENSEMBLE switch (off/I/II, key E) and the triple BBD chorus smears them into the lush breathing string wash of every '70s record. Play the 2-octave keyboard by touch or QWERTY (Z..M lower, Q..U upper) - HOLD a key and it swells in (CRESCENDO) then rings out slowly on release (SUSTAIN); TONE rides the master brightness. SPACE toggles AUTO, a slow self-playing string progression (on at boot); TAB or / for help."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #define KEYBED_WHITE_KEYS "ASDFGHJKL;'"   // GarageBand musical-typing — the house layout (top 3 whites: touch/MIDI)

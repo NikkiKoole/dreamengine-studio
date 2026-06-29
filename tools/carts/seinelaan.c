@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "seinelaan 31",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "segment-collision"
+  ],
+  "lineage": "Sibling of floorwalker.c; novel in using a real Floorplanner .fml export as level geometry, with arbitrary-angle segment and oriented-box collision instead of a tile grid.",
+  "description": "A real Eindhoven apartment (Seinelaan 31) walked as a top-down level, built from its Floorplanner .fml by the fmltools pipeline. Walls with walkable doorways and real door/window sprites, each room a distinct floor colour, 72 furniture pieces as top-down pixel sprites baked from Floorplanner CDN renders. WASD/arrows move, T toggles sprites vs boxes. Sibling of floorwalker."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

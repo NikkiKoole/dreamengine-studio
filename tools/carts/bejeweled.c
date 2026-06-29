@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Bejeweled",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "particle-system"
+  ],
+  "lineage": "Faithful Bejeweled (2001) clone; the state machine (IDLE/SWAP/BACK/CLEAR/FALL/OVER) is the primary teaching artifact — a clean worked example of animated-phase sequencing for a puzzle game.",
+  "genre": "puzzle",
+  "homage": "Bejeweled (2001)",
+  "description": "An 8x8 well of faceted jewels begging to be matched. Click a gem, then a neighbor, to swap them — but the swap only sticks if it lines up three or more of a color; an illegal try wiggles back for free. Matches flash white and shrink into a spray of colored sparks, the gems above ease down into the gaps, fresh ones stream in from the top, and every new line the fall creates cascades for a climbing score and a chord that pitches up with the chain. Run the board dry of legal moves and it reshuffles itself; spend your 30 swaps for the high score, which is saved between runs. Mouse only: click a gem then an adjacent gem (or drag from one to a neighbor) to swap; click to play again on game over."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

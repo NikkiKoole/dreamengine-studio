@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "ymo radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "step-sequencer"
+  ],
+  "lineage": "Eighth radio.h station; lifts drum voice circuits verbatim from cr78.c and adds a Hosono melodic bassline generator and Sakamoto harmony templates.",
+  "homage": "Yellow Magic Orchestra (techno-kayo)",
+  "description": "Endless techno-kayo - the Yellow Magic Orchestra homage (Hosono/Sakamoto/Takahashi), eighth of the radio family, and the one genre where the synth isn't imitating anything: square waves and white noise ARE the original instruments. Sakamoto harmony as templates (the chromatic mediant 'Tong Poo' pull, maj7 planing in whole steps, the kayo minor cadence with its harmonic-minor V), a HOSONO BASSLINE GENERATOR (melodic 8th-note counterpoint with directional inertia and octave leaps - the bassline is a second melody), yonanuki pentatonic lead, a sequencer arp ticking chord tones, and drum voices ON LOAN FROM THE CR-78 CART (cr78.c's circuit recipes: soft round kick, two-layer snare, the swishy hats, the metallic clang) driven by machine-tight pattern strings. No swing, no lag - it's 1979 and the machine is the point. Seed on display (YMO_SEED / R / [ ] history), T tone, H help. Worked example #8 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include <stdio.h>

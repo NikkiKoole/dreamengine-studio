@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "Interiors — a fill language for floor-plans",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "generative"
+  ],
+  "teaches": [
+    "dungeon-generation"
+  ],
+  "lineage": "The indoor sibling of lotfill: fills a building footprint with a recursive BSP room tree, emergent room labeling (label falls from area/frontage/adjacency rules, no type list), door circulation ensuring every room is reachable, and deterministic hash-seeded generation — extends lotfill's open-world scatter into bounded recursive subdivision.",
+  "description": "The indoor sibling of Lotfill (docs/design/interiors-brief.md): where lotfill fills the land between buildings, this fills the space INSIDE one building's footprint - believable house / shop / warehouse layouts. A floor-plan is a BOUNDED region generated wholesale from one hash-seed, so unlike lotfill's open-world scatter we MAY GROW: recursive BSP splits the shell into a room tree (bounded => recursion is legal). The thesis: rooms EMERGE, they are not a type list - partition() splits the shell into anonymous rooms, then a SELECTOR reads each room's AREA / FRONTAGE / ADJACENCY and lets the label fall out (largest-fronting-entry = living/shop/bay, smallest = bath/office, medium-on-an-exterior-wall = kitchen, the rest = bedrooms/storage); believability comes from the RULES, not hand-placed set-pieces. Building type (residential / commercial / industrial) is the top-level selector input, picked per cell from a zone field. The tabs (TAB to switch): PROGRAM = the DRIVER (default) composing shell->partition->circulation->fixtures->furnish over a grid of footprints; SHELL = the exterior envelope + the entry gap on the frontage wall; PARTITION = the recursive BSP room-split (the heart); CIRCULATION = doors through the shared walls - every split's wall gets a door, so the room graph is a TREE => every room reachable from the entry by construction (no orphans); FIXTURES = windows on exterior walls + doors on interior; FURNISH = props per room keyed by the emergent label. Honors lotfill's seams: pure fn of the hash-seed (deterministic, byte-reproducible), draw == query (room_at/solid_at IS the future collision seam for sloop), LOD gates drawing not generating, atoms read no globals. Inspection: 1-4 peel layers with live counts, G shows the BSP walls + entry markers, O tints the building-type field. WASD/ZX move, R new seed."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

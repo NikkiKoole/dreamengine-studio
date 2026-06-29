@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "mode 7",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "mode7",
+    "noise-terrain"
+  ],
+  "lineage": "Direct implementation of the SNES Mode 7 scanline perspective trick; world is a layered noise heightmap baked to a 256×256 texture at init rather than read from a sprite sheet.",
+  "genre": "racing",
+  "description": "The real SNES floor trick: one flat terrain texture sampled once per scanline with a perspective divide, so it stretches to a horizon and rotates under you (not faked road segments). Pilot a craft over a procedurally generated world — sea, beaches, forest, snowy peaks — and fly through the glowing rings (projected with the same math, inverted) before the clock runs out; each ring buys +5s. Left/Right turn, Up/Down throttle, Z climb, X dive."
+}
+de:meta */
 #include "studio.h"
 
 // MODE 7 — the SNES floor trick: one flat ground texture, sampled once PER

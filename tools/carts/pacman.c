@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "pac-man",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "tilemap-collision",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Faithful port of Namco's 1980 Pac-Man; the ghost-personality targeting system (Blinky direct-chase, Pinky 4-tile lookahead, Inky reflection off Blinky, Clyde distance-shy) is reproduced from the original arcade AI spec.",
+  "genre": "arcade",
+  "homage": "Pac-Man (1980)",
+  "description": "The maze classic, ghost AI and all. Eat every dot to clear the board; power pellets turn the ghosts blue so you can gobble them for escalating points. The four ghosts each hunt differently — Blinky chases head-on, Pinky aims four tiles ahead to ambush, Inky flanks using Blinky's position, and Clyde charges until he gets close then loses his nerve. Scatter/chase mode cycling, frightened mode, and eyes that scurry home to respawn. 3 lives, best score saved. Arrows / WASD to steer."
+}
+de:meta */
 #include "studio.h"
 
 // PAC-MAN

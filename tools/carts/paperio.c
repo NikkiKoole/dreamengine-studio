@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "paper.io",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "grid-movement",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Clone of Voodoo's 2016 paper.io; the territory-capture rule (flood-fill from the border to find unclaimed enclosed cells) is the algorithmic core, paired with heuristic bot AI that tracks a home-centroid and targets rival trails.",
+  "genre": "sandbox",
+  "homage": "Paper.io (2016)",
+  "description": "Territory capture on a grid. Leave your zone and a trail follows you — loop back to your own color and a flood fill claims everything you enclosed. Cross your OWN trail and you die; cut a rival's trail and THEY die. Three AI rivals expand and cut each other too. First to 60% wins, best run saved. Arrows / WASD to steer (you move on your own)."
+}
+de:meta */
 #include "studio.h"
 
 // PAPER.IO

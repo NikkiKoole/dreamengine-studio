@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "traffic jam",
+  "status": "active",
+  "kind": [
+    "toy"
+  ],
+  "teaches": [
+    "gene-based-procgen",
+    "car-following",
+    "traffic-sim",
+    "no-sprite-vehicles"
+  ],
+  "lineage": "rectangular-vehicle style after boulderdash / donkeykong; first traffic-sim toy",
+  "description": "A generative cars toy in the rectangular style of Donkey Kong and Boulder Dash — every vehicle is built from rectfill/polyfill/circfill (no sprite art) from a random bag of GENE-DIMENSIONS rolled within its TYPE, so the same sedan is never the same sedan twice. Ten knobs vary one car: length, body height, roof height, cabin length, cabin position, windscreen rake, backlight rake, wheel radius, ground clearance, wheelbase — plus colours, two-tone, passengers, spoiler, roof-rack, antenna. 17 types: micro, hatchback, sedan, wagon, SUV, MPV, coupe, sports, supercar, muscle, luxury, convertible, antique, pickup, van, bus, and a long-ass semi truck — each with a driver and passengers visible through the glass. They roll past in a four-lane procession governed by a TRAFFIC LIGHT: go red and a stop-and-go jam piles up behind the line and ripples backward (real car-following), go green and it flows. Click a car to HONK, click the light (or L) to flip it, SPACE re-rolls the fleet."
+}
+de:meta */
 #include "studio.h"
 
 // ── TRAFFIC JAM ───────────────────────────────────────────────────────────────

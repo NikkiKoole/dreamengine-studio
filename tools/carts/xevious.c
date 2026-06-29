@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "solvalou (xevious)",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "noise-terrain",
+    "particle-system"
+  ],
+  "lineage": "Direct homage to Namco's Xevious (1982); distinctive for the dual-layer weapon system (zapper vs. blaster bomb on a reticle) and noise-driven scrolling terrain generation.",
+  "genre": "shooter",
+  "homage": "Xevious (1983)",
+  "description": "A Xevious — the vertical shooter with TWO weapons for two layers: Z zaps flying enemies (toroids, zoshis), X drops a blaster bomb on the reticle ahead of you to hit GROUND targets (tanks, bases). Terrain scrolls past, ground bases shoot back, and the Andor Genesis mothership shows up for big points. WASD/arrows fly, Z zap, X bomb."
+}
+de:meta */
 #include "studio.h"
 
 // SOLVALOU — a Xevious. The trick is TWO weapons for two layers:

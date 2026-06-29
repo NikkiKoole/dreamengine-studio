@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "bunnymark",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "lineage": "The canonical Flash/Pixi.js bunnymark (Iain Lobb / Goodboy Digital), ported as the worked sprite-throughput demonstrator for the DE_SOFTWARE_CANVAS render-backend toggle — GPU immediate-mode vs the CPU software canvas, the same spr() blits each way.",
+  "description": "The classic sprite-throughput benchmark. Hold A (or the mouse / a finger) and bunnies pour out of the corner, bounce off a gravity floor and the walls, and never stop while a live counter climbs and the FPS readout holds at 60 — until the machine runs out of blit budget and the whole swarm slides into slow-motion. The number it sags at IS the benchmark, and a \"60fps held @ N\" line keeps the session's high score. Every bunny is one sspr() of a 32×32 sprite — a hand bunny posterised into the pico32 palette and tinted five ways via palette-index ramps (NOT pal()-recoloured: pal() flushes the GPU sprite batch per call and runs a per-pixel recolor on the software canvas, so baking the tint into the sheet keeps the loop a pure blit), making it a clean test of the sprite-blit path — exactly the workload the render-backend toggle swaps: open settings → rendering and flip between hardware (GPU immediate-mode) and software (CPU canvas) to watch the held-bunny count move between the two engines. Physics is a fixed per-frame step on purpose, so the slowdown shows as honest slow-motion instead of teleporting. HOLD A/mouse/touch to pour, B to reset."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"      // ui_spr_button — clickable sprite-icon toggle buttons
 #include <stdio.h>   // snprintf for the HUD readouts

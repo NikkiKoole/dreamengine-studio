@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "grain clouds",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "granular-synth"
+  ],
+  "lineage": "Showcase for the grains() engine ported from navkit; novel: freeze mode halts the capture head so a chord loops as an infinite shimmering pad while live performance continues on top.",
+  "description": "The showcase for grains() - a GRANULAR DELAY ported from navkit. It captures the live signal into a buffer, then sprays scattered, overlapping windowed GRAINS of the recent past back out as an evolving cloud (a Cosmos-style ambient texture). A soft pad chord feeds the cloud the whole time; the headline move is FREEZE (F or SPACE) - stop capturing and loop what's there forever, so you play a chord, freeze it into an infinite shimmering pad, then solo OVER your own frozen self. Six sliders ride the cloud live: SIZE (grain length), DENSITY (grains/sec, sparse to dense wash), POSITION (deep past to live edge), SCATTER (the random-spread 'evolving' knob), FEEDBACK (self-feeding cloud), MIX. Each dot on screen is a grain reading the buffer; the green bar is the capture head, which halts when frozen. Press 1..4 for chords (Cmaj7/Am7/Fmaj7/G), H for help. Built on grains() / grains_freeze() - reorderable as FX_GRAINS in the pedalboard. Part of the effects-bus / pedalboard family."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

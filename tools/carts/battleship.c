@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Battleship",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "turn-based-loop"
+  ],
+  "lineage": "Classic Battleship board game — two-grid setup/battle phases with a hunt-then-target CPU AI (stack of candidate cells, checkerboard hunt bias).",
+  "genre": "tabletop",
+  "description": "Classic two-grid naval Battleship against a scheming CPU. Set up your fleet of five ships on the left ocean — a ghost ship snaps to the cursor and turns red when it won't fit — then trade salvos with the hidden enemy grid on the right. Hits flash and shake the screen with a low boom, misses splash, and a major-chord sting rings out when you sink the Carrier, Battleship, Cruiser, Submarine, or Destroyer. The enemy fires back with a hunt-then-target AI: random checkerboard shots until it draws blood, then it probes the neighbours of its last hit until your ship is dead. First fleet sunk loses; wins and losses are tallied across runs. SETUP: move the mouse to aim, click to place, R to rotate, click RANDOM to auto-fill, click READY to fight. BATTLE: click an enemy cell to fire. GAME OVER: click or press Z to play again."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 #include <string.h>

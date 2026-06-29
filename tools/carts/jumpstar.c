@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "Jumpstar",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "camera-follow",
+    "parallax",
+    "particle-system",
+    "screen-shake-juice"
+  ],
+  "lineage": "Doodle Jump (2009) homage; adds crumbling and moving platform types, a parallax starfield, squash-on-bounce juice, and save-load best score — all layered on top of the standard endless-jumper loop.",
+  "genre": "platformer",
+  "homage": "Doodle Jump (2009)",
+  "description": "An endless vertical jumper in the Doodle-Jump grain: a little astronaut auto-bounces forever off procedurally spawned platforms while you steer to keep landing on the next ledge up. Green platforms are solid, blue ones slide and bounce at the edges, and cracked brown ones crumble away after a single bounce, so dawdling drops you. Grab bobbing stars for a sparkly bonus, ride the climbing camera through a parallax starfield, and don't fall off the bottom — every landing squashes the astronaut, shatters fling debris, and the screen kicks on a break. Height is your score and your best run is saved between sessions. Steer with A/D or Left/Right (wraps at the screen edges); jumping is automatic; press Z to jump again after a fall."
+}
+de:meta */
 #include "studio.h"
 
 // JUMPSTAR — endless vertical jumper (Doodle-Jump grain).

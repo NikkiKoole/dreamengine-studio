@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "gamelan radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "schedule-driven-agents"
+  ],
+  "lineage": "Radio station #19; the first station to leave 12-TET — introduces three new station-design patterns (tuning-as-data via a cent table, colotomic gong-cycle form, and kotekan interlocking voices) that have no precedent in earlier stations.",
+  "homage": "Javanese / Balinese gamelan",
+  "description": "Endless Indonesian gamelan - the Java / Bali homage, station #19, and the FIRST station to leave the equal-tempered grid: TUNING AS DATA. The seed rolls slendro (5 tones) or pelog (7) as a CENT table, then jitters every degree, because no two village gamelans are tuned alike - each song is played on slightly different bronze, named for its ensemble (Kyai Kanyut, Mendung...). It's realized as a BRONZE BANK: one INSTR_MALLET slot per scale degree, instrument_tune()'d once per song to that degree's microtonal residual - so because an octave is exactly 12 integer semitones, the whole pitched range plays through sample-tight schedule_hit() on integer midi while the slot detune bends each note off the 12-TET grid. The suling (bamboo flute, INSTR_REED) takes the other road: note_pitch() float, truly continuous, floating free of the pulse. COLOTOMIC TIME, a new TIME brain: form is nested gong cycles, not bar/phrase/section - the great gong (gong ageng) closes the gongan, kenong marks its quarters, kempul the points between, and the window's cycle ring rides round to the gong. KOTEKAN, a new MELODY brain: two voices (polos + sangsih) on complementary onset masks that sum to an unbroken 16th stream neither plays alone - built by dealing alternate sixteenths, so the interlock is disjoint-and-full by construction (trace-verified). OMBAK is the timbral identity: the great gong is struck as a detuned PAIR, two slots a few cents apart, beating against itself. And IRAMA is the feel knob - the gamelan inversion of 'more': turn it up and the core melody SLOWS while the elaboration thickens (Java end to Bali end). The band is all bronze (INSTR_MALLET), the gong pair, the kendang hand drums (INSTR_MEMBRANE), and the suling. SPACE next gamelan (a new village), R same gamelan (the suling is new), [ ] history, LEFT/RIGHT irama (lancar/tanggung/dadi/wiled), UP/DOWN tempo, T tone, M power, H help."
+}
+de:meta */
 // ── GAMELAN RADIO ─────────────────────────────────────────────────────────
 // The bronze drift: endless generative Indonesian gamelan — tuned metallophones
 // and kettle-gongs over hand drums, a cycle that a great gong closes, the whole

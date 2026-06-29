@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "fretboard",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "toy"
+  ],
+  "teaches": [
+    "chord-voicing"
+  ],
+  "lineage": "Multi-string extension of the monochord probe — same PD-oscillator/glide/position=pitch feel, scaled to six strings so finger geometry directly voices chords (vertical rake = barre, angled fingers = voicings).",
+  "description": "A multitouch fretted string instrument — TAP a string at a fret to pluck it, tap several strings at once and you get a CHORD: the chord is your finger GEOMETRY, not a button you press. The payoff of the monochord experiment, and the honest version of pedalboard's chord buttons (here you actually form the shape). Six strings, standard tuning E A D G B e; frets quantize the position so you land in tune. TAP a string @ a fret = pluck it; DRAG across the strings = a strum (each sounds as you cross it); slide along a string = re-fret. SPACE strums all six at their held frets. DESKTOP crutch (you can't multitouch a mouse): hold 1-6 for an open-chord shape (Em G C D Am A), then SPACE or drag to strum it — on a phone you fret the shape by hand instead. INSTR_GUITAR. A full six-finger chord + strum exceeds the iPhone 5-touch cap, so it leans desktop/iPad."
+}
+de:meta */
 // fretboard — the monochord, with more strings. Six FRETLESS strings stacked into
 // a neck: touch a string and your finger's POSITION along it is the pitch (no frets),
 // slide and it GLIDES, lift and it rings out. Touch several strings = a chord; the

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "12. high score",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Mash buttons for 10 seconds. Your best score saves between runs with save() and load()."
+}
+de:meta */
 #include "studio.h"
 
 int score    = 0;

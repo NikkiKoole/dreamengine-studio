@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "breakout",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Breakout (1976) clone; paddle-position-to-angle reflection and nearest-face brick bounce, with row-pitched hit sounds.",
+  "genre": "arcade",
+  "homage": "Breakout (1976)",
+  "description": "Classic brick-breaker. Rainbow rows of bricks, paddle angle controls the bounce direction. 3 lives. Left/right to move, A to launch."
+}
+de:meta */
 #include "studio.h"
 
 // breakout

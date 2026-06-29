@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "voxlab",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [],
+  "description": "The FAT prototype for the formant VOICE engine (INSTR_VOICE — a navkit VoicForm port: a glottal pulse through four vowel formants). A probe: it exposes all SEVEN raw voice params on sliders (vowel U→I morph · size/vocal-tract length · breath · glottal open-quotient · spectral tilt · vibrato depth · vibrato rate) so you can AUDITION by ear which three deserve to become the public harmonics/timbre/morph macros. The four 'layout' buttons (gen / mouth / creat / sing) load candidate 3-axis combos — press one, sweep the sliders it leans on, judge whether that combination feels expressive. Drives the engine through voice_param(handle, idx, value), an EXPERIMENTAL by-index poke that retires once the axes are chosen. SPACE plays a sustained note · Z/X drop/raise pitch · drag the sliders."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "facegen",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "gene-based-procgen"
+  ],
+  "lineage": "The portrait sibling of crowd.c / deeper's gene-rolled bodies, aimed at the face: a role-biased gene roll (skin/hair/facial-hair/accessory-bitmask) drawn entirely from primitives, wired into a Leisure-Suit-Larry-style talking conversation box (dialogue.c's primitive face) but with the PERSON procedurally generated instead of scripted — the reusable NPC-portrait system for the GTA-style city.",
+  "description": "The NPC-portrait SYSTEM for the GTA-style world (sits beside streetlab, sloop, flank, worldgen, lotfill, interiors): roll a person off the corner and they fill the screen and say their piece in a comic conversation box. Seventeen ARCHETYPES — made men, gangsters, corner boys, dealers, pimps, working girls, fiends, civilians, beggars, working-class laborers (hard hat), drunks (flushed), senior citizens (bespectacled, wrinkled), ballers (headband), businessmen (suit), baristas, historians and teenagers — every face built ONLY from primitives (ovalfill/trifill/line, no sprite art) and every one different, drawn in a Hotline-Miami-inspired inked style — heavy black outlines, hard planar light/shadow shading under a GTA-style warm upper-left key, sunken intense eyes with glowing irises, a protruding outlined nose and gritted-teeth grimaces — with subtle per-face ASYMMETRY (jaw, eyes, brows, nose nudged off-centre so no face is mirror-perfect). There is no portrait 'engine': a person is just a bag of GENES rolled by rnd() — skin tone (a six-step pale-to-very-dark ramp, each a 3-tone highlight/base/shadow), face shape (round / long / square / heavy / slim / gaunt), nose (button / straight / wide / Roman / pointy), hair (high-top fade, cornrows, afro, slicked-back, durag, bun, bob...), facial hair (stubble/'stache/goatee/full beard), a 'wrinkly' trait (forehead furrows, crow's feet, nasolabial folds on weathered/older faces), and a bitmask of 1990s accessories: gold rope chains, black shades, hoop & stud earrings, bandanas, durags, snapbacks, fur hats, lit cigarettes with rising smoke, gold teeth and grills, cheek scars, sweat beads, beauty marks, and FACE TATTOOS that are real TYPOGRAPHY — rotated gang lettering ('MONEY'/'RIP'/'213') in the bitmap fonts, CP437 symbol glyphs (♠♣♥♦☼♫ arrows), and tiny ascii-art motifs, with an 'excessive' fully-inked variant. Each ROLE biases the roll so a mobster reads mobster (slicked hair, suit + tie, cigar) and a corner boy reads corner boy (hoodie, cap, wary eyes); women get a 'babe' trait some of the time — slim soft face, big doe eyes with mascara lashes, thin arched brows, fuller glossed lips, rosy cheeks and a Monroe mole — but NOT all do, the rest are plainer or older/greying. A role-appropriate procedural NAME ('Frankie \"Big Tony\" Moretti', 'Lil' D-Loc', 'Bambi') and a fitting BARK are drawn with a typewriter + per-letter tick, the mouth flapping while it talks, blinks, an idle hard-stare squint, an idle head-bob, a framed 100px mini-avatar of the same face, and a role-tinted mood backdrop (warm restaurant / night street / pink neon / grim alley). The whole Npc struct + roll_npc() + draw_portrait() lift straight into the game. SPACE/click = new person, Z = same person another line, 1-8 = force a role, X = tick on/off."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>    // sinf for the idle head-bob + smoke wisp
 

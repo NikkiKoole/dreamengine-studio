@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "spatial",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "audio-occlusion",
+    "positional-audio"
+  ],
+  "lineage": "Tech demo for the engine's spatial-audio API (v1 per-voice + v2 emitter buses); novel in demonstrating full-bus Doppler through a shimmer reverb tail alongside per-voice positioning and listener velocity.",
+  "description": "Sound that lives in the world — the spatial-audio API (v1 per-voice + v2 emitter buses). You are the EAR (arrow keys to move). A UFO flies across the upper lane as a v2 EMITTER: a sustained tone through SHIMMER reverb, positioned via instrument_pos/instrument_motion so the WHOLE effected bus moves — you hear the Doppler bend the pitch through the entire pass and the glassy tail sweep with it. A CAR loops the lower lane (v1 note_motion) for the simpler per-voice whoosh; a SUITCASE RHODES (bottom-left) arpeggiates EPIANO via positioned hit_at; CLICK/TAP fires a one-shot blip AT that spot. listener()/note_pos()/note_motion()/hit_at() position voices; instrument_pos()/instrument_motion() position a whole effected bus. Dormant and byte-identical until you call listener()."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

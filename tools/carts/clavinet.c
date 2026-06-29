@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "clavinet",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "adsr-envelope"
+  ],
+  "lineage": "Sixth in the effects-showcase family (spacecho/cathedral/juno/mistress/tapeloop), modelling the Hohner Clavinet D6 through a bus-side envelope-follower auto-wah — novel because the wah had to land on the summed bus, not per-note.",
+  "homage": "Hohner Clavinet D6 + auto-wah",
+  "description": "Hohner Clavinet D6 (1971) through an AUTO-WAH - the funk machine, and the showcase for wah(). A clavinet is a bright, short, percussive plucked-reed keyboard; run it into an envelope filter and you get the Superstition / Higher Ground talking wakka-wakka: the filter OPENS on each hard stab and quacks shut between them, following how hard you play. This is the realistic auto-wah, which (the scar) had to be a BUS effect - an envelope follower on the summed signal, not a per-note sweep, so it pumps with the groove. Sixth box in the effects family (spacecho=echo, cathedral=reverb, juno=chorus, mistress=flanger, tapeloop=tape, clavinet=auto-wah). A syncopated 16th C-minor funk riff plays itself; the WAH footswitch A/Bs the bare clav vs the talking wah; SENS sets how much your playing opens the filter, RES is the quack, MIX is dry..wet. The on-screen MOUTH opens with the wah (ooo->aah) - harder stabs, wider vowel. WAH footswitch [W], SENS/RES/MIX knobs, SPACE toggles the AUTO riff, 1..6 stab a note by hand, H help."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

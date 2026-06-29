@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "roadview",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "road-network"
+  ],
+  "lineage": "Sibling of roadnet but DATA-DRIVEN rather than generative: instead of synthesising a network it loads a real OpenStreetMap export at runtime (de_data_path()/de_dropped_file() + runtime/json.h), then classes and draws the real ways. First cart to read an external data blob at runtime instead of baking geometry into source (cf. fmltools/floorwalker).",
+  "description": "Drive around REAL road data, loaded at RUNTIME. The network is neither generated nor baked into the cart — it is an OpenStreetMap export (fetched by tools/osm-roads.js, or the synthetic --demo set) read from a JSON file when the cart starts, so the SAME cart shows any town: swap the file, see a different city. This is the data-driven-cart experiment that kills the floorwalker/seinelaan smell of regenerating a cart per dataset (docs/design/external-data-carts.md). Each way is classed HIGHWAY / ARTERIAL / ROAD / TRACK and drawn in its colour at a width sized in real metres (so roads fatten as you zoom in); canals are stroked, water areas filled in blue, parks and woods filled green, and building footprints + individual street trees revealed as LOD-gated detail once you zoom in close (B toggles footprints, T toggles trees) — all beneath the roads, with the bounding box auto-fitting to the screen. Opens on data/demo.json by default — then just DRAG any .json from the data folder onto the window to load that town, or click OPEN (top-right) to reveal the folder in Finder. Built on three tiny EXPERIMENTAL engine hooks: de_data_path() (--data <file> / $DE_DATA), de_dropped_file() (drag & drop) and de_open_path() (reveal folder); the JSON is parsed by runtime/json.h (vendored jsmn). Controls: arrows / WASD pan, left-drag grabs the map, mouse wheel zooms, 0 resets the view, B toggles building footprints, T toggles trees; drag a .json to load it, OPEN reveals the data folder."
+}
+de:meta */
 // ROADVIEW — drive around REAL road data, loaded at runtime.
 //
 // A broad-strokes map of an actual place. The road network is NOT generated and NOT

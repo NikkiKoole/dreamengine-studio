@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Deckbuilder",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "state-machine",
+    "inventory-system"
+  ],
+  "lineage": "Standalone Slay-the-Spire grain — one full run (map, two fights, boss, card rewards); novel as the first deck-building loop in the library, drawn entirely from primitives with no sprite sheet.",
+  "genre": "rpg",
+  "homage": "Slay the Spire (2017)",
+  "description": "A Slay-the-Spire-grain dungeon run boiled to its core: three nodes, three fights, one boss. Spend 3 energy a turn on a hand of cards — STRIKE and BASH chip the foe's HP, DEFEND and BULWARK raise BLOCK that soaks the next hit — while the enemy telegraphs its INTENT (a sword + number) so you can plan the trade. End your turn, watch the grunt resolve, drop it to zero, then pick one of three reward cards to fatten your deck before walking to the next node. Beat the horned Dread Knight to clear the run; your win count is saved between sessions. All hand-drawn from primitives with floating damage numbers, hit-flash, screen shake, and a punchy little synth. Click a card to play it on the enemy, click END TURN to let it act, click a reward to keep it (or SKIP), and click the next map node to advance; keys 1-5 play hand slots, ENTER ends the turn, SPACE continues."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 #include <string.h>

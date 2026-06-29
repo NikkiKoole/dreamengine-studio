@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "lfoshapes",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "algorithm-visualization",
+    "sonification"
+  ],
+  "lineage": "Standalone showcase for the engine's LFO_SHAPE_* vocabulary (STATUS #39); novel in pairing a live trace + phase dot with audible modulation so the learner sees and hears each waveform simultaneously.",
+  "description": "The showcase for the unified LFO_SHAPE_* vocabulary - the modulator waveform, shared across the whole engine (voice LFOs via lfo_shape()/note_lfo_shape(), tremolo/autopan, and fx_lfo). One held saw note runs an LFO; press 1..8 to switch its WAVEFORM live - sine / square / tri / saw / ramp / optical (the Univibe bulb throb) / S&H (sample & hold) / random (filtered walk) - and watch the trace redraw while the yellow dot tracks the value right now. D flips the destination between PITCH (vibrato) and CUTOFF (a filter wobble); -/= set the rate. The expressive payoffs: S&H on PITCH is a random-step arpeggio, SQUARE on CUTOFF is a stepped two-state filter. The stateful shapes are deterministically seeded (--det reproducible). H help. (STATUS #39.)"
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

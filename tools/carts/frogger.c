@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "frogger",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Port of Konami's 1981 Frogger; canonical grid-hop + log-riding loop, lane data-driven via a static LaneCfg table.",
+  "genre": "arcade",
+  "homage": "Frogger (1981)",
+  "description": "Classic Frogger. Hop across 4 lanes of traffic, ride logs across the river, land on all 5 lily pads to advance. Each round speeds up. 3 lives. Arrow keys to hop."
+}
+de:meta */
 #include "studio.h"
 
 // FROGGER — hop to all five lily pads!

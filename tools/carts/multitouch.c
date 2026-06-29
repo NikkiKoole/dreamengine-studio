@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "multitouch paint",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "Finger-paint playground for the touch API. Every finger paints its own color at the same time - touch_id() keeps a finger's color stable while other fingers come and go - a new finger landing plays a mallet blip pitched by where it touched, and the CLEAR button shows tapp() edge-triggering: one tap, one clear. Best on a touchscreen: settings > Build for web, then open the LAN url from the build log on an iPad/phone on the same wifi. On desktop the mouse paints as a single finger."
+}
+de:meta */
 // multitouch — finger-paint playground for the touch API
 //
 // Every finger paints its own color at the same time. touch_id() keeps a

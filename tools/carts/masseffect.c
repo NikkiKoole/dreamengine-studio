@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "mass effect",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "dialogue-tree",
+    "camera-follow",
+    "state-machine"
+  ],
+  "lineage": "Mass Effect distilled to its hub-map-mission-dialogue loop; novel in implementing the radial dialogue wheel with morality accumulation that forks the ending, across three distinct runtime scenes.",
+  "genre": "rpg",
+  "homage": "Mass Effect (2007)",
+  "description": "A space opera distilled to its loop. Command the SSV Normandy from the bridge: chat with your crew through a paragon/renegade DIALOGUE WHEEL, chart a course on the GALAXY MAP, then drop into a top-down cover-shooter. Move and aim twin-stick while two AI squadmates flank and fire; duck beside crates and walls that genuinely block bullets AND line-of-sight (real cover), regen your shield between firefights, and unleash a biotic blast that slows time and flings the swarm. Clear the husk waves, then break the Reaper Core. The crowd-cart trick runs the whole cast — ONE fighter sprite, recoloured with pal() into the hero, both squadmates and every enemy — and each planet is its own tile theme. A final wheel choice (spare / disable / execute), weighed against the morality you built on the bridge, forks the ending. HUB/MAP/DIALOGUE: mouse + Z (X backs out of the map). MISSION: WASD move, mouse aim, Z or left-click fire, X biotic blast."
+}
+de:meta */
 #include "studio.h"
 
 // ── MASS EFFECT — a space opera distilled to its loop ──────────────────────

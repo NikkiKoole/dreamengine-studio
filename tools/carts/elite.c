@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "elite",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer"
+  ],
+  "lineage": "Homage to Elite (1984): hand-rolled perspective projection and yaw/pitch rotation matrices over a 3D wireframe model, with a faithful elliptical scanner radar — no engine 3D, all math is explicit.",
+  "genre": "shooter",
+  "homage": "Elite (1984)",
+  "description": "Cockpit wireframe dogfight after the 1984 space classic. Pirate ships approach as real 3D wireframes out of the starfield — the world rotates around you as you pitch and yaw, projected to the screen with perspective. Line a ship up in the crosshair and fire your converging lasers. The famous elliptical scanner plots every ship around you, with a stalk showing whether it's above or below. Shields recharge between hits; lose them and you're space dust. Endless waves get tougher as your kill count climbs. Arrows / WASD pitch + yaw, Z fires."
+}
+de:meta */
 #include "studio.h"
 
 // ELITE  — cockpit wireframe dogfight

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "13. easing",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "ease_in, ease_out, ease_in_out — shape motion from robotic to natural. Four balls, four curves."
+}
+de:meta */
 #include "studio.h"
 
 void draw() {

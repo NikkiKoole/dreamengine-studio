@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "7. keeping score",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Track a number and show it on screen. Press buttons to score and reset."
+}
+de:meta */
 #include "studio.h"
 
 int score = 0;

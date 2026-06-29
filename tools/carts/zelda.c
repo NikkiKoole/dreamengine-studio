@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "lil hero (zelda)",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "state-machine",
+    "finite-state-ai"
+  ],
+  "lineage": "Direct homage to The Legend of Zelda (1986); novel in compressing the room-grid exploration, sliding-screen transition, and enemy AI (Octorok ranged/Moblin chase) into a single-file primitive cart with no sprites.",
+  "genre": "rpg",
+  "homage": "The Legend of Zelda (1986)",
+  "description": "A tiny Legend of Zelda. Explore a 3x3 grid of rooms — the screen slides when you step through a doorway — stab enemies with your sword, and at full hearts the sword throws a beam. Octoroks spit rocks, Moblins chase you; killing them drops hearts and rupees. Find the room with the Triforce and grab it. WASD/arrows move, Z sword."
+}
+de:meta */
 #include "studio.h"
 
 // LIL HERO — a tiny Legend of Zelda. Explore a grid of rooms (the screen

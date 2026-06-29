@@ -1,3 +1,23 @@
+/* de:meta
+{
+  "title": "cr-78 compurhythm",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "subtractive-synth",
+    "additive-synth",
+    "drum-synthesis",
+    "analog-voice-modeling",
+    "swing-timing"
+  ],
+  "lineage": "Roland CR-78 (1978) homage; extends drummachine's grid by rebuilding each analog voice from its circuit description — one shared noise source filtered per voice, beating detuned squares for metal, and a 36Hz volume-LFO chop for the guiro ratchet.",
+  "homage": "Roland CR-78 CompuRhythm (1978)",
+  "description": "All 15 voices of the Roland CR-78 (1978) rebuilt from their analog circuits with the synth API: damped-sine membranes (kick/bongos/congas), one noise source shaped per voice by different filters (the famous swishy bandpassed hats, highpassed maracas, resonant tambourine jingle), detuned square pairs/triples for cowbell and the metallic beat, and the guiro's ratcheting scrape — bandpassed noise chopped by a 36Hz volume LFO under a rising cutoff sweep. Plays eight classic presets including Disco-2 (In the Air Tonight), the Mambo+Beguine blend (Heart of Glass), and the triplet-feel Shuffle and Swing — plus the knob the original never got: Z/X sets swing 50-66% by scheduling the offbeat 8ths late (adjustable swing didn't exist until the LM-1 in 1980). The grid is editable: click/drag cells to toggle, click the orange strip to move accents, click a label to audition; accent steps are a volume boost, just like the real knob. Q-G play voices by hand, LEFT/RIGHT preset, UP/DOWN tempo, SPACE start/stop."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 

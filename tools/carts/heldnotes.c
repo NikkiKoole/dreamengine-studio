@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "held notes",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [],
+  "description": "A theremin built on the new HELD NOTE api. Press and HOLD anywhere on the pad — one sustained voice starts (note_on) and rings until you release (note_off). While you hold, the mouse drives it live: X slides the pitch (note_pitch), Y sweeps the filter cutoff (note_cutoff). This is the opposite of fire-and-forget note(): a voice you keep talking to. The building block behind engine revs, sirens, charging lasers, and real hold-to-sustain keyboards."
+}
+de:meta */
 #include "studio.h"
 
 // HELD NOTES — a theremin. Press and HOLD anywhere on the pad: one sustained voice

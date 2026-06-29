@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "ui.h loupe",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "The magnifier loupe, now built into ui.h — free for any widget cart. A deliberately cramped synth panel (tiny 6px knobs, thin faders, a 16-step button row) with ONE line of loupe code: ui_loupe(1). Drag the corner box and a 3x lens floats above your finger, magnifying whatever ui.h widgets it covers; a second finger edits the fat versions inside, while the lens blocks touches to the real tiny widgets underneath. Grab a knob in the lens and drag out — it keeps turning with no jump (ui.h re-anchors the knob at the lens edge; inside the lens a full sweep needs 3x travel, so it doubles as fine-control). Tap empty space to dismiss. The integrated companion to the standalone loupe POC. See docs/design/loupe-notes.md."
+}
+de:meta */
 // uiloupe.c — the ui.h loupe, on a real ui.h widget panel.
 //
 // Proves the loupe is FREE for any ui.h cart: a deliberately cramped synth panel

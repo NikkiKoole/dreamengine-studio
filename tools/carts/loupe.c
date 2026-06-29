@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "Loupe",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Magnifier interaction for tiny touch targets on a phone. A mock 808 (two rows of 16 small step buttons + four knobs) that's brutal to hit on mobile. Drag the corner box and a fixed 3x rectangular lens appears above your finger showing whatever it's over, magnified; lift to park it. A SECOND finger reaches into the lens and edits the fat, easy version - the lens blocks touches underneath so the real tiny widgets stay safe. Grab a knob inside the lens and you can drag right out of it and keep turning (the grab already landed; knobs re-anchor at the lens edge so there's no jump - and inside the lens a full sweep needs 3x travel, so it doubles as fine-control). Tap empty space to dismiss, then poke the tiny widgets directly to feel the difference. Self-contained POC for a ui.h capability."
+}
+de:meta */
 // loupe.c — magnifier-loupe interaction for small touch targets.
 //
 // The problem: a desktop layout (drum machine, here a mock 808 — two rows of

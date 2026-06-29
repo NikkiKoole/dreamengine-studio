@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "drivemodes",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "The four flavours of the drive() grit knob, side by side on one growling bass. instrument_drive_mode() picks the waveshaper - SOFT (tanh, warm tube overdrive), HARD (hard clip, buzzy digital fuzz), FOLD (sine wavefolder, metallic and glassy), ASYM (asymmetric tube, adds the fat even harmonics) - while instrument_drive() stays the amount. An auto-riff keeps the bass going so you hear the mode flip live, with a representative waveshape drawn under each panel. All four are a true bypass at drive 0 and hold full-scale loudness, so they change character not volume. LEFT/RIGHT (or tap a panel) picks the mode, UP/DOWN rides the drive amount, Z plucks."
+}
+de:meta */
 // drivemodes — the four flavours of drive() on one growling bass note.
 // instrument_drive_mode() picks the waveshaper; instrument_drive() is the amount.
 //   ← → : pick mode      ↑ ↓ : drive amount      Z : pluck now

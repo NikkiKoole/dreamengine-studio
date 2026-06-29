@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "discstress",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "A deterministic torture test for the SOFTWARE disc/ellipse fills (circfill -> disc_inside -> plot_pat, ovalfill -> ellipse_inside -> plot_pat) — the circfill/ovalfill sibling of polystress. Scene 0 SOLID (key 1, the span-fill optimization target): three big pulsing circles (large fill AREA), a 60-cell grid of small circles (fill COUNT + per-call bbox setup), wide/tall/round ovals (ellipse_inside across aspect ratios), a big circle running OFF-SCREEN (there's no scan clamp on the disc path today), and r=0/1 degenerate radii. Scene 1 DITHER (key 2): big circles + ovals through every FILL_* pattern (the plot_pat fallback). Scene 2 ZOOM (key 3): planet-style big fills under a zooming camera_ex (rotation 0) — the byte-identity test for the span fast-path under zoom (orbit's case). Pure function of the frame counter — byte-reproducible — so it pins the disc rasterizer for a clean profile AND validates the span-fill optimization pixel-identical. Not a game; a profiling + regression rig."
+}
+de:meta */
 // discstress — a deterministic torture test for the SOFTWARE disc/ellipse fills
 // (circfill → disc_inside → plot_pat, ovalfill → ellipse_inside → plot_pat). The
 // circfill/ovalfill sibling of polystress: pins the per-pixel disc path so a profile

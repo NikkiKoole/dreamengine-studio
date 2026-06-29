@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "flank",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "game"
+  ],
+  "teaches": [
+    "pathfinding",
+    "finite-state-ai",
+    "steering-behaviors"
+  ],
+  "lineage": "Testbed for GTA1/Hotline-Miami enemy brains; novel in combining a Dijkstra flow field (navigation around cover) with a player-aim danger heatmap (flanking cone avoidance) and a shared blackboard with knowledge decay.",
+  "genre": "shooter",
+  "description": "Top-down tactical AI -- a squad that isn't dumb (a testbed for a GTA1 / Hotline-Miami enemy brain). Four ideas: COMMUNICATION -- a shared blackboard; the instant any enemy sees you it calls your position to the whole squad and blind ones converge (knowledge decays, so break contact and they search your last-known spot). FLOW FIELD -- a Dijkstra map flooded from your last-known cell, so they approach AROUND cover, not into walls. HEATMAP / FLANKING -- your aim projects a danger cone; enemies score firing spots to AVOID the cone, so they peel off and hit you from the sides and behind. COVER -- XCOM-style FULL cover (grey: blocks sight + bullets) and LOW cover (orange crates: shoot OVER them, but a shot from the side they face has ~50% to be absorbed); both sides seek low cover that faces the enemy. THREE ENEMY TYPES with distinct tactics, visible at once (glyph = type, colour = state): R rusher charges in close and sprays, C camper holds cover at long range, F flanker circles to your sides. SUPPRESSION -- campers anchor and pour inaccurate fire to PIN you (you slow to a crawl + your aim shakes) while rushers/flankers maneuver: emergent fire-and-maneuver. STEALTH -- hold Shift to sneak (slower, quieter, lower profile, harder to detect); you have limited vision (fog of war), enemies you can't see leave a dim last-seen ghost, and the squad investigates your last-known spot (?) while you slip away elsewhere. DETECTION is graded -- calm/suspicious/alarmed; a guard hears a NOISE and walks over to check, then gives up and returns. Your loud gun makes noise that draws the room; a silent knife (right-click, close range) does not -- so loud vs quiet is the core stealth choice. A DIFFICULTY PANEL (O) has easy/normal/hard presets + live sliders for squad size, damage, fire rate, accuracy, sight, suppression and healing; pick up green health packs (easy also slowly auto-heals out of combat; hard has neither). WASD move, Shift sneak, mouse aim, L-click gun, R-click knife; O difficulty, H heat, L comms, V reveal-all, TAB spectate, R reset."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

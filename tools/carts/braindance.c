@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "braindance fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "euclidean-rhythm",
+    "analog-voice-modeling",
+    "swing-timing"
+  ],
+  "lineage": "Sibling of bossa/ambient/jangle radio stations; novel in its rhythm-as-grammar brain (anchors hold, everything else re-rolls per bar via a volatility knob) and ratchet sub-hits, making it the first station where rhythm rather than harmony is the generative axis.",
+  "homage": "Aphex Twin (drill'n'bass / braindance)",
+  "description": "Aphex Twin's drill'n'bass / braindance, generated forever - Path B of the Aphex problem (he's a RANGE, not a genre, so this builds ONE mode: the chopped-break chaos with a sweet, slightly-wrong melody floating over it). Beauty over brutality: strip the melody and it's jungle, strip the chaos and it's a music box - the station IS the tension between the two layers. The brains, cart-side over radio.h's clock: RHYTHM AS GRAMMAR + a VOLATILITY knob (the kit is not a pattern - anchors persist, kick on 1, snare backbeat, everything else RE-ROLLS every bar on engine rnd; volatility 0 = a near-stable loop, 1 = never the same bar twice - so R replays the track but the drums shred anew); RATCHETS (a hit becomes 3-8 sub-hits at 1/32-1/64 with vol/pitch ramps - the impossible drill rolls, sample-exact); TWO CROSSED DENSITY CURVES (the serene melodic top and the violent drums ride INDEPENDENT curves - the Flim move - drawn as the red D and teal M bars in the window); THE LURCH (sudden DROP events strip to the pad, then SLAM back with a fill); and MISTUNING AS TIMBRE (every melodic voice detuned a few cents + a sub-Hz tape-wow pitch LFO - the machine alive and slightly broken). The sweet top is a Casio CZ PD sweep-pad (the evolving wowww) + a detuned glassy music-box (MALLET); the bottom is a synth break kit + sub + a 303 acid line. The chopped Amen is FAKED (we have no sampler - that granular/time-stretch want is logged). The vibe rolls sweet / drill / funk / eerie. The window is a glitchy oscilloscope that tears with the drums over the two density bars. SPACE next track, R replay (drums shred anew), [ ] history, LEFT/RIGHT density (calm/warm/hot/mental), UP/DOWN tempo, T tone, B band (kit amen/808, topline musicbox/glock, tape warped/clean), M power, H help."
+}
+de:meta */
 // ── BRAINDANCE FM ───────────────────────────────────────────────────────────
 // Aphex Twin's drill'n'bass / braindance, generated forever. Path B of the Aphex
 // problem (he's a RANGE, not a genre): this station builds ONE mode — the chopped-

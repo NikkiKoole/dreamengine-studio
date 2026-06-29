@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "omnichord",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "step-sequencer"
+  ],
+  "lineage": "Tribute to the Suzuki Omnichord (1981); novel in the chord-extension combo logic (same-root multi-hold → maj7/m7/dim/aug) and the rainbow strumplate glissando mapped across six octaves.",
+  "description": "A tribute to the Suzuki Omnichord (1981) — an electronic autoharp — with a built-in drum machine. Two views toggle from the top bar (or TAB). OMNI: pick a chord from the grid (rows = major/minor/7th, columns = the 12 roots) with the mouse OR the computer keyboard — three rows, one per quality: the top row QWERTYUIOP[] plays major, the home row ASDFGHJKL;'\\ plays minor, the bottom row `ZXCVBNM,./ plays 7ths, each key a root from C up — and just like the real Omnichord, holding two keys of the same root gives an extended chord (major+7th = maj7, minor+7th = m7, major+minor = diminished, all three = augmented). Then sweep the rainbow SONIC STRINGS strumplate (mouse or finger) to play it as a harp glissando spanning six octaves. RHYTHM: a 16-step drum sequencer (kick/snare/hat/clap, musical noise voices) whose BASS row follows your selected chord root, with preset grooves from the home-organ days — rock, bossa nova, cha-cha, swing, disco, march (keys 1-6 or click). The beat keeps playing while you strum over it; PLAY/STOP (or SPACE) starts it, arrows set tempo. The strings are a soft plucked bell with a warm lowpass."
+}
+de:meta */
 #include "studio.h"
 
 // ============================================================

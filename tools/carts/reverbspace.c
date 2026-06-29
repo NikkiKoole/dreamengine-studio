@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "reverb spaces",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "audio-occlusion"
+  ],
+  "lineage": "Sibling to the effects-bus pedalboard family (groovebox/kaoss); novel in routing two instruments into independent reverb tanks simultaneously to demonstrate spatial separation impossible with a single shared reverb.",
+  "description": "The showcase for the reverb SEND-BUSES - two independent reverbs ringing at the same time, which the single shared reverb (cathedral) can't do. A bright MALLET sits in a small, tight, bright ROOM (tank 1) while a soft ORGAN blooms in a vast, dark, endless PLATE (tank 2): same note family, two completely different spaces, one mix. Built on reverb_bus(tank, size, damp) to carve each space on its own bus and instrument_reverb_bus(slot, tank, mix) to send a slot into it. The screen splits into the two rooms; each rings its own colour of light when struck (tight yellow rings on the left, slow indigo swells on the right). Drag ROOM / PLATE to resize each space live; press 1..4 to ring the room and 5..8 the plate; SPACE toggles AUTO (the two spaces trade phrases so you can just listen); H for help. Part of the effects-bus / pedalboard family."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "worldgen",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "noise-terrain",
+    "camera-follow"
+  ],
+  "lineage": "Direct C port of gtascii (github.com/NikkiKoole/gtascii), a Lua/LOVE2D ASCII GTA world; novel in converting the fixed-grid scan to a per-cell hash so the same world streams infinitely around the camera.",
+  "homage": "gtascii (github.com/NikkiKoole/gtascii)",
+  "description": "A faithful C port of the procedural world from my old gtascii project (an ASCII GTA), rebuilt as an endless, deterministic top-down map you pan across. The recipe is gtascii's, line for line: a layered value-noise heightmap (three octaves summed 0.6 / 0.3 / 0.1) thresholded into a terrain colour ladder — deep water, shallows, beach, dunes, scrub, grass, forest, hills, rock, peaks; meandering RIVERS carved by a second squared-noise field; CITIES dropped on habitable lowland (black footprints with a street grid), and ROADS that connect nearby cities only where the land between them is passable. Where gtascii scanned one fixed grid, this hashes each map cell so the same world streams around the camera with no global pass — effectively infinite. A live legend shows which biome the centre sits on. This is the world sloop's build-a-vehicle rig will later drive across (docs/design/sloop.md → rung 3, biomes). Controls: arrows / WASD pan, Z / X zoom the terrain in / out about the centre (gtascii's scalein 1/16/128), SPACE jumps to a fresh region, R recentres."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 

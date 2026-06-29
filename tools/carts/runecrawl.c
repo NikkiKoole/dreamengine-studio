@@ -1,3 +1,23 @@
+/* de:meta
+{
+  "title": "runecrawl",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "raycasting",
+    "grid-movement",
+    "combinational-logic",
+    "dungeon-generation",
+    "finite-state-ai"
+  ],
+  "lineage": "rogue.c's FOV + turn loop fused with the logic cart's signal sim (a MechUpdateSignals subset) — mechanisms as diegetic dungeon locks; grown into a procedural circuit-roguelike with five rune-gate types (AND/OR/XOR/NOT/CLOCK) and chasing wraiths.",
+  "genre": "puzzle",
+  "description": "A logic-puzzle roguelike where the dungeon and the machine share a turn. Each floor is a procedurally-generated chain of vaults, every door a portcullis wired to a RUNE-GATE you must satisfy to pass — AND needs both its levers, OR either, XOR exactly one, a NOT-trap starts thrown (turn it OFF), a CLOCK-rune blinks the door open so you dash through before it shuts, and a PRESSURE PLATE holds the door while you stand on it (it lingers a few steps so you can run for the gap — or lure a wraith onto it to hold it for you). Wraiths prowl the deeper vaults — bump one to cut it down, but let it reach you and it bites (you have 3 hearts). Explore by torchlight (raycast fog-of-war), satisfy each gate and take the stairs DOWN to a deeper, tougher floor — there is no top, only how far you descend (best depth is saved); death sends you back to the surface. The signal sim from the `logic` cart made diegetic — one circuit tick per step. Arrows/WASD move (into a lever to throw it, into a wraith to strike), Z/. wait, R descend anew."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 

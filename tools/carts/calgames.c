@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "California Games: Half-Pipe",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "spring-damper",
+    "particle-system",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Homage to California Games (1987) half-pipe; the ramp is modeled as a pendulum spring (du += -u * k * dt) with a separate free-flight parabola for air tricks, over a euclidean-hat / filtered-saw synth bed.",
+  "genre": "sports",
+  "homage": "California Games (1987)",
+  "description": "Carve a neon half-pipe under a banded synthwave sunset in this Epyx-style vert event. Your skater swings wall to wall as a pendulum: tap PUMP at the bottom of the ramp (on the beat for extra pop) to build speed, fire off the lip into the air, then throw kickflips, 360s, methods, indys and ollies for points that only bank if you stick the landing upright over the wall — over-rotate and you BAIL with a screen-shaking slam. A filtered synth bass, euclidean hats and a pentatonic arp react to your airtime over a 60-second high-score chase with a saved best. Controls: Down/Z = pump at the bottom; in the air Z = kickflip, X = 360, Left/Right = method/indy grab, Up = ollie/straighten; Z or X to start and restart."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "font bake",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Title text baked from a real TTF (Google Font \"Bungee\") at BUILD time — no font code in the cart at all. tools/font-bake.js parses the TTF with a vendored opentype.js, flattens the glyph outlines and scanline-fills them (3x3 supersampled, optional darker AA edge) straight into sprite-draw canvases; fontbake.cart.js centers each word into a fixed slot-rect so the C side just sspr()s two sheet regions. The title sine-waves in 4px strips at 2x, and because baked text is ordinary pixels, pal() recolors it live. Drop any Google Fonts TTF into tools/fonts/ and bake your own. Z cycles the title color."
+}
+de:meta */
 // fontbake — title screen whose big text was baked from a real TTF
 // (Google Font "Bungee") at BUILD time by tools/font-bake.js.
 //

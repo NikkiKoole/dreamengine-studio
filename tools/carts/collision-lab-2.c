@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "collision lab 2: circles + distance",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "collision-detection"
+  ],
+  "genre": "lab",
+  "description": "Two circles touch when the distance between their centers is at most the sum of their radii — and this lab draws every part of that sentence. The right triangle between the centers shows Pythagoras live (dx leg, dy leg, hypotenuse = distance); a 1:1 ruler shows the distance shrinking past the ra+rb threshold; and the readout shows the NO-SQRT trick with real numbers: dist² <= (ra+rb)² is the same question using only multiplication — which is what near() and circles_touch() actually compute. The cursor doubles as the point for point-in-circle. Drag the circles, arrows nudge A."
+}
+de:meta */
 #include "studio.h"
 
 // COLLISION LAB 2 — circles & distance. Two circles touch when the distance

@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "jangle radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "chord-voicing",
+    "generative-melody",
+    "swing-timing"
+  ],
+  "lineage": "Third chord-brain example for game-music.md after bossa (Markov) and ambient (modal drift); the novel contribution is the VAMP form — 2-4 chords looped all song with arrangement layers (intro/groove/solo/outro) as the structural motion instead of harmonic change.",
+  "homage": "Mac DeMarco - One Wayne G",
+  "description": "The afternoon sibling of bossa/ambient radio: endless feel-good mixolydian slacker pop, the Mac DeMarco / One Wayne G homage. Every song is a 2-4 chord vamp with NO bridge - the arrangement (intro/groove/solo/outro layers per loop) is the form. Chorused jangle guitar (constant 5.5Hz pitch-LFO warble), drum machine running 2-10ms loose behind the bass (sample-exact groove timing), tape tempo wobble, and a lazy legato lead that slides between mixolydian tones on one held voice via note_glide. Most songs are titled by date stamp, like the tape. Seed on the display pins the composition (JANGLE_SEED / R / [ ] history); the performance re-rolls. SPACE next, LEFT/RIGHT feel, UP/DOWN tempo, M power, H help. Worked example #3 for docs/guides/game-music.md."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include "solo.h"    // the jam layer — a scale-locked whistle over the vamp

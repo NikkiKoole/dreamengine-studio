@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "finger drums",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "toy"
+  ],
+  "teaches": [
+    "drum-synthesis"
+  ],
+  "lineage": "Performance counterpart to the step-sequencer drum carts (808/909/cr-78) — five thematically matched kits (acoustic, MPC, Pikuniku, Mac DeMarco, lo-fi tape) all driven by hit position as a velocity proxy.",
+  "description": "Play a drum kit BY HAND — the performance counterpart to the cabinet's step-sequencer boxes (808/909/cr-78). FIVE kits, TAB cycles them, each a matched LOOK + SOUND: ACOUSTIC KIT (a real drumset in perspective — kick, snare, INSTR_MEMBRANE rack + floor toms, hats, crash, ride); MPC PADS (a 4x4 grid of an 808-style electronic kit — boom kick, noise snare, square cowbell, retriggered clap); PIKUNIKU (the drums are little bean-creatures with big eyes and stretchy legs that KICK when struck, on pastel hills — bouncy toy/chiptune voices + an INSTR_MALLET sparkle); MAC DEMARCO (the kit re-themed warm & woody, voiced soft and dead, run through tape wow/flutter + chorus + detune — the woozy bedroom-tape warble); and MAC - TAPE (a lo-fi drum-machine version, same woze + a touch of cassette bitcrush, faded vintage palette). Touch hardware gives position, never pressure, so VELOCITY comes from WHERE you hit: high = soft, low = hard (8 levels). Every finger strikes independently (multitouch). Keyboard fallback hits mid-velocity, SHIFT accents: kit = F/G hats, T/Y cymbals, J snare, I/K/M toms, SPACE kick; pads = 1-4 / QWER / ASDF / ZXCV. A USB-MIDI pad controller plays any kit with real hardware velocity (GM drum map). TAB cycle kit, H help."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"
 #include <math.h>

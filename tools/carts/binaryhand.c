@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "one-hand binary",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Count 0 to 31 on a single hand — each finger is a bit worth 16, 8, 4, 2, 1, so any combination is a number and 2^5 = 32 patterns. Exactly how computers count: just on/off. (Yes, 4 is the middle finger all by itself.) Z adds one, X takes one away."
+}
+de:meta */
 #include "studio.h"
 
 // ONE-HAND BINARY — count from 0 to 31 on a single hand.

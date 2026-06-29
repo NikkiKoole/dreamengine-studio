@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "drift",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "instrument"
+  ],
+  "teaches": [
+    "sonification"
+  ],
+  "lineage": "Original diagnostic companion to docs/design/audio-timing.md; makes scheduling-method differences audible and visible via a scrolling error-scope, with no gameplay or prior cart lineage.",
+  "description": "Three drummers, one pattern, ranked by clock — a timing diagnostic you can hear. The same 16th-note pulse plays three ways at once: TRUTH (center) uses schedule_hit() to book each note a few steps ahead with a sample-accurate delay, so the audio thread lands it exactly on the grid; TRIG (left) fires hit() the instant the beat index changes in update(), so it wobbles by a frame; FCNT (right) fires every N frames assuming 60fps, so it can't keep time and slides. When the clocks agree the three collapse into one tight centered hit; as timing slips they flam apart and spread across the stereo field, and a scrolling scope per voice plots each hit's error in ms. Tap GLITCH to stall a frame (a GC pause / scroll on the web) — TRUTH holds, the frame clocks stumble. Especially revealing on a phone. TAP the buttons (mute each voice / tempo / glitch); keys 1 2 3 mute, LEFT/RIGHT tempo, SPACE glitch. Companion to docs/design/audio-timing.md."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>   // snprintf for the live readouts
 

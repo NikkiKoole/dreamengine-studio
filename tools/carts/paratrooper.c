@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "paratrooper",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Homage to Paratrooper (1982); a faithful port of the classic arcade loop — helicopters drop paratroopers, the gun rotates to shoot — with no conceptual additions beyond the original.",
+  "genre": "shooter",
+  "homage": "Paratrooper (1982)",
+  "description": "Rotate your AA gun and shoot down paratroopers before they capture it. Helicopters drop soldiers — shoot them in the air or on the ground. Game over when 2 reach each side of your gun. Left/right to aim, Z to fire."
+}
+de:meta */
 #include "studio.h"
 
 // PARATROOPER

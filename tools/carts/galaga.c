@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "galaga",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "title-play-gameover-loop",
+    "finite-state-ai"
+  ],
+  "lineage": "Port of Namco's 1981 Galaga; per-enemy ENTER→FORM→DIVE→CAPTURE FSM drives the formation fly-in and tractor-beam mechanic.",
+  "genre": "shooter",
+  "homage": "Galaga (1981)",
+  "description": "The formation shooter. Bees, butterflies and bosses fly in and lock into a swaying grid, then peel off to dive and shoot at you. The green Boss can drop a tractor beam — if it catches your ship you lose it, but shoot that boss while it tows your ship and you get it back as a DUAL FIGHTER with double fire. Every 4th wave from stage 3 is a CHALLENGING STAGE: enemies fly through in patterns and can not hurt you — hit as many as you can for a bonus (PERFECT = all 40). Extra ship at score milestones. A/D or arrows move, Z fire."
+}
+de:meta */
 #include "studio.h"
 
 // GALAGA — the formation shooter. Enemies fly in and lock into a swaying grid,

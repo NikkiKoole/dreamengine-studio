@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "operation wolf",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "particle-system",
+    "state-machine"
+  ],
+  "lineage": "Homage to Taito's Operation Wolf (1987) — on-rails light-gun shooter with a scrolling tilemap, per-stage pal() recolors, and enemies that telegraph then fire projectiles at the screen; novel in the civilian-avoidance penalty and the grenade arc that must be shot out of the air.",
+  "genre": "shooter",
+  "homage": "Operation Wolf (1987)",
+  "description": "An on-rails light-gun shooter, mouse to the core. The world scrolls past on a rail — one tile map() recolored per stage with pal() (jungle, enemy camp, airfield) — while soldiers rise from the treeline, telegraph with a raised rifle, then loose bullets and lobbed grenades that come AT the screen; shoot them out of the air. LEFT mouse is the magazine machine gun, RIGHT is the scarce rocket, and you RELOAD by shooting the drifting supply crates. Don't gun down the hands-up civilians — it costs health and score. Wave-based across three stages with a health bar (no lives), best score saved. Muzzle flash, recoil, brass casings, tracer, white hit-flash, fillp explosion rings, screen shake, a damage flash and a low-health alarm. Move mouse to aim, LEFT shoot, RIGHT rocket, shoot a crate to reload."
+}
+de:meta */
 #include "studio.h"
 
 // OPERATION WOLF — an on-rails light-gun arcade shooter.

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "line rider",
+  "status": "active",
+  "kind": [
+    "toy"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "spring-damper"
+  ],
+  "lineage": "Homage to Line Rider (2006); novel: a 5-point Verlet ragdoll with rigid rod constraints slides over user-drawn line segments using signed-distance side-tracking for two-sided collision.",
+  "genre": "sandbox",
+  "description": "Draw a track with the mouse, hit Space and watch Bosh slide. Verlet physics — gravity, rolling friction, crash detection. Left drag: draw lines. Right click: erase. Space: play / pause. R: reset rider (or clear track while in draw mode). Arrow keys: pan. The rider's scarf trails behind when moving fast enough."
+}
+de:meta */
 #include "studio.h"
 
 // LINE RIDER — draw a track, watch Bosh slide.

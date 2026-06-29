@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "world pointer",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Demonstrates the camera + world-space mouse combo. Plant flags in a world 3 screens wide, then SCROLL, ZOOM (mouse wheel) and ROTATE (Q/E) the whole view with camera_ex(x,y,zoom,angle) - and mouse_world_x/y() still lands your clicks exactly on the world, doing the full inverse of scroll+zoom+rotation in one line (a nasty matrix you'd otherwise hand-roll). save_int(\"most_flags\", ...) / load_int() remember your best count by name across runs - no magic slot numbers. Click: plant. Arrows: scroll. Wheel: zoom. Q/E: rotate. X: clear (best stays saved)."
+}
+de:meta */
 #include "studio.h"
 
 // Shows off the camera + the world-space mouse, the combo that makes mouse_world worth it:

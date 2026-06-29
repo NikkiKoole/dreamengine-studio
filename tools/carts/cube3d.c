@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "3D wireframe",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer"
+  ],
+  "lineage": "Follows the earlier raycaster cart as the next step in the 3D tutorial arc; introduces the full rotate-then-perspective-project pipeline via engine helpers rot3/project3 on multiple Platonic solids.",
+  "description": "Real 3D this time (the raycaster only faked it). A solid is a list of 3D corner points and the edges joining them; each frame rotates every point with sin/cos, projects it to 2D with perspective (far points shrink toward the centre), and connects the dots — the whole 3D pipeline in miniature. Z cycles cube/tetrahedron/octahedron, up/down zoom, left/right spin speed."
+}
+de:meta */
 #include "studio.h"
 
 // 3D WIREFRAME — real 3D this time (the raycaster only faked it).

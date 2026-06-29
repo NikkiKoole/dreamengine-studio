@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Swarmturf",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "flocking",
+    "steering-behaviors"
+  ],
+  "lineage": "Splatoon-inspired territory game built on a boids simulation; novel in making paint coverage the emergent residue of flock flight rather than a stamped fill, so the player steers a pull force rather than individual agents.",
+  "genre": "sandbox",
+  "description": "Splatoon x boids: you steer a flock that PAINTS the ground it flies over, carving turf out of a rival swarm's color. Hold LEFT-CLICK (or WASD) to pull your swarm toward the cursor; most painted ground when the timer runs out wins. Click / Z to replay."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

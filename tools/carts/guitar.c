@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "guitar",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "waveguide-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Karplus-Strong INSTR_GUITAR showcase and tuning rig; novel in adding four parallel formant body filters on top of the bare KS delay line, giving the same voice the range from harp to banjo depending on the harmonics macro.",
+  "description": "INSTR_GUITAR showcase + tuning rig - the bodied plucked string. A Karplus-Strong string like PLUCK, but run through a resonant BODY (four parallel formant bandpass filters), which is the box that bare PLUCK lacks; it decays on its own like a real string. One id covers acoustic / nylon / banjo / koto / harp / ukulele - and pizzicato. The three engine macros: instrument_harmonics = body (0 = open and bodyless, a harp; 1 = resonant bright box, a banjo - lerps the four body formants from a broad/low/quiet voicing to a sharp/high/loud one and opens the dry/wet mix), instrument_timbre = string brightness (0 = warm nylon; 1 = bright steel - the excitation lowpass), instrument_morph = mute (0 = long open ring; 1 = tight muted pizzicato stop - the per-sample feedback decay). Eight HARDWARE PRESETS on the number row are the acceptance tests - if 1 harp / 2 nylon / 3 steel / 4 banjo / 5 koto / 6 uke / 7 pizz / 8 oud don't each sound like themselves, the macro mapping is wrong. Strings are real objects: grab one and drag to BEND its pitch live (the fractional KS read tap bends a ringing string), press open space for a pick and sweep to STRUM. A S D F G H J K pluck, 1..8 preset, drag a slider (live, or LEFT/RIGHT pick a knob + UP/DOWN turn), SPACE strum, M autoplay on/off. Multitouch: bend two strings at once, strum with one hand while another holds a slider. Design + STEP-0/1: instrument-engines.md §8.8.9."
+}
+de:meta */
 // guitar — INSTR_GUITAR showcase + tuning rig: eight strings, the three engine macros,
 // and eight hardware presets (the acceptance tests).
 //

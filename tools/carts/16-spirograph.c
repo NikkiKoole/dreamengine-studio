@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "16. spirograph",
+  "status": "active",
+  "kind": [
+    "tutorial",
+    "probe"
+  ],
+  "teaches": [],
+  "description": "Turtle graphics: a loop + a fixed turn angle = a pattern. Change ANGLE at the top to see 91°, 144°, and 97.2° shapes."
+}
+de:meta */
 #include "studio.h"
 
 // spirograph — a loop with a fixed turn angle makes a pattern.

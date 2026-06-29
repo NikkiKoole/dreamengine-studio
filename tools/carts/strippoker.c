@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "Strip Poker",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine"
+  ],
+  "lineage": "Extends poker.c's deck/hand-eval core and borrows smooch.c's lounge tone; adds a heads-up five-card draw betting loop, a tiered reveal meter, and character animation — poker as a flirtation escalation system.",
+  "genre": "tabletop",
+  "description": "A velvet after-hours lounge where you play heads-up five-card draw against Sable, your silhouette sweetheart. Ante up, click cards to HOLD, then DRAW and choose to BET, CALL, or FOLD; at showdown the best hand takes the pot. Win and the cheeky REVEAL meter lights a notch — fill it and Sable strikes a coy new pose, blows a kiss, and the flirtation escalates a tier (TEASE to SCANDALOUS); lose and the meter slips. Strictly PG-13: soft spotlit silhouettes, a fluttering feather boa, a wink, and double-entendre banter over a slow sultry lounge bass. Mouse: click your cards to HOLD, click BET / CALL / FOLD, click DEAL to start a hand and advance the title / game over. Keys: arrows pick a card, Z hold, B bet, C call, F fold, SPACE or ENTER deal & advance."
+}
+de:meta */
 #include "studio.h"
 #include "cards.h"
 #include <stddef.h>

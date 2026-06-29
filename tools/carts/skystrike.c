@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "sky strike",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "camera-follow",
+    "state-machine"
+  ],
+  "lineage": "Raiden/1943/Tyrian-style vertical shmup; tilemap scroll with two stacked map() draws for seamless looping, scripted wave timeline, and pal()-recolored enemy squadron variants are the main structural novelties over a generic entity-pool shooter.",
+  "genre": "shooter",
+  "homage": "Raiden (1990)",
+  "description": "A vertical-scrolling shoot-em-up (Raiden / 1943 / Tyrian), built around its weapon-upgrade loop. Your fighter hugs the bottom while a tile map() of sea, islands and an airbase scrolls down past you and waves of enemy craft pour in from the top. Shoot down P pods to climb your main gun L1->L5 (single -> twin -> 3-way -> 4-way -> 5-way spread), then keep grabbing them to bolt on side OPTION wingmen that mirror your fire; B pods stock a screen-clearing bomb that wipes every bullet in a white flash. Six foes off a scripted, escalating timeline — sine-weaving popcorn flyers, poppers and gunships that aim shots at you, ground turrets riding the scroll — all one sprite each, pal()-recolored into whole squadrons and flashed white when hit, capped by a 3-phase WARLORD boss with a health bar. A tight 1-pixel-core hitbox, X focus mode to thread bullet curtains, particle explosions with screen-shake, hit-stop on the boss kill, a driving chiptune bed and a last-life red alarm. Death drops you one weapon tier, never to zero; hi-score saved. Arrows/WASD fly (8-way), Z bomb (gun autofires), X focus/slow, SPACE or ENTER to start / restart."
+}
+de:meta */
 // SKY STRIKE — a vertical-scrolling top-down shmup (Raiden / 1943 / Tyrian).
 // The hook is the weapon-upgrade loop: collect P pods to climb your gun L1->L5,
 // then bolt on side options; B pods stock a screen-clear bomb. Six enemy types on

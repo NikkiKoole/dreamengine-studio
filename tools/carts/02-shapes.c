@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "2. shapes and colors",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Draw rectangles, circles, lines, and pixels in all 32 palette colors."
+}
+de:meta */
 #include "studio.h"
 
 void draw() {

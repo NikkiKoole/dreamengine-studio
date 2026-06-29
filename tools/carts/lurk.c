@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "lurk",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "game"
+  ],
+  "teaches": [
+    "pathfinding",
+    "finite-state-ai",
+    "audio-occlusion"
+  ],
+  "lineage": "Implements the RogueBasin 'better monster AI' (Dijkstra flood + scent trail) as a playable dungeon; novel: panned instrument voices so the unseen pack is spatially audible, and the flee map as negated Dijkstra for smart retreat.",
+  "genre": "rpg",
+  "description": "The predator dungeon -- you're @, the monsters think (RogueBasin: A Better Monster AI / Roguelike Intelligence / prevent A* jams). Each monster runs a STATE MACHINE, glyph coloured by state: WANDER (grey) until it SEES you (line of sight + range) or HEARS you near; HUNT (red) rolls downhill on a Dijkstra map flooded from you, shortest path around walls; SEARCH (yellow) follows your decaying SCENT TRAIL when it loses sight; FLEE (blue, wounded) rolls downhill on the negated map = smart retreat. A hurt monster SHOUTS (a horn) and snaps nearby monsters to HUNT. Pursuers take different routes and never conga-line (the simple A*-jam fix). Species differ -- rats skittish, orcs fearless, hounds fast trackers, goblins call for help. Every bark/stab/yelp/howl is panned by position so you hear the pack circle you. Arrows/WASD move, bump a monster to attack, R restart."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 

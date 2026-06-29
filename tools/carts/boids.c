@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "boids",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "flocking"
+  ],
+  "description": "A flock with no leader, from three little rules. Each boid watches only nearby neighbours and obeys: separation (steer away from anyone too close), alignment (match the flock heading), cohesion (drift toward the flock centre). Nobody is in charge yet the swarm moves like one organism — emergence. Steer the predator with the arrows and watch the flock part and regroup around it."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "6. sounds and music",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Make noise with note(), bpm(), and every(). A simple beat and melody."
+}
+de:meta */
 #include "studio.h"
 
 void update() {

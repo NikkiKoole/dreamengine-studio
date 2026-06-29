@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "20. effects",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "A gallery of the visual + game-feel calls: print_scaled (big text), spr_rot (spin a sprite), sspr_ex (scale+rotate+pivot), oval/ovalfill, pal() recolor, shake(), fade(), bar() meters, blink(), and dt() for framerate-independent timing. Z: shake, hold X: fade, hold UP: drain the boost bar."
+}
+de:meta */
 #include "studio.h"
 
 // EFFECTS — a gallery of the newer drawing & game-feel calls:

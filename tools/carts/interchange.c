@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "interchange",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "procedural-mesh"
+  ],
+  "lineage": "Geometry sandbox grown out of the roadnet2 project (docs/design/roadnet2-plan.md); novel in building a declarative junction matrix (topology × road-class × ramp-style) where every interchange type is assembled from cubic Bézier ramp atoms and ribbon polylines rather than hand-placed coordinates.",
+  "description": "A geometry SANDBOX for roadnet2's road interchanges — how a crossing road meets a highway, in fake-3D (the crossing road is drawn OVER the highway, reading as an overpass — grade separation without real z-levels) plus a library of connection types built from ramp curves. A horizontal highway and a hand-placed crossing road, with the ramps grown and eyeballed in isolation before porting the drawer into roadnet2. The eventual interface: given two crossing roads + a type, draw the ramps. Controls: T cycles the type (OVERPASS / DIAMOND / CLOVERLEAF / TRUMPET), LEFT/RIGHT rotate the crossing road, UP/DOWN ramp size, H hides the HUD. Diamond + overpass are solid; cloverleaf/trumpet are first-draft. See docs/design/roadnet2-plan.md."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

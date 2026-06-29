@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "grid move",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "grid-movement"
+  ],
+  "lineage": "Pac-Man-style cell-tween mover; introduces the turn-buffer (the grid world's coyote time) as the key feel concept, completing a trilogy with platform-rects and platform-rails.",
+  "genre": "maze",
+  "description": "The third movement paradigm: position is a CELL, motion is a short tween between cells (the player is always logically at a cell, visually sliding to the next). The feel lesson is the TURN BUFFER — the Pac-Man cornering trick: press a turn a few frames before a junction and it's remembered, then fires the moment it's legal. It's the grid world's coyote time. Press X to toggle the buffer and feel every corner go sticky. Also shows bump-against-wall feedback and seamless cell-to-cell chaining. Eat all the dots. Arrows/WASD move, X toggles the buffer, Z restarts."
+}
+de:meta */
 #include "studio.h"
 
 // GRID MOVE — the third movement paradigm. Solid-space (platform-rects) has a

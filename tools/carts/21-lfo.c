@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "lfo",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "An LFO is one slow sine wave that wobbles a single knob of an instrument over time — instrument_lfo(slot, dest, rate, depth). Three destinations, one each: LFO_PITCH = vibrato, LFO_VOLUME = tremolo, LFO_DUTY = PWM shimmer (square waves only). Each panel holds a long note on its instrument so you hear the wobble, and animates exactly what's moving — the pitch dot bobbing, the volume bar pumping, the pulse width sweeping. 1-3 select, Z plays the selected one."
+}
+de:meta */
 #include "studio.h"
 
 // An LFO is one slow sine wave that wobbles a single knob of an instrument.

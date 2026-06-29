@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "Worms",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "noise-terrain",
+    "state-machine",
+    "particle-system",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Homage to Worms (1995), surpassing the Gorillas lineage by adding destructible pixel terrain carved at runtime and physics-driven worm settling.",
+  "genre": "strategy",
+  "homage": "Worms (1995)",
+  "description": "A 2-player turn-based artillery duel on fully destructible pixel terrain — the genre Gorillas only half-shipped. Two worms perch on a rolling noise-generated landscape; on your turn you walk along the ground, sweep your bazooka's aim, then hold to charge a swinging power meter and release to fire. The rocket arcs under gravity and a live wind that actually bends the shot, then blows a real crater into the ground (carved pixel by pixel) and damages anyone in the blast — worms even tumble when the dirt under them is gone. First to knock the other's HP to zero wins. P1 LEFT/RIGHT walk, UP/DOWN aim, hold SPACE to charge power and release to fire; SPACE to restart after a win."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "Arrakis",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "pathfinding",
+    "finite-state-ai",
+    "schedule-driven-agents",
+    "state-machine"
+  ],
+  "lineage": "Inspired by Dune II and C&C base-builders; novel in keeping the whole RTS loop (harvesting, building, combat, CPU faction) within a fantasy-console tile grid with A* per-unit pathfinding and a periodic CPU think tick.",
+  "genre": "strategy",
+  "homage": "Dune II (1992)",
+  "description": "Dune base-builder: harvesters A*-mine spice for credits, build refineries/power/factories/turrets, queue trikes & tanks vs a CPU faction. Mouse: click/drag select, click to move/attack, BUILD then click to place (1-4 hotkeys). Wipe out the red base to win."
+}
+de:meta */
 #include "studio.h"
 #include "cursor.h"
 

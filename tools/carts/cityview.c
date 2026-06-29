@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "cityview",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "isometric-projection",
+    "camera-follow"
+  ],
+  "lineage": "The missing height layer for the flat top-down lineage (sloop/cityplan/streetlab render footprints only). Takes their quadfill house style and grafts on screen-up wall extrusion to get a drivable Zelda/GTA1 cityscape; a four-mode bench to pick the projection before wiring it into the world composer.",
+  "description": "RENDER TEST: pseudo-3D top-down city (GTA1 meets Zelda) WITH drivable raised highways folded in (was the separate overpass experiment). Drive a seeded, brick/window/block/stucco-TEXTURED city. M cycles four building view modes: (1) NORTH-UP camera-locked, always the south fronts, zero diagonals; (2) HEADING-UP camera rotates to heading, you see the 1-2 walls you drive toward, every wall UP still screen-up (the keeper); (3) BILLBOARD flat cards (props not boxes); (4) LEAN-OUT roofs pushed off-centre (the melty contrast). F lays a FLYOVER over the city: off / straight overpass / s-curve / spiral on-ramp / two-level stack interchange. A flyover is a road whose nodes carry a z; because height extrudes straight up the screen it reads as an elevated deck (running surface + dashed centre line + fascia thickness + pillars + dithered ground shadow). Drive UP a ramp and the camera rises (camz) so the city sinks below; the car z snaps to the nearest REACHABLE deck so you board via ramps and drive UNDER high decks. T toggles wall textures. Proves the ADR-0021 projected-primitive vocabulary in one place: project() (world x,y,z -> screen), pdisc (a ground circle is an ELLIPSE once rotated -> projected N-gon: ponds, car shadow, future roundabout islands), pline/pdash (projected dashed line: the deck centre line), pproj_poly (project-then-polyfill: lots + deck shadows). Whole renderer is flat quadfill + tritex-textured walls. Arrows drive, M view, F flyover, T textures, [ ] zoom, R reseed. The cityscape-renderer bench for big-game seam #2."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

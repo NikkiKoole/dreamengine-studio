@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Physics playground",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "soft-body"
+  ],
+  "lineage": "Original didactic tech-demo; no sibling cart. Novel: a self-contained, readable Verlet world (points + sticks + relaxation) that demonstrates ropes, cloth, soft-body blobs, and stacked pseudo-rigid boxes from two primitives, with live substep control.",
+  "description": "A tiny verlet physics world you can read end to end — the whole engine is three ideas: a point remembers where it was last frame (so velocity is just now-minus-last), a stick keeps two points a fixed distance apart, and each frame you move every point then relax the sticks a few times. From those two primitives the cart builds a whole showcase: a dangling chain, a draping cloth sheet, a wobbly soft-body blob (a ring of points around a hub), pseudo-solid boxes and a triangle that stack and tumble, and bouncy balls — all colliding as circles and against each other's edges. Left/Right change the substep count live (more substeps = fast/heavy things stop tunnelling through thin surfaces). Drag any point to grab and throw it; Z drops a ball, X drops a box, R resets."
+}
+de:meta */
 #include "studio.h"
 
 // PHYSICS PLAYGROUND — a tiny verlet world you can read end to end.

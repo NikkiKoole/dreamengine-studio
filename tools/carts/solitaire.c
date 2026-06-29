@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "Klondike Solitaire",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "save-load-persistence"
+  ],
+  "lineage": "Classic Klondike from scratch — all cards drawn from primitives (no sprite sheet), drag-and-drop run validation, alternating-color tableau rules; no novel algorithmic concept beyond a clean rules implementation.",
+  "genre": "tabletop",
+  "description": "The patience classic on green felt. Seven tableau piles cascade in alternating-color descending runs, a face-down stock deals one card at a time to the waste, and four suit foundations build home from Ace to King. Grab a single card or a whole valid run and it lifts under your cursor with a soft drop shadow; drop it on a legal pile or a foundation and it snaps in with a chime, while the newly exposed tableau card flips itself. Clear all four suits to win — the felt darkens, a banner drops, and your running tally of games won is saved. Cards are hand-drawn from primitives (no sprite sheet) with pip suits and crisp white faces. Controls: click the stock to deal one card to the waste (click the empty stock to recycle the waste); drag a card or run between tableau piles or onto a foundation, invalid drops snap back; press R or click the win banner to deal a fresh shuffle."
+}
+de:meta */
 #include "studio.h"
 #include "cards.h"
 #include <stddef.h>

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Columns",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "grid-movement"
+  ],
+  "lineage": "Homage to Sega Columns (1990); novel: cascade chain resolved as a discrete flash-then-collapse state machine, with diagonal match scanning and a climbing-arpeggio score sonification.",
+  "genre": "puzzle",
+  "homage": "Columns (1990)",
+  "description": "The SEGA arcade gem-dropper, distilled. A vertical column of three jewels falls into a narrow well — you can't reshape it, only slide it left and right and cycle its three colors mid-fall. Land 3 or more of a color in a line (horizontal, vertical, OR diagonal) and they flash, clear, and the stack collapses — fresh matches cascade into escalating chains that ring out as a climbing arpeggio while the screen kicks. Speed ramps as you clear, best score is saved, and stacking to the top ends the run. Left/Right slide, Up or Z cycle the colors, Down soft-drops, Z/X restart."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "9. enemies!",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Add an enemy that chases you. Collision, game over, and restart."
+}
+de:meta */
 #include "studio.h"
 
 int px, py, sx, sy, score;

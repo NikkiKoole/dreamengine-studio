@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Boulder Dash",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "cellular-automata",
+    "camera-follow",
+    "tilemap-collision"
+  ],
+  "lineage": "Boulder Dash (First Star Software, 1984) rebuilt on the sand.c gravity idiom; novel: a falling[] persistence flag across settle passes so stacked columns cascade one cell per tick rather than teleporting, plus sokoban-style sideways push.",
+  "genre": "arcade",
+  "homage": "Boulder Dash (1984)",
+  "description": "Tunnel through a dirt-packed cave for diamonds while boulders and gems obey gravity — dig out what holds a rock up and it falls, rolling off the rounded tops of other rocks into open gaps, and a falling rock crushes you (or a wandering enemy) flat. Grab the diamond quota to flash the exit open, then scramble to it before the timer runs out. The cave settles on a steady tick so falling stacks cascade one cell at a time, and the camera follows your miner across a cave bigger than the screen. Arrows step and dig in a direction; walk into a boulder sideways to push it into an empty cell beyond; R or B restarts the cave."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

@@ -1,3 +1,23 @@
+/* de:meta
+{
+  "title": "doom",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "raycasting",
+    "particle-system",
+    "finite-state-ai",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Extends the repo's raycaster base (DDA per-column wall strips) with a z-buffer for billboard-sprite occlusion — the classical Doom renderer trick; fixed authored level rather than procedural.",
+  "genre": "shooter",
+  "homage": "Doom (1993)",
+  "description": "A Doom-style first-person shooter on the raycaster — stalk a base of corridors blasting charging imps and shooting gunners, drawn as distance-scaled billboard sprites that hide behind walls via a depth buffer. Two weapons (pistol / shotgun), pickups, a red keycard that unlocks the exit, muzzle-flash room lighting and gore. WASD/arrows move + turn, Q/E strafe, Z fire, X (or 1/2) switch weapon, SPACE open doors / hit the exit switch."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>   // fabsf — used in the DDA and angle math
 

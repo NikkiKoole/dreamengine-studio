@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "robotron 2084",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "finite-state-ai"
+  ],
+  "lineage": "Direct Robotron: 2084 (1982) homage; the Brain enemy's civilian-to-zombie conversion is the only meaningful AI state transition; primary value is as a clean twin-stick arena-shooter scaffold with wave progression.",
+  "genre": "shooter",
+  "homage": "Robotron: 2084 (1982)",
+  "description": "Twin-stick arena shooter. WASD to move, arrows to shoot 8-way. Rescue civilians, blast grunts and enforcers, dodge bullets. Brains convert civilians to zombies. Hulks can't be killed!"
+}
+de:meta */
 #include "studio.h"
 
 // ROBOTRON 2084

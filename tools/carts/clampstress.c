@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "clampstress",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "A deterministic torture test for the PER-CALL clamp cost shared by every software fill. Each circfill/ovalfill/polyfill/trifill calls poly_clamp_scan, which does 4 GetScreenToWorld2D (camera-matrix inverses) to find the on-screen scan box — but that box is constant for the whole frame unless the camera moves. This cart issues ~1500 TINY fills/frame (377 each of all four primitives, near-zero fill AREA), so the per-CALL clamp dominates — the rig to measure the ceiling of a per-frame clamp-box cache. Scene 0 STATIC (key 1, no camera: box identical every call). Scene 1 PAN (key 2: camera() pans each frame, so the cache must recompute once/frame and stay correct). Pure function of the frame counter — byte-reproducible. Baseline (per-call clamp, current): STATIC 1.90ms avg / 3.36ms max. Not a game; a profiling + regression rig."
+}
+de:meta */
 // clampstress — torture test for the PER-CALL clamp cost shared by every software fill.
 // Every circfill/ovalfill/polyfill/trifill calls poly_clamp_scan, which does 4
 // GetScreenToWorld2D (camera-matrix inverses) to find the on-screen scan box — yet that

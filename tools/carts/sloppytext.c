@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "Sloppy text",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [],
+  "description": "Hand-lettered / ransom-note text: instead of one font drawn straight, each glyph picks from a couple of fonts and gets a small tilt + vertical nudge, so a plain string reads like it was scribbled or cut-and-pasted. Pure cart-land — just font() + print_rot() + text_width(), no engine changes. The wobble is deterministic per character (a hash of its index) so it sits still and looks deliberately wonky rather than flickering. Shows four intensities: a barely-there shaky-printer look, a wonkier hand-placed line, a slow live 'drunken sway', and a ransom note that mixes the big COMIC font in among the 8x8 ones, bottom-aligned so the baseline holds. Copy print_sloppy() into any cart that wants the effect."
+}
+de:meta */
 // sloppytext — "hand-lettered" text. Instead of one font drawn straight, each
 // glyph picks from a couple of fonts and gets nudged + tilted a touch, so a
 // plain string reads like it was scribbled or cut from a ransom note.

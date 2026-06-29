@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Turing",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "shift-register",
+    "generative-sequencer",
+    "scale-quantize"
+  ],
+  "homage": "Music Thing Modular Turing Machine",
+  "description": "A generative sequencer, after the Music Thing Modular Turing Machine — the whole instrument is ONE looping SHIFT REGISTER and ONE big CHAOS knob. Each clock the register rotates and the recirculated bit is flipped with some probability: knob full RIGHT = 0% flip = the loop is LOCKED and repeats forever; knob CENTRE = 50% = pure RANDOM, a new pattern every bar; knob full LEFT = 100% = FLIP-LOCK, a locked loop of double the length. Park it just shy of locked and the riff slowly mutates — you sculpt a sequence by hand. The register's value is read out as a scale-locked PITCH (so it never sours) and two of its bits trigger a KICK and a HAT, so melody AND groove are the same evolving pattern. The 16 LEDs are the live register — TAP a cell to flip that bit by hand; a SEQUENCE strip graphs the recent notes so you watch the loop lock or drift. The CHAOS knob (or ← / →) rides lock↔random↔flip; LENGTH (↑ / ↓) sets loop length, RANGE the pitch span, TEMPO the clock; 1-4 pick the scale (min/maj pentatonic, dorian, aeolian); SPACE = SCRAMBLE a fresh pattern. A liveset plaything built on a cart-side shift register + an INSTR_SAW Berlin-school voice."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "drum machine",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "subtractive-synth",
+    "drum-synthesis",
+    "swing-timing"
+  ],
+  "lineage": "The foundational grid sequencer of the dreamengine kit family (cr78/tr808/tr909 descend from it); a six-row on/off grid clocked off the synth's own beat() counter, voices built from noise+filter and sine+pitch-env.",
+  "description": "A 16-step sequencer that shows off the sound synth. Six drum voices (kick, snare, hats, clap, bass), a playhead that sweeps the grid off the beat() clock, and a starter groove built in. WASD move the cursor, Z toggles a cell, X clears, arrow keys change tempo."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 

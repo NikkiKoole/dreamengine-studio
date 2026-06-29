@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "acoustics probe",
+  "status": "active",
+  "kind": [
+    "probe",
+    "tech-demo"
+  ],
+  "teaches": [
+    "raycasting",
+    "tilemap-collision",
+    "audio-occlusion"
+  ],
+  "lineage": "v3 acoustic-zones probe: listener->source raycast counts wall runs for occlusion (note_cutoff+note_vol), per-room set-and-hold reverb zones, axis-separated wall collision.",
+  "description": "v3 acoustic-zones PROBE (spatial.md): a little guy walks rooms to hear where the API hurts, hand-wired against existing knobs only. ARROWS to move. FOOTSTEPS change tone by ground (tile click / carpet thud / wood knock / grass rustle) and carry the room's reverb (absorption: bright tile vs dead carpet). Each ROOM sets the master reverb (zone) — crossing rooms re-applies it (listen for the abrupt switch = the 'rideable reverb' gap). A RADIO (left room) + MACHINE (right room) emit continuously; a wall between you and one muffles it (occlusion: raycast -> note_cutoff + note_vol), the doorway opens it up. Findings: cart header + STATUS open item."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

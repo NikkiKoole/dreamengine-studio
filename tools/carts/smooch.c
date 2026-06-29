@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "smooch lounge",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "palette-cycling"
+  ],
+  "lineage": "Guitar Hero / rhythm-game genre — four-lane fall-down chart driven by the engine beat clock; the pal()-recolor crowd trick and a hand-authored chart editor are the novel parts.",
+  "genre": "arcade",
+  "description": "A saucy cabaret rhythm game, all cheeky tone and winks. A pixel-art chanteuse works a velvet speakeasy while hearts and lips fall down four lanes to a sultry lounge groove (walking bass, brushed swing hats, a vibrato-LFO 'voice', a bandpass sax stab) — tap the lane key as each note crosses the hit line for a SMOOCH / SMOOTH / CLUMSY rating, or a wrong-time WHIFF. The clock IS the music: every note rides the beat()/beat_pos() playhead like the drum machine. Good kisses grow a combo multiplier and fill the TEASE meter; fill it for a BIG FINISH where bonus off-beat notes appear, points double, the dancer struts and the pal()-recolored crowd cheers in confetti. 'Blow a kiss' hold notes you keep down for a bonus, lip-print stamps + heart bursts, a buzzing neon marquee, dithered velvet curtains and a swaying spotlight, then a flirty letter grade (STAR OF THE SHOW down to STAGE FRIGHT) with a saved hi-score. Tasteful innuendo, never explicit. A S K L tap the lanes (arrow keys for a gamepad), hold for a long kiss, SPACE to start / encore."
+}
+de:meta */
 #include "studio.h"
 
 // SMOOCH LOUNGE — a saucy cabaret rhythm game.

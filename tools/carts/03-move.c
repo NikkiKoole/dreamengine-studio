@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "3. things that move",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Variables and the game loop — a ball bounces around using update() and velocity."
+}
+de:meta */
 #include "studio.h"
 
 float x  = 160;

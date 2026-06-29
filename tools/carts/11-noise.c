@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "11. noise",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "Smooth organic randomness. Two layers of scrolling hills and twinkling stars, all from noise2()."
+}
+de:meta */
 #include "studio.h"
 
 void draw() {

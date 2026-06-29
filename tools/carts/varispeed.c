@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "varispeed",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [],
+  "description": "The showcase for varispeed() - variable TAPE playback speed of the whole mix (the Chase Bliss MOOD 'clock' / a turntable brake), ported from navkit's half_speed. A self-playing riff runs the whole time; varispeed re-reads the final output at a chosen speed: 1.0 = normal, <1 = slower (pitch DOWN + time-stretch), >1 = faster (chipmunk). The applied speed GLIDES (tape inertia), so it dives and spins back smoothly. Hold SPACE for a TAPE-STOP divebomb (the speed brakes toward a halt; release to spin back up); the SPEED slider bends it by hand (0.25x..4x, center 1x); 1..4 change the riff. Two reels spin at the live speed - watch them crawl on the dive. H for help. The last item from the boutique-pedal lists."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

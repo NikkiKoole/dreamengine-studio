@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "Infiniminer",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "raycasting",
+    "noise-terrain",
+    "software-rasterizer"
+  ],
+  "lineage": "Homage to Zachary Barth's Infiniminer (2009), the direct Minecraft precursor; novel in fitting a first-person voxel edit loop (DDA block raycast, painter-sorted tritex cube faces, dither shading) into a 320×200 cart.",
+  "genre": "sandbox",
+  "homage": "Infiniminer (2009)",
+  "description": "A pocket-sized proto-Minecraft: a 16x16x6 voxel world you stroll through in first person, mouse-look swinging a white crosshair across tritex-textured cubes of grass, dirt, stone and wood. Painter-sorted, back-face- and hidden-face-culled cubes with per-face dither shading give it that picoCAD/PS1 glow; a DDA raycast from screen-center finds the block you face and outlines it in blinking yellow. Left-click mines it out, right-click stacks your held block against the face you aim at, each with a filtered pluck pitched to the material. A tiny hill and a couple of trees give you somewhere to start digging. Calm, tactile, goalless. Controls: WASD move, mouse look, left-click mine, right-click place, 1-4 pick grass/dirt/stone/wood, R regenerate the world."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stddef.h>

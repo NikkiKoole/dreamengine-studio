@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Sand Burrow",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "cellular-automata",
+    "grid-movement",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Directly ports the falling-sand automaton from sand.c and embeds it as live terrain in a Boulderdash-style dig-and-collect game.",
+  "genre": "arcade",
+  "description": "A whole cave of live falling-sand: dig tunnels and the sand above pours down to refill them — grab every gem and reach the exit before a collapsing column buries you. A/D or arrows walk + dig sideways, W/up climb + dig up, S/down dig straight down, Z/X/R restart."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

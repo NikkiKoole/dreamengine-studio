@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "shimmer",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "granular-synth"
+  ],
+  "lineage": "Showcase cart for the shimmer() reverb effect (pitch-shifted feedback loop, the Strymon BlueSky / Brian Eno sound); rising-spark particle system visualises the octave-up tail.",
+  "description": "The showcase for shimmer() - a reverb with an OCTAVE-UP pitch-shifter wired into its feedback loop (the Strymon BlueSky / Brian Eno sound). Each pass through the reverb, the wet tail is tapped, pitched up an octave, and fed back in - so a held chord doesn't just bloom, it CLIMBS, rising into a glassy crystalline pad. A held organ chord feeds the shimmer; 1..4 change chord (Cmaj/Am/Fmaj/G). The SHIMMER slider is the climb: low = a plain reverb bloom, high = an endless ascent (a 2-grain overlap-add octave-up recirculates, tanh-governed + DC-blocked so it can't run away). SIZE/DAMP/MIX set decay length / tail darkness / dry-wet. Rising sparks visualise the ascending octave tail - more SHIMMER spawns more, climbing faster and brightening as the energy rises through the octaves. The trophy of the boutique-pedals roadmap (Primitive 2: a real-time bus pitch-shifter)."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

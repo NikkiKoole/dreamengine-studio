@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "collision lab 4: circle vs box",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "collision-detection"
+  ],
+  "genre": "lab",
+  "description": "New shape pairs reduce to old tests. Circle-vs-box (every ball vs every paddle) needs no new math — just THE CLAMP TRICK: clamp the circle center to the box on each axis and you get Q, the closest point on the box (drawn yellow, sliding along the edge as you orbit). Then it is lab 2 again: dist²(center,Q) <= r², squares only. The edge case comes free — center inside the box means Q equals the center, distance zero, touching, no special case. The full algorithm is printed live with real numbers. Drag either shape, arrows nudge the circle."
+}
+de:meta */
 #include "studio.h"
 
 // COLLISION LAB 4 — circle vs box (ball vs paddle, player vs crate...).

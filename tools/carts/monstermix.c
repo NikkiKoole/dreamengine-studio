@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "monster mix lab",
+  "status": "active",
+  "kind": [
+    "game",
+    "tech-demo"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "screen-shake-juice",
+    "particle-system"
+  ],
+  "lineage": "Original cart; uses the pal()-recolor sprite-stacking trick from sprite-draw.js to composite 27 monster combos at bake time — the juicy piston-stamp feedback loop is the novel teaching moment.",
+  "genre": "arcade",
+  "description": "Assemble the monster the customer ordered, then STAMP it with the piston press. The sprite side is the show: tools/sprite-draw.js draws 9 parts (3 heads, 3 bodies, 3 legs) and stamp()-composites all 27 combos at bake time; the magic pal() indices (28/29) recolor them into 4 schemes at draw time — 108 monsters from 9 drawn parts. Also: a 32-wide machine split() across two slots, a concave polyfill star, noise() speckle tiles, mirror()ed symmetric parts and outlined() borders. Right order = points + a streak of climbing chords; wrong or too slow = a lost heart. LEFT/RIGHT choose a slot, UP/DOWN change the part, Z stamps."
+}
+de:meta */
 // MONSTER MIX LAB — assemble the monster the customer ordered, then STAMP it.
 //
 // The sprite side is the show: monstermix.cart.js draws 9 parts (3 heads,

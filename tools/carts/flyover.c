@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "flyover",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "noise-terrain",
+    "raycasting",
+    "parallax",
+    "software-rasterizer"
+  ],
+  "lineage": "Comanche voxel-space engine (y-buffer ray-march) fused with a Mode-7-derived billboard projector and a flat-shaded polygon aircraft; novel in landing, takeoff, and crash on an 8192×8192 named-town continent.",
+  "description": "A third-person flight sim over a procedurally generated earth — three engine tricks fused into one sky. The ground is REAL 3-D voxel-space terrain: a noise heightmap ray-marched per column, front-to-back, with a y-buffer and hillshading, so you fly over, around and into actual hills, ridges and snow-capped peaks (sea, beach, grass, forest, rock, snow). Forests and whole cities of windowed buildings are billboards that stand on the terrain, projected far-to-near; clouds are billboards lifted into the sky. Your low-poly plane is a flat-shaded solid-3D model pinned to the foreground — it banks when you turn, pitches when you climb, and casts a dithered shadow on the ground. The world is a vast 8192×8192 continent with ~90 named towns dotting the coast — each a gradient from tall downtown towers out through low suburban houses with gardens to scattered rural farmsteads (barns, farmhouses, silos) and patchwork fields stamped onto the grassland. A scrolling, player-centred minimap shows the land around you, nearby town names, and your heading (props are spatial-gridded so only the ones near you are ever drawn). You can land, take off, and crash: set down in an open field at low speed, taxi, and lift off again — or fly into a tower, a peak or the sea and go up in a fireball (press Z to restart). Sandbox controls: Left/Right turn (the plane banks into it), flight-stick pitch (UP noses down/descends, DOWN climbs — hold UP low and slow to land), Z/X throttle."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

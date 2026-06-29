@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "cannon fodder",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "particle-system",
+    "save-load-persistence"
+  ],
+  "lineage": "Homage to Sensible Software's Cannon Fodder; squad follows a leader-chain trail toward a click target, enemies wander then chase with line-of-sight autofire, and the roster survives between missions via save_bytes — permanent death carrying over is the defining mechanic.",
+  "genre": "strategy",
+  "homage": "Cannon Fodder (1993)",
+  "description": "Top-down run-and-gun squad tactics, mouse-commanded. Lead up to five tiny soldiers across three scrolling battlefields — LEFT-CLICK ground to send the squad there in a loose trailing formation; they AUTO-FIRE their rifles at any enemy in range and line of sight; RIGHT-CLICK lobs an arcing grenade with a big AoE to level the huts and gun-nests that are your objectives. The bittersweet hook: soldiers die PERMANENTLY in a single hit, and the survivors carry between missions and earn promotions (more HP, range and accuracy) — a fallen name goes on the casualty ticker for good. One soldier sprite is pal()-recolored into green squad vs red enemies, and one green tileset is pal()-swapped per biome (jungle, desert, snow). Big fillp+circfill+shake explosions, blood and dirt particles, a grim man-down sting, and a sparse euclid snare bed. Roster persists between runs via save_bytes. LEFT-click move, RIGHT-click grenade, SPACE halt, R restart."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>   // NULL
 

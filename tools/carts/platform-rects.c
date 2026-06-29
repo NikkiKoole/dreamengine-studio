@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "platform engine (rects)",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "screen-shake-juice"
+  ],
+  "lineage": "Classic PICO-8-style platformer reference build; novel in that it exposes every feel-assist (coyote time, jump buffer, variable jump, floaty apex, squash/stretch) as hot-reloadable #defines so the learner can feel each one in isolation.",
+  "genre": "platformer",
+  "description": "A pixel-perfect platformer feel built from nothing but colored rects. The level is an array of solid boxes; the player moves with floats and resolves one axis at a time. Includes coyote time, jump buffering, variable jump height, squash/stretch, and one-way platforms (the lighter ledges — jump up through them, land on top). Press X to toggle the feel assists and feel the difference. Tuning lives in #defines at the top: run it in live mode, edit GRAV/JUMP_V/COYOTE and hot-reload in place. Arrows/WASD move, Z or up to jump."
+}
+de:meta */
 #include "studio.h"
 
 // PLATFORM ENGINE (rect-list) — a pixel-perfect platformer feel built from

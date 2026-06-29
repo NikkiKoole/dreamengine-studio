@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "The Cut",
+  "status": "active",
+  "kind": [
+    "game",
+    "probe"
+  ],
+  "teaches": [
+    "schedule-driven-agents",
+    "save-load-persistence"
+  ],
+  "lineage": "Prototype for the sloop production-economy design (see docs/design/sloop-production.md); the pure brew_eval function + delegated-worker off-screen time-skip is the novel mechanic — DIY-to-manager progression loop.",
+  "genre": "simulation",
+  "description": "A process-optimization bench — the 'tune a recipe for best quality / most money' itch (Schedule 1 mixing x Dwarf Fortress maker-skill x a demand curve), prototyped as a subsystem for the sloop product economy. Build a BATCH from an ORDERED sequence of reagents, watch THREE numbers move — QUALITY (how clean), STRENGTH (how potent), EFFECT (what it does) — then STIR it by hand for a purity bonus and sell to the client whose taste fits. Order matters: reagents synergize or clash with their neighbour, and SOLVENT cleans whatever crude thing follows it. The whole product is one pure function, so a hired worker runs the same bench at their own skill — the do-it-yourself -> manage arc. Skill levels up as you craft, unlocking recipe slots. Or DELEGATE: open CREW, hire someone, hand them your recipe as a standing order, then LEAVE for a few days and come back to a ledger (batches, spoilage, their quality vs yours, gross minus wages) — they earn while you're away, but a skilled hire costs a wage and morale, and your own stirred hands eventually beat theirs. MOUSE: click a reagent to append, a chip to remove, CLEAR resets; tap the stir bar when the marker is in the green for a purity bonus, SELL to market, click a client to sell, CREW to manage workers. KEYS: 1-6 add reagent, BACKSPACE pop last, SPACE stir, C crew, ENTER to market / sell to best client."
+}
+de:meta */
 #include "studio.h"
 
 // THE CUT — a process-optimization bench for sloop's product economy.

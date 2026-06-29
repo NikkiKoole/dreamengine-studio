@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "voice stress",
+  "status": "active",
+  "kind": [
+    "probe",
+    "tool"
+  ],
+  "teaches": [],
+  "description": "Hold up to SOUND_VOICES (32) of the hungriest engines at once and watch/listen for crackle. Crackle is a real-time audio-thread underrun, so the honest test is to RUN THIS AND LISTEN; the on-screen fps + voice count + a constant-speed sweep reveal CPU starvation too. UP/DOWN sets the held-voice count (starts MAXED — it's a stress test), [ / ] cycle the engine (the self-oscillating BOWED/BRASS/REED/PIPE waveguides are the true worst case — full delay-line DSP every sample, per voice), R retriggers. Built to verify the 16->32 voice bump: on a dev Mac the full 32-voice BOWED wall costs ~10% of one core."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 // VOICE STRESS — hold up to SOUND_VOICES of the HUNGRIEST engines at once and watch for crackle.

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "The Incredible Machine",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "rigid-body",
+    "particle-system"
+  ],
+  "lineage": "Homage to The Incredible Machine (1993); everything reduces to line-segment reflections so one pinball-style reflect routine drives all collisions, with seesaws getting torque and angular velocity on top.",
+  "genre": "puzzle",
+  "homage": "The Incredible Machine (1993)",
+  "description": "A gravity-physics puzzle sandbox in the spirit of The Incredible Machine: a red ball must fall into the GOAL bucket, and it's on you to build the contraption. Drag ramps, see-saws, fans, walls and spare bumper-balls out of the parts tray onto the board, then hit RUN and watch gravity take over — the ball reflects off your bars pinball-style, fans blow it upward in animated wind arcs, see-saws tip toward the weight, and hard bounces spark particles and ding the synth. Two hand-built levels with fixed pegs and ledges; solve both for the victory screen. Left-drag parts from the tray onto the board (right-click a placed part to lift it), R to run / reset the ball, C to clear the board."
+}
+de:meta */
 // THE INCREDIBLE MACHINE — a gravity-physics puzzle sandbox.
 // Drag parts from the tray onto the board, hit R to RUN, and route the ball
 // into the bucket. Every part reduces to line-segments (and maybe a force

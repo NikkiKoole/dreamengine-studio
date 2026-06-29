@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "music garden",
+  "status": "active",
+  "kind": [
+    "toy"
+  ],
+  "teaches": [
+    "euclidean-rhythm",
+    "generative-melody",
+    "chord-voicing"
+  ],
+  "lineage": "A self-playing screensaver that couples a I–vi–IV–V chord loop with a pentatonic random-walk melody gated by euclid(); the visual (flowers blooming on each note) is purely cosmetic — the teaching content is the musical generation layer.",
+  "description": "A screensaver that plays itself. A gentle chord progression strums under a pentatonic melody that improvises with chance() and a random walk — every note opens a flower that blooms and closes on a sine envelope. Fireflies drift, grass sways, the mood drifts to new keys and colors. Z shifts the mood by hand."
+}
+de:meta */
 #include "studio.h"
 
 // MUSIC GARDEN

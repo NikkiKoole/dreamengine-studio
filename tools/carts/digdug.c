@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Dig Dug",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "tilemap-collision"
+  ],
+  "lineage": "Faithful Dig Dug (1982) port; monster AI uses a greedy distance-reducing direction picker plus a timed ghost-phase that drills straight through dirt — two behaviours toggled by per-monster FSM state.",
+  "genre": "arcade",
+  "homage": "Dig Dug (1982)",
+  "description": "A little digger dropped into a field of solid earth — walk and you carve tunnels through the dirt, the passages staying behind you in earthy depth-banded layers. Two monsters lurk in the soil: round red Pooka and green fire-breathing Fygar. Pop them two ways — face one down a tunnel and hold the harpoon to pump it full of air until it bursts, or dig out the dirt beneath a teetering rock so it crashes down on its head. Corner a monster too long and it flattens into floating eyes that ghost straight through the dirt to hunt you. Clear every monster to dig a deeper, busier layer. Arrows move/dig and aim, hold Z to pump; Z again to continue after a clear or game over."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

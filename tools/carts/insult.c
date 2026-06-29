@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "shakespearean insults",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Procedural text from three word lists. Pick one word from each column and glue them into Thou [A] [B] [C]! With ~50 words per column thats over a hundred thousand insults from one tiny program — that multiplication is combinatorics, and the picking is just rnd() indexing into arrays, the same trick behind procedural names and loot. Z hurls a fresh one."
+}
+de:meta */
 #include "studio.h"
 
 // SHAKESPEAREAN INSULT KIT — procedural text from three word lists.

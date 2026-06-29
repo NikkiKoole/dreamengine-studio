@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "bowed",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "waveguide-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Ports the Smith/McIntyre stick-slip bowed-string waveguide from navkit (bowsweep.c Schelleng-wedge calibration); novel: arco/pizzicato as a single waveguide with friction toggled via eng_tune, plus multitouch rub-velocity as bow speed.",
+  "description": "INSTR_BOWED showcase - the bowed string (violin / viola / cello), the last modeled string engine. A Smith/McIntyre stick-slip friction waveguide: a bow drags the string, the rosin grips then slips, and that friction drives a SELF-OSCILLATING loop - so unlike the plucked/struck strings it HOLDS while sustained and swells as you lean in. STEP-0 (tools/navkit-bowsweep.c) mapped the Schelleng wedge of stable bowing and the three macros are pinned inside it: instrument_harmonics = bow position (0 = sul ponticello, near the bridge, bright/edgy; 1 = sul tasto, over the fingerboard, soft), instrument_timbre = bow pressure (0 = light/clean singing leaning-sawtooth; 1 = heavy/scratchy surface sound - a real articulation, not a bug), instrument_morph = bow speed/swell (0 = gentle; 1 = digging in, louder and cleaner). THE FEEL: you don't press a string, you RUB it - drag back and forth and it speaks; the energy ACCUMULATES, so the longer/harder you rub the more it builds and digs in, and stopping lets the bow rest (silent). A quick TAP instead PLUCKS the string - pizzicato, which is the SAME bowed waveguide: a second INSTR_BOWED slot flagged eng_tune(slot,0,1) seeds the string with a pluck and switches the bow friction off, so the identical string and body ring down (arco and pizz differ only in how energy enters, exactly as on a real violin). Six presets: 1 violin / 2 viola / 3 cello / 4 ponticello / 5 tasto / 6 tremolo. Keyboard: HOLD A S D F G H J to bow, tap Q W E R T Y U to pluck; LEFT/RIGHT pick a knob + UP/DOWN turn, Z/X octave, M autoplay arco. Multitouch: rub a drone with one hand, pluck a melody with the other. Design + STEP-0: instrument-engines.md §8.5 step 9."
+}
+de:meta */
 // bowed — INSTR_BOWED showcase: seven strings you BOW by RUBBING, plus pizzicato. The last
 // modeled string engine (§8.5 step 9), played the way a bow actually works — friction.
 //

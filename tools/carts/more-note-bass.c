@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "More Note Bass",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "drum-synthesis",
+    "subtractive-synth",
+    "swing-timing",
+    "scale-quantize"
+  ],
+  "lineage": "A stripped sibling of drummachine and One Note: the same 16-step paintable grid, but the bass lane opens into five scale-locked rows so a monophonic bassline can walk a pentatonic pocket without leaving the on/off sequencer idiom.",
+  "description": "A tiny groovebox that splits the difference between the drum-machine grid and One Note's bass feel. Two drum rows — KICK and SNARE — sit over FIVE bass rows locked to a minor-pentatonic scale, so every step can hold one in-scale bass note without needing a piano roll. The bass stays monophonic by column: light a note and that step becomes that pitch, simple and punchy like a baby 303 sequencer but with honest on/off cells. A starter groove is baked in so it thumps immediately. Tap or drag cells to paint; one octave of GarageBand-style musical-typing keys (A W S E D F T G Y H U J) transposes the bass root chromatically, Z/X shifts that root by octaves, `SUB` folds in an extra oscillator one octave down, and the arrow keys (or on-screen buttons) change tempo and swing."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include "ui.h"

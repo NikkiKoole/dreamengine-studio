@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "lunar lander",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Direct homage to Atari Lunar Lander (1979); uses simple Euler-integration physics (gravity + thrust vector) with procedurally generated terrain per level — no notable algorithmic novelty beyond the arcade loop structure.",
+  "genre": "arcade",
+  "homage": "Lunar Lander (1979)",
+  "description": "Physics-based lander. Rotate and thrust your way onto the lit green pad slowly enough to survive. Levels get harder — pads get narrower. Left/right to rotate, up or Z to thrust."
+}
+de:meta */
 #include "studio.h"
 
 // LUNAR LANDER

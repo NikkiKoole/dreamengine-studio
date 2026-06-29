@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "handpan",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "radial-symmetry"
+  ],
+  "lineage": "Sibling to the mallet cart (same INSTR_MALLET engine) but reframed as a physical instrument layout: the zigzag-circle tuning geometry (ascending notes alternate left/right around the ring) is the conceptual core, ensuring physical neighbors are always consonant.",
+  "description": "A steel hang drum: one ding, eight tone fields, every strike a gesture. The mallet cart is INSTR_MALLET's tuning rig - this is the same engine as an INSTRUMENT, no knobs at all. Real handpans zigzag the scale across the circle (ascending notes alternate right/left climbing to 12 o'clock) so physical neighbors are consonant: two-handed noodling always sounds composed. WHERE you hit matters - the strike's offset from a field's center drives the timbre macro per hit (center = soft palm thump, edge = bright ping), and taps on the bare steel between fields are the shoulder tok. Four tunings to pick from the rack: kurd, celtic, hijaz, pygmy. Multitouch: every finger is its own pointer - both hands play, like the real thing. Tap/click fields (offset = tone), drag = roll, SPACE ding, A S D F G H J K ring notes ascending, 1..4 pick a pan, M autoplay."
+}
+de:meta */
 // handpan — a steel hang drum: one ding, eight tone fields, every strike a gesture.
 //
 // The mallet cart is INSTR_MALLET's tuning rig (knobs, presets, a bar row); this is

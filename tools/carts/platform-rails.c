@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "platform rails (slopes)",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "state-machine"
+  ],
+  "lineage": "Teaches the Donkey Kong / Lode Runner rail model as an explicit tutorial contrast to the solid-space collision used in rects/paint/tiles; novel in using sloped girder segments so position is (girder, offset-along-girder) rather than a free 2D coordinate.",
+  "genre": "platformer",
+  "description": "The OTHER kind of platformer. The rects/paint/tiles carts use solid-space collision (free position, gravity always on, collision discovers the ground) which can only make flat ground. This is the rail model behind Donkey Kong, Lode Runner and BurgerTime: the player is bound to a girder, so position is 'which girder + how far along it' and height is just a formula (py = surface(pg, x)) — which means SLOPES come for free. Ladders connect the girders; the player is a run/climb/jump state machine. Run up the slanted girders, climb the ladders, reach the flag. Arrows/WASD move, up/down climb a ladder, Z to jump."
+}
+de:meta */
 #include "studio.h"
 
 // PLATFORM RAILS — the OTHER kind of platformer. The rects/paint/tiles carts use

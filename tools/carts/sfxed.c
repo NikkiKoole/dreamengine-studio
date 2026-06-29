@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "sfx editor",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "adsr-envelope",
+    "save-load-persistence"
+  ],
+  "lineage": "Spiritual port of PICO-8's sfx editor; novel in the per-step rotating-slot filter trick that lets scheduled steps each carry their own cutoff, and the export-to-C workflow that embeds the sound directly in a cart with no engine banks.",
+  "description": "Draw a sound, PICO-8 style. Paint a pitch contour over 32 steps with the mouse (left = draw, right = erase), shape the volume lane and the filter CUT lane (top = wide open, lower = darker; a RES slider adds squelch), pick a wave per step, set the speed, SPACE to hear it. A SCALE picker (major/minor/penta/blues/hexatonic/whole-tone + a KEY root; click cycles, right-click cycles back) snaps painted notes in key, with faint row guides showing where notes can land — OFF for chromatic freehand. Press E to EXPORT the sound as C code — a step array plus a tiny player function — printed to the log, ready to paste into your game (no engine sound banks needed: playback is just hit() per step). S/L save and load, LOOP toggles looping, BACKSPACE clears. The prototype for cart-authored sfx (audio-notes §5.6)."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

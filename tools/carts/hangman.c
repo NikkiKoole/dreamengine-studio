@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "Hangman",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "save-load-persistence"
+  ],
+  "lineage": "Classic word-guessing game implemented from scratch with per-blank pop animations and an on-screen clickable alphabet; win/streak counts are the first save_int usage in a pure word/puzzle cart.",
+  "genre": "puzzle",
+  "description": "The classic word-guessing game, drawn entirely from primitives — no sprite sheet. A hidden word waits as a row of underscored blanks; guess a letter and right answers pop into place with a green flash and a rising chime, while every wrong letter burns a guess and adds the next body part to the gallows: head, torso, two arms, two legs, then a red-X-eyed hanging. Win by completing the word before six misses; the figure drops in with a little ease and the screen shakes on a bad guess. Tracks your session win count and current streak across runs. Type a letter (A-Z) to guess, or click a key on the on-screen alphabet; press ENTER or click to deal a fresh word after a win or loss."
+}
+de:meta */
 #include "studio.h"
 #include <string.h>
 

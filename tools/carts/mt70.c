@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "mt-70",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "additive-synth",
+    "analog-voice-modeling",
+    "adsr-envelope"
+  ],
+  "lineage": "Transcription of the 1982 Casiotone MT-70 hardware presets from navkit instrument_presets.h; novel as a proof-of-concept that multi-oscillator voices (2–3 sines per key at exact harmonic ratios) are achievable with zero new engine code by stacking separate note slots.",
+  "description": "A 1982 Casiotone home keyboard rebuilt with ZERO new engine code - the probe cart that proves 'two oscillators' is a recipe, not missing infrastructure. The real MT-70 mixed 2 (sometimes 3) sine waves per key, each with its own decay; here every key press fires 1-3 stacked notes on separate instrument slots, pitch-corrected to EXACT harmonic ratios with note_pitch floats (ratio 3.0 = +19.02 semitones - integer rounding would beat). All ten hardware presets transcribed from the source data, each with its original description ('the dullest piano ever'). The SRC switch is the A/B experiment: struck presets (vibes, chime, bells, celesta, banjo) can swap to a single INSTR_MALLET voice - your ear judges recipe vs engine. The voices meter shows the real cost: stacking pays 2-3 voices per key. Struck presets ring out past the lift (a true exponential decay driven through live note_vol - the linear amp ADSR can't bell); sustained ones gate off. Touch the keys (multitouch, slide = glissando), computer keys = GarageBand musical typing like moog (A S D F... whites, W E T Y... blacks, 1.5 octaves), 1..0 presets, Z vibrato, X src 2-osc/mallet, SPACE the obligatory demo tune."
+}
+de:meta */
 // MT-70 — a 1982 Casiotone home keyboard, rebuilt with ZERO new engine code.
 //
 // THE PROBE (instrument-engines.md §8.9 "MT70", cart-library-direction §2b.7):

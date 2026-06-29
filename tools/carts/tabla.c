@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "tabla",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "drum-synthesis",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Showcase for the INSTR_MEMBRANE engine ported from navkit — six decaying sine modes at circular-membrane vibration ratios with a pitch-bend gliss; novel over 808/909 recipes in using real modal physics rather than a single sine + pitch envelope.",
+  "description": "INSTR_MEMBRANE showcase - the seventh modeled ENGINE: a struck drumhead. Six decaying sine modes at a circular membrane's vibration ratios plus a slap contact click, buffer-free. One id covers tabla / conga / bongo / djembe / tom - hand percussion the analog 808/909 recipes structurally can't reach, because it's REAL membrane modes plus a pitch bend, not one sine plus a pitch envelope. The three engine macros: instrument_harmonics = head character (0 = tuned harmonic tabla, pitched and longer-ringing; 1 = inharmonic djembe/conga thud), instrument_timbre = strike position (0 = center thump; 1 = edge ring plus slap click - open/slap/mute in one knob, navkit's live circular-membrane weighting), instrument_morph = pitch bend (0 = flat; up = the membrane chirp / tabla bayan gliss - pitch starts raised off the strike and settles, bending all six modes together). A struck engine self-decays, so it has no ADSR (unlike fm/pd, which hold); the cart's fourth slider is instead a cart-side RING control (mute to open) - the hit() gate length, a tight palm-damped thwack to a stroke left to ring out, which is how hand percussion is actually played. The drumhead on the left shows the syahi tuning patch on the tabla side, a marker for where timbre strikes (center to edge), and ripples on every hit; the panel prints the exact instrument() call to copy into your cart. Five presets (1 tabla, 2 conga, 3 bongo, 4 djembe, 5 tom). A S D F G H J K strike a tuned low ladder, Z/X tune, 1..5 kits, drag a slider (or LEFT/RIGHT + UP/DOWN), SPACE roll, M autoplay groove on/off. Multitouch: drum with several fingers, sweep the pads for a roll."
+}
+de:meta */
 // tabla — INSTR_MEMBRANE showcase: a struck drumhead (the seventh modeled ENGINE), six
 // decaying sine modes at a circular membrane's vibration ratios. Hand percussion the analog
 // 808/909 recipes structurally can't reach: REAL modes + a pitch bend, not one sine + an env.

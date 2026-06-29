@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "wba fm",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing"
+  ],
+  "lineage": "An artist-station (stolen-playbook archetypes, kin to air); the first station to use the ampcab.h guitar amp/cab bundle and a clean-guitar pedalboard (slapback + small room + chorus), and a negative-space guitar-bass duet arrangement.",
+  "homage": "The Whitest Boy Alive (Erlend Oye)",
+  "description": "The Whitest Boy Alive station - Erlend Oye's band (Dreams / Rules), an ARTIST station: the dial plays recognizably DIFFERENT songs OF THEIRS, not one texture re-keyed. The whole identity is RESTRAINT and SPACE - every instrument is dry and has room, nothing crowds; machine-tight precision meets live-band warmth. Built on the stolen-playbook chord brain: FIVE SONG ARCHETYPES, each a cited WBA track that fixes its groove, tempo, lead and form. BURNING (aeolian four-on-floor disco, driving, clean guitar chops + a pumping bass); GOLDEN CAGE (a dorian melancholic mid-pulse where the BASS carries the hook); 1517 (bright major pop, bouncy, guitar/bass interplay); COURAGE (gentle major maj7, slower, Rhodes-forward, lots of air); DONE WITH YOU (a funky dorian vamp, choppy palm-mute guitar + syncopated bass). THE TEXTURE is the negative-space DUET: the clean guitar's palm-muted chops and the melodic co-lead bass interlock with GAPS, over a tight clean kit, with warm Rhodes + a soft vocal on top. The guitar is a clean INSTR_GUITAR (steel string) through the CLEAN amp/cab voicing (ampcab.h: soft-clip, scooped-bright, light power-amp sag) + a slapback echo + a small warm room + a whisper of chorus - NO distortion, the restraint is the sound; the whole band is glued with gentle tape + bus compression. The window is a bare Scandinavian stage: four instrument blocks (guitar/bass/drums/keys) lit only when each plays, in lots of black space. SPACE next song, R same tune, [ ] history, LEFT/RIGHT feel (bare/room/warm/full), UP/DOWN tempo, T tone, B band (amp clean/chime/crunch, keys rhodes/wurli, kit tight/brushed), M power, H help. Pin via WBA_SEED."
+}
+de:meta */
 // ── WBA FM — The Whitest Boy Alive ───────────────────────────────────────────
 // Erlend Øye's band (Dreams 2006 / Rules 2009). NOT a genre but an ARTIST: the dial
 // plays recognizably DIFFERENT songs *of theirs* — SPACE rolls "the Burning one" or

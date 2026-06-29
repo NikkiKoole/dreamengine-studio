@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "blend lab",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "probe"
+  ],
+  "teaches": [
+    "dithering-gradient"
+  ],
+  "lineage": "Standalone experiment (STATUS item 18); no cart parent. Novel: builds additive, average, and multiply blend tables entirely in cart-space — a VGA/Doom-style palette-index lookup for translucency — and A/B-compares them against the fillp dither-fake carts use today.",
+  "description": "Can 32 colors fake real translucency? A cart-space prototype of BLEND TABLES (result = table[src][dst], always a palette index — the VGA/Doom/Picotron trick). 1: a night street where additive glows light the building behind them, 2: a draggable glass pane + cloud shadows + fog over a swatch sweep of all 32 colors, 3: the raw 32x32 tables. D shows the same shapes as today's fillp dither-fake for comparison; P reads dst via pget to demonstrate the one-frame feedback artifact. Arrows switch glass color / table. Zero new engine API — the experiment behind STATUS item 18."
+}
+de:meta */
 #include "studio.h"
 
 // BLEND LAB — can 32 colors fake real translucency? (the STATUS item 18 experiment)

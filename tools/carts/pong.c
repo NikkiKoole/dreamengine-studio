@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "pong",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Pong (1972) clone; paddle-offset spin on the ball, two-player local, scale-degree hit blips.",
+  "genre": "sports",
+  "homage": "Pong (1972)",
+  "description": "2-player pong. First to 7 wins. Player 1: W/S — Player 2: up/down arrows."
+}
+de:meta */
 #include "studio.h"
 
 // 2-player pong

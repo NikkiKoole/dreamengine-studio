@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Blackjack",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "save-load-persistence"
+  ],
+  "lineage": "Stand-alone card game; no close sibling in the library — the five-phase deal/play/settle state machine and the animated card-fly-in are its notable structural choices.",
+  "genre": "tabletop",
+  "description": "Sit down at the felt and play the casino classic against a by-the-book dealer: push out a bet from your bankroll, take two cards against the dealer's one-up-one-down, then hit, stand, or double down. Aces ride soft (1 or 11), a two-card 21 pays 3:2, the dealer hits 16 and stands on 17, and the whole table is drawn from crisp card primitives with cards that ease in off the deck, a hole card that flips on the reveal, a rising chord on a win and a red-flashing screen shake on a bust. Your bankroll persists between runs via save(), so the slow grind of the house edge follows you home. Controls: BETTING — Left/Right or A/D to lower/raise the bet, Z or Enter to Deal; YOUR TURN — Z Hit, X Stand, C or Down Double; RESULT — Z or Enter for the next hand (Z rebuys when broke); or click the on-screen buttons."
+}
+de:meta */
 #include "studio.h"
 #include "cards.h"
 

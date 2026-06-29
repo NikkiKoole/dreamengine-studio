@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "roadnet",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "generative"
+  ],
+  "teaches": [
+    "noise-terrain",
+    "procedural-mesh"
+  ],
+  "lineage": "Extends worldgen.c's infinite deterministic heightmap (itself a gtascii port) with a node-lattice Catmull-Rom spline road network; the seam-true pure-function-of-cell-coords crack that solves the 'wall' in procgen-places.md.",
+  "description": "A SPLINE arterial network over an infinite, deterministic heightmap — the curved, non-axis-aligned roads procgen-places parked as 'the wall' (docs/design/roadnet.md). The crack: a NODE-LATTICE spline is local even though a grown one isn't. Each coarse cell hashes to at most one POI node (on habitable land); a link between two nodes is a Catmull-Rom whose four control points — node(C-d), node(C), node(C+d), node(C+2d) — are every one a pure function of cell coordinates, so any chunk recomputes the identical curve with no global pass. The network is CONNECTED by hierarchy (the 'Main Rib'): white HUBS on a coarse lattice form a continuous highway backbone, and red/orange TOWNS branch into it with feeders to their nearest hub, so nothing is orphaned. It all streams around the camera over layered-noise terrain bands and rivers (worldgen's heightmap); links drop wherever the straight line of land isn't passable, so water cleanly divides regions until v2 bridges. Opens on an INTRO PANEL — a glass strip of sliders (hub gap, town gap, hub/town density, wiggle, diag, water) over the live full-screen world, so dragging a slider re-rolls the world live behind it; ROLL reseeds, EXPLORE dismisses it to pan. Rung 1 of the eventual road layer for sloop's world; sibling to trackgen (the finite single-track cousin). Controls: drag the panel sliders, ROLL / EXPLORE buttons; then arrows / WASD pan, mouse wheel zooms in/out a bit, SPACE jumps to fresh scenery, R new seed, M reopens the panel, G toggles the cell-border overlay (the seam test), H hides the HUD."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <stdio.h>

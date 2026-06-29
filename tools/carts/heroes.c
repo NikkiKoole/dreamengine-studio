@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "heroes of might & magic",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "pathfinding",
+    "turn-based-loop",
+    "grid-movement",
+    "tilemap-collision"
+  ],
+  "lineage": "A demake of Heroes of Might & Magic (3DO, 1995); the three-mode loop (adventure → town → battle) is faithful to the original's structure, compressed to a 20×10 grid.",
+  "genre": "strategy",
+  "homage": "Heroes of Might and Magic (1995)",
+  "description": "A pocket Heroes of Might & Magic with the whole loop: explore, recruit, build, then DO BATTLE. On the ADVENTURE map your hero spends MOVEMENT POINTS to roam a small continent (terrain costs MP) - click a tile to walk there, scooping gold, ore and treasure chests, flagging the ore MINE for daily income, ducking into YOUR TOWN, or charging the rival. END DAY refreshes movement and advances the enemy hero, who marches on your town - so build an army before he arrives. In TOWN you build up to three creature dwellings (gold + ore) and recruit Pikemen, Archers, Griffins and Ogres into your army, with a fresh batch each new week. The climax is the STACK BATTLE: a unit is one icon labelled with a count (x22) and damage removes whole creatures from it; initiative runs by speed, melee attacks draw RETALIATION, archers shoot at range with no counter, and the hero casts BOLT (damage) or BLESS (buff) - a live damage forecast shows before you commit, with lunges, count pops, sparks and screen-shake. Win the battle or seize the enemy town to win the war; lose your army or your town and it's over. Mouse-primary: click to move/attack, click buttons to build/recruit/cast. Keys: SPACE end day, B leave town, Z confirm."
+}
+de:meta */
 #include "studio.h"
 #include "cursor.h"
 

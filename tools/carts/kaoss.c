@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "Kaoss",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer"
+  ],
+  "lineage": "After the Korg Kaoss Pad — an XY effects pad wired to a groovebox-derived melodic-techno loop; novel in demonstrating the ride-safe vs set-and-hold effects split in a live-performance context.",
+  "homage": "Korg Kaoss Pad",
+  "description": "An XY effects pad, after the Korg Kaoss Pad / Kaossilator — a driving techno loop plays itself so both hands are free to MANGLE the whole mix with your finger on a big XY pad. Pick a PROGRAM (1-4) and the X/Y axes drive that effect's two parameters; touch the pad to engage, lift to bypass, or HOLD to latch a mangle. Only the engine's ride-safe effects are on the pad (filter / varispeed / echo / tremolo — the ones built to sweep live), so it never stutters. FILTER: x = lowpass < open > highpass, y = resonance (the DJ filter). ECHO: x = delay time, y = feedback (the dub throw). GATE: x = chop rate, y = depth (square-tremolo stutter). TAPE: x = speed, tape-stop < > spin-up (varispeed dive). The performance masher that onenote and grenadier plug into. Drag the pad (mouse/finger); 1-4 pick program; SPACE = HOLD; left/right = tempo."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

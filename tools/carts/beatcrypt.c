@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Beatcrypt",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "dungeon-generation",
+    "euclidean-rhythm",
+    "turn-based-loop"
+  ],
+  "lineage": "Miniature Crypt of the NecroDancer (2015) — the core innovation is enemies each running their own beat-locked rhythm (every/euclid()) so the dungeon is a rhythmic ensemble, not just a metronome.",
+  "genre": "rpg",
+  "homage": "Crypt of the NecroDancer (2015)",
+  "description": "A beat-locked roguelike: a looping 2-bar synth bed (kick/snare/euclidean hats + a minor bassline) drives turn-based dungeon crawling — move/attack ONLY on the beat to build a combo, miss the window and you stumble; enemies step on their own rhythms (skeleton every 2nd beat, bat on a euclid(3,8) syncopation, slime every 4th). Bump enemies on-beat to kill, clear the floor, reach the > stairs. Controls: WASD / Arrows to move + attack (press ON the beat), R to restart."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

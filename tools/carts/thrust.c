@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "thrust (inertia)",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "spring-damper",
+    "particle-system"
+  ],
+  "lineage": "Asteroids movement distilled to a pure teaching cart; steer.c is its direct sequel (the car model, partial coupling).",
+  "genre": "space",
+  "description": "The fourth movement paradigm: steering & inertia. The ship has a FACING and a VELOCITY and they are not the same thing — turning moves nothing, thrusting pushes along the facing, momentum carries you, drag bleeds it off. The green line shows where you are GOING while the nose shows where you are POINTING: watch them disagree mid-drift. Press X for tank mode (velocity = facing, release stops dead) and feel how much of the asteroids sensation IS the inertia. Collect the stars; the screen wraps. LEFT/RIGHT turn, UP thrusts, X toggles inertia, Z restarts."
+}
+de:meta */
 #include "studio.h"
 
 // THRUST — the fourth movement paradigm: steering & inertia. The others move a

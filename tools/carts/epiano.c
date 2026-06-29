@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "epiano",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "adsr-envelope"
+  ],
+  "lineage": "Showcases INSTR_EPIANO with three electromechanical machines (Rhodes/Wurli/Clav), each with its authentic stompbox chain; novel in the per-machine pedal + preset UI modelled after the real hardware signal path.",
+  "description": "INSTR_EPIANO showcase - the electromechanical keyboards, rooted in the originals: pick the MACHINE (1 RHODES / 2 WURLI / 3 CLAV - each its own colour), then flip ITS authentic stompboxes. Every key sums 12 decaying inharmonic sine modes through a PICKUP NONLINEARITY - the bark/buzz/honk that makes it electric, not a dull bell. Each machine carries the modulation that actually defines it, as self-contained pedals (footswitch + its own knobs): RHODES - VIBE (Suitcase stereo vibrato), DYNO (bright sheen), PHASE (the 70s swirl, RATE+STR); WURLI - TREM (the built-in tremolo), BUZZ (reed dig-in growl); CLAV - WAH (the Superstition funk), MUTE (the D6 damper). A BARK knob on every machine drives the pickup hard (read live on ringing notes). A small per-machine PRESET column (stage/suitcase/dyno, wurli/buzz, clav/mute) flips the pedals for you. White A S D F G H J K, black W E T Y U; SLIDE across the keys for glissando; Z/X octave; M autoplay. The DX/digital EP is the fm cart; this is the electromechanical one. Multitouch."
+}
+de:meta */
 #include "studio.h"
 #include "fxicons.h"     // shared effect icons + colours (same "pedals" as the pedalboard)
 #include <math.h>

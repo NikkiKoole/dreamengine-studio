@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "arcsym",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer",
+    "algorithm-visualization"
+  ],
+  "lineage": "Isolates the <=1px corner-staircase floor accepted in streetlab (docs/design/road-program-state.md, streetlab.c SEAM note, STATUS.md 43) into a pixel-precise sandbox. Sibling to pixelperfect (also a software-rasterizer tech-demo) but about rasterisation SYMMETRY under a flip rather than fractional scaling: shows ri-snap double-rounding break a mirror, and the compute-one-corner-then-blit-mirrored fix the docs propose, proven exact by a spec().",
+  "description": "ARC FLIP SYMMETRY — a petri dish for streetlab's ≤1px corner floor: why a mirrored arc has the SAME pixel count but a DIFFERENT staircase, and how to fix it. On streetlab's default 4-way intersection the four kerb fillets are mirror-symmetric in real space, yet the rendered kerb edges land ≤1px apart (the docs' accepted floor). The cause: streetlab snaps each arc vertex to the grid with ri() and THEN strokes/fills, so re-rasterising the mirror rounds TWICE — ri(mirror(v)) != mirror(ri(v)) at half-pixel alignments — and the edge drifts. The fix the docs predict: rasterise ONE corner, then BLIT its cells mirrored (a pure index reflection is exact by construction). The cart draws a quarter arc and its flip on a magnified EVEN-width grid (mirror axis on a pixel boundary, like x=160 on a 320 screen): blue = the original, green = flip matches the true mirror, RED/orange = where the naive flip is off a step. A live stat sweeps the sub-pixel phase and counts how many alignments the naive flip breaks at (some — that's why it's a subtle floor) vs the blit flip (zero, always). Controls: Z naive re-raster <-> blit cells (the fix); S stroke <-> fill; left/right sub-pixel phase; up/down radius; R reset. spec() proves the blit is pixel-exact at every phase/radius/shape."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <string.h>

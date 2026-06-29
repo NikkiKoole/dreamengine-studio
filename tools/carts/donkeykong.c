@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Donkey Kong",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "no-sprite-vehicles"
+  ],
+  "lineage": "Donkey Kong (1981 arcade) — 25m girder stage rebuilt from primitives; sloped girder geometry and barrel-path simulation are the novel contribution.",
+  "genre": "platformer",
+  "homage": "Donkey Kong (1981)",
+  "description": "The arcade 25m girder stage, rebuilt from pure primitives: a tower of slanted red girders strung together with peach ladders, Kong thumping barrels off the top, and the princess blinking HELP at the summit. Run up the slopes, climb the ladders, and time your jumps as barrels tumble down and randomly peel off onto a ladder — clear one for +100, or grab the blinking hammer for six seconds of barrel-smashing frenzy. Touch a barrel without the hammer and the screen flashes red and shakes as you lose one of three lives; reach the top and she's saved. Hi-score persists between runs. Left/Right run along the girder, Up/Down climb ladders, Z to jump (and to restart)."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

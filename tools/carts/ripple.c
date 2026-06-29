@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "ripple tank",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Water, and how waves add up. Each cell next height is the average of its neighbours minus its previous height, damped so ripples fade. Drop two stones and the rings cross: crests meeting crests pile up, crests meeting troughs cancel — interference, the same maths behind sound and light. Arrows move the stone, Z drops it, and rain falls on its own."
+}
+de:meta */
 #include "studio.h"
 
 // RIPPLE TANK — water, and how waves add up.

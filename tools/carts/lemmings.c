@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Lemmings",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "tilemap-collision",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Tribute to DMA Design's 1991 Lemmings; novel in that the terrain byte-grid is both the render buffer and the physics — diggers and bashers erase pixels that collision then reads, with no separate physics representation.",
+  "genre": "puzzle",
+  "homage": "Lemmings (1991)",
+  "description": "A one-screen tribute to DMA Design's 1991 classic. A trapdoor drops a stream of brainless green-haired lemmings that trudge right, fall off ledges, splat in the lava pit, and turn at walls with zero self-preservation. The terrain IS the physics: a destructible pixel buffer where diggers and bashers erase dirt and collision just reads it back. Arm a job from the bottom toolbar then click a lemming to assign it — DIG straight down, BUILD a diagonal bridge, BLOCK as a living wall that turns the herd around, or BASH sideways through dirt — and steer enough of them into the glowing HOME exit before you run out. Save 10 of 20 to win. Controls: click a job tile in the bottom bar to arm it, click on a lemming to assign the armed job, right-click or click the armed tile again to disarm, R to restart."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

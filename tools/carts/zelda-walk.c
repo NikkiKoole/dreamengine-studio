@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "zelda walk (grid nudge)",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "grid-movement"
+  ],
+  "lineage": "A direct reverse-engineering of NES Zelda 1's six-trick movement system (troygilbert.com), standing alone as a tutorial cart with a toggle to disable the assists.",
+  "genre": "maze",
+  "description": "The secret middle ground between grid-move and free movement, rebuilt the way NES Zelda 1 actually did it (per the community deconstructions). Three pieces: an 8px HALF-GRID (you are never more than 4px off); PASSIVE REALIGN while walking — the perpendicular axis corrects 1px per pixel walked, so 4px off = realigned after 4px, almost invisible; and CORNER FEELERS — the crosswise hitbox is only 8px wide, so clipping a corner blocks just one feeler and you get shoved around it while you keep walking (your outer pixels may overlap the wall, the classic Link look). Free feel, grid forgiveness. Collect the gems, then press X to switch the assists off and feel the same room become constant corner-snagging. Arrows/WASD move (4-way), X toggles, Z restarts."
+}
+de:meta */
 #include "studio.h"
 
 // ZELDA WALK — the grid nudge, done the way NES Zelda 1 actually did it.

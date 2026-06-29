@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "floorwalker",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "segment-collision"
+  ],
+  "lineage": "Generated from a real Floorplanner .fml file via fmltools/fml2cart.js; reuses hotline.c's move-first per-axis slide idiom but against arbitrary-angle wall segments instead of a tile grid.",
+  "description": "Walk a real Floorplanner floorplan as a top-down level. An .fml file is converted by fmltools/fml2cart.js into walls (with doorways as walkable gaps and windows that block), room floors tinted per role, and furniture placed as oriented boxes. Each piece of furniture is a real top-down pixel sprite baked from Floorplanner's CDN render by fmltools/fml-assets.js (downscale + saturate + outline + palette-quantize to pico32) and embedded by fmltools/fml-sprites.js, drawn scaled to its real footprint and rotated. Segment + oriented-box collision, scanline room fills, camera follows you across the building, draw is camera-culled for 1000+ items. WASD/arrows to move, T toggles furniture sprites vs boxes. A pipeline demo for turning house plans into playable Hotline-Miami-style space."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 #include <stdio.h>

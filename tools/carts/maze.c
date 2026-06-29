@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "maze generator",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "maze-generation",
+    "pathfinding"
+  ],
+  "lineage": "Standalone algorithm visualiser with no direct sibling cart; pairs recursive-backtracker carving with BFS flood-fill shortest-path solve in a single animated demo.",
+  "description": "Carve a maze, then solve it — two classic algorithms on one screen. A recursive backtracker knocks down walls to random unvisited neighbours and backs up a stack at dead ends, guaranteeing every cell is reachable. Then a breadth-first flood spreads out ring by ring from the start; the moment it touches the exit, the came-from links trace the shortest path. Z builds a fresh maze and animates the carve + solve."
+}
+de:meta */
 #include "studio.h"
 
 // MAZE — carve it, then solve it. Two classic algorithms on one screen.

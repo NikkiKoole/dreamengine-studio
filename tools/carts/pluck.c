@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "pluck",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "waveguide-synth",
+    "adsr-envelope"
+  ],
+  "lineage": "Showcase cart for INSTR_PLUCK, the engine's first Karplus-Strong modeled voice; novel in exposing pitch-bend via multi-touch grab and demonstrating all three engine macro knobs (harmonics/timbre/morph) interactively.",
+  "description": "INSTR_PLUCK showcase - the first modeled ENGINE (wave ids 16+): every note excites a Karplus-Strong string simulation instead of reading a wavetable, so plucks decay and darken on their own like a real string. Eight pentatonic strings + the three engine macros every future engine answers too (instrument_harmonics = ring time, instrument_timbre = pick brightness, instrument_morph = pick position) - turn a knob and hear the same string go from dead thunk to endless drone, felt thumb to hard pick, full to hollow. The read tap is fractional, so pitch reaches the string live - and the strings are real objects: GRAB one (press right on it) and drag to bend its pitch like a real guitar, or press in open space and sweep the pick past strings to strum them. V toggles a jangle-style chorus warble. A S D F G H J K pluck strings, drag the sliders (or LEFT/RIGHT + UP/DOWN), SPACE strum, M autoplay on/off."
+}
+de:meta */
 // pluck — INSTR_PLUCK showcase: eight strings + the three engine macros.
 //
 // The first modeled ENGINE (wave ids 16+): instead of reading a wavetable, every note

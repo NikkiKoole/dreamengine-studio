@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "joust",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "finite-state-ai",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Tribute to Williams Joust (1982); enemy AI uses a simple flap-cooldown chase with randomized upward bias, and the egg-hatching timer creates a secondary urgency loop not present in earlier arcade tributes in the library.",
+  "genre": "arcade",
+  "homage": "Joust (1982)",
+  "description": "A tribute to the Williams arcade classic. Ride your flying mount over a lava pit: tap A to FLAP against constant gravity, steer with LEFT/RIGHT (you carry momentum), and the screen wraps left to right. Charge enemy riders — whoever is higher at the moment of contact wins; equal height bounces you both apart. A beaten rider drops an egg: grab it for points before it hatches into a fresh enemy. Clear the wave to advance. Three lives; the lava is always fatal."
+}
+de:meta */
 #include "studio.h"
 
 // ── JOUST — flap, charge, collect ─────────────────────────────

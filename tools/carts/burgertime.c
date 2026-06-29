@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "burger time",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Faithful demake of Data East's Burger Time (1982); the cascade mechanic (ingredient drop chain-knocks lower layers) is the novel implementation challenge on top of the standard platform/ladder grid.",
+  "genre": "arcade",
+  "homage": "BurgerTime (1982)",
+  "description": "Faithful demake of the 1982 arcade classic. You're the chef on a lattice of platforms and ladders. Walk across every segment of a burger ingredient to stomp it down a floor — when all four are stomped it drops, landing on the piece below and knocking THAT one loose too (the cascade), all the way to the plate. Build all four burgers to clear the stage while Mr. Hot Dog, Pickle and Egg chase you. Freeze them with a limited shake of pepper, or drop an ingredient on them for big points. Arrows / WASD: walk + climb — Z or X: pepper."
+}
+de:meta */
 #include "studio.h"
 
 // BURGER TIME

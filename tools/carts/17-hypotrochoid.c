@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "17. hypotrochoid",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "A point on a small circle rolling inside a larger one traces an intricate curve. Four presets (8-loop, 5-petal, 9-loop, trefoil) — press A to cycle. Uses the parametric equation directly with cos_deg and sin_deg."
+}
+de:meta */
 #include "studio.h"
 
 // hypotrochoid spirograph — circle rolling inside a circle.

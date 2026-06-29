@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "lil life (the sims)",
+  "status": "active",
+  "kind": [
+    "game",
+    "probe"
+  ],
+  "teaches": [
+    "pathfinding",
+    "state-machine",
+    "finite-state-ai"
+  ],
+  "lineage": "Minimal Sims distillation — three-state agent (IDLE/WALK/USE) with BFS pathfinding and five decaying needs; novel: the entire AI loop is need-decay → urgency sort → object lookup → BFS → execute, with no hand-authored scripts.",
+  "genre": "simulation",
+  "homage": "The Sims (2000)",
+  "description": "A tiny Sims. Build a house and furnish it, then watch your sim look after itself: five needs (food, energy, bladder, hygiene, fun) decay in real time, and it picks the most urgent one, pathfinds (BFS, around your walls) to the object that fixes it, and uses it. WASD/arrows move the build cursor, Z place, X erase, comma toggles BUILD/LIVE, period cycles furniture."
+}
+de:meta */
 #include "studio.h"
 
 // LIL LIFE — a tiny Sims. Build a house, drop in furniture, then watch your

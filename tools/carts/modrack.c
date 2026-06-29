@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "modrack",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "generative-melody",
+    "step-sequencer",
+    "euclidean-rhythm",
+    "algorithm-visualization"
+  ],
+  "lineage": "Berlin-school modular synthesis (Turing Machine, Grids, Marbles, Maths clones) implemented as a data-driven module registry; novel in making the patch graph editable and type-checked in a PICO-8-scale cart.",
+  "description": "A tiny modular synth, built in steps. STEP 1: the generative Berlin-school chain is hardcoded in C — CLOCK ticks a SAMPLE & HOLD that freezes a wandering LFO, a QUANTIZER snaps it to a scale (always in key), and a VOICE plays it as a held note whose filter the same LFO sweeps live. Endless in-key melody, zero composition. Later steps draw editable module strips and patch cables. Built on the held-note API (note_on/note_pitch/note_cutoff)."
+}
+de:meta */
 #include "studio.h"
 #include "gestures.h"   // pinch_scale() — two-finger zoom on touch (the wheel has no finger)
 #include "cursor.h"     // pixel mouse cursor (grab while dragging a knob/cable/module/canvas)

@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "linecompare",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "software-rasterizer",
+    "algorithm-visualization"
+  ],
+  "lineage": "The line-level companion to linesym/axissym/arcsym/skewlab: where those isolate rasterisation SYMMETRY and road-EDGE unification, linecompare isolates the single question underneath them - that a DDA stroke and a coverage test round a diagonal to DIFFERENT pixels. Built to make the 'two rounding rules' tension in the software-canvas design visible and playable (why some road stripes look crisp and others fatter/stairier), and it settles the line-primitive fork: 1px strokes stay DDA (sline; crisp), thick bands come from the coverage rule (the only gap-free uniform option) - the same split field-based-road-rendering.md chose. See software-canvas.md Findings (2026-06-24).",
+  "description": "LINECOMPARE - watch two rounding rules pick pixels for the SAME line, magnified so every cell is visible. A line on a grid has to choose which cells to light: DDA (blue) walks the long axis one step at a time and rounds the other coord, so it lights exactly one cell per column/row - crisp, but it rounds on its own terms; COVERAGE (orange) asks, for every cell, whether its CENTRE is within half a pixel of the line - the same rule fills/outlines use. Cells both rules agree on are WHITE; the blue and orange cells ARE the 'two rounding rules' the software-canvas notes describe. A third rasterizer, DDA PERPENDICULAR-OFFSET (parallel 1px DDA passes), is crisp AND uniform-width but gappy at diagonals. Thickness lays bare that DDA is intrinsically 1px (thickness is an add-on whose perpendicular width shrinks toward 45 degrees) while coverage gets thickness for free; coverage also has a three-way CAP toggle (round capsule grows the line longer as it thickens; butt cuts flush like DDA but can clip a thick diagonal's tip; square is the in-between - a fixed ~1px nub that always covers the endpoints but never balloons). Finding: at 45 degrees no thick-line method wins on all of crisp/uniform-width/gap-free. Controls: B cycle 5 views, UP/DOWN thickness, C coverage cap style, LEFT/RIGHT rotate, A auto-spin."
+}
+de:meta */
 // linecompare — three ways to draw the same line, magnified so you can see the pixels.
 //
 // A line on a grid must choose which cells to light. Three approaches, all here:

@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "Fonts",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "Showcases the three built-in fonts (FONT_NORMAL 8×8, FONT_SMALL 4×6, FONT_TINY 3×5), print_shadow, print_outline, and the chained print return value."
+}
+de:meta */
 #include "studio.h"
 
 void draw(void) {

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "wow & flutter",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "verlet-integration",
+    "soft-body",
+    "sonification"
+  ],
+  "lineage": "Standalone tech-demo descended from the physics.c verlet core; novel in coupling the wow/flutter/saturation tape parameters bidirectionally — the same float drives both the jelly deformation and the real tape() master insert.",
+  "description": "The tape() effect made physical: a soft-body jelly blob in a scene that is playing back on a worn tape, where the SAME wow/flutter/saturation values drive the picture AND the sound in lockstep - no screen shader, the wobble IS the verlet simulation. The tape WEARS DOWN as it plays (degradation creeps up on its own) so the longer it runs the woozier it gets: WOW (slow) sways the whole scene and drags the loop transport; FLUTTER (fast) shivers the jelly rim and stutters the timing; SATURATION blooms the palette warm, fattens the blobs, and drives the mix harder through the real tape() master insert. A Frippertronics-style pad+bell loop smears through the echo bus while the blobs throb on the beat; the character bumps are foley. Grain, scanlines and dropout bands thicken with the wear. Hit SPACE to REWIND & CLEAN - snap it fresh and watch/hear the decay begin again. Move the blob: arrows/WASD. Bounce: Z or Up. SPACE: rewind."
+}
+de:meta */
 #include "studio.h"
 
 // WOW & FLUTTER — a soft-body jelly blob in a scene that's playing back on a worn

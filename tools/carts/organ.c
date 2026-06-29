@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "organ",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "additive-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "INSTR_ORGAN engine showcase and tuning rig — the Leslie is a verbatim navkit processLeslie port (band-split rotary with mechanical rotor inertia), replacing an earlier per-voice LFO recipe.",
+  "description": "INSTR_ORGAN showcase - the fourth modeled ENGINE: every key sums nine drawbar sines at the Hammond footages, so what you hear is a registration (a recipe of harmonics), not one wave. Unlike pluck/mallet it is HELD - hold a key and it sustains, so the macros morph the tone LIVE while you lean on a chord. The same three macros every engine answers: instrument_harmonics = registration (snapped drawbar recipes, thin reggae to full gospel); instrument_timbre = brightness tilt + key click; instrument_morph = animation (0 still combo organ, up = scanner chorus shimmer + percussion chip). Eight presets (1 reggae, 2 combo, 3 bookerT, 4 jimmy, 5 larry, 6 ballad, 7 jonlord, 8 gospel) are baked knob positions. THE LESLIE is not in the engine - it is a per-voice recipe (tremolo + doppler LFOs, rate lerping slow/fast = the spin-up inertia); press L to hear it. A S D F G H J K hold keys (chords welcome), Z/X octave, 1..8 presets, drag a slider (morphs held notes live) or LEFT/RIGHT + UP/DOWN, L leslie, M autoplay. Multitouch."
+}
+de:meta */
 // organ — INSTR_ORGAN showcase: a tonewheel manual + the three engine macros + drive + Leslie.
 //
 // The fourth modeled ENGINE: every key sums NINE drawbar sines at the Hammond footages, so

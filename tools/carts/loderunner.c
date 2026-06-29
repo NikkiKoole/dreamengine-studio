@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Lode Runner",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "finite-state-ai",
+    "save-load-persistence"
+  ],
+  "lineage": "Homage to Lode Runner (1983); the guard shares the same grid-movement rules as the player (chase by tile-distance scoring), and the dig/regrow timer is the core mechanic drawn from primitives with a saved best score.",
+  "genre": "platformer",
+  "homage": "Lode Runner (1983)",
+  "description": "A pocket-sized Lode Runner: sprint a chunky runner across a brick-and-ladder maze, scoop up every glinting chunk of gold, then climb the exit ladder that lights up only once the level is clean. A red guard hunts you on the same rules you obey — run, climb, hang hand-over-hand from ropes, and fall. Caught on open ground and you're done, so dig: Z chews a hole in the floor down-and-left, X down-and-right, dropping the guard into a pit that refills a moment later and crushes anything still stuck. Two single-screen levels, drawn entirely from primitives, with a clean clear/death/restart loop and a saved best. Arrows run/climb/rope, Z dig-left, X dig-right, R restart."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 #include <string.h>

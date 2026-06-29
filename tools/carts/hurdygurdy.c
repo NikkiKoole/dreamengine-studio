@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "hurdy-gurdy",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Original instrument cart; models the hurdy-gurdy's rosined wheel as a continuous angular-velocity sensor — crank speed maps live to note_vol and note_cutoff on two sustained drone voices, a mechanic no other cart in the library uses.",
+  "description": "The cranked drone-fiddle, built on the HELD NOTE api around a mechanic nothing else uses: the crank IS the sound. HOLD the mouse and CIRCLE it around the wheel — TWO expressive axes from one gesture: how FAST your hand travels = loudness, how WIDE you circle = brightness (note_vol + note_cutoff across all three voices). Drone voices (tonic + fifth) only sing while the wheel turns. Press a tangent key (A S D F G H J K) to stop the melody string at a pitch (note_pitch), highest key wins; keys 1-5 switch the scale (major/minor/penta/p-min/blues). The 'chien': a sharp FLICK of the crank snaps the buzzing dog bridge for a percussive accent — toggle it with B. Watch the CRANK and TONE meters and the coloured contact ring."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

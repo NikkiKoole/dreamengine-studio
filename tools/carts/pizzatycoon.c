@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "pizza tycoon",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "schedule-driven-agents"
+  ],
+  "lineage": "Pizza Tycoon (1994) homage; novel in the district-taste / price-tolerance revenue formula and the procedurally-acting rival + mafia event-card system layered over a node city map.",
+  "genre": "simulation",
+  "homage": "Pizza Tycoon (1994)",
+  "description": "Build a pizza empire across six districts with their own foot-traffic, rent and TASTE — each loves one topping and loathes another. Tune each shop's recipe on a live pizza you top slice-by-slice, set the price to the volume-vs-margin sweet spot, then hit NEXT DAY and read the ledger. A rival magnate keeps buying shops and undercutting you; shady MAFIA JOBS offer fast cash for rising HEAT (skip the protection money and a shop gets torched). pal()-recolored crowds, a day/night tint sweep, a jaunty cafe bed and an ominous mafia sting. Out-earn the rival by day 20. MOUSE: click a district (yours opens MANAGE, a free one shows BUY); toggle toppings, [-]/[+] or wheel for price, NEXT DAY to advance, ACCEPT/DECLINE the cards. KEYS: arrows pick, Z buy/manage, ENTER next day, 1-6 toppings, M back."
+}
+de:meta */
 #include "studio.h"
 
 // PIZZA TYCOON — a tune-and-tally business sim with a shady underbelly.

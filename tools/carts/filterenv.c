@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "filter env",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "adsr-envelope",
+    "subtractive-synth"
+  ],
+  "lineage": "Sibling of pitchenv — the same mod-envelope system pointed at filter cutoff; the canonical tuning rig for the resonant-lowpass sweep (the pluck 'pew').",
+  "description": "The pluck \"pew\" — a saw run through a resonant lowpass with a one-shot FILTER envelope (instrument_env + ENV_CUTOFF) that snaps the cutoff open on each note's attack and lets it fall back over the decay. The graph shows the cutoff sweep; drag the five sliders (attack, decay, amount, base cutoff, resonance) and listen. A tuning rig for the new modulation envelopes. A-K play notes, SPACE toggles the auto-arp."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

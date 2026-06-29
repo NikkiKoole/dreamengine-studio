@@ -1,3 +1,16 @@
+/* de:meta
+{
+  "title": "doom fire",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "cellular-automata"
+  ],
+  "description": "The famous 1993 fire effect from one tiny rule. A grid of heat values: the bottom row is always hottest, and each cell copies the heat below it minus a little random cooling, nudged by the wind. No flame is ever drawn — it emerges from the cooling. Hotter values map to hotter colours. Left/right steer the wind, up/down change flame height."
+}
+de:meta */
 #include "studio.h"
 
 // DOOM FIRE — the famous 1993 flame effect, built from one tiny rule.

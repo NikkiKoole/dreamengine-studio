@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Oersoep",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "flocking",
+    "state-machine"
+  ],
+  "lineage": "The cell stage of Spore remade on the dreamengine boid engine; novel over rollswarm: size-relative predator/prey reversal so the same flock member flees you at tier 1 and hunts you at tier 3, plus a part-editor evolution loop gating each tier.",
+  "genre": "arcade",
+  "homage": "Spore (2008)",
+  "description": "The cell stage of Spore, in a drop of pond water (\"oersoep\" is Dutch for primordial soup). Swim a microbe toward the cursor and eat to earn DNA, then EVOLVE: at each DNA cap you find a mate and drop into a cell editor to bolt on a part - flagellum (speed), spike (rammers recoil), jaw (eat anything), poison sac - that changes how you play. The pond is a boid flock judged against YOUR size every frame: smaller cells flee and are food, bigger ones HUNT you and bite, and a bite drains health - so the cell that chased you at tier 1 is lunch at tier 3. Climb the food chain across four tiers, then crawl ashore. Unlike rollswarm you can be eaten. MOUSE/touch swims toward the pointer, Z chooses herbivore (X carnivore) on the title, in the editor Left/Right pick a part and Z confirms."
+}
+de:meta */
 #include "studio.h"
 
 // OERSOEP — the cell stage of Spore, in a drop of pond water. ("oersoep" is Dutch

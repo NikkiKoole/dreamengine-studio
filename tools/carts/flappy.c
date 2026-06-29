@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "flappy",
+  "status": "active",
+  "kind": [
+    "game",
+    "tutorial"
+  ],
+  "teaches": [
+    "title-play-gameover-loop",
+    "save-load-persistence",
+    "parallax",
+    "screen-shake-juice"
+  ],
+  "lineage": "Capstone of the tutorial curriculum; a minimal Flappy Bird clone whose stated purpose is to demonstrate the complete game loop arc (attract → play → death → game over with persisted hi-score) and a full juice repertoire.",
+  "genre": "arcade",
+  "description": "The smallest *complete* game, start to finish: an animated attract/title screen, the play loop, a death sequence, and a game-over panel with a medal + a hi-score that survives restarts. ONE BUTTON on every device - SPACE / Z / gamepad-A / mouse-click / screen-tap all flap, so it's fully playable on a phone with no on-screen controls. The bird is drawn in code (sprite-draw.js): one bird() function sampled at three wing heights makes the flap cycle, plus a dead frame, soft clouds, and grass bushes. Juice on every beat: flap stretches the bird upward + puffs feathers + tilts its nose up; falling tilts it into a dive (sspr_ex rotate + squash); passing a pipe pops the score bigger with an ascending ding; crashing flashes the screen white, shakes, hit-stops, then tumbles the bird off spinning. Parallax clouds + scrolling ground. The capstone the tutorials were missing - the bridge from learning primitives to a finished game. Tap / Space / click to play."
+}
+de:meta */
 // flappy — the smallest *complete* game: attract screen → play → game over,
 // hi-score that survives restarts, and juice on every beat. The capstone the
 // tutorials were missing (cart-library-direction §3 / tutorial-curriculum #40):

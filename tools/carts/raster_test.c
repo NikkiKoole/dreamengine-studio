@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "rasterizer test",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [
+    "algorithm-visualization",
+    "dithering-gradient"
+  ],
+  "lineage": "Internal engine QA tool; uses a two-frame pget() readback pass to verify fill/outline pixel invariants, marking failures pink/yellow — the analysis loop itself is the demo.",
+  "description": "A renderer pixel-accuracy test bench, not a game — it proves every fill primitive's outline lands exactly on its fill boundary. Four pages of shapes (curved: circ/oval/rect/rrect; polygons: tri/quad/ngon/star; arcs: arcfill/ring/thickline; plus an equivalence self-test), each drawn as a white fill with a red outline. Press SPACE to analyse: it reads the canvas back with pget and flags any outline pixel buried inside the fill (pink) or any fill edge the outline failed to cover (yellow), reporting a live mismatch count that should read 0. Z toggles outlines, X toggles dither fill, C cycles pages."
+}
+de:meta */
 #include "studio.h"
 
 // Rasterization pixel-accuracy test cart.

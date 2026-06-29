@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "polystress",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "A deterministic torture test for the SOFTWARE polygon rasterizer (polyfill -> poly_fill_cov -> poly_inside -> plot_pat) — polyfill's sibling to trifill stress. 159 fills/frame across every path through the filler: three big concave 9-point stars (large fill AREA through the per-pixel even-odd test), a 70-cell grid of small spinning stars (polyfill COUNT / per-call setup), six sweeping road strips (convex tapering quads, exactly roadlab's fill_strip case), one checker-dithered concave star (plot_pat's fillp() patterned branch), and a giant mostly-off-screen quad (poly_clamp_scan). Everything is a pure function of the frame counter — no time, no random — so dumped frames are byte-reproducible run-to-run and build-to-build, which is the point: it pins the rasterizer for a clean profile (hit the ⏱ profile button) AND validates a rasterizer optimization pixel-identical (--dump + shasum before/after). Not a game; a profiling + regression rig."
+}
+de:meta */
 // polystress — a deterministic torture test for the SOFTWARE polygon rasterizer
 // (polyfill → poly_fill_cov → poly_inside → plot_pat). Built to (a) pin the CPU
 // hard so a profile of the rasterizer is unambiguous, and (b) be byte-reproducible

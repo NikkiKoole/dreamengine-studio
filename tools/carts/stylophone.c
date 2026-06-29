@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "stylophone deluxe",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "adsr-envelope",
+    "wavetable-drawing"
+  ],
+  "lineage": "Modelled on the Dubreq Stylophone Deluxe; novel for being the first cabinet instrument to expose live pulse-width morphing (note_duty) and a hand-drawn wavetable editor feeding INSTR_USER0.",
+  "description": "The pocket stylus-synth, built to reach two corners of the audio engine no other instrument cart touches. LIVE PULSE-WIDTH: the TONE fader morphs the buzzy square's duty by hand (note_duty), thin/nasal to hollow/fat. THE TRANSPORT: the famous REITER (reiteration) switch retriggers the held note in time with the tempo (bpm + beat + beat_pos) — the cabinet's first tempo-synced instrument; crank RATE up and it machine-guns, flip ARP and the retrigger walks a major arpeggio. Play it with the STYLUS (the mouse): touch the metal keyboard and slide for the classic glissando (note_pitch stepping pad-to-pad). VIBRATO and SUB (sub-octave) are switches, like the real deluxe panel. Watch the BEAT lamp pulse with the transport."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

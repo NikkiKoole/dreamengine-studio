@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "pixel zoo",
+  "status": "active",
+  "kind": [
+    "toy",
+    "tech-demo"
+  ],
+  "teaches": [
+    "dithering-gradient",
+    "adsr-envelope",
+    "no-sprite-vehicles"
+  ],
+  "lineage": "The editor's welcome scene — animals drawn from primitives (the rectangular/no-sprite-art idiom), pairing fillp() dither gradients with synth ADSR pads and a lowpass-swept roar.",
+  "description": "The editor's welcome scene — stroll a little zoo and visit the animals. Showcases fillp() dithered fills (the gradient sky, speckled grass, see-through grid fences), spr_rot()/sspr_ex() (a spinning sun, a pinwheel, a vendor's swaying balloons), and the synth: a soft ADSR pad, vibrato birds, and a lowpass-swept lion roar. Each enclosure answers as you walk up to it — water blips at the flamingo pond, the lion roars, the monkeys chatter, the elephant trumpets. The animals are drawn from primitives (ovals, circles, triangles). WASD walk, Z wave."
+}
+de:meta */
 #include "studio.h"
 
 // ============================================================

@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "Civ (tiny)",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "turn-based-loop",
+    "grid-movement",
+    "noise-terrain",
+    "save-load-persistence"
+  ],
+  "lineage": "Pocket distillation of Civilization (1991) stripped to explore-and-found 4X with no war or rivals; fog-of-war reveal and a noise-generated continent are the structural core.",
+  "genre": "strategy",
+  "homage": "Civilization (1991)",
+  "description": "A pocket-sized 4X on a fogged continent: start with one settler and one warrior in a sea of black, walk out, found cities, and watch the unknown peel back tile by tile. Cities grow a population bar and pump out a fresh unit every few turns while a single research bar slowly fills and unlocks Irrigation — the one improvement, which makes every city grow faster. No rivals, no war, no diplomacy; the map and the clock are the opponent. Found 3 cities before turn 30 to win, with your fastest run saved as a best. Controls: click a unit then click an adjacent revealed tile to move (1 tile/turn), B to found a city with a settler, E (or END TURN) to advance the turn, click for a new continent after the game ends."
+}
+de:meta */
 #include "studio.h"
 #include <stddef.h>
 

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "tilemap platformer",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "camera-follow",
+    "screen-shake-juice"
+  ],
+  "lineage": "Third in the platform-engine trio (after platform-rects and platform-paint); same polished mover (coyote time, jump buffering, variable height, squash-stretch) now driven by mget() tile data with a scrolling camera.",
+  "genre": "platformer",
+  "description": "A great-feeling scrolling platformer where the world is a tile map (drawn as colored rects by tile type). The same polished mover as 'platform engine (rects)' — per-axis resolution with flush tile snapping, sub-pixel motion, coyote time, jump buffering, variable jump height, floaty apex, squash/stretch and landing dust — but on tile collision with a camera that scrolls a world bigger than the screen. Collect coins, stomp the purple critters from above, dodge the red spikes, reach the green flag. Arrows/WASD move, Z or up to jump."
+}
+de:meta */
 #include "studio.h"
 
 // TILEMAP PLATFORMER — a great-feeling scrolling platformer where the world is

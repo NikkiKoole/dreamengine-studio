@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "Dub Siren",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "self-oscillation"
+  ],
+  "homage": "King Tubby dub siren",
+  "description": "A dub siren, after King Tubby / Scientist and a sound-system mixing desk — not a melodic instrument but a GESTURE box you play OVER a riddim. Two detuned oscillators warble (an LFO bends their pitch — the 'wheeeoo' siren) and fire into a huge FEEDBACK DELAY: stab the siren, lift your hand, and the echo THROWS the stab tumbling into the distance; push the throw past the red and the delay self-oscillates and HOWLS until you pull it back. A big reverb splash sits under it all. The FIRE PAD is the instrument — hold to sound it (or SPACE / LATCH), Y = pitch, X = throw (feedback). WOBBLE rate + DEPTH set the warble; ECHO time (sweep it while it rings and the repeats pitch-bend — the dub classic); VERB the splash. 1-4 pick the siren shape (whoop / two-tone / ramp / zigzag); ↑/↓ pitch, ←/→ throw, L latch. Built on echo() feedback + note_lfo(LFO_PITCH) + reverb() — the hands-on twin of the dub auto-radio."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

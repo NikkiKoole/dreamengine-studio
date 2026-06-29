@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "pd",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "subtractive-synth",
+    "adsr-envelope"
+  ],
+  "lineage": "Sixth engine showcase, porting the Casio CZ phase-distortion oscillator from navkit's soundsystem — the only engine that omits the DCW sweep, which this cart rebuilds from scratch as the morph macro.",
+  "description": "INSTR_PD showcase - the sixth modeled ENGINE: phase distortion, the Casio CZ sound. A cosine read through a WARPED phase ramp makes bright, buzzy, resonant tones with no filter at all (the warp IS the brightness) - rubbery basses, glassy resonant leads, and the famous CZ 'wowww' sweep. The three engine macros: instrument_harmonics = wavetype (snapped across 8 - saw / square / pulse / double-pulse / sawpulse, then 3 resonant types), instrument_timbre = distortion amount (brightness, or how high the resonant peak sits), instrument_morph = the DCW sweep (0 = static; turn it up and the distortion snaps bright on the strike then settles - the CZ envelope, which the navkit reference omits, so this is built from scratch). Like FM, the engine doesn't bake its amp envelope, so a CZ patch is macros plus an ADSR - both are sliders here. The scope draws the actual warped waveform; with the DCW sweep up it shows TWO traces - the bright strike (faint) settling to the steady tone. Five presets (1 cz bass, 2 reso lead, 3 synth brass, 4 sweep pad, 5 cz pluck), and the panel prints the exact instrument() call to copy into your cart. A S D F G H J K play a major scale, Z/X octave, 1..5 presets, drag any slider (or LEFT/RIGHT + UP/DOWN), SPACE chord, M autoplay on/off."
+}
+de:meta */
 // pd — INSTR_PD showcase: phase distortion (the Casio CZ engine), three macros, ADSR, scope.
 //
 // The sixth modeled ENGINE: a cosine read through a WARPED phase ramp — bright, buzzy,

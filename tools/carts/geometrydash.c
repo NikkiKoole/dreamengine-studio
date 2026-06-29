@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "geometry dash",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "tilemap-collision",
+    "particle-system",
+    "state-machine",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Homage to RobTop's Geometry Dash (2013); novel: a hand-authored tile array drives both collision and scrolling, with an explosion particle pool and a three-state (play/dead/won) loop.",
+  "genre": "platformer",
+  "homage": "Geometry Dash (2013)",
+  "description": "One-button rhythm runner. You auto-run to the right over a driving beat; tap (or hold) to jump, and the cube flips as it flies. Touch a spike or crash into a block and you explode — instant respawn at the start, with an attempt counter and live progress %. Z / X / Up / arrows / , / . to jump, or tap the screen."
+}
+de:meta */
 #include "studio.h"
 
 // GEOMETRY DASH — a one-button rhythm runner.

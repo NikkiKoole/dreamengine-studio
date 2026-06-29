@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "steer (car drift)",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [
+    "spring-damper",
+    "particle-system"
+  ],
+  "lineage": "Direct sequel to thrust.c — extends the facing/velocity model with partial coupling (GRIP), speed-scaled steering, and skid-mark particles to teach the car drift idiom.",
+  "genre": "racing",
+  "description": "The car model — the second half of the steering paradigm. thrust showed facing and velocity fully decoupled (a spaceship); a car is the in-between: velocity is PARTIALLY coupled to the facing, and the coupling strength is GRIP. Three rules: turning scales with speed (a parked car cannot turn — try it), the gas pushes along the heading, and each frame the velocity lerps toward the heading — fast lerp carves, slow lerp DRIFTS. Skid marks appear exactly when the lateral slide exceeds the tires. The green line is where you are going, the nose is where you point. X swaps racing tires for drift tires. Collect the cones. LEFT/RIGHT steer, UP gas, DOWN brake, X tires, Z restart."
+}
+de:meta */
 #include "studio.h"
 
 // STEER — the car model, the second half of the steering paradigm. thrust.c

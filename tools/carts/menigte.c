@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Menigte",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "toy"
+  ],
+  "teaches": [
+    "schedule-driven-agents",
+    "camera-follow"
+  ],
+  "lineage": "Scale experiment companion to procplaces/sloop; the novel thesis is that 10k always-live NPCs are cheap when each position is a pure function of (identity, time-of-day) via a piecewise keyframe lerp — expensive walk-sim reserved for the visible hot tier only.",
+  "description": "DRIVE a car through a living town of 10,000 NPCs. The SCALE experiment: every person is always alive because 'having a life' is not 'running a simulation' - each one's position is a PURE FUNCTION of (identity, time-of-day): home, commute (along the road grid), work, commute home, sleep. No pathfinding, just a few compares and a lerp, so all 10k stay live every frame even off-screen. The expensive walk-anim is reserved for the visible few (zoom in and the dots become little walking figures). Watch the tide: morning ORANGE rush toward downtown, midday BLUE at work, evening GREEN back to the suburbs. Drive: UP/W gas, DOWN/S brake-reverse, LEFT-RIGHT / A-D steer; Z/X or wheel zoom; F free camera; ,/. clock speed; T +1h; SPACE re-roll town; H anchors. Companion to procplaces (the world) and sloop (the full car sim)."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <string.h>

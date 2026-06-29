@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "dino run",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "screen-shake-juice",
+    "particle-system"
+  ],
+  "lineage": "Chrome offline dino homage; the main teaching value is the complete game-feel toolkit assembled in one small cart — squash-stretch, dust particles, input buffering, ghost trail, screen shake, and score pop all wired to their triggering events.",
+  "genre": "platformer",
+  "homage": "Chrome Dino (2014)",
+  "description": "Chrome-offline-dino homage. You auto-run to the right — jump over cacti and duck under pterodactyls before they clip you. Speed climbs the longer you last, gaps between obstacles shrink, and birds only start appearing once you hit 300. Z / Up to jump; Down to duck. Score and best run saved."
+}
+de:meta */
 #include "studio.h"
 
 // DINO RUN — infinite side-scroller after the Chrome offline game.

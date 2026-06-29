@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "23. holes & colors",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "The two sides of fillp(): pass -1 as the hole color and the 1-bits are TRANSPARENT (the scene shows through); pass a palette color and you get an opaque two-tone fill. Same pattern, side by side, over a rainbow so the difference is obvious. Works on rects and circles. A: change pattern."
+}
+de:meta */
 #include "studio.h"
 
 // FILLP — HOLES vs COLORS. The SAME pattern, drawn two ways, over a rainbow

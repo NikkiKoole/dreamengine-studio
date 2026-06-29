@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "juno-6",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling",
+    "chord-voicing"
+  ],
+  "lineage": "Roland Juno-6 (1982) recreation; sibling of sh101 but the BBD bucket-brigade chorus is the whole lesson — the dry poly pad is unremarkable, the chorus IS the instrument.",
+  "homage": "Roland Juno-6 (1982)",
+  "description": "Roland Juno-6 (1982) - the showcase for chorus(), the engines master BBD chorus. On paper a plain 6-voice poly synth (one saw + sub oscillator, one resonant lowpass) - sh101 with more voices. What makes it a JUNO is the bucket-brigade CHORUS: flip the famous OFF/I/II switch and the dry mono synth smears into a lush, wide, shimmering stereo wash (a centered mono chord literally fans out across the stereo field - the Junos two amps). Tap the CHORUS strip (or press C) to A/B it; the WIDTH meter opens as the chorus widens the signal. RATE/DEPTH/MIX ride the chorus live, CUTOFF/RES shape the resonant lowpass. Tap a chord pad or press 1..4 (Cmaj7/Am7/Fmaj7/G7); SPACE toggles AUTO, a slow self-playing progression; H help."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "Missile Command",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "particle-system",
+    "title-play-gameover-loop"
+  ],
+  "lineage": "Faithful port of Missile Command (1980); expanding detonation rings and chained kills are the signature mechanic preserved from the arcade original.",
+  "genre": "shooter",
+  "homage": "Missile Command (1980)",
+  "description": "ICBMs streak down a night sky in long glowing diagonals, each one falling toward one of your six cities. You command three batteries with limited ammo per wave; aim the crosshair and click, and a counter-missile launches from the nearest battery with shells to spare, races to the cursor, and blooms into an expanding ring that vaporizes any warhead it touches — chain-detonating into more rings as it goes. Survive the wave to refill ammo and bank a bonus for every city and shell left standing; each wave throws more missiles, faster. When the last city falls it's the end. Mouse to aim, left-click to fire from the nearest battery, click or SPACE to defend again."
+}
+de:meta */
 #include "studio.h"
 
 // MISSILE COMMAND — defend 6 cities from a rain of ICBMs.

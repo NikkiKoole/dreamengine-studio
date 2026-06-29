@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "druglord",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "state-machine",
+    "title-play-gameover-loop",
+    "save-load-persistence"
+  ],
+  "lineage": "Direct port of the classic Drugwars/Dope Wars formula (1984/1984-inspired text game) into a living tilemap city, adding pal()-recolored pedestrians, ambient music beds, and a per-district price-flavor matrix.",
+  "genre": "simulation",
+  "homage": "Drug Wars (1984)",
+  "description": "A Drugwars-style economy game. You have 30 DAYS to flip a small stake — and a loan-shark debt that grows 10%/day — into a fortune, trading six substances across six city districts whose prices swing daily. Buy where a good is cheap, haul it to where it sells dear, stash cash in the bank away from muggers, and pay the debt down before day 30. Travelling to a district costs a day, re-rolls every price, and can trigger an event card: a crackdown that makes a price SOAR, a glut that CRASHES it, a mugging, a cop bust (siren + flashing lights, you ditch your stash), a lucky dumpster find or a bigger coat. Each district is a living tile-map scene — glass-tower downtown, the crate-stacked docks, leafy suburbs, grimy tower blocks, neon Chinatown, the park — with pal()-recolored pedestrians and a day/night sky that re-lights the windows as the days pass. The money counter rolls, prices show green/red arrows and blinking HOT tags, and each place has its own ambient sound bed. Mouse: click a good to buy 1 (right-click sell 1); the bottom bar is BUY/SELL/QTY/BANK/LOAN/TRAVEL; on the city map click a district to travel. Keys: up/down pick a good, Z buy, X sell, Q cycle quantity, M map, ENTER confirm."
+}
+de:meta */
 #include "studio.h"
 
 // DRUGLORD — a Drugwars-style economy game.

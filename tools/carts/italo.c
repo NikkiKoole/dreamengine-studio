@@ -1,3 +1,22 @@
+/* de:meta
+{
+  "title": "italo disco radio",
+  "status": "active",
+  "kind": [
+    "toy",
+    "instrument"
+  ],
+  "teaches": [
+    "generative-melody",
+    "chord-voicing",
+    "step-sequencer",
+    "swing-timing"
+  ],
+  "lineage": "Recombines ymo's arp brain, house's 808 pump, and citypop's gear-change into a minor-key Italo disco station — no new engine tricks, pure assembly of existing radio.h machinery with new harmonic-minor chord templates.",
+  "homage": "Gazebo / Den Harrow (Italo disco)",
+  "description": "Endless Italo disco - spaghetti disco, the lovelorn machine-pop of early-80s Italy (Gazebo, Den Harrow, Ryan Paris, the Moroder lineage). Citypop's machine cousin, but neon-at-midnight MINOR instead of sunlit major: dramatic, desperate, unashamedly cheesy. PURE RECOMBINATION (the parking-lot prediction: 0 new brains, dessert) - ymo's arp + house's pump + the citypop gear change + FM keys + new minor templates. THE SEQUENCER BASS is the spine: a relentless 16th-note synth bass that bounces octaves (root low, root high, forever - the Moroder pulse) with seeded chord-tone spice, a resonant lowpass + per-note cutoff env giving each note an analog-sequencer blip. Harmony is a stolen playbook of five dramatic minor formulas - i-bVI-bVII-V, the descending i-bVII-bVI-V, i-iv-bVI-V (the harmonic-minor V, the tear) - all with the borrowed dominant that makes Italo weep. FM BRASS STABS (INSTR_FM, bright integer ratio) punctuate the offbeats; EPIANO KEYS (INSTR_EPIANO, the 'FM keys') comp the bed; a PD soaring lead (INSTR_PD, glided, minor-pentatonic) owns the chorus. THE SIMMONS TOM FILL - the unmistakable descending electronic-tom roll into every chorus - is the genre's signature gesture, and THE TRUCK DRIVER'S GEAR CHANGE lifts the final chorus + outro up a semitone (of course). 808 kit + sidechain pump on loan from house.c / tr808.c. Seed on display (ITALO_SEED / R / [ ] history), LEFT/RIGHT feel, UP/DOWN tempo, T tone, M power, H help."
+}
+de:meta */
 #include "studio.h"
 #include "radio.h"   // the shared station chassis (PRNG, clock, voice-leading, chrome)
 #include <stdio.h>

@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "Cityplan — a world you can lift the roof off",
+  "status": "active",
+  "kind": [
+    "tech-demo",
+    "generative"
+  ],
+  "teaches": [
+    "dungeon-generation",
+    "noise-terrain"
+  ],
+  "lineage": "Merges lotfill (terrain/scatter/rows + block-to-varied-lot subdivision, terraces, yards, ruins, border/pave/stamp) and interiors (BSP floor-plans, emergent room labels, door circulation) into one world cart with a zoom-banded level-of-detail roof-lift: world of roofs far, floor-plans near, lazily generated; novel in unifying the two sibling fill-languages across scale behind a single LOD seam.",
+  "description": "The full merge of Lotfill + Interiors: the same fill-language at two scales, stacked so you read the whole world by ZOOMING. A WORLD selector reads terrain + an urbanization field and picks per region — WILD land gets scatter wilderness (woodland/meadow/beach/scree/wasteland + all the instance art), FARMLAND gets rows of crops + hedgerows, CITY gets blocks SUBDIVIDED into a street-fronting ring of VARIED lots (dense residential rows TERRACED into shared-wall runs, detached houses with a fenced/hedged yard + driveway). Zoom OUT and you see the world from above: terrain, woods, fields, and a city of ROOFS. Zoom IN and each city roof LIFTS to reveal that footprint's floor-plan (a recursive BSP room tree with emergent labels — living/kitchen/bath, shop/back/office, bay/storage fall out of area/frontage/adjacency rules, never a type list — doors through every wall, windows on the outside). Zoom IN further and the FURNITURE appears. A decay field ruins derelict DISTRICTS (collapse punches the roof/massing open, overgrow creeps it green). Commercial/industrial block interiors are paved (asphalt/plaza/gravel + parking), and ~1 in 5 courtyards gets a fountain/statue/well/obelisk centrepiece. The reveal is pure LEVEL-OF-DETAIL: a roof lifts only once its building is big enough on screen to read (no mush of beds), and the floor-plan is generated LAZILY (far buildings cost a roof rect). F force-lifts every roof (dollhouse); O cycles a field overlay (world-kind/cover/density); G the block+lot grid. Inherits both parents' seams: pure fn of a hash-seed, draw == query (room_at/world_kind_at run as a collision/interaction query). WASD/ZX move, R new seed."
+}
+de:meta */
 #include "studio.h"
 #include <stdio.h>
 #include <math.h>

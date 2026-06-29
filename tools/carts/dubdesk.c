@@ -1,3 +1,21 @@
+/* de:meta
+{
+  "title": "Dubdesk",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "euclidean-rhythm",
+    "shift-register",
+    "lowpass-gate",
+    "self-oscillation",
+    "drum-synthesis"
+  ],
+  "lineage": "Jam station fusing three shipped chassis — euclid rhythm, a turing shift-register melody driving an LPG voice, and a dubsiren — over one clock; novel: the siren's throw rides a MASTER echo so it dubs the whole mix, and one pattern brain drives drums and melody together.",
+  "description": "A generative dub groovebox — the jam station that fuses three liveset chassis into one instrument over a single clock. RHYTHM: 3 euclid drum rings (KICK/SNARE/HAT) plus a 4th MELODY ring; dial each ring's density/rotation and it plays itself. The melody ring fires the LPG VOICE at a pitch read from a little shift register (a coherent, slowly-drifting motif; M re-rolls it). VOICE: the LPG (west-coast low-pass gate) — the melody ring auto-plays it AND you can finger it live on A S D F G H J K; DECAY/FOLD/COUPLE sculpt the plonk. SIREN: your live hands — the FIRE PAD (hold / SPACE / LATCH), Y = pitch, X = THROW, which rides a MASTER echo so a throw smears the WHOLE groove into the distance (the dub move); past the red it self-oscillates and howls. The PART tabs (RHYTHM / VOICE / SIREN) re-target one shared 3-knob row; in RHYTHM, 1-4 (or tap a ring) picks which ring the knobs edit. Z/X/C switch part. Per-part MUTE on Q/W/E (or re-tap a PART tab) drops the DRUMS / MELODY / SIREN — a muted melody still lets A-K play through, a muted siren still lets the pad throw the mix. When the MELODY ring is selected its 3rd knob becomes MORPH (lock the riff or let the shift register evolve); ↑/↓ set SWING. Everything stays visible and sounding at once. Built from euclid + lpg + dubsiren; spec in docs/design/dubdesk-spec.md."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

@@ -1,3 +1,17 @@
+/* de:meta
+{
+  "title": "mouth harp",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "analog-voice-modeling"
+  ],
+  "lineage": "Standalone instrument cart; no direct cart parent. Novel: models the jaw-harp as a fixed-pitch saw through a high-Q resonant bandpass — sweeping note_cutoff is the mouth cavity picking harmonics, the inversion of otamatone's pitch-over-lowpass approach.",
+  "description": "A jaw harp (Jew's harp / mondharp) — the instrument where the PITCH NEVER CHANGES and you play with your MOUTH instead. A buzzy fixed-pitch saw drone (every harmonic) runs through a TIGHT resonant BANDPASS (FILTER_BAND, resonance 14), and sweeping note_cutoff is your mouth cavity: the resonant peak hunts across the drone's overtones and picks out which one 'speaks' — the vocal boi-oi-oing / wah-yeoww talking quality, and THAT is the melody. The corner of the engine no other cart centres on: where otamatone moves pitch over a plain lowpass, here pitch is frozen and the high-Q formant sweep is the whole tune. Move the mouse up/down to play (a harmonic comb on the right glows on the overtone you're voicing). TAB switches two flavours: PLUCK (folk) — each twang decays, HOLD to auto-pluck locked to the tempo for the iconic boing-boing-a-boing, UP/DOWN sets the subdivision; DRONE (dan-moi) — one continuous buzz you shape forever, hold SPACE for a breath swell. SPACE or click = pluck, LEFT/RIGHT pick the harp's key, M autoplay."
+}
+de:meta */
 #include "studio.h"
 #include <math.h>
 

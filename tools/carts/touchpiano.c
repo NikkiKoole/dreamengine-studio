@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "touch piano",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [],
+  "description": "A two-octave multi-finger piano - the touch-release API's first customer (touch_ended_count/id/x/y). Every finger landing on a key starts a sustained note; THAT finger lifting releases exactly its own note, even with four other fingers still playing - impossible before the release API, since a lifted finger has no touch index. Slide a finger across keys for glissando, hold up to 5-finger chords on iPhone (Safari's touch ceiling), ~10 on iPad. Lift ripples mark where each finger let go (touch_ended_x/y). On desktop the mouse is one finger."
+}
+de:meta */
 // touch piano — the multitouch keybed, now on the shared keybed.h
 //
 // Hold keys to sound them; slide a finger across for glissando; lift to release.

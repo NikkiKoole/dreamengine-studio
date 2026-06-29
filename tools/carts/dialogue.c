@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "lounge larry",
+  "status": "active",
+  "kind": [
+    "toy"
+  ],
+  "teaches": [
+    "dialogue-tree",
+    "state-machine"
+  ],
+  "lineage": "Leisure Suit Larry style branching chat-up; deliberately no dialogue 'engine' — just a table of nodes + a scene int + a mood int, with mood-resolved branches (nxt=-99) and a live VIBE meter.",
+  "genre": "dating",
+  "homage": "Leisure Suit Larry (1987)",
+  "description": "A branching chat-up in the style of Leisure Suit Larry. A woman's big face fills the screen — drawn entirely from primitives (ovals, triangles, lines) — and her expression shifts happy/annoyed/angry/sad in real time as you pick what to say, with a live VIBE meter tracking how it's going. Land the smooth lines and she slips you her number; push your luck and you wear her martini; there's even a recovery path back from a bad opener. The whole point: there is NO dialogue 'engine' — branching conversation is just a table of nodes + an int for 'where am I' + an int for 'how much she likes me', drawn with print() and btnp(). No new API needed. Up/Down or 1-2-3 to pick a reply, Z to choose (or click a line)."
+}
+de:meta */
 #include "studio.h"
 
 // ── LOUNGE LARRY — a branching chat-up ────────────────────────

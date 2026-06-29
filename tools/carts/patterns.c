@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "22. fill patterns",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "description": "PICO-8-style fillp: rectfill_pat() tiles a 4x4 bitmask across a rect so two colors make a texture. Shows a dither GRADIENT background, the named patterns (FILL_CHECKER/DOTS/HLINES/VLINES/DIAG/GRID), and a panel that re-rolls a RANDOM 16-bit pattern every second (any value is valid). A: change the color pair."
+}
+de:meta */
 #include "studio.h"
 
 // FILL PATTERNS — PICO-8 fillp. Set a 4×4 pattern + a hole color, then your

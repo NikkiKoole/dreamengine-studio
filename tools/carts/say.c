@@ -1,3 +1,18 @@
+/* de:meta
+{
+  "title": "say",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "probe"
+  ],
+  "teaches": [
+    "generative-melody"
+  ],
+  "lineage": "A prosody probe for INSTR_VOICE — exercises connected simlish speech (V/CV/VC/CVC syllable shapes, diphthong glides, coda closings) with per-syllable pitch contours, phrase declination, and intonation modes (statement/question/exclaim), surfacing engine gaps before any new API is added.",
+  "description": "A PROSODY probe for the formant voice (INSTR_VOICE). Where vox/voxlab settled the timbre axes (vowel/size/effort), this one probes the fourth kind of control the voice needs to SPEAK rather than drone: pitch + timing + stress shaped over a whole phrase — and it uses ONLY today's primitives, so it tells us BY EAR where the engine falls short before any new API. The trick: re-firing voice_consonant() on an ALREADY-HELD note re-articulates a consonant mid-note, turning the 'one syllable per note' voice into connected speech on a single held note. RANDOM builds language-like simlish from a mix of syllable shapes — V / CV / VC / CVC (codas wired through voice_coda()) plus the odd diphthong glide — not a monotonous da-da-da string. Pitch is driven every frame along a per-syllable shape (flat/rise/fall/peak) plus phrase-level declination, so the contour panel shows the spoken melody. STATE./QUEST?/EXCLAIM! set the intonation (statement falls · question rises · exclaim falls hard); click a syllable to give it a pitch ACCENT (emphasis = higher + longer); the character row (normal/robot/kid/giant/whisper) is the old terminal say() 'vary character' lever — bundles of size/breath/open-q/tilt + pitch offset + pitch-RANGE + rate (robot = zero range, no glide → monotone). Surfaces the real engine gaps: no creak/jitter, only 8 consonants, no schwa, no diphthong. SPACE=say · R=random simlish · 1/2/3=mode · Z/X=voice · L=loop · click the panel=emphasis · RANGE/RATE sliders · -/+ root pitch."
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

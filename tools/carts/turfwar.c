@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "turf war",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "steering-behaviors",
+    "flocking",
+    "state-machine"
+  ],
+  "lineage": "Inspired by Paper.io / Splatoon territory presence mechanics; each gang's crew uses simple seek/arrive steering toward a rally district, with brawl-state transitions — a compact multi-faction AI without pathfinding.",
+  "genre": "sandbox",
+  "description": "Top-down gang-turf takeover: lead your green crew block by block, out-number the rivals holding a district and the whole zone flips to your color with a wash and a chime. Three AI gangs expand into neutral blocks and counter-attack your borders — capture is paper.io/splatoon \"presence\" applied to a city grid, the crew is the crowd.c pal()-recolor trick (one sprite, four gang colors via a magic shirt index), and a 92 BPM boom-bap bed (filtered bass + euclid hats) rolls under brawl dust, screen shake, a pulsing share-bar and a district mini-map. Own 8 of 12 districts to win; lose your last block and you're wiped out. WASD lead your crew (they follow and break off to brawl), Z for a gang-up melee burst, Z to run it back."
+}
+de:meta */
 #include "studio.h"
 
 // TURF WAR — top-down gang-territory takeover.

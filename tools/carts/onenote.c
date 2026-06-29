@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "One Note",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [
+    "step-sequencer",
+    "swing-timing",
+    "generative-melody"
+  ],
+  "lineage": "After BeatCraft Studio's 'the magic of one note' — a stripped groovebox that proves rhythm + swing beat melody; novel: scale-locked root transposition queued to the next bass step, and an XY pad Moog filter shaping the one voice.",
+  "description": "A one-note funk groovebox — make a whole track move on a SINGLE note (after BeatCraft Studio's 'the magic of one note'). No melody, no piano roll: the funk is all RHYTHM, SWING, and sliding that one note around. A 16-step grid with three rows — KICK, SNARE, BASS — where the bass plays a single pitch on whatever steps you light. You transpose the whole loop by playing a new root on the little in-scale KEYBED (A S D F G H J K L, scale-locked to minor pentatonic so every root grooves), exactly like setting the root on a Keystep — and it's QUEUED: the new root latches in on the NEXT bass step, in time, with the armed key highlighted and a green tab marking the root that's actually sounding. SUB folds in the same note an octave down (the 'lower wave'). An XY PAD shapes the bass tone only — drag right for a brighter cutoff, up for more resonance (a Moog ladder filter, the funk quack). SWING drags the off-beat 16ths; TEMPO sets the head-nod. Tap or drag the grid to build a beat; type ASDFGHJKL to walk the root; ← / → tempo, ↑ / ↓ swing."
+}
+de:meta */
 #include "studio.h"
 #include "pointer.h"     // multi-finger pool: PTR_MAX/PTR_NONE + PTR_CLEAR/PTR_ACQUIRE/PTR_FIND
 #include "ui.h"

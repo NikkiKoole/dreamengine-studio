@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "classic starter (v1 default)",
+  "status": "active",
+  "kind": [
+    "tech-demo"
+  ],
+  "teaches": [],
+  "description": "The original cart the editor used to greet you with, kept for posterity. A little explorer strolls a starfield world twice as wide as the screen — the camera follows, a tile floor scrolls past, a clipped minimap tracks you in the corner, and a 2× sspr() portrait sits by the help line. Backed by a jazzy vi-IV-I-V chord loop with a brushed hihat. Shows off camera/follow, map(), sprf() flipping, pget() glow checks, clip(), sspr(), and the timing/chord sound API. WASD move, Z melody note, X strum."
+}
+de:meta */
 #include "studio.h"
 
 #define WORLD_W (SCREEN_W * 2)

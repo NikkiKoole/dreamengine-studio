@@ -1,3 +1,15 @@
+/* de:meta
+{
+  "title": "rail loop (sonic-style)",
+  "status": "active",
+  "kind": [
+    "tutorial"
+  ],
+  "teaches": [],
+  "genre": "platformer",
+  "description": "Curved rails and edge attributes — the follow-up to 'platform rails'. The rail no longer has to be a straight girder: sample any curve into a list of points and the player's position becomes a float INDEX into that list, so a Bézier hill and a full LOOP are the same code. A Sonic loop 'just works' because the player is glued to the track (no free-fall on a rail) — running it is only advancing the index around the circle, upside-down at the top and all. The orange stretch is a CONVEYOR: an edge attribute that carries you forward on its own (same idea as a one-way ladder — behaviour attached to part of the graph). Roll over the hill, through the loop, across the conveyor, to the flag. Arrows/WASD move, Z to restart."
+}
+de:meta */
 #include "studio.h"
 
 // RAIL LOOP — curved rails + edge attributes, the Sonic idea made literal.

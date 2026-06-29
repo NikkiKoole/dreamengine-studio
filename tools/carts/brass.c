@@ -1,3 +1,19 @@
+/* de:meta
+{
+  "title": "brass",
+  "status": "active",
+  "kind": [
+    "instrument",
+    "tech-demo"
+  ],
+  "teaches": [
+    "waveguide-synth",
+    "analog-voice-modeling"
+  ],
+  "lineage": "Port of the STK BrassInstrument physical model (bore delay line + lip-valve biquad resonator); novel additions are the live-draggable trombone slide (continuous glissando via note_pitch) and the per-voice output-lane mute/wah (note_cutoff + note_res, per decision 0017).",
+  "description": "INSTR_BRASS showcase - the lip-reed family (the tenth modeled ENGINE), and the LAST instrument the wavetables couldn't reach. An STK BrassInstrument waveguide: a bore delay line closed by a flaring bell, driven by a LIP VALVE modeled as a resonant biquad - the buzzing lips, whose resonance sits just above the played pitch (the mechanism behind lip-slurs and harmonic lock). It self-oscillates, so like REED and PIPE it HOLDS for as long as you blow. One id covers trumpet / cornet / flugelhorn / trombone / french horn / tuba. The three engine macros: instrument_harmonics = instrument/bore (0 = tight bright trumpet, walking up through cornet/flugel/trombone/horn to 1 = dark wide tuba - it drives the lip-resonance ratio, the lip Q, and the bell lowpass, never the pitch), instrument_timbre = BRASSINESS (0 = round and mellow; 1 = loud and blatty - the pressure-driven wave-steepening shockwave that makes a real horn open up at fortissimo, so the drive scales with blow pressure AND the macro: blow harder, get blattier), instrument_morph = breath/lip lean-in (0 = soft steady; 1 = a growling breath with deeper vibrato). THE SLIDE (the marquee): brass tracks pitch LIVE, so it slurs and glisses - grab the trombone SLIDE at the top and DRAG it for a continuous glissando (note_pitch + a tight note_glide, the finger IS the slide). Because it HOLDS, all three macros move live on a sounding note - sweep brassiness (SPACE auto-swell) and hear the tone bloom blatty. THE MUTE: closing the bell with a hand/plunger - a swept resonant lowpass on the voice (note_cutoff + note_res, the OUTPUT lane per decision 0017, not an engine macro); drag the MUTE slider open->closed for the pinched/nasal 'tight' sound, and sweep it live for the wah-wah (a plunger plate creeps over the bell in the viz). Plus a VIBRATO slider (note_lfo pitch wobble). Six HARDWARE PRESETS on the number row are the acceptance tests - if 1 trumpet / 2 cornet / 3 flugelhorn / 4 trombone / 5 french horn / 6 tuba don't each sound like themselves, the macro mapping is wrong. MONO + slide (key V, default - a horn is one voice): a new key legato-slides the voice, last-note priority; poly mode blows an independent voice per key. A S D F G H J K blow and hold, Z/X octave, 1..6 voices, drag the SLIDE for a glissando, V mono/poly, drag a slider (live, or LEFT/RIGHT + UP/DOWN), SPACE brassiness swell, M autoplay fanfare on/off. Multitouch: blow a pad per finger, drag the slide while a note drones. Design + STEP-0: instrument-engines.md §8.8.10."
+}
+de:meta */
 // brass — INSTR_BRASS showcase: the lip-reed family (the tenth modeled ENGINE). An STK
 // BrassInstrument waveguide: a bore delay line closed by a flaring bell, driven by a LIP VALVE
 // modeled as a resonant biquad — the buzzing lips. It self-oscillates, so like REED and PIPE it

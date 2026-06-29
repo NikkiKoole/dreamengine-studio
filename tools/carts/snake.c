@@ -1,3 +1,20 @@
+/* de:meta
+{
+  "title": "snake",
+  "status": "active",
+  "kind": [
+    "game"
+  ],
+  "teaches": [
+    "grid-movement",
+    "title-play-gameover-loop",
+    "save-load-persistence"
+  ],
+  "lineage": "classic Snake; ring-buffer body on a fixed-step grid tick, buffered turn input preventing 180-degree reversal, speed ramps with length.",
+  "genre": "arcade",
+  "description": "Classic snake. Eat the flashing food to grow, avoid walls and your own tail. Speeds up as you get longer. Arrow keys to steer."
+}
+de:meta */
 #include "studio.h"
 
 // SNAKE — arrow keys to steer, eat food, don't hit walls or yourself

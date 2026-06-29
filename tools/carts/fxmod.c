@@ -1,3 +1,14 @@
+/* de:meta
+{
+  "title": "fxmod",
+  "status": "active",
+  "kind": [
+    "instrument"
+  ],
+  "teaches": [],
+  "description": "The showcase for fx_mod() / fx_lfo() - the MODULATION layer over effects (the synth-rack 'CV into an effect'). Effects keep their own knobs; this RIDES a curated, sweep-safe one under a control signal, the way LFO_TIMBRE rides an instrument macro. A held saw drone runs through the master effects; 1..3 pick the TARGET param (filter cutoff / drive / shimmer mix), then choose how it's driven: L = engine LFO (fx_lfo(): set once, the engine sweeps it), C = CV by hand (fx_mod(): the cart pushes a value every frame - what modrack does), O = off (the param sits at its static baseline). RATE/DEPTH/CENTER shape the sweep; the big bar shows the value being written. Two APIs, one job: fx_lfo is fire-and-forget, fx_mod is the per-frame sink you drive from your own LFO/envelope/sequencer. Only cheap params are exposed, so it can never reconfigure a buffer effect into a stutter. H help. (ADR 0018.)"
+}
+de:meta */
 #include "studio.h"
 #include "ui.h"
 #include <math.h>

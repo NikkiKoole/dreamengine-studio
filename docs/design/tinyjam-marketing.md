@@ -96,8 +96,8 @@ hook. (Channels are **leads to verify**, not confirmed live.)
 | **space-age bachelor pad** (exotica) ✅ | **Exotica / tiki / lounge** revival — Martin Denny, Esquivel, Les Baxter devotees. Niche but moneyed and aesthetic-obsessed. | **Tiki Central** (tikicentral.com — active exotica/lounge forum), exotica/lounge subreddits & groups | "Vibraphone, bird calls and bongos — mix a cocktail-lounge loop." |
 | **radiophonic** (vintage sci-fi) | **BBC Radiophonic Workshop / Delia Derbyshire** fans, hauntology crowd (Ghost Box-adjacent), vintage-sci-fi sound nerds. | hauntology communities, ambient/experimental subreddits, Delia/Radiophonic fan spaces | "Theremin, wobbling tape and noise clicks — make a lost BBC test transmission." |
 | **spaghetti western** (desert noir) | **Morricone** / film-score fans, "desert noir" aesthetic crowd. | r/filmscores, soundtrack communities, Western-revival pockets | "Whistling saw, twang and a lonely trumpet — your own standoff theme." |
-| **broken fairground** (carnival macabre) | Dark-ambient / horror-soundtrack / creepy-carnival aesthetic fans. | horror-soundtrack & dark-ambient communities | "A calliope that's slightly wrong — carnival music for a haunted one." |
-| **toy-town glitch** (circuit-bent) | **Circuit-benders**, glitch & lo-fi experimentalists. | r/circuitbending, glitch/experimental communities, the bent-toy scene | "Bent nursery-toy sounds, but they stay in tune — broken on purpose." |
+| **broken fairground** (carnival macabre) ✅ | Dark-ambient / horror-soundtrack / creepy-carnival aesthetic fans (+ the Halloween/haunt crowd). | Cryo-Chamber-style dark-ambient communities, creepy-carnival Spotify/YouTube playlists, haunt/Halloween forums | "A calliope that's slightly wrong — carnival music for a haunted one." |
+| **toy-town glitch** (circuit-bent) ✅ | **Circuit-benders**, glitch & lo-fi experimentalists. | the **bent // broken festival** + circuit-bent.net, glitch/experimental communities, the bent-toy scene | "Bent nursery-toy sounds, but they stay in tune — broken on purpose." |
 
 ---
 
@@ -119,7 +119,14 @@ What was confirmed vs. still a lead. ✅ in the tables above marks rows backed b
 | **Exotica / Tiki Central** | ✅ active | tikicentral.com — active exotica/lounge/space-age forum. |
 | **Acid / 303 cult** | ✅ active | KVR Audio forum has very active TB-303 threads; plus the ReBirth FB nostalgia community (below). |
 | **ReBirth RB-338 nostalgia** | ✅ real **+ a warning** | See the trademark note in §2 — ReBirth's iPad app was *deleted after a Roland IP claim*. Strong nostalgia, and a direct cautionary tale for us. |
-| Circuit-bending / Mellotron / Spaghetti-Western / Broken-Fairground / Toy-Town channels | ⏳ leads | Plausible (r/circuitbending, prog/scoring forums, r/filmscores, dark-ambient) but **not yet web-verified** — confirm before campaigning. |
+| **Circuit-bending** (Toy-Town glitch) | ✅ active | International **bent // broken festival** (since 2019, runs 2026); circuit-bent.net hub. Small, devoted, very on-brand for the glitch rack. |
+| **IDM / Warp Records** (braindance/plaid/squarepusher) | ✅ documented | The "IDM list" since 1993; Rephlex's "braindance"; Warp's *Artificial Intelligence* lineage. A small, intense, evangelical tribe. |
+| **Dub / soundsystem** (dub, dubsiren) | ✅ active | Sound On Sound forum dub-siren thread; deep King-Tubby/Jah-Shaka/UK-soundsystem culture; the **dub siren** itself is a coveted object. |
+| **Ambient** (ambient/eno) | ✅ large (stats blocked) | r/ambientmusic exists and the scene is unquestionably huge; couldn't pull a member count. Treat as large + reachable. |
+| **Mellotron / prog** (tape-choir) | ✅ active | Vintage Synth Explorer + TalkBass threads; Steven Wilson/King Crimson lineage. ⚠️ software competition (Arturia Mellotron V, GForce) — compete on charm. |
+| **Dark-ambient / horror-carnival** (Broken Fairground) | ✅ active | Cryo-Chamber-style dark-ambient (Atrium Carceri), creepy-carnival Spotify/YouTube playlists, the Halloween/haunt community. |
+| **Krautrock / motorik** (motorik) | ✅ documented | Real tribe (Neu!/Can/Stereolab-as-gateway, "Krautmania", Quietus essays). Niche, literate, loyal. |
+| **Spaghetti-Western / Morricone** + **yacht-rock** | ⏳ leads | Morricone's fandom is obviously massive but I couldn't pin a *specific* forum (r/filmscores/soundtrack are the likely homes); yacht-rock revival not yet verified. Confirm the exact channel before campaigning. |
 
 ### 3.6 The radio stations as tinyjams — and the craft-vs-market warning
 

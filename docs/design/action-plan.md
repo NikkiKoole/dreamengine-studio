@@ -26,12 +26,15 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
 
 ## Tier 0 — cheap, high-leverage, do now
 
-- [ ] **Save/share codec — `lz-string` URL + seed codes.** One serialize/compress/Base64 helper that
-  turns a cart's state into a `?song=…` (or `?state=…`) URL and back. *Why now:* the web gallery has
-  no save/share today, it's near-free, and it's **the same machinery tinyjam racks needs** (the
-  seed-as-song-code handoff — see `product-notes-followup.md` §1 + `tinyjam-racks.md` §"seed is a song
-  code"). Build the codec once, reuse for share-link *and* save. First step: a tiny JS lib in the
-  editor/site layer + an example cart that round-trips its state through a URL. Namespace any
+- [ ] **Save/share codec — share songs as URL links.** *Designed, PARKED — ready to build, see
+  [`song-codec.md`](song-codec.md).* The channel is the URL (`…/house/?seed=A3F90C12`), not an in-app
+  text field — click a link, the cart boots playing that song. Keystone half (makes shared links
+  *work*): add an engine `start_seed()` (parse a `--seed` arg in `main()`; the gallery shell reads
+  `location.search` → `Module.arguments`), then one line in `radio.h` boots `new_song(pos,
+  start_seed())` and all 34 radios inherit link-loading for free. Nicety half: a copy-link button
+  (`EM_ASM` clipboard write of the current `?seed=`). Show-code already ships (bare 8-hex `u32`).
+  *Decision:* keep the bare `u32` seed now; a `?song=<lz-string blob>` sibling joins **only** when
+  the rack ships editing (length/param-distinguished so old links never break). Namespace any
   `localStorage`/IndexedDB keys per-cart (`tinyjam:<cart>:…`) — the gallery is one origin.
 
 - [ ] **`build-field-notes` — index the journal.** Read `field-notes/*.md`, emit `FIELD-NOTES.md`:

@@ -1,8 +1,10 @@
 # Song codec — sharing a Tinyjam song as a compact, growable file
 
-STATUS: IDEA / exploration (2026-06-29). Nothing built yet. Captures a design conversation about
-how a cart serialises a song for share/save. The operative decision so far: **ship the seed
-envelope; defer everything else until a rack lets users author.** Companion reading:
+STATUS: DESIGNED / PARKED — TODO, ready to build (2026-06-29). Captures a design conversation about
+how a cart serialises a song for share/save. The operative decision: **the keystone (read `?seed=`
+at boot → all radios share via links) is designed and parked as a TODO in
+[`action-plan.md`](action-plan.md) Tier 0; defer everything else until a rack lets users author.**
+Companion reading:
 [`tinyjam-racks.md`](tinyjam-racks.md) (§"The seed is a song code", §"Export — three tiers"),
 [`product-notes-followup.md`](product-notes-followup.md) §1 (the URL-codec / static-host reality),
 [`action-plan.md`](action-plan.md) (Tier 0 "Save/share codec"), and `runtime/radio.h`

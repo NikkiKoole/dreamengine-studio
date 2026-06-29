@@ -83,14 +83,22 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   everything; tell them what matters" (`002-context-assembly`, `distillator.md`, `tools-we-need.md`
   #1). Bigger; do after the metadata + frontmatter give it structured inputs to assemble.
 
-- [ ] **Finish the AI-friendly frontmatter convention.** `title` / `summary` / `concepts` / `status`
-  YAML on design docs (partially adopted — some `docs/design/*.md` already have `---` blocks; make it
-  consistent and documented). Powers `build-context` + `stale-doc-check` + search. Opt-in, fill in
-  when a doc is touched (`ai-friendly-frontmatter.md`, `012-self-describing-artifacts`).
+- [ ] **`stale-doc-check` — catch docs that have drifted from the code (the real prize).** Flag a
+  doc when a file it documents changed after the doc's own last update — the one blind spot nothing
+  covers today (a doc can name a renamed function and no gate notices). Extends `lint-docs.js` (which
+  already does cross-refs). It needs exactly two machine-readable fields per doc — `depends_on:
+  [files]` + `updated:` — so **adopt frontmatter only as far as this consumer needs it**, doc by doc,
+  when a doc is touched. (`tools-we-need.md` #5, `012-self-describing-artifacts`.)
 
-- [ ] **`stale-doc-check`.** Frontmatter `depends_on: [files]` + `updated:` → flag docs whose
-  dependencies changed since. Extends `lint-docs.js` (which already does cross-refs).
-  (`tools-we-need.md` #5.)
+  *Don't roll out descriptive frontmatter (`title`/`summary`/`concepts`/`status`).* Verified
+  2026-06-29: **0 of 127 `docs/design/*.md` carry it** (only field-notes `011`–`013` do; the `---`
+  lines in design docs are mid-doc horizontal rules, not frontmatter). And it would mostly *duplicate*
+  signal that already works — the `STATUS:` line, the one-line pointers in `docs/README.md`'s layout
+  tree, the prose intros, grep — which `ai-friendly-frontmatter.md` itself forbids ("if it can be
+  inferred, do not duplicate it; metadata should help discovery, not become maintenance"). The value
+  is in *relationships + freshness* (`depends_on`/`updated`), not in re-encoding the title/status. So
+  the consumer (`stale-doc-check`, later `build-context`) is the thing worth building; frontmatter is
+  just its minimal input.
 
 - [ ] **`promote-candidate`.** Scan carts/docs for repeated patterns ("state-machine in 19 carts",
   "graph routing in 5") to surface what's earned promotion into the engine/API. Adjacent to

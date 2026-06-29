@@ -1,8 +1,9 @@
 # Engine portability — the platform seam + the renderer decision
 
-STATUS: OPEN / survey (2026-06-29). Nothing built. This captures the refactors that would make the
-engine cleanly portable (iOS first, but they help web too) and the **one undecided decision**
-everything hangs on: **software canvas vs GPU as the canonical renderer** — gated on FPS measurement.
+STATUS: OPEN / survey (2026-06-29; desktop FPS half measured — see "Measured" below). This captures
+the refactors that would make the engine cleanly portable (iOS first, but they help web too) and the
+**one undecided decision** everything hangs on: **software canvas vs GPU as the canonical renderer** —
+gated on FPS measurement (desktop done; device still owed before the ADR).
 
 Companion reading: [`ios-plan.md`](ios-plan.md) (the iOS spike ladder + Phase 2), the existing
 software-canvas probe notes in [`software-canvas.md`](software-canvas.md), and the engine source
@@ -48,6 +49,39 @@ iOS" are the **same** decision.
   Add a **device** measurement (run on the iPhone via `ios/device.sh`-style deploy and read frame-time)
   — desktop fps is necessary but not sufficient.
 - Decide, then record as an ADR (this doc becomes the rationale feed).
+
+### Measured — desktop half (2026-06-29)
+
+Ran the real engine (`studio.c`) headless on representative carts, `DE_SOFTWARE_CANVAS=on` (runtime
+toggle, studio.c:1832) vs the GPU default, via `profile-fleet.js`. `workMsAvg` = engine CPU time per
+frame; the 60fps budget is **16.6ms**. Mac native (this is the desktop half — NOT the simulator, which
+runs the stand-in `canvas.c` and reflects Mac perf anyway, so it's no proxy for a phone).
+
+| cart | type | GPU | **SW canvas** |
+|------|------|-----|---------------|
+| `omnichord` | light (the iOS target) | 0.26ms | **0.58ms** |
+| `neonrain` | fill-heavy (83 fills/frame) | 0.12ms | **0.38ms** |
+| `flank` | sprite-heavy | 0.52ms | **0.36ms** |
+| `podracer` | **3D / `tritex`** | 0.22ms | **19.32ms** |
+
+Findings:
+- **2D is a non-issue on CPU.** The three 2D carts run sub-0.6ms in software mode — ~30× under the
+  60fps budget, with the *real* engine. `flank` is even cheaper in SW than GPU (tight CPU span-fills
+  beat GL per-call overhead for many small `rectfill`s).
+- **`tritex` (perspective-correct textured triangles) is the lone killer** — 19.3ms on a *fast Mac*
+  CPU, already over budget here, and a phone CPU is several × slower. This is the GPU-only-parity
+  problem in concrete form (the §"Open questions" `tritex` item).
+- **Correctness gate passed:** `canvas-diff omnichord` = **0px** diff vs GPU, every frame — the SW
+  numbers are trustworthy and the output is pixel-identical, not just fast.
+
+**Provisional read** (gated on the device half before it becomes an ADR): commit to the software
+canvas as canonical for 2D → ANGLE-free iOS; treat `tritex`/3D as an explicit exception — either
+optimize the SW triangle rasterizer, or keep 3D carts GPU-only and off the initial iOS target list.
+The 2D headroom is so large it will survive a phone; the device measurement can only sharpen the
+`tritex` verdict, not overturn the 2D one.
+
+**Still owed:** the **device** measurement (iPhone, per the plan) — necessary before this is settled
+as an ADR.
 
 ## The three refactors that unlock iOS (and help web)
 

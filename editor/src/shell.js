@@ -737,13 +737,15 @@ function markRanges(text, indices) {
   return out
 }
 
-// faceted cart filters (see editor/public/carts/index.json). order is curated,
-// not alphabetical. state is module-level so it survives the panel rebuild-on-open.
+// faceted cart filters (see editor/public/carts/index.json). index.json is generated
+// from per-cart de:meta (build-cart-index.js) in alphabetical order — not curated — so
+// the default sort is 'updated'. state is module-level so it survives the panel rebuild.
 const CART_KIND_ORDER  = ['tutorial', 'game', 'tech-demo', 'instrument', 'toy', 'tool', 'probe']
 const CART_GENRE_ORDER = ['arcade', 'shooter', 'platformer', 'fighting', 'puzzle', 'racing',
                           'sports', 'strategy', 'rpg', 'adventure', 'simulation', 'sandbox', 'tabletop']
 let cartFilter = null   // null = all; else { axis: 'kind'|'genre', value } — flat single-select
-let cartSort = localStorage.getItem('cartSort') || 'featured'   // 'featured' (index.json order) | 'title' | 'newest' | 'oldest' | 'updated'
+let cartSort = localStorage.getItem('cartSort') || 'updated'   // 'updated' (default) | 'title' | 'newest' | 'oldest'
+if (cartSort === 'featured') cartSort = 'updated'   // retired: index.json array order is generated (alphabetical), no longer curated
 // { file: { added, updated } } ISO dates (git history, served by vite). Seeded from
 // localStorage so the panel renders instantly on open; refreshed in the background (see
 // buildTutorialsPanel) so a freshly-committed rebake still surfaces without a restart.
@@ -787,7 +789,7 @@ async function buildTutorialsPanel() {
   sortSel.className = 'tutorials-sort'
   sortSel.title = 'sort carts'
   for (const [value, label] of [
-    ['featured', 'featured'], ['title', 'title A–Z'], ['updated', 'recently updated'],
+    ['updated', 'recently updated'], ['title', 'title A–Z'],
     ['newest', 'newest'], ['oldest', 'oldest'],
   ]) {
     const opt = document.createElement('option')
@@ -897,7 +899,7 @@ async function buildTutorialsPanel() {
     if (cartSort === 'newest') return pool.slice().sort((a, b) => (b.added || '').localeCompare(a.added || ''))
     if (cartSort === 'oldest') return pool.slice().sort((a, b) => (a.added || '').localeCompare(b.added || ''))
     if (cartSort === 'updated') return pool.slice().sort((a, b) => (b.updated || '').localeCompare(a.updated || ''))
-    return pool   // featured
+    return pool   // fallback: generated (alphabetical) order
   }
 
   function applyFilter() {

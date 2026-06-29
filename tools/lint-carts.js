@@ -1,29 +1,28 @@
 #!/usr/bin/env node
-// Lint the cart registry: editor/public/carts/index.json vs the carts on disk.
-//
-// Replaces the old tag-carts.js one-shot (which carried its own copy of every
-// cart's tags and went stale the moment agents started writing tags inline).
-// This is a pure validator — index.json IS the source of truth; this file owns
-// only the VOCABULARY and the rules. Run it after registering a cart:
+// Lint the cart registry. Each cart owns a `de:meta` block in its tools/carts/<name>.c
+// (the source of truth); editor/public/carts/index.json is GENERATED from those blocks
+// by build-cart-index.js. This validator owns the VOCABULARY + rules, checks every
+// de:meta, and asserts index.json is in sync with a fresh generate. Run after editing a
+// cart's de:meta or baking:
 //
 //   node tools/lint-carts.js
 //
 // Rules:
-//   - every entry needs title, description, file, and a non-empty kind[]
-//   - kind values come from KINDS; genre (if present) from GENRES
-//   - kind "game" REQUIRES a genre; for other kinds genre is optional but
-//     encouraged when it aids browsing (platformer tutorials, lab carts...)
-//   - every entry's .cart.png exists; every .cart.png on disk is registered
+//   - every de:meta needs title, a non-empty kind[], teaches[] (may be []), description
+//   - kind from KINDS; genre (if present) from GENRES; kind "game" REQUIRES a genre
+//   - status (if present) from STATUSES; homage (if present) a non-empty string
+//   - teaches values from the controlled vocab (tools/teaches-vocab.js)
+//   - description is a string OR { summary?, detail?, controls? } with ≥1 string part
+//   - every de:meta cart has a baked .cart.png; every .cart.png has a de:meta cart
+//   - editor/public/carts/index.json equals a fresh build-cart-index generate
 //
-// Growing the vocabulary is fine and expected — add the value here in the
-// same commit as the first cart that uses it.
+// Growing a vocabulary is fine and expected — add the value here (or in teaches-vocab.js)
+// in the same commit as the first cart that uses it.
 
 const fs = require("fs");
 const path = require("path");
+const { readMeta, inSync, CARTS } = require("./build-cart-index.js");
 
-// "probe" = built to answer an API question (should the engine own X, or can a
-// cart?). The tag only marks the role; the QUESTION and VERDICT live in
-// docs/design/probe-carts.md — update that ledger when a probe resolves.
 const KINDS = [
   "tutorial",   // numbered on-ramp or teaches one concept
   "game",       // complete playable game (requires genre)
@@ -31,7 +30,7 @@ const KINDS = [
   "instrument", // makes sound/music interactively
   "toy",        // fun to poke at, no goal
   "tool",       // produces something you take elsewhere (sfx editor...)
-  "probe",      // see note above
+  "probe",      // built to answer an API question (see docs/design/probe-carts.md)
   "generative", // the cart's output is generated art/music itself
 ];
 
@@ -41,60 +40,77 @@ const GENRES = [
   "tabletop", "maze", "space", "lab", "dating",
 ];
 
-// teaches[] (the conceptual techniques a cart shows off — the ★ techniques compendium)
-// is a CONTROLLED vocabulary, like kind/genre: an off-list tag is a hard error here, so
-// adding a new tag is a deliberate, reviewable edit to tools/teaches-vocab.js — not a
-// casual side effect of tagging a cart. lineage is free prose. Both optional per entry.
+// cart lifecycle (de:meta.status) — seeds the curated/featuring views (003-curation)
+const STATUSES = ["active", "showcase", "retired", "archive", "hidden"];
+
+// teaches[] is a CONTROLLED vocabulary like kind/genre: an off-list tag is a hard error,
+// so adding one is a deliberate edit to tools/teaches-vocab.js. lineage is free prose.
 const TEACHES = new Set(require("./teaches-vocab.js").TEACHES_VOCAB);
 
 const ROOT = path.join(__dirname, "..");
 const CARTS_DIR = path.join(ROOT, "editor", "public", "carts");
-const INDEX = path.join(CARTS_DIR, "index.json");
 
-const index = JSON.parse(fs.readFileSync(INDEX, "utf8"));
 const errors = [];
+const metaCarts = new Set(); // <name>.cart.png for every cart that has a de:meta
 
-// per-entry checks
-const seen = new Set();
-for (const e of index) {
-  const f = e.file || "(no file)";
-  if (!e.title) errors.push(`${f}: missing title`);
-  if (!e.description) errors.push(`${f}: missing description`);
-  if (!e.file) { errors.push(`entry '${e.title}': missing file`); continue; }
-  if (seen.has(f)) errors.push(`${f}: registered twice`);
-  seen.add(f);
+for (const f of fs.readdirSync(CARTS).sort()) {
+  if (!f.endsWith(".c")) continue;
+  const name = f.slice(0, -2);
+  const src = fs.readFileSync(path.join(CARTS, f), "utf8");
+  let m;
+  try { m = readMeta(src, name); }
+  catch (e) { errors.push(`${name}.c: ${e.message}`); continue; }
+  if (!m) continue; // no de:meta = not a gallery cart (test/probe carts) — fine
 
-  if (!Array.isArray(e.kind) || e.kind.length === 0)
-    errors.push(`${f}: missing kind[] — pick from: ${KINDS.join(", ")}`);
-  else
-    for (const k of e.kind)
-      if (!KINDS.includes(k)) errors.push(`${f}: bad kind '${k}'`);
+  const png = `${name}.cart.png`;
+  metaCarts.add(png);
+  const at = `${name}.c de:meta`;
 
-  if (e.genre && !GENRES.includes(e.genre)) errors.push(`${f}: bad genre '${e.genre}'`);
-  if (Array.isArray(e.kind) && e.kind.includes("game") && !e.genre)
-    errors.push(`${f}: kind 'game' requires a genre — pick from: ${GENRES.join(", ")}`);
-  if ("homage" in e && (typeof e.homage !== "string" || !e.homage))
-    errors.push(`${f}: homage must be a non-empty string`);
+  if (!m.title || typeof m.title !== "string") errors.push(`${at}: missing title`);
+  if ("status" in m && !STATUSES.includes(m.status))
+    errors.push(`${at}: bad status '${m.status}' — pick from: ${STATUSES.join(", ")}`);
 
-  if (!Array.isArray(e.teaches))
-    errors.push(`${f}: missing teaches[] — every cart must declare it (use [] if nothing conceptually distinctive)`);
-  else for (const t of e.teaches)
-    if (!TEACHES.has(t)) errors.push(`${f}: teaches '${t}' not in the vocabulary — reuse an existing tag, or add it deliberately to tools/teaches-vocab.js`);
-  if ("lineage" in e && typeof e.lineage !== "string")
-    errors.push(`${f}: lineage must be a string`);
+  if (!Array.isArray(m.kind) || m.kind.length === 0)
+    errors.push(`${at}: missing kind[] — pick from: ${KINDS.join(", ")}`);
+  else for (const k of m.kind)
+    if (!KINDS.includes(k)) errors.push(`${at}: bad kind '${k}'`);
 
-  if (!fs.existsSync(path.join(CARTS_DIR, f)))
-    errors.push(`${f}: registered but no such file in editor/public/carts/`);
+  if (m.genre != null && !GENRES.includes(m.genre)) errors.push(`${at}: bad genre '${m.genre}'`);
+  if (Array.isArray(m.kind) && m.kind.includes("game") && m.genre == null)
+    errors.push(`${at}: kind 'game' requires a genre — pick from: ${GENRES.join(", ")}`);
+  if ("homage" in m && (typeof m.homage !== "string" || !m.homage))
+    errors.push(`${at}: homage must be a non-empty string`);
+  if ("lineage" in m && typeof m.lineage !== "string") errors.push(`${at}: lineage must be a string`);
+
+  if (!Array.isArray(m.teaches))
+    errors.push(`${at}: missing teaches[] — use [] if nothing conceptually distinctive`);
+  else for (const t of m.teaches)
+    if (!TEACHES.has(t)) errors.push(`${at}: teaches '${t}' not in the vocabulary — reuse one, or add it deliberately to tools/teaches-vocab.js`);
+
+  // description: string, or { summary?, detail?, controls? } with ≥1 string part
+  const d = m.description;
+  const okString = typeof d === "string" && d.length > 0;
+  const okParts = d && typeof d === "object" &&
+    ["summary", "detail", "controls"].some(k => typeof d[k] === "string" && d[k].length > 0);
+  if (!okString && !okParts)
+    errors.push(`${at}: description must be a non-empty string or { summary/detail/controls }`);
+
+  if (!fs.existsSync(path.join(CARTS_DIR, png)))
+    errors.push(`${at}: has de:meta but no baked ${png} — run: node tools/make-cart.js ${path.relative(ROOT, path.join(CARTS, f))} ${path.relative(ROOT, path.join(CARTS_DIR, png))}`);
 }
 
-// orphan carts on disk
+// a .cart.png with no de:meta cart can never be (re)generated into the index
 for (const f of fs.readdirSync(CARTS_DIR))
-  if (f.endsWith(".cart.png") && !seen.has(f))
-    errors.push(`${f}: on disk but not registered in index.json`);
+  if (f.endsWith(".cart.png") && !metaCarts.has(f))
+    errors.push(`${f}: on disk but its tools/carts/${f.replace(/\.cart\.png$/, ".c")} has no de:meta block (add one to register it)`);
+
+// the generated index.json must match what the de:meta blocks produce right now
+if (!inSync())
+  errors.push("editor/public/carts/index.json is STALE vs the de:meta blocks — run: node tools/build-cart-index.js");
 
 if (errors.length) {
   for (const e of errors) console.error("  ✗ " + e);
-  console.error(`\n${errors.length} problem(s) across ${index.length} entries.`);
+  console.error(`\n${errors.length} problem(s) across ${metaCarts.size} registered carts.`);
   process.exit(1);
 }
-console.log(`ok — ${index.length} carts, all tagged and on disk.`);
+console.log(`ok — ${metaCarts.size} carts, all de:meta valid and index.json in sync.`);

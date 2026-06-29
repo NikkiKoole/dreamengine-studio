@@ -87,17 +87,30 @@ function generate() {
   return JSON.stringify(entries, null, 2) + "\n";
 }
 
-const out = generate();
-
-if (process.argv.includes("--check")) {
-  const cur = fs.existsSync(OUT) ? fs.readFileSync(OUT, "utf8") : "";
-  if (cur !== out) {
-    console.error("index.json is STALE — run: node tools/build-cart-index.js");
-    process.exit(1);
-  }
-  console.log("index.json is up to date.");
-} else {
+// write the freshly generated index.json; returns the cart count
+function writeIndex() {
+  const out = generate();
   fs.writeFileSync(OUT, out);
-  const n = JSON.parse(out).length;
-  console.log(`wrote ${path.relative(path.join(__dirname, ".."), OUT)} — ${n} carts`);
+  return JSON.parse(out).length;
+}
+
+// true if the committed index.json already matches a fresh generate
+function inSync() {
+  const cur = fs.existsSync(OUT) ? fs.readFileSync(OUT, "utf8") : "";
+  return cur === generate();
+}
+
+module.exports = { generate, writeIndex, inSync, readMeta, flattenDesc, OUT, CARTS };
+
+if (require.main === module) {
+  if (process.argv.includes("--check")) {
+    if (!inSync()) {
+      console.error("index.json is STALE — run: node tools/build-cart-index.js");
+      process.exit(1);
+    }
+    console.log("index.json is up to date.");
+  } else {
+    const n = writeIndex();
+    console.log(`wrote ${path.relative(path.join(__dirname, ".."), OUT)} — ${n} carts`);
+  }
 }

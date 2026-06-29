@@ -1,6 +1,9 @@
 # cart-metadata — each cart owns its metadata; index.json becomes a generated view
 
-STATUS: DESIGN / agreed in conversation 2026-06-29, not yet built. Implements field note
+STATUS: SHIPPED 2026-06-29. All 414 carts migrated (content-lossless); `build-cart-index.js`
+generates index.json; `make-cart` auto-registers on bake; `lint-carts` validates `de:meta` + asserts
+sync; editor default sort flipped to `updated` (array order retired). Opt-in still pending: enriching
+`description` into parts, filling `inputs`/`outputs`. Implements field note
 `013-generated-cart-index` + the action-plan Tier-1 keystone
 ([`action-plan.md`](action-plan.md)). Companion: `lint-carts.js` (owns the tag vocabulary today),
 field note `012-self-describing-artifacts` (the principle), `003-curation` (the featuring system this

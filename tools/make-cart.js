@@ -236,6 +236,23 @@ module.exports = {
   makePng, parseSprite, PAL32, DEFAULT_CHAR_MAP,
 }
 
+// After a bake, regenerate index.json so baking a cart auto-registers it (no manual
+// index.json edit). A cart appears in the gallery IFF its source carries a de:meta block;
+// warn loudly if it doesn't, since the bake otherwise silently won't show up.
+function autoRegisterIndex(source) {
+  if (!/\/\*\s*de:meta/.test(source)) {
+    console.log('⚠ no de:meta block — this cart will NOT appear in the gallery.')
+    console.log('  add a de:meta block to register it (see docs/design/cart-metadata.md).')
+    return
+  }
+  try {
+    const n = require('./build-cart-index.js').writeIndex()
+    console.log(`index.json regenerated — ${n} carts`)
+  } catch (e) {
+    console.error('index.json regen failed: ' + e.message)
+  }
+}
+
 // ── main ──────────────────────────────────────────────────────
 if (require.main === module) runCli()
 
@@ -343,6 +360,7 @@ if (args[0] === '--update') {
   const newPng = embedCartChunks(fs.readFileSync(screenshotPath), chunks)
   fs.writeFileSync(cartFile, newPng)
   console.log('updated', cartFile)
+  autoRegisterIndex(chunks.source)
 
 } else {
   // create a new cart from source
@@ -380,5 +398,6 @@ if (args[0] === '--update') {
   console.log(reuse
     ? `re-embedded source into ${outFile} (kept existing thumbnail — run \`--run\` to re-bake if visuals changed)`
     : `wrote ${outFile} (placeholder thumbnail — run \`--run\` to bake a real screenshot)`)
+  autoRegisterIndex(source)
 }
 }

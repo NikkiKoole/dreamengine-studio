@@ -126,3 +126,19 @@ Only ~10% idle = the device was near-saturated (at the load ceiling, as expected
 - **Method validated:** headless `xctrace record --attach` → `export` → parse gave a function-level
   breakdown with zero GUI. This is the `profile-device.sh` build candidate, proven manually — worth
   packaging.
+
+### Optimization attempts
+
+- **Branchless masked blend in the `sw_blit` fast path — TRIED, REVERTED (1.5× slower).** The profile
+  put 76.7% in `sw_blit`'s inner loop, whose per-pixel `if (transparent) continue;` is a data-dependent
+  branch that also blocks auto-vectorization. The textbook fix — drop the branch, write *every* pixel
+  via an alpha-mask blend (`drow[i] = (src&m)|(dst&~m)`) so clang can vectorize — was implemented behind
+  an A/B flag, verified **bit-identical** (canvas-diff + an injected-bunny A/B harness), and measured:
+  **37.0 ms/frame vs 24.5 ms/frame** for the branchy original. It *lost*. Why: a 32×32 bunny is mostly
+  transparent, so the branchy `continue` skips ~half the cell with no memory touch, while the blend
+  read-modify-writes all 1024 px/bunny — the extra bandwidth costs more than the branch + SIMD saves.
+  **Lesson:** for *sparse* sprites the transparent-skip is already near-optimal on a scalar CPU; the
+  blend would only pay off for *dense/opaque* sprites. Not worth a per-sprite-density code split. The
+  20k-bunny ceiling looks like the honest CPU/bandwidth limit, not a fixable hotspot. (Hand-NEON with a
+  real masked store *might* help, but at the arch-specific + determinism-parity cost called out above —
+  not justified by the measured headroom.)

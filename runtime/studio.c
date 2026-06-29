@@ -213,6 +213,11 @@ static bool            poly_fill_fast = true;        // false → legacy per-pix
 static bool            disc_fill_fast = true;        // false → legacy per-pixel circle/oval fill (A/B; env DE_DISC_FILL=legacy)
 static bool            clamp_cache_on = true;        // false → recompute the fill scan-box every call (A/B; env DE_CLAMP_CACHE=off)
 static bool            blit_fast_on   = true;        // false → legacy per-pixel sw_blit (A/B; env DE_BLIT_FAST=off). Fast path: direct uint32 row-copy for the axis-aligned, unscaled, unflipped, zoom==1, no-pal blit
+// NB: a branchless masked-blend inner loop was tried here (write every pixel, blend by an alpha
+// mask, no per-pixel branch → auto-vectorizable) and MEASURED 1.5× SLOWER on bunnymark (37 vs 24
+// ms/frame, bit-identical). Sparse sprites (mostly-transparent cells) favour the transparent-SKIP
+// below — it avoids the read-modify-write the blend forces on every pixel. Don't re-add it. See
+// docs/design/ios-profiling.md "Optimization attempts".
 #ifndef DE_BATCH_PSET_DEFAULT
 #define DE_BATCH_PSET_DEFAULT 0                        // web has no env vars → compile-time toggle (-DDE_BATCH_PSET_DEFAULT=1)
 #endif

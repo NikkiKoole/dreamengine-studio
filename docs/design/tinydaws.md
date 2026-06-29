@@ -152,6 +152,7 @@ codebase is ours). Each = one cart, own faceplate identity, same chassis.
 | **Space-Age Bachelor Pad** | exotica | INSTR_FM vibraphone | omnichord sus4 | sh101 walking bass | 808 congas/maracas/rim (or CR-78!) | slide whistle (sine overshoot, new) |
 | **Radiophonic Workshop** | vintage sci-fi | theremin (saw/otamatone voice) | rapid 8-note arp | 303 heavy slide | procedural noise clicks/pops | wow/flutter on the FM out |
 | **Toy-Town Glitch** | circuit-bent nursery | formant voice (genuinely new synthesis) | stylophone + bitcrush | "rubber duck" sh101 snap | 808 pitched way up | music box (tri + clockwork ticks) |
+| **Cozy Adventure** (cozy-cluster · parked) | cozy cartoon-adventure / lo-fi exploration (evokes AT/cozy-games, no IP) | PD soft chiptune (pulse+tri), songful | omnichord shimmer + nylon/uke pluck | pdbass round bounce (softened axe-bass) | soft toy/chiptune kit, gentle | mallet/celesta bells; wandering songwriter brain |
 
 Pattern-source pairings: Space-Age steals from `exotica.c`'s pattern vocabulary,
 rebirth-house from `house.c`, etc. Western/Fairground/Library need new generators —
@@ -161,6 +162,13 @@ is exactly the kit for writing them.
 The genuinely-new sound work across the whole table: a handful of ~10-line voice
 recipes (calliope, slide whistle, jew's harp, music box) + one real project (the
 formant voice). Everything else exists.
+
+**Cozy Adventure notes** (added 2026-06-29): a later, marketing-driven addition
+rather than one of the original eight — the centrepiece of the "cozy cluster"
+(Strumharpy / lofi / plantasia) and mostly a recombination of shipped engines.
+Full design seed (band, brain, the original cute face, the IP guardrail,
+tribe/channels): [`tinyjam-cozy-adventure.md`](tinyjam-cozy-adventure.md);
+go-to-market context in [`tinyjam-marketing.md`](tinyjam-marketing.md) §3.10.
 
 **rebirth-classic notes** (added 2026-06-07): the only rack where every voice is
 already a shipped cart (tb303 ×2, tr808, tr909) — zero new sound work, maximum

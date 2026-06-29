@@ -22,30 +22,41 @@ de:meta */
 #include "studio.h"
 
 // ── TWEAKABLES ──────────────────────────────────────────────────────────────
-#define BG        0            // background (0 = black)
-#define HEART     CLR_ORANGE   // amber heart (palette 9)
-#define INK       0            // wordmark colour (0 = black, reads on the amber)
-#define TOP_TEXT  "tiny"       // small line (FONT_TINY 3x5)
-#define BOT_TEXT  "JAM"        // big line (FONT_NORMAL 8x8) — try "JAMS" too
-#define LOBE_R    12           // heart lobe radius
-#define TOP_DY    (-10)        // "tiny" vertical offset from centre
-#define BOT_DY    (-2)         // "JAM"  vertical offset from centre
+#define BG         0            // background (0 = black)
+#define HEART      CLR_ORANGE   // amber heart (palette 9)
+#define INK        0            // glyph colour (0 = black, reads on the amber)
+// CP437 glyphs: ♥ "\x03"  ♪ "\x0d"  ♫ "\x0e"  ☼ "\x0f". Pair them e.g. "\x0d\x0e".
+#define GLYPH      "\x0d"       // the mark inside the heart (single ♪ note)
+#define NOTE_SCALE 5            // glyph size multiplier
+#define HEART_R    58           // heart half-size in px
+#define HEART_CY   58           // heart centre Y (heart mass sits high, so above mid)
+#define NOTE_DY    (-20)        // glyph Y offset from heart centre (heart mass sits high)
+#define NOTE_DX    (3)          // glyph X nudge (♪ ink is left-biased in its 8px cell)
 // ─────────────────────────────────────────────────────────────────────────────
+
+// One clean heart silhouette from the implicit curve (x^2+y^2-1)^3 - x^2*y^3 <= 0,
+// rasterised per-pixel — uniform pixel edge, no circle/triangle seam.
+static void heartfill(int cx, int cy, int s, int color) {
+  for (int py = -s; py <= s; py++) {
+    float y = -(float)py / (s * 0.80f);          // y points up
+    for (int px = -s; px <= s; px++) {
+      float x = (float)px / (s * 0.92f);
+      float a = x * x + y * y - 1.0f;
+      if (a * a * a - x * x * y * y * y <= 0.0f) pset(cx + px, cy + py, color);
+    }
+  }
+}
 
 void draw(void) {
   cls(BG);
 
   const int cx = SCREEN_W / 2;
-  const int cy = SCREEN_H / 2;
+  const int cy = HEART_CY;
 
-  // amber heart = two lobes (circles) + a bottom triangle
-  circfill(cx - 10, cy - 6, LOBE_R, HEART);
-  circfill(cx + 10, cy - 6, LOBE_R, HEART);
-  trifill(cx - 21, cy - 2, cx + 21, cy - 2, cx, cy + 22, HEART);
+  heartfill(cx, cy, HEART_R, HEART);
 
-  // wordmark, each line horizontally centred via text_width()
-  font(FONT_TINY);
-  print(TOP_TEXT, cx - text_width(TOP_TEXT) / 2, cy + TOP_DY, INK);
+  // The mark (CP437 glyph, e.g. ♪ char 13), centred in the heart's upper mass.
+  // The dos font renders control codes as glyphs (no newline handling).
   font(FONT_NORMAL);
-  print(BOT_TEXT, cx - text_width(BOT_TEXT) / 2, cy + BOT_DY, INK);
+  print_scaled(GLYPH, cx - (text_width(GLYPH) * NOTE_SCALE) / 2 + NOTE_DX, cy + NOTE_DY, INK, NOTE_SCALE);
 }

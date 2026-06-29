@@ -1,2 +1,2 @@
-// Config for the tinyjam logo cart: a small square canvas for a 64x64 wordmark.
-module.exports = { screenW: 64, screenH: 64, scale: 8 }
+// Config for the tinyjam logo cart: a small square canvas for the 128x128 logo.
+module.exports = { screenW: 128, screenH: 128, scale: 4 }

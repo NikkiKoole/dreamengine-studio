@@ -19,6 +19,24 @@ final class CanvasView: UIView {
     private var touchIds: [ObjectIdentifier: Int32] = [:]   // UITouch → stable engine id
     private var nextId: Int32 = 1
 
+    // ---- on-device perf measurement (the renderer-decision gate; #if DEBUG only) ----
+    // Accumulates over a ~1s window then NSLogs: engine de_frame() time, blit time, and the
+    // ACTUAL displaylink interval (→ real fps). ios-deploy streams these off the device.
+    private var pf_engineSum = 0.0, pf_engineMax = 0.0
+    private var pf_blitSum = 0.0, pf_blitMax = 0.0
+    private var pf_frames = 0
+    private var pf_lastLog: CFTimeInterval = 0
+    private var pf_lastTick: CFTimeInterval = 0
+    private var pf_intervalSum = 0.0, pf_intervalMax = 0.0
+    // perf goes to a file in the app's Documents — pulled off the device with
+    // `ios-deploy --download` (lldb console forwarding is unreliable for an installed app).
+    private lazy var pf_url: URL? = {
+        let u = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+                  .first?.appendingPathComponent("perf.log")
+        if let u = u { try? "".write(to: u, atomically: true, encoding: .utf8) }   // truncate per run
+        return u
+    }()
+
     override init(frame: CGRect) {
         flipped = [UInt32](repeating: 0, count: w * h)
         super.init(frame: frame)
@@ -36,8 +54,10 @@ final class CanvasView: UIView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     @objc private func tick() {
-        de_frame(CACurrentMediaTime() - start)
+        let t0 = CACurrentMediaTime()
+        de_frame(t0 - start)
         guard let base = de_framebuffer() else { return }
+        let t1 = CACurrentMediaTime()
         // flip bottom-up sw_cbuf → top-down (row y ↔ h-1-y)
         flipped.withUnsafeMutableBufferPointer { dst in
             for y in 0..<h {
@@ -52,6 +72,34 @@ final class CanvasView: UIView {
                                 decode: nil, shouldInterpolate: false, intent: .defaultIntent)
         else { return }
         layer.contents = img
+        perfTick(engine: t1 - t0, blit: CACurrentMediaTime() - t1, now: t0)
+    }
+
+    private func perfTick(engine: Double, blit: Double, now: CFTimeInterval) {
+    #if DEBUG
+        if pf_lastTick > 0 {
+            let dt = now - pf_lastTick
+            pf_intervalSum += dt; pf_intervalMax = max(pf_intervalMax, dt)
+        }
+        pf_lastTick = now
+        pf_engineSum += engine; pf_engineMax = max(pf_engineMax, engine)
+        pf_blitSum += blit;     pf_blitMax = max(pf_blitMax, blit)
+        pf_frames += 1
+        if pf_lastLog == 0 { pf_lastLog = now }
+        if now - pf_lastLog >= 1.0 {
+            let n = Double(pf_frames), ms = 1000.0
+            let fps = pf_intervalSum > 0 ? Double(pf_frames - 1) / pf_intervalSum : 0
+            let line = String(format: "[perf] %dx%d  engine avg %.2fms max %.2fms | blit avg %.2fms max %.2fms | fps %.1f (interval avg %.2fms max %.2fms) | budget 16.67ms\n",
+                  w, h, pf_engineSum/n*ms, pf_engineMax*ms, pf_blitSum/n*ms, pf_blitMax*ms,
+                  fps, pf_intervalSum/max(1,Double(pf_frames-1))*ms, pf_intervalMax*ms)
+            if let u = pf_url, let h = try? FileHandle(forWritingTo: u) {   // append to Documents/perf.log
+                h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+            }
+            NSLog("%@", line)                                  // also to the device console (if anyone's watching)
+            pf_engineSum = 0; pf_engineMax = 0; pf_blitSum = 0; pf_blitMax = 0
+            pf_intervalSum = 0; pf_intervalMax = 0; pf_frames = 0; pf_lastLog = now
+        }
+    #endif
     }
 
     deinit { link?.invalidate() }

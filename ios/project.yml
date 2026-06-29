@@ -1,0 +1,20 @@
+# xcodegen spec — the ONLY hand-edited project file. `./build.sh` regenerates the
+# .xcodeproj from this (never open Xcode to manage files). Add a target / source
+# folder here; commit this, never the generated .xcodeproj (it's .gitignore'd).
+name: TinyjamHello
+options:
+  bundleIdPrefix: com.tinyjam
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  TinyjamHello:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"

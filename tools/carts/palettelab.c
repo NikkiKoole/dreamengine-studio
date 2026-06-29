@@ -11,8 +11,8 @@
     "dithering-gradient",
     "palette-cycling"
   ],
-  "lineage": "An extension of the sibling blendlab cart: ports its scene-function architecture to run against live swappable candidate palettes (9 candidates, 32- and 64-slot), so AVG/ADD/MUL blend tables and dither scenes are re-evaluated against each candidate — the probe that drives the palette-expansion design decision.",
-  "description": "Try on a new default palette and judge it where it matters most: BLENDING. This is blendlab x palettes — the Layer-1/1b probe from palette-and-color.md with blendlab's scene-function architecture ported in, so every blend runs against the LIVE candidate. Keys 1-9 swap the palette: shipped PICO-8 / ENDESGA 32 / full RESURRECT 64 / E32 + 32 derived in-betweens (sRGB ramp midpoints + hue bridges, computed in-cart) / ENDESGA 64 (the same author's own curated expansion — candidate 4 vs 5 is generate-vs-curate head to head) / AAP-64 (the other canonical long-ramp 64) / FAMICUBE (the opposite philosophy: a fictional console's identity palette, distinct hues over dense ramps — watch its glows ring in the wrong family) / JOURNEY (the painterly school: violet-cast darks, ramps that bend through hue — even its black is a midnight blue) / JEHKOBA64 (the lattice school: hue-family ramps of five, every hue given the same value treatment — does a systematic grid blend more predictably than hand curation?). LEFT/RIGHT walk six scenes: the 64-swatch grid + five dithered corpus ramps, a sunset, a portrait (skin tones are where palettes get cruel), the NIGHT GLOW street with real additive streetlights (D toggles today's fillp fake next to it; carry a glow on the mouse), GLASS+FOG (translucent pane on the mouse, C cycles its color, drifting MUL cloud shadows, an AVG fog band), and the raw BLEND TABLE grid (T cycles AVG/ADD/MUL). The AVG/ADD/MUL tables rebuild from the candidate's RGB on every switch — more/denser colors visibly band less. Note the dither scenes only reference slots 0-31, so candidates 2 and 4 are identical there by construction; the blend scenes are where 32 vs 64 separates. Built on the EXPERIMENTAL palette_hex() + the 64-slot palette."
+  "lineage": "An extension of the sibling blendlab cart: ports its scene-function architecture to run against live swappable candidate palettes (10 candidates: 32-, 42- and 64-slot), so AVG/ADD/MUL blend tables and dither scenes are re-evaluated against each candidate — the probe that drives the palette-expansion design decision.",
+  "description": "Try on a new default palette and judge it where it matters most: BLENDING. This is blendlab x palettes — the Layer-1/1b probe from palette-and-color.md with blendlab's scene-function architecture ported in, so every blend runs against the LIVE candidate. Keys 1-9 and 0 swap the palette: shipped PICO-8 / ENDESGA 32 / full RESURRECT 64 / E32 + 32 derived in-betweens (sRGB ramp midpoints + hue bridges, computed in-cart) / ENDESGA 64 (the same author's own curated expansion — candidate 4 vs 5 is generate-vs-curate head to head) / AAP-64 (the other canonical long-ramp 64) / FAMICUBE (the opposite philosophy: a fictional console's identity palette, distinct hues over dense ramps — watch its glows ring in the wrong family) / JOURNEY (the painterly school: violet-cast darks, ramps that bend through hue — even its black is a midnight blue) / JEHKOBA64 (the lattice school: hue-family ramps of five, every hue given the same value treatment — does a systematic grid blend more predictably than hand curation?) / ROSY 42 (key 0, PineappleOnPizza's 42-colour painterly set - 32 role-mapped + 10 leftovers, pal_n=42, no neutral grey). LEFT/RIGHT walk six scenes: the 64-swatch grid + five dithered corpus ramps, a sunset, a portrait (skin tones are where palettes get cruel), the NIGHT GLOW street with real additive streetlights (D toggles today's fillp fake next to it; carry a glow on the mouse), GLASS+FOG (translucent pane on the mouse, C cycles its color, drifting MUL cloud shadows, an AVG fog band), and the raw BLEND TABLE grid (T cycles AVG/ADD/MUL). The AVG/ADD/MUL tables rebuild from the candidate's RGB on every switch — more/denser colors visibly band less. Note the dither scenes only reference slots 0-31, so candidates 2 and 4 are identical there by construction; the blend scenes are where 32 vs 64 separates. Built on the EXPERIMENTAL palette_hex() + the 64-slot palette."
 }
 de:meta */
 #include "studio.h"
@@ -30,7 +30,7 @@ de:meta */
 // tables (AVG/ADD/MUL, blendlab's trio) are rebuilt from the candidate's RGB
 // on every switch — candidates with more/denser colors visibly band less.
 //
-// Seven candidates (keys 1-7):
+// Ten candidates (keys 1-9, then 0):
 //   1  PICO-8 (shipped)     — the baseline we're trying to replace
 //   2  ENDESGA 32           — 32 role-mapped, upper half mirrors
 //   3  RESURRECT 64 (full)  — 32 role-mapped + the other 32 in slots 32-63
@@ -49,6 +49,9 @@ de:meta */
 //   9  JEHKOBA64            — the lattice school: hue-family ramps of five,
 //      every hue given the same value treatment. Tests whether a SYSTEMATIC
 //      grid blends more predictably than hand-curated ramps.
+//   0  ROSY 42              — PineappleOnPizza's 42-colour painterly set (same
+//      author as JOURNEY). The odd-count case: 32 role-mapped + 10 leftovers in
+//      32-41, pal_n=42. No neutral grey (slots 5/6 borrow mauve/blue-grey).
 //
 // NOTE the derived/upper colors only show where something SAMPLES them — the
 // dither scenes (sunset/portrait) reference indices 0-31 and are identical for
@@ -160,6 +163,22 @@ static const int PAL_J64X[32] = {
     0x0f022e, 0x35003b, 0x64004c, 0xff9757, 0xd4662f, 0x9c341a, 0x450c28, 0x2d002e,
 };
 
+// ROSY 42 (by PineappleOnPizza, lospec.com/palette-list/rosy-42): a 42-COLOUR
+// palette — odd fit for the 32/64 model, so it's role-mapped to the pico slots
+// (0-31) with the 10 leftover colours parked in 32-41 and pal_n = 42 (the cart
+// already runs the blend tables at any pal_n). Same painterly author as JOURNEY;
+// warm earth + pink/wine ramps and NO neutral grey — so slots 5/6 borrow a
+// mauve / blue-grey (weak fit, flagged), and the dither scenes (which only touch
+// 0-31) won't show the upper 10. PAL_ROSY is laid out in final slot order 0-41.
+static const int PAL_ROSY[42] = {
+    0x14182e, 0x2c354d, 0x4b1d52, 0x3b7d4f, 0xab5130, 0x52333f, 0xa3a7c2, 0xf5ffe8,  //  0-7  black,dkblue,dkpurple,dkgreen,brown,dkgrey~,ltgrey~,white
+    0xff5277, 0xff8933, 0xffee83, 0x63ab3f, 0x4fa4b8, 0x686f99, 0xcc2f7b, 0xffc2a1,  //  8-15 red,orange,yellow,green,blue,lavender,pink,skin
+    0x21181b, 0x283540, 0x4f1d4c, 0x2f5753, 0x7d3833, 0x3d2936, 0xbd6a62, 0xf0b541,  // 16-23 nearblk,dknavy,dkplum,dkteal,brick,dkmauve,clay,ltyellow
+    0xad2f45, 0xcf752b, 0xc8d45d, 0x92e8c0, 0x4c6885, 0x8f4d57, 0xe64539, 0xffae70,  // 24-31 dkred,burntorange,lime,mint,medblue,mauve,coral,ltskin
+    0x3b2027, 0x1b1f21, 0x2b2b45, 0x3a3f5e, 0xdfe0e8, 0x404973, 0x692464, 0x9c2a70,  // 32-39 the 10 leftovers
+    0x781d4f, 0x291d2b,                                                              // 40-41
+};
+
 // JEHKOBA64 (by Jehkoba, lospec.com/palette-list/jehkoba64), pico-role order
 // + the other 32 upper. The lattice school: hue-family ramps of five, every
 // hue given the same five-step value treatment — a systematic grid.
@@ -189,8 +208,8 @@ static const int MIX_PAIRS[32][2] = {
     {8,12},{9,12},{11,12},{10,7},     // hue bridges (glow-over-water class)
 };
 
-#define NPAL 9
-static int cur_pal;        // 0 pico, 1 e32, 2 r64, 3 e32+derived, 4 e64, 5 aap64, 6 famicube, 7 journey, 8 jehkoba
+#define NPAL 10
+static int cur_pal;        // 0 pico, 1 e32, 2 r64, 3 e32+derived, 4 e64, 5 aap64, 6 famicube, 7 journey, 8 jehkoba, 9 rosy42
 static int pal_n;          // how many DISTINCT colors the candidate brings (32 or 64)
 static int cur_hex[64];    // active palette as hexes — feeds the blend tables
 static int scene;
@@ -237,11 +256,13 @@ static void build_tables(void) {
 
 static void apply_palette(int which) {
     cur_pal = which;
-    static const int *LO[NPAL] = { PAL_PICO, PAL_E32, PAL_R32, PAL_E32, PAL_E64, PAL_A64, PAL_FC, PAL_J64, PAL_K64 };
-    static const int *HI[NPAL] = { 0, 0, PAL_R64X, 0 /*derived*/, PAL_E64X, PAL_A64X, PAL_FCX, PAL_J64X, PAL_K64X };
+    static const int *LO[NPAL] = { PAL_PICO, PAL_E32, PAL_R32, PAL_E32, PAL_E64, PAL_A64, PAL_FC, PAL_J64, PAL_K64, PAL_ROSY };
+    static const int *HI[NPAL] = { 0, 0, PAL_R64X, 0 /*derived*/, PAL_E64X, PAL_A64X, PAL_FCX, PAL_J64X, PAL_K64X, 0 /*rosy=42*/ };
     for (int i = 0; i < 32; i++) cur_hex[i] = LO[which][i];
     if (HI[which])       { for (int i = 0; i < 32; i++) cur_hex[32 + i] = HI[which][i]; pal_n = 64; }
     else if (which == 3) { for (int i = 0; i < 32; i++) cur_hex[32 + i] = mix_hex(PAL_E32[MIX_PAIRS[i][0]], PAL_E32[MIX_PAIRS[i][1]]); pal_n = 64; }
+    else if (which == 9) { for (int i = 32; i < 42; i++) cur_hex[i] = PAL_ROSY[i];   // the 10 leftovers
+                           for (int i = 42; i < 64; i++) cur_hex[i] = cur_hex[i - 42]; pal_n = 42; }  // mirror the tail so swatches aren't black
     else                 { for (int i = 0; i < 32; i++) cur_hex[32 + i] = LO[which][i]; pal_n = 32; }
     for (int i = 0; i < 64; i++) palette_hex(i, cur_hex[i]);
     build_tables();
@@ -455,7 +476,8 @@ void init(void) {
 }
 
 void update(void) {
-    for (int i = 0; i < NPAL; i++) if (keyp('1' + i)) apply_palette(i);
+    for (int i = 0; i < 9; i++) if (keyp('1' + i)) apply_palette(i);   // keys 1-9 → 0-8
+    if (keyp('0')) apply_palette(9);                                   // key 0 → the 10th (rosy42)
     if (keyp(KEY_RIGHT)) scene = (scene + 1) % NSCENES;
     if (keyp(KEY_LEFT))  scene = (scene + NSCENES - 1) % NSCENES;
     if (keyp('D')) dither_fake = !dither_fake;
@@ -479,7 +501,7 @@ void draw(void) {
         case 5: scene_table();    break;
     }
     static const char *pnames[NPAL] = { "1 PICO-8 (shipped)", "2 ENDESGA 32", "3 RESURRECT 64", "4 E32+32 DERIVED",
-                                        "5 ENDESGA 64", "6 AAP-64", "7 FAMICUBE", "8 JOURNEY", "9 JEHKOBA64" };
+                                        "5 ENDESGA 64", "6 AAP-64", "7 FAMICUBE", "8 JOURNEY", "9 JEHKOBA64", "0 ROSY 42" };
     static const char *snames[NSCENES] = { "SWATCHES+RAMPS", "SUNSET", "PORTRAIT", "NIGHT GLOW", "GLASS+FOG", "BLEND TABLE" };
     rectfill(0, 0, SCREEN_W, 11, CLR_BLACK);
     print(pnames[cur_pal], 4, 2, CLR_WHITE);
@@ -487,6 +509,6 @@ void draw(void) {
                     snames[scene], scene + 1, NSCENES), 316, 2, CLR_LIGHT_GREY);
     font(FONT_SMALL);
     rectfill(0, 193, SCREEN_W, 7, CLR_BLACK);
-    print("1-9 palette  LEFT/RIGHT scene  D fake/real  C/WHEEL glass  T table", 4, 194, CLR_MEDIUM_GREY);
+    print("1-9,0 palette  LEFT/RIGHT scene  D fake/real  C/WHEEL glass  T table", 4, 194, CLR_MEDIUM_GREY);
     font(FONT_NORMAL);
 }

@@ -114,6 +114,7 @@ void draw(void) {
     print("drawall", 6, 138, CLR_WHITE);
     font(FONT_SMALL); print("every draw cmd", 6, 148, CLR_LIGHT_GREY); font(FONT_NORMAL);
     print_outline("FX", 110, 140, CLR_YELLOW, CLR_DARK_RED);
+    print_scaled("x2", 252, 40, CLR_WHITE, 2);                  // STATIC scaled text (deg 0) — the print_scaled SW-canvas path
     print_rot("spin", 150, 150, deg, CLR_GREEN, 1);             // ROTATING text
     print_rot_scaled("BIG", 200, 150, deg * 0.5f, 2, CLR_PINK, 1);   // ROTATING + scaled text
 

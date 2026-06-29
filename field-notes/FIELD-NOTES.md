@@ -5,7 +5,7 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*15 journal notes · 12 working docs · regenerate to refresh.*
+*15 journal notes · 9 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
@@ -93,17 +93,14 @@ From each note's "Related notes" list — follow a thread of thinking across not
 Raw thinking, tool wishlists, handoffs and logs — the soil the numbered notes grow from.
 
 - [Checking all carts — the cart-polish punch-list](0000000-cgecking-all-carts.md) — Hi since i'm out of tokens i will do a run through all my carts, and note down things we should improve :
-- [about tags](about%20tags.md) — about tags and curating
+- [about-tags](about-tags.md) — about tags and curating
 - [AI-Friendly Frontmatter](ai-friendly-frontmatter.md) — As the DreamEngine knowledge base grows, documents should become easier for both humans and AI agents to understand.
 - [distillator](distillator.md) — question: how would i make a system that would be able to dstill all the md files and get nfo out them, its too much for you or another ganet, are there solu…
 - [Future Research Directions](future-research.md) — The first phase of DreamEngine focused primarily on building capabilities.
 - [Handoff for the Next Research Partner](handoff.md) — This is not project documentation.
-- [makes me cry](makes%20me%20cry.md)
 - [onepiecofadvice](onepiecofadvice.md) — I have one piece of advice.
 - [Tool Ideas from the Field Notes Session](tools-we-need.md) — Assemble task-specific context for agents.
-- [what is this agan](what%20is%20this%20agan.md) — What is DreamEngine?
-- [what is this](what%20is%20this.md) — DreamEngine Research Journal
-- [what-is-this](what-is-this.md) — ok so , can you now kind of give me what i set out to get originally, like a few paragraosh of what this is, what ists becoming, and why that is great and wh…
+- [What is this?](what-is-this.md) — DreamEngine looks like a fantasy console, but that's almost incidental. Underneath, it's becoming
 
 ## Conformance
 

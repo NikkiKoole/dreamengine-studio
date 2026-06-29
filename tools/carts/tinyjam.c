@@ -5,7 +5,7 @@
   "created": "2026-06-29",
   "kind": ["tech-demo"],
   "teaches": ["software-rasterizer"],
-  "description": "Internal asset cart: draws the Tinyjam logo — a glossy amber heart cradling a smooth beamed eighth-note pair in berry-jam purple, all from engine primitives (no bitmap-font glyphs). Tweak the constants at the top and re-bake to generate variations."
+  "description": "Internal asset cart: draws the Tinyjam logo — a glossy amber heart cradling a smooth cream beamed eighth-note pair, all from engine primitives (no bitmap-font glyphs); a one-line tweak swaps the note to berry-jam purple. Tweak the constants at the top and re-bake to generate variations."
 }
 de:meta */
 // tinyjam — the Tinyjam logo, drawn for image generation.

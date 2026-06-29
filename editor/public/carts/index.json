@@ -5358,8 +5358,8 @@
     "genre": "space"
   },
   {
-    "title": "tinyjam — wordmark logo generator",
-    "description": "Internal asset cart: draws the Tinyjam wordmark — 'tiny' (FONT_TINY) stacked over 'JAM' (FONT_NORMAL) inside an amber heart — for baking a small logo. Tweak the constants at the top and re-bake to generate variations.",
+    "title": "tinyjam — heart + notes logo",
+    "description": "Internal asset cart: draws the Tinyjam logo — a glossy amber heart cradling a smooth cream beamed eighth-note pair, all from engine primitives (no bitmap-font glyphs); a one-line tweak swaps the note to berry-jam purple. Tweak the constants at the top and re-bake to generate variations.",
     "file": "tinyjam.cart.png",
     "created": "2026-06-29",
     "orientation": "square",

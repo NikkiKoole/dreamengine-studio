@@ -127,8 +127,32 @@ just *"dynamic-indexed is how you normally draw; truecolor is the escape hatch."
 
 ## Open forks (for when this stops being a thinking exercise)
 
-- **How many slots is the working set?** Full 32 (reskin existing carts) vs a small 8–16 (cleaner,
-  more themeable, NES-like) vs both (32 default + per-cart small sets). Probably both.
+- **How many colours per cart? (the load-bearing fork.)** It's a spectrum, and where a cart sits on
+  it changes its whole character:
+  - **2 (1-bit, ink+paper)** — Playdate, *Obra Dinn*, Game Boy-mono. Dithering does the tonal work;
+    unmistakable identity, trivial 2-hex reskins, tiny tables. Cost: demands dithering skill.
+  - **3–4** — Game Boy (4 greens), CGA, NES sub-palettes. The strongest "very limited" band, and it
+    has a perfect precedent: ***Downwell*** — its identity *is* **3-colour palettes you unlock and
+    swap** (dozens of them, each just 3 hexes). That is exactly "3-colour carts where *which*
+    colours is dynamic."
+  - **~8–16** — PICO-8 (16), ZX Spectrum, EGA. The classic fantasy-console sweet spot.
+  - **~32 (today) / 64** — ramps + variety, blends smooth, dithering optional; identity softer and
+    the off-role residual worsens the more roles you demand.
+  - **256 / truecolor** — discipline gone.
+
+  **Key coupling: a small working set is what makes dynamic palettes *clean*.** The off-role residual
+  (a palette can't fill all 32 pico roles) exists *only because* we ask for 32 roles. A 3-colour cart
+  has 3 roles → *any* palette fills them with zero lossy role-mapping (this is why Downwell can wear
+  any 3 colours). So "very limited" isn't only aesthetic — it's what lets a cart wear any Lospec
+  palette honestly. The 32-role world is where dynamic gets messy.
+
+  **The meta-fork (a values call):** (1) **one canonical size = the console's signature** — PICO-8
+  *is* 16, Game Boy *is* 4; the constraint becomes the brand and the whole library coheres; vs
+  (2) **size is per-cart** — max expressive range, but no single visual signature. #2 may fit
+  dreamengine better than most consoles, because the north star says the identity is *"deep sim
+  behind a humble lo-fi surface,"* not a colour count — 3-colour and 16-colour are both humble, so
+  per-cart size doesn't dilute the brand the way it would for PICO-8. Possible split: a small
+  **default** house set, carts free to widen. This one drives everything downstream — decide it first.
 - **Where does a cart declare its palette?** A `palette_set()`/`palette_load()` API call, a
   `de:palette` `de:meta`/zTXt chunk, or a `.cart.js` field — likely the API for runtime swaps + a
   `de:meta` field for the cart's *default* identity palette.

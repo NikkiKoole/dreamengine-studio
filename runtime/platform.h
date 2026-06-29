@@ -87,6 +87,11 @@ void de_touch_begin(int id, float x, float y);
 void de_touch_moved(int id, float x, float y);
 void de_touch_ended(int id, float x, float y);
 
+// The PRIMARY finger also drives the mouse API (GetMousePosition/IsMouseButton*), so mouse-reading
+// carts play from touch with no extra host work — same as a browser synthesizing mouse from touch.
+// Keys have no touch equivalent; a host with a real/on-screen keyboard feeds them here (down=1/0).
+void de_key_event(int key, int down);
+
 #ifdef __cplusplus
 }
 #endif

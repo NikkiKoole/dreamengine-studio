@@ -32,7 +32,23 @@ void EndTextureMode(void) { }
 bool ExportImage(Image image, const char *fileName) { return 0; }
 int GetCharPressed(void) { return 0; }
 int GetFPS(void) { return 0; }
-Vector2 GetMousePosition(void) { Vector2 r = {0}; return r; }
+// touch → MOUSE synthesis. A touch device has no mouse, but a huge class of carts read the mouse
+// (mouse_x/mouse_pressed/...). The PRIMARY finger (the first one down) drives the mouse API, exactly
+// as a browser/OS synthesizes mouse events from touch — so mouse-driven carts play on iOS, and the
+// headless harness can drive them by injecting de_touch_*. (Desktop does the reverse, mouse→touch.)
+static float de_mouse_x = 0, de_mouse_y = 0;     // primary-finger position, framebuffer px (SCALE=1 on iOS)
+static bool  de_mouse_down = false, de_mouse_prev = false;   // current + last-frame button state (edge detect)
+static int   de_mouse_id = -999;                 // touch id currently driving the mouse (-999 = none)
+#define DE_NKEY 512
+static unsigned char de_key_now[DE_NKEY], de_key_was[DE_NKEY];   // key state: current + last frame
+Vector2 GetMousePosition(void) { Vector2 r = { de_mouse_x, de_mouse_y }; return r; }
+// snapshot button + key state at FRAME END (de_frame), so an event arriving before the next frame
+// reads as IsMouseButtonPressed/IsKeyPressed for exactly one frame — matching raylib's PollInputEvents
+// prev/current copy.
+void de_input_endframe(void) {
+    de_mouse_prev = de_mouse_down;
+    for (int i = 0; i < DE_NKEY; i++) de_key_was[i] = de_key_now[i];
+}
 float GetMouseWheelMove(void) { return 0; }
 // real: rnd()/rnd_float()/shake and procedural carts need varied values (a 0-stub
 // collapses positions/cameras). Deterministic LCG — NOT Raylib's exact sequence, so
@@ -80,12 +96,16 @@ void InitAudioDevice(void) { }
 void InitWindow(int width, int height, const char *title) { }
 bool IsFileDropped(void) { return 0; }
 FilePathList LoadDroppedFiles(void) { FilePathList r = {0}; return r; }
-bool IsKeyDown(int key) { return 0; }
-bool IsKeyPressed(int key) { return 0; }
-bool IsKeyReleased(int key) { return 0; }
-bool IsMouseButtonDown(int button) { return 0; }
-bool IsMouseButtonPressed(int button) { return 0; }
-bool IsMouseButtonReleased(int button) { return 0; }
+// keyboard: fed by the host via de_key_event (a future on-screen keyboard; the headless harness
+// today). Same prev/current edge model as the mouse — de_input_endframe() snapshots prev each frame.
+// (de_key_now/was + DE_NKEY declared up with the mouse state, so de_input_endframe can see them.)
+bool IsKeyDown(int key)     { return (unsigned)key < DE_NKEY &&  de_key_now[key]; }
+bool IsKeyPressed(int key)  { return (unsigned)key < DE_NKEY &&  de_key_now[key] && !de_key_was[key]; }
+bool IsKeyReleased(int key) { return (unsigned)key < DE_NKEY && !de_key_now[key] &&  de_key_was[key]; }
+void de_key_event(int key, int down) { if ((unsigned)key < DE_NKEY) de_key_now[key] = down ? 1 : 0; }
+bool IsMouseButtonDown(int button)     { return button == MOUSE_BUTTON_LEFT &&  de_mouse_down; }
+bool IsMouseButtonPressed(int button)  { return button == MOUSE_BUTTON_LEFT &&  de_mouse_down && !de_mouse_prev; }
+bool IsMouseButtonReleased(int button) { return button == MOUSE_BUTTON_LEFT && !de_mouse_down &&  de_mouse_prev; }
 AudioStream LoadAudioStream(unsigned int sampleRate, unsigned int sampleSize, unsigned int channels) { AudioStream r = {0}; return r; }
 Font LoadFontFromImage(Image image, Color key, int firstChar) { Font r = {0}; return r; }
 Image LoadImageFromMemory(const char *fileType, const unsigned char *fileData, int dataSize) { Image r = {0}; return r; }
@@ -170,12 +190,17 @@ void de_touch_begin(int id, float x, float y) {
     if (!p) for (int i = 0; i < DE_MAX_TOUCH; i++) if (!de_touch[i].active) { p = &de_touch[i]; break; }
     if (!p) return;                       // pool full — drop the contact
     p->id = id; p->x = x; p->y = y; p->active = true;
+    if (de_mouse_id == -999) {            // first finger down → it drives the mouse (left button)
+        de_mouse_id = id; de_mouse_x = x; de_mouse_y = y; de_mouse_down = true;
+    }
 }
 void de_touch_moved(int id, float x, float y) {
     DeTouchPoint *p = de_touch_find(id);
     if (p) { p->x = x; p->y = y; }
+    if (id == de_mouse_id) { de_mouse_x = x; de_mouse_y = y; }
 }
 void de_touch_ended(int id, float x, float y) {
     DeTouchPoint *p = de_touch_find(id);
     if (p) { p->x = x; p->y = y; p->active = false; }
+    if (id == de_mouse_id) { de_mouse_x = x; de_mouse_y = y; de_mouse_down = false; de_mouse_id = -999; }
 }

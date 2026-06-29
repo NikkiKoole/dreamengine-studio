@@ -29,7 +29,7 @@ echo "▸ booting '$DEVICE'…"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 
-echo "▸ installing + launching $BUNDLE_ID…"
+echo "▸ installing + launching ${BUNDLE_ID}…"
 xcrun simctl install "$DEVICE" "$APP"
 xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
 

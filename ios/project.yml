@@ -16,5 +16,6 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"

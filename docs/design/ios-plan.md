@@ -43,13 +43,21 @@ Each spike is a small throwaway that kills one unknown. Riskiest cheap-thing fir
 | # | Spike | Proves | Needs | Status |
 |---|---|---|---|---|
 | 0 | xcodegen + hello-world → simulator (the whole agentic loop) | toolchain works end-to-end | sim | ✅ **done** (`ios/`) |
-| 1 | software-canvas framebuffer → on-screen texture, driven by the iOS callback loop | the render path + loop inversion | sim | next |
+| 1 | software-canvas framebuffer → on-screen, driven by the iOS callback loop | the render path + loop inversion | sim | ✅ **done** — C RGBA buffer → CGImage → `CADisplayLink`; see `ios/history/spike1-canvas-loop.png` |
 | 2 | audio: `sound.h` filling a CoreAudio render callback | the audio path | sim | — |
 | 3 | save: a `save_bytes` blob in the Documents dir via an Obj-C path bridge | the save layer | sim | — |
 | 4 | StoreKit 2 + a local `.storekit` config (StoreKitTest): buy / entitlements / restore, queried from C | the IAP model, no account/network | sim | — |
 | 5 | App Group: app writes `unlocked:<rack>`, a second target reads it | entitlement sharing for AUv3 | sim | — |
 | 6 | CloudKit sync of a saved tinyjam across devices (native-only nicety) | free cross-device sync | sim | — |
 | 7 | minimal AUv3 extension makes sound in a host | the killer feature | **device + signing** | — |
+
+Spike 1 mechanism shipped: `ios/Sources/canvas.{h,c}` (a stand-in software canvas — a few primitives
+into an RGBA8888 buffer) + `CanvasView.swift` (CGImage from the buffer, `layer.magnificationFilter =
+.nearest` for crisp pixels, `resizeAspect` letterboxing) driven by a `CADisplayLink` calling
+`de_update(t)`. The `CGImage` path is the quick-proof; the 60fps-correct upgrade is a Metal
+`CAMetalLayer` + one textured quad, deferred until a real cart needs the headroom. The bridging header
+(`Sources/Bridging-Header.h`, wired via `SWIFT_OBJC_BRIDGING_HEADER` in `project.yml`) is how Swift
+sees the C API. Gotcha learned: screenshot ~1.5s after launch or you catch the launch-zoom animation.
 
 ## The reusable loop (what "add an app" becomes)
 

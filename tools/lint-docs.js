@@ -137,7 +137,7 @@ for (const f of files) {
 
 // ---------- 3. tool-index discoverability (tools/ ↔ CLAUDE.md) ----------
 // Allowlist: subdirs that are DATA/vendor/assets, not tool-code an agent needs to discover.
-const DATA_SUBDIRS = new Set(['reels', 'vendor', 'web-audio-shim', 'fonts']);
+const DATA_SUBDIRS = new Set(['reels', 'vendor', 'web-audio-shim', 'fonts', '.claude']);
 const TOOLS = path.join(DOCS, '..', 'tools');
 const CLAUDE = path.join(DOCS, '..', 'CLAUDE.md');
 let toolsChecked = 0;

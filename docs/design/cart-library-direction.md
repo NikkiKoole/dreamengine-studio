@@ -74,7 +74,7 @@ few carts actually use yet.
 
 The instrument shelf (otamatone, musicalsaw, glassharmonica, hurdygurdy, stylophone,
 fartsynth…) is the same "creative toy" DNA and these carts double as future rack
-voices ([`tinydaws.md`](tinydaws.md)). Split by what they ride on — and note the
+voices ([`tinyjam-racks.md`](tinyjam-racks.md)). Split by what they ride on — and note the
 pattern at the bottom.
 
 > **Update — new-sound scoring + engine-status correction (2026-06-10).** Cross-referenced
@@ -105,7 +105,7 @@ pattern at the bottom.
 > | ★★★★☆ | slide trombone / brass | `BRASS` ✅ *shipped* | first *played* lip-reed brass — the slide gesture rides the live glide; horn fakes (addis/dub/citypop/yacht) can move onto it. **Shipped 2026-06-10** as the `brass` cart (trombone slide). |
 >
 > **New-sound ≠ build priority.** The barrel organ scores lowest here yet remains the top
-> *buildable* pick below (tinydaws gateway, great gesture). If the goal is "cover the most new
+> *buildable* pick below (tinyjam racks gateway, great gesture). If the goal is "cover the most new
 > sonic ground," build the **hand-drum, bellows, and violin** first — each makes a powerful,
 > currently-showcase-only engine *playable*, the biggest untapped sound in the library (cf.
 > the palette's "GUITAR/PIPE/BOWED/PIANO/VOICE have no consumers yet").
@@ -134,7 +134,7 @@ pattern at the bottom.
 1. **Barrel/crank organ** — the top pick. Crank it with a finger-circle gesture
    (speed = tempo, wobble = pitch warble); the tune is a **punch card you poke
    holes in**. Shows `wave_set` drawbars (roadhouse proved the voice) — and the
-   punch card is secretly a baby tinydaws lane editor. Gateway drug.
+   punch card is secretly a baby tinyjam racks lane editor. Gateway drug.
 2. **Hang drum / handpan** — circle of tone fields, `INSTR_MALLET`. Possibly the
    most *satisfying* touch instrument there is; shows mallet's harmonics/morph
    macros beautifully. **→ SHIPPED 2026-06-07** as the `handpan` cart: the scale
@@ -153,7 +153,7 @@ pattern at the bottom.
 6. **Slide whistle ("pulling whistle")** — cheapest of all: `INSTR_SINE` held
    note + `note_glide` with overshoot + bounce. One finger = one plunger — the
    most touch-native instrument imaginable; already Space-Age rack whimsy in
-   tinydaws.md.
+   tinyjam-racks.md.
 7. **MT-70 Casiotone preset keyboard** (decided 2026-06-07: cart-land first, per
    the second-customer rule — instrument-engines §8.9 corrected note has the full
    story). **→ SHIPPED 2026-06-07** as the `mt70` cart, built slightly simpler than

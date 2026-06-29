@@ -13,7 +13,7 @@ candidates and build-order reasoning, not a how-to).
 > density curve" below point there. Engine-side companions:
 > [`instrument-engines.md`](instrument-engines.md) (what each station would need),
 > [`audio-notes.md`](audio-notes.md) §12 (the gap ledger),
-> [`tinydaws.md`](tinydaws.md) (stations as genre racks),
+> [`tinyjam-racks.md`](tinyjam-racks.md) (stations as genre racks),
 > [`radio-instrument-options.md`](radio-instrument-options.md) (retrofitting shipped
 > stations).
 

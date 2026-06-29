@@ -5,7 +5,7 @@ STATUS: REFLECTION (2026-06-09; promoted to *the* north star 2026-06-26 by
 for [`../VISION.md`](../VISION.md) — not a roadmap, not a spec, not a status. VISION.md
 carries the principle in a paragraph; this note is the longer thinking behind it. Companion
 reading: the legendary carts' build-logs ([`sloop.md`](sloop.md), [`galerijflat.md`](galerijflat.md)),
-the audio direction ([`tinydaws.md`](tinydaws.md), [`product-notes.md`](product-notes.md)).
+the audio direction ([`tinyjam-racks.md`](tinyjam-racks.md), [`product-notes.md`](product-notes.md)).
 
 ## The pursuit (it used to be the *second* star; now it's the only one)
 
@@ -59,7 +59,7 @@ formant voice — not chiptune approximations; `mt70` exists only to prove the e
 with zero new engine code.
 
 The radios are the one branch still missing its second face: today you *tune* them and
-watch, but you can't grab the wheel. [`tinydaws.md`](tinydaws.md) is that missing DRIVE
+watch, but you can't grab the wheel. [`tinyjam-racks.md`](tinyjam-racks.md) is that missing DRIVE
 mode — generate on the radio, then play and edit the song in a rack. Same lesson as the
 legendary carts: a one-faced thing comes alive the moment it gets its other face.
 

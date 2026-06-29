@@ -3,7 +3,7 @@
 > **Status:** IDEA / exploration (2026-06-29). The *community-targeting* companion to the
 > product/pricing/channel work in [`product-notes.md`](product-notes.md) +
 > [`product-notes-followup.md`](product-notes-followup.md), and the catalog in
-> [`tinydaws.md`](tinydaws.md). Those settle *what* we ship, *how* it's priced, and *one*
+> [`tinyjam-racks.md`](tinyjam-racks.md). Those settle *what* we ship, *how* it's priced, and *one*
 > channel (the Loopy Pro forum). This doc answers the question they leave open:
 > **for each paid module, which specific group of enthusiasts do we go talk to, where do they
 > already hang out, and what's the one sentence that makes them care?**
@@ -47,7 +47,7 @@ A subtlety worth naming, because it changes the targeting:
 | Shape | What it is | Examples in our shelf | Tribe shape |
 |---|---|---|---|
 | **Instrument module** | one beloved instrument, playable + sequenced | omnichord, epiano (Rhodes/Wurli), fm, moog, mellotron, stylophone, otamatone | **Instrument cult** — owners/fans of one specific machine. Tiny, intense, *trivially findable* (one FB group, one reissue hype cycle). The easiest bullseye. |
-| **Genre rack** | a scene-in-a-box sequencer (the tinydaws rack table) | rebirth-house, rebirth-classic, spaghetti-western, ancient-library (dungeon synth), space-age bachelor pad, radiophonic, broken-fairground, toy-town | **Scene tribe** — people who make/love a *genre*. Bigger, more diffuse, but with passionate cores (dungeon synth, acid, exotica). |
+| **Genre rack** | a scene-in-a-box sequencer (the tinyjam rack table) | rebirth-house, rebirth-classic, spaghetti-western, ancient-library (dungeon synth), space-age bachelor pad, radiophonic, broken-fairground, toy-town | **Scene tribe** — people who make/love a *genre*. Bigger, more diffuse, but with passionate cores (dungeon synth, acid, exotica). |
 
 **Strategic implication:** lead the public launch with **instrument modules** even though the
 *engineering* pilot is a genre rack (rebirth-house). The instrument cults are the cheapest, hottest,
@@ -86,7 +86,7 @@ hook. (Channels are **leads to verify**, not confirmed live.)
 | **Pocket-buzz** (stylophone) / **silly-wand** (otamatone) | Novelty/toy-synth lovers, meme-adjacent, gift-buyers — huge casual reach, low price-resistance, very shareable. | TikTok/IG (these go viral on sound alone), novelty-synth groups | "The buzzy little toy that everyone smiles at — now a groove machine." |
 | **Dream synth** (moog) | Synth-heads / Minimoog worshippers — the broadest, most demanding synth tribe. | r/synthesizers, r/modular, synth YouTube (Loopop/Red Means Recording/BoBeats) | "Three fat oscillators and a ladder filter — the sound everything copies." |
 
-### Genre racks (scene tribes — the tinydaws rack table)
+### Genre racks (scene tribes — the tinyjam rack table)
 
 | Rack | The tribe | Where they gather (verify) | The one-line hook |
 |---|---|---|---|
@@ -132,7 +132,7 @@ What was confirmed vs. still a lead. ✅ in the tables above marks rows backed b
 ### 3.6 The radio stations as tinyjams — and the craft-vs-market warning
 
 The repo already has a "what station to build next" doc — [`future-stations.md`](future-stations.md)
-(plus [`tinydaws.md`](tinydaws.md)'s wider map). **Read it knowing what it is: it ranks candidates
+(plus [`tinyjam-racks.md`](tinyjam-racks.md)'s wider map). **Read it knowing what it is: it ranks candidates
 *purely by engine craft* — "what does the engine LEARN from this cart," new generative brains,
 untapped engine shelves.** There is essentially **zero audience/market thinking in it.** That's the
 right lens for *engineering* the radios. It is the *wrong* lens for picking *products*.
@@ -152,7 +152,7 @@ So the carts the engine doc is *proudest* of (gamelan, Wendy Carlos, ethio-jazz)
 tribes**. **For tinyjam product selection, re-rank by tribe — do not inherit the craft order.**
 
 **Radio → tribe map** (the shipped dial, grouped by commercial tier; as products these become the
-*genre racks* of the tinydaws lane format):
+*genre racks* of the tinyjam racks lane format):
 
 - **Tier-S tribes (biggest + most reachable):** `lofi` (lo-fi hip-hop — colossal, verified) · `italo`
   (synthwave/outrun — mainstream aesthetic tribe, verified) · `house` (house/French-touch producers).
@@ -181,7 +181,7 @@ What I'd actually ship, weighing tribe over craft. (My assessment; tribe sizes f
   future-stations.md rates it *low* because it's not novel to the engine. Pure craft-vs-market miss.
 - **The aesthetic goldmine: `italo`/synthwave + `vapor`.** Synthwave/outrun is a mainstream
   merch-buying tribe; vaporwave is small but the most *shareable* thing here. Both are tailor-made for
-  the pixel faceplate + the **9:16 Game-&-Watch dancer video export** (tinydaws-followup) — the content
+  the pixel faceplate + the **9:16 Game-&-Watch dancer video export** (tinyjam-racks-followup) — the content
   *is* the ad. The engine doc calls italo "dessert"; the market calls it a flagship.
 - **The instrument cults stay the easiest first money** (from §3): `omnichord` (live OM-108 reissue
   wave), then `fm` (DX7 cult) / `epiano` (Rhodes/lo-fi keys). Tiny, hot, *findable* targets.
@@ -317,7 +317,7 @@ Per-tribe outreach is the spearhead; these are the shared amplifiers that every 
 - **Synth YouTube** (broader, for the instrument modules + moog/fm): Loopop, Red Means Recording,
   BoBeats; Andrew Huang for reach. These cover apps when the demo is *visually* fun — which is
   exactly what the pixel faceplate + the **Game-&-Watch dancer / 9:16 video export**
-  (tinydaws-followup.md) is for.
+  (tinyjam-racks-followup.md) is for.
 - **Short-form video (TikTok/IG/Reels/Shorts)** — the novelty modules (stylophone, otamatone) and
   *any* module's faceplate-in-motion clip are tailor-made for this. The `make-gif.js` 9:16 export is
   the content engine; park seed tracks in `tools/clips/<cart>/`.
@@ -341,7 +341,7 @@ a separate *later* phase; it has three jobs that kick in at different times:
    Room / Discchord review *on video* — the clip basically *is* the pitch to them).
 
 **The dreamengine edge:** `make-gif.js` + `compose-clips.js` + the **9:16 Game-&-Watch dancer export**
-(tinydaws-followup) mint marketing clips **deterministically, from the cart itself** — park a seed track
+(tinyjam-racks-followup) mint marketing clips **deterministically, from the cart itself** — park a seed track
 in `tools/clips/<cart>/`, regenerate on demand. Most indies hand-capture a screen recording; we
 *generate* clips. And **audio capture works** — clips carry their sound, which is the whole point for a
 sound-toy — so the content engine is ready: one shareable, audio'd clip per module, repeatably.
@@ -543,7 +543,7 @@ Rules that keep it a gift:
   not recruiting labor. "Help me improve" is a humble P.S., never the point.
 - **Make the "help" invisible and optional.** Don't ask for a chore — their *use* is the signal:
   the **share-your-song URL** (lz-string codec) is feedback *and* free marketing in one; the **A/B
-  toggle / bias knobs** are the RLHF signal (tinydaws-followup) — they tune it just by playing; the
+  toggle / bias knobs** are the RLHF signal (tinyjam-racks-followup) — they tune it just by playing; the
   **wishlist** is a soft, no-paywall opt-in.
 - **A good post shares a result.** Lead with the free link *and* a song you made with it ("here's a
   loop — [URL]"), admit it's early, ask one specific humble question ("what does it get wrong to your
@@ -622,7 +622,7 @@ raised the price; 1.0 (2011) raised it again; by then it was a global phenomenon
 - [`product-notes.md`](product-notes.md) — market thesis, sketch-first, parking lot, **trademark rule**
 - [`product-notes-followup.md`](product-notes-followup.md) — pricing model, IAP/AUv3, Module-of-the-Week,
   Loopy Pro channel, save/share codec
-- [`tinydaws.md`](tinydaws.md) / [`tinydaws-followup.md`](tinydaws-followup.md) — the rack catalog, lane
+- [`tinyjam-racks.md`](tinyjam-racks.md) / [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) — the rack catalog, lane
   format, bias knobs, the Game-&-Watch dancer + 9:16 video export
 - [`ios-plan.md`](ios-plan.md) / [`../decisions/0023-ship-carts-as-apps-not-the-editor.md`](../decisions/0023-ship-carts-as-apps-not-the-editor.md)
   — how the apps actually ship

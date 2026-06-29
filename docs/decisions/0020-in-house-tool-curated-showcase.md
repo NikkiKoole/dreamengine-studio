@@ -49,7 +49,7 @@ Two corollaries the maker called explicitly:
   in [`guides/sharing.md`](../guides/sharing.md) and goal B in
   [`design/cart-as-script.md`](../design/cart-as-script.md) are *in-house* conveniences, not
   steps toward a public platform.
-- **Not in scope of this decision:** the tinydaws *product* line
+- **Not in scope of this decision:** the tinyjam racks *product* line
   ([`design/product-notes.md`](../design/product-notes.md)) — selling finished, standalone
   music apps is a different question (a product made *with* the tool, not opening the tool to
   others) and is unaffected.

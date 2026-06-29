@@ -42,24 +42,18 @@ music, the Adventure Time world"); no logos, art, or implied endorsement.
 
 ---
 
-## 0. Product name: pick one (decision)
+## 0. Product name: Strumharpy (decided) — and the harpy mascot
 
-"Omnichord" can't be the name. Working pick below is **Strumharpy** (a cute pun on strum-harp);
-alternatives to choose from:
+**Strumharpy** it is. "Omnichord" can't be the name, and rather than dodge the "harpy" overtone we
+**lean into it**: the faceplate mascot is a cute pixel-art **harpy — the mythological bird-woman —
+strumming the harp**. That flips a naming risk into the cart's identity: an original, ownable character
+(our own little BMO, but ours), distinctive and instantly memorable, and a perfect star for the hero
+clip and the social art.
 
-| Option | Feel |
-|---|---|
-| **Strumharpy** (working pick) | cute strum-harp pun, whimsical, original, very brandable |
-| **Strumglow** | warm, sunny, lo-fi |
-| **Chordglow** | leans on the auto-chord |
-| **Harpwave** | the strum-plate sweep |
+Alternatives considered (kept for the record): Strumdrum (strum+drum rhyme, nods to the built-in
+rhythm), Strumglow, Chordglow, Harpwave.
 
-> One small note on **Strumharpy**: "harpy" can read as the mythical bird-woman, or colloquially a
-> shrill/nagging person. In a cute pixel music-toy the read is harp + happy, charming not negative, so
-> it's very likely fine; just flagging it as a conscious choice.
->
-> Decision owner: confirm the name (and the page URL, e.g. `tinyjam.<domain>/strumharpy`) before
-> posting. The copy below uses **Strumharpy** as a find-and-replace placeholder.
+> Page URL: `tinyjam.<domain>/strumharpy`.
 
 ---
 
@@ -77,6 +71,10 @@ alternatives to choose from:
 - Auto-chords plus a strum plate. Playable in seconds, no theory needed.
 - Runs in the browser, on your phone, no signup.
 - Made a loop you like? Copy a link and it plays for whoever you send it to.
+
+**Mascot:** a cute pixel-art harpy (the mythological bird-woman) who strums the harp — the cart's face,
+the hero-clip star, and the social-art hook. Original character, ours; sprite-draw it as a `.cart.js`
+(see the sprite-authoring guide), iterate with `sprite-preview.js`.
 
 **App Store subtitle (Stage 2, for later):** Pocket strum-harp. Play, loop, share.
 

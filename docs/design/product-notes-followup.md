@@ -1,13 +1,13 @@
 # product-notes — follow-up brainstorm: persistence, native iOS, the App Store, marketing
 
 STATUS: IDEA / exploration (2026-06). A **third outside-agent brainstorm** (Gemini, "Database
-Solutions for GitHub Pages"), same arrangement as the tinydaws ones: outside agent supplied the
+Solutions for GitHub Pages"), same arrangement as the tinyjam racks ones: outside agent supplied the
 commercial/how-to-ship vibes under the name "Tinyjam"; mapping to this codebase + sanity-checking
 the claims is ours. Read [`product-notes.md`](product-notes.md) **first** — this is the
 product-stage detail that doc was deliberately deferring ("decide at app stage, not before"). It
 **answers two of that doc's open questions** (pricing shape; where feedback arrives) and fills in
-its parking-lot items (native iOS, AUv3). Design side: [`tinydaws.md`](tinydaws.md) +
-[`tinydaws-followup.md`](tinydaws-followup.md).
+its parking-lot items (native iOS, AUv3). Design side: [`tinyjam-racks.md`](tinyjam-racks.md) +
+[`tinyjam-racks-followup.md`](tinyjam-racks-followup.md).
 
 > ⚠️ **Numbers are LLM-supplied, not verified.** Market size, free-tier limits, Apple's cut, and
 > tool capabilities below come from the source conversation — treat as leads to confirm, not facts.
@@ -18,7 +18,7 @@ its parking-lot items (native iOS, AUv3). Design side: [`tinydaws.md`](tinydaws.
 
 The maker picked **"Tinyjam"** in this conversation and argued it beats **"Tiny daws"** (DAW
 over-promises multi-track/mixing; "jam" sets the cozy-loop expectation; cleaner to say/spell). The
-first brainstorm also used "Tiny Jam". **The repo's working name is `tinydaws`.** This is an open
+first brainstorm also used "Tiny Jam". **The repo's working name is `tinyjam racks`.** This is an open
 maker decision, not something to silently rename — but worth flagging that two independent
 brainstorms + the maker landed on *Tinyjam*. Sub-naming convention from the conversation, if it's
 adopted: app singular **Tinyjam**, user creations plural **tinyjams** ("share your tinyjam"), and
@@ -33,9 +33,9 @@ This is the part that isn't product-stage — it's relevant to the current wasm 
 cheapest first:
 
 - **URL codec (no DB, 100% free, do this first).** Songs are tiny structured data — a lane blob is
-  well under 1 KB (`tinydaws.md` confirms: 8 bars × 16 × 4 instr ≈ 512 steps < 1 KB). Serialize →
+  well under 1 KB (`tinyjam-racks.md` confirms: 8 bars × 16 × 4 instr ≈ 512 steps < 1 KB). Serialize →
   compress (lz-string / pako) → URL-safe Base64 → `…github.io/<cart>/?song=…`. Click = decompress,
-  populate, play. **This is literally the seed-as-song-code handoff in `tinydaws.md`, generalized
+  populate, play. **This is literally the seed-as-song-code handoff in `tinyjam-racks.md`, generalized
   to full edited state** — for *unedited* songs the u32 seed is even smaller (8 hex chars). Pasteable
   in Discord/Reddit; no accounts. Downside: no central gallery/browse.
 - **IndexedDB / localForage** for local autosave (work-in-progress drafts survive a refresh).
@@ -50,7 +50,7 @@ cheapest first:
   free-tier 7-day-inactivity pause.
 
 **Takeaway:** the URL codec is a near-free win for the existing gallery and is the same machinery
-tinydaws already needs — build the lane→string codec once, reuse for share-link *and* save.
+tinyjam racks already needs — build the lane→string codec once, reuse for share-link *and* save.
 
 ## 2. Native iOS — porting C + raylib (the parking-lot "native app", made concrete)
 
@@ -144,7 +144,7 @@ agent-drivable flow, all tools claimed free (verify scope):
 - **Attract mode** (idle demo) → do it as a *generative* sequence (sequencer auto-plays a seeded
   groove + procedural visualizer) rather than decoding mp4 in C. We already have everything for
   this (a cart *is* a generative demo; `make-gif.js` bakes the App Store preview videos). Ties to the
-  visualizer/dancer in `tinydaws-followup.md` §3.
+  visualizer/dancer in `tinyjam-racks-followup.md` §3.
 
 ## 7. StoreKit 2, in-house (maker wants zero third-party SDKs)
 
@@ -164,13 +164,13 @@ and the mobile-music-buying audience + willingness-to-pay is heavily iOS (claime
 revenue). Our C/raylib core stays portable, so a standalone Android build is a later option, not a
 rewrite.
 
-## 9. Bar-limit design (feeds the tinydaws lane format)
+## 9. Bar-limit design (feeds the tinyjam racks lane format)
 
 For a thumb-first phone UI: show **16 steps (1 bar)** at a time (wider = mis-taps). Song length sweet
 spot = **4-bar loop** via a `[1][2][3][4]` page switcher, **or** the **Pocket-Operator pattern-chain**
-(edit 1-bar patterns A–D…, chain them `A A B A`). The latter is exactly `tinydaws.md`'s "sections
+(edit 1-bar patterns A–D…, chain them `A A B A`). The latter is exactly `tinyjam-racks.md`'s "sections
 become pattern banks A/B/C/D" — independent convergence again. Either way data stays < 1 KB, so
-save/DB/URL sizes are trivial. This is a direct input to the tinydaws lane-count open question.
+save/DB/URL sizes are trivial. This is a direct input to the tinyjam racks lane-count open question.
 
 ## 10. Market + marketing (leads to chase, numbers to verify)
 
@@ -210,7 +210,7 @@ But this conversation **pre-answers the questions that fire *after* a trigger**:
 (§4), feedback channel (§10, Loopy Pro forum), and a concrete, agent-drivable native-iOS/AUv3 build
 plan (§2–§7) for when "a rack demonstrably holds attention" un-parks the native app. The save/share
 codec (§1) is the one item worth doing **now**, independent of the product question, because the web
-gallery needs it and tinydaws needs the same codec anyway.
+gallery needs it and tinyjam racks needs the same codec anyway.
 
 Full raw transcript of the source conversation is parked in scratch (not committed); its substance
 is captured above.

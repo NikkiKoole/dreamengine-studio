@@ -23,7 +23,7 @@ left here — that rule is what keeps this doc from regrowing).
 | a musical style / generative recipe | [`../guides/game-music.md`](../guides/game-music.md) (recipes, brain catalog, style cheat-sheet) |
 | a new radio station to build | [`future-stations.md`](future-stations.md) — the candidates parking lot + build-order axes |
 | a per-station timbre swap / engine retrofit | [`radio-instrument-options.md`](radio-instrument-options.md) |
-| genre racks / generate-play-export / song.h | [`tinydaws.md`](tinydaws.md) |
+| genre racks / generate-play-export / song.h | [`tinyjam-racks.md`](tinyjam-racks.md) |
 | selling any of this (market, MIDI/AUv3, latency, trademark) | [`product-notes.md`](product-notes.md) — sketch-first decision + the parked builder items |
 | timing jitter / drift (esp. web "drunk" playback) | [`audio-timing.md`](audio-timing.md) — frame-quantized triggers vs schedule-ahead; the web unclamped-`dt` hitch (latency is product-notes) |
 | the game/audio **thread model**, backends, the AudioWorklet migration | [`audio-threading.md`](audio-threading.md) — the lock-free queue, per-platform audio thread, runtime backend pick, staged build plan |
@@ -837,7 +837,7 @@ A useful technique for any drum machine needing sounds more sculpted than a fixe
 ADSR — though **still unused in anger**: its motivating case, the 909's ROM-sample
 hihat, ended up solved *better* by `INSTR_FM`'s clang detent + a negative
 `ENV_CUTOFF` when the cart actually shipped (§14). It stays on the shelf for the
-next sound that genuinely needs a hand-drawn contour (tinydaws names the
+next sound that genuinely needs a hand-drawn contour (tinyjam racks names the
 synthwave gated-reverb snare).
 
 **What was NOT missing**, for the record: the per-note modulation system is

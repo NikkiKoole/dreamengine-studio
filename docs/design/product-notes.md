@@ -3,7 +3,7 @@
 STATUS: IDEA / exploration (2026-06-07). Nothing decided beyond "sketch first."
 Product-stage detail (save/share codec, native-iOS/AUv3 build plan, the pricing model + marketing
 channel that answer the open questions below): [`product-notes-followup.md`](product-notes-followup.md).
-Companion reading: [`tinydaws.md`](tinydaws.md) (the product spec, even though it
+Companion reading: [`tinyjam-racks.md`](tinyjam-racks.md) (the product spec, even though it
 wasn't written as one), [`packaging-distribution.md`](packaging-distribution.md)
 (why native distribution is hard; web is the public path today),
 [`mobile-web-notes.md`](mobile-web-notes.md) + [`touch-notes.md`](touch-notes.md)
@@ -23,9 +23,9 @@ opinionated, toy-like, one-genre-per-box. Precedents:
 - **Korg / Moog iOS apps** ($15–30 each) — the homage-instrument market is real
   and priced well above games.
 
-The dreamengine angle: the tinydaws rack table IS this product line, the pixel
+The dreamengine angle: the tinyjam rack table IS this product line, the pixel
 faceplates ARE the aesthetic, and the 263-cart web gallery is a ready-made free
-funnel. The radio → seed-code → rack handoff (tinydaws.md) doubles as a
+funnel. The radio → seed-code → rack handoff (tinyjam-racks.md) doubles as a
 conversion path: generate free on the radio, type the code into the paid rack to
 open the song up.
 
@@ -45,7 +45,7 @@ Each item: what it actually is, rough cost, and the trigger that un-parks it.
 
 | Item | What it is | Cost | Trigger |
 |---|---|---|---|
-| **MIDI file export** | `tools/` script converting the lane blob → `.mid` (already tinydaws export tier 3's footnote) | small | a user asks to open their rack song in a DAW |
+| **MIDI file export** | `tools/` script converting the lane blob → `.mid` (already tinyjam racks export tier 3's footnote) | small | a user asks to open their rack song in a DAW |
 | **MIDI input (web)** | Web MIDI API — hardware controllers in the browser. Chrome/Edge only; **Safari/iOS has never shipped it**, so it can't be the phone path | small, desktop-only | users asking to play racks with a controller |
 | **MIDI input (native iOS)** | CoreMIDI in a native app | medium, app-stage | native app exists |
 | **AUv3** | *the* iOS inter-app audio standard (Audio Unit v3 — the rack as a plugin inside AUM/Loopy/GarageBand). Audiobus is the legacy third-party router; Apple's Inter-App Audio is deprecated. This is what the serious iOS-musician crowd asks for first | **high** — a real native app + an extension target; the engine becomes a render callback. Feasible: `sound.h` already renders headless to a buffer (the `--wav` path proves it), but this is a product-stage investment | a paid native app exists *and* reviews ask for it |

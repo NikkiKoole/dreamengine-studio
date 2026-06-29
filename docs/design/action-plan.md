@@ -6,7 +6,7 @@ Sources, each linked at point of use:
 - **field-notes/** — the research journal (`tools-we-need.md`, `distillator.md`, `about tags.md`,
   `ai-friendly-frontmatter.md`, notes `002`/`003`/`011`/`012`/`013`, and the cart-polish log
   `0000000-cgecking-all-carts.md`).
-- [`tinydaws.md`](tinydaws.md) + [`tinydaws-followup.md`](tinydaws-followup.md) — the rack design.
+- [`tinyjam-racks.md`](tinyjam-racks.md) + [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) — the rack design.
 - [`product-notes.md`](product-notes.md) + [`product-notes-followup.md`](product-notes-followup.md)
   — the commercial/distribution lens.
 
@@ -28,8 +28,8 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
 
 - [ ] **Save/share codec — `lz-string` URL + seed codes.** One serialize/compress/Base64 helper that
   turns a cart's state into a `?song=…` (or `?state=…`) URL and back. *Why now:* the web gallery has
-  no save/share today, it's near-free, and it's **the same machinery tinydaws needs** (the
-  seed-as-song-code handoff — see `product-notes-followup.md` §1 + `tinydaws.md` §"seed is a song
+  no save/share today, it's near-free, and it's **the same machinery tinyjam racks needs** (the
+  seed-as-song-code handoff — see `product-notes-followup.md` §1 + `tinyjam-racks.md` §"seed is a song
   code"). Build the codec once, reuse for share-link *and* save. First step: a tiny JS lib in the
   editor/site layer + an example cart that round-trips its state through a URL. Namespace any
   `localStorage`/IndexedDB keys per-cart (`tinyjam:<cart>:…`) — the gallery is one origin.
@@ -105,7 +105,7 @@ Listed so the plan exists, **not** so it gets built now.
 - [ ] **JSON diff export tier (+ A/B-as-RLHF).** Highest-leverage *product-adjacent* item because dev
   here is agentic: a "developer export" button dumping the lane before/after diff (A/B-choice diff is
   the free first cut) to feed coding agents tuning the radios. A 4th export tier next to
-  WAV/song-code/song.h. (`tinydaws-followup.md` §2.) *This one is arguably Tier-1-ish* — it serves
+  WAV/song-code/song.h. (`tinyjam-racks-followup.md` §2.) *This one is arguably Tier-1-ish* — it serves
   engine development, not just the product. Pull it forward if the rack pilot lands.
 - [ ] **Live bias knobs** (Complexity/Mood/Energy drive the generator's next bar) — fold into the rack
   control layout once the pilot generator is lane-native; keep seed-reproducible. (`-followup` §1.)
@@ -119,9 +119,10 @@ Listed so the plan exists, **not** so it gets built now.
 
 ## Maker decisions (not mine to make)
 
-- [ ] **Naming: `Tinyjam` vs `tinydaws`.** Two brainstorms + you landed on *Tinyjam* (app singular,
-  *tinyjams* = user creations, *Tinyjam: <Genre>* modules); the repo's working name is *tinydaws*.
-  Pick one before it's baked into a public product. (`product-notes-followup.md` §0.)
+- [x] **Naming: settled on `Tinyjam`** (2026-06-29). Two brainstorms landed on *Tinyjam* (app singular,
+  *tinyjams* = user creations, *Tinyjam: <Genre>* modules). The legacy working name *tinydaws* was
+  retired and the rack docs renamed to `tinyjam-racks.md` / `tinyjam-racks-followup.md`.
+  (`product-notes-followup.md` §0.)
 - [ ] **Verify the market numbers** before citing anywhere ($150M / 5M users / Apple cut / free-tier
   limits are LLM-supplied). (`product-notes-followup.md` §10.)
 - [ ] **Touch-input policy.** The all-carts log keeps asking for onscreen joystick/d-pad — decide the
@@ -170,7 +171,7 @@ resolution + `todo`** marker into the per-cart metadata work above, then grind t
 
 ## Suggested first three moves
 
-1. **Save/share codec** (Tier 0) — cheapest win, and it's the tinydaws seed-code you'll need anyway.
+1. **Save/share codec** (Tier 0) — cheapest win, and it's the tinyjam racks seed-code you'll need anyway.
 2. **Per-cart metadata → generated index.json** (Tier 1 keystone) — retires the index.json conflict
    that taxes every multi-agent session, and it's where `status`/touch-input/resolution markers live.
 3. **`build-field-notes`** (Tier 0) — small, and keeps this whole knowledge layer navigable.

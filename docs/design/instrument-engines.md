@@ -77,7 +77,7 @@ the effects-layer plan. **Genre: design exploration.**
 > **Provenance + numbering.** Split out of [`audio-notes.md`](audio-notes.md) on
 > 2026-06-07 — it was **§8** there (40% of the file). **Section numbers are kept
 > verbatim (§8.1–§8.10)** so every existing reference — "audio-notes §8.9" in STATUS,
-> tinydaws' cross-index, the cart-library list — still resolves; only the filename
+> tinyjam racks' cross-index, the cart-library list — still resolves; only the filename
 > changed. Bare **§1–§17** references below point at sections of
 > [`audio-notes.md`](audio-notes.md), where this doc was born and where the companion
 > ledgers still live: **§12** instrument gaps · **§13** SCWs-vs-engines (the
@@ -1451,8 +1451,8 @@ the table's only job is to say what those three mean for each. Grow it freely.
 *Format for adding more:* just name the sound + a reference patch/track if you have one; the
 buffer flag, navkit source, and macro mapping get filled in here.
 
-> **Which engine next, scored by what it opens (2026-06-07, the tinydaws angle —**
-> **see [`tinydaws.md`](tinydaws.md) "wider map" for the full cross-index):**
+> **Which engine next, scored by what it opens (2026-06-07, the tinyjam racks angle —**
+> **see [`tinyjam-racks.md`](tinyjam-racks.md) "wider map" for the full cross-index):**
 > rank by *kind of door*, not just cost. **Formant = the biggest single door**
 > (the human voice — a whole category nothing on the dial touches: Toy-Town lead,
 > choirs, doo-wop; near-free on the §8.3 SVF). **Reed = the biggest cart family**

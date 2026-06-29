@@ -223,7 +223,7 @@ discipline needed). What sh101 exposes as v2 gaps, each with named customers:
 ### 8a. Vertical fader — the synth-panel staple
 
 sh101 has 13 of them; modrack, tb303, the dream synth and every future
-tinydaws rack lane want the same shape. Not just `ui_slider` rotated — it
+tinyjam rack lane want the same shape. Not just `ui_slider` rotated — it
 drags in y, reads bottom-up, and carries the feel question below.
 
 ### 8b. The slider-feel question (OPEN — decide before the fader ships)
@@ -257,7 +257,7 @@ the tb303 fine-control style v1's *knob* already uses). The tension:
 ### 8c. `ui_surface` — the per-finger zone primitive
 
 sh101's keybed, handpan's drumhead, touchpiano, drum pads, and **the XY pad
-in every tinydaws rack** ([`tinydaws.md`](tinydaws.md) "universal layout")
+in every tinyjam rack** ([`tinyjam-racks.md`](tinyjam-racks.md) "universal layout")
 are not widgets — they're *surfaces*: per-finger enter/leave/move over a
 zone map, where a moving finger **hands over between zones**
 (sh101's slide-legato: key_down(new) then key_up(old), so AUTO portamento
@@ -273,7 +273,7 @@ capable than the kit.
 
 The injected-pointer→synthetic-touch harness fix (same commit) makes every
 ui.h widget script/replay-drivable — §7's verification leans on it. And the
-tinydaws rack chassis is the kit's next big customer: step-grid = buttons,
+tinyjam rack chassis is the kit's next big customer: step-grid = buttons,
 lane levels = vertical faders (8a), the play-pad = a surface (8c) — the
 rack work order and this v2 list are the same list.
 

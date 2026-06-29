@@ -885,9 +885,9 @@ voice-pool + spread reference.
 cells and make it sound *worse* — the generation magic evaporates. The jam strip
 is the opposite: **additive performance over fixed generation**, scale-locked so
 every note lands. You only ever make it *more* yours, never wreck it. That
-"can't play wrong" principle is the candidate answer for how the whole tinydaws
-direction (`design/tinydaws.md`) should let people interact — perform on top, not
-edit underneath. A recorded/looped strip is plausibly tinydaws' first *lane* (the
+"can't play wrong" principle is the candidate answer for how the whole tinyjam racks
+direction (`design/tinyjam-racks.md`) should let people interact — perform on top, not
+edit underneath. A recorded/looped strip is plausibly tinyjam racks' first *lane* (the
 lead — the one you'd rather perform than program).
 
 ### Making physical room — the chrome rework + the bottom-third takeover

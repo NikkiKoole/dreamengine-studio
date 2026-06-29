@@ -8,7 +8,7 @@ parked product thinking in those:
   finished apps (a cart, or a curated collection), **precompiled native on a dev box**; never the editor.
 - **Product strategy** (monetization, AUv3 catalog, agentic Fastlane pipeline, StoreKit 2) →
   [`product-notes-followup.md`](product-notes-followup.md) §2–§7.
-- **The music product** the apps host → [`tinydaws.md`](tinydaws.md) (Tinyjam racks).
+- **The music product** the apps host → [`tinyjam-racks.md`](tinyjam-racks.md) (Tinyjam racks).
 
 This doc owns the *how-do-we-actually-build-it* ladder. The live scaffold lives in the repo at
 [`../../ios/`](../../ios/) (its `README.md` is the operational how-to; this is the rationale + roadmap).

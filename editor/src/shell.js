@@ -741,8 +741,15 @@ function markRanges(text, indices) {
 // from per-cart de:meta (build-cart-index.js) in alphabetical order — not curated — so
 // the default sort is 'updated'. state is module-level so it survives the panel rebuild.
 const CART_KIND_ORDER  = ['tutorial', 'game', 'tech-demo', 'instrument', 'toy', 'tool', 'probe']
+// mirror the canonical GENRES vocabulary in tools/lint-carts.js — any genre missing here
+// silently drops its filter chip. Keep in sync when a genre is added there.
 const CART_GENRE_ORDER = ['arcade', 'shooter', 'platformer', 'fighting', 'puzzle', 'racing',
-                          'sports', 'strategy', 'rpg', 'adventure', 'simulation', 'sandbox', 'tabletop']
+                          'sports', 'strategy', 'rpg', 'adventure', 'simulation', 'sandbox',
+                          'tabletop', 'maze', 'space', 'lab', 'dating',
+                          'tycoon', 'tactics', 'word', '4x']
+// orientation facet (derived from screen dims by build-cart-index.js; landscape = absent).
+// label + icon per value; order = chip order.
+const CART_ORIENTATION_ORDER = [['portrait', '📱 portrait'], ['square', '⬛ square']]
 let cartFilter = null   // null = all; else { axis: 'kind'|'genre', value } — flat single-select
 let cartSort = localStorage.getItem('cartSort') || 'updated'   // 'updated' (default) | 'title' | 'newest' | 'oldest'
 if (cartSort === 'featured') cartSort = 'updated'   // retired: index.json array order is generated (alphabetical), no longer curated
@@ -801,10 +808,11 @@ async function buildTutorialsPanel() {
   body.appendChild(sortSel)
 
   // ── filter chips: one flat list (kinds + genres), single-select ──
-  const kindCounts = {}, genreCounts = {}
+  const kindCounts = {}, genreCounts = {}, orientCounts = {}
   index.forEach(e => {
     (e.kind || []).forEach(k => { kindCounts[k] = (kindCounts[k] || 0) + 1 })
     if (e.genre) genreCounts[e.genre] = (genreCounts[e.genre] || 0) + 1
+    if (e.orientation) orientCounts[e.orientation] = (orientCounts[e.orientation] || 0) + 1
   })
 
   const filters = document.createElement('div')
@@ -828,10 +836,11 @@ async function buildTutorialsPanel() {
     chipRow.appendChild(b)
   }
 
-  // kinds first, then genres — same flat row, no visual divide
+  // kinds first, then genres, then orientation — same flat row, no visual divide
   makeChip('all', null, index.length, null)
   CART_KIND_ORDER.forEach(k => { if (kindCounts[k]) makeChip(k, k, kindCounts[k], 'kind') })
   CART_GENRE_ORDER.forEach(g => { if (genreCounts[g]) makeChip(g, g, genreCounts[g], 'genre') })
+  CART_ORIENTATION_ORDER.forEach(([v, label]) => { if (orientCounts[v]) makeChip(label, v, orientCounts[v], 'orientation') })
 
   function syncChips() {
     chipRow.querySelectorAll('.cart-chip').forEach(b => {
@@ -842,8 +851,9 @@ async function buildTutorialsPanel() {
 
   function passesChips(it) {
     if (!cartFilter) return true
-    return cartFilter.axis === 'kind' ? it.kind.includes(cartFilter.value)
-                                      : it.genre === cartFilter.value
+    if (cartFilter.axis === 'kind') return it.kind.includes(cartFilter.value)
+    if (cartFilter.axis === 'orientation') return it.orientation === cartFilter.value
+    return it.genre === cartFilter.value
   }
 
   const grid = document.createElement('div')
@@ -856,7 +866,7 @@ async function buildTutorialsPanel() {
   noMatch.style.display = 'none'
   body.appendChild(noMatch)
 
-  const items = index.map(({ title, description, file, kind, genre }, idx) => {
+  const items = index.map(({ title, description, file, kind, genre, orientation }, idx) => {
     const card = document.createElement('div')
     card.className = 'tutorial-card'
 
@@ -890,6 +900,7 @@ async function buildTutorialsPanel() {
     const d = (cartDates && cartDates[file]) || {}
     return { card, titleEl, descEl, idx, title: title || '', desc: description || '', file,
              name: String(file).replace(/\.cart\.png$/i, ''), kind: kind || [], genre: genre || null,
+             orientation: orientation || null,
              added: d.added || '', updated: d.updated || d.added || '' }
   })
 

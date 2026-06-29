@@ -1151,14 +1151,14 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
       keeping a handle on running cart processes** instead of fire-and-forget. A process handle/table in
       `main.cjs` unlocks attach-profiling, multi-cart, and more direct live-inspection at once. See
       [cart-os.md](design/cart-os.md) → "Why you can't open two carts today."
-46. **Editor cart-browser doesn't surface the new metadata facets yet** *(2026-06-29, from the de:meta migration)*.
+46. ~~**Editor cart-browser doesn't surface the new metadata facets yet**~~ **FIXED 2026-06-29** *(from the de:meta migration)*.
     Carts now own rich metadata in a `de:meta` block → generated `index.json` (see
-    [`design/cart-metadata.md`](design/cart-metadata.md)), but the editor's cart browser hasn't caught up — **pure
-    `editor/src/shell.js` work, the data is already there**:
-    - the new genres **`tycoon`/`tactics`/`word`/`4x`** aren't in the hardcoded `CART_GENRE_ORDER` (~`shell.js:743`),
-      so they don't appear as filter chips (or appear unordered).
-    - the derived **`orientation`** facet (`portrait`/`square`, emitted into `index.json` by `build-cart-index.js`)
-      has **no filter** — a "📱 portrait" chip would surface the mobile-shaped carts (pinball/skystrike/wordle…).
+    [`design/cart-metadata.md`](design/cart-metadata.md)); the editor's cart browser now surfaces it (`editor/src/shell.js`):
+    - `CART_GENRE_ORDER` now **mirrors the canonical `GENRES` vocabulary** in `tools/lint-carts.js` (with a sync
+      comment), so all genres get an ordered filter chip — not just the flagged `tycoon`/`tactics`/`word`/`4x` but
+      also `maze`/`space`/`lab`/`dating`, which were silently dropped too.
+    - the derived **`orientation`** facet (`portrait`/`square`, emitted by `build-cart-index.js`) now has chips
+      ("📱 portrait" / "⬛ square", new `orientation` filter axis), surfacing the mobile-shaped carts.
 
 ---
 

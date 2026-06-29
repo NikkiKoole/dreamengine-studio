@@ -1895,7 +1895,11 @@ void de_init(DeRenderer renderer) {
     init();                                      // the cart's init()
     last_time = GetTime();
 }
-void de_frame(double t) { de_host_time = t; loop_step(); }   // loop_step draws into sw_cbuf; presents are no-op stubs
+void de_frame(double t) { de_host_time = t; loop_step(); }   // loop_step draws into sw_cbuf + advances the sequencer (sound_tick); presents are no-op stubs
+// pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
+// stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
+// drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
+void de_audio_render(float *out, int frames) { sound_callback((void *)out, (unsigned)frames); }
 const uint32_t *de_framebuffer(void) { return (const uint32_t*)sw_cbuf; }
 int de_screen_w(void) { return SCREEN_W; }
 int de_screen_h(void) { return SCREEN_H; }

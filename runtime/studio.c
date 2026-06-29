@@ -244,6 +244,22 @@ static bool            cpu_raster_enabled = CPU_RASTER_DEFAULT;   // env DE_CPU_
 // lever. Cart audio calls become harmless no-ops (queues are never drained). Default on.
 static bool            audio_off = false;
 static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer (Fork 1: RGBA on desktop)
+#ifdef DE_NO_RAYLIB
+// Software CAMERA ROTATION (no GPU to fall back to — iOS/Switch). The world layer is captured
+// into an offscreen buffer at zoom+translate (rotation NOT applied), then rotated about the
+// screen centre into sw_cbuf at the camera-reset / present boundary. Exact for uniform zoom:
+// screen = R·(worldbuf − centre) + centre. HUD drawn after a camera() reset goes straight to
+// sw_cbuf, un-rotated. Primitives write sw_dst — the framebuffer, or the world buffer while a
+// rotated camera_ex is active. (det-probes/rotfill is the per-primitive study; this is the
+// whole-layer composite, which keeps every primitive on its fast axis-aligned path.)
+static uint32_t        sw_world_buf[SCREEN_W * SCREEN_H];
+static uint32_t       *sw_dst = sw_cbuf;
+static bool            sw_rot_active = false;
+static float           sw_rot_angle  = 0.0f;
+static void            sw_rot_composite(void);            // defined near camera(); called from de_frame()
+#else
+#define sw_dst sw_cbuf                                          // desktop/web: straight to the framebuffer (byte-identical)
+#endif
 static inline uint32_t sw_pack(DeColor c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
@@ -520,7 +536,7 @@ static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
 static inline void sw_plot1(int sx, int sy, uint32_t p) {
     if (clip_active && (sx < clip_cx || sx >= clip_cx + clip_cw || sy < clip_cy || sy >= clip_cy + clip_ch)) return;
     if ((unsigned)sx < (unsigned)SCREEN_W && (unsigned)sy < (unsigned)SCREEN_H)
-        sw_cbuf[(SCREEN_H - 1 - sy) * SCREEN_W + sx] = p;
+        sw_dst[(SCREEN_H - 1 - sy) * SCREEN_W + sx] = p;
 }
 // software-canvas pixel write. zoom==1: one texel (the hot path). zoom!=1: fill the world pixel's
 // screen footprint (a zoom×zoom block) so a zoomed pset/blit/line stays gap-free.
@@ -556,7 +572,7 @@ static void sw_fillrect(int x, int y, int w, int h, DeColor c) {
                        if (x1>clip_cx+clip_cw) x1=clip_cx+clip_cw; if (y1>clip_cy+clip_ch) y1=clip_cy+clip_ch; }
     if (x0<0) x0=0; if (y0<0) y0=0; if (x1>SCREEN_W) x1=SCREEN_W; if (y1>SCREEN_H) y1=SCREEN_H;
     uint32_t p = sw_pack(c);
-    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_cbuf[(SCREEN_H-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
+    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(SCREEN_H-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
 // one fill-scanline span: cbuf row write under the software canvas, else the GPU DrawRectangle.
 // Lets the circ/oval/poly span fast-paths stay span-based (not per-pixel) on the canvas.
@@ -626,7 +642,7 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
         uint32_t key = (uint32_t)sw_colorkey_rgb.r | ((uint32_t)sw_colorkey_rgb.g << 8) | ((uint32_t)sw_colorkey_rgb.b << 16);
         for (int j = j0; j < j1; j++) {
             const uint32_t *srow = src + (size_t)(sy + j) * srcw + sx;
-            uint32_t *drow = &sw_cbuf[(size_t)(SCREEN_H - 1 - (oy + j)) * SCREEN_W + ox];
+            uint32_t *drow = &sw_dst[(size_t)(SCREEN_H - 1 - (oy + j)) * SCREEN_W + ox];
             for (int i = i0; i < i1; i++) {
                 uint32_t s = srow[i];
                 if (!(s & 0x80000000u)) continue;                     // alpha < 128 → transparent
@@ -1895,7 +1911,7 @@ void de_init(DeRenderer renderer) {
     init();                                      // the cart's init()
     last_time = GetTime();
 }
-void de_frame(double t) { de_host_time = t; loop_step(); }   // loop_step draws into sw_cbuf + advances the sequencer (sound_tick); presents are no-op stubs
+void de_frame(double t) { de_host_time = t; loop_step(); if (sw_rot_active) sw_rot_composite(); }   // loop_step draws (sw_cbuf or the rotated world buffer) + advances the sequencer; composite any rotated world a cart didn't close with camera()
 // pulled by the host audio backend (CoreAudio on iOS) — fills `frames` interleaved
 // stereo floats in [-1,1] @ SOUND_SAMPLE_RATE. The same mixer the Raylib AudioStream
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
@@ -2362,7 +2378,7 @@ void cls(int color) {
     last_cls_color = color % PALETTE_SIZE;
     if (sw_canvas_active) {
         uint32_t p = sw_pack(palette[last_cls_color]);
-        for (int i = 0; i < SCREEN_W * SCREEN_H; i++) sw_cbuf[i] = p;
+        for (int i = 0; i < SCREEN_W * SCREEN_H; i++) sw_dst[i] = p;
         return;
     }
     ClearBackground(palette[last_cls_color]);
@@ -2647,7 +2663,7 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
             int syc = py - camdy;
             if ((unsigned)syc >= (unsigned)SCREEN_H) continue;
             if (clip_active && (syc < clip_cy || syc >= clip_cy + clip_ch)) continue;
-            row = &sw_cbuf[(SCREEN_H - 1 - syc) * SCREEN_W];
+            row = &sw_dst[(SCREEN_H - 1 - syc) * SCREEN_W];
         }
         for (int px = x0; px <= x1; px++) {
             float ddx = px + 0.5f - px0, ddy = py + 0.5f - py0;
@@ -3378,8 +3394,35 @@ static void smooth_composite(void) {
 #endif
 }
 
+#ifdef DE_NO_RAYLIB
+// rotate the captured world layer (sw_world_buf) about the screen centre into sw_cbuf, by the
+// active camera angle. Nearest-sample inverse map (dest→src). Transparent (alpha 0) world texels
+// are skipped, so the cls() background shows in the rotated-out corners — matching the GPU.
+static void sw_rot_composite(void) {
+    if (!sw_rot_active) return;
+    float a  = sw_rot_angle * 0.01745329252f;          // deg→rad; sign matches raylib Camera2D
+    float cs = cosf(a), sn = sinf(a);
+    float ox = cam.offset.x, oy = cam.offset.y;         // pivot = screen centre (camera_ex pins it there)
+    for (int dy = 0; dy < SCREEN_H; dy++) {
+        for (int dx = 0; dx < SCREEN_W; dx++) {
+            float rx = dx - ox, ry = dy - oy;            // inverse-rotate dest → source (rotate by −a)
+            int sx = (int)floorf( cs*rx + sn*ry + ox + 0.5f);
+            int sy = (int)floorf(-sn*rx + cs*ry + oy + 0.5f);
+            if ((unsigned)sx < (unsigned)SCREEN_W && (unsigned)sy < (unsigned)SCREEN_H) {
+                uint32_t p = sw_world_buf[(SCREEN_H - 1 - sy) * SCREEN_W + sx];
+                if (p & 0xFF000000u) sw_cbuf[(SCREEN_H - 1 - dy) * SCREEN_W + dx] = p;
+            }
+        }
+    }
+    sw_rot_active = false; sw_dst = sw_cbuf;
+}
+#endif
+
 void camera(int x, int y) {
     if (smooth_capturing) smooth_composite();   // end the smooth world layer first
+#ifdef DE_NO_RAYLIB
+    if (sw_rot_active) sw_rot_composite();       // end the rotated world layer → HUD now draws un-rotated
+#endif
     cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
     cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
     cam.zoom     = 1.0f;   // plain camera: camera() always means no zoom / no rotation
@@ -3396,11 +3439,18 @@ void camera_ex(int x, int y, float zoom, float angle) {
 #ifndef DE_NO_RAYLIB
     if (angle != 0.0f) sw_force_gpu = true;
 #else
-    // no GPU to fall back to (iOS/Switch software-only). Falling back would freeze the cart
-    // (the GPU stubs no-op, sw_cbuf never updates). Instead stay on the SW canvas and ignore
-    // the rotation — the world renders un-rotated but LIVE (rotation on the SW canvas is the
-    // det-probes/rotfill TODO). zoom + translation below still apply. (void)angle;
-    (void)angle;
+    // no GPU to fall back to (iOS/Switch). Capture the world into sw_world_buf at zoom+translate
+    // (sw_w2s ignores rotation), then rotate-composite it about the screen centre at the next
+    // camera() reset / present. Renders correctly rotated, fully on the software canvas.
+    if (angle != 0.0f) {
+        if (!sw_rot_active) {                            // begin the rotated world layer
+            for (int i = 0; i < SCREEN_W * SCREEN_H; i++) sw_world_buf[i] = 0;   // transparent
+            sw_dst = sw_world_buf; sw_rot_active = true;
+        }
+        sw_rot_angle = angle;
+    } else if (sw_rot_active) {                          // angle 0 ends the rotated layer
+        sw_rot_composite();
+    }
 #endif
     float zd = zoom > 1.0f ? zoom - 1.0f : 1.0f - zoom;
 #ifndef PLATFORM_WEB

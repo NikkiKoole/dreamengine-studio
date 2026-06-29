@@ -143,3 +143,15 @@ Gotchas captured (so nobody re-hits them):
   from `project.yml`** to let plain device signing succeed (automatic provisioning didn't include the
   group) — re-add it in spike 7 once the group is registered. iOS 15.4.1 needs **no Developer Mode**
   (that's iOS 16+).
+- **Fresh-machine setup: Xcode 15's base download does NOT include the iOS device platform.** The
+  `.xip` is only ~2.9GB; `xcode-select` + `xcodebuild -runFirstLaunch` still leave device builds
+  failing with `xcodebuild: error: … iOS X.Y is not installed. … download and install the platform`
+  (the `generic/platform=iOS` destination is ineligible) — even though `-showsdks` lists the SDK. Fix:
+  `xcodebuild -downloadPlatform iOS` (or Xcode → Settings → Platforms → iOS → Get), ~7GB. On an older
+  **Intel** Mac the subsequent "Verifying iOS X.simruntime…" install step is *very* slow (can look
+  like hours) — let it finish in the background before re-running `device.sh`. The signing cert won't
+  mint until the build gets past this (it dies before the signing phase, so `find-identity` stays
+  empty — not a signing problem, a missing-platform one).
+- **Old simulators don't exist under old/new Xcode mismatches.** `build.sh` defaults `DEVICE="iPhone
+  15"`, which is absent on e.g. Xcode 13 — override with `DEVICE="iPhone 13" ./build.sh` (or any name
+  from `xcrun simctl list devices available`).

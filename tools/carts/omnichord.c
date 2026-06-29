@@ -11,7 +11,7 @@
     "step-sequencer"
   ],
   "lineage": "Tribute to the Suzuki Omnichord (1981); novel in the chord-extension combo logic (same-root multi-hold → maj7/m7/dim/aug) and the rainbow strumplate glissando mapped across six octaves.",
-  "description": "A tribute to the Suzuki Omnichord (1981) — an electronic autoharp — with a built-in drum machine. Two views toggle from the top bar (or TAB). OMNI: pick a chord from the grid (rows = major/minor/7th, columns = the 12 roots) with the mouse OR the computer keyboard — three rows, one per quality: the top row QWERTYUIOP[] plays major, the home row ASDFGHJKL;'\\ plays minor, the bottom row `ZXCVBNM,./ plays 7ths, each key a root from C up — and just like the real Omnichord, holding two keys of the same root gives an extended chord (major+7th = maj7, minor+7th = m7, major+minor = diminished, all three = augmented). Then sweep the rainbow SONIC STRINGS strumplate (mouse or finger) to play it as a harp glissando spanning six octaves. RHYTHM: a 16-step drum sequencer (kick/snare/hat/clap, musical noise voices) whose BASS row follows your selected chord root, with preset grooves from the home-organ days — rock, bossa nova, cha-cha, swing, disco, march (keys 1-6 or click). The beat keeps playing while you strum over it; PLAY/STOP (or SPACE) starts it, arrows set tempo. The strings are a soft plucked bell with a warm lowpass."
+  "description": "A tribute to the Suzuki Omnichord (1981) — an electronic autoharp — with a built-in drum machine. Two views toggle from the top bar (or TAB). OMNI: pick a chord from the grid (rows = major/minor/7th, columns = the 12 roots) with the mouse OR the computer keyboard — three rows, one per quality: the top row QWERTYUIOP[] plays major, the home row ASDFGHJKL;'\\ plays minor, the bottom row `ZXCVBNM,./ plays 7ths, each key a root from C up — and just like the real Omnichord, holding two keys of the same root gives an extended chord (major+7th = maj7, minor+7th = m7, major+minor = diminished, all three = augmented) — or, on a touchscreen, tap a root then tap the maj7/m7/dim/aug modifier strip (the same extensions in one tap, since two stacked buttons are too close for two fingers on a phone). Then sweep the rainbow SONIC STRINGS strumplate (mouse or finger) to play it as a harp glissando spanning six octaves. RHYTHM: a 16-step drum sequencer (kick/snare/hat/clap, musical noise voices) whose BASS row follows your selected chord root, with preset grooves from the home-organ days — rock, bossa nova, cha-cha, swing, disco, march (keys 1-6 or click). The beat keeps playing while you strum over it; PLAY/STOP (or SPACE) starts it, arrows set tempo. The strings are a soft plucked bell with a warm lowpass."
 }
 de:meta */
 #include "studio.h"
@@ -46,12 +46,22 @@ de:meta */
 #define PLATE_X  6
 #define PLATE_Y  18
 #define PLATE_W  (SCREEN_W - 12)
-#define PLATE_H  102
+#define PLATE_H  80              // trimmed from 102 to make room for the modifier strip below
 #define GRID_X   8
 #define COLW     25
-#define GRID_Y   126
-#define ROWH     19
+#define GRID_Y   124
+#define ROWH     20              // a hair taller than the old 19 (bigger finger target)
 #define HARP     5
+// extended-chord modifier strip — big single-tap buttons that re-voice the selected
+// root (maj7/m7/dim/aug). Replaces the phone-impossible two-finger same-column hold:
+// on a 320px-wide canvas two stacked chord buttons are ~3.5mm apart (smaller than a
+// fingertip). These four are ~74px wide each — comfortable on any touchscreen.
+#define MOD_Y    102
+#define MOD_H    18
+#define MOD_X    8
+#define MOD_W    74
+#define MOD_STEP 77
+#define NMOD     4
 
 // ── drum sequencer ──
 #define ROWS   6
@@ -72,6 +82,10 @@ const int   STRCOL[7]  = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_GREEN, CLR_BLUE,
 const int   MAJKEY [12] = { 'Q','W','E','R','T','Y','U','I','O','P','[',']' };
 const int   MINKEY [12] = { 'A','S','D','F','G','H','J','K','L',';','\'','\\' };
 const int   DOM7KEY[12] = { '`','Z','X','C','V','B','N','M',',','.','/', KEY_RSHIFT };
+
+// modifier strip: each upgrades the SELECTED root to an extended quality on one tap.
+const int   MODCH  [NMOD] = { CHORD_MAJ7, CHORD_MIN7, CHORD_DIM, CHORD_AUG };
+const char *MODNAME[NMOD] = { "maj7", "m7", "dim", "aug" };
 
 const char *LABEL[ROWS] = { "KICK", "SNARE", "HIHAT", "OHAT", "CLAP", "BASS" };
 const int   LIT  [ROWS] = { CLR_RED, CLR_ORANGE, CLR_YELLOW, CLR_LIGHT_YELLOW, CLR_PINK, CLR_BLUE };
@@ -304,6 +318,12 @@ void update() {
                     selectChord(c, ch);
                 }
 
+        // modifier strip: one tap upgrades the current root to an extended chord —
+        // the phone-friendly alternative to holding two stacked buttons at once.
+        for (int m = 0; m < NMOD; m++)
+            if (tapp(MOD_X + m * MOD_STEP, MOD_Y, MOD_W, MOD_H))
+                selectChord(selRoot, MODCH[m]);
+
         // strumplate: EVERY finger sweeps its own glissando (desktop mouse = one finger)
         for (int i = 0; i < touch_count(); i++) {
             int id = touch_id(i);
@@ -402,6 +422,15 @@ void drawOmni() {
     print(str("%s %s", NOTE[selRoot], chordName(selChord)), PLATE_X + 5, PLATE_Y + 4, CLR_WHITE);
     print("SONIC STRINGS  ~  strum me", PLATE_X + 5, PLATE_Y + PLATE_H - 11, CLR_INDIGO);
 
+    // modifier strip — extended chords as big single taps (re-voice the current root)
+    for (int m = 0; m < NMOD; m++) {
+        int bx = MOD_X + m * MOD_STEP;
+        bool on = (selChord == MODCH[m]);
+        rectfill(bx, MOD_Y, MOD_W, MOD_H, on ? CLR_ORANGE : CLR_DARKER_PURPLE);
+        rect(bx, MOD_Y, MOD_W, MOD_H, on ? CLR_WHITE : CLR_MAUVE);
+        print(MODNAME[m], bx + (MOD_W - text_width(MODNAME[m])) / 2, MOD_Y + 6, on ? CLR_BLACK : CLR_LIGHT_GREY);
+    }
+
     // chord button grid
     for (int r = 0; r < 3; r++)
         for (int c = 0; c < 12; c++) {
@@ -414,7 +443,7 @@ void drawOmni() {
         }
 
     print("rows: major / minor / 7th", 4, SCREEN_H - 16, CLR_DARK_GREY);
-    print("hold 2 keys = maj7 m7 dim aug", 4, SCREEN_H - 8, CLR_INDIGO);
+    print("tap a root, then a modifier for maj7/m7/dim/aug", 4, SCREEN_H - 8, CLR_INDIGO);
 }
 
 void drawRhythm() {

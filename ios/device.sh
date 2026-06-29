@@ -18,12 +18,24 @@ cd "$(dirname "$0")"
 
 TEAM="${TEAM:-JH2ZCZH58D}"
 SCHEME="TinyjamHello"
+CART="${CART:-omnichord}"        # the standalone app's cart
+AU_CART="${AU_CART:-epiano}"     # the AUv3 extension's cart
 DEVICE_ID="${DEVICE_ID:-$(xcrun xctrace list devices 2>&1 \
   | sed -n '/== Devices ==/,/== Simulators ==/p' \
   | awk -F'[()]' '/iPhone|iPad/ {print $4; exit}')}"
 
 [ -z "$DEVICE_ID" ] && { echo "no physical device found — connect + unlock it"; exit 1; }
-echo "▸ device: $DEVICE_ID  ·  team: $TEAM"
+echo "▸ device: $DEVICE_ID  ·  team: $TEAM  ·  cart: $CART (AU: $AU_CART)"
+
+# stage each target's cart (same as build.sh — the gen/ dirs project.yml references)
+stage_cart() {
+  ( cd .. && node tools/play.js "$1" run --headless --frames 1 >/dev/null 2>&1 ) \
+    || { echo "✗ cart '$1' generation failed"; exit 1; }
+  mkdir -p "gen/$2"; cp ../build/cart.c ../build/sprites_data.h ../build/map_data.h "gen/$2/"
+}
+echo "▸ staging carts (gen/app=$CART, gen/au=$AU_CART)…"
+stage_cart "$CART" app
+stage_cart "$AU_CART" au
 
 echo "▸ generating + building (signed for device)…"
 xcodegen generate --spec project.yml >/dev/null

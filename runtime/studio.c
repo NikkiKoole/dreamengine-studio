@@ -1,7 +1,11 @@
 #define STUDIO_INTERNAL          // suppress studio.h's KEY_* macros — raylib.h provides those names
 #include "studio.h"
+#ifdef DE_NO_RAYLIB
+#include "raylib_compat.h"   // the no-Raylib shim (iOS / Switch / headless software build)
+#else
 #include "raylib.h"
 #include "rlgl.h"      // immediate-mode triangles for tritex()
+#endif
 #include "color.h"
 #include <stddef.h>
 #include <stdio.h>

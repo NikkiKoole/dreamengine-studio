@@ -11,7 +11,11 @@
 #ifndef SOUND_H
 #define SOUND_H
 
+#ifdef DE_NO_RAYLIB
+#include "raylib_compat.h"   // no-Raylib build: audio-device calls become shim stubs (host drives sound_callback)
+#else
 #include "raylib.h"
+#endif
 #include <math.h>
 #include <stdint.h>
 #include <stdbool.h>

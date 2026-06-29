@@ -2,25 +2,23 @@
 #define DE_COLOR_H
 
 // ============================================================================
-// color.h — the engine's universal 32-bit RGBA color type.
+// color.h — the engine's universal 32-bit RGBA color type (platform seam, phase A).
 //
-// Phase A of the platform seam (docs/design/engine-portability.md): the engine
-// core owns its color type instead of borrowing Raylib's, so non-Raylib backends
-// (iOS, Switch) compile without Raylib's vocabulary.
+//   - Raylib backends (desktop/web): DeColor is Raylib's Color.
+//   - DE_NO_RAYLIB backends (iOS/Switch): DeColor is the shim's Color
+//     (raylib_compat.h) — same {unsigned char r,g,b,a} layout.
 //
-//   - Raylib backends (desktop, web): DeColor IS Raylib's Color. Identical
-//     {unsigned char r,g,b,a} layout → zero-cost alias, bit-identical output,
-//     and DeColor values pass straight to Raylib draw calls with no conversion.
-//   - DE_NO_RAYLIB backends (iOS/Switch): a standalone, layout-compatible struct.
-//
-// Set -DDE_NO_RAYLIB on a backend that has no Raylib (the software-canvas path).
+// Either way DeColor is a zero-cost alias of whatever "Color" the active backend
+// defines, so the engine core speaks one color type and the backend's draw calls
+// take it directly. Set -DDE_NO_RAYLIB on a backend with no Raylib.
 // ============================================================================
 
 #ifdef DE_NO_RAYLIB
-typedef struct { unsigned char r, g, b, a; } DeColor;
+#include "raylib_compat.h"
 #else
 #include "raylib.h"
-typedef Color DeColor;
 #endif
+
+typedef Color DeColor;
 
 #endif // DE_COLOR_H

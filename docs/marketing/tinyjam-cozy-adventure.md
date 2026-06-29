@@ -43,7 +43,7 @@ work is the *brain* and the *face*, not new DSP.
 ## The face
 
 An **original** little pixel character that reacts to the music (the Game-&-Watch dancer from
-[tinyjam-racks-followup](tinyjam-racks-followup.md)): a small wanderer with a backpack, or a round companion
+[tinyjam-racks-followup](../design/tinyjam-racks-followup.md)): a small wanderer with a backpack, or a round companion
 creature, exploring a soft scene as the song plays. Cute, ours, no resemblance to any existing show
 character.
 

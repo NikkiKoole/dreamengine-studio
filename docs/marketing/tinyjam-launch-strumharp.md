@@ -31,6 +31,14 @@
 - Omnichord Discord (around 479 members): invite links rotate, find the current one via Omnichord Heaven or the FB group
 - Loopy Pro forum (the iOS/AUv3 cross-cutting channel): https://forum.loopypro.com/
 - r/synthesizers: https://www.reddit.com/r/synthesizers/
+- r/Omnichord + **OmnichordContentHub.com** — and **SabreSour**, who curates soft-synth omnichords
+  there (a real reviewer in our exact niche; show, don't pitch). Surfaced in the field research below.
+
+> **Read [`research-insights.md`](research-insights.md) before posting.** A near-identical project
+> (CHORDESTA) was flamed in r/synthesizers as AI-marketing — the burned "couldn't afford it so I built
+> it" pitch, hidden paywall, fresh account. The copy below is rewritten to dodge those. Also: this space
+> is **populated** (minichord, Chordion on iOS, MidiStrum) — iOS polish + the harpy identity are the
+> differentiators.
 - Ambient and lo-fi YouTube, plus the omnichord hashtag on IG/TikTok (for the clip)
 
 **Extra audience (cozy-cartoon / Adventure Time-adjacent):** the shimmer fits that crowd's taste, so
@@ -82,18 +90,25 @@ the hero-clip star, and the social-art hook. Original character, ours; sprite-dr
 
 ## 2. Facebook post: "Suzuki Omnichord & Qchord" group
 
-> Long-time lurker, first post here. I've been a bit obsessed with the Omnichord since the OM-108
-> dropped, but can't really justify the price right now, so I did the next best thing and made a tiny
-> pixel-art strum-harp you can play right in your browser. Free, no signup, works on a phone: [LINK]
+> Made a little browser strum-harp — pixel-art, Omnichord-flavoured, plays on a phone, no signup:
+> [LINK]. A loop I made with it, so you can hear where it's at: [SONG URL]
 >
-> It's got the strum plate and the auto-chords, and it's still pretty rough. Here's a little loop I made
-> with it so you can hear the vibe: [SONG URL]
+> It runs on a tiny fantasy-console engine I've been building for a while, so it's a hobby thing and
+> still rough round the edges. I'd really value ears from people who play the real instrument — what
+> feels off, the strum response or the chord voicings? Anything you'd want it to do?
 >
-> I'd love to know what it gets wrong to an actual Omnichord player's ears. The strum feel? The chord
-> voicings? Tear it apart, it'll only get better.
+> Upfront so I'm not weird about it: I'd like to make a polished iOS version down the line, but this web
+> one stays free to mess with regardless.
 
-Notes: no app, no price, no "please share", just the toy and a question. Reply to comments yourself.
-Post the clip [CLIP] as attached media if the group allows video.
+Notes (lessons from the CHORDESTA thread — see [`research-insights.md`](research-insights.md)):
+- **No "couldn't afford one so I built it"** — that's the burned cliché this exact community flames as
+  AI-marketing. Lead with the thing + a loop + a real question instead.
+- **The own-engine line is deliberate** — it signals real craft, not a vibe-coded template, and counters
+  the default "another AI plugin" suspicion. Say it once; don't tech-name-drop.
+- **The transparency line is deliberate** — hiding the paid intent ("free to try") is the #1 trust-killer
+  there. Naming it plainly defuses it.
+- Post from a **real account with history** (not a fresh one) and post the clip [CLIP] as media if
+  allowed. Reply to comments yourself. Wording can't beat suspicion alone — account + demo quality do.
 
 ---
 
@@ -101,18 +116,17 @@ Post the clip [CLIP] as attached media if the group allows video.
 
 > **A little browser strum-harp (Omnichord-flavoured), feedback welcome**
 >
-> Hi all. I've been building a tiny browser-based strum-harp. Pixel-art, Omnichord-flavoured, free to
-> mess with, no signup, runs in iOS Safari too: [LINK]
+> Pixel-art strum-harp I built on a small fantasy-console engine of my own — plays in the browser,
+> iOS Safari included, no signup: [LINK]. A loop made with it: [SONG URL], and a clip with sound: [CLIP].
 >
-> Right now it's a web toy I'm using to figure out whether the idea has legs. Quick clip with sound:
-> [CLIP]. And a playable loop you can open and tweak: [SONG URL]
->
-> If there's interest I'd love to take it native and AUv3 down the line so you could strum it straight
-> into AUM or Loopy, but first I want to get the instrument right. Brutal feedback very welcome,
-> especially on the feel and the sound. Cheers.
+> Still rough; I'm using the web version to get the *instrument* right before anything else. Brutal
+> feedback very welcome, especially the feel and the sound. If there's appetite I'd like to do a native
+> + AUv3 build later so you could strum it into AUM/Loopy — but that's down the road, the web one's free
+> to poke at now. Cheers.
 
-Notes: this crowd is AUv3-literate, so naming the AUv3 possibility (as a "if there's interest", not a
-promise) is the right hook here. It's the channel where that future sells itself.
+Notes: AUv3-literate crowd, so naming the AUv3 *possibility* (not a promise) is the right hook. Same
+de-clichéd, own-engine, transparent framing as the FB post (see [`research-insights.md`](research-insights.md));
+the homemade-engine line matters extra here, where people can smell a templated plugin.
 
 ---
 

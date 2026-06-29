@@ -2,7 +2,7 @@
 
 > A **rack** is one *shape* of Tinyjam — the genre-sequencer shape. The other shapes: **instrument
 > modules** (Strumharpy/omnichord, FM, martenot…) and **effects / playables** (kaoss, theremin).
-> See [`tinyjam-marketing.md`](tinyjam-marketing.md) §2 + §3.8. (Renamed from "tinydaws" 2026-06-29.)
+> See [`tinyjam-marketing.md`](../marketing/tinyjam-marketing.md) §2 + §3.8. (Renamed from "tinydaws" 2026-06-29.)
 
 STATUS: IDEA / exploration (2026-06). Nothing built yet. Follow-up brainstorm (bias knobs, the
 agentic RLHF loop, the Game&Watch dancer, MIDI-in): [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md).
@@ -171,8 +171,8 @@ formant voice). Everything else exists.
 rather than one of the original eight — the centrepiece of the "cozy cluster"
 (Strumharpy / lofi / plantasia) and mostly a recombination of shipped engines.
 Full design seed (band, brain, the original cute face, the IP guardrail,
-tribe/channels): [`tinyjam-cozy-adventure.md`](tinyjam-cozy-adventure.md);
-go-to-market context in [`tinyjam-marketing.md`](tinyjam-marketing.md) §3.10.
+tribe/channels): [`tinyjam-cozy-adventure.md`](../marketing/tinyjam-cozy-adventure.md);
+go-to-market context in [`tinyjam-marketing.md`](../marketing/tinyjam-marketing.md) §3.10.
 
 **rebirth-classic notes** (added 2026-06-07): the only rack where every voice is
 already a shipped cart (tb303 ×2, tr808, tr909) — zero new sound work, maximum

@@ -1,9 +1,9 @@
 # Tinyjam — go-to-market: one tribe per module
 
 > **Status:** IDEA / exploration (2026-06-29). The *community-targeting* companion to the
-> product/pricing/channel work in [`product-notes.md`](product-notes.md) +
-> [`product-notes-followup.md`](product-notes-followup.md), and the catalog in
-> [`tinyjam-racks.md`](tinyjam-racks.md). Those settle *what* we ship, *how* it's priced, and *one*
+> product/pricing/channel work in [`product-notes.md`](../design/product-notes.md) +
+> [`product-notes-followup.md`](../design/product-notes-followup.md), and the catalog in
+> [`tinyjam-racks.md`](../design/tinyjam-racks.md). Those settle *what* we ship, *how* it's priced, and *one*
 > channel (the Loopy Pro forum). This doc answers the question they leave open:
 > **for each paid module, which specific group of enthusiasts do we go talk to, where do they
 > already hang out, and what's the one sentence that makes them care?**
@@ -131,8 +131,8 @@ What was confirmed vs. still a lead. ✅ in the tables above marks rows backed b
 
 ### 3.6 The radio stations as tinyjams — and the craft-vs-market warning
 
-The repo already has a "what station to build next" doc — [`future-stations.md`](future-stations.md)
-(plus [`tinyjam-racks.md`](tinyjam-racks.md)'s wider map). **Read it knowing what it is: it ranks candidates
+The repo already has a "what station to build next" doc — [`future-stations.md`](../design/future-stations.md)
+(plus [`tinyjam-racks.md`](../design/tinyjam-racks.md)'s wider map). **Read it knowing what it is: it ranks candidates
 *purely by engine craft* — "what does the engine LEARN from this cart," new generative brains,
 untapped engine shelves.** There is essentially **zero audience/market thinking in it.** That's the
 right lens for *engineering* the radios. It is the *wrong* lens for picking *products*.
@@ -495,7 +495,7 @@ When a cart demonstrably holds attention, *then*:
 > borrowed PICO-8 32-colour palette — a commercial product wears its *own* visual identity, not a
 > recognizable borrowed one (same principle as the trademark rule, §2). Deferred, *not* a now-task, but
 > it **gates the first paid submission**. The free legacy gallery can keep PICO-8 as homage; the product
-> carts + the app need the original set. Design + plan: [`palette-and-color.md`](palette-and-color.md).
+> carts + the app need the original set. Design + plan: [`palette-and-color.md`](../design/palette-and-color.md).
 
 - **The native app** (Phase-2 engine port + the proven spikes), the module as **IAP**, the hub-app
   shell, and the **AUv3** extension (the killer feature).
@@ -556,6 +556,19 @@ Rules that keep it a gift:
   ears?"). Not "validate my startup."
 - **The trap:** feedback on *the instrument* = gold; recruiting them as a *sales funnel* = the thing
   that gets you flamed. Keep the free web toy genuinely free and ask-free.
+
+**Field-tested (the CHORDESTA thread — [`research-insights.md`](research-insights.md)):** a near-identical
+free omnichord app got flamed in r/synthesizers as AI-marketing. Hard rules it teaches:
+- **Never** the *"couldn't afford one so I built it"* pitch — it's a burned cliché this exact community
+  reads as snake oil. Also avoid: short punchy problem→solution sentences, "I have a family"-style
+  relatability, tech name-dropping.
+- **Be transparent about the paid intent.** "Free to *try*" / a hidden paywall was the #1 trust-killer.
+  State the free-now / paid-later arc plainly.
+- **Lead with the artifact** (a loop you made) + a real question; minimal origin story — the ones who
+  *tried* it liked it, the story is what lost.
+- **Credibility beats wording:** post from a real account with history; the homemade-engine line is an
+  asset (real craft, not a template). Don't drive-by-drop a build (an offered AI-made VST3 got −12 +
+  "Fuck off"). And the space is *populated* (minichord / Chordion / MidiStrum) — differentiate.
 
 ### 9.2 The honest arc: free web = funnel, native app = payoff
 
@@ -625,12 +638,12 @@ raised the price; 1.0 (2011) raised it again; by then it was a global phenomenon
 
 ## See also
 
-- [`product-notes.md`](product-notes.md) — market thesis, sketch-first, parking lot, **trademark rule**
-- [`product-notes-followup.md`](product-notes-followup.md) — pricing model, IAP/AUv3, Module-of-the-Week,
+- [`product-notes.md`](../design/product-notes.md) — market thesis, sketch-first, parking lot, **trademark rule**
+- [`product-notes-followup.md`](../design/product-notes-followup.md) — pricing model, IAP/AUv3, Module-of-the-Week,
   Loopy Pro channel, save/share codec
-- [`tinyjam-racks.md`](tinyjam-racks.md) / [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) — the rack catalog, lane
+- [`tinyjam-racks.md`](../design/tinyjam-racks.md) / [`tinyjam-racks-followup.md`](../design/tinyjam-racks-followup.md) — the rack catalog, lane
   format, bias knobs, the Game-&-Watch dancer + 9:16 video export
-- [`ios-plan.md`](ios-plan.md) / [`../decisions/0023-ship-carts-as-apps-not-the-editor.md`](../decisions/0023-ship-carts-as-apps-not-the-editor.md)
+- [`ios-plan.md`](../design/ios-plan.md) / [`../decisions/0023-ship-carts-as-apps-not-the-editor.md`](../decisions/0023-ship-carts-as-apps-not-the-editor.md)
   — how the apps actually ship
 - [`../guides/instrument-carts.md`](../guides/instrument-carts.md) — the full instrument shelf the
   modules come from

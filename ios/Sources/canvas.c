@@ -1,6 +1,7 @@
 #include "canvas.h"
 #include "audio.h"
 #include "tinyjam_store.h"
+#include "save.h"
 #include <math.h>
 
 static uint8_t fb[DE_W * DE_H * 4];
@@ -25,7 +26,7 @@ static void fillcirc(int cx, int cy, int rad, uint8_t r, uint8_t g, uint8_t b) {
             if (x*x + y*y <= rad*rad) pset(cx + x, cy + y, r, g, b);
 }
 
-void de_ready(void) { clear(20, 18, 28); }
+void de_ready(void) { clear(20, 18, 28); de_record_launch(); }
 
 void de_update(double t) {
     clear(20, 18, 28);
@@ -53,4 +54,13 @@ void de_update(double t) {
     for (int y = 14; y < 22; y++)
         for (int x = DE_W - 10; x < DE_W - 2; x++)
             pset(x, y, unlocked ? 90 : 220, unlocked ? 220 : 60, unlocked ? 110 : 60);
+    // launch counter — one cyan square per app launch, persisted via de_save_bytes to the
+    // iOS Documents dir. Re-running ./build.sh adds a square → proves saves survive relaunch.
+    int lc = de_launch_count();
+    for (int k = 0; k < lc && k < 36; k++) {
+        int bx = 4 + k * 4;
+        for (int yy = 26; yy < 31; yy++)
+            for (int xx = bx; xx < bx + 3; xx++)
+                pset(xx, yy, 90, 200, 230);
+    }
 }

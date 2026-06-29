@@ -37,18 +37,35 @@ final class AUHostTests: XCTestCase {
         try engine.start()
 
         let buf = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: 4096)!
-        var peak: Float = 0, rendered = 0
-        while rendered < 22050 {                              // ~0.5s
-            let status = try engine.renderOffline(2048, to: buf)
-            guard status == .success else { break }
-            if let ch = buf.floatChannelData {
-                for i in 0..<Int(buf.frameLength) { peak = max(peak, abs(ch[0][i])) }
+        func renderPeak(_ frames: Int) throws -> Float {
+            var peak: Float = 0, done = 0
+            while done < frames {
+                guard try engine.renderOffline(2048, to: buf) == .success else { break }
+                if let ch = buf.floatChannelData {
+                    for i in 0..<Int(buf.frameLength) { peak = max(peak, abs(ch[0][i])) }
+                }
+                done += Int(buf.frameLength)
             }
-            rendered += Int(buf.frameLength)
+            return peak
         }
+
+        // 1) a keybed instrument (epiano) is SILENT until the host sends a note.
+        let silentPeak = try renderPeak(11025)               // ~0.25s, no MIDI
+        NSLog("[auhost] idle (no MIDI) peak=%.3f", silentPeak)
+        XCTAssertLessThan(silentPeak, 0.02, "instrument made sound with no MIDI input")
+
+        // 2) send a note-on (middle C, vel 100) via the host's MIDI schedule block, render → sound.
+        let sched = avAU.auAudioUnit.scheduleMIDIEventBlock
+        XCTAssertNotNil(sched, "AUv3 does not expose scheduleMIDIEventBlock (no MIDI input path)")
+        let noteOn: [UInt8] = [0x90, 60, 100]
+        sched?(AUEventSampleTimeImmediate, 0, noteOn.count, noteOn)
+        let playedPeak = try renderPeak(22050)               // ~0.5s with the note held
+        NSLog("[auhost] played (note-on 60) peak=%.3f", playedPeak)
+        XCTAssertGreaterThan(playedPeak, 0.05, "AUv3 produced no sound for a host MIDI note")
+
+        let noteOff: [UInt8] = [0x80, 60, 0]
+        sched?(AUEventSampleTimeImmediate, 0, noteOff.count, noteOff)
         engine.stop()
-        NSLog("[auhost] rendered %d frames through the AUv3, peak=%.3f", rendered, peak)
-        XCTAssertGreaterThan(peak, 0.01, "AUv3 produced silence")
     }
 
     private func instantiate(_ d: AudioComponentDescription) async throws -> AVAudioUnit {

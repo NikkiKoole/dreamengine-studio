@@ -16,7 +16,7 @@ SHOT="${SHOT:-}"
 SCHEME="TinyjamHello"
 BUNDLE_ID="com.tinyjam.hello"
 CART="${CART:-omnichord}"       # the standalone app's cart (touch instrument)
-AU_CART="${AU_CART:-tb303}"     # the AUv3 extension's cart (self-playing → audible with no MIDI)
+AU_CART="${AU_CART:-epiano}"    # the AUv3 extension's cart (a keybed instrument played by host MIDI)
 
 # Phase 2: stage each target's cart — gen/<dir>/{cart.c,sprites_data.h,map_data.h}, generated
 # from tools/carts/<name>.c via play.js. The app and the AUv3 host DIFFERENT carts, so each gets

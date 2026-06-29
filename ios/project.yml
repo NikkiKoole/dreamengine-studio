@@ -41,10 +41,10 @@ targets:
   TinyjamAU:
     type: app-extension
     platform: iOS
-    # The AUv3 rack now hosts the REAL engine too (not the spike arpeggio): studio.c +
-    # raylib_compat.c + a SELF-PLAYING cart (gen/au/cart.c = tb303), so it's audible with no
-    # host MIDI. TinyjamAU.swift ticks de_frame() ~60Hz (the sequencer) and pulls
-    # de_audio_render() in its render block — same engine the app runs.
+    # The AUv3 rack hosts the REAL engine (not the spike arpeggio): studio.c + raylib_compat.c
+    # + a keybed instrument cart (gen/au/cart.c = epiano). TinyjamAU.swift's render block feeds
+    # host MIDI (de_midi_event) → the cart's keybed plays it, sample-clocks de_frame() (the
+    # sequencer/voice bookkeeping), and pulls de_audio_render() — same engine the app runs.
     sources:
       - AU
       - ../runtime/studio.c

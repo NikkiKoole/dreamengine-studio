@@ -25,4 +25,10 @@ void de_touch_begin(int id, float x, float y);
 void de_touch_moved(int id, float x, float y);
 void de_touch_ended(int id, float x, float y);
 
+// Host MIDI → engine (the AUv3 render block feeds these from its event list). type: +1
+// note-on, -1 note-off; note 0..127; vel 1..127. de_midi_bend: -8192..8191 (0 = centre).
+// A keybed cart (epiano/moog/…) drains them via the engine's midi_get() and plays notes.
+void de_midi_event(int type, int note, int vel);
+void de_midi_bend(int v);
+
 #endif

@@ -1,20 +1,19 @@
 import AVFoundation
 
-// The AUv3 instrument extension — now hosting the REAL dreamengine (not the spike arpeggio).
-// It runs the same engine the standalone app does: de_init() brings up sound.h's mixer + the
-// cart's init(), then the render block both advances the SEQUENCER and pulls the mixer:
+// The AUv3 instrument extension — hosting the REAL dreamengine (not the spike arpeggio), played
+// by host MIDI. It runs the same engine the standalone app does. Each render block, in order:
 //
-//   • de_frame() advances one 60Hz tick of cart logic (update/draw → notes queued per beat).
-//     We SAMPLE-CLOCK it — one frame per 735 rendered samples (44100/60) — NOT a wall-clock
-//     timer, so it stays correct under a host's OFFLINE/faster-than-real-time rendering too.
-//   • de_audio_render() = sound.h's mixer, filling interleaved stereo.
+//   1. feed host MIDI into the engine's ring (de_midi_event), parsed from the realtime event list.
+//   2. de_frame() advances one 60Hz tick of cart logic — the cart's keybed drains the MIDI ring
+//      (keybed_update → note_on/off) and plays. SAMPLE-CLOCKED — one frame per 735 rendered samples
+//      (44100/60), NOT a wall-clock timer — so it stays correct under a host's OFFLINE render too.
+//   3. de_audio_render() = sound.h's mixer, filling interleaved stereo.
 //
-// Both run on the audio thread, in order, so there are NO cross-thread races on engine state
-// (stricter than the app, where de_frame is on the main thread). The staged cart (gen/au/cart.c)
-// is a SELF-PLAYING one (tb303) so a host hears the real engine with no MIDI wired yet
-// (host-MIDI → engine notes is the next step). One engine instance per process: studio.c/sound.h
-// use file-scope globals; iOS loads the AUv3 out-of-process, and one hosted rack is the case we
-// support (multiple simultaneous instances in one process would share that global state).
+// All three run on the audio thread, in order, so there are NO cross-thread races on engine state
+// (the MIDI ring's producer and consumer are the same thread here). The staged cart (gen/au/cart.c)
+// is a KEYBED instrument (epiano): silent until the host sends notes, then it plays them. One engine
+// instance per process: studio.c/sound.h use file-scope globals; iOS loads the AUv3 out-of-process,
+// and one hosted rack is the case we support (multiple instances in one process would share state).
 public final class TinyjamAU: AUAudioUnit {
     private let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 2)!
     private var _outputBusArray: AUAudioUnitBusArray!
@@ -46,10 +45,29 @@ public final class TinyjamAU: AUAudioUnit {
     public override var internalRenderBlock: AUInternalRenderBlock {
         let scratch = self.scratch, cap = self.scratchCap, acc = self.acc, frame = self.frame
         let spf = TinyjamAU.SAMPLES_PER_FRAME
-        return { _, _, frameCount, _, outputData, _, _ in
+        return { _, _, frameCount, _, outputData, eventListHead, _ in
             let n = Int(frameCount)
             if n * 2 > cap { return kAudioUnitErr_TooManyFramesToProcess }
-            // advance the sequencer in step with rendered audio (one de_frame per 735 samples)
+            // 1) feed host MIDI into the engine ring FIRST, so the frame ticked below sees it.
+            //    Walk the realtime event list; handle note-on/off (0x90/0x80) + pitch-bend (0xE0).
+            var ev = eventListHead
+            while let e = ev {
+                if e.pointee.head.eventType == .MIDI {
+                    let m = e.pointee.MIDI
+                    if m.length >= 3 {
+                        let status = m.data.0 & 0xF0, d1 = Int(m.data.1), d2 = Int(m.data.2)
+                        switch status {
+                        case 0x90: de_midi_event(d2 > 0 ? 1 : -1, Int32(d1), Int32(d2))   // note-on (vel 0 = off)
+                        case 0x80: de_midi_event(-1, Int32(d1), Int32(d2))                // note-off
+                        case 0xE0: de_midi_bend(Int32(((d2 << 7) | d1) - 8192))           // pitch-bend
+                        default: break
+                        }
+                    }
+                }
+                ev = UnsafePointer(e.pointee.head.next)
+            }
+            // 2) advance the sequencer in step with rendered audio (one de_frame per 735 samples).
+            //    The cart's update() drains the MIDI ring (keybed_update → note_on/off) here.
             acc.pointee += n
             while acc.pointee >= spf {
                 acc.pointee -= spf

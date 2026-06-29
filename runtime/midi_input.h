@@ -60,8 +60,11 @@ int  midi_bend(void)      { return midi_bend_v; }
 bool midi_present(void)   { return midi_dev_count > 0; }
 const char *midi_name(void) { return midi_dev_name; }   // connected keyboard's name, or "" if none
 
-// ── CoreMIDI backend (macOS only) ──────────────────────────────────────────────
-#if defined(__APPLE__) && !defined(PLATFORM_WEB)
+// ── CoreMIDI backend (DESKTOP macOS only) ───────────────────────────────────────
+// Gated off under DE_NO_RAYLIB: a portable host (iOS AUv3, Switch) is fed MIDI by the
+// HOST (the render block's event list), not by scanning CoreMIDI device sources — same
+// model as the web build. The iOS feed export lives in the #else branch (de_midi_event).
+#if defined(__APPLE__) && !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
 
 #include <CoreMIDI/CoreMIDI.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -158,6 +161,16 @@ static void midi_input_shutdown(void) {
 
 static void midi_input_init(void)     {}
 static void midi_input_shutdown(void) {}
+
+#ifdef DE_NO_RAYLIB
+// Host-MIDI feed for portable backends (the iOS AUv3 render block; Switch later). Same
+// target as the web bridge: push host MIDI into the ring the cart drains via midi_get().
+// On iOS we sample-clock de_frame() in the AU render block, so producer (these) and
+// consumer (midi_get in the cart's update) are the SAME audio thread — no cross-thread race.
+//   type: +1 note-on, -1 note-off ; note 0..127 ; vel 1..127
+void de_midi_event(int type, int note, int vel) { de_midi_push(type, note, vel); }
+void de_midi_bend(int v)                         { midi_bend_v = v; }          // -8192..8191
+#endif
 
 #ifdef PLATFORM_WEB
 // Web MIDI bridge: runtime/web_midi.js (emcc --post-js) drives navigator.requestMIDIAccess()

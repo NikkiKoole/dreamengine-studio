@@ -93,9 +93,8 @@ the hero-clip star, and the social-art hook. Original character, ours; sprite-dr
 > Made a little browser strum-harp — pixel-art, Omnichord-flavoured, plays on a phone, no signup:
 > [LINK]. A loop I made with it, so you can hear where it's at: [SONG URL]
 >
-> It runs on a tiny fantasy-console engine I've been building for a while, so it's a hobby thing and
-> still rough round the edges. I'd really value ears from people who play the real instrument — what
-> feels off, the strum response or the chord voicings? Anything you'd want it to do?
+> It's a hobby project and still rough round the edges. I'd really value ears from people who play the
+> real instrument — what feels off, the strum response or the chord voicings? Anything you'd want it to do?
 >
 > Upfront so I'm not weird about it: I'd like to make a polished iOS version down the line, but this web
 > one stays free to mess with regardless.
@@ -103,8 +102,9 @@ the hero-clip star, and the social-art hook. Original character, ours; sprite-dr
 Notes (lessons from the CHORDESTA thread — see [`research-insights.md`](research-insights.md)):
 - **No "couldn't afford one so I built it"** — that's the burned cliché this exact community flames as
   AI-marketing. Lead with the thing + a loop + a real question instead.
-- **The own-engine line is deliberate** — it signals real craft, not a vibe-coded template, and counters
-  the default "another AI plugin" suspicion. Say it once; don't tech-name-drop.
+- **No process claims.** The engine is agentic, so *don't* imply hand-built craft (that's the
+  fabricated-effort trap that actually sank CHORDESTA). Differentiate on the **loop/demo quality**, not
+  a craft story. Claim nothing about how it was made.
 - **The transparency line is deliberate** — hiding the paid intent ("free to try") is the #1 trust-killer
   there. Naming it plainly defuses it.
 - Post from a **real account with history** (not a fresh one) and post the clip [CLIP] as media if
@@ -116,8 +116,8 @@ Notes (lessons from the CHORDESTA thread — see [`research-insights.md`](resear
 
 > **A little browser strum-harp (Omnichord-flavoured), feedback welcome**
 >
-> Pixel-art strum-harp I built on a small fantasy-console engine of my own — plays in the browser,
-> iOS Safari included, no signup: [LINK]. A loop made with it: [SONG URL], and a clip with sound: [CLIP].
+> Pixel-art strum-harp, Omnichord-flavoured — plays in the browser, iOS Safari included, no signup:
+> [LINK]. A loop made with it: [SONG URL], and a clip with sound: [CLIP].
 >
 > Still rough; I'm using the web version to get the *instrument* right before anything else. Brutal
 > feedback very welcome, especially the feel and the sound. If there's appetite I'd like to do a native
@@ -125,8 +125,8 @@ Notes (lessons from the CHORDESTA thread — see [`research-insights.md`](resear
 > to poke at now. Cheers.
 
 Notes: AUv3-literate crowd, so naming the AUv3 *possibility* (not a promise) is the right hook. Same
-de-clichéd, own-engine, transparent framing as the FB post (see [`research-insights.md`](research-insights.md));
-the homemade-engine line matters extra here, where people can smell a templated plugin.
+de-clichéd, transparent, **no-process-claims** framing as the FB post (the engine is agentic — don't
+imply hand-built craft; let the loop/clip quality carry it). See [`research-insights.md`](research-insights.md).
 
 ---
 

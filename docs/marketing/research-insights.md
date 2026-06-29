@@ -34,12 +34,42 @@ That framing is now a **burned cliché** the community reads as AI-marketing sna
 4. **Don't drop builds into hostile threads.** A commenter offering a GPT-made VST3 got −12 + "Fuck
    off." Unsolicited AI-made binaries = instant rejection. Share a *playable link*, in the right place,
    in gift-tone — never a "here's my .vst3" drive-by.
-5. **The own-engine angle is a credibility asset.** Strumharpy runs on a homemade fantasy-console
-   engine, not a Vercel/AI template. One honest line about that signals real craft and *counters* the
-   vibe-coding suspicion — but state it once; don't tech-name-drop.
+5. **Don't claim hand-built craft — the console is agentic.** The honest differentiator from a
+   vibe-coder isn't hand-coding (you don't); it's **informed direction** — an experienced dev with a
+   real sound-software background steering and *validating* the agent (the igorski81 distinction:
+   vibe-coding = "accepting whatever input without validating"). In cold posts, claim *nothing* about
+   process; let the loop/demo quality differentiate. The real, usable credential is the shipped
+   sound-software track record, not this build.
 6. **Open-source norm tension.** This scene half-expects "share the code." We're shipping a *commercial*
    product, so we won't — which is exactly why honesty about being a commercial product (lesson 3)
    matters more than posing as a community freebie. The free *web demo* is the goodwill, not the source.
+
+## Maker voice & AI disclosure (the honest-but-not-hype line)
+
+Resolved tension: be honest, never lead with AI, and *don't* feel obliged to disclose it in cold
+outreach. The reconciliation:
+
+- **Tools aren't disclosures.** You don't annotate "used an IDE / Stack Overflow / a DSP library"; an AI
+  assistant is the same category. Not mentioning it is **not** dishonest. The only dishonesty is
+  **fabricating a human-effort narrative** — which is what actually sank CHORDESTA (the "I struggled, I
+  have a family, I learned C++ alone" arc), *not* the AI.
+- **So: less story, more product — especially in cold posts.** Narrate no making-of at all; just the
+  toy + a loop + a question. No saga → nothing to be coy about, *and no craft claim to fake* (the
+  engine is agentic — see below). (The Strumharpy posts already do this: product + loop + question, no
+  process claim at all.)
+- **Tell the full honest story on your own turf** (about page / blog / making-of). Framed honestly: an
+  experienced developer who's *shipped sound software before* (one engine became an app's sound engine)
+  — that's the real, pre-AI credential — now **directing agentic builds**, this whole console included.
+  AI isn't a footnote here; it's most of the execution. The honest edge over a vibe-coder is *judgment +
+  domain experience steering the agent*, not hand-coding. This is where you can be openly transparent
+  about all of it; it's also the natural home for the charming-but-true details (the pile of unfinished
+  experiments, FM-at-last).
+- **Answer truthfully if asked.** Honest-when-asked + product-only-when-not is clean and defensible.
+  Never claim you hand-wrote what you didn't.
+- **Why it's safe:** because you make *no process claim* in cold posts, there's nothing to be caught
+  faking — the product's quality is the whole signal. (The opposite — leading with the AI angle, *or*
+  faking hand-built craft — both backfire: one invites the immune response, the other is the exact
+  fabricated-effort lie that sank CHORDESTA. Silence about process is the clean middle.)
 
 ## Competitive landscape (named by the thread — verify/keep current)
 

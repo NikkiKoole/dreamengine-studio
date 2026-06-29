@@ -566,9 +566,10 @@ free omnichord app got flamed in r/synthesizers as AI-marketing. Hard rules it t
   State the free-now / paid-later arc plainly.
 - **Lead with the artifact** (a loop you made) + a real question; minimal origin story — the ones who
   *tried* it liked it, the story is what lost.
-- **Credibility beats wording:** post from a real account with history; the homemade-engine line is an
-  asset (real craft, not a template). Don't drive-by-drop a build (an offered AI-made VST3 got −12 +
-  "Fuck off"). And the space is *populated* (minichord / Chordion / MidiStrum) — differentiate.
+- **Credibility beats wording:** post from a real account with history, and **differentiate on demo
+  quality** — not a craft claim (the engine is agentic; claiming hand-built craft is the fabricated-effort
+  trap). Don't drive-by-drop a build (an offered AI-made VST3 got −12 + "Fuck off"). And the space is
+  *populated* (minichord / Chordion / MidiStrum) — differentiate on the *result*.
 
 ### 9.2 The honest arc: free web = funnel, native app = payoff
 

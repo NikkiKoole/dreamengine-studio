@@ -1178,12 +1178,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     regenerates the cart via play.js (the "swap a cart" loop, extended to iOS); `CanvasView` flips the
     bottom-up `sw_cbuf` + maps touches to framebuffer px → `de_touch_*` (newly given bodies in
     `raylib_compat.c`); `AudioEngine` splits `de_audio_render`'s interleaved stereo. `tools/build-nr.sh`
-    is the desktop recipe. **The AUv3 extension now hosts the real engine too** — its render block
-    sample-clocks `de_frame()` (sequencer) + pulls `de_audio_render()`; `AUHostTests` renders it offline
-    at peak 0.209, matching the desktop tb303 self-play (0.210) vs the old arpeggio (0.180). Open
-    follow-ups: host-MIDI → engine notes (interactive instrument racks); on-device run + renderer FPS
-    measurement (the ADR gate); `tritex`/3D stays GPU-only. Full record:
-    [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
+    is the desktop recipe. **The AUv3 extension is now a playable instrument rack** hosting the real
+    engine: its render block parses host MIDI → `de_midi_event()`, sample-clocks `de_frame()` (the
+    cart's keybed plays the notes), and pulls `de_audio_render()`. `AUHostTests` proves it offline —
+    silent with no MIDI (peak 0.000), then a host note-on → peak 0.106. Engine seam: `midi_input.h`
+    gates CoreMIDI to desktop and exposes `de_midi_event`/`de_midi_bend` (portable host-feed, like the
+    web bridge). Open follow-ups: on-device run + renderer FPS measurement (the ADR gate); `tritex`/3D
+    stays GPU-only; MIDI CC → cart knobs. Full record: [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
 
 ---
 

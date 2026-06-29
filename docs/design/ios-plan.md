@@ -84,21 +84,23 @@ sees the C API. Gotcha learned: screenshot ~1.5s after launch or you catch the l
 >   `AudioEngine` (stereo `AVAudioSourceNode` splitting `de_audio_render`'s interleaved L/R).
 > - `tools/build-nr.sh`: the desktop DE_NO_RAYLIB build/run recipe (the reference the project.yml mirrors).
 >
-> **The AUv3 now hosts the real engine too (2026-06-29).** `AU/TinyjamAU.swift` runs the same engine
-> as the app: `de_init()` → the render block **sample-clocks** `de_frame()` (one 60Hz tick per 735
-> rendered samples) to advance the sequencer, then pulls `de_audio_render()`. Sample-clocking, not a
-> wall-clock timer, keeps it correct under a host's offline/faster-than-real-time render, and running
-> both calls on the one audio thread sidesteps cross-thread races. The app and the AUv3 host DIFFERENT
-> carts, so `build.sh` stages each into its own dir (`gen/app` = omnichord, `gen/au` = **tb303** — a
-> self-playing cart, so the rack is audible with no MIDI yet). Verified: `AUHostTests` renders the
-> out-of-process AUv3 offline → **peak 0.209**, matching the desktop tb303 self-play (0.210), distinct
-> from the old stand-in arpeggio (0.180).
+> **The AUv3 hosts the real engine AND plays host MIDI (2026-06-29) — a real instrument rack.**
+> `AU/TinyjamAU.swift` runs the same engine as the app. Each render block, in order: (1) parse the
+> host's realtime MIDI event list (note-on/off + bend) → `de_midi_event()`; (2) **sample-clock**
+> `de_frame()` (one 60Hz tick per 735 rendered samples) — the cart's keybed drains the MIDI ring
+> (`keybed_update → midi_get → note_on/off`) and plays; (3) pull `de_audio_render()`. Sample-clocking
+> (not a wall-clock timer) keeps it correct under a host's offline/faster-than-real-time render, and
+> all three on the one audio thread means the MIDI ring needs no extra locking. The app and the AUv3
+> host DIFFERENT carts, so `build.sh` stages each into its own dir (`gen/app` = omnichord, `gen/au` =
+> **epiano** — a keybed instrument, silent until played). Engine seam: `midi_input.h` gates the
+> CoreMIDI device backend to desktop (`!DE_NO_RAYLIB`) and exposes `de_midi_event`/`de_midi_bend` as
+> the portable host-feed (same model as the web bridge). Verified: `AUHostTests` renders the
+> out-of-process AUv3 offline — silent with no MIDI (peak 0.000), then a host note-on → **peak 0.106**.
 >
-> **Open follow-ups:** (1) **host-MIDI → engine notes** — wire the AU's MIDI input to the cart's note
-> triggers so an *interactive* instrument rack (e.g. omnichord) plays from a keyboard, not just a
-> self-playing cart. (2) On-device run + the renderer **FPS measurement** (the ADR gate; desktop half
-> done). (3) `tritex`/3D carts stay GPU-only (19ms on CPU) — off the initial iOS target list. (4)
-> Confirm on a real iPhone (`device.sh`).
+> **Open follow-ups:** (1) On-device run + the renderer **FPS measurement** (the ADR gate; desktop
+> half done). (2) `tritex`/3D carts stay GPU-only (19ms on CPU) — off the initial iOS target list. (3)
+> Confirm on a real iPhone (`device.sh`). (4) MIDI CC → cart knobs (the engine's MIDI is note+bend
+> only today); a host-MIDI-driven *standalone* app (vs the touch app) if wanted.
 
 Spikes 0–7 proved the iOS *shell* with stand-in `canvas.c`/`audio.c`. Phase 2 plugs the real
 `studio.c` + `sound.h` + a cart (`omnichord` is the target) into it. Scoping (2026-06-29):

@@ -108,11 +108,13 @@ SHOT=snap.png CART=tb303 ./build.sh # build a different cart's app + screenshot
 bottom-up) and feeds UIKit touches to `de_touch_*`; `AudioEngine` pulls the real mixer
 (`de_audio_render`). The desktop twin of this build is `../tools/build-nr.sh`.
 
-**The AUv3 extension hosts the real engine too** (a separate cart — `AU_CART`, default `tb303`, a
-self-playing one so the rack sounds with no MIDI). `AU/TinyjamAU.swift`'s render block sample-clocks
-`de_frame()` (one 60Hz sequencer tick per 735 rendered samples) then pulls `de_audio_render()` —
-so it's correct even under a host's offline render. Verified by `AUHostTests` (peak 0.209 ≈ desktop
-tb303's 0.210). Next: host-MIDI → engine notes for an interactive instrument rack.
+**The AUv3 extension is a playable instrument rack** hosting the real engine (a separate cart —
+`AU_CART`, default `epiano`, a keybed instrument). `AU/TinyjamAU.swift`'s render block parses the
+host's MIDI event list → `de_midi_event()`, sample-clocks `de_frame()` (the cart's keybed plays the
+notes), then pulls `de_audio_render()` — correct even under a host's offline render, and all on the
+one audio thread (no MIDI-ring locking). Verified by `AUHostTests`: silent with no MIDI (peak 0.000),
+then a host note-on → peak 0.106. Engine seam: `midi_input.h` exposes `de_midi_event`/`de_midi_bend`
+under `DE_NO_RAYLIB` (portable host-feed, like the web bridge). Next: MIDI CC → cart knobs.
 
 ## Status
 

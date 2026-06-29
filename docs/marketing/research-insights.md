@@ -97,7 +97,8 @@ hype, no AI-tells, posting to the *exact* niche sub (r/Omnichord) — and it lan
    an octave, so strumming bottom→top isn't always ascending). **Omnichord people check for exactly
    this.** Strumharpy earning their respect = modelling these quirks, not just an "omnichord-ish" strum.
    This is an *honest, product-side* edge (about the instrument, not the maker) — and dreamengine's deep
-   audio work can plausibly hit it. Added to the launch build-tasks.
+   audio work can plausibly hit it. Added to the launch build-tasks; the full recipe (signal chain +
+   chorus + the fudged-triad/F#-wrap voicing) is in [`omnichord-sound-model.md`](omnichord-sound-model.md).
 4. **Modelling is CPU-heavy** (OH-84 is desktop-only; a lighter OH-27 serves mobile). A faithful model on
    a phone is a real perf constraint — feeds the iOS / software-canvas decisions.
 

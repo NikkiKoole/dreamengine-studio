@@ -150,10 +150,10 @@ module.
 
 - (build) The omnichord cart to wasm, mobile-friendly, hosted on the dedicated page (own domain,
   COOP/COEP host, see §7.2).
-- (build) **Get the musicality authentic** — the thing omnichord players actually check (from the OH-84
-  thread, see research-insights): the chord-section triads should *fudge* notes (drop 3rds/5ths to fit
-  7ths) and the strum should honour the **F# note-wrap** (root not always lowest; top note drops an
-  octave, so bottom→top isn't always ascending). This is the honest product-side differentiator.
+- (build) **Get the musicality authentic** — the honest product-side differentiator. Full recipe (the
+  square→lowpass→VCA signal chain, the slow chorus/vibrato shimmer, the touch-mapped strum, and the
+  voicing quirks omnichord players check — fudged triads + the F# note-wrap) in
+  [`omnichord-sound-model.md`](omnichord-sound-model.md). All achievable on existing engines; no new DSP.
 - (build) Wire the lz-string share button (§6.1).
 - (build) Generate the 9:16 hero clip with audio (make-gif.js plus the dancer, §4.1).
 - (build) Stand up the wishlist signup (tagged).

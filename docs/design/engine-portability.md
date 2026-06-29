@@ -121,9 +121,14 @@ bug.) ~~(3) audio~~ DONE — `de_audio_render` pumps `sound_callback` (the real 
 **All three follow-ups closed — the portable engine is complete on desktop:** real `studio.c` + `sound.h`
 render graphics (omnichord 2D, heroes tilemap+sprites pixel-identical) AND audio (tb303 byte-identical),
 headless, with zero Raylib / zero frameworks. `tools/headless-nr.c` is the proof harness (frame→PPM,
-audio→WAV). **Next is purely the iOS shell**: `project.yml` with `-DDE_NO_RAYLIB` + the runtime sources,
-`CanvasView` blitting `de_framebuffer()` (flip — sw_cbuf is bottom-up), CoreAudio pulling
-`de_audio_render()` — all three already proven by spikes 1/2 with the stand-in `canvas.c`/`audio.c`.
+audio→WAV); `tools/build-nr.sh` is the build/run recipe.
+
+**✅ The iOS shell is now built too (Phase 2, 2026-06-29)** — omnichord renders pixel-correct + upright
+on the iPhone 15 simulator, CoreAudio pulls the real mixer, UIKit touch drives it. One engine-side gap
+surfaced and was filled: the `de_touch_*` seam (platform.h) had no bodies and the no-Raylib input was
+all-zero stubs — `raylib_compat.c` now backs `de_touch_*` with a touch-point pool that
+`GetTouchPointCount/GetTouchPosition` read. The full shell wiring (project.yml `SCALE=1`, the
+`CanvasView` flip, the stereo `de_audio_render` split) lives in [`ios-plan.md`](ios-plan.md) → "Phase 2".
 
 ## The three refactors that unlock iOS (and help web)
 

@@ -51,6 +51,7 @@ Each spike is a small throwaway that kills one unknown. Riskiest cheap-thing fir
 | 6 | CloudKit sync of a saved tinyjam across devices (native-only nicety) | free cross-device sync | sim | — |
 | 6.5 | **standalone app runs on a real iPhone** (signed) | signing + device deploy | **device** | ✅ **done** — iPhone (iOS 15.4.1), maker confirmed running. `ios/device.sh` |
 | 7 | AUv3 extension makes sound, hosted | the killer feature | sim | ✅ **done** — extension reuses the C synth (`AU/TinyjamAU.swift`); our OWN host test finds it via `AVAudioUnitComponentManager`, instantiates + renders it offline (peak 0.180). No GarageBand/AUM/device needed. Real-host (AUM/GB) confirmation deferred to whenever a host is installed. |
+| 8 | **the REAL engine (a cart) renders + sounds on iOS** (Phase 2) | the whole point | sim | ✅ **done** — omnichord (real `studio.c`+`sound.h`, zero Raylib) renders pixel-correct + upright on the iPhone 15 sim (`history/spike8-omnichord.png`); CoreAudio pulls the real mixer; UIKit touch drives it. See "Phase 2" below. |
 
 Spike 1 mechanism shipped: `ios/Sources/canvas.{h,c}` (a stand-in software canvas — a few primitives
 into an RGBA8888 buffer) + `CanvasView.swift` (CGImage from the buffer, `layer.magnificationFilter =
@@ -62,19 +63,31 @@ sees the C API. Gotcha learned: screenshot ~1.5s after launch or you catch the l
 
 ## Phase 2 — running the REAL engine on iOS (omnichord, not the stand-in)
 
-> **STATUS 2026-06-29: Path B BUILT and desktop-proven — only the iOS shell remains.** The real
-> `studio.c` + `sound.h` now compile, render, and sound with **zero Raylib** (the `DE_NO_RAYLIB`
-> platform seam). Verified headless on desktop: omnichord (2D) + **heroes** (tilemap+sprites) render
-> **pixel-identical** to Raylib; **tb303** audio is **byte-identical** to the Raylib `--wav`. Built:
-> `runtime/platform.h` (seam) · `color.h` (DeColor) · `raylib_compat.{h,c}` (shim+stubs) · baked fonts
-> (`tools/bake-fonts.c`→`fonts_baked.h`) · stb_image sprite decode · `de_init`/`de_frame`/`de_framebuffer`/
-> `de_audio_render` · `tools/headless-nr.c` (proof harness). The fork below is **resolved: Path B.** The
-> renderer decision settled "two renderers, one seam" (software now, GPU/Metal later). Full record:
-> [`engine-portability.md`](engine-portability.md) → "Built — the platform seam".
+> **STATUS 2026-06-29: ✅ DONE — the real engine renders + sounds on iOS.** omnichord (the real
+> `studio.c` + `sound.h`, zero Raylib) renders **pixel-correct and upright** on the iPhone 15
+> simulator (`ios/history/spike8-omnichord.png`), CoreAudio pulls the real mixer, and UIKit touch
+> drives it (a desktop strum through the same `de_touch_*` path goes silent→0.374 peak). The fork
+> below resolved **Path B**; the renderer decision settled "two renderers, one seam" (software now,
+> GPU/Metal later). Engine-side foundation: [`engine-portability.md`](engine-portability.md).
 >
-> **Remaining = the iOS shell only** (no engine surgery): `project.yml` adds `-DDE_NO_RAYLIB` + the
-> runtime sources + the cart; `CanvasView` blits `de_framebuffer()` (flip — `sw_cbuf` is bottom-up);
-> CoreAudio pulls `de_audio_render()`. All three already proven in spikes 1/2 with the stand-ins.
+> **What the iOS shell turned out to need** (all in the two Phase-2 commits):
+> - `runtime/raylib_compat.c`: the `de_touch_*` seam now has bodies (a touch-point pool that
+>   `GetTouchPointCount/GetTouchPosition` read) — the no-Raylib input was all-zero stubs before.
+>   `de_open_path`'s `system()` is `#ifdef`'d out under `DE_NO_RAYLIB` (unavailable on iOS).
+> - `ios/project.yml`: app target compiles `studio.c` + `raylib_compat.c` + `build/cart.c` with
+>   `-DDE_NO_RAYLIB`, **`SCALE=1`** (so touches map 1:1 to framebuffer px), omnichord's screen/map
+>   dims; `HEADER_SEARCH_PATHS` at `runtime/` + `build/`; stand-in `canvas/audio` excluded.
+> - `ios/build.sh`: regenerates `build/{cart.c,sprites_data.h,map_data.h}` via `play.js` first —
+>   the **"swap a cart" loop, extended to iOS**: `CART=<name> ./build.sh`.
+> - `ios/Sources/`: `engine.h` (standalone seam decls for the bridging header), `CanvasView` (de_init/
+>   de_frame/de_framebuffer; flips bottom-up `sw_cbuf`; UIKit touch → framebuffer px → `de_touch_*`),
+>   `AudioEngine` (stereo `AVAudioSourceNode` splitting `de_audio_render`'s interleaved L/R).
+> - `tools/build-nr.sh`: the desktop DE_NO_RAYLIB build/run recipe (the reference the project.yml mirrors).
+>
+> **Open follow-ups:** (1) the AUv3 extension still uses the stand-in `audio.c` arpeggio — migrate it
+> to the real `de_audio_render` so a "Tinyjam rack" hosts the real mixer. (2) On-device run + the
+> renderer **FPS measurement** (the ADR gate; desktop half done). (3) `tritex`/3D carts stay GPU-only
+> (19ms on CPU) — off the initial iOS target list. (4) Confirm on a real iPhone (`device.sh`).
 
 Spikes 0–7 proved the iOS *shell* with stand-in `canvas.c`/`audio.c`. Phase 2 plugs the real
 `studio.c` + `sound.h` + a cart (`omnichord` is the target) into it. Scoping (2026-06-29):

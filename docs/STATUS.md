@@ -1169,9 +1169,18 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     `de_frame`/`de_framebuffer`/`de_audio_render` · `tools/headless-nr.c` (proof harness: frame→PPM, audio→WAV).
     Decision settled: **two renderers behind one seam** (software now, GPU/Metal later). Kept desktop
     bit-identical throughout (build-all, canvas-diff 0px) — every path is `#ifdef DE_NO_RAYLIB`. Full record:
-    [`design/engine-portability.md`](design/engine-portability.md). **Remaining = the iOS shell only** (no
-    engine surgery): `ios/project.yml` `-DDE_NO_RAYLIB` + runtime sources, `CanvasView` blit (flip — `sw_cbuf`
-    is bottom-up), CoreAudio → `de_audio_render`. Also open: on-device renderer FPS measurement (the ADR gate).
+    [`design/engine-portability.md`](design/engine-portability.md).
+48. **✓ DONE 2026-06-29 — the REAL engine renders + sounds on iOS (Phase 2 / spike 8).** omnichord (real
+    `studio.c`+`sound.h`, zero Raylib) renders **pixel-correct and upright** on the iPhone 15 simulator
+    (`ios/history/spike8-omnichord.png`), CoreAudio pulls the real mixer, and UIKit touch drives it (a
+    desktop strum through the same `de_touch_*` path goes silent→0.374 peak). Wiring: `ios/project.yml`
+    compiles `studio.c`+`raylib_compat.c`+`build/cart.c` with `-DDE_NO_RAYLIB`/`SCALE=1`; `ios/build.sh`
+    regenerates the cart via play.js (the "swap a cart" loop, extended to iOS); `CanvasView` flips the
+    bottom-up `sw_cbuf` + maps touches to framebuffer px → `de_touch_*` (newly given bodies in
+    `raylib_compat.c`); `AudioEngine` splits `de_audio_render`'s interleaved stereo. `tools/build-nr.sh`
+    is the desktop recipe. Open follow-ups: migrate the AUv3 extension off the stand-in arpeggio to the
+    real `de_audio_render`; on-device run + renderer FPS measurement (the ADR gate); `tritex`/3D stays
+    GPU-only. Full record: [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
 
 ---
 

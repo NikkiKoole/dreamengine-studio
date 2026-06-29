@@ -15,6 +15,14 @@ DEVICE="${DEVICE:-iPhone 15}"
 SHOT="${SHOT:-}"
 SCHEME="TinyjamHello"
 BUNDLE_ID="com.tinyjam.hello"
+CART="${CART:-omnichord}"
+
+# Phase 2: (re)generate the cart the app compiles — build/{cart.c,sprites_data.h,map_data.h}
+# from tools/carts/$CART.c. This is the "swap a cart" loop, extended to iOS: change CART,
+# re-run, ship a different app. project.yml references ../build/cart.c + ../runtime sources.
+echo "▸ generating cart '$CART' (build/cart.c + data headers)…"
+( cd .. && node tools/play.js "$CART" run --headless --frames 1 >/dev/null 2>&1 ) \
+  || { echo "✗ cart generation failed — run: node tools/play.js $CART run --headless --frames 1"; exit 1; }
 
 echo "▸ generating xcodeproj from project.yml…"
 xcodegen generate --spec project.yml >/dev/null

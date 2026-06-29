@@ -1,6 +1,8 @@
 import SwiftUI
 
-// spike 1 — software-canvas framebuffer drawn by C, hosted on iOS via CanvasView.
+// Phase 2 — the real dreamengine (a cart: omnichord) hosted on iOS via CanvasView.
+// CanvasView owns the lifecycle: de_init() then AudioEngine.start() (so sound_init runs
+// before the audio thread pulls de_audio_render). App just loads StoreKit entitlements.
 @main
 struct TinyjamHelloApp: App {
     var body: some Scene {
@@ -15,7 +17,6 @@ struct ContentView: View {
             CanvasViewRep().ignoresSafeArea()
         }
         .onAppear {
-            AudioEngine.shared.start()   // spike 2 — start the synth
             Store_Init()                 // spike 4 — load products + entitlements
         }
     }

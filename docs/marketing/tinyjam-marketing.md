@@ -637,6 +637,42 @@ raised the price; 1.0 (2011) raised it again; by then it was a global phenomenon
 > becomes a paid app), and kind at the seam (grandfather the helpers, keep links alive). That's the
 > difference between a tribe that *evangelizes* the launch and one that feels used by it.
 
+## 10. Discoverability — search + AI Overviews (GEO/AEO)
+
+"How do we end up in the Google AI Overview when someone searches *omnichord*?" You **can't place
+yourself there directly** — it's emergent, uncontrollable, and changes constantly (Google's own line:
+no special tricks or schema, just foundational SEO + genuinely helpful, people-first content). You
+optimize the *inputs*; the citation is downstream. **The good news: the inputs are mostly things this
+plan already does.** GEO is the payoff of the tribe + content strategy done honestly, not a separate
+workstream.
+
+The levers, highest-to-lowest leverage:
+
+1. **Genuine Reddit/forum presence — the #1 lever.** Reddit is the *most-cited domain* across AI
+   Overviews / ChatGPT / Perplexity / Gemini (~49% of AI Overviews include Reddit; Google's "Community
+   Perspectives" pulls forum quotes in directly). The catch: it rewards **authentic expertise-sharing,
+   not promo** — which is *exactly* the gift-not-ask discipline (§9.1). So the etiquette rule and the
+   AI-Overview win are **the same rule**: be a real participant who shares a free toy and real knowledge,
+   and you accrue "citation equity." (The CHORDESTA lesson and the GEO lesson converge.)
+2. **A crawlable, text-rich landing page — not just a wasm canvas.** A bare playable canvas is invisible
+   to crawlers and AI. The dedicated page (§7.2) needs real indexable prose: what it is ("a free omnichord
+   you can play in your browser"), **question-style headings** (the same logic as Featured Snippets), and
+   a short FAQ. That's what gets extracted into an Overview.
+3. **Topical-authority content — and we already have the seed.** Publish the genuinely-useful
+   omnichord knowledge ([`omnichord-sound-model.md`](omnichord-sound-model.md)) as a public
+   *"how an omnichord makes its sound"* page, and answer the questions people actually search
+   (*free omnichord app*, *omnichord vs minichord*, *how does an omnichord work*). Real answers to real
+   questions are the citable unit.
+4. **Get mentioned by trusted niche sources** (OmnichordContentHub, reviewers like Sound Test Room) —
+   corroborating citations across the corpus the AI synthesizes from.
+5. **Schema markup** (SoftwareApplication / FAQPage) — not required, but a cheap assist for parsing /
+   the Knowledge Graph.
+
+Honest caveats: it's a **moving target**, you can't guarantee or buy placement, and being *cited* isn't
+the same as being *clicked* (the "zero-click" problem — an Overview may answer without sending traffic).
+So don't chase the Overview directly; build the substance + the genuine presence, and let citation
+follow. (All of this is web-researched 2026-06-29; SEO/GEO shifts fast — re-check before leaning hard.)
+
 ## See also
 
 - [`product-notes.md`](../design/product-notes.md) — market thesis, sketch-first, parking lot, **trademark rule**

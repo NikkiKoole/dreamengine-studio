@@ -2,6 +2,7 @@
 {
   "title": "pan",
   "status": "active",
+  "created": "2026-06-09",
   "kind": [
     "tech-demo",
     "instrument"

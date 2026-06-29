@@ -2,6 +2,7 @@
 {
   "title": "platform engine (rects)",
   "status": "active",
+  "created": "2026-06-03",
   "kind": [
     "tutorial"
   ],

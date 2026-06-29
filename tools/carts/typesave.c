@@ -2,6 +2,7 @@
 {
   "title": "21. type & save",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "tutorial"
   ],

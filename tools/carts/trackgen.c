@@ -2,6 +2,7 @@
 {
   "title": "trackgen (kart racing)",
   "status": "active",
+  "created": "2026-06-10",
   "kind": [
     "game"
   ],

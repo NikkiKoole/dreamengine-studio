@@ -2,6 +2,7 @@
 {
   "title": "19. juice",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "tutorial"
   ],

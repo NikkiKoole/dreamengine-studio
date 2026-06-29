@@ -2,6 +2,7 @@
 {
   "title": "roadview",
   "status": "active",
+  "created": "2026-06-25",
   "kind": [
     "tech-demo",
     "toy"

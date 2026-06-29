@@ -2,6 +2,7 @@
 {
   "title": "collision lab 3: the world",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "tutorial"
   ],

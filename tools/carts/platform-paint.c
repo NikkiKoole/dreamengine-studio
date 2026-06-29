@@ -2,6 +2,7 @@
 {
   "title": "paint a level",
   "status": "active",
+  "created": "2026-06-03",
   "kind": [
     "tutorial"
   ],

@@ -2,6 +2,7 @@
 {
   "title": "Donkey Kong",
   "status": "active",
+  "created": "2026-06-01",
   "kind": [
     "game"
   ],

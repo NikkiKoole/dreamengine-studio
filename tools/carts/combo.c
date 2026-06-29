@@ -2,6 +2,7 @@
 {
   "title": "combo",
   "status": "active",
+  "created": "2026-06-14",
   "kind": [
     "instrument",
     "tech-demo"

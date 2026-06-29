@@ -2,6 +2,7 @@
 {
   "title": "beltworks",
   "status": "active",
+  "created": "2026-06-22",
   "kind": [
     "game"
   ],

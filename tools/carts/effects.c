@@ -2,6 +2,7 @@
 {
   "title": "20. effects",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "tutorial"
   ],

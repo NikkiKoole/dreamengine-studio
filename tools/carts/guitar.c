@@ -2,6 +2,7 @@
 {
   "title": "guitar",
   "status": "active",
+  "created": "2026-06-05",
   "kind": [
     "instrument",
     "tech-demo"

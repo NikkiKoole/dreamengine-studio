@@ -2,6 +2,7 @@
 {
   "title": "say",
   "status": "active",
+  "created": "2026-06-09",
   "kind": [
     "instrument",
     "probe"

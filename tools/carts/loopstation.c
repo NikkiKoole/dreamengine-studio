@@ -2,6 +2,7 @@
 {
   "title": "loopstation",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "instrument",
     "probe"

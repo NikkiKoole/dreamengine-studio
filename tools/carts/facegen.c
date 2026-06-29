@@ -2,6 +2,7 @@
 {
   "title": "facegen",
   "status": "active",
+  "created": "2026-06-22",
   "kind": [
     "toy",
     "tech-demo"

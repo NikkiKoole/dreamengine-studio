@@ -2,6 +2,7 @@
 {
   "title": "pixel zoo",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "toy",
     "tech-demo"

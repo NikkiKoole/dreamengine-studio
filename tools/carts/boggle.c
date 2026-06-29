@@ -2,6 +2,7 @@
 {
   "title": "Boggle",
   "status": "active",
+  "created": "2026-06-01",
   "kind": [
     "game"
   ],

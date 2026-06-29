@@ -2,6 +2,7 @@
 {
   "title": "tilemap platformer",
   "status": "active",
+  "created": "2026-06-03",
   "kind": [
     "tutorial"
   ],

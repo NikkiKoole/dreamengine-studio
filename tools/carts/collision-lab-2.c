@@ -2,6 +2,7 @@
 {
   "title": "collision lab 2: circles + distance",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "tutorial"
   ],

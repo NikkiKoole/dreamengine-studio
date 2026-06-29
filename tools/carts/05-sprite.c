@@ -2,6 +2,7 @@
 {
   "title": "5. draw your character",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

@@ -2,6 +2,7 @@
 {
   "title": "Marble Madness",
   "status": "active",
+  "created": "2026-06-01",
   "kind": [
     "game",
     "probe"

@@ -2,6 +2,7 @@
 {
   "title": "upright bass",
   "status": "active",
+  "created": "2026-06-12",
   "kind": [
     "instrument"
   ],

@@ -2,6 +2,7 @@
 {
   "title": "flappy",
   "status": "active",
+  "created": "2026-06-07",
   "kind": [
     "game",
     "tutorial"

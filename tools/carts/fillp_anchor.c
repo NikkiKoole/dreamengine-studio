@@ -2,6 +2,7 @@
 {
   "title": "24. moving patterns",
   "status": "active",
+  "created": "2026-06-02",
   "kind": [
     "tutorial"
   ],

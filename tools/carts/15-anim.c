@@ -2,6 +2,7 @@
 {
   "title": "15. animation phase",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

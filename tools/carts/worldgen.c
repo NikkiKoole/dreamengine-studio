@@ -2,6 +2,7 @@
 {
   "title": "worldgen",
   "status": "active",
+  "created": "2026-06-09",
   "kind": [
     "tech-demo",
     "toy"

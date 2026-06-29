@@ -2,6 +2,7 @@
 {
   "title": "galerijflat",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "generative"
   ],

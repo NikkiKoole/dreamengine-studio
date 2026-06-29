@@ -2,6 +2,7 @@
 {
   "title": "galaga",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "game"
   ],

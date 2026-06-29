@@ -2,6 +2,7 @@
 {
   "title": "oil show",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "toy",
     "tech-demo"

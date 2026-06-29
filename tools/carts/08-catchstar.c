@@ -2,6 +2,7 @@
 {
   "title": "8. catch the star",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

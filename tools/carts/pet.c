@@ -2,6 +2,7 @@
 {
   "title": "lil blob (pet)",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "toy"
   ],

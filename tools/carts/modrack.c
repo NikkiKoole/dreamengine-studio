@@ -2,6 +2,7 @@
 {
   "title": "modrack",
   "status": "active",
+  "created": "2026-06-02",
   "kind": [
     "instrument",
     "probe"

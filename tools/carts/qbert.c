@@ -2,6 +2,7 @@
 {
   "title": "Q*bert",
   "status": "active",
+  "created": "2026-06-01",
   "kind": [
     "game"
   ],

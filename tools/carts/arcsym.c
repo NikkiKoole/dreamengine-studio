@@ -2,6 +2,7 @@
 {
   "title": "arcsym",
   "status": "active",
+  "created": "2026-06-23",
   "kind": [
     "tech-demo"
   ],

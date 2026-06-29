@@ -2,6 +2,7 @@
 {
   "title": "mandala pad",
   "status": "active",
+  "created": "2026-06-03",
   "kind": [
     "toy"
   ],

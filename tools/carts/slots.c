@@ -2,6 +2,7 @@
 {
   "title": "one-armed bandit",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "game"
   ],

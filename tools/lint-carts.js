@@ -69,6 +69,8 @@ for (const f of fs.readdirSync(CARTS).sort()) {
   if (!m.title || typeof m.title !== "string") errors.push(`${at}: missing title`);
   if ("status" in m && !STATUSES.includes(m.status))
     errors.push(`${at}: bad status '${m.status}' — pick from: ${STATUSES.join(", ")}`);
+  if (typeof m.created !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(m.created))
+    errors.push(`${at}: missing/invalid created (YYYY-MM-DD) — find it with: git log --follow --diff-filter=A --format=%cd --date=short -- tools/carts/${name}.c | tail -1`);
 
   if (!Array.isArray(m.kind) || m.kind.length === 0)
     errors.push(`${at}: missing kind[] — pick from: ${KINDS.join(", ")}`);

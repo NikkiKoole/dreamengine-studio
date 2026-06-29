@@ -2,6 +2,7 @@
 {
   "title": "floorplan",
   "status": "active",
+  "created": "2026-06-26",
   "kind": [
     "tech-demo",
     "toy"

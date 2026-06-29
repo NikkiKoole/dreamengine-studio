@@ -2,6 +2,7 @@
 {
   "title": "xcom (enemy unknown)",
   "status": "active",
+  "created": "2026-05-31",
   "kind": [
     "game"
   ],

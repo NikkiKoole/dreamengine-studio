@@ -2,6 +2,7 @@
 {
   "title": "The Cut",
   "status": "active",
+  "created": "2026-06-17",
   "kind": [
     "game",
     "probe"

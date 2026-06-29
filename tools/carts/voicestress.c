@@ -2,6 +2,7 @@
 {
   "title": "voice stress",
   "status": "active",
+  "created": "2026-06-15",
   "kind": [
     "probe",
     "tool"

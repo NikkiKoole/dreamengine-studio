@@ -2,6 +2,7 @@
 {
   "title": "Cityplan — a world you can lift the roof off",
   "status": "active",
+  "created": "2026-06-23",
   "kind": [
     "tech-demo",
     "generative"

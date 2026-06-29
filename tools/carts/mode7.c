@@ -2,6 +2,7 @@
 {
   "title": "mode 7",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "game",
     "tech-demo"

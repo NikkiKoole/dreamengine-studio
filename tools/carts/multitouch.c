@@ -2,6 +2,7 @@
 {
   "title": "multitouch paint",
   "status": "active",
+  "created": "2026-06-05",
   "kind": [
     "tech-demo",
     "toy"

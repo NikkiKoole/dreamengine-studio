@@ -2,6 +2,7 @@
 {
   "title": "classic starter (v1 default)",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "tech-demo"
   ],

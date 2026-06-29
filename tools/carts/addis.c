@@ -2,6 +2,7 @@
 {
   "title": "addis radio",
   "status": "active",
+  "created": "2026-06-08",
   "kind": [
     "toy",
     "instrument"

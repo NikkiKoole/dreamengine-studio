@@ -2,6 +2,7 @@
 {
   "title": "9. enemies!",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

@@ -2,6 +2,7 @@
 {
   "title": "Shapes",
   "status": "active",
+  "created": "2026-06-01",
   "kind": [
     "tech-demo"
   ],

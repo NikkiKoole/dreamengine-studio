@@ -2,6 +2,7 @@
 {
   "title": "excitebike",
   "status": "active",
+  "created": "2026-05-31",
   "kind": [
     "game"
   ],

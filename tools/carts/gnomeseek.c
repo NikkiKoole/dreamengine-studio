@@ -2,6 +2,7 @@
 {
   "title": "Gnome Hide & Eek",
   "status": "active",
+  "created": "2026-06-10",
   "kind": [
     "game",
     "tech-demo"

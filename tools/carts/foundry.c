@@ -2,6 +2,7 @@
 {
   "title": "sprite foundry",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "tutorial",
     "tech-demo"

@@ -2,6 +2,7 @@
 {
   "title": "arcs",
   "status": "active",
+  "created": "2026-05-31",
   "kind": [
     "tech-demo"
   ],

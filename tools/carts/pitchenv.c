@@ -2,6 +2,7 @@
 {
   "title": "pitch env",
   "status": "active",
+  "created": "2026-06-03",
   "kind": [
     "tech-demo"
   ],

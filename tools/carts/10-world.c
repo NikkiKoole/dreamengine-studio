@@ -2,6 +2,7 @@
 {
   "title": "10. build a world",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

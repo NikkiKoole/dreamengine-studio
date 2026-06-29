@@ -2,6 +2,7 @@
 {
   "title": "4b. the mouse",
   "status": "active",
+  "created": "2026-06-22",
   "kind": [
     "tutorial"
   ],

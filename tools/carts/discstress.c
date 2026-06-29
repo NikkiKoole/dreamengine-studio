@@ -2,6 +2,7 @@
 {
   "title": "discstress",
   "status": "active",
+  "created": "2026-06-17",
   "kind": [
     "tech-demo"
   ],

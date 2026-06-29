@@ -2,6 +2,7 @@
 {
   "title": "M.U.L.E.",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "game"
   ],

@@ -2,6 +2,7 @@
 {
   "title": "ui.h loupe",
   "status": "active",
+  "created": "2026-06-10",
   "kind": [
     "tech-demo"
   ],

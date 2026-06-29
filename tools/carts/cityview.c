@@ -2,6 +2,7 @@
 {
   "title": "cityview",
   "status": "active",
+  "created": "2026-06-24",
   "kind": [
     "tech-demo"
   ],

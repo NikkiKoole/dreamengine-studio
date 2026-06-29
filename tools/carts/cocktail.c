@@ -2,6 +2,7 @@
 {
   "title": "cocktail radio",
   "status": "active",
+  "created": "2026-06-05",
   "kind": [
     "toy",
     "instrument"

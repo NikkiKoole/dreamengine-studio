@@ -2,6 +2,7 @@
 {
   "title": "ui kit",
   "status": "active",
+  "created": "2026-06-07",
   "kind": [
     "probe",
     "tech-demo"

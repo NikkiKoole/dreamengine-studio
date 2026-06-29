@@ -2,6 +2,7 @@
 {
   "title": "13. easing",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

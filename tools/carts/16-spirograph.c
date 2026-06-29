@@ -2,6 +2,7 @@
 {
   "title": "16. spirograph",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial",
     "probe"

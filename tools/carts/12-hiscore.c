@@ -2,6 +2,7 @@
 {
   "title": "12. high score",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

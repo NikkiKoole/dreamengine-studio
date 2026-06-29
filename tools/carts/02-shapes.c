@@ -2,6 +2,7 @@
 {
   "title": "2. shapes and colors",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

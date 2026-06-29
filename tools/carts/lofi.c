@@ -2,6 +2,7 @@
 {
   "title": "lofi fm",
   "status": "active",
+  "created": "2026-06-22",
   "kind": [
     "toy",
     "instrument"

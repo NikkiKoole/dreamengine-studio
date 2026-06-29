@@ -2,6 +2,7 @@
 {
   "title": "l-system plants",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "tech-demo"
   ],

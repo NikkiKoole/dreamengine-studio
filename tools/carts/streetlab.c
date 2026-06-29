@@ -2,6 +2,7 @@
 {
   "title": "streetlab",
   "status": "active",
+  "created": "2026-06-22",
   "kind": [
     "tech-demo"
   ],

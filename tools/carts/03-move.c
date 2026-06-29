@@ -2,6 +2,7 @@
 {
   "title": "3. things that move",
   "status": "active",
+  "created": "2026-05-29",
   "kind": [
     "tutorial"
   ],

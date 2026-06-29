@@ -2,6 +2,7 @@
 {
   "title": "blend lab",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "tech-demo",
     "probe"

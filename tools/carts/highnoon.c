@@ -2,6 +2,7 @@
 {
   "title": "high noon",
   "status": "active",
+  "created": "2026-06-05",
   "kind": [
     "game",
     "tech-demo"

@@ -2,6 +2,7 @@
 {
   "title": "sightlines",
   "status": "active",
+  "created": "2026-06-15",
   "kind": [
     "probe",
     "tech-demo"

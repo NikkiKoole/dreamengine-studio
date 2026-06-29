@@ -2,6 +2,7 @@
 {
   "title": "interchange",
   "status": "active",
+  "created": "2026-06-15",
   "kind": [
     "tech-demo"
   ],

@@ -2,6 +2,7 @@
 {
   "title": "sound check",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "tech-demo"
   ],

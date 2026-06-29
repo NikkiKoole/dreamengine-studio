@@ -2,6 +2,7 @@
 {
   "title": "boom",
   "status": "active",
+  "created": "2026-06-23",
   "kind": [
     "toy",
     "tech-demo"

@@ -2,6 +2,7 @@
 {
   "title": "rotstress — rotated-sprite stress test",
   "status": "active",
+  "created": "2026-06-25",
   "kind": [
     "probe"
   ],

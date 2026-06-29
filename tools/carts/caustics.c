@@ -2,6 +2,7 @@
 {
   "title": "caustics",
   "status": "active",
+  "created": "2026-06-12",
   "kind": [
     "tech-demo",
     "toy"

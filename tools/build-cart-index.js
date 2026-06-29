@@ -20,6 +20,7 @@
 //   {
 //     "title": "pixel zoo",
 //     "status": "active",                 // active|showcase|retired|archive|hidden (not emitted yet)
+//     "created": "2026-05-30",            // YYYY-MM-DD, the .c's first-add date in git; immutable
 //     "kind": ["toy","tech-demo"],
 //     "genre": null,                       // omitted from index.json when null/absent
 //     "homage": null,
@@ -66,6 +67,7 @@ function toEntry(meta, name) {
   e.title = meta.title;
   e.description = flattenDesc(meta.description);
   e.file = `${name}.cart.png`;
+  if (meta.created != null) e.created = meta.created;
   e.kind = meta.kind;
   e.teaches = meta.teaches || [];
   if (meta.lineage != null) e.lineage = meta.lineage;

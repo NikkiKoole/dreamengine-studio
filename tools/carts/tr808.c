@@ -2,6 +2,7 @@
 {
   "title": "tr-808 rhythm composer",
   "status": "active",
+  "created": "2026-06-05",
   "kind": [
     "instrument"
   ],

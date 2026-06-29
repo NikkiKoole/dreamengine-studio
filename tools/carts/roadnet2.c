@@ -2,6 +2,7 @@
 {
   "title": "roadnet 2",
   "status": "active",
+  "created": "2026-06-15",
   "kind": [
     "tech-demo",
     "generative"

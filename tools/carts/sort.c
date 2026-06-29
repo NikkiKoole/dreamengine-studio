@@ -2,6 +2,7 @@
 {
   "title": "sorting visualizer",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "tech-demo"
   ],

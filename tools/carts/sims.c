@@ -2,6 +2,7 @@
 {
   "title": "lil life (the sims)",
   "status": "active",
+  "created": "2026-05-30",
   "kind": [
     "game",
     "probe"

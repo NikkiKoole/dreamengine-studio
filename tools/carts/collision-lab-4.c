@@ -2,6 +2,7 @@
 {
   "title": "collision lab 4: circle vs box",
   "status": "active",
+  "created": "2026-06-04",
   "kind": [
     "tutorial"
   ],

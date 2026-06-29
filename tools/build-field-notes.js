@@ -34,12 +34,12 @@ const META_FILES = new Set(['FIELD-NOTES.md', 'README.md', 'REVIEW_CHANGES.md', 
 
 // A few notes have odd/auto-generated titles; give them a human label.
 const TITLE_OVERRIDE = {
-  '0000000-cgecking-all-carts.md': 'Checking all carts — the cart-polish punch-list',
+  'cart-polish-punchlist.md': 'Checking all carts — the cart-polish punch-list',
 };
 
 // Numbered files that are really living logs / raw material, not journal observations —
 // list them with the working docs so the numbered timeline stays a clean spine.
-const FORCE_WORKING = new Set(['0000000-cgecking-all-carts.md']);
+const FORCE_WORKING = new Set(['cart-polish-punchlist.md']);
 
 // Boilerplate template lines that carry no information — skip them when picking a summary.
 const GENERIC = [

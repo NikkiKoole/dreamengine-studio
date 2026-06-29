@@ -92,9 +92,9 @@ From each note's "Related notes" list — follow a thread of thinking across not
 
 Raw thinking, tool wishlists, handoffs and logs — the soil the numbered notes grow from.
 
-- [Checking all carts — the cart-polish punch-list](0000000-cgecking-all-carts.md) — Hi since i'm out of tokens i will do a run through all my carts, and note down things we should improve :
 - [about-tags](about-tags.md) — about tags and curating
 - [AI-Friendly Frontmatter](ai-friendly-frontmatter.md) — As the DreamEngine knowledge base grows, documents should become easier for both humans and AI agents to understand.
+- [Checking all carts — the cart-polish punch-list](cart-polish-punchlist.md) — Hi since i'm out of tokens i will do a run through all my carts, and note down things we should improve :
 - [distillator](distillator.md) — question: how would i make a system that would be able to dstill all the md files and get nfo out them, its too much for you or another ganet, are there solu…
 - [Future Research Directions](future-research.md) — The first phase of DreamEngine focused primarily on building capabilities.
 - [Handoff for the Next Research Partner](handoff.md) — This is not project documentation.

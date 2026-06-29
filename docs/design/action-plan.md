@@ -3,9 +3,9 @@
 STATUS: LIVING ACTION LIST. Synthesizes the concrete, do-able asks scattered across the
 field-notes journal and the three audio-product brainstorms into one prioritized, checkable list.
 Sources, each linked at point of use:
-- **field-notes/** — the research journal (`tools-we-need.md`, `distillator.md`, `about tags.md`,
+- **field-notes/** — the research journal (`tools-we-need.md`, `distillator.md`, `about-tags.md`,
   `ai-friendly-frontmatter.md`, notes `002`/`003`/`011`/`012`/`013`, and the cart-polish log
-  `0000000-cgecking-all-carts.md`).
+  `cart-polish-punchlist.md`).
 - [`tinyjam-racks.md`](tinyjam-racks.md) + [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) — the rack design.
 - [`product-notes.md`](product-notes.md) + [`product-notes-followup.md`](product-notes-followup.md)
   — the commercial/distribution lens.
@@ -75,7 +75,7 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   ("Best of DreamEngine", Games, Sound Toys, Living Worlds, Arcade Homages, Technical Labs, Retired)
   rather than one flat list — feed `build-site.js`. Retiring a cart points visitors at its successor.
   *Why:* the shelf is ~200+ carts; a flat list no longer serves anyone (`003-curation`,
-  `about tags.md`). Sequence after per-cart metadata exists (it's where `status` should live).
+  `about-tags.md`). Sequence after per-cart metadata exists (it's where `status` should live).
 
 - [ ] **`build-context` — task-specific agent briefings.** `build-context roads` / `cart:coaster` /
   `task:retire-carts` → assembles the relevant design docs + ADRs + related carts + field notes +
@@ -138,7 +138,7 @@ Listed so the plan exists, **not** so it gets built now.
 
 ## Cart-polish backlog (the all-carts log, made systemic)
 
-`field-notes/0000000-cgecking-all-carts.md` is the authoritative per-cart punch-list. It's mostly
+`field-notes/cart-polish-punchlist.md` is the authoritative per-cart punch-list. It's mostly
 *polish*, but the same fixes recur across many carts — handle those **once, systemically**, then
 sweep:
 

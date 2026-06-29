@@ -45,25 +45,46 @@ ships editing, we simultaneously (a) need the full-state blob and (b) finally ha
 consumer for it. We never need the blob one day before the rack. The timing is a seam, not a
 compromise.
 
-## The decision: a seed envelope now, the same envelope grows later
+## What already ships today (the installed base)
 
-Build **one shared helper** that all radios use immediately:
+Every one of the 34 stations already renders its seed on the dial as a **bare 8-hex `u32`**
+(`snprintf(l2, …, "%d bpm #%08X", tempo, sng.seed)`), with `R` to replay and `[ ]` to walk session
+history. So **"show the code" is done** — and the format already in the wild is a *bare `u32`*, no
+envelope. Two consequences:
+
+1. The only *missing* half of seed-sharing is **type-a-code-in** — a way to enter a friend's
+   `#A3F90C12` and have that exact song land. (Today you can only replay codes from your own
+   session.)
+2. Any envelope we add later must **not** invalidate the bare 8-hex codes already shown/noted
+   (e.g. pinned `HOUSE_SEED`). The migration is therefore *length-distinguished*, not a re-encode
+   (see below) — which means we should **not** retrofit an envelope onto the seed tier now.
+
+## The decision: bare seed now (already shipped), envelope only when the format grows
+
+Given the installed base, the pragmatic call is the opposite of retrofitting bytes: **keep the bare
+`u32` for the seed tier** (it's already out there and it's the most typeable thing possible — 8
+hex), and **add the envelope only when there's a second payload type to disambiguate** (the rack's
+edited blob). The decoder distinguishes by length / sigil, so old codes stay valid forever:
 
 ```
-magic(1)  + version(1) + station_id(2) + seed(u32)   →  ~16 hex chars
+8 hex            →  legacy bare seed, for the station you typed it into   (v0, today)
+prefix + longer  →  enveloped: magic + version + station_id + flags + payload   (when the rack lands)
 ```
+
+The envelope, when it arrives:
 
 - `magic` — cheap "is this even ours" check.
-- `version` — bump when the payload layout changes; an old decoder refuses a newer version
-  gracefully, a new decoder still reads old codes.
-- `station_id` — which generator the seed belongs to (stops a house seed loading into the bossa
-  rack and producing garbage).
-- `seed` — the `u32`.
+- `version` — bump when the payload layout changes; old decoder refuses a newer version gracefully.
+- `station_id` — which generator/schema (stops a house code loading into the bossa rack).
+- `flags` — `seed-vs-blob` bit + room for `has-banks`, etc.
+- `payload` — a `u32` seed, or the lane blob.
 
-**Why spend the `version` + `station_id` bytes when seed-only doesn't strictly need them:** they're
-the hinge that lets the fuller format slot in **without a flag-day** — a future v3 decoder still
-resolves a v1 seed link. Omitting them is the *only* choice here that would actually paint us into a
-corner. This is the opposite of over-engineering: it's the minimum that lets us grow.
+**Why length-distinguished beats retrofitting:** the bare seed is *already* the wild format, so the
+cheapest forward-compatible move is to leave it alone and make the new, longer code self-evidently
+different. Adding `magic`/`version` bytes to the seed *now* would itself be the flag-day it was
+meant to avoid — it'd orphan every 8-hex code already noted. (This reverses the earlier instinct to
+"spend the bytes now"; learning that show-code already ships as a bare `u32` is what flipped it —
+grow as we go.)
 
 ### How it grows (do NOT build yet)
 
@@ -104,5 +125,9 @@ big in practice. Lane state is <1 KB, so probably never needed.)
 
 ## First move (when greenlit)
 
-The ~16-hex seed envelope as a small shared helper (encode/decode) + the radio-dial "show code /
-type code" affordance, so all 34 radios get sharing at once. Revisit the blob when the rack lands.
+Show-code already ships (bare 8-hex `u32`, all 34 stations). The one missing half is **type-a-code-in**:
+a small shared affordance in `radio.h` (since the seed/history plumbing already lives there) that
+lets the player enter 8 hex chars and calls `new_song(pos, typed_seed)` — the same path `R`/`[`/`]`
+already use. Build it once in the shared chassis, prototype on one station (house), then it's live
+everywhere. No envelope, no new format — just close the loop on the codes already on screen. Revisit
+the envelope + blob when the rack lands.

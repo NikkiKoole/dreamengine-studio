@@ -65,11 +65,11 @@ several× faster):
 - **GPU-only feature parity** — audited after this decision (see
   [`engine-portability.md`](../design/engine-portability.md) §"GPU-only feature parity — audited"), and
   the gap is narrower than this ADR first assumed: **`pal()` already has full software parity**
-  (`sw_recolor`, `canvas-diff` 0px) and the **scale filter is a non-issue** (no cart uses it; the iOS
-  host scales). The only real portable-2D gaps are **camera rotation** (`camera_ex` angle≠0 — degrades
-  to un-rotated-but-live after a freeze-bug fix; true SW rotation is the `det-probes/rotfill` TODO) and
-  **`smooth_zoom`**'s offscreen-RT antialiasing (degrades to plain zoom). `tritex`/3D stays off-list by
-  perf, per this ADR.
+  (`sw_recolor`, `canvas-diff` 0px), the **scale filter is a non-issue** (no cart uses it; the iOS host
+  scales), and **camera rotation now works** on the software canvas too (an offscreen world layer
+  rotate-composited about the screen centre — a 25° probe is 0.04% off the GPU). The only remaining
+  portable-2D gap is **`smooth_zoom`**'s offscreen-RT antialiasing (degrades to plain zoom, 1 cart).
+  `tritex`/3D stays off-list by perf, per this ADR.
 - A pile of GPU-vs-SW A/B scaffolding can eventually be pruned for the portable build (see
   `engine-portability.md` §"Settle and prune the A/B flags").
 - **Not forever-exclusive:** the seam keeps the GPU path alive, so a later Metal backend can take 3D

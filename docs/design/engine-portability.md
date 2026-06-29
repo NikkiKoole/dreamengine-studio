@@ -218,21 +218,24 @@ build (`build-nr.sh`); the real picture is narrower than feared:
 | **scale present filter** | ✅ **non-issue** — no cart uses it; on iOS the *host* (`CanvasView`) does nearest-neighbour scaling | 0 |
 | fractional **zoom** (`camera_ex`) | ✅ **works** (orbit renders); only *cosmetically* ≠ GPU (sub-pixel rounding), which doesn't matter with no GPU reference | many |
 | **`smooth_zoom`** (offscreen RT) | ⚠️ GPU-only; degrades to **plain zoom** (the fractional-zoom AA just doesn't apply) | `sloop` |
-| **camera ROTATION** (`camera_ex` angle≠0) | ⚠️ no SW rasterizer yet — **was a freeze bug**, now degrades gracefully (renders un-rotated but LIVE; the `det-probes/rotfill` study is the groundwork for true SW rotation) | `hotline`, `sloop`, `coaster`, `worldpointer` |
+| **camera ROTATION** (`camera_ex` angle≠0) | ✅ **works** — software rotation rasterizer (offscreen world layer → rotate-composite); a 25° probe is **27/64000 px (0.04%)** off the GPU | `hotline`, `sloop`, `coaster`, `worldpointer` |
 | **`tritex`/3D** | ❌ GPU-only by perf (~89ms on the phone CPU) — off the initial iOS list ([ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md)) | `podracer`, … |
 
-**The freeze bug (fixed):** `camera_ex(angle≠0)` set the sticky `sw_force_gpu` to fall back to the GPU
-path — but with no GPU, the stubs no-op and `sw_cbuf` never updates again, so the *whole cart* froze
-one frame after any rotation (proven: an animated probe is byte-identical frame 1 vs 12). Now guarded
-`#ifndef DE_NO_RAYLIB` — the no-GPU build stays on the SW canvas and ignores the angle (un-rotated but
-live). So nothing freezes; rotation carts just look un-rotated until a SW rotation rasterizer lands.
+**Camera rotation — was a freeze, now a rasterizer.** `camera_ex(angle≠0)` first set the sticky
+`sw_force_gpu` to fall back to the GPU path — but with no GPU the stubs no-op and `sw_cbuf` never
+updated again, so the *whole cart* froze one frame after any rotation (proven: an animated probe was
+byte-identical frame 1 vs 12). Now (DE_NO_RAYLIB) the world layer is captured into an offscreen buffer
+at zoom+translate, then **rotated about the screen centre into `sw_cbuf`** at the camera() reset /
+present boundary — exact for uniform zoom (`screen = R·(worldbuf − centre) + centre`). Every primitive
+stays on its fast axis-aligned path (one whole-layer composite, not per-primitive rotation), and HUD
+drawn after a `camera()` reset stays un-rotated. Verified 0.04% off the GPU; desktop byte-identical.
 
-**Net:** the only *correctness* gaps left for portable 2D are camera rotation and `smooth_zoom`'s AA —
-both cosmetic-degrade now, neither fatal. `pal()` and scaling were never real gaps.
+**Net:** the only *correctness* gap left for portable 2D is `smooth_zoom`'s antialiasing (→ plain
+zoom). `pal()`, scaling, and camera rotation all work; `tritex`/3D stays off-list by perf.
 
 ## Open questions
 
 - **One renderer or two behind the seam?** Two keeps the GPU path first-class but re-introduces ANGLE
   on iOS. Probably commit to one.
-- **SW camera rotation** — implement the rotated-camera rasterizer (`det-probes/rotfill`/`rotspr` are
-  the studies) so the four rotation carts render correctly on iOS, or leave them off-list.
+- **`smooth_zoom` AA on the CPU** — reimplement the fractional-zoom antialiasing on the software canvas
+  (supersample the world layer), or accept plain (aliased) zoom on the portable target. Minor; 1 cart.

@@ -1186,8 +1186,11 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     web bridge). **The renderer decision is settled** — on-device FPS measured on an iPhone SE 2nd-gen
     (`ios/measure-device.sh`): 2D holds 59–60fps (~5.6ms, ~⅓ budget), `tritex`/3D ~89ms→~10fps →
     [ADR-0024](decisions/0024-software-canvas-is-canonical-for-2d.md) (software canvas canonical for 2D,
-    `tritex`/3D GPU-only). Open follow-ups: MIDI CC → cart knobs; GPU-parity carts on CPU or off-list;
-    a Metal backend if a 3D cart needs iOS. Full record: [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
+    `tritex`/3D GPU-only). **GPU-parity audited + closed:** `pal()` (0px) and scaling were never gaps,
+    and **camera rotation now works on the software canvas** (offscreen world layer → rotate-composite;
+    a 25° probe is 0.04% off the GPU), so the rotation carts render on iOS. Only `smooth_zoom`'s AA
+    degrades (→ plain zoom). Open follow-ups: MIDI CC → cart knobs; a Metal backend if a `tritex`/3D
+    cart needs iOS. Full record: [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
 
 ---
 

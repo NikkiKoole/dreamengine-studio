@@ -2,19 +2,27 @@ import XCTest
 import StoreKitTest
 @testable import TinyjamHello
 
-// Headless proof of the IAP model — no Apple account, no network. SKTestSession loads
-// the local Tinyjam.storekit config; we buy a product and assert the entitlement flips.
+// Headless proof of the IAP model — no Apple account, no network. SKTestSession loads the
+// local Tinyjam.storekit config; we buy a product and assert the entitlement flips.
+// Each test resets to a clean slate INSIDE the awaited body (StoreKit-test transactions
+// persist per-simulator and the Store singleton is shared across tests, so a sync setUp
+// clear isn't enough — clear + refresh must be awaited before asserting).
 final class StoreTests: XCTestCase {
     var session: SKTestSession!
 
     override func setUpWithError() throws {
         session = try SKTestSession(configurationFileNamed: "Tinyjam")
         session.disableDialogs = true     // auto-approve the purchase sheet
-        session.clearTransactions()
+    }
+
+    private func cleanSlate() async {
+        await Store.shared.start()         // load products
+        session.clearTransactions()        // wipe any persisted purchases
+        await Store.shared.refresh()        // resync the entitlement cache to the cleared state
     }
 
     func testPurchaseUnlocksModule() async throws {
-        await Store.shared.start()
+        await cleanSlate()
         XCTAssertFalse(Store.isUnlocked("com.tinyjam.rebirth"), "should start locked")
 
         await Store.shared.purchase("com.tinyjam.rebirth")
@@ -23,7 +31,7 @@ final class StoreTests: XCTestCase {
     }
 
     func testMasterPassUnlocksEverything() async throws {
-        await Store.shared.start()
+        await cleanSlate()
         await Store.shared.purchase("com.tinyjam.masterpass")
         XCTAssertTrue(Store.isUnlocked("com.tinyjam.funk"), "master pass unlocks all")
         XCTAssertTrue(Store.isUnlocked("com.tinyjam.rebirth"), "master pass unlocks all")

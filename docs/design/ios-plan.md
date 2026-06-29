@@ -50,7 +50,7 @@ Each spike is a small throwaway that kills one unknown. Riskiest cheap-thing fir
 | 5 | App Group: app writes unlocked racks, a reader sees them via the shared suite | entitlement sharing for AUv3 | sim | ✅ **done** — `AppGroup.swift` (UserDefaults suite); Store mirrors entitlements in; test proves write→read. Entitlement wired in `project.yml`; the *true cross-process container* needs signing (lands with the spike-7 extension). See `ios/history/spike5-appgroup.png` |
 | 6 | CloudKit sync of a saved tinyjam across devices (native-only nicety) | free cross-device sync | sim | — |
 | 6.5 | **standalone app runs on a real iPhone** (signed) | signing + device deploy | **device** | ✅ **done** — iPhone (iOS 15.4.1), maker confirmed running. `ios/device.sh` |
-| 7 | minimal AUv3 extension makes sound in a host | the killer feature | **device + signing** | next |
+| 7 | AUv3 extension makes sound, hosted | the killer feature | sim | ✅ **done** — extension reuses the C synth (`AU/TinyjamAU.swift`); our OWN host test finds it via `AVAudioUnitComponentManager`, instantiates + renders it offline (peak 0.180). No GarageBand/AUM/device needed. Real-host (AUM/GB) confirmation deferred to whenever a host is installed. |
 
 Spike 1 mechanism shipped: `ios/Sources/canvas.{h,c}` (a stand-in software canvas — a few primitives
 into an RGBA8888 buffer) + `CanvasView.swift` (CGImage from the buffer, `layer.magnificationFilter =
@@ -87,6 +87,12 @@ Gotchas captured (so nobody re-hits them):
   locked state.
 - **`simctl launch` does NOT apply a scheme's StoreKit config** — that's why the headless proof is an
   XCTest using `SKTestSession(configurationFileNamed:)`, not a plain app launch.
+- **AUv3 (spike 7):** `.loadInProcess` is **macOS-only** — on iOS AUv3 always loads out-of-process;
+  instantiate with `options: []`. The instrument self-plays (the arpeggio isn't gated on MIDI), so it
+  renders sound with no note input — handy for an automated render test. The extension is embedded via
+  an `embed: true` app dependency; its `AudioComponents` registration lives in the xcodegen `info:`
+  block (generated `AU/Info.plist`, gitignored). Re-adding the app-group entitlement (so the extension
+  reads StoreKit unlocks) is the remaining wiring for a *real* host + signed build.
 - **Device deploy (spike 6.5):** `devicectl`/CoreDevice does NOT see the iOS-15 iPhone ("No devices
   found" though `xctrace` lists it) — use **`ios-deploy`** (classic protocol, `brew install ios-deploy`)
   via `ios/device.sh`. The signing cert is minted on the first signed `xcodebuild` (after adding the

@@ -11,10 +11,12 @@ targets:
     type: application
     platform: iOS
     sources: [Sources]
-    # NOTE: the app-group entitlement is re-added in spike 7 (AUv3), once the group is
-    # registered for automatic provisioning. It blocks plain device signing until then,
-    # and the AppGroup UserDefaults suite works without it. (Was: application-groups
-    # group.com.tinyjam.)
+    dependencies:
+      - target: TinyjamAU       # embed the AUv3 extension into the app's PlugIns
+        embed: true
+    # NOTE: the app-group entitlement is re-added once the group is registered for automatic
+    # provisioning. It blocks plain device signing until then, and the AppGroup UserDefaults
+    # suite works without it. (Was: application-groups group.com.tinyjam.)
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -23,6 +25,39 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
         MARKETING_VERSION: "0.1"
         CURRENT_PROJECT_VERSION: "1"
+  TinyjamAU:
+    type: app-extension
+    platform: iOS
+    sources:
+      - AU
+      - Sources/audio.c
+      - Sources/audio.h
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        PRODUCT_BUNDLE_IDENTIFIER: com.tinyjam.hello.TinyjamAU
+        SWIFT_OBJC_BRIDGING_HEADER: AU/AU-Bridging-Header.h
+        HEADER_SEARCH_PATHS: $(SRCROOT)/Sources
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+    info:
+      path: AU/Info.plist
+      properties:
+        CFBundleDisplayName: Tinyjam Demo
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.AudioUnit
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TinyjamAUFactory
+          NSExtensionAttributes:
+            AudioComponentBundle: $(PRODUCT_BUNDLE_IDENTIFIER)
+            AudioComponents:
+              - type: aumu
+                subtype: tnyj
+                manufacturer: Tnyj
+                name: "Tinyjam: Demo"
+                version: 1
+                sandboxSafe: true
+                tags:
+                  - Synthesizer
   TinyjamHelloTests:
     type: bundle.unit-test
     platform: iOS

@@ -97,10 +97,16 @@ sees the C API. Gotcha learned: screenshot ~1.5s after launch or you catch the l
 > the portable host-feed (same model as the web bridge). Verified: `AUHostTests` renders the
 > out-of-process AUv3 offline — silent with no MIDI (peak 0.000), then a host note-on → **peak 0.106**.
 >
-> **Open follow-ups:** (1) On-device run + the renderer **FPS measurement** (the ADR gate; desktop
-> half done). (2) `tritex`/3D carts stay GPU-only (19ms on CPU) — off the initial iOS target list. (3)
-> Confirm on a real iPhone (`device.sh`). (4) MIDI CC → cart knobs (the engine's MIDI is note+bend
-> only today); a host-MIDI-driven *standalone* app (vs the touch app) if wanted.
+> **Renderer FPS measured on-device + the ADR is written (2026-06-29).** The real iOS software-canvas
+> app, profiled on a physical **iPhone SE 2nd-gen** via `ios/measure-device.sh`: 2D carts (omnichord/
+> neonrain/flank) hold a locked **59–60fps** (~5.6ms engine+blit, ~⅓ of the 16.67ms budget, even in a
+> Debug `-O0` build); `tritex`/3D (`podracer`) is **~89ms → ~10fps**. Both halves (desktop + device)
+> agree → [ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md): **software canvas
+> canonical for 2D (ANGLE-free iOS), `tritex`/3D GPU-only + off the initial iOS list.**
+>
+> **Open follow-ups:** (1) MIDI CC → cart knobs (the engine's MIDI is note+bend only today). (2)
+> GPU-only-parity carts (`pal()`/scale filters/`smooth_zoom`) reimplemented on the CPU canvas or kept
+> off the iOS list. (3) a Metal GPU backend behind the seam if/when a 3D cart needs iOS.
 
 Spikes 0–7 proved the iOS *shell* with stand-in `canvas.c`/`audio.c`. Phase 2 plugs the real
 `studio.c` + `sound.h` + a cart (`omnichord` is the target) into it. Scoping (2026-06-29):

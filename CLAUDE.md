@@ -162,6 +162,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              cart-dupes.js   cross-cart duplication finder → refactor / drift candidates
              build-compendium.js  generate docs/cart-compendium.html (--check gates staleness)
              build-all.js    compile-check every cart vs current studio.h (catches API rot)
+             build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
              lint-docs.js    validate docs/ cross-references
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)

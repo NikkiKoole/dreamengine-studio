@@ -1183,8 +1183,11 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     cart's keybed plays the notes), and pulls `de_audio_render()`. `AUHostTests` proves it offline —
     silent with no MIDI (peak 0.000), then a host note-on → peak 0.106. Engine seam: `midi_input.h`
     gates CoreMIDI to desktop and exposes `de_midi_event`/`de_midi_bend` (portable host-feed, like the
-    web bridge). Open follow-ups: on-device run + renderer FPS measurement (the ADR gate); `tritex`/3D
-    stays GPU-only; MIDI CC → cart knobs. Full record: [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
+    web bridge). **The renderer decision is settled** — on-device FPS measured on an iPhone SE 2nd-gen
+    (`ios/measure-device.sh`): 2D holds 59–60fps (~5.6ms, ~⅓ budget), `tritex`/3D ~89ms→~10fps →
+    [ADR-0024](decisions/0024-software-canvas-is-canonical-for-2d.md) (software canvas canonical for 2D,
+    `tritex`/3D GPU-only). Open follow-ups: MIDI CC → cart knobs; GPU-parity carts on CPU or off-list;
+    a Metal backend if a 3D cart needs iOS. Full record: [`design/ios-plan.md`](design/ios-plan.md) → "Phase 2".
 
 ---
 

@@ -1,9 +1,11 @@
 # Engine portability — the platform seam + the renderer decision
 
-STATUS: OPEN / survey (2026-06-29; desktop FPS half measured — see "Measured" below). This captures
-the refactors that would make the engine cleanly portable (iOS first, but they help web too) and the
-**one undecided decision** everything hangs on: **software canvas vs GPU as the canonical renderer** —
-gated on FPS measurement (desktop done; device still owed before the ADR).
+STATUS: the renderer decision is **SETTLED** (2026-06-29; desktop + device FPS both measured → see
+"Measured" below, now [ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md)). This doc
+captures the refactors that make the engine cleanly portable (iOS first, but they help web too) and
+the load-bearing decision they hung on: **software canvas vs GPU as the canonical renderer** — measured
+on both desktop and a physical iPhone, and decided: **software canvas canonical for 2D, `tritex`/3D
+GPU-only.**
 
 Companion reading: [`ios-plan.md`](ios-plan.md) (the iOS spike ladder + Phase 2), the existing
 software-canvas probe notes in [`software-canvas.md`](software-canvas.md), and the engine source
@@ -80,8 +82,34 @@ optimize the SW triangle rasterizer, or keep 3D carts GPU-only and off the initi
 The 2D headroom is so large it will survive a phone; the device measurement can only sharpen the
 `tritex` verdict, not overturn the 2D one.
 
-**Still owed:** the **device** measurement (iPhone, per the plan) — necessary before this is settled
-as an ADR.
+### Measured — device half (2026-06-29) ✅ — the prediction held
+
+Ran the **real iOS app** (the DE_NO_RAYLIB software canvas, `CanvasView` blitting `de_framebuffer()`)
+on a physical **iPhone SE 2nd-gen (A13, iOS 15.4.1)** via `ios/measure-device.sh` — which stages each
+cart as the app cart, builds signed, launches, and pulls `Documents/perf.log`. `engine` = `de_frame()`
+CPU per frame; `blit` = the flip + CGImage. **NB: a Debug `-O0` build** (xcodebuild Debug), so the
+engine numbers are *pessimistic* vs the `-O2` desktop column — a Release build runs several× faster.
+Even so:
+
+| cart | type | engine avg | blit avg | **fps** |
+|------|------|-----------|----------|---------|
+| `omnichord` | light (the iOS target) | ~5.3ms | ~0.6ms | **59–60** |
+| `neonrain` | fill-heavy | ~4.9ms | ~0.65ms | **59–60** |
+| `flank` | sprite-heavy | ~4.9ms | ~0.6ms | **59–60** |
+| `podracer` | **3D / `tritex`** | **~89ms** | ~0.2ms | **~10** |
+
+Findings:
+- **2D holds a locked 59–60fps on the phone** — engine+blit ≈ 5.6ms, ~⅓ of the 16.67ms budget, in an
+  *unoptimized* build. The desktop "2D is a non-issue" result survived contact with real phone silicon
+  with room to spare; Release only widens the margin.
+- **`tritex` is the lone killer, confirmed on-device** — ~89ms/frame → ~10fps. The desktop SW 19.3ms ×
+  ~4.6 (phone CPU vs the fast Mac) lands right here. Optimization won't rescue it into budget.
+- The blit (flip + CGImage upload) is cheap everywhere (~0.6ms) — the CPU framebuffer path is not the
+  bottleneck; the rasterization is.
+
+**Settled.** Both halves measured (desktop + device), both agree. The decision is now an ADR:
+[ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md) — **software canvas is canonical
+for 2D (ANGLE-free iOS); `tritex`/3D is GPU-only and off the initial iOS target list.**
 
 ## Built — the platform seam, phase A → D.2 (2026-06-29)
 

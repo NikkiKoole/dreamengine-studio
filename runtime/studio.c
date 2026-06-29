@@ -4139,6 +4139,10 @@ const char *de_dropped_file(void) { return de_drop_valid ? de_drop_buf : NULL; }
 // EXPERIMENTAL: reveal a file/folder in the OS file manager (so you can find the data dir).
 void de_open_path(const char *path) {
     if (!path || !*path) return;
+#ifdef DE_NO_RAYLIB
+    (void)path;   // no shell-out on portable targets (iOS: system() is unavailable); a
+                  // host-specific open (UIApplication.openURL) would live in the backend
+#else
     char cmd[1100];
 #if defined(__APPLE__)
     snprintf(cmd, sizeof cmd, "open \"%s\"", path);
@@ -4148,6 +4152,7 @@ void de_open_path(const char *path) {
     snprintf(cmd, sizeof cmd, "xdg-open \"%s\"", path);
 #endif
     int rc = system(cmd); (void)rc;
+#endif
 }
 
 void save_bytes(const void *data, int len) {

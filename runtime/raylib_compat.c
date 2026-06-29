@@ -46,9 +46,30 @@ int GetRandomValue(int min, int max) {
 }
 Vector2 GetScreenToWorld2D(Vector2 position, Camera2D camera) { Vector2 r = {0}; return r; }
 int GetShaderLocation(Shader shader, const char *uniformName) { return 0; }
-int GetTouchPointCount(void) { return 0; }
-int GetTouchPointId(int index) { return 0; }
-Vector2 GetTouchPosition(int index) { Vector2 r = {0}; return r; }
+// touch is fed by the host via de_touch_begin/moved/ended (platform.h). The engine's
+// input layer polls these once per frame (studio.c, vt_pos = GetTouchPosition(i)). We
+// store positions in WINDOW pixels, which touch_x()/touch_y() divide by SCALE — so an
+// iOS build (SCALE=1) gets framebuffer coords straight through (see de_touch_* below).
+#define DE_MAX_TOUCH 16
+typedef struct { int id; float x, y; bool active; } DeTouchPoint;
+static DeTouchPoint de_touch[DE_MAX_TOUCH];
+int GetTouchPointCount(void) {
+    int n = 0;
+    for (int i = 0; i < DE_MAX_TOUCH; i++) if (de_touch[i].active) n++;
+    return n;
+}
+static int de_touch_nth(int index) {   // index over the ACTIVE points (compact view)
+    int n = 0;
+    for (int i = 0; i < DE_MAX_TOUCH; i++) if (de_touch[i].active) { if (n == index) return i; n++; }
+    return -1;
+}
+int GetTouchPointId(int index) { int s = de_touch_nth(index); return s < 0 ? 0 : de_touch[s].id; }
+Vector2 GetTouchPosition(int index) {
+    int s = de_touch_nth(index);
+    if (s < 0) { Vector2 z = {0}; return z; }
+    Vector2 r = { de_touch[s].x, de_touch[s].y };
+    return r;
+}
 Vector2 GetWorldToScreen2D(Vector2 position, Camera2D camera) { Vector2 r = {0}; return r; }
 void HideCursor(void) { }
 void ImageColorReplace(Image *image, Color color, Color replace) { }
@@ -134,4 +155,27 @@ Color GetImageColor(Image image, int x, int y) {
     uint32_t p = ((const uint32_t*)image.data)[y*image.width + x];
     Color c = { (unsigned char)(p & 0xff), (unsigned char)((p>>8)&0xff), (unsigned char)((p>>16)&0xff), (unsigned char)((p>>24)&0xff) };
     return c;
+}
+
+// ---- touch input seam (platform.h) ----
+// The host (iOS CanvasView, UIKit touches) feeds contacts in framebuffer pixels; the
+// engine reads them next frame via GetTouchPointCount/GetTouchPosition above. Keyed by
+// `id` so multitouch tracks per finger. A begin on a live id just updates it.
+static DeTouchPoint *de_touch_find(int id) {
+    for (int i = 0; i < DE_MAX_TOUCH; i++) if (de_touch[i].active && de_touch[i].id == id) return &de_touch[i];
+    return 0;
+}
+void de_touch_begin(int id, float x, float y) {
+    DeTouchPoint *p = de_touch_find(id);
+    if (!p) for (int i = 0; i < DE_MAX_TOUCH; i++) if (!de_touch[i].active) { p = &de_touch[i]; break; }
+    if (!p) return;                       // pool full — drop the contact
+    p->id = id; p->x = x; p->y = y; p->active = true;
+}
+void de_touch_moved(int id, float x, float y) {
+    DeTouchPoint *p = de_touch_find(id);
+    if (p) { p->x = x; p->y = y; }
+}
+void de_touch_ended(int id, float x, float y) {
+    DeTouchPoint *p = de_touch_find(id);
+    if (p) { p->x = x; p->y = y; p->active = false; }
 }

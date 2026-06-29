@@ -63,7 +63,22 @@ Image LoadImageFromTexture(Texture2D texture) { Image r = {0}; return r; }
 RenderTexture2D LoadRenderTexture(int width, int height) { RenderTexture2D r = {0}; return r; }
 Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode) { Shader r = {0}; return r; }
 Texture2D LoadTextureFromImage(Image image) { Texture2D r = {0}; return r; }
-Vector2 MeasureTextEx(Font font, const char *text, float fontSize, float spacing) { Vector2 r = {0}; return r; }
+// real: text_width()/centering/clip layout depend on this. Mirrors sw_print's
+// advance (advanceX, or recs.width when 0) so measured width == drawn width.
+Vector2 MeasureTextEx(Font font, const char *text, float fontSize, float spacing) {
+    float scale = (font.baseSize > 0) ? fontSize / (float)font.baseSize : 1.0f;
+    float w = 0, maxw = 0; int lines = 1;
+    for (int i = 0; text[i]; ) {
+        int sz; int cp = GetCodepointNext(&text[i], &sz); i += sz;
+        if (cp == '\n') { if (w > maxw) maxw = w; w = 0; lines++; continue; }
+        int gi = GetGlyphIndex(font, cp);
+        int adv = font.glyphs[gi].advanceX; if (adv == 0) adv = (int)font.recs[gi].width;
+        w += (float)adv + spacing;
+    }
+    if (w > maxw) maxw = w;
+    Vector2 r = { maxw * scale, (float)lines * fontSize };
+    return r;
+}
 void PlayAudioStream(AudioStream stream) { }
 void SetAudioStreamBufferSizeDefault(int size) { }
 void SetAudioStreamCallback(AudioStream stream, AudioCallback callback) { }

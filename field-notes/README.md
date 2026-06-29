@@ -1,3 +1,10 @@
+> **Start here for navigation:** [`FIELD-NOTES.md`](FIELD-NOTES.md) — a generated index of this
+> journal (lifecycle board, timeline, related-note graph, working material, conformance). Regenerate
+> with `node tools/build-field-notes.js` after adding or editing a note. It only *reads* the notes —
+> the append-only rule below still holds.
+
+---
+
 I honestly think you've done something more important than adding four markdown files.
 
 You've established a knowledge lifecycle.

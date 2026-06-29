@@ -37,10 +37,13 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   the rack ships editing (length/param-distinguished so old links never break). Namespace any
   `localStorage`/IndexedDB keys per-cart (`tinyjam:<cart>:…`) — the gallery is one origin.
 
-- [ ] **`build-field-notes` — index the journal.** Read `field-notes/*.md`, emit `FIELD-NOTES.md`:
-  chronological index, related-note graph (from each note's "Related notes"), by status, by
-  confidence, syntheses vs observations. *Why:* the journal asked for this itself
-  (`tools-we-need.md` #2, README.md) and it's small. Keeps the notebook navigable as it grows.
+- [x] **`build-field-notes` — index the journal.** *Done 2026-06-29 (`tools/build-field-notes.js` →
+  `field-notes/FIELD-NOTES.md`, `--check` gates staleness).* Reads every note and derives a
+  navigable index: a **lifecycle board** (Hypothesis → Observed → Review → Working Theory →
+  Incorporated → Superseded), a **timeline**, the **related-note graph** (from each note's "Related
+  notes"), a **concepts** map, the **working-material** list (unnumbered docs kept distinct), and a
+  **conformance** report flagging notes that don't match `standard-header.md` (flagged, never
+  rewritten — honours the append-only rule). Tolerant of the three metadata styles in the wild.
 
 - [ ] **Rebake stale thumbnails.** The all-carts log notes the thumbnail goes blank for a beat after
   you run+escape a cart — i.e. the baked screenshot is stale/absent. Run `node tools/cart-status.js`

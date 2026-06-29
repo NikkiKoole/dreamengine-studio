@@ -161,6 +161,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              cart-index.js   computed technique index ("what cart teaches X") + coverage
              cart-dupes.js   cross-cart duplication finder → refactor / drift candidates
              build-compendium.js  generate docs/cart-compendium.html (--check gates staleness)
+             build-field-notes.js  GENERATE field-notes/FIELD-NOTES.md — navigable index of the research
+                             journal (lifecycle board / timeline / related-note graph / conformance); --check gates staleness
              build-all.js    compile-check every cart vs current studio.h (catches API rot)
              build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest

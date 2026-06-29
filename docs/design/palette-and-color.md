@@ -9,6 +9,15 @@
 > handles both, and a three-layer plan where each layer ships independently.
 > Nothing here is committed; #18's ADR should follow at least Layer 1's decision.
 
+> **Release gate (added 2026-06-29):** this is now a *prerequisite*, not just exploration —
+> **no paid App Store app ships on the borrowed PICO-8 palette.** Same principle as the Tinyjam
+> trademark rule ([`tinyjam-marketing.md`](tinyjam-marketing.md) §2): a commercial product wears its
+> *own* identity, not a recognizable borrowed one. (Not strictly a legal must — a bare colour list is
+> weakly protectable — but the PICO-8 set is Lexaloffle's signature, and the own-the-stack ethos wants
+> our own regardless.) The free legacy gallery can keep PICO-8 as homage; the **product carts + any
+> App Store build need an original palette**. Do it *before the first paid submission*, not now —
+> tracked as a Stage-2 blocker in [`tinyjam-marketing.md`](tinyjam-marketing.md) §7.3.
+
 ---
 
 ## 1. Where the borrowed palette lives today

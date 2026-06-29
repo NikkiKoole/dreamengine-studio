@@ -491,6 +491,12 @@ thing the post promised, on a heavy page; that bleeds conversions.
 
 When a cart demonstrably holds attention, *then*:
 
+> **Release prerequisite (blocker): an original palette.** No paid App Store build ships on the
+> borrowed PICO-8 32-colour palette — a commercial product wears its *own* visual identity, not a
+> recognizable borrowed one (same principle as the trademark rule, §2). Deferred, *not* a now-task, but
+> it **gates the first paid submission**. The free legacy gallery can keep PICO-8 as homage; the product
+> carts + the app need the original set. Design + plan: [`palette-and-color.md`](palette-and-color.md).
+
 - **The native app** (Phase-2 engine port + the proven spikes), the module as **IAP**, the hub-app
   shell, and the **AUv3** extension (the killer feature).
 - **Store listing** — original (non-trademark) app name, subtitle, description, keywords, **screenshots**,

@@ -485,6 +485,25 @@ function docNavItem(label, key, onClick) {
   return el
 }
 
+// a collapsible sidebar group: clicking its head toggles the group open/closed,
+// state persisted per-head (so closing "archive"/"field-notes" etc. sticks). The
+// folders grow without limit, so every group is an accordion.
+function navGroup(head) {
+  const grp = document.createElement('div')
+  grp.className = 'docs-nav-group'
+  const h = document.createElement('div')
+  h.className = 'docs-nav-head'
+  h.textContent = head
+  const key = 'docsGroup:' + head
+  if (localStorage.getItem(key) === 'closed') grp.classList.add('collapsed')
+  h.addEventListener('click', () => {
+    const closed = grp.classList.toggle('collapsed')
+    localStorage.setItem(key, closed ? 'closed' : 'open')
+  })
+  grp.appendChild(h)
+  return grp
+}
+
 async function buildDocsSidebar() {
   docsSidebar.innerHTML = ''
   docsSidebar.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
@@ -494,9 +513,7 @@ async function buildDocsSidebar() {
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land
   // library headers, then internals
-  const engGrp = document.createElement('div')
-  engGrp.className = 'docs-nav-group'
-  engGrp.innerHTML = `<div class="docs-nav-head">engine source</div>`
+  const engGrp = navGroup('engine source')
   ENGINE_SOURCES.forEach(f =>
     engGrp.appendChild(docNavItem(f, 'engine:' + f, () => showEngineSource(f))))
   docsSidebar.appendChild(engGrp)
@@ -515,9 +532,7 @@ async function buildDocsSidebar() {
   })
 
   const addGroup = (head, list) => {
-    const grp = document.createElement('div')
-    grp.className = 'docs-nav-group'
-    grp.innerHTML = `<div class="docs-nav-head">${head}</div>`
+    const grp = navGroup(head)
     list.forEach(f => grp.appendChild(docNavItem(prettyDocLabel(f), f, () => showDoc(f))))
     docsSidebar.appendChild(grp)
   }

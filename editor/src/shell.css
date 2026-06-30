@@ -540,7 +540,20 @@ mark.docs-find-hit.current {
   letter-spacing: 0.08em;
   color: var(--fg-dim);
   padding: 4px 20px;
+  cursor: pointer;
+  user-select: none;
 }
+.docs-nav-head:hover { color: var(--fg); }
+.docs-nav-head::before {
+  content: '▾';
+  display: inline-block;
+  width: 0.9em;
+  margin-left: -0.3em;
+  font-size: 9px;
+  transition: transform 0.12s ease;
+}
+.docs-nav-group.collapsed .docs-nav-head::before { transform: rotate(-90deg); }
+.docs-nav-group.collapsed .docs-nav-item { display: none; }
 .docs-nav-item {
   display: block;
   width: 100%;

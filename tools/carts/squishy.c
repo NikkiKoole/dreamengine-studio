@@ -11,8 +11,8 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. A brush renders that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble; each tool (ink / pencil / fineliner / marker) is just a different set of those numbers. The bevel toggle embosses each stroke into a faux-3D rim (light from the top-left). And because rendering is a pure function of (stroke, seed), the BOIL toggle re-renders the strokes through a few jittered seeds and cycles them ~7.5fps → the whole drawing breathes, hand-drawn-animation style, for almost free. 2-tone ink-on-paper; a richer palette + the pixelsnap animated-icon export come next.",
-    "controls": "Top panel: pick a tool (ink/pen/fin/mrk), drag the thickness slider, toggle BVL (bevel) and BOIL (living wobble), tap UNDO. Then drag on the canvas to draw. Keys: B bevel, O boil, U undo, C clear."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble; ink / pencil / fineliner / marker are just different sets of those numbers. SKETCH is special — a hairy web (à la Krita's Sketch engine): each point threads thin lines to nearby earlier points. The bevel toggle embosses strokes into a faux-3D rim (light from the top-left). And because rendering is a pure function of (stroke, seed), the BOIL toggle re-renders through a few jittered seeds and cycles them ~7.5fps → the whole drawing breathes, hand-drawn-animation style, for almost free. 2-tone ink-on-paper; a richer palette + the pixelsnap animated-icon export come next.",
+    "controls": "Top panel: open the tool dropdown (ink/pen/fineliner/marker/sketch), drag the thickness slider, toggle BVL (bevel) and BOIL (living wobble), tap UNDO. Then drag on the canvas to draw. Keys: B bevel, O boil, U undo, C clear."
   },
   "todo": [
     "Swap the text tool-buttons for code-drawn glyph sprites (sprite-draw.js) per docs/design/squishy-lines.md.",
@@ -72,8 +72,13 @@ static const Brush BRUSHES[] = {
     { 1.0f, 2.6f,  6.0f, 0.35f, 5.0f, "pen" },   // pencil: thin, scratchy, grainy
     { 1.2f, 1.9f, 12.0f, 0.05f, 4.0f, "fin" },   // fineliner: thin, crisp, near-constant
     { 5.0f, 7.5f, 22.0f, 0.05f, 3.0f, "mrk" },   // marker: wide, even, flat
+    { 2.0f, 2.0f, 12.0f, 0.00f, 1.0f, "skt" },   // sketch: a hairy web of threads (special render)
 };
 #define NTOOLS ((int)(sizeof(BRUSHES) / sizeof(BRUSHES[0])))
+#define TOOL_SKETCH 4          // index of the sketch tool (rendered as threads, not stamps)
+#define SKETCH_R     22.0f     // px: a thread links to prior points within this reach (à la Krita Sketch)
+#define SKETCH_R2    (SKETCH_R * SKETCH_R)
+#define SKETCH_TRIES 5         // random prior points tried per sample → web density
 
 typedef struct { float x, y, speed; } Sample;
 typedef struct {
@@ -94,6 +99,7 @@ static int      bevel = 0;           // bevel mode: emboss each stroke into a fa
 static int      boil = 0;            // boil mode: cycle jittered variants → a living loop
 static int      cursor_panel = -1;   // tracks which cursor is shown (hand on bar / ring on canvas)
 static int      tool = 0;            // selected brush
+static int      dd_open = 0;         // tool dropdown open?
 static float    thick01 = 0.375f;    // thickness slider (0..1) → ~1.0× by default
 static float    prevx, prevy;        // last frame's pointer (for per-frame speed)
 static float    lastsx, lastsy;      // last *captured sample* (for min-spacing)
@@ -171,11 +177,39 @@ static void render_stroke(const Stroke *s, unsigned fseed, float ox, float oy, i
     }
 }
 
-// draw one stroke, with the bevel emboss if it's on: a SHADOW + HILITE copy
-// offset under the ink body leave a light rim on the upper-left and a dark rim
-// on the lower-right. Pure geometry, no canvas read-back → deterministic.
-// `jitter` propagates the boil wobble to all passes so the rim moves with the body.
+// the SKETCH brush (à la Krita's Sketch engine): a thin spine plus a hairy WEB —
+// each point threads a 1px line to a few seeded-random prior points within reach.
+// The web topology is keyed by the stroke seed ONLY (stable), while boil jitters
+// the point positions (fseed) — so the whole tangle wiggles without re-wiring.
+static void render_sketch(const Stroke *s, unsigned fseed, int jitter) {
+    if (s->n < 2) return;
+    for (int i = 1; i < s->n; i++) {
+        float xi = s->pts[i].x, yi = s->pts[i].y;
+        float xp = s->pts[i-1].x, yp = s->pts[i-1].y;
+        if (jitter) {
+            xi += boil_off(s->seed, i,   fseed, 0x11); yi += boil_off(s->seed, i,   fseed, 0x22);
+            xp += boil_off(s->seed, i-1, fseed, 0x11); yp += boil_off(s->seed, i-1, fseed, 0x22);
+        }
+        line((int)(xi + .5f), (int)(yi + .5f), (int)(xp + .5f), (int)(yp + .5f), INK);  // spine
+        for (int k = 0; k < SKETCH_TRIES; k++) {
+            unsigned h = hashu(s->seed ^ (unsigned)(i * 2654435761u) ^ (unsigned)(k * 0x9E3779B1u));
+            int j = (int)(h % (unsigned)i);                 // a prior point (topology = seed only)
+            float xj = s->pts[j].x, yj = s->pts[j].y;
+            if (jitter) { xj += boil_off(s->seed, j, fseed, 0x11); yj += boil_off(s->seed, j, fseed, 0x22); }
+            float dx = xi - xj, dy = yi - yj;
+            if (dx * dx + dy * dy < SKETCH_R2)
+                line((int)(xi + .5f), (int)(yi + .5f), (int)(xj + .5f), (int)(yj + .5f), INK);
+        }
+    }
+}
+
+// draw one stroke. Sketch is its own renderer; the other brushes use the stamp
+// chain, with the bevel emboss if it's on: a SHADOW + HILITE copy offset under
+// the ink body leave a light rim on the upper-left, a dark rim on the lower-right.
+// Pure geometry, no canvas read-back → deterministic. `jitter` propagates the boil
+// wobble to all passes so the rim moves with the body.
 static void draw_one(const Stroke *s, unsigned fseed, int jitter) {
+    if (s->tool == TOOL_SKETCH) { render_sketch(s, fseed, jitter); return; }
     if (bevel) {
         render_stroke(s, fseed,  BEVEL_OFF,  BEVEL_OFF, SHADOW, jitter);
         render_stroke(s, fseed, -BEVEL_OFF, -BEVEL_OFF, HILITE, jitter);
@@ -185,23 +219,31 @@ static void draw_one(const Stroke *s, unsigned fseed, int jitter) {
 
 static void do_undo(void) { if (nstrokes > 0) nstrokes--; }
 
-// the top tool-bar: pick a tool, set thickness, toggle bevel, undo.
+#define DD_X   2
+#define DD_W   50
+#define DD_ITEM 16             // dropdown row height
+
+// the top tool-bar: a tool dropdown, thickness, bevel, boil, undo.
 static void draw_panel(void) {
     rectfill(0, 0, SCREEN_W, PANEL_H, PAPER);
     line(0, PANEL_H - 1, SCREEN_W, PANEL_H - 1, INK);
     ui_begin();
-    // tool buttons + a selection underline
-    for (int i = 0; i < NTOOLS; i++) {
-        int bx = 2 + i * 32;
-        if (ui_button(bx, 3, 30, 16, BRUSHES[i].name)) tool = i;
-        if (i == tool) rectfill(bx, 19, 30, 2, ACCENT);
+    // tool dropdown header (name of the current tool + a down caret)
+    if (ui_button(DD_X, 3, DD_W, 16, str("%s v", BRUSHES[tool].name))) dd_open = !dd_open;
+    ui_slider(&thick01, 58, 4, 48, "thk");          // thickness 0.4×..2.0×
+    if (ui_button(110, 3, 30, 16, "bvl")) bevel = !bevel;
+    if (bevel) rectfill(110, 19, 30, 2, ACCENT);
+    if (ui_button(144, 3, 40, 16, "boil")) boil = !boil;
+    if (boil) rectfill(144, 19, 40, 2, ACCENT);
+    if (ui_button(188, 3, 40, 16, "undo")) do_undo();
+    // the open dropdown list, over the canvas
+    if (dd_open) {
+        for (int i = 0; i < NTOOLS; i++) {
+            int y = PANEL_H + i * DD_ITEM;
+            if (ui_button(DD_X, y, DD_W, DD_ITEM, BRUSHES[i].name)) { tool = i; dd_open = 0; }
+            if (i == tool) rectfill(DD_X, y, 2, DD_ITEM, ACCENT);   // mark the current tool
+        }
     }
-    ui_slider(&thick01, 132, 4, 44, "thk");        // thickness 0.4×..2.0×
-    if (ui_button(180, 3, 30, 16, "bvl")) bevel = !bevel;
-    if (bevel) rectfill(180, 19, 30, 2, ACCENT);
-    if (ui_button(214, 3, 40, 16, "boil")) boil = !boil;
-    if (boil) rectfill(214, 19, 40, 2, ACCENT);
-    if (ui_button(258, 3, 40, 16, "undo")) do_undo();
     ui_end();
 }
 
@@ -217,6 +259,16 @@ void update(void) {
     float fspeed = sqrtf(fdx * fdx + fdy * fdy);
     ema += (fspeed - ema) * 0.4f;
     prevx = mx; prevy = my;
+
+    // while the tool dropdown is open it's modal: clicks pick a tool (resolved in
+    // the panel) and a tap on the bare canvas just dismisses it — never draws.
+    if (dd_open) {
+        if (mouse_pressed(MOUSE_LEFT)) {
+            int in_list = mx >= DD_X && mx < DD_X + DD_W && my >= PANEL_H && my < PANEL_H + NTOOLS * DD_ITEM;
+            if (my >= PANEL_H && !in_list) dd_open = 0;     // tap-away dismiss
+        }
+        return;                                             // no drawing while open
+    }
 
     // a press that lands in the panel drives the panel, never the canvas
     if (mouse_pressed(MOUSE_LEFT) && my >= PANEL_H) {
@@ -259,16 +311,20 @@ void draw(void) {
 
     // cursor: an OS hand over the tool-bar (so it's clearly clickable), our own
     // brush-size ring over the canvas. Only toggle on the transition (no flicker).
-    int on_panel = mouse_y() < PANEL_H;
+    int on_panel = mouse_y() < PANEL_H || dd_open;   // dropdown is modal → keep the hand cursor
     if (on_panel != cursor_panel) {
         cursor_panel = on_panel;
         if (on_panel) { mouse_cursor(CURSOR_HAND); mouse_show(); }
         else mouse_hide();
     }
-    if (!on_panel) {   // brush-size ring previews the live width (slow = big, fast = small)
-        Brush b = BRUSHES[tool];
-        float sp = ema / b.speedref; if (sp > 1) sp = 1;
-        int r = (int)((b.maxw - (b.maxw - b.minw) * sp) * thickness() * 0.5f + 0.5f);
+    if (!on_panel) {   // brush ring previews the reach (sketch) or live width (slow = big, fast = small)
+        int r;
+        if (tool == TOOL_SKETCH) r = (int)SKETCH_R;
+        else {
+            Brush b = BRUSHES[tool];
+            float sp = ema / b.speedref; if (sp > 1) sp = 1;
+            r = (int)((b.maxw - (b.maxw - b.minw) * sp) * thickness() * 0.5f + 0.5f);
+        }
         if (r < 1) r = 1;
         circ(mouse_x(), mouse_y(), r, INK);
     }

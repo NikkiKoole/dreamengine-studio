@@ -1,10 +1,10 @@
 # Squishy lines — a velocity-brush drawing cart that animates for almost free
 
 STATUS: BUILDING (2026-06-30) — design settled (320×320, 2-tone first, boil is an opt-in mode).
-Shipped: ink brush, bevel toggle, the top tool-bar (ink/pen/fineliner/marker, thickness, bevel,
-boil, undo), and the **boil** living loop (`tools/carts/squishy.c`). The core is done; what's left is
-the pixelsnap animated-icon export, a richer palette, a `spec()`, and the boil-cache perf pass. v1
-plan + progress is the checklist at the bottom.
+Shipped: 5 brushes (ink/pen/fineliner/marker + a Krita-style **sketch** web) in a **tool dropdown**,
+a thickness slider, the **bevel** emboss, and the **boil** living loop (`tools/carts/squishy.c`). The
+core is done; what's left is the pixelsnap animated-icon export, a richer palette, a `spec()`, and the
+boil-cache perf pass. v1 plan + progress is the checklist at the bottom.
 
 > The shower idea: we'd been making cart icons by running an AI-generated image through a
 > `.cart.js` (sprite-draw + `pixelsnap`). The results are nice — but **frozen**. What if you could
@@ -91,6 +91,7 @@ its path (stamp-spacing — how real brush engines work — *not* a fat polyline
 | fineliner | thin, crisp | barely any (near-constant) | clean ink |
 | marker | wide, soft, flat | none; overlap darkens | even, juicy |
 | ink brush | round | **speed → big width swing + end-taper** | *the squish* |
+| sketch | — (threads) | each point threads to nearby earlier points (à la Krita Sketch) | hairy, gestural web |
 | paint | wide, textured | speed → width + wet edges | gloopy (later / 24-bit) |
 
 Three things stack to make a line feel alive:
@@ -222,9 +223,10 @@ once v1 lands (not committed):
 Shipped the first cut (`tools/carts/squishy.c`, 2026-06-30): the ink brush feels right — slow swells
 fat, fast flicks thin, ends taper, seeded wobble keeps it hand-inked — plus the **bevel** toggle
 (`B`) that embosses strokes into faux-3D (a filled blob domes into a ball), and a **top tool-bar**
-(`ui.h`): 4 brush tools (ink / pen / fineliner / marker, each a recipe row in the `BRUSHES` table),
-a thickness slider, and bevel + undo buttons. Each stroke remembers the tool + thickness it was drawn
-with. And the **boil** toggle makes a finished drawing breathe (live demo:
+(`ui.h`): a **tool dropdown** of 5 brushes (ink / pen / fineliner / marker, each a recipe row in the
+`BRUSHES` table, + a Krita-style **sketch** web), a thickness slider, and bevel + undo buttons. Each
+stroke remembers the tool + thickness it was drawn with. And the **boil** toggle makes a finished
+drawing breathe (live demo:
 `editor/public/clips/squishy/06-boilface.webm` — a smiley drawn, then coming alive). Demo seeds in
 `tools/clips/squishy/`.
 
@@ -233,9 +235,13 @@ with. And the **boil** toggle makes a finished drawing breathe (live demo:
 - [x] One brush, done well: the **ink** brush — stamp-spacing, speed→width, end-taper, seeded
       per-stamp noise. Get the squish *feeling* right before adding tools.
 - [x] 2-tone palette: ink + paper; a clear button.
-- [x] Tool palette UI — a top tool-bar (`ui.h`): tool buttons (ink / pen / fineliner / marker —
-      each a brush-recipe row), a thickness slider, a bevel toggle, an undo button. Drawing is gated
-      below the bar. (Buttons are text for now; code-drawn glyph sprites are the polish follow-up.)
+- [x] Tool palette UI — a top tool-bar (`ui.h`): a **tool dropdown** (ink / pen / fineliner /
+      marker / **sketch**), a thickness slider, a bevel toggle, a boil toggle, an undo button.
+      Drawing is gated below the bar; the dropdown is modal (tap-away dismisses). (Tool names are
+      text for now; code-drawn glyph sprites are the polish follow-up.)
+- [x] **Sketch brush** (à la Krita's Sketch engine) — a hairy web: a thin spine plus 1px threads
+      from each point to a few seeded-random earlier points within reach. Topology keyed by the
+      stroke seed (stable), positions jittered by the boil seed → the whole tangle wiggles.
 - [x] **Bevel tool** — shipped as a 3-pass offset emboss (`B` toggles it): top-left HILITE rim +
       lower-right SHADOW rim, light from the top-left. See "As built (v1)" above for why emboss, not
       edge-detect. (A true silhouette-rim auto-bevel waits on fills + a 3-tone ramp.)

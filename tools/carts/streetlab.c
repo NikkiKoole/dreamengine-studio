@@ -293,13 +293,14 @@ static int   field_roads = 0;
 //    hands you (incident ways' bearings) — bypassing the base±skew COLLINEAR-PAIR model. The gut-check:
 //    do real-world angles render with clean curb returns through the existing path, unchanged? 'o'
 //    cycles off → each sample → off. Every other treatment (curb radius, peds, lanes…) still composes.
-//    NLEG=4 caps it at 4 arms; a 5/6-way node is the predicted next step (raise NLEG + a present-count).
-//    These bearings are hand-read off real intersections — stand-ins until osm-roads.js emits the graph.
+//    NLEG=4 caps it at 4 arms; Delft has a REAL 5-way (9,85,123,228,304) that needs NLEG raised + a
+//    present-count — the predicted next step. RUNG 2: these bearings are now REAL OSM, extracted from
+//    data/delft-centre.rvb by data-tools/roadview/osm-junction.js (node graph → incident-way bearings).
 typedef struct { const char *name; int n; float brg[NLEG]; } OsmJunc;
 static const OsmJunc osm_samples[] = {
-    { "4-way, independent skew", 4, {  10, 100, 195, 280 } },   // NOT collinear pairs — the real test
-    { "Y junction (3-way)",      3, {  25, 145, 265 } },        // uneven 3-way, no straight-through
-    { "acute fork (4-way)",      4, {  18,  78, 200, 262 } },   // tight corners stress the curb return
+    { "Delft 4-way (real OSM)",   4, {  26, 126, 198, 302 } },  // road/secondary x2 — a real skewed crossing
+    { "Delft Y 3-way (real OSM)", 3, { 125, 237, 342 } },       // a real 3-leg junction, no straight-through
+    { "Delft 4-way #2 (real OSM)",4, {  34, 127, 216, 307 } },  // another real crossing — different skew
 };
 #define N_OSM ((int)(sizeof osm_samples / sizeof osm_samples[0]))
 static int osmMode = 0;   // 0 = off (normal leg model); 1..N_OSM = render sample (osmMode-1)
@@ -1328,7 +1329,7 @@ void draw(void){
     font(FONT_SMALL);
     char bb[96];                                            // wide enough for the feature subtitle + driveways suffix
     int xs = medOn||bikeOn||parkOn||twltlOn;               // M7: any typed cross-section element active?
-    print(osmMode   ? "streetlab - OSM node -> junction (rung 1: foreign bearings)"
+    print(osmMode   ? "streetlab - OSM node -> junction (rung 2: real Delft data)"
          : xs        ? "streetlab - at-grade junction (M7: typed cross-section)"
          : roundabout ? "streetlab - at-grade junction (M6: mini-roundabout)"
                       : "streetlab - at-grade junction (M5: sidewalks + crosswalks)", 4,5, CLR_WHITE);

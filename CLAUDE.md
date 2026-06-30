@@ -185,6 +185,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-compendium.js  generate docs/cart-compendium.html (--check gates staleness)
              build-design-board.js  generate docs/design-board.html — the VISUAL ★ designs page (every design
                              doc + ADR by lifecycle phase, clickable cards) from design-board.js; --check gates staleness
+             build-reflections.js  generate docs/reflections.html — the VISUAL ★ reflections page (the research
+                             journal by lifecycle) from build-field-notes.js's collectNotes(); --check gates staleness
              build-field-notes.js  GENERATE docs/field-notes/FIELD-NOTES.md — navigable index of the research
                              journal (lifecycle board / timeline / related-note graph / conformance); --check gates staleness
              build-all.js    compile-check every cart vs current studio.h (catches API rot)

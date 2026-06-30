@@ -456,6 +456,17 @@ function showDesignBoard() {
   docsContent.scrollTop = 0
 }
 
+// — the generated Reflections page (docs/reflections.html) in an iframe — the
+// research journal by lifecycle. Clicking a note postMessages back here to open
+// its markdown.
+function showReflections() {
+  currentDocPath = 'reflections'
+  setActiveNav('reflections')
+  docsContent.classList.add('docs-history')
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/reflections.html" title="reflections" onload="this.classList.add('loaded')"></iframe>`
+  docsContent.scrollTop = 0
+}
+
 // the history iframe asks us to open a docs/ markdown file, or load a cart, when
 // something inside it is clicked
 window.addEventListener('message', (e) => {
@@ -611,6 +622,7 @@ async function buildDocsSidebar() {
   docsNav.appendChild(docNavItem('★ history', 'history', () => showHistory()))
   docsNav.appendChild(docNavItem('★ compendium', 'compendium', () => showCompendium()))
   docsNav.appendChild(docNavItem('★ todo', 'designboard', () => showDesignBoard()))
+  docsNav.appendChild(docNavItem('★ reflections', 'reflections', () => showReflections()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land

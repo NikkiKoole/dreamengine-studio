@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reflections</title>
+<style>
+@font-face{font-family:'ComicMono';src:url('/ComicMono.ttf') format('truetype');font-weight:400;font-display:optional}
+@font-face{font-family:'ComicMono';src:url('/ComicMono-Bold.ttf') format('truetype');font-weight:700;font-display:optional}
+:root{
+  --bg:#0c0d11; --panel:#13151b; --ink:#cbd3dc; --bright:#f0f4f8; --dim:#5b6470;
+  --green:#00e436; --yellow:#ffec27; --orange:#ffa300; --blue:#29adff; --red:#ff004d; --indigo:#a39bc4;
+  --mono:'ComicMono',ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5}
+#root{max-width:880px;margin:0 auto;padding:34px 26px 120px}
+header{border-bottom:1px solid #20242c;padding-bottom:18px;margin-bottom:8px}
+h1{font-size:30px;letter-spacing:4px;margin:0;color:var(--bright);font-weight:700;text-shadow:0 0 14px rgba(41,173,255,.28),0 0 2px rgba(41,173,255,.5)}
+.count{margin-top:9px;color:var(--dim);font-size:12px}
+.sub{margin:12px 0 0;color:var(--dim);max-width:700px;line-height:1.6}
+.sub b.hi{color:var(--blue);font-weight:700} .sub i{color:var(--ink);font-style:italic}
+
+section.ph{margin:24px 0 0}
+section.ph details>summary{font-size:12px;letter-spacing:2px;color:var(--c);font-weight:700;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;margin-bottom:4px}
+section.ph details>summary::-webkit-details-marker{display:none}
+section.ph summary .lead{display:inline-block;opacity:.7;transition:transform .12s}
+section.ph details[open]>summary .lead{transform:rotate(90deg)}
+section.ph summary .n{color:var(--dim);font-weight:400;letter-spacing:0}
+section.ph details>summary:focus-visible{outline:2px solid var(--c);outline-offset:3px}
+.gloss{color:var(--dim);font-size:12px;margin:0 0 10px 18px;font-style:italic}
+
+a.note{display:block;padding:7px 10px 8px;text-decoration:none;color:var(--ink);border-left:2px solid transparent}
+a.note:hover{background:var(--panel);border-left-color:var(--c)}
+a.note .nhead{display:flex;align-items:baseline;gap:8px}
+a.note .badge{flex:none}
+a.note .ntitle{color:var(--bright);font-weight:700;flex:1 1 auto}
+a.note .nmeta{flex:none;color:var(--dim);font-size:11px;white-space:nowrap}
+a.note .nsum{color:var(--dim);font-size:12px;margin:2px 0 0 26px;line-height:1.45}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--panel);border:1px solid #20242c;padding:3px 9px;font-size:11.5px}
+.chip b{color:var(--indigo);font-weight:700}
+.tlwrap{display:flex;flex-direction:column;gap:1px}
+a.tl{text-decoration:none;color:var(--ink);padding:3px 10px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a.tl:hover{background:var(--panel)}
+a.tl .tlnum{color:var(--dim)} a.tl .nmeta{color:var(--dim);font-size:11px}
+
+footer{margin-top:46px;padding-top:16px;border-top:1px solid #20242c;color:#3f4651;font-size:11px;line-height:1.6}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="root">
+  <header>
+    <h1>REFLECTIONS</h1>
+    <div class="count">🌱 1 hypothesis  ·  🔭 10 observed  ·  🔍 2 review  ·  🧪 1 working theory  ·  · 1 unmarked</div>
+    <p class="sub">The research journal — not what we built (that's <b class="hi">★ todo</b>), but what we've <i>learned</i> and how we work. Each note sits somewhere on the path from a hunch to something the repo adopted. Click one to read it.</p>
+  </header>
+  <section class="ph" style="--c:var(--green)">
+    <details open><summary><span class="lead">▸</span>🌱 Hypothesis <span class="n">1</span></summary>
+    <p class="gloss">a hunch, not yet tested.</p>
+    <a class="note" data-doc="field-notes/008-the-identity-of-dreamengine.md" href="#">
+    <div class="nhead"><span class="badge">🌱</span><span class="ntitle">The Identity of DreamEngine</span><span class="nmeta">008 · 2026-06-26</span></div><div class="nsum">DreamEngine's identity cannot be fully explained by the software it currently contains.</div>
+  </a></details>
+  </section><section class="ph" style="--c:var(--blue)">
+    <details open><summary><span class="lead">▸</span>🔭 Observed <span class="n">10</span></summary>
+    <p class="gloss">something we saw happen, recorded.</p>
+    <a class="note" data-doc="field-notes/000-review-process.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">review-process</span><span class="nmeta">000</span></div><div class="nsum">The review itself should become part of DreamEngine's knowledge base through incremental field notes rather than a single final report.</div>
+  </a><a class="note" data-doc="field-notes/001-protocol.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">protocol</span><span class="nmeta">001</span></div><div class="nsum">Reviews should proceed through Explore → Discuss → Distill → Continue.</div>
+  </a><a class="note" data-doc="field-notes/002-context-assembly.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">Context Assembly</span><span class="nmeta">002 · 2026-06-26</span></div><div class="nsum">As DreamEngine grows, documentation should not merely be written. It should be assembled into task-specific context.</div>
+  </a><a class="note" data-doc="field-notes/004-roads-as-convergence-layer.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">Roads as a Convergence Layer</span><span class="nmeta">004 · 2026-06-26</span></div><div class="nsum">The road work began as rendering and movement experiments but has gradually become one of the primary convergence points within DreamEngine.</div>
+  </a><a class="note" data-doc="field-notes/005-inflection.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">Evolution through Inflection Points</span><span class="nmeta">005 · 2026-06-26</span></div><div class="nsum">DreamEngine rarely changes direction because of long-term planning.</div>
+  </a><a class="note" data-doc="field-notes/006-the-evolution-of-the-workflow.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">The Evolution of the Workflow</span><span class="nmeta">006 · 2026-06-26</span></div><div class="nsum">DreamEngine's workflow did not evolve primarily by adding more AI.</div>
+  </a><a class="note" data-doc="field-notes/007-the-evolution-of-documentation.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">The Evolution of Documentation</span><span class="nmeta">007 · 2026-06-26</span></div><div class="nsum">DreamEngine's documentation appears to evolve from describing the engine toward describing how decisions should be made.</div>
+  </a><a class="note" data-doc="field-notes/009-the-negative-space-of-dreamengine.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">The Negative Space of DreamEngine</span><span class="nmeta">009 · 2026-06-26</span></div><div class="nsum">DreamEngine consistently avoids introducing systems before they have been earned through repeated experience.</div>
+  </a><a class="note" data-doc="field-notes/011-tool-discovery.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">Tool Discovery and Documentation</span><span class="nmeta">011</span></div><div class="nsum">Defines a lightweight convention for self-documenting repository tools. Tool metadata lives inside the tool itself and can later be used to generate human an…</div>
+  </a><a class="note" data-doc="field-notes/014-outside-agent-brainstorms-as-a-knowledge-source.md" href="#">
+    <div class="nhead"><span class="badge">🔭</span><span class="ntitle">Outside-Agent Brainstorms as a Knowledge Source</span><span class="nmeta">014 · 2026-06-29</span></div><div class="nsum">A new knowledge input has appeared and proven itself repeatedly: long brainstorming conversations</div>
+  </a></details>
+  </section><section class="ph" style="--c:var(--yellow)">
+    <details open><summary><span class="lead">▸</span>🔍 Review <span class="n">2</span></summary>
+    <p class="gloss">under active reconsideration.</p>
+    <a class="note" data-doc="field-notes/012-self-describing-artifacts.md" href="#">
+    <div class="nhead"><span class="badge">🔍</span><span class="ntitle">Self-Describing Artifacts</span><span class="nmeta">012</span></div><div class="nsum">DreamEngine should strive for artifacts that describe themselves. Metadata, documentation and tooling should live alongside the artifact itself, allowing hum…</div>
+  </a><a class="note" data-doc="field-notes/013-generated-cart-index.md" href="#">
+    <div class="nhead"><span class="badge">🔍</span><span class="ntitle">Generated Cart Index</span><span class="nmeta">013</span></div><div class="nsum">The global cart index should become a generated artifact. Each cart owns its own metadata, allowing multiple agents to work independently without creating me…</div>
+  </a></details>
+  </section><section class="ph" style="--c:var(--orange)">
+    <details open><summary><span class="lead">▸</span>🧪 Working Theory <span class="n">1</span></summary>
+    <p class="gloss">a model we're provisionally running with.</p>
+    <a class="note" data-doc="field-notes/100-first-synthesis.md" href="#">
+    <div class="nhead"><span class="badge">🧪</span><span class="ntitle">First Synthesis: The Knowledge Loop</span><span class="nmeta">100 · 2026-06-26</span></div><div class="nsum">After reviewing the first series of field notes, a recurring pattern appears to connect nearly every aspect of DreamEngine.</div>
+  </a></details>
+  </section><section class="ph" style="--c:var(--dim)">
+    <details><summary><span class="lead">▸</span>· Unmarked <span class="n">1</span></summary>
+    <p class="gloss">no lifecycle status yet.</p>
+    <a class="note" data-doc="field-notes/003-curation.md" href="#">
+    <div class="nhead"><span class="badge">·</span><span class="ntitle">curation</span><span class="nmeta">003</span></div><div class="nsum">003 — Curation over Classification</div>
+  </a></details>
+  </section>
+  <section class="ph" style="--c:var(--indigo)"><details><summary><span class="lead">▸</span>CONCEPTS</summary><div class="chips"><span class="chip">agents <b>011 013</b></span><span class="chip">carts <b>013</b></span><span class="chip">documentation <b>011 012</b></span><span class="chip">indexing <b>013</b></span><span class="chip">introspection <b>012</b></span><span class="chip">metadata <b>013</b></span><span class="chip">repository <b>012</b></span><span class="chip">tooling <b>012</b></span><span class="chip">tools <b>011</b></span><span class="chip">workflow <b>011 012 013</b></span></div></details></section>
+  <section class="ph" style="--c:var(--dim)">
+    <details><summary><span class="lead">▸</span>TIMELINE <span class="n">15</span></summary>
+    <div class="tlwrap"><a class="tl" data-doc="field-notes/000-review-process.md" href="#"><span class="badge">🔭</span> <span class="tlnum">000</span> review-process <span class="nmeta">undated</span></a><a class="tl" data-doc="field-notes/001-protocol.md" href="#"><span class="badge">🔭</span> <span class="tlnum">001</span> protocol <span class="nmeta">undated</span></a><a class="tl" data-doc="field-notes/002-context-assembly.md" href="#"><span class="badge">🔭</span> <span class="tlnum">002</span> Context Assembly <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/003-curation.md" href="#"><span class="badge">·</span> <span class="tlnum">003</span> curation <span class="nmeta">undated</span></a><a class="tl" data-doc="field-notes/004-roads-as-convergence-layer.md" href="#"><span class="badge">🔭</span> <span class="tlnum">004</span> Roads as a Convergence Layer <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/005-inflection.md" href="#"><span class="badge">🔭</span> <span class="tlnum">005</span> Evolution through Inflection Points <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/006-the-evolution-of-the-workflow.md" href="#"><span class="badge">🔭</span> <span class="tlnum">006</span> The Evolution of the Workflow <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/007-the-evolution-of-documentation.md" href="#"><span class="badge">🔭</span> <span class="tlnum">007</span> The Evolution of Documentation <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/008-the-identity-of-dreamengine.md" href="#"><span class="badge">🌱</span> <span class="tlnum">008</span> The Identity of DreamEngine <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/009-the-negative-space-of-dreamengine.md" href="#"><span class="badge">🔭</span> <span class="tlnum">009</span> The Negative Space of DreamEngine <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/011-tool-discovery.md" href="#"><span class="badge">🔭</span> <span class="tlnum">011</span> Tool Discovery and Documentation <span class="nmeta">undated</span></a><a class="tl" data-doc="field-notes/012-self-describing-artifacts.md" href="#"><span class="badge">🔍</span> <span class="tlnum">012</span> Self-Describing Artifacts <span class="nmeta">undated</span></a><a class="tl" data-doc="field-notes/013-generated-cart-index.md" href="#"><span class="badge">🔍</span> <span class="tlnum">013</span> Generated Cart Index <span class="nmeta">undated</span></a><a class="tl" data-doc="field-notes/100-first-synthesis.md" href="#"><span class="badge">🧪</span> <span class="tlnum">100</span> First Synthesis: The Knowledge Loop <span class="nmeta">2026-06-26</span></a><a class="tl" data-doc="field-notes/014-outside-agent-brainstorms-as-a-knowledge-source.md" href="#"><span class="badge">🔭</span> <span class="tlnum">014</span> Outside-Agent Brainstorms as a Knowledge Source <span class="nmeta">2026-06-29</span></a></div></details>
+  </section>
+  <footer># the 15 numbered journal notes. 8 unnumbered working docs (handoffs, scaffolding, wishlists) are excluded — they're the soil, not the reflections. Generated by tools/build-reflections.js from the field-notes journal; re-run after adding a note.</footer>
+</div>
+<script>
+document.addEventListener('click', function(ev){
+  var a = ev.target.closest('[data-doc]');
+  if(!a) return;
+  ev.preventDefault();
+  var rel = a.getAttribute('data-doc');
+  if(/^[\w./-]+\.md$/.test(rel)) window.parent.postMessage({type:'open-doc', path: rel}, '*');
+});
+</script>
+</body>
+</html>

@@ -187,14 +187,20 @@ function parseNote(file) {
            date, confidence, summary, concepts, related };
 }
 
-// ── gather ────────────────────────────────────────────────────────────────
-const all = fs.readdirSync(DIR).filter(f => f.endsWith('.md') && !META_FILES.has(f)).sort();
-const notes = all.map(parseNote);
-const journal = notes.filter(n => n.numbered && !FORCE_WORKING.has(n.file)).sort((a, b) => a.num - b.num);
-const working = notes.filter(n => !n.numbered || FORCE_WORKING.has(n.file))
-  .sort((a, b) => a.file.localeCompare(b.file));
+// ── gather (shared with build-reflections.js) ───────────────────────────────
+function collectNotes() {
+  const all = fs.readdirSync(DIR).filter(f => f.endsWith('.md') && !META_FILES.has(f)).sort();
+  const notes = all.map(parseNote);
+  const journal = notes.filter(n => n.numbered && !FORCE_WORKING.has(n.file)).sort((a, b) => a.num - b.num);
+  const working = notes.filter(n => !n.numbered || FORCE_WORKING.has(n.file)).sort((a, b) => a.file.localeCompare(b.file));
+  return { notes, journal, working };
+}
+module.exports = { collectNotes, LIFECYCLE, STATUS_BADGE, normStatus, parseNote };
 
-// ── render ──────────────────────────────────────────────────────────────────
+// ── render the markdown index (CLI only) ─────────────────────────────────────
+if (require.main === module) {
+const { journal, working } = collectNotes();
+
 function link(n) { return `[${n.title}](${encodeURI(n.file)})`; }
 function numTag(n) { return n.num != null ? `\`${String(n.num).padStart(3, '0')}\`` : ''; }
 
@@ -312,3 +318,4 @@ if (process.argv.includes('--check')) {
 
 fs.writeFileSync(OUT, out);
 console.log(`wrote ${path.relative(ROOT, OUT)} — ${journal.length} journal notes, ${working.length} working docs.`);
+}

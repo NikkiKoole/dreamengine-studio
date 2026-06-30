@@ -8,7 +8,12 @@
     "toy"
   ],
   "teaches": [],
-  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes."
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
+  "todo": [
+    "object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid boxes — read each item's height/z and skip collision below a threshold.",
+    "true 32-bit RGB: fall back to engine RGB instead of quantising sprites/textures to the 32-palette — natural furniture + rich floor textures.",
+    "z-ordering: sort draws by (z + z_height) so taller objects layer over shorter and the player occludes / is occluded correctly (vs the current fixed paint order)."
+  ]
 }
 de:meta */
 #include "studio.h"
@@ -36,6 +41,12 @@ de:meta */
 //     sprites:[{w,h,px:[palette idx, 255=transparent]}, ...],        // furn.ref indexes sprites[]
 //     textures:[{w,h,px:[palette idx]}, ...] }                       // surfaces[].tex indexes textures[]
 // Design: docs/design/external-data-carts.md → "Floorplanner — implemented".
+// Furniture + floor IMAGES are baked from Floorplanner CDN renders by
+// data-tools/fmltools/fml-assets.js (furniture sprites) + fml-textures.js (floor
+// textures); the pipeline status + the open "do this better" work (object-height
+// collision, true-RGB colour vs the muddy 32-palette quantise, z-ordering) is
+// tracked in data-tools/fmltools/TODO.md — the same three items mirrored in this
+// cart's de:meta.todo[].
 //
 // FINDINGS (from the 2026-06 build-out — read before changing the pipeline):
 //   - Furniture refids are 40 chars of [0-9a-f] OR 'x' — the 'x' is part of the id, NOT a
@@ -49,13 +60,8 @@ de:meta */
 //     concrete) quantise to ~1 entry (flat); heavy --saturate turns small furniture into rainbow
 //     confetti. Dynamic bake uses gentle --saturate 1.4; textures get a luma-contrast stretch.
 //
-// NEXT / IDEAS (see data-tools/fmltools/TODO.md):
-//   - Object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid
-//     boxes. Read each item's height/z and skip collision below a threshold.
-//   - Better colour: fall back to TRUE 32-bit RGB (engine supports it) instead of quantising
-//     sprites/textures to the 32-palette — natural furniture + rich floor textures.
-//   - Z-ORDERING: sort draws by (z + z_height) so taller objects layer over shorter and the player
-//     occludes/ is occluded correctly, instead of the current fixed paint order.
+// NEXT / IDEAS: now tracked in this cart's de:meta.todo[] (node tools/cart-todos.js floorplan);
+// the data-pipeline backlog stays in data-tools/fmltools/TODO.md.
 
 // ---- runtime pools (sized for the largest real plans; floorwalker is ~1k furniture) ----
 #define MAXSEG   4096

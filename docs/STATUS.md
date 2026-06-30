@@ -521,8 +521,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     pixels back to `tools/carts/<name>.cart.js`. Options to explore: a pixels→`.cart.js`
     exporter (slot arrays, lossless), an explicit per-cart marker for which source owns
     sprites, or a publish-time conflict warning (the editor's publish log already warns
-    when a `.cart.js` exists). Until then: generator carts should get sprite changes in the
-    generator, hand-drawn carts in the editor — never both.
+    when a `.cart.js` exists). A fourth option — a **patch/overlay layer** (diff your
+    hand-edits against the generator output, store the diff, apply it after each bake;
+    fingerprint-stale patches discard, blessed ones promote into source) — is the
+    human-in-the-loop answer; all four are weighed in
+    [`design/editor-cart-workflow.md`](design/editor-cart-workflow.md) §Gap 2 (options
+    A–D). Until one ships: generator carts should get sprite changes in the generator,
+    hand-drawn carts in the editor — never both.
 22. **Mobile-web readiness** *(new 2026-06-05, born from the live gallery + first
     real-device session)* — desktop-authored carts meet phones now. Shipped from
     the worklist (both 2026-06-05): ~~`tools/mobile-lint.js`~~ static checker

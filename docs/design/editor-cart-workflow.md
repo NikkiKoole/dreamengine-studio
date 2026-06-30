@@ -76,12 +76,56 @@ prints the `⚠ name.cart.js exists` warning (main.cjs ~line 999). Could be
 promoted to a visible editor toast when *loading* such a cart. Zero risk, zero
 enforcement.
 
-**Lean: B now, A as a tool for hand-drawn carts, C is already half-done.**
-B is one field plus two checks and kills the silent-revert failure mode dead;
-A is genuinely useful the day a hand-drawn cart needs to enter `tools/carts/`
-source of truth (today that path simply doesn't exist). A reverse-engineering
-"array → sprite-draw program" exporter is explicitly out of scope (not
-feasible, not needed).
+**Option D — patch / overlay layer (keep the generator, layer reversible
+hand-edits).** The hybrid the human-in-the-loop drawing workflow actually wants,
+and a pattern *already proven in the repo*: `tools/gen-rom-font.js`'s
+`COMIC_PATCHES` — hand pixel-fixes applied **after** rasterization that survive
+every re-bake. Generalized to cart sprites: when you hand-edit a generator
+cart's sheet in the editor, it **diffs your canvas against the generator's
+output** and stores only what changed as a **patch** beside the cart (a
+`patches` block in the `.cart.js`, or a sibling `<name>.sprites.patch.json`).
+`make-cart` then bakes **generator → apply patch**, so the parametric generator
+stays live *and* the touch-ups persist. The diff is also the missing *signal*:
+a non-empty patch is the machine-readable "a human changed this."
+
+- **Granularity — recommend slot-level override** (a hand-touched slot is frozen
+  as data, the generator skips that slot) over pixel-level `[x,y,value]` patches.
+  Slot-level reads cleanly ("this slot is now hand-owned") and can't silently
+  *mis-paint*: a pixel patch made against one rendering lands on the wrong pixels
+  if the generator later shifts things; a slot override either applies whole or is
+  cleanly stale.
+- **Lifecycle — a patch is a temporary overlay tied to a specific generator
+  output, with two deliberate exits (never a silent third):**
+  - **Kill (stale → discard).** Each patch records a fingerprint (hash) of the
+    generator slot it was diffed against. On bake, if the generator's current
+    output for that slot no longer matches — or the slot is gone — the patch is
+    stale: **drop it and warn** (`patched slot 5 no longer matches the generator —
+    patch discarded`). When you or the agent rewrite the `.cart.js` into a *whole
+    different sheet*, ~every fingerprint misses, so the patches are cleared
+    wholesale and loudly. That's the right call: a patch against the old art is
+    meaningless against new art — kill it rather than mis-apply it.
+  - **Bake / promote (blessed → freeze into source).** When the hand-edits are
+    final, fold them into the source of truth and retire the overlay: either patch
+    the diff back into the generator (COMIC_PATCHES-style, for a few surgical
+    fixes) or freeze the whole patched sheet to data via **Option A** (for a cart
+    that's effectively become hand-drawn). After promotion the patch is removed —
+    its content now lives canonically, so there's nothing left to go stale.
+
+D keeps the generator's parametric value (unlike A's freeze), avoids B's
+either/or, and gives a real round-trip: edit freely, see it persist, then
+consciously discard or bake it — with staleness resolved by fingerprint, not by
+hoping nobody regenerates.
+
+**Lean: B as the cheap guard now; D as the real human-in-the-loop answer; A the
+freeze tool; C already half-done.** B is one field plus two checks and stops the
+silent-revert *today* — ship it first. D is the one that fits collaborative
+drawing (you draw, the generator survives, patches discard-or-promote on
+purpose); build it when hand-tweaking generator carts becomes routine, and note
+that B's `spriteSource` marker is a natural precursor (a third value,
+`"generator+patch"`, switches D on per cart). A is genuinely useful the day a
+hand-drawn cart needs to enter `tools/carts/` source of truth, and it doubles as
+D's "promote" path. A reverse-engineering "array → sprite-draw program" exporter
+stays out of scope (not feasible, not needed).
 
 ## Gap 3 — gallery metadata: can't add, can't edit, can't even read all of it
 
@@ -133,6 +177,7 @@ feasible, not needed).
 | 4 | Metadata form → paste-ready index.json entry | M | none (no registry writes) |
 | 5 | Pixels→`.cart.js` exporter (option A, hand-drawn carts) | M | low |
 | 6 | `de:meta` self-describing carts + generated index | L | the transition |
+| 7 | Sprite patch/overlay layer (option D) — diff-on-edit, fingerprint-stale, discard-or-promote | M–L | medium (stale-patch mis-apply if fingerprinting is wrong) |
 
 ## Implementation status (as of 2026-06-23)
 
@@ -146,7 +191,8 @@ rest are still unstarted.
 | 3 | Sprite ownership marker (`spriteSource`) | **Not started** | Zero occurrences of `spriteSource` anywhere; `make-cart.js` has no editor-vs-generator branch; no sprite-tab warning. |
 | 4 | Metadata form → paste-ready JSON | **Not started** | No cart-info form; no clipboard/build-log export of an `index.json` entry. (The sfx editor's "export as C" is the pattern this would copy, but it's unbuilt for metadata.) |
 | 5 | Pixels→`.cart.js` exporter (option A) | **Not started** | No `--extract-sprites` flag in `make-cart.js`, no editor export button. `saveSprites()` only writes the PNG sheet to `build/` for compilation. |
-| 6 | `de:meta` chunk + generated index | **Not started** | No `de:meta` chunk anywhere; `make-cart.js` still embeds only `de:source`/`de:sprites`/`de:map`/`de:settings`; `lint-carts.js` has no `--regen`. |
+| 6 | `de:meta` chunk + generated index | **Shipped 2026-06-29** | `de:meta` block per cart; `index.json` is generated by `tools/build-cart-index.js` (see `design/cart-metadata.md`). |
+| 7 | Sprite patch/overlay layer (option D) | **Not started** | No diff-on-edit, no `patches` block / `.sprites.patch.json`, no fingerprint/staleness check, no promote path. `COMIC_PATCHES` (gen-rom-font.js) is the only patch-survives-rebake precedent. |
 
 **Cheapest win still open:** slice 1 of #2 (the read-it-all detail view — the
 doc above calls this *"honestly half of the pain"*, zero-risk).

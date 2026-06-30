@@ -508,6 +508,7 @@ static int   stick_touch_id = -1;
 static float stick_base_x = 0, stick_base_y = 0;
 static float stick_knob_x = 0, stick_knob_y = 0;
 static float stick_home_x = 0, stick_home_y = 0;   // fixed-mode base position (window px)
+static int   sgz_x = 0, sgz_y = 0, sgz_w = 0, sgz_h = 0;   // stick grab zone (window px), set by layout
 
 static int btn_a_cx, btn_a_cy;
 static int btn_b_cx, btn_b_cy;
@@ -763,11 +764,37 @@ static bool  pget_snapshot_valid = false;
 static bool  pget_enabled = false;
 static bool  pget_warned  = false;
 
+// place the stick + buttons (all window px) for the current placement. OVERLAY: corners of the
+// game rect (matches the old fixed layout when the window == the game). DECK: stick left, buttons
+// right, inside the band below the game. RAILS: stick in the left rail, buttons in the right.
+// Recomputed each frame so a resized / device window re-lays-out for free.
+static void layout_touch_controls(Placement p) {
+    int gx = (int)p.game.x, gy = (int)p.game.y;
+    int gw = (int)(SCREEN_W * p.game.scale), gh = (int)(SCREEN_H * p.game.scale);
+    if (p.mode == PLACE_DECK) {
+        int bw = p.band_w, by = p.band_y, bh = p.band_h, cy = by + bh / 2;
+        stick_home_x = bw * 0.20f;  stick_home_y = (float)cy;
+        btn_a_cx = bw - 90;   btn_a_cy = cy + 20;
+        btn_b_cx = bw - 200;  btn_b_cy = cy - 20;
+        sgz_x = 0; sgz_y = by; sgz_w = bw / 2; sgz_h = bh;                 // left half of the band
+    } else if (p.mode == PLACE_RAILS) {
+        int ww = p.band_w, wh = p.band_h, rl = gx, rr0 = gx + gw, ry = (int)(wh * 0.62f);
+        stick_home_x = rl / 2.0f;   stick_home_y = (float)ry;
+        int rc = rr0 + (ww - rr0) / 2;                                     // right-rail centre
+        btn_a_cx = rc + 30;   btn_a_cy = ry + 20;
+        btn_b_cx = rc - 60;   btn_b_cy = ry - 20;
+        sgz_x = 0; sgz_y = 0; sgz_w = rl; sgz_h = wh;                      // the whole left rail
+    } else {  // OVERLAY — hug the corners of the game rect
+        stick_home_x = gx + 80;   stick_home_y = gy + gh - 80;
+        btn_a_cx = gx + gw - 80;   btn_a_cy = gy + gh - 80;
+        btn_b_cx = gx + gw - 180;  btn_b_cy = gy + gh - 120;
+        sgz_x = gx; sgz_y = gy; sgz_w = (int)(gw * 0.55f); sgz_h = gh;     // left 55% of the game
+    }
+}
+
 static void init_touch_layout(void) {
-    int W = SCREEN_W * SCALE, H = SCREEN_H * SCALE;
-    btn_a_cx = W -  80;  btn_a_cy = H -  80;
-    btn_b_cx = W - 180;  btn_b_cy = H - 120;
-    stick_home_x = 80;   stick_home_y = H - 80;   // fixed-mode base (window px); matches the idle hint spot
+    Placement p = { PLACE_OVERLAY, { 0.0f, 0.0f, (float)SCALE }, 0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE };
+    layout_touch_controls(p);   // overlay defaults (window == game) until a frame sets a real placement
 }
 
 static bool point_in_circle(float px, float py, float cx, float cy, float r) {
@@ -898,7 +925,6 @@ static bool any_touch_in_circle(int cx, int cy, int r) {
 static void update_stick(void) {
     if (!show_touch_ui) { stick_touch_id = -1; return; }
 
-    int W = SCREEN_W * SCALE;
     bool fixed = (touch_move_mode == TOUCH_ANALOG_FIX);
     if (fixed) { stick_base_x = stick_home_x; stick_base_y = stick_home_y; }   // base pinned to its home
 
@@ -922,7 +948,7 @@ static void update_stick(void) {
     if (stick_touch_id == -1) {
         for (int i = 0; i < vt_count; i++) {
             Vector2 p = vt_pos[i];
-            if (p.x > W * 0.55f) continue;
+            if (p.x < sgz_x || p.x >= sgz_x + sgz_w || p.y < sgz_y || p.y >= sgz_y + sgz_h) continue;  // outside the stick zone
             if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, BTN_RADIUS)) continue;
             if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, BTN_RADIUS)) continue;
             stick_touch_id = vt_id[i];
@@ -938,52 +964,41 @@ static void update_stick(void) {
     }
 }
 
-// native-res touch overlay — drawn INTO the canvas with the engine's own primitives at
-// native pixel resolution, so the controls rasterize into the pixel grid and obey the
-// palette (chunky + CLR_*), reading as part of the console instead of a smooth device-res
-// sticker. Geometry stays in window px (that's where it's hit-tested); we divide by SCALE
-// for the canvas draw so it lands exactly under the ×SCALE blit. Inert unless a cart opted
-// in, so every other cart is byte-identical. Called at canvas-finalize in BOTH render
-// paths; it drops any clip + neutralizes the cart's camera (fixed screen space) and restores.
-static void draw_touch_overlay_native(void) {
+// touch overlay — the desktop DRAW SKIN. Per the touch-controls architecture pivot the
+// engine owns geometry (layout_touch_controls), hit-testing, and the btn()/stick synthesis;
+// this just PAINTS smooth circles at those window-px positions, AFTER the blit. Controls are
+// device-res chrome, not chunky in-canvas pixels. Web/iOS get their own thin skins later.
+// Window-space ⇒ it does NOT appear in canvas-diff/dumps — eyeballed, not oracle-tested.
+static void draw_touch_overlay_window(void) {
     if (!show_touch_ui) return;
+    DeColor ring  = (DeColor){ 255, 255, 255,  70 };
+    DeColor knob  = (DeColor){ 255, 255, 255, 160 };
+    DeColor press = (DeColor){ 255, 255, 255, 110 };
+    DeColor hint  = (DeColor){ 255, 255, 255,  40 };
 
-    if (clip_active) { EndScissorMode(); clip_active = false; }
-    Camera2D saved_cam = cam;
-    cam.target = cam.offset; cam.zoom = 1.0f; cam.rotation = 0.0f;   // identity for both paths
-
-    int sr = (int)(STICK_RADIUS / SCALE);          // stick base radius, native px
-    int kr = (int)(STICK_RADIUS * 0.45f / SCALE);  // knob radius
-    int br = (int)(BTN_RADIUS / SCALE);            // A/B button radius
-    if (sr < 2) sr = 2;
-    if (kr < 1) kr = 1;
-    if (br < 2) br = 2;
-
-    // movement stick: live base where the thumb grabbed, else a faint resting hint
+    // movement stick: live base + knob while held; otherwise the resting home, faint
     if (stick_touch_id != -1) {
-        int bx = (int)(stick_base_x / SCALE), by = (int)(stick_base_y / SCALE);
-        int kx = (int)(stick_knob_x / SCALE), ky = (int)(stick_knob_y / SCALE);
-        circ(bx, by, sr, CLR_LIGHT_GREY);
-        circfill(kx, ky, kr, CLR_WHITE);
+        DrawCircleLines((int)stick_base_x, (int)stick_base_y, STICK_RADIUS, ring);
+        DrawCircleV((Vector2){ stick_knob_x, stick_knob_y }, STICK_RADIUS * 0.45f, knob);
     } else {
-        int hx = (int)(80 / SCALE), hy = SCREEN_H - (int)(80 / SCALE);
-        circ(hx, hy, sr, CLR_DARK_GREY);
-        circfill(hx, hy, kr, CLR_DARK_GREY);
+        DrawCircleLines((int)stick_home_x, (int)stick_home_y, STICK_RADIUS, hint);
+        DrawCircleV((Vector2){ stick_home_x, stick_home_y }, STICK_RADIUS * 0.45f, hint);
     }
 
-    // A / B action buttons: ring always, fill on press, centred glyph
-    bool a_down = any_touch_in_circle(btn_a_cx, btn_a_cy, BTN_RADIUS);
-    bool b_down = any_touch_in_circle(btn_b_cx, btn_b_cy, BTN_RADIUS);
-    int ax = (int)(btn_a_cx / SCALE), ay = (int)(btn_a_cy / SCALE);
-    int bx = (int)(btn_b_cx / SCALE), by = (int)(btn_b_cy / SCALE);
-    if (a_down) circfill(ax, ay, br, CLR_WHITE);
-    if (b_down) circfill(bx, by, br, CLR_WHITE);
-    circ(ax, ay, br, CLR_LIGHT_GREY);
-    circ(bx, by, br, CLR_LIGHT_GREY);
-    print("A", ax - text_width("A") / 2, ay - 4, a_down ? CLR_BLACK : CLR_LIGHT_GREY);
-    print("B", bx - text_width("B") / 2, by - 4, b_down ? CLR_BLACK : CLR_LIGHT_GREY);
-
-    cam = saved_cam;
+    // action buttons (as many as the cart asked for, capped at the 2 we lay out today)
+    float fs = 4 * SCALE;
+    if (touch_n_buttons >= 1) {
+        bool a_down = any_touch_in_circle(btn_a_cx, btn_a_cy, BTN_RADIUS);
+        DrawCircle(btn_a_cx, btn_a_cy, BTN_RADIUS, a_down ? press : ring);
+        DrawCircleLines(btn_a_cx, btn_a_cy, BTN_RADIUS, knob);
+        DrawTextEx(game_font, "A", (Vector2){ btn_a_cx - fs/2, btn_a_cy - fs/2 }, fs, 0, WHITE);
+    }
+    if (touch_n_buttons >= 2) {
+        bool b_down = any_touch_in_circle(btn_b_cx, btn_b_cy, BTN_RADIUS);
+        DrawCircle(btn_b_cx, btn_b_cy, BTN_RADIUS, b_down ? press : ring);
+        DrawCircleLines(btn_b_cx, btn_b_cy, BTN_RADIUS, knob);
+        DrawTextEx(game_font, "B", (Vector2){ btn_b_cx - fs/2, btn_b_cy - fs/2 }, fs, 0, WHITE);
+    }
 }
 
 // ------------------------------------------------------------
@@ -1543,9 +1558,11 @@ static void loop_step(void) {
     cart_reload_if_changed();   // file-watch hot reload (cart re-JITs, state persists)
 #endif
 #ifndef DE_NO_RAYLIB
-    // place the game in the window each frame (handles DE_WINDOW / a resized or device window).
-    // At the default size (window == game) this is the identity rect → byte-identical to before.
-    game_rect = gr_place(GetScreenWidth(), GetScreenHeight(), SCREEN_W, SCREEN_H).game;
+    // place the game in the window each frame (handles DE_WINDOW / a resized or device window) and
+    // lay the controls into the resulting band. At the default size (window == game) the placement
+    // is the identity overlay → game_rect + control positions are byte-identical to before.
+    { Placement pl = gr_place(GetScreenWidth(), GetScreenHeight(), SCREEN_W, SCREEN_H);
+      game_rect = pl.game; layout_touch_controls(pl); }
 #endif
     poll_virtual_touches();
     update_stick();
@@ -1672,7 +1689,6 @@ static void loop_step(void) {
 #else
         draw();
 #endif
-        draw_touch_overlay_native();   // native-res controls into sw_cbuf before upload
         cam_active = false;
         UpdateTexture(canvas.texture, sw_cbuf);
     } else {
@@ -1687,7 +1703,6 @@ static void loop_step(void) {
         if (smooth_capturing) smooth_composite();   // cart never called camera() — composite now
         cam_active = false;
         EndMode2D();
-        draw_touch_overlay_native();   // native-res controls into the canvas (post-camera)
     EndTextureMode();
     }
     }   // end if (!skip_render) — canvas redraw
@@ -1744,6 +1759,7 @@ static void loop_step(void) {
         if (fade_amt > 0.0f)
             DrawRectangle(0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE,
                           (DeColor){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
+        draw_touch_overlay_window();   // the on-screen controls (window-space, after the blit)
         draw_watch_overlay();
     EndDrawing();
     }   // end if (!skip_render) — present

@@ -88,6 +88,9 @@ static const Brush BRUSHES[] = {
 #define SPRAY_DOTS   7         // dots scattered per path point (airbrush)
 #define BRISTLE_HAIRS 5        // parallel hairs across the bristle width
 
+// readable names for the header label (BRUSHES[].name is the 3-char button id)
+static const char *TOOL_DISP[] = { "ink", "pencil", "liner", "marker", "chalk", "sketch", "spray", "bristle" };
+
 typedef struct { float x, y, speed; } Sample;
 typedef struct {
     unsigned seed;          // per-stroke seed → deterministic wobble (boil reseeds this)
@@ -290,12 +293,13 @@ static void draw_panel(void) {
     ui_begin();
     // tool dropdown header: the current tool's icon
     if (ui_spr_button_styled(tool, DD_X, 2, DD_W, 20, dd_open, TOOLBTN)) dd_open = !dd_open;
-    ui_slider(&thick01, 30, 4, 46, "thk");          // thickness 0.4×..2.0×
-    if (ui_button(82, 3, 30, 16, "bvl")) bevel = !bevel;
-    if (bevel) rectfill(82, 19, 30, 2, ACCENT);
-    if (ui_button(116, 3, 40, 16, "boil")) boil = !boil;
-    if (boil) rectfill(116, 19, 40, 2, ACCENT);
-    if (ui_button(160, 3, 40, 16, "undo")) do_undo();
+    font(FONT_SMALL); print(TOOL_DISP[tool], 27, 9, INK); font(FONT_NORMAL);   // tool name beside the icon
+    ui_slider(&thick01, 66, 4, 42, "thk");          // thickness 0.4×..2.0×
+    if (ui_button(112, 3, 28, 16, "bvl")) bevel = !bevel;
+    if (bevel) rectfill(112, 19, 28, 2, ACCENT);
+    if (ui_button(144, 3, 38, 16, "boil")) boil = !boil;
+    if (boil) rectfill(144, 19, 38, 2, ACCENT);
+    if (ui_button(186, 3, 40, 16, "undo")) do_undo();
     // the open dropdown list: a column of icon buttons over the canvas
     if (dd_open) {
         for (int i = 0; i < NTOOLS; i++)

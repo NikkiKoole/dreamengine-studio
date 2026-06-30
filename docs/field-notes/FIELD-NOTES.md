@@ -5,11 +5,15 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*15 journal notes · 3 working docs · regenerate to refresh.*
+*16 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
 Where each numbered note sits on the path from a hunch to something the repo adopted.
+
+### 🔭 Observed (1)
+
+- `015` [Repositories Can Learn](015-repositories-can-learn.md) — As DreamEngine evolved, an unexpected pattern began to emerge.
 
 ### 🧪 Working Theory (5)
 
@@ -51,6 +55,7 @@ Numbered notes in order — the spine of the journal.
 - `013` ✅ [Generated Cart Index](013-generated-cart-index.md) *(undated)*
 - `100` ✅ [First Synthesis: The Knowledge Loop](100-first-synthesis.md) *(2026-06-26)*
 - `014` ✅ [Outside-Agent Brainstorms as a Knowledge Source](014-outside-agent-brainstorms-as-a-knowledge-source.md) *(2026-06-29)*
+- `015` 🔭 [Repositories Can Learn](015-repositories-can-learn.md) *(2026-07-01)*
 
 ## Related-note graph
 
@@ -64,6 +69,7 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `008` **The Identity of DreamEngine** → `002-context-assembly`, `003-curation`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`
 - `009` **The Negative Space of DreamEngine** → `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`
 - `014` **Outside-Agent Brainstorms as a Knowledge Source** → `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`, `100-first-synthesis`
+- `015` **Repositories Can Learn** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `012-self-describing-artifacts`, `013-generated-cart-index`, `100-first-synthesis`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts

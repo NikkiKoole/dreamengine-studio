@@ -2361,11 +2361,11 @@ int touch_ceiling(void) {
 }
 
 float stick_x(void) {
-    if (stick_touch_id < 0) return 0.0f;
+    if (stick_touch_id == -1) return 0.0f;   // -1 = no stick; the mouse-as-touch uses id -2 (still active)
     return (stick_knob_x - stick_base_x) / STICK_RADIUS;
 }
 float stick_y(void) {
-    if (stick_touch_id < 0) return 0.0f;
+    if (stick_touch_id == -1) return 0.0f;   // -1 = no stick; the mouse-as-touch uses id -2 (still active)
     return (stick_knob_y - stick_base_y) / STICK_RADIUS;
 }
 

@@ -166,6 +166,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              --fn <name> dumps ONE function's body (no guessing the end line); --full adds macro values
              orient.js       go cold on a cart in ONE call: build-context + cart-outline back to back (the pair you
                              always want first). Flags pass through to the outline (--full / --fn <name>)
+             topic-brief.js  the HORIZONTAL twin of build-context: a FEATURE/theme dossier across the whole repo
+                             from a term-set — design docs (with STATUS + plan progress) + ADRs + ledger + the
+                             engine seam + carts that demo/want it + related tools. `node tools/topic-brief.js "touch controls" gamepad`
              api.js          one-shot studio.h API lookup — sig + doc for a fn/constant (exact, else substring →
                              discovery) without reading the ~500-entry studioDocs.js or an LSP round trip
              cart-info.js    orient on ONE cart: screen/GW×GH, embedded de:source DRIFT vs the .c, registration
@@ -180,7 +183,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-all.js    compile-check every cart vs current studio.h (catches API rot)
              build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
-             lint-docs.js    validate docs/ cross-references
+             lint-docs.js    validate docs/ cross-references (links resolve, §-refs, tool-index)
+             lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
+                             unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
+                             scope to a feature (`node tools/lint-xrefs.js touch`) to act on it
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
              build-history.js     generate docs/history.html from git + the spine
              api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js

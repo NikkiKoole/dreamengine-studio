@@ -127,6 +127,21 @@ Bluntly: **`streetlab` understands roads but has no real ones; `roadview` has re
 
 The thing the world spine should *be* is this common model — **a centerline-network + junction-grammar world, seedable from OSM *or* procedurally.** Both ingest halves exist (`roadview` = real-in, `streetlab` = synth-in) and the render half exists (`citydrive`). roadnet/roadnet2 were attempts at the *generation* half that predate the grammar and the renderer, so they re-invented pieces that now live better elsewhere — which is exactly why "neither makes it as-is." See the reframed **P0** below.
 
+## The missing capability — realistic roadgen (and OSM as its oracle)
+
+The honest gap (named 2026-07-01): **we don't yet have *realistic* procedural roadgen.** roadnet/roadnet2 build networks from a **lattice + jitter + β-skeleton web** — mechanical; it reads as "procedural grid," not "a place that grew." The thing that makes generated roads look real — the **city-growth grammar** (Parish-Müller L-systems, Chen **tensor fields**: arterials bending with terrain/density, local streets filling each district *differently*) — is exactly the **unbuilt Phase-2 piece**. [`road-program-state.md`](road-program-state.md) admits it: streetlab's network is "toy-scale … NOT the actual L-system or tensor-field generators the papers describe." So the unease is real, not a vibe.
+
+**The key insight: OSM is not a way to dodge this gap — it's the way to close it.** Two roles:
+1. **Stopgap** — real Delft *is* realistic roads, for free, so you drive something convincing **now** (P1, Rung B-OSM) instead of blocking on the hard generator.
+2. **Oracle** — real cities become the **measuring stick** for building realism, with **no ML** (this is bridge #2, promoted to a headline):
+   - **Measure** real OSM cities with `streetlab`'s SNDi metrics (degree distribution, circuity, sinuosity, node-mix, block size) via the `roadview` + `osm-junction.js` pipeline. Delft has *numbers* — "circuity 1.4, 60% T-junctions, ~80 m blocks."
+   - **Build/tune** the procedural generator (tensor-field / grammar) to **reproduce those statistics**.
+   - **A/B** generated-vs-real side by side — drive both, compare the SNDi profiles. The generator is "realistic" when its statistics match a real city's.
+
+   That closes field-note-004's "learned generative models" question *statistically, without ML* — and it's only possible because the OSM pipeline can measure ground truth.
+
+**The reframe this gives:** roadnet2 isn't "the realistic generator we have" — it's the **clean substrate the realistic generator will plug into**, calibrated against OSM. So the story isn't "our roadgen must get good before we can drive"; it's **drive real Delft now → measure it → grow a generator that matches → swap it behind the same `road_at()`.** Same seam (P1), better producer over time. This is Phase-2/Stage-3 work (the world composer); it comes *after* P1 proves the drive-the-real-world seam.
+
 ## ★ Finish the right stuff first
 
 The honest read: **the sandboxes are done; the payoff now is integration, not more sandbox polish.** roadlab, streetlab, cityplan, cityview, roadview are all shipped or spec-locked. The risk is endlessly adding junction primitives and metrics (diminishing returns — the grammar is complete) while the three seams above stay open. Recommended order:

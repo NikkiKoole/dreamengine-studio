@@ -607,7 +607,7 @@ async function openSearchHit(path, query, occ) {
 
 async function buildDocsSidebar() {
   docsNav.innerHTML = ''
-  docsNav.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
+  docsNav.appendChild(docNavItem('★ API', 'api', () => renderApiReference()))
   docsNav.appendChild(docNavItem('★ history', 'history', () => showHistory()))
   docsNav.appendChild(docNavItem('★ compendium', 'compendium', () => showCompendium()))
   docsNav.appendChild(docNavItem('★ todo', 'designboard', () => showDesignBoard()))

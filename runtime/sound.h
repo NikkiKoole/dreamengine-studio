@@ -366,6 +366,17 @@ static volatile int  wavcap_pos   = 0;           // audio thread write cursor
 static volatile int  wavcap_state = 0;           // 0 idle · 1 recording · 2 done (ready to write)
 static char          wavcap_path[512];
 
+// ── scope (oscilloscope tap — see docs/design/audio-notes.md §16) ────
+// The SAME tap as WAV capture: the final mono mix written into a power-of-2 ring
+// buffer. Gated by scope_ever, so it's zero-cost / byte-identical until a cart
+// first calls scope_read(). Lock-free best-effort (audio thread writes, draw
+// thread reads — a single torn sample is invisible on a scope), no determinism
+// impact (read-only; the gate keeps --det runs that never scope byte-identical).
+#define SCOPE_LEN 2048
+static float scope_buf[SCOPE_LEN];
+static int   scope_w    = 0;
+static bool  scope_ever = false;
+
 // write a 16-bit PCM mono 44.1kHz WAV
 static int sound_wav_write(const char *path, const float *buf, int n) {
     FILE *w = fopen(path, "wb");
@@ -5707,7 +5718,22 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
             wavcap_buf[wavcap_pos++] = (mixL + mixR) * 0.5f;   // (L+R)/2 == the old mono mix when centered
             if (wavcap_pos >= wavcap_total) wavcap_state = 2;
         }
+        if (scope_ever) {                              // oscilloscope tap (scope_read) — MONO downmix
+            scope_buf[scope_w] = (mixL + mixR) * 0.5f;
+            scope_w = (scope_w + 1) & (SCOPE_LEN - 1);
+        }
     }
+}
+
+// copy the latest `n` mono output samples (oldest first, newest last) into `dst`.
+// arms the tap on the first call; `n` is clamped to SCOPE_LEN; `dst` must hold `n` floats.
+void scope_read(float *dst, int n) {
+    scope_ever = true;
+    if (n > SCOPE_LEN) n = SCOPE_LEN;
+    if (n < 0) n = 0;
+    int w = scope_w;                                   // one snapshot of the write head (racy is fine here)
+    for (int i = 0; i < n; i++)
+        dst[i] = scope_buf[(w + i + SCOPE_LEN - n) & (SCOPE_LEN - 1)];
 }
 
 // ───────── built-in demo sfx ─────────

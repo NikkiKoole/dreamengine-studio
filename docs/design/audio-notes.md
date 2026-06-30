@@ -1085,6 +1085,14 @@ Soundcheck tripwire: PASS.
 
 ## 16. WAV capture + analysis tooling — SHIPPED (2026-06-05)
 
+> **Scope tap (added 2026-06-30):** the public `scope_read(float *dst, int n)` reads the
+> latest `n` mono output samples from the SAME final-mix tap as the WAV capture, into a
+> 2048-sample ring buffer in `sound.h`. Gated by `scope_ever` → zero-cost / byte-identical
+> until a cart first calls it. For drawing a live oscilloscope; lock-free best-effort (audio
+> thread writes, draw thread reads — a torn sample is invisible on a scope). NB: only fills
+> with a live audio thread running; the headless `--wav` batch render leaves it flat (the tap
+> arms after the batch). For a STILL waveform image, predict the shape in cart-land instead.
+
 Ear tests don't scale and don't diff. The §15 experiment (and mallet/fm macro
 taste-tuning, and any future DSP change) wants: render a cart's audio to a
 WAV, compute metrics, compare two runs. The sibling project already has the

@@ -360,6 +360,7 @@ void instrument_lfo(int slot, int which, int dest, float rate_hz, float depth); 
 void lfo_shape(int slot, int which, int shape);   // set the WAVEFORM of a slot's LFO `which` (0..2) to an LFO_SHAPE_* (default SINE). Call alongside instrument_lfo(); persists across instrument_lfo() retunes. SH on LFO_PITCH = a random-step arp; SQUARE on LFO_CUTOFF = a stepped filter
 void note_lfo_shape(int handle, int which, int shape);   // same, for a live held note (note_on handle) — set its LFO `which` waveform to LFO_SHAPE_*
 float lfo_value(int shape, float phase);   // evaluate an LFO_SHAPE_* at phase 0..1 → -1..1 (the engine's own dispatcher). For STATELESS shapes (SINE..OPTICAL); S&H/RANDOM need per-instance state so they read as SINE here. Use it to drive your own CV / draw a waveform without re-rolling the math
+void scope_read(float *dst, int n);        // OSCILLOSCOPE: copy the latest n mono output samples (newest last, -1..1) into dst — the actual post-FX mix, for drawing a waveform. n up to 2048; dst must hold n floats. Find a rising zero-crossing yourself to "freeze" the trace. Zero cost until first called.
 
 // resonant filter per instrument — sculpts the tone (the SID-style knob)
 #define FILTER_OFF   0

@@ -77,11 +77,16 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   *Why:* the shelf is ~200+ carts; a flat list no longer serves anyone (`003-curation`,
   `about-tags.md`). Sequence after per-cart metadata exists (it's where `status` should live).
 
-- [ ] **`build-context` — task-specific agent briefings.** `build-context roads` / `cart:coaster` /
+- [~] **`build-context` — task-specific agent briefings.** `build-context roads` / `cart:coaster` /
   `task:retire-carts` → assembles the relevant design docs + ADRs + related carts + field notes +
   pitfalls + verification steps into one focused briefing. *Why:* "don't ask agents to read
   everything; tell them what matters" (`002-context-assembly`, `distillator.md`, `tools-we-need.md`
   #1). Bigger; do after the metadata + frontmatter give it structured inputs to assemble.
+  **Shipped: the `cart:<name>` slice** (`tools/build-context.js`) — de:meta + todos + a prose
+  mention-graph of related carts + every doc/note that names the cart (with the matching line, so
+  the differently-named home like `external-data-carts.md` surfaces itself). Needs no doc-frontmatter.
+  Still TODO: the `api:` / `task:` / `topic:` subjects, and pulling in ADRs + field notes + the
+  matching oracle from `checks-and-oracles.md` once doc-frontmatter (`depends_on`/`updated`) exists.
 
 - [ ] **`stale-doc-check` — catch docs that have drifted from the code (the real prize).** Flag a
   doc when a file it documents changed after the doc's own last update — the one blind spot nothing

@@ -158,6 +158,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
                              index.json in sync; owns the tag vocabulary
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
+             build-context.js  assemble a reading briefing for ONE cart: de:meta + todos + related carts +
+                             every doc/note that MENTIONS it (with the line) — finds the differently-named home
              cart-info.js    orient on ONE cart: screen/GW×GH, embedded de:source DRIFT vs the .c, registration
              cart-status.js  what's out of date (rebake / publish / stale / compendium)
              cart-todos.js   the navigable view over every cart's de:meta.todo[] polish punch-list (--grep/--count/<name>)

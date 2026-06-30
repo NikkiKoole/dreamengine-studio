@@ -12,7 +12,8 @@ const K = 16   // INK (brownish-black)
 // 0 — ink brush: brown handle + a fat black ink tip
 function ic_ink() {
   const g = blank()
-  line(g, 13, 3, 7, 9, 4); line(g, 14, 4, 8, 10, 4); line(g, 12, 2, 6, 8, 4)   // handle
+  // solid diagonal handle (a filled band — single lines left gaps)
+  trifill(g, 13, 1, 15, 3, 7, 11, 4); trifill(g, 13, 1, 7, 11, 5, 9, 4)
   rectfill(g, 5, 9, 8, 11, 6)                                                   // ferrule
   circlefill(g, 4, 12, 3, K)                                                    // ink tip
   pixel(g, 2, 14, K); pixel(g, 6, 14, K)                                        // drips

@@ -11,7 +11,7 @@
     "camera-follow"
   ],
   "lineage": "The missing height layer for the flat top-down lineage (sloop/cityplan/streetlab render footprints only). Takes their quadfill house style and grafts on screen-up wall extrusion to get a drivable Zelda/GTA1 cityscape; a four-mode bench to pick the projection before wiring it into the world composer.",
-  "description": "RENDER TEST: pseudo-3D top-down city (GTA1 meets Zelda) WITH drivable raised highways folded in (was the separate overpass experiment). Drive a seeded, brick/window/block/stucco-TEXTURED city. M cycles four building view modes: (1) NORTH-UP camera-locked, always the south fronts, zero diagonals; (2) HEADING-UP camera rotates to heading, you see the 1-2 walls you drive toward, every wall UP still screen-up (the keeper); (3) BILLBOARD flat cards (props not boxes); (4) LEAN-OUT roofs pushed off-centre (the melty contrast). F lays a FLYOVER over the city: off / straight overpass / s-curve / spiral on-ramp / two-level stack interchange. A flyover is a road whose nodes carry a z; because height extrudes straight up the screen it reads as an elevated deck (running surface + dashed centre line + fascia thickness + pillars + dithered ground shadow). Drive UP a ramp and the camera rises (camz) so the city sinks below; the car z snaps to the nearest REACHABLE deck so you board via ramps and drive UNDER high decks. T toggles wall textures. Proves the ADR-0021 projected-primitive vocabulary in one place: project() (world x,y,z -> screen), pdisc (a ground circle is an ELLIPSE once rotated -> projected N-gon: ponds, car shadow, future roundabout islands), pline/pdash (projected dashed line: the deck centre line), pproj_poly (project-then-polyfill: lots + deck shadows). Whole renderer is flat quadfill + tritex-textured walls. Arrows drive, M view, F flyover, T textures, [ ] zoom, R reseed. The cityscape-renderer bench for big-game seam #2."
+  "description": "RENDER TEST: pseudo-3D top-down city (GTA1 meets Zelda) WITH drivable raised highways folded in (was the separate overpass experiment). Drive a seeded, brick/window/block/stucco-TEXTURED city. M cycles five building view modes: (1) NORTH-UP camera-locked, always the south fronts, zero diagonals; (2) HEADING-UP camera rotates to heading, you see the 1-2 walls you drive toward, every wall UP still screen-up (the keeper); (3) BILLBOARD flat cards (props not boxes); (4) LEAN-OUT roofs pushed off-centre (the melty contrast); (5) PERSPECTIVE a real pitched pinhole camera (perspective divide -> horizon, foreshortening, towering buildings) the parallel-oblique modes can't do, with live pitch/eye tuning (,. and ;'). F lays a FLYOVER over the city: off / straight overpass / s-curve / spiral on-ramp / two-level stack interchange. A flyover is a road whose nodes carry a z; because height extrudes straight up the screen it reads as an elevated deck (running surface + dashed centre line + fascia thickness + pillars + dithered ground shadow). Drive UP a ramp and the camera rises (camz) so the city sinks below; the car z snaps to the nearest REACHABLE deck so you board via ramps and drive UNDER high decks. T toggles wall textures. Proves the ADR-0021 projected-primitive vocabulary in one place: project() (world x,y,z -> screen), pdisc (a ground circle is an ELLIPSE once rotated -> projected N-gon: ponds, car shadow, future roundabout islands), pline/pdash (projected dashed line: the deck centre line), pproj_poly (project-then-polyfill: lots + deck shadows). Whole renderer is flat quadfill + tritex-textured walls. Arrows drive, M view, F flyover, T textures, [ ] zoom, R reseed. The cityscape-renderer bench for big-game seam #2."
 }
 de:meta */
 #include "studio.h"
@@ -22,12 +22,15 @@ de:meta */
 // "see the FRONTS, height goes straight UP the screen, no needless diagonals"
 // look — now with DRIVABLE RAISED HIGHWAYS folded in (was overpass.c).
 //
-// Press M to cycle FOUR building view modes:
+// Press M to cycle FIVE building view modes:
 //   1 NORTH-UP    camera locked north; you always see the south-facing fronts.
 //   2 HEADING-UP  camera rotates to heading; you see the 1-2 walls you drive
 //                 toward, every wall's UP still screen-up. (the keeper)
 //   3 BILLBOARD   heading-up, buildings face you as flat cards (props, not boxes).
 //   4 LEAN-OUT    roofs pushed away from screen centre — the melty contrast.
+//   5 PERSPECTIVE a real pitched PINHOLE camera (perspective divide → horizon,
+//                 foreshortening, towering buildings) — the thing modes 1-4's
+//                 parallel-oblique projection can't do. Tune live: ,/. pitch  ;/' eye.
 //
 // Press F to lay a FLYOVER over the city (off/straight/s-curve/spiral/stack).
 // A flyover is just a road whose nodes carry a Z: because height extrudes
@@ -45,7 +48,8 @@ de:meta */
 //   pline()/pdash()  projected (dashed) line — project the endpoints, draw.
 //   pproj_poly()     project-then-polyfill — corners/islands/deck shadows.
 //
-// CONTROLS — arrows drive · M view · F flyover · T textures · [ ] zoom · R city
+// CONTROLS — arrows drive · M view (5=perspective) · F flyover · T textures · [ ] zoom · R city
+//            in PERSPECTIVE: ,/. tilt pitch · ;/' eye height
 
 #define PITCH   42          // block centre-to-centre, world units
 #define ROADH   7.0f        // half road width
@@ -79,9 +83,9 @@ static const Mat MAT[NMAT] = {
   { CLR_LIGHT_YELLOW,CLR_DARK_ORANGE, CLR_DARK_BROWN   },  // sand
 };
 
-enum { M_NORTH, M_HEADING, M_BILLBOARD, M_LEANOUT, M_COUNT };
+enum { M_NORTH, M_HEADING, M_BILLBOARD, M_LEANOUT, M_PERSP, M_COUNT };
 static const char *MODE_NAME[M_COUNT] = {
-  "1 NORTH-UP (zelda)", "2 HEADING-UP (fronts)", "3 BILLBOARD", "4 LEAN-OUT"
+  "1 NORTH-UP (zelda)", "2 HEADING-UP (fronts)", "3 BILLBOARD", "4 LEAN-OUT", "5 PERSPECTIVE (pitched)"
 };
 enum { F_OFF, F_STRAIGHT, F_CURVE, F_SPIRAL, F_STACK, F_COUNT };
 static const char *FNAME[F_COUNT] = { "off", "straight", "s-curve", "spiral", "stack" };
@@ -93,6 +97,7 @@ typedef struct {
   float px, py, ang, spd, carz;   // car: pos, heading(deg), speed, deck height
   float camx, camy, camz, rot;    // camera: eased pos + height + rotation(deg)
   float zoom;
+  float pitch, eye, setback;      // M_PERSP camera: tilt(deg below horizontal), eye height, chase setback
   int   mode, fly, seed, ndeck;
   bool  started, tex;
   Deck  deck[2];
@@ -159,7 +164,21 @@ static void build_flyover(void){
 static void project(float wx, float wy, float wz, float *sx, float *sy) {
   float dx = wx - S.camx, dy = wy - S.camy;
   float c = cos_deg(S.rot), s = sin_deg(S.rot);
-  float rx = dx*c - dy*s, ry = dx*s + dy*c;     // rotate world by S.rot
+  float rx = dx*c - dy*s, ry = dx*s + dy*c;     // rotate world by S.rot (rx=right, ry=forward)
+  if (S.mode == M_PERSP) {
+    // a real pitched PINHOLE camera, chasing from behind+above: perspective divide by depth →
+    // foreshortening + a horizon + towering buildings (the thing the parallel-oblique modes can't do).
+    float fwd = ry + S.setback;                 // distance ahead of the eye (eye sits behind the car)
+    float up  = (wz - S.camz) - S.eye;          // height relative to the eye
+    float cz = cos_deg(S.pitch), sz = sin_deg(S.pitch);
+    float vz = fwd*sz + up*cz;                   // into-screen depth (pitch = tilt down from horizontal)
+    float vy = fwd*cz - up*sz;                   // view-up
+    if (vz < 1.0f) vz = 1.0f;                     // near clamp (at/behind the lens)
+    float f = S.zoom * 90.0f;                     // focal length (× zoom)
+    *sx = SCREEN_W*0.5f + f * rx / vz;
+    *sy = SCREEN_H*0.5f - f * vy / vz;
+    return;
+  }
   *sx = SCREEN_W*0.5f + rx*S.zoom;
   *sy = SCREEN_H*0.5f + ry*S.zoom - (wz - S.camz)*S.zoom*HSCALE;
 }
@@ -250,7 +269,8 @@ static void reset(void) {
     S.px=6; S.py=ROADH+2; S.ang=0;
   }
   S.spd=0; S.carz=0; S.camx=S.px; S.camy=S.py; S.camz=0;
-  if (!S.started) { S.mode = M_HEADING; S.zoom = 2.0f; S.tex = true; }
+  if (!S.started) { S.mode = M_HEADING; S.zoom = 2.0f; S.tex = true;
+                    S.pitch = 58.0f; S.eye = 22.0f; S.setback = 35.0f; }
   S.rot = (S.mode==M_NORTH) ? 0.0f : (-90.0f - S.ang);
   S.started = true;
 }
@@ -263,11 +283,17 @@ void update(void) {
   if (keyp('2')) S.mode = M_HEADING;
   if (keyp('3')) S.mode = M_BILLBOARD;
   if (keyp('4')) S.mode = M_LEANOUT;
+  if (keyp('5')) S.mode = M_PERSP;
   if (keyp('T')) S.tex = !S.tex;
   if (keyp('F')) { S.fly = (S.fly+1) % F_COUNT; reset(); }
   if (key('[')) S.zoom = fmaxf(0.9f, S.zoom*0.97f);
   if (key(']')) S.zoom = fminf(6.0f, S.zoom*1.03f);
   if (keyp('R')) { S.seed++; reset(); }
+  // M_PERSP camera tuning (play with the pitched-perspective look):
+  if (key(',')) S.pitch = clampf(S.pitch-1.0f, 5.0f, 89.0f);   // tilt toward horizontal
+  if (key('.')) S.pitch = clampf(S.pitch+1.0f, 5.0f, 89.0f);   // tilt toward top-down
+  if (key(';')) S.eye = fmaxf(2.0f, S.eye-1.0f);               // lower the eye
+  if (key('\'')) S.eye = fminf(200.0f, S.eye+1.0f);            // raise the eye
 
   // simple arcade driving
   float thr = (key(KEY_UP)?1:0) - (key(KEY_DOWN)?1:0);
@@ -494,4 +520,6 @@ void draw(void) {
   print(hud, SCREEN_W-150, 2, CLR_LIGHT_GREY);
   if (S.carz>2) { char b[24]; snprintf(b,sizeof b,"ELEVATED  z=%d",(int)S.carz);
     print(b, SCREEN_W/2-40, SCREEN_H-12, CLR_LIME_GREEN); }
+  if (S.mode==M_PERSP) { char b[40]; snprintf(b,sizeof b,",.pitch=%d  ;'eye=%d", (int)S.pitch,(int)S.eye);
+    print(b, 3, SCREEN_H-9, CLR_LIGHT_GREY); }
 }

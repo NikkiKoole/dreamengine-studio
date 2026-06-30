@@ -169,6 +169,11 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              topic-brief.js  the HORIZONTAL twin of build-context: a FEATURE/theme dossier across the whole repo
                              from a term-set — design docs (with STATUS + plan progress) + ADRs + ledger + the
                              engine seam + carts that demo/want it + related tools. `node tools/topic-brief.js "touch controls" gamepad`
+             design-board.js ONE overview of every design doc + ADR and what phase it's in (ready/building/
+                             exploring/shipped) — derived from each doc's STATUS line. Headlines the READY-TO-BUILD
+                             backlog (specced work nobody's on). `--lint` = docs with no/off-vocabulary status
+             doc-status.js   (lib, not CLI) shared STATUS-line parse + the lifecycle-phase vocabulary; owned here,
+                             used by topic-brief.js + design-board.js
              api.js          one-shot studio.h API lookup — sig + doc for a fn/constant (exact, else substring →
                              discovery) without reading the ~500-entry studioDocs.js or an LSP round trip
              cart-info.js    orient on ONE cart: screen/GW×GH, embedded de:source DRIFT vs the .c, registration

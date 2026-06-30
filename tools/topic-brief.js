@@ -44,6 +44,7 @@ const ROOT = path.resolve(__dirname, "..");
 const SRC_DIR = path.join(ROOT, "tools/carts");
 let readMeta, flattenDesc;
 try { ({ readMeta, flattenDesc } = require("./build-cart-index.js")); } catch { /* carts section degrades gracefully */ }
+const { extractStatus, planProgress } = require("./doc-status.js");
 
 // ---- args ----
 const argv = process.argv.slice(2);
@@ -123,26 +124,6 @@ function scoreDoc(f) {
   };
 }
 
-// the convention: a "STATUS:" line near the top of a design doc, or an ADR's
-// "Date: … · Status: accepted" second line.
-function extractStatus(lines) {
-  for (let i = 0; i < Math.min(lines.length, 14); i++) {
-    const l = lines[i].trim();
-    let m = l.match(/^>?\s*\*{0,2}STATUS\*{0,2}\s*[:—-]\s*(.+)$/i);
-    if (m) return clip(m[1].replace(/\*\*/g, "").trim(), 100);
-    m = l.match(/Status:\s*([A-Za-z].+?)\s*$/);          // ADR line
-    if (m) return clip(m[1].replace(/\*\*/g, "").trim(), 100);
-  }
-  return null;
-}
-// embedded checklist / plan progress (- [ ] vs - [x])
-function planProgress(text) {
-  const open = (text.match(/^\s*[-*]\s*\[ \]/gm) || []).length;
-  const done = (text.match(/^\s*[-*]\s*\[[xX]\]/gm) || []).length;
-  if (!open && !done) return null;
-  return { done, total: open + done };
-}
-
 const docs = docFiles.map(scoreDoc).filter(Boolean)
   .sort((a, b) => b.terms - a.terms || b.lines.total - a.lines.total);
 
@@ -207,7 +188,7 @@ out.push(bold(`TOPIC: ${terms.join(" · ")}`) + dim(`   (${docs.length} docs · 
 function docBlock(d) {
   let header = "  " + bold(d.rel) + dim(`  (${d.lines.total}× · ${d.terms}/${terms.length} terms)`);
   out.push(header);
-  if (d.status) out.push(dim("    status: ") + d.status);
+  if (d.status) out.push(dim("    status: ") + clip(d.status, 100));
   if (d.plan)   out.push(dim(`    plan:   ${d.plan.done}/${d.plan.total} steps checked off`));
   for (const m of d.lines.shown) out.push(dim(`    ${m.ln}: `) + clip(m.text, 100));
   if (d.lines.total > d.lines.shown.length) out.push(dim(`    … +${d.lines.total - d.lines.shown.length} more`));

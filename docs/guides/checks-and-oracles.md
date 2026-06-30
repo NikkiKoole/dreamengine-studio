@@ -67,6 +67,7 @@ This page is only the routing layer.
 
 | You want to know… | Run |
 |---|---|
+| what's designed and where it stands across the whole repo (ready/building/shipped) | **`design-board.js`** (`ready` = the unstarted backlog; `--lint` = unmarked) |
 | everything about a cross-cutting FEATURE/theme (docs + code + carts) | **`topic-brief.js "<theme>"`** |
 | everything about ONE cart (context + source map) | **`orient.js <cart>`** |
 | how often an API fn is used / its blast radius | **`api-usage.js`** (also cross-checks `studio.h` ↔ docs ↔ `shell.js`) |

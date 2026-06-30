@@ -493,9 +493,9 @@ touches.
 - [x] **P1** `canvas-diff` 0px on `flyover` (opt-in); `vampire` PASS; committed
 - [x] **P1.5** `game_rect` chokepoint; routed `touch_x/y`/`tap*`/`touch_ended*`/`inp_mouse_x/y` + blit through it (identity). (On-screen control hit-tests read window px directly — unchanged.)
 - [x] **P1.5** pure `gr_place()` stub + headless round-trip test (`det-probes/placetest.c`, covers offset+scaled rects too); `canvas-diff` byte-identical (flyover/vampire), committed
-- [ ] **P2** fill in `place()`: letterbox measure → deck / rails / overlay decision
-- [ ] **P2** set `game_rect` from `place()`, shrink blit, draw band (coords follow for free)
-- [ ] **P2** placement matrix verified (portrait/landscape/matched/desktop)
+- [x] **P2** fill in `gr_place()`: letterbox measure → deck / rails / overlay decision (pure, in `game_rect.h`)
+- [ ] **P2** set `game_rect` from `gr_place()`, shrink blit, draw band — **BLOCKED on a fork**: `sw_cbuf` is a fixed `SCREEN_W*SCREEN_H` array (band needs a resize or a second pass), AND desktop has no letterbox to show it (window == game size). Lands naturally with the iOS shell (Phase 4), where the window is a device screen. See note below.
+- [x] **P2** placement matrix verified — `det-probes/placetest.c`: matched→overlay (exact identity), portrait→deck, landscape→rails, tiny-band→overlay; computed rects round-trip
 - [ ] **P2+** web framebuffer may exceed game so the band exists (no DOM controls) — after native
 - [ ] **P3** `touch_layout(mode, n_buttons)` + d-pad modes (4-place API dance)
 - [ ] **P3** floating-analog base-spawn + `pointer.h` capture + knob lerp

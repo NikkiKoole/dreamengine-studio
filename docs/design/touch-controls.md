@@ -4,7 +4,7 @@ STATUS: DESIGN — ready to pick up (rev. 2026-06-30). Research, a recommendatio
 implementation plan (see "Implementation plan" below); nothing rebuilt yet. The task is
 pulled from **two ends**: the iOS port ([`ios-plan.md`](ios-plan.md) — raw `key()`/`btn()` carts
 have no touch equivalent on a phone) and the cart-polish backlog
-([`../../field-notes/cart-polish-punchlist.md`](../../field-notes/cart-polish-punchlist.md) — ~18
+([`../field-notes/cart-polish-punchlist.md`](../field-notes/cart-polish-punchlist.md) — ~18
 carts ask for an on-screen joystick/d-pad). Companion: [`action-plan.md`](action-plan.md) (Tier 0
 "Touch movement affordance"), `runtime/studio.c` (the current overlay), `runtime/web_shell.html`
 (the web canvas), `runtime/pointer.h` / `ui.h` / `gestures.h` (the input primitives).
@@ -246,6 +246,31 @@ So: same gamepad, two ~50-line input adapters, and web's deck deferred *behind* 
 parallel implementations. The one genuinely web-specific risk (canvas reshape vs the touch-mirror)
 is pushed last and de-risked by iOS first.
 
+## The editor setting (`touchControls`) — becomes cart-reflective + a force-show override
+
+Today the editor has a global checkbox *"show on-screen stick + A/B buttons"*
+(`editor/src/settings.js:260`, persisted to `localStorage.touchControls`, compiled in as
+`-DTOUCH_CONTROLS_DEFAULT`). As a **global force-on for every cart** it directly contradicts the
+opt-in model (it would slap a generic stick on carts that declared a d-pad, or none). So it changes
+from *a behavioural default* into **two clearer things**:
+
+1. **A cart-reflective readout (read-only).** When you load a cart, the panel **reads the cart's own
+   declared layout** and shows it — *"this cart: D-pad + 2 buttons"* (or *"twin-stick"*, or *"none"*).
+   It mirrors what the cart set; you don't edit the cart's controls from settings. This is the
+   maker's call: the setting reads *from* the cart, so it always agrees with the cart.
+2. **A force-show override (the one editable toggle).** *"force-show on desktop (preview)"* — on a
+   no-touch desktop the controls normally don't draw (`touch_ceiling() == 0`); this forces the cart's
+   declared layout visible so you can eyeball placement/feel without a phone. It previews the cart's
+   *declared* scheme; if the cart declared none, it falls back to analog+2 just so placement is
+   visible. It changes nothing about the cart or other platforms — purely a desktop preview aid.
+
+**Implication for where the layout is declared.** For the panel to "read from the cart" at load
+*without running it*, the declaration must be **statically readable** — which favours putting the
+layout in the cart's `de:meta` block (e.g. `touch: { move: "dpad4", buttons: 2 }`) over a
+runtime-only `touch_layout()` call. (This nudges the "Per-cart config home" fork below toward
+metadata; the runtime can still call `touch_layout()` for carts that change scheme mid-game, but the
+*declared default* lives in `de:meta` so the editor + compendium can show it.)
+
 ## Open questions / forks
 
 - **Draw hook.** Cleanest is a studio-owned pass: the cart draws into its `SCREEN_W×SCREEN_H`
@@ -267,9 +292,29 @@ is pushed last and de-risked by iOS first.
   more characterful d-pad/stick.
 - **Synthetic input.** `btn()` is read-only today (touch→stick→btn); nothing can *inject* button
   state. Not needed for touch, but worth noting for any future headless/AI/`spec` input path.
-- **Per-cart config home.** Where the mode + button set live — a `touch_layout(...)` call in the
-  cart, or fields in its `.cart.js` metadata. Decide alongside Phase 3. Recommend the code call
-  (carts already opt in via code, per the polish list — *not* settings).
+- **Per-cart config home (leaning metadata).** Where the declared mode + button set live. Earlier
+  lean was a `touch_layout(...)` code call; the cart-reflective editor readout (above) needs it
+  **statically readable**, which favours a `de:meta` field (`touch: { move, buttons }`) as the
+  *declared default*, with the code call kept for runtime scheme changes. Decide alongside Phase 4.
+
+## Layout vocabulary (the named schemes)
+
+The schemes a cart can declare — these are what the reference images (below) should depict, one per
+row, shown in deck / rails / overlay placements:
+
+| Name | `move_mode` | buttons | Fits |
+|------|-------------|---------|------|
+| **single floating stick** | `TOUCH_ANALOG` | 0 | vampire-survivors / auto-fire (move only) |
+| **twin-stick** | `TOUCH_ANALOG` ×2 | 0 | robotron/twin-stick shooters (move + aim) |
+| **analog + A/B** | `TOUCH_ANALOG` | 2 | platformers, free-move action |
+| **d-pad + A/B** | `TOUCH_DPAD4` | 2 | grid/precise (sokoban, rogue, puzzle) |
+| **d-pad8 + N** | `TOUCH_DPAD8` | 3–4 | fighters, 8-way action |
+| **buttons-only** | `TOUCH_NONE` | 1–4 | tetris/columns (rotate/drop), tap games |
+
+(Twin-stick needs the second analog — a Phase-3+ extension of `n_buttons`/a second move slot; noted
+here so the vocabulary is complete.) **Reference images**: best produced as bakes from a small
+prototype cart that renders each row (the Phase-4 `touch_layout` prototype doubles as the image
+source); a quick mockup can lock the vocabulary earlier.
 
 ## Plan of attack (ordered)
 
@@ -282,7 +327,8 @@ and the fragile web reshape lands *last*, after native proves the model.
 | 1 | **Native-res look** — redraw the existing corner overlay with `circ`/`circfill`/`print` + `CLR_*`, sized from `SCALE`; delete the post-blit raw-Raylib call. No API/placement change. | S | "Looks like the console" half; improves the ~18 opt-in carts. No new risk. | `canvas-diff` on `vampire`; bake + eyeball (chunky, palette-correct). |
 | 2 | **Coordinate chokepoint (no-op)** — `game_rect` (origin+scale) as the one window↔canvas transform; route `touch_x/y()`/mouse/hit-tests through it at `game_rect = full window`. Add pure `place()` stub (always OVERLAY) + headless round-trip test. | S–M | **The big one** — converts the silent, library-wide coord bug into a tested, provable no-op. | `canvas-diff` **byte-identical** on a touch/mouse cart; round-trip test passes. |
 | 3 | **Responsive placement (native + iOS)** — fill in `place()` (deck/rails/overlay by letterbox); set `game_rect` from it, shrink the blit, draw the band. Coords follow for free. Web stays on the step-1 overlay. | M | The maker's core requirement. Blast radius bounded to opt-in carts. | Placement matrix (portrait/landscape/matched/desktop); `canvas-diff` each. |
-| 4 | **Generalize the widget** — `touch_layout(mode, n_buttons)` (analog / fixed / dpad4 / dpad8), N buttons + labels, feel tuning (dead zone/lerp/drag-past). 4-place API dance. | M | The per-cart scheme choice; the `btn()`-augment synthesis layer gamepad will reuse. | Prototype `columns`/`puyo` (d-pad) + a free-move cart (analog). |
+| 4 | **Generalize the widget** — `touch_layout(mode, n_buttons)` + `de:meta touch:{}` declared default (analog / fixed / dpad4 / dpad8), N buttons + labels, feel tuning. 4-place API dance. Build a **prototype cart that renders every layout-vocabulary row** — it doubles as the reference-image source. | M | The per-cart scheme choice; the `btn()`-augment layer gamepad reuses; the reference images. | Prototype `columns`/`puyo` (d-pad) + a free-move cart (analog); bake the vocabulary rows. |
+| 4b | **Editor settings rework** — turn `touchControls` into the cart-reflective readout (reads the cart's `de:meta touch:`) + the *force-show on desktop (preview)* override; relabel + note. | S | Setting agrees with the cart; desktop preview without a phone. | Load carts with/without a declared layout; toggle force-show on desktop. |
 | 5 | **iOS shell wiring** — route synthesized input through `de_key_event` so raw `key()` carts work; landscape → rails automatically. | M | Phones can play `key()` carts, not just `btn()`. | Smoke `key()` + `btn()` carts on device. |
 | 6 | **Web deck/rails** — let the `web_shell.html` framebuffer exceed the game so a band fits (no DOM controls). | M | The deferred fragile bit, now de-risked by step 3. | On-device web: portrait deck, touch-mirror intact, `canvas-diff`. |
 | 7 | **Gamepad (STATUS #7), follow-on** — read the physical pad, feed the *existing* synthesis layer; add the focus ring for knob carts. | S–M | Closes #7 cheaply by reusing step 4. | Test one cart on a real controller. |

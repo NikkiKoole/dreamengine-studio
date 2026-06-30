@@ -3,8 +3,17 @@
 // cart-outline.js — a per-cart READING MAP so a large cart can be understood
 // (and navigated) without reading the whole .c into context.
 //
-//   node tools/cart-outline.js <name>        # e.g. sloop, or cart:sloop
-//   node tools/cart-outline.js sloop --json  # machine-readable
+//   node tools/cart-outline.js <name>            # e.g. sloop, or cart:sloop
+//   node tools/cart-outline.js sloop --full      # + every macro's value & role
+//   node tools/cart-outline.js sloop --fn <name> # print ONE function's body
+//   node tools/cart-outline.js sloop --json      # machine-readable
+//
+// CHEAP BY DEFAULT. The map prints macro NAMES only (a tuning-heavy cart like
+// sloop has ~140 #defines — the values are noise unless you're tuning). Add
+// --full for the values + role comments. --fn <name> dumps just that one
+// function (with its leading comment + line numbers) so you never guess the
+// end line for a Read — exact match wins, else substring; matches a struct/enum
+// name too.
 //
 // THE FRICTION THIS KILLS. The big carts run 1000–3000 lines (sloop is ~3k).
 // To answer one question about such a cart you either read the whole file
@@ -33,9 +42,19 @@ const SRC_DIR = path.join(ROOT, "tools/carts");
 // ---- args ----
 const args = process.argv.slice(2);
 const json = args.includes("--json");
-const raw = args.find(a => !a.startsWith("--"));
+const full = args.includes("--full");
+let fnQuery = null;
+const positional = [];
+for (let i = 0; i < args.length; i++) {
+  const a = args[i];
+  if (a === "--fn") { fnQuery = args[++i] || ""; continue; }   // value is the next token
+  if (a.startsWith("--fn=")) { fnQuery = a.slice(5); continue; }
+  if (a.startsWith("--")) continue;                            // other flags
+  positional.push(a);
+}
+const raw = positional[0];
 if (!raw) {
-  console.error("usage: node tools/cart-outline.js <cart-name> [--json]");
+  console.error("usage: node tools/cart-outline.js <cart-name> [--full] [--fn <name>] [--json]");
   process.exit(2);
 }
 const name = raw.replace(/^cart:/, "");
@@ -233,14 +252,6 @@ const entries = ENTRY
 const loc = code.split("\n").filter(l => l.trim()).length;
 const usesState = /\bde_state\s*\(|\bSTATE\b|\bS->/.test(code);
 
-// ============================================================================
-// output
-// ============================================================================
-if (json) {
-  console.log(JSON.stringify({ cart: name, loc, usesState, shapes, globals, defines, funcs, entries }, null, 2));
-  process.exit(0);
-}
-
 const tty = process.stdout.isTTY;
 const bold = s => (tty ? `\x1b[1m${s}\x1b[0m` : s);
 const dim = s => (tty ? `\x1b[2m${s}\x1b[0m` : s);
@@ -248,6 +259,70 @@ const head = s => "\n" + bold(s) + "\n" + dim("─".repeat(s.length));
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 const lpad = (s, n) => String(s).padStart(n);
 const rpad = (s, n) => String(s).padEnd(n);
+
+// ============================================================================
+// --fn <name>: print ONE definition's body (no guessing the end line)
+// ============================================================================
+// the first line of the contiguous comment block directly above a def (skips
+// immediate blank lines, like leadingComment) — so the slice carries its docs.
+function sliceStart(defLine) {
+  let start = defLine, seen = false;
+  for (let i = defLine - 2; i >= 0; i--) {
+    const t = (rawLines[i] || "").trim();
+    if (t === "") { if (seen) break; else continue; }
+    if (t.startsWith("//") || /^\*/.test(t) || /\*\/\s*$/.test(t) || /^\/\*/.test(t)) { start = i + 1; seen = true; continue; }
+    break;
+  }
+  return start;
+}
+if (fnQuery != null) {
+  const q = fnQuery.toLowerCase();
+  const named = [
+    ...funcs.map(f => ({ name: f.name, a: sliceStart(f.line), b: f.endLine, tag: f.sig })),
+    ...shapes.filter(s => s.name).map(s => ({ name: s.name, a: s.startLine, b: s.endLine, tag: `${s.kind} ${s.name}` })),
+  ];
+  const exact = named.filter(t => t.name.toLowerCase() === q);
+  const targets = exact.length ? exact : named.filter(t => t.name.toLowerCase().includes(q));
+  if (!targets.length) {
+    console.error(`no function or shape matching "${fnQuery}" in ${name}.`);
+    console.error(`names: ${named.map(t => t.name).join(", ")}`);
+    process.exit(1);
+  }
+  if (targets.length > 4) {
+    console.error(`"${fnQuery}" matches ${targets.length} names — be more specific:`);
+    for (const t of targets) console.error(`  ${t.name}  (${t.a}-${t.b})`);
+    process.exit(1);
+  }
+  const out = [];
+  for (const t of targets) {
+    const lines = t.b - t.a + 1;
+    out.push(bold(t.name) + dim(`   ${path.relative(ROOT, cPath)}:${t.a}-${t.b}  (${lines} lines)`));
+    for (let i = t.a; i <= t.b; i++) out.push(dim(lpad(i, 6) + "  ") + (rawLines[i - 1] || "").replace(/\s+$/, ""));
+    out.push("");
+  }
+  console.log(out.join("\n").replace(/\n+$/, ""));
+  process.exit(0);
+}
+
+// wrap a list of tokens into ` · `-joined lines no wider than `width`
+function wrapList(items, width) {
+  const sep = " · ";
+  const out = []; let cur = "";
+  for (const it of items) {
+    if (cur && cur.length + sep.length + it.length > width) { out.push(cur); cur = it; }
+    else cur = cur ? cur + sep + it : it;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// ============================================================================
+// output
+// ============================================================================
+if (json) {
+  console.log(JSON.stringify({ cart: name, loc, usesState, shapes, globals, defines, funcs, entries }, null, 2));
+  process.exit(0);
+}
 
 const o = [];
 o.push(bold(`cart: ${name}`) + dim(
@@ -285,10 +360,16 @@ if (globals.length) {
   rows(globals, g => g.decl, 48);
 }
 
-// defines
+// defines — names only by default (the values are tuning noise unless asked);
+// --full prints each macro's value + role comment.
 if (defines.length) {
-  o.push(head(`MACROS  (${defines.length})`));
-  rows(defines, d => d.code, 40);
+  if (full) {
+    o.push(head(`MACROS  (${defines.length})`));
+    rows(defines, d => d.code, 40);
+  } else {
+    o.push(head(`MACROS  (${defines.length})`) + dim("   names only — values + roles: --full"));
+    for (const ln of wrapList(defines.map(d => d.name), 76)) o.push("  " + dim(ln));
+  }
 }
 
 // function index — line · signature · role
@@ -304,7 +385,11 @@ if (entries.length) {
 }
 
 o.push(head("READ A SLICE"));
-o.push(dim("  Read with offset/limit, or: ") + `sed -n '<a>,<b>p' ${path.relative(ROOT, cPath)}`);
+o.push(dim("  one function, full body:   ") + `node tools/cart-outline.js ${name} --fn <name>`);
+o.push(dim("  every macro value + role:  ") + `node tools/cart-outline.js ${name} --full`);
+o.push(dim("  or by hand: ") + `sed -n '<a>,<b>p' ${path.relative(ROOT, cPath)}` + dim("  (Read offset/limit)"));
 o.push(dim("  external context for this cart: ") + `node tools/build-context.js ${name}`);
+o.push(dim("  this map + that context in 1:   ") + `node tools/orient.js ${name}`);
+o.push(dim("  look up a studio.h API sig:     ") + `node tools/api.js <name>`);
 
 console.log(o.join("\n"));

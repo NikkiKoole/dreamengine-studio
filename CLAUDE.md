@@ -162,7 +162,12 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              every doc/note that MENTIONS it (with the line) — finds the differently-named home
              cart-outline.js a per-cart READING MAP (twin of build-context, for the SOURCE): data shapes
                              verbatim + global state + a FUNCTION INDEX (line · sig · role) + entry-point line
-                             ranges — understand/navigate a 1–3k-line cart at ~1/7th the tokens of reading it
+                             ranges — understand/navigate a 1–3k-line cart at ~1/7th the tokens of reading it.
+                             --fn <name> dumps ONE function's body (no guessing the end line); --full adds macro values
+             orient.js       go cold on a cart in ONE call: build-context + cart-outline back to back (the pair you
+                             always want first). Flags pass through to the outline (--full / --fn <name>)
+             api.js          one-shot studio.h API lookup — sig + doc for a fn/constant (exact, else substring →
+                             discovery) without reading the ~500-entry studioDocs.js or an LSP round trip
              cart-info.js    orient on ONE cart: screen/GW×GH, embedded de:source DRIFT vs the .c, registration
              cart-status.js  what's out of date (rebake / publish / stale / compendium)
              cart-todos.js   the navigable view over every cart's de:meta.todo[] polish punch-list (--grep/--count/<name>)

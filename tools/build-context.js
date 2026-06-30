@@ -241,7 +241,9 @@ if (dtFeed.length) out.push(dim("  fed by: ") + dtFeed.join(", "));
 // next steps — the integrity/publish tools this one deliberately doesn't do
 // ============================================================================
 out.push(head("NEXT"));
+out.push(dim("  this + the source map in 1: ") + `node tools/orient.js ${name}`);
 out.push(dim("  map the SOURCE (shapes/fns):") + ` node tools/cart-outline.js ${name}`);
+out.push(dim("  one function's full body:  ") + ` node tools/cart-outline.js ${name} --fn <name>`);
 out.push(dim("  integrity (source drift):  ") + `node tools/cart-info.js ${name}`);
 out.push(dim("  publish / rebake state:    ") + `node tools/cart-status.js`);
 out.push(dim("  which oracle to run:       ") + "docs/guides/checks-and-oracles.md");

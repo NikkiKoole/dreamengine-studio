@@ -13,7 +13,7 @@
   "lineage": "Inspired by FC Mobile / Football Manager lite; novel in combining a drag-to-arrange formation pitch, a procedurally refreshing transfer market, and a Poisson-ish strength-ratio match simulator feeding a league table.",
   "genre": "sports",
   "homage": "Football Manager (1982)",
-  "description": "An FC-Mobile-style manager mode played as a three-season CLIMB: you take Feyenoord from the regional EERSTE DIVISIE up through the EREDIVISIE (the best Dutch clubs) and into the CHAMPIONS LEAGUE (the giants of Europe). Each tier is its own 12-club, 10-round league; finish 1st to be promoted, and win the Champions League to be crowned CHAMPION OF EUROPE. Miss out and you replay the tier — but your squad and cash carry over, so the long, scrollable transfer market (a 30-deep shortlist of real 2026-era stars like Yamal, Mbappe, Pedri and Haaland) is how you bankroll the climb. Run your XI on a drag-to-arrange formation pitch with a bench of spares, switchable 4-4-2 / 4-3-3 shapes and an out-of-position penalty; hit PLAY MATCH and the engine auto-sims a scoreline from your strength versus the opponent's, ticking goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT while the table re-sorts live on points and goal difference. Player names are pooled by position, and the HUD, market and standings use the compact 4×6 font to fit the bigger rosters. Drag players between pitch and bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays)."
+  "description": "An FC-Mobile-style manager mode played as a three-season CLIMB: you take Feyenoord from the regional EERSTE DIVISIE up through the EREDIVISIE (the best Dutch clubs) and into the CHAMPIONS LEAGUE (the giants of Europe). Each tier is its own 12-club, 10-round league; finish 1st to be promoted, and win the Champions League to be crowned CHAMPION OF EUROPE. Miss out and you replay the tier — but your squad and cash carry over, so the long, scrollable transfer market (a 30-deep shortlist of real 2026-era stars, the world-class names carrying 90+ ratings at a premium price — Yamal, Mbappe, Haaland, Courtois) is how you bankroll the climb. Run your XI on a drag-to-arrange formation pitch with a bench of spares, switchable 4-4-2 / 4-3-3 shapes and an out-of-position penalty; hit PLAY MATCH and the engine auto-sims a scoreline from your strength versus the opponent's, ticking goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT while the table re-sorts live on points and goal difference. Player names are pooled by position, and the HUD, market and standings use the compact 4×6 font to fit the bigger rosters. Drag players between pitch and bench (hover a chip to see the player's name + rating), click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays)."
 }
 de:meta */
 #include "studio.h"
@@ -121,40 +121,27 @@ static int   drag_dx, drag_dy;
 static bool  sb_drag;              // dragging the transfer-list scrollbar thumb
 
 // ---------------------------------------------------------------------------
-// names — real 2026-era European stars, pooled by position so a GK gets a GK name.
-// Surnames / recognizable short forms; kept to fit the 15-char name buffer.
-static const char *NAME_GK[] = {
-    "Courtois","Donnarumma","Maignan","Onana","Raya","Ederson","Alisson",
-    "TerStegen","Neuer","Sommer","Lunin","Sels","Verbruggen","Provedel","Kobel",
-    "Oblak","Martinez","Bounou","Ramsdale","Vicario","Bizot"
+// names — real 2026-era European stars, pooled by position so a GK gets a GK
+// name, and split into two TIERS: ELITE (world-class — earn a 87..95 rating and
+// a premium price) and REGULAR (the rest, 60..84). Surnames / recognizable short
+// forms; kept to fit the 15-char name buffer.
+enum { T_REG, T_ELITE, NTIER };
+static const char *ELITE_GK[]  = { "Courtois","Donnarumma","Maignan","Alisson","Ederson","Oblak","TerStegen","Neuer" };
+static const char *REG_GK[]    = { "Onana","Raya","Sommer","Lunin","Sels","Verbruggen","Provedel","Kobel","Martinez","Bounou","Ramsdale","Vicario","Bizot" };
+static const char *ELITE_DEF[] = { "VanDijk","Saliba","Hakimi","Rudiger","Dias","Gvardiol","Kounde","Bastoni","Walker","Konate","Militao","Marquinhos" };
+static const char *REG_DEF[]   = { "Cubarsi","Araujo","Hancko","Hato","Bremer","Theo","Dumfries","Calafiori","Tah","Upamecano","Pavard","Geertruida","Smal","Akanji","Robertson","Davies","DeLigt","Timber","Frimpong","Schar","Hummels","Tomori","Kerkez" };
+static const char *ELITE_MID[] = { "Pedri","Bellingham","Rodri","Wirtz","Musiala","Vitinha","Valverde","DeJong","Rice","Kimmich","BrunoF.","Odegaard","Camavinga","Tchouameni" };
+static const char *REG_MID[]   = { "Gavi","Veerman","Saibari","JoaoNeves","Zaire","Modric","Fermin","Til","Gravenberch","Reijnders","Koopmeiner","Schouten","Mainoo","Eze","Gundogan","MacAlister","Wieffer","Stengs" };
+static const char *ELITE_FWD[] = { "Yamal","Mbappe","Vinicius","Haaland","Salah","Kane","Lewandowski","Osimhen","Lautaro","Leao","Saka","Foden","Raphinha","Dembele","Kvara" };
+static const char *REG_FWD[]   = { "Olmo","Brobbey","Pepi","Ueda","NicoWill.","Gyokeres","Isak","Rashford","Doue","Barcola","Gakpo","Depay","Simons","Lang","Nunez","Jackson","Havertz","Openda","Weghorst","Kluivert","Garnacho","Hojlund","Sancho" };
+static const char *const *POOL[NTIER][NPOS] = {
+    { REG_GK,   REG_DEF,   REG_MID,   REG_FWD   },
+    { ELITE_GK, ELITE_DEF, ELITE_MID, ELITE_FWD },
 };
-static const char *NAME_DEF[] = {
-    "VanDijk","Saliba","Hakimi","Marquinhos","Rudiger","Militao","Cubarsi",
-    "Araujo","Hancko","Hato","Bremer","Bastoni","Gvardiol","Kounde","Theo",
-    "Dumfries","Calafiori","Tah","Upamecano","Pavard","Geertruida","Smal",
-    "Akanji","Dias","Walker","Robertson","Davies","Konate","DeLigt","Timber",
-    "Frimpong","Schar","Hummels","Tomori","Kerkez"
-};
-static const char *NAME_MID[] = {
-    "Pedri","Gavi","Bellingham","Vitinha","Valverde","DeJong","Rice","Wirtz",
-    "Musiala","BrunoF.","Odegaard","Rodri","Kimmich","Veerman","Saibari",
-    "JoaoNeves","Zaire","Camavinga","Tchouameni","Modric","Fermin","Til",
-    "Gravenberch","Reijnders","Koopmeiner","Schouten","Mainoo","Eze",
-    "Gundogan","MacAlister","Wieffer","Stengs"
-};
-static const char *NAME_FWD[] = {
-    "Yamal","Mbappe","Vinicius","Dembele","Raphinha","Lewandowski","Haaland",
-    "Salah","Saka","Foden","Kane","Leao","Osimhen","Lautaro","Kvara","Olmo",
-    "Brobbey","Pepi","Ueda","NicoWill.","Gyokeres","Isak","Rashford","Doue","Barcola",
-    "Gakpo","Depay","Simons","Lang","Nunez","Jackson","Havertz","Openda",
-    "Weghorst","Kluivert","Garnacho","Hojlund","Sancho"
-};
-static const char *const *NAMES[NPOS] = { NAME_GK, NAME_DEF, NAME_MID, NAME_FWD };
-static const int NAMEN[NPOS] = {
-    (int)(sizeof NAME_GK  / sizeof *NAME_GK),
-    (int)(sizeof NAME_DEF / sizeof *NAME_DEF),
-    (int)(sizeof NAME_MID / sizeof *NAME_MID),
-    (int)(sizeof NAME_FWD / sizeof *NAME_FWD),
+#define PCNT(a) ((int)(sizeof(a) / sizeof *(a)))
+static const int POOLN[NTIER][NPOS] = {
+    { PCNT(REG_GK),   PCNT(REG_DEF),   PCNT(REG_MID),   PCNT(REG_FWD)   },
+    { PCNT(ELITE_GK), PCNT(ELITE_DEF), PCNT(ELITE_MID), PCNT(ELITE_FWD) },
 };
 // CAMPAIGN: you manage Feyenoord on a three-season climb. Each division is its
 // own 12-club league (you = club[0] + 11 rivals). Win it (finish 1st) to go up.
@@ -183,19 +170,20 @@ static bool name_used(const char *n, int upto) {
     return false;
 }
 
-static void pick_name(char *out, int pos, int upto) {
-    const char *const *pool = NAMES[pos]; int n = NAMEN[pos];
+static void pick_name(char *out, int pos, int tier, int upto) {
+    const char *const *pool = POOL[tier][pos]; int n = POOLN[tier][pos];
     const char *cand = pool[rnd(n)];
-    for (int t = 0; t < 16 && name_used(cand, upto); t++) cand = pool[rnd(n)];
+    for (int t = 0; t < 24 && name_used(cand, upto); t++) cand = pool[rnd(n)];
     int k = 0; while (cand[k] && k < 15) { out[k] = cand[k]; k++; } out[k] = 0;
 }
 
-// random player of a position with a rating band; upto = market rows already
-// filled this pass (for de-duping the shortlist), 0 when generating your squad.
-static void gen_player(Player *p, int pos, int lo, int hi, int upto) {
-    pick_name(p->name, pos, upto);
+// random player of a position; elite -> a world-class name + 87..95 rating,
+// otherwise a regular name + 60..84. upto = market rows already filled this pass
+// (for de-duping the shortlist), 0 when generating your squad.
+static void gen_player(Player *p, int pos, bool elite, int upto) {
+    pick_name(p->name, pos, elite ? T_ELITE : T_REG, upto);
     p->pos = pos;
-    p->rating = rnd_between(lo, hi + 1);
+    p->rating = elite ? rnd_between(87, 96) : rnd_between(60, 85);
     p->kit = 0;
 }
 
@@ -238,8 +226,9 @@ static int bench_list(int *out) {
 static void refresh_market(void) {
     for (int i = 0; i < NMARKET; i++) {
         int pos = i == 0 ? POS_GK : 1 + rnd(NPOS - 1);
-        gen_player(&market[i], pos, 60, 89, i);
-        // price scales steeply with rating
+        bool elite = (i < 3) || (rnd(100) < 25);   // top 3 are marquee names; ~25% of the rest too
+        gen_player(&market[i], pos, elite, i);
+        // price scales steeply with rating — the world-class names cost a fortune
         int r = market[i].rating;
         mprice[i] = (r - 55) * (r - 55) * 4 + 200;
         msold[i] = false;
@@ -273,11 +262,15 @@ static void start_season(void) {
 
 static void new_game(void) {
     nplayers = 0;
-    // starting roster: 1 GK, 5 DEF, 6 MID, 4 FWD = 16, mid ratings
+    // starting roster: 1 GK, 5 DEF, 6 MID, 4 FWD = 16. A humble lower-league
+    // squad — regular names, modest ratings; you buy the stars as you climb.
     int plan[][2] = { {POS_GK,1},{POS_DEF,5},{POS_MID,6},{POS_FWD,4} };
     for (int k = 0; k < 4; k++)
-        for (int j = 0; j < plan[k][1] && nplayers < MAXP; j++)
-            gen_player(&squad[nplayers++], plan[k][0], 62, 78, 0);
+        for (int j = 0; j < plan[k][1] && nplayers < MAXP; j++) {
+            gen_player(&squad[nplayers], plan[k][0], false, 0);
+            squad[nplayers].rating = rnd_between(62, 77);   // keep the start modest
+            nplayers++;
+        }
 
     formation = F_442;
     // auto-fill XI: best matching-position player per slot, then any
@@ -695,17 +688,44 @@ static void draw_floating_chip(void) {
         draw_chip(mouse_x(), mouse_y(), &squad[drag_bench], false, false);
 }
 
+// hover a pitch chip (when not dragging) to reveal who it is: name + pos + rating
+static void draw_pitch_tooltip(void) {
+    if (drag_from >= 0 || drag_bench >= 0) return;
+    for (int s = 0; s < 11; s++) {
+        if (XI[s] < 0) continue;
+        int cx = slot_px(s), cy = slot_py(s);
+        if (!point_in_box(mouse_x(), mouse_y(), cx - 9, cy - 9, 18, 18)) continue;
+        Player *p = &squad[XI[s]];
+        circ(cx, cy, 10, CLR_LIGHT_YELLOW);                 // highlight the chip
+        font(FONT_SMALL);
+        const char *info = str("%s  %d", POSL[p->pos], p->rating);
+        int wn = text_width(p->name), wi = text_width(info);
+        int w = (wn > wi ? wn : wi) + 8;
+        int bx = cx - w / 2, by = cy - 23;
+        if (bx < PX + 1) bx = PX + 1;
+        if (bx + w > PX + PW - 1) bx = PX + PW - 1 - w;
+        if (by < PY + 1) by = cy + 12;                      // flip below the chip near the top edge
+        rectfill(bx, by, w, 16, CLR_BLACK);
+        rect(bx, by, w, 16, CLR_LIGHT_YELLOW);
+        print(p->name, bx + 4, by + 2, CLR_WHITE);
+        print(info, bx + 4, by + 9, rating_col(p->rating));
+        font(FONT_NORMAL);
+        break;
+    }
+}
+
 static void draw_squad(void) {
     cls(CLR_BLACK);
     draw_pitch();
     draw_bench();
+    draw_pitch_tooltip();
     draw_floating_chip();
     draw_hud();
     draw_tabs();
     if (drag_from >= 0 || drag_bench >= 0)
         print_centered("drop on a slot, or the bench", SCREEN_W/2, PY + PH + 1, CLR_DARK_GREY);
     else
-        print("drag players to set your XI", PX + 2, PY + PH + 1, CLR_DARK_GREY);
+        print("drag a chip to move - hover to see who", PX + 2, PY + PH + 1, CLR_DARK_GREY);
 }
 
 // little filled triangles for the scrollbar arrow buttons

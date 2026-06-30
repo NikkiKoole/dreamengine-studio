@@ -168,15 +168,16 @@ static void project(float wx, float wy, float wz, float *sx, float *sy) {
   if (S.mode == M_PERSP) {
     // a real pitched PINHOLE camera, chasing from behind+above: perspective divide by depth →
     // foreshortening + a horizon + towering buildings (the thing the parallel-oblique modes can't do).
-    float fwd = ry + S.setback;                 // distance ahead of the eye (eye sits behind the car)
-    float up  = (wz - S.camz) - S.eye;          // height relative to the eye
-    float cz = cos_deg(S.pitch), sz = sin_deg(S.pitch);
-    float vz = fwd*sz + up*cz;                   // into-screen depth (pitch = tilt down from horizontal)
-    float vy = fwd*cz - up*sz;                   // view-up
-    if (vz < 1.0f) vz = 1.0f;                     // near clamp (at/behind the lens)
-    float f = S.zoom * 90.0f;                     // focal length (× zoom)
-    *sx = SCREEN_W*0.5f + f * rx / vz;
-    *sy = SCREEN_H*0.5f - f * vy / vz;
+    // pitch = degrees the optical axis tilts BELOW horizontal (small = look ahead, 90 = straight down).
+    float F  = ry + S.setback;                  // forward distance ahead of the eye (eye sits setback behind the car)
+    float Hh = (wz - S.camz) - S.eye;           // height relative to the eye
+    float cd = cos_deg(S.pitch), sd = sin_deg(S.pitch);
+    float depth = F*cd - Hh*sd;                 // along the optical axis (into screen)
+    float up    = F*sd + Hh*cd;                 // screen-vertical (positive = up); taller Hh → higher
+    if (depth < 1.0f) depth = 1.0f;             // near clamp (at/behind the lens)
+    float f = S.zoom * 90.0f;                    // focal length (× zoom)
+    *sx = SCREEN_W*0.5f + f * rx / depth;
+    *sy = SCREEN_H*0.5f - f * up / depth;
     return;
   }
   *sx = SCREEN_W*0.5f + rx*S.zoom;
@@ -270,7 +271,7 @@ static void reset(void) {
   }
   S.spd=0; S.carz=0; S.camx=S.px; S.camy=S.py; S.camz=0;
   if (!S.started) { S.mode = M_HEADING; S.zoom = 2.0f; S.tex = true;
-                    S.pitch = 58.0f; S.eye = 22.0f; S.setback = 35.0f; }
+                    S.pitch = 25.0f; S.eye = 22.0f; S.setback = 35.0f; }
   S.rot = (S.mode==M_NORTH) ? 0.0f : (-90.0f - S.ang);
   S.started = true;
 }
@@ -382,18 +383,31 @@ static void draw_bldg_geo(Bldg *b, bool leanout) {
   // edge0 top(-y): (0,-1) · edge1 right(+x): (1,0) · edge2 bottom(+y): (0,1) · edge3 left(-x): (-1,0)
   float nwx[4] = { 0,  1, 0, -1 };
   float nwy[4] = {-1,  0, 1,  0 };
-  float sdx, sdy;                               // unit roof-shift direction (screen)
-  if (leanout) {
-    float bcx=(gx[0]+gx[1]+gx[2]+gx[3])*0.25f - SCREEN_W*0.5f;
-    float bcy=(gy[0]+gy[1]+gy[2]+gy[3])*0.25f - SCREEN_H*0.5f;
-    float L=sqrtf(bcx*bcx+bcy*bcy)+1e-4f; sdx=bcx/L; sdy=bcy/L;
-  } else { sdx=0; sdy=-1; }
   int   order[4]; int n=0; float key_[4];
-  for (int e=0;e<4;e++) {
-    float nsx = nwx[e]*c - nwy[e]*s;            // rotate world normal into screen
-    float nsy = nwx[e]*s + nwy[e]*c;
-    float facing = -(nsx*sdx + nsy*sdy);        // >0 = exposed wall
-    if (facing > 0.001f) { order[n]=e; key_[n]=facing; n++; }
+  if (S.mode == M_PERSP) {
+    // PERSPECTIVE: true back-face cull in plan view — a wall shows iff its outward normal faces the
+    // eye (the oblique "opposite the roof shift" test assumes screen-up = up, which perspective breaks).
+    float bcx=(b->x0+b->x1)*0.5f - S.camx, bcy=(b->y0+b->y1)*0.5f - S.camy;
+    float brx = bcx*c - bcy*s, bry = bcx*s + bcy*c + S.setback;   // building centre relative to the eye (yaw space)
+    float bl = sqrtf(brx*brx+bry*bry)+1e-4f;
+    for (int e=0;e<4;e++) {
+      float nsx = nwx[e]*c - nwy[e]*s, nsy = nwx[e]*s + nwy[e]*c;
+      float facing = -(nsx*brx + nsy*bry)/bl;   // >0 = normal points back toward the eye; ~1 = head-on
+      if (facing > 0.001f) { order[n]=e; key_[n]=facing; n++; }
+    }
+  } else {
+    float sdx, sdy;                             // unit roof-shift direction (screen)
+    if (leanout) {
+      float bcx=(gx[0]+gx[1]+gx[2]+gx[3])*0.25f - SCREEN_W*0.5f;
+      float bcy=(gy[0]+gy[1]+gy[2]+gy[3])*0.25f - SCREEN_H*0.5f;
+      float L=sqrtf(bcx*bcx+bcy*bcy)+1e-4f; sdx=bcx/L; sdy=bcy/L;
+    } else { sdx=0; sdy=-1; }
+    for (int e=0;e<4;e++) {
+      float nsx = nwx[e]*c - nwy[e]*s;          // rotate world normal into screen
+      float nsy = nwx[e]*s + nwy[e]*c;
+      float facing = -(nsx*sdx + nsy*sdy);      // >0 = exposed wall
+      if (facing > 0.001f) { order[n]=e; key_[n]=facing; n++; }
+    }
   }
   // sort visible walls by facing (least-front first → painter's within the box)
   for (int i=0;i<n;i++) for (int j=i+1;j<n;j++)

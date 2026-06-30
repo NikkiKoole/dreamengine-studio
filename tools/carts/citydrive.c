@@ -11,7 +11,7 @@
     "camera-follow"
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
-  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive, M toggles north/heading-up camera, V top-down map, T textures, R toggles roads, [ ] zoom."
+  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom."
 }
 de:meta */
 #include "studio.h"
@@ -39,7 +39,8 @@ de:meta */
 //   make the data:  node data-tools/roadview/osm-roads.js --place "Amersfoort, Netherlands"
 //   run it:         opens on data/demo.rvb; DRAG a town's .rvb/.json onto the window to swap.
 //
-//   ◄▲▼► / WASD  drive · mouse wheel / [ ] zoom · left-drag orbit the view · M north/heading
+//   ◄▲▼► / WASD  drive · mouse wheel / [ ] zoom · left-drag orbit the view
+//   M cycle camera: north-up / heading-up / PERSPECTIVE (1/2/3) — in perspective ,/. pitch  ;/' eye
 //   V top-down map · T textures · R roads · drop a file → load
 
 #define HSCALE  1.0f        // metres of height → up-screen units (× zoom). taller = more dramatic 3D
@@ -91,8 +92,8 @@ static const Mat MAT[NMAT] = {
   { CLR_LIGHT_YELLOW,CLR_DARK_ORANGE, CLR_DARK_BROWN   },  // sand
 };
 
-enum { M_NORTH, M_HEADING, M_COUNT };
-static const char *MODE_NAME[M_COUNT] = { "1 NORTH-UP", "2 HEADING-UP" };
+enum { M_NORTH, M_HEADING, M_PERSP, M_COUNT };
+static const char *MODE_NAME[M_COUNT] = { "1 NORTH-UP", "2 HEADING-UP", "3 PERSPECTIVE" };
 
 // ── data pools (sized for a whole big city, like roadview) ───────────────────
 #define MAXPTS  5000000
@@ -131,6 +132,7 @@ typedef struct {
   bool  started, tex, roads_on, topdown;
   float lookrot;                  // mouse-drag orbit offset on top of the heading; decays while driving
   bool  dragging; int dragx;
+  float pitch, eye, setback;      // M_PERSP pitched camera: tilt(deg below horizontal), eye height, chase setback
 } State;
 static State S;
 static float g_hscale = HSCALE;   // 0 in top-down mode → buildings collapse to flat footprints (a 2D map to verify placement)
@@ -158,6 +160,20 @@ static void project(float wx, float wy, float wz, float *sx, float *sy) {
   float dx = wx - S.camx, dy = wy - S.camy;
   float c = cos_deg(S.rot), s = sin_deg(S.rot);
   float rx = dx*c - dy*s, ry = dx*s + dy*c;
+  if (S.mode == M_PERSP) {
+    // pitched PINHOLE camera (ported from cityview): perspective divide → horizon + foreshortening.
+    // combined with terrain, mountains rise against the skyline. AHEAD is -ry in this heading-up frame.
+    float F  = S.setback - ry;                 // forward distance ahead of the eye
+    float Hh = (wz - S.camz) - S.eye;          // height relative to the eye (camz tracks the ground under the car)
+    float cd = cos_deg(S.pitch), sd = sin_deg(S.pitch);
+    float depth = F*cd - Hh*sd;                // into-screen depth
+    float up    = F*sd + Hh*cd;                // screen-vertical (taller → higher)
+    if (depth < 1.0f) depth = 1.0f;
+    float f = S.zoom * 90.0f;
+    *sx = SCREEN_W*0.5f + f * rx / depth;
+    *sy = SCREEN_H*0.5f - f * up / depth;
+    return;
+  }
   *sx = SCREEN_W*0.5f + rx*S.zoom;
   *sy = SCREEN_H*0.5f + ry*S.zoom - (wz - S.camz)*S.zoom*g_hscale;  // height up-screen, relative to camera ground (terrain)
 }
@@ -302,7 +318,8 @@ static void spawn_in_mass(void){
     if (d<best){ best=d; S.px=blds[i].cx; S.py=blds[i].cy; } }
   S.ang = -45; S.spd = 0;
   S.camx = S.px; S.camy = S.py;
-  if (!S.started){ S.mode=M_HEADING; S.zoom=1.5f; S.tex=true; S.roads_on=true; }
+  if (!S.started){ S.mode=M_HEADING; S.zoom=1.5f; S.tex=true; S.roads_on=true;
+                   S.pitch=22.0f; S.eye=20.0f; S.setback=30.0f; }
   S.rot = (S.mode==M_NORTH) ? 0.0f : (-90.0f - S.ang);
   S.started = true;
 }
@@ -348,22 +365,36 @@ static void draw_bldg(int start, int count, float h, int mat, float gz){
   float wind = area>0 ? 1.0f : -1.0f;
   float c = cos_deg(S.rot), s = sin_deg(S.rot);
 
+  bool persp = (S.mode == M_PERSP);
+  float eyx = S.camx - S.setback*cos_deg(S.ang), eyy = S.camy - S.setback*sin_deg(S.ang);  // eye behind the car
+
   int order[MAXBV]; float depth[MAXBV], facing[MAXBV]; int n=0;
   for (int e=0;e<nv;e++){
     int a=e, bb=(e+1)%nv;
     float ex=PX[start+bb]-PX[start+a], ey=PY[start+bb]-PY[start+a];
     float L=sqrtf(ex*ex+ey*ey)+1e-4f;
-    float nx=(ey/L)*wind, ny=-(ex/L)*wind;
-    float nsy = nx*s + ny*c;                     // screen-y of the outward normal; >0 = faces the viewer (down-screen)
-    if (nsy > 0.001f){ order[n]=e; facing[n]=nsy; depth[n]=(gy[a]+gy[bb])*0.5f; n++; }
+    float nx=(ey/L)*wind, ny=-(ex/L)*wind;       // world outward normal
+    float vis, fval;
+    if (persp){                                  // back-face cull: wall shows iff its normal faces the eye
+      float mmx=(PX[start+a]+PX[start+bb])*0.5f, mmy=(PY[start+a]+PY[start+bb])*0.5f;
+      float ddx=mmx-eyx, ddy=mmy-eyy, dd=sqrtf(ddx*ddx+ddy*ddy)+1e-4f;
+      vis = -(ddx*nx + ddy*ny); fval = vis/dd;   // fval ≈ cos(facing): ~1 head-on
+    } else {                                      // oblique: normal points down-screen toward the viewer
+      vis = nx*s + ny*c; fval = vis;
+    }
+    if (vis > 0.001f){ order[n]=e; facing[n]=fval; depth[n]=(gy[a]+gy[bb])*0.5f; n++; }
   }
   for(int i=0;i<n;i++) for(int j=i+1;j<n;j++)
     if(depth[j]<depth[i]){ float t=depth[i];depth[i]=depth[j];depth[j]=t;
       t=facing[i];facing[i]=facing[j];facing[j]=t; int o=order[i];order[i]=order[j];order[j]=o; }
 
+  // perspective draws the roof FIRST (near walls paint over it — street-level occlusion) and uses
+  // flat walls (tritex is affine → wrong under perspective + heavy on big close-up walls).
+  if (persp){ int rxy[2*MAXBV]; for(int i=0;i<nv;i++){ rxy[2*i]=(int)rx[i]; rxy[2*i+1]=(int)ry[i]; }
+              polyfill(rxy, nv, MAT[mat].roof); }
   for(int k=0;k<n;k++){
     int e=order[k], a=e, bb=(e+1)%nv;
-    if (S.tex){
+    if (S.tex && !persp){
       float ex=PX[start+bb]-PX[start+a], ey=PY[start+bb]-PY[start+a];
       float wlen=sqrtf(ex*ex+ey*ey);
       int rxN=clampi((int)(wlen/TILE_W+0.5f),1,MAXREP);
@@ -374,8 +405,8 @@ static void draw_bldg(int start, int count, float h, int mat, float gz){
       quadfill((int)gx[a],(int)gy[a],(int)gx[bb],(int)gy[bb],(int)rx[bb],(int)ry[bb],(int)rx[a],(int)ry[a], col);
     }
   }
-  int rxy[2*MAXBV]; for(int i=0;i<nv;i++){ rxy[2*i]=(int)rx[i]; rxy[2*i+1]=(int)ry[i]; }
-  polyfill(rxy, nv, MAT[mat].roof);
+  if (!persp){ int rxy[2*MAXBV]; for(int i=0;i<nv;i++){ rxy[2*i]=(int)rx[i]; rxy[2*i+1]=(int)ry[i]; }
+               polyfill(rxy, nv, MAT[mat].roof); }
 }
 
 // squared distance from point (px,py) to segment a→b — for a pop-free cull that
@@ -438,13 +469,20 @@ void update(void) {
   if (mouse_pressed(MOUSE_LEFT) && mouse_y() < 11 && mouse_x() >= SCREEN_W - 40){ de_open_path(DATA_DIR); return; }
   if (!loaded_ok) return;
 
-  if (keyp('M')) S.mode = (S.mode+1) % M_COUNT;
+  if (keyp('M')) S.mode = (S.mode+1) % M_COUNT;   // cycle the camera: north-up → heading-up → perspective
   if (keyp('1')) S.mode = M_NORTH;
   if (keyp('2')) S.mode = M_HEADING;
+  if (keyp('3')) S.mode = M_PERSP;
   if (keyp('T')) S.tex = !S.tex;
   if (keyp('R')) S.roads_on = !S.roads_on;
   if (keyp('V')) S.topdown = !S.topdown;          // flat 2D map to verify footprint vs road placement
   g_hscale = S.topdown ? 0.0f : HSCALE;
+  if (S.mode==M_PERSP){                            // live-tune the pitched camera
+    if (key(',')) S.pitch = fmaxf(5.0f,  S.pitch-1.0f);
+    if (key('.')) S.pitch = fminf(80.0f, S.pitch+1.0f);
+    if (key(';'))  S.eye = fmaxf(2.0f,   S.eye-1.0f);
+    if (key('\'')) S.eye = fminf(120.0f, S.eye+1.0f);
+  }
   if (key('[')) S.zoom = fmaxf(0.12f, S.zoom*0.97f);        // min low enough to pull back over a whole landscape
   if (key(']')) S.zoom = fminf(8.0f, S.zoom*1.03f);
   float wz = mouse_wheel();                                  // mouse wheel → zoom
@@ -549,8 +587,10 @@ void draw(void) {
   rectfill(0,0,SCREEN_W,9, CLR_BLACK);
   font(FONT_SMALL);
   print(dname[0]?dname:"citydrive", 3, 2, CLR_YELLOW);
-  char hud[48]; snprintf(hud,sizeof hud,"%s%d bldg", S.topdown?"TOPDOWN  ":"", nbld);
+  char hud[48]; snprintf(hud,sizeof hud,"%s%d bldg", S.topdown?"TOP ":(S.mode==M_PERSP?"PERSP ":""), nbld);
   print(hud, SCREEN_W-116, 2, CLR_LIGHT_GREY);
+  if (S.mode==M_PERSP && !S.topdown){ char p[40]; snprintf(p,sizeof p,",.pitch=%d  ;'eye=%d",(int)S.pitch,(int)S.eye);
+    print(p, 3, SCREEN_H-8, CLR_LIGHT_GREY); }
   int bx=SCREEN_W-40, hot=(mouse_y()<11 && mouse_x()>=bx);
   rectfill(bx,1,38,8, hot?CLR_BLUE:CLR_DARK_GREY);
   print("OPEN", bx+9,2, CLR_WHITE);

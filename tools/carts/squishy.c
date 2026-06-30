@@ -11,7 +11,7 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Three brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), and BRISTLE (raked parallel hairs). The bevel toggle embosses strokes into a faux-3D rim (light from the top-left). And because rendering is a pure function of (stroke, seed), the BOIL toggle re-renders through a few jittered seeds and cycles them ~7.5fps → the whole drawing breathes, hand-drawn-animation style, for almost free. A 4-colour pen (black/blue/red/green) on cream paper — each stroke keeps the colour it was drawn in. The fat brushes can be filled with a dpaint-style dither pattern (dots/checker/grid via fillp), the step before a real flood-fill. A flood-fill tool + the pixelsnap animated-icon export come next.",
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Three brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), and BRISTLE (raked parallel hairs). The bevel toggle embosses strokes into a faux-3D rim (light from the top-left). And because rendering is a pure function of (stroke, seed), the BOIL toggle re-renders through a few jittered seeds and cycles them ~7.5fps → the whole drawing breathes, hand-drawn-animation style, for almost free. A 4-colour pen (black/blue/red/green) on cream paper — each stroke keeps the colour it was drawn in. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp) — the step before a real flood-fill. A flood-fill tool + the pixelsnap animated-icon export come next.",
     "controls": "Top panel: open the tool dropdown (ink/pen/fineliner/marker/chalk/sketch/spray/bristle), drag the thickness slider, toggle BVL (bevel) and BOIL (living wobble), tap UNDO, cycle the DITHER pattern, and pick a colour (swatches). Then drag on the canvas to draw. Keys: B bevel, O boil, U undo, C clear."
   },
   "todo": [
@@ -52,11 +52,12 @@ de:meta */
 #define NCOLORS 4
 static const int COLORS[NCOLORS] = { INK, CLR_BLUE, CLR_RED, CLR_DARK_GREEN };
 
-// dither fill patterns for the fat stamp brushes (à la dpaint) — index 0 = solid
-// (no fillp). The holes show PAPER, so a stroke gets a screen-printed texture.
-// Swatch sprites 12..15 in the .cart.js mirror this order.
-#define NPATTERNS 4
-static const int PATTERNS[NPATTERNS] = { 0, FILL_DOTS, FILL_CHECKER, FILL_GRID };
+// dither fill patterns for the fat stamp brushes (à la dpaint) — a Bayer-ordered
+// DENSITY ramp: index 0 = solid (no fillp), then ~12 / 25 / 50 / 75 / 87% ink.
+// Holes show PAPER → a screen-printed stroke. Swatch sprites 12.. in the .cart.js
+// mirror this list exactly (PAT_MASKS), so the cycle button shows the real fill.
+#define NPATTERNS 6
+static const int PATTERNS[NPATTERNS] = { 0x0000, 0x7FDF, 0x5F5F, 0x5A5A, 0x0A0A, 0x0208 };
 
 #define PANEL_H   24               // top tool-bar height; the canvas is below it
 

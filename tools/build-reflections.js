@@ -123,7 +123,7 @@ function CSS() {
 @font-face{font-family:'ComicMono';src:url('/ComicMono.ttf') format('truetype');font-weight:400;font-display:optional}
 @font-face{font-family:'ComicMono';src:url('/ComicMono-Bold.ttf') format('truetype');font-weight:700;font-display:optional}
 :root{
-  --bg:#0c0d11; --panel:#13151b; --ink:#cbd3dc; --bright:#f0f4f8; --dim:#5b6470;
+  --bg:#0a1a0f; --panel:#102816; --ink:#cbd3dc; --bright:#f0f4f8; --dim:#5b6470;
   --green:#00e436; --yellow:#ffec27; --orange:#ffa300; --blue:#29adff; --red:#ff004d; --indigo:#a39bc4;
   --mono:'ComicMono',ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
 }

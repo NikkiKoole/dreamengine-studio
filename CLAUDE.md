@@ -137,8 +137,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              road-check.js   correctness oracle for coverage-based roads: framebuffer invariants (no naked
                              edges / strays / floating kerb) at ANY angle; --all = config-matrix gate; --overlay
              build-site.js / publish-cart.sh   build wasm carts + gallery → site/; publish + push
-             publish-all.js  batch publish in ONE deploy: smart (cart-status's not-published + stale)
-                             or --all; resilient build, reuses publish-cart.sh; --dry-run to preview
+             publish-all.js  batch publish in ONE deploy — run it bare: it CHECKS cart-status, then
+                             PROMPTS (smart=not-published+stale / +engine-stale / --all / build-all gate).
+                             Resilient build, reuses publish-cart.sh; -y non-interactive, --dry-run preview
              mobile-lint.js  static report card: can a phone play this cart?
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")

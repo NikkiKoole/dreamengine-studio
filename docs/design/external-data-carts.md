@@ -35,8 +35,8 @@ worth it graduates; if not, the pieces below delete cleanly (they touch almost n
 
 **Quick resume:**
 ```bash
-node tools/osm-roads.js --place "Utrecht, Netherlands"        # → data/utrecht-netherlands.rvb
-node tools/osm-roads.js --convert data/breda-netherlands.json # repack an existing .json → .rvb (no re-fetch)
+node data-tools/roadview/osm-roads.js --place "Utrecht, Netherlands"        # → data/utrecht-netherlands.rvb
+node data-tools/roadview/osm-roads.js --convert data/breda-netherlands.json # repack an existing .json → .rvb (no re-fetch)
 DE_DATA="$(pwd)/data/delft-netherlands.rvb" node tools/play.js roadview run   # or just: roadview run (demo), then drag a file
 ```
 > **Gotcha that cost an hour:** `play.js` builds `build/roadview-dbg`, **not** `build/cart`.
@@ -161,7 +161,7 @@ Two ways to get them, cheapest first:
 ## The smell this fixes
 
 `floorwalker` and `seinelaan` are the *same cart* — identical movement, rendering, collision —
-with a different floorplan **baked into the source**. `fmltools/fml2cart.js` regenerates the
+with a different floorplan **baked into the source**. `data-tools/fmltools/fml2cart.js` regenerates the
 `.c` per `.fml`, splicing a C data block between `/* >>>FML_DATA */` sentinels. Two datasets →
 two near-duplicate carts. N datasets → N carts. That's data masquerading as code.
 
@@ -176,7 +176,7 @@ not mint a cart per city.
 ```
   source            normalizer (tools/)          shared JSON          cart (runtime)
   ──────            ───────────────────          ───────────          ──────────────
-  OpenStreetMap  →  tools/osm-roads.js        →  features blob   →    roadview.c
+  OpenStreetMap  →  data-tools/roadview/osm-roads.js        →  features blob   →    roadview.c
   Floorplanner   →  (fmltools, could target ───┘   (same schema)      (--data <file>)
                      this schema instead of baking)
 ```
@@ -226,7 +226,7 @@ to the screen.
 
 `floorwalker` + `seinelaan` (the baked duplicates above) now have a runtime twin:
 
-- **`fmltools/floorplanner.js -pid=<projectid>`** — fetches a project's `.fml` from the v2 API
+- **`data-tools/fmltools/floorplanner.js -pid=<projectid>`** — fetches a project's `.fml` from the v2 API
   (`/projects/<id>/download_json.fml`; auth via `$FP_AUTH_TOKEN` JWT or `$FP_SESSION` cookie),
   then emits `data/floorplan/<id>.json`. `--baked` instead runs the old `make-floor.sh` per-project
   bake (option A); the default is the runtime data file (option B).
@@ -292,7 +292,7 @@ re-querying Overpass.
 |---|---|---|
 | `runtime/studio.c` / `studio.h` | `--data <file>` → `de_data_path()` (falls back to `$DE_DATA`); plus `de_dropped_file()` (drag-&-drop a file onto the window) and `de_open_path()` (reveal a folder in Finder/Explorer). All additive. | small, all tagged EXPERIMENTAL |
 | `runtime/json.h` | cart-land JSON reader: vendored **jsmn** (zero-alloc tokenizer, MIT) + walk helpers (`json_slurp` / `json_parse` / `json_get` / `json_num` / `json_span`). Used for the `.json` path + `json_slurp` for both. A capability the engine deliberately doesn't own (ADR-0006, like `ui.h`). | delete the file |
-| `tools/osm-roads.js` | OSM → schema. `--demo` (synthetic, offline), `--bbox S,W,N,E`, `--place "name"` (Nominatim geocode), `--convert f.json` (repack to `.rvb`). Fetches via Overpass (auto-falls-back across mirrors), projects web-mercator, classes roads/water/zoning/rail, radial-distance simplify. Writes **`data/<slug>.rvb`** (packed binary) by default; `--json` adds the readable sibling. `KIND_IX` must mirror `roadview.c`'s enum. | delete the file |
+| `data-tools/roadview/osm-roads.js` | OSM → schema. `--demo` (synthetic, offline), `--bbox S,W,N,E`, `--place "name"` (Nominatim geocode), `--convert f.json` (repack to `.rvb`). Fetches via Overpass (auto-falls-back across mirrors), projects web-mercator, classes roads/water/zoning/rail, radial-distance simplify. Writes **`data/<slug>.rvb`** (packed binary) by default; `--json` adds the readable sibling. `KIND_IX` must mirror `roadview.c`'s enum. | delete the file |
 | `tools/carts/roadview.c` | the one consumer: default-loads `data/demo.rvb`, auto-detects `.rvb`/`.json` by magic bytes (`load_bin` vs the jsmn path), fits bbox, draws zoning blocks + roads + rail + water + green + **zoom-gated footprints (`B`) and tree dots (`T`)**, pan/zoom. **Drag a data file onto the window to switch towns**; `OPEN` reveals `data/`. | delete the cart |
 | `data/` (git-ignored) | the town library — every fetched `.rvb` (+ optional `.json`) lands here; the cart's `OPEN` button opens it. | `rm -rf data/` |
 
@@ -305,21 +305,21 @@ find it in Finder). You never edit the cart. Ways to fetch:
 ```bash
 # 1. by PLACE NAME — easiest. Nominatim geocodes the name, Overpass fetches the whole
 #    administrative area. Disambiguate with a country so you don't get the wrong "Delft".
-node tools/osm-roads.js --place "Utrecht, Netherlands"      # → data/utrecht-netherlands.rvb
-node tools/osm-roads.js --place "Bruges, Belgium"          # → data/bruges-belgium.rvb
+node data-tools/roadview/osm-roads.js --place "Utrecht, Netherlands"      # → data/utrecht-netherlands.rvb
+node data-tools/roadview/osm-roads.js --place "Bruges, Belgium"          # → data/bruges-belgium.rvb
 #    ⚠ a whole city can be hundreds of k ways — fine now (.rvb loads in <1s); for a tight area:
 
 # 2. by BOUNDING BOX — precise control over the area (and size). Order is S,W,N,E
 #    (south,west,north,east, in degrees). Grab one by dragging a rectangle on
 #    https://bboxfinder.com  (it prints the four numbers) or openstreetmap.org → Export.
-node tools/osm-roads.js --bbox 52.010,4.355,52.020,4.370 --name "Delft centre"
+node data-tools/roadview/osm-roads.js --bbox 52.010,4.355,52.020,4.370 --name "Delft centre"
 #                              └ S ───┘ └ W ─┘ └ N ──┘ └ E ─┘   → data/delft-centre.rvb
 
 # 3. SYNTHETIC — no network, deterministic, for testing the cart itself.
-node tools/osm-roads.js --demo                              # → data/demo.rvb
+node data-tools/roadview/osm-roads.js --demo                              # → data/demo.rvb
 
 # 4. CONVERT an existing .json → .rvb (no network); --json on any fetch also keeps the .json.
-node tools/osm-roads.js --convert data/utrecht-netherlands.json
+node data-tools/roadview/osm-roads.js --convert data/utrecht-netherlands.json
 ```
 
 Useful flags: `--name "Nice Name"` sets the title (and the `data/<slug>.rvb` filename);

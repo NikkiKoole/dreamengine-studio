@@ -8,7 +8,7 @@
     "toy"
   ],
   "teaches": [],
-  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes."
+  "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes."
 }
 de:meta */
 #include "studio.h"
@@ -24,7 +24,7 @@ de:meta */
 // (drag a file onto the window to swap it live). The renderer is identical to
 // floorwalker, so a fetched project looks exactly like the baked carts.
 //
-//   node fmltools/floorplanner.js -pid=187256440 --play   # fetch + build + launch, one command
+//   node data-tools/fmltools/floorplanner.js -pid=187256440 --play   # fetch + build + launch, one command
 //   DE_DATA=data/floorplan/187256440.json node tools/play.js floorplan run   # run a built one
 //
 // Data schema (fml2cart.js --json + fml-sprites.js --json + fml-textures.js --json):
@@ -49,7 +49,7 @@ de:meta */
 //     concrete) quantise to ~1 entry (flat); heavy --saturate turns small furniture into rainbow
 //     confetti. Dynamic bake uses gentle --saturate 1.4; textures get a luma-contrast stretch.
 //
-// NEXT / IDEAS (see fmltools/TODO.md):
+// NEXT / IDEAS (see data-tools/fmltools/TODO.md):
 //   - Object HEIGHTS for collision: rugs/mats (flat, low z-height) should be walkable, not solid
 //     boxes. Read each item's height/z and skip collision below a threshold.
 //   - Better colour: fall back to TRUE 32-bit RGB (engine supports it) instead of quantising
@@ -244,7 +244,7 @@ static void load_data(void) {
     const char *path = de_data_path();
     load_from(path ? path : DATA_DIR "/demo.json");
     if (!loaded_ok && !path)
-        snprintf(err, sizeof err, "no data -- run: node fmltools/floorplanner.js -pid=<id>  (then drop the .json here)");
+        snprintf(err, sizeof err, "no data -- run: node data-tools/fmltools/floorplanner.js -pid=<id>  (then drop the .json here)");
 }
 
 // ---- geometry helpers (identical to floorwalker) ----

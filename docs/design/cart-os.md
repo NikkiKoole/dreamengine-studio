@@ -203,7 +203,7 @@ system underneath it.
 The newest work in the repo is the proof of concept, documented in
 [`external-data-carts.md`](external-data-carts.md):
 
-- `tools/osm-roads.js --place "Delft"` writes `data/delft.json`;
+- `data-tools/roadview/osm-roads.js --place "Delft"` writes `data/delft.json`;
 - `roadview.c` loads it at runtime via `--data <file>` →
   `de_data_path()` ([`runtime/studio.c:4029`](../../runtime/studio.c), decl
   [`runtime/studio.h:793`](../../runtime/studio.h)) → vendored `runtime/json.h`;

@@ -137,9 +137,6 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              road-check.js   correctness oracle for coverage-based roads: framebuffer invariants (no naked
                              edges / strays / floating kerb) at ANY angle; --all = config-matrix gate; --overlay
              build-site.js / publish-cart.sh   build wasm carts + gallery → site/; publish + push
-             osm-roads.js    EXPERIMENTAL: fetch real OSM road geometry → "vector features" JSON/.rvb the
-                             roadview cart loads at RUNTIME (--bbox/--place/--demo/--convert); swap cities by
-                             swapping files, no cart regen (see docs/design/external-data-carts.md)
              mobile-lint.js  static report card: can a phone play this cart?
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
@@ -181,6 +178,14 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
            carts/   <name>.c (+ optional <name>.cart.js config). .cart.js exports
                     { sprites, map, charMap, mapW, mapH }; three sprite patterns — see
                     docs/guides/cart-authoring.md.
+data-tools/ per-cart DATA-acquisition tools (NOT general — that's tools/). Each subfolder feeds a
+           few specific carts with external data; see data-tools/README.md. Growing collection:
+             fmltools/   Floorplanner .fml → playable top-down level (fml2cart/fml-assets/fml-sprites,
+                         floorplanner.js fetches by project id, make-floor.sh runs the pipeline) — feeds
+                         floorwalker/seinelaan/floorplan. Has its own README + TODO + cache/ + samples/.
+             roadview/   osm-roads.js — EXPERIMENTAL: fetch real OSM road geometry → "vector features"
+                         JSON/.rvb the roadview cart loads at RUNTIME (--bbox/--place/--demo/--convert);
+                         swap cities by swapping files, no cart regen (docs/design/external-data-carts.md).
 build/     compile output (cart.c, binary, sprites.png, fonts, traces; .bake/ for live inspection)
 docs/      all project docs — start at docs/README.md. VISION.md / STATUS.md, decisions/ (ADR-lite),
            design/ (api-notes, audio-notes), guides/ (cart-authoring, sharing, debug-harness).

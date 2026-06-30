@@ -1932,7 +1932,7 @@
   },
   {
     "title": "floorplan",
-    "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
+    "description": "One cart, many floorplans: a real Floorplanner project loaded at RUNTIME (not baked) and walked top-down. Fetch any project with data-tools/fmltools/floorplanner.js -pid=<id>, then run with --data/$DE_DATA or drag the .json onto the window. Same look as floorwalker/seinelaan. WASD/arrows move, T toggles sprites vs boxes.",
     "file": "floorplan.cart.png",
     "created": "2026-06-26",
     "kind": [
@@ -1943,7 +1943,7 @@
   },
   {
     "title": "floorwalker",
-    "description": "Walk a real Floorplanner floorplan as a top-down level. An .fml file is converted by fmltools/fml2cart.js into walls (with doorways as walkable gaps and windows that block), room floors tinted per role, and furniture placed as oriented boxes. Each piece of furniture is a real top-down pixel sprite baked from Floorplanner's CDN render by fmltools/fml-assets.js (downscale + saturate + outline + palette-quantize to pico32) and embedded by fmltools/fml-sprites.js, drawn scaled to its real footprint and rotated. Segment + oriented-box collision, scanline room fills, camera follows you across the building, draw is camera-culled for 1000+ items. WASD/arrows to move, T toggles furniture sprites vs boxes. A pipeline demo for turning house plans into playable Hotline-Miami-style space.",
+    "description": "Walk a real Floorplanner floorplan as a top-down level. An .fml file is converted by data-tools/fmltools/fml2cart.js into walls (with doorways as walkable gaps and windows that block), room floors tinted per role, and furniture placed as oriented boxes. Each piece of furniture is a real top-down pixel sprite baked from Floorplanner's CDN render by data-tools/fmltools/fml-assets.js (downscale + saturate + outline + palette-quantize to pico32) and embedded by data-tools/fmltools/fml-sprites.js, drawn scaled to its real footprint and rotated. Segment + oriented-box collision, scanline room fills, camera follows you across the building, draw is camera-culled for 1000+ items. WASD/arrows to move, T toggles furniture sprites vs boxes. A pipeline demo for turning house plans into playable Hotline-Miami-style space.",
     "file": "floorwalker.cart.png",
     "created": "2026-06-12",
     "kind": [
@@ -1953,7 +1953,7 @@
     "teaches": [
       "segment-collision"
     ],
-    "lineage": "Generated from a real Floorplanner .fml file via fmltools/fml2cart.js; reuses hotline.c's move-first per-axis slide idiom but against arbitrary-angle wall segments instead of a tile grid."
+    "lineage": "Generated from a real Floorplanner .fml file via data-tools/fmltools/fml2cart.js; reuses hotline.c's move-first per-axis slide idiom but against arbitrary-angle wall segments instead of a tile grid."
   },
   {
     "title": "flyover",
@@ -4469,7 +4469,7 @@
   },
   {
     "title": "roadview",
-    "description": "Drive around REAL road data, loaded at RUNTIME. The network is neither generated nor baked into the cart — it is an OpenStreetMap export (fetched by tools/osm-roads.js, or the synthetic --demo set) read from a JSON file when the cart starts, so the SAME cart shows any town: swap the file, see a different city. This is the data-driven-cart experiment that kills the floorwalker/seinelaan smell of regenerating a cart per dataset (docs/design/external-data-carts.md). Each way is classed HIGHWAY / ARTERIAL / ROAD / TRACK and drawn in its colour at a width sized in real metres (so roads fatten as you zoom in); canals are stroked, water areas filled in blue, parks and woods filled green, and building footprints + individual street trees revealed as LOD-gated detail once you zoom in close (B toggles footprints, T toggles trees) — all beneath the roads, with the bounding box auto-fitting to the screen. Opens on data/demo.json by default — then just DRAG any .json from the data folder onto the window to load that town, or click OPEN (top-right) to reveal the folder in Finder. Built on three tiny EXPERIMENTAL engine hooks: de_data_path() (--data <file> / $DE_DATA), de_dropped_file() (drag & drop) and de_open_path() (reveal folder); the JSON is parsed by runtime/json.h (vendored jsmn). Controls: arrows / WASD pan, left-drag grabs the map, mouse wheel zooms, 0 resets the view, B toggles building footprints, T toggles trees; drag a .json to load it, OPEN reveals the data folder.",
+    "description": "Drive around REAL road data, loaded at RUNTIME. The network is neither generated nor baked into the cart — it is an OpenStreetMap export (fetched by data-tools/roadview/osm-roads.js, or the synthetic --demo set) read from a JSON file when the cart starts, so the SAME cart shows any town: swap the file, see a different city. This is the data-driven-cart experiment that kills the floorwalker/seinelaan smell of regenerating a cart per dataset (docs/design/external-data-carts.md). Each way is classed HIGHWAY / ARTERIAL / ROAD / TRACK and drawn in its colour at a width sized in real metres (so roads fatten as you zoom in); canals are stroked, water areas filled in blue, parks and woods filled green, and building footprints + individual street trees revealed as LOD-gated detail once you zoom in close (B toggles footprints, T toggles trees) — all beneath the roads, with the bounding box auto-fitting to the screen. Opens on data/demo.json by default — then just DRAG any .json from the data folder onto the window to load that town, or click OPEN (top-right) to reveal the folder in Finder. Built on three tiny EXPERIMENTAL engine hooks: de_data_path() (--data <file> / $DE_DATA), de_dropped_file() (drag & drop) and de_open_path() (reveal folder); the JSON is parsed by runtime/json.h (vendored jsmn). Controls: arrows / WASD pan, left-drag grabs the map, mouse wheel zooms, 0 resets the view, B toggles building footprints, T toggles trees; drag a .json to load it, OPEN reveals the data folder.",
     "file": "roadview.cart.png",
     "created": "2026-06-25",
     "kind": [
@@ -4479,7 +4479,7 @@
     "teaches": [
       "road-network"
     ],
-    "lineage": "Sibling of roadnet but DATA-DRIVEN rather than generative: instead of synthesising a network it loads a real OpenStreetMap export at runtime (de_data_path()/de_dropped_file() + runtime/json.h), then classes and draws the real ways. First cart to read an external data blob at runtime instead of baking geometry into source (cf. fmltools/floorwalker)."
+    "lineage": "Sibling of roadnet but DATA-DRIVEN rather than generative: instead of synthesising a network it loads a real OpenStreetMap export at runtime (de_data_path()/de_dropped_file() + runtime/json.h), then classes and draws the real ways. First cart to read an external data blob at runtime instead of baking geometry into source (cf. data-tools/fmltools/floorwalker)."
   },
   {
     "title": "robotron 2084",

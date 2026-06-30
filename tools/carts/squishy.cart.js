@@ -108,9 +108,10 @@ function patSwatch(mask) {
 const sprites = {
   0: ic_ink(), 1: ic_pen(), 2: ic_fin(), 3: ic_mrk(),
   4: ic_chk(), 5: ic_skt(), 6: ic_spr(), 7: ic_brs(),
-  8: swatch(16), 9: swatch(12), 10: swatch(8), 11: swatch(3),     // ink / blue / red / dk-green
 }
-PAT_MASKS.forEach((m, i) => { sprites[12 + i] = patSwatch(m) })   // 12.. = the dither ramp
-sprites[18] = ic_select()                                          // 18 = select-tool icon
+// 8..14 — colour swatches (must match COLORS[] in squishy.c): ink / blue / red / green / cyan / magenta / yellow
+;[16, 12, 8, 3, 19, 14, 10].forEach((c, i) => { sprites[8 + i] = swatch(c) })
+PAT_MASKS.forEach((m, i) => { sprites[15 + i] = patSwatch(m) })   // 15.. = the dither ramp
+sprites[21] = ic_select()                                          // 21 = select-tool icon
 
 module.exports = { screenW: 320, screenH: 320, scale: 3, sprites }

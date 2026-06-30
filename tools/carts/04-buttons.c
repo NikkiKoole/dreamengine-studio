@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Read the keyboard with btn() and move a character around the screen."
+  "description": "Read the keyboard with btn() and move a character around the screen.",
+  "todo": [
+    "Hook up a real gamepad controller and test that it works."
+  ]
 }
 de:meta */
 #include "studio.h"

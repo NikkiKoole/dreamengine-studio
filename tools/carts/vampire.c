@@ -13,7 +13,10 @@
   "lineage": "Vampire Survivors (2022) stripped to its minimum: auto-fire, swarm spawning, and a roguelite upgrade-pick loop — the cart teaches the three-state game loop and level-up branch more than any combat system.",
   "genre": "shooter",
   "homage": "Vampire Survivors (2022)",
-  "description": "Stay alive in a thickening swarm. You only steer — your weapon auto-fires at the nearest enemy. Kills drop XP gems; scoop them up to level, and every level you pick one of three upgrades (damage, fire rate, multishot, magnet, pierce...). Enemies spawn faster and tougher the longer you last. WASD / arrows to move; at LEVEL UP Left/Right pick and Z confirm."
+  "description": "Stay alive in a thickening swarm. You only steer — your weapon auto-fires at the nearest enemy. Kills drop XP gems; scoop them up to level, and every level you pick one of three upgrades (damage, fire rate, multishot, magnet, pierce...). Enemies spawn faster and tougher the longer you last. WASD / arrows to move; at LEVEL UP Left/Right pick and Z confirm.",
+  "todo": [
+    "Touch: add an onscreen joystick."
+  ]
 }
 de:meta */
 #include "studio.h"

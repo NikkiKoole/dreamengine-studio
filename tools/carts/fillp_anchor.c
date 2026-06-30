@@ -10,7 +10,10 @@
     "dithering-gradient"
   ],
   "lineage": "Original API demo for fillp_anchor(); shows the crawling-dither artifact that appears when a 4×4 fill lattice is world-pinned under a moving shape, and how anchoring to the shape's own center fixes it.",
-  "description": "fillp_anchor(): why a fill pattern 'crawls' under a MOVING shape and how to stop it. By default the 4x4 lattice is pinned to the world, so a shape that drifts just slides across it. Anchor the pattern to each shape's own center and the dither travels WITH it. Nine spinning, bouncing two-tone shapes (polygons + stars), each its own fg/bg color and pattern. Z toggles anchoring off so you can watch the crawl come back."
+  "description": "fillp_anchor(): why a fill pattern 'crawls' under a MOVING shape and how to stop it. By default the 4x4 lattice is pinned to the world, so a shape that drifts just slides across it. Anchor the pattern to each shape's own center and the dither travels WITH it. Nine spinning, bouncing two-tone shapes (polygons + stars), each its own fg/bg color and pattern. Z toggles anchoring off so you can watch the crawl come back.",
+  "todo": [
+    "Make the button label clickable."
+  ]
 }
 de:meta */
 #include "studio.h"

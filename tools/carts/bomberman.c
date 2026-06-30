@@ -13,7 +13,10 @@
   "lineage": "Direct port of Bomberman battle mode; novel: a precomputed danger map (flame + fuse projections) that the AI reads to flee vs. hunt, giving coherent tactical behavior from a few dozen lines.",
   "genre": "arcade",
   "homage": "Bomberman (1983)",
-  "description": "Battle mode: you (white) versus three AI bombers in a destructible maze of hard pillars and soft crates. Drop bombs that burst after a moment into a cross of flame — it breaks crates (sometimes revealing power-ups), chains other bombs, and kills any bomber it catches, including you. Grab power-ups: B = more bombs at once, F = bigger fire, S = more speed. The AI hunts crates and rivals but flees its own blasts. Last bomber standing wins. Arrows / WASD move, Z or X drops a bomb."
+  "description": "Battle mode: you (white) versus three AI bombers in a destructible maze of hard pillars and soft crates. Drop bombs that burst after a moment into a cross of flame — it breaks crates (sometimes revealing power-ups), chains other bombs, and kills any bomber it catches, including you. Grab power-ups: B = more bombs at once, F = bigger fire, S = more speed. The AI hunts crates and rivals but flees its own blasts. Last bomber standing wins. Arrows / WASD move, Z or X drops a bomb.",
+  "todo": [
+    "Better fire spritework (neighbor-aware tiling)."
+  ]
 }
 de:meta */
 #include "studio.h"

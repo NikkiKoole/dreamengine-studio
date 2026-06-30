@@ -10,7 +10,12 @@
     "l-system"
   ],
   "lineage": "Classic Lindenmayer string-rewrite turtle plants (fern/bush/tree) with a push/pop branch stack; adds animated wind and auto-fit bounding box.",
-  "description": "Watch a recursive rule grow into a tree. Start with a tiny string, rewrite every letter over and over (F becomes FF, and so on), then read the result as turtle commands: F draws, +/- turn, and [ ] push/pop a stack to remember and return to each branch fork. That stack IS the recursion. Up/down apply the rule more or fewer times to see detail emerge, left/right bend the angle, Z cycles plants (fern/bush/tree/weed), X toggles the wind."
+  "description": "Watch a recursive rule grow into a tree. Start with a tiny string, rewrite every letter over and over (F becomes FF, and so on), then read the result as turtle commands: F draws, +/- turn, and [ ] push/pop a stack to remember and return to each branch fork. That stack IS the recursion. Up/down apply the rule more or fewer times to see detail emerge, left/right bend the angle, Z cycles plants (fern/bush/tree/weed), X toggles the wind.",
+  "todo": [
+    "Growth feels backward: each iteration adds branches but the plant shrinks vertically — it should grow from small/few to bigger/more.",
+    "Changing the angle sometimes changes the plant's size for no clear reason.",
+    "Add cute pixel buttons for the various plant algorithms."
+  ]
 }
 de:meta */
 #include "studio.h"

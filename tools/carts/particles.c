@@ -11,7 +11,11 @@
     "particle-system"
   ],
   "lineage": "Classic gamedev particle-pool tutorial (fountain / explosion / smoke from the same struct array), positioned as tutorial #18 in the series.",
-  "description": "The gamedev workhorse: a pool of tiny structs, each with a position, velocity, and a life that ticks down. Move them, age them, recycle the dead ones — and the SAME system becomes a fountain, an explosion, or a puff of smoke just by changing the spawn numbers. Z = explosion, hold X = smoke."
+  "description": "The gamedev workhorse: a pool of tiny structs, each with a position, velocity, and a life that ticks down. Move them, age them, recycle the dead ones — and the SAME system becomes a fountain, an explosion, or a puff of smoke just by changing the spawn numbers. Z = explosion, hold X = smoke.",
+  "todo": [
+    "Turn the two text buttons into cute pixel buttons; keep A/B gamepad triggers working alongside touch.",
+    "Later: a more extravagant particle system for other effects (this is just one fiery fountain)."
+  ]
 }
 de:meta */
 #include "studio.h"

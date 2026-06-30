@@ -13,7 +13,13 @@
   "lineage": "Puyo Puyo (1991) falling-pair puzzle; the flood-fill group detection and chain-reaction cascade are the core mechanics, implemented from scratch over a minimal state machine.",
   "genre": "puzzle",
   "homage": "Puyo Puyo (1991)",
-  "description": "Drop pairs of colorful blobs into a narrow well, sliding and rotating them as they fall. Connect four or more of the same color and they pop in a flash of sparks — and when the collapsing stack lands into another match, it pops too, igniting a CHAIN that climbs in pitch and score the longer it runs. Chains are the whole game: a clean 5-chain rings out like a fanfare and sends the screen shaking. Stack to the top and it's over; your best score and longest chain are saved. Left/Right move, Up or Z rotate, Down soft-drop, Z to restart."
+  "description": "Drop pairs of colorful blobs into a narrow well, sliding and rotating them as they fall. Connect four or more of the same color and they pop in a flash of sparks — and when the collapsing stack lands into another match, it pops too, igniting a CHAIN that climbs in pitch and score the longer it runs. Chains are the whole game: a clean 5-chain rings out like a fanfare and sends the screen shaking. Stack to the top and it's over; your best score and longest chain are saved. Left/Right move, Up or Z rotate, Down soft-drop, Z to restart.",
+  "todo": [
+    "UI labels overlap all over the place.",
+    "Needs a start panel.",
+    "Bug: blocks that touch the ground overlap and then jump back.",
+    "Touch: onscreen joystick."
+  ]
 }
 de:meta */
 #include "studio.h"

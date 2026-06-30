@@ -13,7 +13,13 @@
   "lineage": "Harvest Moon (1996) shrunk to one screen — the tile-state crop loop (grass→tilled→planted→grown) and energy/day cycle are its direct inheritance; novel in being a complete resource loop in ~250 lines with no tilemap engine.",
   "genre": "simulation",
   "homage": "Harvest Moon (1996)",
-  "description": "A pocket Harvest-Moon day loop on one screen: walk your little plot, swap between hoe, seed pouch and watering can, and work the soil — till grass into furrows, plant a seed, splash it wet. Watered crops climb a growth stage every morning you sleep, ripening into bobbing red harvests you scoop into your bag, haul to the sell bin for gold, and spend on fresh seeds at the shop. An energy bar drains with every swing and a sun arcs across a sky that warms from peach dawn to dusk purple; sleep in the bed to bank your growth and roll to the next day, or run the clock out and pass out cold. WASD/arrows walk, 1/2/3 pick hoe/seed/can, Z use tool or interact (bed sleep, bin sell, shop buy), X sleep-or-sell, C buy a seed."
+  "description": "A pocket Harvest-Moon day loop on one screen: walk your little plot, swap between hoe, seed pouch and watering can, and work the soil — till grass into furrows, plant a seed, splash it wet. Watered crops climb a growth stage every morning you sleep, ripening into bobbing red harvests you scoop into your bag, haul to the sell bin for gold, and spend on fresh seeds at the shop. An energy bar drains with every swing and a sun arcs across a sky that warms from peach dawn to dusk purple; sleep in the bed to bank your growth and roll to the next day, or run the clock out and pass out cold. WASD/arrows walk, 1/2/3 pick hoe/seed/can, Z use tool or interact (bed sleep, bin sell, shop buy), X sleep-or-sell, C buy a seed.",
+  "todo": [
+    "The top bar overlaps part of the game world.",
+    "The feedback text disappears too quickly.",
+    "It's unclear how to harvest.",
+    "Make hoe/seed/can into cute onscreen pixel buttons; add gamepad support."
+  ]
 }
 de:meta */
 #include "studio.h"

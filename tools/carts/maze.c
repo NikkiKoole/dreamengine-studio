@@ -11,7 +11,10 @@
     "pathfinding"
   ],
   "lineage": "Standalone algorithm visualiser with no direct sibling cart; pairs recursive-backtracker carving with BFS flood-fill shortest-path solve in a single animated demo.",
-  "description": "Carve a maze, then solve it — two classic algorithms on one screen. A recursive backtracker knocks down walls to random unvisited neighbours and backs up a stack at dead ends, guaranteeing every cell is reachable. Then a breadth-first flood spreads out ring by ring from the start; the moment it touches the exit, the came-from links trace the shortest path. Z builds a fresh maze and animates the carve + solve."
+  "description": "Carve a maze, then solve it — two classic algorithms on one screen. A recursive backtracker knocks down walls to random unvisited neighbours and backs up a stack at dead ends, guaranteeing every cell is reachable. Then a breadth-first flood spreads out ring by ring from the start; the moment it touches the exit, the came-from links trace the shortest path. Z builds a fresh maze and animates the carve + solve.",
+  "todo": [
+    "Add a cute pixel button (try a larger 24×24 or 32×32 — worth a shared API), including a big 'generate again' button."
+  ]
 }
 de:meta */
 #include "studio.h"

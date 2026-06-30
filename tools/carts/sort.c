@@ -11,7 +11,11 @@
     "sonification"
   ],
   "lineage": "Sorting visualizer/sonifier: algorithms emit a recorded compare/swap event stream that's replayed slowly with pitch-mapped notes per bar.",
-  "description": "Watch and hear sorting algorithms run. A sort only ever compares and swaps; this records that stream of operations and replays it slowly, lighting the bars it touches and playing a note pitched to each bar height. Bubble, selection, insertion and quicksort each make a very different sound. Z cycles algorithm, X shuffles, up/down change speed."
+  "description": "Watch and hear sorting algorithms run. A sort only ever compares and swaps; this records that stream of operations and replays it slowly, lighting the bars it touches and playing a note pitched to each bar height. Bubble, selection, insertion and quicksort each make a very different sound. Z cycles algorithm, X shuffles, up/down change speed.",
+  "todo": [
+    "Labels run off-screen — fix layout.",
+    "Add some cute pixel buttons."
+  ]
 }
 de:meta */
 #include "studio.h"

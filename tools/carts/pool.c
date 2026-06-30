@@ -12,7 +12,10 @@
   ],
   "lineage": "Original; implements honest 2D billiards from first principles — equal-mass elastic ball collisions with rail restitution and rolling friction — drawn entirely from primitives with no sprite sheet.",
   "genre": "sports",
-  "description": "Rack 'em up: 8-ball-style billiards on one green table, two players hotseat. Fifteen colored balls and a cue ball obey honest 2D physics — equal-mass elastic collisions clack balls off each other, rails bounce with restitution, and rolling friction lets the whole table coast to a stop on its own. Aim the cue with the mouse along a dotted guide that stops at the first rail, sink object balls into the six pockets to score (pot one and you shoot again), and watch out for the scratch when the cue ball drops. Soft synth clicks, rail thunks, pocket drops and a break crack sell every contact. Clear the felt to win. MOUSE to aim, HOLD the left button to charge power then RELEASE to strike, RIGHT-CLICK or SPACE to cancel a charge, R to rack a fresh game."
+  "description": "Rack 'em up: 8-ball-style billiards on one green table, two players hotseat. Fifteen colored balls and a cue ball obey honest 2D physics — equal-mass elastic collisions clack balls off each other, rails bounce with restitution, and rolling friction lets the whole table coast to a stop on its own. Aim the cue with the mouse along a dotted guide that stops at the first rail, sink object balls into the six pockets to score (pot one and you shoot again), and watch out for the scratch when the cue ball drops. Soft synth clicks, rail thunks, pocket drops and a break crack sell every contact. Clear the felt to win. MOUSE to aim, HOLD the left button to charge power then RELEASE to strike, RIGHT-CLICK or SPACE to cancel a charge, R to rack a fresh game.",
+  "todo": [
+    "Invert the aiming: mimic pulling the cue back to bend the shot rather than aiming where you'll shoot (touch and mouse) — worth discussing."
+  ]
 }
 de:meta */
 // POOL — 8-ball-ish billiards on one table, 2-player hotseat.

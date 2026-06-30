@@ -11,7 +11,11 @@
     "state-machine"
   ],
   "lineage": "Classic Tamagotchi virtual-pet loop with a multi-stat degradation sim; the novel angle is the real-time 'while you were away' catch-up that fast-forwards neglect from epoch() delta on load.",
-  "description": "A real-time virtual pet, the slow ambient opposite of everything else here. Your blob gets hungry, bored, tired and dirty on its own, poops, can fall sick if neglected, and grows from egg to elder as it ages. Feed/play/wash/sleep/medicine to keep it happy. Saved with save()/load(), so it is still here — same age, same stats — next time you open the cart. Left/Right pick an action, Z to do it."
+  "description": "A real-time virtual pet, the slow ambient opposite of everything else here. Your blob gets hungry, bored, tired and dirty on its own, poops, can fall sick if neglected, and grows from egg to elder as it ages. Feed/play/wash/sleep/medicine to keep it happy. Saved with save()/load(), so it is still here — same age, same stats — next time you open the cart. Left/Right pick an action, Z to do it.",
+  "todo": [
+    "Bug: the outline doesn't align with the shape.",
+    "Needs mouse/touch support."
+  ]
 }
 de:meta */
 #include "studio.h"

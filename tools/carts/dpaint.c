@@ -12,7 +12,10 @@
   ],
   "lineage": "Direct homage to Amiga Deluxe Paint; adds Bayer-matrix gradient tool and live pal()-driven color cycling as the showpiece features beyond the standard paint toolkit.",
   "homage": "Deluxe Paint (1985)",
-  "description": "A full pixel-paint program - pencil/line/rect/oval/fill/airbrush/eyedropper/custom-brush/mirror/undo, plus dither PATTERN fills, a Bayer GRADIENT tool, and live COLOR CYCLING (fire/water/rainbow ramps that flow via pal()). Mouse: left=FG, right=BG, click toolbar/palette/patterns, drag for shapes. Keys: b/l/r/o/f/s/i/c/d tools, [ ] size, x swap, m mirror, h hole, u undo."
+  "description": "A full pixel-paint program - pencil/line/rect/oval/fill/airbrush/eyedropper/custom-brush/mirror/undo, plus dither PATTERN fills, a Bayer GRADIENT tool, and live COLOR CYCLING (fire/water/rainbow ramps that flow via pal()). Mouse: left=FG, right=BG, click toolbar/palette/patterns, drag for shapes. Keys: b/l/r/o/f/s/i/c/d tools, [ ] size, x swap, m mirror, h hole, u undo.",
+  "todo": [
+    "Toggle the color-cycle OFF by default."
+  ]
 }
 de:meta */
 #include "studio.h"

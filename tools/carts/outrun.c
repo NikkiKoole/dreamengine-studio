@@ -13,7 +13,13 @@
   "lineage": "Extends racer.c's segment/scanline pseudo-3D projection with a live binary stage tree, forking road ribbons, and biome palette-swaps; homage to OutRun (1986).",
   "genre": "racing",
   "homage": "OutRun (1986)",
-  "description": "A sun-drenched pseudo-3D arcade racer with BRANCHING roads. Blast down a curving, hilly highway faked from projected triangles, weave through traffic (each car packed with little passengers), and beat each checkpoint before the clock runs out. The twist: at every checkpoint the road SPLITS into two diverging ribbons with a grass island between them — steer onto the left or right fork to choose your next biome, and the scenery ahead recolours to the road you're leaning toward. Five biomes (coast, desert, city, forest, alpine) share one procedural road via pal() recolour; the stages are a binary TREE generated on the fly, so no two runs take the same path. Clip a car and you spin out for a time-costing tumble; off-road bogs you down in a cloud of dust. Engine pitch tracks your speed, tyres screech through hard corners, speed-lines streak past flat out. Reach the goal stage to win. Z / Up: gas — X / Down: brake — Left/Right: steer (and pick a fork)."
+  "description": "A sun-drenched pseudo-3D arcade racer with BRANCHING roads. Blast down a curving, hilly highway faked from projected triangles, weave through traffic (each car packed with little passengers), and beat each checkpoint before the clock runs out. The twist: at every checkpoint the road SPLITS into two diverging ribbons with a grass island between them — steer onto the left or right fork to choose your next biome, and the scenery ahead recolours to the road you're leaning toward. Five biomes (coast, desert, city, forest, alpine) share one procedural road via pal() recolour; the stages are a binary TREE generated on the fly, so no two runs take the same path. Clip a car and you spin out for a time-costing tumble; off-road bogs you down in a cloud of dust. Engine pitch tracks your speed, tyres screech through hard corners, speed-lines streak past flat out. Reach the goal stage to win. Z / Up: gas — X / Down: brake — Left/Right: steer (and pick a fork).",
+  "todo": [
+    "Bug: trees and cars flicker.",
+    "Use real polygons for the car drawing; dislike the various resolutions.",
+    "The crash roll feels weird — find something better.",
+    "Add a visible guy and girl in the car; make it look like a pico32 Testarossa."
+  ]
 }
 de:meta */
 #include "studio.h"

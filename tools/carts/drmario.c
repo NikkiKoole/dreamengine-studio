@@ -13,7 +13,11 @@
   "lineage": "Dr. Mario (1990) faithful port — falling two-color pill mechanic with a multi-phase resolve loop (control → clear-blink → gravity settle → chain) that is the conceptual heart; chain combos and the rising-arpeggio feedback are its juice layer.",
   "genre": "puzzle",
   "homage": "Dr. Mario (1990)",
-  "description": "A virus-busting pill puzzler. The doctor drops two-color capsules into a bottle crawling with red, blue, and yellow viruses — steer them down, twist them around, and line up four or more of one color across or down to wipe them out. Every clear flashes white and kicks the screen; loose capsule-halves rain down afterward and can chain into bigger combos with a rising arpeggio. Empty the bottle of every virus to beat the level and seed a tougher one; choke the neck and you top out. Best score is saved. Left/Right move, Up rotates, Down soft-drops, Z/X start the next level or restart."
+  "description": "A virus-busting pill puzzler. The doctor drops two-color capsules into a bottle crawling with red, blue, and yellow viruses — steer them down, twist them around, and line up four or more of one color across or down to wipe them out. Every clear flashes white and kicks the screen; loose capsule-halves rain down afterward and can chain into bigger combos with a rising arpeggio. Empty the bottle of every virus to beat the level and seed a tougher one; choke the neck and you top out. Best score is saved. Left/Right move, Up rotates, Down soft-drops, Z/X start the next level or restart.",
+  "todo": [
+    "The win panel needs more space — text overlaps.",
+    "Touch: onscreen joystick."
+  ]
 }
 de:meta */
 #include "studio.h"

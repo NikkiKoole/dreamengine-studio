@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Add an enemy that chases you. Collision, game over, and restart."
+  "description": "Add an enemy that chases you. Collision, game over, and restart.",
+  "todo": [
+    "Touch: onscreen joystick, and a way to get past the intro page on touch."
+  ]
 }
 de:meta */
 #include "studio.h"

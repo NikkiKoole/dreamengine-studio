@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Open the sprites tab, draw a 16×16 character in slot 1, then see it move."
+  "description": "Open the sprites tab, draw a 16×16 character in slot 1, then see it move.",
+  "todo": [
+    "Touch: needs an onscreen joystick."
+  ]
 }
 de:meta */
 #include "studio.h"

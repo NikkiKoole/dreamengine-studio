@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Paint tiles in the map editor. Your player walks through the world and the camera follows."
+  "description": "Paint tiles in the map editor. Your player walks through the world and the camera follows.",
+  "todo": [
+    "Touch: add an onscreen joystick, enabled in code (not via settings) so a compiled cart on a touch device shows it — with a poke-only variant (no buttons)."
+  ]
 }
 de:meta */
 #include "studio.h"

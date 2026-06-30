@@ -11,7 +11,11 @@
     "l-system"
   ],
   "lineage": "Stand-alone L-system turtle garden; the pocket turtle (push/pop stack + heading + line()) is derived from the 16-spirograph idiom, extended with branching state and day-stepped iterative rewriting across three species.",
-  "description": "A calm L-system turtle garden at twilight: click the soil to plant a seed (cycles fern/bush/tree), then press space or X to advance a day and watch every plant rewrite its L-system one iteration further — sprouts branch into ferns, bushes, and trees that sway in the wind. Controls: click or Z to plant, space or X to advance the day."
+  "description": "A calm L-system turtle garden at twilight: click the soil to plant a seed (cycles fern/bush/tree), then press space or X to advance a day and watch every plant rewrite its L-system one iteration further — sprouts branch into ferns, bushes, and trees that sway in the wind. Controls: click or Z to plant, space or X to advance the day.",
+  "todo": [
+    "New plants only appear around the middle of the screen, never at the start or end.",
+    "Add cute onscreen A/B buttons."
+  ]
 }
 de:meta */
 #include "studio.h"

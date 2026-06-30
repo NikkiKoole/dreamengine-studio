@@ -12,7 +12,10 @@
   "lineage": "Homage to Katamari Damacy: a sticky-ball swallow loop in a world larger than the screen, panned with camera(); the dither fill patterns give each absorbed item a shaded-sphere read cheaply.",
   "genre": "sandbox",
   "homage": "Katamari Damacy (2004)",
-  "description": "Roll a sticky ball around a field of junk and swallow everything smaller than you — each thing you eat grows you (by area) and sticks to the ball, until the stuff that used to block you becomes snack too. Soak up as much as you can in 60 seconds. WASD / arrows to roll, Z to replay."
+  "description": "Roll a sticky ball around a field of junk and swallow everything smaller than you — each thing you eat grows you (by area) and sticks to the ball, until the stuff that used to block you becomes snack too. Soak up as much as you can in 60 seconds. WASD / arrows to roll, Z to replay.",
+  "todo": [
+    "Use this cart to showcase the engine's drawing capabilities — make the objects far more interesting."
+  ]
 }
 de:meta */
 #include "studio.h"

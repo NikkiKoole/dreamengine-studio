@@ -11,7 +11,12 @@
     "subtractive-synth"
   ],
   "lineage": "Original sound-design toy; shows how chip-music glissando is built from a rapid stream of short hit() calls with pitch bend and wobble rather than any single sustained voice.",
-  "description": "A fart synthesizer that is secretly a sound-design lesson. Every rich sound is many simple notes over time: hold the trigger and the cart fires a fast stream of short notes whose pitch slides (BEND) and wobbles (WOBBLE) through a chosen WAVEFORM, fading out at the end — exactly how chip music fakes a glissando. Six knobs and six presets. W/S pick a knob, A/D turn it, Z lets it rip, X cycles presets."
+  "description": "A fart synthesizer that is secretly a sound-design lesson. Every rich sound is many simple notes over time: hold the trigger and the cart fires a fast stream of short notes whose pitch slides (BEND) and wobbles (WOBBLE) through a chosen WAVEFORM, fading out at the end — exactly how chip music fakes a glissando. Six knobs and six presets. W/S pick a knob, A/D turn it, Z lets it rip, X cycles presets.",
+  "todo": [
+    "Mouse/touch: make the sliders work, and clicking the cushion should rip too.",
+    "Add cute pixel buttons for the presets.",
+    "Add some reverb/echo to fatten it up."
+  ]
 }
 de:meta */
 #include "studio.h"

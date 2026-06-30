@@ -13,7 +13,14 @@
   "lineage": "Built directly on the zak.c SCUMM verb/hotspot engine; novel in layering a multi-condition win state (props + dialogue line together) and a walking-to-act proximity system over that chassis.",
   "genre": "adventure",
   "homage": "Leisure Suit Larry (1987)",
-  "description": "A sleazy-lounge point-and-click in the Sierra tradition, played for groans. You're Larry Laffer — polyester suit, gold medallion, hopeful mustache — at the neon-lit Lucky Lips Lounge, out to charm Roxy the cocktail waitress into a date. She's heard every line, so you'll need to swipe the right props and pick the right words: TAKE the rose off the bar, USE the MUSK MAGNET cologne dispenser, feed the jukebox a borrowed quarter, then sashay to the back booth and TALK your way through a menu of pickup lines. Most earn a withering eye-roll (or a full-on SLAP that shakes the screen); arrive holding both props and pick the genuinely smooth line and the candlelit night is yours. Built on the SCUMM verb/inventory scene engine across two velvet rooms, with cheeky PG-13 innuendo only. Mouse only: click a verb (Look/Use/Take/Talk), then a hotspot to act or the floor to walk; click an inventory slot to hold an item then a hotspot to use it; click a dialogue line in the booth; click to play again."
+  "description": "A sleazy-lounge point-and-click in the Sierra tradition, played for groans. You're Larry Laffer — polyester suit, gold medallion, hopeful mustache — at the neon-lit Lucky Lips Lounge, out to charm Roxy the cocktail waitress into a date. She's heard every line, so you'll need to swipe the right props and pick the right words: TAKE the rose off the bar, USE the MUSK MAGNET cologne dispenser, feed the jukebox a borrowed quarter, then sashay to the back booth and TALK your way through a menu of pickup lines. Most earn a withering eye-roll (or a full-on SLAP that shakes the screen); arrive holding both props and pick the genuinely smooth line and the candlelit night is yours. Built on the SCUMM verb/inventory scene engine across two velvet rooms, with cheeky PG-13 innuendo only. Mouse only: click a verb (Look/Use/Take/Talk), then a hotspot to act or the floor to walk; click an inventory slot to hold an item then a hotspot to use it; click a dialogue line in the booth; click to play again.",
+  "todo": [
+    "Text overlaps and runs off-screen — use a smaller font.",
+    "When talking to ladies, show a close-up; make the bigger face respond to your words.",
+    "Bigger idea: let the player go outside, wander the street, get run over by a car, get into an alley fight.",
+    "The jukebox should actually play a song (reuse a radio cart).",
+    "Win screen fades to half (like Monkey Island)."
+  ]
 }
 de:meta */
 #include "studio.h"

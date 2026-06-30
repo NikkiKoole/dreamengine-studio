@@ -13,7 +13,10 @@
   "lineage": "Homage to Sopwith (1984); the flight model (thrust along nose angle, gravity, drag — Euler) and the enemy angle_to steering chase are the two technical ideas; everything else is standard shooter structure.",
   "genre": "shooter",
   "homage": "Sopwith (1984)",
-  "description": "A WWI biplane bomber with a real flight model — the engine pushes you forward along the nose, gravity always pulls down, drag bleeds speed, so you stall if you climb too steeply and loop if you hold up. Bomb every enemy hangar and dogfight the red planes. W/S pitch the nose, Z machine gun, X drop a bomb."
+  "description": "A WWI biplane bomber with a real flight model — the engine pushes you forward along the nose, gravity always pulls down, drag bleeds speed, so you stall if you climb too steeply and loop if you hold up. Bomb every enemy hangar and dogfight the red planes. W/S pitch the nose, Z machine gun, X drop a bomb.",
+  "todo": [
+    "Feels weird — look up how the original worked more precisely."
+  ]
 }
 de:meta */
 #include "studio.h"

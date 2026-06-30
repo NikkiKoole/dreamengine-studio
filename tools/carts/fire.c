@@ -13,7 +13,11 @@
   "lineage": "Demake of Nintendo's Fire! Game & Watch (1980); juggling timing loop with gravity and particle bursts on misses, structurally straightforward.",
   "genre": "arcade",
   "homage": "Fire! (Game & Watch, 1980)",
-  "description": "Demake of the 1980 Nintendo Game & Watch. People leap from a burning building — run left/right with the firefighters' rescue net to bounce them across the screen and into the ambulance. Each bounce flings them further right, so you juggle new jumpers off the building while shepherding others along. Miss one and they hit the ground; three misses ends it. Speeds up as you rack up rescues, best score saved. Left/Right or A/D to move the net."
+  "description": "Demake of the 1980 Nintendo Game & Watch. People leap from a burning building — run left/right with the firefighters' rescue net to bounce them across the screen and into the ambulance. Each bounce flings them further right, so you juggle new jumpers off the building while shepherding others along. Miss one and they hit the ground; three misses ends it. Speeds up as you rack up rescues, best score saved. Left/Right or A/D to move the net.",
+  "todo": [
+    "It's impossible to catch the second baby in time.",
+    "The original uses a few discrete steps, which enables more complex bounciness."
+  ]
 }
 de:meta */
 #include "studio.h"

@@ -13,7 +13,10 @@
   "lineage": "Epyx Summer Games (1984) demake; introduces the event-shell idiom (shared MENU→READY→RUN→RESULT scaffold reused by calgames and excitebike siblings) and a button-alternation mash mechanic with a clutch-press timing window.",
   "genre": "sports",
   "homage": "Summer Games (1984)",
-  "description": "Button-mash track and field in the Track & Field arcade lineage: pick an event off a sunlit stadium menu, then hammer two keys to build raw speed and nail one clutch press. TWO events on a shared event-shell — 100M SPRINT (mash Z/X to sprint, then dip at the tape with a timed LEAN) and LONG JUMP (mash the runway, then stab JUMP at the best takeoff angle on a sweeping needle — overrun the foul board and it's a SCRATCH). A scoreboard panel tracks your personal best per event, saved between runs, with crowd-roar swells, footfall ticks pitched to your speed, dust off the feet, screen shake and a fanfare on a new record. Menu: Up/Down choose, Z start. In an event: alternate Z and X to run, press UP to lean/jump, X or ESC backs out."
+  "description": "Button-mash track and field in the Track & Field arcade lineage: pick an event off a sunlit stadium menu, then hammer two keys to build raw speed and nail one clutch press. TWO events on a shared event-shell — 100M SPRINT (mash Z/X to sprint, then dip at the tape with a timed LEAN) and LONG JUMP (mash the runway, then stab JUMP at the best takeoff angle on a sweeping needle — overrun the foul board and it's a SCRATCH). A scoreboard panel tracks your personal best per event, saved between runs, with crowd-roar swells, footfall ticks pitched to your speed, dust off the feet, screen shake and a fanfare on a new record. Menu: Up/Down choose, Z start. In an event: alternate Z and X to run, press UP to lean/jump, X or ESC backs out.",
+  "todo": [
+    "Input bug: alternating Z/X is needed, but X takes you back to the start, so you can't get past it."
+  ]
 }
 de:meta */
 #include "studio.h"

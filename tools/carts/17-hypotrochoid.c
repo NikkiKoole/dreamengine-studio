@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "A point on a small circle rolling inside a larger one traces an intricate curve. Four presets (8-loop, 5-petal, 9-loop, trefoil) — press A to cycle. Uses the parametric equation directly with cos_deg and sin_deg."
+  "description": "A point on a small circle rolling inside a larger one traces an intricate curve. Four presets (8-loop, 5-petal, 9-loop, trefoil) — press A to cycle. Uses the parametric equation directly with cos_deg and sin_deg.",
+  "todo": [
+    "Add a single big cute pixel button to advance to the next; display the curve's name on screen."
+  ]
 }
 de:meta */
 #include "studio.h"

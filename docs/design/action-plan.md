@@ -146,9 +146,10 @@ Listed so the plan exists, **not** so it gets built now.
 
 ## Cart-polish backlog (the all-carts log, made systemic)
 
-`docs/cart-polish-punchlist.md` is the authoritative per-cart punch-list. It's mostly
-*polish*, but the same fixes recur across many carts — handle those **once, systemically**, then
-sweep:
+The per-cart punch-list now lives **in the carts** — each cart's `de:meta.todo[]` block (query
+with `node tools/cart-todos.js`); [`../cart-polish-punchlist.md`](../cart-polish-punchlist.md) is
+now just the pointer + the maker's framing notes. It's mostly *polish*, but the same fixes recur
+across many carts — handle those **once, systemically**, then sweep:
 
 - [ ] **Touch movement affordance — the recommended NEXT for iOS (2026-06-29).** A shared onscreen
   **joystick / d-pad** widget (joystick for free movement, d-pad for grid games), opt-in per cart **in

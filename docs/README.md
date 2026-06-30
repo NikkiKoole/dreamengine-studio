@@ -17,7 +17,7 @@ docs/
 ├── VISION.md          why & what: product idea, audience, philosophy, console spec
 ├── STATUS.md          state: the one ledger of shipped / open / cut
 ├── POLISH_TODO.md     work list: the per-game "juice pass" across the carts (dormant idea-bank)
-├── cart-polish-punchlist.md  work list: the LIVE per-cart punch-list (graduated from the journal); the systemic items are distilled into design/action-plan.md
+├── cart-polish-punchlist.md  MIGRATED pointer: per-cart polish items now live in each cart's de:meta.todo[] (query: node tools/cart-todos.js); this file keeps the maker's framing notes. Systemic items → design/action-plan.md
 ├── HANDOFF.md         narrative + environment gotchas (not obvious from code/git)
 ├── decisions/         frozen, dated decisions (ADR-lite) — the "why we (didn't) do X"
 ├── design/            exploratory design notes (scratchpads) — rationale + proposals

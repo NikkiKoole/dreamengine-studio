@@ -7,7 +7,11 @@
     "tech-demo"
   ],
   "teaches": [],
-  "description": "Demonstrates the camera + world-space mouse combo. Plant flags in a world 3 screens wide, then SCROLL, ZOOM (mouse wheel) and ROTATE (Q/E) the whole view with camera_ex(x,y,zoom,angle) - and mouse_world_x/y() still lands your clicks exactly on the world, doing the full inverse of scroll+zoom+rotation in one line (a nasty matrix you'd otherwise hand-roll). save_int(\"most_flags\", ...) / load_int() remember your best count by name across runs - no magic slot numbers. Click: plant. Arrows: scroll. Wheel: zoom. Q/E: rotate. X: clear (best stays saved)."
+  "description": "Demonstrates the camera + world-space mouse combo. Plant flags in a world 3 screens wide, then SCROLL, ZOOM (mouse wheel) and ROTATE (Q/E) the whole view with camera_ex(x,y,zoom,angle) - and mouse_world_x/y() still lands your clicks exactly on the world, doing the full inverse of scroll+zoom+rotation in one line (a nasty matrix you'd otherwise hand-roll). save_int(\"most_flags\", ...) / load_int() remember your best count by name across runs - no magic slot numbers. Click: plant. Arrows: scroll. Wheel: zoom. Q/E: rotate. X: clear (best stays saved).",
+  "todo": [
+    "Mouse: support world drag (perhaps only with middle button held, so it doesn't interfere with flag-adding).",
+    "Add onscreen buttons for rotate and clear; the rotate button is interesting to test click-vs-hold (hold = continuous trigger)."
+  ]
 }
 de:meta */
 #include "studio.h"

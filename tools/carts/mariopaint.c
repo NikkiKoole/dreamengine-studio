@@ -13,7 +13,10 @@
   ],
   "lineage": "Homage to Mario Paint Composer (1992); novel in that each stamp is a distinct synth voice and rows snap to a musical scale via degree(), so everything sounds harmonic by construction.",
   "homage": "Mario Paint (1992)",
-  "description": "A melodic music toy in the spirit of Mario Paint's Sound mode. Stamp six cute critters — cat, star, mushroom, note, heart, flower, each its own synth voice (custom ADSR/filter/duty/LFO on slots 5-10) - onto an 11-row x 16-step pitch grid, then hit PLAY and a glowing playhead sweeps the bar singing your tune. Every row snaps to a scale (toggle PENTA/MAJOR) so it always sounds nice; notes squash-pop and flash white as the playhead strikes them. The transport rides the synth's own beat() clock, and your whole song persists between runs via save_bytes(). Mouse: click the grid to stamp the selected critter, click again or right-click to erase, click a critter to pick it; buttons for PLAY/STOP, -/+ tempo, SCALE, CLEAR, SAVE, LOAD. Keys: SPACE play/stop, 1-6 pick critter, C clear, M scale, S save, L load, arrows tempo."
+  "description": "A melodic music toy in the spirit of Mario Paint's Sound mode. Stamp six cute critters — cat, star, mushroom, note, heart, flower, each its own synth voice (custom ADSR/filter/duty/LFO on slots 5-10) - onto an 11-row x 16-step pitch grid, then hit PLAY and a glowing playhead sweeps the bar singing your tune. Every row snaps to a scale (toggle PENTA/MAJOR) so it always sounds nice; notes squash-pop and flash white as the playhead strikes them. The transport rides the synth's own beat() clock, and your whole song persists between runs via save_bytes(). Mouse: click the grid to stamp the selected critter, click again or right-click to erase, click a critter to pick it; buttons for PLAY/STOP, -/+ tempo, SCALE, CLEAR, SAVE, LOAD. Keys: SPACE play/stop, 1-6 pick critter, C clear, M scale, S save, L load, arrows tempo.",
+  "todo": [
+    "Some overlapping labels."
+  ]
 }
 de:meta */
 #include "studio.h"

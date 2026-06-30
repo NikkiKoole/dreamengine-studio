@@ -12,7 +12,11 @@
   ],
   "lineage": "Descends from katamari (same grow-by-eating loop, same world-bigger-than-screen pan) but replaces static objects with a live boid flock whose four-urge steering (separation / alignment / cohesion / flee) is the conceptual core.",
   "genre": "sandbox",
-  "description": "Katamari x boids: roll a growing ball through a panicking flock that bolts harder the closer you get, swallowing any critter smaller than you to snowball toward the size goal before time runs out. WASD/arrows to roll, Z to replay."
+  "description": "Katamari x boids: roll a growing ball through a panicking flock that bolts harder the closer you get, swallowing any critter smaller than you to snowball toward the size goal before time runs out. WASD/arrows to roll, Z to replay.",
+  "todo": [
+    "Touch: needs an onscreen joystick.",
+    "Feels a bit random — vary enemy speed to help."
+  ]
 }
 de:meta */
 #include "studio.h"

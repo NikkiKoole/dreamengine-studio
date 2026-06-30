@@ -7,7 +7,11 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "A complete game — move your player, catch the star, hear the sound, beat your score."
+  "description": "A complete game — move your player, catch the star, hear the sound, beat your score.",
+  "todo": [
+    "The star to catch isn't visible.",
+    "Touch: onscreen joystick."
+  ]
 }
 de:meta */
 #include "studio.h"

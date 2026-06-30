@@ -12,7 +12,10 @@
   "lineage": "Direct tribute to Activision Pitfall! (1982); replaces the original LFSR world generator with a deterministic hash-per-screen (shash), adds a pendulum-style vine swing computed from a sine of elapsed time rather than real pendulum physics.",
   "genre": "platformer",
   "homage": "Pitfall! (1982)",
-  "description": "A tribute to Pitfall! (1982). Run through a procedurally generated jungle, jumping rolling logs and open holes, swinging across tar pits on a vine, and grabbing gold before the 2-minute clock runs out — with three lives. LEFT/RIGHT run (walk off a screen edge to reach the next screen), A jumps; in mid-air over a tar pit, A grabs the vine and A again lets go, so time your swing. Each screen is built from its number, so the jungle is the same every visit, just like the original."
+  "description": "A tribute to Pitfall! (1982). Run through a procedurally generated jungle, jumping rolling logs and open holes, swinging across tar pits on a vine, and grabbing gold before the 2-minute clock runs out — with three lives. LEFT/RIGHT run (walk off a screen edge to reach the next screen), A jumps; in mid-air over a tar pit, A grabs the vine and A again lets go, so time your swing. Each screen is built from its number, so the jungle is the same every visit, just like the original.",
+  "todo": [
+    "Bug: can't get off the rope."
+  ]
 }
 de:meta */
 #include "studio.h"

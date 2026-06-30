@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Track a number and show it on screen. Press buttons to score and reset."
+  "description": "Track a number and show it on screen. Press buttons to score and reset.",
+  "todo": [
+    "Idea: use this cart to trigger touch-overlay buttons instead of Z/X — worth discussing."
+  ]
 }
 de:meta */
 #include "studio.h"

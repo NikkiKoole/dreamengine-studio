@@ -7,7 +7,10 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Mash buttons for 10 seconds. Your best score saves between runs with save() and load()."
+  "description": "Mash buttons for 10 seconds. Your best score saves between runs with save() and load().",
+  "todo": [
+    "Optional: support mouse/touch."
+  ]
 }
 de:meta */
 #include "studio.h"

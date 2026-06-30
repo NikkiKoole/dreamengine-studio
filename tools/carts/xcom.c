@@ -15,7 +15,10 @@
   "lineage": "Demake of XCOM: Enemy Unknown (2012); novel in adding a persistent cross-mission soldier roster (save_bytes), procedurally noise-scattered cover maps, and overwatch reaction fire.",
   "genre": "tactics",
   "homage": "X-COM: UFO Defense (1994)",
-  "description": "Turn-based squad tactics against the alien threat. Move 4 soldiers across a procedurally scattered cover map, take percentage-chance shots with a live hit/crit forecast, duck behind half/full cover (shown as shields), and set OVERWATCH to snap-fire at anything that moves. Fog-of-war hides the battlefield until your soldiers see it; alien pods activate and scatter to cover with an alarm when spotted. Soldiers you name, keep and promote between missions in a light barracks screen — and lose for good if they fall (the roster persists). Mouse: click a soldier, click a tile to move (range shown) or an enemy to open the shot, then FIRE; buttons for OVERWATCH / HUNKER / RELOAD / END TURN. Keyboard: arrows move the cursor, Z act, X cancel, O/H/R actions, E end turn, TAB next soldier. Wipe out every alien to win."
+  "description": "Turn-based squad tactics against the alien threat. Move 4 soldiers across a procedurally scattered cover map, take percentage-chance shots with a live hit/crit forecast, duck behind half/full cover (shown as shields), and set OVERWATCH to snap-fire at anything that moves. Fog-of-war hides the battlefield until your soldiers see it; alien pods activate and scatter to cover with an alarm when spotted. Soldiers you name, keep and promote between missions in a light barracks screen — and lose for good if they fall (the roster persists). Mouse: click a soldier, click a tile to move (range shown) or an enemy to open the shot, then FIRE; buttons for OVERWATCH / HUNKER / RELOAD / END TURN. Keyboard: arrows move the cursor, Z act, X cancel, O/H/R actions, E end turn, TAB next soldier. Wipe out every alien to win.",
+  "todo": [
+    "Some overlapping text."
+  ]
 }
 de:meta */
 #include "studio.h"

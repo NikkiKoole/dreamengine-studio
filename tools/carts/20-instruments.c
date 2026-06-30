@@ -7,7 +7,11 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "An instrument is a waveform + an ADSR envelope (+ pulse duty), defined once with instrument() then played like any wave: note(midi, slot, vol). Defines four — PLUCK, PAD, LEAD, STAB — and draws each one's volume-over-time envelope so you can SEE the difference a fast vs slow attack and a short vs long release makes. An arpeggio cycles through all four so you hear them. 1-4 select, Z plays the selected one."
+  "description": "An instrument is a waveform + an ADSR envelope (+ pulse duty), defined once with instrument() then played like any wave: note(midi, slot, vol). Defines four — PLUCK, PAD, LEAD, STAB — and draws each one's volume-over-time envelope so you can SEE the difference a fast vs slow attack and a short vs long release makes. An arpeggio cycles through all four so you hear them. 1-4 select, Z plays the selected one.",
+  "todo": [
+    "Add an onscreen toggle to stop/start the auto-play.",
+    "Make the four instrument blocks clickable — play when clicked."
+  ]
 }
 de:meta */
 #include "studio.h"

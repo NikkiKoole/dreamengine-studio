@@ -9,7 +9,12 @@
   "teaches": [
     "verlet-integration"
   ],
-  "description": "How games fake rope and cloth, cheaply. The rope is a line of points; each frame every point keeps moving the way it was already going (Verlet integration stores the previous position) and gravity tugs it down. Then the links are relaxed a few times — nudging each pair back to the right segment length — and believable rope falls out, no springs or forces. Arrows swing the anchor, Z flicks the tail, X flips gravity."
+  "description": "How games fake rope and cloth, cheaply. The rope is a line of points; each frame every point keeps moving the way it was already going (Verlet integration stores the previous position) and gravity tugs it down. Then the links are relaxed a few times — nudging each pair back to the right segment length — and believable rope falls out, no springs or forces. Arrows swing the anchor, Z flicks the tail, X flips gravity.",
+  "todo": [
+    "Mouse: let the player position the root, and make the red anchor draggable.",
+    "Add a knob to change rope length.",
+    "Replace the Z/X actions with cute pixel buttons."
+  ]
 }
 de:meta */
 #include "studio.h"

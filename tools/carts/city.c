@@ -12,7 +12,10 @@
   "lineage": "Homage to SimCity (1989); the R/C/I demand feedback loop where road-adjacent zones grow or shrink each tick based on supply/demand imbalance is the conceptual core — a simple CA-style simulation.",
   "genre": "simulation",
   "homage": "SimCity (1989)",
-  "description": "A little SimCity, mouse-driven. Pick a tool from the bottom bar, then click & drag on the map to build. Zone land Residential, Commercial or Industrial and connect it with Roads — zoned land only develops next to a road. Watch the R/C/I demand bars up top: build what is in demand and the city grows; taxes from buildings fund more building. Left-drag = build, right-drag = bulldoze, A cycles tools."
+  "description": "A little SimCity, mouse-driven. Pick a tool from the bottom bar, then click & drag on the map to build. Zone land Residential, Commercial or Industrial and connect it with Roads — zoned land only develops next to a road. Watch the R/C/I demand bars up top: build what is in demand and the city grows; taxes from buildings fund more building. Left-drag = build, right-drag = bulldoze, A cycles tools.",
+  "todo": [
+    "Smarter tile-neighbor checking so roads orient correctly based on their neighbors."
+  ]
 }
 de:meta */
 #include "studio.h"

@@ -13,7 +13,10 @@
   "lineage": "Tribute to Taito's Bubble Bobble (1986); monsters cycle through a FREE/BUBBLED/FRUIT FSM that mirrors the original's trap-and-pop loop.",
   "genre": "platformer",
   "homage": "Bubble Bobble (1986)",
-  "description": "A tribute to Bubble Bobble. You are Bub, the bubble dragon: run and jump across the platforms, press B to blow a bubble that drifts up and traps a monster, then jump into the trapped monster to POP it into fruit — grab the fruit for points. Clear every monster to advance to the next, tougher wave. Don’t touch a free monster or you lose one of your three lives. LEFT/RIGHT run, A jumps, B blows a bubble."
+  "description": "A tribute to Bubble Bobble. You are Bub, the bubble dragon: run and jump across the platforms, press B to blow a bubble that drifts up and traps a monster, then jump into the trapped monster to POP it into fruit — grab the fruit for points. Clear every monster to advance to the next, tougher wave. Don’t touch a free monster or you lose one of your three lives. LEFT/RIGHT run, A jumps, B blows a bubble.",
+  "todo": [
+    "When a captured enemy in a bubble floats to the top, there's no way to catch it — the original had a way back into the game."
+  ]
 }
 de:meta */
 #include "studio.h"

@@ -10,7 +10,12 @@
     "pathfinding"
   ],
   "lineage": "Single priority-queue loop reused as BFS/Greedy/A* so the search frontier differences are visible side by side; hand-seeded serpentine walls.",
-  "description": "Watch a search find its way around walls — the SAME loop runs three classic algorithms so you can see the difference. BFS floods evenly in every direction (ignores the goal); GREEDY rushes straight at the goal and gets fooled by walls; A* combines distance-so-far plus an estimate, so it's informed and optimal. Frontier cells glow bright, visited cells fade, the final path lights up yellow, and it re-animates on a loop. Move the cursor and press A to draw/erase walls, B to switch algorithm — and watch it re-solve live."
+  "description": "Watch a search find its way around walls — the SAME loop runs three classic algorithms so you can see the difference. BFS floods evenly in every direction (ignores the goal); GREEDY rushes straight at the goal and gets fooled by walls; A* combines distance-so-far plus an estimate, so it's informed and optimal. Frontier cells glow bright, visited cells fade, the final path lights up yellow, and it re-animates on a loop. Move the cursor and press A to draw/erase walls, B to switch algorithm — and watch it re-solve live.",
+  "todo": [
+    "Support the mouse: drag start and end; add a wall-draw button and an eraser as cute pixel buttons.",
+    "Add cute pixel buttons for the various path algorithms.",
+    "Don't auto-restart when the path completes."
+  ]
 }
 de:meta */
 #include "studio.h"

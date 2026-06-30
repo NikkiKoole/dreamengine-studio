@@ -7,7 +7,11 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "A gallery of the visual + game-feel calls: print_scaled (big text), spr_rot (spin a sprite), sspr_ex (scale+rotate+pivot), oval/ovalfill, pal() recolor, shake(), fade(), bar() meters, blink(), and dt() for framerate-independent timing. Z: shake, hold X: fade, hold UP: drain the boost bar."
+  "description": "A gallery of the visual + game-feel calls: print_scaled (big text), spr_rot (spin a sprite), sspr_ex (scale+rotate+pivot), oval/ovalfill, pal() recolor, shake(), fade(), bar() meters, blink(), and dt() for framerate-independent timing. Z: shake, hold X: fade, hold UP: drain the boost bar.",
+  "todo": [
+    "Fade doesn't go all the way to black.",
+    "Turn the buttons into cute pixel buttons, also gamepad-supported."
+  ]
 }
 de:meta */
 #include "studio.h"

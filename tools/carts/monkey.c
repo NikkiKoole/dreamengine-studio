@@ -14,7 +14,13 @@
   "lineage": "Monkey Island 1 (LucasArts 1990) — SCUMM-style verb/hotspot adventure with the insult sword-fight as a playable duel mechanic built on a randomised retort table.",
   "genre": "adventure",
   "homage": "The Secret of Monkey Island (1990)",
-  "description": "A bite-size SCUMM point-and-click on the docks of Mêlée Island, in the spirit of The Secret of Monkey Island. Pick a verb (Look / Talk / Use / Take), click a hotspot, walk over and act: grab the rusty cutlass off a crate, read the notice board, eye the moored ship. Talk to the Sword Master through a branching dialogue tree until she challenges you to the signature insult sword-fight — a turn-based war of WORDS where she hurls an insult and you must click the one comeback that actually answers it (then press your own attack while she sometimes flubs hers). Land three exchanges to win and earn the title of pirate; clang a wrong line and the screen shakes red. Controls: mouse picks a verb then a hotspot; click the floor to walk, click an inventory item to hold then a hotspot to use it; in conversation and in the duel click a line or press its number (1-4); SPACE/ESC clears a message, click to duel again on the end card."
+  "description": "A bite-size SCUMM point-and-click on the docks of Mêlée Island, in the spirit of The Secret of Monkey Island. Pick a verb (Look / Talk / Use / Take), click a hotspot, walk over and act: grab the rusty cutlass off a crate, read the notice board, eye the moored ship. Talk to the Sword Master through a branching dialogue tree until she challenges you to the signature insult sword-fight — a turn-based war of WORDS where she hurls an insult and you must click the one comeback that actually answers it (then press your own attack while she sometimes flubs hers). Land three exchanges to win and earn the title of pirate; clang a wrong line and the screen shakes red. Controls: mouse picks a verb then a hotspot; click the floor to walk, click an inventory item to hold then a hotspot to use it; in conversation and in the duel click a line or press its number (1-4); SPACE/ESC clears a message, click to duel again on the end card.",
+  "todo": [
+    "Text overlaps and runs off-screen — use a smaller font.",
+    "Sort actors by y so the character can walk in front of/behind props.",
+    "Add a simple iMUSE-like musical layer that responds to what you're doing (we have the tools).",
+    "Win state should fade the screen to half."
+  ]
 }
 de:meta */
 #include "studio.h"

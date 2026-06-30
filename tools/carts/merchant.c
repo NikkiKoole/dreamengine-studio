@@ -13,7 +13,11 @@
   "lineage": "Descends from Taipan! (1982); the novelty is a readable price-band market UI with per-port skew, daily drift, and rare shortage/glut events that visibly shift arbitrage.",
   "genre": "tycoon",
   "homage": "Taipan! (1982)",
-  "description": "Age-of-sail buy-low/sell-high trading sim: 4 ports, 6 goods, daily price drift, shortages/gluts, storms & pirates, a ticking debt and a 40-day clock. MOUSE: click a good to BUY 1, right-click SELL 1; bottom bar BUY/SELL/QTY/DEBT/SET SAIL; click a port on the chart to sail. KEYS: up/down pick a good, Z buy / X sell, Q cycle qty, D moneylender, M or ENTER open the chart (left/right pick port, ENTER sails)."
+  "description": "Age-of-sail buy-low/sell-high trading sim: 4 ports, 6 goods, daily price drift, shortages/gluts, storms & pirates, a ticking debt and a 40-day clock. MOUSE: click a good to BUY 1, right-click SELL 1; bottom bar BUY/SELL/QTY/DEBT/SET SAIL; click a port on the chart to sail. KEYS: up/down pick a good, Z buy / X sell, Q cycle qty, D moneylender, M or ENTER open the chart (left/right pick port, ENTER sails).",
+  "todo": [
+    "Clicking a product (spice/silk) shouldn't buy it — that's the Buy button's job.",
+    "The houses need some work."
+  ]
 }
 de:meta */
 #include "studio.h"

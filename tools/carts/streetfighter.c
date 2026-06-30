@@ -15,7 +15,10 @@
   "lineage": "Homage to Street Fighter II (1991); novel in implementing startup/active/recovery frame data, a quarter-circle input buffer, and a reactive whiff-punishing AI all within a single-file cart.",
   "genre": "fighting",
   "homage": "Street Fighter II (1991)",
-  "description": "A 1-on-1 versus fighter on a dusk rooftop stage — you against a pushy, reactive CPU, with health bars up top, a round clock ticking between you, and a best-of-three. Each stick-fighter is a little state machine: walk in and out, jump, crouch, hold back to BLOCK, and throw a fast LIGHT, a heavy KNOCKBACK swing, or a quarter-circle-forward FIREBALL. Attacks have real startup/active/recovery, so spacing and timing decide everything; hits land with screen shake, a white hit-flash, a couple of frozen impact frames, and chip damage on block. The CPU reads the gap and blocks your swings, whiff-punishes your recovery, jumps in, and zones with fireballs — and gets tougher each round you take. Win the match to grow your saved win streak. Controls: A/D walk, W jump, S crouch, hold back to block, Z light, X heavy, down then forward + Z for a fireball, Z to rematch."
+  "description": "A 1-on-1 versus fighter on a dusk rooftop stage — you against a pushy, reactive CPU, with health bars up top, a round clock ticking between you, and a best-of-three. Each stick-fighter is a little state machine: walk in and out, jump, crouch, hold back to BLOCK, and throw a fast LIGHT, a heavy KNOCKBACK swing, or a quarter-circle-forward FIREBALL. Attacks have real startup/active/recovery, so spacing and timing decide everything; hits land with screen shake, a white hit-flash, a couple of frozen impact frames, and chip damage on block. The CPU reads the gap and blocks your swings, whiff-punishes your recovery, jumps in, and zones with fireballs — and gets tougher each round you take. Win the match to grow your saved win streak. Controls: A/D walk, W jump, S crouch, hold back to block, Z light, X heavy, down then forward + Z for a fireball, Z to rematch.",
+  "todo": [
+    "Needs two rounds, like real Street Fighter; check it with a gamepad."
+  ]
 }
 de:meta */
 #include "studio.h"

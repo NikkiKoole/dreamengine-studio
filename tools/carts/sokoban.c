@@ -13,7 +13,11 @@
   "lineage": "Faithful Sokoban clone with a full undo-stack (Step history array, pull-back on A); the undo mechanism is the implementation detail worth studying beyond the standard puzzle loop.",
   "genre": "puzzle",
   "homage": "Sokoban (1981)",
-  "description": "The warehouse puzzle classic. Push every crate onto a red goal dot. You can only PUSH (never pull) and only one crate at a time, so a crate shoved into a corner is stuck for good — plan ahead. Arrow keys walk and push, A undoes your last move, B restarts the level. Three built-in levels; solve one to advance. Levels are stored as plain text, so adding your own is easy."
+  "description": "The warehouse puzzle classic. Push every crate onto a red goal dot. You can only PUSH (never pull) and only one crate at a time, so a crate shoved into a corner is stuck for good — plan ahead. Arrow keys walk and push, A undoes your last move, B restarts the level. Three built-in levels; solve one to advance. Levels are stored as plain text, so adding your own is easy.",
+  "todo": [
+    "Some text-overflow issues.",
+    "Add more levels — look up original Sokoban levels or design interesting puzzles."
+  ]
 }
 de:meta */
 #include "studio.h"

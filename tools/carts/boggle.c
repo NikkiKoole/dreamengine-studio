@@ -8,7 +8,11 @@
   ],
   "teaches": [],
   "genre": "word",
-  "description": "A pocket word-hunt: sixteen weighted-random letters in a 4x4 grid, a 90-second clock draining across the top, and a single mission — trace as many real words as you can. Press a tile and drag the mouse across orthogonally or diagonally adjacent letters; a glowing yellow chain follows your path and the word builds live beneath the board. Release to submit: 3+ letters that hit the embedded ~2500-word dictionary score by length with an ascending chime and a green pulse, while junk or duplicates buzz and shake the screen red. When the timer empties the board freezes and tallies your words and points against your saved best. Drag the mouse across adjacent letters to trace a word and release to submit; R reshuffles or restarts after the round ends."
+  "description": "A pocket word-hunt: sixteen weighted-random letters in a 4x4 grid, a 90-second clock draining across the top, and a single mission — trace as many real words as you can. Press a tile and drag the mouse across orthogonally or diagonally adjacent letters; a glowing yellow chain follows your path and the word builds live beneath the board. Release to submit: 3+ letters that hit the embedded ~2500-word dictionary score by length with an ascending chime and a green pulse, while junk or duplicates buzz and shake the screen red. When the timer empties the board freezes and tallies your words and points against your saved best. Drag the mouse across adjacent letters to trace a word and release to submit; R reshuffles or restarts after the round ends.",
+  "todo": [
+    "Use the comic font.",
+    "Make it juicier with text effects."
+  ]
 }
 de:meta */
 #include "studio.h"

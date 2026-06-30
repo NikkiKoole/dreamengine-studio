@@ -7,7 +7,11 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Make sprite backgrounds transparent with colorkey(). Step-by-step: see the pink box, make it vanish, float over any background."
+  "description": "Make sprite backgrounds transparent with colorkey(). Step-by-step: see the pink box, make it vanish, float over any background.",
+  "todo": [
+    "The sprite has a weird black line.",
+    "Make the text button clickable by mouse/touch."
+  ]
 }
 de:meta */
 #include "studio.h"

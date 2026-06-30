@@ -14,7 +14,11 @@
   "lineage": "Homage to Lucas Pope's Papers, Please (2013); novel in distilling the multi-document cross-checking loop and escalating rule set into a ~200-line single-file cart.",
   "genre": "simulation",
   "homage": "Papers, Please (2013)",
-  "description": "A document-inspection game after Lucas Pope's classic. An applicant hands over a passport (and, on later days, an entry permit); cross-check their fields against the day's posted RULEBOOK and stamp APPROVE or DENY. Catch expired passports, banned nations, missing permits, mismatched names and expired permits — the rules tighten each day, so a clean entrant one day is a denial the next. Five mistakes and you're terminated. A approves, B denies. Glory to Arstotzka."
+  "description": "A document-inspection game after Lucas Pope's classic. An applicant hands over a passport (and, on later days, an entry permit); cross-check their fields against the day's posted RULEBOOK and stamp APPROVE or DENY. Catch expired passports, banned nations, missing permits, mismatched names and expired permits — the rules tighten each day, so a clean entrant one day is a denial the next. Five mistakes and you're terminated. A approves, B denies. Glory to Arstotzka.",
+  "todo": [
+    "Use a small font where needed.",
+    "Add some text effects."
+  ]
 }
 de:meta */
 #include "studio.h"

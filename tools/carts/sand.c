@@ -9,7 +9,10 @@
   "teaches": [
     "cellular-automata"
   ],
-  "description": "A powder toy from a handful of per-cell rules. Each cell is one material: sand falls and slides down diagonals so it piles into slopes (and sinks through water), water falls then spreads sideways to find its level, stone never moves. No pile or puddle is ever drawn on purpose — the shapes emerge from grains each making one tiny local decision, the same idea as the fire and ripple carts. WASD move the cursor, hold Z to paint, X cycles material (sand/water/stone/eraser)."
+  "description": "A powder toy from a handful of per-cell rules. Each cell is one material: sand falls and slides down diagonals so it piles into slopes (and sinks through water), water falls then spreads sideways to find its level, stone never moves. No pile or puddle is ever drawn on purpose — the shapes emerge from grains each making one tiny local decision, the same idea as the fire and ripple carts. WASD move the cursor, hold Z to paint, X cycles material (sand/water/stone/eraser).",
+  "todo": [
+    "Add cute sprite buttons to select what you draw; make them work with the mouse."
+  ]
 }
 de:meta */
 #include "studio.h"

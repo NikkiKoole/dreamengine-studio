@@ -10,7 +10,10 @@
     "software-rasterizer"
   ],
   "lineage": "Sibling to polystress/tristress/clampstress — the first of the rasterizer regression rigs, specifically exposing the off-screen bbox clamp fix (2026-06-02) that brought a 12-spoke pinwheel from ~21fps to 60fps.",
-  "description": "A spinning pinwheel of long, thin software-filled triangles — and a tiny lesson in why off-screen drawing used to cost you. Each spoke's far vertices sit way outside the 320x200 screen, so its bounding box is enormous while only a sliver is ever visible. The engine's CPU triangle filler used to scan that whole box, almost all of it off-screen and empty, which dragged a dozen spokes down to ~20fps — until the renderer learned to clamp the scan to the on-screen region. Now the off-screen reach is free (crank it to the max and it stays at a smooth 60fps); only on-screen coverage costs. A renderer regression test, not a game: it proves the clamp holds. The live fps counter turns yellow then red if it ever falls again. Up/Down add or remove spokes (on-screen cost), Left/Right grow or shrink the off-screen reach (now free), A freezes the spin to hold a steady frame."
+  "description": "A spinning pinwheel of long, thin software-filled triangles — and a tiny lesson in why off-screen drawing used to cost you. Each spoke's far vertices sit way outside the 320x200 screen, so its bounding box is enormous while only a sliver is ever visible. The engine's CPU triangle filler used to scan that whole box, almost all of it off-screen and empty, which dragged a dozen spokes down to ~20fps — until the renderer learned to clamp the scan to the on-screen region. Now the off-screen reach is free (crank it to the max and it stays at a smooth 60fps); only on-screen coverage costs. A renderer regression test, not a game: it proves the clamp holds. The live fps counter turns yellow then red if it ever falls again. Up/Down add or remove spokes (on-screen cost), Left/Right grow or shrink the off-screen reach (now free), A freezes the spin to hold a steady frame.",
+  "todo": [
+    "The text labels need to support the mouse (see the ui-kit cart)."
+  ]
 }
 de:meta */
 #include "studio.h"

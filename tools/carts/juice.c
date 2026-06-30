@@ -11,7 +11,10 @@
     "particle-system"
   ],
   "lineage": "Direct homage to the 'juice it or lose it' game-feel canon; the toggle-on/off design is original to this cart so the learner feels the delta of each effect against an identical unjuiced baseline.",
-  "description": "The cheap tricks that make a game FEEL good. The same bouncing ball, but every impact fires five classic effects: screen-shake, squash & stretch, a white flash, hit-stop (freeze a few frames for weight), and a puff of dust particles. Press Z to toggle ALL of it off and on so you feel exactly what the juice adds. X to bonk it yourself."
+  "description": "The cheap tricks that make a game FEEL good. The same bouncing ball, but every impact fires five classic effects: screen-shake, squash & stretch, a white flash, hit-stop (freeze a few frames for weight), and a puff of dust particles. Press Z to toggle ALL of it off and on so you feel exactly what the juice adds. X to bonk it yourself.",
+  "todo": [
+    "Make the text-label buttons clickable by mouse."
+  ]
 }
 de:meta */
 #include "studio.h"

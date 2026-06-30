@@ -13,7 +13,7 @@
   "lineage": "Sibling of pitchenv — the same mod-envelope system pointed at filter cutoff; the canonical tuning rig for the resonant-lowpass sweep (the pluck 'pew').",
   "description": {
     "summary": "A Minimoog/Model-D-style bass rig: THREE oscillators (two detuned saws + an octave-down triangle sub) through the Moog ladder filter, with a FILTER contour, a cutoff LFO, a LOUDNESS ADSR, plus DETUNE, DRIVE and a FAT low-shelf EQ for the low-end 'humpf'. Each control has its own slider/toggle and a live graph.",
-    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Graph 1: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously. Graph 2: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). Row 3 is two views side by side. LEFT, SHAPE: a still idealized single cycle — a saw through a resonant filter (CUT rounds the corners, RES adds the ring), clipped on one side by DRIVE, plus the octave SUB; it redraws only when you change a SHAPE knob. RIGHT, SCOPE: the ACTUAL output via the scope_read engine API, zero-cross-triggered to hold still — the real signal, so the envelope sweep / LFO wobble / detune beating you DON'T see in the still shape all show up here, live. DETUNE/DRIVE plus the SUB OSC (octave triangle) and FAT EQ toggles are where the humpf lives. MONO makes it a one-note-at-a-time bass like a real Model D: every note RETRIGGERS the filter-env thump (punchy) yet GLIDES in from the previous pitch (connected, not staccato) — multi-trigger mono with portamento.",
+    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Graph 1: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously. Graph 2: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). Row 3 is two views side by side. LEFT, SHAPE: a still idealized single cycle — a saw through a resonant filter (CUT rounds the corners, RES adds the ring), clipped on one side by DRIVE, plus the octave SUB; it redraws only when you change a SHAPE knob. RIGHT, SCOPE: the ACTUAL output via the scope_read engine API, zero-cross-triggered to hold still — the real signal, so the envelope sweep / LFO wobble / detune beating you DON'T see in the still shape all show up here, live. DETUNE/DRIVE plus the SUB OSC (octave triangle) and FAT EQ toggles are where the humpf lives. MONO makes it a one-note-at-a-time bass like a real Model D: every note chokes the last and RETRIGGERS the filter-env thump, snapped cleanly to pitch — punchy, with no polyphonic wash.",
     "controls": "A-K play notes - SPACE toggles the auto-arp - MONO / FAT EQ / SUB OSC toggles top-right - drag the FILTER / LFO / AMP / VOICE sliders"
   }
 }
@@ -37,7 +37,6 @@ de:meta */
 #define SLOT2 6                   // the 2nd, detuned saw — the other half of the fat
 #define SLOT3 7                   // 3rd oscillator: an octave-down TRIANGLE for low-end body (the SUB)
 #define GATE_MS 450               // how long each note is gated (note-on → note-off)
-#define GLIDE_MS 55               // portamento time (ms) for legato slides in mono mode
 
 typedef struct { const char *name; float lo, hi, val; } Knob;
 enum { F_ATK, F_DEC, F_AMT, F_CUT, F_RES,   L_RATE, L_DEPTH,   A_ATK, A_DEC, A_SUS, A_REL,   V_DTN, V_DRV, NK };
@@ -65,11 +64,10 @@ static int   active = -1;        // slider being dragged, or -1
 static bool  auto_on = true;
 static bool  sub_on = true;      // 3rd osc: octave-down triangle (low-end body)
 static bool  fat_on = false;     // low-shelf EQ boost (+6 dB lows) — direct humpf
-static bool  mono_on = false;    // mono: one note at a time; EVERY note retriggers the env (thump) AND glides in from the last pitch (connected)
+static bool  mono_on = false;    // mono: one note at a time; every note chokes the last + retriggers the env (the thump), snapped to pitch
 static int   mh[3] = { -1, -1, -1 };   // held-note handles (SLOT/SLOT2/SLOT3) while in mono mode
 static bool  mono_held = false;
 static float mono_off_at = 0.f;
-static int   last_midi = -1;     // previous mono pitch — the new note glides in from it
 static int   oct = 0;            // octave shift from Z/X (GarageBand-style)
 static float arp_t = 0.f;
 static int   arp_i = 0;
@@ -132,17 +130,14 @@ static void mono_off(void) {                       // release the held mono voic
 }
 
 static void play(int midi) {
-    if (mono_on) {                                 // mono: RETRIGGER every note (the thump) + GLIDE in from the last pitch (connected, not staccato)
-        int from = (mono_held && last_midi >= 0) ? last_midi : midi;   // glide start; first note snaps
-        mono_off();                                // choke the previous note → no poly wash
+    if (mono_on) {                                 // mono: choke the last note, RETRIGGER the env (thump), SNAP to pitch (in tune, no glide swoop)
+        mono_off();                                // one voice at a time → no poly wash
         int sl[3] = { SLOT, SLOT2, SLOT3 };
         for (int i = 0; i < 3; i++) {
             if (i == 2 && !sub_on) { mh[2] = -1; continue; }
-            mh[i] = note_on(from, sl[i], 4);       // fresh voice (retriggers the env = thump) starting at the last pitch...
-            note_glide(mh[i], GLIDE_MS);
-            note_pitch(mh[i], (float)midi);        // ...then slide to the new note (portamento)
+            mh[i] = note_on(midi, sl[i], 4);       // fresh voice → filter-env attack thump, snapped to pitch
         }
-        mono_held = true; last_midi = midi;
+        mono_held = true;
         mono_off_at = now() + GATE_MS / 1000.f;
     } else {
         hit(midi, SLOT,  4, GATE_MS);

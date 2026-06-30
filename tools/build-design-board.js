@@ -86,13 +86,13 @@ const html = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Design board</title>
+<title>Todo list</title>
 <style>${CSS()}</style>
 </head>
 <body>
 <div id="root">
   <header>
-    <h1>DESIGN&nbsp;BOARD</h1>
+    <h1>TODO&nbsp;LIST</h1>
     <div class="count">${esc(summary)}<span class="sep">·</span>${board.length} designs<span class="sep">·</span>${adrs.length} ADRs<span class="sep">·</span>${unmarked} unmarked${newest ? `<span class="sep">·</span>newest ${esc(fmtDate(newest))}` : ""}</div>
     <p class="sub">Every design &amp; decision, by phase — read live from each doc's STATUS line. <b class="hi">[ ] READY</b> is specced work nobody's started. Click any line to open the doc.</p>
   </header>

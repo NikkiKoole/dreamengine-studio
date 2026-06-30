@@ -609,8 +609,8 @@ async function buildDocsSidebar() {
   docsNav.innerHTML = ''
   docsNav.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
   docsNav.appendChild(docNavItem('★ history', 'history', () => showHistory()))
-  docsNav.appendChild(docNavItem('★ techniques', 'compendium', () => showCompendium()))
-  docsNav.appendChild(docNavItem('★ designs', 'designboard', () => showDesignBoard()))
+  docsNav.appendChild(docNavItem('★ compendium', 'compendium', () => showCompendium()))
+  docsNav.appendChild(docNavItem('★ todo', 'designboard', () => showDesignBoard()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land

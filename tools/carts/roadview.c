@@ -190,12 +190,14 @@ static void reset_pools(void) {
     for (int k = 0; k < K_N; k++) kcount[k] = 0;
 }
 
-// Fast path: a packed binary blob (magic "RVB1") from osm-roads.js — no tokenising, no
+// Fast path: a packed binary blob (magic "RVB1"/"RVB2") from osm-roads.js — no tokenising, no
 // strtod, just walk the buffer. Layout (all multi-byte ints little-endian):
 //   magic[4] | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
-//   per feature: int32 kind | int32 sublen | sub bytes (ignored) | int32 npts | float32 pts[npts*2]
+//   per feature: int32 kind | [RVB2: float32 height] | int32 sublen | sub bytes (ignored) | int32 npts | float32 pts[npts*2]
 // `kind` is the K_* index — MUST match KIND_IX in data-tools/roadview/osm-roads.js.
+// RVB2 adds a building-height float per feature; roadview is 2D so it just SKIPS it (citydrive reads it).
 static void load_bin(const char *buf, long len) {
+    int ver = buf[3];                                      // '1' or '2'
     const char *p = buf + 4, *end = buf + len;             // skip magic
     int nfeat, namelen;
     memcpy(&nfeat, p, 4);   p += 4;
@@ -204,9 +206,10 @@ static void load_bin(const char *buf, long len) {
     memcpy(dname, p, (size_t)nl); dname[nl] = 0; p += namelen;
     float bb[4]; memcpy(bb, p, 16); p += 16;
     bbminx = bb[0]; bbminy = bb[1]; bbmaxx = bb[2]; bbmaxy = bb[3];
-    for (int f = 0; f < nfeat && npoly < MAXPOLY && p + 12 <= end; f++) {
+    for (int f = 0; f < nfeat && npoly < MAXPOLY && p + 16 <= end; f++) {
         int kind, sublen, npts;
         memcpy(&kind, p, 4);   p += 4;
+        if (ver == '2') p += 4;                            // skip the height float (2D cart)
         memcpy(&sublen, p, 4); p += 4;
         const char *sub = p; p += sublen;                  // building type, or an OTHER_* defining tag
         memcpy(&npts, p, 4);   p += 4;
@@ -228,7 +231,7 @@ static void load_from(const char *path) {
     reset_pools();
     long len; char *js = json_slurp(path, &len);
     if (!js) { snprintf(err, sizeof err, "cannot read %s", path); return; }
-    if (len >= 4 && memcmp(js, "RVB1", 4) == 0) {          // binary fast path
+    if (len >= 4 && memcmp(js, "RVB", 3) == 0 && (js[3]=='1' || js[3]=='2')) {  // binary fast path (RVB1/RVB2)
         load_bin(js, len);
         free(js);
         if (!npoly) { snprintf(err, sizeof err, "no features in %s", path); return; }

@@ -12,7 +12,7 @@ worth it graduates; if not, the pieces below delete cleanly (they touch almost n
 - **Packed binary format (`.rvb`) — the load is now ~instant.** Real cities are tens of MB of
   JSON and tokenising that text (jsmn + `strtod` per coordinate) was the bottleneck: **Breda
   (27 MB) took >2 min, Rotterdam timed out.** `osm-roads.js` now emits a packed binary by
-  default (magic `RVB1`); the cart auto-detects it by magic bytes and walks it with `memcpy`.
+  default (magic `RVB2`, was `RVB1`); the cart auto-detects it by magic bytes and walks it with `memcpy`.
   **Rotterdam (28 MB / 2.8 M points / 420 k ways) now loads + renders in ~0.66 s, fully (no
   truncation).** `.json` still works (drag-drop accepts either); `--json` emits the readable IR.
 - **Layers** (bottom→top): zoning blocks (farm→residential→commercial→industrial→parking→sand)
@@ -162,13 +162,13 @@ admin boundary.
 Two ways to get them, cheapest first:
 
 **A. OSM `height` / `building:levels` ride-along** (no new query — we already fetch building tags).
-- In `osm-roads.js`, when `kind==='building'`: parse `tags.height` (metres, e.g. `"12.5"`), else
-  fall back to `tags['building:levels'] * 3` (≈3 m/storey). Stash it on the feature as a new `h`
-  field (next to `sub`); thread it through `writeBin` (one more `float32`/building) and the `.json`.
-- The cart ignores `h` for now (like `sub`) — or could shade footprints by height; the downstream
-  extruder reads it directly.
-- **Caveat: partial coverage.** Many buildings have neither tag → `h=0`/unknown; downstream needs a
-  fallback (a default storey height, or skip-if-unknown). Coverage varies wildly by region.
+**DONE** — `osm-roads.js` `buildingHeight(tags)` parses `tags.height` (metres), else
+`tags['building:levels'] * 3` (≈3 m/storey), else 0. Stashed as the feature's `h` field, threaded
+through `buildDoc` + `writeBin` (the **RVB2** format bump — one `float32`/feature) and the `.json`.
+`roadview` skips it; `citydrive` extrudes it.
+- **Caveat confirmed: partial coverage.** A tight Amersfoort-centre fetch tagged only **~6%** of
+  buildings (`h>0`); the rest are unknown. So `citydrive` applies a **per-type fallback** (a default
+  storey height by `sub`) for `h=0` — the data honestly carries 0, the consumer fills the gap.
 
 **B. 3DBAG normalizer** (NL-only, authoritative — a *new* per-source normalizer, the bigger follow-up).
 - The Netherlands' authoritative source is **3DBAG** (`3dbag.nl`): LoD1/LoD2 building models with real
@@ -221,7 +221,7 @@ to the screen.
   "bbox": [0, 0, 2782.9, 2671.0],
   "features": [
     { "kind": "highway",  "name": "A13", "pts": [x0,y0, x1,y1, x2,y2, ...] },
-    { "kind": "building", "name": "", "sub": "apartments", "pts": [ ... ] }
+    { "kind": "building", "name": "", "sub": "apartments", "h": 15, "pts": [ ... ] }
   ]
 }
 ```
@@ -234,6 +234,10 @@ to the screen.
 - `sub` (optional) is a refining OSM tag — currently the `building=*` type (house / apartments /
   industrial / …), carried for a downstream consumer that extrudes individual buildings. The
   roadview cart ignores it.
+- `h` (optional) is the **building height in metres** (omitted/0 = unknown), from OSM
+  `height` / `building:levels` (see "Building heights"). The pseudo-3D consumer (`citydrive`)
+  extrudes it; `roadview` ignores it. **Coverage is sparse** — only ~6% of buildings are tagged in
+  a typical NL town, so the consumer applies a per-type fallback for the rest.
 - `building` footprints draw with a **1px outline** (so each stays separable); footprints (`B`)
   and `tree` dots (`T`) are **LOD-gated** — only drawn once you zoom in past `BUILD_GATE_PPM` /
   `TREE_GATE_PPM`. Everything else draws at every zoom (zoning blocks are the ground layer).
@@ -290,6 +294,30 @@ coloured tile) tile visibly; low-saturation ones (plain grey tile, concrete, ter
 1–2 palette entries and read as a flat colour. Options if this matters: a luma-contrast stretch in
 the bake, dithering, or a wider/auto palette.
 
+### `citydrive` — the pseudo-3D consumer (same data, extruded)
+
+`citydrive` is roadview's **3D sibling**: it loads the *same* `.rvb` but, instead of drawing it
+flat top-down, **extrudes each building footprint straight up the screen** (the cityview
+GTA1-meets-Zelda look — `project()` world→screen, height up, ADR-0021). One cart, two front-ends
+over one data file — the pattern paying off a second time.
+
+What it took (the three prerequisites, in order):
+1. **Arbitrary-polygon extrusion** — cityview only extruded axis-aligned boxes; real OSM footprints
+   are N-gons. `citydrive`'s `draw_bldg()` uses **winding-based outward normals** (signed area → a
+   consistent per-edge perpendicular, concave-safe) for the visible-wall cull, and a `polyfill`
+   roof cap (even-odd coverage handles concave roofs). No hardcoded normals.
+2. **Heights** — the **RVB2** `h` field (above). ~6% of OSM buildings are tagged; the rest get a
+   per-footprint fallback low-rise (so the tagged talls still stand out). The data carries 0 = unknown;
+   the consumer fills the gap, not the format.
+3. **Spawn + cull** — spawns at the building **nearest the mass centroid** (robust against the OSM
+   bbox-balloon, which a plain centre would land in a gap of). Per frame it range-culls buildings to
+   ~320 m of the camera then depth-sorts; roads draw as flat ground ribbons (world-space quads) beneath.
+
+Still flat / TODO in `citydrive`: water/green/zoning areas (roads-only ground for now), bridge/overpass
+**decks** (lift `bridge`/`layer` ways onto cityview's `Deck` machinery — OSM has no real elevation, so
+this is the only "road height" that applies; NL cities are flat), inner-ring holes, and the >64-vertex
+footprint clamp (`MAXBV`). Web/wasm file loading is shared with roadview (below).
+
 ### The binary form (`.rvb`) — same IR, packed
 
 For real cities the JSON is tens of MB and *parsing the text* is the whole load cost. So
@@ -297,13 +325,18 @@ For real cities the JSON is tens of MB and *parsing the text* is the whole load 
 without the text-parse tax. Layout (all multi-byte ints little-endian):
 
 ```
-magic "RVB1" | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
-per feature:  int32 kind | int32 sublen | sub bytes | int32 npts | float32 pts[npts*2]
+magic "RVB2" | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
+per feature:  int32 kind | float32 h | int32 sublen | sub bytes | int32 npts | float32 pts[npts*2]
 ```
+
+`h` is the **building height in metres** (0 = unknown / non-building), parsed from OSM
+`height` / `building:levels` (see "Building heights" above) — the pseudo-3D consumer
+(`citydrive`) extrudes it; `roadview` is 2D and skips it. **`RVB1` (no `h`) still loads** — the
+reader switches per-feature layout on the magic's version byte (`'1'` vs `'2'`).
 
 `kind` is the numeric **`K_*` index** — `KIND_IX` in `osm-roads.js` and the `enum` in
 `roadview.c` are twins and **must stay in sync (append only, never reorder)**. The cart
-distinguishes the two formats by the first 4 bytes (`RVB1` → binary fast path, else JSON), so a
+distinguishes binary from JSON by the first 3 bytes (`RVB` → binary fast path, else JSON), so a
 `.json` still loads. `--json` writes the readable sibling; `--convert f.json` repacks one without
 re-querying Overpass.
 

@@ -913,6 +913,20 @@
     "homage": "SimCity (1989)"
   },
   {
+    "title": "citydrive",
+    "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy beneath the buildings. The bounding box auto-fits and you spawn in the dense building mass (robust against the OSM bbox-balloon). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive, M toggles north/heading-up camera, T textures, R toggles roads, [ ] zoom.",
+    "file": "citydrive.cart.png",
+    "created": "2026-06-30",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [
+      "isometric-projection",
+      "camera-follow"
+    ],
+    "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city."
+  },
+  {
     "title": "Cityplan — a world you can lift the roof off",
     "description": "The full merge of Lotfill + Interiors: the same fill-language at two scales, stacked so you read the whole world by ZOOMING. A WORLD selector reads terrain + an urbanization field and picks per region — WILD land gets scatter wilderness (woodland/meadow/beach/scree/wasteland + all the instance art), FARMLAND gets rows of crops + hedgerows, CITY gets blocks SUBDIVIDED into a street-fronting ring of VARIED lots (dense residential rows TERRACED into shared-wall runs, detached houses with a fenced/hedged yard + driveway). Zoom OUT and you see the world from above: terrain, woods, fields, and a city of ROOFS. Zoom IN and each city roof LIFTS to reveal that footprint's floor-plan (a recursive BSP room tree with emergent labels — living/kitchen/bath, shop/back/office, bay/storage fall out of area/frontage/adjacency rules, never a type list — doors through every wall, windows on the outside). Zoom IN further and the FURNITURE appears. A decay field ruins derelict DISTRICTS (collapse punches the roof/massing open, overgrow creeps it green). Commercial/industrial block interiors are paved (asphalt/plaza/gravel + parking), and ~1 in 5 courtyards gets a fountain/statue/well/obelisk centrepiece. The reveal is pure LEVEL-OF-DETAIL: a roof lifts only once its building is big enough on screen to read (no mush of beds), and the floor-plan is generated LAZILY (far buildings cost a roof rect). F force-lifts every roof (dollhouse); O cycles a field overlay (world-kind/cover/density); G the block+lot grid. Inherits both parents' seams: pure fn of a hash-seed, draw == query (room_at/world_kind_at run as a collision/interaction query). WASD/ZX move, R new seed.",
     "file": "cityplan.cart.png",

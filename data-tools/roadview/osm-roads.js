@@ -165,6 +165,18 @@ function assembleRings(segments) {
 }
 
 // build the document from an array of {kind, name, pts:[[x,y],...]} in raw metres
+// a building's height in METRES, cheapest source first. OSM `height` (already
+// metres) wins; else `building:levels` × ~3 m/storey; else 0 = unknown (the cart
+// applies its own fallback). Coverage varies wildly by region — many buildings
+// carry neither tag. (3DBAG would give authoritative NL heights — a later tool.)
+function buildingHeight(tags) {
+  const h = parseFloat(tags.height);                       // e.g. "12.5" or "12 m"
+  if (isFinite(h) && h > 0) return h;
+  const lv = parseFloat(tags['building:levels']);
+  if (isFinite(lv) && lv > 0) return lv * 3;
+  return 0;
+}
+
 function buildDoc(source, name, ways) {
   let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
   for (const w of ways) for (const [x, y] of w.pts) {
@@ -180,6 +192,7 @@ function buildDoc(source, name, ways) {
     for (const [x, y] of local) flat.push(round(x), round(y));
     const feat = { kind: w.kind, name: w.name || '', pts: flat };
     if (w.sub) feat.sub = w.sub;                  // refining tag (building type) for downstream consumers
+    if (w.h) feat.h = w.h;                         // building height in metres (citydrive extrudes it; roadview ignores)
     features.push(feat);
   }
   return {
@@ -191,22 +204,25 @@ function buildDoc(source, name, ways) {
 const round = (v) => Math.round(v * 10) / 10;
 
 // pack a doc into the binary .rvb the cart fast-loads. Layout (all multi-byte LE):
-//   magic "RVB1" | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
-//   per feature: int32 kind | int32 sublen | sub bytes | int32 npts | float32 pts[npts*2]
+//   magic "RVB2" | int32 nfeat | int32 namelen | name bytes | float32 bbox[4]
+//   per feature: int32 kind | float32 h | int32 sublen | sub bytes | int32 npts | float32 pts[npts*2]
+// h = building height in metres (0 = unknown/non-building). RVB1 (no h) still loads in the
+// cart — the reader switches layout on the magic's version byte.
 function writeBin(doc, outPath) {
   const nameBuf = Buffer.from(doc.name || '', 'utf8');
   const subBufs = doc.features.map(f => Buffer.from(f.sub || '', 'utf8'));
   let size = 4 + 4 + 4 + nameBuf.length + 16;
-  doc.features.forEach((f, i) => { size += 4 + 4 + subBufs[i].length + 4 + f.pts.length * 4; });
+  doc.features.forEach((f, i) => { size += 4 + 4 + 4 + subBufs[i].length + 4 + f.pts.length * 4; });  // +4: float h
   const buf = Buffer.alloc(size);
   let o = 0;
-  o += buf.write('RVB1', o, 'latin1');
+  o += buf.write('RVB2', o, 'latin1');
   buf.writeInt32LE(doc.features.length, o); o += 4;
   buf.writeInt32LE(nameBuf.length, o); o += 4;
   o += nameBuf.copy(buf, o);
   for (const v of doc.bbox) { buf.writeFloatLE(v, o); o += 4; }
   doc.features.forEach((f, i) => {
     buf.writeInt32LE(KIND_IX[f.kind] ?? KIND_IX.road, o); o += 4;
+    buf.writeFloatLE(f.h || 0, o); o += 4;                  // building height in metres (0 = unknown)
     buf.writeInt32LE(subBufs[i].length, o); o += 4;
     o += subBufs[i].copy(buf, o);
     buf.writeInt32LE(f.pts.length >> 1, o); o += 4;
@@ -326,12 +342,13 @@ function demo() {
   ways.push({ kind: 'rail', name: 'Spoorlijn', pts: wig(20, -100, 2400, W + 100, 400, 120) });
   // a scatter of building footprints in the downtown blocks (closed rects = areas)
   const btypes = ['house', 'apartments', 'commercial', 'retail', 'industrial'];
-  for (let bx = 1500; bx < 3200; bx += 240) {
-    for (let by = 1100; by < 2300; by += 200) {
-      if (!inDisc(bx, by) || rnd() < 0.25) continue;        // gaps = streets/yards
-      const w = 70 + rnd() * 90, h = 60 + rnd() * 80;        // 6–16 m footprints
-      const ox = bx + (rnd() - 0.5) * 40, oy = by + (rnd() - 0.5) * 40;
+  for (let bx = 1400; bx < 3300; bx += 64) {                  // a DENSE grid of house/block-sized lots
+    for (let by = 1000; by < 2400; by += 58) {                // (small enough to read as a town in citydrive's 3D)
+      if (!inDisc(bx, by) || rnd() < 0.30) continue;          // gaps = streets/yards
+      const w = 16 + rnd() * 26, h = 16 + rnd() * 26;         // ~16–42 m footprints
+      const ox = bx + (rnd() - 0.5) * 16, oy = by + (rnd() - 0.5) * 16;
       ways.push({ kind: 'building', name: '', sub: btypes[(s >> 4) % btypes.length],
+                  h: 6 + rnd() * 30,                          // synthetic storey heights so demo shows 3D
                   pts: [[ox, oy], [ox + w, oy], [ox + w, oy + h], [ox, oy + h], [ox, oy]] });
     }
   }
@@ -417,12 +434,13 @@ async function overpass(S, W, N, E, name) {
     const g = el.geometry;
     let kind = classifyWay(tags);
     let sub = kind === 'building' ? (tags.building !== 'yes' ? tags.building : '') : '';
+    const h = kind === 'building' ? buildingHeight(tags) : 0;   // metres, for the pseudo-3D extrude (citydrive)
     if (!kind) {                                       // uncategorised → the hashed "other" understory
       const closed = g.length > 3 && g[0].lon === g[g.length - 1].lon && g[0].lat === g[g.length - 1].lat;
       kind = closed ? 'other_area' : 'other_line';     // closed ring fills, open way strokes
       sub = definingTag(tags);                          // cart hashes this → colour + dither pattern
     }
-    ways.push({ kind, name: tags.name || '', sub, pts: g.map(p => merc(p.lon, p.lat)) });
+    ways.push({ kind, name: tags.name || '', sub, h, pts: g.map(p => merc(p.lon, p.lat)) });
   }
 
   // assemble each multipolygon's OUTER rings into filled area features (Stage 1: outer only —

@@ -445,6 +445,17 @@ function showCompendium() {
   docsContent.scrollTop = 0
 }
 
+// — the generated design board (docs/design-board.html) in an iframe — every
+// design doc + ADR by lifecycle phase. Clicking a card postMessages back here
+// (the 'message' listener above) to open that doc's markdown.
+function showDesignBoard() {
+  currentDocPath = 'designboard'
+  setActiveNav('designboard')
+  docsContent.classList.add('docs-history')
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/design-board.html" title="design board"></iframe>`
+  docsContent.scrollTop = 0
+}
+
 // the history iframe asks us to open a docs/ markdown file, or load a cart, when
 // something inside it is clicked
 window.addEventListener('message', (e) => {
@@ -599,6 +610,7 @@ async function buildDocsSidebar() {
   docsNav.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
   docsNav.appendChild(docNavItem('★ history', 'history', () => showHistory()))
   docsNav.appendChild(docNavItem('★ techniques', 'compendium', () => showCompendium()))
+  docsNav.appendChild(docNavItem('★ designs', 'designboard', () => showDesignBoard()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land

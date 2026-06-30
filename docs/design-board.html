@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#1b1c1f; --panel:#22232a; --panel2:#2a2c34; --ink:#e7e9ee; --dim:#9094a2;
+  --edge:#000; --pink:#ff6fb5; --orange:#ff7a2f; --yellow:#ffd23f; --green:#5fd07a;
+  --on:#141414; --sh:5px 5px 0 var(--edge); --sh-sm:3px 3px 0 var(--edge);
+  --disp:"Archivo Black",Impact,system-ui,sans-serif;
+  --body:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.5;
+  background-image:radial-gradient(var(--panel2) 1px,transparent 1px);background-size:22px 22px}
+code{font-family:var(--mono);font-size:11px}
+#root{max-width:1040px;margin:0 auto;padding:0 24px 120px}
+header.top{padding:40px 0 8px}
+header.top h1{font-family:var(--disp);margin:0 0 12px;font-size:42px;line-height:.98;letter-spacing:-1px;
+  text-transform:uppercase;text-shadow:4px 4px 0 var(--pink)}
+header.top .sub{font-size:15px;max-width:720px;font-weight:500;color:var(--ink)}
+header.top .sub b{color:var(--pink)}
+header.top .meta{display:inline-block;color:var(--on);background:var(--yellow);border:3px solid var(--edge);
+  box-shadow:var(--sh-sm);font-size:12px;margin-top:16px;padding:6px 12px;font-weight:700;font-family:var(--mono)}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 4px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:2px solid var(--edge);
+  box-shadow:2px 2px 0 var(--edge);padding:3px 10px;font-size:12px;font-weight:700;text-transform:capitalize}
+.chip i{width:10px;height:10px;border:2px solid var(--edge);background:var(--c)}
+.phase{margin:40px 0 0}
+.phase h2{font-family:var(--disp);font-size:22px;text-transform:uppercase;letter-spacing:-.5px;margin:0;
+  display:inline-block;background:var(--c);color:var(--on);border:3px solid var(--edge);box-shadow:var(--sh-sm);padding:5px 14px}
+.phase h2 .n{font-family:var(--mono);font-size:13px;opacity:.7}
+.phase .blurb{color:var(--dim);font-size:13px;margin:10px 0 16px;font-weight:500}
+.phase-ready h2{transform:rotate(-1deg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.card{display:block;background:var(--panel);border:3px solid var(--edge);box-shadow:var(--sh);padding:13px 14px;
+  border-left:7px solid var(--c);transition:transform .08s,box-shadow .08s;cursor:pointer}
+.card:hover{transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--edge)}
+.card .chead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.card .chead b{font-size:14.5px;font-weight:700;line-height:1.2}
+.card .date{font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap}
+.card .status{color:var(--dim);font-size:12px;margin:7px 0 8px;line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card code{color:var(--c);opacity:.85}
+.card .plan{display:flex;align-items:center;gap:8px;margin:6px 0 9px}
+.card .plan .bar{flex:1;height:8px;background:var(--panel2);border:2px solid var(--edge);overflow:hidden}
+.card .plan .bar i{display:block;height:100%;background:var(--c)}
+.card .plan span{font-family:var(--mono);font-size:10px;color:var(--dim)}
+.adrs{display:flex;flex-wrap:wrap;gap:8px}
+.adr{background:var(--panel);border:2px solid var(--edge);box-shadow:2px 2px 0 var(--edge);padding:5px 11px;
+  font-size:12px;font-weight:600;cursor:pointer}
+.adr:hover{background:var(--panel2)}
+.adr.cut{text-decoration:line-through;color:var(--dim)}
+footer{margin-top:54px;padding-top:18px;border-top:2px dashed var(--panel2);color:var(--dim);font-size:12px}
+</style>
+</head>
+<body>
+<div id="root">
+  <header class="top">
+    <h1>Design Board</h1>
+    <p class="sub">Every design doc &amp; decision in the repo, by lifecycle phase — derived live from each doc's <code>STATUS</code> line. The headline is <b>Ready to Build</b>: specced work nobody's started.</p>
+    <div class="meta"><b>130</b> design docs · <b>25</b> ADRs · <b>80</b> unmarked · newest 2026-06-30</div>
+    <div class="legend"><span class="chip" style="--c:var(--pink)"><i></i>6 ready to build</span><span class="chip" style="--c:var(--orange)"><i></i>3 building</span><span class="chip" style="--c:var(--yellow)"><i></i>13 exploring / idea</span><span class="chip" style="--c:var(--dim)"><i></i>3 has status, unclassified</span><span class="chip" style="--c:var(--green)"><i></i>25 shipped / built</span></div>
+  </header>
+  <section class="phase phase-ready">
+    <h2 style="--c:var(--pink)">READY TO BUILD <span class="n">6</span></h2>
+    <p class="blurb">Specced, planned, nobody on it — pick one up.</p>
+    <div class="grid"><a class="card" data-doc="design/touch-controls.md" href="#" style="--c:var(--pink)">
+    <div class="chead"><b>Touch controls — a native-resolution on-screen joystick / d-pad / buttons</b><span class="date">2026-06-30</span></div>
+    <p class="status">DESIGN — ready to pick up (rev. 2026-06-30). Research, a recommendation, AND a concrete</p><div class="plan" title="0 of 14 plan steps done">
+      <div class="bar"><i style="width:0%"></i></div><span>0/14</span></div>
+    <code>design/touch-controls.md</code>
+  </a><a class="card" data-doc="design/song-codec.md" href="#" style="--c:var(--pink)">
+    <div class="chead"><b>Song codec — sharing a Tinyjam song as a compact, growable file</b><span class="date">2026-06-29</span></div>
+    <p class="status">DESIGNED / PARKED — TODO, ready to build (2026-06-29). Captures a design conversation about</p>
+    <code>design/song-codec.md</code>
+  </a><a class="card" data-doc="design/data-layers.md" href="#" style="--c:var(--pink)">
+    <div class="chead"><b>data-layers — the SimCity simulation behind the map (design seed)</b><span class="date">2026-06-23</span></div>
+    <p class="status">DESIGN SEED (2026-06-23). A new experiment / pillar the big-game backlog</p>
+    <code>design/data-layers.md</code>
+  </a><a class="card" data-doc="design/building-blocks-spec.md" href="#" style="--c:var(--pink)">
+    <div class="chead"><b>Building-blocks spec — drop-in plan for the small pedal primitives</b></div>
+    <p class="status">all of this is `sound.h` DSP, so it's queued behind the current `sound.h` agent(s).</p>
+    <code>design/building-blocks-spec.md</code>
+  </a><a class="card" data-doc="design/cart-os.md" href="#" style="--c:var(--pink)">
+    <div class="chead"><b>Cart OS — carts as tools in a shared environment</b></div>
+    <p class="status">exploration, fermenting. Not a plan of record. Captures a design</p>
+    <code>design/cart-os.md</code>
+  </a><a class="card" data-doc="design/cart-as-script.md" href="#" style="--c:var(--pink)">
+    <div class="chead"><b>Cart-as-script — running cart C without an external compiler</b></div>
+    <p class="status">exploration, not a plan of record. Captures a design conversation</p>
+    <code>design/cart-as-script.md</code>
+  </a></div>
+  </section><section class="phase phase-building">
+    <h2 style="--c:var(--orange)">BUILDING <span class="n">3</span></h2>
+    <p class="blurb">In flight right now.</p>
+    <div class="grid"><a class="card" data-doc="design/dynamic-palettes.md" href="#" style="--c:var(--orange)">
+    <div class="chead"><b>Dynamic palettes — the index is a role, not a colour</b><span class="date">2026-06-30</span></div>
+    <p class="status">IDEA / thinking-in-progress (2026-06-30). A design exploration, nothing decided — the maker</p>
+    <code>design/dynamic-palettes.md</code>
+  </a><a class="card" data-doc="design/packaging-distribution.md" href="#" style="--c:var(--orange)">
+    <div class="chead"><b>Packaging &amp; distribution — notes</b></div>
+    <p class="status">not started. This is an exploratory scratchpad, not a plan of record.</p>
+    <code>design/packaging-distribution.md</code>
+  </a><a class="card" data-doc="design/sloop.md" href="#" style="--c:var(--orange)">
+    <div class="chead"><b>sloop — build-your-own-vehicle, travel a procedural world (design seed)</b></div>
+    <p class="status">building — rungs 1–1.95 (drive/drift/course/rigs/handling) + 2 (BUILD editor) + 2.5 (scrape) + 2.55 (tipping) + 2.6 (drivetrain FWD/RWD) + 2.7 (gears/transmission) + 2.7-engines (per-kind powerband</p>
+    <code>design/sloop.md</code>
+  </a></div>
+  </section><section class="phase phase-exploring">
+    <h2 style="--c:var(--yellow)">EXPLORING / IDEA <span class="n">13</span></h2>
+    <p class="blurb">Idea / brainstorm / open research — not yet committed.</p>
+    <div class="grid"><a class="card" data-doc="design/ios-profiling.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>iOS profiling &amp; instrumentation — what Apple's tooling can tell us</b><span class="date">2026-06-30</span></div>
+    <p class="status">SURVEY + build candidates (2026-06-30). The iOS deploy is fully terminal-driven</p>
+    <code>design/ios-profiling.md</code>
+  </a><a class="card" data-doc="design/showreel-teaser.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>showreel / teaser — the big game's trailer as a forcing function</b><span class="date">2026-06-22</span></div>
+    <p class="status">BRAINSTORM / planning (2026-06-22). No code. The point of this doc: deciding what a</p>
+    <code>design/showreel-teaser.md</code>
+  </a><a class="card" data-doc="design/transitions.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>transitions — scene-to-scene wipes, from demo cart to reusable tooling</b><span class="date">2026-06-22</span></div>
+    <p class="status">BRAINSTORM / exploration (2026-06-22). Nothing decided, no code planned yet.</p>
+    <code>design/transitions.md</code>
+  </a><a class="card" data-doc="design/responsive-layout.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>Responsive layout — a four-primitive set, prototyped in cart-land first</b><span class="date">2026-06-11</span></div>
+    <p class="status">brainstorm / prototype. Researched 2026-06-11. Companion prototype:</p>
+    <code>design/responsive-layout.md</code>
+  </a><a class="card" data-doc="design/second-north-star.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>the north star — the honest, adult pursuit (built by the maker + Claude)</b><span class="date">2026-06-09</span></div>
+    <p class="status">REFLECTION (2026-06-09; promoted to *the* north star 2026-06-26 by</p>
+    <code>design/second-north-star.md</code>
+  </a><a class="card" data-doc="design/product-notes.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>product-notes — the audio line as a (maybe) product</b><span class="date">2026-06-07</span></div>
+    <p class="status">IDEA / exploration (2026-06-07). Nothing decided beyond &quot;sketch first.&quot;</p>
+    <code>design/product-notes.md</code>
+  </a><a class="card" data-doc="design/geometry-helpers.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>dreamengine — 2D geometry helpers (proposal)</b><span class="date">2026-06-01</span></div>
+    <p class="status">open / proposed · Date: 2026-06-01 · None merged.</p>
+    <code>design/geometry-helpers.md</code>
+  </a><a class="card" data-doc="design/external-data-carts.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>External data → carts (EXPERIMENT)</b></div>
+    <p class="status">experimental, not committed API. The question being probed: can a cart load a</p>
+    <code>design/external-data-carts.md</code>
+  </a><a class="card" data-doc="design/multiplayer-research.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>Multiplayer — research &amp; proposed direction</b></div>
+    <p class="status">exploration, not a plan of record. Captures a research pass</p>
+    <code>design/multiplayer-research.md</code>
+  </a><a class="card" data-doc="design/physics-notes.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>Physics — design exploration (a tiny in-engine physics layer?)</b></div>
+    <p class="status">brainstorm / scratchpad, nothing decided. Sparked by the ragdoll cart</p>
+    <code>design/physics-notes.md</code>
+  </a><a class="card" data-doc="design/product-notes-followup.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>product-notes — follow-up brainstorm: persistence, native iOS, the App Store, marketing</b></div>
+    <p class="status">IDEA / exploration (2026-06). A third outside-agent brainstorm (Gemini, &quot;Database</p>
+    <code>design/product-notes-followup.md</code>
+  </a><a class="card" data-doc="design/tinyjam-racks-followup.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>Tinyjam Racks — follow-up brainstorm: bias knobs, the agentic RLHF loop, the visualizer</b></div>
+    <p class="status">IDEA / exploration (2026-06). A second outside-agent brainstorm (Gemini, &quot;A Guide</p>
+    <code>design/tinyjam-racks-followup.md</code>
+  </a><a class="card" data-doc="design/web-audio-parity.md" href="#" style="--c:var(--yellow)">
+    <div class="chead"><b>Web/wasm audio parity — scoping (2026-06-17)</b></div>
+    <p class="status">SCOPING + a CONFIRMED-on-paper bug (no fix applied yet). This is the one remaining audio</p>
+    <code>design/web-audio-parity.md</code>
+  </a></div>
+  </section><section class="phase phase-other">
+    <h2 style="--c:var(--dim)">HAS STATUS, UNCLASSIFIED <span class="n">3</span></h2>
+    <p class="blurb">Has a status that doesn't map to a phase (a living doc, or reword it).</p>
+    <div class="grid"><a class="card" data-doc="design/engine-portability.md" href="#" style="--c:var(--dim)">
+    <div class="chead"><b>Engine portability — the platform seam + the renderer decision</b><span class="date">2026-06-29</span></div>
+    <p class="status">the renderer decision is SETTLED (2026-06-29; desktop + device FPS both measured → see</p>
+    <code>design/engine-portability.md</code>
+  </a><a class="card" data-doc="design/big-game-backlog.md" href="#" style="--c:var(--dim)">
+    <div class="chead"><b>big-game backlog — what's left, per cart + the seams that bind them</b><span class="date">2026-06-22</span></div>
+    <p class="status">LIVING BACKLOG / planning (2026-06-22). Companion to</p>
+    <code>design/big-game-backlog.md</code>
+  </a><a class="card" data-doc="design/action-plan.md" href="#" style="--c:var(--dim)">
+    <div class="chead"><b>Action plan — what to build next (synthesized 2026-06-29)</b></div>
+    <p class="status">LIVING ACTION LIST. Synthesizes the concrete, do-able asks scattered across the</p><div class="plan" title="2 of 26 plan steps done">
+      <div class="bar"><i style="width:8%"></i></div><span>2/26</span></div>
+    <code>design/action-plan.md</code>
+  </a></div>
+  </section><section class="phase phase-shipped">
+    <h2 style="--c:var(--green)">SHIPPED / BUILT <span class="n">25</span></h2>
+    <p class="blurb">Done and in the engine.</p>
+    <div class="grid"><a class="card" data-doc="design/cart-metadata.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>cart-metadata — each cart owns its metadata; index.json becomes a generated view</b><span class="date">2026-06-29</span></div>
+    <p class="status">SHIPPED 2026-06-29. All 414 carts migrated (content-lossless); `build-cart-index.js`</p>
+    <code>design/cart-metadata.md</code>
+  </a><a class="card" data-doc="design/ios-plan.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>iOS build plan — the spike ladder + the reusable scaffold</b><span class="date">2026-06-29</span></div>
+    <p class="status">IN PROGRESS (2026-06-29). Spike 0 (toolchain) ✅ done. This is the *execution*</p>
+    <code>design/ios-plan.md</code>
+  </a><a class="card" data-doc="design/switch-target.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Nintendo Switch as a target — feasibility notes</b><span class="date">2026-06-29</span></div>
+    <p class="status">IDEA / parked (2026-06-29). Nothing built, nothing committed to. Captured because the iOS</p>
+    <code>design/switch-target.md</code>
+  </a><a class="card" data-doc="design/field-based-road-rendering.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Field-based road rendering — one distance field, every feature a threshold</b><span class="date">2026-06-24</span></div>
+    <p class="status">SHIPPED in streetlab as OPT-IN (2026-06-24). The whole junction renders on the field</p>
+    <code>design/field-based-road-rendering.md</code>
+  </a><a class="card" data-doc="design/pseudo-3d-city.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>pseudo-3D city — the cityview render bench</b><span class="date">2026-06-24</span></div>
+    <p class="status">bench shipped (cart `cityview`), 2026-06-24. The &quot;how it works&quot; note behind</p>
+    <code>design/pseudo-3d-city.md</code>
+  </a><a class="card" data-doc="design/streetlab-corner-symmetry-plan.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>streetlab — symmetric-corner mirror-blit fix (plan of attack)</b><span class="date">2026-06-23</span></div>
+    <p class="status">BUILT + verified (2026-06-23). The mirror-blit shipped in `streetlab.c`</p>
+    <code>design/streetlab-corner-symmetry-plan.md</code>
+  </a><a class="card" data-doc="design/traffic-ai.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>traffic-ai — NPC driving behaviours, prototyped as a TRAFFIC mode in trackgen</b><span class="date">2026-06-23</span></div>
+    <p class="status">BUILDING (2026-06-23). Shipped: the RACE/TRAFFIC toggle + lane-keeping, car-following</p>
+    <code>design/traffic-ai.md</code>
+  </a><a class="card" data-doc="design/dubdesk-spec.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>dubdesk — a generative dub groovebox (jam-station spec)</b><span class="date">2026-06-22</span></div>
+    <p class="status">✅ BUILT 2026-06-22 (`tools/carts/dubdesk.c`) — shipped per this spec, all three</p>
+    <code>design/dubdesk-spec.md</code>
+  </a><a class="card" data-doc="design/easel-spec.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>easel — a Buchla Music Easel (complete west-coast voice) — spec</b><span class="date">2026-06-22</span></div>
+    <p class="status">✅ BUILT 2026-06-22 (`tools/carts/easel.c`) — v1 shipped per this spec (mono voice;</p>
+    <code>design/easel-spec.md</code>
+  </a><a class="card" data-doc="design/spec-harness.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>spec() — a per-cart logic safety net</b><span class="date">2026-06-22</span></div>
+    <p class="status">v1 BUILT (2026-06-22). The core slice shipped — `step()` + `expect()` +</p>
+    <code>design/spec-harness.md</code>
+  </a><a class="card" data-doc="design/spatial.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Spatial / positional audio — design plan</b><span class="date">2026-06-15</span></div>
+    <p class="status">v1 + v2 SHIPPED (2026-06-15). v1 = per-voice spatialization</p>
+    <code>design/spatial.md</code>
+  </a><a class="card" data-doc="design/roadnet.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>roadnet — a spline arterial network over the heightmap (design)</b><span class="date">2026-06-14</span></div>
+    <p class="status">rungs 1–3 + bridges + magnifier + L2 zones + L2 block grid/lots done (2026-06-14). A fresh testbed cart</p>
+    <code>design/roadnet.md</code>
+  </a><a class="card" data-doc="design/effects-bus-architecture.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Effects bus architecture — reorderable inserts, multi-reverb, reverb-as-bus, sidechain</b><span class="date">2026-06-12</span></div>
+    <p class="status">Increments A, C, D all SHIPPED 2026-06-12. A: reorderable inserts (`fx_order`). C:</p>
+    <code>design/effects-bus-architecture.md</code>
+  </a><a class="card" data-doc="design/midi-and-keybed.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>MIDI input + keybed.h — a shared note-input layer</b><span class="date">2026-06-12</span></div>
+    <p class="status">core SHIPPED 2026-06-12 (see &quot;What shipped&quot; at the bottom); `solo.h`/</p>
+    <code>design/midi-and-keybed.md</code>
+  </a><a class="card" data-doc="design/loupe-notes.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>loupe — a magnifier for tiny touch targets (design notes)</b><span class="date">2026-06-10</span></div>
+    <p class="status">BUILT (2026-06-10). Two carts: the standalone POC (`tools/carts/loupe.c`,</p>
+    <code>design/loupe-notes.md</code>
+  </a><a class="card" data-doc="design/voice-engine.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>The voice engine (INSTR_VOICE) — design notes</b><span class="date">2026-06-10</span></div>
+    <p class="status">SHIPPED (2026-06-10). Public API locked + wired: the 3 macros are VOWEL/SIZE/EFFORT,</p>
+    <code>design/voice-engine.md</code>
+  </a><a class="card" data-doc="design/gamelan.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>gamelan — the bronze drift (Java × Bali) — build spec</b><span class="date">2026-06-09</span></div>
+    <p class="status">SHIPPED 2026-06-09 (`tools/carts/gamelan.c`, station #19) — the core</p>
+    <code>design/gamelan.md</code>
+  </a><a class="card" data-doc="design/procgen-places.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>procgen-places — varying the roads-&amp;-cities generator (design seed)</b><span class="date">2026-06-09</span></div>
+    <p class="status">v2 shipped — tile-based (2026-06-09). The two-field matrix, road</p>
+    <code>design/procgen-places.md</code>
+  </a><a class="card" data-doc="design/motorik.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>motorik — the krautrock driver (Neu! × Stereolab) — build spec</b><span class="date">2026-06-08</span></div>
+    <p class="status">SHIPPED 2026-06-08 (`tools/carts/motorik.c`, station #16) — the</p>
+    <code>design/motorik.md</code>
+  </a><a class="card" data-doc="design/galerijflat.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>galerijflat — an experimental/arty cart (design seed)</b></div>
+    <p class="status">building — step 17 (the flip: gallery ↔ balcony) complete. Cart:</p>
+    <code>design/galerijflat.md</code>
+  </a><a class="card" data-doc="design/held-notes.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Held notes — sustain, live control, and slew (spec)</b></div>
+    <p class="status">SHIPPED. `note_on()→handle`/`note_off()` + `note_pitch`/`note_vol`/</p>
+    <code>design/held-notes.md</code>
+  </a><a class="card" data-doc="design/menigte.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>menigte — 10,000 people, one living town (scale design seed)</b></div>
+    <p class="status">experiment — v1+v1.5+v2 shipped (scale, walk-sim, road-following), plus a</p>
+    <code>design/menigte.md</code>
+  </a><a class="card" data-doc="design/pixel-perfect-scaling.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Pixel-perfect scaling at non-integer offsets (&quot;sharp bilinear&quot;)</b></div>
+    <p class="status">SHIPPED as an opt-in engine setting. The exploration below is preserved for the</p>
+    <code>design/pixel-perfect-scaling.md</code>
+  </a><a class="card" data-doc="design/roadnet-streetlevel.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>roadnet L3 — the on-the-street level (design seed, 2026-06-14)</b></div>
+    <p class="status">access tier + view-switcher + full road-graph (incl. grid nodes/adjacency) BUILT</p>
+    <code>design/roadnet-streetlevel.md</code>
+  </a><a class="card" data-doc="design/tinyjam-racks.md" href="#" style="--c:var(--green)">
+    <div class="chead"><b>Tinyjam Racks — ReBirth-style genre racks: generate → play → export</b></div>
+    <p class="status">IDEA / exploration (2026-06). Nothing built yet. Follow-up brainstorm (bias knobs, the</p>
+    <code>design/tinyjam-racks.md</code>
+  </a></div>
+  </section>
+  <section class="phase phase-adr">
+    <h2 style="--c:var(--dim)">Decisions <span class="n">25</span></h2>
+    <p class="blurb">22 accepted · 3 proposed/other — settled calls (docs/decisions/).</p>
+    <div class="adrs"><a class="adr" data-doc="decisions/0001-cut-coroutine-process-model.md" href="#" title="accepted">0001 — Cut the DIV-style process/coroutine model</a><a class="adr" data-doc="decisions/0002-typed-static-pools-over-entity-system.md" href="#" title="accepted">0002 — Typed static pools, not an engine-owned entity system</a><a class="adr" data-doc="decisions/0003-code-first-sound.md" href="#" title="accepted">0003 — Code-first sound; tracker UI deferred</a><a class="adr" data-doc="decisions/0004-degree-based-trig.md" href="#" title="accepted">0004 — Degree-based trig (not radians or turns)</a><a class="adr" data-doc="decisions/0005-defer-tile-collision-helper.md" href="#" title="accepted">0005 — Defer the move_and_collide tile-collision helper</a><a class="adr" data-doc="decisions/0006-library-carts-not-engine.md" href="#" title="accepted">0006 — Pathfinding/particles/flocking ship as library carts, not engine API</a><a class="adr" data-doc="decisions/0007-pal-recolors-sprites.md" href="#" title="accepted">0007 — pal() recolors sprites, via a palette-swap shader</a><a class="adr" data-doc="decisions/0008-cut-turtle-graphics-api.md" href="#" title="accepted">0008 — Turtle graphics moves from engine API to cart code</a><a class="adr" data-doc="decisions/0009-small-3d-leaf-helpers.md" href="#" title="accepted · Refines: [0006](0006-library-carts-not-engine.md)">0009 — A small set of 3D leaf-helpers (rot3/project3/zsort/quadfill + V3)</a><a class="adr" data-doc="decisions/0010-fade-is-immediate-mode.md" href="#" title="accepted">0010 — fade() is immediate-mode, not a sticky setter</a><a class="adr" data-doc="decisions/0011-two-fill-pattern-paths-must-stay-in-sync.md" href="#" title="accepted">0011 — Two fill-pattern paths (texture vs plot_pat) must stay in sync</a><a class="adr" data-doc="decisions/0012-loderunner-movement-model.md" href="#" title="">0012 — Lode Runner movement model: floor division, not rounding</a><a class="adr" data-doc="decisions/0013-cut-music-api.md" href="#" title="accepted">0013 — Cut music(): the pattern-bank model lost to code-first music</a><a class="adr" data-doc="decisions/0014-cut-unused-convenience-helpers.md" href="#" title="accepted">0014 — Cut three zero-adoption convenience helpers (bezier_cubic, anim_once, bounce_at_edges)</a><a class="adr" data-doc="decisions/0015-effects-are-recipes-not-primitives.md" href="#" title="accepted">0015 — Effects are recipes, not primitives: the roster is closed</a><a class="adr" data-doc="decisions/0016-combo-organ-recipe-then-macro-or-engine.md" href="#" title="proposed (morph-fill verdict in — branch B; combo build still gated on a station, see Consequences)">0016 — Combo organ: a recipe now; its own macro axis or engine only when a station proves it</a><a class="adr" data-doc="decisions/0017-three-macro-core-plus-engine-aux-channel.md" href="#" title="accepted">0017 — Keep the 3-macro core; a blessed per-engine aux channel for the exceptions (not a 4th macro)</a><a class="adr" data-doc="decisions/0018-effects-keep-params-but-become-modulatable.md" href="#" title="accepted">0018 — Effects keep their own params (no instrument-style macros), but their params should be modulatable</a><a class="adr" data-doc="decisions/0019-oscillators-are-naive-antialiasing-deferred.md" href="#" title="accepted">0019 — Oscillators are naive (non-band-limited); anti-aliasing deferred, not rejected</a><a class="adr" data-doc="decisions/0020-in-house-tool-curated-showcase.md" href="#" title="accepted">0020 — dreamengine is an in-house tool with a curated public showcase, not a cart-making platform</a><a class="adr" data-doc="decisions/0021-road-geometry-in-2d-sandbox-render-is-an-adapter.md" href="#" title="accepted">0021 — Road geometry is developed in the 2D top-down sandbox; the pseudo-3D view is a rendering adapter</a><a class="adr" data-doc="decisions/0022-collaboration-is-the-north-star.md" href="#" title="accepted">0022 — the collaboration (maker + Claude) is the north star; learn-to-code retires to lineage</a><a class="adr" data-doc="decisions/0023-ship-carts-as-apps-not-the-editor.md" href="#" title="accepted">0023 — Ship carts as apps (precompiled native), never the editor</a><a class="adr" data-doc="decisions/0024-software-canvas-is-canonical-for-2d.md" href="#" title="accepted">0024 — Software canvas is canonical for 2D; tritex/3D is GPU-only</a><a class="adr" data-doc="decisions/README.md" href="#" title="">Decisions (ADR-lite)</a></div>
+  </section>
+  <footer>Generated by <code>tools/build-design-board.js</code> from <code>tools/design-board.js</code>. Re-run after editing a doc's STATUS line. Unmarked docs: <code>node tools/design-board.js --lint</code>.</footer>
+</div>
+<script>
+document.addEventListener('click', function(ev){
+  var a = ev.target.closest('[data-doc]');
+  if(!a) return;
+  ev.preventDefault();
+  var rel = a.getAttribute('data-doc');
+  if(/^[\w./-]+\.md$/.test(rel)) window.parent.postMessage({type:'open-doc', path: rel}, '*');
+});
+</script>
+</body>
+</html>

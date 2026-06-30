@@ -15,7 +15,8 @@
   "todo": [
     "Mouse: wheel-zoom, drag-rotate, and let the mouse change rotation.",
     "Make the text labels clickable.",
-    "Add an onscreen toggle for auto-rotate; leave seams so touch pinch-zoom can hook in later."
+    "Add an onscreen toggle for auto-rotate; leave seams so touch pinch-zoom can hook in later.",
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
 de:meta */

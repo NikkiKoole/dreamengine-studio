@@ -12,7 +12,10 @@
     "audio-occlusion"
   ],
   "lineage": "Probe cart distilled from rogue.c's per-tile FOV ray; novel in placing both Bresenham single-ray LOS and recursive octant shadowcasting side-by-side on the same occluder grid as candidates for a future los.h/fov.h header.",
-  "description": "PROBE (probe-carts.md): is a tilemap line-of-sight / FOV primitive worth owning in the engine? Two candidates on the same occluder grid. SINGLE-RAY LOS — one Bresenham walk answers 'can A see B?' (enemy vision / stealth / aim / audio occlusion); each guard draws a ray to the eye, red when it has line of sight. FIELD OF VIEW — recursive shadowcasting reveals everything the eye can see, walls casting shadows (lighting / fog-of-war). ARROWS move the eye, L/R-drag paint & erase walls, TAB toggles LOS<->FOV, wheel sets FOV radius, C clears, R randomizes. Generalizes the acoustics-probe raycast beyond audio."
+  "description": "PROBE (probe-carts.md): is a tilemap line-of-sight / FOV primitive worth owning in the engine? Two candidates on the same occluder grid. SINGLE-RAY LOS — one Bresenham walk answers 'can A see B?' (enemy vision / stealth / aim / audio occlusion); each guard draws a ray to the eye, red when it has line of sight. FIELD OF VIEW — recursive shadowcasting reveals everything the eye can see, walls casting shadows (lighting / fog-of-war). ARROWS move the eye, L/R-drag paint & erase walls, TAB toggles LOS<->FOV, wheel sets FOV radius, C clears, R randomizes. Generalizes the acoustics-probe raycast beyond audio.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

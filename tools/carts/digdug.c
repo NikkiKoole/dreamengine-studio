@@ -16,7 +16,8 @@
   "description": "A little digger dropped into a field of solid earth — walk and you carve tunnels through the dirt, the passages staying behind you in earthy depth-banded layers. Two monsters lurk in the soil: round red Pooka and green fire-breathing Fygar. Pop them two ways — face one down a tunnel and hold the harpoon to pump it full of air until it bursts, or dig out the dirt beneath a teetering rock so it crashes down on its head. Corner a monster too long and it flattens into floating eyes that ghost straight through the dirt to hunt you. Clear every monster to dig a deeper, busier layer. Arrows move/dig and aim, hold Z to pump; Z again to continue after a clear or game over.",
   "todo": [
     "Add a rhythm + melody that stops playing when you stop moving (the original's music is part of the charm).",
-    "The game feels unfinished — unclear goal, nothing to collect."
+    "The game feels unfinished — unclear goal, nothing to collect.",
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
 de:meta */

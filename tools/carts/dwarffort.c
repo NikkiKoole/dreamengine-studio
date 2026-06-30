@@ -14,7 +14,10 @@
   "lineage": "Pocket Dwarf Fortress demake — designation-driven colony loop where each dwarf A*-paths to the nearest unclaimed job and transitions through idle/going/working states; the only agent-colony cart in the library.",
   "genre": "simulation",
   "homage": "Dwarf Fortress (2006)",
-  "description": "A pocket-sized Dwarf Fortress: a top-down colony base-builder on one screen where you never steer a dwarf — you designate the work. Drag over solid rock to mark it for digging (mining hews stone) or over open floor to queue a wall (a dwarf hauls a block and raises it), and a handful of stubby, helmeted dwarves A*-path to the nearest reachable job, swing their picks through puffs of dust, and build out the corridors you carve while a day clock ticks toward day 12. Pickaxe taps ride a euclidean rhythm over a slow cavern bed, the stone counter rolls, and a new-day bell eases a banner across the cave. Left-drag to designate with the current tool, right-drag to erase; 1 = DIG, 2 = WALL; SPACE pauses; reach day 12 and the fortress endures — click to found a new fort."
+  "description": "A pocket-sized Dwarf Fortress: a top-down colony base-builder on one screen where you never steer a dwarf — you designate the work. Drag over solid rock to mark it for digging (mining hews stone) or over open floor to queue a wall (a dwarf hauls a block and raises it), and a handful of stubby, helmeted dwarves A*-path to the nearest reachable job, swing their picks through puffs of dust, and build out the corridors you carve while a day clock ticks toward day 12. Pickaxe taps ride a euclidean rhythm over a slow cavern bed, the stone counter rolls, and a new-day bell eases a banner across the cave. Left-drag to designate with the current tool, right-drag to erase; 1 = DIG, 2 = WALL; SPACE pauses; reach day 12 and the fortress endures — click to found a new fort.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

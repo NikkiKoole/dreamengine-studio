@@ -14,7 +14,8 @@
   "todo": [
     "Better mouse support (wheel-zoom, drag-rotate).",
     "The L/R spin is weird: it stops the spin but can't restart it.",
-    "Add an onscreen toggle for auto-rotate; leave seams for touch pinch-zoom."
+    "Add an onscreen toggle for auto-rotate; leave seams for touch pinch-zoom.",
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
 de:meta */

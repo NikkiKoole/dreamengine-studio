@@ -14,7 +14,8 @@
   "todo": [
     "Growth feels backward: each iteration adds branches but the plant shrinks vertically — it should grow from small/few to bigger/more.",
     "Changing the angle sometimes changes the plant's size for no clear reason.",
-    "Add cute pixel buttons for the various plant algorithms."
+    "Add cute pixel buttons for the various plant algorithms.",
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
 de:meta */

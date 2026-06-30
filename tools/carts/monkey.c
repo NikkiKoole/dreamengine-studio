@@ -19,7 +19,8 @@
     "Text overlaps and runs off-screen — use a smaller font.",
     "Sort actors by y so the character can walk in front of/behind props.",
     "Add a simple iMUSE-like musical layer that responds to what you're doing (we have the tools).",
-    "Win state should fade the screen to half."
+    "Win state should fade the screen to half.",
+    "ui-audit: the room-description line (\"Mêlée Island docks…\") runs off the right edge."
   ]
 }
 de:meta */

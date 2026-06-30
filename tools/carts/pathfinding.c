@@ -14,7 +14,8 @@
   "todo": [
     "Support the mouse: drag start and end; add a wall-draw button and an eraser as cute pixel buttons.",
     "Add cute pixel buttons for the various path algorithms.",
-    "Don't auto-restart when the path completes."
+    "Don't auto-restart when the path completes.",
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
 de:meta */

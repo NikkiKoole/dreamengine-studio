@@ -16,7 +16,8 @@
   "todo": [
     "Touch: an onscreen pixel button to rotate ships so it's playable on touch.",
     "Add a win/lose panel at the end.",
-    "Consider real spritework for the ships."
+    "Consider real spritework for the ships.",
+    "ui-audit: \"PLACING: CARRIER (5)\" runs off the right edge and overlaps \"PLACE YOUR FLEET\"."
   ]
 }
 de:meta */

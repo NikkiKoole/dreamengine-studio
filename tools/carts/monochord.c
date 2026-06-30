@@ -13,7 +13,10 @@
     "analog-voice-modeling"
   ],
   "lineage": "Pythagoras's monochord and the Vietnamese dan bau — string-length-as-pitch via PD oscillator; novel in using finger position as movable bridges with multitouch pointer pool.",
-  "description": "One string, no frets — your FINGERS are the bridges, and the LENGTH of each segment IS its pitch (a string halved sounds an octave higher). The gesture behind the đàn bầu, the diddley bow, slide guitar, and Pythagoras's monochord. DRAG on the string to place/move a bridge; with two fingers the segment BETWEEN them sounds — spread apart = lower, squeeze together = higher. FLICK across the string (from above/below) to PLUCK the segment you cross — pluck outside the bridges for the short 'wrong-side' overtone, pluck several segments for a chord on one string. A PD oscillator, so a ringing note GLIDES as you slide a bridge (the đàn bầu bend). Faint ticks mark the just-intonation points (1/2 octave, 2/3 fifth, 3/4 fourth). SPACE plucks the open string. Two bridges at once needs a touchscreen/multitouch trackpad; the desktop mouse is one finger. An experiment in fretting-by-finger-position (built on pointer.h)."
+  "description": "One string, no frets — your FINGERS are the bridges, and the LENGTH of each segment IS its pitch (a string halved sounds an octave higher). The gesture behind the đàn bầu, the diddley bow, slide guitar, and Pythagoras's monochord. DRAG on the string to place/move a bridge; with two fingers the segment BETWEEN them sounds — spread apart = lower, squeeze together = higher. FLICK across the string (from above/below) to PLUCK the segment you cross — pluck outside the bridges for the short 'wrong-side' overtone, pluck several segments for a chord on one string. A PD oscillator, so a ringing note GLIDES as you slide a bridge (the đàn bầu bend). Faint ticks mark the just-intonation points (1/2 octave, 2/3 fifth, 3/4 fourth). SPACE plucks the open string. Two bridges at once needs a touchscreen/multitouch trackpad; the desktop mouse is one finger. An experiment in fretting-by-finger-position (built on pointer.h).",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 // monochord — one string; your fingers are movable BRIDGES, and the LENGTH of

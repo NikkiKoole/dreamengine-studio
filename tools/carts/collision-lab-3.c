@@ -11,7 +11,10 @@
   ],
   "lineage": "Third in the collision-lab tutorial series; extends the object-vs-object tests from labs 1–2 to environment collision, covering edge modes, tile grid, and pixel-color (Worms-style terrain) in one interactive demo.",
   "genre": "lab",
-  "description": "Colliding with the ENVIRONMENT comes in three flavors, cheapest first. EDGES are pure math on your coordinates — press X to cycle clamp / bounce / wrap on the same wall and feel the difference. TILES are asked via the grid: the brown blocks live in the tile map, the cells the ball's box overlaps are highlighted live, and touching_map() just checks those. PIXELS are asked via the canvas: the green blob is not data at all — just drawn pixels — yet touching_color() collides with it by reading the screen back (the Worms-terrain trick). Live readouts include tile_at and pget under your cursor. Arrows fly the ball (it keeps momentum), X cycles edges, Z resets."
+  "description": "Colliding with the ENVIRONMENT comes in three flavors, cheapest first. EDGES are pure math on your coordinates — press X to cycle clamp / bounce / wrap on the same wall and feel the difference. TILES are asked via the grid: the brown blocks live in the tile map, the cells the ball's box overlaps are highlighted live, and touching_map() just checks those. PIXELS are asked via the canvas: the green blob is not data at all — just drawn pixels — yet touching_color() collides with it by reading the screen back (the Worms-terrain trick). Live readouts include tile_at and pget under your cursor. Arrows fly the ball (it keeps momentum), X cycles edges, Z resets.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

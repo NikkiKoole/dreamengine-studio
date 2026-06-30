@@ -8,7 +8,10 @@
     "probe"
   ],
   "teaches": [],
-  "description": "The FAT prototype for the formant VOICE engine (INSTR_VOICE — a navkit VoicForm port: a glottal pulse through four vowel formants). A probe: it exposes all SEVEN raw voice params on sliders (vowel U→I morph · size/vocal-tract length · breath · glottal open-quotient · spectral tilt · vibrato depth · vibrato rate) so you can AUDITION by ear which three deserve to become the public harmonics/timbre/morph macros. The four 'layout' buttons (gen / mouth / creat / sing) load candidate 3-axis combos — press one, sweep the sliders it leans on, judge whether that combination feels expressive. Drives the engine through voice_param(handle, idx, value), an EXPERIMENTAL by-index poke that retires once the axes are chosen. SPACE plays a sustained note · Z/X drop/raise pitch · drag the sliders."
+  "description": "The FAT prototype for the formant VOICE engine (INSTR_VOICE — a navkit VoicForm port: a glottal pulse through four vowel formants). A probe: it exposes all SEVEN raw voice params on sliders (vowel U→I morph · size/vocal-tract length · breath · glottal open-quotient · spectral tilt · vibrato depth · vibrato rate) so you can AUDITION by ear which three deserve to become the public harmonics/timbre/morph macros. The four 'layout' buttons (gen / mouth / creat / sing) load candidate 3-axis combos — press one, sweep the sliders it leans on, judge whether that combination feels expressive. Drives the engine through voice_param(handle, idx, value), an EXPERIMENTAL by-index poke that retires once the axes are chosen. SPACE plays a sustained note · Z/X drop/raise pitch · drag the sliders.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

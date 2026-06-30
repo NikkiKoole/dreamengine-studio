@@ -19,7 +19,8 @@
     "When talking to ladies, show a close-up; make the bigger face respond to your words.",
     "Bigger idea: let the player go outside, wander the street, get run over by a car, get into an alley fight.",
     "The jukebox should actually play a song (reuse a radio cart).",
-    "Win screen fades to half (like Monkey Island)."
+    "Win screen fades to half (like Monkey Island).",
+    "ui-audit: the location description (\"Lucky Lips Lounge…\") and the \"booth\" hotspot label run off the right edge."
   ]
 }
 de:meta */

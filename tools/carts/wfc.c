@@ -13,7 +13,10 @@
     "autotiling"
   ],
   "lineage": "Purpose-built tech demo for WFC terrain generation paired with marching-squares autotiling, showing the two techniques as a live before/after toggle.",
-  "description": "Wave Function Collapse (simple tiled model) generating terrain, then auto-tiling for smooth transitions. Every cell starts in superposition; OBSERVE collapses the lowest-entropy cell, PROPAGATE ripples the constraint out (a level may only touch levels within +/-1, so water never borders forest -> beaches must appear). A neighbour-agreement bonus grows coherent islands & bays instead of noise. Renders two ways: BANDS (flat colour per cell -- the hard-edged worldgen look) and SMOOTH (marching-squares auto-tiling: each level's coastline drawn over the level below). B toggles between them = a live before/after of generation (WFC) vs transitions (auto-tiling). Opens on a finished map; SPACE step, A auto, R regenerate (watch it collapse)."
+  "description": "Wave Function Collapse (simple tiled model) generating terrain, then auto-tiling for smooth transitions. Every cell starts in superposition; OBSERVE collapses the lowest-entropy cell, PROPAGATE ripples the constraint out (a level may only touch levels within +/-1, so water never borders forest -> beaches must appear). A neighbour-agreement bonus grows coherent islands & bays instead of noise. Renders two ways: BANDS (flat colour per cell -- the hard-edged worldgen look) and SMOOTH (marching-squares auto-tiling: each level's coastline drawn over the level below). B toggles between them = a live before/after of generation (WFC) vs transitions (auto-tiling). Opens on a finished map; SPACE step, A auto, R regenerate (watch it collapse).",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

@@ -16,7 +16,8 @@
   "description": "A gravity-physics puzzle sandbox in the spirit of The Incredible Machine: a red ball must fall into the GOAL bucket, and it's on you to build the contraption. Drag ramps, see-saws, fans, walls and spare bumper-balls out of the parts tray onto the board, then hit RUN and watch gravity take over — the ball reflects off your bars pinball-style, fans blow it upward in animated wind arcs, see-saws tip toward the weight, and hard bounces spark particles and ding the synth. Two hand-built levels with fixed pegs and ledges; solve both for the victory screen. Left-drag parts from the tray onto the board (right-click a placed part to lift it), R to run / reset the ball, C to clear the board.",
   "todo": [
     "Make the R and C buttons cute, touch-clickable pixel buttons.",
-    "Add a little blip sfx when the ball hits the ground."
+    "Add a little blip sfx when the ball hits the ground.",
+    "ui-audit: the \"BALL\" label runs off the bottom and overlaps the \"drag parts in, then press R to run\" hint."
   ]
 }
 de:meta */

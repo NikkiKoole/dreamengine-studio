@@ -15,7 +15,8 @@
   "homage": "M.U.L.E. (1983)",
   "description": "One full round of the 1983 economic classic on planet Irata. The whole loop: buy a MULE at the store, outfit it for food / energy / smithore, then race it out to a land plot before it bolts (a runaway timer). Installed MULEs harvest goods based on their terrain, and then you sell your ore in an auction where every sale floods the market and drops the price — so sell while it is high. Supply and demand, made playable. Left/right choose, Z acts, X skips; net worth is scored and your best is saved.",
   "todo": [
-    "Doesn't feel like the original M.U.L.E. (was it really a rhythm game?) — rethink."
+    "Doesn't feel like the original M.U.L.E. (was it really a rhythm game?) — rethink.",
+    "ui-audit: the \"Z: buy MULE ($100) / X: skip to harvest\" hint runs off the right edge."
   ]
 }
 de:meta */

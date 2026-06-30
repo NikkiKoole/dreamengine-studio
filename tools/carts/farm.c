@@ -18,7 +18,8 @@
     "The top bar overlaps part of the game world.",
     "The feedback text disappears too quickly.",
     "It's unclear how to harvest.",
-    "Make hoe/seed/can into cute onscreen pixel buttons; add gamepad support."
+    "Make hoe/seed/can into cute onscreen pixel buttons; add gamepad support.",
+    "ui-audit: the \"Z use / X sleep/sell / C buy\" hint runs off the right edge; the \"bed\" and \"sell\" labels overlap adjacent text."
   ]
 }
 de:meta */

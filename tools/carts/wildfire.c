@@ -13,7 +13,10 @@
   ],
   "lineage": "Lifts the 1993 Doom-fire heat-propagation rule out of its original bottom-up backdrop use and repurposes it as a top-down chasing hazard that climbs walls and burns through them.",
   "genre": "arcade",
-  "description": "The doom-fire propagation rule turned into a chasing hazard — outrun a top-down floor fire that spreads cell-to-cell and burns through walls to reach the green exit. WASD/arrows move, Z/A dashes (short cooldown), R/X instant-retry."
+  "description": "The doom-fire propagation rule turned into a chasing hazard — outrun a top-down floor fire that spreads cell-to-cell and burns through walls to reach the green exit. WASD/arrows move, Z/A dashes (short cooldown), R/X instant-retry.",
+  "todo": [
+    "ui-audit: the bottom HUD (\"DASH\", \"REACH THE EXIT\", \"RUN/ASH\") runs off the bottom edge and the labels overlap."
+  ]
 }
 de:meta */
 #include "studio.h"

@@ -10,7 +10,10 @@
     "algorithm-visualization"
   ],
   "lineage": "Proof-of-concept for the interchange-DSL geometry layer (docs/design/interchange-dsl.md); superseded by roadlab which replaces the Bezier ramps with arc-splines and adds lane-accurate ports.",
-  "description": "A geometry SANDBOX for the interchange-DSL idea (docs/design/interchange-dsl.md): a road ramp is built from TWO PORTS (an attach point + a tangent direction) plus a TYPE — DIRECT / FLYOVER / LOOP all fall out of ONE closed-form constructor, with no per-shape coordinates. Ports are drawn as arrows; the orange ramp re-solves to whichever pair + type you pick. Proves 'describe junctions declaratively, not by hand-placed geometry' in isolation before porting back to interchange.c. Controls: LEFT/RIGHT cycle port A, UP/DOWN cycle port B, SPACE cycles the ramp type, F flips the DRIVE side (the loop mirrors). Press N for the NEST-SOLVE demo: two non-concentric loops where a relaxation solver finds the inner radius so the two nest at a target clearance (LEFT/RIGHT adjust the gap). See docs/design/interchange-dsl.md and docs/design/road-geometry-refs.md."
+  "description": "A geometry SANDBOX for the interchange-DSL idea (docs/design/interchange-dsl.md): a road ramp is built from TWO PORTS (an attach point + a tangent direction) plus a TYPE — DIRECT / FLYOVER / LOOP all fall out of ONE closed-form constructor, with no per-shape coordinates. Ports are drawn as arrows; the orange ramp re-solves to whichever pair + type you pick. Proves 'describe junctions declaratively, not by hand-placed geometry' in isolation before porting back to interchange.c. Controls: LEFT/RIGHT cycle port A, UP/DOWN cycle port B, SPACE cycles the ramp type, F flips the DRIVE side (the loop mirrors). Press N for the NEST-SOLVE demo: two non-concentric loops where a relaxation solver finds the inner radius so the two nest at a target clearance (LEFT/RIGHT adjust the gap). See docs/design/interchange-dsl.md and docs/design/road-geometry-refs.md.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

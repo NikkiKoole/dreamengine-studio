@@ -16,7 +16,8 @@
   "todo": [
     "Text overflows the bottom panel — drop to a smaller font where it clips.",
     "Dropping a disc should animate sliding down the column, not appear instantly.",
-    "Add a jazzy background loop (brush snare + upright bass) via the generative-music layer."
+    "Add a jazzy background loop (brush snare + upright bass) via the generative-music layer.",
+    "ui-audit: the D / L / YOUR TURN status labels overlap each other."
   ]
 }
 de:meta */

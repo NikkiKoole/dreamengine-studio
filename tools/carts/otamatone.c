@@ -10,7 +10,10 @@
     "analog-voice-modeling"
   ],
   "lineage": "Built as the teaching cart for the held-note API (note_pitch/note_cutoff live steering); models the Otamatone toy's reed-buzz + resonant-mouth character via a single sustained voice shaped every frame.",
-  "description": "The little face-on-a-stem toy, built entirely from the HELD NOTE api. DRAG the vertical stem to play — one sustained voice (note_on) whose pitch chases your finger up and down the fretless ribbon (note_pitch + note_glide for the signature slurp). Hold SPACE (or right-click) to squeeze the mouth open: that sweeps a resonant lowpass from a muffled 'mm' to a bright 'aah' (note_cutoff), and the pixel mouth opens to match. Wiggle while you slide for hand vibrato. Q toggles fretless ↔ snap-to-pentatonic."
+  "description": "The little face-on-a-stem toy, built entirely from the HELD NOTE api. DRAG the vertical stem to play — one sustained voice (note_on) whose pitch chases your finger up and down the fretless ribbon (note_pitch + note_glide for the signature slurp). Hold SPACE (or right-click) to squeeze the mouth open: that sweeps a resonant lowpass from a muffled 'mm' to a bright 'aah' (note_cutoff), and the pixel mouth opens to match. Wiggle while you slide for hand vibrato. Q toggles fretless ↔ snap-to-pentatonic.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

@@ -16,7 +16,8 @@
   "homage": "Raiden (1990)",
   "description": "A vertical-scrolling shoot-em-up (Raiden / 1943 / Tyrian), built around its weapon-upgrade loop. Your fighter hugs the bottom while a tile map() of sea, islands and an airbase scrolls down past you and waves of enemy craft pour in from the top. Shoot down P pods to climb your main gun L1->L5 (single -> twin -> 3-way -> 4-way -> 5-way spread), then keep grabbing them to bolt on side OPTION wingmen that mirror your fire; B pods stock a screen-clearing bomb that wipes every bullet in a white flash. Six foes off a scripted, escalating timeline — sine-weaving popcorn flyers, poppers and gunships that aim shots at you, ground turrets riding the scroll — all one sprite each, pal()-recolored into whole squadrons and flashed white when hit, capped by a 3-phase WARLORD boss with a health bar. A tight 1-pixel-core hitbox, X focus mode to thread bullet curtains, particle explosions with screen-shake, hit-stop on the boss kill, a driving chiptune bed and a last-life red alarm. Death drops you one weapon tier, never to zero; hi-score saved. Arrows/WASD fly (8-way), Z bomb (gun autofires), X focus/slow, SPACE or ENTER to start / restart.",
   "todo": [
-    "Maybe a better title-screen font (it plays nicely)."
+    "Maybe a better title-screen font (it plays nicely).",
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
 de:meta */

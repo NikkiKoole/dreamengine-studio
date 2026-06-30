@@ -176,6 +176,13 @@ across many carts — handle those **once, systemically**, then sweep:
   unfinished — define one good shared end-screen treatment and apply it.
 - [ ] **Text-overflow sweep.** Many carts overflow / want a smaller font (civ-tiny, puyo, dr-mario,
   connect-4, monkey-island, larry, football-manager, sokoban, papers-please, xcom, composer…).
+- [ ] **Control-hint overflow (ui-audit, ~47 carts).** A fleet `ui-audit` sweep found that nearly
+  every sound-toy/lab cart's bottom one-line control hint (`"drag X · up/dn Y · Z/X oct"`) runs past
+  the 320px right edge and is clipped. Systemic fix: a shorter / auto-fit / smaller-font (or wrapped)
+  convention for the hint line. Each affected cart carries a soft `ui-audit?:` marker in its
+  `de:meta.todo[]` (query: `node tools/cart-todos.js --grep "ui-audit?"`); fixing the convention once
+  lets the markers be cleared in a sweep. (Confident per-cart HUD findings carry a plain `ui-audit:`
+  prefix instead.)
 - [ ] **Mouse support for the 3D + label-button carts.** wheel-zoom + drag-rotate + a toggle for
   auto-rotate, and pinch-zoom seams for touch — textured3d, solid3d, 3d-wireframe; plus clickable
   text labels across juice/particles/effects/etc.

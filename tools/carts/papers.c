@@ -17,7 +17,8 @@
   "description": "A document-inspection game after Lucas Pope's classic. An applicant hands over a passport (and, on later days, an entry permit); cross-check their fields against the day's posted RULEBOOK and stamp APPROVE or DENY. Catch expired passports, banned nations, missing permits, mismatched names and expired permits — the rules tighten each day, so a clean entrant one day is a denial the next. Five mistakes and you're terminated. A approves, B denies. Glory to Arstotzka.",
   "todo": [
     "Use a small font where needed.",
-    "Add some text effects."
+    "Add some text effects.",
+    "ui-audit: \"DATE 1982.11.23\" runs off the right edge; the \"MAY I ENTER?\" speech overlaps \"EXP 1979.11.01\"."
   ]
 }
 de:meta */

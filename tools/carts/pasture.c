@@ -13,7 +13,10 @@
     "finite-state-ai"
   ],
   "lineage": "Based on two RogueBasin articles (townsfolk AI and denizen herding behavior) — combines boids sheep, a schedule-driven townsfolk system with personality overrides, and a simple wolf predator on a shared day/night clock.",
-  "description": "A living world on one day/night clock (RogueBasin: townsfolk AI + Denizen Herding). TOWNSFOLK follow a daily SCHEDULE -- sleep at home, gather at the well, work the field, drink at the tavern by the hour -- with personalities bending it (a drunk haunts the tavern, a farmer never leaves the field); a glyph over each head shows the activity. SHEEP HERD by boids (cohesion + alignment + separation) and FLEE the wolf, harder the moment it HOWLS (sound drives behaviour). The WOLF hunts the nearest sheep and howls on a timer; the flock bolts. The clock drives a true-colour sky gradient (rectfill_rgb), an ambient chord that shifts with the phase, a bell on the hour, and bleats/howl panned by position. Click a townsperson to inspect, H to force a howl, R to reseed."
+  "description": "A living world on one day/night clock (RogueBasin: townsfolk AI + Denizen Herding). TOWNSFOLK follow a daily SCHEDULE -- sleep at home, gather at the well, work the field, drink at the tavern by the hour -- with personalities bending it (a drunk haunts the tavern, a farmer never leaves the field); a glyph over each head shows the activity. SHEEP HERD by boids (cohesion + alignment + separation) and FLEE the wolf, harder the moment it HOWLS (sound drives behaviour). The WOLF hunts the nearest sheep and howls on a timer; the flock bolts. The clock drives a true-colour sky gradient (rectfill_rgb), an ambient chord that shifts with the phase, a bell on the hour, and bleats/howl panned by position. Click a townsperson to inspect, H to force a howl, R to reseed.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

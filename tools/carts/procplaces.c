@@ -11,7 +11,10 @@
     "noise-terrain"
   ],
   "lineage": "Original testbed for pluggable world generators; the roads-and-cities generator applies a SimCity-2000-style dual noise field (land-use × intensity) to a nested road lattice, while the terrain generator is a straight fbm elevation showcase.",
-  "description": "A testbed for procedural generation: one free-fly explorer that hosts PLUGGABLE generators. Ships with two structurally-opposite ones - ROADS & CITIES (a noise density field zones the world into city/town/rural/highway and a nested road lattice is promoted per zone; cities cluster on the noise peaks, organic not a bullseye) and TERRAIN (fbm elevation as colour bands: sea/beach/grass/forest/rock/snow). Same seed = byte-identical world every run (engine value noise, seeded via noise3's z-slice). Forest/dungeon/cave gens slot in as more headers. Arrows/WASD pan, Z/X (or wheel) zoom, R new seed, 1/2 switch generator, TAB field overlay."
+  "description": "A testbed for procedural generation: one free-fly explorer that hosts PLUGGABLE generators. Ships with two structurally-opposite ones - ROADS & CITIES (a noise density field zones the world into city/town/rural/highway and a nested road lattice is promoted per zone; cities cluster on the noise peaks, organic not a bullseye) and TERRAIN (fbm elevation as colour bands: sea/beach/grass/forest/rock/snow). Same seed = byte-identical world every run (engine value noise, seeded via noise3's z-slice). Forest/dungeon/cave gens slot in as more headers. Arrows/WASD pan, Z/X (or wheel) zoom, R new seed, 1/2 switch generator, TAB field overlay.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

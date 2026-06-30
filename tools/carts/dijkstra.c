@@ -12,7 +12,10 @@
     "algorithm-visualization"
   ],
   "lineage": "Direct interactive implementation of the RogueBasin 'incredible power of Dijkstra maps' article — makes the three canonical techniques (approach, flee, combined hunt map) live and paintable.",
-  "description": "PROBE (probe-carts.md): 'the incredible power of Dijkstra maps' (RogueBasin) made playable — is a Dijkstra/flow-field map worth owning, the AI companion to astar's single path? One flood-fill (every floor cell = distance to the goal) drives three behaviours, rendered as a live contour-ring heatmap with downhill flow arrows. APPROACH: agents roll downhill to the goal, routing around walls. FLEE: negate the map and re-flood -> agents flee via real escape routes, not into dead ends. HUNT: add a 'seek gold' map to a 'dread the monster' map -> agents grab loot while dodging a monster that itself hunts them by rolling downhill on a distance-to-agents map. ARROWS drive the goal (or the monster in hunt), L/R-drag paint & erase walls, TAB cycles mode, F toggles flow arrows, R/C/G randomize/clear/rescatter."
+  "description": "PROBE (probe-carts.md): 'the incredible power of Dijkstra maps' (RogueBasin) made playable — is a Dijkstra/flow-field map worth owning, the AI companion to astar's single path? One flood-fill (every floor cell = distance to the goal) drives three behaviours, rendered as a live contour-ring heatmap with downhill flow arrows. APPROACH: agents roll downhill to the goal, routing around walls. FLEE: negate the map and re-flood -> agents flee via real escape routes, not into dead ends. HUNT: add a 'seek gold' map to a 'dread the monster' map -> agents grab loot while dodging a monster that itself hunts them by rolling downhill on a distance-to-agents map. ARROWS drive the goal (or the monster in hunt), L/R-drag paint & erase walls, TAB cycles mode, F toggles flow arrows, R/C/G randomize/clear/rescatter.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

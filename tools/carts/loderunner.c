@@ -14,7 +14,10 @@
   "lineage": "Homage to Lode Runner (1983); the guard shares the same grid-movement rules as the player (chase by tile-distance scoring), and the dig/regrow timer is the core mechanic drawn from primitives with a saved best score.",
   "genre": "platformer",
   "homage": "Lode Runner (1983)",
-  "description": "A pocket-sized Lode Runner: sprint a chunky runner across a brick-and-ladder maze, scoop up every glinting chunk of gold, then climb the exit ladder that lights up only once the level is clean. A red guard hunts you on the same rules you obey — run, climb, hang hand-over-hand from ropes, and fall. Caught on open ground and you're done, so dig: Z chews a hole in the floor down-and-left, X down-and-right, dropping the guard into a pit that refills a moment later and crushes anything still stuck. Two single-screen levels, drawn entirely from primitives, with a clean clear/death/restart loop and a saved best. Arrows run/climb/rope, Z dig-left, X dig-right, R restart."
+  "description": "A pocket-sized Lode Runner: sprint a chunky runner across a brick-and-ladder maze, scoop up every glinting chunk of gold, then climb the exit ladder that lights up only once the level is clean. A red guard hunts you on the same rules you obey — run, climb, hang hand-over-hand from ropes, and fall. Caught on open ground and you're done, so dig: Z chews a hole in the floor down-and-left, X down-and-right, dropping the guard into a pit that refills a moment later and crushes anything still stuck. Two single-screen levels, drawn entirely from primitives, with a clean clear/death/restart loop and a saved best. Arrows run/climb/rope, Z dig-left, X dig-right, R restart.",
+  "todo": [
+    "ui-audit: the \"[D]\" (dig) HUD label at the bottom-right is clipped off the right edge."
+  ]
 }
 de:meta */
 #include "studio.h"
@@ -241,7 +244,7 @@ static void step_actor(float *ax, float *ay, int *adir,
         *ay = ny;
         if (dbg_on && spd == SPD) dbg_mode = 0;
 #ifdef DE_TRACE
-        if (spd == SPD) watch("mode", 0);
+        if (spd == SPD) watch("mode", "%d", 0);
 #endif
         return;
     }
@@ -263,7 +266,7 @@ static void step_actor(float *ax, float *ay, int *adir,
             *ay = ny;
             if (dbg_on && spd == SPD) dbg_mode = 1;
 #ifdef DE_TRACE
-            if (spd == SPD) watch("mode", 1);
+            if (spd == SPD) watch("mode", "%d", 1);
 #endif
             return;
         }
@@ -279,7 +282,7 @@ static void step_actor(float *ax, float *ay, int *adir,
             *ay = ny;
             if (dbg_on && spd == SPD) dbg_mode = 2;
 #ifdef DE_TRACE
-            if (spd == SPD) watch("mode", 2);
+            if (spd == SPD) watch("mode", "%d", 2);
 #endif
             return;
         }
@@ -302,7 +305,7 @@ static void step_actor(float *ax, float *ay, int *adir,
             *ax = nx;
             if (dbg_on && spd == SPD) dbg_mode = 3;
 #ifdef DE_TRACE
-            if (spd == SPD) watch("mode", 3);
+            if (spd == SPD) watch("mode", "%d", 3);
 #endif
             return;
         } else {
@@ -310,7 +313,7 @@ static void step_actor(float *ax, float *ay, int *adir,
         }
     }
 #ifdef DE_TRACE
-    if (spd == SPD) watch("mode", 4);
+    if (spd == SPD) watch("mode", "%d", 4);
 #endif
 }
 

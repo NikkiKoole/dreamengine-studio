@@ -13,7 +13,10 @@
     "schedule-driven-agents"
   ],
   "lineage": "Implements nadako's roguelike energy-scheduler (next-event-time priority queue); the timeline ribbon at the top is the explicit teaching artifact, showing the scheduling order rewrite live as you change speed.",
-  "description": "Turn-based time scheduling by SPEED -- the roguelike energy-scheduler (nadako's turn-scheduling rant). Naive roguelikes loop 'for each actor: act()' so everyone moves at one rate; real ones schedule by energy/speed so a fast actor acts more often, interleaved. Each actor here has a 'next turn' time; the scheduler always runs whoever's next is soonest, then pushes their next turn out by COST/speed -- higher speed = sooner and more often (the same idea as energy accumulation, expressed as next-event times so the ORDER is drawable). The payoff is the NEXT ribbon up top: the upcoming ~14 turns in order. Press H to re-speed yourself (slow/normal/fast/blink) and watch the ribbon rewrite -- at blink you take two or three steps between a troll's single lurch. Five monsters at different speeds (slow troll -> fast hound). Arrows move/bump to attack, H change speed, R reset."
+  "description": "Turn-based time scheduling by SPEED -- the roguelike energy-scheduler (nadako's turn-scheduling rant). Naive roguelikes loop 'for each actor: act()' so everyone moves at one rate; real ones schedule by energy/speed so a fast actor acts more often, interleaved. Each actor here has a 'next turn' time; the scheduler always runs whoever's next is soonest, then pushes their next turn out by COST/speed -- higher speed = sooner and more often (the same idea as energy accumulation, expressed as next-event times so the ORDER is drawable). The payoff is the NEXT ribbon up top: the upcoming ~14 turns in order. Press H to re-speed yourself (slow/normal/fast/blink) and watch the ribbon rewrite -- at blink you take two or three steps between a troll's single lurch. Five monsters at different speeds (slow troll -> fast hound). Arrows move/bump to attack, H change speed, R reset.",
+  "todo": [
+    "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
+  ]
 }
 de:meta */
 #include "studio.h"

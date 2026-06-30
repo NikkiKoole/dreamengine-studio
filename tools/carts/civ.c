@@ -19,7 +19,8 @@
   "todo": [
     "Text overflows.",
     "Maybe force a choice: research OR build warriors OR settlers (unsure how deep to go).",
-    "Founding 3 cities is a weird win state; fade the screen at the end; an enemy (4x-style) might be better."
+    "Founding 3 cities is a weird win state; fade the screen at the end; an enemy (4x-style) might be better.",
+    "ui-audit: \"pick a unit\" and \"END TURN E\" run off the right edge."
   ]
 }
 de:meta */

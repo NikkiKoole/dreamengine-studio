@@ -18,7 +18,8 @@
     "UI labels overlap all over the place.",
     "Needs a start panel.",
     "Bug: blocks that touch the ground overlap and then jump back.",
-    "Touch: onscreen joystick."
+    "Touch: onscreen joystick.",
+    "ui-audit: \"connect 4+ to pop\", \"chains = big score\" and \"press Z to start\" overlap the SCORE / 0 readouts."
   ]
 }
 de:meta */

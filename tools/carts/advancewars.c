@@ -15,7 +15,10 @@
   "lineage": "Demake of Advance Wars (GBA, 2001); novel in distilling the damage-matrix / terrain-defense-stars / capture mechanic into a single-screen hand-authored map with a CPU opponent that takes a full turn.",
   "genre": "tactics",
   "homage": "Advance Wars (2001)",
-  "description": "A bright turn-based tactics game (an Advance Wars demake), you RED vs the CPU BLUE on one hand-made tile map. The crunch is three systems working together: a unit-vs-unit DAMAGE MATRIX (mechs wreck tanks up close, recon mauls infantry, artillery hits at range 2-3 but can't be countered or move-and-fire), TERRAIN DEFENSE STARS that scale how much a defender soaks (forests and mountains save lives), and CAPTURE — march infantry onto a building to flip it over two turns for income, or take the enemy HQ to win instantly. Factories build new units from your funds, a forecast shows damage before you commit, and every clash kicks a screen-shake, flash, sparks and HP pops. Mouse-primary: click a unit, click a reachable tile (it traces a move arrow over the highlighted range), then pick ATTACK / CAPTURE / WAIT. Keyboard: WASD or arrows move the cursor, Z confirm, X cancel/undo, SPACE ends turn. Win by capturing the enemy HQ or destroying every enemy unit."
+  "description": "A bright turn-based tactics game (an Advance Wars demake), you RED vs the CPU BLUE on one hand-made tile map. The crunch is three systems working together: a unit-vs-unit DAMAGE MATRIX (mechs wreck tanks up close, recon mauls infantry, artillery hits at range 2-3 but can't be countered or move-and-fire), TERRAIN DEFENSE STARS that scale how much a defender soaks (forests and mountains save lives), and CAPTURE — march infantry onto a building to flip it over two turns for income, or take the enemy HQ to win instantly. Factories build new units from your funds, a forecast shows damage before you commit, and every clash kicks a screen-shake, flash, sparks and HP pops. Mouse-primary: click a unit, click a reachable tile (it traces a move arrow over the highlighted range), then pick ATTACK / CAPTURE / WAIT. Keyboard: WASD or arrows move the cursor, Z confirm, X cancel/undo, SPACE ends turn. Win by capturing the enemy HQ or destroying every enemy unit.",
+  "todo": [
+    "ui-audit: \"END TURN\" runs off the right edge; \"RED\" overlaps \"HQ\"."
+  ]
 }
 de:meta */
 #include "studio.h"

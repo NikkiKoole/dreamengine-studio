@@ -399,7 +399,7 @@ try {
 
 // ---- negative space: the decisions that CUT or DEFERRED something ----
 const negativeSpace = adrs
-  .filter(a => /\b(cut|defer|deprecat|superseded)\b/i.test(a.name + ' ' + (a.title || '')))
+  .filter(a => /\b(cut|defer|deprecat|supersed)/i.test(a.name + ' ' + (a.title || '')))
   .map(a => ({ name: a.name, title: a.title, rel: a.rel }))
 
 // ---- design lifecycle: phase counts (designed → shipped) ----

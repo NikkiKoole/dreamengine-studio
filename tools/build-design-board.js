@@ -2,8 +2,8 @@
 // build-design-board.js — generate docs/design-board.html, the VISUAL twin of
 // design-board.js: every design doc + ADR as a clickable item in a lo-fi CONSOLE
 // CHECKLIST — grouped by lifecycle phase, ASCII checkboxes ([ ] ready · [~] wip ·
-// ( ) idea · [x] done), PICO-8 palette, faint CRT scanline. A todo-list deluxe
-// that mirrors the docs' own `- [ ]` markdown and the fantasy-console identity.
+// ( ) idea · [x] done), PICO-8 palette, Comic Mono. A todo-list deluxe that
+// mirrors the docs' own `- [ ]` markdown and the fantasy-console identity.
 // Shown in the editor's ★ designs Docs tab in an iframe; clicking an item
 // postMessages the parent editor to open that doc's markdown.
 //
@@ -126,7 +126,7 @@ fs.writeFileSync(OUT, html);
 console.log(`wrote ${path.relative(ROOT, OUT)} — ${board.length} docs, ${adrs.length} ADRs`);
 
 // ---- CSS: lo-fi console checklist — near-black phosphor terminal, PICO-8 accents,
-//      ASCII checkboxes, faint CRT scanline. Calm: ready is bright, done recedes. ----
+//      ASCII checkboxes, Comic Mono. Calm: ready is bright, done recedes. ----
 function CSS() {
   return `
 /* Comic Mono — the editor's own face (served from editor/public at /ComicMono.ttf) */

@@ -12,9 +12,9 @@
   ],
   "lineage": "Sibling of pitchenv — the same mod-envelope system pointed at filter cutoff; the canonical tuning rig for the resonant-lowpass sweep (the pluck 'pew').",
   "description": {
-    "summary": "A Minimoog/Model-D-style bass rig: TWO detuned saws through the Moog ladder filter, with a FILTER contour, a cutoff LFO, a LOUDNESS ADSR, plus DETUNE + DRIVE + a sub octave for the fat low-end 'humpf'. Each control has its own slider and a live graph.",
-    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Graph 1: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously. Graph 2: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). Row 3 is two views side by side. LEFT, SHAPE: a still idealized single cycle — a saw through a resonant filter (CUT rounds the corners, RES adds the ring), clipped on one side by DRIVE, plus the octave SUB; it redraws only when you change a SHAPE knob. RIGHT, SCOPE: the ACTUAL output via the scope_read engine API, zero-cross-triggered to hold still — the real signal, so the envelope sweep / LFO wobble / detune beating you DON'T see in the still shape all show up here, live. DETUNE/DRIVE and the SUB OSC -1 toggle are where the humpf lives.",
-    "controls": "A-K play notes - SPACE toggles the auto-arp - SUB OSC button top-right - drag the FILTER / LFO / AMP / VOICE sliders"
+    "summary": "A Minimoog/Model-D-style bass rig: THREE oscillators (two detuned saws + an octave-down triangle sub) through the Moog ladder filter, with a FILTER contour, a cutoff LFO, a LOUDNESS ADSR, plus DETUNE, DRIVE and a FAT low-shelf EQ for the low-end 'humpf'. Each control has its own slider/toggle and a live graph.",
+    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Graph 1: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously. Graph 2: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). Row 3 is two views side by side. LEFT, SHAPE: a still idealized single cycle — a saw through a resonant filter (CUT rounds the corners, RES adds the ring), clipped on one side by DRIVE, plus the octave SUB; it redraws only when you change a SHAPE knob. RIGHT, SCOPE: the ACTUAL output via the scope_read engine API, zero-cross-triggered to hold still — the real signal, so the envelope sweep / LFO wobble / detune beating you DON'T see in the still shape all show up here, live. DETUNE/DRIVE plus the SUB OSC (octave triangle) and FAT EQ toggles are where the humpf lives.",
+    "controls": "A-K play notes - SPACE toggles the auto-arp - FAT EQ + SUB OSC toggles top-right - drag the FILTER / LFO / AMP / VOICE sliders"
   }
 }
 de:meta */
@@ -22,10 +22,11 @@ de:meta */
 #include <math.h>
 
 // DUAL ENV — a Minimoog/Model-D-style bass voice + filter rig. Where the "humpf" comes from:
-//   TWO detuned saws (SLOT + SLOT2, instrument_tune) — they beat against each other = thick.
+//   THREE oscillators (like a Model D's 3 VCOs): two detuned saws (SLOT + SLOT2, beating = thick)
+//     plus an octave-down TRIANGLE sub (SLOT3) for round low-end body — the SUB OSC toggle.
 //   FILTER_LADDER — the Moog 4-pole transistor ladder (24 dB/oct), creamier than a 2-pole.
 //   DRIVE (DRIVE_ASYM) — even-harmonic saturation = round, fat grit.
-//   SUB OSC -1 — the same wave an octave down for low-end body (the Osc-3-as-sub trick).
+//   FAT EQ — a +6 dB low-shelf boost on the whole voice; the most direct weight knob.
 // On top of that, three modulators:
 //   FILTER contour (instrument_env + ENV_CUTOFF) — snaps the cutoff open on the attack.
 //   cutoff LFO (instrument_lfo + LFO_CUTOFF) — the continuous wobble.
@@ -34,6 +35,7 @@ de:meta */
 
 #define SLOT  5
 #define SLOT2 6                   // the 2nd, detuned saw — the other half of the fat
+#define SLOT3 7                   // 3rd oscillator: an octave-down TRIANGLE for low-end body (the SUB)
 #define GATE_MS 450               // how long each note is gated (note-on → note-off)
 
 typedef struct { const char *name; float lo, hi, val; } Knob;
@@ -60,17 +62,20 @@ static Knob K[NK] = {
 
 static int   active = -1;        // slider being dragged, or -1
 static bool  auto_on = true;
-static bool  sub_on = false;     // sub-oscillator: same wave one octave down
+static bool  sub_on = true;      // 3rd osc: octave-down triangle (low-end body)
+static bool  fat_on = false;     // low-shelf EQ boost (+6 dB lows) — direct humpf
 static int   oct = 0;            // octave shift from Z/X (GarageBand-style)
 static float arp_t = 0.f;
 static int   arp_i = 0;
 static float last_note_t = -9.f;
 
-// sub-osc toggle button (top-right)
+// toggle buttons (top-right): FAT (EQ low boost) then SUB (octave triangle)
 #define SUBX 252
 #define SUBY 3
 #define SUBW 60
 #define SUBH 11
+#define FATX 198
+#define FATW 50
 
 // slider layout: four groups (5 filter | 2 lfo | 4 amp | 2 voice) in one row
 #define SX 2
@@ -90,23 +95,33 @@ static int knob_x(int i) {
 static void apply(void) {
     float det = K[V_DTN].val / 100.f;     // cents → semitones (instrument_tune is in semitones)
     float drv = K[V_DRV].val / 100.f;     // % → 0..1
+    int a = (int)K[A_ATK].val, d = (int)K[A_DEC].val, su = (int)K[A_SUS].val, r = (int)K[A_REL].val;
+    int cut = (int)K[F_CUT].val, res = (int)K[F_RES].val;
     int slots[2] = { SLOT, SLOT2 };
     for (int s = 0; s < 2; s++) {         // two saws, the 2nd detuned → they beat = Moog-fat
         int sl = slots[s];
-        instrument(sl, INSTR_SAW, (int)K[A_ATK].val, (int)K[A_DEC].val, (int)K[A_SUS].val, (int)K[A_REL].val);
-        instrument_filter(sl, FILTER_LADDER, (int)K[F_CUT].val, (int)K[F_RES].val);   // the Moog 4-pole
+        instrument(sl, INSTR_SAW, a, d, su, r);
+        instrument_filter(sl, FILTER_LADDER, cut, res);                               // the Moog 4-pole
         instrument_env(sl, 0, ENV_CUTOFF, (int)K[F_ATK].val, (int)K[F_DEC].val, K[F_AMT].val);
         instrument_lfo(sl, 0, LFO_CUTOFF, K[L_RATE].val, K[L_DEPTH].val);             // wobble rides on top
         instrument_drive_mode(sl, DRIVE_ASYM);                                        // even harmonics = fat
         instrument_drive(sl, drv);
         instrument_tune(sl, s == 0 ? 0.f : det);                                      // detune only the partner
     }
+    // 3rd oscillator (the SUB): a TRIANGLE an octave down — round low-end body, not more buzz
+    instrument(SLOT3, INSTR_TRI, a, d, su, r);
+    instrument_filter(SLOT3, FILTER_LADDER, cut, res);
+    instrument_env(SLOT3, 0, ENV_CUTOFF, (int)K[F_ATK].val, (int)K[F_DEC].val, K[F_AMT].val);
+    instrument_drive_mode(SLOT3, DRIVE_ASYM);
+    instrument_drive(SLOT3, drv);
+    instrument_tune(SLOT3, -12.f);                                                    // one octave down
+    eq(fat_on ? 6.0f : 0.0f, 0.0f, 0.0f);                                             // FAT: low-shelf boost
 }
 
 static void play(int midi) {
     hit(midi, SLOT,  4, GATE_MS);
-    hit(midi, SLOT2, 4, GATE_MS);                                    // the detuned partner saw
-    if (sub_on && midi - 12 >= 0) hit(midi - 12, SLOT, 3, GATE_MS);  // sub osc: same wave, 1 octave down
+    hit(midi, SLOT2, 4, GATE_MS);                  // the detuned partner saw
+    if (sub_on) hit(midi, SLOT3, 4, GATE_MS);      // triangle sub (SLOT3 is tuned -1 octave)
     last_note_t = now();
 }
 
@@ -116,10 +131,11 @@ void init(void) {
 }
 
 void update(void) {
-    // sub-osc toggle button (top-right) — separate region from the sliders
-    if (mouse_pressed(MOUSE_LEFT) && mouse_x() >= SUBX && mouse_x() < SUBX + SUBW
-        && mouse_y() >= SUBY && mouse_y() < SUBY + SUBH)
-        sub_on = !sub_on;
+    // toggle buttons (top-right) — separate region from the sliders
+    if (mouse_pressed(MOUSE_LEFT) && mouse_y() >= SUBY && mouse_y() < SUBY + SUBH) {
+        if (mouse_x() >= SUBX && mouse_x() < SUBX + SUBW) sub_on = !sub_on;
+        if (mouse_x() >= FATX && mouse_x() < FATX + FATW) { fat_on = !fat_on; apply(); }  // EQ change → reapply
+    }
 
     // sliders (drag vertically)
     if (mouse_pressed(MOUSE_LEFT)) {
@@ -182,10 +198,13 @@ void draw(void) {
     cls(CLR_DARKER_BLUE);
     print("DUAL ENV", 8, 4, CLR_LIGHT_PEACH);
 
-    // sub-osc toggle (top-right): layers the same wave one octave down
+    // toggles (top-right): FAT (EQ low boost) + SUB (octave-down triangle)
+    font(FONT_SMALL);
+    rectfill(FATX, SUBY, FATW, SUBH, fat_on ? CLR_ORANGE : CLR_BROWNISH_BLACK);
+    rect(FATX, SUBY, FATW, SUBH, CLR_DARKER_GREY);
+    print("FAT EQ", FATX + 5, SUBY + 3, fat_on ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);
     rectfill(SUBX, SUBY, SUBW, SUBH, sub_on ? CLR_GREEN : CLR_BROWNISH_BLACK);
     rect(SUBX, SUBY, SUBW, SUBH, CLR_DARKER_GREY);
-    font(FONT_SMALL);
     print("SUB OSC -1", SUBX + 5, SUBY + 3, sub_on ? CLR_BROWNISH_BLACK : CLR_LIGHT_GREY);
     font(FONT_NORMAL);
 
@@ -290,7 +309,8 @@ void draw(void) {
             for (int k = 0; k < 4 * M; k++) {             // 2 warm-up cycles, then keep 2
                 int c = k / M, i = k % M;
                 float saw = 2.f * (i / (float)M) - 1.f;
-                float in = sub_on ? saw * 0.7f + (2.f * subph - 1.f) * 0.3f : saw;   // + octave sub
+                float subtri = 1.f - 4.f * fabsf(subph - 0.5f);   // octave-down triangle (-1..1)
+                float in = sub_on ? saw * 0.7f + subtri * 0.4f : saw;
                 subph += 0.5f / M; if (subph >= 1.f) subph -= 1.f;
                 low  += fc * band;                        // resonant SVF lowpass: rounds + rings
                 band += fc * (in - low - damp * band);

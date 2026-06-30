@@ -16,9 +16,10 @@
 //
 // This is the cart-only terminal slice of the planned `build-context` tool
 // (docs/design/action-plan.md Tier 1; docs/field-notes/tools-we-need.md #1;
-// rationale in docs/field-notes/002-context-assembly.md). The broader subjects
-// it sketches — api:<x> / task:<x> / topic:<x> — are NOT built yet; this does
-// cart:<name> only, which needs no doc-frontmatter to be useful today.
+// rationale in docs/field-notes/002-context-assembly.md). This does cart:<name>
+// only. For a cross-cutting FEATURE/theme that spans many carts + docs + code
+// (the topic:<x> subject sketched there), use its HORIZONTAL twin
+// `tools/topic-brief.js "touch controls" gamepad`. api:<x>/task:<x> still unbuilt.
 //
 // IT DOES NOT re-check integrity or publish state — that's cart-info.js (source
 // /embed/registry drift) and cart-status.js (rebake/publish). This tool only
@@ -242,6 +243,7 @@ if (dtFeed.length) out.push(dim("  fed by: ") + dtFeed.join(", "));
 // ============================================================================
 out.push(head("NEXT"));
 out.push(dim("  this + the source map in 1: ") + `node tools/orient.js ${name}`);
+out.push(dim("  a cross-cart FEATURE, not 1 cart:") + ` node tools/topic-brief.js "<theme>"`);
 out.push(dim("  map the SOURCE (shapes/fns):") + ` node tools/cart-outline.js ${name}`);
 out.push(dim("  one function's full body:  ") + ` node tools/cart-outline.js ${name} --fn <name>`);
 out.push(dim("  integrity (source drift):  ") + `node tools/cart-info.js ${name}`);

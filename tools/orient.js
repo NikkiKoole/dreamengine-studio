@@ -12,6 +12,10 @@
 // this is the convenience composite. Flags after the name go to BOTH children
 // (cart-outline reads --full / --fn / --json; build-context ignores the rest).
 //
+// This is the VERTICAL front door (one cart, deep). For a HORIZONTAL theme that
+// spans many carts + docs + code (a feature like the iOS virtual gamepad), reach
+// for `tools/topic-brief.js "<theme>"` instead.
+//
 // Plain node, CommonJS.
 // ============================================================================
 

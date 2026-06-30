@@ -27,6 +27,10 @@
 //
 // Run after any doc reorg/split/rename:  node tools/lint-docs.js
 // Exit 1 on hard errors (broken links / unresolvable §-refs), 0 otherwise.
+//
+// Companion (the INVERSE check): `tools/lint-xrefs.js` finds links that SHOULD
+// exist but don't — unlinked doc-name mentions + missing backlinks. This one
+// checks existing links resolve; that one checks the corpus is well-connected.
 
 const fs = require('fs');
 const path = require('path');

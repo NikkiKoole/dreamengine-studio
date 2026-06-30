@@ -58,7 +58,8 @@ This page is only the routing layer.
 |---|---|
 | game logic in a cart with a `spec()` | **`spec.js [cart] --quiet`** (the gameplay-logic gate) |
 | `index.json` (tags / registration) | **`lint-carts.js`** |
-| anything under `docs/` | **`lint-docs.js`** (cross-reference validator) |
+| anything under `docs/` | **`lint-docs.js`** (links resolve / §-refs / tool-index) |
+| reorganized docs, want gaps not breaks | **`lint-xrefs.js [topic]`** (docs that should cross-link but don't) |
 | a cart's source/sprites (is it baked/published?) | **`cart-status.js --quiet`** |
 | effects/UI placement, want a "can a phone play this" report | **`mobile-lint.js`**, **`ui-audit.js`** |
 
@@ -66,6 +67,8 @@ This page is only the routing layer.
 
 | You want to know… | Run |
 |---|---|
+| everything about a cross-cutting FEATURE/theme (docs + code + carts) | **`topic-brief.js "<theme>"`** |
+| everything about ONE cart (context + source map) | **`orient.js <cart>`** |
 | how often an API fn is used / its blast radius | **`api-usage.js`** (also cross-checks `studio.h` ↔ docs ↔ `shell.js`) |
 | one cart's screen/dims/source-drift/registration | **`cart-info.js <cart>`** |
 | which carts are complex / spec-worthy | **`cart-analyze.js`** |

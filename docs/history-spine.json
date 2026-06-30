@@ -1,16 +1,17 @@
 {
-  "_README": "Hand-authored STRUCTURE for the generated history (docs/history.html). The generator (tools/build-history.js) derives ALL dates, commit lists, ADRs and cart-birth data from git + index.json — this file only supplies what a parser can't infer: era boundaries, subsystem identity + matchers, importance tiers, the marked days, and the (mostly empty) editorial seam. Editorial prose, when written, follows docs/guides/voice.md. Re-run: `node tools/build-history.js`. v1 scope = week 1 only.",
+  "_README": "Hand-authored STRUCTURE for the generated history (docs/history.html). The generator (tools/build-history.js) derives ALL dates, commit lists, ADRs and cart-birth data from git + index.json — this file only supplies what a parser can't infer: era boundaries, subsystem identity + matchers, importance tiers, the marked days, and the (mostly empty) editorial seam. Editorial prose, when written, follows docs/guides/voice.md. Re-run: `node tools/build-history.js`. Scope: weeks 1–5 (through 2026-06-30).",
   "title": "dreamengine — a history",
   "subtitle": "How a fantasy console grew, week by week. Built structure-first from git, the STATUS ledger, and the decision log.",
   "voiceRef": "guides/voice.md",
-  "window": { "from": "2026-05-28", "to": "2026-06-24", "label": "Weeks 1–4" },
+  "window": { "from": "2026-05-28", "to": "2026-06-30", "label": "Weeks 1–5" },
   "denseDayThreshold": 80,
 
   "weeks": [
     { "id": "w1", "label": "Week 1", "from": "2026-05-28", "to": "2026-06-03", "tagline": "Bootstrap → the first subsystems" },
     { "id": "w2", "label": "Week 2", "from": "2026-06-04", "to": "2026-06-10", "tagline": "The sound explosion" },
     { "id": "w3", "label": "Week 3", "from": "2026-06-11", "to": "2026-06-17", "tagline": "MIDI, spatial audio — then roads, sims & a hardening pass" },
-    { "id": "w4", "label": "Week 4", "from": "2026-06-18", "to": "2026-06-24", "tagline": "Live instruments, a self-knowledge layer, the at-grade streets, a city that simulates itself — and the renderer taken down to the pixels" }
+    { "id": "w4", "label": "Week 4", "from": "2026-06-18", "to": "2026-06-24", "tagline": "Live instruments, a self-knowledge layer, the at-grade streets, a city that simulates itself — and the renderer taken down to the pixels" },
+    { "id": "w5", "label": "Week 5", "from": "2026-06-25", "to": "2026-07-01", "tagline": "A real city you can drive in 3D, the engine running on a phone, and the day the tools turned on themselves" }
   ],
 
   "subsystems": [
@@ -129,6 +130,18 @@
     { "id": "software-canvas-day", "title": "Down to the pixels",
       "from": "2026-06-24", "to": "2026-06-24",
       "blurb": "The day the renderer got interrogated. The big one: the software-canvas investigation finally RUNS, and comes back GO — rasterize the whole frame on the CPU into a byte-identical framebuffer and cityplan drops from 11.4ms to 5.0ms a frame. Phases 0 through 2 land in a row (cbuf + UpdateTexture, then spr/print/tritex/span-fills as CPU blits, then camera zoom in software with rotation falling back to the GPU), and the win is honestly scoped — it's a pset-bound win, not a universal one. Underneath it, a determinism question gets chased to the floor: the det-probes prove rotated fills, strokes and sprites are gap-free and reproducible, RotSprite (EPX ×3) goes head-to-head and wins on lines but not lone specks, and cross-arch libm trig drift gets quantized away. The roads got a big chunk of their own. Field-based road rendering — the long-queued refactor that draws a road from a per-pixel lateral-coverage field instead of stamped quads — finally lands, shipped opt-in behind the road-check oracle (framebuffer invariants: no naked edges, no strays, no floating kerb at any angle) and blessed by ADR 0021 (the geometry lives in plain 2D; the pseudo-3D view is just a rendering adapter). cityview puts a GTA1-ish four-mode camera over the world and folds the overpass raised-flyover experiment into itself, and trackgen's traffic learns cross-roads, right-of-way reservations, K-turns and police chases.",
+      "editorial": "" },
+    { "id": "real-city-data", "title": "The city, loaded for real",
+      "from": "2026-06-25", "to": "2026-06-28",
+      "blurb": "The roads stopped being a sandbox and became a place. roadview learns a packed binary format (.rvb) so tens of megabytes of OpenStreetMap load in under a second, its pools grow to fit ALL of Amsterdam (~4.2M points / 575k ways), and it stops sampling and pulls the FULL ladder of the data — every road class, hashed understory, multipolygon water, and SimCity-style zoning layers (landuse / rail / sand) with outlined building footprints. An absolute zoom ceiling lets a whole city zoom down to street detail. The cart loads its world at runtime, so you swap cities by swapping a file — no regen — and cityview gets published to the gallery. The groundwork for driving a real city.",
+      "editorial": "" },
+    { "id": "ios-on-device", "title": "It runs on the phone",
+      "from": "2026-06-29", "to": "2026-06-29",
+      "blurb": "The iOS port crossed from spikes to the real thing. Phase 2 lands: the actual studio.c + sound.h — the real engine, zero Raylib via the DE_NO_RAYLIB seam — renders omnichord pixel-correct and sounds it through CoreAudio on a real iPhone, UIKit touch driving it. The AUv3 extension stops hosting a stand-in and hosts the REAL engine as a sample-clocked sequencer, then takes host MIDI so it's a playable instrument rack inside other apps. The load-bearing renderer question gets settled and written down — ADR-0024: the software canvas is canonical for 2D (no ANGLE on iOS); 3D stays GPU-only and off the initial list — after on-device FPS is measured (2D carts hold 59–60fps; tritex ~10fps). A perf harness logs frames to the Documents dir. Nothing left to set up; device work just runs here now.",
+      "editorial": "" },
+    { "id": "self-knowledge-day", "title": "The tools turn on themselves",
+      "from": "2026-06-30", "to": "2026-06-30",
+      "blurb": "A multi-track day whose headline was the project turning its tools on itself. The knowledge layer: build-context gathers one cart's scattered docs, its horizontal twin topic-brief assembles a feature dossier across the whole repo, and lint-xrefs finds the docs that should cross-link but don't (432 missing backlinks → 42 once it learns to spot domain hubs by in-degree). Then the views — design-board reads every design doc's STATUS line into a lifecycle board (the ★ todo page, styled as a lo-fi Comic-Mono console checklist), and build-reflections turns the field-notes journal into the ★ reflections page beside it, both over a shared doc-status.js that owns the phase vocabulary. The rest of the day is honesty passes against those views: triage 29 unmarked design docs, relocate 5 misplaced field-notes, migrate carts' hidden prose todos into de:meta.todo[], wire the 260-cart-todo backlog onto the board, and — the closing move — audit all 15 field notes against the repo and record on each what it actually became (the journal flips from 10 observed / 0 incorporated to 10 incorporated). In parallel: citydrive turns the loaded city into a drivable pseudo-3D world — real metre-scaled car, mouse orbit/zoom, terrain elevation off a DEM, water and mountains around the edges, a pitched perspective camera — and a '📱 to iPhone' button lands in the editor to deploy the live cart to a connected device.",
       "editorial": "" }
   ],
 

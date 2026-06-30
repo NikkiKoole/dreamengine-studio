@@ -166,8 +166,9 @@ across many carts — handle those **once, systemically**, then sweep:
   (mouse carts already play from touch) and `de_key_event` feeds `IsKeyDown/Pressed/Released`; the
   engine already has an on-screen d-pad/buttons (`show_touch_ui`/`TOUCH_CONTROLS`). So this is now
   "wire the existing virtual gamepad + a key overlay into the iOS shell," not new engine work — and
-  it's the gate to **raw `key()` carts (WASD, etc.) becoming playable on the phone**. See
-  [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
+  it's the gate to **raw `key()` carts (WASD, etc.) becoming playable on the phone**. **Full design +
+  7-step plan: [`touch-controls.md`](touch-controls.md)** (the deck/rails placement model + the
+  `touch_layout()` API); see also [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
 - [ ] **"Cute pixel buttons" retrofit** — replaces text-label buttons that don't work on mouse/touch
   across dozens of carts. **The widget already exists** — `ui.h`'s `ui_spr_button` /
   `ui_spr_button_styled` (sprite face + press/capture/hit-pad/focus/selected styling); size is just

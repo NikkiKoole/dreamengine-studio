@@ -117,8 +117,9 @@ sees the C API. Gotcha learned: screenshot ~1.5s after launch or you catch the l
 > feeds `IsKeyDown/Pressed/Released` (the harness today; an on-screen keyboard later). Proven: a tap
 > injected into `hotline` headless triggers `mouse_pressed → start_game →` rotated gameplay.
 >
-> **Open follow-ups:** (1) **Virtual gamepad/keyboard in the iOS shell — the recommended next** (see
-> [`action-plan.md`](action-plan.md) "Touch-input"): raw `key()` carts (WASD movement, etc.) have no
+> **Open follow-ups:** (1) **Virtual gamepad/keyboard in the iOS shell — the recommended next** — the
+> full design + 7-step plan lives in [`touch-controls.md`](touch-controls.md) (this is its Phase 4/5);
+> see also [`action-plan.md`](action-plan.md) "Touch-input". Raw `key()` carts (WASD movement, etc.) have no
 > touch equivalent. The engine already has an on-screen d-pad/buttons (`show_touch_ui`/`TOUCH_CONTROLS`)
 > and the `de_key_event` seam is ready — wire them into the iOS shell so gamepad + key carts become
 > playable on the phone. (2) MIDI CC → cart knobs (the engine's MIDI is note+bend only today). (3)

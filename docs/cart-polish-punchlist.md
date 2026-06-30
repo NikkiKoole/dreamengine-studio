@@ -6,7 +6,8 @@
 > `--count`, `<cart>`). The per-cart entries are no longer maintained in this file — **the
 > carts are the source of truth**; clear an item by deleting it from the cart that owns it.
 > Touch-control items were migrated too (the touch-controls agent reads `de:meta.todo[]`
-> when it starts on a cart).
+> when it starts on a cart). The shared design + plan for the onscreen joystick/d-pad lives in
+> [`design/touch-controls.md`](design/touch-controls.md).
 
 ## What this list's framing notes asked for — and what shipped since
 

@@ -430,7 +430,7 @@ function showHistory() {
   currentDocPath = 'history'
   setActiveNav('history')
   docsContent.classList.add('docs-history')
-  docsContent.innerHTML = `<iframe class="history-frame" src="/docs/history.html" title="project history"></iframe>`
+  docsContent.innerHTML = `<iframe class="history-frame" src="/docs/history.html" title="project history" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
 
@@ -441,7 +441,7 @@ function showCompendium() {
   currentDocPath = 'compendium'
   setActiveNav('compendium')
   docsContent.classList.add('docs-history')
-  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/cart-compendium.html" title="cart technique compendium"></iframe>`
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/cart-compendium.html" title="cart technique compendium" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
 
@@ -452,7 +452,7 @@ function showDesignBoard() {
   currentDocPath = 'designboard'
   setActiveNav('designboard')
   docsContent.classList.add('docs-history')
-  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/design-board.html" title="design board"></iframe>`
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/design-board.html" title="design board" onload="this.classList.add('loaded')"></iframe>`
   docsContent.scrollTop = 0
 }
 

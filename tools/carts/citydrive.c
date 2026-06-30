@@ -353,8 +353,9 @@ static void wall_tex(float ax,float ay, float bx,float by, float cax,float cay, 
   int pat = facing>0.66f ? 0 : (facing>0.40f ? FILL_DOTS : QUARTER);
   if (pat) {
     fillp(pat, -1);
+    fillp_anchor((int)((ax+bx+cax+cbx)*0.25f), (int)((ay+by+cay+cby)*0.25f));  // pin to THIS wall → no crawl when the camera moves
     quadfill((int)ax,(int)ay,(int)bx,(int)by,(int)cbx,(int)cby,(int)cax,(int)cay, CLR_BLACK);
-    fillp_reset();
+    fillp_reset(); fillp_anchor(0,0);
   }
 }
 
@@ -538,9 +539,11 @@ void draw(void) {
       for (int a=0;a<narea;a++){ if (areas[a].kind!=L) continue;
         float mx=areas[a].cx-S.camx, my=areas[a].cy-S.camy;
         if (mx*mx+my*my > AR2) continue;
+        if (dith){ int ax,ay; wpt(areas[a].cx,areas[a].cy,ground_z(areas[a].cx,areas[a].cy),&ax,&ay);
+                   fillp_anchor(ax,ay); }   // pin the dither to this area → travels with it, no crawl
         area_fill(areas[a].start, areas[a].count, col);
       }
-      if (dith) fillp_reset();
+      if (dith){ fillp_reset(); fillp_anchor(0,0); }
     }
   }
 

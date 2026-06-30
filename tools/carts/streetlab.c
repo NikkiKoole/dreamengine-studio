@@ -288,8 +288,28 @@ static int   field_roads = 1;
 static int   field_roads = 0;
 #endif
 
-static float leg_bearing(int i){ float b=legs[i].base + (legs[i].crossing?(float)skew:0.f); return fmodf(b+3600,360); }
-static int   leg_present(int i){ return !(isT && i==3); }              // T drops North (leg 3)
+// ── RUNG 1 — the OSM→streetlab spike (docs/design/driving-world-program.md, bridge #1). ─────────────
+//    Feed the junction renderer a FOREIGN, INDEPENDENT set of arm bearings — exactly what an OSM node
+//    hands you (incident ways' bearings) — bypassing the base±skew COLLINEAR-PAIR model. The gut-check:
+//    do real-world angles render with clean curb returns through the existing path, unchanged? 'o'
+//    cycles off → each sample → off. Every other treatment (curb radius, peds, lanes…) still composes.
+//    NLEG=4 caps it at 4 arms; a 5/6-way node is the predicted next step (raise NLEG + a present-count).
+//    These bearings are hand-read off real intersections — stand-ins until osm-roads.js emits the graph.
+typedef struct { const char *name; int n; float brg[NLEG]; } OsmJunc;
+static const OsmJunc osm_samples[] = {
+    { "4-way, independent skew", 4, {  10, 100, 195, 280 } },   // NOT collinear pairs — the real test
+    { "Y junction (3-way)",      3, {  25, 145, 265 } },        // uneven 3-way, no straight-through
+    { "acute fork (4-way)",      4, {  18,  78, 200, 262 } },   // tight corners stress the curb return
+};
+#define N_OSM ((int)(sizeof osm_samples / sizeof osm_samples[0]))
+static int osmMode = 0;   // 0 = off (normal leg model); 1..N_OSM = render sample (osmMode-1)
+
+static float leg_bearing(int i){
+    if (osmMode) return fmodf(osm_samples[osmMode-1].brg[i] + 3600, 360);   // RUNG 1: raw OSM bearing, no skew
+    float b=legs[i].base + (legs[i].crossing?(float)skew:0.f); return fmodf(b+3600,360); }
+static int   leg_present(int i){
+    if (osmMode) return i < osm_samples[osmMode-1].n;                       // RUNG 1: arm count from the OSM node
+    return !(isT && i==3); }              // T drops North (leg 3)
 
 // present legs, sorted by bearing 0..360; fills idx[]/brg[], returns n
 static int present_legs(int *idx, float *brg){
@@ -690,6 +710,7 @@ void update(void){
     if (keyp('d')||keyp('D')) driveways = (driveways+1)&3;   // Stage-1 #3c: driveways per-side cycle off→+→−→both
     if (keyp('n')||keyp('N')) paint = !paint;                // toggle the PAINTED markings (lines/dashes/arrows); surfaces stay
     if (keyp('g')||keyp('G')) field_roads = !field_roads;    // toggle field-based road rendering (A/B vs the old per-arm path)
+    if (keyp('o')||keyp('O')) osmMode = (osmMode+1) % (N_OSM+1);   // RUNG 1: cycle off → OSM samples (foreign bearings)
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;   // M6: stays MINI (small, traversable)
     if (frR<8) frR=8;       if (frR>24) frR=24;           // Stage-1 #2: free-right turning radius
@@ -1307,17 +1328,24 @@ void draw(void){
     font(FONT_SMALL);
     char bb[96];                                            // wide enough for the feature subtitle + driveways suffix
     int xs = medOn||bikeOn||parkOn||twltlOn;               // M7: any typed cross-section element active?
-    print(xs        ? "streetlab - at-grade junction (M7: typed cross-section)"
+    print(osmMode   ? "streetlab - OSM node -> junction (rung 1: foreign bearings)"
+         : xs        ? "streetlab - at-grade junction (M7: typed cross-section)"
          : roundabout ? "streetlab - at-grade junction (M6: mini-roundabout)"
                       : "streetlab - at-grade junction (M5: sidewalks + crosswalks)", 4,5, CLR_WHITE);
+    if (osmMode){   // RUNG 1 banner: which sample + the raw incident-way bearings driving the render
+        char ob[96]; int p=snprintf(ob,sizeof ob,"[o] %s  -  %d arms @ ", osm_samples[osmMode-1].name, n);
+        for (int i=0;i<n && p<(int)sizeof ob-8;i++) p+=snprintf(ob+p,sizeof ob-p,"%s%.0f", i?",":"", (double)brg[i]);
+        snprintf(ob+p,sizeof ob-p,"%s"," deg");   // ascii (the 8x8 font has no degree glyph)
+        print(ob, 4, 13, CLR_YELLOW);   // sits where the at-grade subtitle would be (suppressed below in OSM mode)
+    }
     const char *dwy = (driveways && !peds) ? "  -  driveways" : "";  // omit when peds (the subtitle would overrun); always visible in the render anyway
-    if (roundabout)
+    if (roundabout)   // RUNG 1 note: in OSM mode bb is built but not printed (the yellow banner replaces this subtitle)
         snprintf(bb,sizeof bb,"mini-roundabout (traversable island)  -  %d arms  -  give-way entries%s%s",
                  n, peds?"  -  pavement + crossings":"", dwy);
     else
         snprintf(bb,sizeof bb,"%s  -  %d corners%s%s%s", isT?"T-junction":"4-way crossing", count_corners(),
                  turnLanes?"  -  turn bays":freeRight?"  -  free-right slips":"", peds?"  -  pavement + crossings":"", dwy);
-    print(bb, 4,13, CLR_ORANGE);
+    if (!osmMode) print(bb, 4,13, CLR_ORANGE);   // RUNG 1: suppressed in OSM mode (the yellow banner takes this row)
     // A/B mode tag — tells the truth: FIELD green when the field is ACTUALLY drawing this mode; ORANGE
     // "old*" when the toggle is on but the mode (roundabout/free-right) still falls back to the per-arm path.
     print(!field_roads?"[g]arm" : field_now?"[g]FIELD":"[g]old*", SCREEN_W-32, 13,

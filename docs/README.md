@@ -15,6 +15,8 @@ once, so part of it was always stale. Each file now answers one kind of question
 docs/
 ├── README.md          you are here — the map
 ├── VISION.md          why & what: product idea, audience, philosophy, console spec
+├── what-is-this.md    the manifesto / origin story (moved from field-notes 2026-06-30) — what DreamEngine is & is becoming
+├── onepiecofadvice.md a short note on mindset — companion to what-is-this.md
 ├── STATUS.md          state: the one ledger of shipped / open / cut
 ├── POLISH_TODO.md     work list: the per-game "juice pass" across the carts (dormant idea-bank)
 ├── cart-polish-punchlist.md  MIGRATED pointer: per-cart polish items now live in each cart's de:meta.todo[] (query: node tools/cart-todos.js); this file keeps the maker's framing notes. Systemic items → design/action-plan.md
@@ -149,7 +151,7 @@ docs/
 │   └── history-page.md           ★ how the generated history page works + how to ADD A WEEK (the build-history.js generator + the history-spine.json structure)
 ├── history-spine.json hand-authored STRUCTURE for the generated history page (weeks, eras, subsystems, importance tiers, marked days, milestones, editorial seam); dates/commits/ADRs/carts/heroes are derived from git
 ├── history.html       GENERATED project-history timeline (tools/build-history.js) — a neo-brutalist magazine read, grouped week by week; opened via the Docs tab's "★ history" item. Covers weeks 1–3; how-to + add-a-week → guides/history-page.md
-├── field-notes/       the research JOURNAL — append-only notes (000-…) on *what changed our understanding* (explicitly NOT docs/specs/decisions); FIELD-NOTES.md = generated index (tools/build-field-notes.js), what-is-this.md + README.md = the charter
+├── field-notes/       the research JOURNAL — append-only notes (000-…) on *what changed our understanding* (explicitly NOT docs/specs/decisions); FIELD-NOTES.md = generated index (tools/build-field-notes.js), README.md = the charter
 └── archive/           superseded / done notes, kept for history
 ```
 

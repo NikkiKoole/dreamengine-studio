@@ -1,5 +1,7 @@
 # AI-Friendly Frontmatter
 
+STATUS: SHIPPED — adopted convention for AI-friendly frontmatter (the de:meta / journal-header house style).
+
 ## Purpose
 
 As the DreamEngine knowledge base grows, documents should become easier for both humans and AI agents to understand.

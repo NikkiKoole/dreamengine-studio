@@ -21,7 +21,7 @@
 // Tolerant of the three metadata styles in the wild: the `**Status**`/`**Date**` bold
 // block (002, 100…), the YAML-ish `title:`/`## status:` frontmatter (011–013), and the
 // bare `Status` label (000, 001). Metadata is read only from each note's HEAD region, so
-// example `status:` lines buried deep in a note (about-tags, tools-we-need) aren't misread.
+// example `status:` lines buried deep in a note (e.g. about-tags) aren't misread.
 
 const fs = require('fs');
 const path = require('path');

@@ -1,5 +1,7 @@
 # Tool Ideas from the Field Notes Session
 
+STATUS: BUILDING — living tool-idea backlog from the field-notes sessions; several shipped (build-context, topic-brief, build-field-notes, build-reflections), more open.
+
 ## 1. `build-context`
 
 Assemble task-specific context for agents.

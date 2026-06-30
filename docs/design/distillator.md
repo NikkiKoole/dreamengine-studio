@@ -1,3 +1,7 @@
+# Distillator — distilling the whole md corpus
+
+STATUS: EXPLORING — design seed: a knowledge-distillation layer (RAG / knowledge-graph / generated wiki) over the md corpus; partly realized by the build-* view tools.
+
 question: how would i make a system that would be able to dstill all the md files and get nfo out them, its too much for you or another ganet, are there solutions (not our field reseacrh but the totality) you mentioned obsidian a while ago, are there other things or olutions to this ?
 Thought for 7s
 

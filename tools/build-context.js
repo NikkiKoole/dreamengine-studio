@@ -15,7 +15,7 @@
 // see *why* each doc is relevant before opening it.
 //
 // This is the cart-only terminal slice of the planned `build-context` tool
-// (docs/design/action-plan.md Tier 1; docs/field-notes/tools-we-need.md #1;
+// (docs/design/action-plan.md Tier 1; docs/design/tools-we-need.md #1;
 // rationale in docs/field-notes/002-context-assembly.md). This does cart:<name>
 // only. For a cross-cutting FEATURE/theme that spans many carts + docs + code
 // (the topic:<x> subject sketched there), use its HORIZONTAL twin

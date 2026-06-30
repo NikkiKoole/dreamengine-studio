@@ -19,7 +19,7 @@
 // the engine seam, the carts that demo/want it, and the related tools.
 //
 // This is the `topic:<x>` slice that build-context.js's header sketches as
-// planned (docs/field-notes/tools-we-need.md #1 — `build-context roads`). The
+// planned (docs/design/tools-we-need.md #1 — `build-context roads`). The
 // cart:<name> slice stays in build-context.js; this is its theme-keyed sibling.
 //
 // IT DOES NOT judge cross-link health beyond a one-line nudge — that's

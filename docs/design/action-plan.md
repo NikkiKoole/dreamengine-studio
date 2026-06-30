@@ -3,9 +3,9 @@
 STATUS: LIVING ACTION LIST. Synthesizes the concrete, do-able asks scattered across the
 field-notes journal and the three audio-product brainstorms into one prioritized, checkable list.
 Sources, each linked at point of use:
-- **field-notes/** — the research journal (`tools-we-need.md`, `distillator.md`, `about-tags.md`,
-  `ai-friendly-frontmatter.md`, notes `002`/`003`/`011`/`012`/`013`, and the cart-polish log
-  `cart-polish-punchlist.md`).
+- **field-notes/** — the research journal (`about-tags.md`, notes `002`/`003`/`011`/`012`/`013`).
+- **design/** — `tools-we-need.md` (the tool backlog), `distillator.md`, `ai-friendly-frontmatter.md` (moved here from field-notes 2026-06-30).
+- **`cart-polish-punchlist.md`** (docs root) — the cart-polish log.
 - [`tinyjam-racks.md`](tinyjam-racks.md) + [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) — the rack design.
 - [`product-notes.md`](product-notes.md) + [`product-notes-followup.md`](product-notes-followup.md)
   — the commercial/distribution lens.

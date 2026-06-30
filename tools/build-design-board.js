@@ -35,12 +35,13 @@ const { board, adrs, unmarked } = collectBoard();
 const PH = {
   ready:     { glyph: "[ ]", c: "var(--green)",  label: "READY TO BUILD",        mode: "row",  open: true  },
   building:  { glyph: "[~]", c: "var(--orange)", label: "IN PROGRESS",           mode: "row",  open: true  },
-  other:     { glyph: "[?]", c: "var(--indigo)", label: "LIVING / UNCLASSIFIED", mode: "row",  open: true  },
+  living:    { glyph: "[*]", c: "var(--indigo)", label: "LIVING",                mode: "row",  open: true  },
+  other:     { glyph: "[?]", c: "var(--dim)",    label: "UNCLASSIFIED",          mode: "row",  open: true  },
   exploring: { glyph: "( )", c: "var(--blue)",   label: "EXPLORING / IDEAS",     mode: "chip", open: false },
   shipped:   { glyph: "[x]", c: "var(--dim)",    label: "SHIPPED",               mode: "chip", open: false },
   cut:       { glyph: "[/]", c: "var(--red)",    label: "CUT / SUPERSEDED",      mode: "chip", open: false },
 };
-const RENDER_ORDER = ["ready", "building", "other", "exploring", "shipped", "cut"];
+const RENDER_ORDER = ["ready", "building", "living", "exploring", "other", "shipped", "cut"];
 
 const MON = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const fmtDate = d => { if (!d) return ""; const [, m, day] = d.split("-"); return `${+day} ${MON[+m - 1] || ""}`; };

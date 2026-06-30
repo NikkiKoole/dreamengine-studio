@@ -49,6 +49,7 @@ const PHASES = [
   { key: "building",  label: "BUILDING",           re: /\b(building|in[\s-]?progress|wip|underway|started|increments?)\b/i },
   { key: "ready",     label: "READY TO BUILD",     re: /\b(ready|designed|design\b|queued|approved|recommendation)\b/i },
   { key: "exploring", label: "EXPLORING / IDEA",   re: /\b(idea|brainstorm|exploration|explorator|experiment(?:al)?|survey|reflection|proposal|proposed|research|open|scoping)\b/i },
+  { key: "living",    label: "LIVING",             re: /\bliving\b/i },
   { key: "accepted",  label: "DECIDED (ADR)",      re: /\baccepted\b/i },
 ];
 
@@ -64,7 +65,7 @@ const LEAD = {
   proposal: "exploring", proposed: "exploring", scoping: "exploring", research: "exploring",
   cut: "cut", rejected: "cut", superseded: "cut", deprecated: "cut",
   accepted: "accepted",
-  reference: "other", living: "other",
+  reference: "other", living: "living",
 };
 
 // classify a status text → phase key, or "other" if it declares a status that

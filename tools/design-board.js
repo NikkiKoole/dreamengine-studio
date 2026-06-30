@@ -35,10 +35,10 @@ const ROOT = path.resolve(__dirname, "..");
 const DOCS = path.join(ROOT, "docs");
 
 // design-doc lifecycle, the order we want to READ it (actionable first)
-const ORDER = ["ready", "building", "exploring", "other", "shipped", "cut"];
+const ORDER = ["ready", "building", "exploring", "living", "other", "shipped", "cut"];
 const LABEL = Object.fromEntries(PHASES.map(p => [p.key, p.label]));
 LABEL.other = "HAS STATUS, UNCLASSIFIED";
-const SHORT = { ready: "ready", building: "building", exploring: "exploring", other: "unclassified", shipped: "shipped", cut: "cut" };
+const SHORT = { ready: "ready", building: "building", exploring: "exploring", living: "living", other: "unclassified", shipped: "shipped", cut: "cut" };
 
 const isADR = f => f.includes(`${path.sep}decisions${path.sep}`);
 

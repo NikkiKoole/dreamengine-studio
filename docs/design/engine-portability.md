@@ -1,6 +1,6 @@
 # Engine portability — the platform seam + the renderer decision
 
-STATUS: the renderer decision is **SETTLED** (2026-06-29; desktop + device FPS both measured → see
+STATUS: SHIPPED — the renderer decision is **SETTLED** (2026-06-29; desktop + device FPS both measured → see
 "Measured" below, now [ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md)). This doc
 captures the refactors that make the engine cleanly portable (iOS first, but they help web too) and
 the load-bearing decision they hung on: **software canvas vs GPU as the canonical renderer** — measured

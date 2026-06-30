@@ -12,7 +12,7 @@ Three layers cover effects, each a different question:
 - **[`studio.h`](../../runtime/studio.h) + [`studioDocs.js`](../../editor/src/studioDocs.js)
   = the API** — every effect function's signature + a one-line doc (drives autocomplete + the
   help tab). *What can I call?*
-- **[`audio-notes.md`](../design/audio-notes.md) (§8.10, §17) = the why** — the design
+- **[`instrument-engines.md`](../design/instrument-engines.md) §8.10 + [`audio-notes.md`](../design/audio-notes.md) §17 = the why** — the design
   rationale: why echo/wah are shared buses, why drive sits post-filter, the DSP. *Why is it
   built this way?*
 - **`effects-recipes.md` (this file) = the how-to** — named, copy-paste settings + the cart
@@ -21,7 +21,7 @@ Three layers cover effects, each a different question:
 Most effects are a **shared bus** (one `echo()`/`reverb()`/`chorus()`… for the whole mix) with
 an optional **per-instrument** form (`instrument_echo(slot, …)` etc.) so you can effect one part
 and leave the rest dry. `drive` is the exception — it's a **per-voice** insert (`instrument_drive`
-/ `note_drive`). Full architecture: [`audio-notes.md §8.10`](../design/audio-notes.md).
+/ `note_drive`). Full architecture: [`instrument-engines.md §8.10`](../design/instrument-engines.md).
 
 > **⚠ Effects are SET-AND-HOLD — (re)configure them only when a value CHANGES, never every frame.**
 > `crush()`/`tape()`/`eq()`/`chorus()`/`flanger()`/`reverb()`… reconfigure bus DSP (ring buffers,

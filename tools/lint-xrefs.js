@@ -44,8 +44,13 @@ const DOCS = path.join(ROOT, "docs");
 const scope = process.argv.slice(2).find(a => !a.startsWith("--")) || "";
 const touchesScope = (...rels) => !scope || rels.some(r => r.toLowerCase().includes(scope.toLowerCase()));
 
-// hub docs: point outward by design; don't demand a backlink TO them.
+// hub docs: cited by many, so they DON'T owe a backlink to every citer — exempt
+// as the un-backlinked side. Two sources: a fixed list of global hubs, plus any
+// doc whose in-degree (how many docs link TO it) crosses HUB_INDEGREE — that's
+// how audio-notes / instrument-carts / radio-station-howto earn hub status
+// automatically (a domain hub, the same shape as STATUS). Computed below.
 const HUBS = new Set(["STATUS", "README", "VISION", "history", "FIELD-NOTES", "glossary"]);
+const HUB_INDEGREE = 5;
 
 // ---- collect docs ----
 function walk(dir, out = []) {
@@ -90,6 +95,12 @@ for (const f of files) {
   info.set(f, { rel: path.relative(ROOT, f), text, lines, links, fenced });
 }
 
+// ---- in-degree: how many docs link TO each (resolved, existing) doc ----
+const inDegree = new Map();
+for (const f of files) for (const t of info.get(f).links)
+  if (info.has(t) && t !== f) inDegree.set(t, (inDegree.get(t) || 0) + 1);
+const isHub = abs => HUBS.has(path.basename(abs, ".md")) || (inDegree.get(abs) || 0) >= HUB_INDEGREE;
+
 // ============================================================================
 // A. unlinked mentions
 // ============================================================================
@@ -124,9 +135,9 @@ for (const a of files) {
     if (a === b) continue;
     const B = info.get(b);
     if (B.links.has(a)) continue;                    // mutual → fine
-    const aBase = path.basename(a, ".md");
-    if (HUBS.has(aBase)) continue;                   // don't demand a backlink to a hub
-    missingBack.push({ from: A.rel, to: B.rel, fromBase: aBase });
+    if (isHub(a)) continue;                           // don't demand a backlink TO a hub
+    if (isHub(b)) continue;                           // a hub needn't backlink its many citers
+    missingBack.push({ from: A.rel, to: B.rel, fromBase: path.basename(a, ".md") });
   }
 }
 

@@ -39,6 +39,17 @@ if echo "$staged" | grep -qE '^(tools/carts/|docs/(design|decisions)/|docs/[^/]+
   fi
 fi
 
+# ★ band briefs: docs/band-briefs.html pairs each blind band brief with the radio cart
+# it became. Goes stale when a *-blind-brief.md is added/edited (title, STATUS line, or
+# the cart it names). Same shape as the gates above.
+if echo "$staged" | grep -qE '^docs/design/[^/]*blind-brief\.md$'; then
+  if ! node tools/build-band-briefs.js --check >/dev/null 2>&1; then
+    echo "[pre-commit] ✗ docs/band-briefs.html is STALE (a blind band brief changed)."
+    echo "             Fix: node tools/build-band-briefs.js && git add docs/band-briefs.html"
+    exit 1
+  fi
+fi
+
 # Cart source-embed drift: a .cart.png embeds its de:source (the C the EDITOR loads).
 # A thumbnail-only `--run` bake, or staging the .c without re-embedding, leaves that
 # chunk STALE — the editor then loads old code ("the cart ignores my changes"), and the

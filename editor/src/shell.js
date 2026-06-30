@@ -467,6 +467,17 @@ function showReflections() {
   docsContent.scrollTop = 0
 }
 
+// — the generated Band Briefs page (docs/band-briefs.html) in an iframe — every
+// blind band brief paired with the radio cart it became. Clicking a card loads
+// that station; "read brief →" postMessages back here to open its markdown.
+function showBandBriefs() {
+  currentDocPath = 'bandbriefs'
+  setActiveNav('bandbriefs')
+  docsContent.classList.add('docs-history')
+  docsContent.innerHTML = `<iframe class="compendium-frame" src="/docs/band-briefs.html" title="band briefs" onload="this.classList.add('loaded')"></iframe>`
+  docsContent.scrollTop = 0
+}
+
 // the history iframe asks us to open a docs/ markdown file, or load a cart, when
 // something inside it is clicked
 window.addEventListener('message', (e) => {
@@ -623,6 +634,7 @@ async function buildDocsSidebar() {
   docsNav.appendChild(docNavItem('★ compendium', 'compendium', () => showCompendium()))
   docsNav.appendChild(docNavItem('★ todo', 'designboard', () => showDesignBoard()))
   docsNav.appendChild(docNavItem('★ reflections', 'reflections', () => showReflections()))
+  docsNav.appendChild(docNavItem('★ briefs', 'bandbriefs', () => showBandBriefs()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land

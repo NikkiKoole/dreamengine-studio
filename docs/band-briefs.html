@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Band Briefs</title>
+<style>
+@font-face{font-family:'ComicMono';src:url('/ComicMono.ttf') format('truetype');font-weight:400;font-display:optional}
+@font-face{font-family:'ComicMono';src:url('/ComicMono-Bold.ttf') format('truetype');font-weight:700;font-display:optional}
+:root{
+  --bg:#0c0d11; --panel:#13151b; --ink:#cbd3dc; --bright:#f0f4f8; --dim:#5b6470;
+  --green:#00e436; --yellow:#ffec27; --orange:#ffa300; --blue:#29adff; --red:#ff004d; --indigo:#a39bc4;
+  --mono:'ComicMono',ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5}
+#root{max-width:980px;margin:0 auto;padding:34px 26px 120px}
+header{border-bottom:1px solid #20242c;padding-bottom:18px;margin-bottom:18px}
+h1{font-size:30px;letter-spacing:4px;margin:0;color:var(--bright);font-weight:700;text-shadow:0 0 14px rgba(163,155,196,.32),0 0 2px rgba(163,155,196,.5)}
+.count{margin-top:9px;color:var(--dim);font-size:12px}
+.sub{margin:12px 0 0;color:var(--dim);max-width:760px;line-height:1.6}
+.sub b.hi{color:var(--indigo);font-weight:700} .sub i{color:var(--ink);font-style:italic} .sub b{color:var(--bright)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.brief{background:var(--panel);border:1px solid #20242c;border-radius:4px;overflow:hidden;display:flex;flex-direction:column;
+  transition:border-color .12s,transform .12s}
+.brief[data-cart]{cursor:pointer}
+.brief[data-cart]:hover{border-color:var(--indigo);transform:translateY(-2px)}
+.thumb{aspect-ratio:16/10;background:#06070a;display:flex;align-items:center;justify-content:center;overflow:hidden;border-bottom:1px solid #20242c}
+.thumb img{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.thumb.empty{color:var(--dim);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:5px;flex:1}
+.bt{color:var(--bright);font-weight:700;font-size:13.5px;line-height:1.3}
+.bf{color:var(--dim);font-size:12px;line-height:1.45;flex:1}
+.bactions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+.play{color:var(--green);font-size:12px;font-weight:700} .play.off{color:var(--dim);font-weight:400}
+.readbrief{color:var(--blue);font-size:11.5px;cursor:pointer;border-bottom:1px dotted transparent}
+.readbrief:hover{border-bottom-color:var(--blue)}
+
+section.ph{margin:34px 0 0}
+section.ph h2{font-size:12px;letter-spacing:2px;color:var(--dim);font-weight:700;text-transform:uppercase;margin:0 0 12px}
+
+footer{margin-top:46px;padding-top:16px;border-top:1px solid #20242c;color:#3f4651;font-size:11px;line-height:1.6}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="root">
+  <header>
+    <h1>THE BAND BRIEFS</h1>
+    <div class="count">13 stations built  ·  13 briefs</div>
+    <p class="sub">Before reading any cousin cart, you imagine the ideal band for the genre and write it down — the <b class="hi">firewall</b>. That intent doc is the <i>blind brief</i>; the radio station is what it became. Click a card to load the station, or <b>read brief →</b> to open the doc.</p>
+  </header>
+  <section class="grid">
+    <div class="brief" data-cart="air">
+    <div class="thumb"><img src="/carts/air.cart.png" loading="lazy" alt="AIR radio cart"></div>
+    <div class="body">
+      <div class="bt">AIR radio</div>
+      
+      <div class="bactions"><span class="play" data-cart="air">▶ air.c</span><span class="readbrief" data-doc="design/air-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="braindance">
+    <div class="thumb"><img src="/carts/braindance.cart.png" loading="lazy" alt="braindance radio cart"></div>
+    <div class="body">
+      <div class="bt">braindance radio</div>
+      
+      <div class="bactions"><span class="play" data-cart="braindance">▶ braindance.c</span><span class="readbrief" data-doc="design/braindance-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="eno">
+    <div class="thumb"><img src="/carts/eno.cart.png" loading="lazy" alt="Eno &quot;Music for Airports&quot; cart"></div>
+    <div class="body">
+      <div class="bt">Eno &quot;Music for Airports&quot;</div>
+      
+      <div class="bactions"><span class="play" data-cart="eno">▶ eno.c</span><span class="readbrief" data-doc="design/eno-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="groovebox">
+    <div class="thumb"><img src="/carts/groovebox.cart.png" loading="lazy" alt="Groovebox cart"></div>
+    <div class="body">
+      <div class="bt">Groovebox</div>
+      
+      <div class="bactions"><span class="play" data-cart="groovebox">▶ groovebox.c</span><span class="readbrief" data-doc="design/groovebox-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="lofi">
+    <div class="thumb"><img src="/carts/lofi.cart.png" loading="lazy" alt="Lo-fi jazzy hip-hop cart"></div>
+    <div class="body">
+      <div class="bt">Lo-fi jazzy hip-hop</div>
+      <div class="bf">drunk-pocket time feel, hazy jazz harmony</div>
+      <div class="bactions"><span class="play" data-cart="lofi">▶ lofi.c</span><span class="readbrief" data-doc="design/lofi-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="napoleon">
+    <div class="thumb"><img src="/carts/napoleon.cart.png" loading="lazy" alt="Napoleon Dynamite radio cart"></div>
+    <div class="body">
+      <div class="bt">Napoleon Dynamite radio</div>
+      <div class="bf">five song archetypes from the soundtrack</div>
+      <div class="bactions"><span class="play" data-cart="napoleon">▶ napoleon.c</span><span class="readbrief" data-doc="design/napoleon-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="plaid">
+    <div class="thumb"><img src="/carts/plaid.cart.png" loading="lazy" alt="Plaid cart"></div>
+    <div class="body">
+      <div class="bt">Plaid</div>
+      <div class="bf">interlocking arpeggios in odd meters</div>
+      <div class="bactions"><span class="play" data-cart="plaid">▶ plaid.c</span><span class="readbrief" data-doc="design/plaid-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="plantasia">
+    <div class="thumb"><img src="/carts/plantasia.cart.png" loading="lazy" alt="Plantasia cart"></div>
+    <div class="body">
+      <div class="bt">Plantasia</div>
+      <div class="bf">melody-forward Moog, growing houseplants</div>
+      <div class="bactions"><span class="play" data-cart="plantasia">▶ plantasia.c</span><span class="readbrief" data-doc="design/plantasia-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="polopan">
+    <div class="thumb"><img src="/carts/polopan.cart.png" loading="lazy" alt="Polo &amp; Pan radio cart"></div>
+    <div class="body">
+      <div class="bt">Polo &amp; Pan radio</div>
+      <div class="bf">mallet/pizz/flute/vocoder band, tropical house</div>
+      <div class="bactions"><span class="play" data-cart="polopan">▶ polopan.c</span><span class="readbrief" data-doc="design/polopan-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="squarepusher">
+    <div class="thumb"><img src="/carts/squarepusher.cart.png" loading="lazy" alt="Squarepusher cart"></div>
+    <div class="body">
+      <div class="bt">Squarepusher</div>
+      <div class="bf">bass brain + fusion chords</div>
+      <div class="bactions"><span class="play" data-cart="squarepusher">▶ squarepusher.c</span><span class="readbrief" data-doc="design/squarepusher-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="wba">
+    <div class="thumb"><img src="/carts/wba.cart.png" loading="lazy" alt="The Whitest Boy Alive cart"></div>
+    <div class="body">
+      <div class="bt">The Whitest Boy Alive</div>
+      
+      <div class="bactions"><span class="play" data-cart="wba">▶ wba.c</span><span class="readbrief" data-doc="design/wba-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="thexx">
+    <div class="thumb"><img src="/carts/thexx.cart.png" loading="lazy" alt="The xx cart"></div>
+    <div class="body">
+      <div class="bt">The xx</div>
+      
+      <div class="bactions"><span class="play" data-cart="thexx">▶ thexx.c</span><span class="readbrief" data-doc="design/thexx-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+    <div class="brief" data-cart="vapor">
+    <div class="thumb"><img src="/carts/vapor.cart.png" loading="lazy" alt="Vaporwave cart"></div>
+    <div class="body">
+      <div class="bt">Vaporwave</div>
+      
+      <div class="bactions"><span class="play" data-cart="vapor">▶ vapor.c</span><span class="readbrief" data-doc="design/vaporwave-blind-brief.md">read brief →</span></div>
+    </div>
+  </div>
+  </section>
+  
+  <footer># the 13 blind band briefs (docs/design/*-blind-brief.md), paired with the radio cart each became. The cart is read from each brief's STATUS line. Generated by tools/build-band-briefs.js — re-run after adding a brief or shipping its station.</footer>
+</div>
+<script>
+document.addEventListener('click', function(ev){
+  var d = ev.target.closest('[data-doc]');
+  if(d){ ev.preventDefault(); var rel = d.getAttribute('data-doc');
+    if(/^[\w./-]+\.md$/.test(rel)) window.parent.postMessage({type:'open-doc', path: rel}, '*'); return; }
+  var c = ev.target.closest('[data-cart]');
+  if(c){ ev.preventDefault(); var n = c.getAttribute('data-cart');
+    if(/^[\w-]+$/.test(n)) window.parent.postMessage({type:'load-cart', file: n + '.cart.png', title: n}, '*'); }
+});
+</script>
+</body>
+</html>

@@ -920,35 +920,52 @@ static void update_stick(void) {
     }
 }
 
-static void draw_touch_overlay(void) {
+// native-res touch overlay — drawn INTO the canvas with the engine's own primitives at
+// native pixel resolution, so the controls rasterize into the pixel grid and obey the
+// palette (chunky + CLR_*), reading as part of the console instead of a smooth device-res
+// sticker. Geometry stays in window px (that's where it's hit-tested); we divide by SCALE
+// for the canvas draw so it lands exactly under the ×SCALE blit. Inert unless a cart opted
+// in, so every other cart is byte-identical. Called at canvas-finalize in BOTH render
+// paths; it drops any clip + neutralizes the cart's camera (fixed screen space) and restores.
+static void draw_touch_overlay_native(void) {
     if (!show_touch_ui) return;
 
-    DeColor ring  = (DeColor){ 255, 255, 255,  70 };
-    DeColor knob  = (DeColor){ 255, 255, 255, 160 };
-    DeColor press = (DeColor){ 255, 255, 255, 110 };
+    if (clip_active) { EndScissorMode(); clip_active = false; }
+    Camera2D saved_cam = cam;
+    cam.target = cam.offset; cam.zoom = 1.0f; cam.rotation = 0.0f;   // identity for both paths
 
+    int sr = (int)(STICK_RADIUS / SCALE);          // stick base radius, native px
+    int kr = (int)(STICK_RADIUS * 0.45f / SCALE);  // knob radius
+    int br = (int)(BTN_RADIUS / SCALE);            // A/B button radius
+    if (sr < 2) sr = 2;
+    if (kr < 1) kr = 1;
+    if (br < 2) br = 2;
+
+    // movement stick: live base where the thumb grabbed, else a faint resting hint
     if (stick_touch_id != -1) {
-        DrawCircleLines((int)stick_base_x, (int)stick_base_y, STICK_RADIUS, ring);
-        DrawCircleV((Vector2){ stick_knob_x, stick_knob_y }, STICK_RADIUS * 0.45f, knob);
+        int bx = (int)(stick_base_x / SCALE), by = (int)(stick_base_y / SCALE);
+        int kx = (int)(stick_knob_x / SCALE), ky = (int)(stick_knob_y / SCALE);
+        circ(bx, by, sr, CLR_LIGHT_GREY);
+        circfill(kx, ky, kr, CLR_WHITE);
     } else {
-        // resting hint — mirror of A's position on the bottom-left
-        int hx = 80;
-        int hy = SCREEN_H * SCALE - 80;
-        DeColor hint = (DeColor){ 255, 255, 255, 40 };
-        DrawCircleLines(hx, hy, STICK_RADIUS, hint);
-        DrawCircleV((Vector2){ (float)hx, (float)hy }, STICK_RADIUS * 0.45f, hint);
+        int hx = (int)(80 / SCALE), hy = SCREEN_H - (int)(80 / SCALE);
+        circ(hx, hy, sr, CLR_DARK_GREY);
+        circfill(hx, hy, kr, CLR_DARK_GREY);
     }
 
+    // A / B action buttons: ring always, fill on press, centred glyph
     bool a_down = any_touch_in_circle(btn_a_cx, btn_a_cy, BTN_RADIUS);
     bool b_down = any_touch_in_circle(btn_b_cx, btn_b_cy, BTN_RADIUS);
-    DrawCircle(btn_a_cx, btn_a_cy, BTN_RADIUS, a_down ? press : ring);
-    DrawCircle(btn_b_cx, btn_b_cy, BTN_RADIUS, b_down ? press : ring);
-    DrawCircleLines(btn_a_cx, btn_a_cy, BTN_RADIUS, knob);
-    DrawCircleLines(btn_b_cx, btn_b_cy, BTN_RADIUS, knob);
+    int ax = (int)(btn_a_cx / SCALE), ay = (int)(btn_a_cy / SCALE);
+    int bx = (int)(btn_b_cx / SCALE), by = (int)(btn_b_cy / SCALE);
+    if (a_down) circfill(ax, ay, br, CLR_WHITE);
+    if (b_down) circfill(bx, by, br, CLR_WHITE);
+    circ(ax, ay, br, CLR_LIGHT_GREY);
+    circ(bx, by, br, CLR_LIGHT_GREY);
+    print("A", ax - text_width("A") / 2, ay - 4, a_down ? CLR_BLACK : CLR_LIGHT_GREY);
+    print("B", bx - text_width("B") / 2, by - 4, b_down ? CLR_BLACK : CLR_LIGHT_GREY);
 
-    float fs = 4 * SCALE;
-    DrawTextEx(game_font, "A", (Vector2){ btn_a_cx - fs/2, btn_a_cy - fs/2 }, fs, 0, WHITE);
-    DrawTextEx(game_font, "B", (Vector2){ btn_b_cx - fs/2, btn_b_cy - fs/2 }, fs, 0, WHITE);
+    cam = saved_cam;
 }
 
 // ------------------------------------------------------------
@@ -1632,6 +1649,7 @@ static void loop_step(void) {
 #else
         draw();
 #endif
+        draw_touch_overlay_native();   // native-res controls into sw_cbuf before upload
         cam_active = false;
         UpdateTexture(canvas.texture, sw_cbuf);
     } else {
@@ -1646,6 +1664,7 @@ static void loop_step(void) {
         if (smooth_capturing) smooth_composite();   // cart never called camera() — composite now
         cam_active = false;
         EndMode2D();
+        draw_touch_overlay_native();   // native-res controls into the canvas (post-camera)
     EndTextureMode();
     }
     }   // end if (!skip_render) — canvas redraw
@@ -1700,7 +1719,6 @@ static void loop_step(void) {
         if (fade_amt > 0.0f)
             DrawRectangle(0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE,
                           (DeColor){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
-        draw_touch_overlay();
         draw_watch_overlay();
     EndDrawing();
     }   // end if (!skip_render) — present

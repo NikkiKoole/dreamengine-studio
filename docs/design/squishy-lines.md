@@ -2,10 +2,10 @@
 
 STATUS: BUILDING (2026-06-30) — design settled (320×320, 2-tone first, boil is an opt-in mode).
 Shipped: 8 brushes (ink/pen/fineliner/marker/chalk + Krita-style **sketch**/**spray**/**bristle**) in
-a **tool dropdown**, a thickness slider, the **bevel** emboss, and the **boil** living loop
-(`tools/carts/squishy.c`). The
-core is done; what's left is the pixelsnap animated-icon export, a richer palette, a `spec()`, and the
-boil-cache perf pass. v1 plan + progress is the checklist at the bottom.
+a **tool dropdown**, a thickness slider, the **bevel** emboss, the **boil** living loop, and a
+**4-colour pen** (black/blue/red/green) (`tools/carts/squishy.c`). The core is done; what's left:
+**fill + dpaint-style dithered fills** (with a persistent-layer refactor — see parking lot), the
+pixelsnap animated-icon export, a `spec()`, and the boil-cache perf pass. v1 plan + progress below.
 
 > The shower idea: we'd been making cart icons by running an AI-generated image through a
 > `.cart.js` (sprite-draw + `pixelsnap`). The results are nice — but **frozen**. What if you could
@@ -186,10 +186,11 @@ So there are two outputs, same engine:
 
 ## Palette growth path
 
-1. **2-tone (v1):** two palette indices — ink + paper. Pick from the 32-colour set (e.g.
-   `CLR_*` ink on a paper ground). This is the soul of it.
-2. **Limited palettes (next):** 3–6 colours; layers/strokes pick an index; overlap/marker darkening
-   stays within the ramp.
+1. **2-tone (shipped):** ink + paper. The soul of it.
+2. **Limited palette (shipped, 2026-06-30):** a **4-colour pen** — black / blue / red / green
+   (`COLORS[]` + swatch sprites 8–11; the cursor ring shows the live colour). Each stroke stores the
+   colour it was drawn in, so switching never restyles finished strokes (same as tool + thickness).
+   Next palette step if wanted: a darkening ramp so marker/overlap deepens within a hue.
 3. **24-bit (later, opt-in):** the painterly tools (`paint`, watercolour) via `pset_rgb` /
    `rectfill_rgb` (raw `0xRRGGBB`, palette-bypass). **Caveat to remember:** `pset_rgb` pixels bypass
    `pal()` recolouring and don't read back through `pget` (use `pget_rgb`), so true-colour and
@@ -208,10 +209,19 @@ beautiful instead of text labels.
 
 The maker has more drawing ideas queued; this cart is the home they slot into. Candidates to consider
 once v1 lands (not committed):
+- **Fill + dpaint-style dithered fills** (wanted) — a flood-fill tool, and `dpaint`'s lovely
+  **Bayer/`fillp` dither patterns + dithered gradient** as fill styles (steal the masks from
+  `dpaint.c`). Fill a beveled blob with a dither ramp = the tinyjam knob look. **Architecture note:**
+  flood-fill is a *raster* op on the rendered result, but this cart re-renders every stroke from data
+  each frame and `pget` reads *last* frame — so fill doesn't fit the pure-vector model cleanly. It
+  wants the **persistent layer buffer** (the same one the boil-cache perf todo needs): strokes/fills
+  composite into a layer; fill flood-fills *that*. So do fill + dither *with* the layer-buffer
+  refactor, not before — they're one chunk, and it also unlocks the boil cache. The dither *patterns*
+  themselves are cheap and could land first as a brush fill-style.
 - pressure from dwell-time as well as speed; smoothing/stabiliser on the input path
 - symmetry/mirror modes (kaleidoscope ink) — `linesym` is adjacent
 - a "redraw" boil variant where the *whole path* re-flows (rougher, more animated)
-- fill tools with squishy edges; texture/grain stamps; wet-on-wet blend for the 24-bit paint mode
+- texture/grain stamps; wet-on-wet blend for the 24-bit paint mode
 - export the boil as a baked clip (`make-gif.js`) for the gallery
 
 ## Two-part bar (north star)

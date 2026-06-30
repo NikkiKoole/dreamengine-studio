@@ -12,29 +12,32 @@
   ],
   "lineage": "Sibling of pitchenv — the same mod-envelope system pointed at filter cutoff; the canonical tuning rig for the resonant-lowpass sweep (the pluck 'pew').",
   "description": {
-    "summary": "A Model-D-style filter rig: a FILTER contour (instrument_env + ENV_CUTOFF), an LFO on the cutoff (instrument_lfo + LFO_CUTOFF), AND a LOUDNESS contour (the amp ADSR) on one saw voice — each with its own sliders and a live graph.",
-    "detail": "Three modulators, like a Minimoog filter section. Top graph: the FILTER cutoff — the one-shot ENV snaps it open on the attack and it falls over the decay, while the LFO wobbles it continuously (our voice LFO resets to phase 0 on each note-on, so the wobble starts WITH the note). Bottom graph: the AMP envelope (attack/decay/sustain/release) — what decides how LONG you hear the note: low sustain plucks and dies inside the gate, high sustain rings until note-off (the red line). Drag the eleven sliders and listen.",
-    "controls": "A-K play notes - SPACE toggles the auto-arp - drag the FILTER / LFO / AMP sliders"
+    "summary": "A Minimoog/Model-D-style bass rig: TWO detuned saws through the Moog ladder filter, with a FILTER contour, a cutoff LFO, a LOUDNESS ADSR, plus DETUNE + DRIVE + a sub octave for the fat low-end 'humpf'. Each control has its own slider and a live graph.",
+    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Top graph: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously (our voice LFO resets to phase 0 on each note-on). Bottom graph: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). DETUNE/DRIVE and the SUB OSC -1 toggle are where the humpf lives.",
+    "controls": "A-K play notes - SPACE toggles the auto-arp - SUB OSC button top-right - drag the FILTER / LFO / AMP / VOICE sliders"
   }
 }
 de:meta */
 #include "studio.h"
 #include <math.h>
 
-// DUAL ENV — a Minimoog/Model-D-style two-envelope voice. A saw through a resonant
-// lowpass with TWO independent envelopes:
-//   FILTER contour (instrument_env + ENV_CUTOFF) — snaps the cutoff open on each note's
-//     attack and lets it fall back: the "pew / dwow".
-//   LOUDNESS contour (the amp ADSR in instrument()) — attack/decay/SUSTAIN/release: this
-//     is what decides how LONG you hear the note. Low sustain → it plucks and dies inside
-//     the gate; high sustain → it rings until note-off (the red line in the amp graph).
-// Drag the sliders and listen. A–K play notes, SPACE toggles the auto-arp.
+// DUAL ENV — a Minimoog/Model-D-style bass voice + filter rig. Where the "humpf" comes from:
+//   TWO detuned saws (SLOT + SLOT2, instrument_tune) — they beat against each other = thick.
+//   FILTER_LADDER — the Moog 4-pole transistor ladder (24 dB/oct), creamier than a 2-pole.
+//   DRIVE (DRIVE_ASYM) — even-harmonic saturation = round, fat grit.
+//   SUB OSC -1 — the same wave an octave down for low-end body (the Osc-3-as-sub trick).
+// On top of that, three modulators:
+//   FILTER contour (instrument_env + ENV_CUTOFF) — snaps the cutoff open on the attack.
+//   cutoff LFO (instrument_lfo + LFO_CUTOFF) — the continuous wobble.
+//   LOUDNESS contour (the amp ADSR) — its SUSTAIN decides how LONG you hear the note.
+// Drag the sliders and listen. A–K play (GarageBand layout), Z/X octave, SPACE toggles the arp.
 
-#define SLOT 5
+#define SLOT  5
+#define SLOT2 6                   // the 2nd, detuned saw — the other half of the fat
 #define GATE_MS 450               // how long each note is gated (note-on → note-off)
 
 typedef struct { const char *name; float lo, hi, val; } Knob;
-enum { F_ATK, F_DEC, F_AMT, F_CUT, F_RES,   L_RATE, L_DEPTH,   A_ATK, A_DEC, A_SUS, A_REL, NK };
+enum { F_ATK, F_DEC, F_AMT, F_CUT, F_RES,   L_RATE, L_DEPTH,   A_ATK, A_DEC, A_SUS, A_REL,   V_DTN, V_DRV, NK };
 static Knob K[NK] = {
     // FILTER contour
     { "ATK",     0.f,  120.f,    0.f },   // filter-env attack (ms) — plucks want ~0
@@ -50,6 +53,9 @@ static Knob K[NK] = {
     { "DEC",    0.f,  600.f,  180.f },    // amp decay to sustain (ms)
     { "SUS",    0.f,    7.f,    2.f },    // amp SUSTAIN level (0..7) — THE note-length knob
     { "REL",    0.f,  800.f,  160.f },    // amp release after note-off (ms)
+    // VOICE — the "humpf": detune the 2nd saw + saturate
+    { "DTN",    0.f,   30.f,   12.f },    // detune of the 2nd saw (cents) — beating = fat. 0 = unison
+    { "DRV",    0.f,  100.f,   25.f },    // drive (DRIVE_ASYM, %) — even-harmonic warmth/grit
 };
 
 static int   active = -1;        // slider being dragged, or -1
@@ -66,30 +72,41 @@ static float last_note_t = -9.f;
 #define SUBW 60
 #define SUBH 11
 
-// slider layout: three groups (5 filter | 2 lfo | 4 amp) in one row
-#define SX 5
-#define SW 22
-#define SP 26
-#define GAP 8
+// slider layout: four groups (5 filter | 2 lfo | 4 amp | 2 voice) in one row
+#define SX 2
+#define SW 20
+#define SP 23
+#define GAP 6
 #define SY 116
 #define SH 42
 
 static int knob_x(int i) {
-    if (i < 5) return SX + i * SP;                          // filter group
-    if (i < 7) return SX + 5 * SP + GAP + (i - 5) * SP;     // lfo group
-    return SX + 7 * SP + 2 * GAP + (i - 7) * SP;            // amp group
+    if (i < 5)  return SX + i * SP;                              // filter group
+    if (i < 7)  return SX + 5 * SP + GAP + (i - 5) * SP;         // lfo group
+    if (i < 11) return SX + 7 * SP + 2 * GAP + (i - 7) * SP;     // amp group
+    return SX + 11 * SP + 3 * GAP + (i - 11) * SP;              // voice group
 }
 
 static void apply(void) {
-    instrument(SLOT, INSTR_SAW, (int)K[A_ATK].val, (int)K[A_DEC].val, (int)K[A_SUS].val, (int)K[A_REL].val);
-    instrument_filter(SLOT, FILTER_LOW, (int)K[F_CUT].val, (int)K[F_RES].val);
-    instrument_env(SLOT, 0, ENV_CUTOFF, (int)K[F_ATK].val, (int)K[F_DEC].val, K[F_AMT].val);
-    instrument_lfo(SLOT, 0, LFO_CUTOFF, K[L_RATE].val, K[L_DEPTH].val);   // wobble rides on top
+    float det = K[V_DTN].val / 100.f;     // cents → semitones (instrument_tune is in semitones)
+    float drv = K[V_DRV].val / 100.f;     // % → 0..1
+    int slots[2] = { SLOT, SLOT2 };
+    for (int s = 0; s < 2; s++) {         // two saws, the 2nd detuned → they beat = Moog-fat
+        int sl = slots[s];
+        instrument(sl, INSTR_SAW, (int)K[A_ATK].val, (int)K[A_DEC].val, (int)K[A_SUS].val, (int)K[A_REL].val);
+        instrument_filter(sl, FILTER_LADDER, (int)K[F_CUT].val, (int)K[F_RES].val);   // the Moog 4-pole
+        instrument_env(sl, 0, ENV_CUTOFF, (int)K[F_ATK].val, (int)K[F_DEC].val, K[F_AMT].val);
+        instrument_lfo(sl, 0, LFO_CUTOFF, K[L_RATE].val, K[L_DEPTH].val);             // wobble rides on top
+        instrument_drive_mode(sl, DRIVE_ASYM);                                        // even harmonics = fat
+        instrument_drive(sl, drv);
+        instrument_tune(sl, s == 0 ? 0.f : det);                                      // detune only the partner
+    }
 }
 
 static void play(int midi) {
-    hit(midi, SLOT, 5, GATE_MS);
-    if (sub_on && midi - 12 >= 0) hit(midi - 12, SLOT, 4, GATE_MS);   // sub osc: same wave, 1 octave down
+    hit(midi, SLOT,  4, GATE_MS);
+    hit(midi, SLOT2, 4, GATE_MS);                                    // the detuned partner saw
+    if (sub_on && midi - 12 >= 0) hit(midi - 12, SLOT, 3, GATE_MS);  // sub osc: same wave, 1 octave down
     last_note_t = now();
 }
 
@@ -250,12 +267,14 @@ void draw(void) {
     // ── sliders: three groups (FILTER | LFO | AMP) ────────────────────────────
     font(FONT_SMALL);
     print("FILTER ENV", knob_x(0) + 1, SY - 9, CLR_BLUE);
-    print("LFO CUT", knob_x(5) + 1, SY - 9, CLR_MAUVE);
+    print("LFO", knob_x(5) + 1, SY - 9, CLR_MAUVE);
     print("AMP ENV", knob_x(7) + 1, SY - 9, CLR_LIME_GREEN);
+    print("VOICE", knob_x(11) + 1, SY - 9, CLR_ORANGE);
     font(FONT_NORMAL);
     for (int i = 0; i < NK; i++) {
         int cx = knob_x(i);
-        int col = active == i ? CLR_YELLOW : (i < 5 ? CLR_TRUE_BLUE : i < 7 ? CLR_MAUVE : CLR_GREEN);
+        int col = active == i ? CLR_YELLOW
+                : i < 5 ? CLR_TRUE_BLUE : i < 7 ? CLR_MAUVE : i < 11 ? CLR_GREEN : CLR_ORANGE;
         rect(cx, SY, SW, SH, CLR_DARKER_GREY);
         float t = (K[i].val - K[i].lo) / (K[i].hi - K[i].lo);
         int vy = SY + SH - 1 - (int)(t * (SH - 2));

@@ -371,6 +371,12 @@ profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native 
   sugar over `de_state()`); a cart wanting `S` for else just removes those defines.
 - **Data-driven carts: name your indices** via an enum (`m->param[VK_FENV]`), never raw numbers —
   inserting a knob mid-list once silently cross-wired knobs + presets.
+- **`watch()`'s 2nd arg is a printf FORMAT STRING, not a value** — `watch(name, fmt, ...)`. Passing a
+  bare value (`watch("mode", 4)`) makes `vsnprintf` treat the int as the `char*` format → SIGSEGV
+  (fault at the int address, e.g. `0x4`). Always `watch("mode", "%d", 4)`. It's a rare, nasty crash:
+  it only fires under `-DDE_TRACE` (the harness builds — `play.js`/`ui-audit`/`spec`, never the
+  editor) AND only when that code path runs, so it hides until a specific state is reached (bit
+  loderunner: `watch("mode", N)` crashed the moment the player moved).
 - **Which check to run for a change → [`docs/guides/checks-and-oracles.md`](docs/guides/checks-and-oracles.md)**
   — the reverse index (task → gate) for render/perf/audio/cart-logic/docs. Check it before hand-rolling
   a verification; the matching deterministic oracle usually already exists (`canvas-diff`, `mirror-diff`,

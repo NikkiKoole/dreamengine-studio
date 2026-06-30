@@ -1,7 +1,8 @@
 # Squishy lines — a velocity-brush drawing cart that animates for almost free
 
-STATUS: READY TO BUILD (2026-06-30) — design settled (320×320, 2-tone first, boil is an
-opt-in mode). v1 plan is the checklist at the bottom. Nothing built yet.
+STATUS: BUILDING (2026-06-30) — design settled (320×320, 2-tone first, boil is an opt-in mode).
+The ink brush shipped (`tools/carts/squishy.c`); next up the tool palette, then the bevel tool.
+v1 plan + progress is the checklist at the bottom.
 
 > The shower idea: we'd been making cart icons by running an AI-generated image through a
 > `.cart.js` (sprite-draw + `pixelsnap`). The results are nice — but **frozen**. What if you could
@@ -196,11 +197,15 @@ once v1 lands (not committed):
 
 ## v1 plan (the buildable slice)
 
-- [ ] Canvas + input: 320×320, capture a stroke as `Sample[]` with per-frame smoothed speed.
-- [ ] Stroke store: the `Stroke` struct + a list; undo (drop last stroke).
-- [ ] One brush, done well: the **ink** brush — stamp-spacing, speed→width, end-taper, seeded
+Shipped the first cut (`tools/carts/squishy.c`, 2026-06-30): the ink brush feels right — slow swells
+fat, fast flicks thin, ends taper, seeded wobble keeps it hand-inked. Demo seeds in
+`tools/clips/squishy/`.
+
+- [x] Canvas + input: 320×320, capture a stroke as `Sample[]` with per-frame smoothed speed.
+- [x] Stroke store: the `Stroke` struct + a list; undo (drop last stroke).
+- [x] One brush, done well: the **ink** brush — stamp-spacing, speed→width, end-taper, seeded
       per-stamp noise. Get the squish *feeling* right before adding tools.
-- [ ] 2-tone palette: ink + paper; a clear button.
+- [x] 2-tone palette: ink + paper; a clear button.
 - [ ] Tool palette UI (code-drawn glyphs), then add pencil + fineliner + marker.
 - [ ] **Bevel tool** — auto-bevel a filled shape (edge-detect + top-lit highlight / bottom shadow,
       one global light dir). The second-biggest character win after the ink brush.
@@ -208,7 +213,7 @@ once v1 lands (not committed):
 - [ ] `spec()`: same-seed determinism + jitter-bounds assertions.
 - [ ] The icon pipeline: boil frames → `pixelsnap` → an animated sprite strip (the AI-route
       replacement); document the recipe.
-- [ ] `de:meta` + bake + `lint-carts`; a screenshot for the owner to play.
+- [x] `de:meta` + bake + `lint-carts`; a screenshot for the owner to play.
 
 ## See also
 

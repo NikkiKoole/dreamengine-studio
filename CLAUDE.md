@@ -160,6 +160,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
              build-context.js  assemble a reading briefing for ONE cart: de:meta + todos + related carts +
                              every doc/note that MENTIONS it (with the line) — finds the differently-named home
+             cart-outline.js a per-cart READING MAP (twin of build-context, for the SOURCE): data shapes
+                             verbatim + global state + a FUNCTION INDEX (line · sig · role) + entry-point line
+                             ranges — understand/navigate a 1–3k-line cart at ~1/7th the tokens of reading it
              cart-info.js    orient on ONE cart: screen/GW×GH, embedded de:source DRIFT vs the .c, registration
              cart-status.js  what's out of date (rebake / publish / stale / compendium)
              cart-todos.js   the navigable view over every cart's de:meta.todo[] polish punch-list (--grep/--count/<name>)

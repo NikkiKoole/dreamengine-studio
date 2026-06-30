@@ -3,7 +3,7 @@
 STATUS: BUILDING (2026-06-30) — design settled (320×320, 2-tone first, boil is an opt-in mode).
 Shipped: 8 brushes (ink/pen/fineliner/marker/chalk + Krita-style **sketch**/**spray**/**bristle**) in
 a **tool dropdown**, a thickness slider, the **bevel** emboss, the **boil** living loop, and a
-**4-colour pen**, **dithered strokes** (Bayer density ramp via `fillp`), and **per-stroke bevel/boil**
+**7-colour pen** (incl. CMY), **dithered strokes** (Bayer density ramp via `fillp`), and **per-stroke bevel/boil**
 (select-tool stage 1) + the full **select tool** (stages 2–3: pick a stroke, edit its properties
 non-destructively via the bar + a bevel-size/boil-intensity strip) (`tools/carts/squishy.c`). The
 cart is now a tiny vector editor. What's left: a real **flood-fill** (with a persistent-layer
@@ -190,10 +190,10 @@ So there are two outputs, same engine:
 ## Palette growth path
 
 1. **2-tone (shipped):** ink + paper. The soul of it.
-2. **Limited palette (shipped, 2026-06-30):** a **4-colour pen** — black / blue / red / green
-   (`COLORS[]` + swatch sprites 8–11; the cursor ring shows the live colour). Each stroke stores the
-   colour it was drawn in, so switching never restyles finished strokes (same as tool + thickness).
-   Next palette step if wanted: a darkening ramp so marker/overlap deepens within a hue.
+2. **Limited palette (shipped):** a **7-colour pen** — black / blue / red / green / cyan / magenta /
+   yellow (`COLORS[]` + swatch sprites 8–14; cursor ring shows the live colour). Picked via a **cycle
+   button** (7 don't fit the bar as swatches; cycle keeps the square canvas). pico32 has no true cyan,
+   so cyan ≈ `CLR_BLUE_GREEN` (dark teal). Each stroke stores its colour (non-destructive).
 3. **24-bit (later, opt-in):** the painterly tools (`paint`, watercolour) via `pset_rgb` /
    `rectfill_rgb` (raw `0xRRGGBB`, palette-bypass). **Caveat to remember:** `pset_rgb` pixels bypass
    `pal()` recolouring and don't read back through `pget` (use `pget_rgb`), so true-colour and
@@ -223,19 +223,23 @@ once v1 lands (not committed):
     (non-retroactive — drawing a plain stroke then toggling bevel leaves it plain). `draw()` animates
     each stroke by its own `boil` (still strokes use a stable seed; boiling ones cycle the variant).
     Already expressive: some strokes beveled, some boiling, some still.
-  - **Stage 2 — select + hit-test (SHIPPED 2026-07-01):** a SELECT tool (last in the dropdown,
-    marquee icon). A canvas click runs `pick_stroke` (min point-to-polyline distance vs each stroke's
-    half-width + slack); the nearest hit becomes `selected` and gets an accent **bounding box**;
-    clicking empty space deselects. Undo/clear keep `selected` valid. Cursor switches to an arrow in
-    select mode. No editing yet — that's stage 3.
+  - **Stage 2 — select + hit-test (SHIPPED 2026-07-01):** a SELECT mode — promoted to a **dedicated
+    top-bar toggle** (marquee icon, sprite 21) + the **S** key, *not* a dropdown brush (it's a mode,
+    `selmode`, not a tool). A canvas click runs `pick_stroke` (min point-to-polyline distance vs each
+    stroke's half-width + slack); the nearest hit becomes `selected` with an accent **bounding box**;
+    empty deselects. Undo/clear keep `selected` valid; cursor is an arrow in select mode.
   - **Stage 3 — contextual property editing (SHIPPED 2026-07-01):** when the SELECT tool has a stroke
     picked, the bar's value controls **retarget to that stroke** and reflect its values — colour
     swatches, dither cycle, bevel/boil toggles, and the thickness slider all read/write
     `strokes[selected]` (live re-render); the header reads "edit". A **property strip** drops under the
-    bar with **bevel-size** (0..`BEVEL_MAX`) and **boil-intensity** (0..1) sliders. Bevel went from a
+    bar with **bevel-size** (0..`BEVEL_MAX`) and **boil-intensity** (0..1) sliders, plus **z-order**
+    buttons (`to_front`/`to_back` reorder the `strokes[]` array — later = on top). Bevel went from a
     bool to a float *size*. Reflected sliders use stable static `float`s (ui capture is address-keyed).
     Clicks in the strip don't re-pick. → a tiny **non-destructive vector editor**. (Bevel *direction*
     — light angle — is the one deferred bit; everything else from the ask landed.)
+  - **Palette:** grew to a **7-colour pen** (black/blue/red/green + cyan/magenta/yellow) via a colour
+    **cycle** button (7 swatches don't fit the bar; cycle keeps the square canvas). pico32 has no true
+    cyan → cyan ≈ `CLR_BLUE_GREEN` (dark teal).
 - **Dithered strokes (shipped, 2026-06-30)** — the *intermediate* step before flood-fill (the maker's
   idea): the fat stamp brushes can be filled with a dpaint-style **Bayer-ordered density ramp**
   (`PATTERNS[]` = 16-bit `fillp` masks computed from the 4×4 Bayer matrix, ~12/25/50/75/87% ink; set

@@ -64,6 +64,61 @@ function serveDocs() {
     return out
   }
 
+  // — unified docs search: rank every .md by a query, with per-line snippets —
+  // an mtime-keyed cache so re-querying while editing only re-reads changed files.
+  const searchCache = new Map()   // rel -> { mtime, title, group, lines: [{n, raw, lower, heading}] }
+  const indexDoc = (rel) => {
+    const abs = path.join(DOCS, rel)
+    const mtime = fs.statSync(abs).mtimeMs
+    const hit = searchCache.get(rel)
+    if (hit && hit.mtime === mtime) return hit
+    const raw = fs.readFileSync(abs, 'utf8')
+    const rawLines = raw.split('\n')
+    const lines = rawLines.map((l, i) => ({ n: i + 1, raw: l, lower: l.toLowerCase(), heading: /^#{1,6}\s/.test(l) }))
+    const h1 = rawLines.find(l => /^#\s+/.test(l))
+    const title = h1 ? h1.replace(/^#\s+/, '').trim()
+                     : rel.split('/').pop().replace(/\.md$/i, '').replace(/[-_]/g, ' ')
+    const group = rel.includes('/') ? rel.slice(0, rel.indexOf('/')) : 'guide'
+    const entry = { mtime, title, group, lines }
+    searchCache.set(rel, entry)
+    return entry
+  }
+  const searchDocs = (query) => {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+    if (!terms.length) return []
+    const phrase = query.toLowerCase().trim()
+    const wantPhrase = phrase.includes(' ')
+    const results = []
+    for (const rel of listMarkdown(DOCS)) {
+      let entry; try { entry = indexDoc(rel) } catch { continue }
+      const titleLower = (entry.title + ' ' + rel).toLowerCase()
+      let score = 0
+      const seen = new Array(terms.length).fill(false)
+      const matched = []
+      for (const ln of entry.lines) {
+        let lineScore = 0
+        terms.forEach((t, ti) => {
+          let idx = ln.lower.indexOf(t), c = 0
+          while (idx !== -1) { c++; idx = ln.lower.indexOf(t, idx + t.length) }
+          if (c) { seen[ti] = true; lineScore += 1 + Math.log2(c + 1) }   // freq, log-damped
+        })
+        if (!lineScore) continue
+        if (ln.heading) lineScore += 8                                    // headings = doc skeleton
+        if (wantPhrase && ln.lower.includes(phrase)) lineScore += 10      // exact phrase
+        score += lineScore
+        matched.push({ n: ln.n, text: ln.raw.replace(/^#{1,6}\s+/, '').trim().slice(0, 240), heading: ln.heading, s: lineScore })
+      }
+      if (!matched.length) continue
+      terms.forEach(t => { if (titleLower.includes(t)) score += 40 })     // title/filename = big boost
+      if (seen.every(Boolean)) score += 20                               // all query words present
+      matched.sort((a, b) => b.s - a.s || a.n - b.n)
+      results.push({ path: rel, title: entry.title, group: entry.group, score,
+        lines: matched.slice(0, 8).map(({ n, text, heading }) => ({ n, text, heading })) })
+    }
+    results.sort((a, b) => b.score - a.score)
+    return results.slice(0, 30)
+  }
+
   return {
     name: 'serve-docs',
     configureServer(server) {
@@ -81,6 +136,14 @@ function serveDocs() {
           try { files = listMarkdown(DOCS) } catch {}
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(files))
+          return
+        }
+
+        if (url === '/docs-search') {
+          let out = []
+          try { out = searchDocs(new URL('http://x' + req.url).searchParams.get('q') || '') } catch {}
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify(out))
           return
         }
 

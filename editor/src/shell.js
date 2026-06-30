@@ -183,7 +183,10 @@ const introHTML = `
 // The Docs tab is a two-pane wiki: a sidebar (API reference + the docs/ tree) and a
 // content pane that renders either the API reference or a markdown doc from docs/.
 const helpPanel = document.getElementById('panel-help')
-let docsSidebar          // left-hand nav
+let docsSidebar          // left-hand nav (search box + results + nav tree)
+let docsNav              // the nav-tree container inside the sidebar (hidden while searching)
+let docsSearchInput      // the unified "search all docs" box
+let docsSearchResults    // ranked-results container (shown while searching)
 let docsContent          // right-hand content pane
 let currentDocPath = ''  // relative path of the markdown doc shown ('' = API reference)
 let docsSidebarCollapsed = localStorage.getItem('docsSidebar') === 'closed'
@@ -226,7 +229,10 @@ function runFind(query) {
     if (findCount) findCount.textContent = 'n/a in source view'
     return
   }
-  const q = query.toLowerCase()
+  // multi-term: each whitespace-separated word is highlighted (a single word
+  // behaves exactly as before). Lets "keybed midi" light up both, and lets a
+  // search-result jump land on any of the query's words.
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
   const walker = document.createTreeWalker(docsContent, NodeFilter.SHOW_TEXT, {
     acceptNode: node => node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
   })
@@ -236,17 +242,30 @@ function runFind(query) {
   nodes.forEach(node => {
     const text = node.nodeValue
     const lower = text.toLowerCase()
-    if (lower.indexOf(q) === -1) return
+    // collect every term's match ranges, then merge overlaps so adjacent/overlapping
+    // hits don't nest <mark>s
+    let ranges = []
+    for (const t of terms) {
+      let idx = lower.indexOf(t)
+      while (idx !== -1) { ranges.push([idx, idx + t.length]); idx = lower.indexOf(t, idx + t.length) }
+    }
+    if (!ranges.length) return
+    ranges.sort((a, b) => a[0] - b[0])
+    const merged = []
+    for (const r of ranges) {
+      const last = merged[merged.length - 1]
+      if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1])
+      else merged.push(r.slice())
+    }
     const frag = document.createDocumentFragment()
-    let last = 0, idx = lower.indexOf(q)
-    while (idx !== -1) {
-      if (idx > last) frag.appendChild(document.createTextNode(text.slice(last, idx)))
+    let last = 0
+    for (const [s, e] of merged) {
+      if (s > last) frag.appendChild(document.createTextNode(text.slice(last, s)))
       const mark = document.createElement('mark')
       mark.className = 'docs-find-hit'
-      mark.textContent = text.slice(idx, idx + q.length)
+      mark.textContent = text.slice(s, e)
       frag.appendChild(mark)
-      last = idx + q.length
-      idx = lower.indexOf(q, last)
+      last = e
     }
     if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)))
     node.parentNode.replaceChild(frag, node)
@@ -504,11 +523,82 @@ function navGroup(head) {
   return grp
 }
 
+// ── unified docs search (all docs, ranked; current doc boosted) ──────────────
+const escHtml = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+// highlight every query word inside a snippet, in one escaped pass
+function hlSnippet(text, terms) {
+  const esc = escHtml(text)
+  const pat = terms.filter(Boolean).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  return pat ? esc.replace(new RegExp('(' + pat + ')', 'ig'), '<mark>$1</mark>') : esc
+}
+
+let docsSearchSeq = 0   // guards against out-of-order async responses
+async function runDocsSearch(query) {
+  const q = query.trim()
+  if (!q) { clearDocsSearch(); return }
+  const seq = ++docsSearchSeq
+  let results = []
+  try { results = await (await fetch('/docs-search?q=' + encodeURIComponent(q))).json() } catch {}
+  if (seq !== docsSearchSeq) return   // a newer query already fired
+  renderDocsSearch(q, results)
+}
+
+function clearDocsSearch() {
+  docsSearchSeq++
+  docsSearchResults.innerHTML = ''
+  docsSidebar.classList.remove('searching')
+}
+
+function renderDocsSearch(query, results) {
+  docsSidebar.classList.add('searching')   // CSS hides the nav tree, shows results
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+  // boost the currently-open doc to the top (it behaves like find-in-this)
+  results.sort((a, b) => (b.path === currentDocPath) - (a.path === currentDocPath))
+
+  if (!results.length) {
+    docsSearchResults.innerHTML = `<div class="docs-search-empty">no matches for “${escHtml(query)}”</div>`
+    return
+  }
+  docsSearchResults.innerHTML = ''
+  for (const r of results) {
+    const current = r.path === currentDocPath
+    const card = document.createElement('div')
+    card.className = 'docs-result' + (current ? ' current' : '')
+    // current doc shows all its hits (in document order, so click→jump maps 1:1);
+    // other docs show just the best line as a preview
+    const snips = current ? r.lines.slice().sort((a, b) => a.n - b.n) : r.lines.slice(0, 1)
+    const tag = current ? `<span class="docs-result-tag">this doc</span>` : ''
+    card.innerHTML =
+      `<div class="docs-result-head"><span class="docs-result-title">${escHtml(r.title)}</span>` +
+      `<span class="docs-result-group">${escHtml(r.group)}</span>${tag}</div>` +
+      `<div class="docs-result-snips">` +
+      snips.map((s, i) => `<button class="docs-result-snip" data-occ="${current ? i : 0}">${hlSnippet(s.text, terms)}</button>`).join('') +
+      `</div>`
+    card.querySelector('.docs-result-head').addEventListener('click', () => openSearchHit(r.path, query, 0))
+    card.querySelectorAll('.docs-result-snip').forEach(btn =>
+      btn.addEventListener('click', () => openSearchHit(r.path, query, +btn.dataset.occ)))
+    docsSearchResults.appendChild(card)
+  }
+}
+
+// open a result and land on the matching text: render the doc, then reuse the
+// find machinery to highlight every query word and scroll to the chosen hit
+async function openSearchHit(path, query, occ) {
+  const land = () => {
+    findBar.classList.add('open')
+    findInput.value = query
+    runFind(query)
+    if (findMatches.length) { findIndex = Math.min(occ || 0, findMatches.length - 1); highlightCurrent(true) }
+  }
+  if (path !== currentDocPath) await showDoc(path)
+  land()
+}
+
 async function buildDocsSidebar() {
-  docsSidebar.innerHTML = ''
-  docsSidebar.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
-  docsSidebar.appendChild(docNavItem('★ history', 'history', () => showHistory()))
-  docsSidebar.appendChild(docNavItem('★ techniques', 'compendium', () => showCompendium()))
+  docsNav.innerHTML = ''
+  docsNav.appendChild(docNavItem('API reference', 'api', () => renderApiReference()))
+  docsNav.appendChild(docNavItem('★ history', 'history', () => showHistory()))
+  docsNav.appendChild(docNavItem('★ techniques', 'compendium', () => showCompendium()))
 
   // the engine's own C files, readable right here (cmd-click an #include in
   // your cart jumps to the same view) — studio.h first, then the cart-land
@@ -516,7 +606,7 @@ async function buildDocsSidebar() {
   const engGrp = navGroup('engine source')
   ENGINE_SOURCES.forEach(f =>
     engGrp.appendChild(docNavItem(f, 'engine:' + f, () => showEngineSource(f))))
-  docsSidebar.appendChild(engGrp)
+  docsNav.appendChild(engGrp)
 
   let files = []
   try { files = await (await fetch('/docs-list.json')).json() } catch {}
@@ -534,7 +624,7 @@ async function buildDocsSidebar() {
   const addGroup = (head, list) => {
     const grp = navGroup(head)
     list.forEach(f => grp.appendChild(docNavItem(prettyDocLabel(f), f, () => showDoc(f))))
-    docsSidebar.appendChild(grp)
+    docsNav.appendChild(grp)
   }
   if (top.length) addGroup('guide', top)
   Object.keys(folders).sort().forEach(dir => addGroup(dir, folders[dir].sort()))
@@ -545,6 +635,24 @@ async function buildDocsTab() {
   helpPanel.innerHTML = ''
   docsSidebar = document.createElement('div'); docsSidebar.id = 'docs-sidebar'
   docsContent = document.createElement('div'); docsContent.id = 'docs-content'
+  // sidebar = a unified "search all docs" box, the ranked-results pane (shown
+  // while typing), and the nav tree (hidden while searching)
+  docsSidebar.innerHTML = `
+    <div id="docs-search-box"><input id="docs-search-input" type="text" placeholder="search all docs…" spellcheck="false" /></div>
+    <div id="docs-search-results"></div>
+    <div id="docs-nav"></div>`
+  docsSearchInput = docsSidebar.querySelector('#docs-search-input')
+  docsSearchResults = docsSidebar.querySelector('#docs-search-results')
+  docsNav = docsSidebar.querySelector('#docs-nav')
+  let searchTimer
+  docsSearchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer)
+    const v = docsSearchInput.value
+    searchTimer = setTimeout(() => runDocsSearch(v), 150)
+  })
+  docsSearchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); docsSearchInput.value = ''; clearDocsSearch() }
+  })
   helpPanel.appendChild(docsSidebar)
   helpPanel.appendChild(docsContent)
 

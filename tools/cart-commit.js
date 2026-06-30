@@ -71,6 +71,12 @@ const run = (cmd, args, capture) =>
   execFileSync(cmd, args, { cwd: ROOT, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit' })
 const git = (...args) => run('git', args, true).trim()
 const tryGit = (...args) => { try { return git(...args) } catch { return '' } }
+// porcelain-safe line read: NO global trim (that would strip the leading status
+// space off the first line and shift slice(3) by a char — a partial-commit bug).
+const gitLines = (...args) => {
+  try { return run('git', args, true).split('\n').filter(Boolean).map(l => l.slice(3)) }
+  catch { return [] }
+}
 
 if (!fs.existsSync(path.join(ROOT, SRC))) die(`no source at ${SRC}`)
 const hasCfg = fs.existsSync(path.join(ROOT, CFG))
@@ -127,10 +133,7 @@ if (foreign.length && !opt.force) {
 const indexDirty = indexChanged.length > 0
 
 // ── 5. derive the pathspec (only files that actually changed) ───────────────
-const dirty = new Set(
-  tryGit('status', '--porcelain', '--', SRC, CFG, PNG, CLIPS, INDEX)
-    .split('\n').filter(Boolean).map(l => l.slice(3).trim())
-)
+const dirty = new Set(gitLines('status', '--porcelain', '--', SRC, CFG, PNG, CLIPS, INDEX).map(f => f.trim()))
 const pathspec = [...dirty].filter(f => f.startsWith(`tools/carts/${NAME}`) ||
                                         f === PNG ||
                                         f.startsWith(`tools/clips/${NAME}/`) ||
@@ -142,8 +145,7 @@ console.log('\nfiles for this commit:')
 pathspec.forEach(f => console.log('  ' + f))
 
 // what's left dirty that we deliberately don't touch (aggregates, foreign work)
-const otherDirty = tryGit('status', '--porcelain').split('\n').filter(Boolean)
-  .map(l => l.slice(3).trim()).filter(f => !pathspec.includes(f))
+const otherDirty = gitLines('status', '--porcelain').map(f => f.trim()).filter(f => !pathspec.includes(f))
 if (otherDirty.length) {
   console.log('\nleft dirty (NOT committed — handle deliberately):')
   otherDirty.forEach(f => console.log('  ' + f))

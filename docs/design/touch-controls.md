@@ -1,10 +1,14 @@
 # Touch controls — a native-resolution on-screen joystick / d-pad / buttons
 
-STATUS: BUILDING (rev. 2026-06-30). **Phase 1 (native-res look) shipped** — the on-screen
-stick + A/B now draw with engine primitives into the canvas at native resolution (chunky,
-palette-correct), verified `canvas-diff` 0px GPU-vs-software on the opt-in cart `flyover`.
-Placement (Phase 1.5 coord chokepoint → Phase 2 deck/rails) not started. Research, a
-recommendation, AND a concrete implementation plan follow (see "Implementation plan"). The task is
+STATUS: BUILDING (rev. 2026-06-30). **Phases 1 + 1.5 shipped.** P1 (native-res look): the
+on-screen stick + A/B draw with engine primitives into the canvas at native resolution
+(chunky, palette-correct). P1.5 (coordinate chokepoint): one `game_rect` window↔canvas
+transform (`runtime/game_rect.h`) that all touch/mouse reads + the blit flow through, pinned
+to identity so it's a verified no-op — Phase 2 placement is now just "set `game_rect`". Round
+-trip oracle: `tools/det-probes/placetest.c`. (Also fixed en route: the stick was dead for the
+desktop mouse — `stick_x/y` rejected the mouse-as-touch id.) Phase 2 (deck/rails) is next.
+Research, a recommendation, AND a concrete implementation plan follow (see "Implementation
+plan"). The task is
 pulled from **two ends**: the iOS port ([`ios-plan.md`](ios-plan.md) — raw `key()`/`btn()` carts
 have no touch equivalent on a phone) and the cart-polish backlog
 ([`../cart-polish-punchlist.md`](../cart-polish-punchlist.md) — ~18
@@ -487,8 +491,8 @@ touches.
 - [x] **P1** redraw overlay with `circ`/`circfill`/`print` + `CLR_*`, native-res in the canvas
 - [x] **P1** size from `SCALE` (`ceil(44/SCALE)`), remove post-blit raw-Raylib call
 - [x] **P1** `canvas-diff` 0px on `flyover` (opt-in); `vampire` PASS; committed
-- [ ] **P1.5** `game_rect` chokepoint; route `touch_x/y()`/mouse/hit-tests through it (identity)
-- [ ] **P1.5** pure `place()` stub + headless round-trip test; `canvas-diff` byte-identical, commit
+- [x] **P1.5** `game_rect` chokepoint; routed `touch_x/y`/`tap*`/`touch_ended*`/`inp_mouse_x/y` + blit through it (identity). (On-screen control hit-tests read window px directly — unchanged.)
+- [x] **P1.5** pure `gr_place()` stub + headless round-trip test (`det-probes/placetest.c`, covers offset+scaled rects too); `canvas-diff` byte-identical (flyover/vampire), committed
 - [ ] **P2** fill in `place()`: letterbox measure → deck / rails / overlay decision
 - [ ] **P2** set `game_rect` from `place()`, shrink blit, draw band (coords follow for free)
 - [ ] **P2** placement matrix verified (portrait/landscape/matched/desktop)

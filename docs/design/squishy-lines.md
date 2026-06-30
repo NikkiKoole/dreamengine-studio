@@ -152,6 +152,13 @@ Flip it on and the drawing breathes. The mechanism, and why it's "almost free":
 - **What perturbs:** small endpoint jitter + per-stamp width/offset noise (NOT the whole path
   re-flowing — that reads as redrawing, not boiling). 1–3px of wobble is the sweet spot.
 - **2–3 frames** (classic squigglevision is 2–3). Default 2.
+- **Two boil styles (per-stroke, 2026-07-01):** **WOBBLE** (the original per-point jitter) and
+  **PULSE** — a subtle smooth grow/shrink (±`BREATHE_AMT` scale about the stroke's centroid, continuous
+  sine at `BREATHE_SPEED`, per-stroke phase offset from the seed so strokes breathe independently).
+  Dispatched through a small `Boil` context (`{amt, style, fseed, cx, cy, phase}`) + `boil_pt()` that
+  every renderer calls per point — so adding a 3rd style is just another branch there. The boil button
+  cycles off → wobble → pulse. (Wobble cycles `fseed` per beat → width animates too; pulse keeps a
+  stable `fseed` so only the scale breathes.)
 
 ### Performance — the gotcha and its fix
 

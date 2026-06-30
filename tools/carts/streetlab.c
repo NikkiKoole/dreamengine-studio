@@ -710,7 +710,7 @@ void update(void){
     if (keyp(';'))            parkOn = !parkOn;              // M7: parking lane
     if (keyp('d')||keyp('D')) driveways = (driveways+1)&3;   // Stage-1 #3c: driveways per-side cycle off→+→−→both
     if (keyp('n')||keyp('N')) paint = !paint;                // toggle the PAINTED markings (lines/dashes/arrows); surfaces stay
-    if (keyp('g')||keyp('G')) field_roads = !field_roads;    // toggle field-based road rendering (A/B vs the old per-arm path)
+    if ((keyp('g')||keyp('G')) && !osmMode) field_roads = !field_roads;  // toggle field-based rendering (A/B); LOCKED on in OSM mode — the per-arm path assumes collinear arm-pairs, so it breaks on independent OSM arms
     if (keyp('o')||keyp('O')){ osmMode = (osmMode+1) % (N_OSM+1); if (osmMode) field_roads=1; }  // RUNG 1: cycle off → OSM samples; render foreign bearings on the FIELD path (clean at any skew)
     if (cornerR<0) cornerR=0;  if (cornerR>28) cornerR=28;
     if (islandR<3) islandR=3;  if (islandR>20) islandR=20;   // M6: stays MINI (small, traversable)

@@ -40,22 +40,35 @@ static void check_roundtrip(GameRect gr, const char *label) {
     else     printf("  [%s] round-trip identity OK\n", label);
 }
 
-int main(void) {
-    // 1) the Phase-1.5 stub: any window/screen size -> full-window overlay at native scale.
-    Placement p = gr_place(1280, 800, SCREEN_W, SCREEN_H, (float)SCALE);
-    if (p.mode != PLACE_OVERLAY || p.game.x != 0.0f || p.game.y != 0.0f || p.game.scale != (float)SCALE) {
-        printf("  gr_place stub: expected full-window identity, got mode=%d game=(%.1f,%.1f,%.2f)\n",
-               p.mode, p.game.x, p.game.y, p.game.scale);
+// assert gr_place picks the expected mode for a window size, and that its computed game rect
+// round-trips. The window cases mirror the doc's matrix: matched / portrait / landscape.
+static void check_place(int win_w, int win_h, PlaceMode want, const char *label) {
+    Placement p = gr_place(win_w, win_h, SCREEN_W, SCREEN_H);
+    if (p.mode != want) {
+        printf("  [%s] win %dx%d: expected mode %d, got %d (game %.0f,%.0f x%.2f)\n",
+               label, win_w, win_h, want, p.mode, p.game.x, p.game.y, p.game.scale);
         fails++;
-    } else printf("  gr_place stub returns full-window identity OK\n");
+    } else printf("  [%s] win %dx%d -> mode %d OK\n", label, win_w, win_h, p.mode);
+    check_roundtrip(p.game, label);
+}
 
-    // 2) round-trip over a matrix of placements: the live identity rect, and offset+scaled rects
-    //    shaped like the Phase-2 deck (game pushed down, smaller scale) and rails (game pushed right).
-    check_roundtrip((GameRect){ 0.0f, 0.0f, (float)SCALE }, "identity x4");
-    check_roundtrip((GameRect){ 0.0f, 0.0f, 2.0f },         "identity x2");
-    check_roundtrip((GameRect){ 0.0f, 96.0f, 3.0f },        "deck (down, x3)");
-    check_roundtrip((GameRect){ 140.0f, 0.0f, 4.0f },       "rails (right, x4)");
-    check_roundtrip((GameRect){ 37.0f, 52.0f, 2.5f },       "offset frac (x2.5)");
+int main(void) {
+    // the placement decision matrix (doc's "what successful games do" cases):
+    check_place(SCREEN_W * SCALE, SCREEN_H * SCALE, PLACE_OVERLAY, "matched (desktop)");  // game == window
+    check_place(1080, 2400, PLACE_DECK,  "portrait phone");                               // tall band below
+    check_place(2400, 1080, PLACE_RAILS, "landscape phone");                              // side rails
+    check_place(1280,  816, PLACE_OVERLAY, "near-matched (tiny band)");                   // < GR_MIN_BAND → overlay
+
+    // matched desktop must be an exact identity rect (the no-op guarantee).
+    Placement d = gr_place(SCREEN_W * SCALE, SCREEN_H * SCALE, SCREEN_W, SCREEN_H);
+    if (d.game.x != 0.0f || d.game.y != 0.0f || d.game.scale != (float)SCALE) {
+        printf("  matched desktop not identity: game=(%.1f,%.1f,%.2f)\n", d.game.x, d.game.y, d.game.scale);
+        fails++;
+    } else printf("  matched desktop is exact identity OK\n");
+
+    // round-trip on hand-built offset+scaled rects too (belt-and-suspenders for Phase-2 shapes).
+    check_roundtrip((GameRect){ 0.0f, 0.0f, 2.0f }, "identity x2");
+    check_roundtrip((GameRect){ 37.0f, 52.0f, 2.5f }, "offset frac (x2.5)");
 
     printf(fails ? "FAIL (%d)\n" : "PASS\n", fails);
     return fails ? 1 : 0;

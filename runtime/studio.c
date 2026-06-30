@@ -497,6 +497,8 @@ static float inp_mouse_wheel(void) { return GetMouseWheelMove(); }
 #endif
 
 static bool show_touch_ui = TOUCH_CONTROLS_DEFAULT;
+static int  touch_move_mode = TOUCH_ANALOG;   // TOUCH_ANALOG (floating) | TOUCH_ANALOG_FIX (fixed); set by touch_layout()
+static int  touch_n_buttons = 2;              // how many action buttons the cart asked for (clamped 0..4)
 
 #define STICK_RADIUS    60.0f
 #define STICK_DEADZONE  0.35f
@@ -505,6 +507,7 @@ static bool show_touch_ui = TOUCH_CONTROLS_DEFAULT;
 static int   stick_touch_id = -1;
 static float stick_base_x = 0, stick_base_y = 0;
 static float stick_knob_x = 0, stick_knob_y = 0;
+static float stick_home_x = 0, stick_home_y = 0;   // fixed-mode base position (window px)
 
 static int btn_a_cx, btn_a_cy;
 static int btn_b_cx, btn_b_cy;
@@ -764,6 +767,7 @@ static void init_touch_layout(void) {
     int W = SCREEN_W * SCALE, H = SCREEN_H * SCALE;
     btn_a_cx = W -  80;  btn_a_cy = H -  80;
     btn_b_cx = W - 180;  btn_b_cy = H - 120;
+    stick_home_x = 80;   stick_home_y = H - 80;   // fixed-mode base (window px); matches the idle hint spot
 }
 
 static bool point_in_circle(float px, float py, float cx, float cy, float r) {
@@ -895,6 +899,8 @@ static void update_stick(void) {
     if (!show_touch_ui) { stick_touch_id = -1; return; }
 
     int W = SCREEN_W * SCALE;
+    bool fixed = (touch_move_mode == TOUCH_ANALOG_FIX);
+    if (fixed) { stick_base_x = stick_home_x; stick_base_y = stick_home_y; }   // base pinned to its home
 
     bool still_active = false;
     if (stick_touch_id != -1) {
@@ -920,8 +926,13 @@ static void update_stick(void) {
             if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, BTN_RADIUS)) continue;
             if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, BTN_RADIUS)) continue;
             stick_touch_id = vt_id[i];
-            stick_base_x = stick_knob_x = p.x;
-            stick_base_y = stick_knob_y = p.y;
+            if (fixed) {                          // base stays at home; knob starts centred, deflects toward the finger
+                stick_knob_x = stick_base_x;
+                stick_knob_y = stick_base_y;
+            } else {                              // floating: base + knob spawn under the finger
+                stick_base_x = stick_knob_x = p.x;
+                stick_base_y = stick_knob_y = p.y;
+            }
             break;
         }
     }
@@ -2366,6 +2377,12 @@ bool tapr(int x, int y, int w, int h) {
 }
 
 void touch_controls(bool on) { show_touch_ui = on; }
+
+void touch_layout(int move_mode, int n_buttons) {
+    show_touch_ui   = true;                                   // declaring a layout opts the controls in
+    touch_move_mode = (move_mode == TOUCH_ANALOG_FIX) ? TOUCH_ANALOG_FIX : TOUCH_ANALOG;
+    touch_n_buttons = n_buttons < 0 ? 0 : (n_buttons > 4 ? 4 : n_buttons);
+}
 
 #ifdef PLATFORM_WEB
 // computed once at boot by web_shell.html (Module.deTouchCeiling) — see the

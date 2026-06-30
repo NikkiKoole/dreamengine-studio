@@ -97,6 +97,9 @@ int  touch_ended_x(int i);               // canvas-space x where lifted finger i
 int  touch_ended_y(int i);               // canvas-space y where lifted finger i was last seen, or -1
 bool tapr(int x, int y, int w, int h);   // did a touch END inside this rect this frame? (edge-triggered, like btnr)
 void touch_controls(bool on);            // show/hide on-screen stick + A/B (overrides default)
+#define TOUCH_ANALOG      0              // floating stick: base spawns where the thumb lands — great for frantic free movement
+#define TOUCH_ANALOG_FIX  1              // fixed stick: base stays put at a home spot — steadier for precise play
+void touch_layout(int move_mode, int n_buttons); // opt in to the on-screen controls AND pick the stick style (TOUCH_ANALOG / TOUCH_ANALOG_FIX) + button count
 int  touch_ceiling(void);                // max fingers this device tracks: 5 iPhone, 10 iPad, 0 desktop/unknown — one MORE than this cancels ALL touches on iOS
 
 // analog stick (only nonzero while a finger is on the on-screen stick)

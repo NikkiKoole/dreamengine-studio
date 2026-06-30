@@ -4,8 +4,9 @@ STATUS: BUILDING (2026-06-30) — design settled (320×320, 2-tone first, boil i
 Shipped: 8 brushes (ink/pen/fineliner/marker/chalk + Krita-style **sketch**/**spray**/**bristle**) in
 a **tool dropdown**, a thickness slider, the **bevel** emboss, the **boil** living loop, and a
 **4-colour pen**, **dithered strokes** (Bayer density ramp via `fillp`), and **per-stroke bevel/boil**
-(stage 1 of the select tool) (`tools/carts/squishy.c`). The core is done; what's left: the **select
-tool** (stages 2–3 — hit-test + property panel), a real **flood-fill** (with a persistent-layer
+(select-tool stage 1) + **select & highlight** (stage 2) (`tools/carts/squishy.c`). The core is done;
+what's left: the select tool's **stage 3** (a contextual property panel to edit the selected stroke),
+a real **flood-fill** (with a persistent-layer
 refactor — see parking lot), the pixelsnap animated-icon export, a `spec()`, and the boil-cache perf
 pass. v1 plan + progress below.
 
@@ -222,8 +223,11 @@ once v1 lands (not committed):
     (non-retroactive — drawing a plain stroke then toggling bevel leaves it plain). `draw()` animates
     each stroke by its own `boil` (still strokes use a stable seed; boiling ones cycle the variant).
     Already expressive: some strokes beveled, some boiling, some still.
-  - **Stage 2 — select + hit-test (TODO):** a SELECT tool; click near a stroke, point-to-polyline
-    distance picks it, highlight its path; store the selected index.
+  - **Stage 2 — select + hit-test (SHIPPED 2026-07-01):** a SELECT tool (last in the dropdown,
+    marquee icon). A canvas click runs `pick_stroke` (min point-to-polyline distance vs each stroke's
+    half-width + slack); the nearest hit becomes `selected` and gets an accent **bounding box**;
+    clicking empty space deselects. Undo/clear keep `selected` valid. Cursor switches to an arrow in
+    select mode. No editing yet — that's stage 3.
   - **Stage 3 — contextual property panel (TODO):** when a stroke is selected, show editors (swatch /
     dither / bevel size+dir / boil intensity / thickness) that write back to it and re-render live.
   Turns the cart into a tiny **non-destructive vector editor** — the natural endpoint of "it's all

@@ -1,12 +1,29 @@
 # Touch controls — a native-resolution on-screen joystick / d-pad / buttons
 
-STATUS: BUILDING (rev. 2026-06-30). **Phases 1 + 1.5 shipped.** P1 (native-res look): the
-on-screen stick + A/B draw with engine primitives into the canvas at native resolution
-(chunky, palette-correct). P1.5 (coordinate chokepoint): one `game_rect` window↔canvas
-transform (`runtime/game_rect.h`) that all touch/mouse reads + the blit flow through, pinned
-to identity so it's a verified no-op — Phase 2 placement is now just "set `game_rect`". Round
--trip oracle: `tools/det-probes/placetest.c`. (Also fixed en route: the stick was dead for the
-desktop mouse — `stick_x/y` rejected the mouse-as-touch id.) Phase 2 (deck/rails) is next.
+STATUS: BUILDING (rev. 2026-06-30). Shipped: P1 (native-res look), P1.5 (`game_rect`
+coordinate chokepoint), P2 brain (`gr_place()` deck/rails/overlay decision + the letterbox
+foundation — `game_rect = gr_place(...)` each frame, opt-in `DE_WINDOW=WxH` desktop preview),
+and `touch_layout(mode, n_buttons)` with fixed vs floating stick (`TOUCH_ANALOG` /
+`TOUCH_ANALOG_FIX`). Oracle: `tools/det-probes/placetest.c`. (Also fixed en route: the stick
+was dead for the desktop mouse — `stick_x/y` rejected the mouse-as-touch id.)
+
+> **ARCHITECTURE PIVOT (2026-06-30) — supersedes the "grow the framebuffer" plan below.** The
+> band rendering hit two walls: `sw_cbuf` is a fixed `SCREEN_W*SCREEN_H` array (growing it =
+> surgery on the fragile software rasterizer), and the controls can't be eyeballed by the
+> canvas tooling. **New approach (maker's call): one shared BRAIN in the engine** — geometry
+> (`gr_place`), hit-testing, and the `btn()`/stick synthesis, all platform-agnostic and already
+> built — **plus a thin per-platform DRAW SKIN** that just paints the controls at the geometry
+> the brain exposes (desktop = raw Raylib, web = canvas/DOM, iOS = native view). Controls are
+> drawn with **smooth circles at device resolution**, NOT chunky engine primitives — they read
+> as standard thumb-chrome, not part of the console (a deliberate reversal of the original
+> native-res requirement; controls are chrome, and smooth reads better on a phone; revisit
+> pixelating later if wanted). This **reverses the "Deck vs DOM on web (decided)" fork below**.
+> The band only exists where the window ≠ game aspect (iOS/web); desktop uses `DE_WINDOW` to
+> preview. Trade-off accepted: window-space controls are invisible to canvas-diff/dumps, so the
+> *draw* is eyeballed (maker) while the *brain* stays oracle-tested (`placetest` + the trace).
+
+Next: band-aware layout (stick/buttons into the actual deck/rails band, not the overlay corner)
++ the per-platform smooth-circle skin (desktop first).
 Research, a recommendation, AND a concrete implementation plan follow (see "Implementation
 plan"). The task is
 pulled from **two ends**: the iOS port ([`ios-plan.md`](ios-plan.md) — raw `key()`/`btn()` carts
@@ -494,11 +511,11 @@ touches.
 - [x] **P1.5** `game_rect` chokepoint; routed `touch_x/y`/`tap*`/`touch_ended*`/`inp_mouse_x/y` + blit through it (identity). (On-screen control hit-tests read window px directly — unchanged.)
 - [x] **P1.5** pure `gr_place()` stub + headless round-trip test (`det-probes/placetest.c`, covers offset+scaled rects too); `canvas-diff` byte-identical (flyover/vampire), committed
 - [x] **P2** fill in `gr_place()`: letterbox measure → deck / rails / overlay decision (pure, in `game_rect.h`)
-- [ ] **P2** set `game_rect` from `gr_place()`, shrink blit, draw band — **BLOCKED on a fork**: `sw_cbuf` is a fixed `SCREEN_W*SCREEN_H` array (band needs a resize or a second pass), AND desktop has no letterbox to show it (window == game size). Lands naturally with the iOS shell (Phase 4), where the window is a device screen. See note below.
+- [x] **P2** set `game_rect` from `gr_place()` each frame + shrink blit (letterbox foundation; `DE_WINDOW` preview, `ClearBackground` bars). Game letterboxes; **band DRAW is now the per-platform skin** (see PIVOT) — pending.
 - [x] **P2** placement matrix verified — `det-probes/placetest.c`: matched→overlay (exact identity), portrait→deck, landscape→rails, tiny-band→overlay; computed rects round-trip
-- [ ] **P2+** web framebuffer may exceed game so the band exists (no DOM controls) — after native
-- [ ] **P3** `touch_layout(mode, n_buttons)` + d-pad modes (4-place API dance)
-- [ ] **P3** floating-analog base-spawn + `pointer.h` capture + knob lerp
+- [x] **P3 (partial)** `touch_layout(mode, n_buttons)` shipped (4-place dance) with `TOUCH_ANALOG` (floating) / `TOUCH_ANALOG_FIX` (fixed); verified fixed-vs-floating via trace. d-pad modes still TODO.
+- [x] **P3** floating + fixed analog base behaviour (fixed pins base to home, floating spawns under finger). `pointer.h` capture + knob lerp still TODO.
+- [ ] **NEXT** band-aware layout (stick/buttons into the deck/rails band) + per-platform smooth-circle skin (desktop first); honour `n_buttons`
 - [ ] **P3** N buttons + optional labels; per-cart opt-in in code
 - [ ] **P3** prototype `columns`/`puyo` (d-pad) and a free-move cart (analog)
 - [ ] **P4** wire `de_key_event` in the iOS shell for `key()` carts

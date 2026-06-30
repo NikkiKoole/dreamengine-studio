@@ -32,6 +32,12 @@ Two halves, both firm:
    *placement* from the available space. Same cart call works on web portrait, iOS landscape, and a
    desktop touchscreen.
 
+**Opt-in, always.** Most carts will never show a joypad — a sound toy, a mouse-driven editor, a
+text game, anything already playable by tap don't want one. So the feature is **inert until a cart
+explicitly asks** (`touch_layout(...)`/`touch_controls(true)`); no cart's behaviour or look changes
+otherwise. This isn't just politeness — it's the blast-radius bound from "De-risking principle" rule
+3: a bug can only reach carts that opted in.
+
 (See "the central tension" below for why native-res, and "the placement model" for the geometry.)
 
 ## What already exists — and why it's wrong for us
@@ -125,6 +131,40 @@ native pixels and final on-screen size. (At 320×200·4× a 44 px physical targe
 radius; bigger on smaller scales.) The deck/rails make this *easier* than an overlay: the controls
 have their own space, so they can be as large as the band allows without covering the game.
 
+## De-risking principle — separate the dangerous plumbing from the visible feature
+
+The one genuinely *hard-to-fix* risk here is **silent, library-wide coordinate breakage**: today
+`touch_x/y()` is a bare `window_px / SCALE`, and the moment placement shrinks/offsets the game rect
+that math is wrong for **every cart that reads touch or mouse** — it compiles fine, looks fine, and
+just puts taps in the wrong place. The plan is structured so this risk is *retired before the
+feature is built*, not discovered on a phone afterward. Three rules make that hold:
+
+1. **Land the coordinate transform first, as a provable no-op (Phase 1.5).** Introduce one
+   `game_rect` (origin + scale) chokepoint that *all* window↔canvas conversion goes through, with
+   `game_rect = full window` (an identity transform). Ship it alone; it must change **nothing**
+   (`canvas-diff` byte-identical, every cart's coords unchanged). Then Phase 2 placement is merely
+   *setting `game_rect` to a different value* and every coordinate consumer follows automatically —
+   the scary rewrite is over before the feature starts.
+2. **The placement decision is a pure, headlessly-tested function.** `(win_w, win_h, screen_w,
+   screen_h) → {mode, game_rect, control_rect}` renders nothing, so it gets a deterministic test
+   over a matrix of window/screen sizes (the `det-probes/` pattern), including a **round-trip
+   property**: `canvas→window→canvas == identity` for sampled points. That *auto-catches* the silent
+   mapping bug off-device instead of relying on eyeballing a phone.
+3. **The new path is 100% inert until a cart opts in.** No existing cart changes behavior until it
+   explicitly calls `touch_layout()` (or `touch_controls(true)`). This bounds the blast radius: a
+   bug is confined to the handful of opt-in carts, never library-wide. (And keep `btn()` synthesis
+   untouched — change *where things draw* and *how coords map*, not the proven input layer.)
+
+Plus two moves that shrink the fragile surface and the no-oracle surface:
+
+- **Web framebuffer change is deferred out of the first risky release.** The `web_shell.html`
+  touch-mirror is the piece most likely to pass on desktop and break on a real phone, so prove
+  deck/rails on **native + iOS first** (where we own the surface) and keep web on the Phase-1 corner
+  overlay until the model is proven.
+- **Feel has no oracle, so make iterating it cheap.** Pull the tunables (dead zone, radius, knob
+  lerp, drag-past) into named constants and tune via the live-inspection harness (state snapshot +
+  screenshot without restart) — 20 tweaks in the time one rebuild takes.
+
 ## Recommendation
 
 **Phase 1 — fix the look (small, high-payoff, no placement change yet).** Rewrite the existing
@@ -134,10 +174,18 @@ palette indices instead of raw white. Same stick + A/B, same `btn()` wiring, sam
 like part of the game" half and instantly improves the ~18 carts that would enable it. Verify with
 `canvas-diff`.
 
-**Phase 2 — responsive placement (the deck/rails model).** Add the letterbox measurement and the
-three homes (deck / rails / overlay fallback) from "the placement model" above. The game rect
-shrinks to leave room; the controls draw into the band. This is the change that fulfils the maker's
-core requirement.
+**Phase 1.5 — the coordinate chokepoint, as a no-op (do before any placement).** Introduce the
+`game_rect` (origin + scale) abstraction and route all window↔canvas conversion (`touch_x/y()`,
+mouse, hit-tests) through it, with `game_rect = full window`. Add the pure placement-decision
+function and its headless round-trip test (per "De-risking principle"). This ships *changing
+nothing* — `canvas-diff` byte-identical, all cart coords unchanged — and turns Phase 2 into "set
+`game_rect`," not "rewrite coordinate math on a phone."
+
+**Phase 2 — responsive placement (the deck/rails model).** Now that `game_rect` is the chokepoint,
+add the letterbox measurement and the three homes (deck / rails / overlay fallback) from "the
+placement model" above by *setting `game_rect`*; the controls draw into the freed band. This is the
+change that fulfils the maker's core requirement. **Native + iOS first; keep web on the Phase-1
+corner overlay** (defer the `web_shell.html` framebuffer change until the model is proven).
 
 **Phase 3 — generalize to a real widget.** Add what the study says is needed:
 
@@ -152,6 +200,32 @@ core requirement.
 **Phase 4 — wire into the iOS shell.** Per `ios-plan.md`, route the synthesized inputs through the
 existing `de_key_event` seam so **raw `key()` carts** (WASD movement) also become playable, not just
 `btn()` carts. iOS landscape will naturally resolve to the **rails** placement.
+
+## Synergy with the gamepad item (STATUS #7)
+
+This work and the open **gamepad** item (`gp_axis`/`gp_present` + a `btn()` augment — STATUS.md #7,
+`api-notes.md` §15) are the **same seam from two directions**, and `touch_layout()` is the shared
+foundation:
+
+- **One control declaration drives both.** `touch_layout(mode, n_buttons)` says "this cart's logical
+  controls are a 4-way + 2 buttons" (or analog + 1). That's exactly what a gamepad mapping needs too
+  — it answers "what are this cart's buttons" once, for *every* alternate input source. Touch and
+  gamepad stop being two features and become two front-ends to one declaration.
+- **The synthesis paths line up 1:1.** Touch analog → −1..1 + dead-zone path; a gamepad **left
+  stick** feeds the *same* path. Touch d-pad → boolean directions; a gamepad **d-pad** feeds the
+  same. Touch N-buttons → the gamepad **face buttons**. So the `btn()` augment the gamepad item
+  wants is the same code the touch widget already feeds `btn()` through.
+- **It closes a polish-list request directly.** "Sometimes we only want 2 on-screen buttons but
+  still have A/B trigger them too" (cart-polish-punchlist) is literally "the on-screen buttons and
+  the gamepad buttons are the same logical buttons" — true for free once both read one declaration.
+- **Shared focus model for knob carts.** `ui-widgets-notes.md` wants gamepad focus-ring navigation
+  for the knob/slider carts; the same d-pad-moves-focus / A-activates logic the touch d-pad emits is
+  what that needs.
+
+**Recommendation:** don't build gamepad as a parallel track. Land touch first (it forces the
+`touch_layout()` declaration + the `btn()`-augment synthesis layer into existence), then the gamepad
+item is mostly "read the physical pad and feed the *existing* synthesis layer" — a much smaller job
+than #7 looks in isolation. Worth a one-line note on STATUS #7 pointing here once touch ships.
 
 ## Open questions / forks
 
@@ -222,23 +296,46 @@ native res:
 5. Verify (below), prototype-bake on `vampire`, confirm controls read as chunky/palette-correct,
    commit.
 
+### Phase 1.5 — coordinate chokepoint as a no-op (de-risk before placement)
+
+The single hard-to-fix risk (silent, library-wide coord breakage) is retired here, *before* the
+game rect ever moves. This step must change **nothing** observable.
+
+1. **Introduce `game_rect` (origin + scale)** as the one source of truth for where the game sits in
+   the window. Initialize it to the full window (identity).
+2. **Route every window↔canvas conversion through it** — `touch_x()/touch_y()` (~`:2257`), mouse
+   coords, and any control hit-test — replacing the bare `/SCALE` with the `game_rect` transform.
+   With `game_rect = full window` the transform reduces to `/SCALE`, so output is identical.
+3. **Extract the placement decision as a pure function** (no rendering, no globals):
+   `place(win_w, win_h, screen_w, screen_h) → {mode, game_rect, control_rect}`. In Phase 1.5 it
+   always returns `{OVERLAY, full-window, corner}` — the wiring exists, the behaviour doesn't change
+   yet.
+4. **Headless test** (a `det-probes/` entry or a small harness): over a matrix of window/screen
+   sizes assert (a) the placement decision matches expectation and (b) the **round-trip property**
+   `canvas→window→canvas == identity` (within ±1px) for sampled points. This is the automated guard
+   for the coord bug.
+5. Verify the no-op: `canvas-diff` byte-identical on a few carts (incl. a touch/mouse one), commit.
+
 ### Phase 2 — responsive placement (deck / rails / overlay)
 
-This is the maker's core requirement. Add a letterbox measure and three homes:
+This is the maker's core requirement. With `game_rect` already the chokepoint (Phase 1.5), placement
+is *setting `game_rect`* — the coordinate plumbing already follows. Add the letterbox measure and
+three homes:
 
-1. **Measure once per frame.** From window size and `SCREEN_W×SCREEN_H` compute the game rect
-   (aspect-fit) and the leftover bands. Pick: band-below ≥ min deck height → **DECK**; side bands ≥
-   min rail width → **RAILS**; else → **OVERLAY** (Phase 1's corner draw, the fallback).
-2. **Shrink the game rect** for deck/rails so the blit leaves the band free; draw the band
-   background + controls there with engine primitives (the band can live in the same render path —
-   either grow the canvas texture to game+band, or draw the band straight to the window in a second
-   native-res pass; prefer growing the canvas so `canvas-diff` still covers it).
-3. **Fix input mapping.** `touch_x/y()` must map window→canvas through the *game rect* (origin +
-   scale), and the controls hit-test in band space. This is the subtle bug surface — test stick +
-   buttons in all three placements.
-4. **Web.** `web_shell.html` currently pins one full-bleed canvas at `SCREEN_W*SCALE ×
-   SCREEN_H*SCALE`; let the framebuffer/canvas exceed the game so the band has somewhere to live
-   (portrait → taller canvas). No DOM controls.
+1. **Fill in the pure `place()` function** (the stub from Phase 1.5): from window size and
+   `SCREEN_W×SCREEN_H` compute the aspect-fit game rect and leftover bands, and pick band-below ≥
+   min deck height → **DECK**; side bands ≥ min rail width → **RAILS**; else → **OVERLAY** (the
+   fallback). Its headless test already exists — extend the matrix to cover the new branches.
+2. **Set `game_rect` from `place()`** each frame and shrink the blit so the band is free; draw the
+   band background + controls there with engine primitives. The coord plumbing follows for free
+   (Phase 1.5). Prefer growing the canvas texture to game+band so `canvas-diff` still covers the
+   band, over a second straight-to-window pass.
+3. **No input rewrite needed** — `touch_x/y()` already routes through `game_rect`, so taps land
+   correctly the moment placement sets it. Just hit-test the controls in band space, and re-run the
+   round-trip test in each placement.
+4. **Web is deferred to a later step** — keep the Phase-1 corner overlay on web for now; the
+   `web_shell.html` framebuffer change (let the canvas exceed the game so a band fits; no DOM
+   controls) lands only after native + iOS prove the model.
 5. Verify: portrait device (deck), landscape device (rails), matched-aspect window (overlay),
    desktop no-touch (nothing). `canvas-diff` on each.
 
@@ -302,10 +399,12 @@ touches.
 - [ ] **P1** redraw overlay with `circ`/`circfill`/`print` + `CLR_*`, native-res in the canvas
 - [ ] **P1** size from `SCALE` (`ceil(44/SCALE)`), remove post-blit raw-Raylib call
 - [ ] **P1** `canvas-diff` + bake on `vampire`, commit
-- [ ] **P2** letterbox measure → deck / rails / overlay decision
-- [ ] **P2** shrink game rect, draw band, fix `touch_x/y()` mapping through the game rect
-- [ ] **P2** web: framebuffer/canvas may exceed game so the band exists (no DOM controls)
+- [ ] **P1.5** `game_rect` chokepoint; route `touch_x/y()`/mouse/hit-tests through it (identity)
+- [ ] **P1.5** pure `place()` stub + headless round-trip test; `canvas-diff` byte-identical, commit
+- [ ] **P2** fill in `place()`: letterbox measure → deck / rails / overlay decision
+- [ ] **P2** set `game_rect` from `place()`, shrink blit, draw band (coords follow for free)
 - [ ] **P2** placement matrix verified (portrait/landscape/matched/desktop)
+- [ ] **P2+** web framebuffer may exceed game so the band exists (no DOM controls) — after native
 - [ ] **P3** `touch_layout(mode, n_buttons)` + d-pad modes (4-place API dance)
 - [ ] **P3** floating-analog base-spawn + `pointer.h` capture + knob lerp
 - [ ] **P3** N buttons + optional labels; per-cart opt-in in code

@@ -13,7 +13,7 @@
   "lineage": "Inspired by FC Mobile / Football Manager lite; novel in combining a drag-to-arrange formation pitch, a procedurally refreshing transfer market, and a Poisson-ish strength-ratio match simulator feeding a league table.",
   "genre": "sports",
   "homage": "Football Manager (1982)",
-  "description": "An FC-Mobile-style manager mode played as a three-season CLIMB: you take Feyenoord from the regional EERSTE DIVISIE up through the EREDIVISIE (the best Dutch clubs) and into the CHAMPIONS LEAGUE (the giants of Europe). Each tier is its own 12-club, 10-round league; finish 1st to be promoted, and win the Champions League to be crowned CHAMPION OF EUROPE. Miss out and you replay the tier — but your squad and cash carry over, so the long, scrollable transfer market (a 30-deep shortlist of real 2026-era stars, the world-class names carrying 90+ ratings at a premium price — Yamal, Mbappe, Haaland, Courtois) is how you bankroll the climb. Run your XI on a drag-to-arrange formation pitch with a bench of spares, switchable 4-4-2 / 4-3-3 shapes and an out-of-position penalty; hit PLAY MATCH and the engine auto-sims a scoreline from your strength versus the opponent's, ticking goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT while the table re-sorts live on points and goal difference. Player names are pooled by position, and the HUD, market and standings use the compact 4×6 font to fit the bigger rosters. Drag players between pitch and bench (hover a chip to see the player's name + rating), click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays)."
+  "description": "An FC-Mobile-style manager mode played as a three-season CLIMB: you take Feyenoord from the regional EERSTE DIVISIE up through the EREDIVISIE (the best Dutch clubs) and into the CHAMPIONS LEAGUE (the giants of Europe). Each tier is its own 12-club, 10-round league; finish 1st to be promoted, and win the Champions League to be crowned CHAMPION OF EUROPE. Miss out and you replay the tier — but your squad and cash carry over, so the long, scrollable transfer market (a 30-deep shortlist of real 2026-era stars, the world-class names carrying 90+ ratings at a premium price — Yamal, Mbappe, Haaland, Courtois) is how you bankroll the climb. Run your XI on a drag-to-arrange formation pitch with a bench of spares, switchable 4-4-2 / 4-3-3 shapes and an out-of-position penalty. Before each match a SCOUT REPORT previews the next opponent — their style (attacking / defensive / balanced), strength and danger man — and your formation counters their style (park the bus vs attackers, go wide vs a low block), so you can reshape the side before you KICK OFF. Fielded players can pick up INJURIES that sideline them for a few rounds (unfieldable and worth less), forcing you to reshuffle. Hit kick off and the engine auto-sims a scoreline from your strength versus the opponent's, ticking goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT while the table re-sorts live on points and goal difference. Player names are pooled by position, and the HUD, market and standings use the compact 4×6 font to fit the bigger rosters. Drag players between pitch and bench (hover a chip to see the player's name + rating), click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays)."
 }
 de:meta */
 #include "studio.h"
@@ -37,10 +37,19 @@ de:meta */
 //
 // It's a menu + table game, mouse-first. No real-time match, no training.
 //
+// PRE-MATCH: PLAY MATCH opens a SCOUT REPORT on the next opponent — their style
+// (attacking / defensive / balanced), strength, and danger man — plus the
+// matchup verdict. Your FORMATION counters their style (park the bus vs
+// attackers, go wide vs a low block), so you can go BACK, reshape the side, and
+// come back before you KICK OFF. INJURIES: a fielded player can pick up a knock,
+// sits out a few rounds (can't be fielded, worth less to sell), and frees a slot
+// you must fill from the bench.
+//
 // MOUSE: drag a player to move him between a formation slot and the bench;
 // click 4-4-2 / 4-3-3 to switch shape; in the MARKET click BUY on a listed
-// player or SELL on one of yours; click PLAY MATCH to sim the round; click
-// LEAGUE to see the table. Keys: TAB cycles SQUAD/MARKET/TABLE, ENTER plays.
+// player or SELL on one of yours; click PLAY MATCH for the preview, then KICK
+// OFF; click LEAGUE to see the table. Keys: TAB cycles SQUAD/MARKET/TABLE,
+// ENTER opens the preview / kicks off / advances.
 //
 // TODO — inspiration: SENSIBLE WORLD OF SOCCER (the touchstone for this cart).
 // Cool things SWOS did that we could steal:
@@ -65,7 +74,8 @@ static const int   POSC[NPOS] = { CLR_ORANGE, CLR_BLUE, CLR_GREEN, CLR_RED };
 // ---------------------------------------------------------------------------
 // players — one pool. slots 0..10 = starting XI, 11.. = bench. -1 rating = empty.
 #define MAXP 22
-typedef struct { char name[16]; int pos; int rating; int kit; } Player;
+// injured > 0 = rounds left on the sidelines (can't be fielded, worth less)
+typedef struct { char name[16]; int pos; int rating; int kit; int injured; } Player;
 static Player squad[MAXP];     // your roster (filled 0..nplayers-1)
 static int    nplayers;
 
@@ -102,15 +112,21 @@ static bool   msold[NMARKET];
 static int    mkt_scroll;         // index of the first buy row shown (0..NMARKET-MKT_VIS)
 
 // ---------------------------------------------------------------------------
-// league — you + 5 AI clubs
+// league — you + 11 AI clubs. Each rival has a playing STYLE (scoutable, and it
+// decides which formation counters them) and a named danger man for the dossier.
 #define NCLUB 12
-typedef struct { char name[12]; int str; int W,D,L,GF,GA,pts; } Club;
+enum { STYLE_BALANCED, STYLE_ATTACK, STYLE_DEFENCE, NSTYLE };
+static const char *STYLEL[NSTYLE] = { "BALANCED", "ATTACKING", "DEFENSIVE" };
+typedef struct {
+    char name[12]; int str; int W,D,L,GF,GA,pts;
+    int  style; char starnm[16]; int starrating;     // scouting dossier
+} Club;
 static Club club[NCLUB];          // club[0] = YOU
 #define YOU 0
 
 // ---------------------------------------------------------------------------
 // state
-enum { TITLE, SQUAD, MARKET, RESULT, TABLE, OVER };
+enum { TITLE, SQUAD, MARKET, RESULT, TABLE, OVER, PREVIEW };
 static int state;
 static int cash;
 static int round_;                 // 1..NROUNDS
@@ -199,6 +215,7 @@ static void gen_player(Player *p, int pos, bool elite, int upto) {
     p->pos = pos;
     p->rating = elite ? rnd_between(87, 96) : rnd_between(60, 85);
     p->kit = 0;
+    p->injured = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,6 +223,11 @@ static void gen_player(Player *p, int pos, bool elite, int upto) {
 static bool hover(int x, int y, int w, int h) { return point_in_box(mouse_x(), mouse_y(), x, y, w, h); }
 static bool clicked(int x, int y, int w, int h) { return mouse_pressed(MOUSE_LEFT) && hover(x, y, w, h); }
 static int  rating_col(int r) { return r >= 85 ? CLR_GREEN : r >= 75 ? CLR_LIME_GREEN : r >= 65 ? CLR_YELLOW : CLR_ORANGE; }
+// resale value — knocked down 40% while a player is injured
+static int  sell_value(int pidx) {
+    int r = squad[pidx].rating, v = (r - 55) * (r - 55) * 3 + 150;
+    return squad[pidx].injured > 0 ? v * 6 / 10 : v;
+}
 
 static void coin(void) { hit(81, INSTR_SQUARE, 3, 40); schedule(45, 88, INSTR_SQUARE, 3); }
 static void nope(void) { note(45, INSTR_SQUARE, 2); }
@@ -260,6 +282,14 @@ static void new_league(void) {
         const char *nm = RIVALS[division][c - 1];
         int k = 0; while (nm[k] && k < 11) { club[c].name[k] = nm[k]; k++; } club[c].name[k] = 0;
         club[c].str = RSTR[division][c - 1];
+        club[c].style = rnd(NSTYLE);
+        // danger man: an elite name, rated near the club's overall strength
+        int spos = rnd(NPOS);
+        const char *const *pool = POOL[T_ELITE][spos]; int pn = POOLN[T_ELITE][spos];
+        const char *sn = pool[rnd(pn)];
+        int j = 0; while (sn[j] && j < 15) { club[c].starnm[j] = sn[j]; j++; } club[c].starnm[j] = 0;
+        int sr = club[c].str / 10 + rnd_between(0, 6);             // ~rating from club strength
+        club[c].starrating = sr < 70 ? 70 : sr > 96 ? 96 : sr;
     }
     for (int c = 0; c < NCLUB; c++)
         club[c].W = club[c].D = club[c].L = club[c].GF = club[c].GA = club[c].pts = 0;
@@ -268,6 +298,7 @@ static void new_league(void) {
 // start a fresh season in the current division (keeps your squad + cash).
 static void start_season(void) {
     round_ = 1;
+    for (int i = 0; i < nplayers; i++) squad[i].injured = 0;   // pre-season: everyone fit
     refresh_market();
     new_league();
     drag_from = drag_bench = -1;
@@ -359,13 +390,38 @@ static void apply_result(int my, int op, int opp) {
     }
 }
 
-static void play_match(void) {
+static int upcoming_opp(void) { return 1 + ((round_ - 1) % (NCLUB - 1)); }
+
+// how your shape fares against the opponent's style: park the bus (4-4-2) blunts
+// attackers; width (4-3-3) breaks down a low block. Added to your match strength.
+static int formation_edge(int style) {
+    if (style == STYLE_ATTACK)  return formation == F_442 ? 35 : -25;
+    if (style == STYLE_DEFENCE) return formation == F_433 ? 35 : -10;
+    return 0;
+}
+
+// PLAY MATCH first opens the dossier — you can still go BACK and reshape the team.
+static void goto_preview(void) {
     if (xi_filled() < 11) { nope(); return; }
-    res_opp = 1 + ((round_ - 1) % (NCLUB - 1));
-    club[YOU].str = xi_strength();
+    res_opp = upcoming_opp();
+    state = PREVIEW;
+}
+
+// actually play it: scoreline from strength (with the formation edge vs the
+// opponent's style), then a post-match injury roll on the XI.
+static void kickoff(void) {
+    if (xi_filled() < 11) { nope(); return; }
+    res_opp = upcoming_opp();
+    club[YOU].str = xi_strength() + formation_edge(club[res_opp].style);
     res_my = sim_goals(club[YOU].str, club[res_opp].str);
     res_op = sim_goals(club[res_opp].str, club[YOU].str);
     apply_result(res_my, res_op, res_opp);
+    // ~30% chance a fielded player picks up a knock (out 1..4 rounds); he's
+    // pulled from the XI so you must reshuffle before the next match.
+    if (rnd(100) < 30) {
+        int s = rnd(11);
+        if (XI[s] >= 0) { squad[XI[s]].injured = rnd_between(1, 5); XI[s] = -1; }
+    }
     res_t = 0; res_shown_my = res_shown_op = 0;
     state = RESULT;
     whistle();
@@ -463,8 +519,17 @@ void update(void) {
                 }
                 state = OVER;
             }
-            else { round_++; refresh_market(); state = TABLE; }
+            else {                                                 // next round
+                round_++;
+                for (int i = 0; i < nplayers; i++) if (squad[i].injured > 0) squad[i].injured--;
+                refresh_market(); state = TABLE;
+            }
         }
+        return;
+    }
+    if (state == PREVIEW) {                                         // the pre-match dossier
+        if (clicked(16, 176, 100, 16) || keyp(KEY_TAB) || mouse_pressed(MOUSE_RIGHT)) { state = SQUAD; return; }
+        if (clicked(204, 176, 100, 16) || keyp(KEY_ENTER) || btnp(0, BTN_A)) { kickoff(); return; }
         return;
     }
 
@@ -474,14 +539,14 @@ void update(void) {
     if (clicked(tbw, TBY, tbw, TBH)) state = MARKET;
     if (clicked(tbw * 2, TBY, SCREEN_W - tbw * 2, TBH)) state = TABLE;
     if (keyp(KEY_TAB)) state = state == SQUAD ? MARKET : state == MARKET ? TABLE : SQUAD;
-    if (keyp(KEY_ENTER) && xi_filled() == 11) { play_match(); return; }
+    if (keyp(KEY_ENTER) && xi_filled() == 11) { goto_preview(); return; }
 
     if (state == SQUAD) {
         // formation buttons
         if (clicked(BNX, 158, 56, 12)) set_formation(F_442);
         if (clicked(BNX + 60, 158, 56, 12)) set_formation(F_433);
-        // play match button
-        if (clicked(BNX, 173, BNW, 14) && xi_filled() == 11) { play_match(); return; }
+        // play match button — opens the preview first
+        if (clicked(BNX, 173, BNW, 14) && xi_filled() == 11) { goto_preview(); return; }
 
         int bench[MAXP]; int nb = bench_list(bench);
 
@@ -517,8 +582,8 @@ void update(void) {
                 }
             } else if (drag_bench >= 0) {      // dragging a bench player onto a slot
                 if (target >= 0) {
-                    // bench player takes the slot; previous occupant goes to bench
-                    XI[target] = drag_bench; coin();
+                    if (squad[drag_bench].injured > 0) nope();   // can't field an injured player
+                    else { XI[target] = drag_bench; coin(); }    // takes slot; occupant to bench
                 }
             }
             drag_from = drag_bench = -1;
@@ -566,7 +631,7 @@ void update(void) {
         // sell list: bench players (can't sell from XI directly — must bench first)
         for (int i = 0; i < nb && i < MKT_SELL; i++) {
             int ry = MKT_ROWY(i), pidx = bench[i];
-            int val = (squad[pidx].rating - 55) * (squad[pidx].rating - 55) * 3 + 150;
+            int val = sell_value(pidx);
             if (clicked(258, ry, 42, MKT_DY - 1)) {
                 if (nplayers > 11) {
                     cash += val;
@@ -669,10 +734,12 @@ static void draw_bench(void) {
         int ry = BN_ROW0 + i * BN_DY;
         bool hv = hover(BNX, ry, BNW, BN_DY);
         rectfill(BNX + 2, ry, BNW - 4, BN_DY - 1, hv ? CLR_DARKER_GREY : CLR_BLACK);
+        bool inj = squad[pidx].injured > 0;
         rectfill(BNX + 4, ry + 2, 6, 8, POSC[squad[pidx].pos]);
         print(POSL[squad[pidx].pos], BNX + 13, ry + 3, CLR_LIGHT_GREY);
-        print(squad[pidx].name, BNX + 32, ry + 3, CLR_WHITE);
-        print_right(str("%d", squad[pidx].rating), BNX + BNW - 4, ry + 3, rating_col(squad[pidx].rating));
+        print(squad[pidx].name, BNX + 32, ry + 3, inj ? CLR_RED : CLR_WHITE);
+        if (inj) print_right(str("INJ%d", squad[pidx].injured), BNX + BNW - 4, ry + 3, CLR_RED);
+        else     print_right(str("%d", squad[pidx].rating), BNX + BNW - 4, ry + 3, rating_col(squad[pidx].rating));
     }
     if (nb == 0) print("(empty)", BNX + 6, BN_ROW0 + 2, CLR_DARK_GREY);
     if (nb > BN_VIS) print(str("+%d more", nb - BN_VIS), BNX + 6, BN_ROW0 + BN_VIS * BN_DY, CLR_DARK_GREY);
@@ -686,13 +753,21 @@ static void draw_bench(void) {
         rect(x, 158, w, 12, CLR_BLUE);
         print(FORML[f], x + (w - text_width(FORML[f])) / 2, 160, f == formation ? CLR_WHITE : CLR_LIGHT_GREY);
     }
-    // PLAY MATCH
+    // PLAY MATCH — names the next opponent; opens the preview dossier
     bool ready = xi_filled() == 11;
     bool hv = hover(BNX, 173, BNW, 14);
+    int bcx = BNX + BNW / 2;
     rectfill(BNX, 173, BNW, 14, ready ? (hv ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_GREY);
     rect(BNX, 173, BNW, 14, ready ? CLR_GREEN : CLR_DARK_GREY);
-    const char *pm = ready ? "PLAY MATCH >" : str("XI %d/11", xi_filled());
-    print(pm, BNX + (BNW - text_width(pm)) / 2, 176, ready ? CLR_WHITE : CLR_LIGHT_GREY);
+    font(FONT_SMALL);
+    if (ready) {
+        print_centered("PLAY MATCH >", bcx, 175, CLR_WHITE);
+        print_centered(str("vs %s", club[upcoming_opp()].name), bcx, 181, CLR_LIGHT_YELLOW);
+    } else {
+        print_centered(str("XI %d/11 - need a full side", xi_filled()), bcx, 175, CLR_LIGHT_GREY);
+        print_centered("drag subs in from the bench", bcx, 181, CLR_LIGHT_GREY);
+    }
+    font(FONT_NORMAL);
 }
 
 static void draw_floating_chip(void) {
@@ -793,12 +868,14 @@ static void draw_market(void) {
     int bench[MAXP]; int nb = bench_list(bench);
     for (int i = 0; i < nb && i < MKT_SELL; i++) {
         int ry = MKT_ROWY(i), pidx = bench[i];
-        int val = (squad[pidx].rating - 55) * (squad[pidx].rating - 55) * 3 + 150;
+        int val = sell_value(pidx);
+        bool inj = squad[pidx].injured > 0;
         rectfill(166, ry, 146, MKT_DY - 1, CLR_DARKER_PURPLE);
         rectfill(168, ry + 2, 6, MKT_DY - 5, POSC[squad[pidx].pos]);
         font(FONT_SMALL);
-        print(squad[pidx].name, 178, ry + 3, CLR_WHITE);
-        print_right(str("%d", squad[pidx].rating), 252, ry + 3, rating_col(squad[pidx].rating));
+        print(squad[pidx].name, 178, ry + 3, inj ? CLR_RED : CLR_WHITE);
+        if (inj) print_right(str("INJ%d", squad[pidx].injured), 252, ry + 3, CLR_RED);
+        else     print_right(str("%d", squad[pidx].rating), 252, ry + 3, rating_col(squad[pidx].rating));
         font(FONT_NORMAL);
         // sell button at x=258, w=42
         bool can = nplayers > 11;
@@ -944,6 +1021,52 @@ static void draw_over(void) {
                    SCREEN_W/2, 148, blink(22) ? CLR_WHITE : CLR_DARK_GREY);
 }
 
+// pre-match dossier: scout the opponent, judge the matchup, then KICK OFF (or
+// go BACK to reshape the side). The formation edge here decides the tactical tip.
+static void draw_preview(void) {
+    Club *o = &club[res_opp];
+    int edge = formation_edge(o->style);
+    int mystr = xi_strength() + edge;
+    int diff  = mystr - o->str;
+    int scol  = o->style == STYLE_ATTACK ? CLR_RED : o->style == STYLE_DEFENCE ? CLR_BLUE : CLR_YELLOW;
+
+    cls(CLR_DARKER_BLUE);
+    print_centered("MATCH PREVIEW", SCREEN_W / 2, 8, CLR_LIGHT_YELLOW);
+    font(FONT_SMALL);
+    print_centered(str("%s   ROUND %d/%d", DIVNM[division], round_, NROUNDS), SCREEN_W / 2, 18, CLR_LIGHT_GREY);
+    font(FONT_NORMAL);
+
+    // opponent scout report
+    rectfill(20, 28, 280, 56, CLR_BLACK); rect(20, 28, 280, 56, scol);
+    font(FONT_SMALL); print("SCOUT REPORT", 26, 31, CLR_DARK_GREY); font(FONT_NORMAL);
+    print_scaled(o->name, (SCREEN_W - text_width(o->name) * 2) / 2, 40, CLR_WHITE, 2);
+    font(FONT_SMALL);
+    print(str("style: %s", STYLEL[o->style]), 26, 61, scol);
+    print_right(str("strength %d", o->str), 294, 61, CLR_LIME_GREEN);
+    print(str("danger man: %s (%d)", o->starnm, o->starrating), 26, 71, CLR_LIGHT_YELLOW);
+    font(FONT_NORMAL);
+
+    // your side + the matchup edge
+    print(str("YOUR %s", FORML[formation]), 26, 92, CLR_WHITE);
+    print_right(str("strength %d  (%+d)", mystr, edge), 294, 92, edge >= 0 ? CLR_LIME_GREEN : CLR_ORANGE);
+    const char *tip = edge > 0 ? "your shape counters them - press on"
+                    : edge < 0 ? "risky shape - they can exploit it"
+                               : "an even tactical battle";
+    print_centered(tip, SCREEN_W / 2, 106, edge > 0 ? CLR_GREEN : edge < 0 ? CLR_ORANGE : CLR_LIGHT_GREY);
+
+    const char *v = diff > 60 ? "FAVOURITES" : diff < -60 ? "UNDERDOGS" : "EVENLY MATCHED";
+    int vc = diff > 60 ? CLR_GREEN : diff < -60 ? CLR_RED : CLR_YELLOW;
+    print_scaled(v, (SCREEN_W - text_width(v) * 2) / 2, 122, vc, 2);
+    print_centered("go BACK to switch formation or swap players", SCREEN_W / 2, 150, CLR_DARK_GREY);
+
+    // buttons
+    bool bh = hover(16, 176, 100, 16), kh = hover(204, 176, 100, 16);
+    rectfill(16, 176, 100, 16, bh ? CLR_DARK_GREY : CLR_BLACK); rect(16, 176, 100, 16, CLR_LIGHT_GREY);
+    print_centered("< BACK", 66, 180, CLR_WHITE);
+    rectfill(204, 176, 100, 16, kh ? CLR_LIME_GREEN : CLR_DARK_GREEN); rect(204, 176, 100, 16, CLR_GREEN);
+    print_centered("KICK OFF >", 254, 180, CLR_WHITE);
+}
+
 static void draw_flash(void) {
     if (flashT <= 0) return;
     fillp(FILL_CHECKER, -1);
@@ -953,12 +1076,13 @@ static void draw_flash(void) {
 
 void draw(void) {
     switch (state) {
-        case TITLE:  draw_title();  break;
-        case SQUAD:  draw_squad();  break;
-        case MARKET: draw_market(); break;
-        case TABLE:  draw_table();  break;
-        case RESULT: draw_result(); break;
-        case OVER:   draw_over();   break;
+        case TITLE:   draw_title();   break;
+        case SQUAD:   draw_squad();   break;
+        case MARKET:  draw_market();  break;
+        case TABLE:   draw_table();   break;
+        case PREVIEW: draw_preview(); break;
+        case RESULT:  draw_result();  break;
+        case OVER:    draw_over();    break;
     }
     draw_flash();
 }

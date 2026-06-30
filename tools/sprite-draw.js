@@ -22,8 +22,21 @@
 //   - You need palette indices 16–31 (magic recolor targets, extended darks)
 //   - The sprite has geometric structure (circles, triangles, mirrored craft)
 //   - The ASCII charMap's 0–15 range is too limiting
+//
+// Text + transforms mirror the C drawing API too:
+//   print(g, 'A', x, y, color, FONT_TINY)   // engine bitmap fonts: FONT_DEFAULT
+//                                            // (dos_8x8), FONT_SMALL (4×6), FONT_TINY
+//                                            // (3×5), FONT_THIN, FONT_COMIC
+//   scale(g, 2)        // nearest-neighbour resize by any factor (cf. scale2x = EPX)
+//   rotate(g, deg)     // arbitrary-angle rotation (already above)
+// Fonts are the engine's own atlases under editor/public/ — so baked text matches
+// what print()/font() draw at runtime, no TTF needed (that's font-bake.js).
 
 'use strict'
+
+const fs   = require('fs')
+const zlib = require('zlib')
+const path = require('path')
 
 // Default outline color: CLR_BROWNISH_BLACK (index 16).
 // Reads near-black against any background; never 0 so it's never transparent.
@@ -334,11 +347,134 @@ function split(g, slotW = 16, slotH = 16) {
   return out
 }
 
+// ── arbitrary-factor nearest-neighbour scale ───────────────────────────────────
+// scale(g, 2) doubles; scale(g, 1.5) → 1.5×; scale(g, 2, 3) → 2× wide, 3× tall.
+// Pixel-exact (no smoothing) — the C `sspr`-to-a-bigger-rect look. Use scale2x()
+// instead when you want EPX diagonal smoothing.
+function scale(g, fx, fy = fx) {
+  const h = g.length, w = g[0].length
+  const W = Math.max(1, Math.round(w * fx)), H = Math.max(1, Math.round(h * fy))
+  const o = blank(W, H)
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      o[y][x] = g[Math.min(h - 1, Math.floor(y / fy))][Math.min(w - 1, Math.floor(x / fx))]
+  return o
+}
+
+// ── engine bitmap fonts: print(g, text, x, y, color, font) ──────────────────────
+// Stamps text into a canvas using the engine's OWN font atlases (editor/public/*),
+// so baked text matches what the C print()/font() render at runtime. Glyph pixels
+// land as palette index `color`; the atlas separators/voids are skipped.
+
+// PNG decode — 8-bit RGBA (colortype 6); every font atlas + most cart sheets.
+function decodePNG(buf) {
+  let p = 8, W = 0, H = 0, bd = 0, ct = 0
+  const idat = []
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8)
+    const data = buf.slice(p + 8, p + 8 + len)
+    if (type === 'IHDR') { W = data.readUInt32BE(0); H = data.readUInt32BE(4); bd = data[8]; ct = data[9] }
+    else if (type === 'IDAT') idat.push(data)
+    else if (type === 'IEND') break
+    p += 12 + len
+  }
+  if (bd !== 8 || ct !== 6) throw new Error(`sprite-draw decodePNG: only 8-bit RGBA supported (got bitdepth ${bd}, colortype ${ct})`)
+  const raw = zlib.inflateSync(Buffer.concat(idat)), bpp = 4, stride = W * bpp
+  const out = Buffer.alloc(H * stride)
+  let s = 0
+  for (let y = 0; y < H; y++) {
+    const f = raw[s++]
+    for (let x = 0; x < stride; x++) {
+      const cur = raw[s++]
+      const a = x >= bpp ? out[y * stride + x - bpp] : 0
+      const b = y > 0 ? out[(y - 1) * stride + x] : 0
+      const c = (x >= bpp && y > 0) ? out[(y - 1) * stride + x - bpp] : 0
+      let v
+      if (f === 0) v = cur
+      else if (f === 1) v = cur + a
+      else if (f === 2) v = cur + b
+      else if (f === 3) v = cur + ((a + b) >> 1)
+      else if (f === 4) { const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v = cur + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c) }
+      else throw new Error('sprite-draw decodePNG: bad filter ' + f)
+      out[y * stride + x] = v & 0xff
+    }
+  }
+  return { w: W, h: H, data: out }
+}
+
+// font name → atlas file + firstChar + inter-glyph gap (matches studio.c loaders)
+const FONT_DEFAULT = 'default', FONT_SMALL = 'small', FONT_TINY = 'tiny',
+      FONT_THIN = 'thin', FONT_COMIC = 'comic'
+const FONT_SPECS = {
+  default: { file: 'dos_8x8.png',        first: 0,  gap: 0 },  // 8×8 CP437
+  small:   { file: 'font4x6.png',        first: 32, gap: 1 },  // FONT_SMALL
+  tiny:    { file: 'font3x5.png',        first: 32, gap: 1 },  // FONT_TINY
+  thin:    { file: 'fontthin8x8.png',    first: 0,  gap: 0 },
+  comic:   { file: 'fontcomic10x20.png', first: 0,  gap: 1 },
+}
+const FONT_DIR = path.join(__dirname, '..', 'editor', 'public')
+const _atlasCache = {}
+
+// Load + auto-detect an atlas grid from its key-colour separator lines (the key
+// is whatever colour pixel (0,0) is — yellow in our atlases). Cached per font.
+function loadAtlas(name) {
+  if (_atlasCache[name]) return _atlasCache[name]
+  const spec = FONT_SPECS[name]
+  if (!spec) throw new Error(`sprite-draw print: unknown font '${name}' (use FONT_DEFAULT/SMALL/TINY/THIN/COMIC)`)
+  const { w, h, data } = decodePNG(fs.readFileSync(path.join(FONT_DIR, spec.file)))
+  const at = (x, y, ch) => data[(y * w + x) * 4 + ch]
+  const key = [at(0, 0, 0), at(0, 0, 1), at(0, 0, 2), at(0, 0, 3)]
+  const isKey = (x, y) => at(x, y, 0) === key[0] && at(x, y, 1) === key[1] && at(x, y, 2) === key[2] && at(x, y, 3) === key[3]
+  const fullKeyCol = x => { for (let y = 0; y < h; y++) if (!isKey(x, y)) return false; return true }
+  const fullKeyRow = y => { for (let x = 0; x < w; x++) if (!isKey(x, y)) return false; return true }
+  const seps = (n, full) => { const s = []; for (let i = 0; i < n; i++) if (full(i)) s.push(i); return s }
+  const cells = sepList => { const c = []; for (let i = 0; i < sepList.length - 1; i++) if (sepList[i + 1] - sepList[i] > 1) c.push(sepList[i] + 1); return c }
+  const cx = cells(seps(w, fullKeyCol)), cy = cells(seps(h, fullKeyRow))
+  const cols = cx.length, rows = cy.length
+  const gw = cols ? (seps(w, fullKeyCol)[1] - seps(w, fullKeyCol)[0] - 1) : 0
+  const gh = rows ? (seps(h, fullKeyRow)[1] - seps(h, fullKeyRow)[0] - 1) : 0
+  const atlas = {
+    spec, gw, gh, cols, rows,
+    glyph(code) {                       // → gh×gw 0/1 grid, or null if out of range
+      const idx = code - spec.first
+      if (idx < 0 || idx >= cols * rows) return null
+      const x0 = cx[idx % cols], y0 = cy[(idx / cols) | 0]
+      const bits = []
+      for (let y = 0; y < gh; y++) { const r = []; for (let x = 0; x < gw; x++) { const X = x0 + x, Y = y0 + y; r.push(!isKey(X, Y) && at(X, Y, 3) > 0 ? 1 : 0) } bits.push(r) }
+      return bits
+    },
+  }
+  _atlasCache[name] = atlas
+  return atlas
+}
+
+// Stamp `str` at (x,y) in palette index `color`. `font` defaults to FONT_DEFAULT
+// (dos_8x8); `spacing` overrides the font's default inter-glyph gap.
+function print(g, str, x, y, color, font = FONT_DEFAULT, spacing = null) {
+  const a = loadAtlas(font), gap = spacing == null ? a.spec.gap : spacing
+  let cx = x
+  for (const chr of String(str)) {
+    const bits = a.glyph(chr.charCodeAt(0))
+    if (bits) for (let yy = 0; yy < a.gh; yy++) for (let xx = 0; xx < a.gw; xx++) if (bits[yy][xx]) pixel(g, cx + xx, y + yy, color)
+    cx += a.gw + gap
+  }
+  return g
+}
+
+// Pixel width/height of `str` in `font` — to centre or right-align before printing.
+function textSize(str, font = FONT_DEFAULT, spacing = null) {
+  const a = loadAtlas(font), gap = spacing == null ? a.spec.gap : spacing
+  const n = String(str).length
+  return { w: n > 0 ? n * a.gw + (n - 1) * gap : 0, h: a.gh }
+}
+
 module.exports = {
   blank, pixel, rectfill, rrectfill, line,
   circlefill, ovalfill, trifill, polyfill, ngonfill,
   noise,
-  shade, rotate, rotations, scale2x, replace, clone,
+  shade, rotate, rotations, scale, scale2x, replace, clone,
   outlined, mirror, stamp, flat, split,
+  print, textSize, decodePNG,
+  FONT_DEFAULT, FONT_SMALL, FONT_TINY, FONT_THIN, FONT_COMIC,
   OUT, RAMP_DARKER, RAMP_LIGHTER,
 }

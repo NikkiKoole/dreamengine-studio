@@ -13,7 +13,7 @@
   "lineage": "Inspired by FC Mobile / Football Manager lite; novel in combining a drag-to-arrange formation pitch, a procedurally refreshing transfer market, and a Poisson-ish strength-ratio match simulator feeding a league table.",
   "genre": "sports",
   "homage": "Football Manager (1982)",
-  "description": "An FC-Mobile-style manager mode played as a three-season CLIMB: you take Feyenoord from the regional EERSTE DIVISIE up through the EREDIVISIE (the best Dutch clubs) and into the CHAMPIONS LEAGUE (the giants of Europe). Each tier is its own 12-club, 10-round league; finish 1st to be promoted, and win the Champions League to be crowned CHAMPION OF EUROPE. Miss out and you replay the tier — but your squad and cash carry over, so the transfer market (stocked with real 2026-era stars like Yamal, Mbappe, Pedri and Haaland) is how you bankroll the climb. Run your XI on a drag-to-arrange formation pitch with a bench of spares, switchable 4-4-2 / 4-3-3 shapes and an out-of-position penalty; hit PLAY MATCH and the engine auto-sims a scoreline from your strength versus the opponent's, ticking goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT while the table re-sorts live on points and goal difference. Player names are pooled by position, and the HUD, market and standings use the compact 4×6 font to fit the bigger rosters. Drag players between pitch and bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays)."
+  "description": "An FC-Mobile-style manager mode played as a three-season CLIMB: you take Feyenoord from the regional EERSTE DIVISIE up through the EREDIVISIE (the best Dutch clubs) and into the CHAMPIONS LEAGUE (the giants of Europe). Each tier is its own 12-club, 10-round league; finish 1st to be promoted, and win the Champions League to be crowned CHAMPION OF EUROPE. Miss out and you replay the tier — but your squad and cash carry over, so the long, scrollable transfer market (a 30-deep shortlist of real 2026-era stars like Yamal, Mbappe, Pedri and Haaland) is how you bankroll the climb. Run your XI on a drag-to-arrange formation pitch with a bench of spares, switchable 4-4-2 / 4-3-3 shapes and an out-of-position penalty; hit PLAY MATCH and the engine auto-sims a scoreline from your strength versus the opponent's, ticking goals up on a scoreboard before slamming home WIN/DRAW/DEFEAT while the table re-sorts live on points and goal difference. Player names are pooled by position, and the HUD, market and standings use the compact 4×6 font to fit the bigger rosters. Drag players between pitch and bench, click 4-4-2 / 4-3-3 to switch shape, click a price to BUY or a value to SELL, and click PLAY MATCH (TAB cycles SQUAD/MARKET/LEAGUE, ENTER plays)."
 }
 de:meta */
 #include "studio.h"
@@ -81,10 +81,11 @@ static int formation;
 
 // ---------------------------------------------------------------------------
 // transfer market — a refreshing shortlist of buyable players
-#define NMARKET 10
+#define NMARKET 30                // a long shortlist — the buy column scrolls
 static Player market[NMARKET];
 static int    mprice[NMARKET];    // asking price
 static bool   msold[NMARKET];
+static int    mkt_scroll;         // index of the first buy row shown (0..NMARKET-MKT_VIS)
 
 // ---------------------------------------------------------------------------
 // league — you + 5 AI clubs
@@ -117,28 +118,36 @@ static float flashT; static int flashColor;
 static int   drag_from;            // XI slot being dragged (0..10), or -1
 static int   drag_bench;           // bench player index being dragged, or -1
 static int   drag_dx, drag_dy;
+static bool  sb_drag;              // dragging the transfer-list scrollbar thumb
 
 // ---------------------------------------------------------------------------
 // names — real 2026-era European stars, pooled by position so a GK gets a GK name.
 // Surnames / recognizable short forms; kept to fit the 15-char name buffer.
 static const char *NAME_GK[] = {
     "Courtois","Donnarumma","Maignan","Onana","Raya","Ederson","Alisson",
-    "TerStegen","Neuer","Sommer","Lunin","Sels","Verbruggen","Provedel","Kobel"
+    "TerStegen","Neuer","Sommer","Lunin","Sels","Verbruggen","Provedel","Kobel",
+    "Oblak","Martinez","Bounou","Ramsdale","Vicario","Bizot"
 };
 static const char *NAME_DEF[] = {
     "VanDijk","Saliba","Hakimi","Marquinhos","Rudiger","Militao","Cubarsi",
     "Araujo","Hancko","Hato","Bremer","Bastoni","Gvardiol","Kounde","Theo",
-    "Dumfries","Calafiori","Tah","Upamecano","Pavard","Geertruida","Smal"
+    "Dumfries","Calafiori","Tah","Upamecano","Pavard","Geertruida","Smal",
+    "Akanji","Dias","Walker","Robertson","Davies","Konate","DeLigt","Timber",
+    "Frimpong","Schar","Hummels","Tomori","Kerkez"
 };
 static const char *NAME_MID[] = {
     "Pedri","Gavi","Bellingham","Vitinha","Valverde","DeJong","Rice","Wirtz",
     "Musiala","BrunoF.","Odegaard","Rodri","Kimmich","Veerman","Saibari",
-    "JoaoNeves","Zaire","Camavinga","Tchouameni","Modric","Fermin","Til"
+    "JoaoNeves","Zaire","Camavinga","Tchouameni","Modric","Fermin","Til",
+    "Gravenberch","Reijnders","Koopmeiner","Schouten","Mainoo","Eze",
+    "Gundogan","MacAlister","Wieffer","Stengs"
 };
 static const char *NAME_FWD[] = {
     "Yamal","Mbappe","Vinicius","Dembele","Raphinha","Lewandowski","Haaland",
     "Salah","Saka","Foden","Kane","Leao","Osimhen","Lautaro","Kvara","Olmo",
-    "Brobbey","Pepi","Ueda","NicoWill.","Gyokeres","Isak","Rashford","Doue","Barcola"
+    "Brobbey","Pepi","Ueda","NicoWill.","Gyokeres","Isak","Rashford","Doue","Barcola",
+    "Gakpo","Depay","Simons","Lang","Nunez","Jackson","Havertz","Openda",
+    "Weghorst","Kluivert","Garnacho","Hojlund","Sancho"
 };
 static const char *const *NAMES[NPOS] = { NAME_GK, NAME_DEF, NAME_MID, NAME_FWD };
 static const int NAMEN[NPOS] = {
@@ -235,6 +244,7 @@ static void refresh_market(void) {
         mprice[i] = (r - 55) * (r - 55) * 4 + 200;
         msold[i] = false;
     }
+    mkt_scroll = 0;
 }
 
 // (re)seed the table for the CURRENT division: you (club[0]) + its 11 rivals,
@@ -383,13 +393,26 @@ static int slot_py(int s) { return PY + 12 + FY[formation][s] * (PH - 24) / 100;
 // tab bar at very bottom
 #define TBY 190
 #define TBH 10
-// MARKET rows — small font lets us pack the longer shortlist. Single source of
-// truth for hit-test (update) AND draw, so the price buttons line up.
+// MARKET rows — small font lets us pack the shortlist. Single source of truth
+// for hit-test (update) AND draw, so the price buttons line up.
 #define MKT_Y0   28
 #define MKT_DY   15
 #define MKT_ROWY(i) (MKT_Y0 + (i) * MKT_DY)
-#define MKT_VIS  NMARKET           // buy rows shown
+#define MKT_VIS  10                // buy rows visible at once (the list scrolls)
 #define MKT_SELL 9                 // sell rows shown (bench spares)
+// BUY-row columns (left panel) — narrowed to leave a scrollbar strip on the right
+#define BUY_X     6                //   row rect left
+#define BUY_W     140              //   row rect width  (ends at 146)
+#define BUY_BTNX  100              //   price/BUY button left
+#define BUY_BTNW  40
+// scrollbar for the buy list: ▲ button, track, ▼ button
+#define SB_X     148
+#define SB_W     10
+#define SB_AH    12                // arrow-button height
+#define SB_TOP   MKT_Y0                       // 28
+#define SB_BOT   (MKT_ROWY(MKT_VIS) - 1)      // bottom of the last visible row
+#define SB_TY0   (SB_TOP + SB_AH)             // track top (below ▲)
+#define SB_TY1   (SB_BOT - SB_AH)             // track bottom (above ▼)
 // BENCH rows on the SQUAD screen — also small font, more subs reachable.
 #define BN_ROW0  (BNY + 16)
 #define BN_DY    13
@@ -498,10 +521,36 @@ void update(void) {
 
     if (state == MARKET) {
         int bench[MAXP]; int nb = bench_list(bench);
-        // buy buttons (left column)
-        for (int i = 0; i < NMARKET; i++) {
-            int ry = MKT_ROWY(i);
-            if (!msold[i] && clicked(112, ry, 42, MKT_DY - 1)) {
+        int maxscroll = NMARKET - MKT_VIS;
+
+        // --- scroll the buy list: wheel (over the left panel), arrow keys,
+        //     ▲/▼ buttons, click-the-track-to-page, and a draggable thumb ---
+        float wh = mouse_wheel();
+        if (wh > 0.1f && mouse_x() < 160) mkt_scroll--;
+        if (wh < -0.1f && mouse_x() < 160) mkt_scroll++;
+        if (keyp(KEY_UP))   mkt_scroll--;
+        if (keyp(KEY_DOWN)) mkt_scroll++;
+        if (clicked(SB_X, SB_TOP, SB_W, SB_AH)) mkt_scroll--;          // ▲
+        if (clicked(SB_X, SB_BOT - SB_AH, SB_W, SB_AH)) mkt_scroll++;  // ▼
+        int trackH = SB_TY1 - SB_TY0;
+        int thumbH = trackH * MKT_VIS / NMARKET; if (thumbH < 10) thumbH = 10;
+        int thumbY = SB_TY0 + (maxscroll ? (trackH - thumbH) * mkt_scroll / maxscroll : 0);
+        if (mouse_pressed(MOUSE_LEFT) && hover(SB_X, thumbY, SB_W, thumbH)) sb_drag = true;
+        else if (mouse_pressed(MOUSE_LEFT) && hover(SB_X, SB_TY0, SB_W, trackH))  // page on track click
+            mkt_scroll += (mouse_y() < thumbY ? -MKT_VIS : MKT_VIS);
+        if (!mouse_down(MOUSE_LEFT)) sb_drag = false;
+        if (sb_drag) {
+            int span = trackH - thumbH;
+            mkt_scroll = span > 0 ? (mouse_y() - SB_TY0 - thumbH / 2) * maxscroll / span : 0;
+        }
+        if (mkt_scroll < 0) mkt_scroll = 0;
+        if (mkt_scroll > maxscroll) mkt_scroll = maxscroll;
+
+        // buy buttons (only the visible window; row -> market index = mkt_scroll+row)
+        for (int row = 0; row < MKT_VIS; row++) {
+            int i = mkt_scroll + row; if (i >= NMARKET) break;
+            int ry = MKT_ROWY(row);
+            if (!msold[i] && clicked(BUY_BTNX, ry, BUY_BTNW, MKT_DY - 1)) {
                 if (cash >= mprice[i] && nplayers < MAXP) {
                     cash -= mprice[i]; squad[nplayers++] = market[i]; msold[i] = true; coin();
                 } else nope();
@@ -659,34 +708,52 @@ static void draw_squad(void) {
         print("drag players to set your XI", PX + 2, PY + PH + 1, CLR_DARK_GREY);
 }
 
+// little filled triangles for the scrollbar arrow buttons
+static void tri_up(int cx, int cy, int col) { for (int r = 0; r <= 3; r++) line(cx - r, cy + r, cx + r, cy + r, col); }
+static void tri_dn(int cx, int cy, int col) { for (int r = 0; r <= 3; r++) line(cx - (3 - r), cy + r, cx + (3 - r), cy + r, col); }
+
 static void draw_market(void) {
     cls(CLR_BLACK);
-    print("TRANSFER LIST", 10, 16, CLR_LIGHT_YELLOW);
+    print(str("TRANSFER LIST (%d)", NMARKET), 6, 16, CLR_LIGHT_YELLOW);
     print("SELL (bench only)", 168, 16, CLR_LIGHT_YELLOW);
     line(160, 28, 160, 186, CLR_DARK_GREY);
 
-    // BUY list (left column): kit chip | pos | name | rating | price-BUY button
-    for (int i = 0; i < NMARKET; i++) {
-        int ry = MKT_ROWY(i);
+    int maxscroll = NMARKET - MKT_VIS;
+
+    // BUY list (left column, scrolling window): chip | pos | name | rating | price-BUY
+    for (int row = 0; row < MKT_VIS; row++) {
+        int i = mkt_scroll + row; if (i >= NMARKET) break;
+        int ry = MKT_ROWY(row);
         bool can = !msold[i] && cash >= mprice[i] && nplayers < MAXP;
-        rectfill(8, ry, 150, MKT_DY - 1, msold[i] ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);
-        rectfill(10, ry + 2, 6, MKT_DY - 5, POSC[market[i].pos]);
+        rectfill(BUY_X, ry, BUY_W, MKT_DY - 1, msold[i] ? CLR_DARKER_GREY : CLR_BROWNISH_BLACK);
+        rectfill(BUY_X + 2, ry + 2, 6, MKT_DY - 5, POSC[market[i].pos]);
         font(FONT_SMALL);
-        print(POSL[market[i].pos], 18, ry + 3, CLR_LIGHT_GREY);
-        print(market[i].name, 38, ry + 3, CLR_WHITE);
-        print_right(str("%d", market[i].rating), 108, ry + 3, rating_col(market[i].rating));
+        print(POSL[market[i].pos], BUY_X + 10, ry + 3, CLR_LIGHT_GREY);
+        print(market[i].name, BUY_X + 30, ry + 3, CLR_WHITE);
+        print_right(str("%d", market[i].rating), BUY_BTNX - 4, ry + 3, rating_col(market[i].rating));
         font(FONT_NORMAL);
-        // buy button at x=112, w=42
         if (msold[i]) {
-            font(FONT_SMALL); print("SOLD", 124, ry + 3, CLR_DARK_GREY); font(FONT_NORMAL);
+            font(FONT_SMALL); print("SOLD", BUY_BTNX + 8, ry + 3, CLR_DARK_GREY); font(FONT_NORMAL);
         } else {
-            bool hv = hover(112, ry, 42, MKT_DY - 1);
-            rectfill(112, ry, 42, MKT_DY - 1, can ? (hv ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_GREY);
-            rect(112, ry, 42, MKT_DY - 1, can ? CLR_GREEN : CLR_DARK_GREY);
+            bool hv = hover(BUY_BTNX, ry, BUY_BTNW, MKT_DY - 1);
+            rectfill(BUY_BTNX, ry, BUY_BTNW, MKT_DY - 1, can ? (hv ? CLR_LIME_GREEN : CLR_DARK_GREEN) : CLR_DARKER_GREY);
+            rect(BUY_BTNX, ry, BUY_BTNW, MKT_DY - 1, can ? CLR_GREEN : CLR_DARK_GREY);
             const char *pl = str("%d", mprice[i]);
-            print(pl, 112 + (42 - text_width(pl)) / 2, ry + 4, CLR_WHITE);
+            print(pl, BUY_BTNX + (BUY_BTNW - text_width(pl)) / 2, ry + 4, CLR_WHITE);
         }
     }
+
+    // scrollbar: track + ▲/▼ arrow buttons + proportional thumb
+    int trackH = SB_TY1 - SB_TY0;
+    int thumbH = trackH * MKT_VIS / NMARKET; if (thumbH < 10) thumbH = 10;
+    int thumbY = SB_TY0 + (maxscroll ? (trackH - thumbH) * mkt_scroll / maxscroll : 0);
+    int cx = SB_X + SB_W / 2;
+    rectfill(SB_X, SB_TOP, SB_W, SB_BOT - SB_TOP, CLR_BROWNISH_BLACK);
+    rectfill(SB_X, SB_TOP, SB_W, SB_AH, mkt_scroll > 0 ? (hover(SB_X, SB_TOP, SB_W, SB_AH) ? CLR_DARK_GREEN : CLR_DARKER_GREY) : CLR_BROWNISH_BLACK);
+    rectfill(SB_X, SB_BOT - SB_AH, SB_W, SB_AH, mkt_scroll < maxscroll ? (hover(SB_X, SB_BOT - SB_AH, SB_W, SB_AH) ? CLR_DARK_GREEN : CLR_DARKER_GREY) : CLR_BROWNISH_BLACK);
+    tri_up(cx, SB_TOP + 4, mkt_scroll > 0 ? CLR_WHITE : CLR_DARK_GREY);
+    tri_dn(cx, SB_BOT - SB_AH + 5, mkt_scroll < maxscroll ? CLR_WHITE : CLR_DARK_GREY);
+    rectfill(SB_X + 1, thumbY, SB_W - 2, thumbH, sb_drag ? CLR_LIME_GREEN : CLR_LIGHT_GREY);
 
     // SELL column (bench players)
     int bench[MAXP]; int nb = bench_list(bench);
@@ -710,7 +777,9 @@ static void draw_market(void) {
     if (nb == 0) print("(no spares to sell)", 168, MKT_Y0 + 2, CLR_DARK_GREY);
     if (nb > MKT_SELL) { font(FONT_SMALL); print(str("+%d more on bench", nb - MKT_SELL), 168, MKT_ROWY(MKT_SELL) + 2, CLR_DARK_GREY); font(FONT_NORMAL); }
 
-    print("click a price to buy / sell", 10, 181, CLR_DARK_GREY);
+    font(FONT_SMALL);
+    print("wheel / arrows / drag the bar to scroll  -  click a price to buy or sell", 6, 183, CLR_DARK_GREY);
+    font(FONT_NORMAL);
     draw_hud();
     draw_tabs();
 }

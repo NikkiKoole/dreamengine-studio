@@ -125,6 +125,15 @@ count, each bunny one `sspr()` of a 32×32 sprite (a pure CPU-blit stress, no `p
 [ADR-0024](../decisions/0024-software-canvas-is-canonical-for-2d.md) — **software canvas is canonical
 for 2D (ANGLE-free iOS); `tritex`/3D is GPU-only and off the initial iOS target list.**
 
+## ⚠ Known issue — software renderer renders only the first frame (2026-07-01)
+
+Observed running **`sloop`** under the `DE_NO_RAYLIB` software engine (`tools/build-nr.sh`): it paints a
+**single stuck first frame** then doesn't update/animate — the GPU/Raylib build is fine. Not yet
+diagnosed; unknown whether it's sloop-specific or engine-wide (the software path's main loop / present /
+input pump). **To look at:** does it repro on a simpler cart under `build-nr.sh`? If yes → engine-wide
+(the `DE_NO_RAYLIB` frame-loop), if no → something sloop does that the software path doesn't drive. Start
+by A/B-ing one trivially-animated cart vs sloop under the software engine.
+
 ## Built — the platform seam, phase A → D.2 (2026-06-29)
 
 The seam is real and the engine now compiles + renders WITHOUT Raylib. All steps kept desktop

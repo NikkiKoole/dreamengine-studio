@@ -259,6 +259,13 @@ glyphs, procedural tiles, anything using the extended palette 16–31? Author it
 the three sprite patterns: [`docs/guides/cart-authoring.md`](docs/guides/cart-authoring.md). Iterate
 with `node tools/sprite-preview.js <cart>` — renders the slots to one labelled PNG (no compile/run),
 so you tweak the JS and re-look in seconds.
+
+A cart's sprites have **two sources of truth that don't know about each other** — the in-editor pixel
+canvas and a `.cart.js` generator — so hand-painting a generator cart's sprites in the editor ships
+in *that* build but the next CLI bake silently reverts it. Rule: generator carts get sprite changes
+in the generator, hand-drawn carts in the editor — never both. Why + the proposed fixes (options A–D,
+incl. the patch/overlay round-trip): the **sprite story** —
+[`docs/design/editor-cart-workflow.md`](docs/design/editor-cart-workflow.md) §Gap 2 / STATUS item 23.
 A small icon glyph reads where a word can't: a cramped text HUD/panel (`HP 80  ammo 12|36`) becomes
 **minimal and beautiful** by swapping labels for code-drawn glyphs (♥/clip/skull) — `flank` is the
 worked example (HUD row, start-menu legend, mode-tile + per-slider icons).

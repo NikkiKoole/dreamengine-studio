@@ -137,6 +137,14 @@ Rationale + build: [`../design/audio-threading.md`](../design/audio-threading.md
 Sprites are 16×16 pixels. Each sprite occupies one slot in the 128×128 sheet
 (8 columns × 8 rows of slots, slot 0 top-left).
 
+> **Two sources of truth.** A `.cart.js` generator and the editor's pixel canvas
+> both produce sprites and don't know about each other — hand-painting a generator
+> cart's sprites in the editor ships in *that* build but the next bake silently
+> reverts it. Generator carts get sprite changes in the generator, hand-drawn carts
+> in the editor — never both. The problem + proposed fixes (the "sprite story",
+> options A–D): [`../design/editor-cart-workflow.md`](../design/editor-cart-workflow.md)
+> §Gap 2 / STATUS item 23.
+
 **ASCII art string** (preferred — readable):
 
 ```js

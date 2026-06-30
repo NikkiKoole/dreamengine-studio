@@ -23,6 +23,12 @@
 //   - The sprite has geometric structure (circles, triangles, mirrored craft)
 //   - The ASCII charMap's 0–15 range is too limiting
 //
+// HEADS-UP — a generator cart and the editor's pixel canvas are two sprite sources
+// of truth. Hand-painting a generator cart's sprites in the editor ships in that
+// build but the NEXT bake (re-running this generator) silently reverts it; there's
+// no round-trip back into the .cart.js yet. The problem + the proposed patch/overlay
+// fix ("the sprite story"): docs/design/editor-cart-workflow.md §Gap 2 / STATUS #23.
+//
 // Text + transforms mirror the C drawing API too:
 //   print(g, 'A', x, y, color, FONT_TINY)   // engine bitmap fonts: FONT_DEFAULT
 //                                            // (dos_8x8), FONT_SMALL (4×6), FONT_TINY

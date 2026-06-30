@@ -39,6 +39,11 @@ static void tinyc(const char *s, int x, int y) {
 }
 
 void draw(void) {
+    // index 0 (black) is just the sprites' empty background — key it out so the
+    // controls sit transparently on the game. Set-and-hold → first frame only.
+    static int inited = 0;
+    if (!inited) { colorkey(CLR_BLACK); inited = 1; }
+
     cls(CLR_DARK_BLUE);
 
     font(FONT_COMIC);

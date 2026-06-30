@@ -1,8 +1,8 @@
 # Squishy lines — a velocity-brush drawing cart that animates for almost free
 
 STATUS: BUILDING (2026-06-30) — design settled (320×320, 2-tone first, boil is an opt-in mode).
-The ink brush shipped (`tools/carts/squishy.c`); next up the tool palette, then the bevel tool.
-v1 plan + progress is the checklist at the bottom.
+The ink brush + the bevel toggle shipped (`tools/carts/squishy.c`); next up the tool palette, then
+boil. v1 plan + progress is the checklist at the bottom.
 
 > The shower idea: we'd been making cart icons by running an AI-generated image through a
 > `.cart.js` (sprite-draw + `pixelsnap`). The results are nice — but **frozen**. What if you could
@@ -119,6 +119,18 @@ together they *are* the tinyjam look. Global light direction is one setting (def
 2-tone, "highlight" = paper and "shadow" = ink (so bevel reads as a thin paper rim + an ink underline
 on blobs); in a limited palette it picks a lighter/darker ramp neighbour.
 
+**As built (v1, 2026-06-30) — the offset-emboss, not edge-detect.** Both flavours above wanted
+canvas read-back, but `pget`/`pget_rgb` **read *last* frame's canvas** (by design), so a same-frame
+silhouette edge-detect isn't available — and the cart re-renders every stroke from data each frame,
+so there's no stable framebuffer to scan anyway. The shipping bevel is therefore a **3-pass offset
+emboss** done from the stroke geometry: draw a SHADOW copy offset toward the dark side (+1,+1) and a
+HILITE copy offset toward the light (−1,−1), then the INK body on top — the ink covers the centre and
+leaves a 1px light rim on the upper-left and a dark rim on the lower-right. Pure geometry, no
+read-back, **deterministic** (so it's boil-ready). It reads as a clean DPaint emboss on bold strokes
+and a domed 3D ball on a filled blob. Tones: HILITE `CLR_LIGHT_PEACH`, SHADOW `CLR_BLACK`, body
+`CLR_BROWNISH_BLACK`. A true silhouette-rim auto-bevel (light/mid/dark, needs a cached layer to scan)
+stays open for when fills + a 3-tone ramp land.
+
 ## Boil — the opt-in mode
 
 Flip it on and the drawing breathes. The mechanism, and why it's "almost free":
@@ -198,7 +210,8 @@ once v1 lands (not committed):
 ## v1 plan (the buildable slice)
 
 Shipped the first cut (`tools/carts/squishy.c`, 2026-06-30): the ink brush feels right — slow swells
-fat, fast flicks thin, ends taper, seeded wobble keeps it hand-inked. Demo seeds in
+fat, fast flicks thin, ends taper, seeded wobble keeps it hand-inked — plus the **bevel** toggle
+(`B`) that embosses strokes into faux-3D (a filled blob domes into a ball). Demo seeds in
 `tools/clips/squishy/`.
 
 - [x] Canvas + input: 320×320, capture a stroke as `Sample[]` with per-frame smoothed speed.
@@ -207,8 +220,9 @@ fat, fast flicks thin, ends taper, seeded wobble keeps it hand-inked. Demo seeds
       per-stamp noise. Get the squish *feeling* right before adding tools.
 - [x] 2-tone palette: ink + paper; a clear button.
 - [ ] Tool palette UI (code-drawn glyphs), then add pencil + fineliner + marker.
-- [ ] **Bevel tool** — auto-bevel a filled shape (edge-detect + top-lit highlight / bottom shadow,
-      one global light dir). The second-biggest character win after the ink brush.
+- [x] **Bevel tool** — shipped as a 3-pass offset emboss (`B` toggles it): top-left HILITE rim +
+      lower-right SHADOW rim, light from the top-left. See "As built (v1)" above for why emboss, not
+      edge-detect. (A true silhouette-rim auto-bevel waits on fills + a 3-tone ramp.)
 - [ ] Boil toggle: N cached frames, re-render on stroke change, cycle at ~6–8fps.
 - [ ] `spec()`: same-seed determinism + jitter-bounds assertions.
 - [ ] The icon pipeline: boil frames → `pixelsnap` → an animated sprite strip (the AI-route

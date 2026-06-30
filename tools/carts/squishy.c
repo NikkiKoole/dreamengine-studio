@@ -11,12 +11,11 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. The ink brush renders that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble. Storing strokes as data is what makes the planned 'boil' mode (re-render with fresh jitter → a living loop) almost free later. v1 is the ink brush + a 2-tone ink-on-paper palette; pencil/fineliner/marker, the bevel tool, and boil come next.",
-    "controls": "Drag to ink. Right-click (or U) undoes the last stroke. C clears."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. The ink brush renders that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble. The bevel toggle embosses each stroke into a faux-3D rim (light from the top-left): a SHADOW + HILITE copy offset under the ink body leave a light rim on the upper-left edge and a dark rim on the lower-right. Storing strokes as data is what makes the planned 'boil' mode (re-render with fresh jitter → a living loop) almost free later. v1 is the ink brush + bevel + a 2-tone ink-on-paper palette; pencil/fineliner/marker and boil come next.",
+    "controls": "Drag to ink. B toggles the bevel (faux-3D emboss). Right-click (or U) undoes the last stroke. C clears."
   },
   "todo": [
     "Add the tool palette: pencil / fineliner / marker (the brush table in docs/design/squishy-lines.md).",
-    "Add the bevel tool (auto-bevel a filled shape: top-lit highlight + bottom shadow).",
     "Add the opt-in boil mode (N cached frames, re-render with per-frame seed, cycle ~6-8fps).",
     "Cache finished strokes to a layer buffer instead of re-rendering every stroke every frame.",
     "spec(): same-seed determinism + jitter-bounds."
@@ -44,8 +43,14 @@ de:meta */
 #define PAPER  CLR_WHITE           // #fff1e8
 #define INK    CLR_BROWNISH_BLACK  // #291814
 
+// bevel tones — the faux-3D rim. Light comes from the top-LEFT (the DPaint
+// convention): a light rim on the upper-left edge, a dark rim on the lower-right.
+#define HILITE    CLR_LIGHT_PEACH  // #ffccaa — the lit (top-left) rim
+#define SHADOW    CLR_BLACK        // #000000 — the shaded (bottom-right) rim, darker than ink
+#define BEVEL_OFF 1.0f             // px the rims peek out past the ink body
+
 #define MAX_STROKES 128
-#define MAX_SAMPLES 600
+#define MAX_SAMPLES 1500   // a long continuous stroke (a spiral fill, a long contour) fits
 
 // brush feel — the numbers that make the squish. Tune by drawing.
 #define MIN_W        1.8f   // width at full speed (the thin flick — still has ink body)
@@ -67,6 +72,7 @@ static Stroke   strokes[MAX_STROKES];
 static int      nstrokes = 0;
 static Stroke   cur;                 // the stroke being drawn right now
 static int      drawing = 0;
+static int      bevel = 0;           // bevel mode: emboss each stroke into a faux-3D rim
 static float    prevx, prevy;        // last frame's pointer (for per-frame speed)
 static float    lastsx, lastsy;      // last *captured sample* (for min-spacing)
 static float    ema = 0;             // smoothed pointer speed
@@ -90,18 +96,20 @@ static float sample_width(const Stroke *s, int i, unsigned fseed) {
     return wspeed * taper * wobble;
 }
 
-static void stamp(float x, float y, float w) {
+static void stamp(float x, float y, float w, int color) {
     if (w <= 0) return;
     int ix = (int)(x + 0.5f), iy = (int)(y + 0.5f);
     float r = w * 0.5f;
-    if (r < 0.75f) pset(ix, iy, INK);
-    else circfill(ix, iy, (int)(r + 0.5f), INK);
+    if (r < 0.75f) pset(ix, iy, color);
+    else circfill(ix, iy, (int)(r + 0.5f), color);
 }
 
-// render a whole stroke as a chain of overlapping round stamps (stamp-spacing).
-static void render_stroke(const Stroke *s, unsigned fseed) {
+// render a whole stroke as a chain of overlapping round stamps (stamp-spacing),
+// offset by (ox,oy) and in `color` — the offset is what the bevel uses to peek
+// a rim out from under the ink body.
+static void render_stroke(const Stroke *s, unsigned fseed, float ox, float oy, int color) {
     if (s->n == 0) return;
-    if (s->n == 1) { stamp(s->pts[0].x, s->pts[0].y, sample_width(s, 0, fseed)); return; }
+    if (s->n == 1) { stamp(s->pts[0].x + ox, s->pts[0].y + oy, sample_width(s, 0, fseed), color); return; }
     for (int i = 0; i < s->n - 1; i++) {
         float x0 = s->pts[i].x,   y0 = s->pts[i].y;
         float x1 = s->pts[i+1].x, y1 = s->pts[i+1].y;
@@ -112,9 +120,22 @@ static void render_stroke(const Stroke *s, unsigned fseed) {
         if (steps < 1) steps = 1;
         for (int k = 0; k <= steps; k++) {
             float u = (float)k / steps;
-            stamp(x0 + dx * u, y0 + dy * u, w0 + (w1 - w0) * u);
+            stamp(x0 + dx * u + ox, y0 + dy * u + oy, w0 + (w1 - w0) * u, color);
         }
     }
+}
+
+// draw one stroke, with the bevel emboss if it's on. The trick: lay a SHADOW
+// copy offset toward the dark side and a HILITE copy offset toward the light,
+// then the INK body on top — the ink covers the centre, leaving a 1px light rim
+// on the upper-left and a dark rim on the lower-right. Pure geometry, no canvas
+// read-back, so it stays deterministic (and boil-ready).
+static void draw_one(const Stroke *s, unsigned fseed) {
+    if (bevel) {
+        render_stroke(s, fseed,  BEVEL_OFF,  BEVEL_OFF, SHADOW);   // lower-right shade
+        render_stroke(s, fseed, -BEVEL_OFF, -BEVEL_OFF, HILITE);   // upper-left light
+    }
+    render_stroke(s, fseed, 0, 0, INK);                            // ink body on top
 }
 
 void init(void) {
@@ -151,14 +172,16 @@ void update(void) {
         cur.n = 0;
     }
 
-    if (keyp('u') || mouse_pressed(MOUSE_RIGHT)) { if (nstrokes > 0) nstrokes--; }
-    if (keyp('c')) nstrokes = 0;
+    // NB: raylib letter keycodes are UPPERCASE — keyp('u') (lowercase, 117) never fires.
+    if (keyp('U') || mouse_pressed(MOUSE_RIGHT)) { if (nstrokes > 0) nstrokes--; }
+    if (keyp('C')) nstrokes = 0;
+    if (keyp('B')) bevel = !bevel;
 }
 
 void draw(void) {
     cls(PAPER);
-    for (int i = 0; i < nstrokes; i++) render_stroke(&strokes[i], strokes[i].seed);
-    if (drawing) render_stroke(&cur, cur.seed);
+    for (int i = 0; i < nstrokes; i++) draw_one(&strokes[i], strokes[i].seed);
+    if (drawing) draw_one(&cur, cur.seed);
 
     // brush-size ring = the cursor; previews the live width (slow = big, fast = small)
     float sp = ema / SPEED_REF; if (sp > 1) sp = 1;
@@ -166,5 +189,7 @@ void draw(void) {
     if (r < 1) r = 1;
     circ(mouse_x(), mouse_y(), r, INK);
 
-    print("drag to ink   right-click undo   c clear", 6, SCREEN_H - 10, INK);
+    print(bevel ? "drag to ink   B bevel:ON   right-click undo   C clear"
+                : "drag to ink   B bevel:off  right-click undo   C clear",
+          6, SCREEN_H - 10, INK);
 }

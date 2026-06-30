@@ -40,7 +40,7 @@ const PH = {
   building:  { glyph: "[~]", c: "var(--orange)", label: "IN PROGRESS",           mode: "row",  open: true  },
   living:    { glyph: "[*]", c: "var(--indigo)", label: "LIVING",                mode: "row",  open: true  },
   other:     { glyph: "[?]", c: "var(--dim)",    label: "UNCLASSIFIED",          mode: "row",  open: true  },
-  exploring: { glyph: "( )", c: "var(--blue)",   label: "EXPLORING / IDEAS",     mode: "chip", open: false },
+  exploring: { glyph: "( )", c: "var(--blue)",   label: "EXPLORING / IDEAS",     mode: "row",  open: false },
   shipped:   { glyph: "[x]", c: "var(--dim)",    label: "SHIPPED",               mode: "chip", open: false },
   cut:       { glyph: "[/]", c: "var(--red)",    label: "CUT / SUPERSEDED",      mode: "chip", open: false },
 };

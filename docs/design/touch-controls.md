@@ -1,7 +1,10 @@
 # Touch controls — a native-resolution on-screen joystick / d-pad / buttons
 
-STATUS: DESIGN — ready to pick up (rev. 2026-06-30). Research, a recommendation, AND a concrete
-implementation plan (see "Implementation plan" below); nothing rebuilt yet. The task is
+STATUS: BUILDING (rev. 2026-06-30). **Phase 1 (native-res look) shipped** — the on-screen
+stick + A/B now draw with engine primitives into the canvas at native resolution (chunky,
+palette-correct), verified `canvas-diff` 0px GPU-vs-software on the opt-in cart `flyover`.
+Placement (Phase 1.5 coord chokepoint → Phase 2 deck/rails) not started. Research, a
+recommendation, AND a concrete implementation plan follow (see "Implementation plan"). The task is
 pulled from **two ends**: the iOS port ([`ios-plan.md`](ios-plan.md) — raw `key()`/`btn()` carts
 have no touch equivalent on a phone) and the cart-polish backlog
 ([`../cart-polish-punchlist.md`](../cart-polish-punchlist.md) — ~18
@@ -481,9 +484,9 @@ touches.
 
 ### Checklist
 
-- [ ] **P1** redraw overlay with `circ`/`circfill`/`print` + `CLR_*`, native-res in the canvas
-- [ ] **P1** size from `SCALE` (`ceil(44/SCALE)`), remove post-blit raw-Raylib call
-- [ ] **P1** `canvas-diff` + bake on `vampire`, commit
+- [x] **P1** redraw overlay with `circ`/`circfill`/`print` + `CLR_*`, native-res in the canvas
+- [x] **P1** size from `SCALE` (`ceil(44/SCALE)`), remove post-blit raw-Raylib call
+- [x] **P1** `canvas-diff` 0px on `flyover` (opt-in); `vampire` PASS; committed
 - [ ] **P1.5** `game_rect` chokepoint; route `touch_x/y()`/mouse/hit-tests through it (identity)
 - [ ] **P1.5** pure `place()` stub + headless round-trip test; `canvas-diff` byte-identical, commit
 - [ ] **P2** fill in `place()`: letterbox measure → deck / rails / overlay decision

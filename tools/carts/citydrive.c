@@ -469,12 +469,15 @@ void draw(void) {
   watch("nbld","%d",nbld); watch("nd","%d",nd);   // buildings loaded / extruded this frame
 #endif
 
-  // car — ground shadow then body
-  fillp(QUARTER,-1); pdisc(S.px,S.py,4.0f,CLR_BLACK); fillp_reset();
+  // car — sized in METRES so it scales with the roads (a fixed-px car dwarfs a 6m street);
+  // a small floor keeps it visible when zoomed right out.
+  float clen = fmaxf(4.5f*S.zoom, 5.0f), cwid = fmaxf(2.0f*S.zoom, 3.0f);   // ~4.5m × 2m
+  fillp(QUARTER,-1); pdisc(S.px,S.py, 2.8f, CLR_BLACK); fillp_reset();      // shadow ~car-sized (world metres)
   int cxp,cyp; wpt(S.px,S.py,0,&cxp,&cyp);
   float sa = S.ang + S.rot;
-  rectfill_rot(cxp, cyp, 10, 6, sa, CLR_WHITE);
-  rectfill_rot(cxp + (int)(cos_deg(sa)*3), cyp + (int)(sin_deg(sa)*3), 4, 5, sa, CLR_RED);
+  rectfill_rot(cxp, cyp, (int)clen, (int)cwid, sa, CLR_WHITE);
+  rectfill_rot(cxp + (int)(cos_deg(sa)*clen*0.28f), cyp + (int)(sin_deg(sa)*clen*0.28f),
+               (int)fmaxf(clen*0.4f,2), (int)cwid, sa, CLR_RED);
 
   // HUD — small font so the place name + count fit beside the OPEN button
   rectfill(0,0,SCREEN_W,9, CLR_BLACK);

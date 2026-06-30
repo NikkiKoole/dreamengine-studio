@@ -7,7 +7,7 @@
 > [`product-notes.md`](product-notes.md), the wasm-vs-native engine parity in
 > [`web-audio-parity.md`](web-audio-parity.md); **this note owns timing jitter/drift**.
 >
-> **STATUS (2026-06-10): investigation closed; decision pending.** Cause fully
+> **STATUS (2026-06-10): EXPLORING — investigation closed; decision pending.** Cause fully
 > characterized and confirmed in the *shipped* artifact (web audio runs on the main
 > thread via `ScriptProcessorNode` — see §3). Shipped: the `frame_dt` clamp + a 512
 > web buffer — the **main-thread ceiling** ("tight with a small residual," reproducible

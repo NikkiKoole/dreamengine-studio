@@ -2,7 +2,7 @@
 
 A working list for raising the quality bar across the ~90 carts in `tools/carts/`.
 
-> **Status (2026-05-30): not an active backlog.** Decided against retrofitting a
+> **Status (2026-05-30): CUT — not an active backlog.** Decided against retrofitting a
 > juice pass onto the existing carts — better to keep them as-is and apply these
 > learnings to *new* games, or build focused v2s of the few that are worth it.
 > Treat what follows as a reference idea bank, not a to-do list.

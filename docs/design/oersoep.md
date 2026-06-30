@@ -1,5 +1,7 @@
 # Oersoep — design notes
 
+STATUS: SHIPPED — oersoep.c is the Spore cell-stage arcade game (swim/eat/evolve/crawl ashore).
+
 *Oersoep* (Dutch: "primordial soup") is the **cell stage of Spore (2008)** on dreamengine.
 Swim a microbe through a pond, eat to earn DNA, evolve new body parts in a between-rounds
 editor, and climb the food chain from prey to apex before crawling ashore.

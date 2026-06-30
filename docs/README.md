@@ -195,7 +195,7 @@ never reference prose.
 - Product direction or a core principle changed? → **`VISION.md`**.
 - Splitting a section out of a grown doc? **If other files reference its §-numbers widely,
   keep the numbers verbatim in the new doc + leave a stub at the old spot**
-  (`instrument-engines.md` is the worked example); otherwise just renumber. The kept
+  ([`instrument-engines.md`](design/instrument-engines.md) is the worked example); otherwise just renumber. The kept
   numbering exists *only* to serve live references — once those age out, renumbering the
   doc is ordinary cleanup, not a rule violation.
 - Moved / split / renamed any doc? → **`node tools/lint-docs.js`** — verifies every

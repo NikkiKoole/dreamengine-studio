@@ -1,5 +1,7 @@
 # sloop — handwork: the embodied production loop
 
+STATUS: BUILDING — handwork.c probes the hand-vs-machine production loop; v1 verified headless, awaiting sloop-v3 integration.
+
 Research note. Companion to [`sloop-production.md`](sloop-production.md). That doc designed
 the **mix half** of sloop's production subsystem — `brew_eval(seq, n, skill, focus)`, a pure
 function, a quality number, a demand curve — and shipped it as `tools/carts/thecut.c`. It is

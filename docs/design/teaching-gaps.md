@@ -1,5 +1,7 @@
 # Teaching gaps — what the API offers but nothing teaches
 
+STATUS: READY — audit of under-taught API areas + a prioritized tutorial attack list; 04b-mouse shipped, camera next.
+
 > **Exploratory snapshot (2026-06-22).** A "what's under-taught?" pass over the library,
 > cross-referencing the API surface against what tutorials + tagged carts actually cover.
 > Not a committed backlog — it's the stop-and-look memo, the teaching-side companion to

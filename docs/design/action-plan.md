@@ -3,8 +3,8 @@
 STATUS: LIVING ACTION LIST. Synthesizes the concrete, do-able asks scattered across the
 field-notes journal and the three audio-product brainstorms into one prioritized, checkable list.
 Sources, each linked at point of use:
-- **field-notes/** — the research journal (`about-tags.md`, notes `002`/`003`/`011`/`012`/`013`).
-- **design/** — `tools-we-need.md` (the tool backlog), `distillator.md`, `ai-friendly-frontmatter.md` (moved here from field-notes 2026-06-30).
+- **field-notes/** — the research journal ([`about-tags.md`](../field-notes/about-tags.md), notes `002`/`003`/`011`/`012`/`013`).
+- **design/** — [`tools-we-need.md`](tools-we-need.md) (the tool backlog), [`distillator.md`](distillator.md), [`ai-friendly-frontmatter.md`](ai-friendly-frontmatter.md) (moved here from field-notes 2026-06-30).
 - **`cart-polish-punchlist.md`** (docs root) — the cart-polish log.
 - [`tinyjam-racks.md`](tinyjam-racks.md) + [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md) — the rack design.
 - [`product-notes.md`](product-notes.md) + [`product-notes-followup.md`](product-notes-followup.md)
@@ -42,7 +42,7 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   navigable index: a **lifecycle board** (Hypothesis → Observed → Review → Working Theory →
   Incorporated → Superseded), a **timeline**, the **related-note graph** (from each note's "Related
   notes"), a **concepts** map, the **working-material** list (unnumbered docs kept distinct), and a
-  **conformance** report flagging notes that don't match `standard-header.md` (flagged, never
+  **conformance** report flagging notes that don't match [`standard-header.md`](../field-notes/standard-header.md) (flagged, never
   rewritten — honours the append-only rule). Tolerant of the three metadata styles in the wild.
 
 - [ ] **Rebake stale thumbnails.** The all-carts log notes the thumbnail goes blank for a beat after
@@ -74,26 +74,26 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   (`replaces`/`successor`/`related`, "stronger than tags"). Then **generate** curated collections
   ("Best of DreamEngine", Games, Sound Toys, Living Worlds, Arcade Homages, Technical Labs, Retired)
   rather than one flat list — feed `build-site.js`. Retiring a cart points visitors at its successor.
-  *Why:* the shelf is ~200+ carts; a flat list no longer serves anyone (`003-curation`,
+  *Why:* the shelf is ~200+ carts; a flat list no longer serves anyone ([`003-curation`](../field-notes/003-curation.md),
   `about-tags.md`). Sequence after per-cart metadata exists (it's where `status` should live).
 
 - [~] **`build-context` — task-specific agent briefings.** `build-context roads` / `cart:coaster` /
   `task:retire-carts` → assembles the relevant design docs + ADRs + related carts + field notes +
   pitfalls + verification steps into one focused briefing. *Why:* "don't ask agents to read
-  everything; tell them what matters" (`002-context-assembly`, `distillator.md`, `tools-we-need.md`
+  everything; tell them what matters" ([`002-context-assembly`](../field-notes/002-context-assembly.md), `distillator.md`, `tools-we-need.md`
   #1). Bigger; do after the metadata + frontmatter give it structured inputs to assemble.
   **Shipped: the `cart:<name>` slice** (`tools/build-context.js`) — de:meta + todos + a prose
   mention-graph of related carts + every doc/note that names the cart (with the matching line, so
-  the differently-named home like `external-data-carts.md` surfaces itself). Needs no doc-frontmatter.
+  the differently-named home like [`external-data-carts.md`](external-data-carts.md) surfaces itself). Needs no doc-frontmatter.
   Still TODO: the `api:` / `task:` / `topic:` subjects, and pulling in ADRs + field notes + the
-  matching oracle from `checks-and-oracles.md` once doc-frontmatter (`depends_on`/`updated`) exists.
+  matching oracle from [`checks-and-oracles.md`](../guides/checks-and-oracles.md) once doc-frontmatter (`depends_on`/`updated`) exists.
 
 - [ ] **`stale-doc-check` — catch docs that have drifted from the code (the real prize).** Flag a
   doc when a file it documents changed after the doc's own last update — the one blind spot nothing
   covers today (a doc can name a renamed function and no gate notices). Extends `lint-docs.js` (which
   already does cross-refs). It needs exactly two machine-readable fields per doc — `depends_on:
   [files]` + `updated:` — so **adopt frontmatter only as far as this consumer needs it**, doc by doc,
-  when a doc is touched. (`tools-we-need.md` #5, `012-self-describing-artifacts`.)
+  when a doc is touched. (`tools-we-need.md` #5, [`012-self-describing-artifacts`](../field-notes/012-self-describing-artifacts.md).)
 
   *Don't roll out descriptive frontmatter (`title`/`summary`/`concepts`/`status`).* Verified
   2026-06-29: **0 of 127 `docs/design/*.md` carry it** (only field-notes `011`–`013` do; the `---`
@@ -111,7 +111,7 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
 
 - [ ] **Tool self-description headers.** `@tool / @summary / @category / @when / @safe` comment block
   per `tools/` script; a future generator emits a tool index. CLAUDE.md already enforces a one-line
-  pointer per tool, so this formalizes what's half-there. (`011-tool-discovery`.)
+  pointer per tool, so this formalizes what's half-there. ([`011-tool-discovery`](../field-notes/011-tool-discovery.md).)
 
 ---
 

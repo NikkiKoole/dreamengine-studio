@@ -1,5 +1,7 @@
 # Faking a "recording" — the Mellotron problem
 
+STATUS: SHIPPED — mellotron.c realizes the attack-transient + ensemble + tape recipe that fakes recorded timbres.
+
 How to make a *synthesized* voice read as a *recorded* instrument, in an engine that has **no sample
 playback**. Written up off the `tapeloop` cart (which fakes tape-strings/choir/flute with drawn
 waves + `tape()`), as the design notes for a more-convincing **`mellotron` cart**.

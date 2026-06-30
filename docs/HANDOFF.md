@@ -97,7 +97,7 @@ to itch.io to share publicly.
   its own `glReadPixels` on the canvas FBO instead of `LoadImageFromTexture` (which runs an
   ES3-only format probe that spams a cosmetic WebGL1 `INVALID_ENUM`). Validated desktop
   Chrome + iOS Safari — correct pixels, clean console. Carts already in the gallery need a
-  republish to pick it up. Details: mobile-web-notes §5c.
+  republish to pick it up. Details: [mobile-web-notes](design/mobile-web-notes.md) §5c.
 - **`save()`/`load()` don't persist** — emscripten's virtual filesystem is
   in-memory only; data is lost on page reload. Fix later with localStorage.
 - **ScriptProcessorNode deprecation warning** — cosmetic, harmless. Raylib uses

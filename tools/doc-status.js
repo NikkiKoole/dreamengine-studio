@@ -16,7 +16,7 @@
 function extractStatus(lines) {
   for (let i = 0; i < Math.min(lines.length, 16); i++) {
     const l = lines[i].trim();
-    let m = l.match(/^>?\s*\*{0,2}STATUS\*{0,2}\s*[:—-]\s*(.+)$/i);
+    let m = l.match(/^>?\s*\*{0,2}STATUS\*{0,2}\s*(?:\([^)]*\))?\s*[:—-]\*{0,2}\s*(.+)$/i);
     if (m) return m[1].replace(/\*\*/g, "").trim();
     m = l.match(/Status:\s*([A-Za-z].+?)\s*$/);          // ADR "· Status: accepted" line
     if (m) return m[1].replace(/\*\*/g, "").trim();

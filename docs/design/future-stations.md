@@ -1,5 +1,7 @@
 # Future radio stations — the parking lot
 
+STATUS: EXPLORING — candidate radio stations ranked by engine fit/demand; 20 shipped, directions noted for the next batch.
+
 Candidate stations for the radio family, ranked by engine fit, the citypop
 conditions, and "what does the engine LEARN from this cart" — plus the IDM and
 functional-music wings. **Genre: design exploration** (this is a backlog of

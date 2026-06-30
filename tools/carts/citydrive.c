@@ -11,7 +11,7 @@
     "camera-follow"
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
-  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy beneath the buildings. The bounding box auto-fits and you spawn in the dense building mass (robust against the OSM bbox-balloon). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive, M toggles north/heading-up camera, T textures, R toggles roads, [ ] zoom."
+  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive, M toggles north/heading-up camera, V top-down map, T textures, R toggles roads, [ ] zoom."
 }
 de:meta */
 #include "studio.h"
@@ -102,6 +102,19 @@ typedef struct { int start, count; float h, cx, cy; int mat; } DBldg;   // build
 static DBldg blds[MAXBLD]; static int nbld;
 static struct { int kind, start, count; } rways[MAXWAY]; static int nway;  // road lines (flat)
 
+// area fills — flat ground polygons (water/green/zoning) drawn BENEATH roads + buildings.
+#define MAXAREA 80000
+// parks/water/sand keep their real colour; DEVELOPED land (zoning) is muted to quiet ground
+// tones so it fills the bare gaps without turning the whole city green/blue (it covers whole
+// neighbourhoods). Driving doesn't need a readable zoning legend — just ground that isn't bare.
+static const int AREA_COL[K_N] = {
+  [K_WATER]=CLR_BLUE, [K_GREEN]=CLR_DARK_GREEN, [K_SAND]=CLR_LIGHT_PEACH,
+  [K_RESIDENTIAL]=CLR_DARK_GREY, [K_COMMERCIAL]=CLR_DARK_GREY,
+  [K_INDUSTRIAL]=CLR_DARK_BROWN, [K_FARM]=CLR_DARK_BROWN, [K_PARKING]=CLR_DARKER_GREY,
+};
+static bool is_area(int k){ return AREA_COL[k] != 0; }   // (no area maps to CLR_BLACK=0)
+static struct { int kind, start, count; float cx, cy; } areas[MAXAREA]; static int narea;
+
 static char dname[64] = "";
 static char err[160]  = "";
 static int  loaded_ok = 0, truncated = 0;
@@ -137,7 +150,7 @@ static void pdisc(float cx,float cy,float r,int color){
 }
 
 // ── data loading (twin of roadview's loader; reads RVB2 heights) ─────────────
-static void reset_pools(void){ nps=0; nbld=0; nway=0; loaded_ok=0; truncated=0; dname[0]=0; err[0]=0; }
+static void reset_pools(void){ nps=0; nbld=0; nway=0; narea=0; loaded_ok=0; truncated=0; dname[0]=0; err[0]=0; }
 
 static int bld_mat(int start){ unsigned h=(unsigned)start*2654435761u; h^=h>>13; return (h>>8)%NMAT; }
 
@@ -154,8 +167,15 @@ static void store_feature(int kind, int start, int count, float h){
   } else if (is_road(kind)){
     if (nway >= MAXWAY || count < 2) return;
     rways[nway].kind = kind; rways[nway].start = start; rways[nway].count = count; nway++;
+  } else if (is_area(kind)){
+    if (narea >= MAXAREA || count < 3) return;
+    if (PX[start]==PX[start+count-1] && PY[start]==PY[start+count-1]) count--;   // drop closing dup
+    if (count < 3) return;
+    float cx=0, cy=0; for(int i=0;i<count;i++){ cx+=PX[start+i]; cy+=PY[start+i]; }
+    areas[narea].kind=kind; areas[narea].start=start; areas[narea].count=count;
+    areas[narea].cx=cx/count; areas[narea].cy=cy/count; narea++;
   }
-  // areas / trees / hashed understory: ignored for now (the flat ground is roads-only — see TODO)
+  // trees / hashed other_area+other_line understory: still ignored (see TODO)
 }
 
 // fast binary path (magic RVB1/RVB2) — RVB2 carries a float height per feature.
@@ -332,6 +352,13 @@ static float seg_d2(float ax,float ay,float bx,float by,float px,float py){
   float qx=ax+t*dx-px, qy=ay+t*dy-py; return qx*qx+qy*qy;
 }
 
+// fill one flat ground-area polygon (water/green/zoning) at z=0.
+static void area_fill(int start,int count,int col){
+  enum { CAP=512 }; int n = count>CAP ? CAP : count; int xy[2*CAP];
+  for(int i=0;i<n;i++) wpt(PX[start+i],PY[start+i],0,&xy[2*i],&xy[2*i+1]);
+  polyfill(xy,n,col);
+}
+
 // ── flat ground: one road segment as a world-space quad ribbon ───────────────
 static void road_seg(float ax,float ay,float bx,float by,float hw,int col){
   float dx=bx-ax, dy=by-ay, L=sqrtf(dx*dx+dy*dy)+1e-4f;
@@ -382,7 +409,21 @@ void draw(void) {
   }
   float R2 = RANGE_M*RANGE_M;
 
-  // flat roads first (ground layer) — only segments near the camera
+  // ground-area fills first (bottom layer): zoning → green → water, beneath everything.
+  // areas are big, so cull generously by centroid; off-screen polys rasterise to nothing.
+  {
+    static const int LAYER[] = { K_FARM,K_RESIDENTIAL,K_COMMERCIAL,K_INDUSTRIAL,K_PARKING,K_SAND,K_GREEN,K_WATER };
+    float AR2 = (RANGE_M*2.0f)*(RANGE_M*2.0f);
+    for (int li=0; li<8; li++){ int L=LAYER[li], col=AREA_COL[L];
+      for (int a=0;a<narea;a++){ if (areas[a].kind!=L) continue;
+        float mx=areas[a].cx-S.camx, my=areas[a].cy-S.camy;
+        if (mx*mx+my*my > AR2) continue;
+        area_fill(areas[a].start, areas[a].count, col);
+      }
+    }
+  }
+
+  // flat roads next (over the ground areas) — only segments near the camera
   if (S.roads_on){
     for (int w=0; w<nway; w++){
       int k=rways[w].kind, st=rways[w].start, ct=rways[w].count;

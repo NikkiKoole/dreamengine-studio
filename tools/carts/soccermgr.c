@@ -416,9 +416,9 @@ static void kickoff(void) {
     res_my = sim_goals(club[YOU].str, club[res_opp].str);
     res_op = sim_goals(club[res_opp].str, club[YOU].str);
     apply_result(res_my, res_op, res_opp);
-    // ~30% chance a fielded player picks up a knock (out 1..4 rounds); he's
+    // ~12% chance a fielded player picks up a knock (out 1..4 rounds); he's
     // pulled from the XI so you must reshuffle before the next match.
-    if (rnd(100) < 30) {
+    if (rnd(100) < 12) {
         int s = rnd(11);
         if (XI[s] >= 0) { squad[XI[s]].injured = rnd_between(1, 5); XI[s] = -1; }
     }

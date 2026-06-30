@@ -5391,6 +5391,16 @@
     "teaches": []
   },
   {
+    "title": "touchpad",
+    "description": "Pixel-art reference for the proposed on-screen touch controls (docs/design/touch-controls.md): a parts gallery up top, a live pokeable demo below. Design exploration, NOT wired into the engine yet. The sprites (in touchpad.cart.js) are drawn with our own tools at native resolution so they read as part of the console - a 4-way and 8-way d-pad, an analog stick (base + knob), A/B buttons with idle/pressed states, and unlabeled fire buttons. Every shape is mirror-symmetric (tested against the true grid centre). The A/B labels use the engine's own dos_8x8 font via sprite-draw's new print(), so they match what print() renders at runtime. The live row reacts to input: the stick knob slides, the d-pad lights the pressed arm (spr_ex rotation of the pressed-up art), and A/B swap to their pressed sprite. arrows = stick + d-pad   ·   Z = A   ·   X = B   (works on keyboard, gamepad, or the on-screen overlay)",
+    "file": "touchpad.cart.png",
+    "created": "2026-06-30",
+    "kind": [
+      "probe"
+    ],
+    "teaches": []
+  },
+  {
     "title": "touch piano",
     "description": "A two-octave multi-finger piano - the touch-release API's first customer (touch_ended_count/id/x/y). Every finger landing on a key starts a sustained note; THAT finger lifting releases exactly its own note, even with four other fingers still playing - impossible before the release API, since a lifted finger has no touch index. Slide a finger across keys for glissando, hold up to 5-finger chords on iPhone (Safari's touch ceiling), ~10 on iPad. Lift ripples mark where each finger let go (touch_ended_x/y). On desktop the mouse is one finger.",
     "file": "touchpiano.cart.png",

@@ -38,7 +38,7 @@ by name yet (verified 2026-06-29); index.json is still the central hand-maintain
   `localStorage`/IndexedDB keys per-cart (`tinyjam:<cart>:…`) — the gallery is one origin.
 
 - [x] **`build-field-notes` — index the journal.** *Done 2026-06-29 (`tools/build-field-notes.js` →
-  `field-notes/FIELD-NOTES.md`, `--check` gates staleness).* Reads every note and derives a
+  `docs/field-notes/FIELD-NOTES.md`, `--check` gates staleness).* Reads every note and derives a
   navigable index: a **lifecycle board** (Hypothesis → Observed → Review → Working Theory →
   Incorporated → Superseded), a **timeline**, the **related-note graph** (from each note's "Related
   notes"), a **concepts** map, the **working-material** list (unnumbered docs kept distinct), and a
@@ -146,7 +146,7 @@ Listed so the plan exists, **not** so it gets built now.
 
 ## Cart-polish backlog (the all-carts log, made systemic)
 
-`field-notes/cart-polish-punchlist.md` is the authoritative per-cart punch-list. It's mostly
+`docs/cart-polish-punchlist.md` is the authoritative per-cart punch-list. It's mostly
 *polish*, but the same fixes recur across many carts — handle those **once, systemically**, then
 sweep:
 

@@ -16,7 +16,8 @@ docs/
 ├── README.md          you are here — the map
 ├── VISION.md          why & what: product idea, audience, philosophy, console spec
 ├── STATUS.md          state: the one ledger of shipped / open / cut
-├── POLISH_TODO.md     work list: the per-game "juice pass" across the carts
+├── POLISH_TODO.md     work list: the per-game "juice pass" across the carts (dormant idea-bank)
+├── cart-polish-punchlist.md  work list: the LIVE per-cart punch-list (graduated from the journal); the systemic items are distilled into design/action-plan.md
 ├── HANDOFF.md         narrative + environment gotchas (not obvious from code/git)
 ├── decisions/         frozen, dated decisions (ADR-lite) — the "why we (didn't) do X"
 ├── design/            exploratory design notes (scratchpads) — rationale + proposals
@@ -146,6 +147,7 @@ docs/
 │   └── history-page.md           ★ how the generated history page works + how to ADD A WEEK (the build-history.js generator + the history-spine.json structure)
 ├── history-spine.json hand-authored STRUCTURE for the generated history page (weeks, eras, subsystems, importance tiers, marked days, milestones, editorial seam); dates/commits/ADRs/carts/heroes are derived from git
 ├── history.html       GENERATED project-history timeline (tools/build-history.js) — a neo-brutalist magazine read, grouped week by week; opened via the Docs tab's "★ history" item. Covers weeks 1–3; how-to + add-a-week → guides/history-page.md
+├── field-notes/       the research JOURNAL — append-only notes (000-…) on *what changed our understanding* (explicitly NOT docs/specs/decisions); FIELD-NOTES.md = generated index (tools/build-field-notes.js), what-is-this.md + README.md = the charter
 └── archive/           superseded / done notes, kept for history
 ```
 
@@ -161,6 +163,7 @@ docs/
 | **Exploration** | `design/*.md` | freely; it's a scratchpad | whether a thing shipped (→ STATUS) |
 | **How-to** | `guides/*.md` | when the workflow changes | — |
 | **Narrative** | `HANDOFF.md` | each work session | the roadmap (→ STATUS) |
+| **Research journal** | `field-notes/*.md` | append-only (write a *new* note; don't rewrite) | docs / specs / decisions (those graduate to `design/` + `decisions/`) |
 
 The **engine API reference itself** is not in `docs/` — it lives in the code:
 `runtime/studio.h` (declarations) and `editor/src/studioDocs.js` (the bilingual one-liners

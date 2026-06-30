@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// build-field-notes.js — generate field-notes/FIELD-NOTES.md, a navigable index of
+// build-field-notes.js — generate docs/field-notes/FIELD-NOTES.md, a navigable index of
 // the research journal. A sibling of build-compendium.js / build-cart-index.js: it
-// READS every field-notes/*.md and DERIVES the index — never hand-edited, regenerated
+// READS every docs/field-notes/*.md and DERIVES the index — never hand-edited, regenerated
 // on demand. It honours the journal's append-only rule (README: "never rewrite history;
 // write a -revisited note instead") — this tool only reads the notes, never edits them.
 //
-//   node tools/build-field-notes.js          → writes field-notes/FIELD-NOTES.md
+//   node tools/build-field-notes.js          → writes docs/field-notes/FIELD-NOTES.md
 //   node tools/build-field-notes.js --check   → exit 1 if the committed index is stale
 //
 // What it gives you that a flat directory listing can't:
@@ -26,20 +26,19 @@
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
-const DIR = path.join(ROOT, 'field-notes');
+const DIR = path.join(ROOT, 'docs/field-notes');
 const OUT = path.join(DIR, 'FIELD-NOTES.md');
 
 // Files that are NOT journal entries — meta/scaffolding, excluded from the index body.
 const META_FILES = new Set(['FIELD-NOTES.md', 'README.md', 'REVIEW_CHANGES.md', 'standard-header.md']);
 
 // A few notes have odd/auto-generated titles; give them a human label.
-const TITLE_OVERRIDE = {
-  'cart-polish-punchlist.md': 'Checking all carts — the cart-polish punch-list',
-};
+const TITLE_OVERRIDE = {};
 
 // Numbered files that are really living logs / raw material, not journal observations —
-// list them with the working docs so the numbered timeline stays a clean spine.
-const FORCE_WORKING = new Set(['cart-polish-punchlist.md']);
+// list them with the working docs so the numbered timeline stays a clean spine. (Empty
+// now that the cart-polish punch-list graduated to docs/cart-polish-punchlist.md.)
+const FORCE_WORKING = new Set();
 
 // Boilerplate template lines that carry no information — skip them when picking a summary.
 const GENERIC = [

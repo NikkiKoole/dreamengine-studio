@@ -4,7 +4,7 @@ STATUS: DESIGN — ready to pick up (rev. 2026-06-30). Research, a recommendatio
 implementation plan (see "Implementation plan" below); nothing rebuilt yet. The task is
 pulled from **two ends**: the iOS port ([`ios-plan.md`](ios-plan.md) — raw `key()`/`btn()` carts
 have no touch equivalent on a phone) and the cart-polish backlog
-([`../field-notes/cart-polish-punchlist.md`](../field-notes/cart-polish-punchlist.md) — ~18
+([`../cart-polish-punchlist.md`](../cart-polish-punchlist.md) — ~18
 carts ask for an on-screen joystick/d-pad). Companion: [`action-plan.md`](action-plan.md) (Tier 0
 "Touch movement affordance"), `runtime/studio.c` (the current overlay), `runtime/web_shell.html`
 (the web canvas), `runtime/pointer.h` / `ui.h` / `gestures.h` (the input primitives).

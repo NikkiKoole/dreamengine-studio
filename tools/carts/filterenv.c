@@ -271,9 +271,9 @@ void draw(void) {
     //   RIGHT SCOPE — the ACTUAL output via scope_read(), zero-cross-triggered so it mostly
     //         holds still. The real signal — envelope sweep, LFO wobble, beating and all.
     {
-        int gy = 76, gh = 28, mid = gy + gh / 2;
+        int gy = 76, gh = 28, half = gh / 2, mid = gy + half;
         int lw = 148, rx = gx + lw + 8, rw = gw - lw - 8;
-        float limy = (float)(gh / 2 - 2);
+        float limy = (float)(half - 2);
 
         // LEFT — still wave-shape diagram (predicted)
         rectfill(gx, gy, lw, gh, CLR_BROWNISH_BLACK);
@@ -300,7 +300,7 @@ void draw(void) {
             }
             float pk = 0.001f;
             for (int i = 0; i < N; i++) { float v = w[i] < 0 ? -w[i] : w[i]; if (v > pk) pk = v; }
-            float amp = (float)(gh / 2 - 3) / pk;
+            float amp = (float)(half - 3) / pk;
             int px = -1, py = -1;
             for (int i = 0; i < N; i++) {
                 int xx = gx + 1 + i, yy = mid - (int)(clamp(w[i] * amp, -limy, limy));
@@ -322,7 +322,7 @@ void draw(void) {
             int win = 320;                                // ~7ms window (1–2 cycles of a bass note)
             float pk = 0.001f;
             for (int i = 0; i < win; i++) { float v = buf[start + i] < 0 ? -buf[start + i] : buf[start + i]; if (v > pk) pk = v; }
-            float amp = (float)(gh / 2 - 3) / pk;
+            float amp = (float)(half - 3) / pk;
             if (amp > 120.f) amp = 120.f;                 // don't amplify near-silence to full screen
             int px = -1, py = -1, cols = rw - 2;
             for (int x = 0; x < cols; x++) {

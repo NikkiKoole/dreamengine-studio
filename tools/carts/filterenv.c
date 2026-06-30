@@ -13,7 +13,7 @@
   "lineage": "Sibling of pitchenv — the same mod-envelope system pointed at filter cutoff; the canonical tuning rig for the resonant-lowpass sweep (the pluck 'pew').",
   "description": {
     "summary": "A Minimoog/Model-D-style bass rig: TWO detuned saws through the Moog ladder filter, with a FILTER contour, a cutoff LFO, a LOUDNESS ADSR, plus DETUNE + DRIVE + a sub octave for the fat low-end 'humpf'. Each control has its own slider and a live graph.",
-    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Graph 1: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously. Graph 2: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). Graph 3: a STILL wave-shape picture — one frozen cycle of the saw, ROUNDED by the filter (lower CUT) and clipped on one side by the DRIVE (asymmetric). It's a diagram, not a moving scope: drag CUT or DRV and watch the corners round off / the top flatten. DETUNE/DRIVE and the SUB OSC -1 toggle are where the humpf lives.",
+    "detail": "Subtractive-synth fattening, demonstrated. The voice is two sawtooths (instrument_tune detunes the second a few cents → they beat = thick) through FILTER_LADDER (the Moog 4-pole), warmed by instrument_drive in DRIVE_ASYM (even harmonics = round grit). Graph 1: the FILTER cutoff — the one-shot ENV snaps it open on the attack, the LFO wobbles it continuously. Graph 2: the AMP envelope — what decides how LONG you hear the note (low sustain plucks and dies, high sustain rings to note-off, the red line). Graph 3: a STILL wave-shape picture — one frozen cycle of the saw through a resonant filter (CUT rounds the corners, RES adds the resonant ring), clipped on one side by the DRIVE, plus the octave-down SUB when on. It's a diagram, not a moving scope: it redraws only when you change a SHAPE knob (CUT/RES/DRV/SUB). The envelope, LFO and sustain knobs shape the sound over TIME, which a single frozen cycle has no axis for — that's what a live scope shows. DETUNE/DRIVE and the SUB OSC -1 toggle are where the humpf lives.",
     "controls": "A-K play notes - SPACE toggles the auto-arp - SUB OSC button top-right - drag the FILTER / LFO / AMP / VOICE sliders"
   }
 }
@@ -265,9 +265,11 @@ void draw(void) {
     }
 
     // ── strip 3: WAVE SHAPE — one frozen cycle (a STILL picture, not a live scope) ──
-    // a rising saw ROUNDED by the filter (lower CUT = more rounded) and clipped on ONE
-    // side by the drive (DRV, asymmetric). Pure function of CUT + DRV, so it sits still
-    // and only redraws when you drag those two — the wave we keep talking about.
+    // the voice's resting timbre: a saw through a RESONANT filter — CUT rounds the corners,
+    // RES adds the resonant ring/overshoot — clipped on one side by the drive (DRV), plus the
+    // octave-down SUB when it's on. Pure single-cycle math, so it only redraws when you change
+    // those SHAPE knobs. The envelope / LFO / sustain knobs shape the sound over TIME, which a
+    // frozen cycle has no axis for — that's what the live scope (scope_read) would show.
     {
         int gy = 76, gh = 28, mid = gy + gh / 2;
         rectfill(gx, gy, gw, gh, CLR_BROWNISH_BLACK);
@@ -275,18 +277,23 @@ void draw(void) {
         for (int x = gx + 2; x < gx + gw - 2; x += 6) pset(x, mid, CLR_DARK_GREY);   // zero line
 
         float bright = clamp((K[F_CUT].val - 80.f) / (2000.f - 80.f), 0.f, 1.f);
-        float a = 0.05f + bright * 0.55f;                 // one-pole coeff: open filter → sharper (less rounding)
+        float fc = 0.03f + bright * 0.28f;                // SVF cutoff coef — open filter → sharper edges
+        float damp = 1.f - clamp(K[F_RES].val / 15.f, 0.f, 0.8f);   // RES: high → low damping → resonant ring
         float drv = K[V_DRV].val / 100.f, g = 1.f + drv * 6.f, bias = drv * 0.8f;
         int M = (gw - 2) / 2, N = M * 2;                  // two cycles across the panel
         static float w[512];
-        float y = 0.f;
-        for (int c = 0; c < 4; c++)                       // 2 warm-up cycles settle the filter, then keep 2
-            for (int i = 0; i < M; i++) {
-                float saw = 2.f * (i / (float)M) - 1.f;   // rising saw
-                y += a * (saw - y);                       // one-pole lowpass = rounded corners (the filter)
-                float s = tanhf(g * y + bias) - tanhf(bias);   // asymmetric drive = flatten one side
-                if (c >= 2) w[(c - 2) * M + i] = s;
-            }
+        float low = 0.f, band = 0.f, subph = 0.f;
+        for (int k = 0; k < 4 * M; k++) {                 // 2 warm-up cycles settle the filter, then keep 2
+            int c = k / M, i = k % M;
+            float saw = 2.f * (i / (float)M) - 1.f;       // rising saw
+            float in = sub_on ? saw * 0.7f + (2.f * subph - 1.f) * 0.3f : saw;   // + octave-down sub
+            subph += 0.5f / M; if (subph >= 1.f) subph -= 1.f;
+            low  += fc * band;                            // resonant SVF lowpass: rounds corners + RES ring
+            band += fc * (in - low - damp * band);
+            if (low > 3.f) low = 3.f; else if (low < -3.f) low = -3.f;   // stability guard
+            float s = tanhf(g * low + bias) - tanhf(bias);   // asymmetric drive = flatten one side
+            if (c >= 2) w[(c - 2) * M + i] = s;
+        }
         float pk = 0.001f;                                // normalize height so the SHAPE always reads
         for (int i = 0; i < N; i++) { float v = w[i] < 0 ? -w[i] : w[i]; if (v > pk) pk = v; }
         float lim = (float)(gh / 2 - 2), amp = (float)(gh / 2 - 3) / pk;
@@ -298,7 +305,7 @@ void draw(void) {
             px = xx; py = yy;
         }
         font(FONT_SMALL);
-        print("WAVE SHAPE  (CUT rounds - DRV clips a side)", gx + 3, gy + 2, CLR_YELLOW);
+        print("WAVE SHAPE  (CUT/RES filter - DRV drive - SUB)", gx + 3, gy + 2, CLR_YELLOW);
         font(FONT_NORMAL);
     }
 

@@ -129,10 +129,13 @@ console.log(`wrote ${path.relative(ROOT, OUT)} — ${board.length} docs, ${adrs.
 //      ASCII checkboxes, faint CRT scanline. Calm: ready is bright, done recedes. ----
 function CSS() {
   return `
+/* Comic Mono — the editor's own face (served from editor/public at /ComicMono.ttf) */
+@font-face{font-family:'ComicMono';src:url('/ComicMono.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'ComicMono';src:url('/ComicMono-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
 :root{
   --bg:#0c0d11; --panel:#13151b; --ink:#cbd3dc; --bright:#f0f4f8; --dim:#5b6470;
   --green:#00e436; --yellow:#ffec27; --orange:#ffa300; --blue:#29adff; --red:#ff004d; --indigo:#a39bc4;
-  --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --mono:'ComicMono',ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5}

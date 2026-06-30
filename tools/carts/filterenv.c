@@ -1,6 +1,6 @@
 /* de:meta
 {
-  "title": "filter env",
+  "title": "dual env",
   "status": "active",
   "created": "2026-06-03",
   "kind": [
@@ -11,28 +11,42 @@
     "subtractive-synth"
   ],
   "lineage": "Sibling of pitchenv — the same mod-envelope system pointed at filter cutoff; the canonical tuning rig for the resonant-lowpass sweep (the pluck 'pew').",
-  "description": "The pluck \"pew\" — a saw run through a resonant lowpass with a one-shot FILTER envelope (instrument_env + ENV_CUTOFF) that snaps the cutoff open on each note's attack and lets it fall back over the decay. The graph shows the cutoff sweep; drag the five sliders (attack, decay, amount, base cutoff, resonance) and listen. A tuning rig for the new modulation envelopes. A-K play notes, SPACE toggles the auto-arp."
+  "description": {
+    "summary": "A Model-D-style dual-envelope rig: a FILTER contour (instrument_env + ENV_CUTOFF) AND a LOUDNESS contour (the amp ADSR) on one saw voice, each with its own sliders and graph.",
+    "detail": "Two independent envelopes, like a Minimoog. The top graph is the FILTER sweep (cutoff snaps open on the attack, falls over the decay). The bottom graph is the AMP envelope (attack/decay/sustain/release) — what actually decides how LONG you hear the note: drop the sustain and the note plucks and dies inside the gate; raise it and the note rings until note-off (the red line). Drag the nine sliders and listen.",
+    "controls": "A-K play notes - SPACE toggles the auto-arp - drag the FILTER and AMP sliders"
+  }
 }
 de:meta */
 #include "studio.h"
 #include <math.h>
 
-// FILTER ENV — the pluck "pew". A saw run through a resonant lowpass, with a one-shot
-// filter envelope (instrument_env + ENV_CUTOFF) that snaps the cutoff OPEN on every
-// note's attack and lets it fall back over the decay. That sweep is the whole "pew /
-// dwow" of a plucky synth bass. Drag the sliders and listen — this is the tuning rig
-// for the new mod-envelope. A–K play notes, SPACE toggles the auto-arp.
+// DUAL ENV — a Minimoog/Model-D-style two-envelope voice. A saw through a resonant
+// lowpass with TWO independent envelopes:
+//   FILTER contour (instrument_env + ENV_CUTOFF) — snaps the cutoff open on each note's
+//     attack and lets it fall back: the "pew / dwow".
+//   LOUDNESS contour (the amp ADSR in instrument()) — attack/decay/SUSTAIN/release: this
+//     is what decides how LONG you hear the note. Low sustain → it plucks and dies inside
+//     the gate; high sustain → it rings until note-off (the red line in the amp graph).
+// Drag the sliders and listen. A–K play notes, SPACE toggles the auto-arp.
 
 #define SLOT 5
+#define GATE_MS 450               // how long each note is gated (note-on → note-off)
 
 typedef struct { const char *name; float lo, hi, val; } Knob;
-enum { K_ATK, K_DECAY, K_AMOUNT, K_CUTOFF, K_RESO, NK };
+enum { F_ATK, F_DEC, F_AMT, F_CUT, F_RES,   A_ATK, A_DEC, A_SUS, A_REL, NK };
 static Knob K[NK] = {
+    // FILTER contour
     { "ATK",     0.f,  120.f,    0.f },   // filter-env attack (ms) — plucks want ~0
-    { "DECAY",  10.f,  600.f,  140.f },   // filter-env decay (ms) — how fast it closes
-    { "AMOUNT",-3500.f, 3500.f, 1800.f }, // env depth on cutoff (Hz). bipolar: + opens, - closes first
-    { "CUTOFF", 80.f, 2000.f,  320.f },   // base cutoff the env rides on top of (Hz)
-    { "RESO",    0.f,   15.f,    9.f },   // filter resonance — the squelch
+    { "DEC",    10.f,  600.f,  140.f },   // filter-env decay (ms) — how fast the cutoff closes
+    { "AMT",-3500.f, 3500.f, 1800.f },    // env depth on cutoff (Hz). bipolar: + opens, - closes first
+    { "CUT",   80.f, 2000.f,  320.f },    // base cutoff the env rides on top of (Hz)
+    { "RES",    0.f,   15.f,    9.f },    // filter resonance — the squelch
+    // LOUDNESS contour (amp ADSR)
+    { "ATK",    0.f,  400.f,    2.f },    // amp attack (ms)
+    { "DEC",    0.f,  600.f,  180.f },    // amp decay to sustain (ms)
+    { "SUS",    0.f,    7.f,    2.f },    // amp SUSTAIN level (0..7) — THE note-length knob
+    { "REL",    0.f,  800.f,  160.f },    // amp release after note-off (ms)
 };
 
 static int   active = -1;        // slider being dragged, or -1
@@ -41,21 +55,24 @@ static float arp_t = 0.f;
 static int   arp_i = 0;
 static float last_note_t = -9.f;
 
-// slider layout: 5 columns across the lower half
-#define SX 12
-#define SPITCH 60
-#define SW 44
-#define SY 110
-#define SH 56
+// slider layout: two groups (5 filter | 4 amp) in one row
+#define SX 8
+#define SW 26
+#define SP 32
+#define GAP 14
+#define SY 116
+#define SH 42
+
+static int knob_x(int i) { return i < 5 ? SX + i * SP : SX + 5 * SP + GAP + (i - 5) * SP; }
 
 static void apply(void) {
-    instrument(SLOT, INSTR_SAW, 2, 0, 6, 160);                                  // bright, sustains through the gate
-    instrument_filter(SLOT, FILTER_LOW, (int)K[K_CUTOFF].val, (int)K[K_RESO].val);
-    instrument_env(SLOT, 0, ENV_CUTOFF, (int)K[K_ATK].val, (int)K[K_DECAY].val, K[K_AMOUNT].val);
+    instrument(SLOT, INSTR_SAW, (int)K[A_ATK].val, (int)K[A_DEC].val, (int)K[A_SUS].val, (int)K[A_REL].val);
+    instrument_filter(SLOT, FILTER_LOW, (int)K[F_CUT].val, (int)K[F_RES].val);
+    instrument_env(SLOT, 0, ENV_CUTOFF, (int)K[F_ATK].val, (int)K[F_DEC].val, K[F_AMT].val);
 }
 
 static void play(int midi) {
-    hit(midi, SLOT, 5, 450);
+    hit(midi, SLOT, 5, GATE_MS);
     last_note_t = now();
 }
 
@@ -69,7 +86,7 @@ void update(void) {
     if (mouse_pressed(MOUSE_LEFT)) {
         active = -1;
         for (int i = 0; i < NK; i++) {
-            int cx = SX + i * SPITCH;
+            int cx = knob_x(i);
             if (mouse_x() >= cx && mouse_x() < cx + SW && mouse_y() >= SY - 8 && mouse_y() <= SY + SH + 8)
                 active = i;
         }
@@ -94,65 +111,117 @@ void update(void) {
     }
 }
 
-// the cutoff the filter env produces `s` seconds into a note (mirrors sound_ad_env)
+// the cutoff the FILTER env produces `s` seconds into a note (mirrors sound_ad_env, one-shot AD)
 static float env_cutoff_at(float s) {
-    float a = K[K_ATK].val / 1000.f, d = K[K_DECAY].val / 1000.f, lvl;
+    float a = K[F_ATK].val / 1000.f, d = K[F_DEC].val / 1000.f, lvl;
     if (a > 0.f && s < a) lvl = s / a;
     else {
         float sd = s - a;
         lvl = (d <= 0.f || sd >= d) ? 0.f : expf(-4.0f * sd / d);
     }
-    return K[K_CUTOFF].val + lvl * K[K_AMOUNT].val;
+    return K[F_CUT].val + lvl * K[F_AMT].val;
+}
+
+// the AMP loudness 0..1 `s` seconds into a note, gated at GATE_MS (ADSR)
+static float amp_at(float s) {
+    float a = K[A_ATK].val / 1000.f, d = K[A_DEC].val / 1000.f;
+    float sus = K[A_SUS].val / 7.f, r = K[A_REL].val / 1000.f, gate = GATE_MS / 1000.f;
+    float t = s < gate ? s : gate, lvl;            // ADS portion runs only while the key is held
+    if (a > 0.f && t < a)            lvl = t / a;
+    else if (d > 0.f && t < a + d)   lvl = sus + (1.f - sus) * expf(-4.0f * (t - a) / d);
+    else                             lvl = sus;
+    if (s > gate) lvl = (r <= 0.f) ? 0.f : lvl * expf(-4.0f * (s - gate) / r);   // release after note-off
+    return lvl < 0.f ? 0.f : (lvl > 1.f ? 1.f : lvl);
 }
 
 void draw(void) {
     cls(CLR_DARKER_BLUE);
-    print("FILTER ENV", 8, 5, CLR_LIGHT_PEACH);
-    print_right("the pluck \"pew\"", 312, 5, CLR_MAUVE);
+    print("DUAL ENV", 8, 4, CLR_LIGHT_PEACH);
+    print_right("filter + loudness", 312, 4, CLR_MAUVE);
 
-    // envelope graph — cutoff over time
-    int gx = 8, gy = 20, gw = 304, gh = 80;
-    rectfill(gx, gy, gw, gh, CLR_BROWNISH_BLACK);
-    rect(gx, gy, gw, gh, CLR_DARKER_GREY);
+    // shared time axis: cover the whole note — gate + release tail (and at least the filter sweep)
+    float gate = GATE_MS / 1000.f;
+    float win = gate + K[A_REL].val / 1000.f + 0.04f;
+    float fspan = (K[F_ATK].val + K[F_DEC].val) / 1000.f * 1.15f;
+    if (win < fspan) win = fspan;
+    if (win < 0.1f) win = 0.1f;
+    int offx;                                          // note-off x, shared between strips
 
-    float span = (K[K_ATK].val + K[K_DECAY].val) / 1000.f;
-    if (span < 0.05f) span = 0.05f;
-    span *= 1.15f;
+    int gx = 8, gw = 304;
 
-    // vertical range spans the whole sweep — with a negative amount the cutoff dips
-    // BELOW the base, so the range runs base+amount .. base (the engine floors it at 20 Hz)
-    float base = K[K_CUTOFF].val, amt = K[K_AMOUNT].val;
-    float lo_c = base + (amt < 0.f ? amt : 0.f);
-    float hi_c = base + (amt > 0.f ? amt : 0.f);
-    if (lo_c < 20.f) lo_c = 20.f;
-    if (hi_c - lo_c < 50.f) hi_c = lo_c + 50.f;
-    #define CY(c) (gy + gh - 1 - (int)((clamp((c), lo_c, hi_c) - lo_c) / (hi_c - lo_c) * (gh - 2)))
+    // ── strip 1: FILTER cutoff sweep ──────────────────────────────────────────
+    {
+        int gy = 15, gh = 42;
+        rectfill(gx, gy, gw, gh, CLR_BROWNISH_BLACK);
+        rect(gx, gy, gw, gh, CLR_DARKER_GREY);
 
-    // faint base-cutoff line (where the cutoff rests between notes)
-    int by = CY(base);
-    for (int x = gx + 2; x < gx + gw - 2; x += 6) pset(x, by, CLR_DARK_GREY);
+        float base = K[F_CUT].val, amt = K[F_AMT].val;
+        float lo_c = base + (amt < 0.f ? amt : 0.f);
+        float hi_c = base + (amt > 0.f ? amt : 0.f);
+        if (lo_c < 20.f) lo_c = 20.f;
+        if (hi_c - lo_c < 50.f) hi_c = lo_c + 50.f;
+        #define CY(c) (gy + gh - 1 - (int)((clamp((c), lo_c, hi_c) - lo_c) / (hi_c - lo_c) * (gh - 2)))
 
-    // the sweep curve
-    int px = -1, py = -1;
-    for (int x = 0; x < gw; x++) {
-        int yy = CY(env_cutoff_at((x / (float)gw) * span));
-        if (px >= 0) line(px, py, gx + x, yy, amt < 0.f ? CLR_ORANGE : CLR_BLUE);
-        px = gx + x; py = yy;
+        int by = CY(base);                                    // faint base-cutoff rest line
+        for (int x = gx + 2; x < gx + gw - 2; x += 6) pset(x, by, CLR_DARK_GREY);
+
+        int px = -1, py = -1;
+        for (int x = 0; x < gw; x++) {
+            int yy = CY(env_cutoff_at((x / (float)gw) * win));
+            if (px >= 0) line(px, py, gx + x, yy, amt < 0.f ? CLR_ORANGE : CLR_BLUE);
+            px = gx + x; py = yy;
+        }
+        offx = gx + (int)((gate / win) * gw);
+        for (int y = gy + 1; y < gy + gh - 1; y += 4) pset(offx, y, CLR_RED);   // note-off marker
+
+        float since = now() - last_note_t;
+        if (since >= 0.f && since < win)
+            circfill(gx + (int)((since / win) * gw), CY(env_cutoff_at(since)), 2, CLR_YELLOW);
+        #undef CY
+
+        font(FONT_SMALL);
+        print("FILTER cutoff", gx + 3, gy + 2, CLR_BLUE);
+        print(str("%d->%d Hz", (int)base, (int)(base + amt < 20.f ? 20.f : base + amt)), gx + 3, gy + 9, CLR_DARK_GREY);
+        font(FONT_NORMAL);
     }
 
-    // playhead riding the curve since the last note
-    float since = now() - last_note_t;
-    if (since >= 0.f && since < span) {
-        int hx = gx + (int)((since / span) * gw);
-        circfill(hx, CY(env_cutoff_at(since)), 2, CLR_YELLOW);
-    }
-    #undef CY
-    print("cutoff", gx + 3, gy + 2, CLR_DARK_GREY);
-    print(str("%d -> %d Hz", (int)base, (int)(base + amt < 20.f ? 20.f : base + amt)), gx + 3, gy + 10, CLR_DARK_GREY);
+    // ── strip 2: AMP loudness contour (ADSR) ──────────────────────────────────
+    {
+        int gy = 62, gh = 42;
+        rectfill(gx, gy, gw, gh, CLR_BROWNISH_BLACK);
+        rect(gx, gy, gw, gh, CLR_DARKER_GREY);
+        #define AY(l) (gy + gh - 1 - (int)(clamp((l), 0.f, 1.f) * (gh - 2)))
 
-    // sliders
+        int sy = AY(K[A_SUS].val / 7.f);                      // faint sustain-level line
+        for (int x = gx + 2; x < offx; x += 6) pset(x, sy, CLR_DARK_GREY);
+
+        int px = -1, py = -1;
+        for (int x = 0; x < gw; x++) {
+            int yy = AY(amp_at((x / (float)gw) * win));
+            if (px >= 0) line(px, py, gx + x, yy, CLR_LIME_GREEN);
+            px = gx + x; py = yy;
+        }
+        for (int y = gy + 1; y < gy + gh - 1; y += 4) pset(offx, y, CLR_RED);   // note-off marker
+
+        float since = now() - last_note_t;
+        if (since >= 0.f && since < win)
+            circfill(gx + (int)((since / win) * gw), AY(amp_at(since)), 2, CLR_YELLOW);
+        #undef AY
+
+        font(FONT_SMALL);
+        print("AMP loudness", gx + 3, gy + 2, CLR_LIME_GREEN);
+        print("note off", offx + 2 > gx + gw - 36 ? offx - 34 : offx + 2, gy + 2, CLR_RED);
+        font(FONT_NORMAL);
+    }
+
+    // ── sliders: two groups (FILTER | AMP) ────────────────────────────────────
+    font(FONT_SMALL);
+    print("FILTER ENV", knob_x(0) + 1, SY - 9, CLR_BLUE);
+    print("AMP ENV (loudness)", knob_x(5) + 1, SY - 9, CLR_LIME_GREEN);
+    font(FONT_NORMAL);
     for (int i = 0; i < NK; i++) {
-        int cx = SX + i * SPITCH, col = active == i ? CLR_YELLOW : CLR_TRUE_BLUE;
+        int cx = knob_x(i);
+        int col = active == i ? CLR_YELLOW : (i < 5 ? CLR_TRUE_BLUE : CLR_GREEN);
         rect(cx, SY, SW, SH, CLR_DARKER_GREY);
         float t = (K[i].val - K[i].lo) / (K[i].hi - K[i].lo);
         int vy = SY + SH - 1 - (int)(t * (SH - 2));
@@ -166,10 +235,12 @@ void draw(void) {
             int fh = (int)(t * (SH - 2));
             rectfill(cx + 1, SY + SH - 1 - fh, SW - 2, fh, col);
         }
-        print(K[i].name, cx + 2, SY + SH + 3, CLR_LIGHT_GREY);
-        print(str("%d", (int)K[i].val), cx + 2, SY + SH + 11, CLR_WHITE);
+        font(FONT_SMALL);
+        print(K[i].name, cx + 2, SY + SH + 2, CLR_LIGHT_GREY);
+        print(str("%d", (int)K[i].val), cx + 2, SY + SH + 9, CLR_WHITE);
+        font(FONT_NORMAL);
     }
 
-    print(auto_on ? "auto-arp ON" : "auto-arp off", 8, SCREEN_H - 18, auto_on ? CLR_LIME_GREEN : CLR_DARK_GREY);
-    print("drag sliders   A-K play   SPACE arp", 8, SCREEN_H - 9, CLR_LIGHT_GREY);
+    print(auto_on ? "auto-arp ON" : "auto-arp off", 8, SCREEN_H - 9, auto_on ? CLR_LIME_GREEN : CLR_DARK_GREY);
+    print_right("A-K play   SPACE arp", 312, SCREEN_H - 9, CLR_LIGHT_GREY);
 }

@@ -1851,8 +1851,8 @@
     "lineage": "Original API demo for fillp_anchor(); shows the crawling-dither artifact that appears when a 4×4 fill lattice is world-pinned under a moving shape, and how anchoring to the shape's own center fixes it."
   },
   {
-    "title": "filter env",
-    "description": "The pluck \"pew\" — a saw run through a resonant lowpass with a one-shot FILTER envelope (instrument_env + ENV_CUTOFF) that snaps the cutoff open on each note's attack and lets it fall back over the decay. The graph shows the cutoff sweep; drag the five sliders (attack, decay, amount, base cutoff, resonance) and listen. A tuning rig for the new modulation envelopes. A-K play notes, SPACE toggles the auto-arp.",
+    "title": "dual env",
+    "description": "A Model-D-style dual-envelope rig: a FILTER contour (instrument_env + ENV_CUTOFF) AND a LOUDNESS contour (the amp ADSR) on one saw voice, each with its own sliders and graph. Two independent envelopes, like a Minimoog. The top graph is the FILTER sweep (cutoff snaps open on the attack, falls over the decay). The bottom graph is the AMP envelope (attack/decay/sustain/release) — what actually decides how LONG you hear the note: drop the sustain and the note plucks and dies inside the gate; raise it and the note rings until note-off (the red line). Drag the nine sliders and listen. A-K play notes - SPACE toggles the auto-arp - drag the FILTER and AMP sliders",
     "file": "filterenv.cart.png",
     "created": "2026-06-03",
     "kind": [
@@ -5114,6 +5114,19 @@
       "swing-timing"
     ],
     "homage": "Squarepusher (Tom Jenkinson) - bass-virtuoso drill'n'bass"
+  },
+  {
+    "title": "Squishy Lines",
+    "description": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. The ink brush renders that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble. Storing strokes as data is what makes the planned 'boil' mode (re-render with fresh jitter → a living loop) almost free later. v1 is the ink brush + a 2-tone ink-on-paper palette; pencil/fineliner/marker, the bevel tool, and boil come next. Drag to ink. Right-click (or U) undoes the last stroke. C clears.",
+    "file": "squishy.cart.png",
+    "created": "2026-06-30",
+    "orientation": "square",
+    "kind": [
+      "tool"
+    ],
+    "teaches": [
+      "velocity-brush"
+    ]
   },
   {
     "title": "steer (car drift)",

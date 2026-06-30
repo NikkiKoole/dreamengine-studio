@@ -163,9 +163,12 @@ across many carts — handle those **once, systemically**, then sweep:
   "wire the existing virtual gamepad + a key overlay into the iOS shell," not new engine work — and
   it's the gate to **raw `key()` carts (WASD, etc.) becoming playable on the phone**. See
   [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
-- [ ] **"Cute pixel buttons" widget** at larger sizes (24×24 / 32×32) — recurring ask. Decide whether
-  it's a new shared `ui.h` helper or per-cart; the log floats both. Replaces text-label buttons that
-  don't work on mouse/touch across dozens of carts.
+- [ ] **"Cute pixel buttons" retrofit** — replaces text-label buttons that don't work on mouse/touch
+  across dozens of carts. **The widget already exists** — `ui.h`'s `ui_spr_button` /
+  `ui_spr_button_styled` (sprite face + press/capture/hit-pad/focus/selected styling); size is just
+  the `w,h` args (24×24 / 32×32 need no new API). So this is **per-cart retrofit, not a new helper** —
+  copy the worked pattern: **`boom`** (two toolbar rows, icons in `boom.cart.js`) and **`gridcity`**
+  (brush toolbar, icons in `gridcity.cart.js`, `colorkey(0)` for transparency + hover tooltips).
 - [ ] **Drag-interaction capture rule.** Starting a drag on a knob/XY-pad must *keep* that target even
   if the finger slides over another widget (fixed in **dubdesk**; apply to **all** musical carts with
   many knobs/sliders/pads — more-note-bass, etc.). Candidate for a lint or a shared `ui.h` behavior.

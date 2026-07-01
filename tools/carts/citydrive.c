@@ -17,7 +17,7 @@
     "Inner-ring holes (islands in lakes, courtyards) and the hashed other_area understory; >64-vertex footprint clamp (MAXBV)."
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
-  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface with class-based widths, light pavement/kerb bands, dashed lane centre-lines, and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang); separate cycleways render as red Dutch fietspaden, and on-road bike lanes as a red fietsstrook along the carriageway edge. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out)."
+  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface with class-based widths, light pavement/kerb bands, OSM-driven lane markings (N-1 dashed dividers from the real lane count; one-way streets drop the centre-line), and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang); separate cycleways render as red Dutch fietspaden, and on-road bike lanes as a red fietsstrook along the carriageway edge. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out)."
 }
 de:meta */
 #include "studio.h"
@@ -109,7 +109,7 @@ static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local
 static int   nps;
 typedef struct { int start, count; float h, cx, cy; int mat; } DBldg;   // building footprint ring
 static DBldg blds[MAXBLD]; static int nbld;
-static struct { int kind, start, count; signed char deck, surf, sw, cyc; } rways[MAXWAY]; static int nway;  // road lines; deck>0=bridge(layer),<0=tunnel,0=grade; surf/sw/cyc = OSM surface/sidewalk/on-road-cycleway codes (0=none)
+static struct { int kind, start, count; signed char deck, surf, sw, cyc, lanes, oneway; } rways[MAXWAY]; static int nway;  // road lines; deck>0=bridge,<0=tunnel; surf/sw/cyc=surface/sidewalk/on-road-cycleway; lanes/oneway from OSM (0=unknown)
 
 // parse a road's `sub` bridge code (osm-roads.js): "B<layer>" → +layer (bridge), "T..." → -1 (tunnel),
 // else 0 (at grade). s is null-terminated. Layer is a single digit in practice; clamp to [1,3].
@@ -251,6 +251,8 @@ static void store_feature(int kind, int start, int count, float h, const char *s
     rways[nway].surf = (signed char)sub_tok(sub,'U');   // a/p/g/w/o surface (0=unknown)
     rways[nway].sw   = (signed char)sub_tok(sub,'W');   // b/l/r/n sidewalk (0=unknown)
     rways[nway].cyc  = (signed char)sub_tok(sub,'C');   // b/l/r on-road cycle lane (0=none)
+    { char L=sub_tok(sub,'L'); rways[nway].lanes = (L>='1'&&L<='9') ? (signed char)(L-'0') : 0; }  // lane count (0=unknown)
+    rways[nway].oneway = sub_tok(sub,'O') ? 1 : 0;      // one-way street
     nway++;
   } else if (is_area(kind)){
     if (narea >= MAXAREA || count < 3) return;
@@ -551,26 +553,40 @@ static void paint_side_strip(int w, float off, float hw, int col, float r2){
   }
 }
 
-// centre-line lane markings — a dashed white strip down a carriageway's centre. Cheap street-dressing
-// (roadkit.md Phase 2): a 2D ground decal drawn OVER the asphalt, projected by the same adapter. Only
-// roads wide enough to carry a lane division get one; narrow tracks/service alleys stay bare. Dashes
-// run straight across junctions for now (markings don't stop at nodes yet) — a minor artifact the
-// field renderer removes later.
-static void paint_markings(int w, float r2){
-  int st=rways[w].start, ct=rways[w].count;
-  const float DASH=3.0f, MW=0.25f;                          // dash cell (m); marking half-width (m)
-  float s=0;
+// draw one lane line down way w, its centre offset laterally by `off` metres, half-width mw. dash<=0 =
+// solid; else a dashed cell of `dash` metres. A 2D ground decal projected by the same adapter as the roads.
+static void paint_lane_line(int w, float off, float mw, float dash, int col, float r2){
+  int st=rways[w].start, ct=rways[w].count; float s=0;
   for(int i=0;i+1<ct;i++){
     float ax=PX[st+i],ay=PY[st+i],bx=PX[st+i+1],by=PY[st+i+1];
-    float segL=sqrtf((bx-ax)*(bx-ax)+(by-ay)*(by-ay))+1e-4f;
-    if (seg_d2(ax,ay,bx,by,S.camx,S.camy)<=r2)
-      for(float d=0; d<segL; d+=DASH){
-        if (((int)((s+d)/DASH)) & 1){ continue; }           // gap cell → dashed
-        float d1=fminf(d+DASH,segL), t0=d/segL, t1=d1/segL;
-        road_seg(ax+(bx-ax)*t0, ay+(by-ay)*t0, ax+(bx-ax)*t1, ay+(by-ay)*t1, MW, CLR_WHITE);
+    float dx=bx-ax,dy=by-ay,segL=sqrtf(dx*dx+dy*dy)+1e-4f;
+    float nx=-dy/segL, ny=dx/segL;                          // left normal → lateral offset
+    float oax=ax+nx*off, oay=ay+ny*off, obx=bx+nx*off, oby=by+ny*off;
+    if (seg_d2(ax,ay,bx,by,S.camx,S.camy)<=r2){
+      if (dash<=0) road_seg(oax,oay,obx,oby,mw,col);        // solid line
+      else for(float d=0; d<segL; d+=dash){
+        if (((int)((s+d)/dash)) & 1) continue;              // gap cell → dashed
+        float d1=fminf(d+dash,segL), t0=d/segL, t1=d1/segL;
+        road_seg(oax+(obx-oax)*t0, oay+(oby-oay)*t0, oax+(obx-oax)*t1, oay+(oby-oay)*t1, mw, col);
       }
+    }
     s+=segL;
   }
+}
+// lane markings — driven by OSM lanes + oneway. A carriageway spanning [-hw,+hw] with N lanes has N-1
+// interior boundaries; we draw a dashed white line at each. TWO-WAY: the centre boundary divides opposing
+// traffic (drawn solid), the rest are dashed lane dividers. ONE-WAY: no centre-line at all (all dashed
+// dividers), so a one-way street stops wrongly showing a centre stripe. Cheap street-dressing (roadkit.md
+// Phase 2). Dashes run across junctions for now — a minor artifact the field renderer removes later.
+static void paint_markings(int w, float r2){
+  float hw = fmaxf(ROAD[rways[w].kind].hw_m, 1.5f);
+  int oneway = rways[w].oneway, lanes = rways[w].lanes;
+  if (!lanes) lanes = oneway ? 1 : 2;                       // default: 1-lane one-way / 2-lane two-way
+  if (lanes < 2) return;                                    // single lane → no interior lines
+  const float MW=0.20f, DASH=3.0f;
+  float lanew = 2.0f*hw/lanes;
+  for (int b=1; b<lanes; b++)
+    paint_lane_line(w, -hw + b*lanew, MW, DASH, CLR_WHITE, r2);   // dashed line at each lane boundary
 }
 
 // ── junction detection (port of osm-junction.js) — build the at-grade node graph once at load. The

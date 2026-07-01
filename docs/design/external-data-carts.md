@@ -119,9 +119,9 @@ consumer plan in [`roadkit.md`](roadkit.md).
 | `surface` (asphalt/paving_stones/sett/…) | `U a/p/g/w/o` | **264/311** | ✅ citydrive carriageway colour (brick vs asphalt) |
 | `maxspeed` | `M<n>` | 109 | ⏳ captured, not rendered (30-zones) |
 | `sidewalk` both/left/right/none | `W b/l/r/n` | 68 | ✅ citydrive pavement (real, vs class heuristic) |
-| `oneway` | `O` | 62 | ⏳ captured → lane-count markings next |
+| `oneway` | `O` | 62 | ✅ citydrive suppresses the centre-line on one-way streets |
 | `bridge`/`tunnel`/`layer` | `B<L>`/`T<L>` | 32/15 | ✅ citydrive decks + dashed tunnels |
-| `lanes` | `L<n>` | 9 | ⏳ captured → lane-count markings next |
+| `lanes` | `L<n>` | 9 | ✅ citydrive draws N-1 dashed lane dividers (vs one centre-line) |
 | on-road `cycleway=lane` / `cycleway:*` | `C b/l/r` | ~11 | ✅ citydrive red fietsstrook along the carriageway edge (tagged side/s) |
 | `junction=roundabout` | `R` | rare | ⏳ captured (resolves the equal-class voorrang case) |
 

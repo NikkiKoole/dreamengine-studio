@@ -373,6 +373,49 @@ wasm** — BSD sockets plus a seam the debug harness already built. Two Macs
 playing pong over wifi is roughly a week of part-time work from a standing
 start.
 
+### Scenario: a few machines on one wifi, all playing the *wasm* build
+
+A tempting-but-wrong mapping: "they're all on my LAN, so that's rung 2/3 (LAN
+by IP / Open to LAN)." It isn't. **Rungs 1–3 are native-only** — they lean on
+raw UDP + multicast, which **browsers do not have** (§2, "Browsers cannot do
+this"). A wasm tab can't broadcast "here I am" or discover a peer, even on the
+same wifi. So the friendly LAN-discovery magic is off the table the moment the
+clients are browsers.
+
+For an all-wasm LAN, the surprise is that the *easy* environment (one LAN, no
+NAT between machines) and the *hard* client (browser, no UDP) pull opposite
+ways. The fit is a trimmed-down **rung 5** — specifically the **2b WebSocket
+input-relay**, not the full WebRTC path:
+
+| Option | Fit for all-wasm-on-one-LAN | Why |
+|---|---|---|
+| **Rungs 1–3** (UDP/multicast) | ❌ doesn't apply | native-only; browsers have no UDP/multicast |
+| **Stage 2** (datachannel-wasm + signaling + STUN/TURN) | ⚠️ works, but overkill | STUN/TURN exist to punch through NAT *between* peers; on one LAN there's no NAT to punch. You'd pay the whole ICE/signaling apparatus to solve a problem you don't have |
+| **Stage 2b** (WebSocket input-relay) | ✅ **the fit** | run the ~100-line relay on one box on the wifi; every browser opens `ws://<that-box-LAN-IP>:port`; it forwards lockstep `btn()` packets. No STUN, no TURN, no ICE, no signaling dance |
+
+The doc's one knock on 2b — "+1 hop latency vs P2P (~+20–50 ms)" — **evaporates
+on a LAN**, where that hop is sub-millisecond. So the only downside 2b carries
+on the open internet simply isn't present here.
+
+Two things ride along:
+
+1. **Determinism is the *cheap* case, not the scary one.** The clang-arm64 vs
+   emcc-wasm32 float-divergence risk (§4, rung 4) is a *cross-target* problem —
+   native record → wasm replay. If **every** machine runs the **same wasm
+   build**, it's wasm↔wasm, bit-identical by construction — exactly like the
+   "two Macs, same binary" native↔native case that needs zero determinism work.
+   The all-wasm topology dodges the one genuinely hard problem.
+2. **The web build currently compiles the harness out** (`#else // web build:
+   harness is a no-op`, rung 4). The lockstep input plumbing — the `inp_*()`
+   indirection seam — is stubbed under emcc today, so *enabling* it for the web
+   target is real work regardless of transport. This is the actual gating task
+   for an all-wasm setup, not NAT/determinism.
+
+Bottom line: a tiny WebSocket input-relay on one wifi box, browsers dialing its
+LAN IP, forwarding lockstep inputs. It sidesteps NAT traversal (none exists),
+sidesteps cross-compiler determinism (all same wasm), and the latency cost the
+plan holds against it doesn't apply on a LAN.
+
 ---
 
 ## Sources

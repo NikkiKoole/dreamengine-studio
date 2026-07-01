@@ -110,6 +110,10 @@ Two different problems wearing one name:
   standalone, no browser chrome. Each cart becomes its own app icon — the tr-808
   as a home-screen app is very much the spirit of the thing.
 
+Open question noted 2026-07-02, see [`window-fill-scaling.md`](window-fill-scaling.md): this ⛶
+button is per-cart-page only — whether the *gallery* list page (`build-site.js`'s `site/index.html`)
+wants its own fullscreen affordance hasn't been looked at.
+
 Deliberately NOT done: device-resolution rendering. `SCREEN_W/H` are
 compile-time constants carts do math against; native-res would break cart
 determinism and the fantasy-console aesthetic for marginal sharpness. The open
@@ -126,18 +130,18 @@ Cheap and safe, because the canvas stays a fixed-res `RenderTexture2D` and *only
 the blit rectangle changes*; the cart never knows. This is the `fit` policy (§4)
 plus, on native, a **resizable window**:
 
-- Today the native window is created fixed-size (`InitWindow(SCREEN_W*SCALE,
-  SCREEN_H*SCALE)`, `studio.c:1385`), no `FLAG_WINDOW_RESIZABLE`, and the
-  scale-up blit hardcodes `SCREEN_W*SCALE × SCREEN_H*SCALE` (`studio.c:1182`–`:1189`).
-- To make it resizable: set the flag, then each frame compute the dest rect from
-  the *live* window size (`GetScreenWidth/Height`) with the chosen `fit` policy
-  (letterbox / integer / stretch) instead of the compile-time constant. ~15 lines,
-  and it shares its math with the web `fit` work — same three policies, one place.
-- The shake offset (`sox/soy`, `:1177`) and the touch/mouse → canvas mapping must
-  read the live scale, not `SCALE`, once the blit is dynamic.
+- **SHIPPED 2026-07-01, opt-in only:** `DE_RESIZABLE=1` sets `FLAG_WINDOW_RESIZABLE` before
+  `InitWindow` (a dev/preview env var, off by default — see [`touch-controls.md`](touch-controls.md)'s RAILS work).
+  The blit dest rect already reads the live window size every frame via `gr_place()`/`game_rect`
+  (built for touch-controls' DECK/RAILS/OVERLAY placement, not for this), so resizing "just works"
+  for placement — but the *scale* it picks is always the largest INTEGER multiple, never a
+  fractional fill of the extra space. That gap — and why it matters far more once this lands on
+  web/iOS than it does for desktop dev-preview — is its own doc now:
+  [`window-fill-scaling.md`](window-fill-scaling.md).
 - **Web is already display-responsive**: CSS `max-width/height: 100%` + flex-center
   letterboxes to the viewport and rescales touch coords through it
-  (`web_shell.html`). `fit` just swaps that CSS per build.
+  (`web_shell.html`). `fit` just swaps that CSS per build — same integer-vs-fractional question
+  as the native case, per `window-fill-scaling.md`.
 
 **(b) Layout-responsive — the cart reflows to the real size, like a web app.**
 This needs `SCREEN_W/H` to become **runtime variables**, which breaks the
@@ -146,6 +150,13 @@ do arithmetic against fixed dims). **Recommendation: do not make this global.** 
 most it's an opt-in capability for a narrow class (UI tools, dashboards, radios that
 want to fill the screen) — and even then it's a real project, not a setting. Keep it
 behind the same wall §4b already drew for device-resolution rendering.
+
+**The maker's call (2026-07-02, see `window-fill-scaling.md`):** for iOS and the product being
+built to sell, (b) is the likely better route over pursuing (a)'s fractional-fill further — a
+reflowed layout reads as a real app; a scaled-up fixed canvas reads as a scaled-up fixed canvas,
+however crisp. Doesn't retire (a) (a game viewport still needs to fit itself into whatever the
+reflow gives it), but it does mean `responsive-layout.md`'s graduation path is probably the
+higher-value thread to pull on next, not a `gr_place()` fractional-scale extension.
 
 **What that opt-in mode's API would look like — [`responsive-layout.md`](responsive-layout.md).**
 Rather than guess, that doc picks a **four-primitive layout set** (flex / fluid

@@ -458,7 +458,12 @@ metadata; the runtime can still call `touch_layout()` for carts that change sche
   an iOS fullscreen screen — gets dead black space beyond the letterbox band, not a bigger game.
   Not this doc's problem to fix (it's the reason that dead space is routed to a band at all, not a
   bug in the routing), but the two ideas share the same leftover-space budget and need to be
-  reconciled together eventually.
+  reconciled together eventually. **The maker's call (2026-07-02):** the more likely resolution
+  isn't a fractional `gr_place()` scale at all but [`responsive-layout.md`](responsive-layout.md)'s
+  reflow approach (for iOS/the sellable product) — if a cart's whole layout reflows to the real
+  screen size, DECK/RAILS/OVERLAY stop being the only way controls get real estate; touch
+  placement may end up as one more `lay_*` cell rather than a `gr_place()` band. Not designed,
+  just flagged so this doc's future reader doesn't assume `gr_place()` is the only lever.
 
 ## Layout vocabulary (the named schemes)
 

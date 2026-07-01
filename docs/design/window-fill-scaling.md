@@ -77,6 +77,26 @@ Sketch (not designed — the actual mechanism needs real thought, not just this 
   blit at ~line 1968, `scale_shader`/`SCALE_FILTER`), possibly a new `gr_fill_scale()` alongside
   `gr_place()` rather than overloading `gr_place()` itself.
 
+## The other fork: reflow the content instead of scaling the canvas
+
+Everything above is "(a) Display-responsive" in [`mobile-web-notes.md`](mobile-web-notes.md) §4c's
+framing — `SCREEN_W/H` stay fixed, only the *blit* changes. The doc's other half, "(b)
+Layout-responsive," is a genuinely different answer to the same underlying problem: the cart's
+`SCREEN_W/H` become **runtime variables** and the cart itself **reflows** each frame — like a real
+app, not a scaled poster. [`responsive-layout.md`](responsive-layout.md) is the toolkit for that
+(four layout primitives — `flex`/`fluid`/`anchor+inset`/`aspect`), already prototyped risk-free
+against a fake screen in `tools/carts/respond.c` (drag the corner, watch it reflow).
+
+**The maker's call (2026-07-02):** for iOS and the product being built to sell, (b) — reflow, via
+`respond.c`'s approach — is the likely better route than fractional display-scaling. A native app
+window is never a clean multiple of the console's fixed resolution, and a *reflowed* UI reads as a
+real app in a way a scaled-up poster doesn't, however crisp the scaling. This doesn't retire the
+fractional-fill idea above (a game viewport *inside* a reflowed layout still wants to fit itself
+into whatever cell it lands in — that's `lay_aspect()`, and it's the same "fit a fixed-aspect thing
+into a container" math either way) — but it does mean **`responsive-layout.md`'s graduation path
+(cart-land prototype → `runtime/lay.h` → opt-in runtime `SCREEN_W/H`) is probably the higher-value
+thread to pull on next**, not the `gr_place()` fractional-scale sketch above.
+
 ## Where this matters most (not just desktop dev-preview)
 
 - **Desktop resizable window** (`DE_RESIZABLE=1`, new 2026-07-01 dev/preview flag) — easiest to
@@ -86,6 +106,15 @@ Sketch (not designed — the actual mechanism needs real thought, not just this 
 - **iOS fullscreen** ([`ios-plan.md`](ios-plan.md) Phase 4/5, not wired yet) — a phone screen essentially *never*
   matches `SCREEN_W*k × SCREEN_H*k` exactly, so once iOS lands, this gap stops being a resize
   curiosity and becomes the normal, permanent state of the screen.
+- **The web gallery/viewer** (`tools/build-site.js`'s `site/index.html` + per-cart page) — noted
+  2026-07-02 as another surface worth a look. The per-cart player already has a fullscreen toggle,
+  **SHIPPED** per [`mobile-web-notes.md`](mobile-web-notes.md) §4b (⛶ button, desktop/Android/iPad
+  — no Fullscreen API on iPhone Safari, so it's Add-to-Home-Screen there instead). Not checked yet:
+  whether the *gallery* page itself (the list you land on before picking a cart) wants its own
+  fullscreen affordance, or whether this is purely about the existing per-cart button's
+  visibility/discoverability. Whichever surface it turns out to be, it's the same family of
+  question as this whole doc — how much of the available screen a cart actually gets to use — so
+  it belongs in this cluster, not a separate one.
 
 ## Demo path, once someone picks this up
 
@@ -100,7 +129,13 @@ kernels — same cart, same magnifier trick, one more comparison row.
   this would extend, and the reason the fractional step was dropped in the first place.
 - [`pixel-perfect-scaling.md`](pixel-perfect-scaling.md) — the rendering-quality half (shipped);
   read this first for *why* a non-integer scale doesn't have to mean blurry.
+- [`responsive-layout.md`](responsive-layout.md) — the *other* fork (reflow, not scale); per the
+  maker's 2026-07-02 call above, probably the one to actually pursue for iOS/the sellable product.
+- [`mobile-web-notes.md`](mobile-web-notes.md) §4c — the umbrella doc that first named the (a)
+  display-scale vs (b) layout-reflow split both this doc and `responsive-layout.md` sit inside.
 - `tools/carts/pixelperfect.c` — the filter-comparison demo; would host the eventual side-by-side.
+- `tools/carts/respond.c` — the reflow-layout prototype (drag the corner, `responsive-layout.md`'s
+  four `lay_*` primitives against a fake screen).
 - `~/Projects/love/vector-sketch/experiments/pixelperfect/main.lua` — the original two-stage LÖVE
   sketch (personal machine, not in this repo) whose step 2 (`lessPerfectScale`) is the missing
   piece described above.

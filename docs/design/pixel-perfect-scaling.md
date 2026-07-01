@@ -34,7 +34,7 @@ a GLSL-100 + derivatives port is the open follow-up.
 modes 2/3 are currently idle there — see [`window-fill-scaling.md`](window-fill-scaling.md). The
 original LÖVE sketch this doc is based on (quoted above) has a second, fractional scale step
 (`lessPerfectScale`) that stretches the crisp intermediate to fill the *actual* window; that step
-never got ported — `runtime/game_rect.h`'s `gr_place()` (built later, for touch-controls) always
+never got ported — `runtime/game_rect.h`'s `gr_place()` (built later, for [`touch-controls.md`](touch-controls.md)) always
 picks an integer scale for the present blit, so there's no fractional remainder left for this
 shader to smooth. Not a flaw in this doc's design — the two ideas just want the same leftover
 space and were never reconciled.

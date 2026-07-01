@@ -3,6 +3,17 @@
 *Status: brainstorm / prototype. Researched 2026-06-11. Companion prototype:
 `tools/carts/respond.c` (the "drag the corner" demo).*
 
+**The maker's call (2026-07-02):** for iOS and the product being built to sell, this — reflow, not
+just display-scale — is the likely better route. See
+[`window-fill-scaling.md`](window-fill-scaling.md) for the sibling idea this was weighed against
+(keep `SCREEN_W/H` fixed, fill the window with a fractional scale instead) and why reflow wins for
+a real app: a native window is never a clean multiple of a fixed console resolution, and a
+genuinely reflowed UI reads as an app rather than a scaled poster, however crisp the scaling gets.
+That doc's fractional-fill idea isn't dead — a game viewport *inside* a reflowed layout still needs
+`lay_aspect()` to fit itself into whatever cell it lands in — but graduating **this** doc's toolkit
+(cart-land prototype → `runtime/lay.h` → opt-in runtime `SCREEN_W/H`) is probably the higher-value
+thread to pull on next.
+
 ## The question
 
 If we picked a few **modern-CSS** ideas to make responsive layout *possible* in

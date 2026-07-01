@@ -284,6 +284,16 @@ once v1 lands (not committed):
     would unlock it (same persistent-buffer refactor flood-fill + the boil cache want).
   - **Perf note:** the coverage raster + clear is O(bbox area) per drip stroke per frame — fine for a
     few, but it's another customer for the layer-buffer cache in the boil-perf todo.
+- **Calligraphy nib (shipped, 2026-07-01).** A `K_NIB` "nib" brush — the first brush where width
+  comes from **angle, not speed**. A flat broad edge is held at a fixed `nib_angle` (captured per
+  stroke, default 45° italic); `render_nib` lays a ribbon of nib-wide quads (`trifill` ×2) between
+  consecutive points plus the nib edge (`line`) at each vertex to close joints. Width perpendicular to
+  motion = `nibW·|sin(nib − travel)|` — a hairline when you move along the nib, full width across it —
+  so loops/curves get the classic broad-nib thick/thins for free from the geometry (no `sin` needed,
+  the quads do it). No speed taper. `[` / `]` rotate the nib angle (the default, or a picked stroke's
+  in select mode); the cursor previews the nib edge live so you can see the angle. Still pure
+  `f(path, seed)`. Next: a per-stroke angle slider in the select property strip; a pressure/gap that
+  lifts the nib for split strokes.
 - **Flood-fill (still wanted)** — the *raster* other half: flood a bounded region, lay a dither/ramp
   in it. This one genuinely needs the **persistent layer buffer** (flood-fill is a raster op; the cart
   re-renders from data each frame and `pget` reads *last* frame). Do it *with* the layer-buffer

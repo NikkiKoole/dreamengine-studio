@@ -11,8 +11,8 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light is a GLOBAL 'sun' — rotate its direction with , and . and cycle its colour with / (warm peach → golden → neutral → cool moon); every beveled stroke (and the oil-paint rim) relights together, so you can sweep and recolour the sun across the whole drawing — or hit \\ to auto-rotate it (a slowly circling light that keeps every bevel alive); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
-    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/oil), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun), / cycles the sun's colour, \\ auto-rotates the sun."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light is a GLOBAL 'sun' set from an on-screen SUN popover (drag the dial to aim it, tap one of four colours warm peach → golden → neutral → cool moon, toggle auto-spin) or from the keyboard (, and . rotate, / recolours, \\ auto-rotates); every beveled stroke (and the oil-paint rim) relights together, so you sweep and recolour the sun across the whole drawing; BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
+    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/oil), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, a SUN button (opens a light-dial + colour + spin popover), an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun), / cycles the sun's colour, \\ auto-rotates the sun."
   },
   "todo": [
     "Polish the ink/chalk tool-icon glyphs — still read a bit muddy at 16px (sprite-draw.js in squishy.cart.js). Sketch now reads since black is keyed out (colorkey).",
@@ -174,6 +174,7 @@ static float    bevel_angle = 225.0f;// GLOBAL bevel light direction (deg, the "
                                      // Shared by every beveled stroke so rotating it relights the scene.
 static int      light_sel = 0;       // GLOBAL sun COLOUR (index into LIGHTS); / cycles it (warm..cool)
 static int      sun_spin = 0;        // auto-rotate the bevel sun? (\ toggles) — a slowly circling light
+static int      sun_open = 0;        // the sun-control popover open? (a bar button opens it)
 #define SUN_SPIN_SPEED 0.8f          // degrees the sun advances per frame when spinning (~7.5s / turn)
 static int      cursor_panel = -1;   // tracks which cursor is shown (hand on bar / ring on canvas)
 static int      tool = 0;            // selected brush
@@ -564,6 +565,17 @@ static int pick_stroke(float px, float py) {
 #define DD_PANEL_W (DD_COLS * DD_ITEM_W)
 #define DD_PANEL_H (DD_ROWS * DD_ITEM)
 
+// the sun-control popover: a draggable light dial + the sun-colour swatches + a spin toggle
+#define SUN_BTN_X 155                      // the bar button that opens it
+#define SUN_PX  92                         // popover top-left
+#define SUN_PY  PANEL_H
+#define SUN_PW  116
+#define SUN_PH  60
+#define SUN_DCX (SUN_PX + 30)              // dial centre
+#define SUN_DCY (SUN_PY + 30)
+#define SUN_DR  22                         // dial radius
+#define RAD2DEG 57.29578f
+
 // ink-on-paper tool buttons: paper bg so dark glyphs read; red frame = selected.
 // fields: { bg, bg_sel, frame, frame_hot, frame_sel, halo_sel }
 static const UiSprStyle TOOLBTN = { PAPER, CLR_LIGHT_PEACH, CLR_LIGHT_GREY, INK, ACCENT, -1 };
@@ -584,71 +596,77 @@ static void draw_panel(void) {
     rectfill(0, 0, SCREEN_W, PANEL_H, PAPER);
     line(0, PANEL_H - 1, SCREEN_W, PANEL_H - 1, INK);
     ui_begin();
-    // brush dropdown header
+    // brush dropdown header (the icon identifies the tool; when editing, an ACCENT ring flags it)
     if (ui_spr_button_styled(tool, DD_X, 2, DD_W, 20, dd_open, TOOLBTN)) dd_open = !dd_open;
-    font(FONT_SMALL); print(editing ? "edit" : TOOL_DISP[tool], 26, 9, INK);   // small font for the whole bar
+    if (editing) rect(DD_X - 1, 1, DD_W + 2, 22, ACCENT);
+    font(FONT_SMALL);   // small font for the whole bar
 
     // thickness — edits the selection's thickness, else the new-stroke default
     if (sel) {
         static float t; t = (sel->thick - 0.4f) / 1.6f;
-        if (ui_slider(&t, 56, 4, 38, "thk")) sel->thick = 0.4f + t * 1.6f;
-    } else ui_slider(&thick01, 56, 4, 38, "thk");
-    rect(56, 5, 38, 6, CLR_LIGHT_GREY);   // outline the track (white-on-white otherwise)
+        if (ui_slider(&t, 26, 4, 34, "thk")) sel->thick = 0.4f + t * 1.6f;
+    } else ui_slider(&thick01, 26, 4, 34, "thk");
+    rect(26, 5, 34, 6, CLR_LIGHT_GREY);   // outline the track (white-on-white otherwise)
 
     // bevel toggle
     int bev_on = sel ? (sel->bevel > 0) : bevel;
-    if (ui_button(96, 3, 16, 16, "bvl")) { if (sel) sel->bevel = sel->bevel > 0 ? 0 : BEVEL_OFF; else bevel = !bevel; }
-    if (bev_on) rectfill(96, 19, 16, 2, ACCENT);
+    if (ui_button(62, 3, 15, 16, "bvl")) { if (sel) sel->bevel = sel->bevel > 0 ? 0 : BEVEL_OFF; else bevel = !bevel; }
+    if (bev_on) rectfill(62, 19, 15, 2, ACCENT);
 
     // boil — cycles off → wobble → pulse (the style); the label shows which
     int bstate = sel ? (sel->boil <= 0 ? 0 : sel->boil_style + 1)
                      : (boil == 0 ? 0 : boil_style + 1);
-    if (ui_button(114, 3, 22, 16, bstate == 0 ? "boil" : bstate == 1 ? "wobl" : "puls")) {
+    if (ui_button(79, 3, 22, 16, bstate == 0 ? "boil" : bstate == 1 ? "wobl" : "puls")) {
         int ns = (bstate + 1) % 3;
         if (sel) { if (ns == 0) sel->boil = 0; else { if (sel->boil <= 0) sel->boil = 1.0f; sel->boil_style = ns - 1; } }
         else     { if (ns == 0) boil = 0;      else { boil = 1; boil_style = ns - 1; } }
     }
-    if (bstate) rectfill(114, 19, 22, 2, ACCENT);
+    if (bstate) rectfill(79, 19, 22, 2, ACCENT);
 
-    if (ui_button(138, 3, 22, 16, "undo")) do_undo();
+    if (ui_button(103, 3, 20, 16, "undo")) do_undo();
 
-    // ---- outline toggle + its own colour chip: a fatter silhouette in outline_color under the
-    // fill (the bubble-letter rim). The chip cycles the 7 pens; the toggle wears the on-state tab.
+    // ---- outline toggle + its own colour chip (bubble-letter rim in outline_color under the fill)
     int out_on = sel ? (sel->outline > 0) : outline;
-    if (ui_button(162, 3, 15, 16, "out")) { if (sel) sel->outline = sel->outline > 0 ? 0 : OUTLINE_PX; else outline = !outline; }
-    if (out_on) rectfill(162, 19, 15, 2, ACCENT);
+    if (ui_button(125, 3, 15, 16, "out")) { if (sel) sel->outline = sel->outline > 0 ? 0 : OUTLINE_PX; else outline = !outline; }
+    if (out_on) rectfill(125, 19, 15, 2, ACCENT);
     int oci = sel ? color_index(sel->outline_color) : outsel;
-    if (ui_button(179, 3, 10, 16, 0)) { int ni = (oci + 1) % NCOLORS; if (sel) sel->outline_color = COLORS[ni]; else outsel = ni; }
-    rectfill(179, 3, 10, 16, COLORS[oci]);   // outline-colour chip drawn as a RING (reads as "outline",
-    rectfill(181, 5, 6, 12, PAPER);          // not another fill swatch); click cycles the colour
-    rect(179, 3, 10, 16, INK);
+    if (ui_button(142, 3, 10, 16, 0)) { int ni = (oci + 1) % NCOLORS; if (sel) sel->outline_color = COLORS[ni]; else outsel = ni; }
+    rectfill(142, 3, 10, 16, COLORS[oci]);   // outline-colour chip drawn as a RING (reads as "outline",
+    rectfill(144, 5, 6, 12, PAPER);          // not another fill swatch); click cycles the colour
+    rect(142, 3, 10, 16, INK);
+
+    // ---- SUN button: opens the light popover (dial + colour + spin). Glyph shows the live sun colour.
+    if (ui_button(SUN_BTN_X, 3, 16, 16, 0)) { sun_open = !sun_open; dd_open = 0; }
+    circfill(SUN_BTN_X + 8, 11, 3, LIGHTS[light_sel]); circ(SUN_BTN_X + 8, 11, 3, INK);
+    for (int a = 0; a < 360; a += 45)
+        pset(SUN_BTN_X + 8 + (int)(cos_deg(a) * 6), 11 + (int)(sin_deg(a) * 6), INK);   // rays
+    if (sun_open || sun_spin) rectfill(SUN_BTN_X, 19, 16, 2, ACCENT);
 
     // ---- colour palette (fill): all 7 swatches visible; the active one wears an ACCENT tab
-    // (matches the bvl/boil on-state bar). Edits the selection's colour, else the default.
     int ci = sel ? color_index(sel->color) : colsel;
     for (int i = 0; i < NCOLORS; i++) {
-        int x = 192 + i * 8;
-        if (ui_button(x, 3, 8, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
-        rectfill(x, 3, 8, 16, COLORS[i]);   // overdraw the button with the real colour
-        rect(x, 3, 8, 16, INK);
-        if (i == ci) rectfill(x, 19, 8, 2, ACCENT);
+        int x = 175 + i * 9;
+        if (ui_button(x, 3, 9, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
+        rectfill(x, 3, 9, 16, COLORS[i]);   // overdraw the button with the real colour
+        rect(x, 3, 9, 16, INK);
+        if (i == ci) rectfill(x, 19, 9, 2, ACCENT);
     }
 
     // ---- dither patterns: all 6 visible, each showing its real fill; active wears the tab
     int pat = sel ? sel->pattern : patsel;
     for (int i = 0; i < NPATTERNS; i++) {
-        int x = 250 + i * 8;
-        if (ui_button(x, 3, 8, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
-        fillp(PATTERNS[i], PAPER); rectfill(x, 3, 8, 16, INK); fillp_reset();
-        rect(x, 3, 8, 16, INK);
-        if (i == pat) rectfill(x, 19, 8, 2, ACCENT);
+        int x = 240 + i * 9;
+        if (ui_button(x, 3, 9, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
+        fillp(PATTERNS[i], PAPER); rectfill(x, 3, 9, 16, INK); fillp_reset();
+        rect(x, 3, 9, 16, INK);
+        if (i == pat) rectfill(x, 19, 9, 2, ACCENT);
     }
 
     // ---- SELECT toggle: a white marquee box on a black button (turns ACCENT when on)
-    if (ui_button(300, 3, 16, 16, 0)) selmode = !selmode;
-    rectfill(300, 3, 16, 16, INK);
-    dashed_rect(302, 6, 12, 10, selmode ? ACCENT : PAPER);
-    if (selmode) rectfill(300, 19, 16, 2, ACCENT);
+    if (ui_button(296, 3, 18, 16, 0)) selmode = !selmode;
+    rectfill(296, 3, 18, 16, INK);
+    dashed_rect(298, 6, 12, 10, selmode ? ACCENT : PAPER);
+    if (selmode) rectfill(296, 19, 18, 2, ACCENT);
 
     // contextual property strip: bevel SIZE + boil + OUTLINE width sliders + z-order, for the selection
     if (editing) {
@@ -682,6 +700,29 @@ static void draw_panel(void) {
             print(TOOL_DISP[i], x + 20, y + (DD_ITEM - 6) / 2, INK);  // its name alongside
         }
     }
+    // the sun-control popover: a light dial you drag, the 4 sun colours, and a spin toggle
+    if (sun_open) {
+        rectfill(SUN_PX, SUN_PY, SUN_PW, SUN_PH, PAPER);
+        rect(SUN_PX, SUN_PY, SUN_PW, SUN_PH, INK);
+        // the dial — drag anywhere inside it to aim the light; the sun dot sits in that direction
+        circ(SUN_DCX, SUN_DCY, SUN_DR, CLR_LIGHT_GREY);
+        float mdx = mouse_x() - SUN_DCX, mdy = mouse_y() - SUN_DCY;
+        if (mouse_down(MOUSE_LEFT) && mdx*mdx + mdy*mdy <= (SUN_DR+4)*(SUN_DR+4))
+            bevel_angle = atan2f(mdy, mdx) * RAD2DEG;
+        int sx = SUN_DCX + (int)(cos_deg(bevel_angle) * (SUN_DR - 3));
+        int sy = SUN_DCY + (int)(sin_deg(bevel_angle) * (SUN_DR - 3));
+        line(SUN_DCX, SUN_DCY, sx, sy, CLR_LIGHT_GREY);          // ray to the sun
+        circfill(sx, sy, 3, LIGHTS[light_sel]); circ(sx, sy, 3, INK);   // the sun (in its colour)
+        // the 4 sun colours (2×2), active one ringed; then a spin toggle
+        for (int i = 0; i < NLIGHTS; i++) {
+            int x = SUN_PX + 60 + (i % 2) * 14, y = SUN_PY + 6 + (i / 2) * 14;
+            if (ui_button(x, y, 12, 12, 0)) light_sel = i;
+            rectfill(x, y, 12, 12, LIGHTS[i]); rect(x, y, 12, 12, i == light_sel ? ACCENT : INK);
+        }
+        if (ui_button(SUN_PX + 60, SUN_PY + 36, 40, 16, sun_spin ? "spin*" : "spin")) sun_spin = !sun_spin;
+        if (sun_spin) rect(SUN_PX + 60, SUN_PY + 36, 40, 16, ACCENT);
+    }
+
     font(FONT_NORMAL);   // restore (the whole bar drew in FONT_SMALL)
     ui_end();
 }
@@ -714,6 +755,15 @@ void update(void) {
             if (my >= PANEL_H && !in_list) dd_open = 0;     // tap-away dismiss
         }
         return;                                             // no drawing while open
+    }
+    // sun popover is modal too: the dial drag / swatches / spin are driven in draw_panel;
+    // here we just block canvas drawing and dismiss on a tap outside the popover.
+    if (sun_open) {
+        if (mouse_pressed(MOUSE_LEFT)) {
+            int in_pop = mx >= SUN_PX && mx < SUN_PX + SUN_PW && my >= SUN_PY && my < SUN_PY + SUN_PH;
+            if (my >= PANEL_H && !in_pop) sun_open = 0;      // tap-away dismiss
+        }
+        return;
     }
 
     if (keyp('S')) selmode = !selmode;   // S toggles SELECT mode (also a bar button)

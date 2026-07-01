@@ -320,7 +320,10 @@ once v1 lands (not committed):
   **Sun colour** (shipped 2026-07-01): the lit-rim tint is a second global (`light_sel` → `LIGHTS[]`:
   warm peach → golden → neutral white → cool grey "moon"), cycled with `/`. Also global + live, so it
   recolours every bevel/oil rim at once. Shadow stays black. Default peach = the old fixed HILITE.
-  Maybe an auto-rotate toggle next (a slowly circling sun).
+  **Auto-rotate** (shipped 2026-07-01): `\` toggles `sun_spin`; when on, `update()` advances
+  `bevel_angle` by `SUN_SPIN_SPEED` (0.8°/frame, ~7.5s/turn) every frame in any mode, so the light
+  slowly circles and every bevel/oil rim shimmers on its own — a cheap living-scene effect, purely a
+  render-time read (no per-stroke state). The `boil` loop already lives; now the *lighting* can too.
 - **Flood-fill (still wanted)** — the *raster* other half: flood a bounded region, lay a dither/ramp
   in it. This one genuinely needs the **persistent layer buffer** (flood-fill is a raster op; the cart
   re-renders from data each frame and `pget` reads *last* frame). Do it *with* the layer-buffer

@@ -682,15 +682,17 @@ touches.
 - [x] **P3** control sizing scales to fit a tight deck/rail band — `ctrl_scale` (floored/ceilinged), `eff_stick_r()`/`eff_btn_r()` used everywhere so hit-test and draw stay in sync. Verified via `DE_WINDOW` (forces a phone-shaped window so DECK/RAILS trigger) that a shrunk button's tap radius shrinks with its visual, and a huge band clamps to 1.0 rather than growing unbounded.
 - [x] **debug introspection** — `touch_layout_mode()` / `touch_ctrl_scale()` / `touch_debug(bool)` (band + grab-zone outlines, placement/scale text), for eyeballing placement work without guessing. Backs the permanent `dpaddemo` test-bench cart.
 - [x] **P3** N action buttons (0-4: A/B/X/Y, diamond-laid) — required first adding `BTN_X`/`BTN_Y` to the CORE input vocabulary (not just touch — `btn()`/`btnp()`/`btnr()`, keyboard defaults, the editor's remap panel), since only A/B existed before. Verified headless: all 4 diamond positions hit exclusively; unused slots (e.g. `n_buttons=2`) correctly fire nothing even when tapped.
-- [ ] **P3** prototype `columns`/`puyo` (d-pad) and a free-move cart (analog) — also the reference-image source for "Layout vocabulary"
+- [x] **P3** real-cart d-pad + analog validation — rather than new throwaway prototype carts, wired `touch_layout()` into three *existing* carts that already had a `de:meta.todo` request for exactly this: `columns` (`TOUCH_DPAD4`, 1 button — left/right slide, up cycles, down soft-drops), `puyo` (`TOUCH_DPAD4`, 1 button — same shape, rotate instead of cycle), `08-catchstar` (`TOUCH_ANALOG`, 0 buttons — free 8-way move, no action needed). Each cart's fulfilled todo removed. Verified: all three build and run 180 frames headless with no error; the underlying dpad/button mechanics were already exhaustively proven in isolation (see the entries above), so this validated the *integration* (does `touch_layout()` wired into a real cart's `init()` actually work end-to-end), not the primitives again.
+- [ ] **P3** a dedicated vocabulary-row REFERENCE cart (bakes one image per named scheme, deck/rails/overlay) — still open; `columns`/`puyo`/`08-catchstar` above are real gameplay validation, not the reference-image source itself. `touchpad` (the pixel-art mockup) is the closest existing thing but predates the real API.
 - [ ] **P4b** editor settings rework — cart-reflective readout (reads the cart's declared layout) + force-show-on-desktop override (see "The editor setting" section)
 - [ ] **P4** wire `de_key_event` in the iOS shell for `key()` carts
 
 ### First move (updated 2026-07-01 — everything below "Checklist" is now open, not this)
 
-Build the vocabulary prototype cart(s) — `columns`/`puyo`-style for d-pad, a free-move cart for
-analog — now that N buttons (needed for `d-pad8 + N`) is shipped. Doubles as the reference-image
-source "Layout vocabulary" has been waiting on.
+Two independent options, pick either: (a) the vocabulary-row reference cart (bakes an image per
+named scheme for "Layout vocabulary" below), or (b) start on the editor settings rework (Phase
+4b) now that there's real per-cart touch data (`columns`/`puyo`/`08-catchstar`) to reflect in the
+readout.
 
 ---
 

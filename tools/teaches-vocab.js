@@ -42,7 +42,7 @@ const CATEGORIES = {
   render: {
     label: 'Rendering', color: '#FF77A8',
     tags: [
-      'raycasting', 'mode7', 'parallax', 'camera-follow', 'dithering-gradient', 'palette-cycling',
+      'raycasting', 'mode7', 'parallax', 'camera-follow', 'viewport-clipping', 'dithering-gradient', 'palette-cycling',
       'software-rasterizer', 'procedural-mesh', 'sprite-stacking', 'no-sprite-vehicles', 'radial-symmetry',
       'isometric-projection', 'voronoi', 'velocity-brush',
     ],

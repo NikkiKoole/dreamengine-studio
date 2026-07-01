@@ -11,15 +11,17 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation. It also takes BEVEL for a raised glossy edge; boil wobbles the wet body but the runs stay put — they're 'dried', computed from the stable path), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at. The nib is a FAMILY of four sharing one renderer that reads an angle recipe: NIB (fixed angle), BRUSHPEN (angle PLUS a speed swell — swells slow, thins fast), REED (a dry pen whose angle chatters per point, seeded so it's a stable texture that still boils), and TWIST (the angle winds along the stroke); the rim/fill features all take the true nib-ribbon shape), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light is a GLOBAL 'sun' set from an on-screen SUN popover (drag the dial to aim it, tap one of four colours warm peach → golden → neutral → cool moon, toggle auto-spin) or from the keyboard (, and . rotate, / recolours, \\ auto-rotates); every beveled stroke (and the oil-paint rim) relights together, so you sweep and recolour the sun across the whole drawing; BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. Any stroke can also cast a DROP SHADOW — the whole silhouette re-rendered dark and offset AWAY from the sun, so it reads as floating above the paper; it's the SAME sun as the bevel, so spinning the sun swings every shadow and every bevel rim together (toggle it in the SUN popover). WIDTH is live on the MOUSE WHEEL: scroll to set the brush size, or scroll mid-stroke to taper/swell the line — it's captured per point, so the change stays where you made it (real pressure, not a uniform rescale). The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
-    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/brushpen/reed/twist/oil), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, a SUN button (opens a light-dial + colour + spin popover + a DROP-SHADOW toggle), an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw; the MOUSE WHEEL sets the width live (scroll mid-stroke to taper/swell it — per-point pressure). Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width/shadow-distance sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun), / cycles the sun's colour, \\ auto-rotates the sun."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation. It also takes BEVEL for a raised glossy edge; boil wobbles the wet body but the runs stay put — they're 'dried', computed from the stable path), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at. The nib is a FAMILY of four sharing one renderer that reads an angle recipe: NIB (fixed angle), BRUSHPEN (angle PLUS a speed swell — swells slow, thins fast), REED (a dry pen whose angle chatters per point, seeded so it's a stable texture that still boils), and TWIST (the angle winds along the stroke); the rim/fill features all take the true nib-ribbon shape), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light is a GLOBAL 'sun' set from an on-screen SUN popover (drag the dial to aim it, tap one of four colours warm peach → golden → neutral → cool moon, toggle auto-spin) or from the keyboard (, and . rotate, / recolours, \\ auto-rotates); every beveled stroke (and the oil-paint rim) relights together, so you sweep and recolour the sun across the whole drawing; BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. A stroke can instead carry a GRADIENT FILL (the G-key popover): its body dithers from the pen colour to a second colour across the stroke, with an ANGLE and a SPREAD knob — a small spread keeps solid ends with a narrow blend band (aaaaa→bfy→zzzzz), spread 1 is an even ramp end-to-end (abc…xyz); it's the dpaint dithered-gradient scoped to a brushstroke (wired for the stamp brushes + the wet-paint body, whose drips run in the from-colour). Any stroke can also cast a DROP SHADOW — the whole silhouette re-rendered dark and offset AWAY from the sun, so it reads as floating above the paper; it's the SAME sun as the bevel, so spinning the sun swings every shadow and every bevel rim together (toggle it in the SUN popover). WIDTH is live on the MOUSE WHEEL: scroll to set the brush size, or scroll mid-stroke to taper/swell the line — it's captured per point, so the change stays where you made it (real pressure, not a uniform rescale). The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
+    "controls": "Two-row top panel (ink-on-paper). ROW 1 (brush + effects): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/brushpen/reed/twist/oil), a thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, and a SUN button (opens a light-dial + colour + spin popover + a DROP-SHADOW toggle). ROW 2 (colour + fill): the 7-colour palette, the dither-pattern strip, a GRADIENT button (a ramp glyph — opens the gradient popover: on/off + far colour + spread + angle; the G key does the same), and a SELECT (marquee) toggle. Active swatches/toggles wear an accent tab. Drag to draw; the MOUSE WHEEL sets the width live (scroll mid-stroke to taper/swell it — per-point pressure). Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width/shadow-distance sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, G gradient popover, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun), / cycles the sun's colour, \\ auto-rotates the sun."
   },
   "todo": [
     "Polish the tool-icon glyphs — ink/chalk still read a bit muddy at 16px, and the nib-family marks (brushpen comma / reed zigzag / twist coil) are small (sprite-draw.js in squishy.cart.js).",
     "Cache finished strokes + the boil frames to layer buffers instead of re-rendering every stroke every frame.",
     "The pixelsnap animated-icon export: boil frames → pixelsnap → an animated sprite strip.",
     "spec(): same-seed determinism + jitter-bounds.",
-    "Feature × drawtool coverage is guarded by `node tools/squishy-features.js` (SQUISHY_MATRIX grid + pixel-diff vs a declared support matrix) — extend the matrix/EXPECT when a new brush or rim feature lands."
+    "Feature × drawtool coverage is guarded by `node tools/squishy-features.js` (SQUISHY_MATRIX grid + pixel-diff vs a declared support matrix) — extend the matrix/EXPECT when a new brush or rim feature lands.",
+    "Gradient FILL is wired for the stamp brushes + the wet-paint body; extend it to the NIB ribbon (and decide if oil wants it) — then flip those cells to 1 in squishy-features.js EXPECT.",
+    "Gradient angle is a 0..360 slider in the G popover; a drag-to-aim dial (dpaint-style, like the sun dial) would feel better."
   ]
 }
 de:meta */
@@ -37,6 +39,7 @@ de:meta */
 #include "ui.h"
 #include <math.h>
 #include <stdlib.h>   // getenv — the SQUISHY_MATRIX feature-coverage self-test
+#include <stdio.h>    // snprintf — popover value labels
 
 // ── SQUISHY LINES ─────────────────────────────────────────────────────────
 // A velocity-sensitive drawing tool. The soul is one idea: a stroke is DATA (a
@@ -78,7 +81,13 @@ static int color_index(int c) { for (int i = 0; i < NCOLORS; i++) if (COLORS[i] 
 #define NPATTERNS 6
 static const int PATTERNS[NPATTERNS] = { 0x0000, 0x7FDF, 0x5F5F, 0x5A5A, 0x0A0A, 0x0208 };
 
-#define PANEL_H   24               // top tool-bar height; the canvas is below it
+// 4×4 ordered (Bayer) matrix for the gradient FILL — the same dpaint trick: a pixel takes
+// the "to" colour once the ramp position t passes its threshold, so a smooth t → a dithered ramp.
+static const int GRAD_BAYER[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
+#define GRAD_SPREAD_DEF 0.7f   // default blend-band width (0..1)
+
+#define PANEL_H   44               // top tool-bar height (TWO rows); the canvas is below it
+#define ROW2_Y    24               // row-2 button y (row 1 = brush+effects, row 2 = colour+fill)
 #define PROP_H    18               // contextual property strip (shown under the bar when editing a selection)
 
 // boil: the opt-in living loop. Re-render the committed strokes through a few
@@ -174,6 +183,10 @@ typedef struct {
     float    outline;       // outline rim size in px (0 = off) — per-stroke, captured/editable
     int      outline_color; // palette colour of the outline
     float    shadow;        // drop-shadow cast distance in px (0 = off) — per-stroke, direction follows the sun
+    int      grad;          // gradient FILL on? (the body dithers from `color` → `grad_color` across the stroke)
+    int      grad_color;    // the gradient's far colour (the "to"; `color` is the "from")
+    float    grad_angle;    // gradient ramp direction (deg)
+    float    grad_spread;   // blend-band width 0..1 (1 = even ramp across the whole stroke; small = solid ends, narrow blend)
     int      n;
     Sample   pts[MAX_SAMPLES];
 } Stroke;
@@ -191,11 +204,16 @@ static float    nib_angle = NIB_ANGLE_DEF;  // calligraphy nib angle DEFAULT (de
 static int      outline = 0;         // outline DEFAULT for new strokes (on/off toggle)
 static int      outsel = 0;          // outline colour DEFAULT (index into COLORS; 0 = INK)
 static int      dropshadow = 0;      // drop-shadow DEFAULT for new strokes (on/off toggle)
+static int      grad = 0;            // gradient-fill DEFAULT for new strokes (on/off)
+static int      gradsel = 2;         // gradient far-colour DEFAULT (index into COLORS; 2 = red)
+static float    grad_angle = 0.0f;   // gradient ramp-angle DEFAULT (deg)
+static float    grad_spread = GRAD_SPREAD_DEF;  // gradient spread DEFAULT (0..1)
 static float    bevel_angle = 225.0f;// GLOBAL bevel light direction (deg, the "sun"); , / . rotate it.
                                      // Shared by every beveled stroke so rotating it relights the scene.
 static int      light_sel = 0;       // GLOBAL sun COLOUR (index into LIGHTS); / cycles it (warm..cool)
 static int      sun_spin = 0;        // auto-rotate the bevel sun? (\ toggles) — a slowly circling light
 static int      sun_open = 0;        // the sun-control popover open? (a bar button opens it)
+static int      grad_open = 0;       // the gradient-control popover open? (the G key opens it)
 #define SUN_SPIN_SPEED 0.8f          // degrees the sun advances per frame when spinning (~7.5s / turn)
 static int      cursor_panel = -1;   // tracks which cursor is shown (hand on bar / ring on canvas)
 static int      tool = 0;            // selected brush
@@ -415,6 +433,8 @@ static void emit_drip(int x, int yedge, int thk, int y1, const Stroke *s) {
     if ((h & 7u) == 0) pset(xx, yedge + d + 2 + (int)(h % 3u), s->color);   // occasional spatter dot
 }
 
+static void render_gradient(const Stroke *s, const Boil *b);   // fwd: drip's body can be a gradient too
+
 // PAINT: a wide wet body, then runs that drip DOWN from every exposed bottom edge.
 // Rasterise the body into drip_cov, then per column find each paint→paper transition
 // (a band bottom) and run a drip from it. Pure function of (path, seed) — same soul as
@@ -423,9 +443,12 @@ static void render_drip(const Stroke *s, const Boil *b) {
     if (s->outline > 0)   // fatter silhouette UNDER everything (bubble-letter rim), like the stamp brushes
         render_stroke(s, 0, 0, s->outline_color, b, s->outline * 2);
     bevel_pass(s, b);                         // optional raised rim UNDER the wet body
-    if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);   // dpaint-style dither fills the wet body
-    render_stroke(s, 0, 0, s->color, b, 0);   // the wet body (same stamp chain as the fat brushes)
-    if (s->pattern) fillp_reset();
+    if (s->grad) render_gradient(s, b);       // gradient wet paint (fills the body, then drips run in `color`)
+    else {
+        if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);   // dpaint-style dither fills the wet body
+        render_stroke(s, 0, 0, s->color, b, 0);   // the wet body (same stamp chain as the fat brushes)
+        if (s->pattern) fillp_reset();
+    }
     if (s->n < 1) return;
 
     // Drips are DRIED runs: compute their geometry from the STABLE (un-boiled) path + width, so a
@@ -469,6 +492,66 @@ static void render_drip(const Stroke *s, const Boil *b) {
         }
         if (run) emit_drip(x, y1, run, y1, s);           // a band reaching the bbox floor also runs
     }
+}
+
+// mark a filled disk into drip_cov, clipped to the bbox (shared by the gradient coverage pass)
+static void cov_disk(float cx, float cy, float r, int x0, int x1, int y0, int y1) {
+    if (r < 0.5f) r = 0.5f;
+    for (int x = (int)(cx - r); x <= (int)(cx + r); x++) {
+        if (x < x0 || x > x1) continue;
+        float dx = x - cx, hh = r * r - dx * dx; if (hh < 0) continue; hh = sqrtf(hh);
+        int ya = (int)(cy - hh), yb = (int)(cy + hh);
+        if (ya < y0) ya = y0; if (yb > y1) yb = y1;
+        for (int y = ya; y <= yb; y++) drip_cov[y][x] = 1;
+    }
+}
+
+// GRADIENT FILL (the dpaint dithered ramp, scoped to one stroke): rasterise the stroke's
+// coverage (disks stepped ALONG each segment, like render_stroke — not one per sample, which
+// left gaps/blobs on the thin tapered start) into drip_cov, project every covered pixel onto the axis
+// to get t∈[0,1], stretch t by the SPREAD (small spread = solid ends + a narrow blend band;
+// 1 = an even ramp end-to-end), then a Bayer threshold picks `color` (t low) vs `grad_color`
+// (t high). Same pure-function-of-(path,seed) soul as the rest — boils via boil_pt.
+static void render_gradient(const Stroke *s, const Boil *b) {
+    if (s->n < 1) return;
+    float ca = cos_deg(s->grad_angle), sa = sin_deg(s->grad_angle);
+    // bbox of the boiled body + the ramp's projected extent (pad by each sample's radius)
+    float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f, pmin = 1e9f, pmax = -1e9f;
+    for (int i = 0; i < s->n; i++) {
+        float x = s->pts[i].x, y = s->pts[i].y; boil_pt(s, i, &x, &y, b);
+        float r = sample_width(s, i, b->fseed) * 0.5f; if (r < 0.5f) r = 0.5f;
+        if (x - r < minx) minx = x - r; if (x + r > maxx) maxx = x + r;
+        if (y - r < miny) miny = y - r; if (y + r > maxy) maxy = y + r;
+        float p = x * ca + y * sa;
+        if (p - r < pmin) pmin = p - r; if (p + r > pmax) pmax = p + r;
+    }
+    int x0 = (int)minx, x1 = (int)maxx, y0 = (int)miny, y1 = (int)maxy;
+    if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0;
+    if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1; if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
+    if (x1 < x0 || y1 < y0 || pmax - pmin < 0.001f) return;
+
+    for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) drip_cov[y][x] = 0;
+    if (s->n == 1) {
+        float cx = s->pts[0].x, cy = s->pts[0].y; boil_pt(s, 0, &cx, &cy, b);
+        cov_disk(cx, cy, sample_width(s, 0, b->fseed) * 0.5f, x0, x1, y0, y1);
+    } else for (int i = 0; i < s->n - 1; i++) {   // step ALONG each segment (dense) so coverage is continuous
+        float ax = s->pts[i].x, ay = s->pts[i].y, bx = s->pts[i+1].x, by = s->pts[i+1].y;
+        boil_pt(s, i, &ax, &ay, b); boil_pt(s, i + 1, &bx, &by, b);
+        float w0 = sample_width(s, i, b->fseed) * 0.5f, w1 = sample_width(s, i + 1, b->fseed) * 0.5f;
+        float ddx = bx - ax, ddy = by - ay, seg = sqrtf(ddx * ddx + ddy * ddy);
+        int steps = (int)(seg / STAMP_SPACING); if (steps < 1) steps = 1;
+        for (int k = 0; k <= steps; k++) { float u = (float)k / steps; cov_disk(ax + ddx * u, ay + ddy * u, w0 + (w1 - w0) * u, x0, x1, y0, y1); }
+    }
+    float sp = s->grad_spread; if (sp < 0.02f) sp = 0.02f;
+    float lo = 0.5f - sp * 0.5f, inv = 1.0f / (pmax - pmin);
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++) {
+            if (!drip_cov[y][x]) continue;
+            float t = ((x * ca + y * sa) - pmin) * inv;   // 0..1 along the ramp axis
+            t = (t - lo) / sp; if (t < 0) t = 0; if (t > 1) t = 1;   // stretch by spread → solid ends
+            float thr = (GRAD_BAYER[y & 3][x & 3] + 0.5f) / 16.0f;
+            pset(x, y, t > thr ? s->grad_color : s->color);
+        }
 }
 
 // the half nib-edge vector at sample i — where the nib's angle AND width come from,
@@ -591,6 +674,7 @@ static void draw_one(const Stroke *s, const Boil *b) {
     if (s->outline > 0)   // outline: a fatter silhouette in outline_color, UNDER everything (bubble-letter rim)
         render_stroke(s, 0, 0, s->outline_color, b, s->outline * 2);
     bevel_pass(s, b);     // per-stroke SIZE, GLOBAL sun angle+colour
+    if (s->grad) { render_gradient(s, b); return; }       // gradient FILL replaces the flat/patterned body
     if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);   // dpaint-style dither fills the body only
     render_stroke(s, 0, 0, s->color, b, 0);
     if (s->pattern) fillp_reset();
@@ -676,6 +760,12 @@ static int pick_stroke(float px, float py) {
 #define SUN_DR  22                         // dial radius
 #define RAD2DEG 57.29578f
 
+// the GRADIENT-fill popover (opened with the G key — no room on the packed bar)
+#define GRAD_PX 44
+#define GRAD_PY PANEL_H
+#define GRAD_PW 232
+#define GRAD_PH 74
+
 // ink-on-paper tool buttons: paper bg so dark glyphs read; red frame = selected.
 // fields: { bg, bg_sel, frame, frame_hot, frame_sel, halo_sel }
 static const UiSprStyle TOOLBTN = { PAPER, CLR_LIGHT_PEACH, CLR_LIGHT_GREY, INK, ACCENT, -1 };
@@ -694,6 +784,7 @@ static void draw_panel(void) {
     Stroke *sel = editing ? &strokes[selected] : 0;
 
     rectfill(0, 0, SCREEN_W, PANEL_H, PAPER);
+    line(0, ROW2_Y - 2, SCREEN_W, ROW2_Y - 2, CLR_LIGHT_GREY);   // faint divider between the two rows
     line(0, PANEL_H - 1, SCREEN_W, PANEL_H - 1, INK);
     ui_begin();
     // brush dropdown header (the icon identifies the tool; when editing, an ACCENT ring flags it)
@@ -742,31 +833,42 @@ static void draw_panel(void) {
         pset(SUN_BTN_X + 8 + (int)(cos_deg(a) * 6), 11 + (int)(sin_deg(a) * 6), INK);   // rays
     if (sun_open || sun_spin) rectfill(SUN_BTN_X, 19, 16, 2, ACCENT);
 
+    // ===== ROW 2 (colour & fill): palette · dither · gradient · select =====
+    int r2tab = ROW2_Y + 16;
     // ---- colour palette (fill): all 7 swatches visible; the active one wears an ACCENT tab
     int ci = sel ? color_index(sel->color) : colsel;
     for (int i = 0; i < NCOLORS; i++) {
-        int x = 175 + i * 9;
-        if (ui_button(x, 3, 9, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
-        rectfill(x, 3, 9, 16, COLORS[i]);   // overdraw the button with the real colour
-        rect(x, 3, 9, 16, INK);
-        if (i == ci) rectfill(x, 19, 9, 2, ACCENT);
+        int x = 2 + i * 9;
+        if (ui_button(x, ROW2_Y, 9, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
+        rectfill(x, ROW2_Y, 9, 16, COLORS[i]);   // overdraw the button with the real colour
+        rect(x, ROW2_Y, 9, 16, INK);
+        if (i == ci) rectfill(x, r2tab, 9, 2, ACCENT);
     }
 
     // ---- dither patterns: all 6 visible, each showing its real fill; active wears the tab
     int pat = sel ? sel->pattern : patsel;
     for (int i = 0; i < NPATTERNS; i++) {
-        int x = 240 + i * 9;
-        if (ui_button(x, 3, 9, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
-        fillp(PATTERNS[i], PAPER); rectfill(x, 3, 9, 16, INK); fillp_reset();
-        rect(x, 3, 9, 16, INK);
-        if (i == pat) rectfill(x, 19, 9, 2, ACCENT);
+        int x = 72 + i * 9;
+        if (ui_button(x, ROW2_Y, 9, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
+        fillp(PATTERNS[i], PAPER); rectfill(x, ROW2_Y, 9, 16, INK); fillp_reset();
+        rect(x, ROW2_Y, 9, 16, INK);
+        if (i == pat) rectfill(x, r2tab, 9, 2, ACCENT);
     }
 
+    // ---- GRADIENT button: opens the gradient popover (also the G key). A little ramp glyph;
+    // ACCENT tab when the fill is on. Sits with the other fill controls.
+    int grad_on = sel ? sel->grad : grad;
+    if (ui_button(132, ROW2_Y, 16, 16, 0)) { grad_open = !grad_open; dd_open = sun_open = 0; }
+    for (int gx = 0; gx < 12; gx++)   // ramp glyph: solid ink at the left → sparse ticks at the right
+        if (gx < 4 || (gx & 1) == 0) line(134 + gx, ROW2_Y + 3, 134 + gx, ROW2_Y + 12, INK);
+    rect(132, ROW2_Y, 16, 16, INK);
+    if (grad_open || grad_on) rectfill(132, r2tab, 16, 2, ACCENT);
+
     // ---- SELECT toggle: a white marquee box on a black button (turns ACCENT when on)
-    if (ui_button(296, 3, 18, 16, 0)) selmode = !selmode;
-    rectfill(296, 3, 18, 16, INK);
-    dashed_rect(298, 6, 12, 10, selmode ? ACCENT : PAPER);
-    if (selmode) rectfill(296, 19, 18, 2, ACCENT);
+    if (ui_button(154, ROW2_Y, 18, 16, 0)) selmode = !selmode;
+    rectfill(154, ROW2_Y, 18, 16, INK);
+    dashed_rect(156, ROW2_Y + 3, 12, 10, selmode ? ACCENT : PAPER);
+    if (selmode) rectfill(154, r2tab, 18, 2, ACCENT);
 
     // contextual property strip: bevel SIZE + boil + OUTLINE width sliders + z-order, for the selection
     if (editing) {
@@ -837,6 +939,34 @@ static void draw_panel(void) {
         print(sh_on ? "drop shadow on" : "drop shadow off", shx + 4, shy + 5, sh_on ? PAPER : INK);
     }
 
+    // the gradient-fill popover (G): on/off, the FAR colour (the fill colour is the "from"),
+    // spread + angle. Edits the selection if one is picked, else the new-stroke defaults.
+    if (grad_open) {
+        rectfill(GRAD_PX, GRAD_PY, GRAD_PW, GRAD_PH, PAPER);
+        rect(GRAD_PX, GRAD_PY, GRAD_PW, GRAD_PH, INK);
+        int g_on = sel ? sel->grad : grad;
+        int tx = GRAD_PX + 6, ty = GRAD_PY + 6;
+        if (ui_button(tx, ty, 78, 14, 0)) { if (sel) sel->grad = !sel->grad; else grad = !grad; }
+        rectfill(tx, ty, 78, 14, g_on ? ACCENT : PAPER); rect(tx, ty, 78, 14, INK);
+        print(g_on ? "gradient on" : "gradient off", tx + 4, ty + 4, g_on ? PAPER : INK);
+        print("to", GRAD_PX + 90, ty + 4, INK);
+        int gci = sel ? color_index(sel->grad_color) : gradsel;
+        for (int i = 0; i < NCOLORS; i++) {
+            int x = GRAD_PX + 106 + i * 15, y = ty;
+            if (ui_button(x, y, 13, 14, 0)) { if (sel) sel->grad_color = COLORS[i]; else gradsel = i; }
+            rectfill(x, y, 13, 14, COLORS[i]); rect(x, y, 13, 14, i == gci ? ACCENT : INK);
+        }
+        static float gsp; gsp = sel ? sel->grad_spread : grad_spread;
+        if (ui_slider(&gsp, GRAD_PX + 6, GRAD_PY + 32, 220, "spread (solid ends <-> even ramp)"))
+            { if (sel) sel->grad_spread = gsp; else grad_spread = gsp; }
+        rect(GRAD_PX + 6, GRAD_PY + 33, 220, 6, CLR_LIGHT_GREY);
+        static float gan; gan = (sel ? sel->grad_angle : grad_angle) / 360.0f;
+        if (ui_slider(&gan, GRAD_PX + 6, GRAD_PY + 54, 220, "angle")) {
+            float a = gan * 360.0f; if (sel) sel->grad_angle = a; else grad_angle = a;
+        }
+        rect(GRAD_PX + 6, GRAD_PY + 55, 220, 6, CLR_LIGHT_GREY);
+    }
+
     font(FONT_NORMAL);   // restore (the whole bar drew in FONT_SMALL)
     ui_end();
 }
@@ -849,7 +979,7 @@ static void draw_panel(void) {
 // feature is a silent no-op for that brush (that's the bug class that hid drip×dither and
 // nib×outline). Rows use TOOL_DISP order; cols are none/bevel/outline/shadow/dither/boil.
 static int matrix_mode = 0;
-enum { MC_NONE, MC_BEVEL, MC_OUTLINE, MC_SHADOW, MC_PATTERN, MC_BOIL, MC_COLS };
+enum { MC_NONE, MC_BEVEL, MC_OUTLINE, MC_SHADOW, MC_PATTERN, MC_GRAD, MC_BOIL, MC_COLS };
 #define MTX_LW 40   // left label column width
 #define MTX_HH 12   // top header row height
 
@@ -858,6 +988,7 @@ static void matrix_stroke(Stroke *st, int tool, int cx, int cy, int cw, int ch) 
     st->tool = tool; st->color = CLR_BLUE; st->pattern = 0;
     st->bevel = 0; st->boil = 0; st->boil_style = BOIL_WOBBLE; st->thick = 1.0f;
     st->nib_angle = NIB_ANGLE_DEF; st->outline = 0; st->outline_color = INK; st->shadow = 0;
+    st->grad = 0; st->grad_color = CLR_RED; st->grad_angle = 0; st->grad_spread = GRAD_SPREAD_DEF;
     st->seed = 0x51A5u ^ (unsigned)(tool * 2654435761u);
     int n = 10; st->n = n;
     for (int i = 0; i < n; i++) {
@@ -872,7 +1003,7 @@ static void matrix_stroke(Stroke *st, int tool, int cx, int cy, int cw, int ch) 
 static void draw_matrix(void) {
     cls(PAPER);
     int cw = (SCREEN_W - MTX_LW) / MC_COLS, ch = (SCREEN_H - MTX_HH) / NTOOLS;
-    static const char *fname[MC_COLS] = { "none", "bevl", "outl", "shdw", "dith", "boil" };
+    static const char *fname[MC_COLS] = { "none", "bevl", "outl", "shdw", "dith", "grad", "boil" };
     font(FONT_TINY);
     for (int c = 0; c < MC_COLS; c++) print(fname[c], MTX_LW + c * cw + 2, 3, INK);
     for (int bi = 0; bi < NTOOLS; bi++) {
@@ -887,6 +1018,7 @@ static void draw_matrix(void) {
             else if (c == MC_OUTLINE) ms.outline = OUTLINE_PX;
             else if (c == MC_SHADOW)  ms.shadow = 3.0f;
             else if (c == MC_PATTERN) ms.pattern = NPATTERNS / 2;
+            else if (c == MC_GRAD)  { ms.grad = 1; ms.grad_color = CLR_RED; ms.grad_spread = 0.6f; }
             else if (c == MC_BOIL)  { ms.boil = 1.0f; vseed = VARIANT[1]; }   // a jittered variant so it differs from still
             clip(x + 1, y + 1, cw - 2, ch - 2);   // keep each cell's rim/shadow from spilling into its neighbour
             Boil b = boil_for(&ms, vseed);
@@ -918,6 +1050,8 @@ void update(void) {
     if (keyp('\\')) sun_spin = !sun_spin;
     if (sun_spin) { bevel_angle += SUN_SPIN_SPEED; if (bevel_angle >= 360.0f) bevel_angle -= 360.0f; }
 
+    if (keyp('G')) { grad_open = !grad_open; dd_open = sun_open = 0; }   // G opens the gradient popover
+
     // while the tool dropdown is open it's modal: clicks pick a tool (resolved in
     // the panel) and a tap on the bare canvas just dismisses it — never draws.
     if (dd_open) {
@@ -934,6 +1068,14 @@ void update(void) {
         if (mouse_pressed(MOUSE_LEFT)) {
             int in_pop = mx >= SUN_PX && mx < SUN_PX + SUN_PW && my >= SUN_PY && my < SUN_PY + SUN_PH;
             if (my >= PANEL_H && !in_pop) sun_open = 0;      // tap-away dismiss
+        }
+        return;
+    }
+    // gradient popover is modal too (widgets driven in draw_panel; here just block + dismiss)
+    if (grad_open) {
+        if (mouse_pressed(MOUSE_LEFT)) {
+            int in_pop = mx >= GRAD_PX && mx < GRAD_PX + GRAD_PW && my >= GRAD_PY && my < GRAD_PY + GRAD_PH;
+            if (my >= PANEL_H && !in_pop) grad_open = 0;
         }
         return;
     }
@@ -978,6 +1120,10 @@ void update(void) {
         cur.outline = outline ? OUTLINE_PX : 0.0f;   // capture the outline default
         cur.outline_color = COLORS[outsel];
         cur.shadow = dropshadow ? SHADOW_DIST : 0.0f;   // capture the drop-shadow default
+        cur.grad = grad;                          // capture the gradient-fill default + its colour/angle/spread
+        cur.grad_color = COLORS[gradsel];
+        cur.grad_angle = grad_angle;
+        cur.grad_spread = grad_spread;
         seedctr = seedctr * 1103515245u + 12345u;
         cur.seed = seedctr;
         lastsx = mx; lastsy = my;
@@ -1007,7 +1153,7 @@ void update(void) {
 }
 
 void draw(void) {
-    if (matrix_mode) { draw_matrix(); return; }   // SQUISHY_MATRIX self-test scene
+    if (matrix_mode) { draw_matrix(); return; }   // SQUISHY_MATRIX coverage self-test scene
     cls(PAPER);
     // boil: pick this beat's jittered variant; committed strokes wobble, the
     // stroke you're actively drawing stays put.
@@ -1037,7 +1183,7 @@ void draw(void) {
 
     // cursor: hand over the panel or an open modal (dropdown / sun popover), arrow in
     // SELECT mode, our brush ring while drawing.
-    int want = (mouse_y() < PANEL_H || dd_open || sun_open) ? CURSOR_HAND
+    int want = (mouse_y() < PANEL_H || dd_open || sun_open || grad_open) ? CURSOR_HAND
              : selmode ? CURSOR_DEFAULT
              : -1;   // -1 = hide OS cursor, draw the brush ring
     if (want != cursor_panel) {
@@ -1051,14 +1197,10 @@ void draw(void) {
             float hw = BRUSHES[tool].maxw * thickness() * pressure * 0.5f;
             float nx = cos_deg(nib_angle) * hw, ny = sin_deg(nib_angle) * hw;
             line((int)(mx-nx+.5f),(int)(my-ny+.5f),(int)(mx+nx+.5f),(int)(my+ny+.5f), COLORS[colsel]);
-        } else {   // brush ring previews the reach (sketch) or live width (slow = big, fast = small)
-            int r;
+        } else {   // brush ring = the brush's NOMINAL caliber (its fattest, at a standstill), so the
+            int r;  // cursor only resizes when YOU change thickness/wheel — not as you move the mouse
             if (BRUSHES[tool].kind == K_SKETCH) r = (int)SKETCH_R;
-            else {
-                Brush b = BRUSHES[tool];
-                float sp = ema / b.speedref; if (sp > 1) sp = 1;
-                r = (int)((b.maxw - (b.maxw - b.minw) * sp) * thickness() * pressure * 0.5f + 0.5f);
-            }
+            else r = (int)(BRUSHES[tool].maxw * thickness() * pressure * 0.5f + 0.5f);
             if (r < 1) r = 1;
             circ(mx, my, r, COLORS[colsel]);
         }

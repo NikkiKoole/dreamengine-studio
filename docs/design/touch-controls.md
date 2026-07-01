@@ -451,6 +451,14 @@ metadata; the runtime can still call `touch_layout()` for carts that change sche
   scheme (auto-drive everywhere, swipe left/right only matters at route forks) needs a discrete
   swipe-direction input for the still-unbuilt `TOUCH_NONE` row — today's buttons are static tap
   zones, not gesture-direction detectors.
+- **`gr_place()`'s integer-only scale wastes space on a resizable/web/fullscreen window (found
+  2026-07-01, see [`window-fill-scaling.md`](window-fill-scaling.md)).** The placement brain here
+  always picks the largest INTEGER scale, so any window that doesn't land on an exact multiple —
+  a resized desktop window (now easy to trigger live via `DE_RESIZABLE=1`), a web fit-to-viewport,
+  an iOS fullscreen screen — gets dead black space beyond the letterbox band, not a bigger game.
+  Not this doc's problem to fix (it's the reason that dead space is routed to a band at all, not a
+  bug in the routing), but the two ideas share the same leftover-space budget and need to be
+  reconciled together eventually.
 
 ## Layout vocabulary (the named schemes)
 

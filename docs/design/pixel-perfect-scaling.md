@@ -30,6 +30,15 @@ the editor's integer `SCALE` all four look identically crisp. Desktop only for m
 330 `fwidth`); web falls back to the chosen texture filter (mode 1 bilinear still works there) —
 a GLSL-100 + derivatives port is the open follow-up.
 
+**Follow-up gap, found 2026-07-01: the actual present blit is never non-integer on desktop**, so
+modes 2/3 are currently idle there — see [`window-fill-scaling.md`](window-fill-scaling.md). The
+original LÖVE sketch this doc is based on (quoted above) has a second, fractional scale step
+(`lessPerfectScale`) that stretches the crisp intermediate to fill the *actual* window; that step
+never got ported — `runtime/game_rect.h`'s `gr_place()` (built later, for touch-controls) always
+picks an integer scale for the present blit, so there's no fractional remainder left for this
+shader to smooth. Not a flaw in this doc's design — the two ideas just want the same leftover
+space and were never reconciled.
+
 ## The problem
 
 When the low-res canvas has to be scaled to the window by a **non-integer** factor, both

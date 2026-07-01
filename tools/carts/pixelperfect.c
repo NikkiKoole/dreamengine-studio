@@ -10,7 +10,7 @@
     "software-rasterizer"
   ],
   "lineage": "Interactive side-by-side comparison of four texture-sampling kernels (nearest / bilinear / sharp-bilinear / gamma-correct sharp-bilinear) written in CPU pset_rgb; reproduces what a GPU fragment shader does at zero engine cost.",
-  "description": "How do you scale thin pixel-art lines by a FRACTIONAL (float) factor without the lines wobbling/crawling as they move - and without blurring them to mush? This draws one world of thin 1px lines scaled the SAME way four times, side by side, each with a 7x MAGNIFIER below so the per-pixel structure is unmistakable: NEAREST (uneven pixel widths, hard edges crawl/shimmer as it scrolls), BILINEAR (no wobble but every edge is a wide soft ramp - blurry), SHARP (sharp-bilinear: each source pixel stays a FLAT colour, the blend confined to a 1-output-pixel seam at texel edges - crisp like nearest, stable like bilinear, single pass, the answer), and SHARP+g (same but the seam is blended in LINEAR LIGHT / gamma-correct, so a moving bright line keeps its true brightness instead of pulsing dark each sub-pixel step). Watch the magnifiers while it scrolls: nearest's bright core jumps 2px<->3px, bilinear fades over several blocks, sharp holds a flat core with one soft seam-block sliding smoothly. All CPU here via pset_rgb, reproducing exactly what a GPU blit does (which is one effectively-free shader pass), so the comparison is faithful with zero engine changes. See docs/design/pixel-perfect-scaling.md. Controls: LEFT/RIGHT arrows change the scale (0.05 steps), Z toggles auto-scroll (on by default - scrolling animates the wobble), X toggles a slow scale 'breathe'."
+  "description": "How do you scale thin pixel-art lines by a FRACTIONAL (float) factor without the lines wobbling/crawling as they move - and without blurring them to mush? This draws one world of thin 1px lines scaled the SAME way four times, side by side, each with a 7x MAGNIFIER below so the per-pixel structure is unmistakable: NEAREST (uneven pixel widths, hard edges crawl/shimmer as it scrolls), BILINEAR (no wobble but every edge is a wide soft ramp - blurry), SHARP (sharp-bilinear: each source pixel stays a FLAT colour, the blend confined to a 1-output-pixel seam at texel edges - crisp like nearest, stable like bilinear, single pass, the answer), and SHARP+g (same but the seam is blended in LINEAR LIGHT / gamma-correct, so a moving bright line keeps its true brightness instead of pulsing dark each sub-pixel step). Watch the magnifiers while it scrolls: nearest's bright core jumps 2px<->3px, bilinear fades over several blocks, sharp holds a flat core with one soft seam-block sliding smoothly. All CPU here via pset_rgb, reproducing exactly what a GPU blit does (which is one effectively-free shader pass), so the comparison is faithful with zero engine changes. See docs/design/pixel-perfect-scaling.md (this filter comparison) and docs/design/window-fill-scaling.md (the other, unbuilt half of the original idea: filling a resizable/web/fullscreen window fractionally instead of locking to the last integer scale step). Controls: LEFT/RIGHT arrows change the scale (0.05 steps), Z toggles auto-scroll (on by default - scrolling animates the wobble), X toggles a slow scale 'breathe'."
 }
 de:meta */
 #include "studio.h"
@@ -39,7 +39,10 @@ de:meta */
 // All CPU here (pset_rgb), reproducing exactly what a GPU blit does — faithful,
 // zero engine changes. On a GPU this whole thing is ONE fragment-shader pass,
 // effectively free; the ~3-4ms CPU cost here is just the per-pixel pset_rgb.
-// See docs/design/pixel-perfect-scaling.md.
+// See docs/design/pixel-perfect-scaling.md — and docs/design/window-fill-scaling.md
+// for the other half of the original idea (fractional window-fill) that never
+// got wired into the engine's present blit; a natural home for a future 5th
+// comparison column here (integer-locked vs. fill-the-window).
 //
 //   ← / →   scale down / up (0.05 steps)
 //   Z       toggle auto-scroll (on by default — scrolling animates the wobble)

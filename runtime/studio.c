@@ -804,11 +804,23 @@ static float scale_to_fit(int span, float ref_diameter) {
 static float band_ctrl_scale(int span) { return scale_to_fit(span, 2.0f * STICK_RADIUS); }
 
 // the button cluster's own footprint: BTN_CLUSTER_SPREAD is how far (× eff_btn_r()) each
-// button's CENTRE sits from the shared anchor; the full diamond's bounding diameter (e.g. X's
-// left edge to B's right edge, the worst case if all 4 are shown) is 2×(spread+1) button radii —
-// much wider than a single stick, so it needs its own fit check against whichever side it's on.
+// button's CENTRE sits from the shared anchor; a diamond arm's full reach (centre-to-centre
+// plus its own radius) is (spread+1) button radii — much wider than a single stick, so it needs
+// its own fit check against whichever side it's on.
 #define BTN_CLUSTER_SPREAD 1.6f
-#define BTN_CLUSTER_DIAM   (BTN_RADIUS * 2.0f * (BTN_CLUSTER_SPREAD + 1.0f))
+#define BTN_ARM_REACH      (BTN_CLUSTER_SPREAD + 1.0f)
+
+// a small fixed gutter (window px, NOT scaled — a resting margin like DECK's fixed 145/20) so a
+// control never sits flush against the rail/window edge.
+#define RAIL_EDGE_MARGIN 8
+
+// how far the button cluster reaches LEFT/RIGHT of its anchor, in BTN_RADIUS units, for the
+// buttons ACTUALLY shown (not a worst-case 4-way diamond) — so a 1-2 button cart (the common
+// case) gets a tighter, bigger-drawn cluster instead of being sized for buttons it never shows.
+static void btn_cluster_reach(int n, float *left, float *right) {
+    *right = (n >= 2) ? BTN_ARM_REACH : (n >= 1 ? 1.0f : 0.0f);   // B (right) needs the full arm; else just A's own width
+    *left  = (n >= 3) ? BTN_ARM_REACH : (n >= 1 ? 1.0f : 0.0f);   // X (left) only if 3+
+}
 
 // lay out up to 4 action buttons (btn_cx/cy[0..3] = A/B/X/Y) in a diamond around an anchor point
 // — A bottom, B right, X left, Y top, the classic face-button arrangement. Reads naturally at
@@ -838,13 +850,30 @@ static void layout_touch_controls(Placement p) {
     } else if (p.mode == PLACE_RAILS) {
         int ww = p.band_w, wh = p.band_h, rl = gx, rr0 = gx + gw, ry = (int)(wh * 0.62f);
         int rr = ww - rr0;                                                 // right-rail WIDTH — its own tight dimension, NOT rl (the stick's rail can be a different size)
-        ctrl_scale     = band_ctrl_scale(rl);
-        ctrl_scale_btn = scale_to_fit(rr, BTN_CLUSTER_DIAM);                // buttons need a much wider footprint than the stick, so they get their own fit
-        stick_home_x = rl / 2.0f;   stick_home_y = (float)ry;
-        int bx = rr0 + rr / 2;                                             // right-rail centre
-        int half = (int)(eff_btn_r() * (BTN_CLUSTER_SPREAD + 1.0f));       // half the (now correctly-scaled) cluster's footprint
-        if (bx - half < rr0) bx = rr0 + half;                              // belt-and-suspenders: keep the cluster inside the rail even
-        if (bx + half > ww)  bx = ww  - half;                              // if CTRL_SCALE_MIN still doesn't quite fit an extreme-narrow rail
+
+        // stick/d-pad side: a d-pad's DEBUG/GRAB-ZONE circle (below) is 1.4x the drawn ring, so
+        // it — not the plain ring — is what must fit the rail, or it bleeds past the window edge
+        // (only the ring matters for analog: its real hit-zone is the separate whole-rail sgz rect).
+        bool dpad_mode = (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8);
+        float stick_reach = dpad_mode ? 1.4f : 1.0f;
+        int   stick_avail = rl - 2 * RAIL_EDGE_MARGIN;
+        ctrl_scale = scale_to_fit(stick_avail, 2.0f * STICK_RADIUS * stick_reach);
+        float stick_r_reach = STICK_RADIUS * ctrl_scale * stick_reach;     // the widest circle actually drawn/hit-tested
+        float stick_slack = stick_avail - 2.0f * stick_r_reach; if (stick_slack < 0) stick_slack = 0;
+        stick_home_x = RAIL_EDGE_MARGIN + stick_r_reach + stick_slack * 0.5f;
+        stick_home_y = (float)ry;
+
+        // button side: size + place for the buttons ACTUALLY shown (not a worst-case 4-way
+        // diamond), with the same margin-in-then-centre-the-slack approach as the stick above.
+        float lu, ru; btn_cluster_reach(touch_n_buttons, &lu, &ru);
+        int   btn_avail = rr - 2 * RAIL_EDGE_MARGIN;
+        ctrl_scale_btn = (lu + ru) > 0 ? scale_to_fit(btn_avail, (lu + ru) * BTN_RADIUS) : 1.0f;
+        float br = eff_btn_r();
+        float btn_slack = btn_avail - (lu + ru) * br; if (btn_slack < 0) btn_slack = 0;
+        int bx = rr0 + RAIL_EDGE_MARGIN + (int)(lu * br + btn_slack * 0.5f);
+        int leftBound = rr0 + RAIL_EDGE_MARGIN + (int)(lu * br), rightBound = ww - RAIL_EDGE_MARGIN - (int)(ru * br);
+        if (bx < leftBound)  bx = leftBound;                              // belt-and-suspenders: keep the cluster inside the
+        if (bx > rightBound) bx = rightBound;                             // rail + margin even if CTRL_SCALE_MIN can't quite fit it
         layout_action_buttons(bx, ry);
         sgz_x = 0; sgz_y = 0; sgz_w = rl; sgz_h = wh;                      // the whole left rail
     } else {  // OVERLAY — hug the corners of the game rect; always full size, no band to shrink to
@@ -2267,6 +2296,11 @@ int main(int argc, char **argv) {
 #ifndef PLATFORM_WEB
     { const char *ws = getenv("DE_WINDOW"); int w, h;
       if (ws && sscanf(ws, "%dx%d", &w, &h) == 2 && w > 0 && h > 0) { win_w = w; win_h = h; } }
+    // DE_RESIZABLE=1 (opt-in, dev/preview only) lets you drag the window live to explore
+    // deck/rails/overlay placement without relaunching for every DE_WINDOW size — gr_place()
+    // already recomputes from GetScreenWidth/Height every frame, so resizing just works.
+    { const char *rs = getenv("DE_RESIZABLE");
+      if (rs && rs[0] && strcmp(rs, "0") != 0) SetConfigFlags(FLAG_WINDOW_RESIZABLE); }
 #endif
     InitWindow(win_w, win_h, window_title);
 #ifndef PLATFORM_WEB

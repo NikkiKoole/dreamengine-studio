@@ -317,7 +317,10 @@ once v1 lands (not committed):
   the sun. `hilite` offsets toward the light (`cos/sin(angle)·size`), `shadow` away. `,` / `.` rotate it
   (±15°). Default 225° = the old up-left light, so existing art is unchanged. Because it's read live (not
   captured per stroke), it's a scene control, not a stroke property — a nice emergent lighting knob.
-  Later: a bevel light **colour** (warm sun / cool moon), and maybe an auto-rotate toggle.
+  **Sun colour** (shipped 2026-07-01): the lit-rim tint is a second global (`light_sel` → `LIGHTS[]`:
+  warm peach → golden → neutral white → cool grey "moon"), cycled with `/`. Also global + live, so it
+  recolours every bevel/oil rim at once. Shadow stays black. Default peach = the old fixed HILITE.
+  Maybe an auto-rotate toggle next (a slowly circling sun).
 - **Flood-fill (still wanted)** — the *raster* other half: flood a bounded region, lay a dither/ramp
   in it. This one genuinely needs the **persistent layer buffer** (flood-fill is a raster op; the cart
   re-renders from data each frame and `pget` reads *last* frame). Do it *with* the layer-buffer

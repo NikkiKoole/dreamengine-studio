@@ -1,6 +1,6 @@
 # The Driving World — program map
 
-STATUS: LIVING MAP (2026-07-01). **Milestone: P1 landed (OSM half) — `road_at()` drives sloop over real Delft (build a rig, drive real streets that drive grip, crash real buildings). Next: Rung B-proc — the same seam over roadnet2 (the infinite procedural world).** The umbrella over the whole "build a vehicle, drive a procedural world" research — sloop + the road/world/city/render carts as **one program, not a pile of carts.** Sits ABOVE [`road-program-state.md`](road-program-state.md) (which is only the road-geometry tier) and pulls the other layers — movement, the world spine, rendering, real-world data, city content — into one read. Use it to see how far each layer is and **what to finish first.** Update the status table + the "finish first" call when a layer moves.
+STATUS: LIVING MAP (2026-07-01). **Milestone: P1 landed (OSM half) — `road_at()` drives sloop over real Delft (build a rig, drive real streets that drive grip, crash real buildings). Two active arcs next: (1) the geometry-first RENDER — road grammar (markings/pavements/curb returns) via `roadkit.h`, landing in `citydrive` FIRST (the close pseudo-3D view where it's visible), see [`roadkit.md`](roadkit.md); (2) Rung B-proc — the same seam over roadnet2 (the infinite procedural world).** The umbrella over the whole "build a vehicle, drive a procedural world" research — sloop + the road/world/city/render carts as **one program, not a pile of carts.** Sits ABOVE [`road-program-state.md`](road-program-state.md) (which is only the road-geometry tier) and pulls the other layers — movement, the world spine, rendering, real-world data, city content — into one read. Use it to see how far each layer is and **what to finish first.** Update the status table + the "finish first" call when a layer moves.
 
 > Companion to [`big-game-backlog.md`](big-game-backlog.md) (what's left *per cart* + the cross-cutting seams) and [`showreel-teaser.md`](showreel-teaser.md) (the trailer as a forcing function). This doc is the **horizontal map**: the layers, where they converge, and the recommended order. The field note [`field-notes/004-roads-as-convergence-layer.md`](../field-notes/004-roads-as-convergence-layer.md) is the discovery this formalizes.
 
@@ -60,7 +60,7 @@ How the world is *shown*. ADR-0021's "adapter" layer.
 | Cart | Status | Role |
 |---|---|---|
 | **`cityview`** | ✅ bench | The **pseudo-3D city look** — GTA1-meets-Zelda parallel-oblique projection (height pushes pixels up; ground stays plan). Seeded boxes. Doc: [`pseudo-3d-city.md`](pseudo-3d-city.md). |
-| **`citydrive`** | ✅ (newest, 2026-06-30) | cityview's **data-driven successor** — same projection/driving, but extrudes REAL OSM footprints (roadview's `.rvb`), drapes over real terrain (DEM), pitched-perspective camera. *Drive a real city in pseudo-3D.* |
+| **`citydrive`** | ✅ (2026-06-30) · **★ being PROMOTED as the geometry-first render consumer** | cityview's **data-driven successor** — same projection/driving, but extrudes REAL OSM footprints (roadview's `.rvb`), drapes over real terrain (DEM), pitched-perspective camera. *Drive a real city in pseudo-3D.* **Decision 2026-07-01: this is where the road GRAMMAR (markings/pavements/curb returns) lands first** — it's the close/pitched view where that geometry is *visible* (sub-pixel in sloop's fast top-down drive), already playable, already loads OSM. Roads today are flat class-coloured quads; the geometry-first render + `roadkit.h` target citydrive's ground plane. See [`roadkit.md`](roadkit.md). |
 | **field-based road rendering** | ✅ opt-in (`DE_FIELD_ROADS`) | One lateral distance field, every feature a threshold — the clean replacement for per-arm casing blits. **Cutover deferred on purpose** until the software canvas makes per-pixel fills cheap. Doc: [`field-based-road-rendering.md`](field-based-road-rendering.md). |
 
 ### 6. Real-world data — the world isn't only generated
@@ -119,11 +119,13 @@ Bluntly: **`streetlab` understands roads but has no real ones; `roadview` has re
 3. **The grammar synthesizes the lanes OSM lacks.** OSM has ~no lane/curb detail; `streetlab`'s typed cross-section (HW = sum of lanes) *infers* a plausible section from the OSM class (`secondary` → 2 lanes + maybe bike). The real city gets lanes you can **drive in, follow with `traffic-ai`, cross on foot** — the thing real data can't give that the grammar can.
 4. **One render adapter, two geometry sources.** `citydrive` already projects pseudo-3D over arbitrary polygons + terrain; streetlab/roadlab geometry is 2D-top-down *with pseudo-3D as the adapter* — so the **same** projection renders real OSM *and* synthetic junctions. `cityview` (boxes) and `citydrive` (real) are just two feeds into it.
 
-> **UPDATE (2026-07-01): the trigger fired — `roadkit.h` is now GO.** With `sloop` driving real OSM
-> Delft (Rung B) as a third consumer, and the rung-3 finding above pinning the N-arm-native renderer as
-> the needed piece, the "not yet" below is superseded. Decision + the full extraction plan (scope,
-> interface, spec-gated phasing, the scale-mismatch reasoning for *where* the grammar is worth rendering):
-> **[`roadkit.md`](roadkit.md)**. The build-order note below is kept for the history of *why* we waited.
+> **UPDATE (2026-07-01): the trigger fired — `roadkit.h` is now GO, and its first consumer is `citydrive`.**
+> The OSM work gave real consumers and the rung-3 finding above pins the N-arm-native renderer as the
+> needed piece, so the "not yet" below is superseded. **The grammar lands in `citydrive` first** (the
+> pseudo-3D real-OSM view — the close camera where markings/curb-returns are *visible*, not sub-pixel as
+> in sloop's fast top-down drive); sloop's rig hooks in later over the shared seam. Decision + the full
+> extraction plan (scope, interface, spec-gated phasing, the scale-mismatch reasoning): **[`roadkit.md`](roadkit.md)**.
+> The build-order note below is kept for the history of *why* we waited.
 
 **Build order — where the code lives (decided 2026-06-30, now superseded — see above):** *don't extract `roadkit.h` yet.* **Rung 2 stays in `streetlab`** — add the ~30-line `.rvb` reader (from `roadview`) + a node→incident-bearings extractor, feed one *real* node into the existing `'o'` OSM mode, render on the field path. It needs only streetlab's renderer, so extracting now would mean *guessing* the shared interface (the trap `road-program-state.md` warns against: *"extract only if Phase 2 makes both carts share primitives — then, not now"*). **Rung 3 is the real trigger:** routing grade-separated crossings to `roadlab.make_junction()` *and* at-grade to streetlab **from one consumer** is the first moment two renderers must be callable from a third place — extract `roadkit.h` there, designed from a working rung-2 consumer, not from a guess. Keep the rung-2 ingest code fenced (like the `RUNG 1` block) so it lifts out cleanly; if it starts tangling with the spec-locked geometry, that's the early-extract signal.
 
@@ -185,7 +187,7 @@ Rung ladder:
 
 **P3 — The world composer (seam 2 / Phase 2).** Two-tier major→minor generator stitching streetlab patterns per region. **Only after P0–P1** — composing before there's a spine + consumer is premature.
 
-**Parallel track (not blocking) — the render decision (seam 3).** citydrive proves pseudo-3D over real data; decide whether the player view adopts the cityview adapter over generated geometry. Independent of P0–P3; can proceed whenever.
+**★ Elevated track — the geometry-first render, in `citydrive` first (seam 3, decided 2026-07-01).** citydrive proves pseudo-3D over real data; it's now the **first home for the road grammar** (markings → pavements → curb-return junctions on its projected ground plane), because that's the close/pitched view where the geometry is *visible* rather than sub-pixel. This is where `roadkit.h` gets built and consumed (`streetlab` stays the spec-locked source; `sloop`'s rig hooks in later via the shared `road_at()` seam — cheap because the seam is renderer-agnostic). Plan: [`roadkit.md`](roadkit.md). No longer "not blocking / whenever" — it's the active rendering arc.
 
 **Explicitly defer (don't let these masquerade as progress):**
 - More streetlab primitives — staggered junctions, the modal active-travel layer, dendricity metric. The grammar is done; these are sandbox polish. ([`road-program-state.md`](road-program-state.md) tracks them.)

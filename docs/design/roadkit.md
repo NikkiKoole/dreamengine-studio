@@ -1,9 +1,12 @@
 # roadkit.h — when streetlab/roadlab reach the drivable world
 
 STATUS: READY TO BUILD (2026-07-01). The decision + plan to extract the shared road-rendering &
-junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md)),
-so `streetlab` (at-grade bench), `roadlab` (interchange bench) and `sloop` (the *drivable* world) all
-call ONE implementation. Sits under [`driving-world-program.md`](driving-world-program.md) (the umbrella)
+junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md))
+so `streetlab` (the spec-locked *source*), `roadlab` (interchange bench) and — **the first render consumer
+— `citydrive`** (the pseudo-3D real-OSM view where the grammar is actually *visible*) all call ONE
+implementation. **`citydrive` leads, not `sloop`:** it's already playable, already loads OSM, and is the
+close/pitched view where markings & curb returns aren't sub-pixel; sloop's rig hooks in later via the
+shared `road_at()` seam. Sits under [`driving-world-program.md`](driving-world-program.md) (the umbrella)
 and [`road-program-state.md`](road-program-state.md) (which long said "no roadkit.h *yet*" — this doc is
 the "now"). Pairs with [`field-based-road-rendering.md`](field-based-road-rendering.md) (the renderer
 roadkit adopts) and [`road-hierarchy-notes.md`](road-hierarchy-notes.md) (the grammar it holds).
@@ -28,27 +31,53 @@ Rendering streetlab-grade junctions across a whole scrolling city every frame is
 cost problem, gated on [`software-canvas.md`](software-canvas.md) — which is exactly why the field-render
 cutover is parked. **Conclusion: aim the fidelity where it's visible, not behind a fast camera.**
 
+## ★ The first consumer is `citydrive`, not `sloop` (decided 2026-07-01)
+
+The scale-mismatch conclusion has a name, and it's a cart that already exists: **`citydrive`** — the
+pseudo-3D, pitched, *close* view that already loads the same OSM `.rvb` and is already drivable. That is
+precisely where the grammar (markings, pavements, curb returns) is **visible** rather than sub-pixel. So
+the geometry-first road-rendering story leads in citydrive, not in sloop's fast top-down drive:
+
+- **citydrive is the natural home for the render** — ADR-0021 says geometry is authored **2D on the
+  ground plane** and the pseudo-3D view is the **adapter**; citydrive *is* that adapter, proven over
+  arbitrary OSM polygons + terrain. Lane lines, zebras, pavement/kerb bands are 2D ground decals that
+  project into its view for free. Its roads today are flat class-coloured quads (`road_seg`) — the exact
+  crude state sloop's ribbons are in, but with the close camera that makes the fix *pay off on screen*.
+- **It's already playable and already loads OSM** — the cheapest place to make "our roads are
+  geometry-first, with real markings" real and demoable. Strengthens the geometry/rendering story now.
+- **The cool car hooks back in later, cheaply** — `road_at()` + sloop's grip/collision physics are
+  producer- AND renderer-agnostic (the seam is clean), so once the rendering is proven in citydrive,
+  either bring that ground-plane render to sloop's top-down or bring sloop's rigid-body rig into
+  citydrive. Both are wiring against the shared seam, not a rewrite.
+- **Honest tradeoff:** citydrive has **no rig physics** today (it's a camera drive, not sloop's
+  grid-of-parts body). So citydrive-first means the geometry/markings showcase leads and the deep car
+  *feel* waits. That's the right order when the goal is the geometry-first roads story.
+
 ## The three paths (and the call)
 
-1. **Cheap street-dressing in `sloop` now** *(independent of roadkit, days).* Using only the segments
-   sloop already has: centre-line dashes, class-based lane widths, a pavement band alongside each ribbon,
-   casing edges. ~70% of the "this is a real street" feel *at driving zoom*, for little effort. Does NOT
-   touch junction geometry (sub-pixel while moving anyway). **Do this in parallel; not blocked on roadkit.**
+1. **Cheap street-dressing now — in `citydrive` first** *(independent of the roadkit extraction, days).*
+   Centre-line + lane markings on citydrive's projected road quads, then class-based widths, then
+   pavement/kerb bands. ~70% of the "this is a real street" feel **where it's visible** (the close
+   pitched camera), for little effort. The same dressing can later be mirrored onto sloop's ribbons for
+   its fast drive. **Not blocked on roadkit; start here.**
 2. **`roadkit.h` — the real integration** *(the architecturally correct move; this doc).* Extract the
-   grammar so the drivable world (at a street-camera tier) renders through streetlab/roadlab's actual
-   geometry. The thing we've circled for a while — **decision: bite the bullet, start Phase 1 now.**
-3. **A zoom / 3D tier** that renders the full grammar only when close enough to see it — the *consumer*
-   of roadkit #2, not a rival. Comes after roadkit exists.
+   grammar so **citydrive** (then, later, sloop) renders through streetlab/roadlab's *actual* geometry —
+   curb returns, the leg model, the typed cross-section. The thing we've circled — **decision: GO**,
+   designed from citydrive as the working consumer.
+3. **`sloop` gets it later** — either the ground-plane render brought to its top-down (mostly wasted
+   at driving zoom → likely only its own street-camera tier) or, more likely, **sloop's rig driven
+   inside citydrive**. Comes after the render is proven; cheap because of the shared seam.
 
 ## Why now (overriding the old "not yet")
 
 `road-program-state.md` and the umbrella's build-order note said: *extract only once a consumer needs
-BOTH renderers from one place — then, not now.* That condition is **now met.** `sloop`'s Rung B is a
-real third consumer (it drives real OSM Delft and will want junction detail at close range), and the
-OSM work already surfaced the **★ rung-3 finding**: streetlab assumes collinear arm-PAIRS, but real
-nodes are **N independent arms** — the per-arm casing path can't express them; only the **field path**
+the grammar as a callable renderer from a place that isn't its bench — then, not now.* That condition is
+**now met.** The OSM work (sloop drives real Delft; citydrive extrudes real Delft) surfaced a real
+consumer *and* the **★ rung-3 finding**: streetlab assumes collinear arm-PAIRS, but real nodes are **N
+independent arms** — the per-arm casing path can't express them; only the **field path**
 (`fr_render`/`fr_arm`, already N-arm-native) can. So the trigger fired: the N-arm-native renderer *is*
-roadkit's renderer. Extracting now designs the interface from a working consumer, not a guess.
+roadkit's renderer. Extracting now designs the interface from **citydrive as the working consumer**
+(its projected ground plane), not a guess.
 
 ## What roadkit.h holds
 
@@ -65,36 +94,47 @@ roadkit's renderer. Extracting now designs the interface from a working consumer
 
 ## Consumers after extraction
 
-- **`streetlab`** → a thin bench that calls roadkit + **keeps its `spec()` as the regression lock**
-  (104 assertions pin roadkit's geometry; per [`spec.h`](../../runtime/spec.h)'s pattern a lib can expose
-  a `roadkit_selfcheck()` the cart's `spec()` calls). The spec is the safety net for the whole move.
+- **`streetlab`** → stays the *source of truth*: a thin bench that calls roadkit + **keeps its `spec()`
+  as the regression lock** (104 assertions pin roadkit's geometry; per [`spec.h`](../../runtime/spec.h)'s
+  pattern a lib can expose a `roadkit_selfcheck()` the cart's `spec()` calls). The spec is the safety net
+  for the whole move — it never becomes the drivable *world*, it *guards* the grammar the world uses.
+- **`citydrive`** → **the first RENDER consumer.** Its flat `road_seg` quads become geometry-first
+  ground (markings → pavements/kerbs → curb-return junctions) rendered through roadkit and projected by
+  its existing pseudo-3D adapter. This is the moment the grammar becomes something you drive through.
 - **`roadlab`** → calls roadkit for the grade-separated family.
-- **`sloop`** → at the street-camera tier, renders the visible junctions through roadkit; the fast
-  top-down drive keeps the cheap ribbons (path #1). This is the moment the grammar becomes the world.
+- **`sloop`** → later, via the shared `road_at()` seam: either the ground-plane render mirrored onto its
+  top-down (likely only a street-camera tier, since it's sub-pixel at speed) or — more likely — its
+  rigid-body rig driven inside citydrive. Not on the critical path for the geometry story.
 
-## Phasing (each step spec-gated; stop at any natural line)
+## Phasing (each step gated; stop at any natural line)
 
-1. **Pure-geometry extract (safe first step).** Move the pure fns (`curb_return`, leg model,
+1. **Cheap street-dressing in citydrive** *(not the extraction; parallel, days).* Markings + widths +
+   pavement/kerb bands on citydrive's projected road quads. Visible payoff immediately; validates the
+   ground-decal approach before the harder junction geometry. **← START HERE.**
+2. **Pure-geometry extract (safe first roadkit step).** Move the pure fns (`curb_return`, the leg model,
    `cross_hw`, corner counts) into `roadkit.h`; `streetlab` `#include`s it and calls them unchanged.
-   **`spec` must stay 104/0** — a pure move, no behaviour change. This alone de-risks and gives a real
-   interface to design the rest from. **← START HERE.**
-2. **Field renderer into roadkit** as the N-arm-native render entry; `streetlab` renders through it
-   (its opt-in `DE_FIELD_ROADS` path becomes the default source). `road-check` + `mirror-diff` gate it.
-3. **Grade dispatch** — `roadlab` calls roadkit; one `roadkit_junction(legs, grade)` routes at-grade
-   vs grade-separated. Fed identically from a seed or OSM.
-4. **`sloop` consumes it** at a street-camera zoom tier (the visible-junction render), leaving the fast
-   drive on ribbons.
+   **`spec` must stay 104/0** — a pure move, no behaviour change. De-risks + gives a real interface.
+   (Note: even `ux`/`uy` differ between streetlab (near-zero snap) and roadlab (none) — roadkit needs a
+   deliberate canonical form; don't blind-copy.)
+3. **Field renderer into roadkit** as the N-arm-native render entry; **citydrive** renders its ground
+   through it (streetlab's `DE_FIELD_ROADS` path is the reference). `road-check` + `mirror-diff` gate it.
+4. **Grade dispatch** — `roadlab` calls roadkit; one `roadkit_junction(legs, grade)` routes at-grade vs
+   grade-separated. Fed identically from a seed or OSM.
+5. **`sloop` gets it** — the car ∪ the render, via the shared seam. The easy, last step.
 
 ## Risks / dependencies
 
-- **Perf** — whole-city junction render is gated on `software-canvas.md`; but a *street-camera* renders
-  FEW junctions, so Phase 4 is affordable well before the whole-city case. Scope roadkit's first sloop
-  use to the close camera.
+- **Perf** — whole-city junction render is gated on `software-canvas.md`; but citydrive's **pitched
+  camera only shows a handful of junctions near the player**, so the geometry render is affordable there
+  well before the whole-city top-down case. Scope roadkit's first use to citydrive's near field.
 - **Keeping `spec` green** — the extraction's safety net; run `node tools/spec.js streetlab` after every
-  step. If Phase 1 can't hold 104/0, the boundary is wrong — fix the seam, don't loosen the spec.
+  step. If the pure-geometry extract can't hold 104/0, the boundary is wrong — fix the seam, don't loosen the spec.
 - **Scale-invariance** — roadkit must render at arbitrary world scale (streetlab: one junction fills the
-  screen; sloop: tiny). The field renderer is naturally scale-free; the per-arm casing path is not — a
-  reason to lead with the field path.
+  screen; citydrive: projected + near/far). The field renderer is naturally scale-free; the per-arm
+  casing path is not — a reason to lead with the field path.
+- **Pseudo-3D projection** — citydrive renders ground decals through its `project()` adapter (ADR-0021);
+  roadkit emits the grammar as **2D ground geometry** and citydrive projects it, so roadkit stays
+  projection-agnostic (the same 2D output a future top-down consumer would use).
 
 ## Pointers
 

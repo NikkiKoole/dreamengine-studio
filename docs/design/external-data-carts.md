@@ -323,10 +323,14 @@ near the camera is drawn as the base ground so hills actually read. Elevation is
 it reads best in motion and in less-built areas; dense downtown hides it. Fetch e.g.
 `--bbox 37.791,-122.421,37.807,-122.404 --dem` for San Francisco's hills.
 
-Still flat / TODO in `citydrive`: bridge/overpass **decks** (lift `bridge`/`layer` ways onto cityview's
-`Deck` machinery — distinct from terrain; NL cities are flat so it only matters for overpasses), inner-ring
-holes, the >64-vertex footprint clamp (`MAXBV`), and the hashed `other_area` understory. Web/wasm file
-loading is shared with roadview (below).
+Still flat / TODO in `citydrive`: **the roads themselves** — today flat class-coloured quads (`road_seg`),
+no markings/pavements/curb returns. **`citydrive` is now the promoted first home for the geometry-first
+road render** (the close pseudo-3D view where that grammar is visible, unlike sloop's fast top-down drive):
+markings → pavements/kerbs → curb-return junctions on its projected ground plane, via `roadkit.h`. Decision
++ plan: [`roadkit.md`](roadkit.md). Also flat/TODO: bridge/overpass **decks** (lift `bridge`/`layer` ways
+onto cityview's `Deck` machinery — distinct from terrain; NL cities are flat so it only matters for
+overpasses), inner-ring holes, the >64-vertex footprint clamp (`MAXBV`), and the hashed `other_area`
+understory. Web/wasm file loading is shared with roadview (below).
 
 ### The binary form (`.rvb`) — same IR, packed
 

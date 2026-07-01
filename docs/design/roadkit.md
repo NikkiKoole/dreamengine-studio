@@ -1,7 +1,8 @@
 # roadkit.h — when streetlab/roadlab reach the drivable world
 
 STATUS: BUILDING (2026-07-01) — Phase 1 (connectivity: one connected asphalt surface + bridges/tunnels)
-shipped in `citydrive`; markings/pavements next, then the `roadkit.h` extract. The decision + plan to extract the shared road-rendering &
+**and Phase 2 (cheap street-dressing: light pavement/kerb bands + dashed white centre-line markings, class-based
+widths, + an in-cart junction/node graph)** shipped in `citydrive`; curb-return junctions + the `roadkit.h` extract next. The decision + plan to extract the shared road-rendering &
 junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md))
 so `streetlab` (the spec-locked *source*), `roadlab` (interchange bench) and — **the first render consumer
 — `citydrive`** (the pseudo-3D real-OSM view where the grammar is actually *visible*) all call ONE
@@ -123,8 +124,62 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    **bridges** (raised decks) / **tunnels** (dashed) landed as a bonus of the same pass structure
    (osm-roads carries bridge/tunnel/layer; see [`external-data-carts.md`](external-data-carts.md)). Roads
    read as a coherent network — the foundation everything else sits on.
-2. **Cheap street-dressing in citydrive** *(days) — ← NEXT.* Markings + widths + pavement/kerb bands on the
-   now-connected projected roads. Visible payoff; validates the ground-decal approach before extraction.
+2. **Cheap street-dressing in citydrive — ✅ DONE (2026-07-01).** Ground decals on the now-connected
+   projected roads, all riding the existing per-layer sweep (so junctions still fuse): a light
+   **pavement/kerb band** (`CLR_LIGHT_GREY`, drawn widest-first before the casing) on urban street-tier
+   roads only (`has_pavement()` — arterial/road/secondary/tertiary; motorways & tracks/service stay bare),
+   and a **dashed white centre-line** (`paint_markings()`, drawn last over the asphalt) on carriageways
+   wide enough for a lane division (`hw_m >= 2.5m`). Widths were already class-based (`ROAD[].hw_m`). Reads
+   as "a real street" in the heading-up/near-top-down view; validated the ground-decal approach before any
+   extraction. **Zoom LOD:** both passes gate on effective px-per-metre at the focus (`eff` = flat-mode
+   `zoom`, or `zoom*90/setback` in perspective) — pavement drops below `eff 0.5`, markings below `eff 1.2`
+   — so zoomed-out roads render as clean thin lines instead of sub-pixel dash-noise (and save the fill). *Known artifacts (deliberately left for the field renderer):* centre-line dashes run
+   straight across junctions (markings don't stop at nodes), lane markings are a single centre-line (no
+   per-lane divisions inferred from width yet), and these decals are throwaway once #4 lands.
+
+   **Junction/node model + crosswalks (2026-07-01).** citydrive gained an in-cart port of
+   `data-tools/roadview/osm-junction.js`: `build_junctions()` runs once at load, quantizes every at-grade
+   motor-road vertex into a heap-scratch node hash (`J_QUANT` 1 m grid), accumulates incident-arm bearings,
+   dedups within 8° (incl. wrap-around), and keeps nodes with **≥3 distinct arms** as the compact resident
+   `junc[]` (position + per-arm bearing + class). Verified **exact-match** with the offline extractor (Delft
+   centre = 217 junctions both ways). **This node graph is the data layer every junction treatment needs** —
+   the "the cart has no node model" gap the umbrella flagged is now closed on the OSM side.
+
+   **First render consumer: voorrang / haaientanden (2026-07-01).** We know which road is bigger from the arm
+   classes, so `draw_giveway()` ranks each junction's arms (`road_rank()`: motorway>arterial>secondary>tertiary
+   >road>track>service = the Dutch "grotere weg gaat voor") and paints a row of white shark's-teeth (give-way
+   B6) across each **minor** approach — apex pointing back at the yielding driver — with **nothing on the
+   priority road**. When every arm is the same class it paints nothing (rechts-voor-links / roundabout is
+   genuinely ambiguous without the signs we don't have). On Delft centre **72 of 217 junctions** have a clear
+   priority and get teeth; the other 145 are equal-class and correctly stay bare. Same `lod_markings` zoom gate.
+   *Rejected first consumer:* a zebra-crosswalk pass was prototyped off `junc[]` but **pulled** — a crossing on
+   every walkable arm of every junction isn't where real crossings sit, and **crossings aren't in our data at
+   all**: `osm-roads.js` only queries `node["natural"="tree"]`, so OSM's `highway=crossing` nodes (the marked
+   VOPs) never reach the `.rvb`. Real crossings need the importer taught to carry crossing nodes; deferred.
+
+   **Per-feature toggles + red cycleways (2026-07-01).** The dressing now has seams: `P`/`L`/`G` toggle
+   pavement / lane-markings / give-way independently (master `R` still wraps the whole road layer) — the
+   instrument for judging whether the cheap decals carry the look before committing to the field-path rewrite.
+   Separate cycleway ways render as **Dutch red fietspaden** (a dark-red casing under a warm-red surface),
+   so a bike path reads as its own ribbon alongside the road. **What the `.rvb` still can't give** (importer
+   drops it, all cheap way-tags): `sidewalk=*` (the *real* per-street pavement, vs our class heuristic),
+   `cycleway=lane` (on-road bike lanes — a big share of NL bike infra, invisible here), `oneway`/`lanes`
+   (correct lane-count markings), `surface` (brick/klinker vs asphalt), `maxspeed` (30-zones), and
+   `junction=roundabout`. Teaching `osm-roads.js` to preserve those six is the next high-leverage data step.
+
+   **Importer widened — Tier-1 way-attributes (2026-07-01).** Done: `osm-roads.js` now packs a road's useful
+   OSM tags into the existing `sub` string as a compact `;`-delimited token list (`roadSub()`) — **surface**
+   (`U` a/p/g/w/o), **sidewalk** (`W` b/l/r/n), **oneway** (`O`), **lanes** (`L<n>`), **maxspeed** (`M<n>`),
+   **on-road cycleway** (`C` b/l/r), **roundabout** (`R`) — with the bridge/tunnel token kept FIRST so
+   `parse_deck` and every existing reader are unchanged (backward-compatible; old `.rvb`s still load and fall
+   back). Re-fetched `data/delft-centre.rvb`: **surface on 1621 roads, maxspeed 622, sidewalk 406, oneway 354,
+   lanes 161, on-road cycleway 39.** Consumers wired in `citydrive` (`sub_tok()` reads the tokens into
+   `rways.surf`/`.sw`): **road surface now drives the carriageway colour** (`surf_col()` — brick/klinker roads
+   render warm instead of grey; asphalt/concrete stay grey → a real Delft brick-street look with the arterials
+   standing out), and **pavement uses the real `sidewalk` tag when present** (falls back to the `has_pavement`
+   class heuristic only where untagged) — this retires the "we fake per-street pavement" gap. **Still faked /
+   next:** oneway+lanes → correct lane-count markings; the node-level tier (crossings, give-way/stop/signals)
+   needs new kind indices (enum surgery in `citydrive.c` + `roadview.c`), so it's the next importer chunk.
 3. **Pure-geometry extract (safe first roadkit step).** Move the pure fns (`curb_return`, the leg model,
    `cross_hw`, corner counts) into `roadkit.h`; `streetlab` `#include`s it and calls them unchanged.
    **`spec` must stay 104/0** — a pure move, no behaviour change. De-risks + gives a real interface.

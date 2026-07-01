@@ -106,6 +106,34 @@ ways with dedicated classes: `rail` (dashed), `canal`, `coast`.
 
 ## Data we could pull (OSM has much more)
 
+### Road & street data — the leverage tiers (2026-07-01 audit)
+
+The dropped/available OSM road data, ranked by how directly it upgrades the street render, with real
+coverage measured on central Delft (~311 ways sampled) and current status. Twin of the road-dressing
+consumer plan in [`roadkit.md`](roadkit.md).
+
+**Tier 1 — cheap way-tags (ride on ways we already fetch; packed into the `sub` token string).** ✅ **fetched
+2026-07-01** via `roadSub()` (keys `B/T O L W U M C R`, backward-compatible):
+| tag | token | Delft coverage | consumed? |
+|---|---|---|---|
+| `surface` (asphalt/paving_stones/sett/…) | `U a/p/g/w/o` | **264/311** | ✅ citydrive carriageway colour (brick vs asphalt) |
+| `maxspeed` | `M<n>` | 109 | ⏳ captured, not rendered (30-zones) |
+| `sidewalk` both/left/right/none | `W b/l/r/n` | 68 | ✅ citydrive pavement (real, vs class heuristic) |
+| `oneway` | `O` | 62 | ⏳ captured → lane-count markings next |
+| `bridge`/`tunnel`/`layer` | `B<L>`/`T<L>` | 32/15 | ✅ citydrive decks + dashed tunnels |
+| `lanes` | `L<n>` | 9 | ⏳ captured → lane-count markings next |
+| on-road `cycleway=lane` / `cycleway:*` | `C b/l/r` | ~11 | ⏳ captured, not rendered (NL red on-road lanes) |
+| `junction=roundabout` | `R` | rare | ⏳ captured (resolves the equal-class voorrang case) |
+
+**Tier 2 — node-level control (NOT fetched: the query only asks for `node["natural"="tree"]`; needs new
+`KIND_IX`/enum slots in `citydrive.c` + `roadview.c`).** The *real* versions of things we currently infer:
+- `highway=give_way` / `stop` / `traffic_signals` — real priority per approach (vs our class-inferred voorrang).
+- `highway=crossing` (`crossing=zebra/marked/traffic_signals`) — the marked crossings (why the per-arm zebra guess was wrong).
+- `traffic_calming=bump/hump/table` — woonerf detail.
+
+**Tier 3 — carried-but-unused / minor.** `name` is already packed per feature (unused by citydrive — free labels);
+`ref` (road numbers A13/N470 → shields) is *not* captured; `parking:lane`, `turn:lanes`, `building:colour`/`roof:shape` dropped.
+
 Since the "use ALL the data" pass, most of the area/line families below **already render** — as
 the muted hashed `other_area`/`other_line` understory (any `landuse`/`leisure`/`amenity`/`natural`/
 `man_made`/`aeroway` we don't curate). So this list is now about **promoting** the high-value ones
@@ -139,9 +167,16 @@ industrial, farm, parking*
 keeping in the schema, likely alongside `sub`)
 - **`building:levels` / `height`** — the big one for the *extrude-buildings-downstream* goal: keep
   real heights, not just footprint + type.
-- Roads: `ref` (road number "A13", for shields/labels), `bridge` / `tunnel` (draw tunnels dashed,
-  bridges with casing), `oneway`, `maxspeed`, `surface`, `lanes`.
+- Roads — **DONE (2026-07-01):** `bridge`/`tunnel`/`layer` (deck code) plus `surface`, `sidewalk`,
+  `oneway`, `lanes`, `maxspeed`, on-road `cycleway`, `junction=roundabout` now ride in the road's `sub`
+  as a `;`-delimited token list (`roadSub()`; keys `B/T O L W U M C R`, bridge token first so `parse_deck`
+  is unchanged — backward-compatible, no format bump). citydrive reads them via `sub_tok()`: **surface →
+  carriageway colour** (brick/klinker vs asphalt) and **`sidewalk` → real per-street pavement**. *Still on
+  the wish-list:* `ref` (road-number shields/labels).
 - `name` on waterways (river names), `addr:*` on buildings.
+- **Node-level control (needs new point-feature kinds + a query):** `highway=crossing` (marked zebras),
+  `highway=give_way`/`stop`/`traffic_signals` (real priority, vs our class-inferred voorrang),
+  `traffic_calming`. These want new `KIND_IX`/enum slots in `citydrive.c` + `roadview.c` — the next chunk.
 
 **Relations — multipolygons (Stage 1 DONE).** Big lakes/rivers/forests are modelled as
 multipolygon *relations* whose member ways are just boundary arcs — so fetching ways alone gave a

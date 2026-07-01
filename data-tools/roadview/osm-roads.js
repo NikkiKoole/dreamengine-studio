@@ -184,6 +184,37 @@ function definingTag(t) {
   return 'other';
 }
 
+// OSM surface → a single render code: a=smooth (asphalt/concrete), p=brick/klinker (paving_stones/
+// sett/cobblestone — most of a Dutch centre), g=unpaved (gravel/ground/sand), w=wood, o=other.
+function surfaceCode(s) {
+  if (!s) return '';
+  if (/^(asphalt|concrete|concrete:plates|paved|chipseal|metal|tartan|acrylic)$/.test(s)) return 'a';
+  if (/(paving_stones|sett|cobblestone|unhewn_cobblestone|bricks?|paving_stone)/.test(s)) return 'p';
+  if (/(gravel|fine_gravel|compacted|ground|dirt|earth|sand|grass|mud|pebblestone|rock|clay)/.test(s)) return 'g';
+  if (/wood/.test(s)) return 'w';
+  return 'o';
+}
+// Pack a road's useful OSM attributes into the compact `sub` token string — ';'-delimited, each token's
+// FIRST char is its key. The bridge/tunnel token stays first for backward-compat (parse_deck reads sub[0]).
+// Tokens: B<L>/T<L> bridge/tunnel · O oneway · L<n> lanes · W b|l|r|n sidewalk · U a|p|g|w|o surface ·
+// M<n> maxspeed(km/h) · C b|l|r on-road cycleway · R roundabout. Consumers read only what they use.
+function roadSub(tags, bridgeTok) {
+  const t = []; if (bridgeTok) t.push(bridgeTok);
+  if (tags.oneway === 'yes' || tags.oneway === '-1') t.push('O');
+  const ln = parseInt(tags.lanes, 10); if (Number.isFinite(ln) && ln > 0 && ln <= 12) t.push('L' + ln);
+  const sw = tags.sidewalk || tags['sidewalk:both'];
+  if (sw === 'both') t.push('Wb'); else if (sw === 'left') t.push('Wl');
+  else if (sw === 'right') t.push('Wr'); else if (sw === 'no' || sw === 'none') t.push('Wn');
+  const u = surfaceCode(tags.surface); if (u) t.push('U' + u);
+  const ms = parseInt(tags.maxspeed, 10); if (Number.isFinite(ms) && ms > 0 && ms <= 130) t.push('M' + ms);
+  const lane = (v) => v && v !== 'no' && v !== 'separate' && v !== 'none';           // an on-road bike lane?
+  const cwL = lane(tags['cycleway:left']), cwR = lane(tags['cycleway:right']);
+  if (lane(tags.cycleway) || lane(tags['cycleway:both']) || (cwL && cwR)) t.push('Cb');
+  else if (cwL) t.push('Cl'); else if (cwR) t.push('Cr');
+  if (tags.junction === 'roundabout' || tags.junction === 'circular') t.push('R');
+  return t.join(';');
+}
+
 // radial-distance decimation: keep a point only if it's > eps metres from the last kept.
 function simplify(pts, eps) {
   if (pts.length <= 2 || eps <= 0) return pts;
@@ -501,14 +532,16 @@ async function overpass(S, W, N, E, name) {
     const g = el.geometry;
     let kind = classifyWay(tags);
     let sub = kind === 'building' ? (tags.building !== 'yes' ? tags.building : '') : '';
-    // carry bridge/tunnel/layer for line roads in `sub` (empty for roads until now, so no collision): the
-    // render consumer (citydrive) raises bridge ways onto a deck / dashes tunnels, and grade-dispatch
-    // (roadlab/streetlab) reads it. Backward-compatible — every reader already skips `sub`. Code:
-    // "B<layer>" = bridge (default layer 1), "T<layer>" = tunnel (default -1); absent = at grade.
+    // Line roads carry their useful OSM attributes in `sub` as a ';'-delimited token string (roadSub):
+    // bridge/tunnel (deck), surface, sidewalk, oneway, lanes, maxspeed, on-road cycleway, roundabout.
+    // Backward-compatible: the bridge/tunnel token stays FIRST so parse_deck (reads sub[0]) is unchanged,
+    // and any reader that ignores `sub` still loads. Bridge code: "B<layer>"/"T<layer>"; absent = at grade.
     if (BRIDGEABLE.has(kind)) {
       const br = tags.bridge && tags.bridge !== 'no';
       const tu = !br && tags.tunnel && tags.tunnel !== 'no';
-      if (br || tu) { const L = parseInt(tags.layer, 10); sub = (br ? 'B' : 'T') + (Number.isFinite(L) ? L : (br ? 1 : -1)); }
+      let bridgeTok = '';
+      if (br || tu) { const L = parseInt(tags.layer, 10); bridgeTok = (br ? 'B' : 'T') + (Number.isFinite(L) ? L : (br ? 1 : -1)); }
+      sub = roadSub(tags, bridgeTok);
     }
     const h = kind === 'building' ? buildingHeight(tags) : 0;   // metres, for the pseudo-3D extrude (citydrive)
     if (!kind) {                                       // uncategorised → the hashed "other" understory

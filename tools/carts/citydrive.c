@@ -17,7 +17,7 @@
     "Inner-ring holes (islands in lakes, courtyards) and the hashed other_area understory; >64-vertex footprint clamp (MAXBV)."
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
-  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom."
+  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface with class-based widths, light pavement/kerb bands, dashed lane centre-lines, and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang); separate cycleways render as red Dutch fietspaden. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out)."
 }
 de:meta */
 #include "studio.h"
@@ -80,7 +80,7 @@ static const Road ROAD[K_N] = {
     [K_SECONDARY] = { CLR_LIGHT_YELLOW,4.0f },
     [K_TERTIARY]  = { CLR_PEACH,      3.0f },
     [K_SERVICE]   = { CLR_MEDIUM_GREY,1.5f },
-    [K_CYCLEWAY]  = { CLR_DARK_RED,   1.2f },
+    [K_CYCLEWAY]  = { CLR_DARK_ORANGE,1.4f },   // Dutch fietspad — warm red surface (dark-red casing added in draw)
     [K_FOOTWAY]   = { CLR_INDIGO,     0.9f },
 };
 static bool is_road(int k){ return ROAD[k].hw_m > 0.0f; }
@@ -109,7 +109,7 @@ static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local
 static int   nps;
 typedef struct { int start, count; float h, cx, cy; int mat; } DBldg;   // building footprint ring
 static DBldg blds[MAXBLD]; static int nbld;
-static struct { int kind, start, count; signed char deck; } rways[MAXWAY]; static int nway;  // road lines; deck>0=bridge(layer), <0=tunnel, 0=at grade
+static struct { int kind, start, count; signed char deck, surf, sw; } rways[MAXWAY]; static int nway;  // road lines; deck>0=bridge(layer),<0=tunnel,0=grade; surf/sw = OSM surface/sidewalk codes (0=unknown)
 
 // parse a road's `sub` bridge code (osm-roads.js): "B<layer>" → +layer (bridge), "T..." → -1 (tunnel),
 // else 0 (at grade). s is null-terminated. Layer is a single digit in practice; clamp to [1,3].
@@ -117,6 +117,18 @@ static signed char parse_deck(const char *s){
   if (!s || !s[0]) return 0;
   if (s[0]=='B'){ int L = (s[1]>='1' && s[1]<='9') ? s[1]-'0' : 1; return (signed char)(L>3?3:L); }
   if (s[0]=='T') return -1;
+  return 0;
+}
+// read one attribute from the ';'-delimited `sub` token string (osm-roads.js roadSub): find the token
+// whose FIRST char is `key`, return the char after it (its payload) — or 1 for a bare flag token, 0 if
+// absent. Keys: U surface(a/p/g/w/o) · W sidewalk(b/l/r/n) · M maxspeed · L lanes · O oneway · C cycleway · R roundabout.
+static char sub_tok(const char *s, char key){
+  if (!s) return 0;
+  for (const char *p=s; *p; ){
+    if (*p==key){ char c=p[1]; return (c && c!=';') ? c : 1; }
+    while (*p && *p!=';') p++;
+    if (*p==';') p++;
+  }
   return 0;
 }
 
@@ -133,6 +145,17 @@ static const int AREA_COL[K_N] = {
 static bool is_area(int k){ return AREA_COL[k] != 0; }   // (no area maps to CLR_BLACK=0)
 static struct { int kind, start, count; float cx, cy; } areas[MAXAREA]; static int narea;
 
+// ── junction/node model — the at-grade road graph, built once at load (port of
+// data-tools/roadview/osm-junction.js). A node = a quantized shared vertex; a JUNCTION = a node
+// with >=3 distinct incident-arm bearings. Feeds crosswalks now; the roadkit grade-dispatch later.
+#define J_QUANT   1.0f        // node-merge grid (m) — shared OSM vertices share coords
+#define J_RAWARM  12          // raw incident directions accumulated per node before dedup
+#define MAXARM    8           // arms kept per junction after dedup
+#define MAXJUNC   60000       // junction capacity (near-field detail; truncates gracefully)
+typedef struct { float x, y; unsigned char narm; float brg[MAXARM]; unsigned char cls[MAXARM]; } Junc;
+static Junc junc[MAXJUNC]; static int njunc;
+static void build_junctions(void);    // defined below (after the road painters it reuses)
+
 static char dname[64] = "";
 static char err[160]  = "";
 static int  loaded_ok = 0, truncated = 0;
@@ -145,6 +168,7 @@ typedef struct {
   float camx, camy, camz, rot, zoom;  // camera: eased pos + ground height + rotation(deg) + px-per-metre
   int   mode;
   bool  started, tex, roads_on, topdown;
+  bool  show_pave, show_mark, show_give;   // per-feature dressing toggles (P/L/G) — master roads_on (R) wraps all
   float lookrot;                  // mouse-drag orbit offset on top of the heading; decays while driving
   bool  dragging; int dragx;
   float pitch, eye, setback;      // M_PERSP pitched camera: tilt(deg below horizontal), eye height, chase setback
@@ -206,12 +230,12 @@ static void pdisc(float cx,float cy,float r,int color){
 }
 
 // ── data loading (twin of roadview's loader; reads RVB2 heights) ─────────────
-static void reset_pools(void){ nps=0; nbld=0; nway=0; narea=0; hf_g=0; g_exag=1.0f; loaded_ok=0; truncated=0; dname[0]=0; err[0]=0; }
+static void reset_pools(void){ nps=0; nbld=0; nway=0; narea=0; njunc=0; hf_g=0; g_exag=1.0f; loaded_ok=0; truncated=0; dname[0]=0; err[0]=0; }
 
 static int bld_mat(int start){ unsigned h=(unsigned)start*2654435761u; h^=h>>13; return (h>>8)%NMAT; }
 
 // route one decoded feature into the building or road pools.
-static void store_feature(int kind, int start, int count, float h, signed char deck){
+static void store_feature(int kind, int start, int count, float h, const char *sub){
   if (kind == K_BUILDING){
     if (nbld >= MAXBLD || count < 3) return;
     if (PX[start]==PX[start+count-1] && PY[start]==PY[start+count-1]) count--;   // drop closing dup
@@ -222,7 +246,11 @@ static void store_feature(int kind, int start, int count, float h, signed char d
     blds[nbld++] = (DBldg){ start, count, h, cx, cy, bld_mat(start) };
   } else if (is_road(kind)){
     if (nway >= MAXWAY || count < 2) return;
-    rways[nway].kind = kind; rways[nway].start = start; rways[nway].count = count; rways[nway].deck = deck; nway++;
+    rways[nway].kind = kind; rways[nway].start = start; rways[nway].count = count;
+    rways[nway].deck = parse_deck(sub);
+    rways[nway].surf = (signed char)sub_tok(sub,'U');   // a/p/g/w/o surface (0=unknown)
+    rways[nway].sw   = (signed char)sub_tok(sub,'W');   // b/l/r/n sidewalk (0=unknown)
+    nway++;
   } else if (is_area(kind)){
     if (narea >= MAXAREA || count < 3) return;
     if (PX[start]==PX[start+count-1] && PY[start]==PY[start+count-1]) count--;   // drop closing dup
@@ -248,14 +276,13 @@ static void load_bin(const char *buf, long len){
     memcpy(&kind,p,4); p+=4;
     if (ver=='2'||ver=='3'){ memcpy(&fh,p,4); p+=4; }
     memcpy(&sublen,p,4); p+=4;
-    char subb[8]={0}; { int sl = sublen<7?sublen:7; if(sl>0) memcpy(subb,p,(size_t)sl); }   // road bridge/tunnel code
+    char subb[32]={0}; { int sl = sublen<31?sublen:31; if(sl>0) memcpy(subb,p,(size_t)sl); }   // road attr tokens (bridge/surface/sidewalk/…)
     p+=sublen;
     memcpy(&npts,p,4); p+=4;
     if (kind<0||kind>=K_N) kind=K_ROAD;
-    signed char deck = is_road(kind) ? parse_deck(subb) : 0;
     int start=nps, got=0;
     for(int j=0;j<npts && p+8<=end;j++){ if(nps<MAXPTS){ float xy[2]; memcpy(xy,p,8); PX[nps]=xy[0]; PY[nps]=xy[1]; nps++; got++; } p+=8; }
-    if (got>=2) store_feature(kind, start, got, fh, deck);
+    if (got>=2) store_feature(kind, start, got, fh, subb);
   }
   if (ver=='3' && p+4<=end){                               // trailing terrain heightfield: int32 G + float32 grid[G*G]
     int g; memcpy(&g,p,4); p+=4;
@@ -290,12 +317,11 @@ static void load_json(char *js, long len){
         for (int k=0;k<K_N;k++) if (NAMES[k] && !strcmp(kb,NAMES[k])){ kind=k; break; }
       }
       float fh = (hi>=0) ? (float)json_num(js,&tok[hi]) : 0;
-      int si=json_get(js,tok,fi,"sub"); char sb[16]={0}; if(si>=0) json_str(sb,sizeof sb,js,&tok[si]);
-      signed char deck = parse_deck(sb);
+      int si=json_get(js,tok,fi,"sub"); char sb[32]={0}; if(si>=0) json_str(sb,sizeof sb,js,&tok[si]);
       if (pi>=0 && tok[pi].type==JSMN_ARRAY){
         int cnt=tok[pi].size/2, start=nps, got=0;
         for (int j=0;j<cnt && nps<MAXPTS;j++){ PX[nps]=(float)json_num(js,&tok[pi+1+j*2]); PY[nps]=(float)json_num(js,&tok[pi+1+j*2+1]); nps++; got++; }
-        if (got>=2) store_feature(kind, start, got, fh, deck);
+        if (got>=2) store_feature(kind, start, got, fh, sb);
       }
       fi += json_span(tok, fi);
     }
@@ -313,6 +339,7 @@ static void load_from(const char *path){
   free(js);
   if (!nbld && !nway){ if(!err[0]) snprintf(err,sizeof err,"no features in %s",path); return; }
   if (nps>=MAXPTS || nbld>=MAXBLD || nway>=MAXWAY) truncated = 1;
+  build_junctions();     // detect at-grade intersections → junc[] (crosswalks etc.)
   spawn_in_mass();
   loaded_ok = 1;
 }
@@ -339,6 +366,7 @@ static void spawn_in_mass(void){
   S.ang = -45; S.spd = 0;
   S.camx = S.px; S.camy = S.py;
   if (!S.started){ S.mode=M_HEADING; S.zoom=1.5f; S.tex=true; S.roads_on=true;
+                   S.show_pave=S.show_mark=S.show_give=true;
                    S.pitch=22.0f; S.eye=20.0f; S.setback=30.0f; }
   S.rot = (S.mode==M_NORTH) ? 0.0f : (-90.0f - S.ang);
   S.started = true;
@@ -487,6 +515,17 @@ static void road_seg(float ax,float ay,float bx,float by,float hw,int col){
 static bool is_motor_road(int k){
   return k==K_HIGHWAY||k==K_ARTERIAL||k==K_ROAD||k==K_TRACK||k==K_SECONDARY||k==K_TERTIARY||k==K_SERVICE;
 }
+// urban street-tier roads carry a pavement/kerb band; motorways (no sidewalk), tracks & service
+// alleys stay bare. Street-dressing Phase 2 — docs/design/roadkit.md.
+static bool has_pavement(int k){ return k==K_ARTERIAL||k==K_ROAD||k==K_SECONDARY||k==K_TERTIARY; }
+// carriageway fill colour from the OSM surface code (rways.surf): brick/klinker roads (most of a Dutch
+// centre) read warm, unpaved reads brown, asphalt/concrete/unknown stay grey. (osm-roads.js roadSub.)
+static int surf_col(signed char s){
+  switch(s){ case 'p': return CLR_BROWN;       // paving_stones/sett/cobblestone — klinker
+             case 'g': return CLR_DARK_BROWN;   // gravel/ground/sand — unpaved
+             case 'w': return CLR_BROWN;        // wood (a plank bridge/boardwalk)
+             default:  return CLR_DARK_GREY; }  // asphalt/concrete/unknown
+}
 // paint one way as quads + round-joint discs (radius rhw, colour col); near-camera segments only (r2 cull).
 static void paint_way(int w, float rhw, int col, float r2){
   int st=rways[w].start, ct=rways[w].count;
@@ -495,6 +534,128 @@ static void paint_way(int w, float rhw, int col, float r2){
     if (seg_d2(ax,ay,bx,by,S.camx,S.camy) > r2) continue;   // keep any segment passing near (no pop)
     road_seg(ax,ay,bx,by,rhw,col);
     if (rhw >= 2.0f){ if (i==0) pdisc(ax,ay,rhw,col); pdisc(bx,by,rhw,col); }  // round joints → fuse
+  }
+}
+
+// centre-line lane markings — a dashed white strip down a carriageway's centre. Cheap street-dressing
+// (roadkit.md Phase 2): a 2D ground decal drawn OVER the asphalt, projected by the same adapter. Only
+// roads wide enough to carry a lane division get one; narrow tracks/service alleys stay bare. Dashes
+// run straight across junctions for now (markings don't stop at nodes yet) — a minor artifact the
+// field renderer removes later.
+static void paint_markings(int w, float r2){
+  int st=rways[w].start, ct=rways[w].count;
+  const float DASH=3.0f, MW=0.25f;                          // dash cell (m); marking half-width (m)
+  float s=0;
+  for(int i=0;i+1<ct;i++){
+    float ax=PX[st+i],ay=PY[st+i],bx=PX[st+i+1],by=PY[st+i+1];
+    float segL=sqrtf((bx-ax)*(bx-ax)+(by-ay)*(by-ay))+1e-4f;
+    if (seg_d2(ax,ay,bx,by,S.camx,S.camy)<=r2)
+      for(float d=0; d<segL; d+=DASH){
+        if (((int)((s+d)/DASH)) & 1){ continue; }           // gap cell → dashed
+        float d1=fminf(d+DASH,segL), t0=d/segL, t1=d1/segL;
+        road_seg(ax+(bx-ax)*t0, ay+(by-ay)*t0, ax+(bx-ax)*t1, ay+(by-ay)*t1, MW, CLR_WHITE);
+      }
+    s+=segL;
+  }
+}
+
+// ── junction detection (port of osm-junction.js) — build the at-grade node graph once at load. The
+// transient node table is heap-scratch (freed here); only the compact junc[] result stays resident.
+#define J_HASH  (1<<19)       // open-addressing buckets (power of 2) — load factor stays < 0.5 vs MAXNODE
+#define MAXNODE 250000        // node capacity; beyond it we stop adding (graceful truncation)
+typedef struct { int qx, qy; float x, y; unsigned char nraw; float raw[J_RAWARM]; unsigned char rawk[J_RAWARM]; } JNode;
+static JNode *g_jn; static int *g_jhash; static int g_njn;   // scratch, live only inside build_junctions()
+static int jn_find(int qx,int qy,float x,float y){
+  unsigned h = ((unsigned)(qx*73856093) ^ (unsigned)(qy*19349663)) & (J_HASH-1);
+  for(;;){
+    int e=g_jhash[h];
+    if(!e){ if(g_njn>=MAXNODE) return -1;
+      g_jn[g_njn].qx=qx; g_jn[g_njn].qy=qy; g_jn[g_njn].x=x; g_jn[g_njn].y=y; g_jn[g_njn].nraw=0;
+      g_jhash[h]=g_njn+1; return g_njn++; }
+    if(g_jn[e-1].qx==qx && g_jn[e-1].qy==qy) return e-1;
+    h=(h+1)&(J_HASH-1);
+  }
+}
+static void jn_arm(float x,float y,float nx,float ny,int k){
+  float dx=nx-x, dy=ny-y; if(dx==0.0f && dy==0.0f) return;
+  int qx=(int)lroundf(x/J_QUANT), qy=(int)lroundf(y/J_QUANT);
+  int i=jn_find(qx,qy,x,y); if(i<0) return;
+  JNode*n=&g_jn[i]; if(n->nraw>=J_RAWARM) return;
+  float brg=atan2f(dy,dx)*57.2957795f; if(brg<0) brg+=360.0f;
+  n->raw[n->nraw]=brg; n->rawk[n->nraw]=(unsigned char)k; n->nraw++;
+}
+static void build_junctions(void){
+  njunc=0;
+  g_jn = (JNode*)calloc(MAXNODE, sizeof(JNode));
+  g_jhash = (int*)calloc(J_HASH, sizeof(int));
+  if(!g_jn || !g_jhash){ free(g_jn); free(g_jhash); g_jn=NULL; g_jhash=NULL; return; }
+  g_njn=0;
+  // every at-grade motor-road vertex contributes a bearing toward each along-way neighbour
+  for(int w=0; w<nway; w++){ int k=rways[w].kind;
+    if(!is_motor_road(k) || rways[w].deck!=0) continue;
+    int st=rways[w].start, ct=rways[w].count;
+    for(int i=0;i<ct;i++){ float x=PX[st+i], y=PY[st+i];
+      if(i>0)    jn_arm(x,y, PX[st+i-1],PY[st+i-1], k);
+      if(i<ct-1) jn_arm(x,y, PX[st+i+1],PY[st+i+1], k);
+    }
+  }
+  // dedup each node's arms (collapse directions within DEDUP°, incl. wrap-around); >=3 distinct = junction
+  const float DEDUP=8.0f;
+  for(int i=0;i<g_njn && njunc<MAXJUNC;i++){
+    JNode*n=&g_jn[i]; int m=n->nraw; if(m<3) continue;
+    for(int a=1;a<m;a++){ float v=n->raw[a]; unsigned char vk=n->rawk[a]; int b=a-1;   // insertion sort by bearing
+      while(b>=0 && n->raw[b]>v){ n->raw[b+1]=n->raw[b]; n->rawk[b+1]=n->rawk[b]; b--; }
+      n->raw[b+1]=v; n->rawk[b+1]=vk; }
+    float db[J_RAWARM]; unsigned char dk[J_RAWARM]; int nd=0;
+    for(int a=0;a<m;a++){ if(nd==0 || fabsf(n->raw[a]-db[nd-1])>=DEDUP){ db[nd]=n->raw[a]; dk[nd]=n->rawk[a]; nd++; } }
+    if(nd>1 && fabsf((db[0]+360.0f)-db[nd-1])<DEDUP) nd--;   // first & last wrap onto the same approach
+    if(nd<3) continue;
+    Junc*j=&junc[njunc++]; j->x=n->x; j->y=n->y; j->narm=(unsigned char)(nd>MAXARM?MAXARM:nd);
+    for(int a=0;a<j->narm;a++){ j->brg[a]=db[a]; j->cls[a]=dk[a]; }
+  }
+  free(g_jn); free(g_jhash); g_jn=NULL; g_jhash=NULL;
+}
+
+// road priority rank — LOWER = bigger road = has voorrang. The Dutch "de grotere weg gaat voor":
+// motorway > arterial > secondary > tertiary > road(residential/unclassified) > track > service.
+static int road_rank(int k){
+  switch(k){ case K_HIGHWAY:return 0; case K_ARTERIAL:return 1; case K_SECONDARY:return 2;
+             case K_TERTIARY:return 3; case K_ROAD:return 4; case K_TRACK:return 5; case K_SERVICE:return 6; }
+  return 7;
+}
+// one draped white triangle on the ground (world metres → screen via the same adapter as the roads).
+static void ground_tri(float x0,float y0,float x1,float y1,float x2,float y2,int col){
+  int xy[6];
+  wpt(x0,y0,ground_z(x0,y0),&xy[0],&xy[1]);
+  wpt(x1,y1,ground_z(x1,y1),&xy[2],&xy[3]);
+  wpt(x2,y2,ground_z(x2,y2),&xy[4],&xy[5]);
+  polyfill(xy,3,col);
+}
+// HAAIENTANDEN — the give-way row (B6). We know which road is bigger from the arm classes, so at a
+// junction with a clear priority we paint a row of white shark's-teeth across each MINOR approach
+// (apex pointing back at the yielding driver); nothing on the priority road. Ambiguous when every arm
+// is the same class (rechts-voor-links / roundabout) → we paint nothing there. (roadkit.md Phase 2.)
+static void draw_giveway(const Junc*j){
+  float mx=j->x-S.camx, my=j->y-S.camy; if(mx*mx+my*my > RANGE_M*RANGE_M) return;
+  int best=99, ntop=0; float maxhw=0;
+  for(int a=0;a<j->narm;a++){ int r=road_rank(j->cls[a]); if(r<best) best=r;
+    float h=ROAD[j->cls[a]].hw_m; if(h>maxhw) maxhw=h; }
+  for(int a=0;a<j->narm;a++) if(road_rank(j->cls[a])==best) ntop++;
+  if(ntop==j->narm) return;                            // all arms equal class → no clear voorrang, skip
+  const float TH=1.1f, HB=0.35f, PITCH=1.1f;           // tooth height (along road) / half-base / spacing across (m)
+  for(int a=0;a<j->narm;a++){ int k=j->cls[a];
+    if(road_rank(k)==best) continue;                   // priority road → no teeth
+    float b=j->brg[a], cb=cos_deg(b), sb=sin_deg(b);   // along = out along this arm
+    float ax=-sb, ay=cb;                               // across the carriageway
+    float off=maxhw + 1.0f;                            // give-way line, just outside the junction blob
+    float hw=ROAD[k].hw_m; int nb=(int)(hw*2.0f/PITCH); if(nb<2) nb=2; if(nb>16) nb=16;
+    for(int i=0;i<nb;i++){ float t=(i-(nb-1)*0.5f)*PITCH;   // centred across the road
+      float bcx=j->x+cb*off, bcy=j->y+sb*off;              // base line at `off` from the node
+      ground_tri(bcx+ax*(t-HB), bcy+ay*(t-HB),             // base-left
+                 bcx+ax*(t+HB), bcy+ay*(t+HB),             // base-right
+                 j->x+cb*(off+TH)+ax*t, j->y+sb*(off+TH)+ay*t,  // apex, farther out (points at the yielding driver)
+                 CLR_WHITE);
+    }
   }
 }
 
@@ -573,6 +734,9 @@ void update(void) {
   if (keyp('3')) S.mode = M_PERSP;
   if (keyp('T')) S.tex = !S.tex;
   if (keyp('R')) S.roads_on = !S.roads_on;
+  if (keyp('P')) S.show_pave = !S.show_pave;   // pavement/kerb bands
+  if (keyp('L')) S.show_mark = !S.show_mark;   // lane centre-line markings
+  if (keyp('G')) S.show_give = !S.show_give;   // give-way haaientanden
   if (keyp('V')) S.topdown = !S.topdown;          // flat 2D map to verify footprint vs road placement
   g_hscale = S.topdown ? 0.0f : HSCALE;
   if (S.mode==M_PERSP){                            // live-tune the pitched camera
@@ -644,6 +808,12 @@ void draw(void) {
   // rail draw last in their own colour (separate networks). (docs/design/roadkit.md — connectivity Phase 0.)
   if (S.roads_on){
     const float CASE_M = 1.2f;                                   // kerb/casing width beyond the carriageway (m)
+    const float PAVE_M = 1.6f;                                   // pavement band beyond the kerb (m), street-tier only
+    // LOD: the fine dressing costs fill and turns to sub-pixel noise when zoomed out, so gate it on the
+    // effective px-per-metre at the focus (flat modes = zoom directly; perspective ≈ zoom*90/setback near
+    // the car). Pavement bands are wide → survive to a lower zoom than the thin centre-line markings.
+    float eff = (S.mode==M_PERSP) ? S.zoom*90.0f/fmaxf(S.setback,1.0f) : S.zoom;
+    int lod_pavement = eff >= 0.5f, lod_markings = eff >= 1.2f;
     // canals FIRST — linear WATER. Every road then draws OVER them, so a crossing reads as a (flat) bridge
     // instead of water painted over the road. We don't yet carry OSM bridge/layer, so road-over-water is
     // the sane default; raised decks are the bridge TODO (docs/design/external-data-carts.md · roadkit.md).
@@ -652,12 +822,34 @@ void draw(void) {
     // TUNNELS (deck<0) next — faint dashed strips, so a covered stretch reads as "goes underground"
     for (int w=0; w<nway; w++){ int k=rways[w].kind;
       if (is_road(k) && k!=K_CANAL && rways[w].deck<0) tunnel_way(w, fmaxf(ROAD[k].hw_m,1.5f), R2); }
+    // PAVEMENT band first (widest) — a light kerb/sidewalk ring on urban street-tier roads; the casing
+    // then asphalt paint OVER its inner part, leaving a pavement edge. Full sweep before any casing so a
+    // crossing road's asphalt correctly covers the pavement at each junction.
+    if (lod_pavement && S.show_pave) for (int w=0; w<nway; w++){ int k=rways[w].kind;
+      if (rways[w].deck!=0) continue;
+      char sw=rways[w].sw;
+      int has = sw ? (sw!='n') : has_pavement(k);   // REAL OSM sidewalk if tagged, else fall back to class heuristic
+      if (has) paint_way(w, fmaxf(ROAD[k].hw_m,1.5f)+CASE_M+PAVE_M, CLR_LIGHT_GREY, R2); }
     for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck==0) // motor casing (at-grade only)
       paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f)+CASE_M, CLR_BROWNISH_BLACK, R2);
-    for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck==0) // motor asphalt — connected surface
-      paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f), CLR_DARK_GREY, R2);
-    for (int w=0; w<nway; w++){ int k=rways[w].kind;             // bike/foot/rail — own colour (canal/tunnels/bridges elsewhere)
-      if (!is_motor_road(k) && k!=K_CANAL && rways[w].deck==0) paint_way(w, fmaxf(ROAD[k].hw_m,1.0f), ROAD[k].col, R2); }
+    for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck==0) // motor surface — colour by OSM surface
+      paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f), surf_col(rways[w].surf), R2);
+    // MARKINGS last of the at-grade motor passes — dashed centre-line on carriageways wide enough to
+    // carry a lane division (hw >= 2.5m: highway/arterial/road/secondary/tertiary, not tracks/service).
+    if (lod_markings && S.show_mark) for (int w=0; w<nway; w++){ int k=rways[w].kind;
+      if (is_motor_road(k) && rways[w].deck==0 && ROAD[k].hw_m>=2.5f) paint_markings(w, R2); }
+    // HAAIENTANDEN — give-way teeth on the minor approach of each priority-controlled junction.
+    if (lod_markings && S.show_give) for (int i=0;i<njunc;i++) draw_giveway(&junc[i]);
+    // CYCLEWAYS — the Dutch red fietspad: a thin dark-red casing under a warm-red surface, so a bike path
+    // reads as its own distinct ribbon alongside the roads. (Only SEPARATE cycleway ways; on-road bike lanes
+    // — the `cycleway=lane` tag — are dropped by the importer; see roadkit.md's OSM-data note.)
+    for (int w=0; w<nway; w++) if (rways[w].kind==K_CYCLEWAY && rways[w].deck==0){
+      float chw=fmaxf(ROAD[K_CYCLEWAY].hw_m,1.2f);
+      paint_way(w, chw+0.35f, CLR_DARK_RED,          R2);   // casing edge
+      paint_way(w, chw,       ROAD[K_CYCLEWAY].col,  R2);   // red surface
+    }
+    for (int w=0; w<nway; w++){ int k=rways[w].kind;             // foot/rail — own colour (motor/cycleway/canal/tunnels/bridges elsewhere)
+      if (!is_motor_road(k) && k!=K_CANAL && k!=K_CYCLEWAY && rways[w].deck==0) paint_way(w, fmaxf(ROAD[k].hw_m,1.0f), ROAD[k].col, R2); }
     // BRIDGES last — raised decks over the flat network. Surface = asphalt for motor roads, own colour
     // otherwise; a min deck width so thin footway/cycleway bridges still read as a raised span.
     for (int w=0; w<nway; w++) if (rways[w].deck>0){ int k=rways[w].kind; int motor=is_motor_road(k);
@@ -678,6 +870,12 @@ void draw(void) {
   for (int i=0;i<nd;i++){ DBldg*b=&blds[idx[i]]; draw_bldg(b->start,b->count,b->h,b->mat, ground_z(b->cx,b->cy)); }
 #ifdef DE_TRACE
   watch("nbld","%d",nbld); watch("nd","%d",nd);   // buildings loaded / extruded this frame
+  watch("njunc","%d",njunc);                       // intersections detected in the road graph
+  { int npri=0; for(int i=0;i<njunc;i++){ int best=99,ntop=0;                 // junctions with a clear voorrang (get teeth)
+      for(int a=0;a<junc[i].narm;a++){ int r=road_rank(junc[i].cls[a]); if(r<best) best=r; }
+      for(int a=0;a<junc[i].narm;a++) if(road_rank(junc[i].cls[a])==best) ntop++;
+      if(ntop<junc[i].narm) npri++; }
+    watch("npri","%d",npri); }
   watch("camz","%.1f",S.camz); watch("gz","%.1f",ground_z(S.px,S.py));
   { int nbr=0, nbrNear=0; for(int w=0;w<nway;w++) if(rways[w].deck>0){ nbr++;
       float ax=PX[rways[w].start], ay=PY[rways[w].start];

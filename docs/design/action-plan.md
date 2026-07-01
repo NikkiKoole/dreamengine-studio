@@ -157,22 +157,25 @@ with `node tools/cart-todos.js`); [`../cart-polish-punchlist.md`](../cart-polish
 now just the pointer + the maker's framing notes. It's mostly *polish*, but the same fixes recur
 across many carts — handle those **once, systemically**, then sweep:
 
-- [ ] **Touch movement affordance — engine work SHIPPED (2026-07-01); iOS wiring + the cart sweep
-  are what's left.** The shared onscreen **joystick / d-pad** widget exists and is real:
-  `touch_layout(mode, n_buttons)`, opt-in per cart in code (never settings, as this log always
-  wanted), with all four move modes, N buttons (0-4, diamond-laid), responsive deck/rails/overlay
-  placement, and band-relative sizing — see [`touch-controls.md`](touch-controls.md) for the full
-  design + shipped checklist. **Done from the affects list:** `catch-the-star` (08-catchstar,
-  analog), `columns`, `puyo` (both d-pad). **Still to sweep:** boids, doom-fire, defender, galaga,
-  vampire-survivors, rogue, build-a-world, enemies, dr-mario, rollswarm, sand-burrow, jumpstar,
-  tower-defense, +more — each just needs a `touch_layout()` call in `init()` now that the engine
-  side is done, per-cart mechanical work, not design work.
+- [x] **Touch movement affordance — engine work + the whole affects-list sweep SHIPPED
+  (2026-07-01).** The shared onscreen **joystick / d-pad** widget is real: `touch_layout(mode,
+  n_buttons)`, opt-in per cart in code (never settings, as this log always wanted), with all four
+  move modes, N buttons (0-4, diamond-laid), responsive deck/rails/overlay placement, and
+  band-relative sizing — see [`touch-controls.md`](touch-controls.md) for the full design +
+  shipped checklist. **All 16 carts from the affects-list done:** `08-catchstar`, `boids`,
+  `doomfire`, `10-world` (analog, 0 buttons — pure steering/no-action carts); `defender`, `galaga`,
+  `vampire`, `09-enemies`, `rollswarm`, `jumpstar` (analog, 1 button — free move + a lone action or
+  restart button); `columns`, `puyo`, `drmario`, `sandburrow` (d-pad, 1 button — grid movement +
+  rotate/restart); `rogue`, `towerdefense` (d-pad, 2 buttons — grid cursor + two distinct actions).
+  Each mode/button-count choice checked against the cart's actual `btn()` usage, not guessed from
+  genre name (e.g. `jumpstar` reads as a platformer but jumping is fully automatic — auto-bounce
+  Doodle-Jump style — so it only needed 1 button for "jump again after a fall", not 2).
   *iOS readiness:* the Phase-2 input seam exists (mouse API from the primary finger, `de_key_event`
   feeds `IsKeyDown/Pressed/Released`) and the virtual gamepad itself is now the *real*
-  deck/rails-placed widget, not the old raw-Raylib device-res overlay. Remaining: wire
-  `de_key_event` into the iOS shell so raw `key()` carts (WASD, etc.) become playable, not just
-  `btn()` carts — see [`touch-controls.md`](touch-controls.md) Phase 4 and
-  [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
+  deck/rails-placed widget, not the old raw-Raylib device-res overlay. Remaining — a separate,
+  bigger effort, not part of this item: wire `de_key_event` into the iOS shell so raw `key()` carts
+  (WASD, etc.) become playable, not just `btn()` carts — see [`touch-controls.md`](touch-controls.md)
+  Phase 4 and [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
 - [ ] **"Cute pixel buttons" retrofit** — replaces text-label buttons that don't work on mouse/touch
   across dozens of carts. **The widget already exists** — `ui.h`'s `ui_spr_button` /
   `ui_spr_button_styled` (sprite face + press/capture/hit-pad/focus/selected styling); size is just

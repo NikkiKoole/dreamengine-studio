@@ -366,10 +366,12 @@ offsets their own way — they predate the lane model. Collected issues:
 
 ## Shared code & seams
 
-**Duplication today is minimal — and that's correct.** roadlab and streetlab share only 6 function names, and
-the only real overlap is trivial (`ux`/`uy` trig wrappers, `step_btn`, and the generic spec helpers). All the
-*geometry* is deliberately distinct (interchange ramps vs at-grade curb-returns/network) — a shared geometry
-file now would be over-abstraction. **No `roadkit.h` yet.**
+**Duplication between roadlab & streetlab is still minimal** (6 shared names, trivial `ux`/`uy` trig +
+spec helpers). But the extraction trigger has now **fired for a different reason** than shared duplication:
+`sloop` drives real OSM Delft (Rung B), and the OSM work surfaced that a **drivable world needs the
+at-grade grammar as a callable, N-arm-native renderer** — so **`roadkit.h` is now GO.** Decision + the
+full extraction plan (what moves in, the interface, phasing, keeping `spec` green): **[`roadkit.md`](roadkit.md)**.
+*(This supersedes the "extract then, not now" note below.)*
 
 - **Done:** the generic spec helpers (`spec_near`, `spec_close`, `spec_tap`) now live in
   [`runtime/spec.h`](../../runtime/spec.h), so every spec cart shares them instead of redefining them.
@@ -380,7 +382,9 @@ file now would be over-abstraction. **No `roadkit.h` yet.**
   - `roadlab.c` → `make_junction(legs, type)` is the interchange drawer a world calls per grade-separated crossing.
   - `streetlab.c` → `gen_network(pattern, seed)` is the per-region local-street generator a two-tier world calls;
     each network **node is a crossing the junction layer (M1–M3) can render in detail** (the network→junction zoom).
-  - A `roadkit.h` becomes worthwhile **only if** Phase 2 makes both carts share primitives — extract then, not now.
+  - ~~A `roadkit.h` becomes worthwhile only if Phase 2 makes both carts share primitives — extract then, not now.~~
+    **Superseded (2026-07-01): `roadkit.h` is GO** — the drivable world (`sloop`) is the consumer that needs
+    both renderers callable + N-arm-native. Plan: [`roadkit.md`](roadkit.md).
 
 ## Pointers
 

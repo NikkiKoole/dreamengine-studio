@@ -177,8 +177,10 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    `rways.surf`/`.sw`): **road surface now drives the carriageway colour** (`surf_col()` — brick/klinker roads
    render warm instead of grey; asphalt/concrete stay grey → a real Delft brick-street look with the arterials
    standing out), and **pavement uses the real `sidewalk` tag when present** (falls back to the `has_pavement`
-   class heuristic only where untagged) — this retires the "we fake per-street pavement" gap. **Still faked /
-   next:** oneway+lanes → correct lane-count markings; the node-level tier (crossings, give-way/stop/signals)
+   class heuristic only where untagged) — this retires the "we fake per-street pavement" gap. **On-road cycle
+   lanes** (the `C` token) now render too: a red *fietsstrook* painted along the carriageway edge on the
+   tagged side(s) (`paint_side_strip()`), revealing bike infra a separate-cycleway-ways-only render missed.
+   **Still faked / next:** oneway+lanes → correct lane-count markings; the node-level tier (crossings, give-way/stop/signals)
    needs new kind indices (enum surgery in `citydrive.c` + `roadview.c`), so it's the next importer chunk.
 3. **Pure-geometry extract (safe first roadkit step).** Move the pure fns (`curb_return`, the leg model,
    `cross_hw`, corner counts) into `roadkit.h`; `streetlab` `#include`s it and calls them unchanged.

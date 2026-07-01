@@ -17,7 +17,7 @@
     "Inner-ring holes (islands in lakes, courtyards) and the hashed other_area understory; >64-vertex footprint clamp (MAXBV)."
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
-  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface with class-based widths, light pavement/kerb bands, dashed lane centre-lines, and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang); separate cycleways render as red Dutch fietspaden. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out)."
+  "description": "Drive a REAL city in pseudo-3D. citydrive loads the SAME OpenStreetMap data as roadview (a .rvb fetched by data-tools/roadview/osm-roads.js) but instead of drawing it flat top-down, it EXTRUDES every building footprint straight up the screen — GTA1-meets-Zelda, the cityview look applied to real geometry. Footprints are arbitrary OSM polygons (not boxes), extruded with winding-based wall culling + polyfill roof caps; heights come from the RVB2 format (OSM height / building:levels tags, ~6% coverage, with a per-footprint fallback for the untagged majority). Roads draw as flat ground ribbons in the real road hierarchy, over a ground of flat area fills — blue water, green parks/woods, peach sand, and muted developed-land/zoning — so the city isn't bare between buildings. If the data carries a terrain heightfield (fetch with osm-roads --dem, e.g. San Francisco's hills or a fjord/lake like Konigssee), the whole scene DRAPES over a shaded low-poly hillside — roads, footprints and the car all ride the real elevation (exaggeration auto-scales so 138 m city hills and 1200 m mountain walls both read). It needn't be a city: a nature bbox renders as water + forest + mountains (forest dithers so the shaded slopes show through), and you can zoom right out to take in a whole landscape. You spawn in the dense building mass (robust against the OSM bbox-balloon). V flattens the whole thing to a top-down 2D map (handy to check that footprints sit beside roads, not on them). Opens on data/demo.rvb; DRAG any .rvb/.json from the data folder onto the window to load that town, or OPEN reveals the folder. Arrows/WASD drive; M cycles the CAMERA — north-up / heading-up / a real pitched PERSPECTIVE (pinhole, perspective divide → horizon + foreshortening; with terrain, mountains rise against the skyline), with live ,/. pitch and ;/' eye tuning; V top-down map, T textures, R toggles roads, [ ] zoom. Roads are drawn geometry-first: one connected asphalt surface with class-based widths, light pavement/kerb bands, dashed lane centre-lines, and — from an in-cart junction graph — give-way haaientanden on the minor approach of each priority-controlled crossing (the bigger road keeps voorrang); separate cycleways render as red Dutch fietspaden, and on-road bike lanes as a red fietsstrook along the carriageway edge. P/L/G toggle pavement / lane-markings / give-way independently (fine detail fades when you zoom far out)."
 }
 de:meta */
 #include "studio.h"
@@ -109,7 +109,7 @@ static float PX[MAXPTS], PY[MAXPTS];                 // shared point pool (local
 static int   nps;
 typedef struct { int start, count; float h, cx, cy; int mat; } DBldg;   // building footprint ring
 static DBldg blds[MAXBLD]; static int nbld;
-static struct { int kind, start, count; signed char deck, surf, sw; } rways[MAXWAY]; static int nway;  // road lines; deck>0=bridge(layer),<0=tunnel,0=grade; surf/sw = OSM surface/sidewalk codes (0=unknown)
+static struct { int kind, start, count; signed char deck, surf, sw, cyc; } rways[MAXWAY]; static int nway;  // road lines; deck>0=bridge(layer),<0=tunnel,0=grade; surf/sw/cyc = OSM surface/sidewalk/on-road-cycleway codes (0=none)
 
 // parse a road's `sub` bridge code (osm-roads.js): "B<layer>" → +layer (bridge), "T..." → -1 (tunnel),
 // else 0 (at grade). s is null-terminated. Layer is a single digit in practice; clamp to [1,3].
@@ -250,6 +250,7 @@ static void store_feature(int kind, int start, int count, float h, const char *s
     rways[nway].deck = parse_deck(sub);
     rways[nway].surf = (signed char)sub_tok(sub,'U');   // a/p/g/w/o surface (0=unknown)
     rways[nway].sw   = (signed char)sub_tok(sub,'W');   // b/l/r/n sidewalk (0=unknown)
+    rways[nway].cyc  = (signed char)sub_tok(sub,'C');   // b/l/r on-road cycle lane (0=none)
     nway++;
   } else if (is_area(kind)){
     if (narea >= MAXAREA || count < 3) return;
@@ -534,6 +535,19 @@ static void paint_way(int w, float rhw, int col, float r2){
     if (seg_d2(ax,ay,bx,by,S.camx,S.camy) > r2) continue;   // keep any segment passing near (no pop)
     road_seg(ax,ay,bx,by,rhw,col);
     if (rhw >= 2.0f){ if (i==0) pdisc(ax,ay,rhw,col); pdisc(bx,by,rhw,col); }  // round joints → fuse
+  }
+}
+
+// a strip running parallel to way w, its CENTRE offset laterally by `off` metres (signed: + = left of the
+// digitisation direction), half-width hw. For on-road cycle lanes (fietsstrook) painted along the carriageway edge.
+static void paint_side_strip(int w, float off, float hw, int col, float r2){
+  int st=rways[w].start, ct=rways[w].count;
+  for (int i=0;i+1<ct;i++){
+    float ax=PX[st+i], ay=PY[st+i], bx=PX[st+i+1], by=PY[st+i+1];
+    if (seg_d2(ax,ay,bx,by,S.camx,S.camy) > r2) continue;
+    float dx=bx-ax, dy=by-ay, L=sqrtf(dx*dx+dy*dy)+1e-4f;
+    float nx=-dy/L, ny=dx/L;                          // left-hand normal
+    road_seg(ax+nx*off, ay+ny*off, bx+nx*off, by+ny*off, hw, col);
   }
 }
 
@@ -834,6 +848,15 @@ void draw(void) {
       paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f)+CASE_M, CLR_BROWNISH_BLACK, R2);
     for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck==0) // motor surface — colour by OSM surface
       paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f), surf_col(rways[w].surf), R2);
+    // on-road CYCLE LANES (fietsstrook) — a red strip painted along the carriageway edge on the tagged
+    // side(s). Data: the C token (Cb/Cl/Cr) from osm-roads roadSub; a big share of NL bike infra that a
+    // separate-cycleway-ways-only render leaves invisible. (Separate paths are their own K_CYCLEWAY ways.)
+    if (lod_pavement) for (int w=0; w<nway; w++){ signed char c=rways[w].cyc; int k=rways[w].kind;
+      if (!c || rways[w].deck!=0 || !is_motor_road(k)) continue;
+      float rw=fmaxf(ROAD[k].hw_m,1.5f); const float LW=0.8f; float off=rw-LW;   // strip's outer edge at the carriageway edge
+      if (c=='b'||c=='l') paint_side_strip(w, +off, LW, ROAD[K_CYCLEWAY].col, R2);
+      if (c=='b'||c=='r') paint_side_strip(w, -off, LW, ROAD[K_CYCLEWAY].col, R2);
+    }
     // MARKINGS last of the at-grade motor passes — dashed centre-line on carriageways wide enough to
     // carry a lane division (hw >= 2.5m: highway/arterial/road/secondary/tertiary, not tracks/service).
     if (lod_markings && S.show_mark) for (int w=0; w<nway; w++){ int k=rways[w].kind;

@@ -122,7 +122,7 @@ consumer plan in [`roadkit.md`](roadkit.md).
 | `oneway` | `O` | 62 | ⏳ captured → lane-count markings next |
 | `bridge`/`tunnel`/`layer` | `B<L>`/`T<L>` | 32/15 | ✅ citydrive decks + dashed tunnels |
 | `lanes` | `L<n>` | 9 | ⏳ captured → lane-count markings next |
-| on-road `cycleway=lane` / `cycleway:*` | `C b/l/r` | ~11 | ⏳ captured, not rendered (NL red on-road lanes) |
+| on-road `cycleway=lane` / `cycleway:*` | `C b/l/r` | ~11 | ✅ citydrive red fietsstrook along the carriageway edge (tagged side/s) |
 | `junction=roundabout` | `R` | rare | ⏳ captured (resolves the equal-class voorrang case) |
 
 **Tier 2 — node-level control (NOT fetched: the query only asks for `node["natural"="tree"]`; needs new

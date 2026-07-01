@@ -176,6 +176,25 @@ sample so the wobble is coherent, not fizzy). The bevel passes inherit the same 
 moves with the body. The stroke you're actively drawing doesn't boil. The cached-buffer version
 above is the open perf todo (matters once a drawing is dense); the look is already right.
 
+**Profiled (2026-07-01, 120 strokes ≈ the `MAX_STROKES` cap, headless `play.js` → `build/perf.json`,
+each ~30 pts).** Everything re-renders every frame (no cache yet), so cost = strokes × passes ×
+stamps, and **`circfill` (the round stamp) is the hot primitive** everywhere:
+
+| scene (120 strokes) | avg ms/frame | circfill/frame | note |
+|---|---|---|---|
+| plain ink (1 pass) | **7.6** | 12.4k | the floor |
+| + outline + bevel + boil + dither | **66.8** | 56.2k | **worst case** — decoration stacks *passes* |
+| drip ×120 | 20.4 | 29.6k (+10.5k `pset`) | coverage-grid raster is cheap-ish; runs add stamps |
+| impasto ×120 | 51.8 | 43.6k (+14.2k `line`) | 3 rim passes + raked streaks |
+| everything mixed + spinning sun | 24.3 | 30.9k | lower than row 2 — many strokes are cheap 1-pass brushes |
+
+Takeaways: (1) the killer is **passes per stroke** — plain = 1, outline +1, **bevel +2** → up to **4× the
+stamps**, which is the 7.6 → 66.8 ms jump, not any single fancy brush. (2) At realistic counts (≤~30
+strokes) even the worst case is fine; 120 (the cap) with full decoration is where it bites. (3) The fix
+is the **cached-layer** todo above — bake finished/undecorated strokes once so only the active + boiling
+strokes re-render; that erases rows 2–5 for static art. Reproduce by seeding N strokes in `init()` under
+`#ifdef DE_TRACE` and reading `workMsAvg` from `build/perf.json`.
+
 ## Resolution & the pipeline (why 320×320 *and* tiny icons both work)
 
 Brush dynamics need pixel room, but cart icons/sprites are tiny — these seem to conflict. They

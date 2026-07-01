@@ -62,7 +62,7 @@ const CATEGORIES = {
       'euclidean-rhythm', 'adsr-envelope', 'generative-melody', 'chord-voicing', 'drum-synthesis',
       'analog-voice-modeling', 'swing-timing', 'sonification', 'audio-occlusion', 'positional-audio',
       'wavetable-drawing', 'self-oscillation', 'generative-sequencer', 'polymeter', 'lowpass-gate', 'wavefolder',
-      'west-coast-synthesis', 'shift-register', 'scale-quantize',
+      'west-coast-synthesis', 'shift-register', 'scale-quantize', 'per-instrument-fx-bus',
     ],
   },
 };

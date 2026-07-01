@@ -41,14 +41,34 @@ the numbers**:
 
 ```
 <!-- de:driftable cmd="node tools/api-usage.js" as-of="2026-06-22" -->
+<!-- de:driftable watch="checklist,carts" -->   (a prime-only, cmd-less doc-level declaration)
 ```
 
+- `watch` — WHAT can drift, from a fixed vocabulary (below). Defaults to `numbers` when a `cmd`
+  is given. Only `numbers` is tool-verifiable; the rest are honest "watch this" metadata.
 - `cmd` — the command that (re)produces the numbers. Re-run it to refresh; a reader can too.
 - `as-of` — the snapshot date (`YYYY-MM-DD`). Omit and the doc lists but can't be drift-checked.
 - `inputs` (optional) — comma-separated paths whose change means the numbers moved. **Default:**
   the tool's own script + `tools/carts` (the cart shelf, which almost all these tools read).
   Declare it when the doc depends on something else too, e.g.
   `inputs="runtime/studio.h,tools/carts"` (an API-surface count depends on `studio.h`).
+
+### The `watch` vocabulary (owned by `stale-doc-check.js`)
+
+Four kinds, on two axes — what drifts, and whether a tool can *verify* it:
+
+| kind | what drifts | verifiable? |
+|---|---|---|
+| `numbers` | a frozen count / table / metric from a tool | ✅ via `cmd`+`as-of`+`inputs` (gets the ⚠ verdict) |
+| `checklist` | done/undone task state, phase items (`[x]`/`[ ]`, "shipped") | ⚠ prime-only |
+| `carts` | a claim that counts/enumerates carts ("16 carts have touch") | ⚠ prime-only |
+| `decisions` | an open/proposed choice that may get settled | ⚠ prime-only |
+
+`numbers` is the only kind a tool checks; the other three are surfaced (at orient time / in the
+`--driftable` overview) as "watch this," but **no tool pretends to verify them** — they're a
+*prime*, not a detector. Aim `decisions` at a fork settled *inside the prose* — the doc-level
+phase (ready/building/shipped) is already tracked by `STATUS:` + the generated `design-board.html`,
+so don't duplicate that. `stale-doc-check --driftable` warns on any `watch` value outside this set.
 
 ## How it's checked (occasional, curated, human-decides)
 
@@ -63,9 +83,18 @@ never edits the doc and never guesses — a human declared the dependency and a 
 reuses the git-date engine already in `stale-doc-check.js`; it is the *declared* (trustworthy)
 twin of that tool's heuristic mtime tiers.
 
-**Where it surfaces where it counts:** [`cart-status.js`](../../tools/cart-status.js) runs it as a
-non-gating advisory, so after a round of cart edits — the thing that shifts these numbers — you're
-told which snapshot docs likely drifted, alongside NEEDS REBAKE / STALE PUBLISHED.
+**Where it surfaces — two doors, bracketing a work session:**
+- **Front door (prime, going in):** [`build-context.js`](../../tools/build-context.js) (hence
+  `orient`) annotates each related doc it lists with its drift declaration —
+  `[driftable: numbers ⚠ 28d stale]` / `[driftable: checklist, carts]`. So the agent orienting on
+  a cart is primed: *if I change this cart, these home docs snapshot something I might move.* The
+  agent who causes the drift is the one nudged, in-session, with context loaded.
+- **Back door (catch, coming out):** [`cart-status.js`](../../tools/cart-status.js) runs the check
+  as a non-gating advisory, so after a round of cart edits you're told which snapshot docs likely
+  drifted, alongside NEEDS REBAKE / STALE PUBLISHED.
+
+Both are soft nudges (advisory, never auto-fix, human decides). The front door raises the odds the
+drift is fixed by whoever caused it; the back door catches what slipped through.
 
 ## When you write a doc — the rule
 

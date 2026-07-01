@@ -38,6 +38,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 const SRC_DIR = path.join(ROOT, "tools/carts");
@@ -210,17 +211,39 @@ for (const f of files) {
 // most-relevant first: more mentions = more likely the cart's real home
 hits.sort((a, b) => b.matched.length - a.matched.length);
 
+// DRIFTABLE annotation: a related doc that DECLARED a `de:driftable` marker gets
+// its watch-kinds surfaced here — so if you change this cart, you're primed that
+// one of its home docs snapshots something you might be about to move (the front
+// door; cart-status.js is the back door). Curated, from stale-doc-check (the vocab
+// owner); prime-only kinds are named, `numbers` also carries a ⚠ drift verdict.
+const drift = new Map(); // rel -> { watch[], drifted, lag }
+try {
+  const j = JSON.parse(execFileSync("node", [path.join(__dirname, "stale-doc-check.js"), "--driftable", "--json"], { encoding: "utf8" }));
+  for (const e of j.driftable || []) drift.set(e.rel, e);
+} catch { /* advisory — never break the briefing */ }
+const driftTag = rel => {
+  const e = drift.get(rel);
+  if (!e) return "";
+  const parts = [];
+  if (e.drifted) parts.push(`numbers ⚠ ${e.lag}d stale`);
+  else if (e.watch.includes("numbers")) parts.push("numbers ✓");
+  for (const w of e.watch) if (w !== "numbers") parts.push(w);
+  return parts.length ? dim("  [driftable: ") + parts.join(", ") + dim("]") : "";
+};
+
 out.push(head("DOCS & NOTES THAT MENTION IT"));
 if (!hits.length) {
   out.push(dim("  none — this cart isn't referenced in any prose doc yet."));
 } else {
   for (const h of hits) {
-    out.push("  " + bold(h.file) + dim(`  (${h.matched.length})`));
+    out.push("  " + bold(h.file) + dim(`  (${h.matched.length})`) + driftTag(h.file));
     for (const [ln, text] of h.matched.slice(0, 3)) {
       out.push(dim(`    ${ln}: `) + clip(text, 96));
     }
     if (h.matched.length > 3) out.push(dim(`    … +${h.matched.length - 3} more`));
   }
+  if ([...hits].some(h => drift.has(h.file)))
+    out.push(dim("  → [driftable] docs snapshot something derived; if you change this cart, check them (node tools/stale-doc-check.js --driftable)."));
 }
 
 // ============================================================================

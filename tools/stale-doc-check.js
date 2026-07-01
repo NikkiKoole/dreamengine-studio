@@ -125,6 +125,13 @@ if (driftable) {
     for (const [p, dt] of gitDate) if (p.startsWith(pref) && (!best || dt > best)) best = dt;
     return best;
   };
+  // the WATCH vocabulary — what kind of thing in the doc can drift. Only `numbers`
+  // is tool-verifiable (via cmd+as-of); the rest are PRIME-ONLY (honest "watch this"
+  // metadata orient/build-context surface — no tool pretends to verify them). This
+  // tool OWNS the vocab (like lint-carts owns tags). See docs/design/driftable-docs.md.
+  const WATCH_VOCAB = { numbers: "tool count/table (verifiable)", checklist: "done/undone task state",
+    carts: "a claim counting/enumerating carts", decisions: "an open/proposed choice that may get settled" };
+  const badWatch = [];
   const entries = [];
   const MARK = /<!--\s*de:driftable\s+([^>]*?)-->/;
   for (const f of docFiles) {
@@ -139,14 +146,16 @@ if (driftable) {
       const attrs = m[1];
       const get = k => (attrs.match(new RegExp(`${k}="([^"]*)"`)) || [])[1] || null;
       const cmd = get("cmd"), asOf = get("as-of"), inputsAttr = get("inputs");
+      const watch = (get("watch") || (cmd ? "numbers" : "")).split(",").map(s => s.trim()).filter(Boolean);
+      for (const w of watch) if (!WATCH_VOCAB[w]) badWatch.push({ rel, w });
       // resolve inputs: declared list, else [tool-script, tools/carts]
       let inputs = inputsAttr ? inputsAttr.split(",").map(s => s.trim()).filter(Boolean) : [];
       const script = cmd && (cmd.match(/tools\/[\w.-]+\.(?:js|sh|cjs)/) || [])[0];
       if (!inputsAttr) { if (script) inputs.push(script); inputs.push("tools/carts"); }
       const inputDates = inputs.map(p => ({ p, dt: newestUnder(p) })).filter(x => x.dt);
       const newest = inputDates.reduce((a, x) => (!a || x.dt > a.dt ? x : a), null);
-      const drifted = asOf && newest && newest.dt > asOf;
-      entries.push({ rel, cmd, asOf, inputs, newest, drifted, lag: drifted ? daysBetween(asOf, newest.dt) : 0 });
+      const drifted = !!(asOf && newest && newest.dt > asOf);
+      entries.push({ rel, watch, cmd, asOf, inputs, newest, drifted, lag: drifted ? daysBetween(asOf, newest.dt) : 0 });
     }
   }
   if (json) { console.log(JSON.stringify({ driftable: entries }, null, 2)); process.exit(strict && entries.some(e => e.drifted) ? 1 : 0); }
@@ -156,13 +165,22 @@ if (driftable) {
     process.exit(0);
   }
   const drift = entries.filter(e => e.drifted), fresh = entries.filter(e => !e.drifted);
-  console.log(b0(`DRIFTABLE DOCS (${entries.length}) — hand-declared snapshots of tool output:\n`));
+  console.log(b0(`DRIFTABLE DOCS (${entries.length}) — hand-declared, curated (not inferred):\n`));
   for (const e of [...drift, ...fresh]) {
-    const tag = e.drifted ? b0("⚠ LIKELY DRIFTED") : (e.asOf ? "✓ fresh" : d0("· no as-of, can't check"));
-    console.log(`  ${b0(e.rel)}  ${tag}`);
-    console.log(d0(`      cmd: ${e.cmd || "(none)"}   snapshot: ${e.asOf || "(undated)"}`));
-    if (e.newest) console.log(d0(`      inputs newest: ${e.newest.p} @ ${e.newest.dt}` +
+    // numbers is the only verifiable kind; prime-only kinds just get named
+    const primeKinds = e.watch.filter(w => w !== "numbers");
+    const tag = e.watch.includes("numbers") || e.cmd
+      ? (e.drifted ? b0("⚠ LIKELY DRIFTED") : (e.asOf ? "✓ fresh" : d0("· no as-of, can't check")))
+      : d0("· prime-only (not tool-verifiable)");
+    console.log(`  ${b0(e.rel)}  ${tag}` + (e.watch.length ? d0(`   watch: ${e.watch.join(", ")}`) : ""));
+    if (e.cmd || e.asOf) console.log(d0(`      cmd: ${e.cmd || "(none)"}   snapshot: ${e.asOf || "(undated)"}`));
+    if (e.newest && (e.watch.includes("numbers") || e.cmd)) console.log(d0(`      inputs newest: ${e.newest.p} @ ${e.newest.dt}` +
       (e.drifted ? `  → ${e.lag}d after snapshot; re-run cmd + eyeball` : "")));
+    if (primeKinds.length) console.log(d0(`      prime-only: ${primeKinds.join(", ")} — orient nudges; no auto-check`));
+  }
+  if (badWatch.length) {
+    console.log("\n" + b0(`unknown watch kind(s) — not in the vocab {${Object.keys(WATCH_VOCAB).join(", ")}}:`));
+    for (const x of badWatch) console.log(d0(`  ${x.rel}: "${x.w}"`));
   }
   console.log(d0(`\n${entries.length} registered · ${drift.length} likely drifted · ${fresh.length} fresh · curated (declared, not inferred)`));
   process.exit(strict && drift.length ? 1 : 0);

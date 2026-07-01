@@ -1401,6 +1401,8 @@ void step(int n){
     for (int i = 0; i < n; i++){
         memcpy(key_inject_prev, key_inject, sizeof key_inject);   // prev = last frame's state (for keyp/keyr edges)
         memcpy(key_inject,      key_pending, sizeof key_inject);  // cur  = desired (a fresh key_down ⇒ a press edge)
+        frame_dt = (float)DET_DT;          // spec steps tick the det_mode clock — a cart integrating
+        det_clock += DET_DT;               // with dt()/now() advances 1/60 per step, not 0 (bit sloop's spec)
         update();
         frame_count++;
     }

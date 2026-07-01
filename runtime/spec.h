@@ -17,7 +17,7 @@
 #define DE_SPEC_H
 
 void spec(void);                                       // the cart overrides this; weak stub in studio.c
-void step(int n);                                      // advance n frames: init() (lazily, once) + update(), NO draw
+void step(int n);                                      // advance n frames: init() (lazily, once) + update(), NO draw; dt()/now() tick the fixed det step (1/60 per frame)
 void expect(int cond, const char *msg);                // record one assertion (prints JSONL pass/fail)
 void expect_eq(long got, long want, const char *msg);  // like expect(), with a got/want failure message
 void key_down(int k);                                  // hold a raw key (studio KEY_* or a char) from the next step on

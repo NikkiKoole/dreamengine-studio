@@ -99,6 +99,32 @@ function ic_nib() {
   line(g, 2, 15, 4, 13, K); line(g, 2, 14, 5, 13, K); line(g, 3, 15, 5, 14, K)
   return flat(g)
 }
+// nib family shaft + flat tip (shared with ic_nib) — variants differ only in the MARK below
+function nib_body(g) {
+  line(g, 13, 2, 6, 9, 5); line(g, 14, 3, 7, 10, 5)   // grey pen shaft
+  trifill(g, 5, 9, 8, 10, 6, 12, K)                    // the flat nib tip
+}
+// 11 — brush pen (SPEED): nib + a swelling comma mark (fat, tapering to a point)
+function ic_bpn() {
+  const g = blank(); nib_body(g)
+  circlefill(g, 2, 15, 2, K)                           // fat start
+  line(g, 3, 14, 5, 13, K); pixel(g, 6, 13, K)         // taper to a thin point
+  return flat(g)
+}
+// 12 — reed pen (JITTER): nib + a chattering zigzag mark (dry, ragged angle)
+function ic_red() {
+  const g = blank(); nib_body(g)
+  line(g, 1, 15, 2, 13, K); line(g, 2, 13, 3, 15, K)
+  line(g, 3, 15, 4, 13, K); line(g, 4, 13, 5, 15, K); line(g, 5, 15, 6, 13, K)
+  return flat(g)
+}
+// 13 — twist nib (SPIN): nib + a coil mark (angle winds along the stroke)
+function ic_twt() {
+  const g = blank(); nib_body(g)
+  line(g, 2, 15, 2, 12, K); line(g, 2, 12, 6, 12, K)   // squared spiral / coil
+  line(g, 6, 12, 6, 15, K); line(g, 6, 15, 4, 15, K)
+  return flat(g)
+}
 // 10 — oil / impasto: a palette knife smearing a thick beveled blob of paint
 function ic_oil() {
   const g = blank()
@@ -117,6 +143,7 @@ function ic_oil() {
 const sprites = {
   0: ic_ink(), 1: ic_pen(),  2: ic_fin(), 3: ic_mrk(),   4: ic_chk(),  5: ic_skt(),
   6: ic_spr(), 7: ic_brs(),  8: ic_paint(), 9: ic_nib(), 10: ic_oil(),
+  11: ic_bpn(), 12: ic_red(), 13: ic_twt(),
 }
 
 module.exports = { screenW: 320, screenH: 320, scale: 3, sprites }

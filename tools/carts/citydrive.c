@@ -13,7 +13,7 @@
   "todo": [
     "Collision against building footprints — right now there's no collision so the car drives straight through buildings (you end up 'inside' a tower wall, obvious in perspective among Manhattan's skyscrapers). Block/slide the car against footprint edges so it feels like real driving.",
     "Per-feature depth sort for perspective (terrain cells draw in grid order, buildings sort by centroid) — occasional wrong overlaps on steep/dense views.",
-    "Bridge/overpass decks from OSM bridge/layer tags (cityview's Deck machinery).",
+    "Bridge decks from OSM bridge/layer DONE (raised deck + fascia + shadow, ramped); tunnels DONE (dashed). Refinements left: tunnel PORTALS (dark mouths), pillars under long spans, and per-dataset lift tuning (Delft 3 m; motorway cities want more).",
     "Inner-ring holes (islands in lakes, courtyards) and the hashed other_area understory; >64-vertex footprint clamp (MAXBV)."
   ],
   "lineage": "The data-driven successor to cityview. cityview is a procedural render BENCH (seeded axis-aligned boxes) for the pseudo-3D city look; citydrive keeps its proven projection/camera/driving machinery but extrudes ARBITRARY POLYGON footprints from a REAL OpenStreetMap export (roadview's .rvb data, loaded at runtime), so you drive an actual city in pseudo-3D. Building heights ride along in the RVB2 format (OSM height/building:levels, with a per-footprint fallback where untagged). Sibling of roadview (same data, 2D top-down) — swap the file, see a different city.",
@@ -539,6 +539,25 @@ static void draw_bridge_way(int w, float hw, int surfcol, float r2){
   }
 }
 
+// a tunnel way (deck<0) goes UNDER the surface — draw it as a faint DASHED dark strip (thinner than the
+// carriageway) so it reads as "the road continues underground here" rather than a normal surface road.
+static void tunnel_way(int w, float hw, float r2){
+  int st=rways[w].start, ct=rways[w].count;
+  const float DASH=4.0f;                                   // metres per dash cell (on/off alternate)
+  float s=0;
+  for(int i=0;i+1<ct;i++){
+    float ax=PX[st+i],ay=PY[st+i],bx=PX[st+i+1],by=PY[st+i+1];
+    float segL=sqrtf((bx-ax)*(bx-ax)+(by-ay)*(by-ay))+1e-4f;
+    if (seg_d2(ax,ay,bx,by,S.camx,S.camy)<=r2)
+      for(float d=0; d<segL; d+=DASH){
+        if (((int)((s+d)/DASH)) & 1) continue;             // gap cell
+        float d1=fminf(d+DASH,segL), t0=d/segL, t1=d1/segL;
+        road_seg(ax+(bx-ax)*t0, ay+(by-ay)*t0, ax+(bx-ax)*t1, ay+(by-ay)*t1, hw*0.55f, CLR_DARKER_GREY);
+      }
+    s+=segL;
+  }
+}
+
 // ── lifecycle ────────────────────────────────────────────────────────────────
 void init(void){ load_data(); }
 
@@ -630,12 +649,15 @@ void draw(void) {
     // the sane default; raised decks are the bridge TODO (docs/design/external-data-carts.md · roadkit.md).
     for (int w=0; w<nway; w++) if (rways[w].kind==K_CANAL)
       paint_way(w, fmaxf(ROAD[K_CANAL].hw_m,1.0f), ROAD[K_CANAL].col, R2);
-    for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck<=0) // motor casing (skip bridges)
+    // TUNNELS (deck<0) next — faint dashed strips, so a covered stretch reads as "goes underground"
+    for (int w=0; w<nway; w++){ int k=rways[w].kind;
+      if (is_road(k) && k!=K_CANAL && rways[w].deck<0) tunnel_way(w, fmaxf(ROAD[k].hw_m,1.5f), R2); }
+    for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck==0) // motor casing (at-grade only)
       paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f)+CASE_M, CLR_BROWNISH_BLACK, R2);
-    for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck<=0) // motor asphalt — connected surface
+    for (int w=0; w<nway; w++) if (is_motor_road(rways[w].kind) && rways[w].deck==0) // motor asphalt — connected surface
       paint_way(w, fmaxf(ROAD[rways[w].kind].hw_m,1.5f), CLR_DARK_GREY, R2);
-    for (int w=0; w<nway; w++){ int k=rways[w].kind;             // bike/foot/rail — own colour (canal + bridges done elsewhere)
-      if (!is_motor_road(k) && k!=K_CANAL && rways[w].deck<=0) paint_way(w, fmaxf(ROAD[k].hw_m,1.0f), ROAD[k].col, R2); }
+    for (int w=0; w<nway; w++){ int k=rways[w].kind;             // bike/foot/rail — own colour (canal/tunnels/bridges elsewhere)
+      if (!is_motor_road(k) && k!=K_CANAL && rways[w].deck==0) paint_way(w, fmaxf(ROAD[k].hw_m,1.0f), ROAD[k].col, R2); }
     // BRIDGES last — raised decks over the flat network. Surface = asphalt for motor roads, own colour
     // otherwise; a min deck width so thin footway/cycleway bridges still read as a raised span.
     for (int w=0; w<nway; w++) if (rways[w].deck>0){ int k=rways[w].kind; int motor=is_motor_road(k);

@@ -34,9 +34,11 @@
 //          area:  water building green sand residential commercial industrial farm parking other_area
 //          point: tree
 //   "sub" carries a refining tag: the OSM building category on buildings (for a downstream
-//   consumer that extrudes them), and the defining "key=value" on other_area/other_line —
+//   consumer that extrudes them), the defining "key=value" on other_area/other_line —
 //   which the cart HASHES into a muted colour+dither so the uncategorised long tail stays
-//   visually distinct without a dedicated palette slot each.
+//   visually distinct without a dedicated palette slot each — and, on LINE ROADS, a
+//   bridge/tunnel code "B<layer>"/"T<layer>" (absent = at grade) so a consumer can raise
+//   bridge decks / dash tunnels and grade-dispatch can route the crossing.
 //
 // The cart fits bbox→screen and flips Y for the screen's downward axis. Coordinates are
 // already PROJECTED (web-mercator metres) so the cart needs no geo math.
@@ -60,6 +62,8 @@ const KIND_IX = { highway: 0, arterial: 1, road: 2, track: 3, water: 4, canal: 5
                   // never reorder: the .rvb encodes each feature's kind as this index).
                   secondary: 17, tertiary: 18, service: 19, cycleway: 20, footway: 21,
                   other_area: 22, other_line: 23 };
+// line-road kinds that can be a bridge/tunnel (carried in `sub` as "B<layer>"/"T<layer>" — see below).
+const BRIDGEABLE = new Set(['highway','arterial','road','track','secondary','tertiary','service','cycleway','footway','rail']);
 const SIMPLIFY = parseFloat(opt('--simplify', '8'));
 const NAME = opt('--name', null);
 const DEM = has('--dem') ? (parseInt(opt('--dem', '96'), 10) || 96) : 0;   // GxG terrain heightfield (opt-in)
@@ -497,6 +501,15 @@ async function overpass(S, W, N, E, name) {
     const g = el.geometry;
     let kind = classifyWay(tags);
     let sub = kind === 'building' ? (tags.building !== 'yes' ? tags.building : '') : '';
+    // carry bridge/tunnel/layer for line roads in `sub` (empty for roads until now, so no collision): the
+    // render consumer (citydrive) raises bridge ways onto a deck / dashes tunnels, and grade-dispatch
+    // (roadlab/streetlab) reads it. Backward-compatible — every reader already skips `sub`. Code:
+    // "B<layer>" = bridge (default layer 1), "T<layer>" = tunnel (default -1); absent = at grade.
+    if (BRIDGEABLE.has(kind)) {
+      const br = tags.bridge && tags.bridge !== 'no';
+      const tu = !br && tags.tunnel && tags.tunnel !== 'no';
+      if (br || tu) { const L = parseInt(tags.layer, 10); sub = (br ? 'B' : 'T') + (Number.isFinite(L) ? L : (br ? 1 : -1)); }
+    }
     const h = kind === 'building' ? buildingHeight(tags) : 0;   // metres, for the pseudo-3D extrude (citydrive)
     if (!kind) {                                       // uncategorised → the hashed "other" understory
       const closed = g.length > 3 && g[0].lon === g[g.length - 1].lon && g[0].lat === g[g.length - 1].lat;

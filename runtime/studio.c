@@ -504,6 +504,16 @@ static int  touch_n_buttons = 2;              // how many action buttons the car
 #define STICK_DEADZONE  0.35f
 #define BTN_RADIUS      44
 
+// controls shrink to fit a tight deck/rail band (floored at CTRL_SCALE_MIN — still clears a
+// physical thumb target); recomputed each frame in layout_touch_controls() from the band size.
+// 1.0 = full size (overlay, or plenty of room). eff_stick_r()/eff_btn_r() are what every
+// hit-test and draw call actually uses — never the bare STICK_RADIUS/BTN_RADIUS constants —
+// so the visible size and the tappable size never drift apart.
+static float ctrl_scale = 1.0f;
+#define CTRL_SCALE_MIN  0.6f
+static inline float eff_stick_r(void) { return STICK_RADIUS * ctrl_scale; }
+static inline float eff_btn_r(void)   { return BTN_RADIUS   * ctrl_scale; }
+
 static int   stick_touch_id = -1;
 static float stick_base_x = 0, stick_base_y = 0;
 static float stick_knob_x = 0, stick_knob_y = 0;
@@ -519,8 +529,8 @@ static int btn_b_cx, btn_b_cy;
 static int  dpad_touch_id = -1;
 static bool dpad_up = false, dpad_down = false, dpad_left = false, dpad_right = false;
 static int  dpad_sector = -1;   // 0..7 compass sector (0=up, clockwise by 45°), -1 = no direction held
-#define DPAD_DEADZONE     (STICK_RADIUS * 0.3f)
-#define DPAD_GRAB_RADIUS  (STICK_RADIUS * 1.4f)   // a d-pad is a fixed LOCAL widget (unlike the
+#define DPAD_DEADZONE     (eff_stick_r() * 0.3f)
+#define DPAD_GRAB_RADIUS  (eff_stick_r() * 1.4f)  // a d-pad is a fixed LOCAL widget (unlike the
                                                     // stick's whole-zone grab) — only a tap near its
                                                     // own graphic should acquire it
 
@@ -775,6 +785,14 @@ static bool  pget_snapshot_valid = false;
 static bool  pget_enabled = false;
 static bool  pget_warned  = false;
 
+// how much to shrink the controls (0..1) so a ring of the reference STICK_RADIUS fits inside a
+// band of the given size — floored at CTRL_SCALE_MIN so it never shrinks below a tappable size,
+// ceilinged at 1 so a roomy band doesn't blow the controls up past their normal size.
+static float band_ctrl_scale(int span) {
+    float s = (float)span / (2.0f * STICK_RADIUS);
+    return s < CTRL_SCALE_MIN ? CTRL_SCALE_MIN : (s > 1.0f ? 1.0f : s);
+}
+
 // place the stick + buttons (all window px) for the current placement. OVERLAY: corners of the
 // game rect (matches the old fixed layout when the window == the game). DECK: stick left, buttons
 // right, inside the band below the game. RAILS: stick in the left rail, buttons in the right.
@@ -784,18 +802,21 @@ static void layout_touch_controls(Placement p) {
     int gw = (int)(SCREEN_W * p.game.scale), gh = (int)(SCREEN_H * p.game.scale);
     if (p.mode == PLACE_DECK) {
         int bw = p.band_w, by = p.band_y, bh = p.band_h, cy = by + bh / 2;
+        ctrl_scale = band_ctrl_scale(bh);                                  // band HEIGHT is the tight dimension
         stick_home_x = bw * 0.20f;  stick_home_y = (float)cy;
         btn_a_cx = bw - 90;   btn_a_cy = cy + 20;
         btn_b_cx = bw - 200;  btn_b_cy = cy - 20;
         sgz_x = 0; sgz_y = by; sgz_w = bw / 2; sgz_h = bh;                 // left half of the band
     } else if (p.mode == PLACE_RAILS) {
         int ww = p.band_w, wh = p.band_h, rl = gx, rr0 = gx + gw, ry = (int)(wh * 0.62f);
+        ctrl_scale = band_ctrl_scale(rl);                                  // rail WIDTH is the tight dimension
         stick_home_x = rl / 2.0f;   stick_home_y = (float)ry;
         int rc = rr0 + (ww - rr0) / 2;                                     // right-rail centre
         btn_a_cx = rc + 30;   btn_a_cy = ry + 20;
         btn_b_cx = rc - 60;   btn_b_cy = ry - 20;
         sgz_x = 0; sgz_y = 0; sgz_w = rl; sgz_h = wh;                      // the whole left rail
-    } else {  // OVERLAY — hug the corners of the game rect
+    } else {  // OVERLAY — hug the corners of the game rect; always full size, no band to shrink to
+        ctrl_scale = 1.0f;
         stick_home_x = gx + 80;   stick_home_y = gy + gh - 80;
         btn_a_cx = gx + gw - 80;   btn_a_cy = gy + gh - 80;
         btn_b_cx = gx + gw - 180;  btn_b_cy = gy + gh - 120;
@@ -926,7 +947,7 @@ static void poll_virtual_touches(void) {
     }
 }
 
-static bool any_touch_in_circle(int cx, int cy, int r) {
+static bool any_touch_in_circle(int cx, int cy, float r) {
     for (int i = 0; i < vt_count; i++) {
         if (point_in_circle(vt_pos[i].x, vt_pos[i].y, cx, cy, r)) return true;
     }
@@ -946,7 +967,8 @@ static void update_stick(void) {
                 Vector2 p = vt_pos[i];
                 float dx = p.x - stick_base_x, dy = p.y - stick_base_y;
                 float len = sqrtf(dx*dx + dy*dy);
-                if (len > STICK_RADIUS) { dx = dx/len*STICK_RADIUS; dy = dy/len*STICK_RADIUS; }
+                float r = eff_stick_r();
+                if (len > r) { dx = dx/len*r; dy = dy/len*r; }
                 stick_knob_x = stick_base_x + dx;
                 stick_knob_y = stick_base_y + dy;
                 still_active = true;
@@ -960,8 +982,8 @@ static void update_stick(void) {
         for (int i = 0; i < vt_count; i++) {
             Vector2 p = vt_pos[i];
             if (p.x < sgz_x || p.x >= sgz_x + sgz_w || p.y < sgz_y || p.y >= sgz_y + sgz_h) continue;  // outside the stick zone
-            if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, BTN_RADIUS)) continue;
-            if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, BTN_RADIUS)) continue;
+            if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, eff_btn_r())) continue;
+            if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, eff_btn_r())) continue;
             stick_touch_id = vt_id[i];
             if (fixed) {                          // base stays at home; knob starts centred, deflects toward the finger
                 stick_knob_x = stick_base_x;
@@ -1008,8 +1030,8 @@ static void update_dpad(void) {
             // local grab zone around the pad's own graphic — NOT the stick's whole-zone sgz;
             // a fixed d-pad shouldn't fire from a tap on the far side of the screen.
             if (!point_in_circle(p.x, p.y, stick_home_x, stick_home_y, DPAD_GRAB_RADIUS)) continue;
-            if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, BTN_RADIUS)) continue;
-            if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, BTN_RADIUS)) continue;
+            if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, eff_btn_r())) continue;
+            if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, eff_btn_r())) continue;
             dpad_touch_id = vt_id[i];
             dx = p.x - stick_home_x; dy = p.y - stick_home_y;
             break;
@@ -1058,13 +1080,15 @@ static void draw_touch_overlay_window(void) {
     // movement control: analog stick (live base+knob while held) or d-pad (compass nodes;
     // exactly ONE lights, keyed off the resolved sector — never an AND-combo of booleans,
     // which used to light a diagonal's two cardinals AND the diagonal node all at once).
+    float stick_r = eff_stick_r(), btn_r = eff_btn_r();
     if (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8) {
-        DrawCircleLines((int)stick_home_x, (int)stick_home_y, STICK_RADIUS, hint);
+        DrawCircleLines((int)stick_home_x, (int)stick_home_y, stick_r, hint);
         int   n        = (touch_move_mode == TOUCH_DPAD8) ? 8 : 4;
         int   step     = 8 / n;              // 8 canonical compass positions; DPAD4 samples every other (the cardinals)
-        float ring_r   = STICK_RADIUS * 0.7f;
-        float node_r   = (n <= 4) ? 18.0f : 13.0f;   // 8 nodes on the same ring need a smaller dot
-                                                       // or adjacent ones touch (chord < 2×18 at n=8)
+        float ring_r   = stick_r * 0.7f;
+        // node dot radius as a fraction of stick_r (18/13 at full STICK_RADIUS=60) — scaling both
+        // the ring and the dot together preserves the chord-vs-2r non-overlap margin at any size.
+        float node_r   = stick_r * ((n <= 4) ? 0.3f : (13.0f / 60.0f));
         for (int i = 0; i < n; i++) {
             float deg = i * (360.0f / n) - 90.0f;   // 0 = up, clockwise
             float nx = stick_home_x + cosf(deg * DEG2RAD) * ring_r;
@@ -1072,25 +1096,25 @@ static void draw_touch_overlay_window(void) {
             DrawCircleV((Vector2){ nx, ny }, node_r, (dpad_sector == i * step) ? press : ring);
         }
     } else if (stick_touch_id != -1) {
-        DrawCircleLines((int)stick_base_x, (int)stick_base_y, STICK_RADIUS, ring);
-        DrawCircleV((Vector2){ stick_knob_x, stick_knob_y }, STICK_RADIUS * 0.45f, knob);
+        DrawCircleLines((int)stick_base_x, (int)stick_base_y, stick_r, ring);
+        DrawCircleV((Vector2){ stick_knob_x, stick_knob_y }, stick_r * 0.45f, knob);
     } else {
-        DrawCircleLines((int)stick_home_x, (int)stick_home_y, STICK_RADIUS, hint);
-        DrawCircleV((Vector2){ stick_home_x, stick_home_y }, STICK_RADIUS * 0.45f, hint);
+        DrawCircleLines((int)stick_home_x, (int)stick_home_y, stick_r, hint);
+        DrawCircleV((Vector2){ stick_home_x, stick_home_y }, stick_r * 0.45f, hint);
     }
 
     // action buttons (as many as the cart asked for, capped at the 2 we lay out today)
     float fs = 4 * SCALE;
     if (touch_n_buttons >= 1) {
-        bool a_down = any_touch_in_circle(btn_a_cx, btn_a_cy, BTN_RADIUS);
-        DrawCircle(btn_a_cx, btn_a_cy, BTN_RADIUS, a_down ? press : ring);
-        DrawCircleLines(btn_a_cx, btn_a_cy, BTN_RADIUS, knob);
+        bool a_down = any_touch_in_circle(btn_a_cx, btn_a_cy, btn_r);
+        DrawCircle(btn_a_cx, btn_a_cy, btn_r, a_down ? press : ring);
+        DrawCircleLines(btn_a_cx, btn_a_cy, btn_r, knob);
         DrawTextEx(game_font, "A", (Vector2){ btn_a_cx - fs/2, btn_a_cy - fs/2 }, fs, 0, WHITE);
     }
     if (touch_n_buttons >= 2) {
-        bool b_down = any_touch_in_circle(btn_b_cx, btn_b_cy, BTN_RADIUS);
-        DrawCircle(btn_b_cx, btn_b_cy, BTN_RADIUS, b_down ? press : ring);
-        DrawCircleLines(btn_b_cx, btn_b_cy, BTN_RADIUS, knob);
+        bool b_down = any_touch_in_circle(btn_b_cx, btn_b_cy, btn_r);
+        DrawCircle(btn_b_cx, btn_b_cy, btn_r, b_down ? press : ring);
+        DrawCircleLines(btn_b_cx, btn_b_cy, btn_r, knob);
         DrawTextEx(game_font, "B", (Vector2){ btn_b_cx - fs/2, btn_b_cy - fs/2 }, fs, 0, WHITE);
     }
 }
@@ -2391,8 +2415,8 @@ bool btn(int player, int button) {
                 case BTN_DOWN:  if (dpad ? dpad_down  : (sy >  STICK_DEADZONE)) return true; break;
                 case BTN_LEFT:  if (dpad ? dpad_left  : (sx < -STICK_DEADZONE)) return true; break;
                 case BTN_RIGHT: if (dpad ? dpad_right : (sx >  STICK_DEADZONE)) return true; break;
-                case BTN_A:     if (any_touch_in_circle(btn_a_cx, btn_a_cy, BTN_RADIUS)) return true; break;
-                case BTN_B:     if (any_touch_in_circle(btn_b_cx, btn_b_cy, BTN_RADIUS)) return true; break;
+                case BTN_A:     if (any_touch_in_circle(btn_a_cx, btn_a_cy, eff_btn_r())) return true; break;
+                case BTN_B:     if (any_touch_in_circle(btn_b_cx, btn_b_cy, eff_btn_r())) return true; break;
             }
         }
         switch (button) {
@@ -2514,11 +2538,11 @@ int touch_ceiling(void) {
 
 float stick_x(void) {
     if (stick_touch_id == -1) return 0.0f;   // -1 = no stick; the mouse-as-touch uses id -2 (still active)
-    return (stick_knob_x - stick_base_x) / STICK_RADIUS;
+    return (stick_knob_x - stick_base_x) / eff_stick_r();   // knob is clamped to eff_stick_r(), not the raw constant
 }
 float stick_y(void) {
     if (stick_touch_id == -1) return 0.0f;   // -1 = no stick; the mouse-as-touch uses id -2 (still active)
-    return (stick_knob_y - stick_base_y) / STICK_RADIUS;
+    return (stick_knob_y - stick_base_y) / eff_stick_r();
 }
 
 // ------------------------------------------------------------

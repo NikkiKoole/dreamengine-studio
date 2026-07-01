@@ -301,6 +301,11 @@ once v1 lands (not committed):
     timing, then settle. And *cross-stroke* pooling (a run stopping on a *different* stroke's paint, and
     paint building up where strokes overlap) — `drip_cov` only holds the current stroke; a shared layer
     would unlock it (same persistent-buffer refactor flood-fill + the boil cache want).
+  - **Bevel + boil fixes (2026-07-01):** drip now takes **bevel** (via the shared `bevel_pass` — a
+    raised glossy paint edge under the wet body). And the runs are **dried**: their coverage/geometry is
+    computed from the *un-boiled* path (a local still `Boil`), so a boiling body wobbles but the drips
+    no longer dance/flicker frame to frame (verified: drip-region PSNR = ∞ across boil beats while the
+    body differs).
   - **Perf note:** the coverage raster + clear is O(bbox area) per drip stroke per frame — fine for a
     few, but it's another customer for the layer-buffer cache in the boil-perf todo.
 - **Calligraphy nib (shipped, 2026-07-01).** A `K_NIB` "nib" brush — the first brush where width

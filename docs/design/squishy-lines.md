@@ -308,8 +308,16 @@ once v1 lands (not committed):
   fill with the fat **ink** brush *is* the chunky bubble-lettering of the Tiny Jam logo; add **bevel**
   for the highlight and it's startlingly close. Captured per stroke (`outline` px + `outline_color`),
   editable in select mode. The toolbar chip is drawn as a **ring** (not a solid swatch) so it reads as
-  "outline colour" rather than another fill swatch. Pure `f(path, seed)`. Next: an outline-**width**
-  slider in the property strip; maybe an inner-highlight pass for the full logo look.
+  "outline colour" rather than another fill swatch. Pure `f(path, seed)`. **Outline-width slider**
+  (shipped 2026-07-01): added to the select property strip (`out`, 0..`OUTLINE_MAX`, 0 = off) alongside
+  the bevel/boil sliders. Maybe an inner-highlight pass for the full logo look next.
+- **Bevel light = a global "sun" (shipped, 2026-07-01, maker's idea).** Bevel *size* stays per-stroke,
+  but the light *direction* became a single global `bevel_angle` (deg) used by every bevel rim (and the
+  oil-paint rim) at render time — so rotating it **relights the whole drawing at once**, like sweeping
+  the sun. `hilite` offsets toward the light (`cos/sin(angle)·size`), `shadow` away. `,` / `.` rotate it
+  (±15°). Default 225° = the old up-left light, so existing art is unchanged. Because it's read live (not
+  captured per stroke), it's a scene control, not a stroke property — a nice emergent lighting knob.
+  Later: a bevel light **colour** (warm sun / cool moon), and maybe an auto-rotate toggle.
 - **Flood-fill (still wanted)** — the *raster* other half: flood a bounded region, lay a dither/ramp
   in it. This one genuinely needs the **persistent layer buffer** (flood-fill is a raster op; the cart
   re-renders from data each frame and `pget` reads *last* frame). Do it *with* the layer-buffer

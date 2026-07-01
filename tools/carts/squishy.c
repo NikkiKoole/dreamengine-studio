@@ -11,8 +11,8 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Four brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), and PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
-    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Five brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
+    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle."
   },
   "todo": [
     "Polish the ink/chalk tool-icon glyphs — still read a bit muddy at 16px (sprite-draw.js in squishy.cart.js). Sketch now reads since black is keyed out (colorkey).",
@@ -92,7 +92,7 @@ enum { BOIL_WOBBLE, BOIL_BREATHE };
 #define STAMP_SPACING 0.7f         // px between stamps when rendering a segment (dense = solid)
 
 // how a tool draws its stored path:
-enum { K_STAMP, K_CHALK, K_SKETCH, K_SPRAY, K_BRISTLE, K_DRIP };
+enum { K_STAMP, K_CHALK, K_SKETCH, K_SPRAY, K_BRISTLE, K_DRIP, K_NIB };
 
 // a tool = a brush recipe. width swings between minw (full speed) and maxw
 // (standstill); speedref = px/frame where width bottoms out; noise = per-stamp
@@ -110,6 +110,7 @@ static const Brush BRUSHES[] = {
     { 3.0f,13.0f, 11.0f, 0.00f, 3.0f, K_SPRAY,   "spr" },   // airbrush: scattered dots (maxw = cloud)
     { 4.0f, 9.0f, 10.0f, 0.10f, 4.0f, K_BRISTLE, "brs" },   // bristle: raked parallel hairs
     { 6.0f,14.0f, 14.0f, 0.10f, 4.0f, K_DRIP,    "pnt" },   // paint: wide + wet, runs drip DOWN from the wettest spots
+    { 2.0f,11.0f, 12.0f, 0.00f, 1.0f, K_NIB,     "nib" },   // calligraphy: flat nib, width from stroke ANGLE (maxw = nib width)
 };
 #define NTOOLS ((int)(sizeof(BRUSHES) / sizeof(BRUSHES[0])))   // brush icons are sprite slots 0..7
 #define SKETCH_R     22.0f     // px: a thread links to prior points within this reach (à la Krita Sketch)
@@ -130,7 +131,8 @@ static const Brush BRUSHES[] = {
 #define DRIP_MAX_LEN   140.0f  // cap so a free-falling run can't go forever
 
 // readable names for the header label (BRUSHES[].name is the 3-char button id)
-static const char *TOOL_DISP[] = { "ink", "pencil", "liner", "marker", "chalk", "sketch", "spray", "bristle", "paint" };
+static const char *TOOL_DISP[] = { "ink", "pencil", "liner", "marker", "chalk", "sketch", "spray", "bristle", "paint", "nib" };
+#define NIB_ANGLE_DEF 45.0f    // calligraphy nib angle (deg) — the classic italic slant
 
 typedef struct { float x, y, speed; } Sample;
 typedef struct {
@@ -142,6 +144,7 @@ typedef struct {
     float    boil;          // boil intensity 0..1 (0 = still) — per-stroke, captured/editable
     int      boil_style;    // BOIL_WOBBLE (jitter) or BOIL_BREATHE (scale pulse)
     float    thick;         // thickness multiplier this stroke was drawn with
+    float    nib_angle;     // calligraphy nib angle (deg) — K_NIB only, captured per-stroke
     int      n;
     Sample   pts[MAX_SAMPLES];
 } Stroke;
@@ -155,6 +158,7 @@ static int      drawing = 0;
 static int      bevel = 0;           // bevel DEFAULT for new strokes (each stroke captures it)
 static int      boil = 0;            // boil DEFAULT for new strokes (captured as intensity 0/1)
 static int      boil_style = BOIL_WOBBLE;   // boil style DEFAULT for new strokes
+static float    nib_angle = NIB_ANGLE_DEF;  // calligraphy nib angle DEFAULT (deg); [ / ] rotate it
 static int      cursor_panel = -1;   // tracks which cursor is shown (hand on bar / ring on canvas)
 static int      tool = 0;            // selected brush
 static int      selmode = 0;         // SELECT mode (a top-bar toggle): clicks pick/edit, not draw
@@ -394,6 +398,32 @@ static void render_drip(const Stroke *s, const Boil *b) {
     }
 }
 
+// CALLIGRAPHY nib: a flat broad edge held at a FIXED angle. Unlike the speed brushes,
+// width comes from the ANGLE between the stroke and the nib — move along the nib edge
+// and it's a hairline; move across it and you get the full nib width. Rendered as a
+// ribbon of nib-wide quads between consecutive points, with the nib edge stamped at
+// each vertex to close the joints. `nib_angle` is captured per stroke.
+static void render_nib(const Stroke *s, const Boil *b) {
+    float hw = BRUSHES[s->tool].maxw * s->thick * 0.5f;         // half the nib width
+    float nx = cos_deg(s->nib_angle) * hw, ny = sin_deg(s->nib_angle) * hw;   // half nib-edge vector
+    if (s->n == 1) {
+        float x = s->pts[0].x, y = s->pts[0].y; boil_pt(s, 0, &x, &y, b);
+        line((int)(x-nx+.5f),(int)(y-ny+.5f),(int)(x+nx+.5f),(int)(y+ny+.5f), s->color);
+        return;
+    }
+    for (int i = 0; i < s->n - 1; i++) {
+        float x0=s->pts[i].x, y0=s->pts[i].y, x1=s->pts[i+1].x, y1=s->pts[i+1].y;
+        boil_pt(s,i,&x0,&y0,b); boil_pt(s,i+1,&x1,&y1,b);
+        int ax=(int)(x0+nx+.5f), ay=(int)(y0+ny+.5f), bx=(int)(x0-nx+.5f), by=(int)(y0-ny+.5f);
+        int cx=(int)(x1+nx+.5f), cy=(int)(y1+ny+.5f), dx=(int)(x1-nx+.5f), dy=(int)(y1-ny+.5f);
+        trifill(ax, ay, cx, cy, dx, dy, s->color);              // the nib-wide ribbon quad, as two tris
+        trifill(ax, ay, dx, dy, bx, by, s->color);
+        line(ax, ay, bx, by, s->color);                         // nib edge at the joint (fills convex gaps)
+    }
+    float xe=s->pts[s->n-1].x, ye=s->pts[s->n-1].y; boil_pt(s,s->n-1,&xe,&ye,b);
+    line((int)(xe-nx+.5f),(int)(ye-ny+.5f),(int)(xe+nx+.5f),(int)(ye+ny+.5f), s->color);   // final nib
+}
+
 // draw one stroke. Sketch is its own renderer; the other brushes use the stamp
 // chain, with the bevel emboss if it's on: a SHADOW + HILITE copy offset under
 // the ink body leave a light rim on the upper-left, a dark rim on the lower-right.
@@ -405,6 +435,7 @@ static void draw_one(const Stroke *s, const Boil *b) {
         case K_SPRAY:   render_spray(s, b);   return;
         case K_BRISTLE: render_bristle(s, b); return;
         case K_DRIP:    render_drip(s, b);    return;
+        case K_NIB:     render_nib(s, b);     return;
         default: break;   // K_STAMP / K_CHALK use the stamp chain below
     }
     if (s->bevel > 0) {   // per-stroke bevel, s->bevel = rim size in px
@@ -628,6 +659,8 @@ void update(void) {
         if (mouse_pressed(MOUSE_LEFT) && my >= PANEL_H && !in_prop) selected = pick_stroke(mx, my);
         if (keyp('U') || mouse_pressed(MOUSE_RIGHT)) do_undo();
         if (keyp('C')) { nstrokes = 0; selected = -1; }
+        if ((keyp('[') || keyp(']')) && selected >= 0 && selected < nstrokes)
+            strokes[selected].nib_angle += keyp(']') ? 15.0f : -15.0f;   // rotate the picked nib
         return;
     }
 
@@ -642,6 +675,7 @@ void update(void) {
         cur.boil = boil ? 1.0f : 0.0f;
         cur.boil_style = boil_style;
         cur.thick = thickness();
+        cur.nib_angle = nib_angle;   // capture the calligraphy nib angle (K_NIB uses it)
         seedctr = seedctr * 1103515245u + 12345u;
         cur.seed = seedctr;
         lastsx = mx; lastsy = my;
@@ -665,6 +699,7 @@ void update(void) {
     if (keyp('C')) { nstrokes = 0; selected = -1; }
     if (keyp('B')) bevel = !bevel;
     if (keyp('O')) boil = !boil;
+    if (keyp('[') || keyp(']')) nib_angle += keyp(']') ? 15.0f : -15.0f;   // rotate the nib default
 }
 
 void draw(void) {
@@ -704,16 +739,23 @@ void draw(void) {
         if (want < 0) mouse_hide();
         else { mouse_cursor(want); mouse_show(); }
     }
-    if (want < 0) {   // brush ring previews the reach (sketch) or live width (slow = big, fast = small)
-        int r;
-        if (BRUSHES[tool].kind == K_SKETCH) r = (int)SKETCH_R;
-        else {
-            Brush b = BRUSHES[tool];
-            float sp = ema / b.speedref; if (sp > 1) sp = 1;
-            r = (int)((b.maxw - (b.maxw - b.minw) * sp) * thickness() * 0.5f + 0.5f);
+    if (want < 0) {   // cursor: nib edge for calligraphy, else the brush ring
+        int mx = mouse_x(), my = mouse_y();
+        if (BRUSHES[tool].kind == K_NIB) {   // preview the nib edge + its angle
+            float hw = BRUSHES[tool].maxw * thickness() * 0.5f;
+            float nx = cos_deg(nib_angle) * hw, ny = sin_deg(nib_angle) * hw;
+            line((int)(mx-nx+.5f),(int)(my-ny+.5f),(int)(mx+nx+.5f),(int)(my+ny+.5f), COLORS[colsel]);
+        } else {   // brush ring previews the reach (sketch) or live width (slow = big, fast = small)
+            int r;
+            if (BRUSHES[tool].kind == K_SKETCH) r = (int)SKETCH_R;
+            else {
+                Brush b = BRUSHES[tool];
+                float sp = ema / b.speedref; if (sp > 1) sp = 1;
+                r = (int)((b.maxw - (b.maxw - b.minw) * sp) * thickness() * 0.5f + 0.5f);
+            }
+            if (r < 1) r = 1;
+            circ(mx, my, r, COLORS[colsel]);
         }
-        if (r < 1) r = 1;
-        circ(mouse_x(), mouse_y(), r, COLORS[colsel]);
     }
 
     draw_panel();   // on top of the strokes

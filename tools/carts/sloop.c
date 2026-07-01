@@ -15,7 +15,7 @@
   ],
   "lineage": "Inspired by Cataclysm: DDA's vehicle system; sibling to orbit (same integrator) and coaster (same physics honesty); extends worldgen's infinite chunk-streamed city as its drive world.",
   "genre": "sandbox",
-  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset."
+  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city."
 }
 de:meta */
 #include "studio.h"
@@ -34,6 +34,7 @@ de:meta */
 //   X / ▼        brake / reverse
 //   SPACE (hold) handbrake — break the tires loose and DRIFT
 //   R            reset
+//   O            reveal the data folder (drag a .rvb onto the window → drive that REAL city)
 //
 // ── the one honest core ──────────────────────────────────────────────────────
 // The vehicle is NOT a sprite with stats. It is a GRID OF PARTS, and how it
@@ -613,6 +614,8 @@ static int osm_loaded;                       // Rung B: 1 once a .rvb is loaded 
 typedef struct { float wx, wy, hw, hh, ang; int cx, cy; } OsmBld;
 static OsmBld obld[OSM_MAXBLD];
 static int    n_obld;
+static char   osm_name[64];                  // dataset name from the .rvb header (shown on the HUD)
+static void   osm_load(const char *path);    // (defined with the OSM block below; called on drag-drop + init)
 
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
@@ -1748,6 +1751,14 @@ static void engine_sound(int audible) {
 void update(void) {
     static int snd_ready = 0;
     if (!snd_ready) { engine_sound_init(); snd_ready = 1; }
+
+    // Rung B/C run-path: DRAG a .rvb (data/delft-centre.rvb, …) onto the window → drive that real
+    // city. Same de_dropped_file() hook as roadview; a valid load respawns the rig on a road. Press
+    // O to reveal the data folder in Finder. (Startup --data / $DE_DATA is honoured in init().)
+    { const char *dropped = de_dropped_file();
+      if (dropped) { int was = osm_loaded; osm_load(dropped); if (osm_loaded || was) reset_vehicle(); } }
+    if (keyp('O')) de_open_path("../data");
+
     handle_input();
     engine_sound(mode == MODE_DRIVE && !is_paused && engine_on);   // every frame (also kills it in BUILD/pause)
     if (mode == MODE_BUILD || is_paused) return;   // BUILD pauses the simulation
@@ -2598,12 +2609,17 @@ static void osm_load(const char *path) {
     long len; char *buf = osm_slurp(path, &len);
     if (!buf) return;
     if (len < 24 || memcmp(buf, "RVB", 3) != 0 || buf[3] < '1' || buf[3] > '3') { free(buf); return; }
+    // valid RVB → committing to a (re)load: free any previous index so a re-drop doesn't leak.
+    if (ocell_start) { free(ocell_start); ocell_start = NULL; }
+    if (oidx) { free(oidx); oidx = NULL; }
+    osm_loaded = 0;
     int ver = buf[3];
     const char *p = buf + 4, *end = buf + len;
     int nfeat, namelen;
     memcpy(&nfeat, p, 4);   p += 4;
     memcpy(&namelen, p, 4); p += 4;
     if (namelen < 0) namelen = 0;
+    { int nl = namelen < 63 ? namelen : 63; memcpy(osm_name, p, (size_t)nl); osm_name[nl] = 0; }
     p += namelen;
     float bb[4]; memcpy(bb, p, 16); p += 16;
     gminx = bb[0]; gminy = bb[1];
@@ -2951,9 +2967,15 @@ static void hud(void) {
     // --- top of screen: rig identity (dim) + the zone's limit (a road sign) ----
     print(DES_NAME[cur_des], 4, 4, CLR_DARK_GREY);
     print(ENG[eng_kind].name, 4, 12, ENG[eng_kind].col);   // the rig's engine kind (§1a)
-    print_centered(ZONE_NAME[cur_zone], SCREEN_W / 2, 4, CLR_YELLOW);
+    // top-centre: the real CITY name when driving OSM data, else the procedural zone label
+    print_centered(osm_loaded ? osm_name : ZONE_NAME[cur_zone], SCREEN_W / 2, 4, CLR_YELLOW);
     { RoadHit rh = road_at(sx, sy);   // P1 seam, live AT THE RIG COM — matches the surface driving handling
       print_centered(rh.on_road ? "ON ROAD" : "OFF-ROAD", SCREEN_W / 2, 12, rh.on_road ? CLR_GREEN : CLR_ORANGE); }
+    // discoverability: the OSM run-path is invisible otherwise. A transient call-to-action — shows for
+    // the first few seconds of a fresh run, then clears so it never clutters the default cart.
+    { static int hint_t = 0; if (hint_t < 300) hint_t++;
+      if (!osm_loaded && hint_t < 300)
+          print_centered("drag a .rvb here to drive a real city", SCREEN_W / 2, 20, CLR_DARK_GREY); }
     if (nDrag > 0) {                         // scrape heat — shown only while it bites
         print("SCRAPE", SCREEN_W - 52, 4, hot_col());
         bar(SCREEN_W - 70, 13, 62, 4, heat, heat > 0.66f ? CLR_RED : CLR_ORANGE, CLR_DARKER_GREY);

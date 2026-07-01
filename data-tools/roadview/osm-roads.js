@@ -197,7 +197,7 @@ function surfaceCode(s) {
 // Pack a road's useful OSM attributes into the compact `sub` token string — ';'-delimited, each token's
 // FIRST char is its key. The bridge/tunnel token stays first for backward-compat (parse_deck reads sub[0]).
 // Tokens: B<L>/T<L> bridge/tunnel · O oneway · L<n> lanes · W b|l|r|n sidewalk · U a|p|g|w|o surface ·
-// M<n> maxspeed(km/h) · C b|l|r on-road cycleway · R roundabout. Consumers read only what they use.
+// M<n> maxspeed(km/h) · X<n> width(m) · C b|l|r on-road cycleway · R roundabout. Consumers read only what they use.
 function roadSub(tags, bridgeTok) {
   const t = []; if (bridgeTok) t.push(bridgeTok);
   if (tags.oneway === 'yes' || tags.oneway === '-1') t.push('O');
@@ -207,6 +207,7 @@ function roadSub(tags, bridgeTok) {
   else if (sw === 'right') t.push('Wr'); else if (sw === 'no' || sw === 'none') t.push('Wn');
   const u = surfaceCode(tags.surface); if (u) t.push('U' + u);
   const ms = parseInt(tags.maxspeed, 10); if (Number.isFinite(ms) && ms > 0 && ms <= 130) t.push('M' + ms);
+  const wd = parseFloat(tags.width); if (Number.isFinite(wd) && wd > 0 && wd <= 60) t.push('X' + Math.round(wd));  // carriageway width (m), authoritative but rare
   const lane = (v) => v && v !== 'no' && v !== 'separate' && v !== 'none';           // an on-road bike lane?
   const cwL = lane(tags['cycleway:left']), cwR = lane(tags['cycleway:right']);
   if (lane(tags.cycleway) || lane(tags['cycleway:both']) || (cwL && cwR)) t.push('Cb');

@@ -182,8 +182,17 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
    tagged side(s) (`paint_side_strip()`), revealing bike infra a separate-cycleway-ways-only render missed.
    **Lane markings** now use OSM `lanes` + `oneway` (`paint_markings`/`paint_lane_line`): a carriageway with
    N lanes draws N-1 dashed lane dividers instead of one centre-line, and one-way streets drop the centre-line
-   entirely (378 of central Delft's roads are one-way — a big, correct change). **Still faked / next:** the
-   node-level tier (crossings, give-way/stop/signals)
+   entirely (378 of central Delft's roads are one-way — a big, correct change).
+
+   **Carriageway width model (2026-07-02).** Width was the last class-only fake — every `road` drew 6 m wide
+   regardless. `road_hw(w)` now decides it: OSM `width` tag (authoritative, ~1% coverage) → `lanes`×~3 m →
+   else the class default, **narrowed to ~0.6× for one-way residential-tier streets** (one direction ≈ one
+   lane; `oneway` has real ~20% coverage, the workhorse signal). The freed width isn't lost — the pavement
+   pass draws out to the *fixed class corridor*, so a narrowed one-way street automatically gets a **fatter
+   pavement** (the real Dutch centre look: narrow one-way carriageway, wide footway, same building-to-building
+   corridor). All the carriageway passes (casing, surface, markings, on-road cycle lane) key off `road_hw`;
+   only the pavement's outer edge stays at the class corridor. **Still faked / next:** the node-level tier
+   (crossings, give-way/stop/signals)
    needs new kind indices (enum surgery in `citydrive.c` + `roadview.c`), so it's the next importer chunk.
 3. **Pure-geometry extract (safe first roadkit step).** Move the pure fns (`curb_return`, the leg model,
    `cross_hw`, corner counts) into `roadkit.h`; `streetlab` `#include`s it and calls them unchanged.

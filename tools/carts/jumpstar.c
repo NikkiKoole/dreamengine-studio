@@ -17,8 +17,7 @@
   "homage": "Doodle Jump (2009)",
   "description": "An endless vertical jumper in the Doodle-Jump grain: a little astronaut auto-bounces forever off procedurally spawned platforms while you steer to keep landing on the next ledge up. Green platforms are solid, blue ones slide and bounce at the edges, and cracked brown ones crumble away after a single bounce, so dawdling drops you. Grab bobbing stars for a sparkly bonus, ride the climbing camera through a parallax starfield, and don't fall off the bottom — every landing squashes the astronaut, shatters fling debris, and the screen kicks on a break. Height is your score and your best run is saved between sessions. Steer with A/D or Left/Right (wraps at the screen edges); jumping is automatic; press Z to jump again after a fall.",
   "todo": [
-    "The end-fade issue (recurring across carts) — apply the shared end-state treatment.",
-    "Touch: onscreen joystick."
+    "The end-fade issue (recurring across carts) — apply the shared end-state treatment."
   ]
 }
 de:meta */
@@ -154,6 +153,7 @@ static void start_run(void) {
 void init(void) {
     best = load(0);
     start_run();
+    touch_layout(TOUCH_ANALOG, 1);   // jumping is automatic; A is only "jump again" after a fall
 }
 
 void update(void) {

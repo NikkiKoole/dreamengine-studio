@@ -606,6 +606,13 @@ static int  zone_at(float x, float y);   // (defined below; gen_chunk needs it t
 typedef struct { int on_road; int zone; int cls; } RoadHit;
 static RoadHit road_at(float x, float y);   // (defined below, beside zone_at)
 static int osm_loaded;                       // Rung B: 1 once a .rvb is loaded (defined with the OSM block below)
+// Rung C: OSM building footprints → collidable OB_HOUSE obstacles. Declared here (gen_chunk, above the
+// OSM block, emits them); filled by osm_load(). Each is an oriented box (world px + heading) + home chunk.
+#define OSM_MAXBLD 60000                     // delft-centre ≈ 5.3k buildings; whole-city sets more
+#define OSM_BLDCAP 512                       // max footprint verts read for the oriented-box fit (huge → AABB)
+typedef struct { float wx, wy, hw, hh, ang; int cx, cy; } OsmBld;
+static OsmBld obld[OSM_MAXBLD];
+static int    n_obld;
 
 // ── rigid body state (sx,sy = the COM in world space; rotation pivots about it) ─
 static float sx, sy;              // world position of the COM
@@ -1962,8 +1969,21 @@ static void ob_init(Obstacle *o, int cx, int cy, int idx) {
 // idx is just the running emit order k — stable because gen order is fixed (cones, then houses).
 static int gen_chunk(int cx, int cy, Obstacle *out) {
     int k = 0;
-    if (osm_loaded) return 0;                 // Rung B: driving real Delft — empty streets (no stub cones/
-                                              // houses/parked-cars). OSM buildings become props in Rung C.
+    if (osm_loaded) {                         // Rung C: emit the real OSM buildings whose home chunk is this one
+        int roof[4] = { CLR_BROWN, CLR_RED, CLR_DARK_PURPLE, CLR_DARK_GREY };
+        for (int b = 0; b < n_obld && k < OB_PERCHUNK; b++) {
+            if (obld[b].cx != cx || obld[b].cy != cy) continue;
+            Obstacle o; ob_init(&o, cx, cy, k);
+            o.kind = OB_HOUSE;                                    // immovable, solid — holds till a heavy hit smashes it
+            o.bx = o.x = obld[b].wx; o.by = o.y = obld[b].wy;
+            o.hw = obld[b].hw; o.hh = obld[b].hh; o.ang = obld[b].ang;
+            o.gw = 3; o.gh = 3;                                   // 3×3 brick → house-like mass/strength (ob_derive)
+            for (int rr = 0; rr < 3; rr++) for (int cc = 0; cc < 3; cc++) o.cell[rr][cc] = OM_BRICK;
+            o.col = roof[b & 3];
+            ob_derive(&o); out[k++] = o;
+        }
+        return k;                             // (no stub cones/cars over Delft; roads are drawn by draw_course)
+    }
     int x0 = cx * CHUNK, y0 = cy * CHUNK;     // this chunk's world span [x0,x0+CHUNK)
 
     // 1. cones — light roadworks clutter, scattered anywhere (run-over class)
@@ -2478,7 +2498,10 @@ static void draw_obstacles(void) {
                 rectfill(x + 2, y + h / 2, w - 4, h / 2 - 1, CLR_DARKER_GREY);
                 rectfill(x + 4, y + h / 2 + 2, 3, 2, CLR_MEDIUM_GREY);
                 rectfill(x + w - 8, y + h - 4, 3, 2, CLR_MEDIUM_GREY);
-            } else {
+            } else if (o->ang != 0.0f) {             // Rung C: OSM footprint — ORIENTED box (matches its OBB)
+                fill_orect(o->x, o->y, o->ang, o->hw + 1, o->hh + 1, CLR_BROWNISH_BLACK);   // 1px outline
+                fill_orect(o->x, o->y, o->ang, o->hw, o->hh, o->col);
+            } else {                                 // default sloop houses (axis-aligned) — unchanged
                 rectfill(x, y, w, h, o->col);
                 rect(x, y, w, h, CLR_BROWNISH_BLACK);
             }
@@ -2587,13 +2610,45 @@ static void osm_load(const char *path) {
     float gmaxx = bb[2], gmaxy = bb[3];
     osm_cx = (gminx + gmaxx) * 0.5f; osm_cy = (gminy + gmaxy) * 0.5f;
 
-    n_oseg = 0;
+    n_oseg = 0; n_obld = 0;
     for (int f = 0; f < nfeat && p + 12 <= end; f++) {
         int kind, sublen, npts;
         memcpy(&kind, p, 4);   p += 4;
         if (ver == '2' || ver == '3') p += 4;   // skip the per-feature height float (RVB2+)
         memcpy(&sublen, p, 4); p += 4; p += sublen;
         memcpy(&npts, p, 4);   p += 4;
+
+        if (kind == 6) {   // K_BUILDING → an ORIENTED-box obstacle (Rung C). Fit a box to the footprint:
+            float bp[OSM_BLDCAP][2]; int nb = 0;                            // read verts (metres) up to the cap
+            for (int j = 0; j < npts && p + 8 <= end; j++) {
+                float xy[2]; memcpy(xy, p, 8); p += 8;
+                if (nb < OSM_BLDCAP) { bp[nb][0] = xy[0]; bp[nb][1] = xy[1]; nb++; }
+            }
+            if (nb >= 3 && n_obld < OSM_MAXBLD) {
+                float bestL = -1, ux = 1, uy = 0;                          // box axis = the LONGEST edge dir
+                for (int j = 0; j < nb; j++) {
+                    int j2 = (j + 1) % nb; float ex = bp[j2][0] - bp[j][0], ey = bp[j2][1] - bp[j][1];
+                    float L = ex * ex + ey * ey;
+                    if (L > bestL) { bestL = L; float l = fsqrt(L); if (l > 1e-4f) { ux = ex / l; uy = ey / l; } }
+                }
+                float vx2 = -uy, vy2 = ux;                                 // perpendicular axis
+                float umin = 1e30f, umax = -1e30f, vmin = 1e30f, vmax = -1e30f;
+                for (int j = 0; j < nb; j++) {                             // project all verts onto (u,v)
+                    float pu = bp[j][0] * ux + bp[j][1] * uy, pv = bp[j][0] * vx2 + bp[j][1] * vy2;
+                    if (pu < umin) umin = pu; if (pu > umax) umax = pu;
+                    if (pv < vmin) vmin = pv; if (pv > vmax) vmax = pv;
+                }
+                float uc = (umin + umax) * 0.5f, vc = (vmin + vmax) * 0.5f;
+                obld[n_obld].wx = ux * uc + vx2 * vc;                      // centre back in world metres (converted below)
+                obld[n_obld].wy = uy * uc + vy2 * vc;
+                obld[n_obld].hw = (umax - umin) * 0.5f;                    // metres half-extents (converted below)
+                obld[n_obld].hh = (vmax - vmin) * 0.5f;
+                obld[n_obld].ang = atan2f(uy, ux) * 57.29578f;            // metres-frame heading (converted below)
+                n_obld++;
+            }
+            continue;
+        }
+
         float hw = osm_road_hw(kind);
         if (hw < 0) { p += (long)npts * 8; continue; }   // not a road → skip its points wholesale
         float px = 0, py = 0; int have = 0;
@@ -2618,6 +2673,17 @@ static void osm_load(const char *path) {
           float d = (mmx - bc_x) * (mmx - bc_x) + (mmy - bc_y) * (mmy - bc_y);
           if (d < best) { best = d; osm_cx = mmx; osm_cy = mmy; }
       } }
+
+    // buildings: convert metres box → world px (same map + Y-flip as road_at) + bucket by home chunk,
+    // so gen_chunk can emit the ones in a live chunk as OB_HOUSE obstacles you crash into.
+    for (int b = 0; b < n_obld; b++) {
+        float wx = (obld[b].wx - osm_cx) * OSM_PPM, wy = -(obld[b].wy - osm_cy) * OSM_PPM;
+        obld[b].wx = wx; obld[b].wy = wy;
+        obld[b].hw *= OSM_PPM; if (obld[b].hw < 2.0f) obld[b].hw = 2.0f;
+        obld[b].hh *= OSM_PPM; if (obld[b].hh < 2.0f) obld[b].hh = 2.0f;
+        obld[b].ang = -obld[b].ang;                        // Y flip negates the heading
+        obld[b].cx = ifloordiv((int)wx, CHUNK); obld[b].cy = ifloordiv((int)wy, CHUNK);
+    }
 
     // uniform-grid index (CSR). Each segment is bucketed into every cell its bounding box covers;
     // with hw < OSM_CELL, a 3×3 scan around the query point then catches every nearby segment.

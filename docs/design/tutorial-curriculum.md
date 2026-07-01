@@ -58,20 +58,26 @@ Numbers are sequential suggestions; tracks can ship in any order. Each cart = so
 
 ### Track A — How code actually works *(the missing foundation)*
 
+✅ **SHIPPED** (2026-07-01) — compressed from 8 planned carts into **3 paged carts**
+(`23-basics`, `24-building-blocks`, `25-patterns`), each a self-contained `<- ->` lesson
+browser instead of one cart per topic: fewer numbers to register, same 8 concepts, and each
+page's live demo is `btn()`-driven (up/down adjusts, A/B moves a cursor) so it's touch-ready
+for free. The original per-topic breakdown (kept for reference — this is what each page covers):
+
 Our tutorials *use* variables, loops and functions from cart 3 onward but never *teach*
 them. For a learning tool that's the biggest hole. Mirrors Nerdy Teachers' "Intro to
 Coding" roadmap (conditionals → inputs → tables → loops), retargeted to C.
 
 | # | cart | teaches |
 |---|---|---|
-| 25 | variables & types | `int` / `float` / `bool`; why the compiler needs a type |
-| 26 | conditionals | `if / else if / else`, comparisons, `&&` `||` |
-| 27 | loops | `for` / `while`; drawing a row/grid with one loop |
-| 28 | functions | writing your own; parameters and `return` |
-| 29 | arrays | `int things[8]`; looping over a fixed bank |
-| 30 | structs | bundling fields; `typedef struct { } Thing;` |
-| 31 | the entity pool | `Enemy e[64]; bool on;` + skip-inactive — VISION's *core* pattern |
-| 32 | friendly state | `STATE { } / S->field` sugar; what `de_state()` is for |
+| 25 | ~~variables & types~~ → `23-basics` p1/3 | `int` / `float` / `bool`; why the compiler needs a type |
+| 26 | ~~conditionals~~ → `23-basics` p2/3 | `if / else if / else`, comparisons, `&&` `||` |
+| 27 | ~~loops~~ → `23-basics` p3/3 | `for` / `while`; drawing a row/grid with one loop |
+| 28 | ~~functions~~ → `24-building-blocks` p1/3 | writing your own; parameters and `return` |
+| 29 | ~~arrays~~ → `24-building-blocks` p2/3 | `int things[8]`; looping over a fixed bank |
+| 30 | ~~structs~~ → `24-building-blocks` p3/3 | bundling fields; `typedef struct { } Thing;` |
+| 31 | ~~the entity pool~~ → `25-patterns` p1/2 | `Enemy e[64]; bool on;` + skip-inactive — VISION's *core* pattern |
+| 32 | ~~friendly state~~ → `25-patterns` p2/2 | `STATE { } / S->field` sugar; what `de_state()` is for |
 
 ### Track B — Collision *(adapted from their 8-part track — our biggest acknowledged gap)*
 
@@ -109,19 +115,22 @@ Modeled on their Bitesize set, scaled to teachable size.
 
 ## Sequencing note
 
-A beginner's natural path becomes: **1–10** (primitives → first game → world) → **25–32**
-(understand the code they've been copying) → **33–39** (collision) → **40–46** (ship whole
-games) → **11–24 + 47–48** (juice/effects/polish, dip in as desired). The capstones (Track
-C) are the payoff and the most shareable; Track A is the foundation that makes the rest
-*stick* instead of being copied.
+A beginner's natural path becomes: **1–10** (primitives → first game → world) → **23-basics /
+24-building-blocks / 25-patterns** (understand the code they've been copying) → **33–39**
+(collision) → **40–46** (ship whole games) → **11–22 + 47–48** (juice/effects/polish, dip in
+as desired). The capstones (Track C) are the payoff and the most shareable; Track A is the
+foundation that makes the rest *stick* instead of being copied.
 
 ## Count
 
-~24 net-new (25–48) on top of the existing 24 → a ~48-cart course. "About 30" is the right
-order of magnitude; trim Track D or fold a couple of Track C games if it runs long.
+~24 net-new (25–48) on top of the existing 24 → a ~48-cart course, though Track A landed as
+3 carts instead of 8 (paged), so the real count is lower. "About 30" is the right order of
+magnitude; trim Track D or fold a couple of Track C games if it runs long.
 ~~Suggested first build: #40 flappy.~~ **#40 flappy SHIPPED 2026-06-07** (the arc proven).
-Next suggested build: **Track A** (#25–32 — "how code works"), the deepest remaining gap —
-0 of 8 built, and the foundation that makes the copied code in every other cart *stick*.
+~~Next suggested build: Track A.~~ **Track A SHIPPED 2026-07-01** (`23-basics`,
+`24-building-blocks`, `25-patterns` — the foundation that makes the copied code in every
+other cart *stick*). Next suggested build: **Track B** (#33–39 — collision), the biggest
+acknowledged gap still fully open.
 
 ## Addendum (2026-06-04) — movement-paradigm clusters
 

@@ -144,8 +144,9 @@ Listed so the plan exists, **not** so it gets built now.
   (`product-notes-followup.md` §0.)
 - [ ] **Verify the market numbers** before citing anywhere ($150M / 5M users / Apple cut / free-tier
   limits are LLM-supplied). (`product-notes-followup.md` §10.)
-- [ ] **Touch-input policy.** The all-carts log keeps asking for onscreen joystick/d-pad — decide the
-  shared answer (see cart-polish below) since it's a per-cart × global call.
+- [x] **Touch-input policy — decided and shipped (2026-07-01).** Answer: opt-in **per cart, in
+  code** (`touch_layout(mode, n_buttons)`), never a global setting — see the cart-polish item below
+  and [`touch-controls.md`](touch-controls.md) for the full design + what's shipped.
 
 ---
 
@@ -156,19 +157,22 @@ with `node tools/cart-todos.js`); [`../cart-polish-punchlist.md`](../cart-polish
 now just the pointer + the maker's framing notes. It's mostly *polish*, but the same fixes recur
 across many carts — handle those **once, systemically**, then sweep:
 
-- [ ] **Touch movement affordance — the recommended NEXT for iOS (2026-06-29).** A shared onscreen
-  **joystick / d-pad** widget (joystick for free movement, d-pad for grid games), opt-in per cart **in
-  code** (so a compiled cart on a touch device shows it) — the log explicitly wants this not via
-  settings. Then mark each cart's ideal input type. Affects: boids, doom-fire, defender, galaga,
-  vampire-survivors, rogue, build-a-world, enemies, catch-the-star, columns/puyo/dr-mario, rollswarm,
-  sand-burrow, jumpstar, tower-defense, +more.
-  *iOS readiness:* the Phase-2 input seam now exists — the primary finger drives the mouse API
-  (mouse carts already play from touch) and `de_key_event` feeds `IsKeyDown/Pressed/Released`; the
-  engine already has an on-screen d-pad/buttons (`show_touch_ui`/`TOUCH_CONTROLS`). So this is now
-  "wire the existing virtual gamepad + a key overlay into the iOS shell," not new engine work — and
-  it's the gate to **raw `key()` carts (WASD, etc.) becoming playable on the phone**. **Full design +
-  7-step plan: [`touch-controls.md`](touch-controls.md)** (the deck/rails placement model + the
-  `touch_layout()` API); see also [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
+- [ ] **Touch movement affordance — engine work SHIPPED (2026-07-01); iOS wiring + the cart sweep
+  are what's left.** The shared onscreen **joystick / d-pad** widget exists and is real:
+  `touch_layout(mode, n_buttons)`, opt-in per cart in code (never settings, as this log always
+  wanted), with all four move modes, N buttons (0-4, diamond-laid), responsive deck/rails/overlay
+  placement, and band-relative sizing — see [`touch-controls.md`](touch-controls.md) for the full
+  design + shipped checklist. **Done from the affects list:** `catch-the-star` (08-catchstar,
+  analog), `columns`, `puyo` (both d-pad). **Still to sweep:** boids, doom-fire, defender, galaga,
+  vampire-survivors, rogue, build-a-world, enemies, dr-mario, rollswarm, sand-burrow, jumpstar,
+  tower-defense, +more — each just needs a `touch_layout()` call in `init()` now that the engine
+  side is done, per-cart mechanical work, not design work.
+  *iOS readiness:* the Phase-2 input seam exists (mouse API from the primary finger, `de_key_event`
+  feeds `IsKeyDown/Pressed/Released`) and the virtual gamepad itself is now the *real*
+  deck/rails-placed widget, not the old raw-Raylib device-res overlay. Remaining: wire
+  `de_key_event` into the iOS shell so raw `key()` carts (WASD, etc.) become playable, not just
+  `btn()` carts — see [`touch-controls.md`](touch-controls.md) Phase 4 and
+  [`ios-plan.md`](ios-plan.md) → "Phase 2" follow-ups.
 - [ ] **"Cute pixel buttons" retrofit** — replaces text-label buttons that don't work on mouse/touch
   across dozens of carts. **The widget already exists** — `ui.h`'s `ui_spr_button` /
   `ui_spr_button_styled` (sprite face + press/capture/hit-pad/focus/selected styling); size is just

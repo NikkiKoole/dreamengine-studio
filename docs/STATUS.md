@@ -277,7 +277,12 @@ their `kind[]` tags.
 6. **Sprite flags** — `fget`/`fset` (per-sprite 8-bit flags; 256 bytes). Pairs with an
    8-checkbox row in the sprite editor. [`design/api-notes.md`](design/api-notes.md) 2026-05-30 review.
 7. **Gamepad** — `gp_axis(slot, axis)`, `gp_present(slot)`, internal `btn()` augment.
-   [`design/api-notes.md`](design/api-notes.md) §15.
+   [`design/api-notes.md`](design/api-notes.md) §15. *Groundwork landed via touch controls
+   (2026-07-01):* `touch_layout(mode, n_buttons)` is the same "declare this cart's logical
+   controls once, feed every input source" idea this item wants, and the button vocabulary grew
+   from A/B-only to `BTN_A/B/X/Y` (numbered to append further) specifically so a real pad's face
+   buttons have somewhere to land — see [`design/touch-controls.md`](design/touch-controls.md)
+   "Synergy with the gamepad item."
 8. **Strudel extras / Dilla groove timing** — `pitch`, `sometimes`/`often`/`rarely`,
    `arp`, `stutter`, `palindrome`, `off_beat`; `groove` + `groove_swing/jitter/push`,
    `tick`/`PPQ`. [`design/api-notes.md`](design/api-notes.md) §13–14.

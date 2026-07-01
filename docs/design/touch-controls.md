@@ -326,8 +326,8 @@ existing `de_key_event` seam so **raw `key()` carts** (WASD movement) also becom
 ## Synergy with the gamepad item (STATUS #7)
 
 This work and the open **gamepad** item (`gp_axis`/`gp_present` + a `btn()` augment — STATUS.md #7,
-`api-notes.md` §15) are the **same seam from two directions**, and `touch_layout()` is the shared
-foundation:
+[`api-notes.md`](api-notes.md) §15) are the **same seam from two directions**, and `touch_layout()`
+is the shared foundation:
 
 - **One control declaration drives both.** `touch_layout(mode, n_buttons)` says "this cart's logical
   controls are a 4-way + 2 buttons" (or analog + 1). That's exactly what a gamepad mapping needs too
@@ -340,7 +340,7 @@ foundation:
 - **It closes a polish-list request directly.** "Sometimes we only want 2 on-screen buttons but
   still have A/B trigger them too" (cart-polish-punchlist) is literally "the on-screen buttons and
   the gamepad buttons are the same logical buttons" — true for free once both read one declaration.
-- **Shared focus model for knob carts.** `ui-widgets-notes.md` wants gamepad focus-ring navigation
+- **Shared focus model for knob carts.** [`ui-widgets-notes.md`](ui-widgets-notes.md) wants gamepad focus-ring navigation
   for the knob/slider carts; the same d-pad-moves-focus / A-activates logic the touch d-pad emits is
   what that needs.
 
@@ -532,8 +532,8 @@ native res:
    the cart left set.
 2. Replace every raw Raylib call with the engine equivalent in **canvas coordinates**:
    `DrawCircle`→`circfill`, `DrawCircleLines`→`circ`, `DrawTextEx`→`print` (or a code-drawn glyph),
-   colours as `CLR_*` indices (e.g. `CLR_WHITE` ring on a `CLR_DARK_GREY` pad — see blend-tables for
-   index-only translucency if wanted).
+   colours as `CLR_*` indices (e.g. `CLR_WHITE` ring on a `CLR_DARK_GREY` pad — see
+   [`blend-tables.md`](blend-tables.md) for index-only translucency if wanted).
 3. Convert geometry from window px to **native px**: divide `STICK_RADIUS`/`BTN_RADIUS` by `SCALE`
    (see sizing math). Hit-testing already works in canvas space via `touch_x/y()`; keep
    `btn()`/`stick_x/y()` math unchanged.

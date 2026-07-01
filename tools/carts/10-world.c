@@ -7,16 +7,17 @@
     "tutorial"
   ],
   "teaches": [],
-  "description": "Paint tiles in the map editor. Your player walks through the world and the camera follows.",
-  "todo": [
-    "Touch: add an onscreen joystick, enabled in code (not via settings) so a compiled cart on a touch device shows it — with a poke-only variant (no buttons)."
-  ]
+  "description": "Paint tiles in the map editor. Your player walks through the world and the camera follows."
 }
 de:meta */
 #include "studio.h"
 
 float px = 32;
 float py = 32;
+
+void init(void) {
+    touch_layout(TOUCH_ANALOG, 0);   // poke-only: free 8-way move, no buttons
+}
 
 void update() {
     float speed = 2;

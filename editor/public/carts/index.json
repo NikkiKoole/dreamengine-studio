@@ -81,6 +81,21 @@
     "teaches": []
   },
   {
+    "title": "6b. chords and rhythm",
+    "description": "Stack chords from a scale and gate a hi-hat with a Euclidean rhythm. degree(scale, octave, n) picks a chord ROOT from a scale degree; chord()/strum() stack a triad on it (strum staggers the notes into a tiny arpeggio), voiced on the engine's real StifKarp grand piano. euclid(hits, steps, b) spreads hits as evenly as possible across steps — the same algorithm behind claves and tresillo — gating a filtered-noise hi-hat under a I-IV-V-vi progression. left/right arrows change the hi-hat's euclid density",
+    "file": "06b-chords.cart.png",
+    "created": "2026-07-01",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [
+      "chord-voicing",
+      "euclidean-rhythm",
+      "scale-quantize"
+    ],
+    "lineage": "the harmony/rhythm sibling of 06-sound (single-note melody)"
+  },
+  {
     "title": "7. keeping score",
     "description": "Track a number and show it on screen. Press buttons to score and reset.",
     "file": "07-score.cart.png",
@@ -119,6 +134,19 @@
       "tutorial"
     ],
     "teaches": []
+  },
+  {
+    "title": "10b. camera and clip",
+    "description": "Pan a raw camera() by hand over a world bigger than the screen, and clip() a second view into a corner window. 10-world's camera follows the player via follow() — a convenience wrapper. Here: camera(x, y) is driven directly by input to show what it actually does (shift everything drawn by -x,-y), camera(0,0) resets it before drawing a screen-fixed HUD, and clip(x,y,w,h) restricts drawing to a rect — used to pin an independent, differently-positioned view of the same world into a corner (a minimap/inset window). arrows/dpad pan the camera",
+    "file": "10b-camera.cart.png",
+    "created": "2026-07-01",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [
+      "viewport-clipping"
+    ],
+    "lineage": "the manual-camera sibling of 10-world (which uses the follow() convenience helper instead of camera()/clip() directly)"
   },
   {
     "title": "11. noise",
@@ -250,6 +278,39 @@
       "tutorial"
     ],
     "teaches": []
+  },
+  {
+    "title": "23. variables, conditionals, loops",
+    "description": "The C basics every tutorial has used silently since cart 3, taught explicitly: int/float/bool, if/else, for/while. left/right change page; up/down adjust each page's live value; Z toggles rain on page 2",
+    "file": "23-basics.cart.png",
+    "created": "2026-07-01",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [],
+    "lineage": "Track A of tutorial-curriculum.md (#25-32, 'how code actually works'), compressed from 3 planned carts into paged sections of one"
+  },
+  {
+    "title": "24. functions, arrays, structs",
+    "description": "Writing your own functions, a fixed array you loop over, and a struct that bundles fields into one value. left/right change page; up/down adjust; A/B move the cursor on pages 2 and 3",
+    "file": "24-building-blocks.cart.png",
+    "created": "2026-07-01",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [],
+    "lineage": "Track A of tutorial-curriculum.md (#25-32, 'how code actually works'), compressed from 3 planned carts into paged sections of one; sibling of 23-basics"
+  },
+  {
+    "title": "25. entity pool and friendly state",
+    "description": "The engine's two signature idioms: a fixed entity pool with an on/off flag, and STATE{}/S-> sugar over de_state(). left/right change page; A spawns/scores, B kills/loses a life",
+    "file": "25-patterns.cart.png",
+    "created": "2026-07-01",
+    "kind": [
+      "tutorial"
+    ],
+    "teaches": [],
+    "lineage": "Track A of tutorial-curriculum.md (#25-32, 'how code actually works'), compressed from 2 planned carts into paged sections of one; sibling of 23-basics/24-building-blocks"
   },
   {
     "title": "acoustics probe",
@@ -1394,6 +1455,16 @@
     "teaches": [
       "cellular-automata"
     ]
+  },
+  {
+    "title": "touch controls testbench",
+    "description": "A dev test-bench for docs/design/touch-controls.md — every touch_layout() move mode, live btn() readout, and a touch_debug() overlay showing the band/grab-zone and placement. Press 1-4 to switch the on-screen control between floating analog, fixed analog, 4-way d-pad, and 8-way d-pad. Drag the control (mouse-as-touch on desktop) or use the keyboard to drive it; the read-out shows exactly what btn() sees. touch_debug(true) is always on here, drawing the control band outline (cyan) and the current move mode's grab zone (magenta) — the stick's rectangular zone, or the d-pad's local circular radius — plus the placement mode and touch_ctrl_scale() as text. Run with DE_WINDOW=640x900 to see DECK placement, or DE_WINDOW=900x400 to see RAILS (default window == game, so OVERLAY, is what you get without it). 1/2/3/4 = analog / analog-fixed / dpad4 / dpad8   ·   drag the pad, or arrows + Z/X   ·   DE_WINDOW=WxH env var to preview deck/rails",
+    "file": "dpaddemo.cart.png",
+    "created": "2026-07-01",
+    "kind": [
+      "probe"
+    ],
+    "teaches": []
   },
   {
     "title": "Deluxe Paint",
@@ -4864,7 +4935,7 @@
   },
   {
     "title": "sloop",
-    "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset.",
+    "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city.",
     "file": "sloop.cart.png",
     "created": "2026-06-09",
     "kind": [
@@ -5117,7 +5188,7 @@
   },
   {
     "title": "Squishy Lines",
-    "description": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel. Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Three brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), and BRISTLE (raked parallel hairs). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL re-renders it through a few jittered seeds cycling ~7.5fps so it breathes (hand-drawn-animation style, almost free since rendering is a pure function of (stroke, seed)). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT tool (last in the dropdown) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness, and a property strip adds bevel-SIZE + boil-INTENSITY sliders. Edit any stroke any time; nothing is baked. A 4-colour pen (black/blue/red/green) on cream paper — each stroke keeps the colour it was drawn in. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp) — the step before a real flood-fill. A flood-fill tool + the pixelsnap animated-icon export come next. Top panel: open the tool dropdown (ink/pen/fineliner/marker/chalk/sketch/spray/bristle + SELECT), drag the thickness slider, set BVL (bevel) and BOIL (living wobble) for new strokes, tap UNDO, cycle the DITHER pattern, and pick a colour (swatches). Then drag on the canvas to draw. With SELECT: click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders. Keys: B bevel, O boil, U undo, C clear.",
+    "description": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel. Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim; the light direction is a GLOBAL 'sun' you rotate with , and . — every beveled stroke (and the oil-paint rim) relights together, so you can sweep the sun across the whole drawing; BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY + outline-WIDTH sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next. Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/oil), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt/outline-width sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle, , / . rotate the bevel light (the sun).",
     "file": "squishy.cart.png",
     "created": "2026-06-30",
     "orientation": "square",

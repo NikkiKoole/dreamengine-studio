@@ -1,7 +1,7 @@
-// squishy — 320×320 square canvas at 3× (960×960 window), plus 8 little
-// tool-icon sprites (slots 0..7, matching the BRUSHES table order) drawn with
-// sprite-draw.js. They're ink-on-paper glyphs: the dropdown buttons use a paper
-// background so dark ink shapes read crisply. pico32 indices: 4 brown · 5 dk-grey
+// squishy — 320×320 square canvas at 3× (960×960 window), plus 9 little
+// tool-icon sprites (slots 0..8, matching the BRUSHES table order) drawn with
+// sprite-draw.js. They're ink-on-paper glyphs: the cart keys out black (idx 0) so
+// the shapes read on the paper cell. pico32 indices: 4 brown · 5 dk-grey
 // · 6 lt-grey · 7 white · 8 red · 9 orange · 10 yellow · 12 blue · 14 pink ·
 // 16 brownish-black (our INK) · 20 dk-brown · 31 peach.
 const { blank, pixel, line, rectfill, rrectfill, circlefill, ovalfill, trifill, flat } =
@@ -80,38 +80,23 @@ function ic_brs() {
   line(g, 9, 10, 10, 15, K); line(g, 9, 10, 12, 15, K)   // splayed bristles
   return flat(g)
 }
-
-// 18 — the SELECT tool icon: a dashed marquee box (reads as "selection")
-function ic_select() {
+// 8 — paint: a wet colour band up top with runs dripping down (beads at the tips)
+function ic_paint() {
   const g = blank()
-  for (let x = 2; x < 14; x += 2) { pixel(g, x, 2, K); pixel(g, x, 13, K) }   // top + bottom
-  for (let y = 2; y < 14; y += 2) { pixel(g, 2, y, K); pixel(g, 13, y, K) }   // left + right
+  const C = 12   // blue paint (reads on the paper cell; yellow would vanish)
+  rrectfill(g, 2, 2, 13, 6, 1, C)                              // paint band
+  line(g, 4, 6, 4, 11, C);  circlefill(g, 4, 12, 1, C)         // long run + bead
+  line(g, 8, 6, 8, 8, C);   circlefill(g, 8, 9, 1, C)          // short run
+  line(g, 11, 6, 11, 13, C); circlefill(g, 11, 14, 1, C)       // longest run
   return flat(g)
 }
 
-// 8..11 — solid colour swatches for the palette picker (must match COLORS[] in squishy.c)
-const swatch = (c) => flat(blank(16, 16, c))
-
-// 12.. — dither swatches: a Bayer-ordered DENSITY ramp (must match PATTERNS[] in squishy.c).
-// Each is a 16-bit fillp mask (bit 15 = top-left cell; 0-bit = ink, 1-bit = hole/paper); decode
-// the 4×4 tile and ink the 0-bits so the swatch shows exactly what the pattern fills.
-const PAT_MASKS = [0x0000, 0x7FDF, 0x5F5F, 0x5A5A, 0x0A0A, 0x0208]   // solid · ~12 / 25 / 50 / 75 / 87%
-function patSwatch(mask) {
-  const g = blank()
-  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-    const cell = (y % 4) * 4 + (x % 4)
-    if (((mask >> (15 - cell)) & 1) === 0) pixel(g, x, y, K)   // 0-bit = ink
-  }
-  return flat(g)
-}
-
+// Slots 0..8 are the brush icons (one per BRUSHES[] entry, matching order). The colour /
+// dither / select-tool graphics are now drawn procedurally in squishy.c (rectfill / fillp /
+// a dashed marquee box), so their old sprites (8..21) are gone — nothing loads them.
 const sprites = {
   0: ic_ink(), 1: ic_pen(), 2: ic_fin(), 3: ic_mrk(),
-  4: ic_chk(), 5: ic_skt(), 6: ic_spr(), 7: ic_brs(),
+  4: ic_chk(), 5: ic_skt(), 6: ic_spr(), 7: ic_brs(), 8: ic_paint(),
 }
-// 8..14 — colour swatches (must match COLORS[] in squishy.c): ink / blue / red / green / cyan / magenta / yellow
-;[16, 12, 8, 3, 19, 14, 10].forEach((c, i) => { sprites[8 + i] = swatch(c) })
-PAT_MASKS.forEach((m, i) => { sprites[15 + i] = patSwatch(m) })   // 15.. = the dither ramp
-sprites[21] = ic_select()                                          // 21 = select-tool icon
 
 module.exports = { screenW: 320, screenH: 320, scale: 3, sprites }

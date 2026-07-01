@@ -11,11 +11,11 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Three brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), and BRISTLE (raked parallel hairs). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked via a cycle button; each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp) — the step before a real flood-fill. A flood-fill tool + the pixelsnap animated-icon export come next.",
-    "controls": "Top panel: brush dropdown (ink/pen/fineliner/marker/chalk/sketch/spray/bristle), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, a DITHER cycle, a COLOUR cycle (7 pens), and a SELECT toggle. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Four brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), and PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
+    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear."
   },
   "todo": [
-    "Polish the tool-icon glyphs — ink/chalk/sketch read a bit muddy at 16px (sprite-draw.js in squishy.cart.js).",
+    "Polish the ink/chalk tool-icon glyphs — still read a bit muddy at 16px (sprite-draw.js in squishy.cart.js). Sketch now reads since black is keyed out (colorkey).",
     "Cache finished strokes + the boil frames to layer buffers instead of re-rendering every stroke every frame.",
     "The pixelsnap animated-icon export: boil frames → pixelsnap → an animated sprite strip.",
     "spec(): same-seed determinism + jitter-bounds."
@@ -23,6 +23,16 @@
 }
 de:meta */
 #include "studio.h"
+// ink-on-paper UI theme: override ui.h's dark-navy defaults so every ui_button / ui_slider
+// reads as black-on-white on the cream panel. MUST precede ui.h (its UI_COL_* are #ifndef-guarded),
+// and it's per-cart, so no other cart is affected.
+#define UI_COL_BG        CLR_WHITE           // button / slider-track background (paper)
+#define UI_COL_FILL      CLR_LIGHT_PEACH     // slider filled portion
+#define UI_COL_FILL_HOT  CLR_LIGHT_PEACH     // pressed / hot fill
+#define UI_COL_FRAME     CLR_LIGHT_GREY      // 1px chip border
+#define UI_COL_TEXT      CLR_BROWNISH_BLACK  // label ink (the "black line" in each button)
+#define UI_COL_TEXT_HOT  CLR_BROWNISH_BLACK  // keep ink on hover (white would vanish on paper)
+#define UI_COL_FOCUS     CLR_RED             // focus ring = accent
 #include "ui.h"
 #include <math.h>
 
@@ -82,7 +92,7 @@ enum { BOIL_WOBBLE, BOIL_BREATHE };
 #define STAMP_SPACING 0.7f         // px between stamps when rendering a segment (dense = solid)
 
 // how a tool draws its stored path:
-enum { K_STAMP, K_CHALK, K_SKETCH, K_SPRAY, K_BRISTLE };
+enum { K_STAMP, K_CHALK, K_SKETCH, K_SPRAY, K_BRISTLE, K_DRIP };
 
 // a tool = a brush recipe. width swings between minw (full speed) and maxw
 // (standstill); speedref = px/frame where width bottoms out; noise = per-stamp
@@ -99,6 +109,7 @@ static const Brush BRUSHES[] = {
     { 2.0f, 2.0f, 12.0f, 0.00f, 1.0f, K_SKETCH,  "skt" },   // sketch: a hairy web of threads
     { 3.0f,13.0f, 11.0f, 0.00f, 3.0f, K_SPRAY,   "spr" },   // airbrush: scattered dots (maxw = cloud)
     { 4.0f, 9.0f, 10.0f, 0.10f, 4.0f, K_BRISTLE, "brs" },   // bristle: raked parallel hairs
+    { 6.0f,14.0f, 14.0f, 0.10f, 4.0f, K_DRIP,    "pnt" },   // paint: wide + wet, runs drip DOWN from the wettest spots
 };
 #define NTOOLS ((int)(sizeof(BRUSHES) / sizeof(BRUSHES[0])))   // brush icons are sprite slots 0..7
 #define SKETCH_R     22.0f     // px: a thread links to prior points within this reach (à la Krita Sketch)
@@ -106,9 +117,20 @@ static const Brush BRUSHES[] = {
 #define SKETCH_TRIES 5         // random prior points tried per sample → web density
 #define SPRAY_DOTS   7         // dots scattered per path point (airbrush)
 #define BRISTLE_HAIRS 5        // parallel hairs across the bristle width
+// paint drips: runs fall DOWN from every EXPOSED bottom edge of the wet paint (a
+// painted cell with paper just below it) — so a serpentine stroke drips off each of
+// its bands, not only the lowest. A run stops when it meets paint again below (merges
+// into a lower band), so inner bands make short runs into the gaps and only the truly
+// open bottom edge runs long. Run length ∝ the band's thickness there (more paint =
+// longer). Pure function of (path, seed) — re-renders identically.
+#define DRIP_STEP      4       // column stride between drip candidates (px)
+#define DRIP_MIN_THK   6       // min band thickness (px) at a column before it can run
+#define DRIP_CHANCE    0.5f    // fraction of candidate edges that actually run
+#define DRIP_LEN_SCALE 2.6f    // run length per px of band thickness
+#define DRIP_MAX_LEN   90.0f   // cap so a free-falling run can't go forever
 
 // readable names for the header label (BRUSHES[].name is the 3-char button id)
-static const char *TOOL_DISP[] = { "ink", "pencil", "liner", "marker", "chalk", "sketch", "spray", "bristle" };
+static const char *TOOL_DISP[] = { "ink", "pencil", "liner", "marker", "chalk", "sketch", "spray", "bristle", "paint" };
 
 typedef struct { float x, y, speed; } Sample;
 typedef struct {
@@ -292,6 +314,76 @@ static void render_sketch(const Stroke *s, const Boil *b) {
     }
 }
 
+// per-call coverage grid for the paint body — used to find bottom edges + stop runs.
+static unsigned char drip_cov[SCREEN_H][SCREEN_W];
+
+// draw ONE run down from a band bottom edge at (x, yedge). `y1` = lowest painted row of
+// this stroke; below it there's no paint so a run there falls free. Stops on paint below.
+static void emit_drip(int x, int yedge, int thk, int y1, const Stroke *s) {
+    if (thk < DRIP_MIN_THK) return;
+    unsigned h = hashu(s->seed ^ (unsigned)(x * 2654435761u) ^ (unsigned)(yedge * 40503u));
+    if (hashf(h) > DRIP_CHANCE) return;                       // not every edge runs
+    float len = thk * DRIP_LEN_SCALE * (0.4f + hashf(h ^ 0x55u) * 0.9f);
+    if (len > DRIP_MAX_LEN) len = DRIP_MAX_LEN;
+    int d;
+    for (d = 1; d < (int)len; d++) {
+        int yy = yedge + d;
+        if (yy >= SCREEN_H) break;
+        if (yy <= y1 && drip_cov[yy][x]) break;               // met a lower band → merge/stop
+        float t = d / len;
+        stamp((float)x, (float)yy, 2.0f * (1 - t) + 0.6f, s->color);   // thin tapering streak
+    }
+    stamp((float)x, (float)(yedge + d), 2.2f, s->color);      // the heavy bead where it ends
+    if ((h & 7u) == 0) pset(x, yedge + d + 2 + (int)(h % 3u), s->color);   // occasional spatter dot
+}
+
+// PAINT: a wide wet body, then runs that drip DOWN from every exposed bottom edge.
+// Rasterise the body into drip_cov, then per column find each paint→paper transition
+// (a band bottom) and run a drip from it. Pure function of (path, seed) — same soul as
+// boil, no simulation, fully re-renderable.
+static void render_drip(const Stroke *s, const Boil *b) {
+    render_stroke(s, 0, 0, s->color, b);   // the wet body (same stamp chain as the fat brushes)
+    if (s->n < 1) return;
+
+    // painted bounding box (points ± their radius), clamped to screen
+    float minx = 1e9f, miny = 1e9f, maxx = -1e9f, maxy = -1e9f;
+    for (int i = 0; i < s->n; i++) {
+        float x = s->pts[i].x, y = s->pts[i].y; boil_pt(s, i, &x, &y, b);
+        float r = sample_width(s, i, b->fseed) * 0.5f;
+        if (x - r < minx) minx = x - r; if (x + r > maxx) maxx = x + r;
+        if (y - r < miny) miny = y - r; if (y + r > maxy) maxy = y + r;
+    }
+    int x0 = (int)minx, x1 = (int)maxx, y0 = (int)miny, y1 = (int)maxy;
+    if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0;
+    if (x1 > SCREEN_W - 1) x1 = SCREEN_W - 1; if (y1 > SCREEN_H - 1) y1 = SCREEN_H - 1;
+    if (x1 < x0 || y1 < y0) return;
+
+    // rasterise the wet body's coverage (a disk per sample) into the bbox
+    for (int y = y0; y <= y1; y++) for (int x = x0; x <= x1; x++) drip_cov[y][x] = 0;
+    for (int i = 0; i < s->n; i++) {
+        float cx = s->pts[i].x, cy = s->pts[i].y; boil_pt(s, i, &cx, &cy, b);
+        float r = sample_width(s, i, b->fseed) * 0.5f; if (r < 0.5f) r = 0.5f;
+        for (int x = (int)(cx - r); x <= (int)(cx + r); x++) {
+            if (x < x0 || x > x1) continue;
+            float dx = x - cx, hh = r * r - dx * dx; if (hh < 0) continue; hh = sqrtf(hh);
+            int ya = (int)(cy - hh), yb = (int)(cy + hh);
+            if (ya < y0) ya = y0; if (yb > y1) yb = y1;
+            for (int y = ya; y <= yb; y++) drip_cov[y][x] = 1;
+        }
+    }
+
+    // per column: every paint→paper transition is a band bottom that can drip
+    for (int x = x0; x <= x1; x += DRIP_STEP) {
+        int run = 0;
+        for (int y = y0; y <= y1; y++) {
+            if (drip_cov[y][x]) { run++; continue; }
+            if (run) emit_drip(x, y - 1, run, y1, s);   // y-1 is a band bottom exposed to paper
+            run = 0;
+        }
+        if (run) emit_drip(x, y1, run, y1, s);           // a band reaching the bbox floor also runs
+    }
+}
+
 // draw one stroke. Sketch is its own renderer; the other brushes use the stamp
 // chain, with the bevel emboss if it's on: a SHADOW + HILITE copy offset under
 // the ink body leave a light rim on the upper-left, a dark rim on the lower-right.
@@ -302,6 +394,7 @@ static void draw_one(const Stroke *s, const Boil *b) {
         case K_SKETCH:  render_sketch(s, b);  return;
         case K_SPRAY:   render_spray(s, b);   return;
         case K_BRISTLE: render_bristle(s, b); return;
+        case K_DRIP:    render_drip(s, b);    return;
         default: break;   // K_STAMP / K_CHALK use the stamp chain below
     }
     if (s->bevel > 0) {   // per-stroke bevel, s->bevel = rim size in px
@@ -372,12 +465,25 @@ static int pick_stroke(float px, float py) {
 }
 
 #define DD_X    2
-#define DD_W    22             // dropdown header / item width (icon button)
+#define DD_W    22             // dropdown HEADER width (the collapsed icon button in the bar)
 #define DD_ITEM 20             // dropdown row height
+// the open list is a 2-column grid of icon+name cells — rows grow as tools are added,
+// so there's room to spare for the next batch of drawing tools.
+#define DD_COLS    2
+#define DD_ITEM_W  64                                   // one cell: icon (16) + name
+#define DD_ROWS    ((NTOOLS + DD_COLS - 1) / DD_COLS)   // ceil(NTOOLS / cols)
+#define DD_PANEL_W (DD_COLS * DD_ITEM_W)
+#define DD_PANEL_H (DD_ROWS * DD_ITEM)
 
 // ink-on-paper tool buttons: paper bg so dark glyphs read; red frame = selected.
 // fields: { bg, bg_sel, frame, frame_hot, frame_sel, halo_sel }
 static const UiSprStyle TOOLBTN = { PAPER, CLR_LIGHT_PEACH, CLR_LIGHT_GREY, INK, ACCENT, -1 };
+
+// a dashed 1px rectangle (marquee look) — dots every 2px round the perimeter
+static void dashed_rect(int x, int y, int w, int h, int col) {
+    for (int i = 0; i < w; i += 2) { pset(x + i, y, col); pset(x + i, y + h - 1, col); }
+    for (int i = 0; i < h; i += 2) { pset(x, y + i, col); pset(x + w - 1, y + i, col); }
+}
 
 // the top tool-bar. When the SELECT tool has a stroke picked, the value controls
 // EDIT that stroke (and reflect its values) instead of setting new-stroke defaults,
@@ -391,43 +497,58 @@ static void draw_panel(void) {
     ui_begin();
     // brush dropdown header
     if (ui_spr_button_styled(tool, DD_X, 2, DD_W, 20, dd_open, TOOLBTN)) dd_open = !dd_open;
-    font(FONT_SMALL); print(editing ? "edit" : TOOL_DISP[tool], 26, 9, INK); font(FONT_NORMAL);
+    font(FONT_SMALL); print(editing ? "edit" : TOOL_DISP[tool], 26, 9, INK);   // small font for the whole bar
 
     // thickness — edits the selection's thickness, else the new-stroke default
     if (sel) {
         static float t; t = (sel->thick - 0.4f) / 1.6f;
         if (ui_slider(&t, 56, 4, 38, "thk")) sel->thick = 0.4f + t * 1.6f;
     } else ui_slider(&thick01, 56, 4, 38, "thk");
+    rect(56, 5, 38, 6, CLR_LIGHT_GREY);   // outline the track (white-on-white otherwise)
 
     // bevel toggle
     int bev_on = sel ? (sel->bevel > 0) : bevel;
-    if (ui_button(98, 3, 28, 16, "bvl")) { if (sel) sel->bevel = sel->bevel > 0 ? 0 : BEVEL_OFF; else bevel = !bevel; }
-    if (bev_on) rectfill(98, 19, 28, 2, ACCENT);
+    if (ui_button(96, 3, 16, 16, "bvl")) { if (sel) sel->bevel = sel->bevel > 0 ? 0 : BEVEL_OFF; else bevel = !bevel; }
+    if (bev_on) rectfill(96, 19, 16, 2, ACCENT);
 
     // boil — cycles off → wobble → pulse (the style); the label shows which
     int bstate = sel ? (sel->boil <= 0 ? 0 : sel->boil_style + 1)
                      : (boil == 0 ? 0 : boil_style + 1);
-    if (ui_button(130, 3, 36, 16, bstate == 0 ? "boil" : bstate == 1 ? "wobl" : "puls")) {
+    if (ui_button(114, 3, 22, 16, bstate == 0 ? "boil" : bstate == 1 ? "wobl" : "puls")) {
         int ns = (bstate + 1) % 3;
         if (sel) { if (ns == 0) sel->boil = 0; else { if (sel->boil <= 0) sel->boil = 1.0f; sel->boil_style = ns - 1; } }
         else     { if (ns == 0) boil = 0;      else { boil = 1; boil_style = ns - 1; } }
     }
-    if (bstate) rectfill(130, 19, 36, 2, ACCENT);
+    if (bstate) rectfill(114, 19, 22, 2, ACCENT);
 
-    if (ui_button(170, 3, 30, 16, "undo")) do_undo();
+    if (ui_button(138, 3, 22, 16, "undo")) do_undo();
 
-    // dither cycle — selection's pattern, else the default
-    int pat = sel ? sel->pattern : patsel;
-    if (ui_spr_button_styled(15 + pat, 204, 3, 16, 18, pat != 0, TOOLBTN)) {
-        if (sel) sel->pattern = (sel->pattern + 1) % NPATTERNS; else patsel = (patsel + 1) % NPATTERNS;
-    }
-    // colour cycle — shows the current colour, tap to cycle (7 colours don't fit as swatches)
+    // ---- colour palette: all 7 swatches visible; the active one wears an ACCENT tab
+    // (matches the bvl/boil on-state bar). Edits the selection's colour, else the default.
     int ci = sel ? color_index(sel->color) : colsel;
-    if (ui_spr_button_styled(8 + ci, 224, 3, 16, 18, 0, TOOLBTN)) {
-        int ni = (ci + 1) % NCOLORS; if (sel) sel->color = COLORS[ni]; else colsel = ni;
+    for (int i = 0; i < NCOLORS; i++) {
+        int x = 166 + i * 10;
+        if (ui_button(x, 3, 10, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
+        rectfill(x, 3, 10, 16, COLORS[i]);   // overdraw the button with the real colour
+        rect(x, 3, 10, 16, INK);
+        if (i == ci) rectfill(x, 19, 10, 2, ACCENT);
     }
-    // SELECT mode toggle (promoted to the bar; sprite 21 = marquee icon)
-    if (ui_spr_button_styled(21, 246, 3, 16, 18, selmode, TOOLBTN)) selmode = !selmode;
+
+    // ---- dither patterns: all 6 visible, each showing its real fill; active wears the tab
+    int pat = sel ? sel->pattern : patsel;
+    for (int i = 0; i < NPATTERNS; i++) {
+        int x = 240 + i * 9;
+        if (ui_button(x, 3, 9, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
+        fillp(PATTERNS[i], PAPER); rectfill(x, 3, 9, 16, INK); fillp_reset();
+        rect(x, 3, 9, 16, INK);
+        if (i == pat) rectfill(x, 19, 9, 2, ACCENT);
+    }
+
+    // ---- SELECT toggle: a white marquee box on a black button (turns ACCENT when on)
+    if (ui_button(298, 3, 18, 16, 0)) selmode = !selmode;
+    rectfill(298, 3, 18, 16, INK);
+    dashed_rect(301, 6, 12, 10, selmode ? ACCENT : PAPER);
+    if (selmode) rectfill(298, 19, 18, 2, ACCENT);
 
     // contextual property strip: bevel SIZE + boil INTENSITY sliders + z-order, for the selection
     if (editing) {
@@ -435,23 +556,37 @@ static void draw_panel(void) {
         line(0, PANEL_H + PROP_H - 1, SCREEN_W, PANEL_H + PROP_H - 1, INK);
         static float bs; bs = sel->bevel / BEVEL_MAX; if (bs > 1) bs = 1;
         if (ui_slider(&bs, 6, PANEL_H + 3, 92, "bevel")) sel->bevel = bs * BEVEL_MAX;
+        rect(6, PANEL_H + 4, 92, 6, CLR_LIGHT_GREY);
         static float bo; bo = sel->boil;
         if (ui_slider(&bo, 104, PANEL_H + 3, 92, "boil")) sel->boil = bo;
+        rect(104, PANEL_H + 4, 92, 6, CLR_LIGHT_GREY);
         if (ui_button(202, PANEL_H + 2, 34, 14, "back"))  to_back();
         if (ui_button(240, PANEL_H + 2, 44, 14, "front")) to_front();
     }
 
-    // the open dropdown list: a column of brush icons over the canvas
+    // the open dropdown list: a 2-column grid of brush icon + name cells over the canvas
     if (dd_open) {
-        for (int i = 0; i < NTOOLS; i++)
-            if (ui_spr_button_styled(i, DD_X, PANEL_H + i * DD_ITEM, DD_W, DD_ITEM, i == tool, TOOLBTN))
-                { tool = i; dd_open = 0; selmode = 0; }   // picking a brush exits select mode
+        rectfill(DD_X, PANEL_H, DD_PANEL_W, DD_PANEL_H, PAPER);
+        rect(DD_X, PANEL_H, DD_PANEL_W, DD_PANEL_H, INK);
+        for (int i = 0; i < NTOOLS; i++) {
+            int col = i % DD_COLS, row = i / DD_COLS;
+            int x = DD_X + col * DD_ITEM_W, y = PANEL_H + row * DD_ITEM;
+            int on = (i == tool);
+            if (ui_button(x, y, DD_ITEM_W, DD_ITEM, 0)) { tool = i; dd_open = 0; selmode = 0; }  // picking exits select mode
+            rectfill(x + 1, y + 1, DD_ITEM_W - 2, DD_ITEM - 2, on ? CLR_LIGHT_PEACH : PAPER);
+            if (on) rect(x + 1, y + 1, DD_ITEM_W - 2, DD_ITEM - 2, ACCENT);
+            spr(i, x + 2, y + (DD_ITEM - 16) / 2);                    // brush icon (sprite slot i)
+            print(TOOL_DISP[i], x + 20, y + (DD_ITEM - 6) / 2, INK);  // its name alongside
+        }
     }
+    font(FONT_NORMAL);   // restore (the whole bar drew in FONT_SMALL)
     ui_end();
 }
 
 void init(void) {
-    mouse_hide();   // we draw our own brush-size ring as the cursor
+    mouse_hide();               // we draw our own brush-size ring as the cursor
+    colorkey(CLR_BLACK);        // icon sprites use black (idx 0) as their bg — key it out so the
+                                // ink-on-paper glyphs read on the paper/peach cell (esp. sketch)
 }
 
 void update(void) {
@@ -467,7 +602,8 @@ void update(void) {
     // the panel) and a tap on the bare canvas just dismisses it — never draws.
     if (dd_open) {
         if (mouse_pressed(MOUSE_LEFT)) {
-            int in_list = mx >= DD_X && mx < DD_X + DD_W && my >= PANEL_H && my < PANEL_H + NTOOLS * DD_ITEM;
+            int right = DD_X + DD_PANEL_W, bottom = PANEL_H + DD_PANEL_H;
+            int in_list = mx >= DD_X && mx < right && my >= PANEL_H && my < bottom;
             if (my >= PANEL_H && !in_list) dd_open = 0;     // tap-away dismiss
         }
         return;                                             // no drawing while open

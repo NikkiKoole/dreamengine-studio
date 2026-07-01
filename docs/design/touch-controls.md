@@ -158,6 +158,75 @@ Key consequences:
   **0.75 opacity** — deliberately smooth, high-res, and always a layer on top. We reject *both* the
   device-res look *and* the always-on-top placement.
 
+## External study, round 2 (2026-07-01) — control-scheme gaps found researching successful games
+
+A second research pass (prompted by "are we missing other types of joysticks/pads?"), specifically
+hunting for schemes beyond stick/d-pad that big, successful games actually ship. Each item below
+survived 3-vote adversarial fact-checking (independent verifiers trying to refute it, ≥2/3 agreement
+required) unless marked otherwise — the source is linked so you can go look yourself, not just take
+the summary on faith:
+
+- **Move-only stick + fully automatic fire — [Archero](https://www.deconstructoroffun.com/blog/2019/8/9/why-archero-banked-25m-but-leaves-25m-hanging-hlx9n)
+  ([2](http://scottfinegamedesign.com/design-blog/2019/7/2/archero-part-1-gameplay)).** A floating
+  stick with **zero action buttons**: dragging moves (and disables firing); releasing/standing still
+  auto-fires at the nearest enemy. Tactical depth comes purely from movement — dodge into position,
+  stop to shoot. **This is already our "single floating stick / 0 buttons" row** (the one cited to
+  Vampire Survivors, above) — Archero is a second, independently-confirmed real game running the
+  exact same pattern. Nothing to build; `touch_n_buttons = 0` already covers it.
+- **Stick style as a PLAYER setting, not just a design-time pick —
+  [Mobile Legends](https://bittopup.com/article/Mobile-Legends-Controls-Guide-2025-Pro-Settings-Setup).**
+  MLBB lets the player choose fixed-position vs. floating/dynamic joystick from Settings, not just the
+  cart author at build time. Cuts against this doc's current stance ("cart declares in code, not
+  settings" — see "Open questions" below) — at minimum, the editor's planned force-show/readout panel
+  (Phase 4b) is a natural place for a player-facing override, even if the cart still sets the default.
+- **Targeting-resolution modes layered on top of a move+attack split — Mobile Legends (same source).**
+  Movement stick fully decoupled from a separate attack button, and *how* a tap-attack picks its
+  target is itself configurable: "Standard" (nearest-enemy auto-target), "Advanced Targeting"
+  (precise manual control over turrets/minions vs. auto), "Hero Lock Mode" (locks all attacks/skills
+  onto one selected hero). Not a stick shape — a targeting-resolution axis on top of an attack button.
+  Relevant if a cart ever wants auto-aim/lock-on assist.
+- **Reduced-input racing: auto-drive + directional swipe only at decision points —
+  [Asphalt 9 "TouchDrive"](https://www.touchtapplay.com/asphalt-9-controls-settings-guide/)
+  ([2](https://www.pocketgamer.com/articles/076788/asphalt-9s-stripped-back-controls-are-the-best-way-to-play-the-game-heres-five-reasons-why/)).**
+  No stick or d-pad at all. Steering + acceleration are fully automatic; the *only* directional input
+  is a left/right **swipe**, and it only does anything at route forks/ramps — elsewhere it's inert.
+  Manual input otherwise is hold-timing (drift) and tap (nitro). **Gap:** the planned-but-unimplemented
+  `TOUCH_NONE` ("buttons-only") row currently implies static tap zones; this needs a directional
+  *swipe* treated as a discrete button-like input, not a continuous stick.
+- **Gesture-discrimination on a single zone —
+  [Marvel Contest of Champions](https://www.bluestacks.com/blog/game-guides/marvel-contest-of-champions/battle-system-marvel-contest-of-champions-en.html).**
+  One screen zone (not three buttons) resolves *tap* → light attack, *tap-and-hold* → heavy attack,
+  *swipe* → medium attack — three different outputs from one physical region, discriminated by
+  gesture shape, not by which of several fixed zones was touched. Plus a separate charged-special
+  icon tied to a resource meter. **Gap:** today a "button" is one fixed zone → one boolean; nothing
+  lets one zone yield *different* actions for tap vs. hold vs. swipe.
+- **Apple's own on-screen controller is *more* constrained than ours —
+  [`GCVirtualController`, WWDC21 session 10081](https://developer.apple.com/videos/play/wwdc2021/10081/).**
+  Apple's official virtual-controller API explicitly does **not** let apps freely place individual
+  control elements — layout comes from a small fixed set of Apple-chosen configurations (buttons +
+  exactly one of thumbstick/d-pad/touchpad per side). Our band-aware, per-cart-declared placement is
+  already strictly more flexible than the platform's own baseline. Practically relevant for Phase 4
+  (iOS shell): `GCVirtualController` is how iOS surfaces on-screen touch as a real system-level
+  "gamepad" any app can read via GameController framework — worth evaluating whether to bridge to it
+  (Control Center integration, consistency with real MFi controllers) vs. staying fully hand-rolled,
+  when that phase starts.
+- **Not confirmed, but well-known — gyro-tilt aim assist and multi-finger "claw" layouts** (PUBG
+  Mobile / Call of Duty Mobile). Sources repeatedly described toggling the gyroscope while scoped in
+  for fine flick-shots, and splitting move/aim/fire across 3–4 simultaneous touches — but the
+  *specific* finger-mapping claims got refuted on inconsistent details between guides (unsurprising:
+  claw configs are player-customizable, not a fixed spec). The general pattern is real and
+  industry-standard, but it's a different *kind* of feature — device tilt/rotation as a continuous
+  input axis, layered independently of touch — not a joystick/d-pad shape. Bigger scope than the
+  `touch_layout()` vocabulary; a separate future engine capability (no `touch_ceiling()`-style
+  detection or API exists for it today), not a vocabulary-table gap.
+
+**Recommendation, ranked by fit with the existing architecture:** (1) gesture-per-zone buttons
+(tap/hold/swipe → different outputs from one zone) — the biggest genuine gap, fits naturally once
+N-buttons work lands (see Checklist); (2) directional-swipe as a discrete input for the still-unbuilt
+`TOUCH_NONE` row — needed to actually cover the reduced-input racing pattern the vocabulary table
+already gestures at. The MLBB targeting-mode and player-facing stick-toggle findings are "note for
+later" (folded into "Open questions" below), not new engine work right now.
+
 ## The central tension
 
 The most common, most "successful" approach (emulator-style device-res overlay-on-top) is the exact
@@ -339,6 +408,22 @@ metadata; the runtime can still call `touch_layout()` for carts that change sche
   lean was a `touch_layout(...)` code call; the cart-reflective editor readout (above) needs it
   **statically readable**, which favours a `de:meta` field (`touch: { move, buttons }`) as the
   *declared default*, with the code call kept for runtime scheme changes. Decide alongside Phase 4.
+- **Player-facing stick-style override (from "External study, round 2").** Mobile Legends lets the
+  *player* pick fixed-vs-floating from settings, not just the cart author. Cuts against "cart
+  declares in code, not settings" above — the editor's Phase 4b force-show panel is a natural home
+  for a player override if this is ever wanted, without changing the cart-declares-default model.
+- **Targeting-resolution modes (from round 2).** Mobile Legends layers a configurable *targeting
+  mode* (nearest-auto / manual-precise / locked-on-one-target) on top of a plain attack button —
+  orthogonal to move-mode/button-count. Not designed yet; note it here so it's not forgotten if a
+  cart wants auto-aim/lock-on assist.
+- **Gesture-per-zone buttons (from round 2, real gap).** Today one button = one fixed zone = one
+  boolean. Marvel Contest of Champions gets 3 outputs (light/heavy/medium attack) from ONE zone by
+  discriminating tap / hold / swipe. Would need `btn()` (or a new call) to expose which gesture fired,
+  not just whether the zone is down — bigger than a sizing tweak, a real API shape question.
+- **Directional swipe as a button (from round 2, real gap).** Asphalt 9's "TouchDrive" reduced-input
+  scheme (auto-drive everywhere, swipe left/right only matters at route forks) needs a discrete
+  swipe-direction input for the still-unbuilt `TOUCH_NONE` row — today's buttons are static tap
+  zones, not gesture-direction detectors.
 
 ## Layout vocabulary (the named schemes)
 
@@ -347,12 +432,12 @@ row, shown in deck / rails / overlay placements:
 
 | Name | `move_mode` | buttons | Fits |
 |------|-------------|---------|------|
-| **single floating stick** | `TOUCH_ANALOG` | 0 | vampire-survivors / auto-fire (move only) |
+| **single floating stick** | `TOUCH_ANALOG` | 0 | vampire-survivors / auto-fire (move only); also archero (round 2) |
 | **twin-stick** | `TOUCH_ANALOG` ×2 | 0 | robotron/twin-stick shooters (move + aim) |
 | **analog + A/B** | `TOUCH_ANALOG` | 2 | platformers, free-move action |
 | **d-pad + A/B** | `TOUCH_DPAD4` | 2 | grid/precise (sokoban, rogue, puzzle) |
 | **d-pad8 + N** | `TOUCH_DPAD8` | 3–4 | fighters, 8-way action |
-| **buttons-only** | `TOUCH_NONE` | 1–4 | tetris/columns (rotate/drop), tap games |
+| **buttons-only** | `TOUCH_NONE` | 1–4 | tetris/columns (rotate/drop), tap games; reduced-input racing (asphalt 9 "TouchDrive", round 2) needs a swipe-direction button variant, see "Open questions" |
 
 **Shipped: `TOUCH_ANALOG`, `TOUCH_ANALOG_FIX`, `TOUCH_DPAD4`, `TOUCH_DPAD8`** — so "analog + A/B"
 and both d-pad rows are real today via `touch_layout()`. **Not yet implemented:** `TOUCH_NONE`
@@ -577,3 +662,12 @@ Sources (external study): [Cursa — touch control patterns](https://cursa.app/e
 [DesignMonks — button size](https://www.designmonks.co/blog/perfect-mobile-button-size),
 [HowToGeek — d-pad vs analog](https://www.howtogeek.com/types-of-games-you-should-play-with-your-d-pad-instead-of-an-analog-stick/),
 [Gamereactor — Vampire Survivors touch](https://www.gamereactor.eu/vampire-survivors-now-has-touch-controls-1221203/).
+
+Sources (external study, round 2 — 2026-07-01, see "External study, round 2" above):
+[Deconstructor of Fun — Archero](https://www.deconstructoroffun.com/blog/2019/8/9/why-archero-banked-25m-but-leaves-25m-hanging-hlx9n),
+[Scott Fine Game Design — Archero gameplay](http://scottfinegamedesign.com/design-blog/2019/7/2/archero-part-1-gameplay),
+[BitTopup — Mobile Legends controls guide](https://bittopup.com/article/Mobile-Legends-Controls-Guide-2025-Pro-Settings-Setup),
+[TouchTapPlay — Asphalt 9 controls guide](https://www.touchtapplay.com/asphalt-9-controls-settings-guide/),
+[Pocket Gamer — Asphalt 9's stripped-back controls](https://www.pocketgamer.com/articles/076788/asphalt-9s-stripped-back-controls-are-the-best-way-to-play-the-game-heres-five-reasons-why/),
+[BlueStacks — Marvel Contest of Champions battle system](https://www.bluestacks.com/blog/game-guides/marvel-contest-of-champions/battle-system-marvel-contest-of-champions-en.html),
+[Apple WWDC21 session 10081 — GCVirtualController](https://developer.apple.com/videos/play/wwdc2021/10081/).

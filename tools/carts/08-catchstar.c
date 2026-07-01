@@ -9,14 +9,17 @@
   "teaches": [],
   "description": "A complete game — move your player, catch the star, hear the sound, beat your score.",
   "todo": [
-    "The star to catch isn't visible.",
-    "Touch: onscreen joystick."
+    "The star to catch isn't visible."
   ]
 }
 de:meta */
 #include "studio.h"
 
 int px, py, sx, sy, score;
+
+void init(void) {
+    touch_layout(TOUCH_ANALOG, 0);   // free 8-way move, no buttons — the vampire-survivors/archero pattern
+}
 
 void update() {
     if (btn(0, BTN_LEFT))  px -= 2;

@@ -11,7 +11,6 @@
   ],
   "description": "The famous 1993 fire effect from one tiny rule. A grid of heat values: the bottom row is always hottest, and each cell copies the heat below it minus a little random cooling, nudged by the wind. No flame is ever drawn — it emerges from the cooling. Hotter values map to hotter colours. Left/right steer the wind, up/down change flame height.",
   "todo": [
-    "Touch: how to support on mobile — onscreen joystick?",
     "ui-audit?: the bottom control-hint line runs past the right edge (clipped) — low-confidence, may be intentional; see action-plan \"control-hint overflow\"."
   ]
 }
@@ -54,6 +53,7 @@ static void step(void) {
 void init(void) {
     for (int i = 0; i < GW * GH; i++) heat[i] = 0;
     for (int i = 0; i < 120; i++) step();   // pre-warm so it's a full blaze on screen
+    touch_layout(TOUCH_ANALOG, 0);
 }
 
 void update(void) {

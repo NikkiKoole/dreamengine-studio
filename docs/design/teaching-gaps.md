@@ -1,6 +1,6 @@
 # Teaching gaps — what the API offers but nothing teaches
 
-STATUS: READY — audit of under-taught API areas + a prioritized tutorial attack list; 04b-mouse shipped, camera next.
+STATUS: READY — audit of under-taught API areas + a prioritized tutorial attack list; 04b-mouse, camera, and music-sequencing shipped; effects/touch/3D next.
 
 > **Exploratory snapshot (2026-06-22).** A "what's under-taught?" pass over the library,
 > cross-referencing the API surface against what tutorials + tagged carts actually cover.
@@ -29,7 +29,7 @@ The on-ramp holes: heavily used across the library, but **no tutorial explains t
 | Capability | Carts using it | Tutorials | Note |
 |---|---|---|---|
 | **Mouse input** (`mouse_*`) | 124 (32%) | **0** | `04-buttons` is keyboard-only; a third of carts use the mouse with no lesson |
-| **Camera / viewport** (`camera`/`follow`/`clip`) | 66 (17%) | **0** | the "world bigger than the screen, follow the player" concept — core, untaught |
+| **Camera / viewport** (`camera`/`follow`/`clip`) | 66 (17%) | ~~0~~ **1** | `10-world` only used the `follow()` wrapper; `10b-camera` now teaches `camera()`/`clip()` directly |
 | **Audio effects chain** (`echo`/`reverb`/`chorus`/`tape`/`wah`/`crush`/`eq`…) | 58 (15%) | **0** | `20–22` teach *voices*; the whole effects bus has no on-ramp |
 | **Touch input** (`touch_*`/`tap`) | 64 (16%) | **0** | mobile is a stated project goal, yet no touch/tap tutorial |
 
@@ -38,7 +38,7 @@ The on-ramp holes: heavily used across the library, but **no tutorial explains t
 | Capability | Carts | Tutorials | Note |
 |---|---|---|---|
 | **3D** (`rot3`/`project3`/`tritex`/`quadfill`) | 12 (3%) | **0** | demos exist (cube3d, solid3d, dreamcad) but no "your first 3D" |
-| **Music sequencing** (`euclid`/`chord`/`strum`/`degree`) | — | **0** | `06-sound` only does `bpm`/`every`; chords + euclidean rhythm untaught |
+| **Music sequencing** (`euclid`/`chord`/`strum`/`degree`) | — | ~~0~~ **1** | `06-sound` only did `bpm`/`every`; `06b-chords` now teaches scales/chords/strum/euclid |
 | **Spatial audio** (`listener`/`note_pos`/`spatial_model`) | 4 (1%) | 0 | evocative but genuinely niche — low priority |
 | **MIDI** (`midi_*`) | 5 (1%) | 0 | specialized — low priority |
 
@@ -64,13 +64,18 @@ Mission is the teaching on-ramp (VISION.md), so **Gap type 1 first.** Suggested 
 1. ~~**`04b-mouse`** — click / drag / hover with `mouse_*`.~~ ✅ **SHIPPED** (2026-06-22) — the
    highest-leverage gap (32% usage, 0 teaching) is now an on-ramp. `mouse_world_*` under a camera
    is deferred to the camera tutorial (#2).
-2. **A camera/follow tutorial** — a world bigger than the screen, `follow()` the player, `clip()` a HUD.
-   Every platformer needs it; nothing teaches it. (Retire or demo the dead `zoom_rect`/`map_scale`.)
+2. ~~**A camera/follow tutorial** — a world bigger than the screen, `follow()` the player, `clip()` a HUD.~~
+   ✅ **SHIPPED** (2026-07-01) as `10b-camera` — went with manual `camera()`/`clip()` instead of
+   `follow()` (10-world already covers `follow()`), so the primitive itself gets taught, plus a
+   clipped inset window as the "second view" idiom. `zoom_rect`/`map_scale` are still undemoed
+   (type 3).
 3. **`23-effects`** — the sequel to the `20–22` synth trilogy: send a voice through `reverb`/`echo`/`crush`,
    the set-and-hold rule (see [`../guides/effects-recipes.md`](../guides/effects-recipes.md)).
 4. **A touch tutorial** — `tap`/`touch_*`, honouring the mobile goal ([`mobile-web-notes.md`](mobile-web-notes.md)).
 5. **"Your first 3D"** — one spinning textured quad via `rot3`/`project3`/`tritex`.
-6. **A music-sequencing tutorial** — `chord()`/`strum()`/`euclid()`/scales beyond `06-sound`.
+6. ~~**A music-sequencing tutorial** — `chord()`/`strum()`/`euclid()`/scales beyond `06-sound`.~~
+   ✅ **SHIPPED** (2026-07-01) as `06b-chords` — a I-IV-V-vi progression via `degree()`, voiced on the
+   real `INSTR_PIANO` grand piano with `strum()`, gated by a `euclid()` hi-hat with a live density knob.
 
 Type 3 is a separate sweep: one showcase cart per orphaned capability, or cut the dead weight
 (decide per fn — `node tools/api-usage.js` flags the current zero-use list).

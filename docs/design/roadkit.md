@@ -1,6 +1,7 @@
 # roadkit.h — when streetlab/roadlab reach the drivable world
 
-STATUS: READY TO BUILD (2026-07-01). The decision + plan to extract the shared road-rendering &
+STATUS: BUILDING (2026-07-01) — Phase 1 (connectivity: one connected asphalt surface + bridges/tunnels)
+shipped in `citydrive`; markings/pavements next, then the `roadkit.h` extract. The decision + plan to extract the shared road-rendering &
 junction grammar into a cart-land library header (`runtime/roadkit.h`, per [ADR-0006](../decisions/0006-library-carts-not-engine.md))
 so `streetlab` (the spec-locked *source*), `roadlab` (interchange bench) and — **the first render consumer
 — `citydrive`** (the pseudo-3D real-OSM view where the grammar is actually *visible*) all call ONE
@@ -115,10 +116,14 @@ roadkit's renderer. Extracting now designs the interface from **citydrive as the
 
 ## Phasing (each step gated; stop at any natural line)
 
-1. **Connectivity — disc-joins in citydrive** *(not the extraction; days).* A draped disc (radius =
-   half-width) at every polyline vertex + endpoint → rounds bends, merges junctions. The foundational
-   geometry fix; everything else sits on connected roads. **← START HERE.**
-2. **Cheap street-dressing in citydrive** *(days).* Markings + widths + pavement/kerb bands on the
+1. **Connectivity in citydrive — ✅ DONE (2026-07-01).** citydrive already had disc-joins (rounds bends,
+   merges junctions); the missing piece was that per-class NEON fills made junctions a colour-patchwork, so
+   motor roads now render as **one connected asphalt surface** (dark casing pass + `DARK_GREY` fill,
+   hierarchy by width), bike/foot/canal keep own colour. Plus: canals draw **under** roads, and real OSM
+   **bridges** (raised decks) / **tunnels** (dashed) landed as a bonus of the same pass structure
+   (osm-roads carries bridge/tunnel/layer; see [`external-data-carts.md`](external-data-carts.md)). Roads
+   read as a coherent network — the foundation everything else sits on.
+2. **Cheap street-dressing in citydrive** *(days) — ← NEXT.* Markings + widths + pavement/kerb bands on the
    now-connected projected roads. Visible payoff; validates the ground-decal approach before extraction.
 3. **Pure-geometry extract (safe first roadkit step).** Move the pure fns (`curb_return`, the leg model,
    `cross_hw`, corner counts) into `roadkit.h`; `streetlab` `#include`s it and calls them unchanged.

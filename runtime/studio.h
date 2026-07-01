@@ -24,6 +24,8 @@
 #define BTN_RIGHT  3
 #define BTN_A      4   // z / gamepad a
 #define BTN_B      5   // x / gamepad b
+#define BTN_X      6   // c / gamepad x — 3rd face button (numbered to append, not insert — room for
+#define BTN_Y      7   // v / gamepad y — 4th face button    L1/R1/L2/R2/stick-clicks later, unnumbered here)
 
 // ------------------------------------------------------------
 // palette (32 fixed colors, 0-31) — the PICO-8 palette

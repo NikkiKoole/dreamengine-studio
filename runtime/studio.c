@@ -294,7 +294,7 @@ static void scale_shader_init(void);
 static void scale_shader_ensure(void);
 static void smooth_composite(void);
 
-#define BTN_COUNT 6
+#define BTN_COUNT 8
 static bool            btn_curr[2][BTN_COUNT];
 static bool            btn_prev[2][BTN_COUNT];
 
@@ -527,8 +527,9 @@ static float stick_knob_x = 0, stick_knob_y = 0;
 static float stick_home_x = 0, stick_home_y = 0;   // fixed-mode base position (window px)
 static int   sgz_x = 0, sgz_y = 0, sgz_w = 0, sgz_h = 0;   // stick grab zone (window px), set by layout
 
-static int btn_a_cx, btn_a_cy;
-static int btn_b_cx, btn_b_cy;
+// action button centres (window px), by index: 0=A, 1=B, 2=X, 3=Y — see layout_action_buttons().
+// Only the first touch_n_buttons slots are drawn/hit-tested; the rest sit computed-but-unused.
+static int btn_cx[4], btn_cy[4];
 
 // d-pad move mode: same grab-zone as the stick, but resolves to direction booleans instead
 // of a knob position. dpad_touch_id tracks the held finger; dpad_up/down/left/right are this
@@ -800,6 +801,18 @@ static float band_ctrl_scale(int span) {
     return s < CTRL_SCALE_MIN ? CTRL_SCALE_MIN : (s > 1.0f ? 1.0f : s);
 }
 
+// lay out up to 4 action buttons (btn_cx/cy[0..3] = A/B/X/Y) in a diamond around an anchor point
+// — A bottom, B right, X left, Y top, the classic face-button arrangement. Reads naturally at
+// 1-4 buttons without an ever-growing horizontal strip. Radius scales with the button's own
+// effective size (see eff_btn_r()) so the cluster never overlaps itself at any ctrl_scale.
+static void layout_action_buttons(int ax, int ay) {
+    int rad = (int)(eff_btn_r() * 1.6f);
+    btn_cx[0] = ax;       btn_cy[0] = ay + rad;   // A: bottom
+    btn_cx[1] = ax + rad; btn_cy[1] = ay;         // B: right
+    btn_cx[2] = ax - rad; btn_cy[2] = ay;         // X: left
+    btn_cx[3] = ax;       btn_cy[3] = ay - rad;   // Y: top
+}
+
 // place the stick + buttons (all window px) for the current placement. OVERLAY: corners of the
 // game rect (matches the old fixed layout when the window == the game). DECK: stick left, buttons
 // right, inside the band below the game. RAILS: stick in the left rail, buttons in the right.
@@ -811,22 +824,19 @@ static void layout_touch_controls(Placement p) {
         int bw = p.band_w, by = p.band_y, bh = p.band_h, cy = by + bh / 2;
         ctrl_scale = band_ctrl_scale(bh);                                  // band HEIGHT is the tight dimension
         stick_home_x = bw * 0.20f;  stick_home_y = (float)cy;
-        btn_a_cx = bw - 90;   btn_a_cy = cy + 20;
-        btn_b_cx = bw - 200;  btn_b_cy = cy - 20;
+        layout_action_buttons(bw - 145, cy);
         sgz_x = 0; sgz_y = by; sgz_w = bw / 2; sgz_h = bh;                 // left half of the band
     } else if (p.mode == PLACE_RAILS) {
         int ww = p.band_w, wh = p.band_h, rl = gx, rr0 = gx + gw, ry = (int)(wh * 0.62f);
         ctrl_scale = band_ctrl_scale(rl);                                  // rail WIDTH is the tight dimension
         stick_home_x = rl / 2.0f;   stick_home_y = (float)ry;
         int rc = rr0 + (ww - rr0) / 2;                                     // right-rail centre
-        btn_a_cx = rc + 30;   btn_a_cy = ry + 20;
-        btn_b_cx = rc - 60;   btn_b_cy = ry - 20;
+        layout_action_buttons(rc - 15, ry);
         sgz_x = 0; sgz_y = 0; sgz_w = rl; sgz_h = wh;                      // the whole left rail
     } else {  // OVERLAY — hug the corners of the game rect; always full size, no band to shrink to
         ctrl_scale = 1.0f;
         stick_home_x = gx + 80;   stick_home_y = gy + gh - 80;
-        btn_a_cx = gx + gw - 80;   btn_a_cy = gy + gh - 80;
-        btn_b_cx = gx + gw - 180;  btn_b_cy = gy + gh - 120;
+        layout_action_buttons(gx + gw - 130, gy + gh - 100);
         sgz_x = gx; sgz_y = gy; sgz_w = (int)(gw * 0.55f); sgz_h = gh;     // left 55% of the game
     }
 }
@@ -839,6 +849,15 @@ static void init_touch_layout(void) {
 static bool point_in_circle(float px, float py, float cx, float cy, float r) {
     float dx = px - cx, dy = py - cy;
     return dx*dx + dy*dy <= r*r;
+}
+
+// is this point sitting on one of the currently-active action buttons? Used to exclude the
+// button area from the stick/d-pad's move-zone grab test — a finger tapping a button shouldn't
+// also grab the move control.
+static bool touching_action_button(float x, float y) {
+    for (int i = 0; i < touch_n_buttons; i++)
+        if (point_in_circle(x, y, btn_cx[i], btn_cy[i], eff_btn_r())) return true;
+    return false;
 }
 
 static bool vt_was_down(int id) {
@@ -989,8 +1008,7 @@ static void update_stick(void) {
         for (int i = 0; i < vt_count; i++) {
             Vector2 p = vt_pos[i];
             if (p.x < sgz_x || p.x >= sgz_x + sgz_w || p.y < sgz_y || p.y >= sgz_y + sgz_h) continue;  // outside the stick zone
-            if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, eff_btn_r())) continue;
-            if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, eff_btn_r())) continue;
+            if (touching_action_button(p.x, p.y)) continue;
             stick_touch_id = vt_id[i];
             if (fixed) {                          // base stays at home; knob starts centred, deflects toward the finger
                 stick_knob_x = stick_base_x;
@@ -1037,8 +1055,7 @@ static void update_dpad(void) {
             // local grab zone around the pad's own graphic — NOT the stick's whole-zone sgz;
             // a fixed d-pad shouldn't fire from a tap on the far side of the screen.
             if (!point_in_circle(p.x, p.y, stick_home_x, stick_home_y, DPAD_GRAB_RADIUS)) continue;
-            if (point_in_circle(p.x, p.y, btn_a_cx, btn_a_cy, eff_btn_r())) continue;
-            if (point_in_circle(p.x, p.y, btn_b_cx, btn_b_cy, eff_btn_r())) continue;
+            if (touching_action_button(p.x, p.y)) continue;
             dpad_touch_id = vt_id[i];
             dx = p.x - stick_home_x; dy = p.y - stick_home_y;
             break;
@@ -1110,19 +1127,14 @@ static void draw_touch_overlay_window(void) {
         DrawCircleV((Vector2){ stick_home_x, stick_home_y }, stick_r * 0.45f, hint);
     }
 
-    // action buttons (as many as the cart asked for, capped at the 2 we lay out today)
+    // action buttons — as many as the cart asked for (0-4: A/B/X/Y), diamond-laid by layout_action_buttons()
+    static const char *btn_labels[4] = { "A", "B", "X", "Y" };
     float fs = 4 * SCALE;
-    if (touch_n_buttons >= 1) {
-        bool a_down = any_touch_in_circle(btn_a_cx, btn_a_cy, btn_r);
-        DrawCircle(btn_a_cx, btn_a_cy, btn_r, a_down ? press : ring);
-        DrawCircleLines(btn_a_cx, btn_a_cy, btn_r, knob);
-        DrawTextEx(game_font, "A", (Vector2){ btn_a_cx - fs/2, btn_a_cy - fs/2 }, fs, 0, WHITE);
-    }
-    if (touch_n_buttons >= 2) {
-        bool b_down = any_touch_in_circle(btn_b_cx, btn_b_cy, btn_r);
-        DrawCircle(btn_b_cx, btn_b_cy, btn_r, b_down ? press : ring);
-        DrawCircleLines(btn_b_cx, btn_b_cy, btn_r, knob);
-        DrawTextEx(game_font, "B", (Vector2){ btn_b_cx - fs/2, btn_b_cy - fs/2 }, fs, 0, WHITE);
+    for (int i = 0; i < touch_n_buttons; i++) {
+        bool down = any_touch_in_circle(btn_cx[i], btn_cy[i], btn_r);
+        DrawCircle(btn_cx[i], btn_cy[i], btn_r, down ? press : ring);
+        DrawCircleLines(btn_cx[i], btn_cy[i], btn_r, knob);
+        DrawTextEx(game_font, btn_labels[i], (Vector2){ btn_cx[i] - fs/2, btn_cy[i] - fs/2 }, fs, 0, WHITE);
     }
 
     // dev aid (touch_debug(true)): the control BAND (deck/rail extent) and the current move
@@ -2389,7 +2401,7 @@ int main(int argc, char **argv) {
 // (the editor's settings → controls panel passes the saved layout as raylib
 // keycodes, e.g. -DP0_BTN_A=90). When no flag is passed these defaults apply, so
 // the runtime works standalone and old build commands keep compiling.
-//   Player 0: Arrows + Z/X      Player 1: WASD + J/K
+//   Player 0: Arrows + Z/X/C/V      Player 1: WASD + J/K/L/;
 #ifndef P0_BTN_UP
 #define P0_BTN_UP    KEY_UP
 #endif
@@ -2407,6 +2419,12 @@ int main(int argc, char **argv) {
 #endif
 #ifndef P0_BTN_B
 #define P0_BTN_B     KEY_X
+#endif
+#ifndef P0_BTN_X
+#define P0_BTN_X     KEY_C
+#endif
+#ifndef P0_BTN_Y
+#define P0_BTN_Y     KEY_V
 #endif
 #ifndef P1_BTN_UP
 #define P1_BTN_UP    KEY_W
@@ -2426,9 +2444,26 @@ int main(int argc, char **argv) {
 #ifndef P1_BTN_B
 #define P1_BTN_B     KEY_K
 #endif
+#ifndef P1_BTN_X
+#define P1_BTN_X     KEY_L
+#endif
+#ifndef P1_BTN_Y
+#define P1_BTN_Y     KEY_SEMICOLON
+#endif
 #ifndef PAUSE_KEY
 #define PAUSE_KEY    KEY_P
 #endif
+
+// action-button index for BTN_A/B/X/Y — 0..3 into btn_cx[]/btn_cy[], or -1 for a non-action button.
+static int action_btn_index(int button) {
+    switch (button) {
+        case BTN_A: return 0;
+        case BTN_B: return 1;
+        case BTN_X: return 2;
+        case BTN_Y: return 3;
+        default:    return -1;
+    }
+}
 
 bool btn(int player, int button) {
     if (player == 0) {
@@ -2440,8 +2475,12 @@ bool btn(int player, int button) {
                 case BTN_DOWN:  if (dpad ? dpad_down  : (sy >  STICK_DEADZONE)) return true; break;
                 case BTN_LEFT:  if (dpad ? dpad_left  : (sx < -STICK_DEADZONE)) return true; break;
                 case BTN_RIGHT: if (dpad ? dpad_right : (sx >  STICK_DEADZONE)) return true; break;
-                case BTN_A:     if (any_touch_in_circle(btn_a_cx, btn_a_cy, eff_btn_r())) return true; break;
-                case BTN_B:     if (any_touch_in_circle(btn_b_cx, btn_b_cy, eff_btn_r())) return true; break;
+                default: {
+                    int i = action_btn_index(button);
+                    if (i >= 0 && i < touch_n_buttons && any_touch_in_circle(btn_cx[i], btn_cy[i], eff_btn_r()))
+                        return true;
+                    break;
+                }
             }
         }
         switch (button) {
@@ -2451,6 +2490,8 @@ bool btn(int player, int button) {
             case BTN_RIGHT: return inp_down(P0_BTN_RIGHT);
             case BTN_A:     return inp_down(P0_BTN_A);
             case BTN_B:     return inp_down(P0_BTN_B);
+            case BTN_X:     return inp_down(P0_BTN_X);
+            case BTN_Y:     return inp_down(P0_BTN_Y);
         }
     } else if (player == 1) {
         switch (button) {
@@ -2460,6 +2501,8 @@ bool btn(int player, int button) {
             case BTN_RIGHT: return inp_down(P1_BTN_RIGHT);
             case BTN_A:     return inp_down(P1_BTN_A);
             case BTN_B:     return inp_down(P1_BTN_B);
+            case BTN_X:     return inp_down(P1_BTN_X);
+            case BTN_Y:     return inp_down(P1_BTN_Y);
         }
     }
     return false;

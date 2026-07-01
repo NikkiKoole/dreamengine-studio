@@ -5,10 +5,10 @@ const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, ce
 // raylib's enum. main.cjs passes these to the build as -DP0_BTN_A=<code> etc.;
 // studio.c's btn() reads them (falling back to these same defaults if absent).
 // Machine-local (not baked into a .cart.png) — your keyboard, your layout.
-//   Player 0: Arrows + Z/X      Player 1: WASD + J/K
+//   Player 0: Arrows + Z/X/C/V      Player 1: WASD + J/K/L/;
 export const KEYMAP_DEFAULTS = {
-  p0: { up: 265, down: 264, left: 263, right: 262, a: 90, b: 88 },
-  p1: { up: 87,  down: 83,  left: 65,  right: 68,  a: 74, b: 75 },
+  p0: { up: 265, down: 264, left: 263, right: 262, a: 90, b: 88, x: 67, y: 86 },
+  p1: { up: 87,  down: 83,  left: 65,  right: 68,  a: 74, b: 75, x: 76, y: 59 },
   pause: 80,   // P — single key for both players; configurable in settings → controls
 }
 
@@ -143,7 +143,7 @@ export function buildSettingsPanel(el) {
   // settings.keymap and shipped to the build by main.cjs; btn() honors them.
   const keysSection = section('controls')
 
-  const BTNS = ['up', 'down', 'left', 'right', 'a', 'b']
+  const BTNS = ['up', 'down', 'left', 'right', 'a', 'b', 'x', 'y']
   const PLAYERS = [['p0', 'player 0'], ['p1', 'player 1']]
   const cells = { p0: {}, p1: {} }   // pid → btn → button element, for the reset button
 
@@ -152,7 +152,7 @@ export function buildSettingsPanel(el) {
 
   const header = document.createElement('div')
   header.className = 'key-row key-header'
-  header.innerHTML = '<span></span><span>↑</span><span>↓</span><span>←</span><span>→</span><span>A</span><span>B</span>'
+  header.innerHTML = '<span></span><span>↑</span><span>↓</span><span>←</span><span>→</span><span>A</span><span>B</span><span>X</span><span>Y</span>'
   table.appendChild(header)
 
   let armed = null   // { cell, pid, btn, prevLabel } while capturing a keypress

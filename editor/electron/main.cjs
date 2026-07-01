@@ -184,7 +184,7 @@ function prepareCart(code, cfg) {
 // keymap is safe. Shared by every native build path (run / profile / live host).
 function keymapDefs(keymap) {
   if (!keymap) return []
-  const btns = [['up', 'UP'], ['down', 'DOWN'], ['left', 'LEFT'], ['right', 'RIGHT'], ['a', 'A'], ['b', 'B']]
+  const btns = [['up', 'UP'], ['down', 'DOWN'], ['left', 'LEFT'], ['right', 'RIGHT'], ['a', 'A'], ['b', 'B'], ['x', 'X'], ['y', 'Y']]
   const out = []
   for (const [pid, prefix] of [['p0', 'P0'], ['p1', 'P1']]) {
     const m = keymap[pid]

@@ -11,8 +11,8 @@
   ],
   "description": {
     "summary": "Draw with a velocity-sensitive ink brush — lines swell when you go slow, thin out when you go fast, and taper to a point at each end. Pick a tool, thickness, and bevel in the top panel.",
-    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
-    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/oil), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle."
+    "detail": "Every stroke is stored as DATA (a path of points + the speed you drew each one at), not painted straight to pixels. Most brushes render that path as a chain of overlapping round stamps whose width = a slow→fat / fast→thin speed curve × an end-taper × a little seeded wobble — ink / pencil / fineliner / marker / chalk are different sets of those numbers (chalk drops stamps for a dry, broken grain). Six brushes render specially: SKETCH (a hairy web of threads, à la Krita's Sketch engine), SPRAY (an airbrush dot-cloud whose spread follows speed), BRISTLE (raked parallel hairs), PAINT (a wide wet brush whose paint runs DOWN in drips from every exposed bottom edge of the stroke — so a serpentine drips off each of its bands, not just the lowest; a run stops when it meets paint below, so inner bands make short runs into the gaps and only the open bottom edge falls long. Run length ∝ the band's thickness. Still a pure function of path+seed, no simulation), and NIB (a flat calligraphy nib held at a fixed angle: width comes from the ANGLE between the stroke and the nib, not speed — a hairline when you move along the nib, full width across it, so you get true broad-nib thick/thins. Rotate the nib angle with [ and ]; each stroke keeps the angle it was drawn at), and OIL (thick impasto paint faked for the limited palette: an auto-bevel rim gives the raised, light-catching edge and raked highlight/shadow streaks along the drag read as the ridges and grooves of paint pushed by a knife). OUTLINE draws a fatter silhouette in its own colour UNDER the fill — a black rim + coloured fill is the chunky bubble-lettering look (draw with the fat ink brush, add bevel for a highlight, and you're at the Tiny-Jam logo). BEVEL embosses a stroke into a faux-3D rim (light from the top-left); BOIL brings a stroke alive in one of two styles (the boil button cycles off → wobble → pulse): WOBBLE = per-point hand-drawn jitter cycling ~7.5fps; PULSE = a subtle smooth grow/shrink breath about the stroke's centre. Almost free since rendering is a pure function of (stroke, seed). Bevel + boil are PER-STROKE — each stroke captures the toggle state when you draw it, so some strokes can be beveled or boiling and others still; the toolbar toggles set the default for NEW strokes (this is the groundwork for a select-and-edit tool). A SELECT toggle on the bar (or the S key) makes this a tiny NON-DESTRUCTIVE vector editor: click a stroke to pick it (accent box), and the bar's controls retarget to that stroke — recolour it, change its dither, toggle bevel/boil, drag its thickness — while a property strip adds bevel-SIZE + boil-INTENSITY sliders and bring-to-FRONT / send-to-BACK ordering. Edit any stroke any time; nothing is baked. A 7-colour pen — black/blue/red/green/cyan/magenta/yellow (cyan is a dark teal; pico32 has no true cyan) — picked from an always-visible palette strip (the seven swatches show their real colours; the active one wears an accent tab); each stroke keeps its colour. The fat brushes can be filled with a dpaint-style dither — a Bayer-ordered density ramp (~12→87% ink via fillp), likewise shown as an always-visible swatch strip — the step before a real flood-fill. The whole toolbar is ink-on-paper: white buttons, black glyphs; the brush dropdown opens a 2-column icon+name grid. A flood-fill tool + the pixelsnap animated-icon export come next.",
+    "controls": "Top panel (ink-on-paper): a brush dropdown that opens a 2-column icon+name grid (ink/pencil/liner/marker/chalk/sketch/spray/bristle/paint/nib/oil), thickness slider, a BVL toggle, a BOIL cycle (off/wobble/pulse), UNDO, an OUT(line) toggle + an outline-colour ring chip, an always-visible dither-pattern strip, an always-visible 7-colour palette strip, and a SELECT (marquee) toggle — active swatches/toggles wear an accent tab. Drag to draw. Turn SELECT on (button or S key), click a stroke, then edit it via the bar + the bevel-size/boil-amt sliders and the FRONT/BACK ordering buttons. Keys: B bevel, O boil, S select, U undo, C clear, [ / ] rotate the calligraphy nib angle."
   },
   "todo": [
     "Polish the ink/chalk tool-icon glyphs — still read a bit muddy at 16px (sprite-draw.js in squishy.cart.js). Sketch now reads since black is keyed out (colorkey).",
@@ -136,6 +136,7 @@ static const char *TOOL_DISP[] = { "ink", "pencil", "liner", "marker", "chalk", 
 #define NIB_ANGLE_DEF   45.0f  // calligraphy nib angle (deg) — the classic italic slant
 #define IMPASTO_RIM     2.0f   // oil/impasto auto-bevel rim size (px) — the raised paint edge
 #define IMPASTO_STREAKS 4      // raked ridge/groove streaks across the width (knife texture)
+#define OUTLINE_PX      2.0f   // outline rim thickness (px) when the outline toggle is on
 
 typedef struct { float x, y, speed; } Sample;
 typedef struct {
@@ -148,6 +149,8 @@ typedef struct {
     int      boil_style;    // BOIL_WOBBLE (jitter) or BOIL_BREATHE (scale pulse)
     float    thick;         // thickness multiplier this stroke was drawn with
     float    nib_angle;     // calligraphy nib angle (deg) — K_NIB only, captured per-stroke
+    float    outline;       // outline rim size in px (0 = off) — per-stroke, captured/editable
+    int      outline_color; // palette colour of the outline
     int      n;
     Sample   pts[MAX_SAMPLES];
 } Stroke;
@@ -162,6 +165,8 @@ static int      bevel = 0;           // bevel DEFAULT for new strokes (each stro
 static int      boil = 0;            // boil DEFAULT for new strokes (captured as intensity 0/1)
 static int      boil_style = BOIL_WOBBLE;   // boil style DEFAULT for new strokes
 static float    nib_angle = NIB_ANGLE_DEF;  // calligraphy nib angle DEFAULT (deg); [ / ] rotate it
+static int      outline = 0;         // outline DEFAULT for new strokes (on/off toggle)
+static int      outsel = 0;          // outline colour DEFAULT (index into COLORS; 0 = INK)
 static int      cursor_panel = -1;   // tracks which cursor is shown (hand on bar / ring on canvas)
 static int      tool = 0;            // selected brush
 static int      selmode = 0;         // SELECT mode (a top-bar toggle): clicks pick/edit, not draw
@@ -236,20 +241,21 @@ static void boil_pt(const Stroke *s, int i, float *x, float *y, const Boil *b) {
 }
 
 // render a stroke as a chain of overlapping round stamps, offset by (ox,oy) in
-// `color` — (ox,oy) is the bevel rim offset; `jitter` adds the boil wobble.
-static void render_stroke(const Stroke *s, float ox, float oy, int color, const Boil *b) {
+// `color`. (ox,oy) is the bevel rim offset; `grow` widens every stamp (for the
+// outline silhouette pass); the boil wobble comes in via `b`.
+static void render_stroke(const Stroke *s, float ox, float oy, int color, const Boil *b, float grow) {
     if (s->n == 0) return;
     int chalk = BRUSHES[s->tool].kind == K_CHALK;   // dry, broken: drop ~40% of stamps
     if (s->n == 1) {
         float x = s->pts[0].x, y = s->pts[0].y; boil_pt(s, 0, &x, &y, b);
-        stamp(x + ox, y + oy, sample_width(s, 0, b->fseed), color);
+        stamp(x + ox, y + oy, sample_width(s, 0, b->fseed) + grow, color);
         return;
     }
     for (int i = 0; i < s->n - 1; i++) {
         float x0 = s->pts[i].x,   y0 = s->pts[i].y;
         float x1 = s->pts[i+1].x, y1 = s->pts[i+1].y;
         boil_pt(s, i, &x0, &y0, b); boil_pt(s, i + 1, &x1, &y1, b);
-        float w0 = sample_width(s, i, b->fseed), w1 = sample_width(s, i + 1, b->fseed);
+        float w0 = sample_width(s, i, b->fseed) + grow, w1 = sample_width(s, i + 1, b->fseed) + grow;
         float dx = x1 - x0, dy = y1 - y0;
         float seg = sqrtf(dx * dx + dy * dy);
         int steps = (int)(seg / STAMP_SPACING);
@@ -359,7 +365,7 @@ static void emit_drip(int x, int yedge, int thk, int y1, const Stroke *s) {
 // (a band bottom) and run a drip from it. Pure function of (path, seed) — same soul as
 // boil, no simulation, fully re-renderable.
 static void render_drip(const Stroke *s, const Boil *b) {
-    render_stroke(s, 0, 0, s->color, b);   // the wet body (same stamp chain as the fat brushes)
+    render_stroke(s, 0, 0, s->color, b, 0);   // the wet body (same stamp chain as the fat brushes)
     if (s->n < 1) return;
 
     // painted bounding box (points ± their radius), clamped to screen
@@ -431,9 +437,9 @@ static void render_nib(const Stroke *s, const Boil *b) {
 // raised, light-catching edge; then raked HILITE/SHADOW streaks along the drag read as
 // the ridges + grooves of paint dragged by a stiff brush or knife. Pure f(path, seed).
 static void render_impasto(const Stroke *s, const Boil *b) {
-    render_stroke(s,  IMPASTO_RIM,  IMPASTO_RIM, SHADOW, b);   // raised rim: dark lower-right,
-    render_stroke(s, -IMPASTO_RIM, -IMPASTO_RIM, HILITE, b);   // light upper-left
-    render_stroke(s, 0, 0, s->color, b);                       // the fat paint body on top
+    render_stroke(s,  IMPASTO_RIM,  IMPASTO_RIM, SHADOW, b, 0);   // raised rim: dark lower-right,
+    render_stroke(s, -IMPASTO_RIM, -IMPASTO_RIM, HILITE, b, 0);   // light upper-left
+    render_stroke(s, 0, 0, s->color, b, 0);                       // the fat paint body on top
     if (s->n < 2) return;
     for (int i = 0; i < s->n - 1; i++) {                       // raked knife streaks over the body
         float x0=s->pts[i].x,y0=s->pts[i].y,x1=s->pts[i+1].x,y1=s->pts[i+1].y;
@@ -468,12 +474,14 @@ static void draw_one(const Stroke *s, const Boil *b) {
         case K_IMPASTO: render_impasto(s, b); return;
         default: break;   // K_STAMP / K_CHALK use the stamp chain below
     }
+    if (s->outline > 0)   // outline: a fatter silhouette in outline_color, UNDER everything (bubble-letter rim)
+        render_stroke(s, 0, 0, s->outline_color, b, s->outline * 2);
     if (s->bevel > 0) {   // per-stroke bevel, s->bevel = rim size in px
-        render_stroke(s,  s->bevel,  s->bevel, SHADOW, b);   // rims stay solid
-        render_stroke(s, -s->bevel, -s->bevel, HILITE, b);
+        render_stroke(s,  s->bevel,  s->bevel, SHADOW, b, 0);   // rims stay solid
+        render_stroke(s, -s->bevel, -s->bevel, HILITE, b, 0);
     }
     if (s->pattern) fillp(PATTERNS[s->pattern], PAPER);   // dpaint-style dither fills the body only
-    render_stroke(s, 0, 0, s->color, b);
+    render_stroke(s, 0, 0, s->color, b, 0);
     if (s->pattern) fillp_reset();
 }
 
@@ -594,32 +602,43 @@ static void draw_panel(void) {
 
     if (ui_button(138, 3, 22, 16, "undo")) do_undo();
 
-    // ---- colour palette: all 7 swatches visible; the active one wears an ACCENT tab
+    // ---- outline toggle + its own colour chip: a fatter silhouette in outline_color under the
+    // fill (the bubble-letter rim). The chip cycles the 7 pens; the toggle wears the on-state tab.
+    int out_on = sel ? (sel->outline > 0) : outline;
+    if (ui_button(162, 3, 15, 16, "out")) { if (sel) sel->outline = sel->outline > 0 ? 0 : OUTLINE_PX; else outline = !outline; }
+    if (out_on) rectfill(162, 19, 15, 2, ACCENT);
+    int oci = sel ? color_index(sel->outline_color) : outsel;
+    if (ui_button(179, 3, 10, 16, 0)) { int ni = (oci + 1) % NCOLORS; if (sel) sel->outline_color = COLORS[ni]; else outsel = ni; }
+    rectfill(179, 3, 10, 16, COLORS[oci]);   // outline-colour chip drawn as a RING (reads as "outline",
+    rectfill(181, 5, 6, 12, PAPER);          // not another fill swatch); click cycles the colour
+    rect(179, 3, 10, 16, INK);
+
+    // ---- colour palette (fill): all 7 swatches visible; the active one wears an ACCENT tab
     // (matches the bvl/boil on-state bar). Edits the selection's colour, else the default.
     int ci = sel ? color_index(sel->color) : colsel;
     for (int i = 0; i < NCOLORS; i++) {
-        int x = 166 + i * 10;
-        if (ui_button(x, 3, 10, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
-        rectfill(x, 3, 10, 16, COLORS[i]);   // overdraw the button with the real colour
-        rect(x, 3, 10, 16, INK);
-        if (i == ci) rectfill(x, 19, 10, 2, ACCENT);
+        int x = 192 + i * 8;
+        if (ui_button(x, 3, 8, 16, 0)) { if (sel) sel->color = COLORS[i]; else colsel = i; }
+        rectfill(x, 3, 8, 16, COLORS[i]);   // overdraw the button with the real colour
+        rect(x, 3, 8, 16, INK);
+        if (i == ci) rectfill(x, 19, 8, 2, ACCENT);
     }
 
     // ---- dither patterns: all 6 visible, each showing its real fill; active wears the tab
     int pat = sel ? sel->pattern : patsel;
     for (int i = 0; i < NPATTERNS; i++) {
-        int x = 240 + i * 9;
-        if (ui_button(x, 3, 9, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
-        fillp(PATTERNS[i], PAPER); rectfill(x, 3, 9, 16, INK); fillp_reset();
-        rect(x, 3, 9, 16, INK);
-        if (i == pat) rectfill(x, 19, 9, 2, ACCENT);
+        int x = 250 + i * 8;
+        if (ui_button(x, 3, 8, 16, 0)) { if (sel) sel->pattern = i; else patsel = i; }
+        fillp(PATTERNS[i], PAPER); rectfill(x, 3, 8, 16, INK); fillp_reset();
+        rect(x, 3, 8, 16, INK);
+        if (i == pat) rectfill(x, 19, 8, 2, ACCENT);
     }
 
     // ---- SELECT toggle: a white marquee box on a black button (turns ACCENT when on)
-    if (ui_button(298, 3, 18, 16, 0)) selmode = !selmode;
-    rectfill(298, 3, 18, 16, INK);
-    dashed_rect(301, 6, 12, 10, selmode ? ACCENT : PAPER);
-    if (selmode) rectfill(298, 19, 18, 2, ACCENT);
+    if (ui_button(300, 3, 16, 16, 0)) selmode = !selmode;
+    rectfill(300, 3, 16, 16, INK);
+    dashed_rect(302, 6, 12, 10, selmode ? ACCENT : PAPER);
+    if (selmode) rectfill(300, 19, 16, 2, ACCENT);
 
     // contextual property strip: bevel SIZE + boil INTENSITY sliders + z-order, for the selection
     if (editing) {
@@ -706,6 +725,8 @@ void update(void) {
         cur.boil_style = boil_style;
         cur.thick = thickness();
         cur.nib_angle = nib_angle;   // capture the calligraphy nib angle (K_NIB uses it)
+        cur.outline = outline ? OUTLINE_PX : 0.0f;   // capture the outline default
+        cur.outline_color = COLORS[outsel];
         seedctr = seedctr * 1103515245u + 12345u;
         cur.seed = seedctr;
         lastsx = mx; lastsy = my;

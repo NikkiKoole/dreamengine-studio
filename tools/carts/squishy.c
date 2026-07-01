@@ -328,16 +328,23 @@ static void emit_drip(int x, int yedge, int thk, int y1, const Stroke *s) {
     float u = hashf(h ^ 0x55u);
     float len = thk * DRIP_LEN_SCALE * (0.15f + u * u * 2.4f);
     if (len > DRIP_MAX_LEN) len = DRIP_MAX_LEN;
-    int d;
+    // each run gets its own gentle sideways drift + wobble so they're not ruler-straight
+    // parallels — some lean left, some right, some run true.
+    float lean = (hashf(h ^ 0xA3u) * 2 - 1) * 0.06f;          // px of drift per row (±)
+    float wob  = 0.5f + hashf(h ^ 0x7Bu) * 0.8f;              // wobble amplitude
+    float ph   = (float)(h % 360u);
+    int d, xx = x;
     for (d = 1; d < (int)len; d++) {
         int yy = yedge + d;
         if (yy >= SCREEN_H) break;
-        if (yy <= y1 && drip_cov[yy][x]) break;               // met a lower band → merge/stop
+        xx = (int)(x + lean * d + sin_deg(d * 6.0f + ph) * wob + 0.5f);
+        if (xx < 0 || xx >= SCREEN_W) break;
+        if (yy <= y1 && drip_cov[yy][xx]) break;              // met a lower band → merge/stop
         float t = d / len;
-        stamp((float)x, (float)yy, 2.0f * (1 - t) + 0.6f, s->color);   // thin tapering streak
+        stamp((float)xx, (float)yy, 2.0f * (1 - t) + 0.6f, s->color);   // thin tapering streak
     }
-    stamp((float)x, (float)(yedge + d), 2.2f, s->color);      // the heavy bead where it ends
-    if ((h & 7u) == 0) pset(x, yedge + d + 2 + (int)(h % 3u), s->color);   // occasional spatter dot
+    stamp((float)xx, (float)(yedge + d), 2.2f, s->color);     // the heavy bead where it ends
+    if ((h & 7u) == 0) pset(xx, yedge + d + 2 + (int)(h % 3u), s->color);   // occasional spatter dot
 }
 
 // PAINT: a wide wet body, then runs that drip DOWN from every exposed bottom edge.

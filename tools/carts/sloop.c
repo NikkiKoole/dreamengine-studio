@@ -1948,6 +1948,8 @@ static void ob_init(Obstacle *o, int cx, int cy, int idx) {
 // idx is just the running emit order k — stable because gen order is fixed (cones, then houses).
 static int gen_chunk(int cx, int cy, Obstacle *out) {
     int k = 0;
+    if (osm_loaded) return 0;                 // Rung B: driving real Delft — empty streets (no stub cones/
+                                              // houses/parked-cars). OSM buildings become props in Rung C.
     int x0 = cx * CHUNK, y0 = cy * CHUNK;     // this chunk's world span [x0,x0+CHUNK)
 
     // 1. cones — light roadworks clutter, scattered anywhere (run-over class)
@@ -2594,6 +2596,15 @@ static void osm_load(const char *path) {
     free(buf);
     if (n_oseg == 0) return;
 
+    // spawn ON a road: map sloop world (0,0) to the road segment midpoint nearest the bbox centre,
+    // so the rig starts on a street (not the 35 m-off-road bbox centre) and roads frame it immediately.
+    { float bc_x = osm_cx, bc_y = osm_cy, best = 1e30f;
+      for (int s = 0; s < n_oseg; s++) {
+          float mmx = (oseg[s].ax + oseg[s].bx) * 0.5f, mmy = (oseg[s].ay + oseg[s].by) * 0.5f;
+          float d = (mmx - bc_x) * (mmx - bc_x) + (mmy - bc_y) * (mmy - bc_y);
+          if (d < best) { best = d; osm_cx = mmx; osm_cy = mmy; }
+      } }
+
     // uniform-grid index (CSR). Each segment is bucketed into every cell its bounding box covers;
     // with hw < OSM_CELL, a 3×3 scan around the query point then catches every nearby segment.
     gcol = (int)((gmaxx - gminx) / OSM_CELL) + 1; if (gcol < 1) gcol = 1;
@@ -2671,10 +2682,50 @@ static RoadHit road_at(float x, float y) {
     return r;
 }
 
+// Rung B step 4: RENDER the OSM roads (when a .rvb is loaded), so you drive the real city — not the
+// stub grid. Colour by class (roadview's palette). Each segment is a GPU rectfill_rot ribbon (not a
+// software thickline) so it stays hole-free under the heading-up camera, same as the vehicle cells.
+// The metres→world-px map is the exact inverse of road_at()'s, so what you SEE == what road_at() says.
+static int osm_road_col(int kind) {
+    switch (kind) {
+        case 0:  return CLR_ORANGE;        // highway
+        case 1:  return CLR_YELLOW;        // arterial
+        case 2:  return CLR_LIGHT_GREY;    // street
+        case 3:  return CLR_BROWN;         // track
+        case 17: return CLR_LIGHT_YELLOW;  // secondary
+        case 18: return CLR_PEACH;         // tertiary
+        case 19: return CLR_MEDIUM_GREY;   // service
+        case 20: return CLR_DARK_RED;      // cycleway (Dutch red)
+        case 21: return CLR_INDIGO;        // footway
+        default: return CLR_LIGHT_GREY;
+    }
+}
+
+static void draw_osm_roads(void) {
+    float vhw, vhh; view_half_extent(&vhw, &vhh);              // widen for zoom + heading-up rotation
+    int mx = (int)(vhw - SCREEN_W * 0.5f) + 8, my = (int)(vhh - SCREEN_H * 0.5f) + 8;
+    float L = cam_x - mx, R = cam_x + SCREEN_W + mx, T = cam_y - my, B = cam_y + SCREEN_H + my;
+    for (int s = 0; s < n_oseg; s++) {
+        float ax = (oseg[s].ax - osm_cx) * OSM_PPM, ay = -(oseg[s].ay - osm_cy) * OSM_PPM;  // metres→world px
+        float bx = (oseg[s].bx - osm_cx) * OSM_PPM, by = -(oseg[s].by - osm_cy) * OSM_PPM;  // (Y flip, = road_at's inverse)
+        float w = oseg[s].hw * 2.0f * OSM_PPM; if (w < 1.0f) w = 1.0f;
+        float loX = ax < bx ? ax : bx, hiX = ax > bx ? ax : bx;                             // cull to the view (+width margin)
+        float loY = ay < by ? ay : by, hiY = ay > by ? ay : by;
+        if (hiX < L - w || loX > R + w || hiY < T - w || loY > B + w) continue;
+        float dx = bx - ax, dy = by - ay, len = fsqrt(dx * dx + dy * dy);
+        float deg = atan2f(dy, dx) * 57.29578f;
+        // len + w so consecutive segments overlap at the joint (no gap); a stub of length w draws a cap.
+        rectfill_rot((int)((ax + bx) * 0.5f), (int)((ay + by) * 0.5f),
+                     (int)(len + w), (int)w, deg, osm_road_col(oseg[s].cls));
+    }
+}
+
 // Houses are now SOLID obstacles (§9): generated per-chunk in gen_chunk (same ~5 m-facade tiling
 // the old draw_houses used) and drawn from the pool in draw_obstacles, so they can be crashed into
 // and (when smashed) stay demolished. draw_course only paints the flat road + fields under them.
 static void draw_course(void) {
+    if (osm_loaded) { draw_osm_roads(); return; }              // Rung B: real Delft roads (screen == road_at)
+
     // widen the drawn area to cover the speed-zoom pull-back (see draw_ground)
     float vhw, vhh; view_half_extent(&vhw, &vhh);   // widen for zoom + heading-up rotation
     int mx = (int)(vhw - SCREEN_W * 0.5f) + 4;

@@ -15,7 +15,7 @@
   ],
   "lineage": "Inspired by Cataclysm: DDA's vehicle system; sibling to orbit (same integrator) and coaster (same physics honesty); extends worldgen's infinite chunk-streamed city as its drive world.",
   "genre": "sandbox",
-  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city."
+  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. GET OUT OF THE CAR: stop and press F -- you step out of the seat cell as a one-tile person (the seat's occupant, same scale as the rig's parts), walk with arrows/WASD (Z jogs), and the same world pushes back on foot: buildings and parked cars block you, the camera eases in to 1:1. Walk back to your seat and press F to drive again -- on a long rig that means walking to the cab, because entry is the SEAT cell, not 'the vehicle'. A rig with no seat can't be entered, the same rule that makes it drivable. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city."
 }
 de:meta */
 #include "studio.h"
@@ -664,7 +664,7 @@ static int   steer_grab;          // 1 while the wheel is being turned → drive
 static float gas_pos, brake_pos;  // ramped throttle/brake (0..1) — analog feel from digital keys
 
 // ── modes: BUILD (paused grid editor) ↔ DRIVE (the rig loose in the world) ───
-enum { MODE_DRIVE, MODE_BUILD };
+enum { MODE_DRIVE, MODE_BUILD, MODE_FOOT };
 static int mode = MODE_DRIVE;
 static int sel_part = P_WHEEL;    // palette selection; P_NONE = the eraser
 
@@ -1027,6 +1027,119 @@ static void rot(float lx, float ly, float *wx, float *wy) {
     *wy = sy + lx * s + ly * c;
 }
 
+// ╔══ FOOT MODE (seam #1, rung F0): get out of the rig, walk, get back in ══════╗
+// The avatar is the OCCUPANT OF THE SEAT CELL — one rig tile (7px), GTA1-scale;
+// no new abstraction. Getting out spawns you beside the seat cell's world
+// position (stepped outward until clear of the hull), getting in means walking
+// back within reach of that same cell — so a long rig means walking to the cab.
+// A rig with no seat can't be entered, the same one rule that makes it drivable.
+// The rig's state is untouched while you're out. Fenced so it lifts out cleanly
+// (docs/design/big-game-backlog.md seam #1; driving-world-program.md scoreboard).
+#define FOOT_R        2.5f     // avatar collision radius (px) — just under half a cell
+#define FOOT_SPD     26.0f     // walk speed, world px/s
+#define FOOT_RUN     46.0f     // hold Z: jog
+#define FOOT_REACH   14.0f     // F re-enters within this of the seat cell (~2 cells)
+#define FOOT_EXIT_SPD 14.0f    // rig must be this slow to step out (≈10 km/h, a crawl — deliberately
+                               // ABOVE the automatic's idle creep ~8.3 px/s, so brake→F just works)
+static float foot_x, foot_y;             // avatar world position
+static float foot_dx = 1, foot_dy = 0;   // last walk direction (unit) — the head pixel leads
+static int   foot_deny;                  // frames left on the "stop first" flash (F while moving)
+
+// the seat cell as a COM-local offset; 0 if the build has no seat (then there's no door)
+static int seat_local(float *lx, float *ly) {
+    for (int r = 0; r < GH; r++)
+        for (int c = 0; c < GW; c++)
+            if (grid[r][c] == P_SEAT) {
+                *lx = (c + 0.5f) * CELL - comX;
+                *ly = (r + 0.5f) * CELL - comY;
+                return 1;
+            }
+    return 0;
+}
+
+// push a circle out of one oriented box (local extents x0..x1 / y0..y1); 1 if it touched.
+// Pushing along the local clamp normal makes the avatar SLIDE along walls, not stick to them.
+static int circle_box_push(float *px, float *py, float r,
+                           float bx, float by, float bang,
+                           float x0, float x1, float y0, float y1) {
+    float c = cos_deg(bang), s = sin_deg(bang);
+    float dx = *px - bx, dy = *py - by;
+    float lx =  c * dx + s * dy, ly = -s * dx + c * dy;   // into the box frame
+    float qx = lx < x0 ? x0 : (lx > x1 ? x1 : lx);
+    float qy = ly < y0 ? y0 : (ly > y1 ? y1 : ly);
+    float ex = lx - qx, ey = ly - qy, d2 = ex * ex + ey * ey;
+    if (d2 >= r * r) return 0;
+    if (d2 > 0.0001f) {                     // outside the box: push back out to radius
+        float d = fsqrt(d2), k = (r - d) / d;
+        ex *= k; ey *= k;
+    } else {                                // fully inside: eject through the nearest face
+        float m0 = lx - x0, m1 = x1 - lx, m2 = ly - y0, m3 = y1 - ly, m = m0;
+        ex = -(m0 + r); ey = 0;
+        if (m1 < m) { m = m1; ex = m1 + r; ey = 0; }
+        if (m2 < m) { m = m2; ex = 0; ey = -(m2 + r); }
+        if (m3 < m) {         ex = 0; ey = m3 + r; }
+    }
+    *px += ex * c - ey * s;                 // the push, rotated back to world
+    *py += ex * s + ey * c;
+    return 1;
+}
+
+// would the avatar overlap anything at (x,y)? the rig hull + live obstacles (rubble is walkable)
+static int foot_blocked(float x, float y) {
+    float tx = x, ty = y;
+    if (circle_box_push(&tx, &ty, FOOT_R, sx, sy, ang, rigL0, rigL1, rigW0, rigW1)) return 1;
+    for (int i = 0; i < MAXOB; i++) {
+        Obstacle *o = &pool[i];
+        if (!o->alive || o->destroyed) continue;
+        float dx = x - o->x, dy = y - o->y;
+        if (dx * dx + dy * dy > (o->rad + 8.0f) * (o->rad + 8.0f)) continue;
+        tx = x; ty = y;
+        if (circle_box_push(&tx, &ty, FOOT_R, o->x, o->y, o->ang, -o->hw, o->hw, -o->hh, o->hh)) return 1;
+    }
+    return 0;
+}
+
+// step out: walk the spawn point outward from the seat cell (sides first, then
+// fore/aft), first clear spot wins — so you appear beside YOUR seat, wherever the
+// build put it. 0 = boxed in on every side (stay behind the wheel).
+static int foot_exit(void) {
+    float slx, sly;
+    if (!seat_local(&slx, &sly)) return 0;
+    static const float DIRX[4] = { 0, 0, -1, 1 }, DIRY[4] = { -1, 1, 0, 0 };
+    for (int k = 1; k <= 5; k++)
+        for (int d = 0; d < 4; d++) {
+            float wx, wy;
+            rot(slx + DIRX[d] * k * CELL, sly + DIRY[d] * k * CELL, &wx, &wy);
+            if (!foot_blocked(wx, wy)) { foot_x = wx; foot_y = wy; return 1; }
+        }
+    return 0;
+}
+
+// the FOOT update: 8-way walk (arrows/WASD/d-pad, Z jogs), then the world pushes back
+static void update_foot(float dt_) {
+    float mx = (key(KEY_RIGHT) || key('D') ? 1.0f : 0.0f) - (key(KEY_LEFT) || key('A') ? 1.0f : 0.0f);
+    float my = (key(KEY_DOWN)  || key('S') ? 1.0f : 0.0f) - (key(KEY_UP)   || key('W') ? 1.0f : 0.0f);
+    mx += (btn(0, BTN_RIGHT) ? 1.0f : 0.0f) - (btn(0, BTN_LEFT) ? 1.0f : 0.0f);
+    my += (btn(0, BTN_DOWN)  ? 1.0f : 0.0f) - (btn(0, BTN_UP)   ? 1.0f : 0.0f);
+    float m2 = mx * mx + my * my;
+    if (m2 > 0.01f) {
+        float inv = 1.0f / fsqrt(m2);       // diagonals walk no faster
+        float spd = (key('Z') || btn(0, BTN_A)) ? FOOT_RUN : FOOT_SPD;
+        foot_x += mx * inv * spd * dt_;
+        foot_y += my * inv * spd * dt_;
+        foot_dx = mx * inv; foot_dy = my * inv;
+    }
+    circle_box_push(&foot_x, &foot_y, FOOT_R, sx, sy, ang, rigL0, rigL1, rigW0, rigW1);
+    for (int i = 0; i < MAXOB; i++) {
+        Obstacle *o = &pool[i];
+        if (!o->alive || o->destroyed) continue;
+        float dx = foot_x - o->x, dy = foot_y - o->y;
+        if (dx * dx + dy * dy > (o->rad + 8.0f) * (o->rad + 8.0f)) continue;
+        circle_box_push(&foot_x, &foot_y, FOOT_R, o->x, o->y, o->ang, -o->hw, o->hw, -o->hh, o->hh);
+    }
+}
+// ╚══ end FOOT MODE state + sim (input hooks live in handle_input; render in draw_foot) ══╝
+
 // ── input ─────────────────────────────────────────────────────────────────────
 static int in_gas, in_brk, in_steer, in_hand, in_up, in_down;
 static int gear_req = -99;            // a gear tapped directly in the gate this frame (-99 = none);
@@ -1144,6 +1257,19 @@ static void clear_grid(void) {
     recompute_body();
 }
 static void handle_input(void) {
+    if (mode == MODE_FOOT) {                   // ── ON FOOT (rung F0): a deliberately tiny input surface ──
+        if (keyp('P')) is_paused = !is_paused;
+        if (keyp('R')) { mode = MODE_DRIVE; reset_vehicle(); }   // reset = back behind the wheel, fresh
+        if (keyp('F')) {                       // F re-enters — but only within reach of the SEAT cell
+            float slx, sly, swx, swy;
+            if (seat_local(&slx, &sly)) {
+                rot(slx, sly, &swx, &swy);
+                float dx = foot_x - swx, dy = foot_y - swy;
+                if (dx * dx + dy * dy < FOOT_REACH * FOOT_REACH) mode = MODE_DRIVE;
+            }
+        }
+        return;                                // no cockpit, no BUILD, no template keys while out of the rig
+    }
     if (keyp(KEY_TAB) || keyp('B')) {          // flip between BUILD and DRIVE (TAB or B)
         mode = (mode == MODE_DRIVE) ? MODE_BUILD : MODE_DRIVE;
         if (mode == MODE_DRIVE) reset_vehicle();   // drive your current build, fresh
@@ -1181,6 +1307,12 @@ static void handle_input(void) {
     if (keyp('P')) is_paused = !is_paused;
     if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
     if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
+    if (keyp('F')) {                           // F: GET OUT (rung F0) — only at a stop, only via a seat
+        if (vx * vx + vy * vy < FOOT_EXIT_SPD * FOOT_EXIT_SPD && foot_exit()) {
+            vx = vy = angVel = 0;              // parking brake — the rig holds still while you're out
+            mode = MODE_FOOT;
+        } else foot_deny = 90;                 // flash why not (still rolling / no seat / boxed in)
+    }
     if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
     if (mode == MODE_DRIVE &&                                              // CAM toggle: north-up / heading-up
         (keyp('C') || ctl_hit(CAM_BTN_X, CAM_BTN_Y, CAM_BTN_W, CAM_BTN_H)))  // ('C' is caster-select in BUILD)
@@ -1760,14 +1892,18 @@ void update(void) {
     if (keyp('O')) de_open_path("../data");
 
     handle_input();
+    if (foot_deny > 0) foot_deny--;
     engine_sound(mode == MODE_DRIVE && !is_paused && engine_on);   // every frame (also kills it in BUILD/pause)
     if (mode == MODE_BUILD || is_paused) return;   // BUILD pauses the simulation
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
-    update_drive(dt_);
+    if (mode == MODE_FOOT) update_foot(dt_);       // rung F0: the rig is parked; you're the sim now
+    else                   update_drive(dt_);
 
     // speed-zoom: pull the camera back as you go faster — more world streams through the frame
     // (and you see further ahead). Eased slowly so it never jitters; resets to 1 in BUILD/at rest.
     // Computed BEFORE the lead so the lead cap below can work in screen space.
+    // On foot camspd is 0 by construction (the rig is parked), so the zoom eases back to 1:1 —
+    // the walking view is the close view, no extra camera tier needed (a 7px avatar reads at 1:1).
     float camspd = fsqrt(vx * vx + vy * vy);
     float zoomTarget = 1.0f - CAM_ZOOM_PULL * clamp(camspd / CAM_ZOOM_REF, 0, 1);
     cam_zoom_smooth = lerp(cam_zoom_smooth, zoomTarget, 0.05f);
@@ -1790,14 +1926,16 @@ void update(void) {
     // (the 300 km/h disappearing-car bug). Scale the world-space lead so its on-screen length holds.
     float lsx = lead_x * cam_zoom, lsy = lead_y * cam_zoom, ll = fsqrt(lsx * lsx + lsy * lsy);
     if (ll > LEAD_MAX) { float k = LEAD_MAX / ll; lead_x *= k; lead_y *= k; }
-    cam_x = lerp(cam_x, sx + lead_x - SCREEN_W / 2.0f, 0.15f);
-    cam_y = lerp(cam_y, sy + lead_y - SCREEN_H / 2.0f, 0.15f);
+    float focx = sx + lead_x, focy = sy + lead_y;                  // camera focus: the rig...
+    if (mode == MODE_FOOT) { focx = foot_x; focy = foot_y; }       // ...or the avatar, on foot
+    cam_x = lerp(cam_x, focx - SCREEN_W / 2.0f, 0.15f);
+    cam_y = lerp(cam_y, focy - SCREEN_H / 2.0f, 0.15f);
 
     // heading-up rotation: spin the world so the rig's heading points UP. Eased toward the
     // target = the GLIDE — a hard drift swings the nose fast while cam_ang trails, so the rig
     // slides sideways across the frame, then the world swings round to catch it. NORTH-UP
     // eases the angle back to 0 (so the toggle itself glides, never snaps).
-    float ang_targ = cam_head_up ? (-90.0f - ang) : 0.0f;
+    float ang_targ = (cam_head_up && mode != MODE_FOOT) ? (-90.0f - ang) : 0.0f;   // on foot: ease to north-up (arrows = world axes)
     float dA = ang_targ - cam_ang;
     while (dA >  180.0f) dA -= 360.0f;
     while (dA < -180.0f) dA += 360.0f;
@@ -1818,6 +1956,9 @@ void update(void) {
       watch("road_cls", "%d", _rh.cls);
       watch("osm", "%d", osm_loaded); }
     watch("vl", "%.1f", vx * (-fwy) + vy * fwx);
+    watch("foot", "%d", mode == MODE_FOOT);        // rung F0: the car↔foot seam, traced
+    watch("foot_x", "%.1f", foot_x);
+    watch("foot_y", "%.1f", foot_y);
     watch("ang", "%.0f", ang);
     watch("angvel", "%.0f", angVel);
     watch("cam_ang", "%.0f", cam_ang);
@@ -2953,6 +3094,33 @@ static void draw_vehicle(void) {
     line((int)sx, (int)sy - 2, (int)sx, (int)sy + 2, CLR_WHITE);
 }
 
+// ── FOOT render (rung F0) ─────────────────────────────────────────────────────
+// The avatar is ONE RIG TILE of person: a seat-blue torso disc (you ARE the seat's
+// occupant — same colour, same scale) with a skin-tone head pixel leading the walk.
+static void draw_foot(void) {
+    circfill((int)foot_x, (int)foot_y, 3, KIND[P_SEAT].col);
+    pset((int)(foot_x + foot_dx * 1.5f), (int)(foot_y + foot_dy * 1.5f), CLR_LIGHT_PEACH);
+    // within reach of the seat: ring the door so "F gets in HERE" is visible, not guessed
+    float slx, sly, swx, swy;
+    if (seat_local(&slx, &sly)) {
+        rot(slx, sly, &swx, &swy);
+        float dx = foot_x - swx, dy = foot_y - swy;
+        if (dx * dx + dy * dy < FOOT_REACH * FOOT_REACH) circ((int)swx, (int)swy, 6, CLR_YELLOW);
+    }
+}
+
+// on-foot HUD: one line — the seat is the only interface out here
+static void hud_foot(void) {
+    float slx, sly, swx, swy; int near_seat = 0;
+    if (seat_local(&slx, &sly)) {
+        rot(slx, sly, &swx, &swy);
+        float dx = foot_x - swx, dy = foot_y - swy;
+        near_seat = dx * dx + dy * dy < FOOT_REACH * FOOT_REACH;
+    }
+    print(near_seat ? "F  GET IN" : "ARROWS WALK   Z JOG   WALK TO YOUR SEAT TO DRIVE",
+          6, SCREEN_H - 12, near_seat ? CLR_YELLOW : CLR_LIGHT_GREY);
+}
+
 // ── HUD: a touch/mouse/keyboard COCKPIT ───────────────────────────────────────
 // The bottom band is a driveable dashboard, split for two thumbs: gas/brake/drift
 // pedals at the far-LEFT edge, the steering wheel (press its left/right half) at the
@@ -3263,13 +3431,19 @@ void draw(void) {
                  skid[i].life > 90 ? CLR_BLACK : CLR_BROWNISH_BLACK);
     draw_obstacles();                     // §9: cones etc. (under the rig — you drive over them)
     draw_vehicle();
+    if (mode == MODE_FOOT) draw_foot();   // rung F0: the seat's occupant, out in the world
     for (int i = 0; i < MAXSPARK; i++)    // sparks thrown off the grinding belly (over the rig)
         if (spark[i].life > 0) {
             int col = spark[i].life > 12 ? CLR_WHITE : spark[i].col;   // hot core fades to its tint
             pset((int)spark[i].x, (int)spark[i].y, col);
         }
     camera(0, 0);
-    hud();
+    if (mode == MODE_FOOT) hud_foot();    // no cockpit on foot — one line of HUD
+    else {
+        hud();
+        if (foot_deny > 0)                // tried F while rolling (or seatless/boxed in)
+            print("STOP FIRST \x07 F GETS YOU OUT", 6, DASH_Y - 10, CLR_YELLOW);
+    }
 }
 
 void init(void) {
@@ -3346,3 +3520,46 @@ void init(void) {
     cam_y = sy - SCREEN_H / 2.0f;
     smooth_zoom(true); //TT
 }
+
+// ── spec() — sloop's first: pins the rung-F0 car↔foot seam (docs/design/spec-harness.md).
+//    Deterministic + headless; run `node tools/spec.js sloop`. The seam's contract: F at a stop
+//    steps out beside the SEAT cell into a clear spot, the rig holds still while you're out,
+//    re-entry works only within reach of that same cell, and walking actually moves you. ──
+#ifdef DE_SPEC
+#include "spec.h"
+void spec(void) {
+    step(2);                                                        // init (buggy, at rest) + settle
+    expect(mode == MODE_DRIVE, "starts behind the wheel");
+    float slx, sly, swx, swy;
+    expect(seat_local(&slx, &sly), "the default buggy has a seat cell");
+    float px = sx, py = sy, pa = ang;                               // the rig's pose, before
+
+    spec_tap('F');                                                  // ── get out ──
+    expect(mode == MODE_FOOT, "F at a stop steps out of the rig");
+    expect(!foot_blocked(foot_x, foot_y), "the avatar spawns in a clear spot");
+    rot(slx, sly, &swx, &swy);
+    float dx = foot_x - swx, dy = foot_y - swy;
+    expect(dx * dx + dy * dy < 6 * CELL * 6 * CELL, "...and spawns BESIDE the seat, not somewhere random");
+
+    float wx0 = foot_x;                                             // ── walk ──
+    key_down(KEY_RIGHT); step(60); key_up(KEY_RIGHT); step(1);
+    expect(foot_x > wx0 + 5.0f, "holding right walks the avatar east");
+    expect(spec_near(sx, px) && spec_near(sy, py) && spec_near(ang, pa),
+           "the rig holds still while you're out");
+
+    foot_x = swx + 60; foot_y = swy;                                // ── re-entry is gated on reach ──
+    spec_tap('F');
+    expect(mode == MODE_FOOT, "F far from the seat does NOT re-enter");
+    foot_x = swx + FOOT_REACH * 0.5f; foot_y = swy;
+    spec_tap('F');
+    expect(mode == MODE_DRIVE, "F within reach of the seat gets back in");
+    expect(spec_near(sx, px) && spec_near(sy, py) && spec_near(ang, pa),
+           "the round trip left the rig exactly where it was parked");
+
+    // ── a moving rig refuses the door ── (force a rolling rig directly; the gate reads velocity)
+    vx = FOOT_EXIT_SPD * 3; vy = 0;
+    spec_tap('F');
+    expect(mode == MODE_DRIVE, "F while rolling does NOT step out (stop first)");
+    vx = 0;
+}
+#endif

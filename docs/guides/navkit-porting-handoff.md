@@ -83,7 +83,7 @@ left. It complements two docs you must also read:
 | `tools/wav-correlate.js` | **sample-level A/B** — normalized cross-correlation of two WAVs (1.000 = identical DSP up to gain + delay). The definitive check; robust to our engine's output-gain offset. |
 | `tools/wav-modrate.js` | LFO **rate + depth** of an amplitude-modulating effect (tremolo / auto-pan), level-independent. |
 | `tools/wav-analyze.js` | peak/RMS/crest + two-file compare (the pre-existing meter). |
-| A test cart | a flat-top sine through the effect (`tremtest.c` / `phasertest.c` / `leslietest.c`) — source-only, unregistered. Render with `play.js … --det --wav`. |
+| A test cart | a flat-top sine through the effect (`tremtest.c` / `phasertest.c` / `leslietest.c`) — source-only, unregistered. Render with `play.js … --wav` (deterministic). |
 
 **The honest A/B, not the fake one:** do **not** copy navkit's formula into a standalone harness and
 diff it against your `sound.h` copy — that tests your copy against your copy. `navkit-fx-render.c`

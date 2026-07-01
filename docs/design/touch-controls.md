@@ -670,10 +670,10 @@ touches.
 - [x] **P1** size from `SCALE` (`ceil(44/SCALE)`), remove post-blit raw-Raylib call
 - [x] **P1** `canvas-diff` 0px on `flyover` (opt-in); `vampire` PASS; committed
 - [x] **P1.5** `game_rect` chokepoint; routed `touch_x/y`/`tap*`/`touch_ended*`/`inp_mouse_x/y` + blit through it (identity). (On-screen control hit-tests read window px directly — unchanged.)
-- [x] **P1.5** pure `gr_place()` stub + headless round-trip test (`det-probes/placetest.c`, covers offset+scaled rects too); `canvas-diff` byte-identical (flyover/vampire), committed
+- [x] **P1.5** pure `gr_place()` stub + headless round-trip test (`tools/det-probes/placetest.c`, covers offset+scaled rects too); `canvas-diff` byte-identical (flyover/vampire), committed
 - [x] **P2** fill in `gr_place()`: letterbox measure → deck / rails / overlay decision (pure, in `game_rect.h`)
 - [x] **P2** set `game_rect` from `gr_place()` each frame + shrink blit (letterbox foundation; `DE_WINDOW` preview, `ClearBackground` bars). Game letterboxes; **band DRAW is now the per-platform skin** (see PIVOT) — shipped, see below.
-- [x] **P2** placement matrix verified — `det-probes/placetest.c`: matched→overlay (exact identity), portrait→deck, landscape→rails, tiny-band→overlay; computed rects round-trip
+- [x] **P2** placement matrix verified — `tools/det-probes/placetest.c`: matched→overlay (exact identity), portrait→deck, landscape→rails, tiny-band→overlay; computed rects round-trip
 - [x] **P3** `touch_layout(mode, n_buttons)` shipped (4-place dance) with `TOUCH_ANALOG` (floating) / `TOUCH_ANALOG_FIX` (fixed); verified fixed-vs-floating via trace.
 - [x] **P3** floating + fixed analog base behaviour (fixed pins base to home, floating spawns under finger). `pointer.h` capture + knob lerp still TODO.
 - [x] **band-aware layout + desktop smooth-circle draw skin** (was NEXT above) — `layout_touch_controls()` places the stick/d-pad + buttons into the actual DECK/RAILS/OVERLAY geometry each frame; the desktop skin paints smooth window-space circles after the blit (live stick knob, or compass-node d-pad).

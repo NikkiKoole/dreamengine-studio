@@ -434,7 +434,7 @@ during the tremolo + phaser ports):
 > Avoid those names — `tools/navkit-fx-render.c` uses `effect`.
 
 Render **ours** by exercising the matching API in a tiny cart (a flat-top sine + the effect — see
-`tremtest.c` / `phasertest.c`) with `play.js … --det --wav`, then compare. Two comparison modes,
+`tremtest.c` / `phasertest.c`) with `play.js … --wav` (the `--wav` render is byte-deterministic), then compare. Two comparison modes,
 pick by effect:
 - **sample-level** (`wav-correlate.js`) — the strongest: same deterministic sine in ⟹ identical DSP
   gives ~1.0 correlation regardless of level. The phaser port hit **0.99999** at two settings.

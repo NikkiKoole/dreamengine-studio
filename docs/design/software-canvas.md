@@ -735,7 +735,7 @@ Graduated labour:
   check below is framed as a pass/fail test, but it's also a capability: a frame computed entirely
   in C is bit-identical on every machine (native/web, Apple/Intel/ARM), where the GPU path can
   round/AA 1px differently per driver. That's the precondition for replays, ghost runs, and
-  lockstep netcode — and it plugs straight into infrastructure we already have (`play.js --det`,
+  lockstep netcode — and it plugs straight into infrastructure we already have (the deterministic `--det` harness clock,
   the dump+shasum oracle, byte-reproducible `--wav`). Worth naming as a reason this architecture is
   *right* for a fantasy console, beyond the perf win.
   > **Measured (2026-06-24) — the determinism claim is no longer a hope; it holds for the float

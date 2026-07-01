@@ -1,8 +1,19 @@
 # Tool Ideas from the Field Notes Session
 
-STATUS: BUILDING — living tool-idea backlog from the field-notes sessions; several shipped (build-context, topic-brief, build-field-notes, build-reflections), more open.
+STATUS: BUILDING — living tool-idea backlog from the field-notes sessions; 5 of 6 shipped (build-context, build-field-notes, lint-carts, build-cart-index, stale-doc-check), 1 partial (promote-candidate).
 
-## 1. `build-context`
+**Progress (as of 2026-07-01):** 5 of 6 shipped, 1 partial.
+
+| # | Idea | Status | Shipped as |
+|---|------|--------|-----------|
+| 1 | `build-context` | ✅ shipped | `tools/build-context.js` |
+| 2 | `build-field-notes` | ✅ shipped | `tools/build-field-notes.js` |
+| 3 | `cart-meta-check` | ✅ shipped | `tools/lint-carts.js` |
+| 4 | `build-cart-index` | ✅ shipped | `tools/build-cart-index.js` |
+| 5 | `stale-doc-check` | ✅ shipped | `tools/stale-doc-check.js` (cheap grep+git-date version) |
+| 6 | `promote-candidate` | 🟡 partial | `tools/cart-index.js` + `tools/cart-dupes.js` |
+
+## 1. `build-context` ✅ SHIPPED — `tools/build-context.js`
 
 Assemble task-specific context for agents.
 
@@ -33,7 +44,7 @@ Agents should not have to discover project knowledge manually. The right knowled
 
 ---
 
-## 2. `build-field-notes`
+## 2. `build-field-notes` ✅ SHIPPED — `tools/build-field-notes.js`
 
 Generate an index and graph for `field-notes/`.
 
@@ -52,9 +63,11 @@ The field notes will become more valuable as they grow, but only if they remain 
 
 ---
 
-## 3. `cart-meta-check`
+## 3. `cart-meta-check` ✅ SHIPPED — as `tools/lint-carts.js`
 
 Validate per-cart metadata once metadata moves out of one central index.
+(Built as `lint-carts.js`: validates each cart's `de:meta` — tags/status/created/description
+against the tag vocabulary — and asserts `index.json` is in sync with a fresh generate.)
 
 It should check:
 
@@ -72,7 +85,7 @@ Per-cart metadata enables parallel agent work, but only if the generated global 
 
 ---
 
-## 4. `build-cart-index`
+## 4. `build-cart-index` ✅ SHIPPED — `tools/build-cart-index.js`
 
 Generate the global cart index from local cart metadata.
 
@@ -92,9 +105,21 @@ Local truth should generate global truth.
 
 ---
 
-## 5. `stale-doc-check`
+## 5. `stale-doc-check` ✅ SHIPPED — `tools/stale-doc-check.js`
 
 Detect documentation that may need review after code, cart or ADR changes.
+
+Shipped as the **cheap, zero-upkeep** version, deliberately *not* the `depends_on:` frontmatter
+scheme sketched below (that needs a hand-maintained dependency graph that rots). Instead it uses
+one mechanical signal that needs no maintenance: **a doc mentions an entity (a tool or another doc,
+by hyphenated basename in prose) whose last git-commit date is NEWER than the doc's own** → the doc
+may describe a stale version, so flag it for a re-read. Reconciling and committing the doc resets
+its clock, so a flag clears the moment you look. Two confidence tiers — **TOOL DRIFT** (a doc
+describing a tool whose code moved on; shown in full) and **DOC CHURN** (doc→doc mentions edited
+later; collapsed to a count, `--docs` expands — mostly ordinary churn). Companion to `lint-docs.js`
+(do links resolve?) and `lint-xrefs.js` (should a link exist?); this one asks *has the prose gone
+stale?* The `depends_on:` frontmatter idea is left below as a possible future upgrade for
+higher-precision, opt-in dependency tracking.
 
 It should use frontmatter like:
 
@@ -113,9 +138,12 @@ The problem is not only finding knowledge. It is knowing when knowledge has gone
 
 ---
 
-## 6. `promote-candidate`
+## 6. `promote-candidate` 🟡 PARTIAL — `tools/cart-index.js` + `tools/cart-dupes.js`
 
 Find repeated patterns that may deserve promotion.
+(Partially covered: `cart-index.js` gives the computed technique coverage / "appears in N
+carts" clusters, and `cart-dupes.js` surfaces cross-cart duplication as refactor/promotion
+candidates. No single tool frames the output as promotion recommendations yet.)
 
 It should scan carts, metadata and docs for recurring concepts.
 

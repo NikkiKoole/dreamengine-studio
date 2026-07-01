@@ -202,6 +202,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —
                              unlinked doc-name mentions + missing backlinks (A→B but not B→A). Advisory;
                              scope to a feature (`node tools/lint-xrefs.js touch`) to act on it
+             stale-doc-check.js  doc-freshness finder. BROKEN REFERENCES tier = real issues (a doc cites a
+                             code path or `tool --flag` that doesn't exist now); mtime tiers = nudges (TOOL DRIFT:
+                             a doc names a tool changed after it; DOC CHURN, --docs). grep + git dates, no dep
+                             graph; advisory, reconcile+commit clears an mtime flag
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
              build-history.js     generate docs/history.html from git + the spine
              api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js

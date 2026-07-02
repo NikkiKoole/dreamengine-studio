@@ -4,12 +4,15 @@
 > modules** (Strumharpy/omnichord, FM, martenot…) and **effects / playables** (kaoss, theremin).
 > See [`tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §2 + §3.8. (Renamed from "tinydaws" 2026-06-29.)
 
-STATUS: PILOT SHIPPED (2026-07-02) — **the first rack is live**: `acidrack` (rebirth-classic,
-which took the pilot slot from rebirth-house — the swap case + build record:
-[`rebirth-classic.md`](rebirth-classic.md)). Generate → play → export proven end to end
-(seeded banks+chain from an 8-hex song code, editable while playing, WAV export). The lane
-format, seed-code handoff FROM RADIOS, song.h export tier and `rack.h` extraction are still
-open — rebirth-house is customer #2 and triggers them. Rest of this doc = the program. Follow-up brainstorm (bias knobs, the
+STATUS: TWO RACKS LIVE (2026-07-02) — `acidrack` (rebirth-classic, the pilot:
+[`rebirth-classic.md`](rebirth-classic.md)) **and `yachtrack`** ("session desk", the first
+CHORD-FIRST rack: [`yacht-rack.md`](yacht-rack.md)), both design→cart in a day. Generate →
+play → export proven end to end, and **the seed-code handoff FROM A RADIO is now proven too**
+(yachtrack runs yacht's `new_song` verbatim; a 44-pair golden corpus gates it in `spec()`) —
+the milestone rebirth-house was slated for. The per-lane humanize question is answered
+(feel knobs on players — yacht-rack.md). Still open: the shared lane format /
+`rack.h` (deferred at customer #2 — the two racks share an idiom, not code; the third rack
+decides) and the song.h export tier. Rest of this doc = the program. Follow-up brainstorm (bias knobs, the
 agentic RLHF loop, the Game&Watch dancer, MIDI-in): [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md).
 Companion reading:
 [`../guides/game-music.md`](../guides/game-music.md) (the generation recipes this

@@ -1,13 +1,20 @@
 # yacht-rack — the session-desk rack: the chord chart is the star
 
-STATUS: READY TO BUILD (2026-07-02) — maker-confirmed direction: **chart + interpreters**
-(option 2 of the flatten question, chosen over full lane-flattening). The rack's truth is a
-*chart* — chord row, form row, drum skeleton lanes, the sax hook cell — and the band stays
-*players*: bass runs, comp anticipation, ghost notes and swing remain playback interpretation,
-exposed as per-player **feel knobs** instead of cells. This is the first **chord-first** rack,
-the first **radio→rack seed handoff** (the program milestone `rebirth-house` was slated to
-prove), and as `rack.h`'s second customer it is maximally different from `acidrack` — which is
-what makes extractions good. Cart name is an open maker call (working name `yachtrack`).
+STATUS: SHIPPED (2026-07-02, same day as the design — the second design→cart-in-a-day rack) —
+**`yachtrack.c` ("session desk"), all of it**: the chart+interpreters model exactly as specced
+(chord row with the mu vocab + MU-IFY/SUS-MELT + root arrows + KEY, editable form row + GEAR,
+5-lane drum skeleton with three drummer chairs + RECHART, the 32-step sax hook cell; bass
+runs / comp anticipation / ghosts / swing / stabs / laid-back as per-player feel knobs), THE
+BAND carried over whole, autosave, tap-to-nudge song-code entry, WAV export. **The radio→rack
+seed handoff is PROVEN**: the generator is yacht's `new_song` verbatim and the acceptance
+corpus runs green — 44 golden `(seed, songsum)` pairs harvested from the radio's new
+`DE_TRACE` songsum watch, frozen into the cart's `spec()` (48 asserts,
+`node tools/spec.js yachtrack`). Build notes vs the plan: **the radio already had a seed
+display** (the `#%08X` on the marina dial — build step 1 shrank to the harvest watch), and
+the **`rack.h` extraction is deferred**: the honest overlap with `acidrack` turned out to be
+an *idiom* (accordion strips + mini playheads, finger routing, code digits — ~80 lines,
+copied) rather than identical code; a third rack decides what actually extracts. Open tails
+in the cart's de:meta todo (root-nudge drag, per-section loops, the naming pass).
 
 > A new row for the [`tinyjam-racks.md`](tinyjam-racks.md) rack table (yacht wasn't in the
 > original eight — but the doc already named it an "editing genre," and

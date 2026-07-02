@@ -15,7 +15,7 @@
   ],
   "lineage": "Roland TB-303 (1981) acid machine; a monosynth-plus-sequencer where the sound is the resonant lowpass — live cutoff/reso/drive modulation on a held voice, authentic non-retriggering slide, and an N-key random root-heavy minor-pentatonic line generator.",
   "homage": "Roland TB-303 Bass Line (1981)",
-  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass, sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and six draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), and DRV is the new instrument_drive/note_drive saturation: tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite. Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents and slides, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
+  "description": "The acid machine — third box in the classic-machine family (cr-78, tr-808), but a monosynth, not a drum kit: ONE held voice (saw or square) through a resonant lowpass — the engine's FILTER_DIODE, a real diode-ladder model (~18dB/oct, bass drains as the resonance climbs, and the resonance saturates inside the loop so it growls, the way a 303 does) — sequenced from a mouse-drawn piano roll. All the 303 signatures: slide (a slid step doesn't retrigger — note_glide carries the pitch into the next note while the filter envelope keeps decaying, exactly like the real circuit), accent (louder + a harder filter kick), staccato gating at 70% of the step, and six draggable knobs — CUTOFF and RESO apply live to the ringing voice via note_cutoff/note_res (the entire point of acid), and DRV is the new instrument_drive/note_drive saturation: tanh AFTER the filter, so the resonant peak screams into it — RES + DRV up is the proper acid bite. Press N for a fresh random acid line (root-heavy minor pentatonic walk with random accents and slides, the honest way it was always done). The SQUELCH slider multiplies the env sweep up to 3x (full ENV + full slider = a 9kHz scream), and H opens a help panel with every control. Two authored patterns + the generator; LEFT/RIGHT pattern, UP/DOWN tempo, SPACE run/stop."
 }
 de:meta */
 #include "studio.h"
@@ -34,7 +34,11 @@ de:meta */
 // How a 303 works, and how this cart maps it onto the API:
 //
 //   one voice — saw or square through a resonant lowpass. Here: ONE
-//     note_on() handle, FILTER_LOW with resonance up to the whistle.
+//     note_on() handle through FILTER_DIODE — the engine's TB-303 diode
+//     ladder (~18dB/oct, bass drains as resonance climbs, and the
+//     resonance saturates INSIDE the loop, so it growls instead of
+//     ringing clean). ACID_FILTER swaps the circuit for an A/B
+//     (audio-notes §25 has the measured comparison).
 //   the envelope — a one-shot decay sweep of the filter cutoff (the env
 //     mod + decay knobs). Here: instrument_env(ENV_CUTOFF) re-issued
 //     before every retrigger so the current knob values stick.
@@ -118,6 +122,10 @@ enum { PTR_IDLE, PTR_KNOB, PTR_SLIDER, PTR_ROLL };
 typedef struct { int id, mode, k, lastY; } Ptr;   // id MUST be first (pointer.h)
 static Ptr ptr[PTR_MAX];      // .id == PTR_NONE → slot free
 
+// the lowpass circuit — one place to swap for the filter-fidelity A/B
+// (docs/design/rebirth-classic.md §3: FILTER_LOW vs FILTER_LADDER vs FILTER_STEINER)
+#define ACID_FILTER FILTER_DIODE
+
 // ── knob value mappings ──────────────────────────────────────────────────
 static int cut_hz(void)  { return (int)(60.0f * powf(2.0f, knob[K_CUT] * 0.06f)); } // 60..3840
 static int res_q(void)   { return knob[K_RES] * 15 / 100; }
@@ -130,7 +138,7 @@ static float sq_mul(void)  { return 1.0f + squelch * 0.02f; }        // 1..3
 static void define_voice(void) {
     instrument(SLOT, wave, 2, 60, 6, 25);
     instrument_duty(SLOT, 0.48f);
-    instrument_filter(SLOT, FILTER_LOW, cut_hz(), res_q());
+    instrument_filter(SLOT, ACID_FILTER, cut_hz(), res_q());
     instrument_drive(SLOT, drv_x());
     instrument_echo(SLOT, 0.10f);   // the delay pedal every acid set ran into — subtle slapback
 }
@@ -193,7 +201,7 @@ static const int KX[NK] = { 22, 66, 110, 154, 198, 242 };
 
 static void knob_changed(int k) {
     if (k == K_CUT || k == K_RES) {           // live acid: ringing voice follows
-        instrument_filter(SLOT, FILTER_LOW, cut_hz(), res_q());
+        instrument_filter(SLOT, ACID_FILTER, cut_hz(), res_q());
         if (h >= 0) { note_cutoff(h, cut_hz()); note_res(h, res_q()); }
     }
     if (k == K_DRV) {                         // drive too — the squelch screams INTO it

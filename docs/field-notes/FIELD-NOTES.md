@@ -5,7 +5,7 @@
 > [`README.md`](README.md)): to revise a finding, write a *new* note — never rewrite an old one,
 > so this index keeps showing the evolution of understanding, not just the latest answer.
 
-*16 journal notes · 3 working docs · regenerate to refresh.*
+*18 journal notes · 3 working docs · regenerate to refresh.*
 
 ## Lifecycle
 
@@ -23,7 +23,7 @@ Where each numbered note sits on the path from a hunch to something the repo ado
 - `005` [Evolution through Inflection Points](005-inflection.md) — DreamEngine rarely changes direction because of long-term planning.
 - `011` [Tool Discovery and Documentation](011-tool-discovery.md) — Defines a lightweight convention for self-documenting repository tools. Tool metadata lives inside the tool itself and can later be used to generate human an…
 
-### ✅ Incorporated (10)
+### ✅ Incorporated (12)
 
 - `000` [review-process](000-review-process.md) — The core insight — that the review becomes an incremental, append-only journal of field notes rather than one final report, with notes promoted to ADRs/desig…
 - `002` [Context Assembly](002-context-assembly.md) — As DreamEngine grows, documentation should not merely be written. It should be assembled into task-specific context.
@@ -34,6 +34,8 @@ Where each numbered note sits on the path from a hunch to something the repo ado
 - `012` [Self-Describing Artifacts](012-self-describing-artifacts.md) — DreamEngine should strive for artifacts that describe themselves. Metadata, documentation and tooling should live alongside the artifact itself, allowing hum…
 - `013` [Generated Cart Index](013-generated-cart-index.md) — The global cart index should become a generated artifact. Each cart owns its own metadata, allowing multiple agents to work independently without creating me…
 - `014` [Outside-Agent Brainstorms as a Knowledge Source](014-outside-agent-brainstorms-as-a-knowledge-source.md) — A new knowledge input has appeared and proven itself repeatedly: long brainstorming conversations
+- `016` [Knowledge Drift](016-knowledge-drift.md) — As repositories grow, the greatest threat is not missing knowledge.
+- `017` [Context Nudges](017-context-nudges.md) — Documentation often becomes stale not because people forget it exists, but because they are focused elsewhere when making changes.
 - `100` [First Synthesis: The Knowledge Loop](100-first-synthesis.md) — After reviewing the first series of field notes, a recurring pattern appears to connect nearly every aspect of DreamEngine.
 
 ## Timeline
@@ -56,6 +58,8 @@ Numbered notes in order — the spine of the journal.
 - `100` ✅ [First Synthesis: The Knowledge Loop](100-first-synthesis.md) *(2026-06-26)*
 - `014` ✅ [Outside-Agent Brainstorms as a Knowledge Source](014-outside-agent-brainstorms-as-a-knowledge-source.md) *(2026-06-29)*
 - `015` 🔭 [Repositories Can Learn](015-repositories-can-learn.md) *(2026-07-01)*
+- `016` ✅ [Knowledge Drift](016-knowledge-drift.md) *(2026-07-02)*
+- `017` ✅ [Context Nudges](017-context-nudges.md) *(2026-07-02)*
 
 ## Related-note graph
 
@@ -70,6 +74,8 @@ From each note's "Related notes" list — follow a thread of thinking across not
 - `009` **The Negative Space of DreamEngine** → `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`
 - `014` **Outside-Agent Brainstorms as a Knowledge Source** → `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`, `100-first-synthesis`
 - `015` **Repositories Can Learn** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `012-self-describing-artifacts`, `013-generated-cart-index`, `100-first-synthesis`
+- `016` **Knowledge Drift** → `002-context-assembly`, `007-the-evolution-of-documentation`, `012-self-describing-artifacts`, `013-generated-cart-index`, `017-context-nudges`
+- `017` **Context Nudges** → `002-context-assembly`, `007-the-evolution-of-documentation`, `011-tool-discovery`, `016-knowledge-drift`
 - `100` **First Synthesis: The Knowledge Loop** → `002-context-assembly`, `003-curation`, `004-roads-as-convergence-layer`, `005-evolution-through-inflection-points`, `006-the-evolution-of-the-workflow`, `007-the-evolution-of-documentation`, `008-the-identity-of-dreamengine`, `009-the-negative-space-of-dreamengine`
 
 ## Concepts

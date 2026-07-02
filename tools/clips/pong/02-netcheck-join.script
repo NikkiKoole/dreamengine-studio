@@ -1,0 +1,9 @@
+# joiner side (player 1) — different timing than the host
+down 50 DOWN
+up 140 DOWN
+down 180 UP
+up 240 UP
+down 300 DOWN
+up 380 DOWN
+down 450 UP
+up 560 UP

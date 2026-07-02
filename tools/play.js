@@ -15,6 +15,13 @@
 //   node tools/play.js <name> replay <in.rec>     replay a recording deterministically
 //   node tools/play.js <name> beats  <in.beats>   compile a beat-script + run it (Mode 2)
 //   node tools/play.js <name> script <in.script>  run a raw frame-script as-is
+//   node tools/play.js <name> netdemo [script]    LOCKSTEP NETPLAY demo/check: spawn a host +
+//                      joiner pair over UDP loopback (rung 1 — docs/design/multiplayer-research.md),
+//                      side-by-side windows, arrows/WASD move YOUR player in the focused window.
+//                      Optional [script] drives BOTH sides; --host-script/--join-script <f> drive
+//                      each side differently (the strong lockstep test: different inputs, same sim).
+//                      With --frames + traces it ends with a LOCKSTEP OK / DESYNC verdict by
+//                      diffing the two sides' per-frame traces. --port <n> picks the UDP port.
 //
 // Common options (all optional):
 //   --trace <file>     write per-frame JSONL state  (default: build/<name>.trace.jsonl)
@@ -116,6 +123,62 @@ const clangArgs = [
 process.stdout.write('compiling (instrumented)... ')
 try { execSync(`clang ${clangArgs}`, { stdio: 'pipe' }); console.log('ok') }
 catch (e) { console.error('failed\n' + (e.stderr?.toString() || e.message)); process.exit(1) }
+
+// ── netdemo: a host + joiner pair over UDP loopback ──────────
+// Two instances of the same binary in lockstep (runtime/net.h). Exits nonzero
+// on DESYNC — with --frames + a script this is the deterministic netplay gate.
+if (mode === 'netdemo') {
+  const { spawn } = require('child_process')
+  const port     = opt('--port', '33445')
+  const frames   = opt('--frames', null)
+  const seed     = opt('--seed', null)
+  const headless = hasFlag('--headless')
+  const script     = modeFile ? path.resolve(modeFile) : null
+  const hostScript = opt('--host-script', null) ? path.resolve(opt('--host-script')) : null
+  const joinScript = opt('--join-script', null) ? path.resolve(opt('--join-script')) : null
+
+  const traceOf = (role) => path.resolve(path.join(mk.BUILD_DIR, `${name}.${role}.trace.jsonl`))
+  const argsFor = (role) => {
+    const a = role === 'host' ? ['--net-host'] : ['--net-join', '127.0.0.1']
+    a.push('--net-port', port, '--trace', traceOf(role), '--save-dir', `saves/${name}`)
+    const s = role === 'host' ? (hostScript || script) : (joinScript || script)
+    if (s)        a.push('--script', s)
+    if (frames)   a.push('--frames', frames)
+    if (seed && role === 'host') a.push('--seed', seed)   // joiner adopts it via the handshake
+    if (headless) a.push('--headless')
+    return a
+  }
+  const launch = (role, tag) => {
+    const a = argsFor(role)
+    const [cmd, cargs] = process.platform === 'darwin' ? ['caffeinate', ['-dims', BIN, ...a]] : [BIN, a]
+    const c = spawn(cmd, cargs, { cwd: mk.BUILD_DIR })
+    const pipe = (s, out) => s.on('data', d =>
+      out.write(String(d).split('\n').filter(Boolean).map(l => `[${tag}] ${l}`).join('\n') + '\n'))
+    pipe(c.stdout, process.stdout); pipe(c.stderr, process.stderr)
+    return new Promise(res => c.on('exit', code => res(code)))
+  }
+  console.log(`netdemo: host + joiner over 127.0.0.1:${port}`)
+  Promise.all([launch('host', 'P1'), launch('join', 'P2')]).then(([h, j]) => {
+    console.log(`netdemo: host exit ${h ?? '?'}, joiner exit ${j ?? '?'}`)
+    // lockstep verdict: both sims are (supposed to be) identical, so the two
+    // traces must match line for line — first differing line = desync frame
+    try {
+      const A = fs.readFileSync(traceOf('host'), 'utf8').trim().split('\n')
+      const B = fs.readFileSync(traceOf('join'), 'utf8').trim().split('\n')
+      const n = Math.min(A.length, B.length)
+      let bad = -1
+      for (let i = 0; i < n; i++) if (A[i] !== B[i]) { bad = i; break }
+      if (bad >= 0) {
+        console.log(`netdemo: DESYNC at trace line ${bad}:\n  [P1] ${A[bad]}\n  [P2] ${B[bad]}`)
+        process.exitCode = 1
+      } else {
+        console.log(`netdemo: LOCKSTEP OK — ${n} traced frames identical`
+          + (A.length !== B.length ? ` (lengths ${A.length}/${B.length}: one side stepped a bit further before exiting; normal)` : ''))
+      }
+    } catch { console.log('netdemo: no traces to compare (unbounded run?)') }
+  })
+  return   // async section owns the rest of this run
+}
 
 // ── compile a beat-script to the runtime's frame-event format ─
 function compileBeats(text, cliBpm) {

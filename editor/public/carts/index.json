@@ -6217,6 +6217,24 @@
     "homage": "Steely Dan / Hall & Oates (yacht rock)"
   },
   {
+    "title": "session desk",
+    "description": "The yacht radio opened up on the producer's desk: the CHORD CHART is the star. Type the radio's 8-hex song code and the exact tune lands as an editable chart - tap the mu chords, reorder the form, edit the drum skeleton and the sax hook - while the session band keeps playing it like players, not a sequencer. The first chord-first tinyjam rack. The truth is a CHART, not a piano roll: a 4-slot chord row in the yacht idiom (mu / maj7 / m9 / 13 / 9sus - tap to reharmonize while it plays, arrows nudge the root, MU-IFY and SUS-MELT run the radio's own flavor rolls), an 8-slot FORM row (intro/verse/chorus/bridge/outro, tap to rearrange; GEAR arms the +2 truck-driver lift on the last chorus), a 5-lane drum SKELETON grid, and the sax hook as a 32-step cell lane. Everything else stays a PLAYER: the bass walks chromatic approach runs INTO whatever chord you just tapped in (RUNS knob), the FM epiano voice-leads its mu voicings and pushes the and-of-4 anticipation (ANTIC), ghost snares and the Purdie swing live on knobs (GHOST/SWING), the sax picks its own chord tones through your cell rhythm, a little behind the beat (LAID). Three DRUMMER chairs (session 16ths / Purdie half-time shuffle / CR-78 circuits) swap the kit voices and feel defaults; RECHART rewrites the skeleton in that drummer's hand. THE BAND rows swap the epiano/bass/lead/pad chairs live, same recipes as the radio. The 8-hex SONG CODE on the transport is the radio handoff: the generator is yacht.c's new_song verbatim, so a code seen on the yacht radio dial reproduces that exact song here, opened up for editing. Autosaves; WAV export via the engine's live capture. SPACE play/stop · SONG/LOOP toggles the form vs looping the chord row · UP/DOWN tempo · chord row: tap a cell to cycle its quality, tap the cell's arrows to nudge the root, KEY cycles the key · MU-IFY/SUS-MELT melt chords like the generator does · form row: tap a slot to cycle the section, GEAR arms the last-chorus lift · DRUMS: tap cells (off/on/accent), drummer buttons swap the kit's hands, RECHART rewrites the skeleton, GHOST/SWING/FILL knobs set the feel · HOOK: tap the 32-step sax cell, REG moves the register, LAID drags it behind the beat · BAND: tap a candidate to swap a chair, MUTE per player · DESK: NEW rolls a song code (also G), [ ] history, tap code digits to nudge, WAV exports, TONE/FEEL as on the radio, RUNS/ANTIC/STAB set the players' feel",
+    "file": "yachtrack.cart.png",
+    "created": "2026-07-02",
+    "kind": [
+      "instrument",
+      "generative"
+    ],
+    "teaches": [
+      "chord-voicing",
+      "song-arrangement",
+      "swing-timing",
+      "step-sequencer"
+    ],
+    "lineage": "The yacht radio (yacht.c) turned inside-out — the first CHORD-FIRST tinyjam rack (docs/design/yacht-rack.md) and the first radio-to-rack seed handoff: its generator is yacht's new_song ported verbatim (same srnd draw sequence, so an 8-hex code from the radio dial reproduces the exact song here, opened up). Chart+interpreters model: the chord row / form row / drum skeleton / sax cell are editable truth; bass runs, comp anticipation, ghosts and swing stay session players behind feel knobs. Accordion shell from acidrack.c.",
+    "homage": "Steely Dan / Hall & Oates (yacht rock); the LA session desk"
+  },
+  {
     "title": "ymo radio",
     "description": "Endless techno-kayo - the Yellow Magic Orchestra homage (Hosono/Sakamoto/Takahashi), eighth of the radio family, and the one genre where the synth isn't imitating anything: square waves and white noise ARE the original instruments. Sakamoto harmony as templates (the chromatic mediant 'Tong Poo' pull, maj7 planing in whole steps, the kayo minor cadence with its harmonic-minor V), a HOSONO BASSLINE GENERATOR (melodic 8th-note counterpoint with directional inertia and octave leaps - the bassline is a second melody), yonanuki pentatonic lead, a sequencer arp ticking chord tones, and drum voices ON LOAN FROM THE CR-78 CART (cr78.c's circuit recipes: soft round kick, two-layer snare, the swishy hats, the metallic clang) driven by machine-tight pattern strings. No swing, no lag - it's 1979 and the machine is the point. Seed on display (YMO_SEED / R / [ ] history), T tone, H help. Worked example #8 for docs/guides/game-music.md.",
     "file": "ymo.cart.png",

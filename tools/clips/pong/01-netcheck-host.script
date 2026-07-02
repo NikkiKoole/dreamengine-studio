@@ -1,0 +1,9 @@
+# host side (player 0) — waggle the left paddle
+down 30 UP
+up 90 UP
+down 120 DOWN
+up 200 DOWN
+down 260 UP
+up 330 UP
+down 400 DOWN
+up 500 DOWN

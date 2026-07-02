@@ -488,6 +488,15 @@ static bool inp_mouse_released(int b) {
 static float inp_mouse_wheel(void) { return GetMouseWheelMove(); }
 #endif
 
+// lockstep netplay (rung 1 — docs/design/multiplayer-research.md). Runtime-flag
+// gated like the harness above: a run without --net-host/--net-join touches none
+// of it. Native Raylib build only (browsers have no UDP; DE_NO_RAYLIB hosts own
+// their loop, so the blocking barrier doesn't fit there yet).
+#if !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
+#define DE_NET_BUILD 1
+#include "net.h"
+#endif
+
 // ------------------------------------------------------------
 // touch state (all coordinates in window pixels unless noted)
 // ------------------------------------------------------------
@@ -1788,9 +1797,14 @@ static void loop_step(void) {
     // pause overlay — PAUSE_KEY or ENTER toggles; when open ESC resumes instead
     // of closing the window. Keys the cart reads itself are claimed and skipped.
     SetExitKey(pause_active ? KEY_NULL : KEY_ESCAPE);
+    bool pause_allowed = true;
+#ifdef DE_NET_BUILD
+    if (net_active) pause_allowed = false;   // pausing would stall the lockstep peer (rung-1 scope)
+#endif
     bool pause_opened_now = false;
-    if ((inp_pressed(PAUSE_KEY) && !key_claimed[PAUSE_KEY])
-        || (!pause_active && inp_pressed(KEY_ENTER) && !key_claimed[KEY_ENTER])) {
+    if (pause_allowed
+        && ((inp_pressed(PAUSE_KEY) && !key_claimed[PAUSE_KEY])
+        || (!pause_active && inp_pressed(KEY_ENTER) && !key_claimed[KEY_ENTER]))) {
         pause_active = !pause_active;
         pause_sel = 0;
         pause_opened_now = pause_active;   // don't let the menu eat the same press
@@ -1858,6 +1872,12 @@ static void loop_step(void) {
     } else if (!skip_render) {
         pget_snapshot_valid = false;
     }
+#ifdef DE_NET_BUILD
+    // lockstep barrier: exchange this frame's btn() bits with the peer — after
+    // this, btn() reads the resolved bytes (so the edge snapshot below and the
+    // cart's update() see identical input on both machines)
+    if (net_active) net_frame_sync();
+#endif
     // snapshot input edges before update so btnp() works
     for (int p = 0; p < 2; p++)
         for (int b = 0; b < BTN_COUNT; b++) {
@@ -2257,6 +2277,11 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--save-dir") == 0 && i + 1 < argc) save_dir_set(argv[++i]);
         else if (strcmp(argv[i], "--wav")    == 0 && i + 1 < argc) wav_path = argv[++i];
         else if (strcmp(argv[i], "--data")   == 0 && i + 1 < argc) de_data_path_v = argv[++i];  // EXPERIMENTAL (see de_data_path_v)
+#ifdef DE_NET_BUILD
+        else if (strcmp(argv[i], "--net-host") == 0) { net_is_host = true; net_requested = true; }
+        else if (strcmp(argv[i], "--net-join") == 0 && i + 1 < argc) { net_join_ip = argv[++i]; net_requested = true; }
+        else if (strcmp(argv[i], "--net-port") == 0 && i + 1 < argc) net_port = atoi(argv[++i]);
+#endif
 #ifdef DE_SPEC
         else if (strcmp(argv[i], "--spec")   == 0) spec_mode = 1;
 #endif
@@ -2267,6 +2292,14 @@ int main(int argc, char **argv) {
     // replay/script drive input deterministically; both imply --det
     if (replay_path) { load_replay(replay_path); inject_input = true; det_mode = true; }
     if (script_path) { load_script(script_path); inject_input = true; det_mode = true; }
+#ifdef DE_NET_BUILD
+    if (net_requested) {
+        det_mode = true;        // lockstep = fixed timestep + a shared rnd() seed
+        net_handshake(&seed);   // blocks until both sides connect; joiner adopts the host's seed
+        if (strcmp(window_title, "dreamengine") == 0)
+            window_title = net_is_host ? "dreamengine — P1 (host)" : "dreamengine — P2";
+    }
+#endif
 #ifdef DE_SPEC
     if (spec_mode) { inject_input = true; det_mode = true; hide_window = 1; }   // headless, deterministic
 #endif
@@ -2307,6 +2340,10 @@ int main(int argc, char **argv) {
     InitWindow(win_w, win_h, window_title);
 #ifndef PLATFORM_WEB
     if (det_mode) { SetRandomSeed(seed); srand(seed); }   // reproducible rnd()/rnd_float()/shake
+#endif
+#ifdef DE_NET_BUILD
+    // netplay QoL: both windows land on one screen side by side — host left, joiner right
+    if (net_active && !hide_window) SetWindowPosition(net_is_host ? 60 : 80 + win_w, 120);
 #endif
 #ifndef PLATFORM_WEB
     if (wav_path) { sound_synth_mode = true; wav_stream_open(wav_path); audio_off = false; }  // --wav needs the synth
@@ -2426,6 +2463,9 @@ int main(int argc, char **argv) {
         if (screenshot_mode && ++screenshot_frames_done >= 3) break;
         if (max_frames > 0 && frame_count >= max_frames) break;   // bounded harness run
     }
+#ifdef DE_NET_BUILD
+    net_shutdown();   // tell the peer we're gone — they exit cleanly instead of timing out
+#endif
 
     // save last frame as screenshot.png so the cart PNG thumbnail shows the game
     Image screenshot = LoadImageFromTexture(canvas.texture);
@@ -2534,7 +2574,10 @@ static int action_btn_index(int button) {
     }
 }
 
-bool btn(int player, int button) {
+// btn()'s hardware read — THIS machine's keymaps + touch overlay. Under netplay
+// this becomes "sample my local input" (net.h ORs both players' keymaps into MY
+// packed byte); the public btn() below answers from the lockstep bytes instead.
+static bool btn_local(int player, int button) {
     if (player == 0) {
         if (show_touch_ui) {
             bool dpad = (touch_move_mode == TOUCH_DPAD4 || touch_move_mode == TOUCH_DPAD8);
@@ -2575,6 +2618,16 @@ bool btn(int player, int button) {
         }
     }
     return false;
+}
+
+bool btn(int player, int button) {
+#ifdef DE_NET_BUILD
+    if (net_active) {   // lockstep: player 0/1 = host/joiner machine, local or remote
+        if (player < 0 || player > 1 || button < 0 || button >= BTN_COUNT) return false;
+        return (net_bits[player] >> button) & 1;
+    }
+#endif
+    return btn_local(player, button);
 }
 
 bool btnp(int player, int button) {

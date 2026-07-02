@@ -1,9 +1,12 @@
 # Multiplayer — research & proposed direction
 
-> **Status: exploration, not a plan of record.** Captures a research pass
+> **Status: building — rung 1 SHIPPED (2026-07-02).** Started as a research pass
 > (session, 2026-06-04) on "could dreamengine offer a multiplayer API, for both
-> the native C build and the wasm build?" Nothing here is built. State of any of
-> it lands in [`STATUS.md`](../STATUS.md), not here. See also
+> the native C build and the wasm build?" **Rung 1 (localhost/LAN-by-IP lockstep)
+> is now built**: `runtime/net.h` + `--net-host`/`--net-join <ip>` on any native
+> build, demo + desync gate via `play.js <cart> netdemo` — see the rung ladder
+> below and the ledger entry in [`STATUS.md`](../STATUS.md). Rungs 2+ remain
+> proposals. See also
 > [`cart-as-script.md`](cart-as-script.md) (the `STATE`/`de_state()` block this
 > doc leans on), [`headless-autoplay.md`](headless-autoplay.md), and
 > [`../guides/debug-harness.md`](../guides/debug-harness.md) (the determinism
@@ -352,7 +355,7 @@ critical path:
 
 | Rung | What | Effort | Needs |
 |---|---|---|---|
-| **1. Localhost lockstep** | `--net-host` / `--net-join 127.0.0.1` flags on the native binary; UDP loopback; per frame each side sends **1 byte** of packed `btn()` bits, waits for the peer's byte; host sends seed + go. Two windows, one Mac, pong. ~200 lines behind a `-DDE_NET`-style gate (mirroring the harness). A `play.js netdemo` mode spawns both windows. | ~1–2 days | nothing |
+| **1. Localhost lockstep** — **SHIPPED 2026-07-02** | `--net-host` / `--net-join <ip>` / `--net-port <n>` flags on the native binary; UDP; per frame each side sends **1 byte** of packed `btn()` bits (with an 8-frame redundancy window), waits for the peer's byte; host sends the seed in the handshake. Two windows, one Mac, pong. Landed as `runtime/net.h` (~250 lines), gated by runtime flags rather than a `-DDE_NET` define (mirroring how `--det`/`--replay` work — always compiled native, zero footprint unless flagged). `play.js <cart> netdemo` spawns both windows AND doubles as the desync gate: per-side scripts + trace diff → `LOCKSTEP OK`/`DESYNC` ([checks-and-oracles](../guides/checks-and-oracles.md)). Note: since it takes any IP, **this already covers rung 2's transport** — what rung 2 adds is the shell UX (show the host's IP, a join screen). | ~1–2 days *(actual: 1 session)* | nothing |
 | **2. LAN by IP** | Same UDP code across two machines. Host calls `getifaddrs()`, overlays "HOSTING — 192.168.1.23"; joiner types it. **This is already the wished-for "click host → get an address" UX** for the home/classroom case — no NAT, no servers. Most of the effort is the join-screen UI in the shell. | ~1 day | rung 1 |
 | **3. "Open to LAN"** | UDP multicast announce every ~1 s; joiners pick from a session list instead of typing an IP (Minecraft-style). Pure polish on rung 2. | ~1–2 days | rung 2 |
 | **4. Determinism proof** | Per-frame CRC of the `de_state()` block in the existing trace; record native → replay under wasm → diff. Note the web build currently compiles the harness out (`#else // web build: harness is a no-op`), so enabling replay under emcc is part of this rung. Gates rung 5, **not** rungs 1–3; can run in parallel. | days | nothing |

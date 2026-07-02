@@ -58,6 +58,7 @@ This page is only the routing layer.
 | You changed… | Run |
 |---|---|
 | game logic in a cart with a `spec()` | **`spec.js [cart] --quiet`** (the gameplay-logic gate) |
+| **lockstep netplay** (`runtime/net.h`, the `inp_*`/`btn` seam, anything that could desync) | **`play.js pong netdemo --headless --frames 600 --seed 7 --host-script tools/clips/pong/01-netcheck-host.script --join-script tools/clips/pong/02-netcheck-join.script`** — spawns a host+joiner pair over UDP loopback with *different* inputs per side and diffs their per-frame traces: `LOCKSTEP OK` = both sims stayed identical (exits nonzero on `DESYNC`) |
 | a squishy brush or a rim/fill feature (does every brush still apply the features it should?) | **`squishy-features.js`** (renders the `SQUISHY_MATRIX` grid + pixel-diffs each brush×feature cell vs baseline against a declared support matrix — catches a feature that silently no-ops for one brush) |
 | `index.json` (tags / registration) | **`lint-carts.js`** |
 | anything under `docs/` | **`lint-docs.js`** (links resolve / §-refs / tool-index) |

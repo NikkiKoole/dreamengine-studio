@@ -53,6 +53,14 @@ static void reset() {
 }
 
 void update() {
+#ifdef DE_TRACE
+    // full sim state per frame — the lockstep-netplay check (play.js netdemo)
+    // diffs both machines' traces; any divergence here = desync
+    watch("p1y",   "%d", p1y);
+    watch("p2y",   "%d", p2y);
+    watch("ball",  "%.2f,%.2f v%.2f,%.2f", bx, by, vx, vy);
+    watch("score", "%d-%d", s1, s2);
+#endif
     if (!ready) {
         // slot 5: a soft, warm blip — triangle wave, quick pluck, lowpass for roundness
         instrument(5, INSTR_TRI, 2, 55, 0, 45);

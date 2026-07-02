@@ -1466,6 +1466,29 @@ exportWinBtn?.addEventListener('click', async () => {
   else showLog(result)
 })
 
+// ── export a standalone Mac binary (send-to-another-Mac) ───────
+const exportMacBtn = document.getElementById('export-mac-btn')
+
+exportMacBtn?.addEventListener('click', async () => {
+  if (!window.studio?.exportMac) { showToast('export requires the desktop app (npm start)', 3000); return }
+  const tilemapCanvas = document.querySelector('#tilemap-canvas')
+  if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+  await window.studio.saveMap(getMapBytes())
+
+  const stopDots = busyDots(exportMacBtn, 'exporting', '🍎 export mac')
+  exportMacBtn.disabled = true
+  rlogClear()
+
+  const code = view.state.doc.toString()
+  const result = await window.studio.exportMac(code, { ...settings, cartName: currentCartName })
+
+  stopDots()
+  exportMacBtn.disabled = false
+
+  if (result.ok) showToast('✓ Mac binary exported — revealed in Finder', 5000)
+  else showLog(result)
+})
+
 // ── deploy to iPhone (signed device build of the live buffer) ──
 const deployIosBtn = document.getElementById('deploy-ios-btn')
 

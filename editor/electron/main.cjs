@@ -249,7 +249,7 @@ function cartEnv(cfg) {
 // shipping build (-Os) and the profiling build (-O1 -fno-inline, which keeps
 // studio.c primitives as distinct, named symbols so `sample` can attribute
 // time to them instead of folding them into draw()).
-function macCompileArgs(dims, optFlags) {
+function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
   const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, keymap, studioC } = dims
   return [
     `"${CART_SRC}"`,
@@ -267,6 +267,7 @@ function macCompileArgs(dims, optFlags) {
     `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
     `-DSCALE_FILTER=${scaleFilter}`,
     ...keymapDefs(keymap),
+    ...extraDefs,
     ...optFlags,
     // keep beginners' null-pointer mistakes as real crashes (caught by the
     // crash handler in studio.c) instead of letting the optimizer delete them
@@ -279,7 +280,7 @@ function macCompileArgs(dims, optFlags) {
     '-framework CoreFoundation',
     '-framework CoreMIDI',
     '-Wl,-dead_strip',
-    `-o "${CART_BIN}"`,
+    `-o "${out}"`,
   ]
 }
 
@@ -835,6 +836,38 @@ ipcMain.handle('studio:export-win', async (_event, code, cfg) => {
       try { shell.showItemInFolder(out) } catch {}
       log(`✓ exported ${out}\n  send it over — on Windows it double-clicks into the multiplayer lobby (Host / Join / Solo).\n`)
       resolve({ ok: true, out })
+    })
+  })
+})
+
+// EXPORT A MAC BINARY you can send to another Mac. The native binary is
+// self-contained (sprites/font baked in) — just this one file. Built with
+// -DDE_NET_LOBBY_DEFAULT so it boots into the Host/Join/Solo lobby. Unsigned, so
+// on the receiving Mac it's right-click → Open once (Gatekeeper "unidentified
+// developer"); a signed/notarized .app is a later step. macOS host only.
+ipcMain.handle('studio:export-mac', async (_event, code, cfg) => {
+  const wc  = _event.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (process.platform !== 'darwin') return { ok: false, output: 'Mac export runs on macOS only' }
+
+  const dims = prepareCart(code, cfg)
+  const slug = (cfg?.cartName || 'cart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cart'
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Export Mac binary',
+    defaultPath: slug,   // no extension — a plain runnable Mach-O
+  })
+  if (canceled || !filePath) return { ok: false, output: 'export cancelled' }
+
+  const args = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], filePath, ['-DDE_NET_LOBBY_DEFAULT'])
+  log(`\n── exporting ${path.basename(filePath)} for macOS (multiplayer lobby) ──\n`)
+  return new Promise(resolve => {
+    exec(`clang ${args.join(' ')}`, (err, _o, stderr) => {
+      const warn = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
+      if (err) { log((warn || 'clang build failed') + '\n'); return resolve({ ok: false, output: warn || 'clang build failed' }) }
+      try { fs.chmodSync(filePath, 0o755) } catch {}
+      try { shell.showItemInFolder(filePath) } catch {}
+      log(`✓ exported ${filePath}\n  self-contained — send just this file. On another Mac: right-click → Open (unsigned, so Gatekeeper asks once).\n`)
+      resolve({ ok: true, out: filePath })
     })
   })
 })

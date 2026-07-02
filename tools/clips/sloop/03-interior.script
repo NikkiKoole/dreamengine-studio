@@ -1,0 +1,20 @@
+# f2 stage4: hop off the wall, align with the red house door, walk in
+down 10 Z
+up 400 Z
+down 400 X
+up 428 X
+tap 445 F
+down 460 RIGHT
+down 460 Z
+up 620 RIGHT
+down 620 DOWN
+up 665 DOWN
+down 665 RIGHT
+up 830 RIGHT
+up 830 Z
+down 832 UP
+up 840 UP
+down 842 RIGHT
+up 900 RIGHT
+down 905 DOWN
+up 985 DOWN

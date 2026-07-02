@@ -842,7 +842,7 @@ mark.docs-find-hit.current {
 }
 .key-row {
   display: grid;
-  grid-template-columns: 100px repeat(6, 56px);
+  grid-template-columns: 100px repeat(8, 56px);
   gap: 4px;
   align-items: center;
   font-size: 12px;

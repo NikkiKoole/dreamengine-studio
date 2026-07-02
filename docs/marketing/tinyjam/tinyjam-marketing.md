@@ -213,6 +213,12 @@ Bottom line: **the radios' build order was set by what teaches the engine; the *
 be set by where the tribes are.** The two lists barely overlap — `lofi`, `italo`, `vapor`, `handpan`
 and `plantasia` are the commercial sleepers hiding in plain sight, none of them top of the craft list.
 
+> **Folded back into the rack program (2026-07-02):** this §3.6–3.8 re-ranking now lives next to
+> the craft rankings as [`tinyjam-racks.md`](../../design/tinyjam-racks.md) → "The market lens" —
+> a next-rack shortlist through the triple lens (tribe × shipped generator × chassis fit), under
+> the maker's explicit stance that **market is an input, not the decider** ("I also just want to
+> make things I want to see" — build-for-love stays first-class).
+
 ### 3.8 Beyond the obvious: the holy-grail / cult-instrument modules
 
 The shelf already holds carts that homage instruments whose *real* versions are **rare,

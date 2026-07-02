@@ -263,6 +263,44 @@ melodeon, accordion, harmonica, upright bass) lives in
 future rack voice (the reed family especially: Fairground, a future folk/forró
 set), and the upright bass + `walk_note()` is the hard-bop rack's bass lane.
 
+### The market lens — the tinyjam-marketing re-ranking, folded in (2026-07-02)
+
+> **Maker stance, first and load-bearing: the market lens is an INPUT, not the decider.** "I also
+> just want to make things I want to see." Build-for-love is a first-class criterion here (it's
+> the north star's soul bar, not a consolation tier) — so this section *informs* the pick, it
+> doesn't make it. Doo-wop can beat lofi on a given day because the maker wants to hear it.
+
+[`tinyjam-marketing.md`](../marketing/tinyjam/tinyjam-marketing.md) §3.6–3.8 re-ranks this whole
+space by *tribe* (size × passion × findability) and lands on a structural insight: **the craft
+ranking (future-stations.md, this doc's wider map) and the market ranking barely overlap** — the
+engine's proudest carts (gamelan/carlos/addis) are the weakest products, and the "dessert" carts
+(italo, lofi) sit on the richest tribes. The useful move is hunting the **rare overlaps**: tribe ×
+shipped generator × cheap on the chassis. The next-rack shortlist through that triple lens:
+
+1. **rebirth-house** — the structurally correct rack #2 regardless of market:
+   [`rebirth-classic.md`](rebirth-classic.md)'s own words, "classic proves the rack chassis; house
+   proves the radio handoff" — the seed-code pipeline is still unproven and house is its designed
+   test. Also Tier-S tribe (house producers + the ReBirth-mourners community). As `rack.h`'s
+   second customer it's maximally *different* from acid, which is what makes extractions good.
+2. **lofi** — §3.7's layup: an enormous audience already conditioned to one looping visual
+   (Lofi Girl), generator shipped, near-zero new craft. The natural debut for the
+   [followup](tinyjam-racks-followup.md) §3 dancer — the rack whose *video export is the product*.
+3. **vapor + italo** — the shareability pair, both stations shipped. Vapor is the
+   performance-genre showcase (the mixing-desk/FX-ribbon rack variant this doc already plans —
+   varispeed/tape/grains ARE the genre, all ride-safe today). Italo brings the outrun faceplate
+   + the synthwave tribe; its Juno-pad gap is fakeable with a drawn SCW (audio-notes §12).
+4. **braindance / IDM** — the rare craft×tribe overlap §3.7 flags. Where the followup's **bias
+   knobs** debut naturally: that tribe wants to steer generators, not tap cells.
+5. **dub** — cheapest rack in the space: `dubdesk.c` nearly *is* the mixing-desk variant already.
+6. **doo-wop** — unblocked by the 2026-07-02 drift pass (`INSTR_VOICE` consonants can sing actual
+   "sha-la-la"). No established tribe — the honest build-for-love pick, and the formant showcase.
+
+Adjacent, from §3.8: **`turing`** (a real Eurorack tribe; rack-adjacent — a Turing-machine *lane
+mode* is a cheap generative filler idea) and the **"expressive playables"** cluster (theremin /
+martenot / glassharmonica / otamatone…) which is a *different product shape* — gestural, not
+sequenced; the capture answer for those is looper-as-notation, recorded in
+[`radiophonic-workshop.md`](radiophonic-workshop.md) §4.
+
 ### The takeaway for build order
 
 The cheapest *complete* new tinydaw stack was **AM/ring + formant** — and both have since

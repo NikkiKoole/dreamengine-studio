@@ -1,8 +1,11 @@
 # Pocketbox — reimagining the Wee Noise Makers PGB-1: the buttons-only pocket groovebox
 
-STATUS: READY TO BUILD — designed 2026-07-02 from a PGB-1 research pass (sources below); nobody
-building yet. Engine verdict: **zero new engine features required** (the mapping table proves it
-feature by feature).
+STATUS: SHIPPED v1 (2026-07-02, design → cart the same day) — `pocketbox` is on the shelf:
+phases 1–7 landed in one pass (chassis/OLED/modes, all 8 tracks + engine menus, p-locks/ratchets/
+conditions, chord track + CHD modes, finger-drawn wave tracks, patterns + link/polymeter, FX buses
++ live FX, 12-part song mode, autosave + demo groove). The engine verdict held: **zero new engine
+features were needed**. Deferred to the cart's `de:meta.todo[]`: seeded generator, per-track arp
+page, WAV-export button, mixer-meters page, step/track copy, `spec()`.
 
 > The maker's framing: "between an instrument and a rack." Exactly right — this is the missing
 > middle of the shelf: the **player-authored** groovebox (tracker's authorship) with the

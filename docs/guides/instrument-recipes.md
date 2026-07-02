@@ -504,6 +504,27 @@ through its own resonant filter, summed; the cutoffs are ridden live from an Alp
 > recirculated bit with a probability = the CHAOS knob), read out as a scale degree. The voices are
 > the standard sequence/drum kit; the generativity is all in the register, not the patch.
 
+### pocketbox (machine — 8 track-role engine MENUS, from pocketbox.c)
+
+Not fixed patches: each of the 8 track roles carries a small **engine menu** whose 4 macro params
+are the player's (and the p-locks') surface, so every entry is a *family* of sounds around the
+default below. The drum defaults descend from the `drummachine`/`tr808`/`tr909` recipes above.
+
+| recipe | engine | params (at defaults) | notes |
+|---|---|---|---|
+| pocketbox/909-kick | SINE+NOISE | 0/290/0/60 · pitch-env →+29 (0/55) · click layer 0/16/0/10 | The `drummachine/kick` boom + a p-lockable click layer. TUNE/DEC/PNCH/CLIK. |
+| pocketbox/808-kick | SINE | 0/580/0/120 · LP 1060/0 · pitch-env →+14 (0/80) | Longer, rounder, TONE = lowpass. |
+| pocketbox/drumhead | MEMBRANE | 0/300/0/80 · h0.4 t0.5 | The modeled head — TUNE/DEC/MATL/STIK are the engine macros. |
+| pocketbox/909-snr | NOISE+TRI | band 1470/3 noise bark + TRI body 0/45/0/30 | BODY mixes the tonal layer; TUNE moves it. |
+| pocketbox/clap | NOISE | band 1150/5 · 3 bursts 8–24ms apart | SPRD = burst spacing, TAIL = last-burst ring. |
+| pocketbox/808-hat | NOISE | 0/44/0/12 · HP 6800/1 | DEC p-locks make OPEN hats on the same track (the demo groove does this). |
+| pocketbox/fm-hat | FM | 0/54/0/16 · h0.75 t0.75 | The metallic 909-style clang from FM's off-integer ratios. |
+| pocketbox/acid | SAW | 0/186/2/60 · FILTER_DIODE 1020/8 · cutoff-env →+1440 (0/126) | The `tb303` squelch as a bass-menu entry: CUT/RES/ENV/DEC. |
+| pocketbox/wave | USER0..3 | 0/305/2/60 · LP 3800/2 · pitch-env punch | Plays the four **finger-drawn** single-cycle waves; a p-lock can't swap the wave but the engine pick can (WAVE A–D). |
+
+> Lead/chord menus (PD LEAD / CHIP / PLUCK / FM BELL · SAW PAD / E.PIANO / ORGAN) are thin
+> macro wrappers over the engine showcases — see those engines' sections above for the timbre space.
+
 ### dubsiren (machine — a 2-voice siren, from dubsiren.c)
 
 | recipe | engine | params | notes |

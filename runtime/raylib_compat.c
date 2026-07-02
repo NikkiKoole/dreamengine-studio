@@ -2,6 +2,7 @@
 // GPU-path / device calls that only need to LINK (never run in software mode).
 // Real bodies (timing + the software text path) are hand-written at the bottom.
 #include "raylib_compat.h"
+#include <math.h>   // cosf/sinf — the Camera2D transforms below are REAL, not stubs
 
 double de_host_time = 0.0; float de_host_dt = 1.0f/60.0f;
 
@@ -76,7 +77,20 @@ int GetRandomValue(int min, int max) {
     unsigned int r = (de_rng_state >> 16) & 0x7fffu;
     return min + (int)(r % (unsigned int)(max - min + 1));
 }
-Vector2 GetScreenToWorld2D(Vector2 position, Camera2D camera) { Vector2 r = {0}; return r; }
+// NOT a stub: poly_clamp_scan derives the visible-world scan box from this — a {0,0}
+// stub collapsed every poly/ngon/star/tritex scan box to nothing (invisible geometry on
+// iOS; found via infiniminer). mouse_world_x/y ride it too. Raylib rcore math, inverted:
+// world = R(-rot) · ((screen − offset) / zoom) + target.
+Vector2 GetScreenToWorld2D(Vector2 position, Camera2D camera) {
+    float rad = camera.rotation * (3.14159265358979323846f / 180.0f);
+    float c = cosf(rad), s = sinf(rad);
+    float z = (camera.zoom != 0.0f) ? camera.zoom : 1.0f;
+    float dx = (position.x - camera.offset.x) / z;
+    float dy = (position.y - camera.offset.y) / z;
+    Vector2 r = {  dx * c + dy * s + camera.target.x,
+                  -dx * s + dy * c + camera.target.y };
+    return r;
+}
 int GetShaderLocation(Shader shader, const char *uniformName) { return 0; }
 // touch is fed by the host via de_touch_begin/moved/ended (platform.h). The engine's
 // input layer polls these once per frame (studio.c, vt_pos = GetTouchPosition(i)). We
@@ -102,7 +116,16 @@ Vector2 GetTouchPosition(int index) {
     Vector2 r = { de_touch[s].x, de_touch[s].y };
     return r;
 }
-Vector2 GetWorldToScreen2D(Vector2 position, Camera2D camera) { Vector2 r = {0}; return r; }
+// NOT a stub (see GetScreenToWorld2D): the forward Camera2D transform, raylib rcore math:
+// screen = R(rot) · (world − target) · zoom + offset.
+Vector2 GetWorldToScreen2D(Vector2 position, Camera2D camera) {
+    float rad = camera.rotation * (3.14159265358979323846f / 180.0f);
+    float c = cosf(rad), s = sinf(rad);
+    float dx = position.x - camera.target.x, dy = position.y - camera.target.y;
+    Vector2 r = { (dx * c - dy * s) * camera.zoom + camera.offset.x,
+                  (dx * s + dy * c) * camera.zoom + camera.offset.y };
+    return r;
+}
 void HideCursor(void) { }
 void ImageColorReplace(Image *image, Color color, Color replace) { }
 Image ImageCopy(Image image) { Image r = {0}; return r; }

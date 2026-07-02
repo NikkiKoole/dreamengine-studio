@@ -18,13 +18,12 @@
   "todo": [
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
-    "per-voice tune/decay/color knobs (the standalone carts' depth) — the rack bakes center values for now",
     "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing"
   ],
   "description": {
     "summary": "Two 303s, the full 909, the curated 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV.",
     "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · [fx] button on a machine strip: its DIST + delay SEND + per-voice TUNE/DEC/CHAR mini-knobs (drag up=coarse right=fine, rclick=reset; 909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
   }
 }
 de:meta */
@@ -210,6 +209,24 @@ static void gate_303(M303 *s, Line *ln, int st) {   // staccato release mid-step
 // bakes their center values (a knob at 0.5 is a no-op in both source carts).
 static int vv(int base, int boost) { int v = base + boost; return v < 0 ? 0 : (v > 7 ? 7 : v); }
 
+// per-voice TUNE / DEC / CHAR knobs (the standalone carts' three mini-knob
+// columns, ported): 0..1, center 0.5 = the recipe as shipped. Rack-global
+// (kit voicing, not pattern data). CHAR is the per-voice character knob —
+// only voices the hardware gave one (K2 label non-NULL) draw it.
+static float kt9[N909], kd9[N909], kc9[N909];
+static float kt8[N808], kd8[N808], kc8[N808];
+static const char *K2LAB9[N909] = { "ATTK", "SNPY", "CLIK", "CLIK", "CLIK", 0, 0, 0, 0, "TONE", 0 };
+static const char *K2LAB8[N808] = { 0, "SNPY", "THUD", "THUD", 0, 0, "TONE", "RING", 0 };
+static int   k_midi(float *kt, int v, int base) { return base + (int)((kt[v] - 0.5f) * 24.0f + 0.5f); }
+static int   k_dur(float *kd, int v, int base) {
+    int d = (int)(base * powf(4.0f, (kd[v] - 0.5f) * 2.0f) + 0.5f);
+    return d < 5 ? 5 : d;
+}
+static int   k_cv(float *kc, int v, int lo, int hi) {
+    int val = (int)(lo + (hi - lo) * kc[v] + 0.5f);
+    return val < 0 ? 0 : val > 7 ? 7 : val;
+}
+
 // 909 metal-filter XY pad state — X scales the five metal slots' highpass
 // cutoffs, Y is their shared resonance (tr909's admitted impurity, kept:
 // the FM stand-ins land bright and hissy without a tone control)
@@ -309,42 +326,59 @@ static void define_808(void) {
 
 static int flash909[N909], flash808[N808];    // header/panel activity flashes
 
+// 8×8 rotary knob (tr909.c draw_knob): circle + a tick at the value angle
+static void draw_miniknob(int x, int y, float val, int col) {
+    int cx = x + 3, cy = y + 3;
+    circ(cx, cy, 3, CLR_MEDIUM_GREY);
+    float a = (135.0f + val * 270.0f) * (3.14159265f / 180.0f);
+    pset(cx + (int)(cosf(a) * 2.5f + 0.5f), cy + (int)(sinf(a) * 2.5f + 0.5f), col);
+}
+// one mini-knob drag at a time (Y = coarse, X = fine — the tr909 feel)
+static int   kdrag_id = -1, kdrag_mach, kdrag_v, kdrag_k, kdrag_x0, kdrag_y0;
+static float *kdrag_val(void) {
+    if (kdrag_mach == 9) return kdrag_k == 0 ? &kt9[kdrag_v] : kdrag_k == 1 ? &kd9[kdrag_v] : &kc9[kdrag_v];
+    return kdrag_k == 0 ? &kt8[kdrag_v] : kdrag_k == 1 ? &kd8[kdrag_v] : &kc8[kdrag_v];
+}
+
 static void fire909(int v, int boost, int delay) {
     switch (v) {
-    case V9_BD:
-        schedule_hit(delay, 32, SL9_BD, vv(6, boost), 320);
-        schedule_hit(delay, 60, SL9_BDC, vv(3, boost), 10);
+    case V9_BD:  // ATTK = the click layer's level
+        schedule_hit(delay, k_midi(kt9, v, 32), SL9_BD, vv(6, boost), k_dur(kd9, v, 320));
+        schedule_hit(delay, 60, SL9_BDC, vv(k_cv(kc9, v, 0, 6), boost), 10);
         break;
-    case V9_SD:
-        schedule_hit(delay, 54, SL9_SDB, vv(4, boost), 95);
-        schedule_hit(delay, 64, SL9_SDB, vv(3, boost), 95);
-        schedule_hit(delay, 60, SL9_SDN, vv(4, boost), 180);
+    case V9_SD: {  // SNPY fades body <-> noise
+        int body = k_cv(kc9, v, 8, 1), snpy = k_cv(kc9, v, 1, 8);
+        schedule_hit(delay, k_midi(kt9, v, 54), SL9_SDB, vv(body, boost), k_dur(kd9, v, 95));
+        schedule_hit(delay, k_midi(kt9, v, 64), SL9_SDB, vv(body - 1, boost), k_dur(kd9, v, 95));
+        schedule_hit(delay, 60, SL9_SDN, vv(snpy, boost), k_dur(kd9, v, 180));
         break;
-    case V9_LT: case V9_MT: case V9_HT: {
+    }
+    case V9_LT: case V9_MT: case V9_HT: {  // CLIK = the attack noise level
         int mm = v == V9_LT ? 42 : v == V9_MT ? 47 : 54;
-        schedule_hit(delay, mm, SL9_TOM, vv(5, boost), 240);
-        schedule_hit(delay, 70, SL9_TOMC, vv(2, boost), 14);
+        schedule_hit(delay, k_midi(kt9, v, mm), SL9_TOM, vv(5, boost), k_dur(kd9, v, 240));
+        schedule_hit(delay, 70, SL9_TOMC, vv(k_cv(kc9, v, 0, 5), boost), 14);
         break;
     }
     case V9_RS:
-        schedule_hit(delay, 76, SL9_RS, vv(5, boost), 30);
-        schedule_hit(delay, 64, SL9_RS, vv(3, boost), 30);
+        schedule_hit(delay, k_midi(kt9, v, 76), SL9_RS, vv(5, boost), k_dur(kd9, v, 30));
+        schedule_hit(delay, k_midi(kt9, v, 64), SL9_RS, vv(3, boost), k_dur(kd9, v, 30));
         break;
     case V9_CP:
-        schedule_hit(delay,      60, SL9_CP, vv(5, boost), 11);
-        schedule_hit(delay + 9,  60, SL9_CP, vv(5, boost), 11);
-        schedule_hit(delay + 18, 60, SL9_CP, vv(5, boost), 11);
-        schedule_hit(delay + 26, 60, SL9_CP, vv(3, boost), 130);
+        schedule_hit(delay,      k_midi(kt9, v, 60), SL9_CP, vv(5, boost), 11);
+        schedule_hit(delay + 9,  k_midi(kt9, v, 60), SL9_CP, vv(5, boost), 11);
+        schedule_hit(delay + 18, k_midi(kt9, v, 60), SL9_CP, vv(5, boost), 11);
+        schedule_hit(delay + 26, k_midi(kt9, v, 60), SL9_CP, vv(3, boost), k_dur(kd9, v, 130));
         break;
-    case V9_CH: schedule_hit(delay, 97, SL9_HHC, vv(4, boost), 40);  break;
-    case V9_OH: schedule_hit(delay, 97, SL9_HHO, vv(4, boost), 400); break;
-    case V9_CC:
-        schedule_hit(delay, 84, SL9_CC,  vv(4, boost), 1100);
-        schedule_hit(delay, 60, SL9_CCN, vv(3, boost), 1300);
+    case V9_CH: schedule_hit(delay, k_midi(kt9, v, 97), SL9_HHC, vv(4, boost), k_dur(kd9, v, 40));  break;
+    case V9_OH: schedule_hit(delay, k_midi(kt9, v, 97), SL9_HHO, vv(4, boost), k_dur(kd9, v, 400)); break;
+    case V9_CC: {  // TONE fades FM clang <-> noise wash
+        schedule_hit(delay, k_midi(kt9, v, 84), SL9_CC,  vv(k_cv(kc9, v, 6, 1), boost), k_dur(kd9, v, 1100));
+        schedule_hit(delay, 60, SL9_CCN, vv(k_cv(kc9, v, 1, 6), boost), k_dur(kd9, v, 1300));
         break;
+    }
     case V9_RC:
-        schedule_hit(delay, 76, SL9_RC, vv(4, boost), 600);
-        schedule_hit(delay, 83, SL9_RC, vv(2, boost), 600);
+        schedule_hit(delay, k_midi(kt9, v, 76), SL9_RC, vv(4, boost), k_dur(kd9, v, 600));
+        schedule_hit(delay, k_midi(kt9, v, 83), SL9_RC, vv(2, boost), k_dur(kd9, v, 600));
         break;
     }
     flash909[v] = 6;
@@ -365,36 +399,39 @@ static void fire_stroke909(int v, int st, int boost, int delay, int step_ms) {
 
 static void fire808(int v, int boost, int delay) {
     switch (v) {
-    case V8_BD: schedule_hit(delay, 31, SL8_BD, vv(6, boost), 500); break;
-    case V8_SD:
-        schedule_hit(delay, 54, SL8_SDB, vv(4, boost), 110);
-        schedule_hit(delay, 64, SL8_SDB, vv(4, boost), 110);
-        schedule_hit(delay, 60, SL8_SDN, vv(4, boost), 140);
+    case V8_BD: schedule_hit(delay, k_midi(kt8, v, 31), SL8_BD, vv(6, boost), k_dur(kd8, v, 500)); break;
+    case V8_SD: {  // SNPY fades body <-> noise
+        int body = k_cv(kc8, v, 8, 0), snpy = k_cv(kc8, v, 0, 8);
+        schedule_hit(delay, k_midi(kt8, v, 54), SL8_SDB, vv(body, boost), k_dur(kd8, v, 110));
+        schedule_hit(delay, k_midi(kt8, v, 64), SL8_SDB, vv(body, boost), k_dur(kd8, v, 110));
+        schedule_hit(delay, 60, SL8_SDN, vv(snpy, boost), k_dur(kd8, v, 140));
         break;
-    case V8_LT: case V8_HT: {
+    }
+    case V8_LT: case V8_HT: {  // THUD = the noise thud level
         int mm = v == V8_LT ? 40 : 52;
-        schedule_hit(delay, mm, SL8_TOM, vv(4, boost), 280);
-        schedule_hit(delay, 60, SL8_TOMN, vv(3, boost), 30);
+        schedule_hit(delay, k_midi(kt8, v, mm), SL8_TOM, vv(4, boost), k_dur(kd8, v, 280));
+        schedule_hit(delay, 60, SL8_TOMN, vv(k_cv(kc8, v, 0, 5), boost), 30);
         break;
     }
     case V8_CP:
-        schedule_hit(delay,      60, SL8_CP, vv(4, boost), 12);
-        schedule_hit(delay + 10, 60, SL8_CP, vv(4, boost), 12);
-        schedule_hit(delay + 20, 60, SL8_CP, vv(4, boost), 12);
-        schedule_hit(delay + 28, 60, SL8_CP, vv(3, boost), 140);
+        schedule_hit(delay,      k_midi(kt8, v, 60), SL8_CP, vv(4, boost), 12);
+        schedule_hit(delay + 10, k_midi(kt8, v, 60), SL8_CP, vv(4, boost), 12);
+        schedule_hit(delay + 20, k_midi(kt8, v, 60), SL8_CP, vv(4, boost), 12);
+        schedule_hit(delay + 28, k_midi(kt8, v, 60), SL8_CP, vv(3, boost), k_dur(kd8, v, 140));
         break;
-    case V8_MA: schedule_hit(delay, 90, SL8_MAR, vv(3, boost), 30); break;
-    case V8_CB:  // bank osc pair, 540Hz + 800Hz
-        schedule_hit(delay, 73, SL8_CB, vv(4, boost), 220);
-        schedule_hit(delay, 79, SL8_CB, vv(4, boost), 220);
+    case V8_MA: schedule_hit(delay, k_midi(kt8, v, 90), SL8_MAR, vv(3, boost), k_dur(kd8, v, 30)); break;
+    case V8_CB:  // TONE fades 540Hz <-> 800Hz emphasis
+        schedule_hit(delay, k_midi(kt8, v, 73), SL8_CB, vv(k_cv(kc8, v, 7, 0), boost), k_dur(kd8, v, 220));
+        schedule_hit(delay, k_midi(kt8, v, 79), SL8_CB, vv(k_cv(kc8, v, 0, 7), boost), k_dur(kd8, v, 220));
         break;
-    case V8_OH:
-        schedule_hit(delay, 79, SL8_HATO, vv(3, boost), 360);
-        schedule_hit(delay, 72, SL8_HATO, vv(3, boost), 360);
+    case V8_OH: {  // RING fades warm <-> bright
+        schedule_hit(delay, k_midi(kt8, v, 79), SL8_HATO, vv(k_cv(kc8, v, 0, 6), boost), k_dur(kd8, v, 360));
+        schedule_hit(delay, k_midi(kt8, v, 72), SL8_HATO, vv(k_cv(kc8, v, 5, 0), boost), k_dur(kd8, v, 360));
         break;
+    }
     case V8_CH:
-        schedule_hit(delay, 79, SL8_HATC, vv(3, boost), 50);
-        schedule_hit(delay, 72, SL8_HATC, vv(2, boost), 50);
+        schedule_hit(delay, k_midi(kt8, v, 79), SL8_HATC, vv(3, boost), k_dur(kd8, v, 50));
+        schedule_hit(delay, k_midi(kt8, v, 72), SL8_HATC, vv(2, boost), k_dur(kd8, v, 50));
         break;
     }
     flash808[v] = 6;
@@ -493,14 +530,18 @@ static void ride_pcf(void) {
         if (pcf_on) { filter(FILTER_OFF, 0.0f, 0.0f); pcf_on = false; }
         return;
     }
+    // anchored OPEN, depth pulls DOWN: at low depth the filter hovers near
+    // transparent and the lane barely tugs it; at full depth a low lane
+    // level reaches ~250Hz. (The first mapping anchored at 250Hz and opened
+    // upward — engaging the knob was an instant muffle cliff, maker-reported)
     int lvl = bank[playBank].pcf[playhead];
-    float cut = 250.0f * powf(2.0f, (lvl / 7.0f) * depth * 4.5f);   // 250Hz .. ~5.6kHz at full
+    float cut = 9000.0f / powf(2.0f, (1.0f - lvl / 7.0f) * depth * 5.2f);
     filter(FILTER_LOW, cut, 0.15f + 0.75f * fxk[F_RES]);
     pcf_on = true;
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D0005u   // v5: + the song code (cur_seed)
+#define SAVE_MAGIC 0xAC1D0006u   // v6: + per-voice TUNE/DEC/CHAR knob tables
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
@@ -508,6 +549,7 @@ typedef struct {
     int      chainN, tempo, editBank, swing;
     unsigned cur_seed;
     float    knob[2][NK], mcut, mres, fxk[NFX], send[4], dist9, dist8;
+    float    kt9[N909], kd9[N909], kc9[N909], kt8[N808], kd8[N808], kc8[N808];
     int      wave[2];
     bool     songmode, mute[NSTRIP];
 } SaveBlob;
@@ -523,6 +565,8 @@ static void save_song(void) {
     sb.mcut = mcut; sb.mres = mres;
     memcpy(sb.fxk, fxk, sizeof fxk);
     memcpy(sb.send, send, sizeof send); sb.dist9 = dist9; sb.dist8 = dist8;
+    memcpy(sb.kt9, kt9, sizeof kt9); memcpy(sb.kd9, kd9, sizeof kd9); memcpy(sb.kc9, kc9, sizeof kc9);
+    memcpy(sb.kt8, kt8, sizeof kt8); memcpy(sb.kd8, kd8, sizeof kd8); memcpy(sb.kc8, kc8, sizeof kc8);
     for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; }
     sb.songmode = songmode;
     memcpy(sb.mute, mute, sizeof mute);
@@ -539,6 +583,8 @@ static bool load_song(void) {
     mcut = sb.mcut; mres = sb.mres;
     memcpy(fxk, sb.fxk, sizeof fxk);
     memcpy(send, sb.send, sizeof send); dist9 = sb.dist9; dist8 = sb.dist8;
+    memcpy(kt9, sb.kt9, sizeof kt9); memcpy(kd9, sb.kd9, sizeof kd9); memcpy(kc9, sb.kc9, sizeof kc9);
+    memcpy(kt8, sb.kt8, sizeof kt8); memcpy(kd8, sb.kd8, sizeof kd8); memcpy(kc8, sb.kc8, sizeof kc8);
     for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; }
     songmode = sb.songmode;
     memcpy(mute, sb.mute, sizeof sb.mute);
@@ -547,6 +593,8 @@ static bool load_song(void) {
 
 // ── init ──────────────────────────────────────────────────────────────────
 void init(void) {
+    for (int v = 0; v < N909; v++) kt9[v] = kd9[v] = kc9[v] = 0.5f;
+    for (int v = 0; v < N808; v++) kt8[v] = kd8[v] = kc8[v] = 0.5f;
     if (!load_song()) gen_song(DEFAULT_SEED);   // first boot: a generated song
     define_303(&m[0]);
     define_303(&m[1]);
@@ -851,7 +899,10 @@ void update(void) {
     // frame after the press — geometry covers the press frame (no ui widget
     // sits on a raw surface). Every unowned finger paints independently.
     for (int i = 0; i < touch_count(); i++) if (ui_captured(touch_id(i))) own_add(touch_id(i));
-    for (int i = 0; i < touch_ended_count(); i++) { own_drop(touch_ended_id(i)); seen_drop(touch_ended_id(i)); }
+    for (int i = 0; i < touch_ended_count(); i++) {
+        own_drop(touch_ended_id(i)); seen_drop(touch_ended_id(i));
+        if (touch_ended_id(i) == kdrag_id) kdrag_id = -1;
+    }
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i);
@@ -860,6 +911,33 @@ void update(void) {
         bool tap = !was_seen(id);              // first frame of this finger
         seen_add(id);
         Pattern *P = &bank[editBank];
+
+        // an active mini-knob drag owns its finger outright (tr909 feel:
+        // up = coarse, right = fine — wander anywhere, keep turning)
+        if (id == kdrag_id) {
+            float delta = (kdrag_y0 - py) / 80.0f + (px - kdrag_x0) / 600.0f;
+            float *kp = kdrag_val();
+            float nv = *kp + delta;
+            *kp = nv < 0.0f ? 0.0f : nv > 1.0f ? 1.0f : nv;
+            kdrag_x0 = px; kdrag_y0 = py;
+            mark_dirty();
+            continue;
+        }
+        // start one: the matrix lives in the drum fx views (cols T/D/C)
+        if (tap && (expanded == STRIP_909 || expanded == STRIP_808) && fxview[expanded]) {
+            int nv = expanded == STRIP_909 ? N909 : N808;
+            int rh = expanded == STRIP_909 ? 9 : 10;
+            int y0 = strip_y(expanded) + HDR_H;
+            if (px >= 28 && px < 64 && py >= y0 + 10 && py < y0 + 10 + nv * rh) {
+                int v = (py - (y0 + 10)) / rh, k = (px - 28) / 12;
+                const char **k2 = expanded == STRIP_909 ? K2LAB9 : K2LAB8;
+                if (k != 2 || k2[v]) {
+                    kdrag_id = id; kdrag_mach = expanded == STRIP_909 ? 9 : 8;
+                    kdrag_v = v; kdrag_k = k; kdrag_x0 = px; kdrag_y0 = py;
+                    continue;
+                }
+            }
+        }
 
         // strip headers: tap to expand (press only, and not on the MUTE zone)
         if (tap) for (int i = 0; i < NSTRIP; i++) {
@@ -951,6 +1029,22 @@ void update(void) {
                 P->acc808 ^= 1 << ((px - gx) / 13);
                 mark_dirty();
             }
+        }
+    }
+
+    // right-click on a matrix knob = reset to center (the shipped recipe)
+    if (mouse_pressed(MOUSE_RIGHT) && (expanded == STRIP_909 || expanded == STRIP_808) && fxview[expanded]) {
+        int nv = expanded == STRIP_909 ? N909 : N808;
+        int rh = expanded == STRIP_909 ? 9 : 10;
+        int y0 = strip_y(expanded) + HDR_H;
+        int px = mouse_x(), py = mouse_y();
+        if (px >= 28 && px < 64 && py >= y0 + 10 && py < y0 + 10 + nv * rh) {
+            int v = (py - (y0 + 10)) / rh, k = (px - 28) / 12;
+            float *kt = expanded == STRIP_909 ? kt9 : kt8;
+            float *kd = expanded == STRIP_909 ? kd9 : kd8;
+            float *kc = expanded == STRIP_909 ? kc9 : kc8;
+            (k == 0 ? kt : k == 1 ? kd : kc)[v] = 0.5f;
+            mark_dirty();
         }
     }
 
@@ -1170,10 +1264,35 @@ static void draw_303_fx(int i, int y0) {
     print("delay TIME/FB live on the MASTER strip", 12, y0 + 60, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
+// the per-voice TUNE/DEC/CHAR matrix (columns at x=30/42/54, 8px rotaries)
+static void draw_voice_knobs(int mach, const char **names, const char **k2lab, int nv,
+                             float *kt, float *kd, float *kc, int y0, int rh) {
+    font(FONT_SMALL);
+    print("T", 32, y0 + 2, CLR_MEDIUM_GREY);
+    print("D", 44, y0 + 2, CLR_MEDIUM_GREY);
+    print("C", 56, y0 + 2, CLR_MEDIUM_GREY);
+    for (int v = 0; v < nv; v++) {
+        int ry = y0 + 10 + v * rh;
+        print(names[v], 8, ry + 1, CLR_MEDIUM_GREY);
+        draw_miniknob(30, ry, kt[v], kt[v] == 0.5f ? CLR_LIGHT_GREY : CLR_YELLOW);
+        draw_miniknob(42, ry, kd[v], kd[v] == 0.5f ? CLR_LIGHT_GREY : CLR_YELLOW);
+        if (k2lab[v]) draw_miniknob(54, ry, kc[v], kc[v] == 0.5f ? CLR_LIGHT_GREY : CLR_ORANGE);
+    }
+    // the dragged knob names itself (CHAR is per-voice: ATTK/SNPY/CLIK/TONE…)
+    if (kdrag_id != -1 && kdrag_mach == mach) {
+        const char *lab = kdrag_k == 0 ? "TUNE" : kdrag_k == 1 ? "DEC" : k2lab[kdrag_v];
+        char buf[24];
+        snprintf(buf, sizeof buf, "%s %s %.2f", names[kdrag_v], lab ? lab : "", *kdrag_val());
+        print(buf, 8, y0 + 10 + nv * rh + 2, CLR_YELLOW);
+    }
+    font(FONT_NORMAL);
+}
+
 static void draw_909_fx(int y0) {
     rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
-    if (ui_knob(&dist9, 26, y0 + 12, "DIST")) mark_dirty();
-    if (ui_knob(&send[2], 64, y0 + 12, "SEND")) mark_dirty();
+    draw_voice_knobs(9, NAME909, K2LAB9, N909, kt9, kd9, kc9, y0, 9);
+    if (ui_knob(&dist9, 110, y0 + 16, "DIST")) mark_dirty();
+    if (ui_knob(&send[2], 150, y0 + 16, "SEND")) mark_dirty();
     // the metal-filter XY pad (X = five metal highpass cutoffs, Y = resonance)
     int padx = 190, pady = y0 + 30;
     rectfill(padx, pady, 60, 40, CLR_DARKER_GREY);
@@ -1183,15 +1302,18 @@ static void draw_909_fx(int y0) {
     if (ui_slider(&swingf, 254, y0 + 44, 56, "SHUF")) { swing = 50 + (int)(swingf * 16.0f); mark_dirty(); }
     font(FONT_SMALL);
     print("METAL", padx + 18, pady + 42, CLR_MEDIUM_GREY);
-    print("DIST rides every 909 voice; SEND feeds the delay", 12, y0 + 84, CLR_DARK_GREY);
+    print("drag knobs: up=coarse right=fine", 110, y0 + 92, CLR_DARK_GREY);
+    print("rclick knob = reset", 110, y0 + 100, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 static void draw_808_fx(int y0) {
     rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
-    if (ui_knob(&dist8, 26, y0 + 12, "DIST")) mark_dirty();
-    if (ui_knob(&send[3], 64, y0 + 12, "SEND")) mark_dirty();
+    draw_voice_knobs(8, NAME808, K2LAB8, N808, kt8, kd8, kc8, y0, 10);
+    if (ui_knob(&dist8, 110, y0 + 16, "DIST")) mark_dirty();
+    if (ui_knob(&send[3], 150, y0 + 16, "SEND")) mark_dirty();
     font(FONT_SMALL);
-    print("DIST rides every 808 voice; SEND feeds the delay", 12, y0 + 84, CLR_DARK_GREY);
+    print("TUNE / DEC / CHAR per voice — the hardware's little knobs", 110, y0 + 60, CLR_DARK_GREY);
+    print("drag: up=coarse right=fine · rclick = reset", 110, y0 + 68, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 

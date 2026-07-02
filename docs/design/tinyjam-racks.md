@@ -377,3 +377,28 @@ chassis).
   the obvious crossover (see [`input-recording-looper.md`](input-recording-looper.md)).
 - **Save format vs export blob** — one format for both (`save_bytes` blob = the
   song.h input), or keep save internal and export explicit?
+
+## Spark: co-op jamming (2026-07-02) 💡
+
+Now that lockstep netplay shipped (rungs 1–3, [`multiplayer-research.md`](multiplayer-research.md)),
+**two people jamming on one rack** is suddenly cheap — and it's a lovely fit for
+the format. The engine already syncs `btn()` deterministically over the LAN, and a
+rack's whole interface is knobs/pads/lanes driven by input. So:
+
+- **Two players, one rack, in sync** — one drives the drum lanes, the other plays
+  the XY-pad lead or rides the filter, both hearing the *same* seeded song evolve
+  in lockstep. Call-and-response, trading 4s, one-hand-each on a groovebox.
+- **Why it's a natural** — a rack is stateless-ish around a seed + lane edits;
+  lockstep means both machines roll the identical `rnd()`/song, so what travels is
+  just who-touched-which-knob. The `de_players() >= 2` opt-in + Host/Join/Solo
+  lobby already exist; a rack just declares itself multiplayer.
+- **The catch to design later** — v1 lockstep syncs `btn()` only, not
+  `mouse()`/`key()`; racks lean hard on the XY pad + knob drags (mouse/touch). So
+  co-op racks either (a) map their controls through `btn()`-style discrete input,
+  or (b) wait for the input packet to carry pointer state (a rung-1 scope note in
+  the multiplayer doc). Worth prototyping the simplest lane-toggle jam first.
+- **Bigger dream** — "sessions": the lobby/self-restart flow is basically a room
+  primitive; a shared rack you hand a friend (export .exe/mac) and both drop into.
+
+Parked as a spark, not scheduled — but it's the kind of thing that could define
+what tinyjam *is*.

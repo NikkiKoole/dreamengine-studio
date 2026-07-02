@@ -149,6 +149,25 @@ static const char *TW1[] = { "Marina", "Pacific", "Chrome", "Midnight", "Coastal
 static const char *TW2[] = { "Standard", "Shuffle", "Avenue", "Mirage", "Lights",
     "Charade", "Tan", "Pier", "Nineteen", "Reflection", "Operator", "Cove" };
 
+#ifdef DE_TRACE
+// the acceptance-corpus hash: every composed field, folded FNV-1a. yachtrack.c
+// (the rack) carries the same function over its verbatim new_song port and must
+// match it per seed — the radio→rack seed-compat oracle (yacht-rack.md §3).
+static unsigned song_sum(void) {
+    unsigned h = 2166136261u;
+    #define F(v) h = (h ^ (unsigned)(v)) * 16777619u
+    F(sng.keyPc); F(sng.minorKey);
+    for (int i = 0; i < 4; i++) { F(sng.loop[i].off); F(sng.loop[i].q); }
+    F(sng.groove); F(sng.gearUp); F(sng.hasRide);
+    F(sng.melN); for (int i = 0; i < sng.melN; i++) F(sng.melOn[i]);
+    F(sng.melReg);
+    for (const char *p = sng.title; *p; p++) F(*p);
+    F((int)(sng.freq * 10 + 0.5f)); F(tempo);
+    #undef F
+    return h;
+}
+#endif
+
 static void new_song(double pos, unsigned seed) {
     sng.seed = rad_seed_begin(&rs, seed);
 
@@ -198,6 +217,9 @@ static void new_song(double pos, unsigned seed) {
     bassLast = 33;
     melLast = sng.melReg;
     songCount++;
+#ifdef DE_TRACE
+    watch("songsum", "%08X %08X", sng.seed, song_sum());
+#endif
 }
 
 static void fresh_song(double pos) {

@@ -1469,8 +1469,11 @@ buffer flag, navkit source, and macro mapping get filled in here.
 > `INSTR_MEMBRANE` (2026-06-08); AM/ring's *sound* shipped as the `ringmod()` bus effect
 > (2026-06-14) — only the note-tracking engine variant remains, optional for most uses. Net:
 > the **Radiophonic Workshop rack is unblocked end-to-end** and the bellows trio is
-> engine-ready. Still-unbuilt doors in the table above: **Additive** (and the Juno
-> second-osc, §12 gap 2b).
+> engine-ready. Still-unbuilt doors in the table above: **Additive** — as an *engine*; its
+> small 2–3-partial family shipped cart-side as the `mt70` cart (2026-06-07, slot stacking per
+> the MT70 note's own "cart-land first" build order) — and the Juno second-osc (§12 gap 2b,
+> the live saw+pulse blend; the `juno` cart shipped 2026-06-10 around it via a stacked sub-osc
+> + the master `chorus()`).
 
 ### 8.10 Effects layer — buses vs. master (the §8.5-phase-4 plan)
 

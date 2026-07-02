@@ -26,12 +26,12 @@ de:meta */
 // Deterministic by construction: all motion is driven by frame() only — no now()/timer() and no
 // unseeded rnd() — so canvas-diff's two runs (GPU vs software canvas) render identical frames.
 // Verify the whole draw layer in one shot:
-//   node tools/canvas-diff.js drawall --max 80 --frames 8   # GPU vs DE_SOFTWARE_CANVAS, every primitive
-//   node tools/canvas-diff.js drawall --raw     --frames 8  # vs the TRUE GPU rasterizers
-// Why --max 80 (not 0): it includes SCALED sspr + zoom_rect, whose CPU nearest sampling differs from
-// GPU POINT-center by a handful of edge pixels (the documented scaled-blit caveat) — ~48px. Everything
-// else is byte-exact; this cart is the "every primitive renders + nothing corrupts" gate, while the
-// per-primitive 0px byte-exactness lives in cityview/masseffect/advancewars/etc.
+//   node tools/canvas-diff.js drawall --frames 8            # GPU vs DE_SOFTWARE_CANVAS, every primitive
+//   node tools/canvas-diff.js drawall --raw --frames 8      # vs the TRUE GPU rasterizers
+// Budget is 0 — every primitive here renders BYTE-EXACT GPU↔SW. (History: this ran at --max 80
+// while the scaled sspr diffed ~109px — the CPU sampler truncated i*sw/dw where the GPU samples
+// the dest-pixel CENTRE. sw_blit/sw_zoom_rect moved to floor((i+0.5)*sw/dw) on 2026-07-02, the
+// scaled-blit caveat is gone, and a nonzero diff here is now a real regression, not noise.)
 #include "studio.h"
 #include <math.h>
 

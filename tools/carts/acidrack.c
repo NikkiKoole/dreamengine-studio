@@ -11,10 +11,9 @@
     "subtractive-synth",
     "drum-synthesis"
   ],
-  "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. Increments 1+2 of docs/design/rebirth-classic.md.",
+  "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. Increments 1-3 of docs/design/rebirth-classic.md.",
   "homage": "Propellerhead ReBirth RB-338 (1997)",
   "todo": [
-    "increment 3: FX strip (drive/echo/glue comp/PCF filter lane) — also the fix for the hot mix at the D drop (glue)",
     "increment 4: seeded generator + song code + WAV export",
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "per-voice tune/decay/color knobs (the standalone carts' depth) — the rack bakes center values for now",
@@ -22,9 +21,9 @@
     "maker naming pass: 'acid rack' is a working title"
   ],
   "description": {
-    "summary": "Two 303s, the full 909, and the curated 808 in one rack — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays.",
-    "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone"
+    "summary": "Two 303s, the full 909, the curated 808 and the master FX rack in one cart — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays.",
+    "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). The fifth strip is the RB-338 EFFECTS RACK on the master bus: DST (drive insert), a tempo-synced DELAY (TIME snaps to 1/16, 1/8, dotted-8th, 1/4 — FB and MIX), GLU (the bus glue compressor — it's also what tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. Insert order: PCF filter, then distortion, then delay. The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · FX strip: DST/TIME/FB/MIX/GLU/PCF/RES knobs, drag the PCF lane to draw the filter pattern"
   }
 }
 de:meta */
@@ -109,6 +108,7 @@ typedef struct {                       // one bank = a whole-rack snapshot
     unsigned short acc909;             // 909 TOTAL ACCENT row
     unsigned short d808[N808];         // 808 trigger masks
     unsigned short acc808;             // 808 accent row
+    unsigned char  pcf[STEPS];         // pattern-controlled-filter lane, level 0..7
 } Pattern;
 
 static Pattern bank[NBANK];
@@ -398,22 +398,70 @@ static void fire808(int v, int boost, int delay) {
 }
 
 // ── the accordion ─────────────────────────────────────────────────────────
-enum { STRIP_A, STRIP_B, STRIP_909, STRIP_808, NSTRIP };
-static const char *SNAME[NSTRIP] = { "303-A", "303-B", "909", "808" };
+enum { STRIP_A, STRIP_B, STRIP_909, STRIP_808, STRIP_FX, NSTRIP };
+static const char *SNAME[NSTRIP] = { "303-A", "303-B", "909", "808", "FX" };
 static int  expanded = STRIP_A;
 static bool mute[NSTRIP];
 
 // layout — transport bar / strips / song chain row
-// 22 + 4×20 + 120 + 14 = 236 ≤ 240
+// 24 + 5×18 + 114 = 228 = CHAIN_Y, chain ends 240: exactly flush
 #define TB_H    22
-#define HDR_H   20
-#define PANEL_H 120
-#define CHAIN_Y 224
+#define HDR_H   18
+#define PANEL_H 114
+#define CHAIN_Y 228
 static int strip_y(int i) {            // header top of strip i
     int y = TB_H + 2;
     for (int k = 0; k < i; k++) y += HDR_H + (k == expanded ? PANEL_H : 0);
     return y;
 }
+
+// ── the FX rack — the RB-338 effects section on the master bus ────────────
+// DIST = drive_insert, DELAY = echo_insert (tempo-synced divisions), COMP =
+// glue(), PCF = a per-bank sequencer lane riding master filter() every frame
+// (the one effect built to be ridden — everything else is set-on-change).
+enum { F_DIST, F_TIME, F_FB, F_MIX, F_GLUE, F_PCF, F_RES, NFX };
+static const char *FXNAME[NFX] = { "DST", "TIME", "FB", "MIX", "GLU", "PCF", "RES" };
+static float fxk[NFX] = { 0.15f, 0.50f, 0.35f, 0.25f, 0.30f, 0.40f, 0.35f };
+static bool  pcf_on = false;           // is the master filter currently engaged
+
+// re-apply the set-and-hold effects ONLY when a value moved (the groovebox
+// apply_fx idiom — reconfiguring buffer effects 60×/s = stutter, not a crash)
+static void apply_fx(void) {
+    static float aDist = -1, aTime = -1, aFb = -1, aMix = -1, aGlue = -1;
+    static int   aTempo = -1;
+    bool bypass = mute[STRIP_FX];
+    float dist = bypass ? 0 : fxk[F_DIST], mix = bypass ? 0 : fxk[F_MIX];
+    float glu  = bypass ? 0 : fxk[F_GLUE];
+    if (dist != aDist) {
+        drive_insert(dist, DRIVE_SOFT, dist < 0.02f ? 0.0f : 1.0f);
+        aDist = dist;
+    }
+    if (fxk[F_TIME] != aTime || fxk[F_FB] != aFb || mix != aMix || tempo != aTempo) {
+        static const float DIV[4] = { 0.25f, 0.5f, 0.75f, 1.0f };   // 1/16 · 1/8 · dotted · 1/4
+        int ms = (int)(60000.0f / tempo * DIV[(int)(fxk[F_TIME] * 3.999f)]);
+        echo_insert(ms, fxk[F_FB] * 0.85f, 0.45f, mix < 0.02f ? 0.0f : mix);
+        aTime = fxk[F_TIME]; aFb = fxk[F_FB]; aMix = mix; aTempo = tempo;
+    }
+    if (glu != aGlue) {
+        glue(0, glu < 0.02f ? 0.0f : glu, 8, 150);
+        aGlue = glu;
+    }
+}
+
+// the PCF — ride master filter() from the playing bank's lane. filter() is
+// explicitly cheap to sweep every frame; only the OFF↔ON mode flip is gated.
+static void ride_pcf(void) {
+    float depth = mute[STRIP_FX] ? 0.0f : fxk[F_PCF];
+    if (depth < 0.02f) {
+        if (pcf_on) { filter(FILTER_OFF, 0.0f, 0.0f); pcf_on = false; }
+        return;
+    }
+    int lvl = bank[playBank].pcf[playhead];
+    float cut = 250.0f * powf(2.0f, (lvl / 7.0f) * depth * 4.5f);   // 250Hz .. ~5.6kHz at full
+    filter(FILTER_LOW, cut, 0.15f + 0.75f * fxk[F_RES]);
+    pcf_on = true;
+}
+
 
 // ── authored demo patterns (the generator fills these in increment 4) ─────
 // 303 lines as tb303-style strings: nt '.'=rest '0'-'9','A'-'C'=semitone;
@@ -424,19 +472,22 @@ typedef struct {
     LineSrc a, b;
     const char *r909[N909]; const char *ac9;   // NULL row = silent
     const char *r808[N808]; const char *ac8;
+    const char *pcf;                           // digits 0-7, '.' = 0, NULL = flat 0
 } PatSrc;
 static const PatSrc DEMO[NBANK] = {
     { // A — sparse intro: one 303 murmurs over the kick
       { "0...3...0...7...", "................", "x...........x...", "................" },
       { "................", "................", "................", "................" },
       { [V9_BD] = "x...x...x...x..." }, "x...............",
-      { 0 }, 0 },
+      { 0 }, 0,
+      "3333333333333333" },   // PCF: the intro sits dark
     { // B — the groove: clap lands, hats breathe, the cowbell answers
       { "0.C03.7A0.C0537A", "................", "x...x...x...x...", "......x.......x." },
       { "0...............", "x...............", "x...............", "................" },
       { [V9_BD] = "x...x...x...x...", [V9_CP] = "....x.......x...",
         [V9_CH] = "..x...x...x...x." }, "x.......x.......",
-      { [V8_CB] = "x..x..x.x..x..x." }, 0 },
+      { [V8_CB] = "x..x..x.x..x..x." }, 0,
+      "5656565656565656" },   // PCF: gentle pumping
     { // C — the build: A climbs an octave, kick doubles into the turn,
       //     ratcheted hats (the Hardfloor move), 808 shaker under it all
       { "0.C03.7A0.C0537A", "........xxxxxxxx", "x...x...x...x...", "......x.......x." },
@@ -444,7 +495,8 @@ static const PatSrc DEMO[NBANK] = {
       { [V9_BD] = "x...x...x...x.xx", [V9_CP] = "....x.......x...",
         [V9_CH] = "x.x.x.x.x.x.x.xr", [V9_LT] = "............x...",
         [V9_HT] = "..............x." }, "x.......x.......",
-      { [V8_MA] = "xxxxxxxxxxxxxxxx" }, 0 },
+      { [V8_MA] = "xxxxxxxxxxxxxxxx" }, 0,
+      "0112233445566777" },   // PCF: the RAMP — the whole build opens over one bar
     { // D — the drop: crash on the one, open hats, ride, snare flam,
       //     both boxes accented and sliding, 808 shaker + cowbell on top
       { "0.C03.7A0.C0537A", "x.......x.......", "x.x.x.x.x.x.x.x.", "..x...x...x...x." },
@@ -452,7 +504,8 @@ static const PatSrc DEMO[NBANK] = {
       { [V9_BD] = "x...x...x...x...", [V9_CP] = "....x.......f...",
         [V9_CH] = "x...x...x...x...", [V9_OH] = "..x...x...x...x.",
         [V9_RC] = "x.......x.......", [V9_CC] = "x..............." }, "x...x...x...x...",
-      { [V8_MA] = "xxxxxxxxxxxxxxxx", [V8_CB] = "x..x..x.x..x..x." }, 0 },
+      { [V8_MA] = "xxxxxxxxxxxxxxxx", [V8_CB] = "x..x..x.x..x..x." }, 0,
+      "7777777777777777" },   // PCF: the drop is wide open
 };
 static const char *DEMO_CHAIN = "AABBAABBCCCDBBDD";
 
@@ -491,6 +544,8 @@ static void load_demo(void) {
         P->acc909 = decode_mask(S->ac9);
         for (int v = 0; v < N808; v++) P->d808[v] = decode_mask(S->r808[v]);
         P->acc808 = decode_mask(S->ac8);
+        if (S->pcf) for (int st = 0; st < STEPS; st++)
+            P->pcf[st] = (S->pcf[st] >= '0' && S->pcf[st] <= '7') ? S->pcf[st] - '0' : 0;
     }
     chainN = 0;
     memset(chain, 0xFF, sizeof chain);
@@ -499,13 +554,13 @@ static void load_demo(void) {
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D0002u   // v2: full 909/808 pattern data + swing + metal pad
+#define SAVE_MAGIC 0xAC1D0003u   // v3: + PCF lane per bank + the FX knob row
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
     unsigned char chain[CHAINN];
     int      chainN, tempo, editBank, swing;
-    float    knob[2][NK], mcut, mres;
+    float    knob[2][NK], mcut, mres, fxk[NFX];
     int      wave[2];
     bool     songmode, mute[NSTRIP];
 } SaveBlob;
@@ -518,6 +573,7 @@ static void save_song(void) {
     memcpy(sb.chain, chain, sizeof chain);
     sb.chainN = chainN; sb.tempo = tempo; sb.editBank = editBank; sb.swing = swing;
     sb.mcut = mcut; sb.mres = mres;
+    memcpy(sb.fxk, fxk, sizeof fxk);
     for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; }
     sb.songmode = songmode;
     memcpy(sb.mute, mute, sizeof mute);
@@ -531,6 +587,7 @@ static bool load_song(void) {
     chainN = sb.chainN; tempo = sb.tempo; editBank = sb.editBank; swing = sb.swing;
     swingf = (swing - 50) / 16.0f;
     mcut = sb.mcut; mres = sb.mres;
+    memcpy(fxk, sb.fxk, sizeof fxk);
     for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; }
     songmode = sb.songmode;
     memcpy(mute, sb.mute, sizeof sb.mute);
@@ -545,7 +602,12 @@ void init(void) {
     define_909();
     define_808();
     bpm(tempo);
-    echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f);    // dotted-8th slapback, shared
+    echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f);    // dotted-8th slapback (the 303 SEND — separate from the FX strip's echo_insert)
+    // master insert chain — fx_order REPLACES the chain, so every pedal the
+    // rack uses must be listed: PCF filter → distortion → delay
+    static const int kinds[3] = { FX_FILTER, FX_DRIVE, FX_ECHO };
+    fx_order(0, kinds, 3);
+    apply_fx();
 }
 
 // ── per-finger surface routing (the dubdesk fix, dubdesk.c:97) ────────────
@@ -610,7 +672,7 @@ void update(void) {
         if (expanded == STRIP_A || expanded == STRIP_B) {
             Line *ln = &P->ln[expanded];
             int y0 = strip_y(expanded) + HDR_H;
-            int rx = 40, ry = y0 + 30;
+            int rx = 40, ry = y0 + 26;
             if (px >= rx && px < rx + STEPS * 15 && py >= ry && py < ry + 13 * 5) {
                 int st = (px - rx) / 15, row = 12 - (py - ry) / 5, b = 1 << st;
                 if (tap && (ln->on & b) && ln->pitch[st] == row) ln->on &= ~b;   // tap the note = erase
@@ -648,6 +710,18 @@ void update(void) {
             }
         }
 
+        // expanded FX panel: drag the PCF lane (bar-graph levels per step)
+        if (expanded == STRIP_FX) {
+            int y0 = strip_y(STRIP_FX) + HDR_H;
+            int gx = 36, ly = y0 + 34, lh = 72;
+            if (px >= gx && px < gx + STEPS * 13 && py >= ly && py < ly + lh) {
+                int st = (px - gx) / 13;
+                int lvl = 7 - (py - ly) * 8 / lh; if (lvl < 0) lvl = 0; if (lvl > 7) lvl = 7;
+                P->pcf[st] = (unsigned char)lvl;
+                mark_dirty();
+            }
+        }
+
         // expanded 808 panel: trigger grid + accent row
         if (expanded == STRIP_808) {
             int y0 = strip_y(STRIP_808) + HDR_H;
@@ -681,6 +755,9 @@ void update(void) {
 
     // deferred autosave (don't write the file on every painted cell)
     if (save_cooldown > 0 && --save_cooldown == 0) save_song();
+
+    apply_fx();     // all gated on-change inside — cheap to call every frame
+    ride_pcf();     // filter() is the one effect built to be ridden
 
 #ifdef DE_TRACE
     watch("step", "%d", playhead);
@@ -751,8 +828,8 @@ static const int BANKCLR[NBANK] = { CLR_ORANGE, CLR_GREEN, CLR_BLUE, CLR_RED };
 static void draw_header(int i, int y) {
     bool open = (i == expanded);
     rectfill(2, y, 316, HDR_H - 2, open ? CLR_DARKER_GREY : CLR_DARK_GREY);
-    print(open ? "v" : ">", 8, y + 6, CLR_LIGHT_GREY);
-    print(SNAME[i], 18, y + 6, mute[i] ? CLR_MEDIUM_GREY : CLR_WHITE);
+    print(open ? "v" : ">", 8, y + 5, CLR_LIGHT_GREY);
+    print(SNAME[i], 18, y + 5, mute[i] ? CLR_MEDIUM_GREY : CLR_WHITE);
     // live mini pattern — the "folded isn't blind" ticks
     Pattern *P = &bank[playBank];
     for (int s = 0; s < STEPS; s++) {
@@ -760,19 +837,21 @@ static void draw_header(int i, int y) {
         bool onn = false;
         if      (i == STRIP_909) { for (int d = 0; d < N909; d++) if (P->d909[d] & (1 << s)) { onn = true; break; } }
         else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (P->d808[d] & (1 << s)) { onn = true; break; } }
+        else if (i == STRIP_FX)  onn = P->pcf[s] > 0;
         else onn = (P->ln[i].on >> s) & 1;
         int c = onn ? (mute[i] ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_GREY;
         if (running && s == playhead) c = CLR_WHITE;
-        rectfill(tx, y + 7, 4, 6, c);
+        rectfill(tx, y + 6, 4, 6, c);
     }
     // activity LED
     bool lit = false;
     if      (i == STRIP_909) { for (int d = 0; d < N909; d++) if (flash909[d] > 0) lit = true; }
     else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (flash808[d] > 0) lit = true; }
+    else if (i == STRIP_FX)  lit = pcf_on || fxk[F_DIST] > 0.02f || fxk[F_MIX] > 0.02f;
     else lit = (m[i].h >= 0);
-    circfill(206, y + 10, 2, lit && !mute[i] ? CLR_GREEN : CLR_DARKER_GREY);
+    circfill(206, y + 9, 2, lit && !mute[i] ? CLR_GREEN : CLR_DARKER_GREY);
     // MUTE toggle (ui.h button — per-finger capture, focus ring)
-    if (ui_button(252, y + 2, 34, HDR_H - 5, mute[i] ? "MUTED" : "mute")) { mute[i] = !mute[i]; mark_dirty(); }
+    if (ui_button(252, y + 2, 34, HDR_H - 4, mute[i] ? "MUTED" : "mute")) { mute[i] = !mute[i]; mark_dirty(); }
 }
 
 static void draw_303_panel(int i, int y0) {
@@ -789,7 +868,7 @@ static void draw_303_panel(int i, int y0) {
     }
 
     // piano roll: 13 rows (root..octave), playhead column, root rows tinted
-    int rx = 40, ry = y0 + 30;
+    int rx = 40, ry = y0 + 26;
     for (int st = 0; st < STEPS; st++) {
         int cx = rx + st * 15;
         int bg = (running && st == playhead) ? CLR_DARKER_GREY : CLR_BLACK;
@@ -877,6 +956,30 @@ static void draw_808_panel(int y0) {
     font(FONT_NORMAL);
 }
 
+static void draw_fx_panel(int y0) {
+    Pattern *P = &bank[editBank];
+    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    // knob row: DST · TIME/FB/MIX (delay) · GLU · PCF/RES
+    for (int k = 0; k < NFX; k++)
+        if (ui_knob(&fxk[k], 26 + k * 38, y0 + 12, FXNAME[k])) mark_dirty();
+    // the PCF lane — bar-graph levels, one per step, per BANK (it's part of
+    // the arrangement: the demo song's build is a ramp drawn here)
+    int gx = 36, ly = y0 + 34, lh = 72;
+    for (int st = 0; st < STEPS; st++) {
+        int cx = gx + st * 13;
+        rectfill(cx, ly, 12, lh, (st & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);
+        int lvl = P->pcf[st];
+        int bh = lvl * lh / 7;
+        int c = (running && st == playhead) ? CLR_WHITE : BANKCLR[editBank];
+        if (bh > 0) rectfill(cx, ly + lh - bh, 12, bh, c);
+    }
+    font(FONT_SMALL);
+    print("PCF", 12, ly + 2, CLR_MEDIUM_GREY);
+    print("lane", 12, ly + 10, CLR_MEDIUM_GREY);
+    print("dist > delay", 254, y0 + 100, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+}
+
 void draw(void) {
     cls(CLR_DARKER_GREY);
     ui_begin();
@@ -911,6 +1014,7 @@ void draw(void) {
         if (i == expanded) {
             if      (i == STRIP_909) draw_909_panel(y + HDR_H);
             else if (i == STRIP_808) draw_808_panel(y + HDR_H);
+            else if (i == STRIP_FX)  draw_fx_panel(y + HDR_H);
             else draw_303_panel(i, y + HDR_H);
         }
     }

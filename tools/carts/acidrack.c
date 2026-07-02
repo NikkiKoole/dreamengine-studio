@@ -332,6 +332,19 @@ void init(void) {
     echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f);    // dotted-8th slapback, shared
 }
 
+// ── per-finger surface routing (the dubdesk fix, dubdesk.c:97) ────────────
+// owned = the finger was captured by a ui.h widget → raw surfaces skip it
+// until it lifts. seen = the finger existed last frame → !seen = a fresh tap.
+#define NFING 12
+static int  own_ids[NFING], own_n = 0;
+static int  seen_ids[NFING], seen_n = 0;
+static bool is_owned(int id)  { for (int i = 0; i < own_n; i++)  if (own_ids[i]  == id) return true; return false; }
+static bool was_seen(int id)  { for (int i = 0; i < seen_n; i++) if (seen_ids[i] == id) return true; return false; }
+static void own_add(int id)   { if (!is_owned(id) && own_n < NFING) own_ids[own_n++] = id; }
+static void seen_add(int id)  { if (!was_seen(id) && seen_n < NFING) seen_ids[seen_n++] = id; }
+static void own_drop(int id)  { for (int i = 0; i < own_n; i++)  if (own_ids[i]  == id) { own_ids[i]  = own_ids[--own_n];   return; } }
+static void seen_drop(int id) { for (int i = 0; i < seen_n; i++) if (seen_ids[i] == id) { seen_ids[i] = seen_ids[--seen_n]; return; } }
+
 // ── update ────────────────────────────────────────────────────────────────
 static void stop_all(void) { off_303(&m[0]); off_303(&m[1]); }
 
@@ -345,9 +358,20 @@ void update(void) {
     if (keyp('S'))       { songmode = !songmode; mark_dirty(); }
 
     // ── raw-tap surfaces (roll / flags / grid / chain / headers) ──────────
-    if (mouse_pressed(MOUSE_LEFT) || mouse_down(MOUSE_LEFT)) {
-        int px = mouse_x(), py = mouse_y();
-        bool tap = mouse_pressed(MOUSE_LEFT);
+    // sticky widget-ownership (the dubdesk fix): once ui.h captures a finger
+    // (a knob/button grab) it stays owned until it LIFTS, so a knob drag that
+    // wanders down over the roll never paints it. Capture is visible from the
+    // frame after the press — geometry covers the press frame (no ui widget
+    // sits on a raw surface). Every unowned finger paints independently.
+    for (int i = 0; i < touch_count(); i++) if (ui_captured(touch_id(i))) own_add(touch_id(i));
+    for (int i = 0; i < touch_ended_count(); i++) { own_drop(touch_ended_id(i)); seen_drop(touch_ended_id(i)); }
+
+    for (int i = 0; i < touch_count(); i++) {
+        int id = touch_id(i);
+        if (is_owned(id)) continue;            // finger belongs to a knob/button
+        int px = touch_x(i), py = touch_y(i);
+        bool tap = !was_seen(id);              // first frame of this finger
+        seen_add(id);
         Pattern *P = &bank[editBank];
 
         // strip headers: tap to expand (press only, and not on the MUTE zone)

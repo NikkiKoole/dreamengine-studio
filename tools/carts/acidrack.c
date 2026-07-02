@@ -16,6 +16,7 @@
   "todo": [
     "increment 4: seeded generator + song code + WAV export",
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
+    "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
     "per-voice tune/decay/color knobs (the standalone carts' depth) — the rack bakes center values for now",
     "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing",
     "maker naming pass: 'acid rack' is a working title"
@@ -23,7 +24,7 @@
   "description": {
     "summary": "Two 303s, the full 909, the curated 808 and the master FX rack in one cart — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays.",
     "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern"
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
   }
 }
 de:meta */
@@ -644,6 +645,86 @@ void init(void) {
     apply_fx();
 }
 
+// ── pattern ops (CPY/CLR/RND) — scope is WHAT YOU'RE LOOKING AT: a machine
+// strip expanded = that machine's lane of the edit bank; MASTER expanded =
+// the whole bank. CPY arms, then tapping a bank button pastes there.
+// (ReBirth had true per-instrument pattern banks + per-machine song lanes;
+// this gives the per-instrument EDITING inside the scene model — the chain
+// format can still grow to per-machine entries later, see rebirth-classic.md)
+static bool copyArm = false;
+
+static void rnd_303(Line *ln) {          // tb303.c gen_random's recipe
+    static const int pool[8] = { 0, 0, 0, 3, 5, 7, 10, 12 };
+    memset(ln, 0, sizeof *ln);
+    int prev = 0;
+    for (int st = 0; st < STEPS; st++) {
+        if (!chance(72)) continue;
+        int b = 1 << st;
+        ln->on |= b;
+        int pc = chance(35) ? prev : pool[rnd_between(0, 8)];
+        ln->pitch[st] = (unsigned char)pc; prev = pc;
+        if (chance(15)) ln->oct |= b;
+        if (chance(30)) ln->acc |= b;
+        if (chance(25)) ln->sld |= b;
+    }
+    ln->on |= 1; ln->pitch[0] = 0;       // land on the root
+}
+static void rnd_909(Pattern *P) {
+    for (int v = 0; v < N909; v++) { P->d909[v] = 0; memset(P->st909[v], 0, STEPS); }
+    for (int st = 0; st < STEPS; st += 4) P->d909[V9_BD] |= 1 << st;          // the floor
+    if (chance(25)) P->d909[V9_BD] |= 1 << 14;                                // turn kick
+    bool clap = chance(60);
+    P->d909[clap ? V9_CP : V9_SD] = (1 << 4) | (1 << 12);                     // 2 & 4
+    if (chance(50)) for (int st = 2; st < STEPS; st += 4) P->d909[V9_CH] |= 1 << st;   // offbeats
+    else            for (int st = 0; st < STEPS; st += 2) P->d909[V9_CH] |= 1 << st;   // 8ths
+    if (chance(40)) for (int st = 2; st < STEPS; st += 4) P->d909[V9_OH] |= 1 << st;
+    if (chance(20)) for (int st = 0; st < STEPS; st += 8) P->d909[V9_RC] |= 1 << st;
+    if (chance(15)) P->d909[V9_LT] |= 1 << rnd_between(12, 16);               // a turn tom
+    if (chance(12)) { int st = rnd_between(12, 16); P->d909[V9_CH] |= 1 << st; P->st909[V9_CH][st] = ST_RATCHET; }
+    P->acc909 = (1 << 0) | (chance(50) ? 1 << 8 : 0);
+}
+static void rnd_808(Pattern *P) {
+    for (int v = 0; v < N808; v++) P->d808[v] = 0;
+    if (chance(40)) P->d808[V8_MA] = 0xFFFF;                                  // shaker 16ths
+    if (chance(35)) P->d808[V8_CB] = 0x4949;                                  // the cowbell clave
+    if (chance(20)) P->d808[V8_CH] = 0x5555 & ~P->d909[V9_CH];
+    P->acc808 = 0;
+}
+static void rnd_pcf(Pattern *P) {
+    int shape = rnd(3);
+    for (int st = 0; st < STEPS; st++)
+        P->pcf[st] = (unsigned char)(shape == 0 ? 3 + (st & 1) * 2            // gentle pump
+                                   : shape == 1 ? st * 7 / 15                 // the ramp
+                                   : 5 + ((st & 2) ? 2 : 0));                 // open wave
+}
+static void clr_scope(Pattern *P) {
+    switch (expanded) {
+    case STRIP_A: case STRIP_B: memset(&P->ln[expanded], 0, sizeof(Line)); break;
+    case STRIP_909: for (int v = 0; v < N909; v++) { P->d909[v] = 0; memset(P->st909[v], 0, STEPS); } P->acc909 = 0; break;
+    case STRIP_808: for (int v = 0; v < N808; v++) P->d808[v] = 0; P->acc808 = 0; break;
+    default: memset(P, 0, sizeof *P); break;                                  // MASTER = the whole bank
+    }
+}
+static void rnd_scope(Pattern *P) {
+    switch (expanded) {
+    case STRIP_A: case STRIP_B: rnd_303(&P->ln[expanded]); break;
+    case STRIP_909: rnd_909(P); break;
+    case STRIP_808: rnd_808(P); break;
+    default: rnd_303(&P->ln[0]); rnd_303(&P->ln[1]); rnd_909(P); rnd_808(P); rnd_pcf(P); break;
+    }
+}
+static void copy_scope(Pattern *dst, const Pattern *src) {
+    switch (expanded) {
+    case STRIP_A: case STRIP_B: dst->ln[expanded] = src->ln[expanded]; break;
+    case STRIP_909:
+        memcpy(dst->d909, src->d909, sizeof dst->d909);
+        memcpy(dst->st909, src->st909, sizeof dst->st909);
+        dst->acc909 = src->acc909; break;
+    case STRIP_808: memcpy(dst->d808, src->d808, sizeof dst->d808); dst->acc808 = src->acc808; break;
+    default: *dst = *src; break;                                              // MASTER = the whole bank
+    }
+}
+
 // ── per-finger surface routing (the dubdesk fix, dubdesk.c:97) ────────────
 // owned = the finger was captured by a ui.h widget → raw surfaces skip it
 // until it lifts. seen = the finger existed last frame → !seen = a fresh tap.
@@ -898,14 +979,6 @@ static void draw_303_panel(int i, int y0) {
     Line *ln = &bank[editBank].ln[i];
     rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
 
-    // knob row
-    for (int k = 0; k < NK; k++)
-        if (ui_knob(&s->knob[k], 26 + k * 38, y0 + 12, KNAME[k])) { knob_changed_303(s, k); mark_dirty(); }
-    if (ui_button(288, y0 + 4, 28, 16, s->wave == INSTR_SAW ? "SAW" : "SQR")) {
-        s->wave = (s->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
-        define_303(s); mark_dirty();
-    }
-
     // piano roll: 13 rows (root..octave), playhead column, root rows tinted
     int rx = 40, ry = y0 + 26;
     for (int st = 0; st < STEPS; st++) {
@@ -939,6 +1012,14 @@ static void draw_303_panel(int i, int y0) {
                      (mask >> st) & 1 ? (r == 1 ? CLR_RED : CLR_YELLOW) : CLR_DARKER_GREY);
     }
     font(FONT_NORMAL);
+
+    // knob row LAST — drawn on top so the labels never sink under the roll
+    for (int k = 0; k < NK; k++)
+        if (ui_knob(&s->knob[k], 26 + k * 38, y0 + 12, KNAME[k])) { knob_changed_303(s, k); mark_dirty(); }
+    if (ui_button(288, y0 + 4, 28, 16, s->wave == INSTR_SAW ? "SAW" : "SQR")) {
+        s->wave = (s->wave == INSTR_SAW) ? INSTR_SQUARE : INSTR_SAW;
+        define_303(s); mark_dirty();
+    }
 }
 
 // one grid implementation, two voice tables — the 808/909 shared skeleton.
@@ -1045,8 +1126,9 @@ static void draw_master_panel(int y0) {
     font(FONT_SMALL);
     print("PCF", 12, ly + 2, CLR_MEDIUM_GREY);
     print("lane", 12, ly + 10, CLR_MEDIUM_GREY);
-    print("sends live in each", 240, y0 + 92, CLR_DARK_GREY);
-    print("machine's fx view", 240, y0 + 100, CLR_DARK_GREY);
+    print("acid rack", 240, y0 + 84, CLR_INDIGO);
+    print("sends live in each", 240, y0 + 94, CLR_DARK_GREY);
+    print("machine's fx view", 240, y0 + 102, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }
 
@@ -1061,21 +1143,25 @@ void draw(void) {
     }
     char buf[24];
     snprintf(buf, sizeof buf, "%d", tempo);
-    print("BPM", 46, 8, CLR_MEDIUM_GREY);
-    print(buf, 70, 8, CLR_WHITE);
-    if (ui_button(94, 2, 12, 18, "-")) { tempo -= 2; if (tempo < 60) tempo = 60; bpm(tempo); mark_dirty(); }
-    if (ui_button(108, 2, 12, 18, "+")) { tempo += 2; if (tempo > 200) tempo = 200; bpm(tempo); mark_dirty(); }
+    print(buf, 42, 8, CLR_WHITE);
+    if (ui_button(66, 2, 12, 18, "-")) { tempo -= 2; if (tempo < 60) tempo = 60; bpm(tempo); mark_dirty(); }
+    if (ui_button(80, 2, 12, 18, "+")) { tempo += 2; if (tempo > 200) tempo = 200; bpm(tempo); mark_dirty(); }
     for (int bk = 0; bk < NBANK; bk++) {
         char nm[2] = { (char)('A' + bk), 0 };
-        int x = 136 + bk * 20;
-        if (ui_button(x, 2, 17, 18, nm)) editBank = bk;
+        int x = 98 + bk * 20;
+        if (ui_button(x, 2, 17, 18, nm)) {
+            if (copyArm) { copy_scope(&bank[bk], &bank[editBank]); copyArm = false; mark_dirty(); }
+            editBank = bk;
+        }
         if (bk == editBank) rect(x, 2, 17, 18, BANKCLR[bk]);
         if (running && bk == playBank) rectfill(x + 6, 17, 5, 2, CLR_WHITE);
     }
-    if (ui_button(226, 2, 42, 18, songmode ? "SONG" : "LOOP")) { songmode = !songmode; barpos = 0; mark_dirty(); }
-    font(FONT_SMALL);
-    print("acid rack", 272, 9, CLR_INDIGO);
-    font(FONT_NORMAL);
+    // pattern ops — scope follows the expanded strip (machine lane; MASTER = whole bank)
+    if (ui_button(180, 2, 26, 18, "CPY")) copyArm = !copyArm;
+    if (copyArm) rect(180, 2, 26, 18, CLR_YELLOW);
+    if (ui_button(208, 2, 26, 18, "CLR")) { clr_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
+    if (ui_button(236, 2, 26, 18, "RND")) { rnd_scope(&bank[editBank]); copyArm = false; mark_dirty(); }
+    if (ui_button(266, 2, 42, 18, songmode ? "SONG" : "LOOP")) { songmode = !songmode; barpos = 0; mark_dirty(); }
 
     // ── strips ────────────────────────────────────────────────────────────
     for (int i = 0; i < NSTRIP; i++) {

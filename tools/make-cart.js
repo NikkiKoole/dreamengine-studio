@@ -348,8 +348,11 @@ if (args[0] === '--update') {
   }
 
   // run with --screenshot: window opens briefly, 3 frames, exits, saves screenshot.png
+  // darwin: run under `caffeinate -dims` — a SLEEPING DISPLAY segfaults raylib's window init
+  // (even --headless/--screenshot), which silently killed unattended night bakes (bit 2026-07-02)
   console.log('running (window will flash briefly)...')
-  spawnSync(BAKE_BIN, ['--screenshot'], { cwd: BAKE_DIR, stdio: 'inherit' })
+  if (process.platform === 'darwin') spawnSync('caffeinate', ['-dims', BAKE_BIN, '--screenshot'], { cwd: BAKE_DIR, stdio: 'inherit' })
+  else                               spawnSync(BAKE_BIN, ['--screenshot'], { cwd: BAKE_DIR, stdio: 'inherit' })
 
   // bake screenshot into cart
   const screenshotPath = path.join(BAKE_DIR, 'screenshot.png')

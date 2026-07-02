@@ -145,6 +145,18 @@ will instead select *Continue* and unpause. Keys the cart itself reads are
 the cart does **not** read is fair game for the overlay. If a scripted run
 mysteriously freezes mid-trace, check the script for a stray `ENTER`.
 
+### Gotcha: a sleeping display segfaults every harness run (macOS)
+
+When the Mac's **display** goes to sleep, raylib's window init can't find a monitor and
+**segfaults — even under `--headless`/`--screenshot`** (the GL context still needs one). The
+symptom is maddening: every cart "crashes with signal 11" before `init()`, the same binary
+that passed minutes ago fails, and it recovers by itself when the screen wakes — it looks
+exactly like a broken engine commit or a build race (both were chased for an hour on
+2026-07-02 before `caffeinate -u` proved it). `play.js`, `spec.js` and `make-cart --run` now
+spawn the runtime under **`caffeinate -dims`** on darwin so unattended night runs survive; if
+you drive the runtime binary by hand and see instant signal-11s at odd hours, wake the screen
+or prefix your command with `caffeinate -dims`.
+
 ---
 
 ## The three ways to "play together"

@@ -62,7 +62,11 @@ function runSpec(name) {
   let BIN
   try { BIN = build(name, work) }
   catch (e) { return { name, err: 'compile failed\n' + (e.stderr?.toString() || e.message) } }
-  const r = spawnSync(BIN, ['--spec'], { cwd: work, encoding: 'utf8' })
+  // darwin: run under `caffeinate -dims` — a SLEEPING DISPLAY segfaults raylib's window init
+  // (even --headless), which silently killed every unattended night run (bit 2026-07-02)
+  const r = process.platform === 'darwin'
+    ? spawnSync('caffeinate', ['-dims', BIN, '--spec'], { cwd: work, encoding: 'utf8' })
+    : spawnSync(BIN, ['--spec'], { cwd: work, encoding: 'utf8' })
   const asserts = []; let done = null
   for (const ln of (r.stdout || '').trim().split('\n').filter(Boolean)) {
     let o; try { o = JSON.parse(ln) } catch { continue }

@@ -182,5 +182,8 @@ if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 
 console.log('run:', name, mode, runArgs.join(' '))
-spawnSync(BIN, runArgs, { cwd: mk.BUILD_DIR, stdio: 'inherit' })
+// darwin: run under `caffeinate -dims` — a SLEEPING DISPLAY segfaults raylib's window init
+// (even --headless), which silently killed every unattended night run (bit 2026-07-02)
+if (process.platform === 'darwin') spawnSync('caffeinate', ['-dims', BIN, ...runArgs], { cwd: mk.BUILD_DIR, stdio: 'inherit' })
+else                               spawnSync(BIN, runArgs, { cwd: mk.BUILD_DIR, stdio: 'inherit' })
 console.log('trace:', tracePath)

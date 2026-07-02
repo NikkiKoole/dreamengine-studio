@@ -154,7 +154,7 @@ codebase is ours). Each = one cart, own faceplate identity, same chassis.
 | **Broken Fairground** | carnival macabre | stylophone buzz | omnichord, limping strum | 303-as-tuba (short decay, low) | 808 kick/snare + swing | steam calliope (detuned sines + noise puff, new) |
 | **Ancient Library** | dungeon synth | hurdygurdy drone+buzz | INSTR_FM "square-lute" | INSTR_MALLET stone marimba | 909 tuned −2 oct (war drums) | ghost choir (low sines, reverb) |
 | **Space-Age Bachelor Pad** | exotica | INSTR_FM vibraphone | omnichord sus4 | sh101 walking bass | 808 congas/maracas/rim (or CR-78!) | slide whistle (sine overshoot, new) |
-| **Radiophonic Workshop** | vintage sci-fi | theremin (saw/otamatone voice) | rapid 8-note arp | 303 heavy slide | procedural noise clicks/pops | wow/flutter on the FM out |
+| **Radiophonic Workshop** (→ promoted to [`radiophonic-workshop.md`](radiophonic-workshop.md) 2026-07-02 — engine-unblocked; leads = heldnotes theremin / martenot / musicalsaw) | vintage sci-fi | theremin (saw/otamatone voice) | rapid 8-note arp | 303 heavy slide | procedural noise clicks/pops | wow/flutter on the FM out |
 | **Toy-Town Glitch** | circuit-bent nursery | formant voice (genuinely new synthesis) | stylophone + bitcrush | "rubber duck" sh101 snap | 808 pitched way up | music box (tri + clockwork ticks) |
 | **Cozy Adventure** (cozy-cluster · parked) | cozy cartoon-adventure / lo-fi exploration (evokes AT/cozy-games, no IP) | PD soft chiptune (pulse+tri), songful | omnichord shimmer + nylon/uke pluck | pdbass round bounce (softened axe-bass) | soft toy/chiptune kit, gentle | mallet/celesta bells; wandering songwriter brain |
 

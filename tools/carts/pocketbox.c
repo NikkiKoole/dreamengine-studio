@@ -13,7 +13,7 @@
     "swing-timing"
   ],
   "todo": [
-    "seeded ROLL-a-groove generator (the tinyjam generate-play-export angle; docs/design/pocketbox.md open Qs)",
+    "ROLL seed codes display but cannot be typed in yet (the share-a-groove half of the tinyjam arc)",
     "spec() for the sequencer brain: trigger conditions, chord-degree resolution, pattern link, song parts",
     "WAV export button (arm .bake/wav_request like acidrack)",
     "mixer page with per-track level meters (the combo VU proxy)",
@@ -26,7 +26,7 @@
   "description": {
     "summary": "A pocket groovebox with NO knobs: 8 fixed-role tracks (kick/snare/hat/bass/lead/chords + 2 drawn-wave tracks), 16 patterns each, p-locks, ratchets, trigger conditions, a chord track that basslines follow, live FX, song parts.",
     "detail": "Everything is 16 step keys + 4 mode keys + hold-combos + one touch strip, like the hardware. TRACK mode: keys pick a track, pages set engine/params/LFO/FX bus. STEP mode: keys toggle steps; HOLD a step + strip/arrows to set per-step note, velocity, ratchets, Elektron-style conditions and parameter locks. PATTERN mode: 16 slots per track (independent = polymeter), length + link. SONG mode: 12 parts. Hold EDIT = play notes; hold PLAY + key = mute; hold FX + key = live FX (filter sweeps, tape dive, crush, stutter-freeze, fill). Wave tracks play single-cycle waves you draw with a finger right on the OLED.",
-    "controls": "tap keys or: Z/X/C/V=track/step/pattern/song mode, 1-8+Q-I=the 16 step keys, arrows=pages/values, Enter=A, Backspace=B, Space=play (hold+arrows=BPM, hold+key=mute), N(hold)=edit/keyboard (GarageBand keys AWSEDF..., Z/X=octave), M(hold)=FX/copy, strip=drag the bottom ribbon"
+    "controls": "tap keys or: Z/X/C/V=track/step/pattern/song mode, 1-8+Q-I=the 16 step keys, arrows=pages/values, Enter=A, Backspace=B, Space=play (hold+arrows=BPM, hold+key=mute), N(hold)=edit/keyboard (GarageBand keys AWSEDF..., Z/X=octave), M(hold)=FX/copy, strip=drag the bottom ribbon, ROLL button or 0=roll a new seeded groove"
   }
 }
 de:meta */
@@ -392,6 +392,8 @@ static bool  play_held, edit_held, fx_held, prev_play_held;
 static bool  play_combo;
 static int   held_stepkey = -1;       // which step key a finger is holding (for p-lock grammar)
 static int   copy_src = -1;           // FX-copy source (PATT mode)
+static unsigned rollseed;             // last ROLL-a-groove seed (shown as the song code)
+static int   roll_flash;              // frame() of the last roll (OLED toast)
 static int   save_cooldown;
 static int   songbar, songpos;
 
@@ -403,6 +405,7 @@ typedef struct {
     Track    tr[NTRACK];
     Part     parts[NPART];
     signed char waves[4][64];
+    unsigned rollseed;                // appended last: old (pre-roll) blobs still load
 } Blob;
 #define MAGIC 0x50474231u             // 'PGB1'
 
@@ -579,6 +582,99 @@ static void demo_groove(void) {
     tr[T_CHORD].bus = BUS_VERB;
 }
 
+// ── ROLL-a-groove: a seeded generator writes the CURRENT pattern of every ──
+// track (chords first; drums from small vocabularies; bass/lead as chord
+// degrees, so the whole roll follows the harmony by construction). Same seed =
+// same groove, forever — the 8-hex code on the OLED is the song.
+static unsigned rngs;
+static unsigned rr(unsigned n) { rngs = rngs * 1664525u + 1013904223u; return (rngs >> 16) % n; }
+
+static void gput(int t, int i, int nmode, int note, int vel, int dur, int cond) {
+    Step *st = &curpat(t)->st[i];
+    st->on = 1; st->nmode = (unsigned char)nmode; st->note = (unsigned char)note;
+    st->vel = (unsigned char)vel; st->dur = (unsigned char)dur;
+    st->rep = 0; st->rate = 0; st->cond = (unsigned char)cond;
+    for (int k = 0; k < NPP; k++) st->lock[k] = -1;
+}
+
+static void roll_groove(unsigned seed) {
+    rngs = seed ? seed : 1;
+    for (int t = 0; t < NTRACK; t++) {                          // wipe the current patterns
+        Pattern *pp = curpat(t);
+        for (int i = 0; i < NSTEP; i++) pp->st[i] = (Step){0};
+        pp->len = NSTEP; pp->link = 0;
+    }
+
+    // harmony: root + a 2-chord loop from the natural-minor degree table
+    static const unsigned char DOFF[6] = { 0, 3, 5, 7, 8, 10 };            // i III iv v VI VII
+    static const unsigned char DQ[6]   = { Q_MIN, Q_MAJ, Q_MIN, Q_MIN, Q_MAJ, Q_MAJ };
+    static const unsigned char PROG[8][2] = { {0,4},{0,2},{0,5},{0,3},{2,4},{4,5},{0,1},{2,0} };
+    int root = 44 + rr(10);
+    const unsigned char *pg = PROG[rr(8)];
+    gput(T_CHORD, 0, DQ[pg[0]], root + DOFF[pg[0]], 96, 8, 0);
+    if (rr(4)) gput(T_CHORD, 8, DQ[pg[1]], root + DOFF[pg[1]], 96, 8, 0);  // 1-in-4: one chord
+    for (int i = 0; i < 4; i++) cur_chord[i] = root + DOFF[pg[0]] + QIV[DQ[pg[0]]][i];
+
+    // kick: a vocabulary groove + an occasional fill-only ghost
+    static const char *KICKV[6] = {
+        "x...x...x...x...", "x...x...x...x..x", "x..x..x.....x...",
+        "x.....x...x.....", "x...x..x..x.x...", "x.x...x...x....x" };
+    const char *kv = KICKV[rr(6)];
+    for (int i = 0; i < NSTEP; i++) if (kv[i] == 'x') gput(T_KICK, i, NM_FIX, DEFNOTE[T_KICK], 110, 0, 0);
+    if (rr(3) == 0) gput(T_KICK, 14, NM_FIX, DEFNOTE[T_KICK], 80, 0, 4);   // FILL ghost
+
+    // snare: backbeat, plus a conditional pickup / fill ratchet
+    gput(T_SNARE, 4, NM_FIX, DEFNOTE[T_SNARE], 112, 0, 0);
+    gput(T_SNARE, 12, NM_FIX, DEFNOTE[T_SNARE], 112, 0, 0);
+    if (rr(3) == 0) gput(T_SNARE, 15, NM_FIX, DEFNOTE[T_SNARE], 70, 0, 3); // 25%
+    if (rr(4) == 0) { gput(T_SNARE, 14, NM_FIX, DEFNOTE[T_SNARE], 84, 0, 4); curpat(T_SNARE)->st[14].rep = 1; }
+
+    // hat: 8ths / 16ths / offbeats, breathing velocity, p-locked OPEN on offbeats
+    int hstyle = rr(3);
+    for (int i = 0; i < NSTEP; i++) {
+        bool on = hstyle == 0 ? i % 2 == 0 : hstyle == 1 ? true : i % 4 == 2;
+        if (on) gput(T_HAT, i, NM_FIX, DEFNOTE[T_HAT], (i % 4 == 0) ? 104 : 56 + rr(28), 0, 0);
+    }
+    if (hstyle != 2 && rr(2)) for (int i = 2; i < NSTEP; i += 4)
+        if (curpat(T_HAT)->st[i].on) curpat(T_HAT)->st[i].lock[1] = 60 + (signed char)rr(45);
+    int sh = rr(3) == 0 ? 12 + (int)rr(14) : 0;                            // the pocket
+    tr[T_HAT].shuf = (unsigned char)sh; tr[T_BASS].shuf = (unsigned char)sh;
+
+    // bass: a rhythm mask of chord degrees (CH1-heavy), cutoff p-locks for movement
+    static const char *BASSV[5] = {
+        "..x...x...x...x.", "x..x..x.x..x..x.", "x.x.x.x.x.x.x.x.",
+        "x......x..x.....", "..x..x....x...x." };
+    const char *bv = BASSV[rr(5)];
+    bool wiggle = rr(2);
+    for (int i = 0; i < NSTEP; i++) if (bv[i] == 'x') {
+        int m = rr(10), nm = m < 6 ? NM_CH1 : m < 8 ? NM_CH2 : NM_CH4;
+        gput(T_BASS, i, nm, DEFNOTE[T_BASS], 90 + rr(26), 1 + (rr(3) == 0 ? 1 : 0), 0);
+        if (wiggle && rr(3) == 0) curpat(T_BASS)->st[i].lock[0] = 30 + (signed char)rr(90);
+    }
+
+    // lead: a few offbeat-leaning chord tones, some conditional
+    if (rr(5)) {                                                            // 1-in-5 rolls: no lead
+        int nn = 3 + rr(4);
+        for (int k = 0; k < nn; k++) {
+            int i = rr(NSTEP);
+            if (curpat(T_LEAD)->st[i].on) continue;
+            int nm = rr(5) == 0 ? NM_ARP : NM_CH2 + rr(3);
+            int cond = rr(4) == 0 ? (rr(2) ? 2 : 6) : 0;                    // 50% or 1:2
+            gput(T_LEAD, i, nm, DEFNOTE[T_LEAD], 70 + rr(50), 1 + rr(3), cond);
+        }
+    }
+
+    // wave tracks: usually silent; sometimes sparse percussive blips
+    for (int t = T_WAVE1; t <= T_WAVE2; t++) if (rr(5) == 0) {
+        int nn = 2 + rr(3);
+        for (int k = 0; k < nn; k++)
+            gput(t, rr(NSTEP), NM_FIX, 48 + 12 * rr(3), 60 + rr(40), 1, rr(2) ? 2 : 0);
+    }
+
+    roll_flash = frame();
+    mark_dirty();
+}
+
 static void reset_tracks(void) {
     for (int t = 0; t < NTRACK; t++) {
         Track *k = &tr[t];
@@ -597,11 +693,15 @@ static void save_all(void) {
     for (int t = 0; t < NTRACK; t++) b.tr[t] = tr[t];
     for (int i = 0; i < NPART; i++) b.parts[i] = parts[i];
     for (int k = 0; k < 4; k++) for (int i = 0; i < 64; i++) b.waves[k][i] = waves[k][i];
+    b.rollseed = rollseed;
     save_bytes(&b, sizeof b);
 }
 static bool load_all(void) {
     static Blob b;
-    if (load_bytes(&b, sizeof b) != (int)sizeof b || b.magic != MAGIC) return false;
+    int n = load_bytes(&b, sizeof b);
+    bool old = n == (int)(sizeof b - sizeof(unsigned));       // pre-rollseed layout
+    if ((n != (int)sizeof b && !old) || b.magic != MAGIC) return false;
+    rollseed = old ? 0 : b.rollseed;
     tempo = b.tempo; songmode = b.songmode;
     for (int t = 0; t < NTRACK; t++) tr[t] = b.tr[t];
     for (int i = 0; i < NPART; i++) parts[i] = b.parts[i];
@@ -773,6 +873,7 @@ static bool skey(int i)  { return key(SKCHARS[i]); }
 #define R_PLAY  4, TRY, 64, TRH
 #define R_EDIT  72, TRY, 56, TRH
 #define R_FX    132, TRY, 56, TRH
+#define R_ROLL  262, TRY, 54, TRH
 #define R_UP    252, 6, 28, 18
 #define R_LEFT  220, 27, 28, 18
 #define R_DOWN  252, 27, 28, 18
@@ -862,6 +963,12 @@ void update() {
             if (running) { master16 = -1; for (int t = 0; t < NTRACK; t++) { ttick[t] = 0; tloops[t] = 0; tlast16[t] = -9; } }
         }
         play_combo = false;
+    }
+
+    // ── ROLL: stamp a new seeded groove into the current patterns ──
+    if (tapp(R_ROLL) || (!edit_held && keyp('0'))) {
+        rollseed = rollseed * 2654435761u + (unsigned)frame() * 2246822519u + 40503u;
+        roll_groove(rollseed);
     }
 
     // ── mode keys ──
@@ -1196,6 +1303,12 @@ static int stepkey_color(int i) {                                  // LED langua
 void draw() {
     cls(CLR_BROWNISH_BLACK);
 
+    // ── ROLL: stamp a new seeded groove into the current patterns ──
+    if (tapp(R_ROLL) || (!edit_held && keyp('0'))) {
+        rollseed = rollseed * 2654435761u + (unsigned)frame() * 2246822519u + 40503u;
+        roll_groove(rollseed);
+    }
+
     // ── mode keys ──
     for (int m = 0; m < NMODE; m++)
         draw_key(MKX, 4 + m * MKS, MKW, MKH, MODENAME[m], false, m == mode ? CLR_WHITE : -1);
@@ -1209,6 +1322,12 @@ void draw() {
         case M_STEP:  oled_step();  break;
         case M_PATT:  oled_patt();  break;
         default:      oled_song();  break;
+    }
+    if (roll_flash && frame() - roll_flash < 150) {           // the song-code toast
+        rectfill(OX, OY + OH - 10, OW, 10, OINK);
+        font(FONT_SMALL);
+        print(str("ROLLED CODE %08X", rollseed), OX + 4, OY + OH - 8, OBG);
+        font(FONT_NORMAL);
     }
     clip(0, 0, 0, 0);
 
@@ -1224,8 +1343,9 @@ void draw() {
     draw_key(R_PLAY, running ? "PLAY >" : "PLAY II", play_held, running ? CLR_GREEN : -1);
     draw_key(R_EDIT, "EDIT", edit_held, edit_held ? CLR_LIGHT_YELLOW : -1);
     draw_key(R_FX, "CPY/FX", fx_held, fx_held ? CLR_ORANGE : -1);
+    draw_key(R_ROLL, "ROLL", false, (roll_flash && frame() - roll_flash < 12) ? CLR_LIGHT_YELLOW : CLR_GREEN);
     font(FONT_SMALL);
-    print(str("%d BPM", tempo), 196, TRY + 3, CLR_LIGHT_GREY);
+    print(str("%d BPM", tempo), 198, TRY + 3, CLR_LIGHT_GREY);
     print(str("%s%s", TNAME[seltrack], mute[seltrack] ? " MUTE" : ""), 196, TRY + 12, TCLR[seltrack]);
     font(FONT_NORMAL);
 

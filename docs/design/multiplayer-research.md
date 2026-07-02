@@ -2,11 +2,13 @@
 
 > **Status: building — rungs 1 & 2 SHIPPED (2026-07-02).** Started as a research
 > pass (session, 2026-06-04) on "could dreamengine offer a multiplayer API, for
-> both the native C build and the wasm build?" **Rung 1 (localhost lockstep)
-> and rung 2 (LAN by IP) are now built**: `runtime/net.h` +
-> `--net-host`/`--net-join <ip>` on any native build, a **🌐 multiplayer button**
-> in the editor (host / join-by-IP), and demo + desync gate via
-> `play.js <cart> netdemo` — see the rung ladder below and the ledger entry in
+> both the native C build and the wasm build?" **Rungs 1, 2 and 2.5 are now
+> built**: `runtime/net.h` + `--net-host`/`--net-join <ip>` on any native build
+> (rung 1), a **🌐 multiplayer button** in the editor + `getifaddrs()` host-IP
+> display (rung 2, LAN by IP), and an **engine-owned Host/Join/Solo boot lobby**
+> (`--net-lobby`, rung 2.5) so a *standalone build with no editor* can start
+> netplay with no flags — the send-a-friend-an-exe case. Demo + desync gate via
+> `play.js <cart> netdemo`; see the rung ladder below and the ledger entry in
 > [`STATUS.md`](../STATUS.md). Rung 3 (multicast "Open to LAN") and rungs 4+
 > (browser/internet) remain proposals. See also
 > [`cart-as-script.md`](cart-as-script.md) (the `STATE`/`de_state()` block this
@@ -402,6 +404,7 @@ critical path:
 |---|---|---|---|
 | **1. Localhost lockstep** — **SHIPPED 2026-07-02** | `--net-host` / `--net-join <ip>` / `--net-port <n>` flags on the native binary; UDP; per frame each side sends **1 byte** of packed `btn()` bits (with an 8-frame redundancy window), waits for the peer's byte; host sends the seed in the handshake. Two windows, one Mac, pong. Landed as `runtime/net.h` (~250 lines), gated by runtime flags rather than a `-DDE_NET` define (mirroring how `--det`/`--replay` work — always compiled native, zero footprint unless flagged). `play.js <cart> netdemo` spawns both windows AND doubles as the desync gate: per-side scripts + trace diff → `LOCKSTEP OK`/`DESYNC` ([checks-and-oracles](../guides/checks-and-oracles.md)). Note: since it takes any IP, **this already covers rung 2's transport** — what rung 2 adds is the shell UX (show the host's IP, a join screen). | ~1–2 days *(actual: 1 session)* | nothing |
 | **2. LAN by IP** — **SHIPPED 2026-07-02** | Same UDP code across two machines. Host resolves its LAN IPv4 with `getifaddrs()` (`net_local_ipv4()` in `net.h` — prefers a 192.168/10 private address) and prints `HOSTING on <ip>:<port> — the joiner runs: --net-join <ip>`; the editor drives it with a **🌐 multiplayer button** next to ▶ (host / join-by-IP popover in `shell.js`; `main.cjs` adds the `--net-*` flags and shows the host's IP via `os.networkInterfaces()`). **This is the wished-for "click host → get an address" UX** for the home/classroom case — no NAT, no servers. **Deviation from the original plan:** the address surfaces in the editor UI + console, *not* an in-window overlay — `net_handshake()` blocks *before* `InitWindow`, so during the host's wait there is no window to draw on; surfacing it in the shell (where the Host button is) is both lower-risk and closer to where the user is looking. | ~1 day *(actual: 1 session)* | rung 1 |
+| **2.5 In-game lobby** — **SHIPPED 2026-07-02** | An engine-owned **Host / Join / Solo boot menu** (`net_lobby_menu()` in `studio.c`, gated by `--net-lobby` or the compile-time `DE_NET_LOBBY_DEFAULT`), so a **standalone build with no editor** can start netplay with no CLI flags — the son-runs-the-exe case. Required reordering the net startup: the lobby draws after fonts load but before the cart's `init()` (the host's seed must reach the joiner before any `rnd()`), so the handshake now happens *with the window open* (which also fixes rung 2's "host waits with no window" rough edge — a `HOSTING at <ip>` status frame is drawn). Join screen has an in-window IP text-entry (digits + dots). This is §6's "the shell owns the host/join UI", except **for a standalone the *engine* is the shell**. The direct `--net-host`/`--net-join` path (editor/CLI/netdemo) is unchanged (still handshakes before the window). | ~1 session | rung 2 |
 | **3. "Open to LAN"** | UDP multicast announce every ~1 s; joiners pick from a session list instead of typing an IP (Minecraft-style). Pure polish on rung 2. | ~1–2 days | rung 2 |
 | **4. Determinism proof** | Per-frame CRC of the `de_state()` block in the existing trace; record native → replay under wasm → diff. Note the web build currently compiles the harness out (`#else // web build: harness is a no-op`), so enabling replay under emcc is part of this rung. Gates rung 5, **not** rungs 1–3; can run in parallel. | days | nothing |
 | **5. Internet + browser** | Stage 2 / 2b above (join codes + signaling + libdatachannel, or the WebSocket input-relay shortcut). The first rung needing infrastructure. Decide after rungs 1–3 have proven the model and the input-delay feel is tuned. | weeks | rungs 1 + 4 |

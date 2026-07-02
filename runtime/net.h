@@ -61,7 +61,8 @@
 #define NET_PKT_INPUT   3      // + u32 first-frame (LE), u8 count, count input bytes
 #define NET_PKT_BYE     4      // sender is quitting
 
-static bool net_requested = false;   // a --net-* flag was passed (main() checks this)
+static bool net_requested = false;   // a --net-host/--net-join flag was passed (main() checks this)
+static bool net_lobby_requested = false;  // --net-lobby (or DE_NET_LOBBY_DEFAULT): show the boot menu
 static bool net_active    = false;   // handshake done, lockstep running
 static bool net_is_host   = false;
 static int  net_me        = 0;       // my player index: 0 = host, 1 = joiner

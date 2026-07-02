@@ -2232,6 +2232,86 @@ int de_screen_h(void) { return SCREEN_H; }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 
+#ifdef DE_NET_BUILD
+// ── netplay boot lobby (rung 2.5 — docs/design/multiplayer-research.md) ───────
+// An in-window Host / Join / Solo menu so a STANDALONE build (no editor, just a
+// double-clicked exe) can start multiplayer with no CLI flags. Shown when
+// --net-lobby is passed, or when DE_NET_LOBBY_DEFAULT is compiled in (the
+// exported "send to a friend" build). Runs after fonts load but BEFORE the
+// cart's init(), because the host's rnd() seed must be exchanged before any
+// cart code rolls it. Draws straight to the window like the pause overlay.
+static void net_lobby_center(const char *s, float cy, float px, DeColor col) {
+    Vector2 m = MeasureTextEx(game_font, s, px, 0);
+    DrawTextEx(game_font, s, (Vector2){ GetScreenWidth() / 2.0f - m.x / 2.0f, cy }, px, 0, col);
+}
+
+// One status frame drawn right before the (blocking) handshake, so the window
+// shows what it's doing instead of freezing on black while it connects.
+static void net_lobby_status_frame(void) {
+    char line[96];
+    if (net_is_host) {
+        char ip[INET_ADDRSTRLEN]; net_local_ipv4(ip, sizeof ip);
+        snprintf(line, sizeof line, "HOSTING at %s", ip);
+    } else {
+        snprintf(line, sizeof line, "connecting to %s ...", net_join_ip ? net_join_ip : "?");
+    }
+    float px = GetScreenHeight() / 22.0f, cy = GetScreenHeight() / 2.0f - px;
+    BeginDrawing();
+    ClearBackground(palette[1]);
+    net_lobby_center(line, cy, px, palette[7]);
+    if (net_is_host) net_lobby_center("tell the other player to Join this address", cy + px * 2, px * 0.6f, palette[13]);
+    EndDrawing();
+}
+
+// The menu loop. Sets net_is_host / net_join_ip / net_requested on a host/join
+// pick, or returns with net still off for solo. Blocks until the user chooses.
+static void net_lobby_menu(const char *title) {
+    int  mode = 0;                        // 0 = choosing, 1 = typing the join IP
+    char ip[INET_ADDRSTRLEN] = { 0 };
+    int  n = 0;
+    while (!WindowShouldClose()) {
+        if (mode == 0) {
+            if (IsKeyPressed(KEY_H)) { net_is_host = true; net_requested = true; return; }
+            if (IsKeyPressed(KEY_J)) mode = 1;
+            if (IsKeyPressed(KEY_S)) return;                        // play solo — net stays off
+        } else {
+            int ch;
+            while ((ch = GetCharPressed()) != 0)                    // digits + dots only
+                if (n < (int)sizeof(ip) - 1 && ((ch >= '0' && ch <= '9') || ch == '.')) { ip[n++] = (char)ch; ip[n] = 0; }
+            if (IsKeyPressed(KEY_BACKSPACE) && n > 0) ip[--n] = 0;
+            if (IsKeyPressed(KEY_ESCAPE)) { mode = 0; n = 0; ip[0] = 0; }
+            if (IsKeyPressed(KEY_ENTER) && n > 0) { net_join_ip = strdup(ip); net_is_host = false; net_requested = true; return; }
+        }
+        float px = GetScreenHeight() / 22.0f, cy = GetScreenHeight() / 2.0f - px * 4;  // screen-relative so it reads on any cart
+        BeginDrawing();
+        ClearBackground(palette[1]);
+        net_lobby_center(title, cy - px * 2, px * 0.75f, palette[6]);
+        if (mode == 0) {
+            net_lobby_center("M U L T I P L A Y E R", cy, px, palette[7]);
+            net_lobby_center("[H]   host a game", cy + px * 2.5f, px, palette[7]);
+            net_lobby_center("[J]   join a game", cy + px * 4.0f, px, palette[7]);
+            net_lobby_center("[S]   play solo",   cy + px * 5.5f, px, palette[13]);
+        } else {
+            char l[96]; snprintf(l, sizeof l, "%s_", ip);
+            net_lobby_center("JOIN — type the host's IP", cy, px, palette[7]);
+            net_lobby_center(l, cy + px * 2.5f, px, palette[7]);
+            net_lobby_center("ENTER to connect    ESC to go back", cy + px * 5.0f, px * 0.75f, palette[13]);
+        }
+        EndDrawing();
+        // live-inspection: same .bake/window_screenshot_request hook the game loop
+        // honors, so the lobby is capturable headlessly (dev preview + this rung's gate)
+        FILE *sf = fopen(".bake/window_screenshot_request", "r");
+        if (sf) {
+            char out[512] = { 0 };
+            if (fgets(out, sizeof out, sf)) out[strcspn(out, "\n\r")] = '\0';
+            fclose(sf); remove(".bake/window_screenshot_request");
+            if (out[0]) { Image shot = LoadImageFromScreen(); ExportImage(shot, out); UnloadImage(shot); }
+        }
+    }
+    exit(0);   // window closed during the menu
+}
+#endif // DE_NET_BUILD
+
 int main(int argc, char **argv) {
     { const char *pf = getenv("DE_POLY_FILL");          // A/B the polygon fill without recompiling:
       if (pf && strcmp(pf, "legacy") == 0) poly_fill_fast = false; }   // DE_POLY_FILL=legacy → old per-pixel path
@@ -2281,6 +2361,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--net-host") == 0) { net_is_host = true; net_requested = true; }
         else if (strcmp(argv[i], "--net-join") == 0 && i + 1 < argc) { net_join_ip = argv[++i]; net_requested = true; }
         else if (strcmp(argv[i], "--net-port") == 0 && i + 1 < argc) net_port = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--net-lobby") == 0) net_lobby_requested = true;  // show the in-window Host/Join/Solo menu
 #endif
 #ifdef DE_SPEC
         else if (strcmp(argv[i], "--spec")   == 0) spec_mode = 1;
@@ -2293,7 +2374,13 @@ int main(int argc, char **argv) {
     if (replay_path) { load_replay(replay_path); inject_input = true; det_mode = true; }
     if (script_path) { load_script(script_path); inject_input = true; det_mode = true; }
 #ifdef DE_NET_BUILD
-    if (net_requested) {
+#ifdef DE_NET_LOBBY_DEFAULT
+    if (!net_requested) net_lobby_requested = true;   // exported standalone build: boot straight into the menu
+#endif
+    // Direct --net-host/--net-join (editor 🌐 button, CLI, netdemo): handshake
+    // before the window opens, exactly as rung 1/2 shipped. The lobby path
+    // (--net-lobby) instead handshakes AFTER the window is up — see below.
+    if (net_requested && !net_lobby_requested) {
         det_mode = true;        // lockstep = fixed timestep + a shared rnd() seed
         net_handshake(&seed);   // blocks until both sides connect; joiner adopts the host's seed
         if (strcmp(window_title, "dreamengine") == 0)
@@ -2430,6 +2517,23 @@ int main(int argc, char **argv) {
             SetTextureFilter(spritesheet, TEXTURE_FILTER_POINT);
         }
     }
+
+#ifdef DE_NET_BUILD
+    // Netplay lobby path (--net-lobby / exported build): the window + fonts are
+    // up, so show the Host/Join/Solo menu and, on a pick, handshake here —
+    // BEFORE init() below, so the host's seed reaches the joiner before any
+    // rnd(). The direct-flag path already handshook before the window (above),
+    // so `net_active` is set there and this block is skipped for it.
+    if (net_lobby_requested && !net_requested) net_lobby_menu(window_title);
+    if (net_requested && !net_active) {
+        det_mode = true;
+        net_lobby_status_frame();   // draw "HOSTING…/connecting…" so the wait isn't a black window
+        net_handshake(&seed);       // blocking; joiner adopts the host's seed
+        SetRandomSeed(seed); srand(seed);
+        if (strcmp(window_title, "dreamengine") == 0)
+            window_title = net_is_host ? "dreamengine — P1 (host)" : "dreamengine — P2";
+    }
+#endif
 
 #ifndef PLATFORM_WEB
 #ifdef DE_TCC

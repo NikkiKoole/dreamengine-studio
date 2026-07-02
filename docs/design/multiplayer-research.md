@@ -213,6 +213,49 @@ unusually good:
   (`-ffp-contract=off`) for the cart + sim-relevant engine code.
 - The replay-checksum test above turns "hope it's deterministic" into CI.
 
+### Player-count ceiling — "20 players" is a different subsystem *(someday)*
+
+Everything above assumes **2–4 players** (a couch/classroom stretch to ~8).
+That is not an accident of scope — it is what the *lockstep model itself*
+allows. A cart with 20 players is **off-axis from this whole plan**, not rung 6
+of it. Two walls, one trivial and one fundamental:
+
+1. **The API cap is trivial.** `btn(player, …)` returns false for `player > 1`
+   today (`studio.c`), and `net.h`'s arrays are `[2]` (host = 0, joiner = 1).
+   Widening those to `MAX_PLAYERS` and fattening the input packet is an
+   afternoon. This is *not* the blocker.
+2. **Lockstep has a hard ceiling that has nothing to do with dreamengine.**
+   The per-frame barrier (`net_frame_sync`) means *the game runs at the speed of
+   the slowest peer* — every frame waits until **everyone's** input has arrived.
+   At 2–4 players on wifi that's fine; at 20, the odds that all 20 datagrams land
+   inside one 16 ms frame collapse, and one player on bad wifi stalls all 20.
+   This is exactly why lockstep RTS games cap around 8 and bolt on
+   lag-adaptation, and why no 20-player game ships on lockstep. Lockstep's other
+   property — **every machine simulates the entire world** — is its strength at
+   small N and its doom at large N.
+
+Big-player-count games (io-games, battle-royale, party games) don't use lockstep
+at all: they use **server-authoritative state sync** (the "Tsoding topology",
+§1) — one server owns the truth, each client sends its input up and renders a
+*view* of what the server sends down. No shared deterministic sim, no barrier,
+tolerates per-player lag. §4's own table already flagged the catch: state sync
+**leaks networking into cart code** (the author must decide what state to send),
+which breaks the "beginners write these, `btn()` is invisible" promise that
+makes rung 1 beautiful. So many-player support isn't a bigger version of what we
+built — it's a **second, parallel subsystem** with a different API philosophy,
+and it would have to answer "how does this stay friendly for beginners?" from
+scratch.
+
+| | Players | Model | Cart API | Status |
+|---|---|---|---|---|
+| **A · shared sim** | 2–4 (≤~8 stretch) | lockstep, `btn()` invisible | zero cart changes | rung 1 shipped |
+| **B · many players** | 10–20+ | server-authoritative state sync | cart must model net state | someday; not designed, not on the ladder |
+
+Honest take: given the lo-fi / beginner ethos, the `btn()`-lockstep sweet spot
+(2–4, maybe a couch-multiplayer 8) is probably the *right* scope. Product B is a
+fork in the road to revisit only if a genuinely many-player cart becomes a goal —
+at which point it's its own design pass, not an extension of this one.
+
 ## 5 · iOS / iPad path *(least-verified section)*
 
 Likely ship vehicle: the **wasm web player in Safari** (no App Store, no

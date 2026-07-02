@@ -8,6 +8,7 @@
   ],
   "teaches": [
     "analog-voice-modeling",
+    "gesture-loop",
     "step-sequencer"
   ],
   "lineage": "The otamatone cart's held-note reed-buzz voice, instantiated FOUR times as a family (the VOICE-size trick done with ribbon range + glide + duty + vibrato per member), crossed with loopstation's gesture-stream looper (EV_ON/EV_CC/EV_OFF, delta-filtered) so each member's singing loops - the looper-as-notation idea from radiophonic-workshop.md section 4, second customer. Two delia-style rhythm rows underneath.",

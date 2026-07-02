@@ -8,6 +8,7 @@
     "probe"
   ],
   "teaches": [
+    "gesture-loop",
     "step-sequencer"
   ],
   "lineage": "Original design documented in docs/design/input-recording-looper.md — the project's first self-recording cart; the novel idea is splitting the loop buffer into quantized note events vs. continuous CC gesture streams for the theremin track.",

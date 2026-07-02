@@ -72,6 +72,33 @@ Right — `musicalsaw.c` is the worked case: `mouse_x/y` → `note_pitch(voice, 
   feedback raw-input recording would have given "for free" is recoverable, minus
   its problems.
 
+### GESTURE LANES — the notation for BUTTONLESS instruments (named + PROVEN 2026-07-02)
+
+> The searchable home for this idea (terms someone will grep for next time: *buttonless*,
+> *gestural instrument*, *gesture lane*, *looper-as-notation*, *can't write it in a step grid*).
+> Carts carrying it are tagged **`teaches: gesture-loop`** — `node tools/cart-index.js` lists them.
+
+The maker's framing (2026-07-02): **the live-looper is the *notation system* for buttonless
+instruments.** A step grid can write down a 303 line or a drum row because they're discrete; a
+theremin / ondes martenot / musical-saw / otamatone / upright-bass phrase is continuous gesture —
+you can't write a swoop into cells, and quantizing it destroys it (the section above). Loop-capture
+of the CC stream, replayed verbatim, is how those instruments get *written down* at all.
+
+Proven twice, in shipped carts:
+
+- **`loopstation`** (2026-06-04) — the prototype: one theremin track records as a delta-filtered
+  CC stream next to three quantized note tracks; ghost crosshair replay.
+- **`otafamily`** (2026-07-02) — the second customer, gesture-first: FOUR characterized otamatone
+  ribbons (daddy/mommy/junior/dog) where the gesture loop IS the whole play loop, coexisting with
+  delia-style step rows — the step-lane + gesture-lane split in one cart.
+
+Downstream implication, recorded in [`radiophonic-workshop.md`](radiophonic-workshop.md) §4 and
+the [`tinyjam-racks.md`](tinyjam-racks.md) market-lens section: the rack **lane format wants two
+lane kinds** — step lanes (tap cells) and gesture lanes (recorded performance, drawn as a curve).
+The Workshop box, whose lead voices are all gestural, is the cart that forces that decision; the
+"expressive playables" product cluster (tinyjam-marketing §3.8) is the same split seen from the
+market side.
+
 ---
 
 ## The looper, in cart code today (no engine change)

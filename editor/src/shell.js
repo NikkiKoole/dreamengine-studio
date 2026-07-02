@@ -1443,6 +1443,29 @@ buildWebBtn.addEventListener('click', async () => {
   }
 })
 
+// ── export a standalone Windows .exe (send-to-a-friend) ────────
+const exportWinBtn = document.getElementById('export-win-btn')
+
+exportWinBtn?.addEventListener('click', async () => {
+  if (!window.studio?.exportWin) { showToast('export requires the desktop app (npm start)', 3000); return }
+  const tilemapCanvas = document.querySelector('#tilemap-canvas')
+  if (tilemapCanvas) await window.studio.saveSprites(tilemapCanvas.toDataURL('image/png'))
+  await window.studio.saveMap(getMapBytes())
+
+  const stopDots = busyDots(exportWinBtn, 'exporting', '🖥 export .exe')
+  exportWinBtn.disabled = true
+  rlogClear()   // open the runtime log panel for build output
+
+  const code = view.state.doc.toString()
+  const result = await window.studio.exportWin(code, { ...settings, cartName: currentCartName })
+
+  stopDots()
+  exportWinBtn.disabled = false
+
+  if (result.ok) showToast('✓ .exe exported — revealed in Finder', 5000)
+  else showLog(result)
+})
+
 // ── deploy to iPhone (signed device build of the live buffer) ──
 const deployIosBtn = document.getElementById('deploy-ios-btn')
 

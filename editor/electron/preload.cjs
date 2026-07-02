@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('studio', {
   loadCartFile:   (filePath) => ipcRenderer.invoke('cart:load-file', filePath),
   getFilePath:  (file)     => webUtils.getPathForFile(file),
   buildWeb:     (code, cfg) => ipcRenderer.invoke('studio:build-web', code, cfg),
+  exportWin:    (code, cfg) => ipcRenderer.invoke('studio:export-win', code, cfg),
   deployIos:    (code, cfg) => ipcRenderer.invoke('studio:deploy-ios', code, cfg),
   publish:      (code, cfg) => ipcRenderer.invoke('studio:publish', code, cfg),
   openExternal: (url)       => ipcRenderer.invoke('studio:open-external', url),

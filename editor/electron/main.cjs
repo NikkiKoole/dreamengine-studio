@@ -283,6 +283,33 @@ function macCompileArgs(dims, optFlags) {
   ]
 }
 
+// MinGW cross-compile args for a Windows .exe. `out` is the output path; opts:
+//   lobby → -DDE_NET_LOBBY_DEFAULT (double-click boots into the multiplayer lobby)
+//   gui   → -mwindows (GUI subsystem: no console window pops up alongside the game)
+// Shared by the background build (studio:run) and the Export .exe button.
+function winCompileArgs(dims, out, opts = {}) {
+  const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, keymap, studioC } = dims
+  return [
+    `"${CART_SRC}"`, `"${studioC}"`,
+    `-I"${RUNTIME_DIR}"`, `-I"${BUILD_DIR}"`, `-I"${RAYLIB_WIN}/include"`,
+    `-DSCREEN_W=${screenW}`, `-DSCREEN_H=${screenH}`, `-DSCALE=${scale}`,
+    `-DMAP_W=${mapW}`, `-DMAP_H=${mapH}`, `-DCELL_W=${cellW}`, `-DCELL_H=${cellH}`,
+    `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
+    ...keymapDefs(keymap),
+    ...(opts.lobby ? ['-DDE_NET_LOBBY_DEFAULT'] : []),
+    '-Os', '-fno-delete-null-pointer-checks',
+    `"${RAYLIB_WIN}/lib/libraylib.a"`,
+    '-lopengl32', '-lgdi32', '-lwinmm', '-lcomdlg32', '-lws2_32',   // ws2_32 = Winsock, for net.h netplay
+    ...(opts.gui ? ['-mwindows'] : []),
+    '-Wl,--gc-sections',
+    `-o "${out}"`,
+  ]
+}
+
+function mingwAvailable() {
+  return fs.existsSync(MINGW) || fs.existsSync(`/usr/local/bin/${MINGW}`) || fs.existsSync(`/opt/homebrew/bin/${MINGW}`)
+}
+
 // clang command for the LIVE (libtcc) host: studio.c compiled with -DDE_TCC and linked
 // against the vendored libtcc.dylib. The cart is NOT linked in — the host JIT-loads
 // cart.c at runtime and hot-reloads it on save. Screen/map dims are baked into the host
@@ -761,28 +788,9 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
       proc.on('exit', (code, signal) => send('cart:exit', { code, signal }))
       proc.on('error', () => {})
 
-      // also cross-compile for Windows in the background
-      if (fs.existsSync(MINGW) || fs.existsSync(`/usr/local/bin/${MINGW}`)) {
-        const winArgs = [
-          `"${CART_SRC}"`, `"${studioC}"`,
-          `-I"${RUNTIME_DIR}"`, `-I"${BUILD_DIR}"`, `-I"${RAYLIB_WIN}/include"`,
-          `-DSCREEN_W=${screenW}`,
-          `-DSCREEN_H=${screenH}`,
-          `-DSCALE=${scale}`,
-          `-DMAP_W=${mapW}`,
-          `-DMAP_H=${mapH}`,
-          `-DCELL_W=${cellW}`,
-          `-DCELL_H=${cellH}`,
-          `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
-          ...keymapDefs(keymap),
-          '-Os',
-          '-fno-delete-null-pointer-checks',
-          `"${RAYLIB_WIN}/lib/libraylib.a"`,
-          '-lopengl32', '-lgdi32', '-lwinmm', '-lcomdlg32', '-lws2_32',   // ws2_32 = Winsock, for net.h lockstep netplay
-          '-Wl,--gc-sections',
-          `-o "${CART_EXE}"`,
-        ]
-        exec(`${MINGW} ${winArgs.join(' ')}`, () => {})
+      // also cross-compile for Windows in the background (console build for testing)
+      if (mingwAvailable()) {
+        exec(`${MINGW} ${winCompileArgs(dims, CART_EXE).join(' ')}`, () => {})
       }
 
       resolve({
@@ -794,6 +802,39 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
         exe:    CART_EXE,
         netIp:  cfg?.net?.mode === 'host' ? lanIPv4() : undefined,   // bare IP — that's what the joiner types
       })
+    })
+  })
+})
+
+// EXPORT A WINDOWS .exe you can send to someone (Thread 2 — the send-to-son path).
+// Cross-compiles the current cart with -mwindows (no console window) and
+// -DDE_NET_LOBBY_DEFAULT (double-click boots into the Host/Join/Solo lobby), asks
+// where to save, and reveals it in Finder. Self-contained: sprites/font are baked
+// into the binary. Windows will warn 'unknown publisher' for an unsigned exe —
+// the recipient clicks 'More info → Run anyway' (code-signing is a later step).
+ipcMain.handle('studio:export-win', async (_event, code, cfg) => {
+  const wc  = _event.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (!mingwAvailable()) return { ok: false, output: 'MinGW not found — install with: brew install mingw-w64' }
+  if (!fs.existsSync(RAYLIB_WIN)) return { ok: false, output: `Windows raylib not found at ${RAYLIB_WIN} — brew install raylib-win64 (or adjust RAYLIB_WIN)` }
+
+  const dims = prepareCart(code, cfg)   // writes cart.c + the embedded data headers
+  const slug = (cfg?.cartName || 'cart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cart'
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Export Windows .exe',
+    defaultPath: `${slug}.exe`,
+    filters: [{ name: 'Windows executable', extensions: ['exe'] }],
+  })
+  if (canceled || !filePath) return { ok: false, output: 'export cancelled' }
+  const out = filePath.endsWith('.exe') ? filePath : `${filePath}.exe`
+
+  log(`\n── exporting ${path.basename(out)} for Windows (multiplayer lobby, no console) ──\n`)
+  return new Promise(resolve => {
+    exec(`${MINGW} ${winCompileArgs(dims, out, { lobby: true, gui: true }).join(' ')}`, (err, _o, stderr) => {
+      if (err) { log((stderr || 'mingw build failed') + '\n'); return resolve({ ok: false, output: stderr || 'mingw build failed' }) }
+      try { shell.showItemInFolder(out) } catch {}
+      log(`✓ exported ${out}\n  send it over — on Windows it double-clicks into the multiplayer lobby (Host / Join / Solo).\n`)
+      resolve({ ok: true, out })
     })
   })
 })

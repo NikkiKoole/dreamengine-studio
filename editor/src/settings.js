@@ -1,4 +1,4 @@
-const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu' }
+const DEFAULTS = { screenW: 320, screenH: 200, scale: 4, mapW: 128, mapH: 64, cellW: 16, cellH: 16, touchControls: false, worklet: false, showProfiler: false, showPublish: false, welcomeCart: 'zoo', backend: 'native', buildMode: 'normal', scaleFilter: 0, renderMode: 'gpu', iosConfig: 'debug' }
 
 // ── key bindings ──────────────────────────────────────────────
 // Values are raylib (GLFW) keycodes — letters/digits are ASCII, specials match
@@ -312,6 +312,20 @@ export function buildSettingsPanel(el) {
   ))
   backendSection.appendChild(note('native: a fresh optimised build each run. live: a persistent libtcc host JIT-compiles the cart and hot-reloads it on every run/save — game state in de_state() survives the swap. desktop app only; sprite/screen changes relaunch the live window. "Build for web" is unaffected.'))
   el.appendChild(backendSection)
+
+  // ── deploy to iPhone (📱 button) ──────────────────────────────
+  const iosSection = section('deploy to iPhone')
+  iosSection.appendChild(select(
+    'build config for the device',
+    [
+      { value: 'debug',   label: 'Debug — perf overlay + inspection hooks on' },
+      { value: 'release', label: 'Release — optimised, clean screen (to play/hand off)' },
+    ],
+    settings.iosConfig,
+    v => { settings.iosConfig = v; save('iosConfig', v) },
+  ))
+  iosSection.appendChild(note('the 📱 to iPhone button signs the LIVE editor cart and launches it on a connected device (~90s). Debug is the dev build — unoptimised engine with the on-screen perf overlay. Release is stripped + -O2 for real performance and a clean screen, for when you’re handing the cart to someone to play. Needs Electron + an unlocked, signing-set-up iPhone (see ios/device.sh).'))
+  el.appendChild(iosSection)
 
   // ── rendering (GPU vs software canvas) ────────────────────────
   const renderSection = section('rendering')

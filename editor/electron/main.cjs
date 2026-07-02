@@ -781,10 +781,12 @@ ipcMain.handle('studio:deploy-ios', async (_event, code, cfg) => {
   const log     = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
   if (!fs.existsSync(path.join(iosDir, 'device.sh'))) return { ok: false, output: 'ios/device.sh not found' }
 
-  log('── deploy to iPhone ──\nbuilding signed for device (~90s)…\n')
+  const iosConfig = cfg?.iosConfig === 'release' ? 'Release' : 'Debug'
+  log(`── deploy to iPhone ──\nbuilding signed for device (${iosConfig}, ~90s)…\n`)
   const env = {
     ...process.env,
     EDITOR: '1',
+    CONFIG:      iosConfig,
     CART:        cfg?.cartName || 'editor',
     DE_SCREEN_W: String(dims.screenW), DE_SCREEN_H: String(dims.screenH),
     DE_MAP_W:    String(dims.mapW),    DE_MAP_H:    String(dims.mapH),
@@ -793,13 +795,40 @@ ipcMain.handle('studio:deploy-ios', async (_event, code, cfg) => {
   return new Promise(resolve => {
     const proc = spawn('bash', ['device.sh'], { cwd: iosDir, env, stdio: ['ignore', 'pipe', 'pipe'] })
     let tail = ''
-    const cap = (c) => { const s = c.toString(); tail = (tail + s).slice(-400); log(s) }
+    // The device build spews known-benign noise the maker doesn't need: xcodebuild's
+    // "DVTAssertions … deviceType … NULL … file a bug" device-probe block, lldb's prep-command
+    // dump, and ~50 near-identical "[NN%] Copying … to device" lines. Filter to the signal
+    // (device.sh's ▸ steps, install milestones, ✓/errors). `tail` keeps the RAW output so a
+    // real failure still surfaces its full error.
+    const NOISE = /DVTAssertions|^\s*Details:|^\s*Object:|^\s*Method:|^\s*Thread:|feedbackassistant\.apple\.com|^\(lldb\)|^\s*command (script|source)|^Executing commands|^\s*Platform:\s|^\s*Connected:|^\s*Sysroot:|^\s*SDK Path:|^\s*Symbol Path:|target modules search-paths|^Current executable set|developer disk image/i
+    let lineBuf = '', copyShown = false, lastAt = Date.now()
+    const emit = (ln) => {
+      if (NOISE.test(ln)) return
+      if (/^\[\s*\d+%\]\s+Copying .* to device\s*$/.test(ln)) {   // collapse the copy spam to one line
+        if (copyShown) return
+        copyShown = true; log('[..] copying app to device…\n'); return
+      }
+      log(ln + '\n')
+    }
+    const cap = (c) => {
+      const s = c.toString(); tail = (tail + s).slice(-400); lastAt = Date.now()
+      lineBuf += s
+      const lines = lineBuf.split('\n'); lineBuf = lines.pop()
+      for (const ln of lines) emit(ln)
+    }
+    // heartbeat: the signed xcodebuild is silent for ~90s — emit a dot during idle stretches so
+    // it's visibly working, not hung.
+    const hb = setInterval(() => { if (Date.now() - lastAt > 5000) { lastAt = Date.now(); log('·') } }, 5000)
     proc.stdout.on('data', cap)
     proc.stderr.on('data', cap)
-    proc.on('exit', (codeN) => resolve(codeN === 0
-      ? { ok: true,  output: null }
-      : { ok: false, output: tail.trim() || `device.sh exited ${codeN}` }))
-    proc.on('error', (e) => resolve({ ok: false, output: String(e) }))
+    proc.on('exit', (codeN) => {
+      clearInterval(hb)
+      if (lineBuf) emit(lineBuf)   // flush any trailing partial line
+      resolve(codeN === 0
+        ? { ok: true,  output: null }
+        : { ok: false, output: tail.trim() || `device.sh exited ${codeN}` })
+    })
+    proc.on('error', (e) => { clearInterval(hb); resolve({ ok: false, output: String(e) }) })
   })
 })
 

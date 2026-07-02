@@ -83,6 +83,16 @@ loops is the Workshop's actual workflow (performance onto tape), and it's the lo
 `tinyjam-racks.md` §Open questions + `input-recording-looper.md` already flag — this box is its
 natural customer.
 
+**And the deeper realization (maker, 2026-07-02): the looper is the *notation* for buttonless
+instruments.** The step grid works for drums and 303 lines because they're discrete; a theremin /
+martenot / musical-saw / upright-bass phrase is continuous gesture — you can't write a swoop into
+cells, and quantizing it destroys it. Loop-capture is how those instruments get *written down*:
+record the performance as `note_on` + a `(loop_pos, NOTE_PITCH, value)` stream, replay verbatim —
+exactly [`input-recording-looper.md`](input-recording-looper.md)'s notes-quantize /
+gestures-verbatim split. For the rack program this implies the lane format eventually wants **two
+lane kinds** — step lanes (tap cells) and gesture lanes (recorded, shown as a drawn curve) — and
+the Workshop box, whose lead voices are ALL gestural, is the cart that forces that decision.
+
 ### The shape fork (open — maker deciding, after the pieces exist)
 
 Three ways to spend the combined material; they are not exclusive but one goes first:

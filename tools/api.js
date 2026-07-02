@@ -57,7 +57,16 @@ const dim  = s => (tty ? `\x1b[2m${s}\x1b[0m` : s);
       out.push("");
       continue;
     }
+    const docHits = keys.filter(k => (studioDocs[k].doc || "").toLowerCase().includes(ql));
+    if (docHits.length) {                                                // name missed, doc text hits
+      out.push(dim(`no API entry NAMED "${q}" — but mentioned in the doc of:`));
+      for (const k of docHits.slice(0, 12)) out.push("  " + bold(k) + dim("  " + studioDocs[k].sig));
+      if (docHits.length > 12) out.push(dim(`  … +${docHits.length - 12} more`));
+      out.push("");
+      continue;
+    }
     out.push(dim(`no API entry matching "${q}".`));                      // nothing
+    out.push(dim(`  not an API name? the repo-wide finder is: node tools/topic-brief.js "${q}"  (docs + carts + engine seam)`));
     out.push("");
     missed++;
   }

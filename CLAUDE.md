@@ -337,6 +337,8 @@ Source-of-truth files live in `tools/carts/`.
 music cart, **imagine the ideal band from the genre BEFORE reading any existing cart** (the firewall:
 [`docs/guides/cart-authoring-prompt.md`](docs/guides/cart-authoring-prompt.md)). Only then open
 [`docs/guides/instrument-carts.md`](docs/guides/instrument-carts.md) to pick the closest chassis.
+"Does a voice/effect already exist?" → `node tools/topic-brief.js <term>` then `node tools/api.js
+<term>` (its no-match points back) — never hand-grep the shelf; cart titles ≠ instrument names.
 **Keep the recipe docs current when you ship** (a rule): radio → `radio-voices.md` +
 `instrument-presets.md`; other music carts → `instrument-recipes.md`; engine effects →
 `effects-recipes.md` (+ §17 ledger in `audio-notes.md` for new effect functions).

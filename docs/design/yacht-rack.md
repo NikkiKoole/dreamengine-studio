@@ -224,6 +224,17 @@ the radio. Cart name = maker call; working name `yachtrack` (the `acidrack` para
 
 ## Open questions
 
+- **UX directness — the maker's first-play verdict (2026-07-02).** The shipped desk feels "a
+  tad bit too indirect": a lot of knobs/levers sit between the finger and the sound. The
+  knobs exist *for a reason* — they're the honest surface for the radio's player model (the
+  chart+interpreters split itself isn't in question) — but the feel isn't pleasant yet. The
+  maker is playing more and thinking about what a more direct surface looks like. Open
+  directions to explore when this gets picked up: fewer-but-bigger controls; making the
+  CHART itself more playable (tap-to-audition a chord immediately, not just at the next
+  comp hit); collapsing feel knobs into one or two "how loose is the band" macros; or
+  per-player character presets instead of continuous knobs. **Hold this pattern back from
+  rack #3 until settled** — mirrored as the top item in the cart's de:meta todo
+  (`node tools/cart-todos.js yachtrack`).
 - **Per-section chord loops.** Real yacht songs change per section; the radio (and v1) run
   one loop with bridge/gear lifts. Compatible v2: a form slot gains a loop index (chord row
   becomes 2–3 loops). Decide after playing v1 — the lift trick covers more than expected.

@@ -10,7 +10,9 @@ CHORD-FIRST rack: [`yacht-rack.md`](yacht-rack.md)), both design→cart in a day
 play → export proven end to end, and **the seed-code handoff FROM A RADIO is now proven too**
 (yachtrack runs yacht's `new_song` verbatim; a 44-pair golden corpus gates it in `spec()`) —
 the milestone rebirth-house was slated for. The per-lane humanize question is answered
-(feel knobs on players — yacht-rack.md). Still open: the shared lane format /
+at the MODEL level (feel knobs on players — yacht-rack.md), but the maker's first-play
+verdict is that the shipped surface is "a tad too indirect" — the knob-heavy UX is under
+review before it's copied to rack #3 (yacht-rack.md open questions, top item). Still open: the shared lane format /
 `rack.h` (deferred at customer #2 — the two racks share an idiom, not code; the third rack
 decides) and the song.h export tier. Rest of this doc = the program. Follow-up brainstorm (bias knobs, the
 agentic RLHF loop, the Game&Watch dancer, MIDI-in): [`tinyjam-racks-followup.md`](tinyjam-racks-followup.md).

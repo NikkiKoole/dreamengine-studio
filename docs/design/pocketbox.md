@@ -4,7 +4,10 @@ STATUS: SHIPPED v1 (2026-07-02, design → cart the same day) — `pocketbox` is
 phases 1–7 landed in one pass (chassis/OLED/modes, all 8 tracks + engine menus, p-locks/ratchets/
 conditions, chord track + CHD modes, finger-drawn wave tracks, patterns + link/polymeter, FX buses
 + live FX, 12-part song mode, autosave + demo groove). The engine verdict held: **zero new engine
-features were needed**. Deferred to the cart's `de:meta.todo[]`: seeded generator, per-track arp
+features were needed**. Same-day follow-ups: a **legibility pass** (see the verdict below) and
+**ROLL-a-groove** (the seeded generator from the open questions — harmony-first: chords, then
+vocabulary drums, then chord-degree bass/lead; the 8-hex code shows on the OLED, though typing a
+code back in is still open). Deferred to the cart's `de:meta.todo[]`: seed entry, per-track arp
 page, WAV-export button, mixer-meters page, step/track copy, `spec()`.
 
 **First-play verdict (maker, 2026-07-02): the naked modal grammar was ILLEGIBLE** — "I don't

@@ -327,7 +327,7 @@
   },
   {
     "title": "acid rack",
-    "description": "Two 303s, the full 909, the curated 808 and the master FX rack in one cart — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays. The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). The fifth strip is the RB-338 EFFECTS RACK on the master bus: DST (drive insert), a tempo-synced DELAY (TIME snaps to 1/16, 1/8, dotted-8th, 1/4 — FB and MIX), GLU (the bus glue compressor — it's also what tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. Insert order: PCF filter, then distortion, then delay. The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves. SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · FX strip: DST/TIME/FB/MIX/GLU/PCF/RES knobs, drag the PCF lane to draw the filter pattern",
+    "description": "Two 303s, the full 909, the curated 808 and the master FX rack in one cart — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays. The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves. SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern",
     "file": "acidrack.cart.png",
     "created": "2026-07-02",
     "kind": [
@@ -1349,6 +1349,23 @@
     "lineage": "Defender (1981) demake on a wrapping 3× world; the novel teaching is the three-state lander FSM (hunt → carry → mutate) with a minimap scanner strip that reads the full ring-world in 16px.",
     "genre": "shooter",
     "homage": "Defender (1981)"
+  },
+  {
+    "title": "delia",
+    "description": "Five tape loops of DIFFERENT lengths phasing against each other - rhythm the way Delia Derbyshire actually made it. No two bars ever quite repeat. A concrete tape-kit: each lane is its own loop with its own length (16-step thud against a 5-step ring-modded lampshade against 7-step BBC pips against 11-step splice clicks against a 32-step reversed swell). All lanes tick at the same sixteenth-note rate but wrap at different points, so the playheads visibly drift apart and realign - the polymetry IS the interface. Voices are musique-concrete recipes: a dead damped thud, a struck bar through a ring modulator (carrier on the RING knob), 1kHz time pips (step 0 of the pips loop is the LONG pip, like the real ones), filtered noise splice-ticks, and a slow-attack noise swell cut dead - the backwards-tape cymbal. Each seed also bakes constant per-step micro-offsets (identical every cycle - a physical splice, not humanize). WOW/FLUT ride the master tape so the whole groove breathes. SPACE run/stop . tap cells to toggle (drag paints) . tap a lane name to audition . M box mutes . < > beside a row change its loop length . [ ] previous/next seed . UP/DOWN tempo . knobs: RING (lampshade carrier) WOW FLUT (tape) . keys 1-5 fire the voices",
+    "file": "delia.cart.png",
+    "created": "2026-07-02",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "step-sequencer",
+      "drum-synthesis",
+      "polymeter",
+      "per-instrument-fx-bus"
+    ],
+    "lineage": "Delia Derbyshire's tape technique at the BBC Radiophonic Workshop (1960s): rhythm from tape loops of UNEQUAL length phasing against each other, found-sound percussion (the struck lampshade), splice timing. Increment 0 of docs/design/radiophonic-workshop.md - the concrete tape-kit proof cart, built standalone first like tb303 was before acidrack.",
+    "homage": "Delia Derbyshire / BBC Radiophonic Workshop"
   },
   {
     "title": "lounge larry",
@@ -3709,6 +3726,21 @@
     "lineage": "Homage to Master of Orion (1993); distills 4X into a single-file cart — procedural galaxy placement, greedy nearest-target AI that skips fights it can't win, defender-advantage combat math.",
     "genre": "4x",
     "homage": "Master of Orion (1993)"
+  },
+  {
+    "title": "ota family",
+    "description": "A singing family of four otamatones - daddy, mommy, junior and the dog - each with its own voice, plus a live-looper so the whole household ends up singing rounds together. Four otamatones drawn as a family, each a drag-to-play fretless ribbon with its OWN character: DADDY sings low and slow (lazy 90ms glide, dark muffled mouth, slow wide vibrato), MOMMY mid and graceful, JUNIOR high and jumpy (22ms glide, thin bright buzz, eager fast vibrato), and the DOG doesn't really sing - every press starts a WOOF (the note starts +6 semitones and drops), holding turns it into a HOWL that drifts sharp with a huge wobble, and it's permanently a little out of tune. Wiggle sideways off the ribbon to open each mouth (a resonant-filter wah - the faces' pixel mouths open to match). The LOOP: arm a member with its REC button and everything you play on it - the continuous pitch/mouth gesture, not quantized notes - records into a shared 8-beat tape loop and replays verbatim as a ghost dot on the ribbon while you layer the next family member on top. Two step-sequencer rows (BOOM/TICK) run underneath for rhythm, delia-style tap cells. The loop bar up top shows every member's recorded gestures as colored dots. drag a stem to play (multitouch: one finger per family member) . wiggle sideways = open the mouth . REC arms that member's loop, X clears it, M mutes . tap BOOM/TICK cells for rhythm . 1-4 = a little yip from each member . UP/DOWN tempo",
+    "file": "otafamily.cart.png",
+    "created": "2026-07-02",
+    "kind": [
+      "instrument"
+    ],
+    "teaches": [
+      "analog-voice-modeling",
+      "step-sequencer"
+    ],
+    "lineage": "The otamatone cart's held-note reed-buzz voice, instantiated FOUR times as a family (the VOICE-size trick done with ribbon range + glide + duty + vibrato per member), crossed with loopstation's gesture-stream looper (EV_ON/EV_CC/EV_OFF, delta-filtered) so each member's singing loops - the looper-as-notation idea from radiophonic-workshop.md section 4, second customer. Two delia-style rhythm rows underneath.",
+    "homage": "Otamatone (Maywa Denki, 1998)"
   },
   {
     "title": "otamatone",

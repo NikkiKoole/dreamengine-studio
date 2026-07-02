@@ -46,6 +46,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 
 #define NET_PORT_DEFAULT 33445
 #define NET_DELAY        3     // input latency in frames (~50 ms at 60 fps)
@@ -162,6 +164,32 @@ static void net_shutdown(void) {
     net_active = false;
 }
 
+// Best-guess LAN IPv4 for THIS machine, so the host can tell the joiner what to
+// type (--net-join <ip>). Prefers a private-range address (192.168.x / 10.x),
+// skips loopback + link-local (169.254); falls back to the first other
+// non-loopback IPv4, else "127.0.0.1" (localhost play still works). Writes into
+// out (size n). rung 2 — docs/design/multiplayer-research.md.
+static void net_local_ipv4(char *out, size_t n) {
+    snprintf(out, n, "127.0.0.1");
+    struct ifaddrs *ifs = NULL;
+    if (getifaddrs(&ifs) != 0) return;
+    char first[INET_ADDRSTRLEN] = { 0 };
+    for (struct ifaddrs *a = ifs; a; a = a->ifa_next) {
+        if (!a->ifa_addr || a->ifa_addr->sa_family != AF_INET) continue;
+        if (!(a->ifa_flags & IFF_UP) || (a->ifa_flags & IFF_LOOPBACK)) continue;
+        char ip[INET_ADDRSTRLEN];
+        struct sockaddr_in *sin = (struct sockaddr_in *)a->ifa_addr;
+        inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof ip);
+        if (strncmp(ip, "169.254.", 8) == 0) continue;      // link-local (no DHCP) — useless to a joiner
+        if (!first[0]) snprintf(first, sizeof first, "%s", ip);
+        if (strncmp(ip, "192.168.", 8) == 0 || strncmp(ip, "10.", 3) == 0) {  // the home/classroom LAN
+            snprintf(out, n, "%s", ip); freeifaddrs(ifs); return;
+        }
+    }
+    if (first[0]) snprintf(out, n, "%s", first);            // e.g. a 172.16/12 net, or a lone public IP
+    freeifaddrs(ifs);
+}
+
 // blocking handshake, called from main() BEFORE the window opens. On the
 // joiner, *seed is overwritten with the host's seed (both sims must roll the
 // same rnd() stream).
@@ -185,7 +213,10 @@ static void net_handshake(unsigned *seed) {
     net_seed_v = *seed;
 
     if (net_is_host) {
-        printf("net: hosting on port %d — waiting for a joiner (--net-join <this machine's ip>)...\n", net_port);
+        char ip[INET_ADDRSTRLEN];
+        net_local_ipv4(ip, sizeof ip);
+        printf("net: HOSTING on %s:%d — the joiner runs: --net-join %s\n", ip, net_port, ip);
+        printf("net: waiting for a joiner...\n");
         fflush(stdout);
         while (!net_peer_set) { net_pump(); usleep(10000); }  // HELLO answered inside net_pump
         printf("net: joiner connected — you are P1 (host)\n");

@@ -208,6 +208,34 @@ function saveDirArgs(cfg) {
   return ['--save-dir', `saves/${slug}`]
 }
 
+// Lockstep netplay flags for a run (rung 2 — docs/design/multiplayer-research.md).
+// cfg.net is { mode:'host' } or { mode:'join', ip }; anything else = solo run.
+function netArgs(cfg) {
+  const n = cfg?.net
+  if (!n) return []
+  if (n.mode === 'host') return ['--net-host']
+  if (n.mode === 'join' && n.ip) return ['--net-join', String(n.ip)]
+  return []
+}
+
+// This machine's best-guess LAN IPv4, to show the host so the joiner knows what
+// to type. Mirrors net.h's net_local_ipv4(): prefer a private range, skip
+// loopback / link-local (169.254). Node's os.networkInterfaces() already flags
+// internal + family, so this stays short.
+function lanIPv4() {
+  const ifs = os.networkInterfaces()
+  let fallback = null
+  for (const addrs of Object.values(ifs)) {
+    for (const a of addrs || []) {
+      if (a.family !== 'IPv4' || a.internal) continue
+      if (a.address.startsWith('169.254.')) continue
+      if (a.address.startsWith('192.168.') || a.address.startsWith('10.')) return a.address
+      if (!fallback) fallback = a.address
+    }
+  }
+  return fallback || '127.0.0.1'
+}
+
 // Environment for a spawned cart. The render backend (GPU vs software canvas) is a
 // runtime env var the studio reads at startup (studio.c: DE_SOFTWARE_CANVAS), so no
 // recompile is needed to switch — just relaunch. settings.renderMode === 'software'
@@ -726,8 +754,9 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
       const cartTitle = cfg?.cartName ? `dreamengine: ${cfg.cartName}` : 'dreamengine'
-      const proc = spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg)], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
-      proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))   // raylib trace (warnings only) + stray printf
+      const netFlags  = netArgs(cfg)
+      const proc = spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
+      proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))   // raylib trace (warnings only) + stray printf + net: HOSTING line
       proc.stderr.on('data', chunk => send('cart:log', chunk.toString()))   // printh() output
       proc.on('exit', (code, signal) => send('cart:exit', { code, signal }))
       proc.on('error', () => {})
@@ -763,6 +792,7 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
         src:    CART_SRC,
         bin:    CART_BIN,
         exe:    CART_EXE,
+        netIp:  cfg?.net?.mode === 'host' ? lanIPv4() : undefined,   // bare IP — that's what the joiner types
       })
     })
   })

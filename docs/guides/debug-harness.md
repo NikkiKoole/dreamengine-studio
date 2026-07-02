@@ -39,7 +39,7 @@ The compiled cart binary accepts:
 | `--dump-every N` | … every Nth frame (default 1 with `--dump`) |
 | `--headless` | hidden window (for batch replay/script) |
 | `--save-dir DIR` | where `cart.sav`/`cart.kv`/`cart.blob` live (default: cwd). The editor and `play.js` pass `saves/<cart>` automatically, so every cart gets its own save folder under `build/saves/` — harness runs can't clobber (or inherit) another cart's hiscores |
-| `--net-host` / `--net-join IP` / `--net-port N` | lockstep netplay, rung 1 (`runtime/net.h` — [`../design/multiplayer-research.md`](../design/multiplayer-research.md)): two native builds play the same 2-player cart over UDP (localhost or LAN by IP). Implies `--det`; the host's seed rides the handshake. Host = player 0, joiner = player 1 — carts stay network-unaware (`btn(player,…)` means "which machine"). v1 syncs `btn()` only. Drive both sides at once with `play.js <name> netdemo` (below) |
+| `--net-host` / `--net-join IP` / `--net-port N` | lockstep netplay, rungs 1–2 (`runtime/net.h` — [`../design/multiplayer-research.md`](../design/multiplayer-research.md)): two native builds play the same 2-player cart over UDP (localhost or LAN by IP). Implies `--det`; the host's seed rides the handshake. Host = player 0, joiner = player 1 — carts stay network-unaware (`btn(player,…)` means "which machine"). `--net-host` prints its LAN IP for the joiner to type. v1 syncs `btn()` only. Drive both sides at once with `play.js <name> netdemo` (below), or from the editor via the **🌐 multiplayer button** next to ▶ (host / join-by-IP) |
 
 `--record` and `--trace` flush every frame, so a live session can be tailed.
 

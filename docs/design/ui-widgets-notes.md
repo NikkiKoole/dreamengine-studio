@@ -277,6 +277,21 @@ tinyjam rack chassis is the kit's next big customer: step-grid = buttons,
 lane levels = vertical faders (8a), the play-pad = a surface (8c) — the
 rack work order and this v2 list are the same list.
 
+### 8e. `ui_owned(id)` — sticky capture for raw surfaces (TODO, has 2 customers)
+
+The widget-vs-raw-surface routing bug, twice fixed cart-side (2026-07-02): a drag
+that *starts* on a ui.h knob wanders over a raw surface (dubdesk's siren pad,
+acidrack's piano roll) and falsely drives it. `ui_captured(id)` alone isn't enough —
+it can drop for a frame mid-drag — so both carts wrap it in the same sticky
+own/unown table (own on first captured sighting, release only at touch-ended; see
+`dubdesk.c:97`, `acidrack.c` "per-finger surface routing"). Second customer =
+graduate it: a `ui_owned(id)` in ui.h that does the sticky tracking internally
+(fed from the existing capture list at `ui_begin`/`ui_end`), so a cart's raw loop
+is just `if (ui_owned(touch_id(i))) continue;`. Pairs naturally with 8c's
+`ui_surface` (which will need exactly this filter on its way in) — whoever builds
+8c should fold this in, or ship it standalone first (it's ~15 lines and deletes
+two cart-side copies).
+
 ## 9. Scope boundary — `ui.h` is NOT the answer to "my cart has buttons" (settled 2026-06-07)
 
 Two carts (`mt70`, `drummachine`) were retrofitted for touch *without* `ui.h`,

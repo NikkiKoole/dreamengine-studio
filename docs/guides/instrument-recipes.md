@@ -431,6 +431,22 @@ All raw waves; some voices fired multiple times detuned for beating/layering.
 | drummachine/clap | NOISE | A0 D60 S0 R30 · BP1100/5 · 3× @12/24ms | Bursting handclap from three echoed noise bursts. |
 | drummachine/bass | SQUARE | A1 D100 S3 R60 · LP900/4 | Rounded square bass, warm lowpass color. |
 
+### tracker (machine — 8 presets, from tracker.c)
+
+The tracker's fixed instrument bank (the Song→Chain→Phrase tracker cart — one preset per
+inst-column digit 0–7). Drums are the drummachine kit reused on purpose.
+
+| name | engine | recipe | character |
+|---|---|---|---|
+| tracker/lead | SQUARE | A2 D120 S5 R90 · duty 0.25 · LP2600/2 | Hollow chip-pulse lead, top tamed by the lowpass. |
+| tracker/bass | SQUARE | A1 D100 S4 R60 · LP700/5 | The `drummachine/bass` shape with a darker cutoff — round sub. |
+| tracker/bell | FM | A1 D400 S0 R300 | Stock 2-op FM bell, long ring. |
+| tracker/pluck | PLUCK | A1 D200 S0 R150 | Dry Karplus-Strong string. |
+| tracker/pad | SAW | A180 D300 S5 R400 · LP1200/2 · LFO_CUT 0.7Hz/500 | Slow saw wash, filter breathing. |
+| tracker/kick | SINE | — | The `drummachine/kick` recipe verbatim. |
+| tracker/snare | NOISE | — | The `drummachine/snare` recipe verbatim. |
+| tracker/hat | NOISE | — | The `drummachine/closed_hat` recipe verbatim. |
+
 ### onenote (machine — 3 voices, from onenote.c)
 
 | name | engine | recipe | character |

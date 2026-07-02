@@ -1,12 +1,11 @@
 # tracker — a Song→Chain→Phrase tracker cart (LSDJ/M8 lineage)
 
-STATUS: DESIGNED — ready to build (2026-07-02). Specced from an orientation pass (shelf gap +
-ADR-0003 re-read) and a study of what the Dirtywave M8 / LSDJ lineage got right. Shape decided
-(single-track phrase view, mnemonic FX, Song→Chain→Phrase); instrument lineup stays intent-first
-at build time per the [cart-authoring firewall](../guides/cart-authoring-prompt.md). Nobody's on it.
-
-> Working cart name: **`tracker`** (plain, discoverable). If a better name shows up at build
-> time, rename before first commit — the name is not load-bearing.
+STATUS: SHIPPED v1 (2026-07-02) — `tools/carts/tracker.c`, built same-day from this spec.
+V1 landed as designed: Song→Chain→Phrase, single-track phrase view, mnemonic FX (all ten),
+4 tracks, 8 presets, `save_bytes` autosave, demo song on first boot, `spec()` covering the
+arrangement walk (chain rollover, transpose re-pitch, HOP odd meters). One build-time deviation:
+the headless spec build freezes the beat clock, so the sequencer advance lives in a `seq_tick()`
+the spec drives by hand. Still open from "Cut from v1": tables, live mode, the song-codec blob.
 
 ## Why — the gap on the shelf
 

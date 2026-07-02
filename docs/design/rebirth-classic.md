@@ -1,11 +1,15 @@
 # Rebirth-classic — the RB-338 homage rack: 2×303 + 808 + 909 in one cart
 
-STATUS: READY TO BUILD — designed (2026-07-02) from a four-thread research pass over the shipped
-machine carts, the effects surface, the generator precedents and the filter engine. Proposes taking
-the pilot slot in the [`tinyjam-racks.md`](tinyjam-racks.md) build order (rationale in §Why this
-pilot). **The filter fidelity spike (§3) SHIPPED same day**: `FILTER_DIODE` in the engine,
-`tools/filter-spec.js` as its oracle, tb303.c upgraded (audio-notes §25 has the measured table).
-The rack cart itself (§5 steps 2+) is not started.
+STATUS: SHIPPED (2026-07-02, one day, design → cart) — **`acidrack.c`, all four increments**: the
+320×240 accordion rack (2× diode-ladder 303 + full 909 + curated 808), banks A–D + 64-bar chain,
+per-DEVICE FX ([fx] view per machine: dist + delay send into the one shared unit; MASTER keeps
+glue + the PCF lane), CPY/CLR/RND scoped to the open strip, and the SEEDED GENERATOR: an 8-hex
+song code deterministically fills all banks + the chain (byte-identical trace+WAV acceptance
+test), tap-to-nudge digits, [ ] history, WAV export via the engine's live capture. Same-day
+engine work: `FILTER_DIODE` + `tools/filter-spec.js` (audio-notes §25), tb303.c upgraded.
+Open tails live in the cart's de:meta todo (touch strokes, per-voice knobs, undo, naming) +
+Increment G machine buses (effects-bus-architecture.md). This doc proposed taking the pilot
+slot from rebirth-house — it did, and the pilot is done: generate → play → export works.
 
 > The rebirth-classic row of the [`tinyjam-racks.md`](tinyjam-racks.md) rack table, promoted to its
 > own design. Maker direction captured here (2026-07-02): **build the cart first, self-contained —

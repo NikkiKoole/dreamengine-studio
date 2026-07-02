@@ -11,19 +11,20 @@
     "subtractive-synth",
     "drum-synthesis"
   ],
-  "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. Increment 1 of docs/design/rebirth-classic.md.",
+  "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. Increments 1+2 of docs/design/rebirth-classic.md.",
   "homage": "Propellerhead ReBirth RB-338 (1997)",
   "todo": [
-    "increment 2: full 808 + 909 panels (curated slots, strokes, metal XY, shuffle)",
-    "increment 3: FX strip (drive/echo/glue comp/PCF filter lane)",
+    "increment 3: FX strip (drive/echo/glue comp/PCF filter lane) — also the fix for the hot mix at the D drop (glue)",
     "increment 4: seeded generator + song code + WAV export",
-    "touch pass: per-finger roll/grid painting (pointer.h), fat-finger pads",
+    "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
+    "per-voice tune/decay/color knobs (the standalone carts' depth) — the rack bakes center values for now",
+    "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing",
     "maker naming pass: 'acid rack' is a working title"
   ],
   "description": {
-    "summary": "Two 303s and a drum machine in one rack — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays.",
-    "detail": "The RB-338 homage, increment 1: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + a four-voice 909 starter kit (kick with the ATTACK click layer, clap retriggers, FM-clang hats with choke), all clocked off one transport. The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells"
+    "summary": "Two 303s, the full 909, and the curated 808 in one rack — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays.",
+    "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone"
   }
 }
 de:meta */
@@ -55,17 +56,46 @@ de:meta */
 #define NBANK   4
 #define CHAINN  64
 #define BASE    36            // C2 — bottom row of the 303 roll
-#define NDRUM   4             // increment-1 starter kit: BD CP CH OH
 
-// instrument slots — the rack's slot plan (rebirth-classic §1: 2×303 = 9,10;
-// drums from 11 up, growing to the full curated set in increment 2)
-#define SLOT_A   9            // 303-A
-#define SLOT_B   10           // 303-B
-#define SL_BD    11
-#define SL_BDC   12           // kick click layer (the 909 ATTACK knob sound)
-#define SL_CP    13
-#define SL_HHC   14
-#define SL_HHO   15
+// instrument slots — the rack's slot plan (rebirth-classic §1): the full set
+// needs 25 of the 27 definable slots, so the rack uses the whole 5..31 range
+// (self-contained cart — nothing else defines slots here).
+// 303s: 5,6 · 909 complete: 7..19 (13) · 808 curated: 20..29 (10) · 30,31 free
+#define SLOT_A    5           // 303-A
+#define SLOT_B    6           // 303-B
+// tr909 (complete kit — recipes verbatim from tr909.c)
+#define SL9_BD    7
+#define SL9_BDC   8           // kick click layer (the ATTACK knob sound)
+#define SL9_SDB   9
+#define SL9_SDN   10
+#define SL9_TOM   11
+#define SL9_TOMC  12
+#define SL9_RS    13
+#define SL9_CP    14
+#define SL9_HHC   15
+#define SL9_HHO   16
+#define SL9_CC    17
+#define SL9_CCN   18
+#define SL9_RC    19
+// tr808 (curated — congas/clave/rim/cymbal cut per the design doc slot math)
+#define SL8_BD    20
+#define SL8_SDB   21
+#define SL8_SDN   22
+#define SL8_TOM   23
+#define SL8_TOMN  24
+#define SL8_CP    25
+#define SL8_MAR   26
+#define SL8_CB    27
+#define SL8_HATO  28
+#define SL8_HATC  29
+
+// drum voice tables
+enum { V9_BD, V9_SD, V9_LT, V9_MT, V9_HT, V9_RS, V9_CP, V9_CH, V9_OH, V9_CC, V9_RC, N909 };
+enum { V8_BD, V8_SD, V8_LT, V8_HT, V8_CP, V8_MA, V8_CB, V8_OH, V8_CH, N808 };
+static const char *NAME909[N909] = { "BD", "SD", "LT", "MT", "HT", "RS", "CP", "CH", "OH", "CC", "RC" };
+static const char *NAME808[N808] = { "BD", "SD", "LT", "HT", "CP", "MA", "CB", "OH", "CH" };
+enum { ST_PLAIN, ST_FLAM, ST_DRAG, ST_RATCHET, NSTROKE };   // 909 stroke family
+#define FLAM_MS 22
 
 // ── pattern data ──────────────────────────────────────────────────────────
 typedef struct {                       // one 303 line in one bank
@@ -74,7 +104,11 @@ typedef struct {                       // one 303 line in one bank
 } Line;
 typedef struct {                       // one bank = a whole-rack snapshot
     Line           ln[2];              // [0]=303-A [1]=303-B
-    unsigned short drum[NDRUM];        // trigger masks
+    unsigned short d909[N909];         // 909 trigger masks
+    unsigned char  st909[N909][STEPS]; // 909 stroke per cell (ST_*)
+    unsigned short acc909;             // 909 TOTAL ACCENT row
+    unsigned short d808[N808];         // 808 trigger masks
+    unsigned short acc808;             // 808 accent row
 } Pattern;
 
 static Pattern bank[NBANK];
@@ -89,7 +123,8 @@ static int  editBank = 0;              // which bank A-D the panels edit
 static int  playBank = 0;              // which bank is sounding this bar
 static int  barpos = 0;                // position in the chain
 static int  last16 = -1, playhead = 0;
-static int  drumflash[NDRUM];          // frames remaining on the header LED
+static int  swing = 50;                // master shuffle 50..66 — 909-style, even 16ths drag
+static float swingf = 0.0f;            // the SHUF slider's 0..1 view of it
 
 // ── the machines ──────────────────────────────────────────────────────────
 enum { K_CUT, K_RES, K_ENV, K_DEC, K_ACC, K_DRV, K_SQL, NK };
@@ -167,65 +202,213 @@ static void gate_303(M303 *s, Line *ln, int st) {   // staccato release mid-step
     }
 }
 
-// ── the starter drum kit — tr909.c voice recipes verbatim ─────────────────
-static const char *DNAME[NDRUM] = { "BD", "CP", "CH", "OH" };
-static void define_drums(void) {
-    // kick — sine body, +30st sweep over 35ms, run hot into the desk (tanh)
-    instrument(SL_BD, INSTR_SINE, 0, 300, 0, 50);
-    instrument_filter(SL_BD, FILTER_LOW, 380, 2);
-    instrument_env(SL_BD, 0, ENV_PITCH, 0, 35, 30.0f);
-    instrument_drive(SL_BD, 0.35f);
-    instrument(SL_BDC, INSTR_NOISE, 0, 9, 0, 4);          // the ATTACK click
-    instrument_filter(SL_BDC, FILTER_HIGH, 2500, 2);
-    // clap — bandpassed noise; the retriggers in fire make the clap
-    instrument(SL_CP, INSTR_NOISE, 0, 100, 0, 45);
-    instrument_filter(SL_CP, FILTER_BAND, 1200, 5);
-    // hats — the FM-clang ROM stand-ins: 3.5 detent, feedback high, then a
-    // highpass that starts 5kHz LOW and rises (negative ENV_CUTOFF) = the
-    // sampled hat's fast-closing sizzle. Closed chokes open, like hardware.
-    instrument(SL_HHC, INSTR_FM, 0, 40, 0, 16);
-    instrument_harmonics(SL_HHC, 0.55f);
-    instrument_timbre(SL_HHC, 0.90f);
-    instrument_morph(SL_HHC, 0.85f);
-    instrument_env(SL_HHC, 0, ENV_CUTOFF, 0, 28, -5000.0f);
-    instrument_filter(SL_HHC, FILTER_HIGH, 7310, 4);      // tr909's metal-pad default
-    instrument(SL_HHO, INSTR_FM, 0, 380, 0, 110);
-    instrument_harmonics(SL_HHO, 0.55f);
-    instrument_timbre(SL_HHO, 0.90f);
-    instrument_morph(SL_HHO, 0.85f);
-    instrument_env(SL_HHO, 0, ENV_CUTOFF, 0, 220, -4500.0f);
-    instrument_filter(SL_HHO, FILTER_HIGH, 6880, 4);
-    instrument_choke(SL_HHC, SL_HHO);
+// ── the drum machines — tr909.c / tr808.c recipes verbatim ───────────────
+// Per-voice tune/decay/color knobs are the standalone carts' depth; the rack
+// bakes their center values (a knob at 0.5 is a no-op in both source carts).
+static int vv(int base, int boost) { int v = base + boost; return v < 0 ? 0 : (v > 7 ? 7 : v); }
+
+// 909 metal-filter XY pad state — X scales the five metal slots' highpass
+// cutoffs, Y is their shared resonance (tr909's admitted impurity, kept:
+// the FM stand-ins land bright and hissy without a tone control)
+static float mcut = 0.40f, mres = 0.33f;
+static void apply_metal_filter(void) {
+    static const int msl[5]   = { SL9_HHC, SL9_HHO, SL9_CC, SL9_CCN, SL9_RC };
+    static const int mbase[5] = { 8500, 8000, 4500, 5200, 5000 };
+    float sc = 0.3f + 1.4f * mcut;
+    int   rq = (int)(mres * 12.0f);
+    for (int i = 0; i < 5; i++)
+        instrument_filter(msl[i], FILTER_HIGH, (int)(mbase[i] * sc), rq);
 }
-static void fire_drum(int v) {
+
+static void define_909(void) {
+    // kick — sine body, +30st sweep over 35ms (punch, not boom), run hot
+    instrument(SL9_BD, INSTR_SINE, 0, 300, 0, 50);
+    instrument_filter(SL9_BD, FILTER_LOW, 380, 2);
+    instrument_env(SL9_BD, 0, ENV_PITCH, 0, 35, 30.0f);
+    instrument_drive(SL9_BD, 0.35f);
+    instrument(SL9_BDC, INSTR_NOISE, 0, 9, 0, 4);         // the ATTACK click
+    instrument_filter(SL9_BDC, FILTER_HIGH, 2500, 2);
+    // snare — 185+330Hz body modes + bright noise
+    instrument(SL9_SDB, INSTR_SINE, 0, 90, 0, 25);
+    instrument_filter(SL9_SDB, FILTER_LOW, 1400, 1);
+    instrument_env(SL9_SDB, 0, ENV_PITCH, 0, 15, 4.0f);
+    instrument(SL9_SDN, INSTR_NOISE, 0, 170, 0, 50);
+    instrument_filter(SL9_SDN, FILTER_HIGH, 1400, 2);
+    // toms — sine drop + a short click at the attack
+    instrument(SL9_TOM, INSTR_SINE, 0, 220, 0, 45);
+    instrument_env(SL9_TOM, 0, ENV_PITCH, 0, 60, 7.0f);
+    instrument(SL9_TOMC, INSTR_NOISE, 0, 12, 0, 5);
+    instrument_filter(SL9_TOMC, FILTER_BAND, 2000, 3);
+    // rim — short woody dual ping
+    instrument(SL9_RS, INSTR_TRI, 0, 28, 0, 10);
+    instrument_filter(SL9_RS, FILTER_HIGH, 400, 3);
+    // clap — bandpassed noise; retriggers in fire make the clap
+    instrument(SL9_CP, INSTR_NOISE, 0, 100, 0, 45);
+    instrument_filter(SL9_CP, FILTER_BAND, 1200, 5);
+    // hats/cymbals — the FM-clang ROM stand-ins: 3.5 detent, feedback high,
+    // closing highpass (negative ENV_CUTOFF) = the sampled sizzle
+    instrument(SL9_HHC, INSTR_FM, 0, 40, 0, 16);
+    instrument_harmonics(SL9_HHC, 0.55f);
+    instrument_timbre(SL9_HHC, 0.90f);
+    instrument_morph(SL9_HHC, 0.85f);
+    instrument_env(SL9_HHC, 0, ENV_CUTOFF, 0, 28, -5000.0f);
+    instrument(SL9_HHO, INSTR_FM, 0, 380, 0, 110);
+    instrument_harmonics(SL9_HHO, 0.55f);
+    instrument_timbre(SL9_HHO, 0.90f);
+    instrument_morph(SL9_HHO, 0.85f);
+    instrument_env(SL9_HHO, 0, ENV_CUTOFF, 0, 220, -4500.0f);
+    instrument_choke(SL9_HHC, SL9_HHO);
+    instrument(SL9_CC, INSTR_FM, 0, 1000, 0, 280);        // crash: clang + wash
+    instrument_harmonics(SL9_CC, 0.55f);
+    instrument_timbre(SL9_CC, 1.00f);
+    instrument_morph(SL9_CC, 0.90f);
+    instrument(SL9_CCN, INSTR_NOISE, 0, 1200, 0, 320);
+    instrument(SL9_RC, INSTR_FM, 0, 550, 0, 160);         // ride: cleaner ping
+    instrument_harmonics(SL9_RC, 0.55f);
+    instrument_timbre(SL9_RC, 0.72f);
+    instrument_morph(SL9_RC, 0.58f);
+    apply_metal_filter();                                  // the pad owns the metal highpasses
+}
+
+static void define_808(void) {
+    // kick — the boom: low sine, +26st drop over 50ms, run a little hot
+    instrument(SL8_BD, INSTR_SINE, 0, 480, 0, 60);
+    instrument_filter(SL8_BD, FILTER_LOW, 250, 3);
+    instrument_env(SL8_BD, 0, ENV_PITCH, 0, 50, 26.0f);
+    instrument_drive(SL8_BD, 0.28f);
+    // snare — 180+330Hz modes + snappy noise
+    instrument(SL8_SDB, INSTR_SINE, 0, 100, 0, 30);
+    instrument_filter(SL8_SDB, FILTER_LOW, 1200, 1);
+    instrument_env(SL8_SDB, 0, ENV_PITCH, 0, 20, 3.0f);
+    instrument(SL8_SDN, INSTR_NOISE, 0, 130, 0, 40);
+    instrument_filter(SL8_SDN, FILTER_HIGH, 1800, 2);
+    // toms — sine drop + a low noise thud
+    instrument(SL8_TOM, INSTR_SINE, 0, 260, 0, 50);
+    instrument_env(SL8_TOM, 0, ENV_PITCH, 0, 80, 6.0f);
+    instrument(SL8_TOMN, INSTR_NOISE, 0, 28, 0, 12);
+    instrument_filter(SL8_TOMN, FILTER_BAND, 900, 2);
+    // clap
+    instrument(SL8_CP, INSTR_NOISE, 0, 110, 0, 50);
+    instrument_filter(SL8_CP, FILTER_BAND, 1100, 5);
+    // maracas
+    instrument(SL8_MAR, INSTR_NOISE, 0, 24, 0, 10);
+    instrument_filter(SL8_MAR, FILTER_HIGH, 6500, 2);
+    // cowbell — square pair through the classic ~2.6kHz bandpass
+    instrument(SL8_CB, INSTR_SQUARE, 0, 250, 0, 60);
+    instrument_filter(SL8_CB, FILTER_BAND, 2640, 5);
+    // hats — bank squares through ~7kHz highpass; open vs closed = decay
+    instrument(SL8_HATO, INSTR_SQUARE, 0, 340, 0, 90);
+    instrument_filter(SL8_HATO, FILTER_HIGH, 7000, 3);
+    instrument(SL8_HATC, INSTR_SQUARE, 0, 42, 0, 16);
+    instrument_filter(SL8_HATC, FILTER_HIGH, 7000, 3);
+    instrument_choke(SL8_HATC, SL8_HATO);
+}
+
+static int flash909[N909], flash808[N808];    // header/panel activity flashes
+
+static void fire909(int v, int boost, int delay) {
     switch (v) {
-    case 0:  // BD: fast sweep body + click layer
-        schedule_hit(0, 32, SL_BD, 6, 320);
-        schedule_hit(0, 60, SL_BDC, 3, 10);
+    case V9_BD:
+        schedule_hit(delay, 32, SL9_BD, vv(6, boost), 320);
+        schedule_hit(delay, 60, SL9_BDC, vv(3, boost), 10);
         break;
-    case 1:  // CP: three retriggers ~9ms apart + a soft room tail
-        schedule_hit(0,  60, SL_CP, 5, 11);
-        schedule_hit(9,  60, SL_CP, 5, 11);
-        schedule_hit(18, 60, SL_CP, 5, 11);
-        schedule_hit(26, 60, SL_CP, 3, 130);
+    case V9_SD:
+        schedule_hit(delay, 54, SL9_SDB, vv(4, boost), 95);
+        schedule_hit(delay, 64, SL9_SDB, vv(3, boost), 95);
+        schedule_hit(delay, 60, SL9_SDN, vv(4, boost), 180);
         break;
-    case 2: schedule_hit(0, 97, SL_HHC, 4, 40);  break;  // CH
-    case 3: schedule_hit(0, 97, SL_HHO, 4, 400); break;  // OH
+    case V9_LT: case V9_MT: case V9_HT: {
+        int mm = v == V9_LT ? 42 : v == V9_MT ? 47 : 54;
+        schedule_hit(delay, mm, SL9_TOM, vv(5, boost), 240);
+        schedule_hit(delay, 70, SL9_TOMC, vv(2, boost), 14);
+        break;
     }
-    drumflash[v] = 6;
+    case V9_RS:
+        schedule_hit(delay, 76, SL9_RS, vv(5, boost), 30);
+        schedule_hit(delay, 64, SL9_RS, vv(3, boost), 30);
+        break;
+    case V9_CP:
+        schedule_hit(delay,      60, SL9_CP, vv(5, boost), 11);
+        schedule_hit(delay + 9,  60, SL9_CP, vv(5, boost), 11);
+        schedule_hit(delay + 18, 60, SL9_CP, vv(5, boost), 11);
+        schedule_hit(delay + 26, 60, SL9_CP, vv(3, boost), 130);
+        break;
+    case V9_CH: schedule_hit(delay, 97, SL9_HHC, vv(4, boost), 40);  break;
+    case V9_OH: schedule_hit(delay, 97, SL9_HHO, vv(4, boost), 400); break;
+    case V9_CC:
+        schedule_hit(delay, 84, SL9_CC,  vv(4, boost), 1100);
+        schedule_hit(delay, 60, SL9_CCN, vv(3, boost), 1300);
+        break;
+    case V9_RC:
+        schedule_hit(delay, 76, SL9_RC, vv(4, boost), 600);
+        schedule_hit(delay, 83, SL9_RC, vv(2, boost), 600);
+        break;
+    }
+    flash909[v] = 6;
+}
+
+// the 909 stroke family: flam = one quiet grace 22ms early, drag = two,
+// ratchet = four even hits chopped across the step (tr909.c fire_stroke)
+static void fire_stroke909(int v, int st, int boost, int delay, int step_ms) {
+    switch (st) {
+    case ST_RATCHET:
+        for (int k = 0; k < 4; k++) fire909(v, k ? boost - 2 : boost, delay + k * step_ms / 4);
+        return;
+    case ST_DRAG: fire909(v, boost - 4, delay - 2 * FLAM_MS); /* fall through */
+    case ST_FLAM: fire909(v, boost - 3, delay - FLAM_MS);     /* fall through */
+    default:      fire909(v, boost, delay);
+    }
+}
+
+static void fire808(int v, int boost, int delay) {
+    switch (v) {
+    case V8_BD: schedule_hit(delay, 31, SL8_BD, vv(6, boost), 500); break;
+    case V8_SD:
+        schedule_hit(delay, 54, SL8_SDB, vv(4, boost), 110);
+        schedule_hit(delay, 64, SL8_SDB, vv(4, boost), 110);
+        schedule_hit(delay, 60, SL8_SDN, vv(4, boost), 140);
+        break;
+    case V8_LT: case V8_HT: {
+        int mm = v == V8_LT ? 40 : 52;
+        schedule_hit(delay, mm, SL8_TOM, vv(4, boost), 280);
+        schedule_hit(delay, 60, SL8_TOMN, vv(3, boost), 30);
+        break;
+    }
+    case V8_CP:
+        schedule_hit(delay,      60, SL8_CP, vv(4, boost), 12);
+        schedule_hit(delay + 10, 60, SL8_CP, vv(4, boost), 12);
+        schedule_hit(delay + 20, 60, SL8_CP, vv(4, boost), 12);
+        schedule_hit(delay + 28, 60, SL8_CP, vv(3, boost), 140);
+        break;
+    case V8_MA: schedule_hit(delay, 90, SL8_MAR, vv(3, boost), 30); break;
+    case V8_CB:  // bank osc pair, 540Hz + 800Hz
+        schedule_hit(delay, 73, SL8_CB, vv(4, boost), 220);
+        schedule_hit(delay, 79, SL8_CB, vv(4, boost), 220);
+        break;
+    case V8_OH:
+        schedule_hit(delay, 79, SL8_HATO, vv(3, boost), 360);
+        schedule_hit(delay, 72, SL8_HATO, vv(3, boost), 360);
+        break;
+    case V8_CH:
+        schedule_hit(delay, 79, SL8_HATC, vv(3, boost), 50);
+        schedule_hit(delay, 72, SL8_HATC, vv(2, boost), 50);
+        break;
+    }
+    flash808[v] = 6;
 }
 
 // ── the accordion ─────────────────────────────────────────────────────────
-enum { STRIP_A, STRIP_B, STRIP_DRUM, NSTRIP };
-static const char *SNAME[NSTRIP] = { "303-A", "303-B", "DRUMS" };
+enum { STRIP_A, STRIP_B, STRIP_909, STRIP_808, NSTRIP };
+static const char *SNAME[NSTRIP] = { "303-A", "303-B", "909", "808" };
 static int  expanded = STRIP_A;
 static bool mute[NSTRIP];
 
 // layout — transport bar / strips / song chain row
+// 22 + 4×20 + 120 + 14 = 236 ≤ 240
 #define TB_H    22
 #define HDR_H   20
 #define PANEL_H 120
-#define CHAIN_Y 222
+#define CHAIN_Y 224
 static int strip_y(int i) {            // header top of strip i
     int y = TB_H + 2;
     for (int k = 0; k < i; k++) y += HDR_H + (k == expanded ? PANEL_H : 0);
@@ -234,26 +417,42 @@ static int strip_y(int i) {            // header top of strip i
 
 // ── authored demo patterns (the generator fills these in increment 4) ─────
 // 303 lines as tb303-style strings: nt '.'=rest '0'-'9','A'-'C'=semitone;
-// oc/ac/sl = 'x' masks. Drums as one 'x' mask per voice (BD CP CH OH).
+// oc/ac/sl = 'x' masks. Drum rows use tr909's stroke chars: 'x' hit,
+// 'f' flam, 'd' drag, 'r' ratchet (strokes are 909-only, like the panel).
 typedef struct { const char *nt, *oc, *ac, *sl; } LineSrc;
-typedef struct { LineSrc a, b; const char *dr[NDRUM]; } PatSrc;
+typedef struct {
+    LineSrc a, b;
+    const char *r909[N909]; const char *ac9;   // NULL row = silent
+    const char *r808[N808]; const char *ac8;
+} PatSrc;
 static const PatSrc DEMO[NBANK] = {
     { // A — sparse intro: one 303 murmurs over the kick
       { "0...3...0...7...", "................", "x...........x...", "................" },
       { "................", "................", "................", "................" },
-      { "x...x...x...x...", "................", "................", "................" } },
-    { // B — the groove: clap lands, hats breathe, B answers A
+      { [V9_BD] = "x...x...x...x..." }, "x...............",
+      { 0 }, 0 },
+    { // B — the groove: clap lands, hats breathe, the cowbell answers
       { "0.C03.7A0.C0537A", "................", "x...x...x...x...", "......x.......x." },
       { "0...............", "x...............", "x...............", "................" },
-      { "x...x...x...x...", "....x.......x...", "..x...x...x...x.", "................" } },
-    { // C — the build: A climbs an octave, kick doubles into the turn
+      { [V9_BD] = "x...x...x...x...", [V9_CP] = "....x.......x...",
+        [V9_CH] = "..x...x...x...x." }, "x.......x.......",
+      { [V8_CB] = "x..x..x.x..x..x." }, 0 },
+    { // C — the build: A climbs an octave, kick doubles into the turn,
+      //     ratcheted hats (the Hardfloor move), 808 shaker under it all
       { "0.C03.7A0.C0537A", "........xxxxxxxx", "x...x...x...x...", "......x.......x." },
       { "0.0.0.0.0.0.0.0.", "................", "x...x...x...x...", "................" },
-      { "x...x...x...x.xx", "....x.......x...", "xxxxxxxxxxxxxxxx", "................" } },
-    { // D — the drop: open hats, both boxes accented and sliding
+      { [V9_BD] = "x...x...x...x.xx", [V9_CP] = "....x.......x...",
+        [V9_CH] = "x.x.x.x.x.x.x.xr", [V9_LT] = "............x...",
+        [V9_HT] = "..............x." }, "x.......x.......",
+      { [V8_MA] = "xxxxxxxxxxxxxxxx" }, 0 },
+    { // D — the drop: crash on the one, open hats, ride, snare flam,
+      //     both boxes accented and sliding, 808 shaker + cowbell on top
       { "0.C03.7A0.C0537A", "x.......x.......", "x.x.x.x.x.x.x.x.", "..x...x...x...x." },
       { "0..7..A.0..3..C.", ".........x......", "x.......x.......", "..x.....x......." },
-      { "x...x...x...x...", "....x.......x...", "x...x...x...x...", "..x...x...x...x." } },
+      { [V9_BD] = "x...x...x...x...", [V9_CP] = "....x.......f...",
+        [V9_CH] = "x...x...x...x...", [V9_OH] = "..x...x...x...x.",
+        [V9_RC] = "x.......x.......", [V9_CC] = "x..............." }, "x...x...x...x...",
+      { [V8_MA] = "xxxxxxxxxxxxxxxx", [V8_CB] = "x..x..x.x..x..x." }, 0 },
 };
 static const char *DEMO_CHAIN = "AABBAABBCCCDBBDD";
 
@@ -270,15 +469,28 @@ static void decode_line(Line *ln, const LineSrc *src) {
         if (src->sl[s] == 'x') ln->sld |= 1 << s;
     }
 }
+static unsigned short decode_mask(const char *row) {
+    unsigned short mk = 0;
+    if (row) for (int s = 0; s < STEPS; s++) if (row[s] != '.') mk |= 1 << s;
+    return mk;
+}
 static void load_demo(void) {
+    memset(bank, 0, sizeof bank);
     for (int bk = 0; bk < NBANK; bk++) {
-        decode_line(&bank[bk].ln[0], &DEMO[bk].a);
-        decode_line(&bank[bk].ln[1], &DEMO[bk].b);
-        for (int d = 0; d < NDRUM; d++) {
-            bank[bk].drum[d] = 0;
-            for (int s = 0; s < STEPS; s++)
-                if (DEMO[bk].dr[d][s] == 'x') bank[bk].drum[d] |= 1 << s;
+        Pattern *P = &bank[bk];
+        const PatSrc *S = &DEMO[bk];
+        decode_line(&P->ln[0], &S->a);
+        decode_line(&P->ln[1], &S->b);
+        for (int v = 0; v < N909; v++) {
+            P->d909[v] = decode_mask(S->r909[v]);
+            if (S->r909[v]) for (int s = 0; s < STEPS; s++)
+                P->st909[v][s] = S->r909[v][s] == 'f' ? ST_FLAM
+                               : S->r909[v][s] == 'd' ? ST_DRAG
+                               : S->r909[v][s] == 'r' ? ST_RATCHET : ST_PLAIN;
         }
+        P->acc909 = decode_mask(S->ac9);
+        for (int v = 0; v < N808; v++) P->d808[v] = decode_mask(S->r808[v]);
+        P->acc808 = decode_mask(S->ac8);
     }
     chainN = 0;
     memset(chain, 0xFF, sizeof chain);
@@ -287,13 +499,13 @@ static void load_demo(void) {
 }
 
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D0001u
+#define SAVE_MAGIC 0xAC1D0002u   // v2: full 909/808 pattern data + swing + metal pad
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
     unsigned char chain[CHAINN];
-    int      chainN, tempo, editBank;
-    float    knob[2][NK];
+    int      chainN, tempo, editBank, swing;
+    float    knob[2][NK], mcut, mres;
     int      wave[2];
     bool     songmode, mute[NSTRIP];
 } SaveBlob;
@@ -304,7 +516,8 @@ static void save_song(void) {
     sb.magic = SAVE_MAGIC;
     memcpy(sb.bank, bank, sizeof bank);
     memcpy(sb.chain, chain, sizeof chain);
-    sb.chainN = chainN; sb.tempo = tempo; sb.editBank = editBank;
+    sb.chainN = chainN; sb.tempo = tempo; sb.editBank = editBank; sb.swing = swing;
+    sb.mcut = mcut; sb.mres = mres;
     for (int i = 0; i < 2; i++) { memcpy(sb.knob[i], m[i].knob, sizeof m[i].knob); sb.wave[i] = m[i].wave; }
     sb.songmode = songmode;
     memcpy(sb.mute, mute, sizeof mute);
@@ -315,7 +528,9 @@ static bool load_song(void) {
     if (load_bytes(&sb, sizeof sb) != sizeof sb || sb.magic != SAVE_MAGIC) return false;
     memcpy(bank, sb.bank, sizeof bank);
     memcpy(chain, sb.chain, sizeof chain);
-    chainN = sb.chainN; tempo = sb.tempo; editBank = sb.editBank;
+    chainN = sb.chainN; tempo = sb.tempo; editBank = sb.editBank; swing = sb.swing;
+    swingf = (swing - 50) / 16.0f;
+    mcut = sb.mcut; mres = sb.mres;
     for (int i = 0; i < 2; i++) { memcpy(m[i].knob, sb.knob[i], sizeof m[i].knob); m[i].wave = sb.wave[i]; }
     songmode = sb.songmode;
     memcpy(mute, sb.mute, sizeof sb.mute);
@@ -327,7 +542,8 @@ void init(void) {
     if (!load_song()) load_demo();
     define_303(&m[0]);
     define_303(&m[1]);
-    define_drums();
+    define_909();
+    define_808();
     bpm(tempo);
     echo(60000 * 3 / (tempo * 4), 0.3f, 0.35f);    // dotted-8th slapback, shared
 }
@@ -356,6 +572,8 @@ void update(void) {
     if (keyp(KEY_LEFT))  { editBank = (editBank + NBANK - 1) % NBANK; }
     if (keyp(KEY_RIGHT)) { editBank = (editBank + 1) % NBANK; }
     if (keyp('S'))       { songmode = !songmode; mark_dirty(); }
+    if (keyp('Z'))       { swing -= 2; if (swing < 50) swing = 50; swingf = (swing - 50) / 16.0f; mark_dirty(); }
+    if (keyp('X'))       { swing += 2; if (swing > 66) swing = 66; swingf = (swing - 50) / 16.0f; mark_dirty(); }
 
     // ── raw-tap surfaces (roll / flags / grid / chain / headers) ──────────
     // sticky widget-ownership (the dubdesk fix): once ui.h captures a finger
@@ -407,15 +625,57 @@ void update(void) {
             }
         }
 
-        // expanded drum panel: trigger grid
-        if (expanded == STRIP_DRUM && tap) {
-            int y0 = strip_y(STRIP_DRUM) + HDR_H;
-            int gx = 40, gy = y0 + 8;
-            if (px >= gx && px < gx + STEPS * 15 && py >= gy && py < gy + NDRUM * 13) {
-                int st = (px - gx) / 15, v = (py - gy) / 13;
-                P->drum[v] ^= 1 << st;
+        // expanded 909 panel: trigger grid + accent row + the metal XY pad
+        if (expanded == STRIP_909) {
+            int y0 = strip_y(STRIP_909) + HDR_H;
+            int gx = 36, gy = y0 + 4;
+            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy && py < gy + N909 * 9) {
+                int st = (px - gx) / 13, v = (py - gy) / 9;
+                P->d909[v] ^= 1 << st;
+                if (!(P->d909[v] & (1 << st))) P->st909[v][st] = ST_PLAIN;
                 mark_dirty();
             }
+            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy + N909 * 9 + 2 && py < gy + N909 * 9 + 10) {
+                P->acc909 ^= 1 << ((px - gx) / 13);
+                mark_dirty();
+            }
+            // metal XY pad — a drag surface, ride-safe (instrument_filter set on move)
+            if (px >= 252 && px < 312 && py >= y0 + 8 && py < y0 + 48) {
+                mcut = (px - 252) / 60.0f;
+                mres = 1.0f - (py - (y0 + 8)) / 40.0f;
+                apply_metal_filter();
+                mark_dirty();
+            }
+        }
+
+        // expanded 808 panel: trigger grid + accent row
+        if (expanded == STRIP_808) {
+            int y0 = strip_y(STRIP_808) + HDR_H;
+            int gx = 36, gy = y0 + 6;
+            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy && py < gy + N808 * 10) {
+                int st = (px - gx) / 13, v = (py - gy) / 10;
+                P->d808[v] ^= 1 << st;
+                mark_dirty();
+            }
+            if (tap && px >= gx && px < gx + STEPS * 13 && py >= gy + N808 * 10 + 2 && py < gy + N808 * 10 + 10) {
+                P->acc808 ^= 1 << ((px - gx) / 13);
+                mark_dirty();
+            }
+        }
+    }
+
+    // right-click cycles a 909 cell through the stroke family (off cells join
+    // at FLAM, like tr909) — desktop-only for now; long-press is the touch todo
+    if (mouse_pressed(MOUSE_RIGHT) && expanded == STRIP_909) {
+        Pattern *P = &bank[editBank];
+        int y0 = strip_y(STRIP_909) + HDR_H;
+        int gx = 36, gy = y0 + 4;
+        int px = mouse_x(), py = mouse_y();
+        if (px >= gx && px < gx + STEPS * 13 && py >= gy && py < gy + N909 * 9) {
+            int st = (px - gx) / 13, v = (py - gy) / 9;
+            if (!(P->d909[v] & (1 << st))) { P->d909[v] |= 1 << st; P->st909[v][st] = ST_FLAM; }
+            else P->st909[v][st] = (unsigned char)((P->st909[v][st] + 1) % NSTROKE);
+            mark_dirty();
         }
     }
 
@@ -433,7 +693,8 @@ void update(void) {
     int s16 = beat() * 4 + (int)(beat_pos() * 4.0f);
     int st  = s16 & 15;
     if (s16 != last16) {
-        bool newbar = (st == 0 && last16 >= 0) || last16 < 0;
+        bool first_flip = (last16 < 0);
+        bool newbar = (st == 0 && !first_flip) || first_flip;
         last16 = s16;
         playhead = st;
         if (newbar) {                              // pick the bar's bank
@@ -443,11 +704,40 @@ void update(void) {
             } else playBank = editBank;
         }
         Pattern *P = &bank[playBank];
+        // 303s trigger on the flip (a held voice can't be scheduled ahead;
+        // they also don't shuffle — noted in the design doc, revisit if the
+        // straight-303-against-swung-drums clash bothers the ears at 60+)
         if (!mute[STRIP_A]) step_303(&m[0], &P->ln[0], st); else off_303(&m[0]);
         if (!mute[STRIP_B]) step_303(&m[1], &P->ln[1], st); else off_303(&m[1]);
-        if (!mute[STRIP_DRUM])
-            for (int d = 0; d < NDRUM; d++)
-                if (P->drum[d] & (1 << st)) fire_drum(d);
+
+        // drums: schedule the NEXT step sample-accurate (the tr909 pattern) —
+        // that's what makes shuffle and flam graces land between the frames
+        float f = beat_pos() * 4.0f; f -= (int)f;
+        int step_ms = 15000 / tempo;
+        int delay   = (int)((1.0f - f) * step_ms);
+        int nx      = (s16 + 1) & 15;
+        if (nx & 1) delay += (swing - 50) * 2 * step_ms / 100;   // even 16ths drag
+        // the next step's bank: at a bar seam, peek the chain
+        Pattern *N = P;
+        if (nx == 0 && songmode && chainN > 0) N = &bank[chain[barpos % chainN]];
+        else if (nx == 0 && !songmode) N = &bank[editBank];
+        if (!mute[STRIP_909]) {
+            int boost = (N->acc909 >> nx) & 1 ? 2 : 0;
+            for (int v = 0; v < N909; v++)
+                if (N->d909[v] & (1 << nx)) fire_stroke909(v, N->st909[v][nx], boost, delay, step_ms);
+        }
+        if (!mute[STRIP_808]) {
+            int boost = (N->acc808 >> nx) & 1 ? 2 : 0;
+            for (int v = 0; v < N808; v++)
+                if (N->d808[v] & (1 << nx)) fire808(v, boost, delay);
+        }
+        if (first_flip) {   // fresh start: also sound the step we're already on
+            int b9 = (P->acc909 >> st) & 1 ? 2 : 0, b8 = (P->acc808 >> st) & 1 ? 2 : 0;
+            if (!mute[STRIP_909]) for (int v = 0; v < N909; v++)
+                if (P->d909[v] & (1 << st)) fire909(v, b9, 0);
+            if (!mute[STRIP_808]) for (int v = 0; v < N808; v++)
+                if (P->d808[v] & (1 << st)) fire808(v, b8, 0);
+        }
     } else {
         Pattern *P = &bank[playBank];
         gate_303(&m[0], &P->ln[0], st);
@@ -468,7 +758,8 @@ static void draw_header(int i, int y) {
     for (int s = 0; s < STEPS; s++) {
         int tx = 96 + s * 6;
         bool onn = false;
-        if (i == STRIP_DRUM) { for (int d = 0; d < NDRUM; d++) if (P->drum[d] & (1 << s)) { onn = true; break; } }
+        if      (i == STRIP_909) { for (int d = 0; d < N909; d++) if (P->d909[d] & (1 << s)) { onn = true; break; } }
+        else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (P->d808[d] & (1 << s)) { onn = true; break; } }
         else onn = (P->ln[i].on >> s) & 1;
         int c = onn ? (mute[i] ? CLR_MEDIUM_GREY : CLR_ORANGE) : CLR_DARKER_GREY;
         if (running && s == playhead) c = CLR_WHITE;
@@ -476,7 +767,8 @@ static void draw_header(int i, int y) {
     }
     // activity LED
     bool lit = false;
-    if (i == STRIP_DRUM) { for (int d = 0; d < NDRUM; d++) if (drumflash[d] > 0) lit = true; }
+    if      (i == STRIP_909) { for (int d = 0; d < N909; d++) if (flash909[d] > 0) lit = true; }
+    else if (i == STRIP_808) { for (int d = 0; d < N808; d++) if (flash808[d] > 0) lit = true; }
     else lit = (m[i].h >= 0);
     circfill(206, y + 10, 2, lit && !mute[i] ? CLR_GREEN : CLR_DARKER_GREY);
     // MUTE toggle (ui.h button — per-finger capture, focus ring)
@@ -531,21 +823,58 @@ static void draw_303_panel(int i, int y0) {
     font(FONT_NORMAL);
 }
 
-static void draw_drum_panel(int y0) {
-    Pattern *P = &bank[editBank];
-    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
-    int gx = 40, gy = y0 + 8;
-    for (int v = 0; v < NDRUM; v++) {
-        print(DNAME[v], 16, gy + v * 13 + 3, drumflash[v] > 0 ? CLR_WHITE : CLR_MEDIUM_GREY);
+// one grid implementation, two voice tables — the 808/909 shared skeleton.
+// strokes draws tr909's tick marks; row pitch rh differs (11 vs 9 voices).
+static void draw_drum_grid(const char **names, int nv, unsigned short *rows,
+                           unsigned char st_rows[][STEPS], unsigned short accmask,
+                           int *flash, int gx, int gy, int rh) {
+    font(FONT_SMALL);
+    for (int v = 0; v < nv; v++) {
+        print(names[v], 12, gy + v * rh + 2, flash[v] > 0 ? CLR_WHITE : CLR_MEDIUM_GREY);
         for (int st = 0; st < STEPS; st++) {
-            int cx = gx + st * 15;
-            bool onn = (P->drum[v] >> st) & 1;
+            int cx = gx + st * 13;
+            bool onn = (rows[v] >> st) & 1;
             int c = onn ? BANKCLR[editBank] : ((st & 3) == 0 ? CLR_DARK_GREY : CLR_DARKER_GREY);
             if (running && st == playhead && onn) c = CLR_WHITE;
-            rectfill(cx, gy + v * 13, 14, 12, c);
+            rectfill(cx, gy + v * rh, 12, rh - 1, c);
+            if (onn && st_rows && st_rows[v][st] != ST_PLAIN)   // stroke ticks
+                for (int t = 0; t <= (int)st_rows[v][st] - ST_FLAM; t++)
+                    rectfill(cx + 2 + t * 3, gy + v * rh + rh - 3, 2, 2, CLR_BLACK);
         }
     }
-    print("full 808 + 909 panels arrive in increment 2", 40, gy + NDRUM * 13 + 10, CLR_DARK_GREY);
+    // TOTAL ACCENT row
+    print("AC", 12, gy + nv * rh + 3, CLR_RED);
+    for (int st = 0; st < STEPS; st++)
+        rectfill(gx + st * 13, gy + nv * rh + 2, 12, 6,
+                 (accmask >> st) & 1 ? CLR_RED : CLR_DARKER_GREY);
+    font(FONT_NORMAL);
+}
+
+static void draw_909_panel(int y0) {
+    Pattern *P = &bank[editBank];
+    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    draw_drum_grid(NAME909, N909, P->d909, P->st909, P->acc909, flash909, 36, y0 + 4, 9);
+    // the metal-filter XY pad (X = five metal highpass cutoffs, Y = resonance)
+    int padx = 252, pady = y0 + 8;
+    rectfill(padx, pady, 60, 40, CLR_DARKER_GREY);
+    rect(padx, pady, 60, 40, CLR_DARK_GREY);
+    circfill(padx + (int)(mcut * 60), pady + (int)((1.0f - mres) * 40), 2, CLR_YELLOW);
+    font(FONT_SMALL);
+    print("METAL", padx + 18, pady + 42, CLR_MEDIUM_GREY);
+    print("rclick cell", padx + 4, y0 + 86, CLR_DARK_GREY);
+    print("= strokes", padx + 4, y0 + 94, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+    // master shuffle — the 909 is where Roland shipped it (Z/X keys too)
+    if (ui_slider(&swingf, 254, y0 + 62, 56, "SHUF")) { swing = 50 + (int)(swingf * 16.0f); mark_dirty(); }
+}
+
+static void draw_808_panel(int y0) {
+    Pattern *P = &bank[editBank];
+    rectfill(2, y0, 316, PANEL_H - 2, CLR_BLACK);
+    draw_drum_grid(NAME808, N808, P->d808, NULL, P->acc808, flash808, 36, y0 + 6, 10);
+    font(FONT_SMALL);
+    print("the boom box", 254, y0 + 8, CLR_DARK_GREY);
+    font(FONT_NORMAL);
 }
 
 void draw(void) {
@@ -580,7 +909,8 @@ void draw(void) {
         int y = strip_y(i);
         draw_header(i, y);
         if (i == expanded) {
-            if (i == STRIP_DRUM) draw_drum_panel(y + HDR_H);
+            if      (i == STRIP_909) draw_909_panel(y + HDR_H);
+            else if (i == STRIP_808) draw_808_panel(y + HDR_H);
             else draw_303_panel(i, y + HDR_H);
         }
     }
@@ -596,6 +926,7 @@ void draw(void) {
             rectfill(x, CHAIN_Y, 3, 2, CLR_WHITE);
     }
 
-    for (int d = 0; d < NDRUM; d++) if (drumflash[d] > 0) drumflash[d]--;
+    for (int d = 0; d < N909; d++) if (flash909[d] > 0) flash909[d]--;
+    for (int d = 0; d < N808; d++) if (flash808[d] > 0) flash808[d]--;
     ui_end();
 }

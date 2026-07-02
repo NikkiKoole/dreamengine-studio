@@ -89,6 +89,7 @@ typedef struct {
     float pend_at;            // ...at this fraction of the row
     int   pend_midi, pend_inst;
     float vibph;              // VIB phase, degrees
+    float sent;               // last pitch actually sent to the engine (spec-checkable)
     int   flash;              // frame() of last trigger (draw pulse)
 } Trk;
 static Trk trk[NTRK];
@@ -136,6 +137,7 @@ static void trigger(Trk *t, int midi, int inst, float vol) {
     t->handle = note_on(midi, SLOT(inst % NINST), (int)vol);
     note_glide(t->handle, 0);                 // glide is sticky per handle — reset it
     t->base = midi;
+    t->sent = midi;
     t->inst = inst % NINST;
 }
 static void all_off(void) {
@@ -168,6 +170,14 @@ static void row_play(int t) {
     Step  *s  = &p->s[k->step];
     int    tr = c ? c->tr[k->cpos] : 0;
 
+    // an ARP/VIB row must not LEAK: ride() left the live pitch wherever the
+    // arp/wobble last put it (up to +7 st!) — snap a surviving voice back to
+    // its true pitch before this row takes over
+    if (k->handle >= 0 && (k->fx == TFX_ARP || k->fx == TFX_VIB) &&
+        s->fx != TFX_ARP && s->fx != TFX_VIB) {
+        note_pitch(k->handle, k->base);
+        k->sent = k->base;
+    }
     k->fx = s->fx; k->val = s->val;
     k->ret_done = 0; k->pend = false; k->vibph = 0;
 
@@ -182,6 +192,7 @@ static void row_play(int t) {
             note_glide(k->handle, 10 + s->val * 5);
             note_pitch(k->handle, midi);
             k->base = midi;
+            k->sent = midi;
         } else if (s->fx == TFX_DEL && s->val) {
             k->pend = true; k->pend_at = s->val / 100.0f;
             k->pend_midi = midi; k->pend_inst = s->inst;
@@ -238,11 +249,13 @@ static void ride(int t, float frac) {
     if (k->fx == TFX_VIB && k->val) {
         int rate = k->val / 10, dep = k->val % 10;
         k->vibph += dt() * (1.5f + rate * 0.8f) * 360.0f;
-        note_pitch(k->handle, k->base + sin_deg(k->vibph) * dep * 0.08f);
+        k->sent = k->base + sin_deg(k->vibph) * dep * 0.08f;
+        note_pitch(k->handle, k->sent);
     } else if (k->fx == TFX_ARP && k->val) {
         int idx = (frame() / 2) % 3;   // 0 → +tens → +ones, 30Hz cycle
         int add = idx == 0 ? 0 : idx == 1 ? k->val / 10 : k->val % 10;
-        note_pitch(k->handle, k->base + add);
+        k->sent = k->base + add;
+        note_pitch(k->handle, k->sent);
     } else if (k->fx == TFX_RET && k->val % 10) {
         int n   = k->val % 10;
         int due = (int)(frac * (n + 1));
@@ -803,8 +816,23 @@ void spec(void) {
     expect_eq(trk[0].cpos, 1, "HOP at step 11 ended the phrase early (12-step meter)");
     expect_eq(trk[0].step, 0, "HOP restarted the next phrase at step 0");
 
-    // the random-song generator: every genre rolls a well-formed song
+    // ARP/VIB must not leak a bent pitch past their row (the untuned-note bug):
+    // hold a note through an ARP row, ride a few frames, then hit an empty row
     play_stop();
+    doc.phr[11] = (Phrase){ 0 };
+    doc.phr[11].s[0] = (Step){ 60, I_LEAD, TFX_ARP, 37 };
+    for (int i = 0; i < CLEN; i++) doc.chn[9].ph[i] = NONE;
+    doc.chn[9].ph[0] = 11;
+    for (int r = 0; r < SONG_LEN; r++) doc.song[0][r] = NONE;
+    doc.song[0][0] = 9;
+    play_start(0);
+    step(6);                       // row 0 fired; ride() bent the pitch (+3/+7)
+    expect(trk[0].handle >= 0, "ARP note is held");
+    seq_tick();                    // row 1 is empty — the bend must snap home
+    expect(trk[0].sent == trk[0].base && (int)trk[0].base == 60,
+           "ARP bend snapped back to true pitch on the next row");
+
+    // the random-song generator: every genre rolls a well-formed song
     for (genre = 0; genre < NGENRE; genre++) {
         gen_song();
         expect(doc.phr[0].s[0].note == 36 && doc.phr[0].s[0].inst == I_KICK,

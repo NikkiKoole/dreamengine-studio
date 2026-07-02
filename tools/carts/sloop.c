@@ -1390,7 +1390,7 @@ static int gear_req = -99;            // a gear tapped directly in the gate this
 #define DIAL_CX  128                  // round RPM tach
 #define DIAL_CY  174
 #define DIAL_R   21
-#define BTN_X    154                  // mode buttons: ignition / trans / build
+#define MODE_BTN_X    154                  // mode buttons: ignition / trans / build
 #define BTN_W    52
 #define BTN_H    15
 #define IGN_Y    150
@@ -1516,15 +1516,15 @@ static void handle_input(void) {
     // ---- DRIVE input: keyboard OR the on-screen cockpit (touch + mouse) ----
     if (keyp('R')) reset_vehicle();
     if (keyp('P')) is_paused = !is_paused;
-    if (keyp('I') || ctl_hit(BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
-    if (keyp('G') || ctl_hit(BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
+    if (keyp('I') || ctl_hit(MODE_BTN_X, IGN_Y, BTN_W, BTN_H)) do_ignition();   // IGN button
+    if (keyp('G') || ctl_hit(MODE_BTN_X, TRN_Y, BTN_W, BTN_H)) do_trans();      // TRANS button
     if (keyp('F')) {                           // F: GET OUT (rung F0) — only at a stop, only via a seat
         if (vx * vx + vy * vy < FOOT_EXIT_SPD * FOOT_EXIT_SPD && foot_exit()) {
             vx = vy = angVel = 0;              // parking brake — the rig holds still while you're out
             mode = MODE_FOOT;
         } else foot_deny = 90;                 // flash why not (still rolling / no seat / boxed in)
     }
-    if (ctl_hit(BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
+    if (ctl_hit(MODE_BTN_X, BLD_Y, BTN_W, BTN_H)) mode = MODE_BUILD;            // BUILD button
     if (mode == MODE_DRIVE &&                                              // CAM toggle: north-up / heading-up
         (keyp('C') || ctl_hit(CAM_BTN_X, CAM_BTN_Y, CAM_BTN_W, CAM_BTN_H)))  // ('C' is caster-select in BUILD)
         cam_head_up = !cam_head_up;
@@ -3510,9 +3510,9 @@ static void hud(void) {
     }
 
     // MODE BUTTONS — ignition (lit when running) / transmission / build
-    dash_btn(BTN_X, IGN_Y, BTN_W, BTN_H, engine_on ? "IGN ON" : "IGN OFF", "I", engine_on, CLR_GREEN);
-    dash_btn(BTN_X, TRN_Y, BTN_W, BTN_H, trans_label(), "G", 0, CLR_DARKER_GREY);
-    dash_btn(BTN_X, BLD_Y, BTN_W, BTN_H, "BUILD", "TAB", 0, CLR_DARKER_GREY);
+    dash_btn(MODE_BTN_X, IGN_Y, BTN_W, BTN_H, engine_on ? "IGN ON" : "IGN OFF", "I", engine_on, CLR_GREEN);
+    dash_btn(MODE_BTN_X, TRN_Y, BTN_W, BTN_H, trans_label(), "G", 0, CLR_DARKER_GREY);
+    dash_btn(MODE_BTN_X, BLD_Y, BTN_W, BTN_H, "BUILD", "TAB", 0, CLR_DARKER_GREY);
 
     if (is_paused) print_centered("PAUSED", SCREEN_W / 2, SCREEN_H / 2 - 20, CLR_WHITE);
 }

@@ -206,7 +206,7 @@ static bool clicked(int x, int y, int w, int h) {
 static bool keyp_enter(void) { return keyp(KEY_ENTER); }
 
 // button hit-zones for the bottom bar (shared by mouse + draw)
-#define BTN_Y  178
+#define BTN_ROW_Y  178
 #define BTN_H  18
 
 void update(void) {
@@ -217,15 +217,15 @@ void update(void) {
     if (state == ST_BET) {
         // adjust bet
         int step = 10;
-        if (btnp(0, BTN_LEFT)  || keyp('a') || clicked(4, BTN_Y, 50, BTN_H)) {
+        if (btnp(0, BTN_LEFT)  || keyp('a') || clicked(4, BTN_ROW_Y, 50, BTN_H)) {
             bet -= step; if (bet < step) bet = step; note(64, INSTR_SINE, 2);
         }
-        if (btnp(0, BTN_RIGHT) || keyp('d') || clicked(58, BTN_Y, 50, BTN_H)) {
+        if (btnp(0, BTN_RIGHT) || keyp('d') || clicked(58, BTN_ROW_Y, 50, BTN_H)) {
             bet += step; if (bet > bankroll) bet = bankroll; note(67, INSTR_SINE, 2);
         }
         if (bet > bankroll) bet = bankroll;
         if (bet < 1) bet = bankroll >= 1 ? 1 : 0;
-        if ((btnp(0, BTN_A) || keyp_enter() || clicked(244, BTN_Y, 72, BTN_H)) && bet >= 1)
+        if ((btnp(0, BTN_A) || keyp_enter() || clicked(244, BTN_ROW_Y, 72, BTN_H)) && bet >= 1)
             start_deal();
         return;
     }
@@ -252,9 +252,9 @@ void update(void) {
         // animate any incoming hit card
         for (int i = 0; i < pn; i++) if (pdeal[i] < 1) { pdeal[i] += dt() / DEAL_T; if (pdeal[i] > 1) pdeal[i] = 1; }
         if (result == R_BUST) { settle(); return; }
-        if (btnp(0, BTN_A) || keyp('z') || clicked(244 - 156, BTN_Y, 72, BTN_H)) player_hit();
-        else if (btnp(0, BTN_B) || keyp('x') || clicked(244 - 78, BTN_Y, 72, BTN_H)) player_stand();
-        else if (btnp(0, BTN_DOWN) || keyp('c') || clicked(244, BTN_Y, 72, BTN_H)) player_double();
+        if (btnp(0, BTN_A) || keyp('z') || clicked(244 - 156, BTN_ROW_Y, 72, BTN_H)) player_hit();
+        else if (btnp(0, BTN_B) || keyp('x') || clicked(244 - 78, BTN_ROW_Y, 72, BTN_H)) player_stand();
+        else if (btnp(0, BTN_DOWN) || keyp('c') || clicked(244, BTN_ROW_Y, 72, BTN_H)) player_double();
         return;
     }
 
@@ -283,7 +283,7 @@ void update(void) {
 
     if (state == ST_SETTLE) {
         if (btnp(0, BTN_A) || keyp('z') || keyp_enter() ||
-            clicked(244, BTN_Y, 72, BTN_H)) {
+            clicked(244, BTN_ROW_Y, 72, BTN_H)) {
             if (bankroll < 1) { bankroll = 100; persist(); note(72, INSTR_SQUARE, 3); }
             if (bet > bankroll) bet = bankroll;
             if (bet < 1) bet = bankroll >= 10 ? 10 : bankroll;
@@ -331,10 +331,10 @@ static void draw_hand(Card *h, int n, float *deal, int baseY, bool dealer, int h
 }
 
 static void button_c(int x, int w, const char *label, bool on) {
-    rectfill(x, BTN_Y, w, BTN_H, on ? CLR_DARK_GREEN : CLR_DARK_GREY);
-    rect(x, BTN_Y, w, BTN_H, CLR_WHITE);
+    rectfill(x, BTN_ROW_Y, w, BTN_H, on ? CLR_DARK_GREEN : CLR_DARK_GREY);
+    rect(x, BTN_ROW_Y, w, BTN_H, CLR_WHITE);
     int tw = text_width(label);
-    print(label, x + (w - tw) / 2, BTN_Y + 5, CLR_WHITE);
+    print(label, x + (w - tw) / 2, BTN_ROW_Y + 5, CLR_WHITE);
 }
 
 void draw(void) {

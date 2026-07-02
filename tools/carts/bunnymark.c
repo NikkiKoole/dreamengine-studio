@@ -58,7 +58,7 @@ de:meta */
 
 // HUD sprite buttons — ui_spr_button (ui.h): a 16×16 icon centred in the rect, with
 // ui.h's capture/hit-pad/focus + state colouring. Icons in bunnymark.cart.js slots 18/19.
-#define BTN_Y       3
+#define BTN_ROW_Y       3
 #define BTN_SZ      18            // 18 = 16px icon + 1px padding each side
 #define BTN_SPIN_X  112
 #define BTN_SCALE_X 132
@@ -114,8 +114,8 @@ void update(void) {
     // pour while held — but not when the pointer is over a HUD button (that press is a
     // button click, toggled by ui_spr_button in draw()).
     int mx = mouse_x(), my = mouse_y();
-    int on_btn = (mx >= BTN_SPIN_X  && mx < BTN_SPIN_X  + BTN_SZ && my >= BTN_Y && my < BTN_Y + BTN_SZ) ||
-                 (mx >= BTN_SCALE_X && mx < BTN_SCALE_X + BTN_SZ && my >= BTN_Y && my < BTN_Y + BTN_SZ);
+    int on_btn = (mx >= BTN_SPIN_X  && mx < BTN_SPIN_X  + BTN_SZ && my >= BTN_ROW_Y && my < BTN_ROW_Y + BTN_SZ) ||
+                 (mx >= BTN_SCALE_X && mx < BTN_SCALE_X + BTN_SZ && my >= BTN_ROW_Y && my < BTN_ROW_Y + BTN_SZ);
     if (btn(0, BTN_A) || (mouse_down(0) && !on_btn))
         for (int i = 0; i < ADD_RATE; i++) spawn_one();
 
@@ -177,8 +177,8 @@ void draw(void) {
 
     // SPIN / SCALE as cute clickable sprite buttons (lit when on) — both push the
     // bunnies OFF the blit fast path. Keyboard X / C mirror them. (ui.h sprite buttons.)
-    if (ui_spr_button(ICON_SPIN,  BTN_SPIN_X,  BTN_Y, BTN_SZ, BTN_SZ, spin_on))  spin_on  = !spin_on;
-    if (ui_spr_button(ICON_SCALE, BTN_SCALE_X, BTN_Y, BTN_SZ, BTN_SZ, scale_on)) scale_on = !scale_on;
+    if (ui_spr_button(ICON_SPIN,  BTN_SPIN_X,  BTN_ROW_Y, BTN_SZ, BTN_SZ, spin_on))  spin_on  = !spin_on;
+    if (ui_spr_button(ICON_SCALE, BTN_SCALE_X, BTN_ROW_Y, BTN_SZ, BTN_SZ, scale_on)) scale_on = !scale_on;
 
     snprintf(buf, sizeof buf, "60fps held @ %d", best_held);
     print(buf, SCREEN_W - text_width(buf) - 4, 3, CLR_LIGHT_GREY);

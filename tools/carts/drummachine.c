@@ -81,7 +81,7 @@ static Ptr ptr[PTR_MAX];
 
 // bottom transport buttons (also driven by the arrow keys). Geometry is shared
 // by the tapp() hit-test in update() and the drawing in draw().
-#define BTN_Y 170
+#define BTN_ROW_Y 170
 #define BTN_H 18
 enum { B_BPMDN, B_BPMUP, B_SWDN, B_SWUP, B_CLEAR, NBTN };
 static const struct { int x, w; const char *label; } BTN[NBTN] = {
@@ -181,11 +181,11 @@ void update() {
     if (btnp(0, BTN_B)) clear_grid();
 
     // ── tempo + swing: arrow keys are "player 1", or the on-screen buttons ──
-    if (btnp(1, BTN_LEFT)  || tapp(BTN[B_BPMDN].x, BTN_Y, BTN[B_BPMDN].w, BTN_H)) tempo = max(60,  tempo - 5);
-    if (btnp(1, BTN_RIGHT) || tapp(BTN[B_BPMUP].x, BTN_Y, BTN[B_BPMUP].w, BTN_H)) tempo = min(240, tempo + 5);
-    if (btnp(1, BTN_UP)    || tapp(BTN[B_SWUP].x,  BTN_Y, BTN[B_SWUP].w,  BTN_H)) swing = min(60, swing + 10);
-    if (btnp(1, BTN_DOWN)  || tapp(BTN[B_SWDN].x,  BTN_Y, BTN[B_SWDN].w,  BTN_H)) swing = max(0,  swing - 10);
-    if (tapp(BTN[B_CLEAR].x, BTN_Y, BTN[B_CLEAR].w, BTN_H)) clear_grid();
+    if (btnp(1, BTN_LEFT)  || tapp(BTN[B_BPMDN].x, BTN_ROW_Y, BTN[B_BPMDN].w, BTN_H)) tempo = max(60,  tempo - 5);
+    if (btnp(1, BTN_RIGHT) || tapp(BTN[B_BPMUP].x, BTN_ROW_Y, BTN[B_BPMUP].w, BTN_H)) tempo = min(240, tempo + 5);
+    if (btnp(1, BTN_UP)    || tapp(BTN[B_SWUP].x,  BTN_ROW_Y, BTN[B_SWUP].w,  BTN_H)) swing = min(60, swing + 10);
+    if (btnp(1, BTN_DOWN)  || tapp(BTN[B_SWDN].x,  BTN_ROW_Y, BTN[B_SWDN].w,  BTN_H)) swing = max(0,  swing - 10);
+    if (tapp(BTN[B_CLEAR].x, BTN_ROW_Y, BTN[B_CLEAR].w, BTN_H)) clear_grid();
 
     // ── touch/mouse: tap a cell to toggle, drag across cells to paint a run ──
     // (the mouse arrives as one virtual finger, so this covers it too)
@@ -252,13 +252,13 @@ void draw() {
 
     // transport buttons (tap, or the matching keys)
     for (int b = 0; b < NBTN; b++) {
-        rectfill(BTN[b].x, BTN_Y, BTN[b].w, BTN_H, CLR_DARK_GREY);
-        rect(BTN[b].x, BTN_Y, BTN[b].w, BTN_H, CLR_MEDIUM_GREY);
+        rectfill(BTN[b].x, BTN_ROW_Y, BTN[b].w, BTN_H, CLR_DARK_GREY);
+        rect(BTN[b].x, BTN_ROW_Y, BTN[b].w, BTN_H, CLR_MEDIUM_GREY);
         int tw = text_width(BTN[b].label);
-        print(BTN[b].label, BTN[b].x + (BTN[b].w - tw) / 2, BTN_Y + 6,
+        print(BTN[b].label, BTN[b].x + (BTN[b].w - tw) / 2, BTN_ROW_Y + 6,
               b == B_CLEAR ? CLR_ORANGE : CLR_LIGHT_GREY);
     }
     font(FONT_SMALL);
-    print("tap or drag cells - bottom buttons or WASD/arrows", 4, BTN_Y - 9, CLR_DARK_GREY);
+    print("tap or drag cells - bottom buttons or WASD/arrows", 4, BTN_ROW_Y - 9, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

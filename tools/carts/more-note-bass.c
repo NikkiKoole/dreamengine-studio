@@ -113,7 +113,7 @@ static const int KB_KEY[12] = {
 };
 #define NKB 12
 
-#define BTN_Y 9
+#define BTN_ROW_Y 9
 #define BTN_H 9
 enum { B_SUB, B_CLEAR, NBTN };
 static const struct { int x, w; const char *label; } BTN[NBTN] = {
@@ -287,8 +287,8 @@ void update(void) {
             if (grid[r][cur_step]) { play_row(r); flash[r] = frame(); }
     }
 
-    if (keyp('C') || tapp(BTN[B_SUB].x, BTN_Y, BTN[B_SUB].w, BTN_H)) sub = !sub;
-    if (tapp(BTN[B_CLEAR].x, BTN_Y, BTN[B_CLEAR].w, BTN_H)) clear_grid();
+    if (keyp('C') || tapp(BTN[B_SUB].x, BTN_ROW_Y, BTN[B_SUB].w, BTN_H)) sub = !sub;
+    if (tapp(BTN[B_CLEAR].x, BTN_ROW_Y, BTN[B_CLEAR].w, BTN_H)) clear_grid();
 
     for (int i = 0; i < touch_count(); i++) {
         int id = touch_id(i), tx = touch_x(i), ty = touch_y(i), r, c;
@@ -368,10 +368,10 @@ void draw(void) {
         int ink  = (b == B_CLEAR) ? CLR_ORANGE
                  : (b == B_SUB && sub) ? CLR_WHITE
                                        : CLR_LIGHT_GREY;
-        rectfill(BTN[b].x, BTN_Y, BTN[b].w, BTN_H, fill);
-        rect(BTN[b].x, BTN_Y, BTN[b].w, BTN_H, edge);
+        rectfill(BTN[b].x, BTN_ROW_Y, BTN[b].w, BTN_H, fill);
+        rect(BTN[b].x, BTN_ROW_Y, BTN[b].w, BTN_H, edge);
         int tw = text_width(BTN[b].label);
-        print(BTN[b].label, BTN[b].x + (BTN[b].w - tw) / 2, BTN_Y + 2, ink);
+        print(BTN[b].label, BTN[b].x + (BTN[b].w - tw) / 2, BTN_ROW_Y + 2, ink);
     }
 
     font(FONT_NORMAL);

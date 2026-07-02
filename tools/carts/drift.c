@@ -93,7 +93,7 @@ static void push(int v, float err) {
 }
 
 // ── bottom transport row: geometry shared by the hit-test and the draw ──
-#define BTN_Y 178
+#define BTN_ROW_Y 178
 #define BTN_H 18
 enum { B_M0, B_M1, B_M2, B_TDN, B_TUP, B_GLITCH, B_RATCHET, NBTN };
 static const struct { int x, w, key; const char *label; } BTN[NBTN] = {
@@ -173,7 +173,7 @@ void update() {
 
     // ── buttons (tap or key) ──
     for (int i = 0; i < NBTN; i++) {
-        if (tapp(BTN[i].x, BTN_Y, BTN[i].w, BTN_H) || keyp(BTN[i].key)) {
+        if (tapp(BTN[i].x, BTN_ROW_Y, BTN[i].w, BTN_H) || keyp(BTN[i].key)) {
             switch (i) {
                 case B_M0: mute[0] = !mute[0]; break;
                 case B_M1: mute[1] = !mute[1]; break;
@@ -271,10 +271,10 @@ void draw() {
         bool on = (i <= B_M2) ? !mute[i] : false;
         int bg = (i <= B_M2) ? (on ? CLR_DARK_GREEN : CLR_DARKER_PURPLE)
                              : (i == B_GLITCH ? CLR_DARK_RED : CLR_DARKER_GREY);
-        rectfill(BTN[i].x, BTN_Y, BTN[i].w, BTN_H, bg);
-        rect(BTN[i].x, BTN_Y, BTN[i].w, BTN_H, CLR_DARK_GREY);
+        rectfill(BTN[i].x, BTN_ROW_Y, BTN[i].w, BTN_H, bg);
+        rect(BTN[i].x, BTN_ROW_Y, BTN[i].w, BTN_H, CLR_DARK_GREY);
         int tw = text_width(BTN[i].label);
-        print(BTN[i].label, BTN[i].x + (BTN[i].w - tw) / 2, BTN_Y + 6, CLR_WHITE);
+        print(BTN[i].label, BTN[i].x + (BTN[i].w - tw) / 2, BTN_ROW_Y + 6, CLR_WHITE);
     }
 }
 

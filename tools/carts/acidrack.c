@@ -426,7 +426,7 @@ static int strip_y(int i) {            // header top of strip i
 enum { F_TIME, F_FB, F_GLU, F_PCF, F_RES, NFX };   // the MASTER strip's knobs
 static const char *FXNAME[NFX] = { "TIME", "FB", "GLU", "PCF", "RES" };
 static float fxk[NFX] = { 0.50f, 0.35f, 0.30f, 0.40f, 0.35f };
-static float send[4] = { 0.10f, 0.10f, 0.00f, 0.00f };   // per-machine delay send (A, B, 909, 808)
+static float send[4] = { 0.17f, 0.17f, 0.00f, 0.00f };   // per-machine delay send (A, B, 909, 808)
 static float dist9 = 0.0f, dist8 = 0.0f;                 // per-drum-machine drive
 static bool  pcf_on = false;           // is the master filter currently engaged
 
@@ -449,8 +449,10 @@ static void apply_fx(void) {
         aTime = fxk[F_TIME]; aFb = fxk[F_FB]; aTempo = tempo;
     }
     // per-machine sends into it
-    if (send[0] != aS[0]) { instrument_echo(SLOT_A, send[0]); aS[0] = send[0]; }
-    if (send[1] != aS[1]) { instrument_echo(SLOT_B, send[1]); aS[1] = send[1]; }
+    // sends capped ×0.6 (like the drums): a full-wet mono 303 into fb 0.72
+    // sustains a ~3.5× energy loop that slams the master limiter
+    if (send[0] != aS[0]) { instrument_echo(SLOT_A, send[0] * 0.6f); aS[0] = send[0]; }
+    if (send[1] != aS[1]) { instrument_echo(SLOT_B, send[1] * 0.6f); aS[1] = send[1]; }
     if (send[2] != aS[2]) { for (int i = 0; i < 13; i++) instrument_echo(SLOTS909[i], send[2] * 0.6f); aS[2] = send[2]; }
     if (send[3] != aS[3]) { for (int i = 0; i < 10; i++) instrument_echo(SLOTS808[i], send[3] * 0.6f); aS[3] = send[3]; }
     // per-drum-machine DIST — per-voice saturation layered over the baked

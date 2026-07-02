@@ -19,8 +19,7 @@
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
     "per-voice tune/decay/color knobs (the standalone carts' depth) — the rack bakes center values for now",
-    "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing",
-    "maker naming pass: 'acid rack' is a working title"
+    "303 lines don't shuffle (held voice can't schedule ahead) — revisit if straight-303-vs-swung-drums clashes at high swing"
   ],
   "description": {
     "summary": "Two 303s, the full 909, the curated 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV.",

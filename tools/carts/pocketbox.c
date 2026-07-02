@@ -77,10 +77,10 @@ de:meta */
 
 #define SKX 2          // step keys: two rows of 8
 #define SKW 36
-#define SKH 34
+#define SKH 32
 #define SKS 40
-#define SKY1 102
-#define SKY2 140
+#define SKY1 100
+#define SKY2 136
 
 #define STY 180        // touch strip
 #define STH 18
@@ -1246,11 +1246,38 @@ void draw() {
             if (i == selstep) rect(x - 1, y - 1, SKW + 2, SKH + 2, CLR_GREEN);
         }
         font(FONT_TINY);
-        const char *lb = edit_held ? "" : str("%d", i + 1);
-        if (fx_held && mode != M_PATT && i < NFX) lb = FXNAME[i];
-        print(lb, x + 2, y + 2, c == -2 ? CLR_DARK_GREY : CLR_BLACK);
+        const char *lb = "";
+        if (edit_held) {
+            int m = 48 + kb_oct * 12 + i;
+            lb = str("%s%d", NOTENAME[m % 12], m / 12 - 1);
+        } else if (play_held)               lb = i < NTRACK ? TNAME[i] : "";
+        else if (fx_held && mode != M_PATT) lb = i < NFX ? FXNAME[i] : "";
+        else switch (mode) {
+            case M_TRACK: lb = i < NTRACK ? TNAME[i] : ""; break;
+            case M_STEP:  lb = str("%d", i + 1); break;
+            case M_PATT:  lb = str("P%d", i + 1); break;
+            default:      lb = i < NPART ? str("PT%d", i + 1) : ""; break;
+        }
+        int lc = (c == -2 || c == CLR_DARKER_GREY || c == CLR_DARKER_BLUE) ? CLR_MEDIUM_GREY : CLR_BLACK;
+        print(lb, x + 2, y + 2, lc);
         font(FONT_NORMAL);
     }
+
+    // ── the hint line: what the 16 keys mean RIGHT NOW ──
+    const char *hint;
+    if (edit_held)      hint = str("KEYS PLAY %s - Z/X = OCTAVE - NOTES WRITE TO STEP", TNAME[seltrack]);
+    else if (play_held) hint = "TAP KEY = MUTE TRACK - </> = BPM - RELEASE = PLAY/STOP";
+    else if (fx_held)   hint = mode == M_PATT ? "COPY: TAP SOURCE PATTERN, THEN DESTINATION"
+                                              : "TAP KEY = TOGGLE EFFECT - STRIP = FILTER SWEEP";
+    else switch (mode) {
+        case M_TRACK: hint = "KEYS = PICK A TRACK - </> PAGES - ^/v OR STRIP = VALUE"; break;
+        case M_STEP:  hint = str("KEYS = %s STEPS - HOLD ONE + STRIP = TWEAK IT", TNAME[seltrack]); break;
+        case M_PATT:  hint = str("KEYS = %s PATTERNS - HOLD CPY/FX + SRC + DEST = COPY", TNAME[seltrack]); break;
+        default:      hint = "KEYS = SONG PARTS - A = CAPTURE PATTERNS - ^/v = BARS"; break;
+    }
+    font(FONT_SMALL);
+    print(hint, 4, 170, CLR_MEDIUM_GREY);
+    font(FONT_NORMAL);
 
     // ── the touch strip ──
     rectfill(2, STY, 316, STH, CLR_DARKER_GREY);
@@ -1259,7 +1286,7 @@ void draw() {
     // context readout: what the strip is currently riding
     float sv = -1;
     const char *slab = "";
-    if (fx_held || fxon[LFX_LP] || fxon[LFX_HP]) { sv = fxcut; slab = "FILTER"; }
+    if (fx_held) { sv = fxcut; slab = "FILTER"; }
     else if (mode == M_TRACK && tpage[seltrack] < PG_DRAW) { slab = "VALUE"; sv = -1; }
     if (sv >= 0) rectfill(4, STY + 2, (int)(312 * sv), STH - 4, CLR_ORANGE);
     font(FONT_TINY);

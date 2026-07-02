@@ -40,14 +40,24 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <string.h>
-#include <ifaddrs.h>
-#include <net/if.h>
+#ifdef _WIN32
+  // winsock2.h / ws2tcpip.h are included at the TOP of studio.c (before raylib.h,
+  // which pulls windows.h) — they MUST precede windows.h or the old winsock v1 in
+  // windows.h collides. Here we only need the compat shims.
+  #define NET_CLOSE(s)     closesocket(s)
+  #define NET_SLEEP_MS(ms) Sleep(ms)
+#else
+  #include <sys/socket.h>
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
+  #include <fcntl.h>
+  #include <unistd.h>
+  #include <ifaddrs.h>
+  #include <net/if.h>
+  #define NET_CLOSE(s)     close(s)
+  #define NET_SLEEP_MS(ms) usleep((ms) * 1000)
+#endif
 
 #define NET_PORT_DEFAULT 33445
 #define NET_DELAY        3     // input latency in frames (~50 ms at 60 fps)
@@ -111,7 +121,7 @@ static void net_pump(void) {
     struct sockaddr_in from;
     for (;;) {
         socklen_t fl = sizeof from;
-        ssize_t n = recvfrom(net_sock, buf, sizeof buf, 0, (struct sockaddr *)&from, &fl);
+        int n = (int)recvfrom(net_sock, (char *)buf, (int)sizeof buf, 0, (struct sockaddr *)&from, &fl);
         if (n < 3 || buf[0] != 'D' || buf[1] != 'N') { if (n < 0) break; else continue; }
         switch (buf[2]) {
             case NET_PKT_HELLO:                    // host: learn the peer, answer (idempotent —
@@ -160,9 +170,17 @@ static void net_shutdown(void) {
     if (net_sock < 0) return;
     uint8_t bye[3] = { 'D', 'N', NET_PKT_BYE };
     for (int i = 0; i < 3; i++) net_sendto(bye, sizeof bye);  // best-effort (UDP)
-    close(net_sock);
+    NET_CLOSE(net_sock);
     net_sock = -1;
     net_active = false;
+}
+
+// Windows needs Winsock started before any socket call; no-op everywhere else.
+static void net_platform_init(void) {
+#ifdef _WIN32
+    static bool started = false;
+    if (!started) { WSADATA w; WSAStartup(MAKEWORD(2, 2), &w); started = true; }
+#endif
 }
 
 // Best-guess LAN IPv4 for THIS machine, so the host can tell the joiner what to
@@ -171,7 +189,25 @@ static void net_shutdown(void) {
 // non-loopback IPv4, else "127.0.0.1" (localhost play still works). Writes into
 // out (size n). rung 2 — docs/design/multiplayer-research.md.
 static void net_local_ipv4(char *out, size_t n) {
+    net_platform_init();
     snprintf(out, n, "127.0.0.1");
+#ifdef _WIN32
+    // No getifaddrs on Windows. The UDP "connect" trick: connecting a datagram
+    // socket sends NOTHING, but getsockname() then reports the local address the
+    // OS would route out — i.e. the active LAN IP — with no GetAdaptersAddresses.
+    SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s == INVALID_SOCKET) return;
+    struct sockaddr_in a = { 0 };
+    a.sin_family = AF_INET;
+    a.sin_port   = htons(53);
+    inet_pton(AF_INET, "8.8.8.8", &a.sin_addr);           // a routable target; no packet is sent
+    if (connect(s, (struct sockaddr *)&a, sizeof a) == 0) {
+        struct sockaddr_in me; socklen_t ml = sizeof me;
+        if (getsockname(s, (struct sockaddr *)&me, &ml) == 0)
+            inet_ntop(AF_INET, &me.sin_addr, out, n);
+    }
+    closesocket(s);
+#else
     struct ifaddrs *ifs = NULL;
     if (getifaddrs(&ifs) != 0) return;
     char first[INET_ADDRSTRLEN] = { 0 };
@@ -189,12 +225,14 @@ static void net_local_ipv4(char *out, size_t n) {
     }
     if (first[0]) snprintf(out, n, "%s", first);            // e.g. a 172.16/12 net, or a lone public IP
     freeifaddrs(ifs);
+#endif
 }
 
 // blocking handshake, called from main() BEFORE the window opens. On the
 // joiner, *seed is overwritten with the host's seed (both sims must roll the
 // same rnd() stream).
 static void net_handshake(unsigned *seed) {
+    net_platform_init();
     net_me = net_is_host ? 0 : 1;
     net_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (net_sock < 0) { fprintf(stderr, "net: socket() failed\n"); exit(1); }
@@ -206,7 +244,11 @@ static void net_handshake(unsigned *seed) {
         fprintf(stderr, "net: bind failed — port %d already in use? (another host running?)\n", net_port);
         exit(1);
     }
+#ifdef _WIN32
+    { u_long nb = 1; ioctlsocket(net_sock, FIONBIO, &nb); }   // non-blocking
+#else
     fcntl(net_sock, F_SETFL, O_NONBLOCK);
+#endif
     memset(net_ring_frame, -1, sizeof net_ring_frame);
     for (int p = 0; p < 2; p++)                 // nobody holds a button before frame 0's
         for (int f = 0; f < NET_DELAY; f++)     // input can arrive — pre-seed the gap
@@ -219,7 +261,7 @@ static void net_handshake(unsigned *seed) {
         printf("net: HOSTING on %s:%d — the joiner runs: --net-join %s\n", ip, net_port, ip);
         printf("net: waiting for a joiner...\n");
         fflush(stdout);
-        while (!net_peer_set) { net_pump(); usleep(10000); }  // HELLO answered inside net_pump
+        while (!net_peer_set) { net_pump(); NET_SLEEP_MS(10); }  // HELLO answered inside net_pump
         printf("net: joiner connected — you are P1 (host)\n");
     } else {
         memset(&net_peer, 0, sizeof net_peer);
@@ -236,7 +278,7 @@ static void net_handshake(unsigned *seed) {
         int waited_ms = 0;
         while (!net_got_welcome) {
             net_sendto(hello, sizeof hello);
-            for (int i = 0; i < 20 && !net_got_welcome; i++) { net_pump(); usleep(10000); }
+            for (int i = 0; i < 20 && !net_got_welcome; i++) { net_pump(); NET_SLEEP_MS(10); }
             waited_ms += 200;
             if (waited_ms >= 30000) { fprintf(stderr, "net: no answer from host after 30s\n"); exit(1); }
         }
@@ -268,7 +310,7 @@ static void net_frame_sync(void) {
             exit(0);
         }
         if (net_have(peer, f)) break;
-        usleep(1000);
+        NET_SLEEP_MS(1);
         if (++spins % 30 == 0) net_send_inputs(f + NET_DELAY);   // our packet may have dropped
         if (spins == 2000) { printf("net: waiting for peer (frame %d)...\n", f); fflush(stdout); }
         if (spins >= NET_TIMEOUT_MS) {

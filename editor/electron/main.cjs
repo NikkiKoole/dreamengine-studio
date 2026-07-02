@@ -778,7 +778,7 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
           '-Os',
           '-fno-delete-null-pointer-checks',
           `"${RAYLIB_WIN}/lib/libraylib.a"`,
-          '-lopengl32', '-lgdi32', '-lwinmm', '-lcomdlg32',
+          '-lopengl32', '-lgdi32', '-lwinmm', '-lcomdlg32', '-lws2_32',   // ws2_32 = Winsock, for net.h lockstep netplay
           '-Wl,--gc-sections',
           `-o "${CART_EXE}"`,
         ]

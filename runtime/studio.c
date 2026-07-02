@@ -1,4 +1,20 @@
 #define STUDIO_INTERNAL          // suppress studio.h's KEY_* macros — raylib.h provides those names
+#if defined(_WIN32) && !defined(DE_NO_RAYLIB)
+// net.h (lockstep netplay) uses Winsock, whose winsock2.h MUST precede windows.h
+// or the old winsock v1 baked into windows.h collides. winsock2.h pulls windows.h,
+// though — and its GDI/USER symbols (Rectangle, LoadImage, DrawText, CloseWindow,
+// ShowCursor) + the near/far/min/max macros clash with raylib.h + studio.h. We
+// only need Winsock here (raylib is precompiled), so strip windows.h down with the
+// NO* guards and undo the legacy near/far macros. See docs/design/multiplayer-research.md.
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#define NOUSER
+#define NOMINMAX
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#undef near
+#undef far
+#endif
 #include "studio.h"
 #ifdef DE_NO_RAYLIB
 #include "raylib_compat.h"   // the no-Raylib shim (iOS / Switch / headless software build)
@@ -18,6 +34,12 @@
 #include <math.h>
 #include <time.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>                       // _mkdir (Windows mkdir takes no mode arg)
+#define de_mkdir(p) _mkdir(p)
+#else
+#define de_mkdir(p) mkdir((p), 0755)
+#endif
 #include "dos_8x8_font.h"
 #include "font4x6_data.h"
 #include "font3x5_data.h"
@@ -2143,8 +2165,8 @@ static void save_dir_set(const char *dir) {
     char tmp[512];
     snprintf(tmp, sizeof tmp, "%s", save_dir);
     for (char *p = tmp + 1; *p; p++)
-        if (*p == '/') { *p = '\0'; mkdir(tmp, 0755); *p = '/'; }
-    mkdir(tmp, 0755);
+        if (*p == '/') { *p = '\0'; de_mkdir(tmp); *p = '/'; }
+    de_mkdir(tmp);
 }
 #endif
 
@@ -2397,9 +2419,11 @@ int main(int argc, char **argv) {
     signal(SIGSEGV, crash_handler);   // bad/null pointer
     signal(SIGFPE,  crash_handler);   // divide by zero, etc.
     signal(SIGABRT, crash_handler);   // abort()/assert
-    signal(SIGBUS,  crash_handler);   // misaligned / bad memory access
+#ifdef SIGBUS
+    signal(SIGBUS,  crash_handler);   // misaligned / bad memory access (no SIGBUS on Windows)
+#endif
     restart_argv = argv;
-    mkdir(".bake", 0755);             // ensure inspect request dir exists (silent if already there)
+    de_mkdir(".bake");                // ensure inspect request dir exists (silent if already there)
 #endif
 #ifdef PLATFORM_WEB
     SetTraceLogLevel(LOG_ERROR);     // suppress NPOT/extension warnings — harmless on web

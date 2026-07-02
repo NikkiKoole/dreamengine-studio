@@ -20,9 +20,12 @@ real "what to build next":
    driving and on-foot." It is the single most load-bearing missing piece, and it's nobody's cart.
    **◑ Rung F0 LANDED (2026-07-02, in sloop, fenced):** the avatar exists — the occupant of the
    SEAT CELL (one 7px rig tile) steps out at a stop (F), walks the same collidable world, and
-   re-enters by walking back within reach of that seat cell; pinned by sloop's first `spec()`
-   (11 assertions). Remaining rungs: F1 surface-aware walking (`road_at()`), F2 enter a building
-   (`interiors`), F3 lift flank's brain as a library header → *fight*. Ladder + design decisions:
+   re-enters by walking back within reach of that seat cell. **◑ Rung F1 landed same day:** the
+   surface drives the walk via the same `road_at()` seam as the rig's grip — tarmac + the
+   `RoadHit.on_pave` pavement strip walk full pace, grass drags ~0.6×, identical over the stub
+   grid and OSM Delft. Pinned by sloop's first `spec()` (16 assertions). Remaining rungs: F2
+   enter a building (`interiors`), F3 lift flank's brain as a library header → *fight*. Ladder +
+   design decisions:
    [`driving-world-program.md`](driving-world-program.md) → the player-fantasy scoreboard.
 2. **The world composer.** One seed-driven cart that wires the sandboxes via their named seams —
    `road_at()` (roadnet2) · `make_junction(legs,type)` (roadlab) · `gen_network(pattern,seed)`

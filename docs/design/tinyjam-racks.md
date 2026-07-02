@@ -217,6 +217,14 @@ unblocked today** — they were waiting on engines that have since shipped.
 
 instrument-engines §8.9 re-scored by *how many racks/stations each engine unlocks*:
 
+> **Drift note (2026-07-02): most of this table has since SHIPPED** — voice/formant
+> (`INSTR_VOICE`, 2026-06-10, + the `formant()` vowel filter), PD (`INSTR_PD`, 2026-06-08),
+> membrane (`INSTR_MEMBRANE`, 2026-06-08), bowed (`INSTR_BOWED`, 2026-06-09), reed
+> (`INSTR_REED`, 2026-06-08) and brass (`INSTR_BRASS`, 2026-06-10). AM/ring's *sound* shipped
+> as the `ringmod()` bus effect (2026-06-14); an engine version would only add the
+> note-tracking modulator ratio. Still unbuilt: **Additive** and the **Juno second-osc**.
+> Rows kept as written for the unlock rationale; ship state is owned by §8.9 itself.
+
 | Engine | Cost (per §8.9) | Unlocks |
 |---|---|---|
 | **AM / ring mod** | "~10 lines native" | the Radiophonic Workshop's signature sound (Dalek/Delia), Toy-Town glitch, gamelan shimmer. Cheapest item on the list |
@@ -235,14 +243,15 @@ Each = existing brains + at most one new engine:
 - **Surf / spy** — PLUCK tremolo-picked lead + the Western's spring-reverb feel +
   tom-heavy kit. Sits next to Spaghetti Western; could share its rack chassis.
 - **Ska / rocksteady** — the offbeat skank is dub's brain at double tempo; organ
-  bubble exists; wants the brass engine.
+  bubble exists; wants the brass engine (shipped 2026-06-10 as `INSTR_BRASS` — unblocked).
 - **G-funk** — the whistle lead is *literally* the musicalsaw voice (sine +
   portamento); boom-bap groove already in `lowend.c`.
 - **Synthwave / outrun** — gated-reverb snare via SFX-editor sculpting (the §12
   909-hihat technique), Juno pads, arp; the `outrun` cart donates the faceplate
   aesthetic.
 - **Doo-wop / street corner** — the formant-engine showcase: four formant voices
-  voice-led by `rad_lead_to`, finger snaps. Nothing like it on the dial.
+  voice-led by `rad_lead_to`, finger snaps. Nothing like it on the dial. (Engine shipped —
+  `INSTR_VOICE` even carries the consonant/coda set for "sha-la-la" syllables; buildable today.)
 
 Related: a batch of **whimsical playable-instrument cart ideas** (slide whistle,
 melodeon, accordion, harmonica, upright bass) lives in
@@ -252,9 +261,10 @@ set), and the upright bass + `walk_note()` is the hard-bop rack's bass lane.
 
 ### The takeaway for build order
 
-The cheapest *complete* new tinydaw stack is **AM/ring + formant** (both
-near-free) → unlocks the **Radiophonic Workshop** rack end-to-end — fittingly,
-the one genre that *celebrates* sounding like a fantasy console. Meanwhile the
+The cheapest *complete* new tinydaw stack was **AM/ring + formant** — and both have since
+shipped (see the drift note above: `INSTR_VOICE` is the formant engine, `ringmod()` covers
+the ring-mod sound), so the **Radiophonic Workshop** rack is unblocked end-to-end today —
+fittingly, the one genre that *celebrates* sounding like a fantasy console. Meanwhile the
 zero-engine stations (lofi jazz, hard-bop) would each hand a future rack its
 generator for free.
 

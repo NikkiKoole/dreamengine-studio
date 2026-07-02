@@ -424,6 +424,28 @@ wasm** — BSD sockets plus a seam the debug harness already built. Two Macs
 playing pong over wifi is roughly a week of part-time work from a standing
 start.
 
+### Distribution: shipping the standalone build — code signing is the open TODO
+
+Rung 2.5 made a cart runnable with no editor (boot lobby / pause → MULTIPLAYER),
+and the editor's **export .exe** / **export mac** buttons (`studio:export-win` /
+`studio:export-mac` in `main.cjs`) emit a self-contained single file with the
+lobby baked in (`DE_NET_LOBBY_DEFAULT`). What's shipped works, but every exported
+binary is **unsigned**, so the OS scares the recipient once:
+
+| Platform | Today (unsigned) | TODO for a clean, warning-free open |
+|---|---|---|
+| **Windows** | SmartScreen "Windows protected your PC / unknown publisher" → *More info → Run anyway* | An **Authenticode** code-signing certificate (OV/EV from a CA, ~$100–400/yr); EV clears SmartScreen reputation immediately, OV warms up over installs. |
+| **macOS** | Gatekeeper "unidentified developer / can't be opened" → **right-click → Open** once | A **`.app` bundle** + **Developer ID Application** cert + **notarization** (`notarytool`) + **staple**. The maker currently has only an *Apple Development* cert (fine for own machines / iOS), **not** a Developer ID one — that's the missing piece; the paid account can mint it. Needs an Apple ID app-specific password + Team ID for the notarize round-trip. |
+
+**Decision on file (2026-07-02):** ship **unsigned binaries for now** — fine for
+"send it to your kid, click through the one warning" and for the maker's own two
+Macs (right-click → Open). Signing/notarization is deferred, not cancelled;
+revisit when handing builds to strangers is a real need. The Mac path also wants
+a real `.app` bundle (double-click without Terminal) — see
+[`packaging-distribution.md`](packaging-distribution.md) for the broader packaging
+history and [ADR-0023](../decisions/0023-ship-carts-as-apps-not-the-editor.md)
+(ship precompiled results, never the editor).
+
 ### Scenario: a few machines on one wifi, all playing the *wasm* build
 
 A tempting-but-wrong mapping: "they're all on my LAN, so that's rung 2/3 (LAN

@@ -4,17 +4,18 @@
   "status": "active",
   "created": "2026-07-02",
   "kind": [
-    "instrument"
+    "instrument",
+    "generative"
   ],
   "teaches": [
     "step-sequencer",
     "subtractive-synth",
-    "drum-synthesis"
+    "drum-synthesis",
+    "generative-melody"
   ],
-  "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. Increments 1-3 of docs/design/rebirth-classic.md.",
+  "lineage": "Propellerhead ReBirth RB-338 (1997) — the 2×TB-303 + drum-machine acid rack — rebuilt as one cart from the shipped machine carts (tb303 ×2 on the new FILTER_DIODE, tr909 voices), with Reason-style rack-fold accordion panels and pattern banks + a chain row = song mode. All four increments of docs/design/rebirth-classic.md — the tinyjam-racks pilot: generate, play, export.",
   "homage": "Propellerhead ReBirth RB-338 (1997)",
   "todo": [
-    "increment 4: seeded generator + song code + WAV export",
     "touch stroke entry: right-click cycles 909 strokes — needs a long-press path on phones",
     "no undo — CLR/RND overwrite the scoped lane/bank irreversibly (autosaved, so it sticks); ReBirth was merciless too but an undo slot would be kind",
     "per-voice tune/decay/color knobs (the standalone carts' depth) — the rack bakes center values for now",
@@ -22,9 +23,9 @@
     "maker naming pass: 'acid rack' is a working title"
   ],
   "description": {
-    "summary": "Two 303s, the full 909, the curated 808 and the master FX rack in one cart — pattern banks A-D chained into a real song. The ReBirth move: everything runs together, you edit while it plays.",
+    "summary": "Two 303s, the full 909, the curated 808 and per-device FX in one cart — and a SONG CODE: 8 hex characters that generate a whole arranged acid track (banks A-D + the chain), ready to edit while it plays, then export as WAV.",
     "detail": "The RB-338 homage, increment 2: two full TB-303 voices (the engine's FILTER_DIODE diode-ladder squelch, authentic non-retriggering slide, accent into the filter env, live CUT/RES/DRV knobs per machine) + the COMPLETE tr909 kit (11 voices — analog kick/snare/toms/rim/clap, FM-clang metal, the stroke family: right-click a cell for flam/drag/ratchet, the METAL-FILTER XY pad riding all five metal highpasses, TOTAL ACCENT row) + the curated tr808 (9 voices: boom kick, snare, 2 toms, clap, maracas, cowbell, hats — congas/clave/rim/cymbal cut per the rack slot budget), all clocked off one transport with the 909's period-correct even-16th SHUFFLE (one master knob + Z/X). Effects are PER-DEVICE like the real RB-338: every machine strip has an [fx] view (the header button swaps the grid for that machine's effects) with DIST (per-voice drive on that machine only — drums scream while the rest stays clean) and SEND (its level into THE one shared tempo-synced delay unit, per-device routing like the hardware; the 909's fx view also hosts the METAL pad and SHUFFLE). The MASTER strip keeps what genuinely needs a bus: the delay unit's TIME (snaps 1/16, 1/8, dotted-8th, 1/4) and FB, GLU (the glue compressor that tames the drop), and the PCF: a pattern-controlled filter whose 16-step level lane is drawn per BANK, so the arrangement itself rides the master lowpass — the demo's build bank is literally a drawn ramp that opens the filter over one bar. (True per-device PCF/comp waits on machine buses — effects-bus-architecture.md Increment G.) The rack is an ACCORDION: each machine is a slim strip showing its name, a live 16-tick mini pattern with the playhead, and a MUTE — tap a strip to expand its full editor (piano roll + flag rows + knobs for a 303, trigger grid for the drums). Sound never depends on what's open. Patterns live in four BANKS (A-D, the transport buttons); the SONG row at the bottom chains up to 64 bars of banks into a real track — tap a cell to cycle A→B→C→D→empty. Everything autosaves.",
-    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
+    "controls": "SPACE run/stop · tap a strip header to expand · A-D buttons pick the edit bank (also LEFT/RIGHT) · SONG button toggles chain playback · tap SONG-row cells to write the arrangement · UP/DOWN tempo · Z/X shuffle · roll: tap/drag paints notes, tap a note to erase · OCT/ACC/SLD rows toggle per step · drums: tap cells, right-click a 909 cell for flam/drag/ratchet, AC row = accent, drag the METAL pad for hat tone · MASTER strip: GEN new song code (also G), tap code digits to nudge, [ ] history, WAV = export the arrangement · [fx] button on a machine strip: its DIST + delay SEND (909: also METAL pad + SHUF) · MASTER strip: delay TIME/FB, GLU, PCF/RES + drag the lane to draw the filter pattern · CPY/CLR/RND act on WHAT'S OPEN: a machine strip = just its lane of the edit bank, MASTER = the whole bank (CPY arms — tap the target bank to paste)"
   }
 }
 de:meta */
@@ -113,6 +114,9 @@ typedef struct {                       // one bank = a whole-rack snapshot
 } Pattern;
 
 static Pattern bank[NBANK];
+static void gen_song(unsigned seed);   // the increment-4 generator (defined below)
+#define DEFAULT_SEED 0xAC1D5EEDu       // the first-boot song code
+static unsigned cur_seed = 0;          // the song code on display
 static unsigned char chain[CHAINN];    // bank index per bar; 0xFF = empty (song ends)
 static int  chainN     = 0;            // bars in the song (first empty cell)
 
@@ -496,103 +500,14 @@ static void ride_pcf(void) {
     pcf_on = true;
 }
 
-// ── authored demo patterns (the generator fills these in increment 4) ─────
-// 303 lines as tb303-style strings: nt '.'=rest '0'-'9','A'-'C'=semitone;
-// oc/ac/sl = 'x' masks. Drum rows use tr909's stroke chars: 'x' hit,
-// 'f' flam, 'd' drag, 'r' ratchet (strokes are 909-only, like the panel).
-typedef struct { const char *nt, *oc, *ac, *sl; } LineSrc;
-typedef struct {
-    LineSrc a, b;
-    const char *r909[N909]; const char *ac9;   // NULL row = silent
-    const char *r808[N808]; const char *ac8;
-    const char *pcf;                           // digits 0-7, '.' = 0, NULL = flat 0
-} PatSrc;
-static const PatSrc DEMO[NBANK] = {
-    { // A — sparse intro: one 303 murmurs over the kick
-      { "0...3...0...7...", "................", "x...........x...", "................" },
-      { "................", "................", "................", "................" },
-      { [V9_BD] = "x...x...x...x..." }, "x...............",
-      { 0 }, 0,
-      "3333333333333333" },   // PCF: the intro sits dark
-    { // B — the groove: clap lands, hats breathe, the cowbell answers
-      { "0.C03.7A0.C0537A", "................", "x...x...x...x...", "......x.......x." },
-      { "0...............", "x...............", "x...............", "................" },
-      { [V9_BD] = "x...x...x...x...", [V9_CP] = "....x.......x...",
-        [V9_CH] = "..x...x...x...x." }, "x.......x.......",
-      { [V8_CB] = "x..x..x.x..x..x." }, 0,
-      "5656565656565656" },   // PCF: gentle pumping
-    { // C — the build: A climbs an octave, kick doubles into the turn,
-      //     ratcheted hats (the Hardfloor move), 808 shaker under it all
-      { "0.C03.7A0.C0537A", "........xxxxxxxx", "x...x...x...x...", "......x.......x." },
-      { "0.0.0.0.0.0.0.0.", "................", "x...x...x...x...", "................" },
-      { [V9_BD] = "x...x...x...x.xx", [V9_CP] = "....x.......x...",
-        [V9_CH] = "x.x.x.x.x.x.x.xr", [V9_LT] = "............x...",
-        [V9_HT] = "..............x." }, "x.......x.......",
-      { [V8_MA] = "xxxxxxxxxxxxxxxx" }, 0,
-      "0112233445566777" },   // PCF: the RAMP — the whole build opens over one bar
-    { // D — the drop: crash on the one, open hats, ride, snare flam,
-      //     both boxes accented and sliding, 808 shaker + cowbell on top
-      { "0.C03.7A0.C0537A", "x.......x.......", "x.x.x.x.x.x.x.x.", "..x...x...x...x." },
-      { "0..7..A.0..3..C.", ".........x......", "x.......x.......", "..x.....x......." },
-      { [V9_BD] = "x...x...x...x...", [V9_CP] = "....x.......f...",
-        [V9_CH] = "x...x...x...x...", [V9_OH] = "..x...x...x...x.",
-        [V9_RC] = "x.......x.......", [V9_CC] = "x..............." }, "x...x...x...x...",
-      { [V8_MA] = "xxxxxxxxxxxxxxxx", [V8_CB] = "x..x..x.x..x..x." }, 0,
-      "7777777777777777" },   // PCF: the drop is wide open
-};
-static const char *DEMO_CHAIN = "AABBAABBCCCDBBDD";
-
-static void decode_line(Line *ln, const LineSrc *src) {
-    memset(ln, 0, sizeof *ln);
-    for (int s = 0; s < STEPS; s++) {
-        char c = src->nt[s];
-        if (c != '.') {
-            ln->on |= 1 << s;
-            ln->pitch[s] = (c >= '0' && c <= '9') ? c - '0' : c - 'A' + 10;
-        }
-        if (src->oc[s] == 'x') ln->oct |= 1 << s;
-        if (src->ac[s] == 'x') ln->acc |= 1 << s;
-        if (src->sl[s] == 'x') ln->sld |= 1 << s;
-    }
-}
-static unsigned short decode_mask(const char *row) {
-    unsigned short mk = 0;
-    if (row) for (int s = 0; s < STEPS; s++) if (row[s] != '.') mk |= 1 << s;
-    return mk;
-}
-static void load_demo(void) {
-    memset(bank, 0, sizeof bank);
-    for (int bk = 0; bk < NBANK; bk++) {
-        Pattern *P = &bank[bk];
-        const PatSrc *S = &DEMO[bk];
-        decode_line(&P->ln[0], &S->a);
-        decode_line(&P->ln[1], &S->b);
-        for (int v = 0; v < N909; v++) {
-            P->d909[v] = decode_mask(S->r909[v]);
-            if (S->r909[v]) for (int s = 0; s < STEPS; s++)
-                P->st909[v][s] = S->r909[v][s] == 'f' ? ST_FLAM
-                               : S->r909[v][s] == 'd' ? ST_DRAG
-                               : S->r909[v][s] == 'r' ? ST_RATCHET : ST_PLAIN;
-        }
-        P->acc909 = decode_mask(S->ac9);
-        for (int v = 0; v < N808; v++) P->d808[v] = decode_mask(S->r808[v]);
-        P->acc808 = decode_mask(S->ac8);
-        if (S->pcf) for (int st = 0; st < STEPS; st++)
-            P->pcf[st] = (S->pcf[st] >= '0' && S->pcf[st] <= '7') ? S->pcf[st] - '0' : 0;
-    }
-    chainN = 0;
-    memset(chain, 0xFF, sizeof chain);
-    for (const char *c = DEMO_CHAIN; *c && chainN < CHAINN; c++)
-        chain[chainN++] = *c - 'A';
-}
-
 // ── save / load (autosaves the whole song) ────────────────────────────────
-#define SAVE_MAGIC 0xAC1D0004u   // v4: per-device FX (sends + drum dist), MASTER strip knobs
+#define SAVE_MAGIC 0xAC1D0005u   // v5: + the song code (cur_seed)
 typedef struct {
     unsigned magic;
     Pattern  bank[NBANK];
     unsigned char chain[CHAINN];
     int      chainN, tempo, editBank, swing;
+    unsigned cur_seed;
     float    knob[2][NK], mcut, mres, fxk[NFX], send[4], dist9, dist8;
     int      wave[2];
     bool     songmode, mute[NSTRIP];
@@ -605,6 +520,7 @@ static void save_song(void) {
     memcpy(sb.bank, bank, sizeof bank);
     memcpy(sb.chain, chain, sizeof chain);
     sb.chainN = chainN; sb.tempo = tempo; sb.editBank = editBank; sb.swing = swing;
+    sb.cur_seed = cur_seed;
     sb.mcut = mcut; sb.mres = mres;
     memcpy(sb.fxk, fxk, sizeof fxk);
     memcpy(sb.send, send, sizeof send); sb.dist9 = dist9; sb.dist8 = dist8;
@@ -619,6 +535,7 @@ static bool load_song(void) {
     memcpy(bank, sb.bank, sizeof bank);
     memcpy(chain, sb.chain, sizeof chain);
     chainN = sb.chainN; tempo = sb.tempo; editBank = sb.editBank; swing = sb.swing;
+    cur_seed = sb.cur_seed;
     swingf = (swing - 50) / 16.0f;
     mcut = sb.mcut; mres = sb.mres;
     memcpy(fxk, sb.fxk, sizeof fxk);
@@ -631,7 +548,7 @@ static bool load_song(void) {
 
 // ── init ──────────────────────────────────────────────────────────────────
 void init(void) {
-    if (!load_song()) load_demo();
+    if (!load_song()) gen_song(DEFAULT_SEED);   // first boot: a generated song
     define_303(&m[0]);
     define_303(&m[1]);
     define_909();
@@ -643,6 +560,179 @@ void init(void) {
     static const int kinds[1] = { FX_FILTER };
     fx_order(0, kinds, 1);
     apply_fx();
+}
+
+// ── the composition seed (lifted from runtime/radio.h — provenance comment;
+// no cross-cart seed compat needed: acidrack codes only reproduce acidrack,
+// but changing the generator's DRAW ORDER orphans every noted code — same
+// discipline as the radio.h seed-compatibility rule) ──────────────────────
+typedef struct {
+    unsigned rngState, seed;
+    unsigned hist[64];
+    int      histN, histPos;
+} RadioSeed;
+static unsigned rad_srnd_u(RadioSeed *r) {
+    r->rngState ^= r->rngState << 13;
+    r->rngState ^= r->rngState >> 17;
+    r->rngState ^= r->rngState << 5;
+    return r->rngState;
+}
+static int rad_srnd(RadioSeed *r, int n) { return (int)(rad_srnd_u(r) % (unsigned)n); }
+static unsigned rad_seed_begin(RadioSeed *r, unsigned seed) {
+    if (!seed) seed = ((unsigned)rnd(0x10000) << 16) ^ (unsigned)rnd(0x10000)
+                      ^ (unsigned)frame() * 2654435761u;
+    if (!seed) seed = 1;
+    r->rngState = r->seed = seed;
+    return seed;
+}
+static void rad_hist_log(RadioSeed *r) {
+    if (r->histN == 64) { for (int i = 1; i < 64; i++) r->hist[i - 1] = r->hist[i]; r->histN--; }
+    r->hist[r->histN++] = r->seed;
+    r->histPos = r->histN - 1;
+}
+static unsigned rad_hist_back(RadioSeed *r) { return r->histPos > 0 ? r->hist[--r->histPos] : 0; }
+static unsigned rad_hist_fwd(RadioSeed *r)  { return r->histPos < r->histN - 1 ? r->hist[++r->histPos] : 0; }
+
+static RadioSeed rs;
+
+// ── THE GENERATOR — one song code fills all four banks + the chain ────────
+// The arc the banks encode: A sparse intro → B groove → C build → D drop
+// (tinyjam-racks.md "sections become pattern banks"). Musicality is tb303's
+// gen_random recipe; discipline is the radio idiom: every compositional
+// draw comes from the seeded stream, in this fixed order.
+static int schance(int pct) { return rad_srnd(&rs, 100) < pct; }
+
+static void gen_line(Line *ln, int density) {      // one 16-step acid line
+    static const int pool[8] = { 0, 0, 0, 3, 5, 7, 10, 12 };
+    memset(ln, 0, sizeof *ln);
+    int prev = 0;
+    for (int st = 0; st < STEPS; st++) {
+        if (!schance(density)) continue;
+        int b = 1 << st;
+        ln->on |= b;
+        int pc = schance(35) ? prev : pool[rad_srnd(&rs, 8)];
+        ln->pitch[st] = (unsigned char)pc; prev = pc;
+        if (schance(15)) ln->oct |= b;
+        if (schance(30)) ln->acc |= b;
+        if (schance(25)) ln->sld |= b;
+    }
+    ln->on |= 1; ln->pitch[0] = 0;                 // land on the root
+}
+static Line thin_line(const Line *src, int keep_pct) {   // per-bank density derive
+    Line ln = *src;
+    for (int st = 1; st < STEPS; st++)             // step 0 (the root) always survives
+        if ((ln.on >> st) & 1 && !schance(keep_pct)) ln.on &= ~(1 << st);
+    return ln;
+}
+
+enum { G_INTRO, G_GROOVE, G_BUILD, G_DROP };
+static void gen_drums(Pattern *P, int stage) {
+    for (int v = 0; v < N909; v++) { P->d909[v] = 0; memset(P->st909[v], 0, STEPS); }
+    for (int v = 0; v < N808; v++) P->d808[v] = 0;
+    P->acc909 = 1; P->acc808 = 0;
+    for (int st = 0; st < STEPS; st += 4) P->d909[V9_BD] |= 1 << st;      // the floor
+    if (stage == G_INTRO) {                        // kick + one garnish, air everywhere
+        if (schance(30)) P->d808[V8_CB] = 0x4949;
+        return;
+    }
+    bool clap = schance(65);                       // the groove core (shared B/C/D)
+    P->d909[clap ? V9_CP : V9_SD] = (1 << 4) | (1 << 12);
+    bool off8 = schance(60);
+    if (off8) for (int st = 2; st < STEPS; st += 4) P->d909[V9_CH] |= 1 << st;
+    else      for (int st = 0; st < STEPS; st += 2) P->d909[V9_CH] |= 1 << st;
+    if (schance(45)) P->d808[V8_MA] = 0xFFFF;
+    if (schance(30)) P->d808[V8_CB] = 0x4949;
+    if (stage == G_BUILD) {
+        P->d909[V9_CH] = 0xFFFF;                   // hats go 16ths
+        P->d909[V9_BD] |= (1 << 14) | (schance(50) ? 1 << 15 : 0);   // the turn doubles
+        int rst = 12 + rad_srnd(&rs, 4);           // ratchet into the drop
+        P->d909[V9_CH] |= 1 << rst; P->st909[V9_CH][rst] = ST_RATCHET;
+        if (schance(50)) P->d909[V9_LT] |= 1 << (12 + rad_srnd(&rs, 4));
+        if (schance(35)) P->d909[V9_HT] |= 1 << (12 + rad_srnd(&rs, 4));
+        P->acc909 = (1 << 0) | (1 << 8);
+    }
+    if (stage == G_DROP) {
+        for (int st = 2; st < STEPS; st += 4) P->d909[V9_OH] |= 1 << st;
+        if (schance(40)) for (int st = 0; st < STEPS; st += 8) P->d909[V9_RC] |= 1 << st;
+        P->d909[V9_CC] |= 1;                       // crash the downbeat
+        if (schance(30)) { int st = 12 + rad_srnd(&rs, 3); P->st909[clap ? V9_CP : V9_SD][st] = ST_FLAM;
+                           P->d909[clap ? V9_CP : V9_SD] |= 1 << st; }
+        P->acc909 = 0x1111;                        // every downbeat leans in
+    }
+}
+static void gen_pcf(Pattern *P, int stage) {
+    for (int st = 0; st < STEPS; st++) {
+        int lvl = stage == G_INTRO  ? 2 + rad_srnd(&rs, 2)
+                : stage == G_GROOVE ? 4 + ((st & 2) ? 1 : 0)
+                : stage == G_BUILD  ? st * 7 / 15
+                :                     7;
+        P->pcf[st] = (unsigned char)lvl;
+    }
+}
+
+static void gen_song(unsigned seed) {
+    cur_seed = rad_seed_begin(&rs, seed);
+    if (!seed) rad_hist_log(&rs);                  // only FRESH rolls enter history
+    memset(bank, 0, sizeof bank);
+    // 1. global choices (fixed draw order — changing it orphans noted codes)
+    tempo = 124 + rad_srnd(&rs, 17);
+    m[0].wave = schance(70) ? INSTR_SAW : INSTR_SQUARE;
+    m[1].wave = schance(45) ? INSTR_SAW : INSTR_SQUARE;
+    swing = schance(25) ? 54 : 50;
+    swingf = (swing - 50) / 16.0f;
+    // 2. the two master lines: A carries the song, B answers sparser
+    Line la, lb;
+    gen_line(&la, 72);
+    gen_line(&lb, 45);
+    // 3. the four banks — the arrangement made visible
+    bank[0].ln[0] = thin_line(&la, 45);                          // A: intro murmur
+    gen_drums(&bank[0], G_INTRO);  gen_pcf(&bank[0], G_INTRO);
+    bank[1].ln[0] = la;                                          // B: the groove
+    bank[1].ln[1] = thin_line(&lb, 70);
+    gen_drums(&bank[1], G_GROOVE); gen_pcf(&bank[1], G_GROOVE);
+    bank[2].ln[0] = la;                                          // C: the build
+    bank[2].ln[0].oct |= 0xFF00 & bank[2].ln[0].on;              //   A jumps the octave into the turn
+    bank[2].ln[1] = lb;
+    gen_drums(&bank[2], G_BUILD);  gen_pcf(&bank[2], G_BUILD);
+    bank[3].ln[0] = la;                                          // D: the drop
+    bank[3].ln[0].acc |= 0x1111 & bank[3].ln[0].on;
+    bank[3].ln[1] = lb;
+    gen_drums(&bank[3], G_DROP);   gen_pcf(&bank[3], G_DROP);
+    // 4. the chain — intro · groove · build · drop · breath · build · big drop
+    memset(chain, 0xFF, sizeof chain);
+    chainN = 0;
+    int put; 
+    for (put = 2 + rad_srnd(&rs, 3); put-- > 0;) chain[chainN++] = 0;
+    for (put = 4; put-- > 0;) chain[chainN++] = 1;
+    for (put = 2; put-- > 0;) chain[chainN++] = 2;
+    for (put = 4; put-- > 0;) chain[chainN++] = 3;
+    for (put = 2; put-- > 0;) chain[chainN++] = schance(50) ? 0 : 1;
+    for (put = 2; put-- > 0;) chain[chainN++] = 2;
+    for (put = 2 + rad_srnd(&rs, 4); put-- > 0;) chain[chainN++] = 3;
+    // 5. make it sound
+    define_303(&m[0]);
+    define_303(&m[1]);
+    bpm(tempo);
+    barpos = 0;
+    mark_dirty();
+}
+
+// ── WAV export — arms the engine's live capture (.bake/wav_request:
+// line 1 = path, line 2 = seconds; studio.c polls it in any native build)
+static int  export_flash = 0;          // frames left on the "exporting" note
+static char export_name[40];
+static void export_wav(void) {
+    float bar_s = 240.0f / tempo;
+    float secs = (songmode && chainN > 0 ? chainN : 4) * bar_s + 2.0f;
+    if (secs > 60.0f) secs = 60.0f;    // the engine cap
+    snprintf(export_name, sizeof export_name, "acidrack-%08X.wav", cur_seed);
+    FILE *f = fopen(".bake/wav_request", "w");
+    if (!f) return;
+    fprintf(f, "%s\n%.1f\n", export_name, secs);
+    fclose(f);
+    export_flash = 240;
+    // start the song from the top so the capture gets the whole arrangement
+    barpos = 0; last16 = -1; running = true;
 }
 
 // ── pattern ops (CPY/CLR/RND) — scope is WHAT YOU'RE LOOKING AT: a machine
@@ -749,6 +839,9 @@ void update(void) {
     if (keyp(KEY_LEFT))  { editBank = (editBank + NBANK - 1) % NBANK; }
     if (keyp(KEY_RIGHT)) { editBank = (editBank + 1) % NBANK; }
     if (keyp('S'))       { songmode = !songmode; mark_dirty(); }
+    if (keyp('G'))       gen_song(0);
+    if (keyp('['))       { unsigned sd = rad_hist_back(&rs); if (sd) gen_song(sd); }
+    if (keyp(']'))       { unsigned sd = rad_hist_fwd(&rs);  if (sd) gen_song(sd); }
     if (keyp('Z'))       { swing -= 2; if (swing < 50) swing = 50; swingf = (swing - 50) / 16.0f; mark_dirty(); }
     if (keyp('X'))       { swing += 2; if (swing > 66) swing = 66; swingf = (swing - 50) / 16.0f; mark_dirty(); }
 
@@ -829,8 +922,14 @@ void update(void) {
         }
 
         // expanded MASTER panel: drag the PCF lane (bar-graph levels per step)
+        // + tap a song-code digit to nudge it (regenerates live)
         if (expanded == STRIP_MST) {
             int y0 = strip_y(STRIP_MST) + HDR_H;
+            if (tap && px >= 248 && px < 248 + 64 && py >= y0 + 22 && py < y0 + 33) {
+                int d = (px - 248) / 8, shift = (7 - d) * 4;
+                unsigned nib = ((cur_seed >> shift) + 1u) & 15u;
+                gen_song((cur_seed & ~(15u << shift)) | (nib << shift));
+            }
             int gx = 36, ly = y0 + 34, lh = 72;
             if (px >= gx && px < gx + STEPS * 13 && py >= ly && py < ly + lh) {
                 int st = (px - gx) / 13;
@@ -1126,9 +1225,26 @@ static void draw_master_panel(int y0) {
     font(FONT_SMALL);
     print("PCF", 12, ly + 2, CLR_MEDIUM_GREY);
     print("lane", 12, ly + 10, CLR_MEDIUM_GREY);
-    print("acid rack", 240, y0 + 84, CLR_INDIGO);
-    print("sends live in each", 240, y0 + 94, CLR_DARK_GREY);
-    print("machine's fx view", 240, y0 + 102, CLR_DARK_GREY);
+    font(FONT_NORMAL);
+    // the song code — GEN rolls a fresh one ([ ] walk history), tapping a
+    // hex digit nudges it (rclick down) and regenerates live, WAV exports
+    if (ui_button(248, y0 + 2, 32, 15, "GEN")) gen_song(0);
+    if (ui_button(284, y0 + 2, 32, 15, "WAV")) export_wav();
+    font(FONT_SMALL);
+    for (int d = 0; d < 8; d++) {
+        char hx[2] = { "0123456789ABCDEF"[(cur_seed >> ((7 - d) * 4)) & 15], 0 };
+        rectfill(248 + d * 8, y0 + 22, 7, 11, CLR_DARKER_GREY);
+        print(hx, 250 + d * 8, y0 + 25, CLR_YELLOW);
+    }
+    print("song code", 252, y0 + 36, CLR_MEDIUM_GREY);
+    print("acid rack", 248, y0 + 84, CLR_INDIGO);
+    print("sends live in each", 248, y0 + 94, CLR_DARK_GREY);
+    print("machine's fx view", 248, y0 + 102, CLR_DARK_GREY);
+    if (export_flash > 0) {
+        print("exporting >", 248, y0 + 50, CLR_GREEN);
+        print(export_name, 248, y0 + 58, CLR_GREEN);
+        print("(build/)", 248, y0 + 66, CLR_MEDIUM_GREY);
+    }
     font(FONT_NORMAL);
 }
 
@@ -1191,6 +1307,7 @@ void draw(void) {
             rectfill(x, CHAIN_Y, 3, 2, CLR_WHITE);
     }
 
+    if (export_flash > 0) export_flash--;
     for (int d = 0; d < N909; d++) if (flash909[d] > 0) flash909[d]--;
     for (int d = 0; d < N808; d++) if (flash808[d] > 0) flash808[d]--;
     ui_end();

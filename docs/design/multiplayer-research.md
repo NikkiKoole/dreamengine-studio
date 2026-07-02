@@ -509,6 +509,43 @@ LAN IP, forwarding lockstep inputs. It sidesteps NAT traversal (none exists),
 sidesteps cross-compiler determinism (all same wasm), and the latency cost the
 plan holds against it doesn't apply on a LAN.
 
+## Scoped plan — rung 5a: web/wasm multiplayer via a WebSocket input-relay
+
+> **Status: proposed (2026-07-02).** The pragmatic first step to get *browsers*
+> (and iPads) playing, chosen over full WebRTC because it needs no NAT traversal,
+> no STUN/TURN, no signaling dance — just a tiny relay. Reuses the entire native
+> lockstep model (same barrier, same 1-byte packet, same lobby concept); what's
+> new is a WebSocket transport for the web target and the relay itself. WebRTC +
+> join-codes (play with *anyone, anywhere*) stays the later rung 5b upgrade.
+>
+> **Ground truth (verified in-code 2026-07-02):** `net.h` is native-only
+> (`DE_NET_BUILD` = `!PLATFORM_WEB && !DE_NO_RAYLIB`), and under `PLATFORM_WEB`
+> the `inp_*()` input seam is a pass-through to raylib (studio.c, *"web build:
+> harness is a no-op"*). So wasm carts are single-player today, and step 1 below
+> is the real gating work — independent of transport.
+
+| Step | What | Effort | Risk / notes |
+|---|---|---|---|
+| **1. Un-stub the web input seam** | Route the web build's `inp_*()` through the same lockstep frame buffers native uses, so a remote peer's byte can be injected. This is the seam the debug harness/lockstep both need; it's compiled out under emcc today. **Gates everything else.** | ~2–3 days | low-ish; mechanical, but touches the hot `inp_*()` layer — guard with the existing input/replay tests. |
+| **2. WebSocket transport for the web target** | A `#ifdef PLATFORM_WEB` transport alongside net.h's UDP: emscripten's WebSocket API (or a small JS shim via `EM_JS`) opens `ws://<relay>/room/<code>`, sends/receives the same `NET_PKT_INPUT` frames. The lockstep barrier, ring buffer, redundancy, seed handshake, BYE all stay identical — only `net_sendto`/`net_pump`'s socket calls swap. | ~2–3 days | medium; emscripten's socket story is the fiddly part — a thin WS layer is more predictable than its BSD-socket emulation. |
+| **3. The relay server** | ~100 lines of Node (`ws`): a client joins a room by code; the server forwards every datagram to the *other* member of that room (blind byte-forwarding — it never parses game state, so beginner cart code stays network-unaware). Host = first in the room, joiner = second; seed still rides the handshake through the relay. | ~1 day | low; stateless, free-tier-sized. Run it on one LAN box (sub-ms) or a $5 VPS (internet, +1 hop). |
+| **4. Web lobby / room UX** | The native lobby types an IP; the web lobby types (or is handed) a **room code** + a relay URL (configurable, defaulting to a hosted one). Reuse the `de_players() >= 2` gate and the Host/Join/Solo shape. | ~1–2 days | low; mostly the lobby draw, already exists for native. |
+| **5. (optional) Determinism gate** | wasm↔wasm is bit-identical (same build) so no cross-compiler work is needed — but add the per-frame CRC of the `de_state()` block (rung 4) as a cheap desync tripwire, reused from the native netdemo gate. | ~1 day | low; turns "hope" into a test. Only *native↔wasm* cross-play would need the real determinism proof — out of scope here. |
+
+**Scope boundary.** This rung is **2 players through one relay** (LAN box or a
+single shared server) — the all-wasm-on-one-wifi and "share a URL + room code"
+cases. It deliberately does **not** do WebRTC P2P, NAT traversal, TURN, or
+join-code signaling — that's **rung 5b** (§1–§2 above, WebRTC + `datachannel-wasm`
++ a signaling worker + free TURN), the "play with anyone, anywhere, direct P2P"
+upgrade to add once the relay proves the model and the input-delay feel is tuned.
+
+**Why this order.** Step 1 (input seam) is the true blocker and is reusable by
+*any* web transport, so it de-risks 5b too. Steps 2–4 are small and independent.
+The whole rung 5a is ~1–1.5 weeks part-time and gets browsers **and iPad Safari**
+playing — which also unlocks the tinyjam **co-op jamming** spark
+([`tinyjam-racks.md`](tinyjam-racks.md) → "Spark: co-op jamming"), since a shared
+rack in two browser tabs is exactly this.
+
 ---
 
 ## Sources

@@ -17,6 +17,8 @@
 de:meta */
 #include "studio.h"
 
+int de_players(void) { return 2; }   // 2-player → show the multiplayer menu/lobby
+
 // 2-player pong
 // player 1: W / S      player 2: up / down arrows
 // first to 7 wins — press Z to restart

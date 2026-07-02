@@ -76,6 +76,7 @@
 void init(void);    // called once after the window opens — optional
 void draw(void);
 void update(void);
+int  de_players(void);   // return 2+ from your cart to enable the multiplayer menu/lobby (default 1 = solo)
 
 // ------------------------------------------------------------
 // api

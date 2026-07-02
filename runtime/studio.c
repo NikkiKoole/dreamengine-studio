@@ -1349,14 +1349,19 @@ bool paused(void) { return pause_active; }
 
 // draw the pause overlay into the canvas (native resolution) so it scales up
 // with the game and looks pixel-perfect — same renderer, same font, same pixels.
-// Pause-menu items. MULTIPLAYER appears only on a net-capable native build; the
-// same list drives the draw + the input below, so they can't drift.
+// Build the active pause-menu items into `items` (cap 3), return the count. The
+// same builder drives the draw + the input below, so they can't drift.
+// MULTIPLAYER shows only on a net build AND only for a cart that declares 2+
+// players via de_players() — a solo cart's pause menu stays CONTINUE/RESTART.
+static int pause_menu_items(const char *items[3]) {
+    int k = 0;
+    items[k++] = "CONTINUE";
 #ifdef DE_NET_BUILD
-static const char *pause_items[] = { "CONTINUE", "MULTIPLAYER", "RESTART" };
-#else
-static const char *pause_items[] = { "CONTINUE", "RESTART" };
+    if (de_players() >= 2) items[k++] = "MULTIPLAYER";
 #endif
-#define PAUSE_N_ITEMS ((int)(sizeof pause_items / sizeof pause_items[0]))
+    items[k++] = "RESTART";
+    return k;
+}
 
 #ifdef DE_NET_BUILD
 // Relaunch this exact binary with --net-lobby appended, so the fresh process
@@ -1382,7 +1387,8 @@ static void net_restart_into_lobby(void) {
 
 static void draw_pause_canvas(void) {
     if (!pause_active) return;
-    const int bw = 120, bh = 26 + PAUSE_N_ITEMS * 12;    // grows with the item count
+    const char *items[3]; int n_items = pause_menu_items(items);
+    const int bw = 120, bh = 26 + n_items * 12;          // grows with the item count
     const int bx = (SCREEN_W - bw) / 2, by = (SCREEN_H - bh) / 2;
 
 
@@ -1396,12 +1402,12 @@ static void draw_pause_canvas(void) {
     const char *title = "PAUSED";
     print(title, bx + (bw - text_width(title)) / 2, by + 5, CLR_BLUE);
 
-    for (int i = 0; i < PAUSE_N_ITEMS; i++) {
+    for (int i = 0; i < n_items; i++) {
         int col = (pause_sel == i) ? CLR_WHITE : CLR_DARK_GREY;
-        int ix  = bx + (bw - text_width(pause_items[i])) / 2;
+        int ix  = bx + (bw - text_width(items[i])) / 2;
         int iy  = by + 20 + i * 12;
         if (pause_sel == i) print("\x10", ix - 10, iy, CLR_WHITE);
-        print(pause_items[i], ix, iy, col);
+        print(items[i], ix, iy, col);
     }
 }
 
@@ -1442,6 +1448,7 @@ static void crash_handler(int sig) {
 
 __attribute__((weak)) void init(void)   {}
 __attribute__((weak)) void update(void) {}
+__attribute__((weak)) int  de_players(void) { return 1; }   // carts override with `return 2;` to enable multiplayer UI
 
 #ifdef DE_SPEC
 // ── spec() — the cart-LOGIC safety net (docs/design/spec-harness.md, runtime/spec.h). Built ONLY under
@@ -1866,10 +1873,11 @@ static void loop_step(void) {
         if (inp_pressed(KEY_ESCAPE)) {
             pause_active = false;
             de_master_volume(1.0f);
-        } else if (inp_pressed(KEY_UP))   { pause_sel = (pause_sel + PAUSE_N_ITEMS - 1) % PAUSE_N_ITEMS; }
-        else if (inp_pressed(KEY_DOWN))   { pause_sel = (pause_sel + 1) % PAUSE_N_ITEMS; }
+        } else if (inp_pressed(KEY_UP))   { const char *it[3]; int nn = pause_menu_items(it); pause_sel = (pause_sel + nn - 1) % nn; }
+        else if (inp_pressed(KEY_DOWN))   { const char *it[3]; int nn = pause_menu_items(it); pause_sel = (pause_sel + 1) % nn; }
         else if (inp_pressed(KEY_ENTER) || inp_pressed(KEY_Z)) {
-            const char *sel = pause_items[pause_sel];
+            const char *items[3]; int nn = pause_menu_items(items);
+            const char *sel = pause_sel < nn ? items[pause_sel] : "CONTINUE";
             if (strcmp(sel, "CONTINUE") == 0) {          // Continue
                 pause_active = false;
                 de_master_volume(1.0f);
@@ -2596,7 +2604,7 @@ int main(int argc, char **argv) {
     // BEFORE init() below, so the host's seed reaches the joiner before any
     // rnd(). The direct-flag path already handshook before the window (above),
     // so `net_active` is set there and this block is skipped for it.
-    if (net_lobby_requested && !net_requested) net_lobby_menu(window_title);
+    if (net_lobby_requested && !net_requested && de_players() >= 2) net_lobby_menu(window_title);
     if (net_requested && !net_active) {
         det_mode = true;
         net_lobby_status_frame();   // draw "HOSTING…/connecting…" so the wait isn't a black window

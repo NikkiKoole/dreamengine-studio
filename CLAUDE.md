@@ -205,6 +205,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              journal (lifecycle board / timeline / related-note graph / conformance); --check gates staleness
              build-all.js    compile-check every cart vs current studio.h (catches API rot)
              build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
+             mac-app.sh      bundle an exported cart binary into a signed + notarized + stapled .app that opens on ANY Mac (Gatekeeper-clean); needs a Developer ID cert + a notarytool cred profile (header has the one-time setup)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
              lint-docs.js    validate docs/ cross-references (links resolve, §-refs, tool-index)
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —

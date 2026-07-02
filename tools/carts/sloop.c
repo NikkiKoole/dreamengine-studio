@@ -15,7 +15,7 @@
   ],
   "lineage": "Inspired by Cataclysm: DDA's vehicle system; sibling to orbit (same integrator) and coaster (same physics honesty); extends worldgen's infinite chunk-streamed city as its drive world.",
   "genre": "sandbox",
-  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. GET OUT OF THE CAR: stop and press F -- you step out of the seat cell as a one-tile person (the seat's occupant, same scale as the rig's parts), walk with arrows/WASD (Z jogs), and the same world pushes back on foot: buildings and parked cars block you, the camera eases in to 1:1, and the GROUND drives your pace - tarmac and the pavement strip beside it walk full speed, grass drags you to ~0.6x (the same road_at() surface seam that drives the rig's grip, so it works identically in the procedural grid and in real OSM Delft). Walk back to your seat and press F to drive again -- on a long rig that means walking to the cab, because entry is the SEAT cell, not 'the vehicle'. A rig with no seat can't be entered, the same rule that makes it drivable. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city."
+  "description": "Build a vehicle from parts on a grid, then drive it across a procedural world - Cataclysm: DDA's vehicle system as the seed. The one honest core: the rig is NOT a sprite with stats, it's a GRID OF PARTS, and how it drives is COMPUTED from what you bolted on. Total mass, centre of mass and moment of inertia are all derived from the grid, then the whole thing is one 2-D rigid body: accel = engine_force / mass (heavy rig crawls), turn rate = steer_torque / I (big rig turns lazily), and an engine bolted off the centre-line makes its own yaw torque so an asymmetric build genuinely pulls. Tire grip bleeds away sideways velocity so it tracks its nose like a car, not an air-hockey puck - and the handbrake (hold SPACE) turns that same grip term DOWN so the tail breaks loose and you DRIFT, laying tire marks on the asphalt, then hooks back up on release. The world is COLLIDABLE: an infinite, deterministic, chunk-streamed city of roads, houses, scattered cones and PARKED CARS, all resolved by one number - the contact impulse J vs each object's strength. Run a cone over (it gives, scatters), crash a house (it holds - until a heavy rig at speed smashes through), and shunt a parked car: the car is a REAL rigid body with mass and inertia, so the same impulse knocks and spins it like a billiard ball of steel and glass while kicking back on your rig (a buggy bounces, an 18-wheeler bulldozes), then it slides and spins a long way before settling - only an extreme hit crumples one. Clip any of them off your centre-line and the off-centre impulse spins you. Hit TAB for the BUILD editor: place parts on the grid (frame/engine/wheel/caster/seat) and watch the centre-of-mass crosshair and the mass/top-speed/turn/understeer readouts move LIVE - then flip back and drive what you built. Caster wheels roll but barely grip sideways, so an all-caster rig slides and pivots like a pushed piano. Each rig runs a transmission (cycle G: 1-gear / automatic / manual with a real H-gate, and reverse is a GEAR not the brake) and an ENGINE KIND (cycle K in BUILD): electric (flat, snappy), gas (revvy mid-band), diesel (low-end grunt), steam (spool-up), nuclear (huge, flat) - each is just power + mass + a delivery curve, so they drive AND sound distinct with no special-casing in the drive loop. The engine kind also carries its GEARING, which is what unlocks the extremes: press 9 for a SUPERCAR (RACE V12, tall gears -> 300 km/h) and 0 for a TRUCK (TRACTOR, ultra-short gears -> ~45 km/h of grunt). Press 1-0 plus -,= to load twelve preset rigs as editable templates and FEEL the difference - balanced buggy, heavy hauler, twin-engine sprinter, loose jalopy, darty motorbike, FWD/RWD/4WD drivetrains, the 300 supercar, the 45 km/h tractor-truck, a long lumbering 18-wheeler SEMI and a SCHOOLBUS - all from the same core with zero per-rig tuning. Grip is PER-AXLE (the two-axle model): push too hard and the tyres let go - the front washes wide (understeer), the rear steps out (oversteer), power-on breaks the driven axle loose, and the handbrake cuts the REAR for a drift; stand on the brake at speed and you lock up with skid marks and a screech. TAB build/drive, click to place, Z/UP gas, X/DOWN brake, LEFT/RIGHT steer, SPACE handbrake-drift, Q/E or the H-gate to shift (down at a stop = reverse), I ignition, G transmission, K engine kind, 1-0/-/= templates, R reset. GET OUT OF THE CAR: stop and press F -- you step out of the seat cell as a one-tile person (the seat's occupant, same scale as the rig's parts), walk with arrows/WASD (Z jogs), and the same world pushes back on foot: buildings and parked cars block you, the camera eases in to 1:1, and the GROUND drives your pace - tarmac and the pavement strip beside it walk full speed, grass drags you to ~0.6x (the same road_at() surface seam that drives the rig's grip, so it works identically in the procedural grid and in real OSM Delft). Walk back to your seat and press F to drive again -- on a long rig that means walking to the cab, because entry is the SEAT cell, not 'the vehicle'. A rig with no seat can't be entered, the same rule that makes it drivable. AND WALK INTO A HOUSE: every house has one door on its street-facing wall (found by probing road_at() -- houses face the street because streets are where houses face; a small dark notch marks it while you're on foot). The door is a real hole in the wall: step through it and THAT house's roof lifts off, revealing a deterministic BSP floor plan -- rooms, interior doorways, furniture hugging the corners -- generated from the building's identity, so it's the same house every visit, and guaranteed walkable (the generator re-rolls any plan whose rooms aren't all reachable from the front door). Walls and furniture collide; the camera eases in to 2x while you're under the roof; walk out the door and the roof drops back. Works identically over the procedural grid and real OSM Delft footprints. DRIVE A REAL CITY: drag a .rvb road-data file (e.g. data/delft-centre.rvb, made by data-tools/roadview/osm-roads.js) onto the window to leave the procedural world and drive real OpenStreetMap streets — the road surface drives handling (grip drops the moment you slide off the tarmac) and the real building footprints are solid obstacles you crash into; O reveals the data folder. Same runtime data hooks as roadview; swap the file, drive a different city."
 }
 de:meta */
 #include "studio.h"
@@ -580,6 +580,7 @@ typedef struct {
     unsigned char cell[OB_GH][OB_GW];  // material per cell (OM_*); 0 = empty
     int   col;                    // draw colour (house roof varies; cone = its material colour)
     float mass, strength, rad;    // derived at load (mass/strength from cells; rad from the footprint)
+    signed char door;             // F2: street-facing wall (0 +x · 1 -x · 2 +y · 3 -y), -1 = not probed yet
 } Obstacle;
 static Obstacle pool[MAXOB];      // the live working set
 typedef struct { int cx, cy, idx; float dx, dy, dang; unsigned char destroyed; int age; unsigned char used; } Delta;
@@ -1119,6 +1120,191 @@ static int foot_exit(void) {
     return 0;
 }
 
+// ── F2: INTERIORS — walk in the door, the roof lifts, the floor plan is real ──
+// Every big-enough house has ONE door on its street-facing wall (probed with road_at —
+// houses face the street because streets are where houses face) and a deterministic
+// BSP floor plan seeded from its identity (cx,cy,idx): perimeter walls with a doorway
+// gap, split walls with interior doorways, a block of furniture per room. The plan is
+// 2D geometry in the building's LOCAL frame; collision is the same circle-vs-box slide
+// the rest of foot mode uses, run against wall rects instead of the footprint box —
+// so "entering" is not a mode, it's walking through a hole in the wall. The roof (the
+// box draw) lifts while the avatar is inside the footprint; the camera eases in.
+// interiors/cityplan are the reference recipes (docs/design/interiors-brief.md).
+#define IN_POOL      8         // plan cache (LRU) — you're only ever near a few houses
+#define IN_MAXWALL  40
+#define IN_MAXFURN  10
+#define IN_MAXROOM  10
+#define IN_WALL_T    1.0f      // wall half-thickness (2px walls)
+#define IN_DOOR_W    7.0f      // doorway gap, full width (the avatar is 5px)
+#define IN_MINROOM  11.0f      // a room side never shrinks below this
+#define IN_MIN_HW    8.0f      // smaller footprints stay solid boxes (a shed, not a house)
+#define FOOT_ZOOM_IN 2.0f      // the camera eases here under a lifted roof (the interior tier)
+typedef struct {
+    int cx, cy, idx;                           // building identity — the cache key
+    unsigned age; unsigned char used, nw, nf, nr;
+    float w[IN_MAXWALL][4];                    // wall rects, LOCAL x0,y0,x1,y1 (box-centre frame)
+    float f[IN_MAXFURN][4];                    // furniture rects (solid, collide like walls)
+    float rc[IN_MAXROOM][2];                   // leaf-room centres (connectivity + spec)
+    float dx_, dy_;                            // the entry door's centre, local
+    signed char ds;                            // the entry door's side (0..3, = house_door_side)
+} Interior;
+static Interior ipool[IN_POOL];
+static unsigned iage;
+static int foot_house = -1;                    // pool index of the house the avatar is inside; -1 = none
+
+static unsigned in_rand(unsigned *st) { *st = *st * 1664525u + 1013904223u; return *st >> 10; }
+static float in_frand(unsigned *st, float a, float b) { return a + (float)(in_rand(st) % 1000) / 999.0f * (b - a); }
+
+static int house_enterable(Obstacle *o) {
+    return o->kind == OB_HOUSE && !o->destroyed && o->hw >= IN_MIN_HW && o->hh >= IN_MIN_HW;
+}
+// which wall faces the street? probe just outside each wall's midpoint (cached on the obstacle)
+static int house_door_side(Obstacle *o) {
+    if (o->door >= 0) return o->door;
+    float c = cos_deg(o->ang), s = sin_deg(o->ang);
+    static const float NX[4] = { 1, -1, 0, 0 }, NY[4] = { 0, 0, 1, -1 };
+    int best = 0, bscore = -1;
+    for (int d = 0; d < 4; d++) {
+        float ox = NX[d] * (o->hw + 6.0f), oy = NY[d] * (o->hh + 6.0f);
+        RoadHit h = road_at(o->x + c * ox - s * oy, o->y + s * ox + c * oy);
+        int sc = h.on_road ? 2 : (h.on_pave ? 1 : 0);
+        if (sc > bscore) { bscore = sc; best = d; }
+    }
+    o->door = (signed char)best;
+    return best;
+}
+static void ob_l2w(Obstacle *o, float lx, float ly, float *wx, float *wy) {   // building local → world
+    float c = cos_deg(o->ang), s = sin_deg(o->ang);
+    *wx = o->x + c * lx - s * ly;
+    *wy = o->y + s * lx + c * ly;
+}
+static void in_wall(Interior *in, float x0, float y0, float x1, float y1) {
+    if (in->nw >= IN_MAXWALL) return;
+    in->w[in->nw][0] = x0; in->w[in->nw][1] = y0; in->w[in->nw][2] = x1; in->w[in->nw][3] = y1; in->nw++;
+}
+// a wall along one axis at cross-position p, from a to b, with a doorway gap centred at g
+static void in_wall_gap(Interior *in, int vert, float p, float a, float b, float g) {
+    float h = IN_DOOR_W * 0.5f, t = IN_WALL_T;
+    if (vert) {                                // wall runs along y, at x = p
+        if (g - h > a) in_wall(in, p - t, a, p + t, g - h);
+        if (b > g + h) in_wall(in, p - t, g + h, p + t, b);
+    } else {                                   // wall runs along x, at y = p
+        if (g - h > a) in_wall(in, a, p - t, g - h, p + t);
+        if (b > g + h) in_wall(in, g + h, p - t, b, p + t);
+    }
+}
+static void in_split(Interior *in, unsigned *st, float x0, float y0, float x1, float y1, int depth) {
+    float w_ = x1 - x0, h_ = y1 - y0;
+    if (depth <= 0 || (w_ < IN_MINROOM * 2 && h_ < IN_MINROOM * 2)) {   // a LEAF room
+        if (in->nr < IN_MAXROOM) { in->rc[in->nr][0] = (x0 + x1) * 0.5f; in->rc[in->nr][1] = (y0 + y1) * 0.5f; in->nr++; }
+        if (in->nf < IN_MAXFURN && w_ >= 10 && h_ >= 10) {              // one block of furniture, hugging a
+            float fw = in_frand(st, 1.0f, 1.6f), fh = in_frand(st, 1.0f, 1.6f);   // CORNER (couch against the
+            int corner = (int)(in_rand(st) & 3);                                  // wall — can't pinch a doorway,
+            float fx = (corner & 1) ? x1 - 1.5f - fw : x0 + 1.5f + fw;            // gaps sit ≥3.5px from corners)
+            float fy = (corner & 2) ? y1 - 1.5f - fh : y0 + 1.5f + fh;
+            in->f[in->nf][0] = fx - fw; in->f[in->nf][1] = fy - fh;
+            in->f[in->nf][2] = fx + fw; in->f[in->nf][3] = fy + fh; in->nf++;
+        }
+        return;
+    }
+    if (w_ > h_) {                             // split the long axis; every split wall gets a doorway
+        float p = in_frand(st, x0 + IN_MINROOM, x1 - IN_MINROOM);
+        float g = in_frand(st, y0 + IN_DOOR_W, y1 - IN_DOOR_W);
+        in_wall_gap(in, 1, p, y0, y1, g);
+        in_split(in, st, x0, y0, p, y1, depth - 1);
+        in_split(in, st, p, y0, x1, y1, depth - 1);
+    } else {
+        float p = in_frand(st, y0 + IN_MINROOM, y1 - IN_MINROOM);
+        float g = in_frand(st, x0 + IN_DOOR_W, x1 - IN_DOOR_W);
+        in_wall_gap(in, 0, p, x0, x1, g);
+        in_split(in, st, x0, y0, x1, p, depth - 1);
+        in_split(in, st, x0, p, x1, y1, depth - 1);
+    }
+}
+static void interior_build(Interior *in, Obstacle *o, unsigned salt) {
+    in->cx = o->cx; in->cy = o->cy; in->idx = o->idx;
+    in->used = 1; in->nw = in->nf = in->nr = 0;
+    unsigned st = ((unsigned)o->cx * 73856093u) ^ ((unsigned)o->cy * 19349663u) ^ ((unsigned)o->idx * 83492791u);
+    st = (st + salt) * 2654435761u + 1u;
+    float t = IN_WALL_T, hw = o->hw, hh = o->hh;
+    int d = house_door_side(o);                // the entry door: CENTRED on the street wall (legible, not seeded)
+    in->ds = (signed char)d;
+    if (d == 0) { in_wall_gap(in, 1,  hw - t, -hh, hh, 0); in->dx_ =  hw - t; in->dy_ = 0; }
+    else          in_wall(in,  hw - 2 * t, -hh,  hw,  hh);
+    if (d == 1) { in_wall_gap(in, 1, -hw + t, -hh, hh, 0); in->dx_ = -hw + t; in->dy_ = 0; }
+    else          in_wall(in, -hw, -hh, -hw + 2 * t,  hh);
+    if (d == 2) { in_wall_gap(in, 0,  hh - t, -hw, hw, 0); in->dx_ = 0; in->dy_ =  hh - t; }
+    else          in_wall(in, -hw,  hh - 2 * t,  hw,  hh);
+    if (d == 3) { in_wall_gap(in, 0, -hh + t, -hw, hw, 0); in->dx_ = 0; in->dy_ = -hh + t; }
+    else          in_wall(in, -hw, -hh,  hw, -hh + 2 * t);
+    in_split(in, &st, -hw + 2 * t, -hh + 2 * t, hw - 2 * t, hh - 2 * t, 3);
+}
+// is every room reachable from the front door? Flood the local plan with avatar-radius
+// clearance. A BSP can seal a room (a child wall landing across its parent's doorway) —
+// this is the oracle interior_gen re-rolls against, so a generated house NEVER cheats you.
+static int interior_connected(Interior *in, float hw, float hh) {
+    static unsigned char cvis[96][96]; static short cqx[4096], cqy[4096];
+    float pitch = 2.0f;
+    { float span = (hw > hh ? hw : hh) * 2.0f;
+      if (span / pitch > 94.0f) pitch = span / 94.0f; }   // huge OSM footprints sample coarser
+    int gw2 = (int)(hw * 2.0f / pitch), gh2 = (int)(hh * 2.0f / pitch);
+    if (gw2 > 95) gw2 = 95; if (gh2 > 95) gh2 = 95;
+    for (int a = 0; a <= gh2; a++) for (int b = 0; b <= gw2; b++) cvis[a][b] = 0;
+    float inx = (in->ds == 0) - (in->ds == 1), iny = (in->ds == 2) - (in->ds == 3);
+    float sx0 = in->dx_ - inx * 4.0f, sy0 = in->dy_ - iny * 4.0f;      // just INSIDE the door
+    int qn = 0, qh2 = 0;
+    int sgx = (int)((sx0 + hw) / pitch), sgy = (int)((sy0 + hh) / pitch);
+    if (sgx < 0 || sgy < 0 || sgx > gw2 || sgy > gh2) return 0;
+    cqx[qn] = (short)sgx; cqy[qn] = (short)sgy; qn++; cvis[sgy][sgx] = 1;
+    while (qh2 < qn && qn < 4090) {
+        int cxg = cqx[qh2], cyg = cqy[qh2]; qh2++;
+        static const int DX4[4] = { 1, -1, 0, 0 }, DY4[4] = { 0, 0, 1, -1 };
+        for (int d4 = 0; d4 < 4; d4++) {
+            int nx2 = cxg + DX4[d4], ny2 = cyg + DY4[d4];
+            if (nx2 < 0 || ny2 < 0 || nx2 > gw2 || ny2 > gh2 || cvis[ny2][nx2]) continue;
+            float lx = -hw + nx2 * pitch, ly = -hh + ny2 * pitch;
+            if (af(lx) > hw - 0.5f || af(ly) > hh - 0.5f) continue;
+            int hit = 0;
+            for (int k = 0; k < in->nw + in->nf && !hit; k++) {
+                float *rc2 = (k < in->nw) ? in->w[k] : in->f[k - in->nw];
+                float qx2 = lx < rc2[0] ? rc2[0] : (lx > rc2[2] ? rc2[2] : lx);
+                float qy2 = ly < rc2[1] ? rc2[1] : (ly > rc2[3] ? rc2[3] : ly);
+                float ex = lx - qx2, ey = ly - qy2;
+                if (ex * ex + ey * ey < (FOOT_R - 0.3f) * (FOOT_R - 0.3f)) hit = 1;
+            }
+            if (hit) continue;
+            cvis[ny2][nx2] = 1; cqx[qn] = (short)nx2; cqy[qn] = (short)ny2; qn++;
+        }
+    }
+    for (int r = 0; r < in->nr; r++) {          // a reached cell within ~2 cells of each room centre
+        int rgx = (int)((in->rc[r][0] + hw) / pitch), rgy = (int)((in->rc[r][1] + hh) / pitch);
+        int found = 0;
+        for (int ay = rgy - 2; ay <= rgy + 2 && !found; ay++)
+            for (int ax = rgx - 2; ax <= rgx + 2 && !found; ax++)
+                if (ay >= 0 && ax >= 0 && ay <= gh2 && ax <= gw2 && cvis[ay][ax]) found = 1;
+        if (!found) return 0;
+    }
+    return 1;
+}
+static void interior_gen(Interior *in, Obstacle *o) {
+    for (unsigned salt = 0; salt < 8; salt++) {           // deterministic: first CONNECTED roll wins
+        interior_build(in, o, salt);
+        if (interior_connected(in, o->hw, o->hh)) return;
+    }                                                     // 8 misses (huge/degenerate): keep the last roll
+}
+static Interior *interior_get(Obstacle *o) {
+    int lru = 0;
+    for (int i = 0; i < IN_POOL; i++) {
+        if (ipool[i].used && ipool[i].cx == o->cx && ipool[i].cy == o->cy && ipool[i].idx == o->idx) {
+            ipool[i].age = ++iage; return &ipool[i];
+        }
+        if (!ipool[i].used || ipool[i].age < ipool[lru].age) lru = i;
+    }
+    interior_gen(&ipool[lru], o);
+    ipool[lru].age = ++iage;
+    return &ipool[lru];
+}
+
 // the FOOT update: 8-way walk (arrows/WASD/d-pad, Z jogs), then the world pushes back
 static void update_foot(float dt_) {
     float mx = (key(KEY_RIGHT) || key('D') ? 1.0f : 0.0f) - (key(KEY_LEFT) || key('A') ? 1.0f : 0.0f);
@@ -1137,11 +1323,29 @@ static void update_foot(float dt_) {
         foot_dx = mx * inv; foot_dy = my * inv;
     }
     circle_box_push(&foot_x, &foot_y, FOOT_R, sx, sy, ang, rigL0, rigL1, rigW0, rigW1);
+    foot_house = -1;
     for (int i = 0; i < MAXOB; i++) {
         Obstacle *o = &pool[i];
         if (!o->alive || o->destroyed) continue;
         float dx = foot_x - o->x, dy = foot_y - o->y;
         if (dx * dx + dy * dy > (o->rad + 8.0f) * (o->rad + 8.0f)) continue;
+        if (house_enterable(o)) {              // F2: near a house, the WALLS collide, not the box —
+            float c = cos_deg(o->ang), s = sin_deg(o->ang);      // the doorway gap is a real hole
+            float lx = c * dx + s * dy, ly = -s * dx + c * dy;
+            if (af(lx) < o->hw + FOOT_R + 3.0f && af(ly) < o->hh + FOOT_R + 3.0f) {
+                Interior *in = interior_get(o);
+                for (int k = 0; k < in->nw; k++)
+                    circle_box_push(&foot_x, &foot_y, FOOT_R, o->x, o->y, o->ang,
+                                    in->w[k][0], in->w[k][2], in->w[k][1], in->w[k][3]);
+                for (int k = 0; k < in->nf; k++)
+                    circle_box_push(&foot_x, &foot_y, FOOT_R, o->x, o->y, o->ang,
+                                    in->f[k][0], in->f[k][2], in->f[k][1], in->f[k][3]);
+                dx = foot_x - o->x; dy = foot_y - o->y;          // inside? (post-push) → this roof lifts
+                lx = c * dx + s * dy; ly = -s * dx + c * dy;
+                if (af(lx) < o->hw && af(ly) < o->hh) foot_house = i;
+                continue;
+            }
+        }
         circle_box_push(&foot_x, &foot_y, FOOT_R, o->x, o->y, o->ang, -o->hw, o->hw, -o->hh, o->hh);
     }
 }
@@ -1900,6 +2104,7 @@ void update(void) {
 
     handle_input();
     if (foot_deny > 0) foot_deny--;
+    if (mode != MODE_FOOT) foot_house = -1;        // F2: roofs stay on unless you're in there on foot
     engine_sound(mode == MODE_DRIVE && !is_paused && engine_on);   // every frame (also kills it in BUILD/pause)
     if (mode == MODE_BUILD || is_paused) return;   // BUILD pauses the simulation
     float dt_ = dt(); if (dt_ > 0.05f) dt_ = 0.05f;
@@ -1913,6 +2118,8 @@ void update(void) {
     // the walking view is the close view, no extra camera tier needed (a 7px avatar reads at 1:1).
     float camspd = fsqrt(vx * vx + vy * vy);
     float zoomTarget = 1.0f - CAM_ZOOM_PULL * clamp(camspd / CAM_ZOOM_REF, 0, 1);
+    if (mode == MODE_FOOT && foot_house >= 0) zoomTarget = FOOT_ZOOM_IN;   // F2: under a lifted roof,
+                                                   // ease into the interior tier (rooms are ~14px)
     cam_zoom_smooth = lerp(cam_zoom_smooth, zoomTarget, 0.05f);
     if (smooth_mode) {
         // smooth_zoom handles the resample at 1:1, so a continuous fractional zoom no longer
@@ -1969,6 +2176,7 @@ void update(void) {
     { RoadHit _fh = road_at(foot_x, foot_y);       // rung F1: the ground under the feet
       watch("foot_road", "%d", _fh.on_road);
       watch("foot_pave", "%d", _fh.on_pave); }
+    watch("foot_house", "%d", foot_house);         // rung F2: pool index of the lifted roof (-1 = outside)
     watch("ang", "%.0f", ang);
     watch("angvel", "%.0f", angVel);
     watch("cam_ang", "%.0f", cam_ang);
@@ -2121,6 +2329,7 @@ static void ob_init(Obstacle *o, int cx, int cy, int idx) {
     o->alive = 1; o->dirty = 0; o->destroyed = 0;
     o->cx = cx; o->cy = cy; o->idx = idx;
     o->ang = 0; o->vx = o->vy = o->vr = 0;
+    o->door = -1;                 // F2: probed lazily (road_at on each wall) the first time it's needed
     o->gw = 1; o->gh = 1;
     for (int r = 0; r < OB_GH; r++)
         for (int c = 0; c < OB_GW; c++) o->cell[r][c] = OM_NONE;
@@ -2660,12 +2869,37 @@ static void draw_obstacles(void) {
                 rectfill(x + 2, y + h / 2, w - 4, h / 2 - 1, CLR_DARKER_GREY);
                 rectfill(x + 4, y + h / 2 + 2, 3, 2, CLR_MEDIUM_GREY);
                 rectfill(x + w - 8, y + h - 4, 3, 2, CLR_MEDIUM_GREY);
-            } else if (o->ang != 0.0f) {             // Rung C: OSM footprint — ORIENTED box (matches its OBB)
-                fill_orect(o->x, o->y, o->ang, o->hw + 1, o->hh + 1, CLR_BROWNISH_BLACK);   // 1px outline
-                fill_orect(o->x, o->y, o->ang, o->hw, o->hh, o->col);
-            } else {                                 // default sloop houses (axis-aligned) — unchanged
-                rectfill(x, y, w, h, o->col);
-                rect(x, y, w, h, CLR_BROWNISH_BLACK);
+            } else if (i == foot_house) {            // F2: the roof is OFF — draw the plan, not the box
+                Interior *in = interior_get(o);
+                fill_orect(o->x, o->y, o->ang, o->hw + 1, o->hh + 1, CLR_BROWNISH_BLACK);   // plot edge
+                fill_orect(o->x, o->y, o->ang, o->hw, o->hh, CLR_MEDIUM_GREY);              // the floor
+                for (int k = 0; k < in->nf; k++) {   // furniture first (walls draw over their ends)
+                    float wx, wy;
+                    ob_l2w(o, (in->f[k][0] + in->f[k][2]) * 0.5f, (in->f[k][1] + in->f[k][3]) * 0.5f, &wx, &wy);
+                    fill_orect(wx, wy, o->ang, (in->f[k][2] - in->f[k][0]) * 0.5f,
+                                               (in->f[k][3] - in->f[k][1]) * 0.5f, CLR_BROWN);
+                }
+                for (int k = 0; k < in->nw; k++) {
+                    float wx, wy;
+                    ob_l2w(o, (in->w[k][0] + in->w[k][2]) * 0.5f, (in->w[k][1] + in->w[k][3]) * 0.5f, &wx, &wy);
+                    fill_orect(wx, wy, o->ang, (in->w[k][2] - in->w[k][0]) * 0.5f,
+                                               (in->w[k][3] - in->w[k][1]) * 0.5f, CLR_BROWNISH_BLACK);
+                }
+            } else {
+                if (o->ang != 0.0f) {                // Rung C: OSM footprint — ORIENTED box (matches its OBB)
+                    fill_orect(o->x, o->y, o->ang, o->hw + 1, o->hh + 1, CLR_BROWNISH_BLACK);   // 1px outline
+                    fill_orect(o->x, o->y, o->ang, o->hw, o->hh, o->col);
+                } else {                             // default sloop houses (axis-aligned) — unchanged
+                    rectfill(x, y, w, h, o->col);
+                    rect(x, y, w, h, CLR_BROWNISH_BLACK);
+                }
+                if (mode == MODE_FOOT && house_enterable(o)) {   // F2: advertise the door while on foot
+                    int d = house_door_side(o);
+                    float lx = (d == 0) ? o->hw - 1 : (d == 1) ? -o->hw + 1 : 0;
+                    float ly = (d == 2) ? o->hh - 1 : (d == 3) ? -o->hh + 1 : 0;
+                    float wx, wy; ob_l2w(o, lx, ly, &wx, &wy);
+                    fill_orect(wx, wy, o->ang, (d < 2) ? 1.2f : 3.0f, (d < 2) ? 3.0f : 1.2f, CLR_BROWNISH_BLACK);
+                }
             }
         } else if (o->kind == OB_CAR) {
             // top-down car: body (oriented), a darker cabin strip toward the rear, light windshield, outline.
@@ -3607,5 +3841,59 @@ void spec(void) {
     expect(dgrass > 2.0f, "grass still walks, just slower");
     { RoadHit h = road_at(rx, ry);
       expect(h.on_pave, "a carriageway point is also on_pave (the strip contains the road)"); }
+
+    // ── rung F2: interiors — the door is a hole, the roof lifts, the plan is real ──
+    // find a deterministic house beyond the spawn parking lot from the chunk BASELINE (no load needed)
+    static Obstacle tmp[OB_PERCHUNK];
+    int hcx = 0, hcy = 0, hidx = -1; float hxw = 0, hyw = 0;
+    for (int ccx = PARKING_CH + 1; ccx < PARKING_CH + 12 && hidx < 0; ccx++)
+        for (int ccy = -4; ccy <= 4 && hidx < 0; ccy++) {
+            int n = gen_chunk(ccx, ccy, tmp);
+            for (int t2 = 0; t2 < n; t2++)
+                if (tmp[t2].kind == OB_HOUSE && tmp[t2].hw >= IN_MIN_HW && tmp[t2].hh >= IN_MIN_HW) {
+                    hcx = ccx; hcy = ccy; hidx = tmp[t2].idx; hxw = tmp[t2].x; hyw = tmp[t2].y; break;
+                }
+        }
+    expect(hidx >= 0, "the world has a house beyond the parking lot");
+    foot_x = hxw + 60; foot_y = hyw;                  // stand near it; the camera walks over, chunks stream
+    step(160);
+    Obstacle *ho = 0;
+    for (int i2 = 0; i2 < MAXOB; i2++)
+        if (pool[i2].alive && pool[i2].kind == OB_HOUSE &&
+            pool[i2].cx == hcx && pool[i2].cy == hcy && pool[i2].idx == hidx) { ho = &pool[i2]; break; }
+    expect(ho != 0, "the house's chunk streamed in around the avatar");
+    if (ho) {
+        static Interior ia, ib;                       // determinism: the same identity → the same plan
+        interior_gen(&ia, ho); interior_gen(&ib, ho);
+        expect(ia.nw == ib.nw && ia.nr == ib.nr &&
+               spec_near(ia.w[0][0], ib.w[0][0]) && spec_near(ia.w[ia.nw - 1][3], ib.w[ib.nw - 1][3]),
+               "the same house always generates the same plan");
+        expect(ia.nr >= 2, "a house-sized footprint splits into rooms");
+
+        // every leaf room is reachable from the front door — interior_gen re-rolls until its own
+        // connectivity oracle passes, so this pins the guarantee, with the same fn as the arbiter
+        expect(interior_connected(&ia, ho->hw, ho->hh), "every room is reachable from the front door");
+
+        // walk in the door: outside → roof on; through the gap → THIS roof lifts
+        int ds = house_door_side(ho);
+        float nx3 = (ds == 0) - (ds == 1), ny3 = (ds == 2) - (ds == 3);
+        foot_x = ho->x + ia.dx_ + nx3 * 4.0f; foot_y = ho->y + ia.dy_ + ny3 * 4.0f;
+        step(1);
+        expect(foot_house < 0, "outside the door the roof is on");
+        int kin = ds == 0 ? KEY_LEFT : ds == 1 ? KEY_RIGHT : ds == 2 ? KEY_UP : KEY_DOWN;
+        key_down(kin); step(60); key_up(kin); step(1);
+        expect(foot_house >= 0 && &pool[foot_house] == ho, "walking through the door lifts THIS roof");
+
+        key_down(kin); step(120); key_up(kin); step(1);   // keep pressing at the far wall
+        { float dxx = foot_x - ho->x, dyy = foot_y - ho->y;   // (grid houses: ang=0, local = delta)
+          expect(af(dxx) < ho->hw + 0.5f && af(dyy) < ho->hh + 0.5f,
+                 "the far wall holds — no walking out through brick"); }
+
+        // walk back out the door: the roof returns
+        foot_x = ho->x + ia.dx_ - nx3 * 4.0f; foot_y = ho->y + ia.dy_ - ny3 * 4.0f;
+        int kout = ds == 0 ? KEY_RIGHT : ds == 1 ? KEY_LEFT : ds == 2 ? KEY_DOWN : KEY_UP;
+        key_down(kout); step(60); key_up(kout); step(1);
+        expect(foot_house < 0, "walk out the door and the roof returns");
+    }
 }
 #endif

@@ -164,6 +164,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              lint-carts.js   validate each cart's de:meta (tags/status/created/description) + assert
                              index.json in sync; owns the tag vocabulary
              spec.js         run each cart's spec() — the gameplay-logic gate (twin of tune-check)
+             squishy-features.js  feature×brush COVERAGE oracle for the squishy cart (renders its matrix
+                             grid, pixel-diffs each cell vs baseline → flags silently-no-op features)
              build-context.js  assemble a reading briefing for ONE cart: de:meta + todos + related carts +
                              every doc/note that MENTIONS it (with the line) — finds the differently-named home
              cart-outline.js a per-cart READING MAP (twin of build-context, for the SOURCE): data shapes

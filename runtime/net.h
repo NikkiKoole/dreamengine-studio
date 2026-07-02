@@ -60,16 +60,18 @@
 #endif
 
 #define NET_PORT_DEFAULT 33445
+#define NET_DISCOVERY_PORT 33446 // LAN broadcast port for "Open to LAN" auto-discovery (rung 3)
 #define NET_DELAY        3     // input latency in frames (~50 ms at 60 fps)
 #define NET_RING         128   // per-player ring of input bytes (≫ max peer drift)
 #define NET_REDUN        8     // input frames per packet (drop-proofing redundancy)
 #define NET_TIMEOUT_MS   10000 // barrier gives up after this long without the peer
 
 // packet types (byte 2, after the "DN" magic)
-#define NET_PKT_HELLO   1      // joiner → host: "I'm here" (from-address = peer)
-#define NET_PKT_WELCOME 2      // host → joiner: + u32 seed (LE)
-#define NET_PKT_INPUT   3      // + u32 first-frame (LE), u8 count, count input bytes
-#define NET_PKT_BYE     4      // sender is quitting
+#define NET_PKT_HELLO    1     // joiner → host: "I'm here" (from-address = peer)
+#define NET_PKT_WELCOME  2     // host → joiner: + u32 seed (LE)
+#define NET_PKT_INPUT    3     // + u32 first-frame (LE), u8 count, count input bytes
+#define NET_PKT_BYE      4     // sender is quitting
+#define NET_PKT_ANNOUNCE 5     // host → LAN broadcast: "a game is here" + u16 game-port (LE)
 
 static bool net_requested = false;   // a --net-host/--net-join flag was passed (main() checks this)
 static bool net_lobby_requested = false;  // --net-lobby (or DE_NET_LOBBY_DEFAULT): show the boot menu
@@ -80,6 +82,7 @@ static const char *net_join_ip = NULL;
 static int  net_port      = NET_PORT_DEFAULT;
 
 static int                net_sock = -1;
+static int                net_disco_sock = -1;   // rung 3: joiner's LAN-discovery listen socket
 static struct sockaddr_in net_peer;
 static bool               net_peer_set   = false;
 static bool               net_got_welcome = false;
@@ -228,6 +231,62 @@ static void net_local_ipv4(char *out, size_t n) {
 #endif
 }
 
+// ── rung 3: LAN auto-discovery (UDP broadcast) — docs/design/multiplayer-research.md
+// Host shouts "a game is here on port N" to the whole subnet so a joiner can find
+// it without typing an IP (Minecraft-style "Open to LAN"). Sent on the game
+// socket with SO_BROADCAST enabled (see net_handshake).
+static void net_announce(void) {
+    struct sockaddr_in b;
+    memset(&b, 0, sizeof b);
+    b.sin_family      = AF_INET;
+    b.sin_port        = htons(NET_DISCOVERY_PORT);
+    b.sin_addr.s_addr = htonl(INADDR_BROADCAST);          // 255.255.255.255
+    uint8_t pkt[5] = { 'D', 'N', NET_PKT_ANNOUNCE, (uint8_t)net_port, (uint8_t)(net_port >> 8) };
+    sendto(net_sock, (const char *)pkt, sizeof pkt, 0, (struct sockaddr *)&b, sizeof b);
+}
+
+// Joiner: open a socket listening for host announces. SO_REUSEADDR so it can
+// coexist with a host bound to the same box (localhost testing).
+static void net_discover_begin(void) {
+    net_platform_init();
+    net_disco_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (net_disco_sock < 0) return;
+    int on = 1;
+    setsockopt(net_disco_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&on, sizeof on);
+    struct sockaddr_in me;
+    memset(&me, 0, sizeof me);
+    me.sin_family      = AF_INET;
+    me.sin_addr.s_addr = htonl(INADDR_ANY);
+    me.sin_port        = htons(NET_DISCOVERY_PORT);
+    if (bind(net_disco_sock, (struct sockaddr *)&me, sizeof me) < 0) { NET_CLOSE(net_disco_sock); net_disco_sock = -1; return; }
+#ifdef _WIN32
+    { u_long nb = 1; ioctlsocket(net_disco_sock, FIONBIO, &nb); }
+#else
+    fcntl(net_disco_sock, F_SETFL, O_NONBLOCK);
+#endif
+}
+
+// Poll for a host announce; on one, write its IP (the datagram's source) to out
+// and return true. Non-blocking — returns false when nothing's waiting.
+static bool net_discover_poll(char *out, size_t n) {
+    if (net_disco_sock < 0) return false;
+    uint8_t buf[16];
+    struct sockaddr_in from;
+    for (;;) {
+        socklen_t fl = sizeof from;
+        int r = (int)recvfrom(net_disco_sock, (char *)buf, (int)sizeof buf, 0, (struct sockaddr *)&from, &fl);
+        if (r < 5) { if (r < 0) return false; else continue; }
+        if (buf[0] == 'D' && buf[1] == 'N' && buf[2] == NET_PKT_ANNOUNCE) {
+            inet_ntop(AF_INET, &from.sin_addr, out, (socklen_t)n);
+            return true;
+        }
+    }
+}
+
+static void net_discover_end(void) {
+    if (net_disco_sock >= 0) { NET_CLOSE(net_disco_sock); net_disco_sock = -1; }
+}
+
 // blocking handshake, called from main() BEFORE the window opens. On the
 // joiner, *seed is overwritten with the host's seed (both sims must roll the
 // same rnd() stream).
@@ -261,7 +320,15 @@ static void net_handshake(unsigned *seed) {
         printf("net: HOSTING on %s:%d — the joiner runs: --net-join %s\n", ip, net_port, ip);
         printf("net: waiting for a joiner...\n");
         fflush(stdout);
-        while (!net_peer_set) { net_pump(); NET_SLEEP_MS(10); }  // HELLO answered inside net_pump
+        int bcast = 1;                                          // enable LAN-discovery broadcast (rung 3)
+        setsockopt(net_sock, SOL_SOCKET, SO_BROADCAST, (const char *)&bcast, sizeof bcast);
+        int spins = 0;
+        while (!net_peer_set) {                                 // HELLO answered inside net_pump
+            net_pump();
+            if (spins % 100 == 0) net_announce();               // shout "here I am" ~1×/s while waiting
+            spins++;
+            NET_SLEEP_MS(10);
+        }
         printf("net: joiner connected — you are P1 (host)\n");
     } else {
         memset(&net_peer, 0, sizeof net_peer);

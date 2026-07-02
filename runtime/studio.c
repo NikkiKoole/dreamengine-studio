@@ -2323,21 +2323,27 @@ static void net_lobby_status_frame(void) {
 // The menu loop. Sets net_is_host / net_join_ip / net_requested on a host/join
 // pick, or returns with net still off for solo. Blocks until the user chooses.
 static void net_lobby_menu(const char *title) {
-    int  mode = 0;                        // 0 = choosing, 1 = typing the join IP
-    char ip[INET_ADDRSTRLEN] = { 0 };
+    int  mode = 0;                        // 0 = choosing, 1 = joining (auto-discover + type)
+    char ip[INET_ADDRSTRLEN]    = { 0 };  // what the player typed
+    char found[INET_ADDRSTRLEN] = { 0 };  // a host auto-discovered on the LAN (rung 3)
     int  n = 0;
     while (!WindowShouldClose()) {
         if (mode == 0) {
             if (IsKeyPressed(KEY_H)) { net_is_host = true; net_requested = true; return; }
-            if (IsKeyPressed(KEY_J)) mode = 1;
+            if (IsKeyPressed(KEY_J)) { mode = 1; found[0] = 0; net_discover_begin(); }  // start listening for LAN games
             if (IsKeyPressed(KEY_S)) return;                        // play solo — net stays off
         } else {
+            net_discover_poll(found, sizeof found);                 // fill `found` if a host is shouting on the LAN
             int ch;
             while ((ch = GetCharPressed()) != 0)                    // digits + dots only
                 if (n < (int)sizeof(ip) - 1 && ((ch >= '0' && ch <= '9') || ch == '.')) { ip[n++] = (char)ch; ip[n] = 0; }
             if (IsKeyPressed(KEY_BACKSPACE) && n > 0) ip[--n] = 0;
-            if (IsKeyPressed(KEY_ESCAPE)) { mode = 0; n = 0; ip[0] = 0; }
-            if (IsKeyPressed(KEY_ENTER) && n > 0) { net_join_ip = strdup(ip); net_is_host = false; net_requested = true; return; }
+            if (IsKeyPressed(KEY_ESCAPE)) { mode = 0; n = 0; ip[0] = 0; net_discover_end(); }
+            // ENTER joins: the typed IP if you typed one, else the auto-discovered host
+            if (IsKeyPressed(KEY_ENTER) && (n > 0 || found[0])) {
+                net_join_ip = strdup(n > 0 ? ip : found);
+                net_is_host = false; net_requested = true; net_discover_end(); return;
+            }
         }
         float px = GetScreenHeight() / 22.0f, cy = GetScreenHeight() / 2.0f - px * 4;  // screen-relative so it reads on any cart
         BeginDrawing();
@@ -2349,10 +2355,17 @@ static void net_lobby_menu(const char *title) {
             net_lobby_center("[J]   join a game", cy + px * 4.0f, px, palette[7]);
             net_lobby_center("[S]   play solo",   cy + px * 5.5f, px, palette[13]);
         } else {
-            char l[96]; snprintf(l, sizeof l, "%s_", ip);
-            net_lobby_center("JOIN — type the host's IP", cy, px, palette[7]);
-            net_lobby_center(l, cy + px * 2.5f, px, palette[7]);
-            net_lobby_center("ENTER to connect    ESC to go back", cy + px * 5.0f, px * 0.75f, palette[13]);
+            net_lobby_center("JOIN A GAME", cy, px, palette[7]);
+            if (found[0] && n == 0) {                               // auto-discovered a LAN host
+                char l[96]; snprintf(l, sizeof l, "found a game at %s", found);
+                net_lobby_center(l, cy + px * 2.3f, px * 0.85f, palette[11]);   // green
+                net_lobby_center("ENTER to join   (or type an IP)", cy + px * 4.2f, px * 0.7f, palette[13]);
+            } else {
+                char l[96]; snprintf(l, sizeof l, "%s_", ip);
+                net_lobby_center(n > 0 ? "host IP:" : "searching for a game — or type the host's IP:", cy + px * 2.3f, px * 0.7f, palette[13]);
+                net_lobby_center(l, cy + px * 3.6f, px, palette[7]);
+                net_lobby_center("ENTER to connect    ESC to go back", cy + px * 5.5f, px * 0.7f, palette[13]);
+            }
         }
         EndDrawing();
         // live-inspection: same .bake/window_screenshot_request hook the game loop

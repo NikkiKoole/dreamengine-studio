@@ -524,6 +524,43 @@ plan holds against it doesn't apply on a LAN.
 > harness is a no-op"*). So wasm carts are single-player today, and step 1 below
 > is the real gating work — independent of transport.
 
+### The architecture in one picture: ONE lockstep core, TWO transports
+
+Web multiplayer is **not a second multiplayer system bolted next to the native
+one.** It is the *same* lockstep engine with a swapped bottom layer. Everything
+above the transport line is built once and shared; only the socket send/receive
+changes per platform. This is the whole mental model — keep it in view:
+
+```
+              cart code  —  btn(0,…) / btn(1,…)      ← 100% network-unaware, IDENTICAL on both
+                                  │
+        ┌─────────────────────────┴─────────────────────────┐
+        │              LOCKSTEP CORE   (shared)              │
+        │  frame barrier · input ring · redundancy window ·  │   ← built once, used by native AND web
+        │  seed handshake · lobby (Host/Join/Solo) ·         │
+        │  de_players() gate · NET_PKT_* 1-byte packets      │
+        └─────────────────────────┬─────────────────────────┘
+                     net_sendto() / net_pump()                 ← the ONE seam that differs
+        ┌─────────────────────────┴─────────────────────────┐
+        ▼                                                     ▼
+   UDP sockets  (native)                          WebSocket → relay  (web)
+   localhost · LAN-by-IP · broadcast discovery    room code
+   ✅ SHIPPED (rungs 1–3)                          ◻ rung 5a (this plan)
+```
+
+Concretely: `net.h` today is `#if !defined(PLATFORM_WEB)`. Rung 5a's real
+structural change is to make the **lockstep core transport-agnostic** and turn
+`net_sendto`/`net_pump` into the `#ifdef PLATFORM_WEB` seam (UDP ↔ WebSocket) —
+so it compiles for both targets, one system, transport chosen at build time. The
+lobby, `de_players()`, packet format, barrier, and `btn()` semantics are *not*
+re-implemented; they're the shared core.
+
+**Interop caveat (the only place the two aren't interchangeable):** two natives
+play each other and two wasms play each other, each **bit-identical by
+construction**. A *native ↔ browser* match (Mac vs a tab) is a further step —
+that's the one needing the clang-vs-emcc float-determinism proof (rung 4).
+Same-platform play needs none of it; it's the normal case.
+
 | Step | What | Effort | Risk / notes |
 |---|---|---|---|
 | **1. Un-stub the web input seam** | Route the web build's `inp_*()` through the same lockstep frame buffers native uses, so a remote peer's byte can be injected. This is the seam the debug harness/lockstep both need; it's compiled out under emcc today. **Gates everything else.** | ~2–3 days | low-ish; mechanical, but touches the hot `inp_*()` layer — guard with the existing input/replay tests. |

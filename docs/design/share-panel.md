@@ -103,10 +103,18 @@ yacht's strat). Fixed in the spike by **slot partitioning**: yacht's TU compiles
 its 9 slot-taking calls (`instrument`, the 7 `instrument_*` setters, `schedule_hit`)
 renamed to shim wrappers that shift its slots ≥5 up by 25 → yacht plays in 30..39,
 zero overlap. Verified via `nm` (yacht.o imports the wrappers, acid.o untouched).
-The real fix is a manifest-generator choice: **emit these wrappers per cart**
-(mechanical — the slot-taking API list is closed), or grow the engine a per-cart slot
-bank behind `de_switch_cart`. Slot budget is the constraint either way: a manifest's
-carts must fit 43 cart-defined slots together (acid 25 + yacht 10 = fine).
+The real fix was an either/or until the maker settled it (2026-07-03): the aim is
+**MANY sound apps under one Tinyjam umbrella** — and static slot partitioning can't
+scale past ~2 racks (acid alone uses 25 of the 43 cart-definable slots). **Decision:
+the engine grows a per-cart sound context behind `de_switch_cart()`** — snapshot the
+outgoing cart's slot bank (48 × ~200B ≈ 10KB/cart, trivial) + master-bus FX config,
+restore the incoming one's. Only one rack plays at a time, so nothing needs to be
+resident twice; the same snapshot/restore kills next-spike #4 (master-bus bleed) for
+free, and the same "cart context" umbrella is where the sprite-sheet pointer, save
+dir, and `de_state` slab naturally live too. The spike's wrappers stay as the proof
+of diagnosis, not the shipping mechanism. (The AUv3 side is untouched by all this —
+each rack-as-plugin runs in its own process; the context swap is for the standalone
+umbrella app.)
 
 Deliberately NOT covered — the next spikes, in order of need:
 1. **Sprite carts** — per-slug staged sheets + a runtime sheet-swap on switch (the
@@ -147,5 +155,7 @@ product decisions (which app, price, original palette —
 1. Manifest home: `apps/<name>/` dir (room for icon/screenshots/store copy) vs a flat
    `tools/apps/<name>.json`?
 2. Launcher-as-cart: good with the one-new-API cost (`de_switch_cart`)? It keeps the
-   menu in cart-land (lo-fi, ours) instead of native chrome.
+   menu in cart-land (lo-fi, ours) instead of native chrome. With MANY racks under the
+   umbrella (the maker's stated aim) this is a real menu screen, not a TAB toggle —
+   each cart's `de:meta` (title/description) can feed it via a generated header.
 3. v1 panel placement: popover off one "share" toolbar button, or a tab like settings?

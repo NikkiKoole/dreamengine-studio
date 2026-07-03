@@ -1,9 +1,16 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: READY TO BUILD (2026-07-03) — prototype-first. The model and the phased plan
-are settled; nothing engine-wide moves until the model is proven against the fake screen in
-[`../../tools/carts/respond.c`](../../tools/carts/respond.c). This is the **execution + product** doc
-that graduates the deferred thinking now that there's a concrete need (Tinyjam on the App Store).
+STATUS: READY TO BUILD — **Phase 0 DONE & banked (2026-07-03); Phase 1 (the engine) is the next
+lever, opened later.** This is the **execution + product** doc that graduates the deferred thinking
+now that there's a concrete need (Tinyjam on the App Store).
+
+**Pick-up point (next session):** Phase 0 is complete and banked — the layout model is proven in
+cart-land across the whole shape space (`respond`/`rackfit`/`acidfit`/`otafit`), the `lay_*`
+vocabulary is **shipped** as `runtime/lay.h`, and disclosure / orientation-lock / overrides are all
+validated + documented below. **Start here to resume:** Phase 1 in "The phased plan" — make
+`studio.c`'s ~76 `SCREEN_W/H` sites read a live-resizable, physically-sized (points) active target;
+first consumer is a resizable desktop window under the `canvas-diff`/`mirror-diff` gates; keep the
+determinism guard (reflow stays opt-in per cart). Nothing else in Phase 0 is pending.
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
 - **This doc** = the *engine change + product plan*: make `SCREEN_W/H` runtime + physically-sized,

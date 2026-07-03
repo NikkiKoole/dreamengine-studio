@@ -53,3 +53,5 @@ Two corollaries the maker called explicitly:
   ([`design/product-notes.md`](../design/product-notes.md)) — selling finished, standalone
   music apps is a different question (a product made *with* the tool, not opening the tool to
   others) and is unaffected.
+
+> Where this decision sits in the wider picture: [`design/sharing-channels.md`](../design/sharing-channels.md) maps all three sharing channels (this ADR governs channel A, the web showcase).

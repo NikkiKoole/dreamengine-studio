@@ -54,8 +54,9 @@ showcase.** (The history page consumes clips; the gallery doesn't.)
 (pricing/master-pass/AUv3 catalog/Fastlane), Tinyjam racks as the product line
 ([`tinyjam-racks.md`](tinyjam-racks.md) — `acidrack` + `yachtrack` exist).
 
-**Proven** ([`ios-plan.md`](ios-plan.md) — 8 of 9 spikes ✅): toolchain, software-canvas
-render, CoreAudio, saves, StoreKit 2 (local), App Groups, signed device deploy
+**Proven** ([`ios-plan.md`](ios-plan.md) — 8 of 9 spikes ✅): toolchain,
+[`software-canvas`](software-canvas.md) render, CoreAudio, saves, StoreKit 2 (local),
+App Groups, signed device deploy
 (`ios/device.sh` — that's guides/exporting.md #3, the *dev* flow), AUv3 hosting the real
 engine with host MIDI, and a real cart (omnichord) pixel-correct on iOS. Only CloudKit
 sync (spike 6) and a real-host AUv3 check remain open.

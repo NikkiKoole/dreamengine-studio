@@ -51,3 +51,5 @@ an end user.
   in-house StoreKit 2 bridge, agentic CMake/xcodebuild/Fastlane pipeline.
 - **Out of scope for good** (don't relitigate): shipping the editor to end users; any on-device
   or in-browser cart-build/recompile path for consumers; a public compile server.
+
+> Where this decision sits in the wider picture: [`design/sharing-channels.md`](../design/sharing-channels.md) maps all three sharing channels (this ADR governs channel B, the App Store).

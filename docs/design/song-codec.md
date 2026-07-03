@@ -8,7 +8,8 @@ Companion reading:
 [`tinyjam-racks.md`](tinyjam-racks.md) (§"The seed is a song code", §"Export — three tiers"),
 [`product-notes-followup.md`](product-notes-followup.md) §1 (the URL-codec / static-host reality),
 [`action-plan.md`](action-plan.md) (Tier 0 "Save/share codec"), and `runtime/radio.h`
-(the seed-compatibility rule this all rests on).
+(the seed-compatibility rule this all rests on). Where song-sharing sits among all the
+sharing channels: [`sharing-channels.md`](sharing-channels.md).
 
 ## The question
 

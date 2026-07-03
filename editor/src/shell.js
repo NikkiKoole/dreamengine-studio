@@ -1452,6 +1452,7 @@ compRun?.addEventListener('click', async () => {
   await window.studio.asoCompose(f); stop(); compRun.disabled = false
 })
 
+const appListings = {}   // dir → { listing, iapProducts } so the "load into all tools" button can fill the lab
 async function renderAppsList() {
   const el = document.getElementById('apps-list')
   if (!el || !window.studio?.listApps) return
@@ -1464,6 +1465,7 @@ async function renderAppsList() {
     card.dataset.app = a.dir
     const meta = [a.carts.join(', '), a.iap ? `${a.iap} IAP` : ''].filter(Boolean).join('  ·  ')
     const L = a.listing || {}
+    appListings[a.dir] = { listing: L, iapProducts: a.iapProducts || [] }
     // char-count badge (red if over Apple's limit); a clickable "key" that fills the research box
     const cc = (v, lim) => v ? `<span class="app-cc${v.length > lim ? ' app-over' : ''}">${v.length}/${lim}</span>` : ''
     const chip = t => `<span class="kw-chip" data-term="${escHtml(t)}">${escHtml(t)}</span>`
@@ -1472,7 +1474,8 @@ async function renderAppsList() {
     const listingHtml = (L.title || L.subtitle || L.keywords)
       ? `<div class="app-listing">${lrow('title', L.title, 30)}${lrow('subtitle', L.subtitle, 30)}`
         + (L.keywords ? `<div class="app-lrow"><span class="app-lk">keywords</span>${cc(L.keywords, 100)}</div><div class="kw-chips">${kwChips(L.keywords)}</div>` : '')
-        + `<div class="app-hint">click any key ↑↓ to drop it in the research box, then hit research</div></div>`
+        + `<div class="app-hint">click any key to drop it in the research box · or ↓</div>`
+        + `<button class="kw-all" data-fillall>▸ load this listing into all the ASO tools below</button></div>`
       : `<div class="app-listing app-nolisting">no listing yet — add a "listing" block to app.json</div>`
     // IAPs carry their OWN copy — name + description are each a searchable App Store surface.
     const iapHtml = (a.iapProducts && a.iapProducts.length)
@@ -1518,6 +1521,25 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const box = document.getElementById('aso-terms')
     if (box) { box.value = term; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.focus() }
     showToast(`"${term}" → research box · hit research to see results`, 2500)
+    return
+  }
+  // "load into all tools" — populate EVERY ASO-lab input from the manifest listing, so you can run
+  // any tool / tweak manually without retyping. Fills, never runs (you drive from here).
+  const fillAll = e.target.closest('[data-fillall]')
+  if (fillAll) {
+    e.stopPropagation()
+    const data = appListings[fillAll.closest('.app-card')?.dataset.app] || {}
+    const L = data.listing || {}
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || '' }
+    const kwTerms = String(L.keywords || '').split(',').map(s => s.trim()).filter(Boolean)
+    const iapNames = (data.iapProducts || []).map(p => p.name).filter(Boolean)
+    set('lint-title', L.title); set('lint-sub', L.subtitle); set('lint-kw', L.keywords)
+    set('comp-title', L.title); set('comp-sub', L.subtitle); set('comp-cands', L.keywords)
+    set('aso-terms', [...new Set([...kwTerms, ...iapNames])].join(', '))   // research: keys + IAP names
+    set('sug-terms', kwTerms.slice(0, 4).join(', '))                       // suggest: a few seeds (a-z soup is heavy)
+    document.querySelector('.aso-adv')?.setAttribute('open', '')           // reveal lint & compose
+    document.getElementById('aso-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    showToast('loaded the listing into every ASO tool — run or tweak below', 3000)
     return
   }
   const btn = e.target.closest('button[data-act]')

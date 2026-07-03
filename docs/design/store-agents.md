@@ -442,6 +442,10 @@ Two Apps-card additions so the *whole* searchable surface is visible and drillab
   chip; clicking one **drops that term into the research box** (doesn't auto-run — you hit research
   to see its competition). Per-term drill-down, the manual companion to 🔬 analyze's batch. `listApps`
   now returns `iapProducts[]`; chips carry `data-term`.
+- **"Load into all tools."** One button fills EVERY ASO-lab input from the manifest at once —
+  lint's + compose's title/subtitle/keywords, the research box (keyword entries + IAP names), the
+  suggest seeds — and opens the advanced section. So you load an app's listing into the whole lab in
+  one click, then run any tool / tweak by hand without retyping. Fills, never runs (you drive).
 
 ### Parked — smarter scoring (brainstorm 2026-07-03, not built)
 

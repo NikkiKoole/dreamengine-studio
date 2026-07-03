@@ -301,6 +301,9 @@ html, body {
 .app-iap { margin: 8px 0; padding-top: 6px; border-top: 1px solid var(--border); }
 .iap-row { margin: 5px 0; }
 .iap-desc { font-size: 11px; color: var(--fg-dim); margin: 1px 0 0 4px; }
+.kw-all { margin-top: 6px; font-size: 11px; padding: 3px 10px; cursor: pointer;
+  background: var(--bg2); border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; }
+.kw-all:hover { background: var(--accent); color: var(--bg); }
 .app-card {
   border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;

@@ -214,15 +214,32 @@ Gotchas captured (so nobody re-hits them):
   `run: storeKitConfiguration:` only helps Xcode's Run button, not `simctl`/`ios-deploy` — so
   interactive local testing needs another route: bundle the `.storekit` + an in-app `SKTestSession`,
   or verify via TestFlight sandbox.)
-- **IAP in the multi-cart app — DEFERRED (2026-07-03, "later story").** Spike 4 proved the bridge
-  *headlessly*; nothing gates in the REAL app path yet (the only `Store_IsModuleUnlocked` caller is
-  `canvas.c`, the excluded spike stand-in). The next increment, when it resumes: (1) `apps/tinyjam/app.json`
-  grows an `iap.products` block (id/price/name/desc/`unlocks[]`) as the single source of truth;
-  (2) `build-app.js --ios` GENERATES `Tinyjam.storekit` from it + threads each rack's productId +
-  lock state into `app_roster.h`; (3) the launcher (`tinyjam-menu.c`) shows locked racks (price/🔒),
-  taps fire `Store_Purchase`, owned racks launch — cross-platform via a **weak** `Store_*` symbol
-  (real on iOS, absent → "free/owned" on Mac/editor, so standalone carts are unaffected). Real prices
-  still come from App Store Connect (ADR-0026); the manifest declares intent.
+- **IAP in the multi-cart app — BUILT + sim-tested (2026-07-03).** `apps/tinyjam/app.json` carries an
+  `iap.products` block (id/price/name/desc/`unlocks[]`) as the single source of truth; `build-app.js
+  --ios` GENERATES `Tinyjam.storekit` from it AND threads each rack's productId + lock state (+ an
+  `APP_MASTERPASS_*` "unlock all" offer) into `app_roster.h`. The launcher (`tinyjam-menu.c`) shows
+  locked racks with a price, taps fire `Store_Purchase`, owned racks launch, and there's an "unlock
+  all — $N" master-pass row — cross-platform via **weak `Store_*` stub definitions** (real on iOS,
+  free/owned on Mac/editor so standalone carts are unaffected; `weak_import`/undefined-weak-*reference*
+  does NOT link on the current Darwin ld — a weak *definition* does). Real prices still come from App
+  Store Connect (ADR-0026); the manifest declares intent. **Gotchas hit, all real:**
+  - **StoreKitTest is SIMULATOR-ONLY.** Linking `StoreKitTest.framework` into the app pulls in
+    `XCTest.framework`, which isn't present in a plain app launch → dyld `SIGABRT` at startup (worse on
+    device). Link it + the platform Developer-frameworks rpath ONLY for `[sdk=iphonesimulator*]`, and
+    gate the Swift (`import StoreKitTest`, `SKTestSession`, the reset/testing `@_cdecl`s) behind `#if
+    targetEnvironment(simulator)`. Device builds stay clean; device IAP testing = ASC **sandbox** (later).
+  - **Local testing needs an in-app `SKTestSession`** (created at `Store_Init`), because a scheme's
+    `storeKitConfiguration` only applies to Xcode's Run button, not `simctl`/`ios-deploy`. Set
+    `session.disableDialogs = true` so a test buy completes instantly (no sheet) — a visible sheet
+    passes the dismiss-tap through to the launcher row and re-buys ("popup won't close"); an in-flight
+    guard in `purchase()` also stops multi-tap stacking while StoreKit loads.
+  - **Product ids MUST be manifest-driven, never hardcoded.** `Store.swift` had a stale hardcoded
+    `ids = [rebirth, funk, masterpass]`; adding `epiano` to the manifest → its product never loaded →
+    `purchase()` found no product → the rack couldn't unlock (silent). Fix: `Store.configuredIDs()`
+    reads `productID`s from the bundled generated `Tinyjam.storekit`, so any manifest product just works.
+  - **A rack joining a bundle must match the app's dims** (build-app.js enforces one size — next-spike
+    #3). omnichord/epiano are 320×200; adding epiano needed a `.cart.js` bumping it to 320×240 (which
+    also changes the *standalone* cart). The real fix is the deferred multi-resolution support.
 - **AUv3 (spike 7):** `.loadInProcess` is **macOS-only** — on iOS AUv3 always loads out-of-process;
   instantiate with `options: []`. The instrument self-plays (the arpeggio isn't gated on MIDI), so it
   renders sound with no note input — handy for an automated render test. The extension is embedded via

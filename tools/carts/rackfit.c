@@ -28,6 +28,14 @@ de:meta */
 // scale for the real ones the iOS layer already knows (device-adaptive-layout.md
 // §engine plumbing #1–#2). The API doesn't change; only what you pass in does.
 //
+// The chrome (title bar, keybed) is DOCKED with lay_split (fixed band off an
+// edge, remainder is the body); the notch/home-bar is a per-side lay_pad (an
+// ASYMMETRIC safe-area, which uniform inset can't express); and the multi-cart
+// "back to root" chip reserves just a top CORNER (not the whole edge — phone
+// height is precious), with the title text padded off that side so nothing
+// collides. In the real app the shell draws that chip + hands the cart the
+// keep-out rect; here we fake all three from the preset.
+//
 //   Presets auto-cycle every ~2s. Keys 1/2/3/4 lock iPhone-P / iPhone-L /
 //   iPad-P / iPad-L. Watch the SAME rack re-flow to fit the finger.
 
@@ -41,7 +49,11 @@ typedef struct { float x, y, w, h; } Box;
 static Box box(float x, float y, float w, float h) { Box b = {x, y, w, h}; return b; }
 static float lay_clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
 static float lay_fluid(float pct, float container, float lo, float hi) { return lay_clamp(pct * container, lo, hi); }
-static Box lay_inset(Box c, float m) { return box(c.x + m, c.y + m, c.w - 2*m, c.h - 2*m); }
+// pad(): per-side inset — CSS padding (top, right, bottom, left). Per-side is
+// what an ASYMMETRIC safe-area needs (a notch tops one edge, the home-bar the
+// opposite). Uniform inset() is just the m,m,m,m case.
+static Box lay_pad(Box c, float t, float r, float b, float l) { return box(c.x + l, c.y + t, c.w - l - r, c.h - t - b); }
+static Box lay_inset(Box c, float m) { return lay_pad(c, m, m, m, m); }
 
 enum { L_TL, L_T, L_TR, L_L, L_C, L_R, L_BL, L_B, L_BR };
 static Box lay_at(Box c, int anchor, float w, float h, float inset) {
@@ -50,6 +62,23 @@ static Box lay_at(Box c, int anchor, float w, float h, float inset) {
     float y = row == 0 ? c.y + inset : row == 1 ? c.y + (c.h - h) / 2 : c.y + c.h - h - inset;
     return box(x, y, w, h);
 }
+// split(): dock a fixed-size BAND off one edge and return it; the REMAINDER is
+// written to *rest (NULL to ignore). CSS flex fixed-basis + a flex:1 sibling —
+// the app-chrome workhorse (title / tab / tool bars, keybed). `size` is fixed px
+// OR a fraction of the container.
+enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT };
+static Box lay_split(Box c, int edge, float size, Box *rest) {
+    Box band = c, rem = c;
+    switch (edge) {
+        case EDGE_TOP:    band.h = size;                        rem.y += size; rem.h -= size; break;
+        case EDGE_BOTTOM: band.y += c.h - size; band.h = size;                rem.h -= size; break;
+        case EDGE_LEFT:   band.w = size;                        rem.x += size; rem.w -= size; break;
+        case EDGE_RIGHT:  band.x += c.w - size; band.w = size;                rem.w -= size; break;
+    }
+    if (rest) *rest = rem;
+    return band;
+}
+
 // wrap(): i-th of n items in an auto-flowing grid — as many ~minItem-wide columns
 // as fit in c.w, wrapping to rows. This is the primitive that makes the layout
 // EMERGENT: feed it a finger-sized minItem and the column count IS the density.
@@ -127,24 +156,47 @@ void draw(void) {
     // bezel + screen
     boxfill(lay_inset(dev, -3), CLR_DARK_GREY);
     boxfill(dev, CLR_DARKER_BLUE);
-    Box screen = lay_inset(dev, lay_fluid(0.02f, dev.w, 2, 6));
 
-    // ---- the rack, laid out ENTIRELY from `screen` + `fu` -------------------
+    // SAFE-AREA (faked): the notch/home-bar inset is ASYMMETRIC — this is why a
+    // per-side lay_pad() exists and a uniform lay_inset() won't do. Portrait: a
+    // notch tops it + a home-bar strip on the bottom; landscape: the notch moves
+    // to a side. (Graduated, these numbers come from the real safe_rect().)
+    float bez = lay_fluid(0.02f, dev.w, 2, 6);
+    Box screen = portrait ? lay_pad(dev, bez + fu * 0.35f, bez, bez + fu * 0.25f, bez)
+                          : lay_pad(dev, bez, bez + fu * 0.45f, bez, bez + fu * 0.15f);
+
+    // ---- the rack: DOCK the chrome bands, the remainder is the body ---------
+    // lay_split docks a fixed band off an edge and hands back the rest — the
+    // title/keybed/body carve that used to be hand-rolled arithmetic.
     float gap = lay_clamp(fu * 0.12f, 1, 6);
-    // vertical split: title / knobs / steps / keybed. Keybed is finger-tall;
-    // portrait donates its extra height to the keybed (thumbs live at the bottom).
     float titleH = lay_clamp(fu * 0.5f, 7, 22);
     float keyH   = lay_clamp(screen.h * (portrait ? 0.30f : 0.34f), fu * 1.1f, fu * 2.2f);
-    Box title = box(screen.x, screen.y, screen.w, titleH);
-    Box kbed  = box(screen.x, screen.y + screen.h - keyH, screen.w, keyH);
-    float midY = title.y + title.h + gap, midH = kbed.y - gap - midY;
-    Box knobsA = box(screen.x, midY, screen.w, midH * 0.56f);
-    Box stepsA = box(screen.x, midY + midH * 0.56f + gap, screen.w, midH * 0.44f - gap);
+    Box body;
+    Box title = lay_split(screen, EDGE_TOP,    titleH, &body);   // title off the top
+    Box kbed  = lay_split(body,   EDGE_BOTTOM, keyH,   &body);   // keybed off the bottom
+    Box mid   = lay_pad(body, gap, 0, gap, 0);                   // breathing room top/bottom
+    Box stepsA;
+    Box knobsA = lay_split(mid, EDGE_TOP, mid.h * 0.56f, &stepsA);
+    knobsA = lay_pad(knobsA, 0, 0, gap * 0.5f, 0);
+    stepsA = lay_pad(stepsA, gap * 0.5f, 0, 0, 0);
+
+    // BACK-TO-ROOT keep-out: the multi-cart shell owns a home chip in a top
+    // corner (tl/tr). A rack must not put a control under it — but reserving the
+    // whole top edge wastes precious phone height, so we keep just the CORNER: a
+    // square in the title band, and pad the TITLE TEXT off that side so nothing
+    // collides. (Graduated, the shell hands the cart this rect; see notes.)
+    float homeSz = lay_clamp(fu * 0.8f, 8, 40);   // finger-sized tap target
+    Box home = lay_at(title, L_TR, homeSz, homeSz, 1);
+    Box titleTxt = lay_pad(title, 0, homeSz + 2, 0, 0);   // title text avoids the corner
 
     // title
     boxfill(title, CLR_TRUE_BLUE);
     font(FONT_SMALL);
-    print("ACID RACK", (int)title.x + 3, (int)(title.y + (title.h - 6) / 2), CLR_LIGHT_PEACH);
+    print("ACID RACK", (int)titleTxt.x + 3, (int)(titleTxt.y + (titleTxt.h - 6) / 2), CLR_LIGHT_PEACH);
+    // the reserved back-to-root chip (drawn by the shell in the real app)
+    boxfill(home, CLR_DARKER_BLUE);
+    boxrect(home, CLR_LIGHT_GREY);
+    print_centered("<", (int)(home.x + home.w / 2), (int)(home.y + (home.h - 6) / 2), CLR_LIGHT_PEACH);
 
     // 8 knobs — EMERGENT columns: lay_wrap flows them into as many cells as fit.
     // A comfortable knob is ~60pt (bigger than the 44pt min), so on the iPad all

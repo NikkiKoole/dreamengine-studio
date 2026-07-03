@@ -8,7 +8,7 @@
     "toy"
   ],
   "teaches": [],
-  "description": "A cart-land prototype of a responsive-layout primitive set, before any of it touches the engine. Drag the yellow lower-right corner to resize a 'virtual screen' rectangle - everything inside it is positioned with four candidate layout functions (flex, fluid clamp/%, anchor+inset, aspect-ratio) so you can watch a real layout REFLOW live as the screen changes size: a top bar stays pinned and fluid-height, a notification badge stays anchored to the corner, a 16:9 viewport letterboxes itself to fit, and the button bar flips from a row to a stacked column when the width drops under a breakpoint (wide -> phone). The idea: prove the toolkit in cart-land against a fake screen first, then graduate it to a runtime/lay.h header that takes the real screen rect. Drag the corner to resize; no other controls."
+  "description": "A cart-land prototype of a responsive-layout primitive set, before any of it touches the engine. Drag the yellow lower-right corner to resize a 'virtual screen' rectangle - everything inside it is positioned with four candidate layout functions (flex, fluid clamp/%, anchor+inset, aspect-ratio) so you can watch a real layout REFLOW live as the screen changes size: a top bar stays pinned and fluid-height (docked with split), a notification badge stays anchored to the corner, a 16:9 viewport letterboxes itself into what's LEFT after the title + footer bands are split off, and the button bar flips from a row to a stacked column when the width drops under a breakpoint (wide -> phone). The candidate set: flex (cell), fluid (clamp/%), anchor+inset (at), aspect, auto-wrap grid, split (dock a fixed band off an edge), and per-side pad (asymmetric safe-area insets). The idea: prove the toolkit in cart-land against a fake screen first, then graduate it to a runtime/lay.h header that takes the real screen rect. Drag the corner to resize; no other controls."
 }
 de:meta */
 // RESPOND — a cart-land prototype of the responsive-layout primitive set.
@@ -17,8 +17,9 @@ de:meta */
 // engine's SCREEN_W/H runtime-variable (the scary part — breaks determinism +
 // 45 carts), prototype the WHOLE responsive toolkit in cart-land against a
 // FAKE screen. Here that fake screen is a rectangle you resize by dragging its
-// lower-right corner. Everything inside it is positioned with the four
-// candidate primitives — flex, fluid (clamp/%), anchor+inset, aspect — so you
+// lower-right corner. Everything inside it is positioned with the candidate
+// primitives — flex, fluid (clamp/%), anchor+inset, aspect, wrap, split (dock a
+// fixed band off an edge), pad (per-side / asymmetric safe-area inset) — so you
 // can watch a layout reflow live as the "screen" changes size.
 //
 // If these four feel right here, they graduate to a runtime/lay.h header that
@@ -46,8 +47,11 @@ static float lay_fluid(float pct, float container, float lo, float hi) {
     return lay_clamp(pct * container, lo, hi);
 }
 
-// inset(): shrink a box by a uniform margin (CSS padding / margin).
-static Box lay_inset(Box c, float m) { return box(c.x + m, c.y + m, c.w - 2*m, c.h - 2*m); }
+// pad(): per-side inset — CSS padding (top, right, bottom, left). The per-side
+// form is what an ASYMMETRIC safe-area needs (a notch tops one edge, the
+// home-bar the opposite). Uniform inset() is just the m,m,m,m case.
+static Box lay_pad(Box c, float t, float r, float b, float l) { return box(c.x + l, c.y + t, c.w - l - r, c.h - t - b); }
+static Box lay_inset(Box c, float m) { return lay_pad(c, m, m, m, m); }
 
 // anchor(): pin a w×h box to one of the 9 grid spots of the container, with an
 // inset from the edges (CSS position:absolute + inset + env(safe-area-inset)).
@@ -57,6 +61,24 @@ static Box lay_at(Box c, int anchor, float w, float h, float inset) {
     float x = col == 0 ? c.x + inset : col == 1 ? c.x + (c.w - w) / 2 : c.x + c.w - w - inset;
     float y = row == 0 ? c.y + inset : row == 1 ? c.y + (c.h - h) / 2 : c.y + c.h - h - inset;
     return box(x, y, w, h);
+}
+
+// split(): dock a fixed-size BAND off one edge and return it; the REMAINDER is
+// written to *rest (NULL to ignore). CSS flex with a fixed-basis child + a
+// flex:1 sibling — the app-chrome workhorse (title / tab / tool bars, keybed).
+// Chain it: dock top, then bottom, then *rest is the body. `size` is fixed px
+// OR a fraction of the container (c.h * 0.5f).
+enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT };
+static Box lay_split(Box c, int edge, float size, Box *rest) {
+    Box band = c, rem = c;
+    switch (edge) {
+        case EDGE_TOP:    band.h = size;                        rem.y += size; rem.h -= size; break;
+        case EDGE_BOTTOM: band.y += c.h - size; band.h = size;                rem.h -= size; break;
+        case EDGE_LEFT:   band.w = size;                        rem.x += size; rem.w -= size; break;
+        case EDGE_RIGHT:  band.x += c.w - size; band.w = size;                rem.w -= size; break;
+    }
+    if (rest) *rest = rem;
+    return band;
 }
 
 // cell(): the i-th of n EQUAL flex children laid along dir (0=row, 1=column)
@@ -199,10 +221,12 @@ void draw(void) {
             print_centered(labels[i], (int)(b.x + b.w / 2), (int)(b.y + (b.h - 8) / 2), CLR_WHITE);
     }
 
-    // 4) ASPECT — a 16:9 viewport filling the gap between title and buttons ---
-    float midTop = title.y + title.h + gap;
-    float midBot = foot.y - gap;
-    Box mid = box(c.x, midTop, c.w, midBot - midTop);
+    // 4) ASPECT — a 16:9 viewport filling the gap between title and buttons.
+    // The middle is just what's LEFT after docking the title + footer bands
+    // (with a gap each) off `c` — lay_split, not hand arithmetic.
+    Box mid;
+    lay_split(c,  EDGE_TOP,    title.h + gap, &mid);
+    lay_split(mid, EDGE_BOTTOM, foot.h + gap, &mid);
     if (mid.h > 8) {
         boxfill(mid, CLR_DARKER_PURPLE);                 // the available area
         Box view = lay_aspect(mid, 16.0f / 9.0f);        // contained 16:9

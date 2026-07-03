@@ -643,6 +643,28 @@
     "genre": "tabletop"
   },
   {
+    "title": "bleed rig - blue",
+    "description": "The BLUE half of a cross-cart bleed test: draws plain (no pal/fillp) with a blue fish + a tone. The clean canvas. Its solid WHITE bar and WHITE text should stay white, its rectfills solid, and spr(0) should be its own blue fish. If red tint, a fill pattern, or the red critter shows up, that state leaked from bleedred across the switch. Bundle: apps/bleedtest. TAB switches carts in the bundle. Standalone it just runs.",
+    "file": "bleedblue.cart.png",
+    "created": "2026-07-03",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [],
+    "lineage": "The clean-canvas half of the multi-cart cross-cart BLEED RIG (bleedred + bleedblue). Draws with NO pal/fillp of its own and its own BLUE sprite sheet, so anything red / patterned / critter-shaped that appears here after a switch from bleedred is state the engine leaked across de_switch_cart. Companion to the video-reset + per-cart-sheet fix. See docs/design/share-panel.md."
+  },
+  {
+    "title": "bleed rig - red",
+    "description": "The RED half of a cross-cart bleed test: sets pal(white->red) + a fill pattern + drums, draws a red critter. Deliberately dirties the shared video state: remaps white to red with pal(), turns on a fillp() checker, and plays a membrane drum. Its sibling bleedblue draws plain, so switching red->blue reveals whether pal/fillp/the sprite sheet survived the switch. Bundle: apps/bleedtest. TAB switches carts in the bundle. Standalone it just runs.",
+    "file": "bleedred.cart.png",
+    "created": "2026-07-03",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [],
+    "lineage": "Half of the multi-cart cross-cart BLEED RIG (bleedred + bleedblue), built to expose (then verify the fix for) state that leaks across de_switch_cart: the sprite SHEET, and the set-and-hold VIDEO state pal()/fillp(). The sound half of de_switch_cart is already fixed (ADR-0027); this rig is the video twin's test case. See docs/design/share-panel.md."
+  },
+  {
     "title": "blend lab",
     "description": "Can 32 colors fake real translucency? A cart-space prototype of BLEND TABLES (result = table[src][dst], always a palette index — the VGA/Doom/Picotron trick). 1: a night street where additive glows light the building behind them, 2: a draggable glass pane + cloud shadows + fog over a swatch sweep of all 32 colors, 3: the raw 32x32 tables. D shows the same shapes as today's fillp dither-fake for comparison; P reads dst via pget to demonstrate the one-frame feedback artifact. Arrows switch glass color / table. Zero new engine API — the experiment behind STATUS item 18.",
     "file": "blendlab.cart.png",

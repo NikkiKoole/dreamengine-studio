@@ -1,0 +1,6 @@
+{
+  "name": "Bleedtest",
+  "bundleId": "com.dreamengine.bleedtest",
+  "version": "0.1",
+  "carts": ["bleedred", "bleedblue"]
+}

@@ -71,7 +71,7 @@ links cleanly next to another. What actually collides / is singular:
    launcher is *itself a cart* (`launcher` in the manifest) plus one new API to request
    a switch (`de_switch_cart("acidrack")` or similar). No native menu UI.
 
-Each is a small spike in the ios-plan spirit: riskiest-cheapest first (1+2 together —
+Each is a small spike in the [`ios-plan.md`](ios-plan.md) spirit: riskiest-cheapest first (1+2 together —
 two renamed carts in one desktop binary, switchable by key — proves the whole shape
 before any iOS work).
 

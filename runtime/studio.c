@@ -4977,6 +4977,31 @@ bool keyr(int k) { key_claim(k); return inp_released(k); }
 void pal(int c0, int c1)  { if (c0 >= 0 && c0 < PALETTE_SIZE && c1 >= 0 && c1 < PALETTE_SIZE) { palette[c0] = base_palette[c1]; pal_recompute(); } }
 void pal_reset(void)      { for (int i = 0; i < PALETTE_SIZE; i++) palette[i] = base_palette[i]; pal_recompute(); }
 
+// ── cart-switch: video state reset (the video twin of the sound context, ADR-0027) ──
+// Reset the set-and-hold VIDEO state to boot defaults so an outgoing cart's
+// pal()/fillp()/font()/camera() can't bleed into the next cart. (clip already resets
+// at frame-end; this engine has no palt.) de_switch_cart runs during update() — OUTSIDE
+// the draw/GL context — so this must touch state only: pal_reset/fillp_reset/font just
+// write arrays or flags (no GL), and camera(0,0)'s cam_reapply() no-ops while
+// cam_active is false. Reset-only (not record+replay like sound): every cart re-sets its
+// video modes in draw(), so a clean slate is enough; see share-panel.md.
+static void de_gfx_reset(void) {
+    pal_reset();            // palette remap → identity
+    fillp_reset();          // fill pattern off
+    fillp_anchor(0, 0);     // fill lattice origin
+    font(FONT_NORMAL);      // active font → default
+    camera(0, 0);           // camera offset/zoom/rotation → identity
+    sw_force_gpu = false;   // clear the sticky camera_ex-rotation GPU fallback
+}
+
+// the public UMBRELLA cart switch: swaps the whole cart world for context `ctx`. Sound
+// (de_sound_switch_cart, sound.h) + video state reset (de_gfx_reset) today; the per-cart
+// sprite-sheet swap joins here with that rung. The dispatcher shim calls only this.
+void de_switch_cart(int ctx) {
+    de_sound_switch_cart(ctx);
+    de_gfx_reset();
+}
+
 // EXPERIMENTAL (palette probe — see docs/design/palette-and-color.md). Write an
 // arbitrary 0xRRGGBB into LIVE palette slot i: primitives/text use it immediately,
 // and the pal() shader recolors existing sprite art to match (base_palette stays

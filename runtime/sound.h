@@ -6764,7 +6764,10 @@ void bpm(int rate) {
     sound_push_ctrl(SR_BPM, rate, 0, 0, 0, 0, 0);   // queued (not a direct write) so it lands in the cart-context log — see SR_BPM
 }
 
-void de_switch_cart(int ctx) {
+// the SOUND half of a cart switch — reset + replay context `ctx`'s sound config log
+// (ADR-0027). The public umbrella de_switch_cart() (studio.c) calls this alongside the
+// video reset + sprite-sheet swap; call that, not this, to switch a whole cart.
+void de_sound_switch_cart(int ctx) {
     if (ctx < 0 || ctx >= SOUND_CART_CTX) return;
     sound_push_ctrl(SR_CART_SWITCH, ctx, 0, 0, 0, 0, 0);
 }

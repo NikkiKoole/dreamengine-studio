@@ -1372,7 +1372,12 @@ ipcMain.handle('studio:aso-suggest', async (_e, terms, country) => {
 })
 // app-scoped: build the committed SEO worksheet (writes apps/<name>/seo-brief.md), and the
 // mirror that checks the finished copy against it. Both stream to the aso log panel.
-ipcMain.handle('studio:aso-brief', (_e, name) => runAsoTool(_e, 'aso-brief.js', [String(name)]))
+ipcMain.handle('studio:aso-brief', async (_e, name) => {
+  const res = await runAsoTool(_e, 'aso-brief.js', [String(name)])
+  // hand back the absolute path so the editor can render a clickable "open" link (open-path
+  // validates it's inside ROOT). rel is shown to the user; abs is what shell.openPath needs.
+  return { ...res, path: path.join(__dirname, '../..', 'apps', String(name), 'seo-brief.md'), rel: `apps/${name}/seo-brief.md` }
+})
 ipcMain.handle('studio:aso-coverage', (_e, name) => runAsoTool(_e, 'aso-coverage.js', [String(name)]))
 // score the committed listing (--deep = winnability, hits the network). Returns parsed JSON so the
 // editor can render the scorecard WITH its gotchas. The iterative A/B tweak loop stays in the CLI.

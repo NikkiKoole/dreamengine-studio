@@ -1338,6 +1338,8 @@ function renderResearch(data) {   // escHtml() is defined elsewhere in shell.js 
   asoResults.innerHTML = h
 }
 asoResults?.addEventListener('click', e => {
+  const openL = e.target.closest('[data-openpath]')
+  if (openL) { e.preventDefault(); window.studio?.openPath?.(openL.dataset.openpath); return }
   const link = e.target.closest('a[data-url]')
   if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
   const chip = e.target.closest('a[data-term]')
@@ -1474,7 +1476,8 @@ async function renderAppsList() {
     const listingHtml = (L.title || L.subtitle || L.keywords)
       ? `<div class="app-listing">${lrow('title', L.title, 30)}${lrow('subtitle', L.subtitle, 30)}`
         + (L.keywords ? `<div class="app-lrow"><span class="app-lk">keywords</span>${cc(L.keywords, 100)}</div><div class="kw-chips">${kwChips(L.keywords)}</div>` : '')
-        + `<div class="app-hint">click any key to drop it in the research box · or ↓</div>`
+        + `<div class="app-hint">click any key to drop it in the research box · or:</div>`
+        + `<button class="kw-mini" data-allkw>▸ all keys (app + IAP) → research box</button>`
         + `<button class="kw-all" data-fillall>▸ load this listing into all the ASO tools below</button></div>`
       : `<div class="app-listing app-nolisting">no listing yet — add a "listing" block to app.json</div>`
     // IAPs carry their OWN copy — name + description are each a searchable App Store surface.
@@ -1521,6 +1524,20 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const box = document.getElementById('aso-terms')
     if (box) { box.value = term; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.focus() }
     showToast(`"${term}" → research box · hit research to see results`, 2500)
+    return
+  }
+  // "all keys → research box" — gather every keyword (app field + IAP names) into the research
+  // box at once (the select-all companion to clicking one key). Fills, doesn't run.
+  const allkw = e.target.closest('[data-allkw]')
+  if (allkw) {
+    e.stopPropagation()
+    const data = appListings[allkw.closest('.app-card')?.dataset.app] || {}
+    const kwTerms = String(data.listing?.keywords || '').split(',').map(s => s.trim()).filter(Boolean)
+    const iapNames = (data.iapProducts || []).map(p => p.name).filter(Boolean)
+    const terms = [...new Set([...kwTerms, ...iapNames])]
+    const box = document.getElementById('aso-terms')
+    if (box) { box.value = terms.join(', '); box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.focus() }
+    showToast(`${terms.length} keys → research box · hit research`, 2800)
     return
   }
   // "load into all tools" — populate EVERY ASO-lab input from the manifest listing, so you can run
@@ -1588,10 +1605,17 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       const stop = busyDots(btn, act === 'brief' ? 'building (fetches Google/App Store)' : 'checking', label); btn.disabled = true
       asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
       document.getElementById('aso-terms')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      if (act === 'brief') await window.studio.asoBrief(app)
-      else await window.studio.asoCoverage(app)
-      stop(); btn.disabled = false
-      if (act === 'brief') showToast(`wrote apps/${app}/seo-brief.md — open it beside press.md`, 3500)
+      if (act === 'brief') {
+        const res = await window.studio.asoBrief(app)
+        stop(); btn.disabled = false
+        // clickable link to open the written worksheet (open-path re-checks it's inside the repo)
+        if (res?.path && asoResults) asoResults.innerHTML =
+          `<a href="#" class="rs-chip" data-openpath="${escHtml(res.path)}">📄 open ${escHtml(res.rel || `apps/${app}/seo-brief.md`)}</a>`
+        showToast(`wrote apps/${app}/seo-brief.md`, 3000)
+      } else {
+        await window.studio.asoCoverage(app)
+        stop(); btn.disabled = false
+      }
       return
     }
     const stop = busyDots(btn, 'working', label); btn.disabled = true

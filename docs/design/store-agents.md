@@ -442,10 +442,14 @@ Two Apps-card additions so the *whole* searchable surface is visible and drillab
   chip; clicking one **drops that term into the research box** (doesn't auto-run — you hit research
   to see its competition). Per-term drill-down, the manual companion to 🔬 analyze's batch. `listApps`
   now returns `iapProducts[]`; chips carry `data-term`.
-- **"Load into all tools."** One button fills EVERY ASO-lab input from the manifest at once —
-  lint's + compose's title/subtitle/keywords, the research box (keyword entries + IAP names), the
-  suggest seeds — and opens the advanced section. So you load an app's listing into the whole lab in
-  one click, then run any tool / tweak by hand without retyping. Fills, never runs (you drive).
+- **Three "get it into the tools" granularities:** one key (click a chip) · **all keys → research
+  box** (a button that gathers every app keyword + IAP name at once — the select-all companion) ·
+  **load into all tools** (fills EVERY lab input from the manifest — lint's + compose's
+  title/subtitle/keywords, the research box, the suggest seeds — and opens the advanced section).
+  All three *fill, never run* — you drive.
+- **📝 brief output is a clickable link.** The 📝 worksheet action renders a `📄 open
+  apps/<name>/seo-brief.md` link (the `aso-brief` IPC returns the abs path; `open-path` re-checks
+  it's inside the repo) so you jump straight to the file — same pattern as build-app's Finder link.
 
 ### Parked — smarter scoring (brainstorm 2026-07-03, not built)
 

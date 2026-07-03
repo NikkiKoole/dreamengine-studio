@@ -13,11 +13,11 @@ sound+video+sheet umbrella — see next-spike #1 + rung-1's video-twin note) and
 (Spike A): `build-app.js --ios` stages the multi-cart set for the Xcode build and Tinyjam's
 launcher + racks render on the iOS simulator** (`ios/device.sh`/`build.sh` `APP=<name>`), then
 **on-device: Tinyjam runs on a real iPhone** (`device.sh APP=tinyjam`, maker-confirmed
-2026-07-03), and a **home chip** (a shim-drawn top-left tap target, in racks only) as the
-temporary touch back-to-launcher.
+2026-07-03), and **hold-to-home** (hold the top-left corner ~0.3s → overview; a shim-drawn
+fat-finger pad in racks only) as the temporary touch back-to-launcher.
 **Fresh context: the ladder is COMPLETE — a manifest → a double-clickable any-Mac app AND a
 multi-cart iOS app on a phone. Next work is the panel itself (§"The panel itself"), the polished
-back-to-launcher (intro-panel/pause seam — the home chip is the temporary), or the menu's
+back-to-launcher (a `de_safe_top()` nav-bar the racks reflow to — hold-to-home is the temporary), or the menu's
 look/feel (rung 3 sub-question b — maker's call).** Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
@@ -356,13 +356,17 @@ in order (each rung small, only #1 touches the engine):
    `.bake` request-file race, which used `pid:` targeting); `simctl` screenshots need a few
    seconds' settle (it grabs a pre-render frame otherwise — perf.log confirms 59fps).
    **On-device: DONE (2026-07-03)** — `device.sh APP=tinyjam` runs Tinyjam on a real iPhone
-   (maker-confirmed). **Touch back-to-launcher: a temporary `home chip`** — the shim overlays a
-   small hamburger tap target top-left in racks only (bundle-with-launcher only, so a standalone
-   cart never shows it; consumes its own tap; resets camera/clip first; chord-safe single-tap).
-   Tradeoff: full-screen racks have no free corner, so it overlaps the rack's top-left UI
-   (acidrack's OP button). The polished home is still the parked **intro-panel/pause seam**;
-   long-press or auto-hide are alternatives if the overlap bites. iOS-as-AUv3 (a rack per plugin)
-   stays [`ios-plan.md`](ios-plan.md) spike 9 (AUv3 concurrency).
+   (maker-confirmed). **Touch back-to-launcher: HOLD-TO-HOME (device-confirmed 2026-07-03).**
+   The shim overlays a small top-left chip in racks only (bundle-with-launcher only, so a
+   standalone cart never shows it), but the HIT REGION is a big 48×20 fat-finger pad and it
+   needs a ~0.3s HOLD — so it's easy to land yet quick taps on the rack's own corner controls
+   never fire it (the first try, a tiny tap chip, was unhittable on-device and sat on acidrack's
+   OP button). The chip fills as you hold (feedback); resets camera/clip first; cross-input
+   (held finger or mouse). **The polished answer (deferred, maker-driven):** reserve a real
+   nav-bar via a **`de_safe_top()` safe-area inset** the racks reflow to — but acidrack fills
+   all 240px, so that's a genuine layout redesign of the dense racks, done as its own pass (the
+   same inset also handles the iPhone notch/home-indicator later). iOS-as-AUv3 (a rack per
+   plugin) stays [`ios-plan.md`](ios-plan.md) spike 9 (AUv3 concurrency).
 
 ## Open questions (maker's call)
 

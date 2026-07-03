@@ -1271,9 +1271,10 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     session desk from de:meta, `>` cursor, footer). Same `DE_NO_RAYLIB` engine as single-cart
     device builds. Serialize iOS builds (shared `gen/app` + one xcodeproj); `simctl` shots need
     ~a few seconds settle. **On-device: Tinyjam runs on a real iPhone** (`device.sh APP=tinyjam`,
-    maker-confirmed 2026-07-03). **Touch back-to-launcher: a temporary home chip** (shim-drawn
-    hamburger top-left, in racks only, chord-safe; overlaps a rack corner — polished seam still
-    parked). Design + gotchas: [`design/share-panel.md`](design/share-panel.md) next-spike #5.
+    maker-confirmed 2026-07-03). **Touch back-to-launcher: hold-to-home** (device-confirmed) —
+    hold the top-left corner ~0.3s → overview; a big fat-finger hit-pad (a tiny tap chip was
+    unhittable on-device), in racks only. Polished nav-bar via a `de_safe_top()` inset (a real
+    reflow of the 240px-full racks) is the deferred, maker-driven redesign. Design + gotchas: [`design/share-panel.md`](design/share-panel.md) next-spike #5.
 
 ---
 

@@ -1,7 +1,11 @@
 # Responsive layout — a four-primitive set, prototyped in cart-land first
 
-*Status: brainstorm / prototype. Researched 2026-06-11. Companion prototype:
-`tools/carts/respond.c` (the "drag the corner" demo).*
+*Status: brainstorm / prototype — this doc is the **cart-land toolkit** (`lay_*`). The engine
+change + product plan that graduates it now lives in
+[`device-adaptive-layout.md`](device-adaptive-layout.md) (READY TO BUILD, 2026-07-03), which
+supersedes the "deferred, no concrete need yet" framing below — Tinyjam-on-the-App-Store is the
+concrete need. Researched 2026-06-11. Companion prototype: `tools/carts/respond.c` (the "drag the
+corner" demo).*
 
 **The maker's call (2026-07-02):** for iOS and the product being built to sell, this — reflow, not
 just display-scale — is the likely better route. See

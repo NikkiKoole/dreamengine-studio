@@ -1300,8 +1300,11 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     (1) **Device IAP testing** — the sim path is local-only (`SKTestSession`, sim-only); real device
     testing needs App Store Connect **sandbox** testers (the pre-ship validation).
     (2) **Multi-resolution racks** (next-spike #3) — carts must currently share the app's dims;
-    epiano/omnichord had to be bumped 200→240 to join. The real fix is per-cart RenderTexture / a
-    `de_safe_top()`-style safe area (share-panel.md next-spike #3, paths A/B/C).
+    epiano/omnichord had to be bumped 200→240 to join. **Now a planned project:
+    [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md) (READY TO BUILD,
+    2026-07-03)** — live-resizable + physically-sized `SCREEN_W/H` so one cart is beautiful on
+    iPhone AND iPad, both orientations; also unblocks honest full-bleed store screenshots/videos.
+    (Supersedes the per-cart-RenderTexture / `de_safe_top()` sketch in share-panel.md #3 paths A/B/C.)
     (3) **Polished back-to-launcher** — the `de_safe_top()` nav-bar reflow (hold-to-home is the temp).
     (4) **In-editor "export app" button** — apps live in `apps/`, not the carts panel → needs an Apps
     picker (a UI rung on the `build-app.js --mac`/`--ios` CLI).

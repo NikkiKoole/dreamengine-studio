@@ -157,7 +157,10 @@ Deliberately NOT covered — the next spikes, in order of need:
    by the ONE `-D` value the whole binary compiles with — so "a cart's resolution" is a
    property of the *binary*, not the cart. `build-app.js` hard-rejects a mismatch for that
    reason. Both Tinyjam racks are 320×240, so it dodges this. Three ways out, cheapest
-   first (scoped 2026-07-03, deferred — no concrete two-shapes need yet):
+   first (scoped 2026-07-03) — **no longer deferred: this graduated to a planned project,
+   [`device-adaptive-layout.md`](device-adaptive-layout.md) (READY TO BUILD), once Tinyjam-on-the-
+   App-Store made it a concrete need. B is its engine core, C its cart model; that doc also folds in
+   physical-finger sizing, rotation, and the store-asset payoff:**
    - **A — letterbox at one master size (small, leaky):** window stays one size (max of
      the carts / a manifest field); the dispatcher centres smaller carts with a
      `camera()`+`clip()` border. But a cart still *sees* the master `SCREEN_W`, so only

@@ -304,6 +304,14 @@ static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer
 // whole-layer composite, which keeps every primitive on its fast axis-aligned path.)
 static uint32_t        sw_world_buf[SCREEN_W * SCREEN_H];
 static uint32_t       *sw_dst = sw_cbuf;
+
+// device-adaptive-layout.md Phase 1a: the ACTIVE canvas dims are a runtime value,
+// read wherever a render EXTENT / centering / clip / camera / present rect is
+// computed. SCREEN_W/SCREEN_H stay the compile-time MAX (the static buffers above
+// are sized to it, and are never reallocated). Right now de_sw/de_sh are pinned
+// to the max and never change → every cart renders byte-identical (canvas-diff
+// proves it); Phase 1b lets a `resizable` cart update them + present a sub-rect.
+static int de_sw = SCREEN_W, de_sh = SCREEN_H;
 static bool            sw_rot_active = false;
 static float           sw_rot_angle  = 0.0f;
 static void            sw_rot_composite(void);            // defined near camera(); called from de_frame()
@@ -2394,8 +2402,8 @@ void de_frame(double t) { de_host_time = t; loop_step(); if (sw_rot_active) sw_r
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
 void de_audio_render(float *out, int frames) { sound_callback((void *)out, (unsigned)frames); }
 const uint32_t *de_framebuffer(void) { return (const uint32_t*)sw_cbuf; }
-int de_screen_w(void) { return SCREEN_W; }
-int de_screen_h(void) { return SCREEN_H; }
+int de_screen_w(void) { return de_sw; }   // active canvas dims (Phase 1a: == SCREEN_W until 1b)
+int de_screen_h(void) { return de_sh; }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

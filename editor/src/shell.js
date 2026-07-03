@@ -1921,8 +1921,8 @@ function rlogClear() {
 function rlogAddLine(text, cls) {
   const line = document.createElement('div')
   if (cls) line.className = cls
-  // linkify https URLs — click opens the system browser (not the editor window)
-  const re = /https?:\/\/[^\s)]+/g
+  // linkify https URLs (→ system browser) and file:// paths (→ default app, e.g. a press kit)
+  const re = /(?:https?|file):\/\/[^\s)]+/g
   let last = 0, m
   while ((m = re.exec(text)) !== null) {
     const url = m[0]
@@ -1932,7 +1932,8 @@ function rlogAddLine(text, cls) {
     a.textContent = url
     a.addEventListener('click', e => {
       e.preventDefault()
-      if (window.studio?.openExternal) window.studio.openExternal(url)
+      if (url.startsWith('file://')) window.studio?.openPath?.(decodeURI(url.slice('file://'.length)))
+      else if (window.studio?.openExternal) window.studio.openExternal(url)
       else window.open(url, '_blank')
     })
     line.appendChild(a)

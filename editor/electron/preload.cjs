@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('studio', {
   deployIos:    (code, cfg) => ipcRenderer.invoke('studio:deploy-ios', code, cfg),
   publish:      (code, cfg) => ipcRenderer.invoke('studio:publish', code, cfg),
   openExternal: (url)       => ipcRenderer.invoke('studio:open-external', url),
+  openPath:     (p)         => ipcRenderer.invoke('studio:open-path', p),
   setCartName:  (name)     => ipcRenderer.send('cart:set-name', name),
   // Apps view
   listApps:     ()               => ipcRenderer.invoke('studio:list-apps'),

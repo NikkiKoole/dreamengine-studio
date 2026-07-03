@@ -1247,6 +1247,11 @@ ipcMain.handle('studio:build-web', async (_event, code, cfg) => {
 ipcMain.handle('studio:open-external', (_e, url) => {
   if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
 })
+// open a LOCAL file with its default app — only within the repo (press kits, exports)
+ipcMain.handle('studio:open-path', (_e, p) => {
+  const abs = String(p || ''), ROOT = path.join(__dirname, '../..')
+  if (abs && abs.startsWith(ROOT)) shell.openPath(abs)
+})
 
 // ── Apps view: list app manifests (apps/<name>/app.json) ──────
 ipcMain.handle('studio:list-apps', async () => {
@@ -1333,13 +1338,16 @@ ipcMain.handle('studio:press-kit', async (_e, name) => {
   if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, output: 'bad app name' }
   const ROOT = path.join(__dirname, '../..')
   log(`\n── press-kit ${name} ──\n`)
+  // per-app screenshots dir — NOT the shared build/.shots (that pulls another app's frames).
+  // Empty until the per-app store-shots pipeline populates it → a sparse-but-correct kit.
+  const shotsDir = path.join('apps', name, 'screenshots')
   return new Promise(resolve => {
-    const proc = spawn('node', [path.join(ROOT, 'tools/press-kit.js'), name], { cwd: ROOT })
+    const proc = spawn('node', [path.join(ROOT, 'tools/press-kit.js'), name, '--shots', shotsDir], { cwd: ROOT })
     proc.stdout.on('data', c => log(c.toString()))
     proc.stderr.on('data', c => log(c.toString()))
     proc.on('exit', code => {
       const out = path.join(ROOT, 'site/press', name, 'index.html')
-      if (code === 0 && fs.existsSync(out)) { try { shell.showItemInFolder(out) } catch {} }
+      if (code === 0 && fs.existsSync(out)) log(`\npreview: file://${out}\n`)   // clickable in the log
       resolve({ ok: code === 0 })
     })
     proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })

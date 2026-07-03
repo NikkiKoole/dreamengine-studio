@@ -153,7 +153,10 @@ folder layout is kept**
 derive from the cart via `play.js`/`make-gif.js`/`de:meta`, plus a `store-status.js`
 drift oracle) — + a "⬆ TestFlight" button in the panel. Gated on channel B's open
 product decisions (which app, price, original palette —
-[`sharing-channels.md`](sharing-channels.md) §Channel B).
+[`sharing-channels.md`](sharing-channels.md) §Channel B). The *judgment* layer above this
+plumbing (hero-frame selection, copy transcreation, guidelines pre-flight, a whole-page
+stranger-legibility audit) is brainstormed in [`store-agents.md`](store-agents.md) —
+each split at the script/agent boundary.
 
 ## The umbrella-app build ladder — the pick-up point (2026-07-03)
 
@@ -189,9 +192,19 @@ in order (each rung small, only #1 touches the engine):
    family someday: `pal()`/`palt()`/`fillp()`/`font()`/`camera()`/`clip()` are
    set-and-hold too and currently bleed across a switch (racks redraw their own state
    every frame, so it doesn't bite Tinyjam yet).
-2. **Manifest + generator** — `apps/tinyjam/app.json` + a tool that emits what
-   `tools/bundle-spike/build.sh` hardcodes (renamed TUs, dispatcher, staging). Adding a
-   rack = one manifest line.
+2. ~~**Manifest + generator**~~ — **DONE (2026-07-03).** `apps/tinyjam/app.json` (the
+   decided `apps/<name>/` home) + `tools/build-app.js`: stages assets, compiles each
+   cart TU with the `-D<entry>=<slug>_<entry>` renames, detects optional entry points
+   via `nm` (no hand-written stubs — yacht's missing `init()` is found, not known),
+   generates the dispatcher shim (TAB cycles N carts, each switch = `de_switch_cart(ctx)`),
+   links → `build/<name>`. **Adding a rack = one manifest line.** Guards: cart count vs
+   `SOUND_CART_CTX` parsed live from sound.h (no drift), screen/grid dims must match
+   across carts (next-spike #3 honored), first-cart-with-sprites staging warns when
+   several carts bring sheets (next-spike #1 still open). Verified: tinyjam (acid 136 →
+   yacht 102 → acid 136 restored) and an ad-hoc THREE-cart app (groovebox → epiano →
+   mellotron → groovebox, pattern + 123bpm intact) — N>2 works. `launcher`/`iap`/`icon`
+   manifest fields are accepted-but-parked for rungs 3/4/iOS. The hand-written
+   `bundle-spike/` stays as the minimal reference + proof-sound.sh home.
 3. **Launcher cart** — the menu screen (fed by each rack's `de:meta`), replacing TAB.
 4. **`mac-app.sh` consumes the manifest** → a signed, notarized Tinyjam.app with the
    full roster: channel C's rehearsal of the App Store shape. iOS then reuses

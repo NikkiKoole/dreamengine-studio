@@ -1464,13 +1464,27 @@ async function renderAppsList() {
     card.dataset.app = a.dir
     const meta = [a.carts.join(', '), a.iap ? `${a.iap} IAP` : ''].filter(Boolean).join('  ·  ')
     const L = a.listing || {}
-    const lrow = (k, v) => v ? `<div class="app-lrow"><span class="app-lk">${k}</span><span class="app-lv">${escHtml(v)}</span></div>` : ''
+    // char-count badge (red if over Apple's limit); a clickable "key" that fills the research box
+    const cc = (v, lim) => v ? `<span class="app-cc${v.length > lim ? ' app-over' : ''}">${v.length}/${lim}</span>` : ''
+    const chip = t => `<span class="kw-chip" data-term="${escHtml(t)}">${escHtml(t)}</span>`
+    const kwChips = kw => String(kw || '').split(',').map(s => s.trim()).filter(Boolean).map(chip).join('')
+    const lrow = (k, v, lim) => v ? `<div class="app-lrow"><span class="app-lk">${k}</span><span class="app-lv">${escHtml(v)}</span>${cc(v, lim)}</div>` : ''
     const listingHtml = (L.title || L.subtitle || L.keywords)
-      ? `<div class="app-listing">${lrow('title', L.title)}${lrow('subtitle', L.subtitle)}${lrow('keywords', L.keywords)}</div>`
+      ? `<div class="app-listing">${lrow('title', L.title, 30)}${lrow('subtitle', L.subtitle, 30)}`
+        + (L.keywords ? `<div class="app-lrow"><span class="app-lk">keywords</span>${cc(L.keywords, 100)}</div><div class="kw-chips">${kwChips(L.keywords)}</div>` : '')
+        + `<div class="app-hint">click any key ↑↓ to drop it in the research box, then hit research</div></div>`
       : `<div class="app-listing app-nolisting">no listing yet — add a "listing" block to app.json</div>`
+    // IAPs carry their OWN copy — name + description are each a searchable App Store surface.
+    const iapHtml = (a.iapProducts && a.iapProducts.length)
+      ? `<div class="app-iap"><span class="app-lk">in-app purchases</span> <span class="rs-dim">— each name/desc is its own searchable surface</span>`
+        + a.iapProducts.map(p => `<div class="iap-row">${chip(p.name)}<span class="rs-dim">$${escHtml(p.price)}</span>${cc(p.name, 30)}`
+          + `<div class="iap-desc">${escHtml(p.desc)}${cc(p.desc, 45)}</div></div>`).join('')
+        + `</div>`
+      : ''
     card.innerHTML = `<div class="app-name"></div><div class="app-meta"></div>
       <div class="app-actions" hidden>
         ${listingHtml}
+        ${iapHtml}
         <span class="app-sec">give</span>
         <button data-act="mac">🍎 Mac app</button>
         <button data-act="ios">📱 iOS app</button>
@@ -1495,6 +1509,17 @@ async function renderAppsList() {
 document.querySelector('.tab[data-tab="apps"]')?.addEventListener('click', renderAppsList)
 // click a card → toggle its actions; click an action → run the app-scoped tool (streams to runtime log)
 document.getElementById('apps-list')?.addEventListener('click', async e => {
+  // a keyword/IAP "key" chip → drop the term in the research box (don't auto-run; the maker hits
+  // research to see the results). Handled before the card-toggle so clicking a chip doesn't collapse.
+  const chip = e.target.closest('.kw-chip')
+  if (chip) {
+    e.stopPropagation()
+    const term = chip.dataset.term || ''
+    const box = document.getElementById('aso-terms')
+    if (box) { box.value = term; box.scrollIntoView({ behavior: 'smooth', block: 'center' }); box.focus() }
+    showToast(`"${term}" → research box · hit research to see results`, 2500)
+    return
+  }
   const btn = e.target.closest('button[data-act]')
   if (btn) {
     if (!window.studio?.buildApp) { showToast('requires the desktop app  (npm start)', 3000); return }

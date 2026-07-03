@@ -287,6 +287,20 @@ html, body {
 .sc-gotchas ul { margin: 6px 0 0; padding-left: 16px; }
 .sc-gotchas li { font-size: 11px; color: var(--fg-dim); margin: 4px 0; line-height: 1.45; }
 .sc-gotchas code { font-size: 10px; }
+/* clickable keyword / IAP "keys" + char-count badges on the app card */
+.kw-chips { margin: 3px 0 2px; }
+.kw-chip {
+  display: inline-block; margin: 2px 3px; padding: 1px 8px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 10px; font-size: 11px; color: var(--fg);
+  background: var(--bg); user-select: none;
+}
+.kw-chip:hover { color: var(--accent); border-color: var(--accent); }
+.app-cc { margin-left: 6px; font-size: 10px; color: var(--fg-dim); }
+.app-cc.app-over { color: #e88; font-weight: bold; }
+.app-hint { font-size: 10px; color: var(--fg-dim); font-style: italic; margin-top: 3px; }
+.app-iap { margin: 8px 0; padding-top: 6px; border-top: 1px solid var(--border); }
+.iap-row { margin: 5px 0; }
+.iap-desc { font-size: 11px; color: var(--fg-dim); margin: 1px 0 0 4px; }
 .app-card {
   border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;

@@ -1263,8 +1263,12 @@ ipcMain.handle('studio:list-apps', async () => {
       if (!fs.existsSync(mf)) continue
       try {
         const m = JSON.parse(fs.readFileSync(mf, 'utf8'))
-        const iap = (m.iap && Array.isArray(m.iap.products)) ? m.iap.products.length : 0
-        apps.push({ dir, name: m.name || dir, carts: m.carts || [], launcher: m.launcher || '', iap, listing: m.listing || null })
+        const products = (m.iap && Array.isArray(m.iap.products)) ? m.iap.products : []
+        // IAP display name + description are their OWN searchable ASO surface (Apple indexes them),
+        // so hand back the copy, not just a count. Limits: name 30, desc 45.
+        const iapProducts = products.map(p => ({ id: p.id || '', name: p.name || '', desc: p.desc || '', price: p.price || '' }))
+        apps.push({ dir, name: m.name || dir, carts: m.carts || [], launcher: m.launcher || '',
+          iap: products.length, iapProducts, listing: m.listing || null })
       } catch {}
     }
     return { ok: true, apps }

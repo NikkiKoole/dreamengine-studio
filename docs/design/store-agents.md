@@ -431,6 +431,18 @@ live-search drift is invisible to any file check (hence the standing "re-run" ru
 The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror)**, with
 **`aso-score` the terminal scoreboard** you + the agent iterate a listing on. No step generates prose.
 
+### Apps view: IAP copy + clickable keyword "keys" (2026-07-03)
+
+Two Apps-card additions so the *whole* searchable surface is visible and drillable:
+- **IAP copy is shown, not just counted.** Each `iap.products[]` entry's **name (≤30) + description
+  (≤45)** is its own App-Store-indexed search surface, so the card renders them with live char-count
+  badges (red when over). This is where the keyword packer's *overflow* lands — the module-specific
+  terms that don't fit the shared app field (`techno, acid, 808`) belong on the per-module IAP tiles.
+- **Clickable keyword keys.** Every keyword-field entry and IAP name renders as a little clickable
+  chip; clicking one **drops that term into the research box** (doesn't auto-run — you hit research
+  to see its competition). Per-term drill-down, the manual companion to 🔬 analyze's batch. `listApps`
+  now returns `iapProducts[]`; chips carry `data-term`.
+
 ### Parked — smarter scoring (brainstorm 2026-07-03, not built)
 
 Two directions surfaced while proving `aso-score`, worth building *only if* the loop earns it:

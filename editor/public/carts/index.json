@@ -5572,6 +5572,17 @@
     "genre": "space"
   },
   {
+    "title": "tinyjam menu",
+    "description": "The launcher screen for multi-cart apps: a humble program picker whose entries come from each cart's own de:meta. In an app bundle this is the boot screen — every rack in the manifest shows up as an entry (title from its de:meta, summary in the footer) and picking one switches cart. Standalone it runs against a built-in demo roster. up/down, hover: choose - click, tap, enter or Z: open - in a bundle, TAB comes back here",
+    "file": "tinyjam-menu.cart.png",
+    "created": "2026-07-03",
+    "kind": [
+      "tech-demo"
+    ],
+    "teaches": [],
+    "lineage": "The umbrella-app launcher — build-ladder rung 3 of docs/design/share-panel.md. Inside a bundle (tools/build-app.js compiles it with -DAPP_BUNDLE) the roster comes from a generated app_roster.h fed by each rack's own de:meta, and picking an entry calls the dispatcher shim's app_launch(); standalone it carries a demo roster so the menu stays a runnable, bakeable cart on its own."
+  },
+  {
     "title": "tinyjam — heart + notes logo",
     "description": "Internal asset cart: draws the Tinyjam logo — a glossy amber heart cradling a smooth cream beamed eighth-note pair, all from engine primitives (no bitmap-font glyphs); a one-line tweak swaps the note to berry-jam purple. Tweak the constants at the top and re-bake to generate variations.",
     "file": "tinyjam.cart.png",

@@ -1,0 +1,9 @@
+# tinyjam-menu — keyboard walk of the launcher: arrow down to the 2nd entry,
+# ENTER "opens" it (standalone demo roster: the green * resume marker lands on it,
+# the footer follows the selection).
+# frames 100
+# fps 30
+down 30 DOWN
+up 32 DOWN
+down 60 ENTER
+up 62 ENTER

@@ -60,3 +60,8 @@ dependency, no DSL runtime.
 - Still gated where [`sharing-channels.md`](../design/sharing-channels.md) §Channel B
   put it: the product decision (which app first) and the original-palette rule come
   before any of this runs in anger.
+- This ADR owns the *plumbing*. The **judgment layer above it** — the agentic work that
+  decides whether an app gets accepted and discovered (hero-frame selection, copy
+  transcreation, ASO, guidelines pre-flight, review triage) — is brainstormed in
+  [`store-agents.md`](../design/store-agents.md), which draws the script/agent boundary
+  for each: scripts prepare → agent decides → scripts execute.

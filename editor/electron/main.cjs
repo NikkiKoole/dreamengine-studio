@@ -1352,6 +1352,10 @@ ipcMain.handle('studio:aso-suggest', async (_e, terms, country) => {
     proc.on('error', e => resolve({ ok: false, error: String(e.message) }))
   })
 })
+// app-scoped: build the committed SEO worksheet (writes apps/<name>/seo-brief.md), and the
+// mirror that checks the finished copy against it. Both stream to the aso log panel.
+ipcMain.handle('studio:aso-brief', (_e, name) => runAsoTool(_e, 'aso-brief.js', [String(name)]))
+ipcMain.handle('studio:aso-coverage', (_e, name) => runAsoTool(_e, 'aso-coverage.js', [String(name)]))
 ipcMain.handle('studio:aso-lint', async (_e, f = {}) =>
   runAsoTool(_e, 'aso-lint.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),
     ...flag('keywords', f.keywords), ...flag('research', f.research)]))

@@ -13,7 +13,7 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 **Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
 `aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
 (topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
-📄 press kit, 🍎/📱 builds, 🔎 research / 💡 suggest / ✅ lint / 🧩 compose). The app manifest gained a `listing` block
+📄 press kit, 🍎/📱 builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / ✅ lint / 🪞 check). The app manifest gained a `listing` block
 (title/subtitle/keywords). Proven on Tiny Jam.
 
 **Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.
@@ -365,6 +365,36 @@ demand data into own-domain SEO for the same zero cost.
 > `amp-api` suggestions (401), and `suggestqueries.google.com` (live);
 > Apple Search Term Rank Report writeup (aso.dev/aso/search-term-rank);
 > Apple Ads API docs (developer.apple.com/documentation/apple_ads).
+
+## Palette + mirror — surfacing keywords WITHOUT AI-generating the press kit
+
+The maker's concern (2026-07-03), and the right one: keyword tooling must **never write the
+press page** — that road ends in soulless, keyword-stuffed AI copy. The `press.md` prose stays
+100% human (it has a voice; that's the ADR-0022 *legible-to-a-stranger* soul). So the tools give
+a **palette and a mirror, never the painting**:
+
+- **`tools/aso-brief.js` — the palette (before you write).** Generates a committed worksheet,
+  `apps/<name>/seo-brief.md`, that you write *against*. It derives seeds from each cart's
+  `de:meta` (teaches → category terms), runs `aso-research` + `aso-suggest`, and lays out: char
+  budgets + your current listing with counts · **store WORDS** (priority order, ★ = both searched
+  AND targeted) for the keyword field → `aso-compose` · **website/press PHRASES** people google →
+  work into `press.md` in your own words · a **competition** table (difficulty + strongest
+  incumbent per seed, so you know what's winnable). It emits *vocabulary + demand ranking only,
+  never a sentence*. Committed + regenerable (ADR-0026's "copy/assets live next to the manifest");
+  a trailing `<!-- aso-coverage … -->` block (invisible in rendered markdown) is the contract the
+  mirror reads.
+- **`tools/aso-coverage.js` — the mirror (after you write).** Reads your finished `press.md` +
+  listing against the brief and reports (a) **phrase coverage** (which demand phrases your prose
+  naturally hits; high-value misses first — you decide which fit), (b) **word coverage** (store
+  words present anywhere), and (c) **stuffing** — any content word over-repeated in the prose,
+  which reads spammy. Coverage gaps are advisory; **it exits non-zero only on stuffing** — i.e. it
+  fails you for sounding robotic, not for leaving a keyword on the table. This is the ADR-0022
+  two-part bar aimed at the store page: *discoverable* AND *still reads human*.
+
+The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror).** No step
+generates prose. Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.
+Open follow-on (was "feed phrases into press-kit"): the phrases now reach the press page *through
+the human*, via the worksheet — the honest version of that idea.
 
 ## Open questions
 

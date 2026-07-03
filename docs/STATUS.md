@@ -34,7 +34,7 @@ _Last updated: 2026-07-02 (**LOCKSTEP NETPLAY — RUNGS 1 & 2 SHIPPED: two nativ
   not-stretch), `store-contact` (hero-frame contact sheet), `press-kit` (a presskit()-style page
   from cart data). Editor surface: a topbar **⇪ Share** popover (per-cart exports, grouped by
   audience) + an **Apps** tab (app-less ASO lab · apps list from `apps/*/app.json` · per-app
-  actions: 📸 screenshots → 📄 press kit, 🍎/📱 Mac/iOS builds, 🔎 research / 💡 suggest / ✅ lint / 🧩 compose the app's
+  actions: 📸 screenshots → 📄 press kit, 🍎/📱 Mac/iOS builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / ✅ lint / 🪞 check the app's
   `listing`). The app manifest gained a `listing` block (title/subtitle/keywords) as the
   machine-readable home. Design + rationale: [`design/store-agents.md`](design/store-agents.md),
   [`design/share-panel.md`](design/share-panel.md), [`design/press-kit.md`](design/press-kit.md);

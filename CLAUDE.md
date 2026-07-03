@@ -152,6 +152,13 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              Apple's popularity column via Google Autocomplete ("alphabet soup" — no key/account).
                              Two outputs: single WORDS → the App Store keyword field (→ aso-compose) + natural
                              PHRASES → website/press-kit SEO. --quick/--json. Design: docs/design/store-agents.md §ASO
+             aso-brief.js    the PALETTE: generate a committed SEO worksheet (apps/<name>/seo-brief.md) you write
+                             press.md + the listing AGAINST — char budgets, store WORDS (→ compose), press PHRASES,
+                             a competition table. Seeds from de:meta; runs research+suggest. Emits vocabulary, NEVER
+                             prose (no AI-generated press kits). Design: docs/design/store-agents.md §"palette + mirror"
+             aso-coverage.js the MIRROR: check finished press.md + listing vs seo-brief.md — phrase/word coverage +
+                             a STUFFING warning (exits nonzero only on stuffing: fails you for reading robotic, not
+                             for a missed keyword). The ADR-0022 two-part bar on the store page. §"palette + mirror"
              aso-lint.js     lint App Store metadata FIELDS (offline): title/subtitle/keyword char limits, wasted
                              comma-spaces + stopwords + multi-word entries, cross-field repeats (a word only ranks
                              once), and --research coverage. The deterministic half of the metadata composer (agent

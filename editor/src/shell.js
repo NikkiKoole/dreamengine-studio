@@ -1432,10 +1432,12 @@ async function renderAppsList() {
         <button data-act="shots">📸 screenshots</button>
         <button data-act="press">📄 press kit</button>
         <span class="app-sec">sell</span>
+        <button data-act="brief">📝 seo worksheet</button>
         <button data-act="research">🔎 research keywords</button>
         <button data-act="suggest">💡 suggest keywords</button>
-        <button data-act="lint">✅ lint listing</button>
         <button data-act="compose">🧩 compose keywords</button>
+        <button data-act="lint">✅ lint listing</button>
+        <button data-act="coverage">🪞 check copy</button>
       </div>`
     card.querySelector('.app-name').textContent = a.name
     card.querySelector('.app-meta').textContent = meta
@@ -1473,6 +1475,18 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       const sugEl = document.getElementById('sug-terms')
       if (sugEl) { sugEl.value = res.terms.slice(0, 4).join(', '); sugEl.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
       sugRun?.click()
+      return
+    }
+    // brief writes apps/<app>/seo-brief.md; coverage checks the finished copy — both stream to
+    // the aso log panel (they're ASO output, not a build), so route there, not the runtime log.
+    if (act === 'brief' || act === 'coverage') {
+      const stop = busyDots(btn, act === 'brief' ? 'building (fetches Google/App Store)' : 'checking', label); btn.disabled = true
+      asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
+      document.getElementById('aso-terms')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (act === 'brief') await window.studio.asoBrief(app)
+      else await window.studio.asoCoverage(app)
+      stop(); btn.disabled = false
+      if (act === 'brief') showToast(`wrote apps/${app}/seo-brief.md — open it beside press.md`, 3500)
       return
     }
     const stop = busyDots(btn, 'working', label); btn.disabled = true

@@ -1,0 +1,110 @@
+# SEO worksheet — Tiny Jam
+
+> **This is a palette, not the page.** Write `press.md` and the App Store listing in your
+> own voice; reach here for the words the world actually uses. Nothing here is copy — it is
+> never rendered into the press page. Regenerate: `node tools/aso-brief.js tinyjam`. Check your
+> finished copy against it: `node tools/aso-coverage.js tinyjam` (the mirror).
+
+_generated 2026-07-03 · country us · seeds: step sequencer, subtractive synth, drum synthesis, generative melody, chord voicing, song arrangement, swing timing, analog voice modeling_
+
+---
+
+## Char budgets & your current listing
+
+| field | limit | yours | count |
+|---|---|---|---|
+| Title | 30 | Tiny Jam: Pocket Music Toys | 27/30 |
+| Subtitle | 30 | Make grooves with micro synths | 30/30 |
+| Keywords | 100 | groovebox,drum,machine,sampler,sequencer,beat,studio,loop,mixer,auv3,operator,bass,pads,rhythm,arp | 98/100 |
+
+You rank on the UNION of the three — a word only needs to appear once. Title/subtitle read
+like a person wrote them; the keyword field is the hidden word-soup.
+
+## For the App Store keyword field — WORDS (priority order)
+
+Apple auto-combines single words and ignores stopwords, so feed singles. ★ = the word is both
+**searched** (Google demand) and **targeted** (a competitor uses it) — the strongest picks.
+
+- ★ guitar
+- ★ studio
+- ★ machine
+- ★ piano
+- ★ midi
+- ★ drums
+- generator
+- voicings
+- chords
+- logic
+- golf
+- songs
+- ableton
+- sound
+- vst
+- whether
+- pdf
+- jazz
+- changer
+- plugin
+- book
+- lyrics
+- synthesizer
+- auv3
+
+Paste into `aso-compose`:
+
+```
+node tools/aso-compose.js --title "Tiny Jam: Pocket Music Toys" --subtitle "Make grooves with micro synths" \
+  --candidates "guitar,studio,machine,piano,midi,drums,generator,voicings,chords,logic,golf,songs,ableton,sound,vst,whether,pdf,jazz,changer,plugin,book,lyrics,synthesizer,auv3"
+```
+
+Already in your title/subtitle (don't repeat in keywords): music
+
+## For your website / press kit — PHRASES people google
+
+Google ranks natural-language phrases, not word-soup — so these belong in `press.md` prose,
+the page `<title>`/headings, and the meta description. **Work in the ones that fit, in your
+own words** — don't paste them. (This is the demand side; the store field above is where the
+bare keywords go.)
+
+- what is a subtractive synth
+- what is chord voicing
+- what is a step sequencer
+- drum manufacturing process
+- 8 step sequencer diy
+- a subtractive synth which circuit determines the initial pitch
+- open voicing chords
+- chord voicing vs inversion
+- step sequencer fl studio
+- step sequencer logic
+- step sequencer ableton
+- step sequencer vst
+- step sequencer plugin
+- step sequencer reaper
+- step sequencer online
+- step sequencer software
+- step sequencer app
+- subtractive synthesis diagram
+- subtractive synthesis waveforms
+- subtractive synth vst
+
+## Competition — what's winnable
+
+| seed | difficulty | strongest incumbent |
+|---|---|---|
+| step sequencer | MEDIUM 50/100 | Drum Machine - Music Maker (6k ratings) |
+| subtractive synth | MEDIUM 51/100 | Redshrike - AUv3 Plug-in Synth (0k ratings) |
+| drum synthesis | HARD 74/100 | DrumKnee 3D Drums - Drum set (16k ratings) |
+| generative melody | HARD 69/100 | AI Song Music Generator: Muzio (17k ratings) |
+| chord voicing | MEDIUM 56/100 | Keytionary: Chords & Voicings (0k ratings) |
+| song arrangement | HARD 75/100 | AI Song Generator: Music Maker (2k ratings) |
+| swing timing | HARD 66/100 | Swing Timing (— ratings) |
+| analog voice modeling | HARD 66/100 | AI Voice Clone Generator (5k ratings) |
+
+EASY + relevant + low-authority = where a fresh app wins. HARD = crowded; skip unless core.
+
+---
+_worksheet regenerable; edit `press.md`, not this file. Terms drift — re-run before a launch pass._
+
+<!-- aso-coverage
+{"generated":"2026-07-03","country":"us","seeds":["step sequencer","subtractive synth","drum synthesis","generative melody","chord voicing","song arrangement","swing timing","analog voice modeling"],"phrases":["what is a subtractive synth","what is chord voicing","what is a step sequencer","drum manufacturing process","8 step sequencer diy","a subtractive synth which circuit determines the initial pitch","open voicing chords","chord voicing vs inversion","step sequencer fl studio","step sequencer logic","step sequencer ableton","step sequencer vst","step sequencer plugin","step sequencer reaper","step sequencer online","step sequencer software","step sequencer app","subtractive synthesis diagram","subtractive synthesis waveforms","subtractive synth vst"],"words":["guitar","studio","machine","piano","midi","drums","generator","voicings","chords","logic","golf","songs","ableton","sound","vst","whether","pdf","jazz","changer","plugin","book","lyrics","synthesizer","auv3"],"visible":["music"]}
+-->

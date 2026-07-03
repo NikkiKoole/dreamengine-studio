@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('studio', {
   listApps:     ()               => ipcRenderer.invoke('studio:list-apps'),
   asoResearch:  (terms, country) => ipcRenderer.invoke('studio:aso-research', terms, country),
   asoSuggest:   (terms, country) => ipcRenderer.invoke('studio:aso-suggest', terms, country),
+  asoBrief:     (name)           => ipcRenderer.invoke('studio:aso-brief', name),
+  asoCoverage:  (name)           => ipcRenderer.invoke('studio:aso-coverage', name),
   asoLint:      (fields)         => ipcRenderer.invoke('studio:aso-lint', fields),
   asoCompose:   (fields)         => ipcRenderer.invoke('studio:aso-compose', fields),
   onAsoLog:     (cb)             => ipcRenderer.on('aso:log', (_, s) => cb(s)),

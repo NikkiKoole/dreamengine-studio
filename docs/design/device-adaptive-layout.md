@@ -81,7 +81,9 @@ nowhere) and "N hand-tuned pixel layouts" (unmaintainable).
 4. **Safe-area rect + rotation.** A `safe_rect()` inset (notch / home-bar — folds into `lay_at`
    anchoring per responsive-layout.md primitive #3), and the iOS `Info.plist` must actually *permit*
    rotation (the spike letterboxes / likely locks today). Retires the temporary hold-to-home in favor
-   of the `de_safe_top()` nav-bar idea (ios-plan backlog #3).
+   of the `de_safe_top()` nav-bar idea (ios-plan backlog #3). **Rotation is a per-rack *policy*, not
+   always-on:** a rack may declare `free` / `lock-landscape` / `lock-portrait` (see "disclosure mode
+   is per-shape" below); the shell constrains the active rack's orientation accordingly.
 5. **A back-to-root keep-out rect.** The multi-cart shell owns the "back to launcher" affordance
    ([`share-panel.md`](share-panel.md) hold-to-home / `de_switch_cart`), so it must hand the active
    cart a **reserved region** its controls avoid. The space-efficient choice (proven in `rackfit.c`)
@@ -148,6 +150,35 @@ Findings that shaped the model:
 **Product implication for Tinyjam:** the dense racks want exactly this — phone shows the sequencer +
 the sections that fit, the rest one tap away; iPad shows the whole panel. It's the same rack code, and
 the section-switcher a phone needs is *emergent*, not hand-authored per device.
+
+### The disclosure MODE is itself per-shape — and orientation may be LOCKED (2026-07-03)
+
+`acidfit` grew a third disclosure mode — an **accordion** (maker's call: the honest contrast is
+"expand a few in place" vs. "cram *everything* open at sub-finger size", not vs. hidden chips). It
+revealed the mode is not one-size:
+
+- **Accordion shines on a *tall* screen** (portrait phone: 3/5 sections open, the rest listed as
+  collapsible headers one tap away, in-context, sequencer pinned).
+- **Accordion *degenerates* on a *short* screen** (landscape phone: **0/5 open** — the headers +
+  pinned sequencer eat the whole height, so nothing can expand). A short-wide screen wants **tabs /
+  a segmented switch** (horizontal), not a vertical accordion.
+
+So the disclosure **mode** is a per-*shape* choice (roomy → inline-all · tall → accordion · short-wide
+→ tabs), and separately **some racks are better with rotation LOCKED** — a dense knob rack, or
+otafamily's drag-along **ribbons** (which want horizontal pitch-length), may simply be better *always
+landscape* than made to reflow both ways. A mediocre both-ways reflow can lose to one committed
+orientation.
+
+**Both are CHECKABLE, and both can be true for one rack.** The fit decision is deterministic
+(finger-budget math), so a **`layout-check.js` oracle** (twin of `mobile-lint` / `ui-audit`) can sweep
+a rack across the device×orientation matrix and report, per shape: the mode it would pick, sections
+open vs. deferred, min control size (finger-%), wasted space, and **degenerate flags** (0 sections
+open, sub-finger controls, a collapsing mode). From that it recommends an **orientation policy** —
+`free` / `lock-landscape` / `lock-portrait`, a per-rack manifest field the shell honours (iOS
+orientation is per-view-controller, so a multi-cart app can constrain per *active* rack). The
+prototypes (`rackfit` / `acidfit`, and next `otafit` for the ribbon/orientation case) are the *manual*
+version of this oracle today; it graduates alongside the engine work. This is the responsive-era twin
+of the existing render/audio oracles in [`../guides/checks-and-oracles.md`](../guides/checks-and-oracles.md).
 
 ### Is the layout vocabulary complete? (reviewed 2026-07-03)
 

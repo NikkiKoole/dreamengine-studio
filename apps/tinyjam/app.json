@@ -2,5 +2,6 @@
   "name":     "Tinyjam",
   "bundleId": "com.dreamengine.tinyjam",
   "version":  "0.1",
-  "carts":    ["acidrack", "yachtrack"]
+  "carts":    ["acidrack", "yachtrack"],
+  "launcher": "tinyjam-menu"
 }

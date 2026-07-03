@@ -1,10 +1,13 @@
 # The share panel — one surface for every sharing action, and the "app" unit
 
-STATUS: BUILDING (2026-07-03) — **seam-#1 spike PASSED, then build-ladder rungs 1 AND 2
+STATUS: BUILDING (2026-07-03) — **seam-#1 spike PASSED, then build-ladder rungs 1, 2 AND 3
 SHIPPED, all same day**: `de_switch_cart()` + the per-cart sound context (rung 1, ear-verified,
-[ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md)) and
-`apps/<name>/app.json` + `tools/build-app.js` (rung 2 — adding a rack = one manifest line).
-**Fresh context: pick up at §"The umbrella-app build ladder" → rung 3 (launcher cart).** Plans the
+[ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md)),
+`apps/<name>/app.json` + `tools/build-app.js` (rung 2 — adding a rack = one manifest line),
+and the launcher cart (rung 3 — `tinyjam-menu.c` + the generated `app_roster.h`; Tinyjam
+boots into a de:meta-fed menu, TAB toggles rack ↔ overview, zero new engine API).
+**Fresh context: pick up at §"The umbrella-app build ladder" → rung 4 (`mac-app.sh` consumes
+the manifest).** Menu look/feel is still the maker's call (rung 3 sub-question b). Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.
@@ -131,9 +134,9 @@ Deliberately NOT covered — the next spikes, in order of need:
 4. ~~**Master-bus FX bleed**~~ — **DONE (2026-07-03), free with ladder rung 1:** the
    config-log replay behind `de_switch_cart()` covers master-bus FX the same as
    per-slot sounds (reset to boot defaults + replay the incoming cart's own config).
-5. **Per-cart save dirs** and the **launcher cart** (the spike's shim hardcodes the
-   pair; the manifest generates it). `de_switch_cart()` itself shipped with ladder
-   rung 1 — what remains here is the dispatch/menu side, not the sound side.
+5. **Per-cart save dirs** — the one still-open bit of this entry. ~~The launcher
+   cart~~ shipped as ladder rung 3 (`tinyjam-menu.c` + generated roster), and
+   `de_switch_cart()` with rung 1; racks sharing one `cart.sav` is what remains.
 
 ## The panel itself — three rungs
 
@@ -207,24 +210,30 @@ in order (each rung small, only #1 touches the engine):
    mellotron → groovebox, pattern + 123bpm intact) — N>2 works. `launcher`/`iap`/`icon`
    manifest fields are accepted-but-parked for rungs 3/4/iOS. The hand-written
    `bundle-spike/` stays as the minimal reference + proof-sound.sh home.
-3. **Launcher cart** ← the next bite. The menu screen replacing the generated shim's
-   blind TAB-cycle. Shape: the launcher is *itself a cart* (`launcher` in the manifest;
-   ctx slot of its own), `build-app.js` generates a roster header from each rack's
-   `de:meta` (title/description) so adding a rack auto-adds its menu entry, and picking
-   one calls `de_switch_cart()` — which already exists from rung 1, so NO new engine API
-   for the basic version. Sub-questions:
-   (a) **the way BACK — v1 (maker, 2026-07-03): TAB = enter the overview.** Repurpose
-   the shim's TAB from blind-cycle to "open the launcher" — good enough on desktop, zero
-   new surface. TAB doesn't exist on a phone, so the docced EVENTUAL direction (also
-   maker's, same day) is the **intro-panel seam**: an optional intro/title card fed by
-   `de:meta` (title, description, controls — carts already carry all three). Standalone
-   it's a cartridge label / cover page, worth having on its own; in a bundle the SAME
-   card gains "back to the overview", so a single cart never sees bundle chrome. Entry
-   input for that version: the pause key — the one already-reserved, claim-aware input
-   in every cart (same pattern as `de_players()` adding the multiplayer item only when
-   a cart opts in). Build TAB now; the intro panel is the touch-era upgrade.
-   (b) the menu's look/feel is the maker's call (program-picker / cartridge shelf /
-   radio-dial — ask before polishing).
+3. ~~**Launcher cart**~~ — **DONE (2026-07-03), zero new engine API as predicted.**
+   `tools/carts/tinyjam-menu.c` — the menu IS a cart (baked + registered like any other;
+   standalone it runs against a built-in demo roster, so it stays play.js-drivable).
+   `build-app.js` grew the `launcher` manifest field: the launcher TU compiles with
+   `-DAPP_BUNDLE` and a generated **`app_roster.h`** (one entry per rack — title +
+   description-summary straight from the rack's `de:meta`, so adding a rack auto-adds
+   its menu entry), boots first in a **ctx slot of its own** (ctx 0; racks shift to
+   1..N and count against `SOUND_CART_CTX`), and picks racks via two shim-implemented
+   (not engine) functions: `app_launch(i)` → `de_switch_cart` + dispatch, and
+   `app_current()` → roster index of the rack you came from (the menu's green resume
+   marker). TAB is sub-question (a)'s v1: **toggles rack ↔ overview** (the blind cycle
+   is gone whenever a launcher is present; launcher-less manifests keep it). The list
+   scrolls to keep the selection visible, so MANY racks fit. Two traps recorded:
+   de:meta prose carries em-dashes/curly quotes the bitmap fonts render as `?` —
+   `build-app.js` folds roster strings to ASCII; and headless bundle runs are
+   60fps-capped (vsync-off is a play.js-harness thing), so autoswitch proofs are
+   wall-clock-timeable. Verified: headless autoswitch round trip (menu → acid 136 →
+   yacht 102 → menu + resume marker, live-inspection screenshots) and a play.js script
+   driving the standalone menu (DOWN/ENTER picks entry 2). Still open, deliberately:
+   (b) the menu's **look/feel is the maker's call** (current look = a humble program
+   picker: title rows + summary footer — program-picker / cartridge shelf / radio-dial
+   are all on the table; ask before polishing). The **intro-panel seam** (de:meta title
+   card doubling as back-to-overview in bundles, pause-key entry) stays the docced
+   touch-era upgrade — TAB doesn't exist on phones.
 4. **`mac-app.sh` consumes the manifest** → a signed, notarized Tinyjam.app with the
    full roster: channel C's rehearsal of the App Store shape. iOS then reuses
    everything ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9).
@@ -240,10 +249,9 @@ in order (each rung small, only #1 touches the engine):
    previews/<locale>/}` — screenshots/previews derive from committed clip recipes
    (play.js / make-gif.js), copy drafts from de:meta, and `store-status.js` diffs this
    one directory against the live listing.
-2. Launcher-as-cart: good with the one-new-API cost (`de_switch_cart`)? It keeps the
-   menu in cart-land (lo-fi, ours) instead of native chrome. With MANY racks under the
-   umbrella (the maker's stated aim) this is a real menu screen, not a TAB toggle —
-   each cart's `de:meta` (title/description) can feed it via a generated header.
-   *(The sound half of `de_switch_cart` already shipped with ladder rung 1 — the
-   remaining cost is only the dispatch/registry side.)*
+2. ~~Launcher-as-cart~~ — **SETTLED by shipping (2026-07-03, ladder rung 3):** the menu
+   is a cart, fed by each rack's `de:meta` via the generated `app_roster.h`, and the
+   feared API cost never materialized — `app_launch`/`app_current` live in the
+   generated shim, not the engine. What's left of this question is only the menu's
+   look/feel (rung 3 sub-question b — maker's call).
 3. v1 panel placement: popover off one "share" toolbar button, or a tab like settings?

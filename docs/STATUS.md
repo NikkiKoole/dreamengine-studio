@@ -1235,7 +1235,16 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     Verified to N=3 (groovebox/epiano/mellotron ad-hoc app). Side-fix that fell out: live-inspection
     requests can target one process (`pid:<n>` line — two headless bundles raced for the shared
     `.bake` request files and served the wrong app's frame; debug-harness.md §Live inspection).
-    **Next: rung 3, the launcher cart** ([`design/share-panel.md`](design/share-panel.md) §ladder).
+    **Rung 3 shipped the same day too — the launcher cart:** `tools/carts/tinyjam-menu.c`
+    (a real registered cart; standalone = demo roster) + a `launcher` manifest field.
+    `build-app.js` generates `app_roster.h` from each rack's `de:meta` (title + summary,
+    folded to ASCII — bitmap fonts render em-dashes as `?`), the launcher boots first in
+    its own ctx slot, and the shim (not the engine — zero new API) implements
+    `app_launch(i)`/`app_current()`; TAB now toggles rack ↔ overview instead of
+    blind-cycling. Verified headless (menu → acid 136 → yacht 102 → menu + resume marker)
+    and via a play.js keyboard script on the standalone menu. Menu look/feel remains the
+    maker's call. **Next: rung 4 — `mac-app.sh` consumes the manifest**
+    ([`design/share-panel.md`](design/share-panel.md) §ladder).
 
 ---
 

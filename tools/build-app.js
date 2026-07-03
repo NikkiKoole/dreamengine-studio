@@ -10,7 +10,10 @@
 // ADR-0026's metadata-next-to-manifest layout):
 //   { "name": "Tinyjam", "bundleId": "com.dreamengine.tinyjam", "version": "0.1",
 //     "carts": ["acidrack", "yachtrack"],          // tools/carts/<c>.c, in context order
-//     "launcher": "...", "icon": "...", "iap": {}  // parked: rung 3 / mac-app / iOS rungs
+//     "launcher": "tinyjam-menu",                  // optional menu cart (rung 3): boots first,
+//                                                  // gets ctx 0 + a generated app_roster.h from
+//                                                  // each rack's de:meta; TAB = back to it
+//     "icon": "...", "iap": {}                     // parked: mac-app / iOS rungs
 //   }
 //
 // What it does:
@@ -23,8 +26,13 @@
 //      -Dinit=<slug>_init -Dspec=<slug>_spec (everything else in a cart is `static`,
 //      so the TUs link clean side by side), then asks `nm` which optional entry points
 //      (init/update/spec) the cart actually defines.
-//   4. Generates the dispatcher shim: TAB cycles carts, each switch = de_switch_cart(ctx)
-//      (the per-cart sound context, ADR-0027 / rung 1) + a one-time init.
+//   4. Generates the dispatcher shim: each switch = de_switch_cart(ctx) (the per-cart
+//      sound context, ADR-0027 / rung 1) + a one-time init. Without a launcher TAB
+//      blind-cycles the carts; with one, the launcher boots first at ctx 0, its
+//      app_launch(i) opens rack i, and TAB toggles rack <-> overview. The launcher TU
+//      compiles with -DAPP_BUNDLE and #includes the generated app_roster.h (one entry
+//      per rack: title + summary straight from the rack's de:meta — adding a rack to
+//      the manifest auto-adds its menu entry).
 //      DE_BUNDLE_AUTOSWITCH=<N> auto-cycles every N frames — the headless proof hook.
 //   5. Links with studio.c + raylib → build/<app name in the manifest, lowercased>.
 //
@@ -63,15 +71,16 @@ if (!app.name || !Array.isArray(app.carts) || app.carts.length === 0) {
   console.error('manifest needs at least: { "name": "...", "carts": ["cart", ...] }')
   process.exit(1)
 }
-for (const k of ['launcher', 'iap', 'icon'])
+for (const k of ['iap', 'icon'])
   if (app[k]) console.log(`note: manifest "${k}" is parked for a later rung — accepted, unused today`)
 
 // ── cap: contexts the engine actually has (never drifts from sound.h) ─────────
 const soundH = fs.readFileSync(path.join(ROOT, 'runtime/sound.h'), 'utf8')
 const ctxCap = parseInt((soundH.match(/#define\s+SOUND_CART_CTX\s+(\d+)/) || [])[1], 10)
 if (!ctxCap) { console.error('could not parse SOUND_CART_CTX from runtime/sound.h'); process.exit(1) }
-if (app.carts.length > ctxCap) {
-  console.error(`${app.carts.length} carts > SOUND_CART_CTX (${ctxCap}) — raise it in runtime/sound.h first`)
+const nCtx = app.carts.length + (app.launcher ? 1 : 0) // the launcher gets a ctx slot of its own
+if (nCtx > ctxCap) {
+  console.error(`${nCtx} contexts (carts${app.launcher ? ' + launcher' : ''}) > SOUND_CART_CTX (${ctxCap}) — raise it in runtime/sound.h first`)
   process.exit(1)
 }
 
@@ -96,6 +105,17 @@ for (const c of carts.slice(1)) {
       console.error('a manifest picks ONE size and its carts must match (share-panel.md next-spike #3)')
       process.exit(1)
     }
+}
+
+// the launcher cart (rung 3): dims-exempt — it draws relative to SCREEN_W/H, so it's
+// compiled at the app's size, whatever its own .cart.js (usually none) would say
+let launcher = null
+if (app.launcher) {
+  const src = path.join(ROOT, 'tools/carts', app.launcher + '.c')
+  if (!fs.existsSync(src)) { console.error(`launcher cart not found: tools/carts/${app.launcher}.c`); process.exit(1) }
+  launcher = { name: app.launcher, slug: slugOf(app.launcher), src, cfg: mk.loadConfig(src) }
+  if (launcher.cfg.sprites)
+    console.log(`note: launcher ${app.launcher} has a sprite config — ignored (the racks own the staged sheet; per-cart sheets = a later rung)`)
 }
 
 // ── staging ──────────────────────────────────────────────────────────────────
@@ -124,6 +144,41 @@ fs.writeFileSync(path.join(stage, 'map_data.h'),
 // studio.c includes them with these exact names — keep symbol spellings identical to make-cart:
 // SPRITES_DATA/SPRITES_DATA_LEN and MAP_DATA/MAP_DATA_LEN (the cHeader emits <sym>_LEN).
 
+// ── roster header for the launcher (rung 3) ──────────────────────────────────
+// One entry per rack, straight from the rack's own de:meta — adding a cart to the
+// manifest auto-adds its menu entry. The launcher #includes this under -DAPP_BUNDLE.
+if (launcher) {
+  const { readMeta } = require(path.join(__dirname, 'build-cart-index.js'))
+  const summaryOf = m => {
+    const d = m && m.description
+    return typeof d === 'object' && d ? (d.summary || '') : (d || '')
+  }
+  // the in-game bitmap fonts are ASCII-only — typographic chars in de:meta prose
+  // (em-dashes, curly quotes) would render as '?' on the menu, so fold them here
+  const ascii = s => String(s).normalize('NFKD')
+    .replace(/[—–]/g, '-').replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"').replace(/…/g, '...')
+    .replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '?')
+  const roster = carts.map(c => {
+    const meta = readMeta(fs.readFileSync(c.src, 'utf8'), c.name) || {}
+    return { slug: c.name, title: ascii(meta.title || c.name), desc: ascii(summaryOf(meta)) }
+  })
+  fs.writeFileSync(path.join(stage, 'app_roster.h'),
+`// GENERATED by tools/build-app.js from ${path.relative(ROOT, manifestFile)} — do not edit.
+// The launcher cart's view of the "${app.name}" app: one entry per rack, fed by each
+// rack's de:meta. app_launch/app_current are implemented by the dispatcher shim.
+#pragma once
+#define APP_NAME ${JSON.stringify(ascii(app.name))}
+#define APP_ROSTER_COUNT ${roster.length}
+typedef struct { const char *slug; const char *title; const char *desc; } AppRosterEntry;
+static const AppRosterEntry APP_ROSTER[APP_ROSTER_COUNT] = {
+${roster.map(r => `    { ${JSON.stringify(r.slug)}, ${JSON.stringify(r.title)}, ${JSON.stringify(r.desc)} },`).join('\n')}
+};
+void app_launch(int i);   // switch dispatch + sound context to rack i (roster index)
+int  app_current(void);   // roster index of the rack most recently active (-1 = none yet)
+`)
+}
+
 // ── compile each cart TU with renamed entry points ───────────────────────────
 const COMMON = [
   '-I' + path.join(ROOT, 'runtime'), '-I' + stage, '-I' + path.join(mk.RAYLIB, 'include'),
@@ -132,12 +187,15 @@ const COMMON = [
   '-DTOUCH_CONTROLS_DEFAULT=0', '-DSCALE_FILTER=0', '-O2', '-fno-delete-null-pointer-checks',
 ]
 const clang = (a) => execFileSync('clang', a, { stdio: ['ignore', 'pipe', 'pipe'] })
+// ctx order: the launcher (when present) boots first at ctx 0; racks follow at 1..N
+const units = launcher ? [launcher, ...carts] : carts
 const objs = []
-for (const c of carts) {
+for (const c of units) {
   const staged = path.join(stage, c.slug + '.c')
   fs.copyFileSync(c.src, staged)                     // provenance: the staged copy is what compiled
   const obj = path.join(stage, c.slug + '.o')
   clang(['-c', staged, '-o', obj, ...COMMON,
+    ...(c === launcher ? ['-DAPP_BUNDLE'] : []),     // launcher swaps its demo roster for app_roster.h
     `-Ddraw=${c.slug}_draw`, `-Dupdate=${c.slug}_update`,
     `-Dinit=${c.slug}_init`, `-Dspec=${c.slug}_spec`])
   const nm = execFileSync('nm', ['-gU', obj], { encoding: 'utf8' })
@@ -151,18 +209,34 @@ for (const c of carts) {
 }
 
 // ── generate the dispatcher shim ─────────────────────────────────────────────
-const N = carts.length
-const decls = carts.map(c => {
+const N = units.length
+const decls = units.map(c => {
   let s = `void ${c.slug}_draw(void);`
   s += c.has.update ? ` void ${c.slug}_update(void);` : ` static void ${c.slug}_update(void) {}`
   s += c.has.init   ? ` void ${c.slug}_init(void);`   : ` static void ${c.slug}_init(void) {}`
   return s
 }).join('\n')
+const tabLine = launcher
+  ? `if (keyp(KEY_TAB)) activate(active == 0 ? last_rack : 0);   // rack <-> overview (share-panel.md rung 3a)`
+  : `if (keyp(KEY_TAB)) activate((active + 1) % ${N});`
+const launcherSeam = launcher ? `
+// launcher seam — the menu cart (ctx 0) calls these via the generated app_roster.h
+void app_launch(int i) {          // i = roster index (rack order in the manifest)
+    if (i < 0 || i >= ${carts.length}) return;
+    activate(1 + i);
+}
+int app_current(void) {
+    int r = active ? active : last_rack;
+    return r - 1;                 // roster index; -1 = no rack opened yet
+}
+` : ''
 const shim = `// GENERATED by tools/build-app.js from ${path.relative(ROOT, manifestFile)} — do not edit.
 // Dispatcher shim for the "${app.name}" app: owns the real init/update/draw and forwards
 // to the active cart. Each switch = de_switch_cart(ctx) — the per-cart sound context
 // (ADR-0027): instruments, bus FX, wave tables, bpm all restore per cart.
-// TAB cycles carts (rung 3 replaces this with a launcher cart fed by de:meta).
+${launcher
+  ? `// The launcher cart "${launcher.name}" boots first (ctx 0); its app_launch() opens a rack,\n// TAB toggles rack <-> overview.`
+  : `// TAB cycles carts (add a "launcher" cart to the manifest for a real menu — rung 3).`}
 // DE_BUNDLE_AUTOSWITCH=<N> cycles every N frames — the deterministic headless proof hook.
 #include "studio.h"
 #include <stdlib.h>
@@ -171,19 +245,20 @@ ${decls}
 
 typedef struct { void (*init)(void); void (*update)(void); void (*draw)(void); } AppCart;
 static const AppCart carts[${N}] = {
-${carts.map(c => `    { ${c.slug}_init, ${c.slug}_update, ${c.slug}_draw },   // ctx ${carts.indexOf(c)}: ${c.name}`).join('\n')}
+${units.map((c, i) => `    { ${c.slug}_init, ${c.slug}_update, ${c.slug}_draw },   // ctx ${i}: ${c.name}${c === launcher ? ' (launcher)' : ''}`).join('\n')}
 };
 static int active = 0;
 static int booted[${N}] = { 0 };
 static int autoswitch = 0;
+${launcher ? '\nstatic int last_rack = 0;         // ctx of the rack most recently active (0 = none yet)' : ''}
 
 static void activate(int i) {
     if (i == active) return;
     de_switch_cart(i);            // engine swaps the whole sound world (panic + restore included)
-    active = i;
+    active = i;${launcher ? '\n    if (i > 0) last_rack = i;     // remember where TAB-from-overview goes back to' : ''}
     if (!booted[i]) { booted[i] = 1; carts[i].init(); }
 }
-
+${launcherSeam}
 void init(void) {
     const char *a = getenv("DE_BUNDLE_AUTOSWITCH");
     if (a) autoswitch = atoi(a);
@@ -192,7 +267,7 @@ void init(void) {
 }
 
 void update(void) {
-    if (keyp(KEY_TAB)) activate((active + 1) % ${N});
+    ${tabLine}
     if (autoswitch && frame() > 0 && frame() % autoswitch == 0)
         activate((active + 1) % ${N});
     carts[active].update();
@@ -223,8 +298,8 @@ try {
 }
 
 console.log(`✓ built build/${appId}  (${d0.screenW}x${d0.screenH} @${d0.scale}x)`)
-carts.forEach((c, i) => console.log(`    ctx ${i}: ${c.name}${c.has.init ? '' : '  (no init)'}${c.has.update ? '' : '  (no update)'}`))
-console.log('  TAB cycles carts · DE_BUNDLE_AUTOSWITCH=<frames> auto-cycles (headless proof)')
+units.forEach((c, i) => console.log(`    ctx ${i}: ${c.name}${c === launcher ? '  (launcher)' : ''}${c.has.init ? '' : '  (no init)'}${c.has.update ? '' : '  (no update)'}`))
+console.log(`  ${launcher ? 'boots into the launcher; TAB toggles rack <-> overview' : 'TAB cycles carts'} · DE_BUNDLE_AUTOSWITCH=<frames> auto-cycles (headless proof)`)
 
 if (run) {
   const { spawn } = require('child_process')

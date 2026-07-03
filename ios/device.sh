@@ -31,15 +31,23 @@ echo "▸ device: $DEVICE_ID  ·  team: $TEAM  ·  cart: $CART (AU: $AU_CART)"
 stage_cart() {
   ( cd .. && node tools/play.js "$1" run --headless --frames 1 >/dev/null 2>&1 ) \
     || { echo "✗ cart '$1' generation failed"; exit 1; }
-  mkdir -p "gen/$2"; cp ../build/cart.c ../build/sprites_data.h ../build/map_data.h "gen/$2/"
+  mkdir -p "gen/$2"; rm -f "gen/$2"/*.c   # clear any stale multi-cart wrappers first
+  cp ../build/cart.c ../build/sprites_data.h ../build/map_data.h "gen/$2/"
 }
 # EDITOR=1: deploy the editor's LIVE buffer — the editor already wrote build/{cart.c,sprites_data.h,
 # map_data.h} (prepareCart), so use those as the app cart instead of re-staging a saved cart via play.js.
 # The dims come in via DE_* env (any size — see GCC_PREPROCESSOR_DEFINITIONS below). The AU is always a
 # saved cart (epiano); it's audio-only so its dims don't matter.
-if [ -n "${EDITOR:-}" ]; then
+# APP=<manifest>: deploy a MULTI-CART app (apps/<name>/app.json) — build-app.js --ios stages
+# the dispatcher shim + per-cart wrappers + baked data into gen/app, and writes gen/app.dims
+# (the app's screen/grid size) which we source so the -D override below matches.
+if [ -n "${APP:-}" ]; then
+  echo "▸ staging MULTI-CART app '$APP' → gen/app…"
+  ( cd .. && node tools/build-app.js "$APP" --ios ) || { echo "✗ build-app.js --ios failed"; exit 1; }
+  [ -f gen/app.dims ] && { set -a; . ./gen/app.dims; set +a; }
+elif [ -n "${EDITOR:-}" ]; then
   echo "▸ staging editor cart from build/ → gen/app…"
-  mkdir -p gen/app
+  mkdir -p gen/app; rm -f gen/app/*.c
   cp ../build/cart.c ../build/sprites_data.h ../build/map_data.h gen/app/ \
     || { echo "✗ no editor build/ output to deploy"; exit 1; }
 else

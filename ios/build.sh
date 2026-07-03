@@ -26,10 +26,20 @@ stage_cart() {   # $1 = cart name, $2 = gen subdir
   echo "▸ staging cart '$1' → gen/$2/…"
   ( cd .. && node tools/play.js "$1" run --headless --frames 1 >/dev/null 2>&1 ) \
     || { echo "✗ cart '$1' generation failed — run: node tools/play.js $1 run --headless --frames 1"; exit 1; }
-  mkdir -p "gen/$2"
+  mkdir -p "gen/$2"; rm -f "gen/$2"/*.c   # clear any stale multi-cart wrappers first
   cp ../build/cart.c ../build/sprites_data.h ../build/map_data.h "gen/$2/"
 }
-stage_cart "$CART"    app
+# APP=<manifest>: build a MULTI-CART app (apps/<name>/app.json) for the sim instead of a
+# single cart — build-app.js --ios stages the shim + per-cart wrappers + gen/app.dims.
+DEFS=""
+if [ -n "${APP:-}" ]; then
+  echo "▸ staging MULTI-CART app '$APP' → gen/app…"
+  ( cd .. && node tools/build-app.js "$APP" --ios ) || { echo "✗ build-app.js --ios failed"; exit 1; }
+  [ -f gen/app.dims ] && { set -a; . ./gen/app.dims; set +a; }
+  DEFS="\$(inherited) DE_NO_RAYLIB=1 SCREEN_W=${DE_SCREEN_W:-320} SCREEN_H=${DE_SCREEN_H:-200} SCALE=1 MAP_W=${DE_MAP_W:-128} MAP_H=${DE_MAP_H:-64} CELL_W=${DE_CELL_W:-16} CELL_H=${DE_CELL_H:-16}"
+else
+  stage_cart "$CART" app
+fi
 stage_cart "$AU_CART" au
 
 echo "▸ generating xcodeproj from project.yml…"
@@ -38,15 +48,16 @@ xcodegen generate --spec project.yml >/dev/null
 echo "▸ building for simulator (no signing)…"
 xcodebuild -project "$SCHEME.xcodeproj" -scheme "$SCHEME" \
   -sdk iphonesimulator -configuration Debug \
+  ${DEFS:+GCC_PREPROCESSOR_DEFINITIONS="$DEFS"} \
   -derivedDataPath build CODE_SIGNING_ALLOWED=NO build >/dev/null
-APP="build/Build/Products/Debug-iphonesimulator/$SCHEME.app"
+APP_BUNDLE="build/Build/Products/Debug-iphonesimulator/$SCHEME.app"
 
 echo "▸ booting '$DEVICE'…"
 xcrun simctl boot "$DEVICE" 2>/dev/null || true
 xcrun simctl bootstatus "$DEVICE" -b >/dev/null
 
 echo "▸ installing + launching ${BUNDLE_ID}…"
-xcrun simctl install "$DEVICE" "$APP"
+xcrun simctl install "$DEVICE" "$APP_BUNDLE"
 xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
 
 if [ -n "$SHOT" ]; then

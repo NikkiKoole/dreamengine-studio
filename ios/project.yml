@@ -11,15 +11,18 @@ targets:
     type: application
     platform: iOS
     # Phase 2: the REAL dreamengine. The app compiles studio.c + raylib_compat.c (the
-    # DE_NO_RAYLIB software path) + the staged cart (gen/app/cart.c) — NOT the spike
+    # DE_NO_RAYLIB software path) + whatever is staged in gen/app/ — NOT the spike
     # stand-ins canvas.c/audio.c (excluded; they're unused now that the real engine
-    # replaced them — no target still compiles them). build.sh stages gen/app/ via play.js.
+    # replaced them — no target still compiles them). gen/app is a DIRECTORY source so it
+    # works for both shapes: a single cart (gen/app/cart.c, staged by play.js) OR a
+    # MULTI-CART app (app_main.c dispatcher + per-cart <slug>.c wrappers, staged by
+    # `build-app.js --ios`). build.sh / device.sh with APP=<name> pick the multi-cart path.
     sources:
       - path: Sources
         excludes: [canvas.c, canvas.h, audio.c, audio.h]
       - path: ../runtime/studio.c
       - path: ../runtime/raylib_compat.c
-      - path: gen/app/cart.c
+      - path: gen/app
     dependencies:
       - target: TinyjamAU       # embed the AUv3 extension into the app's PlugIns
         embed: true

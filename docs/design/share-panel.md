@@ -207,7 +207,15 @@ in order (each rung small, only #1 touches the engine):
    mellotron → groovebox, pattern + 123bpm intact) — N>2 works. `launcher`/`iap`/`icon`
    manifest fields are accepted-but-parked for rungs 3/4/iOS. The hand-written
    `bundle-spike/` stays as the minimal reference + proof-sound.sh home.
-3. **Launcher cart** — the menu screen (fed by each rack's `de:meta`), replacing TAB.
+3. **Launcher cart** ← the next bite. The menu screen replacing the generated shim's
+   blind TAB-cycle. Shape: the launcher is *itself a cart* (`launcher` in the manifest;
+   ctx slot of its own), `build-app.js` generates a roster header from each rack's
+   `de:meta` (title/description) so adding a rack auto-adds its menu entry, and picking
+   one calls `de_switch_cart()` — which already exists from rung 1, so NO new engine API
+   for the basic version. Two open sub-questions: (a) the way BACK from a rack to the
+   menu — some reserved input the launcher may claim without stepping on the racks'
+   keys ("a key the cart reads is the cart's key"); (b) the menu's look/feel is the
+   maker's call (program-picker / cartridge shelf / radio-dial — ask before polishing).
 4. **`mac-app.sh` consumes the manifest** → a signed, notarized Tinyjam.app with the
    full roster: channel C's rehearsal of the App Store shape. iOS then reuses
    everything ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9).

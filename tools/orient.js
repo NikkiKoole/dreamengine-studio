@@ -40,6 +40,11 @@ function run(tool, toolArgs) {
 // and just hand the request to the outline (so `orient x --fn y` ≈ that slice).
 if (passthru.includes("--fn")) process.exit(run("cart-outline.js", [raw, ...passthru]));
 
+// FRONT DOOR: prime the active handoff lanes first — going cold on a cart is exactly when you
+// want to know what complex work is in flight (docs/design/driftable-docs.md's two-door pattern,
+// pointed at HANDOFF.md). Advisory, never blocks the orient.
+run("handoff.js", []);
+process.stdout.write("\n");
 // EXTERNAL context first (the why / the neighbours), then the SOURCE map (the what).
 const a = run("build-context.js", [raw]);
 process.stdout.write("\n");

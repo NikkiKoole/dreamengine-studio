@@ -14,6 +14,10 @@ to avoid colliding on. Rules that keep it honest: **refresh your lane's date whe
 prune a lane the moment it ships or goes quiet** (its detail already lives in `STATUS.md` + the
 doc's pick-up point — don't duplicate, point). A lane dated **>2 weeks** old is presumed stale —
 verify or prune. Everything below the lanes is history; trust `STATUS.md` + the design board over it.
+**Tooling keeps this honest** (`tools/handoff.js`, the driftable two-door pattern): `node
+tools/handoff.js` lists the active lanes + age (and it's the first thing `orient` prints — the
+front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
+by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
 _Last updated: 2026-07-03 (two lanes: device-adaptive-layout Phase 1a · store/ASO + app-trailer toolkit)_
 
@@ -35,8 +39,9 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > per-cart `resizable` opt-in + the coupled SW-rasterizer / sub-region-layout call).
 > Ledger view: [`STATUS.md`](STATUS.md) open item #2; also on the design board (BUILDING).
 
-> **▶ ACTIVE THREAD (2026-07-03) — store / ASO / app-video (a separate lane, not the one above).**
-> A big session. Shipped, all committed to `master` (local — **push to sync other machines**):
+> **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
+> (A separate lane from the one above.) A big session. Shipped, all committed to `master`
+> (local — **push to sync other machines**):
 > - **The free ASO keyword loop** (CLI + Apps tab): `aso-research` (now mines competitor
 >   *descriptions*, doc-frequency ranked) · `aso-suggest` (free Google-autocomplete demand proxy) ·
 >   `aso-compose` · `aso-lint` · **`aso-brief`** (palette — a committed, drift-tracked

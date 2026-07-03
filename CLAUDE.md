@@ -268,6 +268,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              tier: docs that declare a `de:driftable` snapshot of a tool's output, flagged when the
                              tool's inputs moved after the snapshot (see docs/design/driftable-docs.md; surfaced by
                              cart-status.js). grep + git dates, no dep graph; advisory
+             handoff.js      the ACTIVE-LANE tracker for docs/HANDOFF.md — keeps it recent + the reliable place to
+                             resume complex in-flight work. Bare = FRONT DOOR: list the ▶ ACTIVE THREAD lanes + age
+                             (wired into orient.js). --check = BACK DOOR: flag lanes >2wk old / broken doc links
+                             (surfaced by cart-status.js). Same two-door pattern as driftable-docs, aimed at the handoff
              gen-tcc-symbols.js   regenerate runtime/studio_tcc_symbols.h from studio.h (libtcc)
              build-history.js     generate docs/history.html from git + the spine
              api-usage.js    bulk "how often is X used"; cross-checks studio.h ↔ docs ↔ shell.js

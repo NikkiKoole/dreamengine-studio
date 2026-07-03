@@ -167,8 +167,19 @@ try {
   driftedDocs = (JSON.parse(out).driftable || []).filter(e => e.drifted).map(e => `${e.rel}  (snapshot ${e.asOf}, ${e.lag}d stale)`);
 } catch { /* advisory — never break cart-status */ }
 
+// HANDOFF LANES (advisory) — the back door of tools/handoff.js: active ▶ lanes in docs/HANDOFF.md
+// that are >2wk old or whose doc links broke, i.e. a stale "resume here" that needs refresh/prune.
+let staleLanes = [];
+try {
+  const out = execSync(`node ${path.join(__dirname, "handoff.js")} --json`, { encoding: "utf8" });
+  const S = JSON.parse(out).staleDays;
+  staleLanes = (JSON.parse(out).lanes || [])
+    .filter(l => (l.age != null && l.age > S) || (l.broken && l.broken.length))
+    .map(l => `${l.title}  (${l.date}${l.age != null ? `, ${l.age}d` : ""}${l.broken && l.broken.length ? `, broken: ${l.broken.join(", ")}` : ""})`);
+} catch { /* advisory — never break cart-status */ }
+
 if (JSON_OUT) {
-  console.log(JSON.stringify({ needRebake, notPublished, stalePublished, engineStale, noEmbed, orphanSite, compendiumStale, driftedDocs }, null, 2));
+  console.log(JSON.stringify({ needRebake, notPublished, stalePublished, engineStale, noEmbed, orphanSite, compendiumStale, driftedDocs, staleLanes }, null, 2));
   process.exit(0);
 }
 
@@ -190,6 +201,8 @@ if (!QUIET || compendiumStale)
   console.log(`\nCOMPENDIUM — docs/cart-compendium.html (★ techniques)  ${compendiumStale ? "STALE → node tools/build-compendium.js" : "up to date"}`);
 if (driftedDocs.length)
   console.log(`\nDRIFTABLE DOCS (advisory) — snapshot docs whose source moved after their as-of date  (${driftedDocs.length})\n${list(driftedDocs)}\n  → re-run the doc's declared cmd + eyeball; details: node tools/stale-doc-check.js --driftable`);
+if (staleLanes.length)
+  console.log(`\nHANDOFF LANES (advisory) — active ▶ threads that are stale or have a broken link  (${staleLanes.length})\n${list(staleLanes)}\n  → refresh the date in docs/HANDOFF.md or prune it (shipped → STATUS.md); details: node tools/handoff.js --check`);
 if (noEmbed.length)
   console.log(`\nNOTE — .cart.png with no de:source chunk  (${noEmbed.length})\n${list(noEmbed)}`);
 if (orphanSite.length)

@@ -64,6 +64,7 @@ This page is only the routing layer.
 | anything under `docs/` | **`lint-docs.js`** (links resolve / §-refs / tool-index) |
 | reorganized docs, want gaps not breaks | **`lint-xrefs.js [topic]`** (docs that should cross-link but don't) |
 | a cart's source/sprites (is it baked/published?) | **`cart-status.js --quiet`** |
+| **laying out / sizing a cart's UI** (fit a phone, multiple screens, touch-target size) | reach for **`runtime/lay.h`** (immediate-mode layout vocabulary — split/at/cell/grid/wrap/fluid; see [`../design/device-adaptive-layout.md`](../design/device-adaptive-layout.md)); then **`mobile-lint.js`** flags **tiny touch-targets** and names the remedy — **`ui_loupe(1)`** (the `ui.h` fat-finger magnifier, [`../design/loupe-notes.md`](../design/loupe-notes.md)) or reflow |
 | effects/UI placement, want a "can a phone play this" report | **`mobile-lint.js`**, **`ui-audit.js`** |
 
 ## Orienting *before* a change (don't dive in blind)

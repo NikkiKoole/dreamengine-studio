@@ -412,7 +412,9 @@ ls build/.bake/screenshot_request 2>&1                            # gone = captu
 ```
 
 Then **Read** the PNG (Claude sees images). State JSON has `f`/`t`/`w` (all `watch()` values);
-profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native build. Full recipe:
+profiler JSON has `workMsAvg/Max`, `calls[]`, `work[]`. Both work in any native build.
+**Several carts alive (editor + play.js run, a bundle)? They ALL poll these files — add a
+`pid:<n>` line or the first poller serves it (silently the WRONG app's frame).** Full recipe:
 `docs/guides/debug-harness.md` → "Live inspection".
 
 ## Key things to know

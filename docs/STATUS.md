@@ -1306,8 +1306,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     iPhone AND iPad, both orientations; also unblocks honest full-bleed store screenshots/videos.
     (Supersedes the per-cart-RenderTexture / `de_safe_top()` sketch in share-panel.md #3 paths A/B/C.)
     (3) **Polished back-to-launcher** — the `de_safe_top()` nav-bar reflow (hold-to-home is the temp).
-    (4) **In-editor "export app" button** — apps live in `apps/`, not the carts panel → needs an Apps
-    picker (a UI rung on the `build-app.js --mac`/`--ios` CLI).
+    (4) ~~**In-editor "export app" button**~~ — **DONE (2026-07-03).** The **Apps view** (`shell.js`
+    `renderAppsList`, IPC `studio:list-apps`/`build-app`/`app-shots`/`press-kit`/`aso-app` in
+    `main.cjs`) lists `apps/*/app.json`; click a card → per-app actions grouped **give / site / sell**:
+    🍎 Mac app · 📱 iOS app (→ `build-app.js --mac`/`--ios`, reveals the built `.app`) · 📸 screenshots
+    (→ `store-shots` into `apps/<name>/screenshots`) · 📄 press kit · 🔎 lint listing · 🧩 compose
+    keywords (the last two read the manifest's `listing` block). Still open: the App Store *upload*
+    rung (v3 — TestFlight button over an in-house App Store Connect client, ADR-0026).
     (5) **Before a real release:** verify `StoreKitTest` is fully stripped from device/release builds
     (currently `[sdk=iphonesimulator*]`-only + `#if targetEnvironment(simulator)`), and the App Store
     Connect product/price reconciliation (ADR-0026 store pipeline). Per-cart maps + save dirs also

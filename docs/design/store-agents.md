@@ -213,7 +213,15 @@ First real run on Mipo Puppetmaker found `marionette` EASY-and-unranked (a keywo
 and `puppet pals` EASY with the app already at #10 in its own Education genre (a keyword to
 push) — while flagging `stop motion` as HARD (76k-rating incumbents) and low-relevance.
 Still to add: ingest the Search Term Rank report for the real popularity column (once the
-beta unlocks), per-locale runs, and the char-limit/title-overlap lint.
+beta unlocks) and per-locale runs.
+
+**v0.1 SHIPPED (2026-07-03): `tools/aso-lint.js`** — the deterministic half of the metadata
+composer. Offline, no account: char limits (title/subtitle 30, keywords 100), wasted
+comma-spaces + stopwords + multi-word keyword entries, cross-field repeats (a word only
+ranks once), and `--research` coverage. Exit 1 on issues (CI-friendly). It caught a live
+one on Mipo: `create` sat in both the subtitle *and* the keyword field. What it deliberately
+does NOT do is write the copy — the agent owns the taste (the read-aloud test; the visible
+fields read like a person wrote them, all SEO in the hidden keyword field).
 
 - **Script** `aso-research.js` (deterministic, snapshots a dated JSON): iTunes-Search-API
   sweep → competitor list + difficulty proxy + competitor-keyword mining; **ingest a

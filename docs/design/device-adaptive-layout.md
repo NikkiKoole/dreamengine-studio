@@ -1,17 +1,16 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: READY TO BUILD — **Phase 0 DONE & banked (2026-07-03); Phase 1 (the engine) is the next
-lever, opened later.** This is the **execution + product** doc that graduates the deferred thinking
-now that there's a concrete need (Tinyjam on the App Store).
+STATUS: BUILDING — **Phase 0 banked; Phase 1a DONE (2026-07-03, byte-identical); resume at Phase 1b.**
+This is the **execution + product** doc that graduates the deferred thinking now that there's a
+concrete need (Tinyjam on the App Store).
 
-**Pick-up point (next session):** Phase 0 is complete and banked — the layout model is proven in
-cart-land across the whole shape space (`respond`/`rackfit`/`acidfit`/`otafit`), the `lay_*`
-vocabulary is **shipped** as `runtime/lay.h`, and disclosure / orientation-lock / overrides are all
-validated + documented below. **Start here to resume:** Phase 1 in "The phased plan", now split into
-three safe sub-steps — **1a** convert `studio.c`'s ~76 `SCREEN_W/H` sites to runtime globals that
-*don't change yet* (every cart renders byte-identical → `canvas-diff` proves it); **1b** add a
-per-cart `resizable` opt-in (fixed = today; on = live window resize + realloc); **1c** flip it on
-`respond.c` first (a resizable desktop window, no iOS). The opt-in IS the phasing lever, so no
+**Pick-up point (next session):** Phase 0 is complete (model proven across `respond`/`rackfit`/
+`acidfit`/`otafit`; `lay_*` shipped as `runtime/lay.h`). **Phase 1a is done** — `studio.c` has runtime
+`de_sw`/`de_sh` globals and all standalone render-extent sites read them, verified byte-identical
+(`drawall` diff = 0). **Start here to resume: Phase 1b** — add the per-cart `resizable` opt-in AND
+convert the SW-rasterizer stride/flip/clip-bounds together with the sub-region-layout call they depend
+on (see Phase 1b in "The phased plan"); then **1c** flips it on `respond.c` first (resizable desktop
+window, no iOS). The opt-in IS the phasing lever, so no
 "flag day". Nothing else in Phase 0 is pending.
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
@@ -313,15 +312,28 @@ stays available as an *optional* style; full-bleed becomes the honest default.
 - **Phase 1 — engine: live-resizable dims. Do it in three sub-steps** — the per-cart opt-in is the
   phasing lever, so the risky refactor never changes observable behaviour and no "flag day" ever
   happens:
-  - **1a — plumbing, invisible.** Convert the ~76 `SCREEN_W/H` macro sites in `studio.c` to read
-    runtime globals (`de_sw`/`de_sh`) **initialized to `SCREEN_W/H` and never changed yet.** Every
-    cart renders byte-for-byte identical → `canvas-diff`/`mirror-diff` prove the refactor across all
-    ~45 carts *before* anything behaves differently. This is the big error-prone step, made safe
-    because the output is provably unchanged.
-  - **1b — the opt-in switch.** Add a per-cart `resizable` flag (`de:meta`/setting or `#define
-    DE_RESIZABLE`). OFF (every existing cart) → fixed window, globals never move, identical to today.
-    ON → `FLAG_WINDOW_RESIZABLE` + on-resize update the globals and realloc the framebuffer/
-    RenderTexture. Blast radius = only opted-in carts.
+  - **1a — plumbing, invisible. ✅ DONE (2026-07-03), verified byte-identical.** Added file-scope
+    `de_sw`/`de_sh` (init to `SCREEN_W/H`, unchanged for now) + re-pointed `de_screen_w()`/
+    `de_screen_h()` at them (increment 1), then converted every **standalone render-EXTENT site** —
+    mouse clamps, camera centers, boot/pause centering, `gr_place`, present source/dest rects, shader
+    texel size, `project()`, viewport, camera-follow clamp (increment 2). `drawall` renders pixel-diff
+    = 0 across 20 frames vs the pristine baseline; 6 camera/scroll/mouse/3D carts run clean. The two
+    compile-time-required sites (static framebuffer sizes, the static `Camera2D` initializer) correctly
+    **stay on the macro** — the compiler catches them, and `camera()` recomputes the offset at runtime.
+    **What deliberately stays on the macro** (the 47 remaining uses): buffer allocs / `LoadRenderTexture`
+    / window init / `SMOOTH_*` / the `tcc_define` cart constant — all **permanent max**; plus the
+    **SW-rasterizer stride/flip/clip-bounds** (`(SCREEN_H-1-sy)*SCREEN_W`, `x1>SCREEN_W`, full-buffer
+    clears, `pget` snapshot bounds, world-capture) — **not leftover extent sites but coupled to 1b's
+    sub-region-layout decision**, so they convert *there*, not blindly here (they'd be byte-identical
+    at `de==max` but could bake a wrong layout assumption). No standalone extent site remains.
+  - **1b — the opt-in switch + the sub-region layout.** Add a per-cart `resizable` flag (`de:meta`/
+    setting or `#define DE_RESIZABLE`). OFF (every existing cart) → fixed window, globals never move,
+    identical to today. ON → `FLAG_WINDOW_RESIZABLE` + on-resize update the globals. **This is where
+    the SW-rasterizer sites get converted**, together with the design call they depend on: does the
+    active `de_sw×de_sh` region live at a corner of the max buffer (keep stride = `SCREEN_W`, present a
+    sub-rect) or is the buffer realloced to `de` (stride = `de_sw`)? That decision fixes the flip
+    origin (`SCREEN_H-1` → active height) and the clip bounds (`x1>SCREEN_W` → `de_sw`) coherently.
+    Blast radius = only opted-in carts.
   - **1c — flip ONE cart.** `respond.c` is the ideal first: it already reflows against a *variable*
     rect via `lay.h` (it fakes the resize today by dragging a rectangle), so making the **real** window
     resizable and feeding it `screen_w()/screen_h()` is nearly free — the whole loop, one cart, no iOS.

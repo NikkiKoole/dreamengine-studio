@@ -1390,8 +1390,14 @@ async function renderAppsList() {
     card.className = 'app-card'
     card.dataset.app = a.dir
     const meta = [a.carts.join(', '), a.iap ? `${a.iap} IAP` : ''].filter(Boolean).join('  ·  ')
+    const L = a.listing || {}
+    const lrow = (k, v) => v ? `<div class="app-lrow"><span class="app-lk">${k}</span><span class="app-lv">${escHtml(v)}</span></div>` : ''
+    const listingHtml = (L.title || L.subtitle || L.keywords)
+      ? `<div class="app-listing">${lrow('title', L.title)}${lrow('subtitle', L.subtitle)}${lrow('keywords', L.keywords)}</div>`
+      : `<div class="app-listing app-nolisting">no listing yet — add a "listing" block to app.json</div>`
     card.innerHTML = `<div class="app-name"></div><div class="app-meta"></div>
       <div class="app-actions" hidden>
+        ${listingHtml}
         <span class="app-sec">give</span>
         <button data-act="mac">🍎 Mac app</button>
         <button data-act="ios">📱 iOS app</button>

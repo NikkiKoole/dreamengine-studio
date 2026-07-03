@@ -40,6 +40,13 @@ Name/Title:  Tiny Jam: Pocket Music Toys        (27/30)
 Subtitle:    Make grooves with micro synths    (30/30)
 Keywords:    groovebox,drum,machine,sampler,sequencer,beat,studio,loop,mixer,auv3,operator,bass,pads,rhythm,arp   (98/100)
 ```
+
+> **Machine-readable home (decided 2026-07-03):** these three fields live in
+> `apps/tinyjam/app.json` under a **`listing`** block (`title`/`subtitle`/`keywords`) — the
+> source the editor's Apps view reads and the app-scoped `aso-lint`/`aso-compose` will act on.
+> This doc stays the *human rationale* (char budgets, why each word); the manifest is the
+> *value of record*. Keep them in sync. (US-only for now; per-locale would nest under a locale
+> key later.)
 - Keyword field notes: singles only — Apple **auto-combines** them (`drum`+`machine`,
   and `pocket`(title)+`operator` → "pocket operator", the tribe term, for free). No
   stopwords, no cross-field repeats, no wasted comma-spaces. `synth` is *not* here because

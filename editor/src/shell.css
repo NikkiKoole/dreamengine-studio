@@ -275,6 +275,11 @@ html, body {
   margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
 }
 .app-actions[hidden] { display: none; }
+.app-listing { width: 100%; display: flex; flex-direction: column; gap: 3px; margin-bottom: 6px; }
+.app-lrow { display: flex; gap: 8px; font-size: 12px; }
+.app-lk { flex: none; width: 62px; color: var(--fg-dim); text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; padding-top: 2px; }
+.app-lv { color: var(--fg); word-break: break-word; }
+.app-nolisting { color: var(--fg-dim); font-size: 11px; font-style: italic; }
 .app-sec { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.05em; }
 .app-actions button {
   background: none; border: 1px solid var(--border); color: var(--fg);

@@ -4,6 +4,11 @@
   "version":  "0.1",
   "carts":    ["acidrack", "yachtrack", "epiano"],
   "launcher": "tinyjam-menu",
+  "listing": {
+    "title":    "Tiny Jam: Pocket Music Toys",
+    "subtitle": "Make grooves with micro synths",
+    "keywords": "groovebox,drum,machine,sampler,sequencer,beat,studio,loop,mixer,auv3,operator,bass,pads,rhythm,arp"
+  },
   "iap": {
     "products": [
       { "id": "com.tinyjam.rebirth",    "price": "2.99", "name": "Tiny Jam: Acid Rack",  "desc": "The acid rack: two 303s, a 909 and an 808.", "unlocks": ["acidrack"] },

@@ -1264,7 +1264,7 @@ ipcMain.handle('studio:list-apps', async () => {
       try {
         const m = JSON.parse(fs.readFileSync(mf, 'utf8'))
         const iap = (m.iap && Array.isArray(m.iap.products)) ? m.iap.products.length : 0
-        apps.push({ dir, name: m.name || dir, carts: m.carts || [], launcher: m.launcher || '', iap })
+        apps.push({ dir, name: m.name || dir, carts: m.carts || [], launcher: m.launcher || '', iap, listing: m.listing || null })
       } catch {}
     }
     return { ok: true, apps }

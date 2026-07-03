@@ -203,11 +203,32 @@
       <div id="panel-apps" class="panel">
         <div id="apps-body">
           <section id="aso-lab">
-            <h3>🔬 Research <span class="apps-hint">try any term — no app needed</span></h3>
-            <div class="aso-row">
-              <input id="aso-terms" type="text" placeholder="e.g. drum machine, groovebox, pocket synth" spellcheck="false" />
-              <input id="aso-cc" type="text" value="us" maxlength="2" title="storefront (2-letter country code)" />
-              <button id="aso-run">research</button>
+            <h3>🔬 ASO toolkit <span class="apps-hint">try anything — no app needed</span></h3>
+            <div class="aso-tool">
+              <div class="aso-tool-h">research — the keyword landscape</div>
+              <div class="aso-row">
+                <input id="aso-terms" type="text" placeholder="e.g. drum machine, groovebox, pocket synth" spellcheck="false" />
+                <input id="aso-cc" type="text" value="us" maxlength="2" title="storefront (2-letter country code)" />
+                <button id="aso-run">research</button>
+              </div>
+            </div>
+            <div class="aso-tool">
+              <div class="aso-tool-h">lint — check a title / subtitle / keyword field</div>
+              <input id="lint-title" type="text" placeholder="title (≤30)" spellcheck="false" />
+              <input id="lint-sub" type="text" placeholder="subtitle (≤30)" spellcheck="false" />
+              <div class="aso-row">
+                <input id="lint-kw" type="text" placeholder="keywords: a,b,c (≤100)" spellcheck="false" />
+                <button id="lint-run">lint</button>
+              </div>
+            </div>
+            <div class="aso-tool">
+              <div class="aso-tool-h">compose — pack the 100-char keyword field</div>
+              <input id="comp-title" type="text" placeholder="title" spellcheck="false" />
+              <input id="comp-sub" type="text" placeholder="subtitle" spellcheck="false" />
+              <div class="aso-row">
+                <input id="comp-cands" type="text" placeholder="candidates, priority order: pocket operator, groovebox, sampler…" spellcheck="false" />
+                <button id="comp-run">compose</button>
+              </div>
             </div>
             <pre id="aso-out"></pre>
           </section>

@@ -1266,27 +1266,35 @@ ipcMain.handle('studio:list-apps', async () => {
   } catch (e) { return { ok: false, apps: [], output: String(e.message || e) } }
 })
 
-// ── ASO research (standalone — no app needed) ─────────────────
-// Runs tools/aso-research.js and streams its table to a dedicated 'aso:log' channel
-// (not cart:log — keep research output out of the runtime log). App-agnostic: research
-// any term without selecting or altering an app.
-ipcMain.handle('studio:aso-research', async (_event, terms, country) => {
+// ── ASO toolkit (standalone — no app needed) ──────────────────
+// Runs a tools/aso-*.js and streams its output to a dedicated 'aso:log' channel
+// (not cart:log — keep it out of the runtime log). App-agnostic: research/lint/compose
+// any input without selecting or altering an app.
+function runAsoTool(_event, script, args) {
   const wc = _event.sender
   const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
-  const list = String(terms || '').split(',').map(s => s.trim()).filter(Boolean)
-  if (!list.length) return { ok: false, output: 'type at least one search term' }
-  const cc = /^[a-z]{2}$/i.test(country || '') ? String(country).toLowerCase() : 'us'
   const ROOT = path.join(__dirname, '../..')
-  const args = [path.join(ROOT, 'tools/aso-research.js'), '--country', cc, ...list]
-  log(`── aso-research (${cc}): ${list.join(' · ')} ──\n`)
   return new Promise(resolve => {
-    const proc = spawn('node', args, { cwd: ROOT })
+    const proc = spawn('node', [path.join(ROOT, 'tools', script), ...args], { cwd: ROOT })
     proc.stdout.on('data', c => log(c.toString()))
     proc.stderr.on('data', c => log(c.toString()))
     proc.on('exit', code => resolve({ ok: code === 0 }))
     proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })
   })
+}
+const flag = (k, v) => (v && String(v).trim() ? ['--' + k, String(v)] : [])
+ipcMain.handle('studio:aso-research', async (_e, terms, country) => {
+  const list = String(terms || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (!list.length) return { ok: false, output: 'type at least one search term' }
+  const cc = /^[a-z]{2}$/i.test(country || '') ? String(country).toLowerCase() : 'us'
+  return runAsoTool(_e, 'aso-research.js', ['--country', cc, ...list])
 })
+ipcMain.handle('studio:aso-lint', async (_e, f = {}) =>
+  runAsoTool(_e, 'aso-lint.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),
+    ...flag('keywords', f.keywords), ...flag('research', f.research)]))
+ipcMain.handle('studio:aso-compose', async (_e, f = {}) =>
+  runAsoTool(_e, 'aso-compose.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),
+    ...flag('candidates', f.candidates)]))
 
 // ── publish to site ───────────────────────────────────────────
 // Builds the CURRENT editor cart (code + sprites + map + settings) straight to

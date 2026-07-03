@@ -1326,6 +1326,26 @@ asoRun?.addEventListener('click', async () => {
 })
 document.getElementById('aso-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') asoRun?.click() })
 
+const asoVal = id => (document.getElementById(id)?.value || '')
+const lintRun = document.getElementById('lint-run')
+lintRun?.addEventListener('click', async () => {
+  if (!window.studio?.asoLint) { showToast('requires the desktop app  (npm start)', 3000); return }
+  const f = { title: asoVal('lint-title'), subtitle: asoVal('lint-sub'), keywords: asoVal('lint-kw') }
+  if (!f.title && !f.subtitle && !f.keywords) return
+  asoOut.textContent = ''
+  const stop = busyDots(lintRun, 'linting', 'lint'); lintRun.disabled = true
+  await window.studio.asoLint(f); stop(); lintRun.disabled = false
+})
+const compRun = document.getElementById('comp-run')
+compRun?.addEventListener('click', async () => {
+  if (!window.studio?.asoCompose) { showToast('requires the desktop app  (npm start)', 3000); return }
+  const f = { title: asoVal('comp-title'), subtitle: asoVal('comp-sub'), candidates: asoVal('comp-cands') }
+  if (!f.candidates.trim()) { document.getElementById('comp-cands')?.focus(); return }
+  asoOut.textContent = ''
+  const stop = busyDots(compRun, 'composing', 'compose'); compRun.disabled = true
+  await window.studio.asoCompose(f); stop(); compRun.disabled = false
+})
+
 async function renderAppsList() {
   const el = document.getElementById('apps-list')
   if (!el || !window.studio?.listApps) return

@@ -137,6 +137,9 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              play.js         debug harness driver (record/replay/script + trace + --wav)
              make-gif.js     capture an animated clip of a cart (webm/webp/gif/mp4/apng + audio)
              compose-clips.js stitch baked clips into one reel (ffmpeg xfade) from a .reel manifest
+             build-app-reel.js  APP TRAILER: apps/<name>/app.json carts[] → bake a clip per rack (skips racks with
+                             no committed clip) → generate tools/reels/<name>.reel → compose-clips → one reel. The
+                             multi-cart video unit; the .reel is committed + hand-editable. Design: docs/design/demand-generation.md
              ui-audit.js     UI bug finder (off-screen text, overlaps, dead widgets, hidden panels)
              mirror-diff.js  golden-pixel-diff harness: assert a render's symmetry invariant headless
              canvas-diff.js  GPU-vs-software-canvas render oracle: A/Bs a cart in both modes + pixel-diffs;

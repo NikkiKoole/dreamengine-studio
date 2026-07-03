@@ -60,6 +60,22 @@ Most of #1–#4 is execution, but one tool would feed the top of the funnel dire
 Per-module landing pages (#4, tinyjam-marketing §7.2) are the other unbuilt piece — the
 funnel *destination*, not the 400-cart gallery.
 
+### App-trailer pipeline — v1 backbone SHIPPED (2026-07-03)
+
+The video unit for a multi-cart IAP app is a **showreel** of its racks, and the "many carts"
+part was already solved by `compose-clips.js`. `tools/build-app-reel.js <app>` closes the last
+gap: reads the manifest's `carts[]`, bakes a clip per rack (skips racks with no committed clip,
+warns), generates a committed+editable `tools/reels/<app>.reel`, and composes →
+`editor/public/reels/<app>.webm`. Proven on Tiny Jam (a ~19.5s reel: yachtrack ⤍fade⤍ epiano;
+acidrack skipped — no clip yet). The rest is the "make it great" layer, staged:
+- **the editor picker** — reorderable clip rows + per-cut transition/seconds (a thin editor over
+  the `.reel`, not a keyframe timeline); the "pick which script runs after each other + decide
+  the cut/tween" ask. Next.
+- **per-clip speed** — an ffmpeg `setpts` in `compose-clips` + a `.reel` field.
+- **9:16 social framing** (rung 1) applied to the finished reel, and the **IAP-tease
+  choreography** (free rack first → "unlock 3 more") that turns the montage into a funnel.
+- text/tweens: the beat-synced, engine-native vs hand-off-to-CapCut fork (a live open decision).
+
 ## See also
 - [`sharing-channels.md`](sharing-channels.md) — the channel map (A web · B App Store · C files)
 - [`store-agents.md`](store-agents.md) — the store/ASO judgment layer (all of lever #5–#6)

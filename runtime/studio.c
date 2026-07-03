@@ -2496,7 +2496,10 @@ int main(int argc, char **argv) {
       if (cl && strcmp(cl, "on") == 0) cpu_raster_enabled = true; }   // DE_CPU_RASTER=on → line()/rectfill_rot → CPU everywhere
     { const char *ao = getenv("DE_AUDIO");              // DE_AUDIO=off → skip all audio (see decl):
       if (ao && strcmp(ao, "off") == 0) audio_off = true; }
-    const char *window_title           = "dreamengine";
+#ifndef DE_WINDOW_TITLE            // exports bake the cart name in (a double-clicked app gets no argv)
+#define DE_WINDOW_TITLE "dreamengine"
+#endif
+    const char *window_title           = DE_WINDOW_TITLE;
 #ifndef PLATFORM_WEB
     int         screenshot_mode        = 0;
     int         screenshot_frames_done = 0;
@@ -2550,8 +2553,9 @@ int main(int argc, char **argv) {
     if (net_requested && !net_lobby_requested) {
         det_mode = true;        // lockstep = fixed timestep + a shared rnd() seed
         net_handshake(&seed);   // blocks until both sides connect; joiner adopts the host's seed
-        if (strcmp(window_title, "dreamengine") == 0)
-            window_title = net_is_host ? "dreamengine — P1 (host)" : "dreamengine — P2";
+        { static char nt[256];  // tag whichever title we have, so the two windows are tellable apart
+          snprintf(nt, sizeof nt, "%s — %s", window_title, net_is_host ? "P1 (host)" : "P2");
+          window_title = nt; }
     }
 #endif
 #ifdef DE_SPEC
@@ -2699,8 +2703,10 @@ int main(int argc, char **argv) {
         net_lobby_status_frame();   // draw "HOSTING…/connecting…" so the wait isn't a black window
         net_handshake(&seed);       // blocking; joiner adopts the host's seed
         SetRandomSeed(seed); srand(seed);
-        if (strcmp(window_title, "dreamengine") == 0)
-            window_title = net_is_host ? "dreamengine — P1 (host)" : "dreamengine — P2";
+        { static char nt[256];      // window is already up here, so push the tag to the OS too
+          snprintf(nt, sizeof nt, "%s — %s", window_title, net_is_host ? "P1 (host)" : "P2");
+          window_title = nt;
+          SetWindowTitle(window_title); }
     }
 #endif
 

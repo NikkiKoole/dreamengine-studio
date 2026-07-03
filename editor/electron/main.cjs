@@ -249,6 +249,13 @@ function cartEnv(cfg) {
 // shipping build (-Os) and the profiling build (-O1 -fno-inline, which keeps
 // studio.c primitives as distinct, named symbols so `sample` can attribute
 // time to them instead of folding them into draw()).
+// Bake a window title into an exported binary (double-clicked apps get no argv, so
+// the --title flag can't reach them). Quoted for the sh -c line exec() runs through.
+function titleDef(name) {
+  const safe = String(name || '').replace(/["'\\$`]/g, '').trim()
+  return safe ? [`-DDE_WINDOW_TITLE='"${safe}"'`] : []
+}
+
 function macCompileArgs(dims, optFlags, out = CART_BIN, extraDefs = []) {
   const { screenW, screenH, scale, mapW, mapH, cellW, cellH, touchDefault, scaleFilter, keymap, studioC } = dims
   return [
@@ -298,6 +305,7 @@ function winCompileArgs(dims, out, opts = {}) {
     `-DTOUCH_CONTROLS_DEFAULT=${touchDefault}`,
     ...keymapDefs(keymap),
     ...(opts.lobby ? ['-DDE_NET_LOBBY_DEFAULT'] : []),
+    ...titleDef(opts.title),
     '-Os', '-fno-delete-null-pointer-checks',
     `"${RAYLIB_WIN}/lib/libraylib.a"`,
     '-lopengl32', '-lgdi32', '-lwinmm', '-lcomdlg32', '-lws2_32',   // ws2_32 = Winsock, for net.h netplay
@@ -417,7 +425,7 @@ async function runLive(dims, cfg, wc) {
   if (wasRunning) send('cart:log', '↻ relaunching live window (sprites / screen / runtime changed)\n')
   liveSig = sig
 
-  const cartTitle = cfg?.cartName ? `dreamengine (live): ${cfg.cartName}` : 'dreamengine (live)'
+  const cartTitle = cfg?.cartName ? `${cfg.cartName} (live)` : 'dreamengine (live)'
   const proc = spawn(TCC_HOST_BIN, ['--cart', CART_SRC, '--title', cartTitle, ...saveDirArgs(cfg)],
     { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
   proc.stdout.on('data', c => send('cart:log', c.toString()))
@@ -781,7 +789,7 @@ ipcMain.handle('studio:run', async (_event, code, cfg) => {
       // not detached / not unref'd → the cart dies with the editor.
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-      const cartTitle = cfg?.cartName ? `dreamengine: ${cfg.cartName}` : 'dreamengine'
+      const cartTitle = cfg?.cartName || 'dreamengine'
       const netFlags  = netArgs(cfg)
       const proc = spawn(CART_BIN, ['--title', cartTitle, ...saveDirArgs(cfg), ...netFlags], { detached: false, stdio: ['ignore', 'pipe', 'pipe'], cwd: BUILD_DIR, env: cartEnv(cfg) })
       proc.stdout.on('data', chunk => send('cart:log', chunk.toString()))   // raylib trace (warnings only) + stray printf + net: HOSTING line
@@ -831,7 +839,7 @@ ipcMain.handle('studio:export-win', async (_event, code, cfg) => {
 
   log(`\n── exporting ${path.basename(out)} for Windows (multiplayer lobby, no console) ──\n`)
   return new Promise(resolve => {
-    exec(`${MINGW} ${winCompileArgs(dims, out, { lobby: true, gui: true }).join(' ')}`, (err, _o, stderr) => {
+    exec(`${MINGW} ${winCompileArgs(dims, out, { lobby: true, gui: true, title: cfg?.cartName || slug }).join(' ')}`, (err, _o, stderr) => {
       if (err) { log((stderr || 'mingw build failed') + '\n'); return resolve({ ok: false, output: stderr || 'mingw build failed' }) }
       try { shell.showItemInFolder(out) } catch {}
       log(`✓ exported ${out}\n  send it over — on Windows it double-clicks into the multiplayer lobby (Host / Join / Solo).\n`)
@@ -880,7 +888,7 @@ ipcMain.handle('studio:export-mac', async (_event, code, cfg) => {
     })
     if (canceled || !filePath) return { ok: false, output: 'export cancelled' }
 
-    const args = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], filePath, ['-DDE_NET_LOBBY_DEFAULT'])
+    const args = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], filePath, ['-DDE_NET_LOBBY_DEFAULT', ...titleDef(cfg?.cartName || slug)])
     log(`\n── exporting ${path.basename(filePath)} for macOS (multiplayer lobby, UNSIGNED) ──\n`)
     log(`no "Developer ID Application" certificate in the keychain — exporting a bare binary.\n` +
         `for a signed, notarized .app that opens anywhere, do the one-time setup in tools/mac-app.sh's header.\n\n`)
@@ -908,7 +916,7 @@ ipcMain.handle('studio:export-mac', async (_event, code, cfg) => {
   const zipOut = filePath.endsWith('.zip') ? filePath : `${filePath}.zip`
 
   const tmpBin = path.join(BUILD_DIR, `export-${slug}`)
-  const args   = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], tmpBin, ['-DDE_NET_LOBBY_DEFAULT'])
+  const args   = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], tmpBin, ['-DDE_NET_LOBBY_DEFAULT', ...titleDef(pretty)])
   log(`\n── exporting ${pretty}.app for macOS (multiplayer lobby, signed${notarize ? ' + notarized' : ''}) ──\n`)
   if (!notarize) log(`note: no notarytool keychain profile found — signing only (Gatekeeper still asks once\n` +
                      `on other Macs). Store creds per tools/mac-app.sh's header for the full flow.\n\n`)
@@ -1044,7 +1052,7 @@ ipcMain.handle('studio:profile', async (_event, code, cfg) => {
 
       const wc = _event.sender
       const send = (ch, payload) => { if (!wc.isDestroyed()) wc.send(ch, payload) }
-      const cartTitle = cfg?.cartName ? `dreamengine: ${cfg.cartName} (profiling)` : 'dreamengine (profiling)'
+      const cartTitle = cfg?.cartName ? `${cfg.cartName} (profiling)` : 'dreamengine (profiling)'
 
       // clear any stale perf.json so a crash-before-first-flush can't show old data
       try { fs.unlinkSync(path.join(BUILD_DIR, 'perf.json')) } catch {}

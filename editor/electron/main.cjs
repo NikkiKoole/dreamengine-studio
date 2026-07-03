@@ -1271,6 +1271,33 @@ ipcMain.handle('studio:list-apps', async () => {
   } catch (e) { return { ok: false, apps: [], output: String(e.message || e) } }
 })
 
+// Derive research SEED TERMS for an app from its carts' de:meta (via the generated
+// index.json — the derived view of every cart's metadata). teaches[] tags are the honest
+// category terms (hyphens → spaces: "drum-synthesis" → "drum synthesis"); cart titles are
+// the more brand-y fallback. Returns a small, editable seed list the Apps view drops into
+// the research box — so "research this app" needs zero typing but stays maker-editable.
+ipcMain.handle('studio:app-seeds', async (_e, name) => {
+  const ROOT = path.join(__dirname, '../..')
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
+    const carts = m.carts || []
+    const idx = JSON.parse(fs.readFileSync(path.join(ROOT, 'editor/public/carts/index.json'), 'utf8'))
+    const byFile = new Map(idx.map(c => [c.file, c]))
+    const norm = s => String(s || '').toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
+    const teaches = [], titles = []
+    for (const cart of carts) {
+      const e = byFile.get(`${cart}.cart.png`)
+      if (!e) continue
+      for (const t of (e.teaches || [])) { const n = norm(t); if (n) teaches.push(n) }
+      const ti = norm(e.title); if (ti) titles.push(ti)
+    }
+    // teaches (category terms) first, then titles; dedup, cap so research stays fast/focused
+    const seen = new Set(), terms = []
+    for (const t of [...teaches, ...titles]) { if (!seen.has(t)) { seen.add(t); terms.push(t) } }
+    return { ok: true, terms: terms.slice(0, 8), app: { name: m.name || name, title: (m.listing || {}).title || m.name || name } }
+  } catch (e) { return { ok: false, error: String(e.message || e), terms: [] } }
+})
+
 // ── ASO toolkit (standalone — no app needed) ──────────────────
 // Runs a tools/aso-*.js and streams its output to a dedicated 'aso:log' channel
 // (not cart:log — keep it out of the runtime log). App-agnostic: research/lint/compose

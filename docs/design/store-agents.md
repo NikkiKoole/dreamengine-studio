@@ -13,7 +13,7 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 **Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
 `aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
 (topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
-📄 press kit, 🍎/📱 builds, 🔎 lint / 🧩 compose). The app manifest gained a `listing` block
+📄 press kit, 🍎/📱 builds, 🔎 research / ✅ lint / 🧩 compose). The app manifest gained a `listing` block
 (title/subtitle/keywords). Proven on Tiny Jam.
 
 **Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.
@@ -30,7 +30,8 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
    Apple's beta reaches the account (App Store Connect → Analytics → Insights; §ASO deep-dive).
 4. **Parked niceties:** per-locale copy · a make-clip button + the recorder / live-loop
    ([`input-recording-looper.md`](input-recording-looper.md)) · the `0-apps → empty/banned`
-   research flag · app-scoped `store-shots` into `apps/<name>/screenshots`.
+   research flag. (~~app-scoped `store-shots`~~ + ~~app-scoped research~~ both SHIPPED —
+   the Apps card's 🔎 research seeds `aso-research` from the carts' `de:meta`.)
 
 ## The one rule: scripts prepare → agent decides → scripts execute
 

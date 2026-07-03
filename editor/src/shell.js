@@ -1405,7 +1405,8 @@ async function renderAppsList() {
         <button data-act="shots">📸 screenshots</button>
         <button data-act="press">📄 press kit</button>
         <span class="app-sec">sell</span>
-        <button data-act="lint">🔎 lint listing</button>
+        <button data-act="research">🔎 research keywords</button>
+        <button data-act="lint">✅ lint listing</button>
         <button data-act="compose">🧩 compose keywords</button>
       </div>`
     card.querySelector('.app-name').textContent = a.name
@@ -1422,6 +1423,19 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const app = btn.closest('.app-card')?.dataset.app
     if (!app) return
     const act = btn.dataset.act, label = btn.textContent
+    // research is discovery, not a build: seed the research box from the app's carts
+    // (de:meta teaches/titles) and run the SAME research path — results land in the
+    // research lab panel above, editable + re-runnable. No runtime-log spam.
+    if (act === 'research') {
+      const stop = busyDots(btn, 'seeding', label); btn.disabled = true
+      const res = await window.studio.appSeeds(app)
+      stop(); btn.disabled = false
+      if (!res?.ok || !res.terms?.length) { showToast(res?.error || 'no seed terms — add teaches/title to the carts', 3000); return }
+      const termsEl = document.getElementById('aso-terms')
+      if (termsEl) { termsEl.value = res.terms.join(', '); termsEl.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+      asoRun?.click()
+      return
+    }
     const stop = busyDots(btn, 'working', label); btn.disabled = true
     rlogClear()
     if (act === 'press') await window.studio.pressKit(app)

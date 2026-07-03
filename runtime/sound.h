@@ -1810,6 +1810,7 @@ typedef enum {
     SR_INSTR_SYNC    = 116,  // a=slot, b=ratio*1000 — oscillator hard-sync slave:master ratio (0 = off)
     SR_NOTE_SYNC     = 117,  // a=ratio*1000 (live, slewed), e0/e1=handle — sweep a held note's hard-sync ratio
     SR_CART_SWITCH   = 118,  // a=context id (0..SOUND_CART_CTX-1) — umbrella-app cart switch: reset + replay that context's config log (de_switch_cart, share-panel.md)
+    SR_BPM           = 119,  // a=rate — tempo. Queued like all config so it RECORDS into the cart context; a direct global write raced de_switch_cart (main thread wrote the new cart's bpm before the audio thread snapshotted the old one's — heard as tempo jumps in the bundle)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1840,8 +1841,6 @@ static int           delayed_count = 0;
 #define SOUND_CTX_LOG  1024   // config entries per context (a rich patch cart's init() ≈ hundreds)
 static SoundReq ctx_log[SOUND_CART_CTX][SOUND_CTX_LOG];
 static int      ctx_log_n[SOUND_CART_CTX];
-static int      ctx_bpm[SOUND_CART_CTX];    // bpm() writes sound_bpm directly (no request) — snapshot it by hand
-static bool     ctx_seen[SOUND_CART_CTX];   // context was active before (its ctx_bpm is meaningful)
 static int      ctx_active   = 0;
 static int      ctx_overflow = 0;           // config calls NOT recorded (log full) — reported in sound_tick
 static void sound_reset_state(void);        // the boot/libtcc-hot-reload clean slate; defined with sound_init below
@@ -1881,6 +1880,7 @@ static CtxKey sound_ctx_key(SoundReqKind k) {
         case SR_SHALLOW: case SR_AMP_NOISE: case SR_GATE: case SR_SHIMMER: case SR_LISTENER:
         case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
         case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
+        case SR_BPM:
             return CTXK_K;
         // a = slot / instance / bus / tank / target id
         case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
@@ -5475,11 +5475,11 @@ static void sound_fire_req(SoundReq r) {
             if (r.c >= 0 && r.c < SOUND_INSTR_SLOTS) instr_bank[r.c].lfo_shape[which] = shape;   // slot config → new voices
             else { Voice *v = sound_held_voice(r.e0, r.e1); if (v) v->lfo_shape[which] = shape; } // live held note
         }
+    } else if (r.kind == SR_BPM) {             // a=rate — tempo (queued so the cart context records it)
+        sound_bpm = r.a;
     } else if (r.kind == SR_CART_SWITCH) {     // a=context id — umbrella-app cart switch (de_switch_cart, share-panel.md)
         int ctx = r.a;
         if (ctx >= 0 && ctx < SOUND_CART_CTX && ctx != ctx_active) {
-            ctx_bpm [ctx_active] = sound_bpm;                  // bpm() bypasses the queue — snapshot it by hand
-            ctx_seen[ctx_active] = true;
             float tailL = 0.0f, tailR = 0.0f;                  // declick: fade the old cart's last sample out
             for (int i = 0; i < SOUND_VOICES; i++)             // instead of hard-cutting every voice to zero
                 if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
@@ -5488,7 +5488,6 @@ static void sound_fire_req(SoundReq r) {
             ctx_active = ctx;
             for (int i = 0; i < ctx_log_n[ctx]; i++)           // replay = reconfigure through the normal dispatch;
                 sound_fire_req(ctx_log[ctx][i]);               // a log never contains SR_CART_SWITCH (it's an event kind)
-            sound_bpm = ctx_seen[ctx] ? ctx_bpm[ctx] : 120;    // replay can't restore bpm (it never hits the queue)
             steal_tailL += tailL; steal_tailR += tailR;
         }
     }
@@ -6762,7 +6761,7 @@ void schedule_hit(int delay_ms, int midi, int instr, int vol, int dur_ms) {
 void bpm(int rate) {
     if (rate < 1)   rate = 1;
     if (rate > 999) rate = 999;
-    sound_bpm = rate;
+    sound_push_ctrl(SR_BPM, rate, 0, 0, 0, 0, 0);   // queued (not a direct write) so it lands in the cart-context log — see SR_BPM
 }
 
 void de_switch_cart(int ctx) {
@@ -6856,6 +6855,7 @@ static void sound_worklet_resume(void) {
 // hot-reload "clean slate" guarantees below are what keep this reset COMPLETE: a new
 // effect that forgets to reset here breaks hot-reload determinism too, and --det catches it.
 static void sound_reset_state(void) {
+    sound_bpm = 120;   // boot default; a cart context's own bpm() is replayed from its log after this reset
     memset(voices,     0, sizeof(voices));
     memset(sfx_bank,   0, sizeof(sfx_bank));
     for (int i = 0; i < SOUND_VOICES;     i++) { voices[i].noise_state = 12345 + i; voices[i].owner_slot = -1; }

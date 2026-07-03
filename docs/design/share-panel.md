@@ -170,14 +170,25 @@ in order (each rung small, only #1 touches the engine):
    entry; events/notes never recorded), and a switch = boot reset (`sound_reset_state()`,
    the libtcc hot-reload clean slate factored out of `sound_init`) + **replay** of the
    target's log through the normal dispatch. Every *future* effect is covered
-   automatically. `bpm()` bypasses the queue and is snapshotted by hand; log overflow
-   trips a `[sound] WARNING` (the soundcheck gate). Master-bus FX ride the same log, so
-   next-spike **#4 (master-bus bleed) is dead for free**, as predicted. Deterministic
-   oracle: `tools/bundle-spike/proof-sound.sh` — same note/slot before-switch vs
-   after-round-trip **corr 1.0000**, vs the other context's sound **corr 0.004**. The
-   spike's yacht slot-offset wrappers are deleted (git history keeps the diagnosis);
-   both racks play their natural slot numbers. Still TODO from the original sketch, for
-   later rungs: sprite-sheet pointer, save dir, `de_state` slab joining the context.
+   automatically. Log overflow trips a `[sound] WARNING` (the soundcheck gate).
+   Master-bus FX ride the same log, so next-spike **#4 (master-bus bleed) is dead for
+   free**, as predicted. Deterministic oracle: `tools/bundle-spike/proof-sound.sh` —
+   same note/slot before-switch vs after-round-trip **corr 1.0000**, vs the other
+   context's sound **corr 0.004**. The spike's yacht slot-offset wrappers are deleted
+   (git history keeps the diagnosis); both racks play their natural slot numbers.
+   **Maker's-ears regression, same day: tempo jumped on TAB.** `bpm()` was the ONE
+   config call that bypassed the queue (a direct global write) — the incoming cart's
+   main-thread `bpm()` landed *before* the audio thread snapshotted the outgoing one's,
+   polluting it. Fix: `bpm()` is now a queued request (`SR_BPM`) like all config, so it
+   records/replays with everything else and the by-hand snapshot is gone. **The rule
+   this hardened: a cart-facing sound API must NEVER write engine state directly — the
+   queue is what makes the context log complete.** Verified: acid 136 → yacht 102 →
+   acid 136 (on-screen bpm labels, headless autoswitch round trip).
+   Still TODO from the original sketch, for later rungs: sprite-sheet pointer, save
+   dir, `de_state` slab joining the context — plus the **video twin** of this leak
+   family someday: `pal()`/`palt()`/`fillp()`/`font()`/`camera()`/`clip()` are
+   set-and-hold too and currently bleed across a switch (racks redraw their own state
+   every frame, so it doesn't bite Tinyjam yet).
 2. **Manifest + generator** — `apps/tinyjam/app.json` + a tool that emits what
    `tools/bundle-spike/build.sh` hardcodes (renamed TUs, dispatcher, staging). Adding a
    rack = one manifest line.

@@ -39,7 +39,8 @@ void init(void) {
 
 void update(void) {
     if (keyp(KEY_TAB)) activate(!active);
-    if (autoswitch && frame() == autoswitch) activate(!active);
+    if (autoswitch && frame() > 0 && frame() % autoswitch == 0)
+        activate(!active);   // every N frames (not once) — lets a headless run prove the round-TRIP restore
     if (active == 0) acid_update(); else yacht_update();
 }
 

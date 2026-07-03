@@ -37,7 +37,7 @@ Why not chase the obvious head terms: they're unwinnable and (some) off-intent.
 
 ```
 Name/Title:  Tiny Jam: Pocket Music Toys        (27/30)
-Subtitle:    Make grooves with synths          (24/30)
+Subtitle:    Make grooves with micro synths    (30/30)
 Keywords:    groovebox,drum,machine,sampler,sequencer,beat,studio,loop,mixer,auv3,operator,bass,pads,rhythm,arp   (98/100)
 ```
 - Keyword field notes: singles only — Apple **auto-combines** them (`drum`+`machine`,

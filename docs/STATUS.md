@@ -1270,9 +1270,10 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     **Tinyjam's launcher + racks render on the iOS simulator** (Tiny Jam menu, acid rack /
     session desk from de:meta, `>` cursor, footer). Same `DE_NO_RAYLIB` engine as single-cart
     device builds. Serialize iOS builds (shared `gen/app` + one xcodeproj); `simctl` shots need
-    ~a few seconds settle. Open: touch back-to-launcher (no TAB on a phone) + on-device deploy
-    (needs a connected phone). Design + gotchas: [`design/share-panel.md`](design/share-panel.md)
-    next-spike #5.
+    ~a few seconds settle. **On-device: Tinyjam runs on a real iPhone** (`device.sh APP=tinyjam`,
+    maker-confirmed 2026-07-03). **Touch back-to-launcher: a temporary home chip** (shim-drawn
+    hamburger top-left, in racks only, chord-safe; overlaps a rack corner — polished seam still
+    parked). Design + gotchas: [`design/share-panel.md`](design/share-panel.md) next-spike #5.
 
 ---
 

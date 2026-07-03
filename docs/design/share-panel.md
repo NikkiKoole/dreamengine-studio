@@ -11,11 +11,14 @@ manifest; **Tinyjam.app built, notarized `Accepted`, stapled, Gatekeeper-clean 2
 Then the **cross-cart bleed fix** (the video twin of ADR-0027: `de_switch_cart` is now a
 sound+video+sheet umbrella — see next-spike #1 + rung-1's video-twin note) and **iOS
 (Spike A): `build-app.js --ios` stages the multi-cart set for the Xcode build and Tinyjam's
-launcher + racks render on the iOS simulator** (`ios/device.sh`/`build.sh` `APP=<name>`).
-**Fresh context: the ladder is COMPLETE — a manifest → a double-clickable any-Mac app, and a
-multi-cart iOS build that runs. Next work is the panel itself (§"The panel itself"), the touch
-back-to-launcher seam (no TAB on a phone), the on-device deploy (`device.sh APP=tinyjam`, needs
-the phone), or the menu's look/feel (rung 3 sub-question b — maker's call).** Plans the
+launcher + racks render on the iOS simulator** (`ios/device.sh`/`build.sh` `APP=<name>`), then
+**on-device: Tinyjam runs on a real iPhone** (`device.sh APP=tinyjam`, maker-confirmed
+2026-07-03), and a **home chip** (a shim-drawn top-left tap target, in racks only) as the
+temporary touch back-to-launcher.
+**Fresh context: the ladder is COMPLETE — a manifest → a double-clickable any-Mac app AND a
+multi-cart iOS app on a phone. Next work is the panel itself (§"The panel itself"), the polished
+back-to-launcher (intro-panel/pause seam — the home chip is the temporary), or the menu's
+look/feel (rung 3 sub-question b — maker's call).** Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.
@@ -297,10 +300,15 @@ in order (each rung small, only #1 touches the engine):
    single carts on device (ios-plan.md spike 8) runs the dispatcher. Gotchas recorded: iOS
    builds must be **serialized** (shared `gen/app` + one xcodeproj — the build-time twin of the
    `.bake` request-file race, which used `pid:` targeting); `simctl` screenshots need a few
-   seconds' settle (it grabs a pre-render frame otherwise — perf.log confirms 59fps). Still
-   open: **touch back-to-launcher** (no TAB on a phone — the parked intro-panel/pause seam) and
-   the **on-device** deploy (`device.sh APP=tinyjam`, needs a connected phone). iOS-as-AUv3 (a
-   rack per plugin) stays [`ios-plan.md`](ios-plan.md) spike 9 (AUv3 concurrency).
+   seconds' settle (it grabs a pre-render frame otherwise — perf.log confirms 59fps).
+   **On-device: DONE (2026-07-03)** — `device.sh APP=tinyjam` runs Tinyjam on a real iPhone
+   (maker-confirmed). **Touch back-to-launcher: a temporary `home chip`** — the shim overlays a
+   small hamburger tap target top-left in racks only (bundle-with-launcher only, so a standalone
+   cart never shows it; consumes its own tap; resets camera/clip first; chord-safe single-tap).
+   Tradeoff: full-screen racks have no free corner, so it overlaps the rack's top-left UI
+   (acidrack's OP button). The polished home is still the parked **intro-panel/pause seam**;
+   long-press or auto-hide are alternatives if the overlap bites. iOS-as-AUv3 (a rack per plugin)
+   stays [`ios-plan.md`](ios-plan.md) spike 9 (AUv3 concurrency).
 
 ## Open questions (maker's call)
 

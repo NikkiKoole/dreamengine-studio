@@ -7,10 +7,12 @@ now that there's a concrete need (Tinyjam on the App Store).
 **Pick-up point (next session):** Phase 0 is complete and banked — the layout model is proven in
 cart-land across the whole shape space (`respond`/`rackfit`/`acidfit`/`otafit`), the `lay_*`
 vocabulary is **shipped** as `runtime/lay.h`, and disclosure / orientation-lock / overrides are all
-validated + documented below. **Start here to resume:** Phase 1 in "The phased plan" — make
-`studio.c`'s ~76 `SCREEN_W/H` sites read a live-resizable, physically-sized (points) active target;
-first consumer is a resizable desktop window under the `canvas-diff`/`mirror-diff` gates; keep the
-determinism guard (reflow stays opt-in per cart). Nothing else in Phase 0 is pending.
+validated + documented below. **Start here to resume:** Phase 1 in "The phased plan", now split into
+three safe sub-steps — **1a** convert `studio.c`'s ~76 `SCREEN_W/H` sites to runtime globals that
+*don't change yet* (every cart renders byte-identical → `canvas-diff` proves it); **1b** add a
+per-cart `resizable` opt-in (fixed = today; on = live window resize + realloc); **1c** flip it on
+`respond.c` first (a resizable desktop window, no iOS). The opt-in IS the phasing lever, so no
+"flag day". Nothing else in Phase 0 is pending.
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
 - **This doc** = the *engine change + product plan*: make `SCREEN_W/H` runtime + physically-sized,
@@ -308,9 +310,23 @@ stays available as an *optional* style; full-bleed becomes the honest default.
   panel *does* stay legible on a phone — because sections it can't fit comfortably collapse to tabs
   rather than cramming. Phase 0 is fully de-risked; the layout model + toolkit are validated against
   both a clean and a dense rack. **What's left is genuinely Phase 1+ (engine).**
-- **Phase 1 — engine: live-resizable dims.** Make `studio.c`'s ~76 sites read the active target;
-  realloc the framebuffer on resize; add `screen_w()`/`screen_h()`. First consumer is a **resizable
-  desktop window** (testable with no iOS at all), fully under the `canvas-diff`/`mirror-diff` gates.
+- **Phase 1 — engine: live-resizable dims. Do it in three sub-steps** — the per-cart opt-in is the
+  phasing lever, so the risky refactor never changes observable behaviour and no "flag day" ever
+  happens:
+  - **1a — plumbing, invisible.** Convert the ~76 `SCREEN_W/H` macro sites in `studio.c` to read
+    runtime globals (`de_sw`/`de_sh`) **initialized to `SCREEN_W/H` and never changed yet.** Every
+    cart renders byte-for-byte identical → `canvas-diff`/`mirror-diff` prove the refactor across all
+    ~45 carts *before* anything behaves differently. This is the big error-prone step, made safe
+    because the output is provably unchanged.
+  - **1b — the opt-in switch.** Add a per-cart `resizable` flag (`de:meta`/setting or `#define
+    DE_RESIZABLE`). OFF (every existing cart) → fixed window, globals never move, identical to today.
+    ON → `FLAG_WINDOW_RESIZABLE` + on-resize update the globals and realloc the framebuffer/
+    RenderTexture. Blast radius = only opted-in carts.
+  - **1c — flip ONE cart.** `respond.c` is the ideal first: it already reflows against a *variable*
+    rect via `lay.h` (it fakes the resize today by dragging a rectangle), so making the **real** window
+    resizable and feeding it `screen_w()/screen_h()` is nearly free — the whole loop, one cart, no iOS.
+  First consumer is thus a **resizable desktop window** (testable with no iOS at all), fully under the
+  `canvas-diff`/`mirror-diff` gates.
 - **Phase 2 — physical sizing + rotation on iOS.** Pass the point-viewport + backing scale through
   the iOS layer; add `device_class()` + `safe_rect()`; enable rotation in `Info.plist`; live
   framebuffer realloc on orientation change.

@@ -237,6 +237,11 @@ fields read like a person wrote them, all SEO in the hidden keyword field).
   a cart ships, **your own** real impressions/downloads/conversion in ASC closes the loop
   (the one volume number that's truly yours).
 
+**First real application:** the Tinyjams US launch fields (title/subtitle/keywords + the
+per-module IAP naming scheme) are worked out from this method in
+[`../marketing/tinyjam/app-store-listing.md`](../marketing/tinyjam/app-store-listing.md) —
+including the collection-app move of distributing keywords across promoted IAPs.
+
 > Sources (2026-07-03): live probes of `itunes.apple.com/search` + the `MZSearchHints`
 > endpoint; Apple Search Term Rank Report writeup (aso.dev/aso/search-term-rank);
 > Apple Ads API docs (developer.apple.com/documentation/apple_ads).

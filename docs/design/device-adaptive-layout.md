@@ -61,7 +61,13 @@ framebuffer pixels**, or "finger-sized" is meaningless across devices.
 A rack is handed a viewport and only two things drive its design:
 
 - **Density** — how many finger-units wide/tall the viewport is (`device_class()`: phone = few,
-  tablet = many). Drives *how many controls* and *how big*.
+  tablet = many). Drives *how many controls* and *how big*. **Key: the real signal is the *continuous*
+  finger-budget, not the phone/tablet bucket.** "Tablet" spans an **iPad mini** (~744pt wide, ~17
+  finger-widths) to an **iPad Pro 12.9"** (~1024pt, ~23) — the Pro fits noticeably more inline, the
+  mini is tighter (closer to a big phone). Because the rules key on the finger-budget, the mini
+  *defers a section the Pro shows inline* with **no special-casing** — which is exactly why
+  `device_class()` is only a convenience that *lies at the boundary* (a mini is "tablet" by name but
+  phone-like in density). Branch on the measured ratio; use `device_class()` only as a rough hint.
 - **Orientation** — `w > h` vs `h > w`. Drives row↔column arrangement and keybed placement (bottom
   in portrait, spread wide in landscape).
 
@@ -200,7 +206,13 @@ and continuous drag-surfaces (`otafit`) — plus disclosure, orientation, overri
 (finger-budget math), so a **`layout-check.js` oracle** (twin of `mobile-lint` / `ui-audit`) can sweep
 a rack across the device×orientation matrix and report, per shape: the mode it would pick, sections
 open vs. deferred, min control size (finger-%), wasted space, and **degenerate flags** (0 sections
-open, sub-finger controls, a collapsing mode). From that it recommends an **orientation policy** —
+open, sub-finger controls, a collapsing mode). **When it flags sub-finger controls it should name the
+remedy** — reflow, or the standing fat-finger fix `ui_loupe(1)` (the `ui.h` 3× magnifier,
+[`loupe-notes.md`](loupe-notes.md); swept grids/keybeds → `gestures.h` pinch-zoom). `mobile-lint.js`
+already recommends the loupe *today* for literal tiny `tap()/tapp()` targets (its `tiny-target`
+warning); the oracle extends that to the device-shape-dependent case a grep can't see (a control fine
+on iPad Pro but sub-finger on an iPad mini or a phone). From that it recommends an **orientation
+policy** —
 `free` / `lock-landscape` / `lock-portrait`, a per-rack manifest field the shell honours (iOS
 orientation is per-view-controller, so a multi-cart app can constrain per *active* rack). The
 prototypes (`rackfit` / `acidfit`, and next `otafit` for the ribbon/orientation case) are the *manual*

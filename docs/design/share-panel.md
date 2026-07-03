@@ -1,13 +1,16 @@
 # The share panel — one surface for every sharing action, and the "app" unit
 
-STATUS: BUILDING (2026-07-03) — **seam-#1 spike PASSED, then build-ladder rungs 1, 2 AND 3
-SHIPPED, all same day**: `de_switch_cart()` + the per-cart sound context (rung 1, ear-verified,
-[ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md)),
+STATUS: BUILDING (2026-07-03) — **seam-#1 spike PASSED, then the WHOLE build-ladder (rungs
+1–4) SHIPPED, all same day**: `de_switch_cart()` + the per-cart sound context (rung 1,
+ear-verified, [ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md)),
 `apps/<name>/app.json` + `tools/build-app.js` (rung 2 — adding a rack = one manifest line),
-and the launcher cart (rung 3 — `tinyjam-menu.c` + the generated `app_roster.h`; Tinyjam
-boots into a de:meta-fed menu, TAB toggles rack ↔ overview, zero new engine API).
-**Fresh context: pick up at §"The umbrella-app build ladder" → rung 4 (`mac-app.sh` consumes
-the manifest).** Menu look/feel is still the maker's call (rung 3 sub-question b). Plans the
+the launcher cart (rung 3 — `tinyjam-menu.c` + the generated `app_roster.h`; Tinyjam
+boots into a de:meta-fed menu, TAB toggles rack ↔ overview, zero new engine API), and
+`build-app.js --mac` (rung 4 — wraps the bundle via `mac-app.sh`, name+bundleId from the
+manifest; **Tinyjam.app built, notarized `Accepted`, stapled, Gatekeeper-clean 2026-07-03**).
+**Fresh context: the ladder is COMPLETE — a manifest → a double-clickable any-Mac app. Next
+work is the panel itself (§"The panel itself"), the parked next-spikes (§ #1/2/3/5), or the
+menu's look/feel (rung 3 sub-question b — maker's call).** Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.
@@ -128,9 +131,31 @@ Deliberately NOT covered — the next spikes, in order of need:
    exists; it needs a seam like `de_sheet_select(slug)`).
 2. **`de_state` carts** — `-Dde_state=<slug>_de_state` + per-slug slab wrappers in the
    shim (sketched, trivial, unexercised).
-3. **Differing screen dims** — `SCREEN_W/H` are compile-time; a manifest picks one size
-   and its carts must match (or the engine grows letterboxing). Both racks are 320×240,
-   so Tinyjam dodges this.
+3. **Differing screen dims** — `SCREEN_W/H` are compile-time `#define`s (`studio.h`),
+   baked into `studio.c` in ~76 places (framebuffer, clip bounds, blit loops) and shared
+   by the ONE `-D` value the whole binary compiles with — so "a cart's resolution" is a
+   property of the *binary*, not the cart. `build-app.js` hard-rejects a mismatch for that
+   reason. Both Tinyjam racks are 320×240, so it dodges this. Three ways out, cheapest
+   first (scoped 2026-07-03, deferred — no concrete two-shapes need yet):
+   - **A — letterbox at one master size (small, leaky):** window stays one size (max of
+     the carts / a manifest field); the dispatcher centres smaller carts with a
+     `camera()`+`clip()` border. But a cart still *sees* the master `SCREEN_W`, so only
+     resolution-relative carts survive; hardcoded pixel layouts break. Cheap, not honest.
+   - **B — per-cart RenderTexture, runtime-sized (medium, the right near-term one):** each
+     cart TU already compiles separately, so it also takes its own `-DSCREEN_W/H`; give it
+     its own RenderTexture at that size and make `studio.c`'s ~76 internal uses read the
+     **active target's** dims at runtime instead of the macro. The dispatcher composites
+     each cart's texture into the window (centre/letterbox or scale-to-fit). **Cart code
+     changes zero** — it keeps `SCREEN_W` as its own honest constant. Cost is confined to
+     `studio.c`'s draw/clip core, fully under the `canvas-diff`/`mirror-diff` gates. Pays
+     for itself twice: the same change unblocks iOS varying-device sizes + resizable
+     windows.
+   - **C — fully runtime-variable screen dims (large, the eventual home):** `SCREEN_W`
+     becomes a runtime global and carts author against whatever size they're handed — a
+     **responsive-layout** model where a cart *responds* to its viewport (pairs with the
+     cart `respond`/reflow direction). Biggest blast radius (touches cart-land
+     conventions), so it's a deliberate later project done together — not a bundling
+     spike. B is the stepping stone; C is where it lands.
 4. ~~**Master-bus FX bleed**~~ — **DONE (2026-07-03), free with ladder rung 1:** the
    config-log replay behind `de_switch_cart()` covers master-bus FX the same as
    per-slot sounds (reset to boot defaults + replay the incoming cart's own config).
@@ -234,9 +259,20 @@ in order (each rung small, only #1 touches the engine):
    are all on the table; ask before polishing). The **intro-panel seam** (de:meta title
    card doubling as back-to-overview in bundles, pause-key entry) stays the docced
    touch-era upgrade — TAB doesn't exist on phones.
-4. **`mac-app.sh` consumes the manifest** → a signed, notarized Tinyjam.app with the
-   full roster: channel C's rehearsal of the App Store shape. iOS then reuses
-   everything ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9).
+4. ~~**`mac-app.sh` consumes the manifest**~~ — **DONE (2026-07-03), the ladder is
+   complete.** `build-app.js` grew a `--mac` flag: after linking the multi-cart binary it
+   hands it to `mac-app.sh` with `--name`/`--id` **straight from the manifest** — so "which
+   app?" is answered ONCE, by the manifest name, all the way from carts → binary → `.app`.
+   `node tools/build-app.js tinyjam --mac` → `build/Tinyjam.app`; `--no-notarize` does a
+   quick local-only sign. Per-app icon stays parked (falls back to the shared dreamengine
+   icon). **Verified end-to-end:** Tinyjam.app built (320×240, launcher + acid + yacht),
+   notarytool `status: Accepted`, ticket stapled, `spctl` → `accepted / source=Notarized
+   Developer ID` — opens on ANY Mac with a plain double-click. Cert note: the Developer ID
+   is minted 2026-07-03, valid to 2031 (not expiring — see the machine memory). This is
+   channel C's rehearsal of the App Store shape; iOS reuses everything
+   ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9). No editor button yet —
+   apps live in `apps/`, not the carts panel, so an in-IDE "export app" needs an **Apps**
+   picker (a later UI rung on top of this CLI, not a prerequisite).
 
 ## Open questions (maker's call)
 

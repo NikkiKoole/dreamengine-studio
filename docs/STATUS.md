@@ -1243,8 +1243,16 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     `app_launch(i)`/`app_current()`; TAB now toggles rack ↔ overview instead of
     blind-cycling. Verified headless (menu → acid 136 → yacht 102 → menu + resume marker)
     and via a play.js keyboard script on the standalone menu. Menu look/feel remains the
-    maker's call. **Next: rung 4 — `mac-app.sh` consumes the manifest**
-    ([`design/share-panel.md`](design/share-panel.md) §ladder).
+    maker's call. **Rung 4 shipped the same day — the ladder is complete:** `build-app.js`
+    grew a `--mac` flag that hands the linked bundle to `mac-app.sh` with `--name`/`--id`
+    from the manifest, so "which app?" is answered once by the manifest name all the way to
+    the `.app`. `node tools/build-app.js tinyjam --mac` → `build/Tinyjam.app`, notarytool
+    `Accepted` + stapled + `spctl` `accepted / Notarized Developer ID` — opens on any Mac
+    with a double-click (`--no-notarize` for a quick local sign). Per-app icon parked
+    (shared dreamengine icon). No in-editor "export app" button yet — apps live in `apps/`,
+    not the carts panel, so that needs an Apps picker (a later UI rung on this CLI).
+    Differing-resolution racks stay parked (next-spike #3; paths A/B/C scoped in the doc —
+    B is the tractable per-cart RenderTexture step, C the eventual responsive-layout home).
 
 ---
 

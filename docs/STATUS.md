@@ -1229,6 +1229,13 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     cross-context 0.004). Known not-covered (later rungs): per-cart save dirs (racks share
     `cart.sav` → the loser falls back to its demo song), sprite sheets, `de_state`, and the
     video set-and-hold twins (`pal`/`fillp`/`font`/…).
+    **Rung 2 shipped the same day:** `apps/tinyjam/app.json` (the decided `apps/<name>/` home,
+    per [ADR-0026](decisions/0026-store-pipeline-in-house-not-fastlane.md)'s layout) +
+    `tools/build-app.js` — a manifest builds the multi-cart binary; adding a rack = one line.
+    Verified to N=3 (groovebox/epiano/mellotron ad-hoc app). Side-fix that fell out: live-inspection
+    requests can target one process (`pid:<n>` line — two headless bundles raced for the shared
+    `.bake` request files and served the wrong app's frame; debug-harness.md §Live inspection).
+    **Next: rung 3, the launcher cart** ([`design/share-panel.md`](design/share-panel.md) §ladder).
 
 ---
 

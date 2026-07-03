@@ -1,8 +1,10 @@
 # The share panel — one surface for every sharing action, and the "app" unit
 
-STATUS: EXPLORING (2026-07-03) — **seam-#1 spike PASSED same day** (two racks, one
-binary, zero cart edits — `tools/bundle-spike/`, §spike result below), and **build-ladder
-rung 1 SHIPPED same day** (`de_switch_cart()` + the per-cart sound context, §ladder). Plans the
+STATUS: BUILDING (2026-07-03) — **seam-#1 spike PASSED, then build-ladder rungs 1 AND 2
+SHIPPED, all same day**: `de_switch_cart()` + the per-cart sound context (rung 1, ear-verified,
+[ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md)) and
+`apps/<name>/app.json` + `tools/build-app.js` (rung 2 — adding a rack = one manifest line).
+**Fresh context: pick up at §"The umbrella-app build ladder" → rung 3 (launcher cart).** Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.

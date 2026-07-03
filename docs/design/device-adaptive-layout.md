@@ -109,6 +109,46 @@ varies. Fixed-canvas carts compile and behave unchanged; their runtime value is 
 - A rack's `draw`/`update` branch on `device_class()` + orientation into one of its 2–3 arrangements,
   then lay out fluidly within the chosen one.
 
+### Two layers: geometry vs. behaviour (validated 2026-07-03, [`../../tools/carts/acidfit.c`](../../tools/carts/acidfit.c))
+
+A dense real rack forced a distinction the clean `rackfit` didn't: **where** a panel goes vs.
+**whether** it's shown at all.
+
+- **Geometry layer** (`lay_*`) — pure rect-in/rect-out: where a panel goes *if shown*.
+- **Behaviour layer** — *whether* a panel is inline, collapsed behind a toggle, tabbed, or scrolled,
+  decided by the available finger-budget. This is the same side of the line as scroll/overflow (it's
+  interaction + state, not geometry) and is where **progressive disclosure** lives.
+
+**The progressive-disclosure rule (CSS "Priority+"):** each section declares a **priority** + a
+**minimum comfortable footprint** (in fingers). One pass per frame inlines sections by priority until
+the finger-budget runs out; the overflow collapses into **tab chips** that open as an overlay. No
+device is named — the finger-budget decides. `acidfit` proves it on acidrack's real 5 sections:
+
+| preset | inline | tabs |
+|---|---|---|
+| iPhone portrait | 3 (303-A/B, 909) | 2 (808, master) |
+| iPhone landscape | 4 | 1 (master) |
+| iPad portrait / landscape | 5 | 0 |
+
+Findings that shaped the model:
+- **Orientation drives disclosure as much as device class** — a *short* landscape phone defers more
+  than a *tall* portrait one (which stacks). Reinforces "branch on the measured finger-ratio, not the
+  device name."
+- **The min-footprint must enforce *control* comfort, not just "the box fits."** The first pass used
+  boxes small enough that a phone crammed all 5 sections with sub-finger knobs (INLINE 5 / TABS 0 and
+  ugly). Sizing each section so its *controls* stay finger-sized is what makes disclosure fire
+  correctly — the footprint is a comfort threshold, not a fit threshold.
+- **`lay_grid` (fixed-column) earns its slot** — the drum pads read far cleaner as a fixed 4-wide grid
+  than `wrap`'s ragged auto-flow (the 14+2 problem). So the added set is now `clamp · fluid ·
+  pad/inset · at · split · grid · cell · wrap · aspect`.
+- **All of it is pure cart-land** — priority + min-size + fit-check + disclosure state + the toggle
+  interaction need *no* engine change beyond the planned viewport/finger inputs. So the whole
+  behaviour layer can (and did) get proven before `studio.c` moves.
+
+**Product implication for Tinyjam:** the dense racks want exactly this — phone shows the sequencer +
+the sections that fit, the rest one tap away; iPad shows the whole panel. It's the same rack code, and
+the section-switcher a phone needs is *emergent*, not hand-authored per device.
+
 ### Is the layout vocabulary complete? (reviewed 2026-07-03)
 
 Empirical test: what did writing a real rack (`rackfit.c`) make us hand-roll? That's the gap. Two
@@ -173,8 +213,12 @@ stays available as an *optional* style; full-bleed becomes the honest default.
   device name; (c) 16 steps at half-finger wrap awkwardly (14+2) on a narrow phone — real racks want an
   explicit "16 in one row, smaller" vs "2×8" choice, i.e. some topology *is* worth hand-picking, not
   everything should be left to `wrap`. View: `node tools/play.js rackfit run --headless --screen
-  360x360 --frames 460 --dump build/.rackfit`. **Still worth doing before Phase 1:** port an *actual*
-  acidrack arrangement (not the schematic stand-in) to confirm a dense real panel stays delightful.
+  360x360 --frames 460 --dump build/.rackfit`. **Dense-rack stress test also DONE** —
+  [`../../tools/carts/acidfit.c`](../../tools/carts/acidfit.c) reproduces acidrack's real 5-section
+  inventory and adds the progressive-disclosure behaviour layer (see "Two layers" above): a dense real
+  panel *does* stay legible on a phone — because sections it can't fit comfortably collapse to tabs
+  rather than cramming. Phase 0 is fully de-risked; the layout model + toolkit are validated against
+  both a clean and a dense rack. **What's left is genuinely Phase 1+ (engine).**
 - **Phase 1 — engine: live-resizable dims.** Make `studio.c`'s ~76 sites read the active target;
   realloc the framebuffer on resize; add `screen_w()`/`screen_h()`. First consumer is a **resizable
   desktop window** (testable with no iOS at all), fully under the `canvas-diff`/`mirror-diff` gates.

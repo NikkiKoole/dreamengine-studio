@@ -64,6 +64,7 @@ html, body {
 #run-btn,
 #profile-btn,
 #net-btn,
+#share-btn,
 #theme-btn,
 #logo {
   -webkit-app-region: no-drag;
@@ -189,6 +190,83 @@ html, body {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── share button + popover (current cart) ─────────────────── */
+#share-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+#share-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+#share-menu {
+  position: fixed;
+  z-index: 200;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 220px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  -webkit-app-region: no-drag;
+}
+#share-menu[hidden] { display: none; }
+#share-cart {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+#share-cart img {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  image-rendering: pixelated;
+  background: #000;
+  object-fit: cover;
+}
+#share-cart span {
+  font-size: 12px;
+  color: var(--fg);
+  font-weight: 600;
+}
+#share-menu .share-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#share-menu .share-head {
+  color: var(--fg-dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+#share-menu button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+#share-menu button:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+#share-menu button:disabled { opacity: 0.5; cursor: default; }
 
 /* ── multiplayer (netplay) button + host/join popover ──────── */
 #net-btn {

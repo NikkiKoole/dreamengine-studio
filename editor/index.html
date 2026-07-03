@@ -21,7 +21,28 @@
       </div>
       <button id="profile-btn" tabindex="-1" title="run the cart for a few seconds and list its CPU hotspots" style="display:none">⏱ profile</button>
       <button id="net-btn" tabindex="-1" title="play this cart with a second machine on your LAN (lockstep netplay — P0 = host, P1 = joiner)" style="display:none">🌐 multiplayer</button>
+      <button id="share-btn" tabindex="-1" title="share this cart — export, send to a device, publish">⇪ share</button>
       <button id="run-btn" tabindex="-1">▶ run</button>
+    </div>
+
+    <!-- Share popover (current cart). One "share surface", grouped by audience; see
+         docs/design/share-panel.md. position:fixed → JS places it under the button. -->
+    <div id="share-menu" hidden>
+      <div id="share-cart">
+        <img id="share-cart-thumb" alt="">
+        <span id="share-cart-name"></span>
+      </div>
+      <div class="share-section">
+        <div class="share-head">Give it to someone</div>
+        <button id="export-mac-btn" title="build a standalone Mac binary you can send to another Mac — boots into the multiplayer lobby (unsigned: right-click → Open once)">&#127822; export mac</button>
+        <button id="export-win-btn" title="cross-compile a standalone Windows .exe you can send to someone — it boots into the multiplayer lobby">&#128421; export .exe</button>
+        <button id="deploy-ios-btn" title="build + sign the current cart and launch it on a connected iPhone (USB, ~90s)">&#128241; to iPhone</button>
+      </div>
+      <div class="share-section">
+        <div class="share-head">Put it on my site</div>
+        <button id="build-web-btn" title="compile to .html + .wasm — open in any browser">&#127760; build for web</button>
+        <button id="publish-btn" title="compile + commit + push — live on nikkikoole.github.io/dreamengine">&#128640; publish to site</button>
+      </div>
     </div>
 
     <div id="toast"></div>
@@ -171,11 +192,7 @@
         <div id="cart-actions">
           <button id="save-cart-btn" title="save current code, sprites & map as a .cart.png">save cart</button>
           <button id="load-cart-btn" title="open a .cart.png — or drop one onto the window">load cart</button>
-          <button id="build-web-btn" title="compile to .html + .wasm — open in any browser">build for web</button>
-          <button id="export-win-btn" title="cross-compile a standalone Windows .exe you can send to someone — it boots into the multiplayer lobby">&#128421; export .exe</button>
-          <button id="export-mac-btn" title="build a standalone Mac binary you can send to another Mac — boots into the multiplayer lobby (unsigned: right-click → Open once)">&#127822; export mac</button>
-          <button id="deploy-ios-btn" title="build + sign the current cart and launch it on a connected iPhone (USB, ~90s)">&#128241; to iPhone</button>
-          <button id="publish-btn" title="compile + commit + push — live on nikkikoole.github.io/dreamengine (enable in settings)" style="display:none">&#128640; publish to site</button>
+          <!-- export / publish moved into the topbar ⇪ share popover (share-panel.md) -->
         </div>
         <div id="tutorials-body"></div>
       </div>

@@ -18,6 +18,7 @@ let currentCartPath = ''   // absolute on-disk ORIGIN path, only for carts loade
                            // from a real file (dialog / drag-drop). '' for gallery
                            // carts + fresh carts → Cmd-S falls through to Save As.
                            // Set this ONLY from a load/save handler's `origin`.
+let currentCartThumb = ''  // the loaded cart's .cart.png URL (gallery loads) — the share header thumbnail
 function setCartName(name) {
   currentCartName = name || ''
   document.title = currentCartName ? `dreamengine — ${currentCartName}` : 'dreamengine'
@@ -806,6 +807,7 @@ async function extractCartChunksBrowser(bytes) {
 }
 
 async function loadCartFromUrl(url) {
+  currentCartThumb = url   // the .cart.png thumbnail, shown in the share popover header
   const res = await fetch(url)
   const bytes = new Uint8Array(await res.arrayBuffer())
   let cart
@@ -1271,6 +1273,39 @@ netBtn?.addEventListener('click', () => {
   setTimeout(() => document.addEventListener('mousedown', netMenuOutside), 0)
 })
 
+// ── share popover (current cart) — one surface, actions grouped by audience ────
+// Mirrors the net-menu pattern; the buttons inside keep their existing handlers
+// (bound by id), so this is show / position / close only. docs/design/share-panel.md.
+const shareBtn  = document.getElementById('share-btn')
+const shareMenu = document.getElementById('share-menu')
+let shareOpen = false
+function closeShareMenu() {
+  if (!shareOpen) return
+  shareMenu.hidden = true; shareOpen = false
+  document.removeEventListener('mousedown', shareOutside)
+}
+function shareOutside(e) {
+  if (shareOpen && !shareMenu.contains(e.target) && e.target !== shareBtn) closeShareMenu()
+}
+shareBtn?.addEventListener('click', () => {
+  if (shareOpen) { closeShareMenu(); return }
+  // header: which cart am I sharing?
+  const nameEl = document.getElementById('share-cart-name')
+  const thumbEl = document.getElementById('share-cart-thumb')
+  if (nameEl) nameEl.textContent = currentCartName || 'untitled cart'
+  if (thumbEl) {
+    if (currentCartThumb) { thumbEl.src = currentCartThumb; thumbEl.style.display = '' }
+    else thumbEl.style.display = 'none'
+  }
+  shareMenu.hidden = false; shareOpen = true
+  const r = shareBtn.getBoundingClientRect()
+  shareMenu.style.top   = `${r.bottom + 4}px`
+  shareMenu.style.right = `${window.innerWidth - r.right}px`
+  setTimeout(() => document.addEventListener('mousedown', shareOutside), 0)
+})
+// starting an action closes the popover so the runtime log (each tool streams to it) shows
+shareMenu?.addEventListener('click', e => { if (e.target.closest('button')) closeShareMenu() })
+
 // ── live auto-reload ──────────────────────────────────────────
 // While a live (libtcc) window is open, rewrite cart.c on a debounce as the user types;
 // the host's file-watch hot-reloads it. No-op otherwise, so it costs nothing in native
@@ -1524,9 +1559,10 @@ function busyDots(btn, label, resting) {
   return () => { clearInterval(tick); btn.textContent = resting }
 }
 
-// ── publish to site (gated by settings → publish toggle) ─────
+// ── publish to site ─────
+// Always visible in the Share popover's "Put it on my site" section (it streams its log
+// and is confirm-by-clicking, so no settings gate needed here).
 const publishBtn = document.getElementById('publish-btn')
-if (settings.showPublish) publishBtn.style.display = ''
 
 publishBtn.addEventListener('click', async () => {
   if (!window.studio) return

@@ -46,6 +46,9 @@ showcase.** (The history page consumes clips; the gallery doesn't.)
    upload as HTML5 — `sharing.md` §itch.io); an `itch-publish` step via butler (itch's
    CLI) would make it a one-command mirror of the same wasm build. Cheap, parked until
    the own-site showcase is worth mirroring.
+5. **A press kit** — a `/press/<app>/` page for journalists/streamers, generated from cart
+   data (a self-hosted presskit()-style page). Specced in [`press-kit.md`](press-kit.md);
+   reuses the `store-shots.js`/`make-gif.js` assets from Channel B's store work.
 
 ## Channel B — the App Store (the real product flow)
 

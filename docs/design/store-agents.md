@@ -76,6 +76,10 @@ as good as the clip — steady playback makes every tile look alike; a committed
 track that *exercises* the cart (flip a page, sweep a knob, change the chord) yields genuinely
 different, more sellable candidates. (v0.2: fingerprint dedup so near-identical tiles collapse.)
 
+> These same asset generators (`store-shots.js`, `make-gif.js`) also feed the **press kit**
+> ([`press-kit.md`](press-kit.md), a Channel-A own-domain artifact) — screenshots and a real-
+> capture trailer are wanted by journalists exactly as they are by the store.
+
 > **Compliance — composed screenshots are allowed; preview *videos* are stricter.** A common
 > misconception is that the App Store bans "composed" (caption + background) screenshots. It
 > doesn't — they're standard. The real rule is **Guideline 2.3.3: a screenshot must show the

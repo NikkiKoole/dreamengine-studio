@@ -180,6 +180,25 @@ prototypes (`rackfit` / `acidfit`, and next `otafit` for the ribbon/orientation 
 version of this oracle today; it graduates alongside the engine work. This is the responsive-era twin
 of the existing render/audio oracles in [`../guides/checks-and-oracles.md`](../guides/checks-and-oracles.md).
 
+### Overrides: emergent defaults, but always an escape hatch (2026-07-03)
+
+The emergent rules produce a *default* — the author must be able to **overwrite a conclusion "just
+because"**, both in *positioning* and in the *decision*:
+
+- **Positioning (`position: absolute`) is already in `lay.h`.** `lay_at(container, anchor, w, h,
+  inset)` *is* CSS `position:absolute` — pin a box to a container corner/edge/centre, out of the flow
+  (the back-to-root chip in `acidfit` is exactly this: pinned top-right no matter what the reflow
+  does). And raw `box(x, y, w, h)` is the ultimate hatch — literal coordinates against any reference.
+  Because it's immediate-mode, **nothing forces you through `split`/`wrap`**; you can always just
+  place a rect.
+- **Decision override is plain-C, not a framework fight.** The disclosure/orientation rules are
+  ordinary code, so an author override is just writing the exception — `if (device_is(PHONE_L)) mode
+  = TABS;`, `expanded |= 1 << FAVOURITE_SECTION;`, `policy = LOCK_LANDSCAPE;`. There's no retained
+  layout engine to escape. The model is **emergent defaults + plain-C overrides.**
+- **The oracle should *flag* overrides, not forbid them** — "this rack overrode the recommended mode
+  on iPhone-L" keeps the override a *declared, visible* choice (a line of code / a manifest flag),
+  never a silent hack. Same spirit as a waived lint.
+
 ### Is the layout vocabulary complete? (reviewed 2026-07-03)
 
 Empirical test: what did writing a real rack (`rackfit.c`) make us hand-roll? That's the gap. Two

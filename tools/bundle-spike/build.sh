@@ -41,12 +41,7 @@ COMMON=(-I"$ROOT/runtime" -I"$S" -I"$RAYLIB/include"
   -DTOUCH_CONTROLS_DEFAULT=0 -DSCALE_FILTER=0 -O2 -fno-delete-null-pointer-checks)
 
 clang -c "$S/acid.c"   -o "$S/acid.o"   "${COMMON[@]}" -Ddraw=acid_draw  -Dupdate=acid_update  -Dinit=acid_init
-clang -c "$S/yacht.c"  -o "$S/yacht.o"  "${COMMON[@]}" -Ddraw=yacht_draw -Dupdate=yacht_update -Dspec=yacht_spec \
-  -Dinstrument=yacht_instrument -Dinstrument_duty=yacht_instrument_duty \
-  -Dinstrument_lfo=yacht_instrument_lfo -Dinstrument_filter=yacht_instrument_filter \
-  -Dinstrument_env=yacht_instrument_env -Dinstrument_harmonics=yacht_instrument_harmonics \
-  -Dinstrument_timbre=yacht_instrument_timbre -Dinstrument_morph=yacht_instrument_morph \
-  -Dschedule_hit=yacht_schedule_hit
+clang -c "$S/yacht.c"  -o "$S/yacht.o"  "${COMMON[@]}" -Ddraw=yacht_draw -Dupdate=yacht_update -Dspec=yacht_spec
 clang -c "$(dirname "$0")/bundle.c" -o "$S/bundle.o" "${COMMON[@]}"
 clang "$S/bundle.o" "$S/acid.o" "$S/yacht.o" "$ROOT/runtime/studio.c" "${COMMON[@]}" \
   "$RAYLIB/lib/libraylib.a" \

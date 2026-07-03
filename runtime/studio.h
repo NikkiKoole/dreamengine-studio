@@ -809,6 +809,7 @@ void *de_state(int bytes);                    // a zero-filled, engine-owned blo
 const char *de_data_path(void);               // path given at launch with --data <file> (or $DE_DATA), else NULL — a data-driven cart loads its world from this file at startup (sloop/roadview drive real OSM cities this way)
 const char *de_dropped_file(void);            // path of a file dropped onto the window THIS frame (drag & drop), else NULL — swap a data cart's world by dropping a new file on it
 void        de_open_path(const char *path);   // reveal a file or folder in the OS file manager (Finder/Explorer) — show the player where the cart's data files live
+void        de_switch_cart(int ctx);          // multi-cart bundles: switch to sound context `ctx` (0–7). Each cart's whole sound world — instruments, effects, wave tables, bpm — is kept per context and restored when you switch back; same ctx = no-op. The dispatcher shim calls this when changing carts (see share-panel.md)
 
 // ------------------------------------------------------------
 // noise — smooth random values (0..1). nearby inputs → similar outputs.

@@ -1,7 +1,8 @@
 # The share panel — one surface for every sharing action, and the "app" unit
 
 STATUS: EXPLORING (2026-07-03) — **seam-#1 spike PASSED same day** (two racks, one
-binary, zero cart edits — `tools/bundle-spike/`, §spike result below). Plans the
+binary, zero cart edits — `tools/bundle-spike/`, §spike result below), and **build-ladder
+rung 1 SHIPPED same day** (`de_switch_cart()` + the per-cart sound context, §ladder). Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.
@@ -125,12 +126,12 @@ Deliberately NOT covered — the next spikes, in order of need:
 3. **Differing screen dims** — `SCREEN_W/H` are compile-time; a manifest picks one size
    and its carts must match (or the engine grows letterboxing). Both racks are 320×240,
    so Tinyjam dodges this.
-4. **Master-bus FX bleed** — effects are set-and-hold, so the incoming cart inherits
-   the outgoing cart's *master* bus config (delay time/feedback, master filter) until
-   it touches a knob. Slot partitioning fixes the per-slot sounds; the shared master
-   bus remains; a `de_switch_cart` API would want a bus snapshot/restore.
-5. **Per-cart save dirs** and the **launcher cart** + real `de_switch_cart()` (the
-   spike's shim hardcodes the pair; the manifest generates it).
+4. ~~**Master-bus FX bleed**~~ — **DONE (2026-07-03), free with ladder rung 1:** the
+   config-log replay behind `de_switch_cart()` covers master-bus FX the same as
+   per-slot sounds (reset to boot defaults + replay the incoming cart's own config).
+5. **Per-cart save dirs** and the **launcher cart** (the spike's shim hardcodes the
+   pair; the manifest generates it). `de_switch_cart()` itself shipped with ladder
+   rung 1 — what remains here is the dispatch/menu side, not the sound side.
 
 ## The panel itself — three rungs
 
@@ -155,11 +156,24 @@ product decisions (which app, price, original palette —
 The spike is done and its findings are above. From here to a shippable **Tinyjam.app**,
 in order (each rung small, only #1 touches the engine):
 
-1. **`de_switch_cart()` + the cart context** ← the next bite. On switch,
-   snapshot/restore the active cart's instrument-slot bank + master-bus FX (later the
-   sprite-sheet pointer, save dir, `de_state` slab join the same struct). Replaces the
-   spike's slot-offset wrappers with the mechanism that scales to many racks. The exact
-   engine state involved is enumerated in §spike above.
+1. ~~**`de_switch_cart()` + the cart context**~~ — **DONE (2026-07-03).**
+   `de_switch_cart(int ctx)` in studio.h (ctx 0..7). The mechanism is NOT the struct
+   snapshot sketched above — mapping the engine found the master-bus FX surface is ~40
+   effect families of scattered per-bus statics, so a field-by-field snapshot would rot
+   with every new effect. Instead: a **per-context CONFIG-REQUEST LOG**. All set-and-hold
+   sound config already funnels through the one SoundReq queue, so the engine records each
+   config request at drain (deduped by knob identity — a ridden `filter()` stays one
+   entry; events/notes never recorded), and a switch = boot reset (`sound_reset_state()`,
+   the libtcc hot-reload clean slate factored out of `sound_init`) + **replay** of the
+   target's log through the normal dispatch. Every *future* effect is covered
+   automatically. `bpm()` bypasses the queue and is snapshotted by hand; log overflow
+   trips a `[sound] WARNING` (the soundcheck gate). Master-bus FX ride the same log, so
+   next-spike **#4 (master-bus bleed) is dead for free**, as predicted. Deterministic
+   oracle: `tools/bundle-spike/proof-sound.sh` — same note/slot before-switch vs
+   after-round-trip **corr 1.0000**, vs the other context's sound **corr 0.004**. The
+   spike's yacht slot-offset wrappers are deleted (git history keeps the diagnosis);
+   both racks play their natural slot numbers. Still TODO from the original sketch, for
+   later rungs: sprite-sheet pointer, save dir, `de_state` slab joining the context.
 2. **Manifest + generator** — `apps/tinyjam/app.json` + a tool that emits what
    `tools/bundle-spike/build.sh` hardcodes (renamed TUs, dispatcher, staging). Adding a
    rack = one manifest line.

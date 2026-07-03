@@ -1809,6 +1809,7 @@ typedef enum {
     SR_LFO_SHAPE     = 115,  // a=which, b=shape(LFO_SHAPE_*), c=slot (>=0 → instrument) ; e0/e1=handle (c<0 → live held note) — set a voice LFO's waveform
     SR_INSTR_SYNC    = 116,  // a=slot, b=ratio*1000 — oscillator hard-sync slave:master ratio (0 = off)
     SR_NOTE_SYNC     = 117,  // a=ratio*1000 (live, slewed), e0/e1=handle — sweep a held note's hard-sync ratio
+    SR_CART_SWITCH   = 118,  // a=context id (0..SOUND_CART_CTX-1) — umbrella-app cart switch: reset + replay that context's config log (de_switch_cart, share-panel.md)
 } SoundReqKind;
 typedef struct { SoundReqKind kind; int a, b, c; int delay_samples; int dur_samples; int e0, e1, e2; } SoundReq;
 #define SOUND_REQ_QUEUE   512   // generous: live held-voice control pushes many setters/frame, and a patch cart's
@@ -1827,6 +1828,106 @@ static atomic_int    req_tail = 0;   // consumed by the audio thread
 // audio-thread-owned holding pen for delayed requests (e.g. strum)
 static SoundReq      delayed[SOUND_DELAYED_MAX];
 static int           delayed_count = 0;
+
+// ── per-cart sound contexts — the umbrella-app seam (de_switch_cart, share-panel.md) ──────
+// A cart's sound world = the LOG of its set-and-hold config requests (instrument defines,
+// bus FX, wave tables …). Switching carts = reset to boot state + replay the target's log.
+// All config already funnels through the one request queue, so recording is one hook in the
+// drain loop and every FUTURE effect is covered automatically — there is no per-effect
+// snapshot struct to rot. Events (notes/sfx/live-handle rides) are transient: never recorded.
+// Everything below is audio-thread-owned (recorded at drain, replayed at switch).
+#define SOUND_CART_CTX 8      // bundle contexts (Tinyjam wants many racks; 8 × 1024 reqs ≈ 300KB BSS)
+#define SOUND_CTX_LOG  1024   // config entries per context (a rich patch cart's init() ≈ hundreds)
+static SoundReq ctx_log[SOUND_CART_CTX][SOUND_CTX_LOG];
+static int      ctx_log_n[SOUND_CART_CTX];
+static int      ctx_bpm[SOUND_CART_CTX];    // bpm() writes sound_bpm directly (no request) — snapshot it by hand
+static bool     ctx_seen[SOUND_CART_CTX];   // context was active before (its ctx_bpm is meaningful)
+static int      ctx_active   = 0;
+static int      ctx_overflow = 0;           // config calls NOT recorded (log full) — reported in sound_tick
+static void sound_reset_state(void);        // the boot/libtcc-hot-reload clean slate; defined with sound_init below
+
+// Transient kinds — they trigger or ride a LIVE voice, so replaying them later is wrong.
+// New SR_ kinds: add here ONLY if the request targets a playing note/sfx (handle payloads,
+// note/hit triggers); set-and-hold config records automatically via the default.
+static bool sound_req_is_event(SoundReq r) {
+    switch (r.kind) {
+        case SR_SFX: case SR_NOTE: case SR_NOTE_ON: case SR_NOTE_OFF: case SR_NOTE_OFF_ALL:
+        case SR_NOTE_PITCH: case SR_NOTE_VOL: case SR_NOTE_CUTOFF: case SR_NOTE_DUTY:
+        case SR_NOTE_RES: case SR_NOTE_LFO: case SR_NOTE_FILTER: case SR_NOTE_GLIDE:
+        case SR_NOTE_ENV: case SR_NOTE_MACRO: case SR_NOTE_DRIVE: case SR_NOTE_ECHO:
+        case SR_NOTE_FOLLOW: case SR_NOTE_PAN: case SR_NOTE_REVERB: case SR_NOTE_DRIVE_MODE:
+        case SR_NOTE_POS: case SR_NOTE_MOTION: case SR_HIT_AT: case SR_NOTE_SYNC:
+        case SR_CART_SWITCH:
+            return true;
+        case SR_LFO_SHAPE: return r.c < 0;   // c<0 = live held note (handle in e0/e1); c>=0 = instrument-slot config
+        default: return false;               // set-and-hold config — record it
+    }
+}
+
+// Identity key for log dedup: which fields NAME what's being configured (the rest carry values).
+// K = kind alone (a master knob: one entry, last write wins — a ridden filter() stays ONE entry).
+// KA = kind+a (a is a slot/instance/bus/tank id). KAB / KAC add b / c to the identity.
+// APPEND = unknown kind: no dedup, always append — order-safe and correct, just costs log space
+// (the overflow warning names the price), so a new kind missing here is never a correctness bug.
+typedef enum { CTXK_APPEND, CTXK_K, CTXK_KA, CTXK_KAB, CTXK_KAC } CtxKey;
+static CtxKey sound_ctx_key(SoundReqKind k) {
+    switch (k) {
+        // master knobs — kind alone
+        case SR_ECHO: case SR_PAN_LAW: case SR_REVERB: case SR_CHORUS: case SR_FLANGER:
+        case SR_TAPE: case SR_WAH: case SR_BITCRUSH: case SR_EQ: case SR_WAH_LFO:
+        case SR_TREMOLO: case SR_PHASER: case SR_LESLIE: case SR_REVERB_INSERT: case SR_FORMANT:
+        case SR_FILTER: case SR_AUTOPAN: case SR_RINGMOD: case SR_ECHO_INSERT: case SR_GRAINS:
+        case SR_GRAINS_FREEZE: case SR_GRAINS_PITCH: case SR_UNIVIBE: case SR_DROPOUT:
+        case SR_SHALLOW: case SR_AMP_NOISE: case SR_GATE: case SR_SHIMMER: case SR_LISTENER:
+        case SR_LISTENER_VEL: case SR_SPATIAL_MODEL: case SR_SPATIAL_SPEED: case SR_VARISPEED:
+        case SR_DRIVE_INSERT: case SR_VOICE_CONS: case SR_VOICE_CODA: case SR_VOICE_NASAL:
+            return CTXK_K;
+        // a = slot / instance / bus / tank / target id
+        case SR_INSTR: case SR_INSTR_DUTY: case SR_INSTR_LFO: case SR_INSTR_FILTER:
+        case SR_INSTR_ENV: case SR_INSTR_MACRO: case SR_INSTR_CHOKE: case SR_INSTR_DRIVE:
+        case SR_INSTR_ECHO: case SR_INSTR_TUNE: case SR_INSTR_FOLLOW: case SR_INSTR_PAN:
+        case SR_INSTR_REVERB: case SR_INSTR_CHORUS: case SR_INSTR_FLANGER: case SR_INSTR_TAPE:
+        case SR_INSTR_WAH: case SR_INSTR_DRIVE_MODE: case SR_INSTR_BITCRUSH: case SR_INSTR_EQ:
+        case SR_INSTR_WAH_LFO: case SR_INSTR_TREMOLO: case SR_INSTR_PHASER: case SR_INSTR_LESLIE:
+        case SR_INSTR_REVERB_BUS: case SR_INSTR_FORMANT: case SR_INSTR_AUTOPAN: case SR_INSTR_RINGMOD:
+        case SR_INSTR_GRAINS: case SR_INSTR_GRAINS_FREEZE: case SR_INSTR_GRAINS_PITCH:
+        case SR_INSTR_UNIVIBE: case SR_INSTR_SHALLOW: case SR_INSTR_GATE: case SR_INSTR_SHIMMER:
+        case SR_INSTR_POS: case SR_INSTR_MOTION: case SR_INSTR_SYNC: case SR_SIDECHAIN_KEY:
+        case SR_GLUE: case SR_REVERB_BUS: case SR_FX_ORDER: case SR_VOICE_PARAM:
+        case SR_EQ_INST: case SR_CRUSH_INST: case SR_TAPE_INST: case SR_FILTER_INST: case SR_DRIVE_INST:
+            return CTXK_KA;
+        // a+b name the target
+        case SR_WAVE_SET:                          // a=which table, b=start index (chunked writes)
+        case SR_REVERB_BUS_FX:                     // a=tank, b=fx
+        case SR_SIDECHAIN:                         // a=victim bus, b=trigger key
+        case SR_ENG_TUNE:                          // a=slot, b=param idx
+            return CTXK_KAB;
+        // a+c name the target
+        case SR_FX_MOD: case SR_FX_LFO:            // a=target, c=bus
+        case SR_LFO_SHAPE:                         // a=which LFO, c=slot (the c<0 live form is an event)
+            return CTXK_KAC;
+        default: return CTXK_APPEND;
+    }
+}
+
+static void sound_ctx_record(SoundReq r) {
+    SoundReq *log = ctx_log[ctx_active];
+    int n = ctx_log_n[ctx_active];
+    CtxKey key = sound_ctx_key(r.kind);
+    if (key != CTXK_APPEND) {
+        for (int i = 0; i < n; i++) {
+            if (log[i].kind != r.kind) continue;
+            if (key != CTXK_K && log[i].a != r.a) continue;
+            if (key == CTXK_KAB && log[i].b != r.b) continue;
+            if (key == CTXK_KAC && log[i].c != r.c) continue;
+            log[i] = r;                            // same knob re-set — update in place (keeps first-occurrence
+            return;                                // order, so replay re-allocates auto-buses identically)
+        }
+    }
+    if (n >= SOUND_CTX_LOG) { ctx_overflow++; return; }
+    log[n] = r;
+    ctx_log_n[ctx_active] = n + 1;
+}
 
 // tripwire: how many requests were silently dropped because a buffer was full. A nonzero
 // count means sound calls were LOST (a wave_set flood, an init() define burst, …) — exactly
@@ -2130,6 +2231,14 @@ static void sound_tick(float dt) {
     if (dropped > dropped_reported) {
         printh("[sound] WARNING: request queue overflow — %d sound call(s) DROPPED (notes/defines lost). Spread big bursts across frames or report this.", dropped);
         dropped_reported = dropped;
+    }
+
+    // same tripwire for the cart-context log: an unrecorded config call means de_switch_cart
+    // will restore that cart INCOMPLETELY when switching back — fail loud, not subtly wrong.
+    static int ctx_overflow_reported = 0;
+    if (ctx_overflow > ctx_overflow_reported) {
+        printh("[sound] WARNING: cart-context log overflow — %d config call(s) not recorded (de_switch_cart restore will be incomplete). Raise SOUND_CTX_LOG or report this.", ctx_overflow);
+        ctx_overflow_reported = ctx_overflow;
     }
 }
 
@@ -5366,6 +5475,22 @@ static void sound_fire_req(SoundReq r) {
             if (r.c >= 0 && r.c < SOUND_INSTR_SLOTS) instr_bank[r.c].lfo_shape[which] = shape;   // slot config → new voices
             else { Voice *v = sound_held_voice(r.e0, r.e1); if (v) v->lfo_shape[which] = shape; } // live held note
         }
+    } else if (r.kind == SR_CART_SWITCH) {     // a=context id — umbrella-app cart switch (de_switch_cart, share-panel.md)
+        int ctx = r.a;
+        if (ctx >= 0 && ctx < SOUND_CART_CTX && ctx != ctx_active) {
+            ctx_bpm [ctx_active] = sound_bpm;                  // bpm() bypasses the queue — snapshot it by hand
+            ctx_seen[ctx_active] = true;
+            float tailL = 0.0f, tailR = 0.0f;                  // declick: fade the old cart's last sample out
+            for (int i = 0; i < SOUND_VOICES; i++)             // instead of hard-cutting every voice to zero
+                if (voices[i].active) { tailL += voices[i].last_outL; tailR += voices[i].last_outR; }
+            delayed_count = 0;                                 // the old cart's scheduled notes must not fire into the new one
+            sound_reset_state();                               // boot-clean slate (the same reset libtcc hot-reload relies on)
+            ctx_active = ctx;
+            for (int i = 0; i < ctx_log_n[ctx]; i++)           // replay = reconfigure through the normal dispatch;
+                sound_fire_req(ctx_log[ctx][i]);               // a log never contains SR_CART_SWITCH (it's an event kind)
+            sound_bpm = ctx_seen[ctx] ? ctx_bpm[ctx] : 120;    // replay can't restore bpm (it never hits the queue)
+            steal_tailL += tailL; steal_tailR += tailR;
+        }
     }
 }
 
@@ -5399,6 +5524,7 @@ static void sound_callback(void *buffer_data, unsigned int frames) {
         if (tail == atomic_load_explicit(&req_head, memory_order_acquire)) break;  // acquire pairs with the producer's release → the entry writes are visible
         SoundReq r = req_queue[tail];
         atomic_store_explicit(&req_tail, (tail + 1) % SOUND_REQ_QUEUE, memory_order_release);  // free the slot for the producer
+        if (!sound_req_is_event(r)) sound_ctx_record(r);   // cart-context config log (de_switch_cart)
         if (r.delay_samples <= 0) {
             sound_fire_req(r);
         } else if (delayed_count < SOUND_DELAYED_MAX) {
@@ -6639,6 +6765,11 @@ void bpm(int rate) {
     sound_bpm = rate;
 }
 
+void de_switch_cart(int ctx) {
+    if (ctx < 0 || ctx >= SOUND_CART_CTX) return;
+    sound_push_ctrl(SR_CART_SWITCH, ctx, 0, 0, 0, 0, 0);
+}
+
 int beat(void) {
     return beat_now;
 }
@@ -6719,7 +6850,12 @@ static void sound_worklet_resume(void) {
 
 // ───────── lifecycle (called by studio.c) ─────────
 
-static void sound_init(void) {
+// Reset every piece of cart-configurable sound state to boot defaults. Split out of
+// sound_init so a cart-context switch (SR_CART_SWITCH) can reuse it on the audio thread —
+// it must never touch the stream/device setup or the request-queue indices. The libtcc
+// hot-reload "clean slate" guarantees below are what keep this reset COMPLETE: a new
+// effect that forgets to reset here breaks hot-reload determinism too, and --det catches it.
+static void sound_reset_state(void) {
     memset(voices,     0, sizeof(voices));
     memset(sfx_bank,   0, sizeof(sfx_bank));
     for (int i = 0; i < SOUND_VOICES;     i++) { voices[i].noise_state = 12345 + i; voices[i].owner_slot = -1; }
@@ -6881,6 +7017,10 @@ static void sound_init(void) {
             user_wave[w][i] = sinf(i / (float)SOUND_WAVE_LEN * 6.2831853f);
 
     sound_load_demo_data();
+}
+
+static void sound_init(void) {
+    sound_reset_state();
 
     if (!sound_synth_mode) {       // --wav: no device stream; the main thread pumps
         // The request queue drains ONCE per callback, at the buffer boundary (see

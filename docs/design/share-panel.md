@@ -199,10 +199,19 @@ in order (each rung small, only #1 touches the engine):
 
 ## Open questions (maker's call)
 
-1. Manifest home: `apps/<name>/` dir (room for icon/screenshots/store copy) vs a flat
-   `tools/apps/<name>.json`?
+1. ~~Manifest home~~ — **DECIDED (2026-07-03, maker): `apps/<name>/` dir.** Not just
+   preference — [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)'s
+   convention ("copy and assets live as versioned files *next to the app manifest*",
+   Fastlane's `metadata/<locale>/` + `screenshots/<locale>/` layout kept verbatim)
+   requires a directory per app; a flat json couldn't hold the tree. Shape:
+   `apps/tinyjam/{app.json, icon.png, metadata/<locale>/*.txt, screenshots/<locale>/,
+   previews/<locale>/}` — screenshots/previews derive from committed clip recipes
+   (play.js / make-gif.js), copy drafts from de:meta, and `store-status.js` diffs this
+   one directory against the live listing.
 2. Launcher-as-cart: good with the one-new-API cost (`de_switch_cart`)? It keeps the
    menu in cart-land (lo-fi, ours) instead of native chrome. With MANY racks under the
    umbrella (the maker's stated aim) this is a real menu screen, not a TAB toggle —
    each cart's `de:meta` (title/description) can feed it via a generated header.
+   *(The sound half of `de_switch_cart` already shipped with ladder rung 1 — the
+   remaining cost is only the dispatch/registry side.)*
 3. v1 panel placement: popover off one "share" toolbar button, or a tab like settings?

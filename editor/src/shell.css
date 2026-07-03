@@ -268,6 +268,25 @@ html, body {
 .rs-chips { margin-top: 4px; }
 .rs-phrases { margin-top: 4px; }
 .rs-phrase { padding: 1px 0 1px 8px; color: var(--fg); font-size: 12px; }
+/* aso-score scorecard */
+.sc-head { margin-bottom: 6px; }
+.sc-fields { display: flex; gap: 14px; font-size: 12px; margin-bottom: 8px; }
+.sc-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 12px; }
+.sc-lab { width: 84px; color: var(--fg-dim); text-align: right; }
+.sc-track { flex: 1; height: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.sc-fill { display: block; height: 100%; }
+.sc-good { background: #4a9a4a; } .sc-mid { background: #b8860b; } .sc-bad { background: #a13030; }
+.sc-val { width: 26px; text-align: right; color: var(--fg); }
+.sc-na { flex: 1; color: var(--fg-dim); font-style: italic; }
+.sc-note { color: var(--fg-dim); font-size: 11px; }
+.sc-why { margin: 10px 0; font-size: 12px; }
+.sc-why > div { margin: 4px 0; }
+.rs-chip.rs-hard { border-color: #a13030; color: #e88; }
+.sc-gotchas { margin-top: 10px; padding: 8px 10px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; background: var(--bg2); }
+.sc-gotchas b { font-size: 12px; }
+.sc-gotchas ul { margin: 6px 0 0; padding-left: 16px; }
+.sc-gotchas li { font-size: 11px; color: var(--fg-dim); margin: 4px 0; line-height: 1.45; }
+.sc-gotchas code { font-size: 10px; }
 .app-card {
   border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;

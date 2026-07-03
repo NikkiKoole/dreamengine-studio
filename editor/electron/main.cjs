@@ -1370,6 +1370,22 @@ ipcMain.handle('studio:aso-suggest', async (_e, terms, country) => {
 // mirror that checks the finished copy against it. Both stream to the aso log panel.
 ipcMain.handle('studio:aso-brief', (_e, name) => runAsoTool(_e, 'aso-brief.js', [String(name)]))
 ipcMain.handle('studio:aso-coverage', (_e, name) => runAsoTool(_e, 'aso-coverage.js', [String(name)]))
+// score the committed listing (--deep = winnability, hits the network). Returns parsed JSON so the
+// editor can render the scorecard WITH its gotchas. The iterative A/B tweak loop stays in the CLI.
+ipcMain.handle('studio:aso-score', async (_e, name) => {
+  const ROOT = path.join(__dirname, '../..')
+  return new Promise(resolve => {
+    let out = '', err = ''
+    const proc = spawn('node', [path.join(ROOT, 'tools/aso-score.js'), String(name), '--deep', '--json'], { cwd: ROOT })
+    proc.stdout.on('data', c => out += c.toString())
+    proc.stderr.on('data', c => err += c.toString())
+    proc.on('exit', code => {
+      try { resolve({ ok: true, data: JSON.parse(out) }) }
+      catch { resolve({ ok: false, error: err.trim() || `score failed (exit ${code})` }) }
+    })
+    proc.on('error', e => resolve({ ok: false, error: String(e.message) }))
+  })
+})
 ipcMain.handle('studio:aso-lint', async (_e, f = {}) =>
   runAsoTool(_e, 'aso-lint.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),
     ...flag('keywords', f.keywords), ...flag('research', f.research)]))

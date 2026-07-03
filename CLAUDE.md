@@ -108,6 +108,10 @@ the **▶ run** button only works inside Electron (it spawns the compiler).
 runtime/   studio.h (public API: constants + declarations), studio.c (Raylib impl + main()),
            + library headers — cart-land capabilities the engine deliberately doesn't own
            (ADR-0006). CHECK HERE before hand-rolling input/UI plumbing in a cart:
+             lay.h       immediate-mode responsive layout — a `Box` + CSS-flavoured helpers
+                         (split/at/cell/grid/wrap/aspect/fluid/pad) that replace hand-rolled rect
+                         math for HUDs/panels/menus; rect-in/rect-out, reflows live. See
+                         docs/design/device-adaptive-layout.md; demos respond/rackfit/acidfit
              ui.h        widgets (ui_button/ui_spr_button/ui_slider/ui_knob) — per-finger capture,
                          fat-finger hit pads, focus ring; ui_loupe() magnifier; ui_get_widgets() live rects
              gestures.h  per-finger swipes judged at lift + pinch_scale (whole-view zoom)
@@ -163,7 +167,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              deltas, in the terminal for the tweak→score→tweak loop WITH the agent. budget + hygiene
                              (aso-lint rules as penalties) + reach (seo-brief demand-word coverage) + WINNABILITY
                              (--deep: per-keyword difficulty from aso-research — flags HARD terms a new app can't
-                             rank for). CLI-only by design. Design: docs/design/store-agents.md §"palette + mirror"
+                             rank for). CLI drives the A/B tweak loop; editor Apps card has a 📊 score GLANCE
+                             (renders the scorecard WITH its gotchas). Design: docs/design/store-agents.md §"palette + mirror"
              aso-lint.js     lint App Store metadata FIELDS (offline): title/subtitle/keyword char limits, wasted
                              comma-spaces + stopwords + multi-word entries, cross-field repeats (a word only ranks
                              once), and --research coverage. The deterministic half of the metadata composer (agent

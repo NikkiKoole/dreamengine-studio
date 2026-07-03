@@ -13,7 +13,7 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 **Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
 `aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
 (topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
-📄 press kit, 🍎/📱 builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / 🔬 analyze / ✅ lint / 🪞 check). The app manifest gained a `listing` block
+📄 press kit, 🍎/📱 builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / 🔬 analyze / 📊 score / ✅ lint / 🪞 check). The app manifest gained a `listing` block
 (title/subtitle/keywords). Proven on Tiny Jam.
 
 **Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.
@@ -407,9 +407,12 @@ live-search drift is invisible to any file check (hence the standing "re-run" ru
 - **`tools/aso-score.js` — the scoreboard (the tweak loop).** Scores a listing
   (title/subtitle/keywords) on **budget · hygiene · reach · winnability** and **A/Bs a tweak against
   the committed listing with deltas**, so you tweak → score → tweak in the terminal.
-  **CLI-only by deliberate design (maker's call, 2026-07-03): no editor button.** A button fires
-  once and shows a table; the *value* is the iteration, which lives better in the console **with the
-  agent** — I read the scorecard, propose a tweak, we re-score together. Budget = are you using the
+  **Split surface (maker's call, 2026-07-03):** the *iterative A/B loop* lives in the CLI **with the
+  agent** — I read the scorecard, propose a tweak, we re-score together (a fire-once button can't do
+  that). But the editor Apps card gets a **📊 score glance** (`studio:aso-score` → `--deep --json`,
+  rendered as bars + evidence) so you can *see where a listing stands* without the terminal — and,
+  crucially, **the gotchas below render inline with the number**, because a bare score in a GUI reads
+  as gospel in a way a terminal dump doesn't. Budget = are you using the
   char space; hygiene = the `aso-lint` waste rules as penalties; reach = worksheet demand-word
   coverage; **winnability (`--deep`, hits the network) = per-keyword difficulty from `aso-research` —
   `100 − difficulty`, so it flags HARD head terms a brand-new app can't rank for.** It prints the

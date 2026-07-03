@@ -1386,6 +1386,52 @@ async function runSuggest(terms, cc) {
 sugRun?.addEventListener('click', () => runSuggest(document.getElementById('sug-terms').value, document.getElementById('sug-cc')?.value))
 document.getElementById('sug-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') sugRun?.click() })
 
+// score — render aso-score's scorecard WITH its gotchas inline (a bare number in a GUI reads as
+// gospel; the caveats have to travel with it). Committed listing only; the A/B tweak loop is CLI.
+function renderScore(data) {
+  if (!asoResults) return
+  const s = data.committed || {}, ev = s.ev || {}, L = (s.listing) || {}
+  const band = v => v == null ? 'na' : v >= 67 ? 'good' : v >= 34 ? 'mid' : 'bad'
+  const bar = (label, v, note) => `<div class="sc-row"><span class="sc-lab">${label}</span>`
+    + (v == null
+      ? `<span class="sc-na">n/a</span><span class="sc-note">${note}</span>`
+      : `<span class="sc-track"><span class="sc-fill sc-${band(v)}" style="width:${v}%"></span></span><span class="sc-val">${v}</span>`)
+    + `</div>`
+  const chips = (arr, cls) => (arr || []).map(t => `<span class="rs-chip ${cls || ''}">${escHtml(typeof t === 'string' ? t : `${t.term}·${t.score}`)}</span>`).join(' ')
+  const hard = (ev.terms || []).filter(t => t.band === 'HARD')
+  const easy = (ev.terms || []).filter(t => t.band === 'EASY')
+  let h = `<div class="sc-head"><b>score — ${escHtml(data.app || '')}</b> <span class="rs-dim">committed listing · --deep</span></div>`
+  h += `<div class="sc-fields">`
+    + `<div>title <span class="rs-dim">${L.title?.length ?? 0}/30</span></div>`
+    + `<div>subtitle <span class="rs-dim">${L.subtitle?.length ?? 0}/30</span></div>`
+    + `<div>keywords <span class="rs-dim">${L.keywords?.length ?? 0}/100</span></div></div>`
+  h += bar('overall', s.overall) + bar('reach', s.reach, 'run 📝 worksheet') + bar('winnability', s.winnability, '')
+    + bar('hygiene', s.hygiene) + bar('budget', s.budget)
+  h += `<div class="sc-why">`
+  if (hard.length) h += `<div>⚠ HARD keywords <span class="rs-dim">(crowded — a new app won't rank; drop unless core)</span><div>${chips(hard, 'rs-hard')}</div></div>`
+  if (easy.length) h += `<div>✓ EASY keywords <span class="rs-dim">(winnable — lean here)</span><div>${chips(easy.map(t => t.term))}</div></div>`
+  if (ev.repeats?.length) h += `<div>⚠ repeated in title/subtitle + keywords (ranks once): ${escHtml([...new Set(ev.repeats)].join(', '))}</div>`
+  if (ev.missed?.length) h += `<div class="rs-dim">missing demand words: ${escHtml(ev.missed.slice(0, 14).join(', '))}${ev.missed.length > 14 ? ' …' : ''}</div>`
+  h += `</div>`
+  // the gotchas travel WITH the number — this is the honest part
+  h += `<div class="sc-gotchas"><b>read this before trusting the number</b><ul>`
+    + `<li><b>winnability &amp; hygiene</b> are the trustworthy signals; <b>reach is a soft nudge</b> (gameable — its word-list can carry noise, so read the missing list, don't chase the %).</li>`
+    + `<li><b>relevance &amp; "does it read like a person"</b> are NOT scored — that stays your call and mine.</li>`
+    + `<li>winnability is scored per <b>single word</b>, but Apple auto-combines your singles into phrases — a HARD single (<code>drum</code>) can still pull a winnable phrase (<code>drum machine</code>). Use bands as a lean, not a cut.</li>`
+    + `<li>difficulty is a <b>relative proxy</b> (crowding × incumbent strength), not real search volume — and "HARD" is relative to app authority: bad for a new app, fine once you rank. The real number is your own App Store data post-launch.</li>`
+    + `<li>iterate tweaks in the terminal: <code>node tools/aso-score.js ${escHtml(data.app || '')} --deep --keywords "…"</code> (A/B vs committed, with deltas).</li>`
+    + `</ul></div>`
+  asoResults.innerHTML = h
+}
+async function runScore(app) {
+  if (!window.studio?.asoScore) { showToast('score requires the desktop app  (npm start)', 3000); return }
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
+  document.getElementById('aso-terms')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  const res = await window.studio.asoScore(app)
+  if (res?.ok && res.data) renderScore(res.data)
+  else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'score failed')}</div>`
+}
+
 const asoVal = id => (document.getElementById(id)?.value || '')
 const lintRun = document.getElementById('lint-run')
 lintRun?.addEventListener('click', async () => {
@@ -1437,6 +1483,7 @@ async function renderAppsList() {
         <button data-act="suggest">💡 suggest keywords</button>
         <button data-act="compose">🧩 compose keywords</button>
         <button data-act="analyze">🔬 analyze listing</button>
+        <button data-act="score">📊 score listing</button>
         <button data-act="lint">✅ lint listing</button>
         <button data-act="coverage">🪞 check copy</button>
       </div>`
@@ -1479,6 +1526,13 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       const sugEl = document.getElementById('sug-terms')
       if (sugEl) { sugEl.value = res.terms.slice(0, 4).join(', '); sugEl.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
       sugRun?.click()
+      return
+    }
+    // score the committed listing (--deep hits the network) → scorecard + gotchas in the panel.
+    if (act === 'score') {
+      const stop = busyDots(btn, 'scoring (fetches difficulty)', label); btn.disabled = true
+      await runScore(app)
+      stop(); btn.disabled = false
       return
     }
     // brief writes apps/<app>/seo-brief.md; coverage checks the finished copy — both stream to

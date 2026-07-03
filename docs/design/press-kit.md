@@ -2,7 +2,7 @@
 
 STATUS: BUILDING (2026-07-03) — **v0.1 SHIPPED** (`tools/press-kit.js`): generates a
 self-contained press page + assets zip from `apps/<name>/app.json` + `apps/<name>/press.md` +
-`studio.md` + `store-shots`/`make-gif` assets. No node deps (flat frontmatter + a tiny markdown
+`apps/studio.md` + `store-shots`/`make-gif` assets. No node deps (flat frontmatter + a tiny markdown
 renderer). Proven on Tinyjam (acidrack/yachtrack/groovebox shots + trailer). Mirrors the
 journalist-recognised **presskit()** section format, generated ourselves from data we own. Sits
 in **Channel A** (own-domain showcase) of [`sharing-channels.md`](sharing-channels.md), a
@@ -28,7 +28,7 @@ a fifth copy of the truth; we render it.
 
 | Section | Source |
 |---|---|
-| **Factsheet** — developer, based-in, release date, platforms, price, website, contact, social | app manifest (`apps/<name>/app.json`) + a studio-wide `studio.md` |
+| **Factsheet** — developer, based-in, release date, platforms, price, website, contact, social | app manifest (`apps/<name>/app.json`) + a studio-wide `apps/studio.md` |
 | **Description** / **Features** | `de:meta` of the app + its modules (reuse the store copy from [`../marketing/tinyjam/app-store-listing.md`](../marketing/tinyjam/app-store-listing.md)) |
 | **Images** (gallery + download-all `.zip`) | `store-shots.js` output |
 | **Trailer / videos** | `make-gif.js` output (real cart audio; a *real capture*, so it's also App-Store-preview-compliant — see store-agents §1 compliance note) |
@@ -36,7 +36,7 @@ a fifth copy of the truth; we render it.
 | **History** (origin story) | `press.md` (hand-written) seeded from `de:meta` `lineage`/`homage` |
 | **Awards** / **Selected articles & quotes** | `press.md` (hand-maintained; starts empty) |
 | **Monetization permission** (streamers/YouTubers may monetise videos) | boilerplate — we grant it (a gift to the tribe; ties to `tinyjam-marketing.md` §9 gift-not-ask) |
-| **About the studio** / **Credits** / **Contact** | `studio.md` |
+| **About the studio** / **Credits** / **Contact** | `apps/studio.md` |
 | **Request press copy** | a mailto / TestFlight link (no `distribute()` dependency) |
 
 ## New data files (where you WRITE copy)
@@ -47,10 +47,11 @@ pleasant*. So the copy lives in Markdown files with a YAML frontmatter head, nex
 manifest (`apps/<name>/`, per ADR-0026's metadata-next-to-manifest layout):
 
 ```
-apps/tinyjam/
-  app.json      manifest (bundleId, carts, iap, icon, price) — already exists
-  press.md      ← the per-app press copy you WRITE
-studio.md       ← studio-wide identity + "about" prose, reused by every app
+apps/
+  studio.md         ← studio-wide identity + "about" prose, reused by every app
+  tinyjam/
+    app.json        manifest (bundleId, carts, iap, icon, price) — already exists
+    press.md        ← the per-app press copy you WRITE
 ```
 
 `apps/<name>/press.md` — open it and write:
@@ -78,7 +79,7 @@ The origin story…
 - two
 ```
 
-`studio.md` — same shape: frontmatter (developer, basedIn, website, pressContact, social,
+`apps/studio.md` — same shape: frontmatter (developer, basedIn, website, pressContact, social,
 credits) + a body paragraph for **About the studio**. Written once, shared by all apps.
 
 **Fallback rule:** prose comes from `press.md`; any section it omits falls back to the cart's

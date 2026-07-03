@@ -15,3 +15,6 @@ data-tools/fmltools/cache/
 
 # intermediate iconset (make-mac-icon.js output; the committed artifact is mac-app.icns)
 tools/assets/mac-app.iconset/
+
+# editor live screenshot (build artifact, never commit)
+/screenshot.png

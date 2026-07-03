@@ -11,7 +11,7 @@
 //   apps/<name>/app.json   manifest (required): name, bundleId, version, carts, price, icon
 //   apps/<name>/press.md   per-app copy — FLAT frontmatter (releaseDate/price/…) + markdown body
 //                          (## Description / ## History / ## Features / ## Quotes / ## Awards)
-//   studio.md              studio-wide — frontmatter (developer/basedIn/website/pressContact/
+//   apps/studio.md         studio-wide — frontmatter (developer/basedIn/website/pressContact/
 //                          social…) + a body (## About / ## Credits)
 // Writes: site/press/<name>/index.html (self-contained) + assets/ + <name>-presskit.zip
 'use strict'
@@ -78,7 +78,7 @@ function md2html(src) {          // supports: ## / ### / paragraphs / - lists / 
   flush(); return out.join('\n')
 }
 
-const studio = loadMd(path.join(ROOT, 'studio.md'))
+const studio = loadMd(path.join(ROOT, 'apps', 'studio.md'))
 const press = loadMd(path.join(appDir, 'press.md'))
 
 // ── assets ─────────────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ try { execFileSync('zip', ['-rq', `${app}-presskit.zip`, 'assets'], { cwd: out }
 // ── report ───────────────────────────────────────────────────────────────────
 const miss = []
 if (!press.body) miss.push('press.md (copy — using de:meta/manifest fallback)')
-if (!studio.fm.developer) miss.push('studio.md (developer/contact/about)')
+if (!studio.fm.developer) miss.push('apps/studio.md (developer/contact/about)')
 if (!shots.length) miss.push('screenshots (--shots dir empty)')
 if (!trailer) miss.push('trailer (--trailer)')
 if (!icon) miss.push('icon (--icon or manifest.icon)')

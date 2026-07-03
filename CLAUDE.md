@@ -166,7 +166,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              feed store-shots.js — the deterministic half of §1's hero-frame director (agent chooses).
                              ffmpeg-based, no node deps. Design: docs/design/store-agents.md §1
              press-kit.js    generate a self-contained presskit()-style PRESS PAGE + assets zip for an app, from
-                             apps/<name>/app.json + apps/<name>/press.md + studio.md + store-shots/make-gif assets
+                             apps/<name>/app.json + apps/<name>/press.md + apps/studio.md + store-shots/make-gif assets
                              (prose in markdown, structured in flat frontmatter; no node deps). Channel-A own-domain
                              artifact. Design: docs/design/press-kit.md
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /

@@ -16,15 +16,37 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 
 ## Pick-up point (next session)
 
-**Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
-`aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
-(topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
-📄 press kit, 🍎/📱 builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / 🔬 analyze / 📊 score / ✅ lint / 🪞 check). The app manifest gained a `listing` block
-(title/subtitle/keywords). Proven on Tiny Jam.
+**Shipped (2026-07-03) — a big session, four threads:**
+- **The ASO keyword loop (CLI):** `aso-research` (now mines competitor **descriptions** too,
+  document-frequency ranked) · `aso-suggest` (the free **Google-autocomplete demand proxy** —
+  §"the free trick"; splits into store WORDS + website PHRASES) · `aso-compose` · `aso-lint` ·
+  **`aso-brief`** (the *palette* — a committed, drift-tracked `apps/<app>/seo-brief.md` worksheet)
+  + **`aso-coverage`** (the *mirror* — phrase/word coverage + a stuffing check) · **`aso-score`**
+  (terminal scoreboard + A/B tweak; `--deep` = **winnability** from per-keyword difficulty). The
+  honest loop: **research/suggest → brief → *you write* → coverage → compose/lint/score.** None
+  writes prose (§"palette + mirror").
+- **The Apps-view surface:** app-less research lab + per-app card — 📸 screenshots → 📄 press kit,
+  🍎/📱 builds, and the sell row 📝 worksheet · 🔎 research · 💡 suggest · 🧩 compose · 🔬 analyze ·
+  📊 score · ✅ lint · 🪞 check. Plus **IAP copy shown** (name ≤30 / desc ≤45 char badges),
+  **clickable keyword "keys"** (fill the research box), **all keys → research**, and **load into
+  all tools**. Manifest carries `listing` + surfaces `iap.products`.
+- **The strategy reframe:** [`demand-generation.md`](demand-generation.md) — demand *capture* (ASO,
+  the tail) vs *generation* (video/tribe/word-of-mouth, the wave); the lever hierarchy; grab a
+  **tribe**, not the world. (All of this ASO doc is the *capture* layer.)
+- **The trailer builder** ([`trailer-builder.md`](trailer-builder.md)): backbone `build-app-reel.js`
+  (manifest `carts[]` → clip per rack → one reel; Tiny Jam is a 3-rack reel — acidrack got a clip)
+  **+ editor v1 (A):** the Apps-card 🎞 **trailer** section — click-to-edit timeline (library,
+  ◀▶ reorder, transition-at-join dropdown + secs, Build → bake+compose → inline preview),
+  **non-destructive** (writes only the `.reel`).
 
-**Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.
+**Orient:** `node tools/topic-brief.js "app store" "aso" "trailer" "demand"`.
 
-**Next, in priority order:**
+**Next — the active build thread (trailer):** per-clip **trim + speed** (a `compose-clips`
+`setpts`/`trim` bump + `.reel` syntax + block fields — fixes "the 34s reel is too long"), then the
+staged layer (drag polish B · 9:16 social export · IAP-tease ordering). See
+[`trailer-builder.md`](trailer-builder.md).
+
+**Next — the store track (maker-gated), in priority order:**
 1. **The real submission gates** — which app first, price, the original-palette rule
    ([`sharing-channels.md`](sharing-channels.md) §Channel B). *Nothing ships until these are
    the maker's call.*

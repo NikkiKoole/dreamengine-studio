@@ -426,7 +426,24 @@ live-search drift is invisible to any file check (hence the standing "re-run" ru
     combination; use the bands as a lean, not a hard cut.)
 
 The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror)**, with
-**`aso-score` the terminal scoreboard** you + the agent iterate a listing on. No step generates prose. Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.
+**`aso-score` the terminal scoreboard** you + the agent iterate a listing on. No step generates prose.
+
+### Parked — smarter scoring (brainstorm 2026-07-03, not built)
+
+Two directions surfaced while proving `aso-score`, worth building *only if* the loop earns it:
+
+1. **Authority-aware winnability.** HARD isn't absolute — it's `difficulty vs. your app's ranking
+   strength`. For a brand-new app HARD = unrankable (penalise it, as now); for an established app
+   HARD head terms are winnable and *should* be chased. So winnability wants a `--stage
+   new|growing|established` knob (or, post-launch, derive it from your *real* ASC rank data — the
+   loop closing yet again: proxy difficulty × your actual authority). Today's score implicitly
+   assumes `new`, which is correct for now but will mislead once an app has authority.
+2. **A pack-and-score search.** Given a large candidate pool, loop `aso-compose` (greedy-pack) →
+   `aso-score` (grade) over many packings and keep the best few. **Honest limit that keeps it out
+   of autopilot:** it can only optimise the *scorable* dims (winnability/hygiene/budget/reach) —
+   **relevance, the dimension that actually matters, isn't scorable**, so a pure maximiser would
+   produce high-scoring keyword-stuffed *irrelevant* fields. The honest shape is *generate the top-N
+   candidate sets → agent + maker pick* (the same palette-and-mirror rule; never full auto). Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.
 Open follow-on (was "feed phrases into press-kit"): the phrases now reach the press page *through
 the human*, via the worksheet — the honest version of that idea.
 

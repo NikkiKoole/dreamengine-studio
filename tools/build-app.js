@@ -289,9 +289,14 @@ const shimObj = path.join(stage, 'app_main.o')
 clang(['-c', shimFile, '-o', shimObj, ...COMMON])
 
 // ── link ─────────────────────────────────────────────────────────────────────
+// Bake the app name into the window title — a double-clicked .app gets no argv, so
+// without this studio.c falls back to "dreamengine". (execFileSync = no shell, so the
+// C string literal's quotes go through literally; strip any that'd break the token.)
+const titleSafe = String(app.name).replace(/["'\\$`]/g, '').trim()
+const titleDef = titleSafe ? [`-DDE_WINDOW_TITLE="${titleSafe}"`] : []
 const out = path.join(ROOT, 'build', appId)
 try {
-  clang([shimObj, ...objs, path.join(ROOT, 'runtime/studio.c'), ...COMMON,
+  clang([shimObj, ...objs, path.join(ROOT, 'runtime/studio.c'), ...COMMON, ...titleDef,
     path.join(mk.RAYLIB, 'lib/libraylib.a'),
     '-framework', 'OpenGL', '-framework', 'Cocoa', '-framework', 'IOKit',
     '-framework', 'CoreVideo', '-framework', 'CoreFoundation', '-framework', 'CoreMIDI',

@@ -15,7 +15,7 @@
 #        → App-Specific Passwords → +   (e.g. label it "notarytool")
 #   3. Store notarization creds once (uses #2 + your Team ID):
 #        xcrun notarytool store-credentials dreamengine-notary \
-#          --apple-id "you@example.com" --team-id L4S453HYLF --password <app-specific-pw>
+#          --apple-id "you@example.com" --team-id JH2ZCZH58D --password <app-specific-pw>
 #
 # Usage:
 #   tools/mac-app.sh <binary> [--name "Pretty Name"] [--id com.you.cart] \
@@ -98,7 +98,7 @@ ZIP="$OUT/$NAME.zip"
 /usr/bin/ditto -c -k --keepParent "$APP" "$ZIP"
 if ! xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait; then
   echo "✗ notarization failed. Is the '$PROFILE' credential stored? Run:" >&2
-  echo "    xcrun notarytool store-credentials $PROFILE --apple-id <you> --team-id L4S453HYLF --password <app-specific-pw>" >&2
+  echo "    xcrun notarytool store-credentials $PROFILE --apple-id <you> --team-id JH2ZCZH58D --password <app-specific-pw>" >&2
   rm -f "$ZIP"; exit 1
 fi
 rm -f "$ZIP"

@@ -273,12 +273,22 @@ only.** (Same posture as the rest of this repo — in-house and honest over a re
 **v0.1 SHIPPED (2026-07-03): `tools/aso-research.js`** — the Search-API leg, no account
 needed. Per seed term: a difficulty proxy (crowding × incumbent strength), the top
 competitors, your app's own rank (`--app`), a genre mix, and pooled mined keyword
-candidates (competitor title words minus App-Store category labels). `--json` snapshots.
-First real run on Mipo Puppetmaker found `marionette` EASY-and-unranked (a keyword to add)
-and `puppet pals` EASY with the app already at #10 in its own Education genre (a keyword to
-push) — while flagging `stop motion` as HARD (76k-rating incumbents) and low-relevance.
-Still to add: ingest the Search Term Rank report for the real popularity column (once the
-beta unlocks) and per-locale runs.
+candidates. First real run on Mipo Puppetmaker found `marionette` EASY-and-unranked (a
+keyword to add) and `puppet pals` EASY with the app already at #10 in its own Education genre
+(a keyword to push) — while flagging `stop motion` as HARD (76k-rating incumbents) and
+low-relevance. Still to add: ingest the Search Term Rank report for the real popularity
+column (once the beta unlocks) and per-locale runs.
+
+> **Mining upgraded (2026-07-03, "richer mining"):** candidates now come from competitor
+> **TITLES *and* DESCRIPTIONS** (the API exposes `description`; the App Store *subtitle* it
+> does NOT, so description is the recall source). Ranked by **document frequency** — how many
+> *distinct* competitors use a word, so one app repeating it 30× can't win — with title hits
+> weighted ~4× (the title is curated keyword real-estate) and a ★ marking title-sourced words.
+> Descriptions get an expanded marketing/device/URL stoplist (else DF just surfaces
+> `love/easy/beautiful/iphone`); category nouns (`synth`, `sampler`, `marionette`) are absent
+> from every stoplist so they survive. JSON gains `minedDetail:[{word,apps,title,desc}]`;
+> `mined:[[word,appCount]]` stays back-compat for the editor. Verified on `groovebox`/`drum
+> machine` (surfaces `synth·sequencer·mixer·sampler·korg` that title-only mining missed).
 
 **v0.1 SHIPPED (2026-07-03): `tools/aso-lint.js`** — the deterministic half of the metadata
 composer. Offline, no account: char limits (title/subtitle 30, keywords 100), wasted

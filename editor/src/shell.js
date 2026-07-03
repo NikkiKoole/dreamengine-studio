@@ -1306,6 +1306,44 @@ shareBtn?.addEventListener('click', () => {
 // starting an action closes the popover so the runtime log (each tool streams to it) shows
 shareMenu?.addEventListener('click', e => { if (e.target.closest('button')) closeShareMenu() })
 
+// ── Apps view: research lab (app-less) + apps list ────────────
+// The standalone tools (aso-research) run with NO app selected — a research sandbox;
+// app-scoped actions (build-app/press-kit) come with a selection in a later slice.
+const asoRun = document.getElementById('aso-run')
+const asoOut = document.getElementById('aso-out')
+window.studio?.onAsoLog?.(s => { if (asoOut) asoOut.textContent += stripAnsi(s) })   // stripAnsi() defined below (hoisted)
+asoRun?.addEventListener('click', async () => {
+  if (!window.studio?.asoResearch) { showToast('research requires the desktop app  (npm start)', 3000); return }
+  const termsEl = document.getElementById('aso-terms')
+  const terms = termsEl.value
+  const cc = document.getElementById('aso-cc').value || 'us'
+  if (!terms.trim()) { termsEl.focus(); return }
+  asoOut.textContent = ''
+  const stop = busyDots(asoRun, 'researching', 'research')
+  asoRun.disabled = true
+  await window.studio.asoResearch(terms, cc)
+  stop(); asoRun.disabled = false
+})
+document.getElementById('aso-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') asoRun?.click() })
+
+async function renderAppsList() {
+  const el = document.getElementById('apps-list')
+  if (!el || !window.studio?.listApps) return
+  const { apps } = await window.studio.listApps()
+  if (!apps || !apps.length) { el.innerHTML = '<div class="apps-empty">no apps yet — an app is <code>apps/&lt;name&gt;/app.json</code></div>'; return }
+  el.innerHTML = ''
+  for (const a of apps) {
+    const card = document.createElement('div')
+    card.className = 'app-card'
+    const meta = [a.carts.join(', '), a.iap ? `${a.iap} IAP` : ''].filter(Boolean).join('  ·  ')
+    card.innerHTML = `<div class="app-name"></div><div class="app-meta"></div>`
+    card.querySelector('.app-name').textContent = a.name
+    card.querySelector('.app-meta').textContent = meta
+    el.appendChild(card)
+  }
+}
+document.querySelector('.tab[data-tab="apps"]')?.addEventListener('click', renderAppsList)
+
 // ── live auto-reload ──────────────────────────────────────────
 // While a live (libtcc) window is open, rewrite cart.c on a debounce as the user types;
 // the host's file-watch hot-reloads it. No-op otherwise, so it costs nothing in native

@@ -17,6 +17,7 @@
         <button class="tab"        data-tab="pixels"    tabindex="-1">pixels</button>
         <button class="tab"        data-tab="tutorials" tabindex="-1">carts</button>
         <button class="tab"        data-tab="help"      tabindex="-1">docs</button>
+        <button class="tab"        data-tab="apps"      tabindex="-1">apps</button>
         <button class="tab"        data-tab="settings"  tabindex="-1">settings</button>
       </div>
       <button id="profile-btn" tabindex="-1" title="run the cart for a few seconds and list its CPU hotspots" style="display:none">⏱ profile</button>
@@ -198,6 +199,24 @@
       </div>
 
       <div id="panel-settings" class="panel"></div>
+
+      <div id="panel-apps" class="panel">
+        <div id="apps-body">
+          <section id="aso-lab">
+            <h3>🔬 Research <span class="apps-hint">try any term — no app needed</span></h3>
+            <div class="aso-row">
+              <input id="aso-terms" type="text" placeholder="e.g. drum machine, groovebox, pocket synth" spellcheck="false" />
+              <input id="aso-cc" type="text" value="us" maxlength="2" title="storefront (2-letter country code)" />
+              <button id="aso-run">research</button>
+            </div>
+            <pre id="aso-out"></pre>
+          </section>
+          <section id="apps-list-sec">
+            <h3>Your apps</h3>
+            <div id="apps-list"></div>
+          </section>
+        </div>
+      </div>
 
     </div>
 

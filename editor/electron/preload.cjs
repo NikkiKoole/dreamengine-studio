@@ -20,4 +20,8 @@ contextBridge.exposeInMainWorld('studio', {
   publish:      (code, cfg) => ipcRenderer.invoke('studio:publish', code, cfg),
   openExternal: (url)       => ipcRenderer.invoke('studio:open-external', url),
   setCartName:  (name)     => ipcRenderer.send('cart:set-name', name),
+  // Apps view
+  listApps:     ()               => ipcRenderer.invoke('studio:list-apps'),
+  asoResearch:  (terms, country) => ipcRenderer.invoke('studio:aso-research', terms, country),
+  onAsoLog:     (cb)             => ipcRenderer.on('aso:log', (_, s) => cb(s)),
 })

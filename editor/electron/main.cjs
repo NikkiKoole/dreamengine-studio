@@ -1248,6 +1248,46 @@ ipcMain.handle('studio:open-external', (_e, url) => {
   if (typeof url === 'string' && /^https?:\/\//.test(url)) shell.openExternal(url)
 })
 
+// ── Apps view: list app manifests (apps/<name>/app.json) ──────
+ipcMain.handle('studio:list-apps', async () => {
+  const APPS_DIR = path.join(__dirname, '../../apps')
+  try {
+    const apps = []
+    for (const dir of fs.readdirSync(APPS_DIR)) {
+      const mf = path.join(APPS_DIR, dir, 'app.json')
+      if (!fs.existsSync(mf)) continue
+      try {
+        const m = JSON.parse(fs.readFileSync(mf, 'utf8'))
+        const iap = (m.iap && Array.isArray(m.iap.products)) ? m.iap.products.length : 0
+        apps.push({ dir, name: m.name || dir, carts: m.carts || [], launcher: m.launcher || '', iap })
+      } catch {}
+    }
+    return { ok: true, apps }
+  } catch (e) { return { ok: false, apps: [], output: String(e.message || e) } }
+})
+
+// ── ASO research (standalone — no app needed) ─────────────────
+// Runs tools/aso-research.js and streams its table to a dedicated 'aso:log' channel
+// (not cart:log — keep research output out of the runtime log). App-agnostic: research
+// any term without selecting or altering an app.
+ipcMain.handle('studio:aso-research', async (_event, terms, country) => {
+  const wc = _event.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
+  const list = String(terms || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (!list.length) return { ok: false, output: 'type at least one search term' }
+  const cc = /^[a-z]{2}$/i.test(country || '') ? String(country).toLowerCase() : 'us'
+  const ROOT = path.join(__dirname, '../..')
+  const args = [path.join(ROOT, 'tools/aso-research.js'), '--country', cc, ...list]
+  log(`── aso-research (${cc}): ${list.join(' · ')} ──\n`)
+  return new Promise(resolve => {
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stdout.on('data', c => log(c.toString()))
+    proc.stderr.on('data', c => log(c.toString()))
+    proc.on('exit', code => resolve({ ok: code === 0 }))
+    proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })
+  })
+})
+
 // ── publish to site ───────────────────────────────────────────
 // Builds the CURRENT editor cart (code + sprites + map + settings) straight to
 // site/<name>/, writes the C source back to tools/carts/<name>.c (repo and site

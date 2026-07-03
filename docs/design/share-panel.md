@@ -95,6 +95,19 @@ Traps hit: the shim is cart-namespace code too (`frame` is engine API — the
 "don't name a variable after a built-in" rule applies); headless runs are
 **uncapped** (no vsync), so frame-N proofs need one screenshot per run, not two in one.
 
+**Found the hard way (maker's ears, first build): INSTRUMENT SLOT COLLISION.** The
+engine's instrument-slot bank is one global array (48 slots); both racks define their
+sounds by slot *number* (acid 5..29, yacht 5..14) — so the last rack to configure a
+slot wins and the other rack triggers the WRONG SOUNDS (acid's 909 came back as
+yacht's strat). Fixed in the spike by **slot partitioning**: yacht's TU compiles with
+its 9 slot-taking calls (`instrument`, the 7 `instrument_*` setters, `schedule_hit`)
+renamed to shim wrappers that shift its slots ≥5 up by 25 → yacht plays in 30..39,
+zero overlap. Verified via `nm` (yacht.o imports the wrappers, acid.o untouched).
+The real fix is a manifest-generator choice: **emit these wrappers per cart**
+(mechanical — the slot-taking API list is closed), or grow the engine a per-cart slot
+bank behind `de_switch_cart`. Slot budget is the constraint either way: a manifest's
+carts must fit 43 cart-defined slots together (acid 25 + yacht 10 = fine).
+
 Deliberately NOT covered — the next spikes, in order of need:
 1. **Sprite carts** — per-slug staged sheets + a runtime sheet-swap on switch (the
    engine already swaps the spritesheet texture in the `pal()` path, so the mechanism
@@ -104,9 +117,10 @@ Deliberately NOT covered — the next spikes, in order of need:
 3. **Differing screen dims** — `SCREEN_W/H` are compile-time; a manifest picks one size
    and its carts must match (or the engine grows letterboxing). Both racks are 320×240,
    so Tinyjam dodges this.
-4. **FX-bus bleed** — effects are set-and-hold, so the incoming cart inherits the
-   outgoing cart's bus config until it touches a knob. `note_off_all()` covers notes,
-   not buses; a `de_switch_cart` API would want a bus reset too.
+4. **Master-bus FX bleed** — effects are set-and-hold, so the incoming cart inherits
+   the outgoing cart's *master* bus config (delay time/feedback, master filter) until
+   it touches a knob. Slot partitioning fixes the per-slot sounds; the shared master
+   bus remains; a `de_switch_cart` API would want a bus snapshot/restore.
 5. **Per-cart save dirs** and the **launcher cart** + real `de_switch_cart()` (the
    spike's shim hardcodes the pair; the manifest generates it).
 

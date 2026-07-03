@@ -840,34 +840,104 @@ ipcMain.handle('studio:export-win', async (_event, code, cfg) => {
   })
 })
 
-// EXPORT A MAC BINARY you can send to another Mac. The native binary is
-// self-contained (sprites/font baked in) — just this one file. Built with
-// -DDE_NET_LOBBY_DEFAULT so it boots into the Host/Join/Solo lobby. Unsigned, so
-// on the receiving Mac it's right-click → Open once (Gatekeeper "unidentified
-// developer"); a signed/notarized .app is a later step. macOS host only.
+// EXPORT A MAC APP you can send to another Mac. The native binary is self-contained
+// (sprites/font baked in) and built with -DDE_NET_LOBBY_DEFAULT (boots into the
+// Host/Join/Solo lobby). With a "Developer ID Application" cert in the keychain this
+// hands off to tools/mac-app.sh — .app bundle → codesign → notarize (if the notary
+// keychain profile exists) → staple — and saves a send-ready zip. Without the cert it
+// falls back to the old bare unsigned binary. One-time cert/notary setup: the
+// mac-app.sh header. macOS host only.
+function macDevIdCert() {
+  try {
+    const m = execSync('security find-identity -v', { encoding: 'utf8' })
+      .match(/"(Developer ID Application:[^"]*)"/)
+    return m ? m[1] : ''
+  } catch { return '' }
+}
+function macNotaryProfileStored() {   // notarytool creds live in the keychain under this service
+  try { execSync('security find-generic-password -s com.apple.gke.notary.tool', { stdio: 'ignore' }); return true }
+  catch { return false }
+}
+
 ipcMain.handle('studio:export-mac', async (_event, code, cfg) => {
   const wc  = _event.sender
   const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
   if (process.platform !== 'darwin') return { ok: false, output: 'Mac export runs on macOS only' }
 
-  const dims = prepareCart(code, cfg)
-  const slug = (cfg?.cartName || 'cart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cart'
+  const dims  = prepareCart(code, cfg)
+  const slug  = (cfg?.cartName || 'cart').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'cart'
+  const devId = macDevIdCert()
+
+  // ── no Developer ID cert → old flow: bare unsigned binary ────────────────
+  if (!devId) {
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: 'Export Mac binary (unsigned)',
+      defaultPath: slug,   // no extension — a plain runnable Mach-O
+    })
+    if (canceled || !filePath) return { ok: false, output: 'export cancelled' }
+
+    const args = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], filePath, ['-DDE_NET_LOBBY_DEFAULT'])
+    log(`\n── exporting ${path.basename(filePath)} for macOS (multiplayer lobby, UNSIGNED) ──\n`)
+    log(`no "Developer ID Application" certificate in the keychain — exporting a bare binary.\n` +
+        `for a signed, notarized .app that opens anywhere, do the one-time setup in tools/mac-app.sh's header.\n\n`)
+    return new Promise(resolve => {
+      exec(`clang ${args.join(' ')}`, (err, _o, stderr) => {
+        const warn = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
+        if (err) { log((warn || 'clang build failed') + '\n'); return resolve({ ok: false, output: warn || 'clang build failed' }) }
+        try { fs.chmodSync(filePath, 0o755) } catch {}
+        try { shell.showItemInFolder(filePath) } catch {}
+        log(`✓ exported ${filePath}\n  self-contained — send just this file. On another Mac: right-click → Open (unsigned, so Gatekeeper asks once).\n`)
+        resolve({ ok: true, out: filePath, msg: '✓ Mac binary exported (unsigned) — revealed in Finder' })
+      })
+    })
+  }
+
+  // ── Developer ID cert found → signed .app via tools/mac-app.sh, saved as a zip ──
+  const pretty   = cfg?.cartName || slug
+  const notarize = macNotaryProfileStored()
   const { canceled, filePath } = await dialog.showSaveDialog({
-    title: 'Export Mac binary',
-    defaultPath: slug,   // no extension — a plain runnable Mach-O
+    title: notarize ? 'Export signed + notarized Mac app' : 'Export signed Mac app',
+    defaultPath: `${slug}.zip`,   // zip keeps the .app bundle intact in transit
+    filters: [{ name: 'Zipped Mac app', extensions: ['zip'] }],
   })
   if (canceled || !filePath) return { ok: false, output: 'export cancelled' }
+  const zipOut = filePath.endsWith('.zip') ? filePath : `${filePath}.zip`
 
-  const args = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], filePath, ['-DDE_NET_LOBBY_DEFAULT'])
-  log(`\n── exporting ${path.basename(filePath)} for macOS (multiplayer lobby) ──\n`)
+  const tmpBin = path.join(BUILD_DIR, `export-${slug}`)
+  const args   = macCompileArgs(dims, ['-O2', '-DDE_RELEASE'], tmpBin, ['-DDE_NET_LOBBY_DEFAULT'])
+  log(`\n── exporting ${pretty}.app for macOS (multiplayer lobby, signed${notarize ? ' + notarized' : ''}) ──\n`)
+  if (!notarize) log(`note: no notarytool keychain profile found — signing only (Gatekeeper still asks once\n` +
+                     `on other Macs). Store creds per tools/mac-app.sh's header for the full flow.\n\n`)
+
   return new Promise(resolve => {
     exec(`clang ${args.join(' ')}`, (err, _o, stderr) => {
       const warn = stderr.split('\n').filter(l => !l.includes('was built for newer macOS version')).join('\n').trim()
       if (err) { log((warn || 'clang build failed') + '\n'); return resolve({ ok: false, output: warn || 'clang build failed' }) }
-      try { fs.chmodSync(filePath, 0o755) } catch {}
-      try { shell.showItemInFolder(filePath) } catch {}
-      log(`✓ exported ${filePath}\n  self-contained — send just this file. On another Mac: right-click → Open (unsigned, so Gatekeeper asks once).\n`)
-      resolve({ ok: true, out: filePath })
+
+      const script = path.join(__dirname, '../../tools/mac-app.sh')
+      const shArgs = [script, tmpBin, '--name', pretty, '--out', BUILD_DIR]
+      if (!notarize) shArgs.push('--no-notarize')
+      else log(`(notarization uploads to Apple — allow 1–5 min)\n`)
+
+      const child = spawn('bash', shArgs, { env: { ...process.env, DEV_ID: devId } })
+      child.stdout.on('data', d => log(d.toString()))
+      child.stderr.on('data', d => log(d.toString()))
+      child.on('close', codeNum => {
+        try { fs.unlinkSync(tmpBin) } catch {}
+        if (codeNum !== 0) return resolve({ ok: false, output: `mac-app.sh failed (exit ${codeNum}) — see the log above` })
+
+        const app = path.join(BUILD_DIR, `${pretty}.app`)
+        exec(`/usr/bin/ditto -c -k --keepParent "${app}" "${zipOut}"`, (zerr) => {
+          if (zerr) return resolve({ ok: false, output: `zip failed: ${zerr.message}` })
+          try { shell.showItemInFolder(zipOut) } catch {}
+          log(`\n✓ exported ${zipOut}\n` + (notarize
+            ? `  signed + notarized — on another Mac: unzip, double-click. No Gatekeeper warning.\n`
+            : `  signed (not notarized) — on another Mac: unzip, right-click → Open once.\n`))
+          resolve({ ok: true, out: zipOut, msg: notarize
+            ? '✓ signed + notarized .app exported — revealed in Finder'
+            : '✓ signed .app exported (not notarized) — revealed in Finder' })
+        })
+      })
     })
   })
 })

@@ -1485,7 +1485,7 @@ exportMacBtn?.addEventListener('click', async () => {
   stopDots()
   exportMacBtn.disabled = false
 
-  if (result.ok) showToast('✓ Mac binary exported — revealed in Finder', 5000)
+  if (result.ok) showToast(result.msg || '✓ Mac export done — revealed in Finder', 5000)
   else showLog(result)
 })
 

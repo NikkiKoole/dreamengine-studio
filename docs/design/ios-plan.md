@@ -6,8 +6,9 @@ parked product thinking in those:
 
 - **What & why we ship** → [`../decisions/0023-ship-carts-as-apps-not-the-editor.md`](../decisions/0023-ship-carts-as-apps-not-the-editor.md):
   finished apps (a cart, or a curated collection), **precompiled native on a dev box**; never the editor.
-- **Product strategy** (monetization, AUv3 catalog, agentic Fastlane pipeline, StoreKit 2) →
-  [`product-notes-followup.md`](product-notes-followup.md) §2–§7.
+- **Product strategy** (monetization, AUv3 catalog, agentic store pipeline — in-house, not
+  Fastlane, per [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md) —
+  StoreKit 2) → [`product-notes-followup.md`](product-notes-followup.md) §2–§7.
 - **The music product** the apps host → [`tinyjam-racks.md`](tinyjam-racks.md) (Tinyjam racks).
 - **Where iOS sits among all the ways a cart reaches someone** → [`sharing-channels.md`](sharing-channels.md)
   (channel B — incl. what's still missing between "proven" and "in the store").

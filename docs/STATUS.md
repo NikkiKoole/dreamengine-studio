@@ -303,6 +303,11 @@ their `kind[]` tags.
     the cash register — iOS is where music-app buyers live. Deliberately **waits for
     evidence** (a rack holding people's attention on the free web gallery) per the
     sketch-first decision in [`design/product-notes.md`](design/product-notes.md).
+    *Update 2026-07-03:* the build path largely exists (8/9 [`design/ios-plan.md`](design/ios-plan.md)
+    spikes ✅); the live map of what's still missing to the store is
+    [`design/sharing-channels.md`](design/sharing-channels.md) §Channel B (product decision,
+    palette, submission pipeline — the latter decided in-house, not Fastlane:
+    [ADR-0026](decisions/0026-store-pipeline-in-house-not-fastlane.md)).
 12. **Sound tracker UI** — open question; depends on whether code-first sound proves
     sufficient. *Direction 2026-06-04: leaning PICO-8-style, prototyped as a CART with
     zero new engine API (see #5 + audio-notes §5.6) — the cheap way to find out if the

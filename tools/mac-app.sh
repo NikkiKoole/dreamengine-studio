@@ -6,10 +6,16 @@
 # not notarized (and a plain Mach-O double-clicks into Terminal). This wraps it:
 #   .app bundle → codesign (Developer ID + hardened runtime) → notarize → staple.
 #
-# Prerequisites (one-time, need YOUR Apple login — see docs/guides or the chat):
+# Prerequisites (one-time PER MACHINE, need YOUR Apple login — see docs/guides or the chat):
 #   1. A "Developer ID Application" certificate in your keychain
-#        Xcode → Settings → Accounts → (your Apple ID) → Manage Certificates
-#        → + → "Developer ID Application"   (requires paid Developer Program)
+#        No-Xcode route (proven 2026-07-03): Keychain Access → Certificate Assistant →
+#        Request a Certificate From a CA… → "Saved to disk", then developer.apple.com/account
+#        → Certificates → + → "Developer ID Application" → upload the CSR → download the .cer.
+#        (Or: Xcode → Settings → Accounts → Manage Certificates → +. Requires paid Program.)
+#        The private key lives on the machine that made the CSR — a .cer (or a p12 exported
+#        from a Mac without the key) will NOT form an identity elsewhere; mint a cert per
+#        machine instead (several can coexist). If Keychain Access errors on import (-25294),
+#        use the CLI:  security import <file> -k ~/Library/Keychains/login.keychain-db
 #      Verify:  security find-identity -v | grep "Developer ID Application"
 #   2. An app-specific password: appleid.apple.com → Sign-In & Security
 #        → App-Specific Passwords → +   (e.g. label it "notarytool")

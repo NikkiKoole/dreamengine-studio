@@ -10,6 +10,8 @@ action too).
 
 This doc is the **map, not the owner** — each channel's detail stays in the doc that owns
 it. The how-to for what ships today: [`../guides/exporting.md`](../guides/exporting.md).
+This maps the *channels* (the plumbing to reach someone); which channels/levers actually
+drive downloads, and in what order, is [`demand-generation.md`](demand-generation.md).
 
 ## The three channels
 

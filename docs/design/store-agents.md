@@ -8,6 +8,12 @@ decided the plumbing (in-house ASC API tool, not Fastlane); this doc is the laye
 Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the store rung of
 [`share-panel.md`](share-panel.md).
 
+> **Perspective check:** everything here is demand **capture** (get found by people already
+> searching) — the *tail*, not the wave. Where downloads actually come from (demand
+> *generation* — video, tribe, word-of-mouth) and how these tools rank against it is
+> [`demand-generation.md`](demand-generation.md). Read that first if the question is "how do we
+> get downloads," not "how do we rank."
+
 ## Pick-up point (next session)
 
 **Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /

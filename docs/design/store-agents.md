@@ -1,14 +1,36 @@
 # Store agents — the judgment layer above the App Store pipeline
 
-STATUS: BUILDING (2026-07-03) — brainstorm + the first leg SHIPPED: `tools/aso-research.js`
-v0.1 (the ASO Search-API leg, §ASO). Captures the *agentic* half of App Store deployment —
-the work that decides whether an app gets **accepted** and **discovered**, which a REST
-client can't do. [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)
+STATUS: BUILDING (2026-07-03) — the free ASO/press/share **toolchain + its editor surface
+SHIPPED** today (ledger: [`../STATUS.md`](../STATUS.md)). Captures the *agentic* half of App
+Store deployment — the work that decides whether an app gets **accepted** and **discovered**,
+which a REST client can't do. [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)
 decided the plumbing (in-house ASC API tool, not Fastlane); this doc is the layer above it.
 Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the store rung of
-[`share-panel.md`](share-panel.md); the ship-a-paid-app parts stay gated behind the same
-product decision (which app first) and the original-palette rule, but keyword *research*
-needs none of that and is live now.
+[`share-panel.md`](share-panel.md).
+
+## Pick-up point (next session)
+
+**Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
+`aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
+(topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
+📄 press kit, 🍎/📱 builds, 🔎 lint / 🧩 compose). The app manifest gained a `listing` block
+(title/subtitle/keywords). Proven on Tiny Jam.
+
+**Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.
+
+**Next, in priority order:**
+1. **The real submission gates** — which app first, price, the original-palette rule
+   ([`sharing-channels.md`](sharing-channels.md) §Channel B). *Nothing ships until these are
+   the maker's call.*
+2. **The ASC upload + TestFlight tool** — the one big unbuilt piece
+   ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)): in-house against the
+   App Store Connect API (JWT/ES256 from a `.p8`), the chunked asset-upload dance, per-locale
+   `metadata/<locale>/` folders.
+3. **Search-Term-Rank popularity column** — feed `aso-research` real 1–100 popularity once
+   Apple's beta reaches the account (App Store Connect → Analytics → Insights; §ASO deep-dive).
+4. **Parked niceties:** per-locale copy · a make-clip button + the recorder / live-loop
+   ([`input-recording-looper.md`](input-recording-looper.md)) · the `0-apps → empty/banned`
+   research flag · app-scoped `store-shots` into `apps/<name>/screenshots`.
 
 ## The one rule: scripts prepare → agent decides → scripts execute
 

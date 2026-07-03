@@ -66,8 +66,10 @@ The video unit for a multi-cart IAP app is a **showreel** of its racks, and the 
 part was already solved by `compose-clips.js`. `tools/build-app-reel.js <app>` closes the last
 gap: reads the manifest's `carts[]`, bakes a clip per rack (skips racks with no committed clip,
 warns), generates a committed+editable `tools/reels/<app>.reel`, and composes →
-`editor/public/reels/<app>.webm`. Proven on Tiny Jam (a ~19.5s reel: yachtrack ⤍fade⤍ epiano;
-acidrack skipped — no clip yet). The rest is the "make it great" layer, staged:
+`editor/public/reels/<app>.webm`. Proven on Tiny Jam (now a 3-rack reel: acidrack ⤍ yachtrack ⤍ epiano). The **editor UI over this**
+— a humble, non-destructive CapCut (horizontal timeline, transitions-at-joins, per-clip trim/speed,
+bake→preview) — is designed in [`trailer-builder.md`](trailer-builder.md). The rest is the "make it
+great" layer, staged:
 - **the editor picker** — reorderable clip rows + per-cut transition/seconds (a thin editor over
   the `.reel`, not a keyframe timeline); the "pick which script runs after each other + decide
   the cut/tween" ask. Next.

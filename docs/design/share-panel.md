@@ -206,8 +206,22 @@ emptiness is the structure.
   - **Share** — topbar, unit = the *open cart*. Only cart-valid cells show, so the humble
     "hand someone this cart as a signed Mac app, no marketing" path stays one click.
   - **Apps** — a new list reading `apps/*/app.json` (parallel to the carts panel), unit = a
-    *manifest*. The whole product ceremony (keywords/screenshots/press/upload) lives here,
-    **not** in the per-cart popover. This is the main new structural piece the model needs.
+    *manifest*. It **mirrors the carts flow one level up**: the list is not a dead table —
+    *click an app → its* share/publish actions appear (the same share surface, fed the app).
+    So the whole product ceremony (keywords/screenshots/press/upload) lives **in the Apps
+    view, scoped to the selected app**, not in the per-cart popover.
+
+    ```
+    CARTS:  carts panel → click a cart → it opens → topbar [Share ▾] acts on it
+    APPS:   Apps view   → click an app  → its [share / publish actions] appear
+    ```
+
+    The **asymmetry is intentional** (topbar for carts, in-view for apps): a cart is *open* —
+    you're editing it — so Share is a topbar action on the current thing; an app isn't
+    something you "open and edit", you *browse to it* and act on it there. The Apps view also
+    earns its keep beyond listing: **`+ New`** (writes a manifest) and **promote a cart into
+    an app** ("add this cart to …") — a small project/releases hub, not a one-row table. This
+    is the main new structural piece the model needs.
   - A third **Showcase/Site** mount comes later (cross-cart reels + gallery curation) — don't
     force it into the first two.
 - **Cheap to rearrange:** a mis-placed button is ~10 lines of `shell.js` — the *tool* doesn't

@@ -13,7 +13,7 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 **Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
 `aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
 (topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
-📄 press kit, 🍎/📱 builds, 🔎 research / ✅ lint / 🧩 compose). The app manifest gained a `listing` block
+📄 press kit, 🍎/📱 builds, 🔎 research / 💡 suggest / ✅ lint / 🧩 compose). The app manifest gained a `listing` block
 (title/subtitle/keywords). Proven on Tiny Jam.
 
 **Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.
@@ -28,6 +28,8 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
    `metadata/<locale>/` folders.
 3. **Search-Term-Rank popularity column** — feed `aso-research` real 1–100 popularity once
    Apple's beta reaches the account (App Store Connect → Analytics → Insights; §ASO deep-dive).
+   *Interim free stand-in SHIPPED:* `aso-suggest.js` (Google-autocomplete demand proxy — §"the
+   free trick"). Swap to Apple's real number when it unlocks.
 4. **Parked niceties:** per-locale copy · a make-clip button + the recorder / live-loop
    ([`input-recording-looper.md`](input-recording-looper.md)) · the `0-apps → empty/banned`
    research flag. (~~app-scoped `store-shots`~~ + ~~app-scoped research~~ both SHIPPED —
@@ -329,8 +331,39 @@ per-module IAP naming scheme) are worked out from this method in
 [`../marketing/tinyjam/app-store-listing.md`](../marketing/tinyjam/app-store-listing.md) —
 including the collection-app move of distributing keywords across promoted IAPs.
 
-> Sources (2026-07-03): live probes of `itunes.apple.com/search` + the `MZSearchHints`
-> endpoint; Apple Search Term Rank Report writeup (aso.dev/aso/search-term-rank);
+### The free trick while Apple's beta is dark: `tools/aso-suggest.js` (2026-07-03)
+
+Re-probed the endpoints (2026-07-03): Apple's old `MZSearchHints` is **`<array></array>` —
+dead**; the modern `amp-api` suggestions endpoint is **401 (bearer-token-gated)**. But
+**Google Autocomplete** (`suggestqueries.google.com/complete/search?client=firefox`) is
+**live, free, no auth**. `aso-suggest.js` is the **demand-side** twin of `aso-research.js`
+(which only measures *competition*): for each seed it queries the bare term, `<seed> app`,
+and the a–z **"alphabet soup"** expansion, harvesting the phrases real people type. Google
+orders suggestions ~by query popularity, so a phrase's best position + appearance frequency =
+a **demand proxy** — the free stand-in for the Search-Term-Rank popularity column until that
+beta reaches the account. Honest ceiling (same as always): this is **Google / cross-platform
+intent, not App Store volume** — and for broad seeds it leaks web/gaming/brand noise
+(`xbox`, `minecraft`, `chrome`), killed by an expanded stoplist; the agent filters the rest.
+
+**Phrases vs. words — two search engines, two outputs (maker's insight, 2026-07-03).** The
+App Store and your own website are *different search engines with different ranking models*,
+so the same harvest splits into two audiences:
+
+| output | engine | why | consumed by |
+|---|---|---|---|
+| single **WORDS** (`beat, jam, sampler`) | **App Store** | Apple auto-combines singles + ignores stopwords; the 100-char field ranks on a word-soup | `aso-compose --candidates` → the keyword field |
+| natural **PHRASES** (`drum machine app for ipad`) | **Google** (your site / press page) | Google ranks *phrases* / semantic intent, and these literally ARE Google queries | `press-kit` meta description, page `<title>`/headings, gallery SEO copy |
+
+So `aso-suggest` emits both (`candidates` + `phrases` in `--json`). This is the ASO seam of
+the channel split ([`sharing-channels.md`](sharing-channels.md)): **Channel B (App Store) eats
+the words; Channel A (own domain — [`press-kit.md`](press-kit.md), the gallery) eats the
+phrases.** Open follow-on: feed `phrases` into `press-kit.js` (a `<meta name="description">` +
+og tags built from the top phrases) and `build-site.js` gallery pages — turning free Google
+demand data into own-domain SEO for the same zero cost.
+
+> Sources (2026-07-03): live probes of `itunes.apple.com/search`, `MZSearchHints` (empty),
+> `amp-api` suggestions (401), and `suggestqueries.google.com` (live);
+> Apple Search Term Rank Report writeup (aso.dev/aso/search-term-rank);
 > Apple Ads API docs (developer.apple.com/documentation/apple_ads).
 
 ## Open questions

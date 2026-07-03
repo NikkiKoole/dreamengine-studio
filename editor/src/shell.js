@@ -1359,6 +1359,33 @@ asoRun?.addEventListener('click', async () => {
 })
 document.getElementById('aso-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') asoRun?.click() })
 
+// suggest — Google-autocomplete demand proxy. TWO audiences: single WORDS → the App Store
+// keyword field (auto-fills the compose box), natural PHRASES → website/press SEO.
+const sugRun = document.getElementById('sug-run')
+function renderSuggest(data) {
+  if (!asoResults) return
+  let h = '<div class="rs-note">Google-intent demand proxy — relative, not App Store volume.</div>'
+  h += `<div class="rs-block"><b>App Store keyword words</b> <span class="rs-dim">→ filled into the compose box below</span><div class="rs-chips">`
+    + (data.mined || []).map(([w, c]) => `<span class="rs-chip">${escHtml(w)}·${c}</span>`).join(' ') + '</div></div>'
+  h += `<div class="rs-block"><b>Website / press-kit phrases</b> <span class="rs-dim">→ meta description, headings, copy</span><div class="rs-phrases">`
+    + (data.phrases || []).map(p => `<div class="rs-phrase">${escHtml(p.phrase)} <span class="rs-dim">·${p.demand}</span></div>`).join('') + '</div></div>'
+  asoResults.innerHTML = h
+  const cc = document.getElementById('comp-cands')
+  if (cc && (data.candidates || []).length) cc.value = data.candidates.join(', ')
+}
+async function runSuggest(terms, cc) {
+  if (!window.studio?.asoSuggest) { showToast('suggest requires the desktop app  (npm start)', 3000); return }
+  if (!terms.trim()) { document.getElementById('sug-terms')?.focus(); return }
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
+  const stop = busyDots(sugRun, 'suggesting', 'suggest'); if (sugRun) sugRun.disabled = true
+  const res = await window.studio.asoSuggest(terms, cc || 'us')
+  stop(); if (sugRun) sugRun.disabled = false
+  if (res?.ok && res.data) renderSuggest(res.data)
+  else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'suggest failed')}</div>`
+}
+sugRun?.addEventListener('click', () => runSuggest(document.getElementById('sug-terms').value, document.getElementById('sug-cc')?.value))
+document.getElementById('sug-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') sugRun?.click() })
+
 const asoVal = id => (document.getElementById(id)?.value || '')
 const lintRun = document.getElementById('lint-run')
 lintRun?.addEventListener('click', async () => {
@@ -1406,6 +1433,7 @@ async function renderAppsList() {
         <button data-act="press">📄 press kit</button>
         <span class="app-sec">sell</span>
         <button data-act="research">🔎 research keywords</button>
+        <button data-act="suggest">💡 suggest keywords</button>
         <button data-act="lint">✅ lint listing</button>
         <button data-act="compose">🧩 compose keywords</button>
       </div>`
@@ -1434,6 +1462,17 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       const termsEl = document.getElementById('aso-terms')
       if (termsEl) { termsEl.value = res.terms.join(', '); termsEl.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
       asoRun?.click()
+      return
+    }
+    // suggest is heavier per seed (a-z autocomplete soup), so seed from fewer terms
+    if (act === 'suggest') {
+      const stop = busyDots(btn, 'seeding', label); btn.disabled = true
+      const res = await window.studio.appSeeds(app)
+      stop(); btn.disabled = false
+      if (!res?.ok || !res.terms?.length) { showToast(res?.error || 'no seed terms — add teaches/title to the carts', 3000); return }
+      const sugEl = document.getElementById('sug-terms')
+      if (sugEl) { sugEl.value = res.terms.slice(0, 4).join(', '); sugEl.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+      sugRun?.click()
       return
     }
     const stop = busyDots(btn, 'working', label); btn.disabled = true

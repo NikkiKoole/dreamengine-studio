@@ -148,6 +148,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              per term a difficulty proxy + top competitors + your own rank (--app) + mined
                              keyword candidates; --json snapshots. The Search-Term-Rank popularity column waits
                              on Apple's beta. Design: docs/design/store-agents.md §ASO
+             aso-suggest.js  the DEMAND-side twin of aso-research (which measures competition): free stand-in for
+                             Apple's popularity column via Google Autocomplete ("alphabet soup" — no key/account).
+                             Two outputs: single WORDS → the App Store keyword field (→ aso-compose) + natural
+                             PHRASES → website/press-kit SEO. --quick/--json. Design: docs/design/store-agents.md §ASO
              aso-lint.js     lint App Store metadata FIELDS (offline): title/subtitle/keyword char limits, wasted
                              comma-spaces + stopwords + multi-word entries, cross-field repeats (a word only ranks
                              once), and --research coverage. The deterministic half of the metadata composer (agent

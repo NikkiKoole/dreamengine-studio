@@ -34,7 +34,7 @@ _Last updated: 2026-07-02 (**LOCKSTEP NETPLAY — RUNGS 1 & 2 SHIPPED: two nativ
   not-stretch), `store-contact` (hero-frame contact sheet), `press-kit` (a presskit()-style page
   from cart data). Editor surface: a topbar **⇪ Share** popover (per-cart exports, grouped by
   audience) + an **Apps** tab (app-less ASO lab · apps list from `apps/*/app.json` · per-app
-  actions: 📸 screenshots → 📄 press kit, 🍎/📱 Mac/iOS builds, 🔎 research / ✅ lint / 🧩 compose the app's
+  actions: 📸 screenshots → 📄 press kit, 🍎/📱 Mac/iOS builds, 🔎 research / 💡 suggest / ✅ lint / 🧩 compose the app's
   `listing`). The app manifest gained a `listing` block (title/subtitle/keywords) as the
   machine-readable home. Design + rationale: [`design/store-agents.md`](design/store-agents.md),
   [`design/share-panel.md`](design/share-panel.md), [`design/press-kit.md`](design/press-kit.md);
@@ -1312,7 +1312,8 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     🍎 Mac app · 📱 iOS app (→ `build-app.js --mac`/`--ios`, reveals the built `.app`) · 📸 screenshots
     (→ `store-shots` into `apps/<name>/screenshots`) · 📄 press kit · 🔎 research keywords
     (seeds `aso-research` from the app's carts' `de:meta` teaches/titles into the research box) ·
-    ✅ lint listing · 🧩 compose
+    💡 suggest keywords (`aso-suggest` — Google-autocomplete demand proxy; words → compose,
+    phrases → website/press SEO) · ✅ lint listing · 🧩 compose
     keywords (the last two read the manifest's `listing` block). Still open: the App Store *upload*
     rung (v3 — TestFlight button over an in-house App Store Connect client, ADR-0026).
     (5) **Before a real release:** verify `StoreKitTest` is fully stripped from device/release builds

@@ -63,7 +63,9 @@ sync (spike 6) and a real-host AUv3 check remain open.
 
 **Missing between "proven" and "in the store":**
 1. **The submission pipeline** — Apple Distribution cert + App Store Connect + TestFlight
-   → review; the agentic Fastlane sketch is parked in product-notes-followup §7. (The
+   → review; **decided** ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
+   an in-house App Store Connect API tool, not Fastlane — only its metadata folder layout
+   is kept; store assets/copy derive from the cart, drift-checked. (The
    paid developer account now exists — 2026-07-03, it powers the signed Mac exports.)
 2. **The palette rule** — [`palette-and-color.md`](palette-and-color.md): **no paid app
    ships on the borrowed PICO-8 palette**; an original palette before the first paid

@@ -134,9 +134,14 @@ agent-drivable flow, all tools claimed free (verify scope):
 - **Fastlane** automates signing + upload: **Spaceship** hits the App Store Connect API to register
   IAPs programmatically; **Deliver** manages metadata/screenshots/release-notes as local text files;
   `fastlane deploy` does compile → sign → upload → submit in one command.
+  → **RESOLVED 2026-07-03 ([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)):
+  we hand-roll this** — an in-house node tool against the App Store Connect API, keeping only
+  Deliver's `metadata/<locale>/` folder layout. Rationale + the extra features Fastlane can't have
+  (cart-derived assets, drift oracle) live in the ADR.
 - **Agentic "add a new rack"** becomes: agent writes `jam_<genre>.c`, edits CMake, appends the module
   id to the config array, registers the IAP via Spaceship, rewrites release notes, runs `fastlane
   deploy`. This is the same agentic loop the rest of dreamengine uses, extended to shipping.
+  (Per ADR-0026 the Spaceship/`fastlane deploy` steps become our own tool, same loop.)
 - Only **$99/yr Apple Developer** is a hard cost — **the maker already has an account with one app
   live**, so no extra fee, banking/tax already cleared.
 - Xcode GUI still needed ~twice: first-run signing setup, and LLDB for on-device C crashes

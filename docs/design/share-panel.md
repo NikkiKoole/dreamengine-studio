@@ -13,8 +13,8 @@ fall out below.
 `build.sh` + `device.sh`; the `.xcodeproj` is generated, never opened) and today's Mac
 signing proved it extends to distribution (`mac-app.sh`: codesign → notarize → staple,
 all CLI). The App Store rung continues the same way: `xcodebuild -exportArchive` + the
-App Store Connect API (or Fastlane — parked sketch in
-[`product-notes-followup.md`](product-notes-followup.md) §7). The panel never does
+App Store Connect API (in-house, not Fastlane — decided,
+[ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)). The panel never does
 anything a terminal can't.
 
 **2 · Every action is a CLI tool first; the button is a thin trigger that streams its
@@ -146,8 +146,12 @@ wiring only.
 consuming a manifest (a Mac Tinyjam.app with N racks = the cheap full rehearsal of the
 App Store shape, shareable to friends immediately via channel C).
 
-**v3 — the store rung.** `ios/build.sh APP=<manifest>` + the upload tool (App Store
-Connect API/Fastlane) + a "⬆ TestFlight" button in the panel. Gated on channel B's open
+**v3 — the store rung.** `ios/build.sh APP=<manifest>` + the upload tool — **decided:
+in-house against the App Store Connect API, not Fastlane; only its `metadata/<locale>/`
+folder layout is kept**
+([ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md); assets/copy
+derive from the cart via `play.js`/`make-gif.js`/`de:meta`, plus a `store-status.js`
+drift oracle) — + a "⬆ TestFlight" button in the panel. Gated on channel B's open
 product decisions (which app, price, original palette —
 [`sharing-channels.md`](sharing-channels.md) §Channel B).
 

@@ -405,15 +405,25 @@ back door) now scan `apps/*/seo-brief.md` and flag when the seeds/manifest move,
 live-search drift is invisible to any file check (hence the standing "re-run" rule).
 
 - **`tools/aso-score.js` — the scoreboard (the tweak loop).** Scores a listing
-  (title/subtitle/keywords) on **budget · hygiene · reach** and **A/Bs a tweak against the
-  committed listing with deltas** — local + instant, so you tweak → score → tweak in the terminal.
+  (title/subtitle/keywords) on **budget · hygiene · reach · winnability** and **A/Bs a tweak against
+  the committed listing with deltas**, so you tweak → score → tweak in the terminal.
   **CLI-only by deliberate design (maker's call, 2026-07-03): no editor button.** A button fires
   once and shows a table; the *value* is the iteration, which lives better in the console **with the
   agent** — I read the scorecard, propose a tweak, we re-score together. Budget = are you using the
-  char space; hygiene = the `aso-lint` waste rules as penalties; reach = coverage of the worksheet's
-  demand words. It prints the evidence (missed words, waste items), never a magic grade; **relevance
-  and does-it-read-human stay the agent's + maker's call**, not the script's. (Known limit: reach's
-  denominator includes any seed-noise in the brief — read the missed list, don't chase the %.)
+  char space; hygiene = the `aso-lint` waste rules as penalties; reach = worksheet demand-word
+  coverage; **winnability (`--deep`, hits the network) = per-keyword difficulty from `aso-research` —
+  `100 − difficulty`, so it flags HARD head terms a brand-new app can't rank for.** It prints the
+  evidence (missed words, per-keyword difficulty), never a magic grade; **relevance and
+  does-it-read-human stay the agent's + maker's call**, not the script's.
+  - **Winnability is the trustworthy signal; reach is the weak one** (proven on Tiny Jam, 2026-07-03):
+    the committed field scored winnability 33 — *7 of 15 keywords HARD* (`machine·83, studio·83,
+    beat·79, drum·73` — generic singles); a specific rewrite (`acid, 303, 808, 909, chiptune, techno`)
+    took winnability to 49 while reach *fell* (those terms aren't in the noisy brief word-list). The
+    read: winnability + relevance beat a reach number you can game by stuffing brief-words. So reach
+    wants denoising before its % is trusted; winnability + the missed-word list you filter by hand is
+    where the meaningful tweaks come from. (Caveat: difficulty is scored per *single* word, but Apple
+    combines your singles into phrases — so a HARD single may still pull a winnable long-tail in
+    combination; use the bands as a lean, not a hard cut.)
 
 The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror)**, with
 **`aso-score` the terminal scoreboard** you + the agent iterate a listing on. No step generates prose. Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.

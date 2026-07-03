@@ -1,24 +1,28 @@
 #!/usr/bin/env node
 // aso-score.js — SCORE an App Store listing (title/subtitle/keywords) and A/B a TWEAK against the
-// committed one, in the terminal, for the tweak → score → tweak loop with the agent. Local +
-// INSTANT (no network): three transparent sub-scores —
-//   · BUDGET   — are you using the char space? (title/subtitle ≤30, keyword field ≤100)
-//   · HYGIENE  — the aso-lint rules as penalties: over-limit, comma-spaces, stopwords, multi-word
-//                entries, cross-field repeats (a word ranks once — repeating it is wasted)
-//   · REACH    — coverage of the demand WORDS from apps/<name>/seo-brief.md (if present)
-// It prints the numbers AND the evidence (counts, waste items, missed words) — never a magic grade.
-// The SCRIPT scores; the agent + maker own the taste (relevance, does it read human). Detailed
-// field report → aso-lint.js · per-keyword difficulty vs competition → aso-research.js / 🔬 analyze.
-// docs/design/store-agents.md §"palette + mirror".
+// committed one, in the terminal, for the tweak → score → tweak loop with the agent. Sub-scores —
+//   · BUDGET      — are you using the char space? (title/subtitle ≤30, keyword field ≤100)
+//   · HYGIENE     — the aso-lint rules as penalties: over-limit, comma-spaces, stopwords,
+//                   multi-word entries, cross-field repeats (a word ranks once — repeating is waste)
+//   · REACH       — coverage of the demand WORDS from apps/<name>/seo-brief.md (if present)
+//   · WINNABILITY — (--deep, hits the network) per-keyword difficulty from aso-research: a term you
+//                   can't rank for is a bad bet even if it's popular. winnable = 100 − difficulty.
+//                   Without this, REACH alone would REWARD adding a crowded head term you'll never
+//                   rank for — winnability is what makes a tweak MEANINGFUL, not just longer.
+// It prints the numbers AND the evidence (waste items, missed words, per-term difficulty) — never a
+// magic grade. The SCRIPT scores; the agent + maker own the taste (RELEVANCE, does it read human).
+// Detailed field report → aso-lint.js. docs/design/store-agents.md §"palette + mirror".
 //
 //   node tools/aso-score.js tinyjam
 //   node tools/aso-score.js tinyjam --subtitle "Make beats with pocket synths"     # A/B a tweak
 //   node tools/aso-score.js tinyjam --keywords "groovebox,drum,machine,sampler,beat,synth,bass"
-//   node tools/aso-score.js tinyjam --title "Tiny Jam: Beat & Synth Studio" --json
+//   node tools/aso-score.js tinyjam --deep                    # + winnability (per-keyword difficulty)
+//   node tools/aso-score.js tinyjam --deep --keywords "…" --json
 'use strict'
 
 const fs = require('fs')
 const path = require('path')
+const { spawnSync } = require('child_process')
 const ROOT = path.join(__dirname, '..')
 
 const LIMITS = { title: 30, subtitle: 30, keywords: 100 }
@@ -27,14 +31,16 @@ const STOP = new Set(('a an and the or of to for in on at with is are be your yo
   + 'app apps free new by from can').split(' '))
 
 // ── args ─────────────────────────────────────────────────────────────────────
-const USAGE = 'usage: node tools/aso-score.js <app> [--title …] [--subtitle …] [--keywords "a,b,c"] [--json]'
+const USAGE = 'usage: node tools/aso-score.js <app> [--title …] [--subtitle …] [--keywords "a,b,c"] [--deep] [--country cc] [--json]'
 function die(msg) { console.error(msg + '\n' + USAGE); process.exit(2) }
 const argv = process.argv.slice(2)
-let app = null, asJson = false
+let app = null, asJson = false, deep = false, country = 'us'
 const over = {}
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === '--title' || a === '--subtitle' || a === '--keywords') over[a.slice(2)] = argv[++i] ?? ''
+  else if (a === '--deep') deep = true
+  else if (a === '--country') country = (argv[++i] || 'us').toLowerCase()
   else if (a === '--json') asJson = true
   else if (a.startsWith('-')) die(`unknown flag: ${a}`)
   else if (!app) app = a
@@ -61,6 +67,26 @@ if (fs.existsSync(briefPath)) {
 // ── scoring (transparent formulas; evidence collected alongside) ───────────────
 const clamp = n => Math.max(0, Math.min(100, Math.round(n)))
 const wordsOf = s => String(s).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+const kwEntriesOf = L => L.keywords.split(',').map(s => s.trim()).filter(Boolean)
+
+// WINNABILITY needs per-keyword difficulty — one aso-research call over the UNION of both
+// listings' keyword entries (deduped), so committed + tweak share the fetch.
+let diffMap = null
+if (deep) {
+  const terms = [...new Set([...kwEntriesOf(listingBase), ...kwEntriesOf(listingTweak)])]
+  if (terms.length) {
+    process.stderr.write(`aso-score: --deep → aso-research on ${terms.length} keyword terms…\n`)
+    const r = spawnSync('node', [path.join(ROOT, 'tools/aso-research.js'), '--json', '--country', country, ...terms],
+      { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+    if (r.status === 0) {
+      try {
+        diffMap = new Map()
+        for (const t of (JSON.parse(r.stdout).terms || [])) if (!t.error) diffMap.set(t.term.toLowerCase(), { score: t.score, band: t.band })
+      } catch { diffMap = null }
+    }
+    if (!diffMap) process.stderr.write('aso-score: research failed — scoring without winnability\n')
+  }
+}
 
 function score(L) {
   const ev = { over: [], commaSpaces: 0, stops: [], multi: [], repeats: [], missed: [], fills: {} }
@@ -97,11 +123,22 @@ function score(L) {
     ev.reachHit = hit.length; ev.reachTot = briefWords.length
   }
 
-  // OVERALL — reach 40 · hygiene 40 · budget 20 (reach unavailable → hygiene 60 / budget 40).
-  const overall = reach == null
-    ? clamp(hygiene * 0.6 + budget * 0.4)
-    : clamp(reach * 0.4 + hygiene * 0.4 + budget * 0.2)
-  return { overall, budget, hygiene, reach, ev }
+  // WINNABILITY — per-keyword difficulty (deep mode); winnable = 100 − difficulty. Averaged over
+  // the keyword entries that got a difficulty. Low-difficulty terms = a new app can actually rank.
+  let winnability = null
+  if (diffMap) {
+    const rated = kwEntries.map(e => ({ e, d: diffMap.get(e.toLowerCase()) })).filter(x => x.d)
+    ev.terms = rated.map(x => ({ term: x.e, score: x.d.score, band: x.d.band })).sort((a, b) => b.score - a.score)
+    if (rated.length) winnability = clamp(rated.reduce((a, x) => a + (100 - x.d.score), 0) / rated.length)
+  }
+
+  // OVERALL — weighted mean over the dims present (hygiene/reach/winnability weight 3, budget 1);
+  // budget is the weakest signal (filling space with bad words is worse than empty space).
+  const dims = [['hygiene', hygiene, 3], ['reach', reach, 3], ['winnability', winnability, 3], ['budget', budget, 1]]
+    .filter(d => d[1] != null)
+  const W = dims.reduce((a, d) => a + d[2], 0)
+  const overall = clamp(dims.reduce((a, d) => a + d[1] * d[2], 0) / W)
+  return { overall, budget, hygiene, reach, winnability, ev }
 }
 
 const sBase = score(listingBase)
@@ -125,10 +162,10 @@ function fieldLines(L) {
     console.log(`  ${f.padEnd(9)} ${String(n).padStart(3)}/${lim}${n > lim ? b(' ⚠ OVER') : ''}  ${dim(L[f] || '—')}`)
   }
 }
-function scoreRow(label, kBase, kT) {
-  const line = `  ${label.padEnd(9)} ${String(sBase[kBase]).padStart(3)}` +
-    (tweaked ? `   →  ${String(sTweak[kBase]).padStart(3)}  ${delta(sBase[kBase], sTweak[kBase])}` : '')
-  console.log(sBase[kBase] == null ? `  ${label.padEnd(9)} ${dim('n/a (no seo-brief.md — run aso-brief for REACH)')}` : line)
+function scoreRow(label, k) {
+  if (sBase[k] == null) return   // dim hint printed separately below
+  console.log(`  ${label.padEnd(11)} ${String(sBase[k]).padStart(3)}` +
+    (tweaked ? `   →  ${String(sTweak[k]).padStart(3)}  ${delta(sBase[k], sTweak[k])}` : ''))
 }
 
 console.log(`\naso-score · ${manifest.name || app}` + (tweaked ? `   ${dim('committed → tweaked')}` : '') + '\n')
@@ -136,8 +173,11 @@ console.log(b(tweaked ? 'COMMITTED listing' : 'listing'))
 fieldLines(listingBase)
 if (tweaked) { console.log('\n' + b('TWEAKED listing')); fieldLines(listingTweak) }
 
-console.log('\n' + b('score') + dim('   (reach 40 · hygiene 40 · budget 20)'))
-scoreRow('overall', 'overall'); scoreRow('reach', 'reach'); scoreRow('hygiene', 'hygiene'); scoreRow('budget', 'budget')
+console.log('\n' + b('score') + dim('   (hygiene · reach · winnability weighted 3, budget 1)'))
+scoreRow('overall', 'overall'); scoreRow('reach', 'reach'); scoreRow('winnability', 'winnability')
+scoreRow('hygiene', 'hygiene'); scoreRow('budget', 'budget')
+if (sBase.reach == null) console.log(dim('  reach       n/a — run aso-brief for the demand-word coverage'))
+if (sBase.winnability == null) console.log(dim('  winnability n/a — run with --deep for per-keyword difficulty (hits the network)'))
 
 // evidence from whichever listing we care about most (the tweak if given, else committed)
 const E = (sTweak || sBase).ev, L = tweaked ? listingTweak : listingBase
@@ -150,6 +190,12 @@ if (E.commaSpaces) console.log(`  · ${E.commaSpaces} space(s) after commas in k
 if (E.reachTot != null) {
   console.log(`  reach: ${E.reachHit}/${E.reachTot} worksheet demand words used` +
     (E.missed.length ? `; missing: ${E.missed.slice(0, 16).join(', ')}${E.missed.length > 16 ? ` …+${E.missed.length - 16}` : ''}` : ''))
+}
+if (E.terms && E.terms.length) {
+  const hard = E.terms.filter(t => t.band === 'HARD'), easy = E.terms.filter(t => t.band === 'EASY')
+  if (hard.length) console.log(`  ⚠ HARD keywords (crowded — a new app won't rank; drop unless core): ${hard.map(t => `${t.term}·${t.score}`).join(', ')}`)
+  if (easy.length) console.log(`  ✓ EASY keywords (winnable for a fresh app — lean here): ${easy.map(t => t.term).join(', ')}`)
+  console.log(dim(`  per-keyword difficulty: ${E.terms.map(t => `${t.term} ${t.band}·${t.score}`).join('  ')}`))
 }
 if (!E.over.length && !E.repeats.length && !E.stops.length && !E.multi.length && !E.commaSpaces) console.log('  ✓ no hygiene waste')
 console.log(dim(`\n  taste is the agent's + yours: relevance & does-it-read-human aren't scored here.`))

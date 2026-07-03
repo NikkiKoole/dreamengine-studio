@@ -160,9 +160,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              a STUFFING warning (exits nonzero only on stuffing: fails you for reading robotic, not
                              for a missed keyword). The ADR-0022 two-part bar on the store page. §"palette + mirror"
              aso-score.js    SCORE a listing (title/subtitle/keywords) + A/B a TWEAK against the committed one with
-                             deltas, in the terminal for the tweak→score→tweak loop WITH the agent. Local/instant:
-                             budget + hygiene (aso-lint rules as penalties) + reach (coverage of seo-brief demand
-                             words). CLI-only by design (no editor button). Design: docs/design/store-agents.md §"palette + mirror"
+                             deltas, in the terminal for the tweak→score→tweak loop WITH the agent. budget + hygiene
+                             (aso-lint rules as penalties) + reach (seo-brief demand-word coverage) + WINNABILITY
+                             (--deep: per-keyword difficulty from aso-research — flags HARD terms a new app can't
+                             rank for). CLI-only by design. Design: docs/design/store-agents.md §"palette + mirror"
              aso-lint.js     lint App Store metadata FIELDS (offline): title/subtitle/keyword char limits, wasted
                              comma-spaces + stopwords + multi-word entries, cross-field repeats (a word only ranks
                              once), and --research coverage. The deterministic half of the metadata composer (agent

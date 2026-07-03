@@ -41,6 +41,17 @@ dreamengine is already built this way:
 This is the textbook real-time-audio pattern, and it's the load-bearing fact for going
 cross-platform: **the synth + the queue are platform-independent C.**
 
+> **The queue is universal — no cart-facing API may write engine state directly**
+> ([ADR-0027](../decisions/0027-sound-state-flows-through-the-request-queue.md), 2026-07-03).
+> Since `de_switch_cart()`, the queue carries a SECOND load: the per-cart sound context is a
+> *log of drained config requests*, so a bypassing write is invisible to the restore. `bpm()`
+> was the one exception — thread-benign (an aligned int) but context-broken: tabbing racks in
+> the first multi-cart bundle jumped the tempo, because the incoming cart's main-thread write
+> raced the audio thread's snapshot of the outgoing one. It's now a queued `SR_BPM`. New
+> `SR_*` kinds: classify event-vs-config in `sound_req_is_event()`, key the dedup in
+> `sound_ctx_key()`, reset new state in `sound_reset_state()` — the rules live as comments at
+> those exact sites.
+
 ## What changes per platform: only *who runs the audio thread*
 
 Only a thin shim — "open a device, register a callback" — is per-platform. The callback

@@ -1214,6 +1214,22 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     Open follow-ups (incl. the recommended next) in [`design/ios-plan.md`](design/ios-plan.md) →
     "Phase 2". Full record there too.
 
+49. **✓ SHIPPED 2026-07-03 — `de_switch_cart()` + the per-cart sound context** (umbrella-app
+    build-ladder rung 1, [`design/share-panel.md`](design/share-panel.md) §ladder). Multi-cart
+    bundles switch whole sound worlds — instrument slots, bus FX, wave tables, bpm — per context
+    (0–7), so racks keep their natural slot numbers (the spike's slot-offset wrappers are deleted).
+    Mechanism: a per-context **config-request log** replayed over `sound_reset_state()` (not a
+    field-by-field snapshot — the master-bus surface is ~40 effect families; a log covers every
+    future effect automatically). Ear-verified by the maker (both regressions on this seam were
+    heard, not measured: the slot collision, then tempo jumps from `bpm()`'s queue-bypassing
+    direct write — fixed as queued `SR_BPM`). **The design rule that fell out is
+    [ADR-0027](decisions/0027-sound-state-flows-through-the-request-queue.md): cart-facing sound
+    APIs must never write engine state directly — the queue is what makes the context log
+    complete.** Deterministic oracle: `tools/bundle-spike/proof-sound.sh` (round-trip corr 1.0000,
+    cross-context 0.004). Known not-covered (later rungs): per-cart save dirs (racks share
+    `cart.sav` → the loser falls back to its demo song), sprite sheets, `de_state`, and the
+    video set-and-hold twins (`pal`/`fillp`/`font`/…).
+
 ---
 
 ## Decided-against / deferred ✗

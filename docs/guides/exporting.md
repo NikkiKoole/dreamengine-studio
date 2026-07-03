@@ -1,5 +1,9 @@
 # Exporting a cart — the five ways out
 
+> This is the how-to for what ships **today**. The wider picture — the three sharing
+> *channels*, what's missing per channel, the editor-share-panel idea — is mapped in
+> [`../design/sharing-channels.md`](../design/sharing-channels.md).
+
 One cart, five destinations. All of them are self-contained (sprites/font baked into the
 binary/wasm), the desktop two boot into the Host/Join/Solo multiplayer lobby
 (`-DDE_NET_LOBBY_DEFAULT`), and every one titles its window with the **cart's name**, not

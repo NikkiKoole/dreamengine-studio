@@ -7,11 +7,23 @@
 > **For "what's shipped vs. open vs. cut" see [`STATUS.md`](STATUS.md)** — the single
 > status ledger. This file is the running narrative + environment gotchas.
 
-_Last updated: 2026-07-03 (device-adaptive layout — Phase 1a done)_
+**How this file stays useful (the system).** The `## Where we are right now` section is
+**ACTIVE LANES only** — one dated `▶ ACTIVE THREAD` callout per complex in-flight effort, each with
+(1) what shipped, (2) a **Resume-at** pointer to the owning doc's pick-up point, (3) any hot files
+to avoid colliding on. Rules that keep it honest: **refresh your lane's date whenever you touch it;
+prune a lane the moment it ships or goes quiet** (its detail already lives in `STATUS.md` + the
+doc's pick-up point — don't duplicate, point). A lane dated **>2 weeks** old is presumed stale —
+verify or prune. Everything below the lanes is history; trust `STATUS.md` + the design board over it.
+
+_Last updated: 2026-07-03 (two lanes: device-adaptive-layout Phase 1a · store/ASO + app-trailer toolkit)_
 
 ---
 
 ## Where we are right now
+
+**Two lanes are active in parallel right now** (different areas — pick the one you're resuming):
+(1) **device-adaptive layout** and (2) **store / ASO + the app-trailer builder**. Both are below;
+neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) + the design board.
 
 > **▶ ACTIVE THREAD (2026-07-03) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
@@ -22,6 +34,32 @@ _Last updated: 2026-07-03 (device-adaptive layout — Phase 1a done)_
 > [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md)** (1b = the
 > per-cart `resizable` opt-in + the coupled SW-rasterizer / sub-region-layout call).
 > Ledger view: [`STATUS.md`](STATUS.md) open item #2; also on the design board (BUILDING).
+
+> **▶ ACTIVE THREAD (2026-07-03) — store / ASO / app-video (a separate lane, not the one above).**
+> A big session. Shipped, all committed to `master` (local — **push to sync other machines**):
+> - **The free ASO keyword loop** (CLI + Apps tab): `aso-research` (now mines competitor
+>   *descriptions*, doc-frequency ranked) · `aso-suggest` (free Google-autocomplete demand proxy) ·
+>   `aso-compose` · `aso-lint` · **`aso-brief`** (palette — a committed, drift-tracked
+>   `seo-brief.md`) · **`aso-coverage`** (mirror — coverage + stuffing) · **`aso-score`** (terminal
+>   scoreboard + A/B tweak, `--deep` = winnability). Loop: research/suggest → brief → *you write* →
+>   coverage → compose/lint/score; **no step writes prose**.
+> - **Apps-view surface:** the sell row (📝🔎💡🧩🔬📊✅🪞) + IAP copy (char badges) + clickable
+>   keyword "keys" + all-keys→research + load-into-all-tools.
+> - **Strategy reframe:** [`design/demand-generation.md`](design/demand-generation.md) — capture
+>   (ASO, the tail) vs generation (video/tribe, the wave); grab a **tribe**, not the world.
+> - **The trailer builder** ([`design/trailer-builder.md`](design/trailer-builder.md)): backbone
+>   `tools/build-app-reel.js` (manifest carts → one reel; Tiny Jam = 3-rack) **+ editor v1 (A)** —
+>   the Apps-card **🎞 trailer** section, a **non-destructive** click-to-edit timeline (library, ◀▶
+>   reorder, transition-at-join, Build → bake+compose → preview; edits only the `.reel`).
+>
+> **Resume at:** the trailer's **trim + speed** slice (a `compose-clips` `setpts`/`trim` bump +
+> `.reel` line syntax + block fields — fixes "the 34s reel is too long"), then the maker-gated store
+> track (submission gates → ASC upload tool). **Full snapshot + next:** the pick-up point in
+> [`design/store-agents.md`](design/store-agents.md). Orient: `node tools/topic-brief.js "aso"
+> "trailer" "demand"`.
+> **Editor note:** this lane changed `editor/electron/main.cjs` + `preload.cjs` (new IPCs:
+> aso-score, app-clips, build-reel, app-seeds, aso-suggest/brief/coverage) — **restart Electron
+> (`make`) to light them up**; `shell.js`/CSS/`index.html` hot-reload. All CLI tools work now.
 
 > _(The session-8/9 narrative below is stale — kept for history. For current
 > shipped/open state trust [`STATUS.md`](STATUS.md) + the design board, not this list.)_

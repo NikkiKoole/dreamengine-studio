@@ -1388,14 +1388,40 @@ async function renderAppsList() {
   for (const a of apps) {
     const card = document.createElement('div')
     card.className = 'app-card'
+    card.dataset.app = a.dir
     const meta = [a.carts.join(', '), a.iap ? `${a.iap} IAP` : ''].filter(Boolean).join('  ·  ')
-    card.innerHTML = `<div class="app-name"></div><div class="app-meta"></div>`
+    card.innerHTML = `<div class="app-name"></div><div class="app-meta"></div>
+      <div class="app-actions" hidden>
+        <span class="app-sec">give</span>
+        <button data-act="mac">🍎 Mac app</button>
+        <button data-act="ios">📱 iOS app</button>
+        <span class="app-sec">site</span>
+        <button data-act="press">📄 press kit</button>
+      </div>`
     card.querySelector('.app-name').textContent = a.name
     card.querySelector('.app-meta').textContent = meta
     el.appendChild(card)
   }
 }
 document.querySelector('.tab[data-tab="apps"]')?.addEventListener('click', renderAppsList)
+// click a card → toggle its actions; click an action → run the app-scoped tool (streams to runtime log)
+document.getElementById('apps-list')?.addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-act]')
+  if (btn) {
+    if (!window.studio?.buildApp) { showToast('requires the desktop app  (npm start)', 3000); return }
+    const app = btn.closest('.app-card')?.dataset.app
+    if (!app) return
+    const act = btn.dataset.act, label = btn.textContent
+    const stop = busyDots(btn, 'working', label); btn.disabled = true
+    rlogClear()
+    if (act === 'press') await window.studio.pressKit(app)
+    else await window.studio.buildApp(app, act)
+    stop(); btn.disabled = false
+    return
+  }
+  const card = e.target.closest('.app-card')
+  if (card) { const acts = card.querySelector('.app-actions'); if (acts) acts.hidden = !acts.hidden }
+})
 
 // ── live auto-reload ──────────────────────────────────────────
 // While a live (libtcc) window is open, rewrite cart.c on a debounce as the user types;

@@ -264,11 +264,24 @@ html, body {
 .rs-err { color: #e88; }
 .app-card {
   border: 1px solid var(--border); border-radius: 6px;
-  padding: 10px 12px; margin-bottom: 8px; background: var(--bg2);
+  padding: 10px 12px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;
 }
+.app-card:hover { border-color: var(--fg-dim); }
 .app-name { font-size: 13px; font-weight: 600; color: var(--fg); }
 .app-meta { font-size: 11px; color: var(--fg-dim); margin-top: 2px; }
 .apps-empty { color: var(--fg-dim); font-size: 12px; }
+.app-actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.app-actions[hidden] { display: none; }
+.app-sec { font-size: 10px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.app-actions button {
+  background: none; border: 1px solid var(--border); color: var(--fg);
+  font-family: var(--font); font-size: 12px; padding: 5px 10px; cursor: pointer;
+}
+.app-actions button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.app-actions button:disabled { opacity: 0.5; cursor: default; }
 
 /* ── share button + popover (current cart) ─────────────────── */
 #share-btn {

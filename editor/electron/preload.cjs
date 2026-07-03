@@ -26,4 +26,6 @@ contextBridge.exposeInMainWorld('studio', {
   asoLint:      (fields)         => ipcRenderer.invoke('studio:aso-lint', fields),
   asoCompose:   (fields)         => ipcRenderer.invoke('studio:aso-compose', fields),
   onAsoLog:     (cb)             => ipcRenderer.on('aso:log', (_, s) => cb(s)),
+  buildApp:     (name, target)   => ipcRenderer.invoke('studio:build-app', name, target),
+  pressKit:     (name)           => ipcRenderer.invoke('studio:press-kit', name),
 })

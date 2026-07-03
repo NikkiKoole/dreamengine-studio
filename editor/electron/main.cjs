@@ -1309,6 +1309,43 @@ ipcMain.handle('studio:aso-compose', async (_e, f = {}) =>
   runAsoTool(_e, 'aso-compose.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),
     ...flag('candidates', f.candidates)]))
 
+// ── Apps view: per-app actions (app-scoped) ───────────────────
+// build the multi-cart app (Mac / iOS) or its press page, streaming to the runtime log.
+ipcMain.handle('studio:build-app', async (_e, name, target) => {
+  const wc = _e.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, output: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  const args = [path.join(ROOT, 'tools/build-app.js'), name]
+  if (target === 'mac') args.push('--mac'); else if (target === 'ios') args.push('--ios')
+  log(`\n── build-app ${name}${target ? ' --' + target : ''} ──\n`)
+  return new Promise(resolve => {
+    const proc = spawn('node', args, { cwd: ROOT })
+    proc.stdout.on('data', c => log(c.toString()))
+    proc.stderr.on('data', c => log(c.toString()))
+    proc.on('exit', code => resolve({ ok: code === 0 }))
+    proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })
+  })
+})
+ipcMain.handle('studio:press-kit', async (_e, name) => {
+  const wc = _e.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, output: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  log(`\n── press-kit ${name} ──\n`)
+  return new Promise(resolve => {
+    const proc = spawn('node', [path.join(ROOT, 'tools/press-kit.js'), name], { cwd: ROOT })
+    proc.stdout.on('data', c => log(c.toString()))
+    proc.stderr.on('data', c => log(c.toString()))
+    proc.on('exit', code => {
+      const out = path.join(ROOT, 'site/press', name, 'index.html')
+      if (code === 0 && fs.existsSync(out)) { try { shell.showItemInFolder(out) } catch {} }
+      resolve({ ok: code === 0 })
+    })
+    proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })
+  })
+})
+
 // ── publish to site ───────────────────────────────────────────
 // Builds the CURRENT editor cart (code + sprites + map + settings) straight to
 // site/<name>/, writes the C source back to tools/carts/<name>.c (repo and site

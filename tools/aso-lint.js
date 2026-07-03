@@ -88,9 +88,13 @@ if (opt.keywords) {
 }
 
 // ── 3. cross-field repeats (the big one) ──────────────────────────────────────
-const visible = new Set([...words(opt.title), ...words(opt.subtitle)])
+const titleW = new Set(words(opt.title)), subW = words(opt.subtitle)
+const visible = new Set([...titleW, ...subW])
 const repeats = [...new Set(kwWords.filter(w => visible.has(w) && !STOP.has(w)))]
 console.log('\n  cross-field:')
+// title ↔ subtitle overlap — both are indexed, so a word in both is wasted too
+const tsDup = [...new Set(subW.filter(w => titleW.has(w) && !STOP.has(w)))]
+if (tsDup.length) { issues++; console.log(`    ${warn} in BOTH title & subtitle (wasted — a word only ranks once): ${tsDup.join(', ')}`) }
 if (repeats.length) {
   issues++
   console.log(`    ${warn} in Keywords AND Title/Subtitle (wasted — a word only needs to appear once): ${repeats.join(', ')}`)

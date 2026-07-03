@@ -1,6 +1,9 @@
-# Tinyjams — App Store listing (US launch)
+# Tiny Jam — App Store listing (US launch)
 
-> **Status:** DRAFT (2026-07-03). The concrete App Store *metadata* for the Tinyjams umbrella
+> **Status:** DRAFT (2026-07-03). Canonical display name is **Tiny Jam** (two words — better
+> tokenisation than the compound, and no name collision; the `tinyjam` directory and
+> `com.dreamengine.tinyjam` bundle id keep the compact form). The concrete App Store
+> *metadata* for the Tiny Jam umbrella
 > app — title, subtitle, keyword field, and the per-module IAP naming scheme. US-first (one
 > market, one set of fields; localization is deliberately deferred). Companion to the
 > go-to-market plan in [`tinyjam-marketing.md`](tinyjam-marketing.md) (tribes/channels) and
@@ -33,7 +36,7 @@ Why not chase the obvious head terms: they're unwinnable and (some) off-intent.
 ## App-level metadata (US)
 
 ```
-Name/Title:  Tinyjams: Pocket Music Toys        (27/30)
+Name/Title:  Tiny Jam: Pocket Music Toys        (27/30)
 Subtitle:    Make music with tiny synths         (27/30)
 Keywords:    groovebox,drum,machine,sampler,sequencer,beat,studio,loop,mixer,auv3,operator,bass,pads,rhythm,arp   (98/100)
 ```

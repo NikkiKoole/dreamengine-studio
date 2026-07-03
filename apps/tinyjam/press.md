@@ -7,7 +7,7 @@ monetizationPermission: true
 
 ## Description
 
-Tinyjam is a growing collection of pocket-sized music toys. Each one is a small, playable
+Tiny Jam is a growing collection of pocket-sized music toys. Each one is a small, playable
 instrument — a groovebox, a synth, a drum machine — that fits in a pocket and starts making
 sound the second you open it. No menus to learn, no projects to manage: tap a step, turn a
 knob, and it plays.
@@ -16,7 +16,7 @@ New instruments join the collection over time, so it grows with you.
 
 ## History
 
-Tinyjam started as a single groovebox built inside a home-grown fantasy console — a tiny
+Tiny Jam started as a single groovebox built inside a home-grown fantasy console — a tiny
 sandbox for making honest, lo-fi music tools. One instrument became several, and the natural
 shape turned out to be a collection: many small, focused music toys under one roof, each true
 to the thing it imitates rather than a menu of everything at once.

@@ -452,6 +452,23 @@ Honest limits: keep the blob small so URLs stay short (tinyjam's <1 KB lanes are
 arrangements could hit URL-length caps); the codec carries *song data*, not a persistent *identity* —
 that's the local-drafts layer's job (or, much later, a DB).
 
+### 6.2 Measuring which tribe converts — free Campaign Links (not paid ads)
+
+The "one tribe per module" bet only pays off if you can *see* which tribe actually converts.
+Apple gives this away free: **App Store Connect → your app → generate a Campaign Link** — a
+trackable, tagged URL to the App Store page (like UTM params). Paste a **distinct link per
+channel/tribe** — one for the Loopy Pro post, one for the synth subreddit, one for the
+newsletter — and **App Analytics → Acquisition → Campaigns** attributes impressions/downloads
+to each. So §3's tribe map becomes measurable: you learn which tribe→hook→channel line
+actually moves installs, and double down.
+
+- **Free** — this is *attribution*, not ad-buying. Do **not** confuse it with **Apple Search
+  Ads / "Apple Ads"** (the paid one — bidding to sit atop search results). Campaign Links cost
+  nothing.
+- **Caveat:** a campaign only shows data once the app has ≥5 installs from distinct Apple
+  Accounts (a privacy threshold, not a paywall).
+- Fits the funnel above: tag every §4/§7 outreach link, then read §6's funnel by *source*.
+
 ## 7. The launch kit — bringing one module to its tribe
 
 A **launch kit** is the repeatable bundle of assets + steps to take *one* module to *one* tribe. It

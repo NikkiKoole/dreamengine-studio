@@ -1299,11 +1299,24 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     **STILL TO TACKLE (the umbrella-app backlog, all deferred here):**
     (1) **Device IAP testing** — the sim path is local-only (`SKTestSession`, sim-only); real device
     testing needs App Store Connect **sandbox** testers (the pre-ship validation).
-    (2) **Multi-resolution racks** (next-spike #3) — carts must currently share the app's dims;
-    epiano/omnichord had to be bumped 200→240 to join. **Now a planned project:
-    [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md) (READY TO BUILD,
-    2026-07-03)** — live-resizable + physically-sized `SCREEN_W/H` so one cart is beautiful on
-    iPhone AND iPad, both orientations; also unblocks honest full-bleed store screenshots/videos.
+    (2) **Multi-resolution racks / device-adaptive layout** (next-spike #3) — carts must currently
+    share the app's dims; epiano/omnichord had to be bumped 200→240 to join. **Now BUILDING:
+    [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md)** — live-resizable +
+    physically-sized `SCREEN_W/H` so one cart is beautiful on iPhone AND iPad, both orientations; also
+    unblocks honest full-bleed store screenshots/videos. Progress (2026-07-03):
+    • **Phase 0 DONE** — the layout model is proven in cart-land across the whole shape space:
+      `respond` (primitives), `rackfit` (finger-sized emergent reflow), `acidfit` (dense rack +
+      progressive-disclosure accordion), `otafit` (drag-ribbons + a *measured* orientation-lock case).
+      Findings: query the **finger-ratio** not `device_class` (iPad mini ≠ Pro); disclosure **mode** is
+      per-shape (inline / accordion / tabs); orientation may be **locked** per rack; overrides are
+      plain-C + `lay_at`=position:absolute; a future `layout-check` oracle can check all of it.
+    • **`runtime/lay.h` SHIPPED** — the immediate-mode layout vocabulary (`split/at/cell/grid/wrap/
+      aspect/fluid/pad`), a cart-land library header usable by any cart today (registered in the
+      cart-authoring library-headers table + `checks-and-oracles.md`).
+    • **Phase 1a DONE (byte-identical)** — `studio.c` has runtime `de_sw`/`de_sh` globals; all
+      standalone render-extent sites read them (`drawall` pixel-diff = 0). **Resume at Phase 1b**
+      (the `resizable` opt-in + the SW-rasterizer/sub-region-layout conversion). Buffer allocs/stride
+      stay compile-time max by design.
     (Supersedes the per-cart-RenderTexture / `de_safe_top()` sketch in share-panel.md #3 paths A/B/C.)
     (3) **Polished back-to-launcher** — the `de_safe_top()` nav-bar reflow (hold-to-home is the temp).
     (4) ~~**In-editor "export app" button**~~ — **DONE (2026-07-03).** The **Apps view** (`shell.js`

@@ -1275,9 +1275,9 @@ ipcMain.handle('studio:list-apps', async () => {
 // Runs a tools/aso-*.js and streams its output to a dedicated 'aso:log' channel
 // (not cart:log — keep it out of the runtime log). App-agnostic: research/lint/compose
 // any input without selecting or altering an app.
-function runAsoTool(_event, script, args) {
+function runAsoTool(_event, script, args, channel = 'aso:log') {
   const wc = _event.sender
-  const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
+  const log = (m) => { if (!wc.isDestroyed()) wc.send(channel, m) }
   const ROOT = path.join(__dirname, '../..')
   return new Promise(resolve => {
     const proc = spawn('node', [path.join(ROOT, 'tools', script), ...args], { cwd: ROOT })
@@ -1331,6 +1331,25 @@ ipcMain.handle('studio:build-app', async (_e, name, target) => {
     proc.on('exit', code => resolve({ ok: code === 0 }))
     proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })
   })
+})
+// lint / compose the app's OWN listing (from app.json's "listing" block) → runtime log
+ipcMain.handle('studio:aso-app', async (_e, name, tool) => {
+  const wc = _e.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, output: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  let L = {}
+  try { L = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8')).listing || {} }
+  catch { return { ok: false, output: 'no manifest' } }
+  if (!L.title && !L.subtitle && !L.keywords) {
+    log('\nno "listing" block in app.json — add title / subtitle / keywords\n'); return { ok: false }
+  }
+  const compose = tool === 'compose'
+  log(`\n── aso-${compose ? 'compose' : 'lint'} ${name} (from app.json listing) ──\n`)
+  const args = compose
+    ? [...flag('title', L.title), ...flag('subtitle', L.subtitle), ...flag('candidates', L.keywords)]
+    : [...flag('title', L.title), ...flag('subtitle', L.subtitle), ...flag('keywords', L.keywords)]
+  return runAsoTool(_e, compose ? 'aso-compose.js' : 'aso-lint.js', args, 'cart:log')
 })
 ipcMain.handle('studio:press-kit', async (_e, name) => {
   const wc = _e.sender

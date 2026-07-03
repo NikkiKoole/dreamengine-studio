@@ -1403,6 +1403,9 @@ async function renderAppsList() {
         <button data-act="ios">📱 iOS app</button>
         <span class="app-sec">site</span>
         <button data-act="press">📄 press kit</button>
+        <span class="app-sec">sell</span>
+        <button data-act="lint">🔎 lint listing</button>
+        <button data-act="compose">🧩 compose keywords</button>
       </div>`
     card.querySelector('.app-name').textContent = a.name
     card.querySelector('.app-meta').textContent = meta
@@ -1421,6 +1424,7 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const stop = busyDots(btn, 'working', label); btn.disabled = true
     rlogClear()
     if (act === 'press') await window.studio.pressKit(app)
+    else if (act === 'lint' || act === 'compose') await window.studio.asoApp(app, act)
     else await window.studio.buildApp(app, act)
     stop(); btn.disabled = false
     return

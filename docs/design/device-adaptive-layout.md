@@ -123,12 +123,23 @@ stays available as an *optional* style; full-bleed becomes the honest default.
 
 ## The phased plan (riskiest-cheapest first, prototype before engine)
 
-- **Phase 0 — prove the model in `respond.c` (zero engine risk).** It already demos a row→column flip
-  + fluid type against a draggable fake screen (~70% there). Extend it to show a **density**
-  breakpoint (phone: ~6 fat controls → iPad: the full dense panel, not just a `dir` flip) and treat
-  orientation as first-class, laying out **one real rack** (acidrack) so its phone/iPad/rotation
-  behavior looks genuinely *beautiful* against the fake screen. If it isn't delightful here, we found
-  out for free — before touching `studio.c`.
+- **Phase 0 — prove the model in cart-land (zero engine risk). ✅ DONE (2026-07-03) —
+  [`../../tools/carts/rackfit.c`](../../tools/carts/rackfit.c).** `respond.c` already proved the
+  `lay_*` primitives reflow; `rackfit.c` proves the *design claim this doc rests on*: a music rack
+  (knob bank + 16-step strip + keybed) laid out against a fake device, with **every control sized to
+  a physical 44pt finger** (points→canvas scale, so the finger-to-screen ratio is honest). The
+  arrangement is **emergent** — `lay_wrap` flows the knobs/steps into as many finger-sized columns as
+  fit, and the keybed fills with as many finger-wide octaves as fit — **no per-device layout branch.**
+  Result across the four presets (auto-cycle; keys 1–4 lock): **iPhone portrait** wraps the knobs to
+  **2 rows** + **1 octave**; **iPhone landscape / iPad** get **one row of 8** + **3 octaves**.
+  Findings: (a) the model holds — density × orientation drives real rearrangement from one code path;
+  (b) **orientation matters as much as device class** — iPhone *landscape* behaves tablet-like
+  horizontally (finger = 5% of width, like an iPad), so branch on the *measured* finger-ratio, not the
+  device name; (c) 16 steps at half-finger wrap awkwardly (14+2) on a narrow phone — real racks want an
+  explicit "16 in one row, smaller" vs "2×8" choice, i.e. some topology *is* worth hand-picking, not
+  everything should be left to `wrap`. View: `node tools/play.js rackfit run --headless --screen
+  360x360 --frames 460 --dump build/.rackfit`. **Still worth doing before Phase 1:** port an *actual*
+  acidrack arrangement (not the schematic stand-in) to confirm a dense real panel stays delightful.
 - **Phase 1 — engine: live-resizable dims.** Make `studio.c`'s ~76 sites read the active target;
   realloc the framebuffer on resize; add `screen_w()`/`screen_h()`. First consumer is a **resizable
   desktop window** (testable with no iOS at all), fully under the `canvas-diff`/`mirror-diff` gates.

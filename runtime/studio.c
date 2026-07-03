@@ -294,6 +294,14 @@ static bool            cpu_raster_enabled = CPU_RASTER_DEFAULT;   // env DE_CPU_
 // lever. Cart audio calls become harmless no-ops (queues are never drained). Default on.
 static bool            audio_off = false;
 static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer (Fork 1: RGBA on desktop)
+
+// device-adaptive-layout.md Phase 1a: the ACTIVE canvas dims are a runtime value,
+// read wherever a render EXTENT / centering / clip / camera / present rect is
+// computed. SCREEN_W/SCREEN_H stay the compile-time MAX (the static framebuffers
+// are sized to it, never reallocated). Pinned to the max for now → every cart
+// renders byte-identical; Phase 1b lets a `resizable` cart update them + present
+// a sub-rect. MUST live outside the DE_NO_RAYLIB block — every build reads it.
+static int de_sw = SCREEN_W, de_sh = SCREEN_H;
 #ifdef DE_NO_RAYLIB
 // Software CAMERA ROTATION (no GPU to fall back to — iOS/Switch). The world layer is captured
 // into an offscreen buffer at zoom+translate (rotation NOT applied), then rotated about the
@@ -304,14 +312,6 @@ static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer
 // whole-layer composite, which keeps every primitive on its fast axis-aligned path.)
 static uint32_t        sw_world_buf[SCREEN_W * SCREEN_H];
 static uint32_t       *sw_dst = sw_cbuf;
-
-// device-adaptive-layout.md Phase 1a: the ACTIVE canvas dims are a runtime value,
-// read wherever a render EXTENT / centering / clip / camera / present rect is
-// computed. SCREEN_W/SCREEN_H stay the compile-time MAX (the static buffers above
-// are sized to it, and are never reallocated). Right now de_sw/de_sh are pinned
-// to the max and never change → every cart renders byte-identical (canvas-diff
-// proves it); Phase 1b lets a `resizable` cart update them + present a sub-rect.
-static int de_sw = SCREEN_W, de_sh = SCREEN_H;
 static bool            sw_rot_active = false;
 static float           sw_rot_angle  = 0.0f;
 static void            sw_rot_composite(void);            // defined near camera(); called from de_frame()
@@ -470,12 +470,12 @@ static bool inp_released(int k) {
     return IsKeyReleased(k);
 }
 static int inp_mouse_x(void) {
-    if (inject_input) return clampi(mouse_inj_x, 0, SCREEN_W - 1);
-    return clampi(gr_win_to_canvas_x(game_rect, GetMousePosition().x), 0, SCREEN_W - 1);
+    if (inject_input) return clampi(mouse_inj_x, 0, de_sw - 1);
+    return clampi(gr_win_to_canvas_x(game_rect, GetMousePosition().x), 0, de_sw - 1);
 }
 static int inp_mouse_y(void) {
-    if (inject_input) return clampi(mouse_inj_y, 0, SCREEN_H - 1);
-    return clampi(gr_win_to_canvas_y(game_rect, GetMousePosition().y), 0, SCREEN_H - 1);
+    if (inject_input) return clampi(mouse_inj_y, 0, de_sh - 1);
+    return clampi(gr_win_to_canvas_y(game_rect, GetMousePosition().y), 0, de_sh - 1);
 }
 static bool inp_mouse_down(int button) {
     int b = mbtn_index(button);
@@ -506,12 +506,12 @@ static bool inp_down(int k)    { return IsKeyDown(k); }
 static bool inp_pressed(int k) { return IsKeyPressed(k); }
 static bool inp_released(int k){ return IsKeyReleased(k); }
 static int  inp_mouse_x(void)  {
-    if (web_tm_active) return clampi(gr_win_to_canvas_x(game_rect, web_tm_pos.x), 0, SCREEN_W - 1);
-    return clampi(gr_win_to_canvas_x(game_rect, GetMousePosition().x), 0, SCREEN_W - 1);
+    if (web_tm_active) return clampi(gr_win_to_canvas_x(game_rect, web_tm_pos.x), 0, de_sw - 1);
+    return clampi(gr_win_to_canvas_x(game_rect, GetMousePosition().x), 0, de_sw - 1);
 }
 static int  inp_mouse_y(void)  {
-    if (web_tm_active) return clampi(gr_win_to_canvas_y(game_rect, web_tm_pos.y), 0, SCREEN_H - 1);
-    return clampi(gr_win_to_canvas_y(game_rect, GetMousePosition().y), 0, SCREEN_H - 1);
+    if (web_tm_active) return clampi(gr_win_to_canvas_y(game_rect, web_tm_pos.y), 0, de_sh - 1);
+    return clampi(gr_win_to_canvas_y(game_rect, GetMousePosition().y), 0, de_sh - 1);
 }
 static bool inp_mouse_down(int b)     {
     if (web_tm_active) return mbtn_index(b) == 0 && web_tm_down;
@@ -614,7 +614,8 @@ static Vector2 vt_ended_pos[VT_MAX];
 // matrix work (not per-primitive math). offset is pinned to the screen centre, so
 // zoom/angle pivot there; target is back-computed from camera(x,y) to stay identical
 // to the old "world (x,y) at top-left" translate at zoom 1 / angle 0.
-static Camera2D cam = {
+static Camera2D cam = {   // static initializer needs compile-time consts → SCREEN_W/H (the max);
+                          // camera() recomputes offset/target at runtime, so this is byte-identical
     .offset   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },
     .target   = { SCREEN_W / 2.0f, SCREEN_H / 2.0f },
     .rotation = 0.0f,
@@ -966,7 +967,7 @@ static void layout_action_buttons(int ax, int ay) {
 // Recomputed each frame so a resized / device window re-lays-out for free.
 static void layout_touch_controls(Placement p) {
     int gx = (int)p.game.x, gy = (int)p.game.y;
-    int gw = (int)(SCREEN_W * p.game.scale), gh = (int)(SCREEN_H * p.game.scale);
+    int gw = (int)(de_sw * p.game.scale), gh = (int)(de_sh * p.game.scale);
     if (p.mode == PLACE_DECK) {
         int bw = p.band_w, by = p.band_y, bh = p.band_h, cy = by + bh / 2;
         ctrl_scale = ctrl_scale_btn = band_ctrl_scale(bh);                 // band HEIGHT is the tight dimension for both — safe: the 145px anchor margin below always clears the button footprint at scale<=1
@@ -1011,7 +1012,7 @@ static void layout_touch_controls(Placement p) {
 }
 
 static void init_touch_layout(void) {
-    Placement p = { PLACE_OVERLAY, { 0.0f, 0.0f, (float)SCALE }, 0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE };
+    Placement p = { PLACE_OVERLAY, { 0.0f, 0.0f, (float)SCALE }, 0, 0, de_sw * SCALE, de_sh * SCALE };
     layout_touch_controls(p);   // overlay defaults (window == game) until a frame sets a real placement
 }
 
@@ -1484,11 +1485,11 @@ static void draw_pause_canvas(void) {
     if (!pause_active) return;
     const char *items[3]; int n_items = pause_menu_items(items);
     const int bw = 120, bh = 26 + n_items * 12;          // grows with the item count
-    const int bx = (SCREEN_W - bw) / 2, by = (SCREEN_H - bh) / 2;
+    const int bx = (de_sw - bw) / 2, by = (de_sh - bh) / 2;
 
 
     fillp(0xA5A5, -1);
-    rectfill(0, 0, SCREEN_W, SCREEN_H, CLR_BLACK);
+    rectfill(0, 0, de_sw, de_sh, CLR_BLACK);
     fillp_reset();
 
     rectfill(bx, by, bw, bh, CLR_DARKER_BLUE);
@@ -1658,7 +1659,7 @@ static void harness_trace(int fno) {
 // d[] carries {kind, x, y, w, h, clip-active} plus the string for text boxes.
 static void uiaudit_flush(int fno) {
     if (!uiaudit_file) return;
-    fprintf(uiaudit_file, "{\"f\":%d,\"sw\":%d,\"sh\":%d,\"d\":[", fno, SCREEN_W, SCREEN_H);
+    fprintf(uiaudit_file, "{\"f\":%d,\"sw\":%d,\"sh\":%d,\"d\":[", fno, de_sw, de_sh);
     for (int i = 0; i < uiaudit_n; i++) {
         UiAuditRec *r = &uiaudit_recs[i];
         if (i) fputc(',', uiaudit_file);
@@ -1898,13 +1899,13 @@ static void loop_step(void) {
         const char *msg = "click to start";
         int tw = (int)(strlen(msg) * 8);
         DrawTextEx(game_font, msg,
-            (Vector2){ (SCREEN_W - tw) / 2.0f, SCREEN_H / 2.0f - 4 },
+            (Vector2){ (de_sw - tw) / 2.0f, de_sh / 2.0f - 4 },
             8, 0, palette[7]);
         EndTextureMode();
         BeginDrawing();
         DrawTexturePro(canvas.texture,
-            (Rectangle){ 0, 0, SCREEN_W, -SCREEN_H },
-            (Rectangle){ 0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE },
+            (Rectangle){ 0, 0, de_sw, -de_sh },
+            (Rectangle){ 0, 0, de_sw * SCALE, de_sh * SCALE },
             (Vector2){ 0, 0 }, 0.0f, WHITE);
         EndDrawing();
         return;
@@ -1937,7 +1938,7 @@ static void loop_step(void) {
     // place the game in the window each frame (handles DE_WINDOW / a resized or device window) and
     // lay the controls into the resulting band. At the default size (window == game) the placement
     // is the identity overlay → game_rect + control positions are byte-identical to before.
-    { Placement pl = gr_place(GetScreenWidth(), GetScreenHeight(), SCREEN_W, SCREEN_H);
+    { Placement pl = gr_place(GetScreenWidth(), GetScreenHeight(), de_sw, de_sh);
       game_rect = pl.game; layout_touch_controls(pl);
       place_mode = pl.mode; band_x = pl.band_x; band_y = pl.band_y; band_w = pl.band_w; band_h = pl.band_h; }
 #endif
@@ -2143,7 +2144,7 @@ static void loop_step(void) {
         ClearBackground(BLACK);   // letterbox bars when the window is larger than the game rect (no-op at default size — the blit covers everything)
         bool present_sharp = scale_shader_ok && (SCALE_FILTER >= 2);
         if (present_sharp) {
-            float ts[2] = { (float)SCREEN_W, (float)SCREEN_H };
+            float ts[2] = { (float)de_sw, (float)de_sh };
             int   g = (SCALE_FILTER == 3) ? 1 : 0;
             SetShaderValue(scale_shader, loc_scale_texsize, ts, SHADER_UNIFORM_VEC2);
             SetShaderValue(scale_shader, loc_scale_gamma, &g, SHADER_UNIFORM_INT);
@@ -2153,14 +2154,14 @@ static void loop_step(void) {
             canvas.texture,
             (Rectangle){ 0, 0,  SCREEN_W, -SCREEN_H },
             (Rectangle){ game_rect.x + sox, game_rect.y + soy,
-                         SCREEN_W * game_rect.scale, SCREEN_H * game_rect.scale },   // game_rect drives placement
+                         de_sw * game_rect.scale, de_sh * game_rect.scale },   // game_rect drives placement
             (Vector2){ 0, 0 },
             0.0f,
             WHITE
         );
         if (present_sharp) EndShaderMode();
         if (fade_amt > 0.0f)
-            DrawRectangle(0, 0, SCREEN_W * SCALE, SCREEN_H * SCALE,
+            DrawRectangle(0, 0, de_sw * SCALE, de_sh * SCALE,
                           (DeColor){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
         draw_touch_overlay_window();   // the on-screen controls (window-space, after the blit)
         draw_watch_overlay();
@@ -4139,8 +4140,8 @@ void camera(int x, int y) {
 #ifdef DE_NO_RAYLIB
     if (sw_rot_active) sw_rot_composite();       // end the rotated world layer → HUD now draws un-rotated
 #endif
-    cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
-    cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
+    cam.offset   = (Vector2){ de_sw / 2.0f, de_sh / 2.0f };
+    cam.target   = (Vector2){ x + de_sw / 2.0f, y + de_sh / 2.0f };
     cam.zoom     = 1.0f;   // plain camera: camera() always means no zoom / no rotation
     cam.rotation = 0.0f;
     cam_reapply();
@@ -4186,7 +4187,7 @@ void camera_ex(int x, int y, float zoom, float angle) {
         }
         smooth_zoom_amt = zoom;
         cam.offset   = (Vector2){ SMOOTH_W / 2.0f, SMOOTH_H / 2.0f };
-        cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
+        cam.target   = (Vector2){ x + de_sw / 2.0f, y + de_sh / 2.0f };
         cam.zoom     = 1.0f;                               // world rasterizes at 1:1 (stable)
         cam.rotation = angle;
         BeginMode2D(cam);
@@ -4194,8 +4195,8 @@ void camera_ex(int x, int y, float zoom, float angle) {
         return;
     }
 #endif
-    cam.offset   = (Vector2){ SCREEN_W / 2.0f, SCREEN_H / 2.0f };
-    cam.target   = (Vector2){ x + SCREEN_W / 2.0f, y + SCREEN_H / 2.0f };
+    cam.offset   = (Vector2){ de_sw / 2.0f, de_sh / 2.0f };
+    cam.target   = (Vector2){ x + de_sw / 2.0f, y + de_sh / 2.0f };
     cam.zoom     = zoom;
     cam.rotation = angle;
     cam_reapply();
@@ -4239,7 +4240,7 @@ void zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     EndTextureMode();
     BeginTextureMode(canvas_snap);                     // -H flips canvas upright into snap
     DrawTexturePro(canvas.texture,
-                   (Rectangle){ 0, 0, SCREEN_W, -SCREEN_H },
+                   (Rectangle){ 0, 0, de_sw, -de_sh },
                    (Rectangle){ 0, 0, SCREEN_W, SCREEN_H },
                    (Vector2){ 0, 0 }, 0.0f, WHITE);
     EndTextureMode();
@@ -4397,8 +4398,8 @@ V3 rot3(V3 p, float yaw, float pitch) {
 bool project3(V3 p, float focal, float zoom, int *sx, int *sy) {
     if (focal + p.z <= 0.0f) return false;            // behind the camera — skip it
     float f = focal / (focal + p.z);
-    if (sx) *sx = SCREEN_W / 2 + (int)(p.x * f * zoom);
-    if (sy) *sy = SCREEN_H / 2 + (int)(p.y * f * zoom);
+    if (sx) *sx = de_sw / 2 + (int)(p.x * f * zoom);
+    if (sy) *sy = de_sh / 2 + (int)(p.y * f * zoom);
     return true;
 }
 
@@ -4466,7 +4467,7 @@ static void poly_clamp_scan(int *x0, int *y0, int *x1, int *y1) {
     // it), so the visible-world AABB must be mapped from those corners. Using the
     // canvas corners here put the camera-centred shape at the rect's edge and clamped
     // it to one quadrant (the "only a quarter of the car shows under smooth zoom" bug).
-    float vw = SCREEN_W, vh = SCREEN_H;
+    float vw = de_sw, vh = de_sh;
 #ifndef PLATFORM_WEB
     if (smooth_capturing) { vw = SMOOTH_W; vh = SMOOTH_H; }
 #endif
@@ -4865,8 +4866,8 @@ const char *str(const char *fmt, ...) {
 // ------------------------------------------------------------
 
 void follow(int tx, int ty, int world_w, int world_h) {
-    int cx = (int)fmaxf(0.0f, fminf((float)(tx - SCREEN_W / 2), (float)(world_w - SCREEN_W)));
-    int cy = (int)fmaxf(0.0f, fminf((float)(ty - SCREEN_H / 2), (float)(world_h - SCREEN_H)));
+    int cx = (int)fmaxf(0.0f, fminf((float)(tx - de_sw / 2), (float)(world_w - de_sw)));
+    int cy = (int)fmaxf(0.0f, fminf((float)(ty - de_sh / 2), (float)(world_h - de_sh)));
     camera(cx, cy);
 }
 

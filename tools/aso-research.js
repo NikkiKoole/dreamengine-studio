@@ -32,20 +32,32 @@ const COUNTRY_DEFAULT = 'us'
 const LIMIT = 200
 
 // ── args ───────────────────────────────────────────────────────────────────────
+const USAGE = 'usage: node tools/aso-research.js [--country cc] [--app "Name"] [--json] "term" ...\n'
+  + '  e.g. node tools/aso-research.js --country nl --app "Mipo" "poppen maken" "marionet"'
+function die(msg) { console.error(msg + '\n' + USAGE); process.exit(1) }
+
 const argv = process.argv.slice(2)
 let country = COUNTRY_DEFAULT, myApp = null, asJson = false
 const seeds = []
 for (let i = 0; i < argv.length; i++) {
-  const a = argv[i]
-  if (a === '--country') country = argv[++i]
-  else if (a === '--app') myApp = argv[++i]
+  let a = argv[i]
+  // support --flag=value as well as --flag value
+  let inlineVal = null
+  const eq = a.indexOf('=')
+  if (a.startsWith('--') && eq !== -1) { inlineVal = a.slice(eq + 1); a = a.slice(0, eq) }
+  const takeVal = () => inlineVal !== null ? inlineVal
+    : (i + 1 < argv.length && !argv[i + 1].startsWith('-')) ? argv[++i]
+    : die(`flag ${a} needs a value`)
+
+  if (a === '--country') country = takeVal()
+  else if (a === '--app') myApp = takeVal()
   else if (a === '--json') asJson = true
-  else seeds.push(a)
+  else if (a.startsWith('-')) die(`unknown flag: ${argv[i]}  (country is set with "--country nl", not "--nl")`)
+  else seeds.push(argv[i])
 }
-if (!seeds.length) {
-  console.error('usage: node tools/aso-research.js [--country cc] [--app "Name"] [--json] "term" ...')
-  process.exit(1)
-}
+country = country.toLowerCase()
+if (!/^[a-z]{2}$/.test(country)) die(`--country wants a 2-letter code (us, nl, de, …), got "${country}"`)
+if (!seeds.length) die('no search terms given — pass at least one, e.g. "poppen maken"')
 
 // App Store CATEGORY labels — noise when mining competitor TITLES for keywords, so drop them.
 const GENRE_WORDS = new Set(('games game entertainment education educational casual simulation '

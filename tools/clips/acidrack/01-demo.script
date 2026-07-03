@@ -1,0 +1,6 @@
+# acidrack — the curated boot acid track (song code 0xAC1D5EED) playing its full chain.
+# acidrack boots running=true + songmode=true, so it self-plays the arranged track with no
+# input — pressing SPACE would STOP it. Deterministic: a clean save-dir → the DEFAULT_SEED song.
+# frames 900
+# fps 30
+# crf 28

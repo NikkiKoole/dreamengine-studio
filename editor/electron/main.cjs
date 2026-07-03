@@ -1369,7 +1369,17 @@ ipcMain.handle('studio:build-app', async (_e, name, target) => {
     const proc = spawn('node', args, { cwd: ROOT })
     proc.stdout.on('data', c => log(c.toString()))
     proc.stderr.on('data', c => log(c.toString()))
-    proc.on('exit', code => resolve({ ok: code === 0 }))
+    proc.on('exit', code => {
+      // reveal the built Mac .app in Finder + drop a clickable link (build/<manifest name>.app)
+      if (code === 0 && target === 'mac') {
+        try {
+          const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
+          const appPath = path.join(ROOT, 'build', (m.name || name) + '.app')
+          if (fs.existsSync(appPath)) { try { shell.showItemInFolder(appPath) } catch {} ; log(`\n✓ open: file://${encodeURI(appPath)}\n`) }
+        } catch {}
+      }
+      resolve({ ok: code === 0 })
+    })
     proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })
   })
 })
@@ -1407,7 +1417,7 @@ ipcMain.handle('studio:press-kit', async (_e, name) => {
     proc.stderr.on('data', c => log(c.toString()))
     proc.on('exit', code => {
       const out = path.join(ROOT, 'site/press', name, 'index.html')
-      if (code === 0 && fs.existsSync(out)) log(`\npreview: file://${out}\n`)   // clickable in the log
+      if (code === 0 && fs.existsSync(out)) log(`\npreview: file://${encodeURI(out)}\n`)   // clickable in the log
       resolve({ ok: code === 0 })
     })
     proc.on('error', e => { log(String(e.message) + '\n'); resolve({ ok: false }) })

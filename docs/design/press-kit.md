@@ -24,40 +24,63 @@ a fifth copy of the truth; we render it.
 
 | Section | Source |
 |---|---|
-| **Factsheet** — developer, based-in, release date, platforms, price, website, contact, social | app manifest (`apps/<name>/app.json`) + a studio-wide `studio.json` |
+| **Factsheet** — developer, based-in, release date, platforms, price, website, contact, social | app manifest (`apps/<name>/app.json`) + a studio-wide `studio.md` |
 | **Description** / **Features** | `de:meta` of the app + its modules (reuse the store copy from [`../marketing/tinyjam/app-store-listing.md`](../marketing/tinyjam/app-store-listing.md)) |
 | **Images** (gallery + download-all `.zip`) | `store-shots.js` output |
 | **Trailer / videos** | `make-gif.js` output (real cart audio; a *real capture*, so it's also App-Store-preview-compliant — see store-agents §1 compliance note) |
 | **Logo & Icon** (downloadable) | the app icon from the manifest |
-| **History** (origin story) | `press.json` (hand-written) seeded from `de:meta` `lineage`/`homage` |
-| **Awards** / **Selected articles & quotes** | `press.json` (hand-maintained; starts empty) |
+| **History** (origin story) | `press.md` (hand-written) seeded from `de:meta` `lineage`/`homage` |
+| **Awards** / **Selected articles & quotes** | `press.md` (hand-maintained; starts empty) |
 | **Monetization permission** (streamers/YouTubers may monetise videos) | boilerplate — we grant it (a gift to the tribe; ties to `tinyjam-marketing.md` §9 gift-not-ask) |
-| **About the studio** / **Credits** / **Contact** | `studio.json` |
+| **About the studio** / **Credits** / **Contact** | `studio.md` |
 | **Request press copy** | a mailto / TestFlight link (no `distribute()` dependency) |
 
-## New data files (small, committed)
+## New data files (where you WRITE copy)
 
-`studio.json` — one per studio, reused across every app:
-```json
-{
-  "developer": "…", "basedIn": "…", "website": "https://…",
-  "pressContact": "…@…", "social": { "mastodon": "…", "youtube": "…" },
-  "about": "one honest paragraph about the studio",
-  "credits": [ { "name": "…", "role": "…" } ]
-}
+**Prose → Markdown; structured fields → frontmatter.** Paragraphs in JSON are miserable
+(escaping, no line breaks, no markdown), and the whole point is that *writing more copy is
+pleasant*. So the copy lives in Markdown files with a YAML frontmatter head, next to the
+manifest (`apps/<name>/`, per ADR-0026's metadata-next-to-manifest layout):
+
 ```
-`press.json` — per app, only the bits that aren't derivable:
-```json
-{
-  "releaseDate": "2026-…", "price": "Free + IAP",
-  "history": "the origin-story prose",
-  "awards": [], "quotes": [ { "text": "…", "source": "…", "url": "…" } ],
-  "additionalLinks": [], "monetizationPermission": true
-}
+apps/tinyjam/
+  app.json      manifest (bundleId, carts, iap, icon, price) — already exists
+  press.md      ← the per-app press copy you WRITE
+studio.md       ← studio-wide identity + "about" prose, reused by every app
 ```
-Everything else comes from the existing `apps/<name>/app.json` manifest + `de:meta` + the
-generated assets. Home: alongside the manifest (`apps/<name>/`), per ADR-0026's
-metadata-next-to-manifest layout.
+
+`apps/<name>/press.md` — open it and write:
+```markdown
+---
+releaseDate: 2026-09-01
+price: Free + IAP
+monetizationPermission: true
+quotes:
+  - text: "Tiny, and completely addictive."
+    source: Reviewer, Outlet
+    url: https://…
+awards: []
+additionalLinks: []
+---
+
+## Description
+Real markdown, as long as you like…
+
+## History
+The origin story…
+
+## Features
+- one
+- two
+```
+
+`studio.md` — same shape: frontmatter (developer, basedIn, website, pressContact, social,
+credits) + a body paragraph for **About the studio**. Written once, shared by all apps.
+
+**Fallback rule:** prose comes from `press.md`; any section it omits falls back to the cart's
+`de:meta` description — so the kit generates sensibly with *zero* copy, and writing more is
+just editing one Markdown file (never JSON). Everything else (platforms, IAP, icon) is read
+from the existing `app.json` manifest + generated assets.
 
 ## The tool
 

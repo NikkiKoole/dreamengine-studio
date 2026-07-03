@@ -28,7 +28,7 @@ const DEVICES = {
 // ── args ─────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)
 const opt = { in: '', device: 'iphone69', out: 'build/.shots', bg: '141726',
-  caption: '', font: 'tools/fonts/Bungee-Regular.ttf', textcolor: 'ffffff', scale: '' }
+  caption: '', font: 'editor/public/ComicMono-Bold.ttf', textcolor: 'ffffff', scale: '' }
 for (let i = 0; i < argv.length; i++) {
   const k = argv[i].replace(/^--/, '')
   if (argv[i].startsWith('--') && k in opt) opt[k] = argv[++i] ?? ''

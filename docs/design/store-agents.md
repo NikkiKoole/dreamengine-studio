@@ -57,7 +57,9 @@ native cart frame (`play.js --dump`) → App Store screenshots at exact device s
 > (`SCREEN_W/H` are compile-time); App Store devices are other ratios (tall iPhone, 4:3 iPad),
 > and responsive layout ([`responsive-layout.md`](responsive-layout.md)) isn't built. The fix:
 > **composite, don't stretch** — integer-upscale the cart crisply (nearest-neighbor) and centre
-> it on a designed background with the caption in the breathing room. For a pixel console this
+> it on a designed background with the caption (default Comic Mono Bold — the editor's own
+> font, so the store page ties back to the tool's identity; `--font` swaps it) in the breathing
+> room. For a pixel console this
 > reads *premium* (the canvas as a framed artifact), and it sidesteps responsive layout
 > entirely. Two useful facts that shrink the problem: Apple only needs **one iPhone 6.9″ set**
 > (auto-scales to smaller iPhones) + **iPad 13″** if you ship iPad — not a ratio matrix.

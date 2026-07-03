@@ -158,7 +158,8 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              core of the composer; agent writes title/subtitle. Design: docs/design/store-agents.md §ASO
              store-shots.js  native cart frame → App Store screenshots at EXACT device sizes (iphone69/ipad13/…).
                              Solves the aspect-ratio gap by COMPOSITING not stretching: crisp integer-upscaled cart
-                             centered on a bg + Bungee caption in the breathing room (zero engine work). ffmpeg-based,
+                             centered on a bg + caption (Comic Mono Bold, the editor font) in the breathing room; --font
+                             swaps it (Bungee etc). Zero engine work. ffmpeg-based,
                              no node deps. Feed it a play.js --dump frame. Design: docs/design/store-agents.md §1
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")

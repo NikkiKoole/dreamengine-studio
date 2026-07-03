@@ -1316,6 +1316,47 @@ ipcMain.handle('studio:aso-compose', async (_e, f = {}) =>
 
 // ── Apps view: per-app actions (app-scoped) ───────────────────
 // build the multi-cart app (Mac / iOS) or its press page, streaming to the runtime log.
+function spawnP(bin, args, cwd, log) {
+  return new Promise(resolve => {
+    const p = spawn(bin, args, { cwd })
+    if (log) { p.stdout.on('data', c => log(c.toString())); p.stderr.on('data', c => log(c.toString())) }
+    p.on('exit', code => resolve(code === 0))
+    p.on('error', e => { if (log) log(String(e.message) + '\n'); resolve(false) })
+  })
+}
+// generate per-app screenshots into apps/<name>/screenshots (dump each cart → store-shots).
+// press-kit reads that dir — so this is what gives an app real, correct (never cross-app) shots.
+ipcMain.handle('studio:app-shots', async (_e, name) => {
+  const wc = _e.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, output: 'bad app name' }
+  const ROOT = path.join(__dirname, '../..')
+  let carts = []
+  try { carts = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8')).carts || [] }
+  catch { return { ok: false, output: 'no manifest' } }
+  if (!carts.length) { log('\nno carts in manifest\n'); return { ok: false } }
+  const shotsDir = path.join(ROOT, 'apps', name, 'screenshots')
+  fs.mkdirSync(shotsDir, { recursive: true })
+  const scratch = path.join(ROOT, 'build', '.appshots')
+  log(`\n── screenshots for ${name}: ${carts.join(', ')} ──\n`)
+  for (const cart of carts) {
+    if (!/^[a-z0-9_-]+$/i.test(cart)) continue
+    const dump = path.join(scratch, cart)
+    log(`\n· ${cart}: dumping frames…\n`)
+    if (!await spawnP('node', [path.join(ROOT, 'tools/play.js'), cart, 'run', '--headless', '--frames', '40', '--dump', dump], ROOT, log)) {
+      log(`  (dump failed — skipped)\n`); continue
+    }
+    let frame = ''
+    try { const fr = fs.readdirSync(dump).filter(f => /\.png$/.test(f)).sort(); frame = fr[Math.floor(fr.length / 2)] } catch {}
+    if (!frame) { log(`  (no frames — skipped)\n`); continue }
+    const named = path.join(scratch, `${cart}.png`)             // unique name → no cross-cart overwrite
+    fs.copyFileSync(path.join(dump, frame), named)
+    log(`· ${cart}: composing shot…\n`)
+    await spawnP('node', [path.join(ROOT, 'tools/store-shots.js'), '--in', named, '--device', 'iphone69', '--out', shotsDir], ROOT, log)
+  }
+  log(`\n✓ screenshots → apps/${name}/screenshots — run 📄 press kit to include them\n`)
+  return { ok: true }
+})
 ipcMain.handle('studio:build-app', async (_e, name, target) => {
   const wc = _e.sender
   const log = (m) => { if (!wc.isDestroyed()) wc.send('cart:log', m) }

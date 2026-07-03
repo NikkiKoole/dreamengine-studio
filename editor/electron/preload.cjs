@@ -30,4 +30,5 @@ contextBridge.exposeInMainWorld('studio', {
   buildApp:     (name, target)   => ipcRenderer.invoke('studio:build-app', name, target),
   pressKit:     (name)           => ipcRenderer.invoke('studio:press-kit', name),
   asoApp:       (name, tool)     => ipcRenderer.invoke('studio:aso-app', name, tool),
+  appShots:     (name)           => ipcRenderer.invoke('studio:app-shots', name),
 })

@@ -1402,6 +1402,7 @@ async function renderAppsList() {
         <button data-act="mac">🍎 Mac app</button>
         <button data-act="ios">📱 iOS app</button>
         <span class="app-sec">site</span>
+        <button data-act="shots">📸 screenshots</button>
         <button data-act="press">📄 press kit</button>
         <span class="app-sec">sell</span>
         <button data-act="lint">🔎 lint listing</button>
@@ -1424,6 +1425,7 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const stop = busyDots(btn, 'working', label); btn.disabled = true
     rlogClear()
     if (act === 'press') await window.studio.pressKit(app)
+    else if (act === 'shots') await window.studio.appShots(app)
     else if (act === 'lint' || act === 'compose') await window.studio.asoApp(app, act)
     else await window.studio.buildApp(app, act)
     stop(); btn.disabled = false

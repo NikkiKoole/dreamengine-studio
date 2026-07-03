@@ -1,8 +1,10 @@
 # The share panel — one surface for every sharing action, and the "app" unit
 
-STATUS: EXPLORING (2026-07-03). Plans the cross-cutting row of
-[`sharing-channels.md`](sharing-channels.md): every sharing action triggerable from the
-editor, no Xcode ever. Two design commitments and one new concept fall out below.
+STATUS: EXPLORING (2026-07-03) — **seam-#1 spike PASSED same day** (two racks, one
+binary, zero cart edits — `tools/bundle-spike/`, §spike result below). Plans the
+cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
+triggerable from the editor, no Xcode ever. Two design commitments and one new concept
+fall out below.
 
 ## The two commitments
 
@@ -74,6 +76,39 @@ links cleanly next to another. What actually collides / is singular:
 Each is a small spike in the [`ios-plan.md`](ios-plan.md) spirit: riskiest-cheapest first (1+2 together —
 two renamed carts in one desktop binary, switchable by key — proves the whole shape
 before any iOS work).
+
+### Spike result (2026-07-03): PASSED — acidrack + yachtrack in one binary
+
+`tools/bundle-spike/` (build.sh + bundle.c + the two proof screenshots). Both cart
+sources went in **verbatim — zero edits**; the whole trick is per-TU compile defines
+(`-Ddraw=acid_draw -Dupdate=acid_update`, ditto yacht + `spec`) plus a ~30-line
+dispatcher shim that owns the real `init`/`update`/`draw` and switches on TAB
+(`note_off_all()` as the band panic; `DE_BUNDLE_AUTOSWITCH=<frame>` is the
+deterministic headless proof hook). Run it: `tools/bundle-spike/build.sh` →
+`build/bundle-spike`.
+
+What came free: **state isolation** (both racks keep all state in file-scope `static`s
+— per-TU, untouched across switches; neither uses `de_state`), and macro renames are
+safe against comments/strings (the de:meta block survives).
+
+Traps hit: the shim is cart-namespace code too (`frame` is engine API — the
+"don't name a variable after a built-in" rule applies); headless runs are
+**uncapped** (no vsync), so frame-N proofs need one screenshot per run, not two in one.
+
+Deliberately NOT covered — the next spikes, in order of need:
+1. **Sprite carts** — per-slug staged sheets + a runtime sheet-swap on switch (the
+   engine already swaps the spritesheet texture in the `pal()` path, so the mechanism
+   exists; it needs a seam like `de_sheet_select(slug)`).
+2. **`de_state` carts** — `-Dde_state=<slug>_de_state` + per-slug slab wrappers in the
+   shim (sketched, trivial, unexercised).
+3. **Differing screen dims** — `SCREEN_W/H` are compile-time; a manifest picks one size
+   and its carts must match (or the engine grows letterboxing). Both racks are 320×240,
+   so Tinyjam dodges this.
+4. **FX-bus bleed** — effects are set-and-hold, so the incoming cart inherits the
+   outgoing cart's bus config until it touches a knob. `note_off_all()` covers notes,
+   not buses; a `de_switch_cart` API would want a bus reset too.
+5. **Per-cart save dirs** and the **launcher cart** + real `de_switch_cart()` (the
+   spike's shim hardcodes the pair; the manifest generates it).
 
 ## The panel itself — three rungs
 

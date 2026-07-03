@@ -173,6 +173,15 @@ static void cart_reload_if_changed(void) {
 
 static Texture2D       spritesheet;
 static Image           spritesheet_img = {0};
+#ifdef SPRITES_MULTI
+// per-cart sprite sheets (multi-cart bundles, from build-app.js), pre-loaded at init and
+// indexed by de_switch_cart ctx; de_sheet_select() swaps `spritesheet`/`spritesheet_img`.
+static Image           sheet_imgs[SPRITES_MULTI] = {0};
+#ifndef DE_NO_RAYLIB
+static Texture2D       sheet_texs[SPRITES_MULTI] = {0};
+#endif
+#endif
+static void de_sheet_select(int ctx);   // fwd: swap the active sprite sheet on a cart switch
 static RenderTexture2D canvas;
 static RenderTexture2D canvas_snap;   // scratch copy for zoom_rect (avoids sampling the live target)
 static Font            game_font;
@@ -2357,6 +2366,14 @@ void de_init(DeRenderer renderer) {
     if (MAP_DATA_LEN >= sizeof(map_data)) memcpy(map_data, MAP_DATA, sizeof map_data);
     else                                  memset(map_data, 0, sizeof map_data);
     de_setup_baked_fonts();
+#ifdef SPRITES_MULTI
+    for (int i = 0; i < SPRITES_MULTI; i++) {   // per-cart sheets on the SW path (iOS): pre-load all
+        if (SPRITES_SHEET_LENS[i] == 0) continue;
+        Image s = de_image_decode(SPRITES_SHEETS[i], SPRITES_SHEET_LENS[i]);
+        if (s.width > 0) sheet_imgs[i] = s;     // sw_blit/img_texel read this CPU image (no GPU texture)
+    }
+    de_sheet_select(0);                         // boot cart is ctx 0
+#else
     if (SPRITES_DATA_LEN > 0) {                 // decode the embedded sheet (stb_image) for the SW sprite path
         Image s = de_image_decode(SPRITES_DATA, SPRITES_DATA_LEN);
         if (s.width > 0) {
@@ -2365,6 +2382,7 @@ void de_init(DeRenderer renderer) {
             spritesheet.height = s.height;      // cols = spritesheet.width/SPRITE_SIZE — set dims, id stays 0
         }
     }
+#endif
     sound_synth_mode = true; sound_init();
     init();                                      // the cart's init()
     last_time = GetTime();
@@ -2678,6 +2696,19 @@ int main(int argc, char **argv) {
     font_comic_img = LoadImageFromTexture(font_comic.texture); ImageFormat(&font_comic_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     font_thin_img  = LoadImageFromTexture(font_thin.texture);  ImageFormat(&font_thin_img,  PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
+#ifdef SPRITES_MULTI
+    for (int i = 0; i < SPRITES_MULTI; i++) {          // per-cart sheets: pre-load all, boot cart is ctx 0
+        if (SPRITES_SHEET_LENS[i] == 0) continue;
+        Image img = de_image_decode(SPRITES_SHEETS[i], SPRITES_SHEET_LENS[i]);
+        if (img.width > 0) {
+            ImageFormat(&img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+            sheet_imgs[i] = img;
+            sheet_texs[i] = LoadTextureFromImage(img);
+            SetTextureFilter(sheet_texs[i], TEXTURE_FILTER_POINT);
+        }
+    }
+    de_sheet_select(0);
+#else
     if (SPRITES_DATA_LEN > 0) {
         Image img = de_image_decode(SPRITES_DATA, SPRITES_DATA_LEN);
         if (img.width > 0) {
@@ -2687,6 +2718,7 @@ int main(int argc, char **argv) {
             SetTextureFilter(spritesheet, TEXTURE_FILTER_POINT);
         }
     }
+#endif
 
 #ifdef DE_NET_BUILD
     // Netplay lobby path (--net-lobby / exported build): the window + fonts are
@@ -4994,12 +5026,31 @@ static void de_gfx_reset(void) {
     sw_force_gpu = false;   // clear the sticky camera_ex-rotation GPU fallback
 }
 
-// the public UMBRELLA cart switch: swaps the whole cart world for context `ctx`. Sound
-// (de_sound_switch_cart, sound.h) + video state reset (de_gfx_reset) today; the per-cart
-// sprite-sheet swap joins here with that rung. The dispatcher shim calls only this.
+// swap the active sprite sheet to context `ctx`'s (per-cart sheets, multi-cart bundles).
+// Sheets are pre-loaded at init, so this is a cheap struct copy — safe from update()/
+// outside GL. No-op unless the bundle baked multiple sheets (SPRITES_MULTI, build-app.js).
+static void de_sheet_select(int ctx) {
+#ifdef SPRITES_MULTI
+    if (ctx < 0 || ctx >= SPRITES_MULTI || sheet_imgs[ctx].width <= 0) return;
+    spritesheet_img = sheet_imgs[ctx];
+#ifndef DE_NO_RAYLIB
+    spritesheet = sheet_texs[ctx];
+#else
+    spritesheet.width  = sheet_imgs[ctx].width;   // SW path: id stays 0, guards read .width
+    spritesheet.height = sheet_imgs[ctx].height;
+#endif
+#else
+    (void)ctx;
+#endif
+}
+
+// the public UMBRELLA cart switch: swaps the whole cart world for context `ctx` —
+// sound (de_sound_switch_cart, sound.h) + video set-and-hold reset (de_gfx_reset) +
+// the per-cart sprite sheet (de_sheet_select). The dispatcher shim calls only this.
 void de_switch_cart(int ctx) {
     de_sound_switch_cart(ctx);
     de_gfx_reset();
+    de_sheet_select(ctx);
 }
 
 // EXPERIMENTAL (palette probe — see docs/design/palette-and-color.md). Write an

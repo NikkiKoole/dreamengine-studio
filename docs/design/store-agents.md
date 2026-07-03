@@ -50,6 +50,20 @@ the irreducible **agent** core.
   this." This is the ADR-0022 *legible-and-delightful-to-a-stranger* critic pointed at the
   store page.
 
+**v0.1 SHIPPED (2026-07-03): `tools/store-shots.js`** — the deterministic asset leg. Takes a
+native cart frame (`play.js --dump`) → App Store screenshots at exact device sizes
+(iphone69 1290×2796, ipad13 2048×2732, …). ffmpeg-based, no node deps.
+> **The aspect-ratio gap, solved without engine work.** Carts render at one fixed lo-fi ratio
+> (`SCREEN_W/H` are compile-time); App Store devices are other ratios (tall iPhone, 4:3 iPad),
+> and responsive layout ([`responsive-layout.md`](responsive-layout.md)) isn't built. The fix:
+> **composite, don't stretch** — integer-upscale the cart crisply (nearest-neighbor) and centre
+> it on a designed background with the caption in the breathing room. For a pixel console this
+> reads *premium* (the canvas as a framed artifact), and it sidesteps responsive layout
+> entirely. Two useful facts that shrink the problem: Apple only needs **one iPhone 6.9″ set**
+> (auto-scales to smaller iPhones) + **iPad 13″** if you ship iPad — not a ratio matrix.
+> Still to add (v0.2): the contact-sheet + frame-diff dedup, palette-derived backgrounds,
+> multi-line/bottom captions, optional device bezels, and the agent hero-pick.
+
 **2. Copy transcreation, not translation** — per-locale listing copy.
 - *Script:* extract source copy from `de:meta` / the manifest; enforce char limits
   (name/subtitle 30, keywords 100, promo 170, desc 4000); assert per-locale completeness;

@@ -156,6 +156,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              ordered candidate pool, drop stopwords + words already visible, split multi-word entries
                              (Apple auto-combines), greedy-fill to the limit, and report what got CUT. The mechanical
                              core of the composer; agent writes title/subtitle. Design: docs/design/store-agents.md §ASO
+             store-shots.js  native cart frame → App Store screenshots at EXACT device sizes (iphone69/ipad13/…).
+                             Solves the aspect-ratio gap by COMPOSITING not stretching: crisp integer-upscaled cart
+                             centered on a bg + Bungee caption in the breathing room (zero engine work). ffmpeg-based,
+                             no node deps. Feed it a play.js --dump frame. Design: docs/design/store-agents.md §1
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B

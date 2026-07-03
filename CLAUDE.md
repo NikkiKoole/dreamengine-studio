@@ -152,6 +152,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              comma-spaces + stopwords + multi-word entries, cross-field repeats (a word only ranks
                              once), and --research coverage. The deterministic half of the metadata composer (agent
                              owns the taste). Design: docs/design/store-agents.md §ASO
+             aso-compose.js  PACK the 100-char keyword field deterministically: given title+subtitle + a priority-
+                             ordered candidate pool, drop stopwords + words already visible, split multi-word entries
+                             (Apple auto-combines), greedy-fill to the limit, and report what got CUT. The mechanical
+                             core of the composer; agent writes title/subtitle. Design: docs/design/store-agents.md §ASO
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B

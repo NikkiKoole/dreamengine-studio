@@ -223,6 +223,17 @@ one on Mipo: `create` sat in both the subtitle *and* the keyword field. What it 
 does NOT do is write the copy — the agent owns the taste (the read-aloud test; the visible
 fields read like a person wrote them, all SEO in the hidden keyword field).
 
+**v0.1 SHIPPED (2026-07-03): `tools/aso-compose.js`** — the *packer*: given the agent-written
+title + subtitle and a **priority-ordered** candidate pool, it deterministically fills the
+≤100-char keyword field (drops stopwords, drops words already visible so nothing ranks twice,
+splits multi-word entries since Apple auto-combines singles, greedy-fills to the limit) and
+reports **what got cut**. This is the whole composer loop: *agent drafts the visible fields
+(taste) → `aso-compose` packs the keyword field (math) → `aso-lint` confirms clean*. A useful
+emergent property surfaced on Tinyjams: the "didn't fit" list (`techno, acid, 808, chiptune,
+lofi`) is exactly the set of **module-specific** terms that belong on the per-module **IAP
+display names**, not the shared app field — the packer's overflow doubles as the
+what-goes-on-the-IAP-tiles signal.
+
 - **Script** `aso-research.js` (deterministic, snapshots a dated JSON): iTunes-Search-API
   sweep → competitor list + difficulty proxy + competitor-keyword mining; **ingest a
   downloaded Search Term Rank Report** and **match each candidate against the fixed list** —

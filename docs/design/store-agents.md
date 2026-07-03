@@ -34,6 +34,13 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
    ([`input-recording-looper.md`](input-recording-looper.md)) · the `0-apps → empty/banned`
    research flag. (~~app-scoped `store-shots`~~ + ~~app-scoped research~~ both SHIPPED —
    the Apps card's 🔎 research seeds `aso-research` from the carts' `de:meta`.)
+5. **Post-launch: your OWN app metrics in the Apps view** — the honest counterpart to all the
+   *proxy* signals above (research difficulty, Google demand): real downloads / impressions /
+   conversion / %-from-search pulled from App Store Connect onto the app card, the one volume
+   number that's truly yours (closes the ASO loop). **DEFERRED until after ship (maker's call,
+   2026-07-03):** an empty repo app (Tiny Jam isn't live) has no data, and it needs the same ASC
+   API key (`.p8`, JWT/ES256) as #2 — so it comes *after* the upload tool stands up that auth, not
+   before. Reader-first is then the low-risk way to exercise the ASC auth.
 
 ## The one rule: scripts prepare → agent decides → scripts execute
 

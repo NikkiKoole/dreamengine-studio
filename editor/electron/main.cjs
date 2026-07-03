@@ -854,8 +854,12 @@ function macDevIdCert() {
     return m ? m[1] : ''
   } catch { return '' }
 }
-function macNotaryProfileStored() {   // notarytool creds live in the keychain under this service
-  try { execSync('security find-generic-password -s com.apple.gke.notary.tool', { stdio: 'ignore' }); return true }
+function macNotaryProfileStored() {
+  // notarytool keeps creds in the data-protection keychain, invisible to `security
+  // find-generic-password`. `history` exits 0 iff the profile exists and Apple is
+  // reachable (~1s); a missing profile fails instantly (exit 69), offline fails too
+  // — either way we degrade to sign-only, which the export log explains.
+  try { execSync('xcrun notarytool history --keychain-profile dreamengine-notary', { stdio: 'ignore', timeout: 15000 }); return true }
   catch { return false }
 }
 

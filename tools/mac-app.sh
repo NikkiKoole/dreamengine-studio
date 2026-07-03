@@ -19,20 +19,26 @@
 #
 # Usage:
 #   tools/mac-app.sh <binary> [--name "Pretty Name"] [--id com.you.cart] \
-#                    [--profile dreamengine-notary] [--out <dir>] [--no-notarize]
+#                    [--profile dreamengine-notary] [--out <dir>] [--no-notarize] \
+#                    [--icon <file.icns>]
+#
+# Icon: every app gets the shared dreamengine icon (tools/assets/mac-app.icns,
+# regenerate via tools/assets/make-mac-icon.js) unless --icon points elsewhere.
 #
 # Env overrides: DEV_ID (signing identity), NOTARY_PROFILE, BUNDLE_ID_PREFIX.
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN="${1:-build/cart}"; shift || true
 NAME=""; BUNDLE_ID=""; PROFILE="${NOTARY_PROFILE:-dreamengine-notary}"
-OUT="."; NOTARIZE=1
+OUT="."; NOTARIZE=1; ICON="$SCRIPT_DIR/assets/mac-app.icns"
 while [ $# -gt 0 ]; do
   case "$1" in
     --name)    NAME="$2";      shift 2 ;;
     --id)      BUNDLE_ID="$2"; shift 2 ;;
     --profile) PROFILE="$2";   shift 2 ;;
     --out)     OUT="$2";       shift 2 ;;
+    --icon)    ICON="$2";      shift 2 ;;
     --no-notarize) NOTARIZE=0; shift ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
@@ -61,6 +67,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/$SLUG"
 chmod +x "$APP/Contents/MacOS/$SLUG"
+HAVE_ICON=0
+if [ -f "$ICON" ]; then
+  cp "$ICON" "$APP/Contents/Resources/AppIcon.icns"; HAVE_ICON=1
+else
+  echo "   (no icon at $ICON — app ships without one)"
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,6 +88,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key> <string>1.0</string>
   <key>LSMinimumSystemVersion</key>  <string>10.13</string>
   <key>NSHighResolutionCapable</key> <true/>
+$([ "$HAVE_ICON" -eq 1 ] && echo '  <key>CFBundleIconFile</key>       <string>AppIcon</string>')
 </dict>
 </plist>
 PLIST

@@ -8,9 +8,14 @@ the launcher cart (rung 3 — `tinyjam-menu.c` + the generated `app_roster.h`; T
 boots into a de:meta-fed menu, TAB toggles rack ↔ overview, zero new engine API), and
 `build-app.js --mac` (rung 4 — wraps the bundle via `mac-app.sh`, name+bundleId from the
 manifest; **Tinyjam.app built, notarized `Accepted`, stapled, Gatekeeper-clean 2026-07-03**).
-**Fresh context: the ladder is COMPLETE — a manifest → a double-clickable any-Mac app. Next
-work is the panel itself (§"The panel itself"), the parked next-spikes (§ #1/2/3/5), or the
-menu's look/feel (rung 3 sub-question b — maker's call).** Plans the
+Then the **cross-cart bleed fix** (the video twin of ADR-0027: `de_switch_cart` is now a
+sound+video+sheet umbrella — see next-spike #1 + rung-1's video-twin note) and **iOS
+(Spike A): `build-app.js --ios` stages the multi-cart set for the Xcode build and Tinyjam's
+launcher + racks render on the iOS simulator** (`ios/device.sh`/`build.sh` `APP=<name>`).
+**Fresh context: the ladder is COMPLETE — a manifest → a double-clickable any-Mac app, and a
+multi-cart iOS build that runs. Next work is the panel itself (§"The panel itself"), the touch
+back-to-launcher seam (no TAB on a phone), the on-device deploy (`device.sh APP=tinyjam`, needs
+the phone), or the menu's look/feel (rung 3 sub-question b — maker's call).** Plans the
 cross-cutting row of [`sharing-channels.md`](sharing-channels.md): every sharing action
 triggerable from the editor, no Xcode ever. Two design commitments and one new concept
 fall out below.
@@ -225,7 +230,7 @@ in order (each rung small, only #1 touches the engine):
    name, so set-and-hold VIDEO state leaked across a switch. Fixed by making it an
    **umbrella**: `de_sound_switch_cart` (the renamed sound half) + `de_gfx_reset()`
    (pal/fillp/font/camera → boot defaults; clip already resets at frame-end, no palt in
-   this engine) + `de_sheet_select(ctx)` (per-cart sheets, next-spike #1). **Reset-only,
+   this engine) + `de_sheet_select(ctx)` (per-cart sheets — next-spike #1, also DONE). **Reset-only,
    not record+replay** like sound — every cart re-sets its video modes in `draw()`, so a
    clean slate suffices, and video has no config queue to tap the way sound did (the
    maker's call: full-replay is far more work for tiny payoff). Proven by the **bleedtest**
@@ -237,8 +242,8 @@ in order (each rung small, only #1 touches the engine):
    generates the dispatcher shim (TAB cycles N carts, each switch = `de_switch_cart(ctx)`),
    links → `build/<name>`. **Adding a rack = one manifest line.** Guards: cart count vs
    `SOUND_CART_CTX` parsed live from sound.h (no drift), screen/grid dims must match
-   across carts (next-spike #3 honored), first-cart-with-sprites staging warns when
-   several carts bring sheets (next-spike #1 still open). Verified: tinyjam (acid 136 →
+   across carts (next-spike #3 honored), a sprite sheet baked PER cart (next-spike #1,
+   swapped on switch by de_sheet_select). Verified: tinyjam (acid 136 →
    yacht 102 → acid 136 restored) and an ad-hoc THREE-cart app (groovebox → epiano →
    mellotron → groovebox, pattern + 123bpm intact) — N>2 works. `launcher`/`iap`/`icon`
    manifest fields are accepted-but-parked for rungs 3/4/iOS. The hand-written
@@ -277,10 +282,25 @@ in order (each rung small, only #1 touches the engine):
    notarytool `status: Accepted`, ticket stapled, `spctl` → `accepted / source=Notarized
    Developer ID` — opens on ANY Mac with a plain double-click. Cert note: the Developer ID
    is minted 2026-07-03, valid to 2031 (not expiring — see the machine memory). This is
-   channel C's rehearsal of the App Store shape; iOS reuses everything
-   ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9). No editor button yet —
+   channel C's rehearsal of the App Store shape. No editor button yet —
    apps live in `apps/`, not the carts panel, so an in-IDE "export app" needs an **Apps**
    picker (a later UI rung on top of this CLI, not a prerequisite).
+5. ~~**iOS multi-cart build (Spike A)**~~ — **DONE (2026-07-03), Tinyjam's launcher + racks
+   render on the iOS simulator.** `build-app.js --ios` stages the multi-cart set into
+   `ios/gen/app` instead of a Raylib link: since Xcode compiles a whole directory under ONE
+   preprocessor-defines set, the per-TU `-Ddraw=<slug>_draw` rename can't be a project flag —
+   so each cart gets a **wrapper `.c`** that `#define`s the renames then inlines the source
+   (same effect, no per-file build settings). Plus the `app_main.c` shim, `app_roster.h`,
+   baked data headers, and `gen/app.dims`. `project.yml`'s app target now sources the `gen/app`
+   DIRECTORY (works for a single staged cart OR the multi-cart set); `ios/device.sh` /
+   `build.sh` gain `APP=<manifest>` mode. The SAME `DE_NO_RAYLIB` software engine that runs
+   single carts on device (ios-plan.md spike 8) runs the dispatcher. Gotchas recorded: iOS
+   builds must be **serialized** (shared `gen/app` + one xcodeproj — the build-time twin of the
+   `.bake` request-file race, which used `pid:` targeting); `simctl` screenshots need a few
+   seconds' settle (it grabs a pre-render frame otherwise — perf.log confirms 59fps). Still
+   open: **touch back-to-launcher** (no TAB on a phone — the parked intro-panel/pause seam) and
+   the **on-device** deploy (`device.sh APP=tinyjam`, needs a connected phone). iOS-as-AUv3 (a
+   rack per plugin) stays [`ios-plan.md`](ios-plan.md) spike 9 (AUv3 concurrency).
 
 ## Open questions (maker's call)
 

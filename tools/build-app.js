@@ -24,8 +24,10 @@
 //   1. Validates: carts exist, count ≤ SOUND_CART_CTX (parsed live from runtime/sound.h),
 //      every cart's screen/cell/map dims MATCH (share-panel.md next-spike #3: the manifest
 //      picks ONE size — no letterboxing yet).
-//   2. Stages sprites/map from the FIRST cart that has any (per-cart sheets are a later
-//      rung — share-panel.md next-spike #1; fine for code-drawn racks).
+//   2. Bakes a sprite sheet PER cart (in ctx order) into an indexed table
+//      (SPRITES_SHEETS[]/SPRITES_MULTI) so de_sheet_select(ctx) swaps sheets on switch —
+//      no cross-cart art bleed (share-panel.md next-spike #1, DONE). No sprites anywhere →
+//      a single blank sheet. Maps are still the first cart's (per-cart maps = a later rung).
 //   3. Compiles each cart TU with -Ddraw=<slug>_draw -Dupdate=<slug>_update
 //      -Dinit=<slug>_init -Dspec=<slug>_spec (everything else in a cart is `static`,
 //      so the TUs link clean side by side), then asks `nm` which optional entry points
@@ -122,7 +124,7 @@ if (app.launcher) {
   if (!fs.existsSync(src)) { console.error(`launcher cart not found: tools/carts/${app.launcher}.c`); process.exit(1) }
   launcher = { name: app.launcher, slug: slugOf(app.launcher), src, cfg: mk.loadConfig(src) }
   if (launcher.cfg.sprites)
-    console.log(`note: launcher ${app.launcher} has a sprite config — ignored (the racks own the staged sheet; per-cart sheets = a later rung)`)
+    console.log(`note: launcher ${app.launcher} has a sprite config — ignored (the launcher is code-drawn; it gets a blank sheet in the per-cart sheet table)`)
 }
 
 // ── staging ──────────────────────────────────────────────────────────────────

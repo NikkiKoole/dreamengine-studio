@@ -232,7 +232,7 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
              build-nr.sh     build+run a cart with the DE_NO_RAYLIB software engine (no Raylib/frameworks) — the desktop twin of the iOS build (ios/)
              mac-app.sh      bundle an exported cart binary into a signed + notarized + stapled .app that opens on ANY Mac (Gatekeeper-clean); needs a Developer ID cert + a notarytool cred profile (header has the one-time setup)
              bundle-spike/   PASSED probe: TWO carts in ONE binary (per-TU -Ddraw=<slug>_draw renames + a dispatcher shim; carts unmodified) — the Tinyjam multi-cart app shape (design/share-panel.md §spike); proof-sound.sh = the de_switch_cart round-trip oracle
-             build-app.js    build a MULTI-CART app binary from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound contexts (de_switch_cart) — adding a rack = one manifest line
+             build-app.js    build a MULTI-CART app from apps/<name>/app.json: per-TU renames + generated dispatcher + per-cart sound/video/sheet contexts (de_switch_cart umbrella) — adding a rack = one manifest line. Bare = a native binary; --mac wraps it signed+notarized via mac-app.sh; --ios stages the set for the Xcode build (ios/device.sh|build.sh APP=<name>)
              profile-fleet.js batch CPU-profile a set of carts → which engine primitive is hottest
              lint-docs.js    validate docs/ cross-references (links resolve, §-refs, tool-index)
              lint-xrefs.js   the inverse of lint-docs: find docs that SHOULD cross-link but don't —

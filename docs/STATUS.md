@@ -1262,6 +1262,17 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     Proven by the **bleedtest** rig (bleedred↔bleedblue: pre-fix blue drew red text +
     hatched bar + red critters; post-fix clean both ways). Deferred: per-cart maps + save
     dirs (same pattern).
+    **iOS multi-cart build (Spike A) — DONE (2026-07-03):** `build-app.js --ios` stages the
+    multi-cart set into `ios/gen/app` (per-cart wrapper `.c` files that `#define` the entry
+    renames then inline the source — so Xcode's one-defines-set directory build needs no
+    per-file flags — plus the shim, `app_roster.h`, baked data, `gen/app.dims`); `project.yml`
+    sources the `gen/app` DIRECTORY; `ios/device.sh`/`build.sh` gain `APP=<manifest>` mode.
+    **Tinyjam's launcher + racks render on the iOS simulator** (Tiny Jam menu, acid rack /
+    session desk from de:meta, `>` cursor, footer). Same `DE_NO_RAYLIB` engine as single-cart
+    device builds. Serialize iOS builds (shared `gen/app` + one xcodeproj); `simctl` shots need
+    ~a few seconds settle. Open: touch back-to-launcher (no TAB on a phone) + on-device deploy
+    (needs a connected phone). Design + gotchas: [`design/share-panel.md`](design/share-panel.md)
+    next-spike #5.
 
 ---
 

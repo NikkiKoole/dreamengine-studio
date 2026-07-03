@@ -1,11 +1,15 @@
 # Press kit — an in-house presskit()-style page, generated from cart data
 
-STATUS: READY (2026-07-03) — specced, not built. A static press-kit generator for a shipped
-app/cart, mirroring the journalist-recognised **presskit()** section format but generating it
-ourselves from data we already own. Sits in **Channel A** (own-domain showcase) of
-[`sharing-channels.md`](sharing-channels.md), a [`build-site.js`] artifact — *not* the App
-Store. Shares the asset generators with [`store-agents.md`](store-agents.md) (`store-shots.js`,
-`make-gif.js`). Same "mirror the convention, build our own" call as ADR-0026 (Fastlane).
+STATUS: BUILDING (2026-07-03) — **v0.1 SHIPPED** (`tools/press-kit.js`): generates a
+self-contained press page + assets zip from `apps/<name>/app.json` + `apps/<name>/press.md` +
+`studio.md` + `store-shots`/`make-gif` assets. No node deps (flat frontmatter + a tiny markdown
+renderer). Proven on Tinyjam (acidrack/yachtrack/groovebox shots + trailer). Mirrors the
+journalist-recognised **presskit()** section format, generated ourselves from data we own. Sits
+in **Channel A** (own-domain showcase) of [`sharing-channels.md`](sharing-channels.md), a
+[`build-site.js`] artifact — *not* the App Store. Shares asset generators with
+[`store-agents.md`](store-agents.md). Same "mirror the convention, build our own" call as
+ADR-0026 (Fastlane). v0.2: icon/logo assets, per-module kits, `build-site.js` wiring, a
+`/press/` route on the own domain.
 
 ## Why in-house
 

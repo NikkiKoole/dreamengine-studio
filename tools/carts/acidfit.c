@@ -22,13 +22,16 @@ de:meta */
 //   BEHAVIOUR layer (below) — WHETHER it's shown inline, or collapsed behind a
 //                             tab, decided by the available finger-budget.
 //
-// The rule (CSS "Priority+" / progressive disclosure): each section declares a
-// priority + a minimum footprint in fingers. One pass inlines sections by
-// priority until the budget runs out; the overflow becomes tab chips. No device
-// is ever named — the finger-budget decides. iPad inlines all 5; iPhone defers.
+// The rule: a shape either has room to open EVERYTHING at once, or it doesn't.
+//   roomy (tablet)  → INLINE-ALL: every section open, gridded.
+//   tight  (phone)  → ACCORDION: every section stays listed as a collapsible
+//                     row; expand a few by priority until the vertical budget
+//                     runs out, the rest wait as headers. Better than cramming
+//                     all sections open at sub-finger size (which the first pass
+//                     did). No device is named — the finger-budget picks.
 //
-//   Presets auto-cycle. Keys 1-4 lock; 'o' opens the first deferred tab as an
-//   overlay, 'c' closes. Watch the SAME code inline on iPad and tab on iPhone.
+//   Presets auto-cycle. Keys 1-4 lock a device, 0 resumes. Watch the SAME code
+//   go inline-all on iPad and accordion on the phone.
 
 #include "studio.h"
 #include <math.h>
@@ -117,7 +120,7 @@ static Device DEVS[4] = {
 #define FINGER_PT 44.0f
 #define TABLET_PT 700.0f
 
-static int tick = 0, locked = -1, open_tab = -1;
+static int tick = 0, locked = -1;
 
 // how many panels (by priority) fit in `body` at a uniform max-footprint cell
 static int fit_count(Box body, float cellW, float cellH, float gap) {
@@ -177,8 +180,6 @@ void update(void) {
     tick++;
     for (int k = 0; k < 4; k++) if (keyp('1' + k)) locked = k;
     if (keyp('0')) locked = -1;
-    if (keyp('O')) open_tab = (open_tab < 0) ? 99 : -1;   // 99 = "first deferred" sentinel
-    if (keyp('C')) open_tab = -1;
 }
 
 void draw(void) {
@@ -212,18 +213,11 @@ void draw(void) {
     Box seq   = lay_split(afterTitle, EDGE_BOTTOM, seqH, &afterSeq);
     Box body0 = lay_pad(afterSeq, gap, 0, gap, 0);
 
-    // BEHAVIOUR PASS: how many panels fit by priority? (uniform max-footprint cell)
-    float cellW = 4.2f * fu, cellH = 4.0f * fu;   // the max min-footprint
-    int inl0 = fit_count(body0, cellW, cellH, gap);
-    float tabH = (NPANEL - inl0 > 0) ? lay_clamp(fu * 0.9f, 9, 34) : 0;
-    Box tabstrip = {0}, body = body0;
-    if (tabH > 0) tabstrip = lay_split(body0, EDGE_BOTTOM, tabH, &body);
-    int inlined = fit_count(body, cellW, cellH, gap);
-    int deferred = NPANEL - inlined;
-
-    // grid the inlined panels
-    int colsFit = (int)((body.w + gap) / (cellW + gap)); if (colsFit < 1) colsFit = 1;
-    int cols = colsFit < inlined ? colsFit : inlined; if (cols < 1) cols = 1;
+    // BEHAVIOUR: pick the disclosure MODE by how the sections meet this shape's
+    // finger-budget. roomy → everything OPEN at once; tight → ACCORDION (list all
+    // sections, expand a few in place) rather than cram everything open small.
+    float cellW = 4.2f * fu, cellH = 4.0f * fu;   // the max comfortable min-footprint
+    bool roomy = fit_count(body0, cellW, cellH, gap) >= NPANEL;
 
     // ---- title: label + back-to-root corner keep-out ------------------------
     float homeSz = lay_clamp(fu * 0.75f, 8, 34);
@@ -234,11 +228,44 @@ void draw(void) {
     boxfill(home, CLR_DARKER_BLUE); boxrect(home, CLR_LIGHT_GREY);
     print_centered("<", (int)(home.x + home.w / 2), (int)(home.y + (home.h - 6) / 2), CLR_LIGHT_PEACH);
 
-    // ---- the inlined panels -------------------------------------------------
-    for (int i = 0; i < inlined; i++)
-        draw_panel(&PANELS[i], lay_inset(lay_grid(body, cols, inlined, i, gap), 0), fu, i < 2);
+    const char *mode; int n_open = NPANEL;
+    if (roomy) {
+        // INLINE-ALL — every section opened at once, gridded (the tablet answer).
+        mode = "INLINE-ALL";
+        int colsFit = (int)((body0.w + gap) / (cellW + gap)); if (colsFit < 1) colsFit = 1;
+        int cols = colsFit < NPANEL ? colsFit : NPANEL;
+        for (int i = 0; i < NPANEL; i++)
+            draw_panel(&PANELS[i], lay_grid(body0, cols, NPANEL, i, gap), fu, i < 2);
+    } else {
+        // ACCORDION — every section stays LISTED as a collapsible row; expand by
+        // priority until the vertical budget runs out. Open sections get
+        // comfortable room; the rest wait as headers. Beats cramming all open.
+        mode = "ACCORDION";
+        float headerH = lay_clamp(fu * 0.7f, 8, 18);
+        float budget = body0.h - NPANEL * (headerH + gap);   // room beyond all headers
+        int expanded = 0;
+        for (int i = 0; i < NPANEL; i++) {
+            float need = PANELS[i].minH * fu;
+            if (budget >= need) { expanded |= 1 << i; budget -= need + gap; }
+        }
+        n_open = 0;
+        Box cur = body0;
+        for (int i = 0; i < NPANEL; i++) {
+            bool exp = (expanded >> i) & 1; if (exp) n_open++;
+            float rh = headerH + (exp ? PANELS[i].minH * fu : 0);
+            Box rbody, row = lay_split(cur, EDGE_TOP, rh + gap, &cur);
+            row = lay_pad(row, 0, 0, gap, 0);                // gap below each row
+            Box hdr = lay_split(row, EDGE_TOP, headerH, &rbody);
+            boxfill(hdr, exp ? CLR_TRUE_BLUE : CLR_DARK_GREY);
+            boxrect(hdr, CLR_MEDIUM_GREY);
+            font(FONT_TINY);
+            print(PANELS[i].name, (int)hdr.x + 3, (int)(hdr.y + (hdr.h - 5) / 2), CLR_LIGHT_PEACH);
+            print_right(exp ? "-" : "+", (int)(hdr.x + hdr.w - 3), (int)(hdr.y + (hdr.h - 5) / 2), CLR_LIGHT_PEACH);
+            if (exp) { boxfill(rbody, CLR_DARKER_BLUE); panel_body(&PANELS[i], lay_inset(rbody, 1), fu); }
+        }
+    }
 
-    // ---- the sequencer lane (always inline) ---------------------------------
+    // ---- the sequencer lane (always pinned, both modes) ---------------------
     boxfill(seq, CLR_DARKER_BLUE); boxrect(seq, CLR_DARK_GREY);
     Box seqin = lay_inset(seq, 1.5f);
     for (int i = 0; i < STEPS; i++) {
@@ -248,41 +275,12 @@ void draw(void) {
         boxfill(lay_inset(s, 0.5f), on ? CLR_LIME_GREEN : CLR_DARK_GREY);
     }
 
-    // ---- deferred → tab chips ----------------------------------------------
-    int first_deferred = inlined;   // panels [inlined..NPANEL) are behind tabs
-    if (deferred > 0) {
-        boxfill(tabstrip, CLR_BROWNISH_BLACK);
-        for (int j = 0; j < deferred; j++) {
-            Box chip = lay_inset(lay_grid(tabstrip, deferred, deferred, j, gap), 1);
-            int idx = first_deferred + j;
-            int open = (open_tab == idx) || (open_tab == 99 && j == 0);
-            boxfill(chip, open ? CLR_TRUE_BLUE : CLR_DARK_GREY);
-            boxrect(chip, CLR_MEDIUM_GREY);
-            font(FONT_TINY);
-            print_centered(PANELS[idx].name, (int)(chip.x + chip.w / 2), (int)(chip.y + (chip.h - 5) / 2), CLR_LIGHT_PEACH);
-        }
-    }
-
-    // ---- overlay: an opened deferred panel ----------------------------------
-    int show = -1;
-    if (open_tab == 99 && deferred > 0) show = first_deferred;
-    else if (open_tab >= first_deferred && open_tab < NPANEL) show = open_tab;
-    if (show >= 0) {
-        boxfill(screen, CLR_BROWNISH_BLACK);          // dim the rack
-        Box ov = lay_inset(body0, fu * 0.4f);
-        draw_panel(&PANELS[show], ov, fu, 1);
-        Box x = lay_at(ov, L_TR, homeSz, homeSz, 2);
-        boxfill(x, CLR_DARK_RED); boxrect(x, CLR_LIGHT_GREY);
-        print_centered("x", (int)(x.x + x.w / 2), (int)(x.y + (x.h - 6) / 2), CLR_LIGHT_PEACH);
-    }
-
     // ---- readout ------------------------------------------------------------
     font(FONT_TINY);
-    print(str("%s  %dx%dpt  %s  finger=%dpx (%.0f%%w)  INLINE %d  /  TABS %d%s",
+    print(str("%s  %dx%dpt  %s  finger=%dpx (%.0f%%w)  mode: %s  (%d/%d open)",
               d.name, (int)d.wpt, (int)d.hpt, tablet ? "TABLET" : "PHONE",
-              (int)fu, 100.0f * FINGER_PT / d.wpt, inlined, deferred,
-              show >= 0 ? "  [overlay]" : ""),
+              (int)fu, 100.0f * FINGER_PT / d.wpt, mode, n_open, NPANEL),
           4, SCREEN_H - 6, tablet ? CLR_GREEN : CLR_ORANGE);
-    print_right(locked >= 0 ? "[1-4 lock  o open  c close]" : "[auto  1-4 lock  o open]", SCREEN_W - 4, 3, CLR_DARK_GREY);
+    print_right(locked >= 0 ? "[1-4 lock  0 auto]" : "[auto-cycle  1-4 lock]", SCREEN_W - 4, 3, CLR_DARK_GREY);
     font(FONT_NORMAL);
 }

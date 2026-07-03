@@ -14,6 +14,13 @@
 #define SCREEN_H  200
 #endif
 
+// SCREEN_W/H are the compile-time MAX canvas size. A cart built with -DDE_RESIZABLE gets a
+// resizable window whose ACTIVE size reflows live — read it with these instead of the macros,
+// and lay out your UI against them so it reflows (see runtime/lay.h). On a normal cart they
+// just return SCREEN_W/SCREEN_H forever.
+int  screen_w(void);   // active canvas width in px  (== SCREEN_W unless the cart is -DDE_RESIZABLE)
+int  screen_h(void);   // active canvas height in px (== SCREEN_H unless the cart is -DDE_RESIZABLE)
+
 // ------------------------------------------------------------
 // buttons
 // ------------------------------------------------------------

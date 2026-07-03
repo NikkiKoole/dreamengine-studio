@@ -302,6 +302,22 @@ static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer
 // renders byte-identical; Phase 1b lets a `resizable` cart update them + present
 // a sub-rect. MUST live outside the DE_NO_RAYLIB block — every build reads it.
 static int de_sw = SCREEN_W, de_sh = SCREEN_H;
+// device-adaptive-layout.md Phase 1b: the per-cart RESIZABLE opt-in. A cart compiled with
+// -DDE_RESIZABLE (clang builds cart.c + studio.c together, so the one flag reaches both TUs)
+// gets a resizable window AND de_sw/de_sh that reflow live to (window / SCALE) on every resize —
+// so lay.h re-flows against the real screen_w()/screen_h(). OFF (every existing cart): the globals
+// are pinned to the boot size forever and the whole engine behaves byte-identically to pre-1b.
+// Reflow is thus opt-in per rack (the determinism guard) — the phasing lever, no "flag day".
+#ifdef DE_RESIZABLE
+static const bool de_reflow = true;
+#else
+static const bool de_reflow = false;
+#endif
+// cart-facing live canvas size (Phase 1b). SCREEN_W/H are the compile-time MAX; these are the
+// ACTIVE dims, which a resizable cart watches to reflow (lay.h). On a fixed cart they equal
+// SCREEN_W/H forever. Defined unconditionally — carts run on every build.
+int screen_w(void) { return de_sw; }   // active canvas width  in px (== SCREEN_W unless resizable)
+int screen_h(void) { return de_sh; }   // active canvas height in px (== SCREEN_H unless resizable)
 #ifdef DE_NO_RAYLIB
 // Software CAMERA ROTATION (no GPU to fall back to — iOS/Switch). The world layer is captured
 // into an offscreen buffer at zoom+translate (rotation NOT applied), then rotated about the
@@ -634,11 +650,14 @@ static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
            *sy = (int)floorf((wy - cam.target.y) * cam.zoom + cam.offset.y); }
 }
 // raw screen-pixel write: clip (screen space, like GPU scissor) + bottom-up store (matches the FBO
-// layout, so the present's -SCREEN_H flip + the screenshot path treat sw and GPU canvases the same).
+// layout, so the present's -de_sh flip + the screenshot path treat sw and GPU canvases the same).
+// Phase 1b: bounds + flip origin follow the ACTIVE canvas (de_sw/de_sh); the row STRIDE stays the
+// physical buffer width (SCREEN_W = the compile-time max), so a resizable cart renders into the
+// bottom-left de_sw×de_sh sub-region and the present grabs it. Byte-identical when de == max.
 static inline void sw_plot1(int sx, int sy, uint32_t p) {
     if (clip_active && (sx < clip_cx || sx >= clip_cx + clip_cw || sy < clip_cy || sy >= clip_cy + clip_ch)) return;
-    if ((unsigned)sx < (unsigned)SCREEN_W && (unsigned)sy < (unsigned)SCREEN_H)
-        sw_dst[(SCREEN_H - 1 - sy) * SCREEN_W + sx] = p;
+    if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh)
+        sw_dst[(de_sh - 1 - sy) * SCREEN_W + sx] = p;
 }
 // software-canvas pixel write. zoom==1: one texel (the hot path). zoom!=1: fill the world pixel's
 // screen footprint (a zoom×zoom block) so a zoomed pset/blit/line stays gap-free.
@@ -672,9 +691,9 @@ static void sw_fillrect(int x, int y, int w, int h, DeColor c) {
     sw_w2s(x, y, &x0, &y0); sw_w2s(x + w, y + h, &x1, &y1);   // camera translate + zoom-scale the rect
     if (clip_active) { if (x0<clip_cx) x0=clip_cx; if (y0<clip_cy) y0=clip_cy;
                        if (x1>clip_cx+clip_cw) x1=clip_cx+clip_cw; if (y1>clip_cy+clip_ch) y1=clip_cy+clip_ch; }
-    if (x0<0) x0=0; if (y0<0) y0=0; if (x1>SCREEN_W) x1=SCREEN_W; if (y1>SCREEN_H) y1=SCREEN_H;
+    if (x0<0) x0=0; if (y0<0) y0=0; if (x1>de_sw) x1=de_sw; if (y1>de_sh) y1=de_sh;
     uint32_t p = sw_pack(c);
-    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(SCREEN_H-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
+    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
 // one fill-scanline span: cbuf row write under the software canvas, else the GPU DrawRectangle.
 // Lets the circ/oval/poly span fast-paths stay span-based (not per-pixel) on the canvas.
@@ -726,7 +745,7 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
     if (blit_fast_on && !recolor && !fx && !fy && dw == sw && dh == sh
         && cam.zoom == 1.0f && spritesheet_img.format == PIXELFORMAT_UNCOMPRESSED_R8G8B8A8) {
         int ox, oy; sw_w2s(dx, dy, &ox, &oy);                          // screen origin (one camera translate)
-        int xmin = 0, ymin = 0, xmax = SCREEN_W, ymax = SCREEN_H;
+        int xmin = 0, ymin = 0, xmax = de_sw, ymax = de_sh;
         if (clip_active) {                                             // intersect the clip rect, screen-space (== sw_plot1)
             if (clip_cx > xmin) xmin = clip_cx;
             if (clip_cy > ymin) ymin = clip_cy;
@@ -744,7 +763,7 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
         uint32_t key = (uint32_t)sw_colorkey_rgb.r | ((uint32_t)sw_colorkey_rgb.g << 8) | ((uint32_t)sw_colorkey_rgb.b << 16);
         for (int j = j0; j < j1; j++) {
             const uint32_t *srow = src + (size_t)(sy + j) * srcw + sx;
-            uint32_t *drow = &sw_dst[(size_t)(SCREEN_H - 1 - (oy + j)) * SCREEN_W + ox];
+            uint32_t *drow = &sw_dst[(size_t)(de_sh - 1 - (oy + j)) * SCREEN_W + ox];
             for (int i = i0; i < i1; i++) {
                 uint32_t s = srow[i];
                 if (!(s & 0x80000000u)) continue;                     // alpha < 128 → transparent
@@ -831,14 +850,14 @@ static void sw_tritex(float x0,float y0,float u0,float v0, float x1,float y1,flo
         // offset, and sw_plot1's clip+bounds tests are monotonic in px/py — fold both
         // into the scan range, then the inner loop writes rows directly.
         int camdx = (int)(cam.target.x - cam.offset.x), camdy = (int)(cam.target.y - cam.offset.y);
-        int sxlo = 0, sxhi = SCREEN_W, sylo = 0, syhi = SCREEN_H;          // half-open screen range
+        int sxlo = 0, sxhi = de_sw, sylo = 0, syhi = de_sh;          // half-open screen range
         if (clip_active) { if (clip_cx > sxlo) sxlo = clip_cx; if (clip_cy > sylo) sylo = clip_cy;
                            if (clip_cx + clip_cw < sxhi) sxhi = clip_cx + clip_cw;
                            if (clip_cy + clip_ch < syhi) syhi = clip_cy + clip_ch; }
         if (minx < sxlo + camdx) minx = sxlo + camdx;  if (maxx > sxhi - 1 + camdx) maxx = sxhi - 1 + camdx;
         if (miny < sylo + camdy) miny = sylo + camdy;  if (maxy > syhi - 1 + camdy) maxy = syhi - 1 + camdy;
         for (int py=miny; py<=maxy; py++) {
-            uint32_t *row = &sw_dst[(SCREEN_H - 1 - (py - camdy)) * SCREEN_W];
+            uint32_t *row = &sw_dst[(de_sh - 1 - (py - camdy)) * SCREEN_W];
             float fy = py + 0.5f;
             for (int px=minx; px<=maxx; px++) {
                 float fx = px + 0.5f;
@@ -1878,6 +1897,16 @@ static void prof_write(const char *path) {
 #endif
 
 static void loop_step(void) {
+#if !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
+    // Phase 1b: a resizable cart reflows the active canvas to (window / SCALE) each time the window
+    // changes size. lay.h (immediate-mode) recomputes every rect from the new screen_w()/screen_h()
+    // next frame, so the relayout is free; audio/knob state lives apart, untouched. No-op unless the
+    // cart opted in with -DDE_RESIZABLE, so fixed carts never move.
+    if (de_reflow && IsWindowResized()) {
+        de_sw = clampi(GetScreenWidth()  / SCALE, 1, SCREEN_W);
+        de_sh = clampi(GetScreenHeight() / SCALE, 1, SCREEN_H);
+    }
+#endif
 #ifdef PLATFORM_WEB
     if (!web_started) {
         bool clicked = IsMouseButtonPressed(MOUSE_LEFT_BUTTON)
@@ -2152,7 +2181,7 @@ static void loop_step(void) {
         }
         DrawTexturePro(
             canvas.texture,
-            (Rectangle){ 0, 0,  SCREEN_W, -SCREEN_H },
+            (Rectangle){ 0, 0,  de_sw, -de_sh },   // sample only the active sub-region (top-left of the max-size canvas)
             (Rectangle){ game_rect.x + sox, game_rect.y + soy,
                          de_sw * game_rect.scale, de_sh * game_rect.scale },   // game_rect drives placement
             (Vector2){ 0, 0 },
@@ -2620,8 +2649,19 @@ int main(int argc, char **argv) {
     // already recomputes from GetScreenWidth/Height every frame, so resizing just works.
     { const char *rs = getenv("DE_RESIZABLE");
       if (rs && rs[0] && strcmp(rs, "0") != 0) SetConfigFlags(FLAG_WINDOW_RESIZABLE); }
+    // -DDE_RESIZABLE cart opt-in: resizable window + live reflow (de_reflow). The env above only
+    // resizes the window (dev-preview window-fill); the compile flag additionally reflows the canvas.
+    if (de_reflow) SetConfigFlags(FLAG_WINDOW_RESIZABLE);
 #endif
     InitWindow(win_w, win_h, window_title);
+#if !defined(PLATFORM_WEB) && !defined(DE_NO_RAYLIB)
+    // seed the active dims from the initial window (DE_WINDOW may have overridden it); a resizable
+    // cart launched at a non-default size reflows from frame 0, not only after the first drag.
+    if (de_reflow) {
+        de_sw = clampi(GetScreenWidth()  / SCALE, 1, SCREEN_W);
+        de_sh = clampi(GetScreenHeight() / SCALE, 1, SCREEN_H);
+    }
+#endif
 #ifndef PLATFORM_WEB
     if (det_mode) { SetRandomSeed(seed); srand(seed); }   // reproducible rnd()/rnd_float()/shake
 #endif
@@ -3378,9 +3418,9 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
         uint32_t *row = NULL;
         if (fast) {
             int syc = py - camdy;
-            if ((unsigned)syc >= (unsigned)SCREEN_H) continue;
+            if ((unsigned)syc >= (unsigned)de_sh) continue;
             if (clip_active && (syc < clip_cy || syc >= clip_cy + clip_ch)) continue;
-            row = &sw_dst[(SCREEN_H - 1 - syc) * SCREEN_W];
+            row = &sw_dst[(de_sh - 1 - syc) * SCREEN_W];
         }
         for (int px = x0; px <= x1; px++) {
             float ddx = px + 0.5f - px0, ddy = py + 0.5f - py0;
@@ -3395,7 +3435,7 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
             else { if (cc.a < 128 || sw_keyed(cc)) continue; if (recolor) cc = sw_recolor(cc); }
             if (fast) {
                 int sxc = px - camdx;
-                if ((unsigned)sxc >= (unsigned)SCREEN_W) continue;
+                if ((unsigned)sxc >= (unsigned)de_sw) continue;
                 if (clip_active && (sxc < clip_cx || sxc >= clip_cx + clip_cw)) continue;
                 row[sxc] = sw_pack(cc);                                       // hoisted cbuf write
             } else if (oncanvas) sw_pset(px, py, cc);                         // canvas zoom!=1 (footprint)
@@ -4038,8 +4078,9 @@ int pget(int x, int y) {
     Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
     int rx = (int)s.x;
     int ry = (int)s.y;
-    if (rx < 0 || rx >= SCREEN_W || ry < 0 || ry >= SCREEN_H) return 0;
-    // RT data is bottom-up in raylib; flip Y to match draw coords
+    if (rx < 0 || rx >= de_sw || ry < 0 || ry >= de_sh) return 0;   // in the active canvas?
+    // RT data is bottom-up in raylib; flip Y to match draw coords. pget_snapshot is the FULL-size
+    // GPU render texture (SCREEN_W×SCREEN_H), so its flip origin stays SCREEN_H, not de_sh.
     DeColor c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);
     for (int i = 0; i < PALETTE_SIZE; i++) {
         if (palette[i].r == c.r && palette[i].g == c.g && palette[i].b == c.b) return i;
@@ -4056,8 +4097,8 @@ int pget_rgb(int x, int y) {
     Vector2 s = GetWorldToScreen2D((Vector2){ (float)x, (float)y }, cam);
     int rx = (int)s.x;
     int ry = (int)s.y;
-    if (rx < 0 || rx >= SCREEN_W || ry < 0 || ry >= SCREEN_H) return -1;
-    DeColor c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);   // RT is bottom-up; flip Y
+    if (rx < 0 || rx >= de_sw || ry < 0 || ry >= de_sh) return -1;   // in the active canvas?
+    DeColor c = GetImageColor(pget_snapshot, rx, SCREEN_H - 1 - ry);   // RT is bottom-up; flip Y (full-size snapshot → SCREEN_H)
     return (c.r << 16) | (c.g << 8) | c.b;
 }
 
@@ -4090,11 +4131,11 @@ static void smooth_composite(void) {
     EndTextureMode();                          // close smooth_rt
     BeginTextureMode(canvas);                  // back to the real canvas
     float z  = smooth_zoom_amt;
-    float sw = SCREEN_W / z, sh = SCREEN_H / z;            // captured world region (px @ 1:1)
+    float sw = de_sw / z, sh = de_sh / z;                  // captured world region (px @ 1:1) — active canvas
     float sx0 = SMOOTH_W / 2.0f - sw / 2.0f;
-    float sy0 = SMOOTH_H / 2.0f - sh / 2.0f;              // centred in the offscreen
+    float sy0 = SMOOTH_H / 2.0f - sh / 2.0f;              // centred in the (physical) offscreen
     Rectangle src = { sx0, SMOOTH_H - sy0 - sh, sw, -sh }; // RT is bottom-up → flip (cf. zoom_rect)
-    Rectangle dst = { 0, 0, SCREEN_W, SCREEN_H };
+    Rectangle dst = { 0, 0, de_sw, de_sh };               // active canvas region
     if (scale_shader_ok) {
         float ts[2] = { (float)SMOOTH_W, (float)SMOOTH_H };
         int   g = 1;                                       // gamma-correct seam (the good one)
@@ -4120,14 +4161,14 @@ static void sw_rot_composite(void) {
     float a  = sw_rot_angle * 0.01745329252f;          // deg→rad; sign matches raylib Camera2D
     float cs = cosf(a), sn = sinf(a);
     float ox = cam.offset.x, oy = cam.offset.y;         // pivot = screen centre (camera_ex pins it there)
-    for (int dy = 0; dy < SCREEN_H; dy++) {
-        for (int dx = 0; dx < SCREEN_W; dx++) {
+    for (int dy = 0; dy < de_sh; dy++) {
+        for (int dx = 0; dx < de_sw; dx++) {
             float rx = dx - ox, ry = dy - oy;            // inverse-rotate dest → source (rotate by −a)
             int sx = (int)floorf( cs*rx + sn*ry + ox + 0.5f);
             int sy = (int)floorf(-sn*rx + cs*ry + oy + 0.5f);
-            if ((unsigned)sx < (unsigned)SCREEN_W && (unsigned)sy < (unsigned)SCREEN_H) {
-                uint32_t p = sw_world_buf[(SCREEN_H - 1 - sy) * SCREEN_W + sx];
-                if (p & 0xFF000000u) sw_cbuf[(SCREEN_H - 1 - dy) * SCREEN_W + dx] = p;
+            if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh) {
+                uint32_t p = sw_world_buf[(de_sh - 1 - sy) * SCREEN_W + sx];
+                if (p & 0xFF000000u) sw_cbuf[(de_sh - 1 - dy) * SCREEN_W + dx] = p;
             }
         }
     }
@@ -4219,11 +4260,11 @@ static void sw_zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw,
     // Integer magnifications (drawall's 2×) are identical under both formulas.
     for (int j = 0; j < dh; j++) {
         int syy = sy + (int)((j + 0.5f) * sh / dh);
-        if ((unsigned)syy >= (unsigned)SCREEN_H) continue;
-        const uint32_t *srow = &sw_cbuf[(SCREEN_H - 1 - syy) * SCREEN_W];
+        if ((unsigned)syy >= (unsigned)de_sh) continue;
+        const uint32_t *srow = &sw_cbuf[(de_sh - 1 - syy) * SCREEN_W];
         for (int i = 0; i < dw; i++) {
             int sxx = sx + (int)((i + 0.5f) * sw / dw);
-            if ((unsigned)sxx >= (unsigned)SCREEN_W) continue;
+            if ((unsigned)sxx >= (unsigned)de_sw) continue;
             sw_plot1(dx + i, dy + j, srow[sxx]);
         }
     }
@@ -4238,15 +4279,15 @@ void zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh) {
     bool wascam = cam_active;
     if (wascam) EndMode2D();
     EndTextureMode();
-    BeginTextureMode(canvas_snap);                     // -H flips canvas upright into snap
+    BeginTextureMode(canvas_snap);                     // -de_sh flips the active canvas upright into snap
     DrawTexturePro(canvas.texture,
                    (Rectangle){ 0, 0, de_sw, -de_sh },
-                   (Rectangle){ 0, 0, SCREEN_W, SCREEN_H },
+                   (Rectangle){ 0, 0, de_sw, de_sh },   // 1:1 into snap's top-left (no stretch when de < max)
                    (Vector2){ 0, 0 }, 0.0f, WHITE);
     EndTextureMode();
     BeginTextureMode(canvas);                          // resume live canvas (screen-space blit)
-    // snap.texture is bottom-up; consistent with the engine's full {0,0,W,-H}
-    // blit, logical rows [sy,sy+sh] read from texture y = H-sy-sh with -sh flip.
+    // snap.texture is the FULL-size (SCREEN_H) bottom-up RT; consistent with the engine's full
+    // {0,0,W,-H} blit, logical rows [sy,sy+sh] read from texture y = SCREEN_H-sy-sh with -sh flip.
     DrawTexturePro(canvas_snap.texture,
                    (Rectangle){ (float)sx, (float)(SCREEN_H - sy - sh), (float)sw, (float)-sh },
                    (Rectangle){ (float)dx, (float)dy, (float)dw, (float)dh },

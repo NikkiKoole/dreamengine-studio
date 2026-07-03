@@ -59,6 +59,14 @@ static Box handle_rect(void) { return box(vs.x + vs.w - GRAB, vs.y + vs.h - GRAB
 void update(void) {
     ensure_init();
 
+#ifdef DE_RESIZABLE
+    // Phase 1c (device-adaptive-layout.md): built resizable, the REAL window IS the responsive
+    // surface. No fake rect, no drag handle — drag the OS window and the engine reflows
+    // screen_w()/screen_h() live; the identical lay.h code below re-flows against it.
+    vs = box(0, 0, screen_w(), screen_h());
+    return;
+#endif
+
     // unified pointer: first touch on mobile, else the mouse
     int px = touch_count() > 0 ? touch_x(0) : mouse_x();
     int py = touch_count() > 0 ? touch_y(0) : mouse_y();
@@ -82,10 +90,11 @@ void draw(void) {
     ensure_init();
     cls(CLR_BROWNISH_BLACK);
 
+    bool narrow = vs.w < BP_W;
+#ifndef DE_RESIZABLE
     // ---- outer guidance, on the REAL screen (not responsive) ----------------
     font(FONT_SMALL);
     print("RESPOND - a cart-land responsive-layout prototype", MARGIN, 4, CLR_LIGHT_GREY);
-    bool narrow = vs.w < BP_W;
     print_right(str("virtual screen  %dx%d   %s",
                     (int)vs.w, (int)vs.h, narrow ? "[phone]" : "[wide]"),
                 SCREEN_W - MARGIN, SCREEN_H - 10,
@@ -95,6 +104,10 @@ void draw(void) {
     // ---- the device bezel + screen fill -------------------------------------
     boxfill(lay_inset(vs, -2), CLR_DARK_GREY);          // bezel
     boxfill(vs, CLR_DARKER_BLUE);                        // the "screen"
+#else
+    // resizable build: the window itself is the screen — fill it, no bezel/handle
+    boxfill(vs, CLR_DARKER_BLUE);
+#endif
 
     // From here on, vs IS the screen. Clip so nothing spills past it, exactly
     // as the real engine clips a cart to SCREEN_W/H.
@@ -167,11 +180,13 @@ void draw(void) {
 
     clip(0, 0, 0, 0);   // back to the real screen
 
+#ifndef DE_RESIZABLE
     // ---- the resize handle, on top ------------------------------------------
     Box h = handle_rect();
     boxfill(h, dragging ? CLR_WHITE : CLR_YELLOW);
     // little grip diagonal
     line((int)h.x + 2, (int)(h.y + h.h - 2), (int)(h.x + h.w - 2), (int)h.y, CLR_BROWNISH_BLACK);
+#endif
 
     font(FONT_NORMAL);
 }

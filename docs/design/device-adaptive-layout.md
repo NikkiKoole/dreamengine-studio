@@ -1,17 +1,31 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: BUILDING — **Phase 0 banked; Phase 1a DONE (2026-07-03, byte-identical); resume at Phase 1b.**
+STATUS: BUILDING — **Phase 0 banked; Phase 1 (a+b+c) DONE (2026-07-03, byte-identical + reflow proven on desktop); resume at Phase 2 (iOS physical sizing + rotation).**
 This is the **execution + product** doc that graduates the deferred thinking now that there's a
 concrete need (Tinyjam on the App Store).
 
 **Pick-up point (next session):** Phase 0 is complete (model proven across `respond`/`rackfit`/
-`acidfit`/`otafit`; `lay_*` shipped as `runtime/lay.h`). **Phase 1a is done** — `studio.c` has runtime
-`de_sw`/`de_sh` globals and all standalone render-extent sites read them, verified byte-identical
-(`drawall` diff = 0). **Start here to resume: Phase 1b** — add the per-cart `resizable` opt-in AND
-convert the SW-rasterizer stride/flip/clip-bounds together with the sub-region-layout call they depend
-on (see Phase 1b in "The phased plan"); then **1c** flips it on `respond.c` first (resizable desktop
-window, no iOS). The opt-in IS the phasing lever, so no
-"flag day". Nothing else in Phase 0 is pending.
+`acidfit`/`otafit`; `lay_*` shipped as `runtime/lay.h`). **Phase 1 is complete — the engine reflows
+live on desktop:**
+- **1a** — runtime `de_sw`/`de_sh` globals + all standalone render-extent sites read them.
+- **1b** — the per-cart `-DDE_RESIZABLE` opt-in (`de_reflow`): a resizable window whose active dims
+  reflow to `window / SCALE` on every resize + at boot. The SW-rasterizer converted to render into a
+  **bottom-left `de_sw×de_sh` sub-region of the max-size static buffer** (flip origin → `de_sh-1`,
+  bounds → `de_sw/de_sh`, **stride stays `SCREEN_W`**); the present samples `(0,0,de_sw,-de_sh)`. The
+  cart API **`screen_w()`/`screen_h()`** exposes the live size (studio.h/.c + studioDocs + shell).
+  **The sub-region-vs-realloc fork is resolved: sub-region, never realloc** (the buffer is the
+  compile-time MAX; a resizable cart just compiles with a large `SCREEN_W/H` and reflows within it).
+- **1c** — `respond.c` flipped: `-DDE_RESIZABLE` makes the real window the responsive surface (the
+  fake-drag prototype is the `#ifndef` default, unchanged). Verified: a 140×260 window reflows the
+  button bar row→column vs a 480×320 window, from one code path.
+
+**Verified byte-identical:** `drawall` software-canvas frames are SHA-identical to HEAD (de==max),
+all 465 carts compile, `canvas-diff drawall` unchanged (the pre-existing 63px GPU-vs-SW delta is not
+from this work). **Start here to resume: Phase 2** (iOS: pass the point-viewport + backing scale
+through the iOS layer, `device_class()`/`safe_rect()`, enable rotation in `Info.plist`, live
+framebuffer realloc on orientation change). **Also open (Phase 1 follow-on, cheap):** wire the editor
+▶-run to pass `-DDE_RESIZABLE` from a cart setting / `de:meta` so a resizable cart can be dragged in
+the editor (today only the CLI passes it via `DE_DEFINES=DE_RESIZABLE`). Nothing in Phase 0/1 pending.
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
 - **This doc** = the *engine change + product plan*: make `SCREEN_W/H` runtime + physically-sized,
@@ -326,19 +340,22 @@ stays available as an *optional* style; full-bleed becomes the honest default.
     clears, `pget` snapshot bounds, world-capture) — **not leftover extent sites but coupled to 1b's
     sub-region-layout decision**, so they convert *there*, not blindly here (they'd be byte-identical
     at `de==max` but could bake a wrong layout assumption). No standalone extent site remains.
-  - **1b — the opt-in switch + the sub-region layout.** Add a per-cart `resizable` flag (`de:meta`/
-    setting or `#define DE_RESIZABLE`). OFF (every existing cart) → fixed window, globals never move,
-    identical to today. ON → `FLAG_WINDOW_RESIZABLE` + on-resize update the globals. **This is where
-    the SW-rasterizer sites get converted**, together with the design call they depend on: does the
-    active `de_sw×de_sh` region live at a corner of the max buffer (keep stride = `SCREEN_W`, present a
-    sub-rect) or is the buffer realloced to `de` (stride = `de_sw`)? That decision fixes the flip
-    origin (`SCREEN_H-1` → active height) and the clip bounds (`x1>SCREEN_W` → `de_sw`) coherently.
-    Blast radius = only opted-in carts.
-  - **1c — flip ONE cart.** `respond.c` is the ideal first: it already reflows against a *variable*
-    rect via `lay.h` (it fakes the resize today by dragging a rectangle), so making the **real** window
-    resizable and feeding it `screen_w()/screen_h()` is nearly free — the whole loop, one cart, no iOS.
-  First consumer is thus a **resizable desktop window** (testable with no iOS at all), fully under the
-  `canvas-diff`/`mirror-diff` gates.
+  - **1b — the opt-in switch + the sub-region layout. ✅ DONE (2026-07-03).** Per-cart
+    `-DDE_RESIZABLE` → a runtime `de_reflow` bool (clang compiles `cart.c`+`studio.c` together, so the
+    one flag reaches both TUs). OFF (every existing cart) → fixed window, globals pinned at boot,
+    identical to today. ON → `FLAG_WINDOW_RESIZABLE` + `de_sw/de_sh = clamp(window/SCALE, 1, max)` on
+    `IsWindowResized()` and at boot. **The sub-region-vs-realloc fork is resolved: sub-region.** The
+    active `de_sw×de_sh` region lives at the **bottom-left of the max-size static buffer** — stride
+    **stays `SCREEN_W`** (physical width), flip origin → `de_sh-1`, clip bounds → `de_sw/de_sh`, and
+    the present samples `(0,0,de_sw,-de_sh)`. The two full-size GPU snapshots (`pget_snapshot`,
+    `canvas_snap`) keep the `SCREEN_H` flip (they index the whole texture, not the sub-region); the
+    `cls`/world-clear stay full-buffer. Cart API `screen_w()/screen_h()` added (4 places). All
+    byte-identical at `de==max` (SHA-verified on `drawall`). Blast radius = only opted-in carts.
+  - **1c — flip ONE cart. ✅ DONE (2026-07-03).** `respond.c` reads the real `screen_w()/screen_h()`
+    under `-DDE_RESIZABLE` (the fake-drag prototype is the `#ifndef` default, unchanged). Verified: a
+    140×260 window stacks the button bar to a column, a 480×320 window keeps it a row — one code path,
+    the OS window is the drag surface. First consumer is a **resizable desktop window** (no iOS),
+    fully under the `canvas-diff`/`build-all` gates.
 - **Phase 2 — physical sizing + rotation on iOS.** Pass the point-viewport + backing scale through
   the iOS layer; add `device_class()` + `safe_rect()`; enable rotation in `Info.plist`; live
   framebuffer realloc on orientation change.

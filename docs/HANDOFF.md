@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-03 (two lanes: device-adaptive-layout Phase 1a · store/ASO + app-trailer toolkit)_
+_Last updated: 2026-07-03 (two lanes: device-adaptive-layout Phase 1 DONE → Phase 2 · store/ASO + app-trailer toolkit)_
 
 ---
 
@@ -32,12 +32,18 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > **▶ ACTIVE THREAD (2026-07-03) — device-adaptive layout.** Make `SCREEN_W/H`
 > live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
 > iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
-> `otafit`; `runtime/lay.h` **shipped**) and **Phase 1a done** (runtime `de_sw`/`de_sh`
-> globals in `studio.c` + extent sites, verified byte-identical). **Next agent:
-> resume at Phase 1b** — start from the **pick-up note at the top of
-> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md)** (1b = the
-> per-cart `resizable` opt-in + the coupled SW-rasterizer / sub-region-layout call).
-> Ledger view: [`STATUS.md`](STATUS.md) open item #2; also on the design board (BUILDING).
+> `otafit`; `runtime/lay.h` **shipped**) and **Phase 1 (a+b+c) DONE (2026-07-03)** — the
+> engine reflows live on desktop: `de_sw`/`de_sh` runtime globals, a per-cart
+> `-DDE_RESIZABLE` opt-in (`de_reflow`), the SW rasterizer rendering into a bottom-left
+> sub-region of the max-size buffer (stride stays `SCREEN_W`, flip → `de_sh-1`), the cart
+> API `screen_w()`/`screen_h()`, and `respond.c` flipped + verified reflowing (button bar
+> row→column at 140×260 vs 480×320). Byte-identical at `de==max` (SHA-verified on `drawall`,
+> all 465 carts compile). **Next agent: resume at Phase 2 (iOS physical sizing + rotation)**
+> — pick-up note at the top of
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Cheap Phase-1
+> follow-on also open: wire the editor ▶-run to pass `-DDE_RESIZABLE` from a cart setting
+> (today only the CLI does, via `DE_DEFINES=DE_RESIZABLE`). Hot file this touched:
+> `runtime/studio.c` (SW rasterizer). Ledger: [`STATUS.md`](STATUS.md) open item #2 (BUILDING).
 
 > **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`

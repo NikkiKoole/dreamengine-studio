@@ -134,7 +134,14 @@ if (driftable) {
   const badWatch = [];
   const entries = [];
   const MARK = /<!--\s*de:driftable\s+([^>]*?)-->/;
-  for (const f of docFiles) {
+  // Also scan generated app SEO worksheets (apps/<name>/seo-brief.md) — driftable mode only,
+  // so the heuristic mtime tiers below stay a pure docs/ report. aso-brief.js emits the marker.
+  const APPS = path.join(ROOT, "apps");
+  const appBriefs = fs.existsSync(APPS)
+    ? fs.readdirSync(APPS, { withFileTypes: true }).filter(e => e.isDirectory())
+        .map(e => path.join(APPS, e.name, "seo-brief.md")).filter(p => fs.existsSync(p))
+    : [];
+  for (const f of [...docFiles, ...appBriefs]) {
     const rel = path.relative(ROOT, f);
     if (!touchesScope(rel)) continue;
     let inFence = false;

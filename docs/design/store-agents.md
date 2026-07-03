@@ -391,6 +391,12 @@ a **palette and a mirror, never the painting**:
   fails you for sounding robotic, not for leaving a keyword on the table. This is the ADR-0022
   two-part bar aimed at the store page: *discoverable* AND *still reads human*.
 
+**Drift.** `seo-brief.md` is generated from *live* Google/App-Store data, so it rots on its own
+clock — re-run before a launch pass. It carries a `de:driftable` marker
+([`driftable-docs.md`](driftable-docs.md)); `stale-doc-check --driftable` (and the `cart-status`
+back door) now scan `apps/*/seo-brief.md` and flag when the seeds/manifest move, though the
+live-search drift is invisible to any file check (hence the standing "re-run" rule).
+
 The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror).** No step
 generates prose. Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.
 Open follow-on (was "feed phrases into press-kit"): the phrases now reach the press page *through

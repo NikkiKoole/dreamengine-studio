@@ -156,6 +156,13 @@ if (research.terms && research.terms.length) {
 
 md += `---\n_worksheet regenerable; edit \`press.md\`, not this file. Terms drift — re-run before a launch pass._\n`
 
+// drift tracking (docs/design/driftable-docs.md): stale-doc-check --driftable flags this when the
+// seeds/manifest/tools move after `as-of`. NB the DOMINANT drift is live Google/App-Store search
+// data, which no file-mtime can see — so re-run before a launch pass regardless. Single line (the
+// scanner reads line-by-line, skipping code fences).
+md += `\n<!-- de:driftable cmd="node tools/aso-brief.js ${app}" as-of="${stamp}" `
+  + `inputs="tools/carts,apps/${app}/app.json,tools/aso-brief.js,tools/aso-research.js,tools/aso-suggest.js" watch="numbers" -->\n`
+
 // hidden machine-readable contract for aso-coverage.js (invisible in rendered markdown)
 const coverageData = { generated: stamp, country, seeds, phrases,
   words: freshWords.map(x => x.w), visible: alreadyVisible }

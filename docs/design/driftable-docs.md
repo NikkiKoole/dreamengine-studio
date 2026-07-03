@@ -96,6 +96,15 @@ twin of that tool's heuristic mtime tiers.
 Both are soft nudges (advisory, never auto-fix, human decides). The front door raises the odds the
 drift is fixed by whoever caused it; the back door catches what slipped through.
 
+**Beyond `docs/` — generated app worksheets.** `--driftable` also scans `apps/*/seo-brief.md`
+(the SEO worksheets `aso-brief.js` writes; [`store-agents.md`](store-agents.md) §"palette +
+mirror"). The tool *emits* its own `de:driftable` marker (`inputs` = the cart shelf + the app
+manifest + the three `aso-*` scripts), so a worksheet lands in the registry the moment it's
+generated. Caveat unique to these: the **dominant** drift is live Google/App-Store search data,
+which no file-mtime can see — so the marker catches "your seeds/manifest moved," but "re-run
+before a launch pass" still stands regardless of a ✓ fresh verdict. (The heuristic mtime tiers
+stay a pure `docs/` report; only the curated `--driftable` registry reaches into `apps/`.)
+
 ## When you write a doc — the rule
 
 Adding a table or counts derived from a tool, that will change as the repo grows? Either move it

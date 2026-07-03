@@ -169,6 +169,26 @@ otafamily's drag-along **ribbons** (which want horizontal pitch-length), may sim
 landscape* than made to reflow both ways. A mediocre both-ways reflow can lose to one committed
 orientation.
 
+`otafit` ([`../../tools/carts/otafit.c`](../../tools/carts/otafit.c)) turned that orientation hunch
+into a **number** on a third UI shape (four continuous drag *ribbons*, not tap widgets — and `lay.h`
+placed them with no new primitive). A fretless ribbon's playability *is* its length (pitch resolution
+= px/semitone), so it measures how many semitones a finger covers:
+
+| shape | ribbon | finger covers | verdict |
+|---|---|---|---|
+| iPhone **portrait** | 110px | **3.1 semitones** | **CRAMPED** (can't hit a note) |
+| iPhone **landscape** | 289px | **1.5 semitones** | **PLAYABLE** |
+| iPad portrait / landscape | 192 / 301px | 1.8 / 1.0 | playable |
+
+So on a phone this rack is unplayable in portrait, playable in landscape (2.2× the ribbon) — a clean
+**`lock-landscape`** recommendation, now expressed as a threshold (a finger covering ≤~2 semitones)
+that the `layout-check` oracle can read. That's the difference between "ribbons feel like they want
+landscape" and a checkable rule.
+
+**Phase 0's shape space is now covered** — clean widgets (`rackfit`), dense multi-section (`acidfit`),
+and continuous drag-surfaces (`otafit`) — plus disclosure, orientation, overrides, and the promoted
+`lay.h`. More cart-land mocks would only re-confirm; the next lever is Phase 1 (the engine).
+
 **Both are CHECKABLE, and both can be true for one rack.** The fit decision is deterministic
 (finger-budget math), so a **`layout-check.js` oracle** (twin of `mobile-lint` / `ui-audit`) can sweep
 a rack across the device×orientation matrix and report, per shape: the mode it would pick, sections

@@ -31,95 +31,10 @@ de:meta */
 
 #include "studio.h"
 
-// ───────────────────────── lay: the candidate primitive set ─────────────────
-// A Box is a float rect. Everything below takes a container Box and returns a
-// child Box. Immediate-mode: no retained tree, you just call these each frame.
-
-typedef struct { float x, y, w, h; } Box;
-static Box box(float x, float y, float w, float h) { Box b = {x, y, w, h}; return b; }
-
-// clamp(): the CSS workhorse. Keep a value within [lo, hi].
-static float lay_clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
-
-// fluid(): CSS clamp(lo, pct% of container, hi). Sizes that scale SMOOTHLY with
-// the container instead of snapping — a margin, a font, a bar height.
-static float lay_fluid(float pct, float container, float lo, float hi) {
-    return lay_clamp(pct * container, lo, hi);
-}
-
-// pad(): per-side inset — CSS padding (top, right, bottom, left). The per-side
-// form is what an ASYMMETRIC safe-area needs (a notch tops one edge, the
-// home-bar the opposite). Uniform inset() is just the m,m,m,m case.
-static Box lay_pad(Box c, float t, float r, float b, float l) { return box(c.x + l, c.y + t, c.w - l - r, c.h - t - b); }
-static Box lay_inset(Box c, float m) { return lay_pad(c, m, m, m, m); }
-
-// anchor(): pin a w×h box to one of the 9 grid spots of the container, with an
-// inset from the edges (CSS position:absolute + inset + env(safe-area-inset)).
-enum { L_TL, L_T, L_TR, L_L, L_C, L_R, L_BL, L_B, L_BR };
-static Box lay_at(Box c, int anchor, float w, float h, float inset) {
-    int col = anchor % 3, row = anchor / 3;
-    float x = col == 0 ? c.x + inset : col == 1 ? c.x + (c.w - w) / 2 : c.x + c.w - w - inset;
-    float y = row == 0 ? c.y + inset : row == 1 ? c.y + (c.h - h) / 2 : c.y + c.h - h - inset;
-    return box(x, y, w, h);
-}
-
-// split(): dock a fixed-size BAND off one edge and return it; the REMAINDER is
-// written to *rest (NULL to ignore). CSS flex with a fixed-basis child + a
-// flex:1 sibling — the app-chrome workhorse (title / tab / tool bars, keybed).
-// Chain it: dock top, then bottom, then *rest is the body. `size` is fixed px
-// OR a fraction of the container (c.h * 0.5f).
-enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT };
-static Box lay_split(Box c, int edge, float size, Box *rest) {
-    Box band = c, rem = c;
-    switch (edge) {
-        case EDGE_TOP:    band.h = size;                        rem.y += size; rem.h -= size; break;
-        case EDGE_BOTTOM: band.y += c.h - size; band.h = size;                rem.h -= size; break;
-        case EDGE_LEFT:   band.w = size;                        rem.x += size; rem.w -= size; break;
-        case EDGE_RIGHT:  band.x += c.w - size; band.w = size;                rem.w -= size; break;
-    }
-    if (rest) *rest = rem;
-    return band;
-}
-
-// cell(): the i-th of n EQUAL flex children laid along dir (0=row, 1=column)
-// with a gap between them (CSS flex:1 + gap). The reflow primitive — call it
-// with dir=row when wide, dir=col when narrow and the same children stack.
-static Box lay_cell(Box c, int dir, int n, int i, float gap) {
-    if (n < 1) n = 1;
-    if (dir == 0) { float cw = (c.w - gap * (n - 1)) / n; return box(c.x + i * (cw + gap), c.y, cw, c.h); }
-    /* col */     { float ch = (c.h - gap * (n - 1)) / n; return box(c.x, c.y + i * (ch + gap), c.w, ch); }
-}
-
-// wrap(): the i-th of n items in an AUTO-FLOWING grid — as many ~minItem-wide
-// columns as fit in c.w, wrapping to new rows (CSS repeat(auto-fit,
-// minmax(minItem, 1fr))). Unlike cell(), the column count responds to width on
-// its own: shrink the container and columns fall 3→2→1 with no breakpoint.
-static Box lay_wrap(Box c, int n, int i, float minItem, float gap) {
-    int cols = (int)((c.w + gap) / (minItem + gap));   // how many fit
-    if (cols < 1) cols = 1;
-    if (cols > n) cols = n;
-    int rows = (n + cols - 1) / cols;
-    float cw = (c.w - gap * (cols - 1)) / cols;         // stretch to fill (the 1fr)
-    float ch = (c.h - gap * (rows - 1)) / rows;
-    int cx = i % cols, cy = i / cols;
-    return box(c.x + cx * (cw + gap), c.y + cy * (ch + gap), cw, ch);
-}
-
-// aspect(): fit a ratio (w/h) box inside the container, centered — CSS
-// aspect-ratio + object-fit:contain. The 16:9 viewport that letterboxes
-// itself inside whatever space it's given.
-static Box lay_aspect(Box c, float ratio) {
-    float w = c.w, h = w / ratio;
-    if (h > c.h) { h = c.h; w = h * ratio; }
-    return box(c.x + (c.w - w) / 2, c.y + (c.h - h) / 2, w, h);
-}
-
-// ───────────────────────── drawing sugar (Box → studio int API) ─────────────
-static void boxfill(Box b, int c) { rectfill((int)b.x, (int)b.y, (int)b.w, (int)b.h, c); }
-static void boxrect(Box b, int c) { rect((int)b.x, (int)b.y, (int)b.w, (int)b.h, c); }
-static bool inside(Box b, int x, int y) {
-    return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
-}
+// The lay_* layout vocabulary was PROMOTED from this prototype to runtime/lay.h;
+// this cart is now a live demo of that header. `binside(box,x,y)` is lay.h's
+// point-in-box test (was the local `inside`).
+#include "lay.h"
 
 // ───────────────────────── the virtual screen + drag-to-resize ──────────────
 #define GRAB    9          // size of the corner resize handle
@@ -149,7 +64,7 @@ void update(void) {
     int py = touch_count() > 0 ? touch_y(0) : mouse_y();
     Box h = handle_rect();
 
-    bool began = (mouse_pressed(MOUSE_LEFT) && inside(h, mouse_x(), mouse_y()))
+    bool began = (mouse_pressed(MOUSE_LEFT) && binside(h, mouse_x(), mouse_y()))
                || tapp((int)h.x - 3, (int)h.y - 3, GRAB + 6, GRAB + 6);   // fat-finger pad
     if (began) dragging = true;
 

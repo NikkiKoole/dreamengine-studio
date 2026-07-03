@@ -42,64 +42,7 @@ de:meta */
 #include "studio.h"
 #include <math.h>
 
-// ───────────────────────── lay: the candidate primitive set (== respond.c) ───
-// Copied verbatim from respond.c — these are the runtime/lay.h candidates. Box
-// in → Box out, immediate-mode, called every frame.
-typedef struct { float x, y, w, h; } Box;
-static Box box(float x, float y, float w, float h) { Box b = {x, y, w, h}; return b; }
-static float lay_clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
-static float lay_fluid(float pct, float container, float lo, float hi) { return lay_clamp(pct * container, lo, hi); }
-// pad(): per-side inset — CSS padding (top, right, bottom, left). Per-side is
-// what an ASYMMETRIC safe-area needs (a notch tops one edge, the home-bar the
-// opposite). Uniform inset() is just the m,m,m,m case.
-static Box lay_pad(Box c, float t, float r, float b, float l) { return box(c.x + l, c.y + t, c.w - l - r, c.h - t - b); }
-static Box lay_inset(Box c, float m) { return lay_pad(c, m, m, m, m); }
-
-enum { L_TL, L_T, L_TR, L_L, L_C, L_R, L_BL, L_B, L_BR };
-static Box lay_at(Box c, int anchor, float w, float h, float inset) {
-    int col = anchor % 3, row = anchor / 3;
-    float x = col == 0 ? c.x + inset : col == 1 ? c.x + (c.w - w) / 2 : c.x + c.w - w - inset;
-    float y = row == 0 ? c.y + inset : row == 1 ? c.y + (c.h - h) / 2 : c.y + c.h - h - inset;
-    return box(x, y, w, h);
-}
-// split(): dock a fixed-size BAND off one edge and return it; the REMAINDER is
-// written to *rest (NULL to ignore). CSS flex fixed-basis + a flex:1 sibling —
-// the app-chrome workhorse (title / tab / tool bars, keybed). `size` is fixed px
-// OR a fraction of the container.
-enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT };
-static Box lay_split(Box c, int edge, float size, Box *rest) {
-    Box band = c, rem = c;
-    switch (edge) {
-        case EDGE_TOP:    band.h = size;                        rem.y += size; rem.h -= size; break;
-        case EDGE_BOTTOM: band.y += c.h - size; band.h = size;                rem.h -= size; break;
-        case EDGE_LEFT:   band.w = size;                        rem.x += size; rem.w -= size; break;
-        case EDGE_RIGHT:  band.x += c.w - size; band.w = size;                rem.w -= size; break;
-    }
-    if (rest) *rest = rem;
-    return band;
-}
-
-// wrap(): i-th of n items in an auto-flowing grid — as many ~minItem-wide columns
-// as fit in c.w, wrapping to rows. This is the primitive that makes the layout
-// EMERGENT: feed it a finger-sized minItem and the column count IS the density.
-static Box lay_wrap(Box c, int n, int i, float minItem, float gap) {
-    int cols = (int)((c.w + gap) / (minItem + gap));
-    if (cols < 1) cols = 1;
-    if (cols > n) cols = n;
-    int rows = (n + cols - 1) / cols;
-    float cw = (c.w - gap * (cols - 1)) / cols;
-    float ch = (c.h - gap * (rows - 1)) / rows;
-    int cx = i % cols, cy = i / cols;
-    return box(c.x + cx * (cw + gap), c.y + cy * (ch + gap), cw, ch);
-}
-static int wrap_cols(Box c, int n, float minItem, float gap) {   // for reporting
-    int cols = (int)((c.w + gap) / (minItem + gap));
-    if (cols < 1) cols = 1; if (cols > n) cols = n; return cols;
-}
-
-// ───────────────────────── drawing sugar ─────────────────────────────────────
-static void boxfill(Box b, int c) { rectfill((int)b.x, (int)b.y, (int)b.w, (int)b.h, c); }
-static void boxrect(Box b, int c) { rect((int)b.x, (int)b.y, (int)b.w, (int)b.h, c); }
+#include "lay.h"   // Box + the lay_* layout vocabulary (promoted from these prototypes)
 
 // ───────────────────────── the fake device ───────────────────────────────────
 // Logical POINTS per device (the physical size the OS reports, roughly device-
@@ -203,7 +146,7 @@ void draw(void) {
     // 8 sit in one row (~40% of width) but on the iPhone they overflow and wrap
     // to 2 rows — the density reflow, with zero per-device branch.
     int NKN = 8; float knMin = fu * 1.4f;
-    int kncols = wrap_cols(knobsA, NKN, knMin, gap);
+    int kncols = lay_wrap_cols(knobsA, NKN, knMin, gap);
     for (int i = 0; i < NKN; i++) {
         Box cell = lay_wrap(knobsA, NKN, i, knMin, gap);
         if (cell.w < 4 || cell.h < 4) continue;

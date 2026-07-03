@@ -36,57 +36,7 @@ de:meta */
 #include "studio.h"
 #include <math.h>
 
-// ───────────────────────── lay: the candidate primitive set (== respond.c) ───
-typedef struct { float x, y, w, h; } Box;
-static Box box(float x, float y, float w, float h) { Box b = {x, y, w, h}; return b; }
-static float lay_clamp(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
-static float lay_fluid(float pct, float container, float lo, float hi) { return lay_clamp(pct * container, lo, hi); }
-static Box lay_pad(Box c, float t, float r, float b, float l) { return box(c.x + l, c.y + t, c.w - l - r, c.h - t - b); }
-static Box lay_inset(Box c, float m) { return lay_pad(c, m, m, m, m); }
-
-enum { L_TL, L_T, L_TR, L_L, L_C, L_R, L_BL, L_B, L_BR };
-static Box lay_at(Box c, int anchor, float w, float h, float inset) {
-    int col = anchor % 3, row = anchor / 3;
-    float x = col == 0 ? c.x + inset : col == 1 ? c.x + (c.w - w) / 2 : c.x + c.w - w - inset;
-    float y = row == 0 ? c.y + inset : row == 1 ? c.y + (c.h - h) / 2 : c.y + c.h - h - inset;
-    return box(x, y, w, h);
-}
-enum { EDGE_TOP, EDGE_BOTTOM, EDGE_LEFT, EDGE_RIGHT };
-static Box lay_split(Box c, int edge, float size, Box *rest) {
-    Box band = c, rem = c;
-    switch (edge) {
-        case EDGE_TOP:    band.h = size;                        rem.y += size; rem.h -= size; break;
-        case EDGE_BOTTOM: band.y += c.h - size; band.h = size;                rem.h -= size; break;
-        case EDGE_LEFT:   band.w = size;                        rem.x += size; rem.w -= size; break;
-        case EDGE_RIGHT:  band.x += c.w - size; band.w = size;                rem.w -= size; break;
-    }
-    if (rest) *rest = rem;
-    return band;
-}
-// grid(): i-th of n items in a FIXED `cols` grid (CSS grid-template-columns:
-// repeat(cols,1fr)). The hand-picked-topology twin of wrap()'s auto-fit — a drum
-// machine wants a clean 4-wide pad grid, not "as many as happen to fit".
-static Box lay_grid(Box c, int cols, int n, int i, float gap) {
-    if (cols < 1) cols = 1;
-    int rows = (n + cols - 1) / cols;
-    float cw = (c.w - gap * (cols - 1)) / cols;
-    float ch = (c.h - gap * (rows - 1)) / rows;
-    int cx = i % cols, cy = i / cols;
-    return box(c.x + cx * (cw + gap), c.y + cy * (ch + gap), cw, ch);
-}
-// wrap(): auto-fit columns (as many ~minItem-wide as fit).
-static Box lay_wrap(Box c, int n, int i, float minItem, float gap) {
-    int cols = (int)((c.w + gap) / (minItem + gap));
-    if (cols < 1) cols = 1; if (cols > n) cols = n;
-    int rows = (n + cols - 1) / cols;
-    float cw = (c.w - gap * (cols - 1)) / cols, ch = (c.h - gap * (rows - 1)) / rows;
-    return box(c.x + (i % cols) * (cw + gap), c.y + (i / cols) * (ch + gap), cw, ch);
-}
-
-// ───────────────────────── drawing sugar ─────────────────────────────────────
-static void boxfill(Box b, int c) { rectfill((int)b.x, (int)b.y, (int)b.w, (int)b.h, c); }
-static void boxrect(Box b, int c) { rect((int)b.x, (int)b.y, (int)b.w, (int)b.h, c); }
-static bool binside(Box b, int x, int y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }
+#include "lay.h"   // Box + the lay_* layout vocabulary (promoted from these prototypes)
 
 // ───────────────────────── the rack's real inventory ─────────────────────────
 enum { KNOBS, DRUMS };

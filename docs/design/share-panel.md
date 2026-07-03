@@ -238,6 +238,15 @@ replacing the loose toolbar buttons: the five existing exports, plus **🎬 make
 `cart-status.js` output into the log). All tools exist; this is shell.js + main.cjs
 wiring only.
 
+> **Status (2026-07-03):** the **Share popover SHIPPED** — the export regroup + a loaded-cart
+> thumbnail/name header, actions grouped by audience (`editor/index.html` + `shell.js`/`.css`).
+> Still open in v1: **batch publish**, and **🎬 make-clip** — deferred + **gated behind a
+> setting** (you don't always want it visible). And make-clip is more than a trigger: it's a
+> clip **browser *and* trigger** — see the cart's already-baked clips (`tools/clips/<cart>/`,
+> `editor/public/clips/`) *and* mint a new one. It's the *output* end of the interaction
+> recorder / live-loop-multitouch authoring in
+> [`input-recording-looper.md`](input-recording-looper.md).
+
 **v2 — the app unit.** The manifest format + the multi-cart desktop spike + `mac-app.sh`
 consuming a manifest (a Mac Tinyjam.app with N racks = the cheap full rehearsal of the
 App Store shape, shareable to friends immediately via channel C).

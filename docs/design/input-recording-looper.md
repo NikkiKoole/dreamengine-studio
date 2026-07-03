@@ -188,6 +188,36 @@ the cart prototypes come first and generate the evidence.
 
 ---
 
+## Editor-side use: author a MULTITOUCH track with one mouse (→ clips / tests / attract)
+
+STATUS: marinating (2026-07-03) — captured so it's findable; nothing committed. The only
+near-term piece is the 🎬 make-clip button, and it waits on the maker's call about how much
+of the recorder to build.
+
+The same looper, pointed at a *different target*: not in-cart music, but **authoring a
+multitouch INPUT track from the editor**, on the desktop, with one mouse — by live-looping.
+It turns the §"one idea is actually two" tension (the mouse can't be in two places) into a
+feature: you **layer passes** — record finger A over a fixed loop, and while it replays as a
+synthetic touch, perform finger B on top; repeat. A loop pedal for touch.
+
+- **"Prime a session"** — arm-record *before* ▶ run (DAW-style), so the take is clean from
+  frame 0, not caught after the fact.
+- **Reuses everything, no new engine capability:** [`../../runtime/pointer.h`](../../runtime/pointer.h)
+  already holds the N-finger pool (the engine consumes many synthetic fingers); `play.js`
+  records/replays deterministically; [`attract-mode.md`](attract-mode.md)'s `inject_input`
+  feeds synthetic input in and hands off to the live pointer. Live-looping = record
+  single-pointer passes → time-merge into one multi-pointer track → replay via inject.
+
+**One track, three consumers** (why the authoring side is worth building well):
+1. **Clips** — `make-gif.js --recipe` bakes the performance into a demo gif. This is the fuel
+   for the **🎬 make-clip button** in [`share-panel.md`](share-panel.md) (v1) — that button is
+   deferred + gated behind a setting; it's the *output* end of this recorder. The button is a
+   clip **browser *and* trigger**: it shows the cart's already-baked clips (`tools/clips/<cart>/`,
+   `editor/public/clips/`) as well as minting a new one.
+2. **Tests / `spec`** — deterministic multitouch input for regression (chord keybeds, pinch,
+   dual-stick — headless). See [`../guides/debug-harness.md`](../guides/debug-harness.md).
+3. **Attract mode** — the bundled idle-demo track ([`attract-mode.md`](attract-mode.md)).
+
 ## Staged plan
 
 1. **`loopstation.c`** — the headline example cart. 3–4 instruments on screen

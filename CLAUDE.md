@@ -144,6 +144,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              PROMPTS (smart=not-published+stale / +engine-stale / --all / build-all gate).
                              Resilient build, reuses publish-cart.sh; -y non-interactive, --dry-run preview
              mobile-lint.js  static report card: can a phone play this cart?
+             aso-research.js App Store keyword research from FREE public data (iTunes Search API, no account):
+                             per term a difficulty proxy + top competitors + your own rank (--app) + mined
+                             keyword candidates; --json snapshots. The Search-Term-Rank popularity column waits
+                             on Apple's beta. Design: docs/design/store-agents.md §ASO
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B

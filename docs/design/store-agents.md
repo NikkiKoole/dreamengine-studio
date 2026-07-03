@@ -1,12 +1,14 @@
 # Store agents — the judgment layer above the App Store pipeline
 
-STATUS: IDEA / brainstorm (2026-07-03). Captures the *agentic* half of App Store
-deployment — the work that decides whether an app gets **accepted** and **discovered**,
-which a REST client can't do. [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)
+STATUS: BUILDING (2026-07-03) — brainstorm + the first leg SHIPPED: `tools/aso-research.js`
+v0.1 (the ASO Search-API leg, §ASO). Captures the *agentic* half of App Store deployment —
+the work that decides whether an app gets **accepted** and **discovered**, which a REST
+client can't do. [ADR-0026](../decisions/0026-store-pipeline-in-house-not-fastlane.md)
 decided the plumbing (in-house ASC API tool, not Fastlane); this doc is the layer above it.
-Nothing built. Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the
-store rung of [`share-panel.md`](share-panel.md); gated behind the same product decision
-(which app first) and the original-palette rule.
+Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the store rung of
+[`share-panel.md`](share-panel.md); the ship-a-paid-app parts stay gated behind the same
+product decision (which app first) and the original-palette rule, but keyword *research*
+needs none of that and is live now.
 
 ## The one rule: scripts prepare → agent decides → scripts execute
 
@@ -177,6 +179,16 @@ only.** (Same posture as the rest of this repo — in-house and honest over a re
    covers the two new *subscription* reports, not this one — so assume a manual CSV/UI export
    feeds our script until proven otherwise.
 
+   **Real-world check (2026-07-03), the maker's account:** the report is **not release-gated**
+   — Mipo Puppetmaker is live (123 first-time downloads, 14.2K impressions, 2.18% conv.) and
+   its App Analytics is fully populated, yet the sidebar reads only *Overview · Acquisition ·
+   Monetization · Retention · Benchmarks · Metrics* — **no "Insights."** So the Search Term
+   Rank report is purely a **phased beta not yet on this account**; it will appear on its own,
+   re-check periodically. What the account *does* prove: **Acquisition → Sources shows ~80%
+   of product-page views come from App Store Search** (vs Browse) — i.e. for this app,
+   keywords are the single highest-leverage lever. That's the whole justification for this
+   tool, on live data.
+
 ### The Apple Ads (Search Ads) API — and why it's the *harder* path here
 
 - **Auth:** OAuth2 **client-credentials**. Generate a P-256 EC key, register an API client
@@ -192,6 +204,16 @@ only.** (Same posture as the rest of this repo — in-house and honest over a re
   actually run Search Ads campaigns.
 
 ### So the tool, revised
+
+**v0.1 SHIPPED (2026-07-03): `tools/aso-research.js`** — the Search-API leg, no account
+needed. Per seed term: a difficulty proxy (crowding × incumbent strength), the top
+competitors, your app's own rank (`--app`), a genre mix, and pooled mined keyword
+candidates (competitor title words minus App-Store category labels). `--json` snapshots.
+First real run on Mipo Puppetmaker found `marionette` EASY-and-unranked (a keyword to add)
+and `puppet pals` EASY with the app already at #10 in its own Education genre (a keyword to
+push) — while flagging `stop motion` as HARD (76k-rating incumbents) and low-relevance.
+Still to add: ingest the Search Term Rank report for the real popularity column (once the
+beta unlocks), per-locale runs, and the char-limit/title-overlap lint.
 
 - **Script** `aso-research.js` (deterministic, snapshots a dated JSON): iTunes-Search-API
   sweep → competitor list + difficulty proxy + competitor-keyword mining; **ingest a

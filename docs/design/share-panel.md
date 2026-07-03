@@ -175,6 +175,46 @@ Deliberately NOT covered — the next spikes, in order of need:
    cart~~ shipped as ladder rung 3 (`tinyjam-menu.c` + generated roster), and
    `de_switch_cart()` with rung 1; racks sharing one `cart.sav` is what remains.
 
+## What the panel is — one system: unit × audience (2026-07-03)
+
+The panel is **one concept — *sharing to the world*** — not a pile of separate export
+buttons. It has two axes:
+
+- **Unit** (what you share): a **cart** · an **app** (a manifest bundling carts) · a
+  **showcase** (a cross-cart reel/gallery — `compose-clips.js`).
+- **Audience** (who you share to = [`sharing-channels.md`](sharing-channels.md)'s channels):
+  **a person** (give a file / signed app) · **my site** (web / gallery / press) · **buyers**
+  (the App Store).
+
+Every action is a **cell** in that grid — `(cart, person) → signed Mac .app`,
+`(app, buyers) → keywords + screenshots + upload`, `(showcase, site) → the reel on the
+gallery`. **Prepare vs publish** is the *mode within* a cell: *prepare* (make an asset —
+local, safe, re-runnable) vs *publish* (send it outward — confirm-first). Some cells are
+empty by nature (you can't sell a *lone cart* on the App Store — that's an app); the
+emptiness is the structure.
+
+**Most cells are already built** — the six store/press tools (`aso-research`/`aso-compose`/
+`aso-lint`, `store-shots`, `store-contact`, `press-kit`) + `build-app`/`mac-app.sh` +
+`make-gif`/`publish-all`. The panel is now mostly **glue over an existing toolbox.**
+
+**What it does to the UI:**
+- One reusable **"share surface"**: given a unit, render its non-empty cells, grouped by
+  audience (section headers = *Give it to someone · Put it on my site · Sell it*), with
+  prepare-actions visually separated from publish-actions, each button running a CLI tool and
+  streaming its log (commitment #2).
+- **Two mount points now**, because you *reach* the units differently:
+  - **Share** — topbar, unit = the *open cart*. Only cart-valid cells show, so the humble
+    "hand someone this cart as a signed Mac app, no marketing" path stays one click.
+  - **Apps** — a new list reading `apps/*/app.json` (parallel to the carts panel), unit = a
+    *manifest*. The whole product ceremony (keywords/screenshots/press/upload) lives here,
+    **not** in the per-cart popover. This is the main new structural piece the model needs.
+  - A third **Showcase/Site** mount comes later (cross-cart reels + gallery curation) — don't
+    force it into the first two.
+- **Cheap to rearrange:** a mis-placed button is ~10 lines of `shell.js` — the *tool* doesn't
+  move. So start with Share + Apps and let the grouping teach you.
+
+The three rungs below are the **build order** within this model, not a different design.
+
 ## The panel itself — three rungs
 
 **v1 — regroup + the two missing cheap buttons (no engine work).** One "share" popover

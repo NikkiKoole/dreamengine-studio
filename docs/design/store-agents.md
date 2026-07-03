@@ -154,18 +154,28 @@ only.** (Same posture as the rest of this repo — in-house and honest over a re
    bearer token scraped from the web App Store — fragile + ToS-gray. **Don't build on it.**
 
 3. **Search Term Rank Report** ✅ ← the real find. Apple's **new** report (launched Oct
-   2025, beta), in **App Store Connect → Reports → Insights (Beta)**, opened with your normal
-   ASC login — no API, no ad account. Per search term, per genre + country, updated monthly
-   (data back to July 2024). It returns:
-   - **Rank in Genre** — absolute position in the category (~1–500)
+   2025, still beta), native to **App Store Connect → Reports → Insights (Beta) → "Monthly
+   Search Term Rank Report"**, opened with your normal ASC login — no API, no ad account, no
+   extra Apple fee (it's part of the paid Developer Program you already need to ship). *Note:*
+   the "Indie / Pro / Marketing tiers" some blogs mention are **aso.dev's** re-selling
+   product, not Apple's — the report itself is native ASC. Per search term, by genre +
+   country, updated **monthly** (data back to July 2024). It returns:
+   - **Rank in Genre** — position in the category (~1–500)
    - **Search Popularity in Genre (1–100)**
    - **Search Popularity overall (1–100)**
-   - legacy Search Popularity (1–5) — the old Apple Ads scale
+   - legacy Search Popularity (1–5) — the old Apple Ads scale (does *not* correlate with the
+     new 1–100; different algorithm)
    - **Suggestions Count**
 
-   This is Apple handing us, first-party and free, the relative-popularity number the paid
-   tools resell. Monthly cadence means it's for *choosing* keywords, not A/B-ing them.
-   (Exact membership-tier eligibility to confirm when we have an account.)
+   First-party, free, the relative-popularity number the paid tools resell. **Key
+   constraint: the query list is FIXED — Apple curates which terms appear per genre/country;
+   you cannot add your own.** That's a feature for us, not just a limit: a candidate that's
+   *absent* from the list is, by definition, long-tail / low-popularity — which is exactly
+   what a brand-new cart with no ranking authority should target first. Monthly cadence = for
+   *choosing* keywords, not A/B-ing them. Beta → structure/values may still shift.
+   **Export path is unconfirmed:** the Analytics Reports API export announced in March 2026
+   covers the two new *subscription* reports, not this one — so assume a manual CSV/UI export
+   feeds our script until proven otherwise.
 
 ### The Apple Ads (Search Ads) API — and why it's the *harder* path here
 
@@ -185,11 +195,14 @@ only.** (Same posture as the rest of this repo — in-house and honest over a re
 
 - **Script** `aso-research.js` (deterministic, snapshots a dated JSON): iTunes-Search-API
   sweep → competitor list + difficulty proxy + competitor-keyword mining; **ingest a
-  downloaded Search Term Rank Report** (CSV/JSON export from ASC) to attach real 1–100
-  popularity to each candidate; char-count + title/subtitle-overlap lint on the 100-char
-  field.
+  downloaded Search Term Rank Report** and **match each candidate against the fixed list** —
+  in-list → attach the real 1–100 popularity + genre rank; absent → tag "long-tail (low
+  pop)". Either way the Search API supplies the competition side. Then char-count +
+  title/subtitle-overlap lint on the 100-char field.
 - **Agent:** seed terms by world-knowledge; relevance-filter to *our* cart; read the merged
-  popularity × difficulty × relevance table and pick the final 100-char set per locale.
+  table (popularity × difficulty × relevance, presence-in-list as its own signal) and pick
+  the final 100-char set per locale — biasing a fresh cart toward high-relevance long-tail
+  terms it can actually rank for over crowded head terms it can't.
 - **Ceiling:** relative popularity + competition strength, never absolute volume — and once
   a cart ships, **your own** real impressions/downloads/conversion in ASC closes the loop
   (the one volume number that's truly yours).

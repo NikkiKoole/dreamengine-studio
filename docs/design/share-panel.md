@@ -212,10 +212,19 @@ in order (each rung small, only #1 touches the engine):
    ctx slot of its own), `build-app.js` generates a roster header from each rack's
    `de:meta` (title/description) so adding a rack auto-adds its menu entry, and picking
    one calls `de_switch_cart()` — which already exists from rung 1, so NO new engine API
-   for the basic version. Two open sub-questions: (a) the way BACK from a rack to the
-   menu — some reserved input the launcher may claim without stepping on the racks'
-   keys ("a key the cart reads is the cart's key"); (b) the menu's look/feel is the
-   maker's call (program-picker / cartridge shelf / radio-dial — ask before polishing).
+   for the basic version. Sub-questions:
+   (a) **the way BACK — v1 (maker, 2026-07-03): TAB = enter the overview.** Repurpose
+   the shim's TAB from blind-cycle to "open the launcher" — good enough on desktop, zero
+   new surface. TAB doesn't exist on a phone, so the docced EVENTUAL direction (also
+   maker's, same day) is the **intro-panel seam**: an optional intro/title card fed by
+   `de:meta` (title, description, controls — carts already carry all three). Standalone
+   it's a cartridge label / cover page, worth having on its own; in a bundle the SAME
+   card gains "back to the overview", so a single cart never sees bundle chrome. Entry
+   input for that version: the pause key — the one already-reserved, claim-aware input
+   in every cart (same pattern as `de_players()` adding the multiplayer item only when
+   a cart opts in). Build TAB now; the intro panel is the touch-era upgrade.
+   (b) the menu's look/feel is the maker's call (program-picker / cartridge shelf /
+   radio-dial — ask before polishing).
 4. **`mac-app.sh` consumes the manifest** → a signed, notarized Tinyjam.app with the
    full roster: channel C's rehearsal of the App Store shape. iOS then reuses
    everything ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9).

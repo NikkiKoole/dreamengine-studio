@@ -66,6 +66,19 @@ native cart frame (`play.js --dump`) → App Store screenshots at exact device s
 > Still to add (v0.2): the contact-sheet + frame-diff dedup, palette-derived backgrounds,
 > multi-line/bottom captions, optional device bezels, and the agent hero-pick.
 
+> **Compliance — composed screenshots are allowed; preview *videos* are stricter.** A common
+> misconception is that the App Store bans "composed" (caption + background) screenshots. It
+> doesn't — they're standard. The real rule is **Guideline 2.3.3: a screenshot must show the
+> app *in use*** (actual UI/gameplay), not pure marketing art / title cards / splash screens.
+> Our composites pass: the real cart render is always the focal point; the caption + bg are
+> just the frame. Guardrails: make the **first 1–2** shots clearly show the app (they appear in
+> search results), and keep captions **truthful** (2.3.1/2.3.7 — don't claim features the cart
+> lacks). The stricter rule people half-remember is about **app preview videos**: those must be
+> **real on-device capture**, not a marketing-composited edit — which our `make-gif` previews
+> already are (actual runtime + real audio), so we're compliant there by default. (Guidelines
+> reword over time and App Review is the final arbiter, but this split is long-standing.) This
+> also seeds the §4 guidelines-pre-flight checks.
+
 **2. Copy transcreation, not translation** — per-locale listing copy.
 - *Script:* extract source copy from `de:meta` / the manifest; enforce char limits
   (name/subtitle 30, keywords 100, promo 170, desc 4000); assert per-locale completeness;

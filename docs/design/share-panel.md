@@ -150,6 +150,24 @@ Connect API/Fastlane) + a "⬆ TestFlight" button in the panel. Gated on channel
 product decisions (which app, price, original palette —
 [`sharing-channels.md`](sharing-channels.md) §Channel B).
 
+## The umbrella-app build ladder — the pick-up point (2026-07-03)
+
+The spike is done and its findings are above. From here to a shippable **Tinyjam.app**,
+in order (each rung small, only #1 touches the engine):
+
+1. **`de_switch_cart()` + the cart context** ← the next bite. On switch,
+   snapshot/restore the active cart's instrument-slot bank + master-bus FX (later the
+   sprite-sheet pointer, save dir, `de_state` slab join the same struct). Replaces the
+   spike's slot-offset wrappers with the mechanism that scales to many racks. The exact
+   engine state involved is enumerated in §spike above.
+2. **Manifest + generator** — `apps/tinyjam/app.json` + a tool that emits what
+   `tools/bundle-spike/build.sh` hardcodes (renamed TUs, dispatcher, staging). Adding a
+   rack = one manifest line.
+3. **Launcher cart** — the menu screen (fed by each rack's `de:meta`), replacing TAB.
+4. **`mac-app.sh` consumes the manifest** → a signed, notarized Tinyjam.app with the
+   full roster: channel C's rehearsal of the App Store shape. iOS then reuses
+   everything ([`ios-plan.md`](ios-plan.md); AUv3 concurrency = its spike 9).
+
 ## Open questions (maker's call)
 
 1. Manifest home: `apps/<name>/` dir (room for icon/screenshots/store copy) vs a flat

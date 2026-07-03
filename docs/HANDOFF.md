@@ -7,11 +7,24 @@
 > **For "what's shipped vs. open vs. cut" see [`STATUS.md`](STATUS.md)** — the single
 > status ledger. This file is the running narrative + environment gotchas.
 
-_Last updated: 2026-05-30 (session 9 — navbar + in-app docs wiki)_
+_Last updated: 2026-07-03 (device-adaptive layout — Phase 1a done)_
 
 ---
 
 ## Where we are right now
+
+> **▶ ACTIVE THREAD (2026-07-03) — device-adaptive layout.** Make `SCREEN_W/H`
+> live-resizable + physically-sized so one cart reflows beautifully to iPhone AND
+> iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
+> `otafit`; `runtime/lay.h` **shipped**) and **Phase 1a done** (runtime `de_sw`/`de_sh`
+> globals in `studio.c` + extent sites, verified byte-identical). **Next agent:
+> resume at Phase 1b** — start from the **pick-up note at the top of
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md)** (1b = the
+> per-cart `resizable` opt-in + the coupled SW-rasterizer / sub-region-layout call).
+> Ledger view: [`STATUS.md`](STATUS.md) open item #2; also on the design board (BUILDING).
+
+> _(The session-8/9 narrative below is stale — kept for history. For current
+> shipped/open state trust [`STATUS.md`](STATUS.md) + the design board, not this list.)_
 
 > Recent sessions (8–9): the four-axis **instrument synth** shipped
 > (`instrument`/`instrument_duty`/`instrument_lfo`/`instrument_filter`) plus `tritex`;

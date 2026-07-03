@@ -201,6 +201,21 @@ All three work simultaneously. The game creates `build/.bake/` on startup, so th
 directory always exists. `profiler_request` works in any native build — you do not
 need `-DDE_PROFILE` or the `⏱ profile` button; the counters run in every normal run.
 
+**Several carts alive at once? Target the request with a `pid:` line.** Every native
+cart runs with `cwd=build/`, so they all poll the SAME request files — an untargeted
+request is served by whichever process gets there first (the editor's running cart, a
+parallel play.js run, a multi-cart bundle… it silently returns the *wrong app's* frame;
+this bit the build-app.js verification, 2026-07-03). Any extra line of the form
+`pid:<n>` addresses the request to that process alone; others leave the file untouched:
+
+```bash
+./tinyjam --headless & PID=$!
+printf '%s\npid:%d\n' "$(pwd)/build/.bake/snap.png" $PID > build/.bake/screenshot_request
+```
+
+Works on every request kind (`wav_request`'s duration line and the `pid:` line can
+appear in either order). No `pid:` line = old behavior, first poller serves.
+
 ## Clip capture — an animated GIF / WebM of a cart (`tools/make-gif.js`)
 
 The visual twin of `--wav`: render a cart's *motion* to a file. It's a thin wrapper over

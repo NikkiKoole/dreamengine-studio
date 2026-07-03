@@ -1673,44 +1673,52 @@ static void prof_write(const char *path);
 // on-demand inspection: poll .bake/screenshot_request and .bake/state_request each
 // frame. each file contains the desired output path; we capture, write, then delete
 // the request file as the handshake — gone means fresh and ready to read.
+//
+// TARGETING (optional): any extra line "pid:<n>" addresses the request to ONE process.
+// Every native cart runs with cwd=build/, so when several are alive at once (the editor's
+// cart + a play.js run, or a multi-cart bundle next to anything) an untargeted request is
+// served by WHICHEVER polls first — the wrong app's screenshot, with no error (bit the
+// build-app.js verification, 2026-07-03). A request naming another pid is left untouched.
+static int harness_take_request(const char *path, char *out, size_t outsz, char *extra, size_t extrasz) {
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    char line[512];
+    out[0] = '\0';
+    if (extra && extrasz) extra[0] = '\0';
+    long target = -1;
+    int first = 1;
+    while (fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\n\r")] = '\0';
+        if (first) { snprintf(out, outsz, "%s", line); first = 0; }
+        else if (strncmp(line, "pid:", 4) == 0) target = atol(line + 4);
+        else if (extra && extrasz && !extra[0]) snprintf(extra, extrasz, "%s", line);
+    }
+    fclose(f);
+    if (target >= 0 && target != (long)getpid()) return 0;   // addressed to another process — leave it
+    remove(path);
+    return out[0] != '\0';
+}
+
 static void harness_inspect(int fno) {
+    char out[512];
     // screenshot
-    FILE *f = fopen(".bake/screenshot_request", "r");
-    if (f) {
-        char out[512] = {0};
-        if (fgets(out, sizeof out, f)) out[strcspn(out, "\n\r")] = '\0';
-        fclose(f);
-        remove(".bake/screenshot_request");
-        if (out[0]) {
-            Image shot = LoadImageFromTexture(canvas.texture);
-            ImageFlipVertical(&shot);
-            ExportImage(shot, out);
-            UnloadImage(shot);
-        }
+    if (harness_take_request(".bake/screenshot_request", out, sizeof out, NULL, 0)) {
+        Image shot = LoadImageFromTexture(canvas.texture);
+        ImageFlipVertical(&shot);
+        ExportImage(shot, out);
+        UnloadImage(shot);
     }
     // window screenshot — the window BACKBUFFER, post-blit, so it includes window-space draw
     // skins (e.g. the touch-controls overlay, drawn after the canvas blit) that screenshot_request
     // above (canvas.texture only) can never see. See docs/design/touch-controls.md PIVOT.
-    f = fopen(".bake/window_screenshot_request", "r");
-    if (f) {
-        char out[512] = {0};
-        if (fgets(out, sizeof out, f)) out[strcspn(out, "\n\r")] = '\0';
-        fclose(f);
-        remove(".bake/window_screenshot_request");
-        if (out[0]) {
-            Image shot = LoadImageFromScreen();
-            ExportImage(shot, out);
-            UnloadImage(shot);
-        }
+    if (harness_take_request(".bake/window_screenshot_request", out, sizeof out, NULL, 0)) {
+        Image shot = LoadImageFromScreen();
+        ExportImage(shot, out);
+        UnloadImage(shot);
     }
     // state
-    f = fopen(".bake/state_request", "r");
-    if (f) {
-        char out[512] = {0};
-        if (fgets(out, sizeof out, f)) out[strcspn(out, "\n\r")] = '\0';
-        fclose(f);
-        remove(".bake/state_request");
-        if (out[0]) {
+    if (harness_take_request(".bake/state_request", out, sizeof out, NULL, 0)) {
+        {
             FILE *w = fopen(out, "w");
             if (w) {
                 fprintf(w, "{\"f\":%d,\"t\":%.4f,\"beat\":%d,\"bpos\":%.4f,\"w\":{",
@@ -1729,27 +1737,16 @@ static void harness_inspect(int fno) {
         }
     }
     // profiler snapshot
-    f = fopen(".bake/profiler_request", "r");
-    if (f) {
-        char out[512] = {0};
-        if (fgets(out, sizeof out, f)) out[strcspn(out, "\n\r")] = '\0';
-        fclose(f);
-        remove(".bake/profiler_request");
-        if (out[0]) prof_write(out);
-    }
-    // WAV capture: line 1 = output path, optional line 2 = seconds (default 5, cap 60).
+    if (harness_take_request(".bake/profiler_request", out, sizeof out, NULL, 0))
+        prof_write(out);
+    // WAV capture: line 1 = output path, optional extra line = seconds (default 5, cap 60).
     // The audio thread fills the buffer from its mix tap; we poll for completion below.
-    f = fopen(".bake/wav_request", "r");
-    if (f) {
-        char out[512] = {0}, dur[64] = {0};
-        if (fgets(out, sizeof out, f)) out[strcspn(out, "\n\r")] = '\0';
-        if (fgets(dur, sizeof dur, f)) {}
-        fclose(f);
-        remove(".bake/wav_request");
+    char dur[64];
+    if (harness_take_request(".bake/wav_request", out, sizeof out, dur, sizeof dur)) {
         float secs = (float)atof(dur);
         if (secs <= 0.0f) secs = 5.0f;
         if (secs > 60.0f) secs = 60.0f;
-        if (out[0]) sound_wavcap_begin(out, secs);
+        sound_wavcap_begin(out, secs);
     }
     sound_wavcap_poll();   // recording finished → write the WAV, go idle
 }

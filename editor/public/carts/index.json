@@ -4481,6 +4481,17 @@
     "genre": "racing"
   },
   {
+    "title": "rackfit",
+    "description": "The Phase-0 proof for device-adaptive-layout.md: one music rack (a knob bank, a 16-step strip, a keybed) laid out for iPhone AND iPad, both orientations, against a FAKE device screen - before any of it touches the engine. The point respond.c doesn't make: the driver is PHYSICAL finger size, not aspect ratio. Every control is sized to a real 44pt touch target, so 'how many fit' falls out of the device's points-per-finger (iPhone ~390pt wide = few fat controls; iPad ~1194pt = many precise ones). The arrangement is almost entirely EMERGENT - lay_wrap flows the knobs and steps into as many columns as finger-sized cells fit, and the keybed shows as many finger-wide octaves as fit - so the phone gets 2-3 knob rows + 1 octave and the iPad gets one dense row + 3 octaves from the SAME code, no per-device layout branch. Presets auto-cycle (iPhone/iPad x portrait/landscape); keys 1-4 lock one. If this looks right here, the lay_* helpers graduate to runtime/lay.h and take the real device rect + backing scale instead of this fake one.",
+    "file": "rackfit.cart.png",
+    "created": "2026-07-03",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
+  },
+  {
     "title": "Ragdoll",
     "description": "Three tiny Verlet-physics stick figures that struggle to stay upright — connected points, distance constraints, and gravity. Drag any limb to grab and throw: while held a character goes fully limp, and the moment its feet touch the ground again it straightens back up. Z drops a rolling ball at the mouse, X spawns a new character from the sky, R resets the scene.",
     "file": "ragdoll.cart.png",

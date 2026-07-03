@@ -8,4 +8,6 @@
 void Store_Init(void);                              // load products + current entitlements
 bool Store_IsModuleUnlocked(const char* moduleId);  // gate a rack (masterpass unlocks all)
 void Store_Purchase(const char* moduleId);          // fire the App Store purchase sheet
+bool Store_TestingAvailable(void);                  // DEBUG only — true when SKTestSession is active (gates the reset button)
+void Store_ResetPurchases(void);                    // DEBUG only — wipe local test purchases (SKTestSession)
 #endif

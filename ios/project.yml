@@ -18,8 +18,10 @@ targets:
     # MULTI-CART app (app_main.c dispatcher + per-cart <slug>.c wrappers, staged by
     # `build-app.js --ios`). build.sh / device.sh with APP=<name> pick the multi-cart path.
     sources:
+      # Tinyjam.storekit is GENERATED from the app manifest into gen/app (build-app.js --ios);
+      # exclude the hand-authored Sources copy so it isn't bundled twice.
       - path: Sources
-        excludes: [canvas.c, canvas.h, audio.c, audio.h]
+        excludes: [canvas.c, canvas.h, audio.c, audio.h, Tinyjam.storekit]
       - path: ../runtime/studio.c
       - path: ../runtime/raylib_compat.c
       - path: gen/app
@@ -37,6 +39,12 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging-Header.h
         # the engine sees its headers (runtime/) + the staged cart data (gen/app/)
         HEADER_SEARCH_PATHS: [$(SRCROOT)/../runtime, $(SRCROOT)/gen/app, $(SRCROOT)/Sources]
+        # StoreKit LOCAL testing is SIMULATOR-ONLY: StoreKitTest.framework pulls in XCTest,
+        # which isn't present in a plain app launch (esp. on a real device → dyld crash). So
+        # link it + add the platform Developer-frameworks rpath ONLY for the simulator SDK; the
+        # device build stays clean (device IAP testing = App Store Connect sandbox, later).
+        "OTHER_LDFLAGS[sdk=iphonesimulator*]": [-framework, StoreKitTest]
+        "LD_RUNPATH_SEARCH_PATHS[sdk=iphonesimulator*]": [$(inherited), $(PLATFORM_DIR)/Developer/Library/Frameworks]
         # omnichord: 320x200, SCALE=1 so UIKit touches map 1:1 to framebuffer pixels
         GCC_PREPROCESSOR_DEFINITIONS: [$(inherited), DE_NO_RAYLIB=1, SCREEN_W=320, SCREEN_H=200, SCALE=1, MAP_W=128, MAP_H=64, CELL_W=16, CELL_H=16]
         MARKETING_VERSION: "0.1"

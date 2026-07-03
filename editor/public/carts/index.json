@@ -3780,6 +3780,17 @@
     "homage": "Otamatone (Maywa Denki, 1998)"
   },
   {
+    "title": "otafit",
+    "description": "The third device-adaptive-layout.md prototype, and the one that grounds the orientation-lock case in a NUMBER. A layout mock of the ota family (four drag-to-play fretless ribbons - daddy/mommy/junior/dog - a gesture loop bar up top, two step rows below), laid out with the promoted runtime/lay.h. It tests two things the knob racks couldn't: (1) does the lay_* toolkit handle CONTINUOUS drag surfaces (a ribbon is just a Box you hit-test and map finger-x -> pitch), not only discrete tap widgets - and (2) the orientation question, measured: a fretless ribbon's playability IS its length (pitch resolution = px per semitone), so it reports, per device shape, how many semitones a finger covers and how much LONGER the ribbon is in landscape. Wide screens give a ribbon 1.4x (iPad) to 2.2x (iPhone) more pitch resolution -> this is a rack that PREFERS lock-landscape, and now that preference is a threshold a layout-check oracle could read, not a hunch. Presets auto-cycle (iPhone/iPad x portrait/landscape); keys 1-4 lock. No audio - layout + measurement only.",
+    "file": "otafit.cart.png",
+    "created": "2026-07-03",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
+  },
+  {
     "title": "otamatone",
     "description": "The little face-on-a-stem toy, built entirely from the HELD NOTE api. DRAG the vertical stem to play — one sustained voice (note_on) whose pitch chases your finger up and down the fretless ribbon (note_pitch + note_glide for the signature slurp). Hold SPACE (or right-click) to squeeze the mouth open: that sweeps a resonant lowpass from a muffled 'mm' to a bright 'aah' (note_cutoff), and the pixel mouth opens to match. Wiggle while you slide for hand vibrato. Q toggles fretless ↔ snap-to-pentatonic.",
     "file": "otamatone.cart.png",

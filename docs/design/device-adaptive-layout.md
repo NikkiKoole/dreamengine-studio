@@ -82,6 +82,14 @@ nowhere) and "N hand-tuned pixel layouts" (unmaintainable).
    anchoring per responsive-layout.md primitive #3), and the iOS `Info.plist` must actually *permit*
    rotation (the spike letterboxes / likely locks today). Retires the temporary hold-to-home in favor
    of the `de_safe_top()` nav-bar idea (ios-plan backlog #3).
+5. **A back-to-root keep-out rect.** The multi-cart shell owns the "back to launcher" affordance
+   ([`share-panel.md`](share-panel.md) hold-to-home / `de_switch_cart`), so it must hand the active
+   cart a **reserved region** its controls avoid. The space-efficient choice (proven in `rackfit.c`)
+   is a **top CORNER**, not a full top edge — reserving the whole edge wastes precious phone height
+   for one small button. So the engine gives the cart *both* insets — `safe_rect()` (OS chrome) and a
+   corner keep-out (app chrome) — and the shell draws the chip itself. The cart just reads the rect;
+   no cart hardcodes the button's position. (This is the responsive successor to the temporary
+   shim-drawn hold-to-home pad.)
 
 **Determinism guard (non-negotiable, from responsive-layout.md §4c):** runtime dims must **not** be
 forced global. ~45 carts and the `canvas-diff`/`mirror-diff`/`spec` gates lean on fixed dims. A cart
@@ -91,15 +99,42 @@ varies. Fixed-canvas carts compile and behave unchanged; their runtime value is 
 
 ## The cart model (graduating `lay.h`)
 
-- The `lay_*` toolkit (flex / fluid / anchor+inset / aspect / wrap) graduates from the `respond.c`
-  prototype to `runtime/lay.h` **unchanged** — it's deliberately rect-in/rect-out, so the only
-  difference on graduation is passing the real viewport instead of the fake draggable rect.
+- The `lay_*` toolkit graduates from the `respond.c` prototype to `runtime/lay.h` **unchanged** —
+  it's deliberately rect-in/rect-out, so the only difference on graduation is passing the real
+  viewport instead of the fake draggable rect.
 - **Immediate-mode is what makes rotation free:** every rect is recomputed from the current viewport
   each frame, so a rotation is just "next frame the container is a different shape," and hit-testing
   recomputes with it. Audio/knob **state lives separate from layout**, so it survives relayout
   untouched.
 - A rack's `draw`/`update` branch on `device_class()` + orientation into one of its 2–3 arrangements,
   then lay out fluidly within the chosen one.
+
+### Is the layout vocabulary complete? (reviewed 2026-07-03)
+
+Empirical test: what did writing a real rack (`rackfit.c`) make us hand-roll? That's the gap. Two
+primitives were missing and are now added to the candidate set (in `respond.c` + `rackfit.c`):
+
+- **`lay_split(c, edge, size, &rest)`** — dock a fixed-size band off one edge, return the remainder
+  (CSS flex fixed-basis + `flex:1` sibling). The app-chrome workhorse — title/tab/tool bars, keybed.
+  `rackfit` hand-computed this before; docking reads far cleaner. **Added.**
+- **`lay_pad(c, t,r,b,l)`** — per-side inset (CSS padding). Uniform `lay_inset` can't express an
+  **asymmetric** safe-area (a notch tops one edge, the home-bar the opposite). `lay_inset` is now
+  just `lay_pad(m,m,m,m)`. **Added.**
+
+The full candidate `lay.h` set is now: `clamp` · `fluid` · `pad`/`inset` · `at` (9-grid anchor) ·
+`split` · `cell` (equal flex) · `wrap` (auto-fit grid) · `aspect`.
+
+**Deliberately still out** (composable or out of scope): a fixed-count grid (`lay_grid` — the
+hand-picked alternative to auto-`wrap` that the 14+2 step-wrap finding wants; cheap nice-to-have, not
+yet added); weighted flex (proportional children — composable from `split`); full CSS Grid with spans
+(overkill); **scroll/overflow** (that's *interaction*, not layout — the "too many steps/keys to fit"
+case wants a scroll-or-page pattern the cart drives); media/container-query *syntax* (a plain
+`if (device_class()==PHONE)` is the query — and the real query variable is the **finger-ratio**, not
+raw px). Alignment-within-a-cell is already covered by `lay_at(cell, L_C, …)`; z-order by draw order.
+
+**The back-to-root corner keep-out is covered by the existing vocabulary** — `lay_at` for the chip
+rect + `lay_pad` to inset the colliding row off that side (demoed in `rackfit.c`). No new primitive;
+the only new thing needed is the engine handing the cart the keep-out rect (plumbing #5 above).
 
 ## The store-asset payoff
 

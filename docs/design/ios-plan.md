@@ -210,7 +210,19 @@ Gotchas captured (so nobody re-hits them):
   shows unlocked) but reset with `xcrun simctl` / `session.clearTransactions()` if you want a clean
   locked state.
 - **`simctl launch` does NOT apply a scheme's StoreKit config** — that's why the headless proof is an
-  XCTest using `SKTestSession(configurationFileNamed:)`, not a plain app launch.
+  XCTest using `SKTestSession(configurationFileNamed:)`, not a plain app launch. (A scheme
+  `run: storeKitConfiguration:` only helps Xcode's Run button, not `simctl`/`ios-deploy` — so
+  interactive local testing needs another route: bundle the `.storekit` + an in-app `SKTestSession`,
+  or verify via TestFlight sandbox.)
+- **IAP in the multi-cart app — DEFERRED (2026-07-03, "later story").** Spike 4 proved the bridge
+  *headlessly*; nothing gates in the REAL app path yet (the only `Store_IsModuleUnlocked` caller is
+  `canvas.c`, the excluded spike stand-in). The next increment, when it resumes: (1) `apps/tinyjam/app.json`
+  grows an `iap.products` block (id/price/name/desc/`unlocks[]`) as the single source of truth;
+  (2) `build-app.js --ios` GENERATES `Tinyjam.storekit` from it + threads each rack's productId +
+  lock state into `app_roster.h`; (3) the launcher (`tinyjam-menu.c`) shows locked racks (price/🔒),
+  taps fire `Store_Purchase`, owned racks launch — cross-platform via a **weak** `Store_*` symbol
+  (real on iOS, absent → "free/owned" on Mac/editor, so standalone carts are unaffected). Real prices
+  still come from App Store Connect (ADR-0026); the manifest declares intent.
 - **AUv3 (spike 7):** `.loadInProcess` is **macOS-only** — on iOS AUv3 always loads out-of-process;
   instantiate with `options: []`. The instrument self-plays (the arpeggio isn't gated on MIDI), so it
   renders sound with no note input — handy for an automated render test. The extension is embedded via

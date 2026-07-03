@@ -126,9 +126,13 @@ each rack-as-plugin runs in its own process; the context swap is for the standal
 umbrella app.)
 
 Deliberately NOT covered — the next spikes, in order of need:
-1. **Sprite carts** — per-slug staged sheets + a runtime sheet-swap on switch (the
-   engine already swaps the spritesheet texture in the `pal()` path, so the mechanism
-   exists; it needs a seam like `de_sheet_select(slug)`).
+1. ~~**Sprite carts**~~ — **DONE (2026-07-03).** `build-app.js` bakes a sheet PER cart
+   (ctx order) into an indexed table (`SPRITES_SHEETS[]` / `SPRITES_MULTI`); `studio.c`
+   pre-loads all at init (both the Raylib GPU and the DE_NO_RAYLIB/iOS SW paths) and
+   `de_sheet_select(ctx)` swaps the active `spritesheet`/`_img` on switch (cheap struct
+   copy). Folded into the `de_switch_cart` umbrella (see the video-twin note under rung 1).
+   Proven by the **bleedtest** rig (bleedred↔bleedblue round-trips clean). Per-cart *maps*
+   are the same pattern, still deferred.
 2. **`de_state` carts** — `-Dde_state=<slug>_de_state` + per-slug slab wrappers in the
    shim (sketched, trivial, unexercised).
 3. **Differing screen dims** — `SCREEN_W/H` are compile-time `#define`s (`studio.h`),
@@ -217,11 +221,15 @@ in order (each rung small, only #1 touches the engine):
    this hardened: a cart-facing sound API must NEVER write engine state directly — the
    queue is what makes the context log complete.** Verified: acid 136 → yacht 102 →
    acid 136 (on-screen bpm labels, headless autoswitch round trip).
-   Still TODO from the original sketch, for later rungs: sprite-sheet pointer, save
-   dir, `de_state` slab joining the context — plus the **video twin** of this leak
-   family someday: `pal()`/`palt()`/`fillp()`/`font()`/`camera()`/`clip()` are
-   set-and-hold too and currently bleed across a switch (racks redraw their own state
-   every frame, so it doesn't bite Tinyjam yet).
+   **The video twin — DONE (2026-07-03).** `de_switch_cart` was sound-only despite its
+   name, so set-and-hold VIDEO state leaked across a switch. Fixed by making it an
+   **umbrella**: `de_sound_switch_cart` (the renamed sound half) + `de_gfx_reset()`
+   (pal/fillp/font/camera → boot defaults; clip already resets at frame-end, no palt in
+   this engine) + `de_sheet_select(ctx)` (per-cart sheets, next-spike #1). **Reset-only,
+   not record+replay** like sound — every cart re-sets its video modes in `draw()`, so a
+   clean slate suffices, and video has no config queue to tap the way sound did (the
+   maker's call: full-replay is far more work for tiny payoff). Proven by the **bleedtest**
+   rig. Still deferred for later rungs: per-cart save dir, `de_state` slab, per-cart maps.
 2. ~~**Manifest + generator**~~ — **DONE (2026-07-03).** `apps/tinyjam/app.json` (the
    decided `apps/<name>/` home) + `tools/build-app.js`: stages assets, compiles each
    cart TU with the `-D<entry>=<slug>_<entry>` renames, detects optional entry points

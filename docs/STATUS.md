@@ -1253,6 +1253,15 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     not the carts panel, so that needs an Apps picker (a later UI rung on this CLI).
     Differing-resolution racks stay parked (next-spike #3; paths A/B/C scoped in the doc —
     B is the tractable per-cart RenderTexture step, C the eventual responsive-layout home).
+    **Cross-cart bleed fixed (2026-07-03) — the video twin of ADR-0027:** `de_switch_cart`
+    was sound-only despite its name, so an outgoing cart's set-and-hold VIDEO state
+    (pal/fillp/font/camera) AND its sprite sheet leaked into the next cart. Now it's an
+    umbrella: `de_sound_switch_cart` (renamed sound half) + `de_gfx_reset()` (video state →
+    defaults, reset-only — every cart re-sets modes in draw, and video has no config queue
+    to replay like sound) + `de_sheet_select(ctx)` (per-cart sheets, baked by build-app.js).
+    Proven by the **bleedtest** rig (bleedred↔bleedblue: pre-fix blue drew red text +
+    hatched bar + red critters; post-fix clean both ways). Deferred: per-cart maps + save
+    dirs (same pattern).
 
 ---
 

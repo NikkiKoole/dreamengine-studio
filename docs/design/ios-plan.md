@@ -54,6 +54,20 @@ Each spike is a small throwaway that kills one unknown. Riskiest cheap-thing fir
 | 6.5 | **standalone app runs on a real iPhone** (signed) | signing + device deploy | **device** | ✅ **done** — iPhone (iOS 15.4.1), maker confirmed running. `ios/device.sh` |
 | 7 | AUv3 extension makes sound, hosted | the killer feature | sim | ✅ **done** — extension reuses the C synth (`AU/TinyjamAU.swift`); our OWN host test finds it via `AVAudioUnitComponentManager`, instantiates + renders it offline (peak 0.180). No GarageBand/AUM/device needed. Real-host (AUM/GB) confirmation deferred to whenever a host is installed. |
 | 8 | **the REAL engine (a cart) renders + sounds on iOS** (Phase 2) | the whole point | sim | ✅ **done** — omnichord (real `studio.c`+`sound.h`, zero Raylib) renders pixel-correct + upright on the iPhone 15 sim (`history/spike8-omnichord.png`); CoreAudio pulls the real mixer; UIKit touch drives it. See "Phase 2" below. |
+| 9 | **two AU instances render at once** in the spike-7 own host — one of each extension AND two of the same | AUv3 concurrency reality | sim | — |
+
+**Why spike 9 matters (the multi-rack mixer question, 2026-07-03):** the Tinyjam plan is
+one extension **per rack** — and *different* racks on different host tracks (acid + yacht
+in GarageBand's mixer) each get **their own extension process**, own engine singleton,
+mixed by the host: that Just Works and is the product's headline trick. The caveat is
+**two instances of the SAME rack**: on iOS all instances of one extension share ONE
+extension process, and our engine is a per-process singleton (global mixer, one slot
+bank — the same wall the desktop `tools/bundle-spike/` hit). Two same-rack tracks would
+trample each other's sound state. v1 answer: one instance per rack per session (hosts
+tolerate this; some plugins ship that way), stated in the product copy. The real fix —
+an engine instance-context refactor (every `sound.h` static behind a context pointer) —
+is bigger than the umbrella app's cart-context swap and stays parked until a user
+actually asks for two of the same rack.
 
 Spike 1 mechanism shipped: `ios/Sources/canvas.{h,c}` (a stand-in software canvas — a few primitives
 into an RGBA8888 buffer) + `CanvasView.swift` (CGImage from the buffer, `layer.magnificationFilter =

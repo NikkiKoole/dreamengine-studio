@@ -1,5 +1,9 @@
 # Cart sharing ideas
 
+> This doc is the **web/URL** flow in depth. For the full menu of ways out of the editor
+> (signed Mac .app, Windows .exe, iPhone deploy, web preview), start at
+> [`exporting.md`](exporting.md).
+
 > **SHIPPED (2026-06-05): the URL exists — <https://nikkikoole.github.io/dreamengine/>.**
 > `node tools/build-site.js <name>` compiles a cart to wasm into `site/<name>/` and
 > regenerates the thumbnail gallery; `tools/publish-cart.sh <name>` does build → commit →

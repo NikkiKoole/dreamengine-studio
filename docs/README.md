@@ -151,7 +151,8 @@ docs/
 │   ├── instrument-presets.md     the named-patch catalog: every radio station's voice recipes given clear names, with sharing tiers (shared/variant/cousin/kin) so copy-propagation across stations is visible; paired with radio-voices.md
 │   ├── porting-from-navkit.md    how to faithfully port an instrument/effect from the navkit sibling synth: port the oscillator VERBATIM (oscillator-first, not piecemeal), the gotchas (velocity×2, the ratio blend, amp normalize, always-on filter, drive-scale mismatch), macro mapping, the clav worked example + a checklist
 │   ├── radio-voices.md           per-station voice charts (slot → role → preset name) + the findings summary (reuse clusters by idiom, the synth-kit/bass extract candidates, the 5 showcase-cart preset lineages, upgrade candidates); the reading view over instrument-presets.md
-│   ├── sharing.md                ways to publish finished carts
+│   ├── exporting.md              ★ the five ways OUT of the editor (signed Mac .app / Windows .exe / iPhone deploy / publish to site / local web preview) — what each button produces, requirements, which tool owns the detail
+│   ├── sharing.md                ways to publish finished carts (the web/URL flow — exporting.md #4 in depth)
 │   ├── checks-and-oracles.md     ★ REVERSE INDEX: "I changed X → run Y to prove it." Routes a change (render primitive / perf / audio engine / cart logic / docs) to the matching deterministic gate — the task→tool map the flat tool list lacks
 │   ├── debug-harness.md          deterministic record/replay/script + trace + live on-demand inspect + WAV capture/analysis + UI audit, off-screen text/overlap/hidden-panel finder (tools/play.js, tools/wav-analyze.js, tools/ui-audit.js)
 │   ├── profiler.md               one-click CPU profiler (⏱ profile button): hot functions + call paths, frame budget, draw-call counts

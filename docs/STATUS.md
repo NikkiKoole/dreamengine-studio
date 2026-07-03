@@ -1275,6 +1275,26 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     hold the top-left corner ~0.3s → overview; a big fat-finger hit-pad (a tiny tap chip was
     unhittable on-device), in racks only. Polished nav-bar via a `de_safe_top()` inset (a real
     reflow of the 240px-full racks) is the deferred, maker-driven redesign. Design + gotchas: [`design/share-panel.md`](design/share-panel.md) next-spike #5.
+    **IAP in the multi-cart app (Spike B) — BUILT + sim-tested (2026-07-03):** `apps/tinyjam/app.json`
+    `iap.products` (price/name/desc/`unlocks[]`) is the single source of truth; `build-app.js --ios`
+    GENERATES `Tinyjam.storekit` from it + threads product/price + an `APP_MASTERPASS` "unlock all"
+    into `app_roster.h`. The launcher shows a locked rack's price, taps buy it, owned racks open, and
+    an "unlock all — $5" row buys the master pass — cross-platform via WEAK `Store_*` stubs (free on
+    Mac/editor). Shelf now: acid $2.99 / session desk free / epiano $2.99 / unlock-all $5. Gotchas +
+    full record: [`design/ios-plan.md`](design/ios-plan.md) ("IAP in the multi-cart app").
+    **STILL TO TACKLE (the umbrella-app backlog, all deferred here):**
+    (1) **Device IAP testing** — the sim path is local-only (`SKTestSession`, sim-only); real device
+    testing needs App Store Connect **sandbox** testers (the pre-ship validation).
+    (2) **Multi-resolution racks** (next-spike #3) — carts must currently share the app's dims;
+    epiano/omnichord had to be bumped 200→240 to join. The real fix is per-cart RenderTexture / a
+    `de_safe_top()`-style safe area (share-panel.md next-spike #3, paths A/B/C).
+    (3) **Polished back-to-launcher** — the `de_safe_top()` nav-bar reflow (hold-to-home is the temp).
+    (4) **In-editor "export app" button** — apps live in `apps/`, not the carts panel → needs an Apps
+    picker (a UI rung on the `build-app.js --mac`/`--ios` CLI).
+    (5) **Before a real release:** verify `StoreKitTest` is fully stripped from device/release builds
+    (currently `[sdk=iphonesimulator*]`-only + `#if targetEnvironment(simulator)`), and the App Store
+    Connect product/price reconciliation (ADR-0026 store pipeline). Per-cart maps + save dirs also
+    still deferred (same pattern as sheets).
 
 ---
 

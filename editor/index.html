@@ -248,6 +248,15 @@
             <h3>Your apps</h3>
             <div id="apps-list"></div>
           </section>
+          <section id="trailer-lab" hidden>
+            <h3>🎞 Trailer <span class="apps-hint" id="tl-app"></span>
+              <button id="tl-close" title="close">✕</button></h3>
+            <div class="tl-libwrap"><span class="app-sec">clips</span><div id="tl-library"></div></div>
+            <div class="tl-tlwrap"><span class="app-sec">timeline — order · cut · ◇ transition</span><div id="tl-timeline"></div></div>
+            <div class="tl-actions"><button id="tl-build">▶ Build trailer</button>
+              <span class="tl-hint">non-destructive — edits the .reel, never the clips</span></div>
+            <video id="tl-preview" controls loop hidden></video>
+          </section>
         </div>
       </div>
 

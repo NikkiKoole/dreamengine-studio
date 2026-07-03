@@ -1512,6 +1512,67 @@ ipcMain.handle('studio:press-kit', async (_e, name) => {
   })
 })
 
+// ── trailer builder (docs/design/trailer-builder.md) ──────────
+// app-clips: the LIBRARY — each rack's committed clips (baked webm and/or a recipe) + the current
+// tools/reels/<name>.reel parsed into rows, so the builder opens pre-populated (never blank).
+ipcMain.handle('studio:app-clips', async (_e, name) => {
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad app name' }
+  const clipsFor = cart => {
+    const pub = path.join(ROOT, 'editor/public/clips', cart)
+    const baked = new Set(fs.existsSync(pub) ? fs.readdirSync(pub).filter(f => f.endsWith('.webm')).map(f => f.replace(/\.webm$/, '')) : [])
+    const recDir = path.join(ROOT, 'tools/clips', cart)
+    const recs = fs.existsSync(recDir) ? fs.readdirSync(recDir).filter(f => /\.(script|beats|rec)$/.test(f)).map(f => f.replace(/\.(script|beats|rec)$/, '')) : []
+    return [...new Set([...baked, ...recs])].sort().map(l => ({ label: l, clip: `${cart}/${l}`, baked: baked.has(l) }))
+  }
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
+    const carts = (m.carts || []).map(c => ({ cart: c, clips: clipsFor(c) }))
+    let rows = null
+    const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
+    if (fs.existsSync(reelPath)) {
+      rows = []
+      for (const line of fs.readFileSync(reelPath, 'utf8').split('\n')) {
+        const t = line.trim(); if (!t || t.startsWith('#')) continue
+        const [ref, trans] = t.split('|').map(s => s.trim())
+        let xtype = 'fade', xdur = 0.5
+        if (trans) { const p = trans.split(/\s+/); xtype = p[0] || 'fade'; xdur = parseFloat(p[1]) || 0.5 }
+        rows.push({ clip: ref, xtype, xdur })
+      }
+    }
+    return { ok: true, name: m.name || name, carts, rows }
+  } catch (e) { return { ok: false, error: String(e.message || e) } }
+})
+// build-reel: NON-DESTRUCTIVE — write the ordered rows to tools/reels/<name>.reel (a parameter
+// list, sources untouched), bake any referenced clip that isn't baked yet, then compose → the
+// baked reel the editor previews. rows: [{clip:"cart/label", xtype, xdur}] in order.
+ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
+  const wc = _e.sender
+  const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
+  const ROOT = path.join(__dirname, '../..')
+  if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad app name' }
+  rows = (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.clip === 'string' && /^[a-z0-9_-]+\/[a-z0-9_.-]+$/i.test(r.clip))
+  if (!rows.length) return { ok: false, error: 'add at least one clip' }
+  log(`\n── build trailer: ${name} (${rows.length} clip${rows.length > 1 ? 's' : ''}) ──\n`)
+  for (const r of rows) {                                            // bake any missing clip (never mutates sources)
+    const [cart, label] = r.clip.split('/')
+    if (fs.existsSync(path.join(ROOT, 'editor/public/clips', cart, `${label}.webm`))) continue
+    log(`baking ${r.clip}…\n`)
+    if (!await spawnP('node', [path.join(ROOT, 'tools/make-gif.js'), cart, '--recipe', label], ROOT, log))
+      return { ok: false, error: `bake failed: ${r.clip}` }
+  }
+  const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
+  let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`
+  reel += rows.map((r, i) => i === 0 ? r.clip : `${r.clip} | ${r.xtype || 'fade'} ${r.xdur || 0.5}`).join('\n') + '\n'
+  fs.mkdirSync(path.dirname(reelPath), { recursive: true })
+  fs.writeFileSync(reelPath, reel)
+  log(`wrote tools/reels/${name}.reel\n`)
+  if (rows.length < 2) return { ok: true, reel: `tools/reels/${name}.reel`, out: null, note: 'add a 2nd clip to compose a reel' }
+  if (!await spawnP('node', [path.join(ROOT, 'tools/compose-clips.js'), name], ROOT, log)) return { ok: false, error: 'compose failed' }
+  log(`✓ editor/public/reels/${name}.webm\n`)
+  return { ok: true, reel: `tools/reels/${name}.reel`, out: `reels/${name}.webm` }   // web path (Vite serves public/)
+})
+
 // ── publish to site ───────────────────────────────────────────
 // Builds the CURRENT editor cart (code + sprites + map + settings) straight to
 // site/<name>/, writes the C source back to tools/carts/<name>.c (repo and site

@@ -306,6 +306,26 @@ html, body {
 .kw-all:hover { background: var(--accent); color: var(--bg); }
 .kw-mini { background: var(--bg2); border: 1px solid var(--border); color: var(--fg-dim); }
 .kw-mini:hover { color: var(--accent); border-color: var(--accent); }
+/* trailer builder */
+#trailer-lab h3 { display: flex; align-items: center; gap: 8px; }
+#tl-close { margin-left: auto; font-size: 12px; padding: 1px 8px; cursor: pointer; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--fg-dim); }
+.tl-libwrap, .tl-tlwrap { margin: 8px 0; }
+#tl-library { margin-top: 4px; }
+#tl-timeline { display: flex; align-items: stretch; flex-wrap: wrap; gap: 0; margin-top: 6px; }
+.tl-block { display: flex; flex-direction: column; justify-content: space-between; min-width: 96px; padding: 6px 8px;
+  background: var(--bg2); border: 1px solid var(--accent); border-radius: 5px; }
+.tl-lbl { font-size: 11px; color: var(--fg); word-break: break-all; }
+.tl-btns { display: flex; gap: 2px; margin-top: 5px; }
+.tl-btns button { font-size: 10px; padding: 0 5px; cursor: pointer; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; color: var(--fg-dim); }
+.tl-btns button:hover { color: var(--accent); border-color: var(--accent); }
+.tl-join { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 4px; }
+.tl-join::before { content: "◇"; color: var(--fg-dim); font-size: 12px; }
+.tl-join select { font-size: 9px; max-width: 74px; }
+.tl-secs { width: 42px; font-size: 9px; }
+.tl-actions { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+#tl-build { font-size: 12px; padding: 4px 14px; cursor: pointer; background: var(--accent); color: var(--bg); border: none; border-radius: 4px; }
+.tl-hint { font-size: 10px; color: var(--fg-dim); font-style: italic; }
+#tl-preview { margin-top: 10px; max-width: 100%; max-height: 420px; border: 1px solid var(--border); border-radius: 6px; background: #000; }
 .app-card {
   border: 1px solid var(--border); border-radius: 6px;
   padding: 10px 12px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;

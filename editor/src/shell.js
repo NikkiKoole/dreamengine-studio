@@ -1454,6 +1454,69 @@ compRun?.addEventListener('click', async () => {
   await window.studio.asoCompose(f); stop(); compRun.disabled = false
 })
 
+// ── trailer builder (docs/design/trailer-builder.md) — the click-to-edit v1 (A) ──────────
+// A thin, NON-DESTRUCTIVE editor over tools/reels/<app>.reel: pick clips, order them, choose the
+// transition at each join, Build → bake+compose → preview. Sources are never touched.
+const TL_XFADES = ['fade', 'dissolve', 'wipeleft', 'wiperight', 'wipeup', 'wipedown',
+  'slideleft', 'slideright', 'circleopen', 'circleclose', 'pixelize', 'radial']
+let tlApp = null, tlLib = [], tlRows = []   // rows: [{clip, xtype, xdur}] — the timeline = the .reel
+async function openTrailer(app) {
+  const res = await window.studio?.appClips?.(app)
+  if (!res?.ok) { showToast(res?.error || 'trailer needs the desktop app  (npm start)', 3000); return }
+  tlApp = app; tlLib = res.carts || []
+  // start from the saved .reel, else a default: each rack's first clip in manifest order
+  tlRows = (res.rows && res.rows.length) ? res.rows.map(r => ({ ...r }))
+    : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5 }))
+  document.getElementById('tl-app').textContent = res.name || app
+  const prev = document.getElementById('tl-preview'); if (prev) { prev.hidden = true; prev.removeAttribute('src') }
+  document.getElementById('trailer-lab').hidden = false
+  tlRender()
+  document.getElementById('trailer-lab').scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+function tlRender() {
+  const lib = document.getElementById('tl-library')
+  lib.innerHTML = tlLib.map(c => c.clips.length
+    ? c.clips.map(cl => `<button class="kw-mini" data-tl-add="${escHtml(cl.clip)}">＋ ${escHtml(cl.clip)}${cl.baked ? '' : ' <span class="rs-dim">·bake</span>'}</button>`).join('')
+    : `<span class="rs-dim">${escHtml(c.cart)}: no clip</span>`).join(' ')
+  const tl = document.getElementById('tl-timeline')
+  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips from above</span>'; return }
+  tl.innerHTML = tlRows.map((r, i) => {
+    const join = i === 0 ? '' : `<span class="tl-join"><select data-tl-x="${i}">`
+      + TL_XFADES.map(x => `<option${x === r.xtype ? ' selected' : ''}>${x}</option>`).join('')
+      + `</select><input class="tl-secs" type="number" min="0.1" max="2" step="0.1" value="${r.xdur}" data-tl-d="${i}"></span>`
+    return `${join}<span class="tl-block"><span class="tl-lbl">${escHtml(r.clip)}</span>`
+      + `<span class="tl-btns"><button data-tl-mv="${i},-1" title="left">◀</button>`
+      + `<button data-tl-mv="${i},1" title="right">▶</button>`
+      + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
+  }).join('')
+}
+document.getElementById('tl-close')?.addEventListener('click', () => { document.getElementById('trailer-lab').hidden = true })
+document.getElementById('tl-timeline')?.addEventListener('click', e => {
+  const mv = e.target.closest('[data-tl-mv]'); const rm = e.target.closest('[data-tl-rm]')
+  if (mv) { const [i, d] = mv.dataset.tlMv.split(',').map(Number); const j = i + d
+    if (j >= 0 && j < tlRows.length) { [tlRows[i], tlRows[j]] = [tlRows[j], tlRows[i]]; tlRender() } }
+  else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlRender() }
+})
+document.getElementById('tl-timeline')?.addEventListener('change', e => {
+  const x = e.target.closest('[data-tl-x]'); const d = e.target.closest('[data-tl-d]')
+  if (x) tlRows[+x.dataset.tlX].xtype = x.value
+  if (d) tlRows[+d.dataset.tlD].xdur = parseFloat(d.value) || 0.5
+})
+document.getElementById('tl-library')?.addEventListener('click', e => {
+  const add = e.target.closest('[data-tl-add]'); if (!add) return
+  tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5 }); tlRender()
+})
+document.getElementById('tl-build')?.addEventListener('click', async () => {
+  if (!tlApp || !tlRows.length) { showToast('add at least one clip', 2500); return }
+  const btn = document.getElementById('tl-build'); const stop = busyDots(btn, 'building (bakes + composes)', '▶ Build trailer'); btn.disabled = true
+  const res = await window.studio.buildReel(tlApp, tlRows)
+  stop(); btn.disabled = false
+  if (!res?.ok) { showToast(res?.error || 'build failed', 3500); return }
+  const prev = document.getElementById('tl-preview')
+  if (res.out && prev) { prev.src = `/${res.out}?t=${Date.now()}`; prev.hidden = false; prev.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+  else showToast(res.note || 'built', 3000)
+})
+
 const appListings = {}   // dir → { listing, iapProducts } so the "load into all tools" button can fill the lab
 async function renderAppsList() {
   const el = document.getElementById('apps-list')
@@ -1497,6 +1560,7 @@ async function renderAppsList() {
         <span class="app-sec">site</span>
         <button data-act="shots">📸 screenshots</button>
         <button data-act="press">📄 press kit</button>
+        <button data-act="trailer">🎞 trailer</button>
         <span class="app-sec">sell</span>
         <button data-act="brief">📝 seo worksheet</button>
         <button data-act="research">🔎 research keywords</button>
@@ -1592,6 +1656,8 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
       sugRun?.click()
       return
     }
+    // open the trailer builder (its own Apps-tab section, not the runtime log)
+    if (act === 'trailer') { await openTrailer(app); return }
     // score the committed listing (--deep hits the network) → scorecard + gotchas in the panel.
     if (act === 'score') {
       const stop = busyDots(btn, 'scoring (fetches difficulty)', label); btn.disabled = true

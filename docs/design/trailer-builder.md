@@ -1,7 +1,13 @@
 # The trailer builder — a humble CapCut over the `.reel`
 
-STATUS: BUILDING (2026-07-03) — the **backbone shipped** (`tools/build-app-reel.js`, proven on
-Tiny Jam: a 3-rack reel); the **editor UI is designed here, not yet built**. The video-authoring
+STATUS: BUILDING (2026-07-03) — **backbone + editor UI v1 (A) SHIPPED.** Backbone:
+`tools/build-app-reel.js` (proven on Tiny Jam, 3-rack reel). UI: the Apps-card **🎞 trailer** button
+opens a **Trailer section** (Apps tab) — a click-to-edit timeline that loads from the `.reel`, a
+clip **library** per rack, **reorder** (◀▶) + **remove**, a **transition dropdown + seconds at each
+join**, and **Build → bake+compose → inline `<video>` preview** (`studio:app-clips` /
+`studio:build-reel` in main.cjs). Non-destructive: it only writes the `.reel` + bakes derived clips.
+**Next slice: per-clip trim + speed** (a `compose-clips` `setpts`/`trim` bump + `.reel` syntax +
+block fields). The video-authoring
 surface for a multi-cart IAP app: pick clips, order them, set cuts / trim / speed, preview. The
 lever-#2 tool of [`demand-generation.md`](demand-generation.md), built on
 [`transitions.md`](transitions.md)'s Layer B (`compose-clips.js`) and the
@@ -84,10 +90,15 @@ builder gets room below. (A true pop-out modal is nicer but a separate build —
 
 ## v1 scope
 
-- **v1 (A):** the horizontal timeline (blocks sized by duration), **transitions as clickable
-  joins** (type + seconds), per-clip **trim + speed** as fields, Build → bake → inline preview.
-  CapCut's *layout*, none of the fiddly drag physics. Speed is in v1 (CapCut makes it central + it
-  was a maker ask) — needs a `setpts`/`trim` add to `compose-clips` + a `.reel` field.
+- **v1 (A) — SHIPPED:** horizontal clip blocks, ◀▶ reorder + ✕ remove, a clip **library** per rack
+  (with "·bake" on recipe-only clips), **transitions as clickable joins** (type dropdown + seconds),
+  Build → bake+compose → inline `<video>` preview. Loads from / writes to the `.reel`. CapCut's
+  *layout*, none of the fiddly drag physics.
+- **next slice — trim + speed:** per-clip **duration (trim)** + **speed** fields. Needs a
+  `compose-clips` bump (ffmpeg `trim` + `setpts`) and a `.reel` line-syntax extension (e.g.
+  `acidrack/01-demo | fade 0.5 | trim 0 7 | speed 1.25`). Speed was a maker ask + CapCut makes it
+  central, so it's the immediate follow-on. (Blocks are uniform width for now; duration-proportional
+  needs ffprobe per clip — a small later polish.)
 - **Staged (B):** drag-to-trim / drag-to-reorder (the tactile feel), per-clip thumbnails, speed
   **curves**, the **9:16 social-export** toggle, and the **IAP-tease ordering** (free rack first →
   "unlock 3 more" — the montage becomes a funnel, [`demand-generation.md`](demand-generation.md) #4).

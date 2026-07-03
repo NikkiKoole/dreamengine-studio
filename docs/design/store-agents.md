@@ -13,7 +13,7 @@ Sits under Channel B of [`sharing-channels.md`](sharing-channels.md) and the sto
 **Shipped (2026-07-03):** the free ASO/press toolkit — `aso-research` / `aso-compose` /
 `aso-lint`, `store-shots` / `store-contact`, `press-kit` — plus the editor **share panel**
 (topbar ⇪ Share + the **Apps** tab: app-less research lab, apps list, per-app 📸 screenshots →
-📄 press kit, 🍎/📱 builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / ✅ lint / 🪞 check). The app manifest gained a `listing` block
+📄 press kit, 🍎/📱 builds, 📝 worksheet / 🔎 research / 💡 suggest / 🧩 compose / 🔬 analyze / ✅ lint / 🪞 check). The app manifest gained a `listing` block
 (title/subtitle/keywords). Proven on Tiny Jam.
 
 **Orient:** `node tools/topic-brief.js "app store" "aso" "share panel"`.

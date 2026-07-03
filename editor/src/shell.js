@@ -1436,6 +1436,7 @@ async function renderAppsList() {
         <button data-act="research">🔎 research keywords</button>
         <button data-act="suggest">💡 suggest keywords</button>
         <button data-act="compose">🧩 compose keywords</button>
+        <button data-act="analyze">🔬 analyze listing</button>
         <button data-act="lint">✅ lint listing</button>
         <button data-act="coverage">🪞 check copy</button>
       </div>`
@@ -1453,14 +1454,17 @@ document.getElementById('apps-list')?.addEventListener('click', async e => {
     const app = btn.closest('.app-card')?.dataset.app
     if (!app) return
     const act = btn.dataset.act, label = btn.textContent
-    // research is discovery, not a build: seed the research box from the app's carts
-    // (de:meta teaches/titles) and run the SAME research path — results land in the
-    // research lab panel above, editable + re-runnable. No runtime-log spam.
-    if (act === 'research') {
-      const stop = busyDots(btn, 'seeding', label); btn.disabled = true
-      const res = await window.studio.appSeeds(app)
+    // research (de:meta category terms — "explore my landscape") and analyze (the app's OWN
+    // listing terms — "grade my chosen keywords vs the competition") both seed the research box
+    // and run the SAME research path; results land in the research lab panel, editable + re-runnable.
+    if (act === 'research' || act === 'analyze') {
+      const stop = busyDots(btn, act === 'analyze' ? 'reading listing' : 'seeding', label); btn.disabled = true
+      const res = await window.studio.appSeeds(app, act === 'analyze' ? 'listing' : 'meta')
       stop(); btn.disabled = false
-      if (!res?.ok || !res.terms?.length) { showToast(res?.error || 'no seed terms — add teaches/title to the carts', 3000); return }
+      if (!res?.ok || !res.terms?.length) {
+        showToast(res?.error || (act === 'analyze' ? 'no listing to analyze' : 'no seed terms — add teaches/title to the carts'), 3000)
+        return
+      }
       const termsEl = document.getElementById('aso-terms')
       if (termsEl) { termsEl.value = res.terms.join(', '); termsEl.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
       asoRun?.click()

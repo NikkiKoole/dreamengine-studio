@@ -1271,30 +1271,44 @@ ipcMain.handle('studio:list-apps', async () => {
   } catch (e) { return { ok: false, apps: [], output: String(e.message || e) } }
 })
 
-// Derive research SEED TERMS for an app from its carts' de:meta (via the generated
-// index.json — the derived view of every cart's metadata). teaches[] tags are the honest
-// category terms (hyphens → spaces: "drum-synthesis" → "drum synthesis"); cart titles are
-// the more brand-y fallback. Returns a small, editable seed list the Apps view drops into
-// the research box — so "research this app" needs zero typing but stays maker-editable.
-ipcMain.handle('studio:app-seeds', async (_e, name) => {
+// Derive research SEED TERMS for an app. Two sources:
+//   'meta' (default) — the carts' de:meta via the generated index.json: teaches[] tags are the
+//     honest CATEGORY terms (hyphens → spaces: "drum-synthesis" → "drum synthesis"), titles the
+//     brand-y fallback. This is "explore the landscape my app lives in."
+//   'listing' — the terms you ACTUALLY CHOSE: the manifest's keyword-field entries + notable
+//     title/subtitle words. This is "grade my listing against the competition" (the 🔬 analyze
+//     button) — research runs on your own bets, so you see which are crowded and who ranks.
+// Returns a small, editable list the Apps view drops into the research box (stays maker-editable).
+ipcMain.handle('studio:app-seeds', async (_e, name, source = 'meta') => {
   const ROOT = path.join(__dirname, '../..')
+  const dedupCap = (arr, n) => {
+    const seen = new Set(), out = []
+    for (const t of arr) { const k = t.toLowerCase(); if (t && !seen.has(k)) { seen.add(k); out.push(t) } }
+    return out.slice(0, n)
+  }
   try {
     const m = JSON.parse(fs.readFileSync(path.join(ROOT, 'apps', name, 'app.json'), 'utf8'))
-    const carts = m.carts || []
+    const appInfo = { name: m.name || name, title: (m.listing || {}).title || m.name || name }
+    if (source === 'listing') {
+      const L = m.listing || {}
+      const words = s => String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3)
+      // keyword-field entries first (your deliberate bets), then subtitle words, then title words
+      const kw = String(L.keywords || '').split(',').map(s => s.trim()).filter(Boolean)
+      const terms = dedupCap([...kw, ...words(L.subtitle), ...words(L.title)], 12)
+      if (!terms.length) return { ok: false, error: 'no listing yet — add a "listing" block to app.json', terms: [] }
+      return { ok: true, terms, app: appInfo }
+    }
     const idx = JSON.parse(fs.readFileSync(path.join(ROOT, 'editor/public/carts/index.json'), 'utf8'))
     const byFile = new Map(idx.map(c => [c.file, c]))
     const norm = s => String(s || '').toLowerCase().replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
     const teaches = [], titles = []
-    for (const cart of carts) {
+    for (const cart of (m.carts || [])) {
       const e = byFile.get(`${cart}.cart.png`)
       if (!e) continue
       for (const t of (e.teaches || [])) { const n = norm(t); if (n) teaches.push(n) }
       const ti = norm(e.title); if (ti) titles.push(ti)
     }
-    // teaches (category terms) first, then titles; dedup, cap so research stays fast/focused
-    const seen = new Set(), terms = []
-    for (const t of [...teaches, ...titles]) { if (!seen.has(t)) { seen.add(t); terms.push(t) } }
-    return { ok: true, terms: terms.slice(0, 8), app: { name: m.name || name, title: (m.listing || {}).title || m.name || name } }
+    return { ok: true, terms: dedupCap([...teaches, ...titles], 8), app: appInfo }
   } catch (e) { return { ok: false, error: String(e.message || e), terms: [] } }
 })
 

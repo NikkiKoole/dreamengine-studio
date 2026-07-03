@@ -63,8 +63,18 @@ native cart frame (`play.js --dump`) → App Store screenshots at exact device s
 > reads *premium* (the canvas as a framed artifact), and it sidesteps responsive layout
 > entirely. Two useful facts that shrink the problem: Apple only needs **one iPhone 6.9″ set**
 > (auto-scales to smaller iPhones) + **iPad 13″** if you ship iPad — not a ratio matrix.
-> Still to add (v0.2): the contact-sheet + frame-diff dedup, palette-derived backgrounds,
-> multi-line/bottom captions, optional device bezels, and the agent hero-pick.
+> Still to add (v0.2): frame-diff dedup (mpdecimate/fingerprint), palette-derived backgrounds,
+> multi-line/bottom captions, optional device bezels.
+
+**v0.1 SHIPPED (2026-07-03): `tools/store-contact.js`** — the hero-picker's deterministic half.
+Turns a `play.js --dump` clip into a labelled contact sheet (evenly-sampled numbered tiles +
+a printed tile→frame map), so the **agent leg works**: I read the sheet, pick the frames that
+sell it to a stranger, and the map points each pick straight at a `store-shots.js --in`. The
+full pipeline is now end-to-end: `dump → store-contact (sheet) → agent picks → store-shots
+(render)`. Proven on groovebox. **Hero-director lesson from the first run:** the picker is only
+as good as the clip — steady playback makes every tile look alike; a committed `tools/clips/`
+track that *exercises* the cart (flip a page, sweep a knob, change the chord) yields genuinely
+different, more sellable candidates. (v0.2: fingerprint dedup so near-identical tiles collapse.)
 
 > **Compliance — composed screenshots are allowed; preview *videos* are stricter.** A common
 > misconception is that the App Store bans "composed" (caption + background) screenshots. It

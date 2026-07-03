@@ -161,6 +161,10 @@ tools/     repo-root CLI tools (plain `node`, CommonJS). One line each — read 
                              centered on a bg + caption (Comic Mono Bold, the editor font) in the breathing room; --font
                              swaps it (Bungee etc). Zero engine work. ffmpeg-based,
                              no node deps. Feed it a play.js --dump frame. Design: docs/design/store-agents.md §1
+             store-contact.js  build a labelled CONTACT SHEET from a play.js --dump dir (evenly-sampled, numbered
+                             tiles + a tile→frame map) so an agent eyeballs a whole clip and PICKS the hero shots to
+                             feed store-shots.js — the deterministic half of §1's hero-frame director (agent chooses).
+                             ffmpeg-based, no node deps. Design: docs/design/store-agents.md §1
              wav-analyze.js / tune-check.js / dc-check.js / level-check.js / fx-check.js /
                              soak-check.js / web-audio-check.js   audio gates (see "Key things to know")
              wav-correlate.js / wav-envelope.js / wav-modrate.js / harmonic-spec.js   WAV A/B

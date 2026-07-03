@@ -1312,17 +1312,50 @@ shareMenu?.addEventListener('click', e => { if (e.target.closest('button')) clos
 const asoRun = document.getElementById('aso-run')
 const asoOut = document.getElementById('aso-out')
 window.studio?.onAsoLog?.(s => { if (asoOut) asoOut.textContent += stripAnsi(s) })   // stripAnsi() defined below (hoisted)
+const asoResults = document.getElementById('aso-results')
+const fmtRatings = x => x >= 1e6 ? (x / 1e6).toFixed(1) + 'M' : x >= 1e3 ? (x / 1e3).toFixed(1) + 'k' : String(x)
+function renderResearch(data) {   // escHtml() is defined elsewhere in shell.js (hoisted / module scope)
+  if (!asoResults) return
+  let h = ''
+  for (const t of (data.terms || [])) {
+    if (t.error) { h += `<div class="rs-term"><b>"${escHtml(t.term)}"</b> — ${escHtml(t.error)}</div>`; continue }
+    h += `<div class="rs-term"><div class="rs-head"><b>"${escHtml(t.term)}"</b> `
+      + `<span class="rs-badge rs-${escHtml(t.band).toLowerCase()}">${escHtml(t.band)} ${t.score}</span> `
+      + `<span class="rs-dim">· ${t.n} apps · med ${fmtRatings(t.med)}${t.myRank ? ' · YOU #' + t.myRank : ''}</span></div>`
+    for (const a of (t.top || [])) {
+      const name = escHtml(a.name || '')
+      const nm = a.url ? `<a href="#" data-url="${escHtml(a.url)}">${name}</a>` : name
+      h += `<div class="rs-app"><span class="rs-r">${fmtRatings(a.ratings || 0)}</span> `
+        + `<span class="rs-dim">★${(a.stars || 0).toFixed(1)}</span> ${nm} <span class="rs-g">${escHtml(a.genre || '')}</span></div>`
+    }
+    h += `</div>`
+  }
+  if (data.mined && data.mined.length) {
+    h += `<div class="rs-mined"><span class="rs-dim">mined (click to research):</span> `
+      + data.mined.map(([w, c]) => `<a href="#" class="rs-chip" data-term="${escHtml(w)}">${escHtml(w)}·${c}</a>`).join(' ')
+      + `</div>`
+  }
+  asoResults.innerHTML = h
+}
+asoResults?.addEventListener('click', e => {
+  const link = e.target.closest('a[data-url]')
+  if (link) { e.preventDefault(); window.studio?.openExternal?.(link.dataset.url); return }
+  const chip = e.target.closest('a[data-term]')
+  if (chip) { e.preventDefault(); document.getElementById('aso-terms').value = chip.dataset.term; asoRun?.click() }
+})
 asoRun?.addEventListener('click', async () => {
   if (!window.studio?.asoResearch) { showToast('research requires the desktop app  (npm start)', 3000); return }
   const termsEl = document.getElementById('aso-terms')
   const terms = termsEl.value
   const cc = document.getElementById('aso-cc').value || 'us'
   if (!terms.trim()) { termsEl.focus(); return }
-  asoOut.textContent = ''
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
   const stop = busyDots(asoRun, 'researching', 'research')
   asoRun.disabled = true
-  await window.studio.asoResearch(terms, cc)
+  const res = await window.studio.asoResearch(terms, cc)
   stop(); asoRun.disabled = false
+  if (res?.ok && res.data) renderResearch(res.data)
+  else if (asoResults) asoResults.innerHTML = `<div class="rs-err">${escHtml((res && res.error) || 'research failed')}</div>`
 })
 document.getElementById('aso-terms')?.addEventListener('keydown', e => { if (e.key === 'Enter') asoRun?.click() })
 
@@ -1332,7 +1365,7 @@ lintRun?.addEventListener('click', async () => {
   if (!window.studio?.asoLint) { showToast('requires the desktop app  (npm start)', 3000); return }
   const f = { title: asoVal('lint-title'), subtitle: asoVal('lint-sub'), keywords: asoVal('lint-kw') }
   if (!f.title && !f.subtitle && !f.keywords) return
-  asoOut.textContent = ''
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
   const stop = busyDots(lintRun, 'linting', 'lint'); lintRun.disabled = true
   await window.studio.asoLint(f); stop(); lintRun.disabled = false
 })
@@ -1341,7 +1374,7 @@ compRun?.addEventListener('click', async () => {
   if (!window.studio?.asoCompose) { showToast('requires the desktop app  (npm start)', 3000); return }
   const f = { title: asoVal('comp-title'), subtitle: asoVal('comp-sub'), candidates: asoVal('comp-cands') }
   if (!f.candidates.trim()) { document.getElementById('comp-cands')?.focus(); return }
-  asoOut.textContent = ''
+  asoOut.textContent = ''; if (asoResults) asoResults.innerHTML = ''
   const stop = busyDots(compRun, 'composing', 'compose'); compRun.disabled = true
   await window.studio.asoCompose(f); stop(); compRun.disabled = false
 })

@@ -131,6 +131,7 @@ function myRank(results) {
       top: results.slice(0, 5).map(a => ({
         name: a.trackName, ratings: a.userRatingCount || 0,
         stars: a.averageUserRating || 0, genre: a.primaryGenreName,
+        url: a.trackViewUrl,   // the App Store page — used by the editor to link the name
       })),
     })
     await sleep(400)   // be polite to the API

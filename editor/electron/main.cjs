@@ -1285,9 +1285,22 @@ function runAsoTool(_event, script, args) {
 const flag = (k, v) => (v && String(v).trim() ? ['--' + k, String(v)] : [])
 ipcMain.handle('studio:aso-research', async (_e, terms, country) => {
   const list = String(terms || '').split(',').map(s => s.trim()).filter(Boolean)
-  if (!list.length) return { ok: false, output: 'type at least one search term' }
+  if (!list.length) return { ok: false, error: 'type at least one search term' }
   const cc = /^[a-z]{2}$/i.test(country || '') ? String(country).toLowerCase() : 'us'
-  return runAsoTool(_e, 'aso-research.js', ['--country', cc, ...list])
+  const ROOT = path.join(__dirname, '../..')
+  // --json → collect + parse, so the editor can render clickable results (App Store links)
+  return new Promise(resolve => {
+    let out = '', err = ''
+    const proc = spawn('node', [path.join(ROOT, 'tools/aso-research.js'), '--json', '--country', cc, ...list], { cwd: ROOT })
+    proc.stdout.on('data', c => out += c.toString())
+    proc.stderr.on('data', c => err += c.toString())
+    proc.on('exit', code => {
+      if (code !== 0) return resolve({ ok: false, error: err.trim() || 'research failed' })
+      try { resolve({ ok: true, data: JSON.parse(out) }) }
+      catch { resolve({ ok: false, error: 'could not parse results' }) }
+    })
+    proc.on('error', e => resolve({ ok: false, error: String(e.message) }))
+  })
 })
 ipcMain.handle('studio:aso-lint', async (_e, f = {}) =>
   runAsoTool(_e, 'aso-lint.js', [...flag('title', f.title), ...flag('subtitle', f.subtitle),

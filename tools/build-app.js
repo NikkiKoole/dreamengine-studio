@@ -5,6 +5,10 @@
 //   node tools/build-app.js tinyjam            # apps/tinyjam/app.json → build/tinyjam
 //   node tools/build-app.js apps/tinyjam       # same
 //   node tools/build-app.js tinyjam --run      # build then launch it
+//   node tools/build-app.js tinyjam --mac      # build then wrap → build/<Name>.app
+//                                              #   (rung 4: mac-app.sh signs+notarizes+staples;
+//                                              #    name+bundleId come from the manifest. Add
+//                                              #    --no-notarize for a quick local-only .app.)
 //
 // Manifest (apps/<name>/app.json — the committed home per share-panel.md open-q #1 +
 // ADR-0026's metadata-next-to-manifest layout):
@@ -50,9 +54,11 @@ const ROOT = path.join(__dirname, '..')
 // ── args ─────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
 const run = args.includes('--run')
+const mac = args.includes('--mac')            // rung 4: wrap the binary into a signed+notarized .app
+const noNotarize = args.includes('--no-notarize')  // local .app test build (skips notarize+staple)
 const target = args.find(a => !a.startsWith('--'))
 if (!target) {
-  console.error('usage: node tools/build-app.js <app-name | apps/<name>[/app.json]> [--run]')
+  console.error('usage: node tools/build-app.js <app-name | apps/<name>[/app.json]> [--run] [--mac [--no-notarize]]')
   process.exit(1)
 }
 
@@ -305,4 +311,21 @@ if (run) {
   const { spawn } = require('child_process')
   spawn(out, [], { cwd: path.join(ROOT, 'build'), stdio: 'inherit', detached: true }).unref()
   console.log(`▶ launched build/${appId}`)
+}
+
+// ── mac .app (rung 4) ─────────────────────────────────────────────────────────
+// Hand the freshly-linked binary to mac-app.sh with name+bundleId straight from the
+// manifest — so "which app?" is answered once, by the manifest name, all the way through.
+// (Per-app icon stays parked: mac-app.sh falls back to the shared dreamengine icon.)
+if (mac) {
+  const macArgs = [out, '--name', app.name, '--out', path.join(ROOT, 'build')]
+  if (app.bundleId) macArgs.push('--id', app.bundleId)
+  if (noNotarize)   macArgs.push('--no-notarize')
+  console.log(`\n── wrapping build/${appId} → ${app.name}.app${noNotarize ? ' (no notarize)' : ''} ──`)
+  try {
+    execFileSync(path.join(__dirname, 'mac-app.sh'), macArgs, { stdio: 'inherit' })
+  } catch (e) {
+    console.error(`✗ mac-app.sh failed (binary is fine at build/${appId})`)
+    process.exit(1)
+  }
 }

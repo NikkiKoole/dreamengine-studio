@@ -96,7 +96,8 @@ The wish: every sharing action a button, not a CLI incantation. Where that stand
 
 The natural shape is **one "share" panel** in the editor gathering these (the existing
 buttons + "🎬 make clip" over the cart's committed recipes + later itch/batch), rather
-than more loose toolbar buttons. Not designed yet — this table is the backlog for it.
+than more loose toolbar buttons. Now being planned — [`share-panel.md`](share-panel.md)
+(incl. the **app manifest**: the multi-cart unit Tinyjam ships as).
 
 ## Open decisions (the ones only the maker can make)
 

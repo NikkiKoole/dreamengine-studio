@@ -404,8 +404,19 @@ clock — re-run before a launch pass. It carries a `de:driftable` marker
 back door) now scan `apps/*/seo-brief.md` and flag when the seeds/manifest move, though the
 live-search drift is invisible to any file check (hence the standing "re-run" rule).
 
-The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror).** No step
-generates prose. Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.
+- **`tools/aso-score.js` — the scoreboard (the tweak loop).** Scores a listing
+  (title/subtitle/keywords) on **budget · hygiene · reach** and **A/Bs a tweak against the
+  committed listing with deltas** — local + instant, so you tweak → score → tweak in the terminal.
+  **CLI-only by deliberate design (maker's call, 2026-07-03): no editor button.** A button fires
+  once and shows a table; the *value* is the iteration, which lives better in the console **with the
+  agent** — I read the scorecard, propose a tweak, we re-score together. Budget = are you using the
+  char space; hygiene = the `aso-lint` waste rules as penalties; reach = coverage of the worksheet's
+  demand words. It prints the evidence (missed words, waste items), never a magic grade; **relevance
+  and does-it-read-human stay the agent's + maker's call**, not the script's. (Known limit: reach's
+  denominator includes any seed-noise in the brief — read the missed list, don't chase the %.)
+
+The loop: **`aso-brief` (palette) → you write, in your voice → `aso-coverage` (mirror)**, with
+**`aso-score` the terminal scoreboard** you + the agent iterate a listing on. No step generates prose. Editor: per-app **📝 seo worksheet** + **🪞 check copy** buttons on the Apps card.
 Open follow-on (was "feed phrases into press-kit"): the phrases now reach the press page *through
 the human*, via the worksheet — the honest version of that idea.
 

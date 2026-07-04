@@ -19,7 +19,7 @@ tools/handoff.js` lists the active lanes + age (and it's the first thing `orient
 front door); `node tools/handoff.js --check` flags a lane >2wk old or with a broken link (surfaced
 by `cart-status.js` — the back door). So a forgotten stale lane *surfaces* instead of rotting.
 
-_Last updated: 2026-07-03 (two lanes: device-adaptive-layout Phase 1 DONE → Phase 2 · store/ASO + app-trailer toolkit)_
+_Last updated: 2026-07-04 (two lanes: device-adaptive-layout Phase 1 + growable framebuffer → Phase 2 · store/ASO + app-trailer toolkit)_
 
 ---
 
@@ -34,16 +34,17 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > iPad. **Phase 0 done** (model proven in cart-land — `respond`/`rackfit`/`acidfit`/
 > `otafit`; `runtime/lay.h` **shipped**) and **Phase 1 (a+b+c) DONE (2026-07-03)** — the
 > engine reflows live on desktop: `de_sw`/`de_sh` runtime globals, a per-cart
-> `-DDE_RESIZABLE` opt-in (`de_reflow`), the SW rasterizer rendering into a bottom-left
-> sub-region of the max-size buffer (stride stays `SCREEN_W`, flip → `de_sh-1`), the cart
-> API `screen_w()`/`screen_h()`, and `respond.c` flipped + verified reflowing (button bar
-> row→column at 140×260 vs 480×320). Byte-identical at `de==max` (SHA-verified on `drawall`,
-> all 465 carts compile). **Next agent: resume at Phase 2 (iOS physical sizing + rotation)**
-> — pick-up note at the top of
-> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Cheap Phase-1
-> follow-on also open: wire the editor ▶-run to pass `-DDE_RESIZABLE` from a cart setting
-> (today only the CLI does, via `DE_DEFINES=DE_RESIZABLE`). Hot file this touched:
-> `runtime/studio.c` (SW rasterizer). Ledger: [`STATUS.md`](STATUS.md) open item #2 (BUILDING).
+> `-DDE_RESIZABLE` opt-in (`de_reflow`), the cart API `screen_w()`/`screen_h()`, and `respond.c`
+> flipped + verified reflowing. **Plus a GROWABLE framebuffer (B, 2026-07-04):** `sw_cbuf` + GPU
+> `canvas`/`canvas_snap`/smooth are heap + grow-only (`de_ensure_fb`/`de_grow_gpu`/`de_set_canvas`,
+> stride = runtime `fb_w`, cap `DE_MAX_DIM` 4096) — a resizable cart fills **any** window; the earlier
+> side-bands (enlarge) + top-pinned drift (narrow) were the old fixed-max ceiling, now gone. **Editor
+> ▶-run** passes `-DDE_RESIZABLE` from `de:meta "resizable": true`; **`play.js`** does too + a
+> **`--resize "WxH,…"` sweep** (scripted resize→look filmstrip). Byte-identical for fixed carts
+> (SHA-verified on `drawall`, all 465 compile). **Next agent: resume at Phase 2 (iOS physical sizing +
+> rotation)** — the growable fb is the desktop half of that; pick-up note atop
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Hot file: `runtime/studio.c`
+> (SW rasterizer + fb alloc). Ledger: [`STATUS.md`](STATUS.md) open item #2 (BUILDING).
 
 > **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`

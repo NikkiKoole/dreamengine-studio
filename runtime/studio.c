@@ -230,8 +230,11 @@ static int             loc_scale_gamma   = -1;
 // then scale it to the canvas in one blit (sharp-bilinear) — so a fractional camera
 // zoom no longer re-rasterizes thin world lines every frame (no crawl). The offscreen
 // is 2× the canvas so any zoom >= 0.5 has coverage. Toggle with one call; default off.
-#define SMOOTH_W (SCREEN_W * 2)
-#define SMOOTH_H (SCREEN_H * 2)
+// the smooth-zoom supersample offscreen is 2× the framebuffer. Keyed off the runtime fb_w/fb_h so it
+// tracks a resizable cart's grown canvas (== SCREEN_W/H*2 for a fixed cart → unchanged). Expanded at
+// use sites (all after fb_w's declaration); smooth_rt is reallocated to match in de_grow_gpu.
+#define SMOOTH_W (fb_w * 2)
+#define SMOOTH_H (fb_h * 2)
 static RenderTexture2D  smooth_rt;
 static bool            smooth_on        = false;   // smooth_zoom() enabled?
 static bool            smooth_rt_ok     = false;   // offscreen allocated?
@@ -390,6 +393,13 @@ static void de_grow_gpu(void) {
     UnloadRenderTexture(canvas_snap);
     canvas_snap = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
+    if (smooth_rt_ok &&   // grow the smooth-zoom supersample offscreen too (only if a cart allocated it)
+        (smooth_rt.texture.width < fb_w * 2 || smooth_rt.texture.height < fb_h * 2)) {
+        UnloadRenderTexture(smooth_rt);
+        smooth_rt = LoadRenderTexture(SMOOTH_W, SMOOTH_H);
+        SetTextureFilter(smooth_rt.texture, TEXTURE_FILTER_BILINEAR);
+        smooth_rt_ok = (smooth_rt.id != 0);
+    }
 }
 #endif
 static inline uint32_t sw_pack(DeColor c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }

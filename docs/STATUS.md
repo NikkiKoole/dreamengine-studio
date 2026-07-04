@@ -1313,10 +1313,16 @@ value-vs-Perlin caveat in `studioDocs.js`, so the next author doesn't conclude "
     • **`runtime/lay.h` SHIPPED** — the immediate-mode layout vocabulary (`split/at/cell/grid/wrap/
       aspect/fluid/pad`), a cart-land library header usable by any cart today (registered in the
       cart-authoring library-headers table + `checks-and-oracles.md`).
-    • **Phase 1a DONE (byte-identical)** — `studio.c` has runtime `de_sw`/`de_sh` globals; all
-      standalone render-extent sites read them (`drawall` pixel-diff = 0). **Resume at Phase 1b**
-      (the `resizable` opt-in + the SW-rasterizer/sub-region-layout conversion). Buffer allocs/stride
-      stay compile-time max by design.
+    • **Phase 1 DONE** — runtime `de_sw`/`de_sh`, per-cart `-DDE_RESIZABLE` opt-in (`de_reflow`), cart
+      API `screen_w()`/`screen_h()`, editor ▶-run wiring (`de:meta "resizable"`) + `play.js --resize`
+      sweep / `--show-size` overlay. Byte-identical for fixed carts.
+    • **Growable framebuffer DONE (2026-07-04)** — the fb reallocs to the active size (`de_ensure_fb`/
+      `de_set_canvas`, GPU + SW + smooth), so a resizable cart fills ANY size (not capped at compile max).
+    • **Phase 2 DONE (2026-07-04)** — iOS: `de_resize`/`de_is_resizable`/`de_set_safe_area` seam +
+      `CanvasView` reflows to the device; a resizable cart FILLS iPhone SE / 15 / iPad Pro 12.9, dodges
+      the notch (`safe_rect()`), and reflows on rotate — all verified on the sim. `RESIZABLE=1 ./build.sh`.
+    • **Resume at Phase 3** — per-rack density arrangements (the media-query-like adaptation: more
+      controls on iPad, collapsed/tabbed on iPhone per `acidfit`'s disclosure model). Engine foundation done.
     (Supersedes the per-cart-RenderTexture / `de_safe_top()` sketch in share-panel.md #3 paths A/B/C.)
     (3) **Polished back-to-launcher** — the `de_safe_top()` nav-bar reflow (hold-to-home is the temp).
     (4) ~~**In-editor "export app" button**~~ — **DONE (2026-07-03).** The **Apps view** (`shell.js`

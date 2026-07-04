@@ -1,8 +1,8 @@
 # API usage audit — which functions do the carts actually use?
 
-<!-- de:driftable cmd="node tools/api-usage.js" as-of="2026-07-02" inputs="runtime/studio.h,tools/carts" -->
+<!-- de:driftable cmd="node tools/api-usage.js" as-of="2026-07-04" inputs="runtime/studio.h,tools/carts" -->
 
-*Snapshot: 2026-07-02 — 318 `studio.h` functions × 453 carts (the 2026-06-04 audit saw
+*Snapshot: 2026-07-04 — 323 `studio.h` functions × 466 carts (the 2026-06-04 audit saw
 182 × 233; the repo nearly doubled in a month). Numbers go stale; the method doesn't.
 Re-run anytime:*
 
@@ -16,13 +16,14 @@ textual, but reliable here because cart code shares one namespace with the API.
 It also cross-checks the "four places" rule (`studio.h` ↔ `studioDocs.js` ↔
 `shell.js` help-tab keys) and reports gaps.
 
-## Never used in any cart (3 of 318)
+## Never used in any cart (4 of 323)
 
 | function | reading |
 |---|---|
 | `tapr` | tap-release edge — `tap` (6 carts) and `touch_ended_x/y` (2) cover the need so far |
 | `watch_visible` | host/debug convenience, still unexercised |
 | `paused` | host/debug convenience, still unexercised (its doc gap from the last audit was fixed; the fn itself still has no consumer) |
+| `de_switch_cart` | not cart-facing — the multi-cart app dispatcher (`build-app.js` shim) calls it, not cart code, so 0 hits in `tools/carts/*.c` is correct (like a platform seam). The device-adaptive `screen_w`/`screen_h`/`safe_rect` added the same window are NOT here — `respond` uses them. |
 
 **The 2026-06-04 unused list is otherwise resolved** — the two camps it identified both
 closed the way the audit predicted:

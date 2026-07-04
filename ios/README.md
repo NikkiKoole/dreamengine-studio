@@ -102,6 +102,10 @@ via `play.js`, then builds it into the app with `-DDE_NO_RAYLIB`. Swap the cart 
 cd ios
 CART=omnichord ./build.sh          # the default; any tools/carts/<name>.c works
 SHOT=snap.png CART=tb303 ./build.sh # build a different cart's app + screenshot
+RESIZABLE=1 CART=respond ./build.sh # device-adaptive: build the cart with -DDE_RESIZABLE so it
+                                    # FILLS the device + reflows (else a fixed cart letterboxes at
+                                    # its compile size). Needs "resizable":true intent in the cart's
+                                    # layout; see docs/design/device-adaptive-layout.md (Phase 2).
 ```
 
 `CanvasView` blits the engine's software framebuffer (`de_framebuffer()`, flipped — `sw_cbuf` is

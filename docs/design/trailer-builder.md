@@ -234,12 +234,14 @@ what makes taglines and paragraphs read right, and it costs nothing.
 3. the text's **resting life** — *continuous* while on screen: **boil / breathe**, ported from the
    `squishy` cart. This is the "sexiness" — without it a title arrives then sits there dead.
 
-**Entrance vocabulary** (one-shot, cheap engine-native):
-- **typewriter** — chars appear one by one
-- **pop** — per-letter stagger (`anim()` phase) + overshoot bounce
-- **slide** — ease in from an edge
-- **glow / CRT flicker** — pulse
-- **impact** — shake + scale-punch, settle
+**Entrance vocabulary (one-shot).** Keep slice 1 to the **standards** — they read instantly and don't
+upstage the footage:
+- **fade** — dissolve in
+- **slide `<edge>`** — ease in from `bottom` / `top` / `left` / `right` (named by the edge it enters
+  *from*; grammar `anim slide bottom`, editor = one "entrance" dropdown: Fade · Slide from ↑/↓/←/→)
+
+Deferred to stage 3 "more presets" (flashier, easy to overdo): **pop** (per-letter overshoot),
+**typewriter**, **glow / CRT flicker**, **impact** (shake + scale-punch).
 
 **Resting life — port `squishy`'s boil (the warm, anti-CapCut signature).** Squishy renders strokes as
 a pure function of (stroke, seed, frame) and "boils" them two ways; steal both at the *letter* level
@@ -259,10 +261,10 @@ grammar). Out-animations are a later add if a card needs to *leave* with flair m
 
 **`.reel` grammar (DECIDED — anchored-to-clip overlays, sized-line content):**
 ```
-@card 2.5 | fade 0.5 | title "TINY JAM" | sub "3 synths, one app" | anim pop | style neon
-@card 2.0 | fade 0.5 | body "made on a fantasy console" | anim slide          # just one sentence
+@card 2.5 | fade 0.5 | title "TINY JAM" | sub "3 synths, one app" | anim slide bottom | style neon
+@card 2.0 | fade 0.5 | body "made on a fantasy console" | anim fade            # just one sentence
 acidrack/01-demo | fade 0.5                                                   # an overlay rides THIS clip:
-  over @1-3 | pos bottom | anim slide | body "new: the acid engine"           #   relative time, survives reorder/retrim
+  over @1-3 | pos bottom | anim slide left | body "new: the acid engine"       #   relative time, survives reorder/retrim
 ```
 - **Overlay timing is anchored to its clip (relative seconds), never absolute reel time** — so
   reordering / retrimming the clip carries the overlay along and keeps it valid (absolute times would
@@ -270,6 +272,9 @@ acidrack/01-demo | fade 0.5                                                   # 
   the form allows several later).
 - Text-role segments (`title`/`sub`/`body`) render in written order, top-to-bottom; `anim`/`style`/
   `pos`/`fade`/`over` are the non-text segments. `pos` = a 9-grid enum (via `lay.h`).
+- **`style` = a named bundle of look (font + ink + paper + accent).** The names in the examples
+  (`neon`) are **placeholders, TBD** — the real set is the maker's taste. Lean: 3–4 curated named
+  styles first (friendly, consistent), raw font/colour knobs as a later "custom" escape hatch.
 
 **Where it stays honest:**
 - **Preserve nearest-neighbour scaling** so the magic colour stays an *exact* RGB after the reel's
@@ -280,8 +285,8 @@ acidrack/01-demo | fade 0.5                                                   # 
 
 **Staging:**
 1. Standalone cards (title / CTA) — no key, the simplest slice; resolves the fork. **Include the
-   resting boil/breathe from the start** — it's the signature and it's nearly free; one entrance
-   preset (`pop`) is enough to begin.
+   resting boil/breathe from the start** — it's the signature and it's nearly free; the standard
+   entrances (`fade` + `slide <edge>`) are enough to begin.
 2. Magic-colour overlays on clips — the proven `colorkey`+`overlay` pass + the `over …` grammar.
 3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM), squishy's rim features
    (outline/bevel/shadow), + more entrance presets.

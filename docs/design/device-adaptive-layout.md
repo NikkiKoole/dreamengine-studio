@@ -1,6 +1,6 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: BUILDING — **Phase 0 banked; Phase 1 (a+b+c) DONE (2026-07-03) + a GROWABLE framebuffer so resizable fills any size (2026-07-04); editor ▶-run + a `--resize` sweep wired. Resume at Phase 2 (iOS physical sizing + rotation).**
+STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 iOS FILL DONE — a resizable cart reflows to fill any device (verified iPhone SE / 15 / iPad Pro 12.9 on the sim). Resume at Phase 2 safe-area + rotation, then Phase 3 (per-rack arrangements).**
 This is the **execution + product** doc that graduates the deferred thinking now that there's a
 concrete need (Tinyjam on the App Store).
 
@@ -28,10 +28,25 @@ live on desktop:**
   ceiling, both gone once the buffer grows to `window/SCALE` so `gr_place` fills.
 
 **Verified byte-identical:** a fixed cart never grows `fb` (stays `SCREEN_W/H`), so `drawall` SW frames
-are SHA-identical to HEAD and all 465 carts compile at every stage. **Start here to resume: Phase 2**
-(iOS: pass the point-viewport + backing scale through the iOS layer, `device_class()`/`safe_rect()`,
-enable rotation in `Info.plist`, live realloc on orientation change — the growable fb is the desktop
-half of that). Nothing in Phase 0/1 pending.
+are SHA-identical to HEAD and all 465 carts compile at every stage.
+
+**Phase 2 iOS FILL is DONE (2026-07-04).** New platform seam `de_resize(w,h)` (→ `de_set_canvas`) +
+`de_is_resizable()` (→ `de_reflow`) in `platform.h`/`ios/Sources/engine.h`/`studio.c`. `CanvasView.swift`
+reads the canvas dims LIVE (was baked once at init) and, for a resizable cart, calls `de_resize(bounds
+in points)` from `layoutSubviews` — so the cart fills the device and reflows on rotation for free; the
+flip scratch + touch mapping track the new size. `ios/build.sh RESIZABLE=1` builds a single cart with
+`-DDE_RESIZABLE`. Verified: `respond` fills iPhone SE / iPhone 15 / iPad Pro 12.9 on the simulator, vs
+the 320×200 letterbox baseline; a fixed cart (`de_is_resizable()==0`) stays letterboxed, untouched.
+**GOTCHA that bit:** `build-all` only covers the raylib path — the `--resize`/overlay work broke the
+DE_NO_RAYLIB (iOS/`build-nr`) build (missing `GetScreenWidth`/`IsWindowState`/`SetWindowSize`/`ImageCrop`
+in `raylib_compat`); **run `build-nr.sh` after touching studio.c**, not just `build-all`.
+
+**Start here to resume: Phase 2 safe-area + rotation.** (a) `safe_rect()` — plumb `UIView.safeAreaInsets`
+through a `de_set_safe_area(l,t,r,b)` seam + a cart-facing `safe_rect(&x,&y,&w,&h)`, so a rack lays out
+inside the notch/home-bar (today `respond`'s title bar tucks under the status bar). (b) rotation — allow
+landscape in the generated Info.plist (`INFOPLIST_KEY_UISupportedInterfaceOrientations*`) and confirm
+`layoutSubviews`→`de_resize` reflows it. Then **Phase 3** (per-rack arrangements — the media-query-like
+density adaptation; `respond` only scales its one topology today). Nothing in Phase 0/1 pending.
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
 - **This doc** = the *engine change + product plan*: make `SCREEN_W/H` runtime + physically-sized,
@@ -363,9 +378,13 @@ stays available as an *optional* style; full-bleed becomes the honest default.
     140×260 window stacks the button bar to a column, a 480×320 window keeps it a row — one code path,
     the OS window is the drag surface. First consumer is a **resizable desktop window** (no iOS),
     fully under the `canvas-diff`/`build-all` gates.
-- **Phase 2 — physical sizing + rotation on iOS.** Pass the point-viewport + backing scale through
-  the iOS layer; add `device_class()` + `safe_rect()`; enable rotation in `Info.plist`; live
-  framebuffer realloc on orientation change.
+- **Phase 2 — physical sizing + rotation on iOS.**
+  - **FILL ✅ DONE (2026-07-04).** `de_resize`/`de_is_resizable` seam + `CanvasView` hands the engine the
+    device point-viewport → a resizable cart fills the device (verified iPhone SE / 15 / iPad Pro 12.9).
+    Live realloc on size change falls out of the growable framebuffer. `build.sh RESIZABLE=1`.
+  - **safe-area + rotation** — next: `safe_rect()` (plumb `safeAreaInsets`) so controls dodge the
+    notch/home-bar; allow landscape in Info.plist + confirm `layoutSubviews`→`de_resize` rotates. (backing
+    scale: iOS is SCALE=1 so points==fb px today; a HiDPI/points-vs-px pass can come later if needed.)
 - **Phase 3 — graduate `lay.h` + reflow the Tinyjam racks.** Move the toolkit to `runtime/lay.h`;
   give each rack its 2–3 arrangements. **This is genuine per-rack layout work** — acidrack fills all
   240px densely today, so it's a real redesign, done rack by rack (see risks).

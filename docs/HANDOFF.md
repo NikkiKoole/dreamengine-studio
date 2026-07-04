@@ -41,10 +41,16 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > side-bands (enlarge) + top-pinned drift (narrow) were the old fixed-max ceiling, now gone. **Editor
 > ▶-run** passes `-DDE_RESIZABLE` from `de:meta "resizable": true`; **`play.js`** does too + a
 > **`--resize "WxH,…"` sweep** (scripted resize→look filmstrip). Byte-identical for fixed carts
-> (SHA-verified on `drawall`, all 465 compile). **Next agent: resume at Phase 2 (iOS physical sizing +
-> rotation)** — the growable fb is the desktop half of that; pick-up note atop
-> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Hot file: `runtime/studio.c`
-> (SW rasterizer + fb alloc). Ledger: [`STATUS.md`](STATUS.md) open item #2 (BUILDING).
+> (SHA-verified on `drawall`, all 465 compile). **Plus Phase 2 iOS FILL DONE (2026-07-04):** seam
+> `de_resize`/`de_is_resizable` (`platform.h`/`ios/Sources/engine.h`/`studio.c`) + `CanvasView.swift`
+> reads dims LIVE and calls `de_resize(bounds points)` from `layoutSubviews` for a resizable cart →
+> `respond` fills iPhone SE / 15 / iPad Pro 12.9 on the sim (build: `RESIZABLE=1 CART=respond DEVICE=…
+> ./build.sh`). **GOTCHA:** `build-all` misses the DE_NO_RAYLIB path — run `build-nr.sh` after touching
+> studio.c (the `--resize`/overlay work broke iOS via missing `raylib_compat` stubs; fixed). **Next
+> agent: Phase 2 safe-area + rotation** (`safe_rect()` for the notch; landscape in Info.plist), then
+> **Phase 3** per-rack density arrangements (media-query-like; `respond` only scales one topology).
+> Pick-up note atop [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Hot files:
+> `runtime/studio.c` (SW raster + fb), `ios/Sources/CanvasView.swift`. Ledger: [`STATUS.md`](STATUS.md) #2.
 
 > **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`

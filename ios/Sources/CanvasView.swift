@@ -12,8 +12,11 @@ import SwiftUI
 final class CanvasView: UIView {
     private var link: CADisplayLink?
     private var start: CFTimeInterval = 0
-    private let w = Int(de_screen_w())
-    private let h = Int(de_screen_h())
+    // Phase 2: the active canvas size is DYNAMIC — a resizable cart reflows to the device via
+    // de_resize (layoutSubviews). Re-read from the engine each frame (syncSize) instead of baking
+    // in the boot size, so the blit + touch mapping track a reflow / rotation.
+    private var w = Int(de_screen_w())
+    private var h = Int(de_screen_h())
     private let cs = CGColorSpaceCreateDeviceRGB()
     private var flipped: [UInt32]            // top-down scratch the CGImage reads
     private var touchIds: [ObjectIdentifier: Int32] = [:]   // UITouch → stable engine id
@@ -53,7 +56,26 @@ final class CanvasView: UIView {
     }
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    // A resizable cart fills the device: hand the engine our bounds (points; SCALE=1 on iOS → they
+    // are framebuffer px). Fires on first layout AND on every rotation, so rotation reflows for free.
+    // de_resize is a no-op when the size is unchanged, so calling it every layout is cheap. A fixed
+    // cart (de_is_resizable()==0) is left at its compile-time size → letterboxed, exactly as before.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard de_is_resizable() != 0 else { return }
+        let b = bounds.size
+        if b.width > 0, b.height > 0 { de_resize(Int32(b.width), Int32(b.height)) }
+    }
+
+    // pick up a de_resize: re-read the engine's active dims and resize the flip scratch when they
+    // change, so the CGImage blit and touch mapping use the current canvas.
+    private func syncSize() {
+        let nw = Int(de_screen_w()), nh = Int(de_screen_h())
+        if nw != w || nh != h { w = nw; h = nh; flipped = [UInt32](repeating: 0, count: w * h) }
+    }
+
     @objc private func tick() {
+        syncSize()
         let t0 = CACurrentMediaTime()
         de_frame(t0 - start)
         guard let base = de_framebuffer() else { return }

@@ -2557,8 +2557,14 @@ void de_frame(double t) { de_host_time = t; loop_step(); if (sw_rot_active) sw_r
 // drives; reentrant/lock-free, safe from the audio thread while de_frame runs on main.
 void de_audio_render(float *out, int frames) { sound_callback((void *)out, (unsigned)frames); }
 const uint32_t *de_framebuffer(void) { return (const uint32_t*)sw_cbuf; }
-int de_screen_w(void) { return de_sw; }   // active canvas dims (Phase 1a: == SCREEN_W until 1b)
+int de_screen_w(void) { return de_sw; }   // active canvas dims (== SCREEN_W until the host resizes)
 int de_screen_h(void) { return de_sh; }
+// Phase 2 (device-adaptive): the host (iOS CanvasView) hands us the device viewport so a resizable
+// cart reflows to fill the real screen. de_resize reallocs the framebuffer + republishes de_sw/de_sh
+// (screen_w()/screen_h()); the next de_frame lays out for it. de_is_resizable tells the host whether
+// the cart opted in (-DDE_RESIZABLE) — a fixed cart returns 0 so the host leaves it letterboxed.
+void de_resize(int w, int h) { de_set_canvas(w, h); }
+int  de_is_resizable(void)   { return de_reflow ? 1 : 0; }
 
 #else  // !DE_NO_RAYLIB — the Raylib desktop/web build owns main()
 

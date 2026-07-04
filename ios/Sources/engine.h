@@ -19,6 +19,12 @@ void            de_frame(double t);
 const uint32_t *de_framebuffer(void);
 int             de_screen_w(void);
 int             de_screen_h(void);
+// Device-adaptive (Phase 2): the host hands the engine the device viewport (in framebuffer px;
+// SCALE=1 on iOS → points) so a resizable cart reflows to fill the screen. de_resize reallocs +
+// republishes de_screen_w/h; call it whenever the view's bounds change (incl. rotation). Only act on
+// it when de_is_resizable() is true — a fixed cart returns 0 and should stay letterboxed at its size.
+void            de_resize(int w, int h);
+int             de_is_resizable(void);
 void            de_audio_render(float *out, int frames);
 
 void de_touch_begin(int id, float x, float y);

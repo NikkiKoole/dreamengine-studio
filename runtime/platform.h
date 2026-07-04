@@ -65,10 +65,17 @@ void de_frame(double t);
 // de_screen_h() pixels, row-major top-left origin. Returns NULL under DE_RENDERER_GPU.
 const uint32_t *de_framebuffer(void);
 
-// Active framebuffer dimensions (== SCREEN_W / SCREEN_H; exposed so the host
-// doesn't bake in the compile-time size).
+// Active framebuffer dimensions (== SCREEN_W / SCREEN_H at boot; a resizable cart
+// grows past them via de_resize — always read these, never the compile-time macros).
 int de_screen_w(void);
 int de_screen_h(void);
+
+// Device-adaptive (Phase 2): the host hands the engine the device viewport so a resizable cart
+// reflows to fill the screen. de_resize reallocs the framebuffer + republishes de_screen_w/h; call
+// it when the view's bounds change (incl. rotation). Only act on it when de_is_resizable() is true —
+// a fixed cart returns 0 and stays letterboxed at its compile-time size.
+void de_resize(int w, int h);
+int  de_is_resizable(void);
 
 // ============================================================================
 // (2) AUDIO — pulled by the host's audio backend (CoreAudio on iOS, Raylib's

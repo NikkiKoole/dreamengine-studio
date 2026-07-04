@@ -228,14 +228,30 @@ Lines stack top-to-bottom in the order written, auto-centre, and auto-fit (wrap 
 wide) via **`lay.h`** — roles just map to the engine's font sizes. Three roles (not two): `body` is
 what makes taglines and paragraphs read right, and it costs nothing.
 
-**Two transition layers (don't conflate them):** the card's **cut** (the `xfade` bringing the part
-in — already have it) and the **text's own animation** (new). Starter kinetic vocabulary, all cheap
-engine-native:
+**Three motion layers (don't conflate them):**
+1. the card's **cut** — the `xfade` bringing the part in (already have it);
+2. the text's **entrance** — plays once (typewriter/pop/slide, below);
+3. the text's **resting life** — *continuous* while on screen: **boil / breathe**, ported from the
+   `squishy` cart. This is the "sexiness" — without it a title arrives then sits there dead.
+
+**Entrance vocabulary** (one-shot, cheap engine-native):
 - **typewriter** — chars appear one by one
 - **pop** — per-letter stagger (`anim()` phase) + overshoot bounce
 - **slide** — ease in from an edge
 - **glow / CRT flicker** — pulse
 - **impact** — shake + scale-punch, settle
+
+**Resting life — port `squishy`'s boil (the warm, anti-CapCut signature).** Squishy renders strokes as
+a pure function of (stroke, seed, frame) and "boils" them two ways; steal both at the *letter* level
+(bitmap glyphs can't jitter their outline points, so jitter each letter's position instead):
+- **wobble** — cycle 3 seeded variants, each held ~8 frames (**~7.5 fps** — the hand-inked-cel cadence
+  that reads as drawn-by-hand; smooth 60 fps reads as digital), each letter nudged ±~1 px.
+- **breathe** — a smooth ±~7% scale on a slow sine (~2.4 s/breath).
+Deterministic and nearly free (seeded offsets, no simulation), so it bakes cleanly. Numbers lifted
+from `squishy.c` (`BOIL_FRAMES 3` · `BOIL_PERIOD 8` · `BOIL_JIT 1.2` · `BREATHE_AMT 0.07`).
+**Later, borrow squishy's rim features** — `outline` + `bevel` + `drop-shadow` are the chunky
+bubble-letter look (fat-ink + outline + bevel *is* the Tiny-Jam logo, per squishy's own notes); and
+for a hand-lettered app *title* specifically, draw it once in squishy and use the export as a clip.
 
 **Two anims for slice 1 — in-animation only.** A card enters with its text anim and **exits via the
 existing `xfade` cut** (no separate out-animation yet; covers ~90% of trailer cards, halves the
@@ -263,9 +279,12 @@ acidrack/01-demo | fade 0.5                                                   # 
 - Reserve the palette slot; the text cart must never draw content in the magic colour.
 
 **Staging:**
-1. Standalone cards (title / CTA) — no key, the simplest slice; resolves the fork.
+1. Standalone cards (title / CTA) — no key, the simplest slice; resolves the fork. **Include the
+   resting boil/breathe from the start** — it's the signature and it's nearly free; one entrance
+   preset (`pop`) is enough to begin.
 2. Magic-colour overlays on clips — the proven `colorkey`+`overlay` pass + the `over …` grammar.
-3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM) + more presets.
+3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM), squishy's rim features
+   (outline/bevel/shadow), + more entrance presets.
 
 **Editor:** a "＋ text card" in the library adds a card block whose content is a small **line stack**
 — each row = a role dropdown (title/sub/body) + a text field, with ＋line / ✕line — plus anim/style

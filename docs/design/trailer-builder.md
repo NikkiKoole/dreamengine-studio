@@ -175,6 +175,81 @@ cache; our baked reel *is* that cache — we just add the live layer above it.)
    badge the non-opacity transitions).
 4. Build unchanged — the exact exporter.
 
+## Text cards + overlays — kinetic pixel type via a magic-colour key (staged)
+
+STATUS for this section: SPECCED, not built (2026-07-04). Resolves the **text/tween fork** left open
+in [`demand-generation.md`](demand-generation.md) (§"App-trailer pipeline") — toward **engine-native**,
+not ffmpeg `drawtext` and not a hand-off to CapCut.
+
+**The idea.** CapCut's moat is kinetic text — but it's smooth vector type that looks like every other
+social clip. This engine has what CapCut doesn't: **bitmap fonts** (`dos_8x8`, `FONT_SMALL/TINY/LARGE/
+BOOT/SMOOTH`) and a whole **game-feel juice** vocabulary (ease, overshoot, shake, glow, `anim()`
+phase-stagger). So the on-brand move is **kinetic *pixel* type animated with the same juice as the
+games** — unmistakably this engine. A text "part" is drawn by a cart and baked like any clip.
+
+**One cart, two uses — the key insight is the magic colour:**
+- **Standalone card** — the cart draws its own background (title / section beat / "unlock 3 more"
+  CTA); it's just another full part in the `.reel` sequence. No compositing.
+- **Overlay on gameplay** — the cart clears to a reserved **magic colour** (one palette slot nothing
+  else draws with) and draws text over it; at **compose time** ffmpeg keys that colour out and
+  overlays the text onto a base clip for a time window. One filtergraph pass, **no alpha codec**.
+
+**Why it's pixel-perfect (and better than anyone else's chroma key).** Real chroma key is hard
+because video is anti-aliased — soft blended edges leave fringe/halo and need despill + fuzzy
+tolerance. **Pixel art has no anti-aliasing**: every pixel is an exact palette colour with a hard
+edge, so we key on an *exact* colour match (near-zero tolerance) and get a literally pixel-perfect
+cut with zero fringe. The thing that makes green-screen finicky doesn't exist here. It's also
+philosophically native — the engine already ships `colorkey(color)` for sprite transparency; this is
+the same trick one layer up, at the video level.
+
+**Proven (2026-07-04).** A hard-edged shape on pure magenta, keyed + overlaid onto a real acidrack
+clip in one pass — magenta fully gone, hard edges, zero fringe:
+```
+ffmpeg -i base.webm \
+  -f lavfi -i "color=c=0xFF00FF:s=320x200:r=30,drawbox=…:t=fill" \
+  -filter_complex "[1:v]colorkey=0xFF00FF:0.01:0.0[k];[0:v][k]overlay=0:0:enable='between(t,1,4)'[o]" \
+  -map "[o]" -map 0:a …
+```
+This is the de-risk: overlay-on-gameplay is NOT the expensive fork it looked like — the magic-colour
+key makes it as cheap as a standalone card.
+
+**The renderer.** A reusable `titlecard` cart (candidate for a `titlecard.h` cart-land lib so it's
+shared/extensible), parameterised by text · style · anim-preset · background (magic colour vs real) ·
+duration. Params reach it at bake time (a params file the cart reads, or a generated source per card —
+settle in build). One cart drives both uses: magic-colour bg → overlay; real bg → standalone card.
+
+**Two transition layers (don't conflate them):** the card's **cut** (the `xfade` bringing the part
+in — already have it) and the **text's own animation** (new). Starter kinetic vocabulary, all cheap
+engine-native:
+- **typewriter** — chars appear one by one
+- **pop** — per-letter stagger (`anim()` phase) + overshoot bounce
+- **slide** — ease in from an edge
+- **glow / CRT flicker** — pulse
+- **impact** — shake + scale-punch, settle
+
+**`.reel` grammar (strawman — being brainstormed):**
+```
+@card 2.0 | fade 0.5 | text "Tiny Jam" | anim pop | style neon      # a standalone part
+acidrack/01-demo | fade 0.5 | over "NEW SOUND" @1-3 | anim slide     # an overlay on THIS clip, t=1–3s
+```
+Open: overlay-attached-to-a-clip vs overlay-as-its-own-timed-line; multi-line text; positioning.
+
+**Where it stays honest:**
+- **Preserve nearest-neighbour scaling** so the magic colour stays an *exact* RGB after the reel's
+  integer upscale (we already `scale=neighbor`) — key on the exact colour, no fringe.
+- **Pick a magic colour nothing fades toward** — a glow that falls off toward the key colour could
+  partially key; have glows fall to black and reserve a colour far from any effect's output.
+- Reserve the palette slot; the text cart must never draw content in the magic colour.
+
+**Staging:**
+1. Standalone cards (title / CTA) — no key, the simplest slice; resolves the fork.
+2. Magic-colour overlays on clips — the proven `colorkey`+`overlay` pass + the `over …` grammar.
+3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM) + more presets.
+
+**Editor:** a "＋ text card" in the library (adds a card block: text field + anim/style dropdowns);
+overlay = attach to the focused clip with a time window. Preview via bake first; a client-side canvas
+preview of the text animation is a later nicety.
+
 ## IPC it needs (small)
 
 - `studio:app-clips(app)` → each cart's committed clips (+ which are baked / recipe-only)

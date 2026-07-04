@@ -76,7 +76,10 @@ great" layer, staged:
 - **per-clip speed** — an ffmpeg `setpts` in `compose-clips` + a `.reel` field.
 - **9:16 social framing** (rung 1) applied to the finished reel, and the **IAP-tease
   choreography** (free rack first → "unlock 3 more") that turns the montage into a funnel.
-- text/tweens: the beat-synced, engine-native vs hand-off-to-CapCut fork (a live open decision).
+- text/tweens: **resolving toward engine-native** — kinetic *pixel* type (the engine's own bitmap
+  fonts + juice) drawn by a `titlecard` cart, baked like any clip; overlays composite via a
+  pixel-perfect **magic-colour key** at compose time (proven). Spec:
+  [`trailer-builder.md`](trailer-builder.md) §"Text cards + overlays". Beat-sync is stage 3.
 
 ## See also
 - [`sharing-channels.md`](sharing-channels.md) — the channel map (A web · B App Store · C files)

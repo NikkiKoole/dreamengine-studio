@@ -347,6 +347,7 @@ static void            sw_rot_composite(void);            // defined near camera
 // and whenever a resizable cart's active size grows (de_set_canvas). A fixed cart allocates ONCE at
 // boot and fb_w/fb_h stay SCREEN_W/H forever → byte-identical to the old static arrays.
 #define DE_MAX_DIM 4096
+static void de_grow_gpu(void);   // realloc the GPU canvas/canvas_snap to fb_w×fb_h (no-op on the SW-only build)
 static void de_ensure_fb(int need_w, int need_h) {
     if (need_w < 1) need_w = 1; else if (need_w > DE_MAX_DIM) need_w = DE_MAX_DIM;
     if (need_h < 1) need_h = 1; else if (need_h > DE_MAX_DIM) need_h = DE_MAX_DIM;
@@ -359,7 +360,38 @@ static void de_ensure_fb(int need_w, int need_h) {
     sw_world_buf = (uint32_t *)realloc(sw_world_buf, n);
     sw_dst = sw_cbuf;
 #endif
+    de_grow_gpu();   // grow the GPU render targets to match (skips at boot before the canvas exists)
 }
+// set the ACTIVE canvas size (a reflow / resize): clamp to the safety max, grow the framebuffer to
+// fit, then publish de_sw/de_sh. The one funnel every size change goes through (boot, reflow, sweep).
+static void de_set_canvas(int w, int h) {
+    if (w < 1) w = 1; else if (w > DE_MAX_DIM) w = DE_MAX_DIM;
+    if (h < 1) h = 1; else if (h > DE_MAX_DIM) h = DE_MAX_DIM;
+    de_ensure_fb(w, h);
+    de_sw = w; de_sh = h;
+}
+#ifdef DE_NO_RAYLIB
+static void de_grow_gpu(void) {}   // software-only build has no GPU render targets
+#else
+// grow the GPU render targets (canvas + canvas_snap) to the current fb_w×fb_h. No-op at boot (the
+// canvas isn't created yet — its creation reads fb_w/fb_h directly) and whenever they already cover
+// fb. Called between frames from de_ensure_fb (never inside a BeginTextureMode), so unload/reload is
+// safe. The newly-grown area starts black; the cart repaints the full canvas next frame.
+static void de_grow_gpu(void) {
+    if (canvas.id == 0) return;                                             // not created yet (boot)
+    if (canvas.texture.width >= fb_w && canvas.texture.height >= fb_h) return;
+    UnloadRenderTexture(canvas);
+    canvas = LoadRenderTexture(fb_w, fb_h);
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
+#if SCALE_FILTER == 1
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);
+#endif
+    BeginTextureMode(canvas); ClearBackground(palette[0]); EndTextureMode();
+    UnloadRenderTexture(canvas_snap);
+    canvas_snap = LoadRenderTexture(fb_w, fb_h);
+    SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
+}
+#endif
 static inline uint32_t sw_pack(DeColor c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
@@ -1745,8 +1777,7 @@ static void harness_resize_step(void) {
     if (seg >= resize_n) seg = resize_n - 1;
     if (seg == resize_last_seg) return;
     resize_last_seg = seg;
-    de_sw = clampi(resize_w[seg], 1, SCREEN_W);
-    de_sh = clampi(resize_h[seg], 1, SCREEN_H);
+    de_set_canvas(resize_w[seg], resize_h[seg]);   // clamp to DE_MAX + grow the framebuffer to fit
 #ifndef PLATFORM_WEB
     if (!IsWindowState(FLAG_WINDOW_HIDDEN)) SetWindowSize(de_sw * SCALE, de_sh * SCALE);   // visible: resize the real window too
 #endif
@@ -1967,10 +1998,8 @@ static void loop_step(void) {
     // changes size. lay.h (immediate-mode) recomputes every rect from the new screen_w()/screen_h()
     // next frame, so the relayout is free; audio/knob state lives apart, untouched. No-op unless the
     // cart opted in with -DDE_RESIZABLE, so fixed carts never move.
-    if (de_reflow && IsWindowResized()) {
-        de_sw = clampi(GetScreenWidth()  / SCALE, 1, SCREEN_W);
-        de_sh = clampi(GetScreenHeight() / SCALE, 1, SCREEN_H);
-    }
+    if (de_reflow && IsWindowResized())
+        de_set_canvas(GetScreenWidth() / SCALE, GetScreenHeight() / SCALE);   // clamps to DE_MAX + grows the framebuffer
     harness_resize_step();   // --resize sweep overrides de_sw/de_sh for the current scripted segment
 #endif
 #ifdef PLATFORM_WEB
@@ -2735,8 +2764,8 @@ int main(int argc, char **argv) {
     // seed the active dims from the initial window (DE_WINDOW may have overridden it); a resizable
     // cart launched at a non-default size reflows from frame 0, not only after the first drag.
     if (de_reflow) {
-        de_sw = clampi(GetScreenWidth()  / SCALE, 1, SCREEN_W);
-        de_sh = clampi(GetScreenHeight() / SCALE, 1, SCREEN_H);
+        de_sw = clampi(GetScreenWidth()  / SCALE, 1, DE_MAX_DIM);
+        de_sh = clampi(GetScreenHeight() / SCALE, 1, DE_MAX_DIM);
     }
 #endif
 #ifndef PLATFORM_WEB
@@ -2756,7 +2785,7 @@ int main(int argc, char **argv) {
 #endif
     SetTargetFPS(60);
 
-    de_ensure_fb(SCREEN_W, SCREEN_H);   // heap framebuffer (software-canvas path); grows if a resizable cart enlarges
+    de_ensure_fb(de_sw, de_sh);   // heap framebuffer sized to the (possibly window-seeded) canvas; == SCREEN_W/H for a fixed cart
     load_palette();
     pal_shader_init();   // pal()-on-sprites swap shader (needs the GL context from InitWindow)
     scale_shader_init(); // sharp-bilinear present filter (modes 2/3; no-op otherwise)
@@ -2768,8 +2797,9 @@ int main(int argc, char **argv) {
         memset(map_data, 0, sizeof(map_data));
     }
 
-    // low-res canvas — all drawing goes here, then scaled up
-    canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);
+    // low-res canvas — all drawing goes here, then scaled up. Sized to fb_w×fb_h (== SCREEN_W/H for a
+    // fixed cart; the window-seeded size for a resizable one). Grows later via de_grow_gpu on resize.
+    canvas = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
     // One-time clear: LoadRenderTexture leaves the texture as uninitialised GPU memory.
     // A cart that never cls()es and doesn't paint every pixel would show that garbage on
@@ -2780,7 +2810,7 @@ int main(int argc, char **argv) {
 #if SCALE_FILTER == 1
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);  // mode 1: smooth present
 #endif
-    canvas_snap = LoadRenderTexture(SCREEN_W, SCREEN_H);
+    canvas_snap = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
 
     {

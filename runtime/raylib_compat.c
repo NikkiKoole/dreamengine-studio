@@ -129,6 +129,7 @@ Vector2 GetWorldToScreen2D(Vector2 position, Camera2D camera) {
 void HideCursor(void) { }
 void ImageColorReplace(Image *image, Color color, Color replace) { }
 Image ImageCopy(Image image) { Image r = {0}; return r; }
+void ImageCrop(Image *image, Rectangle crop) { (void)image; (void)crop; }   // harness-only (--resize); unused on device
 void ImageFlipVertical(Image *image) { }
 void ImageFormat(Image *image, int newFormat) { }
 void InitAudioDevice(void) { }
@@ -183,6 +184,11 @@ void SetTextureFilter(Texture2D texture, int filter) { }
 void SetTextureWrap(Texture2D texture, int wrap) { }
 void SetTraceLogLevel(int logLevel) { }
 void SetWindowState(unsigned int flags) { }
+extern int de_screen_w(void); extern int de_screen_h(void);   // defined in studio.c (DE_NO_RAYLIB)
+int  GetScreenWidth(void)  { return de_screen_w(); }          // no OS window → the active canvas IS the screen
+int  GetScreenHeight(void) { return de_screen_h(); }
+bool IsWindowState(unsigned int flags) { (void)flags; return false; }   // no window states on the software build
+void SetWindowSize(int width, int height) { (void)width; (void)height; }
 void ShowCursor(void) { }
 void UnloadAudioStream(AudioStream stream) { }
 void UnloadDroppedFiles(FilePathList files) { }

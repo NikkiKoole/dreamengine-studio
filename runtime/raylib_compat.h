@@ -302,6 +302,7 @@ Vector2 GetWorldToScreen2D(Vector2 position, Camera2D camera);
 void HideCursor(void);
 void ImageColorReplace(Image *image, Color color, Color replace);
 Image ImageCopy(Image image);
+void  ImageCrop(Image *image, Rectangle crop);
 void ImageFlipVertical(Image *image);
 void ImageFormat(Image *image, int newFormat);
 void InitAudioDevice(void);
@@ -337,6 +338,12 @@ void SetTextureFilter(Texture2D texture, int filter);
 void SetTextureWrap(Texture2D texture, int wrap);
 void SetTraceLogLevel(int logLevel);
 void SetWindowState(unsigned int flags);
+// Window/screen queries used by the desktop harness (--resize sweep, size overlay). No real window
+// on the software build, so the screen dims report the active canvas and the mutators are no-ops.
+int  GetScreenWidth(void);
+int  GetScreenHeight(void);
+bool IsWindowState(unsigned int flag);
+void SetWindowSize(int width, int height);
 void ShowCursor(void);
 void UnloadAudioStream(AudioStream stream);
 void UnloadDroppedFiles(FilePathList files);

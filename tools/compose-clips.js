@@ -157,7 +157,7 @@ function bakeCard(card, fps) {
   if (card.breathe != null) plines.push(`breathe ${card.breathe}`)
   plines.push(`anim ${card.anim}`)
   for (const l of card.lines) plines.push(`${l.role} ${l.text}`)
-  const key   = Buffer.from(JSON.stringify(card) + fps).toString('hex').slice(0, 16)
+  const key   = require('crypto').createHash('sha1').update(JSON.stringify(card) + fps).digest('hex').slice(0, 16)
   const pfile = path.join(dir, `params-${key}.txt`)
   const out   = path.join(dir, `card-${key}.webm`)
   fs.writeFileSync(pfile, plines.join('\n') + '\n')

@@ -272,9 +272,11 @@ acidrack/01-demo | fade 0.5                                                   # 
   the form allows several later).
 - Text-role segments (`title`/`sub`/`body`) render in written order, top-to-bottom; `anim`/`style`/
   `pos`/`fade`/`over` are the non-text segments. `pos` = a 9-grid enum (via `lay.h`).
-- **`style` = a named bundle of look (font + ink + paper + accent).** The names in the examples
-  (`neon`) are **placeholders, TBD** — the real set is the maker's taste. Lean: 3–4 curated named
-  styles first (friendly, consistent), raw font/colour knobs as a later "custom" escape hatch.
+- **`style` = a named bundle of look (font + ink + paper + accent).** DECIDED for slice 1: **one
+  default look — white text + a subtle 1px dark drop shadow** (reads over *any* background, which the
+  overlay case needs; the shadow is one of squishy's rim features, so on-brand). No named-style
+  system yet — the example names (`neon`) are placeholders. A curated 3–4-style set (then raw
+  font/colour knobs as a "custom" escape hatch) comes later, on the maker's taste.
 
 **Where it stays honest:**
 - **Preserve nearest-neighbour scaling** so the magic colour stays an *exact* RGB after the reel's
@@ -286,7 +288,7 @@ acidrack/01-demo | fade 0.5                                                   # 
 **Staging:**
 1. Standalone cards (title / CTA) — no key, the simplest slice; resolves the fork. **Include the
    resting boil/breathe from the start** — it's the signature and it's nearly free; the standard
-   entrances (`fade` + `slide <edge>`) are enough to begin.
+   entrances (`fade` + `slide <edge>`) are enough to begin. One look: white text + subtle drop shadow.
 2. Magic-colour overlays on clips — the proven `colorkey`+`overlay` pass + the `over …` grammar.
 3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM), squishy's rim features
    (outline/bevel/shadow), + more entrance presets.

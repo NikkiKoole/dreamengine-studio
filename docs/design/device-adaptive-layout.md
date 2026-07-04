@@ -392,11 +392,42 @@ stays available as an *optional* style; full-bleed becomes the honest default.
     cart `safe_rect()` → controls dodge the notch/home-bar (verified iPhone 15). Landscape allowed in
     Info.plist; `layoutSubviews`→`de_resize` reflows on rotate (confirmed on the sim). (iOS is SCALE=1
     so points==fb px today; a HiDPI/points-vs-px pass + a `device_class()` helper can come later.)
-- **Phase 3 — graduate `lay.h` + reflow the Tinyjam racks.** Move the toolkit to `runtime/lay.h`;
-  give each rack its 2–3 arrangements. **This is genuine per-rack layout work** — acidrack fills all
-  240px densely today, so it's a real redesign, done rack by rack (see risks).
+- **Phase 3 — reflow the Tinyjam racks (per-rack density arrangements).** `lay.h` is already shipped;
+  what's left is *designing* each rack's arrangements — the media-query-like adaptation keyed on the
+  finger-budget. **Genuine per-rack layout work, done one rack at a time — the backlog is below.**
 - **Phase 4 — regenerate store assets honestly.** Render each rack at every required device size +
   orientation; feed real frames to `store-shots`/`make-gif`; full-bleed screenshots + videos.
+
+## Phase 3 backlog — the three Tinyjam racks (`acidrack` · `yachtrack` · `epiano`)
+
+Phase 1–2 make a cart *able* to fill/reflow; Phase 3 is *designing* each rack's arrangements (density
+adaptation — CSS "Priority+" keyed on the finger-budget, not the device name). Pick up **one rack at a
+time**. Per-rack recipe: build it resizable (`RESIZABLE=1 CART=<rack> ./ios/build.sh` on the sim, or
+`DE_DEFINES=DE_RESIZABLE node tools/play.js <rack> --resize "WxH,…" --show-size` on desktop), then give
+it **2–3 arrangements + a disclosure mode per shape** (inline / accordion / tabs, per `acidfit`) using
+`lay.h`. All three are 320×240 today, packing everything into that fixed frame. Each also carries a
+`de:meta.todo` pointing here (surfaced by `cart-todos.js`).
+
+- **`acidrack` — the RB-338 acid rack. START HERE (its prototype already exists: `acidfit.c`).**
+  Today: an accordion of machine strips (2×TB-303, full 909, curated 808, master) — each strip = name +
+  live 16-tick mini pattern + mute, **tap to expand** a full editor; per-device `[fx]` views; a song-
+  chain row pinned at the bottom. So disclosure *already exists in-cart* — it's just locked at 320×240.
+  Target: **iPad** = more strips expanded inline (roomy); **phone-portrait** = accordion (1–2 expanded,
+  rest slim headers, song row pinned); **phone-landscape** = tabs/segmented (accordion degenerates on a
+  short screen — the `acidfit` finding). Sequencer/transport pinned; sections collapse by finger-budget.
+  `acidfit.c` already reproduces this 5-section inventory + the disclosure behaviour — graft from it.
+- **`epiano` — electromechanical keybed. DO SECOND (broad payoff).** Today: the shared `keybed.h` keybed
+  + machine selector (RHODES/WURLI/CLAV) + per-machine stompbox pedals + BARK knob + preset column.
+  Target: **keybed width scales to the device** (more octaves on iPad / landscape — the `otafit` finger-
+  per-semitone lesson), pedalboard reflows (phone-portrait: compact pedal row; iPad: full board beside
+  the keys). **Likely graduates into `keybed.h`** so the reflow benefits *every* keybed cart (moog/
+  touchpiano/mellotron) — a shared win, not per-cart. A keybed wants landscape width; consider a
+  `lock-landscape` hint on phone-portrait.
+- **`yachtrack` — the chord-first yacht rack. DO LAST (spec its sections when you pick it up).** Today:
+  chord row (4 slots) + form row (8) + drum skeleton (5×16) + sax hook (32-cell) + band rows + desk/
+  transport, also an "accordion is pure view". Target: the **CHORD CHART is the star** → always primary;
+  phone shows chart + form inline with drums/hook/band one tap away (accordion/tabs), iPad shows more
+  inline. Transport + song-code pinned. Study its sections before speccing the exact arrangements.
 
 ## Open questions / risks
 

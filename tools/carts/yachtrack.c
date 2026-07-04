@@ -19,7 +19,8 @@
     "UX DIRECTNESS PASS (maker, 2026-07-02, after first play): the desk feels a tad too INDIRECT — a lot of knobs/levers sit between the finger and the sound. They exist to support the radio's player model (the chart+interpreters split is right), but the FEEL isn't pleasant yet; maker is playing more and thinking about a more direct surface. Revisit before copying this UX pattern to rack #3. Design-side notes: yacht-rack.md open questions",
     "chord-cell root nudge is two small arrow zones — a vertical drag on the cell would feel better on phones",
     "per-section chord loops (verse vs chorus changes) — v2: a form slot gains a loop index (design doc open question)",
-    "naming pass: 'session desk' is the working faceplate; cart name yachtrack parallels acidrack (maker call)"
+    "naming pass: 'session desk' is the working faceplate; cart name yachtrack parallels acidrack (maker call)",
+    "device-adaptive redesign (Phase 3 — design/device-adaptive-layout.md): CHORD CHART stays primary; drums/hook/band collapse per finger-budget (accordion/tabs) on phone, more inline on iPad; transport + song-code pinned. Spec the section arrangements when picked up"
   ],
   "description": {
     "summary": "The yacht radio opened up on the producer's desk: the CHORD CHART is the star. Type the radio's 8-hex song code and the exact tune lands as an editable chart - tap the mu chords, reorder the form, edit the drum skeleton and the sax hook - while the session band keeps playing it like players, not a sequencer.",

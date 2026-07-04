@@ -465,6 +465,13 @@ static FILE   *trace_file     = NULL;    // --trace: one JSONL line of watch() s
 static int     dump_every     = 0;       // --dump-every: 0 = off, else export every Nth frame
 static char    dump_dir[256]  = {0};     // --dump: directory for filmstrip PNGs
 static int     max_frames     = 0;       // --frames: stop after N frames (0 = run until close)
+// --resize "WxH,WxH,…": a scripted canvas-size SWEEP for testing device-adaptive layouts
+// (device-adaptive-layout.md). Each size is held RESIZE_HOLD frames (so the reflow + a little
+// animation settle), then one PNG cropped to the ACTIVE region is dumped, named by size — a
+// deterministic "resize → look → resize → look" filmstrip. Best paired with -DDE_RESIZABLE.
+#define RESIZE_HOLD 8
+static int     resize_w[16], resize_h[16], resize_n = 0;
+static int     resize_last_seg = -1;
 
 // synthetic clock: deterministic runs read frame-derived time, not the wall clock
 static double clk(void) { return det_mode ? det_clock : GetTime(); }
@@ -1693,11 +1700,43 @@ static void uiaudit_flush(int fno) {
 }
 
 static void harness_dump(int fno) {
+    if (resize_n > 0) return;   // a --resize sweep owns the dumping (labeled captures below)
     if (dump_every <= 0 || (fno % dump_every) != 0) return;
     Image shot = LoadImageFromTexture(canvas.texture);
     ImageFlipVertical(&shot);
     char path[320];
     snprintf(path, sizeof path, "%s/frame_%05d.png", dump_dir[0] ? dump_dir : ".", fno);
+    ExportImage(shot, path);
+    UnloadImage(shot);
+}
+
+// --resize sweep: at the start of each segment set the active canvas to the scripted size (and
+// resize the real window when one is shown, so you watch it live). de_sw/de_sh drive layout for a
+// resizable cart; set directly so it's deterministic even --headless (where no resize event fires).
+static void harness_resize_step(void) {
+    if (resize_n <= 0) return;
+    int seg = frame_count / RESIZE_HOLD;
+    if (seg >= resize_n) seg = resize_n - 1;
+    if (seg == resize_last_seg) return;
+    resize_last_seg = seg;
+    de_sw = clampi(resize_w[seg], 1, SCREEN_W);
+    de_sh = clampi(resize_h[seg], 1, SCREEN_H);
+#ifndef PLATFORM_WEB
+    if (!IsWindowState(FLAG_WINDOW_HIDDEN)) SetWindowSize(de_sw * SCALE, de_sh * SCALE);   // visible: resize the real window too
+#endif
+}
+
+// capture one cropped, size-labeled frame at the LAST (settled) frame of each segment.
+static void harness_resize_capture(int fno) {
+    if (resize_n <= 0 || dump_dir[0] == 0) return;
+    if ((fno % RESIZE_HOLD) != RESIZE_HOLD - 1) return;
+    int seg = fno / RESIZE_HOLD;
+    if (seg >= resize_n) return;
+    Image shot = LoadImageFromTexture(canvas.texture);
+    ImageFlipVertical(&shot);
+    ImageCrop(&shot, (Rectangle){ 0, 0, (float)de_sw, (float)de_sh });   // just the on-screen (active) region
+    char path[360];
+    snprintf(path, sizeof path, "%s/resize_%02d_%dx%d.png", dump_dir, seg, de_sw, de_sh);
     ExportImage(shot, path);
     UnloadImage(shot);
 }
@@ -1906,6 +1945,7 @@ static void loop_step(void) {
         de_sw = clampi(GetScreenWidth()  / SCALE, 1, SCREEN_W);
         de_sh = clampi(GetScreenHeight() / SCALE, 1, SCREEN_H);
     }
+    harness_resize_step();   // --resize sweep overrides de_sw/de_sh for the current scripted segment
 #endif
 #ifdef PLATFORM_WEB
     if (!web_started) {
@@ -2205,6 +2245,7 @@ static void loop_step(void) {
     harness_trace(fno);                    // structured state for this frame (before aging)
     uiaudit_flush(fno);                    // --uiaudit: this frame's draw bounding boxes
     harness_dump(fno);                     // filmstrip PNG every Nth frame
+    harness_resize_capture(fno);           // --resize sweep: one labeled PNG per settled size
 #ifndef DE_RELEASE
     harness_inspect(fno);                  // on-demand screenshot + state (trigger-file)
     wav_stream_pump();                     // --wav: render this frame's 735 samples
@@ -2577,6 +2618,15 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--frames") == 0 && i + 1 < argc) max_frames = atoi(argv[++i]);
         else if (strcmp(argv[i], "--dump")   == 0 && i + 1 < argc) { snprintf(dump_dir, sizeof dump_dir, "%s", argv[++i]); if (dump_every <= 0) dump_every = 1; }
         else if (strcmp(argv[i], "--dump-every") == 0 && i + 1 < argc) dump_every = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--resize") == 0 && i + 1 < argc) {   // "WxH,WxH,…" canvas-size sweep
+            const char *p = argv[++i];
+            while (resize_n < 16 && p && *p) {
+                int w, h;
+                if (sscanf(p, "%dx%d", &w, &h) == 2) { resize_w[resize_n] = w; resize_h[resize_n] = h; resize_n++; }
+                const char *c = strchr(p, ','); p = c ? c + 1 : NULL;
+            }
+            if (resize_n > 0 && max_frames <= 0) max_frames = resize_n * RESIZE_HOLD;   // stop when the sweep ends
+        }
         else if (strcmp(argv[i], "--save-dir") == 0 && i + 1 < argc) save_dir_set(argv[++i]);
         else if (strcmp(argv[i], "--wav")    == 0 && i + 1 < argc) wav_path = argv[++i];
         else if (strcmp(argv[i], "--data")   == 0 && i + 1 < argc) de_data_path_v = argv[++i];  // EXPERIMENTAL (see de_data_path_v)

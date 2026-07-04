@@ -28,6 +28,10 @@
 //   --frames <n>       stop after n frames (headless runs should set this)
 //   --dump <dir>       export a screenshot filmstrip
 //   --dump-every <n>   ... every n frames (default 1 when --dump is given)
+//   --resize WxH,WxH,… canvas-size SWEEP for device-adaptive layouts: hold each size a few
+//                      frames (reflow settles), dump ONE PNG cropped to the active region per
+//                      size (resize_NN_WxH.png). Implies -DDE_RESIZABLE; auto-dumps to
+//                      build/.resize/<cart> if no --dump. The "resize → look → resize → look" test.
 //   --headless         hidden window (for batch replay/script runs)
 //   --seed <n>         RNG seed for deterministic runs (default 1)
 //   --wav <file>       render the audio to a WAV (deterministic: same script +
@@ -105,6 +109,17 @@ fs.writeFileSync(path.join(mk.BUILD_DIR, 'map_data.h'),
     .replace(/unsigned char map_dat\[\]/, 'static const unsigned char MAP_DATA[]')
     .replace(/unsigned int map_dat_len/,  'static const unsigned int  MAP_DATA_LEN'))
 
+// device-adaptive-layout.md: a cart with "resizable": true in its de:meta compiles with
+// -DDE_RESIZABLE (parity with the editor ▶-run). A --resize sweep implies it too — resizing
+// only reflows a resizable build. Parsed with build-cart-index.js's canonical de:meta regex.
+const resizeSpec = opt('--resize', null)
+const cartResizable = (() => {
+  try { const m = fs.readFileSync(SRC, 'utf8').match(/\/\*\s*de:meta\s*\n([\s\S]*?)\nde:meta\s*\*\//); return m ? JSON.parse(m[1]).resizable === true : false }
+  catch { return false }
+})()
+const alreadyDef = (process.env.DE_DEFINES || '').split(',').includes('DE_RESIZABLE')
+const wantResizable = cartResizable || !!resizeSpec || alreadyDef
+
 const BIN = path.join(mk.BUILD_DIR, `${name}-dbg`)
 const clangArgs = [
   `"${path.join(mk.BUILD_DIR, 'cart.c')}"`, `"${path.join(mk.RUNTIME_DIR, 'studio.c')}"`,
@@ -114,6 +129,7 @@ const clangArgs = [
   '-DTOUCH_CONTROLS_DEFAULT=0', '-DDE_TRACE', '-Os', '-fno-delete-null-pointer-checks',
   // dev pass-through: DE_DEFINES=FOO,BAR=1 → -DFOO -DBAR=1 (e.g. DE_DEFINES=DE_FIELD_ROADS)
   ...(process.env.DE_DEFINES ? process.env.DE_DEFINES.split(',').filter(Boolean).map(d => '-D' + d) : []),
+  ...(wantResizable && !alreadyDef ? ['-DDE_RESIZABLE'] : []),   // resizable cart / --resize sweep → live-reflow build
   `"${mk.RAYLIB}/lib/libraylib.a"`,
   '-framework OpenGL', '-framework Cocoa', '-framework IOKit',
   '-framework CoreVideo', '-framework CoreFoundation', '-framework CoreMIDI',
@@ -241,6 +257,14 @@ if (opt('--frames', null))     runArgs.push('--frames', opt('--frames'))
 if (opt('--seed', null))       runArgs.push('--seed', opt('--seed'))
 if (opt('--dump', null))     { runArgs.push('--dump', path.resolve(opt('--dump'))); fs.mkdirSync(opt('--dump'), { recursive: true }) }
 if (opt('--dump-every', null)) runArgs.push('--dump-every', opt('--dump-every'))
+if (resizeSpec) {                                 // --resize "WxH,WxH,…": sweep sizes, one labeled PNG each
+  runArgs.push('--resize', resizeSpec)
+  if (!opt('--dump', null)) {                     // default a dump dir so the captures land somewhere
+    const rd = path.join(mk.BUILD_DIR, '.resize', name)
+    fs.mkdirSync(rd, { recursive: true }); runArgs.push('--dump', rd)
+    console.log('resize captures →', rd)
+  }
+}
 if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // deterministic audio render → WAV
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
 

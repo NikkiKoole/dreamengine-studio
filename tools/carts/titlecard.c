@@ -41,9 +41,13 @@ static int NLINES = 0;
 #define MAGIC  CLR_GREEN              // the reserved key colour for overlays (bg magic) — #00e436,
                                       // far from the white ink + black shadow, colour-keyed at compose
 enum { POS_TOP, POS_CENTER, POS_BOTTOM };
-static int card_bg  = CLR_DARKER_BLUE;   // standalone card background (or MAGIC for an overlay)
-static int card_pos = POS_CENTER;        // where the text stack sits
-static int loaded   = 0;
+static int   card_bg  = CLR_DARKER_BLUE;   // standalone card background (or MAGIC for an overlay)
+static int   card_pos = POS_CENTER;        // where the text stack sits
+static float boil_amt = 1.0f;              // resting wobble intensity (0 = off), a ×BOIL_JIT multiplier
+static float breathe_amt = 0.0f;           // resting grow/shrink intensity (0 = off), ×BREATHE_AMT
+static int   loaded   = 0;
+#define BREATHE_SPEED 2.5f                 // degrees of breath phase per frame (~2.4s per breath)
+#define BREATHE_AMT   0.07f                // full-strength ±7% layout scale about the card centre
 
 // role → font · integer scale (print_scaled) · line height. One font (the crisp
 // 8×8 normal) scaled up for the hierarchy — chunky blocky pixel type; `body` drops
@@ -90,8 +94,10 @@ static void load_params(void) {
         if      (KEY("title")) add_line(ROLE_TITLE, val);
         else if (KEY("sub"))   add_line(ROLE_SUB,   val);
         else if (KEY("body"))  add_line(ROLE_BODY,  val);
-        else if (KEY("bg"))    card_bg = strcmp(val, "magic") == 0 ? MAGIC : atoi(val);
-        else if (KEY("pos"))   card_pos = strstr(val, "top") ? POS_TOP : strstr(val, "bottom") ? POS_BOTTOM : POS_CENTER;
+        else if (KEY("bg"))      card_bg = strcmp(val, "magic") == 0 ? MAGIC : atoi(val);
+        else if (KEY("pos"))     card_pos = strstr(val, "top") ? POS_TOP : strstr(val, "bottom") ? POS_BOTTOM : POS_CENTER;
+        else if (KEY("boil"))    boil_amt = (float)atof(val);
+        else if (KEY("breathe")) breathe_amt = (float)atof(val);
         else if (KEY("anim")) {
             if (strncmp(val, "fade", 4) == 0) enter_kind = ENTER_FADE;
             else { enter_kind = ENTER_SLIDE;
@@ -120,19 +126,23 @@ static float hashf(unsigned x) {
 // draw one line, centred on cx at top y, offset by the entrance slide (dx,dy).
 // per-letter boil jitter is added to the draw position only — the baseline
 // advance is clean, so letters wobble in place without drifting.
-static void draw_line(const char *s, int cx, int y, int scale, float dx, float dy) {
+// draw one line, centred on cx at top y, offset by the entrance slide (dx,dy). bf =
+// breathe factor: letters' offset from cx is scaled by it (the horizontal half of the
+// grow/shrink). per-letter boil jitter is added to the draw position only — the baseline
+// advance is clean, so letters wobble in place without drifting.
+static void draw_line(const char *s, int cx, int y, int scale, float dx, float dy, float bf) {
     unsigned variant = (frame() / BOIL_PERIOD) % BOIL_VARIANTS;
     int x = cx - text_width(s) * scale / 2;      // scaled width for centring
     int sh = scale;                              // drop-shadow offset scales with the type
-    float jit = BOIL_JIT * scale;                // wobble proportional to glyph size
+    float jit = BOIL_JIT * scale * boil_amt;     // wobble proportional to glyph size × intensity
     for (int i = 0; s[i]; i++) {
         char ch[2] = { s[i], 0 };
         float jx = 0, jy = 0;
-        if (variant > 0) {   // variant 0 holds the rest pose
+        if (variant > 0 && boil_amt > 0) {   // variant 0 holds the rest pose
             jx = (hashf((unsigned)i * 2654435761u ^ variant * 40503u ^ 0x11u) * 2 - 1) * jit;
             jy = (hashf((unsigned)i * 2654435761u ^ variant * 40503u ^ 0x22u) * 2 - 1) * jit;
         }
-        int px = x + (int)(dx + jx + 0.5f), py = y + (int)(dy + jy + 0.5f);
+        int px = (int)(cx + (x - cx) * bf + dx + jx + 0.5f), py = y + (int)(dy + jy + 0.5f);
         print_scaled(ch, px + sh, py + sh, CLR_BLACK, scale);   // drop shadow
         print_scaled(ch, px,      py,      CLR_WHITE, scale);   // ink
         x += text_width(ch) * scale;                            // clean advance (unjittered)
@@ -163,9 +173,14 @@ void draw(void) {
     // (ENTER_FADE has no alpha in the palette → the text just appears + boils;
     //  the reel-level xfade cut supplies the actual dissolve. See the design doc.)
 
+    // breathe: a slow ±BREATHE_AMT layout scale about the stack's vertical centre. Glyphs stay
+    // integer-scaled (crisp); the block spreads/contracts — the cheap bitmap take on a scale pulse.
+    float bf = 1.0f + sin_deg(frame() * BREATHE_SPEED) * BREATHE_AMT * breathe_amt;
+    int cy = y + total / 2;
     for (int i = 0; i < NLINES; i++) {
         font(role_font(lines[i].role));
-        draw_line(lines[i].text, SCREEN_W / 2, y, role_scale(lines[i].role), dx, dy);
+        int yb = (int)(cy + (y - cy) * bf + 0.5f);
+        draw_line(lines[i].text, SCREEN_W / 2, yb, role_scale(lines[i].role), dx, dy, bf);
         y += role_h(lines[i].role) + GAP;
     }
 }

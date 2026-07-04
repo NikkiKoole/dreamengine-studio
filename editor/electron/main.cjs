@@ -1557,8 +1557,10 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
           const row = { card: true, dur: parseFloat(parts[0].split(/\s+/)[1]) || 2.0, lines: parseLines(parts.slice(1)), anim: 'fade', bg: null, xtype: 'fade', xdur: 0.5 }
           for (const seg of parts.slice(1)) {
             let cm
-            if      ((cm = seg.match(/^anim\s+(.+)$/)))     row.anim = cm[1]
-            else if ((cm = seg.match(/^bg\s+(\d+)/)))       row.bg = +cm[1]
+            if      ((cm = seg.match(/^anim\s+(.+)$/)))       row.anim = cm[1]
+            else if ((cm = seg.match(/^bg\s+(\d+)/)))         row.bg = +cm[1]
+            else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    row.boil = +cm[1]
+            else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) row.breathe = +cm[1]
             else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
           }
           rows.push(row); continue
@@ -1570,8 +1572,10 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
           const ov = { a: win ? +win[1] : 0, b: win ? +win[2] : 0, pos: 'bottom', anim: 'fade', lines: parseLines(parts.slice(1)) }
           for (const seg of parts.slice(1)) {
             let cm
-            if      ((cm = seg.match(/^anim\s+(.+)$/)))  ov.anim = cm[1]
-            else if ((cm = seg.match(/^pos\s+(\w+)/)))   ov.pos = cm[1]
+            if      ((cm = seg.match(/^anim\s+(.+)$/)))       ov.anim = cm[1]
+            else if ((cm = seg.match(/^pos\s+(\w+)/)))        ov.pos = cm[1]
+            else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    ov.boil = +cm[1]
+            else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) ov.breathe = +cm[1]
           }
           ;(prev.overlays || (prev.overlays = [])).push(ov); continue
         }
@@ -1622,6 +1626,8 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
       for (const l of (r.lines || [])) segs.push(`${l.role} "${l.text}"`)
       if (r.anim) segs.push(`anim ${r.anim}`)
       if (r.bg != null) segs.push(`bg ${r.bg}`)
+      if (r.boil != null) segs.push(`boil ${r.boil}`)
+      if (r.breathe != null) segs.push(`breathe ${r.breathe}`)
       return [`@card ${r.dur || 2.0}${segs.length ? ' | ' + segs.join(' | ') : ''}`]
     }
     const segs = [...cut]       // a clip: cut | trim | speed
@@ -1632,6 +1638,8 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
       const os = []
       if (ov.pos) os.push(`pos ${ov.pos}`)
       if (ov.anim) os.push(`anim ${ov.anim}`)
+      if (ov.boil != null) os.push(`boil ${ov.boil}`)
+      if (ov.breathe != null) os.push(`breathe ${ov.breathe}`)
       for (const l of (ov.lines || [])) os.push(`${l.role} "${l.text}"`)
       out.push([`over @${ov.a}-${ov.b}`, ...os].join(' | '))
     }

@@ -95,6 +95,8 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
       if      ((cm = seg.match(/^(title|sub|body)\s+(.*)$/))) shot.card.lines.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') })
       else if ((cm = seg.match(/^anim\s+(.+)$/)))             shot.card.anim = cm[1]
       else if ((cm = seg.match(/^bg\s+(\d+)/)))               shot.card.bg = +cm[1]
+      else if ((cm = seg.match(/^boil\s+([\d.]+)/)))          shot.card.boil = +cm[1]
+      else if ((cm = seg.match(/^breathe\s+([\d.]+)/)))       shot.card.breathe = +cm[1]
       else if ((cm = seg.match(/^style\s+/)))                 { /* named styles: TBD */ }
       else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)))         { shot.xtype = cm[1]; shot.xdur = +cm[2] }   // the cut INTO this card
     }
@@ -114,6 +116,8 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
       if      ((cm = seg.match(/^(title|sub|body)\s+(.*)$/))) ov.card.lines.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') })
       else if ((cm = seg.match(/^anim\s+(.+)$/)))             ov.card.anim = cm[1]
       else if ((cm = seg.match(/^pos\s+(\w+)/)))              { ov.pos = cm[1]; ov.card.pos = cm[1] }
+      else if ((cm = seg.match(/^boil\s+([\d.]+)/)))          ov.card.boil = +cm[1]
+      else if ((cm = seg.match(/^breathe\s+([\d.]+)/)))       ov.card.breathe = +cm[1]
     }
     ;(prev.overlays || (prev.overlays = [])).push(ov)
     continue
@@ -149,6 +153,8 @@ function bakeCard(card, fps) {
   if (card.magic)          plines.push('bg magic')       // overlay: keyed out at compose
   else if (card.bg != null) plines.push(`bg ${card.bg}`)
   if (card.pos)            plines.push(`pos ${card.pos}`)
+  if (card.boil != null)    plines.push(`boil ${card.boil}`)
+  if (card.breathe != null) plines.push(`breathe ${card.breathe}`)
   plines.push(`anim ${card.anim}`)
   for (const l of card.lines) plines.push(`${l.role} ${l.text}`)
   const key   = Buffer.from(JSON.stringify(card) + fps).toString('hex').slice(0, 16)

@@ -267,6 +267,11 @@ a pure function of (stroke, seed, frame) and "boils" them two ways; steal both a
 - **breathe** — a smooth ±~7% scale on a slow sine (~2.4 s/breath).
 Deterministic and nearly free (seeded offsets, no simulation), so it bakes cleanly. Numbers lifted
 from `squishy.c` (`BOIL_FRAMES 3` · `BOIL_PERIOD 8` · `BOIL_JIT 1.2` · `BREATHE_AMT 0.07`).
+**Both are UI-parametrized (2026-07-04)** — `boil`/`breathe` are 0–1 intensities (0 = off) on the
+`@card`/`over` grammar and the editor card block. Note: bitmap glyphs can't scale by a fraction
+(`print_scaled` is integer-only), so **breathe is a *layout* scale** — letters/lines spread and
+contract around the card centre on the sine while the glyphs stay crisp (the honest cheap take on a
+scale-pulse). Boil is true per-letter jitter.
 **Later, borrow squishy's rim features** — `outline` + `bevel` + `drop-shadow` are the chunky
 bubble-letter look (fat-ink + outline + bevel *is* the Tiny-Jam logo, per squishy's own notes); and
 for a hand-lettered app *title* specifically, draw it once in squishy and use the export as a clip.

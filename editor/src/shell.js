@@ -1518,7 +1518,9 @@ function cardBlock(r, i) {
     + `<span class="tl-cardopts">${anim}`
     + `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
     + `<input class="tl-num" type="number" min="0" max="31" data-tl-cbg="${i}" value="${bg}"></label>`
-    + `<label class="tl-splbl" title="duration (s)"><input class="tl-num" type="number" min="0.3" step="0.5" data-tl-cdur="${i}" value="${r.dur || 2}">s</label></span>`
+    + `<label class="tl-splbl" title="duration (s)"><input class="tl-num" type="number" min="0.3" step="0.5" data-tl-cdur="${i}" value="${r.dur || 2}">s</label>`
+    + `<label class="tl-splbl" title="boil — hand-drawn wobble (0 = off … 1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cboil="${i}" value="${r.boil ?? 1}"></label>`
+    + `<label class="tl-splbl" title="breathe — grow/shrink pulse (0 = off … 1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cbreathe="${i}" value="${r.breathe ?? 0}"></label></span>`
     + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate">⧉</button>`
     + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
 }
@@ -1691,6 +1693,9 @@ document.getElementById('tl-timeline')?.addEventListener('change', e => {
   if (anim) tlRows[+anim.dataset.tlCanim].anim = anim.value
   if (cbg)  { tlRows[+cbg.dataset.tlCbg].bg = Math.max(0, Math.min(31, parseInt(cbg.value) || 0)); tlRender() }
   if (cdur) { tlRows[+cdur.dataset.tlCdur].dur = Math.max(0.3, parseFloat(cdur.value) || 2); tlRender() }
+  const cboil = e.target.closest('[data-tl-cboil]'); const cbr = e.target.closest('[data-tl-cbreathe]')
+  if (cboil) tlRows[+cboil.dataset.tlCboil].boil = Math.max(0, Math.min(1, parseFloat(cboil.value) || 0))
+  if (cbr)   tlRows[+cbr.dataset.tlCbreathe].breathe = Math.max(0, Math.min(1, parseFloat(cbr.value) || 0))
 })
 // live text edits — update the model without a re-render (keeps focus in the field)
 document.getElementById('tl-timeline')?.addEventListener('input', e => {
@@ -1717,7 +1722,7 @@ document.getElementById('tl-mon-play')?.addEventListener('click', () => {
 })
 document.getElementById('tl-library')?.addEventListener('click', e => {
   if (e.target.closest('[data-tl-addcard]')) {   // append a fresh text card
-    tlRows.push({ card: true, dur: 2, lines: [{ role: 'title', text: 'TITLE' }], anim: 'fade', bg: 17, xtype: 'fade', xdur: 0.5 }); tlRender(); return
+    tlRows.push({ card: true, dur: 2, lines: [{ role: 'title', text: 'TITLE' }], anim: 'fade', bg: 17, boil: 1, breathe: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); return
   }
   const add = e.target.closest('[data-tl-add]'); if (!add) return
   tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender()

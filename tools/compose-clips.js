@@ -103,6 +103,7 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
       else if ((cm = seg.match(/^bg\s+(\d+)/)))               shot.card.bg = +cm[1]
       else if ((cm = seg.match(/^boil\s+([\d.]+)/)))          shot.card.boil = +cm[1]
       else if ((cm = seg.match(/^breathe\s+([\d.]+)/)))       shot.card.breathe = +cm[1]
+      else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))           shot.card.bpm = +cm[1]
       else if ((cm = seg.match(/^style\s+/)))                 { /* named styles: TBD */ }
       else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)))         { shot.xtype = cm[1]; shot.xdur = +cm[2] }   // the cut INTO this card
     }
@@ -127,6 +128,7 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
       else if ((cm = seg.match(/^pos\s+(\w+)/)))              { ov.pos = cm[1]; ov.card.pos = cm[1] }
       else if ((cm = seg.match(/^boil\s+([\d.]+)/)))          ov.card.boil = +cm[1]
       else if ((cm = seg.match(/^breathe\s+([\d.]+)/)))       ov.card.breathe = +cm[1]
+      else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))           ov.card.bpm = +cm[1]
     }
     ;(prev.overlays || (prev.overlays = [])).push(ov)
     continue
@@ -164,6 +166,7 @@ function bakeCard(card, fps) {
   if (card.pos)            plines.push(`pos ${card.pos}`)
   if (card.boil != null)    plines.push(`boil ${card.boil}`)
   if (card.breathe != null) plines.push(`breathe ${card.breathe}`)
+  if (card.bpm > 0)         plines.push(`bpm ${card.bpm}`)
   plines.push(`dur ${card.dur}`)   // the cart needs the total to time the OUT + tail windows
   plines.push(`in ${card.inDur != null ? card.inDur : 0.5} ${card.inEffect || card.anim || 'fade'}`)
   if (card.outDur > 0) plines.push(`out ${card.outDur} ${card.outEffect || 'slide top'}`)

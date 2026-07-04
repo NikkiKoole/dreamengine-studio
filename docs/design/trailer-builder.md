@@ -320,8 +320,8 @@ acidrack/01-demo | fade 0.5                                                   # 
 1. ✅ **DONE** — standalone cards (title / CTA), resting boil/breathe, `fade`+`slide <edge>` entrances,
    white text + drop shadow. Grammar + bake + editor "＋ text card".
 2. ✅ **DONE** — magic-colour overlays on clips (the `colorkey`+`overlay` pass + the `over …` grammar).
-3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM), squishy's rim features
-   (outline/bevel/shadow), more entrance presets, named styles, and an editor UI to attach overlays.
+3. ✅ Beat-sync (cards pop on the beat) DONE. Still: inherit the prior clip's BPM, squishy's rim
+   features (outline/bevel/shadow), more entrance presets, named styles, an editor UI to attach overlays.
 
 **Editor:** a "＋ text card" in the library adds a card block whose content is a small **line stack**
 — each row = a role dropdown (title/sub/body) + a text field, with ＋line / ✕line — plus anim/style
@@ -356,6 +356,29 @@ transition + secs (or "no loop"); round-trips through `# loop` in build-reel/app
   timeline should **draw** that overlap so dragging it sets the transition length.
 - **the text/tween fork** (from [`demand-generation.md`](demand-generation.md)): beat-synced
   engine-native vs. hand-off-to-CapCut — still open; the builder is neutral to it.
+
+## Backlog — not yet built (the canonical list)
+
+Text cards + the trailer builder are broadly done (cards, overlays, in/hold/out + waits, boil/breathe,
+loop-close). What's left, roughly by payoff:
+- ✅ **Beat-sync (BUILT 2026-07-04)** — a card carries a `bpm`; when set, the **breathe punches on each
+  beat** (decays to the next) and the **boil re-jitters per beat** instead of at ~7.5fps. `breathe` is
+  the punch size, `bpm` the tempo. Verified: the text is visibly wider on the beat than between beats.
+  Grammar `bpm <n>` (0 = off), editor card-block field. (`bpm` is a studio.h built-in — the cart var
+  is `card_bpm`.) Still open: auto-inherit the BPM from the prior clip's cart (needs clips to stamp tempo).
+- **Overlay-attach editor UI** — `over @a-b` round-trips in the `.reel` today, but there's no
+  click-to-add-overlay-on-a-clip in the editor yet.
+- **Named styles** — a few curated `font + ink + paper + accent` presets (maker's taste); today every
+  card is white-on-shadow.
+- **Dither fade-out** — a real *dissolving* out mid-card (a Bayer/stipple mask), instead of `fade`
+  leaning on the reel cut. Would give a true fade transition that isn't a slide.
+- **squishy rim features** — `outline` / `bevel` / drop-shadow on the type (the chunky-bubble look).
+- **More entrance presets** — pop (per-letter overshoot), typewriter, glow/CRT flicker, impact.
+- **9:16 social-export** toggle — the finished reel reframed vertical for TikTok/Reels.
+- **IAP-tease ordering** — free rack first → "unlock 3 more" CTA card; the montage as a funnel
+  ([`demand-generation.md`](demand-generation.md) #4).
+- **Live-scrub preview** slices 2–4 (overlap-as-transition drag, continuous `<video>` sequence player)
+  — see §"Live preview + visual cut points" above.
 
 ## See also
 - [`demand-generation.md`](demand-generation.md) — why this is lever #2; the funnel it feeds

@@ -1566,6 +1566,7 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
             else if ((cm = seg.match(/^bg\s+(\d+)/)))         row.bg = +cm[1]
             else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    row.boil = +cm[1]
             else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) row.breathe = +cm[1]
+            else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))     row.bpm = +cm[1]
             else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
           }
           row.inEffect = row.inEffect || row.anim || 'fade'   // wait/in/hold/out/wait for the editor (hold derived)
@@ -1591,6 +1592,7 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
             else if ((cm = seg.match(/^pos\s+(\w+)/)))        ov.pos = cm[1]
             else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    ov.boil = +cm[1]
             else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) ov.breathe = +cm[1]
+            else if ((cm = seg.match(/^bpm\s+([\d.]+)/)))     ov.bpm = +cm[1]
           }
           ;(prev.overlays || (prev.overlays = [])).push(ov); continue
         }
@@ -1651,6 +1653,7 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop) => {
       if (r.bg != null) segs.push(`bg ${r.bg}`)
       if (r.boil != null) segs.push(`boil ${r.boil}`)
       if (r.breathe != null) segs.push(`breathe ${r.breathe}`)
+      if (r.bpm > 0) segs.push(`bpm ${r.bpm}`)
       return [`@card ${total}${segs.length ? ' | ' + segs.join(' | ') : ''}`]
     }
     const segs = [...cut]       // a clip: cut | trim | speed
@@ -1666,6 +1669,7 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows, loop) => {
       if (ov.anim && ov.inDur == null) os.push(`anim ${ov.anim}`)
       if (ov.boil != null) os.push(`boil ${ov.boil}`)
       if (ov.breathe != null) os.push(`breathe ${ov.breathe}`)
+      if (ov.bpm > 0) os.push(`bpm ${ov.bpm}`)
       for (const l of (ov.lines || [])) os.push(`${l.role} "${l.text}"`)
       out.push([`over @${ov.a}-${ov.b}`, ...os].join(' | '))
     }

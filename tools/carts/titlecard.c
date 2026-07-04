@@ -45,6 +45,7 @@ static int   card_bg  = CLR_DARKER_BLUE;   // standalone card background (or MAG
 static int   card_pos = POS_CENTER;        // where the text stack sits
 static float boil_amt = 1.0f;              // resting wobble intensity (0 = off), a ×BOIL_JIT multiplier
 static float breathe_amt = 0.0f;           // resting grow/shrink intensity (0 = off), ×BREATHE_AMT
+static float card_bpm = 0.0f;              // beat-sync tempo (0 = free): breathe PUNCHES + boil ticks on the beat (bpm is a studio.h built-in — don't shadow it)
 static int   loaded   = 0;
 #define BREATHE_SPEED 2.5f                 // degrees of breath phase per frame (~2.4s per breath)
 #define BREATHE_AMT   0.07f                // full-strength ±7% layout scale about the card centre
@@ -118,6 +119,7 @@ static void load_params(void) {
         else if (KEY("pos"))     card_pos = strstr(val, "top") ? POS_TOP : strstr(val, "bottom") ? POS_BOTTOM : POS_CENTER;
         else if (KEY("boil"))    boil_amt = (float)atof(val);
         else if (KEY("breathe")) breathe_amt = (float)atof(val);
+        else if (KEY("bpm"))     card_bpm = (float)atof(val);
         else if (KEY("dur"))     total_dur = (float)atof(val);
         else if (KEY("anim"))    parse_effect(val, &in_kind, &in_edge);   // back-compat: in effect
         else if (KEY("in"))  { in_dur  = (float)atof(val);  const char *e = strchr(val, ' '); if (e) parse_effect(e + 1, &in_kind,  &in_edge); }
@@ -148,8 +150,7 @@ static float hashf(unsigned x) {
 // breathe factor: letters' offset from cx is scaled by it (the horizontal half of the
 // grow/shrink). per-letter boil jitter is added to the draw position only — the baseline
 // advance is clean, so letters wobble in place without drifting.
-static void draw_line(const char *s, int cx, int y, int scale, float dx, float dy, float bf) {
-    unsigned variant = (frame() / BOIL_PERIOD) % BOIL_VARIANTS;
+static void draw_line(const char *s, int cx, int y, int scale, float dx, float dy, float bf, unsigned variant) {
     int x = cx - text_width(s) * scale / 2;      // scaled width for centring
     int sh = scale;                              // drop-shadow offset scales with the type
     float jit = BOIL_JIT * scale * boil_amt;     // wobble proportional to glyph size × intensity
@@ -195,14 +196,24 @@ void draw(void) {
     // (FADE has no alpha in the palette → the text just appears/vanishes; the reel-level
     //  xfade cut at the part boundary supplies the actual dissolve. See the design doc.)
 
-    // breathe: a slow ±BREATHE_AMT layout scale about the stack's vertical centre. Glyphs stay
-    // integer-scaled (crisp); the block spreads/contracts — the cheap bitmap take on a scale pulse.
-    float bf = 1.0f + sin_deg(frame() * BREATHE_SPEED) * BREATHE_AMT * breathe_amt;
+    // resting motion — breathe (layout scale about the stack centre) + boil (per-letter wobble variant).
+    // beat-synced when bpm>0: breathe PUNCHES on each beat (decays till the next) and boil re-jitters
+    // per beat; else breathe is a slow sine and boil ticks at ~7.5fps.
+    float bf; unsigned variant;
+    if (card_bpm > 0) {
+        float bp = 60.0f / card_bpm, x = t / bp; int bi = (int)x; float ph = x - bi;   // ph = 0 at each beat onset
+        float pop = (1.0f - ph) * (1.0f - ph);                                     // 1 → 0 decay across the beat
+        bf = 1.0f + pop * BREATHE_AMT * breathe_amt * 2.0f;                         // snappier than the sine
+        variant = (unsigned)bi % BOIL_VARIANTS;
+    } else {
+        bf = 1.0f + sin_deg(frame() * BREATHE_SPEED) * BREATHE_AMT * breathe_amt;
+        variant = (frame() / BOIL_PERIOD) % BOIL_VARIANTS;
+    }
     int cy = y + total / 2;
     for (int i = 0; i < NLINES; i++) {
         font(role_font(lines[i].role));
         int yb = (int)(cy + (y - cy) * bf + 0.5f);
-        draw_line(lines[i].text, SCREEN_W / 2, yb, role_scale(lines[i].role), dx, dy, bf);
+        draw_line(lines[i].text, SCREEN_W / 2, yb, role_scale(lines[i].role), dx, dy, bf, variant);
         y += role_h(lines[i].role) + GAP;
     }
 }

@@ -109,6 +109,13 @@ builder gets room below. (A true pop-out modal is nicer but a separate build —
   by `studio:build-reel`, parsed by `studio:app-clips`). Also: a streaming build-log panel + the
   preview stops on close. (Blocks are uniform width for now; duration-proportional needs ffprobe per
   clip — a small later polish.)
+- **Drag-to-arrange — SHIPPED (2026-07-04):** the pool of clips is finite but the timeline isn't —
+  any clip can appear any number of times, in any order, each copy independently trimmed. Drag a
+  library clip onto the timeline to place it (a drop indicator shows where; dropping the same clip
+  again = a repeat), drag a block to reorder (native HTML5 DnD; the trim handles / buttons are guarded
+  so grabbing them doesn't start a block drag), **⧉** duplicates a part with its trim+speed, **clear**
+  empties the timeline so you build a subset up from nothing. `synth1→synth2→synth1→synth3→synth1` is
+  just drags. All client-side — the compose engine already handles duplicate refs (verified).
 - **Staged (B) — the live-preview tier:** visually pick cut + transition points on a `<video>`-scrub
   timeline (drag-to-trim, overlap-as-transition), no bake. Full spec: **[§Live preview + visual cut
   points](#live-preview--visual-cut-points-staged-b)** below. Plus the smaller (B) polish: speed

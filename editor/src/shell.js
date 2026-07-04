@@ -1496,7 +1496,7 @@ function tlProbeDurations() {
 function tlRender() {
   const lib = document.getElementById('tl-library')
   lib.innerHTML = tlLib.map(c => c.clips.length
-    ? c.clips.map(cl => `<button class="kw-mini" data-tl-add="${escHtml(cl.clip)}">＋ ${escHtml(cl.clip)}${cl.baked ? '' : ' <span class="rs-dim">·bake</span>'}</button>`).join('')
+    ? c.clips.map(cl => `<button class="kw-mini" draggable="true" data-tl-add="${escHtml(cl.clip)}" title="click to append · drag onto the timeline to place">＋ ${escHtml(cl.clip)}${cl.baked ? '' : ' <span class="rs-dim">·bake</span>'}</button>`).join('')
     : `<span class="rs-dim">${escHtml(c.cart)}: no clip</span>`).join(' ')
   const tl = document.getElementById('tl-timeline')
   if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips from above</span>'; tlProbeDurations(); return }
@@ -1518,10 +1518,9 @@ function tlRender() {
         + `<span class="tl-tinfo">${inT.toFixed(1)}→${outT.toFixed(1)}s${r.speed && r.speed !== 1 ? ` · ${r.speed}×` : ''}</span>`
     }
     const speed = `<label class="tl-splbl" title="playback speed (× faster)">×<input class="tl-num" type="number" min="0.1" step="0.25" placeholder="1" value="${r.speed && r.speed !== 1 ? r.speed : ''}" data-tl-sp="${i}"></label>`
-    return `${join}<span class="tl-block${i === tlFocus ? ' tl-focus' : ''}" data-tl-block="${i}" style="flex:${weight} 1 56px">`
+    return `${join}<span class="tl-block${i === tlFocus ? ' tl-focus' : ''}" draggable="true" data-tl-block="${i}" style="flex:${weight} 1 56px">`
       + `<span class="tl-lbl">${escHtml(r.clip)}</span>${track}<span class="tl-edit">${speed}</span>`
-      + `<span class="tl-btns"><button data-tl-mv="${i},-1" title="left">◀</button>`
-      + `<button data-tl-mv="${i},1" title="right">▶</button>`
+      + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate this part (with its trim + speed)">⧉</button>`
       + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
   }).join('')
   tlProbeDurations()
@@ -1555,15 +1554,63 @@ document.getElementById('tl-close')?.addEventListener('click', () => {
   const mw = document.getElementById('tl-monwrap'); if (mw) mw.hidden = true
 })
 document.getElementById('tl-timeline')?.addEventListener('click', e => {
-  const mv = e.target.closest('[data-tl-mv]'); const rm = e.target.closest('[data-tl-rm]')
-  if (mv) { const [i, d] = mv.dataset.tlMv.split(',').map(Number); const j = i + d
-    if (j >= 0 && j < tlRows.length) { [tlRows[i], tlRows[j]] = [tlRows[j], tlRows[i]]; tlFocus = -1; tlRender() } }
+  const dup = e.target.closest('[data-tl-dup]'); const rm = e.target.closest('[data-tl-rm]')
+  if (dup) { const i = +dup.dataset.tlDup; const s = tlRows[i]   // repeat a part, trim + speed and all
+    tlRows.splice(i + 1, 0, { ...s, trim: s.trim ? [...s.trim] : null }); tlFocus = -1; tlRender() }
   else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlFocus = -1; tlRender() }
   else {   // click a block (not a control) → focus it in the monitor
     const block = e.target.closest('[data-tl-block]')
     if (block && !e.target.closest('input') && !e.target.closest('[data-tl-h]')) tlFocusBlock(+block.dataset.tlBlock)
   }
 })
+// ── drag & drop: drag a library clip onto the timeline to place it (repeats allowed) · drag a block to reorder ──
+// the insert index under the cursor: before the first block whose horizontal midpoint we're left of
+const tlDropIndexAt = clientX => {
+  const blocks = [...document.querySelectorAll('#tl-timeline .tl-block')]
+  for (let k = 0; k < blocks.length; k++) { const r = blocks[k].getBoundingClientRect(); if (clientX < r.left + r.width / 2) return k }
+  return blocks.length
+}
+const tlShowDrop = idx => {
+  const blocks = [...document.querySelectorAll('#tl-timeline .tl-block')]
+  blocks.forEach(b => b.classList.remove('tl-drop-before', 'tl-drop-after'))
+  if (idx == null) return
+  if (idx >= blocks.length) blocks[blocks.length - 1]?.classList.add('tl-drop-after')
+  else blocks[idx]?.classList.add('tl-drop-before')
+}
+document.getElementById('tl-library')?.addEventListener('dragstart', e => {
+  const chip = e.target.closest('[data-tl-add]'); if (!chip) return
+  e.dataTransfer.setData('text/plain', `lib:${chip.dataset.tlAdd}`); e.dataTransfer.effectAllowed = 'copy'
+})
+document.getElementById('tl-timeline')?.addEventListener('dragstart', e => {
+  const block = e.target.closest('[data-tl-block]')
+  // grabbing a handle / button / field must NOT start a block drag (those have their own behaviour)
+  if (!block || e.target.closest('.tl-h, .tl-btns, input, select')) { e.preventDefault(); return }
+  e.dataTransfer.setData('text/plain', `row:${block.dataset.tlBlock}`); e.dataTransfer.effectAllowed = 'move'
+  block.classList.add('tl-dragging')
+})
+document.getElementById('tl-timeline')?.addEventListener('dragover', e => { e.preventDefault(); tlShowDrop(tlDropIndexAt(e.clientX)) })
+document.getElementById('tl-timeline')?.addEventListener('dragleave', e => {
+  if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) tlShowDrop(null)
+})
+document.getElementById('tl-timeline')?.addEventListener('drop', e => {
+  e.preventDefault()
+  const data = e.dataTransfer.getData('text/plain') || ''
+  let to = tlDropIndexAt(e.clientX)
+  tlShowDrop(null)
+  if (data.startsWith('lib:')) {
+    tlRows.splice(to, 0, { clip: data.slice(4), xtype: 'fade', xdur: 0.5, trim: null, speed: 1 })
+    tlFocus = -1; tlRender()
+  } else if (data.startsWith('row:')) {
+    const from = +data.slice(4); if (from === to || from + 1 === to) return   // dropped in place
+    if (to > from) to--                                                        // removing shifts everything left
+    const [row] = tlRows.splice(from, 1); tlRows.splice(to, 0, row)
+    tlFocus = -1; tlRender()
+  }
+})
+document.getElementById('tl-timeline')?.addEventListener('dragend', () => {
+  document.querySelectorAll('#tl-timeline .tl-block').forEach(b => b.classList.remove('tl-dragging', 'tl-drop-before', 'tl-drop-after'))
+})
+document.getElementById('tl-clear')?.addEventListener('click', () => { tlRows = []; tlFocus = -1; tlRender() })   // start a subset from empty
 // drag the in/out handles → live trim, seeking the monitor to the cut frame as you go
 let tlDrag = null
 document.getElementById('tl-timeline')?.addEventListener('pointerdown', e => {

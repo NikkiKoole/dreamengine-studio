@@ -28,6 +28,7 @@
 //   --frames <n>       stop after n frames (headless runs should set this)
 //   --dump <dir>       export a screenshot filmstrip
 //   --dump-every <n>   ... every n frames (default 1 when --dump is given)
+//   --show-size        live "WxH  win WxH" overlay top-left (resizable carts; sets DE_SHOW_SIZE)
 //   --resize WxH,WxH,… canvas-size SWEEP for device-adaptive layouts: hold each size a few
 //                      frames (reflow settles), dump ONE PNG cropped to the active region per
 //                      size (resize_NN_WxH.png). Implies -DDE_RESIZABLE; auto-dumps to
@@ -267,6 +268,8 @@ if (resizeSpec) {                                 // --resize "WxH,WxH,…": swe
 }
 if (opt('--wav', null))        runArgs.push('--wav', path.resolve(opt('--wav')))   // deterministic audio render → WAV
 if (opt('--uiaudit', null))    runArgs.push('--uiaudit', path.resolve(opt('--uiaudit')))   // per-frame draw bounding boxes → JSONL (tools/ui-audit.js)
+
+if (hasFlag('--show-size')) process.env.DE_SHOW_SIZE = '1'   // live WxH overlay, top-left (resizable carts only)
 
 console.log('run:', name, mode, runArgs.join(' '))
 // darwin: run under `caffeinate -dims` — a SLEEPING DISPLAY segfaults raylib's window init

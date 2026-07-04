@@ -1539,10 +1539,12 @@ static void draw_watch_overlay(void) {
 }
 
 // live canvas/window size readout for resizable-layout debugging — top-left, window space (crisp,
-// scale-independent). Only for a resizable cart (de_reflow), so a fixed cart shows nothing and stays
-// byte-identical. de_sw×de_sh is what screen_w()/screen_h() (and lay.h) see; win is the raw window px.
+// scale-independent). Opt-in via env DE_SHOW_SIZE=1 (works from play.js or `DE_SHOW_SIZE=1 make`) and
+// only for a resizable cart (de_reflow). de_sw×de_sh is what screen_w()/screen_h() (and lay.h) see;
+// win is the raw window px — the pair pinpoints a reflow bug (de≠win/SCALE) vs a placement one.
+static bool size_overlay_on = false;   // set from getenv at boot; off by default
 static void draw_size_overlay(void) {
-    if (!de_reflow) return;
+    if (!de_reflow || !size_overlay_on) return;
     char line[64];
     snprintf(line, sizeof line, "%dx%d  win %dx%d", de_sw, de_sh, GetScreenWidth(), GetScreenHeight());
     Vector2 m = MeasureTextEx(game_font, line, 12, 1);
@@ -2672,6 +2674,8 @@ int main(int argc, char **argv) {
       if (cl && strcmp(cl, "on") == 0) cpu_raster_enabled = true; }   // DE_CPU_RASTER=on → line()/rectfill_rot → CPU everywhere
     { const char *ao = getenv("DE_AUDIO");              // DE_AUDIO=off → skip all audio (see decl):
       if (ao && strcmp(ao, "off") == 0) audio_off = true; }
+    { const char *ss = getenv("DE_SHOW_SIZE");          // DE_SHOW_SIZE=1 → live WxH overlay (resizable carts)
+      if (ss && ss[0] && strcmp(ss, "0") != 0) size_overlay_on = true; }
 #ifndef DE_WINDOW_TITLE            // exports bake the cart name in (a double-clicked app gets no argv)
 #define DE_WINDOW_TITLE "dreamengine"
 #endif

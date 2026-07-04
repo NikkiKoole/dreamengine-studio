@@ -106,10 +106,8 @@ void draw(void) {
     boxfill(lay_inset(vs, -2), CLR_DARK_GREY);          // bezel
     boxfill(vs, CLR_DARKER_BLUE);                        // the "screen"
 #else
-    // resizable build: the window itself is the screen — fill it, no bezel/handle.
-    // DEBUG: a LOUD hot-pink base so the drawn canvas is unmistakable against the (black) letterbox —
-    // any black = window area the cart didn't fill; any pink showing = canvas the layout left bare.
-    boxfill(vs, CLR_PINK);
+    // resizable build: the window itself is the screen — fill it, no bezel/handle
+    boxfill(vs, CLR_DARKER_BLUE);
 #endif
 
     // From here on, vs IS the screen. Clip so nothing spills past it, exactly

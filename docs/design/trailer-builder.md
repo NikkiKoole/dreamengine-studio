@@ -185,8 +185,14 @@ The `.reel` **`@card` grammar + bake plumbing is BUILT too (2026-07-04)**: `comp
 `@card <secs> | <cut> | title/sub/body "…" | anim <a> | bg <n>`, writes a params file, runs the
 titlecard cart through `make-gif` (content-hashed, baked once), and stitches the result in like any
 clip — verified end-to-end (card → clip → card composes with crossfades). Params reach the cart via
-`$TITLECARD_PARAMS` (a file path; env propagates through make-gif→play.js→binary). Still to build:
-the overlay `over @a-b` pass (magic-colour key), and the editor "＋ text card". Resolves the
+`$TITLECARD_PARAMS` (a file path; env propagates through make-gif→play.js→binary). **The overlay
+`over @a-b` pass is BUILT too (2026-07-04)** — an `over @a-b | pos <edge> | anim <a> | body "…"`
+continuation line under a clip bakes a magic-bg card and composites it via `colorkey`+`overlay` in the
+clip-local window (verified: text keyed clean over live acidrack gameplay, no fringe). And the
+**editor "＋ text card" is BUILT** — a card block with a title/sub/body line-stack, anim + bg-swatch +
+duration controls, reorder/dup/remove; it round-trips `@card`/`over` through build-reel/app-clips
+(verified: an editor-serialized reel composes). Still open: an editor UI to *attach* overlays to a
+clip (they round-trip if hand-added), beat-sync, and named styles. Resolves the
 **text/tween fork** left open in
 [`demand-generation.md`](demand-generation.md) (§"App-trailer pipeline") — toward **engine-native**,
 not ffmpeg `drawtext` and not a hand-off to CapCut.
@@ -300,12 +306,11 @@ acidrack/01-demo | fade 0.5                                                   # 
 - Reserve the palette slot; the text cart must never draw content in the magic colour.
 
 **Staging:**
-1. Standalone cards (title / CTA) — no key, the simplest slice; resolves the fork. **Include the
-   resting boil/breathe from the start** — it's the signature and it's nearly free; the standard
-   entrances (`fade` + `slide <edge>`) are enough to begin. One look: white text + subtle drop shadow.
-2. Magic-colour overlays on clips — the proven `colorkey`+`overlay` pass + the `over …` grammar.
+1. ✅ **DONE** — standalone cards (title / CTA), resting boil/breathe, `fade`+`slide <edge>` entrances,
+   white text + drop shadow. Grammar + bake + editor "＋ text card".
+2. ✅ **DONE** — magic-colour overlays on clips (the `colorkey`+`overlay` pass + the `over …` grammar).
 3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM), squishy's rim features
-   (outline/bevel/shadow), + more entrance presets.
+   (outline/bevel/shadow), more entrance presets, named styles, and an editor UI to attach overlays.
 
 **Editor:** a "＋ text card" in the library adds a card block whose content is a small **line stack**
 — each row = a role dropdown (title/sub/body) + a text field, with ＋line / ✕line — plus anim/style

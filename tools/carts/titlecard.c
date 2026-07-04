@@ -37,8 +37,13 @@ static struct { char text[MAXTEXT]; int role; } lines[MAXLINES];
 static int NLINES = 0;
 
 #define GAP 6                         // px between stacked lines
-static int card_bg   = CLR_DARKER_BLUE;   // standalone card background
-static int loaded    = 0;
+#define MARGIN 12                     // inset from the edge when pinned top/bottom (overlays)
+#define MAGIC  CLR_GREEN              // the reserved key colour for overlays (bg magic) — #00e436,
+                                      // far from the white ink + black shadow, colour-keyed at compose
+enum { POS_TOP, POS_CENTER, POS_BOTTOM };
+static int card_bg  = CLR_DARKER_BLUE;   // standalone card background (or MAGIC for an overlay)
+static int card_pos = POS_CENTER;        // where the text stack sits
+static int loaded   = 0;
 
 // role → font · integer scale (print_scaled) · line height. One font (the crisp
 // 8×8 normal) scaled up for the hierarchy — chunky blocky pixel type; `body` drops
@@ -85,7 +90,8 @@ static void load_params(void) {
         if      (KEY("title")) add_line(ROLE_TITLE, val);
         else if (KEY("sub"))   add_line(ROLE_SUB,   val);
         else if (KEY("body"))  add_line(ROLE_BODY,  val);
-        else if (KEY("bg"))    card_bg = atoi(val);
+        else if (KEY("bg"))    card_bg = strcmp(val, "magic") == 0 ? MAGIC : atoi(val);
+        else if (KEY("pos"))   card_pos = strstr(val, "top") ? POS_TOP : strstr(val, "bottom") ? POS_BOTTOM : POS_CENTER;
         else if (KEY("anim")) {
             if (strncmp(val, "fade", 4) == 0) enter_kind = ENTER_FADE;
             else { enter_kind = ENTER_SLIDE;
@@ -137,10 +143,12 @@ void draw(void) {
     if (!loaded) load_params();
     cls(card_bg);
 
-    // stack height → vertical centre
+    // stack height → placed top / centre / bottom (bottom+top are the overlay lower/upper-third)
     int total = 0;
     for (int i = 0; i < NLINES; i++) total += role_h(lines[i].role) + (i ? GAP : 0);
-    int y = (SCREEN_H - total) / 2;
+    int y = card_pos == POS_TOP    ? MARGIN
+          : card_pos == POS_BOTTOM ? SCREEN_H - total - MARGIN
+          :                          (SCREEN_H - total) / 2;
 
     // entrance: eased 0→1 over ENTER_FRAMES, then held at 1
     float p = frame() < ENTER_FRAMES ? ease_out((float)frame() / ENTER_FRAMES) : 1.0f;

@@ -102,6 +102,22 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
     shots.push(shot)
     continue
   }
+  if (line.startsWith('over')) {   // a text OVERLAY on the preceding clip — anchored to it in relative time
+    const prev = shots[shots.length - 1]
+    if (!prev) { console.error(`"over …" with no clip above it: ${line}`); process.exit(1) }
+    const parts = line.split('|').map(s => s.trim())
+    const win = parts[0].match(/@\s*([\d.]+)\s*-\s*([\d.]+)/)   // over @a-b (relative seconds into the clip)
+    const a = win ? +win[1] : 0, b = win ? +win[2] : 0
+    const ov = { a, b, dur: Math.max(0.1, b - a), pos: 'bottom', card: { dur: Math.max(0.1, b - a), lines: [], anim: 'fade', bg: null, magic: true, pos: 'bottom' } }
+    for (const seg of parts.slice(1)) {
+      let cm
+      if      ((cm = seg.match(/^(title|sub|body)\s+(.*)$/))) ov.card.lines.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') })
+      else if ((cm = seg.match(/^anim\s+(.+)$/)))             ov.card.anim = cm[1]
+      else if ((cm = seg.match(/^pos\s+(\w+)/)))              { ov.pos = cm[1]; ov.card.pos = cm[1] }
+    }
+    ;(prev.overlays || (prev.overlays = [])).push(ov)
+    continue
+  }
   const [refPart, ...segs] = line.split('|').map(s => s.trim())
   const shot = { ref: refPart, xtype: meta.xtype, xdur: meta.xdur, trim: null, speed: 1 }
   for (const seg of segs) {
@@ -130,7 +146,9 @@ if (opt('--scale', null)) meta.scale = +opt('--scale')
 function bakeCard(card, fps) {
   const dir = path.join(mk.BUILD_DIR, '.cards'); fs.mkdirSync(dir, { recursive: true })
   const plines = []
-  if (card.bg != null) plines.push(`bg ${card.bg}`)
+  if (card.magic)          plines.push('bg magic')       // overlay: keyed out at compose
+  else if (card.bg != null) plines.push(`bg ${card.bg}`)
+  if (card.pos)            plines.push(`pos ${card.pos}`)
   plines.push(`anim ${card.anim}`)
   for (const l of card.lines) plines.push(`${l.role} ${l.text}`)
   const key   = Buffer.from(JSON.stringify(card) + fps).toString('hex').slice(0, 16)
@@ -145,7 +163,10 @@ function bakeCard(card, fps) {
   if (r.status !== 0) { console.error('card bake failed:\n' + (r.stderr || r.stdout || '')); process.exit(1) }
   return out
 }
-for (const s of shots) if (s.card) s.file = bakeCard(s.card, meta.fps)
+for (const s of shots) {
+  if (s.card) s.file = bakeCard(s.card, meta.fps)
+  for (const ov of (s.overlays || [])) ov.file = bakeCard(ov.card, meta.fps)   // magic-bg card, keyed at compose
+}
 
 // ── probe each clip: duration + size + has-audio ──────────────
 const ffprobe = (a) => spawnSync('ffprobe', ['-v', 'error', ...a], { encoding: 'utf8' }).stdout.trim()
@@ -187,21 +208,42 @@ const atempoChain = (f) => {
 }
 
 // ── build the ffmpeg filter graph ─────────────────────────────
-// per clip: [trim → retime] → scale (nearest, keep aspect) → letterbox-pad to WxH → fps → yuv420p → sar 1
+// per clip: [trim → retime] → scale (nearest, keep aspect) → letterbox-pad to WxH → fps → [overlays] → yuv420p.
+// Inputs are indexed explicitly (s.vin / ov.vin) because text overlays add extra -i inputs between clips.
+const MAGIC_KEY = '0x00e436'   // titlecard's overlay bg (CLR_GREEN); keyed with a small tolerance for YUV rounding
 const inputs = []
+let inIdx = 0
+shots.forEach(s => {
+  s.vin = inIdx++; inputs.push('-i', s.file)
+  for (const ov of (s.overlays || [])) { ov.vin = inIdx++; inputs.push('-i', ov.file) }
+})
 const vparts = [], aparts = []
 shots.forEach((s, i) => {
-  inputs.push('-i', s.file)
   const trimming = s.trimStart > 1e-6 || s.trimEnd < s.srcDur - 1e-6
   // video: trim (reset PTS to 0) then retime by speed; skip both when untouched (byte-identical)
   let vpre = ''
   if (trimming)                 vpre += `trim=start=${s.trimStart}:end=${s.trimEnd},`
   if (trimming || s.speed !== 1) vpre += `setpts=(PTS-STARTPTS)/${s.speed},`
-  vparts.push(`[${i}:v]${vpre}scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,` +
-              `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${meta.fps},format=yuv420p,setsar=1[v${i}]`)
+  const scaled = `[${s.vin}:v]${vpre}scale=${W}:${H}:flags=neighbor:force_original_aspect_ratio=decrease,` +
+                 `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${meta.fps},setsar=1`
+  const overlays = s.overlays || []
+  if (!overlays.length) {
+    vparts.push(`${scaled},format=yuv420p[v${i}]`)
+  } else {
+    vparts.push(`${scaled}[vb${i}0]`)
+    let cur = `vb${i}0`
+    overlays.forEach((ov, k) => {   // key the magic colour → composite in the clip-local window [a,b]
+      vparts.push(`[${ov.vin}:v]scale=${W}:${H}:flags=neighbor,setsar=1,format=rgba,` +
+                  `colorkey=${MAGIC_KEY}:0.10:0.0,setpts=PTS-STARTPTS+${ov.a}/TB[ovk${i}_${k}]`)
+      const out = k === overlays.length - 1 ? `vov${i}` : `vb${i}${k + 1}`
+      vparts.push(`[${cur}][ovk${i}_${k}]overlay=0:0:enable='between(t,${ov.a},${ov.b})':eof_action=pass[${out}]`)
+      cur = out
+    })
+    vparts.push(`[vov${i}]format=yuv420p[v${i}]`)
+  }
   const apre = trimming ? `atrim=start=${s.trimStart}:end=${s.trimEnd},asetpts=PTS-STARTPTS,` : ''
   aparts.push(s.hasAudio
-    ? `[${i}:a]${apre}aformat=sample_rates=44100:channel_layouts=stereo,${atempoChain(s.speed)}asetpts=N/SR/TB[a${i}]`
+    ? `[${s.vin}:a]${apre}aformat=sample_rates=44100:channel_layouts=stereo,${atempoChain(s.speed)}asetpts=N/SR/TB[a${i}]`
     : `aevalsrc=0:d=${s.dur.toFixed(3)}:s=44100:c=stereo[a${i}]`)
 })
 

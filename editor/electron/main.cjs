@@ -1547,8 +1547,34 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
     const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
     if (fs.existsSync(reelPath)) {
       rows = []
+      const parseLines = (parts) => parts.reduce((acc, seg) => {   // pull title/sub/body role-lines out of a segment list
+        const cm = seg.match(/^(title|sub|body)\s+(.*)$/); if (cm) acc.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') }); return acc
+      }, [])
       for (const line of fs.readFileSync(reelPath, 'utf8').split('\n')) {
         const t = line.trim(); if (!t || t.startsWith('#')) continue
+        if (t.startsWith('@card')) {   // a generated text-card part
+          const parts = t.split('|').map(s => s.trim())
+          const row = { card: true, dur: parseFloat(parts[0].split(/\s+/)[1]) || 2.0, lines: parseLines(parts.slice(1)), anim: 'fade', bg: null, xtype: 'fade', xdur: 0.5 }
+          for (const seg of parts.slice(1)) {
+            let cm
+            if      ((cm = seg.match(/^anim\s+(.+)$/)))     row.anim = cm[1]
+            else if ((cm = seg.match(/^bg\s+(\d+)/)))       row.bg = +cm[1]
+            else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
+          }
+          rows.push(row); continue
+        }
+        if (t.startsWith('over')) {   // a text overlay riding the preceding row
+          const prev = rows[rows.length - 1]; if (!prev) continue
+          const parts = t.split('|').map(s => s.trim())
+          const win = parts[0].match(/@\s*([\d.]+)\s*-\s*([\d.]+)/)
+          const ov = { a: win ? +win[1] : 0, b: win ? +win[2] : 0, pos: 'bottom', anim: 'fade', lines: parseLines(parts.slice(1)) }
+          for (const seg of parts.slice(1)) {
+            let cm
+            if      ((cm = seg.match(/^anim\s+(.+)$/)))  ov.anim = cm[1]
+            else if ((cm = seg.match(/^pos\s+(\w+)/)))   ov.pos = cm[1]
+          }
+          ;(prev.overlays || (prev.overlays = [])).push(ov); continue
+        }
         const [ref, ...segs] = t.split('|').map(s => s.trim())     // ref + any `| verb …` segments (order-independent)
         const row = { clip: ref, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }
         for (const seg of segs) {
@@ -1571,11 +1597,12 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
   const log = (m) => { if (!wc.isDestroyed()) wc.send('aso:log', m) }
   const ROOT = path.join(__dirname, '../..')
   if (!/^[a-z0-9_-]+$/i.test(name || '')) return { ok: false, error: 'bad app name' }
-  rows = (Array.isArray(rows) ? rows : []).filter(r => r && typeof r.clip === 'string' && /^[a-z0-9_-]+\/[a-z0-9_.-]+$/i.test(r.clip))
+  rows = (Array.isArray(rows) ? rows : []).filter(r => r && (r.card || (typeof r.clip === 'string' && /^[a-z0-9_-]+\/[a-z0-9_.-]+$/i.test(r.clip))))
   if (!rows.length) return { ok: false, error: 'add at least one clip' }
-  log(`\n── build trailer: ${name} (${rows.length} clip${rows.length > 1 ? 's' : ''}) ──\n`)
-  // which clips are missing a baked .webm? bake only those, with a [k/N] counter (the slow phase)
-  const need = [...new Set(rows.map(r => r.clip))]
+  log(`\n── build trailer: ${name} (${rows.length} part${rows.length > 1 ? 's' : ''}) ──\n`)
+  // which clips are missing a baked .webm? bake only those, with a [k/N] counter (the slow phase).
+  // (cards aren't clips — compose-clips bakes them from the titlecard cart.)
+  const need = [...new Set(rows.filter(r => !r.card).map(r => r.clip))]
     .filter(clip => { const [cart, label] = clip.split('/'); return !fs.existsSync(path.join(ROOT, 'editor/public/clips', cart, `${label}.webm`)) })
   if (need.length) log(`baking ${need.length} missing clip${need.length > 1 ? 's' : ''}…\n`)
   else log(`all clips already baked — composing\n`)
@@ -1588,13 +1615,29 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
   }
   const reelPath = path.join(ROOT, 'tools/reels', `${name}.reel`)
   let reel = `# ${name} — built by the trailer builder (docs/design/trailer-builder.md)\n# fps 30\n# xfade fade 0.5\n`
-  reel += rows.map((r, i) => {                                     // ref + segments: transition (not on the 1st) | trim | speed
-    const segs = []
-    if (i > 0) segs.push(`${r.xtype || 'fade'} ${r.xdur || 0.5}`)
+  const lineFor = (r, i) => {   // one row → one or more .reel lines (a clip/card + its overlay continuation lines)
+    const cut = i > 0 ? [`${r.xtype || 'fade'} ${r.xdur || 0.5}`] : []
+    if (r.card) {               // @card <dur> | <cut> | title/sub/body | anim | bg
+      const segs = [...cut]
+      for (const l of (r.lines || [])) segs.push(`${l.role} "${l.text}"`)
+      if (r.anim) segs.push(`anim ${r.anim}`)
+      if (r.bg != null) segs.push(`bg ${r.bg}`)
+      return [`@card ${r.dur || 2.0}${segs.length ? ' | ' + segs.join(' | ') : ''}`]
+    }
+    const segs = [...cut]       // a clip: cut | trim | speed
     if (Array.isArray(r.trim) && r.trim.length === 2) segs.push(`trim ${r.trim[0]} ${r.trim[1]}`)
     if (r.speed && +r.speed !== 1) segs.push(`speed ${+r.speed}`)
-    return segs.length ? `${r.clip} | ${segs.join(' | ')}` : r.clip
-  }).join('\n') + '\n'
+    const out = [segs.length ? `${r.clip} | ${segs.join(' | ')}` : r.clip]
+    for (const ov of (r.overlays || [])) {   // over @a-b | pos | anim | title/sub/body
+      const os = []
+      if (ov.pos) os.push(`pos ${ov.pos}`)
+      if (ov.anim) os.push(`anim ${ov.anim}`)
+      for (const l of (ov.lines || [])) os.push(`${l.role} "${l.text}"`)
+      out.push([`over @${ov.a}-${ov.b}`, ...os].join(' | '))
+    }
+    return out
+  }
+  reel += rows.flatMap((r, i) => lineFor(r, i)).join('\n') + '\n'
   fs.mkdirSync(path.dirname(reelPath), { recursive: true })
   fs.writeFileSync(reelPath, reel)
   log(`wrote tools/reels/${name}.reel\n`)

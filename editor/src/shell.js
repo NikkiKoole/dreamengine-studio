@@ -1459,7 +1459,16 @@ compRun?.addEventListener('click', async () => {
 // transition at each join, Build → bake+compose → preview. Sources are never touched.
 const TL_XFADES = ['fade', 'dissolve', 'wipeleft', 'wiperight', 'wipeup', 'wipedown',
   'slideleft', 'slideright', 'circleopen', 'circleclose', 'pixelize', 'radial']
-let tlApp = null, tlLib = [], tlRows = []   // rows: [{clip, xtype, xdur, trim, speed}] — the timeline = the .reel
+const TL_ANIMS  = ['fade', 'slide bottom', 'slide top', 'slide left', 'slide right']   // text-card entrances
+const TL_ROLES  = ['title', 'sub', 'body']                                             // sized content lines
+const TL_PAL = ['#000000','#1d2b53','#7e2553','#008751','#ab5236','#5f574f','#c2c3c7','#fff1e8',   // pico32, for bg swatches
+  '#ff004d','#ffa300','#ffec27','#00e436','#29adff','#83769c','#ff77a8','#ffccaa',
+  '#291814','#111d35','#422136','#125359','#742f29','#49333b','#a28879','#f3ef7d',
+  '#be1250','#ff6c24','#a8e72e','#00b543','#065ab5','#754665','#ff6e59','#ff9d81']
+const paletteHex = i => TL_PAL[((i | 0) % 32 + 32) % 32]
+// rows are either a clip {clip, xtype, xdur, trim, speed} or a text card
+// {card:true, dur, lines:[{role,text}], anim, bg, xtype, xdur} — the timeline = the .reel
+let tlApp = null, tlLib = [], tlRows = []
 let tlBaked = new Set()   // clips with a baked .webm (scrubbable / probeable)
 let tlDur = {}            // clip → source duration (s), probed client-side from the <video> (no ffprobe)
 let tlFocus = -1          // which block the preview monitor is showing
@@ -1493,17 +1502,39 @@ function tlProbeDurations() {
     v.addEventListener('error', () => { tlDur[clip] = 0 }, { once: true })
   }
 }
+// a text-card timeline block: a title/sub/body line stack + anim/bg/duration controls
+function cardBlock(r, i) {
+  const roleSel = (role, k) => `<select class="tl-crole" data-tl-role="${i},${k}">`
+    + TL_ROLES.map(o => `<option${o === role ? ' selected' : ''}>${o}</option>`).join('') + `</select>`
+  const lines = (r.lines || []).map((l, k) => `<span class="tl-cline">${roleSel(l.role, k)}`
+    + `<input class="tl-ctext" data-tl-ctext="${i},${k}" value="${escHtml(l.text)}" placeholder="text">`
+    + `<button class="tl-cx" data-tl-cdel="${i},${k}" title="remove line">✕</button></span>`).join('')
+  const anim = `<select class="tl-canim" data-tl-canim="${i}" title="entrance">`
+    + TL_ANIMS.map(a => `<option${a === (r.anim || 'fade') ? ' selected' : ''}>${a}</option>`).join('') + `</select>`
+  const bg = r.bg == null ? 17 : r.bg
+  return `<span class="tl-block tl-card" draggable="true" data-tl-block="${i}" style="flex:${(r.dur || 2)} 1 120px">`
+    + `<span class="tl-lbl">📝 card</span>`
+    + `<span class="tl-cardlines">${lines}<button class="tl-cadd" data-tl-cadd="${i}">＋ line</button></span>`
+    + `<span class="tl-cardopts">${anim}`
+    + `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
+    + `<input class="tl-num" type="number" min="0" max="31" data-tl-cbg="${i}" value="${bg}"></label>`
+    + `<label class="tl-splbl" title="duration (s)"><input class="tl-num" type="number" min="0.3" step="0.5" data-tl-cdur="${i}" value="${r.dur || 2}">s</label></span>`
+    + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate">⧉</button>`
+    + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
+}
 function tlRender() {
   const lib = document.getElementById('tl-library')
-  lib.innerHTML = tlLib.map(c => c.clips.length
+  lib.innerHTML = `<button class="kw-mini tl-addcard" data-tl-addcard title="add a text card (title / subtitle / body)">＋ text card</button> `
+    + tlLib.map(c => c.clips.length
     ? c.clips.map(cl => `<button class="kw-mini" draggable="true" data-tl-add="${escHtml(cl.clip)}" title="click to append · drag onto the timeline to place">＋ ${escHtml(cl.clip)}${cl.baked ? '' : ' <span class="rs-dim">·bake</span>'}</button>`).join('')
     : `<span class="rs-dim">${escHtml(c.cart)}: no clip</span>`).join(' ')
   const tl = document.getElementById('tl-timeline')
-  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips from above</span>'; tlProbeDurations(); return }
+  if (!tlRows.length) { tl.innerHTML = '<span class="rs-dim">empty — add clips or a text card from above</span>'; tlProbeDurations(); return }
   tl.innerHTML = tlRows.map((r, i) => {
     const join = i === 0 ? '' : `<span class="tl-join"><select data-tl-x="${i}">`
       + TL_XFADES.map(x => `<option${x === r.xtype ? ' selected' : ''}>${x}</option>`).join('')
       + `</select><input class="tl-secs" type="number" min="0.1" max="2" step="0.1" value="${r.xdur}" data-tl-d="${i}"></span>`
+    if (r.card) return join + cardBlock(r, i)
     const dur = tlDur[r.clip]
     const inT = r.trim ? r.trim[0] : 0, outT = r.trim ? r.trim[1] : (dur || 0)
     const weight = (r.trim ? (r.trim[1] - r.trim[0]) : dur) || 1   // block width ∝ trimmed length
@@ -1553,14 +1584,21 @@ document.getElementById('tl-close')?.addEventListener('click', () => {
   const prev = document.getElementById('tl-preview'); if (prev) prev.hidden = true
   const mw = document.getElementById('tl-monwrap'); if (mw) mw.hidden = true
 })
+// deep-clone a row so a duplicate (or drag-copy) never shares its arrays
+const tlCloneRow = s => ({ ...s, trim: s.trim ? [...s.trim] : null,
+  lines: s.lines ? s.lines.map(l => ({ ...l })) : undefined,
+  overlays: s.overlays ? s.overlays.map(o => ({ ...o, lines: (o.lines || []).map(l => ({ ...l })) })) : undefined })
 document.getElementById('tl-timeline')?.addEventListener('click', e => {
   const dup = e.target.closest('[data-tl-dup]'); const rm = e.target.closest('[data-tl-rm]')
-  if (dup) { const i = +dup.dataset.tlDup; const s = tlRows[i]   // repeat a part, trim + speed and all
-    tlRows.splice(i + 1, 0, { ...s, trim: s.trim ? [...s.trim] : null }); tlFocus = -1; tlRender() }
+  const cadd = e.target.closest('[data-tl-cadd]'); const cdel = e.target.closest('[data-tl-cdel]')
+  if (cadd) { const i = +cadd.dataset.tlCadd; (tlRows[i].lines || (tlRows[i].lines = [])).push({ role: 'body', text: '' }); tlRender() }
+  else if (cdel) { const [i, k] = cdel.dataset.tlCdel.split(',').map(Number); tlRows[i].lines.splice(k, 1); tlRender() }
+  else if (dup) { const i = +dup.dataset.tlDup   // repeat a part, all its settings
+    tlRows.splice(i + 1, 0, tlCloneRow(tlRows[i])); tlFocus = -1; tlRender() }
   else if (rm) { tlRows.splice(+rm.dataset.tlRm, 1); tlFocus = -1; tlRender() }
   else {   // click a block (not a control) → focus it in the monitor
     const block = e.target.closest('[data-tl-block]')
-    if (block && !e.target.closest('input') && !e.target.closest('[data-tl-h]')) tlFocusBlock(+block.dataset.tlBlock)
+    if (block && !e.target.closest('input') && !e.target.closest('select') && !e.target.closest('[data-tl-h]')) tlFocusBlock(+block.dataset.tlBlock)
   }
 })
 // ── drag & drop: drag a library clip onto the timeline to place it (repeats allowed) · drag a block to reorder ──
@@ -1646,6 +1684,19 @@ document.getElementById('tl-timeline')?.addEventListener('change', e => {
   if (d) tlRows[+d.dataset.tlD].xdur = parseFloat(d.value) || 0.5
   if (sp) { const i = +sp.dataset.tlSp; tlRows[i].speed = parseFloat(sp.value) || 1
     const mon = document.getElementById('tl-monitor'); if (mon && tlFocus === i) mon.playbackRate = tlRows[i].speed; tlRender() }
+  // text-card fields
+  const role = e.target.closest('[data-tl-role]'); const anim = e.target.closest('[data-tl-canim]')
+  const cbg = e.target.closest('[data-tl-cbg]'); const cdur = e.target.closest('[data-tl-cdur]')
+  if (role) { const [i, k] = role.dataset.tlRole.split(',').map(Number); tlRows[i].lines[k].role = role.value; tlRender() }
+  if (anim) tlRows[+anim.dataset.tlCanim].anim = anim.value
+  if (cbg)  { tlRows[+cbg.dataset.tlCbg].bg = Math.max(0, Math.min(31, parseInt(cbg.value) || 0)); tlRender() }
+  if (cdur) { tlRows[+cdur.dataset.tlCdur].dur = Math.max(0.3, parseFloat(cdur.value) || 2); tlRender() }
+})
+// live text edits — update the model without a re-render (keeps focus in the field)
+document.getElementById('tl-timeline')?.addEventListener('input', e => {
+  const t = e.target.closest('[data-tl-ctext]'); if (!t) return
+  const [i, k] = t.dataset.tlCtext.split(',').map(Number)
+  if (tlRows[i] && tlRows[i].lines[k]) tlRows[i].lines[k].text = t.value
 })
 // monitor buttons: capture the scrubbed frame as in/out, or play just the in→out range at speed
 document.getElementById('tl-mon-in')?.addEventListener('click', () => {
@@ -1665,6 +1716,9 @@ document.getElementById('tl-mon-play')?.addEventListener('click', () => {
   mon.addEventListener('timeupdate', onTU); mon.play()
 })
 document.getElementById('tl-library')?.addEventListener('click', e => {
+  if (e.target.closest('[data-tl-addcard]')) {   // append a fresh text card
+    tlRows.push({ card: true, dur: 2, lines: [{ role: 'title', text: 'TITLE' }], anim: 'fade', bg: 17, xtype: 'fade', xdur: 0.5 }); tlRender(); return
+  }
   const add = e.target.closest('[data-tl-add]'); if (!add) return
   tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender()
 })

@@ -35,6 +35,14 @@
 //   | speed F         retime: F× faster (finalDur = trimmedDur / F). `speed 2` halves the length.
 //                     Video via setpts, audio via atempo (chained for F outside 0.5–2×).
 //
+// A `@card` line is a GENERATED text-card part (not a clip file) — baked on the fly from the
+// parameterised `titlecard` cart, then stitched in like any clip (design: trailer-builder.md):
+//   @card <secs> | <cut> | title "…" | sub "…" | body "…" | anim <a> | bg <palette-idx>
+//   · <secs>  the card's on-screen duration       · <cut>  the transition INTO it (as above)
+//   · title/sub/body  content lines, big→small, rendered in written order (quotes optional)
+//   · anim  fade | slide bottom|top|left|right     · bg  a 0–31 palette index for the backdrop
+//   e.g.  @card 2.5 | fade 0.5 | title "TINY JAM" | sub "3 synths, one app" | anim slide bottom
+//
 // Clips of different sizes are letterboxed (nearest-neighbour, pixels stay crisp) onto the
 // target canvas. A reel is a standalone *watchable* file, so it's NEAREST-upscaled at encode
 // time (default 3×) and written yuv444p — crisp in any video player (the native clips rely on
@@ -78,6 +86,22 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   if ((m = line.match(/^#\s*scale\s+(\d+)/)))      { meta.scale = +m[1]; continue }
   if ((m = line.match(/^#\s*xfade\s+(\w+)\s+([\d.]+)/))) { meta.xtype = m[1]; meta.xdur = +m[2]; continue }
   if (line.startsWith('#')) continue
+  if (line.startsWith('@card')) {   // a generated text-card part (baked from the titlecard cart)
+    const parts = line.split('|').map(s => s.trim())
+    const shot = { card: { dur: parseFloat(parts[0].split(/\s+/)[1]) || 2.0, lines: [], anim: 'fade', bg: null },
+                   xtype: meta.xtype, xdur: meta.xdur, trim: null, speed: 1 }
+    for (const seg of parts.slice(1)) {
+      let cm
+      if      ((cm = seg.match(/^(title|sub|body)\s+(.*)$/))) shot.card.lines.push({ role: cm[1], text: cm[2].replace(/^"(.*)"$/, '$1') })
+      else if ((cm = seg.match(/^anim\s+(.+)$/)))             shot.card.anim = cm[1]
+      else if ((cm = seg.match(/^bg\s+(\d+)/)))               shot.card.bg = +cm[1]
+      else if ((cm = seg.match(/^style\s+/)))                 { /* named styles: TBD */ }
+      else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)))         { shot.xtype = cm[1]; shot.xdur = +cm[2] }   // the cut INTO this card
+    }
+    shot.ref = `@card "${(shot.card.lines[0] || {}).text || ''}"`
+    shots.push(shot)
+    continue
+  }
   const [refPart, ...segs] = line.split('|').map(s => s.trim())
   const shot = { ref: refPart, xtype: meta.xtype, xdur: meta.xdur, trim: null, speed: 1 }
   for (const seg of segs) {
@@ -99,6 +123,29 @@ if (opt('--fps', null)) meta.fps = +opt('--fps')
 if (opt('--crf', null)) meta.crf = +opt('--crf')
 if (opt('--size', null)) { const s = opt('--size').match(/(\d+)x(\d+)/); if (s) meta.size = [+s[1], +s[2]] }
 if (opt('--scale', null)) meta.scale = +opt('--scale')
+
+// bake any @card parts to a webm: write a params file, run the parameterised titlecard
+// cart through make-gif for the card's duration. Content-hashed so an unchanged card is
+// only baked once. (One filtergraph pass downstream then treats it like any clip.)
+function bakeCard(card, fps) {
+  const dir = path.join(mk.BUILD_DIR, '.cards'); fs.mkdirSync(dir, { recursive: true })
+  const plines = []
+  if (card.bg != null) plines.push(`bg ${card.bg}`)
+  plines.push(`anim ${card.anim}`)
+  for (const l of card.lines) plines.push(`${l.role} ${l.text}`)
+  const key   = Buffer.from(JSON.stringify(card) + fps).toString('hex').slice(0, 16)
+  const pfile = path.join(dir, `params-${key}.txt`)
+  const out   = path.join(dir, `card-${key}.webm`)
+  fs.writeFileSync(pfile, plines.join('\n') + '\n')
+  const frames = Math.max(1, Math.round(card.dur * 60))   // the cart runs at 60fps
+  console.log(`  baking card [${card.lines.map(l => l.text).join(' / ') || 'empty'}] (${card.dur}s)…`)
+  const r = spawnSync('node',
+    [path.join(mk.ROOT_DIR, 'tools/make-gif.js'), 'titlecard', '--frames', String(frames), '--fps', String(fps), '--out', out, '--mute'],
+    { env: { ...process.env, TITLECARD_PARAMS: pfile }, encoding: 'utf8' })
+  if (r.status !== 0) { console.error('card bake failed:\n' + (r.stderr || r.stdout || '')); process.exit(1) }
+  return out
+}
+for (const s of shots) if (s.card) s.file = bakeCard(s.card, meta.fps)
 
 // ── probe each clip: duration + size + has-audio ──────────────
 const ffprobe = (a) => spawnSync('ffprobe', ['-v', 'error', ...a], { encoding: 'utf8' }).stdout.trim()

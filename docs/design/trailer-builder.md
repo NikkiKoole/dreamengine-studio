@@ -181,8 +181,13 @@ STATUS for this section: **the `titlecard` cart is BUILT (slice 1, 2026-07-04)**
 titlecard.c`: title/sub/body stacked + centred via `lay.h`, white text + drop shadow (`print`×2),
 slide entrance (starts fully off-screen), squishy resting boil. Titles use **`print_scaled`** on the
 crisp 8×8 `FONT_NORMAL` (×3), not `FONT_COMIC` — one font scaled for the hierarchy, chunky pixel type.
-Still to build: the `.reel` `@card`/`over` grammar + bake plumbing, the magic-colour overlay pass, and
-the editor "＋ text card". Resolves the **text/tween fork** left open in
+The `.reel` **`@card` grammar + bake plumbing is BUILT too (2026-07-04)**: `compose-clips.js` parses
+`@card <secs> | <cut> | title/sub/body "…" | anim <a> | bg <n>`, writes a params file, runs the
+titlecard cart through `make-gif` (content-hashed, baked once), and stitches the result in like any
+clip — verified end-to-end (card → clip → card composes with crossfades). Params reach the cart via
+`$TITLECARD_PARAMS` (a file path; env propagates through make-gif→play.js→binary). Still to build:
+the overlay `over @a-b` pass (magic-colour key), and the editor "＋ text card". Resolves the
+**text/tween fork** left open in
 [`demand-generation.md`](demand-generation.md) (§"App-trailer pipeline") — toward **engine-native**,
 not ffmpeg `drawtext` and not a hand-off to CapCut.
 

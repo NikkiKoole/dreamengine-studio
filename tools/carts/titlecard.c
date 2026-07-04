@@ -23,19 +23,22 @@ de:meta */
 
 #include "studio.h"
 #include "lay.h"
+#include <stdlib.h>   // getenv, atoi
+#include <stdio.h>    // fopen/fgets
+#include <string.h>   // str*
 
-// ── content: an ordered list of sized lines (title/sub/body). Demo values;
-//    the .reel grammar feeds these later. ────────────────────────────────────
+// ── content: an ordered list of sized lines (title/sub/body). Filled from a
+//    params file named by $TITLECARD_PARAMS (written by the reel bake); falls
+//    back to demo content when unset, so running it standalone still works. ────
 enum { ROLE_TITLE, ROLE_SUB, ROLE_BODY };
-typedef struct { const char *text; int role; } Line;
-static const Line lines[] = {
-    { "TINY JAM",          ROLE_TITLE },
-    { "3 synths, one app", ROLE_SUB   },
-};
-static const int NLINES = sizeof(lines) / sizeof(lines[0]);
+#define MAXLINES 6
+#define MAXTEXT  96
+static struct { char text[MAXTEXT]; int role; } lines[MAXLINES];
+static int NLINES = 0;
 
-#define GAP 6                 // px between stacked lines
-#define BG  CLR_DARKER_BLUE   // standalone card background (deep navy so the white + shadow read)
+#define GAP 6                         // px between stacked lines
+static int card_bg   = CLR_DARKER_BLUE;   // standalone card background
+static int loaded    = 0;
 
 // role → font · integer scale (print_scaled) · line height. One font (the crisp
 // 8×8 normal) scaled up for the hierarchy — chunky blocky pixel type; `body` drops
@@ -46,9 +49,55 @@ static int role_h(int r)     { return r == ROLE_TITLE ? 24 : r == ROLE_SUB ? 8 :
 
 // ── entrance (plays once) ────────────────────────────────────────────────────
 enum { ENTER_FADE, ENTER_SLIDE };
-static const int ENTER_KIND  = ENTER_SLIDE;
-static const int ENTER_EDGE  = EDGE_BOTTOM;   // slide in FROM this edge
-#define ENTER_FRAMES 42                        // ~0.7s at 60fps
+static int enter_kind = ENTER_SLIDE;
+static int enter_edge = EDGE_BOTTOM;   // slide in FROM this edge
+#define ENTER_FRAMES 42                 // ~0.7s at 60fps
+
+// add one content line (copied — the params buffer is reused)
+static void add_line(int role, const char *text) {
+    if (NLINES >= MAXLINES) return;
+    strncpy(lines[NLINES].text, text, MAXTEXT - 1);
+    lines[NLINES].text[MAXTEXT - 1] = 0;
+    lines[NLINES].role = role;
+    NLINES++;
+}
+static void demo_content(void) {
+    NLINES = 0;
+    add_line(ROLE_TITLE, "TINY JAM");
+    add_line(ROLE_SUB,   "3 synths, one app");
+}
+// parse the params file ($TITLECARD_PARAMS): one `key value` per line —
+//   title/sub/body <text> · anim slide <edge> | fade · bg <palette index>
+static void load_params(void) {
+    loaded = 1;
+    const char *p = getenv("TITLECARD_PARAMS");
+    FILE *f = p ? fopen(p, "r") : NULL;
+    if (!f) { demo_content(); return; }
+    NLINES = 0;
+    char raw[256];
+    while (fgets(raw, sizeof raw, f)) {
+        raw[strcspn(raw, "\r\n")] = 0;
+        if (!raw[0]) continue;
+        char *sp = strchr(raw, ' ');
+        const char *val = sp ? sp + 1 : "";
+        int klen = sp ? (int)(sp - raw) : (int)strlen(raw);
+        #define KEY(k) (klen == (int)sizeof(k) - 1 && strncmp(raw, k, klen) == 0)
+        if      (KEY("title")) add_line(ROLE_TITLE, val);
+        else if (KEY("sub"))   add_line(ROLE_SUB,   val);
+        else if (KEY("body"))  add_line(ROLE_BODY,  val);
+        else if (KEY("bg"))    card_bg = atoi(val);
+        else if (KEY("anim")) {
+            if (strncmp(val, "fade", 4) == 0) enter_kind = ENTER_FADE;
+            else { enter_kind = ENTER_SLIDE;
+                enter_edge = strstr(val, "top")  ? EDGE_TOP
+                           : strstr(val, "left") ? EDGE_LEFT
+                           : strstr(val, "right")? EDGE_RIGHT : EDGE_BOTTOM; }
+        }
+        #undef KEY
+    }
+    fclose(f);
+    if (NLINES == 0) demo_content();
+}
 
 // ── resting boil — ported from squishy.c (WOBBLE): 3 seeded variants held ~8
 //    frames (~7.5fps), each letter nudged ±BOIL_JIT px. Variant 0 = rest. ──────
@@ -85,7 +134,8 @@ static void draw_line(const char *s, int cx, int y, int scale, float dx, float d
 }
 
 void draw(void) {
-    cls(BG);
+    if (!loaded) load_params();
+    cls(card_bg);
 
     // stack height → vertical centre
     int total = 0;
@@ -95,11 +145,11 @@ void draw(void) {
     // entrance: eased 0→1 over ENTER_FRAMES, then held at 1
     float p = frame() < ENTER_FRAMES ? ease_out((float)frame() / ENTER_FRAMES) : 1.0f;
     float dx = 0, dy = 0;
-    if (ENTER_KIND == ENTER_SLIDE) {
+    if (enter_kind == ENTER_SLIDE) {
         float off = 1.0f - p;   // travel a full screen dimension → the text CLEARLY starts off-screen
-        if      (ENTER_EDGE == EDGE_BOTTOM) dy =  off * SCREEN_H;
-        else if (ENTER_EDGE == EDGE_TOP)    dy = -off * SCREEN_H;
-        else if (ENTER_EDGE == EDGE_LEFT)   dx = -off * SCREEN_W;
+        if      (enter_edge == EDGE_BOTTOM) dy =  off * SCREEN_H;
+        else if (enter_edge == EDGE_TOP)    dy = -off * SCREEN_H;
+        else if (enter_edge == EDGE_LEFT)   dx = -off * SCREEN_W;
         else                                dx =  off * SCREEN_W;
     }
     // (ENTER_FADE has no alpha in the palette → the text just appears + boils;

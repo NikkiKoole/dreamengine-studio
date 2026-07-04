@@ -347,23 +347,26 @@ static void            sw_rot_composite(void);            // defined near camera
 // device-adaptive-layout.md: (re)allocate the CPU framebuffer(s) to at least need_w×need_h. Grow-only
 // (high-water-mark) — never shrinks, so dragging a window smaller then bigger doesn't thrash — and
 // clamped to DE_MAX_DIM so a runaway window can't allocate gigabytes. Called at boot with SCREEN_W/H
-// and whenever a resizable cart's active size grows (de_set_canvas). A fixed cart allocates ONCE at
-// boot and fb_w/fb_h stay SCREEN_W/H forever → byte-identical to the old static arrays.
+// and whenever a resizable cart's active size CHANGES (de_set_canvas). Reallocs to EXACTLY the active
+// size (fb==de always) — see the note below on why not grow-only. A fixed cart allocates ONCE at boot
+// and fb_w/fb_h stay SCREEN_W/H forever → byte-identical to the old static arrays.
 #define DE_MAX_DIM 4096
 static void de_grow_gpu(void);   // realloc the GPU canvas/canvas_snap to fb_w×fb_h (no-op on the SW-only build)
 static void de_ensure_fb(int need_w, int need_h) {
     if (need_w < 1) need_w = 1; else if (need_w > DE_MAX_DIM) need_w = DE_MAX_DIM;
     if (need_h < 1) need_h = 1; else if (need_h > DE_MAX_DIM) need_h = DE_MAX_DIM;
-    if (sw_cbuf && need_w <= fb_w && need_h <= fb_h) return;    // buffer already covers it
-    if (need_w > fb_w) fb_w = need_w;                          // grow-only
-    if (need_h > fb_h) fb_h = need_h;
+    if (sw_cbuf && need_w == fb_w && need_h == fb_h) return;   // already EXACTLY this size
+    // realloc the framebuffer to EXACTLY the active size — NOT grow-only. Grow-only leaves fb taller
+    // than de after a shrink, and the GPU draws the cart at the buffer top while the present samples a
+    // fixed-height sub-rect → the image slides up by (fb_h-de_sh). Keeping fb==de sidesteps all of it.
+    fb_w = need_w; fb_h = need_h;
     size_t n = (size_t)fb_w * (size_t)fb_h * sizeof(uint32_t);
     sw_cbuf = (uint32_t *)realloc(sw_cbuf, n);
 #ifdef DE_NO_RAYLIB
     sw_world_buf = (uint32_t *)realloc(sw_world_buf, n);
     sw_dst = sw_cbuf;
 #endif
-    de_grow_gpu();   // grow the GPU render targets to match (skips at boot before the canvas exists)
+    de_grow_gpu();   // resize the GPU render targets to match (skips at boot before the canvas exists)
 }
 // set the ACTIVE canvas size (a reflow / resize): clamp to the safety max, grow the framebuffer to
 // fit, then publish de_sw/de_sh. The one funnel every size change goes through (boot, reflow, sweep).
@@ -376,13 +379,13 @@ static void de_set_canvas(int w, int h) {
 #ifdef DE_NO_RAYLIB
 static void de_grow_gpu(void) {}   // software-only build has no GPU render targets
 #else
-// grow the GPU render targets (canvas + canvas_snap) to the current fb_w×fb_h. No-op at boot (the
-// canvas isn't created yet — its creation reads fb_w/fb_h directly) and whenever they already cover
+// resize the GPU render targets (canvas + canvas_snap) to EXACTLY fb_w×fb_h. No-op at boot (the
+// canvas isn't created yet — its creation reads fb_w/fb_h directly) and whenever they already match
 // fb. Called between frames from de_ensure_fb (never inside a BeginTextureMode), so unload/reload is
-// safe. The newly-grown area starts black; the cart repaints the full canvas next frame.
+// safe. The fresh canvas starts black; the cart repaints it fully next frame.
 static void de_grow_gpu(void) {
     if (canvas.id == 0) return;                                             // not created yet (boot)
-    if (canvas.texture.width >= fb_w && canvas.texture.height >= fb_h) return;
+    if (canvas.texture.width == fb_w && canvas.texture.height == fb_h) return;   // already exact
     UnloadRenderTexture(canvas);
     canvas = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_POINT);
@@ -393,8 +396,8 @@ static void de_grow_gpu(void) {
     UnloadRenderTexture(canvas_snap);
     canvas_snap = LoadRenderTexture(fb_w, fb_h);
     SetTextureFilter(canvas_snap.texture, TEXTURE_FILTER_POINT);
-    if (smooth_rt_ok &&   // grow the smooth-zoom supersample offscreen too (only if a cart allocated it)
-        (smooth_rt.texture.width < fb_w * 2 || smooth_rt.texture.height < fb_h * 2)) {
+    if (smooth_rt_ok &&   // resize the smooth-zoom supersample offscreen too (only if a cart allocated it)
+        (smooth_rt.texture.width != fb_w * 2 || smooth_rt.texture.height != fb_h * 2)) {
         UnloadRenderTexture(smooth_rt);
         smooth_rt = LoadRenderTexture(SMOOTH_W, SMOOTH_H);
         SetTextureFilter(smooth_rt.texture, TEXTURE_FILTER_BILINEAR);

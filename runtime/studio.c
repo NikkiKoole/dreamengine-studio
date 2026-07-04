@@ -293,14 +293,20 @@ static bool            cpu_raster_enabled = CPU_RASTER_DEFAULT;   // env DE_CPU_
 // profiles (the audio thread stops polluting `sample`), real savings on sound-free carts, a low-end
 // lever. Cart audio calls become harmless no-ops (queues are never drained). Default on.
 static bool            audio_off = false;
-static uint32_t        sw_cbuf[SCREEN_W * SCREEN_H];          // CPU framebuffer (Fork 1: RGBA on desktop)
+// CPU framebuffer (Fork 1: RGBA on desktop). Phase 1b(B): a HEAP buffer sized to fb_w×fb_h so a
+// resizable cart can GROW it past the compile-time SCREEN_W/H (de_ensure_fb). Allocated at boot to
+// SCREEN_W×SCREEN_H; a fixed cart never grows it, so fb_w==SCREEN_W and everything is byte-identical.
+static uint32_t       *sw_cbuf = NULL;
 
-// device-adaptive-layout.md Phase 1a: the ACTIVE canvas dims are a runtime value,
-// read wherever a render EXTENT / centering / clip / camera / present rect is
-// computed. SCREEN_W/SCREEN_H stay the compile-time MAX (the static framebuffers
-// are sized to it, never reallocated). Pinned to the max for now → every cart
-// renders byte-identical; Phase 1b lets a `resizable` cart update them + present
-// a sub-rect. MUST live outside the DE_NO_RAYLIB block — every build reads it.
+// device-adaptive-layout.md: the PHYSICAL framebuffer dimensions — the row STRIDE for every sw_cbuf
+// index. Grows (grow-only, high-water-mark) when a resizable cart's active size exceeds it; the
+// active de_sw×de_sh region sits at the buffer's bottom-left and the present samples that sub-rect.
+static int fb_w = SCREEN_W, fb_h = SCREEN_H;
+
+// device-adaptive-layout.md Phase 1a: the ACTIVE canvas dims are a runtime value, read wherever a
+// render EXTENT / centering / clip / camera / present rect is computed. SCREEN_W/SCREEN_H are the
+// cart's DEFAULT/boot size (and the fb's initial size). Pinned for a fixed cart → byte-identical;
+// a `resizable` cart updates them (reflow) + grows the fb to fit. Outside DE_NO_RAYLIB — all builds.
 static int de_sw = SCREEN_W, de_sh = SCREEN_H;
 // device-adaptive-layout.md Phase 1b: the per-cart RESIZABLE opt-in. A cart compiled with
 // -DDE_RESIZABLE (clang builds cart.c + studio.c together, so the one flag reaches both TUs)
@@ -326,14 +332,34 @@ int screen_h(void) { return de_sh; }   // active canvas height in px (== SCREEN_
 // sw_cbuf, un-rotated. Primitives write sw_dst — the framebuffer, or the world buffer while a
 // rotated camera_ex is active. (det-probes/rotfill is the per-primitive study; this is the
 // whole-layer composite, which keeps every primitive on its fast axis-aligned path.)
-static uint32_t        sw_world_buf[SCREEN_W * SCREEN_H];
-static uint32_t       *sw_dst = sw_cbuf;
+static uint32_t       *sw_world_buf = NULL;   // heap, sized to fb_w×fb_h alongside sw_cbuf (grows with it)
+static uint32_t       *sw_dst = NULL;         // → sw_cbuf (or sw_world_buf mid camera_ex); set at alloc time
 static bool            sw_rot_active = false;
 static float           sw_rot_angle  = 0.0f;
 static void            sw_rot_composite(void);            // defined near camera(); called from de_frame()
 #else
 #define sw_dst sw_cbuf                                          // desktop/web: straight to the framebuffer (byte-identical)
 #endif
+
+// device-adaptive-layout.md: (re)allocate the CPU framebuffer(s) to at least need_w×need_h. Grow-only
+// (high-water-mark) — never shrinks, so dragging a window smaller then bigger doesn't thrash — and
+// clamped to DE_MAX_DIM so a runaway window can't allocate gigabytes. Called at boot with SCREEN_W/H
+// and whenever a resizable cart's active size grows (de_set_canvas). A fixed cart allocates ONCE at
+// boot and fb_w/fb_h stay SCREEN_W/H forever → byte-identical to the old static arrays.
+#define DE_MAX_DIM 4096
+static void de_ensure_fb(int need_w, int need_h) {
+    if (need_w < 1) need_w = 1; else if (need_w > DE_MAX_DIM) need_w = DE_MAX_DIM;
+    if (need_h < 1) need_h = 1; else if (need_h > DE_MAX_DIM) need_h = DE_MAX_DIM;
+    if (sw_cbuf && need_w <= fb_w && need_h <= fb_h) return;    // buffer already covers it
+    if (need_w > fb_w) fb_w = need_w;                          // grow-only
+    if (need_h > fb_h) fb_h = need_h;
+    size_t n = (size_t)fb_w * (size_t)fb_h * sizeof(uint32_t);
+    sw_cbuf = (uint32_t *)realloc(sw_cbuf, n);
+#ifdef DE_NO_RAYLIB
+    sw_world_buf = (uint32_t *)realloc(sw_world_buf, n);
+    sw_dst = sw_cbuf;
+#endif
+}
 static inline uint32_t sw_pack(DeColor c) { return (uint32_t)c.r | ((uint32_t)c.g<<8) | ((uint32_t)c.b<<16) | 0xFF000000u; }
 // internal patterned-fill helpers — the public fills call these when fillp() is on
 static void rectfill_pat(int x, int y, int w, int h, int pattern, int c1, int c0);
@@ -664,7 +690,7 @@ static inline void sw_w2s(int wx, int wy, int *sx, int *sy) {
 static inline void sw_plot1(int sx, int sy, uint32_t p) {
     if (clip_active && (sx < clip_cx || sx >= clip_cx + clip_cw || sy < clip_cy || sy >= clip_cy + clip_ch)) return;
     if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh)
-        sw_dst[(de_sh - 1 - sy) * SCREEN_W + sx] = p;
+        sw_dst[(de_sh - 1 - sy) * fb_w + sx] = p;
 }
 // software-canvas pixel write. zoom==1: one texel (the hot path). zoom!=1: fill the world pixel's
 // screen footprint (a zoom×zoom block) so a zoomed pset/blit/line stays gap-free.
@@ -700,7 +726,7 @@ static void sw_fillrect(int x, int y, int w, int h, DeColor c) {
                        if (x1>clip_cx+clip_cw) x1=clip_cx+clip_cw; if (y1>clip_cy+clip_ch) y1=clip_cy+clip_ch; }
     if (x0<0) x0=0; if (y0<0) y0=0; if (x1>de_sw) x1=de_sw; if (y1>de_sh) y1=de_sh;
     uint32_t p = sw_pack(c);
-    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*SCREEN_W]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
+    for (int yy = y0; yy < y1; yy++) { uint32_t *row = &sw_dst[(de_sh-1-yy)*fb_w]; for (int xx = x0; xx < x1; xx++) row[xx] = p; }
 }
 // one fill-scanline span: cbuf row write under the software canvas, else the GPU DrawRectangle.
 // Lets the circ/oval/poly span fast-paths stay span-based (not per-pixel) on the canvas.
@@ -770,7 +796,7 @@ static void sw_blit(int sx, int sy, int sw, int sh, int dx, int dy, int dw, int 
         uint32_t key = (uint32_t)sw_colorkey_rgb.r | ((uint32_t)sw_colorkey_rgb.g << 8) | ((uint32_t)sw_colorkey_rgb.b << 16);
         for (int j = j0; j < j1; j++) {
             const uint32_t *srow = src + (size_t)(sy + j) * srcw + sx;
-            uint32_t *drow = &sw_dst[(size_t)(de_sh - 1 - (oy + j)) * SCREEN_W + ox];
+            uint32_t *drow = &sw_dst[(size_t)(de_sh - 1 - (oy + j)) * fb_w + ox];
             for (int i = i0; i < i1; i++) {
                 uint32_t s = srow[i];
                 if (!(s & 0x80000000u)) continue;                     // alpha < 128 → transparent
@@ -864,7 +890,7 @@ static void sw_tritex(float x0,float y0,float u0,float v0, float x1,float y1,flo
         if (minx < sxlo + camdx) minx = sxlo + camdx;  if (maxx > sxhi - 1 + camdx) maxx = sxhi - 1 + camdx;
         if (miny < sylo + camdy) miny = sylo + camdy;  if (maxy > syhi - 1 + camdy) maxy = syhi - 1 + camdy;
         for (int py=miny; py<=maxy; py++) {
-            uint32_t *row = &sw_dst[(de_sh - 1 - (py - camdy)) * SCREEN_W];
+            uint32_t *row = &sw_dst[(de_sh - 1 - (py - camdy)) * fb_w];
             float fy = py + 0.5f;
             for (int px=minx; px<=maxx; px++) {
                 float fx = px + 0.5f;
@@ -2440,6 +2466,7 @@ static void de_setup_baked_fonts(void) {
 void de_init(DeRenderer renderer) {
     (void)renderer;                              // software canvas only for now
     sw_canvas_enabled = sw_canvas_active = true;
+    de_ensure_fb(SCREEN_W, SCREEN_H);            // heap framebuffer(s), grows if a resizable cart enlarges
     load_palette();
     init_touch_layout();
     if (MAP_DATA_LEN >= sizeof(map_data)) memcpy(map_data, MAP_DATA, sizeof map_data);
@@ -2729,6 +2756,7 @@ int main(int argc, char **argv) {
 #endif
     SetTargetFPS(60);
 
+    de_ensure_fb(SCREEN_W, SCREEN_H);   // heap framebuffer (software-canvas path); grows if a resizable cart enlarges
     load_palette();
     pal_shader_init();   // pal()-on-sprites swap shader (needs the GL context from InitWindow)
     scale_shader_init(); // sharp-bilinear present filter (modes 2/3; no-op otherwise)
@@ -3185,7 +3213,7 @@ void cls(int color) {
     last_cls_color = color % PALETTE_SIZE;
     if (sw_canvas_active) {
         uint32_t p = sw_pack(palette[last_cls_color]);
-        for (int i = 0; i < SCREEN_W * SCREEN_H; i++) sw_dst[i] = p;
+        for (int i = 0; i < fb_w * fb_h; i++) sw_dst[i] = p;
         return;
     }
     ClearBackground(palette[last_cls_color]);
@@ -3470,7 +3498,7 @@ static void de_cpu_img_rot(Image *img, int sx, int sy, int sw, int sh, int dx, i
             int syc = py - camdy;
             if ((unsigned)syc >= (unsigned)de_sh) continue;
             if (clip_active && (syc < clip_cy || syc >= clip_cy + clip_ch)) continue;
-            row = &sw_dst[(de_sh - 1 - syc) * SCREEN_W];
+            row = &sw_dst[(de_sh - 1 - syc) * fb_w];
         }
         for (int px = x0; px <= x1; px++) {
             float ddx = px + 0.5f - px0, ddy = py + 0.5f - py0;
@@ -4217,8 +4245,8 @@ static void sw_rot_composite(void) {
             int sx = (int)floorf( cs*rx + sn*ry + ox + 0.5f);
             int sy = (int)floorf(-sn*rx + cs*ry + oy + 0.5f);
             if ((unsigned)sx < (unsigned)de_sw && (unsigned)sy < (unsigned)de_sh) {
-                uint32_t p = sw_world_buf[(de_sh - 1 - sy) * SCREEN_W + sx];
-                if (p & 0xFF000000u) sw_cbuf[(de_sh - 1 - dy) * SCREEN_W + dx] = p;
+                uint32_t p = sw_world_buf[(de_sh - 1 - sy) * fb_w + sx];
+                if (p & 0xFF000000u) sw_cbuf[(de_sh - 1 - dy) * fb_w + dx] = p;
             }
         }
     }
@@ -4252,7 +4280,7 @@ void camera_ex(int x, int y, float zoom, float angle) {
     // camera() reset / present. Renders correctly rotated, fully on the software canvas.
     if (angle != 0.0f) {
         if (!sw_rot_active) {                            // begin the rotated world layer
-            for (int i = 0; i < SCREEN_W * SCREEN_H; i++) sw_world_buf[i] = 0;   // transparent
+            for (int i = 0; i < fb_w * fb_h; i++) sw_world_buf[i] = 0;   // transparent
             sw_dst = sw_world_buf; sw_rot_active = true;
         }
         sw_rot_angle = angle;
@@ -4311,7 +4339,7 @@ static void sw_zoom_rect(int sx, int sy, int sw, int sh, int dx, int dy, int dw,
     for (int j = 0; j < dh; j++) {
         int syy = sy + (int)((j + 0.5f) * sh / dh);
         if ((unsigned)syy >= (unsigned)de_sh) continue;
-        const uint32_t *srow = &sw_cbuf[(de_sh - 1 - syy) * SCREEN_W];
+        const uint32_t *srow = &sw_cbuf[(de_sh - 1 - syy) * fb_w];
         for (int i = 0; i < dw; i++) {
             int sxx = sx + (int)((i + 0.5f) * sw / dw);
             if ((unsigned)sxx >= (unsigned)de_sw) continue;

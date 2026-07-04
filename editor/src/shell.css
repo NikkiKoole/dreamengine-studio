@@ -330,6 +330,8 @@ html, body {
 .tl-cx { font-size: 9px; padding: 0 4px; cursor: pointer; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; color: var(--fg-dim); }
 .tl-cadd { align-self: flex-start; font-size: 9px; padding: 1px 6px; cursor: pointer; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; color: var(--fg-dim); }
 .tl-cardopts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.tl-phase { display: inline-flex; align-items: center; gap: 3px; font-size: 9px; color: var(--fg-dim); }
+.tl-phase .tl-num { width: 30px; }
 .tl-canim { font-size: 9px; }
 .tl-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--border); vertical-align: middle; }
 .tl-lbl { font-size: 11px; color: var(--fg); word-break: break-all; }

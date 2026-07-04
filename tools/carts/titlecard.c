@@ -56,11 +56,30 @@ static int role_font(int r)  { return r == ROLE_BODY ? FONT_SMALL : FONT_NORMAL;
 static int role_scale(int r) { return r == ROLE_TITLE ? 3 : 1; }
 static int role_h(int r)     { return r == ROLE_TITLE ? 24 : r == ROLE_SUB ? 8 : 6; }
 
-// ── entrance (plays once) ────────────────────────────────────────────────────
-enum { ENTER_FADE, ENTER_SLIDE };
-static int enter_kind = ENTER_SLIDE;
-static int enter_edge = EDGE_BOTTOM;   // slide in FROM this edge
-#define ENTER_FRAMES 42                 // ~0.7s at 60fps
+// ── in / hold / out timeline ─────────────────────────────────────────────────
+// The card plays an IN transition (take `in_dur` s), rests (boil/breathe) for the
+// middle, then an OUT transition (last `out_dur` s). Each end has its own effect:
+// SLIDE = real motion from/to an edge; FADE = no positional move (the reel's xfade
+// cut supplies the dissolve — there's no per-pixel alpha in the palette).
+enum { ANIM_FADE, ANIM_SLIDE };
+static float total_dur = 0.0f;                       // total on-screen secs (0 = unknown → no out)
+static int   in_kind  = ANIM_SLIDE, in_edge  = EDGE_BOTTOM;  static float in_dur  = 0.5f;
+static int   out_kind = ANIM_FADE,  out_edge = EDGE_TOP;     static float out_dur = 0.0f;   // 0 = no out
+
+// "fade" | "slide <edge>" → kind + edge (edge = enters-FROM for in, exits-TO for out)
+static void parse_effect(const char *v, int *kind, int *edge) {
+    if (strncmp(v, "fade", 4) == 0) { *kind = ANIM_FADE; return; }
+    *kind = ANIM_SLIDE;
+    *edge = strstr(v, "top") ? EDGE_TOP : strstr(v, "left") ? EDGE_LEFT : strstr(v, "right") ? EDGE_RIGHT : EDGE_BOTTOM;
+}
+// add the off-screen offset for a slide at fraction `off` (0 = in place, 1 = fully off toward edge)
+static void slide_off(int kind, int edge, float off, float *dx, float *dy) {
+    if (kind != ANIM_SLIDE) return;
+    if      (edge == EDGE_BOTTOM) *dy += off * SCREEN_H;
+    else if (edge == EDGE_TOP)    *dy -= off * SCREEN_H;
+    else if (edge == EDGE_LEFT)   *dx -= off * SCREEN_W;
+    else                          *dx += off * SCREEN_W;
+}
 
 // add one content line (copied — the params buffer is reused)
 static void add_line(int role, const char *text) {
@@ -98,13 +117,10 @@ static void load_params(void) {
         else if (KEY("pos"))     card_pos = strstr(val, "top") ? POS_TOP : strstr(val, "bottom") ? POS_BOTTOM : POS_CENTER;
         else if (KEY("boil"))    boil_amt = (float)atof(val);
         else if (KEY("breathe")) breathe_amt = (float)atof(val);
-        else if (KEY("anim")) {
-            if (strncmp(val, "fade", 4) == 0) enter_kind = ENTER_FADE;
-            else { enter_kind = ENTER_SLIDE;
-                enter_edge = strstr(val, "top")  ? EDGE_TOP
-                           : strstr(val, "left") ? EDGE_LEFT
-                           : strstr(val, "right")? EDGE_RIGHT : EDGE_BOTTOM; }
-        }
+        else if (KEY("dur"))     total_dur = (float)atof(val);
+        else if (KEY("anim"))    parse_effect(val, &in_kind, &in_edge);   // back-compat: in effect
+        else if (KEY("in"))  { in_dur  = (float)atof(val);  const char *e = strchr(val, ' '); if (e) parse_effect(e + 1, &in_kind,  &in_edge); }
+        else if (KEY("out")) { out_dur = (float)atof(val);  const char *e = strchr(val, ' '); if (e) parse_effect(e + 1, &out_kind, &out_edge); }
         #undef KEY
     }
     fclose(f);
@@ -160,18 +176,17 @@ void draw(void) {
           : card_pos == POS_BOTTOM ? SCREEN_H - total - MARGIN
           :                          (SCREEN_H - total) / 2;
 
-    // entrance: eased 0→1 over ENTER_FRAMES, then held at 1
-    float p = frame() < ENTER_FRAMES ? ease_out((float)frame() / ENTER_FRAMES) : 1.0f;
+    // in / hold / out — offset the whole stack off-screen at each end (slide), rest in the middle
+    float t = frame() / 60.0f;   // the bake runs the cart at 60fps
     float dx = 0, dy = 0;
-    if (enter_kind == ENTER_SLIDE) {
-        float off = 1.0f - p;   // travel a full screen dimension → the text CLEARLY starts off-screen
-        if      (enter_edge == EDGE_BOTTOM) dy =  off * SCREEN_H;
-        else if (enter_edge == EDGE_TOP)    dy = -off * SCREEN_H;
-        else if (enter_edge == EDGE_LEFT)   dx = -off * SCREEN_W;
-        else                                dx =  off * SCREEN_W;
+    if (in_dur > 0 && t < in_dur) {                                   // IN: edge → place
+        slide_off(in_kind, in_edge, 1.0f - ease_out(t / in_dur), &dx, &dy);
+    } else if (out_dur > 0 && total_dur > 0 && t > total_dur - out_dur) {   // OUT: place → edge
+        float left = (total_dur - t) / out_dur;                       // 1 → 0 across the out window
+        slide_off(out_kind, out_edge, 1.0f - ease_out(left < 0 ? 0 : left), &dx, &dy);
     }
-    // (ENTER_FADE has no alpha in the palette → the text just appears + boils;
-    //  the reel-level xfade cut supplies the actual dissolve. See the design doc.)
+    // (FADE has no alpha in the palette → the text just appears/vanishes; the reel-level
+    //  xfade cut at the part boundary supplies the actual dissolve. See the design doc.)
 
     // breathe: a slow ±BREATHE_AMT layout scale about the stack's vertical centre. Glyphs stay
     // integer-scaled (crisp); the block spreads/contracts — the cheap bitmap take on a scale pulse.

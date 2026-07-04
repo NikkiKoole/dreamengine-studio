@@ -1558,11 +1558,18 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
           for (const seg of parts.slice(1)) {
             let cm
             if      ((cm = seg.match(/^anim\s+(.+)$/)))       row.anim = cm[1]
+            else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { row.inDur = +cm[1]; row.inEffect = cm[2] }
+            else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { row.outDur = +cm[1]; row.outEffect = cm[2] }
             else if ((cm = seg.match(/^bg\s+(\d+)/)))         row.bg = +cm[1]
             else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    row.boil = +cm[1]
             else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) row.breathe = +cm[1]
             else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
           }
+          row.inEffect = row.inEffect || row.anim || 'fade'   // in/hold/out for the editor (hold derived)
+          if (row.inDur == null) row.inDur = 0.5
+          if (row.outDur == null) row.outDur = 0
+          row.outEffect = row.outEffect || 'slide top'
+          row.holdDur = Math.max(0, (row.dur || 2) - row.inDur - row.outDur)
           rows.push(row); continue
         }
         if (t.startsWith('over')) {   // a text overlay riding the preceding row
@@ -1573,6 +1580,8 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
           for (const seg of parts.slice(1)) {
             let cm
             if      ((cm = seg.match(/^anim\s+(.+)$/)))       ov.anim = cm[1]
+            else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { ov.inDur = +cm[1]; ov.inEffect = cm[2] }
+            else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { ov.outDur = +cm[1]; ov.outEffect = cm[2] }
             else if ((cm = seg.match(/^pos\s+(\w+)/)))        ov.pos = cm[1]
             else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    ov.boil = +cm[1]
             else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) ov.breathe = +cm[1]
@@ -1622,13 +1631,18 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
   const lineFor = (r, i) => {   // one row → one or more .reel lines (a clip/card + its overlay continuation lines)
     const cut = i > 0 ? [`${r.xtype || 'fade'} ${r.xdur || 0.5}`] : []
     if (r.card) {               // @card <dur> | <cut> | title/sub/body | anim | bg
+      const inDur = r.inDur != null ? r.inDur : 0.5
+      const outDur = r.outDur || 0
+      const holdDur = r.holdDur != null ? r.holdDur : Math.max(0, (r.dur || 2) - inDur - outDur)
+      const total = Math.round((inDur + holdDur + outDur) * 100) / 100   // @card carries the total
       const segs = [...cut]
       for (const l of (r.lines || [])) segs.push(`${l.role} "${l.text}"`)
-      if (r.anim) segs.push(`anim ${r.anim}`)
+      segs.push(`in ${inDur} ${r.inEffect || r.anim || 'fade'}`)
+      if (outDur > 0) segs.push(`out ${outDur} ${r.outEffect || 'slide top'}`)
       if (r.bg != null) segs.push(`bg ${r.bg}`)
       if (r.boil != null) segs.push(`boil ${r.boil}`)
       if (r.breathe != null) segs.push(`breathe ${r.breathe}`)
-      return [`@card ${r.dur || 2.0}${segs.length ? ' | ' + segs.join(' | ') : ''}`]
+      return [`@card ${total}${segs.length ? ' | ' + segs.join(' | ') : ''}`]
     }
     const segs = [...cut]       // a clip: cut | trim | speed
     if (Array.isArray(r.trim) && r.trim.length === 2) segs.push(`trim ${r.trim[0]} ${r.trim[1]}`)
@@ -1637,7 +1651,9 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
     for (const ov of (r.overlays || [])) {   // over @a-b | pos | anim | title/sub/body
       const os = []
       if (ov.pos) os.push(`pos ${ov.pos}`)
-      if (ov.anim) os.push(`anim ${ov.anim}`)
+      if (ov.inDur != null) os.push(`in ${ov.inDur} ${ov.inEffect || 'fade'}`)
+      if (ov.outDur) os.push(`out ${ov.outDur} ${ov.outEffect || 'slide top'}`)
+      if (ov.anim && ov.inDur == null) os.push(`anim ${ov.anim}`)
       if (ov.boil != null) os.push(`boil ${ov.boil}`)
       if (ov.breathe != null) os.push(`breathe ${ov.breathe}`)
       for (const l of (ov.lines || [])) os.push(`${l.role} "${l.text}"`)

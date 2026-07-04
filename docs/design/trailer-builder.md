@@ -276,9 +276,12 @@ scale-pulse). Boil is true per-letter jitter.
 bubble-letter look (fat-ink + outline + bevel *is* the Tiny-Jam logo, per squishy's own notes); and
 for a hand-lettered app *title* specifically, draw it once in squishy and use the export as a clip.
 
-**Two anims for slice 1 — in-animation only.** A card enters with its text anim and **exits via the
-existing `xfade` cut** (no separate out-animation yet; covers ~90% of trailer cards, halves the
-grammar). Out-animations are a later add if a card needs to *leave* with flair mid-shot.
+**Full in / hold / out timeline (BUILT 2026-07-04).** A card plays an **in** transition (`in <secs>
+<effect>`), rests for the **hold** (boil/breathe), then an **out** transition (`out <secs> <effect>`);
+hold = total − in − out. Each end has its own effect. **slide** is real motion (from an edge on the
+in, toward an edge on the out); **fade** has no palette alpha, so it appears/vanishes and leans on the
+reel's `xfade` cut at the boundary for the actual dissolve. The editor card block exposes in-effect +
+in-secs · hold-secs · out-effect + out-secs; the `@card` line's number is the total.
 
 **`.reel` grammar (DECIDED — anchored-to-clip overlays, sized-line content):**
 ```

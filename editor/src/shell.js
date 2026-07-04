@@ -1502,25 +1502,33 @@ function tlProbeDurations() {
     v.addEventListener('error', () => { tlDur[clip] = 0 }, { once: true })
   }
 }
-// a text-card timeline block: a title/sub/body line stack + anim/bg/duration controls
+// a text-card timeline block: a title/sub/body line stack + in/hold/out timing + bg/boil/breathe
 function cardBlock(r, i) {
   const roleSel = (role, k) => `<select class="tl-crole" data-tl-role="${i},${k}">`
     + TL_ROLES.map(o => `<option${o === role ? ' selected' : ''}>${o}</option>`).join('') + `</select>`
   const lines = (r.lines || []).map((l, k) => `<span class="tl-cline">${roleSel(l.role, k)}`
     + `<input class="tl-ctext" data-tl-ctext="${i},${k}" value="${escHtml(l.text)}" placeholder="text">`
     + `<button class="tl-cx" data-tl-cdel="${i},${k}" title="remove line">✕</button></span>`).join('')
-  const anim = `<select class="tl-canim" data-tl-canim="${i}" title="entrance">`
-    + TL_ANIMS.map(a => `<option${a === (r.anim || 'fade') ? ' selected' : ''}>${a}</option>`).join('') + `</select>`
+  const animSel = (val, attr) => `<select class="tl-canim" data-${attr}="${i}">`
+    + TL_ANIMS.map(a => `<option${a === (val || 'fade') ? ' selected' : ''}>${a}</option>`).join('') + `</select>`
+  const inDur = r.inDur ?? 0.5, holdDur = r.holdDur ?? 1.5, outDur = r.outDur ?? 0
+  const total = inDur + holdDur + outDur
   const bg = r.bg == null ? 17 : r.bg
-  return `<span class="tl-block tl-card" draggable="true" data-tl-block="${i}" style="flex:${(r.dur || 2)} 1 120px">`
+  const num = (attr, val, min) => `<input class="tl-num" type="number" min="${min}" step="0.1" data-${attr}="${i}" value="${val}">`
+  return `<span class="tl-block tl-card" draggable="true" data-tl-block="${i}" style="flex:${total} 1 150px">`
     + `<span class="tl-lbl">📝 card</span>`
     + `<span class="tl-cardlines">${lines}<button class="tl-cadd" data-tl-cadd="${i}">＋ line</button></span>`
-    + `<span class="tl-cardopts">${anim}`
-    + `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
-    + `<input class="tl-num" type="number" min="0" max="31" data-tl-cbg="${i}" value="${bg}"></label>`
-    + `<label class="tl-splbl" title="duration (s)"><input class="tl-num" type="number" min="0.3" step="0.5" data-tl-cdur="${i}" value="${r.dur || 2}">s</label>`
-    + `<label class="tl-splbl" title="boil — hand-drawn wobble (0 = off … 1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cboil="${i}" value="${r.boil ?? 1}"></label>`
-    + `<label class="tl-splbl" title="breathe — grow/shrink pulse (0 = off … 1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cbreathe="${i}" value="${r.breathe ?? 0}"></label></span>`
+    + `<span class="tl-cardopts">`
+    +   `<span class="tl-phase" title="in transition (s + effect)">in ${animSel(r.inEffect, 'tl-cinanim')}${num('tl-cindur', inDur, 0)}</span>`
+    +   `<span class="tl-phase" title="hold — boil/breathe (s)">hold ${num('tl-chold', holdDur, 0)}</span>`
+    +   `<span class="tl-phase" title="out transition (s + effect)">out ${animSel(r.outEffect, 'tl-coutanim')}${num('tl-coutdur', outDur, 0)}</span>`
+    + `</span>`
+    + `<span class="tl-cardopts">`
+    +   `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
+    +   `<input class="tl-num" type="number" min="0" max="31" data-tl-cbg="${i}" value="${bg}"></label>`
+    +   `<label class="tl-splbl" title="boil — hand-drawn wobble (0 = off … 1)">boil<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cboil="${i}" value="${r.boil ?? 1}"></label>`
+    +   `<label class="tl-splbl" title="breathe — grow/shrink pulse (0 = off … 1)">breathe<input class="tl-num" type="number" min="0" max="1" step="0.1" data-tl-cbreathe="${i}" value="${r.breathe ?? 0}"></label>`
+    + `</span>`
     + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate">⧉</button>`
     + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
 }
@@ -1687,12 +1695,18 @@ document.getElementById('tl-timeline')?.addEventListener('change', e => {
   if (sp) { const i = +sp.dataset.tlSp; tlRows[i].speed = parseFloat(sp.value) || 1
     const mon = document.getElementById('tl-monitor'); if (mon && tlFocus === i) mon.playbackRate = tlRows[i].speed; tlRender() }
   // text-card fields
-  const role = e.target.closest('[data-tl-role]'); const anim = e.target.closest('[data-tl-canim]')
-  const cbg = e.target.closest('[data-tl-cbg]'); const cdur = e.target.closest('[data-tl-cdur]')
+  const role = e.target.closest('[data-tl-role]'); const cbg = e.target.closest('[data-tl-cbg]')
   if (role) { const [i, k] = role.dataset.tlRole.split(',').map(Number); tlRows[i].lines[k].role = role.value; tlRender() }
-  if (anim) tlRows[+anim.dataset.tlCanim].anim = anim.value
   if (cbg)  { tlRows[+cbg.dataset.tlCbg].bg = Math.max(0, Math.min(31, parseInt(cbg.value) || 0)); tlRender() }
-  if (cdur) { tlRows[+cdur.dataset.tlCdur].dur = Math.max(0.3, parseFloat(cdur.value) || 2); tlRender() }
+  // in / hold / out timing (effect selects don't resize; duration fields do)
+  const ci = e.target.closest('[data-tl-cinanim]'); const co = e.target.closest('[data-tl-coutanim]')
+  if (ci) tlRows[+ci.dataset.tlCinanim].inEffect = ci.value
+  if (co) tlRows[+co.dataset.tlCoutanim].outEffect = co.value
+  const setDur = (el, attr, key) => { if (!el) return; const i = +el.dataset[attr]; tlRows[i][key] = Math.max(0, parseFloat(el.value) || 0)
+    tlRows[i].dur = (tlRows[i].inDur ?? 0.5) + (tlRows[i].holdDur ?? 1.5) + (tlRows[i].outDur ?? 0); tlRender() }
+  setDur(e.target.closest('[data-tl-cindur]'),  'tlCindur',  'inDur')
+  setDur(e.target.closest('[data-tl-chold]'),   'tlChold',   'holdDur')
+  setDur(e.target.closest('[data-tl-coutdur]'), 'tlCoutdur', 'outDur')
   const cboil = e.target.closest('[data-tl-cboil]'); const cbr = e.target.closest('[data-tl-cbreathe]')
   if (cboil) tlRows[+cboil.dataset.tlCboil].boil = Math.max(0, Math.min(1, parseFloat(cboil.value) || 0))
   if (cbr)   tlRows[+cbr.dataset.tlCbreathe].breathe = Math.max(0, Math.min(1, parseFloat(cbr.value) || 0))
@@ -1722,7 +1736,7 @@ document.getElementById('tl-mon-play')?.addEventListener('click', () => {
 })
 document.getElementById('tl-library')?.addEventListener('click', e => {
   if (e.target.closest('[data-tl-addcard]')) {   // append a fresh text card
-    tlRows.push({ card: true, dur: 2, lines: [{ role: 'title', text: 'TITLE' }], anim: 'fade', bg: 17, boil: 1, breathe: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); return
+    tlRows.push({ card: true, inDur: 0.5, holdDur: 1.5, outDur: 0, inEffect: 'slide bottom', outEffect: 'slide top', dur: 2, lines: [{ role: 'title', text: 'TITLE' }], bg: 17, boil: 1, breathe: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); return
   }
   const add = e.target.closest('[data-tl-add]'); if (!add) return
   tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender()

@@ -177,8 +177,13 @@ cache; our baked reel *is* that cache — we just add the live layer above it.)
 
 ## Text cards + overlays — kinetic pixel type via a magic-colour key (staged)
 
-STATUS for this section: SPECCED, not built (2026-07-04). Resolves the **text/tween fork** left open
-in [`demand-generation.md`](demand-generation.md) (§"App-trailer pipeline") — toward **engine-native**,
+STATUS for this section: **the `titlecard` cart is BUILT (slice 1, 2026-07-04)** — `tools/carts/
+titlecard.c`: title/sub/body stacked + centred via `lay.h`, white text + drop shadow (`print`×2),
+slide entrance (starts fully off-screen), squishy resting boil. Titles use **`print_scaled`** on the
+crisp 8×8 `FONT_NORMAL` (×3), not `FONT_COMIC` — one font scaled for the hierarchy, chunky pixel type.
+Still to build: the `.reel` `@card`/`over` grammar + bake plumbing, the magic-colour overlay pass, and
+the editor "＋ text card". Resolves the **text/tween fork** left open in
+[`demand-generation.md`](demand-generation.md) (§"App-trailer pipeline") — toward **engine-native**,
 not ffmpeg `drawtext` and not a hand-off to CapCut.
 
 **The idea.** CapCut's moat is kinetic text — but it's smooth vector type that looks like every other

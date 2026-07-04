@@ -5651,6 +5651,17 @@
     ]
   },
   {
+    "title": "titlecard",
+    "description": "A kinetic pixel-type title card for the trailer builder - white text with a drop shadow that slides in and then BOILS (hand-drawn wobble) while it sits. The renderer behind the trailer builder's text cards (docs/design/trailer-builder.md). Content is a list of sized lines - title / sub / body - stacked and centred with lay.h; each line is drawn white with a 1px dark drop shadow (just print() twice, no new API). Two motion layers ride on top: an ENTRANCE that plays once (fade = just appear, or slide in from an edge, eased) and a continuous RESTING boil ported from the squishy cart - every ~8 frames (~7.5fps, the hand-inked-cel cadence) each letter is nudged a pixel by seeded noise, so the type stays alive instead of dead-on-arrival. Deterministic and nearly free: the whole thing is lay.h + print + a hash, zero engine changes. This slice draws its own dark background (a standalone card, a full part in a reel); the overlay case - clearing to a magic colour and colour-keying it over gameplay - is the next slice. Content/style/anim are hard-coded demo values here; wiring them to the .reel grammar (@card ... | title \"...\" | anim slide bottom) comes with the build plumbing. Watch it: the card slides up, settles, and keeps boiling. No input.",
+    "file": "titlecard.cart.png",
+    "created": "2026-07-04",
+    "kind": [
+      "tech-demo",
+      "toy"
+    ],
+    "teaches": []
+  },
+  {
     "title": "touchlab",
     "description": "Device test card for the touch API - pick it up the day a real touchscreen is available. Build for web, open the LAN url on the iPad/phone, and run down the 7-point checklist on screen: crosshair accuracy under CSS scaling, ten-finger tracking, touch_id stability while other fingers tap, tapp() single-fire drumming, lift detection (cart-side diff - the data a future touch_ended API would return), iOS audio unlock blips, and whether Safari gestures leak (pinch/double-tap/edge-swipe must not move the page). Verdicts go to docs/design/touch-notes.md section 5. On desktop the mouse is one finger (id -2), enough to smoke-test half the card.",
     "file": "touchlab.cart.png",

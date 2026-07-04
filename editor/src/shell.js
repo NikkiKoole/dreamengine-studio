@@ -1512,16 +1512,19 @@ function cardBlock(r, i) {
   const animSel = (val, attr) => `<select class="tl-canim" data-${attr}="${i}">`
     + TL_ANIMS.map(a => `<option${a === (val || 'fade') ? ' selected' : ''}>${a}</option>`).join('') + `</select>`
   const inDur = r.inDur ?? 0.5, holdDur = r.holdDur ?? 1.5, outDur = r.outDur ?? 0
-  const total = inDur + holdDur + outDur
+  const wb = r.waitBefore ?? 0, wa = r.waitAfter ?? 0
+  const total = wb + inDur + holdDur + outDur + wa
   const bg = r.bg == null ? 17 : r.bg
   const num = (attr, val, min) => `<input class="tl-num" type="number" min="${min}" step="0.1" data-${attr}="${i}" value="${val}">`
-  return `<span class="tl-block tl-card" draggable="true" data-tl-block="${i}" style="flex:${total} 1 150px">`
+  return `<span class="tl-block tl-card" draggable="true" data-tl-block="${i}" style="flex:${total} 1 170px">`
     + `<span class="tl-lbl">📝 card</span>`
     + `<span class="tl-cardlines">${lines}<button class="tl-cadd" data-tl-cadd="${i}">＋ line</button></span>`
     + `<span class="tl-cardopts">`
+    +   `<span class="tl-phase" title="wait — blank lead-in before the in (s)">wait ${num('tl-cwaitb', wb, 0)}</span>`
     +   `<span class="tl-phase" title="in transition (s + effect)">in ${animSel(r.inEffect, 'tl-cinanim')}${num('tl-cindur', inDur, 0)}</span>`
     +   `<span class="tl-phase" title="hold — boil/breathe (s)">hold ${num('tl-chold', holdDur, 0)}</span>`
     +   `<span class="tl-phase" title="out transition (s + effect)">out ${animSel(r.outEffect, 'tl-coutanim')}${num('tl-coutdur', outDur, 0)}</span>`
+    +   `<span class="tl-phase" title="wait — blank tail after the out (s)">wait ${num('tl-cwaita', wa, 0)}</span>`
     + `</span>`
     + `<span class="tl-cardopts">`
     +   `<label class="tl-splbl" title="background colour (0–31)"><span class="tl-sw" style="background:${paletteHex(bg)}"></span>`
@@ -1702,11 +1705,13 @@ document.getElementById('tl-timeline')?.addEventListener('change', e => {
   const ci = e.target.closest('[data-tl-cinanim]'); const co = e.target.closest('[data-tl-coutanim]')
   if (ci) tlRows[+ci.dataset.tlCinanim].inEffect = ci.value
   if (co) tlRows[+co.dataset.tlCoutanim].outEffect = co.value
-  const setDur = (el, attr, key) => { if (!el) return; const i = +el.dataset[attr]; tlRows[i][key] = Math.max(0, parseFloat(el.value) || 0)
-    tlRows[i].dur = (tlRows[i].inDur ?? 0.5) + (tlRows[i].holdDur ?? 1.5) + (tlRows[i].outDur ?? 0); tlRender() }
+  const setDur = (el, attr, key) => { if (!el) return; const i = +el.dataset[attr]; const R = tlRows[i]; R[key] = Math.max(0, parseFloat(el.value) || 0)
+    R.dur = (R.waitBefore ?? 0) + (R.inDur ?? 0.5) + (R.holdDur ?? 1.5) + (R.outDur ?? 0) + (R.waitAfter ?? 0); tlRender() }
+  setDur(e.target.closest('[data-tl-cwaitb]'),  'tlCwaitb',  'waitBefore')
   setDur(e.target.closest('[data-tl-cindur]'),  'tlCindur',  'inDur')
   setDur(e.target.closest('[data-tl-chold]'),   'tlChold',   'holdDur')
   setDur(e.target.closest('[data-tl-coutdur]'), 'tlCoutdur', 'outDur')
+  setDur(e.target.closest('[data-tl-cwaita]'),  'tlCwaita',  'waitAfter')
   const cboil = e.target.closest('[data-tl-cboil]'); const cbr = e.target.closest('[data-tl-cbreathe]')
   if (cboil) tlRows[+cboil.dataset.tlCboil].boil = Math.max(0, Math.min(1, parseFloat(cboil.value) || 0))
   if (cbr)   tlRows[+cbr.dataset.tlCbreathe].breathe = Math.max(0, Math.min(1, parseFloat(cbr.value) || 0))
@@ -1736,7 +1741,7 @@ document.getElementById('tl-mon-play')?.addEventListener('click', () => {
 })
 document.getElementById('tl-library')?.addEventListener('click', e => {
   if (e.target.closest('[data-tl-addcard]')) {   // append a fresh text card
-    tlRows.push({ card: true, inDur: 0.5, holdDur: 1.5, outDur: 0, inEffect: 'slide bottom', outEffect: 'slide top', dur: 2, lines: [{ role: 'title', text: 'TITLE' }], bg: 17, boil: 1, breathe: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); return
+    tlRows.push({ card: true, waitBefore: 0, inDur: 0.5, holdDur: 1.5, outDur: 0, waitAfter: 0, inEffect: 'slide bottom', outEffect: 'slide top', dur: 2, lines: [{ role: 'title', text: 'TITLE' }], bg: 17, boil: 1, breathe: 0, xtype: 'fade', xdur: 0.5 }); tlRender(); return
   }
   const add = e.target.closest('[data-tl-add]'); if (!add) return
   tlRows.push({ clip: add.dataset.tlAdd, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }); tlRender()

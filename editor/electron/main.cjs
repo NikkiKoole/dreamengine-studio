@@ -1560,16 +1560,19 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
             if      ((cm = seg.match(/^anim\s+(.+)$/)))       row.anim = cm[1]
             else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { row.inDur = +cm[1]; row.inEffect = cm[2] }
             else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { row.outDur = +cm[1]; row.outEffect = cm[2] }
+            else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { row.waitBefore = +cm[1]; row.waitAfter = +cm[2] }
             else if ((cm = seg.match(/^bg\s+(\d+)/)))         row.bg = +cm[1]
             else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    row.boil = +cm[1]
             else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) row.breathe = +cm[1]
             else if ((cm = seg.match(/^(\w+)\s+([\d.]+)/)) && !/^(title|sub|body)$/.test(cm[1])) { row.xtype = cm[1]; row.xdur = +cm[2] }
           }
-          row.inEffect = row.inEffect || row.anim || 'fade'   // in/hold/out for the editor (hold derived)
+          row.inEffect = row.inEffect || row.anim || 'fade'   // wait/in/hold/out/wait for the editor (hold derived)
           if (row.inDur == null) row.inDur = 0.5
           if (row.outDur == null) row.outDur = 0
           row.outEffect = row.outEffect || 'slide top'
-          row.holdDur = Math.max(0, (row.dur || 2) - row.inDur - row.outDur)
+          row.waitBefore = row.waitBefore || 0
+          row.waitAfter = row.waitAfter || 0
+          row.holdDur = Math.max(0, (row.dur || 2) - row.waitBefore - row.inDur - row.outDur - row.waitAfter)
           rows.push(row); continue
         }
         if (t.startsWith('over')) {   // a text overlay riding the preceding row
@@ -1582,6 +1585,7 @@ ipcMain.handle('studio:app-clips', async (_e, name) => {
             if      ((cm = seg.match(/^anim\s+(.+)$/)))       ov.anim = cm[1]
             else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))  { ov.inDur = +cm[1]; ov.inEffect = cm[2] }
             else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/))) { ov.outDur = +cm[1]; ov.outEffect = cm[2] }
+            else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { ov.waitBefore = +cm[1]; ov.waitAfter = +cm[2] }
             else if ((cm = seg.match(/^pos\s+(\w+)/)))        ov.pos = cm[1]
             else if ((cm = seg.match(/^boil\s+([\d.]+)/)))    ov.boil = +cm[1]
             else if ((cm = seg.match(/^breathe\s+([\d.]+)/))) ov.breathe = +cm[1]
@@ -1633,12 +1637,14 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
     if (r.card) {               // @card <dur> | <cut> | title/sub/body | anim | bg
       const inDur = r.inDur != null ? r.inDur : 0.5
       const outDur = r.outDur || 0
+      const wb = r.waitBefore || 0, wa = r.waitAfter || 0
       const holdDur = r.holdDur != null ? r.holdDur : Math.max(0, (r.dur || 2) - inDur - outDur)
-      const total = Math.round((inDur + holdDur + outDur) * 100) / 100   // @card carries the total
+      const total = Math.round((wb + inDur + holdDur + outDur + wa) * 100) / 100   // @card carries the total
       const segs = [...cut]
       for (const l of (r.lines || [])) segs.push(`${l.role} "${l.text}"`)
       segs.push(`in ${inDur} ${r.inEffect || r.anim || 'fade'}`)
       if (outDur > 0) segs.push(`out ${outDur} ${r.outEffect || 'slide top'}`)
+      if (wb > 0 || wa > 0) segs.push(`wait ${wb} ${wa}`)
       if (r.bg != null) segs.push(`bg ${r.bg}`)
       if (r.boil != null) segs.push(`boil ${r.boil}`)
       if (r.breathe != null) segs.push(`breathe ${r.breathe}`)
@@ -1653,6 +1659,7 @@ ipcMain.handle('studio:build-reel', async (_e, name, rows) => {
       if (ov.pos) os.push(`pos ${ov.pos}`)
       if (ov.inDur != null) os.push(`in ${ov.inDur} ${ov.inEffect || 'fade'}`)
       if (ov.outDur) os.push(`out ${ov.outDur} ${ov.outEffect || 'slide top'}`)
+      if (ov.waitBefore > 0 || ov.waitAfter > 0) os.push(`wait ${ov.waitBefore || 0} ${ov.waitAfter || 0}`)
       if (ov.anim && ov.inDur == null) os.push(`anim ${ov.anim}`)
       if (ov.boil != null) os.push(`boil ${ov.boil}`)
       if (ov.breathe != null) os.push(`breathe ${ov.breathe}`)

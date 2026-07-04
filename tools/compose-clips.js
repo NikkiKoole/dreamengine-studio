@@ -96,6 +96,7 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
       else if ((cm = seg.match(/^anim\s+(.+)$/)))             shot.card.anim = cm[1]
       else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))    { shot.card.inDur = +cm[1]; shot.card.inEffect = cm[2] }
       else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/)))   { shot.card.outDur = +cm[1]; shot.card.outEffect = cm[2] }
+      else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { shot.card.waitBefore = +cm[1]; shot.card.waitAfter = +cm[2] }
       else if ((cm = seg.match(/^bg\s+(\d+)/)))               shot.card.bg = +cm[1]
       else if ((cm = seg.match(/^boil\s+([\d.]+)/)))          shot.card.boil = +cm[1]
       else if ((cm = seg.match(/^breathe\s+([\d.]+)/)))       shot.card.breathe = +cm[1]
@@ -119,6 +120,7 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
       else if ((cm = seg.match(/^anim\s+(.+)$/)))             ov.card.anim = cm[1]
       else if ((cm = seg.match(/^in\s+([\d.]+)\s+(.+)$/)))    { ov.card.inDur = +cm[1]; ov.card.inEffect = cm[2] }
       else if ((cm = seg.match(/^out\s+([\d.]+)\s+(.+)$/)))   { ov.card.outDur = +cm[1]; ov.card.outEffect = cm[2] }
+      else if ((cm = seg.match(/^wait\s+([\d.]+)\s+([\d.]+)/))) { ov.card.waitBefore = +cm[1]; ov.card.waitAfter = +cm[2] }
       else if ((cm = seg.match(/^pos\s+(\w+)/)))              { ov.pos = cm[1]; ov.card.pos = cm[1] }
       else if ((cm = seg.match(/^boil\s+([\d.]+)/)))          ov.card.boil = +cm[1]
       else if ((cm = seg.match(/^breathe\s+([\d.]+)/)))       ov.card.breathe = +cm[1]
@@ -159,9 +161,10 @@ function bakeCard(card, fps) {
   if (card.pos)            plines.push(`pos ${card.pos}`)
   if (card.boil != null)    plines.push(`boil ${card.boil}`)
   if (card.breathe != null) plines.push(`breathe ${card.breathe}`)
-  plines.push(`dur ${card.dur}`)   // the cart needs the total to time the OUT window
+  plines.push(`dur ${card.dur}`)   // the cart needs the total to time the OUT + tail windows
   plines.push(`in ${card.inDur != null ? card.inDur : 0.5} ${card.inEffect || card.anim || 'fade'}`)
   if (card.outDur > 0) plines.push(`out ${card.outDur} ${card.outEffect || 'slide top'}`)
+  if (card.waitBefore > 0 || card.waitAfter > 0) plines.push(`wait ${card.waitBefore || 0} ${card.waitAfter || 0}`)
   for (const l of card.lines) plines.push(`${l.role} ${l.text}`)
   const key   = require('crypto').createHash('sha1').update(JSON.stringify(card) + fps).digest('hex').slice(0, 16)
   const pfile = path.join(dir, `params-${key}.txt`)

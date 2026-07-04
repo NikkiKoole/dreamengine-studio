@@ -62,7 +62,8 @@ static int role_h(int r)     { return r == ROLE_TITLE ? 24 : r == ROLE_SUB ? 8 :
 // SLIDE = real motion from/to an edge; FADE = no positional move (the reel's xfade
 // cut supplies the dissolve — there's no per-pixel alpha in the palette).
 enum { ANIM_FADE, ANIM_SLIDE };
-static float total_dur = 0.0f;                       // total on-screen secs (0 = unknown → no out)
+static float total_dur = 0.0f;                       // total on-screen secs (0 = unknown → no out/tail)
+static float wait_before = 0.0f, wait_after = 0.0f;  // blank pads: lead-in before the IN, tail after the OUT
 static int   in_kind  = ANIM_SLIDE, in_edge  = EDGE_BOTTOM;  static float in_dur  = 0.5f;
 static int   out_kind = ANIM_FADE,  out_edge = EDGE_TOP;     static float out_dur = 0.0f;   // 0 = no out
 
@@ -121,6 +122,7 @@ static void load_params(void) {
         else if (KEY("anim"))    parse_effect(val, &in_kind, &in_edge);   // back-compat: in effect
         else if (KEY("in"))  { in_dur  = (float)atof(val);  const char *e = strchr(val, ' '); if (e) parse_effect(e + 1, &in_kind,  &in_edge); }
         else if (KEY("out")) { out_dur = (float)atof(val);  const char *e = strchr(val, ' '); if (e) parse_effect(e + 1, &out_kind, &out_edge); }
+        else if (KEY("wait")) { wait_before = (float)atof(val); const char *e = strchr(val, ' '); if (e) wait_after = (float)atof(e + 1); }
         #undef KEY
     }
     fclose(f);
@@ -176,13 +178,18 @@ void draw(void) {
           : card_pos == POS_BOTTOM ? SCREEN_H - total - MARGIN
           :                          (SCREEN_H - total) / 2;
 
-    // in / hold / out — offset the whole stack off-screen at each end (slide), rest in the middle
+    // timeline: [wait_before] → IN → hold → OUT → [wait_after]. During the wait pads the card
+    // shows its background only (no text) — for an overlay that's the gameplay alone.
     float t = frame() / 60.0f;   // the bake runs the cart at 60fps
+    if (t < wait_before) return;                                        // lead-in: blank
+    if (total_dur > 0 && t >= total_dur - wait_after) return;          // tail: blank
+    float in_end   = wait_before + in_dur;
+    float out_start = total_dur - wait_after - out_dur;
     float dx = 0, dy = 0;
-    if (in_dur > 0 && t < in_dur) {                                   // IN: edge → place
-        slide_off(in_kind, in_edge, 1.0f - ease_out(t / in_dur), &dx, &dy);
-    } else if (out_dur > 0 && total_dur > 0 && t > total_dur - out_dur) {   // OUT: place → edge
-        float left = (total_dur - t) / out_dur;                       // 1 → 0 across the out window
+    if (in_dur > 0 && t < in_end) {                                    // IN: edge → place
+        slide_off(in_kind, in_edge, 1.0f - ease_out((t - wait_before) / in_dur), &dx, &dy);
+    } else if (out_dur > 0 && total_dur > 0 && t >= out_start) {       // OUT: place → edge
+        float left = (total_dur - wait_after - t) / out_dur;           // 1 → 0 across the out window
         slide_off(out_kind, out_edge, 1.0f - ease_out(left < 0 ? 0 : left), &dx, &dy);
     }
     // (FADE has no alpha in the palette → the text just appears/vanishes; the reel-level

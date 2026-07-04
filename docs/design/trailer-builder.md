@@ -214,9 +214,19 @@ This is the de-risk: overlay-on-gameplay is NOT the expensive fork it looked lik
 key makes it as cheap as a standalone card.
 
 **The renderer.** A reusable `titlecard` cart (candidate for a `titlecard.h` cart-land lib so it's
-shared/extensible), parameterised by text · style · anim-preset · background (magic colour vs real) ·
-duration. Params reach it at bake time (a params file the cart reads, or a generated source per card —
-settle in build). One cart drives both uses: magic-colour bg → overlay; real bg → standalone card.
+shared/extensible), parameterised by content · style · anim-preset · background (magic colour vs real)
+· duration. Params reach it at bake time (a params file the cart reads, or a generated source per card
+— settle in build). One cart drives both uses: magic-colour bg → overlay; real bg → standalone card.
+
+**Content model — a list of sized lines, NOT templates (DECIDED 2026-07-04).** A card's content is an
+**ordered list of lines, each with a role that sets its size**: `title` (big) · `sub` (medium) ·
+`body` (small). This single model *is* every case, with no template to pick:
+- one sentence → a single `body` (or `title`) line
+- header + subheader → a `title` line + a `sub` line (the common case)
+- a paragraph → several `body` lines
+Lines stack top-to-bottom in the order written, auto-centre, and auto-fit (wrap / shrink when too
+wide) via **`lay.h`** — roles just map to the engine's font sizes. Three roles (not two): `body` is
+what makes taglines and paragraphs read right, and it costs nothing.
 
 **Two transition layers (don't conflate them):** the card's **cut** (the `xfade` bringing the part
 in — already have it) and the **text's own animation** (new). Starter kinetic vocabulary, all cheap
@@ -227,12 +237,23 @@ engine-native:
 - **glow / CRT flicker** — pulse
 - **impact** — shake + scale-punch, settle
 
-**`.reel` grammar (strawman — being brainstormed):**
+**Two anims for slice 1 — in-animation only.** A card enters with its text anim and **exits via the
+existing `xfade` cut** (no separate out-animation yet; covers ~90% of trailer cards, halves the
+grammar). Out-animations are a later add if a card needs to *leave* with flair mid-shot.
+
+**`.reel` grammar (DECIDED — anchored-to-clip overlays, sized-line content):**
 ```
-@card 2.0 | fade 0.5 | text "Tiny Jam" | anim pop | style neon      # a standalone part
-acidrack/01-demo | fade 0.5 | over "NEW SOUND" @1-3 | anim slide     # an overlay on THIS clip, t=1–3s
+@card 2.5 | fade 0.5 | title "TINY JAM" | sub "3 synths, one app" | anim pop | style neon
+@card 2.0 | fade 0.5 | body "made on a fantasy console" | anim slide          # just one sentence
+acidrack/01-demo | fade 0.5                                                   # an overlay rides THIS clip:
+  over @1-3 | pos bottom | anim slide | body "new: the acid engine"           #   relative time, survives reorder/retrim
 ```
-Open: overlay-attached-to-a-clip vs overlay-as-its-own-timed-line; multi-line text; positioning.
+- **Overlay timing is anchored to its clip (relative seconds), never absolute reel time** — so
+  reordering / retrimming the clip carries the overlay along and keeps it valid (absolute times would
+  refight the "34s too long" fragility). Overlays hang on continuation lines under the clip (one now,
+  the form allows several later).
+- Text-role segments (`title`/`sub`/`body`) render in written order, top-to-bottom; `anim`/`style`/
+  `pos`/`fade`/`over` are the non-text segments. `pos` = a 9-grid enum (via `lay.h`).
 
 **Where it stays honest:**
 - **Preserve nearest-neighbour scaling** so the magic colour stays an *exact* RGB after the reel's
@@ -246,9 +267,11 @@ Open: overlay-attached-to-a-clip vs overlay-as-its-own-timed-line; multi-line te
 2. Magic-colour overlays on clips — the proven `colorkey`+`overlay` pass + the `over …` grammar.
 3. Beat-sync (cards pop on the beat; inherit the prior clip's BPM) + more presets.
 
-**Editor:** a "＋ text card" in the library (adds a card block: text field + anim/style dropdowns);
-overlay = attach to the focused clip with a time window. Preview via bake first; a client-side canvas
-preview of the text animation is a later nicety.
+**Editor:** a "＋ text card" in the library adds a card block whose content is a small **line stack**
+— each row = a role dropdown (title/sub/body) + a text field, with ＋line / ✕line — plus anim/style
+dropdowns. A new card defaults to a single `title` line (type one thing, done); add a `sub` for the
+header+subheader case. Overlay = attach to the focused clip with a relative time window. Preview via
+bake first; a client-side canvas preview of the text animation is a later nicety.
 
 ## IPC it needs (small)
 

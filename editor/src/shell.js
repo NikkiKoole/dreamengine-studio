@@ -2471,13 +2471,13 @@ void draw() {
 `
 
 const EMPTY_TEMPLATE =
-`// dreamengine — write c, make things!
+`// dreamengine - dream it up, write c, make things, get them out.
 
 #include "studio.h"
 
 void draw() {
     cls(CLR_DARK_BLUE);
-    print("hello!", 10, 10, CLR_PEACH);
+    print("hello world here we are!", 10, 10, CLR_PEACH);
 }
 `
 

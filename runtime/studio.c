@@ -1535,6 +1535,18 @@ static void draw_watch_overlay(void) {
     }
 }
 
+// live canvas/window size readout for resizable-layout debugging — top-left, window space (crisp,
+// scale-independent). Only for a resizable cart (de_reflow), so a fixed cart shows nothing and stays
+// byte-identical. de_sw×de_sh is what screen_w()/screen_h() (and lay.h) see; win is the raw window px.
+static void draw_size_overlay(void) {
+    if (!de_reflow) return;
+    char line[64];
+    snprintf(line, sizeof line, "%dx%d  win %dx%d", de_sw, de_sh, GetScreenWidth(), GetScreenHeight());
+    Vector2 m = MeasureTextEx(game_font, line, 12, 1);
+    DrawRectangle(6, 6, (int)m.x + 10, 20, (DeColor){ 0, 0, 0, 170 });
+    DrawTextEx(game_font, line, (Vector2){ 11, 9 }, 12, 1, (DeColor){ 0, 255, 180, 255 });
+}
+
 bool paused(void) { return pause_active; }
 
 // draw the pause overlay into the canvas (native resolution) so it scales up
@@ -2299,6 +2311,7 @@ static void loop_step(void) {
                           (DeColor){ 0, 0, 0, (unsigned char)(fade_amt * 255) });
         draw_touch_overlay_window();   // the on-screen controls (window-space, after the blit)
         draw_watch_overlay();
+        draw_size_overlay();           // resizable carts: live WxH readout, top-left
     EndDrawing();
     }   // end if (!skip_render) — present
 #ifdef PLATFORM_WEB

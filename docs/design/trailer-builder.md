@@ -329,6 +329,17 @@ dropdowns. A new card defaults to a single `title` line (type one thing, done); 
 header+subheader case. Overlay = attach to the focused clip with a relative time window. Preview via
 bake first; a client-side canvas preview of the text animation is a later nicety.
 
+## Seamless loop-close (BUILT 2026-07-04)
+
+An optional **loop diamond** after the last block crossfades the reel's END back into its START, so
+the video plays as a seamless loop (great for a title-card reel that just cycles). `.reel` meta `# loop
+<type> <secs>` (any xfade type — same list as the joins). compose-clips does a real seamless wrap, not
+a stutter: it takes `V[d:T]` then blends `V[T−d:T]` with `V[0:d]` so the output (length `T−d`) has
+`out(start) == out(end)`. Video via `xfade` (with an `fps=` re-stamp — xfade needs CFR after the
+trim); audio via `afade`+`adelay`+`amix` (acrossfade misbehaves after `atrim`). Needs total > 2×secs.
+Verified: a 2-card reel's first and last frames are identical. Editor: the `↺` diamond picks the
+transition + secs (or "no loop"); round-trips through `# loop` in build-reel/app-clips.
+
 ## IPC it needs (small)
 
 - `studio:app-clips(app)` → each cart's committed clips (+ which are baked / recipe-only)

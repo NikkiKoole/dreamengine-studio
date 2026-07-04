@@ -1469,6 +1469,7 @@ const paletteHex = i => TL_PAL[((i | 0) % 32 + 32) % 32]
 // rows are either a clip {clip, xtype, xdur, trim, speed} or a text card
 // {card:true, dur, lines:[{role,text}], anim, bg, xtype, xdur} — the timeline = the .reel
 let tlApp = null, tlLib = [], tlRows = []
+let tlLoop = null   // {type, dur} — seamless loop-close back to the start (null = off)
 let tlBaked = new Set()   // clips with a baked .webm (scrubbable / probeable)
 let tlDur = {}            // clip → source duration (s), probed client-side from the <video> (no ffprobe)
 let tlFocus = -1          // which block the preview monitor is showing
@@ -1483,6 +1484,7 @@ async function openTrailer(app) {
   // start from the saved .reel, else a default: each rack's first clip in manifest order
   tlRows = (res.rows && res.rows.length) ? res.rows.map(r => ({ ...r }))
     : tlLib.filter(c => c.clips.length).map(c => ({ clip: c.clips[0].clip, xtype: 'fade', xdur: 0.5, trim: null, speed: 1 }))
+  tlLoop = res.loop || null
   document.getElementById('tl-app').textContent = res.name || app
   const prev = document.getElementById('tl-preview'); if (prev) { prev.pause?.(); prev.hidden = true; prev.removeAttribute('src') }
   const mon = document.getElementById('tl-monwrap'); if (mon) mon.hidden = true
@@ -1566,8 +1568,18 @@ function tlRender() {
       + `<span class="tl-lbl">${escHtml(r.clip)}</span>${track}<span class="tl-edit">${speed}</span>`
       + `<span class="tl-btns"><button data-tl-dup="${i}" title="duplicate this part (with its trim + speed)">⧉</button>`
       + `<button data-tl-rm="${i}" title="remove">✕</button></span></span>`
-  }).join('')
+  }).join('') + tlLoopControl()
   tlProbeDurations()
+}
+// the loop-close diamond after the last block: crossfade the end back into the start (seamless loop)
+function tlLoopControl() {
+  if (tlRows.length < 2) return ''
+  const on = !!tlLoop
+  const sel = `<select data-tl-loopx>`
+    + `<option value=""${on ? '' : ' selected'}>↺ no loop</option>`
+    + TL_XFADES.map(x => `<option value="${x}"${on && tlLoop.type === x ? ' selected' : ''}>↺ ${x}</option>`).join('') + `</select>`
+  const secs = `<input class="tl-secs" type="number" min="0.1" max="2" step="0.1" data-tl-loopd value="${on ? tlLoop.dur : 0.5}"${on ? '' : ' disabled'}>`
+  return `<span class="tl-loop" title="loop the reel back to the start with a seamless crossfade">${sel}${secs}</span>`
 }
 // load a clip into the preview monitor + highlight its block (the NLE "one monitor" model)
 function tlFocusBlock(i) {
@@ -1697,6 +1709,10 @@ document.getElementById('tl-timeline')?.addEventListener('change', e => {
   if (d) tlRows[+d.dataset.tlD].xdur = parseFloat(d.value) || 0.5
   if (sp) { const i = +sp.dataset.tlSp; tlRows[i].speed = parseFloat(sp.value) || 1
     const mon = document.getElementById('tl-monitor'); if (mon && tlFocus === i) mon.playbackRate = tlRows[i].speed; tlRender() }
+  // loop-close diamond
+  const lx = e.target.closest('[data-tl-loopx]'); const ld = e.target.closest('[data-tl-loopd]')
+  if (lx) { tlLoop = lx.value ? { type: lx.value, dur: (tlLoop && tlLoop.dur) || 0.5 } : null; tlRender() }
+  if (ld && tlLoop) tlLoop.dur = parseFloat(ld.value) || 0.5
   // text-card fields
   const role = e.target.closest('[data-tl-role]'); const cbg = e.target.closest('[data-tl-cbg]')
   if (role) { const [i, k] = role.dataset.tlRole.split(',').map(Number); tlRows[i].lines[k].role = role.value; tlRender() }
@@ -1756,7 +1772,7 @@ document.getElementById('tl-build')?.addEventListener('click', async () => {
   const btn = document.getElementById('tl-build'); const stop = busyDots(btn, 'building (bakes + composes)', '▶ Build trailer'); btn.disabled = true
   const tlLog = document.getElementById('tl-log')
   if (tlLog) { tlLog.hidden = false; tlLog.textContent = `building ${tlApp}…\n` }   // live feedback of what it's doing
-  const res = await window.studio.buildReel(tlApp, tlRows)
+  const res = await window.studio.buildReel(tlApp, tlRows, tlLoop)
   stop(); btn.disabled = false
   if (!res?.ok) { if (tlLog) tlLog.textContent += `\n✗ ${res?.error || 'build failed'}\n`; showToast(res?.error || 'build failed', 3500); return }
   if (tlLog) tlLog.textContent += `\n✓ done\n`

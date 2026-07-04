@@ -17,6 +17,8 @@
 //   # crf 28
 //   # size 320x200            (optional; default = first clip's dimensions)
 //   # xfade fade 0.5          (default transition type + seconds between cuts)
+//   # loop fade 0.5           (optional: crossfade the reel's END back into its START → a
+//                              SEAMLESS looping video; any xfade type; needs total > 2×secs)
 //   sloop/01-autodrive                      ← editor/public/clips/sloop/01-autodrive.webm
 //   moog/01-fat        | wipeleft 0.6       ← transition INTO this clip overrides the default
 //   easel/01-selfplay  | circleopen 0.5 | trim 0 7 | speed 1.25
@@ -74,7 +76,7 @@ if (!out) out = reelName ? path.join(REELS_OUT, `${reelName}.webm`) : path.join(
 out = path.resolve(out)
 
 // ── parse the manifest ────────────────────────────────────────
-const meta = { fps: 30, crf: 28, size: null, scale: 3, xtype: 'fade', xdur: 0.5 }
+const meta = { fps: 30, crf: 28, size: null, scale: 3, xtype: 'fade', xdur: 0.5, loopType: null, loopDur: 0 }
 const shots = []
 for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   const line = raw.trim()
@@ -85,6 +87,7 @@ for (const raw of fs.readFileSync(manifest, 'utf8').split('\n')) {
   if ((m = line.match(/^#\s*size\s+(\d+)x(\d+)/))) { meta.size = [+m[1], +m[2]]; continue }
   if ((m = line.match(/^#\s*scale\s+(\d+)/)))      { meta.scale = +m[1]; continue }
   if ((m = line.match(/^#\s*xfade\s+(\w+)\s+([\d.]+)/))) { meta.xtype = m[1]; meta.xdur = +m[2]; continue }
+  if ((m = line.match(/^#\s*loop\s+(\w+)\s+([\d.]+)/)))  { meta.loopType = m[1]; meta.loopDur = +m[2]; continue }
   if (line.startsWith('#')) continue
   if (line.startsWith('@card')) {   // a generated text-card part (baked from the titlecard cart)
     const parts = line.split('|').map(s => s.trim())
@@ -272,6 +275,29 @@ for (let i = 1; i < shots.length; i++) {
   chain.push(`[${acur}][a${i}]acrossfade=d=${d}[${ao}]`)
   vcur = vo; acur = ao
   combined = combined + shots[i].dur - d
+}
+
+// optional seamless LOOP: crossfade the reel's tail back into its head so it wraps with no stutter.
+// out = V[d:T] then V[0:d] (a/xfaded) → length T−d, and out(start) == out(end). Needs T > 2·d.
+let looped = false
+if (meta.loopType && meta.loopDur > 0) {
+  const d = meta.loopDur, T = combined
+  if (T <= 2 * d + 0.05) {
+    console.error(`skip loop: the reel (${T.toFixed(1)}s) is too short for a ${d}s loop crossfade (needs > ${(2 * d).toFixed(1)}s)`)
+  } else {
+    chain.push(`[${vcur}]split[lva][lvb]`)   // fps= re-stamps CFR after trim (xfade needs constant frame rate)
+    chain.push(`[lva]trim=start=${d.toFixed(3)}:end=${T.toFixed(3)},setpts=PTS-STARTPTS,fps=${meta.fps}[lvlate]`)
+    chain.push(`[lvb]trim=end=${d.toFixed(3)},setpts=PTS-STARTPTS,fps=${meta.fps}[lvhead]`)
+    chain.push(`[lvlate][lvhead]xfade=transition=${meta.loopType}:duration=${d}:offset=${(T - 2 * d).toFixed(3)}[vloop]`)
+    // audio: acrossfade misbehaves after atrim, so crossfade by hand — fade the tail out, fade the
+    // head in and delay it onto the tail, then sum (amix normalize=0). Same T−d result.
+    const ms = Math.round((T - 2 * d) * 1000)
+    chain.push(`[${acur}]asplit[ala][alb]`)
+    chain.push(`[ala]atrim=start=${d.toFixed(3)},asetpts=N/SR/TB,afade=t=out:st=${(T - 2 * d).toFixed(3)}:d=${d}[allate]`)
+    chain.push(`[alb]atrim=end=${d.toFixed(3)},asetpts=N/SR/TB,afade=t=in:st=0:d=${d},adelay=${ms}|${ms}[alhead]`)
+    chain.push(`[allate][alhead]amix=inputs=2:duration=longest:normalize=0[aloop]`)
+    vcur = 'vloop'; acur = 'aloop'; combined = T - d; looped = true
+  }
 }
 const filter = [...vparts, ...aparts, ...chain].join(';')
 

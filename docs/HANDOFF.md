@@ -45,12 +45,16 @@ neither is "the" thread. Shipped/open ledger for both: [`STATUS.md`](STATUS.md) 
 > `de_resize`/`de_is_resizable` (`platform.h`/`ios/Sources/engine.h`/`studio.c`) + `CanvasView.swift`
 > reads dims LIVE and calls `de_resize(bounds points)` from `layoutSubviews` for a resizable cart →
 > `respond` fills iPhone SE / 15 / iPad Pro 12.9 on the sim (build: `RESIZABLE=1 CART=respond DEVICE=…
-> ./build.sh`). **GOTCHA:** `build-all` misses the DE_NO_RAYLIB path — run `build-nr.sh` after touching
-> studio.c (the `--resize`/overlay work broke iOS via missing `raylib_compat` stubs; fixed). **Next
-> agent: Phase 2 safe-area + rotation** (`safe_rect()` for the notch; landscape in Info.plist), then
-> **Phase 3** per-rack density arrangements (media-query-like; `respond` only scales one topology).
-> Pick-up note atop [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Hot files:
-> `runtime/studio.c` (SW raster + fb), `ios/Sources/CanvasView.swift`. Ledger: [`STATUS.md`](STATUS.md) #2.
+> ./build.sh`). **Safe-area + rotation DONE too:** `de_set_safe_area`/`safe_rect()` (controls dodge the
+> notch), landscape allowed in Info.plist + `layoutSubviews`→`de_resize` reflows on rotate (both
+> confirmed on the sim). So **Phase 2 is fully done — the engine foundation (fill/safe-area/rotation/
+> growable fb) carries device-adaptive layout.** **GOTCHA:** `build-all` misses the DE_NO_RAYLIB path —
+> run `build-nr.sh` after touching studio.c (the `--resize`/overlay work broke iOS via missing
+> `raylib_compat` stubs; fixed). **Next agent: Phase 3** — per-rack density arrangements (media-query-like:
+> more controls on iPad, collapsed/tabbed on iPhone per `acidfit`'s disclosure model; `respond` only
+> scales one topology today). Pick-up note atop
+> [`design/device-adaptive-layout.md`](design/device-adaptive-layout.md). Hot files: `runtime/studio.c`
+> (SW raster + fb), `ios/Sources/CanvasView.swift`. Ledger: [`STATUS.md`](STATUS.md) #2.
 
 > **▶ ACTIVE THREAD (2026-07-03) — store / ASO + the app-trailer builder.**
 > (A separate lane from the one above.) A big session. Shipped, all committed to `master`

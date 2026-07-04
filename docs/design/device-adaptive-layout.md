@@ -1,6 +1,6 @@
 # Device-adaptive layout — one cart, beautiful on iPhone AND iPad, both orientations
 
-STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 iOS FILL DONE — a resizable cart reflows to fill any device (verified iPhone SE / 15 / iPad Pro 12.9 on the sim). Resume at Phase 2 safe-area + rotation, then Phase 3 (per-rack arrangements).**
+STATUS: BUILDING — **Phase 0 banked; Phase 1 DONE (2026-07-03) + growable framebuffer (2026-07-04); Phase 2 DONE (2026-07-04) — a resizable cart fills any device + dodges the notch + reflows on rotate (verified iPhone SE / 15 / iPad Pro 12.9 + landscape on the sim). Resume at Phase 3 (per-rack density arrangements) — then Phase 4 (store assets).**
 This is the **execution + product** doc that graduates the deferred thinking now that there's a
 concrete need (Tinyjam on the App Store).
 
@@ -41,12 +41,18 @@ the 320×200 letterbox baseline; a fixed cart (`de_is_resizable()==0`) stays let
 DE_NO_RAYLIB (iOS/`build-nr`) build (missing `GetScreenWidth`/`IsWindowState`/`SetWindowSize`/`ImageCrop`
 in `raylib_compat`); **run `build-nr.sh` after touching studio.c**, not just `build-all`.
 
-**Start here to resume: Phase 2 safe-area + rotation.** (a) `safe_rect()` — plumb `UIView.safeAreaInsets`
-through a `de_set_safe_area(l,t,r,b)` seam + a cart-facing `safe_rect(&x,&y,&w,&h)`, so a rack lays out
-inside the notch/home-bar (today `respond`'s title bar tucks under the status bar). (b) rotation — allow
-landscape in the generated Info.plist (`INFOPLIST_KEY_UISupportedInterfaceOrientations*`) and confirm
-`layoutSubviews`→`de_resize` reflows it. Then **Phase 3** (per-rack arrangements — the media-query-like
-density adaptation; `respond` only scales its one topology today). Nothing in Phase 0/1 pending.
+**Safe-area + rotation are DONE too (2026-07-04):** seam `de_set_safe_area(l,t,r,b)` fed from
+`UIView.safeAreaInsets` in `layoutSubviews` + cart-facing `safe_rect(&x,&y,&w,&h)` (whole canvas on
+desktop, chrome-excluded on device); `respond` lays controls inside it while `cls` bleeds the bg
+full — verified the title bar clears the iPhone 15 notch. Rotation: `INFOPLIST_KEY_UISupportedInterfaceOrientations*`
+allows landscape, `layoutSubviews`→`de_resize` reflows on rotate (confirmed landscape on the sim).
+
+**Start here to resume: Phase 3 — per-rack density arrangements** (the media-query-like adaptation:
+more controls on iPad, collapsed/tabbed on iPhone, per `acidfit`'s progressive-disclosure model).
+`respond` only *scales* its one topology today; a real rack keys its arrangement on the finger-budget
+(`device_class()` + orientation) using the `lay.h` toolkit + the disclosure behaviour layer. The
+engine foundation (fill, safe-area, rotation, growable fb) is complete. Nothing in Phase 0/1/2 pending.
+(Deferred niceties: `device_class()` helper; a HiDPI points-vs-px pass — iOS is SCALE=1 today.)
 
 **Where this sits among the three sibling docs — they are NOT duplicates:**
 - **This doc** = the *engine change + product plan*: make `SCREEN_W/H` runtime + physically-sized,
@@ -382,9 +388,10 @@ stays available as an *optional* style; full-bleed becomes the honest default.
   - **FILL ✅ DONE (2026-07-04).** `de_resize`/`de_is_resizable` seam + `CanvasView` hands the engine the
     device point-viewport → a resizable cart fills the device (verified iPhone SE / 15 / iPad Pro 12.9).
     Live realloc on size change falls out of the growable framebuffer. `build.sh RESIZABLE=1`.
-  - **safe-area + rotation** — next: `safe_rect()` (plumb `safeAreaInsets`) so controls dodge the
-    notch/home-bar; allow landscape in Info.plist + confirm `layoutSubviews`→`de_resize` rotates. (backing
-    scale: iOS is SCALE=1 so points==fb px today; a HiDPI/points-vs-px pass can come later if needed.)
+  - **safe-area + rotation ✅ DONE (2026-07-04).** `de_set_safe_area` seam (from `safeAreaInsets`) +
+    cart `safe_rect()` → controls dodge the notch/home-bar (verified iPhone 15). Landscape allowed in
+    Info.plist; `layoutSubviews`→`de_resize` reflows on rotate (confirmed on the sim). (iOS is SCALE=1
+    so points==fb px today; a HiDPI/points-vs-px pass + a `device_class()` helper can come later.)
 - **Phase 3 — graduate `lay.h` + reflow the Tinyjam racks.** Move the toolkit to `runtime/lay.h`;
   give each rack its 2–3 arrangements. **This is genuine per-rack layout work** — acidrack fills all
   240px densely today, so it's a real redesign, done rack by rack (see risks).
